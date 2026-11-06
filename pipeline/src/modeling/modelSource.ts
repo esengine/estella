@@ -22,6 +22,7 @@ import { decimate, triangleCount } from './decimate';
 import { displace, DISPLACE_PATTERNS } from './displace';
 import { stain } from './stain';
 import { cardsOnly, hair, hasCards, type HairSway } from './hair';
+import { scatter } from './scatter';
 import { checkAnimations, checkController, checkRig, checkShapes, resolveJoints, type AnimationSource, type ControllerSource, type RigSource, type ShapeSource } from './rig';
 import { compact, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
@@ -71,6 +72,8 @@ export interface ModelMaterial {
     alpha?: 'cutout' | 'blend';
     /** Below this a `cutout` is a hole. Default 0.5. */
     cutoff?: number;
+    /** Light it gives off, linear [r, g, b], past 1 for what glows and blooms: fire, a lit window. With a colour bake, multiplied by the paint. */
+    emissive?: readonly number[];
 }
 
 export interface ModelAttachment {
@@ -107,7 +110,7 @@ export interface NormalBakeSource {
 }
 
 type Kind = 'number' | 'integer' | 'boolean' | 'string' | 'vec3' | 'number|vec3' | 'number|vec2' | 'number|numbers'
-    | 'color' | 'points' | 'faces' | 'edges' | 'axis' | 'pivot' | 'parts' | 'noise' | 'sections' | 'section' | 'vec3s' | 'numbers' | 'operation' | 'uvmode' | 'number|vec2only' | 'vec2' | 'pattern' | 'near' | 'where';
+    | 'color' | 'points' | 'faces' | 'edges' | 'axis' | 'pivot' | 'parts' | 'noise' | 'sections' | 'section' | 'vec3s' | 'numbers' | 'operation' | 'uvmode' | 'number|vec2only' | 'vec2' | 'pattern' | 'near' | 'where' | 'guides' | 'line';
 
 interface OpSpec {
     params: Record<string, Kind>;
@@ -140,8 +143,9 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     boolean: { params: { operation: 'operation', with: 'faces', from: 'faces', keep: 'boolean', tag: 'string', color: 'color' }, required: ['operation', 'with'], run: booleanOp as unknown as OpSpec['run'], says: 'cuts or joins closed solids: subtract `with` from `from` makes a real hole' },
     subdivide: { params: { faces: 'faces', levels: 'integer', crease: 'number' }, required: [], run: subdivide as unknown as OpSpec['run'], says: 'rounds whole shells into smooth surfaces, keeping edges sharper than `crease` degrees' },
     displace: { params: { faces: 'faces', near: 'near', pattern: 'pattern', amplitude: 'number', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', count: 'integer', axis: 'axis', mirror: 'axis', detail: 'number' }, required: ['pattern', 'amplitude', 'scale'], run: ((mesh: PolyMesh, params: never) => displace(mesh, params)) as OpSpec['run'], says: 'pushes fine detail out of the surface along its normal, splitting faces as far as the pattern needs: bumps, wrinkles, cracks, scales, pores, ribs, weave, scratches or pleats' },
-    hair: { params: { faces: 'faces', count: 'integer', length: 'number', width: 'number', segments: 'integer', droop: 'number', comb: 'vec3', spread: 'number', uneven: 'number', wave: 'number', taper: 'number', seed: 'integer', color: 'color', tipColor: 'color', tag: 'string' }, required: ['faces', 'length'], run: hair as unknown as OpSpec['run'], says: 'grows cards of hair from these faces, falling around what is there; run it again for another layer, and only the cards are kept' },
-    stain: { params: { faces: 'faces', near: 'near', hard: 'boolean', color: 'color', roughness: 'number', metallic: 'number', alpha: 'number', amount: 'number', pattern: 'pattern', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', threshold: 'number', softness: 'number', where: 'where', reach: 'number', facing: 'vec3', detail: 'number' }, required: [], run: ((mesh: PolyMesh, params: never) => stain(mesh, params)) as OpSpec['run'], says: 'lays colour, `roughness`, `metallic` or `alpha` over the surface by a pattern, by shape (`where`: cavity for dirt in what is sunken, edges for wear on what stands out), by which way it faces, or around a spot: pupils, moss, grime' },
+    hair: { params: { faces: 'faces', count: 'integer', length: 'number', guides: 'guides', gather: 'number', width: 'number', segments: 'integer', droop: 'number', comb: 'vec3', spread: 'number', uneven: 'number', wave: 'number', taper: 'number', seed: 'integer', color: 'color', tipColor: 'color', tag: 'string' }, required: ['faces'], run: hair as unknown as OpSpec['run'], says: 'grows cards of hair from these faces, falling around what is there, or along `guides` for a ponytail or a fringe; run it again for another layer, and only the cards are kept' },
+    scatter: { params: { source: 'faces', count: 'integer', faces: 'faces', path: 'vec3s', within: 'vec3s', scale: 'number|numbers', taper: 'number', spin: 'number', tilt: 'number', colors: 'vec3s', keep: 'boolean', seed: 'integer', tag: 'string' }, required: ['source', 'count'], run: scatter as unknown as OpSpec['run'], says: 'puts copies of the `source` faces across `faces`, along a `path` or through a box `within`, each sized, turned and coloured at random: feathers, rivets, the lights of a far city' },
+    stain: { params: { faces: 'faces', near: 'near', line: 'line', hard: 'boolean', color: 'color', roughness: 'number', metallic: 'number', alpha: 'number', amount: 'number', pattern: 'pattern', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', threshold: 'number', softness: 'number', where: 'where', reach: 'number', facing: 'vec3', detail: 'number' }, required: [], run: ((mesh: PolyMesh, params: never) => stain(mesh, params)) as OpSpec['run'], says: 'lays colour, `roughness`, `metallic` or `alpha` over the surface by a pattern, by shape (`where`: cavity for dirt in what is sunken, edges for wear on what stands out), by which way it faces, around a spot, or along a `line`: pupils, eyelids, seams, moss, grime' },
     decimate: { params: { from: 'string', faces: 'faces', ratio: 'number', triangles: 'integer', error: 'number' }, required: [], run: decimate as unknown as OpSpec['run'], says: 'leaves fewer triangles over the same surface: `ratio` to keep or `triangles` to end with, stopping sooner if the surface would move more than `error` (default 0.02) of its size; `from` thins the surface as it stood after that step, before its fine detail' },
     uv: { params: { faces: 'faces', mode: 'uvmode', axis: 'string', at: 'vec3', scale: 'number|vec2only', repeat: 'number|vec2only', offset: 'vec2', rotate: 'number' }, required: ['mode'], run: uvStep as unknown as OpSpec['run'], says: 'sets how faces take a texture: box, planar, cylinder or sphere' },
     delete: { params: { faces: 'faces' }, required: ['faces'], run: ops.deleteFaces as OpSpec['run'], says: 'removes faces, leaving a hole' },
@@ -299,6 +303,11 @@ const KIND_CHECK: Record<Kind, (v: unknown) => string | null> = {
     uvmode: (v) => (['box', 'planar', 'cylinder', 'sphere'].includes(v as string) ? null : 'must be box, planar, cylinder or sphere'),
     'number|vec2only': (v) => (isNum(v) || isNums(v, 2) ? null : 'must be a number or [u, v]'),
     vec2: (v) => (isNums(v, 2) ? null : 'must be [u, v]'),
+    line: (v) => {
+        const n = v as { points?: unknown; width?: unknown } | null;
+        return typeof n === 'object' && n !== null && Array.isArray(n.points) && n.points.length >= 2 && n.points.every((q) => isNums(q, 3)) && isNum(n.width) && Object.keys(n).every((k) => k === 'points' || k === 'width') ? null : 'must be { points: [[x, y, z], ...], width }';
+    },
+    guides: (v) => (Array.isArray(v) && v.every((line) => Array.isArray(line) && line.length >= 2 && line.every((q) => isNums(q, 3))) ? null : 'must be an array of lines, each two or more [x, y, z]'),
     pattern: (v) => (DISPLACE_PATTERNS.includes(v as never) ? null : `must be one of ${DISPLACE_PATTERNS.join(', ')}`),
     where: (v) => (v === 'cavity' || v === 'edges' ? null : 'must be cavity or edges'),
     near: (v) => {
@@ -389,16 +398,23 @@ export function validateModelSource(raw: unknown): ModelSource {
     if (!Array.isArray(source.steps)) throw new ModelBuildError('`steps` must be an array', null, null, null);
     if (source.material !== undefined) {
         const m = source.material as Record<string, unknown> | null;
-        if (typeof m !== 'object' || m === null || Array.isArray(m)) throw new ModelBuildError('material must be { roughness?, metallic?, alpha?, cutoff? }', null, null, null);
+        if (typeof m !== 'object' || m === null || Array.isArray(m)) throw new ModelBuildError('material must be { roughness?, metallic?, alpha?, cutoff?, emissive? }', null, null, null);
         for (const [key, value] of Object.entries(m)) {
             if (key === 'alpha') {
                 if (value !== 'cutout' && value !== 'blend') throw new ModelBuildError('material.alpha must be cutout or blend', null, null, null);
                 continue;
             }
-            if (!['roughness', 'metallic', 'cutoff'].includes(key)) throw new ModelBuildError(`material has an unknown field "${key}"; it takes roughness, metallic, alpha, cutoff`, null, null, null);
+            if (key === 'emissive') {
+                if (!(isNums(value, 3) && (value as number[]).every((c) => c >= 0))) throw new ModelBuildError('material.emissive must be [r, g, b], none below 0', null, null, null);
+                continue;
+            }
+            if (!['roughness', 'metallic', 'cutoff'].includes(key)) throw new ModelBuildError(`material has an unknown field "${key}"; it takes roughness, metallic, alpha, cutoff, emissive`, null, null, null);
             if (!(isNum(value) && value >= 0 && value <= 1)) throw new ModelBuildError(`material.${key} must be 0..1`, null, null, null);
         }
     }
+    (source.steps as Partial<ModelStep>[]).forEach((s, i) => {
+        if (s?.op === 'hair' && s.length === undefined && s.guides === undefined) throw new ModelBuildError(`${stepLabel(s, i)}: needs \`length\` or \`guides\``, i, s.id ?? null, 'hair');
+    });
     if (Array.isArray(source.steps) && (source.steps as Partial<ModelStep>[]).some((s) => s?.op === 'hair')) {
         if (source.normalBake !== undefined || source.uvAtlas) throw new ModelBuildError('a hair model\'s cards take their texture where the step puts them, so it has no normalBake or uvAtlas', null, null, null);
         if (source.rig !== undefined || source.shapes !== undefined) throw new ModelBuildError('a hair model has no rig or shapes of its own: `hairSway` gives it bones, and placed under a head joint it follows that', null, null, null);

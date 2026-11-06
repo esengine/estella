@@ -3884,6 +3884,10 @@ export const NOTED = {
     {"note":"A material's normal and metal-rough maps are read as data in the editor's Play."},
   "fix(minigame): no mini-game module needs BigInt64Array, so WeChat DevTools boots the game":
     {"note":"A WeChat mini-game opens in WeChat DevTools."},
+  "feat(modeling): hair follows guides over the head, stain draws lines, scatter lays out copies, and a material gives off light":
+    {"note":"An AI can model a character's hair by where it goes, and draw on a surface."},
+  "feat(mcp): model_write describes the new steps, and apply_scene_ops says which field a component does not have":
+    {"note":"An AI can model a character's hair by where it goes, and draw on a surface."},
   "fix(postprocess): Color Grade contrast keeps a dark scene in a linear project":
     {"note":"Color Grade contrast no longer blacks out a dark scene in a linear project."},
   "feat(look): pictures laid side by side, one outlined over another, and their exact colours":

@@ -11,10 +11,25 @@
 import { DISPLACE_PATTERNS, finestShare, mirroredPoint, nearWeight, patternField, reachedFaces, refine, MAX_DISPLACE_TRIANGLES, type DisplaceParams, type DisplacePattern } from './displace';
 import { compact, faceArea, faceNormal, normalize, selectFaces, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
+/** How far a mirrored point is from a line of points. */
+function toLine(points: readonly Vec3[], mirror: StainParams['mirror'], x: number, y: number, z: number): number {
+    let best = Infinity;
+    for (let i = 1; i < points.length; i++) {
+        const a = mirroredPoint(mirror, points[i - 1]!), b = mirroredPoint(mirror, points[i]!);
+        const [dx, dy, dz] = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+        const span = dx * dx + dy * dy + dz * dz;
+        const t = span > 0 ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy + (z - a[2]) * dz) / span)) : 0;
+        best = Math.min(best, Math.hypot(x - a[0] - dx * t, y - a[1] - dy * t, z - a[2] - dz * t));
+    }
+    return best;
+}
+
 export interface StainParams {
     faces?: FaceSelector;
     /** Only around here. Fades to its edge, or with `hard` stops there: a pupil. */
     near?: { at: Vec3; radius: number };
+    /** Only along a line drawn on the surface, its points on or near it: an eyelid, a lip, a seam. Fades to `width` either side, or with `hard` stops there. */
+    line?: { points: readonly Vec3[]; width: number };
     hard?: boolean;
     /** Linear [r, g, b], over what is there. */
     color?: readonly number[];
@@ -118,7 +133,9 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
     if (p.amount !== undefined && !(p.amount >= 0 && p.amount <= 1)) throw new Error(`amount ${p.amount} must be 0..1`);
     if (p.softness !== undefined && !(p.softness > 0)) throw new Error(`softness ${p.softness} must be positive`);
     if (p.near && !(p.near.radius > 0)) throw new Error(`near.radius ${p.near.radius} must be positive`);
-    if (p.pattern === undefined && p.where === undefined && p.facing === undefined && p.near === undefined) throw new Error('say where: give at least one of pattern, where, facing, near; `paint` is for all of a set of faces');
+    if (p.line && !(p.line.width > 0)) throw new Error(`line.width ${p.line.width} must be positive`);
+    if (p.line && p.line.points.length < 2) throw new Error('line.points needs two points or more');
+    if (p.pattern === undefined && p.where === undefined && p.facing === undefined && p.near === undefined && p.line === undefined) throw new Error('say where: give at least one of pattern, where, facing, near, line; `paint` is for all of a set of faces');
 
     const selector = p.faces ?? 'all';
     let hit = selectFaces(mesh, selector);
@@ -127,11 +144,20 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
         hit = reachedFaces(mesh, hit, p.near, p.mirror);
         if (hit.length === 0) throw new Error(`no surface of \`faces\` within ${p.near.radius} of ${JSON.stringify(p.near.at)}`);
     }
+    if (p.line) {
+        const { points, width } = p.line;
+        const [lo, hi] = [[0, 1, 2].map((k) => Math.min(...points.map((q) => q[k]!))), [0, 1, 2].map((k) => Math.max(...points.map((q) => q[k]!)))];
+        const around = { at: [0, 1, 2].map((k) => (lo[k]! + hi[k]!) / 2) as unknown as Vec3, radius: Math.hypot(hi[0]! - lo[0]!, hi[1]! - lo[1]!, hi[2]! - lo[2]!) / 2 + width };
+        hit = reachedFaces(mesh, hit, around, p.mirror);
+        if (hit.length === 0) throw new Error(`no surface of \`faces\` within ${width} of the line`);
+    }
     const asPattern = { ...p, pattern: p.pattern ?? 'bumps', amplitude: 1, scale: p.scale ?? 1 } as DisplaceParams;
     const longest = p.detail
         ?? (p.pattern ? Math.min(...(p.stretch ?? [1, 1, 1])) * p.scale! * finestShare(asPattern)
             // A hard edge is as clean as the faces it runs along.
-            : p.near && p.hard ? p.near.radius / 8 : null);
+            : p.near && p.hard ? p.near.radius / 8
+                // A line is as fine as the faces under it, whatever those happen to be.
+                : p.line ? p.line.width / 3 : null);
     const { mesh: fine, short } = longest === null ? { mesh, short: false } : refine(mesh, new Set(hit), longest, budget);
 
     const chosen = new Set(hit);
@@ -161,6 +187,11 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
         if (p.near) {
             const w = nearWeight(p.near, p.mirror, x, y, z);
             m *= p.hard ? (w > 0 ? 1 : 0) : w;
+            if (m === 0) return 0;
+        }
+        if (p.line) {
+            const t = 1 - toLine(p.line.points, p.mirror, x, y, z) / p.line.width;
+            m *= t <= 0 ? 0 : p.hard ? 1 : t * t * (3 - 2 * t);
             if (m === 0) return 0;
         }
         const n: Vec3 = [normals[v * 3]!, normals[v * 3 + 1]!, normals[v * 3 + 2]!];

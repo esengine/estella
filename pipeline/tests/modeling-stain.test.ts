@@ -203,3 +203,30 @@ describe('normalBake color', () => {
         expect(applyModelEdits(source, [{ op: 'settings', fields: { normalBake: { size: 64 } } }]).normalBake?.color).toBeUndefined();
     });
 });
+
+describe('a stain along a line', () => {
+    const ball: ModelStep = { op: 'sphere', radius: 1, rings: 24, sides: 48, tag: 'ball', color: [1, 1, 1] };
+    const lid: [number, number, number][] = [[-0.5, 0, 0.866], [0, 0.1, 0.995], [0.5, 0, 0.866]];
+    const stained = (extra: Record<string, unknown> = {}) => bakeModel({ version: 1, steps: [ball, { op: 'stain', line: { points: lid, width: 0.04 }, color: [0, 0, 0], ...extra }] }).poly;
+    const dark = (m: ReturnType<typeof stained>): number[][] => m.faces.filter((f) => (f.color?.[0] ?? 1) < 0.5).map((f) => [...m.positions[f.v[0]!]!]);
+
+    it('darkens along the whole of it and nowhere else', () => {
+        const hit = dark(stained());
+        expect(hit.length).toBeGreaterThan(20);
+        expect(Math.min(...hit.map((q) => q[0]!))).toBeLessThan(-0.4);
+        expect(Math.max(...hit.map((q) => q[0]!))).toBeGreaterThan(0.4);
+        for (const q of hit) expect(Math.abs(q[1]! - (0.1 - Math.abs(q[0]!) * 0.2))).toBeLessThan(0.08);
+    });
+
+    it('draws on both sides across a mirror', () => {
+        const hit = dark(stained({ mirror: 'z' }));
+        expect(hit.some((q) => q[2]! > 0.5)).toBe(true);
+        expect(hit.some((q) => q[2]! < -0.5)).toBe(true);
+    });
+
+    it('says what is wrong', () => {
+        expect(() => validateModelSource({ steps: [ball, { op: 'stain', line: { points: [[0, 0, 0]], width: 1 } }] })).toThrow(/line/);
+        expect(() => bakeModel({ version: 1, steps: [ball, { op: 'stain', line: { points: lid, width: -1 }, color: [0, 0, 0] }] })).toThrow(/width/);
+        expect(() => bakeModel({ version: 1, steps: [ball, { op: 'stain', line: { points: [[9, 9, 9], [9, 9, 10]], width: 0.1 }, color: [0, 0, 0] }] })).toThrow(/no surface/);
+    });
+});

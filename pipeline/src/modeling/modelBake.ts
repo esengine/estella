@@ -276,7 +276,7 @@ function withTangents(mesh: MeshData): MeshData {
 }
 
 /** What a material has to say about a model, or null where a plain MeshRenderer says all of it. */
-export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, maps: { normal?: string | null; surface?: string | null; occlusion?: string | null; hair?: { flow: string; shift: string } | null }): Record<string, unknown> | null {
+export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, maps: { normal?: string | null; surface?: string | null; occlusion?: string | null; color?: string | null; hair?: { flow: string; shift: string } | null }): Record<string, unknown> | null {
     const { material } = source;
     if (maps.hair) {
         return {
@@ -311,6 +311,10 @@ export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, ma
         cull: cullBackfaces && !material?.alpha ? CullMode.Back : CullMode.None,
         properties: {
             ...(material?.alpha === 'cutout' ? { u_alphaCutoff: material.cutoff ?? 0.5 } : {}),
+            ...(material?.emissive ? {
+                u_emissive: { r: material.emissive[0]!, g: material.emissive[1]!, b: material.emissive[2]!, a: 1 },
+                ...(maps.color ? { u_emissiveMap: maps.color } : {}),
+            } : {}),
             ...(maps.normal ? { u_normalMap: maps.normal } : {}),
             ...(maps.occlusion ? {
                 u_occlusionMap: maps.occlusion,

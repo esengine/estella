@@ -20,8 +20,12 @@ export interface HairParams {
     faces: FaceSelector;
     /** How many. Default 300. */
     count?: number;
-    /** How long a card is, in model units. */
-    length: number;
+    /** How long a card is, in model units. Required unless `guides` say. */
+    length?: number;
+    /** Lines the hair follows, each from near the scalp to its ends: a ponytail, a fringe, a parting. A card takes the line starting nearest its root, and runs as long as it, in place of `droop` and `comb`. */
+    guides?: readonly (readonly Vec3[])[];
+    /** Along `guides`, how far cards close up onto the line by the end, 0..1: 1 gathers them into a lock. Default 0. */
+    gather?: number;
     /** How wide at the root, in model units. Default a tenth of its length. */
     width?: number;
     /** Quads along a card: more follows a curve better. Default 6. */
@@ -51,10 +55,42 @@ const unit = (a: number, b: number, c: number, seed: number): number => hash3(a,
 const MAX_CARDS = 20000;
 const MAX_SEGMENTS = 24;
 
+const distance = (a: Vec3, b: Vec3): number => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+
+interface Guide { points: readonly Vec3[]; size: number; at(t: number): Vec3; way(t: number): Vec3 }
+
+/** A line with its points rounded off, and read by the share of its length: a card has more rows than a guide has points. */
+function guideOf(line: readonly Vec3[]): Guide {
+    if (line.length < 2) throw new Error('each of `guides` needs two points or more');
+    const round = (t: number): Vec3 => {
+        const place = Math.max(0, Math.min(line.length - 1 - 1e-6, t * (line.length - 1)));
+        const i = Math.floor(place);
+        const w = place - i;
+        const [p0, p1, p2, p3] = [line[Math.max(0, i - 1)]!, line[i]!, line[i + 1]!, line[Math.min(line.length - 1, i + 2)]!];
+        const k = (a: number, b: number, c: number, e: number): number => 0.5 * (2 * b + (c - a) * w + (2 * a - 5 * b + 4 * c - e) * w * w + (3 * b - a - 3 * c + e) * w * w * w);
+        return [k(p0[0], p1[0], p2[0], p3[0]), k(p0[1], p1[1], p2[1], p3[1]), k(p0[2], p1[2], p2[2], p3[2])];
+    };
+    const SAMPLES = 48;
+    const lengths = [0];
+    for (let i = 1; i <= SAMPLES; i++) lengths.push(lengths[i - 1]! + distance(round((i - 1) / SAMPLES), round(i / SAMPLES)));
+    const size = lengths[SAMPLES]!;
+    if (!(size > 0)) throw new Error('one of `guides` has no length');
+    const at = (t: number): Vec3 => {
+        const wanted = Math.max(0, Math.min(1, t)) * size;
+        let i = 1;
+        while (i < SAMPLES && lengths[i]! < wanted) i++;
+        const span = lengths[i]! - lengths[i - 1]!;
+        return round((i - 1 + (span > 0 ? (wanted - lengths[i - 1]!) / span : 0)) / SAMPLES);
+    };
+    return { points: line, size, at, way: (t) => normalize(sub(at(Math.min(1, t + 0.02)), at(Math.max(0, t - 0.02)))) };
+}
+
 export function hair(mesh: PolyMesh, p: HairParams): PolyMesh {
     const count = p.count ?? 300;
     const segments = p.segments ?? 6;
-    if (!(p.length > 0)) throw new Error(`length ${p.length} must be positive`);
+    const guides = p.guides?.length ? p.guides.map(guideOf) : null;
+    if (!guides && !(p.length! > 0)) throw new Error(`length ${p.length} must be positive, or \`guides\` must say how far it runs`);
+    if (p.gather !== undefined && !(p.gather >= 0 && p.gather <= 1)) throw new Error(`gather ${p.gather} must be 0..1`);
     if (!Number.isInteger(count) || count < 1 || count > MAX_CARDS) throw new Error(`count ${count} must be 1..${MAX_CARDS}`);
     if (!Number.isInteger(segments) || segments < 1 || segments > MAX_SEGMENTS) throw new Error(`segments ${segments} must be 1..${MAX_SEGMENTS}`);
     for (const [name, v] of [['droop', p.droop], ['spread', p.spread], ['uneven', p.uneven], ['taper', p.taper]] as const) {
@@ -66,7 +102,7 @@ export function hair(mesh: PolyMesh, p: HairParams): PolyMesh {
 
     const seed = p.seed ?? 1;
     const droop = p.droop ?? 0.7, spread = p.spread ?? 0.15, uneven = p.uneven ?? 0.3, taper = p.taper ?? 0.6;
-    const width = p.width ?? p.length * 0.1;
+    const width = p.width ?? (guides ? guides[0]!.size : p.length!) * 0.1;
     const comb: Vec3 = p.comb ?? [0, 0, 0];
     const color = p.color ?? [0.25, 0.14, 0.07];
     const tip = p.tipColor ?? color;
@@ -74,6 +110,7 @@ export function hair(mesh: PolyMesh, p: HairParams): PolyMesh {
     const surface = compact({ positions: mesh.positions, faces: mesh.faces.filter((f) => f.card === undefined) });
     const { min, max } = boundsOf(surface);
     const middle: Vec3 = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];
+    const reach = Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) * 0.006;
     // The head and not the layers before: cards lie over each other, and hair does not push hair away.
     const tree = new TriangleTree(trianglesOf(surface));
     const firstCard = mesh.faces.reduce((next, f) => Math.max(next, (f.card ?? -1) + 1), 0);
@@ -107,8 +144,10 @@ export function hair(mesh: PolyMesh, p: HairParams): PolyMesh {
         const root = add(add(scale(piece.a, 1 - u - v), scale(piece.b, u)), scale(piece.c, v));
         const out = piece.n;
         const stray: Vec3 = [(r(3) - 0.5) * 2 * spread, (r(4) - 0.5) * 2 * spread, (r(5) - 0.5) * 2 * spread];
-        const size = p.length * (1 - uneven * r(6));
+        const nearest = guides ? guides.reduce((best, g) => (distance(g.points[0]!, root) < distance(best.points[0]!, root) ? g : best)) : null;
+        const size = (nearest ? nearest.size : p.length!) * (1 - uneven * r(6));
         const step = size / segments;
+        const fromLine = nearest ? sub(root, nearest.points[0]!) : ([0, 0, 0] as Vec3);
         // Each step leans further toward the ground, by as much as `droop` asks over the card's whole length.
         const pull = droop * 2.4 / segments;
         let d = normalize(add(add(out, comb), stray));
@@ -120,6 +159,20 @@ export function hair(mesh: PolyMesh, p: HairParams): PolyMesh {
         const phase = r(9) * Math.PI * 2;
         const rows: { at: Vec3; side: Vec3 }[] = [];
         for (let s = 0; s <= segments; s++) {
+            if (nearest) {
+                const along = (s / segments) * (size / nearest.size);
+                const closing = 1 - (p.gather ?? 0) * along;
+                at = add(add(nearest.at(along), scale(fromLine, closing)), scale(stray, along * size));
+                d = nearest.way(along);
+                // Over the head, not through it: a line from behind the ear to the tie is a chord of the skull.
+                // Outside is where the surface lies between a point and the middle of what it grew from.
+                for (let tries = 0; tries < 100; tries++) {
+                    const way = sub(middle, at);
+                    const far = Math.hypot(way[0], way[1], way[2]);
+                    if (far < 1e-9 || tree.blocked(at[0], at[1], at[2], way[0] / far, way[1] / far, way[2] / far, far)) break;
+                    at = add(at, scale(way, -reach / far));
+                }
+            }
             const away = normalize(sub(at, middle));
             let across = cross(d, add(scale(out, 0.5), scale(away, 0.5)));
             if (dot(across, across) < 1e-8) across = cross(d, [0.3, 0.2, 0.9]);
@@ -127,7 +180,7 @@ export function hair(mesh: PolyMesh, p: HairParams): PolyMesh {
             const t = s / segments;
             const sway = p.wave ? scale(across, Math.sin(t * 7 + phase) * p.wave * t) : [0, 0, 0] as Vec3;
             rows.push({ at: add(at, sway), side: scale(across, (width * (1 - taper * t)) / 2) });
-            if (s === segments) break;
+            if (s === segments || nearest) continue;
             d = normalize(add(scale(d, 1 - pull), add(scale([0, -1, 0], pull), scale(comb, pull * 0.5))));
             // Turned aside rather than through: it slides over what it grows from.
             for (let tries = 0; tries < 6 && tree.blocked(at[0], at[1], at[2], d[0], d[1], d[2], step * 1.2); tries++) {

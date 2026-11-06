@@ -109,7 +109,7 @@ describe('hair', () => {
         expect(() => bakeModel({ version: 1, steps: [head, { op: 'hair', faces: 'nothing', length: 1 }] })).toThrow(/matched no face/);
         expect(() => bakeModel({ version: 1, steps: [head, { op: 'hair', faces: scalp, length: -1 }] })).toThrow(/length -1 must be positive/);
         expect(() => bakeModel({ version: 1, steps: [head, { op: 'hair', faces: scalp, length: 1, droop: 2 }] })).toThrow(/droop 2 must be 0..1/);
-        expect(() => validateModelSource({ steps: [head, { op: 'hair', faces: scalp }] })).toThrow(/length is required/);
+        expect(() => validateModelSource({ steps: [head, { op: 'hair', faces: scalp }] })).toThrow(/needs `length` or `guides`/);
         expect(() => validateModelSource({ steps, normalBake: { from: 'x' } })).toThrow(/no normalBake or uvAtlas/);
         expect(() => validateModelSource({ steps, rig: { joints: [{ name: 'a', at: [0, 0, 0] }] } })).toThrow(/no rig or shapes/);
     });
@@ -269,5 +269,70 @@ describe('see-through', () => {
     it('refuses an alpha it does not know', () => {
         expect(() => validateModelSource({ steps: [plane], material: { alpha: 'glass' } })).toThrow(/alpha must be cutout or blend/);
         expect(() => validateModelSource({ steps: [plane], material: { cutoff: 2 } })).toThrow(/cutoff must be 0..1/);
+    });
+});
+
+describe('hair along guides', () => {
+    const line: [number, number, number][] = [[0, 1, -1], [0, 0.5, -2], [0.2, -0.5, -2.4], [0.1, -1.5, -2.2]];
+    const tail = (extra: Record<string, unknown> = {}): BakedModel => bakeModel({ version: 1, steps: [head, { op: 'hair', faces: { within: { min: [-0.3, 0.8, -1.1], max: [0.3, 1.1, -0.2] } }, count: 40, guides: [line], segments: 8, uneven: 0, ...extra }] });
+    const tips = (m: BakedModel): number[][] => {
+        const cards = new Map<number, number[]>();
+        for (const f of m.poly.faces) cards.set(f.card!, [...f.v]);
+        return [...cards.values()].map((v) => { const [a, b] = [m.poly.positions[v[1]!]!, m.poly.positions[v[2]!]!]; return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2]; });
+    };
+    const spreadOf = (points: number[][]): number => {
+        const mid = [0, 1, 2].map((k) => points.reduce((sum, p) => sum + p[k]!, 0) / points.length);
+        return Math.max(...points.map((p) => Math.hypot(p[0]! - mid[0]!, p[1]! - mid[1]!, p[2]! - mid[2]!)));
+    };
+
+    it('runs along the line to its end, wherever gravity would have taken it', () => {
+        for (const tip of tips(tail({ spread: 0 }))) expect(Math.hypot(tip[0]! - 0.1, tip[1]! + 1.5, tip[2]! + 2.2)).toBeLessThan(0.95);
+    });
+
+    it('takes the line that starts nearest its root', () => {
+        const other: [number, number, number][] = [[0, 1, 1], [0, 0, 3]];
+        const m = bakeModel({ version: 1, steps: [head, { op: 'hair', faces: scalp, count: 60, guides: [line, other], segments: 4, uneven: 0, spread: 0 }] });
+        const ends = tips(m);
+        expect(ends.some((t) => t[2]! < -1.5)).toBe(true);
+        expect(ends.some((t) => t[2]! > 2)).toBe(true);
+    });
+
+    it('closes up onto the line as far as `gather` asks', () => {
+        expect(spreadOf(tips(tail({ spread: 0, gather: 1 })))).toBeLessThan(spreadOf(tips(tail({ spread: 0 }))) * 0.2);
+    });
+
+    it('flies apart toward the ends by `spread`', () => {
+        expect(spreadOf(tips(tail({ spread: 0.3, gather: 1 })))).toBeGreaterThan(spreadOf(tips(tail({ spread: 0, gather: 1 }))) + 0.2);
+    });
+
+    it('goes over the head rather than through it', () => {
+        const across: [number, number, number][] = [[0.9, 0.4, 0], [0, 0.4, 0], [-0.9, 0.4, -0.3]];
+        const m = bakeModel({ version: 1, steps: [head, { op: 'hair', faces: { within: { min: [0.5, 0.2, -0.5], max: [null, 0.6, 0.5] } }, count: 30, guides: [across], gather: 1, spread: 0, uneven: 0, segments: 12 }] });
+        const nearest = Math.min(...m.poly.positions.map((q) => Math.hypot(q[0]!, q[1]!, q[2]!)));
+        expect(nearest).toBeGreaterThan(0.9);
+    });
+
+    it('needs a length or guides, and says so', () => {
+        expect(() => validateModelSource({ steps: [head, { op: 'hair', faces: scalp, guides: [[[0, 0, 0]]] }] })).toThrow(/guides/);
+        expect(() => validateModelSource({ steps: [head, { op: 'hair', faces: scalp }] })).toThrow(/length/);
+    });
+});
+
+describe('material.emissive', () => {
+    const box: ModelStep = { op: 'box', size: 1 };
+    it('gives off that light, past 1 if asked', () => {
+        const doc = modelMaterialDoc({ version: 1, material: { emissive: [8, 3, 0.5] }, steps: [box] }, true, {}) as { properties: Record<string, unknown> };
+        expect(doc.properties.u_emissive).toEqual({ r: 8, g: 3, b: 0.5, a: 1 });
+        expect(doc.properties.u_emissiveMap).toBeUndefined();
+    });
+
+    it('takes its colours from the paint when the paint is baked', () => {
+        const doc = modelMaterialDoc({ version: 1, material: { emissive: [4, 4, 4] }, steps: [box] }, true, { color: 'm_color.png' }) as { properties: Record<string, unknown> };
+        expect(doc.properties.u_emissiveMap).toBe('m_color.png');
+    });
+
+    it('refuses what is not light', () => {
+        expect(() => validateModelSource({ material: { emissive: [1, -1, 0] }, steps: [box] })).toThrow(/emissive/);
+        expect(() => validateModelSource({ material: { emissive: 3 }, steps: [box] })).toThrow(/emissive/);
     });
 });
