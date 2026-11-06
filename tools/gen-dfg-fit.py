@@ -119,17 +119,19 @@ if '--code' in sys.argv:
             out.append('%s %s%d = (%.1f * %s * %s%d - %.1f * %s%d) / %.1f;' % (decl, var, k + 1, 2 * k + 1, t, var, k, k, var, k - 1, k + 1))
         return out
 
+    def row_expr(cs):
+        out = '%.7f' % cs[0]
+        for q, c in enumerate(cs[1:], 1):
+            out += ' + %.7f * py%d' % (c, q)
+        return out.replace('+ -', '- ')
+
     def sum_expr(c):
-        terms = []
-        k = 0
-        for p in range(DX):
-            for q in range(DY):
-                terms.append('%.7f * px%d * py%d' % (c[k], p, q))
-                k += 1
-        for q in range(INV):
-            terms.append('%.7f * py%d * g' % (c[k], q))
-            k += 1
-        return ' + '.join(terms).replace('+ -', '- ')
+        # A row for each power of x, so a product of two polynomials is read once: this runs for every lit pixel, and spelled out term by
+        # term it was twice the multiplications, on a phone most of what the lighting costs.
+        parts = ['(%s)' % row_expr(c[:DY])]
+        parts += ['px%d * (%s)' % (p, row_expr(c[p * DY:(p + 1) * DY])) for p in range(1, DX)]
+        parts.append('g * (%s)' % row_expr(c[DX * DY:]))
+        return ' + '.join(parts)
 
     for lang in ('wgsl', 'glsl'):
         decl = 'let' if lang == 'wgsl' else 'highp float'

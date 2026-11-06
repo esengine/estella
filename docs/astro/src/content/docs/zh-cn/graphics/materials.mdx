@@ -142,6 +142,7 @@ Terrain、Foliage、Water、Hair、Skin、Eye 这几个模板属于各自的模�
 | `#pragma switch NAME [default(on)]` | 材质可控的静态排列开关(一个 `#define`)。 |
 | `#pragma coverage PARAM` | 浮点参数 `PARAM` 大于零时,着色器输出的 alpha 就是覆盖率——镂空的 alpha 在阈值附近锐化到约一个像素宽(`cutoutCoverage(alpha, cutoff, fwidth(alpha))`)。不透明物体画进多重采样目标时,它会转成多重采样覆盖率,镂空边缘就有抗锯齿而不是台阶;没有多重采样时就是硬切。任何距离都在阈值处切,与 glTF 的 MASK 定义一致:镂空缩小显示时之所以还保持原来的面积,是因为烘焙时把每级 mip 的 alpha 缩放到与原图在阈值处相同的覆盖率。内置 Model 着色器声明了 `u_alphaCutoff`。 |
 | `#pragma feature NAME` | 引擎选择的编译期变体关键字。 |
+| `#pragma lighting direct` | `Lit` 着色器只接受光源块里的十六盏灯和硬边阴影。编译时去掉十六盏之外的分块光源、2D 光遮罩、软阴影和头发阴影；这些分支无论场景用不用，手机上每个像素都要付出代价。Water 着色器声明了它。 |
 | `#pragma hairshadow PARAM` | 浮点参数 `PARAM` 大于零时,用这个材质画的网格就是阴影意义上的头发:太阳的级联多出一个只拟合它们的级联,并且着色器在打光前设置 `g_hairShadow` 的话,阴影就按沿光线的密度读,而不是硬比较。参数值就是密度。内置 Hair 着色器声明了 `u_hairShadow`。 |
 | `#pragma gbuffer` | `PostProcess` 着色器要读取场景的表面记录(见[G-buffer](/docs/zh-cn/graphics/post-processing/#g-buffer)),在 `u_gbuffer` 处。声明它才会让这一帧画出一份;着色器里没有它的链路永远不付这笔钱。 |
 | `#pragma vertex` / `#pragma fragment` … `#pragma end` | Stage 代码体。**2D 域的顶点段可省略**——引擎注入规范顶点段。 |

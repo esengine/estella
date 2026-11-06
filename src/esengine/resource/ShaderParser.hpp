@@ -148,6 +148,9 @@ struct ParsedShader {
     std::unordered_map<ShaderStage, std::string> stages;      ///< Stage source code
     std::unordered_map<std::string, std::string> variants;    ///< Platform variants
     std::vector<std::string> features;                        ///< Declared #pragma feature keywords (compile-time variants)
+    /// `#pragma lighting direct`: compiled with ES_LIGHT_DIRECT. Lit by the sixteen lights of the block and hard-edged shadows only, without what most scenes never
+    /// reach and every pixel pays for regardless (on a phone, a third of a water's frame): the tiled lights, the 2D light masks, the soft and hair shadows.
+    bool lightingDirect = false;
     std::vector<ShaderSwitch> switches;                       ///< Material-controlled #pragma switch toggles (name + default)
     std::vector<ShaderProperty> properties;                   ///< Exposed material params (#pragma param / properties block)
     std::string domain = "Unlit";                           ///< #pragma domain (Unlit/Lit/PostProcess/UI)

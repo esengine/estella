@@ -45,6 +45,22 @@ void main() {
 #pragma end
 )";
 
+// `#pragma lighting direct`: the lit header compiled without what the surface declared it does not need.
+static const char* DIRECT_LIT = R"(#pragma shader "DirectLit"
+#pragma version 300 es
+#pragma domain Lit
+#pragma lighting direct
+
+#pragma fragment
+out vec4 fragColor;
+void main() { fragColor = vec4(1.0); }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main() -> @location(0) vec4f { return vec4f(1.0); }
+#pragma end
+)";
+
 // Fragment-only authoring: `#pragma vertex` is optional for 2D domains.
 static const char* FRAG_ONLY_UNLIT = R"(#pragma shader "FragOnly"
 #pragma version 300 es
@@ -775,6 +791,36 @@ static void testShadowGraft() {
           "the stock depth shader's call sits under ES_MATERIAL_VERTEX");
 }
 
+static void testLightingDirect() {
+    std::printf("\n-- #pragma lighting direct --\n");
+    std::string plain(DIRECT_LIT);
+    const std::string pragma = "#pragma lighting direct\n";
+    plain.erase(plain.find(pragma), pragma.size());
+    const ParsedShader direct = ShaderParser::parse(DIRECT_LIT);
+    const ParsedShader full = ShaderParser::parse(plain);
+    CHECK(direct.valid && direct.lightingDirect, "the directive is read");
+    CHECK(full.valid && !full.lightingDirect, "a lit shader that does not ask keeps everything");
+    const std::vector<std::string> mesh{"MESH", "MESH_NORMALS", "ES_RECEIVE_SHADOW", "ES_SURFACE_3D"};
+    // GLSL keeps its conditionals for the driver's preprocessor, so there the define is what can be seen.
+    const std::string glslOn = ShaderParser::assembleStage(direct, ShaderStage::Fragment, "", mesh, ShaderTargetLanguage::GLSL_ES300);
+    const std::string glslOff = ShaderParser::assembleStage(full, ShaderStage::Fragment, "", mesh, ShaderTargetLanguage::GLSL_ES300);
+    CHECK(glslOn.find("#define ES_LIGHT_DIRECT") != std::string::npos, "GLSL is compiled with the define");
+    CHECK(glslOff.find("#define ES_LIGHT_DIRECT") == std::string::npos, "GLSL that did not ask is not");
+    for (const char* guarded : {"tiledCount", "atten *= shapeFactor2D", "atten *= mix(1.0, shadowFactor2D", "kSpiral32[i]", "reachHair"}) {
+        const size_t at = glslOn.find(guarded);
+        CHECK(at != std::string::npos && glslOn.rfind("#ifndef ES_LIGHT_DIRECT", at) != std::string::npos
+              && glslOn.rfind("#ifndef ES_LIGHT_DIRECT", at) > glslOn.rfind("#endif", at), guarded);
+    }
+    // WGSL has no preprocessor: what the directive removes is gone from the text.
+    const std::string on = ShaderParser::assembleStage(direct, ShaderStage::Fragment, "", mesh, ShaderTargetLanguage::WGSL);
+    const std::string off = ShaderParser::assembleStage(full, ShaderStage::Fragment, "", mesh, ShaderTargetLanguage::WGSL);
+    for (const char* gone : {"tiledCount", "atten *= shapeFactor2D", "atten *= mix(1.0, shadowFactor2D", "kSpiral32[i]", "reachHair"}) {
+        CHECK(off.find(gone) != std::string::npos, gone);
+        CHECK(on.find(gone) == std::string::npos, gone);
+    }
+    CHECK(on.find("shadeLight(") != std::string::npos && on.find("g_shadowHard > 0.5") != std::string::npos, "the block's lights and the hard shadow stay");
+}
+
 int main() {
     ParsedShader p = ShaderParser::parse(SRC);
     CHECK(p.valid, "shader parses");
@@ -801,6 +847,7 @@ int main() {
     testSystemValuesTrailAttributes();
     testVertexHook();
     testShadowGraft();
+    testLightingDirect();
 
     if (g_failures == 0) {
         std::printf("\nALL SHADER-VARIANT TESTS PASSED\n");

@@ -878,6 +878,12 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
             continue;
         }
 
+        if (directive == "lighting") {
+            // `#pragma lighting direct`: this surface is lit by the lights of the block and hard shadows only (see ES_LIGHT_DIRECT).
+            if (trim(argument) == "direct") result.lightingDirect = true;
+            continue;
+        }
+
         if (directive == "switch") {
             // Material-controlled compile-time toggle: `#pragma switch NAME [default(on|off)]`.
             usize swPos = 0;
@@ -1557,6 +1563,7 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         // the tangent of the angle it subtends where its w is 1 everywhere.
         let hasEye = length(vec3f(m[0].w, m[1].w, m[2].w)) > 0.5;
         let src = select(source.y, source.x, hasEye);
+#ifndef ES_LIGHT_DIRECT
         // Hair: layers of strand cards a few millimetres apart are not a wall. The light left after a depth of them falls off with that depth, from the
         // nearest card (what the map holds) to this one, the way a deep shadow map reads it. A blocker within a couple of texels toward the light is
         // this card's own surface and does not count.
@@ -1576,6 +1583,7 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
             if (hasEye) { spanHair = lcp.w - lcp.w * (Ah - proj.z) / max(Ah - zbh, 1e-6); }
             return mix(1.0, exp(-g_hairShadow * max(spanHair, 0.0)), hitsHair * 0.125);
         }
+#endif
         // A source with no size throws one edge: a tent over the 3x3 texels around the
         // point, weighted by where it falls among them. Equal weights step at every
         // texel and the map's grid shows along the edge; a 2x2 still stair-steps it.
@@ -1594,6 +1602,7 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
             }
             return lit;
         }
+#ifndef ES_LIGHT_DIRECT
         // What blocks this fragment, over the whole disc an edge can reach across — and
         // against a depth that forgives that reach, since a tap r texels away lands r
         // texels along the surface and a one-texel bias would call the slope a blocker.
@@ -1671,6 +1680,7 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
             soft += shadowTap(at0 + off * lc.u_shadowParams.y, lo, hi, wide);
         }
         return soft * (1.0 / 32.0);
+#endif
     }
     return 1.0;
 #endif
@@ -1802,8 +1812,8 @@ fn envBRDFApprox(NdotV : f32, roughness : f32) -> vec2f {
     let py5 = (9.0 * ty * py4 - 4.0 * py3) / 5.0;
     let py6 = (11.0 * ty * py5 - 5.0 * py4) / 6.0;
     let g = 1.0 / (clamp(NdotV, 0.02, 1.0) + 0.1);
-    let sumMetal = 0.7771111 * px0 * py0 - 0.2780760 * px0 * py1 - 0.0654304 * px0 * py2 - 0.0705640 * px0 * py3 + 0.0859185 * px0 * py4 + 0.0016314 * px0 * py5 - 0.0014479 * px0 * py6 + 0.0048182 * px1 * py0 - 0.1346961 * px1 * py1 - 0.1342442 * px1 * py2 + 0.1115811 * px1 * py3 - 0.0497620 * px1 * py4 - 0.0098451 * px1 * py5 - 0.0004214 * px1 * py6 + 0.0004797 * px2 * py0 + 0.0654544 * px2 * py1 + 0.0215100 * px2 * py2 - 0.0948616 * px2 * py3 + 0.0774489 * px2 * py4 + 0.0139819 * px2 * py5 - 0.0151021 * px2 * py6 + 0.0022918 * px3 * py0 - 0.0244567 * px3 * py1 + 0.0056279 * px3 * py2 + 0.0393924 * px3 * py3 - 0.0613759 * px3 * py4 + 0.0099383 * px3 * py5 + 0.0092971 * px3 * py6 - 0.0025728 * px4 * py0 + 0.0085869 * px4 * py1 - 0.0069877 * px4 * py2 - 0.0115072 * px4 * py3 + 0.0327063 * px4 * py4 - 0.0167796 * px4 * py5 + 0.0019107 * px4 * py6 + 0.0018089 * px5 * py0 - 0.0031015 * px5 * py1 + 0.0047701 * px5 * py2 + 0.0018675 * px5 * py3 - 0.0134691 * px5 * py4 + 0.0139776 * px5 * py5 - 0.0087024 * px5 * py6 - 0.0008609 * px6 * py0 + 0.0010956 * px6 * py1 - 0.0024048 * px6 * py2 + 0.0005262 * px6 * py3 + 0.0035639 * px6 * py4 - 0.0080487 * px6 * py5 + 0.0080563 * px6 * py6 + 0.0220605 * py0 * g + 0.0049886 * py1 * g - 0.0108884 * py2 * g + 0.0359254 * py3 * g - 0.0336876 * py4 * g;
-    let sumDielectric = 0.1105178 * px0 * py0 - 0.1470108 * px0 * py1 + 0.0706290 * px0 * py2 - 0.0048613 * px0 * py3 - 0.0190413 * px0 * py4 + 0.0038142 * px0 * py5 - 0.0002643 * px0 * py6 - 0.1400053 * px1 * py0 + 0.2220226 * px1 * py1 - 0.1204309 * px1 * py2 + 0.0033027 * px1 * py3 + 0.0348652 * px1 * py4 - 0.0115348 * px1 * py5 + 0.0015711 * px1 * py6 + 0.0993738 * px2 * py0 - 0.1696809 * px2 * py1 + 0.1055418 * px2 * py2 - 0.0166890 * px2 * py3 - 0.0245166 * px2 * py4 + 0.0153020 * px2 * py5 - 0.0048468 * px2 * py6 - 0.0363361 * px3 * py0 + 0.0724203 * px3 * py1 - 0.0631513 * px3 * py2 + 0.0261354 * px3 * py3 + 0.0041759 * px3 * py4 - 0.0092203 * px3 * py5 + 0.0054510 * px3 * py6 + 0.0046882 * px4 * py0 - 0.0144579 * px4 * py1 + 0.0238812 * px4 * py2 - 0.0200861 * px4 * py3 + 0.0078934 * px4 * py4 - 0.0001779 * px4 * py5 - 0.0024009 * px4 * py6 + 0.0013258 * px5 * py0 - 0.0006506 * px5 * py1 - 0.0049831 * px5 * py2 + 0.0084229 * px5 * py3 - 0.0075026 * px5 * py4 + 0.0046720 * px5 * py5 - 0.0007627 * px5 * py6 - 0.0005364 * px6 * py0 + 0.0008141 * px6 * py1 + 0.0002790 * px6 * py2 - 0.0016584 * px6 * py3 + 0.0027280 * px6 * py4 - 0.0028646 * px6 * py5 + 0.0010557 * px6 * py6 - 0.0075790 * py0 * g + 0.0243928 * py1 * g - 0.0212081 * py2 * g + 0.0063496 * py3 * g + 0.0036408 * py4 * g;
+    let sumMetal = (0.7771111 - 0.2780760 * py1 - 0.0654304 * py2 - 0.0705640 * py3 + 0.0859185 * py4 + 0.0016314 * py5 - 0.0014479 * py6) + px1 * (0.0048182 - 0.1346961 * py1 - 0.1342442 * py2 + 0.1115811 * py3 - 0.0497620 * py4 - 0.0098451 * py5 - 0.0004214 * py6) + px2 * (0.0004797 + 0.0654544 * py1 + 0.0215100 * py2 - 0.0948616 * py3 + 0.0774489 * py4 + 0.0139819 * py5 - 0.0151021 * py6) + px3 * (0.0022918 - 0.0244567 * py1 + 0.0056279 * py2 + 0.0393924 * py3 - 0.0613759 * py4 + 0.0099383 * py5 + 0.0092971 * py6) + px4 * (-0.0025728 + 0.0085869 * py1 - 0.0069877 * py2 - 0.0115072 * py3 + 0.0327063 * py4 - 0.0167796 * py5 + 0.0019107 * py6) + px5 * (0.0018089 - 0.0031015 * py1 + 0.0047701 * py2 + 0.0018675 * py3 - 0.0134691 * py4 + 0.0139776 * py5 - 0.0087024 * py6) + px6 * (-0.0008609 + 0.0010956 * py1 - 0.0024048 * py2 + 0.0005262 * py3 + 0.0035639 * py4 - 0.0080487 * py5 + 0.0080563 * py6) + g * (0.0220605 + 0.0049886 * py1 - 0.0108884 * py2 + 0.0359254 * py3 - 0.0336876 * py4);
+    let sumDielectric = (0.1105178 - 0.1470108 * py1 + 0.0706290 * py2 - 0.0048613 * py3 - 0.0190413 * py4 + 0.0038142 * py5 - 0.0002643 * py6) + px1 * (-0.1400053 + 0.2220226 * py1 - 0.1204309 * py2 + 0.0033027 * py3 + 0.0348652 * py4 - 0.0115348 * py5 + 0.0015711 * py6) + px2 * (0.0993738 - 0.1696809 * py1 + 0.1055418 * py2 - 0.0166890 * py3 - 0.0245166 * py4 + 0.0153020 * py5 - 0.0048468 * py6) + px3 * (-0.0363361 + 0.0724203 * py1 - 0.0631513 * py2 + 0.0261354 * py3 + 0.0041759 * py4 - 0.0092203 * py5 + 0.0054510 * py6) + px4 * (0.0046882 - 0.0144579 * py1 + 0.0238812 * py2 - 0.0200861 * py3 + 0.0078934 * py4 - 0.0001779 * py5 - 0.0024009 * py6) + px5 * (0.0013258 - 0.0006506 * py1 - 0.0049831 * py2 + 0.0084229 * py3 - 0.0075026 * py4 + 0.0046720 * py5 - 0.0007627 * py6) + px6 * (-0.0005364 + 0.0008141 * py1 + 0.0002790 * py2 - 0.0016584 * py3 + 0.0027280 * py4 - 0.0028646 * py5 + 0.0010557 * py6) + g * (-0.0075790 + 0.0243928 * py1 - 0.0212081 * py2 + 0.0063496 * py3 + 0.0036408 * py4);
     let scale = (sumMetal - sumDielectric) / 0.96;
     return vec2f(scale, sumMetal - scale);
 }
@@ -1831,7 +1841,17 @@ fn ambientFacing(dir : vec3f) -> vec3f {
     return lc.u_ambient.rgb + lc.u_ambientGround.rgb * (0.5 - 0.5 * dir.y);
 }
 fn envIrradiance(Nw : vec3f) -> vec3f {
-    let sh = shIrradiance(lc.u_envIrradiance, envDirection(Nw));
+    // Read in place, not passed: an array handed to a function is copied, all nine, for every pixel.
+    let N = envDirection(Nw);
+    let sh = lc.u_envIrradiance[0].rgb * 0.282095
+        + lc.u_envIrradiance[1].rgb * (0.488603 * N.y)
+        + lc.u_envIrradiance[2].rgb * (0.488603 * N.z)
+        + lc.u_envIrradiance[3].rgb * (0.488603 * N.x)
+        + lc.u_envIrradiance[4].rgb * (1.092548 * N.x * N.y)
+        + lc.u_envIrradiance[5].rgb * (1.092548 * N.y * N.z)
+        + lc.u_envIrradiance[6].rgb * (0.315392 * (3.0 * N.z * N.z - 1.0))
+        + lc.u_envIrradiance[7].rgb * (1.092548 * N.x * N.z)
+        + lc.u_envIrradiance[8].rgb * (0.546274 * (N.x * N.x - N.y * N.y));
     return ambientFacing(Nw) + max(sh, vec3f(0.0)) * lc.u_envTint.rgb;
 }
 // The GLSL twin's indirectIrradiance: a volume replaces the environment, because a
@@ -2027,13 +2047,16 @@ fn applyLightingSurface(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, 
     var lit = indirectIrradiance(N) * ao;
     var gloss = vec3f(0.0);
     var extra = vec3f(0.0);
-    for (var i = 0; i < 16; i++) {
+    // As many as are lit: read for a slot nobody uses, a light's six vectors cost more on a phone than the one light shaded.
+    let lightCount = i32(lc.u_ambient.a);
+    for (var i = 0; i < lightCount; i++) {
         let term = shadeLight(lc.u_lights[i].posDir, lc.u_lights[i].color, lc.u_lights[i].spot, lc.u_lights[i].shadow,
                               lc.u_lights[i].shadowMap, lc.u_lights[i].falloff, N, V, worldPos, a, F0, NdotV, specular, roughness, ext, true);
         lit += term.lit;
         gloss += term.gloss;
         extra += term.extra;
     }
+#ifndef ES_LIGHT_DIRECT
     // The lights past the sixteen: this pixel's tile is found from where the fragment lands through the camera it was drawn by
     // (normalized device coordinates, the same on every backend), and only the lights whose bit is set in its mask are shaded.
     let tiledCount = i32(lc.tileInfo.x);
@@ -2060,6 +2083,7 @@ fn applyLightingSurface(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, 
             }
         }
     }
+#endif
     let ab = envBRDFApprox(NdotV, roughness);
     // The light a rough microfacet surface loses to bounces between its facets, which single-scattering GGX leaves out (a metal at roughness
     // 0.9 came out at half of Blender's brightness): Fdez-Aguera's term for the environment, and the same ratio on the lamps' highlight. What
@@ -2153,12 +2177,14 @@ fn shadeLight(pd : vec4f, col : vec4f, sp : vec4f, sh : vec4f, sm : vec4f, fo : 
             L = towardLight(toL, N);
             atten *= spotCone(sp, sh, toL, dist);
         }
+#ifndef ES_LIGHT_DIRECT
         if (col.a > 0.0 && atten > 0.0) {
             atten *= shapeFactor2D(fo.w, worldPos.xy);
         }
         if (castShadow && col.a > 0.0 && atten > 0.0) {
             atten *= mix(1.0, shadowFactor2D(sm.w, worldPos.xy), fo.z);
         }
+#endif
         // See the GLSL twin: a light the tiles carry has no shadow map, and says so.
         if (shadow3D && sm.y % 8.0 > 0.0 && atten > 0.0) {
             atten *= mix(1.0,
@@ -2519,6 +2545,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     // ES_LINEAR world with no per-call-site wiring. It must be set before the
     // renderer compiles shaders; flipping it later requires a reload.
     std::vector<std::string> features = featuresIn;
+    if (parsed.lightingDirect) features.push_back("ES_LIGHT_DIRECT");
     if (s_linearColor
         && std::find(features.begin(), features.end(), "ES_LINEAR") == features.end()) {
         features.push_back("ES_LINEAR");
@@ -2907,6 +2934,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // the tangent of the angle it subtends where its w is 1 everywhere.
             "        bool hasEye = length(vec3(m[0][3], m[1][3], m[2][3])) > 0.5;\n"
             "        highp float src = hasEye ? source.x : source.y;\n"
+            "#ifndef ES_LIGHT_DIRECT\n"
             // Hair: the light left after a depth of strand layers falls off with that depth, from the nearest card (what the map holds) to this one.
             // A blocker within a couple of texels toward the light is this card's own surface and does not count.
             "        if (g_hairShadow > 0.0) {\n"
@@ -2925,6 +2953,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            if (hasEye) spanHair = lc.w - lc.w * (Ah - proj.z) / max(Ah - zbh, 1e-6);\n"
             "            return mix(1.0, exp(-g_hairShadow * max(spanHair, 0.0)), hitsHair * 0.125);\n"
             "        }\n"
+            "#endif\n"
             // A source with no size throws one edge: a tent over the 3x3 texels around the
             // point, weighted by where it falls among them. Equal weights step at every
             // texel and the map's grid shows along the edge; a 2x2 still stair-steps it.
@@ -2944,6 +2973,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            }\n"
             "            return lit;\n"
             "        }\n"
+            "#ifndef ES_LIGHT_DIRECT\n"
             // What blocks this fragment, over the whole disc an edge can reach across —
             // against a depth that forgives that reach, since a tap r texels out lands r
             // texels along the surface and a one-texel bias would call the slope one.
@@ -3029,6 +3059,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        }\n"
             "        return soft * (1.0 / 32.0);\n"
 
+            "#endif\n"
             "    }\n"
             "    return 1.0;\n"
             "#endif\n"
@@ -3161,8 +3192,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp float py5 = (9.0 * ty * py4 - 4.0 * py3) / 5.0;\n"
             "    highp float py6 = (11.0 * ty * py5 - 5.0 * py4) / 6.0;\n"
             "    highp float g = 1.0 / (clamp(NdotV, 0.02, 1.0) + 0.1);\n"
-            "    highp float sumMetal = 0.7771111 * px0 * py0 - 0.2780760 * px0 * py1 - 0.0654304 * px0 * py2 - 0.0705640 * px0 * py3 + 0.0859185 * px0 * py4 + 0.0016314 * px0 * py5 - 0.0014479 * px0 * py6 + 0.0048182 * px1 * py0 - 0.1346961 * px1 * py1 - 0.1342442 * px1 * py2 + 0.1115811 * px1 * py3 - 0.0497620 * px1 * py4 - 0.0098451 * px1 * py5 - 0.0004214 * px1 * py6 + 0.0004797 * px2 * py0 + 0.0654544 * px2 * py1 + 0.0215100 * px2 * py2 - 0.0948616 * px2 * py3 + 0.0774489 * px2 * py4 + 0.0139819 * px2 * py5 - 0.0151021 * px2 * py6 + 0.0022918 * px3 * py0 - 0.0244567 * px3 * py1 + 0.0056279 * px3 * py2 + 0.0393924 * px3 * py3 - 0.0613759 * px3 * py4 + 0.0099383 * px3 * py5 + 0.0092971 * px3 * py6 - 0.0025728 * px4 * py0 + 0.0085869 * px4 * py1 - 0.0069877 * px4 * py2 - 0.0115072 * px4 * py3 + 0.0327063 * px4 * py4 - 0.0167796 * px4 * py5 + 0.0019107 * px4 * py6 + 0.0018089 * px5 * py0 - 0.0031015 * px5 * py1 + 0.0047701 * px5 * py2 + 0.0018675 * px5 * py3 - 0.0134691 * px5 * py4 + 0.0139776 * px5 * py5 - 0.0087024 * px5 * py6 - 0.0008609 * px6 * py0 + 0.0010956 * px6 * py1 - 0.0024048 * px6 * py2 + 0.0005262 * px6 * py3 + 0.0035639 * px6 * py4 - 0.0080487 * px6 * py5 + 0.0080563 * px6 * py6 + 0.0220605 * py0 * g + 0.0049886 * py1 * g - 0.0108884 * py2 * g + 0.0359254 * py3 * g - 0.0336876 * py4 * g;\n"
-            "    highp float sumDielectric = 0.1105178 * px0 * py0 - 0.1470108 * px0 * py1 + 0.0706290 * px0 * py2 - 0.0048613 * px0 * py3 - 0.0190413 * px0 * py4 + 0.0038142 * px0 * py5 - 0.0002643 * px0 * py6 - 0.1400053 * px1 * py0 + 0.2220226 * px1 * py1 - 0.1204309 * px1 * py2 + 0.0033027 * px1 * py3 + 0.0348652 * px1 * py4 - 0.0115348 * px1 * py5 + 0.0015711 * px1 * py6 + 0.0993738 * px2 * py0 - 0.1696809 * px2 * py1 + 0.1055418 * px2 * py2 - 0.0166890 * px2 * py3 - 0.0245166 * px2 * py4 + 0.0153020 * px2 * py5 - 0.0048468 * px2 * py6 - 0.0363361 * px3 * py0 + 0.0724203 * px3 * py1 - 0.0631513 * px3 * py2 + 0.0261354 * px3 * py3 + 0.0041759 * px3 * py4 - 0.0092203 * px3 * py5 + 0.0054510 * px3 * py6 + 0.0046882 * px4 * py0 - 0.0144579 * px4 * py1 + 0.0238812 * px4 * py2 - 0.0200861 * px4 * py3 + 0.0078934 * px4 * py4 - 0.0001779 * px4 * py5 - 0.0024009 * px4 * py6 + 0.0013258 * px5 * py0 - 0.0006506 * px5 * py1 - 0.0049831 * px5 * py2 + 0.0084229 * px5 * py3 - 0.0075026 * px5 * py4 + 0.0046720 * px5 * py5 - 0.0007627 * px5 * py6 - 0.0005364 * px6 * py0 + 0.0008141 * px6 * py1 + 0.0002790 * px6 * py2 - 0.0016584 * px6 * py3 + 0.0027280 * px6 * py4 - 0.0028646 * px6 * py5 + 0.0010557 * px6 * py6 - 0.0075790 * py0 * g + 0.0243928 * py1 * g - 0.0212081 * py2 * g + 0.0063496 * py3 * g + 0.0036408 * py4 * g;\n"
+            "    highp float sumMetal = (0.7771111 - 0.2780760 * py1 - 0.0654304 * py2 - 0.0705640 * py3 + 0.0859185 * py4 + 0.0016314 * py5 - 0.0014479 * py6) + px1 * (0.0048182 - 0.1346961 * py1 - 0.1342442 * py2 + 0.1115811 * py3 - 0.0497620 * py4 - 0.0098451 * py5 - 0.0004214 * py6) + px2 * (0.0004797 + 0.0654544 * py1 + 0.0215100 * py2 - 0.0948616 * py3 + 0.0774489 * py4 + 0.0139819 * py5 - 0.0151021 * py6) + px3 * (0.0022918 - 0.0244567 * py1 + 0.0056279 * py2 + 0.0393924 * py3 - 0.0613759 * py4 + 0.0099383 * py5 + 0.0092971 * py6) + px4 * (-0.0025728 + 0.0085869 * py1 - 0.0069877 * py2 - 0.0115072 * py3 + 0.0327063 * py4 - 0.0167796 * py5 + 0.0019107 * py6) + px5 * (0.0018089 - 0.0031015 * py1 + 0.0047701 * py2 + 0.0018675 * py3 - 0.0134691 * py4 + 0.0139776 * py5 - 0.0087024 * py6) + px6 * (-0.0008609 + 0.0010956 * py1 - 0.0024048 * py2 + 0.0005262 * py3 + 0.0035639 * py4 - 0.0080487 * py5 + 0.0080563 * py6) + g * (0.0220605 + 0.0049886 * py1 - 0.0108884 * py2 + 0.0359254 * py3 - 0.0336876 * py4);\n"
+            "    highp float sumDielectric = (0.1105178 - 0.1470108 * py1 + 0.0706290 * py2 - 0.0048613 * py3 - 0.0190413 * py4 + 0.0038142 * py5 - 0.0002643 * py6) + px1 * (-0.1400053 + 0.2220226 * py1 - 0.1204309 * py2 + 0.0033027 * py3 + 0.0348652 * py4 - 0.0115348 * py5 + 0.0015711 * py6) + px2 * (0.0993738 - 0.1696809 * py1 + 0.1055418 * py2 - 0.0166890 * py3 - 0.0245166 * py4 + 0.0153020 * py5 - 0.0048468 * py6) + px3 * (-0.0363361 + 0.0724203 * py1 - 0.0631513 * py2 + 0.0261354 * py3 + 0.0041759 * py4 - 0.0092203 * py5 + 0.0054510 * py6) + px4 * (0.0046882 - 0.0144579 * py1 + 0.0238812 * py2 - 0.0200861 * py3 + 0.0078934 * py4 - 0.0001779 * py5 - 0.0024009 * py6) + px5 * (0.0013258 - 0.0006506 * py1 - 0.0049831 * py2 + 0.0084229 * py3 - 0.0075026 * py4 + 0.0046720 * py5 - 0.0007627 * py6) + px6 * (-0.0005364 + 0.0008141 * py1 + 0.0002790 * py2 - 0.0016584 * py3 + 0.0027280 * py4 - 0.0028646 * py5 + 0.0010557 * py6) + g * (-0.0075790 + 0.0243928 * py1 - 0.0212081 * py2 + 0.0063496 * py3 + 0.0036408 * py4);\n"
             "    highp float scale = (sumMetal - sumDielectric) / 0.96;\n"
             "    return vec2(scale, sumMetal - scale);\n"
             "}\n"
@@ -3194,7 +3225,17 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    return u_ambient.rgb + u_ambientGround.rgb * (0.5 - 0.5 * dir.y);\n"
             "}\n"
             "highp vec3 envIrradiance(in highp vec3 Nw) {\n"
-            "    highp vec3 sh = shIrradiance(u_envIrradiance, envDirection(Nw));\n"
+            // Read in place, not passed: an array handed to a function is copied, all nine, for every pixel.
+            "    highp vec3 N = envDirection(Nw);\n"
+            "    highp vec3 sh = u_envIrradiance[0].rgb * 0.282095\n"
+            "        + u_envIrradiance[1].rgb * (0.488603 * N.y)\n"
+            "        + u_envIrradiance[2].rgb * (0.488603 * N.z)\n"
+            "        + u_envIrradiance[3].rgb * (0.488603 * N.x)\n"
+            "        + u_envIrradiance[4].rgb * (1.092548 * N.x * N.y)\n"
+            "        + u_envIrradiance[5].rgb * (1.092548 * N.y * N.z)\n"
+            "        + u_envIrradiance[6].rgb * (0.315392 * (3.0 * N.z * N.z - 1.0))\n"
+            "        + u_envIrradiance[7].rgb * (1.092548 * N.x * N.z)\n"
+            "        + u_envIrradiance[8].rgb * (0.546274 * (N.x * N.x - N.y * N.y));\n"
             "    return ambientFacing(Nw) + max(sh, vec3(0.0)) * u_envTint.rgb;\n"
             "}\n"
             // The indirect term every lit surface starts from. A volume REPLACES the
@@ -3449,11 +3490,14 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp vec3 extra = vec3(0.0);\n"
             // A Light has no third coordinate, so distance stays in the plane and a
             // point light's height is its radius. Normal and view are the 3D part.
-            "    for (int i = 0; i < 16; ++i) {\n"
+            // As many as are lit: read for a slot nobody uses, a light's six vectors cost more on a phone than the one light shaded.
+            "    int lightCount = int(u_ambient.a);\n"
+            "    for (int i = 0; i < lightCount; ++i) {\n"
             "        shadeLight(u_lights[i].posDir, u_lights[i].color, u_lights[i].spot, u_lights[i].shadow,\n"
             "                   u_lights[i].shadowMap, u_lights[i].falloff, N, V, worldPos, a, F0, NdotV,\n"
             "                   specular, roughness, ext, lit, gloss, extra, true);\n"
             "    }\n"
+            "#ifndef ES_LIGHT_DIRECT\n"
             // The lights past the sixteen: this pixel's tile is found from where the fragment lands through the camera it was drawn by
             // (normalized device coordinates, the same on every backend), and only the lights whose bit is set in its mask are shaded.
             "    int tiledCount = int(u_tileInfo.x);\n"
@@ -3479,6 +3523,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // The environment, which for this engine is the ambient term: the same
             // radiance from every direction. A metal has no diffuse, so without a
             // reflection of it a metal is black wherever no light happens to point.
+            "#endif\n"
             "    highp vec2 ab = envBRDFApprox(NdotV, roughness);\n"
             // Multiple scattering, and the diffuse under the specular: see the WGSL twin.
             "    highp float Ess = ab.x + ab.y;\n"
@@ -3561,12 +3606,14 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        }\n"
             // Only pay for the mask read when the light actually reaches this fragment (skips
             // the zeroed/inactive slots and unlit fragments).
+            "#ifndef ES_LIGHT_DIRECT\n"
             "        if (col.a > 0.0 && atten > 0.0) {\n"
             "            atten *= shapeFactor2D(fo.w, worldPos.xy);\n"
             "        }\n"
             "        if (castShadow && col.a > 0.0 && atten > 0.0) {\n"
             "            atten *= mix(1.0, shadowFactor2D(sm.w, worldPos.xy), fo.z);\n"
             "        }\n"
+            "#endif\n"
             // The tiles this light rendered into, which are its own: a fragment
             // tested against every map in the atlas would be darkened by geometry
             // seen from somewhere no light reaching it is standing.

@@ -17,6 +17,7 @@ import { CAUSTICS_GLSL, CAUSTICS_WGSL } from '../render/waterCaustics';
 const WATER = `#pragma shader "Water"
 #pragma version 300 es
 #pragma domain Lit
+#pragma lighting direct
 // The colour the water scatters back: lighter where it is shallow, darker where it is deep.
 #pragma param u_shallowColor color default(0.10,0.42,0.46,1)
 #pragma param u_deepColor color default(0.01,0.08,0.15,1)
@@ -385,20 +386,27 @@ float waterNoise(vec2 p) {
 /// The slope of the ripples the wind raises at p: six short waves within seventy-five degrees of it, from u_rippleLength down to a fifth of it, each
 /// running at the speed its length gives deep water and at a phase of its own, each as steep as u_rippleStrength a third. A sum of waves
 /// has no cells or blobs, which drifting noise has. A ripple shorter than a pixel would shimmer: each fades out with distance.
+// One of them: turned by (turnCos, turnSin) off the wind, its frequency and its reach perLength times the longest's, its speed perRoot times.
+vec2 rippleWave(vec2 p, vec2 along, float k, float run, float far, float turnCos, float turnSin, float perLength, float perRoot, float phase) {
+    vec2 d = vec2(along.x * turnCos + along.y * turnSin, along.y * turnCos - along.x * turnSin);
+    float theta = k * perLength * dot(d, p) - run * perRoot + phase;
+    return d * (cos(theta) * clamp(1.0 - far * perLength, 0.0, 1.0) * 0.33);
+}
 vec2 rippleSlope(vec2 p, float time, float dist) {
-    const vec3 SET[6] = vec3[6](vec3(-14.0, 1.0, 0.0), vec3(33.0, 0.71, 1.7), vec3(-58.0, 0.53, 3.1),
-                                vec3(11.0, 0.39, 4.4), vec3(74.0, 0.29, 0.9), vec3(-41.0, 0.21, 2.6));
+    // What every wave shares, once: the wind's heading, and the longest wave's frequency, how far it has run and how far off it is seen. The rest of each
+    // wave is a number written down: a phone does not take these out of the loop for itself, and asked per pixel they were a quarter of what its water cost.
     float base = radians(u_waveDirection);
+    vec2 along = vec2(sin(base), cos(base));
+    float k = 6.2831853 / u_rippleLength;
+    float run = sqrt(9.8 * k) * u_waveSpeed * time;
+    float far = dist / (u_rippleLength * 150.0);
     vec2 slope = vec2(0.0);
-    for (int i = 0; i < 6; ++i) {
-        float len = u_rippleLength * SET[i].y;
-        float k = 6.2831853 / len;
-        float a = base + radians(SET[i].x);
-        vec2 d = vec2(sin(a), cos(a));
-        float theta = k * dot(d, p) - sqrt(9.8 * k) * u_waveSpeed * time + SET[i].z;
-        float seen = clamp(1.0 - dist / (len * 150.0), 0.0, 1.0);
-        slope += d * (cos(theta) * seen * 0.33);
-    }
+    slope += rippleWave(p, along, k, run, far, 0.970296, -0.241922, 1.000000, 1.000000, 0.0);  // -14 degrees off the wind, 1 of the length
+    slope += rippleWave(p, along, k, run, far, 0.838671, 0.544639, 1.408451, 1.186782, 1.7);  // 33 degrees off the wind, 0.71 of the length
+    slope += rippleWave(p, along, k, run, far, 0.529919, -0.848048, 1.886792, 1.373606, 3.1);  // -58 degrees off the wind, 0.53 of the length
+    slope += rippleWave(p, along, k, run, far, 0.981627, 0.190809, 2.564103, 1.601282, 4.4);  // 11 degrees off the wind, 0.39 of the length
+    slope += rippleWave(p, along, k, run, far, 0.275637, 0.961262, 3.448276, 1.856953, 0.9);  // 74 degrees off the wind, 0.29 of the length
+    slope += rippleWave(p, along, k, run, far, 0.754710, -0.656059, 4.761905, 2.182179, 2.6);  // -41 degrees off the wind, 0.21 of the length
     return slope * u_rippleStrength;
 }
 
@@ -431,31 +439,30 @@ vec2 rainRings(vec2 p, float time, float rain) {
 
 /// The slope of the water's surface at p (d height / d x, d height / d z) and how near the waves are to a crest, 0 to 1.
 /// Four waves a few directions apart, each a peaked sine (exp(sin - 1)) whose crests are narrower than its troughs.
+// One of them, as rippleWave's: xy its slope, without its height; z its crest.
+vec3 peakedWave(vec2 at, vec2 along, float k, float run, float far, float turnCos, float turnSin, float perLength, float perRun, float share) {
+    vec2 d = vec2(along.x * turnCos + along.y * turnSin, along.y * turnCos - along.x * turnSin);
+    float theta = k * perLength * dot(d, at) - run * perRun;
+    float e = exp(sin(theta) - 1.0);
+    // A wave much shorter than a pixel is noise, not a wave: it fades out with distance.
+    return vec3(d * (share * e * cos(theta) * k * perLength * clamp(1.0 - far * perLength, 0.0, 1.0)), e * share);
+}
 vec2 waveSlope(vec2 p, float time, float dist, out float crest) {
-    const vec4 SET[4] = vec4[4](vec4(0.0, 1.0, 1.0, 1.0), vec4(28.0, 0.62, 0.55, 1.1), vec4(-37.0, 0.37, 0.3, 1.2), vec4(71.0, 0.21, 0.15, 1.35));
-    vec2 slope = vec2(0.0);
-    float crestSum = 0.0;
-    float weightSum = 0.0;
     float base = radians(u_waveDirection);
+    vec2 along = vec2(sin(base), cos(base));
     vec4 bend = waterBend(p, u_waveLength);
-    for (int i = 0; i < 4; ++i) {
-        if (float(i) >= u_waveCount) break;
-        float length_ = u_waveLength * SET[i].y;
-        float k = 6.2831853 / length_;
-        float a = base + radians(SET[i].x);
-        vec2 d = vec2(sin(a), cos(a));
-        float omega = sqrt(9.8 * k) * u_waveSpeed * SET[i].w;
-        float theta = k * dot(d, bend.xy) - omega * time;
-        float e = exp(sin(theta) - 1.0);
-        // A wave much shorter than a pixel is noise, not a wave: it fades out with distance.
-        float seen = clamp(1.0 - dist / (length_ * 220.0), 0.0, 1.0);
-        slope += d * (u_waveHeight * SET[i].z * e * cos(theta) * k * seen);
-        crestSum += e * SET[i].z;
-        weightSum += SET[i].z;
-    }
-    slope = vec2(slope.x + slope.y * bend.w, slope.y + slope.x * bend.z);
-    crest = crestSum / weightSum;
-    return slope;
+    float k = 6.2831853 / u_waveLength;
+    float run = sqrt(9.8 * k) * u_waveSpeed * time;
+    float far = dist / (u_waveLength * 220.0);
+    // Headings 0, 28, -37 and 71 degrees off the wind; lengths 1, 0.62, 0.37 and 0.21 of the longest; heights 1, 0.55, 0.3 and 0.15 of it.
+    vec3 sum = peakedWave(bend.xy, along, k, run, far, 1.000000, 0.000000, 1.000000, 1.000000, 1.0);
+    float weightSum = 1.0;
+    if (u_waveCount > 1.5) { sum += peakedWave(bend.xy, along, k, run, far, 0.882948, 0.469472, 1.612903, 1.397001, 0.55); weightSum += 0.55; }
+    if (u_waveCount > 2.5) { sum += peakedWave(bend.xy, along, k, run, far, 0.798636, -0.601815, 2.702703, 1.972788, 0.3); weightSum += 0.3; }
+    if (u_waveCount > 3.5) { sum += peakedWave(bend.xy, along, k, run, far, 0.325568, 0.945519, 4.761905, 2.945942, 0.15); weightSum += 0.15; }
+    vec2 slope = sum.xy * u_waveHeight;
+    crest = sum.z / weightSum;
+    return vec2(slope.x + slope.y * bend.w, slope.y + slope.x * bend.z);
 }
 
 ${CAUSTICS_GLSL}
@@ -622,12 +629,18 @@ void main() {
 
     // The surface: the long waves, then the ripples they carry, flattened with distance so the far water is calm rather than aliased.
     vec2 wp = u_waveSpace > 0.5 ? v_texCoord + u_origin : P.xz;
-    // The zone's water at this pixel (texture reads, taken before any branch): how far in from the shore, how deep, how high the waves, the current.
+    // The zone's water at this pixel: how far in from the shore, how deep, how high the waves, the current. The open sea past the region has it all in
+    // uniforms, and every read below is one a pixel there does not pay for (these maps have no mips, so a read at level 0 may sit in a branch).
     vec2 zoneUv = (wp - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
-    vec4 zoneTex = texture(u_zoneField, clamp(zoneUv, vec2(0.0), vec2(1.0)));
-    vec4 zone = waterZoneAt(wp);
     bool zoneIn = all(greaterThanEqual(zoneUv, vec2(0.0))) && all(lessThanEqual(zoneUv, vec2(1.0)));
     bool zoneOn = u_zoneOn > 0.5 && u_waveSpace > 0.5;
+    bool zoneRead = zoneOn && (zoneIn || u_oceanOn < 0.5);
+    vec4 zoneTex = vec4(0.5, 0.5, 0.5, 1.0);
+    vec4 zone = vec4(u_oceanLevel, 1e6, u_oceanWaves, 1.0);
+    if (zoneRead) {
+        zoneTex = textureLod(u_zoneField, clamp(zoneUv, vec2(0.0), vec2(1.0)), 0.0);
+        zone = waterZoneAt(wp);
+    }
     float shoreE = (zoneTex.r - 0.5) * 2.0;
     float shoreDist = !zoneOn ? 1e6 : zoneIn ? shoreE * abs(shoreE) * u_zoneRange.x : u_oceanOn > 0.5 ? 1e6 : -1.0;
     float shoreDepth = zoneOn ? zone.y : 1e6;
@@ -636,33 +649,43 @@ void main() {
     float damp = zoneOn ? zone.z * calm : 1.0;
     vec2 flow = zoneOn && zoneIn ? (zoneTex.gb - 0.5) * 2.0 * u_zoneRange.z : vec2(0.0);
     // The surf: its height across the shore distance gives its slope along the way to the shore, and where it breaks it is white.
-    float still = zoneOn ? waterZoneStill(wp) : 1.0;
+    float still = zoneRead ? waterZoneStill(wp) : 1.0;
     float surfH = zoneOn ? u_surfHeight * u_waveHeight * zone.z * zone.w * still : 0.0;
     float surfStep = max(u_zoneSize.x / float(textureSize(u_zoneField, 0).x), 1e-3);
-    float surfDist = zoneOn ? waterZoneSurf(wp) : 1e6;
-    vec2 toSea = vec2(waterZoneSurf(wp + vec2(surfStep, 0.0)) - waterZoneSurf(wp - vec2(surfStep, 0.0)),
-                      waterZoneSurf(wp + vec2(0.0, surfStep)) - waterZoneSurf(wp - vec2(0.0, surfStep))) / (2.0 * surfStep);
-    // A distance to the shore climbs one unit a unit everywhere but on the ridge between two shores, where it turns back: there the way to
-    // the shore is no one way, and the surf's slope fades out rather than flipping on a line.
-    toSea *= smoothstep(0.55, 0.9, length(toSea));
-    vec2 surf = waterSurf(surfDist, shoreDist, surfH, time);
-    float surfRise = (waterSurf(surfDist + surfStep * 0.5, shoreDist + surfStep * 0.5, surfH, time).x
-                    - waterSurf(surfDist - surfStep * 0.5, shoreDist - surfStep * 0.5, surfH, time).x) / surfStep;
-    // The ripples at this pixel: their height on four sides gives the slope they add, and the foam is what they left (reads taken before any branch).
+    vec2 toSea = vec2(0.0);
+    vec2 surf = vec2(0.0);
+    float surfRise = 0.0;
+    // The surf's reach (waterSurf), a step wider for the two reads of its rise: further from the shore it is nothing, and takes no reads to say so.
+    float surfReach = u_surfLength * 4.0;
+    if (zoneRead && surfH > 0.0 && u_surfLength > 0.0 && shoreDist <= surfReach + surfStep && shoreDist >= -surfReach * 0.05 - surfStep) {
+        float surfDist = waterZoneSurf(wp);
+        toSea = vec2(waterZoneSurf(wp + vec2(surfStep, 0.0)) - waterZoneSurf(wp - vec2(surfStep, 0.0)),
+                     waterZoneSurf(wp + vec2(0.0, surfStep)) - waterZoneSurf(wp - vec2(0.0, surfStep))) / (2.0 * surfStep);
+        // A distance to the shore climbs one unit a unit everywhere but on the ridge between two shores, where it turns back: there the way to
+        // the shore is no one way, and the surf's slope fades out rather than flipping on a line.
+        toSea *= smoothstep(0.55, 0.9, length(toSea));
+        surf = waterSurf(surfDist, shoreDist, surfH, time);
+        surfRise = (waterSurf(surfDist + surfStep * 0.5, shoreDist + surfStep * 0.5, surfH, time).x
+                  - waterSurf(surfDist - surfStep * 0.5, shoreDist - surfStep * 0.5, surfH, time).x) / surfStep;
+    }
+    // The ripples at this pixel: their height on four sides gives the slope they add, and the foam is what they left.
     vec2 ripUv = (wp - u_rippleOrigin) / max(u_rippleSize, 1e-4);
-    vec4 ripC = texture(u_rippleMap, ripUv);
-    vec2 ripStep = vec2(u_rippleTexel);
-    float ripCell = max(u_rippleSize * u_rippleTexel, 1e-5);
-    float ripL = texture(u_rippleMap, ripUv - vec2(ripStep.x, 0.0)).r, ripR = texture(u_rippleMap, ripUv + vec2(ripStep.x, 0.0)).r;
-    float ripD = texture(u_rippleMap, ripUv - vec2(0.0, ripStep.y)).r, ripU = texture(u_rippleMap, ripUv + vec2(0.0, ripStep.y)).r;
     bool ripIn = u_rippleOn > 0.5 && u_waveSpace > 0.5 && all(greaterThanEqual(ripUv, vec2(0.0))) && all(lessThanEqual(ripUv, vec2(1.0)));
-    // The window follows the camera: its edge fades out, so where it ends the ripples thin away instead of stopping on a line.
-    vec2 ripEdge = min(ripUv, 1.0 - ripUv);
-    float ripFade = smoothstep(0.0, 0.15, min(ripEdge.x, ripEdge.y));
-    vec2 ripSlope = ripIn ? vec2(ripR - ripL, ripU - ripD) * u_rippleRange / ripCell * ripFade : vec2(0.0);
-    float ripFoam = ripIn ? ripC.g * ripFade : 0.0;
-    // How much foam the foam texture holds here (1 where none was given), read with the ripples, before any branch.
-    float foamCover = texture(u_foamMap, (wp + u_foamFlow * time) / max(u_foamTile, 1e-4)).r;
+    vec2 ripSlope = vec2(0.0);
+    float ripFoam = 0.0;
+    if (ripIn) {
+        float ripCell = max(u_rippleSize * u_rippleTexel, 1e-5);
+        float ripL = textureLod(u_rippleMap, ripUv - vec2(u_rippleTexel, 0.0), 0.0).r, ripR = textureLod(u_rippleMap, ripUv + vec2(u_rippleTexel, 0.0), 0.0).r;
+        float ripD = textureLod(u_rippleMap, ripUv - vec2(0.0, u_rippleTexel), 0.0).r, ripU = textureLod(u_rippleMap, ripUv + vec2(0.0, u_rippleTexel), 0.0).r;
+        // The window follows the camera: its edge fades out, so where it ends the ripples thin away instead of stopping on a line.
+        vec2 ripEdge = min(ripUv, 1.0 - ripUv);
+        float ripFade = smoothstep(0.0, 0.15, min(ripEdge.x, ripEdge.y));
+        ripSlope = vec2(ripR - ripL, ripU - ripD) * u_rippleRange / ripCell * ripFade;
+        ripFoam = textureLod(u_rippleMap, ripUv, 0.0).g * ripFade;
+    }
+    // Where the foam texture is read, and how fast that moves across the screen: taken here because the read itself waits until there is foam.
+    vec2 foamUv = (wp + u_foamFlow * time) / max(u_foamTile, 1e-4);
+    vec2 foamDx = dFdx(foamUv), foamDy = dFdy(foamUv);
     float crest;
     vec2 slope;
     if (dot(flow, flow) > 1e-6) {
@@ -741,10 +764,15 @@ void main() {
             if (sunDir.w > 0.5 && cosUp > 0.05) {
                 vec3 seabed = P + bentWave * column;
                 float depthBelow = max(dot(P - seabed, Ngeo), 0.0);
-                vec3 onSurface = seabed + sunDir.xyz * (depthBelow / max(cosUp, 0.15));
-                float c = causticPattern(onSurface.xz / u_causticScale, time * u_causticSpeed);
                 float reachSun = exp(-dot(u_absorption.rgb, vec3(1.0 / 3.0)) * u_density * depthBelow / max(cosUp, 0.15));
-                behind *= 1.0 + u_causticStrength * c * cosUp * waterSunVisibility(seabed, sunTiles.x, sunTiles.y) * reachSun * min(sunColor.a, 2.0) * 0.5;
+                // The most the web can add here. Where the sun never gets that far down (the whole of a deep sea) that is under a step of an
+                // 8-bit colour, and the pattern, a sixth of what a pixel of open water costs, is not worked out for it.
+                float causticMost = u_causticStrength * cosUp * reachSun * min(sunColor.a, 2.0) * 0.5;
+                if (causticMost > 0.004) {
+                    vec3 onSurface = seabed + sunDir.xyz * (depthBelow / max(cosUp, 0.15));
+                    float c = causticPattern(onSurface.xz / u_causticScale, time * u_causticSpeed);
+                    behind *= 1.0 + causticMost * c * waterSunVisibility(seabed, sunTiles.x, sunTiles.y);
+                }
             }
         }
     }
@@ -758,28 +786,40 @@ void main() {
 
     // Foam: along the shore, where the water is shallow, broken by noise that moves; and on the crests of the waves.
     float vertical = column * max(abs(viewDir.y), 0.15);
-    float foamScale = 1.0 / (u_rippleLength * 1.2);
-    float breakup = waterNoise(wp * foamScale + vec2(time * 0.07, time * 0.05)) * 0.6 + waterNoise(wp * foamScale * 3.0 - vec2(time * 0.13, 0.0)) * 0.4;
-    float pulse = 0.65 + 0.35 * sin(time * 0.9 + breakup * 6.0);
-    float shore = haveDepth && u_foamWidth > 0.0 ? clamp((1.0 - vertical / (u_foamWidth * pulse)) * 1.25 - breakup * 1.15, 0.0, 1.0) : 0.0;
-    // The baked shore foams too, where the depth buffer cannot say (no chain, no float targets) and along the outline the zone traced.
-    if (zoneOn && u_foamWidth > 0.0) {
-        // With the picture's depth the shallows foam by it, pixel by pixel; the baked depth then adds only the traced outline, not its texels.
-        float baked = haveDepth ? shoreDist : min(shoreDist, shoreDepth);
-        shore = max(shore, clamp((1.0 - baked / (u_foamWidth * pulse)) * 1.25 - breakup * 1.15, 0.0, 1.0));
-        // How the shore takes its waves: against rock or a cliff they burst white; up a gentle beach they wash in a thin line only; and the
-        // less room the wind has to raise them (a sheltered lake), the less of either.
-        float pound = waterZoneSteep(wp);
-        float swash = 1.0 - smoothstep(0.0, surfStep * 1.5, shoreDist);
-        shore *= mix(swash * 0.6, 1.0, pound) * mix(0.3, 1.0, zone.w);
+    float baked = haveDepth ? shoreDist : min(shoreDist, shoreDepth);
+    // Most of a sea has none of the foam below, and the noise that breaks it up need not be worked out to find that: the shore's asks for less water than
+    // its width (pulse is 1 at most), a crest's for a crest past the line.
+    float surfFoam = 0.0;
+    float foam = 0.0;
+    float crestLine = 1.0 - 0.3 * u_foamCrest;
+    if ((u_foamWidth > 0.0 && ((haveDepth && vertical < u_foamWidth) || (zoneOn && baked < u_foamWidth))) || (u_foamCrest > 0.0 && crest > crestLine) || ripFoam > 0.0 || surf.y > 0.0) {
+        float foamScale = 1.0 / (u_rippleLength * 1.2);
+        float breakup = waterNoise(wp * foamScale + vec2(time * 0.07, time * 0.05)) * 0.6 + waterNoise(wp * foamScale * 3.0 - vec2(time * 0.13, 0.0)) * 0.4;
+        float pulse = 0.65 + 0.35 * sin(time * 0.9 + breakup * 6.0);
+        float shore = haveDepth && u_foamWidth > 0.0 ? clamp((1.0 - vertical / (u_foamWidth * pulse)) * 1.25 - breakup * 1.15, 0.0, 1.0) : 0.0;
+        // The baked shore foams too, where the depth buffer cannot say (no chain, no float targets) and along the outline the zone traced.
+        if (zoneOn && u_foamWidth > 0.0) {
+            // With the picture's depth the shallows foam by it, pixel by pixel; the baked depth then adds only the traced outline, not its texels.
+            shore = max(shore, clamp((1.0 - baked / (u_foamWidth * pulse)) * 1.25 - breakup * 1.15, 0.0, 1.0));
+            if (shore > 0.0) {
+                // How the shore takes its waves: against rock or a cliff they burst white; up a gentle beach they wash in a thin line only; and the
+                // less room the wind has to raise them (a sheltered lake), the less of either.
+                float pound = waterZoneSteep(wp);
+                float swash = 1.0 - smoothstep(0.0, surfStep * 1.5, shoreDist);
+                shore *= mix(swash * 0.6, 1.0, pound) * mix(0.3, 1.0, zone.w);
+            }
+        }
+        float onCrest = u_foamCrest > 0.0 ? smoothstep(crestLine, 1.0, crest) * smoothstep(0.35, 0.75, breakup) : 0.0;
+        // A breaker whitens as much on a beach as the waves are big, but bursts whitest on rock.
+        if (surf.y > 0.0) surfFoam = surf.y * smoothstep(0.15, 0.6, breakup + surf.y * 0.4) * mix(0.2, 1.0, zoneOn ? waterZoneSteep(wp) : 1.0);
+        foam = clamp(max(max(max(shore, onCrest * u_foamCrest), ripFoam * (0.55 + 0.45 * breakup)), surfFoam), 0.0, 1.0);
     }
-    float onCrest = u_foamCrest > 0.0 ? smoothstep(1.0 - 0.3 * u_foamCrest, 1.0, crest) * smoothstep(0.35, 0.75, breakup) : 0.0;
-    // A breaker whitens as much on a beach as the waves are big, but bursts whitest on rock.
-    float surfFoam = surf.y * smoothstep(0.15, 0.6, breakup + surf.y * 0.4) * mix(0.2, 1.0, zoneOn ? waterZoneSteep(wp) : 1.0);
-    float foam = clamp(max(max(max(shore, onCrest * u_foamCrest), ripFoam * (0.55 + 0.45 * breakup)), surfFoam), 0.0, 1.0);
     // The texture as coverage: a texel holding c of foam shows where the foam asked for is more than 1 - c, rising to full over the rest,
-    // so thin foam keeps only the texture's densest marks and thick foam fills it. c = 1 leaves the foam as it was.
-    foam = clamp((foam - (1.0 - foamCover)) / max(foamCover, 1e-3), 0.0, 1.0);
+    // so thin foam keeps only the texture's densest marks and thick foam fills it. c = 1 leaves the foam as it was, and no foam stays none whatever c is.
+    if (foam > 0.0) {
+        float foamCover = textureGrad(u_foamMap, foamUv, foamDx, foamDy).r;
+        foam = clamp((foam - (1.0 - foamCover)) / max(foamCover, 1e-3), 0.0, 1.0);
+    }
     // Foam floats on top: from under the water it is a thin shadow on the light, not a white sheet.
     if (below) foam *= 0.2;
 
@@ -863,21 +903,24 @@ fn waterNoise(p : vec2f) -> f32 {
     return mix(mix(waterHash(i), waterHash(i + vec2f(1.0, 0.0)), f.x),
                mix(waterHash(i + vec2f(0.0, 1.0)), waterHash(i + vec2f(1.0, 1.0)), f.x), f.y);
 }
+fn rippleWave(p : vec2f, along : vec2f, k : f32, run : f32, far : f32, turnCos : f32, turnSin : f32, perLength : f32, perRoot : f32, phase : f32) -> vec2f {
+    let d = vec2f(along.x * turnCos + along.y * turnSin, along.y * turnCos - along.x * turnSin);
+    let theta = k * perLength * dot(d, p) - run * perRoot + phase;
+    return d * (cos(theta) * clamp(1.0 - far * perLength, 0.0, 1.0) * 0.33);
+}
 fn rippleSlope(p : vec2f, time : f32, dist : f32) -> vec2f {
-    let SET = array<vec3f, 6>(vec3f(-14.0, 1.0, 0.0), vec3f(33.0, 0.71, 1.7), vec3f(-58.0, 0.53, 3.1),
-                              vec3f(11.0, 0.39, 4.4), vec3f(74.0, 0.29, 0.9), vec3f(-41.0, 0.21, 2.6));
     let base = radians(mc.u_waveDirection);
+    let along = vec2f(sin(base), cos(base));
+    let k = 6.2831853 / mc.u_rippleLength;
+    let run = sqrt(9.8 * k) * mc.u_waveSpeed * time;
+    let far = dist / (mc.u_rippleLength * 150.0);
     var slope = vec2f(0.0);
-    for (var i = 0; i < 6; i++) {
-        let w = SET[i];
-        let len = mc.u_rippleLength * w.y;
-        let k = 6.2831853 / len;
-        let a = base + radians(w.x);
-        let d = vec2f(sin(a), cos(a));
-        let theta = k * dot(d, p) - sqrt(9.8 * k) * mc.u_waveSpeed * time + w.z;
-        let seen = clamp(1.0 - dist / (len * 150.0), 0.0, 1.0);
-        slope = slope + d * (cos(theta) * seen * 0.33);
-    }
+    slope = slope + rippleWave(p, along, k, run, far, 0.970296, -0.241922, 1.000000, 1.000000, 0.0);
+    slope = slope + rippleWave(p, along, k, run, far, 0.838671, 0.544639, 1.408451, 1.186782, 1.7);
+    slope = slope + rippleWave(p, along, k, run, far, 0.529919, -0.848048, 1.886792, 1.373606, 3.1);
+    slope = slope + rippleWave(p, along, k, run, far, 0.981627, 0.190809, 2.564103, 1.601282, 4.4);
+    slope = slope + rippleWave(p, along, k, run, far, 0.275637, 0.961262, 3.448276, 1.856953, 0.9);
+    slope = slope + rippleWave(p, along, k, run, far, 0.754710, -0.656059, 4.761905, 2.182179, 2.6);
     return slope * mc.u_rippleStrength;
 }
 
@@ -908,31 +951,28 @@ fn rainRings(p : vec2f, time : f32, rain : f32) -> vec2f {
 
 struct Waves { slope : vec2f, crest : f32 };
 
+fn peakedWave(at : vec2f, along : vec2f, k : f32, run : f32, far : f32, turnCos : f32, turnSin : f32, perLength : f32, perRun : f32, share : f32) -> vec3f {
+    let d = vec2f(along.x * turnCos + along.y * turnSin, along.y * turnCos - along.x * turnSin);
+    let theta = k * perLength * dot(d, at) - run * perRun;
+    let e = exp(sin(theta) - 1.0);
+    return vec3f(d * (share * e * cos(theta) * k * perLength * clamp(1.0 - far * perLength, 0.0, 1.0)), e * share);
+}
 fn waveSlope(p : vec2f, time : f32, dist : f32) -> Waves {
-    var wave = array<vec4f, 4>(vec4f(0.0, 1.0, 1.0, 1.0), vec4f(28.0, 0.62, 0.55, 1.1), vec4f(-37.0, 0.37, 0.3, 1.2), vec4f(71.0, 0.21, 0.15, 1.35));
-    var slope = vec2f(0.0);
-    var crestSum = 0.0;
-    var weightSum = 0.0;
     let base = radians(mc.u_waveDirection);
+    let along = vec2f(sin(base), cos(base));
     let bend = waterBend(p, mc.u_waveLength);
-    for (var i : i32 = 0; i < 4; i = i + 1) {
-        if (f32(i) >= mc.u_waveCount) { break; }
-        let spec = wave[i];
-        let span = mc.u_waveLength * spec.y;
-        let k = 6.2831853 / span;
-        let a = base + radians(spec.x);
-        let d = vec2f(sin(a), cos(a));
-        let omega = sqrt(9.8 * k) * mc.u_waveSpeed * spec.w;
-        let theta = k * dot(d, bend.xy) - omega * time;
-        let e = exp(sin(theta) - 1.0);
-        let seen = clamp(1.0 - dist / (span * 220.0), 0.0, 1.0);
-        slope = slope + d * (mc.u_waveHeight * spec.z * e * cos(theta) * k * seen);
-        crestSum = crestSum + e * spec.z;
-        weightSum = weightSum + spec.z;
-    }
+    let k = 6.2831853 / mc.u_waveLength;
+    let run = sqrt(9.8 * k) * mc.u_waveSpeed * time;
+    let far = dist / (mc.u_waveLength * 220.0);
+    var sum = peakedWave(bend.xy, along, k, run, far, 1.000000, 0.000000, 1.000000, 1.000000, 1.0);
+    var weightSum = 1.0;
+    if (mc.u_waveCount > 1.5) { sum = sum + peakedWave(bend.xy, along, k, run, far, 0.882948, 0.469472, 1.612903, 1.397001, 0.55); weightSum = weightSum + 0.55; }
+    if (mc.u_waveCount > 2.5) { sum = sum + peakedWave(bend.xy, along, k, run, far, 0.798636, -0.601815, 2.702703, 1.972788, 0.3); weightSum = weightSum + 0.3; }
+    if (mc.u_waveCount > 3.5) { sum = sum + peakedWave(bend.xy, along, k, run, far, 0.325568, 0.945519, 4.761905, 2.945942, 0.15); weightSum = weightSum + 0.15; }
+    let slope = sum.xy * mc.u_waveHeight;
     var out : Waves;
     out.slope = vec2f(slope.x + slope.y * bend.w, slope.y + slope.x * bend.z);
-    out.crest = crestSum / weightSum;
+    out.crest = sum.z / weightSum;
     return out;
 }
 
@@ -1108,10 +1148,16 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, amp : f32, calm : f32) -> vec
     var wp = P.xz;
     if (mc.u_waveSpace > 0.5) { wp = v.v_texCoord + mc.u_origin; }
     let zoneUv = (wp - mc.u_zoneOrigin) / max(mc.u_zoneSize, vec2f(1e-4));
-    let zoneTex = textureSample(u_zoneField, u_zoneField_s, clamp(zoneUv, vec2f(0.0), vec2f(1.0)));
-    let zone = waterZoneAt(wp);
     let zoneIn = all(zoneUv >= vec2f(0.0)) && all(zoneUv <= vec2f(1.0));
     let zoneOn = mc.u_zoneOn > 0.5 && mc.u_waveSpace > 0.5;
+    // The open sea past the region has it all in uniforms: see the GLSL.
+    let zoneRead = zoneOn && (zoneIn || mc.u_oceanOn < 0.5);
+    var zoneTex = vec4f(0.5, 0.5, 0.5, 1.0);
+    var zone = vec4f(mc.u_oceanLevel, 1e6, mc.u_oceanWaves, 1.0);
+    if (zoneRead) {
+        zoneTex = textureSampleLevel(u_zoneField, u_zoneField_s, clamp(zoneUv, vec2f(0.0), vec2f(1.0)), 0.0);
+        zone = waterZoneAt(wp);
+    }
     var shoreDist = 1e6;
     var shoreDepth = 1e6;
     var damp = 1.0;
@@ -1124,34 +1170,44 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, amp : f32, calm : f32) -> vec
         damp = zone.z * calm;
     }
     var still = 1.0;
-    if (zoneOn) { still = waterZoneStill(wp); }
+    if (zoneRead) { still = waterZoneStill(wp); }
     var surfH = 0.0;
     if (zoneOn) { surfH = mc.u_surfHeight * mc.u_waveHeight * zone.z * zone.w * still; }
     let surfStep = max(mc.u_zoneSize.x / f32(textureDimensions(u_zoneField, 0).x), 1e-3);
-    var surfDist = 1e6;
-    if (zoneOn) { surfDist = waterZoneSurf(wp); }
-    let toSeaRaw = vec2f(waterZoneSurf(wp + vec2f(surfStep, 0.0)) - waterZoneSurf(wp - vec2f(surfStep, 0.0)),
-                         waterZoneSurf(wp + vec2f(0.0, surfStep)) - waterZoneSurf(wp - vec2f(0.0, surfStep))) / (2.0 * surfStep);
-    let toSea = toSeaRaw * smoothstep(0.55, 0.9, length(toSeaRaw));
-    let surf = waterSurf(surfDist, shoreDist, surfH, time);
-    let surfRise = (waterSurf(surfDist + surfStep * 0.5, shoreDist + surfStep * 0.5, surfH, time).x
+    var toSea = vec2f(0.0);
+    var surf = vec2f(0.0);
+    var surfRise = 0.0;
+    // The surf's reach (waterSurf), a step wider for the two reads of its rise: further from the shore it is nothing, and takes no reads to say so.
+    let surfReach = mc.u_surfLength * 4.0;
+    if (zoneRead && surfH > 0.0 && mc.u_surfLength > 0.0 && shoreDist <= surfReach + surfStep && shoreDist >= -surfReach * 0.05 - surfStep) {
+        let surfDist = waterZoneSurf(wp);
+        let toSeaRaw = vec2f(waterZoneSurf(wp + vec2f(surfStep, 0.0)) - waterZoneSurf(wp - vec2f(surfStep, 0.0)),
+                             waterZoneSurf(wp + vec2f(0.0, surfStep)) - waterZoneSurf(wp - vec2f(0.0, surfStep))) / (2.0 * surfStep);
+        toSea = toSeaRaw * smoothstep(0.55, 0.9, length(toSeaRaw));
+        surf = waterSurf(surfDist, shoreDist, surfH, time);
+        surfRise = (waterSurf(surfDist + surfStep * 0.5, shoreDist + surfStep * 0.5, surfH, time).x
                   - waterSurf(surfDist - surfStep * 0.5, shoreDist - surfStep * 0.5, surfH, time).x) / surfStep;
-    // The ripples at this pixel: their height on four sides gives the slope they add, and the foam is what they left (taken in uniform control flow).
+    }
+    // The ripples at this pixel: their height on four sides gives the slope they add, and the foam is what they left.
     let ripUv = (wp - mc.u_rippleOrigin) / max(mc.u_rippleSize, 1e-4);
-    let ripC = textureSample(u_rippleMap, u_rippleMap_s, ripUv);
-    let ripCell = max(mc.u_rippleSize * mc.u_rippleTexel, 1e-5);
-    let ripL = textureSample(u_rippleMap, u_rippleMap_s, ripUv - vec2f(mc.u_rippleTexel, 0.0)).r;
-    let ripR = textureSample(u_rippleMap, u_rippleMap_s, ripUv + vec2f(mc.u_rippleTexel, 0.0)).r;
-    let ripD = textureSample(u_rippleMap, u_rippleMap_s, ripUv - vec2f(0.0, mc.u_rippleTexel)).r;
-    let ripU = textureSample(u_rippleMap, u_rippleMap_s, ripUv + vec2f(0.0, mc.u_rippleTexel)).r;
     let ripIn = mc.u_rippleOn > 0.5 && mc.u_waveSpace > 0.5 && all(ripUv >= vec2f(0.0)) && all(ripUv <= vec2f(1.0));
     var ripSlope = vec2f(0.0);
     var ripFoam = 0.0;
-    let ripEdge = min(ripUv, vec2f(1.0) - ripUv);
-    let ripFade = smoothstep(0.0, 0.15, min(ripEdge.x, ripEdge.y));
-    if (ripIn) { ripSlope = vec2f(ripR - ripL, ripU - ripD) * mc.u_rippleRange / ripCell * ripFade; ripFoam = ripC.g * ripFade; }
-    // How much foam the foam texture holds here (1 where none was given), read in uniform control flow with the ripples.
-    let foamCover = textureSample(u_foamMap, u_foamMap_s, (wp + mc.u_foamFlow * time) / max(mc.u_foamTile, 1e-4)).r;
+    if (ripIn) {
+        let ripCell = max(mc.u_rippleSize * mc.u_rippleTexel, 1e-5);
+        let ripL = textureSampleLevel(u_rippleMap, u_rippleMap_s, ripUv - vec2f(mc.u_rippleTexel, 0.0), 0.0).r;
+        let ripR = textureSampleLevel(u_rippleMap, u_rippleMap_s, ripUv + vec2f(mc.u_rippleTexel, 0.0), 0.0).r;
+        let ripD = textureSampleLevel(u_rippleMap, u_rippleMap_s, ripUv - vec2f(0.0, mc.u_rippleTexel), 0.0).r;
+        let ripU = textureSampleLevel(u_rippleMap, u_rippleMap_s, ripUv + vec2f(0.0, mc.u_rippleTexel), 0.0).r;
+        let ripEdge = min(ripUv, vec2f(1.0) - ripUv);
+        let ripFade = smoothstep(0.0, 0.15, min(ripEdge.x, ripEdge.y));
+        ripSlope = vec2f(ripR - ripL, ripU - ripD) * mc.u_rippleRange / ripCell * ripFade;
+        ripFoam = textureSampleLevel(u_rippleMap, u_rippleMap_s, ripUv, 0.0).g * ripFade;
+    }
+    // Where the foam texture is read, and how fast that moves across the screen: taken here because the read itself waits until there is foam.
+    let foamUv = (wp + mc.u_foamFlow * time) / max(mc.u_foamTile, 1e-4);
+    let foamDx = dpdx(foamUv);
+    let foamDy = dpdy(foamUv);
     var surface = vec3f(0.0);
     if (dot(flow, flow) > 1e-6) {
         // A current: two copies of the surface carried downstream a cycle at a time, each fading in as the other fades out.
@@ -1215,10 +1271,14 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, amp : f32, calm : f32) -> vec
             if (sun.dir.w > 0.5 && cosUp > 0.05) {
                 let seabed = P + bentWave * column;
                 let depthBelow = max(dot(P - seabed, Ngeo), 0.0);
-                let onSurface = seabed + sun.dir.xyz * (depthBelow / max(cosUp, 0.15));
-                let c = causticPattern(onSurface.xz / mc.u_causticScale, time * mc.u_causticSpeed);
                 let reachSun = exp(-dot(mc.u_absorption.rgb, vec3f(1.0 / 3.0)) * mc.u_density * depthBelow / max(cosUp, 0.15));
-                behind = behind * (1.0 + mc.u_causticStrength * c * cosUp * waterSunVisibility(seabed, sun.tiles.x, sun.tiles.y) * reachSun * min(sun.color.a, 2.0) * 0.5);
+                // The most the web can add here: where that is under a step of an 8-bit colour the pattern is not worked out (see the GLSL).
+                let causticMost = mc.u_causticStrength * cosUp * reachSun * min(sun.color.a, 2.0) * 0.5;
+                if (causticMost > 0.004) {
+                    let onSurface = seabed + sun.dir.xyz * (depthBelow / max(cosUp, 0.15));
+                    let c = causticPattern(onSurface.xz / mc.u_causticScale, time * mc.u_causticSpeed);
+                    behind = behind * (1.0 + causticMost * c * waterSunVisibility(seabed, sun.tiles.x, sun.tiles.y));
+                }
             }
         }
     }
@@ -1229,31 +1289,44 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, amp : f32, calm : f32) -> vec
     let scatterColor = mix(mc.u_shallowColor.rgb, mc.u_deepColor.rgb, vec3f(1.0 - exp(-column * mc.u_density * 0.5)));
 
     let vertical = column * max(abs(viewDir.y), 0.15);
-    let foamScale = 1.0 / (mc.u_rippleLength * 1.2);
-    let breakup = waterNoise(wp * foamScale + vec2f(time * 0.07, time * 0.05)) * 0.6 + waterNoise(wp * foamScale * 3.0 - vec2f(time * 0.13, 0.0)) * 0.4;
-    let pulse = 0.65 + 0.35 * sin(time * 0.9 + breakup * 6.0);
-    var shore = 0.0;
-    if (haveDepth && mc.u_foamWidth > 0.0) { shore = clamp((1.0 - vertical / (mc.u_foamWidth * pulse)) * 1.25 - breakup * 1.15, 0.0, 1.0); }
-    if (zoneOn && mc.u_foamWidth > 0.0) {
-        // With the picture's depth the shallows foam by it, pixel by pixel; the baked depth then adds only the traced outline, not its texels.
-        var baked = min(shoreDist, shoreDepth);
-        if (haveDepth) { baked = shoreDist; }
-        shore = max(shore, clamp((1.0 - baked / (mc.u_foamWidth * pulse)) * 1.25 - breakup * 1.15, 0.0, 1.0));
-        // How the shore takes its waves: against rock or a cliff they burst white; up a gentle beach they wash in a thin line only; and the
-        // less room the wind has to raise them (a sheltered lake), the less of either.
-        let pound = waterZoneSteep(wp);
-        let swash = 1.0 - smoothstep(0.0, surfStep * 1.5, shoreDist);
-        shore = shore * mix(swash * 0.6, 1.0, pound) * mix(0.3, 1.0, zone.w);
+    var baked = min(shoreDist, shoreDepth);
+    if (haveDepth) { baked = shoreDist; }
+    // Most of a sea has none of the foam below, and the noise that breaks it up need not be worked out to find that (see the GLSL).
+    var surfFoam = 0.0;
+    var foam = 0.0;
+    let crestLine = 1.0 - 0.3 * mc.u_foamCrest;
+    if ((mc.u_foamWidth > 0.0 && ((haveDepth && vertical < mc.u_foamWidth) || (zoneOn && baked < mc.u_foamWidth))) || (mc.u_foamCrest > 0.0 && waves.crest > crestLine) || ripFoam > 0.0 || surf.y > 0.0) {
+        let foamScale = 1.0 / (mc.u_rippleLength * 1.2);
+        let breakup = waterNoise(wp * foamScale + vec2f(time * 0.07, time * 0.05)) * 0.6 + waterNoise(wp * foamScale * 3.0 - vec2f(time * 0.13, 0.0)) * 0.4;
+        let pulse = 0.65 + 0.35 * sin(time * 0.9 + breakup * 6.0);
+        var shore = 0.0;
+        if (haveDepth && mc.u_foamWidth > 0.0) { shore = clamp((1.0 - vertical / (mc.u_foamWidth * pulse)) * 1.25 - breakup * 1.15, 0.0, 1.0); }
+        if (zoneOn && mc.u_foamWidth > 0.0) {
+            // With the picture's depth the shallows foam by it, pixel by pixel; the baked depth then adds only the traced outline, not its texels.
+            shore = max(shore, clamp((1.0 - baked / (mc.u_foamWidth * pulse)) * 1.25 - breakup * 1.15, 0.0, 1.0));
+            if (shore > 0.0) {
+                // How the shore takes its waves: against rock or a cliff they burst white; up a gentle beach they wash in a thin line only; and the
+                // less room the wind has to raise them (a sheltered lake), the less of either.
+                let pound = waterZoneSteep(wp);
+                let swash = 1.0 - smoothstep(0.0, surfStep * 1.5, shoreDist);
+                shore = shore * mix(swash * 0.6, 1.0, pound) * mix(0.3, 1.0, zone.w);
+            }
+        }
+        var onCrest = 0.0;
+        if (mc.u_foamCrest > 0.0) { onCrest = smoothstep(crestLine, 1.0, waves.crest) * smoothstep(0.35, 0.75, breakup); }
+        // A breaker whitens as much on a beach as the waves are big, but bursts whitest on rock.
+        if (surf.y > 0.0) {
+            var steepHere = 1.0;
+            if (zoneOn) { steepHere = waterZoneSteep(wp); }
+            surfFoam = surf.y * smoothstep(0.15, 0.6, breakup + surf.y * 0.4) * mix(0.2, 1.0, steepHere);
+        }
+        foam = clamp(max(max(max(shore, onCrest * mc.u_foamCrest), ripFoam * (0.55 + 0.45 * breakup)), surfFoam), 0.0, 1.0);
     }
-    var onCrest = 0.0;
-    if (mc.u_foamCrest > 0.0) { onCrest = smoothstep(1.0 - 0.3 * mc.u_foamCrest, 1.0, waves.crest) * smoothstep(0.35, 0.75, breakup); }
-    // A breaker whitens as much on a beach as the waves are big, but bursts whitest on rock.
-    var steepHere = 1.0;
-    if (zoneOn) { steepHere = waterZoneSteep(wp); }
-    let surfFoam = surf.y * smoothstep(0.15, 0.6, breakup + surf.y * 0.4) * mix(0.2, 1.0, steepHere);
-    var foam = clamp(max(max(max(shore, onCrest * mc.u_foamCrest), ripFoam * (0.55 + 0.45 * breakup)), surfFoam), 0.0, 1.0);
-    // The texture as coverage (see the GLSL): c = 1 leaves the foam as it was.
-    foam = clamp((foam - (1.0 - foamCover)) / max(foamCover, 1e-3), 0.0, 1.0);
+    // The texture as coverage (see the GLSL): c = 1 leaves the foam as it was, and no foam stays none whatever c is.
+    if (foam > 0.0) {
+        let foamCover = textureSampleGrad(u_foamMap, u_foamMap_s, foamUv, foamDx, foamDy).r;
+        foam = clamp((foam - (1.0 - foamCover)) / max(foamCover, 1e-3), 0.0, 1.0);
+    }
     if (below) { foam = foam * 0.2; }
 
     var ext = surfaceExtNone(N);

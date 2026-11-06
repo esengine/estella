@@ -75,6 +75,16 @@ describe('the waves', () => {
         expect(source.split('fn waterBend(').length - 1).toBe(2);
     });
 
+    it('has its waves written into the shader as the numbers the set gives, in both languages', () => {
+        const source = JSON.stringify(WATER_SHADER_TEMPLATE);
+        WAVE_SET.forEach(([heading, lengthShare, heightShare, speedShare]) => {
+            const radians = heading * Math.PI / 180;
+            const numbers = [Math.cos(radians), Math.sin(radians), 1 / lengthShare, speedShare / Math.sqrt(lengthShare)].map((n) => n.toFixed(6));
+            const call = `run, far, ${numbers.join(', ')}, ${Number.isInteger(heightShare) ? heightShare.toFixed(1) : heightShare})`;
+            expect(source.split(call).length - 1, call).toBe(2);
+        });
+    });
+
     it('has a slope that is the derivative of its height', () => {
         const e = 1e-4;
         for (const [x, z, t] of [[0, 0, 0], [5.5, -3.1, 2.4], [-12, 9, 7.7]] as const) {
