@@ -458,10 +458,18 @@ export function deleteFaces(mesh: PolyMesh, p: { faces: FaceSelector }): PolyMes
 }
 
 /** Recolours faces: linear RGB or RGBA in 0..1, multiplied into whatever material draws the mesh. */
-export function paint(mesh: PolyMesh, p: { faces: FaceSelector; color: readonly number[] }): PolyMesh {
-    const color = toColor(p.color);
+export function paint(mesh: PolyMesh, p: { faces: FaceSelector; color?: readonly number[]; roughness?: number; metallic?: number }): PolyMesh {
+    if (p.color === undefined && p.roughness === undefined && p.metallic === undefined) throw new Error('give at least one of color, roughness, metallic');
+    for (const [name, v] of [['roughness', p.roughness], ['metallic', p.metallic]] as const) {
+        if (v !== undefined && !(v >= 0 && v <= 1)) throw new Error(`${name} ${v} must be 0..1`);
+    }
+    const set = {
+        ...(p.color !== undefined ? { color: toColor(p.color) } : {}),
+        ...(p.roughness !== undefined ? { roughness: p.roughness } : {}),
+        ...(p.metallic !== undefined ? { metallic: p.metallic } : {}),
+    };
     const hit = new Set(requireFaces(mesh, p.faces));
-    return { ...mesh, faces: mesh.faces.map((f, i) => (hit.has(i) ? { ...f, color } : f)) };
+    return { ...mesh, faces: mesh.faces.map((f, i) => (hit.has(i) ? { ...f, ...set } : f)) };
 }
 
 /** Names faces, so later steps can ask for them by what they are. */

@@ -55,6 +55,8 @@ export interface NormalMap {
      * alike, so this reaches it as the same number in both.
      */
     colorRgba?: Uint8Array;
+    /** The dense surface's roughness in green and metal in blue, with `normalBake.surface`: glTF's packing, which u_metallicRoughnessMap reads. */
+    surfaceRgba?: Uint8Array;
     report: NormalBakeReport;
     warnings: string[];
 }
@@ -194,12 +196,13 @@ function readFloats(mesh: MeshData, semantic: number, components: number): Float
 }
 
 /** The dense surface as flat triangles, and the shading normal at each of their corners. */
-function denseSurface(high: PolyMesh, smoothAngle: number): { corners: Float64Array; normals: Float64Array; colors: Uint8Array } {
+function denseSurface(high: PolyMesh, smoothAngle: number, fallback: { roughness: number; metallic: number }): { corners: Float64Array; normals: Float64Array; colors: Uint8Array; surfaces: Uint8Array } {
     const normalsOf = cornerNormals(high, smoothAngle);
     let count = 0;
     for (const face of high.faces) count += Math.max(0, face.v.length - 2);
     const corners = new Float64Array(count * 9), normals = new Float64Array(count * 9);
     const colors = new Uint8Array(count * 4);
+    const surfaces = new Uint8Array(count * 2);
     let t = 0;
     high.faces.forEach((face, f) => {
         const color = face.color ?? [1, 1, 1, 1];
@@ -210,10 +213,12 @@ function denseSurface(high: PolyMesh, smoothAngle: number): { corners: Float64Ar
                 for (let k = 0; k < 3; k++) { corners[t * 9 + c * 3 + k] = p[k]!; normals[t * 9 + c * 3 + k] = n[k]!; }
             });
             colors.set(bytes, t * 4);
+            surfaces[t * 2] = Math.round((face.roughness ?? fallback.roughness) * 255);
+            surfaces[t * 2 + 1] = Math.round((face.metallic ?? fallback.metallic) * 255);
             t++;
         }
     });
-    return { corners: t === count ? corners : corners.subarray(0, t * 9), normals, colors };
+    return { corners: t === count ? corners : corners.subarray(0, t * 9), normals, colors, surfaces };
 }
 
 /** Bakes @p model's `normalBake`. Throws if it has none. */
@@ -223,7 +228,8 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
     const { size, high, smoothAngle } = detail;
     const { min, max } = boundsOf(high);
     const distance = detail.distance ?? Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) * DEFAULT_DISTANCE;
-    const { corners, normals, colors } = denseSurface(high, smoothAngle);
+    const fallback = detail.surface ?? { roughness: 1, metallic: 0 };
+    const { corners, normals, colors, surfaces } = denseSurface(high, smoothAngle, fallback);
     const tree = new TriangleTree(corners);
 
     const mesh = model.data;
@@ -236,6 +242,16 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
     for (let i = 0; i < size * size; i++) { rgba[i * 4] = 128; rgba[i * 4 + 1] = 128; rgba[i * 4 + 2] = 255; rgba[i * 4 + 3] = 255; }
     const lowColors = detail.lowColors;
     const colorRgba = lowColors ? new Uint8Array(size * size * 4) : undefined;
+    const surfaceRgba = detail.surface ? new Uint8Array(size * size * 4) : undefined;
+    if (surfaceRgba) {
+        // What the source says everything is, wherever no chart lands or no surface is found.
+        for (let i = 0; i < size * size; i++) {
+            surfaceRgba[i * 4] = 255;
+            surfaceRgba[i * 4 + 1] = Math.round(fallback.roughness * 255);
+            surfaceRgba[i * 4 + 2] = Math.round(fallback.metallic * 255);
+            surfaceRgba[i * 4 + 3] = 255;
+        }
+    }
     const covered = new Uint8Array(size * size);
     const place = new Float64Array(2);
     let hits = 0, missed = 0, bend = 0;
@@ -280,6 +296,7 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
                 }
                 hits++;
                 if (colorRgba) colorRgba.set(colors.subarray(hit * 4, hit * 4 + 4), texel * 4);
+                if (surfaceRgba) { surfaceRgba[texel * 4 + 1] = surfaces[hit * 2]!; surfaceRgba[texel * 4 + 2] = surfaces[hit * 2 + 1]!; }
 
                 const [hv, hw] = [place[0]!, place[1]!];
                 const hu = 1 - hv - hw;
@@ -312,7 +329,7 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
         }
     }
     const inside = hits + missed;
-    dilate(colorRgba ? [rgba, colorRgba] : [rgba], covered, size);
+    dilate([rgba, ...(colorRgba ? [colorRgba] : []), ...(surfaceRgba ? [surfaceRgba] : [])], covered, size);
 
     const from = corners.length / 9, to = mesh.indices.length / 3;
     const warnings: string[] = [];
@@ -322,7 +339,7 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
     if (inside / (size * size) < SPARSE_COVERAGE) warnings.push(`the surface broke into so many pieces that they fill only ${Math.round((inside / (size * size)) * 100)}% of the map, so most of its resolution is lost: lower the amplitude before the decimate, or keep more triangles`);
     if (from <= to) warnings.push(`the surface baked from has ${from} triangles and this one ${to}: there is no detail to carry. normalBake.from should name a step before the decimate`);
     return {
-        size, rgba, warnings, ...(colorRgba ? { colorRgba } : {}),
+        size, rgba, warnings, ...(colorRgba ? { colorRgba } : {}), ...(surfaceRgba ? { surfaceRgba } : {}),
         report: {
             size, from, to,
             coverage: Math.round((inside / (size * size)) * 1000) / 1000,

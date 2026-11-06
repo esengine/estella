@@ -18,6 +18,10 @@ export interface Face {
     tag: string;
     /** Linear RGBA, as MeshRenderer.color is; absent draws white. */
     color?: readonly [number, number, number, number];
+    /** How rough, 0..1. Absent takes the source's `material`. */
+    roughness?: number;
+    /** How much metal, 0..1. Absent takes the source's `material`. */
+    metallic?: number;
     /** Part of a continuous skin: shaded smooth with its neighbours whatever the angle, and its edges are not features. */
     smooth?: boolean;
     /** How this face takes its texture, from a `uv` step; absent, a box projection at the source's uvScale. */

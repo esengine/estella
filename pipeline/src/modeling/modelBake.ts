@@ -8,7 +8,7 @@
  *        "2 open edges" or "this shell is inside out" gets fixed on the next call,
  *        where the same fault in a lit picture reads as a slightly odd shadow.
  */
-import { MeshChannel, MeshChannelType, packChannels, unwrapLightmapUV, type MeshData, type MeshMorphTargets } from 'esengine';
+import { BlendMode, CullMode, MATERIAL_FORMAT_VERSION, MeshChannel, MeshChannelType, packChannels, unwrapLightmapUV, type MeshData, type MeshMorphTargets } from 'esengine';
 import { generateTangents } from '../assets/meshTangents';
 import { triangulateFace } from './triangulate';
 import { faceUvs } from './modelUv';
@@ -64,7 +64,7 @@ export interface BakedModel {
     /** One triangle per entry: its three positions' indices, and the face it came from. */
     triangles: { v: [number, number, number]; face: number }[];
     /** Present where a source has a normalBake: what bakeNormalMap carries, onto a mesh already unwrapped and given tangents for it. */
-    detail?: { high: PolyMesh; size: number; distance?: number; smoothAngle: number; lowColors?: Uint8Array };
+    detail?: { high: PolyMesh; size: number; distance?: number; smoothAngle: number; lowColors?: Uint8Array; surface?: { roughness: number; metallic: number } };
 }
 
 // ---- Report -----------------------------------------------------------------------
@@ -271,6 +271,28 @@ function withTangents(mesh: MeshData): MeshData {
     };
 }
 
+/** What a material has to say about a model, or null where a plain MeshRenderer says all of it. */
+export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, maps: { normal?: string | null; surface?: string | null }): Record<string, unknown> | null {
+    const { material } = source;
+    if (!material && !maps.surface) return null;
+    return {
+        version: MATERIAL_FORMAT_VERSION,
+        type: 'material',
+        shader: 'builtin:model',
+        blendMode: BlendMode.None,
+        depthTest: true,
+        depthWrite: true,
+        cull: cullBackfaces ? CullMode.Back : CullMode.None,
+        properties: {
+            ...(maps.normal ? { u_normalMap: maps.normal } : {}),
+            // A map holds the values and the factors multiply it, so they stand aside.
+            ...(maps.surface
+                ? { u_metallicRoughnessMap: maps.surface, u_roughness: 1, u_metallic: 1 }
+                : { u_roughness: material?.roughness ?? 1, u_metallic: material?.metallic ?? 0 }),
+        },
+    };
+}
+
 /** Validates, builds and bakes @p raw. Throws a ModelBuildError naming the step that failed; writes nothing, so a failure leaves nothing half made. */
 export function bakeModel(raw: unknown): BakedModel {
     const source = validateModelSource(raw);
@@ -337,6 +359,10 @@ export function bakeModel(raw: unknown): BakedModel {
     for (const f of mesh.faces) if (f.tag) tags[f.tag] = (tags[f.tag] ?? 0) + 1;
 
     const warnings: string[] = [...notes, ...(layoutNote ? [layoutNote] : [])];
+    if (!bake?.surface && (high ?? mesh).faces.some((f) => f.roughness !== undefined || f.metallic !== undefined)) {
+        const uniform = mesh.faces.every((f) => f.roughness === mesh.faces[0]!.roughness && f.metallic === mesh.faces[0]!.metallic);
+        warnings.push(`faces say their own roughness or metallic, and nothing carries that: give normalBake \`surface: true\`${uniform ? ', or say it once in `material`' : ''}`);
+    }
     if (triangleCount > HEAVY_TRIANGLES) warnings.push(`${triangleCount} triangles is a lot to draw: end with a \`decimate\`, and \`normalBake\` to keep the detail`);
     if (openEdges) warnings.push(`${openEdges} open edge${openEdges > 1 ? 's' : ''}: the surface has holes you can see into`);
     if (nonManifoldEdges) warnings.push(`${nonManifoldEdges} edge${nonManifoldEdges > 1 ? 's' : ''} shared by more than two faces, which a later bevel refuses: \`weld\` may have joined things that should stay apart, or on an organic skin two parts just touch, so overlap them or raise blend`);
@@ -369,7 +395,7 @@ export function bakeModel(raw: unknown): BakedModel {
         data: unwrapped,
         ...(rig ? { rig } : {}),
         ...(shapes ? { shapes } : {}),
-        ...(bake && high ? { detail: { high, size, ...(bake.distance !== undefined ? { distance: bake.distance } : {}), smoothAngle: source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE, ...(lowColors ? { lowColors } : {}) } } : {}),
+        ...(bake && high ? { detail: { high, size, ...(bake.distance !== undefined ? { distance: bake.distance } : {}), smoothAngle: source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE, ...(lowColors ? { lowColors } : {}), ...(bake.surface ? { surface: { roughness: source.material?.roughness ?? 1, metallic: source.material?.metallic ?? 0 } } : {}) } } : {}),
         triangles: triangles.flatMap((tris, face) => tris.map((v) => ({ v, face }))),
         report: {
             vertices: unwrapped.vertexCount,

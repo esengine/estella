@@ -3880,6 +3880,12 @@ export const NOTED = {
     {"note":"An AI building a model can make it light and keep its detail."},
   "fix(mcp): a rotation given as a quaternion is that rotation, where its parts were read as degrees and its w dropped":
     {"note":"A rotation given to an agent as a quaternion is that rotation."},
+  "fix(asset): a map a material names keeps its import settings in Play, where it was decoded as colour":
+    {"note":"A material's normal and metal-rough maps are read as data in the editor's Play."},
+  "feat(modeling): a model says how rough and how metal it is, part by part, and a bake keeps that as a map":
+    {"note":"An AI building a model can say what it is made of."},
+  "feat(mcp): model_write writes a material and a surface map, and a check draws the map against its constant":
+    {"note":"An AI building a model can say what it is made of."},
   "feat(modeling): a stain step colours a surface by what is there, and a bake keeps it as a colour map":
     {"note":"An AI building a model can colour it finely, and keep that on a thin mesh."},
   "feat(mcp): model_write stains and bakes colour, checked in both colour spaces":

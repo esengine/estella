@@ -42,6 +42,8 @@ export interface ModelSource {
     uvScale?: number;
     /** Lay the base UV out so no two triangles share texels: for a texture painted for this one model, where tiling is not wanted. */
     uvAtlas?: boolean;
+    /** What every face is made of until a `paint` or `stain` says otherwise. */
+    material?: ModelMaterial;
     /** Carries a denser state of the steps onto the final surface as a normal map. It lays the base UV out as uvAtlas does. */
     normalBake?: NormalBakeSource;
     /** Joints: the mesh is skinned to them, with weights found from the surface. */
@@ -55,6 +57,13 @@ export interface ModelSource {
     steps: ModelStep[];
 }
 
+export interface ModelMaterial {
+    /** 0 is a mirror, 1 is chalk. Default 1. */
+    roughness?: number;
+    /** 0 is anything else, 1 is metal. Default 0. */
+    metallic?: number;
+}
+
 export interface NormalBakeSource {
     /** The step whose result holds the detail. Default: what the last `decimate` started from. */
     from?: string;
@@ -64,6 +73,8 @@ export interface NormalBakeSource {
     distance?: number;
     /** Also writes the dense surface's paint as a base colour map, leaving the mesh's own vertex colours white. */
     color?: boolean;
+    /** Also writes the dense surface's roughness and metal as a map. */
+    surface?: boolean;
 }
 
 type Kind = 'number' | 'integer' | 'boolean' | 'string' | 'vec3' | 'number|vec3' | 'number|vec2' | 'number|numbers'
@@ -100,11 +111,11 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     boolean: { params: { operation: 'operation', with: 'faces', from: 'faces', keep: 'boolean', tag: 'string', color: 'color' }, required: ['operation', 'with'], run: booleanOp as unknown as OpSpec['run'], says: 'cuts or joins closed solids: subtract `with` from `from` makes a real hole' },
     subdivide: { params: { faces: 'faces', levels: 'integer', crease: 'number' }, required: [], run: subdivide as unknown as OpSpec['run'], says: 'rounds whole shells into smooth surfaces, keeping edges sharper than `crease` degrees' },
     displace: { params: { faces: 'faces', near: 'near', pattern: 'pattern', amplitude: 'number', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', detail: 'number' }, required: ['pattern', 'amplitude', 'scale'], run: ((mesh: PolyMesh, params: never) => displace(mesh, params)) as OpSpec['run'], says: 'pushes fine detail out of the surface along its normal, splitting faces as far as the pattern needs: bumps, wrinkles, cracks, scales, pores, ribs, weave or scratches' },
-    stain: { params: { faces: 'faces', near: 'near', hard: 'boolean', color: 'color', amount: 'number', pattern: 'pattern', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', threshold: 'number', softness: 'number', where: 'where', reach: 'number', facing: 'vec3', detail: 'number' }, required: ['color'], run: ((mesh: PolyMesh, params: never) => stain(mesh, params)) as OpSpec['run'], says: 'lays colour over the surface by a pattern, by shape (`where`: cavity for dirt in what is sunken, edges for wear on what stands out), by which way it faces, or around a spot: pupils, moss, grime' },
+    stain: { params: { faces: 'faces', near: 'near', hard: 'boolean', color: 'color', roughness: 'number', metallic: 'number', amount: 'number', pattern: 'pattern', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', threshold: 'number', softness: 'number', where: 'where', reach: 'number', facing: 'vec3', detail: 'number' }, required: [], run: ((mesh: PolyMesh, params: never) => stain(mesh, params)) as OpSpec['run'], says: 'lays colour, `roughness` or `metallic` over the surface by a pattern, by shape (`where`: cavity for dirt in what is sunken, edges for wear on what stands out), by which way it faces, or around a spot: pupils, moss, grime' },
     decimate: { params: { from: 'string', faces: 'faces', ratio: 'number', triangles: 'integer', error: 'number' }, required: [], run: decimate as unknown as OpSpec['run'], says: 'leaves fewer triangles over the same surface: `ratio` to keep or `triangles` to end with, stopping sooner if the surface would move more than `error` (default 0.02) of its size; `from` thins the surface as it stood after that step, before its fine detail' },
     uv: { params: { faces: 'faces', mode: 'uvmode', axis: 'string', at: 'vec3', scale: 'number|vec2only', repeat: 'number|vec2only', offset: 'vec2', rotate: 'number' }, required: ['mode'], run: uvStep as unknown as OpSpec['run'], says: 'sets how faces take a texture: box, planar, cylinder or sphere' },
     delete: { params: { faces: 'faces' }, required: ['faces'], run: ops.deleteFaces as OpSpec['run'], says: 'removes faces, leaving a hole' },
-    paint: { params: { faces: 'faces', color: 'color' }, required: ['faces', 'color'], run: ops.paint as OpSpec['run'], says: 'sets vertex colour: linear [r, g, b] in 0..1, multiplied into the material' },
+    paint: { params: { faces: 'faces', color: 'color', roughness: 'number', metallic: 'number' }, required: ['faces'], run: ops.paint as OpSpec['run'], says: 'sets vertex colour: linear [r, g, b] in 0..1, multiplied into the material; and how `roughness` and `metallic` a surface is, 0..1' },
     tag: { params: { faces: 'faces', tag: 'string' }, required: ['faces', 'tag'], run: ops.tagFaces as OpSpec['run'], says: 'names faces for later steps' },
     weld: { params: { distance: 'number' }, required: [], run: ops.weld as OpSpec['run'], says: 'merges coincident vertices and removes the back-to-back faces that leaves' },
 };
@@ -276,13 +287,14 @@ export class ModelBuildError extends Error {
 }
 
 function checkNormalBake(v: unknown, steps: readonly Partial<ModelStep>[]): string | null {
-    if (typeof v !== 'object' || v === null || Array.isArray(v)) return 'must be { from?, size?, distance?, color? }';
+    if (typeof v !== 'object' || v === null || Array.isArray(v)) return 'must be { from?, size?, distance?, color?, surface? }';
     const bake = v as Record<string, unknown>;
-    for (const key of Object.keys(bake)) if (!['from', 'size', 'distance', 'color'].includes(key)) return `has an unknown field "${key}"; it takes from, size, distance, color`;
+    for (const key of Object.keys(bake)) if (!['from', 'size', 'distance', 'color', 'surface'].includes(key)) return `has an unknown field "${key}"; it takes from, size, distance, color, surface`;
     const { size, distance, from } = bake;
     if (size !== undefined && !(Number.isInteger(size) && (size as number) >= 64 && (size as number) <= 4096 && ((size as number) & ((size as number) - 1)) === 0)) return 'size must be a power of two, 64..4096';
     if (distance !== undefined && !(isNum(distance) && distance > 0)) return 'distance must be a positive number';
     if (bake.color !== undefined && typeof bake.color !== 'boolean') return 'color must be true or false';
+    if (bake.surface !== undefined && typeof bake.surface !== 'boolean') return 'surface must be true or false';
     if (from !== undefined) {
         if (typeof from !== 'string') return 'from must be a step id';
         if (!steps.some((s) => s?.id === from)) return `from "${from}" is no step's id`;
@@ -301,8 +313,8 @@ export function validateModelSource(raw: unknown): ModelSource {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ModelBuildError('a model source must be an object with `steps`', null, null, null);
     const source = raw as Record<string, unknown>;
     for (const key of Object.keys(source)) {
-        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'normalBake', 'rig', 'shapes', 'animations', 'controller', 'steps'].includes(key)) {
-            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, normalBake, rig, shapes, animations, controller, steps`, null, null, null);
+        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'material', 'normalBake', 'rig', 'shapes', 'animations', 'controller', 'steps'].includes(key)) {
+            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, material, normalBake, rig, shapes, animations, controller, steps`, null, null, null);
         }
     }
     if (source.version !== undefined && source.version !== MODEL_SOURCE_VERSION) {
@@ -336,6 +348,14 @@ export function validateModelSource(raw: unknown): ModelSource {
         if (bad) throw new ModelBuildError(bad, null, null, null);
     }
     if (!Array.isArray(source.steps)) throw new ModelBuildError('`steps` must be an array', null, null, null);
+    if (source.material !== undefined) {
+        const m = source.material as Record<string, unknown> | null;
+        if (typeof m !== 'object' || m === null || Array.isArray(m)) throw new ModelBuildError('material must be { roughness?, metallic? }', null, null, null);
+        for (const [key, value] of Object.entries(m)) {
+            if (key !== 'roughness' && key !== 'metallic') throw new ModelBuildError(`material has an unknown field "${key}"; it takes roughness, metallic`, null, null, null);
+            if (!(isNum(value) && value >= 0 && value <= 1)) throw new ModelBuildError(`material.${key} must be 0..1`, null, null, null);
+        }
+    }
     if (source.normalBake !== undefined) {
         const bad = checkNormalBake(source.normalBake, source.steps as Partial<ModelStep>[]);
         if (bad) throw new ModelBuildError(`normalBake ${bad}`, null, null, null);
@@ -404,7 +424,10 @@ export function buildPolyMesh(source: ModelSource): ModelBuild {
         const input = op === 'decimate' && from !== undefined ? kept.get(from)! : mesh;
         const before = op === 'decimate' ? triangleCount(input) : 0;
         try {
-            mesh = MODEL_OPS[op]!.run(input, (op === 'decimate' ? rest : params) as never);
+            // A partial stain mixes from what is there, and what is there by default is the source's to say.
+            mesh = op === 'stain'
+                ? stain(input, params as never, undefined, { roughness: source.material?.roughness ?? 1, metallic: source.material?.metallic ?? 0 })
+                : MODEL_OPS[op]!.run(input, (op === 'decimate' ? rest : params) as never);
         } catch (e) {
             throw new ModelBuildError(`${stepLabel(step, index)}: ${e instanceof Error ? e.message : String(e)}`, index, id ?? null, op);
         }
@@ -425,7 +448,7 @@ export type ModelEdit =
     | { op: 'set'; step: string | number; fields: Record<string, unknown> }
     | { op: 'insert'; step: ModelStep; before?: string | number; after?: string | number }
     | { op: 'remove'; step: string | number }
-    | { op: 'settings'; fields: Pick<ModelSource, 'smoothAngle' | 'uvScale' | 'uvAtlas' | 'normalBake' | 'rig' | 'shapes' | 'animations' | 'controller'> };
+    | { op: 'settings'; fields: Pick<ModelSource, 'smoothAngle' | 'uvScale' | 'uvAtlas' | 'material' | 'normalBake' | 'rig' | 'shapes' | 'animations' | 'controller'> };
 
 function indexOfStep(source: ModelSource, ref: string | number): number {
     const i = typeof ref === 'number' ? ref : source.steps.findIndex((s) => s.id === ref);

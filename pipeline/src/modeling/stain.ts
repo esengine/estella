@@ -17,7 +17,11 @@ export interface StainParams {
     near?: { at: Vec3; radius: number };
     hard?: boolean;
     /** Linear [r, g, b], over what is there. */
-    color: readonly number[];
+    color?: readonly number[];
+    /** How rough to make it, 0..1: moss and dust dull a surface, wear polishes it. */
+    roughness?: number;
+    /** How much metal to make it, 0..1: bare steel where the paint has worn off. */
+    metallic?: number;
     /** How strongly, 0..1, where the rest say all the way. Default 1. */
     amount?: number;
     pattern?: DisplacePattern;
@@ -101,8 +105,12 @@ function relief(mesh: PolyMesh, normals: Float64Array, reach: number | undefined
     return out;
 }
 
-export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIANGLES): PolyMesh {
-    if (p.color.length < 3) throw new Error('color must be [r, g, b]');
+export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIANGLES, surfaceDefaults?: { roughness: number; metallic: number }): PolyMesh {
+    if (p.color === undefined && p.roughness === undefined && p.metallic === undefined) throw new Error('give at least one of color, roughness, metallic');
+    if (p.color !== undefined && p.color.length < 3) throw new Error('color must be [r, g, b]');
+    for (const [name, v] of [['roughness', p.roughness], ['metallic', p.metallic]] as const) {
+        if (v !== undefined && !(v >= 0 && v <= 1)) throw new Error(`${name} ${v} must be 0..1`);
+    }
     if (p.pattern !== undefined && !DISPLACE_PATTERNS.includes(p.pattern)) throw new Error(`pattern ${JSON.stringify(p.pattern)} must be one of ${DISPLACE_PATTERNS.join(', ')}`);
     if (p.pattern !== undefined && !(p.scale! > 0)) throw new Error('a pattern needs a positive `scale`');
     if (p.amount !== undefined && !(p.amount >= 0 && p.amount <= 1)) throw new Error(`amount ${p.amount} must be 0..1`);
@@ -141,7 +149,8 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
     const field = p.pattern ? patternField(asPattern) : null;
     const threshold = p.threshold ?? 0.5, softness = p.softness ?? 0.15;
     const amount = p.amount ?? 1;
-    const color = [p.color[0]!, p.color[1]!, p.color[2]!] as const;
+    const color = p.color ? [p.color[0]!, p.color[1]!, p.color[2]!] as const : null;
+    const defaults = surfaceDefaults ?? { roughness: 1, metallic: 0 };
 
     const maskAt = (v: number): number => {
         let m = 1;
@@ -180,7 +189,12 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
         const m = (sum / face.v.length) * amount;
         if (m <= 0) return face;
         const was = face.color ?? [1, 1, 1, 1];
-        return { ...face, color: [was[0] + (color[0] - was[0]) * m, was[1] + (color[1] - was[1]) * m, was[2] + (color[2] - was[2]) * m, was[3]] as const };
+        return {
+            ...face,
+            ...(color ? { color: [was[0] + (color[0] - was[0]) * m, was[1] + (color[1] - was[1]) * m, was[2] + (color[2] - was[2]) * m, was[3]] as const } : {}),
+            ...(p.roughness !== undefined ? { roughness: (face.roughness ?? defaults.roughness) + (p.roughness - (face.roughness ?? defaults.roughness)) * m } : {}),
+            ...(p.metallic !== undefined ? { metallic: (face.metallic ?? defaults.metallic) + (p.metallic - (face.metallic ?? defaults.metallic)) * m } : {}),
+        };
     });
     const out = compact({ positions: fine.positions, faces });
     return short ? { ...out, notes: [`this stain wants edges of ${longest!.toPrecision(3)} and stopped at ${budget} triangles, so it is coarser than asked: narrow it with \`faces\` or \`near\`, or give a larger \`detail\``] } : out;
