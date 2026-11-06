@@ -10,6 +10,10 @@ sdk/etc/*.api.md text eol=lf
 # them — for as long as anyone runs the tests.
 sdk/src/ui/widgets/prefabs/* text eol=lf
 
+# tests/worker-bundle-fresh.test.ts compares this byte for byte with what the build
+# writes, which is LF; a CRLF checkout fails it with the right content in the file.
+sdk/src/runtime/planWorkerBundle.generated.ts text eol=lf
+
 # A generated WGSL twin stores a hash of the GLSL above it, taken over the bytes
 # on disk. A CRLF checkout changes those bytes, so every twin reads as stale and
 # regenerating writes a hash no Linux runner can reproduce.

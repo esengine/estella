@@ -42,7 +42,7 @@ function leg(world: any, footAt = 0, rig: Partial<{ position: Vec3; rotation: an
         }
     };
     node(RIG, null, 'Rig', { x: 0, y: 0, z: 0 });
-    Object.assign(world.get(RIG, Transform), rig);
+    world.set(RIG, Transform, { ...world.get(RIG, Transform), ...rig });
     node(PELVIS, RIG, 'Pelvis', { x: 0, y: 2, z: 0 });
     node(THIGH, PELVIS, 'Thigh', { x: 0, y: 0, z: 0 });
     node(SHIN, THIGH, 'Shin', { x: 0, y: -1, z: 0.05 });
