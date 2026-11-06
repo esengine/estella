@@ -15,8 +15,8 @@
  *        What the model looks like in the game is what `screenshot` is for.
  */
 import type { BakedModel } from './modelBake';
-import { boneLines, jointColor, posedPositions, type AnimationSource } from './rig';
-import { add, boundsOf, collectEdges, cross, dot, faceNormal, normalize, selectFaces, sub, type FaceSelector, type Vec3 } from './polyMesh';
+import { boneLines, jointColor, morphedPositions, posedPositions, shapeWeightsAt, type AnimationSource } from './rig';
+import { add, boundsOf, collectEdges, cross, dot, faceNormal, normalize, selectFaces, sub, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
 export const MODEL_VIEWS = {
     front: { right: [1, 0, 0], up: [0, 1, 0], toward: [0, 0, 1] },
@@ -193,6 +193,8 @@ export interface RigViewOptions {
     /** Draws this clip. With `times`, a strip of one view at each. */
     animation?: string;
     times?: readonly number[];
+    /** Shows this shape at full weight. */
+    shape?: string;
     /** Colours each face by the joint moving it most, or fades all but one joint's reach. */
     weights?: boolean | string;
     /** Draws the bones over the shaded row. Default true on a rigged model. */
@@ -201,16 +203,17 @@ export interface RigViewOptions {
     wire?: boolean;
 }
 
-/** One sheet for a model's rig: the bind pose, a clip at some moments, or who moves what. */
+/** One sheet for a model that moves: at rest, a clip at some moments, a shape, or who moves what. */
 export function renderRigSheet(model: BakedModel, animations: readonly AnimationSource[], o: RigViewOptions = {}): ModelSheet {
     const panel = o.panel ?? 384;
-    if (!model.rig) {
-        if (o.animation || o.weights) throw new Error('this model has no rig');
-        return renderModelSheet(model, o.views ?? DEFAULT_MODEL_VIEWS, panel, o.focus, o.wire === true);
-    }
-    const { joints, skin } = model.rig;
+    const rig = model.rig;
+    const names = model.shapes?.names ?? [];
+    if (!rig && o.weights) throw new Error('this model has no rig');
+    if (o.shape !== undefined && !names.includes(o.shape)) throw new Error(`no shape "${o.shape}"; there are ${names.join(', ') || '(none)'}`);
+    if (!rig && !names.length && o.animation) throw new Error('this model has no rig');
     let drawn = model;
-    if (o.weights !== undefined && o.weights !== false) {
+    if (rig && o.weights !== undefined && o.weights !== false) {
+        const { joints, skin } = rig;
         const only = typeof o.weights === 'string' ? joints.findIndex((j) => j.name === o.weights) : -1;
         if (typeof o.weights === 'string' && only < 0) throw new Error(`no joint "${o.weights}"; there are ${joints.map((j) => j.name).join(', ')}`);
         const faces = model.poly.faces.map((face) => {
@@ -226,10 +229,14 @@ export function renderRigSheet(model: BakedModel, animations: readonly Animation
     }
     const anim = o.animation === undefined ? null : animations.find((a) => a.name === o.animation);
     if (o.animation !== undefined && !anim) throw new Error(`no animation "${o.animation}"; there are ${animations.map((a) => a.name).join(', ') || '(none)'}`);
-    const skeleton = o.skeleton !== false;
-    const posed = (time: number): BakedModel => ({ ...drawn, poly: { ...drawn.poly, positions: posedPositions(model.poly, joints, skin, anim ?? null, time) } });
+    const skeleton = rig !== undefined && o.skeleton !== false;
+    const weightsAt = (time: number): number[] => (o.shape !== undefined ? names.map((n) => (n === o.shape ? 1 : 0)) : shapeWeightsAt(names, anim ?? null, time));
+    const posed = (time: number): BakedModel => {
+        const shaped: PolyMesh = model.shapes ? { ...model.poly, positions: morphedPositions(model.poly, model.shapes.deltas, weightsAt(time)) } : model.poly;
+        return { ...drawn, poly: { ...drawn.poly, positions: rig ? posedPositions(shaped, rig.joints, rig.skin, anim ?? null, time) : shaped.positions } };
+    };
     if (!anim) {
-        return renderModelSheet(drawn, o.views ?? DEFAULT_MODEL_VIEWS, panel, o.focus, o.wire === true, skeleton ? { overlay: boneLines(joints, null, 0) } : {});
+        return renderModelSheet(posed(0), o.views ?? DEFAULT_MODEL_VIEWS, panel, o.focus, o.wire === true, skeleton ? { overlay: boneLines(rig!.joints, null, 0) } : {});
     }
     const times = o.times ?? Array.from({ length: 4 }, (_, i) => (i / 4) * anim.duration);
     if (times.length === 0) throw new Error('`times` names no moment');
@@ -237,10 +244,12 @@ export function renderRigSheet(model: BakedModel, animations: readonly Animation
     const view = o.views?.[0] ?? 'iso';
     // One frame for all of them, so what moves in the strip is the model and not the camera.
     const poses = times.map(posed);
-    const all = poses.flatMap((m) => m.poly.positions);
-    const frame = boundsOf({ positions: all, faces: [] });
+    const framedBy = o.focus === undefined ? poses.flatMap((m) => m.poly.positions)
+        : poses.flatMap((m) => selectFaces(m.poly, o.focus!).flatMap((f) => m.poly.faces[f]!.v.map((v) => m.poly.positions[v]!)));
+    if (framedBy.length === 0) throw new Error(`focus ${JSON.stringify(o.focus)} matched no face`);
+    const frame = boundsOf({ positions: framedBy, faces: [] });
     const sheets = poses.map((m, i) => renderModelSheet(m, [view], panel, undefined, o.wire === true, {
-        frame, ...(skeleton ? { overlay: boneLines(joints, anim, times[i]!) } : {}),
+        frame, ...(skeleton ? { overlay: boneLines(rig!.joints, anim, times[i]!) } : {}),
     }));
     const width = times.length * panel + (times.length - 1);
     const height = sheets[0]!.height;

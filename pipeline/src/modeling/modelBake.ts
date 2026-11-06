@@ -8,10 +8,10 @@
  *        "2 open edges" or "this shell is inside out" gets fixed on the next call,
  *        where the same fault in a lit picture reads as a slightly odd shadow.
  */
-import { MeshChannel, MeshChannelType, packChannels, unwrapLightmapUV, type MeshData } from 'esengine';
+import { MeshChannel, MeshChannelType, packChannels, unwrapLightmapUV, type MeshData, type MeshMorphTargets } from 'esengine';
 import { triangulateFace } from './triangulate';
 import { faceUvs } from './modelUv';
-import { bindMatrices, computeWeights, resolveJoints, type RigJoint, type SkinWeights } from './rig';
+import { adjustWeights, bindMatrices, computeWeights, resolveJoints, shapeDeltas, type RigJoint, type SkinWeights } from './rig';
 import { buildPolyMesh, validateModelSource, type ModelSource, type StepReport } from './modelSource';
 import {
     boundsOf, collectEdges, cross, dot, faceArea, faceNormal, length, normalize, sub,
@@ -52,6 +52,8 @@ export interface BakedModel {
     report: ModelReport;
     /** Present on a rigged model. */
     rig?: { joints: RigJoint[]; skin: SkinWeights };
+    /** Present where a source has shapes: three offsets per surface vertex, for each. */
+    shapes?: { names: string[]; deltas: Float32Array[] };
     /** One triangle per entry: its three positions' indices, and the face it came from. */
     triangles: { v: [number, number, number]; face: number }[];
 }
@@ -112,7 +114,7 @@ function cornerNormals(mesh: PolyMesh, smoothAngle: number): Vec3[][] {
     }));
 }
 
-function toMeshData(mesh: PolyMesh, triangles: readonly [number, number, number][][], source: ModelSource, rig?: BakedModel['rig']): MeshData {
+function toMeshData(mesh: PolyMesh, triangles: readonly [number, number, number][][], source: ModelSource, rig?: BakedModel['rig'], shapes?: BakedModel['shapes']): MeshData {
     const { channels, vertexStride } = packChannels([
         { semantic: MeshChannel.Position, components: 3, type: MeshChannelType.Float32 },
         { semantic: MeshChannel.TexCoord0, components: 2, type: MeshChannelType.Float32 },
@@ -126,7 +128,7 @@ function toMeshData(mesh: PolyMesh, triangles: readonly [number, number, number]
     const normals = cornerNormals(mesh, source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE);
     const uvScale = source.uvScale ?? 1;
     const seen = new Map<string, number>();
-    const pos: number[] = [], nrm: number[] = [], uv: number[] = [], col: number[] = [], source_: number[] = [];
+    const pos: number[] = [], nrm: number[] = [], uv: number[] = [], col: number[] = [], source_: number[] = [], cornerOf: [number, number][] = [];
     const indices: number[] = [];
     const uvs = new Map<number, Map<number, readonly [number, number]>>();
     const vertexOf = (f: number, v: number): number => {
@@ -147,6 +149,7 @@ function toMeshData(mesh: PolyMesh, triangles: readonly [number, number, number]
             uv.push(tu, tv);
             col.push(...color);
             source_.push(v);
+            cornerOf.push([f, face.v.indexOf(v)]);
         }
         return at;
     };
@@ -185,7 +188,28 @@ function toMeshData(mesh: PolyMesh, triangles: readonly [number, number, number]
         aabbMin: [...min] as [number, number, number],
         aabbMax: [...max] as [number, number, number],
         ...(rig ? { inverseBindMatrices: bindMatrices(rig.joints) } : {}),
+        ...(shapes ? { morph: morphOf(mesh, shapes, source_, cornerOf, normals, source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE) } : {}),
     };
+}
+
+/** Offsets for the baked vertices: positions from the surface's, normals from what the surface's corners become in that shape. */
+function morphOf(mesh: PolyMesh, shapes: NonNullable<BakedModel['shapes']>, sourceOf: readonly number[], cornerOf: readonly [number, number][], rest: Vec3[][], smoothAngle: number): MeshMorphTargets {
+    const count = sourceOf.length;
+    const deltas = new Float32Array(shapes.names.length * count * 6);
+    shapes.deltas.forEach((d, s) => {
+        const moved: PolyMesh = { ...mesh, positions: mesh.positions.map((p, v) => [p[0] + d[v * 3]!, p[1] + d[v * 3 + 1]!, p[2] + d[v * 3 + 2]!]) };
+        const normals = cornerNormals(moved, smoothAngle);
+        for (let i = 0; i < count; i++) {
+            const at = (s * count + i) * 6;
+            const v = sourceOf[i]!;
+            const [f, c] = cornerOf[i]!;
+            for (let k = 0; k < 3; k++) {
+                deltas[at + k] = d[v * 3 + k]!;
+                deltas[at + 3 + k] = normals[f]![c]![k]! - rest[f]![c]![k]!;
+            }
+        }
+    });
+    return { names: shapes.names, hasNormals: true, deltas };
 }
 
 /** Gives the base UV the unwrap's: no two triangles share texels, so a texture can be painted for this one model. */
@@ -210,11 +234,12 @@ export function bakeModel(raw: unknown): BakedModel {
     let rig: BakedModel['rig'];
     if (source.rig) {
         const joints = resolveJoints(source.rig);
-        rig = { joints, skin: computeWeights(mesh, joints) };
+        rig = { joints, skin: adjustWeights(mesh, joints, computeWeights(mesh, joints), source.rig.adjust ?? []) };
     }
-    // A skinned mesh takes no lightmap: bones move it, and a bake holds still.
-    const baked = toMeshData(mesh, triangles, source, rig);
-    const unwrapped = rig ? baked : unwrapLightmapUV(baked).mesh;
+    const shapes = source.shapes ? { names: source.shapes.map((s) => s.name), deltas: source.shapes.map((s) => shapeDeltas(mesh, s)) } : undefined;
+    // A mesh that moves takes no lightmap: a bake holds still.
+    const baked = toMeshData(mesh, triangles, source, rig, shapes);
+    const unwrapped = rig || shapes ? baked : unwrapLightmapUV(baked).mesh;
     if (source.uvAtlas) copyLightmapUvToBase(unwrapped);
 
     const edges = [...collectEdges(mesh).values()];
@@ -260,6 +285,7 @@ export function bakeModel(raw: unknown): BakedModel {
         poly: mesh,
         data: unwrapped,
         ...(rig ? { rig } : {}),
+        ...(shapes ? { shapes } : {}),
         triangles: triangles.flatMap((tris, face) => tris.map((v) => ({ v, face }))),
         report: {
             vertices: unwrapped.vertexCount,

@@ -9,7 +9,7 @@
  *        whether one should drag the other.
  */
 import { ANIMATOR_FORMAT_VERSION, PREFAB_FORMAT_VERSION, TIMELINE_FORMAT_VERSION } from 'esengine';
-import { add, boundsOf, cross, dot, length, normalize, scale, sub, type PolyMesh, type Vec3 } from './polyMesh';
+import { add, boundsOf, cross, dot, length, normalize, scale, selectFaces, sub, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
 export const MAX_RIG_JOINTS = 64;
 const DEG = Math.PI / 180;
@@ -23,8 +23,28 @@ export interface RigJointSource {
     mirror?: 'x' | 'y' | 'z';
 }
 
+/** Sets how much one joint moves some of the surface, where the weights found are wrong. Later ones win. */
+export interface WeightAdjust {
+    joint: string;
+    /** 0 frees the surface of this joint, 1 binds it wholly. */
+    weight: number;
+    /** These faces. */
+    faces?: FaceSelector;
+    /** Or a ball of surface, fading out to its edge. */
+    near?: { at: Vec3; radius: number };
+}
+
+/** An entity in the rig that bends nothing: what an IK constraint reaches for or looks at, moved by a game. */
+export interface RigGoal {
+    name: string;
+    at: Vec3;
+    parent?: string;
+}
+
 export interface RigSource {
     joints: readonly RigJointSource[];
+    adjust?: readonly WeightAdjust[];
+    goals?: readonly RigGoal[];
 }
 
 export interface AnimationTrack {
@@ -52,7 +72,9 @@ export interface AnimationSource {
     duration: number;
     /** Default true. */
     loop?: boolean;
-    tracks: readonly AnimationTrack[];
+    tracks?: readonly AnimationTrack[];
+    /** Weights of the model's `shapes` over the clip: a blink, a mouth. `value` is [time, weight]. */
+    shapes?: readonly { name: string; value: readonly (readonly number[])[]; phase?: number; linear?: boolean }[];
 }
 
 export interface RigJoint {
@@ -264,6 +286,195 @@ export function computeWeights(mesh: PolyMesh, joints: readonly RigJoint[]): Ski
     return { joints: outJoints, weights: outWeights, dominant };
 }
 
+/** @p skin with @p adjusts applied, the rest of each touched vertex rescaled to still sum to one. */
+export function adjustWeights(mesh: PolyMesh, joints: readonly RigJoint[], skin: SkinWeights, adjusts: readonly WeightAdjust[]): SkinWeights {
+    if (adjusts.length === 0) return skin;
+    const outJoints = skin.joints.slice();
+    const outWeights = skin.weights.slice();
+    for (const adjust of adjusts) {
+        const j = joints.findIndex((x) => x.name === adjust.joint);
+        const reach = new Float32Array(mesh.positions.length);
+        if (adjust.faces !== undefined) {
+            const hit = selectFaces(mesh, adjust.faces);
+            if (hit.length === 0) throw new Error(`rig.adjust on "${adjust.joint}": \`faces\` ${JSON.stringify(adjust.faces)} matched no face`);
+            for (const f of hit) for (const v of mesh.faces[f]!.v) reach[v] = 1;
+        } else {
+            const { at, radius } = adjust.near!;
+            let any = false;
+            mesh.positions.forEach((p, v) => {
+                const t = 1 - length(sub(p, at)) / radius;
+                if (t > 0) { reach[v] = t * t * (3 - 2 * t); any = true; }
+            });
+            if (!any) throw new Error(`rig.adjust on "${adjust.joint}": no surface within ${radius} of ${JSON.stringify(at)}`);
+        }
+        for (let v = 0; v < mesh.positions.length; v++) {
+            const m = reach[v]!;
+            if (m <= 0) continue;
+            const held = new Map<number, number>();
+            for (let k = 0; k < 4; k++) if (outWeights[v * 4 + k]! > 0) held.set(outJoints[v * 4 + k]!, outWeights[v * 4 + k]!);
+            const old = held.get(j) ?? 0;
+            const next = old + (adjust.weight - old) * m;
+            const others = 1 - old;
+            held.delete(j);
+            // With nothing else holding it, what this joint gives up goes up the chain rather than vanishing.
+            if (others <= 1e-6 && next < 1) {
+                const heir = joints[j]!.parent >= 0 ? joints[j]!.parent : joints[j]!.children[0] ?? j;
+                held.set(heir, 1);
+            }
+            const total = [...held.values()].reduce((a, b) => a + b, 0);
+            const ranked = [...held.entries()].map(([joint, w]) => ({ joint, w: total > 0 ? (w / total) * (1 - next) : 0 }));
+            if (next > 0) ranked.push({ joint: j, w: next });
+            ranked.sort((a, b) => b.w - a.w);
+            const keep = ranked.slice(0, 4);
+            const sum = keep.reduce((n, r) => n + r.w, 0) || 1;
+            for (let k = 0; k < 4; k++) {
+                outJoints[v * 4 + k] = keep[k]?.joint ?? 0;
+                outWeights[v * 4 + k] = keep[k] ? keep[k]!.w / sum : 0;
+            }
+        }
+    }
+    const dominant = joints.map(() => 0);
+    for (let v = 0; v < mesh.positions.length; v++) dominant[outJoints[v * 4]!]!++;
+    return { joints: outJoints, weights: outWeights, dominant };
+}
+
+// ---- Shapes ---------------------------------------------------------------------
+
+/** One way a part of the surface moves toward a shape. */
+export interface ShapeMove {
+    faces?: FaceSelector;
+    /** A ball of surface, fading out to its edge: a smile's corner, a raised brow. */
+    near?: { at: Vec3; radius: number };
+    translate?: Vec3;
+    /** Along each vertex's own outward direction: a swelling, a pucker. */
+    push?: number;
+    /** Toward or away from the centre of what is chosen. */
+    scale?: number;
+}
+
+/** A shape the mesh can blend toward, for a face or a muscle: morph target `name`, moved by `weights` in a clip or a game. */
+export interface ShapeSource {
+    name: string;
+    moves: readonly ShapeMove[];
+}
+
+/** Each shape's offsets, three per surface vertex. */
+export function shapeDeltas(mesh: PolyMesh, shape: ShapeSource): Float32Array {
+    const deltas = new Float32Array(mesh.positions.length * 3);
+    // Outward by the surface around each vertex, which `push` needs and nothing else does.
+    let normals: Vec3[] | null = null;
+    const outward = (): Vec3[] => {
+        if (normals) return normals;
+        const sum: Vec3[] = mesh.positions.map(() => [0, 0, 0]);
+        for (const face of mesh.faces) {
+            const n = faceNormalOf(mesh, face.v);
+            for (const v of face.v) sum[v] = add(sum[v]!, n);
+        }
+        normals = sum.map(normalize);
+        return normals;
+    };
+    for (const move of shape.moves) {
+        const reach = new Float32Array(mesh.positions.length);
+        if (move.faces !== undefined) {
+            const hit = selectFaces(mesh, move.faces);
+            if (hit.length === 0) throw new Error(`shape "${shape.name}": \`faces\` ${JSON.stringify(move.faces)} matched no face`);
+            for (const f of hit) for (const v of mesh.faces[f]!.v) reach[v] = 1;
+        } else {
+            const { at, radius } = move.near!;
+            let any = false;
+            mesh.positions.forEach((p, v) => {
+                const t = 1 - length(sub(p, at)) / radius;
+                if (t > 0) { reach[v] = t * t * (3 - 2 * t); any = true; }
+            });
+            if (!any) throw new Error(`shape "${shape.name}": no surface within ${radius} of ${JSON.stringify(at)}`);
+        }
+        let centre: Vec3 = [0, 0, 0];
+        if (move.scale !== undefined) {
+            let total = 0;
+            mesh.positions.forEach((p, v) => { centre = add(centre, scale(p, reach[v]!)); total += reach[v]!; });
+            centre = scale(centre, 1 / total);
+        }
+        mesh.positions.forEach((p, v) => {
+            const m = reach[v]!;
+            if (m <= 0) return;
+            let d: Vec3 = [0, 0, 0];
+            if (move.translate) d = add(d, move.translate);
+            if (move.push !== undefined) d = add(d, scale(outward()[v]!, move.push));
+            if (move.scale !== undefined) d = add(d, scale(sub(p, centre), move.scale - 1));
+            deltas[v * 3] = deltas[v * 3]! + d[0] * m;
+            deltas[v * 3 + 1] = deltas[v * 3 + 1]! + d[1] * m;
+            deltas[v * 3 + 2] = deltas[v * 3 + 2]! + d[2] * m;
+        });
+    }
+    return deltas;
+}
+
+function faceNormalOf(mesh: PolyMesh, loop: readonly number[]): Vec3 {
+    let n: Vec3 = [0, 0, 0];
+    for (let i = 0; i < loop.length; i++) {
+        const a = mesh.positions[loop[i]!]!, b = mesh.positions[loop[(i + 1) % loop.length]!]!;
+        n = add(n, cross(a, b));
+    }
+    return n;
+}
+
+/** @p mesh's positions blended toward its shapes by @p weights. */
+export function morphedPositions(mesh: PolyMesh, deltas: readonly Float32Array[], weights: readonly number[]): Vec3[] {
+    return mesh.positions.map((p, v) => {
+        let out = p;
+        deltas.forEach((d, s) => {
+            const w = weights[s] ?? 0;
+            if (w !== 0) out = [out[0] + d[v * 3]! * w, out[1] + d[v * 3 + 1]! * w, out[2] + d[v * 3 + 2]! * w];
+        });
+        return out;
+    });
+}
+
+/** Each shape's weight at @p time in a clip. */
+export function shapeWeightsAt(names: readonly string[], animation: AnimationSource | null, time: number): number[] {
+    const loop = animation?.loop !== false;
+    return names.map((name) => {
+        const track = animation?.shapes?.find((s) => s.name === name);
+        if (!track) return 0;
+        const keys = track.value.map((k) => [k[0]!, k[1]!, 0, 0]);
+        return sample(keys, time, animation!.duration, loop, track.phase ?? 0, track.linear === true)[0];
+    });
+}
+
+/** What is wrong with a source's `shapes`, or null. */
+export function checkShapes(raw: unknown): string | null {
+    if (!Array.isArray(raw) || raw.length === 0) return 'shapes must be an array of { name, moves }';
+    const seen = new Set<string>();
+    for (const [i, s] of (raw as Record<string, unknown>[]).entries()) {
+        if (typeof s !== 'object' || s === null) return `shape ${i} must be an object`;
+        for (const key of Object.keys(s)) if (!['name', 'moves'].includes(key)) return `shape ${i} has an unknown field "${key}"; it takes name, moves`;
+        if (typeof s.name !== 'string' || !s.name) return `shape ${i} needs a name`;
+        if (seen.has(s.name)) return `there are two shapes called "${s.name}"`;
+        seen.add(s.name);
+        if (!Array.isArray(s.moves) || s.moves.length === 0) return `shape "${s.name}" needs moves`;
+        for (const m of s.moves as Record<string, unknown>[]) {
+            for (const key of Object.keys(m)) if (!['faces', 'near', 'translate', 'push', 'scale'].includes(key)) return `shape "${s.name}": a move has an unknown field "${key}"; it takes faces, near, translate, push, scale`;
+            const bad = checkRegion(m, `shape "${s.name}"`);
+            if (bad) return bad;
+            if (m.translate === undefined && m.push === undefined && m.scale === undefined) return `shape "${s.name}": a move needs one of translate, push, scale`;
+            if (m.translate !== undefined && !vec3(m.translate)) return `shape "${s.name}": translate must be [x, y, z]`;
+            if (m.push !== undefined && !isNum(m.push)) return `shape "${s.name}": push must be a number`;
+            if (m.scale !== undefined && !isNum(m.scale)) return `shape "${s.name}": scale must be a number`;
+        }
+    }
+    return null;
+}
+
+/** Faces or a ball, exactly one. */
+function checkRegion(m: Record<string, unknown>, where: string): string | null {
+    if ((m.faces === undefined) === (m.near === undefined)) return `${where}: give exactly one of faces, near`;
+    if (m.near !== undefined) {
+        const n = m.near as Record<string, unknown>;
+        if (typeof n !== 'object' || n === null || !vec3(n.at) || !isNum(n.radius) || (n.radius as number) <= 0) return `${where}: near must be { at: [x, y, z], radius }, with a positive radius`;
+    }
+    return null;
+}
+
 // ---- Validation -----------------------------------------------------------------
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -273,7 +484,7 @@ const vec3 = (v: unknown): boolean => Array.isArray(v) && v.length === 3 && v.ev
 export function checkRig(raw: unknown): string | null {
     const r = raw as { joints?: unknown };
     if (typeof raw !== 'object' || raw === null || !Array.isArray(r.joints)) return 'rig must be { joints: [{ name, at, parent?, mirror? }] }';
-    for (const key of Object.keys(raw)) if (key !== 'joints') return `rig has an unknown field "${key}"; it takes joints`;
+    for (const key of Object.keys(raw)) if (!['joints', 'adjust', 'goals'].includes(key)) return `rig has an unknown field "${key}"; it takes joints, adjust, goals`;
     for (const [i, j] of (r.joints as Record<string, unknown>[]).entries()) {
         if (typeof j !== 'object' || j === null) return `rig joint ${i} must be an object`;
         for (const key of Object.keys(j)) if (!['name', 'at', 'parent', 'mirror'].includes(key)) return `rig joint ${i} has an unknown field "${key}"; a joint takes name, at, parent, mirror`;
@@ -283,10 +494,34 @@ export function checkRig(raw: unknown): string | null {
         if (j.parent !== undefined && typeof j.parent !== 'string') return `rig joint "${j.name}": parent must be a joint's name`;
         if (j.mirror !== undefined && !['x', 'y', 'z'].includes(j.mirror as string)) return `rig joint "${j.name}": mirror must be x, y or z`;
     }
+    let names: Set<string>;
     try {
-        resolveJoints(raw as RigSource);
+        names = new Set(resolveJoints(raw as RigSource).map((j) => j.name));
     } catch (e) {
         return (e as Error).message;
+    }
+    const rig = raw as RigSource;
+    if (rig.adjust !== undefined) {
+        if (!Array.isArray(rig.adjust)) return 'rig.adjust must be an array';
+        for (const a of rig.adjust as unknown as Record<string, unknown>[]) {
+            for (const key of Object.keys(a)) if (!['joint', 'weight', 'faces', 'near'].includes(key)) return `rig.adjust has an unknown field "${key}"; it takes joint, weight, faces, near`;
+            if (!names.has(a.joint as string)) return `rig.adjust names no joint "${String(a.joint)}"; there are ${[...names].join(', ')}`;
+            if (!isNum(a.weight) || a.weight < 0 || a.weight > 1) return `rig.adjust on "${String(a.joint)}": weight must be 0..1`;
+            const bad = checkRegion(a, `rig.adjust on "${String(a.joint)}"`);
+            if (bad) return bad;
+        }
+    }
+    if (rig.goals !== undefined) {
+        if (!Array.isArray(rig.goals)) return 'rig.goals must be an array';
+        const taken = new Set(names);
+        for (const g of rig.goals as unknown as Record<string, unknown>[]) {
+            for (const key of Object.keys(g)) if (!['name', 'at', 'parent'].includes(key)) return `a rig goal has an unknown field "${key}"; it takes name, at, parent`;
+            if (typeof g.name !== 'string' || !g.name || /[/\\]/.test(g.name)) return 'a rig goal needs a name without a slash';
+            if (taken.has(g.name)) return `the name "${g.name}" is already taken in this rig`;
+            taken.add(g.name);
+            if (!vec3(g.at)) return `rig goal "${g.name}": at must be [x, y, z]`;
+            if (g.parent !== undefined && !names.has(g.parent as string)) return `rig goal "${g.name}": parent must be a joint; there are ${[...names].join(', ')}`;
+        }
     }
     return null;
 }
@@ -305,23 +540,38 @@ function checkKeys(keys: unknown, duration: number, label: string): string | nul
 }
 
 /** What is wrong with a source's `animations`, or null. */
-export function checkAnimations(raw: unknown, rig: unknown): string | null {
+export function checkAnimations(raw: unknown, rig: unknown, shapes?: unknown): string | null {
     if (!Array.isArray(raw)) return 'animations must be an array';
-    if (!rig) return 'animations move joints, and this source has no rig';
-    const jointList = resolveJoints(rig as RigSource);
+    if (!rig && !shapes) return 'animations move joints or shapes, and this source has no rig and no shapes';
+    const jointList = rig ? resolveJoints(rig as RigSource) : [];
+    const shapeNames = new Set(((shapes ?? []) as { name: string }[]).map((s) => s.name));
     const names = new Set(jointList.map((j) => j.name));
     const seen = new Set<string>();
     for (const [i, a] of (raw as Record<string, unknown>[]).entries()) {
         if (typeof a !== 'object' || a === null) return `animation ${i} must be an object`;
-        for (const key of Object.keys(a)) if (!['name', 'duration', 'loop', 'tracks'].includes(key)) return `animation ${i} has an unknown field "${key}"; it takes name, duration, loop, tracks`;
+        for (const key of Object.keys(a)) if (!['name', 'duration', 'loop', 'tracks', 'shapes'].includes(key)) return `animation ${i} has an unknown field "${key}"; it takes name, duration, loop, tracks, shapes`;
         if (typeof a.name !== 'string' || !/^[\w-]+$/.test(a.name)) return `animation ${i} needs a name of letters, digits, _ or -: it becomes a file name`;
         if (seen.has(a.name)) return `there are two animations called "${a.name}"`;
         seen.add(a.name);
         if (!isNum(a.duration) || a.duration <= 0) return `animation "${a.name}": duration must be positive seconds`;
         if (a.loop !== undefined && typeof a.loop !== 'boolean') return `animation "${a.name}": loop must be true or false`;
-        if (!Array.isArray(a.tracks) || a.tracks.length === 0) return `animation "${a.name}" needs tracks`;
+        const trackList = (a.tracks ?? []) as Record<string, unknown>[];
+        const shapeList = (a.shapes ?? []) as Record<string, unknown>[];
+        if (!Array.isArray(trackList) || !Array.isArray(shapeList) || trackList.length + shapeList.length === 0) return `animation "${a.name}" needs tracks or shapes`;
+        for (const t of shapeList) {
+            for (const key of Object.keys(t)) if (!['name', 'value', 'phase', 'linear'].includes(key)) return `animation "${a.name}": a shape track has an unknown field "${key}"; it takes name, value, phase, linear`;
+            if (!shapeNames.has(t.name as string)) return `animation "${a.name}": no shape "${String(t.name)}"; there are ${[...shapeNames].join(', ') || '(none)'}`;
+            if (!Array.isArray(t.value) || t.value.length === 0) return `animation "${a.name}": shape "${t.name as string}" needs value keys of [time, weight]`;
+            let last = -Infinity;
+            for (const k of t.value as unknown[]) {
+                if (!Array.isArray(k) || k.length !== 2 || !k.every(isNum)) return `animation "${a.name}": shape "${t.name as string}": every key is [time, weight], not ${JSON.stringify(k)}`;
+                if ((k[0] as number) < 0 || (k[0] as number) > a.duration) return `animation "${a.name}": shape "${t.name as string}": time ${k[0] as number} is outside the clip's 0..${a.duration}`;
+                if ((k[0] as number) <= last) return `animation "${a.name}": shape "${t.name as string}": keys must be in time order`;
+                last = k[0] as number;
+            }
+        }
         const tracked = new Set<string>();
-        for (const t of a.tracks as Record<string, unknown>[]) {
+        for (const t of trackList) {
             for (const key of Object.keys(t)) if (!['joint', 'rotate', 'move', 'reach', 'pole', 'linear', 'phase'].includes(key)) return `animation "${a.name}": a track has an unknown field "${key}"; it takes joint, rotate, move, reach, pole, linear, phase`;
             if (!names.has(t.joint as string)) return `animation "${a.name}": no joint "${String(t.joint)}"; there are ${[...names].join(', ')}`;
             if (tracked.has(t.joint as string)) return `animation "${a.name}": two tracks for joint "${t.joint as string}"; put their keys in one`;
@@ -343,12 +593,12 @@ export function checkAnimations(raw: unknown, rig: unknown): string | null {
             if (t.phase !== undefined && !isNum(t.phase)) return `animation "${a.name}": phase must be a number`;
         }
         // A reach decides its limb, so a rotate on the two joints it turns would be silently thrown away.
-        for (const t of a.tracks as AnimationTrack[]) {
+        for (const t of trackList as unknown as AnimationTrack[]) {
             if (!t.reach) continue;
             const foot = jointList.find((j) => j.name === t.joint)!;
             const lower = jointList[foot.parent]!, upper = jointList[lower.parent]!;
             for (const taken of [lower, upper]) {
-                const clash = (a.tracks as AnimationTrack[]).find((o) => o.joint === taken.name && o.rotate);
+                const clash = (trackList as unknown as AnimationTrack[]).find((o) => o.joint === taken.name && o.rotate);
                 if (clash) return `animation "${a.name}": "${taken.name}" has rotate keys, but the reach on "${t.joint}" decides how it turns`;
             }
         }
@@ -460,7 +710,7 @@ function poseAt(joints: readonly RigJoint[], animation: AnimationSource | null, 
     const loop = animation?.loop !== false;
     const at = (keys: readonly (readonly number[])[], t: AnimationTrack): Vec3 => sample(keys, time, animation!.duration, loop, t.phase ?? 0, t.linear === true);
     const local: Pose['local'] = joints.map((j) => {
-        const track = animation?.tracks.find((t) => t.joint === j.name);
+        const track = animation?.tracks?.find((t) => t.joint === j.name);
         const euler = track?.rotate && !track.reach ? at(track.rotate, track) : [0, 0, 0] as Vec3;
         const moved = track?.move ? at(track.move, track) : [0, 0, 0] as Vec3;
         const rest = j.parent >= 0 ? sub(j.at, joints[j.parent]!.at) : j.at;
@@ -535,7 +785,7 @@ export function boneLines(joints: readonly RigJoint[], animation: AnimationSourc
 interface Keyframe { time: number; value: number; inTangent: 0; outTangent: 0; interpolation: 'linear' }
 
 /** A clip as an `.estimeline`: sampled, since the engine interpolates each rotation component on its own and a few keys would cut corners. */
-export function timelineOf(animation: AnimationSource, joints: readonly RigJoint[]): Record<string, unknown> {
+export function timelineOf(animation: AnimationSource, joints: readonly RigJoint[], shapeNames: readonly string[] = []): Record<string, unknown> {
     const loop = animation.loop !== false;
     const frames = Math.max(2, Math.ceil(animation.duration * SAMPLE_RATE) + 1);
     const times = Array.from({ length: frames }, (_, i) => (i / (frames - 1)) * animation.duration);
@@ -547,7 +797,7 @@ export function timelineOf(animation: AnimationSource, joints: readonly RigJoint
     // Every joint the clip turns, a reach's two bones among them: they have no keys of their own, only the solved pose.
     const turned = new Set<number>();
     const moved = new Set<number>();
-    for (const track of animation.tracks) {
+    for (const track of animation.tracks ?? []) {
         const index = joints.findIndex((j) => j.name === track.joint);
         if (track.rotate || track.reach) turned.add(index);
         if (track.move) moved.add(index);
@@ -579,23 +829,33 @@ export function timelineOf(animation: AnimationSource, joints: readonly RigJoint
         }
         return [{ type: 'property', name: joint.name, childPath: pathOf(index), component: 'Transform', channels }];
     });
-    return { version: TIMELINE_FORMAT_VERSION, type: 'timeline', duration: animation.duration, wrapMode: loop ? 'loop' : 'once', tracks };
+    const shaped = animation.shapes?.length ? [{
+        type: 'property', name: 'shapes', childPath: '', component: 'MeshMorph',
+        channels: animation.shapes.map((track) => ({
+            // By index: the component holds a list, and a name lives with the geometry.
+            property: `weights.${shapeNames.indexOf(track.name)}`,
+            keyframes: times.map((t) => ({ time: t, value: shapeWeightsAt([track.name], animation, t)[0]!, inTangent: 0, outTangent: 0, interpolation: 'linear' })),
+        })),
+    }] : [];
+    return { version: TIMELINE_FORMAT_VERSION, type: 'timeline', duration: animation.duration, wrapMode: loop ? 'loop' : 'once', tracks: [...tracks, ...shaped] };
 }
 
 /**
  * The prefab that draws and moves it: the mesh on the root, the joints below it as
  * entities named so a clip's paths find them, and a player for the first clip.
  */
-export function prefabOf(name: string, meshPath: string, joints: readonly RigJoint[], cullBackfaces: boolean, firstClip: string | null, controller: string | null = null): Record<string, unknown> {
+export function prefabOf(name: string, meshPath: string, joints: readonly RigJoint[], cullBackfaces: boolean, firstClip: string | null, controller: string | null = null, extra: { goals?: readonly RigGoal[]; shapes?: number } = {}): Record<string, unknown> {
     const idOf = (i: number): string => `j${i}`;
+    const goals = extra.goals ?? [];
     const entities: Record<string, unknown>[] = [{
         prefabEntityId: 'root', name, parent: null,
-        children: joints.flatMap((j, i) => (j.parent < 0 ? [idOf(i)] : [])),
+        children: [...joints.flatMap((j, i) => (j.parent < 0 ? [idOf(i)] : [])), ...goals.flatMap((g, i) => (g.parent === undefined ? [`g${i}`] : []))],
         visible: true,
         components: [
             { type: 'Transform', data: {} },
             { type: 'MeshRenderer', data: { mesh: meshPath, lit: true, opaque: true, cullBackfaces, enabled: true } },
-            { type: 'MeshSkin', data: { joints: joints.map((_, i) => idOf(i)) } },
+            ...(joints.length ? [{ type: 'MeshSkin', data: { joints: joints.map((_, i) => idOf(i)) } }] : []),
+            ...(extra.shapes ? [{ type: 'MeshMorph', data: { weights: Array.from({ length: extra.shapes }, () => 0) } }] : []),
             // A controller decides what plays; a player beside it would fight it for the same joints.
             ...(controller ? [{ type: 'Animator', data: { controller, enabled: true } }]
                 : firstClip ? [{ type: 'TimelinePlayer', data: { timeline: firstClip, playing: true } }] : []),
@@ -605,7 +865,15 @@ export function prefabOf(name: string, meshPath: string, joints: readonly RigJoi
         const rest = j.parent >= 0 ? sub(j.at, joints[j.parent]!.at) : j.at;
         entities.push({
             prefabEntityId: idOf(i), name: j.name, parent: j.parent >= 0 ? idOf(j.parent) : 'root',
-            children: j.children.map(idOf), visible: true,
+            children: [...j.children.map(idOf), ...goals.flatMap((g, k) => (g.parent === j.name ? [`g${k}`] : []))], visible: true,
+            components: [{ type: 'Transform', data: { position: { x: rest[0], y: rest[1], z: rest[2] } } }],
+        });
+    });
+    goals.forEach((g, i) => {
+        const parent = g.parent === undefined ? -1 : joints.findIndex((j) => j.name === g.parent);
+        const rest = parent >= 0 ? sub(g.at, joints[parent]!.at) : g.at;
+        entities.push({
+            prefabEntityId: `g${i}`, name: g.name, parent: parent >= 0 ? idOf(parent) : 'root', children: [], visible: true,
             components: [{ type: 'Transform', data: { position: { x: rest[0], y: rest[1], z: rest[2] } } }],
         });
     });
@@ -640,13 +908,29 @@ export interface ControllerSource {
     states: readonly ControllerState[];
     /** Checked from every state first: a hit reaction, a death. */
     any?: readonly ControllerTransition[];
+    /** Run on what the clips say, every frame: a hand reaching for a goal, a head turning to it. */
+    ik?: readonly ControllerIk[];
+}
+
+export interface ControllerIk {
+    kind: 'two-bone' | 'look-at';
+    /** The joint the chain ends at. */
+    tip: string;
+    /** A joint or a rig goal it reaches or looks at. */
+    target: string;
+    pole?: string;
+    weight?: number;
+    /** A float parameter scaling the weight, to fade it in. */
+    parameter?: string;
+    /** look-at: which of the tip's own axes points at the target. */
+    axis?: 'x' | 'y' | 'z';
 }
 
 /** What is wrong with a source's `controller`, or null. */
-export function checkController(raw: unknown, animations: unknown): string | null {
+export function checkController(raw: unknown, animations: unknown, rig?: RigSource): string | null {
     const c = raw as Record<string, unknown>;
     if (typeof raw !== 'object' || raw === null) return 'controller must be { parameters?, initial, states, any? }';
-    for (const key of Object.keys(c)) if (!['parameters', 'initial', 'states', 'any'].includes(key)) return `controller has an unknown field "${key}"; it takes parameters, initial, states, any`;
+    for (const key of Object.keys(c)) if (!['parameters', 'initial', 'states', 'any', 'ik'].includes(key)) return `controller has an unknown field "${key}"; it takes parameters, initial, states, any, ik`;
     if (!Array.isArray(animations) || animations.length === 0) return 'a controller plays animations, and this source has none';
     const clips = new Set((animations as AnimationSource[]).map((a) => a.name));
     const params = new Map<string, string>();
@@ -693,11 +977,42 @@ export function checkController(raw: unknown, animations: unknown): string | nul
         const bad = checkTransitions(s.transitions, `state "${s.name}"`);
         if (bad) return bad;
     }
-    return checkTransitions(c.any, 'any');
+    const anyBad = checkTransitions(c.any, 'any');
+    if (anyBad) return anyBad;
+    if (c.ik !== undefined) {
+        if (!Array.isArray(c.ik)) return 'controller.ik must be an array';
+        const list = rig ? resolveJoints(rig) : [];
+        const jointNames = new Set(list.map((j) => j.name));
+        const known = new Set([...jointNames, ...(rig?.goals ?? []).map((g) => g.name)]);
+        const every = [...known].join(', ') || '(none)';
+        for (const k of c.ik as ControllerIk[]) {
+            for (const key of Object.keys(k)) if (!['kind', 'tip', 'target', 'pole', 'weight', 'parameter', 'axis'].includes(key)) return `an ik constraint has an unknown field "${key}"; it takes kind, tip, target, pole, weight, parameter, axis`;
+            if (k.kind !== 'two-bone' && k.kind !== 'look-at') return `an ik constraint's kind ${JSON.stringify(k.kind)} must be two-bone or look-at`;
+            if (!jointNames.has(k.tip)) return `an ik constraint's tip "${k.tip}" is not a joint; there are ${[...jointNames].join(', ')}`;
+            if (!known.has(k.target)) return `an ik constraint's target "${k.target}" is not a joint or a goal; there are ${every}`;
+            if (k.pole !== undefined && !known.has(k.pole)) return `an ik constraint's pole "${k.pole}" is not a joint or a goal; there are ${every}`;
+            if (k.kind === 'two-bone') {
+                const tip = list.find((j) => j.name === k.tip)!;
+                if (tip.parent < 0 || list[tip.parent]!.parent < 0) return `two-bone ik needs two bones above "${k.tip}"`;
+            }
+            if (k.weight !== undefined && !isNum(k.weight)) return 'an ik constraint\'s weight must be a number';
+            if (k.parameter !== undefined && params.get(k.parameter) !== 'float') return `an ik constraint's parameter "${k.parameter}" must be a float parameter`;
+            if (k.axis !== undefined && !['x', 'y', 'z'].includes(k.axis)) return 'an ik constraint\'s axis must be x, y or z';
+        }
+    }
+    return null;
 }
 
 /** A controller as an `.esanimator`. @p clipFile turns an animation's name into the file it plays, as written beside this one. */
-export function controllerOf(source: ControllerSource, animations: readonly AnimationSource[], clipFile: (name: string) => string): Record<string, unknown> {
+export function controllerOf(source: ControllerSource, animations: readonly AnimationSource[], clipFile: (name: string) => string, rig?: RigSource): Record<string, unknown> {
+    const joints = rig ? resolveJoints(rig) : [];
+    const pathTo = (name: string): string => {
+        const goal = rig?.goals?.find((g) => g.name === name);
+        const owner = goal ? goal.parent : name;
+        const parts = goal ? [goal.name] : [];
+        for (let at = owner === undefined ? -1 : joints.findIndex((j) => j.name === owner); at >= 0; at = joints[at]!.parent) parts.unshift(joints[at]!.name);
+        return parts.join('/');
+    };
     const motionOf = (clip: string, speed?: number): Record<string, unknown> => ({
         kind: 'timeline', clip: clipFile(clip),
         loop: animations.find((a) => a.name === clip)?.loop !== false,
@@ -714,6 +1029,8 @@ export function controllerOf(source: ControllerSource, animations: readonly Anim
         parameters: (source.parameters ?? []).map((p) => ({ ...p })),
         initialState: source.initial,
         ...(source.any ? { anyStateTransitions: source.any.map(transition) } : {}),
+        // An engine constraint names joints the way a clip does: by path from the root.
+        ...(source.ik ? { ik: source.ik.map((k) => ({ ...k, tip: pathTo(k.tip), target: pathTo(k.target), ...(k.pole ? { pole: pathTo(k.pole) } : {}) })) } : {}),
         states: source.states.map((s, i) => ({
             name: s.name, x: 80 + (i % 4) * 220, y: 80 + Math.floor(i / 4) * 140,
             motion: s.blend

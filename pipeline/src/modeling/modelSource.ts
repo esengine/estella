@@ -18,7 +18,7 @@ import { booleanOp } from './booleans';
 import { uvStep } from './modelUv';
 import { lathe, loft } from './surfaces';
 import { subdivide } from './subdivide';
-import { checkAnimations, checkController, checkRig, type AnimationSource, type ControllerSource, type RigSource } from './rig';
+import { checkAnimations, checkController, checkRig, checkShapes, type AnimationSource, type ControllerSource, type RigSource, type ShapeSource } from './rig';
 import { compact, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
 export const MODEL_SOURCE_VERSION = 1;
@@ -43,6 +43,8 @@ export interface ModelSource {
     rig?: RigSource;
     /** Clips moving the rig's joints, each written as an `.estimeline`. */
     animations?: AnimationSource[];
+    /** Shapes the mesh can blend toward: expressions, a mouth. */
+    shapes?: ShapeSource[];
     /** Which clip plays when: an `.esanimator` the prefab's Animator runs. */
     controller?: ControllerSource;
     steps: ModelStep[];
@@ -256,8 +258,8 @@ export function validateModelSource(raw: unknown): ModelSource {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ModelBuildError('a model source must be an object with `steps`', null, null, null);
     const source = raw as Record<string, unknown>;
     for (const key of Object.keys(source)) {
-        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'rig', 'animations', 'controller', 'steps'].includes(key)) {
-            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, rig, animations, controller, steps`, null, null, null);
+        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'rig', 'shapes', 'animations', 'controller', 'steps'].includes(key)) {
+            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, rig, shapes, animations, controller, steps`, null, null, null);
         }
     }
     if (source.version !== undefined && source.version !== MODEL_SOURCE_VERSION) {
@@ -277,12 +279,17 @@ export function validateModelSource(raw: unknown): ModelSource {
         if (bad) throw new ModelBuildError(bad, null, null, null);
         if (source.uvAtlas) throw new ModelBuildError('uvAtlas lays out with the lightmap unwrap, which a rigged mesh does not have: bones move it. Use uv steps', null, null, null);
     }
+    if (source.shapes !== undefined) {
+        const bad = checkShapes(source.shapes);
+        if (bad) throw new ModelBuildError(bad, null, null, null);
+        if (source.uvAtlas) throw new ModelBuildError('uvAtlas lays out with the lightmap unwrap, which a morphing mesh does not have. Use uv steps', null, null, null);
+    }
     if (source.animations !== undefined) {
-        const bad = checkAnimations(source.animations, source.rig);
+        const bad = checkAnimations(source.animations, source.rig, source.shapes);
         if (bad) throw new ModelBuildError(bad, null, null, null);
     }
     if (source.controller !== undefined) {
-        const bad = checkController(source.controller, source.animations);
+        const bad = checkController(source.controller, source.animations, source.rig as RigSource | undefined);
         if (bad) throw new ModelBuildError(bad, null, null, null);
     }
     if (!Array.isArray(source.steps)) throw new ModelBuildError('`steps` must be an array', null, null, null);
@@ -346,7 +353,7 @@ export type ModelEdit =
     | { op: 'set'; step: string | number; fields: Record<string, unknown> }
     | { op: 'insert'; step: ModelStep; before?: string | number; after?: string | number }
     | { op: 'remove'; step: string | number }
-    | { op: 'settings'; fields: Pick<ModelSource, 'smoothAngle' | 'uvScale' | 'uvAtlas' | 'rig' | 'animations' | 'controller'> };
+    | { op: 'settings'; fields: Pick<ModelSource, 'smoothAngle' | 'uvScale' | 'uvAtlas' | 'rig' | 'shapes' | 'animations' | 'controller'> };
 
 function indexOfStep(source: ModelSource, ref: string | number): number {
     const i = typeof ref === 'number' ? ref : source.steps.findIndex((s) => s.id === ref);

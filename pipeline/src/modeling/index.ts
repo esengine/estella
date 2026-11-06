@@ -13,4 +13,4 @@ export { needsPreparing, prepareModeling } from './booleans';
 export { bakeModel, type BakedModel, type ModelReport } from './modelBake';
 export type { FaceSelector } from './polyMesh';
 export { DEFAULT_MODEL_VIEWS, MODEL_VIEWS, renderModelSheet, renderRigSheet, type ModelSheet, type ModelViewName, type RigViewOptions } from './modelViews';
-export { controllerOf, jointPositions, posedPositions, prefabOf, timelineOf, type AnimationSource, type ControllerSource, type RigSource } from './rig';
+export { controllerOf, jointPositions, morphedPositions, posedPositions, prefabOf, timelineOf, type AnimationSource, type ControllerSource, type RigSource, type ShapeSource } from './rig';
