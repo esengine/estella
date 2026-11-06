@@ -68,9 +68,9 @@ export type MiniGamePlatform = (typeof MINIGAME_PLATFORMS)[number];
 
 /**
  * Which engine build a web-runtime target packages: the browser one, the
- * CommonJS mini-game one, or that one again without wasm SIMD and BigInt i64 —
- * for the quick-game hosts, whose V8 (8.3) refuses both, and for Alipay and
- * Huawei, which publish no wasm feature level to rely on.
+ * CommonJS mini-game one, or that one again without wasm SIMD — for the
+ * quick-game hosts, whose V8 (8.3) refuses it, and for Alipay and Huawei, which
+ * publish no wasm feature level to rely on.
  */
 export function engineBuildFor(platform: ExportPlatform): 'web' | 'minigame' | 'quickgame' {
     if (platform === 'quickgame' || platform === 'alipay' || platform === 'huawei') return 'quickgame';

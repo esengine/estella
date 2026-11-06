@@ -43,7 +43,7 @@ export default {
         'web-js': {
             buildDir: 'build/cmake/web-js',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_WASM2JS=ON',
-                '-DES_MAIN_DISABLE_SIMD=ON', '-DES_WASM_BIGINT=OFF'],
+                '-DES_MAIN_DISABLE_SIMD=ON'],
             targets: ['esengine_sdk'],
             // Beside the wasm engine, so the editor's copy and every web export
             // carry both and the page picks at boot.
@@ -87,12 +87,12 @@ export default {
                 'sdk/esengine.wxgame.wasm': 'wasm/wechat-glx/esengine.wxgame.wasm',
             },
         },
-        // The mini-game engine for vivo's quick-game V8 (8.3), which refuses both a
-        // SIMD opcode ("Invalid opcode (enable with --experimental-wasm-simd)") and
-        // an i64 in a wasm↔JS signature ("wasm function signature contains illegal type").
+        // The mini-game engine for vivo's quick-game V8 (8.3), which refuses a SIMD
+        // opcode ("Invalid opcode (enable with --experimental-wasm-simd)"). What it also
+        // refuses, an i64 in a wasm↔JS signature, no mini-game build carries.
         quickgame: {
             buildDir: 'build/cmake/qgame',
-            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_MAIN_DISABLE_SIMD=ON', '-DES_WASM_BIGINT=OFF'],
+            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF', '-DES_MAIN_DISABLE_SIMD=ON'],
             targets: ['esengine_wxgame'],
             outputs: {
                 'sdk/esengine.wxgame.js': 'wasm/quickgame/esengine.wxgame.js',

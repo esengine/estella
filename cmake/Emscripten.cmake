@@ -26,17 +26,23 @@ set(ES_EMSCRIPTEN_COMPILE_FLAGS
 # already ships SIMD to web AND wechat, so this is on by default with a compat
 # fallback (`-DES_MAIN_DISABLE_SIMD=ON`) mirroring BOX2D_DISABLE_SIMD.
 option(ES_MAIN_DISABLE_SIMD "Disable wasm SIMD for the main module (compat fallback)" OFF)
-# Hosts on V8 older than 8.5 reject an i64 in a wasm↔JS signature ("wasm function
-# signature contains illegal type"); OFF legalizes i64 into i32 pairs instead.
-option(ES_WASM_BIGINT "Pass i64 across the wasm↔JS boundary as BigInt" ON)
+# A mini-game module never crosses the wasm↔JS boundary with BigInt, in any target of
+# this configuration: i64 is legalized into i32 pairs and the glue carries no HEAP64.
+# Mini-game hosts differ on what they offer. V8 older than 8.5 rejects an i64 in a
+# signature ("wasm function signature contains illegal type"), WeChat DevTools' game
+# realm has no BigInt64Array, and JavaScriptCore before iOS 15 neither. No target here
+# has an i64 the SDK reads as a BigInt, so this costs nothing the game can see.
+if(ES_BUILD_WXGAME)
+    add_link_options(-sWASM_BIGINT=0)
+endif()
 # The engine as plain JavaScript (emscripten's wasm2js, -sWASM=0) for a host that
 # has no WebAssembly at all: the same C++, the same embind surface, the same SDK —
 # only the core's container changes. wasm2js has no SIMD and no BigInt i64, so a
 # configure that asks for it gets neither (see the checks below).
 option(ES_WASM2JS "Build the SDK engine as plain JavaScript (wasm2js) instead of wasm" OFF)
 if(ES_WASM2JS)
-    if(NOT ES_MAIN_DISABLE_SIMD OR ES_WASM_BIGINT)
-        message(FATAL_ERROR "ES_WASM2JS needs -DES_MAIN_DISABLE_SIMD=ON -DES_WASM_BIGINT=OFF: wasm2js lowers neither SIMD nor BigInt i64.")
+    if(NOT ES_MAIN_DISABLE_SIMD)
+        message(FATAL_ERROR "ES_WASM2JS needs -DES_MAIN_DISABLE_SIMD=ON: wasm2js does not lower SIMD.")
     endif()
 endif()
 if(NOT ES_MAIN_DISABLE_SIMD)
@@ -286,9 +292,6 @@ function(es_apply_wxgame_sdk_settings TARGET_NAME)
         target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-exceptions)
 
         set(_WXGAME_LINK ${ES_EMSCRIPTEN_WXGAME_SDK_FLAGS})
-        if(NOT ES_WASM_BIGINT)
-            list(APPEND _WXGAME_LINK -sWASM_BIGINT=0)
-        endif()
         # WeChat's EmscriptenGLX: its gl* run inside the wasm and hand commands to
         # the host, falling back to emscripten_gl* where the host has no GLX. The
         # runtime starts it (miniGameRuntime) when the entry points are exported.

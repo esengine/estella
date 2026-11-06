@@ -101,6 +101,11 @@ export const HOST_PAGE = (entry, failSubpackage = null) => `<!doctype html>
 <script>
 (() => {
   const log = (m) => console.log('[minigame] ' + m);
+  // Not every mini-game realm has these: WeChat DevTools' does not, nor does
+  // JavaScriptCore before iOS 15. A glue that builds a view from them fails here too
+  // rather than only on the host it reaches a user through.
+  delete globalThis.BigInt64Array;
+  delete globalThis.BigUint64Array;
   // Vendor contract: the FIRST createCanvas() hands back the on-screen canvas and
   // every call after it is offscreen scratch. Hand the engine a fresh offscreen
   // one instead and the game runs perfectly, drawing where nobody can see.
