@@ -3884,6 +3884,8 @@ export const NOTED = {
     {"note":"A material's normal and metal-rough maps are read as data in the editor's Play."},
   "fix(minigame): no mini-game module needs BigInt64Array, so WeChat DevTools boots the game":
     {"note":"A WeChat mini-game opens in WeChat DevTools."},
+  "feat(mcp): a region is drawn close through the camera, camera_layers takes a frame apart, and light_sheet shows each light alone":
+    {"note":"An AI can take a frame apart to see why it looks wrong."},
   "fix(modeling): an outline is a dome with no flat on it, a stroke fades behind what is in front, and a line can bend":
     {"note":"An AI can read a shape off a picture and model it."},
   "feat(mcp): model_write describes the dome, and a stroke or a stain line that bends":
