@@ -8,7 +8,7 @@
  *        On the CPU rather than through a canvas, so the same source makes the same bytes on any machine and a test can read them.
  */
 import { MAX_MARK_STROKES } from './imageSource';
-import type { ImageFill, ImageLayer, ImageSource, ImageEffect, ImageField, ImageMark, ImageStroke, ImageSweep, ImageTransform } from './imageSource';
+import type { ImageFill, ImageLayer, ImageSource, ImageAlong, ImageEffect, ImageField, ImageMark, ImageStroke, ImageSweep, ImageTransform } from './imageSource';
 
 export interface RgbaBitmap { width: number; height: number; rgba: Uint8Array }
 
@@ -557,7 +557,7 @@ function effectLayers(effects: readonly ImageEffect[] | undefined, under: boolea
     }
 }
 
-interface Drawn { masks: Map<string, Float32Array>; notes: string[]; bounds: Map<string, ImageBox> }
+interface Drawn { masks: Map<string, Float32Array>; notes: string[]; bounds: Map<string, ImageBox>; painted: Map<string, { entries: number; strokes: number }> }
 
 /** x, y, width and height in the picture's pixels. */
 export type ImageBox = readonly [number, number, number, number];
@@ -944,10 +944,23 @@ function sweepStrokes(s: ImageSweep): ImageStroke[] {
 }
 
 /** Strokes across a region, following the guides or an angle. Each takes its colour from `tone` where it starts. */
-function fieldStrokes(s: ImageField, w: number, h: number): ImageStroke[] {
+function fieldStrokes(s: ImageField, w: number, h: number, m: Matrix, drawn: Drawn, where: string): ImageStroke[] {
     const seed = s.seed ?? 1;
-    const regionRuns = s.region ? parsePath(s.region).map((r) => r.points) : null;
+    const named = s.region?.startsWith('@') ? s.region.slice(1) : null;
+    const mask = named ? drawn.masks.get(named) : undefined;
+    if (named && !mask) {
+        drawn.notes.push(`${where}: a field's region "@${named}" names no layer drawn before it, so it drew nothing`);
+        return [];
+    }
+    const box = mask ? boxOf(w, h, (i) => mask[i]! >= 0.5) : null;
+    if (mask && !box) return [];
+    const regionRuns = s.region && !named ? parsePath(s.region).map((r) => r.points) : null;
     const inside = (x: number, y: number): boolean => {
+        if (mask) {
+            const p = apply(m, [x, y]);
+            const [px, py] = [Math.floor(p[0]), Math.floor(p[1])];
+            return px >= 0 && py >= 0 && px < w && py < h && mask[py * w + px]! >= 0.5;
+        }
         if (!regionRuns) return true;
         let winding = 0;
         for (const run of regionRuns) {
@@ -960,7 +973,10 @@ function fieldStrokes(s: ImageField, w: number, h: number): ImageStroke[] {
         }
         return winding !== 0;
     };
-    const all = regionRuns ? regionRuns.flat() : [[0, 0], [w, h]] as Pt[];
+    const back = invert(m);
+    const all = box
+        ? ([[box[0], box[1]], [box[0] + box[2], box[1]], [box[0], box[1] + box[3]], [box[0] + box[2], box[1] + box[3]]] as Pt[]).map((p) => apply(back, p))
+        : regionRuns ? regionRuns.flat() : [[0, 0], [w, h]] as Pt[];
     const [x0, x1] = [Math.min(...all.map((p) => p[0])), Math.max(...all.map((p) => p[0]))];
     const [y0, y1] = [Math.min(...all.map((p) => p[1])), Math.max(...all.map((p) => p[1]))];
     const flow = (s.guides ?? []).flatMap((g) => {
@@ -984,9 +1000,9 @@ function fieldStrokes(s: ImageField, w: number, h: number): ImageStroke[] {
         const len = Math.hypot(dx, dy) || 1;
         return [dx / len, dy / len];
     };
-    const paint = paintOf(s.tone, IDENTITY);
+    const paint = s.tone !== undefined ? paintOf(s.tone, IDENTITY) : null;
     const length = s.length ?? s.size * 3;
-    const count = Math.min(MAX_MARK_STROKES, Math.ceil(((s.coverage ?? 2.5) * Math.max(1, (x1 - x0) * (y1 - y0))) / (s.size * length)));
+    const count = Math.min(MAX_MARK_STROKES, Math.ceil(((s.coverage ?? 4) * Math.max(1, (x1 - x0) * (y1 - y0))) / (s.size * length)));
     const spread = ((s.spread ?? 12) * Math.PI) / 180;
     const vary = s.vary ?? 0.05;
     const steps = 5;
@@ -1012,22 +1028,72 @@ function fieldStrokes(s: ImageField, w: number, h: number): ImageStroke[] {
             x += rx * forward; y += ry * forward;
         }
         out.push({
-            points, size: s.size * (0.75 + pick(4) * 0.5), hardness: s.hardness ?? 0.55, opacity: s.opacity ?? 0.85,
-            color: toHex(paint(sx, sy), 1 + (pick(5) - 0.5) * 2 * vary), taper: [0.12, 0.3],
+            points, size: s.size * (0.75 + pick(4) * 0.5), hardness: s.hardness ?? 0.25, opacity: s.opacity ?? 0.6,
+            ...(s.smudge ? { smudge: s.smudge } : { color: toHex(paint!(sx, sy), 1 + (pick(5) - 0.5) * 2 * vary) }), taper: [0.12, 0.3],
         });
     }
     return out;
 }
 
-const expandMark = (mark: ImageMark, w: number, h: number): readonly ImageStroke[] => {
-    if ('type' in mark) return mark.type === 'sweep' ? sweepStrokes(mark) : fieldStrokes(mark, w, h);
-    return [mark];
+/** The strokes again along a line, each turned to the line's direction there and sized along it. */
+function alongStrokes(s: ImageAlong): ImageStroke[] {
+    const seed = s.seed ?? 1;
+    const line = resampled(s.line, Math.max(2, s.count));
+    const [from, to] = typeof s.scale === 'number' ? [s.scale, s.scale] : s.scale ?? [1, 1];
+    const jitter = s.jitter ?? 0;
+    const out: ImageStroke[] = [];
+    for (let i = 0; i < s.count; i++) {
+        const t = s.count === 1 ? 0 : i / (s.count - 1);
+        const p = line[i]!;
+        // Its direction from the next place along, and at the last from the one before.
+        const [from0, to0] = i + 1 < line.length ? [p, line[i + 1]!] : [line[i - 1]!, p];
+        const pick = (k: number): number => (hash01(seed * 89 + i, k) - 0.5) * 2 * jitter;
+        const scale = from + (to - from) * t;
+        const base = Math.atan2(to0.y - from0.y, to0.x - from0.x);
+        for (const side of s.both ? [1, -1] : [1]) {
+            const angle = base + (((s.turn ?? 0) * side + pick(1) * 0.1) * Math.PI) / 180;
+            const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
+            const [ox, oy] = [p.x + pick(2), p.y + pick(3)];
+            for (const stroke of s.strokes) {
+                out.push({
+                    ...stroke,
+                    size: stroke.size * scale,
+                    points: stroke.points.map((v) => {
+                        const [x, y] = [v[0]! * scale, v[1]! * scale * side];
+                        return [ox + x * cos - y * sin, oy + x * sin + y * cos, ...(v[2] !== undefined ? [v[2]] : [])];
+                    }),
+                });
+            }
+        }
+    }
+    return out;
+}
+
+/** Hairs laid between lines closer than a few hairs' width do not read as hairs, and nothing else says so. */
+function sweepNote(s: ImageSweep, drawn: Drawn, where: string): void {
+    const size = s.size ?? 1.2;
+    const lines = s.guides.map((g) => resampled(g, 3)[1]!);
+    let span = 0;
+    for (let i = 0; i + 1 < lines.length; i++) span += Math.hypot(lines[i + 1]!.x - lines[i]!.x, lines[i + 1]!.y - lines[i]!.y);
+    if (span < size * 4 || s.count * size > span * 8 * Math.max(1, s.guides.length)) {
+        drawn.notes.push(`${where}: a sweep lays ${s.count} hairs of size ${size} across ${Math.round(span)} pixels, which fills it as a flat band; use fewer, thinner hairs or set the guides further apart`);
+    }
+}
+
+const expandMark = (mark: ImageMark, w: number, h: number, m: Matrix, drawn: Drawn, where: string): readonly ImageStroke[] => {
+    if (!('type' in mark)) return [mark];
+    if (mark.type === 'sweep') {
+        sweepNote(mark, drawn, where);
+        return sweepStrokes(mark);
+    }
+    return mark.type === 'along' ? alongStrokes(mark) : fieldStrokes(mark, w, h, m, drawn, where);
 };
 
 function drawPaint(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, opacity: number, blend: Blend, clip: Float32Array | undefined): void {
     const { w, h } = c;
     const m = times(parent, transformOf(layer.transform, [w / 2, h / 2]));
     const inner = new Canvas(w, h);
+    if (layer.from === 'below') inner.px.set(c.px);
     if (layer.fill !== undefined) {
         const paint = paintOf(layer.fill, m);
         for (let y = 0; y < h; y++) {
@@ -1040,12 +1106,21 @@ function drawPaint(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, o
     const buffer: StrokeBuffer = { mask: new Float32Array(w * h), rgb: new Float32Array(w * h * 3), touched: [] };
     let drawnStrokes = 0;
     (layer.strokes ?? []).forEach((mark) => {
-        for (const s of expandMark(mark, w, h)) paintStroke(inner, s, m, drawnScale(m), drawnStrokes++, buffer);
+        for (const s of expandMark(mark, w, h, m, drawn, `layer ${layer.id ?? 'paint'}`)) paintStroke(inner, s, m, drawnScale(m), drawnStrokes++, buffer);
     });
+    if (layer.id) drawn.painted.set(layer.id, { entries: (layer.strokes ?? []).length, strokes: drawnStrokes });
     const alpha = new Float32Array(w * h);
     for (let i = 0; i < alpha.length; i++) alpha[i] = inner.px[i * 4 + 3]!;
     if (layer.id) drawn.masks.set(layer.id, alpha);
     noteBox(drawn, layer.id, alpha, w, h);
+    if (layer.from === 'below') {
+        // It already holds the picture, so it takes that picture's place and does not go over it.
+        for (let i = 0; i < alpha.length * 4; i++) {
+            const keep = opacity * (clip ? clip[Math.floor(i / 4)]! : 1);
+            c.px[i] = c.px[i]! + (inner.px[i]! - c.px[i]!) * keep;
+        }
+        return;
+    }
     effectLayers(layer.effects, true, c, alpha);
     for (let i = 0; i < alpha.length; i++) {
         const a = alpha[i]!;
@@ -1090,6 +1165,8 @@ export interface RenderedImage extends RgbaBitmap {
     covers: number;
     /** The same box for each layer with an id, after every transform, without its effects. */
     layerBounds: Record<string, ImageBox>;
+    /** For each paint layer with an id: its entries, which `drop` counts, and the strokes they came to. */
+    painted: Record<string, { entries: number; strokes: number }>;
 }
 
 /** Draws a source that has been validated. */
@@ -1100,7 +1177,7 @@ export function renderImage(source: ImageSource): RenderedImage {
         const [r, g, b, a] = parseColor(source.background);
         for (let i = 0; i < w * h; i++) put(canvas, i, r, g, b, a, 'normal');
     }
-    const drawn: Drawn = { masks: new Map(), notes: [], bounds: new Map() };
+    const drawn: Drawn = { masks: new Map(), notes: [], bounds: new Map(), painted: new Map() };
     for (const layer of source.layers) drawLayer(canvas, layer, IDENTITY, drawn);
     const rgba = new Uint8Array(w * h * 4);
     for (let i = 0; i < w * h; i++) {
@@ -1118,6 +1195,7 @@ export function renderImage(source: ImageSource): RenderedImage {
         bounds: boxOf(w, h, (i) => rgba[i * 4 + 3]! >= 128),
         covers: Math.round((solid / (w * h)) * 1000) / 1000,
         layerBounds: Object.fromEntries(drawn.bounds),
+        painted: Object.fromEntries(drawn.painted),
     };
 }
 
@@ -1199,7 +1277,7 @@ export function setSheet(images: readonly RgbaBitmap[], cell = 128): RgbaBitmap 
 }
 
 /** A part of a picture enlarged with hard pixels on the check, to see what the whole hides: a seam one pixel wide. */
-export function zoomImage(image: RgbaBitmap, region: { x: number; y: number; w: number; h: number }, longest = 640): RgbaBitmap {
+export function zoomImage(image: RgbaBitmap, region: { x: number; y: number; w: number; h: number }, longest = 1024): RgbaBitmap {
     const [x0, y0] = [Math.max(0, Math.floor(region.x)), Math.max(0, Math.floor(region.y))];
     const [w, h] = [Math.min(image.width - x0, Math.round(region.w)), Math.min(image.height - y0, Math.round(region.h))];
     if (!(w > 0 && h > 0)) throw new Error(`region ${JSON.stringify(region)} is outside the picture, ${image.width} by ${image.height}`);
@@ -1215,6 +1293,7 @@ export function zoomImage(image: RgbaBitmap, region: { x: number; y: number; w: 
 /** Something to look at: the picture on a mid ground and on a light check, as a transparent image needs both, and at the sizes an icon is really seen. */
 export function imageSheet(image: RgbaBitmap, sizes: readonly number[] = [96, 64, 48, 32]): RgbaBitmap {
     const big = Math.max(image.width, image.height);
+    if (big >= LARGE_PICTURE && isOpaque(image)) return largeSheet(image);
     const k = big < 384 ? Math.max(1, Math.floor(384 / big)) : Math.min(1, 512 / big);
     const [pw, ph] = [Math.round(image.width * k), Math.round(image.height * k)];
     const gap = 8;
@@ -1234,6 +1313,55 @@ export function imageSheet(image: RgbaBitmap, sizes: readonly number[] = [96, 64
         oy += small.height + gap;
     }
     return { width: W, height: H, rgba };
+}
+
+const LARGE_PICTURE = 512;
+
+export function isOpaque(image: RgbaBitmap): boolean {
+    for (let i = 3; i < image.rgba.length; i += 4) if (image.rgba[i] !== 255) return false;
+    return true;
+}
+
+/** What a full painting wants to be seen at: large, with nothing to judge against a ground, and small to check it still reads. */
+function largeSheet(image: RgbaBitmap): RgbaBitmap {
+    const k = Math.min(1, 1024 / Math.max(image.width, image.height));
+    const [pw, ph] = [Math.round(image.width * k), Math.round(image.height * k)];
+    const gap = 8;
+    const [W, H] = [pw + gap * 3 + 192, ph + gap * 2];
+    const rgba = solidSheet(W, H);
+    layOn(rgba, W, k < 1 ? shrink(image, pw, ph) : image, gap, gap, midGround);
+    let oy = gap;
+    for (const s of [192, 96]) {
+        const small = shrink(image, s, Math.max(1, Math.round((s * image.height) / image.width)));
+        if (oy + small.height > H) break;
+        layOn(rgba, W, small, gap * 2 + pw, oy, midGround);
+        oy += small.height + gap;
+    }
+    return { width: W, height: H, rgba };
+}
+
+/** The picture in lightness alone: whether it holds together in light and dark, before colour flatters it. */
+export function valuesImage(image: RgbaBitmap): RgbaBitmap {
+    const rgba = new Uint8Array(image.rgba.length);
+    for (let i = 0; i < rgba.length; i += 4) {
+        const v = Math.round(lightness(image.rgba[i]!, image.rgba[i + 1]!, image.rgba[i + 2]!) * 255);
+        rgba[i] = v; rgba[i + 1] = v; rgba[i + 2] = v; rgba[i + 3] = image.rgba[i + 3]!;
+    }
+    return { width: image.width, height: image.height, rgba };
+}
+
+const lightness = (r: number, g: number, b: number): number => (r * 0.2126 + g * 0.7152 + b * 0.0722) / 255;
+
+/** What is at each point: the colour, and how light it is 0..1. */
+export function pickColors(image: RgbaBitmap, points: readonly (readonly number[])[]): { at: readonly number[]; color: string; value: number }[] {
+    return points.map((at) => {
+        const [x, y] = [Math.floor(at[0]!), Math.floor(at[1]!)];
+        if (!(x >= 0 && y >= 0 && x < image.width && y < image.height)) throw new Error(`[${at.join(', ')}] is outside the picture, ${image.width} by ${image.height}`);
+        const i = (y * image.width + x) * 4;
+        const [r, g, b, a] = [image.rgba[i]!, image.rgba[i + 1]!, image.rgba[i + 2]!, image.rgba[i + 3]!];
+        const hex = (v: number): string => v.toString(16).padStart(2, '0');
+        return { at, color: `#${hex(r)}${hex(g)}${hex(b)}${a === 255 ? '' : hex(a)}`, value: Math.round(lightness(r, g, b) * 100) / 100 };
+    });
 }
 
 function nearestScale(src: RgbaBitmap, width: number, height: number): RgbaBitmap {

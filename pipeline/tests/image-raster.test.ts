@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /** A picture from layers: each draws what it says and where, edges are antialiased, and what is wrong with a source is said before anything is drawn. */
 import { describe, expect, it } from 'vitest';
-import { imageSheet, parseColor, parsePath, renderImage, setSheet, zoomImage } from '../src/image/imageRaster';
+import { imageSheet, parseColor, parsePath, pickColors, renderImage, setSheet, valuesImage, zoomImage } from '../src/image/imageRaster';
 import { applyImageEdits, strokeWidths, validateImageSource, type ImageLayer } from '../src/image/imageSource';
 
 const draw = (layers: unknown[], size: number | [number, number] = 64, background?: string): ReturnType<typeof renderImage> => renderImage(validateImageSource({ size, layers, ...(background ? { background } : {}) }));
@@ -838,7 +838,7 @@ describe('marks that are many strokes', () => {
 
     it('says what is wrong with one', () => {
         const bad = (mark: object): unknown => validateImageSource({ size: 8, layers: [{ id: 'p', shape: 'paint', strokes: [mark] }] });
-        expect(() => bad({ type: 'wash' })).toThrow(/stroke 0 has type "wash"; there are sweep and field/);
+        expect(() => bad({ type: 'wash' })).toThrow(/stroke 0 has type "wash"; there are sweep, field and along/);
         expect(() => bad({ type: 'sweep', guides: [[[0, 0], [1, 1]]], colors: [RED], count: 3 })).toThrow(/two or more lines/);
         expect(() => bad(sweep({ colors: [] }))).toThrow(/needs colors/);
         expect(() => bad(sweep({ count: 0 }))).toThrow(/count must be/);
@@ -847,6 +847,122 @@ describe('marks that are many strokes', () => {
         expect(() => bad(field({ region: 'M0 0 A1 1 0 0 1 2 2' }))).toThrow(/region: path command A/);
         expect(() => bad(field({ tone: 'red' }))).toThrow(/tone/);
         expect(() => bad(field({ size: undefined }))).toThrow(/needs a positive size/);
+    });
+});
+
+describe('working across the picture', () => {
+    const halves: ImageLayer[] = [{ id: 'l', shape: 'rect', at: [0, 0], size: [32, 64], fill: RED }, { id: 'r', shape: 'rect', at: [32, 0], size: [32, 64], fill: BLUE }];
+    const smear = { points: [[8, 32], [56, 32]], size: 12, smudge: 0.9 };
+
+    it('a layer that starts from below drags colour from one layer across another', () => {
+        const img = draw([...halves, { shape: 'paint', from: 'below', strokes: [smear] } as never]);
+        expect(px(img, 42, 32)[0]).toBeGreaterThan(40);
+        expect(px(img, 42, 4)).toEqual([0, 0, 255, 255]);
+    });
+
+    it('without it a smudge sees only its own layer', () => {
+        const img = draw([...halves, { shape: 'paint', strokes: [smear] } as never]);
+        expect(px(img, 42, 32)).toEqual([0, 0, 255, 255]);
+    });
+
+    it('leaves the picture exactly as it was until it does something', () => {
+        const under = draw(halves);
+        const same = draw([...halves, { shape: 'paint', from: 'below', strokes: [] } as never]);
+        let worst = 0;
+        for (let i = 0; i < under.rgba.length; i++) worst = Math.max(worst, Math.abs(under.rgba[i]! - same.rgba[i]!));
+        expect(worst).toBeLessThanOrEqual(1);
+    });
+
+    it('does not thicken what is see-through, and keeps to its clip and opacity', () => {
+        const clear = draw([{ shape: 'rect', at: [0, 0], size: [64, 64], fill: '#ff000080' }, { shape: 'paint', from: 'below', strokes: [] } as never]);
+        expect(Math.abs(px(clear, 32, 32)[3]! - 128)).toBeLessThanOrEqual(1);
+        const clipped = draw([...halves, { id: 'c', shape: 'rect', at: [0, 0], size: [64, 20], fill: '#ffffff00' }, { shape: 'paint', from: 'below', clip: 'c', strokes: [{ points: [[0, 32], [64, 32]], size: 12, color: '#ffffff' }] } as never]);
+        expect(px(clipped, 10, 32)).toEqual([255, 0, 0, 255]);
+        const half = draw([...halves, { shape: 'paint', from: 'below', opacity: 0.5, strokes: [{ points: [[0, 32], [64, 32]], size: 12, color: '#ffffff', hardness: 1 }] } as never]);
+        expect(px(half, 10, 32)[1]).toBeGreaterThan(110);
+        expect(px(half, 10, 32)[1]).toBeLessThan(140);
+    });
+
+    it('a field of smudges softens a hard edge, and takes no colour of its own', () => {
+        const img = draw([...halves, { shape: 'paint', from: 'below', strokes: [{ type: 'field', smudge: 0.8, size: 10, length: 30, angle: 0, seed: 1 }] } as never]);
+        const mixed = new Set<number>();
+        for (let x = 22; x < 42; x++) mixed.add(px(img, x, 30)[0]!);
+        expect(mixed.size).toBeGreaterThan(4);
+        for (let i = 0; i < img.rgba.length; i += 4) expect(img.rgba[i + 1]).toBeLessThanOrEqual(1);
+    });
+
+    it('takes a region from a layer drawn before it, through a transform too', () => {
+        const blob: ImageLayer = { id: 'b', shape: 'circle', at: [64, 64], radius: 30, fill: '#00000000' };
+        const img = draw([blob, { shape: 'paint', strokes: [{ type: 'field', region: '@b', tone: RED, size: 3, length: 6, angle: 0, hardness: 1, opacity: 1, vary: 0, seed: 1 }] } as never], [128, 128]);
+        expect(px(img, 64, 64)[0]).toBe(255);
+        expect(px(img, 64, 20)[3]).toBe(0);
+        const moved = draw([{ ...blob, fill: '#00000001' }, { shape: 'paint', transform: { translate: [40, 0], origin: [0, 0] }, strokes: [{ type: 'field', region: '@b', tone: RED, size: 3, length: 6, angle: 0, hardness: 1, opacity: 1, vary: 0, seed: 1 }] } as never], [128, 128]);
+        expect(px(moved, 64, 64)[0]).toBe(255);
+        const none = draw([{ shape: 'paint', strokes: [{ type: 'field', region: '@nope', tone: RED, size: 3 }] } as never]);
+        expect(none.notes.join()).toMatch(/"@nope" names no layer/);
+    });
+
+    it('repeats strokes along a line, turned and sized to it, and reflected when asked', () => {
+        const feather = { points: [[0, 0], [10, 0]], color: RED, size: 2, hardness: 1 };
+        const along = (fields: object): ReturnType<typeof draw> => draw([{ shape: 'paint', strokes: [{ type: 'along', line: [[10, 32], [50, 32]], count: 5, strokes: [feather], ...fields }] } as never]);
+        expect(px(along({}), 15, 32)[0]).toBe(255);
+        const up = along({ turn: -90, count: 3 });
+        expect(px(up, 30, 25)[0]).toBe(255);
+        expect(px(up, 30, 39)[3]).toBe(0);
+        expect(px(along({ turn: -90, count: 3, both: true }), 30, 39)[0]).toBe(255);
+        expect(px(along({ turn: -90, count: 3, scale: [1, 3] }), 50, 8)[0]).toBe(255);
+        expect(() => validateImageSource({ size: 8, layers: [{ shape: 'paint', strokes: [{ type: 'along', line: [[0, 0], [1, 1]], count: 2, strokes: [{ type: 'field', tone: RED, size: 2 }] }] }] })).toThrow(/plain stroke/);
+    });
+
+    it('says when a sweep will be a flat band, and is quiet when it will not', () => {
+        const sweep = (guides: number[][][], count: number): string[] => draw([{ id: 's', shape: 'paint', strokes: [{ type: 'sweep', guides, colors: [RED], count }] } as never], [128, 128]).notes;
+        expect(sweep([[[10, 10], [100, 10]], [[10, 11], [100, 11]]], 40).join()).toMatch(/flat band/);
+        expect(sweep([[[10, 10], [10, 110]], [[90, 10], [90, 110]]], 160)).toEqual([]);
+    });
+
+    it('reports entries and strokes for each paint layer', () => {
+        const img = draw([{ id: 'p', shape: 'paint', strokes: [{ points: [[1, 1], [9, 9]], color: RED, size: 1 }, { type: 'sweep', guides: [[[10, 10], [10, 50]], [[50, 10], [50, 50]]], colors: [RED], count: 40 }] } as never]);
+        expect(img.painted.p).toEqual({ entries: 2, strokes: 41 });
+    });
+
+    it('refuses a gradient at one point, and a below layer with what it cannot take', () => {
+        const bad = (l: object): unknown => validateImageSource({ size: 8, layers: [l] });
+        expect(() => bad({ shape: 'rect', at: [0, 0], size: [8, 8], fill: { type: 'linear', from: [2, 2], to: [2, 2], stops: [[0, RED], [1, BLUE]] } })).toThrow(/from and to apart/);
+        expect(() => bad({ shape: 'paint', from: 'below', fill: RED, strokes: [] })).toThrow(/takes no fill/);
+        expect(() => bad({ shape: 'paint', from: 'above', strokes: [] })).toThrow(/from must be "below"/);
+        expect(() => bad({ shape: 'circle', at: [1, 1], radius: 1, fill: RED, from: 'below' })).toThrow(/for a paint layer/);
+        expect(() => bad({ shape: 'paint', strokes: [{ type: 'field', size: 3 }] })).toThrow(/needs a tone/);
+    });
+
+    it('shows lightness alone and reads a colour', () => {
+        const pic = draw(halves);
+        const v = valuesImage(pic);
+        expect(px(v as never, 10, 10)[0]).toBe(px(v as never, 10, 10)[1]);
+        expect(px(v as never, 10, 10)[0]).toBeGreaterThan(px(v as never, 50, 10)[0]!);
+        expect(pickColors(pic, [[10, 10], [50, 10]])).toEqual([{ at: [10, 10], color: '#ff0000', value: 0.21 }, { at: [50, 10], color: '#0000ff', value: 0.07 }]);
+        expect(() => pickColors(pic, [[90, 0]])).toThrow(/outside the picture/);
+    });
+
+    it('sees a large opaque picture large, and any other as before', () => {
+        const big = renderImage(validateImageSource({ size: [800, 450], layers: [{ shape: 'rect', at: [0, 0], size: [800, 450], fill: RED }] }));
+        expect(imageSheet(big).width).toBe(800 + 24 + 192);
+        expect(imageSheet(big).height).toBe(450 + 16);
+        const clear = renderImage(validateImageSource({ size: [800, 450], layers: [{ shape: 'circle', at: [400, 225], radius: 100, fill: RED }] }));
+        expect(imageSheet(clear).width).toBeLessThan(1300);
+        expect(imageSheet(clear).width).toBeGreaterThan(1000);
+    });
+
+    it('zooms what is large as far as it fits', () => {
+        const big = renderImage(validateImageSource({ size: [960, 540], layers: [{ shape: 'rect', at: [0, 0], size: [960, 540], fill: RED }] }));
+        expect(zoomImage(big, { x: 0, y: 0, w: 480, h: 270 }).width).toBe(960);
+        expect(zoomImage(big, { x: 0, y: 0, w: 960, h: 540 }).width).toBe(960);
+    });
+
+    it('has most of its noise in the middle, as the text says', () => {
+        const img = draw([{ shape: 'rect', at: [0, 0], size: [64, 64], fill: { type: 'noise', scale: 16, stops: [[0, '#000000'], [1, '#ffffff']] } as never }]);
+        const v = Array.from({ length: 64 * 64 }, (_, i) => img.rgba[i * 4]! / 255).sort((a, b) => a - b);
+        expect(v[Math.floor(v.length * 0.1)]).toBeGreaterThan(0.2);
+        expect(v[Math.floor(v.length * 0.9)]).toBeLessThan(0.8);
     });
 });
 
@@ -901,7 +1017,7 @@ describe('a set and a close look', () => {
 
     it('enlarges a part with hard pixels, on the check where it is clear', () => {
         const half = draw([{ shape: 'rect', at: [10, 0], size: [54, 64], fill: RED }]);
-        const big = zoomImage(half, { x: 8, y: 8, w: 4, h: 4 });
+        const big = zoomImage(half, { x: 8, y: 8, w: 4, h: 4 }, 640);
         expect(big.width).toBe(640);
         const at = (x: number, y: number): number[] => Array.from(big.rgba.subarray((y * big.width + x) * 4, (y * big.width + x) * 4 + 3));
         // Two pixels of nothing and two of red, each 160 wide, and no blur between.
