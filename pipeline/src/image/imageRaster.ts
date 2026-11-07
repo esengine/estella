@@ -7,7 +7,8 @@
  *        effects, and this owns everything that has to be exact: antialiased edges, gradients, soft shadows.
  *        On the CPU rather than through a canvas, so the same source makes the same bytes on any machine and a test can read them.
  */
-import type { ImageFill, ImageLayer, ImageSource, ImageEffect, ImageStroke, ImageTransform } from './imageSource';
+import { MAX_MARK_STROKES } from './imageSource';
+import type { ImageFill, ImageLayer, ImageSource, ImageEffect, ImageField, ImageMark, ImageStroke, ImageSweep, ImageTransform } from './imageSource';
 
 export interface RgbaBitmap { width: number; height: number; rgba: Uint8Array }
 
@@ -866,6 +867,163 @@ function paintStroke(c: Canvas, s: ImageStroke, m: Matrix, scale: number, n: num
     }
 }
 
+const channelHex = (v: number): string => Math.max(0, Math.min(255, Math.round(v * 255))).toString(16).padStart(2, '0');
+const toHex = (c: Rgba, shade = 1): string => `#${channelHex(c[0] * shade)}${channelHex(c[1] * shade)}${channelHex(c[2] * shade)}${channelHex(c[3])}`;
+
+/** A guide at evenly spaced places along its length, smooth through its points. */
+function resampled(guide: readonly (readonly number[])[], samples: number): { x: number; y: number; pressure: number }[] {
+    const path = brushPath(guide, IDENTITY);
+    const total = path[path.length - 1]!.along;
+    let index = 0;
+    return Array.from({ length: samples }, (_, i) => {
+        const at = (total * i) / (samples - 1);
+        while (index + 1 < path.length - 1 && path[index + 1]!.along < at) index++;
+        const [a, b] = [path[index]!, path[index + 1] ?? path[index]!];
+        const t = b.along > a.along ? Math.min(1, (at - a.along) / (b.along - a.along)) : 0;
+        return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, pressure: a.pressure + (b.pressure - a.pressure) * t };
+    });
+}
+
+const SWEEP_SAMPLES = 14;
+
+/** Hairs between the guides. Each belongs to a lock and draws into it toward the tip, and a lock shares a shade, which is what makes a mass read as locks and not as combed lines. */
+function sweepStrokes(s: ImageSweep): ImageStroke[] {
+    const guides = s.guides.map((g) => resampled(g, SWEEP_SAMPLES));
+    const seed = s.seed ?? 1;
+    const colors = s.colors.map(parseColor);
+    const tip = s.tip ? parseColor(s.tip) : null;
+    const clumps = s.clumps ?? Math.max(2, Math.round(s.count / 14));
+    const [gather, flyaway, vary, wobble] = [s.gather ?? 0.6, s.flyaway ?? 0.02, s.vary ?? 0.12, s.wobble ?? 1.5];
+    const colorAt = (u: number): Rgba => {
+        const at = Math.max(0, Math.min(0.9999, u)) * (colors.length - 1);
+        const [i, t] = [Math.floor(at), at - Math.floor(at)];
+        const [a, b] = [colors[i]!, colors[Math.min(colors.length - 1, i + 1)]!];
+        return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t];
+    };
+    const lockCentre = Array.from({ length: clumps }, (_, k) => (k + 0.2 + hash01(seed * 7 + k, 1) * 0.6) / clumps);
+    const lockShade = Array.from({ length: clumps }, (_, k) => 1 + (hash01(seed * 7 + k, 2) - 0.5) * vary * 2.5);
+    const out: ImageStroke[] = [];
+    for (let j = 0; j < s.count; j++) {
+        const pick = (k: number): number => hash01(seed * 131 + j, k);
+        const u = (j + pick(1)) / s.count;
+        const lock = Math.min(clumps - 1, Math.floor(u * clumps));
+        const strays = pick(2) < flyaway;
+        const [side, reach] = [pick(3) < 0.5 ? -1 : 1, 0.6 + pick(4) * 1.4];
+        const length = 1 - pick(5) * (strays ? 0.05 : 0.16);
+        const points: number[][] = [];
+        for (let i = 0; i < SWEEP_SAMPLES; i++) {
+            const t = (i / (SWEEP_SAMPLES - 1)) * length;
+            const draw = strays ? 0 : gather * t * t;
+            const where = (u + (lockCentre[lock]! - u) * draw) * (guides.length - 1);
+            const [g, f] = [Math.min(guides.length - 2, Math.floor(where)), where - Math.min(guides.length - 2, Math.floor(where))];
+            const at = (line: readonly { x: number; y: number }[]): [number, number] => {
+                const place = t * (SWEEP_SAMPLES - 1);
+                const [low, frac] = [Math.min(SWEEP_SAMPLES - 2, Math.floor(place)), place - Math.min(SWEEP_SAMPLES - 2, Math.floor(place))];
+                return [line[low]!.x + (line[low + 1]!.x - line[low]!.x) * frac, line[low]!.y + (line[low + 1]!.y - line[low]!.y) * frac];
+            };
+            const [ax, ay] = at(guides[g]!);
+            const [bx, by] = at(guides[g + 1]!);
+            const [x, y] = [ax + (bx - ax) * f, ay + (by - ay) * f];
+            const [cx, cy] = [bx - ax, by - ay];
+            const across = Math.hypot(cx, cy) || 1;
+            const shake = gradientNoise(t * 3.1, j * 0.73 + 0.5, seed) * wobble * 2 * t;
+            const stray = strays ? side * reach * t * t * (across * 0.5 + (s.size ?? 1.2) * 14) : 0;
+            points.push([Math.round((x + (cx / across) * (shake + stray)) * 100) / 100, Math.round((y + (cy / across) * (shake + stray)) * 100) / 100]);
+        }
+        const shade = lockShade[lock]! * (1 + (pick(6) - 0.5) * vary);
+        const root = colorAt(u + (pick(7) - 0.5) * 0.08);
+        const size = (s.size ?? 1.2) * (0.7 + pick(8) * 0.6);
+        out.push({
+            points, size, hardness: 0.7, color: toHex(root, shade),
+            ...(tip ? { to: toHex([root[0] + (tip[0] - root[0]) * 0.8, root[1] + (tip[1] - root[1]) * 0.8, root[2] + (tip[2] - root[2]) * 0.8, root[3]], shade) } : {}),
+            opacity: (s.opacity ?? 1) * (strays ? 0.55 : 0.75 + pick(9) * 0.25),
+            taper: s.taper ?? [0.04, 0.45],
+        });
+    }
+    return out;
+}
+
+/** Strokes across a region, following the guides or an angle. Each takes its colour from `tone` where it starts. */
+function fieldStrokes(s: ImageField, w: number, h: number): ImageStroke[] {
+    const seed = s.seed ?? 1;
+    const regionRuns = s.region ? parsePath(s.region).map((r) => r.points) : null;
+    const inside = (x: number, y: number): boolean => {
+        if (!regionRuns) return true;
+        let winding = 0;
+        for (const run of regionRuns) {
+            for (let i = 0; i < run.length; i++) {
+                const [a, b] = [run[i]!, run[(i + 1) % run.length]!];
+                if ((a[1] <= y) === (b[1] <= y)) continue;
+                const cross = (b[0] - a[0]) * (y - a[1]) - (x - a[0]) * (b[1] - a[1]);
+                if (b[1] > a[1] ? cross > 0 : cross < 0) winding += b[1] > a[1] ? 1 : -1;
+            }
+        }
+        return winding !== 0;
+    };
+    const all = regionRuns ? regionRuns.flat() : [[0, 0], [w, h]] as Pt[];
+    const [x0, x1] = [Math.min(...all.map((p) => p[0])), Math.max(...all.map((p) => p[0]))];
+    const [y0, y1] = [Math.min(...all.map((p) => p[1])), Math.max(...all.map((p) => p[1]))];
+    const flow = (s.guides ?? []).flatMap((g) => {
+        const line = resampled(g, 24);
+        return line.slice(0, -1).map((p, i) => {
+            const q = line[i + 1]!;
+            const len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+            return { x: p.x, y: p.y, dx: (q.x - p.x) / len, dy: (q.y - p.y) / len };
+        });
+    });
+    const direction = (x: number, y: number): [number, number] => {
+        if (flow.length === 0) {
+            const r = ((s.angle ?? 0) * Math.PI) / 180;
+            return [Math.cos(r), Math.sin(r)];
+        }
+        let [dx, dy] = [0, 0];
+        for (const f of flow) {
+            const weight = 1 / (1 + ((x - f.x) ** 2 + (y - f.y) ** 2) ** 1.5);
+            dx += f.dx * weight; dy += f.dy * weight;
+        }
+        const len = Math.hypot(dx, dy) || 1;
+        return [dx / len, dy / len];
+    };
+    const paint = paintOf(s.tone, IDENTITY);
+    const length = s.length ?? s.size * 3;
+    const count = Math.min(MAX_MARK_STROKES, Math.ceil(((s.coverage ?? 2.5) * Math.max(1, (x1 - x0) * (y1 - y0))) / (s.size * length)));
+    const spread = ((s.spread ?? 12) * Math.PI) / 180;
+    const vary = s.vary ?? 0.05;
+    const steps = 5;
+    const out: ImageStroke[] = [];
+    // One start in each cell of a grid, in shuffled order: wholly random starts leave holes, and starts in rows lay strokes over each other in rows.
+    const across = Math.max(1, Math.round(Math.sqrt((count * (x1 - x0 || 1)) / (y1 - y0 || 1))));
+    const down = Math.max(1, Math.ceil(count / across));
+    const order = Array.from({ length: across * down }, (_, i) => i).sort((a, b) => hash01(seed * 53 + a, 9) - hash01(seed * 53 + b, 9));
+    for (const j of order) {
+        const pick = (k: number): number => hash01(seed * 197 + j, k);
+        const [sx, sy] = [x0 + (((j % across) + pick(1)) / across) * (x1 - x0), y0 + ((Math.floor(j / across) + pick(2)) / down) * (y1 - y0)];
+        if (!inside(sx, sy)) continue;
+        const turn = (pick(3) - 0.5) * 2 * spread;
+        const points: number[][] = [];
+        const [back, forward] = [-length / 2, length / steps];
+        let [x, y] = [sx, sy];
+        const [d0x, d0y] = direction(sx, sy);
+        x += d0x * back; y += d0y * back;
+        for (let k = 0; k <= steps; k++) {
+            points.push([Math.round(x * 100) / 100, Math.round(y * 100) / 100]);
+            const [dx, dy] = direction(x, y);
+            const [rx, ry] = [dx * Math.cos(turn) - dy * Math.sin(turn), dx * Math.sin(turn) + dy * Math.cos(turn)];
+            x += rx * forward; y += ry * forward;
+        }
+        out.push({
+            points, size: s.size * (0.75 + pick(4) * 0.5), hardness: s.hardness ?? 0.55, opacity: s.opacity ?? 0.85,
+            color: toHex(paint(sx, sy), 1 + (pick(5) - 0.5) * 2 * vary), taper: [0.12, 0.3],
+        });
+    }
+    return out;
+}
+
+const expandMark = (mark: ImageMark, w: number, h: number): readonly ImageStroke[] => {
+    if ('type' in mark) return mark.type === 'sweep' ? sweepStrokes(mark) : fieldStrokes(mark, w, h);
+    return [mark];
+};
+
 function drawPaint(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, opacity: number, blend: Blend, clip: Float32Array | undefined): void {
     const { w, h } = c;
     const m = times(parent, transformOf(layer.transform, [w / 2, h / 2]));
@@ -880,7 +1038,10 @@ function drawPaint(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, o
         }
     }
     const buffer: StrokeBuffer = { mask: new Float32Array(w * h), rgb: new Float32Array(w * h * 3), touched: [] };
-    (layer.strokes ?? []).forEach((s, n) => paintStroke(inner, s, m, drawnScale(m), n, buffer));
+    let drawnStrokes = 0;
+    (layer.strokes ?? []).forEach((mark) => {
+        for (const s of expandMark(mark, w, h)) paintStroke(inner, s, m, drawnScale(m), drawnStrokes++, buffer);
+    });
     const alpha = new Float32Array(w * h);
     for (let i = 0; i < alpha.length; i++) alpha[i] = inner.px[i * 4 + 3]!;
     if (layer.id) drawn.masks.set(layer.id, alpha);

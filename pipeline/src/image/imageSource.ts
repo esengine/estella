@@ -64,6 +64,53 @@ export interface ImageStroke {
     blend?: 'normal' | 'multiply' | 'screen' | 'overlay' | 'add';
 }
 
+/** Many hairs between guide lines, gathered into locks. A few words of intent, and hundreds of strokes when drawn. */
+export interface ImageSweep {
+    type: 'sweep';
+    /** Two or more lines, side by side and in order, each root to tip. */
+    guides: readonly (readonly (readonly number[])[])[];
+    /** Across the guides, first to last. */
+    colors: readonly string[];
+    count: number;
+    /** What the colours have turned to by the tips. */
+    tip?: string;
+    /** The width of one hair. */
+    size?: number;
+    clumps?: number;
+    /** How far hairs draw into their lock by the tips, 0..1. */
+    gather?: number;
+    /** The share of hairs that stray from the mass, 0..1. */
+    flyaway?: number;
+    vary?: number;
+    wobble?: number;
+    opacity?: number;
+    taper?: readonly [number, number];
+    seed?: number;
+}
+
+/** A region covered in strokes that follow a flow, each its colour from `tone` where it starts. */
+export interface ImageField {
+    type: 'field';
+    /** An SVG path to start strokes in; the whole picture without it. Strokes may run over its edge. */
+    region?: string;
+    /** Lines the strokes follow, nearest the most, or a direction in degrees clockwise from right. */
+    guides?: readonly (readonly (readonly number[])[])[];
+    angle?: number;
+    tone: ImageFill;
+    size: number;
+    length?: number;
+    /** How many times over the strokes cover the region. */
+    coverage?: number;
+    /** Degrees either side of the flow. */
+    spread?: number;
+    vary?: number;
+    opacity?: number;
+    hardness?: number;
+    seed?: number;
+}
+
+export type ImageMark = ImageStroke | ImageSweep | ImageField;
+
 export interface ImageLayer {
     id?: string;
     shape: ImageShape;
@@ -81,7 +128,7 @@ export interface ImageLayer {
     palette?: Readonly<Record<string, string>>;
     scale?: number;
     layers?: readonly ImageLayer[];
-    strokes?: readonly ImageStroke[];
+    strokes?: readonly ImageMark[];
     fill?: ImageFill;
     stroke?: { color: ImageFill; width: number; align?: 'center' | 'inside' | 'outside'; join?: 'round' | 'miter' | 'bevel'; cap?: 'round' | 'butt' | 'square' };
     opacity?: number;
@@ -130,8 +177,49 @@ const FIELDS = ['id', 'shape', 'at', 'size', 'radius', 'radii', 'inner', 'count'
 const SHAPES: readonly ImageShape[] = ['rect', 'circle', 'ellipse', 'ring', 'polygon', 'line', 'star', 'gear', 'path', 'pixels', 'paint', 'group'];
 const STROKE_FIELDS = ['points', 'color', 'to', 'size', 'hardness', 'opacity', 'taper', 'bristles', 'strand', 'spread', 'vary', 'wobble', 'seed', 'smudge', 'erase', 'blend'];
 
+const SWEEP_FIELDS = ['type', 'guides', 'colors', 'count', 'tip', 'size', 'clumps', 'gather', 'flyaway', 'vary', 'wobble', 'opacity', 'taper', 'seed'];
+const FIELD_FIELDS = ['type', 'region', 'guides', 'angle', 'tone', 'size', 'length', 'coverage', 'spread', 'vary', 'opacity', 'hardness', 'seed'];
+const isGuide = (g: unknown): boolean => Array.isArray(g) && g.length >= 2 && g.every((p) => Array.isArray(p) && (p.length === 2 || p.length === 3) && p.every(isNum));
+export const MAX_MARK_STROKES = 30000;
+
+function markProblem(s: Record<string, unknown>): string | null {
+    const zeroToOne = (keys: readonly string[]): string | null => {
+        for (const key of keys) if (s[key] !== undefined && !(isNum(s[key]) && (s[key] as number) >= 0 && (s[key] as number) <= 1)) return `${key} must be 0..1`;
+        return null;
+    };
+    const fields = s.type === 'sweep' ? SWEEP_FIELDS : FIELD_FIELDS;
+    for (const key of Object.keys(s)) if (!fields.includes(key)) return `has unknown field "${key}"; a ${String(s.type)} takes ${fields.join(', ')}`;
+    if (s.seed !== undefined && !Number.isInteger(s.seed)) return 'seed must be a whole number';
+    if (s.type === 'sweep') {
+        if (!Array.isArray(s.guides) || s.guides.length < 2 || !s.guides.every(isGuide)) return 'needs guides: two or more lines, each two or more [x, y]';
+        if (!Array.isArray(s.colors) || s.colors.length === 0 || !s.colors.every(isColor)) return 'needs colors: one or more, across the guides';
+        if (s.tip !== undefined && !isColor(s.tip)) return 'tip must be a colour';
+        if (!(Number.isInteger(s.count) && (s.count as number) >= 1 && (s.count as number) <= MAX_MARK_STROKES)) return `count must be a whole number from 1 to ${MAX_MARK_STROKES}`;
+        if (s.clumps !== undefined && !(Number.isInteger(s.clumps) && (s.clumps as number) >= 1)) return 'clumps must be a whole number of 1 or more';
+        for (const key of ['size', 'wobble']) if (s[key] !== undefined && !(isNum(s[key]) && (s[key] as number) >= 0)) return `${key} must be 0 or more`;
+        if (s.taper !== undefined && !(Array.isArray(s.taper) && s.taper.length === 2 && s.taper.every((t) => isNum(t) && t >= 0 && t <= 1))) return 'taper must be [start, end], each 0..1';
+        return zeroToOne(['gather', 'flyaway', 'vary', 'opacity']);
+    }
+    if (s.region !== undefined) {
+        if (typeof s.region !== 'string') return 'region must be an SVG path';
+        try { parsePath(s.region); } catch (e) { return `region: ${(e as Error).message}`; }
+    }
+    if (s.guides !== undefined && !(Array.isArray(s.guides) && s.guides.length > 0 && s.guides.every(isGuide))) return 'guides must be one or more lines, each two or more [x, y]';
+    if (s.angle !== undefined && !isNum(s.angle)) return 'angle must be degrees';
+    const bad = checkFill(s.tone);
+    if (bad) return `tone ${bad}`;
+    for (const key of ['size', 'length', 'coverage']) {
+        if (s[key] !== undefined && !(isNum(s[key]) && (s[key] as number) > 0)) return `${key} must be positive`;
+    }
+    if (s.size === undefined) return 'needs a positive size';
+    if (s.spread !== undefined && !(isNum(s.spread) && (s.spread as number) >= 0)) return 'spread must be 0 or more degrees';
+    return zeroToOne(['vary', 'opacity', 'hardness']);
+}
+
 function strokeProblem(s: Record<string, unknown>): string | null {
     if (typeof s !== 'object' || s === null) return 'must be an object';
+    if (s.type === 'sweep' || s.type === 'field') return markProblem(s);
+    if (s.type !== undefined) return `has type "${String(s.type)}"; there are sweep and field, or none for one stroke`;
     for (const key of Object.keys(s)) if (!STROKE_FIELDS.includes(key)) return `has unknown field "${key}"; a stroke takes ${STROKE_FIELDS.join(', ')}`;
     if (!Array.isArray(s.points) || s.points.length === 0 || !s.points.every((p) => Array.isArray(p) && (p.length === 2 || p.length === 3) && p.every(isNum))) return 'needs points, each [x, y] or [x, y, pressure]';
     if (!(isNum(s.size) && (s.size as number) > 0)) return 'needs a positive size';
@@ -267,7 +355,7 @@ export type ImageEdit =
     | { op: 'insert'; layer: ImageLayer; before?: string; after?: string; into?: string }
     | { op: 'remove'; layer: string }
     | { op: 'move'; layer: string; before?: string; after?: string; into?: string }
-    | { op: 'paint'; layer: string; strokes?: readonly ImageStroke[]; drop?: number }
+    | { op: 'paint'; layer: string; strokes?: readonly ImageMark[]; drop?: number }
     | { op: 'wrap'; layers: readonly string[]; group: Partial<ImageLayer> }
     | { op: 'unwrap'; layer: string }
     | {
@@ -373,7 +461,7 @@ export function applyImageEdits(source: ImageSource, edits: readonly ImageEdit[]
                 const { list, index } = need(edit.layer);
                 const layer = list[index]!;
                 if (layer.shape !== 'paint') throw new Error(`layer "${edit.layer}" is not paint`);
-                const had = layer.strokes as readonly ImageStroke[];
+                const had = layer.strokes as readonly ImageMark[];
                 const drop = edit.drop ?? 0;
                 if (!Number.isInteger(drop) || drop < 0 || drop > had.length) throw new Error(`layer "${edit.layer}" has ${had.length} strokes: cannot drop ${String(edit.drop)}`);
                 layer.strokes = [...had.slice(0, had.length - drop), ...(edit.strokes ?? [])];

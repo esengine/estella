@@ -748,6 +748,108 @@ describe('brushes', () => {
     });
 });
 
+describe('marks that are many strokes', () => {
+    const paint = (strokes: object[]): ImageLayer => ({ id: 'p', shape: 'paint', strokes } as never);
+    const pair = [[[10, 10], [10, 110]], [[60, 10], [60, 110]]];
+    const sweep = (fields: object = {}): object => ({ type: 'sweep', guides: pair, colors: [RED], count: 200, flyaway: 0, wobble: 0, seed: 3, ...fields });
+
+    it('a sweep stays between its guides, and covers them', () => {
+        const img = draw([paint([sweep({ gather: 0 })])], [128, 128]);
+        expect(px(img, 35, 40)[3]).toBeGreaterThan(100);
+        expect(px(img, 2, 40)[3]).toBe(0);
+        expect(px(img, 70, 40)[3]).toBe(0);
+        expect(px(img, 35, 124)[3]).toBe(0);
+    });
+
+    it('a sweep is as dense as its count', () => {
+        const coverage = (count: number): number => { const img = draw([paint([sweep({ count, gather: 0 })])], [128, 128]); let n = 0; for (let x = 8; x < 62; x++) if (px(img, x, 40)[3]! > 60) n++; return n; };
+        expect(coverage(300)).toBeGreaterThan(coverage(10) * 2);
+    });
+
+    it('gathers its hairs into locks toward the tips, and leaves them even without', () => {
+        const gaps = (gather: number): number => {
+            const img = draw([paint([sweep({ gather, clumps: 4, count: 300, size: 1.2, taper: [0, 0] })])], [128, 128]);
+            let g = 0;
+            for (let x = 12; x < 58; x++) if (px(img, x, 92)[3]! < 30) g++;
+            return g;
+        };
+        expect(gaps(1)).toBeGreaterThan(gaps(0) + 6);
+    });
+
+    it('sends strays out past the mass only when asked', () => {
+        const outside = (flyaway: number): number => {
+            const img = draw([paint([sweep({ flyaway, gather: 0 })])], [128, 128]);
+            let n = 0;
+            for (let y = 60; y < 112; y++) for (let x = 0; x < 128; x++) if ((x < 6 || x > 66) && px(img, x, y)[3]! > 20) n++;
+            return n;
+        };
+        expect(outside(0)).toBe(0);
+        expect(outside(0.3)).toBeGreaterThan(10);
+    });
+
+    it('takes its colours across the guides, and turns to the tip colour', () => {
+        const img = draw([paint([sweep({ colors: [RED, BLUE], gather: 0, vary: 0 })])], [128, 128]);
+        expect(px(img, 14, 40)[0]).toBeGreaterThan(px(img, 14, 40)[2]!);
+        expect(px(img, 56, 40)[2]).toBeGreaterThan(px(img, 56, 40)[0]!);
+        const tipped = draw([paint([sweep({ tip: BLUE, gather: 0, vary: 0 })])], [128, 128]);
+        expect(px(tipped, 35, 16)[0]).toBeGreaterThan(px(tipped, 35, 16)[2]!);
+        expect(px(tipped, 35, 85)[2]).toBeGreaterThan(px(tipped, 35, 16)[2]!);
+    });
+
+    const region = 'M20 20 L100 20 L100 100 L20 100 Z';
+    const field = (fields: object = {}): object => ({ type: 'field', region, tone: RED, size: 6, length: 12, angle: 0, spread: 0, seed: 2, ...fields });
+
+    it('a field covers its region, and only runs a stroke\'s length past it', () => {
+        const img = draw([paint([field()])], [128, 128]);
+        let covered = 0;
+        for (let y = 24; y < 96; y += 4) for (let x = 24; x < 96; x += 4) if (px(img, x, y)[3]! > 128) covered++;
+        expect(covered).toBeGreaterThan(18 * 18 * 0.9);
+        expect(px(img, 4, 60)[3]).toBe(0);
+        expect(px(img, 60, 4)[3]).toBe(0);
+    });
+
+    it('a field runs along its flow: a line changes less along it than across it', () => {
+        const stripes = (fields: object): { along: number; across: number } => {
+            const img = draw([paint([field({ region: undefined, tone: { type: 'noise', scale: 1, octaves: 1, stops: [[0, '#000000'], [1, '#ffffff']] }, size: 3, length: 40, coverage: 3, ...fields })])], [128, 128]);
+            let [along, across] = [0, 0];
+            for (let i = 8; i < 118; i++) {
+                along += Math.abs(px(img, i, 64)[0]! - px(img, i + 1, 64)[0]!);
+                across += Math.abs(px(img, 64, i)[0]! - px(img, 64, i + 1)[0]!);
+            }
+            return { along, across };
+        };
+        const flat = stripes({ angle: 0 });
+        expect(flat.across).toBeGreaterThan(flat.along * 1.5);
+        const down = stripes({ angle: undefined, guides: [[[64, 0], [64, 128]]] });
+        expect(down.along).toBeGreaterThan(down.across * 1.5);
+    });
+
+    it('a field takes each stroke\'s colour from its tone', () => {
+        const img = draw([paint([field({ region: undefined, tone: { type: 'linear', from: [0, 0], to: [128, 0], stops: [[0, RED], [1, BLUE]] }, vary: 0 })])], [128, 128]);
+        expect(px(img, 12, 64)[0]).toBeGreaterThan(px(img, 12, 64)[2]!);
+        expect(px(img, 116, 64)[2]).toBeGreaterThan(px(img, 116, 64)[0]!);
+    });
+
+    it('is the same from the same seed, and another from another', () => {
+        expect(draw([paint([field()])]).rgba).toEqual(draw([paint([field()])]).rgba);
+        expect(draw([paint([sweep({ flyaway: 0.1 })])]).rgba).toEqual(draw([paint([sweep({ flyaway: 0.1 })])]).rgba);
+        expect(draw([paint([sweep({ seed: 8, gather: 0.8 })])]).rgba).not.toEqual(draw([paint([sweep({ seed: 9, gather: 0.8 })])]).rgba);
+    });
+
+    it('says what is wrong with one', () => {
+        const bad = (mark: object): unknown => validateImageSource({ size: 8, layers: [{ id: 'p', shape: 'paint', strokes: [mark] }] });
+        expect(() => bad({ type: 'wash' })).toThrow(/stroke 0 has type "wash"; there are sweep and field/);
+        expect(() => bad({ type: 'sweep', guides: [[[0, 0], [1, 1]]], colors: [RED], count: 3 })).toThrow(/two or more lines/);
+        expect(() => bad(sweep({ colors: [] }))).toThrow(/needs colors/);
+        expect(() => bad(sweep({ count: 0 }))).toThrow(/count must be/);
+        expect(() => bad(sweep({ gather: 2 }))).toThrow(/gather must be 0..1/);
+        expect(() => bad(sweep({ nope: 1 }))).toThrow(/unknown field "nope"/);
+        expect(() => bad(field({ region: 'M0 0 A1 1 0 0 1 2 2' }))).toThrow(/region: path command A/);
+        expect(() => bad(field({ tone: 'red' }))).toThrow(/tone/);
+        expect(() => bad(field({ size: undefined }))).toThrow(/needs a positive size/);
+    });
+});
+
 describe('what it measures', () => {
     it('finds where the picture is solid and how much of it that is', () => {
         const img = draw([{ shape: 'rect', at: [10, 20], size: [16, 8], fill: RED }]);
