@@ -608,7 +608,7 @@ describe('noise', () => {
         expect(() => bad({ scale: 0 })).toThrow(/scale must be a positive/);
         expect(() => bad({ octaves: 9 })).toThrow(/octaves must be/);
         expect(() => bad({ seed: 1.5 })).toThrow(/seed must be/);
-        expect(() => validateImageSource({ size: 8, layers: [{ shape: 'rect', at: [0, 0], size: [8, 8], fill: { type: 'wavy', stops: [] } }] })).toThrow(/linear, radial, noise, form or image/);
+        expect(() => validateImageSource({ size: 8, layers: [{ shape: 'rect', at: [0, 0], size: [8, 8], fill: { type: 'wavy', stops: [] } }] })).toThrow(/linear, radial, noise, form, image or grid/);
     });
 });
 
@@ -1114,6 +1114,125 @@ describe('a picture to draw over', () => {
     it('says when it is not there', () => {
         expect(() => renderImage(validateImageSource({ size: 8, layers: [{ shape: 'image', src: 'gone.png' }] }))).toThrow(/no picture at gone.png/);
         expect(() => validateImageSource({ size: 8, layers: [{ shape: 'image' }] })).toThrow(/src must be/);
+    });
+});
+
+describe('a built world', () => {
+    const windows = (fields: object): object => ({ type: 'grid', colors: [RED], ground: BLUE, ...fields });
+    const rect = (fill: object): ImageLayer => ({ shape: 'rect', at: [0, 0], size: [64, 64], fill } as never);
+
+    it('a grid repeats its marks by the pixel, on and off as told', () => {
+        const img = draw([rect(windows({ cell: [16, 16], mark: [0.5, 0.5] }))]);
+        expect(px(img, 8, 8)).toEqual([255, 0, 0, 255]);
+        expect(px(img, 24, 8)).toEqual([255, 0, 0, 255]);
+        expect(px(img, 1, 1)).toEqual([0, 0, 255, 255]);
+        expect(px(img, 16, 8)).toEqual([0, 0, 255, 255]);
+        const clear = draw([rect({ type: 'grid', colors: [RED], cell: [16, 16], mark: [0.5, 0.5] })]);
+        expect(px(clear, 1, 1)[3]).toBe(0);
+    });
+
+    it('lights only some, the same ones every time, and shows what the rest show', () => {
+        const count = (lit: number): number => { const img = draw([rect(windows({ cell: [8, 8], mark: [0.5, 0.5], lit, off: '#00ff00' }))]); let n = 0; for (let y = 4; y < 64; y += 8) for (let x = 4; x < 64; x += 8) if (px(img, x, y)[0] === 255) n++; return n; };
+        expect(count(1)).toBe(64);
+        expect(count(0)).toBe(0);
+        expect(count(0.5)).toBeGreaterThan(20);
+        expect(count(0.5)).toBeLessThan(44);
+        expect(count(0.5)).toBe(count(0.5));
+    });
+
+    it('lies on four corners in perspective: rows crowd toward the far side', () => {
+        const fill = windows({ cells: [8, 4], mark: [0.5, 1], quad: [[4, 4], [60, 24], [60, 40], [4, 60]] });
+        const img = draw([rect(fill)]);
+        const width = (x0: number, x1: number, y: number): number[] => { const runs: number[] = []; let run = 0; for (let x = x0; x < x1; x++) { if (px(img, x, y)[0]! > 128) run++; else if (run) { runs.push(run); run = 0; } } return runs; };
+        const runs = width(0, 64, 32);
+        expect(runs.length).toBeGreaterThan(4);
+        expect(runs[0]!).toBeGreaterThan(runs[runs.length - 1]!);
+        expect(px(img, 60, 10)[0]).toBe(0);
+    });
+
+    it('a block puts faces toward its vanishing points, each a layer, its corners reported', () => {
+        const img = renderImage(validateImageSource({ size: 256, layers: [{ id: 'b', shape: 'block', at: [128, 200], height: 120, vanish: [[-200, 100], [500, 100]], depth: [0.2, 0.2], faces: [RED, BLUE] }] }));
+        expect(px(img, 110, 150)[0]).toBe(255);
+        expect(px(img, 146, 150)[2]).toBe(255);
+        expect(Object.keys(img.layerBounds).sort()).toEqual(['b', 'b.a', 'b.b']);
+        const a = img.blocks.b!.a!;
+        expect(a).toHaveLength(4);
+        // Toward a horizon above the foot, the far foot rises, and the far top too where the top is below it.
+        expect(a[3]![1]).toBeLessThan(200);
+        expect(a[0]![1]).toBeGreaterThan(a[1]![1]!);
+    });
+
+    it('a grid on a face lies on it unasked', () => {
+        const img = renderImage(validateImageSource({ size: 128, layers: [{ shape: 'block', at: [20, 110], height: 90, vanish: [[120, 60]], depth: [0.6], faces: [{ type: 'grid', cells: [4, 8], colors: [RED], ground: BLUE }] }] }));
+        let [red, blue] = [0, 0];
+        for (let y = 20; y < 110; y++) for (let x = 20; x < 80; x++) { if (px(img, x, y)[0] === 255) red++; if (px(img, x, y)[2] === 255) blue++; }
+        expect(red).toBeGreaterThan(200);
+        expect(blue).toBeGreaterThan(200);
+    });
+
+    it('shows a roof only from above', () => {
+        const block = (vy: number): ReturnType<typeof renderImage> => renderImage(validateImageSource({ size: 256, layers: [{ id: 'b', shape: 'block', at: [128, 200], height: 80, vanish: [[-200, vy], [500, vy]], depth: [0.2, 0.2], faces: [RED, BLUE], roof: '#00ff00' }] }));
+        expect(block(20).blocks.b!.top).toBeDefined();
+        expect(block(180).blocks.b!.top).toBeUndefined();
+    });
+
+    it('a perspective guide is seen when looking and is not in the picture', () => {
+        const source = validateImageSource({ size: 64, layers: [{ shape: 'perspective', vanish: [[32, 20]] }] });
+        expect(renderImage(source, { guides: true }).rgba.some((v, i) => i % 4 === 3 && v > 0)).toBe(true);
+        expect(renderImage(source).rgba.every((v, i) => i % 4 !== 3 || v === 0)).toBe(true);
+    });
+
+    it('a reflection turns what is above a line over below it, and fades', () => {
+        const scene: ImageLayer[] = [{ shape: 'rect', at: [10, 20], size: [10, 20], fill: RED }, { shape: 'reflect', y: 40, reach: 24, ripple: 0, smear: 0 } as never];
+        const img = draw(scene);
+        expect(px(img, 14, 44)[0]).toBe(255);
+        expect(px(img, 14, 44)[3]).toBeGreaterThan(px(img, 14, 56)[3]!);
+        expect(px(img, 40, 44)[3]).toBe(0);
+        expect(px(img, 14, 10)[3]).toBe(0);
+    });
+
+    it('wavers when asked, stays inside its clip, and leaves what is above alone', () => {
+        const stack = (ripple: number): ImageLayer[] => [{ id: 'g', shape: 'rect', at: [0, 40], size: [32, 24], fill: '#00000001' }, { shape: 'rect', at: [10, 10], size: [40, 30], fill: RED }, { shape: 'reflect', y: 40, reach: 24, ripple, smear: 0, clip: 'g' } as never];
+        expect(px(draw(stack(0)), 40, 44)[0]).toBe(0);
+        expect(draw(stack(4)).rgba).not.toEqual(draw(stack(0)).rgba);
+        expect(px(draw(stack(0)), 20, 20)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('a reflection turns over along where things stand, slanting with them', () => {
+        const scene = (extra: object): ImageLayer[] => [{ shape: 'polygon', points: [[0, 10], [64, 10], [64, 20], [0, 40]], fill: RED }, { shape: 'reflect', reach: 40, ripple: 0, smear: 0, ...extra } as never];
+        const img = draw(scene({ edge: [[0, 40], [64, 20]] }));
+        // Below the slanted foot on both sides: the left as far under its foot as the right under its own.
+        expect(px(img, 4, 44)[0]).toBe(255);
+        expect(px(img, 60, 26)[0]).toBe(255);
+        expect(px(img, 60, 10)[0]).toBe(255);
+        expect(() => validateImageSource({ size: 8, layers: [{ shape: 'reflect', edge: [[0, 0]] }] })).toThrow(/edge two or more/);
+    });
+
+    it('text draws through whoever has fonts, fill and stroke, and says when there is none', () => {
+        const drawer = (layer: ImageLayer, m: readonly number[], w: number, h: number): { fill: Float32Array; line: Float32Array | null } => {
+            const fill = new Float32Array(w * h);
+            const [x, y] = [Math.round(layer.at![0] * m[0]! + m[4]!), Math.round(layer.at![1] * m[3]! + m[5]!)];
+            for (let j = 0; j < 8; j++) for (let i = 0; i < 20; i++) fill[(y - j) * w + x + i] = 1;
+            return { fill, line: layer.stroke ? fill.map((v) => v) : null };
+        };
+        const label = { id: 't', shape: 'text', text: '东京', at: [10, 30], fontSize: 12, fill: RED } as ImageLayer;
+        const img = renderImage(validateImageSource({ size: 64, layers: [label, { shape: 'rect', at: [0, 0], size: [64, 64], fill: BLUE, clip: 't' }] }), { text: drawer });
+        expect(px(img as never, 14, 26)[2]).toBe(255);
+        expect(img.layerBounds.t).toEqual([10, 23, 20, 8]);
+        expect(() => renderImage(validateImageSource({ size: 64, layers: [label] }))).toThrow(/needs the editor's fonts/);
+    });
+
+    it('says what is wrong with each', () => {
+        const bad = (l: object): unknown => validateImageSource({ size: 8, layers: [l] });
+        expect(() => bad(rect({ type: 'grid', colors: [RED] }))).toThrow(/grid needs cell/);
+        expect(() => bad(rect({ type: 'grid', cell: [2, 2], colors: [] }))).toThrow(/needs colors/);
+        expect(() => bad(rect({ type: 'grid', cell: [2, 2], colors: [RED], quad: [[0, 0]] }))).toThrow(/quad must be four/);
+        expect(() => bad(rect({ type: 'grid', cell: [2, 2], colors: [RED], quad: [[0, 0], [1, 0], [1, 1], [0, 1]] }))).toThrow(/counted in cells/);
+        expect(() => bad({ shape: 'text', at: [0, 0], fontSize: 4, fill: RED })).toThrow(/text must say something/);
+        expect(() => bad({ shape: 'text', text: 'a', at: [0, 0], fill: RED })).toThrow(/fontSize must be/);
+        expect(() => bad({ shape: 'block', at: [0, 0], height: 4, vanish: [[1, 1]], depth: [2], faces: [RED] })).toThrow(/depth must/);
+        expect(() => bad({ shape: 'block', at: [0, 0], height: 4, vanish: [[1, 1]], depth: [0.5], faces: [] })).toThrow(/faces must/);
+        expect(() => bad({ shape: 'reflect' })).toThrow(/y must be/);
     });
 });
 

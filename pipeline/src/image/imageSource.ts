@@ -17,7 +17,25 @@ export type ImageFill = string
     /** By which way a figure's surface faces: 1 toward the light, 0.5 side on, 0 away. So light turns the form and does not sit on its edge. */
     | { type: 'form'; figure: string; light?: readonly number[]; stops: readonly (readonly [number, string])[] }
     /** The colour of an `image` layer at each place. */
-    | { type: 'image'; image: string };
+    | { type: 'image'; image: string }
+    /** Marks in rows and columns: windows, tiles, grilles. On four corners it lies in perspective. */
+    | {
+        type: 'grid';
+        /** A cell's size in pixels, or with `quad` how many columns and rows there are. */
+        cell?: readonly [number, number];
+        cells?: readonly [number, number];
+        /** Corners in order round: top left, top right, bottom right, bottom left. */
+        quad?: readonly (readonly number[])[];
+        /** The mark as a share of its cell, each 0..1. */
+        mark?: readonly [number, number];
+        colors: readonly string[];
+        /** Between the marks; clear without it. */
+        ground?: string;
+        /** The share of marks that are on, 0..1, and what the rest show. */
+        lit?: number;
+        off?: string;
+        seed?: number;
+    };
 
 export interface ImageEffect {
     type: 'shadow' | 'glow' | 'innerShadow' | 'innerGlow';
@@ -37,7 +55,7 @@ export interface ImageTransform {
     origin?: readonly [number, number];
 }
 
-export type ImageShape = 'rect' | 'circle' | 'ellipse' | 'ring' | 'polygon' | 'line' | 'star' | 'gear' | 'path' | 'pixels' | 'paint' | 'figure' | 'image' | 'group';
+export type ImageShape = 'rect' | 'circle' | 'ellipse' | 'ring' | 'polygon' | 'line' | 'star' | 'gear' | 'path' | 'pixels' | 'paint' | 'figure' | 'image' | 'text' | 'block' | 'perspective' | 'reflect' | 'group';
 
 /** How a brush lays colour. Any of these on a stroke, a sweep or a field, over what its `brush` starts from. */
 export interface ImageBrushSettings {
@@ -223,6 +241,30 @@ export interface ImageLayer {
         /** A joint and where it must be: [x, y] in the picture, or [x, y, z] on the body's own axes. */
         reach?: Readonly<Record<string, { at: readonly number[]; pole?: readonly number[] }>>;
     };
+    /** Text: what it says. */
+    text?: string;
+    fontSize?: number;
+    /** A family the machine has, or a font file in the project. */
+    font?: string;
+    weight?: number | string;
+    align?: 'left' | 'center' | 'right';
+    /** Characters one under the other, as a sign down a building. */
+    vertical?: boolean;
+    /** Extra between characters, in pixels. */
+    tracking?: number;
+    /** A block or a perspective: the points lines recede to. */
+    vanish?: readonly (readonly number[])[];
+    /** A block: how far each face runs toward its vanishing point, 0..1. */
+    depth?: readonly number[];
+    /** A block: the fill of each face, and of the roof if it can be seen. */
+    faces?: readonly ImageFill[];
+    roof?: ImageFill;
+    /** A reflect: the line it mirrors about, level or as points along where things meet the ground, how far down it reaches, and how far it wavers and smears in pixels. */
+    y?: number;
+    edge?: readonly (readonly number[])[];
+    reach?: number;
+    ripple?: number;
+    smear?: number;
     /** An image: a picture in the project. */
     src?: string;
     /** Drawn everywhere but inside this earlier layer. */
@@ -258,7 +300,20 @@ function checkFill(v: unknown): string | null {
     if (typeof v === 'string') return isColor(v) ? null : `${JSON.stringify(v)} must be #rgb, #rgba, #rrggbb or #rrggbbaa`;
     const f = v as Record<string, unknown> | null;
     if (typeof f !== 'object' || f === null) return 'must be a colour or a gradient';
-    if (f.type !== 'linear' && f.type !== 'radial' && f.type !== 'noise' && f.type !== 'form' && f.type !== 'image') return 'a gradient has type linear, radial, noise, form or image';
+    if (f.type !== 'linear' && f.type !== 'radial' && f.type !== 'noise' && f.type !== 'form' && f.type !== 'image' && f.type !== 'grid') return 'a gradient has type linear, radial, noise, form, image or grid';
+    if (f.type === 'grid') {
+        if (!Array.isArray(f.colors) || f.colors.length === 0 || !f.colors.every(isColor)) return 'a grid needs colors: one or more';
+        for (const key of ['ground', 'off']) if (f[key] !== undefined && !isColor(f[key])) return `a grid's ${key} must be a colour`;
+        const quad = f.quad as unknown[] | undefined;
+        if (quad !== undefined && !(Array.isArray(quad) && quad.length === 4 && quad.every(isPair))) return 'a grid\'s quad must be four [x, y], in order round from the top left';
+        if (f.cell === undefined && f.cells === undefined) return 'a grid needs cell: [w, h] in pixels, or cells: [columns, rows]';
+        for (const key of ['cell', 'cells']) if (f[key] !== undefined && !(isPair(f[key]) && (f[key] as number[]).every((v) => v > 0))) return `a grid's ${key} must be two positive numbers`;
+        if (f.cell !== undefined && quad !== undefined) return 'a grid on a quad is counted in cells: [columns, rows]';
+        if (f.mark !== undefined && !(isPair(f.mark) && (f.mark as number[]).every((v) => v > 0 && v <= 1))) return 'a grid\'s mark must be [w, h], each above 0 and up to 1';
+        if (f.lit !== undefined && !(isNum(f.lit) && (f.lit as number) >= 0 && (f.lit as number) <= 1)) return 'a grid\'s lit must be 0..1';
+        if (f.seed !== undefined && !Number.isInteger(f.seed)) return 'a grid\'s seed must be a whole number';
+        return null;
+    }
     if (f.type === 'image') return typeof f.image === 'string' && f.image ? null : 'an image fill needs image, the id of an image layer drawn before it';
     if (f.type === 'form') {
         if (typeof f.figure !== 'string' || !f.figure) return 'a form needs figure, the id of a figure drawn before it';
@@ -279,8 +334,11 @@ function checkFill(v: unknown): string | null {
     return null;
 }
 
-const FIELDS = ['id', 'shape', 'at', 'size', 'radius', 'radii', 'inner', 'count', 'tooth', 'turn', 'points', 'd', 'rows', 'palette', 'scale', 'layers', 'fill', 'stroke', 'opacity', 'blend', 'transform', 'mirror', 'effects', 'clip', 'erase', 'visible', 'blur', 'strokes', 'from', 'guide', 'height', 'yaw', 'pitch', 'build', 'pose', 'light', 'src', 'except'];
-const SHAPES: readonly ImageShape[] = ['rect', 'circle', 'ellipse', 'ring', 'polygon', 'line', 'star', 'gear', 'path', 'pixels', 'paint', 'figure', 'image', 'group'];
+const FIELDS = ['id', 'shape', 'at', 'size', 'radius', 'radii', 'inner', 'count', 'tooth', 'turn', 'points', 'd', 'rows', 'palette', 'scale', 'layers', 'fill', 'stroke', 'opacity', 'blend', 'transform', 'mirror', 'effects', 'clip', 'erase', 'visible', 'blur', 'strokes', 'from', 'guide', 'height', 'yaw', 'pitch', 'build', 'pose', 'light', 'src', 'except', 'text', 'fontSize', 'font', 'weight', 'align', 'vertical', 'tracking', 'vanish', 'depth', 'faces', 'roof', 'y', 'edge', 'reach', 'ripple', 'smear'];
+
+/** Layers that are aids to drawing unless told otherwise: seen when looking, and not in the .png. */
+export const isGuideLayer = (l: ImageLayer): boolean => l.guide ?? (l.shape === 'figure' || l.shape === 'image' || l.shape === 'perspective');
+const SHAPES: readonly ImageShape[] = ['rect', 'circle', 'ellipse', 'ring', 'polygon', 'line', 'star', 'gear', 'path', 'pixels', 'paint', 'figure', 'image', 'text', 'block', 'perspective', 'reflect', 'group'];
 const STROKE_FIELDS = ['points', 'color', 'to', 'size', 'hardness', 'opacity', 'taper', 'bristles', 'strand', 'spread', 'vary', 'wobble', 'seed', 'smudge', 'erase', 'blend', ...BRUSH_FIELDS];
 
 /** What a brush's own settings must be, on whatever carries them. */
@@ -436,6 +494,32 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
             }
             break;
         }
+        case 'text':
+            if (typeof l.text !== 'string' || !l.text) fail('text must say something');
+            pair('at');
+            if (!(isNum(l.fontSize) && (l.fontSize as number) > 0)) fail('fontSize must be positive, in pixels');
+            if (l.font !== undefined && typeof l.font !== 'string') fail('font must be a family name or a font file in the project');
+            if (l.align !== undefined && !['left', 'center', 'right'].includes(l.align as string)) fail('align must be left, center or right');
+            if (l.tracking !== undefined && !isNum(l.tracking)) fail('tracking must be pixels');
+            if (l.fill === undefined && l.stroke === undefined) fail('it needs a fill or a stroke, or it draws nothing');
+            break;
+        case 'perspective':
+            if (!Array.isArray(l.vanish) || l.vanish.length === 0 || !l.vanish.every(isPair)) fail('vanish must be one or more [x, y]');
+            break;
+        case 'block': {
+            pair('at');
+            if (!(isNum(l.height) && (l.height as number) > 0)) fail('height must be pixels, from the corner at its foot up to its top');
+            if (!Array.isArray(l.vanish) || l.vanish.length < 1 || l.vanish.length > 2 || !l.vanish.every(isPair)) fail('vanish must be one or two [x, y], where its faces recede to');
+            if (!Array.isArray(l.depth) || l.depth.length !== (l.vanish as unknown[]).length || !l.depth.every((d) => isNum(d) && d > 0 && d <= 1)) fail('depth must give each vanishing point how far the face runs toward it, each above 0 and up to 1');
+            if (!Array.isArray(l.faces) || l.faces.length !== (l.vanish as unknown[]).length) fail('faces must give one fill for each vanishing point');
+            for (const face of l.faces as unknown[]) { const bad = checkFill(face); if (bad) fail(`face ${bad}`); }
+            if (l.roof !== undefined) { const bad = checkFill(l.roof); if (bad) fail(`roof ${bad}`); }
+            break;
+        }
+        case 'reflect':
+            if (!isNum(l.y) && !(Array.isArray(l.edge) && l.edge.length >= 2 && l.edge.every(isPair))) fail('y must be the line it mirrors about, or edge two or more [x, y] along where things meet the ground');
+            for (const key of ['reach', 'ripple', 'smear']) if (l[key] !== undefined && !(isNum(l[key]) && (l[key] as number) >= 0)) fail(`${key} must be 0 or more pixels`);
+            break;
         case 'image':
             if (typeof l.src !== 'string' || !l.src) fail('src must be the path of a picture in the project');
             if (l.at !== undefined && !isPair(l.at)) fail('at must be [x, y]');
@@ -485,7 +569,7 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
         if (s.join !== undefined && !['round', 'miter', 'bevel'].includes(s.join as string)) fail('stroke join must be round, miter or bevel');
         if (s.cap !== undefined && !['round', 'butt', 'square'].includes(s.cap as string)) fail('stroke cap must be round, butt or square');
     }
-    if (!['group', 'pixels', 'paint', 'figure', 'image', 'line'].includes(l.shape as string) && l.fill === undefined && l.stroke === undefined && !l.erase) fail('it needs a fill or a stroke, or it draws nothing');
+    if (!['group', 'pixels', 'paint', 'figure', 'image', 'text', 'block', 'perspective', 'reflect', 'line'].includes(l.shape as string) && l.fill === undefined && l.stroke === undefined && !l.erase) fail('it needs a fill or a stroke, or it draws nothing');
     if (l.from !== undefined && l.shape !== 'paint') fail('from is for a paint layer');
     if (l.guide !== undefined && typeof l.guide !== 'boolean') fail('guide must be true or false');
     if (l.blur !== undefined && !(isNum(l.blur) && (l.blur as number) >= 0)) fail('blur must be 0 or more, in pixels');
