@@ -15,10 +15,21 @@
  *        is one more shell of quads, so every later step can act on it. Its faces are
  *        marked smooth, and each carries the tag and colour of the part nearest it.
  */
+import { refine } from './displace';
 import { add, type Face, type PolyMesh, type Vec3 } from './polyMesh';
 import { curveThrough } from './surfaces';
 
-export type OrganicShape = 'sphere' | 'ellipsoid' | 'box' | 'torus' | 'chain' | 'outline';
+export type OrganicShape = 'sphere' | 'ellipsoid' | 'box' | 'torus' | 'chain' | 'outline' | 'limb';
+
+/** One cross-section of a limb: an oval standing square to the line it is on. */
+export interface LimbSection {
+    at: Vec3;
+    /** Half its width, along `side`. */
+    across: number;
+    /** Half its depth, the way it faces; `back` differs where a body does, a calf or a chest. */
+    front: number;
+    back?: number;
+}
 
 export interface OrganicNoise {
     /** How far the surface moves, in and out. */
@@ -51,8 +62,14 @@ export interface OrganicPart {
     depth?: number;
     /** outline: how far in from its edge it takes to come up to `depth`. Default the whole way to its middle, a dome with no flat on it; small, a slab with soft edges. */
     round?: number;
-    /** outline: this many segments between points, passing through each. A point given twice keeps a corner there. */
+    /** outline and limb: this many segments between points, passing through each. A point given twice keeps a corner there. */
     curve?: number;
+    /** limb: its cross-sections, in order along it. */
+    sections?: readonly LimbSection[];
+    /** limb: the direction that is across it, kept square to the line. Default +x. */
+    side?: Vec3;
+    /** limb: 2 is an oval; higher squares it, as a chest is squarer than a wrist. Default 2. */
+    power?: number;
     /** How far this melts into what is before it; 0 is a hard crease. Defaults to the step's. */
     blend?: number;
     /** Carves this volume out of what is before it: an eye socket, a mouth. */
@@ -67,6 +84,10 @@ export interface OrganicParams {
     parts: readonly OrganicPart[];
     /** Grid cells along the longest side. More resolves more detail, at the cost of triangles. */
     resolution?: number;
+    /** What `resolution` may go to, where a caller knows the cost: a whole body. */
+    maxResolution?: number;
+    /** Around these places the skin is split finer and settled back on the true surface: a face, a hand. No seam, as it stays one skin. */
+    fine?: readonly { at: Vec3; radius: number; longest: number; mirror?: 'x' }[];
     blend?: number;
     noise?: OrganicNoise;
     at?: Vec3;
@@ -146,7 +167,7 @@ function rotateForward(degrees: Vec3, p: Vec3): Vec3 {
 }
 
 /** The part's distance function in its own frame, and how far from `at` it can reach. */
-function shapeField(part: OrganicPart): { field: Eval; reach: number; thinnest: number } {
+export function shapeField(part: OrganicPart): { field: (x: number, y: number, z: number) => number; reach: number; thinnest: number } {
     const need = (name: keyof OrganicPart): void => {
         if (part[name] === undefined) throw new Error(`a ${part.shape} part needs \`${name}\``);
     };
@@ -309,8 +330,76 @@ function shapeField(part: OrganicPart): { field: Eval; reach: number; thinnest: 
                 thinnest: depth,
             };
         }
+        case 'limb': {
+            need('sections');
+            const sections = part.sections!;
+            if (sections.length < 2) throw new Error(`a limb needs at least 2 sections, not ${sections.length}`);
+            if (sections.some((s) => !(s.across > 0) || !(s.front > 0) || (s.back !== undefined && !(s.back > 0)))) throw new Error('every limb section needs a positive across and front');
+            const power = part.power ?? 2;
+            if (!(power >= 1)) throw new Error(`power ${power} must be 1 or more`);
+            const rows = curveThrough(sections.map((s) => [s.at[0], s.at[1], s.at[2], s.across, s.front, s.back ?? s.front]), part.curve ?? 1, false);
+            const count = rows.length;
+            const side = part.side ?? [1, 0, 0];
+            // A frame per segment: along it, across as near `side` as being square to it allows, and which way it faces.
+            const frames = rows.slice(0, -1).map((row, i) => {
+                const next = rows[i + 1]!;
+                const [ex, ey, ez] = [next[0]! - row[0]!, next[1]! - row[1]!, next[2]! - row[2]!];
+                const len = Math.hypot(ex, ey, ez) || 1;
+                const t = [ex / len, ey / len, ez / len];
+                const dotted = side[0] * t[0]! + side[1] * t[1]! + side[2] * t[2]!;
+                const u = [side[0] - t[0]! * dotted, side[1] - t[1]! * dotted, side[2] - t[2]! * dotted];
+                const ul = Math.hypot(u[0]!, u[1]!, u[2]!) || 1;
+                u[0]! /= ul; u[1]! /= ul; u[2]! /= ul;
+                // Its front: across crossed with the way along, flipped to a limb running up +y having +z in front, and so on down a limb.
+                const v = [u[1]! * t[2]! - u[2]! * t[1]!, u[2]! * t[0]! - u[0]! * t[2]!, u[0]! * t[1]! - u[1]! * t[0]!];
+                const toFront = v[2]! !== 0 ? Math.sign(v[2]!) : Math.sign(v[1]!) || 1;
+                return { t, u, v: [v[0]! * toFront, v[1]! * toFront, v[2]! * toFront], len };
+            });
+            const widest = Math.max(...sections.map((s) => Math.max(s.across, s.front, s.back ?? s.front)));
+            const thinnest = Math.max(...sections.map((s) => Math.min(s.across, s.front, s.back ?? s.front)));
+            return {
+                field: (x, y, z) => {
+                    const at = (i: number, raw: number): number => {
+                        const [a, fr] = [rows[i]!, frames[i]!];
+                        const s = Math.max(0, Math.min(1, raw));
+                        // Everything along it runs through a quadratic spline over the rows. Straight between them, the slope would jump at each one.
+                        const [c0, c1, c2, t] = s < 0.5 ? [rows[Math.max(0, i - 1)]!, a, rows[i + 1]!, s + 0.5] : [a, rows[i + 1]!, rows[Math.min(count - 1, i + 2)]!, s - 0.5];
+                        const [w0, w1, w2] = [0.5 * (1 - t) * (1 - t), 0.5 + t * (1 - t), 0.5 * t * t];
+                        const along = (k: number): number => c0[k]! * w0 + c1[k]! * w1 + c2[k]! * w2;
+                        const [qx, qy, qz] = [x - along(0), y - along(1), z - along(2)];
+                        const u = qx * fr.u[0]! + qy * fr.u[1]! + qz * fr.u[2]!;
+                        const v = qx * fr.v[0]! + qy * fr.v[1]! + qz * fr.v[2]!;
+                        const w = qx * fr.t[0]! + qy * fr.t[1]! + qz * fr.t[2]!;
+                        const across = along(3);
+                        // From back to front across the middle, gradually: where the two simply met there would be a seam down each side of a body.
+                        const [front, back] = [along(4), along(5)];
+                        const lean = Math.max(0, Math.min(1, v / (across * 1.2) + 0.5));
+                        const deep = back + (front - back) * lean * lean * (3 - 2 * lean);
+                        const inPlane = power === 2 ? Math.hypot(u / across, v / deep) : (Math.abs(u / across) ** power + Math.abs(v / deep) ** power) ** (1 / power);
+                        // Past an end it rounds off, by the smaller of its two radii.
+                        const radial = Math.min(across, deep);
+                        const k = Math.abs(w) < 1e-12 ? inPlane : Math.hypot(inPlane, w / radial);
+                        return (k - 1) * radial;
+                    };
+                    // Only the section square to the point: a neighbour's rounded end would stand proud of a narrower place, and the surface would be a row of scallops.
+                    let best = Infinity;
+                    const raws = new Float64Array(count - 1);
+                    for (let i = 0; i < count - 1; i++) {
+                        const [a, fr] = [rows[i]!, frames[i]!];
+                        const raw = ((x - a[0]!) * fr.t[0]! + (y - a[1]!) * fr.t[1]! + (z - a[2]!) * fr.t[2]!) / fr.len;
+                        raws[i] = raw;
+                        if ((raw >= 0 || i === 0) && (raw <= 1 || i === count - 2)) best = Math.min(best, at(i, raw));
+                    }
+                    // Outside a bend, square to nothing: the joint it is nearest.
+                    if (best === Infinity) for (let i = 0; i < count - 1; i++) best = Math.min(best, at(i, raws[i]!));
+                    return best;
+                },
+                reach: widest,
+                thinnest,
+            };
+        }
         default:
-            throw new Error(`unknown shape ${JSON.stringify(part.shape)}; there are sphere, ellipsoid, box, torus, chain, outline`);
+            throw new Error(`unknown shape ${JSON.stringify(part.shape)}; there are sphere, ellipsoid, box, torus, chain, outline, limb`);
     }
 }
 
@@ -324,6 +413,8 @@ interface CompiledPart {
     max: Vec3;
     thinnest: number;
     label: string;
+    /** Worth asking its box first. */
+    costly: boolean;
 }
 
 const toColor = (c: readonly number[] | undefined): Color | null => {
@@ -338,7 +429,7 @@ function compilePart(part: OrganicPart, index: number, params: OrganicParams): C
     const { field, reach, thinnest } = shapeField(part);
     const at = part.at ?? [0, 0, 0];
     const noise = part.noise ? noiseField(part.noise) : null;
-    const rotate = part.rotate && part.shape !== 'sphere' && part.shape !== 'chain' ? inverseRotation(part.rotate) : null;
+    const rotate = part.rotate && part.shape !== 'sphere' && part.shape !== 'chain' && part.shape !== 'limb' ? inverseRotation(part.rotate) : null;
     const local = [0, 0, 0];
     const axis = part.mirror === undefined ? -1 : { x: 0, y: 1, z: 2 }[part.mirror];
     const label = part.tag ? `"${part.tag}"` : `${index}`;
@@ -364,6 +455,12 @@ function compilePart(part: OrganicPart, index: number, params: OrganicParams): C
         const pts = part.points!;
         min = [0, 1, 2].map((k) => Math.min(...pts.map((p) => p[k]! - p[3]!)) + at[k]! - margin) as unknown as Vec3;
         max = [0, 1, 2].map((k) => Math.max(...pts.map((p) => p[k]! + p[3]!)) + at[k]! + margin) as unknown as Vec3;
+    } else if (part.shape === 'limb') {
+        // A curve can bow past its sections, a little.
+        const sections = part.sections!;
+        const radius = (s: LimbSection): number => Math.max(s.across, s.front, s.back ?? s.front) * 1.2;
+        min = [0, 1, 2].map((k) => Math.min(...sections.map((s) => s.at[k as 0] - radius(s))) + at[k]! - margin) as unknown as Vec3;
+        max = [0, 1, 2].map((k) => Math.max(...sections.map((s) => s.at[k as 0] + radius(s))) + at[k]! + margin) as unknown as Vec3;
     } else if (part.shape === 'outline') {
         // Round what is drawn and not round `at`: a drawing is traced where it lies, far from the origin, and a ball about the origin would spend the grid on nothing.
         const pts = part.points!;
@@ -391,7 +488,7 @@ function compilePart(part: OrganicPart, index: number, params: OrganicParams): C
     if (blend < 0) throw new Error(`part ${label}: blend ${blend} must not be negative`);
     return {
         distance, blend, subtract: part.subtract === true, tag: part.tag ?? params.tag ?? '',
-        color: toColor(part.color), min, max, thinnest, label,
+        color: toColor(part.color), min, max, thinnest, label, costly: part.shape === 'limb' || part.shape === 'outline',
     };
 }
 
@@ -402,6 +499,11 @@ function bodyField(parts: readonly CompiledPart[], noise: Eval | null): Eval {
     return (x, y, z) => {
         let d = Infinity;
         for (const part of parts) {
+            // The dear shapes first ask their box: far enough off to change nothing, and a body has hundreds of grid points for every one near a finger.
+            if (part.costly && d !== Infinity) {
+                const gap = Math.hypot(Math.max(part.min[0] - x, 0, x - part.max[0]), Math.max(part.min[1] - y, 0, y - part.max[1]), Math.max(part.min[2] - z, 0, z - part.max[2]));
+                if (part.subtract ? gap + d > part.blend : gap - d > part.blend) continue;
+            }
             const p = part.distance(x, y, z);
             if (part.subtract) {
                 const k = part.blend;
@@ -468,12 +570,31 @@ function keepLargeIslands(quads: readonly number[][], vertices: number): number[
     return quads.filter((q) => size.get(find(q[0]!))! >= SPECK_QUADS);
 }
 
+const FINE_BUDGET = 1_200_000;
+
+/** A point moved onto the surface along the field's slope. */
+function settleOnto(field: Eval, q: Vec3, size: number): Vec3 {
+    let [x, y, z] = q;
+    const e = size * 0.25;
+    for (let step = 0; step < 3; step++) {
+        const d = field(x, y, z);
+        const [gx, gy, gz] = [field(x + e, y, z) - field(x - e, y, z), field(x, y + e, z) - field(x, y - e, z), field(x, y, z + e) - field(x, y, z - e)];
+        const length = Math.hypot(gx, gy, gz);
+        if (length < 1e-9) break;
+        const slope = length / (2 * e);
+        const s = Math.max(-size * 2, Math.min(size * 2, d / slope));
+        x -= (s * gx) / length; y -= (s * gy) / length; z -= (s * gz) / length;
+    }
+    return [x, y, z];
+}
+
 /** One more shell: the skin of @p params' parts, in the steps' usual outward winding. */
 export function organic(mesh: PolyMesh, params: OrganicParams): PolyMesh {
     if (!params.parts?.length) throw new Error('`parts` names nothing to build');
     const resolution = params.resolution ?? ORGANIC_DEFAULT_RESOLUTION;
-    if (!Number.isInteger(resolution) || resolution < 8 || resolution > ORGANIC_MAX_RESOLUTION) {
-        throw new Error(`resolution ${resolution} must be a whole number, 8..${ORGANIC_MAX_RESOLUTION}`);
+    const most = params.maxResolution ?? ORGANIC_MAX_RESOLUTION;
+    if (!Number.isInteger(resolution) || resolution < 8 || resolution > most) {
+        throw new Error(`resolution ${resolution} must be a whole number, 8..${most}`);
     }
     const parts = params.parts.map((p, i) => {
         try {
@@ -494,8 +615,14 @@ export function organic(mesh: PolyMesh, params: OrganicParams): PolyMesh {
     const cell = longest / resolution;
 
     // A part the grid cannot see simply is not in the result, and it reads as a model that ignored the request.
+    // Inside a region to be split finer, the fine faces are what find it.
+    const inFine = (part: CompiledPart): boolean => (params.fine ?? []).some((region) => Math.hypot(
+        Math.max(part.min[0] - region.at[0], 0, region.at[0] - part.max[0]),
+        Math.max(part.min[1] - region.at[1], 0, region.at[1] - part.max[1]),
+        Math.max(part.min[2] - region.at[2], 0, region.at[2] - part.max[2]),
+    ) < region.radius);
     for (const part of parts) {
-        if (part.thinnest * 2 < cell * 1.5) {
+        if (part.thinnest * 2 < cell * 1.5 && !inFine(part)) {
             const needed = Math.ceil((longest * 1.5) / (part.thinnest * 2));
             throw new Error(`part ${part.label} is ${(part.thinnest * 2).toFixed(4)} across, too thin for the grid's cell of ${cell.toFixed(4)}, so it would vanish; `
                 + (needed <= ORGANIC_MAX_RESOLUTION
@@ -608,16 +735,36 @@ export function organic(mesh: PolyMesh, params: OrganicParams): PolyMesh {
     const base = toColor(params.color);
     const at = params.at ?? [0, 0, 0];
     const start = mesh.positions.length;
-    const faces: Face[] = keepLargeIslands(quads, positions.length).map((loop) => {
+    const painted = (loop: readonly number[], where: readonly Vec3[]): Face => {
         let cx = 0, cy = 0, cz = 0;
         for (const v of loop) {
-            cx += positions[v]![0]; cy += positions[v]![1]; cz += positions[v]![2];
+            cx += where[v]![0]; cy += where[v]![1]; cz += where[v]![2];
         }
-        const { tag, color } = paintAt(parts, base, cx / 4, cy / 4, cz / 4);
-        return { v: loop.map((v) => v + start), tag: tag || params.tag || '', smooth: true, ...(color ? { color } : {}) };
-    });
+        const { tag, color } = paintAt(parts, base, cx / loop.length, cy / loop.length, cz / loop.length);
+        return { v: [...loop], tag: tag || params.tag || '', smooth: true, ...(color ? { color } : {}) };
+    };
+    let skin: PolyMesh = { positions, faces: keepLargeIslands(quads, positions.length).map((loop) => painted(loop, positions)) };
+    for (const region of params.fine ?? []) {
+        const places: Vec3[] = region.mirror ? [region.at, [-region.at[0], region.at[1], region.at[2]]] : [region.at];
+        for (const place of places) {
+            const chosen = new Set<number>();
+            skin.faces.forEach((face, f) => {
+                const p = skin.positions[face.v[0]!]!;
+                if (Math.hypot(p[0] - place[0], p[1] - place[1], p[2] - place[2]) < region.radius) chosen.add(f);
+            });
+            if (chosen.size === 0) continue;
+            const before = skin.positions.length;
+            const outside = skin.faces.length - chosen.size;
+            const { mesh: fine } = refine(skin, chosen, region.longest, FINE_BUDGET);
+            if (fine === skin) continue;
+            const settled = fine.positions.map((q, n) => (n < before ? q : settleOnto(field, q, region.longest)));
+            // Painted again where it was split: a lip's edge is finer than the grid that found it.
+            const faces = fine.faces.map((face, n) => (n < outside ? face : painted(face.v, settled)));
+            skin = { positions: settled, faces };
+        }
+    }
     return {
-        positions: [...mesh.positions, ...positions.map((p) => add(p, at))],
-        faces: [...mesh.faces, ...faces],
+        positions: [...mesh.positions, ...skin.positions.map((p) => add(p, at))],
+        faces: [...mesh.faces, ...skin.faces.map((face) => ({ ...face, v: face.v.map((v) => v + start) }))],
     };
 }

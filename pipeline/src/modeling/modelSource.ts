@@ -22,6 +22,9 @@ import { decimate, triangleCount } from './decimate';
 import { displace, DISPLACE_PATTERNS } from './displace';
 import { stain } from './stain';
 import { sculpt } from './sculpt';
+import { garment } from './garment';
+import { poseStep } from './pose';
+import { HUMANOID_TAGS, humanoid, humanoidJoints, type HumanoidBuild } from './humanoid';
 import { VIEW_NAMES } from './surfaceLine';
 import { cardsOnly, hair, hasCards, type HairSway } from './hair';
 import { scatter } from './scatter';
@@ -112,7 +115,7 @@ export interface NormalBakeSource {
 }
 
 type Kind = 'number' | 'integer' | 'boolean' | 'string' | 'vec3' | 'number|vec3' | 'number|vec2' | 'number|numbers'
-    | 'color' | 'points' | 'faces' | 'edges' | 'axis' | 'pivot' | 'parts' | 'noise' | 'sections' | 'section' | 'vec3s' | 'numbers' | 'operation' | 'uvmode' | 'number|vec2only' | 'vec2' | 'pattern' | 'near' | 'where' | 'guides' | 'line' | 'view' | 'strokes';
+    | 'color' | 'points' | 'faces' | 'edges' | 'axis' | 'pivot' | 'parts' | 'noise' | 'sections' | 'section' | 'vec3s' | 'numbers' | 'operation' | 'uvmode' | 'number|vec2only' | 'vec2' | 'pattern' | 'near' | 'where' | 'guides' | 'line' | 'view' | 'strokes' | 'loose' | 'cuts' | 'build' | 'angles' | 'reaches';
 
 interface OpSpec {
     params: Record<string, Kind>;
@@ -135,6 +138,9 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     lathe: { params: { profile: 'points', sides: 'integer', arc: 'number', closed: 'boolean', curve: 'integer', axis: 'axis', ...PLACED }, required: ['profile'], run: lathe as unknown as OpSpec['run'], says: 'turns a half-outline of [distance from axis, height] round an axis: a vase, a glass, a column' },
     loft: { params: { sections: 'sections', path: 'vec3s', section: 'section', scales: 'numbers', sides: 'integer', closed: 'boolean', curve: 'integer', ...PLACED }, required: [], run: loft as unknown as OpSpec['run'], says: 'joins cross-sections along a path: a pipe, a handle, a bottle, a hull' },
     organic: { params: { parts: 'parts', resolution: 'integer', blend: 'number', noise: 'noise', at: 'vec3', tag: 'string', color: 'color' }, required: ['parts'], run: organic as unknown as OpSpec['run'], says: 'adds one continuous skin over a body of parts that melt into each other' },
+    humanoid: { params: { height: 'number', head: 'number', shoulders: 'number', chest: 'number', waist: 'number', hips: 'number', limbs: 'number', resolution: 'integer', eyes: 'string', skin: 'color', sclera: 'color', iris: 'color', lips: 'color', tag: 'string' }, required: [], run: humanoid as unknown as OpSpec['run'], says: 'adds a whole person standing in an A-pose, facing +z with feet on y 0, whole from every side, with fingers, a face and ears; `rig: { humanoid: {...} }` gives bones that fit the same build' },
+    garment: { params: { faces: 'faces', ease: 'number', relax: 'number', loose: 'loose', cut: 'cuts', thickness: 'number', hide: 'boolean', color: 'color', tag: 'string' }, required: ['faces'], run: garment as unknown as OpSpec['run'], says: 'makes clothes from a piece of the surface already there: relaxed, stood off by `ease`, `loose` for a bell sleeve, `cut` for a hem, with a thickness; they fit from every side and move with the same bones' },
+    pose: { params: { humanoid: 'build', rotate: 'angles', move: 'angles', reach: 'reaches', rigid: 'string' }, required: ['humanoid'], run: poseStep as unknown as OpSpec['run'], says: 'holds what is there in a pose, by a humanoid\'s bones: for a still, as a character in a game takes hers from a clip' },
     transform: { params: { faces: 'faces', translate: 'vec3', rotate: 'vec3', scale: 'number|vec3', pivot: 'pivot' }, required: [], run: ops.transform as OpSpec['run'], says: 'moves the vertices of the faces (default all): scaling a top face in makes a roof' },
     array: { params: { faces: 'faces', count: 'integer', offset: 'vec3', rotate: 'vec3', pivot: 'pivot', tag: 'string' }, required: ['count'], run: ops.array as OpSpec['run'], says: 'repeats the faces, `count` including the original' },
     mirror: { params: { faces: 'faces', axis: 'axis', at: 'number', keep: 'boolean', tag: 'string' }, required: ['axis'], run: ops.mirror as OpSpec['run'], says: 'adds a reflection across `axis` = `at`' },
@@ -144,7 +150,7 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     slice: { params: { faces: 'faces', axis: 'axis', at: 'number|numbers' }, required: ['axis', 'at'], run: ops.slice as OpSpec['run'], says: 'cuts faces across planes, making the seams a window sits between' },
     boolean: { params: { operation: 'operation', with: 'faces', from: 'faces', keep: 'boolean', tag: 'string', color: 'color' }, required: ['operation', 'with'], run: booleanOp as unknown as OpSpec['run'], says: 'cuts or joins closed solids: subtract `with` from `from` makes a real hole' },
     subdivide: { params: { faces: 'faces', levels: 'integer', crease: 'number' }, required: [], run: subdivide as unknown as OpSpec['run'], says: 'rounds whole shells into smooth surfaces, keeping edges sharper than `crease` degrees' },
-    displace: { params: { faces: 'faces', near: 'near', pattern: 'pattern', amplitude: 'number', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', count: 'integer', axis: 'axis', mirror: 'axis', detail: 'number' }, required: ['pattern', 'amplitude', 'scale'], run: ((mesh: PolyMesh, params: never) => displace(mesh, params)) as OpSpec['run'], says: 'pushes fine detail out of the surface along its normal, splitting faces as far as the pattern needs: bumps, wrinkles, cracks, scales, pores, ribs, weave, scratches or pleats' },
+    displace: { params: { faces: 'faces', near: 'near', pattern: 'pattern', amplitude: 'number', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', count: 'integer', axis: 'axis', mirror: 'axis', detail: 'number', along: 'vec3', long: 'number' }, required: ['pattern', 'amplitude', 'scale'], run: ((mesh: PolyMesh, params: never) => displace(mesh, params)) as OpSpec['run'], says: 'pushes fine detail out of the surface along its normal, splitting faces as far as the pattern needs: bumps, wrinkles, cracks, scales, pores, ribs, weave, scratches, pleats or folds' },
     hair: { params: { faces: 'faces', count: 'integer', length: 'number', guides: 'guides', gather: 'number', width: 'number', segments: 'integer', droop: 'number', comb: 'vec3', spread: 'number', uneven: 'number', wave: 'number', taper: 'number', seed: 'integer', color: 'color', tipColor: 'color', tag: 'string' }, required: ['faces'], run: hair as unknown as OpSpec['run'], says: 'grows cards of hair from these faces, falling around what is there, or along `guides` for a ponytail or a fringe; run it again for another layer, and only the cards are kept' },
     scatter: { params: { source: 'faces', count: 'integer', faces: 'faces', path: 'vec3s', within: 'vec3s', scale: 'number|numbers', taper: 'number', spin: 'number', tilt: 'number', colors: 'vec3s', keep: 'boolean', seed: 'integer', tag: 'string' }, required: ['source', 'count'], run: scatter as unknown as OpSpec['run'], says: 'puts copies of the `source` faces across `faces`, along a `path` or through a box `within`, each sized, turned and coloured at random: feathers, rivets, the lights of a far city' },
     stain: { params: { faces: 'faces', near: 'near', line: 'line', hard: 'boolean', color: 'color', roughness: 'number', metallic: 'number', alpha: 'number', amount: 'number', pattern: 'pattern', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', threshold: 'number', softness: 'number', where: 'where', reach: 'number', facing: 'vec3', detail: 'number' }, required: [], run: ((mesh: PolyMesh, params: never) => stain(mesh, params)) as OpSpec['run'], says: 'lays colour, `roughness`, `metallic` or `alpha` over the surface by a pattern, by shape (`where`: cavity for dirt in what is sunken, edges for wear on what stands out), by which way it faces, around a spot, or along a `line`: pupils, eyelids, seams, moss, grime' },
@@ -220,7 +226,10 @@ function checkNoise(v: unknown): string | null {
 }
 
 const PART_FIELDS: Record<string, (v: unknown) => string | null> = {
-    shape: (v) => (['sphere', 'ellipsoid', 'box', 'torus', 'chain', 'outline'].includes(v as string) ? null : 'must be sphere, ellipsoid, box, torus, chain or outline'),
+    shape: (v) => (['sphere', 'ellipsoid', 'box', 'torus', 'chain', 'outline', 'limb'].includes(v as string) ? null : 'must be sphere, ellipsoid, box, torus, chain, outline or limb'),
+    sections: (v) => (Array.isArray(v) && v.every((q) => typeof q === 'object' && q !== null && isNums((q as Record<string, unknown>).at, 3) && isNum((q as Record<string, unknown>).across) && isNum((q as Record<string, unknown>).front)) ? null : 'must be an array of { at: [x, y, z], across, front, back? }'),
+    side: (v) => (isNums(v, 3) ? null : 'must be [x, y, z]'),
+    power: (v) => (isNum(v) ? null : 'must be a number'),
     tag: (v) => (typeof v === 'string' ? null : 'must be a string'),
     at: (v) => (isNums(v, 3) ? null : 'must be [x, y, z]'),
     rotate: (v) => (isNums(v, 3) ? null : 'must be [x, y, z] degrees'),
@@ -317,6 +326,11 @@ const KIND_CHECK: Record<Kind, (v: unknown) => string | null> = {
         const size = line?.from !== undefined ? 2 : 3;
         return typeof n === 'object' && n !== null && Array.isArray(n.points) && n.points.length >= 2 && n.points.every((q) => isNums(q, size)) && isNum(n.width) && Object.keys(n).every((k) => k === 'points' || k === 'width' || k === 'from' || k === 'curve') ? null : (size === 2 ? 'must be { points: [[a, b], ...], width, from }, the points in the two axes of the view' : 'must be { points: [[x, y, z], ...], width }');
     },
+    loose: (v) => (Array.isArray(v) && v.every((q) => typeof q === 'object' && q !== null && isNums((q as Record<string, unknown>).from, 3) && isNums((q as Record<string, unknown>).to, 3)) ? null : 'must be an array of { from, to, ease?: [..], hang?: [..], mirror? }'),
+    cuts: (v) => (Array.isArray(v) && v.every((q) => typeof q === 'object' && q !== null && isNums((q as Record<string, unknown>).at, 3) && isNums((q as Record<string, unknown>).keep, 3)) ? null : 'must be an array of { at: [x, y, z], keep: [x, y, z], mirror? }'),
+    reaches: (v) => (typeof v === 'object' && v !== null && !Array.isArray(v) && Object.values(v).every((q) => typeof q === 'object' && q !== null && isNums((q as Record<string, unknown>).at, 3)) ? null : 'must be { jointName: { at: [x, y, z], pole? } }'),
+    build: (v) => (v === true || (typeof v === 'object' && v !== null && !Array.isArray(v)) ? null : 'must be true or the build the humanoid step was given'),
+    angles: (v) => (typeof v === 'object' && v !== null && !Array.isArray(v) && Object.values(v).every((q) => isNums(q, 3)) ? null : 'must be { jointName: [x, y, z] }'),
     view: (v) => (VIEW_NAMES.includes(v as string) ? null : `must be one of ${VIEW_NAMES.join(', ')}`),
     strokes: (v) => (Array.isArray(v) && v.length > 0 && v.every((s) => typeof s === 'object' && s !== null) ? null : 'must be a non-empty array of strokes, each { brush, ... }'),
     guides: (v) => (Array.isArray(v) && v.every((line) => Array.isArray(line) && line.length >= 2 && line.every((q) => isNums(q, 3))) ? null : 'must be an array of lines, each two or more [x, y, z]'),
@@ -388,6 +402,14 @@ export function validateModelSource(raw: unknown): ModelSource {
     }
     if (source.uvAtlas !== undefined && typeof source.uvAtlas !== 'boolean') {
         throw new ModelBuildError('uvAtlas must be true or false', null, null, null);
+    }
+    // A humanoid's bones, from the build they fit, before anything looks at the joints.
+    const rigged = source.rig as { humanoid?: HumanoidBuild | true; joints?: unknown[] } | undefined;
+    if (rigged && typeof rigged === 'object' && rigged.humanoid !== undefined) {
+        const build = rigged.humanoid === true ? {} : rigged.humanoid;
+        if (typeof build !== 'object' || build === null) throw new ModelBuildError('rig.humanoid must be true or the build the humanoid step was given', null, null, null);
+        const { humanoid: _given, ...rest } = rigged;
+        source.rig = { ...rest, joints: [...humanoidJoints(build), ...(rigged.joints ?? [])], worn: HUMANOID_TAGS };
     }
     if (source.rig !== undefined) {
         const bad = checkRig(source.rig);

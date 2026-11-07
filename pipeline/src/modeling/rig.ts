@@ -47,6 +47,8 @@ export interface RigSource {
     /** Shapes on joints that swinging parts stay out of. */
     colliders?: RigCollider[];
     joints: readonly RigJointSource[];
+    /** Pieces with these tags are the body, and the rest take their weights from it. Set by `humanoid`. */
+    worn?: readonly string[];
     adjust?: readonly WeightAdjust[];
     goals?: readonly RigGoal[];
 }
@@ -202,6 +204,71 @@ const pointToBones = (p: Vec3, from: Vec3, ends: readonly Vec3[]): number => {
     for (const end of ends) d = Math.min(d, pointSegment(p, from, end));
     return d;
 };
+
+/**
+ * What a body wears moves as the body under it does: each vertex of another piece takes the weights of the nearest vertex of a piece with one of @p bodyTags.
+ * Found for itself, a sleeve bends where its own surface says and the arm where its own does, and the arm comes through.
+ */
+export function computeWornWeights(mesh: PolyMesh, joints: readonly RigJoint[], bodyTags: ReadonlySet<string>): SkinWeights {
+    const isBody = new Uint8Array(mesh.positions.length);
+    for (const face of mesh.faces) if (bodyTags.has(face.tag)) for (const v of face.v) isBody[v] = 1;
+    // Whole pieces: an eye is body, and so is a stretch of skin with a tag that was not asked for, if it is joined on.
+    const parent = Array.from({ length: mesh.positions.length }, (_, i) => i);
+    const find = (i: number): number => { let at = i; while (parent[at] !== at) { parent[at] = parent[parent[at]!]!; at = parent[at]!; } return at; };
+    for (const face of mesh.faces) for (const v of face.v) parent[find(v)] = find(face.v[0]!);
+    const bodyRoots = new Set<number>();
+    isBody.forEach((on, v) => { if (on) bodyRoots.add(find(v)); });
+    if (bodyRoots.size === 0) return computeWeights(mesh, joints);
+    const keep = mesh.faces.filter((face) => bodyRoots.has(find(face.v[0]!)));
+    const index = new Map<number, number>();
+    const positions: Vec3[] = [];
+    const faces = keep.map((face) => ({ ...face, v: face.v.map((v) => {
+        let at = index.get(v);
+        if (at === undefined) { at = positions.length; index.set(v, at); positions.push(mesh.positions[v]!); }
+        return at;
+    }) }));
+    const found = computeWeights({ positions, faces }, joints);
+    const count = mesh.positions.length;
+    const outJoints = new Uint16Array(count * 4), outWeights = new Float32Array(count * 4);
+    // Nearest by a grid of cells, widening until something is there.
+    const { min, max } = boundsOf({ positions, faces });
+    const cell = Math.max(length(sub(max, min)) / 64, 1e-6);
+    const cellKey = (x: number, y: number, z: number): number => (x + 512) * 1048576 + (y + 512) * 1024 + (z + 512);
+    const grid = new Map<number, number[]>();
+    positions.forEach((p, v) => {
+        const key = cellKey(Math.floor(p[0] / cell), Math.floor(p[1] / cell), Math.floor(p[2] / cell));
+        const list = grid.get(key);
+        if (list) list.push(v); else grid.set(key, [v]);
+    });
+    const nearest = (p: Vec3): number => {
+        const [cx, cy, cz] = [Math.floor(p[0] / cell), Math.floor(p[1] / cell), Math.floor(p[2] / cell)];
+        let best = -1, bestD = Infinity;
+        for (let r = 0; r < 64; r++) {
+            for (let dx = -r; dx <= r; dx++) {
+                for (let dy = -r; dy <= r; dy++) {
+                    for (let dz = -r; dz <= r; dz++) {
+                        if (Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz)) !== r) continue;
+                        for (const v of grid.get(cellKey(cx + dx, cy + dy, cz + dz)) ?? []) {
+                            const d = length(sub(positions[v]!, p));
+                            if (d < bestD) { bestD = d; best = v; }
+                        }
+                    }
+                }
+            }
+            // Anything in a further shell of cells is at least this far.
+            if (best >= 0 && bestD <= r * cell) break;
+        }
+        return best;
+    };
+    for (let v = 0; v < count; v++) {
+        const from = index.get(v) ?? nearest(mesh.positions[v]!);
+        for (let k = 0; k < 4; k++) {
+            outJoints[v * 4 + k] = found.joints[from * 4 + k]!;
+            outWeights[v * 4 + k] = found.weights[from * 4 + k]!;
+        }
+    }
+    return { joints: outJoints, weights: outWeights, dominant: found.dominant };
+}
 
 export function computeWeights(mesh: PolyMesh, joints: readonly RigJoint[]): SkinWeights {
     const count = mesh.positions.length;
@@ -597,7 +664,7 @@ const vec3 = (v: unknown): boolean => Array.isArray(v) && v.length === 3 && v.ev
 export function checkRig(raw: unknown): string | null {
     const r = raw as { joints?: unknown };
     if (typeof raw !== 'object' || raw === null || !Array.isArray(r.joints)) return 'rig must be { joints: [{ name, at, parent?, mirror? }] }';
-    for (const key of Object.keys(raw)) if (!['joints', 'adjust', 'goals', 'drape', 'colliders'].includes(key)) return `rig has an unknown field "${key}"; it takes joints, adjust, goals`;
+    for (const key of Object.keys(raw)) if (!['joints', 'adjust', 'goals', 'drape', 'colliders', 'worn'].includes(key)) return `rig has an unknown field "${key}"; it takes joints, adjust, goals`;
     for (const [i, j] of (r.joints as Record<string, unknown>[]).entries()) {
         if (typeof j !== 'object' || j === null) return `rig joint ${i} must be an object`;
         for (const key of Object.keys(j)) if (!['name', 'at', 'parent', 'mirror'].includes(key)) return `rig joint ${i} has an unknown field "${key}"; a joint takes name, at, parent, mirror`;

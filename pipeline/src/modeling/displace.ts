@@ -13,7 +13,7 @@ import { boundsOf, compact, dot, faceArea, faceNormal, normalize, selectFaces, t
 import { hash3 } from './organic';
 import { triangulateFace } from './triangulate';
 
-export const DISPLACE_PATTERNS = ['bumps', 'wrinkles', 'cracks', 'scales', 'pores', 'ribs', 'weave', 'scratches', 'pleats'] as const;
+export const DISPLACE_PATTERNS = ['bumps', 'wrinkles', 'cracks', 'scales', 'pores', 'ribs', 'weave', 'scratches', 'pleats', 'folds'] as const;
 export type DisplacePattern = typeof DISPLACE_PATTERNS[number];
 
 export interface DisplaceParams {
@@ -30,6 +30,10 @@ export interface DisplaceParams {
     seed?: number;
     /** Multiplies `scale` along each axis: [4, 1, 1] draws a pattern out along x, as wrinkles across a forehead. */
     stretch?: Vec3;
+    /** folds: which way they run, the way cloth hangs or pulls. Default straight down. */
+    along?: Vec3;
+    /** folds: how much longer than wide. Default 4. */
+    long?: number;
     /** Bends the pattern's lines, as a share of `scale`, so they stop looking drawn with a ruler. Default 0. */
     warp?: number;
     /** How wide a line or dot is, as a share of a feature: cracks, pores, scratches. */
@@ -188,6 +192,18 @@ function patternAt(p: DisplaceParams, x: number, y: number, z: number, n: Vec3):
         }
         case 'scratches':
             return scratches(x, y, z, seed, p.width ?? 0.12, n);
+        case 'folds': {
+            // Soft ridges and hollows, the sharper edge on the valley's: |noise| is a crease where it crosses zero, and cloth has more swell than crease.
+            let sum = 0, amp = 1, total = 0, f = 1;
+            for (let o = 0; o < octaves; o++) {
+                const g = gradientNoise(x * f, y * f, z * f, seed + o);
+                sum += amp * (Math.sqrt(Math.abs(g) * 1.6 + 0.02) - 0.55);
+                total += amp;
+                amp *= 0.45;
+                f *= 2;
+            }
+            return Math.max(-1, Math.min(1, (sum / total) * 2.2));
+        }
         case 'pleats':
             // A sawtooth softened at its peak: a pressed fold is sharp on one side, where a wave is even on both.
             return Math.pow(((Math.atan2(x, z) / (2 * Math.PI) + 1) * (p.count ?? 24)) % 1, 1.5) * 2 - 1;
@@ -207,6 +223,7 @@ export function finestShare(p: DisplaceParams): number {
         case 'weave': return 1 / 6;
         case 'scratches': return (p.width ?? 0.12) / 2;
         case 'pleats': return 1 / 8;
+        case 'folds': return 1 / (5 * layers);
     }
 }
 
@@ -341,8 +358,15 @@ export function patternField(p: DisplaceParams): (x: number, y: number, z: numbe
     const [sx, sy, sz] = [p.scale * stretch[0], p.scale * stretch[1], p.scale * stretch[2]];
     const seed = p.seed ?? 1;
     const warp = p.warp ?? 0;
+    // Folds run along their own axis: the point is turned so that axis is y, and y counts for less.
+    const along = p.pattern === 'folds' ? normalize(p.along ?? [0, -1, 0]) : null;
+    const long = p.long ?? 4;
+    const across1: Vec3 | null = along ? normalize(Math.abs(along[1]) < 0.9 ? [along[2], 0, -along[0]] : [1, 0, 0]) : null;
+    const across2: Vec3 | null = along && across1 ? [along[1] * across1[2] - along[2] * across1[1], along[2] * across1[0] - along[0] * across1[2], along[0] * across1[1] - along[1] * across1[0]] : null;
     return (px, py, pz, n) => {
-        let [x, y, z] = [px / sx, py / sy, pz / sz];
+        let [x, y, z] = along && across1 && across2
+            ? [dot([px, py, pz], across1) / sx, dot([px, py, pz], along) / (sy * long), dot([px, py, pz], across2) / sz]
+            : [px / sx, py / sy, pz / sz];
         if (warp > 0) {
             const [wx, wy, wz] = [
                 gradientNoise(x * 0.7 + 3.1, y * 0.7, z * 0.7, seed + 40),
@@ -372,6 +396,7 @@ export function displace(mesh: PolyMesh, p: DisplaceParams, budget = MAX_DISPLAC
         if (hit.length === 0) throw new Error(`no surface of \`faces\` within ${p.near.radius} of ${JSON.stringify(p.near.at)}`);
     }
 
+    if (p.long !== undefined && !(p.long > 0)) throw new Error(`long ${p.long} must be positive`);
     const smallest = Math.min(...(p.stretch ?? [1, 1, 1])) * p.scale;
     const longest = p.detail ?? smallest * finestShare(p);
     const { mesh: fine, short } = refine(mesh, new Set(hit), longest, budget);

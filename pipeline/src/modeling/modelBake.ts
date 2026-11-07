@@ -13,7 +13,7 @@ import { generateTangents } from '../assets/meshTangents';
 import { hairMaps, hairRig, hasCards, type HairMaps } from './hair';
 import { triangulateFace } from './triangulate';
 import { faceUvs } from './modelUv';
-import { adjustWeights, bindMatrices, computeWeights, drapeRig, resolveJoints, shapeDeltas, type ControllerIk, type RigGoal, type RigJoint, type RigSpring, type SkinWeights } from './rig';
+import { adjustWeights, bindMatrices, computeWeights, computeWornWeights, drapeRig, resolveJoints, shapeDeltas, type ControllerIk, type RigGoal, type RigJoint, type RigSpring, type SkinWeights } from './rig';
 import type { NormalBakeReport } from './normalBake';
 import { buildPolyMesh, validateModelSource, type ModelSource, type StepReport } from './modelSource';
 import {
@@ -338,7 +338,7 @@ export function bakeModel(raw: unknown): BakedModel {
     let rig: BakedModel['rig'];
     if (source.rig) {
         const joints = resolveJoints(source.rig);
-        const found = adjustWeights(mesh, joints, computeWeights(mesh, joints), source.rig.adjust ?? []);
+        const found = adjustWeights(mesh, joints, source.rig.worn ? computeWornWeights(mesh, joints, new Set(source.rig.worn)) : computeWeights(mesh, joints), source.rig.adjust ?? []);
         const draped = source.rig.drape ? drapeRig(mesh, joints, found, source.rig.drape) : null;
         rig = { joints: draped?.joints ?? joints, skin: draped?.skin ?? found, ik: source.controller?.ik ?? [], goals: source.rig.goals ?? [], ...(draped ? { springs: draped.springs } : {}) };
     }
