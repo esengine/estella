@@ -4106,4 +4106,10 @@ export const NOTED = {
     {"internal": "Two assignments of the colour a fresh canvas already has; the mask read back is the same."},
   "refactor(image): the noise, colour and path helpers live in their own modules, so no two image or modeling modules import each other":
     {"internal": "Declarations moved between files unchanged; every image and modeling test draws and builds the same."},
+  "fix(minigame): the engine subpackage notice shows only a real percentage, stops at load, and comes down when the boot fails":
+    {"note": "The engine-subpackage loading notice shows a real percentage, and comes down when it should."},
+  "fix(wechat): build the mini-game engine without auto-vectorization, so WeChat on iOS no longer takes itself down with the game":
+    {"note": "A WeChat mini-game no longer takes WeChat down with it on iOS."},
+  "fix(timeline): importing esengine/timeline installs timelines again, so a mini-game's animated characters leave the bind pose":
+    {"note": "Animated characters move in a WeChat mini-game."},
 };

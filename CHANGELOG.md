@@ -14,6 +14,14 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.99.1] - 2026-11-07
+
+### Fixed
+
+- **A WeChat mini-game no longer takes WeChat down with it on iOS.** On an iPhone on iOS 27 with WeChat 8.0.80, any package closed WeChat at its first frame, whatever the game drew. The mini-game engine is now built without the compiler's automatic vectorization; the SIMD the math is written in stays.
+- **Animated characters move in a WeChat mini-game.** A package whose characters play clips through an `Animator`, with no `TimelinePlayer` in its scenes, left out the loader for those clips: every character stood in its bind pose and the log said `No loader registered for type: timeline`.
+- **The engine-subpackage loading notice shows a real percentage, and comes down when it should.** With the engine in a subpackage, a host that reported a progress of -20608 had it shown as it came; a progress report after the subpackage loaded put the notice back over the game; and a game that failed to start left the notice up for good with nothing in the log. The notice now shows a percentage only when it is one, stops at load, and is taken down with the reason logged when the start fails.
+
 ## [0.99.0] - 2026-11-07
 
 ### Added
@@ -15199,7 +15207,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.99.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.99.1...HEAD
+[0.99.1]: https://github.com/esengine/estella/compare/v0.99.0...v0.99.1
 [0.99.0]: https://github.com/esengine/estella/compare/v0.98.0...v0.99.0
 [0.98.0]: https://github.com/esengine/estella/compare/v0.97.0...v0.98.0
 [0.97.0]: https://github.com/esengine/estella/compare/v0.96.0...v0.97.0
