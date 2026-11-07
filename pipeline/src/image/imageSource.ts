@@ -55,7 +55,7 @@ export interface ImageTransform {
     origin?: readonly [number, number];
 }
 
-export type ImageShape = 'rect' | 'circle' | 'ellipse' | 'ring' | 'polygon' | 'line' | 'star' | 'gear' | 'path' | 'pixels' | 'paint' | 'figure' | 'image' | 'text' | 'block' | 'perspective' | 'reflect' | 'bloom' | 'group';
+export type ImageShape = 'rect' | 'circle' | 'ellipse' | 'ring' | 'polygon' | 'line' | 'star' | 'gear' | 'path' | 'pixels' | 'paint' | 'figure' | 'image' | 'text' | 'block' | 'perspective' | 'reflect' | 'bloom' | 'repaint' | 'group';
 
 /** How a brush lays colour. Any of these on a stroke, a sweep or a field, over what its `brush` starts from. */
 export interface ImageBrushSettings {
@@ -264,6 +264,12 @@ export interface ImageLayer {
     within?: readonly number[];
     /** Text: four corners in the picture it is laid on, in order round from the top left, so it lies on a wall in perspective. */
     quad?: readonly (readonly number[])[];
+    /** A repaint: the brush the whole picture so far is painted again with. */
+    brush?: string;
+    /** A repaint: how far down its strokes go, 0 broad to 2 fine, and what gets finer strokes still. */
+    detail?: number;
+    boost?: readonly string[];
+    seed?: number;
     /** A bloom: how bright a pixel must be to shine, 0..1, and how much it does. */
     threshold?: number;
     strength?: number;
@@ -349,11 +355,11 @@ function checkFill(v: unknown): string | null {
     return null;
 }
 
-const FIELDS = ['id', 'shape', 'at', 'size', 'radius', 'radii', 'inner', 'count', 'tooth', 'turn', 'points', 'd', 'rows', 'palette', 'scale', 'layers', 'fill', 'stroke', 'opacity', 'blend', 'transform', 'mirror', 'effects', 'clip', 'erase', 'visible', 'blur', 'strokes', 'from', 'guide', 'height', 'yaw', 'pitch', 'build', 'pose', 'light', 'src', 'except', 'text', 'fontSize', 'font', 'weight', 'align', 'vertical', 'tracking', 'vanish', 'depth', 'faces', 'roof', 'y', 'edge', 'reach', 'ripple', 'smear', 'quad', 'threshold', 'strength', 'thin', 'grain', 'grainScale', 'dry', 'face', 'within'];
+const FIELDS = ['id', 'shape', 'at', 'size', 'radius', 'radii', 'inner', 'count', 'tooth', 'turn', 'points', 'd', 'rows', 'palette', 'scale', 'layers', 'fill', 'stroke', 'opacity', 'blend', 'transform', 'mirror', 'effects', 'clip', 'erase', 'visible', 'blur', 'strokes', 'from', 'guide', 'height', 'yaw', 'pitch', 'build', 'pose', 'light', 'src', 'except', 'text', 'fontSize', 'font', 'weight', 'align', 'vertical', 'tracking', 'vanish', 'depth', 'faces', 'roof', 'y', 'edge', 'reach', 'ripple', 'smear', 'quad', 'threshold', 'strength', 'thin', 'grain', 'grainScale', 'dry', 'face', 'within', 'brush', 'detail', 'boost', 'seed'];
 
 /** Layers that are aids to drawing unless told otherwise: seen when looking, and not in the .png. */
 export const isGuideLayer = (l: ImageLayer): boolean => l.guide ?? (l.shape === 'figure' || l.shape === 'image' || l.shape === 'perspective');
-const SHAPES: readonly ImageShape[] = ['rect', 'circle', 'ellipse', 'ring', 'polygon', 'line', 'star', 'gear', 'path', 'pixels', 'paint', 'figure', 'image', 'text', 'block', 'perspective', 'reflect', 'bloom', 'group'];
+const SHAPES: readonly ImageShape[] = ['rect', 'circle', 'ellipse', 'ring', 'polygon', 'line', 'star', 'gear', 'path', 'pixels', 'paint', 'figure', 'image', 'text', 'block', 'perspective', 'reflect', 'bloom', 'repaint', 'group'];
 const STROKE_FIELDS = ['points', 'color', 'to', 'size', 'hardness', 'opacity', 'taper', 'bristles', 'strand', 'spread', 'vary', 'wobble', 'seed', 'smudge', 'erase', 'blend', ...BRUSH_FIELDS];
 
 /** What a brush's own settings must be, on whatever carries them. */
@@ -528,6 +534,12 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
             if (l.grainScale !== undefined && !(isNum(l.grainScale) && (l.grainScale as number) > 0)) fail('grainScale must be positive');
             if (l.fill === undefined && l.stroke === undefined) fail('it needs a fill or a stroke, or it draws nothing');
             break;
+        case 'repaint':
+            if (l.brush !== undefined && !(typeof l.brush === 'string' && Object.hasOwn(IMAGE_BRUSHES, l.brush))) fail(`brush ${JSON.stringify(l.brush)} must be one of ${Object.keys(IMAGE_BRUSHES).join(', ')}`);
+            if (l.detail !== undefined && ![0, 1, 2].includes(l.detail as number)) fail('detail must be 0, 1 or 2');
+            if (l.boost !== undefined && !(Array.isArray(l.boost) && l.boost.every((b) => typeof b === 'string'))) fail('boost must be ids of layers drawn before it');
+            if (l.seed !== undefined && !Number.isInteger(l.seed)) fail('seed must be a whole number');
+            break;
         case 'bloom':
             for (const key of ['threshold', 'strength']) if (l[key] !== undefined && !(isNum(l[key]) && (l[key] as number) >= 0)) fail(`${key} must be 0 or more`);
             if (l.threshold !== undefined && (l.threshold as number) > 1) fail('threshold must be 0..1');
@@ -600,7 +612,7 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
         if (s.join !== undefined && !['round', 'miter', 'bevel'].includes(s.join as string)) fail('stroke join must be round, miter or bevel');
         if (s.cap !== undefined && !['round', 'butt', 'square'].includes(s.cap as string)) fail('stroke cap must be round, butt or square');
     }
-    if (!['group', 'pixels', 'paint', 'figure', 'image', 'text', 'block', 'perspective', 'reflect', 'bloom', 'line'].includes(l.shape as string) && l.fill === undefined && l.stroke === undefined && !l.erase) fail('it needs a fill or a stroke, or it draws nothing');
+    if (!['group', 'pixels', 'paint', 'figure', 'image', 'text', 'block', 'perspective', 'reflect', 'bloom', 'repaint', 'line'].includes(l.shape as string) && l.fill === undefined && l.stroke === undefined && !l.erase) fail('it needs a fill or a stroke, or it draws nothing');
     if (l.from !== undefined && l.shape !== 'paint') fail('from is for a paint layer');
     if (l.guide !== undefined && typeof l.guide !== 'boolean') fail('guide must be true or false');
     if (l.blur !== undefined && !(isNum(l.blur) && (l.blur as number) >= 0)) fail('blur must be 0 or more, in pixels');

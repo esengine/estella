@@ -822,6 +822,11 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
         return;
     }
 
+    if (layer.shape === 'repaint') {
+        drawRepaint(c, layer, drawn, opacity, clip);
+        return;
+    }
+
     if (layer.face && layer.shape === 'rect') {
         const corners = faceCorners(layer, drawn);
         if (!corners) return;
@@ -1476,6 +1481,100 @@ function textOnQuad(layer: ImageLayer, m: Matrix, w: number, h: number, draw: Im
     return out;
 }
 
+/** [brush size at 960 pixels across, how wrong a cell must be, 0..255, before it gets a stroke]. */
+const REPAINT_LEVELS: readonly (readonly (readonly [number, number])[])[] = [
+    [[26, 0], [13, 24], [6, 30]],
+    [[22, 0], [11, 20], [6, 22], [3.5, 20]],
+    [[20, 0], [10, 18], [5, 18], [3, 16], [2, 14]],
+];
+const REPAINT_BOOST: readonly (readonly [number, number])[] = [[3, 14], [1.8, 10]];
+
+/**
+ * The picture so far painted again, coarse to fine, each stroke taking its colour from under where it starts and running along the edges there.
+ * Shapes become brushwork without a stroke being written: what makes a built picture read as a painted one. It costs seconds, so it comes last.
+ */
+function drawRepaint(c: Canvas, layer: ImageLayer, drawn: Drawn, opacity: number, clip: Float32Array | undefined): void {
+    const { w, h } = c;
+    const k = Math.max(w, h) / 960;
+    const brush = layer.brush ?? 'oil';
+    const seed = layer.seed ?? 1;
+    const inner = new Canvas(w, h);
+    const buffer: StrokeBuffer = { mask: new Float32Array(w * h), rgb: new Float32Array(w * h * 3), touched: [] };
+    const boosted = (layer.boost ?? []).map((id) => {
+        const mask = drawn.masks.get(id.replace(/^@/, ''));
+        if (!mask) drawn.notes.push(`layer ${layer.id ?? 'repaint'}: boost "${id}" names no layer drawn before it`);
+        return mask;
+    }).filter((m): m is Float32Array => !!m);
+    const passes = [
+        ...REPAINT_LEVELS[layer.detail ?? 2]!.map(([size, tolerance]) => ({ size, tolerance, only: null as Float32Array[] | null })),
+        ...(boosted.length ? REPAINT_BOOST.map(([size, tolerance]) => ({ size, tolerance, only: boosted })) : []),
+    ];
+    let count = 0;
+    for (const pass of passes) {
+        const size = pass.size * k;
+        const sigma = Math.max(0.6, size / 3.2);
+        const target = [0, 1, 2, 3].map((n) => {
+            const channel = new Float32Array(w * h);
+            for (let i = 0; i < channel.length; i++) channel[i] = c.px[i * 4 + n]!;
+            return blurMask(channel, w, h, sigma);
+        }) as [Float32Array, Float32Array, Float32Array, Float32Array];
+        const light = new Float32Array(w * h);
+        for (let i = 0; i < light.length; i++) light[i] = target[0][i]! * 0.3 + target[1][i]! * 0.59 + target[2][i]! * 0.11;
+        const cell = Math.max(2, Math.round(size * 0.8));
+        const [columns, rows] = [Math.ceil(w / cell), Math.ceil(h / cell)];
+        // In no order: swept in rows, each stroke would lie the same way over the last.
+        const order = Array.from({ length: columns * rows }, (_, i) => i).sort((a, b) => hash01(seed * 61 + a, count & 255) - hash01(seed * 61 + b, count & 255));
+        const starts: { x: number; y: number }[] = [];
+        for (const index of order) {
+            const [gx, gy] = [(index % columns) * cell, Math.floor(index / columns) * cell];
+            let [worst, bx, by, total, n] = [-1, gx, gy, 0, 0];
+            for (let y = gy; y < Math.min(h, gy + cell); y++) {
+                for (let x = gx; x < Math.min(w, gx + cell); x++) {
+                    const i = y * w + x;
+                    const e = Math.hypot(inner.px[i * 4]! - target[0][i]!, inner.px[i * 4 + 1]! - target[1][i]!, inner.px[i * 4 + 2]! - target[2][i]!) * 255;
+                    total += e; n++;
+                    if (e > worst) { worst = e; bx = x; by = y; }
+                }
+            }
+            if (n === 0 || total / n < pass.tolerance) continue;
+            if (pass.only && !pass.only.some((m) => m[by * w + bx]! >= 0.5)) continue;
+            starts.push({ x: bx, y: by });
+        }
+        for (const { x: bx, y: by } of starts) {
+            const at = by * w + bx;
+            const alpha = target[3][at]!;
+            if (alpha < 0.02) continue;
+            const color: Rgba = [target[0][at]! / alpha, target[1][at]! / alpha, target[2][at]! / alpha, alpha];
+            const points: number[][] = [[bx, by]];
+            let [x, y, dx, dy] = [bx, by, 0, 0];
+            for (let step = 0; step < 5; step++) {
+                const [ix, iy] = [Math.max(1, Math.min(w - 2, Math.round(x))), Math.max(1, Math.min(h - 2, Math.round(y)))];
+                const [gx, gy] = [light[iy * w + ix + 1]! - light[iy * w + ix - 1]!, light[(iy + 1) * w + ix]! - light[(iy - 1) * w + ix]!];
+                const g = Math.hypot(gx, gy);
+                // Along an edge where there is one, and a way of its own where there is not.
+                const free = hash01(seed * 67 + bx, by) * Math.PI * 2;
+                let [nx, ny] = g < 0.006 ? [Math.cos(free), Math.sin(free)] : [-gy / g, gx / g];
+                if (nx * dx + ny * dy < 0) [nx, ny] = [-nx, -ny];
+                [dx, dy] = dx === 0 && dy === 0 ? [nx, ny] : [dx * 0.5 + nx * 0.5, dy * 0.5 + ny * 0.5];
+                const len = Math.hypot(dx, dy) || 1;
+                x += (dx / len) * size * 0.9; y += (dy / len) * size * 0.9;
+                if (x < 0 || y < 0 || x >= w || y >= h) break;
+                const here = Math.round(y) * w + Math.round(x);
+                if (Math.hypot(target[0][here]! - target[0][at]!, target[1][here]! - target[1][at]!, target[2][here]! - target[2][at]!) * 255 > 45) break;
+                points.push([x, y]);
+            }
+            paintStroke(inner, { brush, points, color: toHex(color), size, seed: seed + count }, IDENTITY, 1, count, buffer);
+            count++;
+        }
+    }
+    if (layer.id) drawn.painted.set(layer.id, { entries: passes.length, strokes: count });
+    for (let i = 0; i < w * h; i++) {
+        const a = inner.px[i * 4 + 3]!;
+        if (a <= 0) continue;
+        put(c, i, inner.px[i * 4]! / a, inner.px[i * 4 + 1]! / a, inner.px[i * 4 + 2]! / a, a * opacity * (clip ? clip[i]! : 1), layer.blend ?? 'normal');
+    }
+}
+
 /** What is bright in the picture so far, spilling over what is round it: a tight glow and a wide one, as a lens and the air both give. */
 function drawBloom(c: Canvas, layer: ImageLayer, parent: Matrix, opacity: number, clip: Float32Array | undefined): void {
     const { w, h } = c;
@@ -1766,6 +1865,64 @@ function drawPixels(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, 
     effectLayers(layer.effects, false, c, whole);
 }
 
+/** A picture part-way through: what it costs to draw is what a small edit should not pay again. */
+interface Snapshot { px: Float32Array; drawn: Omit<Drawn, 'showGuides' | 'pictures' | 'text'> }
+const snapshots = new Map<string, Snapshot>();
+const SNAPSHOT_AFTER_MS = 150;
+const SNAPSHOT_BYTES = 512 * 1024 * 1024;
+const cacheCounters = { drawn: 0, reused: 0 };
+
+/** How many layers were drawn and how many were picked up already drawn; `clear` forgets what is kept. */
+export function imageCacheStats(clear = false): { drawn: number; reused: number; kept: number } {
+    const out = { ...cacheCounters, kept: snapshots.size };
+    if (clear) { snapshots.clear(); cacheCounters.drawn = 0; cacheCounters.reused = 0; }
+    return out;
+}
+
+function textHash(text: string): string {
+    let [a, b] = [0xdeadbeef, 0x41c6ce57];
+    for (let i = 0; i < text.length; i++) {
+        const ch = text.charCodeAt(i);
+        a = Math.imul(a ^ ch, 2654435761);
+        b = Math.imul(b ^ ch, 1597334677);
+    }
+    return (((a ^ (a >>> 16)) >>> 0).toString(36)) + ((b ^ (b >>> 13)) >>> 0).toString(36) + text.length.toString(36);
+}
+
+/** Pictures come from files that change under the same name, so what is in them is part of the key. */
+function picturesDigest(pictures: Readonly<Record<string, RgbaBitmap>> | undefined): string {
+    if (!pictures) return '';
+    return Object.entries(pictures).map(([name, p]) => {
+        let sum = 0;
+        for (let i = 0; i < p.rgba.length; i += 97) sum = (Math.imul(sum, 31) + p.rgba[i]!) | 0;
+        return `${name}:${p.width}x${p.height}:${sum}`;
+    }).join('|');
+}
+
+/** Masks and the rest are never written once set, so a snapshot can hold them as they are. */
+function keepSnapshot(key: string, canvas: Canvas, drawn: Drawn): void {
+    snapshots.set(key, {
+        px: canvas.px.slice(),
+        drawn: {
+            masks: new Map(drawn.masks), notes: [...drawn.notes], bounds: new Map(drawn.bounds), painted: new Map(drawn.painted), figures: new Map(drawn.figures),
+            figureJoints: new Map(drawn.figureJoints), images: new Map(drawn.images), blocks: new Map(drawn.blocks),
+        },
+    });
+    let bytes = 0;
+    for (const s of snapshots.values()) bytes += s.px.byteLength;
+    for (const [k, s] of snapshots) {
+        if (bytes <= SNAPSHOT_BYTES) break;
+        snapshots.delete(k);
+        bytes -= s.px.byteLength;
+    }
+}
+
+function restoreSnapshot(kept: Snapshot, canvas: Canvas, drawn: Drawn): void {
+    canvas.px.set(kept.px);
+    drawn.masks = new Map(kept.drawn.masks); drawn.notes = [...kept.drawn.notes]; drawn.bounds = new Map(kept.drawn.bounds); drawn.painted = new Map(kept.drawn.painted);
+    drawn.figures = new Map(kept.drawn.figures); drawn.figureJoints = new Map(kept.drawn.figureJoints); drawn.images = new Map(kept.drawn.images); drawn.blocks = new Map(kept.drawn.blocks);
+}
+
 export interface RenderedImage extends RgbaBitmap {
     notes: string[];
     /** Where the picture is solid, null if nowhere, and how much of its area that is, 0..1: how large it looks beside others. */
@@ -1785,12 +1942,35 @@ export interface RenderedImage extends RgbaBitmap {
 export function renderImage(source: ImageSource, options: { guides?: boolean; pictures?: Readonly<Record<string, RgbaBitmap>>; text?: ImageTextDrawer } = {}): RenderedImage {
     const [w, h] = typeof source.size === 'number' ? [source.size, source.size] : source.size;
     const canvas = new Canvas(w, h);
-    if (source.background) {
+    const drawn: Drawn = { masks: new Map(), notes: [], bounds: new Map(), painted: new Map(), figures: new Map(), figureJoints: new Map(), showGuides: options.guides === true, pictures: options.pictures ?? {}, images: new Map(), text: options.text, blocks: new Map() };
+    // What every layer so far amounts to, chained: a layer changed leaves the keys before it as they were.
+    let key = textHash(JSON.stringify([w, h, source.background ?? null, options.guides === true, picturesDigest(options.pictures)]));
+    const keys = source.layers.map((layer) => (key = textHash(key + JSON.stringify(layer))));
+    let from = 0;
+    for (let i = keys.length - 1; i >= 0; i--) {
+        const kept = snapshots.get(keys[i]!);
+        if (!kept) continue;
+        restoreSnapshot(kept, canvas, drawn);
+        // Used last, kept longest.
+        snapshots.delete(keys[i]!);
+        snapshots.set(keys[i]!, kept);
+        from = i + 1;
+        cacheCounters.reused += from;
+        break;
+    }
+    if (from === 0 && source.background) {
         const [r, g, b, a] = parseColor(source.background);
         for (let i = 0; i < w * h; i++) put(canvas, i, r, g, b, a, 'normal');
     }
-    const drawn: Drawn = { masks: new Map(), notes: [], bounds: new Map(), painted: new Map(), figures: new Map(), figureJoints: new Map(), showGuides: options.guides === true, pictures: options.pictures ?? {}, images: new Map(), text: options.text, blocks: new Map() };
-    for (const layer of source.layers) drawLayer(canvas, layer, IDENTITY, drawn);
+    let since = Date.now();
+    for (let i = from; i < source.layers.length; i++) {
+        drawLayer(canvas, source.layers[i]!, IDENTITY, drawn);
+        cacheCounters.drawn++;
+        if (i === source.layers.length - 1 || Date.now() - since >= SNAPSHOT_AFTER_MS) {
+            keepSnapshot(keys[i]!, canvas, drawn);
+            since = Date.now();
+        }
+    }
     const rgba = new Uint8Array(w * h * 4);
     for (let i = 0; i < w * h; i++) {
         const a = canvas.px[i * 4 + 3]!;

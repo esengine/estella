@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /** A picture from layers: each draws what it says and where, edges are antialiased, and what is wrong with a source is said before anything is drawn. */
 import { describe, expect, it } from 'vitest';
-import { imageSheet, parseColor, parsePath, pickColors, renderImage, setSheet, valuesImage, zoomImage } from '../src/image/imageRaster';
+import { imageCacheStats, imageSheet, parseColor, parsePath, pickColors, renderImage, setSheet, valuesImage, zoomImage } from '../src/image/imageRaster';
 import { applyImageEdits, IMAGE_BRUSHES, strokeWidths, validateImageSource, type ImageLayer } from '../src/image/imageSource';
 
 const draw = (layers: unknown[], size: number | [number, number] = 64, background?: string): ReturnType<typeof renderImage> => renderImage(validateImageSource({ size, layers, ...(background ? { background } : {}) }));
@@ -1202,6 +1202,123 @@ describe('words on a wall, and light spilling', () => {
         const bad = (l: object): unknown => validateImageSource({ size: 8, layers: [{ shape: 'bloom', ...l }] });
         expect(() => bad({ threshold: 2 })).toThrow(/threshold must be 0..1/);
         expect(() => bad({ radius: 0 })).toThrow(/radius must be positive/);
+    });
+});
+
+describe('drawing only what changed', () => {
+    const layers: ImageLayer[] = [
+        { id: 'a', shape: 'rect', at: [0, 0], size: [64, 64], fill: { type: 'noise', scale: 8, stops: [[0, '#000000'], [1, '#ffffff']] } },
+        { id: 'b', shape: 'paint', clip: 'a', strokes: [{ type: 'field', tone: RED, size: 6, length: 20, angle: 20, seed: 2 }] } as never,
+        { id: 'c', shape: 'circle', at: [32, 32], radius: 12, fill: BLUE },
+    ];
+    const source = (top: ImageLayer[]): ReturnType<typeof validateImageSource> => validateImageSource({ size: 64, layers: [...layers, ...top] });
+    const fresh = (top: ImageLayer[]): ReturnType<typeof renderImage> => { imageCacheStats(true); return renderImage(source(top)); };
+    const dot: ImageLayer = { id: 'd', shape: 'circle', at: [10, 10], radius: 4, fill: '#00ff00' };
+
+    it('draws the same picture, measures and all, as drawing it all again', () => {
+        imageCacheStats(true);
+        renderImage(source([]));
+        const continued = renderImage(source([dot]));
+        const whole = fresh([dot]);
+        expect(continued.rgba).toEqual(whole.rgba);
+        expect(continued.layerBounds).toEqual(whole.layerBounds);
+        expect(continued.painted).toEqual(whole.painted);
+        expect(continued.notes).toEqual(whole.notes);
+    });
+
+    it('picks up where nothing has changed, and draws nothing for the same source', () => {
+        imageCacheStats(true);
+        renderImage(source([]));
+        const before = imageCacheStats();
+        renderImage(source([]));
+        expect(imageCacheStats().drawn).toBe(before.drawn);
+        renderImage(source([dot]));
+        expect(imageCacheStats().drawn).toBe(before.drawn + 1);
+    });
+
+    it('is not fooled by a change lower down, a seed, a canvas size or showing guides', () => {
+        imageCacheStats(true);
+        const base = renderImage(source([]));
+        const changed = validateImageSource({ size: 64, layers: [{ ...layers[0]!, fill: RED }, layers[1]!, layers[2]!] });
+        expect(renderImage(changed).rgba).not.toEqual(base.rgba);
+        const reseeded = validateImageSource({ size: 64, layers: [layers[0]!, { ...layers[1]!, strokes: [{ type: 'field', tone: RED, size: 6, length: 20, angle: 20, seed: 3 }] } as never, layers[2]!] });
+        expect(renderImage(reseeded).rgba).not.toEqual(base.rgba);
+        const guide = validateImageSource({ size: 64, layers: [{ id: 'g', shape: 'rect', at: [0, 0], size: [8, 8], fill: RED, guide: true }] });
+        expect(renderImage(guide).rgba[3]).toBe(0);
+        expect(renderImage(guide, { guides: true }).rgba[3]).toBe(255);
+    });
+
+    it('sees a picture changed under its own name', () => {
+        imageCacheStats(true);
+        const img = validateImageSource({ size: 8, layers: [{ shape: 'image', src: 'a.png', guide: false, size: [8, 8] }] });
+        const red = { width: 1, height: 1, rgba: new Uint8Array([255, 0, 0, 255]) };
+        const blue = { width: 1, height: 1, rgba: new Uint8Array([0, 0, 255, 255]) };
+        expect(renderImage(img, { pictures: { 'a.png': red } }).rgba[0]).toBe(255);
+        expect(renderImage(img, { pictures: { 'a.png': blue } }).rgba[0]).toBe(0);
+    });
+
+    it('does not let what comes after change what was kept', () => {
+        imageCacheStats(true);
+        const once = renderImage(source([]));
+        renderImage(source([{ shape: 'rect', at: [0, 0], size: [64, 64], fill: '#ffffff' }]));
+        expect(renderImage(source([])).rgba).toEqual(once.rgba);
+    });
+});
+
+describe('repainting the picture so far', () => {
+    const halves: ImageLayer[] = [
+        { id: 'l', shape: 'rect', at: [0, 0], size: [64, 128], fill: RED },
+        { id: 'r', shape: 'rect', at: [64, 0], size: [64, 128], fill: BLUE },
+        { id: 'mark', shape: 'rect', at: [20, 20], size: [24, 24], fill: '#ffffff' },
+    ];
+    const paintOver = (fields: object = {}): ReturnType<typeof draw> => draw([...halves, { id: 'over', shape: 'repaint', ...fields } as never], [128, 128]);
+
+    it('keeps the picture, its colours where they were, and is no longer the same pixels', () => {
+        const before = draw(halves, [128, 128]);
+        const after = paintOver();
+        expect(px(after, 20, 90)[0]).toBeGreaterThan(200);
+        expect(px(after, 110, 90)[2]).toBeGreaterThan(200);
+        expect(px(after, 32, 32)[1]).toBeGreaterThan(160);
+        expect(after.rgba).not.toEqual(before.rgba);
+        expect(after.painted.over!.strokes).toBeGreaterThan(40);
+    });
+
+    it('breaks a hard edge into strokes', () => {
+        const edgeOf = (img: ReturnType<typeof draw>): Set<number> => { const s = new Set<number>(); for (let y = 8; y < 120; y += 2) { let x = 0; while (x < 127 && px(img, x, y)[0]! > 128) x++; s.add(x); } return s; };
+        expect(edgeOf(draw(halves.slice(0, 2), [128, 128])).size).toBe(1);
+        expect(edgeOf(draw([...halves.slice(0, 2), { shape: 'repaint' } as never], [128, 128])).size).toBeGreaterThan(1);
+    });
+
+    it('takes more strokes as it goes finer, and more again where it is boosted', () => {
+        const strokes = (fields: object): number => paintOver(fields).painted.over!.strokes;
+        const scene: ImageLayer[] = [...halves, { id: 'noisy', shape: 'circle', at: [90, 90], radius: 24, fill: { type: 'noise', scale: 4, stops: [[0, '#000000'], [1, '#ffffff']] } }];
+        const at = (fields: object): number => draw([...scene, { id: 'over', shape: 'repaint', ...fields } as never], [128, 128]).painted.over!.strokes;
+        expect(at({ detail: 2 })).toBeGreaterThan(at({ detail: 0 }));
+        expect(at({ detail: 0, boost: ['noisy'] })).toBeGreaterThan(at({ detail: 0 }));
+        expect(strokes({})).toBeGreaterThan(0);
+    });
+
+    it('leaves what it is told to, exactly', () => {
+        const kept = paintOver({ except: 'mark' });
+        expect(px(kept, 22, 22)).toEqual([255, 255, 255, 255]);
+        expect(px(kept, 42, 42)).toEqual([255, 255, 255, 255]);
+    });
+
+    it('takes the brush it is told, and is the same every time', () => {
+        expect(paintOver({ brush: 'charcoal' }).rgba).not.toEqual(paintOver({ brush: 'oil' }).rgba);
+        imageCacheStats(true);
+        const a = paintOver({ seed: 4 }).rgba;
+        imageCacheStats(true);
+        expect(paintOver({ seed: 4 }).rgba).toEqual(a);
+        expect(paintOver({ seed: 5 }).rgba).not.toEqual(a);
+    });
+
+    it('says what is wrong with one', () => {
+        const bad = (l: object): unknown => validateImageSource({ size: 8, layers: [{ shape: 'repaint', ...l }] });
+        expect(() => bad({ brush: 'crayon' })).toThrow(/brush "crayon" must be one of/);
+        expect(() => bad({ detail: 3 })).toThrow(/detail must be 0, 1 or 2/);
+        expect(() => bad({ boost: 'x' })).toThrow(/boost must be/);
+        expect(paintOver({ boost: ['none'] }).notes.join()).toMatch(/boost "none" names no layer/);
     });
 });
 
