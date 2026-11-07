@@ -465,7 +465,7 @@ function paintOf(fill: ImageFill, m: Matrix, drawn?: Drawn, w = 0): (x: number, 
         const c = parseColor(fill);
         return () => c;
     }
-    const stops = [...fill.stops].map(([t, c]) => [t, parseColor(c)] as const).sort((a, b) => a[0] - b[0]);
+    const stops = [...(fill.type === 'image' ? [] : fill.stops)].map(([t, c]) => [t, parseColor(c)] as const).sort((a, b) => a[0] - b[0]);
     const inverse = invert(m);
     const at = (t: number): Rgba => {
         if (t <= stops[0]![0]) return stops[0]![1];
@@ -478,6 +478,17 @@ function paintOf(fill: ImageFill, m: Matrix, drawn?: Drawn, w = 0): (x: number, 
         }
         return stops[stops.length - 1]![1];
     };
+    if (fill.type === 'image') {
+        const image = drawn?.images.get(fill.image);
+        if (!image) {
+            drawn?.notes.push(`a fill names image "${fill.image}", which was not drawn before it`);
+            return () => [0, 0, 0, 0];
+        }
+        return (x, y) => {
+            const i = (Math.floor(y) * w + Math.floor(x)) * 4;
+            return [image[i] ?? 0, image[i + 1] ?? 0, image[i + 2] ?? 0, image[i + 3] ?? 0];
+        };
+    }
     if (fill.type === 'form') {
         const figure = drawn?.figures.get(fill.figure);
         if (!figure) {
@@ -571,7 +582,7 @@ function effectLayers(effects: readonly ImageEffect[] | undefined, under: boolea
     }
 }
 
-interface Drawn { masks: Map<string, Float32Array>; notes: string[]; bounds: Map<string, ImageBox>; painted: Map<string, { entries: number; strokes: number }>; figures: Map<string, FlatFigure>; figureJoints: Map<string, Record<string, readonly [number, number]>>; showGuides: boolean }
+interface Drawn { masks: Map<string, Float32Array>; notes: string[]; bounds: Map<string, ImageBox>; painted: Map<string, { entries: number; strokes: number }>; figures: Map<string, FlatFigure>; figureJoints: Map<string, Record<string, readonly [number, number]>>; showGuides: boolean; pictures: Readonly<Record<string, RgbaBitmap>>; images: Map<string, Float32Array> }
 
 /** x, y, width and height in the picture's pixels. */
 export type ImageBox = readonly [number, number, number, number];
@@ -601,7 +612,7 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
     if (layer.visible === false) return;
     const { w, h } = c;
     // What a guide masks is still wanted when it is not seen, so it draws somewhere that is thrown away.
-    if (!drawn.showGuides && (layer.guide ?? layer.shape === 'figure')) {
+    if (!drawn.showGuides && (layer.guide ?? (layer.shape === 'figure' || layer.shape === 'image'))) {
         drawLayer(new Canvas(w, h), { ...layer, guide: false }, parent, drawn);
         return;
     }
@@ -616,11 +627,21 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
     }
     const opacity = layer.opacity ?? 1;
     const blend: Blend = layer.blend ?? 'normal';
-    const clip = layer.clip ? drawn.masks.get(layer.clip) : undefined;
-    if (layer.clip && !clip) drawn.notes.push(`layer ${layer.id ?? layer.shape}: clip "${layer.clip}" names no layer drawn before it`);
+    const named = (id: string): Float32Array | undefined => drawn.masks.get(id.replace(/^@/, ''));
+    let clip = layer.clip ? named(layer.clip) : undefined;
+    // Nothing, and not everything: a clip that failed would otherwise cover the picture in what it was meant to hold in.
+    if (layer.clip && !clip) {
+        drawn.notes.push(`layer ${layer.id ?? layer.shape}: clip "${layer.clip}" names no layer drawn before it, so it drew nothing`);
+        return;
+    }
+    if (layer.except) {
+        const out = named(layer.except);
+        if (!out) drawn.notes.push(`layer ${layer.id ?? layer.shape}: except "${layer.except}" names no layer drawn before it`);
+        else clip = out.map((v, i) => (1 - v) * (clip ? clip[i]! : 1));
+    }
 
     if (layer.blur) {
-        const { blur, opacity: _o, blend: _b, clip: _c, ...sharp } = layer;
+        const { blur, opacity: _o, blend: _b, clip: _c, except: _e, ...sharp } = layer;
         const inner = new Canvas(w, h);
         drawLayer(inner, sharp, parent, drawn);
         // Blurred as stored, colour already times alpha: blurring straight colour would bring the black of empty pixels in round the edge.
@@ -669,6 +690,11 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
 
     if (layer.shape === 'figure') {
         drawFigure(c, layer, parent, drawn, opacity, blend, clip);
+        return;
+    }
+
+    if (layer.shape === 'image') {
+        drawPicture(c, layer, parent, drawn, opacity, blend, clip);
         return;
     }
 
@@ -1024,7 +1050,7 @@ function fieldStrokes(s: ImageField, w: number, h: number, m: Matrix, drawn: Dra
         const len = Math.hypot(dx, dy) || 1;
         return [dx / len, dy / len];
     };
-    const toned = s.tone !== undefined && typeof s.tone !== 'string' && s.tone.type === 'form' ? paintOf(s.tone, IDENTITY, drawn, w) : null;
+    const toned = s.tone !== undefined && typeof s.tone !== 'string' && (s.tone.type === 'form' || s.tone.type === 'image') ? paintOf(s.tone, IDENTITY, drawn, w) : null;
     const paint = toned ? (x: number, y: number): Rgba => { const p = apply(m, [x, y]); return toned(p[0], p[1]); } : s.tone !== undefined ? paintOf(s.tone, IDENTITY) : null;
     const length = s.length ?? s.size * 3;
     const count = Math.min(MAX_MARK_STROKES, Math.ceil(((s.coverage ?? 4) * Math.max(1, (x1 - x0) * (y1 - y0))) / (s.size * length)));
@@ -1155,12 +1181,22 @@ function drawPaint(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, o
     effectLayers(layer.effects, false, c, alpha);
 }
 
-/** The body in clay, with the edges of its form and a mark on each joint: enough to draw over, and nothing to be mistaken for the drawing. */
+/** The blocks in plain grey, with the bones and a mark on each joint: enough to draw over, and nothing to be mistaken for the drawing. */
 function drawFigure(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, opacity: number, blend: Blend, clip: Float32Array | undefined): void {
     const { w, h } = c;
     const figure = flattenFigure(layer, w, h, (p) => apply(parent, p), drawnScale(parent));
+    // Past the blocks a little way, so cloth that hangs off them is lit as what it hangs from.
+    const reach = Math.max(2, (layer.height as number) * 0.03);
+    const spread = blurMask(figure.mask, w, h, reach);
+    const extended = new Float32Array(figure.normals);
+    for (let k = 0; k < 3; k++) {
+        const channel = new Float32Array(w * h);
+        for (let i = 0; i < channel.length; i++) channel[i] = figure.normals[i * 3 + k]! * figure.mask[i]!;
+        const soft = blurMask(channel, w, h, reach);
+        for (let i = 0; i < channel.length; i++) if (figure.mask[i]! < 0.5 && spread[i]! > 0.01) extended[i * 3 + k] = soft[i]! / spread[i]!;
+    }
     if (layer.id) {
-        drawn.figures.set(layer.id, figure);
+        drawn.figures.set(layer.id, { ...figure, normals: extended });
         drawn.masks.set(layer.id, figure.mask);
         noteBox(drawn, layer.id, figure.mask, w, h);
         for (const [tag, mask] of Object.entries(figure.parts)) {
@@ -1174,8 +1210,10 @@ function drawFigure(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, 
         if (a <= 0) continue;
         const lit = 0.25 + 0.7 * Math.max(0, 0.5 + 0.5 * (figure.normals[i * 3]! * lx + figure.normals[i * 3 + 1]! * ly + figure.normals[i * 3 + 2]! * lz));
         const line = 1 - figure.contour[i]! * 0.85;
-        put(c, i, lit * line, lit * line * 0.96, lit * line * 0.92, a * (layer.opacity ?? opacity) * (clip ? clip[i]! : 1), blend);
+        put(c, i, lit * line * 0.92, lit * line * 0.94, lit * line, a * (layer.opacity ?? opacity) * (clip ? clip[i]! : 1), blend);
     }
+    const bones = strokeMask(figure.lines.map((points) => ({ closed: false, points })), 1.5, w, h);
+    for (let i = 0; i < bones.length; i++) put(c, i, 0.95, 0.35, 0.3, bones[i]! * 0.8, 'normal');
     for (const [x, y] of Object.values(figure.joints)) {
         for (let dy = -2; dy <= 2; dy++) {
             for (let dx = -2; dx <= 2; dx++) {
@@ -1185,6 +1223,41 @@ function drawFigure(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, 
         }
     }
     if (layer.id) drawn.figureJoints.set(layer.id, figure.joints);
+}
+
+/** A picture from the project, smoothly scaled to where it goes. */
+function drawPicture(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, opacity: number, blend: Blend, clip: Float32Array | undefined): void {
+    const { w, h } = c;
+    const picture = drawn.pictures[layer.src!];
+    if (!picture) throw new Error(`there is no picture at ${layer.src}`);
+    const [ox, oy] = apply(parent, layer.at ?? [0, 0]);
+    const k = drawnScale(parent);
+    const [dw, dh] = (layer.size ?? [picture.width, picture.height]).map((v) => v * k) as [number, number];
+    const out = new Float32Array(w * h * 4);
+    const mask = new Float32Array(w * h);
+    for (let y = Math.max(0, Math.floor(oy)); y < Math.min(h, Math.ceil(oy + dh)); y++) {
+        for (let x = Math.max(0, Math.floor(ox)); x < Math.min(w, Math.ceil(ox + dw)); x++) {
+            const [u, v] = [((x + 0.5 - ox) / dw) * picture.width - 0.5, ((y + 0.5 - oy) / dh) * picture.height - 0.5];
+            if (u < -0.5 || v < -0.5 || u > picture.width - 0.5 || v > picture.height - 0.5) continue;
+            const [x0, y0] = [Math.max(0, Math.floor(u)), Math.max(0, Math.floor(v))];
+            const [x1, y1] = [Math.min(picture.width - 1, x0 + 1), Math.min(picture.height - 1, y0 + 1)];
+            const [fx, fy] = [Math.max(0, u - x0), Math.max(0, v - y0)];
+            const i = y * w + x;
+            for (let n = 0; n < 4; n++) {
+                const at = (px: number, py: number): number => picture.rgba[(py * picture.width + px) * 4 + n]! / 255;
+                out[i * 4 + n] = (at(x0, y0) * (1 - fx) + at(x1, y0) * fx) * (1 - fy) + (at(x0, y1) * (1 - fx) + at(x1, y1) * fx) * fy;
+            }
+            mask[i] = out[i * 4 + 3]!;
+        }
+    }
+    if (layer.id) {
+        drawn.images.set(layer.id, out);
+        drawn.masks.set(layer.id, mask);
+        noteBox(drawn, layer.id, mask, w, h);
+    }
+    for (let i = 0; i < mask.length; i++) {
+        if (mask[i]! > 0) put(c, i, out[i * 4]!, out[i * 4 + 1]!, out[i * 4 + 2]!, mask[i]! * opacity * (clip ? clip[i]! : 1), blend);
+    }
 }
 
 function drawPixels(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, opacity: number, blend: Blend, clip: Float32Array | undefined): void {
@@ -1229,14 +1302,14 @@ export interface RenderedImage extends RgbaBitmap {
 }
 
 /** Draws a source that has been validated. */
-export function renderImage(source: ImageSource, options: { guides?: boolean } = {}): RenderedImage {
+export function renderImage(source: ImageSource, options: { guides?: boolean; pictures?: Readonly<Record<string, RgbaBitmap>> } = {}): RenderedImage {
     const [w, h] = typeof source.size === 'number' ? [source.size, source.size] : source.size;
     const canvas = new Canvas(w, h);
     if (source.background) {
         const [r, g, b, a] = parseColor(source.background);
         for (let i = 0; i < w * h; i++) put(canvas, i, r, g, b, a, 'normal');
     }
-    const drawn: Drawn = { masks: new Map(), notes: [], bounds: new Map(), painted: new Map(), figures: new Map(), figureJoints: new Map(), showGuides: options.guides === true };
+    const drawn: Drawn = { masks: new Map(), notes: [], bounds: new Map(), painted: new Map(), figures: new Map(), figureJoints: new Map(), showGuides: options.guides === true, pictures: options.pictures ?? {}, images: new Map() };
     for (const layer of source.layers) drawLayer(canvas, layer, IDENTITY, drawn);
     const rgba = new Uint8Array(w * h * 4);
     for (let i = 0; i < w * h; i++) {

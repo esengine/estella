@@ -618,8 +618,12 @@ export function applyModelEdits(source: ModelSource, edits: readonly ModelEdit[]
     return validateModelSource(next);
 }
 
+const UNOFFERED_OPS: ReadonlySet<string> = new Set(['humanoid', 'garment']);
+
 /** The op vocabulary as text, for what a tool tells its caller. */
 export const describeModelOps = (): string => Object.entries(MODEL_OPS)
+    // They still run for what uses them. A model handed a ready body copies it, and a coloured mannequin comes back.
+    .filter(([name]) => !UNOFFERED_OPS.has(name))
     .map(([name, spec]) => `${name}(${Object.keys(spec.params).map((p) => (spec.required.includes(p) ? p : `${p}?`)).join(', ')}): ${spec.says}`)
     .join('; ');
 

@@ -608,7 +608,7 @@ describe('noise', () => {
         expect(() => bad({ scale: 0 })).toThrow(/scale must be a positive/);
         expect(() => bad({ octaves: 9 })).toThrow(/octaves must be/);
         expect(() => bad({ seed: 1.5 })).toThrow(/seed must be/);
-        expect(() => validateImageSource({ size: 8, layers: [{ shape: 'rect', at: [0, 0], size: [8, 8], fill: { type: 'wavy', stops: [] } }] })).toThrow(/linear, radial, noise or form/);
+        expect(() => validateImageSource({ size: 8, layers: [{ shape: 'rect', at: [0, 0], size: [8, 8], fill: { type: 'wavy', stops: [] } }] })).toThrow(/linear, radial, noise, form or image/);
     });
 });
 
@@ -1037,12 +1037,120 @@ describe('a figure to draw over', () => {
 
     it('says what is wrong with one', () => {
         const bad = (l: object): unknown => validateImageSource({ size: 64, layers: [{ shape: 'figure', at: [4, 4], height: 40, ...l }] });
+        expect(() => bad({ eyes: 'closed' })).toThrow(/unknown field "eyes"/);
         expect(() => bad({ height: undefined })).toThrow(/height must be pixels/);
         expect(() => bad({ build: { nose: 2 } })).toThrow(/build has unknown "nose"/);
         expect(() => bad({ pose: { twist: {} } })).toThrow(/pose has unknown "twist"/);
         expect(() => bad({ pose: { rotate: { neck: [1] } } })).toThrow(/rotate "neck" must be/);
         expect(() => renderImage(validateImageSource({ size: 64, layers: [{ shape: 'figure', at: [4, 4], height: 40, pose: { rotate: { tail: [1, 0, 0] } } }] }))).toThrow(/no joint "tail"/);
     }, LONG);
+});
+
+describe('bones and blocks, and no look', () => {
+    const person = { id: 'f', shape: 'figure', at: [128, 240], height: 220 } as ImageLayer;
+    const shown = (fields: object = {}): ReturnType<typeof renderImage> => renderImage(validateImageSource({ size: 256, layers: [{ ...person, ...fields }] }), { guides: true });
+
+    it('has blocks and no face, hair or fingers to copy', () => {
+        const out = shown();
+        expect(Object.keys(out.layerBounds).sort()).toEqual(['f', 'f.arm', 'f.foot', 'f.hand', 'f.head', 'f.leg', 'f.neck', 'f.torso']);
+    });
+
+    it('takes no time to speak of, as it builds no surface', () => {
+        const began = Date.now();
+        shown({ yaw: 33, pose: { rotate: { neck: [20, 0, 0] } } });
+        expect(Date.now() - began).toBeLessThan(1500);
+    });
+
+    it('stays in proportion, narrower through the waist than the shoulders, and takes a build', () => {
+        const width = (fields: object, y: number): number => { const img = shown(fields); let n = 0; for (let x = 0; x < 256; x++) if (img.rgba[(y * 256 + x) * 4 + 3]! > 128) n++; return n; };
+        const m = shown().figures.f!;
+        expect(width({ pose: { rotate: { 'upperArm.L': [0, 0, 60], 'upperArm.R': [0, 0, -60] } } }, m.spine![1])).toBeLessThan(width({}, m.chest![1]) * 1.2);
+        expect(width({ build: { waist: 1.6 } }, m.spine![1])).toBeGreaterThan(width({}, m.spine![1]));
+        const big = shown({ build: { head: 1.4 } }).layerBounds['f.head']!;
+        expect(big[2]).toBeGreaterThan(shown().layerBounds['f.head']![2]);
+    });
+
+    it('turns the cross on the head with the head', () => {
+        const lit = (fields: object): Uint8Array => shown(fields).rgba;
+        expect(lit({ pose: { rotate: { neck: [40, 0, 0] } } })).not.toEqual(lit({}));
+    });
+
+    it('lets a form carry on past the blocks, for cloth', () => {
+        const img = renderImage(validateImageSource({ size: 256, layers: [person, { shape: 'rect', at: [0, 0], size: [256, 256], fill: { type: 'form', figure: 'f', light: [-1, 0, 0], stops: [[0, '#000000'], [1, '#ffffff']] } } as never] }));
+        const m = img.figures.f!;
+        const box = img.layerBounds['f.torso']!;
+        const y = m.spine![1];
+        expect(px(img as never, box[0] + 6, y)[0]).toBeGreaterThan(px(img as never, box[0] + box[2] - 6, y)[0]! + 30);
+    });
+});
+
+describe('a picture to draw over', () => {
+    const picture = { width: 2, height: 1, rgba: new Uint8Array([255, 0, 0, 255, 0, 0, 255, 255]) };
+    const image = { id: 'ref', shape: 'image', src: 'a.png', at: [0, 0], size: [64, 64] } as ImageLayer;
+    const render = (layers: ImageLayer[], guides = false): ReturnType<typeof renderImage> => renderImage(validateImageSource({ size: 64, layers }), { guides, pictures: { 'a.png': picture } });
+
+    it('is seen when looking and stays out of the picture, unless told', () => {
+        expect(px(render([image], true), 4, 32)[0]).toBe(255);
+        expect(px(render([image]), 4, 32)[3]).toBe(0);
+        expect(px(render([{ ...image, guide: false }]), 4, 32)[0]).toBe(255);
+    });
+
+    it('scales to its size, smoothly', () => {
+        const img = render([image], true);
+        expect(px(img, 60, 32)[2]).toBe(255);
+        expect(px(img, 32, 32)[0]).toBeGreaterThan(90);
+        expect(px(img, 32, 32)[2]).toBeGreaterThan(90);
+    });
+
+    it('gives its colours to a fill and to a field', () => {
+        const img = render([image, { shape: 'rect', at: [0, 0], size: [64, 64], fill: { type: 'image', image: 'ref' } } as never]);
+        expect(px(img, 4, 32)[0]).toBe(255);
+        expect(px(img, 60, 32)[2]).toBe(255);
+        const field = render([image, { shape: 'paint', strokes: [{ type: 'field', tone: { type: 'image', image: 'ref' }, size: 4, length: 8, hardness: 1, opacity: 1, vary: 0, seed: 1 }] } as never]);
+        expect(px(field, 10, 32)[0]).toBeGreaterThan(px(field, 10, 32)[2]!);
+        expect(px(field, 54, 32)[2]).toBeGreaterThan(px(field, 54, 32)[0]!);
+    });
+
+    it('says when it is not there', () => {
+        expect(() => renderImage(validateImageSource({ size: 8, layers: [{ shape: 'image', src: 'gone.png' }] }))).toThrow(/no picture at gone.png/);
+        expect(() => validateImageSource({ size: 8, layers: [{ shape: 'image' }] })).toThrow(/src must be/);
+    });
+});
+
+describe('what the second trial tripped on', () => {
+    const halves: ImageLayer[] = [{ id: 'a', shape: 'rect', at: [0, 0], size: [32, 64], fill: BLUE }];
+    it('takes a clip with @ as well, and a clip of nothing draws nothing', () => {
+        const over: ImageLayer = { shape: 'rect', at: [0, 0], size: [64, 64], fill: RED };
+        expect(px(draw([...halves, { ...over, clip: '@a' }]), 10, 10)[0]).toBe(255);
+        expect(px(draw([...halves, { ...over, clip: '@a' }]), 50, 10)[3]).toBe(0);
+        const lost = draw([{ ...over, clip: 'nothing' }]);
+        expect(px(lost, 10, 10)[3]).toBe(0);
+        expect(lost.notes.join()).toMatch(/so it drew nothing/);
+    });
+
+    it('draws everywhere except a layer, and inside a clip too', () => {
+        const over: ImageLayer = { shape: 'rect', at: [0, 0], size: [64, 64], fill: RED, except: 'a' };
+        const img = draw([...halves, over]);
+        expect(px(img, 10, 10)[0]).toBe(0);
+        expect(px(img, 50, 10)[0]).toBe(255);
+        expect(draw([{ ...over, except: 'none' }]).notes.join()).toMatch(/except "none"/);
+    });
+
+    it('keeps a face out of a pass across the picture', () => {
+        const under: ImageLayer[] = [{ id: 'l', shape: 'rect', at: [0, 0], size: [32, 64], fill: RED }, { id: 'r', shape: 'rect', at: [32, 0], size: [32, 64], fill: BLUE }, { id: 'kept', shape: 'rect', at: [36, 26], size: [12, 12], fill: '#00000000' }];
+        const pass = { shape: 'paint', from: 'below', except: 'kept', strokes: [{ points: [[8, 32], [56, 32]], size: 12, smudge: 0.9 }] };
+        const img = draw([...under, pass as never]);
+        expect(px(img, 42, 32)).toEqual([0, 0, 255, 255]);
+        expect(px(img, 54, 32)[0]).toBeGreaterThan(5);
+    });
+
+    it('changes one entry in the middle of a paint layer', () => {
+        const dab = (x: number): object => ({ points: [[x, 5]], color: RED, size: 2 });
+        const start = validateImageSource({ size: 64, layers: [{ id: 'p', shape: 'paint', strokes: [dab(1), dab(2), dab(3)] }] });
+        const next = applyImageEdits(start, [{ op: 'paint', layer: 'p', at: 1, remove: 1, strokes: [dab(9) as never, dab(10) as never] }]);
+        expect(next.layers[0]!.strokes!.map((s) => (s as unknown as { points: number[][] }).points[0]![0])).toEqual([1, 9, 10, 3]);
+        expect(() => applyImageEdits(start, [{ op: 'paint', layer: 'p', at: 2, remove: 5 }])).toThrow(/cannot replace 5 at 2/);
+    });
 });
 
 describe('what it measures', () => {

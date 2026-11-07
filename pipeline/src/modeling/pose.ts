@@ -9,7 +9,7 @@
  */
 import { HUMANOID_TAGS, humanoidJoints, type HumanoidBuild } from './humanoid';
 import { compact, type PolyMesh, type Vec3 } from './polyMesh';
-import { computeWornWeights, jointPositions, posedPositions, resolveJoints, type AnimationSource, type AnimationTrack, type RigJoint, type SkinWeights } from './rig';
+import { computeWornWeights, jointFrames, jointPositions, posedPositions, resolveJoints, type AnimationSource, type AnimationTrack, type RigJoint, type SkinWeights } from './rig';
 
 export interface PoseParams {
     /** The bones of a humanoid of this build; true for the default one. */
@@ -55,6 +55,12 @@ function poseClip(p: PoseParams): { joints: RigJoint[]; animation: AnimationSour
 export function poseJoints(p: PoseParams): Record<string, Vec3> {
     const { joints, animation } = poseClip(p);
     return jointPositions(joints, animation, 0);
+}
+
+/** The same, with which way each joint has turned. */
+export function poseFrames(p: PoseParams): ReturnType<typeof jointFrames> {
+    const { joints, animation } = poseClip(p);
+    return jointFrames(joints, animation, 0);
 }
 
 export function poseStep(mesh: PolyMesh, p: PoseParams): PolyMesh {

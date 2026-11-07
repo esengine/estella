@@ -1052,6 +1052,15 @@ export function jointPositions(joints: readonly RigJoint[], animation: Animation
     return Object.fromEntries(joints.map((j, i) => [j.name, world[i]!.origin]));
 }
 
+/** Where each joint is in a pose, and which way its own axes have turned from rest. */
+export function jointFrames(joints: readonly RigJoint[], animation: AnimationSource | null, time: number, solve?: PoseSolve): Record<string, { at: Vec3; x: Vec3; y: Vec3; z: Vec3 }> {
+    const { world } = poseAt(joints, animation, time, solve);
+    return Object.fromEntries(joints.map((j, i) => {
+        const { origin, q } = world[i]!;
+        return [j.name, { at: origin, x: rotateBy(q, [1, 0, 0]), y: rotateBy(q, [0, 1, 0]), z: rotateBy(q, [0, 0, 1]) }];
+    }));
+}
+
 /** The surface's positions in a pose, skinned as the engine skins it. */
 export function posedPositions(mesh: PolyMesh, joints: readonly RigJoint[], skin: SkinWeights, animation: AnimationSource | null, time: number, solve?: PoseSolve): Vec3[] {
     const pose = poseAt(joints, animation, time, solve).world;
