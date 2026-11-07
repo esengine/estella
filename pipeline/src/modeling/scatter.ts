@@ -6,7 +6,7 @@
  *        Feathers along a limb, rivets on a plate, the lights of a far city: each is one small shape and a rule for where
  *        the rest go, where writing them out step by step would run to hundreds. The same seed lays them out the same way.
  */
-import { hash3 } from './organic';
+import { hash3 } from './hash';
 import { triangulateFace } from './triangulate';
 import { add, boundsOf, compact, cross, dot, faceNormal, length, normalize, scale, selectFaces, sub, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 

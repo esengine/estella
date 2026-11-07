@@ -2,7 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /** A picture from layers: each draws what it says and where, edges are antialiased, and what is wrong with a source is said before anything is drawn. */
 import { describe, expect, it } from 'vitest';
-import { imageCacheStats, imageSheet, parseColor, parsePath, pickColors, renderImage, setSheet, valuesImage, zoomImage } from '../src/image/imageRaster';
+import { imageCacheStats, imageSheet, pickColors, renderImage, setSheet, valuesImage, zoomImage } from '../src/image/imageRaster';
+import { parseColor } from '../src/image/imageNoise';
+import { parsePath } from '../src/image/imagePath';
 import { applyImageEdits, IMAGE_BLENDS, IMAGE_BRUSHES, IMAGE_FILTERS, strokeWidths, validateImageSource, type ImageLayer } from '../src/image/imageSource';
 
 const draw = (layers: unknown[], size: number | [number, number] = 64, background?: string): ReturnType<typeof renderImage> => renderImage(validateImageSource({ size, layers, ...(background ? { background } : {}) }));

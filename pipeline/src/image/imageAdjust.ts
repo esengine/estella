@@ -7,7 +7,7 @@
  * Each is one operation with numbers to turn, and the layer it sits on says where it applies and how much. Which to use, and how far, is the model's.
  * Pixels here are stored as the canvas stores them, colour already times alpha.
  */
-import { blurMask, fractalNoise, parseColor } from './imageRaster';
+import { blurMask, fractalNoise, parseColor } from './imageNoise';
 import type { ImageAdjust, ImageFilterName } from './imageSource';
 
 const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));

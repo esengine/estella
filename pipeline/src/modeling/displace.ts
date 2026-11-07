@@ -10,7 +10,7 @@
  *        `decimate` and a `normalBake` afterwards exist to pay back.
  */
 import { boundsOf, compact, dot, faceArea, faceNormal, normalize, selectFaces, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
-import { hash3 } from './organic';
+import { hash3 } from './hash';
 import { triangulateFace } from './triangulate';
 
 export const DISPLACE_PATTERNS = ['bumps', 'wrinkles', 'cracks', 'scales', 'pores', 'ribs', 'weave', 'scratches', 'pleats', 'folds'] as const;

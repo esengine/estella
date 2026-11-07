@@ -11,7 +11,7 @@
  */
 import { TriangleTree, trianglesOf } from './triangleTree';
 import { triangulateFace } from './triangulate';
-import { hash3 } from './organic';
+import { hash3 } from './hash';
 import { add, boundsOf, compact, cross, dot, faceNormal, normalize, scale, selectFaces, sub, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 import type { RigJoint, SkinWeights } from './rig';
 

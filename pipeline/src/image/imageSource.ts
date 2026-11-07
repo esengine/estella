@@ -3,7 +3,7 @@
 /**
  * @file  imageSource.ts — `.esimage`: a picture as a list of layers, what a model writes and edits, and what is wrong with one.
  */
-import { parsePath } from './imageRaster';
+import { parsePath } from './imagePath';
 
 export const IMAGE_BLENDS = [
     'normal', 'multiply', 'screen', 'overlay', 'add', 'softLight', 'hardLight', 'vividLight', 'linearLight', 'pinLight', 'colorDodge', 'colorBurn', 'linearBurn',

@@ -18,6 +18,7 @@
 import { refine } from './displace';
 import { add, type Face, type PolyMesh, type Vec3 } from './polyMesh';
 import { curveThrough } from './surfaces';
+import { hash3 } from './hash';
 
 export type OrganicShape = 'sphere' | 'ellipsoid' | 'box' | 'torus' | 'chain' | 'outline' | 'limb';
 
@@ -103,13 +104,6 @@ type Color = readonly [number, number, number, number];
 type Eval = (x: number, y: number, z: number) => number;
 
 // ---- Noise: value noise, seeded and platform-independent, so a bake is the same everywhere ----
-
-export function hash3(x: number, y: number, z: number, seed: number): number {
-    let h = Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(z, 2147483647 - 1274126177) + Math.imul(seed, 1442695041);
-    h = Math.imul(h ^ (h >>> 13), 1274126177);
-    h ^= h >>> 16;
-    return ((h >>> 0) / 4294967295) * 2 - 1;
-}
 
 const fade = (t: number): number => t * t * t * (t * (t * 6 - 15) + 10);
 const mix = (a: number, b: number, t: number): number => a + (b - a) * t;

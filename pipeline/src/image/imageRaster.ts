@@ -11,24 +11,14 @@ import { applyAdjust, applyFilter, lightnessOf } from './imageAdjust';
 import { figureLight, flattenFigure, type FlatFigure } from './imageFigure';
 import { IMAGE_BRUSHES, isGuideLayer, MAX_MARK_STROKES } from './imageSource';
 import type { ImageFill, ImageLayer, ImageSource, ImageAlong, ImageBrushSettings, ImageEffect, ImageField, ImageMark, ImageStroke, ImageSweep, ImageTransform } from './imageSource';
+import { type Pt, parsePath } from './imagePath';
+import { type Rgba, blurMask, fractalNoise, gradientNoise, parseColor } from './imageNoise';
 
 export interface RgbaBitmap { width: number; height: number; rgba: Uint8Array }
-
-type Rgba = readonly [number, number, number, number];
-type Pt = readonly [number, number];
 type Matrix = readonly [number, number, number, number, number, number];
 
 const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0];
 const SUBSCANS = 8;
-const CURVE_STEPS = 20;
-
-export function parseColor(text: string): Rgba {
-    const h = /^#([0-9a-fA-F]+)$/.exec(text)?.[1];
-    if (!h || ![3, 4, 6, 8].includes(h.length)) throw new Error(`color ${JSON.stringify(text)} must be #rgb, #rgba, #rrggbb or #rrggbbaa`);
-    const full = h.length <= 4 ? [...h].map((c) => c + c).join('') : h;
-    const at = (i: number): number => parseInt(full.slice(i, i + 2), 16) / 255;
-    return [at(0), at(2), at(4), full.length === 8 ? at(6) : 1];
-}
 
 const times = (a: Matrix, b: Matrix): Matrix => [
     a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1],
@@ -78,77 +68,6 @@ function roundedRect(x: number, y: number, w: number, h: number, radius: number 
     corner(x + w - br, y + h - br, br, 0);
     corner(x + bl, y + h - bl, bl, Math.PI / 2);
     return out;
-}
-
-/** An SVG path's closed and open runs: M L H V C S Q T Z, either case. */
-export function parsePath(d: string): { points: Pt[]; closed: boolean }[] {
-    const tokens = d.match(/[a-zA-Z]|-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) ?? [];
-    const runs: { points: Pt[]; closed: boolean }[] = [];
-    let run: Pt[] | null = null;
-    let [x, y, sx, sy, lastCx, lastCy] = [0, 0, 0, 0, 0, 0];
-    let cmd = '', prev = '', i = 0;
-    const num = (): number => {
-        const t = tokens[i++];
-        if (t === undefined || /[a-zA-Z]/.test(t)) throw new Error(`path ${JSON.stringify(d.slice(0, 60))}: command ${cmd} is short of numbers`);
-        return Number(t);
-    };
-    const start = (): void => {
-        if (!run) { run = [[x, y]]; runs.push({ points: run, closed: false }); }
-    };
-    const curve = (f: (t: number) => Pt): void => {
-        start();
-        for (let s = 1; s <= CURVE_STEPS; s++) run!.push(f(s / CURVE_STEPS));
-    };
-    while (i < tokens.length) {
-        if (/[a-zA-Z]/.test(tokens[i]!)) cmd = tokens[i++]!;
-        else if (!cmd) throw new Error(`path ${JSON.stringify(d.slice(0, 60))} must start with a command`);
-        const rel = cmd === cmd.toLowerCase();
-        const [ox, oy] = rel ? [x, y] : [0, 0];
-        switch (cmd.toUpperCase()) {
-            case 'M':
-                x = ox + num(); y = oy + num(); sx = x; sy = y;
-                run = [[x, y]];
-                runs.push({ points: run, closed: false });
-                cmd = rel ? 'l' : 'L';
-                break;
-            case 'L': x = ox + num(); y = oy + num(); start(); run!.push([x, y]); break;
-            case 'H': x = ox + num(); start(); run!.push([x, y]); break;
-            case 'V': y = oy + num(); start(); run!.push([x, y]); break;
-            case 'C': case 'S': {
-                const smooth = cmd.toUpperCase() === 'S';
-                const [c1x, c1y] = smooth ? (prev === 'C' || prev === 'S' ? [2 * x - lastCx, 2 * y - lastCy] : [x, y]) : [ox + num(), oy + num()];
-                const [c2x, c2y, ex, ey] = [ox + num(), oy + num(), ox + num(), oy + num()];
-                const [x0, y0] = [x, y];
-                curve((t) => {
-                    const u = 1 - t;
-                    return [u * u * u * x0 + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * ex, u * u * u * y0 + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t * t * t * ey];
-                });
-                [x, y, lastCx, lastCy] = [ex, ey, c2x, c2y];
-                break;
-            }
-            case 'Q': case 'T': {
-                const smooth = cmd.toUpperCase() === 'T';
-                const [cx, cy] = smooth ? (prev === 'Q' || prev === 'T' ? [2 * x - lastCx, 2 * y - lastCy] : [x, y]) : [ox + num(), oy + num()];
-                const [ex, ey] = [ox + num(), oy + num()];
-                const [x0, y0] = [x, y];
-                curve((t) => {
-                    const u = 1 - t;
-                    return [u * u * x0 + 2 * u * t * cx + t * t * ex, u * u * y0 + 2 * u * t * cy + t * t * ey];
-                });
-                [x, y, lastCx, lastCy] = [ex, ey, cx, cy];
-                break;
-            }
-            case 'Z':
-                if (runs.length) runs[runs.length - 1]!.closed = true;
-                x = sx; y = sy; run = null;
-                cmd = '';
-                break;
-            default:
-                throw new Error(`path command ${cmd} is not one this draws; there are M L H V C S Q T Z`);
-        }
-        prev = cmd.toUpperCase() === 'L' && prev === 'M' ? 'L' : cmd.toUpperCase();
-    }
-    return runs;
 }
 
 /** A layer's outlines in its own coordinates. */
@@ -372,35 +291,6 @@ function strokeMask(runs: readonly { points: readonly Pt[]; closed: boolean }[],
     return mask;
 }
 
-/** Three box blurs, which is a gaussian to the eye at a cost that does not grow with the radius. */
-export function blurMask(src: Float32Array, w: number, h: number, sigma: number): Float32Array {
-    if (sigma <= 0) return src;
-    const r = Math.max(1, Math.round(sigma * 1.2));
-    let cur = src;
-    for (let pass = 0; pass < 3; pass++) {
-        const a = new Float32Array(w * h);
-        for (let y = 0; y < h; y++) {
-            let sum = 0;
-            for (let x = -r; x <= r; x++) sum += cur[y * w + Math.max(0, Math.min(w - 1, x))]!;
-            for (let x = 0; x < w; x++) {
-                a[y * w + x] = sum / (2 * r + 1);
-                sum += cur[y * w + Math.min(w - 1, x + r + 1)]! - cur[y * w + Math.max(0, x - r)]!;
-            }
-        }
-        const b = new Float32Array(w * h);
-        for (let x = 0; x < w; x++) {
-            let sum = 0;
-            for (let y = -r; y <= r; y++) sum += a[Math.max(0, Math.min(h - 1, y)) * w + x]!;
-            for (let y = 0; y < h; y++) {
-                b[y * w + x] = sum / (2 * r + 1);
-                sum += a[Math.min(h - 1, y + r + 1) * w + x]! - a[Math.max(0, y - r) * w + x]!;
-            }
-        }
-        cur = b;
-    }
-    return cur;
-}
-
 function shifted(src: Float32Array, w: number, h: number, dx: number, dy: number): Float32Array {
     const [ix, iy] = [Math.round(dx), Math.round(dy)];
     if (ix === 0 && iy === 0) return src;
@@ -414,51 +304,6 @@ function shifted(src: Float32Array, w: number, h: number, dx: number, dy: number
         }
     }
     return out;
-}
-
-// ---- Paint ----------------------------------------------------------------------
-
-/** A fill as a function of a pixel. Its coordinates go with its layer's, turned and all. */
-/** Written out, not computed by cos and sin, whose last bits are the engine's to choose. */
-const NOISE_DIRECTIONS: readonly (readonly [number, number])[] = [
-    [1, 0], [0.9239, 0.3827], [0.7071, 0.7071], [0.3827, 0.9239], [0, 1], [-0.3827, 0.9239], [-0.7071, 0.7071], [-0.9239, 0.3827],
-    [-1, 0], [-0.9239, -0.3827], [-0.7071, -0.7071], [-0.3827, -0.9239], [0, -1], [0.3827, -0.9239], [0.7071, -0.7071], [0.9239, -0.3827],
-];
-
-/** How much a corner of the lattice lifts the point @p dx, @p dy away. Integer hashing, so it is the same on every machine. */
-function cornerLift(ix: number, iy: number, seed: number, dx: number, dy: number): number {
-    let h = Math.imul(ix, 374761393) + Math.imul(iy, 668265263) + Math.imul(seed, 1442968193);
-    h = Math.imul(h ^ (h >>> 13), 1274126177);
-    h = Math.imul(h ^ (h >>> 16), 2246822519);
-    const d = NOISE_DIRECTIONS[((h ^ (h >>> 16)) >>> 0) % NOISE_DIRECTIONS.length]!;
-    return d[0] * dx + d[1] * dy;
-}
-
-const fade = (t: number): number => t * t * t * (t * (t * 6 - 15) + 10);
-
-/** Gradient noise, about -0.7..0.7: a value on a lattice alone shows the lattice, as boxes in a large soft cloud. */
-function gradientNoise(x: number, y: number, seed: number): number {
-    const [ix, iy] = [Math.floor(x), Math.floor(y)];
-    const [fx, fy] = [x - ix, y - iy];
-    const [sx, sy] = [fade(fx), fade(fy)];
-    const top = cornerLift(ix, iy, seed, fx, fy) * (1 - sx) + cornerLift(ix + 1, iy, seed, fx - 1, fy) * sx;
-    const bottom = cornerLift(ix, iy + 1, seed, fx, fy - 1) * (1 - sx) + cornerLift(ix + 1, iy + 1, seed, fx - 1, fy - 1) * sx;
-    return top * (1 - sy) + bottom * sy;
-}
-
-/** Spread out to 0..1, so that the stops at the ends are reached. */
-const NOISE_CONTRAST = [1.15, 1.3, 1.4, 1.45, 1.45, 1.45, 1.45, 1.45];
-
-export function fractalNoise(x: number, y: number, octaves: number, seed: number): number {
-    let [sum, weight, amplitude, frequency] = [0, 0, 1, 1];
-    for (let i = 0; i < octaves; i++) {
-        // Off the lattice, where this noise is always nothing.
-        sum += gradientNoise(x * frequency + 0.37, y * frequency + 0.61, seed + i * 101) * amplitude;
-        weight += amplitude;
-        amplitude *= 0.5;
-        frequency *= 2;
-    }
-    return Math.max(0, Math.min(1, 0.5 + (sum / weight) * NOISE_CONTRAST[octaves - 1]!));
 }
 
 /** From a place in the picture to where it lies on four corners, 0..1 each way; null when the corners cannot be solved. */

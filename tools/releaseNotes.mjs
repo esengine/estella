@@ -4102,4 +4102,8 @@ export const NOTED = {
     {"note": "A prefab made over MCP is in `list_assets` at once."},
   "fix(docs): the CompositeBatch entry of the component reference quotes its apostrophe, which stopped the site building":
     {"internal": "The docs site did not build, so v0.99.0 was not deployed to it; no package changes."},
+  "refactor(image): a text mask draws in the canvas's own default colour, since only its alpha is read":
+    {"internal": "Two assignments of the colour a fresh canvas already has; the mask read back is the same."},
+  "refactor(image): the noise, colour and path helpers live in their own modules, so no two image or modeling modules import each other":
+    {"internal": "Declarations moved between files unchanged; every image and modeling test draws and builds the same."},
 };
