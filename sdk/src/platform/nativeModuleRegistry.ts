@@ -25,7 +25,7 @@ import * as SpineModule from '../spine';
 import * as DragonBonesModule from '../dragonbones';
 import * as TilemapModule from '../tilemap';
 import * as TerrainModule from '../terrain';
-import * as TimelineModule from '../timeline/entry';
+import * as TimelineModule from '../timeline/api';
 import * as FxBasicModule from '../postprocess/fxBasic';
 import * as FxAtmosphereModule from '../postprocess/fxAtmosphere';
 import * as FxLightingModule from '../postprocess/fxLighting';

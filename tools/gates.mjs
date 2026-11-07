@@ -149,6 +149,7 @@ export const GATES = [
   // And the half no text probe can see: `sideEffects` lists FILES, so a prologue
   // the bundler puts in an unlisted chunk is dropped while still sitting in dist.
   { id: 'entry-boots', run: 'node tools/check-entry-boots.mjs' },
+  { id: 'dist-side-effect-chunks', run: 'node tools/check-dist-side-effect-chunks.mjs' },
   // Replication applies its inbox in arrival order, so reliable+ordered is a
   // correctness condition. This compiles the claim: a transport that does not
   // make it cannot reach replication.
