@@ -778,8 +778,8 @@ function paintStrand(c: Canvas, s: ImageStroke, path: readonly PathPoint[], stra
         const t = span > 0 ? Math.max(0, Math.min(1, (distance - a.along) / span)) : 0;
         const position = total > 0 ? distance / total : 0;
         let narrowing = 1;
-        if (taperIn > 0 && position < taperIn) narrowing *= smoothed(position / taperIn);
-        if (taperOut > 0 && position > 1 - taperOut) narrowing *= smoothed((1 - position) / taperOut);
+        if (total > 0 && taperIn > 0 && position < taperIn) narrowing *= smoothed(position / taperIn);
+        if (total > 0 && taperOut > 0 && position > 1 - taperOut) narrowing *= smoothed((1 - position) / taperOut);
         const width = size * (a.pressure + (b.pressure - a.pressure) * t) * narrowing;
         const radius = strand.radius === null ? width / 2 : Math.min(strand.radius, Math.max(width, strand.radius * 0.4));
         const [nx, ny] = span > 0 ? [-(b.y - a.y) / span, (b.x - a.x) / span] : [0, 0];

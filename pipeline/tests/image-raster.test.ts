@@ -625,6 +625,11 @@ describe('brushes', () => {
         expect(px(dab, 32, 45)[3]).toBe(0);
     });
 
+    it('draws a dab whatever its taper, as it has no length to taper along', () => {
+        const dab = draw([paint([{ points: [[32, 32]], color: BLUE, size: 10, hardness: 1, taper: [0.1, 0.25] }])]);
+        expect(px(dab, 32, 32)).toEqual([0, 0, 255, 255]);
+    });
+
     it('passes through each point of a curve', () => {
         const img = draw([paint([{ points: [[8, 50], [32, 12], [56, 50]], color: RED, size: 6, hardness: 1 }])]);
         expect(px(img, 32, 12)[3]).toBe(255);
