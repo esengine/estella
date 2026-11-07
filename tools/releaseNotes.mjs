@@ -3884,6 +3884,10 @@ export const NOTED = {
     {"note":"A material's normal and metal-rough maps are read as data in the editor's Play."},
   "fix(minigame): no mini-game module needs BigInt64Array, so WeChat DevTools boots the game":
     {"note":"A WeChat mini-game opens in WeChat DevTools."},
+  "feat(look): layers and pixels drawn to a picture, on the CPU":
+    {"note":"An AI can draw 2D pictures."},
+  "feat(mcp): image_write, image_edit and image_read":
+    {"note":"An AI can draw 2D pictures."},
   "feat(modeling): a whole person from a few numbers, clothes from the body's own surface, and a pose by where a hand should be":
     {"note":"An AI can build a person, and not a picture of one."},
   "feat(mcp): model_write describes a person, and scene_views looks round a subject without a shot's lens":
