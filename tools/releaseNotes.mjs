@@ -3892,6 +3892,10 @@ export const NOTED = {
     {"note":"An AI can draw 2D pictures."},
   "feat(mcp): image_write draws text in the editor's fonts, and documents the built world":
     {"note":"An AI can draw 2D pictures."},
+  "feat(look): adjustment layers, filters, every blend mode, feather; repaint removed":
+    {"note":"An AI can draw 2D pictures."},
+  "feat(mcp): image_write teaches the finish of a picture, in place of repaint":
+    {"note":"An AI can draw 2D pictures."},
   "feat(look): repaint the picture so far in strokes, and an edit draws only what changed":
     {"note":"An AI can draw 2D pictures."},
   "feat(mcp): image_write teaches repaint":

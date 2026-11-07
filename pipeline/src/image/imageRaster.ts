@@ -7,6 +7,7 @@
  *        effects, and this owns everything that has to be exact: antialiased edges, gradients, soft shadows.
  *        On the CPU rather than through a canvas, so the same source makes the same bytes on any machine and a test can read them.
  */
+import { applyAdjust, applyFilter, lightnessOf } from './imageAdjust';
 import { figureLight, flattenFigure, type FlatFigure } from './imageFigure';
 import { IMAGE_BRUSHES, isGuideLayer, MAX_MARK_STROKES } from './imageSource';
 import type { ImageFill, ImageLayer, ImageSource, ImageAlong, ImageBrushSettings, ImageEffect, ImageField, ImageMark, ImageStroke, ImageSweep, ImageTransform } from './imageSource';
@@ -372,7 +373,7 @@ function strokeMask(runs: readonly { points: readonly Pt[]; closed: boolean }[],
 }
 
 /** Three box blurs, which is a gaussian to the eye at a cost that does not grow with the radius. */
-function blurMask(src: Float32Array, w: number, h: number, sigma: number): Float32Array {
+export function blurMask(src: Float32Array, w: number, h: number, sigma: number): Float32Array {
     if (sigma <= 0) return src;
     const r = Math.max(1, Math.round(sigma * 1.2));
     let cur = src;
@@ -448,7 +449,7 @@ function gradientNoise(x: number, y: number, seed: number): number {
 /** Spread out to 0..1, so that the stops at the ends are reached. */
 const NOISE_CONTRAST = [1.15, 1.3, 1.4, 1.45, 1.45, 1.45, 1.45, 1.45];
 
-function fractalNoise(x: number, y: number, octaves: number, seed: number): number {
+export function fractalNoise(x: number, y: number, octaves: number, seed: number): number {
     let [sum, weight, amplitude, frequency] = [0, 0, 1, 1];
     for (let i = 0; i < octaves; i++) {
         // Off the lattice, where this noise is always nothing.
@@ -621,15 +622,64 @@ class Canvas {
 }
 
 type Blend = NonNullable<ImageLayer['blend']>;
+const softLight = (b: number, s: number): number => {
+    if (s <= 0.5) return b - (1 - 2 * s) * b * (1 - b);
+    const d = b <= 0.25 ? ((16 * b - 12) * b + 4) * b : Math.sqrt(b);
+    return b + (2 * s - 1) * (d - b);
+};
+const dodge = (b: number, s: number): number => (b <= 0 ? 0 : s >= 1 ? 1 : Math.min(1, b / (1 - s)));
+const burn = (b: number, s: number): number => (b >= 1 ? 1 : s <= 0 ? 0 : 1 - Math.min(1, (1 - b) / s));
+const hard = (b: number, s: number): number => (s < 0.5 ? 2 * b * s : 1 - 2 * (1 - b) * (1 - s));
 const blendChannel = (mode: Blend, b: number, s: number): number => {
     switch (mode) {
         case 'multiply': return b * s;
         case 'screen': return b + s - b * s;
-        case 'overlay': return b < 0.5 ? 2 * b * s : 1 - 2 * (1 - b) * (1 - s);
+        case 'overlay': return hard(s, b);
         case 'add': return Math.min(1, b + s);
+        case 'softLight': return softLight(b, s);
+        case 'hardLight': return hard(b, s);
+        case 'vividLight': return s < 0.5 ? burn(b, 2 * s) : dodge(b, 2 * s - 1);
+        case 'linearLight': return Math.max(0, Math.min(1, b + 2 * s - 1));
+        case 'pinLight': return s < 0.5 ? Math.min(b, 2 * s) : Math.max(b, 2 * s - 1);
+        case 'colorDodge': return dodge(b, s);
+        case 'colorBurn': return burn(b, s);
+        case 'linearBurn': return Math.max(0, b + s - 1);
+        case 'darken': return Math.min(b, s);
+        case 'lighten': return Math.max(b, s);
+        case 'difference': return Math.abs(b - s);
+        case 'exclusion': return b + s - 2 * b * s;
+        case 'subtract': return Math.max(0, b - s);
+        case 'divide': return s <= 0 ? 1 : Math.min(1, b / s);
         default: return s;
     }
 };
+
+/** Keeping a colour's hue and saturation in range when its lightness is set, as the colour blend modes need. */
+function withLight(c: readonly [number, number, number], light: number): [number, number, number] {
+    const d = light - lightnessOf(c[0], c[1], c[2]);
+    const out: [number, number, number] = [c[0] + d, c[1] + d, c[2] + d];
+    const l = lightnessOf(out[0], out[1], out[2]);
+    const [lo, hi] = [Math.min(...out), Math.max(...out)];
+    if (lo < 0) for (let i = 0; i < 3; i++) out[i] = l + ((out[i]! - l) * l) / (l - lo);
+    if (hi > 1) for (let i = 0; i < 3; i++) out[i] = l + ((out[i]! - l) * (1 - l)) / (hi - l);
+    return out;
+}
+const colourfulness = (c: readonly [number, number, number]): number => Math.max(...c) - Math.min(...c);
+function withColourfulness(c: readonly [number, number, number], sat: number): [number, number, number] {
+    const [lo, hi] = [Math.min(...c), Math.max(...c)];
+    if (hi === lo) return [0, 0, 0];
+    return [((c[0] - lo) * sat) / (hi - lo), ((c[1] - lo) * sat) / (hi - lo), ((c[2] - lo) * sat) / (hi - lo)];
+}
+/** The modes that work on a colour whole: this hue on that lightness, and so on. */
+function blendWhole(mode: Blend, d: readonly [number, number, number], s: readonly [number, number, number]): [number, number, number] {
+    switch (mode) {
+        case 'hue': return withLight(withColourfulness(s, colourfulness(d)), lightnessOf(d[0], d[1], d[2]));
+        case 'saturation': return withLight(withColourfulness(d, colourfulness(s)), lightnessOf(d[0], d[1], d[2]));
+        case 'color': return withLight(s, lightnessOf(d[0], d[1], d[2]));
+        default: return withLight(d, lightnessOf(s[0], s[1], s[2]));
+    }
+}
+const WHOLE_MODES: ReadonlySet<Blend> = new Set<Blend>(['hue', 'saturation', 'color', 'luminosity']);
 
 /** @p color straight, at coverage @p m, over what is there. */
 function put(c: Canvas, i: number, r: number, g: number, b: number, a: number, mode: Blend): void {
@@ -640,10 +690,39 @@ function put(c: Canvas, i: number, r: number, g: number, b: number, a: number, m
         p[at] = p[at]! * (1 - a) + r * a; p[at + 1] = p[at + 1]! * (1 - a) + g * a; p[at + 2] = p[at + 2]! * (1 - a) + b * a;
     } else {
         const [dr, dg, db] = [p[at]! / da, p[at + 1]! / da, p[at + 2]! / da];
+        if (WHOLE_MODES.has(mode)) {
+            const whole = blendWhole(mode, [dr, dg, db], [r, g, b]);
+            const [mr, mg, mb] = [(1 - da) * r + da * whole[0], (1 - da) * g + da * whole[1], (1 - da) * b + da * whole[2]];
+            p[at] = p[at]! * (1 - a) + mr * a; p[at + 1] = p[at + 1]! * (1 - a) + mg * a; p[at + 2] = p[at + 2]! * (1 - a) + mb * a;
+            p[at + 3] = da + a - da * a;
+            return;
+        }
         const mix = (d: number, s: number): number => (1 - da) * s + da * blendChannel(mode, d, s);
         p[at] = p[at]! * (1 - a) + mix(dr, r) * a; p[at + 1] = p[at + 1]! * (1 - a) + mix(dg, g) * a; p[at + 2] = p[at + 2]! * (1 - a) + mix(db, b) * a;
     }
     p[at + 3] = da + a - da * a;
+}
+
+/** Raised edges from how the shape's edge slopes: lit on the side toward the light, and shaded away from it. */
+function bevelEffect(e: ImageEffect, c: Canvas, mask: Float32Array): void {
+    const { w, h } = c;
+    const soft = blurMask(mask, w, h, Math.max(0.5, (e.size ?? 4) / 2));
+    const a = ((e.angle ?? 225) * Math.PI) / 180;
+    const [lx, ly] = [Math.cos(a), Math.sin(a)];
+    const [hr, hg, hb, ha] = parseColor(e.color ?? '#ffffff');
+    const [sr, sg, sb, sa] = parseColor(e.shade ?? '#000000');
+    const gain = (e.depth ?? 1) * (e.size ?? 4) * 2;
+    const op = e.opacity ?? 0.8;
+    for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+            const i = y * w + x;
+            if (mask[i]! <= 0) continue;
+            // The edge rises inward, so it faces against its slope.
+            const facing = -((soft[i + 1]! - soft[i - 1]!) * lx + (soft[i + w]! - soft[i - w]!) * ly) * gain;
+            if (facing > 0) put(c, i, hr, hg, hb, Math.min(1, facing) * op * ha * mask[i]!, 'screen');
+            else if (facing < 0) put(c, i, sr, sg, sb, Math.min(1, -facing) * op * sa * mask[i]!, 'multiply');
+        }
+    }
 }
 
 function effectLayers(effects: readonly ImageEffect[] | undefined, under: boolean, c: Canvas, mask: Float32Array): void {
@@ -651,6 +730,19 @@ function effectLayers(effects: readonly ImageEffect[] | undefined, under: boolea
     for (const e of effects ?? []) {
         const isUnder = e.type === 'shadow' || e.type === 'glow';
         if (isUnder !== under) continue;
+        if (e.type === 'bevel') { bevelEffect(e, c, mask); continue; }
+        if (e.type === 'overlay') {
+            const paint = paintOf(e.fill!, IDENTITY);
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const i = y * w + x;
+                    if (mask[i]! <= 0) continue;
+                    const col = paint(x + 0.5, y + 0.5);
+                    put(c, i, col[0], col[1], col[2], col[3] * mask[i]! * (e.opacity ?? 1), e.blend ?? 'normal');
+                }
+            }
+            continue;
+        }
         const [r, g, b, ca] = parseColor(e.color ?? (e.type === 'glow' || e.type === 'innerGlow' ? '#ffffff' : '#000000'));
         const op = (e.opacity ?? 1) * ca;
         const sigma = e.blur ?? (e.type === 'glow' ? 8 : 4);
@@ -728,6 +820,13 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
     const blend: Blend = layer.blend ?? 'normal';
     const named = (id: string): Float32Array | undefined => drawn.masks.get(id.replace(/^@/, ''));
     let clip = layer.clip ? named(layer.clip) : undefined;
+    const softened = (mask: Float32Array): Float32Array => {
+        let out = mask;
+        if (layer.clipGrow) out = grownMask(out, layer.clipGrow * drawnScale(parent), w, h);
+        if (layer.clipFeather) out = blurMask(out, w, h, layer.clipFeather * drawnScale(parent));
+        return layer.clipInvert ? out.map((v) => 1 - v) : out;
+    };
+    if (clip) clip = softened(clip);
     // Nothing, and not everything: a clip that failed would otherwise cover the picture in what it was meant to hold in.
     if (layer.clip && !clip) {
         drawn.notes.push(`layer ${layer.id ?? layer.shape}: clip "${layer.clip}" names no layer drawn before it, so it drew nothing`);
@@ -739,8 +838,58 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
         else clip = out.map((v, i) => (1 - v) * (clip ? clip[i]! : 1));
     }
 
+    if (layer.blendIf) {
+        // Reads the picture as it stands now, so a highlight is chosen by being one.
+        const [low, high, soft = 0.1] = layer.blendIf as [number, number, number?];
+        const chosen = new Float32Array(w * h);
+        for (let i = 0; i < chosen.length; i++) {
+            const a = c.px[i * 4 + 3]!;
+            const l = a > 0 ? lightnessOf(c.px[i * 4]! / a, c.px[i * 4 + 1]! / a, c.px[i * 4 + 2]! / a) : 0;
+            const v = Math.min(soft > 0 ? (l - low) / soft + 1 : l >= low ? 1 : 0, soft > 0 ? (high - l) / soft + 1 : l <= high ? 1 : 0);
+            chosen[i] = Math.max(0, Math.min(1, v)) * (clip ? clip[i]! : 1);
+        }
+        clip = chosen;
+    }
+
+    if (layer.feather) {
+        const { feather, opacity: _o, blend: _b, clip: _c, except: _e, blendIf: _f, clipFeather: _g, clipGrow: _h, clipInvert: _i, ...sharp } = layer;
+        const inner = new Canvas(w, h);
+        drawLayer(inner, sharp, parent, drawn);
+        const alpha = new Float32Array(w * h);
+        for (let i = 0; i < alpha.length; i++) alpha[i] = inner.px[i * 4 + 3]!;
+        const soft = blurMask(alpha, w, h, feather * drawnScale(parent));
+        const mask = new Float32Array(w * h);
+        for (let i = 0; i < alpha.length; i++) {
+            const a = alpha[i]!;
+            if (a <= 0) continue;
+            // Fading in from the edge: half way down its blur is the edge, and all of the colour there is the layer's own.
+            const kept = a * smoothed(Math.max(0, Math.min(1, (soft[i]! / a - 0.5) * 2.5)));
+            mask[i] = kept * (clip ? clip[i]! : 1);
+            put(c, i, inner.px[i * 4]! / a, inner.px[i * 4 + 1]! / a, inner.px[i * 4 + 2]! / a, mask[i]! * opacity, blend);
+        }
+        if (layer.id) drawn.masks.set(layer.id, mask);
+        return;
+    }
+
+    if (layer.shape === 'adjust' || layer.shape === 'filter') {
+        const k = drawnScale(parent);
+        const next = layer.shape === 'adjust' ? applyAdjust(c.px, w, h, layer.adjust!) : applyFilter(layer.filter!, layer.params ?? {}, c.px, w, h, k);
+        for (let i = 0; i < w * h; i++) {
+            const keep = opacity * (clip ? clip[i]! : 1);
+            if (keep <= 0) continue;
+            const at = i * 4;
+            if (blend !== 'normal') {
+                const a = next[at + 3]!;
+                if (a > 0) put(c, i, next[at]! / a, next[at + 1]! / a, next[at + 2]! / a, a * keep, blend);
+                continue;
+            }
+            for (let n = 0; n < 4; n++) c.px[at + n] = c.px[at + n]! + (next[at + n]! - c.px[at + n]!) * keep;
+        }
+        return;
+    }
+
     if (layer.blur) {
-        const { blur, opacity: _o, blend: _b, clip: _c, except: _e, ...sharp } = layer;
+        const { blur, opacity: _o, blend: _b, clip: _c, except: _e, blendIf: _f, clipFeather: _g, clipGrow: _h, clipInvert: _i, ...sharp } = layer;
         const inner = new Canvas(w, h);
         drawLayer(inner, sharp, parent, drawn);
         // Blurred as stored, colour already times alpha: blurring straight colour would bring the black of empty pixels in round the edge.
@@ -819,11 +968,6 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
 
     if (layer.shape === 'bloom') {
         drawBloom(c, layer, parent, opacity, clip);
-        return;
-    }
-
-    if (layer.shape === 'repaint') {
-        drawRepaint(c, layer, drawn, opacity, clip);
         return;
     }
 
@@ -916,6 +1060,17 @@ const smoothed = (t: number): number => t * t * (3 - 2 * t);
 
 interface PathPoint { x: number; y: number; pressure: number; along: number }
 
+/** The tooth of the paper, worked out once: every stroke with grain asks it at every pixel it touches. */
+let paper: { key: string; values: Float32Array } | null = null;
+function paperAt(w: number, h: number, scale: number): Float32Array {
+    const key = `${w}x${h}:${scale}`;
+    if (paper?.key === key) return paper.values;
+    const values = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) values[y * w + x] = fractalNoise((x + 0.5) / scale, (y + 0.5) / scale, 3, 77);
+    paper = { key, values };
+    return values;
+}
+
 /** A stroke's points as a smooth line about a pixel apart, Catmull-Rom so it passes through each. */
 function brushPath(points: readonly (readonly number[])[], m: Matrix): PathPoint[] {
     const placed = points.map((p) => {
@@ -1004,7 +1159,8 @@ function paintStrand(c: Canvas, s: ImageStroke, path: readonly PathPoint[], stra
                 if (grain <= 0 && dry <= 0) return 1;
                 let kept = 1;
                 // A wide band and not a threshold: paper takes more or less pigment at each place, and specks of all or nothing read as static.
-                if (grain > 0) kept *= Math.max(0, Math.min(1, (fractalNoise(x / grainScale, y / grainScale, 3, 77) - (0.12 + grain * 0.62)) / 0.34 + 0.5));
+                // A wide band and not a threshold: paper takes more or less pigment at each place, and specks of all or nothing read as static.
+                if (grain > 0) kept *= Math.max(0, Math.min(1, (paperAt(w, h, grainScale)[Math.floor(y) * w + Math.floor(x)]! - (0.12 + grain * 0.62)) / 0.34 + 0.5));
                 if (dry > 0) {
                     // Hairs of the brush: fine across its width and long along its travel.
                     const across = (x - cx) * nx + (y - cy) * ny + away;
@@ -1481,100 +1637,6 @@ function textOnQuad(layer: ImageLayer, m: Matrix, w: number, h: number, draw: Im
     return out;
 }
 
-/** [brush size at 960 pixels across, how wrong a cell must be, 0..255, before it gets a stroke]. */
-const REPAINT_LEVELS: readonly (readonly (readonly [number, number])[])[] = [
-    [[26, 0], [13, 24], [6, 30]],
-    [[22, 0], [11, 20], [6, 22], [3.5, 20]],
-    [[20, 0], [10, 18], [5, 18], [3, 16], [2, 14]],
-];
-const REPAINT_BOOST: readonly (readonly [number, number])[] = [[3, 14], [1.8, 10]];
-
-/**
- * The picture so far painted again, coarse to fine, each stroke taking its colour from under where it starts and running along the edges there.
- * Shapes become brushwork without a stroke being written: what makes a built picture read as a painted one. It costs seconds, so it comes last.
- */
-function drawRepaint(c: Canvas, layer: ImageLayer, drawn: Drawn, opacity: number, clip: Float32Array | undefined): void {
-    const { w, h } = c;
-    const k = Math.max(w, h) / 960;
-    const brush = layer.brush ?? 'oil';
-    const seed = layer.seed ?? 1;
-    const inner = new Canvas(w, h);
-    const buffer: StrokeBuffer = { mask: new Float32Array(w * h), rgb: new Float32Array(w * h * 3), touched: [] };
-    const boosted = (layer.boost ?? []).map((id) => {
-        const mask = drawn.masks.get(id.replace(/^@/, ''));
-        if (!mask) drawn.notes.push(`layer ${layer.id ?? 'repaint'}: boost "${id}" names no layer drawn before it`);
-        return mask;
-    }).filter((m): m is Float32Array => !!m);
-    const passes = [
-        ...REPAINT_LEVELS[layer.detail ?? 2]!.map(([size, tolerance]) => ({ size, tolerance, only: null as Float32Array[] | null })),
-        ...(boosted.length ? REPAINT_BOOST.map(([size, tolerance]) => ({ size, tolerance, only: boosted })) : []),
-    ];
-    let count = 0;
-    for (const pass of passes) {
-        const size = pass.size * k;
-        const sigma = Math.max(0.6, size / 3.2);
-        const target = [0, 1, 2, 3].map((n) => {
-            const channel = new Float32Array(w * h);
-            for (let i = 0; i < channel.length; i++) channel[i] = c.px[i * 4 + n]!;
-            return blurMask(channel, w, h, sigma);
-        }) as [Float32Array, Float32Array, Float32Array, Float32Array];
-        const light = new Float32Array(w * h);
-        for (let i = 0; i < light.length; i++) light[i] = target[0][i]! * 0.3 + target[1][i]! * 0.59 + target[2][i]! * 0.11;
-        const cell = Math.max(2, Math.round(size * 0.8));
-        const [columns, rows] = [Math.ceil(w / cell), Math.ceil(h / cell)];
-        // In no order: swept in rows, each stroke would lie the same way over the last.
-        const order = Array.from({ length: columns * rows }, (_, i) => i).sort((a, b) => hash01(seed * 61 + a, count & 255) - hash01(seed * 61 + b, count & 255));
-        const starts: { x: number; y: number }[] = [];
-        for (const index of order) {
-            const [gx, gy] = [(index % columns) * cell, Math.floor(index / columns) * cell];
-            let [worst, bx, by, total, n] = [-1, gx, gy, 0, 0];
-            for (let y = gy; y < Math.min(h, gy + cell); y++) {
-                for (let x = gx; x < Math.min(w, gx + cell); x++) {
-                    const i = y * w + x;
-                    const e = Math.hypot(inner.px[i * 4]! - target[0][i]!, inner.px[i * 4 + 1]! - target[1][i]!, inner.px[i * 4 + 2]! - target[2][i]!) * 255;
-                    total += e; n++;
-                    if (e > worst) { worst = e; bx = x; by = y; }
-                }
-            }
-            if (n === 0 || total / n < pass.tolerance) continue;
-            if (pass.only && !pass.only.some((m) => m[by * w + bx]! >= 0.5)) continue;
-            starts.push({ x: bx, y: by });
-        }
-        for (const { x: bx, y: by } of starts) {
-            const at = by * w + bx;
-            const alpha = target[3][at]!;
-            if (alpha < 0.02) continue;
-            const color: Rgba = [target[0][at]! / alpha, target[1][at]! / alpha, target[2][at]! / alpha, alpha];
-            const points: number[][] = [[bx, by]];
-            let [x, y, dx, dy] = [bx, by, 0, 0];
-            for (let step = 0; step < 5; step++) {
-                const [ix, iy] = [Math.max(1, Math.min(w - 2, Math.round(x))), Math.max(1, Math.min(h - 2, Math.round(y)))];
-                const [gx, gy] = [light[iy * w + ix + 1]! - light[iy * w + ix - 1]!, light[(iy + 1) * w + ix]! - light[(iy - 1) * w + ix]!];
-                const g = Math.hypot(gx, gy);
-                // Along an edge where there is one, and a way of its own where there is not.
-                const free = hash01(seed * 67 + bx, by) * Math.PI * 2;
-                let [nx, ny] = g < 0.006 ? [Math.cos(free), Math.sin(free)] : [-gy / g, gx / g];
-                if (nx * dx + ny * dy < 0) [nx, ny] = [-nx, -ny];
-                [dx, dy] = dx === 0 && dy === 0 ? [nx, ny] : [dx * 0.5 + nx * 0.5, dy * 0.5 + ny * 0.5];
-                const len = Math.hypot(dx, dy) || 1;
-                x += (dx / len) * size * 0.9; y += (dy / len) * size * 0.9;
-                if (x < 0 || y < 0 || x >= w || y >= h) break;
-                const here = Math.round(y) * w + Math.round(x);
-                if (Math.hypot(target[0][here]! - target[0][at]!, target[1][here]! - target[1][at]!, target[2][here]! - target[2][at]!) * 255 > 45) break;
-                points.push([x, y]);
-            }
-            paintStroke(inner, { brush, points, color: toHex(color), size, seed: seed + count }, IDENTITY, 1, count, buffer);
-            count++;
-        }
-    }
-    if (layer.id) drawn.painted.set(layer.id, { entries: passes.length, strokes: count });
-    for (let i = 0; i < w * h; i++) {
-        const a = inner.px[i * 4 + 3]!;
-        if (a <= 0) continue;
-        put(c, i, inner.px[i * 4]! / a, inner.px[i * 4 + 1]! / a, inner.px[i * 4 + 2]! / a, a * opacity * (clip ? clip[i]! : 1), layer.blend ?? 'normal');
-    }
-}
-
 /** What is bright in the picture so far, spilling over what is round it: a tight glow and a wide one, as a lens and the air both give. */
 function drawBloom(c: Canvas, layer: ImageLayer, parent: Matrix, opacity: number, clip: Float32Array | undefined): void {
     const { w, h } = c;
@@ -1647,6 +1709,30 @@ function wornText(mask: Float32Array, layer: ImageLayer, w: number): Float32Arra
         if (dry > 0) kept *= Math.max(0, Math.min(1, (0.5 + 1.3 * gradientNoise(x / 40, y / 1.8, 9) - (0.12 + dry * 0.68)) / 0.22 + 0.5));
         return kept;
     });
+}
+
+/** A mask made wider by @p pixels, or narrower if they are less than none: the highest or lowest within reach, across and then down. */
+function grownMask(mask: Float32Array, pixels: number, w: number, h: number): Float32Array {
+    const r = Math.round(Math.abs(pixels));
+    if (r === 0) return mask;
+    const pick = pixels > 0 ? Math.max : Math.min;
+    const across = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            let v = mask[y * w + x]!;
+            for (let d = -r; d <= r; d++) { const at = x + d; v = pick(v, at < 0 || at >= w ? (pixels > 0 ? 0 : v) : mask[y * w + at]!); }
+            across[y * w + x] = v;
+        }
+    }
+    const out = new Float32Array(w * h);
+    for (let x = 0; x < w; x++) {
+        for (let y = 0; y < h; y++) {
+            let v = across[y * w + x]!;
+            for (let d = -r; d <= r; d++) { const at = y + d; v = pick(v, at < 0 || at >= h ? (pixels > 0 ? 0 : v) : across[at * w + x]!); }
+            out[y * w + x] = v;
+        }
+    }
+    return out;
 }
 
 function drawText(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, opacity: number, blend: Blend, clip: Float32Array | undefined): void {

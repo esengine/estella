@@ -5,6 +5,101 @@
  */
 import { parsePath } from './imageRaster';
 
+export const IMAGE_BLENDS = [
+    'normal', 'multiply', 'screen', 'overlay', 'add', 'softLight', 'hardLight', 'vividLight', 'linearLight', 'pinLight', 'colorDodge', 'colorBurn', 'linearBurn',
+    'darken', 'lighten', 'difference', 'exclusion', 'subtract', 'divide', 'hue', 'saturation', 'color', 'luminosity',
+] as const;
+export type ImageBlend = (typeof IMAGE_BLENDS)[number];
+
+/** Adjustments of the picture so far. Any of them together, applied in this order. */
+export interface ImageAdjust {
+    /** Stops, as a photo's: 1 is twice as bright. */
+    exposure?: number;
+    levels?: { input?: readonly [number, number]; gamma?: number; output?: readonly [number, number] };
+    /** [[in, out]...] 0..1 for all channels, or { r, g, b } for each. */
+    curves?: readonly (readonly number[])[] | { r?: readonly (readonly number[])[]; g?: readonly (readonly number[])[]; b?: readonly (readonly number[])[] };
+    brightness?: number;
+    contrast?: number;
+    temperature?: number;
+    tint?: number;
+    /** Each [r, g, b], -1..1, pushing that part of the tonal range. */
+    balance?: { shadows?: readonly number[]; midtones?: readonly number[]; highlights?: readonly number[] };
+    /** Degrees round the wheel, and -1..1 each. */
+    hue?: number;
+    saturation?: number;
+    lightness?: number;
+    vibrance?: number;
+    /** true, or how much of [r, g, b] each makes the grey. */
+    blackWhite?: boolean | readonly number[];
+    gradientMap?: readonly (readonly [number, string])[];
+    invert?: boolean;
+    posterize?: number;
+    threshold?: number;
+}
+
+const ADJUST_RANGES: Readonly<Record<string, readonly [number, number]>> = { exposure: [-8, 8], brightness: [-1, 1], contrast: [-1, 1], temperature: [-1, 1], tint: [-1, 1], hue: [-360, 360], saturation: [-1, 1], lightness: [-1, 1], vibrance: [-1, 1], posterize: [2, 256], threshold: [0, 1] };
+
+function adjustProblem(a: unknown): string | null {
+    if (typeof a !== 'object' || a === null) return 'must be an object of what to change';
+    const o = a as Record<string, unknown>;
+    const known = [...Object.keys(ADJUST_RANGES), 'levels', 'curves', 'balance', 'blackWhite', 'gradientMap', 'invert'];
+    for (const key of Object.keys(o)) if (!known.includes(key)) return `has unknown "${key}"; there are ${known.join(', ')}`;
+    if (Object.keys(o).length === 0) return 'changes nothing';
+    for (const [key, [lo, hi]] of Object.entries(ADJUST_RANGES)) if (o[key] !== undefined && !(isNum(o[key]) && (o[key] as number) >= lo && (o[key] as number) <= hi)) return `${key} must be ${lo}..${hi}`;
+    const unitPair = (v: unknown): boolean => isPair(v) && (v as number[]).every((n) => n >= 0 && n <= 1);
+    const curve = (v: unknown): boolean => Array.isArray(v) && v.length >= 2 && v.every(unitPair);
+    if (o.levels !== undefined) {
+        const l = o.levels as Record<string, unknown>;
+        if (typeof l !== 'object' || l === null) return 'levels must be { input?, gamma?, output? }';
+        for (const key of Object.keys(l)) if (!['input', 'gamma', 'output'].includes(key)) return `levels has unknown "${key}"; there are input, gamma, output`;
+        for (const key of ['input', 'output']) if (l[key] !== undefined && !unitPair(l[key])) return `levels ${key} must be [low, high], each 0..1`;
+        if (l.gamma !== undefined && !(isNum(l.gamma) && (l.gamma as number) > 0)) return 'levels gamma must be positive';
+    }
+    if (o.curves !== undefined) {
+        if (Array.isArray(o.curves)) { if (!curve(o.curves)) return 'curves must be two or more [in, out], each 0..1'; }
+        else {
+            const c = o.curves as Record<string, unknown>;
+            if (typeof c !== 'object' || c === null) return 'curves must be [[in, out]...] or { r, g, b }';
+            for (const [key, v] of Object.entries(c)) { if (!['r', 'g', 'b'].includes(key)) return `curves has unknown "${key}"; there are r, g, b`; if (!curve(v)) return `curves ${key} must be two or more [in, out], each 0..1`; }
+        }
+    }
+    if (o.balance !== undefined) {
+        for (const [key, v] of Object.entries(o.balance as Record<string, unknown>)) {
+            if (!['shadows', 'midtones', 'highlights'].includes(key)) return `balance has unknown "${key}"; there are shadows, midtones, highlights`;
+            if (!(Array.isArray(v) && v.length === 3 && v.every(isNum))) return `balance ${key} must be [r, g, b]`;
+        }
+    }
+    if (o.blackWhite !== undefined && typeof o.blackWhite !== 'boolean' && !(Array.isArray(o.blackWhite) && o.blackWhite.length === 3 && o.blackWhite.every(isNum))) return 'blackWhite must be true or [r, g, b]';
+    if (o.invert !== undefined && typeof o.invert !== 'boolean') return 'invert must be true or false';
+    if (o.gradientMap !== undefined && !(Array.isArray(o.gradientMap) && o.gradientMap.length >= 2 && o.gradientMap.every((s) => Array.isArray(s) && s.length === 2 && isNum(s[0]) && isColor(s[1])))) return 'gradientMap must be two or more [0..1, colour]';
+    return null;
+}
+
+/** Every filter and what it takes. A number but for: `at`, `from`, `to` a place; `color` a colour; `mono` true or false. */
+export const IMAGE_FILTERS = {
+    gaussian: ['radius'], motion: ['angle', 'distance'], spin: ['at', 'angle'], zoom: ['at', 'amount'], lens: ['radius', 'highlights'],
+    sharpen: ['amount', 'radius', 'threshold'], highPass: ['radius'], noise: ['amount', 'scale', 'mono', 'seed'], median: ['radius'], emboss: ['angle', 'height', 'amount'],
+    ripple: ['amount', 'size', 'seed'], displace: ['amount', 'size', 'seed'], twirl: ['at', 'radius', 'angle'], pixelate: ['cell'], chromatic: ['at', 'amount'],
+    vignette: ['at', 'amount', 'radius', 'outer', 'color'], fog: ['color', 'density', 'from', 'to', 'patchiness', 'size', 'seed'], rays: ['at', 'threshold', 'length', 'strength', 'decay'],
+    flare: ['at', 'size', 'color', 'strength'], texture: ['scale', 'amount', 'angle', 'seed'],
+} as const;
+export type ImageFilterName = keyof typeof IMAGE_FILTERS;
+
+function filterProblem(name: unknown, params: unknown): string | null {
+    if (typeof name !== 'string' || !Object.hasOwn(IMAGE_FILTERS, name)) return `filter ${JSON.stringify(name)} must be one of ${Object.keys(IMAGE_FILTERS).join(', ')}`;
+    if (params === undefined) return null;
+    if (typeof params !== 'object' || params === null) return 'params must be an object';
+    const known = IMAGE_FILTERS[name as ImageFilterName] as readonly string[];
+    for (const [key, v] of Object.entries(params)) {
+        if (!known.includes(key)) return `filter ${name} has unknown "${key}"; it takes ${known.join(', ')}`;
+        if (key === 'color') { if (!isColor(v)) return `filter ${name}: color must be #rgb..#rrggbbaa`; }
+        else if (key === 'at' || key === 'from' || key === 'to') { if (!isPair(v)) return `filter ${name}: ${key} must be [x, y]`; }
+        else if (key === 'mono') { if (typeof v !== 'boolean') return `filter ${name}: mono must be true or false`; }
+        else if (!isNum(v)) return `filter ${name}: ${key} must be a number`;
+    }
+    return null;
+}
+
 export const IMAGE_SOURCE_EXT = '.esimage';
 export const IMAGE_SOURCE_VERSION = 1;
 export const MAX_IMAGE_SIZE = 2048;
@@ -38,7 +133,15 @@ export type ImageFill = string
     };
 
 export interface ImageEffect {
-    type: 'shadow' | 'glow' | 'innerShadow' | 'innerGlow';
+    type: 'shadow' | 'glow' | 'innerShadow' | 'innerGlow' | 'bevel' | 'overlay';
+    /** A bevel: how wide, the light's direction in degrees, how strong, and the colour on its dark side. */
+    size?: number;
+    angle?: number;
+    depth?: number;
+    shade?: string;
+    /** An overlay: what covers the shape. */
+    fill?: ImageFill;
+    blend?: ImageBlend;
     color?: string;
     x?: number;
     y?: number;
@@ -55,7 +158,7 @@ export interface ImageTransform {
     origin?: readonly [number, number];
 }
 
-export type ImageShape = 'rect' | 'circle' | 'ellipse' | 'ring' | 'polygon' | 'line' | 'star' | 'gear' | 'path' | 'pixels' | 'paint' | 'figure' | 'image' | 'text' | 'block' | 'perspective' | 'reflect' | 'bloom' | 'repaint' | 'group';
+export type ImageShape = 'rect' | 'circle' | 'ellipse' | 'ring' | 'polygon' | 'line' | 'star' | 'gear' | 'path' | 'pixels' | 'paint' | 'figure' | 'image' | 'text' | 'block' | 'perspective' | 'reflect' | 'bloom' | 'adjust' | 'filter' | 'group';
 
 /** How a brush lays colour. Any of these on a stroke, a sweep or a field, over what its `brush` starts from. */
 export interface ImageBrushSettings {
@@ -133,7 +236,7 @@ export interface ImageStroke extends ImageBrushSettings {
     /** 0..1: drags what is already on this layer along, instead of laying colour. */
     smudge?: number;
     erase?: boolean;
-    blend?: 'normal' | 'multiply' | 'screen' | 'overlay' | 'add';
+    blend?: ImageBlend;
 }
 
 /** Many hairs between guide lines, gathered into locks. A few words of intent, and hundreds of strokes when drawn. */
@@ -264,12 +367,17 @@ export interface ImageLayer {
     within?: readonly number[];
     /** Text: four corners in the picture it is laid on, in order round from the top left, so it lies on a wall in perspective. */
     quad?: readonly (readonly number[])[];
-    /** A repaint: the brush the whole picture so far is painted again with. */
-    brush?: string;
-    /** A repaint: how far down its strokes go, 0 broad to 2 fine, and what gets finer strokes still. */
-    detail?: number;
-    boost?: readonly string[];
-    seed?: number;
+    /** Pixels of soft edge on the layer, fading inward, keeping its colour where a blur would smear it. */
+    feather?: number;
+    /** What it clips to, softened, grown or shrunk, or turned inside out. */
+    clipFeather?: number;
+    clipGrow?: number;
+    clipInvert?: boolean;
+    /** Only where the picture so far is this light, [low, high, softness?] each 0..1: a highlight or shadow selected by what it is. */
+    blendIf?: readonly number[];
+    adjust?: ImageAdjust;
+    filter?: ImageFilterName;
+    params?: Readonly<Record<string, unknown>>;
     /** A bloom: how bright a pixel must be to shine, 0..1, and how much it does. */
     threshold?: number;
     strength?: number;
@@ -295,7 +403,7 @@ export interface ImageLayer {
     fill?: ImageFill;
     stroke?: { color: ImageFill; width: number; align?: 'center' | 'inside' | 'outside'; join?: 'round' | 'miter' | 'bevel'; cap?: 'round' | 'butt' | 'square' };
     opacity?: number;
-    blend?: 'normal' | 'multiply' | 'screen' | 'overlay' | 'add';
+    blend?: ImageBlend;
     transform?: ImageTransform;
     mirror?: 'x' | 'y';
     effects?: readonly ImageEffect[];
@@ -355,11 +463,11 @@ function checkFill(v: unknown): string | null {
     return null;
 }
 
-const FIELDS = ['id', 'shape', 'at', 'size', 'radius', 'radii', 'inner', 'count', 'tooth', 'turn', 'points', 'd', 'rows', 'palette', 'scale', 'layers', 'fill', 'stroke', 'opacity', 'blend', 'transform', 'mirror', 'effects', 'clip', 'erase', 'visible', 'blur', 'strokes', 'from', 'guide', 'height', 'yaw', 'pitch', 'build', 'pose', 'light', 'src', 'except', 'text', 'fontSize', 'font', 'weight', 'align', 'vertical', 'tracking', 'vanish', 'depth', 'faces', 'roof', 'y', 'edge', 'reach', 'ripple', 'smear', 'quad', 'threshold', 'strength', 'thin', 'grain', 'grainScale', 'dry', 'face', 'within', 'brush', 'detail', 'boost', 'seed'];
+const FIELDS = ['id', 'shape', 'at', 'size', 'radius', 'radii', 'inner', 'count', 'tooth', 'turn', 'points', 'd', 'rows', 'palette', 'scale', 'layers', 'fill', 'stroke', 'opacity', 'blend', 'transform', 'mirror', 'effects', 'clip', 'erase', 'visible', 'blur', 'strokes', 'from', 'guide', 'height', 'yaw', 'pitch', 'build', 'pose', 'light', 'src', 'except', 'text', 'fontSize', 'font', 'weight', 'align', 'vertical', 'tracking', 'vanish', 'depth', 'faces', 'roof', 'y', 'edge', 'reach', 'ripple', 'smear', 'quad', 'threshold', 'strength', 'thin', 'grain', 'grainScale', 'dry', 'face', 'within', 'feather', 'clipFeather', 'clipGrow', 'clipInvert', 'blendIf', 'adjust', 'filter', 'params'];
 
 /** Layers that are aids to drawing unless told otherwise: seen when looking, and not in the .png. */
 export const isGuideLayer = (l: ImageLayer): boolean => l.guide ?? (l.shape === 'figure' || l.shape === 'image' || l.shape === 'perspective');
-const SHAPES: readonly ImageShape[] = ['rect', 'circle', 'ellipse', 'ring', 'polygon', 'line', 'star', 'gear', 'path', 'pixels', 'paint', 'figure', 'image', 'text', 'block', 'perspective', 'reflect', 'bloom', 'repaint', 'group'];
+const SHAPES: readonly ImageShape[] = ['rect', 'circle', 'ellipse', 'ring', 'polygon', 'line', 'star', 'gear', 'path', 'pixels', 'paint', 'figure', 'image', 'text', 'block', 'perspective', 'reflect', 'bloom', 'adjust', 'filter', 'group'];
 const STROKE_FIELDS = ['points', 'color', 'to', 'size', 'hardness', 'opacity', 'taper', 'bristles', 'strand', 'spread', 'vary', 'wobble', 'seed', 'smudge', 'erase', 'blend', ...BRUSH_FIELDS];
 
 /** What a brush's own settings must be, on whatever carries them. */
@@ -458,7 +566,7 @@ function strokeProblem(s: Record<string, unknown>): string | null {
     if (s.bristles !== undefined && !(Number.isInteger(s.bristles) && (s.bristles as number) >= 1 && (s.bristles as number) <= 200)) return 'bristles must be a whole number from 1 to 200';
     if (s.seed !== undefined && !Number.isInteger(s.seed)) return 'seed must be a whole number';
     if (s.taper !== undefined && !(Array.isArray(s.taper) && s.taper.length === 2 && s.taper.every((t) => isNum(t) && t >= 0 && t <= 1))) return 'taper must be [start, end], each 0..1';
-    if (s.blend !== undefined && !['normal', 'multiply', 'screen', 'overlay', 'add'].includes(s.blend as string)) return 'blend must be normal, multiply, screen, overlay or add';
+    if (s.blend !== undefined && !IMAGE_BLENDS.includes(s.blend as ImageBlend)) return `blend must be one of ${IMAGE_BLENDS.join(', ')}`;
     return null;
 }
 
@@ -534,12 +642,16 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
             if (l.grainScale !== undefined && !(isNum(l.grainScale) && (l.grainScale as number) > 0)) fail('grainScale must be positive');
             if (l.fill === undefined && l.stroke === undefined) fail('it needs a fill or a stroke, or it draws nothing');
             break;
-        case 'repaint':
-            if (l.brush !== undefined && !(typeof l.brush === 'string' && Object.hasOwn(IMAGE_BRUSHES, l.brush))) fail(`brush ${JSON.stringify(l.brush)} must be one of ${Object.keys(IMAGE_BRUSHES).join(', ')}`);
-            if (l.detail !== undefined && ![0, 1, 2].includes(l.detail as number)) fail('detail must be 0, 1 or 2');
-            if (l.boost !== undefined && !(Array.isArray(l.boost) && l.boost.every((b) => typeof b === 'string'))) fail('boost must be ids of layers drawn before it');
-            if (l.seed !== undefined && !Number.isInteger(l.seed)) fail('seed must be a whole number');
+        case 'adjust': {
+            const bad = adjustProblem(l.adjust);
+            if (bad) fail(`adjust ${bad}`);
             break;
+        }
+        case 'filter': {
+            const bad = filterProblem(l.filter, l.params);
+            if (bad) fail(bad);
+            break;
+        }
         case 'bloom':
             for (const key of ['threshold', 'strength']) if (l[key] !== undefined && !(isNum(l[key]) && (l[key] as number) >= 0)) fail(`${key} must be 0 or more`);
             if (l.threshold !== undefined && (l.threshold as number) > 1) fail('threshold must be 0..1');
@@ -612,13 +724,17 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
         if (s.join !== undefined && !['round', 'miter', 'bevel'].includes(s.join as string)) fail('stroke join must be round, miter or bevel');
         if (s.cap !== undefined && !['round', 'butt', 'square'].includes(s.cap as string)) fail('stroke cap must be round, butt or square');
     }
-    if (!['group', 'pixels', 'paint', 'figure', 'image', 'text', 'block', 'perspective', 'reflect', 'bloom', 'repaint', 'line'].includes(l.shape as string) && l.fill === undefined && l.stroke === undefined && !l.erase) fail('it needs a fill or a stroke, or it draws nothing');
+    if (!['group', 'pixels', 'paint', 'figure', 'image', 'text', 'block', 'perspective', 'reflect', 'bloom', 'adjust', 'filter', 'line'].includes(l.shape as string) && l.fill === undefined && l.stroke === undefined && !l.erase) fail('it needs a fill or a stroke, or it draws nothing');
     if (l.from !== undefined && l.shape !== 'paint') fail('from is for a paint layer');
     if (l.guide !== undefined && typeof l.guide !== 'boolean') fail('guide must be true or false');
     if (l.blur !== undefined && !(isNum(l.blur) && (l.blur as number) >= 0)) fail('blur must be 0 or more, in pixels');
     if (l.blur && l.erase) fail('blur does not go with erase; put what cuts in a group with what it cuts, and blur the group');
     if (l.opacity !== undefined && !(isNum(l.opacity) && l.opacity >= 0 && l.opacity <= 1)) fail('opacity must be 0..1');
-    if (l.blend !== undefined && !['normal', 'multiply', 'screen', 'overlay', 'add'].includes(l.blend as string)) fail('blend must be normal, multiply, screen, overlay or add');
+    if (l.blend !== undefined && !IMAGE_BLENDS.includes(l.blend as ImageBlend)) fail(`blend must be one of ${IMAGE_BLENDS.join(', ')}`);
+    for (const key of ['feather', 'clipFeather']) if (l[key] !== undefined && !(isNum(l[key]) && (l[key] as number) >= 0)) fail(`${key} must be 0 or more pixels`);
+    if (l.clipGrow !== undefined && !isNum(l.clipGrow)) fail('clipGrow must be pixels, more to grow what it clips to and less to shrink it');
+    if (l.clipInvert !== undefined && typeof l.clipInvert !== 'boolean') fail('clipInvert must be true or false');
+    if (l.blendIf !== undefined && !(Array.isArray(l.blendIf) && (l.blendIf.length === 2 || l.blendIf.length === 3) && l.blendIf.every((v) => isNum(v) && v >= 0 && v <= 1))) fail('blendIf must be [low, high] or [low, high, softness], each 0..1');
     if (l.mirror !== undefined && l.mirror !== 'x' && l.mirror !== 'y') fail('mirror must be x or y');
     if (l.clip !== undefined && typeof l.clip !== 'string') fail('clip must be a layer id');
     if (l.transform !== undefined) {
@@ -632,10 +748,13 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
     if (l.effects !== undefined) {
         if (!Array.isArray(l.effects)) fail('effects must be an array');
         for (const e of l.effects as Record<string, unknown>[]) {
-            if (!['shadow', 'glow', 'innerShadow', 'innerGlow'].includes(e?.type as string)) fail(`an effect has type ${JSON.stringify(e?.type)}; there are shadow, glow, innerShadow, innerGlow`);
-            for (const key of Object.keys(e)) if (!['type', 'color', 'x', 'y', 'blur', 'opacity'].includes(key)) fail(`effect ${String(e.type)} has an unknown field "${key}"`);
+            if (!['shadow', 'glow', 'innerShadow', 'innerGlow', 'bevel', 'overlay'].includes(e?.type as string)) fail(`an effect has type ${JSON.stringify(e?.type)}; there are shadow, glow, innerShadow, innerGlow, bevel, overlay`);
+            if (e.type === 'overlay') { const bad = checkFill(e.fill); if (bad) fail(`effect overlay: fill ${bad}`); }
+            if (e.blend !== undefined && !IMAGE_BLENDS.includes(e.blend as ImageBlend)) fail(`effect ${String(e.type)}: blend must be one of ${IMAGE_BLENDS.join(', ')}`);
+            if (e.shade !== undefined && !isColor(e.shade)) fail(`effect ${String(e.type)}: shade must be #rgb..#rrggbbaa`);
+            for (const key of Object.keys(e)) if (!['type', 'color', 'x', 'y', 'blur', 'opacity', 'size', 'angle', 'depth', 'shade', 'fill', 'blend'].includes(key)) fail(`effect ${String(e.type)} has an unknown field "${key}"`);
             if (e.color !== undefined && !isColor(e.color)) fail(`effect ${String(e.type)}: color must be #rgb..#rrggbbaa`);
-            for (const k of ['x', 'y', 'blur', 'opacity']) if (e[k] !== undefined && !isNum(e[k])) fail(`effect ${String(e.type)}: ${k} must be a number`);
+            for (const k of ['x', 'y', 'blur', 'opacity', 'size', 'angle', 'depth']) if (e[k] !== undefined && !isNum(e[k])) fail(`effect ${String(e.type)}: ${k} must be a number`);
         }
     }
 }
