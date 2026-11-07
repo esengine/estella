@@ -34,6 +34,8 @@ option(ES_MAIN_DISABLE_SIMD "Disable wasm SIMD for the main module (compat fallb
 # has an i64 the SDK reads as a BigInt, so this costs nothing the game can see.
 if(ES_BUILD_WXGAME)
     add_link_options(-sWASM_BIGINT=0)
+    add_compile_options(-fno-vectorize -fno-slp-vectorize)
+    add_link_options(-Wl,-mllvm,-vectorize-loops=false -Wl,-mllvm,-vectorize-slp=false)
 endif()
 # The engine as plain JavaScript (emscripten's wasm2js, -sWASM=0) for a host that
 # has no WebAssembly at all: the same C++, the same embind surface, the same SDK —
