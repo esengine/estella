@@ -5,7 +5,7 @@
  *        Pure: no filesystem and no engine instance, so the editor and a test run the same code.
  */
 export {
-    MODEL_OPS, MODEL_SOURCE_EXT, MODEL_SOURCE_VERSION, ModelBuildError, applyModelEdits, buildPolyMesh, describeModelOps, validateModelSource,
+    MODEL_OPS, MODEL_SOURCE_EXT, MODEL_SOURCE_VERSION, ModelBuildError, UNOFFERED_OPS, applyModelEdits, buildPolyMesh, describeModelOps, validateModelSource,
     type ModelEdit, type ModelSource, type NormalBakeSource, type ModelStep, type StepReport,
 } from './modelSource';
 export { organic, ORGANIC_DEFAULT_RESOLUTION, ORGANIC_MAX_RESOLUTION, type OrganicParams, type OrganicPart } from './organic';

@@ -618,7 +618,7 @@ export function applyModelEdits(source: ModelSource, edits: readonly ModelEdit[]
     return validateModelSource(next);
 }
 
-const UNOFFERED_OPS: ReadonlySet<string> = new Set(['humanoid', 'garment']);
+export const UNOFFERED_OPS: ReadonlySet<string> = new Set(['humanoid', 'garment']);
 
 /** The op vocabulary as text, for what a tool tells its caller. */
 export const describeModelOps = (): string => Object.entries(MODEL_OPS)

@@ -103,9 +103,14 @@ export const HOST_PAGE = (entry, failSubpackage = null) => `<!doctype html>
   const log = (m) => console.log('[minigame] ' + m);
   // Not every mini-game realm has these: WeChat DevTools' does not, nor does
   // JavaScriptCore before iOS 15. A glue that builds a view from them fails here too
-  // rather than only on the host it reaches a user through.
-  delete globalThis.BigInt64Array;
-  delete globalThis.BigUint64Array;
+  // rather than only on the host it reaches a user through. Named still, as a test
+  // driver's own script asks instanceof of them: only making one is what fails.
+  for (const name of ['BigInt64Array', 'BigUint64Array']) {
+    const real = globalThis[name];
+    const absent = function () { throw new ReferenceError(name + ' is not defined'); };
+    absent.prototype = real.prototype;
+    globalThis[name] = absent;
+  }
   // Vendor contract: the FIRST createCanvas() hands back the on-screen canvas and
   // every call after it is offscreen scratch. Hand the engine a fresh offscreen
   // one instead and the game runs perfectly, drawing where nobody can see.

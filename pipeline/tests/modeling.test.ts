@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { decodeMesh, encodeMesh, MeshChannel } from 'esengine';
 import {
-    applyModelEdits, bakeModel, describeModelOps, MODEL_OPS, ModelBuildError, renderModelSheet, validateModelSource,
+    applyModelEdits, bakeModel, describeModelOps, UNOFFERED_OPS, MODEL_OPS, ModelBuildError, renderModelSheet, validateModelSource,
     type BakedModel, type ModelStep,
 } from '../src/modeling';
 
@@ -328,7 +328,11 @@ describe('the source format', () => {
 
     it('every op is described, so the tool cannot offer one it does not explain', () => {
         const text = describeModelOps();
-        for (const name of Object.keys(MODEL_OPS)) expect(text).toContain(`${name}(`);
+        for (const name of Object.keys(MODEL_OPS)) {
+            // A ready body is not offered, as a model handed one copies it; it still runs for what uses it.
+            if (UNOFFERED_OPS.has(name)) expect(text).not.toContain(`${name}(`);
+            else expect(text).toContain(`${name}(`);
+        }
     });
 });
 
