@@ -4098,4 +4098,6 @@ export const NOTED = {
     {"note": "An agent's `get_stats` waits out a long frame."},
   "fix(project): a saved file reaches the device preview on Linux, where the watch followed the file's old inode":
     {"note": "A saved scene reaches a device preview on Linux."},
+  "fix(project): asset registry updates run one after another, so a prefab made a moment before is in list_assets":
+    {"note": "A prefab made over MCP is in `list_assets` at once."},
 };
