@@ -256,26 +256,114 @@ function fillMask(runs: readonly (readonly Pt[])[], w: number, h: number): Float
     return mask;
 }
 
-/** What each pixel has of a stroke: by its distance from the line, so joins and ends come out round. */
-function strokeMask(runs: readonly { points: readonly Pt[]; closed: boolean }[], width: number, w: number, h: number): Float32Array {
+/** Past this a mitre is bevelled: a point of about 11 degrees still comes out sharp, and a thinner one does not throw a long spike. */
+const MITER_LIMIT = 10;
+const STROKE_SAMPLES = 6;
+
+/** What each pixel has of a stroke. Round joins and ends come from the distance to the line; the others are built of convex pieces, sampled where a pixel crosses an edge: a distance from the edges would trail a faint tail off a sharp point. */
+function strokeMask(runs: readonly { points: readonly Pt[]; closed: boolean }[], width: number, w: number, h: number, join: 'round' | 'miter' | 'bevel' = 'round', cap: 'round' | 'butt' | 'square' = 'round'): Float32Array {
     const mask = new Float32Array(w * h);
     const half = width / 2;
-    for (const run of runs) {
-        const count = run.closed ? run.points.length : run.points.length - 1;
-        for (let i = 0; i < count; i++) {
-            const [a, b] = [run.points[i]!, run.points[(i + 1) % run.points.length]!];
-            const [x0, x1] = [Math.max(0, Math.floor(Math.min(a[0], b[0]) - half - 1)), Math.min(w - 1, Math.ceil(Math.max(a[0], b[0]) + half + 1))];
-            const [y0, y1] = [Math.max(0, Math.floor(Math.min(a[1], b[1]) - half - 1)), Math.min(h - 1, Math.ceil(Math.max(a[1], b[1]) + half + 1))];
-            const [ex, ey] = [b[0] - a[0], b[1] - a[1]];
-            const len = ex * ex + ey * ey;
-            for (let y = y0; y <= y1; y++) {
-                for (let x = x0; x <= x1; x++) {
-                    const [px, py] = [x + 0.5 - a[0], y + 0.5 - a[1]];
-                    const t = len > 0 ? Math.max(0, Math.min(1, (px * ex + py * ey) / len)) : 0;
-                    const v = Math.max(0, Math.min(1, half - Math.hypot(px - ex * t, py - ey * t) + 0.5));
-                    if (v > mask[y * w + x]!) mask[y * w + x] = v;
-                }
+    const capsule = (a: Pt, b: Pt): void => {
+        const [x0, x1] = [Math.max(0, Math.floor(Math.min(a[0], b[0]) - half - 1)), Math.min(w - 1, Math.ceil(Math.max(a[0], b[0]) + half + 1))];
+        const [y0, y1] = [Math.max(0, Math.floor(Math.min(a[1], b[1]) - half - 1)), Math.min(h - 1, Math.ceil(Math.max(a[1], b[1]) + half + 1))];
+        const [ex, ey] = [b[0] - a[0], b[1] - a[1]];
+        const len = ex * ex + ey * ey;
+        for (let y = y0; y <= y1; y++) {
+            for (let x = x0; x <= x1; x++) {
+                const [px, py] = [x + 0.5 - a[0], y + 0.5 - a[1]];
+                const t = len > 0 ? Math.max(0, Math.min(1, (px * ex + py * ey) / len)) : 0;
+                const v = Math.max(0, Math.min(1, half - Math.hypot(px - ex * t, py - ey * t) + 0.5));
+                if (v > mask[y * w + x]!) mask[y * w + x] = v;
             }
+        }
+    };
+    const convex = (poly: readonly Pt[]): void => {
+        let area = 0;
+        for (let i = 0; i < poly.length; i++) {
+            const [a, b] = [poly[i]!, poly[(i + 1) % poly.length]!];
+            area += a[0] * b[1] - b[0] * a[1];
+        }
+        if (area === 0) return;
+        const edges = poly.map((a, i) => {
+            const b = poly[(i + 1) % poly.length]!;
+            const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+            return { x: a[0], y: a[1], nx: (-(b[1] - a[1]) / len) * Math.sign(area), ny: ((b[0] - a[0]) / len) * Math.sign(area) };
+        });
+        const [xs, ys] = [poly.map((p) => p[0]), poly.map((p) => p[1])];
+        const [x0, x1] = [Math.max(0, Math.floor(Math.min(...xs) - 1)), Math.min(w - 1, Math.ceil(Math.max(...xs) + 1))];
+        const [y0, y1] = [Math.max(0, Math.floor(Math.min(...ys) - 1)), Math.min(h - 1, Math.ceil(Math.max(...ys) + 1))];
+        for (let y = y0; y <= y1; y++) {
+            for (let x = x0; x <= x1; x++) {
+                let inside = Infinity;
+                for (const e of edges) inside = Math.min(inside, (x + 0.5 - e.x) * e.nx + (y + 0.5 - e.y) * e.ny);
+                if (inside <= -0.75) continue;
+                let v = 1;
+                if (inside < 0.75) {
+                    let hits = 0;
+                    for (let sy = 0; sy < STROKE_SAMPLES; sy++) {
+                        for (let sx = 0; sx < STROKE_SAMPLES; sx++) {
+                            const [px, py] = [x + (sx + 0.5) / STROKE_SAMPLES, y + (sy + 0.5) / STROKE_SAMPLES];
+                            if (edges.every((e) => (px - e.x) * e.nx + (py - e.y) * e.ny >= 0)) hits++;
+                        }
+                    }
+                    v = hits / (STROKE_SAMPLES * STROKE_SAMPLES);
+                }
+                if (v > mask[y * w + x]!) mask[y * w + x] = v;
+            }
+        }
+    };
+    for (const run of runs) {
+        if (join === 'round' && cap === 'round') {
+            const count = run.closed ? run.points.length : run.points.length - 1;
+            for (let i = 0; i < count; i++) capsule(run.points[i]!, run.points[(i + 1) % run.points.length]!);
+            continue;
+        }
+        // A point repeated has no direction to join from.
+        const pts = run.points.filter((p, i, all) => i === 0 || Math.hypot(p[0] - all[i - 1]![0], p[1] - all[i - 1]![1]) > 1e-6);
+        if (run.closed && pts.length > 1 && Math.hypot(pts[0]![0] - pts[pts.length - 1]![0], pts[0]![1] - pts[pts.length - 1]![1]) <= 1e-6) pts.pop();
+        if (pts.length < 2) {
+            if (pts[0] && cap !== 'butt') capsule(pts[0], pts[0]);
+            continue;
+        }
+        const count = run.closed ? pts.length : pts.length - 1;
+        const direction = (i: number): Pt => {
+            const [a, b] = [pts[i]!, pts[(i + 1) % pts.length]!];
+            const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            return [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+        };
+        for (let i = 0; i < count; i++) {
+            const [a, b] = [pts[i]!, pts[(i + 1) % pts.length]!];
+            const u = direction(i);
+            const [nx, ny] = [-u[1] * half, u[0] * half];
+            // A joined end runs on by a pixel's half diagonal, or two pieces half covering a pixel leave a notch across the line.
+            const end = (open: boolean): number => (open ? (cap === 'square' ? half : 0) : 0.75);
+            const [s, e] = [end(!run.closed && i === 0), end(!run.closed && i === count - 1)];
+            const [ax, ay, bx, by] = [a[0] - u[0] * s, a[1] - u[1] * s, b[0] + u[0] * e, b[1] + u[1] * e];
+            convex([[ax + nx, ay + ny], [bx + nx, by + ny], [bx - nx, by - ny], [ax - nx, ay - ny]]);
+        }
+        if (!run.closed && cap === 'round') {
+            capsule(pts[0]!, pts[0]!);
+            capsule(pts[pts.length - 1]!, pts[pts.length - 1]!);
+        }
+        for (let i = run.closed ? 0 : 1; i < (run.closed ? pts.length : pts.length - 1); i++) {
+            const p = pts[i]!;
+            const [u0, u1] = [direction((i - 1 + pts.length) % pts.length), direction(i)];
+            const cross = u0[0] * u1[1] - u0[1] * u1[0];
+            if (join === 'round') {
+                capsule(p, p);
+                continue;
+            }
+            if (Math.abs(cross) < 1e-6) continue;
+            // Turning toward +normal, the outside of the corner is the other side.
+            const side = cross > 0 ? -1 : 1;
+            const [n0, n1]: [Pt, Pt] = [[-u0[1] * side, u0[0] * side], [-u1[1] * side, u1[0] * side]];
+            const [A, B]: [Pt, Pt] = [[p[0] + n0[0] * half, p[1] + n0[1] * half], [p[0] + n1[0] * half, p[1] + n1[1] * half]];
+            const [mx, my] = [n0[0] + n1[0], n0[1] + n1[1]];
+            const length = Math.hypot(mx, my);
+            const ratio = length > 0 ? 2 / length : Infinity;
+            if (join === 'miter' && ratio <= MITER_LIMIT) convex([p, A, [p[0] + (mx / length) * half * ratio, p[1] + (my / length) * half * ratio], B]);
+            else convex([p, A, B]);
         }
     }
     return mask;
@@ -419,7 +507,31 @@ function effectLayers(effects: readonly ImageEffect[] | undefined, under: boolea
     }
 }
 
-interface Drawn { masks: Map<string, Float32Array>; notes: string[] }
+interface Drawn { masks: Map<string, Float32Array>; notes: string[]; bounds: Map<string, ImageBox> }
+
+/** x, y, width and height in the picture's pixels. */
+export type ImageBox = readonly [number, number, number, number];
+
+/** The box of whatever covers at least half a pixel: where a shape's edge is, and not the last faint pixel of a glow. */
+function boxOf(w: number, h: number, covers: (i: number) => boolean): ImageBox | null {
+    let [x0, y0, x1, y1] = [w, h, -1, -1];
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            if (!covers(y * w + x)) continue;
+            if (x < x0) x0 = x;
+            if (x > x1) x1 = x;
+            if (y < y0) y0 = y;
+            y1 = y;
+        }
+    }
+    return x1 < 0 ? null : [x0, y0, x1 - x0 + 1, y1 - y0 + 1];
+}
+
+function noteBox(drawn: Drawn, id: string | undefined, mask: Float32Array, w: number, h: number): void {
+    if (!id) return;
+    const box = boxOf(w, h, (i) => mask[i]! >= 0.5);
+    if (box) drawn.bounds.set(id, box);
+}
 
 function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): void {
     if (layer.visible === false) return;
@@ -445,6 +557,7 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
         const alpha = new Float32Array(w * h);
         for (let i = 0; i < alpha.length; i++) alpha[i] = inner.px[i * 4 + 3]!;
         if (layer.id) drawn.masks.set(layer.id, alpha);
+        noteBox(drawn, layer.id, alpha, w, h);
         effectLayers(layer.effects, true, c, alpha);
         for (let i = 0; i < alpha.length; i++) {
             const a = alpha[i]! * opacity * (clip ? clip[i]! : 1);
@@ -469,7 +582,7 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
     const body = layer.shape === 'line' ? new Float32Array(w * h) : fillMask(placed.map((r) => r.points), w, h);
     const align = layer.stroke?.align ?? 'center';
     // An outside stroke is as wide again and goes under the fill. Cut to meet the fill's edge, each would cover part of the same edge pixel and the ground would show between them.
-    const line = layer.stroke ? strokeMask(placed, layer.stroke.width * scale * (align === 'outside' ? 2 : 1), w, h) : null;
+    const line = layer.stroke ? strokeMask(placed, layer.stroke.width * scale * (align === 'outside' ? 2 : 1), w, h, layer.stroke.join, layer.stroke.cap) : null;
     if (line && align === 'inside') for (let i = 0; i < line.length; i++) line[i]! *= body[i]!;
     // Under a see-through fill it must not show, so only the edge pixels keep it.
     if (line && align === 'outside') for (let i = 0; i < line.length; i++) if (body[i]! >= 0.999) line[i] = 0;
@@ -480,6 +593,7 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
         whole[i] = v;
         any += v;
     }
+    noteBox(drawn, layer.id, whole, w, h);
     // What clips to this stays inside its stroke: liquid in a flask must not paint over the flask's outline.
     if (layer.id) {
         // A line has no inside but itself.
@@ -549,12 +663,20 @@ function drawPixels(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, 
         });
     });
     if (layer.id) drawn.masks.set(layer.id, whole);
+    noteBox(drawn, layer.id, whole, w, h);
     effectLayers(layer.effects, true, c, whole);
     for (let i = 0; i < whole.length; i++) put(c, i, colors[i * 3]!, colors[i * 3 + 1]!, colors[i * 3 + 2]!, whole[i]! * opacity, blend);
     effectLayers(layer.effects, false, c, whole);
 }
 
-export interface RenderedImage extends RgbaBitmap { notes: string[] }
+export interface RenderedImage extends RgbaBitmap {
+    notes: string[];
+    /** Where the picture is solid, null if nowhere, and how much of its area that is, 0..1: how large it looks beside others. */
+    bounds: ImageBox | null;
+    covers: number;
+    /** The same box for each layer with an id, after every transform, without its effects. */
+    layerBounds: Record<string, ImageBox>;
+}
 
 /** Draws a source that has been validated. */
 export function renderImage(source: ImageSource): RenderedImage {
@@ -564,7 +686,7 @@ export function renderImage(source: ImageSource): RenderedImage {
         const [r, g, b, a] = parseColor(source.background);
         for (let i = 0; i < w * h; i++) put(canvas, i, r, g, b, a, 'normal');
     }
-    const drawn: Drawn = { masks: new Map(), notes: [] };
+    const drawn: Drawn = { masks: new Map(), notes: [], bounds: new Map() };
     for (const layer of source.layers) drawLayer(canvas, layer, IDENTITY, drawn);
     const rgba = new Uint8Array(w * h * 4);
     for (let i = 0; i < w * h; i++) {
@@ -575,7 +697,14 @@ export function renderImage(source: ImageSource): RenderedImage {
         rgba[i * 4 + 2] = Math.round(Math.min(1, canvas.px[i * 4 + 2]! * d) * 255);
         rgba[i * 4 + 3] = Math.round(Math.min(1, a) * 255);
     }
-    return { width: w, height: h, rgba, notes: drawn.notes };
+    let solid = 0;
+    for (let i = 0; i < w * h; i++) if (rgba[i * 4 + 3]! >= 128) solid++;
+    return {
+        width: w, height: h, rgba, notes: drawn.notes,
+        bounds: boxOf(w, h, (i) => rgba[i * 4 + 3]! >= 128),
+        covers: Math.round((solid / (w * h)) * 1000) / 1000,
+        layerBounds: Object.fromEntries(drawn.bounds),
+    };
 }
 
 function shrink(src: RgbaBitmap, width: number, height: number): RgbaBitmap {

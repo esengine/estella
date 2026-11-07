@@ -138,6 +138,81 @@ describe('fills and strokes', () => {
         expect(px(outside, 21, 32)).toEqual([255, 0, 0, 255]);
     });
 
+    describe('joins and ends', () => {
+        const box = (join?: 'round' | 'miter' | 'bevel'): ImageLayer => ({ shape: 'rect', at: [16, 16], size: [32, 32], stroke: { color: BLUE, width: 8, ...(join ? { join } : {}) } });
+
+        it('rounds a corner unless told otherwise', () => {
+            expect(px(draw([box()]), 12, 12)[3]).toBe(0);
+            expect(px(draw([box('round')]), 12, 12)[3]).toBe(0);
+        });
+
+        it('keeps a corner square when mitred, and cuts it when bevelled', () => {
+            expect(px(draw([box('miter')]), 12, 12)).toEqual([0, 0, 255, 255]);
+            const cut = draw([box('bevel')]);
+            expect(px(cut, 12, 12)[3]).toBe(0);
+            expect(px(cut, 15, 15)[3]).toBe(255);
+        });
+
+        it('brings a thin tip to a point, sharper than the round one', () => {
+            const tip = (join: 'round' | 'miter'): number => {
+                const img = draw([{ shape: 'polygon', points: [[32, 30], [40, 60], [24, 60]], stroke: { color: BLUE, width: 4, join } }]);
+                for (let y = 0; y < 64; y++) if (px(img, 32, y)[3]! > 128) return y;
+                return 64;
+            };
+            expect(tip('round')).toBeGreaterThanOrEqual(27);
+            expect(tip('miter')).toBeLessThanOrEqual(25);
+        });
+
+        it('does not throw a long spike off a needle', () => {
+            const img = draw([{ shape: 'polygon', points: [[32, 40], [33, 60], [31, 60]], stroke: { color: BLUE, width: 4, join: 'miter' } }]);
+            for (let y = 0; y < 30; y++) expect(px(img, 32, y)[3]).toBe(0);
+        });
+
+        it('leaves no notch where a straight line has points along it, or round a curve', () => {
+            const many: [number, number][] = Array.from({ length: 41 }, (_, i) => [12 + i + 0.3, 32.5]);
+            const line = draw([{ shape: 'line', points: many, stroke: { color: BLUE, width: 5, cap: 'butt', join: 'miter' } }]);
+            for (let x = 14; x < 50; x++) expect(px(line, x, 32)).toEqual([0, 0, 255, 255]);
+            const round = draw([{ shape: 'circle', at: [32, 32], radius: 20.3, stroke: { color: BLUE, width: 4 } }]);
+            const mitred = draw([{ shape: 'circle', at: [32, 32], radius: 20.3, stroke: { color: BLUE, width: 4, join: 'miter' } }]);
+            let worst = 0;
+            for (let i = 3; i < round.rgba.length; i += 4) worst = Math.max(worst, Math.abs(round.rgba[i]! - mitred.rgba[i]!));
+            expect(worst).toBeLessThan(64);
+        });
+
+        it('leaves no faint tail past a sharp point', () => {
+            const img = draw([{ shape: 'polygon', points: [[32, 30], [36, 60], [28, 60]], stroke: { color: BLUE, width: 4, join: 'miter' } }]);
+            // The outer point is half the width over the sine of half the angle above the corner.
+            const tip = 30 - 2 / Math.sin(Math.atan(4 / 30));
+            for (let y = 0; y < Math.floor(tip) - 1; y++) expect(px(img, 32, y)[3]).toBe(0);
+            expect(px(img, 32, Math.ceil(tip) + 2)[3]).toBeGreaterThan(0);
+        });
+
+        it('ends a line as it is told', () => {
+            const end = (cap: 'round' | 'butt' | 'square'): ReturnType<typeof draw> => draw([{ shape: 'line', points: [[20, 32], [44, 32]], stroke: { color: BLUE, width: 8, cap } }]);
+            expect(px(end('butt'), 18, 32)[3]).toBe(0);
+            expect(px(end('butt'), 21, 32)[3]).toBe(255);
+            expect(px(end('square'), 16, 28)[3]).toBe(255);
+            expect(px(end('round'), 16, 28)[3]).toBe(0);
+            expect(px(end('round'), 17, 32)[3]).toBe(255);
+        });
+
+        it('joins where a closed path repeats its first point', () => {
+            const img = draw([{ shape: 'path', d: 'M16 16 L48 16 L48 48 L16 48 L16 16 Z', stroke: { color: BLUE, width: 8, join: 'miter' } }]);
+            expect(px(img, 12, 12)).toEqual([0, 0, 255, 255]);
+        });
+
+        it('keeps an outside stroke\'s corner sharp too', () => {
+            const img = draw([{ shape: 'rect', at: [16, 16], size: [32, 32], fill: RED, stroke: { color: BLUE, width: 4, align: 'outside', join: 'miter' } }]);
+            expect(px(img, 13, 13)).toEqual([0, 0, 255, 255]);
+        });
+
+        it('refuses what is not one', () => {
+            const bad = (stroke: object): unknown => validateImageSource({ size: 8, layers: [{ shape: 'circle', at: [4, 4], radius: 2, stroke: { color: RED, width: 1, ...stroke } }] });
+            expect(() => bad({ join: 'sharp' })).toThrow(/join must be round, miter or bevel/);
+            expect(() => bad({ cap: 'flat' })).toThrow(/cap must be round, butt or square/);
+        });
+    });
+
     it('leaves no gap between a fill and its outside stroke, along a curve where edge pixels are partly each', () => {
         const img = draw([{ shape: 'circle', at: [32, 32], radius: 20.3, fill: RED, stroke: { color: BLUE, width: 4, align: 'outside' } }]);
         for (let i = 0; i < 128; i++) {
@@ -396,6 +471,36 @@ describe('the sheet to look at', () => {
     });
 });
 
+describe('what it measures', () => {
+    it('finds where the picture is solid and how much of it that is', () => {
+        const img = draw([{ shape: 'rect', at: [10, 20], size: [16, 8], fill: RED }]);
+        expect(img.bounds).toEqual([10, 20, 16, 8]);
+        expect(img.covers).toBeCloseTo((16 * 8) / (64 * 64), 2);
+        expect(draw([{ shape: 'rect', at: [10, 20], size: [16, 8], fill: '#ff000020' }]).bounds).toBeNull();
+    });
+
+    it('leaves a faint glow out of it', () => {
+        const img = draw([{ shape: 'rect', at: [20, 20], size: [24, 24], fill: RED, effects: [{ type: 'glow', blur: 6 }] }]);
+        const [x, , w] = img.bounds!;
+        expect(x).toBeGreaterThanOrEqual(16);
+        expect(w).toBeLessThanOrEqual(32);
+    });
+
+    it('gives each named layer its box after transforms, stroke in and effects out, at any depth', () => {
+        const img = draw([
+            { shape: 'group', id: 'g', transform: { translate: [10, 0] }, layers: [{ id: 'r', shape: 'rect', at: [0, 0], size: [10, 10], fill: RED, stroke: { color: BLUE, width: 2 } }] },
+            { shape: 'circle', at: [50, 50], radius: 4, fill: RED },
+            { id: 'off', shape: 'rect', at: [100, 100], size: [4, 4], fill: RED },
+            { id: 'hidden', shape: 'rect', at: [0, 0], size: [4, 4], fill: RED, visible: false },
+            { id: 'p', shape: 'pixels', at: [0, 40], scale: 2, palette: { r: RED }, rows: ['r.', '.r'] },
+        ]);
+        expect(img.layerBounds.r).toEqual([9, 0, 12, 11]);
+        expect(img.layerBounds.g).toEqual(img.layerBounds.r);
+        expect(img.layerBounds.p).toEqual([0, 40, 4, 4]);
+        expect(Object.keys(img.layerBounds).sort()).toEqual(['g', 'p', 'r']);
+    });
+});
+
 describe('a set and a close look', () => {
     const a = draw([{ shape: 'rect', at: [0, 0], size: [64, 64], fill: RED }]);
     const b = draw([{ shape: 'rect', at: [0, 0], size: [32, 64], fill: BLUE }], [32, 64]);
@@ -534,6 +639,25 @@ describe('edits', () => {
         expect(() => applyImageEdits(art, [{ op: 'pixels', layer: 'art', set: [{ row: 0, at: 3, text: 'bb' }] }])).toThrow(/does not fit/);
         expect(() => applyImageEdits(art, [{ op: 'pixels', layer: 'art', set: [{ row: 0, text: 'x' }] }])).toThrow(/not in the palette/);
         expect(() => applyImageEdits(base, [{ op: 'pixels', layer: 'a', set: [] }])).toThrow(/not pixels/);
+    });
+
+    it('paints a column or an area, counting from 0', () => {
+        const art = validateImageSource({ size: 8, layers: [{ id: 'art', shape: 'pixels', palette: { r: RED, b: BLUE }, rows: ['rrrr', 'rrrr', 'rrrr'] }] });
+        expect(applyImageEdits(art, [{ op: 'pixels', layer: 'art', rect: [{ x: 1, y: 0, h: 3, text: 'b' }] }]).layers[0]!.rows).toEqual(['rbrr', 'rbrr', 'rbrr']);
+        expect(applyImageEdits(art, [{ op: 'pixels', layer: 'art', rect: [{ x: 2, y: 1, w: 2, h: 2, text: '.' }] }]).layers[0]!.rows).toEqual(['rrrr', 'rr..', 'rr..']);
+        expect(applyImageEdits(art, [{ op: 'pixels', layer: 'art', rect: [{ x: 3, y: 2, text: 'b' }] }]).layers[0]!.rows).toEqual(['rrrr', 'rrrr', 'rrrb']);
+        expect(() => applyImageEdits(art, [{ op: 'pixels', layer: 'art', rect: [{ x: 3, y: 0, w: 2, text: 'b' }] }])).toThrow(/is 4 by 3.*does not fit/);
+        expect(() => applyImageEdits(art, [{ op: 'pixels', layer: 'art', rect: [{ x: 0, y: 0, text: 'bb' }] }])).toThrow(/one character/);
+        expect(() => applyImageEdits(art, [{ op: 'pixels', layer: 'art', rect: [{ x: 0, y: 0, text: 'x' }] }])).toThrow(/not in the palette/);
+    });
+
+    it('adds and removes a colour without restating the others', () => {
+        const art = validateImageSource({ size: 8, layers: [{ id: 'art', shape: 'pixels', palette: { r: RED, b: BLUE }, rows: ['rr'] }] });
+        const added = applyImageEdits(art, [{ op: 'pixels', layer: 'art', palette: { g: '#00ff00' }, rect: [{ x: 0, y: 0, text: 'g' }] }]).layers[0]!;
+        expect(added.palette).toEqual({ r: RED, b: BLUE, g: '#00ff00' });
+        expect(added.rows).toEqual(['gr']);
+        expect(applyImageEdits(art, [{ op: 'pixels', layer: 'art', palette: { b: null } }]).layers[0]!.palette).toEqual({ r: RED });
+        expect(() => applyImageEdits(art, [{ op: 'pixels', layer: 'art', palette: { r: null } }])).toThrow(/not in the palette/);
     });
 
     it('says what it could not find, and refuses what would not be valid', () => {

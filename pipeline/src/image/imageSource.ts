@@ -51,7 +51,7 @@ export interface ImageLayer {
     scale?: number;
     layers?: readonly ImageLayer[];
     fill?: ImageFill;
-    stroke?: { color: ImageFill; width: number; align?: 'center' | 'inside' | 'outside' };
+    stroke?: { color: ImageFill; width: number; align?: 'center' | 'inside' | 'outside'; join?: 'round' | 'miter' | 'bevel'; cap?: 'round' | 'butt' | 'square' };
     opacity?: number;
     blend?: 'normal' | 'multiply' | 'screen' | 'overlay' | 'add';
     transform?: ImageTransform;
@@ -153,6 +153,8 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
         const bad = checkFill(s.color);
         if (bad) fail(`stroke color ${bad}`);
         if (s.align !== undefined && !['center', 'inside', 'outside'].includes(s.align as string)) fail('stroke align must be center, inside or outside');
+        if (s.join !== undefined && !['round', 'miter', 'bevel'].includes(s.join as string)) fail('stroke join must be round, miter or bevel');
+        if (s.cap !== undefined && !['round', 'butt', 'square'].includes(s.cap as string)) fail('stroke cap must be round, butt or square');
     }
     if (!['group', 'pixels', 'line'].includes(l.shape as string) && l.fill === undefined && l.stroke === undefined && !l.erase) fail('it needs a fill or a stroke, or it draws nothing');
     if (l.opacity !== undefined && !(isNum(l.opacity) && l.opacity >= 0 && l.opacity <= 1)) fail('opacity must be 0..1');
@@ -200,7 +202,13 @@ export type ImageEdit =
     | { op: 'move'; layer: string; before?: string; after?: string; into?: string }
     | { op: 'wrap'; layers: readonly string[]; group: Partial<ImageLayer> }
     | { op: 'unwrap'; layer: string }
-    | { op: 'pixels'; layer: string; set: readonly { row: number; at?: number; text: string }[] }
+    | {
+        op: 'pixels';
+        layer: string;
+        set?: readonly { row: number; at?: number; text: string }[];
+        rect?: readonly { x: number; y: number; w?: number; h?: number; text: string }[];
+        palette?: Readonly<Record<string, string | null>>;
+    }
     | { op: 'settings'; fields: { size?: ImageSource['size']; background?: string | null } };
 
 /** Every stroke width a source draws with, and how many layers use each: what drifts first across a set of icons. */
@@ -319,6 +327,27 @@ export function applyImageEdits(source: ImageSource, edits: readonly ImageEdit[]
                 const layer = list[index]!;
                 if (layer.shape !== 'pixels') throw new Error(`layer "${edit.layer}" is not pixels`);
                 const rows = [...(layer.rows as string[])];
+                if (edit.palette) {
+                    const palette = { ...(layer.palette as Record<string, string>) };
+                    for (const [key, value] of Object.entries(edit.palette)) {
+                        if (value === null) delete palette[key];
+                        else palette[key] = value;
+                    }
+                    layer.palette = palette;
+                }
+                for (const area of edit.rect ?? []) {
+                    const [w, h, char] = [area.w ?? 1, area.h ?? 1, [...(area.text ?? '')]];
+                    if (char.length !== 1) throw new Error(`a rect in "${edit.layer}" paints one character, not "${area.text}"`);
+                    const width = [...rows[0]!].length;
+                    if (!(Number.isInteger(area.x) && Number.isInteger(area.y) && Number.isInteger(w) && Number.isInteger(h) && area.x >= 0 && area.y >= 0 && w > 0 && h > 0 && area.x + w <= width && area.y + h <= rows.length)) {
+                        throw new Error(`layer "${edit.layer}" is ${width} by ${rows.length}: a rect of ${w} by ${h} at ${area.x}, ${area.y} does not fit`);
+                    }
+                    for (let y = area.y; y < area.y + h; y++) {
+                        const chars = [...rows[y]!];
+                        chars.fill(char[0]!, area.x, area.x + w);
+                        rows[y] = chars.join('');
+                    }
+                }
                 for (const change of edit.set ?? []) {
                     const row = rows[change.row];
                     if (row === undefined) throw new Error(`layer "${edit.layer}" has rows 0..${rows.length - 1}, not ${change.row}`);
