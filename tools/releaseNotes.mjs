@@ -4100,4 +4100,6 @@ export const NOTED = {
     {"note": "A saved scene reaches a device preview on Linux."},
   "fix(project): asset registry updates run one after another, so a prefab made a moment before is in list_assets":
     {"note": "A prefab made over MCP is in `list_assets` at once."},
+  "fix(docs): the CompositeBatch entry of the component reference quotes its apostrophe, which stopped the site building":
+    {"internal": "The docs site did not build, so v0.99.0 was not deployed to it; no package changes."},
 };
