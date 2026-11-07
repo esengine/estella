@@ -3888,6 +3888,10 @@ export const NOTED = {
     {"note":"An AI can draw 2D pictures."},
   "feat(look): layers moved and wrapped, one pixel changed, a set and a close look drawn":
     {"note":"An AI can draw 2D pictures."},
+  "feat(look): brushes: flat tips, paper grain, dry streaks, wet mixing, and named media":
+    {"note":"An AI can draw 2D pictures."},
+  "feat(mcp): image_write documents the brushes":
+    {"note":"An AI can draw 2D pictures."},
   "feat(look): a figure is bones and blocks, and a picture from the project can be drawn over":
     {"note":"An AI can draw 2D pictures."},
   "feat(mcp): a picture as a reference, and the body no longer offered to build a character on":

@@ -8,8 +8,8 @@
  *        On the CPU rather than through a canvas, so the same source makes the same bytes on any machine and a test can read them.
  */
 import { figureLight, flattenFigure, type FlatFigure } from './imageFigure';
-import { MAX_MARK_STROKES } from './imageSource';
-import type { ImageFill, ImageLayer, ImageSource, ImageAlong, ImageEffect, ImageField, ImageMark, ImageStroke, ImageSweep, ImageTransform } from './imageSource';
+import { IMAGE_BRUSHES, MAX_MARK_STROKES } from './imageSource';
+import type { ImageFill, ImageLayer, ImageSource, ImageAlong, ImageBrushSettings, ImageEffect, ImageField, ImageMark, ImageStroke, ImageSweep, ImageTransform } from './imageSource';
 
 export interface RgbaBitmap { width: number; height: number; rgba: Uint8Array }
 
@@ -807,6 +807,13 @@ function paintStrand(c: Canvas, s: ImageStroke, path: readonly PathPoint[], stra
     const total = path[path.length - 1]!.along;
     const [startColor, endColor] = [parseColor(s.color ?? '#000000'), parseColor(s.to ?? s.color ?? '#000000')];
     const [taperIn, taperOut] = s.taper ?? [0, 0];
+    const [fadeIn, fadeOut] = s.fade ?? [0, 0];
+    const roundness = s.roundness ?? 1;
+    const held = s.angle !== undefined ? [Math.cos((s.angle * Math.PI) / 180), Math.sin((s.angle * Math.PI) / 180)] as const : null;
+    const [grain, grainScale, dry, wet, edge, flow] = [s.grain ?? 0, (s.grainScale ?? 2) * scale, s.dry ?? 0, s.wet ?? 0, s.edge ?? 0, s.flow ?? 0];
+    const [scatter, dab, spacing] = [s.scatter ?? 0, s.dab ?? 1, s.spacing];
+    let loaded: [number, number, number] | null = null;
+    let stamp = 0;
     const hardness = s.hardness ?? 0.5;
     const size = s.size * scale;
     const smudge = s.smudge ?? 0;
@@ -832,11 +839,17 @@ function paintStrand(c: Canvas, s: ImageStroke, path: readonly PathPoint[], stra
         if (total > 0 && taperIn > 0 && position < taperIn) narrowing *= smoothed(position / taperIn);
         if (total > 0 && taperOut > 0 && position > 1 - taperOut) narrowing *= smoothed((1 - position) / taperOut);
         const width = size * (a.pressure + (b.pressure - a.pressure) * t) * narrowing;
-        const radius = strand.radius === null ? width / 2 : Math.min(strand.radius, Math.max(width, strand.radius * 0.4));
+        const reach = strand.radius === null ? width / 2 : Math.min(strand.radius, Math.max(width, strand.radius * 0.4));
+        const radius = reach * dab;
         const [nx, ny] = span > 0 ? [-(b.y - a.y) / span, (b.x - a.x) / span] : [0, 0];
         const drift = wobble > 0 ? gradientNoise(distance / (size * 3 + 8), strand.seed * 0.37 + 0.5, strand.seed) * 2 * wobble : 0;
         const away = strand.offset * width + drift;
-        const [cx, cy] = [a.x + (b.x - a.x) * t + nx * away, a.y + (b.y - a.y) * t + ny * away];
+        stamp++;
+        const [off1, off2] = scatter > 0 ? [(hash01(strand.seed * 3 + 1, stamp) - 0.5) * 2, (hash01(strand.seed * 3 + 2, stamp) - 0.5) * 2] : [0, 0];
+        const [cx, cy] = [a.x + (b.x - a.x) * t + nx * away + off1 * scatter * reach, a.y + (b.y - a.y) * t + ny * away + off2 * scatter * reach];
+        let fading = 1;
+        if (total > 0 && fadeIn > 0 && position < fadeIn) fading *= position / fadeIn;
+        if (total > 0 && fadeOut > 0 && position > 1 - fadeOut) fading *= (1 - position) / fadeOut;
 
         if (radius >= 0.12) {
             const soft = Math.max(1, radius * (1 - hardness));
@@ -846,13 +859,32 @@ function paintStrand(c: Canvas, s: ImageStroke, path: readonly PathPoint[], stra
                 const v = Math.max(0, Math.min(1, (radius + 0.5 - d) / soft));
                 return soft > 1 ? smoothed(v) : v;
             };
+            // Across is the wide way of the brush, as it travels or as it is held.
+            const [ax2, ay2] = held ?? [nx, ny];
+            const shaped = (dx: number, dy: number): number => (roundness >= 1 ? Math.hypot(dx, dy) : Math.hypot(dx * ax2 + dy * ay2, (dx * ay2 - dy * ax2) / roundness));
+            const toothOf = (x: number, y: number): number => {
+                if (grain <= 0 && dry <= 0) return 1;
+                let kept = 1;
+                // A wide band and not a threshold: paper takes more or less pigment at each place, and specks of all or nothing read as static.
+                if (grain > 0) kept *= Math.max(0, Math.min(1, (fractalNoise(x / grainScale, y / grainScale, 3, 77) - (0.12 + grain * 0.62)) / 0.34 + 0.5));
+                if (dry > 0) {
+                    // Hairs of the brush: fine across its width and long along its travel.
+                    const across = (x - cx) * nx + (y - cy) * ny + away;
+                    // Hairs gather in clumps, some wide and some fine, so the gaps are not ruled lines.
+                    const hairs = gradientNoise(across / Math.max(0.8, size * 0.045), distance / (size * 3 + 8), strand.seed + 5);
+                    const clumps = gradientNoise(across / Math.max(1.5, size * 0.17), distance / (size * 5 + 12), strand.seed + 9);
+                    const streak = 0.5 + 0.8 * hairs + 1.1 * clumps;
+                    kept *= Math.max(0, Math.min(1, (streak - (0.12 + dry * 0.68)) / 0.22 + 0.5));
+                }
+                return kept;
+            };
             const [x0, x1] = [Math.max(0, Math.floor(cx - radius - 1)), Math.min(w - 1, Math.ceil(cx + radius + 1))];
             const [y0, y1] = [Math.max(0, Math.floor(cy - radius - 1)), Math.min(h - 1, Math.ceil(cy + radius + 1))];
             if (smudge > 0) {
                 carried ??= sample(cx, cy);
                 for (let y = y0; y <= y1; y++) {
                     for (let x = x0; x <= x1; x++) {
-                        const v = cover(Math.hypot(x + 0.5 - cx, y + 0.5 - cy)) * thin * smudge * (s.opacity ?? 1);
+                        const v = cover(shaped(x + 0.5 - cx, y + 0.5 - cy)) * thin * smudge * (s.opacity ?? 1) * toothOf(x + 0.5, y + 0.5);
                         if (v <= 0) continue;
                         const at = (y * w + x) * 4;
                         for (let k = 0; k < 4; k++) c.px[at + k] = c.px[at + k]! + (carried[k]! - c.px[at + k]!) * v * 0.5;
@@ -863,27 +895,45 @@ function paintStrand(c: Canvas, s: ImageStroke, path: readonly PathPoint[], stra
             } else {
                 const along = total > 0 ? distance / total : 0;
                 const mix = (k: number): number => Math.max(0, Math.min(1, (startColor[k]! + (endColor[k]! - startColor[k]!) * along) * strand.shade));
-                const [r, g, bl] = [mix(0), mix(1), mix(2)];
-                const alpha = (startColor[3] + (endColor[3] - startColor[3]) * along) * (s.opacity ?? 1) * strand.strength;
+                let [r, g, bl] = [mix(0), mix(1), mix(2)];
+                if (wet > 0) {
+                    const under = sample(cx, cy);
+                    const here: [number, number, number] | null = under[3] > 0.02 ? [under[0] / under[3], under[1] / under[3], under[2] / under[3]] : null;
+                    // It takes up a good share where it first touches, then a little with every dab, and its own paint slowly clears what it carries.
+                    const pick = here ? (loaded ? wet * 0.09 : wet * 0.45) : 0;
+                    const base: [number, number, number] = loaded ?? [r, g, bl];
+                    const own = [r, g, bl];
+                    loaded = [0, 1, 2].map((k) => {
+                        const fed = base[k]! + (own[k]! - base[k]!) * 0.012;
+                        return fed + ((here ? here[k]! : fed) - fed) * pick;
+                    }) as [number, number, number];
+                    [r, g, bl] = loaded;
+                }
+                const alpha = (startColor[3] + (endColor[3] - startColor[3]) * along) * (s.opacity ?? 1) * strand.strength * fading;
                 for (let y = y0; y <= y1; y++) {
                     for (let x = x0; x <= x1; x++) {
-                        const v = cover(Math.hypot(x + 0.5 - cx, y + 0.5 - cy)) * thin * alpha;
+                        const v = cover(shaped(x + 0.5 - cx, y + 0.5 - cy)) * thin * alpha * toothOf(x + 0.5, y + 0.5);
                         const i = y * w + x;
-                        if (v <= buffer.mask[i]!) continue;
-                        if (buffer.mask[i] === 0) buffer.touched.push(i);
-                        buffer.mask[i] = v;
+                        const was = buffer.mask[i]!;
+                        const next = flow > 0 ? was + v * flow * (1 - was) : v;
+                        if (next <= was) continue;
+                        if (was === 0) buffer.touched.push(i);
+                        buffer.mask[i] = next;
                         buffer.rgb[i * 3] = r; buffer.rgb[i * 3 + 1] = g; buffer.rgb[i * 3 + 2] = bl;
                     }
                 }
             }
         }
         if (distance >= end || total === 0) break;
-        distance = Math.min(end, distance + Math.max(0.4, radius * 0.1));
+        // Narrow along its travel, a flat brush needs its dabs closer or they show.
+        distance = Math.min(end, distance + (spacing !== undefined ? Math.max(0.3, radius * 2 * spacing) : Math.max(0.4, radius * 0.1 * roundness)));
     }
     // Laid down all at once, so opacity is the stroke's and not the sum of its stamps.
     const mode: Blend = s.blend ?? 'normal';
     for (const i of buffer.touched) {
-        const v = buffer.mask[i]!;
+        const covered = buffer.mask[i]!;
+        // Where a stroke thins out at its edge, the pigment that gathered there: darker at the rim and paler inside.
+        const v = edge > 0 ? Math.min(1, covered * (1 - edge * 0.45 * smoothed(Math.min(1, covered / (s.opacity ?? 1))) + edge * 1.1 * Math.max(0, 1 - Math.abs(covered / (s.opacity ?? 1) - 0.4) * 3))) : covered;
         if (s.erase) for (let k = 0; k < 4; k++) c.px[i * 4 + k]! *= 1 - v;
         else put(c, i, buffer.rgb[i * 3]!, buffer.rgb[i * 3 + 1]!, buffer.rgb[i * 3 + 2]!, v, mode);
         buffer.mask[i] = 0;
@@ -891,7 +941,8 @@ function paintStrand(c: Canvas, s: ImageStroke, path: readonly PathPoint[], stra
     buffer.touched.length = 0;
 }
 
-function paintStroke(c: Canvas, s: ImageStroke, m: Matrix, scale: number, n: number, buffer: StrokeBuffer): void {
+function paintStroke(c: Canvas, given: ImageStroke, m: Matrix, scale: number, n: number, buffer: StrokeBuffer): void {
+    const s: ImageStroke = given.brush ? { ...IMAGE_BRUSHES[given.brush], ...given } : given;
     const path = brushPath(s.points, m);
     const seed = s.seed ?? n + 1;
     const count = s.bristles ?? 1;
@@ -937,6 +988,12 @@ function resampled(guide: readonly (readonly number[])[], samples: number): { x:
 const SWEEP_SAMPLES = 14;
 
 /** Hairs between the guides. Each belongs to a lock and draws into it toward the tip, and a lock shares a shade, which is what makes a mass read as locks and not as combed lines. */
+const brushSettings = (s: ImageBrushSettings & { brush?: string }): Partial<ImageStroke> => {
+    const out: Record<string, unknown> = {};
+    for (const key of ['brush', 'roundness', 'angle', 'grain', 'grainScale', 'dry', 'wet', 'edge', 'scatter', 'dab', 'spacing', 'flow', 'fade'] as const) if (s[key as keyof typeof s] !== undefined) out[key] = s[key as keyof typeof s];
+    return out as Partial<ImageStroke>;
+};
+
 function sweepStrokes(s: ImageSweep): ImageStroke[] {
     const guides = s.guides.map((g) => resampled(g, SWEEP_SAMPLES));
     const seed = s.seed ?? 1;
@@ -984,9 +1041,10 @@ function sweepStrokes(s: ImageSweep): ImageStroke[] {
         const root = colorAt(u + (pick(7) - 0.5) * 0.08);
         const size = (s.size ?? 1.2) * (0.7 + pick(8) * 0.6);
         out.push({
-            points, size, hardness: 0.7, color: toHex(root, shade),
+            ...brushSettings(s),
+            points, size, ...(s.brush && s.hardness === undefined ? {} : { hardness: s.hardness ?? 0.7 }), color: toHex(root, shade),
             ...(tip ? { to: toHex([root[0] + (tip[0] - root[0]) * 0.8, root[1] + (tip[1] - root[1]) * 0.8, root[2] + (tip[2] - root[2]) * 0.8, root[3]], shade) } : {}),
-            opacity: (s.opacity ?? 1) * (strays ? 0.55 : 0.75 + pick(9) * 0.25),
+            opacity: (s.opacity ?? (s.brush ? IMAGE_BRUSHES[s.brush]!.opacity ?? 1 : 1)) * (strays ? 0.55 : 0.75 + pick(9) * 0.25),
             taper: s.taper ?? [0.04, 0.45],
         });
     }
@@ -1079,8 +1137,13 @@ function fieldStrokes(s: ImageField, w: number, h: number, m: Matrix, drawn: Dra
             x += rx * forward; y += ry * forward;
         }
         out.push({
-            points, size: s.size * (0.75 + pick(4) * 0.5), hardness: s.hardness ?? 0.25, opacity: s.opacity ?? 0.6,
-            ...(s.smudge ? { smudge: s.smudge } : { color: toHex(paint!(sx, sy), 1 + (pick(5) - 0.5) * 2 * vary) }), taper: [0.12, 0.3],
+            ...brushSettings(s),
+            points, size: s.size * (0.75 + pick(4) * 0.5),
+            // A named brush keeps what it is, and only a field without one takes the soft defaults.
+            ...(s.brush ? {} : { hardness: s.hardness ?? 0.25, opacity: s.opacity ?? 0.6 }),
+            ...(s.brush && s.hardness !== undefined ? { hardness: s.hardness } : {}),
+            ...(s.brush && s.opacity !== undefined ? { opacity: s.opacity } : {}),
+            ...(s.smudge ? { smudge: s.smudge } : { color: toHex(paint!(sx, sy), 1 + (pick(5) - 0.5) * 2 * vary) }), taper: s.taper ?? [0.12, 0.3],
         });
     }
     return out;

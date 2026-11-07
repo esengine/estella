@@ -3,7 +3,7 @@
 /** A picture from layers: each draws what it says and where, edges are antialiased, and what is wrong with a source is said before anything is drawn. */
 import { describe, expect, it } from 'vitest';
 import { imageSheet, parseColor, parsePath, pickColors, renderImage, setSheet, valuesImage, zoomImage } from '../src/image/imageRaster';
-import { applyImageEdits, strokeWidths, validateImageSource, type ImageLayer } from '../src/image/imageSource';
+import { applyImageEdits, IMAGE_BRUSHES, strokeWidths, validateImageSource, type ImageLayer } from '../src/image/imageSource';
 
 const draw = (layers: unknown[], size: number | [number, number] = 64, background?: string): ReturnType<typeof renderImage> => renderImage(validateImageSource({ size, layers, ...(background ? { background } : {}) }));
 const px = (img: { width: number; rgba: Uint8Array }, x: number, y: number): number[] => Array.from(img.rgba.subarray((y * img.width + x) * 4, (y * img.width + x) * 4 + 4));
@@ -1150,6 +1150,123 @@ describe('what the second trial tripped on', () => {
         const next = applyImageEdits(start, [{ op: 'paint', layer: 'p', at: 1, remove: 1, strokes: [dab(9) as never, dab(10) as never] }]);
         expect(next.layers[0]!.strokes!.map((s) => (s as unknown as { points: number[][] }).points[0]![0])).toEqual([1, 9, 10, 3]);
         expect(() => applyImageEdits(start, [{ op: 'paint', layer: 'p', at: 2, remove: 5 }])).toThrow(/cannot replace 5 at 2/);
+    });
+});
+
+describe('what a brush is made of', () => {
+    const paint = (strokes: object[], extra: object = {}): ImageLayer => ({ id: 'p', shape: 'paint', strokes, ...extra } as never);
+    const line = (fields: object = {}): object => ({ points: [[8, 64], [120, 64]], color: RED, size: 30, hardness: 0.9, ...fields });
+    const pic = (strokes: object[]): ReturnType<typeof draw> => draw([paint(strokes)], [128, 128]);
+    /** How many pixels along a row inside the stroke are not fully painted. */
+    const gaps = (img: ReturnType<typeof draw>, y = 64): number => { let n = 0; for (let x = 24; x < 104; x++) if (px(img, x, y)[3]! < 128) n++; return n; };
+
+    it('a flat brush held at an angle goes thick and thin with its direction', () => {
+        const span = (points: number[][], column: boolean): number => {
+            const img = pic([{ points, color: RED, size: 30, hardness: 1, roundness: 0.15, angle: 0 }]);
+            let n = 0;
+            for (let i = 0; i < 128; i++) if ((column ? px(img, 64, i) : px(img, i, 64))[3]! > 128) n++;
+            return n;
+        };
+        // Held flat along x: a stroke going down is as wide as the brush, one going along x as thin as its edge.
+        expect(span([[64, 10], [64, 118]], false)).toBeGreaterThan(24);
+        expect(span([[10, 64], [118, 64]], true)).toBeLessThan(10);
+    });
+
+    it('a flat brush with no angle turns with the stroke, and stays its full width', () => {
+        const down = pic([{ points: [[64, 10], [64, 118]], color: RED, size: 30, hardness: 1, roundness: 0.15 }]);
+        const along = pic([{ points: [[10, 64], [118, 64]], color: RED, size: 30, hardness: 1, roundness: 0.15 }]);
+        let [a, b] = [0, 0];
+        for (let i = 0; i < 128; i++) { if (px(down, i, 64)[3]! > 128) a++; if (px(along, 64, i)[3]! > 128) b++; }
+        expect(Math.abs(a - b)).toBeLessThanOrEqual(2);
+        expect(a).toBeGreaterThan(24);
+    });
+
+    it('grain breaks a stroke up in a texture fixed to the picture, the same under every stroke', () => {
+        expect(gaps(pic([line()]))).toBe(0);
+        const rough = pic([line({ grain: 0.8 })]);
+        expect(gaps(rough)).toBeGreaterThan(10);
+        expect(gaps(pic([line({ grain: 0.8 })]))).toBe(gaps(rough));
+        const moved = pic([line({ grain: 0.8, points: [[8, 64], [100, 70], [120, 64]] })]);
+        let same = 0, both = 0;
+        for (let x = 24; x < 90; x++) { const [p, q] = [px(rough, x, 64)[3]! > 128, px(moved, x, 64)[3]! > 128]; if (p || q) both++; if (p && q) same++; }
+        expect(same / both).toBeGreaterThan(0.6);
+    });
+
+    it('dry leaves streaks that run along the stroke and not across it', () => {
+        const img = pic([line({ dry: 0.6 })]);
+        let [along, across] = [0, 0];
+        for (let i = 34; i < 94; i++) along += Math.abs(px(img, i, 64)[3]! - px(img, i + 1, 64)[3]!);
+        for (let i = 54; i < 74; i++) across += Math.abs(px(img, 64, i)[3]! - px(img, 64, i + 1)[3]!);
+        expect(across / 20).toBeGreaterThan((along / 60) * 2);
+        expect(across).toBeGreaterThan(100);
+    });
+
+    it('wet picks up what is under it and carries it along, and dry paint does not', () => {
+        const blue = { points: [[8, 64], [50, 64]], color: BLUE, size: 40, hardness: 1 };
+        const over = (wet: number): ReturnType<typeof draw> => pic([blue, { points: [[10, 64], [118, 64]], color: RED, size: 16, hardness: 1, wet }]);
+        expect(px(over(0), 30, 64)[2]).toBe(0);
+        expect(px(over(0.8), 30, 64)[2]).toBeGreaterThan(60);
+        // Out past the blue, still carrying some, and less the further it goes.
+        expect(px(over(0.8), 80, 64)[2]).toBeGreaterThan(20);
+        expect(px(over(0.8), 110, 64)[2]).toBeLessThan(px(over(0.8), 80, 64)[2]!);
+        expect(px(over(0), 80, 64)[2]).toBe(0);
+    });
+
+    it('edge gathers pigment at the rim, darker than inside', () => {
+        const img = pic([{ points: [[8, 64], [120, 64]], color: '#000000', size: 40, hardness: 0.3, opacity: 0.5, edge: 0.9 }]);
+        let best = 0;
+        for (let y = 40; y < 64; y++) best = Math.max(best, px(img, 64, y)[3]!);
+        expect(best).toBeGreaterThan(px(img, 64, 64)[3]! + 10);
+    });
+
+    it('scatter and dab make a spray, spaced and off the line', () => {
+        const img = pic([{ points: [[20, 64], [108, 64]], color: RED, size: 40, dab: 0.08, scatter: 1, spacing: 0.5, hardness: 1 }]);
+        let dots = 0, far = 0;
+        for (let y = 40; y < 90; y++) for (let x = 20; x < 108; x++) if (px(img, x, y)[3]! > 60) { dots++; if (Math.abs(y - 64) > 8) far++; }
+        expect(far).toBeGreaterThan(20);
+        expect(dots).toBeLessThan(88 * 50 * 0.9);
+    });
+
+    it('flow builds up over its own passes, as opacity does not', () => {
+        const once = pic([{ points: [[8, 64], [120, 64]], color: RED, size: 30, hardness: 0.5, flow: 0.01 }]);
+        const twice = pic([{ points: [[8, 64], [120, 64], [8, 64]], color: RED, size: 30, hardness: 0.5, flow: 0.01 }]);
+        expect(px(twice, 64, 64)[3]).toBeGreaterThan(px(once, 64, 64)[3]! + 10);
+    });
+
+    it('fade thins it out at its ends, in strength and not in width', () => {
+        const img = pic([line({ fade: [0, 0.5], hardness: 1 })]);
+        expect(px(img, 30, 64)[3]).toBeGreaterThan(px(img, 100, 64)[3]! + 80);
+        expect(px(img, 100, 70)[3]).toBeGreaterThan(0);
+    });
+
+    it('a named brush starts from its settings, and what is given overrides them', () => {
+        const base = pic([line()]);
+        const named = pic([line({ brush: 'charcoal', hardness: undefined })]);
+        expect(named.rgba).not.toEqual(base.rgba);
+        expect(gaps(named)).toBeGreaterThan(5);
+        expect(gaps(pic([line({ brush: 'charcoal', grain: 0, dry: 0 })]))).toBe(0);
+        for (const brush of Object.keys(IMAGE_BRUSHES)) expect(pic([line({ brush })]).notes).toEqual([]);
+        expect(() => validateImageSource({ size: 8, layers: [paint([line({ brush: 'crayon' })])] })).toThrow(/brush "crayon" must be one of ink,/);
+    });
+
+    it('is carried by a field and by a sweep', () => {
+        const field = (extra: object): ReturnType<typeof draw> => pic([{ type: 'field', tone: RED, size: 12, length: 40, angle: 0, seed: 1, coverage: 1, ...extra }]);
+        expect(field({ brush: 'dry' }).rgba).not.toEqual(field({}).rgba);
+        const sweep = (extra: object): ReturnType<typeof draw> => pic([{ type: 'sweep', guides: [[[10, 10], [10, 110]], [[60, 10], [60, 110]]], colors: [RED], count: 60, size: 3, seed: 1, ...extra }]);
+        expect(sweep({ brush: 'pencil' }).rgba).not.toEqual(sweep({}).rgba);
+    });
+
+    it('is the same every time', () => {
+        for (const brush of ['oil', 'watercolor', 'spray']) expect(pic([line({ brush })]).rgba).toEqual(pic([line({ brush })]).rgba);
+    });
+
+    it('says what is wrong with a setting', () => {
+        const bad = (fields: object): unknown => validateImageSource({ size: 8, layers: [paint([line(fields)])] });
+        expect(() => bad({ roundness: 0 })).toThrow(/roundness must be above 0/);
+        expect(() => bad({ grain: 2 })).toThrow(/grain must be 0..1/);
+        expect(() => bad({ fade: [0] })).toThrow(/fade must be/);
+        expect(() => bad({ spacing: 0 })).toThrow(/spacing must be positive/);
+        expect(() => bad({ angle: 'up' })).toThrow(/angle must be degrees/);
     });
 });
 

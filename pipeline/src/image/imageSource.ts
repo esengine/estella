@@ -39,8 +39,58 @@ export interface ImageTransform {
 
 export type ImageShape = 'rect' | 'circle' | 'ellipse' | 'ring' | 'polygon' | 'line' | 'star' | 'gear' | 'path' | 'pixels' | 'paint' | 'figure' | 'image' | 'group';
 
+/** How a brush lays colour. Any of these on a stroke, a sweep or a field, over what its `brush` starts from. */
+export interface ImageBrushSettings {
+    hardness?: number;
+    opacity?: number;
+    taper?: readonly [number, number];
+    /** 1 round; lower is a flat brush, thin along its travel and wide across it. */
+    roundness?: number;
+    /** Degrees the flat of the brush is held at, which gives thick and thin as a pen does. Without it the brush turns with the stroke. */
+    angle?: number;
+    /** 0..1: how much the tooth of the paper breaks it up, in a texture fixed to the picture. */
+    grain?: number;
+    grainScale?: number;
+    /** 0..1: how much the brush runs dry, in streaks along its travel. */
+    dry?: number;
+    /** 0..1: how much it picks up what is under it as it goes. */
+    wet?: number;
+    /** 0..1: pigment gathered at the edge, as watercolour dries. */
+    edge?: number;
+    /** Each dab this many brush radii off the line. */
+    scatter?: number;
+    /** The dabs as a share of the brush's size: small, and scattered, they are a spray. */
+    dab?: number;
+    /** Between dabs, as a share of a dab's width. */
+    spacing?: number;
+    /** 0..1: each dab adds this much, so paint builds where it passes, as an airbrush does, and opacity no longer caps it. */
+    flow?: number;
+    /** How much of the length at each end fades out, each 0..1. */
+    fade?: readonly [number, number];
+}
+
+/** Named starting points, in the words a painter uses. */
+export const IMAGE_BRUSHES: Readonly<Record<string, ImageBrushSettings>> = {
+    ink: { hardness: 1, taper: [0.12, 0.3] },
+    pen: { hardness: 1, roundness: 0.25, angle: -45 },
+    pencil: { hardness: 0.6, grain: 0.35, grainScale: 1.2, opacity: 0.75 },
+    charcoal: { hardness: 0.35, grain: 0.5, grainScale: 2.2, dry: 0.12, opacity: 0.95 },
+    chalk: { hardness: 0.7, grain: 0.55, grainScale: 6, opacity: 0.95 },
+    flat: { hardness: 0.85, roundness: 0.3, dry: 0.3 },
+    oil: { hardness: 0.65, roundness: 0.55, dry: 0.22, wet: 0.55, opacity: 0.95 },
+    gouache: { hardness: 0.8, roundness: 0.5, wet: 0.2, dry: 0.08, opacity: 0.95 },
+    watercolor: { hardness: 0.2, wet: 0.45, edge: 0.5, opacity: 0.45, grain: 0.05, grainScale: 5 },
+    marker: { hardness: 0.9, roundness: 0.45, angle: -30, opacity: 0.72 },
+    airbrush: { hardness: 0, flow: 0.05 },
+    spray: { hardness: 0.7, dab: 0.07, scatter: 1, spacing: 0.5, opacity: 0.9 },
+    dry: { hardness: 0.75, roundness: 0.35, dry: 0.65, opacity: 0.95 },
+};
+const BRUSH_FIELDS = ['brush', 'roundness', 'angle', 'grain', 'grainScale', 'dry', 'wet', 'edge', 'scatter', 'dab', 'spacing', 'flow', 'fade'];
+
 /** One movement of a brush. Replayed in order on a `paint` layer, so the same list is the same picture. */
-export interface ImageStroke {
+export interface ImageStroke extends ImageBrushSettings {
+    /** A named brush from IMAGE_BRUSHES, which what else is given here overrides. */
+    brush?: string;
     /** Through these, smoothly; a third number is pressure, 1 by default. One point is a dab. */
     points: readonly (readonly number[])[];
     color?: string;
@@ -69,8 +119,9 @@ export interface ImageStroke {
 }
 
 /** Many hairs between guide lines, gathered into locks. A few words of intent, and hundreds of strokes when drawn. */
-export interface ImageSweep {
+export interface ImageSweep extends ImageBrushSettings {
     type: 'sweep';
+    brush?: string;
     /** Two or more lines, side by side and in order, each root to tip. */
     guides: readonly (readonly (readonly number[])[])[];
     /** Across the guides, first to last. */
@@ -93,8 +144,9 @@ export interface ImageSweep {
 }
 
 /** A region covered in strokes that follow a flow, each its colour from `tone` where it starts. */
-export interface ImageField {
+export interface ImageField extends ImageBrushSettings {
     type: 'field';
+    brush?: string;
     /** An SVG path to start strokes in, or "@id" for where an earlier layer drew; the whole picture without it. Strokes may run over its edge. */
     region?: string;
     /** Lines the strokes follow, nearest the most, or a direction in degrees clockwise from right. */
@@ -229,11 +281,25 @@ function checkFill(v: unknown): string | null {
 
 const FIELDS = ['id', 'shape', 'at', 'size', 'radius', 'radii', 'inner', 'count', 'tooth', 'turn', 'points', 'd', 'rows', 'palette', 'scale', 'layers', 'fill', 'stroke', 'opacity', 'blend', 'transform', 'mirror', 'effects', 'clip', 'erase', 'visible', 'blur', 'strokes', 'from', 'guide', 'height', 'yaw', 'pitch', 'build', 'pose', 'light', 'src', 'except'];
 const SHAPES: readonly ImageShape[] = ['rect', 'circle', 'ellipse', 'ring', 'polygon', 'line', 'star', 'gear', 'path', 'pixels', 'paint', 'figure', 'image', 'group'];
-const STROKE_FIELDS = ['points', 'color', 'to', 'size', 'hardness', 'opacity', 'taper', 'bristles', 'strand', 'spread', 'vary', 'wobble', 'seed', 'smudge', 'erase', 'blend'];
+const STROKE_FIELDS = ['points', 'color', 'to', 'size', 'hardness', 'opacity', 'taper', 'bristles', 'strand', 'spread', 'vary', 'wobble', 'seed', 'smudge', 'erase', 'blend', ...BRUSH_FIELDS];
 
-const SWEEP_FIELDS = ['type', 'guides', 'colors', 'count', 'tip', 'size', 'clumps', 'gather', 'flyaway', 'vary', 'wobble', 'opacity', 'taper', 'seed'];
+/** What a brush's own settings must be, on whatever carries them. */
+function brushProblem(s: Record<string, unknown>): string | null {
+    if (s.brush !== undefined && !(typeof s.brush === 'string' && Object.hasOwn(IMAGE_BRUSHES, s.brush))) return `brush ${JSON.stringify(s.brush)} must be one of ${Object.keys(IMAGE_BRUSHES).join(', ')}`;
+    for (const key of ['roundness', 'grain', 'dry', 'wet', 'edge', 'dab', 'flow']) {
+        if (s[key] !== undefined && !(isNum(s[key]) && (s[key] as number) >= 0 && (s[key] as number) <= 1)) return `${key} must be 0..1`;
+    }
+    if (s.roundness === 0 || s.dab === 0) return `${s.roundness === 0 ? 'roundness' : 'dab'} must be above 0`;
+    for (const key of ['grainScale', 'spacing']) if (s[key] !== undefined && !(isNum(s[key]) && (s[key] as number) > 0)) return `${key} must be positive`;
+    if (s.scatter !== undefined && !(isNum(s.scatter) && (s.scatter as number) >= 0)) return 'scatter must be 0 or more';
+    if (s.angle !== undefined && !isNum(s.angle)) return 'angle must be degrees';
+    if (s.fade !== undefined && !(Array.isArray(s.fade) && s.fade.length === 2 && s.fade.every((t) => isNum(t) && t >= 0 && t <= 1))) return 'fade must be [start, end], each 0..1';
+    return null;
+}
+
+const SWEEP_FIELDS = ['type', 'guides', 'colors', 'count', 'tip', 'size', 'clumps', 'gather', 'flyaway', 'vary', 'wobble', 'opacity', 'taper', 'seed', 'hardness', ...BRUSH_FIELDS];
 const ALONG_FIELDS = ['type', 'line', 'count', 'strokes', 'scale', 'turn', 'both', 'jitter', 'seed'];
-const FIELD_FIELDS = ['type', 'region', 'guides', 'angle', 'tone', 'smudge', 'size', 'length', 'coverage', 'spread', 'vary', 'opacity', 'hardness', 'seed'];
+const FIELD_FIELDS = ['type', 'region', 'guides', 'angle', 'tone', 'smudge', 'size', 'length', 'coverage', 'spread', 'vary', 'opacity', 'hardness', 'seed', 'taper', ...BRUSH_FIELDS];
 const isGuide = (g: unknown): boolean => Array.isArray(g) && g.length >= 2 && g.every((p) => Array.isArray(p) && (p.length === 2 || p.length === 3) && p.every(isNum));
 export const MAX_MARK_STROKES = 30000;
 
@@ -245,6 +311,10 @@ function markProblem(s: Record<string, unknown>): string | null {
     const fields = s.type === 'sweep' ? SWEEP_FIELDS : s.type === 'along' ? ALONG_FIELDS : FIELD_FIELDS;
     for (const key of Object.keys(s)) if (!fields.includes(key)) return `has unknown field "${key}"; a ${String(s.type)} takes ${fields.join(', ')}`;
     if (s.seed !== undefined && !Number.isInteger(s.seed)) return 'seed must be a whole number';
+    if (s.type !== 'along') {
+        const bad = brushProblem(s);
+        if (bad) return bad;
+    }
     if (s.type === 'sweep') {
         if (!Array.isArray(s.guides) || s.guides.length < 2 || !s.guides.every(isGuide)) return 'needs guides: two or more lines, each two or more [x, y]';
         if (!Array.isArray(s.colors) || s.colors.length === 0 || !s.colors.every(isColor)) return 'needs colors: one or more, across the guides';
@@ -292,6 +362,10 @@ function markProblem(s: Record<string, unknown>): string | null {
 
 function strokeProblem(s: Record<string, unknown>): string | null {
     if (typeof s !== 'object' || s === null) return 'must be an object';
+    if (s.type === undefined) {
+        const bad = brushProblem(s);
+        if (bad) return bad;
+    }
     if (s.type === 'sweep' || s.type === 'field' || s.type === 'along') return markProblem(s);
     if (s.type !== undefined) return `has type "${String(s.type)}"; there are sweep, field and along, or none for one stroke`;
     for (const key of Object.keys(s)) if (!STROKE_FIELDS.includes(key)) return `has unknown field "${key}"; a stroke takes ${STROKE_FIELDS.join(', ')}`;
