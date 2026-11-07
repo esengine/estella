@@ -3888,6 +3888,8 @@ export const NOTED = {
     {"note":"An AI can draw 2D pictures."},
   "feat(look): layers moved and wrapped, one pixel changed, a set and a close look drawn":
     {"note":"An AI can draw 2D pictures."},
+  "fix(look): what clips to a clipped layer stays inside what that layer holds":
+    {"internal":"the paint, figure and image layers it fixes have not been released"},
   "fix(look): a hidden guide still works, opacity 0 hides its bones, a faint layer has a real box":
     {"internal":"what it fixes has not been released"},
   "feat(look): brushes: flat tips, paper grain, dry streaks, wet mixing, and named media":

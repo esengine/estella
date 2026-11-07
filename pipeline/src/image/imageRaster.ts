@@ -661,7 +661,7 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
             for (let i = 0; i < channel.length; i++) channel[i] = inner.px[i * 4 + k]!;
             return blurMask(channel, w, h, blur * drawnScale(parent));
         }) as [Float32Array, Float32Array, Float32Array, Float32Array];
-        if (layer.id) drawn.masks.set(layer.id, a);
+        if (layer.id) drawn.masks.set(layer.id, clip ? a.map((v, i) => v * clip![i]!) : a);
         for (let i = 0; i < a.length; i++) {
             const alpha = a[i]!;
             if (alpha <= 0) continue;
@@ -1236,8 +1236,10 @@ function drawPaint(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, o
     if (layer.id) drawn.painted.set(layer.id, { entries: (layer.strokes ?? []).length, strokes: drawnStrokes });
     const alpha = new Float32Array(w * h);
     for (let i = 0; i < alpha.length; i++) alpha[i] = inner.px[i * 4 + 3]!;
-    if (layer.id) drawn.masks.set(layer.id, alpha);
-    noteBox(drawn, layer.id, alpha, w, h);
+    // What it holds is what its clip let through: what clips to it must not get out past that.
+    const held = clip ? alpha.map((v, i) => v * clip[i]!) : alpha;
+    if (layer.id) drawn.masks.set(layer.id, held);
+    noteBox(drawn, layer.id, held, w, h);
     if (layer.from === 'below') {
         // It already holds the picture, so it takes that picture's place and does not go over it.
         for (let i = 0; i < alpha.length * 4; i++) {
@@ -1271,11 +1273,12 @@ function drawFigure(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, 
     }
     if (layer.id) {
         drawn.figures.set(layer.id, { ...figure, normals: extended });
-        drawn.masks.set(layer.id, figure.mask);
-        noteBox(drawn, layer.id, figure.mask, w, h);
+        const held = (mask: Float32Array): Float32Array => (clip ? mask.map((v, i) => v * clip[i]!) : mask);
+        drawn.masks.set(layer.id, held(figure.mask));
+        noteBox(drawn, layer.id, held(figure.mask), w, h);
         for (const [tag, mask] of Object.entries(figure.parts)) {
-            drawn.masks.set(`${layer.id}.${tag}`, mask);
-            noteBox(drawn, `${layer.id}.${tag}`, mask, w, h);
+            drawn.masks.set(`${layer.id}.${tag}`, held(mask));
+            noteBox(drawn, `${layer.id}.${tag}`, held(mask), w, h);
         }
     }
     const [lx, ly, lz] = figure.light;
@@ -1326,8 +1329,9 @@ function drawPicture(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn,
     }
     if (layer.id) {
         drawn.images.set(layer.id, out);
-        drawn.masks.set(layer.id, mask);
-        noteBox(drawn, layer.id, mask, w, h);
+        const held = clip ? mask.map((v, i) => v * clip[i]!) : mask;
+        drawn.masks.set(layer.id, held);
+        noteBox(drawn, layer.id, held, w, h);
     }
     for (let i = 0; i < mask.length; i++) {
         if (mask[i]! > 0) put(c, i, out[i * 4]!, out[i * 4 + 1]!, out[i * 4 + 2]!, mask[i]! * opacity * (clip ? clip[i]! : 1), blend);

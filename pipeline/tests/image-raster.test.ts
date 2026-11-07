@@ -1117,6 +1117,30 @@ describe('a picture to draw over', () => {
     });
 });
 
+describe('clipping to what was itself clipped', () => {
+    const left: ImageLayer = { id: 'left', shape: 'rect', at: [0, 0], size: [32, 64], fill: BLUE };
+    const strokes = [{ points: [[0, 32], [64, 32]], color: RED, size: 20, hardness: 1 }];
+
+    it('a paint layer holds only what its clip let through', () => {
+        const img = draw([left, { id: 'p', shape: 'paint', clip: 'left', strokes } as never, { shape: 'rect', at: [0, 0], size: [64, 64], fill: '#00ff00', clip: 'p' }]);
+        expect(px(img, 10, 32)[1]).toBe(255);
+        expect(px(img, 50, 32)[3]).toBe(0);
+    });
+
+    it('so does a figure, a picture and a blurred layer', () => {
+        const blurred = draw([left, { id: 'p', shape: 'rect', at: [0, 22], size: [64, 20], fill: RED, clip: 'left', blur: 1 }, { shape: 'rect', at: [0, 0], size: [64, 64], fill: '#00ff00', clip: 'p' }]);
+        expect(px(blurred, 50, 32)[3]).toBe(0);
+        const fig = renderImage(validateImageSource({ size: 256, layers: [{ id: 'half', shape: 'rect', at: [0, 0], size: [128, 256], fill: BLUE }, { id: 'f', shape: 'figure', at: [128, 240], height: 220, clip: 'half' }, { shape: 'rect', at: [0, 0], size: [256, 256], fill: RED, clip: 'f' }] }));
+        const m = fig.figures.f!;
+        expect(px(fig as never, m.chest![0] + 12, m.chest![1])[0]).toBe(0);
+    });
+
+    it('and its reported box is what it holds', () => {
+        const img = draw([left, { id: 'p', shape: 'paint', clip: 'left', strokes } as never]);
+        expect(img.layerBounds.p![0] + img.layerBounds.p![2]).toBeLessThanOrEqual(33);
+    });
+});
+
 describe('what the third trial tripped on', () => {
     const person = { id: 'f', shape: 'figure', at: [128, 240], height: 220 } as ImageLayer;
     const looking = (layers: object[]): ReturnType<typeof renderImage> => renderImage(validateImageSource({ size: 256, layers }), { guides: true });
