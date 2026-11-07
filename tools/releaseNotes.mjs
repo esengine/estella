@@ -3886,6 +3886,10 @@ export const NOTED = {
     {"note":"A WeChat mini-game opens in WeChat DevTools."},
   "feat(look): layers and pixels drawn to a picture, on the CPU":
     {"note":"An AI can draw 2D pictures."},
+  "feat(look): layers moved and wrapped, one pixel changed, a set and a close look drawn":
+    {"note":"An AI can draw 2D pictures."},
+  "feat(mcp): image_set, a region in image_read, and what image_edit can now do":
+    {"note":"An AI can draw 2D pictures."},
   "feat(mcp): image_write, image_edit and image_read":
     {"note":"An AI can draw 2D pictures."},
   "feat(modeling): a whole person from a few numbers, clothes from the body's own surface, and a pose by where a hand should be":

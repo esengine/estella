@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /** A picture from layers: each draws what it says and where, edges are antialiased, and what is wrong with a source is said before anything is drawn. */
 import { describe, expect, it } from 'vitest';
-import { imageSheet, parseColor, parsePath, renderImage } from '../src/image/imageRaster';
-import { applyImageEdits, validateImageSource, type ImageLayer } from '../src/image/imageSource';
+import { imageSheet, parseColor, parsePath, renderImage, setSheet, zoomImage } from '../src/image/imageRaster';
+import { applyImageEdits, strokeWidths, validateImageSource, type ImageLayer } from '../src/image/imageSource';
 
 const draw = (layers: unknown[], size: number | [number, number] = 64, background?: string): ReturnType<typeof renderImage> => renderImage(validateImageSource({ size, layers, ...(background ? { background } : {}) }));
 const px = (img: { width: number; rgba: Uint8Array }, x: number, y: number): number[] => Array.from(img.rgba.subarray((y * img.width + x) * 4, (y * img.width + x) * 4 + 4));
@@ -137,6 +137,20 @@ describe('fills and strokes', () => {
         expect(px(outside, 18, 32)[2]).toBeGreaterThan(200);
         expect(px(outside, 21, 32)).toEqual([255, 0, 0, 255]);
     });
+
+    it('leaves no gap between a fill and its outside stroke, along a curve where edge pixels are partly each', () => {
+        const img = draw([{ shape: 'circle', at: [32, 32], radius: 20.3, fill: RED, stroke: { color: BLUE, width: 4, align: 'outside' } }]);
+        for (let i = 0; i < 128; i++) {
+            const a = (i / 128) * Math.PI * 2;
+            const [x, y] = [Math.floor(32 + 20.3 * Math.cos(a)), Math.floor(32 + 20.3 * Math.sin(a))];
+            expect(px(img, x, y)[3]).toBeGreaterThan(250);
+        }
+    });
+
+    it('does not show an outside stroke through a see-through fill', () => {
+        const img = draw([{ shape: 'circle', at: [32, 32], radius: 20, fill: '#ff000040', stroke: { color: BLUE, width: 4, align: 'outside' } }]);
+        expect(px(img, 32, 20)[2]).toBe(0);
+    });
 });
 
 describe('layers', () => {
@@ -188,6 +202,51 @@ describe('layers', () => {
         expect(px(img, 32, 38)).toEqual([255, 0, 0, 255]);
         expect(px(img, 32, 26)).toEqual([0, 0, 255, 255]);
         expect(px(img, 5, 50)[3]).toBe(0);
+    });
+
+    it('a clip stays inside the other layer\'s stroke, which still shows', () => {
+        const img = draw([
+            { id: 'glass', shape: 'circle', at: [32, 32], radius: 20, fill: '#ffffff', stroke: { color: BLUE, width: 4 } },
+            { shape: 'rect', at: [0, 0], size: [64, 64], fill: RED, clip: 'glass' },
+        ]);
+        expect(px(img, 32, 32)).toEqual([255, 0, 0, 255]);
+        // On the stroke, a little in from the edge of the fill: blue, not red.
+        expect(px(img, 32, 13)[2]).toBe(255);
+        expect(px(img, 32, 13)[0]).toBe(0);
+    });
+
+    it('a clip keeps to the fill when the stroke is outside it, and a stroke-only shape has an inside too', () => {
+        const outside = draw([
+            { id: 'glass', shape: 'circle', at: [32, 32], radius: 20, fill: '#ffffff', stroke: { color: BLUE, width: 4, align: 'outside' } },
+            { shape: 'rect', at: [0, 0], size: [64, 64], fill: RED, clip: 'glass' },
+        ]);
+        expect(px(outside, 32, 14)).toEqual([255, 0, 0, 255]);
+        expect(px(outside, 32, 10)[2]).toBe(255);
+        const hollow = draw([
+            { id: 'o', shape: 'circle', at: [32, 32], radius: 20, stroke: { color: BLUE, width: 4 } },
+            { shape: 'rect', at: [0, 0], size: [64, 64], fill: RED, clip: 'o' },
+        ]);
+        expect(px(hollow, 32, 32)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('a clip inside a clip stays inside both', () => {
+        const img = draw([
+            { id: 'left', shape: 'rect', at: [0, 0], size: [32, 64], fill: BLUE },
+            { id: 'top', shape: 'rect', at: [0, 0], size: [64, 32], fill: BLUE, clip: 'left' },
+            { shape: 'rect', at: [0, 0], size: [64, 64], fill: RED, clip: 'top' },
+        ]);
+        expect(px(img, 10, 10)).toEqual([255, 0, 0, 255]);
+        expect(px(img, 50, 10)[0]).toBe(0);
+        expect(px(img, 10, 50)[0]).toBe(0);
+    });
+
+    it('a line has no inside: what clips to it keeps to the line', () => {
+        const img = draw([
+            { id: 'l', shape: 'line', points: [[0, 32], [64, 32]], stroke: { color: BLUE, width: 6 } },
+            { shape: 'rect', at: [0, 0], size: [64, 64], fill: RED, clip: 'l' },
+        ]);
+        expect(px(img, 32, 32)).toEqual([255, 0, 0, 255]);
+        expect(px(img, 32, 10)[3]).toBe(0);
     });
 
     it('says when a clip names nothing, and when a layer draws nothing', () => {
@@ -309,6 +368,16 @@ describe('a picture', () => {
 describe('the sheet to look at', () => {
     const img = draw([{ shape: 'rect', at: [0, 0], size: [64, 64], fill: '#ff000080' }]);
 
+    it('shows a dark outline and a pale one alike on its ground', () => {
+        const pic = draw([{ shape: 'circle', at: [32, 32], radius: 20, stroke: { color: '#1b1f2e', width: 6 } }, { shape: 'circle', at: [32, 32], radius: 8, fill: '#ffffff' }]);
+        const sheet = imageSheet(pic, []);
+        const sample = (x: number, y: number): number => sheet.rgba[(y * sheet.width + x) * 4 + 1]!;
+        // 64 x 6 = 384 across; the ground, the dark ring and the white middle, each well apart.
+        const [ground, ring, middle] = [sample(8 + 30, 8 + 30), sample(8 + 192, 8 + 72), sample(8 + 192, 8 + 192)];
+        expect(ground - ring).toBeGreaterThan(50);
+        expect(middle - ground).toBeGreaterThan(50);
+    });
+
     it('is opaque, with the picture over two grounds and at small sizes', () => {
         const sheet = imageSheet(img, [32, 16]);
         for (let i = 3; i < sheet.rgba.length; i += 4) expect(sheet.rgba[i]).toBe(255);
@@ -324,6 +393,37 @@ describe('the sheet to look at', () => {
         const sheet = imageSheet(pixel, []);
         const edge = Array.from(sheet.rgba.subarray((10 * sheet.width + 8 + 100) * 4, (10 * sheet.width + 8 + 100) * 4 + 3));
         expect(edge).toEqual([255, 0, 0]);
+    });
+});
+
+describe('a set and a close look', () => {
+    const a = draw([{ shape: 'rect', at: [0, 0], size: [64, 64], fill: RED }]);
+    const b = draw([{ shape: 'rect', at: [0, 0], size: [32, 64], fill: BLUE }], [32, 64]);
+
+    it('lays pictures out in columns, in order, each whole, whatever its shape', () => {
+        const sheet = setSheet([a, b], 128);
+        expect(sheet.width).toBe(8 + (128 + 8) * 2);
+        const at = (x: number, y: number): number[] => Array.from(sheet.rgba.subarray((y * sheet.width + x) * 4, (y * sheet.width + x) * 4 + 3));
+        expect(at(8 + 64, 8 + 64)).toEqual([255, 0, 0]);
+        expect(at(8 + 136 + 32, 8 + 64)).toEqual([0, 0, 255]);
+        for (let i = 3; i < sheet.rgba.length; i += 4) expect(sheet.rgba[i]).toBe(255);
+        expect(() => setSheet([])).toThrow(/at least one/);
+    });
+
+    it('goes on to another row past eight', () => {
+        const sheet = setSheet(Array.from({ length: 9 }, () => a), 32);
+        expect(sheet.height).toBe(setSheet([a], 32).height * 2);
+    });
+
+    it('enlarges a part with hard pixels, on the check where it is clear', () => {
+        const half = draw([{ shape: 'rect', at: [10, 0], size: [54, 64], fill: RED }]);
+        const big = zoomImage(half, { x: 8, y: 8, w: 4, h: 4 });
+        expect(big.width).toBe(640);
+        const at = (x: number, y: number): number[] => Array.from(big.rgba.subarray((y * big.width + x) * 4, (y * big.width + x) * 4 + 3));
+        // Two pixels of nothing and two of red, each 160 wide, and no blur between.
+        expect(at(321, 80)).toEqual([255, 0, 0]);
+        expect(at(319, 80)[1]).toBeGreaterThan(200);
+        expect(() => zoomImage(half, { x: 500, y: 0, w: 4, h: 4 })).toThrow(/outside the picture/);
     });
 });
 
@@ -346,6 +446,16 @@ describe('the source', () => {
         expect(() => validateImageSource(ok([{ shape: 'circle', at: [0, 0], radius: 1, fill: RED, effects: [{ type: 'bevel' }] }]))).toThrow(/bevel/);
         expect(() => validateImageSource(ok([{ id: 'a', shape: 'circle', at: [0, 0], radius: 1, fill: RED }, { id: 'a', shape: 'circle', at: [0, 0], radius: 1, fill: RED }]))).toThrow(/already used/);
         expect(() => validateImageSource(ok([{ shape: 'group', layers: [{ shape: 'blob' }] }]))).toThrow(/layers\[0\]/);
+    });
+
+    it('finds a bad path before it is drawn, in a hidden layer too, and names the layer', () => {
+        expect(() => validateImageSource(ok([{ id: 'p', shape: 'path', d: 'M0 0 A5 5 0 0 1 9 9', fill: RED, visible: false }]))).toThrow(/layer 0 "p".*M L H V C S Q T Z/);
+        expect(() => validateImageSource(ok([{ shape: 'group', layers: [{ shape: 'path', d: 'M0', fill: RED }] }]))).toThrow(/layers\[0\].*short of numbers/);
+    });
+
+    it('counts the stroke widths in it, at any depth', () => {
+        const s = validateImageSource(ok([{ shape: 'circle', at: [1, 1], radius: 1, stroke: { color: RED, width: 4 } }, { shape: 'group', layers: [{ shape: 'circle', at: [1, 1], radius: 1, stroke: { color: RED, width: 4 } }, { shape: 'circle', at: [1, 1], radius: 1, stroke: { color: RED, width: 2 } }] }]));
+        expect(strokeWidths(s)).toEqual({ 4: 2, 2: 1 });
     });
 });
 
@@ -374,10 +484,62 @@ describe('edits', () => {
         expect(applyImageEdits(base, [{ op: 'settings', fields: { background: '#000' } }, { op: 'settings', fields: { background: null } }]).background).toBeUndefined();
     });
 
+    const row = validateImageSource({ size: 16, layers: [1, 2, 3, 4].map((n) => ({ id: `l${n}`, shape: 'circle', at: [n, n], radius: 1, fill: RED })) });
+
+    it('moves a layer where it is told', () => {
+        expect(ids(applyImageEdits(row, [{ op: 'move', layer: 'l4', before: 'l1' }]).layers)).toEqual(['l4', 'l1', 'l2', 'l3']);
+        expect(ids(applyImageEdits(row, [{ op: 'move', layer: 'l1', after: 'l3' }]).layers)).toEqual(['l2', 'l3', 'l1', 'l4']);
+        expect(ids(applyImageEdits(row, [{ op: 'move', layer: 'l1' }]).layers)).toEqual(['l2', 'l3', 'l4', 'l1']);
+        expect(ids(applyImageEdits(base, [{ op: 'move', layer: 'a', into: 'g' }]).layers)).toEqual(['g']);
+        expect(ids(applyImageEdits(base, [{ op: 'move', layer: 'b', before: 'a' }]).layers)).toEqual(['b', 'a', 'g']);
+    });
+
+    it('will not move a group into itself', () => {
+        expect(() => applyImageEdits(base, [{ op: 'move', layer: 'g', into: 'b' }])).toThrow(/itself or inside it/);
+        expect(() => applyImageEdits(base, [{ op: 'move', layer: 'a', before: 'l9' }])).toThrow(/no layer "l9"/);
+        expect(() => applyImageEdits(base, [{ op: 'move', layer: 'a', before: 'g', after: 'b' }])).toThrow(/one of/);
+    });
+
+    it('wraps layers into a group where the first was, in drawing order however they were named', () => {
+        const next = applyImageEdits(row, [{ op: 'wrap', layers: ['l3', 'l2'], group: { id: 'g', transform: { rotate: 10 } } }]);
+        expect(ids(next.layers)).toEqual(['l1', 'g', 'l4']);
+        expect(ids(next.layers[1]!.layers!)).toEqual(['l2', 'l3']);
+        expect(next.layers[1]!.transform?.rotate).toBe(10);
+    });
+
+    it('wrapping changes nothing drawn until the group is given something', () => {
+        const before = renderImage(validateImageSource({ size: 32, layers: [{ id: 'a', shape: 'circle', at: [16, 16], radius: 9, fill: RED }, { id: 'b', shape: 'circle', at: [20, 16], radius: 9, fill: BLUE }] }));
+        const after = renderImage(applyImageEdits(validateImageSource({ size: 32, layers: [{ id: 'a', shape: 'circle', at: [16, 16], radius: 9, fill: RED }, { id: 'b', shape: 'circle', at: [20, 16], radius: 9, fill: BLUE }] }), [{ op: 'wrap', layers: ['a', 'b'], group: { id: 'g' } }]));
+        let worst = 0;
+        for (let i = 0; i < before.rgba.length; i++) worst = Math.max(worst, Math.abs(before.rgba[i]! - after.rgba[i]!));
+        expect(worst).toBeLessThanOrEqual(2);
+    });
+
+    it('wraps only what lies side by side', () => {
+        expect(() => applyImageEdits(base, [{ op: 'wrap', layers: ['a', 'b'], group: {} }])).toThrow(/not all in one list/);
+        expect(() => applyImageEdits(base, [{ op: 'wrap', layers: [], group: {} }])).toThrow(/needs layers/);
+    });
+
+    it('unwraps a group back into its place, and will not lose what it holds', () => {
+        expect(ids(applyImageEdits(base, [{ op: 'unwrap', layer: 'g' }]).layers)).toEqual(['a', 'b']);
+        const tilted = applyImageEdits(base, [{ op: 'set', layer: 'g', fields: { transform: { rotate: 5 } } }]);
+        expect(() => applyImageEdits(tilted, [{ op: 'unwrap', layer: 'g' }])).toThrow(/transform, which its layers would lose/);
+        expect(() => applyImageEdits(base, [{ op: 'unwrap', layer: 'a' }])).toThrow(/not a group/);
+    });
+
+    it('changes a pixel without restating the rows', () => {
+        const art = validateImageSource({ size: 8, layers: [{ id: 'art', shape: 'pixels', palette: { r: RED, b: BLUE }, rows: ['rrrr', 'rrrr'] }] });
+        expect(applyImageEdits(art, [{ op: 'pixels', layer: 'art', set: [{ row: 1, at: 2, text: 'bb' }, { row: 0, text: 'b' }] }]).layers[0]!.rows).toEqual(['brrr', 'rrbb']);
+        expect(() => applyImageEdits(art, [{ op: 'pixels', layer: 'art', set: [{ row: 5, text: 'b' }] }])).toThrow(/rows 0\.\.1/);
+        expect(() => applyImageEdits(art, [{ op: 'pixels', layer: 'art', set: [{ row: 0, at: 3, text: 'bb' }] }])).toThrow(/does not fit/);
+        expect(() => applyImageEdits(art, [{ op: 'pixels', layer: 'art', set: [{ row: 0, text: 'x' }] }])).toThrow(/not in the palette/);
+        expect(() => applyImageEdits(base, [{ op: 'pixels', layer: 'a', set: [] }])).toThrow(/not pixels/);
+    });
+
     it('says what it could not find, and refuses what would not be valid', () => {
         expect(() => applyImageEdits(base, [{ op: 'remove', layer: 'zz' }])).toThrow(/no layer "zz"; ids: a, g, b/);
         expect(() => applyImageEdits(base, [{ op: 'insert', layer: {} as never, into: 'a' }])).toThrow(/not a group/);
         expect(() => applyImageEdits(base, [{ op: 'set', layer: 'a', fields: { radius: -1 } }])).toThrow(/radius/);
-        expect(() => applyImageEdits(base, [{ op: 'spin' } as never])).toThrow(/set, insert, remove, settings/);
+        expect(() => applyImageEdits(base, [{ op: 'spin' } as never])).toThrow(/set, insert, remove, move, wrap, unwrap, pixels, settings/);
     });
 });

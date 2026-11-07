@@ -3,6 +3,8 @@
 /**
  * @file  imageSource.ts — `.esimage`: a picture as a list of layers, what a model writes and edits, and what is wrong with one.
  */
+import { parsePath } from './imageRaster';
+
 export const IMAGE_SOURCE_EXT = '.esimage';
 export const IMAGE_SOURCE_VERSION = 1;
 export const MAX_IMAGE_SIZE = 2048;
@@ -111,7 +113,15 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
             if (l.shape === 'line' && !l.stroke) fail('a line needs a stroke: { color, width }');
             break;
         case 'star': case 'gear': pair('at'); num('radius', positive); num('inner', positive); if (!Number.isInteger(l.count) || (l.count as number) < 3) fail('count must be 3 or more'); break;
-        case 'path': if (typeof l.d !== 'string' || !l.d.trim()) fail('d must be an SVG path: M L H V C S Q T Z'); break;
+        case 'path':
+            if (typeof l.d !== 'string' || !l.d.trim()) fail('d must be an SVG path: M L H V C S Q T Z');
+            // Here and not when it is drawn: a hidden layer is not drawn, and an error waits until it is shown.
+            try {
+                if (parsePath(l.d as string).every((run) => run.points.length === 0)) fail('d draws nothing');
+            } catch (e) {
+                fail((e as Error).message);
+            }
+            break;
         case 'pixels': {
             if (!Array.isArray(l.rows) || l.rows.length === 0 || !l.rows.every((r) => typeof r === 'string')) fail('rows must be strings, one character a pixel');
             const pal = l.palette as Record<string, unknown> | undefined;
@@ -187,7 +197,24 @@ export type ImageEdit =
     | { op: 'set'; layer: string; fields: Record<string, unknown> }
     | { op: 'insert'; layer: ImageLayer; before?: string; after?: string; into?: string }
     | { op: 'remove'; layer: string }
+    | { op: 'move'; layer: string; before?: string; after?: string; into?: string }
+    | { op: 'wrap'; layers: readonly string[]; group: Partial<ImageLayer> }
+    | { op: 'unwrap'; layer: string }
+    | { op: 'pixels'; layer: string; set: readonly { row: number; at?: number; text: string }[] }
     | { op: 'settings'; fields: { size?: ImageSource['size']; background?: string | null } };
+
+/** Every stroke width a source draws with, and how many layers use each: what drifts first across a set of icons. */
+export function strokeWidths(source: ImageSource): Record<string, number> {
+    const out: Record<string, number> = {};
+    const walk = (layers: readonly ImageLayer[]): void => {
+        for (const l of layers) {
+            if (l.stroke) out[String(l.stroke.width)] = (out[String(l.stroke.width)] ?? 0) + 1;
+            if (l.layers) walk(l.layers);
+        }
+    };
+    walk(source.layers);
+    return out;
+}
 
 /** A source with @p edits applied in order, where layers are named by id at any depth. Throws, naming what it could not find. */
 export function applyImageEdits(source: ImageSource, edits: readonly ImageEdit[]): ImageSource {
@@ -242,13 +269,74 @@ export function applyImageEdits(source: ImageSource, edits: readonly ImageEdit[]
                 list.splice(index, 1);
                 break;
             }
+            case 'move': {
+                const given = [edit.before, edit.after, edit.into].filter((v) => v !== undefined);
+                if (given.length > 1) throw new Error('move takes one of before, after and into');
+                const { list, index } = need(edit.layer);
+                const [row] = list.splice(index, 1);
+                const within = (l: Row): boolean => l.id === given[0] || ((l.layers as Row[] | undefined) ?? []).some(within);
+                if (given.length && within(row!)) {
+                    list.splice(index, 0, row!);
+                    throw new Error(`layer "${edit.layer}" cannot move next to or into "${String(given[0])}", which is itself or inside it`);
+                }
+                if (edit.into !== undefined) {
+                    const target = need(edit.into);
+                    const group = target.list[target.index]!;
+                    if (group.shape !== 'group') throw new Error(`layer "${edit.into}" is not a group`);
+                    (group.layers as Row[]).push(row!);
+                } else if (edit.before !== undefined) {
+                    const target = need(edit.before);
+                    target.list.splice(target.index, 0, row!);
+                } else if (edit.after !== undefined) {
+                    const target = need(edit.after);
+                    target.list.splice(target.index + 1, 0, row!);
+                } else clone.layers.push(row!);
+                break;
+            }
+            case 'wrap': {
+                if (!Array.isArray(edit.layers) || edit.layers.length === 0) throw new Error('wrap needs layers, the ids to put in the group');
+                const found = edit.layers.map((id) => ({ id, ...need(id) }));
+                if (found.some((f) => f.list !== found[0]!.list)) throw new Error(`wrap takes layers side by side, and ${edit.layers.join(', ')} are not all in one list`);
+                const list = found[0]!.list;
+                // Kept in the order they draw, whatever order they were named in: wrapping must not change what is over what.
+                const indices = found.map((f) => f.index).sort((a, b) => a - b);
+                const children = indices.map((i) => list[i]!);
+                for (const i of [...indices].reverse()) list.splice(i, 1);
+                list.splice(indices[0]!, 0, { ...edit.group, shape: 'group', layers: children } as Row);
+                break;
+            }
+            case 'unwrap': {
+                const { list, index } = need(edit.layer);
+                const group = list[index]!;
+                if (group.shape !== 'group') throw new Error(`layer "${edit.layer}" is not a group`);
+                const kept = ['transform', 'effects', 'opacity', 'blend', 'clip', 'mirror', 'visible'].filter((k) => group[k] !== undefined);
+                if (kept.length) throw new Error(`group "${edit.layer}" has ${kept.join(', ')}, which its layers would lose; set them to null first`);
+                list.splice(index, 1, ...(group.layers as Row[]));
+                break;
+            }
+            case 'pixels': {
+                const { list, index } = need(edit.layer);
+                const layer = list[index]!;
+                if (layer.shape !== 'pixels') throw new Error(`layer "${edit.layer}" is not pixels`);
+                const rows = [...(layer.rows as string[])];
+                for (const change of edit.set ?? []) {
+                    const row = rows[change.row];
+                    if (row === undefined) throw new Error(`layer "${edit.layer}" has rows 0..${rows.length - 1}, not ${change.row}`);
+                    const chars = [...row], text = [...change.text], at = change.at ?? 0;
+                    if (at < 0 || at + text.length > chars.length) throw new Error(`row ${change.row} of "${edit.layer}" is ${chars.length} wide: ${text.length} at ${at} does not fit`);
+                    chars.splice(at, text.length, ...text);
+                    rows[change.row] = chars.join('');
+                }
+                layer.rows = rows;
+                break;
+            }
             case 'settings':
                 if (edit.fields?.size !== undefined) clone.size = edit.fields.size;
                 if (edit.fields?.background === null) delete clone.background;
                 else if (edit.fields?.background !== undefined) clone.background = edit.fields.background;
                 break;
             default:
-                throw new Error(`an edit has op ${JSON.stringify((edit as { op?: unknown })?.op)}; there are set, insert, remove, settings`);
+                throw new Error(`an edit has op ${JSON.stringify((edit as { op?: unknown })?.op)}; there are set, insert, remove, move, wrap, unwrap, pixels, settings`);
         }
     }
     return validateImageSource(clone);

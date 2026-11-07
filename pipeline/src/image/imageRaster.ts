@@ -467,11 +467,12 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
     const scale = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
     const hasFill = layer.fill !== undefined && layer.shape !== 'line';
     const body = layer.shape === 'line' ? new Float32Array(w * h) : fillMask(placed.map((r) => r.points), w, h);
-    const line = layer.stroke ? strokeMask(placed, layer.stroke.width * scale, w, h) : null;
-    if (line && layer.stroke!.align && layer.stroke!.align !== 'center') {
-        const inside = layer.stroke!.align === 'inside';
-        for (let i = 0; i < line.length; i++) line[i]! *= inside ? body[i]! : 1 - body[i]!;
-    }
+    const align = layer.stroke?.align ?? 'center';
+    // An outside stroke is as wide again and goes under the fill. Cut to meet the fill's edge, each would cover part of the same edge pixel and the ground would show between them.
+    const line = layer.stroke ? strokeMask(placed, layer.stroke.width * scale * (align === 'outside' ? 2 : 1), w, h) : null;
+    if (line && align === 'inside') for (let i = 0; i < line.length; i++) line[i]! *= body[i]!;
+    // Under a see-through fill it must not show, so only the edge pixels keep it.
+    if (line && align === 'outside') for (let i = 0; i < line.length; i++) if (body[i]! >= 0.999) line[i] = 0;
     const whole = new Float32Array(w * h);
     let any = 0;
     for (let i = 0; i < whole.length; i++) {
@@ -479,7 +480,12 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
         whole[i] = v;
         any += v;
     }
-    if (layer.id) drawn.masks.set(layer.id, whole);
+    // What clips to this stays inside its stroke: liquid in a flask must not paint over the flask's outline.
+    if (layer.id) {
+        // A line has no inside but itself.
+        const covering = align === 'outside' ? null : line;
+        drawn.masks.set(layer.id, layer.shape === 'line' ? whole : body.map((v, i) => v * (covering ? 1 - covering[i]! : 1) * (clip ? clip[i]! : 1)));
+    }
     if (any === 0) drawn.notes.push(`layer ${layer.id ?? layer.shape} draws nothing inside the picture${clip ? ', or nothing inside its clip' : ''}`);
     if (layer.erase) {
         for (let i = 0; i < whole.length; i++) {
@@ -489,6 +495,19 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
         return;
     }
     effectLayers(layer.effects, true, c, whole);
+    const paintLine = (): void => {
+        const paint = paintOf(layer.stroke!.color, m);
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const i = y * w + x;
+                const v = line![i]! * (clip ? clip[i]! : 1);
+                if (v <= 0) continue;
+                const col = paint(x + 0.5, y + 0.5);
+                put(c, i, col[0], col[1], col[2], v * col[3] * opacity, blend);
+            }
+        }
+    };
+    if (line && align === 'outside') paintLine();
     if (hasFill) {
         const paint = paintOf(layer.fill!, m);
         for (let y = 0; y < h; y++) {
@@ -502,18 +521,7 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
         }
     }
     effectLayers(layer.effects, false, c, whole);
-    if (line) {
-        const paint = paintOf(layer.stroke!.color, m);
-        for (let y = 0; y < h; y++) {
-            for (let x = 0; x < w; x++) {
-                const i = y * w + x;
-                const v = line[i]! * (clip ? clip[i]! : 1);
-                if (v <= 0) continue;
-                const col = paint(x + 0.5, y + 0.5);
-                put(c, i, col[0], col[1], col[2], v * col[3] * opacity, blend);
-            }
-        }
-    }
+    if (line && align !== 'outside') paintLine();
 }
 
 const drawnScale = (m: Matrix): number => Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2])) || 1;
@@ -593,7 +601,75 @@ function shrink(src: RgbaBitmap, width: number, height: number): RgbaBitmap {
     return { width, height, rgba };
 }
 
-/** Something to look at: the picture on dark and on a light check, as a transparent image needs both, and at the sizes an icon is really seen. */
+type Ground = (x: number, y: number) => readonly [number, number, number];
+/** Between dark and light, so a dark outline and a pale highlight both show. On a near-black ground the outline a small icon wants disappears. */
+const midGround: Ground = () => [104, 112, 128];
+const checkGround: Ground = (x, y) => ((Math.floor(x / 12) + Math.floor(y / 12)) % 2 ? [226, 226, 230] : [250, 250, 252]);
+
+function layOn(rgba: Uint8Array, W: number, pic: RgbaBitmap, ox: number, oy: number, ground: Ground): void {
+    for (let y = 0; y < pic.height; y++) {
+        for (let x = 0; x < pic.width; x++) {
+            const from = (y * pic.width + x) * 4;
+            const a = pic.rgba[from + 3]! / 255;
+            const g = ground(x, y);
+            const to = ((oy + y) * W + ox + x) * 4;
+            rgba[to] = pic.rgba[from]! * a + g[0] * (1 - a);
+            rgba[to + 1] = pic.rgba[from + 1]! * a + g[1] * (1 - a);
+            rgba[to + 2] = pic.rgba[from + 2]! * a + g[2] * (1 - a);
+            rgba[to + 3] = 255;
+        }
+    }
+}
+
+const SHEET_GROUND = [64, 64, 68, 255] as const;
+
+function solidSheet(W: number, H: number): Uint8Array {
+    const rgba = new Uint8Array(W * H * 4);
+    for (let i = 0; i < W * H; i++) rgba.set(SHEET_GROUND, i * 4);
+    return rgba;
+}
+
+const fitted = (image: RgbaBitmap, size: number): RgbaBitmap => {
+    const k = size / Math.max(image.width, image.height);
+    const [w, h] = [Math.max(1, Math.round(image.width * k)), Math.max(1, Math.round(image.height * k))];
+    return k >= 1 ? nearestScale(image, w, h) : shrink(image, w, h);
+};
+
+/** Several pictures on one sheet, to be judged as a set: each on the mid ground and the check, then at 64 and 32, column by column. */
+export function setSheet(images: readonly RgbaBitmap[], cell = 128): RgbaBitmap {
+    if (images.length === 0) throw new Error('a set needs at least one picture');
+    const gap = 8;
+    const columns = Math.min(8, images.length);
+    const rows = Math.ceil(images.length / columns);
+    const tall = cell * 2 + 64 + 32 + gap * 5;
+    const W = columns * (cell + gap) + gap, H = rows * tall;
+    const rgba = solidSheet(W, H);
+    images.forEach((image, n) => {
+        const [ox, oy] = [gap + (n % columns) * (cell + gap), Math.floor(n / columns) * tall + gap];
+        const big = fitted(image, cell);
+        layOn(rgba, W, big, ox, oy, midGround);
+        layOn(rgba, W, big, ox, oy + cell + gap, checkGround);
+        layOn(rgba, W, fitted(image, 64), ox, oy + cell * 2 + gap * 2, midGround);
+        layOn(rgba, W, fitted(image, 32), ox, oy + cell * 2 + 64 + gap * 3, midGround);
+    });
+    return { width: W, height: H, rgba };
+}
+
+/** A part of a picture enlarged with hard pixels on the check, to see what the whole hides: a seam one pixel wide. */
+export function zoomImage(image: RgbaBitmap, region: { x: number; y: number; w: number; h: number }, longest = 640): RgbaBitmap {
+    const [x0, y0] = [Math.max(0, Math.floor(region.x)), Math.max(0, Math.floor(region.y))];
+    const [w, h] = [Math.min(image.width - x0, Math.round(region.w)), Math.min(image.height - y0, Math.round(region.h))];
+    if (!(w > 0 && h > 0)) throw new Error(`region ${JSON.stringify(region)} is outside the picture, ${image.width} by ${image.height}`);
+    const cut = new Uint8Array(w * h * 4);
+    for (let y = 0; y < h; y++) cut.set(image.rgba.subarray(((y0 + y) * image.width + x0) * 4, ((y0 + y) * image.width + x0 + w) * 4), y * w * 4);
+    const k = Math.max(1, Math.floor(longest / Math.max(w, h)));
+    const big = nearestScale({ width: w, height: h, rgba: cut }, w * k, h * k);
+    const rgba = solidSheet(big.width, big.height);
+    layOn(rgba, big.width, big, 0, 0, checkGround);
+    return { width: big.width, height: big.height, rgba };
+}
+
+/** Something to look at: the picture on a mid ground and on a light check, as a transparent image needs both, and at the sizes an icon is really seen. */
 export function imageSheet(image: RgbaBitmap, sizes: readonly number[] = [96, 64, 48, 32]): RgbaBitmap {
     const big = Math.max(image.width, image.height);
     const k = big < 384 ? Math.max(1, Math.floor(384 / big)) : Math.min(1, 512 / big);
@@ -605,28 +681,13 @@ export function imageSheet(image: RgbaBitmap, sizes: readonly number[] = [96, 64
     const rgba = new Uint8Array(W * H * 4);
     for (let i = 0; i < W * H; i++) rgba.set([64, 64, 68, 255], i * 4);
     const scaled = k >= 1 ? nearestScale(image, pw, ph) : shrink(image, pw, ph);
-    const lay = (pic: RgbaBitmap, ox: number, oy: number, ground: (x: number, y: number) => readonly [number, number, number]): void => {
-        for (let y = 0; y < pic.height; y++) {
-            for (let x = 0; x < pic.width; x++) {
-                const from = (y * pic.width + x) * 4;
-                const a = pic.rgba[from + 3]! / 255;
-                const g = ground(x, y);
-                const to = ((oy + y) * W + ox + x) * 4;
-                rgba[to] = pic.rgba[from]! * a + g[0] * (1 - a);
-                rgba[to + 1] = pic.rgba[from + 1]! * a + g[1] * (1 - a);
-                rgba[to + 2] = pic.rgba[from + 2]! * a + g[2] * (1 - a);
-                rgba[to + 3] = 255;
-            }
-        }
-    };
-    const dark = (): readonly [number, number, number] => [24, 26, 32];
-    const check = (x: number, y: number): readonly [number, number, number] => ((Math.floor(x / 12) + Math.floor(y / 12)) % 2 ? [226, 226, 230] : [250, 250, 252]);
-    lay(scaled, gap, gap, dark);
-    lay(scaled, gap * 2 + pw, gap, check);
+    const lay = (pic: RgbaBitmap, ox: number, oy: number, ground: Ground): void => layOn(rgba, W, pic, ox, oy, ground);
+    lay(scaled, gap, gap, midGround);
+    lay(scaled, gap * 2 + pw, gap, checkGround);
     let oy = gap;
     for (const s of sizes) {
         const small = shrink(image, s, Math.max(1, Math.round((s * image.height) / image.width)));
-        lay(small, gap * 3 + pw * 2, oy, dark);
+        lay(small, gap * 3 + pw * 2, oy, midGround);
         oy += small.height + gap;
     }
     return { width: W, height: H, rgba };
