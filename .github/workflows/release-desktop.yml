@@ -247,6 +247,12 @@ jobs:
         if: matrix.name == 'windows'
         uses: ilammy/msvc-dev-cmd@v1
 
+      # A build leaves two cores free so a desktop stays usable; a runner has nothing
+      # else to do, and macOS has three, so iOS compiled on one thread, twice.
+      - name: Compile on every core
+        shell: bash
+        run: echo "ESTELLA_BUILD_JOBS=${NUMBER_OF_PROCESSORS:-$(getconf _NPROCESSORS_ONLN)}" >> "$GITHUB_ENV"
+
       - name: Fetch Dawn + QuickJS at their pinned commits
         if: matrix.name != 'android'
         run: node build-tools/cli.js native --fetch-deps
