@@ -219,6 +219,80 @@ const filled = (width: number, height: number): Uint8Array => {
     return rgba;
 };
 
+/** A 3x5 digit, row by row from the top, one bit a column. */
+const GLYPHS: Record<string, readonly number[]> = {
+    '0': [7, 5, 5, 5, 7], '1': [2, 6, 2, 2, 7], '2': [7, 1, 7, 4, 7], '3': [7, 1, 7, 1, 7], '4': [5, 5, 7, 1, 1],
+    '5': [7, 4, 7, 1, 7], '6': [7, 4, 7, 5, 7], '7': [7, 1, 2, 2, 2], '8': [7, 5, 7, 5, 7], '9': [7, 5, 7, 1, 7],
+    '-': [0, 0, 7, 0, 0], '.': [0, 0, 0, 0, 2],
+};
+const GLYPH_SCALE = 2;
+const RULER_WIDTH = 1400;
+
+function label(image: RgbaImage, text: string, x: number, y: number): void {
+    const { width, height, rgba } = image;
+    const w = text.length * 4 * GLYPH_SCALE + GLYPH_SCALE, h = 7 * GLYPH_SCALE;
+    const set = (px: number, py: number, v: number): void => {
+        if (px < 0 || py < 0 || px >= width || py >= height) return;
+        const at = (py * width + px) * 4;
+        rgba[at] = v; rgba[at + 1] = v; rgba[at + 2] = v;
+    };
+    for (let py = 0; py < h; py++) for (let px = 0; px < w; px++) set(x + px, y + py, 0);
+    [...text].forEach((c, n) => {
+        const rows = GLYPHS[c];
+        if (!rows) return;
+        rows.forEach((bits, row) => {
+            for (let col = 0; col < 3; col++) {
+                if (!((bits >> (2 - col)) & 1)) continue;
+                for (let a = 0; a < GLYPH_SCALE; a++) for (let b = 0; b < GLYPH_SCALE; b++) set(x + GLYPH_SCALE + (n * 4 + col) * GLYPH_SCALE + a, y + GLYPH_SCALE + row * GLYPH_SCALE + b, 255);
+            }
+        });
+    });
+}
+
+/** What a picture's edges are in some other measure: its left and right, its top and bottom. */
+export interface RulerSpan { left: number; right: number; top: number; bottom: number }
+
+/** A round distance between lines that puts about a dozen of them across this span. */
+export function rulerStep(across: number): number {
+    const rough = Math.abs(across) / 12;
+    const power = 10 ** Math.floor(Math.log10(rough));
+    return [1, 2, 5, 10].map((k) => k * power).find((k) => k >= rough)!;
+}
+
+/**
+ * A picture with a numbered grid on it, so a place in it can be read off as coordinates: what is seen can then be written down
+ * as an outline or a line to model. Enlarged first, as a close-up is few pixels and the numbers want room. Every fifth line is stronger.
+ */
+export function rulerOver(source: RgbaImage, span: RulerSpan, step = rulerStep(span.right - span.left)): RgbaImage {
+    if (!(step > 0)) throw new Error(`step ${step} must be positive`);
+    const k = Math.max(1, RULER_WIDTH / source.width);
+    const scaled = k === 1 ? source : resizeImage(source, Math.round(source.width * k), Math.round(source.height * k));
+    const image: RgbaImage = { width: scaled.width, height: scaled.height, rgba: Uint8Array.from(scaled.rgba) };
+    const { width, height, rgba } = image;
+    const lighten = (at: number, share: number): void => {
+        rgba[at] = rgba[at]! + (255 - rgba[at]!) * share; rgba[at + 1] = rgba[at + 1]! + (255 - rgba[at + 1]!) * share; rgba[at + 2] = rgba[at + 2]! + (255 - rgba[at + 2]!) * share;
+    };
+    const digits = Math.max(0, Math.ceil(-Math.log10(step) - 1e-9));
+    const lines = (lo: number, hi: number): number[] => {
+        const [a, b] = lo < hi ? [lo, hi] : [hi, lo];
+        const out: number[] = [];
+        for (let n = Math.ceil(a / step - 1e-9); n * step <= b + step * 1e-9; n++) out.push(n);
+        return out;
+    };
+    const across = lines(span.left, span.right), down = lines(span.top, span.bottom);
+    for (const n of across) {
+        const x = Math.round(((n * step - span.left) / (span.right - span.left)) * (width - 1));
+        for (let y = 0; y < height; y++) lighten((y * width + x) * 4, n % 5 === 0 ? 0.55 : 0.22);
+    }
+    for (const n of down) {
+        const y = Math.round(((n * step - span.top) / (span.bottom - span.top)) * (height - 1));
+        for (let x = 0; x < width; x++) lighten((y * width + x) * 4, n % 5 === 0 ? 0.55 : 0.22);
+    }
+    for (const n of across) label(image, (n * step).toFixed(digits), Math.round(((n * step - span.left) / (span.right - span.left)) * (width - 1)) + 2, 0);
+    for (const n of down) label(image, (n * step).toFixed(digits), 0, Math.round(((n * step - span.top) / (span.bottom - span.top)) * (height - 1)) + 2);
+    return image;
+}
+
 /** Pictures side by side at one height, with a thin line between. */
 export function sideBySide(images: readonly RgbaImage[], height = 360): RgbaImage {
     const scaled = images.map((img) => resizeImage(img, Math.max(1, Math.round((img.width * height) / img.height)), height));

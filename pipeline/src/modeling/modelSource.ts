@@ -21,6 +21,8 @@ import { subdivide } from './subdivide';
 import { decimate, triangleCount } from './decimate';
 import { displace, DISPLACE_PATTERNS } from './displace';
 import { stain } from './stain';
+import { sculpt } from './sculpt';
+import { VIEW_NAMES } from './surfaceLine';
 import { cardsOnly, hair, hasCards, type HairSway } from './hair';
 import { scatter } from './scatter';
 import { checkAnimations, checkController, checkRig, checkShapes, resolveJoints, type AnimationSource, type ControllerSource, type RigSource, type ShapeSource } from './rig';
@@ -110,7 +112,7 @@ export interface NormalBakeSource {
 }
 
 type Kind = 'number' | 'integer' | 'boolean' | 'string' | 'vec3' | 'number|vec3' | 'number|vec2' | 'number|numbers'
-    | 'color' | 'points' | 'faces' | 'edges' | 'axis' | 'pivot' | 'parts' | 'noise' | 'sections' | 'section' | 'vec3s' | 'numbers' | 'operation' | 'uvmode' | 'number|vec2only' | 'vec2' | 'pattern' | 'near' | 'where' | 'guides' | 'line';
+    | 'color' | 'points' | 'faces' | 'edges' | 'axis' | 'pivot' | 'parts' | 'noise' | 'sections' | 'section' | 'vec3s' | 'numbers' | 'operation' | 'uvmode' | 'number|vec2only' | 'vec2' | 'pattern' | 'near' | 'where' | 'guides' | 'line' | 'view' | 'strokes';
 
 interface OpSpec {
     params: Record<string, Kind>;
@@ -146,6 +148,7 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     hair: { params: { faces: 'faces', count: 'integer', length: 'number', guides: 'guides', gather: 'number', width: 'number', segments: 'integer', droop: 'number', comb: 'vec3', spread: 'number', uneven: 'number', wave: 'number', taper: 'number', seed: 'integer', color: 'color', tipColor: 'color', tag: 'string' }, required: ['faces'], run: hair as unknown as OpSpec['run'], says: 'grows cards of hair from these faces, falling around what is there, or along `guides` for a ponytail or a fringe; run it again for another layer, and only the cards are kept' },
     scatter: { params: { source: 'faces', count: 'integer', faces: 'faces', path: 'vec3s', within: 'vec3s', scale: 'number|numbers', taper: 'number', spin: 'number', tilt: 'number', colors: 'vec3s', keep: 'boolean', seed: 'integer', tag: 'string' }, required: ['source', 'count'], run: scatter as unknown as OpSpec['run'], says: 'puts copies of the `source` faces across `faces`, along a `path` or through a box `within`, each sized, turned and coloured at random: feathers, rivets, the lights of a far city' },
     stain: { params: { faces: 'faces', near: 'near', line: 'line', hard: 'boolean', color: 'color', roughness: 'number', metallic: 'number', alpha: 'number', amount: 'number', pattern: 'pattern', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', threshold: 'number', softness: 'number', where: 'where', reach: 'number', facing: 'vec3', detail: 'number' }, required: [], run: ((mesh: PolyMesh, params: never) => stain(mesh, params)) as OpSpec['run'], says: 'lays colour, `roughness`, `metallic` or `alpha` over the surface by a pattern, by shape (`where`: cavity for dirt in what is sunken, edges for wear on what stands out), by which way it faces, around a spot, or along a `line`: pupils, eyelids, seams, moss, grime' },
+    sculpt: { params: { faces: 'faces', from: 'view', strokes: 'strokes', detail: 'number' }, required: ['strokes'], run: sculpt as unknown as OpSpec['run'], says: 'works a surface stroke by stroke where one particular fold or hollow goes: `press` along a line, `move`, `inflate`, `smooth`; `from` takes places in the two axes of a view, as read off a picture' },
     decimate: { params: { from: 'string', faces: 'faces', ratio: 'number', triangles: 'integer', error: 'number' }, required: [], run: decimate as unknown as OpSpec['run'], says: 'leaves fewer triangles over the same surface: `ratio` to keep or `triangles` to end with, stopping sooner if the surface would move more than `error` (default 0.02) of its size; `from` thins the surface as it stood after that step, before its fine detail' },
     uv: { params: { faces: 'faces', mode: 'uvmode', axis: 'string', at: 'vec3', scale: 'number|vec2only', repeat: 'number|vec2only', offset: 'vec2', rotate: 'number' }, required: ['mode'], run: uvStep as unknown as OpSpec['run'], says: 'sets how faces take a texture: box, planar, cylinder or sphere' },
     delete: { params: { faces: 'faces' }, required: ['faces'], run: ops.deleteFaces as OpSpec['run'], says: 'removes faces, leaving a hole' },
@@ -217,7 +220,7 @@ function checkNoise(v: unknown): string | null {
 }
 
 const PART_FIELDS: Record<string, (v: unknown) => string | null> = {
-    shape: (v) => (['sphere', 'ellipsoid', 'box', 'torus', 'chain'].includes(v as string) ? null : 'must be sphere, ellipsoid, box, torus or chain'),
+    shape: (v) => (['sphere', 'ellipsoid', 'box', 'torus', 'chain', 'outline'].includes(v as string) ? null : 'must be sphere, ellipsoid, box, torus, chain or outline'),
     tag: (v) => (typeof v === 'string' ? null : 'must be a string'),
     at: (v) => (isNums(v, 3) ? null : 'must be [x, y, z]'),
     rotate: (v) => (isNums(v, 3) ? null : 'must be [x, y, z] degrees'),
@@ -226,7 +229,10 @@ const PART_FIELDS: Record<string, (v: unknown) => string | null> = {
     size: (v) => (isNums(v, 3) ? null : 'must be [x, y, z]'),
     rounding: (v) => (isNum(v) ? null : 'must be a number'),
     tube: (v) => (isNum(v) ? null : 'must be a number'),
-    points: (v) => (Array.isArray(v) && v.every((q) => isNums(q, 4)) ? null : 'must be an array of [x, y, z, radius]'),
+    points: (v) => (Array.isArray(v) && (v.every((q) => isNums(q, 4)) || v.every((q) => isNums(q, 2))) ? null : 'must be an array of [x, y, z, radius] for a chain, or [x, y] for an outline'),
+    depth: (v) => (isNum(v) ? null : 'must be a number'),
+    round: (v) => (isNum(v) ? null : 'must be a number'),
+    curve: (v) => (Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 32 ? null : 'must be a whole number, 1..32'),
     blend: (v) => (isNum(v) ? null : 'must be a number'),
     subtract: (v) => (typeof v === 'boolean' ? null : 'must be true or false'),
     mirror: (v) => (v === 'x' || v === 'y' || v === 'z' ? null : 'must be x, y or z'),
@@ -305,8 +311,13 @@ const KIND_CHECK: Record<Kind, (v: unknown) => string | null> = {
     vec2: (v) => (isNums(v, 2) ? null : 'must be [u, v]'),
     line: (v) => {
         const n = v as { points?: unknown; width?: unknown } | null;
-        return typeof n === 'object' && n !== null && Array.isArray(n.points) && n.points.length >= 2 && n.points.every((q) => isNums(q, 3)) && isNum(n.width) && Object.keys(n).every((k) => k === 'points' || k === 'width') ? null : 'must be { points: [[x, y, z], ...], width }';
+        const line = n as { points?: unknown; width?: unknown; from?: unknown } | null;
+        if (line?.from !== undefined && !VIEW_NAMES.includes(line.from as string)) return `from must be one of ${VIEW_NAMES.join(', ')}`;
+        const size = line?.from !== undefined ? 2 : 3;
+        return typeof n === 'object' && n !== null && Array.isArray(n.points) && n.points.length >= 2 && n.points.every((q) => isNums(q, size)) && isNum(n.width) && Object.keys(n).every((k) => k === 'points' || k === 'width' || k === 'from') ? null : (size === 2 ? 'must be { points: [[a, b], ...], width, from }, the points in the two axes of the view' : 'must be { points: [[x, y, z], ...], width }');
     },
+    view: (v) => (VIEW_NAMES.includes(v as string) ? null : `must be one of ${VIEW_NAMES.join(', ')}`),
+    strokes: (v) => (Array.isArray(v) && v.length > 0 && v.every((s) => typeof s === 'object' && s !== null) ? null : 'must be a non-empty array of strokes, each { brush, ... }'),
     guides: (v) => (Array.isArray(v) && v.every((line) => Array.isArray(line) && line.length >= 2 && line.every((q) => isNums(q, 3))) ? null : 'must be an array of lines, each two or more [x, y, z]'),
     pattern: (v) => (DISPLACE_PATTERNS.includes(v as never) ? null : `must be one of ${DISPLACE_PATTERNS.join(', ')}`),
     where: (v) => (v === 'cavity' || v === 'edges' ? null : 'must be cavity or edges'),

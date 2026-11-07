@@ -18,7 +18,7 @@ const EPS = 1e-6;
  * Catmull-Rom through @p points, `steps` segments for each span; the points themselves stay exactly where they are.
  * A point given twice stops the curve there, which is how a corner is kept. Works on any tuple length.
  */
-function curveThrough(points: readonly (readonly number[])[], steps: number, closed: boolean): number[][] {
+export function curveThrough(points: readonly (readonly number[])[], steps: number, closed: boolean): number[][] {
     if (steps <= 1 || points.length < 3) return points.map((p) => [...p]);
     const n = points.length;
     const at = (i: number): readonly number[] => (closed ? points[((i % n) + n) % n]! : points[Math.max(0, Math.min(n - 1, i))]!);

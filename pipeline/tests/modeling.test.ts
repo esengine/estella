@@ -299,7 +299,7 @@ describe('the source format', () => {
     });
 
     it('refuses an unknown op, listing them', () => {
-        expect(() => validateModelSource({ steps: [{ op: 'sculpt' }] })).toThrow(/unknown op "sculpt"; there are box/);
+        expect(() => validateModelSource({ steps: [{ op: 'chisel' }] })).toThrow(/unknown op "chisel"; there are box/);
     });
 
     it('refuses a missing required field and a wrong type', () => {

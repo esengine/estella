@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /** Pictures laid out for an agent to look at: each one holds what it says, and the colours read are the colours there. */
 import { describe, expect, it } from 'vitest';
-import { activeArea, blendImages, colorsOf, cropImage, gridOf, outlineOver, resizeImage, sideBySide, toShape, type RgbaImage } from '../src/look/pictures';
+import { activeArea, blendImages, colorsOf, cropImage, gridOf, outlineOver, resizeImage, rulerOver, rulerStep, sideBySide, toShape, type RgbaImage } from '../src/look/pictures';
 
 type Shade = (x: number, y: number) => readonly [number, number, number];
 function image(width: number, height: number, shade: Shade): RgbaImage {
@@ -17,6 +17,55 @@ function image(width: number, height: number, shade: Shade): RgbaImage {
 }
 const flat = (r: number, g: number, b: number, w = 64, h = 36): RgbaImage => image(w, h, () => [r, g, b]);
 const at = (img: RgbaImage, x: number, y: number): number[] => Array.from(img.rgba.subarray((y * img.width + x) * 4, (y * img.width + x) * 4 + 3));
+
+describe('rulerOver', () => {
+    const dark = flat(10, 10, 10, 1400, 700);
+    const span = { left: -1, right: 1, top: 1, bottom: 0 };
+    /** The columns of a row, away from the numbers, that a line lightened. */
+    const columnsLit = (img: RgbaImage, y: number): number[] => {
+        const out: number[] = [];
+        for (let x = 0; x < img.width; x++) if (at(img, x, y)[0]! > 40) out.push(x);
+        return out;
+    };
+
+    it('puts a line where each number falls on the picture', () => {
+        const ruled = rulerOver(dark, span, 0.5);
+        const lit = columnsLit(ruled, 100);
+        // -1, -0.5, 0, 0.5, 1 across 1400 pixels.
+        for (const want of [0, 350, 700, 1049, 1399]) expect(lit.some((x) => Math.abs(x - want) <= 1), `a line at ${want}: ${lit.slice(0, 12)}`).toBe(true);
+    });
+
+    it('runs its rows top to bottom by the numbers, whichever way they go', () => {
+        const ruled = rulerOver(dark, span, 0.5);
+        // 1 at the top, 0.5 half way, 0 at the bottom.
+        expect(at(ruled, 500, 349)[0]! > 40 || at(ruled, 500, 350)[0]! > 40).toBe(true);
+    });
+
+    it('draws every fifth line stronger', () => {
+        const ruled = rulerOver(dark, span, 0.1);
+        const strong = at(ruled, 700, 100)[0]!, weak = at(ruled, 840, 100)[0]!;
+        expect(strong).toBeGreaterThan(weak + 30);
+    });
+
+    it('enlarges a small close-up so the numbers have room, and leaves what it was given alone', () => {
+        const small = flat(10, 10, 10, 200, 100);
+        const before = Uint8Array.from(small.rgba);
+        const ruled = rulerOver(small, span);
+        expect(ruled.width).toBe(1400);
+        expect(ruled.height).toBe(700);
+        expect(small.rgba).toEqual(before);
+    });
+
+    it('chooses a round step of about a dozen lines', () => {
+        expect(rulerStep(2)).toBeCloseTo(0.2);
+        expect(rulerStep(0.3)).toBeCloseTo(0.05);
+        expect(rulerStep(-2)).toBeCloseTo(0.2);
+    });
+
+    it('refuses no step at all', () => {
+        expect(() => rulerOver(dark, span, 0)).toThrow(/positive/);
+    });
+});
 
 describe('activeArea', () => {
     it('finds the picture inside black bars', () => {

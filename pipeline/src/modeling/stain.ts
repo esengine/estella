@@ -10,6 +10,7 @@
  */
 import { DISPLACE_PATTERNS, finestShare, mirroredPoint, nearWeight, patternField, reachedFaces, refine, MAX_DISPLACE_TRIANGLES, type DisplaceParams, type DisplacePattern } from './displace';
 import { compact, faceArea, faceNormal, normalize, selectFaces, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
+import { facesInView, lineMeasure, seenFrom, viewOf, type ViewName } from './surfaceLine';
 
 /** How far a mirrored point is from a line of points. */
 function toLine(points: readonly Vec3[], mirror: StainParams['mirror'], x: number, y: number, z: number): number {
@@ -28,8 +29,8 @@ export interface StainParams {
     faces?: FaceSelector;
     /** Only around here. Fades to its edge, or with `hard` stops there: a pupil. */
     near?: { at: Vec3; radius: number };
-    /** Only along a line drawn on the surface, its points on or near it: an eyelid, a lip, a seam. Fades to `width` either side, or with `hard` stops there. */
-    line?: { points: readonly Vec3[]; width: number };
+    /** Only along a line drawn on the surface, its points on or near it: an eyelid, a lip, a seam. Fades to `width` either side, or with `hard` stops there. With `from: "+z"` its points are [x, y], and it lands on what that view sees. */
+    line?: { points: readonly (readonly number[])[]; width: number; from?: ViewName };
     hard?: boolean;
     /** Linear [r, g, b], over what is there. */
     color?: readonly number[];
@@ -144,7 +145,12 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
         hit = reachedFaces(mesh, hit, p.near, p.mirror);
         if (hit.length === 0) throw new Error(`no surface of \`faces\` within ${p.near.radius} of ${JSON.stringify(p.near.at)}`);
     }
-    if (p.line) {
+    const lineView = p.line?.from ? viewOf(p.line.from) : null;
+    if (p.line && lineView) {
+        const { points, width } = p.line;
+        hit = facesInView(mesh, hit, lineView, [Math.min(...points.map((q) => q[0]!)) - width, Math.min(...points.map((q) => q[1]!)) - width], [Math.max(...points.map((q) => q[0]!)) + width, Math.max(...points.map((q) => q[1]!)) + width]);
+        if (hit.length === 0) throw new Error(`no surface of \`faces\` within ${width} of the line, seen from ${p.line.from}`);
+    } else if (p.line) {
         const { points, width } = p.line;
         const [lo, hi] = [[0, 1, 2].map((k) => Math.min(...points.map((q) => q[k]!))), [0, 1, 2].map((k) => Math.max(...points.map((q) => q[k]!)))];
         const around = { at: [0, 1, 2].map((k) => (lo[k]! + hi[k]!) / 2) as unknown as Vec3, radius: Math.hypot(hi[0]! - lo[0]!, hi[1]! - lo[1]!, hi[2]! - lo[2]!) / 2 + width };
@@ -173,6 +179,13 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
         normals[v * 3]! /= l; normals[v * 3 + 1]! /= l; normals[v * 3 + 2]! /= l;
     }
     const shape = p.where ? relief(fine, normals, p.reach) : null;
+    let lineSeen: Uint8Array | null = null;
+    const measured = p.line && lineView ? lineMeasure(p.line.points) : null;
+    if (p.line && lineView) {
+        const vertices: number[] = [];
+        fine.faces.forEach((face, f) => { if (isChosen(f)) vertices.push(...face.v); });
+        lineSeen = seenFrom(fine, normals, lineView, vertices, p.line.width * 2);
+    }
     const facing = p.facing ? normalize(p.facing) : null;
     const field = p.pattern ? patternField(asPattern) : null;
     const threshold = p.threshold ?? 0.5, softness = p.softness ?? 0.15;
@@ -190,7 +203,8 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
             if (m === 0) return 0;
         }
         if (p.line) {
-            const t = 1 - toLine(p.line.points, p.mirror, x, y, z) / p.line.width;
+            if (lineSeen && !lineSeen[v]) return 0;
+            const t = 1 - (measured && lineView ? measured([at[lineView.u], at[lineView.v]], null).distance : toLine(p.line.points as readonly Vec3[], p.mirror, x, y, z)) / p.line.width;
             m *= t <= 0 ? 0 : p.hard ? 1 : t * t * (3 - 2 * t);
             if (m === 0) return 0;
         }

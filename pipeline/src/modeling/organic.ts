@@ -16,8 +16,9 @@
  *        marked smooth, and each carries the tag and colour of the part nearest it.
  */
 import { add, type Face, type PolyMesh, type Vec3 } from './polyMesh';
+import { curveThrough } from './surfaces';
 
-export type OrganicShape = 'sphere' | 'ellipsoid' | 'box' | 'torus' | 'chain';
+export type OrganicShape = 'sphere' | 'ellipsoid' | 'box' | 'torus' | 'chain' | 'outline';
 
 export interface OrganicNoise {
     /** How far the surface moves, in and out. */
@@ -44,8 +45,14 @@ export interface OrganicPart {
     rounding?: number;
     /** torus's thickness. */
     tube?: number;
-    /** chain: a limb, a tail, a branch, as [x, y, z, radius] along its length. */
-    points?: readonly (readonly [number, number, number, number])[];
+    /** chain: a limb, a tail, a branch, as [x, y, z, radius] along its length. outline: a closed drawing, as [x, y] round it. */
+    points?: readonly (readonly number[])[];
+    /** outline: half how thick it stands, along z. */
+    depth?: number;
+    /** outline: how far in from its edge it takes to come up to `depth`. Default `depth`, a full roundness; small, a slab with soft edges. */
+    round?: number;
+    /** outline: this many segments between points, passing through each. A point given twice keeps a corner there. */
+    curve?: number;
     /** How far this melts into what is before it; 0 is a hard crease. Defaults to the step's. */
     blend?: number;
     /** Carves this volume out of what is before it: an eye socket, a mouth. */
@@ -128,6 +135,16 @@ function inverseRotation(degrees: Vec3): (x: number, y: number, z: number, out: 
     };
 }
 
+/** Part space to world: X, then Y, then Z. */
+function rotateForward(degrees: Vec3, p: Vec3): Vec3 {
+    const [cx, sx] = [Math.cos(degrees[0] * DEG), Math.sin(degrees[0] * DEG)];
+    const [cy, sy] = [Math.cos(degrees[1] * DEG), Math.sin(degrees[1] * DEG)];
+    const [cz, sz] = [Math.cos(degrees[2] * DEG), Math.sin(degrees[2] * DEG)];
+    const [y1, z1] = [cx * p[1] - sx * p[2], sx * p[1] + cx * p[2]];
+    const [x2, z2] = [cy * p[0] + sy * z1, -sy * p[0] + cy * z1];
+    return [cz * x2 - sz * y1, sz * x2 + cz * y1, z2];
+}
+
 /** The part's distance function in its own frame, and how far from `at` it can reach. */
 function shapeField(part: OrganicPart): { field: Eval; reach: number; thinnest: number } {
     const need = (name: keyof OrganicPart): void => {
@@ -187,29 +204,71 @@ function shapeField(part: OrganicPart): { field: Eval; reach: number; thinnest: 
             need('points');
             const pts = part.points!;
             if (pts.length < 2) throw new Error(`a chain needs at least 2 points, not ${pts.length}`);
-            if (pts.some((p) => p[3] <= 0)) throw new Error('every chain point needs a positive radius, its fourth number');
+            if (pts.some((p) => p.length !== 4 || !(p[3]! > 0))) throw new Error('every chain point is [x, y, z, radius], with a positive radius');
             return {
                 field: (x, y, z) => {
                     let best = Infinity;
                     for (let i = 0; i + 1 < pts.length; i++) {
                         const a = pts[i]!, b = pts[i + 1]!;
-                        const [bx, by, bz] = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-                        const [px, py, pz] = [x - a[0], y - a[1], z - a[2]];
+                        const [bx, by, bz] = [b[0]! - a[0]!, b[1]! - a[1]!, b[2]! - a[2]!];
+                        const [px, py, pz] = [x - a[0]!, y - a[1]!, z - a[2]!];
                         const len2 = bx * bx + by * by + bz * bz;
                         const t = len2 > 0 ? Math.min(1, Math.max(0, (px * bx + py * by + pz * bz) / len2)) : 0;
                         const [dx, dy, dz] = [px - bx * t, py - by * t, pz - bz * t];
-                        const d = Math.sqrt(dx * dx + dy * dy + dz * dz) - (a[3] + (b[3] - a[3]) * t);
+                        const d = Math.sqrt(dx * dx + dy * dy + dz * dz) - (a[3]! + (b[3]! - a[3]!) * t);
                         if (d < best) best = d;
                     }
                     return best;
                 },
-                reach: Math.max(...pts.map((p) => Math.hypot(p[0], p[1], p[2]) + p[3])),
+                reach: Math.max(...pts.map((p) => Math.hypot(p[0]!, p[1]!, p[2]!) + p[3]!)),
                 // Its widest: a limb tapering to a point past the grid is a limb, and only one wholly under it goes missing.
-                thinnest: Math.max(...pts.map((p) => p[3])),
+                thinnest: Math.max(...pts.map((p) => p[3]!)),
+            };
+        }
+        case 'outline': {
+            need('points');
+            need('depth');
+            const depth = part.depth!;
+            if (depth <= 0) throw new Error('depth must be positive');
+            const round = part.round ?? depth;
+            if (round <= 0) throw new Error('round must be positive');
+            if (part.points!.length < 3) throw new Error(`an outline needs at least 3 points, not ${part.points!.length}`);
+            if (part.points!.some((p) => p.length !== 2)) throw new Error('every outline point is [x, y]');
+            const drawn = curveThrough(part.points!, part.curve ?? 1, true);
+            const pts = drawn.filter((p, i) => { const q = drawn[(i + 1) % drawn.length]!; return p[0] !== q[0] || p[1] !== q[1]; });
+            const count = pts.length;
+            const [xs, ys] = [new Float64Array(count), new Float64Array(count)];
+            pts.forEach((p, i) => { xs[i] = p[0]!; ys[i] = p[1]!; });
+            const r2 = round * round, d2 = depth * depth;
+            const reach = Math.max(...pts.map((p) => Math.hypot(p[0]!, p[1]!))) + depth;
+            return {
+                // The drawing's distance, then an ellipse across its edge: the same estimate as an ellipsoid's, in the plane of edge and depth.
+                field: (x, y, z) => {
+                    let best = Infinity;
+                    let inside = false;
+                    for (let i = 0, j = count - 1; i < count; j = i, i++) {
+                        const [ax, ay, bx, by] = [xs[j]!, ys[j]!, xs[i]!, ys[i]!];
+                        const [ex, ey, px, py] = [bx - ax, by - ay, x - ax, y - ay];
+                        const len = ex * ex + ey * ey;
+                        const t = len > 0 ? Math.min(1, Math.max(0, (px * ex + py * ey) / len)) : 0;
+                        const [qx, qy] = [px - ex * t, py - ey * t];
+                        const dist = qx * qx + qy * qy;
+                        if (dist < best) best = dist;
+                        if ((by > y) !== (ay > y) && x < ax + ((y - ay) * (bx - ax)) / (by - ay)) inside = !inside;
+                    }
+                    const edge = Math.sqrt(best) * (inside ? -1 : 1);
+                    const u = edge + round;
+                    if (u <= 0) return Math.abs(z) - depth;
+                    const k0 = Math.sqrt((u * u) / r2 + (z * z) / d2);
+                    const k1 = Math.sqrt((u * u) / (r2 * r2) + (z * z) / (d2 * d2));
+                    return k1 > 1e-12 ? (k0 * (k0 - 1)) / k1 : -Math.min(round, depth);
+                },
+                reach,
+                thinnest: depth,
             };
         }
         default:
-            throw new Error(`unknown shape ${JSON.stringify(part.shape)}; there are sphere, ellipsoid, box, torus, chain`);
+            throw new Error(`unknown shape ${JSON.stringify(part.shape)}; there are sphere, ellipsoid, box, torus, chain, outline`);
     }
 }
 
@@ -261,8 +320,19 @@ function compilePart(part: OrganicPart, index: number, params: OrganicParams): C
     if (part.shape === 'chain') {
         // A chain's points are already placed by `at`'s offset.
         const pts = part.points!;
-        min = [0, 1, 2].map((k) => Math.min(...pts.map((p) => p[k]! - p[3])) + at[k]! - margin) as unknown as Vec3;
-        max = [0, 1, 2].map((k) => Math.max(...pts.map((p) => p[k]! + p[3])) + at[k]! + margin) as unknown as Vec3;
+        min = [0, 1, 2].map((k) => Math.min(...pts.map((p) => p[k]! - p[3]!)) + at[k]! - margin) as unknown as Vec3;
+        max = [0, 1, 2].map((k) => Math.max(...pts.map((p) => p[k]! + p[3]!)) + at[k]! + margin) as unknown as Vec3;
+    } else if (part.shape === 'outline') {
+        // Round what is drawn and not round `at`: a drawing is traced where it lies, far from the origin, and a ball about the origin would spend the grid on nothing.
+        const pts = part.points!;
+        // A curve can bow past the points it passes through.
+        const pad = (part.curve ?? 1) > 1 ? 0.25 * Math.max(Math.max(...pts.map((p) => p[0]!)) - Math.min(...pts.map((p) => p[0]!)), Math.max(...pts.map((p) => p[1]!)) - Math.min(...pts.map((p) => p[1]!))) / Math.max(1, pts.length - 2) : 0;
+        const [lx, hx, ly, hy] = [Math.min(...pts.map((p) => p[0]!)) - pad, Math.max(...pts.map((p) => p[0]!)) + pad, Math.min(...pts.map((p) => p[1]!)) - pad, Math.max(...pts.map((p) => p[1]!)) + pad];
+        const depth = part.depth!;
+        const corners: Vec3[] = [];
+        for (const x of [lx, hx]) for (const y of [ly, hy]) for (const z of [-depth, depth]) corners.push(rotateForward(part.rotate ?? [0, 0, 0], [x, y, z]));
+        min = [0, 1, 2].map((k) => Math.min(...corners.map((c) => c[k]!)) + at[k]! - margin) as unknown as Vec3;
+        max = [0, 1, 2].map((k) => Math.max(...corners.map((c) => c[k]!)) + at[k]! + margin) as unknown as Vec3;
     } else {
         min = [at[0] - extent, at[1] - extent, at[2] - extent];
         max = [at[0] + extent, at[1] + extent, at[2] + extent];
