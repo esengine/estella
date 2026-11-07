@@ -3892,6 +3892,8 @@ export const NOTED = {
     {"note":"An AI can draw 2D pictures."},
   "feat(mcp): image_write draws text in the editor's fonts, and documents the built world":
     {"note":"An AI can draw 2D pictures."},
+  "fix(ci): the mini-game host only refuses to make a BigInt64Array, and the unoffered ops are not asked of the text":
+    {"internal":"test hosts and a test: nothing a creator runs changed"},
   "feat(look): adjustment layers, filters, every blend mode, feather; repaint removed":
     {"note":"An AI can draw 2D pictures."},
   "feat(mcp): image_write teaches the finish of a picture, in place of repaint":
