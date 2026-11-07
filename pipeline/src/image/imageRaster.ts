@@ -416,6 +416,48 @@ function shifted(src: Float32Array, w: number, h: number, dx: number, dy: number
 // ---- Paint ----------------------------------------------------------------------
 
 /** A fill as a function of a pixel. Its coordinates go with its layer's, turned and all. */
+/** Written out, not computed by cos and sin, whose last bits are the engine's to choose. */
+const NOISE_DIRECTIONS: readonly (readonly [number, number])[] = [
+    [1, 0], [0.9239, 0.3827], [0.7071, 0.7071], [0.3827, 0.9239], [0, 1], [-0.3827, 0.9239], [-0.7071, 0.7071], [-0.9239, 0.3827],
+    [-1, 0], [-0.9239, -0.3827], [-0.7071, -0.7071], [-0.3827, -0.9239], [0, -1], [0.3827, -0.9239], [0.7071, -0.7071], [0.9239, -0.3827],
+];
+
+/** How much a corner of the lattice lifts the point @p dx, @p dy away. Integer hashing, so it is the same on every machine. */
+function cornerLift(ix: number, iy: number, seed: number, dx: number, dy: number): number {
+    let h = Math.imul(ix, 374761393) + Math.imul(iy, 668265263) + Math.imul(seed, 1442968193);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    h = Math.imul(h ^ (h >>> 16), 2246822519);
+    const d = NOISE_DIRECTIONS[((h ^ (h >>> 16)) >>> 0) % NOISE_DIRECTIONS.length]!;
+    return d[0] * dx + d[1] * dy;
+}
+
+const fade = (t: number): number => t * t * t * (t * (t * 6 - 15) + 10);
+
+/** Gradient noise, about -0.7..0.7: a value on a lattice alone shows the lattice, as boxes in a large soft cloud. */
+function gradientNoise(x: number, y: number, seed: number): number {
+    const [ix, iy] = [Math.floor(x), Math.floor(y)];
+    const [fx, fy] = [x - ix, y - iy];
+    const [sx, sy] = [fade(fx), fade(fy)];
+    const top = cornerLift(ix, iy, seed, fx, fy) * (1 - sx) + cornerLift(ix + 1, iy, seed, fx - 1, fy) * sx;
+    const bottom = cornerLift(ix, iy + 1, seed, fx, fy - 1) * (1 - sx) + cornerLift(ix + 1, iy + 1, seed, fx - 1, fy - 1) * sx;
+    return top * (1 - sy) + bottom * sy;
+}
+
+/** Spread out to 0..1, so that the stops at the ends are reached. */
+const NOISE_CONTRAST = [1.15, 1.3, 1.4, 1.45, 1.45, 1.45, 1.45, 1.45];
+
+function fractalNoise(x: number, y: number, octaves: number, seed: number): number {
+    let [sum, weight, amplitude, frequency] = [0, 0, 1, 1];
+    for (let i = 0; i < octaves; i++) {
+        // Off the lattice, where this noise is always nothing.
+        sum += gradientNoise(x * frequency + 0.37, y * frequency + 0.61, seed + i * 101) * amplitude;
+        weight += amplitude;
+        amplitude *= 0.5;
+        frequency *= 2;
+    }
+    return Math.max(0, Math.min(1, 0.5 + (sum / weight) * NOISE_CONTRAST[octaves - 1]!));
+}
+
 function paintOf(fill: ImageFill, m: Matrix): (x: number, y: number) => Rgba {
     if (typeof fill === 'string') {
         const c = parseColor(fill);
@@ -434,6 +476,13 @@ function paintOf(fill: ImageFill, m: Matrix): (x: number, y: number) => Rgba {
         }
         return stops[stops.length - 1]![1];
     };
+    if (fill.type === 'noise') {
+        const [scale, octaves, seed] = [fill.scale ?? 32, fill.octaves ?? 4, fill.seed ?? 0];
+        return (x, y) => {
+            const p = apply(inverse, [x - 0.5, y - 0.5]);
+            return at(fractalNoise(p[0] / scale, p[1] / scale, octaves, seed));
+        };
+    }
     if (fill.type === 'linear') {
         const [a, b] = [fill.from, fill.to];
         const [ex, ey] = [b[0] - a[0], b[1] - a[1]];
@@ -549,6 +598,25 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
     const blend: Blend = layer.blend ?? 'normal';
     const clip = layer.clip ? drawn.masks.get(layer.clip) : undefined;
     if (layer.clip && !clip) drawn.notes.push(`layer ${layer.id ?? layer.shape}: clip "${layer.clip}" names no layer drawn before it`);
+
+    if (layer.blur) {
+        const { blur, opacity: _o, blend: _b, clip: _c, ...sharp } = layer;
+        const inner = new Canvas(w, h);
+        drawLayer(inner, sharp, parent, drawn);
+        // Blurred as stored, colour already times alpha: blurring straight colour would bring the black of empty pixels in round the edge.
+        const [r, g, b, a] = [0, 1, 2, 3].map((k) => {
+            const channel = new Float32Array(w * h);
+            for (let i = 0; i < channel.length; i++) channel[i] = inner.px[i * 4 + k]!;
+            return blurMask(channel, w, h, blur * drawnScale(parent));
+        }) as [Float32Array, Float32Array, Float32Array, Float32Array];
+        if (layer.id) drawn.masks.set(layer.id, a);
+        for (let i = 0; i < a.length; i++) {
+            const alpha = a[i]!;
+            if (alpha <= 0) continue;
+            put(c, i, r[i]! / alpha, g[i]! / alpha, b[i]! / alpha, alpha * opacity * (clip ? clip[i]! : 1), blend);
+        }
+        return;
+    }
 
     if (layer.shape === 'group') {
         const inner = new Canvas(w, h);

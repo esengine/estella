@@ -11,7 +11,9 @@ export const MAX_IMAGE_SIZE = 2048;
 
 export type ImageFill = string
     | { type: 'linear'; from: readonly [number, number]; to: readonly [number, number]; stops: readonly (readonly [number, string])[] }
-    | { type: 'radial'; at: readonly [number, number]; radius: number; stops: readonly (readonly [number, string])[] };
+    | { type: 'radial'; at: readonly [number, number]; radius: number; stops: readonly (readonly [number, string])[] }
+    /** The same picture on every machine: it comes from `seed` and never from a random number. */
+    | { type: 'noise'; scale?: number; octaves?: number; seed?: number; stops: readonly (readonly [number, string])[] };
 
 export interface ImageEffect {
     type: 'shadow' | 'glow' | 'innerShadow' | 'innerGlow';
@@ -60,6 +62,8 @@ export interface ImageLayer {
     clip?: string;
     erase?: boolean;
     visible?: boolean;
+    /** Softens the layer as drawn, with its effects, in the picture's pixels. On a group it softens the group as one thing. */
+    blur?: number;
 }
 
 export interface ImageSource {
@@ -77,7 +81,12 @@ function checkFill(v: unknown): string | null {
     if (typeof v === 'string') return isColor(v) ? null : `${JSON.stringify(v)} must be #rgb, #rgba, #rrggbb or #rrggbbaa`;
     const f = v as Record<string, unknown> | null;
     if (typeof f !== 'object' || f === null) return 'must be a colour or a gradient';
-    if (f.type !== 'linear' && f.type !== 'radial') return 'a gradient has type linear or radial';
+    if (f.type !== 'linear' && f.type !== 'radial' && f.type !== 'noise') return 'a gradient has type linear, radial or noise';
+    if (f.type === 'noise') {
+        if (f.scale !== undefined && !(isNum(f.scale) && (f.scale as number) > 0)) return 'noise scale must be a positive number of pixels';
+        if (f.octaves !== undefined && !(Number.isInteger(f.octaves) && (f.octaves as number) >= 1 && (f.octaves as number) <= 8)) return 'noise octaves must be a whole number from 1 to 8';
+        if (f.seed !== undefined && !Number.isInteger(f.seed)) return 'noise seed must be a whole number';
+    }
     if (f.type === 'linear' && !(isPair(f.from) && isPair(f.to))) return 'a linear gradient needs from and to, each [x, y]';
     if (f.type === 'radial' && !(isPair(f.at) && isNum(f.radius) && (f.radius as number) > 0)) return 'a radial gradient needs at: [x, y] and a positive radius';
     if (!Array.isArray(f.stops) || f.stops.length < 2) return 'a gradient needs two stops or more, each [0..1, colour]';
@@ -87,7 +96,7 @@ function checkFill(v: unknown): string | null {
     return null;
 }
 
-const FIELDS = ['id', 'shape', 'at', 'size', 'radius', 'radii', 'inner', 'count', 'tooth', 'turn', 'points', 'd', 'rows', 'palette', 'scale', 'layers', 'fill', 'stroke', 'opacity', 'blend', 'transform', 'mirror', 'effects', 'clip', 'erase', 'visible'];
+const FIELDS = ['id', 'shape', 'at', 'size', 'radius', 'radii', 'inner', 'count', 'tooth', 'turn', 'points', 'd', 'rows', 'palette', 'scale', 'layers', 'fill', 'stroke', 'opacity', 'blend', 'transform', 'mirror', 'effects', 'clip', 'erase', 'visible', 'blur'];
 const SHAPES: readonly ImageShape[] = ['rect', 'circle', 'ellipse', 'ring', 'polygon', 'line', 'star', 'gear', 'path', 'pixels', 'group'];
 
 function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>): void {
@@ -157,6 +166,8 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
         if (s.cap !== undefined && !['round', 'butt', 'square'].includes(s.cap as string)) fail('stroke cap must be round, butt or square');
     }
     if (!['group', 'pixels', 'line'].includes(l.shape as string) && l.fill === undefined && l.stroke === undefined && !l.erase) fail('it needs a fill or a stroke, or it draws nothing');
+    if (l.blur !== undefined && !(isNum(l.blur) && (l.blur as number) >= 0)) fail('blur must be 0 or more, in pixels');
+    if (l.blur && l.erase) fail('blur does not go with erase; put what cuts in a group with what it cuts, and blur the group');
     if (l.opacity !== undefined && !(isNum(l.opacity) && l.opacity >= 0 && l.opacity <= 1)) fail('opacity must be 0..1');
     if (l.blend !== undefined && !['normal', 'multiply', 'screen', 'overlay', 'add'].includes(l.blend as string)) fail('blend must be normal, multiply, screen, overlay or add');
     if (l.mirror !== undefined && l.mirror !== 'x' && l.mirror !== 'y') fail('mirror must be x or y');

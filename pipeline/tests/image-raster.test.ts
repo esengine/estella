@@ -471,6 +471,147 @@ describe('the sheet to look at', () => {
     });
 });
 
+describe('blur', () => {
+    const dot: ImageLayer = { shape: 'rect', at: [24, 24], size: [16, 16], fill: RED };
+
+    it('softens an edge and keeps how much there is', () => {
+        const [sharp, soft] = [draw([dot]), draw([{ ...dot, blur: 4 }])];
+        expect(px(sharp, 18, 32)[3]).toBe(0);
+        expect(px(soft, 18, 32)[3]).toBeGreaterThan(5);
+        expect(px(soft, 32, 32)[3]).toBeLessThan(255);
+        const total = (img: ReturnType<typeof draw>): number => { let s = 0; for (let i = 3; i < img.rgba.length; i += 4) s += img.rgba[i]!; return s; };
+        expect(Math.abs(total(sharp) - total(soft)) / total(sharp)).toBeLessThan(0.02);
+    });
+
+    it('does not bring black in round the edge', () => {
+        const soft = draw([{ ...dot, blur: 4 }]);
+        for (let x = 14; x < 24; x++) if (px(soft, x, 32)[3]! > 2) expect(px(soft, x, 32)[0]).toBeGreaterThan(245);
+    });
+
+    it('stays solid to the edge of the picture when the layer fills it', () => {
+        expect(px(draw([{ shape: 'rect', at: [0, 0], size: [64, 64], fill: RED, blur: 6 }]), 0, 0)).toEqual([255, 0, 0, 255]);
+    });
+
+    it('softens a group as one thing, with its effects, and leaves what is outside it sharp', () => {
+        const img = draw([
+            { shape: 'group', blur: 3, opacity: 0.5, layers: [dot, { shape: 'rect', at: [40, 24], size: [8, 16], fill: BLUE }] },
+            { shape: 'rect', at: [0, 0], size: [4, 4], fill: BLUE },
+        ]);
+        expect(px(img, 2, 2)).toEqual([0, 0, 255, 255]);
+        expect(px(img, 4, 2)[3]).toBe(0);
+        // Where the two meet the colours mix, and nothing is over half there.
+        expect(px(img, 40, 32)[0]).toBeGreaterThan(40);
+        expect(px(img, 40, 32)[2]).toBeGreaterThan(40);
+        expect(px(img, 32, 32)[3]).toBeLessThanOrEqual(128);
+        const shadowed = draw([{ ...dot, blur: 2, effects: [{ type: 'shadow', x: 10, blur: 0, opacity: 1 }] }]);
+        expect(px(shadowed, 45, 32)[3]).toBeGreaterThan(200);
+    });
+
+    it('scales with the group it is in, keeps its clip and its blend', () => {
+        const at = (scale: number): number => px(draw([{ shape: 'group', transform: { scale, origin: [32, 32] }, layers: [{ shape: 'rect', at: [24, 24], size: [16, 16], fill: RED, blur: 2 }] }]), 32 - Math.round(8 * scale) - 2 * scale, 32)[3]!;
+        expect(Math.abs(at(1) - at(2))).toBeLessThan(40);
+        const clipped = draw([{ id: 'c', shape: 'rect', at: [0, 0], size: [32, 64], fill: BLUE }, { ...dot, blur: 4, clip: 'c' }]);
+        expect(px(clipped, 40, 32)[0]).toBe(0);
+        const screened = draw([{ shape: 'rect', at: [0, 0], size: [64, 64], fill: '#808080' }, { shape: 'rect', at: [0, 0], size: [64, 64], fill: '#808080', blur: 2, blend: 'screen' }]);
+        expect(px(screened, 32, 32)[0]).toBeGreaterThan(180);
+    });
+
+    it('lets a shape clip softly to it', () => {
+        const img = draw([{ id: 's', shape: 'rect', at: [24, 24], size: [16, 16], fill: '#ffffff', blur: 4, opacity: 0 }, { shape: 'rect', at: [0, 0], size: [64, 64], fill: RED, clip: 's' }]);
+        expect(px(img, 32, 32)[3]).toBeGreaterThan(px(img, 22, 32)[3]!);
+        expect(px(img, 22, 32)[3]).toBeGreaterThan(0);
+    });
+
+    it('refuses what it cannot do', () => {
+        const bad = (fields: object): unknown => validateImageSource({ size: 8, layers: [{ shape: 'circle', at: [4, 4], radius: 2, fill: RED, ...fields }] });
+        expect(() => bad({ blur: -1 })).toThrow(/blur must be 0 or more/);
+        expect(() => bad({ blur: 2, erase: true })).toThrow(/does not go with erase/);
+    });
+});
+
+describe('noise', () => {
+    const grey = (fields: object = {}): ImageLayer => ({ shape: 'rect', at: [0, 0], size: [64, 64], fill: { type: 'noise', stops: [[0, '#000000'], [1, '#ffffff']], ...fields } as never });
+    const reds = (img: ReturnType<typeof draw>): number[] => Array.from({ length: 64 * 64 }, (_, i) => img.rgba[i * 4]!);
+
+    it('is the same from the same seed, and differs from another', () => {
+        expect(draw([grey({ seed: 5 })]).rgba).toEqual(draw([grey({ seed: 5 })]).rgba);
+        expect(draw([grey({ seed: 5 })]).rgba).not.toEqual(draw([grey({ seed: 6 })]).rgba);
+    });
+
+    it('holds a value pinned here, so the picture cannot change between machines or versions unnoticed', () => {
+        const img = draw([grey({ seed: 1 })]);
+        let sum = 0;
+        for (const v of reds(img)) sum = (Math.imul(sum, 31) + v) | 0;
+        expect(sum).toBe(NOISE_PIN);
+    });
+
+    it('spends the whole range of its stops, about the middle', () => {
+        for (const octaves of [1, 2, 4, 8]) {
+            const v = reds(draw([grey({ octaves, scale: 8 })]));
+            const mean = v.reduce((a, b) => a + b, 0) / v.length;
+            expect(mean).toBeGreaterThan(90);
+            expect(mean).toBeLessThan(165);
+            expect(Math.max(...v) - Math.min(...v)).toBeGreaterThan(150);
+        }
+    });
+
+    it('shows no boxes of its lattice in a large soft cloud', () => {
+        // Along the lattice's own axis and across it the change is alike; value noise changes less along an axis.
+        const img = draw([{ shape: 'rect', at: [0, 0], size: [256, 256], fill: { type: 'noise', scale: 40, octaves: 1, stops: [[0, '#000000'], [1, '#ffffff']] } }], [256, 256]);
+        const change = (dx: number, dy: number): number => {
+            let t = 0;
+            for (let y = 8; y < 240; y++) for (let x = 8; x < 240; x++) t += Math.abs(px(img, x, y)[0]! - px(img, x + dx, y + dy)[0]!);
+            return t;
+        };
+        const [along, diagonal] = [change(4, 0), change(3, 3)];
+        expect(Math.abs(along - diagonal) / along).toBeLessThan(0.1);
+    });
+
+    it('has blobs of the size it is told', () => {
+        const stepAlong = (scale: number): number => {
+            const img = draw([grey({ scale, octaves: 1 })]);
+            let total = 0;
+            for (let x = 0; x < 63; x++) total += Math.abs(px(img, x, 20)[0]! - px(img, x + 1, 20)[0]!);
+            return total;
+        };
+        expect(stepAlong(4)).toBeGreaterThan(stepAlong(32) * 3);
+    });
+
+    it('gives a different value to each pixel at size 1, for grain', () => {
+        const img = draw([grey({ scale: 1, octaves: 1 })]);
+        let moved = 0;
+        for (let x = 0; x < 63; x++) if (Math.abs(px(img, x, 20)[0]! - px(img, x + 1, 20)[0]!) > 10) moved++;
+        expect(moved).toBeGreaterThan(40);
+    });
+
+    it('fades through clear stops, and is cut by the shape', () => {
+        const img = draw([{ shape: 'circle', at: [32, 32], radius: 16, fill: { type: 'noise', scale: 8, stops: [[0, '#ffffff00'], [1, '#ffffffff']] } }]);
+        const alphas = new Set<number>();
+        for (let x = 20; x < 44; x++) alphas.add(px(img, x, 32)[3]!);
+        expect(alphas.size).toBeGreaterThan(5);
+        expect(px(img, 2, 2)[3]).toBe(0);
+    });
+
+    it('stretches with the transform', () => {
+        const img = draw([{ shape: 'rect', at: [-200, -200], size: [500, 500], transform: { scale: [8, 1], origin: [0, 0] }, fill: { type: 'noise', scale: 4, octaves: 1, stops: [[0, '#000000'], [1, '#ffffff']] } }]);
+        const change = (dx: number, dy: number): number => {
+            let t = 0;
+            for (let i = 0; i < 50; i++) t += Math.abs(px(img, 5 + i * dx, 5 + i * dy)[0]! - px(img, 5 + (i + 1) * dx, 5 + (i + 1) * dy)[0]!);
+            return t;
+        };
+        expect(change(0, 1)).toBeGreaterThan(change(1, 0) * 3);
+    });
+
+    it('works for a stroke, and refuses what is not one', () => {
+        expect(px(draw([{ shape: 'line', points: [[0, 32], [64, 32]], stroke: { color: { type: 'noise', scale: 8, stops: [[0, '#ff0000'], [1, '#ff0000']] } as never, width: 4 } }]), 32, 32)).toEqual([255, 0, 0, 255]);
+        const bad = (fill: object): unknown => validateImageSource({ size: 8, layers: [{ shape: 'rect', at: [0, 0], size: [8, 8], fill: { type: 'noise', stops: [[0, '#000'], [1, '#fff']], ...fill } }] });
+        expect(() => bad({ scale: 0 })).toThrow(/scale must be a positive/);
+        expect(() => bad({ octaves: 9 })).toThrow(/octaves must be/);
+        expect(() => bad({ seed: 1.5 })).toThrow(/seed must be/);
+        expect(() => validateImageSource({ size: 8, layers: [{ shape: 'rect', at: [0, 0], size: [8, 8], fill: { type: 'wavy', stops: [] } }] })).toThrow(/linear, radial or noise/);
+    });
+});
+
 describe('what it measures', () => {
     it('finds where the picture is solid and how much of it that is', () => {
         const img = draw([{ shape: 'rect', at: [10, 20], size: [16, 8], fill: RED }]);
@@ -531,6 +672,8 @@ describe('a set and a close look', () => {
         expect(() => zoomImage(half, { x: 500, y: 0, w: 4, h: 4 })).toThrow(/outside the picture/);
     });
 });
+
+const NOISE_PIN = -1320521626;
 
 describe('the source', () => {
     const ok = (layers: unknown[]): unknown => ({ size: 16, layers });
