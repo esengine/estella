@@ -8,8 +8,8 @@
  *        rather than to a drawing.
  */
 import { HUMANOID_TAGS, humanoidJoints, type HumanoidBuild } from './humanoid';
-import { compact, type PolyMesh } from './polyMesh';
-import { computeWornWeights, posedPositions, resolveJoints, type AnimationTrack, type RigJoint, type SkinWeights } from './rig';
+import { compact, type PolyMesh, type Vec3 } from './polyMesh';
+import { computeWornWeights, jointPositions, posedPositions, resolveJoints, type AnimationSource, type AnimationTrack, type RigJoint, type SkinWeights } from './rig';
 
 export interface PoseParams {
     /** The bones of a humanoid of this build; true for the default one. */
@@ -24,7 +24,8 @@ export interface PoseParams {
     rigid?: string;
 }
 
-export function poseStep(mesh: PolyMesh, p: PoseParams): PolyMesh {
+/** A pose as the clip that holds it, on the bones it is for. */
+function poseClip(p: PoseParams): { joints: RigJoint[]; animation: AnimationSource } {
     if (p.humanoid === undefined) throw new Error('`humanoid` says whose bones: true, or the build it was given');
     const joints: RigJoint[] = resolveJoints({ joints: humanoidJoints(p.humanoid === true ? {} : p.humanoid) });
     const names = new Set(joints.map((j) => j.name));
@@ -47,12 +48,22 @@ export function poseStep(mesh: PolyMesh, p: PoseParams): PolyMesh {
         if (r.at?.length !== 3) throw new Error(`reach of "${name}" needs at: [x, y, z]`);
         tracks.set(name, { ...tracks.get(name), reach: [[0, r.at[0]!, r.at[1]!, r.at[2]!]], ...(r.pole ? { pole: r.pole } : {}) });
     }
-    const animation = { name: 'pose', duration: 1, loop: false, tracks: [...tracks].map(([joint, t]) => ({ joint, ...t })) as AnimationTrack[] };
+    return { joints, animation: { name: 'pose', duration: 1, loop: false, tracks: [...tracks].map(([joint, t]) => ({ joint, ...t })) as AnimationTrack[] } };
+}
+
+/** Where each joint is in a pose, without the seconds a surface takes. */
+export function poseJoints(p: PoseParams): Record<string, Vec3> {
+    const { joints, animation } = poseClip(p);
+    return jointPositions(joints, animation, 0);
+}
+
+export function poseStep(mesh: PolyMesh, p: PoseParams): PolyMesh {
+    const { joints, animation } = poseClip(p);
     if (mesh.positions.length === 0) throw new Error('there is nothing yet to pose');
     let skin: SkinWeights;
     if (p.rigid !== undefined) {
-        known(p.rigid);
         const j = joints.findIndex((q) => q.name === p.rigid);
+        if (j < 0) throw new Error(`no joint "${p.rigid}"; there are ${joints.map((q) => q.name).join(', ')}`);
         const count = mesh.positions.length;
         const jointsOut = new Uint16Array(count * 4), weights = new Float32Array(count * 4);
         for (let v = 0; v < count; v++) { jointsOut[v * 4] = j; weights[v * 4] = 1; }

@@ -13,7 +13,9 @@ export type ImageFill = string
     | { type: 'linear'; from: readonly [number, number]; to: readonly [number, number]; stops: readonly (readonly [number, string])[] }
     | { type: 'radial'; at: readonly [number, number]; radius: number; stops: readonly (readonly [number, string])[] }
     /** The same picture on every machine: it comes from `seed` and never from a random number. */
-    | { type: 'noise'; scale?: number; octaves?: number; seed?: number; stops: readonly (readonly [number, string])[] };
+    | { type: 'noise'; scale?: number; octaves?: number; seed?: number; stops: readonly (readonly [number, string])[] }
+    /** By which way a figure's surface faces: 1 toward the light, 0.5 side on, 0 away. So light turns the form and does not sit on its edge. */
+    | { type: 'form'; figure: string; light?: readonly number[]; stops: readonly (readonly [number, string])[] };
 
 export interface ImageEffect {
     type: 'shadow' | 'glow' | 'innerShadow' | 'innerGlow';
@@ -33,7 +35,7 @@ export interface ImageTransform {
     origin?: readonly [number, number];
 }
 
-export type ImageShape = 'rect' | 'circle' | 'ellipse' | 'ring' | 'polygon' | 'line' | 'star' | 'gear' | 'path' | 'pixels' | 'paint' | 'group';
+export type ImageShape = 'rect' | 'circle' | 'ellipse' | 'ring' | 'polygon' | 'line' | 'star' | 'gear' | 'path' | 'pixels' | 'paint' | 'figure' | 'group';
 
 /** One movement of a brush. Replayed in order on a `paint` layer, so the same list is the same picture. */
 export interface ImageStroke {
@@ -152,6 +154,24 @@ export interface ImageLayer {
     strokes?: readonly ImageMark[];
     /** "below": a paint layer's canvas starts as the picture so far, so its strokes and smudges work across everything under it. */
     from?: 'below';
+    /** Seen when looking and left out of the .png, while what it masks still works. A figure is one unless told otherwise. */
+    guide?: boolean;
+    /** A figure: pixels from floor to crown, standing straight. */
+    height?: number;
+    /** A figure: degrees turned about the body, 0 facing the viewer, 90 facing picture right, 180 away. */
+    yaw?: number;
+    /** A figure: degrees seen from above. */
+    pitch?: number;
+    build?: { head?: number; shoulders?: number; chest?: number; waist?: number; hips?: number; limbs?: number };
+    pose?: {
+        rotate?: Readonly<Record<string, readonly number[]>>;
+        move?: Readonly<Record<string, readonly number[]>>;
+        /** A joint and where it must be: [x, y] in the picture, or [x, y, z] on the body's own axes. */
+        reach?: Readonly<Record<string, { at: readonly number[]; pole?: readonly number[] }>>;
+    };
+    eyes?: 'open' | 'closed';
+    /** A figure: where the light is, x right, y up, z toward the viewer. */
+    light?: readonly number[];
     fill?: ImageFill;
     stroke?: { color: ImageFill; width: number; align?: 'center' | 'inside' | 'outside'; join?: 'round' | 'miter' | 'bevel'; cap?: 'round' | 'butt' | 'square' };
     opacity?: number;
@@ -181,7 +201,11 @@ function checkFill(v: unknown): string | null {
     if (typeof v === 'string') return isColor(v) ? null : `${JSON.stringify(v)} must be #rgb, #rgba, #rrggbb or #rrggbbaa`;
     const f = v as Record<string, unknown> | null;
     if (typeof f !== 'object' || f === null) return 'must be a colour or a gradient';
-    if (f.type !== 'linear' && f.type !== 'radial' && f.type !== 'noise') return 'a gradient has type linear, radial or noise';
+    if (f.type !== 'linear' && f.type !== 'radial' && f.type !== 'noise' && f.type !== 'form') return 'a gradient has type linear, radial, noise or form';
+    if (f.type === 'form') {
+        if (typeof f.figure !== 'string' || !f.figure) return 'a form needs figure, the id of a figure drawn before it';
+        if (f.light !== undefined && !(Array.isArray(f.light) && f.light.length === 3 && f.light.every(isNum))) return 'a form\'s light must be [x, y, z], x right, y up, z toward the viewer';
+    }
     if (f.type === 'noise') {
         if (f.scale !== undefined && !(isNum(f.scale) && (f.scale as number) > 0)) return 'noise scale must be a positive number of pixels';
         if (f.octaves !== undefined && !(Number.isInteger(f.octaves) && (f.octaves as number) >= 1 && (f.octaves as number) <= 8)) return 'noise octaves must be a whole number from 1 to 8';
@@ -197,8 +221,8 @@ function checkFill(v: unknown): string | null {
     return null;
 }
 
-const FIELDS = ['id', 'shape', 'at', 'size', 'radius', 'radii', 'inner', 'count', 'tooth', 'turn', 'points', 'd', 'rows', 'palette', 'scale', 'layers', 'fill', 'stroke', 'opacity', 'blend', 'transform', 'mirror', 'effects', 'clip', 'erase', 'visible', 'blur', 'strokes', 'from'];
-const SHAPES: readonly ImageShape[] = ['rect', 'circle', 'ellipse', 'ring', 'polygon', 'line', 'star', 'gear', 'path', 'pixels', 'paint', 'group'];
+const FIELDS = ['id', 'shape', 'at', 'size', 'radius', 'radii', 'inner', 'count', 'tooth', 'turn', 'points', 'd', 'rows', 'palette', 'scale', 'layers', 'fill', 'stroke', 'opacity', 'blend', 'transform', 'mirror', 'effects', 'clip', 'erase', 'visible', 'blur', 'strokes', 'from', 'guide', 'height', 'yaw', 'pitch', 'build', 'pose', 'eyes', 'light'];
+const SHAPES: readonly ImageShape[] = ['rect', 'circle', 'ellipse', 'ring', 'polygon', 'line', 'star', 'gear', 'path', 'pixels', 'paint', 'figure', 'group'];
 const STROKE_FIELDS = ['points', 'color', 'to', 'size', 'hardness', 'opacity', 'taper', 'bristles', 'strand', 'spread', 'vary', 'wobble', 'seed', 'smudge', 'erase', 'blend'];
 
 const SWEEP_FIELDS = ['type', 'guides', 'colors', 'count', 'tip', 'size', 'clumps', 'gather', 'flyaway', 'vary', 'wobble', 'opacity', 'taper', 'seed'];
@@ -311,6 +335,28 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
                 fail((e as Error).message);
             }
             break;
+        case 'figure': {
+            if (!isPair(l.at)) fail('at must be [x, y]: the place on the floor under her');
+            if (!(isNum(l.height) && (l.height as number) > 0)) fail('height must be pixels from floor to crown');
+            for (const key of ['yaw', 'pitch']) if (l[key] !== undefined && !isNum(l[key])) fail(`${key} must be degrees`);
+            if (l.eyes !== undefined && l.eyes !== 'open' && l.eyes !== 'closed') fail('eyes must be open or closed');
+            if (l.light !== undefined && !(Array.isArray(l.light) && l.light.length === 3 && l.light.every(isNum))) fail('light must be [x, y, z], x right, y up, z toward the viewer');
+            const build = l.build as Record<string, unknown> | undefined;
+            for (const [key, value] of Object.entries(build ?? {})) {
+                if (!['head', 'shoulders', 'chest', 'waist', 'hips', 'limbs'].includes(key)) fail(`build has unknown "${key}"; it takes head, shoulders, chest, waist, hips, limbs`);
+                if (!(isNum(value) && (value as number) > 0)) fail(`build ${key} must be positive`);
+            }
+            const pose = l.pose as Record<string, Record<string, unknown>> | undefined;
+            for (const key of Object.keys(pose ?? {})) if (!['rotate', 'move', 'reach'].includes(key)) fail(`pose has unknown "${key}"; it takes rotate, move, reach`);
+            for (const [key, list] of Object.entries(pose ?? {})) {
+                for (const [joint, value] of Object.entries(list)) {
+                    const numbers = key === 'reach' ? (value as { at?: unknown }).at : value;
+                    const lengths = key === 'reach' ? [2, 3] : [3];
+                    if (!(Array.isArray(numbers) && lengths.includes(numbers.length) && numbers.every(isNum))) fail(`pose ${key} "${joint}" must be ${key === 'reach' ? '{ at: [x, y] or [x, y, z] }' : '[x, y, z]'}`);
+                }
+            }
+            break;
+        }
         case 'paint': {
             if (!Array.isArray(l.strokes)) fail('strokes must be an array, which may start empty');
             if (l.from !== undefined && l.from !== 'below') fail('from must be "below"');
@@ -355,8 +401,9 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
         if (s.join !== undefined && !['round', 'miter', 'bevel'].includes(s.join as string)) fail('stroke join must be round, miter or bevel');
         if (s.cap !== undefined && !['round', 'butt', 'square'].includes(s.cap as string)) fail('stroke cap must be round, butt or square');
     }
-    if (!['group', 'pixels', 'paint', 'line'].includes(l.shape as string) && l.fill === undefined && l.stroke === undefined && !l.erase) fail('it needs a fill or a stroke, or it draws nothing');
+    if (!['group', 'pixels', 'paint', 'figure', 'line'].includes(l.shape as string) && l.fill === undefined && l.stroke === undefined && !l.erase) fail('it needs a fill or a stroke, or it draws nothing');
     if (l.from !== undefined && l.shape !== 'paint') fail('from is for a paint layer');
+    if (l.guide !== undefined && typeof l.guide !== 'boolean') fail('guide must be true or false');
     if (l.blur !== undefined && !(isNum(l.blur) && (l.blur as number) >= 0)) fail('blur must be 0 or more, in pixels');
     if (l.blur && l.erase) fail('blur does not go with erase; put what cuts in a group with what it cuts, and blur the group');
     if (l.opacity !== undefined && !(isNum(l.opacity) && l.opacity >= 0 && l.opacity <= 1)) fail('opacity must be 0..1');

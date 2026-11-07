@@ -608,7 +608,7 @@ describe('noise', () => {
         expect(() => bad({ scale: 0 })).toThrow(/scale must be a positive/);
         expect(() => bad({ octaves: 9 })).toThrow(/octaves must be/);
         expect(() => bad({ seed: 1.5 })).toThrow(/seed must be/);
-        expect(() => validateImageSource({ size: 8, layers: [{ shape: 'rect', at: [0, 0], size: [8, 8], fill: { type: 'wavy', stops: [] } }] })).toThrow(/linear, radial or noise/);
+        expect(() => validateImageSource({ size: 8, layers: [{ shape: 'rect', at: [0, 0], size: [8, 8], fill: { type: 'wavy', stops: [] } }] })).toThrow(/linear, radial, noise or form/);
     });
 });
 
@@ -964,6 +964,85 @@ describe('working across the picture', () => {
         expect(v[Math.floor(v.length * 0.1)]).toBeGreaterThan(0.2);
         expect(v[Math.floor(v.length * 0.9)]).toBeLessThan(0.8);
     });
+});
+
+describe('a figure to draw over', () => {
+    const LONG = 120000;
+    const person = (fields: object = {}): ImageLayer => ({ id: 'f', shape: 'figure', at: [128, 240], height: 220, ...fields } as never);
+    const look = (layers: ImageLayer[]): ReturnType<typeof renderImage> => renderImage(validateImageSource({ size: 256, layers }), { guides: true });
+    const plain = (layers: ImageLayer[]): ReturnType<typeof renderImage> => renderImage(validateImageSource({ size: 256, layers }));
+
+    it('is as tall as it is told, and stands on its place', () => {
+        const box = plain([person()]).layerBounds.f!;
+        expect(box[1] + box[3]).toBeGreaterThan(232);
+        expect(box[1] + box[3]).toBeLessThanOrEqual(241);
+        expect(box[3]).toBeGreaterThan(210);
+        expect(box[3]).toBeLessThan(226);
+    }, LONG);
+
+    it('is seen when looking and is not in the picture', () => {
+        const seen = look([person()]);
+        expect(seen.rgba[(100 * 256 + 128) * 4 + 3]).toBeGreaterThan(200);
+        const out = plain([person()]);
+        for (let i = 3; i < out.rgba.length; i += 4) expect(out.rgba[i]).toBe(0);
+    }, LONG);
+
+    it('turns by yaw: toes to the picture right at 90, and left at -90', () => {
+        const toe = (yaw: number): number => plain([person({ yaw })]).figures.f!['toeTip.R']![0];
+        const ankle = (yaw: number): number => plain([person({ yaw })]).figures.f!['foot.R']![0];
+        expect(toe(90)).toBeGreaterThan(ankle(90) + 8);
+        expect(toe(-90)).toBeLessThan(ankle(-90) - 8);
+        const front = plain([person()]).figures.f!;
+        expect(front['hand.L']![0]).toBeGreaterThan(front['hand.R']![0]);
+        expect(plain([person({ yaw: 90 })]).layerBounds.f![2]).toBeLessThan(plain([person()]).layerBounds.f![2]);
+    }, LONG);
+
+    it('reports joints that land on the body', () => {
+        const out = plain([person()]);
+        const m = out.figures.f!;
+        expect(m.crown![1]).toBeLessThan(m.neck![1]!);
+        expect(m.neck![1]).toBeLessThan(m.hips![1]!);
+        expect(m['foot.L']![1]).toBeGreaterThan(m['shin.L']![1]!);
+    }, LONG);
+
+    it('puts a hand where it is asked in the picture, and the arm follows', () => {
+        const m = plain([person({ pose: { reach: { 'hand.R': { at: [60, 60] } } } })]).figures.f!;
+        expect(Math.hypot(m['hand.R']![0] - 60, m['hand.R']![1] - 60)).toBeLessThan(40);
+        const near = plain([person({ pose: { reach: { 'hand.R': { at: [90, 110] } } } })]).figures.f!;
+        expect(Math.hypot(near['hand.R']![0] - 90, near['hand.R']![1] - 110)).toBeLessThan(6);
+    }, LONG);
+
+    it('bows its head with a rotation about x', () => {
+        const crownX = (x: number): number => plain([person({ yaw: 90, pose: { rotate: { neck: [x, 0, 0] } } })]).figures.f!.crown![0];
+        expect(crownX(30)).toBeGreaterThan(crownX(0) + 5);
+    }, LONG);
+
+    it('makes each part a mask, while the guide itself stays out', () => {
+        const painted = plain([person(), { shape: 'rect', at: [0, 0], size: [256, 256], fill: RED, clip: 'f.torso' }]);
+        const box = painted.layerBounds['f.torso']!;
+        expect(px(painted, box[0] + Math.floor(box[2] / 2), box[1] + Math.floor(box[3] / 2))[0]).toBe(255);
+        expect(px(painted, 128, painted.figures.f!.crown![1] + 4)[3]).toBe(0);
+        const field = plain([person(), { shape: 'paint', strokes: [{ type: 'field', region: '@f.leg', tone: BLUE, size: 3, length: 6, angle: 90, seed: 1, hardness: 1, opacity: 1, vary: 0 }] } as never]);
+        const leg = field.layerBounds['f.leg']!;
+        expect(px(field, 5, 5)[3]).toBe(0);
+        expect(leg[3]).toBeGreaterThan(60);
+    }, LONG);
+
+    it('a form follows the surface: lighter toward the light, across one limb', () => {
+        const lit = plain([person(), { shape: 'rect', at: [0, 0], size: [256, 256], clip: 'f', fill: { type: 'form', figure: 'f', light: [-1, 0, 0.2], stops: [[0, '#000000'], [1, '#ffffff']] } } as never]);
+        const chest = lit.figures.f!.chest!;
+        const [left, right] = [px(lit, chest[0] - 12, chest[1])[0]!, px(lit, chest[0] + 12, chest[1])[0]!];
+        expect(left).toBeGreaterThan(right + 60);
+    }, LONG);
+
+    it('says what is wrong with one', () => {
+        const bad = (l: object): unknown => validateImageSource({ size: 64, layers: [{ shape: 'figure', at: [4, 4], height: 40, ...l }] });
+        expect(() => bad({ height: undefined })).toThrow(/height must be pixels/);
+        expect(() => bad({ build: { nose: 2 } })).toThrow(/build has unknown "nose"/);
+        expect(() => bad({ pose: { twist: {} } })).toThrow(/pose has unknown "twist"/);
+        expect(() => bad({ pose: { rotate: { neck: [1] } } })).toThrow(/rotate "neck" must be/);
+        expect(() => renderImage(validateImageSource({ size: 64, layers: [{ shape: 'figure', at: [4, 4], height: 40, pose: { rotate: { tail: [1, 0, 0] } } }] }))).toThrow(/no joint "tail"/);
+    }, LONG);
 });
 
 describe('what it measures', () => {

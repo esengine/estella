@@ -7,6 +7,7 @@
  *        effects, and this owns everything that has to be exact: antialiased edges, gradients, soft shadows.
  *        On the CPU rather than through a canvas, so the same source makes the same bytes on any machine and a test can read them.
  */
+import { figureLight, flattenFigure, type FlatFigure } from './imageFigure';
 import { MAX_MARK_STROKES } from './imageSource';
 import type { ImageFill, ImageLayer, ImageSource, ImageAlong, ImageEffect, ImageField, ImageMark, ImageStroke, ImageSweep, ImageTransform } from './imageSource';
 
@@ -459,7 +460,7 @@ function fractalNoise(x: number, y: number, octaves: number, seed: number): numb
     return Math.max(0, Math.min(1, 0.5 + (sum / weight) * NOISE_CONTRAST[octaves - 1]!));
 }
 
-function paintOf(fill: ImageFill, m: Matrix): (x: number, y: number) => Rgba {
+function paintOf(fill: ImageFill, m: Matrix, drawn?: Drawn, w = 0): (x: number, y: number) => Rgba {
     if (typeof fill === 'string') {
         const c = parseColor(fill);
         return () => c;
@@ -477,6 +478,19 @@ function paintOf(fill: ImageFill, m: Matrix): (x: number, y: number) => Rgba {
         }
         return stops[stops.length - 1]![1];
     };
+    if (fill.type === 'form') {
+        const figure = drawn?.figures.get(fill.figure);
+        if (!figure) {
+            drawn?.notes.push(`a form names figure "${fill.figure}", which was not drawn before it`);
+            return () => at(0);
+        }
+        const light = fill.light ? figureLight(fill.light) : figure.light;
+        return (x, y) => {
+            const i = Math.floor(y) * w + Math.floor(x);
+            const [nx, ny, nz] = [figure.normals[i * 3] ?? 0, figure.normals[i * 3 + 1] ?? 0, figure.normals[i * 3 + 2] ?? 0];
+            return at(0.5 + 0.5 * (nx * light[0] + ny * light[1] + nz * light[2]));
+        };
+    }
     if (fill.type === 'noise') {
         const [scale, octaves, seed] = [fill.scale ?? 32, fill.octaves ?? 4, fill.seed ?? 0];
         return (x, y) => {
@@ -557,7 +571,7 @@ function effectLayers(effects: readonly ImageEffect[] | undefined, under: boolea
     }
 }
 
-interface Drawn { masks: Map<string, Float32Array>; notes: string[]; bounds: Map<string, ImageBox>; painted: Map<string, { entries: number; strokes: number }> }
+interface Drawn { masks: Map<string, Float32Array>; notes: string[]; bounds: Map<string, ImageBox>; painted: Map<string, { entries: number; strokes: number }>; figures: Map<string, FlatFigure>; figureJoints: Map<string, Record<string, readonly [number, number]>>; showGuides: boolean }
 
 /** x, y, width and height in the picture's pixels. */
 export type ImageBox = readonly [number, number, number, number];
@@ -586,6 +600,11 @@ function noteBox(drawn: Drawn, id: string | undefined, mask: Float32Array, w: nu
 function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): void {
     if (layer.visible === false) return;
     const { w, h } = c;
+    // What a guide masks is still wanted when it is not seen, so it draws somewhere that is thrown away.
+    if (!drawn.showGuides && (layer.guide ?? layer.shape === 'figure')) {
+        drawLayer(new Canvas(w, h), { ...layer, guide: false }, parent, drawn);
+        return;
+    }
     if (layer.mirror) {
         const { mirror, ...rest } = layer;
         const axis = mirror === 'x' ? { x: -1, y: 1 } : { x: 1, y: -1 };
@@ -648,6 +667,11 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
         return;
     }
 
+    if (layer.shape === 'figure') {
+        drawFigure(c, layer, parent, drawn, opacity, blend, clip);
+        return;
+    }
+
     const { runs, middle } = outlinesOf(layer);
     const m = times(parent, transformOf(layer.transform, middle));
     const placed = runs.map((run) => ({ closed: run.closed, points: run.points.map((p) => apply(m, p)) }));
@@ -684,7 +708,7 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
     }
     effectLayers(layer.effects, true, c, whole);
     const paintLine = (): void => {
-        const paint = paintOf(layer.stroke!.color, m);
+        const paint = paintOf(layer.stroke!.color, m, drawn, w);
         for (let y = 0; y < h; y++) {
             for (let x = 0; x < w; x++) {
                 const i = y * w + x;
@@ -697,7 +721,7 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
     };
     if (line && align === 'outside') paintLine();
     if (hasFill) {
-        const paint = paintOf(layer.fill!, m);
+        const paint = paintOf(layer.fill!, m, drawn, w);
         for (let y = 0; y < h; y++) {
             for (let x = 0; x < w; x++) {
                 const i = y * w + x;
@@ -1000,7 +1024,8 @@ function fieldStrokes(s: ImageField, w: number, h: number, m: Matrix, drawn: Dra
         const len = Math.hypot(dx, dy) || 1;
         return [dx / len, dy / len];
     };
-    const paint = s.tone !== undefined ? paintOf(s.tone, IDENTITY) : null;
+    const toned = s.tone !== undefined && typeof s.tone !== 'string' && s.tone.type === 'form' ? paintOf(s.tone, IDENTITY, drawn, w) : null;
+    const paint = toned ? (x: number, y: number): Rgba => { const p = apply(m, [x, y]); return toned(p[0], p[1]); } : s.tone !== undefined ? paintOf(s.tone, IDENTITY) : null;
     const length = s.length ?? s.size * 3;
     const count = Math.min(MAX_MARK_STROKES, Math.ceil(((s.coverage ?? 4) * Math.max(1, (x1 - x0) * (y1 - y0))) / (s.size * length)));
     const spread = ((s.spread ?? 12) * Math.PI) / 180;
@@ -1095,7 +1120,7 @@ function drawPaint(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, o
     const inner = new Canvas(w, h);
     if (layer.from === 'below') inner.px.set(c.px);
     if (layer.fill !== undefined) {
-        const paint = paintOf(layer.fill, m);
+        const paint = paintOf(layer.fill, m, drawn, w);
         for (let y = 0; y < h; y++) {
             for (let x = 0; x < w; x++) {
                 const col = paint(x + 0.5, y + 0.5);
@@ -1128,6 +1153,38 @@ function drawPaint(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, o
         put(c, i, inner.px[i * 4]! / a, inner.px[i * 4 + 1]! / a, inner.px[i * 4 + 2]! / a, a * opacity * (clip ? clip[i]! : 1), blend);
     }
     effectLayers(layer.effects, false, c, alpha);
+}
+
+/** The body in clay, with the edges of its form and a mark on each joint: enough to draw over, and nothing to be mistaken for the drawing. */
+function drawFigure(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, opacity: number, blend: Blend, clip: Float32Array | undefined): void {
+    const { w, h } = c;
+    const figure = flattenFigure(layer, w, h, (p) => apply(parent, p), drawnScale(parent));
+    if (layer.id) {
+        drawn.figures.set(layer.id, figure);
+        drawn.masks.set(layer.id, figure.mask);
+        noteBox(drawn, layer.id, figure.mask, w, h);
+        for (const [tag, mask] of Object.entries(figure.parts)) {
+            drawn.masks.set(`${layer.id}.${tag}`, mask);
+            noteBox(drawn, `${layer.id}.${tag}`, mask, w, h);
+        }
+    }
+    const [lx, ly, lz] = figure.light;
+    for (let i = 0; i < figure.mask.length; i++) {
+        const a = figure.mask[i]!;
+        if (a <= 0) continue;
+        const lit = 0.25 + 0.7 * Math.max(0, 0.5 + 0.5 * (figure.normals[i * 3]! * lx + figure.normals[i * 3 + 1]! * ly + figure.normals[i * 3 + 2]! * lz));
+        const line = 1 - figure.contour[i]! * 0.85;
+        put(c, i, lit * line, lit * line * 0.96, lit * line * 0.92, a * (layer.opacity ?? opacity) * (clip ? clip[i]! : 1), blend);
+    }
+    for (const [x, y] of Object.values(figure.joints)) {
+        for (let dy = -2; dy <= 2; dy++) {
+            for (let dx = -2; dx <= 2; dx++) {
+                if (x + dx < 0 || y + dy < 0 || x + dx >= w || y + dy >= h || dx * dx + dy * dy > 5) continue;
+                put(c, (y + dy) * w + x + dx, 0.95, 0.2, 0.25, 0.85, 'normal');
+            }
+        }
+    }
+    if (layer.id) drawn.figureJoints.set(layer.id, figure.joints);
 }
 
 function drawPixels(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, opacity: number, blend: Blend, clip: Float32Array | undefined): void {
@@ -1167,17 +1224,19 @@ export interface RenderedImage extends RgbaBitmap {
     layerBounds: Record<string, ImageBox>;
     /** For each paint layer with an id: its entries, which `drop` counts, and the strokes they came to. */
     painted: Record<string, { entries: number; strokes: number }>;
+    /** For each figure with an id: where its joints landed in the picture. */
+    figures: Record<string, Record<string, readonly [number, number]>>;
 }
 
 /** Draws a source that has been validated. */
-export function renderImage(source: ImageSource): RenderedImage {
+export function renderImage(source: ImageSource, options: { guides?: boolean } = {}): RenderedImage {
     const [w, h] = typeof source.size === 'number' ? [source.size, source.size] : source.size;
     const canvas = new Canvas(w, h);
     if (source.background) {
         const [r, g, b, a] = parseColor(source.background);
         for (let i = 0; i < w * h; i++) put(canvas, i, r, g, b, a, 'normal');
     }
-    const drawn: Drawn = { masks: new Map(), notes: [], bounds: new Map(), painted: new Map() };
+    const drawn: Drawn = { masks: new Map(), notes: [], bounds: new Map(), painted: new Map(), figures: new Map(), figureJoints: new Map(), showGuides: options.guides === true };
     for (const layer of source.layers) drawLayer(canvas, layer, IDENTITY, drawn);
     const rgba = new Uint8Array(w * h * 4);
     for (let i = 0; i < w * h; i++) {
@@ -1196,6 +1255,7 @@ export function renderImage(source: ImageSource): RenderedImage {
         covers: Math.round((solid / (w * h)) * 1000) / 1000,
         layerBounds: Object.fromEntries(drawn.bounds),
         painted: Object.fromEntries(drawn.painted),
+        figures: Object.fromEntries(drawn.figureJoints),
     };
 }
 
