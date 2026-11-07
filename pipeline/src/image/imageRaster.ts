@@ -477,6 +477,33 @@ function quadToUnit(q: readonly (readonly number[])[]): ((x: number, y: number) 
     };
 }
 
+/** The other way: from 0..1 each way on four corners to the place in the picture. */
+function unitToQuad(q: readonly (readonly number[])[]): (u: number, v: number) => Pt {
+    const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = q as unknown as [[number, number], [number, number], [number, number], [number, number]];
+    const [dx1, dx2, sx, dy1, dy2, sy] = [x1 - x2, x3 - x2, x0 - x1 + x2 - x3, y1 - y2, y3 - y2, y0 - y1 + y2 - y3];
+    const det = dx1 * dy2 - dx2 * dy1 || 1e-9;
+    const g = (sx * dy2 - dx2 * sy) / det, h = (dx1 * sy - sx * dy1) / det;
+    const [a, b, c, d, e, f] = [x1 - x0 + g * x1, x3 - x0 + h * x3, x0, y1 - y0 + g * y1, y3 - y0 + h * y3, y0];
+    return (u, v) => {
+        const z = g * u + h * v + 1;
+        return [(a * u + b * v + c) / z, (d * u + e * v + f) / z];
+    };
+}
+
+/** A block's face, named as "id.a", and the part of it asked for. A name that is not there says so. */
+function faceCorners(layer: ImageLayer, drawn: Drawn): readonly (readonly number[])[] | null {
+    const [id, key] = (layer.face as string).replace(/^@/, '').split('.') as [string, string | undefined];
+    const quad = key ? drawn.blocks.get(id)?.[key] : undefined;
+    if (!quad) {
+        drawn.notes.push(`layer ${layer.id ?? layer.shape}: face "${layer.face}" names no face of a block drawn before it, so it drew nothing`);
+        return null;
+    }
+    if (!layer.within) return quad;
+    const to = unitToQuad(quad);
+    const [l, t, r, b] = layer.within as [number, number, number, number];
+    return [to(l, t), to(r, t), to(r, b), to(l, b)];
+}
+
 /** Marks in rows and columns, each with its own colour and whether it is on, sampled within the pixel so distant rows blend and do not shimmer. */
 function gridPaint(fill: Extract<ImageFill, { type: 'grid' }>, m: Matrix): (x: number, y: number) => Rgba {
     const colors = fill.colors.map(parseColor);
@@ -787,6 +814,20 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
 
     if (layer.shape === 'reflect') {
         drawReflection(c, layer, parent, drawn, opacity, clip);
+        return;
+    }
+
+    if (layer.shape === 'bloom') {
+        drawBloom(c, layer, parent, opacity, clip);
+        return;
+    }
+
+    if (layer.face && layer.shape === 'rect') {
+        const corners = faceCorners(layer, drawn);
+        if (!corners) return;
+        const { face: _f, within: _w, at: _a, size: _s, radius: _r, ...rest } = layer;
+        const fill = rest.fill && typeof rest.fill !== 'string' && rest.fill.type === 'grid' && !rest.fill.quad ? { ...rest.fill, quad: corners } : rest.fill;
+        drawLayer(c, { ...rest, ...(fill ? { fill } : {}), shape: 'polygon', points: corners as [number, number][] }, parent, drawn);
         return;
     }
 
@@ -1311,7 +1352,18 @@ function drawPaint(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, o
     }
     const buffer: StrokeBuffer = { mask: new Float32Array(w * h), rgb: new Float32Array(w * h * 3), touched: [] };
     let drawnStrokes = 0;
-    (layer.strokes ?? []).forEach((mark) => {
+    const onFace = layer.face ? faceCorners(layer, drawn) : null;
+    if (layer.face && !onFace) return;
+    const place = onFace ? unitToQuad(onFace) : null;
+    const lay = (points: readonly (readonly number[])[]): number[][] => points.map((p) => [...place!(p[0]!, p[1]!), ...p.slice(2)]);
+    const placed = (mark: ImageMark): ImageMark => {
+        if (!place) return mark;
+        if (!('type' in mark)) return { ...mark, points: lay(mark.points) };
+        if (mark.type === 'sweep') return { ...mark, guides: mark.guides.map(lay) };
+        if (mark.type === 'along') return { ...mark, line: lay(mark.line) };
+        return mark;
+    };
+    (layer.strokes ?? []).map(placed).forEach((mark) => {
         for (const s of expandMark(mark, w, h, m, drawn, `layer ${layer.id ?? 'paint'}`)) paintStroke(inner, s, m, drawnScale(m), drawnStrokes++, buffer);
     });
     if (layer.id) drawn.painted.set(layer.id, { entries: (layer.strokes ?? []).length, strokes: drawnStrokes });
@@ -1383,11 +1435,130 @@ function drawFigure(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, 
     if (layer.id) drawn.figureJoints.set(layer.id, figure.joints);
 }
 
+/** Pixels a text is drawn at before it is laid on its corners: a font hinted small would not survive being stretched. */
+const QUAD_TEXT_SIZE = 96;
+
+/** The words drawn large and flat, cut to where they are, and looked up from each pixel of the corners they are laid on. */
+function textOnQuad(layer: ImageLayer, m: Matrix, w: number, h: number, draw: ImageTextDrawer): { fill: Float32Array; line: Float32Array | null } {
+    const count = [...(layer.text as string)].length;
+    const k = QUAD_TEXT_SIZE / (layer.fontSize ?? QUAD_TEXT_SIZE);
+    const long = Math.ceil(QUAD_TEXT_SIZE * 1.4 * (count + 1) + Math.abs(layer.tracking ?? 0) * k * count);
+    const across = QUAD_TEXT_SIZE * 2;
+    const [W, H] = layer.vertical ? [across, long] : [long, across];
+    const flat = draw({
+        ...layer, fontSize: QUAD_TEXT_SIZE, align: 'left', at: layer.vertical ? [across / 2, QUAD_TEXT_SIZE * 0.2] : [QUAD_TEXT_SIZE * 0.2, QUAD_TEXT_SIZE * 1.3],
+        ...(layer.tracking ? { tracking: layer.tracking * k } : {}), ...(layer.stroke ? { stroke: { ...layer.stroke, width: layer.stroke.width * k } } : {}),
+    }, IDENTITY, W, H);
+    const box = boxOf(W, H, (i) => flat.fill[i]! >= 0.5 || (flat.line ? flat.line[i]! >= 0.5 : false));
+    const out = { fill: new Float32Array(w * h), line: flat.line ? new Float32Array(w * h) : null };
+    const corners = layer.quad!.map((p) => apply(m, p as unknown as Pt));
+    const toUnit = quadToUnit(corners);
+    if (!box || !toUnit) return out;
+    const [x0, x1] = [Math.max(0, Math.floor(Math.min(...corners.map((p) => p[0])))), Math.min(w - 1, Math.ceil(Math.max(...corners.map((p) => p[0]))))];
+    const [y0, y1] = [Math.max(0, Math.floor(Math.min(...corners.map((p) => p[1])))), Math.min(h - 1, Math.ceil(Math.max(...corners.map((p) => p[1]))))];
+    const SAMPLES = 3;
+    for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+            let [f, l] = [0, 0];
+            for (let sy = 0; sy < SAMPLES; sy++) {
+                for (let sx = 0; sx < SAMPLES; sx++) {
+                    const [u, v] = toUnit(x + (sx + 0.5) / SAMPLES, y + (sy + 0.5) / SAMPLES);
+                    if (u < 0 || v < 0 || u >= 1 || v >= 1) continue;
+                    const at = Math.floor(box[1] + v * box[3]) * W + Math.floor(box[0] + u * box[2]);
+                    f += flat.fill[at]!;
+                    if (flat.line) l += flat.line[at]!;
+                }
+            }
+            out.fill[y * w + x] = f / (SAMPLES * SAMPLES);
+            if (out.line) out.line[y * w + x] = l / (SAMPLES * SAMPLES);
+        }
+    }
+    return out;
+}
+
+/** What is bright in the picture so far, spilling over what is round it: a tight glow and a wide one, as a lens and the air both give. */
+function drawBloom(c: Canvas, layer: ImageLayer, parent: Matrix, opacity: number, clip: Float32Array | undefined): void {
+    const { w, h } = c;
+    const threshold = layer.threshold ?? 0.6;
+    const strength = (layer.strength ?? 1) * opacity;
+    const radius = ((layer.radius as number | undefined) ?? 10) * drawnScale(parent);
+    const bright = [new Float32Array(w * h), new Float32Array(w * h), new Float32Array(w * h)] as const;
+    const span = Math.max(0.001, 1 - threshold);
+    for (let i = 0; i < w * h; i++) {
+        const [r, g, b] = [c.px[i * 4]!, c.px[i * 4 + 1]!, c.px[i * 4 + 2]!];
+        const peak = Math.max(r, g, b);
+        if (peak <= threshold) continue;
+        // Its own colour, in proportion to how far over it is: only the brightest of a soft edge shines.
+        const over = smoothed(Math.min(1, (peak - threshold) / span));
+        bright[0][i] = r * over; bright[1][i] = g * over; bright[2][i] = b * over;
+    }
+    for (let k = 0; k < 3; k++) {
+        const [tight, wide] = [blurMask(bright[k]!, w, h, radius * 0.5), blurMask(bright[k]!, w, h, radius * 2.5)];
+        for (let i = 0; i < w * h; i++) {
+            const shine = Math.min(1, (tight[i]! * 0.7 + wide[i]! * 0.9) * strength) * (clip ? clip[i]! : 1);
+            if (shine <= 0) continue;
+            const at = i * 4;
+            c.px[at + k] = c.px[at + k]! + (1 - c.px[at + k]!) * shine;
+            if (shine > c.px[at + 3]!) c.px[at + 3] = shine;
+        }
+    }
+}
+
+/** Coverage with this many pixels taken off every edge: the lowest within reach, across and then down. */
+function thinned(mask: Float32Array, pixels: number, w: number, h: number): Float32Array {
+    const r = Math.round(pixels);
+    if (r <= 0) return mask;
+    const across = new Float32Array(w * h);
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            let low = 1;
+            for (let d = -r; d <= r; d++) {
+                const at = x + d;
+                const v = at < 0 || at >= w ? 0 : mask[y * w + at]!;
+                if (v < low) low = v;
+            }
+            across[y * w + x] = low;
+        }
+    }
+    const out = new Float32Array(w * h);
+    for (let x = 0; x < w; x++) {
+        for (let y = 0; y < h; y++) {
+            let low = 1;
+            for (let d = -r; d <= r; d++) {
+                const at = y + d;
+                const v = at < 0 || at >= h ? 0 : across[at * w + x]!;
+                if (v < low) low = v;
+            }
+            out[y * w + x] = low;
+        }
+    }
+    return out;
+}
+
+/** Letters worn as a brush wears a stroke, by the same paper and in streaks across them. */
+function wornText(mask: Float32Array, layer: ImageLayer, w: number): Float32Array {
+    const [grain, dry] = [layer.grain ?? 0, layer.dry ?? 0];
+    if (grain <= 0 && dry <= 0) return mask;
+    const scale = layer.grainScale ?? 2;
+    return mask.map((v, i) => {
+        if (v <= 0) return 0;
+        const [x, y] = [(i % w) + 0.5, Math.floor(i / w) + 0.5];
+        let kept = v;
+        if (grain > 0) kept *= Math.max(0, Math.min(1, (fractalNoise(x / scale, y / scale, 3, 77) - (0.12 + grain * 0.62)) / 0.34 + 0.5));
+        if (dry > 0) kept *= Math.max(0, Math.min(1, (0.5 + 1.3 * gradientNoise(x / 40, y / 1.8, 9) - (0.12 + dry * 0.68)) / 0.22 + 0.5));
+        return kept;
+    });
+}
+
 function drawText(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, opacity: number, blend: Blend, clip: Float32Array | undefined): void {
     const { w, h } = c;
     if (!drawn.text) throw new Error(`layer ${layer.id ?? 'text'}: text needs the editor's fonts, and this render has none`);
-    const m = times(parent, transformOf(layer.transform, layer.at as Pt));
-    const { fill, line } = drawn.text(layer, m, w, h);
+    const m = times(parent, transformOf(layer.transform, (layer.at ?? [0, 0]) as Pt));
+    const corners = layer.face ? faceCorners(layer, drawn) : layer.quad;
+    if (layer.face && !corners) return;
+    const drawnText = corners ? textOnQuad({ ...layer, quad: corners }, m, w, h, drawn.text) : drawn.text(layer, m, w, h);
+    const line = drawnText.line;
+    const fill = wornText(thinned(drawnText.fill, (layer.thin ?? 0) * drawnScale(m), w, h), layer, w);
     const whole = new Float32Array(w * h);
     for (let i = 0; i < whole.length; i++) whole[i] = Math.max(layer.fill !== undefined ? fill[i]! : 0, line ? line[i]! : 0) * (clip ? clip[i]! : 1);
     if (layer.id) drawn.masks.set(layer.id, whole);

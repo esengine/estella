@@ -1117,6 +1117,137 @@ describe('a picture to draw over', () => {
     });
 });
 
+describe('words on a wall, and light spilling', () => {
+    // Fonts are not here: a solid bar stands in for the words, drawn where it is told.
+    const bar = (layer: ImageLayer, m: readonly number[], w: number, h: number): { fill: Float32Array; line: Float32Array | null } => {
+        const fill = new Float32Array(w * h);
+        const size = layer.fontSize as number;
+        const [x, y] = [Math.round(layer.at![0] + m[4]!), Math.round(layer.at![1] + m[5]!)];
+        for (let j = 0; j < size; j++) for (let i = 0; i < size * 3; i++) { const at = (y - j) * w + x + i; if (at >= 0 && at < fill.length) fill[at] = 1; }
+        return { fill, line: null };
+    };
+    const onWall = { id: 't', shape: 'text', text: 'SIGN', quad: [[8, 8], [56, 20], [56, 44], [8, 56]], fill: RED } as ImageLayer;
+
+    it('lays text on four corners: it fills them, and narrows to the far side', () => {
+        const img = renderImage(validateImageSource({ size: 64, layers: [onWall] }), { text: bar });
+        const tall = (x: number): number => { let n = 0; for (let y = 0; y < 64; y++) if (px(img as never, x, y)[3]! > 128) n++; return n; };
+        expect(tall(12)).toBeGreaterThan(tall(52) + 8);
+        expect(px(img as never, 32, 32)[0]).toBe(255);
+        expect(px(img as never, 4, 32)[3]).toBe(0);
+        expect(px(img as never, 60, 32)[3]).toBe(0);
+    });
+
+    it('needs no at or fontSize on corners, and still says what is wrong', () => {
+        const bad = (l: object): unknown => validateImageSource({ size: 8, layers: [{ shape: 'text', text: 'a', fill: RED, ...l }] });
+        expect(() => bad({ quad: [[0, 0], [1, 0], [1, 1], [0, 1]] })).not.toThrow();
+        expect(() => bad({ quad: [[0, 0]] })).toThrow(/four \[x, y\]/);
+        expect(() => bad({})).toThrow(/at must/);
+    });
+
+    const label = { id: 't', shape: 'text', text: 'A', at: [8, 40], fontSize: 16, fill: RED } as ImageLayer;
+    const count = (img: ReturnType<typeof renderImage>): number => { let n = 0; for (let i = 3; i < img.rgba.length; i += 4) if (img.rgba[i]! > 128) n++; return n; };
+    const render = (l: object): ReturnType<typeof renderImage> => renderImage(validateImageSource({ size: 64, layers: [{ ...label, ...l }] }), { text: bar });
+
+    it('thins its letters by the pixels asked, for a core inside a tube', () => {
+        const [whole, core] = [render({}), render({ thin: 2 })];
+        expect(count(whole)).toBe(48 * 16);
+        expect(count(core)).toBe(44 * 12);
+        expect(px(core as never, 8, 32)[3]).toBe(0);
+        expect(px(core as never, 20, 32)[3]).toBe(255);
+    });
+
+    it('wears its letters as told, the same every time', () => {
+        expect(count(render({ grain: 0.8 }))).toBeLessThan(count(render({})) * 0.7);
+        expect(count(render({ dry: 0.7 }))).toBeLessThan(count(render({})) * 0.9);
+        expect(render({ grain: 0.8 }).rgba).toEqual(render({ grain: 0.8 }).rgba);
+        expect(() => render({ grain: 2 })).toThrow(/grain must be 0..1/);
+        expect(() => render({ thin: -1 })).toThrow(/thin must be/);
+    });
+
+    it('stacks: glow under, tube, then a thin core, all from the same words', () => {
+        const stack = renderImage(validateImageSource({ size: 64, background: '#101018', layers: [
+            { ...label, id: 'halo', fill: '#ff2080', blend: 'add', blur: 6, opacity: 0.6 },
+            { ...label, id: 'tube', fill: '#ff2080' },
+            { ...label, id: 'core', fill: '#fff0f6', thin: 2 },
+        ] }), { text: bar });
+        expect(px(stack as never, 20, 32)[1]).toBeGreaterThan(200);
+        expect(px(stack as never, 9, 32)[1]).toBeLessThan(80);
+        expect(px(stack as never, 4, 32)[0]).toBeGreaterThan(0x10 + 10);
+    });
+
+    const dot: ImageLayer = { shape: 'rect', at: [28, 28], size: [8, 8], fill: '#ffffff' };
+    const ground: ImageLayer = { shape: 'rect', at: [0, 0], size: [64, 64], fill: '#202020' };
+
+    it('spills what is bright over what is round it, falling away', () => {
+        const [plain, lit] = [draw([ground, dot]), draw([ground, dot, { shape: 'bloom', radius: 6 } as never])];
+        expect(px(lit, 24, 32)[0]).toBeGreaterThan(px(plain, 24, 32)[0]! + 15);
+        expect(px(lit, 24, 32)[0]).toBeGreaterThan(px(lit, 8, 32)[0]!);
+    });
+
+    it('leaves what is below the threshold alone, and takes the colour of what shines', () => {
+        const dim = draw([ground, { shape: 'bloom', threshold: 0.6 } as never]);
+        expect(px(dim, 32, 32)[0]).toBe(0x20);
+        const red = draw([ground, { ...dot, fill: RED }, { shape: 'bloom', radius: 6 } as never]);
+        expect(px(red, 24, 32)[0]).toBeGreaterThan(px(red, 24, 32)[1]! + 15);
+    });
+
+    it('is stronger when told, and keeps to its clip', () => {
+        const at = (strength: number): number => px(draw([ground, dot, { shape: 'bloom', radius: 6, strength } as never]), 24, 32)[0]!;
+        expect(at(2)).toBeGreaterThan(at(0.5));
+        const clipped = draw([ground, { id: 'c', shape: 'rect', at: [0, 0], size: [20, 64], fill: '#00000001' }, dot, { shape: 'bloom', radius: 8, clip: 'c' } as never]);
+        expect(px(clipped, 24, 32)[0]).toBe(0x20);
+    });
+
+    it('says what is wrong with one', () => {
+        const bad = (l: object): unknown => validateImageSource({ size: 8, layers: [{ shape: 'bloom', ...l }] });
+        expect(() => bad({ threshold: 2 })).toThrow(/threshold must be 0..1/);
+        expect(() => bad({ radius: 0 })).toThrow(/radius must be positive/);
+    });
+});
+
+describe('working on a face', () => {
+    const bar = (layer: ImageLayer, m: readonly number[], w: number, h: number): { fill: Float32Array; line: Float32Array | null } => {
+        const fill = new Float32Array(w * h);
+        const size = layer.fontSize as number;
+        const [x, y] = [Math.round(layer.at![0] + m[4]!), Math.round(layer.at![1] + m[5]!)];
+        for (let j = 0; j < size; j++) for (let i = 0; i < size * 3; i++) { const at = (y - j) * w + x + i; if (at >= 0 && at < fill.length) fill[at] = 1; }
+        return { fill, line: null };
+    };
+    const wall = { id: 'b', shape: 'block', at: [10, 110], height: 100, vanish: [[200, 40]], depth: [0.5], faces: ['#202030'] } as ImageLayer;
+    const render = (l: object[]): ReturnType<typeof renderImage> => renderImage(validateImageSource({ size: 128, layers: [wall, ...l] as never }), { text: bar });
+
+    it('paints across a face in its own terms, the line toward the vanishing point by itself', () => {
+        const img = render([{ shape: 'paint', face: 'b.a', strokes: [{ points: [[0, 0.5], [1, 0.5]], color: RED, size: 3, hardness: 1 }] }]);
+        const q = img.blocks.b!.a!;
+        const mid = (a: readonly number[], c: readonly number[]): number[] => [(a[0]! + c[0]!) / 2, (a[1]! + c[1]!) / 2];
+        const [nearMid, farMid] = [mid(q[0]!, q[3]!), mid(q[1]!, q[2]!)];
+        expect(px(img as never, Math.round(nearMid[0]!) + 2, Math.round(nearMid[1]!))[0]).toBe(255);
+        expect(px(img as never, Math.round(farMid[0]!) - 2, Math.round(farMid[1]!))[0]).toBe(255);
+    });
+
+    it('lays words on part of a face, narrowing as it goes', () => {
+        const img = render([{ id: 't', shape: 'text', text: 'AD', face: 'b.a', within: [0.1, 0.1, 0.9, 0.5], fill: RED }]);
+        const box = img.layerBounds.t!;
+        const tall = (x: number): number => { let n = 0; for (let y = 0; y < 128; y++) if (px(img as never, x, y)[0]! > 128) n++; return n; };
+        expect(tall(box[0] + 2)).toBeGreaterThan(tall(box[0] + box[2] - 3));
+        expect(box[2]).toBeLessThan(img.layerBounds['b.a']![2]);
+    });
+
+    it('puts a rect on part of a face, cornered as the face is', () => {
+        const img = render([{ id: 'r', shape: 'rect', face: 'b.a', within: [0.2, 0.2, 0.8, 0.6], fill: RED }]);
+        const box = img.layerBounds.r!;
+        const tall = (x: number): number => { let n = 0; for (let y = 0; y < 128; y++) if (px(img as never, x, y)[0]! > 128) n++; return n; };
+        expect(tall(box[0] + 1)).toBeGreaterThan(tall(box[0] + box[2] - 2) + 3);
+        expect(() => validateImageSource({ size: 8, layers: [{ shape: 'rect', fill: RED }] })).toThrow(/at must/);
+    });
+
+    it('says when there is no such face', () => {
+        const img = render([{ shape: 'paint', face: 'b.z', strokes: [] }, { shape: 'text', text: 'A', face: 'nope.a', fill: RED }]);
+        expect(img.notes.join()).toMatch(/face "b.z" names no face/);
+        expect(img.notes.join()).toMatch(/face "nope.a" names no face/);
+    });
+});
+
 describe('a built world', () => {
     const windows = (fields: object): object => ({ type: 'grid', colors: [RED], ground: BLUE, ...fields });
     const rect = (fill: object): ImageLayer => ({ shape: 'rect', at: [0, 0], size: [64, 64], fill } as never);
