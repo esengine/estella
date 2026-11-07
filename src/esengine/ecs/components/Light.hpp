@@ -167,8 +167,9 @@ struct Light {
                 tooltip="Cast a shadow map over 3D meshes (Directional, Spot, Point).")
     bool meshShadows{false};
 
-    /** @brief Half-extent of the shadow map's world coverage, centred on the camera.
-     *         0 = fit what the camera can see. Larger trades sharpness for reach. */
+    /** @brief Half-extent of the shadow map's world coverage: one map of this radius, centred
+     *         on the middle of the meshes that cast shadows, and not moving with the camera.
+     *         0 = cascades fitted to what the camera can see. Larger trades sharpness for reach. */
     ES_PROPERTY(min=0, advanced, shown_when=type:Directional,
                 tooltip="Shadow map coverage radius; 0 = fit the view.")
     f32 shadowExtent{0.0f};

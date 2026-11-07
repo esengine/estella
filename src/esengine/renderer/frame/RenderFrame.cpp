@@ -1930,15 +1930,15 @@ bool RenderFrame::collectEnvironment(const ecs::Light& light, const glm::vec3& s
     return true;
 }
 
-/// The world box every GPU-resident mesh occupies, or false when none does — what a
-/// shadow map covers, and what a face is tested against before it gathers. Each mesh
-/// contributes the box MeshPlugin culls it by, so a frustum missing this misses all.
-bool RenderFrame::meshWorldBounds(ecs::Registry& registry, glm::vec3& outMin, glm::vec3& outMax) {
+/// The world box every GPU-resident mesh occupies, or false when none does: what a shadow map
+/// covers, and what a face is tested against before it gathers. MeshPlugin culls by the same
+/// boxes, so a frustum missing this misses all. @p castersOnly leaves out what casts nothing.
+bool RenderFrame::meshWorldBounds(ecs::Registry& registry, glm::vec3& outMin, glm::vec3& outMax, bool castersOnly) {
     auto meshes = registry.activeView<ecs::Transform, ecs::MeshRenderer>();
     bool any = false;
     for (auto entity : meshes) {
         const auto& mesh = meshes.get<ecs::MeshRenderer>(entity);
-        if (!mesh.enabled || !mesh.mesh.isValid()) continue;
+        if (!mesh.enabled || !mesh.mesh.isValid() || (castersOnly && !mesh.castShadows)) continue;
         const Mesh* resident = resource_manager_.getMesh(mesh.mesh);
         if (!resident) continue;
         auto& transform = meshes.get<ecs::Transform>(entity);
@@ -2093,6 +2093,10 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     frustumCorners(invVP, corners);
     glm::vec3 boundsMin(0.0f), boundsMax(0.0f);
     const bool haveBounds = meshWorldBounds(registry, boundsMin, boundsMax);
+    // A map of a fixed size goes where the shadows come from. Centred on everything, a backdrop far behind a character takes it away from her: a large
+    // receiver says nothing of where a shadow can start.
+    glm::vec3 castersMin(0.0f), castersMax(0.0f);
+    const bool haveCasters = meshWorldBounds(registry, castersMin, castersMax, true);
     // Hair is layers of cards a few millimetres apart, which a cascade spread over the view cannot tell apart: its texel is as wide as the gap.
     // So a perspective sun with cascades of its own also gets one fitted to the hair alone, first in its list (the nearest tile covering a
     // fragment wins), and everything that falls inside it, the face under a fringe included, is shadowed at that resolution.
@@ -2221,8 +2225,9 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
                         : 0.5f * glm::length(glm::vec2(view.right - view.left,
                                                        view.top - view.bottom));
                     radius = caster.extent > 0.0f ? caster.extent : std::max(fitted, 1.0f);
-                    centre = haveBounds ? (boundsMin + boundsMax) * 0.5f
-                                        : glm::vec3(view.center.x, view.center.y, 0.0f);
+                    centre = caster.extent > 0.0f && haveCasters ? (castersMin + castersMax) * 0.5f
+                             : haveBounds ? (boundsMin + boundsMax) * 0.5f
+                                          : glm::vec3(view.center.x, view.center.y, 0.0f);
                 } else if (hasFocus && c == 0) {
                     // The hair, as a sphere a little wider than its box so the face under it is inside, its radius stepped by quarter octaves
                     // so the texel does not change every frame, and the centre snapped to the map's grid so the edges do not crawl.

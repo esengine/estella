@@ -3884,6 +3884,10 @@ export const NOTED = {
     {"note":"A material's normal and metal-rough maps are read as data in the editor's Play."},
   "fix(minigame): no mini-game module needs BigInt64Array, so WeChat DevTools boots the game":
     {"note":"A WeChat mini-game opens in WeChat DevTools."},
+  "fix(render): a fixed shadow map stays on what casts, and gtao takes a strand for a strand":
+    {"note":"A fixed shadow map stays on what casts, and ambient occlusion leaves hair alone."},
+  "test(mcp): gtao keeps hair from going black and still shades round a solid block":
+    {"note":"A fixed shadow map stays on what casts, and ambient occlusion leaves hair alone."},
   "feat(modeling): a drawing stands up as a solid, sculpt works a surface by stroke, and a view takes coordinates off a picture":
     {"note":"An AI can read a shape off a picture and model it."},
   "feat(mcp): reference_view numbers a grid on a picture, and a close-up shows the same part of both":

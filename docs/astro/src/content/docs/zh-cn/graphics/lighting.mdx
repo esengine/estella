@@ -56,7 +56,7 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `layerMin` / `layerMax` | `-128` / `127` | Point / Spot / Directional 灯能照到的精灵层范围(见[灯照到哪些层](#灯照到哪些层))。 |
 | `sourceAngle` | `0.53` | 仅 Directional:光源的角直径,度(太阳是 0.53);`0` = 硬边。 |
 | `meshShadows` | `false` | 在 3D mesh 上投射阴影图(Directional、Spot、Point)。 |
-| `shadowExtent` | `0` | 仅 Directional:mesh 阴影图覆盖的半径,以相机为中心;`0` 表示贴合视野。 |
+| `shadowExtent` | `0` | 仅 Directional:mesh 阴影图覆盖的半径,以投射阴影的网格为中心,不随相机移动;`0` 表示贴合视野。 |
 | `followEnvironmentSun` | `false` | 仅 Directional:方向和强度取自环境里的太阳,天空光则不再带太阳。 |
 | `aimFollowedSun` | `false` | 配合 `followEnvironmentSun`:按这盏灯自己的 `Transform` 定向,而不是全景图里的太阳。 |
 | `hemisphere` | `false` | 仅 Ambient:上方来的光用 `color`,下方来的光用 `groundColor`,按表面朝向混合。 |
@@ -326,7 +326,7 @@ cmds.spawn()
 - 每帧只有一盏灯投出这张图 —— 第一盏要求它的。
 - 只有 GPU 持有的 `MeshRenderer` 几何参与投射与接收。精灵被同一盏灯照亮,但它们的阴影走
   `ShadowCaster2D`,那才是 2D 的答案。
-- 覆盖范围跟着相机走。`shadowExtent` 把它固定成一个半径,用锐度换范围。
+- 覆盖范围跟着相机走。`shadowExtent` 把它固定成一张该半径的图,覆盖投射阴影的网格,用锐度换范围。给远处的背景设 `castShadows: false`,它就不会把这张图从前景拉走。
 
 <Aside type="caution">
   阴影贴图是对场景 mesh 的第二遍绘制,每个投射者一次 draw call。没有灯要求它时它根本不跑,

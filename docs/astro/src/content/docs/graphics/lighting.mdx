@@ -58,7 +58,7 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `layerMin` / `layerMax` | `-128` / `127` | The sprite layers a Point / Spot / Directional light reaches (see [Which layers a light reaches](#which-layers-a-light-reaches)). |
 | `sourceAngle` | `0.53` | Directional only: the angular diameter of the source in degrees (the sun is 0.53); `0` = hard edge. |
 | `meshShadows` | `false` | Cast a shadow map over 3D meshes (Directional, Spot, Point). |
-| `shadowExtent` | `0` | Directional only: radius the mesh shadow map covers, centred on the camera; `0` fits the view. |
+| `shadowExtent` | `0` | Directional only: radius the mesh shadow map covers, centred on the meshes that cast shadows and not moving with the camera; `0` fits the view. |
 | `followEnvironmentSun` | `false` | Directional only: take direction and strength from the environment's sun, and light the sky without it. |
 | `aimFollowedSun` | `false` | With `followEnvironmentSun`: aim by this light's `Transform` instead of the panorama's sun. |
 | `hemisphere` | `false` | Ambient only: light from above in `color`, from below in `groundColor`, blended by which way a surface faces. |
@@ -353,8 +353,9 @@ cmds.spawn()
 - One light per frame casts a map — the first that asks for one.
 - Only `MeshRenderer` geometry the GPU holds casts and receives. Sprites are lit by the same
   light but shadow through `ShadowCaster2D`, which is the 2D answer.
-- Coverage follows the camera. `shadowExtent` fixes it to a radius instead, trading
-  sharpness for reach.
+- Coverage follows the camera. `shadowExtent` fixes it instead, to one map of that radius
+  over the meshes that cast shadows, trading sharpness for reach. Give a far backdrop
+  `castShadows: false` and it does not pull the map away from what stands in front of it.
 
 <Aside type="caution">
   A shadow map is a second pass over the scene's meshes. It costs a draw call per

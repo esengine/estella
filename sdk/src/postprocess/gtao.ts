@@ -37,6 +37,8 @@ const int SLICES = 3;
 const int STEPS = 6;
 const float PI = 3.14159265359;
 const float HALF_PI = 1.57079632679;
+// How far a horizon falls back, at full thickness, each time what lies beyond the thing that raised it is lower again. A wall goes on standing and keeps it; a strand does not.
+const float FALL_BACK = 0.6;
 
 float fastAcos(float x) { return acos(clamp(x, -1.0, 1.0)); }
 
@@ -58,6 +60,11 @@ void main() {
     vec3 N = normalize(cross(ax, ay));
     vec3 V = viewDirection(P);
     if (dot(N, V) < 0.0) N = -N;
+    // A strand a pixel wide: both neighbours on an axis lie the same way off it, far off. Depth cannot say which way such a thing faces, so it faces the eye.
+    float texelW = max(length(worldFromDepth(cuv + vec2(1.0 / float(size.x), 0.0), d) - P), 1e-6);
+    float lx = dot(worldAt(c + ivec2(-1, 0), size) - P, V), rx = dot(worldAt(c + ivec2(1, 0), size) - P, V);
+    float ly = dot(worldAt(c + ivec2(0, -1), size) - P, V), ry = dot(worldAt(c + ivec2(0, 1), size) - P, V);
+    if ((lx * rx > 0.0 && min(abs(lx), abs(rx)) > texelW * 3.0) || (ly * ry > 0.0 && min(abs(ly), abs(ry)) > texelW * 3.0)) N = V;
 
     // What a texel step is in the world along each screen axis: the frame the slices are laid in.
     vec3 right = normalize(worldFromDepth(cuv + vec2(1.0 / float(size.x), 0.0), d) - P);
@@ -103,14 +110,14 @@ void main() {
                 // Past the radius a sample is another surface: faded, not cut, or the term pops as geometry crosses it.
                 float weight = clamp(2.0 * (1.0 - len / u_radius), 0.0, 1.0);
                 float shc = dot(delta, V) / max(len, 1e-5);
-                hCos0 = max(hCos0, mix(lowCos0, shc, weight));
+                hCos0 = shc < hCos0 && weight > 0.0 ? mix(hCos0, lowCos0, FALL_BACK * u_thickness) : max(hCos0, mix(lowCos0, shc, weight));
             }
             if (z1 < 1.0) {
                 vec3 delta = worldAt(s1, size) - P;
                 float len = length(delta);
                 float weight = clamp(2.0 * (1.0 - len / u_radius), 0.0, 1.0);
                 float shc = dot(delta, V) / max(len, 1e-5);
-                hCos1 = max(hCos1, mix(lowCos1, shc, weight));
+                hCos1 = shc < hCos1 && weight > 0.0 ? mix(hCos1, lowCos1, FALL_BACK * u_thickness) : max(hCos1, mix(lowCos1, shc, weight));
             }
         }
         // Thin occluders: a horizon that has just climbed a wall does not climb forever, so it falls back a little.
@@ -138,6 +145,7 @@ const SLICES : i32 = 3;
 const STEPS : i32 = 6;
 const PI : f32 = 3.14159265359;
 const HALF_PI : f32 = 1.57079632679;
+const FALL_BACK : f32 = 0.6;
 
 fn fastAcos(x : f32) -> f32 { return acos(clamp(x, -1.0, 1.0)); }
 
@@ -160,6 +168,12 @@ fn fastAcos(x : f32) -> f32 { return acos(clamp(x, -1.0, 1.0)); }
     var N = normalize(cross(ax, ay));
     let V = viewDirection(P);
     if (dot(N, V) < 0.0) { N = -N; }
+    let texelW = max(length(worldFromDepth(cuv + vec2f(1.0 / f32(size.x), 0.0), d) - P), 1e-6);
+    let lx = dot(worldAt(c + vec2i(-1, 0), size) - P, V);
+    let rx = dot(worldAt(c + vec2i(1, 0), size) - P, V);
+    let ly = dot(worldAt(c + vec2i(0, -1), size) - P, V);
+    let ry = dot(worldAt(c + vec2i(0, 1), size) - P, V);
+    if ((lx * rx > 0.0 && min(abs(lx), abs(rx)) > texelW * 3.0) || (ly * ry > 0.0 && min(abs(ly), abs(ry)) > texelW * 3.0)) { N = V; }
 
     let right = normalize(worldFromDepth(cuv + vec2f(1.0 / f32(size.x), 0.0), d) - P);
     let up = normalize(worldFromDepth(cuv + vec2f(0.0, 1.0 / f32(size.y)), d) - P);
@@ -201,14 +215,14 @@ fn fastAcos(x : f32) -> f32 { return acos(clamp(x, -1.0, 1.0)); }
                 let len = length(delta);
                 let weight = clamp(2.0 * (1.0 - len / mc.u_radius), 0.0, 1.0);
                 let shc = dot(delta, V) / max(len, 1e-5);
-                hCos0 = max(hCos0, mix(lowCos0, shc, weight));
+                if (shc < hCos0 && weight > 0.0) { hCos0 = mix(hCos0, lowCos0, FALL_BACK * mc.u_thickness); } else { hCos0 = max(hCos0, mix(lowCos0, shc, weight)); }
             }
             if (z1 < 1.0) {
                 let delta = worldAt(p1, size) - P;
                 let len = length(delta);
                 let weight = clamp(2.0 * (1.0 - len / mc.u_radius), 0.0, 1.0);
                 let shc = dot(delta, V) / max(len, 1e-5);
-                hCos1 = max(hCos1, mix(lowCos1, shc, weight));
+                if (shc < hCos1 && weight > 0.0) { hCos1 = mix(hCos1, lowCos1, FALL_BACK * mc.u_thickness); } else { hCos1 = max(hCos1, mix(lowCos1, shc, weight)); }
             }
         }
         hCos0 = mix(hCos0, lowCos0, mc.u_thickness * 0.35);

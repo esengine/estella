@@ -872,7 +872,7 @@ private:
 
     /// The world box the resident meshes occupy — what a shadow map must cover.
     /// False when nothing 3D is in the scene.
-    bool meshWorldBounds(ecs::Registry& registry, glm::vec3& outMin, glm::vec3& outMax);
+    bool meshWorldBounds(ecs::Registry& registry, glm::vec3& outMin, glm::vec3& outMax, bool castersOnly = false);
     /// The box the meshes drawn with a hair-shadow material occupy (MaterialStore::hairShadowDensity above zero), or false when there are none:
     /// what the sun's focus cascade is fitted to.
     bool hairWorldBounds(ecs::Registry& registry, glm::vec3& outMin, glm::vec3& outMax);
