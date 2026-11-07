@@ -3949,11 +3949,11 @@ export const NOTED = {
   "feat(mcp): image_write, image_edit and image_read":
     {"note":"An AI can draw 2D pictures."},
   "feat(modeling): a whole person from a few numbers, clothes from the body's own surface, and a pose by where a hand should be":
-    {"note":"An AI can build a person, and not a picture of one."},
+    {"note":"An AI can give a body standard bones, pose it, and model a limb by its sections."},
   "feat(mcp): model_write describes a person, and scene_views looks round a subject without a shot's lens":
-    {"note":"An AI can build a person, and not a picture of one."},
+    {"note":"An AI can give a body standard bones, pose it, and model a limb by its sections."},
   "feat(mcp): model_write lists humanoid, garment and pose":
-    {"note":"An AI can build a person, and not a picture of one."},
+    {"note":"An AI can give a body standard bones, pose it, and model a limb by its sections."},
   "feat(look): a part of a picture traced as points, its edges as lines, and the colour of a patch":
     {"note":"An AI can read shapes and colours off a picture as numbers."},
   "feat(mcp): reference_trace, reference_probe, and the outline of one part on the reference":

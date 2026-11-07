@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.99.0] - 2026-11-07
+
 ### Added
 
 - **An Ambient light can be two colours, sky and ground.** A hemisphere of light without baking a panorama: the ground colour fills what faces down, and a scene with none set looks as it did.
@@ -24,7 +26,7 @@ published separately; it ships inside the editor.
 
 - **An AI can draw 2D pictures.** `image_write` turns layers into a `.png` beside an `.esimage`: shapes and SVG paths, gradients, strokes, shadows and glows, clipping and cutting, or pixel art as rows of characters. It answers with the picture on a mid ground and a light check and at 96, 64, 48 and 32 pixels, to look at and correct; `image_edit` changes one layer, a row or a block of pixels without restating the rest, and moves layers or wraps them in a group. Strokes can keep sharp corners, and the reply measures where each layer ended up. A layer or group can be blurred, for depth of field, and a fill can be noise for cloud, texture and film grain, the same picture from the same seed. A `paint` layer is a canvas of brush strokes with pressure, softness, tapering, bristles and smudging, added to round by round, for what shapes cannot do; one `sweep` instruction lays a mass of hair gathered into locks, one `field` covers a region in strokes along a flow, with named brushes from ink and pencil to oil and watercolor, and one `along` repeats strokes along a line. A layer can work across everything under it, to fuse separate parts into one painting, and `image_read` shows lightness alone and reads colours. Text in any script, windows in rows on a face, buildings in true perspective, reflections on wet ground and bloom over what is bright are one instruction each, and words and strokes can be laid on a building's face in its own coordinates. An image editor's finish is there to turn by hand: adjustment layers from levels and curves to gradient maps, twenty filters from lens blur to fog and light rays, the full set of blend modes, feathered masks and bevels. An edit draws only the layers from the change up. A `figure` layer is a posed skeleton in plain blocks from any angle to draw over, and an `image` layer brings in the team's own art: both stay out of the `.png`, and the figure reports where each joint landed and lets broad light follow the form. `image_read` enlarges a part, and `image_set` shows several together with the stroke widths and size of each. Drawn on the CPU, so a source makes the same picture on any machine.
 
-- **An AI can build a person, and not a picture of one.** The `humanoid` step makes a whole body from a few numbers, with fingers, a face and ears, seen right from every side, and `rig: { humanoid: true }` gives it bones that fit. `garment` makes clothes from the body's own surface: loose or tight, a bell sleeve that hangs, a clean hem, a thickness; what a body wears now takes its weights from the skin under it, so an arm stays in its sleeve. `pose` holds a body in a pose by angles, or with `reach` by where a hand should be. `organic` gains `limb`, cross-sections along a path, and `fine`, regions split finer on one skin. `displace` gains `folds`, running the way cloth hangs. `scene_views` no longer takes on a shot's lens blur and grade.
+- **An AI can give a body standard bones, pose it, and model a limb by its sections.** `rig: { humanoid: true }` gives a model bones that fit, and `pose` holds a body in a pose by angles, or with `reach` by where a hand should be. What a body wears takes its weights from the skin under it, so an arm stays in its sleeve. `organic` gains `limb`, cross-sections along a path, and `fine`, regions split finer on one skin. `displace` gains `folds`, running the way cloth hangs. `scene_views` no longer takes on a shot's lens blur and grade.
 
 - **An AI can read shapes and colours off a picture as numbers.** `reference_trace` grows a part of a reference from places inside it and answers its outline as points, ready for an `outline`, or its strongest edges as lines, ready for a `sculpt` press. `reference_probe` answers the colour at the same places in the reference and the game. `reference_compare` with `overlay: "parts"` draws only the outline of the entities named on the reference. Each shows what it found on the picture, and judges nothing.
 
@@ -15197,7 +15199,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.98.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.99.0...HEAD
+[0.99.0]: https://github.com/esengine/estella/compare/v0.98.0...v0.99.0
 [0.98.0]: https://github.com/esengine/estella/compare/v0.97.0...v0.98.0
 [0.97.0]: https://github.com/esengine/estella/compare/v0.96.0...v0.97.0
 [0.96.0]: https://github.com/esengine/estella/compare/v0.95.0...v0.96.0

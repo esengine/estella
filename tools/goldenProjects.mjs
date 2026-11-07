@@ -1062,6 +1062,60 @@ export const SHIPPED = {
     { notCertifiable: "Covered by the asset field path tests on every core and by the export asset scan; no golden project writes an asset path at run time." },
   "`sceneOutOfBandFields`.":
     { notCertifiable: "A tooling query a game never calls; the MCP field edit uses it to name what to use instead, and it has no test of its own." },
+  "An Ambient light can be two colours, sky and ground.":
+    { notCertifiable: "A light setting no golden project uses, with no test of its own past the component field snapshot; a frame cannot tell which ambient made it." },
+  "A material can hold more than seven textures, and Water gains a foam texture.":
+    { notCertifiable: "Covered by the water-foam-map editor check; no golden project holds a material with that many textures or a foam map." },
+  "Every row of Project Settings can be read and written by id over MCP.":
+    { notCertifiable: "An editor tool, covered by the project-settings-mcp editor check; a packaged game loads no MCP." },
+  "Glyphs can be put on the atlas before they are shown.":
+    { notCertifiable: "An API covered by glyph-preload.test.ts, measured by hand on one phone; no golden project preloads glyphs." },
+  "Voxel GI lights what the camera does not see, and bounces light more than once.":
+    { notCertifiable: "A rendering feature covered by the voxel-gi, gi-contact and gi-cost editor checks; no golden project turns on voxel GI." },
+  "An AI can draw 2D pictures.":
+    { notCertifiable: "An editor tool, covered by image-raster.test.ts and the image-write editor check; what it makes is a plain png, which a packaged game cannot tell from any other." },
+  "An AI can give a body standard bones, pose it, and model a limb by its sections.":
+    { notCertifiable: "An editor authoring tool, covered by modeling-rig, modeling-humanoid and modeling-organic tests; a packaged game reads the model it wrote, not the steps." },
+  "An AI can read shapes and colours off a picture as numbers.":
+    { notCertifiable: "An editor tool, covered by look-trace.test.ts and the look-compare editor check; a packaged game loads no MCP." },
+  "An AI can take a frame apart to see why it looks wrong.":
+    { notCertifiable: "An editor tool, covered by the look-compare editor check; a packaged game loads no MCP." },
+  "A fixed shadow map stays on what casts, and ambient occlusion leaves hair alone.":
+    { notCertifiable: "Rendering fixes held by the gtao-thin editor check for occlusion; the shadow centre has no check of its own, and no golden project sets a shadowExtent." },
+  "An AI can read a shape off a picture and model it.":
+    { notCertifiable: "An editor authoring tool, covered by look-pictures, modeling-organic and modeling-sculpt tests; a packaged game reads the model it wrote, not the steps." },
+  "`reference_compare` with a `region` shows the same part of both pictures.":
+    { notCertifiable: "An editor tool, covered by the look-compare editor check; a packaged game loads no MCP." },
+  "An AI can model a character's hair by where it goes, and draw on a surface.":
+    { notCertifiable: "An editor authoring tool, covered by modeling-hair, modeling-stain and modeling-scatter tests; a packaged game reads the model it wrote, not the steps." },
+  "An AI can put the game beside the pictures it is imitating.":
+    { notCertifiable: "An editor tool, covered by look-pictures.test.ts and the look-compare editor check; a packaged game loads no MCP." },
+  "An AI building a model can dress it in clothes that swing.":
+    { notCertifiable: "An editor authoring tool, covered by modeling-drape.test.ts and the model-detail editor check, which walks one; no golden project wears a drape." },
+  "An AI building a model can make hair.":
+    { notCertifiable: "An editor authoring tool, covered by modeling-hair.test.ts and the model-detail editor check, which packages one; no golden project grows hair." },
+  "An AI building a model can make things see-through.":
+    { notCertifiable: "An editor authoring tool, covered by modeling-surface.test.ts and the model-detail editor check; a packaged game reads the model it wrote, not the steps." },
+  "An AI building a model can shade its creases.":
+    { notCertifiable: "An editor authoring tool, covered by modeling-surface.test.ts; a packaged game reads the baked map it wrote, not the step." },
+  "An AI building a model can say what it is made of.":
+    { notCertifiable: "An editor authoring tool, covered by modeling-surfaces.test.ts and the model-detail editor check; a packaged game reads the maps it wrote, not the steps." },
+  "An AI building a model can colour it finely, and keep that on a thin mesh.":
+    { notCertifiable: "An editor authoring tool, covered by modeling-stain.test.ts and the model-detail editor check; a packaged game reads the map it wrote, not the step." },
+  "An AI building a model can carve fine detail into it.":
+    { notCertifiable: "An editor authoring tool, covered by modeling-displace.test.ts; a packaged game reads the mesh it wrote, not the step." },
+  "An AI building a model can make it light and keep its detail.":
+    { notCertifiable: "An editor authoring tool, covered by modeling-decimate-bake.test.ts; a packaged game reads the mesh it wrote, not the step." },
+  "A mesh can have 256 joints, up from 64.":
+    { notCertifiable: "Covered by modeling-rig.test.ts; no golden project carries a rig that large, and a frame of a smaller one is the same." },
+  "A mesh can blend 64 morph targets at once, up from 8.":
+    { notCertifiable: "With no test of its own at that count; no golden project opens more than a few morph targets, so a golden frame cannot decide it." },
+  "A foot stands on the ground under it.":
+    { notCertifiable: "Covered by animatorFootPlant.test.ts and the IK modeling tests; no golden project plants a foot on uneven ground." },
+  "AI agents can build 3D models in the editor from steps.":
+    { notCertifiable: "An editor authoring tool, covered by modeling.test.ts and the modeling editor check; a packaged game reads the model it wrote, not the steps." },
+  "A model of many parts that moves: `CompositeBatch`.":
+    { notCertifiable: "A draw-cost feature covered by composite-batch.test.ts and the composite-batch editor check; a golden frame looks the same with it or without." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */
