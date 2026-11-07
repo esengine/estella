@@ -3888,6 +3888,8 @@ export const NOTED = {
     {"note":"An AI can build a person, and not a picture of one."},
   "feat(mcp): model_write describes a person, and scene_views looks round a subject without a shot's lens":
     {"note":"An AI can build a person, and not a picture of one."},
+  "feat(mcp): model_write lists humanoid, garment and pose":
+    {"note":"An AI can build a person, and not a picture of one."},
   "feat(look): a part of a picture traced as points, its edges as lines, and the colour of a patch":
     {"note":"An AI can read shapes and colours off a picture as numbers."},
   "feat(mcp): reference_trace, reference_probe, and the outline of one part on the reference":
