@@ -604,13 +604,24 @@ function boxOf(w: number, h: number, covers: (i: number) => boolean): ImageBox |
 
 function noteBox(drawn: Drawn, id: string | undefined, mask: Float32Array, w: number, h: number): void {
     if (!id) return;
-    const box = boxOf(w, h, (i) => mask[i]! >= 0.5);
+    // Half of what it reaches: a faint layer is still somewhere, and half of full coverage would miss it.
+    let peak = 0;
+    for (let i = 0; i < mask.length; i++) if (mask[i]! > peak) peak = mask[i]!;
+    if (peak <= 0.004) return;
+    const box = boxOf(w, h, (i) => mask[i]! >= Math.min(0.5, peak / 2));
     if (box) drawn.bounds.set(id, box);
 }
 
 function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): void {
-    if (layer.visible === false) return;
     const { w, h } = c;
+    if (layer.visible === false) {
+        // A guide hidden from sight is still what others are clipped to and lit by. Anything else hidden is simply not there.
+        if (layer.guide ?? (layer.shape === 'figure' || layer.shape === 'image')) {
+            const { visible: _v, ...shown } = layer;
+            drawLayer(new Canvas(w, h), { ...shown, guide: false }, parent, drawn);
+        }
+        return;
+    }
     // What a guide masks is still wanted when it is not seen, so it draws somewhere that is thrown away.
     if (!drawn.showGuides && (layer.guide ?? (layer.shape === 'figure' || layer.shape === 'image'))) {
         drawLayer(new Canvas(w, h), { ...layer, guide: false }, parent, drawn);
@@ -1273,15 +1284,15 @@ function drawFigure(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, 
         if (a <= 0) continue;
         const lit = 0.25 + 0.7 * Math.max(0, 0.5 + 0.5 * (figure.normals[i * 3]! * lx + figure.normals[i * 3 + 1]! * ly + figure.normals[i * 3 + 2]! * lz));
         const line = 1 - figure.contour[i]! * 0.85;
-        put(c, i, lit * line * 0.92, lit * line * 0.94, lit * line, a * (layer.opacity ?? opacity) * (clip ? clip[i]! : 1), blend);
+        put(c, i, lit * line * 0.92, lit * line * 0.94, lit * line, a * opacity * (clip ? clip[i]! : 1), blend);
     }
     const bones = strokeMask(figure.lines.map((points) => ({ closed: false, points })), 1.5, w, h);
-    for (let i = 0; i < bones.length; i++) put(c, i, 0.95, 0.35, 0.3, bones[i]! * 0.8, 'normal');
+    for (let i = 0; i < bones.length; i++) put(c, i, 0.95, 0.35, 0.3, bones[i]! * 0.8 * opacity, 'normal');
     for (const [x, y] of Object.values(figure.joints)) {
         for (let dy = -2; dy <= 2; dy++) {
             for (let dx = -2; dx <= 2; dx++) {
                 if (x + dx < 0 || y + dy < 0 || x + dx >= w || y + dy >= h || dx * dx + dy * dy > 5) continue;
-                put(c, (y + dy) * w + x + dx, 0.95, 0.2, 0.25, 0.85, 'normal');
+                put(c, (y + dy) * w + x + dx, 0.95, 0.2, 0.25, 0.85 * opacity, 'normal');
             }
         }
     }

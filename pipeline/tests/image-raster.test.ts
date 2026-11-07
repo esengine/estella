@@ -1117,6 +1117,43 @@ describe('a picture to draw over', () => {
     });
 });
 
+describe('what the third trial tripped on', () => {
+    const person = { id: 'f', shape: 'figure', at: [128, 240], height: 220 } as ImageLayer;
+    const looking = (layers: object[]): ReturnType<typeof renderImage> => renderImage(validateImageSource({ size: 256, layers }), { guides: true });
+
+    it('a figure at opacity 0 shows nothing at all, bones and joints included', () => {
+        const img = looking([{ ...person, opacity: 0 }]);
+        for (let i = 3; i < img.rgba.length; i += 4) expect(img.rgba[i]).toBe(0);
+    });
+
+    it('a figure hidden from sight still clips and lights what uses it, without a warning', () => {
+        const uses = { shape: 'rect', at: [0, 0], size: [256, 256], clip: 'f', fill: { type: 'form', figure: 'f', light: [-1, 0, 0.2], stops: [[0, '#000000'], [1, '#ffffff']] } };
+        const hidden = looking([{ ...person, visible: false }, uses]);
+        const shown = renderImage(validateImageSource({ size: 256, layers: [person, uses] as never }));
+        expect(hidden.notes).toEqual([]);
+        expect(hidden.rgba).toEqual(shown.rgba);
+    });
+
+    it('anything else hidden is simply not there', () => {
+        const img = draw([{ id: 'a', shape: 'rect', at: [0, 0], size: [8, 8], fill: RED, visible: false }, { shape: 'rect', at: [0, 0], size: [64, 64], fill: BLUE, clip: 'a' }]);
+        expect(img.notes.join()).toMatch(/names no layer/);
+    });
+
+    it('a faint layer is still reported where it is', () => {
+        const img = draw([{ id: 'faint', shape: 'paint', strokes: [{ points: [[10, 20], [50, 20]], color: RED, size: 8, opacity: 0.3, hardness: 1 }] } as never]);
+        const box = img.layerBounds.faint!;
+        expect(box[2]).toBeGreaterThan(30);
+        expect(box[3]).toBeGreaterThan(5);
+    });
+
+    it('a sparse spray of large dabs shows as separate discs', () => {
+        const img = draw([{ shape: 'paint', strokes: [{ points: [[0, 64], [256, 64]], color: '#ffffff', size: 80, dab: 0.25, scatter: 0.8, spacing: 2.5, hardness: 0.85, opacity: 0.6, seed: 2 }] } as never], [256, 128]);
+        let runs = 0, on = false;
+        for (let x = 0; x < 256; x++) { const lit = [40, 64, 90].some((y) => px(img, x, y)[3]! > 60); if (lit && !on) runs++; on = lit; }
+        expect(runs).toBeGreaterThan(3);
+    });
+});
+
 describe('what the second trial tripped on', () => {
     const halves: ImageLayer[] = [{ id: 'a', shape: 'rect', at: [0, 0], size: [32, 64], fill: BLUE }];
     it('takes a clip with @ as well, and a clip of nothing draws nothing', () => {
