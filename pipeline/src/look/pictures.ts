@@ -228,7 +228,7 @@ const GLYPHS: Record<string, readonly number[]> = {
 const GLYPH_SCALE = 2;
 const RULER_WIDTH = 1400;
 
-function label(image: RgbaImage, text: string, x: number, y: number): void {
+export function label(image: RgbaImage, text: string, x: number, y: number): void {
     const { width, height, rgba } = image;
     const w = text.length * 4 * GLYPH_SCALE + GLYPH_SCALE, h = 7 * GLYPH_SCALE;
     const set = (px: number, py: number, v: number): void => {
