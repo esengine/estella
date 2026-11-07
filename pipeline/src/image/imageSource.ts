@@ -33,7 +33,36 @@ export interface ImageTransform {
     origin?: readonly [number, number];
 }
 
-export type ImageShape = 'rect' | 'circle' | 'ellipse' | 'ring' | 'polygon' | 'line' | 'star' | 'gear' | 'path' | 'pixels' | 'group';
+export type ImageShape = 'rect' | 'circle' | 'ellipse' | 'ring' | 'polygon' | 'line' | 'star' | 'gear' | 'path' | 'pixels' | 'paint' | 'group';
+
+/** One movement of a brush. Replayed in order on a `paint` layer, so the same list is the same picture. */
+export interface ImageStroke {
+    /** Through these, smoothly; a third number is pressure, 1 by default. One point is a dab. */
+    points: readonly (readonly number[])[];
+    color?: string;
+    /** The colour it has become by the end. */
+    to?: string;
+    size: number;
+    /** 1 is a hard edge, 0 fades from the middle. */
+    hardness?: number;
+    opacity?: number;
+    /** How much of the length at each end narrows to a point, each 0..1. */
+    taper?: readonly [number, number];
+    /** Separate hairs across its width, which meet where it narrows. */
+    bristles?: number;
+    /** The width of a bristle; by default what spreads them across the stroke. */
+    strand?: number;
+    spread?: number;
+    /** How far each bristle's lightness and strength differ, 0..1. */
+    vary?: number;
+    /** How far a bristle wanders from its line, in pixels. */
+    wobble?: number;
+    seed?: number;
+    /** 0..1: drags what is already on this layer along, instead of laying colour. */
+    smudge?: number;
+    erase?: boolean;
+    blend?: 'normal' | 'multiply' | 'screen' | 'overlay' | 'add';
+}
 
 export interface ImageLayer {
     id?: string;
@@ -52,6 +81,7 @@ export interface ImageLayer {
     palette?: Readonly<Record<string, string>>;
     scale?: number;
     layers?: readonly ImageLayer[];
+    strokes?: readonly ImageStroke[];
     fill?: ImageFill;
     stroke?: { color: ImageFill; width: number; align?: 'center' | 'inside' | 'outside'; join?: 'round' | 'miter' | 'bevel'; cap?: 'round' | 'butt' | 'square' };
     opacity?: number;
@@ -96,8 +126,26 @@ function checkFill(v: unknown): string | null {
     return null;
 }
 
-const FIELDS = ['id', 'shape', 'at', 'size', 'radius', 'radii', 'inner', 'count', 'tooth', 'turn', 'points', 'd', 'rows', 'palette', 'scale', 'layers', 'fill', 'stroke', 'opacity', 'blend', 'transform', 'mirror', 'effects', 'clip', 'erase', 'visible', 'blur'];
-const SHAPES: readonly ImageShape[] = ['rect', 'circle', 'ellipse', 'ring', 'polygon', 'line', 'star', 'gear', 'path', 'pixels', 'group'];
+const FIELDS = ['id', 'shape', 'at', 'size', 'radius', 'radii', 'inner', 'count', 'tooth', 'turn', 'points', 'd', 'rows', 'palette', 'scale', 'layers', 'fill', 'stroke', 'opacity', 'blend', 'transform', 'mirror', 'effects', 'clip', 'erase', 'visible', 'blur', 'strokes'];
+const SHAPES: readonly ImageShape[] = ['rect', 'circle', 'ellipse', 'ring', 'polygon', 'line', 'star', 'gear', 'path', 'pixels', 'paint', 'group'];
+const STROKE_FIELDS = ['points', 'color', 'to', 'size', 'hardness', 'opacity', 'taper', 'bristles', 'strand', 'spread', 'vary', 'wobble', 'seed', 'smudge', 'erase', 'blend'];
+
+function strokeProblem(s: Record<string, unknown>): string | null {
+    if (typeof s !== 'object' || s === null) return 'must be an object';
+    for (const key of Object.keys(s)) if (!STROKE_FIELDS.includes(key)) return `has unknown field "${key}"; a stroke takes ${STROKE_FIELDS.join(', ')}`;
+    if (!Array.isArray(s.points) || s.points.length === 0 || !s.points.every((p) => Array.isArray(p) && (p.length === 2 || p.length === 3) && p.every(isNum))) return 'needs points, each [x, y] or [x, y, pressure]';
+    if (!(isNum(s.size) && (s.size as number) > 0)) return 'needs a positive size';
+    const paints = !s.erase && !s.smudge;
+    if (paints && s.color === undefined) return 'needs a color, unless it erases or smudges';
+    for (const key of ['color', 'to']) if (s[key] !== undefined && !isColor(s[key])) return `${key} must be #rgb, #rgba, #rrggbb or #rrggbbaa`;
+    for (const key of ['hardness', 'opacity', 'vary', 'smudge']) if (s[key] !== undefined && !(isNum(s[key]) && (s[key] as number) >= 0 && (s[key] as number) <= 1)) return `${key} must be 0..1`;
+    for (const key of ['strand', 'spread', 'wobble']) if (s[key] !== undefined && !(isNum(s[key]) && (s[key] as number) >= 0)) return `${key} must be 0 or more`;
+    if (s.bristles !== undefined && !(Number.isInteger(s.bristles) && (s.bristles as number) >= 1 && (s.bristles as number) <= 200)) return 'bristles must be a whole number from 1 to 200';
+    if (s.seed !== undefined && !Number.isInteger(s.seed)) return 'seed must be a whole number';
+    if (s.taper !== undefined && !(Array.isArray(s.taper) && s.taper.length === 2 && s.taper.every((t) => isNum(t) && t >= 0 && t <= 1))) return 'taper must be [start, end], each 0..1';
+    if (s.blend !== undefined && !['normal', 'multiply', 'screen', 'overlay', 'add'].includes(s.blend as string)) return 'blend must be normal, multiply, screen, overlay or add';
+    return null;
+}
 
 function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>): void {
     const fail = (what: string): never => { throw new Error(`${where}: ${what}`); };
@@ -131,6 +179,14 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
                 fail((e as Error).message);
             }
             break;
+        case 'paint': {
+            if (!Array.isArray(l.strokes)) fail('strokes must be an array, which may start empty');
+            (l.strokes as Record<string, unknown>[]).forEach((s, n) => {
+                const bad = strokeProblem(s);
+                if (bad) fail(`stroke ${n} ${bad}`);
+            });
+            break;
+        }
         case 'pixels': {
             if (!Array.isArray(l.rows) || l.rows.length === 0 || !l.rows.every((r) => typeof r === 'string')) fail('rows must be strings, one character a pixel');
             const pal = l.palette as Record<string, unknown> | undefined;
@@ -165,7 +221,7 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
         if (s.join !== undefined && !['round', 'miter', 'bevel'].includes(s.join as string)) fail('stroke join must be round, miter or bevel');
         if (s.cap !== undefined && !['round', 'butt', 'square'].includes(s.cap as string)) fail('stroke cap must be round, butt or square');
     }
-    if (!['group', 'pixels', 'line'].includes(l.shape as string) && l.fill === undefined && l.stroke === undefined && !l.erase) fail('it needs a fill or a stroke, or it draws nothing');
+    if (!['group', 'pixels', 'paint', 'line'].includes(l.shape as string) && l.fill === undefined && l.stroke === undefined && !l.erase) fail('it needs a fill or a stroke, or it draws nothing');
     if (l.blur !== undefined && !(isNum(l.blur) && (l.blur as number) >= 0)) fail('blur must be 0 or more, in pixels');
     if (l.blur && l.erase) fail('blur does not go with erase; put what cuts in a group with what it cuts, and blur the group');
     if (l.opacity !== undefined && !(isNum(l.opacity) && l.opacity >= 0 && l.opacity <= 1)) fail('opacity must be 0..1');
@@ -211,6 +267,7 @@ export type ImageEdit =
     | { op: 'insert'; layer: ImageLayer; before?: string; after?: string; into?: string }
     | { op: 'remove'; layer: string }
     | { op: 'move'; layer: string; before?: string; after?: string; into?: string }
+    | { op: 'paint'; layer: string; strokes?: readonly ImageStroke[]; drop?: number }
     | { op: 'wrap'; layers: readonly string[]; group: Partial<ImageLayer> }
     | { op: 'unwrap'; layer: string }
     | {
@@ -312,6 +369,16 @@ export function applyImageEdits(source: ImageSource, edits: readonly ImageEdit[]
                 } else clone.layers.push(row!);
                 break;
             }
+            case 'paint': {
+                const { list, index } = need(edit.layer);
+                const layer = list[index]!;
+                if (layer.shape !== 'paint') throw new Error(`layer "${edit.layer}" is not paint`);
+                const had = layer.strokes as readonly ImageStroke[];
+                const drop = edit.drop ?? 0;
+                if (!Number.isInteger(drop) || drop < 0 || drop > had.length) throw new Error(`layer "${edit.layer}" has ${had.length} strokes: cannot drop ${String(edit.drop)}`);
+                layer.strokes = [...had.slice(0, had.length - drop), ...(edit.strokes ?? [])];
+                break;
+            }
             case 'wrap': {
                 if (!Array.isArray(edit.layers) || edit.layers.length === 0) throw new Error('wrap needs layers, the ids to put in the group');
                 const found = edit.layers.map((id) => ({ id, ...need(id) }));
@@ -376,7 +443,7 @@ export function applyImageEdits(source: ImageSource, edits: readonly ImageEdit[]
                 else if (edit.fields?.background !== undefined) clone.background = edit.fields.background;
                 break;
             default:
-                throw new Error(`an edit has op ${JSON.stringify((edit as { op?: unknown })?.op)}; there are set, insert, remove, move, wrap, unwrap, pixels, settings`);
+                throw new Error(`an edit has op ${JSON.stringify((edit as { op?: unknown })?.op)}; there are set, insert, remove, move, paint, wrap, unwrap, pixels, settings`);
         }
     }
     return validateImageSource(clone);

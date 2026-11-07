@@ -7,7 +7,7 @@
  *        effects, and this owns everything that has to be exact: antialiased edges, gradients, soft shadows.
  *        On the CPU rather than through a canvas, so the same source makes the same bytes on any machine and a test can read them.
  */
-import type { ImageFill, ImageLayer, ImageSource, ImageEffect, ImageTransform } from './imageSource';
+import type { ImageFill, ImageLayer, ImageSource, ImageEffect, ImageStroke, ImageTransform } from './imageSource';
 
 export interface RgbaBitmap { width: number; height: number; rgba: Uint8Array }
 
@@ -642,6 +642,11 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
         return;
     }
 
+    if (layer.shape === 'paint') {
+        drawPaint(c, layer, parent, drawn, opacity, blend, clip);
+        return;
+    }
+
     const { runs, middle } = outlinesOf(layer);
     const m = times(parent, transformOf(layer.transform, middle));
     const placed = runs.map((run) => ({ closed: run.closed, points: run.points.map((p) => apply(m, p)) }));
@@ -709,6 +714,186 @@ function drawLayer(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn): 
 const drawnScale = (m: Matrix): number => Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2])) || 1;
 
 /** Rows of characters, each a palette's colour, drawn as hard squares. */
+// ---- Brushes ---------------------------------------------------------------------
+
+const hash01 = (a: number, b: number): number => {
+    let h = Math.imul(a, 374761393) + Math.imul(b, 668265263);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    h = Math.imul(h ^ (h >>> 16), 2246822519);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+};
+
+const smoothed = (t: number): number => t * t * (3 - 2 * t);
+
+interface PathPoint { x: number; y: number; pressure: number; along: number }
+
+/** A stroke's points as a smooth line about a pixel apart, Catmull-Rom so it passes through each. */
+function brushPath(points: readonly (readonly number[])[], m: Matrix): PathPoint[] {
+    const placed = points.map((p) => {
+        const q = apply(m, [p[0]!, p[1]!]);
+        return [q[0], q[1], p[2] ?? 1] as const;
+    });
+    const out: PathPoint[] = [{ x: placed[0]![0], y: placed[0]![1], pressure: placed[0]![2], along: 0 }];
+    for (let i = 0; i + 1 < placed.length; i++) {
+        const [p0, p1, p2, p3] = [placed[Math.max(0, i - 1)]!, placed[i]!, placed[i + 1]!, placed[Math.min(placed.length - 1, i + 2)]!];
+        const steps = Math.max(1, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1])));
+        for (let s = 1; s <= steps; s++) {
+            const t = s / steps, t2 = t * t, t3 = t2 * t;
+            const curve = (k: 0 | 1): number => 0.5 * (2 * p1[k] + (p2[k] - p0[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (3 * p1[k] - p0[k] - 3 * p2[k] + p3[k]) * t3);
+            const [x, y] = [curve(0), curve(1)];
+            const last = out[out.length - 1]!;
+            out.push({ x, y, pressure: p1[2] + (p2[2] - p1[2]) * t, along: last.along + Math.hypot(x - last.x, y - last.y) });
+        }
+    }
+    return out;
+}
+
+/** One stroke's coverage before it meets the canvas, so a stroke overlapping itself does not build up into beads. */
+interface StrokeBuffer { mask: Float32Array; rgb: Float32Array; touched: number[] }
+
+function paintStrand(c: Canvas, s: ImageStroke, path: readonly PathPoint[], strand: { offset: number; radius: number | null; from: number; to: number; shade: number; strength: number; seed: number }, scale: number, buffer: StrokeBuffer): void {
+    const { w, h } = c;
+    const total = path[path.length - 1]!.along;
+    const [startColor, endColor] = [parseColor(s.color ?? '#000000'), parseColor(s.to ?? s.color ?? '#000000')];
+    const [taperIn, taperOut] = s.taper ?? [0, 0];
+    const hardness = s.hardness ?? 0.5;
+    const size = s.size * scale;
+    const smudge = s.smudge ?? 0;
+    const wobble = (s.wobble ?? 0) * scale;
+
+    const sample = (x: number, y: number): [number, number, number, number] => {
+        const [px, py] = [Math.max(0, Math.min(w - 1, Math.floor(x))), Math.max(0, Math.min(h - 1, Math.floor(y)))];
+        const at = (py * w + px) * 4;
+        return [c.px[at]!, c.px[at + 1]!, c.px[at + 2]!, c.px[at + 3]!];
+    };
+    let carried: [number, number, number, number] | null = null;
+
+    let index = 0;
+    let distance = total * strand.from;
+    const end = total * strand.to;
+    for (;;) {
+        while (index + 1 < path.length - 1 && path[index + 1]!.along < distance) index++;
+        const [a, b] = [path[index]!, path[Math.min(path.length - 1, index + 1)]!];
+        const span = b.along - a.along;
+        const t = span > 0 ? Math.max(0, Math.min(1, (distance - a.along) / span)) : 0;
+        const position = total > 0 ? distance / total : 0;
+        let narrowing = 1;
+        if (taperIn > 0 && position < taperIn) narrowing *= smoothed(position / taperIn);
+        if (taperOut > 0 && position > 1 - taperOut) narrowing *= smoothed((1 - position) / taperOut);
+        const width = size * (a.pressure + (b.pressure - a.pressure) * t) * narrowing;
+        const radius = strand.radius === null ? width / 2 : Math.min(strand.radius, Math.max(width, strand.radius * 0.4));
+        const [nx, ny] = span > 0 ? [-(b.y - a.y) / span, (b.x - a.x) / span] : [0, 0];
+        const drift = wobble > 0 ? gradientNoise(distance / (size * 3 + 8), strand.seed * 0.37 + 0.5, strand.seed) * 2 * wobble : 0;
+        const away = strand.offset * width + drift;
+        const [cx, cy] = [a.x + (b.x - a.x) * t + nx * away, a.y + (b.y - a.y) * t + ny * away];
+
+        if (radius >= 0.12) {
+            const soft = Math.max(1, radius * (1 - hardness));
+            const thin = Math.min(1, radius * 2);
+            // Flat at the top: stamps of a pointed falloff, overlapped, ripple along the stroke.
+            const cover = (d: number): number => {
+                const v = Math.max(0, Math.min(1, (radius + 0.5 - d) / soft));
+                return soft > 1 ? smoothed(v) : v;
+            };
+            const [x0, x1] = [Math.max(0, Math.floor(cx - radius - 1)), Math.min(w - 1, Math.ceil(cx + radius + 1))];
+            const [y0, y1] = [Math.max(0, Math.floor(cy - radius - 1)), Math.min(h - 1, Math.ceil(cy + radius + 1))];
+            if (smudge > 0) {
+                carried ??= sample(cx, cy);
+                for (let y = y0; y <= y1; y++) {
+                    for (let x = x0; x <= x1; x++) {
+                        const v = cover(Math.hypot(x + 0.5 - cx, y + 0.5 - cy)) * thin * smudge * (s.opacity ?? 1);
+                        if (v <= 0) continue;
+                        const at = (y * w + x) * 4;
+                        for (let k = 0; k < 4; k++) c.px[at + k] = c.px[at + k]! + (carried[k]! - c.px[at + k]!) * v * 0.5;
+                    }
+                }
+                const here = sample(cx, cy);
+                for (let k = 0; k < 4; k++) carried[k] = carried[k]! + (here[k]! - carried[k]!) * (1 - smudge) * 0.5;
+            } else {
+                const along = total > 0 ? distance / total : 0;
+                const mix = (k: number): number => Math.max(0, Math.min(1, (startColor[k]! + (endColor[k]! - startColor[k]!) * along) * strand.shade));
+                const [r, g, bl] = [mix(0), mix(1), mix(2)];
+                const alpha = (startColor[3] + (endColor[3] - startColor[3]) * along) * (s.opacity ?? 1) * strand.strength;
+                for (let y = y0; y <= y1; y++) {
+                    for (let x = x0; x <= x1; x++) {
+                        const v = cover(Math.hypot(x + 0.5 - cx, y + 0.5 - cy)) * thin * alpha;
+                        const i = y * w + x;
+                        if (v <= buffer.mask[i]!) continue;
+                        if (buffer.mask[i] === 0) buffer.touched.push(i);
+                        buffer.mask[i] = v;
+                        buffer.rgb[i * 3] = r; buffer.rgb[i * 3 + 1] = g; buffer.rgb[i * 3 + 2] = bl;
+                    }
+                }
+            }
+        }
+        if (distance >= end || total === 0) break;
+        distance = Math.min(end, distance + Math.max(0.4, radius * 0.1));
+    }
+    // Laid down all at once, so opacity is the stroke's and not the sum of its stamps.
+    const mode: Blend = s.blend ?? 'normal';
+    for (const i of buffer.touched) {
+        const v = buffer.mask[i]!;
+        if (s.erase) for (let k = 0; k < 4; k++) c.px[i * 4 + k]! *= 1 - v;
+        else put(c, i, buffer.rgb[i * 3]!, buffer.rgb[i * 3 + 1]!, buffer.rgb[i * 3 + 2]!, v, mode);
+        buffer.mask[i] = 0;
+    }
+    buffer.touched.length = 0;
+}
+
+function paintStroke(c: Canvas, s: ImageStroke, m: Matrix, scale: number, n: number, buffer: StrokeBuffer): void {
+    const path = brushPath(s.points, m);
+    const seed = s.seed ?? n + 1;
+    const count = s.bristles ?? 1;
+    if (count === 1) {
+        paintStrand(c, s, path, { offset: 0, radius: null, from: 0, to: 1, shade: 1, strength: 1, seed }, scale, buffer);
+        return;
+    }
+    const spread = s.spread ?? 1;
+    const vary = s.vary ?? 0.15;
+    const radius = ((s.strand ?? Math.max(0.8, (s.size / count) * 2.2)) * scale) / 2;
+    for (let j = 0; j < count; j++) {
+        const pick = (k: number): number => hash01(seed * 131 + j, k);
+        paintStrand(c, s, path, {
+            // Even across the width and then shaken, so bristles neither clump nor stand in rows.
+            offset: (((j + pick(1)) / count) - 0.5) * spread,
+            radius,
+            from: pick(2) * 0.06,
+            to: 1 - pick(3) * 0.1,
+            shade: 1 + (pick(4) - 0.5) * 2 * vary,
+            strength: 1 - pick(5) * vary * 1.5,
+            seed: seed * 31 + j,
+        }, scale, buffer);
+    }
+}
+
+function drawPaint(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, opacity: number, blend: Blend, clip: Float32Array | undefined): void {
+    const { w, h } = c;
+    const m = times(parent, transformOf(layer.transform, [w / 2, h / 2]));
+    const inner = new Canvas(w, h);
+    if (layer.fill !== undefined) {
+        const paint = paintOf(layer.fill, m);
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const col = paint(x + 0.5, y + 0.5);
+                put(inner, y * w + x, col[0], col[1], col[2], col[3], 'normal');
+            }
+        }
+    }
+    const buffer: StrokeBuffer = { mask: new Float32Array(w * h), rgb: new Float32Array(w * h * 3), touched: [] };
+    (layer.strokes ?? []).forEach((s, n) => paintStroke(inner, s, m, drawnScale(m), n, buffer));
+    const alpha = new Float32Array(w * h);
+    for (let i = 0; i < alpha.length; i++) alpha[i] = inner.px[i * 4 + 3]!;
+    if (layer.id) drawn.masks.set(layer.id, alpha);
+    noteBox(drawn, layer.id, alpha, w, h);
+    effectLayers(layer.effects, true, c, alpha);
+    for (let i = 0; i < alpha.length; i++) {
+        const a = alpha[i]!;
+        if (a <= 0) continue;
+        put(c, i, inner.px[i * 4]! / a, inner.px[i * 4 + 1]! / a, inner.px[i * 4 + 2]! / a, a * opacity * (clip ? clip[i]! : 1), blend);
+    }
+    effectLayers(layer.effects, false, c, alpha);
+}
+
 function drawPixels(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, opacity: number, blend: Blend, clip: Float32Array | undefined): void {
     const { w, h } = c;
     const rows = layer.rows!;

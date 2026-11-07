@@ -612,6 +612,137 @@ describe('noise', () => {
     });
 });
 
+describe('brushes', () => {
+    const paint = (strokes: object[], extra: object = {}): ImageLayer => ({ id: 'p', shape: 'paint', strokes, ...extra } as never);
+    const across = (fields: object = {}): object => ({ points: [[8, 32], [56, 32]], color: RED, size: 8, hardness: 1, ...fields });
+
+    it('lays a line of its size between its points, and a dab at one', () => {
+        const img = draw([paint([across()])]);
+        expect(px(img, 32, 32)).toEqual([255, 0, 0, 255]);
+        expect(px(img, 32, 20)[3]).toBe(0);
+        const dab = draw([paint([{ points: [[32, 32]], color: BLUE, size: 10, hardness: 1 }])]);
+        expect(px(dab, 32, 32)).toEqual([0, 0, 255, 255]);
+        expect(px(dab, 32, 45)[3]).toBe(0);
+    });
+
+    it('passes through each point of a curve', () => {
+        const img = draw([paint([{ points: [[8, 50], [32, 12], [56, 50]], color: RED, size: 6, hardness: 1 }])]);
+        expect(px(img, 32, 12)[3]).toBe(255);
+        expect(px(img, 32, 40)[3]).toBe(0);
+    });
+
+    it('does not build into beads: opacity is the stroke\'s, however it overlaps itself', () => {
+        const img = draw([paint([across({ opacity: 0.5, points: [[8, 32], [56, 32], [8, 32]] })])]);
+        const values = new Set<number>();
+        for (let x = 14; x < 50; x++) values.add(px(img, x, 32)[3]!);
+        expect(values.size).toBeLessThanOrEqual(2);
+        expect(px(img, 32, 32)[3]).toBeGreaterThan(120);
+        expect(px(img, 32, 32)[3]).toBeLessThan(135);
+    });
+
+    it('leaves no ripple of its stamps along a large soft stroke', () => {
+        const img = draw([paint([{ points: [[-40, 90], [300, 90]], color: '#ffffff', size: 120, hardness: 0 }])], [256, 256]);
+        for (const y of [90, 110, 130]) {
+            const values: number[] = [];
+            for (let x = 40; x < 216; x++) values.push(px(img, x, y)[3]!);
+            expect(Math.max(...values) - Math.min(...values)).toBeLessThanOrEqual(3);
+        }
+    });
+
+    it('is softer the lower its hardness', () => {
+        const edge = (hardness: number): number => px(draw([paint([across({ size: 24, hardness })])]), 32, 24)[3]!;
+        expect(edge(1)).toBe(255);
+        expect(edge(0)).toBeLessThan(200);
+    });
+
+    it('narrows to a point where it tapers, and with pressure', () => {
+        const img = draw([paint([across({ size: 16, taper: [0, 0.6] })])]);
+        const width = (x: number): number => { let n = 0; for (let y = 16; y < 48; y++) if (px(img, x, y)[3]! > 128) n++; return n; };
+        expect(width(16)).toBeGreaterThan(width(50));
+        expect(width(50)).toBeLessThan(6);
+        const pressed = draw([paint([{ points: [[8, 32, 1], [56, 32, 0.1]], color: RED, size: 16, hardness: 1 }])]);
+        expect(px(pressed, 12, 26)[3]).toBe(255);
+        expect(px(pressed, 52, 26)[3]).toBe(0);
+    });
+
+    it('turns from one colour to the next', () => {
+        const img = draw([paint([across({ to: BLUE })])]);
+        expect(px(img, 12, 32)[0]).toBeGreaterThan(px(img, 12, 32)[2]!);
+        expect(px(img, 52, 32)[2]).toBeGreaterThan(px(img, 52, 32)[0]!);
+    });
+
+    it('with bristles leaves separate hairs that meet where it narrows', () => {
+        const hairs = draw([paint([across({ size: 40, bristles: 8, strand: 1, vary: 0, taper: [0, 0.3], seed: 2 })])], [64, 64]);
+        let runs = 0, inside = false;
+        for (let y = 8; y < 56; y++) {
+            const on = px(hairs, 16, y)[3]! > 100;
+            if (on && !inside) runs++;
+            inside = on;
+        }
+        expect(runs).toBeGreaterThan(3);
+        let far = 0;
+        for (let y = 0; y < 64; y++) if (px(hairs, 50, y)[3]! > 60 && Math.abs(y - 32) > 12) far++;
+        expect(far).toBe(0);
+    });
+
+    it('is the same from the same list, and bristles differ by seed', () => {
+        const s = across({ size: 30, bristles: 12, vary: 0.3, wobble: 2, seed: 4 });
+        expect(draw([paint([s])]).rgba).toEqual(draw([paint([s])]).rgba);
+        expect(draw([paint([s])]).rgba).not.toEqual(draw([paint([{ ...s, seed: 5 }])]).rgba);
+    });
+
+    it('smudges what is on the layer along, and lays no colour of its own', () => {
+        const base = { points: [[20, 10], [20, 54]], color: RED, size: 20, hardness: 1 };
+        const before = draw([paint([base])]);
+        const after = draw([paint([base, { points: [[20, 32], [56, 32]], size: 10, smudge: 0.9 }])]);
+        expect(px(before, 40, 32)[3]).toBe(0);
+        expect(px(after, 40, 32)[3]).toBeGreaterThan(20);
+        expect(px(after, 40, 32)[0]).toBeGreaterThan(200);
+    });
+
+    it('rubs out, and paints by blend', () => {
+        const rubbed = draw([paint([across({ size: 20 }), { points: [[32, 10], [32, 54]], size: 8, hardness: 1, erase: true }])]);
+        expect(px(rubbed, 32, 32)[3]).toBe(0);
+        expect(px(rubbed, 16, 32)[3]).toBe(255);
+        const shaded = draw([paint([across({ size: 20 }), across({ color: '#808080', size: 6, blend: 'multiply' })])]);
+        expect(px(shaded, 32, 32)[0]).toBeGreaterThan(110);
+        expect(px(shaded, 32, 32)[0]).toBeLessThan(140);
+    });
+
+    it('starts from a fill, follows the transform, the clip and the layer\'s opacity, and is measured', () => {
+        const filled = draw([paint([], { fill: BLUE })]);
+        expect(px(filled, 3, 3)).toEqual([0, 0, 255, 255]);
+        const moved = draw([paint([across()], { transform: { translate: [0, 20], origin: [0, 0] } })]);
+        expect(px(moved, 32, 52)[3]).toBe(255);
+        expect(moved.layerBounds.p![1]).toBeGreaterThanOrEqual(46);
+        const clipped = draw([{ id: 'c', shape: 'rect', at: [0, 0], size: [32, 64], fill: BLUE }, paint([across()], { clip: 'c', opacity: 0.5 })]);
+        expect(px(clipped, 40, 32)[0]).toBe(0);
+        expect(px(clipped, 20, 32)[0]).toBeGreaterThan(110);
+    });
+
+    it('takes more strokes without restating the rest, and drops the last few', () => {
+        const start = validateImageSource({ size: 64, layers: [paint([across()])] });
+        const more = applyImageEdits(start, [{ op: 'paint', layer: 'p', strokes: [across({ color: BLUE }) as never] }]);
+        expect(more.layers[0]!.strokes!.length).toBe(2);
+        expect(applyImageEdits(more, [{ op: 'paint', layer: 'p', drop: 1 }]).layers[0]!.strokes!.length).toBe(1);
+        expect(() => applyImageEdits(more, [{ op: 'paint', layer: 'p', drop: 3 }])).toThrow(/has 2 strokes/);
+        expect(() => applyImageEdits(more, [{ op: 'paint', layer: 'p', strokes: [{ size: 3 } as never] }])).toThrow(/stroke 2 needs points/);
+        const notPaint = validateImageSource({ size: 8, layers: [{ id: 'r', shape: 'rect', at: [0, 0], size: [2, 2], fill: RED }] });
+        expect(() => applyImageEdits(notPaint, [{ op: 'paint', layer: 'r', strokes: [] }])).toThrow(/not paint/);
+    });
+
+    it('says which stroke is wrong, and how', () => {
+        const bad = (s: object): unknown => validateImageSource({ size: 8, layers: [{ id: 'p', shape: 'paint', strokes: [{ points: [[1, 1]], size: 2, color: RED, ...s }] }] });
+        expect(() => bad({ points: [] })).toThrow(/layer 0 "p".*stroke 0 needs points/);
+        expect(() => bad({ size: 0 })).toThrow(/positive size/);
+        expect(() => bad({ color: undefined })).toThrow(/needs a color/);
+        expect(() => bad({ color: undefined, smudge: 0.5 })).not.toThrow();
+        expect(() => bad({ bristles: 300 })).toThrow(/bristles must be/);
+        expect(() => bad({ taper: [0, 2] })).toThrow(/taper must be/);
+        expect(() => bad({ blur: 2 })).toThrow(/unknown field "blur"/);
+    });
+});
+
 describe('what it measures', () => {
     it('finds where the picture is solid and how much of it that is', () => {
         const img = draw([{ shape: 'rect', at: [10, 20], size: [16, 8], fill: RED }]);
@@ -807,6 +938,6 @@ describe('edits', () => {
         expect(() => applyImageEdits(base, [{ op: 'remove', layer: 'zz' }])).toThrow(/no layer "zz"; ids: a, g, b/);
         expect(() => applyImageEdits(base, [{ op: 'insert', layer: {} as never, into: 'a' }])).toThrow(/not a group/);
         expect(() => applyImageEdits(base, [{ op: 'set', layer: 'a', fields: { radius: -1 } }])).toThrow(/radius/);
-        expect(() => applyImageEdits(base, [{ op: 'spin' } as never])).toThrow(/set, insert, remove, move, wrap, unwrap, pixels, settings/);
+        expect(() => applyImageEdits(base, [{ op: 'spin' } as never])).toThrow(/set, insert, remove, move, paint, wrap, unwrap, pixels, settings/);
     });
 });
