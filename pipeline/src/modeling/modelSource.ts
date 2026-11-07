@@ -311,10 +311,11 @@ const KIND_CHECK: Record<Kind, (v: unknown) => string | null> = {
     vec2: (v) => (isNums(v, 2) ? null : 'must be [u, v]'),
     line: (v) => {
         const n = v as { points?: unknown; width?: unknown } | null;
-        const line = n as { points?: unknown; width?: unknown; from?: unknown } | null;
+        const line = n as { points?: unknown; width?: unknown; from?: unknown; curve?: unknown } | null;
+        if (line?.curve !== undefined && !(Number.isInteger(line.curve) && (line.curve as number) >= 1 && (line.curve as number) <= 32)) return 'curve must be a whole number, 1..32';
         if (line?.from !== undefined && !VIEW_NAMES.includes(line.from as string)) return `from must be one of ${VIEW_NAMES.join(', ')}`;
         const size = line?.from !== undefined ? 2 : 3;
-        return typeof n === 'object' && n !== null && Array.isArray(n.points) && n.points.length >= 2 && n.points.every((q) => isNums(q, size)) && isNum(n.width) && Object.keys(n).every((k) => k === 'points' || k === 'width' || k === 'from') ? null : (size === 2 ? 'must be { points: [[a, b], ...], width, from }, the points in the two axes of the view' : 'must be { points: [[x, y, z], ...], width }');
+        return typeof n === 'object' && n !== null && Array.isArray(n.points) && n.points.length >= 2 && n.points.every((q) => isNums(q, size)) && isNum(n.width) && Object.keys(n).every((k) => k === 'points' || k === 'width' || k === 'from' || k === 'curve') ? null : (size === 2 ? 'must be { points: [[a, b], ...], width, from }, the points in the two axes of the view' : 'must be { points: [[x, y, z], ...], width }');
     },
     view: (v) => (VIEW_NAMES.includes(v as string) ? null : `must be one of ${VIEW_NAMES.join(', ')}`),
     strokes: (v) => (Array.isArray(v) && v.length > 0 && v.every((s) => typeof s === 'object' && s !== null) ? null : 'must be a non-empty array of strokes, each { brush, ... }'),

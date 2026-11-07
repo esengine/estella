@@ -49,7 +49,7 @@ export interface OrganicPart {
     points?: readonly (readonly number[])[];
     /** outline: half how thick it stands, along z. */
     depth?: number;
-    /** outline: how far in from its edge it takes to come up to `depth`. Default `depth`, a full roundness; small, a slab with soft edges. */
+    /** outline: how far in from its edge it takes to come up to `depth`. Default the whole way to its middle, a dome with no flat on it; small, a slab with soft edges. */
     round?: number;
     /** outline: this many segments between points, passing through each. A point given twice keeps a corner there. */
     curve?: number;
@@ -230,8 +230,7 @@ function shapeField(part: OrganicPart): { field: Eval; reach: number; thinnest: 
             need('depth');
             const depth = part.depth!;
             if (depth <= 0) throw new Error('depth must be positive');
-            const round = part.round ?? depth;
-            if (round <= 0) throw new Error('round must be positive');
+            if (part.round !== undefined && part.round <= 0) throw new Error('round must be positive');
             if (part.points!.length < 3) throw new Error(`an outline needs at least 3 points, not ${part.points!.length}`);
             if (part.points!.some((p) => p.length !== 2)) throw new Error('every outline point is [x, y]');
             const drawn = curveThrough(part.points!, part.curve ?? 1, true);
@@ -239,24 +238,67 @@ function shapeField(part: OrganicPart): { field: Eval; reach: number; thinnest: 
             const count = pts.length;
             const [xs, ys] = [new Float64Array(count), new Float64Array(count)];
             pts.forEach((p, i) => { xs[i] = p[0]!; ys[i] = p[1]!; });
+            // How far in a point is. Not the distance to the nearest edge, which creases along the drawing's middle wherever the nearest edge changes, and those creases
+            // shade as ridges down a face. The fourth power of the inverse distance, integrated round the outline: smooth everywhere, and exact beside a straight edge.
+            const within = (x: number, y: number): number => {
+                let sum = 0;
+                for (let i = 0, j = count - 1; i < count; j = i, i++) {
+                    const [ax, ay, ex, ey] = [xs[j]!, ys[j]!, xs[i]! - xs[j]!, ys[i]! - ys[j]!];
+                    const len = Math.hypot(ex, ey);
+                    if (len <= 0) continue;
+                    const [px, py] = [x - ax, y - ay];
+                    const a = -(px * ex + py * ey) / len, b = a + len;
+                    const d = Math.abs(px * ey - py * ex) / len;
+                    if (a * b > 0 && d < 0.02 * Math.min(Math.abs(a), Math.abs(b))) {
+                        sum += Math.abs(a ** -3 - b ** -3) / 3;
+                    } else {
+                        const safe = Math.max(d, 1e-9);
+                        const primitive = (s: number): number => s / (2 * safe * safe * (safe * safe + s * s)) + Math.atan(s / safe) / (2 * safe * safe * safe);
+                        sum += primitive(b) - primitive(a);
+                    }
+                }
+                return (sum / (Math.PI / 2)) ** (-1 / 3);
+            };
+            const isInside = (x: number, y: number): boolean => {
+                let inside = false;
+                for (let i = 0, j = count - 1; i < count; j = i, i++) {
+                    const [ax, ay, bx, by] = [xs[j]!, ys[j]!, xs[i]!, ys[i]!];
+                    if ((by > y) !== (ay > y) && x < ax + ((y - ay) * (bx - ax)) / (by - ay)) inside = !inside;
+                }
+                return inside;
+            };
+            let round = part.round ?? 0;
+            if (part.round === undefined) {
+                // The deepest place in the drawing, so that the dome comes up to `depth` only there.
+                const [lx, hx, ly, hy] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+                for (let i = 0; i <= 32; i++) {
+                    for (let j = 0; j <= 32; j++) {
+                        const [x, y] = [lx + ((hx - lx) * i) / 32, ly + ((hy - ly) * j) / 32];
+                        if (isInside(x, y)) round = Math.max(round, within(x, y));
+                    }
+                }
+                round = Math.max(round * 1.02, depth * 0.01);
+            }
             const r2 = round * round, d2 = depth * depth;
             const reach = Math.max(...pts.map((p) => Math.hypot(p[0]!, p[1]!))) + depth;
             return {
                 // The drawing's distance, then an ellipse across its edge: the same estimate as an ellipsoid's, in the plane of edge and depth.
                 field: (x, y, z) => {
-                    let best = Infinity;
-                    let inside = false;
-                    for (let i = 0, j = count - 1; i < count; j = i, i++) {
-                        const [ax, ay, bx, by] = [xs[j]!, ys[j]!, xs[i]!, ys[i]!];
-                        const [ex, ey, px, py] = [bx - ax, by - ay, x - ax, y - ay];
-                        const len = ex * ex + ey * ey;
-                        const t = len > 0 ? Math.min(1, Math.max(0, (px * ex + py * ey) / len)) : 0;
-                        const [qx, qy] = [px - ex * t, py - ey * t];
-                        const dist = qx * qx + qy * qy;
-                        if (dist < best) best = dist;
-                        if ((by > y) !== (ay > y) && x < ax + ((y - ay) * (bx - ax)) / (by - ay)) inside = !inside;
+                    let edge: number;
+                    if (isInside(x, y)) {
+                        edge = -within(x, y);
+                    } else {
+                        let best = Infinity;
+                        for (let i = 0, j = count - 1; i < count; j = i, i++) {
+                            const [ax, ay, ex, ey] = [xs[j]!, ys[j]!, xs[i]! - xs[j]!, ys[i]! - ys[j]!];
+                            const [px, py] = [x - ax, y - ay];
+                            const len = ex * ex + ey * ey;
+                            const t = len > 0 ? Math.min(1, Math.max(0, (px * ex + py * ey) / len)) : 0;
+                            const [qx, qy] = [px - ex * t, py - ey * t];
+                            best = Math.min(best, qx * qx + qy * qy);
+                        }
+                        edge = Math.sqrt(best);
                     }
-                    const edge = Math.sqrt(best) * (inside ? -1 : 1);
                     const u = edge + round;
                     if (u <= 0) return Math.abs(z) - depth;
                     const k0 = Math.sqrt((u * u) / r2 + (z * z) / d2);

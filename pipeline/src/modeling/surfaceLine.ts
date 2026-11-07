@@ -8,6 +8,7 @@
  *        and it lands on whatever faces that view and is nearest it, as a pen on the picture would.
  */
 import { boundsOf, type PolyMesh, type Vec3 } from './polyMesh';
+import { curveThrough } from './surfaces';
 
 export type ViewName = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
 export const VIEW_NAMES: readonly string[] = ['+x', '-x', '+y', '-y', '+z', '-z'];
@@ -34,6 +35,9 @@ export interface LineHit {
     /** Which side of the line the point is on, by the line's direction: in a view, left of it is +1. */
     side: number;
 }
+
+/** A line's points, rounded through by `curve` segments between each; a point given twice keeps a corner. */
+export const drawnLine = (points: readonly (readonly number[])[], curve: number | undefined): readonly (readonly number[])[] => (curve && curve > 1 ? curveThrough(points, curve, false) : points);
 
 /** A polyline in any number of coordinates, and what is nearest a point on it. */
 export function lineMeasure(points: readonly (readonly number[])[]): (at: readonly number[], normal: Vec3 | null) => LineHit {
@@ -77,9 +81,9 @@ export function facesInView(mesh: PolyMesh, hit: readonly number[], view: View, 
     });
 }
 
-/** Which vertices the view sees: facing it, and at the front of what lies along the line of sight there, to within a little. */
-export function seenFrom(mesh: PolyMesh, normals: Float64Array, view: View, vertices: readonly number[], cell: number): Uint8Array {
-    const seen = new Uint8Array(mesh.positions.length);
+/** How much of each vertex the view sees, 0..1: facing it, and at the front of what lies along the line of sight there. Fades with depth, as neighbours that split into one moved and one not dent the surface. */
+export function seenFrom(mesh: PolyMesh, normals: Float64Array, view: View, vertices: readonly number[], cell: number): Float32Array {
+    const seen = new Float32Array(mesh.positions.length);
     const front = new Map<number, number>();
     const key = (a: number, b: number): number => a * 1048576 + b;
     const place = (at: Vec3): [number, number] => [Math.floor(at[view.u] / cell) + 500000, Math.floor(at[view.v] / cell)  + 500000];
@@ -97,7 +101,9 @@ export function seenFrom(mesh: PolyMesh, normals: Float64Array, view: View, vert
         const [a, b] = place(at);
         let nearest = -Infinity;
         for (let da = -1; da <= 1; da++) for (let db = -1; db <= 1; db++) nearest = Math.max(nearest, front.get(key(a + da, b + db)) ?? -Infinity);
-        if (at[view.axis] * view.sign >= nearest - cell * 3) seen[v] = 1;
+        const behind = nearest - at[view.axis] * view.sign;
+        const t = 1 - (behind - cell * 2) / (cell * 3);
+        seen[v] = t >= 1 ? 1 : t <= 0 ? 0 : t * t * (3 - 2 * t);
     }
     return seen;
 }

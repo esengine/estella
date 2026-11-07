@@ -3,6 +3,7 @@
 /** What is read off a picture goes into a model: a drawing stands up as a solid, a stroke moves the surface where it says and nowhere else, and a view lands on what it sees. */
 import { describe, expect, it } from 'vitest';
 import { bakeModel, validateModelSource, type ModelStep } from '../src/modeling';
+import { seenFrom, viewOf } from '../src/modeling/surfaceLine';
 
 type Mesh = ReturnType<typeof bakeModel>['poly'];
 const build = (steps: ModelStep[]): Mesh => bakeModel({ version: 1, steps }).poly;
@@ -50,6 +51,17 @@ describe('organic outline', () => {
         // A tenth in from the edge of an ellipse 0.2 wide: 0.1 * sqrt(1 - 0.5²).
         expect(heightAt(wide, 0.1, 0.5, 1, 0.01)!).toBeCloseTo(0.0866, 1);
         expect(heightAt(wide, 0.1, 0.5, 1, 0.01)!).toBeLessThan(0.095);
+    });
+
+    it('is a dome by default: no flat on it, and no ridge down its middle where the nearest edge changes', () => {
+        const dome = build([{ op: 'organic', resolution: 150, parts: [{ shape: 'outline', points: [[0, 0], [1, 0], [1, 0.6], [0, 0.6]], depth: 0.1 }] }]);
+        const along = [0.1, 0.2, 0.3, 0.4, 0.5].map((x) => heightAt(dome, x, 0.3, 1, 0.012)!);
+        for (let i = 1; i < along.length; i++) expect(along[i]!, `rises to the middle: ${along}`).toBeGreaterThan(along[i - 1]!);
+        expect(bounds(dome).max[2]).toBeCloseTo(0.1, 1);
+        // Across where a distance-to-the-nearest-edge dome would crease: on the long axis, y 0.3. The slope changes gently there and does not flip at a line.
+        const across = [0.24, 0.27, 0.3, 0.33, 0.36].map((y) => heightAt(dome, 0.5, y, 1, 0.01)!);
+        const bend = Math.abs(across[0]! - 2 * across[2]! + across[4]!);
+        expect(bend).toBeLessThan(0.004);
     });
 
     it('turns with `rotate`, and its bounds go with it', () => {
@@ -197,6 +209,33 @@ describe('sculpt', () => {
         for (const p of rim) expect(Math.hypot(p[0], p[1], p[2])).toBeCloseTo(0.5, 2);
         // Straight on, it moves in full.
         expect(heightAt(ball, 0, 0, 1, 0.02)!).toBeLessThan(0.5 - 0.025);
+    });
+
+    it('from a view, fades with depth behind what is in front: neighbours split into one moved and one not would dent the surface', () => {
+        const cell = 0.1;
+        // A column of points along the line of sight, all facing the eye.
+        const depths = [0, -0.1, -0.25, -0.35, -0.45, -0.6];
+        const mesh = { positions: depths.map((z) => [0, 0, z] as [number, number, number]), faces: [] };
+        const normals = new Float64Array(depths.flatMap(() => [0, 0, 1]));
+        const seen = seenFrom(mesh, normals, viewOf('+z'), depths.map((_, v) => v), cell);
+        expect(seen[0]).toBe(1);
+        expect(seen[1]).toBe(1);
+        expect(seen[2]).toBeGreaterThan(0.5);
+        expect(seen[2]).toBeLessThan(1);
+        expect(seen[3]).toBeGreaterThan(0);
+        expect(seen[3]).toBeLessThan(seen[2]!);
+        expect(seen[5]).toBe(0);
+        // What faces away is not seen, however near.
+        normals[2] = -1; normals[5] = -1;
+        expect(seenFrom(mesh, normals, viewOf('+z'), [0, 1], cell)[1]).toBe(0);
+    });
+
+    it('bends with `curve` where a line would kink', () => {
+        const kink = { brush: 'press', points: [[-0.3, 0], [0, 0.2], [0.3, 0]], width: 0.03, depth: 0.03, taper: 0 };
+        // A straight run from the first point to the corner leaves this point out of reach, and a curve through the same points bows out over it.
+        const place: [number, number] = [-0.16, 0.135];
+        expect(heightAt(stroke(kink), place[0], place[1], 1, 0.004)!).toBeGreaterThan(0.095);
+        expect(heightAt(stroke({ ...kink, curve: 8 }), place[0], place[1], 1, 0.004)!).toBeLessThan(0.095);
     });
 
     it('does the same every time', () => {

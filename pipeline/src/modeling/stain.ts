@@ -10,7 +10,7 @@
  */
 import { DISPLACE_PATTERNS, finestShare, mirroredPoint, nearWeight, patternField, reachedFaces, refine, MAX_DISPLACE_TRIANGLES, type DisplaceParams, type DisplacePattern } from './displace';
 import { compact, faceArea, faceNormal, normalize, selectFaces, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
-import { facesInView, lineMeasure, seenFrom, viewOf, type ViewName } from './surfaceLine';
+import { drawnLine, facesInView, lineMeasure, seenFrom, viewOf, type ViewName } from './surfaceLine';
 
 /** How far a mirrored point is from a line of points. */
 function toLine(points: readonly Vec3[], mirror: StainParams['mirror'], x: number, y: number, z: number): number {
@@ -30,7 +30,7 @@ export interface StainParams {
     /** Only around here. Fades to its edge, or with `hard` stops there: a pupil. */
     near?: { at: Vec3; radius: number };
     /** Only along a line drawn on the surface, its points on or near it: an eyelid, a lip, a seam. Fades to `width` either side, or with `hard` stops there. With `from: "+z"` its points are [x, y], and it lands on what that view sees. */
-    line?: { points: readonly (readonly number[])[]; width: number; from?: ViewName };
+    line?: { points: readonly (readonly number[])[]; width: number; from?: ViewName; curve?: number };
     hard?: boolean;
     /** Linear [r, g, b], over what is there. */
     color?: readonly number[];
@@ -179,8 +179,9 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
         normals[v * 3]! /= l; normals[v * 3 + 1]! /= l; normals[v * 3 + 2]! /= l;
     }
     const shape = p.where ? relief(fine, normals, p.reach) : null;
-    let lineSeen: Uint8Array | null = null;
-    const measured = p.line && lineView ? lineMeasure(p.line.points) : null;
+    let lineSeen: Float32Array | null = null;
+    const drawn = p.line ? drawnLine(p.line.points, p.line.curve) : null;
+    const measured = drawn && lineView ? lineMeasure(drawn) : null;
     if (p.line && lineView) {
         const vertices: number[] = [];
         fine.faces.forEach((face, f) => { if (isChosen(f)) vertices.push(...face.v); });
@@ -204,8 +205,9 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
         }
         if (p.line) {
             if (lineSeen && !lineSeen[v]) return 0;
-            const t = 1 - (measured && lineView ? measured([at[lineView.u], at[lineView.v]], null).distance : toLine(p.line.points as readonly Vec3[], p.mirror, x, y, z)) / p.line.width;
+            const t = 1 - (measured && lineView ? measured([at[lineView.u], at[lineView.v]], null).distance : toLine(drawn as readonly Vec3[], p.mirror, x, y, z)) / p.line.width;
             m *= t <= 0 ? 0 : p.hard ? 1 : t * t * (3 - 2 * t);
+            if (lineSeen) m *= lineSeen[v]!;
             if (m === 0) return 0;
         }
         const n: Vec3 = [normals[v * 3]!, normals[v * 3 + 1]!, normals[v * 3 + 2]!];

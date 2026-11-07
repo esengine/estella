@@ -10,7 +10,7 @@
  */
 import { MAX_DISPLACE_TRIANGLES, refine } from './displace';
 import { boundsOf, compact, faceArea, faceNormal, selectFaces, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
-import { facesInView, lineMeasure, seenFrom, viewOf, type View, type ViewName } from './surfaceLine';
+import { drawnLine, facesInView, lineMeasure, seenFrom, viewOf, type View, type ViewName } from './surfaceLine';
 
 /** A place: [x, y, z], or with `from` the two axes of the view. */
 type Place = readonly number[];
@@ -29,6 +29,8 @@ export interface PressStroke {
     round?: boolean;
     /** The share of its length each end fades over, 0..0.5. Default 0.25; 0 for a seam, which stops dead. */
     taper?: number;
+    /** This many segments between points, passing through each: a line that bends and does not kink. */
+    curve?: number;
 }
 
 export interface MoveStroke {
@@ -104,6 +106,7 @@ function checkStroke(stroke: SculptStroke, view: View | null): void {
         if (!Number.isFinite(stroke.depth)) throw new Error('press needs `depth`');
         if (stroke.lean !== undefined && !(Math.abs(stroke.lean) < 1)) throw new Error(`lean ${stroke.lean} must be between -1 and 1`);
         if (stroke.taper !== undefined && !(stroke.taper >= 0 && stroke.taper <= 0.5)) throw new Error(`taper ${stroke.taper} must be 0..0.5`);
+        if (stroke.curve !== undefined && !(Number.isInteger(stroke.curve) && stroke.curve >= 1 && stroke.curve <= 32)) throw new Error(`curve ${stroke.curve} must be a whole number, 1..32`);
         return;
     }
     if (stroke.brush !== 'move' && stroke.brush !== 'inflate' && stroke.brush !== 'smooth') throw new Error(`unknown brush ${JSON.stringify((stroke as { brush?: unknown }).brush)}; there are press, move, inflate, smooth`);
@@ -192,7 +195,7 @@ function applyStroke(mesh: PolyMesh, stroke: SculptStroke, selected: ReadonlySet
         for (const v of vertices) {
             if (seen && !seen[v]) continue;
             const at = positions[v]!;
-            const w = smooth01(1 - Math.hypot(...planar(at).map((c, k) => c - stroke.at[k]!)) / stroke.radius) * facing(v);
+            const w = smooth01(1 - Math.hypot(...planar(at).map((c, k) => c - stroke.at[k]!)) / stroke.radius) * facing(v) * (seen ? seen[v]! : 1);
             if (w > 0) {
                 const push = stroke.by * w;
                 positions[v] = [at[0] + normals[v * 3]! * push, at[1] + normals[v * 3 + 1]! * push, at[2] + normals[v * 3 + 2]! * push];
@@ -201,7 +204,7 @@ function applyStroke(mesh: PolyMesh, stroke: SculptStroke, selected: ReadonlySet
         return { positions, faces: fine.faces };
     }
 
-    const measure = lineMeasure(stroke.points);
+    const measure = lineMeasure(drawnLine(stroke.points, stroke.curve));
     const lean = stroke.lean ?? 0;
     const taper = stroke.taper ?? 0.25;
     for (const v of vertices) {
@@ -215,7 +218,7 @@ function applyStroke(mesh: PolyMesh, stroke: SculptStroke, selected: ReadonlySet
         if (fade <= 0) continue;
         // A crease comes to an edge along its middle, which is what catches the light; a swell does not.
         const shape = stroke.round ? (1 - u * u) ** 2 : (1 - u) ** 2;
-        const push = -stroke.depth * shape * fade * facing(v);
+        const push = -stroke.depth * shape * fade * facing(v) * (seen ? seen[v]! : 1);
         positions[v] = [at[0] + n[0] * push, at[1] + n[1] * push, at[2] + n[2] * push];
     }
     return { positions, faces: fine.faces };
