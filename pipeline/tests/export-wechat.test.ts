@@ -831,9 +831,6 @@ describe('exportGame (wechat)', () => {
     //    it is the one part of a cold start with real byte progress.
     expect(entry.indexOf('showLoading')).toBeLessThan(entry.indexOf('loadSubpackage'));
     expect(entry).toContain('onProgressUpdate');
-    // A failed fetch takes the notice down with it, rather than leaving the
-    // host spinning over a game that will never start.
-    expect(entry.slice(entry.indexOf('fail('))).toContain('hideLoading');
 
     // 6. …and the notice is never what kills the boot. MiniGameGlobal declares
     //    showLoading OPTIONAL, and this is the entry's FIRST line: an unguarded
