@@ -8,6 +8,7 @@
  */
 import { hash3 } from './hash';
 import { triangulateFace } from './triangulate';
+import { freezeFaceUv } from './modelUv';
 import { add, boundsOf, compact, cross, dot, faceNormal, length, normalize, scale, selectFaces, sub, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
 export interface ScatterParams {
@@ -107,7 +108,7 @@ export function scatter(mesh: PolyMesh, p: ScatterParams): PolyMesh {
     if (taken.length === 0) throw new Error(`\`source\` ${JSON.stringify(p.source)} matched no face`);
     const seed = p.seed ?? 1;
     const isTaken = new Set(taken);
-    const shape = taken.map((f) => mesh.faces[f]!);
+    const shape = taken.map((f) => freezeFaceUv(mesh, mesh.faces[f]!));
     const { min, max } = boundsOf(mesh, shape.flatMap((f) => [...f.v]));
     const foot: Vec3 = [(min[0] + max[0]) / 2, min[1], (min[2] + max[2]) / 2];
 

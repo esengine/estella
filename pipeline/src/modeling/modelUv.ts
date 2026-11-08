@@ -47,7 +47,14 @@ export function uvStep(mesh: PolyMesh, p: UvParams): PolyMesh {
         rotate: p.rotate ?? 0,
     };
     const set = new Set(hit);
-    return { ...mesh, faces: mesh.faces.map((f, i) => (set.has(i) ? { ...f, uv } : f)) };
+    return { ...mesh, faces: mesh.faces.map((f, i) => (set.has(i) ? { ...f, uv, cornerUvs: undefined } : f)) };
+}
+
+/** Explicit mappings belong to the surface; resolve them before moving its vertices. Implicit box tiling stays procedural. */
+export function freezeFaceUv(mesh: PolyMesh, face: Face): Face {
+    if (!face.uv || face.cornerUvs) return face;
+    const mapped = faceUvs(mesh, face, 1);
+    return { ...face, cornerUvs: face.v.map((v) => mapped.get(v)!) };
 }
 
 /** The in-plane axes a texture is laid along when seen from @p n, with up staying up where it can. */

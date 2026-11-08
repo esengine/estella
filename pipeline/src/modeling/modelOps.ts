@@ -13,6 +13,7 @@ import {
     selectEdges, selectFaces, sub,
     type Edge, type EdgeSelector, type Face, type FaceSelector, type PolyMesh, type Vec3,
 } from './polyMesh';
+import { freezeFaceUv } from './modelUv';
 
 const EPS = 1e-6;
 const DEG = Math.PI / 180;
@@ -208,7 +209,8 @@ export function transform(mesh: PolyMesh, p: {
         if (p.rotate) q = rotateVector(q, p.rotate);
         positions[i] = add(add(q, pivot), p.translate ?? [0, 0, 0]);
     }
-    return { ...mesh, positions };
+    const faces = mesh.faces.map((f) => f.uv && f.v.some((v) => vertices.has(v)) ? freezeFaceUv(mesh, f) : f);
+    return { ...mesh, positions, faces };
 }
 
 /** A copy of the chosen faces with vertices of their own, each position put through @p move. */
@@ -217,7 +219,7 @@ function cloneFaces(mesh: PolyMesh, faces: readonly number[], move: (p: Vec3) =>
     const positions: Vec3[] = [];
     const base = mesh.positions.length;
     const out = faces.map((f) => {
-        const face = mesh.faces[f]!;
+        const face = freezeFaceUv(mesh, mesh.faces[f]!);
         const v = face.v.map((i) => {
             let to = remap.get(i);
             if (to === undefined) {
@@ -227,7 +229,8 @@ function cloneFaces(mesh: PolyMesh, faces: readonly number[], move: (p: Vec3) =>
             }
             return to;
         });
-        return { ...face, v: flip ? v.reverse() : v };
+        return { ...face, v: flip ? v.reverse() : v,
+            ...(flip && face.cornerUvs ? { cornerUvs: [...face.cornerUvs].reverse() } : {}) };
     });
     return { positions, faces: out };
 }
