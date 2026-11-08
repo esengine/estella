@@ -29,7 +29,7 @@
 
 extern "C" {
 
-int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen, const char* atlasText, int atlasLen, int isBinary);
+int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen, uintptr_t atlasPtr, int atlasLen, int isBinary);
 const char* spine_getLastError();
 void spine_unloadSkeleton(int handle);
 int spine_getAtlasPageCount(int handle);

@@ -73,21 +73,16 @@ export class SpineModuleController {
 
     loadSkeleton(skelData: Uint8Array | string, atlasText: string, isBinary: boolean): number {
         return withScratch(this.raw_, alloc => {
-            let ptr: number;
-            let len: number;
-            if (typeof skelData === 'string') {
-                const encoder = new TextEncoder();
-                const bytes = encoder.encode(skelData);
-                len = bytes.length;
-                ptr = alloc(len + 1);
+            const put = (bytes: Uint8Array, terminate: boolean): number => {
+                const ptr = alloc(bytes.length + (terminate ? 1 : 0));
                 this.raw_.HEAPU8.set(bytes, ptr);
-                this.raw_.HEAPU8[ptr + len] = 0;
-            } else {
-                len = skelData.length;
-                ptr = alloc(len);
-                this.raw_.HEAPU8.set(skelData, ptr);
-            }
-            return this.api_.loadSkeleton(ptr, len, atlasText, atlasText.length, isBinary);
+                if (terminate) this.raw_.HEAPU8[ptr + bytes.length] = 0;
+                return ptr;
+            };
+            const encoder = new TextEncoder();
+            const skel = typeof skelData === 'string' ? encoder.encode(skelData) : skelData;
+            const atlas = encoder.encode(atlasText);
+            return this.api_.loadSkeleton(put(skel, typeof skelData === 'string'), skel.length, put(atlas, true), atlas.length, isBinary);
         });
     }
 

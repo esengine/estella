@@ -4126,4 +4126,6 @@ export const NOTED = {
     {"note": "World text under a perspective camera no longer eats the memory."},
   "fix(shader): a param may not take a name the engine declares for its domain, read from what the engine injects rather than a list of three":
     {"note": "A material parameter named like an engine uniform is refused on every platform."},
+  "fix(spine): the atlas reaches the module through the heap as UTF-8 bytes, so an atlas past 60 KB or with non-ASCII names loads":
+    {"note": "A Spine atlas of any size loads."},
 };

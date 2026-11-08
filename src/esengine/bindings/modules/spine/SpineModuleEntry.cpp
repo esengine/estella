@@ -153,12 +153,12 @@ extern "C" {
 
 EMSCRIPTEN_KEEPALIVE
 int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen,
-                       const char* atlasText, int atlasLen, int isBinary) {
+                       uintptr_t atlasPtr, int atlasLen, int isBinary) {
     g_ctx.lastError.clear();
 
     es::spine::Skeleton* loaded = es::spine::loadSkeleton(
         reinterpret_cast<const void*>(skelDataPtr), skelDataLen,
-        atlasText, atlasLen, isBinary != 0, g_ctx.lastError);
+        reinterpret_cast<const char*>(atlasPtr), atlasLen, isBinary != 0, g_ctx.lastError);
     if (!loaded) return -1;
 
     const int id = g_ctx.skeletons.add(SkeletonPtr(loaded));
