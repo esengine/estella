@@ -24,6 +24,8 @@
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace esengine::resource {
@@ -733,6 +735,76 @@ enum class ParseState {
     VertexHook
 };
 
+namespace {
+
+bool identChar(char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; }
+
+std::string declaredName(std::string_view decl) {
+    const size_t bracket = decl.find('[');
+    if (bracket != std::string_view::npos) decl = decl.substr(0, bracket);
+    while (!decl.empty() && !identChar(decl.back())) decl.remove_suffix(1);
+    size_t start = decl.size();
+    while (start > 0 && identChar(decl[start - 1])) --start;
+    return std::string(decl.substr(start));
+}
+
+void collectUniformNames(const std::string& glsl, std::unordered_map<std::string, std::string>& out) {
+    size_t at = 0;
+    while ((at = glsl.find("uniform ", at)) != std::string::npos) {
+        if (at > 0 && identChar(glsl[at - 1])) { at += 8; continue; }
+        const size_t end = glsl.find_first_of("{;", at);
+        if (end == std::string::npos) break;
+        if (glsl[end] == ';') {
+            const std::string name = declaredName(std::string_view(glsl).substr(at, end - at));
+            if (!name.empty()) out.emplace(name, "a uniform");
+            at = end + 1;
+            continue;
+        }
+        const std::string block = declaredName(std::string_view(glsl).substr(at, end - at));
+        const size_t close = glsl.find('}', end);
+        if (close == std::string::npos) break;
+        size_t member = end + 1;
+        while (member < close) {
+            const size_t semi = glsl.find(';', member);
+            if (semi == std::string::npos || semi > close) break;
+            std::string_view line = std::string_view(glsl).substr(member, semi - member);
+            const size_t hash = line.rfind('\n');
+            if (hash != std::string_view::npos) line = line.substr(hash + 1);
+            const std::string name = declaredName(line);
+            if (!name.empty() && line.find('#') == std::string_view::npos) out.emplace(name, block);
+            member = semi + 1;
+        }
+        at = close + 1;
+    }
+}
+
+const std::unordered_map<std::string, std::string>& engineUniformNames(const ParsedShader& parsed) {
+    static std::mutex lock;
+    static std::unordered_map<std::string, std::unordered_map<std::string, std::string>> byDomain;
+    std::lock_guard<std::mutex> guard(lock);
+    const std::string key = parsed.domain + (parsed.vertexIsCanonical ? "|canonical" : "|own");
+    auto found = byDomain.find(key);
+    if (found != byDomain.end()) return found->second;
+
+    ParsedShader probe;
+    probe.valid = true;
+    probe.version = parsed.version;
+    probe.domain = parsed.domain;
+    probe.vertexIsCanonical = parsed.vertexIsCanonical;
+    probe.stages[ShaderStage::Vertex] = parsed.vertexIsCanonical ? parsed.stages.at(ShaderStage::Vertex) : "void main() {}\n";
+    probe.stages[ShaderStage::Fragment] = "void main() {}\n";
+    const std::vector<std::string> everything{
+        "MESH", "MESH_NORMALS", "MESH_TANGENTS", "MESH_LIGHTMAP", "SKINNED", "ES_RECEIVE_SHADOW",
+        "ES_ENV_MAP", "ES_SURFACE_3D", "ES_GBUFFER", "ES_VELOCITY"};
+    auto& names = byDomain[key];
+    for (const ShaderStage stage : {ShaderStage::Vertex, ShaderStage::Fragment}) {
+        collectUniformNames(ShaderParser::assembleStage(probe, stage, "", everything, ShaderTargetLanguage::GLSL_ES300), names);
+    }
+    return names;
+}
+
+}  // namespace
+
 // =============================================================================
 // Public Methods
 // =============================================================================
@@ -801,19 +873,7 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
             // Declarative material parameter: ShaderParser owns its std140 slot in the
             // generated MaterialConstants block (or a sampler unit for textures).
             ShaderProperty prop = parseParamDirective(argument);
-            if (!prop.name.empty()) {
-                // Engine-injected uniforms — a param with the same name would redeclare them.
-                if (prop.name == "u_time" || prop.name == "u_viewport" || prop.name == "u_projection") {
-                    // Say what to do instead: the clock and the canvas size are
-                    // already there, and the author wanted exactly them.
-                    result.errorMessage = "#pragma param '" + prop.name +
-                        "' is reserved: the engine injects it into every shader. Remove the param and read it directly "
-                        "(GLSL: u_time.x = seconds, u_time.y = frame delta, u_viewport.xy = canvas pixels; "
-                        "WGSL: tc.u_time / tc.u_viewport). Give a parameter of your own a different name.";
-                    return result;
-                }
-                result.properties.push_back(prop);
-            }
+            if (!prop.name.empty()) result.properties.push_back(prop);
             continue;
         }
 
@@ -1055,6 +1115,23 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
         } else if (result.domain == "PostProcess") {
             result.wgslStages[ShaderStage::Vertex] = canonicalPPVertexStageWGSL();
             result.wgslVertexIsCanonical = true;
+        }
+    }
+
+    if (!result.properties.empty()) {
+        const auto& engine = engineUniformNames(result);
+        for (const auto& prop : result.properties) {
+            const auto clash = engine.find(prop.name);
+            if (clash == engine.end()) continue;
+            result.errorMessage = "#pragma param '" + prop.name + "' is reserved: the engine declares it in " +
+                (clash->second == "a uniform" ? std::string("a uniform") : "the " + clash->second + " block") +
+                " of every " + result.domain + " shader, and on WebGL two declarations of one name do not compile. " +
+                (clash->second == "TimeConstants"
+                    ? "Read it directly instead (GLSL: u_time.x = seconds, u_time.y = frame delta, u_viewport.xy = canvas pixels; "
+                      "WGSL: tc.u_time / tc.u_viewport). "
+                    : "") +
+                "Give a parameter of your own a different name.";
+            return result;
         }
     }
 

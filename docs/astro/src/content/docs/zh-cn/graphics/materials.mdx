@@ -138,7 +138,7 @@ Terrain、Foliage、Water、Hair、Skin、Eye 这几个模板属于各自的模�
 | `#pragma shader "Name"` | 显示名。 |
 | `#pragma version 300 es` | 每个 stage 的 GLSL 版本行。 |
 | `#pragma domain <D>` | `Unlit`(默认)、`Lit`、`PostProcess`、`UI`。`Lit` 注入光照 uniform + helper。旧拼写 `Unlit2D` / `Lit2D` 仍按这两个域加载。 |
-| `#pragma param …` | 反射的材质参数(见下表)。 |
+| `#pragma param …` | 反射的材质参数(见下表)。与引擎为该域已声明的名字重名会在着色器加载时被拒绝,所有平台一致(任何域都有的 `u_time`、`u_viewport`、`u_projection`;`Lit` 着色器里光照块的 `u_ambient`、`u_lights`、`u_shadowMatrix` 等):WebGL 里所有块成员共用一个命名空间,重复声明在那里编译不过。 |
 | `#pragma switch NAME [default(on)]` | 材质可控的静态排列开关(一个 `#define`)。 |
 | `#pragma coverage PARAM` | 浮点参数 `PARAM` 大于零时,着色器输出的 alpha 就是覆盖率——镂空的 alpha 在阈值附近锐化到约一个像素宽(`cutoutCoverage(alpha, cutoff, fwidth(alpha))`)。不透明物体画进多重采样目标时,它会转成多重采样覆盖率,镂空边缘就有抗锯齿而不是台阶;没有多重采样时就是硬切。任何距离都在阈值处切,与 glTF 的 MASK 定义一致:镂空缩小显示时之所以还保持原来的面积,是因为烘焙时把每级 mip 的 alpha 缩放到与原图在阈值处相同的覆盖率。内置 Model 着色器声明了 `u_alphaCutoff`。 |
 | `#pragma feature NAME` | 引擎选择的编译期变体关键字。 |

@@ -835,6 +835,27 @@ static void testLightingDirect() {
           "asked by the shader and the renderer, the define is written once");
 }
 
+static ParsedShader paramShader(const char* domain, const char* param) {
+    std::string src = std::string("#pragma shader \"P\"\n#pragma version 300 es\n#pragma domain ") + domain +
+        "\n#pragma param " + param + " color default(0.3,0.3,0.3,1)\n#pragma fragment\nprecision highp float;\n"
+        "out vec4 fragColor;\nvoid main() { fragColor = vec4(1.0); }\n#pragma end\n";
+    return ShaderParser::parse(src);
+}
+
+static void testParamsTheEngineDeclares() {
+    std::printf("\n-- #pragma param names the engine declares --\n");
+    for (const char* name : {"u_ambient", "u_lights", "u_shadowMatrix", "u_envIrradiance"}) {
+        const ParsedShader lit = paramShader("Lit", name);
+        CHECK(!lit.valid && lit.errorMessage.find("is reserved") != std::string::npos
+              && lit.errorMessage.find("LightConstants") != std::string::npos, name);
+    }
+    CHECK(paramShader("Unlit", "u_ambient").valid, "a name the Lit block takes is free in an Unlit shader, which has no light block");
+    const ParsedShader time = paramShader("Unlit", "u_time");
+    CHECK(!time.valid && time.errorMessage.find("u_time.x = seconds") != std::string::npos, "the clock is reserved everywhere, and the error says how to read it");
+    CHECK(!paramShader("Lit", "u_projection").valid, "so is the frame's projection");
+    CHECK(paramShader("Lit", "u_tint").valid && paramShader("Lit", "u_skyAmbient").valid, "a name of the author's own is taken as it is");
+}
+
 int main() {
     ParsedShader p = ShaderParser::parse(SRC);
     CHECK(p.valid, "shader parses");
@@ -862,6 +883,7 @@ int main() {
     testVertexHook();
     testShadowGraft();
     testLightingDirect();
+    testParamsTheEngineDeclares();
 
     if (g_failures == 0) {
         std::printf("\nALL SHADER-VARIANT TESTS PASSED\n");

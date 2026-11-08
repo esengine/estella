@@ -4124,4 +4124,6 @@ export const NOTED = {
     {"note": "Sound comes back when a device's audio dies on its own."},
   "fix(text): world text under a perspective camera draws as SDF, and no bitmap glyph is rasterized past half an atlas page":
     {"note": "World text under a perspective camera no longer eats the memory."},
+  "fix(shader): a param may not take a name the engine declares for its domain, read from what the engine injects rather than a list of three":
+    {"note": "A material parameter named like an engine uniform is refused on every platform."},
 };

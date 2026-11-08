@@ -169,7 +169,7 @@ One file holds every stage plus its metadata, separated by pragmas:
 | `#pragma shader "Name"` | Display name. |
 | `#pragma version 300 es` | GLSL version line for every stage. |
 | `#pragma domain <D>` | `Unlit` (default), `Lit`, `PostProcess`, `UI`. `Lit` injects the lighting uniforms + helpers. The older spellings `Unlit2D` / `Lit2D` still load as these. |
-| `#pragma param …` | A reflected material parameter (table below). |
+| `#pragma param …` | A reflected material parameter (table below). A name the engine already declares for the shader's domain (`u_time`, `u_viewport`, `u_projection` everywhere; the light block's `u_ambient`, `u_lights`, `u_shadowMatrix` … in a `Lit` shader) is refused when the shader loads, on every platform: WebGL keeps every block member in one namespace, so the second declaration would not compile there. |
 | `#pragma switch NAME [default(on)]` | Material-facing static permutation toggle (a `#define`). |
 | `#pragma feature NAME` | Engine-chosen compile-time variant keyword. |
 | `#pragma lighting direct` | A `Lit` shader lit by the sixteen lights of the block and hard-edged shadows only. It compiles without the tiled lights past those sixteen, the 2D light masks, and soft and hair shadows, which every pixel pays for on a phone whether a scene uses them or not. A light with a size (a sun's `sourceAngle`) casts a hard shadow here. The Water shader declares it, and the `low` and `medium` quality levels compile every lit mesh this way (see [Lighting on a phone](/docs/graphics/lighting/#lighting-on-a-phone)). |
