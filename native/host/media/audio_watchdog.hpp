@@ -2,7 +2,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #pragma once
 
-#include <algorithm>
 #include <cstdint>
 
 namespace eshost {
@@ -35,7 +34,8 @@ public:
         }
         if (nowMs < nextTryMs_) return Action::None;
         ++failures_;
-        nextTryMs_ = nowMs + std::min(kGraceMs * double(1 << std::min(failures_, 4)), kMaxBackoffMs);
+        const double backoff = kGraceMs * double(1 << (failures_ < 4 ? failures_ : 4));
+        nextTryMs_ = nowMs + (backoff < kMaxBackoffMs ? backoff : kMaxBackoffMs);
         return failures_ <= kRestartsBeforeRebuild ? Action::Restart : Action::Rebuild;
     }
 
