@@ -111,6 +111,17 @@ jobs:
       run: node tools/tests/composite-batch.e2e.mjs --webgl-only
     - name: Check 2D and 3D world residency teardown with genuine headless Chromium
       run: node tools/tests/world-residency.e2e.mjs --webgl-only
+    - name: Check baked static proxy geometry and materials
+      run: node tools/tests/static-proxy.e2e.mjs --webgl-only
+    - name: Upload static proxy observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: static-proxy-webgl2
+        path: |
+          output/static-proxy/*.png
+          output/static-proxy/report.json
+        retention-days: 3
     - name: Upload world residency observations
       if: always()
       uses: actions/upload-artifact@v7
@@ -1131,6 +1142,17 @@ jobs:
       run: node tools/tests/composite-batch.e2e.mjs --webgpu-only
     - name: Check 2D and 3D world residency teardown on the second backend
       run: node tools/tests/world-residency.e2e.mjs --webgpu-only
+    - name: Check baked static proxy geometry and materials on the second backend
+      run: node tools/tests/static-proxy.e2e.mjs --webgpu-only
+    - name: Upload second-backend static proxy observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: static-proxy-webgpu
+        path: |
+          output/static-proxy/*.png
+          output/static-proxy/report.json
+        retention-days: 3
     - name: Upload second-backend world residency observations
       if: always()
       uses: actions/upload-artifact@v7

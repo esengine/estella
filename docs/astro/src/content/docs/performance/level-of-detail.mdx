@@ -149,14 +149,50 @@ world.insert(tree, Impostor, { screenSize: 0.06, frames: 8, resolution: 1024 });
   goes round (more `frames` is smaller steps), a card casts no shadow and is not seen from below, and the pictures are taken in
   Play and in a built game, not in the editor's own viewport.
 
+## Baking static cluster geometry
+
+Node authoring tools can call `bakeStaticProxy` from `@estella/pipeline` to merge and
+simplify an already-partitioned cluster. Each source supplies decoded mesh data, a
+world matrix, draw state and an explicit motion/blending classification. The baker
+uses the same geometry merge and draw grouping as static batching.
+
+```typescript
+import { bakeStaticProxy } from '@estella/pipeline';
+
+const proxy = await bakeStaticProxy(sources, {
+    origin: [1000, 0, 2000],
+    ratio: 0.25,
+    maxWorldError: 0.05,
+});
+```
+
+The result contains cluster-local meshes, their original draw state, source ids,
+before/after triangle and byte counts, measured error and input fingerprints.
+Place them at `proxy.origin`. Material, texture, tint, layer, lighting and shadow
+differences remain separate draws. The caller writes the mesh assets and resolves
+the collected draw identifiers to asset references; this API does not modify a scene.
+
+`maxWorldError` is in world units, so adding a distant building does not enlarge the
+allowed error. `ratio` is a target; the error limit can retain more triangles.
+Vertex colours and both UV sets contribute to the simplification error. Set
+`preserveGeometry: true` on emissive or other sensitive surfaces; any protected
+source preserves the geometry of its compatible group while still allowing merging.
+`pruneDisconnected: true` permits deletion of entire small disconnected pieces and
+requires image comparison. It is off by default.
+
+Moving, deformed, billboard, blended, lightmapped, skinned and morphing surfaces
+are reported in `refused`. Keep those surfaces under their existing ownership.
+This is the geometry stage of HLOD: texture/emission baking, automatic cell
+proxy generation, distance selection and detail/proxy streaming handoff remain separate work.
+
 ## What this is not
 
 `LODGroup` is about **one object at different sizes**. It is not a streaming
 system: every level's mesh is resident, nothing is loaded or unloaded, and an
 object that is `cullSize`-small is simply not drawn rather than removed from the
 world. Combining distant objects into one merged proxy (HLOD) and loading a world
-in pieces are separate concerns, and there is no general-purpose HLOD that bakes
-arbitrary scene objects into a proxy. What exists is specific: the far versions
+in pieces are separate concerns. The static proxy baker above does not yet connect
+cell proxies to world streaming. Existing runtime choices are the far versions
 of plants (`Foliage`, `PlacedFoliage` — see [Foliage](/docs/graphics/foliage/)),
 the terrain's own distance-based quadtree
 ([Terrain](/docs/graphics/terrain/)), and [static batching](/docs/performance/static-batching/),

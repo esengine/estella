@@ -868,6 +868,8 @@ export {
 } from './terrain/provider';
 export {
     mergeMeshes, planStaticBatches, STATIC_BATCH_DEFAULTS,
+    channelSignature as staticBatchLayout, layoutRefusal as staticBatchLayoutRefusal, staticBatchKey,
+    type StaticBatchState as StaticBatchDrawState,
     type StaticBatchGroup, type StaticBatchLimits, type StaticBatchRefusal, type StaticBatchReport,
 } from './render/staticBatch';
 export {
