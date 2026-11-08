@@ -896,7 +896,7 @@ export class AnimatorControllerAPI {
         const span: MotionSpan = {
             from: lrt.prevTime, to: lrt.time, inclusiveStart: lrt.entered,
         };
-        if (motion && events) this.emitEvents(ctx, entity, motion, span, events);
+        if (motion) this.emitEvents(ctx, entity, motion, span, events);
         if (index === 0) {
             this.publishRootMotion(world, entity, ctx, motion, span, drivesRoot, travel);
         }
@@ -941,13 +941,13 @@ export class AnimatorControllerAPI {
      */
     private emitEvents(
         ctx: MotionContext, entity: Entity,
-        motion: AnimatorMotion, span: MotionSpan, events: AnimatorEventSink,
+        motion: AnimatorMotion, span: MotionSpan, events?: AnimatorEventSink,
     ): void {
         const crossed = this.eventScratch_;
         crossed.length = 0;
         ctx.events(motion, span, crossed);
         for (const e of crossed) {
-            events.send({ entity, name: e.name, value: e.value, text: e.text });
+            events?.send({ entity, name: e.name, value: e.value, text: e.text });
         }
     }
 

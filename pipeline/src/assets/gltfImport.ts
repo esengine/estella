@@ -16,6 +16,8 @@ import { MESH_MAX_BONES, MeshChannel, MeshChannelType, packChannels,
 import { MeshoptDecoder } from 'meshoptimizer/decoder';
 import { generateTangents } from './meshTangents';
 import { readSpringBones } from './springBoneSource';
+import { readGltfPhysics } from './gltfPhysics';
+import { readGltfParticle } from './gltfParticles';
 import {
     ANIMATED_PATHS, alignQuaternionSigns, animationProductName, disambiguateNodes,
     nodeChildPaths, nodeNameFor, samplerKeyframes, timelineDocument,
@@ -101,6 +103,7 @@ function readCamera(camera: NonNullable<GltfJson['cameras']>[number] | undefined
 }
 
 interface GltfJson {
+    extras?: { estella?: { warnings?: string[] } };
     accessors?: {
         bufferView?: number; byteOffset?: number; componentType: number; count: number;
         type: string; normalized?: boolean; min?: number[]; max?: number[];
@@ -154,7 +157,7 @@ interface GltfJson {
         /** Overrides the mesh's own starting weights for this instance of it. */
         weights?: number[];
         camera?: number;
-        extensions?: { KHR_lights_punctual?: { light?: number } };
+        extensions?: { KHR_lights_punctual?: { light?: number }; KHR_node_visibility?: { visible?: boolean } };
         extras?: unknown;
     }[];
     cameras?: {
@@ -166,7 +169,9 @@ interface GltfJson {
     skins?: { name?: string; joints: number[]; inverseBindMatrices?: number; skeleton?: number }[];
     animations?: {
         name?: string;
-        channels: { sampler: number; target: { node?: number; path: string } }[];
+        extras?: { estella?: { particles?: { node: number; events: { time: number; action: string }[] }[] } };
+        channels: { sampler: number; target: { node?: number; path: string;
+            extensions?: { KHR_animation_pointer?: { pointer?: string } } } }[];
         samplers: { input: number; output: number; interpolation?: string }[];
     }[];
     scenes?: { nodes?: number[] }[];
@@ -596,6 +601,16 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
 
     const texture = pbr.baseColorTexture
         ? readTexture(ctx, textureCache, pbr.baseColorTexture, label) : null;
+    // PBR properties are only fallbacks on an unlit material. Reading them as
+    // shading would change the authored style and upload textures never sampled.
+    if (src.extensions?.KHR_materials_unlit !== undefined) return {
+        index, name: src.name ?? `material_${index}`, unlit: true,
+        ...((src.extras as any)?.estella?.blendMode === 1 ? { blendMode: 1 } : {}),
+        baseColor: [factor[0] ?? 1, factor[1] ?? 1, factor[2] ?? 1, factor[3] ?? 1],
+        opaque: (src.alphaMode ?? 'OPAQUE') !== 'BLEND', cullBackfaces: src.doubleSided !== true,
+        ...(texture ? { baseColorTexture: texture } : {}),
+        ...(src.alphaMode === 'MASK' ? { alphaCutoff: src.alphaCutoff ?? 0.5 } : {}),
+    };
     const normal = src.normalTexture
         ? readTexture(ctx, textureCache, src.normalTexture, label) : null;
     const emissiveMap = src.emissiveTexture
@@ -659,6 +674,7 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
 
 /** The extensions that say something about SHADING and are read into the Model shader's layers. */
 const SHADING_EXTENSIONS = new Set([
+    'KHR_materials_unlit',
     'KHR_materials_emissive_strength', 'KHR_materials_clearcoat', 'KHR_materials_sheen', 'KHR_materials_anisotropy',
     'KHR_materials_ior', 'KHR_materials_specular', 'KHR_materials_transmission', 'KHR_materials_volume',
     'KHR_materials_diffuse_transmission', 'KHR_materials_iridescence',
@@ -819,6 +835,9 @@ function readNodes(json: GltfJson, meshIndexOf: Map<string, number>,
             : readLight(json.extensions?.KHR_lights_punctual?.lights?.[lightIndex], warnings, name);
         const camera = node.camera === undefined ? undefined : readCamera(json.cameras?.[node.camera]);
         return { index, name, ...nodeTrs(node), meshes, children,
+                 particle: readGltfParticle(node.extras, name, warnings),
+                 ...([0,1].includes((node.extras as any)?.estella?.billboard) ? { billboard: (node.extras as any).estella.billboard } : {}),
+                 ...(node.extensions?.KHR_node_visibility ? { visibility: node.extensions.KHR_node_visibility.visible !== false } : {}),
                  ...(light ? { light } : {}), ...(camera ? { camera } : {}), ...(spring.get(index) ?? {}) };
     };
 
@@ -977,11 +996,21 @@ function readAnimations(json: GltfJson, src: GltfBytes, nodes: ImportedNode[],
         let drivesSkin = false;
 
         for (const channel of animation.channels ?? []) {
-            const target = channel.target?.node;
-            const kind = channel.target?.path ?? '';
+            let target = channel.target?.node;
+            let kind = channel.target?.path ?? '';
+            const pointer = channel.target?.extensions?.KHR_animation_pointer?.pointer;
+            if (kind === 'pointer') {
+                const match = pointer?.match(/^\/nodes\/(\d+)\/(translation|rotation|scale|weights|extensions\/KHR_node_visibility\/visible)$/);
+                if (!match) {
+                    warnings.push(`${name}: animation pointer "${pointer ?? '(missing)'}" is not imported`);
+                    continue;
+                }
+                target = Number(match[1]);
+                kind = match[2] === 'extensions/KHR_node_visibility/visible' ? 'visibility' : match[2]!;
+            }
             const spec = ANIMATED_PATHS[kind];
             if (target === undefined || !paths.has(target)) continue;
-            if (!spec && kind !== 'weights') {
+            if (!spec && kind !== 'weights' && kind !== 'visibility') {
                 warnings.push(`${name}: "${kind}" channels are not imported`);
                 continue;
             }
@@ -990,6 +1019,20 @@ function readAnimations(json: GltfJson, src: GltfBytes, nodes: ImportedNode[],
             const path = paths.get(target)!;
             const label = nodeNameFor(nodes, target);
             const interpolation = INTERPOLATION[sampler.interpolation ?? 'LINEAR'] ?? 'linear';
+
+            if (kind === 'visibility') {
+                const times = readAccessor(src, sampler.input), values = readAccessor(src, sampler.output);
+                if (!times.length || values.length !== times.length) {
+                    warnings.push(`${name}: visibility sampler must contain one scalar per key`);
+                    continue;
+                }
+                const node = findNode(nodes, target)!;
+                node.visibility ??= true;
+                byNode.set(`NodeVisibility ${path}`, { node: label, childPath: path, component: 'NodeVisibility',
+                    channels: new Map([['visible', samplerKeyframes(times, values, 1, 'step')[0]!]]) });
+                duration = Math.max(duration, times[times.length - 1] ?? 0);
+                continue;
+            }
 
             // A weights channel drives the SHAPE of whatever that node draws, and
             // one node may draw several primitives — each with its own targets and
@@ -1025,7 +1068,27 @@ function readAnimations(json: GltfJson, src: GltfBytes, nodes: ImportedNode[],
             byNode.set(`Transform ${path}`, entry);
         }
 
-        if (byNode.size === 0) {
+        const bridgeTracks = animation.extras?.estella?.particles ?? [];
+        if (!Array.isArray(bridgeTracks) || bridgeTracks.length > 16384)
+            warnings.push(`${name}: invalid estella particle tracks; tracks skipped`);
+        const particleTracks = (Array.isArray(bridgeTracks) && bridgeTracks.length <= 16384 ? bridgeTracks : []).flatMap(track => {
+            if (!track || !Number.isInteger(track.node) || !Array.isArray(track.events) || track.events.length > 4096) {
+                warnings.push(`${name}: invalid estella particle track; track skipped`);
+                return [];
+            }
+            const node = findNode(nodes, track.node), path = paths.get(track.node);
+            if (!node?.particle || path === undefined) {
+                warnings.push(`${name}: particle track target ${track.node} has no imported emitter`);
+                return [];
+            }
+            const events = track.events.filter(e => e && Number.isFinite(e.time) && e.time >= 0 && ['play','stop','reset'].includes(e.action))
+                .map(e => ({ time: e.time, action: e.action }));
+            if (events.length !== track.events.length) warnings.push(`${name}: invalid particle events were skipped`);
+            if (!events.length) return [];
+            for (const e of events) duration = Math.max(duration, e.time);
+            return [{ type: 'particle', name: node.name, childPath: path, events }];
+        });
+        if (byNode.size === 0 && !particleTracks.length) {
             warnings.push(`${name}: no channel targets a node this import produced`);
             continue;
         }
@@ -1036,10 +1099,9 @@ function readAnimations(json: GltfJson, src: GltfBytes, nodes: ImportedNode[],
             warnings.push(`${name}: animates a node that carries a skin, whose own transform is`
                 + ' ignored (glTF requires it) — this channel moves nothing. Animate its joints.');
         }
-        out.push({
-            name: animationProductName(stem, name),
-            document: timelineDocument(duration, byNode),
-        });
+        const document = timelineDocument(duration, byNode);
+        (document.tracks as unknown[]).push(...particleTracks);
+        out.push({ name: animationProductName(stem, name), document });
     }
     return out;
 }
@@ -1073,6 +1135,7 @@ export async function importGltfMeshes(
         json = JSON.parse(new TextDecoder().decode(bytes)) as GltfJson;
     }
 
+    for (const note of json.extras?.estella?.warnings ?? []) if (typeof note === 'string') warnings.push('Scene bridge: ' + note);
     const externalFiles: string[] = [];
     const noteExternal = (uri: string): void => {
         const decoded = decodeURIComponent(uri);
@@ -1350,6 +1413,15 @@ export async function importGltfMeshes(
         warnings.push('no triangle geometry found');
     }
     const nodes = readNodes(json, meshIndexOf, warnings);
+    const particleTextures = new Map<number, ImportedImageRef | null>();
+    const bindParticle = (node: ImportedNode) => {
+        const texture = (json.nodes?.[node.index]?.extras as any)?.estella?.particle?.texture;
+        if (node.particle && Number.isInteger(texture) && texture >= 0)
+            node.particle.texture = readTexture({ src, json, stem, textures, warnings }, particleTextures, { index: texture }, node.name) ?? undefined;
+        node.children.forEach(bindParticle);
+    };
+    nodes.forEach(bindParticle);
+    readGltfPhysics(json, nodes, meshes, meshIndexOf, stem, warnings);
     return {
         meshes, textures, externalFiles, nodes, warnings,
         animations: readAnimations(json, src, nodes, meshes, stem, warnings),

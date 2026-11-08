@@ -6,6 +6,7 @@
  */
 
 import { World } from '../ecs/world';
+import { exportNodeVisibility } from './nodeVisibility';
 import { Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
 import { isPrefabEntry, type SceneEntry } from './sceneEntry';
@@ -15,6 +16,8 @@ import { validateScene } from './validateScene';
 import { getComponent, Name, Camera, RuntimeOnly } from '../ecs/component';
 import { deepClone } from '../util/deepClone';
 import { discoverSceneAssets } from '../asset/discoverAssets';
+import { AssetScope } from '../asset/AssetLease';
+import type { PrefabResult } from '../asset/AssetLoader';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { validateComponentData, formatValidationErrors } from '../util/validation';
 import { log } from '../util/logger';
@@ -652,15 +655,22 @@ export async function loadSceneWithAssets(
     let scene = sceneData;
     if (options?.assets && sceneHasPrefabEntries(scene)) {
         const assets = options.assets;
-        scene = await timed('prefab', () => expandScenePrefabs(scene, async (ref) => {
-            try {
-                const r = await assets.loadPrefab(ref);
-                return (r?.data as PrefabData) ?? null;
-            } catch (e) {
-                log.warn('scene', `Failed to load prefab "${ref}": ${e}`);
-                return null;
-            }
-        }));
+        const sources = new AssetScope();
+        try {
+            scene = await timed('prefab', () => expandScenePrefabs(scene, async (ref) => {
+                try {
+                    const lease = sources.add(await assets.acquireTyped<PrefabResult>('prefab', ref));
+                    return (lease.value.data as PrefabData) ?? null;
+                } catch (e) {
+                    log.warn('scene', `Failed to load prefab "${ref}": ${e}`);
+                    return null;
+                }
+            }));
+        } finally {
+            // Expansion copies source JSON into scene records. Only those records'
+            // asset dependencies outlive this phase, acquired by the preload below.
+            sources.releaseAll();
+        }
     }
     // Migrate up-front to a private copy; asset resolution + spawn all operate
     // on it, so the caller's SceneData is never mutated.
@@ -858,6 +868,7 @@ export function serializeEntityComponents(world: World, entity: Entity): SceneCo
         // Components with out-of-band state (e.g. TilemapLayer chunks) fold
         // it into the record via their registered codec.
         sceneComponentCodec(world, typeName)?.exportData?.(entityNum, payload);
+        exportNodeVisibility(world, entity, typeName, payload);
         components.push({
             type: typeName,
             data: payload,

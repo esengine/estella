@@ -10,6 +10,7 @@ import {
     type SpineTrack,
     type SpriteAnimTrack,
     type AudioTrack,
+    type ParticleTrack,
     type ActivationTrack,
     type MarkerTrack,
     type CustomEventTrack,
@@ -130,6 +131,11 @@ function parseTrack(raw: any): Track {
                 type: TrackType.Marker,
                 markers: raw.markers ?? [],
             } as MarkerTrack;
+
+        case TrackType.Particle:
+            return { ...base, type: TrackType.Particle, events: (raw.events ?? []).filter((e: any) =>
+                Number.isFinite(e.time) && e.time >= 0 && ['play', 'stop', 'reset'].includes(e.action))
+                .map((e: any) => ({ time: e.time, action: e.action })) } as ParticleTrack;
 
         case TrackType.CustomEvent:
             return {

@@ -37,6 +37,7 @@ function serializeTrack(track: Track): Record<string, unknown> {
             return { ...base, clips: track.clips, blendIn: track.blendIn };
         case TrackType.SpriteAnim:
             return { ...base, clip: track.clip, startTime: track.startTime };
+        case TrackType.Particle:
         case TrackType.Audio:
             return { ...base, events: track.events };
         case TrackType.Activation:

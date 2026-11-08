@@ -17,6 +17,7 @@ import type { SystemDef } from '../ecs/system';
 import type { World } from '../ecs/world';
 import { log } from '../util/logger';
 import { ensureSceneAiRegistrations } from './ai-builtins';
+import { NodeVisibilityState } from './nodeVisibility';
 
 const sceneTransitionSystem = defineSystem(
     [ResMut(SceneManager), Res(Time)],
@@ -61,6 +62,9 @@ export const sceneManagerPlugin: Plugin = {
         // app assemblies: a cell IS an additive scene, so an assembly that can load
         // one can stream one, and a fourth place to remember is a place to forget.
         app.addPlugin(worldResidencyPlugin);
+        const visibility = new NodeVisibilityState();
+        app.addSystemToSchedule(Schedule.PostUpdate, defineSystem([], () => visibility.update(app.world),
+            { name: 'NodeVisibilitySystem' }));
 
         const initSystem: SystemDef = {
             _id: Symbol('SceneInitSystem'),

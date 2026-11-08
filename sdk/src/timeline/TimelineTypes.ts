@@ -51,6 +51,7 @@ export const TrackType = {
     Spine: 'spine',
     SpriteAnim: 'spriteAnim',
     Audio: 'audio',
+    Particle: 'particle',
     Activation: 'activation',
     Marker: 'marker',
     CustomEvent: 'customEvent',
@@ -102,6 +103,11 @@ export interface SpriteAnimTrack extends TrackBase {
     type: typeof TrackType.SpriteAnim;
     clip: string;
     startTime: number;
+}
+
+export interface ParticleTrack extends TrackBase {
+    type: typeof TrackType.Particle;
+    events: { time: number; action: 'play' | 'stop' | 'reset' }[];
 }
 
 export interface AudioEvent {
@@ -193,7 +199,7 @@ export interface SequenceTrack extends TrackBase {
     clips: SequenceClip[];
 }
 
-export type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack | CameraTrack | SequenceTrack;
+export type Track = PropertyTrack | SpineTrack | SpriteAnimTrack | ParticleTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack | CameraTrack | SequenceTrack;
 
 export interface TimelineAsset {
     version: string;

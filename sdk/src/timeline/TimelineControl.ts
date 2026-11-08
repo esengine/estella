@@ -105,7 +105,10 @@ export class TimelineAPI {
             s.playing = false;
             s.time = 0;
             s.prevTime = 0;
+            s.phase = 0;
+            s.started = false;
             s.spineClipIndices = {};
+            s.nested = {};
         }
         this.flags_?.reset(entity);
     }
@@ -115,6 +118,8 @@ export class TimelineAPI {
         if (s) {
             s.prevTime = s.time;
             s.time = time;
+            s.phase = time;
+            s.started = true;
         }
     }
 

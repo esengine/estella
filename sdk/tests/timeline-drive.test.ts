@@ -324,3 +324,37 @@ describe('nested sequences', () => {
         expect(Object.keys(s.nested)).toHaveLength(0);
     });
 });
+
+describe('native particle event tracks', () => {
+    it('keeps the ping-pong phase across frames and shares entry/crossing semantics with animator motions', () => {
+        const asset: TimelineAsset={version:'1.3',type:'timeline',duration:1,wrapMode:WrapMode.PingPong,
+            tracks:[{type:TrackType.Particle,name:'burst',childPath:'',events:[{time:0,action:'play'},{time:.5,action:'stop'}]}]};
+        const state=createTimelineState(WrapMode.PingPong);state.playing=true;
+        const calls:string[]=[],particle={reset:()=>calls.push('reset'),play:()=>calls.push('play'),stop:()=>calls.push('stop')};
+        const deps:SampleDeps={world:{} as SampleDeps['world'],getComponent:()=>undefined,resolveChild:resolveRoot};
+        advanceTimelineTS(asset,ROOT,state,0,{deps,particle});
+        advanceTimelineTS(asset,ROOT,state,0,{deps,particle});
+        const times:number[]=[];
+        for(let i=0;i<4;i++){advanceTimelineTS(asset,ROOT,state,.6,{deps,particle});times.push(state.time);}
+        [.6,.8,.2,.4].forEach((time,i)=>expect(times[i]).toBeCloseTo(time));
+        expect(calls).toEqual(['reset','play','stop','stop','reset','play']);
+        const api=new TimelineAPI();const owned=api.ensureState(ROOT,WrapMode.PingPong,1);
+        Object.assign(owned,state);api.stop(ROOT);api.play(ROOT);
+        advanceTimelineTS(asset,ROOT,owned,.1,{deps,particle});
+        expect(owned.time).toBeCloseTo(.1);expect(calls.slice(-2)).toEqual(['reset','play']);
+    });
+    it('restarts once at zero, stops at its key, and fires again across a loop', () => {
+        const asset: TimelineAsset={version:'1.3',type:'timeline',duration:1,wrapMode:WrapMode.Loop,
+            tracks:[{type:TrackType.Particle,name:'burst',childPath:'',events:[{time:0,action:'play'},{time:.5,action:'stop'}]}]};
+        const state=createTimelineState(WrapMode.Loop);state.playing=true;
+        const calls:string[]=[],particle={reset:()=>calls.push('reset'),play:()=>calls.push('play'),stop:()=>calls.push('stop')};
+        const deps:SampleDeps={world:{} as SampleDeps['world'],getComponent:()=>undefined,resolveChild:resolveRoot};
+        advanceTimelineTS(asset,ROOT,state,.1,{deps,particle});
+        advanceTimelineTS(asset,ROOT,state,.1,{deps,particle});
+        expect(calls).toEqual(['reset','play']);
+        advanceTimelineTS(asset,ROOT,state,.4,{deps,particle});
+        expect(calls).toEqual(['reset','play','stop']);
+        advanceTimelineTS(asset,ROOT,state,.5,{deps,particle});
+        expect(calls).toEqual(['reset','play','stop','reset','play']);
+    });
+});

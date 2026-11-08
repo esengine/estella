@@ -10,13 +10,14 @@
  */
 import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { isInsideRoot, resolveInside } from '../fs/pathSandbox';
 import { adoptOrphan } from './assetMeta';
 import {
     encodeImportedMesh, assembleModelPrefab, materialProducts, applyLightmapUV, importedImageSettings,
     generateLods, lodName, encodeGeneratedLod, orderHairTriangles,
-    type ImportedNode, type SpecularMapReading,
+    type ImportedMesh, type ImportedNode, type SpecularMapReading,
 } from './modelImport';
 import { modelStem, readModelSource } from './readModelSource';
 
@@ -213,14 +214,39 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
     }
 
     const meshFiles: string[] = [];
+    const meshNames = new Map<ImportedMesh, string>();
+    const geometryProducts = new Map<string, string>();
     for (const mesh of meshes) {
-        meshFiles.push(await write(`${mesh.name}.esmesh`, encodeImportedMesh(mesh)));
-        for (const [i, lod] of (mesh.lods ?? []).entries()) {
-            await write(`${lodName(mesh, i + 1)}.esmesh`, encodeGeneratedLod(lod));
+        const bytes = encodeImportedMesh(mesh);
+        const levels = (mesh.lods ?? []).map(encodeGeneratedLod);
+        // Exporters can repeat a mesh definition for every placed grid cell. Distinct
+        // paths give identical geometry distinct GPU handles and prevent instancing.
+        // Compare the complete encoded geometry (UVs, skin/morph data and every LOD),
+        // not its name, bounds or vertex count. Per-instance bindings stay on the node.
+        const hash = createHash('sha256');
+        for (const part of [bytes, ...levels]) {
+            const length = Buffer.allocUnsafe(4);
+            length.writeUInt32LE(part.byteLength);
+            hash.update(length).update(part);
+        }
+        const signature = hash.digest('hex');
+        const previous = geometryProducts.get(signature);
+        const name = previous ?? mesh.name;
+        geometryProducts.set(signature, name);
+        meshNames.set(mesh, name);
+        meshFiles.push(destDir ? `${destDir}/${name}.esmesh` : `${name}.esmesh`);
+        // Keep old standalone references and UUIDs working when reimporting a model
+        // first imported before sharing was supported. New imports write only the
+        // canonical product; the prefab always references it, including its LODs.
+        if (previous === undefined || existsSync(path.join(absDir, `${mesh.name}.esmesh`))) {
+            await write(`${mesh.name}.esmesh`, bytes);
+            for (const [i, lodBytes] of levels.entries()) {
+                await write(`${lodName(mesh, i + 1)}.esmesh`, lodBytes);
+            }
         }
     }
     for (const texture of textures) await write(texture.name, texture.bytes);
-    const refs = { prefix: destDir ? `${destDir}/` : '', external, characters, springBones };
+    const refs = { prefix: destDir ? `${destDir}/` : '', external, characters, springBones, meshNames };
     for (const material of materialProducts(meshes, stem, refs)) {
         await write(`${material.name}.esmaterial`, `${JSON.stringify(material.data, null, 2)}\n`);
     }

@@ -18,7 +18,7 @@
  *          that is here, so the loop seam is a unit test rather than a frame.
  */
 
-import { WrapMode, TrackType, type TimelineAsset } from './TimelineTypes';
+import { WrapMode, TrackType, type TimelineAsset, type ParticleTrack } from './TimelineTypes';
 import type { MotionEvent } from '../animation/motion';
 
 /**
@@ -78,6 +78,10 @@ export function playheadRuns(
 
     const cycle = duration * 2;
     if (span >= cycle) return [{ from: 0, to: duration, inclusiveStart: true }];
+    if (span === 0) {
+        const time = pingPongPhase(from, duration);
+        return [{ from: time, to: time, inclusiveStart }];
+    }
     const runs: PlayheadRun[] = [];
     let phase = from % cycle;
     const end = phase + span;
@@ -104,6 +108,30 @@ export function runCrosses(run: PlayheadRun, at: number): boolean {
     if (to > from) return (at > from || (inclusiveStart && at === from)) && at <= to;
     if (to < from) return (at < from || (inclusiveStart && at === from)) && at >= to;
     return inclusiveStart && at === from;
+}
+
+/** Shared by standalone players and animator motions; pose sampling never fires effects. */
+export function forEachParticleEvent(
+    track: ParticleTrack, runs: readonly PlayheadRun[],
+    emit: (action: ParticleTrack['events'][number]['action']) => void,
+): void {
+    for (const run of runs) {
+        let first: ParticleTrack['events'][number] | undefined;
+        let crossed: ParticleTrack['events'] | undefined;
+        for (const event of track.events) {
+            if (!runCrosses(run, event.time)) continue;
+            if (!first) first = event;
+            else (crossed ??= [first]).push(event);
+        }
+        // Most frames cross no key or one key. Only a multi-key crossing needs
+        // storage and ordering; a reverse run must reach the later key first.
+        // Stable sort preserves authored order for actions at the same instant.
+        if (crossed) {
+            const direction = run.to < run.from ? -1 : 1;
+            crossed.sort((a, b) => direction * (a.time - b.time));
+            for (const event of crossed) emit(event.action);
+        } else if (first) emit(first.action);
+    }
 }
 
 /** The event's numeric payload, or 0 where it carries none. */

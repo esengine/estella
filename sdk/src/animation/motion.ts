@@ -211,6 +211,9 @@ export interface MotionDriver<M extends AnimatorMotion = AnimatorMotion> {
      * clip declares them. Wrapping belongs here for the same reason sampling does:
      * only the driver knows how long its clip runs and whether it repeats, and a
      * caller differencing two absolute times cannot tell a loop from a rewind.
+     * This is also the active motion's native-effect dispatch point. It runs even
+     * without a custom event sink, only for the selected motion (never its fading
+     * predecessor). Sampling poses must stay free of those side effects.
      */
     events?(ctx: MotionContext, motion: M, span: MotionSpan, out: MotionEvent[]): void;
     /**

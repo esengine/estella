@@ -27,9 +27,10 @@ import {
     applyWrapMode, sampleTimelineIntoPose, isRootPlacementChannel,
     sampleRootPlacement, createRootPlacement, type SampleDeps, type SampleOptions,
 } from './TimelineEvaluator';
-import { playheadRuns, collectCustomEvents } from './timelineEvents';
-import { resolveChildEntity } from './TimelineRuntime';
-import { WrapMode, type TimelineAsset } from './TimelineTypes';
+import { playheadRuns, collectCustomEvents, forEachParticleEvent } from './timelineEvents';
+import { applyTimelineEvent, resolveChildEntity, TimelineEventType } from './TimelineRuntime';
+import { TrackType, WrapMode, type TimelineAsset } from './TimelineTypes';
+import type { ParticleAPI } from '../particle/ParticleAPI';
 import { q } from '../math/quat';
 import type { TimelineAPI } from './TimelineControl';
 
@@ -54,7 +55,12 @@ const WITHOUT_ROOT: SampleOptions = { skipChannel: isRootPlacementChannel };
  * The driver, over the app's own {@link TimelineAPI}: which clip a name resolves
  * to is per App, so this is built per App rather than being a module value.
  */
-export function createTimelineMotionDriver(timeline: TimelineAPI): MotionDriver<AnimatorClipMotion> {
+export interface TimelineMotionEffects {
+    /** Resolve lazily: a module may be installed after the timeline plugin. Per App. */
+    particle?: () => Pick<ParticleAPI, 'play' | 'stop' | 'reset'> | null;
+}
+
+export function createTimelineMotionDriver(timeline: TimelineAPI, effects: TimelineMotionEffects = {}): MotionDriver<AnimatorClipMotion> {
     // Two placements, reused: extraction runs per animated entity per frame, and
     // one of these per call is an allocation the steady state does not need.
     const before = createRootPlacement();
@@ -100,7 +106,18 @@ export function createTimelineMotionDriver(timeline: TimelineAPI): MotionDriver<
         ): void {
             const asset = timeline.getAsset(motion.clip);
             if (!asset) return;
-            collectCustomEvents(asset, runsOf(asset, motion, span), out);
+            const runs = runsOf(asset, motion, span);
+            collectCustomEvents(asset, runs, out);
+            const particle = effects.particle?.();
+            if (!particle) return;
+            for (const track of asset.tracks) {
+                if (track.type !== TrackType.Particle) continue;
+                const target = ctx.resolveJoint(ctx.entity, track.childPath);
+                if (target === null) continue;
+                forEachParticleEvent(track, runs, action => {
+                    applyTimelineEvent(ctx.world, null, TimelineEventType.ParticleAction, target, 0, 0, action, particle);
+                });
+            }
         },
 
         /**

@@ -5,6 +5,7 @@ import { SpriteAnimator } from '../animation/SpriteAnimator';
 // Straight from the generated enum module (the C++ ES_ENUM is the single source), not
 // via the UI barrel: this file is core runtime and must not pull the UI module in.
 import { UIDisplay } from '../wasm/wasm.generated';
+import type { ParticleAPI } from '../particle/ParticleAPI';
 import type { AudioAPI } from '../audio/Audio';
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
@@ -22,6 +23,7 @@ export const TimelineEventType = {
     SpriteAnimPlay: 2,
     AudioPlay: 3,
     ActivationSet: 4,
+    ParticleAction: 5,
 } as const;
 
 export { resolveChildEntity } from '../ecs/childPath';
@@ -35,7 +37,7 @@ export function setNestedProperty(obj: Record<string, any>, path: string, value:
     }
     const lastKey = parts[parts.length - 1];
     if (!(lastKey in target)) return false;
-    target[lastKey] = value;
+    target[lastKey] = typeof target[lastKey] === 'boolean' ? value !== 0 : value;
     return true;
 }
 
@@ -43,9 +45,15 @@ export function setNestedProperty(obj: Record<string, any>, path: string, value:
 export function applyTimelineEvent(
     world: any, audio: AudioAPI | null,
     type: number, entity: Entity,
-    intParam: number, floatParam: number, str: string,
+    intParam: number, floatParam: number, str: string, particle?: Pick<ParticleAPI, 'play' | 'stop' | 'reset'> | null,
 ): void {
     switch (type) {
+        case TimelineEventType.ParticleAction: {
+            if (str === 'play') { particle?.reset(entity); particle?.play(entity); }
+            else if (str === 'stop') particle?.stop(entity);
+            else if (str === 'reset') particle?.reset(entity);
+            break;
+        }
         case TimelineEventType.SpinePlay: {
             if (world.has(entity, SpineAnimation)) {
                 const current = world.get(entity, SpineAnimation);

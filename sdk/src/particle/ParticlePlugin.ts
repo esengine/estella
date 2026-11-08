@@ -8,6 +8,7 @@ import { fxPreviewOrPlayMode } from '../ecs/env';
 import type { CppRegistry } from '../wasm';
 import { engineApi } from '../ecs/bridge/engineApi';
 import { registerSceneComponentCodec } from '../scene/scene';
+import { ParticleModelUnitState } from './ParticleModelUnits';
 import { Particle, ParticleAPI } from './ParticleAPI';
 import { particleQueryResolver } from './ParticleCollisionBridge';
 import { ParticleCollisionEvent, type ParticleCollisionEventPayload } from './collision';
@@ -39,6 +40,7 @@ export class ParticlePlugin implements Plugin {
         // the resource, and every call through it no-ops.
         const engine = engineApi(app) ?? {};
         const registry = app.world.getCppRegistry() as CppRegistry;
+        const modelUnits = new ParticleModelUnitState();
         const api = new ParticleAPI(engine, registry, particleQueryResolver(app));
         app.insertResource(Particle, api);
         this.overlay_ = `particle-collision:${++overlayId}`;
@@ -97,6 +99,8 @@ export class ParticlePlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time), Res(Particle), EventWriter(ParticleCollisionEvent)],
             (time: TimeData, particle: ParticleAPI, events: EventWriterInstance<ParticleCollisionEventPayload>) => {
+                app.world.ensureTransformsComposed();
+                modelUnits.update(app.world);
                 particle.update(time.delta);
                 for (const hit of particle.collisionEvents) events.send(hit);
             },

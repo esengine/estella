@@ -7,16 +7,17 @@
  *
  * Holds a per-entity playback clock and, each frame: advances time (speed + wrap),
  * samples property tracks (via the shared evaluator), and edge-detects event-track
- * triggers (spine/audio/spriteAnim/activation) dispatching them through the shared
- * {@link applyTimelineEvent}. The interpolation + event-detection logic is a 1:1
- * port of TimelineSystem.cpp (evaluateChannel / advance / evaluateEventTracks) so
- * playback matches the C++ runtime bit-for-bit and that runtime can be deleted.
+ * triggers through the shared {@link applyTimelineEvent}. Event windows use the
+ * same playhead runs as animator motions, including loop seams and ping-pong
+ * turns; a folded sample time alone cannot preserve playback direction.
  */
 
 import { applyWrapMode, sampleTimeline, type SampleDeps, type SampleOptions } from './TimelineEvaluator';
 import { applyTimelineEvent, TimelineEventType } from './TimelineRuntime';
 import { TrackType, WrapMode, type TimelineAsset } from './TimelineTypes';
+import { forEachParticleEvent, playheadRuns, runCrosses, type PlayheadRun } from './timelineEvents';
 import { collectSequenceLayers, resolveActiveShot, type ActiveShot, type SequenceLookup } from './timelineSequences';
+import type { ParticleAPI } from '../particle/ParticleAPI';
 import type { AudioAPI } from '../audio/Audio';
 import type { Entity } from '../types';
 
@@ -24,6 +25,10 @@ import type { Entity } from '../types';
 export interface TimelineState {
     time: number;
     prevTime: number;
+    /** Unfolded playback time. Optional for callers constructing older state records. */
+    phase?: number;
+    /** Whether the entry instant has already been dispatched. */
+    started?: boolean;
     playing: boolean;
     speed: number;
     wrapMode: WrapMode;
@@ -34,7 +39,7 @@ export interface TimelineState {
 }
 
 export function createTimelineState(wrapMode: WrapMode = WrapMode.Once, speed = 1): TimelineState {
-    return { time: 0, prevTime: 0, playing: false, speed, wrapMode, spineClipIndices: {}, nested: {} };
+    return { time: 0, prevTime: 0, phase: 0, started: false, playing: false, speed, wrapMode, spineClipIndices: {}, nested: {} };
 }
 
 export interface FiredEvent {
@@ -46,20 +51,22 @@ export interface FiredEvent {
 }
 
 /**
- * Edge-detect event-track triggers fired in (prevTime, time] — a 1:1 port of
- * TimelineSystem::evaluateEventTracks. Mutates `state.spineClipIndices`.
+ * Edge-detect event-track triggers over playback runs. Mutates `state.spineClipIndices`.
  */
 export function detectTimelineEvents(
     asset: TimelineAsset, state: TimelineState,
     resolveChild: (root: Entity, childPath: string) => Entity | null, root: Entity,
-    // Monotone edge-detection interval(s). Defaults to the single (prevTime, time]
-    // span; on a loop wrap the caller passes the two seam segments so a trigger
-    // near the loop boundary still fires (one interval is empty when time < prevTime).
+    // Legacy tuples describe forward-only intervals; explicit runs also describe
+    // a ping-pong return and whether this is the clip's entry instant.
     // Level tracks (Spine, Activation) read `state.time` directly and ignore this.
-    segments: ReadonlyArray<readonly [number, number]> = [[state.prevTime, state.time]],
+    segments: ReadonlyArray<readonly [number, number] | PlayheadRun> = [[state.prevTime, state.time]],
 ): FiredEvent[] {
     const out: FiredEvent[] = [];
     const { time } = state;
+    const runs = segments.map(segment => 'from' in segment ? segment : {
+        from: segment[0], to: Math.max(segment[0], segment[1]),
+        inclusiveStart: segment[0] === 0 && segment[1] > segment[0],
+    });
 
     for (let i = 0; i < asset.tracks.length; i++) {
         const track = asset.tracks[i];
@@ -69,6 +76,12 @@ export function detectTimelineEvents(
         if (target == null) continue;
 
         switch (track.type) {
+            case TrackType.Particle: {
+                forEachParticleEvent(track, runs, action => {
+                    out.push({ kind: TimelineEventType.ParticleAction, entity: target, intParam: 0, floatParam: 0, str: action });
+                });
+                break;
+            }
             case TrackType.Spine: {
                 let currentClip = -1;
                 for (let ci = track.clips.length - 1; ci >= 0; ci--) {
@@ -88,8 +101,8 @@ export function detectTimelineEvents(
                 break;
             }
             case TrackType.SpriteAnim: {
-                for (const [from, to] of segments) {
-                    if (to > from && from <= track.startTime && track.startTime <= to) {
+                for (const run of runs) {
+                    if (runCrosses(run, track.startTime)) {
                         out.push({ kind: TimelineEventType.SpriteAnimPlay, entity: target, intParam: 0, floatParam: 0, str: track.clip });
                         break; // fire at most once across the seam segments
                     }
@@ -97,9 +110,9 @@ export function detectTimelineEvents(
                 break;
             }
             case TrackType.Audio: {
-                for (const [from, to] of segments) {
+                for (const run of runs) {
                     for (const e of track.events) {
-                        if (e.time > from && e.time <= to) {
+                        if (runCrosses(run, e.time)) {
                             out.push({ kind: TimelineEventType.AudioPlay, entity: target, intParam: 0, floatParam: e.volume, str: e.clip });
                         }
                     }
@@ -122,6 +135,7 @@ export function detectTimelineEvents(
 export interface AdvanceContext {
     deps: SampleDeps;
     audio?: AudioAPI | null;
+    particle?: Pick<ParticleAPI, 'play' | 'stop' | 'reset'> | null;
     /** Skip-channel filter (editor mute); forwarded to the sampler. */
     sampleOpts?: SampleOptions;
     /** Side-effect hook after a property field is applied (e.g. UINode anim flags). */
@@ -159,6 +173,8 @@ export function applyPlayerFlags(flags: TimelinePlayerFlags, state: TimelineStat
     if (flags.playing && flags.finished) {
         state.time = 0;
         state.prevTime = 0;
+        state.phase = 0;
+        state.started = false;
         state.spineClipIndices = {};
         state.nested = {};
         flags.finished = false;
@@ -195,24 +211,24 @@ export function advanceTimelineTS(
 ): boolean {
     if (!state.playing) return false;
 
+    let phase = state.phase ?? state.time;
+    // Preserve the existing writable `time` control surface for callers that seek
+    // through the state record rather than TimelineAPI.setTime.
+    if (applyWrapMode(phase, asset.duration, state.wrapMode).time !== state.time) phase = state.time;
     state.prevTime = state.time;
-    const advanced = state.time + dt * state.speed;
+    const advanced = phase + dt * state.speed;
     const wrapped = applyWrapMode(advanced, asset.duration, state.wrapMode);
     state.time = wrapped.time;
+    state.phase = advanced;
 
     sampleTimeline(asset, state.time, root, ctx.deps, ctx.sampleOpts);
     ctx.onPropertyApplied?.(root, asset);
 
-    // On a loop wrap the playhead ran prevTime → duration → 0 → time; split edge
-    // detection across both seam segments so triggers near the loop boundary keep
-    // firing each loop (the plain (prevTime, time] span is empty when time < prevTime).
-    const segments: ReadonlyArray<readonly [number, number]> =
-        state.wrapMode === WrapMode.Loop && advanced >= asset.duration && asset.duration > 0
-            ? [[state.prevTime, asset.duration], [0, state.time]]
-            : [[state.prevTime, state.time]];
+    const segments = playheadRuns(phase, advanced, asset.duration, state.wrapMode, !state.started);
+    state.started = true;
 
     for (const e of detectTimelineEvents(asset, state, ctx.deps.resolveChild, root, segments)) {
-        applyTimelineEvent(ctx.deps.world, ctx.audio ?? null, e.kind, e.entity, e.intParam, e.floatParam, e.str);
+        applyTimelineEvent(ctx.deps.world, ctx.audio ?? null, e.kind, e.entity, e.intParam, e.floatParam, e.str, ctx.particle);
     }
 
     const lookup = ctx.lookup ?? NO_TIMELINES;
@@ -245,7 +261,7 @@ function advanceNested(asset: TimelineAsset, root: Entity, state: TimelineState,
         const segments: ReadonlyArray<readonly [number, number]> = layer.time < prev
             ? [[prev, layer.asset.duration], [0, layer.time]] : [[prev, layer.time]];
         for (const e of detectTimelineEvents(layer.asset, child, ctx.deps.resolveChild, layer.root, segments)) {
-            applyTimelineEvent(ctx.deps.world, ctx.audio ?? null, e.kind, e.entity, e.intParam, e.floatParam, e.str);
+            applyTimelineEvent(ctx.deps.world, ctx.audio ?? null, e.kind, e.entity, e.intParam, e.floatParam, e.str, ctx.particle);
         }
         state.nested[layer.key] = { time: layer.time, spineClipIndices: child.spineClipIndices };
     }

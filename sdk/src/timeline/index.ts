@@ -118,4 +118,5 @@ export {
 export {
     TIMELINE_MOTION,
     createTimelineMotionDriver,
+    type TimelineMotionEffects,
 } from './timelineMotion';

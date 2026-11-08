@@ -17,6 +17,7 @@ import { World } from '../src/ecs/world';
 import { createMockModule } from './mocks/wasm';
 import { defineBuiltin, defineComponent } from '../src/ecs/component';
 import { INVALID_ENTITY } from '../src/types';
+import { ownedAssetLease } from '../src/asset/AssetLease';
 import {
     loadSceneData,
     loadSceneWithAssets,
@@ -98,7 +99,8 @@ function mockAssets(prefabs: Record<string, PrefabData | null>) {
         }),
         resolveSceneAssetPaths: vi.fn(),
         trackSceneAssetReferences: vi.fn(),
-        loadPrefab: vi.fn(async (ref: string) => ({ data: prefabs[ref] ?? null })),
+        acquireTyped: vi.fn(async (_type: string, ref: string) =>
+            ownedAssetLease(ref, 1, { data: prefabs[ref] ?? null }, () => {})),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
 }
@@ -227,7 +229,7 @@ describe('Prefab scene loading (PF1)', () => {
         const assets = mockAssets({ [REF]: prefab });
         await loadSceneWithAssets(world, scene, { assets });
 
-        expect(assets.loadPrefab).toHaveBeenCalledWith(REF);
+        expect(assets.acquireTyped).toHaveBeenCalledWith('prefab', REF);
         // Ground + Turret (root) + BigBarrel (barrel); scope removed.
         expect(world.findEntityByName('Ground')).not.toBeNull();
         expect(world.findEntityByName('Turret')).not.toBeNull();

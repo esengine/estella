@@ -53,6 +53,8 @@ const SPRITE_UNLIT = `#pragma shader "Sprite Unlit"
 #pragma version 300 es
 #pragma domain Unlit
 #pragma param u_tint color default(1,1,1,1)
+#pragma param u_alphaCutoff float default(0) range(0,1) ui(slider)
+#pragma coverage u_alphaCutoff
 
 #pragma fragment
 precision mediump float;
@@ -66,6 +68,7 @@ out vec4 fragColor;
 
 void main() {
     fragColor = texture(u_textures[0], v_texCoord) * v_color * u_tint;
+    if (fragColor.a < u_alphaCutoff) discard;
 }
 #pragma end
 
@@ -74,7 +77,9 @@ void main() {
     // Taken before any branch: a derivative needs every fragment of its quad.
     let duvx = dpdx(v.v_texCoord);
     let duvy = dpdy(v.v_texCoord);
-    return textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy) * v.v_color * mc.u_tint;
+    let color = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy) * v.v_color * mc.u_tint;
+    if (color.a < mc.u_alphaCutoff) { discard; }
+    return color;
 }
 #pragma end
 `;

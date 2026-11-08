@@ -15,6 +15,7 @@ import { Timeline, TimelineAPI } from './TimelineControl';
 import { AnimatorController } from '../animation/Animator';
 import { TIMELINE_MOTION, createTimelineMotionDriver } from './timelineMotion';
 import { resolveChildEntity } from './TimelineRuntime';
+import { Particle } from '../particle/ParticleAPI';
 import { advanceTimelineTS, applyPlayerFlags, latchPlayerFinish } from './TimelineDrive';
 import { CameraDirector, setTimelineShot } from '../camera/CameraDirector';
 import type { SampleDeps } from './TimelineEvaluator';
@@ -64,7 +65,9 @@ export class TimelinePlugin implements Plugin {
         // and a build without it still plays timelines through TimelinePlayer.
         if (app.hasResource(AnimatorController)) {
             app.getResource(AnimatorController).registerMotionDriver(
-                TIMELINE_MOTION, createTimelineMotionDriver(app.getResource(Timeline)),
+                TIMELINE_MOTION, createTimelineMotionDriver(app.getResource(Timeline), {
+                    particle: () => app.hasResource(Particle) ? app.getResource(Particle) : null,
+                }),
             );
         }
 
@@ -112,6 +115,7 @@ export class TimelinePlugin implements Plugin {
                     this.ensureAnimFrames(entity, asset);
 
                     const justFinished = advanceTimelineTS(asset, entity, state, time.delta, {
+                        particle: app.hasResource(Particle) ? app.getResource(Particle) : null,
                         deps, audio,
                         lookup: (ref) => tl.getAsset(ref),
                         onShot: director ? (shot) => setTimelineShot(director, entity, shot) : undefined,

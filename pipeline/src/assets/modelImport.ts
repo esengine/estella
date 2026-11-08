@@ -18,6 +18,7 @@ import {
 } from 'esengine';
 import { canSimplify, simplifyMesh, type SimplifierFlag } from './meshSimplify';
 import { SPARSE_LIGHTMAP_UV, OVERLAPPING_LIGHTMAP_UV } from '../../../sdk/src/lightmap/atlas';
+import type { CompoundColliderPart3D } from 'esengine';
 
 /** One primitive's worth of geometry, named for the file it will be written to. */
 export interface ImportedMesh {
@@ -70,6 +71,9 @@ export interface ImportedMaterial {
     name: string;
     /** The tint multiplied into the vertex colors. */
     baseColor: [number, number, number, number];
+    /** KHR_materials_unlit: base colour and alpha only, independent of lighting. */
+    unlit?: boolean;
+    blendMode?: BlendMode;
     baseColorTexture?: ImportedImageRef;
     /** Tangent-space normal map, read against the mesh's own tangent frame where it has one (see meshTangents.ts). */
     normalTexture?: ImportedImageRef;
@@ -167,6 +171,12 @@ export interface ImportedNode {
     light?: ImportedLight;
     /** A camera the node carries, looking along its local -Z with +Y up. */
     camera?: ImportedCamera;
+    /** Hierarchical visual visibility, independent of simulation and cameras. */
+    visibility?: boolean;
+    particle?: { emitter: Record<string, unknown>; units: Record<string, unknown>; texture?: ImportedImageRef };
+    billboard?: 0 | 1;
+    physics?: { bodyType: 0 | 1 | 2; mass: number; isSensor: boolean;
+        parts: CompoundColliderPart3D[]; triangleMesh?: number; settings?: Record<string, unknown> };
     /** This node is the root of a spring chain: the bones below it are the strand. Lengths are the model's metres. */
     springBone?: ImportedSpringBone;
     /** Colliders this node hosts, each an entity of its own below it so one bone can carry several. */
@@ -502,7 +512,7 @@ export interface LodOptions {
 }
 
 /** The file a mesh's level `n` is written to, by product name (no extension). */
-export function lodName(mesh: ImportedMesh, level: number): string {
+export function lodName(mesh: Pick<ImportedMesh, 'name'>, level: number): string {
     return `${mesh.name}_lod${level}`;
 }
 
@@ -551,6 +561,8 @@ export function encodeImportedMesh(mesh: ImportedMesh): Uint8Array {
 export interface ProductRefs {
     /** Prepended to every product name, e.g. `assets/models/` — the project-relative dir. */
     prefix?: string;
+    /** Canonical geometry product stems. Nodes, materials, skin bindings and animation paths keep their own identity. */
+    meshNames?: ReadonlyMap<ImportedMesh, string>;
     /** An external image uri (relative to the source) → the ref a component carries. */
     external?: (uri: string) => string;
     /** Give a skin, hair or eye material the engine's character shader instead of the Model shader (see {@link characterShading}). */
@@ -617,7 +629,7 @@ const MATERIAL_LAYER_PROPERTIES: readonly [keyof ImportedMaterial, string][] = [
  * glTF defaults both factors to 1, so most materials do.
  */
 function needsMaterial(material: ImportedMaterial | undefined): material is ImportedMaterial {
-    return !!material && !!(material.normalTexture || material.emissive || material.emissiveTexture
+    return !!material && !!(material.unlit || material.normalTexture || material.emissive || material.emissiveTexture
         || material.occlusionTexture || material.alphaCutoff || material.metallicRoughnessTexture
         || (material.metallic ?? 0) !== 0 || (material.roughness ?? 1) !== 1
         || MATERIAL_LAYER_PROPERTIES.some(([field]) => material[field] !== undefined));
@@ -819,6 +831,20 @@ export function materialProducts(meshes: ImportedMesh[], stem: string,
         const material = mesh.material;
         if (!material || !hasProduct(material, refs) || seen.has(material.index)) continue;
         seen.add(material.index);
+        if (material.unlit) {
+            out.push({
+                name: materialName(stem, material),
+                data: {
+                    version: MATERIAL_FORMAT_VERSION, type: 'material', shader: 'builtin:sprite-unlit',
+                    blendMode: material.blendMode ?? (material.opaque ? BlendMode.None : BlendMode.Normal),
+                    depthTest: true, depthWrite: material.opaque,
+                    cull: material.cullBackfaces ? CullMode.Back : CullMode.None,
+                    properties: { u_alphaCutoff: material.alphaCutoff ?? 0 },
+                },
+                images: [],
+            });
+            continue;
+        }
         const shading = refs.characters ? characterShading(material) : undefined;
 
         const images: ImportedImageRef[] = [];
@@ -876,8 +902,9 @@ function lodComponent(mesh: ImportedMesh, refs: ProductRefs): ComponentData[] {
     if (!mesh.lods || mesh.lods.length === 0) return [];
     const prefix = refs.prefix ?? '';
     const data: Record<string, unknown> = {};
+    const product = { name: refs.meshNames?.get(mesh) ?? mesh.name };
     mesh.lods.forEach((lod, i) => {
-        data[`lod${i + 1}`] = `${prefix}${lodName(mesh, i + 1)}.esmesh`;
+        data[`lod${i + 1}`] = `${prefix}${lodName(product, i + 1)}.esmesh`;
         data[`lod${i + 1}Size`] = lod.size;
     });
     return [{ type: 'LODGroup', data }];
@@ -899,11 +926,11 @@ function meshComponent(mesh: ImportedMesh, stem: string, refs: ProductRefs): Com
     const normalMap = !material && hasNormals && mesh.material?.normalTexture
         ? imageRef(mesh.material.normalTexture, refs) : null;
     return { type: 'MeshRenderer', data: {
-        mesh: `${prefix}${mesh.name}.esmesh`,
+        mesh: `${prefix}${refs.meshNames?.get(mesh) ?? mesh.name}.esmesh`,
         // Geometry that carries normals was authored to be shaded, so the product
         // says so. Written rather than assumed: `lit` is a field a user can turn
         // off, and an import that left it out would be one the engine had to guess.
-        ...(hasNormals ? { lit: true } : {}),
+        ...(mesh.material?.unlit ? { lit: false } : hasNormals ? { lit: true } : {}),
         ...(texture ? { texture } : {}),
         ...(normalMap ? { normalMap } : {}),
         ...(material ? { material } : {}),
@@ -1093,8 +1120,29 @@ export function assembleModelPrefab(name: string, meshes: ImportedMesh[],
             transformComponent(node, rootScale), ...own,
             ...(node.light ? [lightComponent(node.light)] : []),
             ...(node.camera ? [cameraComponent(node.camera)] : []),
+            ...(node.visibility !== undefined ? [{ type: 'NodeVisibility', data: { visible: node.visibility } }] : []),
         ]);
         entities.push(self);
+        if (node.billboard !== undefined) self.components.push({ type: 'Billboard', data: { mode: node.billboard, enabled: true } });
+        if (node.particle) self.components.push({ type: 'ParticleEmitter', data: { ...node.particle.emitter,
+            ...(node.particle.texture ? { texture: imageRef(node.particle.texture, options.refs ?? {}) } : {}) } },
+            { type: 'ParticleModelUnits', data: node.particle.units });
+        if (node.physics) {
+            const physics = node.physics;
+            if (physics.parts.length) self.components.push(
+                { type: 'RigidBody3D', data: { bodyType: physics.bodyType, ...physics.settings } },
+                { type: 'CompoundCollider3D', data: { parts: physics.parts, mass: physics.mass, isSensor: physics.isSensor, enabled: true } },
+            );
+            if (physics.triangleMesh !== undefined) {
+                const mesh = meshes[physics.triangleMesh]!;
+                const collisionId = `${id}_collision`;
+                self.children.push(collisionId);
+                entities.push(entity(collisionId, `${node.name}_Collision`, id, [transformComponent(),
+                    { type: 'RigidBody3D', data: { bodyType: 0 } },
+                    { type: 'MeshCollider3D', data: { mesh: `${refs.prefix ?? ''}${refs.meshNames?.get(mesh) ?? mesh.name}.esmesh`, enabled: true } },
+                ]));
+            }
+        }
         if (refs.springBones) addExplicitSpringBones(node, self, entities, options.scale ?? 1);
         if (own.length === 0) {
             drawn.forEach((mesh, i) => {
