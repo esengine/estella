@@ -1,0 +1,20 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:model",
+  "blendMode": 0,
+  "depthTest": false,
+  "switches": {
+    "ES_SPECULAR_GLOSSINESS": true
+  },
+  "properties": {
+    "u_specularColor": {
+      "r": 0.5,
+      "g": 0.6,
+      "b": 0.7,
+      "a": 1
+    },
+    "u_glossiness": 0.8,
+    "u_metallicRoughnessMap": "packed.png"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:model",
+  "blendMode": 0,
+  "depthTest": false,
+  "switches": {
+    "ES_SPECULAR_GLOSSINESS": true
+  },
+  "properties": {
+    "u_specularColor": {
+      "r": 0.10793025005694963,
+      "g": 0.030761675024425943,
+      "b": 0.4043063083007554,
+      "a": 1
+    },
+    "u_glossiness": 0.40156862745098043
+  }
+}

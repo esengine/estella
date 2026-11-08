@@ -665,6 +665,22 @@ export const SCENES = [
     // roughness — metal 1 has no diffuse and reflects its own colour, metal 0
     // keeps the diffuse and adds a white lobe (ignore roughness: white drops 97).
   { id: "mat-model-pbr", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-model.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":20},{\"x\":0.75,\"y\":0.5,\"rgb\":[100,253,100],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // Equal BRDF inputs expressed once as constants and once through the legacy
+  // specular/glossiness map. RGB is sRGB; alpha stays linear. Using metallic/
+  // roughness, decoding alpha, or ignoring either factor breaks this pair.
+  { id: 'mat-specular-glossiness', tier: 'pr', webgpu: true, env: {
+    ESTELLA_VERIFY_SCENE: '/scenes/mat-specular-glossiness.esscene',
+    ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '4',
+    ESTELLA_VERIFY_TWINS: JSON.stringify({ pairs: [[0.25, 0.5, 0.75, 0.5]], tol: 2 }),
+    ESTELLA_VERIFY_EXPECT: JSON.stringify([{ x: 0.25, y: 0.5, rgb: [95, 103, 235], tol: 8 }]),
+  } },
+  // Exercise the shipped texture uploader and colour-space handling too.
+  { id: 'mat-specular-glossiness-runtime', tier: 'pr', webgpu: true, env: {
+    ESTELLA_VERIFY_SCENE: '/scenes/mat-specular-glossiness.esscene',
+    ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '4',
+    ESTELLA_VERIFY_COLORSPACE: 'linear', ESTELLA_VERIFY_TEXTURES: 'runtime',
+    ESTELLA_VERIFY_TWINS: JSON.stringify({ pairs: [[0.25, 0.5, 0.75, 0.5]], tol: 2 }),
+  } },
     // The same two materials with NO light on them, only the ambient environment.
     // A metal has no diffuse, so reflecting that environment is all it has: remove
     // the reflection and the left probe is black while the right one barely moves.
@@ -803,6 +819,27 @@ export const SCENES = [
   // both halves take the same light. Its texels point -X and +X, so the lit half
   // and the unlit one are the tangent frame, derived per pixel from derivatives.
   { id: "mesh-normalmap", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/normalmap-quad.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-normalmap.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-normalmap.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.375,\"y\":0.5,\"rgb\":[180,180,180],\"tol\":45},{\"x\":0.625,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":30}]" } },
+  // Zero strength makes both oppositely tilted texels flat, even when their Z
+  // is zero. Negative strength reverses which half faces the light.
+  ...[
+    ['zero', [[180, 180, 180], [180, 180, 180]]],
+    ['negative', [[0, 0, 0], [180, 180, 180]]],
+  ].map(([name, colors]) => ({ id: `mesh-normalmap-scale-${name}`, tier: 'pr', webgpu: true, env: {
+    ESTELLA_VERIFY_PREFAB: `/scenes/normalmap-scale-${name}.esprefab`,
+    ESTELLA_VERIFY_SCENE: '/scenes/mesh-normalmap.esscene',
+    ESTELLA_VERIFY_MANIFEST: '/scenes/mesh-normalmap.textures.json',
+    ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '4',
+    ESTELLA_VERIFY_EXPECT: JSON.stringify(colors.map((rgb, i) => ({ x: i ? 0.625 : 0.375, y: 0.5, rgb, tol: name === 'zero' ? 12 : 45 }))),
+  } })),
+  // A blended green mesh behind an opaque red mesh must not paint over it.
+  // This also compiles the specular/glossiness variant on the mesh path.
+  { id: 'mesh-specular-glossiness-depth', tier: 'pr', webgpu: true, env: {
+    ESTELLA_VERIFY_PREFAB: '/scenes/specular-glossiness-depth.esprefab',
+    ESTELLA_VERIFY_SCENE: '/scenes/mesh-normalmap.esscene',
+    ESTELLA_VERIFY_MANIFEST: '/scenes/mesh-normalmap.textures.json',
+    ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '4',
+    ESTELLA_VERIFY_EXPECT: JSON.stringify([{ x: 0.5, y: 0.5, rgb: [255, 0, 0], tol: 8 }]),
+  } },
   // The quad of mesh-normalmap with a tangent a quarter turn from the one its UVs imply: read against the frame the mesh
   // carries, both halves come out alike (33), where the derived frame lights them 180 and 0.
   { id: "mesh-normalmap-tangent", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/normalmap-quad-tangent.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-normalmap-tangent.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-normalmap-tangent.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.375,\"y\":0.5,\"rgb\":[33,33,33],\"tol\":12},{\"x\":0.625,\"y\":0.5,\"rgb\":[33,33,33],\"tol\":12}]" } },

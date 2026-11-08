@@ -16,6 +16,7 @@ const HAIR = `#pragma shader "Hair"
 #pragma domain Lit
 #pragma param u_tint color default(1,1,1,1)
 #pragma param u_normalMap texture default(flatnormal) texel(data)
+#pragma param u_normalScale float default(1) range(-4,4) ui(slider)
 #pragma param u_ormMap texture default(white) texel(data)
 #pragma param u_occlusionStrength float default(1) range(0,1) ui(slider)
 // Which way each strand runs: red and green are a direction across the texture, the way an authored flow map writes it.
@@ -96,7 +97,7 @@ void main() {
 #ifdef MESH_NORMALS
     highp vec3 Ng = normalize(v_worldNormal);
     highp vec3 P = v_worldXYZ;
-    highp vec3 N = perturbNormal(Ng, P, v_texCoord, sampleNormal(u_normalMap, v_texCoord));
+    highp vec3 N = perturbNormal(Ng, P, v_texCoord, scaleNormal(sampleNormal(u_normalMap, v_texCoord), u_normalScale));
     if (!gl_FrontFacing) { N = -N; Ng = -Ng; }
     // The strand: the flow map's direction across the texture, put onto the surface and made to lie across the normal.
     vec2 flow = texture(u_flowMap, v_texCoord).rg * 2.0 - 1.0;
@@ -192,7 +193,7 @@ fn packNormal(n : vec3f) -> vec2f {
 #ifdef MESH_NORMALS
     var Ng = normalize(v.v_worldNormal);
     let P = v.v_worldXYZ;
-    var N = perturbNormal(Ng, P, v.v_texCoord, sampleNormalGrad(u_normalMap, u_normalMap_s, v.v_texCoord, duvx, duvy));
+    var N = perturbNormal(Ng, P, v.v_texCoord, scaleNormal(sampleNormalGrad(u_normalMap, u_normalMap_s, v.v_texCoord, duvx, duvy), mc.u_normalScale));
     if (!front) { N = -N; Ng = -Ng; }
     var T = perturbNormal(Ng, P, v.v_texCoord, vec3f(flowTex, 0.0));
     T = T - N * dot(N, T);
@@ -261,6 +262,7 @@ const SKIN = `#pragma shader "Skin"
 #pragma domain Lit
 #pragma param u_tint color default(1,1,1,1)
 #pragma param u_normalMap texture default(flatnormal) texel(data)
+#pragma param u_normalScale float default(1) range(-4,4) ui(slider)
 #pragma param u_ormMap texture default(white) texel(data)
 #pragma param u_occlusionStrength float default(1) range(0,1) ui(slider)
 // A second, fine normal map tiled over the surface (pores, creases) laid on the sharp normal the shine reads: how strongly, and how many times it repeats.
@@ -320,7 +322,7 @@ out vec4 fragColor;
 #endif
 
 vec3 skinNormalAt(float bias) {
-    return normalize(texture(u_normalMap, v_texCoord, bias).xyz * 2.0 - 1.0);
+    return scaleNormal(texture(u_normalMap, v_texCoord, bias).xyz * 2.0 - 1.0, u_normalScale);
 }
 
 // The baked normal with the detail's slope added to it, in the tangent frame both are read in.
@@ -414,10 +416,10 @@ fn packNormal(n : vec3f) -> vec2f {
     let base = textureSample(t0, s0, v.v_texCoord) * v.v_color * mc.u_tint;
     let orm = textureSample(u_ormMap, u_ormMap_s, v.v_texCoord);
     let detail = textureSample(u_detailMap, u_detailMap_s, v.v_texCoord * mc.u_detailTile).xy * 2.0 - vec2f(1.0);
-    let bakedSharp = normalize(textureSampleBias(u_normalMap, u_normalMap_s, v.v_texCoord, 0.0).xyz * 2.0 - vec3f(1.0));
+    let bakedSharp = scaleNormal(textureSampleBias(u_normalMap, u_normalMap_s, v.v_texCoord, 0.0).xyz * 2.0 - vec3f(1.0), mc.u_normalScale);
     let tangentSharp = normalize(vec3f(bakedSharp.xy + detail * mc.u_detailStrength, bakedSharp.z));
-    let tangentMid = normalize(textureSampleBias(u_normalMap, u_normalMap_s, v.v_texCoord, mc.u_blurGreen).xyz * 2.0 - vec3f(1.0));
-    let tangentSoft = normalize(textureSampleBias(u_normalMap, u_normalMap_s, v.v_texCoord, mc.u_blurRed).xyz * 2.0 - vec3f(1.0));
+    let tangentMid = scaleNormal(textureSampleBias(u_normalMap, u_normalMap_s, v.v_texCoord, mc.u_blurGreen).xyz * 2.0 - vec3f(1.0), mc.u_normalScale);
+    let tangentSoft = scaleNormal(textureSampleBias(u_normalMap, u_normalMap_s, v.v_texCoord, mc.u_blurRed).xyz * 2.0 - vec3f(1.0), mc.u_normalScale);
 #ifdef MESH_NORMALS
     var Ng = normalize(v.v_worldNormal);
     let P = v.v_worldXYZ;

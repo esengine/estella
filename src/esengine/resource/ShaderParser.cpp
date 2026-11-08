@@ -1785,6 +1785,11 @@ fn sampleNormalGrad(map : texture_2d<f32>, samp : sampler, uv : vec2f,
     let xy = textureSampleGrad(map, samp, uv, ddx, ddy).xy * 2.0 - 1.0;
     return vec3f(xy, sqrt(max(0.0, 1.0 - dot(xy, xy))));
 }
+fn scaleNormal(normal : vec3f, scale : f32) -> vec3f {
+    let n = normal * vec3f(scale, scale, 1.0);
+    if (dot(n, n) < 1e-12) { return vec3f(0.0, 0.0, 1.0); }
+    return normalize(n);
+}
 fn perturbNormal(N : vec3f, worldPos : vec3f, uv : vec2f, tangentNormal : vec3f) -> vec3f {
     // The derivatives first: they are only valid in uniform control flow, and the choice below depends on a variable.
     let dp1 = dpdx(worldPos);
@@ -2120,9 +2125,8 @@ fn filmFresnel(F : vec3f, cosTheta : f32, film : vec4f) -> vec3f {
     let tint = vec3f(0.5) + vec3f(0.5) * cos(vec3f(6.28318531 * opd) / vec3f(650.0, 510.0, 475.0));
     return clamp(F * mix(vec3f(1.0), tint * 2.0, vec3f(film.x)), vec3f(0.0), vec3f(1.0));
 }
-fn applyLightingSurface(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, metallic : f32,
-                        roughness : f32, specular : f32, ao : f32, ext : SurfaceExt) -> vec3f {
-    let F0 = mix(vec3f(ext.misc.x), albedo, vec3f(metallic));
+fn applyLightingSurfaceBRDF(diffuse : vec3f, F0 : vec3f, N : vec3f, worldPos : vec3f, V : vec3f,
+                            roughness : f32, specular : f32, ao : f32, ext : SurfaceExt) -> vec3f {
     let a = max(roughness * roughness, 1e-3);
     let NdotV = max(dot(N, V), 1e-4);
     var lit = indirectIrradiance(N) * ao;
@@ -2194,7 +2198,7 @@ fn applyLightingSurface(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, 
     if (ext.film.x > 0.0) { envF = filmFresnel(envF, NdotV, ext.film); }
     gloss += envRadiance(envR, roughness, reflectionColumn(), worldPos) * (ao * specular)
            * envF;
-    let base = albedo * (1.0 - metallic) * lit * kd + gloss;
+    let base = diffuse * lit * kd + gloss;
     var baseScale = 1.0;
     if (ext.coat.x > 0.0) {
         let coatNdotV = max(dot(ext.coatN.xyz, V), 1e-4);
@@ -2209,6 +2213,11 @@ fn applyLightingSurface(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, 
         extra += ext.sheen.rgb * (indirectIrradiance(N) * ao * sheenAlbedo);
     }
     return base * baseScale + extra;
+}
+fn applyLightingSurface(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, metallic : f32,
+                        roughness : f32, specular : f32, ao : f32, ext : SurfaceExt) -> vec3f {
+    return applyLightingSurfaceBRDF(albedo * (1.0 - metallic), mix(vec3f(ext.misc.x), albedo, vec3f(metallic)),
+                                    N, worldPos, V, roughness, specular, ao, ext);
 }
 fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, metallic : f32,
                     roughness : f32, specular : f32, ao : f32) -> vec3f {
@@ -3167,6 +3176,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp vec2 xy = textureGrad(map, uv, ddx, ddy).xy * 2.0 - 1.0;\n"
             "    return vec3(xy, sqrt(max(0.0, 1.0 - dot(xy, xy))));\n"
             "}\n"
+            "highp vec3 scaleNormal(in highp vec3 normal, in highp float scale) {\n"
+            "    highp vec3 n = normal * vec3(scale, scale, 1.0);\n"
+            "    return dot(n, n) < 1e-12 ? vec3(0.0, 0.0, 1.0) : normalize(n);\n"
+            "}\n"
             // Tangent frame from screen-space derivatives, so a tangent-space normal
             // lands in world space without the geometry carrying a tangent channel —
             // which most exported models do not. Degenerate UVs return N unchanged.
@@ -3561,13 +3574,12 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // The lighting model in its general form; a lit 2D surface is its zero
             // (metallic 0, roughness 1, specular 0 leaves albedo * NdotL, pixel for pixel
             // what this engine has always drawn), so there is one model and not two.
-            "highp vec3 applyLightingSurface(in highp vec3 albedo, in highp vec3 N, in highp vec3 worldPos,\n"
-            "                                 in highp vec3 V, in highp float metallic,\n"
-            "                                 in highp float roughness, in highp float specular,\n"
-            "                                 in highp float ao, in SurfaceExt ext) {\n"
+            "highp vec3 applyLightingSurfaceBRDF(in highp vec3 diffuse, in highp vec3 F0, in highp vec3 N,\n"
+            "                                     in highp vec3 worldPos, in highp vec3 V,\n"
+            "                                     in highp float roughness, in highp float specular,\n"
+            "                                     in highp float ao, in SurfaceExt ext) {\n"
             // glTF's specularFactor scales the whole lobe, so 0 removes it rather than
             // leaving Schlick's grazing-angle rim behind.
-            "    highp vec3 F0 = mix(vec3(ext.misc.x), albedo, metallic);\n"
             "    highp float a = max(roughness * roughness, 1e-3);\n"
             "    highp float NdotV = max(dot(N, V), 1e-4);\n"
             // Occlusion darkens the light that arrives from everywhere, which is the
@@ -3636,7 +3648,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    gloss += envRadiance(envR, roughness, reflectionColumn(), worldPos)\n"
             "           * (ao * specular)\n"
             "           * envF;\n"
-            "    highp vec3 base = albedo * (1.0 - metallic) * lit * kd + gloss;\n"
+            "    highp vec3 base = diffuse * lit * kd + gloss;\n"
             "    highp float baseScale = 1.0;\n"
             "    if (ext.coat.x > 0.0) {\n"
             "        highp float coatNdotV = max(dot(ext.coatN.xyz, V), 1e-4);\n"
@@ -3651,6 +3663,12 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        extra += ext.sheen.rgb * (indirectIrradiance(N) * ao * sheenAlbedo);\n"
             "    }\n"
             "    return base * baseScale + extra;\n"
+            "}\n"
+            "highp vec3 applyLightingSurface(in highp vec3 albedo, in highp vec3 N, in highp vec3 worldPos,\n"
+            "                                 in highp vec3 V, in highp float metallic, in highp float roughness,\n"
+            "                                 in highp float specular, in highp float ao, in SurfaceExt ext) {\n"
+            "    return applyLightingSurfaceBRDF(albedo * (1.0 - metallic), mix(vec3(ext.misc.x), albedo, metallic),\n"
+            "                                    N, worldPos, V, roughness, specular, ao, ext);\n"
             "}\n"
             "highp vec3 applyLightingPBR(in highp vec3 albedo, in highp vec3 N, in highp vec3 worldPos,\n"
             "                            in highp vec3 V, in highp float metallic,\n"

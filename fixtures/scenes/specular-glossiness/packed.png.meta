@@ -1,0 +1,12 @@
+{
+  "uuid": "017b8d4a-8d0d-4446-9b0d-462d25c38b89",
+  "version": "2.0",
+  "type": "texture",
+  "importer": {
+    "sRGB": false,
+    "premultiplyAlpha": false,
+    "filterMode": "nearest",
+    "wrapMode": "clamp",
+    "compress": false
+  }
+}

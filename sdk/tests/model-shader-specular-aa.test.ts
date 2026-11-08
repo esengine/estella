@@ -32,8 +32,12 @@ describe('the Model shader filters specular by the normal derivative', () => {
 
     it('lights with the filtered roughness, not the authored one', () => {
         expect(glsl).toMatch(/roughness = specularAA\(dndx, dndy, roughness\)/);
-        expect(glsl).toMatch(/applyLightingSurface\([^;]*u_metallic \* mr\.b, roughness,/);
+        expect(glsl).toMatch(/float metallic = u_metallic \* mr\.b/);
+        expect(glsl).toMatch(/applyLightingSurface\([^;]*metallic, roughness,/);
+        expect(glsl).toMatch(/applyLightingSurfaceBRDF\([^;]*roughness,/);
         expect(wgsl).toMatch(/roughness = specularAA\(dndx, dndy, roughness\)/);
-        expect(wgsl).toMatch(/applyLightingSurface\([^;]*mc\.u_metallic \* mr\.b, roughness,/);
+        expect(wgsl).toMatch(/let metallic = mc\.u_metallic \* mr\.b/);
+        expect(wgsl).toMatch(/applyLightingSurface\([^;]*metallic, roughness,/);
+        expect(wgsl).toMatch(/applyLightingSurfaceBRDF\([^;]*roughness,/);
     });
 });

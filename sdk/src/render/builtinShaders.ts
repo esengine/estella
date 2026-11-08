@@ -461,8 +461,10 @@ void main() {
 const MODEL = `#pragma shader "Model"
 #pragma version 300 es
 #pragma domain Lit
+#pragma switch ES_SPECULAR_GLOSSINESS
 #pragma param u_tint color default(1,1,1,1)
 #pragma param u_normalMap texture default(flatnormal) texel(data)
+#pragma param u_normalScale float default(1) range(-4,4) ui(slider)
 #pragma param u_emissive color default(0,0,0,1)
 #pragma param u_emissiveMap texture default(white)
 #pragma param u_occlusionMap texture default(white) texel(data)
@@ -472,6 +474,10 @@ const MODEL = `#pragma shader "Model"
 #pragma param u_metallic float default(0) range(0,1) ui(slider)
 #pragma param u_roughness float default(1) range(0,1) ui(slider)
 #pragma param u_metallicRoughnessMap texture default(white) texel(data)
+// The same packed-map unit serves either workflow; the specular/glossiness permutation
+// reads sRGB specular from RGB and linear gloss from A, without adding a sampler.
+#pragma param u_specularColor color default(1,1,1,1)
+#pragma param u_glossiness float default(1) range(0,1) ui(slider)
 // What a surface has beyond a metal/rough pair. Every one is zero (or glTF's own default) for a surface that has none of it,
 // and the lighting skips a layer whose strength is zero, so a plain material pays nothing for these.
 #pragma param u_ior float default(1.5) range(1,3) ui(slider)
@@ -570,14 +576,14 @@ void main() {
 #ifdef MESH_NORMALS
     highp vec3 Ng = normalize(v_worldNormal);
     highp vec3 N = perturbNormal(Ng, v_worldXYZ, v_texCoord,
-                                 sampleNormal(u_normalMap, v_texCoord));
+                                 scaleNormal(sampleNormal(u_normalMap, v_texCoord), u_normalScale));
     // A double-sided surface is lit from the side it is seen from (glTF's rule).
     if (!gl_FrontFacing) { N = -N; Ng = -Ng; }
 #else
-    vec3 N = sampleNormal(u_normalMap, v_texCoord);
+    vec3 N = scaleNormal(sampleNormal(u_normalMap, v_texCoord), u_normalScale);
 #endif
     float ao = mix(1.0, texture(u_occlusionMap, v_texCoord).r, u_occlusionStrength);
-    vec3 mr = texture(u_metallicRoughnessMap, v_texCoord).rgb;
+    vec4 mr = texture(u_metallicRoughnessMap, v_texCoord);
 #ifdef MESH_NORMALS
     // The surface's OWN place, which a point light, a probe volume and a
     // reflection's box projection all measure against; z = 0 is a plane's answer.
@@ -586,7 +592,14 @@ void main() {
     highp vec3 P = vec3(v_worldPos, 0.0);
 #endif
     // specular 1: a glTF material reflects unless KHR_materials_specular says less.
+    #ifdef ES_SPECULAR_GLOSSINESS
+    vec3 specularColor = clamp(u_specularColor.rgb * srgbToLinear(mr.rgb), 0.0, 1.0);
+    float metallic = 0.0;
+    float roughness = 1.0 - u_glossiness * mr.a;
+#else
+    float metallic = u_metallic * mr.b;
     float roughness = u_roughness * mr.g;
+#endif
 #ifdef MESH_NORMALS
     roughness = specularAA(dndx, dndy, roughness);
 #endif
@@ -645,15 +658,21 @@ void main() {
             base.rgb = mix(base.rgb, base.rgb * u_attenuationColor.rgb, u_transmission);
         }
     }
+#ifdef ES_SPECULAR_GLOSSINESS
+    vec3 diffuse = base.rgb * (1.0 - max(max(specularColor.r, specularColor.g), specularColor.b));
+    vec3 lit = applyLightingSurfaceBRDF(diffuse, specularColor, N, P, viewDir, roughness, 1.0, ao, ext);
+#else
+    vec3 diffuse = base.rgb * (1.0 - clamp(metallic, 0.0, 1.0));
     vec3 lit = applyLightingSurface(base.rgb * (1.0 - u_transmission * refracted), N, P, viewDir,
-                                    u_metallic * mr.b, roughness, u_specular, ao, ext);
+                                    metallic, roughness, u_specular, ao, ext);
+#endif
     if (u_subsurface > 0.0 && u_alphaCutoff <= 0.0) alpha = min(alpha, 0.996);
     fragColor = vec4(lit + seen + u_emissive.rgb * texture(u_emissiveMap, v_texCoord).rgb, alpha);
 #ifdef ES_GBUFFER
     // Alpha says something was drawn here (0 is "nothing wrote"), and carries the metalness above 0.75: a pixel that
     // multisampling averaged with an unwritten one falls below it, and an effect can tell such an edge from a surface.
-    fragSurface = vec4(packNormal(normalize(N)), roughness, 0.75 + 0.25 * clamp(u_metallic * mr.b, 0.0, 1.0));
-    fragAlbedo = vec4(base.rgb * (1.0 - clamp(u_metallic * mr.b, 0.0, 1.0)), 1.0);
+    fragSurface = vec4(packNormal(normalize(N)), roughness, 0.75 + 0.25 * clamp(metallic, 0.0, 1.0));
+    fragAlbedo = vec4(diffuse, 1.0);
 #endif
 }
 #pragma end
@@ -716,20 +735,27 @@ fn packNormal(n : vec3f) -> vec2f {
 #ifdef MESH_NORMALS
     var Ng = normalize(v.v_worldNormal);
     var N = perturbNormal(Ng, v.v_worldXYZ, v.v_texCoord,
-                          sampleNormalGrad(u_normalMap, u_normalMap_s, v.v_texCoord, duvx, duvy));
+                          scaleNormal(sampleNormalGrad(u_normalMap, u_normalMap_s, v.v_texCoord, duvx, duvy), mc.u_normalScale));
     if (!front) { N = -N; Ng = -Ng; }
 #else
-    let N = sampleNormalGrad(u_normalMap, u_normalMap_s, v.v_texCoord, duvx, duvy);
+    let N = scaleNormal(sampleNormalGrad(u_normalMap, u_normalMap_s, v.v_texCoord, duvx, duvy), mc.u_normalScale);
 #endif
     let occl = textureSampleGrad(u_occlusionMap, u_occlusionMap_s, v.v_texCoord, duvx, duvy).r;
     let ao = mix(1.0, occl, mc.u_occlusionStrength);
-    let mr = textureSampleGrad(u_metallicRoughnessMap, u_metallicRoughnessMap_s, v.v_texCoord, duvx, duvy).rgb;
+    let mr = textureSampleGrad(u_metallicRoughnessMap, u_metallicRoughnessMap_s, v.v_texCoord, duvx, duvy);
 #ifdef MESH_NORMALS
     let P = v.v_worldXYZ;
 #else
     let P = vec3f(v.v_worldPos, 0.0);
 #endif
+    #ifdef ES_SPECULAR_GLOSSINESS
+    let specularColor = clamp(mc.u_specularColor.rgb * srgbToLinear(mr.rgb), vec3f(0.0), vec3f(1.0));
+    let metallic = 0.0;
+    var roughness = 1.0 - mc.u_glossiness * mr.a;
+#else
+    let metallic = mc.u_metallic * mr.b;
     var roughness = mc.u_roughness * mr.g;
+#endif
 #ifdef MESH_NORMALS
     roughness = specularAA(dndx, dndy, roughness);
 #endif
@@ -788,16 +814,22 @@ fn packNormal(n : vec3f) -> vec2f {
             base = vec4f(mix(base.rgb, base.rgb * mc.u_attenuationColor.rgb, vec3f(mc.u_transmission)), base.a);
         }
     }
+#ifdef ES_SPECULAR_GLOSSINESS
+    let diffuse = base.rgb * (1.0 - max(max(specularColor.r, specularColor.g), specularColor.b));
+    let lit = applyLightingSurfaceBRDF(diffuse, specularColor, N, P, viewDir, roughness, 1.0, ao, ext);
+#else
+    let diffuse = base.rgb * (1.0 - clamp(metallic, 0.0, 1.0));
     let lit = applyLightingSurface(base.rgb * (1.0 - mc.u_transmission * refracted), N, P, viewDir,
-                                   mc.u_metallic * mr.b, roughness, mc.u_specular, ao, ext);
+                                    metallic, roughness, mc.u_specular, ao, ext);
+#endif
     if (mc.u_subsurface > 0.0 && mc.u_alphaCutoff <= 0.0) { alpha = min(alpha, 0.996); }
     let emit = mc.u_emissive.rgb
              * textureSampleGrad(u_emissiveMap, u_emissiveMap_s, v.v_texCoord, duvx, duvy).rgb;
 #ifdef ES_GBUFFER
     var frag : FragOut;
     frag.color = vec4f(lit + seen + emit, alpha);
-    frag.surface = vec4f(packNormal(normalize(N)), roughness, 0.75 + 0.25 * clamp(mc.u_metallic * mr.b, 0.0, 1.0));
-    frag.albedo = vec4f(base.rgb * (1.0 - clamp(mc.u_metallic * mr.b, 0.0, 1.0)), 1.0);
+    frag.surface = vec4f(packNormal(normalize(N)), roughness, 0.75 + 0.25 * clamp(metallic, 0.0, 1.0));
+    frag.albedo = vec4f(diffuse, 1.0);
     return frag;
 #else
     return vec4f(lit + seen + emit, alpha);
