@@ -199,7 +199,7 @@ export const SCENES = [
     // A mesh casting on a mesh: a floor 200 units below a blocker, sun leaning 0.5 in
     // x, so the shadow lands 100 along +x and x 75..175 is floor the light cannot see.
     // The blocker itself stays lit — shadowing one's own caster is the classic bug.
-  { id: "mesh-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.708,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.167,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },
+  { id: "mesh-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.shadow.atlasBudget\":2048,\"render.shadow.atlasSize\":1024,\"render.targets.bytes\":8388608}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.708,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.167,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },
   // The same shadow turned 30 degrees with a hard source, so its edges cross the map's
   // texel grid; a filter that draws that grid into them strays by a quarter pixel.
   { id: "mesh-shadow-tilt", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow-tilt.esscene", ESTELLA_VERIFY_W: "512", ESTELLA_VERIFY_H: "512", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EDGE: "{\"box\":[0.6,0.36,0.9,0.52],\"lit\":228,\"dark\":0,\"maxJag\":0.12}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.167,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },
@@ -241,7 +241,7 @@ export const SCENES = [
   // A CONE casting, through the tile and the pass a cascade uses. The shadow is offset
   // from the caster because a point light projects rather than sweeps; the probes either
   // side of x = 162 are its edge, and the caster is lit because it must not shadow itself.
-  { id: "spot-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/spot-shadow.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/spot-shadow.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.7,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.8,\"y\":0.5,\"rgb\":[155,155,155],\"tol\":25},{\"x\":0.25,\"y\":0.5,\"rgb\":[178,178,178],\"tol\":25},{\"x\":0.5,\"y\":0.5,\"rgb\":[196,196,196],\"tol\":25}]" } },
+  { id: "spot-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/spot-shadow.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/spot-shadow.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.shadow.atlasBudget\":2048,\"render.shadow.atlasSize\":512,\"render.targets.bytes\":2097152}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.7,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.8,\"y\":0.5,\"rgb\":[155,155,155],\"tol\":25},{\"x\":0.25,\"y\":0.5,\"rgb\":[178,178,178],\"tol\":25},{\"x\":0.5,\"y\":0.5,\"rgb\":[196,196,196],\"tol\":25}]" } },
   // A POINT light opens no cone, so its map is a cube and a fragment is shadowed by the face
   // it lands in: report one tile for every tile and both shadows come back lit. The casters
   // are probed too, and the sixth face never renders — nothing above the lamp is a mesh.

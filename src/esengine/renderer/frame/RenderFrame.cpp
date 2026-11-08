@@ -2092,6 +2092,8 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     shadow_plan_.clear();
     shadow_plan_.atlasSize = shadow_atlas_size_;
     shadow_plan_.cellSize = shadow_cell_size_;
+    ES_PROFILE_COUNTER("render.shadow.atlasBudget", shadow_atlas_size_);
+    ES_PROFILE_COUNTER("render.shadow.atlasSize", 0);
     context_.lights().setShadowTiles(nullptr, nullptr, 0, glm::vec4(0.0f));
     if (!in_frame_ || shadow_casters_.empty() || !device_.isDeviceUsable()) return;
 
@@ -2194,6 +2196,7 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
         }
     }
 
+    const u32 atlasSize = shadow_atlas_.occupiedSize();
     glm::mat4 matrices[MAX_SHADOW_TILES];
     glm::vec4 tiles[MAX_SHADOW_TILES];
     bool anyTile = false;
@@ -2308,7 +2311,7 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
             // Where the tile sits, and nothing else. What a comparison against it has
             // to forgive is not a property of the tile but of the fragment asking, and
             // is derived there out of this matrix and the size of the square.
-            tiles[tileIndex] = shadow_atlas_.unitRect(tileIndex);
+            tiles[tileIndex] = shadow_atlas_.unitRect(tileIndex, atlasSize);
 
             // A face whose frustum misses the whole of the geometry gathers nothing, and
             // asking each mesh in turn is the only way to find that out otherwise. The
@@ -2352,12 +2355,10 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     ES_PROFILE_COUNTER("render.shadow.reduced", shadow_plan_.reducedCasters());
     if (!anyTile) return;
 
-    // Borrowed, not held for the run: 2048² with depth is ~32MB. External because
-    // the id has to exist NOW rather than when the pass runs — the atlas travels
-    // into the sort key of every draw that receives it, and the scene collects next.
+    // The texture must exist before scene collection puts it in receiver sort keys.
     rg::TargetDesc desc;
-    desc.width = shadow_atlas_size_;
-    desc.height = shadow_atlas_size_;
+    desc.width = atlasSize;
+    desc.height = atlasSize;
     desc.depthStencil = true;
     desc.linearFilter = false;
     shadow_resource_ = graph_.createExternalTarget(desc);
@@ -2367,9 +2368,10 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     }
 
     shadow_texture_id_ = static_cast<u32>(graph_.textureOf(shadow_resource_));
+    ES_PROFILE_COUNTER("render.shadow.atlasSize", atlasSize);
     context_.lights().setShadowTiles(
         matrices, tiles, shadow_atlas_.tileCount(),
-        glm::vec4(1.0f, 1.0f / static_cast<f32>(shadow_atlas_size_), 0.0f, 0.0f));
+        glm::vec4(1.0f, 1.0f / static_cast<f32>(atlasSize), 0.0f, 0.0f));
     // Which of them each light reads. Without it a fragment would test against
     // every map in the atlas, including ones rendered from where it cannot see.
     for (usize i = 0; i < shadow_casters_.size(); ++i) {

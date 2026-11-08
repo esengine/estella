@@ -204,6 +204,53 @@ int main() {
     CHECK(report.deniedCasters() + report.reducedCasters() > 0,
           "three two-tile claims do not all fit in four cells, and the report says which");
 
+    ShadowAtlas fitted(4096, 1024);
+    CHECK(fitted.occupiedSize() == 0, "an empty atlas needs no texture");
+    fitted.allocate(1, 2, why);
+    CHECK(fitted.occupiedSize() == 2048, "one high-quality sun keeps its 2048-texel map");
+    CHECK(isRect(fitted.unitRect(0, fitted.occupiedSize()), 0, 0, 1),
+          "a single sun fills the fitted texture");
+    CHECK(fitted.allocate(4, 2, why) < 0 && fitted.occupiedSize() == 2048,
+          "a partially allocated refusal does not grow the texture");
+    CHECK(fitted.allocate(3, 2, why) == 1 && fitted.occupiedSize() == 4096,
+          "fitting storage preserves the full cascade budget");
+    fitted.reset();
+    CHECK(fitted.occupiedSize() == 0, "reset releases the previous occupied extent");
+    fitted.allocate(1, 1, why);
+    CHECK(fitted.occupiedSize() == 1024, "a spot uses one cell after a full frame");
+    fitted.allocate(1, 1, why);
+    CHECK(fitted.occupiedSize() == 2048, "the second spot grows the texture without moving tiles");
+    fitted.allocate(1, 1, why);
+    CHECK(fitted.occupiedSize() == 4096, "a third column rounds storage up to the next texture size");
+    CHECK(tooSmallForCube.occupiedSize() == 0, "a refused cube leaves no storage requirement");
+
+    // UVs and PCF steps must still address the same texels at every quality budget.
+    for (u32 budget = 512; budget <= 4096; budget *= 2) {
+        for (u32 cell = 128; cell <= budget / 2; cell *= 2) {
+            ShadowAtlas sampled(budget, cell);
+            for (u32 count = 0; count < MAX_SHADOW_TILES; ++count) {
+                if (sampled.allocate(1, count % 3 == 0 ? 2 : 1, why) < 0) {
+                    continue;
+                }
+                const u32 side = sampled.occupiedSize();
+                bool contained = side > 0 && side <= budget && (side & (side - 1)) == 0;
+                bool sameTexels = true;
+                for (u32 i = 0; i < sampled.tileCount(); ++i) {
+                    const ShadowTile& tile = sampled.tile(i);
+                    const glm::vec4 rect = sampled.unitRect(i, side);
+                    contained &= tile.x + tile.size <= side && tile.y + tile.size <= side;
+                    for (const f32 uv : {0.0f, 0.25f, 0.5f, 0.75f, 1.0f}) {
+                        sameTexels &= near((rect.x + uv * rect.z) * side, tile.x + uv * tile.size);
+                        sameTexels &= near((rect.y + uv * rect.z) * side, tile.y + uv * tile.size);
+                    }
+                    sameTexels &= near((1.0f / side) / rect.z, 1.0f / tile.size);
+                }
+                CHECK(contained, "fitted storage contains every mixed-size tile within budget");
+                CHECK(sameTexels, "fitted UVs and PCF offsets preserve pixel resolution");
+            }
+        }
+    }
+
     std::printf(g_failures ? "\n%d check(s) failed\n" : "\nall checks passed\n", g_failures);
     return g_failures == 0 ? 0 : 1;
 }

@@ -18,6 +18,7 @@
 
 #include <glm/glm.hpp>
 
+#include <algorithm>
 #include <vector>
 
 namespace esengine {
@@ -112,15 +113,32 @@ public:
     u32 tileCount() const { return static_cast<u32>(tiles_.size()); }
     const ShadowTile& tile(u32 index) const { return tiles_[index]; }
 
+    // Fit storage to occupied texels without changing tile placement or resolution.
+    u32 occupiedSize() const {
+        u32 extent = 0;
+        for (const ShadowTile& t : tiles_) {
+            extent = std::max(extent, std::max(t.x, t.y) + t.size);
+        }
+        if (extent == 0) {
+            return 0;
+        }
+        u32 size = cell_;
+        while (size < extent) {
+            size = size > size_ / 2 ? size_ : size * 2;
+        }
+        return size;
+    }
+
     /**
      * @brief Tile @p index as a fraction of the atlas: (origin.x, origin.y, side, 0).
+     * @param textureSize Physical texture side; zero uses the allocation budget.
      * @details The origin is the low corner in the convention the atlas is RENDERED
      *          in, which is GL's. A backend that samples the other way up turns it
      *          over where it samples — see the WGSL twin of shadowFactor3D.
      */
-    glm::vec4 unitRect(u32 index) const {
+    glm::vec4 unitRect(u32 index, u32 textureSize = 0) const {
         const ShadowTile& t = tiles_[index];
-        const f32 inv = 1.0f / static_cast<f32>(size_);
+        const f32 inv = 1.0f / static_cast<f32>(textureSize > 0 ? textureSize : size_);
         return {static_cast<f32>(t.x) * inv, static_cast<f32>(t.y) * inv,
                 static_cast<f32>(t.size) * inv, 0.0f};
     }
