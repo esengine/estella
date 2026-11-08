@@ -22,6 +22,7 @@ import {
     getComponent, DeviceStatus, getDeviceStatus, getDeviceLostReport, recoverDevice,
     getContextLossGuardInfo, decodeImagePixels, captureFramePixels, captureFrame, replayDraw, BatchBreak,
     RenderTexture, Camera, Sprite, Time,
+    Children, MeshRenderer, RuntimeOnly, CompositeBatch, CompositeBatchingRes, StaticBatchingRes,
     planarReflectionStatus,
     EditorViewLighting, EditorViewShading, EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
     ProfileRecorder, AnimatorController, Timeline, onDeviceRestored, Schedule, defineSystem,
@@ -629,6 +630,47 @@ const api = {
         const data = app!.world.get(entity, comp) as Record<string, unknown>;
         writeFieldPath(data, key, coerceToShape(readFieldPath(data, key), value));
         app!.world.set(entity, comp, data);
+    },
+
+    /** Adds or removes the real component so lifecycle checks use the shipped plugin. */
+    setComponent(id: number, component: string, data: Record<string, unknown> | null): void {
+        const entity = requireEntity(id);
+        const definition = getComponent(component);
+        if (!definition) throw new Error(`setComponent: no component named "${component}"`);
+        if (data === null) app!.world.remove(entity, definition);
+        else app!.world.insert(entity, definition, data);
+    },
+
+    setParent(id: number, parent: number): void {
+        app!.world.setParent(requireEntity(id), requireEntity(parent));
+    },
+
+    refreshComposite(id: number): void {
+        app!.getResource(CompositeBatchingRes).refresh(requireEntity(id));
+    },
+
+    compositeBatchReport(id: number) {
+        const world = app!.world, root = requireEntity(id);
+        const state = app!.getResource(CompositeBatchingRes);
+        const children = world.tryGet(root, Children)?.entities ?? [];
+        return {
+            report: state.report(root), counts: { ...state.counts }, busy: state.busy_,
+            component: world.tryGet(root, CompositeBatch),
+            visibleParts: children.filter(entity => !world.has(entity, RuntimeOnly) && world.tryGet(entity, MeshRenderer)?.enabled).length,
+            holders: children.filter(entity => world.has(entity, RuntimeOnly)).map(entity => ({
+                name: world.tryGet(entity, Name)?.value, mesh: world.tryGet(entity, MeshRenderer)?.mesh,
+                castShadows: world.tryGet(entity, MeshRenderer)?.castShadows,
+            })),
+        };
+    },
+
+    staticBatchReport() {
+        const report = app!.getResource(StaticBatchingRes).report();
+        return { refused: Array.from(report.refused), groups: report.groups.map(group => ({ ...group,
+            partCount: group.parts.length,
+            holderCastShadows: app!.world.tryGet(group.entity, MeshRenderer)?.castShadows,
+            partCastShadows: group.parts.map(entity => app!.world.tryGet(entity, MeshRenderer)?.castShadows),
+        })) };
     },
 
     /**

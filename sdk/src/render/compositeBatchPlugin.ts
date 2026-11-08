@@ -108,7 +108,7 @@ interface RefusalDefs {
 /** Whether two renderers draw the same way: the state a part's key is made from. */
 function sameDrawState(a: MeshRendererData, b: MeshRendererData): boolean {
     return a.material === b.material && a.texture === b.texture && a.normalMap === b.normalMap && a.layer === b.layer
-        && a.cullBackfaces === b.cullBackfaces && a.lit === b.lit
+        && a.cullBackfaces === b.cullBackfaces && a.lit === b.lit && (a.castShadows !== false) === (b.castShadows !== false)
         && a.color.r === b.color.r && a.color.g === b.color.g && a.color.b === b.color.b && a.color.a === b.color.a
         && a.parallax.x === b.parallax.x && a.parallax.y === b.parallax.y;
 }
@@ -317,7 +317,7 @@ export class CompositeBatchPlugin implements Plugin {
             const known = c.parts.get(e);
             const key = known && known.mesh === mr.mesh && sameDrawState(known.mr, mr) ? known.key : staticBatchKey({
                 material: mr.material, texture: mr.texture, normalMap: mr.normalMap, color: mr.color, layer: mr.layer,
-                cullBackfaces: mr.cullBackfaces, lit: mr.lit, parallax: mr.parallax, group: '',
+                cullBackfaces: mr.cullBackfaces, lit: mr.lit, castShadows: mr.castShadows, parallax: mr.parallax, group: '',
             }, channelSignature(mesh.channels, mesh.vertexStride));
             const cx = (mesh.aabbMin[0] + mesh.aabbMax[0]) / 2, cy = (mesh.aabbMin[1] + mesh.aabbMax[1]) / 2, cz = (mesh.aabbMin[2] + mesh.aabbMax[2]) / 2;
             const center: [number, number, number] = [

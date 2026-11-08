@@ -313,7 +313,7 @@ export class StaticBatchPlugin implements Plugin {
             ];
             const key = staticBatchKey({
                 material: mr.material, texture: mr.texture, normalMap: mr.normalMap, color: mr.color, layer: mr.layer,
-                cullBackfaces: mr.cullBackfaces, lit: mr.lit, parallax: mr.parallax, group: `${sb.group}@${scene}`,
+                cullBackfaces: mr.cullBackfaces, lit: mr.lit, castShadows: mr.castShadows, parallax: mr.parallax, group: `${sb.group}@${scene}`,
             }, channelSignature(mesh.channels, mesh.vertexStride));
             candidates.push({ entity: e, key, center, vertices: mesh.vertexCount });
             info.set(e, { mr, mesh, world: matrix, scene });

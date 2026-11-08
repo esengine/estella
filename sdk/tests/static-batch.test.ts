@@ -96,7 +96,7 @@ describe('layoutRefusal', () => {
 });
 
 describe('planStaticBatches', () => {
-    const state = { material: 1, texture: 2, normalMap: 0, color: { r: 1, g: 1, b: 1, a: 1 }, layer: 0, cullBackfaces: true, lit: true, parallax: { x: 0, y: 0 }, group: '' };
+    const state = { material: 1, texture: 2, normalMap: 0, color: { r: 1, g: 1, b: 1, a: 1 }, layer: 0, cullBackfaces: true, lit: true, castShadows: true, parallax: { x: 0, y: 0 }, group: '' };
     const layout = channelSignature(channels, vertexStride);
     const key = (over: Partial<typeof state> = {}) => staticBatchKey({ ...state, ...over }, layout);
     const at = (entity: number, x: number, k = key(), vertices = 100) => ({ entity, key: k, center: [x, 0, 0] as const, vertices });
@@ -105,6 +105,16 @@ describe('planStaticBatches', () => {
         const plan = planStaticBatches([at(1, 0), at(2, 100), at(3, 200), at(4, 100, key({ material: 9 }))]);
         expect(plan.batches.map((b) => b.entities)).toEqual([[1, 2, 3]]);
         expect(plan.alone).toEqual([4]);
+    });
+
+    it('keeps shadow casters separate from otherwise identical non-casters', () => {
+        const plan = planStaticBatches([at(1, 0), at(2, 10), at(3, 20, key({ castShadows: false })), at(4, 30, key({ castShadows: false }))]);
+        expect(plan.batches.map(batch => batch.entities).sort((a, b) => a[0]! - b[0]!)).toEqual([[1, 2], [3, 4]]);
+    });
+
+    it('preserves the default shadow policy when an older caller omits it', () => {
+        const { castShadows: _, ...legacy } = state;
+        expect(staticBatchKey(legacy, layout)).toBe(key());
     });
 
     it('keeps cells apart so culling still works, and caps a batch at the vertex limit', () => {

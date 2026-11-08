@@ -55,6 +55,8 @@ export interface StaticBatchState {
     layer: number;
     cullBackfaces: boolean;
     lit: boolean;
+    /** Shadow participation belongs to the draw; omitted keeps the MeshRenderer default of true. */
+    castShadows?: boolean;
     parallax: { x: number; y: number };
     /** The author's own grouping (`StaticBatch.group`), so two rooms can be kept apart. */
     group: string;
@@ -258,7 +260,8 @@ export const STATIC_BATCH_DEFAULTS: StaticBatchLimits = { cellSize: 1600, maxVer
 export function staticBatchKey(state: StaticBatchState, layout: string): string {
     const c = state.color;
     return [state.material, state.texture, state.normalMap, c.r, c.g, c.b, c.a, state.layer,
-        state.cullBackfaces ? 1 : 0, state.lit ? 1 : 0, state.parallax.x, state.parallax.y, state.group, layout].join('|');
+        state.cullBackfaces ? 1 : 0, state.lit ? 1 : 0, state.castShadows !== false ? 1 : 0,
+        state.parallax.x, state.parallax.y, state.group, layout].join('|');
 }
 
 /**

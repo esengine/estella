@@ -107,6 +107,15 @@ jobs:
       run: node tools/tests/placement-bounds.e2e.mjs --webgl-only
     - name: Check instance and deformed shadow coverage with genuine headless Chromium
       run: node tools/tests/placement-shadows.e2e.mjs --webgl-only
+    - name: Check composite lifecycle and mixed shadow policies with genuine headless Chromium
+      run: node tools/tests/composite-batch.e2e.mjs --webgl-only
+    - name: Upload composite batching observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: composite-batch-webgl2
+        path: output/composite-batch/
+        retention-days: 3
     - name: Upload native placement shadow observations
       if: always()
       uses: actions/upload-artifact@v7
@@ -1109,6 +1118,15 @@ jobs:
       env:
         ESTELLA_VERIFY_WEBGPU_ADAPTER: ''
       run: node tools/verify-render.mjs --tier pr --backend webgpu --host engine --no-build --budget 45
+    - name: Check composite lifecycle and mixed shadow policies on the second backend
+      run: node tools/tests/composite-batch.e2e.mjs --webgpu-only
+    - name: Upload second-backend composite batching observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: composite-batch-webgpu
+        path: output/composite-batch/
+        retention-days: 3
 
   # The native runtime, judged by pixels on a machine with no GPU.
   #
