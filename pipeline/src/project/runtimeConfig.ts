@@ -289,6 +289,7 @@ export interface PackagingOptions {
   engineSubpackage: boolean;
   excludeScenes: string[];
   sourcemap: boolean;
+  minifyScripts: boolean;
   appIcon: string | undefined;
   /** How the page's start screen should look; see SplashPackaging. */
   splash: ProjectPackaging['splash'];
@@ -308,6 +309,7 @@ export function packagingOptionsOf(manifest: Pick<ProjectManifest, 'packaging' |
     // A shipping build carries no maps unless the project asked; `config` is the
     // word the dialog uses for the same choice.
     sourcemap: p?.sourceMaps ?? (p?.config === 'development'),
+    minifyScripts: p?.minifyScripts ?? true,
     appIcon: p?.icon,
     splash: p?.splash,
   };

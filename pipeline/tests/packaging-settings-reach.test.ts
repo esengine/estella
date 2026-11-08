@@ -8,6 +8,7 @@
  * through the derivation the headless export spreads — the step that was missing
  * when `compressWasm` was honoured by the Build dialog and by nothing else.
  */
+import { minifiesScripts } from '../src/export/scriptMinify';
 import { describe, it, expect } from 'vitest';
 import { parseManifest } from '../src/project/format';
 import { packagingOptionsOf, cookOptionsOf } from '../src/project/runtimeConfig';
@@ -26,6 +27,14 @@ describe('a packaging setting a project declares', () => {
         expect(packagingOptionsOf(project({}))).toMatchObject({
             compressWasm: false, engineSubpackage: false, excludeScenes: [],
         });
+    });
+
+    it('minifies scripts unless the project or a development build says not to', () => {
+        expect(packagingOptionsOf(project({})).minifyScripts).toBe(true);
+        expect(packagingOptionsOf(project({ minifyScripts: false })).minifyScripts).toBe(false);
+        expect(minifiesScripts({ minifyScripts: true })).toBe(true);
+        expect(minifiesScripts({ minifyScripts: false, minify: true })).toBe(false);
+        expect(minifiesScripts({ minifyScripts: true, minify: false })).toBe(false);
     });
 
     it('carries the asset-compression choice the cook reads', () => {

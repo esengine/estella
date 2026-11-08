@@ -356,6 +356,7 @@ export interface ProjectPackaging {
   platform?: ExportPlatform;
   config?: 'development' | 'shipping';
   sourceMaps?: boolean;
+  minifyScripts?: boolean;
   /** A development build dials the editor so the frame debugger can capture it. */
   frameDebugger?: boolean;
   openFolder?: boolean;
@@ -486,7 +487,7 @@ export interface ProjectPackaging {
 
 /** The packaging settings a profile may set; the rest are the project's. */
 export const EXPORT_PROFILE_FIELDS = [
-  'config', 'sourceMaps', 'assetCompression', 'compressWasm', 'engineSubpackage', 'excludeScenes', 'remoteRoot',
+  'config', 'sourceMaps', 'minifyScripts', 'assetCompression', 'compressWasm', 'engineSubpackage', 'excludeScenes', 'remoteRoot',
 ] as const satisfies readonly (keyof ProjectPackaging)[];
 
 /**
@@ -922,6 +923,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
     if (p.config === 'development' || p.config === 'shipping') pkg.config = p.config;
     if (typeof p.appId === 'string' && p.appId !== '') pkg.appId = p.appId;
     if (typeof p.sourceMaps === 'boolean') pkg.sourceMaps = p.sourceMaps;
+    if (typeof p.minifyScripts === 'boolean') pkg.minifyScripts = p.minifyScripts;
     if (typeof p.frameDebugger === 'boolean') pkg.frameDebugger = p.frameDebugger;
     if (typeof p.openFolder === 'boolean') pkg.openFolder = p.openFolder;
     if (typeof p.compressWasm === 'boolean') pkg.compressWasm = p.compressWasm;

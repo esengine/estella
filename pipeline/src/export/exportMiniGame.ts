@@ -27,6 +27,7 @@
  *        have no import maps and a different module/asset model, so this is its
  *        own path. Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
+import { minifiesScripts } from './scriptMinify';
 import type { DebugChannelConfig } from 'esengine';
 import { packagedDebugChannel } from './debugChannel';
 import { packagedHotUpdate } from './hotUpdateConfig';
@@ -283,6 +284,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
    *  generated boot passes the packaged slice of them to the vendor runtime. */
   runtime?: RuntimeProjectConfig;
   minify?: boolean;
+  minifyScripts?: boolean;
   debugChannel?: DebugChannelConfig | null;
   /** Overrides the project's own CDN root / persistence key (see `packagedHotUpdate`). */
   hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
@@ -590,7 +592,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       target: profile.esTarget,
       alias: esengineAlias(opts.sdkDir, lean ? leanEntry! : profile.sdkEntryFile),
       plugins: [officialPackagesPlugin(opts.packagesDir)],
-      minify: opts.minify ?? false,
+      minify: minifiesScripts(opts),
       sourcemap: false,
       outfile: path.join(absOut, 'game-bundle.js'),
       logLevel: 'silent',
@@ -635,7 +637,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
         // the package, this one included.
         target: profile.esTarget,
         plugins: [officialPackagesPlugin(opts.packagesDir)],
-        minify: opts.minify ?? false,
+        minify: minifiesScripts(opts),
         sourcemap: false,
         outfile: path.join(absOut, OPEN_DATA_DIR, 'index.js'),
         logLevel: 'silent',

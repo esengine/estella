@@ -18,6 +18,7 @@
  *        here — runtime is validated in a browser / ad preview). Pure Node (esbuild
  *        + fs); IPC wiring in main.ts.
  */
+import { minifiesScripts } from './scriptMinify';
 import { loadEsbuild } from '../bundle/esbuildRuntime';
 import { runtimeHostEntry } from '../bundle/runtimeHosts';
 import {
@@ -220,6 +221,7 @@ export async function exportPlayable(opts: {
    * to the pixel). An explicit `false` is still honoured.
    */
   minify?: boolean;
+  minifyScripts?: boolean;
   /** Honor authored PNG Max Size; playables still ship images rather than KTX2. */
   resizeTextures?: boolean;
   /** WAV to MP3 at the authored bitrate, honoring each clip's compression opt-out. */
@@ -322,7 +324,7 @@ export async function exportPlayable(opts: {
       // dist; the project root has no esengine installed.
       alias: esengineAlias(opts.sdkDir),
       plugins: [officialPackagesPlugin(opts.packagesDir)],
-      minify: opts.minify ?? true,
+      minify: minifiesScripts(opts),
       write: false,
       outfile: 'game-bundle.js',
       logLevel: 'silent',
@@ -337,7 +339,7 @@ export async function exportPlayable(opts: {
       format: 'iife',
       platform: 'browser',
       target: 'es2020',
-      minify: opts.minify ?? true,
+      minify: minifiesScripts(opts),
       write: false,
       outfile: 'game-loader.js',
       logLevel: 'silent',

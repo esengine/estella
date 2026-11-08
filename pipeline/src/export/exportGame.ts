@@ -19,6 +19,7 @@
  *
  *        Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
+import { minifiesScripts } from './scriptMinify';
 import type { BuildOptions, Plugin } from 'esbuild';
 import { loadEsbuild } from '../bundle/esbuildRuntime';
 import { runtimeHostEntry } from '../bundle/runtimeHosts';
@@ -588,8 +589,8 @@ export interface ExportGameOptions {
    * for the differential that proves the two frames agree (REARCH_AOT.md §8.2).
    */
   aotMode?: BuildMode;
-  /** Shipping config: minify the bundles, no sourcemap. Default off (dev). */
   minify?: boolean;
+  minifyScripts?: boolean;
   sourcemap?: boolean;
   /** Where the editor listens for this development build; with `minify`, the
    *  export fails (see `packagedDebugChannel`). */
@@ -822,6 +823,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       orientation,
       runtime,
       minify: opts.minify,
+      minifyScripts: opts.minifyScripts,
       debugChannel: opts.debugChannel,
       hotUpdate: opts.hotUpdate,
       emcc: opts.emcc,
@@ -864,6 +866,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       orientation,
       runtime,
       minify: opts.minify,
+      minifyScripts: opts.minifyScripts,
       debugChannel: opts.debugChannel,
       hotUpdate: opts.hotUpdate,
       emcc: opts.emcc,
@@ -893,6 +896,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       title,
       orientation,
       minify: opts.minify,
+      minifyScripts: opts.minifyScripts,
       resizeTextures: opts.compressTextures,
       compressAudio: opts.compressAudio,
       sizeBudgetBytes: opts.sizeBudgetBytes,
@@ -963,7 +967,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     target: 'es2020',
     external: ESENGINE_EXTERNAL,
     plugins: [officialPackagesPlugin(opts.packagesDir)],
-    minify: opts.minify ?? false,
+    minify: minifiesScripts(opts),
     sourcemap: sourceMaps,
     write: true,
     logLevel: 'silent',

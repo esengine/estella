@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(export): scripts are minified on export unless the project turns it off':
+    {"note":"An exported game's scripts are minified"},
   'feat(cocos): a document the creator edited moves from the layer Cocos.Widget to the engine RectAnchors on re-import':
     {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   'feat(ui): RectAnchors pins world content to its parent rectangle or the screen in the engine, and the Cocos Widget is a view on it':
