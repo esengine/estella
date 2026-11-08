@@ -28,6 +28,14 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(cyber-rooftop): restore wetness masks and fit fixture shadows':
+    {"internal":"the cyber-rooftop example's own scene and texture settings; the engine and editor are unchanged"},
+  'fix(render): allocate complete point shadows and report new denials':
+    {"note":"A point light's shadow is whole or absent."},
+  'fix(assets): release runtime entity replacements on despawn':
+    {"note":"An asset swapped onto a runtime entity is released when the entity goes."},
+  'feat(settings): Packaging has a Minify scripts row':
+    {"note":"An exported game's scripts are minified"},
   'feat(export): scripts are minified on export unless the project turns it off':
     {"note":"An exported game's scripts are minified"},
   'feat(cocos): a document the creator edited moves from the layer Cocos.Widget to the engine RectAnchors on re-import':
