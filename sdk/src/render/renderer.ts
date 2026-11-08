@@ -10,6 +10,7 @@ import { log } from '../util/logger';
 import { decodeFrameCapture, replayToDrawCall as replayToDrawCallImpl, getSnapshotImageData as getSnapshotImpl, snapshotMatchesCapture as snapshotMatchesImpl, type FrameCaptureData } from './frameCapture';
 import { acquireWebGPUDevice } from './webgpuBoot';
 import { ATLAS_REFUSAL, LIGHT_REFUSAL } from './refusals';
+import { nativeEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
 
 export enum RenderStage {
     Background = 0,
@@ -176,6 +177,10 @@ let lodInspectPtr: number = 0;
 let lightStatusPtr: number = 0;
 /** AtlasRefusal, in the order ShadowAtlas.hpp declares it. */
 let backend: RendererBackend | null = null;
+
+function engine(): EngineApi | null {
+    return (module as EngineApi | null) ?? nativeEngineApi();
+}
 
 /** The wasm backend: every call marshals through the module's heap, exactly as
  *  the Renderer always has. */
@@ -629,23 +634,23 @@ export const Renderer = {
     },
 
     createRenderTarget(width: number, height: number, flags: number = 1): RenderTargetHandle {
-        return module?.renderer_createTarget(width, height, flags) ?? 0;
+        return engine()?.renderer_createTarget?.(width, height, flags) ?? 0;
     },
 
     releaseRenderTarget(handle: RenderTargetHandle): void {
-        module?.renderer_releaseTarget(handle);
+        engine()?.renderer_releaseTarget?.(handle);
     },
 
     getTargetTexture(handle: RenderTargetHandle): number {
-        return module?.renderer_getTargetTexture(handle) ?? 0;
+        return engine()?.renderer_getTargetTexture?.(handle) ?? 0;
     },
 
     getTargetDepthTexture(handle: RenderTargetHandle): number {
-        return module?.renderer_getTargetDepthTexture(handle) ?? 0;
+        return engine()?.renderer_getTargetDepthTexture?.(handle) ?? 0;
     },
 
     setClearColor(r: number, g: number, b: number, a: number): void {
-        module?.renderer_setClearColor?.(r, g, b, a);
+        engine()?.renderer_setClearColor?.(r, g, b, a);
     },
 
     setViewport(x: number, y: number, w: number, h: number): void {
@@ -773,7 +778,7 @@ export const Renderer = {
     },
 
     setTextureParams(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void {
-        module?.renderer_setTextureParams?.(textureId, minFilter, magFilter, wrapS, wrapT);
+        engine()?.renderer_setTextureParams?.(textureId, minFilter, magFilter, wrapS, wrapT);
     },
 
     measureBitmapText(fontHandle: number, text: string, fontSize: number, spacing: number): { width: number; height: number } {

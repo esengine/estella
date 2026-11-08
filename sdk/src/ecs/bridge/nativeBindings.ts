@@ -91,6 +91,7 @@ export const RESOURCE_BINDINGS = {
     registerTextureWithPath: 'es_rm_registerTextureWithPath',
     getTextureDimensions: 'es_getTextureDimensions',
     setTextureMetadata: 'es_rm_setTextureMetadata',
+    wrapDeviceTexture: 'es_rm_wrapDeviceTexture',
 } as const;
 
 /**

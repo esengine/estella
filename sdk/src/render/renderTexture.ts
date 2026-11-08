@@ -2,6 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { Renderer, deviceGeneration, type RenderTargetHandle } from './renderer';
 import { getResourceManager } from '../wasm/resourceManager';
+import { warn } from '../util/logger';
+
+let warnedNoTarget = false;
 
 export interface RenderTextureOptions {
     width: number;
@@ -48,6 +51,10 @@ export const RenderTexture = {
         const flags = (depth ? 1 : 0) | (linear ? 2 : 0);
 
         const handle = Renderer.createRenderTarget(options.width, options.height, flags);
+        if (handle === 0 && !warnedNoTarget) {
+            warnedNoTarget = true;
+            warn('render', `RenderTexture.create(${options.width}x${options.height}) made no render target: the renderer is not up yet, or this engine core has none`);
+        }
         const textureId = Renderer.getTargetTexture(handle);
         // The target keeps its texture; the resource table only names it, so
         // components can reference it by handle.

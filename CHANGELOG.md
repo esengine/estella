@@ -20,6 +20,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A render target works on a native device.** On the Android and iOS hosts `RenderTexture.create` handed back 0 for its handle and its texture, so a camera's `renderTarget` and anything painted into a texture drew nothing, and nothing was logged. The SDK asked only the web's engine module for a target; it now asks whichever engine core is running, and a device names the target's texture for a `Sprite` as the web does. A target that cannot be made is now reported once in the log.
 - **A `#pragma lighting direct` surface takes a sun's shadow.** Under a directional light with a size (any `sourceAngle` above 0, the default 0.53 included) such a shader drew no shadow at all; it now draws the hard shadow the directive promises.
 
 ## [0.99.1] - 2026-11-07

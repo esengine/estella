@@ -111,6 +111,9 @@ export function createNativeResourceManager(
             hostCallOpt(scope, RESOURCE_BINDINGS.releaseTexture, [handle]);
         },
 
+        wrapDeviceTexture: (textureId, width, height): number =>
+            (hostCallOpt(scope, RESOURCE_BINDINGS.wrapDeviceTexture, [textureId, width, height]) as number | undefined) ?? 0,
+
         // Register the handle under a logical path so a later load-by-path revives
         // the same texture instead of re-decoding. The web RM does this in its
         // loaders; the Spine loader calls it directly (not through the optional
