@@ -54,6 +54,12 @@ export interface Physics3DWasmModule {
                              continuous: number, friction: number, restitution: number,
                              isSensor: number): number;
     _physics3d_removeBody(bodyId: number): void;
+    /** Optional for older binaries. Required by CompoundCollider3D, never silently approximated. */
+    _physics3d_addCompound?(entity: number, parts: number, count: number,
+        px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number,
+        motion: number, gravityScale: number, linearDamping: number, angularDamping: number,
+        fixedRotation: number, layer: number, continuous: number, friction: number,
+        restitution: number, isSensor: number, mass: number): number;
 
     _malloc(bytes: number): number;
     _free(ptr: number): void;

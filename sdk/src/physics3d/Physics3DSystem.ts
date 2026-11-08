@@ -25,6 +25,7 @@ import {
     type ConvexCollider3DData,
 } from './Physics3DComponents';
 import { getMeshCollision } from '../asset/meshCollision';
+import { CompoundCollider3D, encodeCompoundParts } from './CompoundCollider3D';
 import { syncJoints3D, type Joint3DMap } from './Physics3DJoints';
 import type { Entity } from '../types';
 import type { Physics3DWasmModule, Physics3DEventsData } from './Physics3DModule';
@@ -55,6 +56,7 @@ export const DEFAULT_PHYSICS3D_CONFIG: Physics3DConfig = {
 
 /** Which body an entity owns, so a removed component takes its body with it. */
 type BodyMap = Map<Entity, number>;
+const authoredPoses = new WeakMap<BodyMap, Map<Entity, number[]>>();
 
 /** The body each piece of collision geometry was built as, by its key, and the piece it was built from. */
 export type PieceMap = Map<string, { piece: CollisionPiece; id: number }>;
@@ -184,6 +186,20 @@ function createBody(app: App, module: Physics3DWasmModule, entity: Entity,
     // component answers with a default-constructed one, `enabled` and all — so
     // every sphere, capsule, hull and mesh was built as the default box.
     const has = (c: Parameters<typeof app.world.has>[1]) => app.world.has(entity, c);
+    if (has(CompoundCollider3D)) {
+        const collider = app.world.get(entity, CompoundCollider3D);
+        if (collider.enabled && collider.parts.length) {
+            if (!module._physics3d_addCompound) throw Error('CompoundCollider3D requires a rebuilt 3D physics module');
+            const data = encodeCompoundParts(collider.parts, t?.worldScale ?? { x: 1, y: 1, z: 1 }, ppu);
+            const ptr = module._malloc(data.byteLength);
+            try {
+                module.HEAPF32.set(data, ptr >> 2);
+                return module._physics3d_addCompound(entity, ptr, collider.parts.length,
+                    px, py, pz, r.x, r.y, r.z, r.w, ...how,
+                    collider.friction, collider.restitution, collider.isSensor ? 1 : 0, collider.mass);
+            } finally { module._free(ptr); }
+        }
+    }
     const box = has(BoxCollider3D)
         ? app.world.get(entity, BoxCollider3D) as BoxCollider3DData : undefined;
     if (box?.enabled) {
@@ -202,12 +218,12 @@ function createBody(app: App, module: Physics3DWasmModule, entity: Entity,
     const meshCollider = has(MeshCollider3D)
         ? app.world.get(entity, MeshCollider3D) as MeshCollider3DData : undefined;
     if (meshCollider?.enabled && meshCollider.mesh !== 0) {
-        return addMeshBody(module, entity, meshCollider, px, py, pz, r, ppu, body.layer);
+        return addMeshBody(module, entity, meshCollider, px, py, pz, r, ppu, body.layer, t?.worldScale);
     }
     const hull = has(ConvexCollider3D)
         ? app.world.get(entity, ConvexCollider3D) as ConvexCollider3DData : undefined;
     if (hull?.enabled && hull.mesh !== 0) {
-        return addConvexBody(module, entity, hull, px, py, pz, r, ppu, how);
+        return addConvexBody(module, entity, hull, px, py, pz, r, ppu, how, t?.worldScale);
     }
     const capsule = has(CapsuleCollider3D)
         ? app.world.get(entity, CapsuleCollider3D) as CapsuleCollider3DData : undefined;
@@ -232,11 +248,11 @@ function addMeshBody(module: Physics3DWasmModule, entity: Entity,
                      collider: MeshCollider3DData,
                      px: number, py: number, pz: number,
                      r: { x: number; y: number; z: number; w: number },
-                     ppu: number, layer: number): number {
+                     ppu: number, layer: number, scale?: Vec3): number {
     const geometry = getMeshCollision(collider.mesh);
     if (!geometry) return 0;
     return addTriangles(module, entity, geometry.positions, geometry.indices, px, py, pz, r, ppu, layer,
-                        collider.friction, collider.restitution);
+                        collider.friction, collider.restitution, scale);
 }
 
 /** Triangles in world units, scaled into metres on the module's heap, as one static body at (px, py, pz) in metres. */
@@ -244,13 +260,19 @@ function addTriangles(module: Physics3DWasmModule, entity: Entity,
                       positions: Float32Array, indices: Uint32Array,
                       px: number, py: number, pz: number,
                       r: { x: number; y: number; z: number; w: number },
-                      ppu: number, layer: number, friction: number, restitution: number): number {
+                      ppu: number, layer: number, friction: number, restitution: number, scale?: Vec3): number {
     const vertexPtr = module._malloc(positions.length * 4);
     const indexPtr = module._malloc(indices.length * 4);
     try {
         const heapF32 = module.HEAPF32;
-        for (let i = 0; i < positions.length; i++) heapF32[(vertexPtr >> 2) + i] = positions[i]! / ppu;
+        for (let i = 0; i < positions.length; i++) heapF32[(vertexPtr >> 2) + i] = positions[i]! * (scale ? (i % 3 === 0 ? scale.x : i % 3 === 1 ? scale.y : scale.z) : 1) / ppu;
         module.HEAPU32.set(indices, indexPtr >> 2);
+        if (scale && scale.x * scale.y * scale.z < 0) {
+            for (let i = 0; i < indices.length; i += 3) {
+                module.HEAPU32[(indexPtr >> 2) + i + 1] = indices[i + 2]!;
+                module.HEAPU32[(indexPtr >> 2) + i + 2] = indices[i + 1]!;
+            }
+        }
         return module._physics3d_addMeshBody(
             entity as number, vertexPtr, positions.length / 3, indexPtr, indices.length,
             px, py, pz, r.x, r.y, r.z, r.w, layer, friction, restitution);
@@ -294,7 +316,7 @@ function addConvexBody(module: Physics3DWasmModule, entity: Entity,
                        collider: ConvexCollider3DData, px: number, py: number, pz: number,
                        r: { x: number; y: number; z: number; w: number },
                        ppu: number,
-                       how: readonly [number, number, number, number, number, number, number],
+                       how: readonly [number, number, number, number, number, number, number], scale?: Vec3,
 ): number {
     const geometry = getMeshCollision(collider.mesh);
     if (!geometry) return 0;
@@ -302,7 +324,7 @@ function addConvexBody(module: Physics3DWasmModule, entity: Entity,
     const vertexPtr = module._malloc(positions.length * 4);
     try {
         const heapF32 = module.HEAPF32;
-        for (let i = 0; i < positions.length; i++) heapF32[(vertexPtr >> 2) + i] = positions[i]! / ppu;
+        for (let i = 0; i < positions.length; i++) heapF32[(vertexPtr >> 2) + i] = positions[i]! * (scale ? (i % 3 === 0 ? scale.x : i % 3 === 1 ? scale.y : scale.z) : 1) / ppu;
         return module._physics3d_addConvexBody(
             entity as number, vertexPtr, positions.length / 3,
             px, py, pz, r.x, r.y, r.z, r.w, ...how,
@@ -327,14 +349,26 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
     app.world.ensureTransformsComposed();
     moveCharacters(app, module, characters, config);
 
+    const poses = authoredPoses.get(bodies) ?? new Map<Entity, number[]>();
+    authoredPoses.set(bodies, poses);
+    app.world.ensureTransformsComposed();
     const live = new Set<Entity>();
     for (const entity of app.world.queryEntities([RigidBody3D])) {
         const body = app.world.get(entity, RigidBody3D) as RigidBody3DData;
         if (!body.enabled) continue;
         live.add(entity);
-        if (!bodies.has(entity)) {
+        const created = !bodies.has(entity);
+        if (created) {
             const id = createBody(app, module, entity, body, ppu);
             if (id !== 0) bodies.set(entity, id);
+        }
+        if (body.bodyType !== MOTION.Dynamic && bodies.has(entity) && app.world.has(entity, Transform)) {
+            const t = app.world.get(entity, Transform), p = t.worldPosition, r = t.worldRotation;
+            const pose = [p.x / ppu, p.y / ppu, p.z / ppu, r.x, r.y, r.z, r.w];
+            const previous = poses.get(entity);
+            if (!created && (!previous || pose.some((v, i) => v !== previous[i])))
+                module._physics3d_setTransform(bodies.get(entity)!, ...pose as [number, number, number, number, number, number, number]);
+            poses.set(entity, pose);
         }
     }
     const doomed = new Set<Entity>();
@@ -348,6 +382,7 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
     for (const entity of doomed) {
         module._physics3d_removeBody(bodies.get(entity)!);
         bodies.delete(entity);
+        poses.delete(entity);
     }
 
     syncPieces(module, geometry, pieces, ppu);
@@ -378,6 +413,12 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
         const placed = localFromWorld(app, entity, {
             x: f32[o + 1]! * ppu, y: f32[o + 2]! * ppu, z: f32[o + 3]! * ppu,
         }, { x: f32[o + 4]!, y: f32[o + 5]!, z: f32[o + 6]!, w: f32[o + 7]! });
+        // The ECS stores float32. An unchanged solver pose must not dirty the
+        // hierarchy merely because JS division returned a wider approximation.
+        if (t.position.x === Math.fround(placed.position.x) && t.position.y === Math.fround(placed.position.y)
+            && t.position.z === Math.fround(placed.position.z) && t.rotation.x === Math.fround(placed.rotation!.x)
+            && t.rotation.y === Math.fround(placed.rotation!.y) && t.rotation.z === Math.fround(placed.rotation!.z)
+            && t.rotation.w === Math.fround(placed.rotation!.w)) continue;
         t.position.x = placed.position.x;
         t.position.y = placed.position.y;
         t.position.z = placed.position.z;

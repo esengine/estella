@@ -84,7 +84,7 @@ export class Physics3DPlugin implements Plugin {
                 stepPhysics3D(app, module, runtime.bodies, this.config_,
                               runtime.characters, events, runtime.joints, runtime.pieces,
                               app.hasResource(CollisionGeometryRes) ? app.getResource(CollisionGeometryRes) : null);
-            }));
+            }, { name: 'Physics3DStepSystem' }), { profileDomain: 'physics3d' });
             // Installed with the world, drawn only once a game turns the resource
             // on — a scene that never asks for it pays a resource and nothing else.
             setupPhysics3DDebugDraw(app, () => events.contactEnters);

@@ -759,6 +759,34 @@ step(180);
 const offsetRest = bodyState(offsetBall);
 check('a box centred above its body holds a ball at the shape, not the origin', offsetRest && near(offsetRest.y, 4, 0.05), `y=${offsetRest?.y.toFixed(3)}`);
 
+
+// Compound shape gap, local rotation, mass and trigger use the same public ABI on both backends.
+function compound(entity, records, motion = STATIC, sensor = 0, mass = 7) {
+    const ptr = m._malloc(records.length * 4);
+    m.HEAPF32.set(records, ptr >> 2);
+    try { return m._physics3d_addCompound(entity, ptr, records.length / 11, 6200, 10, 0,
+        ...IDENTITY, ...FREE(motion), .5, 0, sensor, mass); } finally { m._free(ptr); }
+}
+const bar = [0, .5, 2, .5, -3, 0, 0, ...IDENTITY, 0, .5, 2, .5, 3, 0, 0, ...IDENTITY];
+const pair = compound(8100, bar);
+check('compound creates one body', pair !== 0);
+check('compound leaves its middle gap empty', !raycast(6200, 15, 0, 0, -10, 0));
+check('compound left offset shape participates in queries', raycast(6197,15,0,0,-10,0)?.entity === 8100);
+check('compound right offset shape participates in queries', raycast(6203,15,0,0,-10,0)?.entity === 8100);
+const rotated = compound(8101, [0, .25, 2, .25, 0, 5, 0, 0, 0, Math.SQRT1_2, Math.SQRT1_2]);
+check('compound local rotation is preserved', raycast(6201.5,20,0,0,-10,0)?.entity === 8101);
+m._physics3d_removeBody(rotated); m._physics3d_removeBody(pair);
+const movingCompound = compound(8102, [1,.5,0,0, -1,0,0,...IDENTITY, 1,.5,0,0,1,0,0,...IDENTITY], DYNAMIC);
+check('dynamic compound reports explicit mass', m._physics3d_getBodyDynamics(movingCompound) === 1 && near(m.HEAPF32[m._physics3d_queryResult() >> 2],7,.01));
+step(30); check('dynamic compound falls as one body', bodyState(movingCompound)?.y < 9);
+check('invalid compound data rejected', compound(8103, [0,-1,1,1,0,0,0,...IDENTITY]) === 0);
+m._physics3d_removeBody(movingCompound);
+const sensorCompound = compound(8104,[1,2,0,0,0,0,0,...IDENTITY],KINEMATIC,1);
+const visitor = m._physics3d_addSphere(8105,.5,6200,10,0,...IDENTITY,...FREE(DYNAMIC),.5,0,0);
+step(1);
+check('compound sensor reports overlap', m._physics3d_sensorEntersBytes() > 0);
+m._physics3d_removeBody(visitor); m._physics3d_removeBody(sensorCompound);
+
 m._physics3d_shutdown();
 check('the world reports itself gone', m._physics3d_isReady() === 0);
 

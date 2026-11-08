@@ -30,20 +30,22 @@ import type {
     RigidBody3DData, BoxCollider3DData, SphereCollider3DData, CapsuleCollider3DData,
     MeshCollider3DData, ConvexCollider3DData, CharacterController3DData,
 } from './Physics3DComponents';
+import { Transform } from '../ecs/component';
+import { CompoundCollider3D, encodeCompoundParts } from './CompoundCollider3D';
 import { getMeshCollision } from '../asset/meshCollision';
 
 /** Points per full circle in a sphere/capsule wireframe. */
 export const COLLIDER3D_RING_SEGMENTS = 24;
 
 /** A 3D collider's geometry in entity-local space, in world units. */
-export type Collider3DShape =
+export type Collider3DShape = { rotation?: Quat } & (
     | { kind: 'box'; halfExtents: Vec3; center: Vec3 }
     | { kind: 'sphere'; radius: number; center?: Vec3 }
-    | { kind: 'capsule'; radius: number; halfHeight: number; center?: Vec3 };
+    | { kind: 'capsule'; radius: number; halfHeight: number; center?: Vec3 });
 
 /** Which component authored a shape — the Inspector target behind a gizmo. */
 export type Collider3DComponent =
-    | 'BoxCollider3D' | 'SphereCollider3D' | 'CapsuleCollider3D'
+    | 'CompoundCollider3D' | 'BoxCollider3D' | 'SphereCollider3D' | 'CapsuleCollider3D'
     | 'MeshCollider3D' | 'ConvexCollider3D' | 'CharacterController3D';
 
 export interface Collider3DInstance {
@@ -66,7 +68,7 @@ export function rotateVec3ByQuat(rot: Quat, v: Vec3): Vec3 {
 }
 
 /** Local AABB of a loaded mesh's collision triangles, or null when nothing loaded them. */
-function meshBounds(handle: number): { center: Vec3; halfExtents: Vec3 } | null {
+function meshBounds(handle: number, scale: Vec3 = { x:1, y:1, z:1 }): { center: Vec3; halfExtents: Vec3 } | null {
     const data = handle !== 0 ? getMeshCollision(handle) : null;
     if (!data || data.positions.length < 3) return null;
     const p = data.positions;
@@ -79,8 +81,8 @@ function meshBounds(handle: number): { center: Vec3; halfExtents: Vec3 } | null 
         if (z < minZ) minZ = z; else if (z > maxZ) maxZ = z;
     }
     return {
-        center: { x: (minX + maxX) / 2, y: (minY + maxY) / 2, z: (minZ + maxZ) / 2 },
-        halfExtents: { x: (maxX - minX) / 2, y: (maxY - minY) / 2, z: (maxZ - minZ) / 2 },
+        center: { x: (minX + maxX) / 2 * scale.x, y: (minY + maxY) / 2 * scale.y, z: (minZ + maxZ) / 2 * scale.z },
+        halfExtents: { x: (maxX - minX) / 2 * Math.abs(scale.x), y: (maxY - minY) / 2 * Math.abs(scale.y), z: (maxZ - minZ) / 2 * Math.abs(scale.z) },
     };
 }
 
@@ -97,6 +99,19 @@ export function readCollider3DShapes(world: World, entity: number): Collider3DIn
         ? world.get(entity, RigidBody3D) as RigidBody3DData : null;
     const bodyLive = body !== null && on(body);
     let taken = false;
+    if (world.has(entity, CompoundCollider3D)) {
+        const c = world.get(entity, CompoundCollider3D), scale = world.has(entity, Transform)
+            ? world.get(entity, Transform).worldScale : { x: 1, y: 1, z: 1 };
+        const packet = encodeCompoundParts(c.parts, scale, 1);
+        taken = on(c) && c.parts.length > 0;
+        for (let i = 0; i < c.parts.length; i++) {
+            const p = packet.subarray(i * 11, (i + 1) * 11);
+            const common = { center: { x: p[4]!, y: p[5]!, z: p[6]! }, rotation: { x: p[7]!, y: p[8]!, z: p[9]!, w: p[10]! } };
+            const shape: Collider3DShape = p[0] === 0 ? { ...common, kind: 'box', halfExtents: { x: p[1]!, y: p[2]!, z: p[3]! } }
+                : p[0] === 1 ? { ...common, kind: 'sphere', radius: p[1]! } : { ...common, kind: 'capsule', radius: p[1]!, halfHeight: p[2]! };
+            out.push({ component: 'CompoundCollider3D', shape, isSensor: c.isSensor, active: taken && bodyLive });
+        }
+    }
 
     const box = world.has(entity, BoxCollider3D)
         ? world.get(entity, BoxCollider3D) as BoxCollider3DData : null;
@@ -131,7 +146,7 @@ export function readCollider3DShapes(world: World, entity: number): Collider3DIn
         // mesh; whether that mesh loaded decides only if a body appears at all.
         const chosen = !taken && on(mesh) && mesh.mesh !== 0;
         if (chosen) taken = true;
-        const bounds = meshBounds(mesh.mesh);
+        const bounds = meshBounds(mesh.mesh, world.has(entity, Transform) ? world.get(entity, Transform).worldScale : undefined);
         if (bounds) {
             out.push({
                 component: 'MeshCollider3D',
@@ -147,7 +162,7 @@ export function readCollider3DShapes(world: World, entity: number): Collider3DIn
     if (hull) {
         const chosen = !taken && on(hull) && hull.mesh !== 0;
         if (chosen) taken = true;
-        const bounds = meshBounds(hull.mesh);
+        const bounds = meshBounds(hull.mesh, world.has(entity, Transform) ? world.get(entity, Transform).worldScale : undefined);
         if (bounds) {
             out.push({
                 component: 'ConvexCollider3D',
@@ -220,6 +235,10 @@ function arc(radius: number, axis: 'xy' | 'zy', offset: Vec3, sign: 1 | -1, segm
  * four caps and the four lines between them.
  */
 export function collider3DWireframe(shape: Collider3DShape, segments = COLLIDER3D_RING_SEGMENTS): Vec3[][] {
+    if (shape.rotation) {
+        const lines = collider3DWireframe({ ...shape, rotation: undefined, center: ZERO }, segments);
+        return placeCollider3DWireframe(lines, shape.center ?? ZERO, shape.rotation);
+    }
     const lines = centredWireframe(shape, segments);
     const c = shape.kind === 'box' ? undefined : shape.center;
     return c ? lines.map((line) => line.map((p) => ({ x: p.x + c.x, y: p.y + c.y, z: p.z + c.z }))) : lines;
@@ -301,6 +320,15 @@ const SOLID_SEGMENTS = 8;
 export function collider3DTriangles(
     shape: Collider3DShape,
 ): { positions: Float32Array; indices: Uint32Array } {
+    if (shape.rotation) {
+        const data = collider3DTriangles({ ...shape, rotation: undefined, center: ZERO });
+        const c = shape.center ?? ZERO;
+        for (let i = 0; i < data.positions.length; i += 3) {
+            const p = q.rotate(shape.rotation, { x: data.positions[i]!, y: data.positions[i + 1]!, z: data.positions[i + 2]! });
+            data.positions.set([p.x + c.x, p.y + c.y, p.z + c.z], i);
+        }
+        return data;
+    }
     if (shape.kind === 'box') {
         const { center: c, halfExtents: h } = shape;
         const positions = new Float32Array(8 * 3);

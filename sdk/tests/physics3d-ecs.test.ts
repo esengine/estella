@@ -9,7 +9,7 @@
  * falling through a floor 0.1m thick — every number still "works", and nothing
  * behaves.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Transform } from '../src/ecs/component';
 import type { TransformData } from '../src/ecs/component.generated';
 import {
@@ -195,6 +195,27 @@ describe('the 3D world and the ECS', () => {
     };
 
     const called = (name: string) => module.calls.filter((c) => c.name === name);
+
+    it('syncs changed authored static and kinematic poses without writes on stable frames', () => {
+        const e=spawn();world.insert(e,BoxCollider3D);world.insert(e,RigidBody3D,{bodyType:1});
+        stepPhysics3D(app,module,bodies,DEFAULT_PHYSICS3D_CONFIG);
+        stepPhysics3D(app,module,bodies,DEFAULT_PHYSICS3D_CONFIG);
+        expect(called('setTransform')).toHaveLength(0);
+        const transform=world.get(e,Transform) as TransformData;transform.worldPosition.x=250;
+        stepPhysics3D(app,module,bodies,DEFAULT_PHYSICS3D_CONFIG);
+        expect(called('setTransform')[0].args.slice(1,4)).toEqual([2.5,0,0]);
+        stepPhysics3D(app,module,bodies,DEFAULT_PHYSICS3D_CONFIG);
+        expect(called('setTransform')).toHaveLength(1);
+    });
+
+    it('does not dirty the ECS for an unchanged native body readback', () => {
+        const e=spawn();world.insert(e,BoxCollider3D);world.insert(e,RigidBody3D,{bodyType:2});
+        module.publish([e,0,0,0,0,0,0,1]);
+        const writes=vi.spyOn(world,'set');
+        stepPhysics3D(app,module,bodies,DEFAULT_PHYSICS3D_CONFIG);
+        stepPhysics3D(app,module,bodies,DEFAULT_PHYSICS3D_CONFIG);
+        expect(writes.mock.calls.filter(c=>c[1]===Transform)).toHaveLength(0);
+    });
 
     it('registers a body for each shape a scene authors', () => {
         const box = spawn();

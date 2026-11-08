@@ -38,6 +38,11 @@ void physics3d_optimize();
 void physics3d_setLayerMask(uint32_t layer, uint32_t mask);
 
 // Bodies
+uint32_t physics3d_addCompound(uint32_t entity, uintptr_t partsPtr, uint32_t count,
+                               float px, float py, float pz, float qx, float qy, float qz, float qw,
+                               int motion, float gravityScale, float linearDamping, float angularDamping,
+                               int fixedRotation, uint32_t layer, int continuous,
+                               float friction, float restitution, int isSensor, float mass);
 uint32_t physics3d_addBox(uint32_t entity, float hx, float hy, float hz,
                           float px, float py, float pz,
                           float qx, float qy, float qz, float qw,

@@ -397,6 +397,60 @@ void physics3d_optimize() {
 // Bodies
 
 EMSCRIPTEN_KEEPALIVE
+uint32_t physics3d_addCompound(uint32_t entity, uintptr_t partsPtr, uint32_t count,
+                               float px, float py, float pz, float qx, float qy, float qz, float qw,
+                               int motion, float gravityScale, float linearDamping, float angularDamping,
+                               int fixedRotation, uint32_t layer, int continuous,
+                               float friction, float restitution, int isSensor, float mass) {
+    if (!g().isValid() || partsPtr == 0 || count == 0 || count > 16384) return 0;
+    const float* parts = reinterpret_cast<const float*>(partsPtr);
+    for (uint32_t i = 0; i < count; ++i) {
+        const float* p = parts + i * 11;
+        for (uint32_t j = 0; j < 11; ++j) if (!std::isfinite(p[j])) return 0;
+        if (!(p[1] > 0) || (p[0] == 0 && !(p[2] > 0 && p[3] > 0))
+            || (p[0] == 2 && p[2] < 0) || (p[0] != 0 && p[0] != 1 && p[0] != 2)
+            || PxQuat(p[7], p[8], p[9], p[10]).magnitudeSquared() < 1.0e-12f) return 0;
+    }
+    uint32_t id = 0;
+    const PxShapeFlags flags = isSensor != 0
+        ? PxShapeFlags(PxShapeFlag::eTRIGGER_SHAPE | PxShapeFlag::eSCENE_QUERY_SHAPE)
+        : PxShapeFlags(PxShapeFlag::eSIMULATION_SHAPE | PxShapeFlag::eSCENE_QUERY_SHAPE);
+    for (uint32_t i = 0; i < count; ++i) {
+        const float* p = parts + i * 11;
+        PxGeometryHolder geometry;
+        PxQuat rotation = quat(p[7], p[8], p[9], p[10]);
+        if (p[0] == 0) geometry.storeAny(PxBoxGeometry(p[1], p[2], p[3]));
+        else if (p[0] == 1 || p[2] == 0) geometry.storeAny(PxSphereGeometry(p[1]));
+        else { geometry.storeAny(PxCapsuleGeometry(p[1], p[2])); rotation = rotation * capsuleUpright(); }
+        const PxTransform local(PxVec3(p[4], p[5], p[6]), rotation);
+        if (i == 0) {
+            id = addBody(entity, geometry.any(), local, px, py, pz, qx, qy, qz, qw,
+                {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer, continuous},
+                friction, restitution, isSensor);
+            if (id == 0) return 0;
+        } else {
+            PxShape* shape = gPhysics->createShape(geometry.any(), *material(friction, restitution), true, flags);
+            if (!shape) { physics3d_removeBody(id); return 0; }
+            shape->setLocalPose(local);
+            shape->setContactOffset(CONTACT_OFFSET);
+            shape->setRestOffset(0.0f);
+            shape->setSimulationFilterData(filterData(layer, 0));
+            shape->setQueryFilterData(filterData(layer, 0));
+            const bool attached = g().body(id)->actor->attachShape(*shape);
+            shape->release();
+            if (!attached) { physics3d_removeBody(id); return 0; }
+        }
+    }
+    if (auto* dynamic = dynamicOf(id)) {
+        if (!isSensor) {
+            if (mass > 0 && std::isfinite(mass)) PxRigidBodyExt::setMassAndUpdateInertia(*dynamic, mass);
+            else PxRigidBodyExt::updateMassAndInertia(*dynamic, DENSITY);
+        }
+    }
+    return id;
+}
+
+EMSCRIPTEN_KEEPALIVE
 uint32_t physics3d_addBox(uint32_t entity, float hx, float hy, float hz,
                           float px, float py, float pz,
                           float qx, float qy, float qz, float qw,

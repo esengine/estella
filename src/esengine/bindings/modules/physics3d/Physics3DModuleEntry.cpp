@@ -25,6 +25,7 @@
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Collision/Shape/StaticCompoundShape.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/CollideShape.h>
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
@@ -34,6 +35,7 @@
 #include <Jolt/RegisterTypes.h>
 
 #include <cstddef>
+#include <cmath>
 
 using namespace JPH;
 using esengine::physics3d::Context;
@@ -157,7 +159,7 @@ ContactRecorder& recorder() {
 uint32_t addBody(uint32_t entity, const Ref<Shape>& shape, float px, float py, float pz,
                  float qx, float qy, float qz, float qw, const BodyMotion& how,
                  float friction, float restitution, int isSensor,
-                 float cx = 0.0f, float cy = 0.0f, float cz = 0.0f) {
+                 float cx = 0.0f, float cy = 0.0f, float cz = 0.0f, float mass = 0.0f) {
     if (!g().isValid()) return 0;
     // A collider off the entity's origin: the shape is carried by a translated wrapper, so the body (and what a dynamic one rotates about)
     // stays at the entity.
@@ -176,6 +178,10 @@ uint32_t addBody(uint32_t entity, const Ref<Shape>& shape, float px, float py, f
     settings.mGravityFactor = how.gravityScale;
     settings.mLinearDamping = how.linearDamping;
     settings.mAngularDamping = how.angularDamping;
+    if (mass > 0.0f && std::isfinite(mass) && motionType != EMotionType::Static) {
+        settings.mOverrideMassProperties = EOverrideMassProperties::CalculateInertia;
+        settings.mMassPropertiesOverride.mMass = mass;
+    }
     // What keeps a character upright: the solver may move it and never turn it.
     if (how.fixedRotation != 0) {
         settings.mAllowedDOFs = EAllowedDOFs::TranslationX | EAllowedDOFs::TranslationY
@@ -304,6 +310,40 @@ void physics3d_optimize() {
 }
 
 // Bodies
+
+/// Each primitive is 11 floats: kind, dimensions.xyz, offset.xyz, rotation.xyzw.
+/// The compound remains ONE body, so children cannot separate under gravity.
+EMSCRIPTEN_KEEPALIVE
+uint32_t physics3d_addCompound(uint32_t entity, uintptr_t partsPtr, uint32_t count,
+                               float px, float py, float pz, float qx, float qy, float qz, float qw,
+                               int motion, float gravityScale, float linearDamping, float angularDamping,
+                               int fixedRotation, uint32_t layer, int continuous,
+                               float friction, float restitution, int isSensor, float mass) {
+    if (!g().isValid() || partsPtr == 0 || count == 0 || count > 16384) return 0;
+    const float* parts = reinterpret_cast<const float*>(partsPtr);
+    StaticCompoundShapeSettings settings;
+    for (uint32_t i = 0; i < count; ++i) {
+        const float* p = parts + i * 11;
+        for (uint32_t j = 0; j < 11; ++j) if (!std::isfinite(p[j])) return 0;
+        Ref<Shape> shape;
+        if (p[0] == 0 && p[1] > 0 && p[2] > 0 && p[3] > 0) {
+            const float convex = std::min(0.05f, std::min(p[1], std::min(p[2], p[3])) * 0.1f);
+            shape = new BoxShape(Vec3(p[1], p[2], p[3]), convex);
+        } else if (p[0] == 1 && p[1] > 0) shape = new SphereShape(p[1]);
+        else if (p[0] == 2 && p[1] > 0 && p[2] >= 0) {
+            if (p[2] == 0) shape = new SphereShape(p[1]);
+            else shape = new CapsuleShape(p[2], p[1]);
+        } else return 0;
+        Quat rotation(p[7], p[8], p[9], p[10]);
+        if (rotation.LengthSq() < 1.0e-12f) return 0;
+        settings.AddShape(Vec3(p[4], p[5], p[6]), rotation.Normalized(), shape);
+    }
+    const auto result = settings.Create();
+    if (result.HasError()) return 0;
+    return addBody(entity, result.Get(), px, py, pz, qx, qy, qz, qw,
+        {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer, continuous},
+        friction, restitution, isSensor, 0, 0, 0, mass);
+}
 
 EMSCRIPTEN_KEEPALIVE
 uint32_t physics3d_addBox(uint32_t entity, float hx, float hy, float hz,

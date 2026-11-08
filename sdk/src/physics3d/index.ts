@@ -69,6 +69,7 @@ export {
     type ConvexCollider3DData,
     type CharacterController3DData,
 } from './Physics3DComponents';
+export { CompoundCollider3D, type CompoundCollider3DData, type CompoundColliderPart3D } from './CompoundCollider3D';
 
 export {
     PointJoint3D,
