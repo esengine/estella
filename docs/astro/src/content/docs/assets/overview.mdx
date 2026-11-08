@@ -235,6 +235,12 @@ reference and needs a matching `release*()` (scene loading does both for you).
 An asset shared by two scenes survives the first scene's unload and is freed
 only when its last holder releases it.
 
+Hot-reloaded bindings follow the same ownership rule. A scene owns replacement
+resources for its entities; a runtime entity without a scene, or a persistent
+entity that outlived its scene, owns its replacements until it despawns. Repeated
+reloads do not keep those resources alive for the rest of the application.
+Your own explicit `load*()` or `acquire*()` calls still need matching releases.
+
 A released asset isn't destroyed immediately, either. Textures and decoded
 audio buffers stay resident as **evictable cache entries**, and if the same
 asset is loaded again (re-entering a scene, streaming an area back in) it is
