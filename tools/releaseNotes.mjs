@@ -4132,6 +4132,10 @@ export const NOTED = {
     {"note": "An iOS game opens on iOS 27."},
   "fix(native): the audio watchdog compiles under the min macro windows.h defines":
     {"internal": "The watchdog had not reached a release; the Windows host failed to build on master only."},
+  "feat(render): share native BRDF for specular glossiness materials":
+    {"note": "An imported specular-glossiness material, and a normal map's strength, come through."},
+  "fix(import): preserve normal strength and specular glossiness materials":
+    {"note": "An imported specular-glossiness material, and a normal map's strength, come through."},
   "feat(import): restore scene materials, animation and native effects":
     {"note": "An imported scene keeps its materials, animation, particles and colliders."},
   "feat(physics): support compound colliders and scaled model geometry":
