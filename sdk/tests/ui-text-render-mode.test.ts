@@ -160,7 +160,7 @@ describe('world text under a perspective camera', () => {
     it('draws Auto text as SDF there, at any scale, and keeps a forced mode', async () => {
         const { domainViewOf, glyphKind } = await import('../src/ui/text/plugin');
         const view = domainViewOf(perspective(55, 16 / 9), 1920, 1);
-        const at = (scale: number, renderMode = TextRenderMode.Auto) =>
+        const at = (scale: number, renderMode: TextRenderMode = TextRenderMode.Auto) =>
             glyphKind({ renderMode }, { worldScale: { x: scale, y: scale, z: scale } }, 'sans-serif', view);
         expect(at(1)).toBe('sdf');
         expect(at(1.5)).toBe('sdf');

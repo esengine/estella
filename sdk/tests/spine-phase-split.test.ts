@@ -21,6 +21,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { wrapSpineModule } from '../src/spine/SpineModuleLoader';
+import { SpineModuleController } from '../src/spine/SpineController';
 import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleLoader';
 import { withScratch } from '../src/wasm/wasmScratch';
 import { drawnGeometry } from './helpers/clipGeometry';
@@ -64,11 +65,7 @@ function skeletonOf(asset: (typeof ASSETS)[number]): number {
     if (cached !== undefined) return cached;
     const skelData = new Uint8Array(readFileSync(resolve(FIXTURES, asset.skel)));
     const atlasText = readFileSync(resolve(FIXTURES, asset.atlas), 'utf-8');
-    const handle = withScratch(raw, (alloc) => {
-        const ptr = alloc(skelData.length);
-        raw.HEAPU8.set(skelData, ptr);
-        return api.loadSkeleton(ptr, skelData.length, atlasText, atlasText.length, true);
-    });
+    const handle = new SpineModuleController(raw, api).loadSkeleton(skelData, atlasText, true);
     if (handle < 0) throw new Error(api.getLastError());
     for (let i = 0, pages = api.getAtlasPageCount(handle); i < pages; i++) {
         api.setAtlasPageTexture(handle, i, 1, 2048, 2048);

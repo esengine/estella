@@ -20,6 +20,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { wrapSpineModule } from '../src/spine/SpineModuleLoader';
+import { SpineModuleController } from '../src/spine/SpineController';
 import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleLoader';
 import { withScratch } from '../src/wasm/wasmScratch';
 import { syntheticSkeleton } from './helpers/syntheticSpine';
@@ -72,11 +73,7 @@ function instanceOf(test: (typeof CASES)[number]): number {
     const atlas = real
         ? readFileSync(resolve(FIXTURES, test.atlas!), 'utf-8')
         : syntheticSkeleton(test.options!).atlas;
-    const handle = withScratch(raw, (alloc) => {
-        const ptr = alloc(skelData.length);
-        raw.HEAPU8.set(skelData, ptr);
-        return api.loadSkeleton(ptr, skelData.length, atlas, atlas.length, real);
-    });
+    const handle = new SpineModuleController(raw, api).loadSkeleton(skelData, atlas, real);
     if (handle < 0) throw new Error(`${test.name}: ${api.getLastError()}`);
     for (let i = 0, pages = api.getAtlasPageCount(handle); i < pages; i++) {
         api.setAtlasPageTexture(handle, i, 1, 1024, 1024);

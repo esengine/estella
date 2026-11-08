@@ -20,6 +20,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { wrapSpineModule } from '../src/spine/SpineModuleLoader';
+import { SpineModuleController } from '../src/spine/SpineController';
 import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleLoader';
 import { SpineRuntime } from '../src/spine/SpineRuntime';
 import { withScratch } from '../src/wasm/wasmScratch';
@@ -68,11 +69,7 @@ beforeAll(async () => {
 function posed(asset: { skel: string; atlas: string }): { skelHandle: number; instanceId: number } {
     const skelData = new Uint8Array(readFileSync(resolve(FIXTURES, asset.skel)));
     const atlasText = readFileSync(resolve(FIXTURES, asset.atlas), 'utf-8');
-    const skelHandle = withScratch(raw, (alloc) => {
-        const ptr = alloc(skelData.length);
-        raw.HEAPU8.set(skelData, ptr);
-        return api.loadSkeleton(ptr, skelData.length, atlasText, atlasText.length, true);
-    });
+    const skelHandle = new SpineModuleController(raw, api).loadSkeleton(skelData, atlasText, true);
     for (let i = 0, pages = api.getAtlasPageCount(skelHandle); i < pages; i++) {
         api.setAtlasPageTexture(skelHandle, i, 1, 1024, 1024);
     }

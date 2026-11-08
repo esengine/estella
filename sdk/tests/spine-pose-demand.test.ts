@@ -21,6 +21,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { wrapSpineModule } from '../src/spine/SpineModuleLoader';
+import { SpineModuleController } from '../src/spine/SpineController';
 import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleLoader';
 import { SpineRuntime } from '../src/spine/SpineRuntime';
 import type { SpineEraBinding } from '../src/spine/prepareSpine';
@@ -54,11 +55,7 @@ beforeAll(async () => {
 });
 
 function loadSkeleton(): number {
-    const handle = withScratch(raw, (alloc) => {
-        const ptr = alloc(skelData.length);
-        raw.HEAPU8.set(skelData, ptr);
-        return api.loadSkeleton(ptr, skelData.length, atlasText, atlasText.length, true);
-    });
+    const handle = new SpineModuleController(raw, api).loadSkeleton(skelData, atlasText, true);
     if (handle < 0) throw new Error(api.getLastError());
     api.setAtlasPageTexture(handle, 0, 1, 2048, 2048);
     return handle;

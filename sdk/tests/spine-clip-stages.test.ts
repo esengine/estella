@@ -15,6 +15,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { wrapSpineModule } from '../src/spine/SpineModuleLoader';
+import { SpineModuleController } from '../src/spine/SpineController';
 import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleLoader';
 import { withScratch } from '../src/wasm/wasmScratch';
 import { syntheticSkeleton } from './helpers/syntheticSpine';
@@ -57,11 +58,7 @@ beforeAll(async () => {
 function instanceOf(options: SyntheticOptions): number {
     const { json, atlas } = syntheticSkeleton(options);
     const skelData = new TextEncoder().encode(json);
-    const handle = withScratch(raw, (alloc) => {
-        const ptr = alloc(skelData.length);
-        raw.HEAPU8.set(skelData, ptr);
-        return api.loadSkeleton(ptr, skelData.length, atlas, atlas.length, false);
-    });
+    const handle = new SpineModuleController(raw, api).loadSkeleton(skelData, atlas, false);
     if (handle < 0) throw new Error(api.getLastError());
     for (let i = 0, pages = api.getAtlasPageCount(handle); i < pages; i++) {
         api.setAtlasPageTexture(handle, i, 1, 64, 64);
@@ -188,11 +185,7 @@ describe.skipIf(!HAS_WASM)('the clip fast paths answer without cutting', () => {
         // test earns its place on a shipped asset, not only an authored one.
         const skelData = new Uint8Array(readFileSync(resolve(FIXTURES, 'spineboy-38/spineboy-pro.skel')));
         const atlasText = readFileSync(resolve(FIXTURES, 'spineboy-38/spineboy.atlas'), 'utf-8');
-        const handle = withScratch(raw, (alloc) => {
-            const ptr = alloc(skelData.length);
-            raw.HEAPU8.set(skelData, ptr);
-            return api.loadSkeleton(ptr, skelData.length, atlasText, atlasText.length, true);
-        });
+        const handle = new SpineModuleController(raw, api).loadSkeleton(skelData, atlasText, true);
         api.setAtlasPageTexture(handle, 0, 1, 2048, 2048);
         const instanceId = api.createInstance(handle);
         expect(api.playAnimation(instanceId, 'portal', true, 0)).toBeTruthy();

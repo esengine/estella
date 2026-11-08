@@ -22,6 +22,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { WASM_DIR, hasSideModule } from './helpers/loadWasm';
 import { wrapSpineModule } from '../src/spine/SpineModuleLoader';
+import { SpineModuleController } from '../src/spine/SpineController';
 import type { SpineWasmModule, SpineWrappedAPI } from '../src/spine/SpineModuleLoader';
 import { withScratch } from '../src/wasm/wasmScratch';
 import { syntheticSkeleton } from './helpers/syntheticSpine';
@@ -62,11 +63,7 @@ beforeAll(async () => {
 function instanceOf(options: SyntheticOptions): number {
     const { json, atlas } = syntheticSkeleton(options);
     const skelData = new TextEncoder().encode(json);
-    const handle = withScratch(raw, (alloc) => {
-        const ptr = alloc(skelData.length);
-        raw.HEAPU8.set(skelData, ptr);
-        return api.loadSkeleton(ptr, skelData.length, atlas, atlas.length, false);
-    });
+    const handle = new SpineModuleController(raw, api).loadSkeleton(skelData, atlas, false);
     if (handle < 0) throw new Error(api.getLastError());
     api.setAtlasPageTexture(handle, 0, 1, 64, 64);
     const instanceId = api.createInstance(handle);
@@ -156,11 +153,7 @@ describe.skipIf(!HAS_WASM)('a convex region is its own only piece', () => {
     it('coin opens without being triangulated', () => {
         const skelData = new Uint8Array(readFileSync(resolve(FIXTURES, 'coin-38/coin-pro.skel')));
         const atlasText = readFileSync(resolve(FIXTURES, 'coin-38/coin.atlas'), 'utf-8');
-        const handle = withScratch(raw, (alloc) => {
-            const ptr = alloc(skelData.length);
-            raw.HEAPU8.set(skelData, ptr);
-            return api.loadSkeleton(ptr, skelData.length, atlasText, atlasText.length, true);
-        });
+        const handle = new SpineModuleController(raw, api).loadSkeleton(skelData, atlasText, true);
         api.setAtlasPageTexture(handle, 0, 1, 1024, 1024);
         const instanceId = api.createInstance(handle);
         api.playAnimation(instanceId, 'animation', true, 0);
