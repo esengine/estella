@@ -25,7 +25,7 @@ import type { TextureFormatReport } from './textureFormatReport';
 import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
 import { AssetRefLedger, type AssetRefLease } from './AssetRefLedger';
 import { optionalAssetLoaders } from './optionalLoaders';
-import { AssetScope, type AssetLease } from './AssetLease';
+import { AssetScope, ownedAssetLease, type AssetLease } from './AssetLease';
 import { EntityAssetScopes } from './entityAssetScopes';
 import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
 import { DependencyRecorder, PreparationFailure, preparationFailureReason, isInvalidatable, rebuildPlan, type AssetIdentity,
@@ -2005,23 +2005,10 @@ export class Assets {
      * destroys it rather than handing it back to a pool that could revive it.
      */
     private ownedTextureLease_(value: TextureResult): AssetLease<TextureResult> {
-        let holders = 0;
-        const lease = (): AssetLease<TextureResult> => {
-            holders++;
-            let spent = false;
-            return {
-                key: `composed:${value.handle}`, generation: value.handle, value,
-                release: () => {
-                    if (spent) return;
-                    spent = true;
-                    if (--holders > 0) return;
-                    requireResourceManager().releaseTexture(value.handle);
-                    evictTextureDimensions(value.handle);
-                },
-                retain: () => lease(),
-            };
-        };
-        return lease();
+        return ownedAssetLease(`composed:${value.handle}`, value.handle, value, texture => {
+            requireResourceManager().releaseTexture(texture.handle);
+            evictTextureDimensions(texture.handle);
+        });
     }
 
     /** {@link textureLease_} for everything that goes through a typed loader. */

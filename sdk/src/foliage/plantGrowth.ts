@@ -21,6 +21,7 @@ import { engineApi } from '../ecs/bridge/engineApi';
 import type { CppRegistry } from '../wasm';
 import { withScratch } from '../wasm/wasmScratch';
 import { Assets } from '../asset/AssetPlugin';
+import { AssetScope, ownedAssetLease, type AssetLease } from '../asset/AssetLease';
 import { Quality } from '../render/qualityRuntime';
 import type { Assets as AssetsApi } from '../asset/Assets';
 import { log } from '../util/logger';
@@ -33,10 +34,10 @@ import type { PlacedKind, PlacedPart } from './plantKind';
 export interface ReadyPart { part: PlacedPart; mesh: number; lod1: number; lod2?: number; material: number; texture: number }
 
 /** Every kind's parts in hand, and the parts that stand for each far off; `owned` are the meshes made here, which `releaseKinds` gives back. */
-export interface ReadyKinds { kinds: ReadyPart[][]; far: ReadyPart[][]; owned: number[] }
+export interface ReadyKinds { kinds: ReadyPart[][]; far: ReadyPart[][]; owned: number[]; lease: AssetLease<AssetScope> }
 
 /** One grown cell: its entity (none where nothing stands), what it owns so far, and whether it has been let go. */
-export interface GrownCell { entity: Entity | null; handles: number[]; dead: boolean }
+export interface GrownCell { entity: Entity | null; handles: number[]; dead: boolean; assets?: AssetLease<AssetScope> }
 
 /**
  * Loads the meshes, materials and textures of every part of every kind, once. A part whose normals are turned toward up (`soft`) is a mesh of its own,
@@ -44,13 +45,29 @@ export interface GrownCell { entity: Entity | null; handles: number[]; dead: boo
  */
 export async function prepareKinds(assets: AssetsApi, kinds: readonly PlacedKind[]): Promise<ReadyKinds> {
     const owned: number[] = [];
+    const scope = new AssetScope();
+    const handles = new Map<string, number>();
+    const load = async (type: 'mesh' | 'material' | 'texture', path: string): Promise<number> => {
+        const key = `${type}:${path}`;
+        const known = handles.get(key);
+        if (known !== undefined) return known;
+        const receipt = type === 'texture' ? await assets.acquireTexture(path) : await assets.acquireTyped<{ handle: number }>(type, path);
+        scope.add(receipt);
+        handles.set(key, receipt.value.handle);
+        return receipt.value.handle;
+    };
     const handleOf = async (path: string, soft: number): Promise<number> => {
-        const loaded = (await assets.load<{ handle: number }>('mesh', path)).handle;
+        const loaded = await load('mesh', path);
         if (!soft) return loaded;
+        const key = `soft:${soft}:${path}`;
+        const known = handles.get(key);
+        if (known !== undefined) return known;
         const source = await assets.readMeshData(loaded);
         const made = source ? assets.createMesh(softenNormals(source, soft)) : 0;
         if (made === 0) return loaded;
         owned.push(made);
+        scope.add(ownedAssetLease(key, made, made, handle => assets.releaseBuiltMesh(handle)));
+        handles.set(key, made);
         return made;
     };
     const ready = async (part: PlacedPart, withLod: boolean): Promise<ReadyPart | null> => {
@@ -63,25 +80,32 @@ export async function prepareKinds(assets: AssetsApi, kinds: readonly PlacedKind
         if (withLod && part.lod2Mesh) { try { lod2 = await handleOf(part.lod2Mesh, part.soft ?? 0); } catch { lod2 = 0; } }
         return {
             part, mesh, lod1, ...(lod2 ? { lod2 } : {}),
-            material: part.material ? (await assets.loadMaterial(part.material)).handle : 0,
-            texture: part.texture ? (await assets.loadTexture(part.texture)).handle : 0,
+            material: part.material ? await load('material', part.material) : 0,
+            texture: part.texture ? await load('texture', part.texture) : 0,
         };
     };
-    const out: ReadyKinds = { kinds: [], far: [], owned };
-    for (const kind of kinds) {
-        const parts: ReadyPart[] = [], far: ReadyPart[] = [];
-        for (const part of kind.parts) { const r = await ready(part, true); if (r) parts.push(r); }
-        for (const part of kind.far ?? []) { const r = await ready(part, false); if (r) far.push(r); }
-        out.kinds.push(parts);
-        out.far.push(far);
+    const lease = ownedAssetLease('foliage-parts', 0, scope, held => {
+        try { held.releaseAll(); } finally { owned.length = 0; }
+    });
+    const out: ReadyKinds = { kinds: [], far: [], owned, lease };
+    try {
+        for (const kind of kinds) {
+            const parts: ReadyPart[] = [], far: ReadyPart[] = [];
+            for (const part of kind.parts) { const r = await ready(part, true); if (r) parts.push(r); }
+            for (const part of kind.far ?? []) { const r = await ready(part, false); if (r) far.push(r); }
+            out.kinds.push(parts);
+            out.far.push(far);
+        }
+    } catch (error) {
+        lease.release();
+        throw error;
     }
     return out;
 }
 
-/** Gives back the meshes `prepareKinds` made; the ones it only loaded stay with the asset system. */
-export function releaseKinds(assets: AssetsApi, ready: ReadyKinds): void {
-    for (const handle of ready.owned) assets.releaseBuiltMesh(handle);
-    ready.owned.length = 0;
+/** Retires the owner's receipt. Published cells keep this generation alive until they are replaced. */
+export function releaseKinds(ready: ReadyKinds): void {
+    ready.lease.release();
 }
 
 /** The growth of every plant in an app: the pieces waiting. */
@@ -140,6 +164,8 @@ export class PlantGrowth {
     growCell(app: App, cell: GrownCell, kinds: readonly PlacedKind[], ready: ReadyKinds, byKind: ReadonlyMap<number, readonly Plant[]>): void {
         const world = app.world, entity = cell.entity;
         if (entity === null) return;
+        cell.assets ??= ready.lease.retain() ?? undefined;
+        if (!cell.assets) return;
         for (const [kindIndex, plants] of byKind) {
             const kind = kinds[kindIndex], parts = ready.kinds[kindIndex];
             if (!kind || !parts) continue;
@@ -168,6 +194,8 @@ export class PlantGrowth {
     growFar(app: App, cell: GrownCell, kinds: readonly PlacedKind[], ready: ReadyKinds, byKind: ReadonlyMap<number, readonly Plant[]>, _at?: { x: number; z: number; half?: number }, thinnedBy = 1): void {
         const entity = cell.entity;
         if (entity === null) return;
+        cell.assets ??= ready.lease.retain() ?? undefined;
+        if (!cell.assets) return;
         for (const [kindIndex, plants] of byKind) {
             const parts = ready.far[kindIndex], kind = kinds[kindIndex];
             if (!kind || !parts || parts.length === 0) continue;
@@ -179,8 +207,13 @@ export class PlantGrowth {
     /** Lets a cell go: what it made is despawned, and what it had not yet made is left unmade. */
     release(app: App, cell: GrownCell): void {
         cell.dead = true;
-        if (cell.entity !== null && app.world.valid(cell.entity)) app.world.despawn(cell.entity);
-        cell.handles.length = 0;
+        try {
+            if (cell.entity !== null && app.world.valid(cell.entity)) app.world.despawn(cell.entity);
+        } finally {
+            cell.assets?.release();
+            cell.assets = undefined;
+            cell.handles.length = 0;
+        }
     }
 
     /** One frame of it: the far versions shown where they should be, and the queue worked through while the frame's budget lasts, one piece at least. */

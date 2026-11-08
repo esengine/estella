@@ -10,7 +10,7 @@
  *          it is made nearest first within the frame's budget, let go past its `drawDistance`, and made again with its old chunk kept
  *          until then when the ground or the water changes; a zone or a change touches only the chunks it reaches.
  *
- *            - Decoration is drawn merged: a mesh a chunk for each kind of plant or stone in it.
+ *            - Plant parts use shared geometry and per-instance LOD; other decoration is merged per mesh and material in a chunk.
  *            - What a game interacts with is an entity of its own, carrying a `PlacedObject` with its placement id and kind, so the
  *              game can find it, act on it and record what it did (`diffs.remove(id)` when it is felled).
  *            - The ground is painted by the biomes, when the WorldGen says so.
@@ -25,6 +25,7 @@ import {
     type ComponentDef, type MeshRendererData, type TransformData,
 } from '../ecs/component';
 import { Assets } from '../asset/AssetPlugin';
+import { AssetScope, ownedAssetLease, type AssetLease } from '../asset/AssetLease';
 import type { MeshData } from '../asset/meshFormat';
 import { log } from '../util/logger';
 import type { Entity } from '../types';
@@ -156,6 +157,9 @@ export interface WorldGenStatus {
 }
 
 interface BuiltWorld {
+    assets: AssetLease<AssetScope>;
+    retired: boolean;
+    meshData: Map<number, MeshData | null | Promise<MeshData | null>>;
     signature: string;
     data: WorldGenData;
     rules: WorldRules | null;
@@ -198,6 +202,7 @@ interface Unit {
 
 /** A chunk of a layer: what it places (its decoration merged by mesh, its interactive placements), and what it put in the world. */
 interface PlacedChunk {
+    assets?: AssetLease<AssetScope>;
     /** A kind of decoration: its near mesh and, when it has one, its far cards; drawn near out to `lodDistance`, out to `drawDistance`. */
     decor: { mesh: number; material: number; data: MeshData; far: MeshData | null; origin: [number, number, number]; radius: number; lodDistance: number; drawDistance: number }[];
     objects: Placement[];
@@ -314,9 +319,6 @@ export class WorldGenPlugin implements Plugin {
     /** Stops listening for edited rules files. */
     private watching_: (() => void) | null = null;
 
-    /** Each mesh's geometry, read once, for drawing it merged. */
-    private readonly meshData_ = new Map<number, MeshData | null | Promise<MeshData | null>>();
-
     build(app: App): void {
         const gens = new WorldGens();
         gens.app_ = app;
@@ -351,7 +353,12 @@ export class WorldGenPlugin implements Plugin {
 
     /** A WorldGen's rules and plan, or why it has none. */
     private make(app: App, gens: WorldGens, entity: Entity, data: WorldGenData, had: BuiltWorld | undefined): BuiltWorld {
-        const built: BuiltWorld = { signature: `${JSON.stringify(data)}#${worldRulesRevision()}`, data: { ...data }, rules: null, plan: null, farPlan: null, failure: null, ground: '', authored: had?.authored ?? new Set(), levelling: new Set(), plants: null, plantsReady: null, faces: null, waitingForPlanet: false };
+        if (had) this.retire(had);
+        const meshData: BuiltWorld['meshData'] = new Map();
+        const assets = ownedAssetLease(`worldgen:${entity}`, (had?.assets.generation ?? 0) + 1, new AssetScope(), scope => {
+            try { scope.releaseAll(); } finally { meshData.clear(); }
+        });
+        const built: BuiltWorld = { assets, retired: false, meshData, signature: `${JSON.stringify(data)}#${worldRulesRevision()}`, data: { ...data }, rules: null, plan: null, farPlan: null, failure: null, ground: '', authored: had?.authored ?? new Set(), levelling: new Set(), plants: null, plantsReady: null, faces: null, waitingForPlanet: false };
         // Rules in a project file are read first, then made like rules registered by code.
         if (isRulesFile(data.rules)) {
             if (!app.hasResource(Assets)) {
@@ -367,9 +374,10 @@ export class WorldGenPlugin implements Plugin {
                     for (const b of gens.built_.values()) if (isRulesFile(b.data.rules) && assets.resolveLoadPath(b.data.rules) === changed) b.signature = '';
                 });
             }
-            void assets.load<WorldRules>('world-rules', data.rules).then((rules) => {
-                if (gens.built_.get(entity) !== built) return;
-                this.adopt(app, gens, entity, built, rules, had);
+            void assets.acquireTyped<WorldRules>('world-rules', data.rules).then((receipt) => {
+                if (built.retired || gens.built_.get(entity) !== built) { receipt.release(); return; }
+                built.assets.value.add(receipt);
+                this.adopt(app, gens, entity, built, receipt.value, had);
             }, (e: unknown) => {
                 if (gens.built_.get(entity) !== built) return;
                 built.failure = `the world rules file ${data.rules} could not be read: ${e instanceof Error ? e.message : String(e)}`;
@@ -406,8 +414,11 @@ export class WorldGenPlugin implements Plugin {
             const set = expandPlants(rules.plants);
             built.plants = set;
             void retried(() => prepareKinds(app.getResource(Assets), set.kinds)).then((ready) => {
-                if (gens.built_.get(entity) === built) built.plantsReady = ready;
+                if (built.retired || gens.built_.get(entity) !== built) { ready.lease.release(); return; }
+                built.assets.value.add(ready.lease);
+                built.plantsReady = ready;
             }, (e: unknown) => {
+                if (built.retired) return;
                 built.failure = `the plants' assets could not be loaded: ${e instanceof Error ? e.message : String(e)}`;
                 log.error('worldgen', built.failure);
             });
@@ -416,10 +427,12 @@ export class WorldGenPlugin implements Plugin {
         const refs = assetRefsOf(rules);
         if (refs.length > 0 && app.hasResource(Assets)) {
             void retried(() => this.resolve(app, rules, refs)).then((resolved) => {
-                if (gens.built_.get(entity) !== built) return;
-                built.rules = resolved;
-                this.plan(app, gens, entity, built, resolved);
+                if (built.retired || gens.built_.get(entity) !== built) { resolved.scope.releaseAll(); return; }
+                built.assets.value.absorb(resolved.scope);
+                built.rules = resolved.rules;
+                this.plan(app, gens, entity, built, resolved.rules);
             }, (e: unknown) => {
+                if (built.retired) return;
                 built.failure = `the recipes' assets could not be loaded: ${e instanceof Error ? e.message : String(e)}`;
                 log.error('worldgen', built.failure);
             });
@@ -429,19 +442,22 @@ export class WorldGenPlugin implements Plugin {
     }
 
     /** Loads the meshes and materials `refs` name, and gives back the rules with each path replaced by its handle. */
-    private async resolve(app: App, rules: WorldRules, refs: { kind: 'mesh' | 'material'; ref: string }[]): Promise<WorldRules> {
+    private async resolve(app: App, rules: WorldRules, refs: { kind: 'mesh' | 'material'; ref: string }[]): Promise<{ rules: WorldRules; scope: AssetScope }> {
         const assets = app.getResource(Assets);
+        const scope = new AssetScope();
         const handles = new Map<string, number>();
-        await Promise.all(refs.map(async ({ kind, ref }) => {
-            const handle = kind === 'mesh' ? (await assets.load<{ handle: number }>('mesh', ref)).handle : (await assets.loadMaterial(ref)).handle;
-            handles.set(`${kind}:${ref}`, handle);
+        const results = await Promise.allSettled(refs.map(async ({ kind, ref }) => {
+            const receipt = scope.add(await assets.acquireTyped<{ handle: number }>(kind, ref));
+            handles.set(`${kind}:${ref}`, receipt.value.handle);
         }));
+        const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+        if (failed) { scope.releaseAll(); throw failed.reason; }
         const member = (m: RecipeMember): RecipeMember => ({
             ...m,
             mesh: typeof m.mesh === 'string' ? handles.get(`mesh:${m.mesh}`) ?? 0 : m.mesh,
             material: typeof m.material === 'string' ? handles.get(`material:${m.material}`) ?? 0 : m.material,
         });
-        return { ...rules, recipes: rules.recipes.map((r) => ({ ...r, anchor: member(r.anchor), members: r.members?.map(member) })) };
+        return { scope, rules: { ...rules, recipes: rules.recipes.map((r) => ({ ...r, anchor: member(r.anchor), members: r.members?.map(member) })) } };
     }
 
     /** Makes a WorldGen's plan from its rules, and what keeps it current. */
@@ -714,9 +730,9 @@ export class WorldGenPlugin implements Plugin {
                     // The plants' parts are read before any chunk: a chunk made without them would leave the plants out until it is made again.
                     if (rendering && built.plants && !built.plantsReady) return null;
                     const away = unit.away?.(layer.id, false, x0, z0, x0 + size, z0 + size);
-                    if (away) return away.then((placed) => this.chunk(app, null, diffs, layer, x0, z0, size, rendering, built.plants, face, false, 1, placed));
+                    if (away) return this.ownChunk(built, () => away.then((placed) => this.chunk(app, built.meshData, null, diffs, layer, x0, z0, size, rendering, built.plants, face, false, 1, placed)));
                     if (waiting || !known(x0, z0, size)) return null;
-                    return this.chunk(app, plan, diffs, layer, x0, z0, size, rendering, built.plants, face);
+                    return this.ownChunk(built, () => this.chunk(app, built.meshData, plan, diffs, layer, x0, z0, size, rendering, built.plants, face));
                 },
                 publish: (_cx, _cz, value) => this.place(app, gens, entity, value),
                 release: (_cx, _cz, value) => this.unplace(app, gens, value),
@@ -743,9 +759,9 @@ export class WorldGenPlugin implements Plugin {
                     if (!built.plantsReady) return null;
                     const sparse = (layer.farSpacing ?? 1) > 1 && unit.farPlan;
                     const away = unit.away?.(layer.id, true, x0, z0, x0 + fsize, z0 + fsize);
-                    if (away) return away.then((placed) => this.chunk(app, null, diffs, layer, x0, z0, fsize, rendering, built.plants, face, true, sparse ? layer.farSpacing! ** 2 : 1, placed));
+                    if (away) return this.ownChunk(built, () => away.then((placed) => this.chunk(app, built.meshData, null, diffs, layer, x0, z0, fsize, rendering, built.plants, face, true, sparse ? layer.farSpacing! ** 2 : 1, placed)));
                     if (waiting || !known(x0, z0, fsize)) return null;
-                    return this.chunk(app, sparse ? unit.farPlan! : plan, diffs, layer, x0, z0, fsize, rendering, built.plants, face, true, sparse ? layer.farSpacing! ** 2 : 1);
+                    return this.ownChunk(built, () => this.chunk(app, built.meshData, sparse ? unit.farPlan! : plan, diffs, layer, x0, z0, fsize, rendering, built.plants, face, true, sparse ? layer.farSpacing! ** 2 : 1));
                 },
                 publish: (_cx, _cz, value) => this.place(app, gens, entity, value),
                 release: (_cx, _cz, value) => this.unplace(app, gens, value),
@@ -753,8 +769,19 @@ export class WorldGenPlugin implements Plugin {
         }
     }
 
+    /** Pending and published chunks both borrow the generation they were built from. */
+    private ownChunk(built: BuiltWorld, make: () => PlacedChunk | Promise<PlacedChunk>): PlacedChunk | Promise<PlacedChunk> | null {
+        const assets = built.assets.retain();
+        if (!assets) return null;
+        const hold = (chunk: PlacedChunk): PlacedChunk => { chunk.assets = assets; return chunk; };
+        try {
+            const value = make();
+            return value instanceof Promise ? value.then(hold, error => { assets.release(); throw error; }) : hold(value);
+        } catch (error) { assets.release(); throw error; }
+    }
+
     /** What one chunk of a layer places: its decoration merged by mesh, and its interactive placements, with the changes laid over. */
-    private chunk(app: App, plan: WorldPlan | null, diffs: PlacementDiffs, layer: PlacementLayer, x0: number, z0: number, size: number,
+    private chunk(app: App, meshData: BuiltWorld['meshData'], plan: WorldPlan | null, diffs: PlacementDiffs, layer: PlacementLayer, x0: number, z0: number, size: number,
                   rendering: boolean, plants: PlantSet | null, face: PlanetFace | null, far = false, thinnedBy = 1, given?: readonly Placement[]): PlacedChunk | Promise<PlacedChunk> {
         const placements: Placement[] = [];
         // What is placed in the square: asked of the plan here, or already worked out (by a worker).
@@ -795,7 +822,7 @@ export class WorldGenPlugin implements Plugin {
             }
             const origin = out.at;
             for (const list of byKind.values()) {
-                const source = this.meshData_.get(list[0]!.mesh);
+                const source = meshData.get(list[0]!.mesh);
                 if (!source || source instanceof Promise) continue;
                 const plants: Plant[] = list.map((p, i) => ({
                     x: p.x - origin[0], y: p.y - origin[1], z: p.z - origin[2], yaw: p.yaw, scale: p.scale, phase: (i * 0.618) % 1, shade: 1,
@@ -811,18 +838,18 @@ export class WorldGenPlugin implements Plugin {
             }
             return out;
         };
-        const missing = meshes.filter((m) => !this.meshData_.has(m) || this.meshData_.get(m) instanceof Promise);
+        const missing = meshes.filter((m) => !meshData.has(m) || meshData.get(m) instanceof Promise);
         if (missing.length === 0) return finish();
         const assets = app.getResource(Assets);
         return Promise.all(missing.map((m) => {
-            let got = this.meshData_.get(m);
+            let got = meshData.get(m);
             if (got === undefined) {
                 const read = assets.readMeshData(m).catch(() => null).then((d) => {
                     if (!d) log.warn('worldgen', `the geometry of mesh ${m} cannot be read, so what it draws is left out`);
-                    this.meshData_.set(m, d);
+                    meshData.set(m, d);
                     return d;
                 });
-                this.meshData_.set(m, read);
+                meshData.set(m, read);
                 got = read;
             }
             return got;
@@ -902,6 +929,13 @@ export class WorldGenPlugin implements Plugin {
         for (const h of chunk.meshes) assets?.releaseBuiltMesh(h);
         chunk.entities.length = 0;
         chunk.meshes.length = 0;
+        chunk.assets?.release();
+        chunk.assets = undefined;
+    }
+
+    private retire(built: BuiltWorld): void {
+        built.retired = true;
+        built.assets.release();
     }
 
     private drop(app: App, gens: WorldGens, entity: Entity): void {
@@ -911,6 +945,7 @@ export class WorldGenPlugin implements Plugin {
             if (built?.faces && app.hasResource(PlanetRegistryRes)) app.getResource(PlanetRegistryRes).setPaint(entity, null);
         }
         if (built && app.hasResource(TerrainsRes)) app.getResource(TerrainsRes).setPaint(null);
+        if (built) this.retire(built);
         gens.built_.delete(entity);
     }
 

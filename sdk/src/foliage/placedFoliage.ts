@@ -8,10 +8,10 @@
  *          Transform, a MeshRenderer and a draw for each, which no frame holds. Here they are DATA: `kinds` says what each is made of
  *          (its parts: a mesh, its cheaper mesh, a material, a texture, a tint, and how far it is worth drawing), `records` says where
  *          each stands, six numbers a plant. The ground is cut into cells; the cells round the streaming sources (or the eye) are grown,
- *          each as ONE mesh per part and kind with all the plants of that kind in it, and let go with their meshes past the distance. The
- *          scene holds one entity; a frame holds the few hundred draws near the eye. Nothing is baked into the scene.
+ *          each as one MeshInstances set per part and kind. Geometry is shared across cells, each plant is culled and selects its own
+ *          LOD, and matching parts batch across cells. Cells retain their generation's assets until replacement or unloading.
  *
- *          A mesh keeps every channel the artist made (see buildPlacedMesh), so a normal map, a second uv or a vertex colour survives;
+ *          The shared mesh keeps every channel the artist made, so a normal map, a second uv or a vertex colour survives;
  *          nothing is painted over it. A plant stands upright, turned about the vertical, and uniformly scaled.
  */
 import type { App, Plugin } from '../app/app';
@@ -24,7 +24,7 @@ import { chunksOf, ProceduralChunksRes } from '../residency/chunks';
 import type { Entity } from '../types';
 import type { Plant } from './builder';
 import { PLACED_STRIDE, type PlacedKind, type PlacedPart } from './plantKind';
-import { plantGrowthOf, prepareKinds, type GrownCell, type ReadyKinds } from './plantGrowth';
+import { plantGrowthOf, prepareKinds, releaseKinds, type GrownCell, type ReadyKinds } from './plantGrowth';
 
 export { PLACED_STRIDE, type PlacedKind, type PlacedPart };
 
@@ -82,6 +82,7 @@ interface BuiltPlaced {
     /** The records sorted into cells (`cz * 1000 + cx`), by kind, the first time a cell asks. */
     cells: Map<number, Map<number, Plant[]>> | null;
     epoch: number;
+    retired: boolean;
 }
 
 const layerOf = (entity: Entity): string => `placed:${entity}`;
@@ -129,12 +130,13 @@ export class PlacedFoliagePlugin implements Plugin {
 
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
             if (!app.hasResource(Assets)) return;
-            for (const entity of field.built_.keys()) {
+            for (const [entity, built] of field.built_) {
                 if (app.world.valid(entity) && app.world.has(entity, PlacedFoliage)) continue;
                 if (app.hasResource(ProceduralChunksRes)) {
                     app.getResource(ProceduralChunksRes).remove(layerOf(entity));
                     app.getResource(ProceduralChunksRes).remove(`${layerOf(entity)}:far`);
                 }
+                this.retire(built);
                 field.built_.delete(entity);
             }
             for (const entity of app.world.getEntitiesWithComponents([PlacedFoliage, Transform])) {
@@ -142,7 +144,8 @@ export class PlacedFoliagePlugin implements Plugin {
                 const signature = signatureOf(data);
                 let built = field.built_.get(entity);
                 if (!built || built.signature !== signature) {
-                    built = { signature, data: { ...data }, ready: null, cells: null, epoch: (built?.epoch ?? 0) + 1 };
+                    if (built) this.retire(built);
+                    built = { signature, data: { ...data }, ready: null, cells: null, epoch: (built?.epoch ?? 0) + 1, retired: false };
                     field.built_.set(entity, built);
                     void this.start(app, built);
                 }
@@ -154,13 +157,19 @@ export class PlacedFoliagePlugin implements Plugin {
     cleanup(app?: App): void {
         if (!app?.hasResource(PlacedFoliageRes)) return;
         const field = app.getResource(PlacedFoliageRes);
-        for (const entity of field.built_.keys()) {
+        for (const [entity, built] of field.built_) {
             if (app.hasResource(ProceduralChunksRes)) {
                 app.getResource(ProceduralChunksRes).remove(layerOf(entity));
                 app.getResource(ProceduralChunksRes).remove(`${layerOf(entity)}:far`);
             }
+            this.retire(built);
         }
         field.built_.clear();
+    }
+
+    private retire(built: BuiltPlaced): void {
+        built.retired = true;
+        if (built.ready) releaseKinds(built.ready);
     }
 
     /** Reads the geometry and makes the handles of every part of every kind; the cells wait for it. */
@@ -168,7 +177,8 @@ export class PlacedFoliagePlugin implements Plugin {
         const epoch = built.epoch;
         try {
             const ready = await prepareKinds(app.getResource(Assets), built.data.kinds);
-            if (built.epoch === epoch) built.ready = ready;
+            if (!built.retired && built.epoch === epoch) built.ready = ready;
+            else releaseKinds(ready);
         } catch (e) {
             log.error('foliage', 'preparing the placed plants failed', e);
         }

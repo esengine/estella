@@ -34,6 +34,25 @@ export interface AssetLease<T = unknown> {
     retain(): AssetLease<T> | null;
 }
 
+/** A composed resource has no cache generation to re-acquire. Its last receipt disposes it. */
+export function ownedAssetLease<T>(key: string, generation: number, value: T, dispose: (value: T) => void): AssetLease<T> {
+    let holders = 0;
+    const acquire = (): AssetLease<T> => {
+        holders++;
+        let spent = false;
+        return {
+            key, generation, value,
+            release: () => {
+                if (spent) return;
+                spent = true;
+                if (--holders === 0) dispose(value);
+            },
+            retain: () => spent ? null : acquire(),
+        };
+    };
+    return acquire();
+}
+
 /**
  * @brief Everything one owner acquired, released together.
  *
