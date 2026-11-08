@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  A simplified mesh is a smaller copy of the same surface, made of the same vertices.
+ * @file    mesh-simplify.test.ts
+ * @brief   Verify geometry, shading attributes and generated LOD references after simplification.
  */
 import { describe, it, expect } from 'vitest';
 import { MeshChannel, MeshChannelType, type MeshData } from 'esengine';
@@ -46,6 +47,54 @@ function sphere(rings: number, segments: number): MeshData {
 }
 
 describe('simplifyMesh', () => {
+    it.each([
+        { semantic: MeshChannel.Color, type: MeshChannelType.UNorm8, components: 4 },
+        { semantic: MeshChannel.Color, type: MeshChannelType.Float32, components: 4 },
+        { semantic: MeshChannel.TexCoord1, type: MeshChannelType.Float32, components: 2 },
+    ])('preserves painted features in channel $semantic with storage $type', async ({ semantic, type, components }) => {
+        const side = 20, stride = 12 + components * (type === MeshChannelType.UNorm8 ? 1 : 4);
+        const vertices = new Uint8Array((side + 1) ** 2 * stride), view = new DataView(vertices.buffer);
+        const indices: number[] = [];
+        for (let y = 0; y <= side; y++) for (let x = 0; x <= side; x++) {
+            const at = (y * (side + 1) + x) * stride;
+            view.setFloat32(at, x, true); view.setFloat32(at + 4, y, true);
+            const color = x >= 6 && x <= 14 && y >= 6 && y <= 14 ? [1, 0, 0, 1] : [1, 1, 1, 1];
+            color.slice(0, components).forEach((value, c) => {
+                if (type === MeshChannelType.UNorm8) view.setUint8(at + 12 + c, value * 255);
+                else view.setFloat32(at + 12 + c * 4, value, true);
+            });
+            if (x < side && y < side) {
+                const a = y * (side + 1) + x, b = a + side + 1;
+                indices.push(a, a + 1, b, a + 1, b + 1, b);
+            }
+        }
+        const mesh: MeshData = { vertices, vertexStride: stride, vertexCount: (side + 1) ** 2,
+            indices: Uint32Array.from(indices), aabbMin: [0, 0, 0], aabbMax: [side, side, 0],
+            channels: [{ semantic: MeshChannel.Position, type: MeshChannelType.Float32, components: 3, offset: 0 },
+                { semantic, type, components, offset: 12 }] };
+        const result = (await simplifyMesh(mesh, { ratio: 0.05, maxError: 0.001, flags: ['Permissive'] }))!;
+        expect(result.triangles).toBeLessThan(indices.length / 3);
+        const sampled = new DataView(result.data.vertices.buffer);
+        for (const [x, y, expected] of [[8, 8, 0], [12, 8, 0], [8, 12, 0], [12, 12, 0], [2, 2, 1]]) {
+            let green: number | undefined;
+            for (let i = 0; i < result.data.indices.length; i += 3) {
+                const points = Array.from(result.data.indices.subarray(i, i + 3)).map(index => ({
+                    x: sampled.getFloat32(index * stride, true), y: sampled.getFloat32(index * stride + 4, true),
+                    g: type === MeshChannelType.UNorm8 ? sampled.getUint8(index * stride + 13) / 255
+                        : sampled.getFloat32(index * stride + 16, true),
+                }));
+                const [a, b, c] = points;
+                const area = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+                if (Math.abs(area) < 1e-9) continue;
+                const u = ((b.y - c.y) * (x - c.x) + (c.x - b.x) * (y - c.y)) / area;
+                const v = ((c.y - a.y) * (x - c.x) + (a.x - c.x) * (y - c.y)) / area;
+                if (u >= -1e-6 && v >= -1e-6 && u + v <= 1 + 1e-6) { green = u * a.g + v * b.g + (1 - u - v) * c.g; break; }
+            }
+            expect(green).toBeDefined();
+            expect(green).toBeCloseTo(expected, 2);
+        }
+    });
+
     it('collapses further across borders and seams when the level is only seen small', async () => {
         const src = sphere(32, 48);
         const near = (await simplifyMesh(src, { ratio: 0.05, maxError: 0.5, flags: ['LockBorder'] }))!;
@@ -101,6 +150,7 @@ describe('simplifyMesh', () => {
             ...src, channels: [...src.channels, { semantic: MeshChannel.Joints, components: 4, type: MeshChannelType.UInt16, offset: 36 }],
         };
         expect(canSimplify(skinned)).toBe(false);
+        expect(canSimplify({ ...src, inverseBindMatrices: new Float32Array(16) })).toBe(false);
         expect(await simplifyMesh(skinned, { ratio: 0.5 })).toBeNull();
         expect(canSimplify({ ...src, morph: { names: ['a'], hasNormals: false, deltas: new Float32Array(0) } })).toBe(false);
     });
