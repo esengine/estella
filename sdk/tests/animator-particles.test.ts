@@ -9,7 +9,7 @@ import { createTimelineMotionDriver } from '../src/timeline/timelineMotion';
 import { TimelineAPI } from '../src/timeline/TimelineControl';
 import { TrackType, WrapMode, type TimelineAsset, type ParticleTrack } from '../src/timeline/TimelineTypes';
 
-const clip = (events: ParticleTrack['events'], wrapMode = WrapMode.Once): TimelineAsset => ({
+const clip = (events: ParticleTrack["events"], wrapMode: WrapMode = WrapMode.Once): TimelineAsset => ({
     version: '1.3', type: 'timeline', duration: 1, wrapMode,
     tracks: [{ type: TrackType.Particle, name: 'burst', childPath: 'Sparks', events }],
 });

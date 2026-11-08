@@ -46,7 +46,7 @@ function harness(missingChild = false) {
     const loader = new PrefabAssetLoader();
     const unloaded = vi.spyOn(loader, 'unload');
     assets.register(loader);
-    const world = new World(module);
+    const world = new World();
     const scene = {
         version: 4, name: 'Forest',
         entities: [1, 2].map(id => ({ id, parent: null, prefab: 'tree.esprefab', overrides: [], added: [], removed: [] })),
