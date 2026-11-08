@@ -189,3 +189,23 @@ TEST_CASE("siblings retain their own parent matrices during iterative traversal"
     const std::vector<Entity> expected{root, siblings[0], left, siblings[1], right};
     CHECK(system.pendingChanges() == expected);
 }
+
+TEST_CASE("moving siblings preserve unchanged descendant decomposition caches") {
+    Registry r; TransformSystem system;
+    const auto root=r.create(), fixed=r.create(), moving=r.create(), leaf=r.create();
+    r.emplace<Transform>(root).scale={100,100,100};
+    r.emplace<Transform>(fixed).position={2,3,4};
+    r.emplace<Transform>(moving).position={5,6,7};
+    r.emplace<Transform>(leaf).position={1,0,0};
+    setParent(r,fixed,root);setParent(r,moving,root);setParent(r,leaf,moving);
+    system.ensureComposed(r);
+    for(auto e:{fixed,moving,leaf})r.get<Transform>(e).ensureDecomposed();
+    r.get<Transform>(moving).position.x+=2;
+    invalidateTransformComposition(); system.ensureComposed(r);
+    CHECK(r.get<Transform>(fixed).decomposed_);
+    CHECK_FALSE(r.get<Transform>(moving).decomposed_);
+    CHECK_FALSE(r.get<Transform>(leaf).decomposed_);
+    CHECK(r.get<Transform>(fixed).worldPosition==glm::vec3(200,300,400));
+    r.get<Transform>(leaf).ensureDecomposed();
+    CHECK(r.get<Transform>(leaf).worldPosition.x==doctest::Approx(800));
+}
