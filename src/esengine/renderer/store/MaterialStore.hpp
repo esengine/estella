@@ -201,7 +201,8 @@ public:
         if (shader.isValid()) {
             const bool mentionsGbuffer = source.find("ES_GBUFFER") != std::string::npos;
             const bool writesAlbedo = mentionsGbuffer && source.find("fragAlbedo") != std::string::npos;
-            sources_[shader.id()] = { std::move(source), std::move(features), mentionsGbuffer, writesAlbedo };
+            const bool takesLight = source.find("applyLighting") != std::string::npos;
+            sources_[shader.id()] = { std::move(source), std::move(features), mentionsGbuffer, writesAlbedo, takesLight };
         }
     }
 
@@ -212,6 +213,9 @@ public:
                     bool withNormals = false, bool skinned = false,
                     bool envMapped = false, bool lightmapped = false, bool gbuffer = false,
                     bool tangents = false, bool tipPass = false) const;
+
+    void setLightingDirect(bool on) { lighting_direct_ = on; }
+    bool lightingDirect() const { return lighting_direct_; }
 
     /// Whether @p programId is a variant that writes the surface record's second output — set when
     /// it was compiled for a pass that has one AND the material's shader has something to write
@@ -463,8 +467,10 @@ private:
         /// Whether its gbuffer variant also writes `fragAlbedo` (location 2): a shader written before the
         /// attachment existed writes two outputs, and its pipeline must leave the third alone.
         bool writesAlbedo = false;
+        bool takesLight = false;
     };
     std::unordered_map<u32, ShaderSource> sources_;
+    bool lighting_direct_ = false;
     /// (Handle, vertex source) → the program compiled for it (0 = tried and
     /// failed). Mutable because compiling it is memoization: the collect path
     /// asks a read-only store, and the answer is the same every time.

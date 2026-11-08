@@ -12,10 +12,10 @@ vi.mock('../src/platform', () => ({
     platformOnAppHide: () => () => {}, platformOnAppShow: () => () => {},
 }));
 vi.mock('../src/ecs/bridge/engineApi', () => ({
-    engineApi: () => ({ renderer_setQualityBudgets: vi.fn(), renderer_setShadowDistance: distanceBudget, renderer_setShadow2DSoftSamples: softSamples, renderer_setPlanarReflectionQuality: reflectionBudget, renderer_setDepthPrepass: prepass, renderer_setAsyncShaderCompile: asyncCompile }),
+    engineApi: () => ({ renderer_setQualityBudgets: vi.fn(), renderer_setShadowDistance: distanceBudget, renderer_setShadow2DSoftSamples: softSamples, renderer_setPlanarReflectionQuality: reflectionBudget, renderer_setDepthPrepass: prepass, renderer_setLightingDirect: lightingDirect, renderer_setAsyncShaderCompile: asyncCompile }),
 }));
 
-const { distanceBudget, softSamples, reflectionBudget, prepass, asyncCompile } = vi.hoisted(() => ({ distanceBudget: vi.fn(), softSamples: vi.fn(), reflectionBudget: vi.fn(), prepass: vi.fn(), asyncCompile: vi.fn() }));
+const { distanceBudget, softSamples, reflectionBudget, prepass, lightingDirect, asyncCompile } = vi.hoisted(() => ({ distanceBudget: vi.fn(), softSamples: vi.fn(), reflectionBudget: vi.fn(), prepass: vi.fn(), lightingDirect: vi.fn(), asyncCompile: vi.fn() }));
 
 describe('quality runtime device selection', () => {
     it('applies the tier shadow range and restores camera coverage when disabled', () => {
@@ -59,6 +59,26 @@ describe('quality runtime device selection', () => {
         expect(prepass).toHaveBeenLastCalledWith(true);
         controller!.setMode('off'); apply!();
         expect(prepass).toHaveBeenLastCalledWith(false);
+    });
+    it('lights 3D surfaces directly at the levels a phone runs, fully at high, and fully with the quality system off', () => {
+        let apply: (() => void) | undefined;
+        let controller: import('../src/render/quality').QualityController;
+        const app = { wasmModule: null, insertResource: (_: unknown, value: typeof controller) => { controller = value; },
+            pipeline: { setQuality: (_: unknown, callback: () => void) => { apply = callback; } },
+            addPlugin: vi.fn(), onFrameEnd: () => () => {},
+        } as unknown as App;
+        installQuality(app, { mode: 'medium' }, 4);
+        expect(lightingDirect).toHaveBeenLastCalledWith(true);
+        controller!.setMode('low'); apply!();
+        expect(lightingDirect).toHaveBeenLastCalledWith(true);
+        controller!.setMode('high'); apply!();
+        expect(lightingDirect).toHaveBeenLastCalledWith(false);
+        controller!.setMode('off'); apply!();
+        expect(lightingDirect).toHaveBeenLastCalledWith(false);
+        installQuality(app, { mode: 'medium', profiles: { medium: { lighting: 'full' } } }, 4);
+        expect(lightingDirect).toHaveBeenLastCalledWith(false);
+        installQuality(app, { mode: 'high', profiles: { high: { lighting: 'bogus' as never } } }, 4);
+        expect(lightingDirect).toHaveBeenLastCalledWith(false);
     });
     it('leaves shader compiles waited for unless the config asks for them not to be, whatever the level', () => {
         const app = { wasmModule: null, insertResource: vi.fn(), addPlugin: vi.fn(), onFrameEnd: () => () => {} } as unknown as App;

@@ -81,6 +81,7 @@ export interface QualityProfile {
      * is that many silhouettes added up. Fewer is cheaper and shows the edge as bands; sixteen is where the bands stop reading as separate shadows.
      */
     shadowSoftSamples: number;
+    lighting: 'full' | 'direct';
     /**
      * The most draws a frame at this level should ask of the GPU, every pass counted (shadows, prepass, reflections and post-processing with the
      * scene). Nothing is held back to meet it: the profiler and the stats overlay show a frame over it, and the frame debugger says where the draws
@@ -148,7 +149,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 0.5, particleLimit: 1000, postProcess: true, ssao: false,
         waterWaves: 2, waterRippleCells: 32, waterDisplacement: false, waterMirror: false, waterCaustics: false,
         skipEffects: ['ssr', 'taa', 'depthOfField', 'lightShafts', 'motionBlur', 'lensFlare', 'gtao', 'subsurface', 'voxelGI'],
-        shelterMaskSize: 256, shadowSoftSamples: 8, drawCallBudget: 150, textureStreaming: true, textureStreamingBudget: 128,
+        shelterMaskSize: 256, shadowSoftSamples: 8, lighting: 'direct', drawCallBudget: 150, textureStreaming: true, textureStreamingBudget: 128,
     },
     medium: {
         renderScale: 1, minRenderScale: 0.65, msaaSamples: 2, antialiasing: 'temporal',
@@ -157,7 +158,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 0.8, particleLimit: 5000, postProcess: true, ssao: true,
         waterWaves: 3, waterRippleCells: 64, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: ['ssr', 'depthOfField'],
-        shelterMaskSize: 512, shadowSoftSamples: 12, drawCallBudget: 400, textureStreaming: true, textureStreamingBudget: 256,
+        shelterMaskSize: 512, shadowSoftSamples: 12, lighting: 'direct', drawCallBudget: 400, textureStreaming: true, textureStreamingBudget: 256,
     },
     high: {
         renderScale: 1, minRenderScale: 0.75, msaaSamples: 4, antialiasing: 'msaa',
@@ -168,7 +169,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 1, particleLimit: 20000, postProcess: true, ssao: true,
         waterWaves: 4, waterRippleCells: 128, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: [],
-        shelterMaskSize: 1024, shadowSoftSamples: 16, drawCallBudget: 1500, textureStreaming: false, textureStreamingBudget: 0,
+        shelterMaskSize: 1024, shadowSoftSamples: 16, lighting: 'full', drawCallBudget: 1500, textureStreaming: false, textureStreamingBudget: 0,
     },
 };
 
@@ -282,6 +283,7 @@ function resolveProfile(level: QualityLevel, value: unknown): QualityProfile {
             : base.skipEffects,
         shelterMaskSize: Math.round(finite(r.shelterMaskSize, base.shelterMaskSize, 64, 2048)),
         shadowSoftSamples: Math.round(finite(r.shadowSoftSamples, base.shadowSoftSamples, 1, 32)),
+        lighting: r.lighting === 'full' || r.lighting === 'direct' ? r.lighting : base.lighting,
         drawCallBudget: Math.round(finite(r.drawCallBudget, base.drawCallBudget, 1, 100000)),
         textureStreaming: typeof r.textureStreaming === 'boolean' ? r.textureStreaming : base.textureStreaming,
         textureStreamingBudget: Math.round(finite(r.textureStreamingBudget, base.textureStreamingBudget, 0, 65536)),

@@ -90,6 +90,7 @@ struct RenderFrameContext {
     /// Absent for an orthographic camera, which has no position to be far from.
     glm::vec3 view_eye{0.0f};
     bool has_view_eye = false;
+    bool lighting_direct = false;
 };
 
 /** @brief What every plugin needs to know about the camera, derived once per collect

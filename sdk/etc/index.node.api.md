@@ -8233,6 +8233,7 @@ antialiasing: "msaa" | "temporal"
 depthPrepass: boolean
 detailScale: number
 drawCallBudget: number
+lighting: "full" | "direct"
 minRenderScale: number
 msaaSamples: 2 | 1 | 4 | 8
 particleLimit: number

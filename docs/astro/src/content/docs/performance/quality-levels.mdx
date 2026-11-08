@@ -31,7 +31,7 @@ to.
 | Group | Settings |
 |---|---|
 | Rendering | Render scale, Min render scale, Anti-aliasing (MSAA or Temporal), MSAA, Depth pre-pass, Detail distance, Draw call budget, Texture streaming and its budget, 2D rain shelter mask |
-| Shadows | Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples |
+| Shadows | 3D lighting (Full or Direct), Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples |
 | Reflections and particles | Planar reflection scale, max size and updates per second, Particle limit |
 | Water | Water waves (1 to 4), Water ripple cells, and the Displacement, Mirror and Caustics switches. Shown once the level is not Off and the water module is in the build |
 | Post-processing | A master switch, and a tick for each effect that runs at this level |
@@ -45,6 +45,10 @@ far cheaper at 1080p and somewhat softer, it needs a post-process volume on the 
 is chosen. **Depth pre-pass** draws the opaque scene twice, depth alone first, so each pixel is shaded once for the surface in
 front. It pays where surfaces overlap (a wood, a crowd of foliage) on a GPU that shades what it rasterises; on one that defers
 shading to the end of a tile it is geometry paid for twice. It is off at Low and on at Medium and High. The default anti-aliasing is MSAA at Low (one sample) and High (4), and Temporal at Medium. The pre-pass and the colour pass declare the vertex position invariant on both WebGL2 and WebGPU, so a surface's colour always passes the equal-depth test against its own depth, including on Metal; a Mac that showed dark triangles on terrain with the pre-pass on needs nothing but an up-to-date build.
+
+**3D lighting** is Full or Direct. Direct compiles every lit mesh as `#pragma lighting direct` does: the same lighting model with the sixteen lights of
+the light block and hard shadows, without the lights past them, soft shadows or hair shadows. A full-screen lit floor on a phone costs about half as much
+(see [Lighting on a phone](/docs/graphics/lighting/#lighting-on-a-phone)). Low and Medium are Direct, High is Full; sprites keep their 2D lighting either way.
 
 <Aside type="note">
 A row's "default" is the default of the level it is showing, so the same number can be a change at Low and the default

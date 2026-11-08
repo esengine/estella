@@ -119,6 +119,8 @@ public:
     /// Draws the opaque scene twice, depth alone first (see DrawList::DrawPass). Off unless asked: where a GPU already shades each pixel once
     /// (a tiled one), the second pass is geometry paid for twice.
     void setDepthPrepass(bool on) { depth_prepass_ = on; }
+    void setLightingDirect(bool on);
+    bool lightingDirect() const { return lighting_direct_; }
     void setPlanarQuality(f32 scale, u32 maxSize, f32 updatesPerSecond);
     /**
      * @brief Note that a view drew a mesh with texture @p texture (a resource handle) where it needs @p side texels across for a texel to
@@ -1081,6 +1083,7 @@ private:
     glm::vec2 scene_jitter_{0.0f};
     /// Whether the opaque scene is drawn twice, depth alone first. See DrawList::DrawPass.
     bool depth_prepass_ = false;
+    bool lighting_direct_ = false;
     /// One per view, kept across frames for the capacity. The whole pass is collected
     /// before any of it is drawn, so a view's commands have to outlive its collect.
     std::vector<DrawList> shadow_view_lists_;

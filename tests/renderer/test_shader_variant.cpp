@@ -825,6 +825,14 @@ static void testLightingDirect() {
           && on.find("if (src <= 0.0 || g_shadowHard > 0.5) {") == std::string::npos,
           "a source with size is shadowed hard, not left unshadowed, when the soft path is compiled out");
 
+    std::vector<std::string> asked = mesh;
+    asked.push_back("ES_LIGHT_DIRECT");
+    const std::string byQuality = ShaderParser::assembleStage(full, ShaderStage::Fragment, "", asked, ShaderTargetLanguage::WGSL);
+    CHECK(byQuality == on, "a renderer that asks for direct lighting compiles what the directive does");
+    const std::string both = ShaderParser::assembleStage(direct, ShaderStage::Fragment, "", asked, ShaderTargetLanguage::GLSL_ES300);
+    const size_t first = both.find("#define ES_LIGHT_DIRECT");
+    CHECK(first != std::string::npos && both.find("#define ES_LIGHT_DIRECT", first + 1) == std::string::npos,
+          "asked by the shader and the renderer, the define is written once");
 }
 
 int main() {

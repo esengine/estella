@@ -1466,6 +1466,7 @@ RenderFrameContext RenderFrame::makeContext() {
         shadow_texture_id_,
         environment_texture_id_
     };
+    ctx.lighting_direct = lighting_direct_;
     const glm::vec4 eye = cameraFromViewProjection(view_projection_);
     ctx.has_view_eye = eye.w > 0.5f;
     if (ctx.has_view_eye) ctx.view_eye = glm::vec3(eye);
@@ -2066,6 +2067,11 @@ void RenderFrame::setShadowBudget(u32 atlasSize, u32 cellSize, u32 cascades) {
 
 void RenderFrame::setShadowDistance(f32 distance) {
     shadow_distance_ = std::isfinite(distance) ? std::max(distance, 0.0f) : 0.0f;
+}
+
+void RenderFrame::setLightingDirect(bool on) {
+    lighting_direct_ = on;
+    context_.materials().setLightingDirect(on);
 }
 
 void RenderFrame::setShadow2DSoftSamples(u32 samples) {

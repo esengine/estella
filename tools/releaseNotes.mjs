@@ -4112,4 +4112,10 @@ export const NOTED = {
     {"note": "A WeChat mini-game no longer takes WeChat down with it on iOS."},
   "fix(timeline): importing esengine/timeline installs timelines again, so a mini-game's animated characters leave the bind pose":
     {"note": "Animated characters move in a WeChat mini-game."},
+  "fix(render): a lighting-direct surface takes a hard shadow from a sun with a size, where it took none":
+    {"note": "A `#pragma lighting direct` surface takes a sun's shadow."},
+  "feat(quality): low and medium light 3D surfaces directly, so a phone pays about half for a lit scene":
+    {"note": "On a phone, a lit 3D scene costs about half as much."},
+  "feat(quality): the quality levels have a 3D lighting row":
+    {"note": "On a phone, a lit 3D scene costs about half as much."},
 };

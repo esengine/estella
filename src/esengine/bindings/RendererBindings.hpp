@@ -28,6 +28,7 @@ void renderer_setQualityBudgets(u32 atlasSize, u32 cellSize, u32 cascades, u32 p
 void renderer_setShadowDistance(f32 distance);
 void renderer_setShadow2DSoftSamples(u32 samples);
 void renderer_setDepthPrepass(bool on);
+void renderer_setLightingDirect(bool on);
 /**
  * Draws whose shader the browser is still compiling are left out, not waited for: a frame never stops for a compile, and what needs the shader
  * appears when it is done (several at once compile side by side, which the waiting form never gives them). Off (the default) is a frame that waits.

@@ -73,11 +73,13 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
     // Only for a shader that has something to write: one that never mentions the feature would
     // compile the same program twice and then be declared to write an output it does not have.
     bool albedo = false;
-    if (gbuffer) {
+    bool direct = false;
+    if (gbuffer || lighting_direct_) {
         const MaterialRecord* rec = find(materialId);
         const auto src = rec && rec->shaderRef.isValid() ? sources_.find(rec->shaderRef.id()) : sources_.end();
-        gbuffer = src != sources_.end() && src->second.mentionsGbuffer;
+        gbuffer = gbuffer && src != sources_.end() && src->second.mentionsGbuffer;
         albedo = gbuffer && src->second.writesAlbedo;
+        direct = lighting_direct_ && src != sources_.end() && src->second.takesLight;
     }
     // Keyed by shader AND vertex shape: a layout may not declare an attribute its
     // shader ignores, so geometry with normals — or posed by bones — needs its own.
@@ -87,7 +89,8 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
                     | (lightmapped ? (1ull << 36) : 0ull)
                     | (gbuffer ? (1ull << 38) : 0ull)
                     | (tangents && withNormals ? (1ull << 39) : 0ull)
-                    | (tipPass ? (1ull << 40) : 0ull);
+                    | (tipPass ? (1ull << 40) : 0ull)
+                    | (direct ? (1ull << 42) : 0ull);
     // A program already made for this shader and vertex shape is the answer, and almost every draw of a frame asks for one: it is looked up before
     // the feature list is built, since building it (nine strings and the vector that holds them) was most of what a cached answer cost.
     if (const MaterialRecord* rec = find(materialId); rec && rec->shaderRef.isValid()) {
@@ -115,6 +118,7 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
     features.push_back("ES_SURFACE_3D");
     if (gbuffer) features.push_back("ES_GBUFFER");
     if (tipPass) features.push_back("ES_TIP_PASS");
+    if (direct) features.push_back("ES_LIGHT_DIRECT");
     const u32 program = variantProgram(materialId, resources, shape, features, "resident geometry");
     if (gbuffer && program != 0) markGBufferProgram(program, albedo);
     return program;

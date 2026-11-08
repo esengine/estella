@@ -543,6 +543,7 @@ renderer_setDepthLayers: ((mask: number) => void) | undefined
 renderer_setDepthPrepass: ((on: boolean) => void) | undefined
 renderer_setEntityDrawOrder: ((registry: CppRegistry, entitiesPtr: number, count: number) => void) | undefined
 renderer_setImpostorAtlas: ((entity: number, texture: number, frames: number) => void) | undefined
+renderer_setLightingDirect: ((on: boolean) => void) | undefined
 renderer_setLodPreview: ((view: number, entity: number, level: number) => void) | undefined
 renderer_setMeshEdgeBuffers: ((enabled: boolean) => void) | undefined
 renderer_setOrigin: ((x: number, y: number, z: number) => void) | undefined

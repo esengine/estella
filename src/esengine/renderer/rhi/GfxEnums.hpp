@@ -141,10 +141,7 @@ static constexpr u32 MORPH_TEXTURE_WIDTH = 2048;
 /// Beyond it the geometry draws unmorphed — a texture the device refuses is a
 /// mesh that does not draw at all.
 static constexpr u32 MORPH_MAX_TEXELS = MORPH_TEXTURE_WIDTH * MORPH_TEXTURE_WIDTH;
-/// Programs the resident-mesh shader has: one per combination of {normals, lit, normal-mapped, skinned, depth-only,
-/// env-mapped, lightmapped, weight-heat, writes-the-surface-record, writes-the-motion, tangents}: eleven bits, because
-/// the geometry, the draw, the frame and the pass each answer a different one.
-static constexpr u32 MESH_VARIANTS = 2048;
+static constexpr u32 MESH_VARIANTS = 4096;
 /**
  * @brief What a mesh vertex channel MEANS, and the attribute location it binds to.
  * @details One vocabulary for the file format, the layout and the shaders: a

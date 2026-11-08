@@ -14,6 +14,14 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **On a phone, a lit 3D scene costs about half as much.** The quality level gains `lighting`. At `low` and `medium`, which a phone takes when the project names no level, every lit mesh and material is compiled as `#pragma lighting direct` asks: the same lighting model with the sixteen lights of the light block and hard shadows, without the lights past them, soft shadows or hair shadows. On a Snapdragon 8 Elite a full-screen lit floor drawn fifteen times over went from 57 to 24 ms a frame under the default soft-shadowed sun, and from 33 to 25 ms under a hard-shadowed one. `high`, and a project with quality off, keep everything. **Project Settings → Rendering → Quality → 3D lighting** changes it per level. Sprites keep their 2D lighting at every level.
+
+### Fixed
+
+- **A `#pragma lighting direct` surface takes a sun's shadow.** Under a directional light with a size (any `sourceAngle` above 0, the default 0.53 included) such a shader drew no shadow at all; it now draws the hard shadow the directive promises.
+
 ## [0.99.1] - 2026-11-07
 
 ### Fixed

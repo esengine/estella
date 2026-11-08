@@ -1295,6 +1295,10 @@ void renderer_setShadow2DSoftSamples(u32 samples) {
     if (g_renderFrame) g_renderFrame->setShadow2DSoftSamples(samples);
 }
 
+void renderer_setLightingDirect(bool on) {
+    if (g_renderFrame) g_renderFrame->setLightingDirect(on);
+}
+
 void renderer_setDepthPrepass(bool on) {
     if (g_renderFrame) g_renderFrame->setDepthPrepass(on);
 }

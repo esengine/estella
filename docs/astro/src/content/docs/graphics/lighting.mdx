@@ -435,6 +435,35 @@ The disc is hidden by what stands in front of it and draws no depth of its own. 
 steps or land on a wall, so use it where a grounding cue is enough, and a real shadow where the shape of the shadow matters. The disc is an entity of its
 own that is never saved with the scene.
 
+## Lighting on a phone
+
+There is one lighting model: a lit 3D surface, a lit sprite and a material's `applyLightingPBR` all go through the same BRDF. What changes with the
+device is how much of the engine's lighting a shader is compiled with. The quality level's **`lighting`** says it: at `full` a lit mesh takes the lights
+past the sixteen of the light block, soft shadows from a source with size, hair shadows and the 2D light masks; at `direct` it is compiled as
+`#pragma lighting direct` asks, with the sixteen lights and hard shadows only. `low` and `medium` are `direct` (a phone takes `medium` when the project
+names no level), `high` is `full`, and with the quality system off everything is `full`. Change it per level under **Project Settings → Rendering →
+Quality → 3D lighting**, or in code:
+
+```typescript
+quality: { profiles: { medium: { lighting: 'full' } } }
+```
+
+Most of what `direct` saves is not the work it skips but the size of the shader: a program carrying the tiled lights and the soft-shadow search keeps
+more registers in use and runs fewer pixels at once even where none of it executes. On a Snapdragon 8 Elite, a full-screen lit floor drawn fifteen
+times over under a sun at the default `sourceAngle`, with the same settings otherwise:
+
+| | `full` | `direct` |
+|---|---|---|
+| Built-in mesh shader, soft-shadowed sun | 57 ms | 24 ms |
+| Built-in mesh shader, hard-shadowed sun (`sourceAngle: 0`) | 33 ms | 25 ms |
+| A material with `specular` 0, soft-shadowed sun | 41 ms | under 17 ms (the 60 fps cap) |
+
+Sprites keep their 2D lighting at every level: the 2D shadow and shape masks are how a 2D scene draws its shadows.
+
+What the level does not decide is what a surface is. A highlight belongs to the material: a material whose `specular` is 0 skips the lobe for every
+light (the measurement above), and a whole scene of matte surfaces is cheaper for it. Past that, the cheapest shadows are a
+[blob shadow](#blob-shadows-a-disc-instead-of-a-shadow-map) under each moving thing and [baked light](#baked-light) for what stands still.
+
 ## Baked light
 
 A frame carries 112 lights: sixteen read for every pixel and 96 tiled (see

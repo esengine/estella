@@ -259,11 +259,11 @@ void reportLodAuthoring(const LodLevels& levels, bool& warned) {
 
 u32 meshVariant(bool normals, bool lit, bool normalMapped, bool skinned, bool depthOnly,
                 bool envMapped, bool lightmapped, bool weightHeat = false, bool gbuffer = false,
-                bool motion = false, bool tangents = false) {
+                bool motion = false, bool tangents = false, bool direct = false) {
     return (normals ? 1u : 0u) | (lit ? 2u : 0u) | (normalMapped ? 4u : 0u)
          | (skinned ? 8u : 0u) | (depthOnly ? 16u : 0u) | (envMapped ? 32u : 0u)
          | (lightmapped ? 64u : 0u) | (weightHeat ? 128u : 0u) | (gbuffer ? 256u : 0u)
-         | (motion ? 512u : 0u) | (tangents ? 1024u : 0u);
+         | (motion ? 512u : 0u) | (tangents ? 1024u : 0u) | (direct ? 2048u : 0u);
 }
 
 /**
@@ -312,7 +312,7 @@ struct MeshDrawKeys {
     u32 normalTextureId = 0;
 };
 
-u32 meshVariantFrom(const MeshProgramFacts& facts, bool envMapped, bool shadowDepth, bool weightHeat = false,
+u32 meshVariantFrom(const MeshProgramFacts& facts, bool envMapped, bool shadowDepth, bool direct, bool weightHeat = false,
                     bool gbuffer = false) {
     // `lightmapped` and `tangents` survive the shadow pass, unlike the three describing shading: each declares a vertex attribute.
     // Weights are read off the surface of a skinned draw and nothing else's: the colour is
@@ -322,7 +322,7 @@ u32 meshVariantFrom(const MeshProgramFacts& facts, bool envMapped, bool shadowDe
     // The surface record is for what takes light: an unlit surface has no normal worth recording.
     return meshVariant(facts.hasNormals, lit,
                        facts.normalTextureId != 0 && !shadowDepth && !heat, facts.skinned, shadowDepth,
-                       envMapped, facts.lightmapped, heat, gbuffer && lit, false, facts.tangents);
+                       envMapped, facts.lightmapped, heat, gbuffer && lit, false, facts.tangents, direct && lit);
 }
 
 /** @brief The facts a LIVE entity answers with: its components and its mesh. */
@@ -351,7 +351,7 @@ MeshDrawKeys meshDrawFor(RenderFrameContext& ctx, ecs::Registry& registry, Entit
     const MeshProgramFacts facts =
         meshFactsFromEntity(ctx, registry, entity, mesh, resident, warnedBones);
     return { meshVariantFrom(facts, ctx.environment_texture_id != 0
-                || (!shadowDepth && ctx.frame && ctx.frame->planarTextureFor(entity) != 0), shadowDepth, weightHeat,
+                || (!shadowDepth && ctx.frame && ctx.frame->planarTextureFor(entity) != 0), shadowDepth, ctx.lighting_direct, weightHeat,
                 ctx.gbuffer && !shadowDepth),
              facts.normalTextureId };
 }
@@ -391,7 +391,7 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, u32 variant) {
     const bool depthOnly = (variant & 16u) != 0, envMapped = (variant & 32u) != 0;
     const bool lightmapped = (variant & 64u) != 0, weightHeat = (variant & 128u) != 0;
     const bool gbuffer = (variant & 256u) != 0, motion = (variant & 512u) != 0;
-    const bool tangents = (variant & 1024u) != 0;
+    const bool tangents = (variant & 1024u) != 0, direct = (variant & 2048u) != 0;
     if (mesh_compiled_[variant]) return mesh_programs_[variant];
     mesh_compiled_[variant] = true;
     // Counted because the cost of this function is entirely the times it does
@@ -426,6 +426,7 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, u32 variant) {
     // After the receiving features, not between them and the `else` they hang from: a lit draw that writes the
     // surface record still receives shadows and reflections.
     if (gbuffer) features.emplace_back("ES_GBUFFER");
+    if (direct) features.emplace_back("ES_LIGHT_DIRECT");
 
     // Authored as mesh.esshader, WGSL twin included. Its vertex stage is the one
     // that reads a model matrix, which is what lets the vertices stay local.
@@ -473,7 +474,7 @@ RenderPrewarmResult MeshPlugin::prewarmFacts(RenderFrameContext& ctx,
         for (u32 pass = 0; pass < 2; ++pass) {
             const bool shadowDepth = pass == 1;
             if (shadowDepth && (!shadowPasses || !residentGeometry)) continue;
-            const u32 variant = meshVariantFrom(facts[i], envMapped, shadowDepth);
+            const u32 variant = meshVariantFrom(facts[i], envMapped, shadowDepth, ctx.lighting_direct);
             ++out.asks;
             if (out.addKey(variant)) ++out.uniqueKeys;
             if (!mesh_compiled_[variant]) ++out.compiles;

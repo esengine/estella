@@ -222,6 +222,7 @@ export interface NativeEngineApi {
     renderer_setDepthPrepass?(on: boolean): void;
     renderer_setEntityDrawOrder?(registry: unknown, entitiesPtr: number, count: number): void;
     renderer_setImpostorAtlas?(entity: number, texture: number, frames: number): void;
+    renderer_setLightingDirect?(on: boolean): void;
     renderer_setLodPreview?(view: number, entity: number, level: number): void;
     renderer_setMeshEdgeBuffers?(enabled: boolean): void;
     renderer_setOrigin?(x: number, y: number, z: number): void;
@@ -563,6 +564,7 @@ export function createNativeEngineApi(
     bind('renderer_setDepthPrepass', 'es_renderer_setDepthPrepass', false);
     bind('renderer_setEntityDrawOrder', 'es_renderer_setEntityDrawOrder', true);
     bind('renderer_setImpostorAtlas', 'es_renderer_setImpostorAtlas', false);
+    bind('renderer_setLightingDirect', 'es_renderer_setLightingDirect', false);
     bind('renderer_setLodPreview', 'es_renderer_setLodPreview', false);
     bind('renderer_setMeshEdgeBuffers', 'es_renderer_setMeshEdgeBuffers', false);
     bind('renderer_setOrigin', 'es_renderer_setOrigin', false);
