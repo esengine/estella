@@ -86,6 +86,13 @@ point('Street magenta spill',[-5,1,7],rgba(1,.03,.32),3.2,12);
 point('Billboard spill',[13,8,-12],rgba(.03,.42,1),2.5,20);
 point('Tool fill',[.3,.1,-.3],rgba(.85,.88,1),2.4,3.0,camera);
 for(const name of ['Warm entrance','Upper grow pink','Canopy warm']) Object.assign(entities.find(e=>e.name===name).components.find(c=>c.type==='Light').data,{meshShadows:true,shadowStrength:.75,shadowSoftness:.24});
+// Ceiling fixtures illuminate downwards. A spot uses one complete shadow map;
+// a point needs six faces, including directions hidden behind the fixture.
+for(const name of ['Upper grow pink','Canopy warm']) {
+  const fixture=entities.find(e=>e.name===name);
+  Object.assign(fixture.components.find(c=>c.type==='Light').data,{type:3,innerAngle:65,outerAngle:110});
+  fixture.components.find(c=>c.type==='Transform').data.rotation=rotation(0,-Math.PI/2);
+}
 
 // A small reusable build pool keeps all assets in the normal scene loading path.
 for(let i=0;i<12;i++) {

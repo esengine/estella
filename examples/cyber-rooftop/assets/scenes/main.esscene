@@ -2448,13 +2448,19 @@
               "x": -7,
               "y": 5.3,
               "z": -2.5
+            },
+            "rotation": {
+              "x": -0.7071067811865475,
+              "y": 0,
+              "z": 0,
+              "w": 0.7071067811865476
             }
           }
         },
         {
           "type": "Light",
           "data": {
-            "type": 0,
+            "type": 3,
             "color": {
               "r": 1,
               "g": 0.035,
@@ -2468,7 +2474,9 @@
             "enabled": true,
             "meshShadows": true,
             "shadowStrength": 0.75,
-            "shadowSoftness": 0.24
+            "shadowSoftness": 0.24,
+            "innerAngle": 65,
+            "outerAngle": 110
           }
         }
       ]
@@ -2487,13 +2495,19 @@
               "x": -6,
               "y": 7,
               "z": -2.5
+            },
+            "rotation": {
+              "x": -0.7071067811865475,
+              "y": 0,
+              "z": 0,
+              "w": 0.7071067811865476
             }
           }
         },
         {
           "type": "Light",
           "data": {
-            "type": 0,
+            "type": 3,
             "color": {
               "r": 1,
               "g": 0.55,
@@ -2507,7 +2521,9 @@
             "enabled": true,
             "meshShadows": true,
             "shadowStrength": 0.75,
-            "shadowSoftness": 0.24
+            "shadowSoftness": 0.24,
+            "innerAngle": 65,
+            "outerAngle": 110
           }
         }
       ]

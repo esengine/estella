@@ -46,7 +46,7 @@ void main() {
     vec3 V=viewDirection(P);
     vec3 dry=applyLightingPBR(base.rgb*1.45,N,P,V,0.0,0.92,0.02,1.0);
     vec3 film=applyLightingPBR(vec3(0.10,0.14,0.17),normalize(mix(vec3(0.0,1.0,0.0),N,0.28)),waterP,V,0.55,0.47,1.0,1.0);
-    fragColor=vec4(film,base.a);
+    fragColor=vec4(mix(dry,film,wet),base.a);
 #ifdef ES_GBUFFER
     fragSurface=vec4(packNormal(N),mix(0.92,0.47,wet),0.75+0.25*wet*0.55);
 #endif

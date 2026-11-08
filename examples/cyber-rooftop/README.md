@@ -50,6 +50,14 @@ node tools/asset-meta.js examples/cyber-rooftop/assets
 
 模型脚本同时写出 `output/cyber-rooftop/cyber-rooftop.blend`。这个本地工作文件不入库；可通过源脚本重建。环境与软粒子图复用本仓库 `neon-ascension` 中的资源。
 
+## 展示质量与资源约定
+
+顶棚和上层种植灯使用向下的原生聚光灯，入口保留全向点光阴影。加上月光，共请求九块阴影图；不要把聚光灯改成全向点光来补亮，否则六面阴影会挤占其他灯的预算。使用灯光状态检查实际分配，不能仅凭 `meshShadows: true` 判断阴影已经生效。
+
+`roof-normal.png`、`roof-orm.png` 和 `roof-wetness.png` 保存的是法线、材质参数及湿度数据，侧车文件必须保留 `sRGB: false`。参考图和制作工具通过 `assetExclude` 排除在资源导入和发布之外。
+
+后续以实机画面与参考构图对照打磨建筑层次、近景工具和手部、湿地材质、植被与城市远景。每轮同时验收建造交互、原生 HUD、粒子与性能；记录分辨率和设备，后台节流或暂停采样不作为帧率证据。
+
 ## 验证
 
 ```powershell

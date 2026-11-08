@@ -15,7 +15,7 @@ try {
     page.on('console',m=>{if(m.type()==='error')errors.push(m.text());if(m.type()==='warning')warnings.push(m.text());});
     page.on('response',r=>{if(r.status()>=400)errors.push(`${r.status()} ${r.url()}`);});
     await page.goto(`http://127.0.0.1:${server.address().port}/?headless`,{waitUntil:'load'});
-    await page.waitForFunction(()=>window.__estellaCooked?.facts().ready,{timeout:60000});
+    await page.waitForFunction(()=>window.__estellaCooked?.facts().ready,null,{timeout:60000});
     await page.evaluate(()=>window.__estellaCooked.setPaused(true));
     const step=async(n=2)=>page.evaluate(n=>window.__estellaCooked.step(n),n);
     const facts=()=>page.evaluate(()=>window.__estellaCooked.facts());
@@ -34,6 +34,10 @@ try {
     };
     await step(90);
     assert.equal((await facts()).valid,true);
+    const shadows=await page.evaluate(()=>['Moon fill','Warm entrance','Upper grow pink','Canopy warm'].map(name=>({name,...window.__estellaCooked.decisions(name)?.shadow})));
+    assert.deepEqual(shadows.map(s=>s.requested),[1,6,1,1]);
+    assert.ok(shadows.every(s=>s.granted===s.requested&&s.deniedCasters===0&&s.reducedCasters===0));
+    checks.push('All four native shadow casters receive complete maps within nine tiles');
     await page.screenshot({path:path.join(root,'actual.png')});
     checks.push('Native scene boot, all assets, 2D HUD and 3D geometry');
     await key('r');assert.equal((await facts()).rotation,1);
