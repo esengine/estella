@@ -210,12 +210,12 @@ export function createWorld2D(app: App, id: string, options: World2DOptions): Wo
     });
 
     // A change to one placement makes only the chunk it stood in again.
-    diffs.onChange = (changed) => {
+    const stopListening = diffs.subscribe((changed) => {
         const owner = ownerOf.get(changed);
         if (!owner) return;
         const x = owner.cx * size, y = owner.cy * size;
         chunks.invalidate(id, x + 1, y + 1, x + size - 1, y + size - 1);
-    };
+    });
 
     return {
         plan, diffs,
@@ -225,7 +225,7 @@ export function createWorld2D(app: App, id: string, options: World2DOptions): Wo
             return s ? { ready: s.ready, pending: s.pending, failed: s.failed } : { ready: 0, pending: 0, failed: 0 };
         },
         dispose: () => {
-            diffs.onChange = null;
+            stopListening();
             chunks.remove(id);
             ownerOf.clear();
         },

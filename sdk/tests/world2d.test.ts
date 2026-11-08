@@ -3,12 +3,16 @@
 /**
  * @file  A 2D generated world: the 3D plan read flat over x and y, cut into chunks that agree, with what players changed laid over them.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { makePlanePlan } from '../src/worldgen/planePlan';
 import { Zones } from '../src/worldgen/zones';
 import { PlacementDiffs } from '../src/worldgen/diffs';
-import { world2dChunk, placement2D } from '../src/worldgen/world2d';
+import { createWorld2D, world2dChunk, placement2D, type World2DChunk } from '../src/worldgen/world2d';
 import type { WorldRules } from '../src/worldgen/rules';
+import { App } from '../src/app/app';
+import { AppContext, setDefaultContext } from '../src/ecs/context';
+import { setEditorMode, setPlayMode } from '../src/ecs/env';
+import { createMockModule } from './mocks/wasm';
 
 const rules: WorldRules = {
     id: 'test:2d', versions: [1],
@@ -105,4 +109,46 @@ describe('a chunk of a 2D world', () => {
             attach: 'upright', mesh: 0, material: 0, plant: null, interactive: null, footprint: 1, canopy: 2, far: null });
         expect(t).toMatchObject({ x: 3, y: 4, yaw: 1, scale: 2 });
     });
+});
+
+it('updates both 2D consumers of shared saved changes and releases only the disposed consumer', async () => {
+    setDefaultContext(new AppContext());
+    setEditorMode(false);
+    setPlayMode(false);
+    const app = App.new();
+    const module = createMockModule();
+    app.connectCpp(module.getRegistry(), module);
+    const diffs = new PlacementDiffs();
+    const changed = vi.fn();
+    diffs.onChange = changed;
+    const shown = [new Map<string, World2DChunk>(), new Map<string, World2DChunk>()];
+    const worlds = shown.map((chunks, i) => createWorld2D(app, `view-${i}`, {
+        rules, seed: 7, world: 'shared', diffs, chunkSize: SIZE, cellSize: 64,
+        loadRadius: 300, unloadRadius: 800, sources: () => [{ x: 256, y: 256 }],
+        publish: chunk => {
+            const key = `${chunk.cx},${chunk.cy}`;
+            chunks.set(key, chunk);
+            return () => { if (chunks.get(key) === chunk) chunks.delete(key); };
+        },
+    }));
+    const tick = async () => { for (let i = 0; i < 25; i++) { app.tick(1 / 60); await new Promise(resolve => setTimeout(resolve, 0)); } };
+    const ids = (i: number) => [...shown[i]!.values()].flatMap(c => c.placements.map(p => p.id)).sort();
+    await tick();
+    const initial = ids(0);
+    expect(initial.length).toBeGreaterThan(5);
+    expect(ids(1)).toEqual(initial);
+    const id = initial[0]!;
+    diffs.remove(id);
+    await tick();
+    expect(ids(0)).toEqual(initial.slice(1));
+    expect(ids(1)).toEqual(initial.slice(1));
+    worlds[0]!.dispose();
+    diffs.restore(id);
+    await tick();
+    expect(ids(0)).toEqual([]);
+    expect(ids(1)).toEqual(initial);
+    expect(changed).toHaveBeenCalledTimes(2);
+    worlds[1]!.dispose();
+    diffs.remove(id);
+    expect(changed).toHaveBeenCalledTimes(3);
 });
