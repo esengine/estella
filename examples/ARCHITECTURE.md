@@ -82,7 +82,7 @@ per-frame logic uses `Schedule.Update`.
 
 ## Verifying an example
 
-`node build-tools/tasks/check-examples.js` symlinks the built SDK into each example and
+`node build-tools/cli.js check-examples` symlinks the built SDK into each example and
 runs `tsc --noEmit` across all of them — run it after changing example source or the SDK
 types. Visual/gameplay correctness (rendering, camera framing, tilemap tiles) should be
 confirmed by opening the example in the editor and pressing Play.
