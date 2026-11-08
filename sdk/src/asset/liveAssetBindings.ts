@@ -54,6 +54,7 @@ export function findLiveAssetBindings(
         const fields = component.assetFields.filter((f) => f.type === type);
         if (fields.length === 0) continue;
         for (const entity of world.getEntitiesWithComponents([component])) {
+            if (world.isDestructionPending(entity)) continue;
             const data = world.get(entity, component) as Record<string, unknown>;
             for (const { field } of fields) {
                 if (data[field] === value) found.push({ entity, component, field });

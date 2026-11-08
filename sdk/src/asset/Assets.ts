@@ -2449,11 +2449,10 @@ export class Assets {
     }
 
     /**
-     * What this Assets acquired for an owner the engine cannot name — a live
-     * binding on an entity no scene owns.
+     * What is explicitly owned by the whole asset realm.
      *
-     * Its life is this instance's, which is how long such an entity can live.
-     * Never a place to park an acquisition an owner exists for.
+     * Its life is this instance's. Entity bindings use scene or entity scopes,
+     * including runtime entities with no scene, so their resources can end sooner.
      *
      * @internal
      */
@@ -2462,8 +2461,8 @@ export class Assets {
     }
 
     /**
-     * What entities own for themselves — a persistent entity that outlived the
-     * scene it came from. Ends at the entity's despawn.
+     * What entities own for themselves — runtime entities with no scene and
+     * persistent entities that outlived theirs. Ends at the entity's despawn.
      *
      * @internal
      */

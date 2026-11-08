@@ -15,7 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { App } from '../src/app/app';
 import { World } from '../src/ecs/world';
-import { defineComponent, getComponentRegistry, type AnyComponentDef } from '../src/ecs/component';
+import { defineComponent, getComponent, getComponentRegistry, type AnyComponentDef } from '../src/ecs/component';
 import { COMPONENT_META } from '../src/ecs/component.generated';
 import { Assets } from '../src/asset/Assets';
 import type { Backend } from '../src/asset/Backend';
@@ -207,6 +207,20 @@ describe('the hot-update rebinder reaches every declared texture field', () => {
         world.insert(e, Widget, { icon: 7 });
         expect(findLiveAssetBindings(world, 'texture', 7)).toHaveLength(1);
     });
+
+    it('does not hand a dying entity a new owner during despawn callbacks', () => {
+        const world = new World(); connectFakeCpp(world);
+        const entity = world.spawn(); world.insert(entity, Sprite, { texture: 7 });
+        let pending: boolean | undefined;
+        let bindingsDuringDespawn = -1;
+        world.onDespawn(() => {
+            pending = world.isDestructionPending(entity);
+            bindingsDuringDespawn = findLiveAssetBindings(world, 'texture', 7).length;
+        });
+        world.despawn(entity);
+        expect(pending).toBe(true);
+        expect(bindingsDuringDespawn).toBe(0);
+    });
 });
 
 describe('a replacement is a transaction per owning scope', () => {
@@ -335,9 +349,7 @@ describe('a replacement is a transaction per owning scope', () => {
         expect(assets.sizes().refRows).toBe(base);
     });
 
-    it('an entity no scene owns is the app\'s, not nobody\'s', async () => {
-        // The rebinder must not keep what it acquires, and an acquisition with
-        // no owner is one nobody can ever give back — the leak this had.
+    it('a runtime sprite releases its replacement when the entity despawns', async () => {
         const { app, assets } = sceneApp();
         const base = assets.sizes().refRows;
 
@@ -351,9 +363,58 @@ describe('a replacement is a transaction per owning scope', () => {
         expect(boundValues(app, Sprite, 'texture')).toEqual([after]);
 
         lease.release();                                  // the game lets go of its own era
-        expect(assets.sizes().refRows).toBe(base + 1);    // the app owns the replacement
-        assets.releaseAll();
-        expect(assets.sizes().refRows).toBe(base);        // and gives it back at teardown
+        expect(assets.sizes().refRows).toBe(base + 1);
+        expect(assets.appScope.size).toBe(0);
+        app.world.despawn(entity);
+        expect(assets.entityScopes.size).toBe(0);
+        expect(assets.sizes().refRows).toBe(base);
+    });
+
+    it('runtime mesh materials end with their own entities, including instance sets', async () => {
+        const app = App.new(); connectFakeCpp(app.world);
+        const assets = buildAssets({ 'leaf.esmaterial': JSON.stringify({
+            version: '1.0', type: 'material', shader: 'builtin:model',
+            properties: { u_normalMap: 'leaf.png' },
+        }) });
+        installHotUpdateRebind(app, assets);
+        const base = assets.sizes().refRows;
+        for (let i = 0; i < 3; i++) {
+            const initial = await assets.acquireTyped<{ handle: number }>('material', 'leaf.esmaterial');
+            const entities = [app.world.spawn(), app.world.spawn()];
+            for (const entity of entities) app.world.insert(entity, MeshRenderer, { material: initial.value.handle });
+            app.world.insert(entities[0], getComponent('MeshInstances')!, {});
+            assets.invalidate('leaf.esmaterial'); await settle(app, 8);
+            const replacement = app.world.get(entities[0], MeshRenderer).material;
+            expect(replacement).not.toBe(initial.value.handle);
+            expect(app.world.get(entities[1], MeshRenderer).material).toBe(replacement);
+            initial.release();
+            expect(assets.appScope.size).toBe(0);
+            expect(assets.entityScopes.size).toBe(2);
+            app.world.despawn(entities[0]);
+            expect(assets.entityScopes.size).toBe(1);
+            expect(materialFake.Material.release).not.toHaveBeenCalledWith(replacement);
+            app.world.despawn(entities[1]);
+            expect(materialFake.Material.release).toHaveBeenCalledWith(replacement);
+            expect(assets.entityScopes.size).toBe(0);
+            expect(assets.sizes().refRows, `after generation ${i}`).toBe(base);
+        }
+    });
+
+    it('returns a late replacement when its runtime entity despawned while loading', async () => {
+        const { app, assets } = sceneApp();
+        const initial = await assets.acquireTexture('hero.png');
+        const entity = app.world.spawn();
+        app.world.insert(entity, Sprite, { texture: initial.value.handle });
+        const acquire = assets.acquireTexture.bind(assets);
+        let finish!: (lease: Awaited<ReturnType<typeof acquire>>) => void;
+        vi.spyOn(assets, 'acquireTexture').mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+        assets.invalidate('hero.png'); await app.tick(1 / 60);
+        expect(assets.entityScopes.size).toBe(1);
+        app.world.despawn(entity); initial.release();
+        finish(await acquire('hero.png')); await settle(app);
+        expect(assets.entityScopes.size).toBe(0);
+        expect(assets.appScope.size).toBe(0);
+        expect(assets.sizes().refRows).toBe(0);
     });
 });
 

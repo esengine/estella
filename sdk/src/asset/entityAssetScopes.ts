@@ -2,9 +2,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    entityAssetScopes.ts
- * @brief   What one entity owns, for an entity that outlives the scene it came from.
+ * @brief   What an entity owns outside a scene, ending at its despawn.
  *
- * @details A persistent entity leaves its scene and keeps rendering. Somebody
+ * @details A runtime entity can have no scene; a persistent entity leaves its
+ *          scene and keeps rendering. Somebody
  *          has to owe a release for what it is still bound to, and the two
  *          answers that existed were both wrong: the scene's scope is about to
  *          be given back, and the app's never ends while an entity's does.
