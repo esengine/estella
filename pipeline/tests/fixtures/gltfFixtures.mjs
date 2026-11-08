@@ -129,7 +129,7 @@ export async function meshoptTriangle() {
  * Draco reorders vertices to compress them, so a product built from this is
  * geometrically the same triangle rather than the same bytes.
  */
-export async function dracoTriangle() {
+export async function dracoTriangle(extraAttributes = {}) {
   const { createEncoderModule } = await import('draco3dgltf');
   const draco = await createEncoderModule();
   const mesh = new draco.Mesh();
@@ -137,6 +137,16 @@ export async function dracoTriangle() {
   builder.AddFacesToMesh(mesh, 1, new Uint32Array(INDICES));
   const position = builder.AddFloatAttributeToMesh(mesh, draco.POSITION, 3, 3, POSITIONS);
   const texCoord = builder.AddFloatAttributeToMesh(mesh, draco.TEX_COORD, 3, 2, UVS);
+  const attributes = { POSITION: 0, TEXCOORD_0: 1 };
+  const compressedAttributes = { POSITION: position, TEXCOORD_0: texCoord };
+  const accessors = ACCESSORS.map(a => ({ ...a, bufferView: undefined }));
+  for (const [name, source] of Object.entries(extraAttributes)) {
+    attributes[name] = accessors.length;
+    accessors.push({ type: 'VEC4', count: 3, componentType: source.componentType,
+      normalized: source.normalized ?? false });
+    compressedAttributes[name] = builder.AddFloatAttributeToMesh(
+      mesh, draco.GENERIC, 3, 4, new Float32Array(source.values));
+  }
 
   const encoder = new draco.Encoder();
   const encoded = new draco.DracoInt8Array();
@@ -152,14 +162,14 @@ export async function dracoTriangle() {
     bufferViews: [{ buffer: 0, byteOffset: 0, byteLength: blob.length }],
     // The accessors keep saying what the data MEANS — count and type — while
     // Draco holds the data itself. That is the shape the spec asks for.
-    accessors: ACCESSORS.map(a => ({ ...a, bufferView: undefined })),
+    accessors,
     meshes: [{
       name: 'Tri',
       primitives: [{
-        attributes: { POSITION: 0, TEXCOORD_0: 1 }, indices: 2, mode: 4,
+        attributes, indices: 2, mode: 4,
         extensions: {
           KHR_draco_mesh_compression: {
-            bufferView: 0, attributes: { POSITION: position, TEXCOORD_0: texCoord },
+            bufferView: 0, attributes: compressedAttributes,
           },
         },
       }],

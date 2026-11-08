@@ -8,4 +8,6 @@ export function plainTriangle(): Uint8Array;
 export function meshoptTriangle(): Promise<Uint8Array>;
 
 /** The same triangle with its geometry in a Draco blob. */
-export function dracoTriangle(): Promise<Uint8Array>;
+export function dracoTriangle(extraAttributes?: Record<string, {
+    componentType: number; normalized?: boolean; values: number[];
+}>): Promise<Uint8Array>;

@@ -15,6 +15,7 @@ import { MESH_MAX_BONES, MeshChannel, MeshChannelType, packChannels,
          type MeshMorphTargets } from 'esengine';
 import { MeshoptDecoder } from 'meshoptimizer/decoder';
 import { generateTangents } from './meshTangents';
+import { normalizeSkinWeights, type SkinWeights, type SkinWeightSet } from './skinWeights';
 import { readSpringBones } from './springBoneSource';
 import { readGltfPhysics } from './gltfPhysics';
 import { readGltfParticle } from './gltfParticles';
@@ -894,6 +895,56 @@ function bindMatrices(src: GltfBytes, skin: NonNullable<GltfJson['skins']>[numbe
 type GltfMesh = NonNullable<GltfJson['meshes']>[number];
 type GltfPrimitive = GltfMesh['primitives'][number];
 
+function skinAttributes(src: GltfBytes, prim: GltfPrimitive,
+                        skin: NonNullable<GltfJson['skins']>[number] | undefined,
+                        vertexCount: number,
+                        attribute: (semantic: string, index: number | undefined) => Float32Array | null,
+                        label: string, warnings: string[]): SkinWeights | null {
+    const names = Object.keys(prim.attributes).filter(n => /^(JOINTS|WEIGHTS)_/.test(n));
+    const jointCount = skin?.joints?.length ?? 0;
+    if (jointCount > MESH_MAX_BONES) {
+        warnings.push(`${label}: the skin binds ${jointCount} joints and one`
+            + ` draw can be posed by ${MESH_MAX_BONES} — imported static`);
+        return null;
+    }
+    if (!jointCount || prim.attributes.WEIGHTS_0 === undefined) {
+        if (names.length) warnings.push(`${label}: JOINTS_0 without ${!jointCount
+            ? 'a skin naming joints on any node drawing it' : 'WEIGHTS_0'} — imported static`);
+        return null;
+    }
+    try {
+        if (names.length % 2 !== 0) throw new Error('unpaired JOINTS_n/WEIGHTS_n attributes');
+        const sets: SkinWeightSet[] = [];
+        for (let i = 0; i < names.length / 2; i++) {
+            const read = (kind: 'JOINTS' | 'WEIGHTS'): Float32Array => {
+                const semantic = `${kind}_${i}`;
+                const index = prim.attributes[semantic];
+                const acc = index === undefined ? undefined : src.json.accessors?.[index];
+                if (!acc) throw new Error(`${semantic} accessor is missing; skin attribute sets must be paired and consecutive`);
+                const integer = acc.componentType === 5121 || acc.componentType === 5123;
+                const validType = kind === 'JOINTS' ? integer && !acc.normalized
+                    : (acc.componentType === 5126 && !acc.normalized) || (integer && acc.normalized);
+                if (!validType || acc.type !== 'VEC4' || acc.count !== vertexCount) {
+                    throw new Error(`${semantic} must contain ${vertexCount} VEC4 values with a valid skin component type`);
+                }
+                const values = attribute(semantic, index);
+                if (values?.length !== vertexCount * 4) throw new Error(`${semantic} has an invalid decoded length`);
+                return values;
+            };
+            sets.push({ joints: read('JOINTS'), weights: read('WEIGHTS') });
+        }
+        const result = normalizeSkinWeights(sets, vertexCount, jointCount);
+        if (result.reducedVertices) warnings.push(`${label}: ${result.reducedVertices} vertices exceed four skin influences;`
+            + ` retained and normalized the strongest four (maximum discarded weight ${(100 * result.maxDiscardedWeight).toFixed(2)}%)`);
+        if (result.normalizedVertices) warnings.push(`${label}: normalized non-unit skin weights on ${result.normalizedVertices} vertices`);
+        if (result.mergedVertices) warnings.push(`${label}: merged duplicate joint weights on ${result.mergedVertices} vertices`);
+        return result;
+    } catch (error) {
+        warnings.push(`${label}: invalid skin: ${error instanceof Error ? error.message : String(error)} — imported static`);
+        return null;
+    }
+}
+
 /**
  * The shapes this primitive can be blended towards, as deltas off the vertices
  * beside them. A target whose accessor does not cover every vertex is kept and
@@ -1270,7 +1321,7 @@ export async function importGltfMeshes(
                 // and whether its integers are normalized — as it always does.
                 const attribute = (semantic: string, index: number | undefined): Float32Array | null => {
                     if (index === undefined) return null;
-                    if (!geometry) return readAccessor(src, index);
+                    if (!geometry || packed?.attributes[semantic] === undefined) return readAccessor(src, index);
                     const values = geometry.attributes.get(semantic);
                     if (!values) throw new Error(`${semantic} is missing from the Draco blob`);
                     const acc = json.accessors?.[index];
@@ -1308,26 +1359,10 @@ export async function importGltfMeshes(
                     return;
                 }
 
-                // Both halves or neither: a joint index nothing weights moves the
-                // vertex by an arbitrary bone, and a weight indexing nothing has
-                // no bone to apply. A skin is what says which bind pose they mean.
                 const skinIndex = meshSkin.get(meshIndex);
                 const skin = skinIndex !== undefined ? json.skins?.[skinIndex] : undefined;
-                // Joints past the pose block index a matrix nothing uploads, so
-                // those vertices land somewhere arbitrary. Static is the honest
-                // read, and the one JOINTS_0-without-WEIGHTS_0 already takes.
-                const overBudget = (skin?.joints?.length ?? 0) > MESH_MAX_BONES;
-                const joints = skin && !overBudget ? attribute('JOINTS_0', prim.attributes.JOINTS_0) : null;
-                const weights = skin && !overBudget ? attribute('WEIGHTS_0', prim.attributes.WEIGHTS_0) : null;
-                const skinned = !!(skin?.joints?.length && joints && weights);
-                if (overBudget) {
-                    warnings.push(`${label}: the skin binds ${skin!.joints.length} joints and one`
-                        + ` draw can be posed by ${MESH_MAX_BONES} — imported static`);
-                } else if (prim.attributes.JOINTS_0 !== undefined && !skinned) {
-                    warnings.push(`${label}: JOINTS_0 without ${!skin?.joints?.length
-                        ? 'a skin naming joints on any node drawing it' : 'WEIGHTS_0'}`
-                        + ' — imported static');
-                }
+                const influences = skinAttributes(src, prim, skin, vertexCount, attribute, label, warnings);
+                const skinned = influences !== null;
 
                 // The frame the normal map was baked in, from the UVs as stored (V flipped below).
                 const tangents = normals && uvs && uvs.length >= vertexCount * 2
@@ -1397,8 +1432,8 @@ export async function importGltfMeshes(
                     }
                     if (jointsChannel && weightsChannel) {
                         for (let c = 0; c < 4; c++) {
-                            dv.setUint16(at + jointsChannel.offset + c * 2, joints![i * 4 + c] ?? 0, true);
-                            dv.setFloat32(at + weightsChannel.offset + c * 4, weights![i * 4 + c] ?? 0, true);
+                            dv.setUint16(at + jointsChannel.offset + c * 2, influences!.joints[i * 4 + c]!, true);
+                            dv.setFloat32(at + weightsChannel.offset + c * 4, influences!.weights[i * 4 + c]!, true);
                         }
                     }
                 }
