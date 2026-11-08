@@ -4132,6 +4132,22 @@ export const NOTED = {
     {"note": "An iOS game opens on iOS 27."},
   "fix(native): the audio watchdog compiles under the min macro windows.h defines":
     {"internal": "The watchdog had not reached a release; the Windows host failed to build on master only."},
+  "feat(import): restore scene materials, animation and native effects":
+    {"note": "An imported scene keeps its materials, animation, particles and colliders."},
+  "feat(physics): support compound colliders and scaled model geometry":
+    {"note": "A 3D body can be several shapes, and a scaled model collides at its scale."},
+  "fix(foliage): release retired generation assets after the last chunk":
+    {"note": "Generated plants and placements let go of what they held."},
+  "fix(worldgen): release scene zones and stabilize authored placements":
+    {"note": "Generated plants and placements let go of what they held."},
+  "fix(worldgen): preserve shared 2D placement change subscriptions":
+    {"note": "Generated plants and placements let go of what they held."},
+  "fix(profiler): separate work counters and manual steps from frame timing":
+    {"note": "The profiler's frame time is the frame's own."},
+  "fix(profiler): reject stepped and reset play FPS windows":
+    {"note": "The profiler's frame time is the frame's own."},
+  "perf(transform): reuse authored matrix decomposition across frames":
+    {"internal": "A cached decomposition of an authored matrix; every transform resolves to what it did, only the work per frame is less."},
   "fix(render): a render target hands out its picture the right way up on a device that stores rows top first":
     {"note": "A render target reads the right way up on WebGPU, Android and iOS."},
   "fix: budget terrain page sampling and painting across frames":
