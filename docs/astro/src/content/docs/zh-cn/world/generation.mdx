@@ -115,6 +115,10 @@ gens.zones().set({ id: 'house 1', kind: 'building', shape: { type: 'rect', x, z,
 
 只有区域触及的区块会重新生成,每个区块的旧版本保留到新版本替换它为止。
 
+场景中编排的区域使用场景名称和文档实体 ID 作为身份，因此相同场景以相同种子重载后，边缘衰减的分布保持一致。插件会在场景加载前启用场景来源记录。游戏代码创建的实体使用运行时身份；需要跨重载保持区域身份时，请用 `gens.zones(world).set()` 并提供稳定的 `id`。
+
+同名世界的生成器共享区域，并分别接收变化通知。实体消失或该世界的最后一个生成器退出时，场景区域的投影会被移除。代码添加的区域和 `PlacementDiffs` 保留给后续生成器使用，地形整平和群落上色则随最后一个使用者释放。需要监听变化时，使用 `zones.subscribe(listener)` 或 `diffs.subscribe(listener)`，并在结束使用时调用其返回的取消函数。
+
 ![World Zone 的 Details:类型、形状、半径、衰减、优先级、排除、群落和压平](@/assets/guides/zh/details-worldzone.png)
 
 *一个 **World Zone**:一个圆,告诉生成器在其中生长哪种群落。*

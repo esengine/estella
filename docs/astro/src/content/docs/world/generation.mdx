@@ -141,6 +141,10 @@ gens.zones().set({ id: 'house 1', kind: 'building', shape: { type: 'rect', x, z,
 
 Only the chunks the zone reaches are made again, each keeping its old version until the new one replaces it.
 
+Authored zones use the scene name and document entity id for their identity, so reloading the same scene with the same seed preserves the falloff pattern. The plugin enables scene-origin recording before scenes load. Entities created by game code have a runtime identity; use `gens.zones(world).set()` with a stable `id` when their zones must survive a reload.
+
+Generators of the same named world share zones and receive changes independently. Authored projections are removed when their entities disappear or the world's last generator leaves. Game-added zones and `PlacementDiffs` remain available for later generators, while terrain flattening and biome paint are released with their last active consumer. To observe changes without replacing another consumer, call `zones.subscribe(listener)` or `diffs.subscribe(listener)` and call the returned function when finished.
+
 ![Details of a World Zone: kind, shape, radius, falloff, priority, excludes, biome and flatten](@/assets/guides/en/details-worldzone.png)
 
 *A **World Zone**: a circle that tells the generator which biome to grow inside it.*
