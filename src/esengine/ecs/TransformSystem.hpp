@@ -80,10 +80,6 @@ public:
 
     /**
      * @brief Collect which entities' composed OUTPUT changed, from now on
-     * @details Off by default: only a consumer maintaining an incremental
-     *          structure needs the change mailbox. Matrix equality also protects
-     *          lazy world-TRS caches independently of tracking. Turning tracking
-     *          on does not compose.
      * @note One consumer. The pending set is a mailbox, not a per-reader journal:
      *       whoever acknowledges empties it for everyone.
      */
@@ -129,7 +125,8 @@ private:
 
     std::vector<Entity> dirty_to_clear_;
 
-    // Only a caller building an incremental structure pays to collect changes.
+    // Off on the shipped path: composition answers "are they stale", and only a
+    // caller building an incremental structure pays for "which ones moved".
     bool tracking_ = false;
     std::vector<Entity>* changedOut_ = nullptr;
     std::vector<Entity> changed_;
@@ -298,18 +295,12 @@ private:
                     flatCollapsed = transform->scale.x == 0 || transform->scale.y == 0
                         || (task.parentFlatCollapsed && transform->rotation.x == 0 && transform->rotation.y == 0);
                     const auto matrix = *task.parentMatrix * math::compose(transform->position, transform->rotation, transform->scale);
-                    const bool changed = matrix != transform->cachedMatrix_;
                     if (changedOut_) {
                         ++visited_;
-                        if (changed) changedOut_->push_back(task.entity);
+                        if (matrix != transform->cachedMatrix_) changedOut_->push_back(task.entity);
                     }
-                    // A moving sibling can require a hierarchy pass without
-                    // changing this entity. Keep its derived TRS warm: a few
-                    // physics bodies must not force every static mesh to decompose.
-                    if (changed) {
-                        transform->cachedMatrix_ = matrix;
-                        transform->decomposed_ = false;
-                    }
+                    transform->cachedMatrix_ = matrix;
+                    transform->decomposed_ = false;
                 } else if (keepStatic) {
                     flatCollapsed = registry.has<FlatGeometryCollapsed>(task.entity);
                 }
