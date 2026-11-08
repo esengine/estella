@@ -72,6 +72,13 @@ struct ShadowPlanReport {
         return nullptr;
     }
 
+    /** @brief Whether this report already contains the same denied claim. */
+    bool hasSameDenial(const ShadowGrant& claim) const {
+        const ShadowGrant* previous = grantFor(claim.light);
+        return claim.denied() && previous && previous->denied()
+            && previous->requested == claim.requested && previous->refusal == claim.refusal;
+    }
+
     u32 reducedCasters() const {
         u32 n = 0;
         for (const ShadowGrant& g : grants) n += g.reduced() ? 1u : 0u;
@@ -79,15 +86,22 @@ struct ShadowPlanReport {
     }
 };
 
+enum class ShadowClaim : u8 {
+    AllOrNothing,
+    AllowFewer,
+};
+
 /**
- * @brief Claim as much of @p want as the atlas will give, down to one tile.
+ * @brief Claim a complete shadow map, or explicitly allow fewer cascades.
  *
  * @details A sun settles for fewer rather than costing a positional light the map
  *          it cannot shorten. Giving way and RECORDING what it gave way from are
  *          one function, so a caller cannot take the first without the second.
+ *          A point light needs all six faces: a partial cube leaves directions
+ *          unshadowed and consumes tiles that another complete map could use.
  */
 inline ShadowGrant claimTiles(ShadowAtlas& atlas, Entity light, u32 want, u32 cells,
-                              i32& outFirst) {
+                              i32& outFirst, ShadowClaim policy = ShadowClaim::AllOrNothing) {
     ShadowGrant grant{light, want, 0, AtlasRefusal::None};
     outFirst = -1;
     for (u32 take = want; take > 0; --take) {
@@ -100,6 +114,7 @@ inline ShadowGrant claimTiles(ShadowAtlas& atlas, Entity light, u32 want, u32 ce
         }
         // The first refusal is the one that answers the question a reader has.
         if (take == want) grant.refusal = why;
+        if (policy == ShadowClaim::AllOrNothing) break;
     }
     return grant;
 }

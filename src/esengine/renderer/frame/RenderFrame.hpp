@@ -1100,6 +1100,7 @@ private:
     f32 shadow_distance_ = 0.0f;
     u32 shadow_2d_soft_samples_ = 16;
     ShadowPlanReport shadow_plan_;
+    ShadowPlanReport previous_shadow_plan_;
     LightCapReport light_cap_;
     ViewLighting view_lighting_;
     bool scene_sky_available_ = false;

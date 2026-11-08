@@ -338,8 +338,8 @@ coefficients are zero, and the same expression is the flat term again.
 
 A `ShadowCaster2D` box (below) shadows in the XY plane, which is what a 2D scene means
 by a shadow. Geometry with height needs the other kind: turn on **`meshShadows`** on a
-`Directional` light and the frame renders the scene's meshes once from that light, so a
-mesh standing above another darkens it.
+`Directional`, `Spot`, or `Point` light. The frame renders mesh depth from that
+light's views, so geometry blocks the light reaching other surfaces.
 
 ```typescript
 cmds.spawn()
@@ -350,7 +350,11 @@ cmds.spawn()
   });
 ```
 
-- One light per frame casts a map — the first that asks for one.
+- One directional light can cast alongside point and spot lights. They share an
+  atlas and a sixteen-tile limit: a spot needs one tile, a point needs all six
+  cube faces, and a directional light can use several cascades. A point that
+  cannot fit all six faces receives none; cascades may be reduced. Atlas space
+  is a separate limit because a directional tile occupies a larger block.
 - Only `MeshRenderer` geometry the GPU holds casts and receives. Sprites are lit by the same
   light but shadow through `ShadowCaster2D`, which is the 2D answer.
 - Coverage follows the camera. `shadowExtent` fixes it instead, to one map of that radius
@@ -358,8 +362,10 @@ cmds.spawn()
   `castShadows: false` and it does not pull the map away from what stands in front of it.
 
 <Aside type="caution">
-  A shadow map is a second pass over the scene's meshes. It costs a draw call per
-  caster and is off until a light asks, so a scene that wants none pays nothing.
+  Each shadow view renders the meshes that cast into it. A point light needs six
+  views; use a spot for a fixture that illuminates a cone. The Light Status in
+  the editor reports granted tiles and the reason for a shortfall. New denials
+  also produce a warning; an unchanged denial is not logged every frame.
 </Aside>
 
 ## Casting shadows

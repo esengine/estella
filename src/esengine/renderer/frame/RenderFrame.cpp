@@ -2088,6 +2088,10 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     // Zeroed first, and the atlas given back: a tile that outlived its map would
     // shadow the scene against geometry from a frame that no longer exists.
     shadow_atlas_.reset();
+    std::swap(shadow_plan_, previous_shadow_plan_);
+    shadow_plan_.clear();
+    shadow_plan_.atlasSize = shadow_atlas_size_;
+    shadow_plan_.cellSize = shadow_cell_size_;
     context_.lights().setShadowTiles(nullptr, nullptr, 0, glm::vec4(0.0f));
     if (!in_frame_ || shadow_casters_.empty() || !device_.isDeviceUsable()) return;
 
@@ -2154,9 +2158,6 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
         u32 count = 0;
     };
     std::vector<TilePlan> plan(shadow_casters_.size());
-    shadow_plan_.clear();
-    shadow_plan_.atlasSize = shadow_atlas_size_;
-    shadow_plan_.cellSize = shadow_cell_size_;
     for (usize i = 0; i < shadow_casters_.size(); ++i) {
         const ShadowCaster& caster = shadow_casters_[i];
         if (caster.shape == ShadowShape::Box) continue;
@@ -2175,7 +2176,7 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
         const u32 want = (perspective && caster.extent <= 0.0f) ? shadow_cascades_ + (focus ? 1u : 0u) : 1;
         i32 at = -1;
         const ShadowGrant grant = claimTiles(shadow_atlas_, caster.light, want,
-                                             kShadowCascadeCells, at);
+                                             kShadowCascadeCells, at, ShadowClaim::AllowFewer);
         if (at >= 0) plan[i] = {static_cast<u32>(at), grant.granted};
         shadow_plan_.grants.push_back(grant);
     }
@@ -2185,7 +2186,9 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
         // The light cap two hundred lines up warns when it drops a light. This is the
         // same contention over the same frame and said nothing at all, which is how a
         // light that stopped casting became a question with no answer in the engine.
-        if (g.denied()) {
+        // Keep the live report every frame, but only log a new denial. A stable
+        // over-budget scene must not spend every frame formatting the same warning.
+        if (g.denied() && !previous_shadow_plan_.hasSameDenial(g)) {
             ES_LOG_WARN("shadow atlas: light {} asked for {} tile(s) and got none ({})",
                         g.light.raw, g.requested, refusalName(g.refusal));
         }

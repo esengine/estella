@@ -128,7 +128,8 @@ int main() {
     i32 at = -1;
     const ShadowGrant cubeGrant = claimTiles(contended, Entity::make(1, 1), SHADOW_CUBE_FACES, 1, at);
     CHECK(cubeGrant.granted == SHADOW_CUBE_FACES && at == 0, "the cube claims first and whole");
-    const ShadowGrant sun = claimTiles(contended, Entity::make(2, 1), MAX_SHADOW_CASCADES, 2, at);
+    const ShadowGrant sun = claimTiles(contended, Entity::make(2, 1), MAX_SHADOW_CASCADES, 2, at,
+                                      ShadowClaim::AllowFewer);
     CHECK(sun.requested == MAX_SHADOW_CASCADES, "the sun asked for a whole cascade set");
     CHECK(sun.granted > 0 && sun.granted < sun.requested, "and settled for fewer");
     CHECK(sun.reduced() && !sun.denied(), "which is a reduction, not a denial");
@@ -143,6 +144,47 @@ int main() {
     CHECK(denied.denied() && none < 0, "a caster the atlas cannot fit keeps nothing");
     CHECK(denied.refusal == AtlasRefusal::NoSpace, "and says the atlas was full");
     CHECK(denied.granted == 0 && denied.requested == 1, "recording both halves of the claim");
+
+    // Three point lights in a sixteen-tile budget must never leave the third
+    // with four cube faces. The refused claim leaves room for the sun instead.
+    for (const u32 size : {2048u, 4096u}) {
+        ShadowAtlas points(size, 512);
+        claimTiles(points, Entity::make(20, 1), SHADOW_CUBE_FACES, 1, at);
+        claimTiles(points, Entity::make(21, 1), SHADOW_CUBE_FACES, 1, at);
+        const ShadowGrant third = claimTiles(points, Entity::make(22, 1), SHADOW_CUBE_FACES, 1, at);
+        CHECK(third.denied() && at < 0, "a point shadow cannot keep an incomplete cube");
+        CHECK(third.refusal == AtlasRefusal::TileBudget, "a larger atlas does not bypass the tile limit");
+        CHECK(points.tileCount() == 12, "a refused cube consumes no tiles");
+        const ShadowGrant moon = claimTiles(points, Entity::make(23, 1), 1, 2, at);
+        if (size == 4096) {
+            CHECK(moon.granted == 1 && at == 12, "a free 2x2 block holds a complete sun map");
+        } else {
+            CHECK(moon.denied() && moon.refusal == AtlasRefusal::NoSpace,
+                  "a single free row cannot fit a 2x2 sun map");
+            const ShadowGrant spot = claimTiles(points, Entity::make(25, 1), 1, 1, at);
+            CHECK(spot.granted == 1 && at == 12, "the free row still holds a complete spot map");
+        }
+    }
+    ShadowAtlas tooSmallForCube(1024, 512);
+    const ShadowGrant noCube = claimTiles(tooSmallForCube, Entity::make(24, 1), SHADOW_CUBE_FACES, 1, at);
+    CHECK(noCube.denied() && noCube.refusal == AtlasRefusal::NoSpace,
+          "four free cells still cannot hold a six-face point shadow");
+    CHECK(tooSmallForCube.tileCount() == 0, "a spatial refusal also rolls back every cube face");
+
+    ShadowPlanReport previous;
+    previous.grants.push_back(denied);
+    CHECK(previous.hasSameDenial(denied), "an unchanged denied light does not need another warning");
+    ShadowGrant changed = denied;
+    changed.refusal = AtlasRefusal::TileBudget;
+    CHECK(!previous.hasSameDenial(changed), "a different refusal needs a new warning");
+    changed = denied; changed.requested++;
+    CHECK(!previous.hasSameDenial(changed), "a changed claim needs a new warning");
+    changed = denied; changed.light = Entity::make(4, 2);
+    CHECK(!previous.hasSameDenial(changed), "a reused entity slot is a new light");
+    previous.grants[0].granted = 1;
+    CHECK(!previous.hasSameDenial(denied), "a recovered light can warn if it loses its map again");
+    previous.clear();
+    CHECK(!previous.hasSameDenial(denied), "a light returning after an empty frame can warn again");
 
     // The report's own arithmetic: what a frame says it handed out is what the atlas
     // actually holds. A grant nobody claimed would make every later number a guess.
