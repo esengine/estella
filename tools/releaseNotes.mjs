@@ -4122,4 +4122,6 @@ export const NOTED = {
     {"note": "A render target works on a native device."},
   "fix(native): the audio device is watched and brought back when it stops taking sound, so a game is not left silent after the background":
     {"note": "Sound comes back when a device's audio dies on its own."},
+  "fix(text): world text under a perspective camera draws as SDF, and no bitmap glyph is rasterized past half an atlas page":
+    {"note": "World text under a perspective camera no longer eats the memory."},
 };

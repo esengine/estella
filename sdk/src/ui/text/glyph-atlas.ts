@@ -307,10 +307,18 @@ export class GlyphAtlas {
         // A bitmap font has one size: the one it was drawn at, which the layout scales from.
         const bitmap = fontFamily === undefined ? null : bitmapFontOf(fontFamily);
         if (bitmap) return bitmap.size;
-        return this.sdf
-            ? this.renderSize
-            : Math.max(1, Math.round(displaySize * this.dpr * this.contentScale_));
+        if (this.sdf) return this.renderSize;
+        const wanted = Math.max(1, Math.round(displaySize * this.dpr * this.contentScale_));
+        const cap = this.pageSize >> 1;
+        if (wanted <= cap) return wanted;
+        if (!this.warnedOversize_) {
+            this.warnedOversize_ = true;
+            log.warn('text', `A bitmap glyph asked for ${wanted} px, more than an atlas page holds; drawn from ${cap} px. Text this large on screen reads better with renderMode Sdf.`);
+        }
+        return cap;
     }
+
+    private warnedOversize_ = false;
 
     /** Reported families with non-drawable glyphs still in the bounded CPU cache. */
     private readonly mute_ = new Set<string>();

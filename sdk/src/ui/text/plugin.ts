@@ -54,9 +54,11 @@ const BITMAP_SCALE_EPSILON = 0.02;
 export function resolveTextRenderMode(
     mode: TextRenderMode | undefined,
     effectiveScale: number,
+    perspective = false,
 ): 'bitmap' | 'sdf' {
     if (mode === TextRenderMode.Bitmap) return 'bitmap';
     if (mode === TextRenderMode.Sdf) return 'sdf';
+    if (perspective) return 'sdf';
     if (!Number.isFinite(effectiveScale) || effectiveScale <= 0) return 'bitmap';
     return Math.abs(effectiveScale - 1) <= BITMAP_SCALE_EPSILON ? 'bitmap' : 'sdf';
 }
@@ -77,6 +79,28 @@ export function resolveTextRenderMode(
  * @param projScaleX element 0 of the projection: 2 / the span it shows.
  * @param vpW        the pixel width that span lands in.
  */
+export function projectionIsPerspective(viewProjection: ArrayLike<number> | undefined): boolean {
+    if (!viewProjection || viewProjection.length < 16) return false;
+    return Math.abs(viewProjection[3]) + Math.abs(viewProjection[7]) + Math.abs(viewProjection[11]) > 1e-6;
+}
+
+export interface DomainView {
+    contentScale: number;
+    perspective: boolean;
+}
+
+const FLAT_VIEW: DomainView = { contentScale: 1, perspective: false };
+
+export function domainViewOf(viewProjection: ArrayLike<number> | undefined, vpW: number, dpr: number): DomainView {
+    if (projectionIsPerspective(viewProjection)) return { contentScale: 1, perspective: true };
+    return { contentScale: glyphContentScale(viewProjection?.[0] ?? 0, vpW, dpr), perspective: false };
+}
+
+export function glyphKind(t: Pick<TextData, 'renderMode'>, tr: Pick<TransformData, 'worldScale'>, family: string, view: DomainView): 'bitmap' | 'sdf' {
+    if (bitmapFontOf(family)) return 'bitmap';
+    return resolveTextRenderMode(t.renderMode, tr.worldScale.x, view.perspective);
+}
+
 export function glyphContentScale(projScaleX: number, vpW: number, dpr: number): number {
     if (!(dpr > 0) || !(vpW > 0)) return 1;
     if (!Number.isFinite(projScaleX) || projScaleX === 0) return 1;
@@ -317,7 +341,7 @@ export class TextPlugin implements Plugin {
         const world = app.world;
         const registry = world.getCppRegistry() as CppRegistry;
         const dpr = platformDevicePixelRatio();
-        const contentScale = screen ? this.screenContentScale(app, dpr) : this.worldContentScale(app, dpr);
+        const contentScale = this.domainView(app, screen, dpr).contentScale;
         const state = screen ? appState.screen : appState.world;
         const retained = appState.retained;
         // The atlas rasterizes for the projection that draws it: bring each existing renderer up to this pass's before asking whether its
@@ -402,13 +426,12 @@ export class TextPlugin implements Plugin {
         const appState = this.stateFor(app);
         const world = app.world;
         const dpr = platformDevicePixelRatio();
-        const contentScale = screen ? this.screenContentScale(app, dpr) : this.worldContentScale(app, dpr);
+        const view = this.domainView(app, screen, dpr);
         const state = screen ? appState.screen : appState.world;
         const tr = world.get(entity, Transform) as TransformData;
         const family = resolveTextFamily(t.font, t.fontFamily);
-        // A bitmap font has no distance field and one size, so it draws as a bitmap whatever the scale.
-        const kind = bitmapFontOf(family) ? 'bitmap' : resolveTextRenderMode(t.renderMode, tr.worldScale.x);
-        const renderer = this.rendererFor(app, state, kind, contentScale, dpr);
+        const kind = glyphKind(t, tr, family, view);
+        const renderer = this.rendererFor(app, state, kind, view.contentScale, dpr);
         const previous = appState.retained.get(entity as number);
         if (previous && previous.renderer !== renderer) previous.renderer.forget(entity as number);
 
@@ -496,9 +519,7 @@ export class TextPlugin implements Plugin {
         if (screen && !api?.ui_isScreenDomain) return;
 
         const dpr = platformDevicePixelRatio();
-        const contentScale = screen
-            ? this.screenContentScale(app, dpr)
-            : this.worldContentScale(app, dpr);
+        const view = this.domainView(app, screen, dpr);
         const state = screen ? appState.screen : appState.world;
 
         const seen = new Set<number>();
@@ -518,8 +539,8 @@ export class TextPlugin implements Plugin {
             const tr = world.get(entity, Transform) as TransformData;
             const renderer = this.rendererFor(
                 app, state,
-                bitmapFontOf(resolveTextFamily(t.font, t.fontFamily)) ? 'bitmap' : resolveTextRenderMode(t.renderMode, tr.worldScale.x),
-                contentScale,
+                glyphKind(t, tr, resolveTextFamily(t.font, t.fontFamily), view),
+                view.contentScale,
                 dpr,
             );
             if (!readMatrix) composeTRS(appState.matrix, tr.worldPosition, tr.worldRotation, tr.worldScale);
@@ -656,11 +677,10 @@ export class TextPlugin implements Plugin {
         const t = world.get(run.entity, Text) as TextData;
         const tr = world.get(run.entity, Transform) as TransformData;
         const family = resolveTextFamily(t.font, t.fontFamily);
-        const kind = bitmapFontOf(family) ? 'bitmap' : resolveTextRenderMode(t.renderMode, tr.worldScale.x);
         const dpr = platformDevicePixelRatio();
-        const contentScale = screen ? this.screenContentScale(app, dpr) : this.worldContentScale(app, dpr);
+        const view = this.domainView(app, screen, dpr);
         const appState = this.stateFor(app);
-        const renderer = this.rendererFor(app, screen ? appState.screen : appState.world, kind, contentScale, dpr);
+        const renderer = this.rendererFor(app, screen ? appState.screen : appState.world, glyphKind(t, tr, family, view), view.contentScale, dpr);
         run.renderer = renderer;
         const style = (t.bold ? UI_TEXT_BOLD : 0) | (t.italic ? UI_TEXT_ITALIC : 0);
         run.job.step((codepoint) => renderer.preloadGlyph(run, codepoint, family, style, t.fontSize), platformNow);
@@ -671,20 +691,14 @@ export class TextPlugin implements Plugin {
         return !!(app.getResource(UICameraInfo) as UICameraData | undefined)?.valid;
     }
 
-    /** World text rasterizes for the camera showing it — zoom in, get sharper. */
-    private worldContentScale(app: App, dpr: number): number {
+    private domainView(app: App, screen: boolean, dpr: number): DomainView {
+        if (screen) {
+            if (!app.hasResource(ScreenOverlay)) return FLAT_VIEW;
+            const overlay = app.getResource(ScreenOverlay);
+            return overlay.active ? domainViewOf(overlay.projection, overlay.vpW, dpr) : FLAT_VIEW;
+        }
         const cam = app.getResource(UICameraInfo) as UICameraData | undefined;
-        if (!cam?.valid) return 1;
-        return glyphContentScale(cam.viewProjection?.[0] ?? 0, cam.vpW, dpr);
-    }
-
-    /** Screen text rasterizes for the overlay that draws it, which is the one
-     *  projection with no camera in it. */
-    private screenContentScale(app: App, dpr: number): number {
-        if (!app.hasResource(ScreenOverlay)) return 1;
-        const overlay = app.getResource(ScreenOverlay);
-        if (!overlay.active) return 1;
-        return glyphContentScale(overlay.projection[0] ?? 0, overlay.vpW, dpr);
+        return cam?.valid ? domainViewOf(cam.viewProjection, cam.vpW, dpr) : FLAT_VIEW;
     }
 
     /** The two glyph pipelines of one domain, created lazily; they share layout,

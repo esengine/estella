@@ -41,7 +41,9 @@ Every glyph is rasterized once into a shared atlas and drawn as textured quads.
 - **`Auto`** (default) — bitmap while the entity's own world scale is 1 (within
   ±2%; the canvas fit is already compensated in the bitmap path), SDF the moment
   the entity scales. DOM-crisp static UI *and* zoom-stable animated text with no
-  configuration.
+  configuration. Under a perspective camera world text is always SDF: a world
+  unit covers a different number of pixels at every depth, so there is no size a
+  bitmap glyph could be drawn at to land 1:1.
 
 So a pulsing "LEVEL UP!" banner needs nothing special — `Auto` switches it to
 SDF while it scales:
@@ -62,9 +64,11 @@ const pulseBanner = defineSystem([Query(Mut(Transform), Text), Res(Time)], (q, t
 });
 ```
 
-Force `Sdf` when text is *born* scaled or lives in world space at arbitrary
-camera zoom; force `Bitmap` when you know the text never scales and want
-hinting even under tiny per-frame scale noise.
+Force `Sdf` when text is *born* scaled or lives in world space under an
+orthographic camera that zooms freely; force `Bitmap` when you know the text
+never scales and want hinting even under tiny per-frame scale noise. A bitmap
+glyph is never rasterized larger than half an atlas page (512 px): past that it
+is drawn from 512 px and the log says once that the text reads better as `Sdf`.
 
 ## `Text` properties
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Text, TextRenderMode, resolveTextRenderMode, glyphContentScale, buildText } from '../src/ui';
 
 describe('TextRenderMode', () => {
@@ -137,5 +137,49 @@ describe('glyphContentScale (what size to rasterize FOR)', () => {
     it('is 1 with no viewport, or a nonsense dpr', () => {
         expect(glyphContentScale(projFor(1920), 0, 1)).toBe(1);
         expect(glyphContentScale(projFor(1920), 1920, 0)).toBe(1);
+    });
+});
+
+describe('world text under a perspective camera', () => {
+    const ortho = (span: number) => { const m = new Float32Array(16); m[0] = 2 / span; m[5] = 2 / span; m[10] = -1; m[15] = 1; return m; };
+    const perspective = (fovDeg: number, aspect: number) => {
+        const f = 1 / Math.tan((fovDeg * Math.PI) / 360);
+        const m = new Float32Array(16);
+        m[0] = f / aspect; m[5] = f; m[10] = -1.0002; m[11] = -1; m[14] = -0.2;
+        return m;
+    };
+
+    it('has no single scale to rasterize for, and says it is a perspective', async () => {
+        const { domainViewOf } = await import('../src/ui/text/plugin');
+        expect(domainViewOf(perspective(55, 2670 / 1200), 2670, 2.75)).toEqual({ contentScale: 1, perspective: true });
+        const flat = domainViewOf(ortho(960), 1920, 1);
+        expect(flat.perspective).toBe(false);
+        expect(flat.contentScale).toBeCloseTo(2, 5);
+    });
+
+    it('draws Auto text as SDF there, at any scale, and keeps a forced mode', async () => {
+        const { domainViewOf, glyphKind } = await import('../src/ui/text/plugin');
+        const view = domainViewOf(perspective(55, 16 / 9), 1920, 1);
+        const at = (scale: number, renderMode = TextRenderMode.Auto) =>
+            glyphKind({ renderMode }, { worldScale: { x: scale, y: scale, z: scale } }, 'sans-serif', view);
+        expect(at(1)).toBe('sdf');
+        expect(at(1.5)).toBe('sdf');
+        expect(at(1, TextRenderMode.Bitmap)).toBe('bitmap');
+        const flat = domainViewOf(ortho(1920), 1920, 1);
+        expect(glyphKind({ renderMode: TextRenderMode.Auto }, { worldScale: { x: 1, y: 1, z: 1 } }, 'sans-serif', flat)).toBe('bitmap');
+    });
+
+    it('never rasterizes a bitmap glyph larger than half an atlas page, and says so once', async () => {
+        const { GlyphAtlas } = await import('../src/ui/text/glyph-atlas');
+        const { log } = await import('../src/util/logger');
+        const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+        const atlas = new GlyphAtlas({ renderSize: 48, rasterize: () => null } as never, { createPage: () => 1, uploadRegion: () => {} } as never, { sdf: false, dpr: 2.75 });
+        atlas.setContentScale(380);
+        expect(atlas.pixelSizeFor(32)).toBe(512);
+        expect(atlas.pixelSizeFor(48)).toBe(512);
+        expect(warn).toHaveBeenCalledTimes(1);
+        atlas.setContentScale(1);
+        expect(atlas.pixelSizeFor(32)).toBe(88);
+        warn.mockRestore();
     });
 });
