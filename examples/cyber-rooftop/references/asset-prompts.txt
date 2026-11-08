@@ -3,3 +3,12 @@ Create one tall 1:2 flat digital advertisement TEXTURE for an emissive billboard
 
 Worn paint texture
 Use case: photorealistic-natural. Asset type: seamless game PBR base-color texture for industrial container walls, a single square texture, flat orthographic surface scan. Aged pale warm-gray painted galvanized steel, extensive small chips showing dark iron at the edges of damaged paint, restrained rust freckles, streaked grime from years of rain, tiny scratches, subtle broad color variation, credible abandoned cyberpunk rooftop construction material. The paint remains mostly intact, about 80 percent. No objects, no panels, no seams, no corrugation, no letters, no borders, no lights, no perspective, no cast shadows, no specular highlights. Uniform diffuse albedo illumination. Photographic micro detail, tileable on all four edges. Overall mid-value gray-beige rather than white, NOT dark brown or entirely rusty.
+
+HUD inventory atlas — visual specification
+Eight isolated, realistically shaded cyberpunk survival items on a transparent background: a yellow construction drill, red angle grinder, handheld cyan-screen scanner, reinforced metal platform, pale industrial filter cabinet, dark battery pack with amber indicators, red first-aid case and packaged food. Follow the item order and silhouettes of target.png. Keep panel borders, key numbers and selection glow outside the atlas so native UI remains editable. The 2172 x 724 source and exact frame rectangles are retained in assets/textures/hud-inventory-atlas.png and tools/hud-inventory-frames.json; preserve source resolution during import.
+
+HUD regional map — visual specification
+Top-down industrial rooftops and narrow streets in a dark blue-gray palette, diagonal city grid, crisp pale roof outlines, restrained cyan and magenta route accents. No frame, title, compass letter or player arrow baked into the image. Those overlays remain separate native UI elements. This is an illustrative map, not a capture or navigation bake of the current 3D scene.
+
+HUD borders and state icons — construction source
+tools/hud.py defines the beveled translucent panels, thin cyan/magenta corner accents, checkbox states, valid-placement mark, keycaps and selection glow at four-times sampling resolution. tools/textures.py defines the editable pictogram paths. Native Text renders all labels and live numbers; src/hud-layout.json holds shared design dimensions and runtime offsets.

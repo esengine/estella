@@ -6597,98 +6597,14 @@
       "parent": null,
       "children": [
         189,
-        190,
-        191,
-        192,
-        193,
-        194,
-        195,
-        196,
         197,
-        198,
-        199,
-        200,
-        201,
-        202,
-        203,
-        204,
-        205,
         206,
-        207,
-        208,
-        209,
-        210,
-        211,
-        212,
-        213,
-        214,
-        215,
-        216,
-        217,
-        218,
-        219,
         220,
-        221,
-        222,
-        223,
-        224,
-        225,
-        226,
         227,
-        228,
-        229,
-        230,
-        231,
-        232,
-        233,
-        234,
-        235,
-        236,
-        237,
-        238,
-        239,
-        240,
-        241,
-        242,
-        243,
-        244,
-        245,
-        246,
-        247,
-        248,
         249,
-        250,
-        251,
-        252,
-        253,
-        254,
-        255,
-        256,
-        257,
-        258,
-        259,
-        260,
-        261,
         262,
-        263,
-        264,
-        265,
-        266,
-        267,
-        268,
-        269,
-        270,
-        271,
-        272,
-        273,
-        274,
         275,
-        276,
-        277,
-        278,
-        280,
-        281,
-        282
+        302
       ],
       "visible": true,
       "components": [
@@ -6726,8 +6642,57 @@
     },
     {
       "id": 189,
-      "name": "Location panel",
+      "name": "Location group",
       "parent": 188,
+      "children": [
+        190,
+        191,
+        192,
+        193,
+        194,
+        195,
+        196
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "unit": 0,
+              "value": 260
+            },
+            "height": {
+              "unit": 0,
+              "value": 98
+            },
+            "insetLeft": {
+              "unit": 0,
+              "value": 20
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 20
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 190,
+      "name": "Location panel",
+      "parent": 189,
       "children": [],
       "visible": true,
       "components": [
@@ -6747,19 +6712,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 20
+              "value": 0
             },
             "insetTop": {
               "unit": 0,
-              "value": 20
+              "value": 0
             },
             "width": {
               "unit": 0,
-              "value": 270
+              "value": 260
             },
             "height": {
               "unit": 0,
-              "value": 100
+              "value": 98
             }
           }
         },
@@ -6780,9 +6745,9 @@
       ]
     },
     {
-      "id": 190,
+      "id": 191,
       "name": "Location icon",
-      "parent": 188,
+      "parent": 189,
       "children": [],
       "visible": true,
       "components": [
@@ -6802,15 +6767,15 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 33
+              "value": 13
             },
             "insetTop": {
               "unit": 0,
-              "value": 27
+              "value": 7
             },
             "width": {
               "unit": 0,
-              "value": 45
+              "value": 43
             },
             "height": {
               "unit": 0,
@@ -6835,9 +6800,9 @@
       ]
     },
     {
-      "id": 191,
+      "id": 192,
       "name": "Location",
-      "parent": 188,
+      "parent": 189,
       "children": [],
       "visible": true,
       "components": [
@@ -6857,19 +6822,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 82
+              "value": 75
             },
             "insetTop": {
               "unit": 0,
-              "value": 26
+              "value": 4
             },
             "width": {
               "unit": 0,
-              "value": 194
+              "value": 180
             },
             "height": {
               "unit": 0,
-              "value": 28
+              "value": 29
             }
           }
         },
@@ -6880,8 +6845,8 @@
             "fontSize": 22,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -6894,9 +6859,9 @@
       ]
     },
     {
-      "id": 192,
+      "id": 193,
       "name": "Day",
-      "parent": 188,
+      "parent": 189,
       "children": [],
       "visible": true,
       "components": [
@@ -6916,19 +6881,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 83
+              "value": 75
             },
             "insetTop": {
               "unit": 0,
-              "value": 56
+              "value": 32
             },
             "width": {
               "unit": 0,
-              "value": 195
+              "value": 180
             },
             "height": {
               "unit": 0,
-              "value": 24
+              "value": 26
             }
           }
         },
@@ -6936,11 +6901,11 @@
           "type": "Text",
           "data": {
             "content": "第 07 天 · 22:16",
-            "fontSize": 16,
+            "fontSize": 18,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -6953,9 +6918,9 @@
       ]
     },
     {
-      "id": 193,
+      "id": 194,
       "name": "Location divider",
-      "parent": 188,
+      "parent": 189,
       "children": [],
       "visible": true,
       "components": [
@@ -6975,15 +6940,15 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 28
+              "value": 9
             },
             "insetTop": {
               "unit": 0,
-              "value": 81
+              "value": 63
             },
             "width": {
               "unit": 0,
-              "value": 248
+              "value": 242
             },
             "height": {
               "unit": 0,
@@ -6996,10 +6961,10 @@
           "data": {
             "visualType": 1,
             "color": {
-              "r": 0.2,
-              "g": 0.5,
-              "b": 0.6,
-              "a": 0.5
+              "r": 0.25,
+              "g": 0.43,
+              "b": 0.5,
+              "a": 0.7
             },
             "enabled": true
           }
@@ -7007,9 +6972,9 @@
       ]
     },
     {
-      "id": 194,
+      "id": 195,
       "name": "Weather icon",
-      "parent": 188,
+      "parent": 189,
       "children": [],
       "visible": true,
       "components": [
@@ -7029,19 +6994,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 35
+              "value": 15
             },
             "insetTop": {
               "unit": 0,
-              "value": 87
+              "value": 66
             },
             "width": {
               "unit": 0,
-              "value": 28
+              "value": 31
             },
             "height": {
               "unit": 0,
-              "value": 28
+              "value": 29
             }
           }
         },
@@ -7062,9 +7027,9 @@
       ]
     },
     {
-      "id": 195,
+      "id": 196,
       "name": "Weather",
-      "parent": 188,
+      "parent": 189,
       "children": [],
       "visible": true,
       "components": [
@@ -7084,19 +7049,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 79
+              "value": 59
             },
             "insetTop": {
               "unit": 0,
-              "value": 87
+              "value": 66
             },
             "width": {
               "unit": 0,
-              "value": 180
+              "value": 185
             },
             "height": {
               "unit": 0,
-              "value": 27
+              "value": 29
             }
           }
         },
@@ -7104,11 +7069,11 @@
           "type": "Text",
           "data": {
             "content": "酸雨 · 18°C",
-            "fontSize": 18,
+            "fontSize": 19,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -7121,9 +7086,59 @@
       ]
     },
     {
-      "id": 196,
-      "name": "Objectives panel",
+      "id": 197,
+      "name": "Objectives group",
       "parent": 188,
+      "children": [
+        198,
+        199,
+        200,
+        201,
+        202,
+        203,
+        204,
+        205
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "unit": 0,
+              "value": 260
+            },
+            "height": {
+              "unit": 0,
+              "value": 110
+            },
+            "insetLeft": {
+              "unit": 0,
+              "value": 20
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 132
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 198,
+      "name": "Objectives panel",
+      "parent": 197,
       "children": [],
       "visible": true,
       "components": [
@@ -7143,19 +7158,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 20
+              "value": 0
             },
             "insetTop": {
               "unit": 0,
-              "value": 134
+              "value": 0
             },
             "width": {
               "unit": 0,
-              "value": 280
+              "value": 260
             },
             "height": {
               "unit": 0,
-              "value": 112
+              "value": 110
             }
           }
         },
@@ -7176,9 +7191,9 @@
       ]
     },
     {
-      "id": 197,
+      "id": 199,
       "name": "Objective title",
-      "parent": 188,
+      "parent": 197,
       "children": [],
       "visible": true,
       "components": [
@@ -7198,19 +7213,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 36
+              "value": 17
             },
             "insetTop": {
               "unit": 0,
-              "value": 143
+              "value": 5
             },
             "width": {
               "unit": 0,
-              "value": 250
+              "value": 232
             },
             "height": {
               "unit": 0,
-              "value": 29
+              "value": 30
             }
           }
         },
@@ -7218,11 +7233,11 @@
           "type": "Text",
           "data": {
             "content": "建立安全屋",
-            "fontSize": 21,
+            "fontSize": 22,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -7235,9 +7250,9 @@
       ]
     },
     {
-      "id": 198,
+      "id": 200,
       "name": "Objective divider",
-      "parent": 188,
+      "parent": 197,
       "children": [],
       "visible": true,
       "components": [
@@ -7257,15 +7272,15 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 29
+              "value": 10
             },
             "insetTop": {
               "unit": 0,
-              "value": 176
+              "value": 40
             },
             "width": {
               "unit": 0,
-              "value": 256
+              "value": 240
             },
             "height": {
               "unit": 0,
@@ -7278,10 +7293,10 @@
           "data": {
             "visualType": 1,
             "color": {
-              "r": 0.2,
-              "g": 0.5,
-              "b": 0.6,
-              "a": 0.5
+              "r": 0.25,
+              "g": 0.43,
+              "b": 0.5,
+              "a": 0.7
             },
             "enabled": true
           }
@@ -7289,9 +7304,9 @@
       ]
     },
     {
-      "id": 199,
-      "name": "Power objective",
-      "parent": 188,
+      "id": 201,
+      "name": "Power check",
+      "parent": 197,
       "children": [],
       "visible": true,
       "components": [
@@ -7311,74 +7326,15 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 37
+              "value": 15
             },
             "insetTop": {
               "unit": 0,
-              "value": 183
+              "value": 47
             },
             "width": {
               "unit": 0,
-              "value": 240
-            },
-            "height": {
-              "unit": 0,
-              "value": 25
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "☑  接通备用电源",
-            "fontSize": 18,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": false,
-            "align": 0,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 200,
-      "name": "Water objective",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 37
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 214
-            },
-            "width": {
-              "unit": 0,
-              "value": 256
+              "value": 24
             },
             "height": {
               "unit": 0,
@@ -7387,14 +7343,69 @@
           }
         },
         {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-check-on.png",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 202,
+      "name": "Power objective",
+      "parent": 197,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 50
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 45
+            },
+            "width": {
+              "unit": 0,
+              "value": 204
+            },
+            "height": {
+              "unit": 0,
+              "value": 27
+            }
+          }
+        },
+        {
           "type": "Text",
           "data": {
-            "content": "□  建造净水装置  0/1",
-            "fontSize": 17,
+            "content": "接通备用电源",
+            "fontSize": 19,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -7407,9 +7418,9 @@
       ]
     },
     {
-      "id": 201,
-      "name": "Compass line",
-      "parent": 188,
+      "id": 203,
+      "name": "Water check",
+      "parent": 197,
       "children": [],
       "visible": true,
       "components": [
@@ -7429,15 +7440,243 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 508
+              "value": 15
             },
             "insetTop": {
               "unit": 0,
-              "value": 26
+              "value": 76
             },
             "width": {
               "unit": 0,
-              "value": 652
+              "value": 24
+            },
+            "height": {
+              "unit": 0,
+              "value": 24
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-check-off.png",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 204,
+      "name": "Water check completed",
+      "parent": 197,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 15
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 76
+            },
+            "width": {
+              "unit": 0,
+              "value": 24
+            },
+            "height": {
+              "unit": 0,
+              "value": 24
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-check-on.png",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 205,
+      "name": "Water objective",
+      "parent": 197,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 50
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 75
+            },
+            "width": {
+              "unit": 0,
+              "value": 205
+            },
+            "height": {
+              "unit": 0,
+              "value": 27
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "建造净水装置  0/1",
+            "fontSize": 18,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 0,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 206,
+      "name": "Compass group",
+      "parent": 188,
+      "children": [
+        207,
+        208,
+        209,
+        210,
+        211,
+        212,
+        213,
+        214,
+        215,
+        216,
+        217,
+        218,
+        219
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "unit": 0,
+              "value": 650
+            },
+            "height": {
+              "unit": 0,
+              "value": 105
+            },
+            "insetLeft": {
+              "unit": 1,
+              "value": 50
+            },
+            "marginLeft": {
+              "unit": 0,
+              "value": -325
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 12
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 207,
+      "name": "Compass line",
+      "parent": 206,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 0
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 14
+            },
+            "width": {
+              "unit": 0,
+              "value": 650
             },
             "height": {
               "unit": 0,
@@ -7450,10 +7689,10 @@
           "data": {
             "visualType": 1,
             "color": {
-              "r": 0.7,
-              "g": 0.82,
-              "b": 0.9,
-              "a": 0.75
+              "r": 0.66,
+              "g": 0.77,
+              "b": 0.83,
+              "a": 0.72
             },
             "enabled": true
           }
@@ -7461,9 +7700,9 @@
       ]
     },
     {
-      "id": 202,
+      "id": 208,
       "name": "Compass W",
-      "parent": 188,
+      "parent": 206,
       "children": [],
       "visible": true,
       "components": [
@@ -7483,19 +7722,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 548
+              "value": 56
             },
             "insetTop": {
               "unit": 0,
-              "value": 36
+              "value": 25
             },
             "width": {
               "unit": 0,
-              "value": 50
+              "value": 42
             },
             "height": {
               "unit": 0,
-              "value": 27
+              "value": 23
             }
           }
         },
@@ -7506,347 +7745,8 @@
             "fontSize": 17,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": false,
-            "align": 1,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 203,
-      "name": "Compass tick 0",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 573
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 24
-            },
-            "width": {
-              "unit": 0,
-              "value": 1
-            },
-            "height": {
-              "unit": 0,
-              "value": 12
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.61,
-              "g": 0.78,
-              "b": 0.85,
-              "a": 1
-            },
-            "enabled": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 204,
-      "name": "Compass NW",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 682
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 36
-            },
-            "width": {
-              "unit": 0,
-              "value": 50
-            },
-            "height": {
-              "unit": 0,
-              "value": 27
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "NW",
-            "fontSize": 17,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": false,
-            "align": 1,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 205,
-      "name": "Compass tick 1",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 707
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 24
-            },
-            "width": {
-              "unit": 0,
-              "value": 1
-            },
-            "height": {
-              "unit": 0,
-              "value": 12
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.61,
-              "g": 0.78,
-              "b": 0.85,
-              "a": 1
-            },
-            "enabled": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 206,
-      "name": "Compass N",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 816
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 36
-            },
-            "width": {
-              "unit": 0,
-              "value": 50
-            },
-            "height": {
-              "unit": 0,
-              "value": 27
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "N",
-            "fontSize": 17,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": false,
-            "align": 1,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 207,
-      "name": "Compass tick 2",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 841
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 24
-            },
-            "width": {
-              "unit": 0,
-              "value": 1
-            },
-            "height": {
-              "unit": 0,
-              "value": 12
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.61,
-              "g": 0.78,
-              "b": 0.85,
-              "a": 1
-            },
-            "enabled": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 208,
-      "name": "Compass NE",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 950
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 36
-            },
-            "width": {
-              "unit": 0,
-              "value": 50
-            },
-            "height": {
-              "unit": 0,
-              "value": 27
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "NE",
-            "fontSize": 17,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -7860,8 +7760,8 @@
     },
     {
       "id": 209,
-      "name": "Compass tick 3",
-      "parent": 188,
+      "name": "Compass tick 0",
+      "parent": 206,
       "children": [],
       "visible": true,
       "components": [
@@ -7881,11 +7781,11 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 975
+              "value": 77
             },
             "insetTop": {
               "unit": 0,
-              "value": 24
+              "value": 14
             },
             "width": {
               "unit": 0,
@@ -7893,7 +7793,7 @@
             },
             "height": {
               "unit": 0,
-              "value": 12
+              "value": 10
             }
           }
         },
@@ -7902,9 +7802,9 @@
           "data": {
             "visualType": 1,
             "color": {
-              "r": 0.61,
-              "g": 0.78,
-              "b": 0.85,
+              "r": 0.52,
+              "g": 0.67,
+              "b": 0.72,
               "a": 1
             },
             "enabled": true
@@ -7914,8 +7814,8 @@
     },
     {
       "id": 210,
-      "name": "Compass E",
-      "parent": 188,
+      "name": "Compass NW",
+      "parent": 206,
       "children": [],
       "visible": true,
       "components": [
@@ -7935,31 +7835,31 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1084
+              "value": 182
             },
             "insetTop": {
               "unit": 0,
-              "value": 36
+              "value": 25
             },
             "width": {
               "unit": 0,
-              "value": 50
+              "value": 42
             },
             "height": {
               "unit": 0,
-              "value": 27
+              "value": 23
             }
           }
         },
         {
           "type": "Text",
           "data": {
-            "content": "E",
+            "content": "NW",
             "fontSize": 17,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -7973,8 +7873,8 @@
     },
     {
       "id": 211,
-      "name": "Compass tick 4",
-      "parent": 188,
+      "name": "Compass tick 1",
+      "parent": 206,
       "children": [],
       "visible": true,
       "components": [
@@ -7994,11 +7894,11 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1109
+              "value": 203
             },
             "insetTop": {
               "unit": 0,
-              "value": 24
+              "value": 14
             },
             "width": {
               "unit": 0,
@@ -8006,7 +7906,7 @@
             },
             "height": {
               "unit": 0,
-              "value": 12
+              "value": 10
             }
           }
         },
@@ -8015,9 +7915,9 @@
           "data": {
             "visualType": 1,
             "color": {
-              "r": 0.61,
-              "g": 0.78,
-              "b": 0.85,
+              "r": 0.52,
+              "g": 0.67,
+              "b": 0.72,
               "a": 1
             },
             "enabled": true
@@ -8027,8 +7927,8 @@
     },
     {
       "id": 212,
-      "name": "North marker",
-      "parent": 188,
+      "name": "Compass N",
+      "parent": 206,
       "children": [],
       "visible": true,
       "components": [
@@ -8048,31 +7948,31 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 825
+              "value": 308
             },
             "insetTop": {
               "unit": 0,
-              "value": 5
+              "value": 25
             },
             "width": {
               "unit": 0,
-              "value": 30
+              "value": 42
             },
             "height": {
               "unit": 0,
-              "value": 25
+              "value": 23
             }
           }
         },
         {
           "type": "Text",
           "data": {
-            "content": "▼",
+            "content": "N",
             "fontSize": 17,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -8086,8 +7986,8 @@
     },
     {
       "id": 213,
-      "name": "Waypoint",
-      "parent": 188,
+      "name": "Compass tick 2",
+      "parent": 206,
       "children": [],
       "visible": true,
       "components": [
@@ -8107,11 +8007,350 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 928
+              "value": 329
             },
             "insetTop": {
               "unit": 0,
-              "value": 74
+              "value": 14
+            },
+            "width": {
+              "unit": 0,
+              "value": 1
+            },
+            "height": {
+              "unit": 0,
+              "value": 10
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.52,
+              "g": 0.67,
+              "b": 0.72,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 214,
+      "name": "Compass NE",
+      "parent": 206,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 434
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 25
+            },
+            "width": {
+              "unit": 0,
+              "value": 42
+            },
+            "height": {
+              "unit": 0,
+              "value": 23
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "NE",
+            "fontSize": 17,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 215,
+      "name": "Compass tick 3",
+      "parent": 206,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 455
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 14
+            },
+            "width": {
+              "unit": 0,
+              "value": 1
+            },
+            "height": {
+              "unit": 0,
+              "value": 10
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.52,
+              "g": 0.67,
+              "b": 0.72,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 216,
+      "name": "Compass E",
+      "parent": 206,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 560
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 25
+            },
+            "width": {
+              "unit": 0,
+              "value": 42
+            },
+            "height": {
+              "unit": 0,
+              "value": 23
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "E",
+            "fontSize": 17,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 217,
+      "name": "Compass tick 4",
+      "parent": 206,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 581
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 14
+            },
+            "width": {
+              "unit": 0,
+              "value": 1
+            },
+            "height": {
+              "unit": 0,
+              "value": 10
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.52,
+              "g": 0.67,
+              "b": 0.72,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 218,
+      "name": "North marker",
+      "parent": 206,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 310
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": -5
+            },
+            "width": {
+              "unit": 0,
+              "value": 30
+            },
+            "height": {
+              "unit": 0,
+              "value": 22
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "▼",
+            "fontSize": 16,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 219,
+      "name": "Waypoint",
+      "parent": 206,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 410
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 60
             },
             "width": {
               "unit": 0,
@@ -8144,9 +8383,57 @@
       ]
     },
     {
-      "id": 214,
-      "name": "Minimap",
+      "id": 220,
+      "name": "Minimap group",
       "parent": 188,
+      "children": [
+        221,
+        222,
+        223,
+        224,
+        225,
+        226
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "unit": 0,
+              "value": 240
+            },
+            "height": {
+              "unit": 0,
+              "value": 198
+            },
+            "insetRight": {
+              "unit": 0,
+              "value": 20
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 20
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 221,
+      "name": "Minimap detail",
+      "parent": 220,
       "children": [],
       "visible": true,
       "components": [
@@ -8166,19 +8453,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1400
+              "value": 3
             },
             "insetTop": {
               "unit": 0,
-              "value": 21
+              "value": 3
             },
             "width": {
               "unit": 0,
-              "value": 250
+              "value": 234
             },
             "height": {
               "unit": 0,
-              "value": 194
+              "value": 192
             }
           }
         },
@@ -8199,9 +8486,9 @@
       ]
     },
     {
-      "id": 215,
-      "name": "Map border",
-      "parent": 188,
+      "id": 222,
+      "name": "Map title backing",
+      "parent": 220,
       "children": [],
       "visible": true,
       "components": [
@@ -8221,15 +8508,69 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1398
+              "value": 3
             },
             "insetTop": {
               "unit": 0,
-              "value": 20
+              "value": 3
             },
             "width": {
               "unit": 0,
-              "value": 254
+              "value": 234
+            },
+            "height": {
+              "unit": 0,
+              "value": 28
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.015,
+              "g": 0.04,
+              "b": 0.055,
+              "a": 0.85
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 223,
+      "name": "Map border",
+      "parent": 220,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 0
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 0
+            },
+            "width": {
+              "unit": 0,
+              "value": 240
             },
             "height": {
               "unit": 0,
@@ -8241,7 +8582,7 @@
           "type": "UIVisual",
           "data": {
             "visualType": 2,
-            "texture": "assets/textures/hud-location.png",
+            "texture": "assets/textures/hud-minimap-frame.png",
             "color": {
               "r": 1,
               "g": 1,
@@ -8254,64 +8595,9 @@
       ]
     },
     {
-      "id": 216,
-      "name": "Minimap detail",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 1405
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 48
-            },
-            "width": {
-              "unit": 0,
-              "value": 240
-            },
-            "height": {
-              "unit": 0,
-              "value": 159
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/hud-map.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 217,
+      "id": 224,
       "name": "Map title",
-      "parent": 188,
+      "parent": 220,
       "children": [],
       "visible": true,
       "components": [
@@ -8331,15 +8617,15 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1414
+              "value": 10
             },
             "insetTop": {
               "unit": 0,
-              "value": 24
+              "value": 3
             },
             "width": {
               "unit": 0,
-              "value": 180
+              "value": 170
             },
             "height": {
               "unit": 0,
@@ -8354,67 +8640,8 @@
             "fontSize": 18,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": true,
-            "align": 0,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 218,
-      "name": "Map north",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 1620
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 25
-            },
-            "width": {
-              "unit": 0,
-              "value": 22
-            },
-            "height": {
-              "unit": 0,
-              "value": 22
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "N",
-            "fontSize": 16,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -8427,9 +8654,9 @@
       ]
     },
     {
-      "id": 219,
-      "name": "Map player",
-      "parent": 188,
+      "id": 225,
+      "name": "Map north",
+      "parent": 220,
       "children": [],
       "visible": true,
       "components": [
@@ -8449,31 +8676,31 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1523
+              "value": 212
             },
             "insetTop": {
               "unit": 0,
-              "value": 130
+              "value": 4
             },
             "width": {
               "unit": 0,
-              "value": 30
+              "value": 22
             },
             "height": {
               "unit": 0,
-              "value": 30
+              "value": 25
             }
           }
         },
         {
           "type": "Text",
           "data": {
-            "content": "▲",
-            "fontSize": 26,
+            "content": "N",
+            "fontSize": 18,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.1,
-              "g": 0.84,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -8486,9 +8713,9 @@
       ]
     },
     {
-      "id": 220,
-      "name": "Vitals panel",
-      "parent": 188,
+      "id": 226,
+      "name": "Map player",
+      "parent": 220,
       "children": [],
       "visible": true,
       "components": [
@@ -8508,11 +8735,133 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 20
+              "value": 121
             },
             "insetTop": {
               "unit": 0,
-              "value": 740
+              "value": 108.25
+            },
+            "width": {
+              "unit": 0,
+              "value": 25
+            },
+            "height": {
+              "unit": 0,
+              "value": 25
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "▲",
+            "fontSize": 21,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.15,
+              "g": 0.83,
+              "b": 0.95,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 227,
+      "name": "Vitals group",
+      "parent": 188,
+      "children": [
+        228,
+        229,
+        230,
+        231,
+        232,
+        233,
+        234,
+        235,
+        236,
+        237,
+        238,
+        239,
+        240,
+        241,
+        242,
+        243,
+        244,
+        245,
+        246,
+        247,
+        248
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "unit": 0,
+              "value": 260
+            },
+            "height": {
+              "unit": 0,
+              "value": 174
+            },
+            "insetLeft": {
+              "unit": 0,
+              "value": 20
+            },
+            "insetBottom": {
+              "unit": 0,
+              "value": 26
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 228,
+      "name": "Vitals panel",
+      "parent": 227,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 0
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 0
             },
             "width": {
               "unit": 0,
@@ -8541,9 +8890,9 @@
       ]
     },
     {
-      "id": 221,
+      "id": 229,
       "name": "Vital icon 0",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -8563,11 +8912,11 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 32
+              "value": 12
             },
             "insetTop": {
               "unit": 0,
-              "value": 748
+              "value": 10
             },
             "width": {
               "unit": 0,
@@ -8575,7 +8924,7 @@
             },
             "height": {
               "unit": 0,
-              "value": 31
+              "value": 32
             }
           }
         },
@@ -8596,9 +8945,9 @@
       ]
     },
     {
-      "id": 222,
+      "id": 230,
       "name": "Vital label 0",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -8618,19 +8967,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 76
+              "value": 57
             },
             "insetTop": {
               "unit": 0,
-              "value": 748
+              "value": 6
             },
             "width": {
               "unit": 0,
-              "value": 95
+              "value": 100
             },
             "height": {
               "unit": 0,
-              "value": 24
+              "value": 25
             }
           }
         },
@@ -8638,15 +8987,15 @@
           "type": "Text",
           "data": {
             "content": "生命",
-            "fontSize": 18,
+            "fontSize": 19,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
-            "bold": false,
+            "bold": true,
             "align": 0,
             "verticalAlign": 1,
             "wordWrap": false
@@ -8655,9 +9004,9 @@
       ]
     },
     {
-      "id": 223,
+      "id": 231,
       "name": "Vital value 0",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -8677,11 +9026,11 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 210
+              "value": 193
             },
             "insetTop": {
               "unit": 0,
-              "value": 748
+              "value": 6
             },
             "width": {
               "unit": 0,
@@ -8689,7 +9038,7 @@
             },
             "height": {
               "unit": 0,
-              "value": 24
+              "value": 25
             }
           }
         },
@@ -8697,11 +9046,11 @@
           "type": "Text",
           "data": {
             "content": "100",
-            "fontSize": 17,
+            "fontSize": 19,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -8714,9 +9063,9 @@
       ]
     },
     {
-      "id": 224,
+      "id": 232,
       "name": "Vital track 0",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -8736,19 +9085,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 76
+              "value": 57
             },
             "insetTop": {
               "unit": 0,
-              "value": 775
+              "value": 31
             },
             "width": {
               "unit": 0,
-              "value": 181
+              "value": 182
             },
             "height": {
               "unit": 0,
-              "value": 8
+              "value": 10
             }
           }
         },
@@ -8757,10 +9106,10 @@
           "data": {
             "visualType": 1,
             "color": {
-              "r": 0.13,
-              "g": 0.24,
-              "b": 0.28,
-              "a": 0.9
+              "r": 0.1,
+              "g": 0.21,
+              "b": 0.24,
+              "a": 0.92
             },
             "enabled": true
           }
@@ -8768,9 +9117,9 @@
       ]
     },
     {
-      "id": 225,
+      "id": 233,
       "name": "Vital fill 0",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -8790,19 +9139,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 76
+              "value": 57
             },
             "insetTop": {
               "unit": 0,
-              "value": 775
+              "value": 31
             },
             "width": {
               "unit": 0,
-              "value": 181
+              "value": 182
             },
             "height": {
               "unit": 0,
-              "value": 8
+              "value": 10
             }
           }
         },
@@ -8812,7 +9161,7 @@
             "visualType": 1,
             "color": {
               "r": 0.12,
-              "g": 0.93,
+              "g": 0.96,
               "b": 0.48,
               "a": 1
             },
@@ -8822,9 +9171,9 @@
       ]
     },
     {
-      "id": 226,
+      "id": 234,
       "name": "Vital icon 1",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -8844,11 +9193,11 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 32
+              "value": 12
             },
             "insetTop": {
               "unit": 0,
-              "value": 788
+              "value": 50
             },
             "width": {
               "unit": 0,
@@ -8856,7 +9205,7 @@
             },
             "height": {
               "unit": 0,
-              "value": 31
+              "value": 32
             }
           }
         },
@@ -8877,9 +9226,9 @@
       ]
     },
     {
-      "id": 227,
+      "id": 235,
       "name": "Vital label 1",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -8899,19 +9248,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 76
+              "value": 57
             },
             "insetTop": {
               "unit": 0,
-              "value": 788
+              "value": 46
             },
             "width": {
               "unit": 0,
-              "value": 95
+              "value": 100
             },
             "height": {
               "unit": 0,
-              "value": 24
+              "value": 25
             }
           }
         },
@@ -8919,15 +9268,15 @@
           "type": "Text",
           "data": {
             "content": "义体",
-            "fontSize": 18,
+            "fontSize": 19,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
-            "bold": false,
+            "bold": true,
             "align": 0,
             "verticalAlign": 1,
             "wordWrap": false
@@ -8936,9 +9285,9 @@
       ]
     },
     {
-      "id": 228,
+      "id": 236,
       "name": "Vital value 1",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -8958,11 +9307,11 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 210
+              "value": 193
             },
             "insetTop": {
               "unit": 0,
-              "value": 788
+              "value": 46
             },
             "width": {
               "unit": 0,
@@ -8970,7 +9319,7 @@
             },
             "height": {
               "unit": 0,
-              "value": 24
+              "value": 25
             }
           }
         },
@@ -8978,11 +9327,11 @@
           "type": "Text",
           "data": {
             "content": "82%",
-            "fontSize": 17,
+            "fontSize": 19,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -8995,9 +9344,9 @@
       ]
     },
     {
-      "id": 229,
+      "id": 237,
       "name": "Vital track 1",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -9017,73 +9366,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 76
+              "value": 57
             },
             "insetTop": {
               "unit": 0,
-              "value": 815
+              "value": 71
             },
             "width": {
               "unit": 0,
-              "value": 181
+              "value": 182
             },
             "height": {
               "unit": 0,
-              "value": 8
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.13,
-              "g": 0.24,
-              "b": 0.28,
-              "a": 0.9
-            },
-            "enabled": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 230,
-      "name": "Vital fill 1",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 76
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 815
-            },
-            "width": {
-              "unit": 0,
-              "value": 148.42
-            },
-            "height": {
-              "unit": 0,
-              "value": 8
+              "value": 10
             }
           }
         },
@@ -9093,9 +9388,9 @@
             "visualType": 1,
             "color": {
               "r": 0.1,
-              "g": 0.84,
-              "b": 1,
-              "a": 1
+              "g": 0.21,
+              "b": 0.24,
+              "a": 0.92
             },
             "enabled": true
           }
@@ -9103,9 +9398,9 @@
       ]
     },
     {
-      "id": 231,
-      "name": "Vital icon 2",
-      "parent": 188,
+      "id": 238,
+      "name": "Vital fill 1",
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -9125,11 +9420,65 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 32
+              "value": 57
             },
             "insetTop": {
               "unit": 0,
-              "value": 828
+              "value": 71
+            },
+            "width": {
+              "unit": 0,
+              "value": 149.23999999999998
+            },
+            "height": {
+              "unit": 0,
+              "value": 10
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.15,
+              "g": 0.83,
+              "b": 0.95,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 239,
+      "name": "Vital icon 2",
+      "parent": 227,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 12
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 90
             },
             "width": {
               "unit": 0,
@@ -9137,7 +9486,7 @@
             },
             "height": {
               "unit": 0,
-              "value": 31
+              "value": 32
             }
           }
         },
@@ -9158,9 +9507,9 @@
       ]
     },
     {
-      "id": 232,
+      "id": 240,
       "name": "Vital label 2",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -9180,19 +9529,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 76
+              "value": 57
             },
             "insetTop": {
               "unit": 0,
-              "value": 828
+              "value": 86
             },
             "width": {
               "unit": 0,
-              "value": 95
+              "value": 100
             },
             "height": {
               "unit": 0,
-              "value": 24
+              "value": 25
             }
           }
         },
@@ -9200,15 +9549,15 @@
           "type": "Text",
           "data": {
             "content": "饮水",
-            "fontSize": 18,
+            "fontSize": 19,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
-            "bold": false,
+            "bold": true,
             "align": 0,
             "verticalAlign": 1,
             "wordWrap": false
@@ -9217,9 +9566,9 @@
       ]
     },
     {
-      "id": 233,
+      "id": 241,
       "name": "Vital value 2",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -9239,11 +9588,11 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 210
+              "value": 193
             },
             "insetTop": {
               "unit": 0,
-              "value": 828
+              "value": 86
             },
             "width": {
               "unit": 0,
@@ -9251,7 +9600,7 @@
             },
             "height": {
               "unit": 0,
-              "value": 24
+              "value": 25
             }
           }
         },
@@ -9259,11 +9608,11 @@
           "type": "Text",
           "data": {
             "content": "64%",
-            "fontSize": 17,
+            "fontSize": 19,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -9276,9 +9625,9 @@
       ]
     },
     {
-      "id": 234,
+      "id": 242,
       "name": "Vital track 2",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -9298,73 +9647,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 76
+              "value": 57
             },
             "insetTop": {
               "unit": 0,
-              "value": 855
+              "value": 111
             },
             "width": {
               "unit": 0,
-              "value": 181
+              "value": 182
             },
             "height": {
               "unit": 0,
-              "value": 8
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 1,
-            "color": {
-              "r": 0.13,
-              "g": 0.24,
-              "b": 0.28,
-              "a": 0.9
-            },
-            "enabled": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 235,
-      "name": "Vital fill 2",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 76
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 855
-            },
-            "width": {
-              "unit": 0,
-              "value": 115.84
-            },
-            "height": {
-              "unit": 0,
-              "value": 8
+              "value": 10
             }
           }
         },
@@ -9374,9 +9669,9 @@
             "visualType": 1,
             "color": {
               "r": 0.1,
-              "g": 0.84,
-              "b": 1,
-              "a": 1
+              "g": 0.21,
+              "b": 0.24,
+              "a": 0.92
             },
             "enabled": true
           }
@@ -9384,9 +9679,9 @@
       ]
     },
     {
-      "id": 236,
-      "name": "Vital icon 3",
-      "parent": 188,
+      "id": 243,
+      "name": "Vital fill 2",
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -9406,11 +9701,65 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 32
+              "value": 57
             },
             "insetTop": {
               "unit": 0,
-              "value": 868
+              "value": 111
+            },
+            "width": {
+              "unit": 0,
+              "value": 116.48
+            },
+            "height": {
+              "unit": 0,
+              "value": 10
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.15,
+              "g": 0.83,
+              "b": 0.95,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 244,
+      "name": "Vital icon 3",
+      "parent": 227,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 12
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 130
             },
             "width": {
               "unit": 0,
@@ -9418,7 +9767,7 @@
             },
             "height": {
               "unit": 0,
-              "value": 31
+              "value": 32
             }
           }
         },
@@ -9439,9 +9788,9 @@
       ]
     },
     {
-      "id": 237,
+      "id": 245,
       "name": "Vital label 3",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -9461,19 +9810,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 76
+              "value": 57
             },
             "insetTop": {
               "unit": 0,
-              "value": 868
+              "value": 126
             },
             "width": {
               "unit": 0,
-              "value": 95
+              "value": 100
             },
             "height": {
               "unit": 0,
-              "value": 24
+              "value": 25
             }
           }
         },
@@ -9481,15 +9830,15 @@
           "type": "Text",
           "data": {
             "content": "能量",
-            "fontSize": 18,
+            "fontSize": 19,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
-            "bold": false,
+            "bold": true,
             "align": 0,
             "verticalAlign": 1,
             "wordWrap": false
@@ -9498,9 +9847,9 @@
       ]
     },
     {
-      "id": 238,
+      "id": 246,
       "name": "Vital value 3",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -9520,11 +9869,11 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 210
+              "value": 193
             },
             "insetTop": {
               "unit": 0,
-              "value": 868
+              "value": 126
             },
             "width": {
               "unit": 0,
@@ -9532,7 +9881,7 @@
             },
             "height": {
               "unit": 0,
-              "value": 24
+              "value": 25
             }
           }
         },
@@ -9540,11 +9889,11 @@
           "type": "Text",
           "data": {
             "content": "71%",
-            "fontSize": 17,
+            "fontSize": 19,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -9557,9 +9906,9 @@
       ]
     },
     {
-      "id": 239,
+      "id": 247,
       "name": "Vital track 3",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -9579,19 +9928,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 76
+              "value": 57
             },
             "insetTop": {
               "unit": 0,
-              "value": 895
+              "value": 151
             },
             "width": {
               "unit": 0,
-              "value": 181
+              "value": 182
             },
             "height": {
               "unit": 0,
-              "value": 8
+              "value": 10
             }
           }
         },
@@ -9600,10 +9949,10 @@
           "data": {
             "visualType": 1,
             "color": {
-              "r": 0.13,
-              "g": 0.24,
-              "b": 0.28,
-              "a": 0.9
+              "r": 0.1,
+              "g": 0.21,
+              "b": 0.24,
+              "a": 0.92
             },
             "enabled": true
           }
@@ -9611,9 +9960,9 @@
       ]
     },
     {
-      "id": 240,
+      "id": 248,
       "name": "Vital fill 3",
-      "parent": 188,
+      "parent": 227,
       "children": [],
       "visible": true,
       "components": [
@@ -9633,19 +9982,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 76
+              "value": 57
             },
             "insetTop": {
               "unit": 0,
-              "value": 895
+              "value": 151
             },
             "width": {
               "unit": 0,
-              "value": 128.51
+              "value": 129.22
             },
             "height": {
               "unit": 0,
-              "value": 8
+              "value": 10
             }
           }
         },
@@ -9655,8 +10004,8 @@
             "visualType": 1,
             "color": {
               "r": 1,
-              "g": 0.8,
-              "b": 0.05,
+              "g": 0.84,
+              "b": 0.02,
               "a": 1
             },
             "enabled": true
@@ -9665,9 +10014,63 @@
       ]
     },
     {
-      "id": 241,
-      "name": "Build panel",
+      "id": 249,
+      "name": "Build group",
       "parent": 188,
+      "children": [
+        250,
+        251,
+        252,
+        253,
+        254,
+        255,
+        256,
+        257,
+        258,
+        259,
+        260,
+        261
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "unit": 0,
+              "value": 260
+            },
+            "height": {
+              "unit": 0,
+              "value": 188
+            },
+            "insetRight": {
+              "unit": 0,
+              "value": 20
+            },
+            "insetBottom": {
+              "unit": 0,
+              "value": 212
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 250,
+      "name": "Build panel",
+      "parent": 249,
       "children": [],
       "visible": true,
       "components": [
@@ -9687,11 +10090,11 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1392
+              "value": 0
             },
             "insetTop": {
               "unit": 0,
-              "value": 540
+              "value": 0
             },
             "width": {
               "unit": 0,
@@ -9699,7 +10102,7 @@
             },
             "height": {
               "unit": 0,
-              "value": 190
+              "value": 188
             }
           }
         },
@@ -9720,9 +10123,9 @@
       ]
     },
     {
-      "id": 242,
+      "id": 251,
       "name": "Building icon",
-      "parent": 188,
+      "parent": 249,
       "children": [],
       "visible": true,
       "components": [
@@ -9742,19 +10145,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1403
+              "value": 12
             },
             "insetTop": {
               "unit": 0,
-              "value": 545
+              "value": 12.712765957446809
             },
             "width": {
               "unit": 0,
-              "value": 83
+              "value": 78
             },
             "height": {
               "unit": 0,
-              "value": 63
+              "value": 47.57446808510638
             }
           }
         },
@@ -9762,7 +10165,15 @@
           "type": "UIVisual",
           "data": {
             "visualType": 2,
-            "texture": "assets/textures/inventory-4.png",
+            "texture": "assets/textures/hud-inventory-atlas.png",
+            "uvOffset": {
+              "x": 0.3720073664825046,
+              "y": 0.39502762430939226
+            },
+            "uvScale": {
+              "x": 0.1298342541436464,
+              "y": 0.23756906077348067
+            },
             "color": {
               "r": 1,
               "g": 1,
@@ -9775,9 +10186,9 @@
       ]
     },
     {
-      "id": 243,
+      "id": 252,
       "name": "Building title",
-      "parent": 188,
+      "parent": 249,
       "children": [],
       "visible": true,
       "components": [
@@ -9797,11 +10208,11 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1490
+              "value": 105
             },
             "insetTop": {
               "unit": 0,
-              "value": 554
+              "value": 10
             },
             "width": {
               "unit": 0,
@@ -9809,7 +10220,7 @@
             },
             "height": {
               "unit": 0,
-              "value": 30
+              "value": 31
             }
           }
         },
@@ -9820,8 +10231,8 @@
             "fontSize": 22,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -9834,9 +10245,9 @@
       ]
     },
     {
-      "id": 244,
+      "id": 253,
       "name": "Build divider",
-      "parent": 188,
+      "parent": 249,
       "children": [],
       "visible": true,
       "components": [
@@ -9856,15 +10267,15 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1408
+              "value": 12
             },
             "insetTop": {
               "unit": 0,
-              "value": 604
+              "value": 71
             },
             "width": {
               "unit": 0,
-              "value": 226
+              "value": 234
             },
             "height": {
               "unit": 0,
@@ -9877,10 +10288,10 @@
           "data": {
             "visualType": 1,
             "color": {
-              "r": 0.61,
-              "g": 0.78,
-              "b": 0.85,
-              "a": 1
+              "r": 0.25,
+              "g": 0.43,
+              "b": 0.5,
+              "a": 0.7
             },
             "enabled": true
           }
@@ -9888,9 +10299,9 @@
       ]
     },
     {
-      "id": 245,
+      "id": 254,
       "name": "Steel icon",
-      "parent": 188,
+      "parent": 249,
       "children": [],
       "visible": true,
       "components": [
@@ -9910,19 +10321,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1410
+              "value": 17
             },
             "insetTop": {
               "unit": 0,
-              "value": 617
+              "value": 80
             },
             "width": {
               "unit": 0,
-              "value": 31
+              "value": 32
             },
             "height": {
               "unit": 0,
-              "value": 31
+              "value": 28
             }
           }
         },
@@ -9943,9 +10354,9 @@
       ]
     },
     {
-      "id": 246,
+      "id": 255,
       "name": "Steel label",
-      "parent": 188,
+      "parent": 249,
       "children": [],
       "visible": true,
       "components": [
@@ -9965,19 +10376,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1452
+              "value": 59
             },
             "insetTop": {
               "unit": 0,
-              "value": 619
+              "value": 79
             },
             "width": {
               "unit": 0,
-              "value": 95
+              "value": 100
             },
             "height": {
               "unit": 0,
-              "value": 26
+              "value": 28
             }
           }
         },
@@ -9988,8 +10399,8 @@
             "fontSize": 20,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -10002,9 +10413,9 @@
       ]
     },
     {
-      "id": 247,
+      "id": 256,
       "name": "Steel value",
-      "parent": 188,
+      "parent": 249,
       "children": [],
       "visible": true,
       "components": [
@@ -10024,19 +10435,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1560
+              "value": 172
             },
             "insetTop": {
               "unit": 0,
-              "value": 619
+              "value": 79
             },
             "width": {
               "unit": 0,
-              "value": 76
+              "value": 70
             },
             "height": {
               "unit": 0,
-              "value": 26
+              "value": 28
             }
           }
         },
@@ -10047,8 +10458,8 @@
             "fontSize": 20,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -10061,9 +10472,9 @@
       ]
     },
     {
-      "id": 248,
+      "id": 257,
       "name": "Circuit icon",
-      "parent": 188,
+      "parent": 249,
       "children": [],
       "visible": true,
       "components": [
@@ -10083,19 +10494,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1410
+              "value": 17
             },
             "insetTop": {
               "unit": 0,
-              "value": 654
+              "value": 117
             },
             "width": {
               "unit": 0,
-              "value": 31
+              "value": 32
             },
             "height": {
               "unit": 0,
-              "value": 31
+              "value": 28
             }
           }
         },
@@ -10116,9 +10527,9 @@
       ]
     },
     {
-      "id": 249,
+      "id": 258,
       "name": "Circuit label",
-      "parent": 188,
+      "parent": 249,
       "children": [],
       "visible": true,
       "components": [
@@ -10138,19 +10549,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1452
+              "value": 59
             },
             "insetTop": {
               "unit": 0,
-              "value": 656
+              "value": 116
             },
             "width": {
               "unit": 0,
-              "value": 100
+              "value": 110
             },
             "height": {
               "unit": 0,
-              "value": 26
+              "value": 28
             }
           }
         },
@@ -10161,8 +10572,8 @@
             "fontSize": 20,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -10175,9 +10586,9 @@
       ]
     },
     {
-      "id": 250,
+      "id": 259,
       "name": "Circuit value",
-      "parent": 188,
+      "parent": 249,
       "children": [],
       "visible": true,
       "components": [
@@ -10197,19 +10608,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1560
+              "value": 172
             },
             "insetTop": {
               "unit": 0,
-              "value": 656
+              "value": 116
             },
             "width": {
               "unit": 0,
-              "value": 76
+              "value": 70
             },
             "height": {
               "unit": 0,
-              "value": 26
+              "value": 28
             }
           }
         },
@@ -10220,8 +10631,8 @@
             "fontSize": 20,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
-              "r": 0.91,
-              "g": 0.96,
+              "r": 0.93,
+              "g": 0.97,
               "b": 1,
               "a": 1
             },
@@ -10234,9 +10645,9 @@
       ]
     },
     {
-      "id": 251,
-      "name": "Build status",
-      "parent": 188,
+      "id": 260,
+      "name": "Build valid icon",
+      "parent": 249,
       "children": [],
       "visible": true,
       "components": [
@@ -10256,27 +10667,82 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 1410
+              "value": 16
             },
             "insetTop": {
               "unit": 0,
-              "value": 695
+              "value": 154
             },
             "width": {
               "unit": 0,
-              "value": 225
+              "value": 25
             },
             "height": {
               "unit": 0,
-              "value": 26
+              "value": 25
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-build-valid.png",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 261,
+      "name": "Build status",
+      "parent": 249,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 55
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 151
+            },
+            "width": {
+              "unit": 0,
+              "value": 191
+            },
+            "height": {
+              "unit": 0,
+              "value": 29
             }
           }
         },
         {
           "type": "Text",
           "data": {
-            "content": "●  可建造",
-            "fontSize": 19,
+            "content": "可建造",
+            "fontSize": 20,
             "fontFamily": "Microsoft YaHei, sans-serif",
             "color": {
               "r": 0.22,
@@ -10293,9 +10759,58 @@
       ]
     },
     {
-      "id": 252,
-      "name": "Controls frame",
+      "id": 262,
+      "name": "Controls group",
       "parent": 188,
+      "children": [
+        263,
+        264,
+        274
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "unit": 0,
+              "value": 378
+            },
+            "height": {
+              "unit": 0,
+              "value": 42
+            },
+            "insetLeft": {
+              "unit": 1,
+              "value": 50
+            },
+            "marginLeft": {
+              "unit": 0,
+              "value": -189
+            },
+            "insetBottom": {
+              "unit": 0,
+              "value": 160
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 263,
+      "name": "Controls frame",
+      "parent": 262,
       "children": [],
       "visible": true,
       "components": [
@@ -10315,19 +10830,19 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 622
+              "value": 0
             },
             "insetTop": {
               "unit": 0,
-              "value": 738
+              "value": 0
             },
             "width": {
               "unit": 0,
-              "value": 430
+              "value": 378
             },
             "height": {
               "unit": 0,
-              "value": 40
+              "value": 42
             }
           }
         },
@@ -10348,1486 +10863,19 @@
       ]
     },
     {
-      "id": 253,
-      "name": "Controls",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 633
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 743
-            },
-            "width": {
-              "unit": 0,
-              "value": 408
-            },
-            "height": {
-              "unit": 0,
-              "value": 28
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "鼠标左键 放置   R 旋转   Esc 取消",
-            "fontSize": 17,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": false,
-            "align": 1,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 254,
-      "name": "Slot 1",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 446
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 802
-            },
-            "width": {
-              "unit": 0,
-              "value": 92
-            },
-            "height": {
-              "unit": 0,
-              "value": 94
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/hud-slot.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        },
-        {
-          "type": "Interactable",
-          "data": {
-            "enabled": true,
-            "raycastTarget": true,
-            "blockRaycast": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 255,
-      "name": "Slot key 0",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 455
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 807
-            },
-            "width": {
-              "unit": 0,
-              "value": 22
-            },
-            "height": {
-              "unit": 0,
-              "value": 22
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "1",
-            "fontSize": 16,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": false,
-            "align": 0,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 256,
-      "name": "Item 0",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 448
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 819
-            },
-            "width": {
-              "unit": 0,
-              "value": 88
-            },
-            "height": {
-              "unit": 0,
-              "value": 77
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/inventory-1.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 257,
-      "name": "Slot 2",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 544
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 802
-            },
-            "width": {
-              "unit": 0,
-              "value": 92
-            },
-            "height": {
-              "unit": 0,
-              "value": 94
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/hud-slot.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        },
-        {
-          "type": "Interactable",
-          "data": {
-            "enabled": true,
-            "raycastTarget": true,
-            "blockRaycast": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 258,
-      "name": "Slot key 1",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 553
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 807
-            },
-            "width": {
-              "unit": 0,
-              "value": 22
-            },
-            "height": {
-              "unit": 0,
-              "value": 22
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "2",
-            "fontSize": 16,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": false,
-            "align": 0,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 259,
-      "name": "Item 1",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 546
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 819
-            },
-            "width": {
-              "unit": 0,
-              "value": 88
-            },
-            "height": {
-              "unit": 0,
-              "value": 77
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/inventory-2.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 260,
-      "name": "Slot 3",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 642
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 802
-            },
-            "width": {
-              "unit": 0,
-              "value": 92
-            },
-            "height": {
-              "unit": 0,
-              "value": 94
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/hud-slot.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        },
-        {
-          "type": "Interactable",
-          "data": {
-            "enabled": true,
-            "raycastTarget": true,
-            "blockRaycast": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 261,
-      "name": "Slot key 2",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 651
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 807
-            },
-            "width": {
-              "unit": 0,
-              "value": 22
-            },
-            "height": {
-              "unit": 0,
-              "value": 22
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "3",
-            "fontSize": 16,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": false,
-            "align": 0,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 262,
-      "name": "Item 2",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 644
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 819
-            },
-            "width": {
-              "unit": 0,
-              "value": 88
-            },
-            "height": {
-              "unit": 0,
-              "value": 77
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/inventory-3.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 263,
-      "name": "Slot 4",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 740
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 802
-            },
-            "width": {
-              "unit": 0,
-              "value": 92
-            },
-            "height": {
-              "unit": 0,
-              "value": 94
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/hud-slot.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        },
-        {
-          "type": "Interactable",
-          "data": {
-            "enabled": true,
-            "raycastTarget": true,
-            "blockRaycast": true
-          }
-        }
-      ]
-    },
-    {
       "id": 264,
-      "name": "Slot key 3",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 749
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 807
-            },
-            "width": {
-              "unit": 0,
-              "value": 22
-            },
-            "height": {
-              "unit": 0,
-              "value": 22
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "4",
-            "fontSize": 16,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": false,
-            "align": 0,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 265,
-      "name": "Item 3",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 742
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 819
-            },
-            "width": {
-              "unit": 0,
-              "value": 88
-            },
-            "height": {
-              "unit": 0,
-              "value": 77
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/inventory-4.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 266,
-      "name": "Slot 5",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 838
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 802
-            },
-            "width": {
-              "unit": 0,
-              "value": 92
-            },
-            "height": {
-              "unit": 0,
-              "value": 94
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/hud-slot.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        },
-        {
-          "type": "Interactable",
-          "data": {
-            "enabled": true,
-            "raycastTarget": true,
-            "blockRaycast": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 267,
-      "name": "Slot key 4",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 847
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 807
-            },
-            "width": {
-              "unit": 0,
-              "value": 22
-            },
-            "height": {
-              "unit": 0,
-              "value": 22
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "5",
-            "fontSize": 16,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": false,
-            "align": 0,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 268,
-      "name": "Item 4",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 840
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 819
-            },
-            "width": {
-              "unit": 0,
-              "value": 88
-            },
-            "height": {
-              "unit": 0,
-              "value": 77
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/inventory-5.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 269,
-      "name": "Slot 6",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 936
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 802
-            },
-            "width": {
-              "unit": 0,
-              "value": 92
-            },
-            "height": {
-              "unit": 0,
-              "value": 94
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/hud-slot.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        },
-        {
-          "type": "Interactable",
-          "data": {
-            "enabled": true,
-            "raycastTarget": true,
-            "blockRaycast": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 270,
-      "name": "Slot key 5",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 945
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 807
-            },
-            "width": {
-              "unit": 0,
-              "value": 22
-            },
-            "height": {
-              "unit": 0,
-              "value": 22
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "6",
-            "fontSize": 16,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": false,
-            "align": 0,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 271,
-      "name": "Item 5",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 938
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 819
-            },
-            "width": {
-              "unit": 0,
-              "value": 88
-            },
-            "height": {
-              "unit": 0,
-              "value": 77
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/inventory-6.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 272,
-      "name": "Slot 7",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 1034
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 802
-            },
-            "width": {
-              "unit": 0,
-              "value": 92
-            },
-            "height": {
-              "unit": 0,
-              "value": 94
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/hud-slot.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        },
-        {
-          "type": "Interactable",
-          "data": {
-            "enabled": true,
-            "raycastTarget": true,
-            "blockRaycast": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 273,
-      "name": "Slot key 6",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 1043
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 807
-            },
-            "width": {
-              "unit": 0,
-              "value": 22
-            },
-            "height": {
-              "unit": 0,
-              "value": 22
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "7",
-            "fontSize": 16,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": false,
-            "align": 0,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 274,
-      "name": "Item 6",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 1036
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 819
-            },
-            "width": {
-              "unit": 0,
-              "value": 88
-            },
-            "height": {
-              "unit": 0,
-              "value": 77
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/inventory-7.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 275,
-      "name": "Slot 8",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 1132
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 802
-            },
-            "width": {
-              "unit": 0,
-              "value": 92
-            },
-            "height": {
-              "unit": 0,
-              "value": 94
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/hud-slot.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        },
-        {
-          "type": "Interactable",
-          "data": {
-            "enabled": true,
-            "raycastTarget": true,
-            "blockRaycast": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 276,
-      "name": "Slot key 7",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 1141
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 807
-            },
-            "width": {
-              "unit": 0,
-              "value": 22
-            },
-            "height": {
-              "unit": 0,
-              "value": 22
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "8",
-            "fontSize": 16,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": false,
-            "align": 0,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 277,
-      "name": "Item 7",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 1134
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 819
-            },
-            "width": {
-              "unit": 0,
-              "value": 88
-            },
-            "height": {
-              "unit": 0,
-              "value": 77
-            }
-          }
-        },
-        {
-          "type": "UIVisual",
-          "data": {
-            "visualType": 2,
-            "texture": "assets/textures/inventory-8.png",
-            "color": {
-              "r": 1,
-              "g": 1,
-              "b": 1,
-              "a": 1
-            },
-            "enabled": true
-          }
-        }
-      ]
-    },
-    {
-      "id": 278,
-      "name": "Selected slot",
-      "parent": 188,
+      "name": "Build controls",
+      "parent": 262,
       "children": [
-        279
+        265,
+        266,
+        267,
+        268,
+        269,
+        270,
+        271,
+        272,
+        273
       ],
       "visible": true,
       "components": [
@@ -11847,28 +10895,28 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 740
+              "value": 0
             },
             "insetTop": {
               "unit": 0,
-              "value": 802
+              "value": 0
             },
             "width": {
               "unit": 0,
-              "value": 92
+              "value": 378
             },
             "height": {
               "unit": 0,
-              "value": 94
+              "value": 42
             }
           }
         }
       ]
     },
     {
-      "id": 279,
-      "name": "Selection glow",
-      "parent": 278,
+      "id": 265,
+      "name": "Place key cap",
+      "parent": 264,
       "children": [],
       "visible": true,
       "components": [
@@ -11888,19 +10936,2217 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": -6
+              "value": 27
             },
             "insetTop": {
               "unit": 0,
-              "value": -6
+              "value": 8
             },
             "width": {
               "unit": 0,
-              "value": 104
+              "value": 70
             },
             "height": {
               "unit": 0,
-              "value": 106
+              "value": 26
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 3,
+            "texture": "assets/textures/hud-keycap.png",
+            "sliceBorder": {
+              "x": 5,
+              "y": 5,
+              "z": 5,
+              "w": 5
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 266,
+      "name": "Place key",
+      "parent": 264,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 27
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 7
+            },
+            "width": {
+              "unit": 0,
+              "value": 70
+            },
+            "height": {
+              "unit": 0,
+              "value": 28
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "鼠标左键",
+            "fontSize": 16,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 267,
+      "name": "Place hint",
+      "parent": 264,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 105
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 7
+            },
+            "width": {
+              "unit": 0,
+              "value": 42
+            },
+            "height": {
+              "unit": 0,
+              "value": 28
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "放置",
+            "fontSize": 18,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 0,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 268,
+      "name": "Rotate key cap",
+      "parent": 264,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 173
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 8
+            },
+            "width": {
+              "unit": 0,
+              "value": 25
+            },
+            "height": {
+              "unit": 0,
+              "value": 26
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 3,
+            "texture": "assets/textures/hud-keycap.png",
+            "sliceBorder": {
+              "x": 5,
+              "y": 5,
+              "z": 5,
+              "w": 5
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 269,
+      "name": "Rotate key",
+      "parent": 264,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 173
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 7
+            },
+            "width": {
+              "unit": 0,
+              "value": 25
+            },
+            "height": {
+              "unit": 0,
+              "value": 28
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "R",
+            "fontSize": 16,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 270,
+      "name": "Rotate hint",
+      "parent": 264,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 207
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 7
+            },
+            "width": {
+              "unit": 0,
+              "value": 42
+            },
+            "height": {
+              "unit": 0,
+              "value": 28
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "旋转",
+            "fontSize": 18,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 0,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 271,
+      "name": "Cancel key cap",
+      "parent": 264,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 268
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 8
+            },
+            "width": {
+              "unit": 0,
+              "value": 39
+            },
+            "height": {
+              "unit": 0,
+              "value": 26
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 3,
+            "texture": "assets/textures/hud-keycap.png",
+            "sliceBorder": {
+              "x": 5,
+              "y": 5,
+              "z": 5,
+              "w": 5
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 272,
+      "name": "Cancel key",
+      "parent": 264,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 268
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 7
+            },
+            "width": {
+              "unit": 0,
+              "value": 39
+            },
+            "height": {
+              "unit": 0,
+              "value": 28
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Esc",
+            "fontSize": 16,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 273,
+      "name": "Cancel hint",
+      "parent": 264,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 316
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 7
+            },
+            "width": {
+              "unit": 0,
+              "value": 44
+            },
+            "height": {
+              "unit": 0,
+              "value": 28
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "取消",
+            "fontSize": 18,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 0,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 274,
+      "name": "Controls",
+      "parent": 262,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 10
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 7
+            },
+            "width": {
+              "unit": 0,
+              "value": 358
+            },
+            "height": {
+              "unit": 0,
+              "value": 28
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "",
+            "fontSize": 17,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 275,
+      "name": "Quickbar group",
+      "parent": 188,
+      "children": [
+        276,
+        279,
+        282,
+        285,
+        288,
+        291,
+        294,
+        297,
+        300
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "unit": 0,
+              "value": 792
+            },
+            "height": {
+              "unit": 0,
+              "value": 100
+            },
+            "insetLeft": {
+              "unit": 1,
+              "value": 50
+            },
+            "marginLeft": {
+              "unit": 0,
+              "value": -396
+            },
+            "insetBottom": {
+              "unit": 0,
+              "value": 40
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 276,
+      "name": "Slot 1",
+      "parent": 275,
+      "children": [
+        277,
+        278
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 2
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 2
+            },
+            "width": {
+              "unit": 0,
+              "value": 94
+            },
+            "height": {
+              "unit": 0,
+              "value": 96
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-slot.png",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "raycastTarget": true,
+            "blockRaycast": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 277,
+      "name": "Item 0",
+      "parent": 276,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 16.60526315789474
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 24
+            },
+            "width": {
+              "unit": 0,
+              "value": 60.78947368421052
+            },
+            "height": {
+              "unit": 0,
+              "value": 65
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-inventory-atlas.png",
+            "uvOffset": {
+              "x": 0.018876611418047883,
+              "y": 0.3425414364640884
+            },
+            "uvScale": {
+              "x": 0.106353591160221,
+              "y": 0.3411602209944751
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 278,
+      "name": "Slot key 0",
+      "parent": 276,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 8
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 4
+            },
+            "width": {
+              "unit": 0,
+              "value": 22
+            },
+            "height": {
+              "unit": 0,
+              "value": 24
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "1",
+            "fontSize": 18,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 279,
+      "name": "Slot 2",
+      "parent": 275,
+      "children": [
+        280,
+        281
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 100
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 2
+            },
+            "width": {
+              "unit": 0,
+              "value": 94
+            },
+            "height": {
+              "unit": 0,
+              "value": 96
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-slot.png",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "raycastTarget": true,
+            "blockRaycast": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 280,
+      "name": "Item 1",
+      "parent": 279,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 16.112595419847327
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 24
+            },
+            "width": {
+              "unit": 0,
+              "value": 61.774809160305345
+            },
+            "height": {
+              "unit": 0,
+              "value": 65
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-inventory-atlas.png",
+            "uvOffset": {
+              "x": 0.13674033149171272,
+              "y": 0.3314917127071823
+            },
+            "uvScale": {
+              "x": 0.11464088397790055,
+              "y": 0.36187845303867405
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 281,
+      "name": "Slot key 1",
+      "parent": 279,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 8
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 4
+            },
+            "width": {
+              "unit": 0,
+              "value": 22
+            },
+            "height": {
+              "unit": 0,
+              "value": 24
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "2",
+            "fontSize": 18,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 282,
+      "name": "Slot 3",
+      "parent": 275,
+      "children": [
+        283,
+        284
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 198
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 2
+            },
+            "width": {
+              "unit": 0,
+              "value": 94
+            },
+            "height": {
+              "unit": 0,
+              "value": 96
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-slot.png",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "raycastTarget": true,
+            "blockRaycast": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 283,
+      "name": "Item 2",
+      "parent": 282,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 21.417670682730922
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 24
+            },
+            "width": {
+              "unit": 0,
+              "value": 51.164658634538156
+            },
+            "height": {
+              "unit": 0,
+              "value": 65
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-inventory-atlas.png",
+            "uvOffset": {
+              "x": 0.27209944751381215,
+              "y": 0.3397790055248619
+            },
+            "uvScale": {
+              "x": 0.09023941068139964,
+              "y": 0.34392265193370164
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 284,
+      "name": "Slot key 2",
+      "parent": 282,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 8
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 4
+            },
+            "width": {
+              "unit": 0,
+              "value": 22
+            },
+            "height": {
+              "unit": 0,
+              "value": 24
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "3",
+            "fontSize": 18,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 285,
+      "name": "Slot 4",
+      "parent": 275,
+      "children": [
+        286,
+        287
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 296
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 2
+            },
+            "width": {
+              "unit": 0,
+              "value": 94
+            },
+            "height": {
+              "unit": 0,
+              "value": 96
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-slot.png",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "raycastTarget": true,
+            "blockRaycast": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 286,
+      "name": "Item 3",
+      "parent": 285,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 9
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 33.322695035460995
+            },
+            "width": {
+              "unit": 0,
+              "value": 76
+            },
+            "height": {
+              "unit": 0,
+              "value": 46.354609929078016
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-inventory-atlas.png",
+            "uvOffset": {
+              "x": 0.3720073664825046,
+              "y": 0.39502762430939226
+            },
+            "uvScale": {
+              "x": 0.1298342541436464,
+              "y": 0.23756906077348067
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 287,
+      "name": "Slot key 3",
+      "parent": 285,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 8
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 4
+            },
+            "width": {
+              "unit": 0,
+              "value": 22
+            },
+            "height": {
+              "unit": 0,
+              "value": 24
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "4",
+            "fontSize": 18,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 288,
+      "name": "Slot 5",
+      "parent": 275,
+      "children": [
+        289,
+        290
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 394
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 2
+            },
+            "width": {
+              "unit": 0,
+              "value": 94
+            },
+            "height": {
+              "unit": 0,
+              "value": 96
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-slot.png",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "raycastTarget": true,
+            "blockRaycast": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 289,
+      "name": "Item 4",
+      "parent": 288,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 20.570038910505836
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 24
+            },
+            "width": {
+              "unit": 0,
+              "value": 52.85992217898833
+            },
+            "height": {
+              "unit": 0,
+              "value": 65
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-inventory-atlas.png",
+            "uvOffset": {
+              "x": 0.5161141804788214,
+              "y": 0.3301104972375691
+            },
+            "uvScale": {
+              "x": 0.09622467771639043,
+              "y": 0.35497237569060774
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 290,
+      "name": "Slot key 4",
+      "parent": 288,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 8
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 4
+            },
+            "width": {
+              "unit": 0,
+              "value": 22
+            },
+            "height": {
+              "unit": 0,
+              "value": 24
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "5",
+            "fontSize": 18,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 291,
+      "name": "Slot 6",
+      "parent": 275,
+      "children": [
+        292,
+        293
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 492
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 2
+            },
+            "width": {
+              "unit": 0,
+              "value": 94
+            },
+            "height": {
+              "unit": 0,
+              "value": 96
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-slot.png",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "raycastTarget": true,
+            "blockRaycast": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 292,
+      "name": "Item 5",
+      "parent": 291,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 17.29713114754098
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 24
+            },
+            "width": {
+              "unit": 0,
+              "value": 59.40573770491804
+            },
+            "height": {
+              "unit": 0,
+              "value": 65
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-inventory-atlas.png",
+            "uvOffset": {
+              "x": 0.6385819521178637,
+              "y": 0.3342541436464088
+            },
+            "uvScale": {
+              "x": 0.10267034990791897,
+              "y": 0.3370165745856354
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 293,
+      "name": "Slot key 5",
+      "parent": 291,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 8
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 4
+            },
+            "width": {
+              "unit": 0,
+              "value": 22
+            },
+            "height": {
+              "unit": 0,
+              "value": 24
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "6",
+            "fontSize": 18,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 294,
+      "name": "Slot 7",
+      "parent": 275,
+      "children": [
+        295,
+        296
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 590
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 2
+            },
+            "width": {
+              "unit": 0,
+              "value": 94
+            },
+            "height": {
+              "unit": 0,
+              "value": 96
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-slot.png",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "raycastTarget": true,
+            "blockRaycast": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 295,
+      "name": "Item 6",
+      "parent": 294,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 12.11467889908257
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 24
+            },
+            "width": {
+              "unit": 0,
+              "value": 69.77064220183486
+            },
+            "height": {
+              "unit": 0,
+              "value": 65
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-inventory-atlas.png",
+            "uvOffset": {
+              "x": 0.7587476979742173,
+              "y": 0.36187845303867405
+            },
+            "uvScale": {
+              "x": 0.10773480662983426,
+              "y": 0.3011049723756906
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 296,
+      "name": "Slot key 6",
+      "parent": 294,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 8
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 4
+            },
+            "width": {
+              "unit": 0,
+              "value": 22
+            },
+            "height": {
+              "unit": 0,
+              "value": 24
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "7",
+            "fontSize": 18,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 297,
+      "name": "Slot 8",
+      "parent": 275,
+      "children": [
+        298,
+        299
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 688
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 2
+            },
+            "width": {
+              "unit": 0,
+              "value": 94
+            },
+            "height": {
+              "unit": 0,
+              "value": 96
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-slot.png",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "raycastTarget": true,
+            "blockRaycast": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 298,
+      "name": "Item 7",
+      "parent": 297,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 18.722440944881892
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 24
+            },
+            "width": {
+              "unit": 0,
+              "value": 56.555118110236215
+            },
+            "height": {
+              "unit": 0,
+              "value": 65
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "assets/textures/hud-inventory-atlas.png",
+            "uvOffset": {
+              "x": 0.8825966850828729,
+              "y": 0.3301104972375691
+            },
+            "uvScale": {
+              "x": 0.10174953959484347,
+              "y": 0.35082872928176795
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 299,
+      "name": "Slot key 7",
+      "parent": 297,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 8
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 4
+            },
+            "width": {
+              "unit": 0,
+              "value": 22
+            },
+            "height": {
+              "unit": 0,
+              "value": 24
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "8",
+            "fontSize": 18,
+            "fontFamily": "Microsoft YaHei, sans-serif",
+            "color": {
+              "r": 0.93,
+              "g": 0.97,
+              "b": 1,
+              "a": 1
+            },
+            "bold": false,
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 300,
+      "name": "Selected slot",
+      "parent": 275,
+      "children": [
+        301
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": 296
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": 2
+            },
+            "width": {
+              "unit": 0,
+              "value": 94
+            },
+            "height": {
+              "unit": 0,
+              "value": 96
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 301,
+      "name": "Selection glow",
+      "parent": 300,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "unit": 0,
+              "value": -7
+            },
+            "insetTop": {
+              "unit": 0,
+              "value": -7
+            },
+            "width": {
+              "unit": 0,
+              "value": 108
+            },
+            "height": {
+              "unit": 0,
+              "value": 110
             }
           }
         },
@@ -11921,10 +13167,12 @@
       ]
     },
     {
-      "id": 280,
-      "name": "Navigation hint",
+      "id": 302,
+      "name": "Toast group",
       "parent": 188,
-      "children": [],
+      "children": [
+        303
+      ],
       "visible": true,
       "components": [
         {
@@ -11941,107 +13189,34 @@
           "type": "UINode",
           "data": {
             "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 450
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 908
-            },
             "width": {
               "unit": 0,
-              "value": 800
+              "value": 560
             },
             "height": {
               "unit": 0,
-              "value": 22
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "WASD 移动 · 按住右键环视 · B 建造 · F 回收 · Home 参考视角",
-            "fontSize": 14,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.61,
-              "g": 0.78,
-              "b": 0.85,
-              "a": 1
+              "value": 40
             },
-            "bold": false,
-            "align": 1,
-            "verticalAlign": 1,
-            "wordWrap": false
+            "insetLeft": {
+              "unit": 1,
+              "value": 50
+            },
+            "marginLeft": {
+              "unit": 0,
+              "value": -280
+            },
+            "insetBottom": {
+              "unit": 0,
+              "value": 228
+            }
           }
         }
       ]
     },
     {
-      "id": 281,
-      "name": "Crosshair",
-      "parent": 188,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 0,
-              "y": 0,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "UINode",
-          "data": {
-            "position": 1,
-            "insetLeft": {
-              "unit": 0,
-              "value": 824
-            },
-            "insetTop": {
-              "unit": 0,
-              "value": 452
-            },
-            "width": {
-              "unit": 0,
-              "value": 24
-            },
-            "height": {
-              "unit": 0,
-              "value": 28
-            }
-          }
-        },
-        {
-          "type": "Text",
-          "data": {
-            "content": "·",
-            "fontSize": 27,
-            "fontFamily": "Microsoft YaHei, sans-serif",
-            "color": {
-              "r": 0.91,
-              "g": 0.96,
-              "b": 1,
-              "a": 1
-            },
-            "bold": false,
-            "align": 1,
-            "verticalAlign": 1,
-            "wordWrap": false
-          }
-        }
-      ]
-    },
-    {
-      "id": 282,
+      "id": 303,
       "name": "Toast",
-      "parent": 188,
+      "parent": 302,
       "children": [],
       "visible": true,
       "components": [
@@ -12061,11 +13236,11 @@
             "position": 1,
             "insetLeft": {
               "unit": 0,
-              "value": 560
+              "value": 0
             },
             "insetTop": {
               "unit": 0,
-              "value": 672
+              "value": 0
             },
             "width": {
               "unit": 0,
@@ -12073,7 +13248,7 @@
             },
             "height": {
               "unit": 0,
-              "value": 32
+              "value": 40
             }
           }
         },

@@ -81,56 +81,6 @@ d.text((32,208),'BUILD / 04',font=ImageFont.truetype(FONT,23),fill=(74,224,241))
 im.save(OUT/'tool-display.png')
 print('Surface textures and signage written.')
 
-# HUD frame art is generated separately from text; labels remain native editable UI.
-def frame(name,w,h):
-    s=2; im=Image.new('RGBA',(w*s,h*s)); d=ImageDraw.Draw(im)
-    poly=[(12,0),(w-3,0),(w,3),(w,h-12),(w-12,h),(3,h),(0,h-3),(0,12)]
-    poly=[(x*s,y*s) for x,y in poly]
-    d.polygon(poly,fill=(7,25,35,224),outline=(103,160,174,235),width=2)
-    for y in range(9,h*s-9,4):d.line((8,y,w*s-8,y),fill=(9,28,38,224),width=1)
-    d.line((24,7,w*s-14,7),fill=(56,91,103,150),width=1)
-    d.line((7,26,7,h*s-16),fill=(26,101,123,140),width=2)
-    d.line([(0,26),(26,0),(80,0)],fill=(35,233,255),width=6)
-    d.line([(w*s-80,h*s-2),(w*s-26,h*s-2),(w*s-2,h*s-26)],fill=(255,36,166),width=6)
-    im.resize((w,h),Image.Resampling.LANCZOS).save(OUT/f'{name}.png')
-for name,w,h in [('hud-location',270,100),('hud-objectives',280,112),('hud-vitals',260,174),('hud-build',260,190),('hud-slot',92,94),('hud-hint',430,40)]: frame(name,w,h)
-
-im=Image.new('RGBA',(184,188));d=ImageDraw.Draw(im)
-d.rounded_rectangle((2,2,181,185),9,fill=(5,22,31,225),outline=(66,103,116,255),width=2)
-d.rounded_rectangle((7,7,176,180),6,outline=(27,56,69,220),width=1)
-im.resize((92,94),Image.Resampling.LANCZOS).save(OUT/'hud-slot.png')
-im=Image.new('RGBA',(208,212));d=ImageDraw.Draw(im)
-d.rounded_rectangle((13,13,194,198),10,outline=(0,231,255,180),width=13)
-im=im.filter(ImageFilter.GaussianBlur(5));d=ImageDraw.Draw(im)
-d.rounded_rectangle((13,13,194,198),10,outline=(75,244,255,255),width=4)
-d.line((14,34,34,14,67,14),fill=(180,255,255,255),width=5)
-im.save(OUT/'hud-selected.png')
-
-im=Image.new('RGB',(900,760),(7,16,26));d=ImageDraw.Draw(im)
-for x in range(-80,900,135):
-    for y in range(-80,760,120):
-        w,h=rng.randrange(72,108),rng.randrange(68,94)
-        d.rectangle((x+6,y+7,x+w+7,y+h+8),fill=(0,3,10))
-        d.rectangle((x,y,x+w,y+h),fill=(40,52,68),outline=(138,158,180),width=2)
-        d.rectangle((x+7,y+7,x+w-7,y+h-7),outline=(70,92,116),width=2)
-        for j in range(3):
-            px=x+12+j*22;py=y+14+(j%2)*25
-            d.rectangle((px,py,px+12,py+20),fill=(13,24,35),outline=(78,103,122),width=2)
-        d.line((x,y+h+13,x+w,y+h+13),fill=(53,93,112),width=2)
-for x in range(-90,900,135):d.line((x+119,0,x+119,760),fill=(74,123,141),width=3)
-d.line((0,371,900,371),fill=(8,7,24),width=28)
-d.line((0,363,900,363),fill=(235,25,155),width=3)
-d.line((0,379,900,379),fill=(59,196,233),width=3)
-for k in range(30):
-    x,y=rng.randrange(900),rng.randrange(760)
-    d.rectangle((x,y,x+6,y+3),fill=(240,36,150) if k%2 else (42,216,245))
-d.rectangle((369,390,532,506),outline=(175,220,238),width=5)
-d.rectangle((379,400,520,435),fill=(30,61,72),outline=(157,197,215),width=3)
-im=im.rotate(17,resample=Image.Resampling.BICUBIC)
-im=im.crop((120,115,780,645)).resize((500,388),Image.Resampling.LANCZOS)
-d=ImageDraw.Draw(im);d.polygon([(348,101),(367,120),(348,139),(329,120)],outline=(255,188,25),width=5)
-im.save(OUT/'hud-map.png')
-
 # Crisp pictograms authored as editable paths, with supersampling for the native HUD.
 for name in ['city','rain','health','cyber','water','energy','steel','chip']:
     im=Image.new('RGBA',(96,96));d=ImageDraw.Draw(im);col=(137,221,244,255)
@@ -185,4 +135,8 @@ for k in range(8):
     else:
         iso(d,42,26,33,51,17,(180,151,98,255)); d.ellipse((51,37,80,65),fill=(220,224,190),outline=(124,66,40),width=3)
     im.save(OUT/f'hud-item-{k+1}.png')
-print('HUD frames, map and inventory art written.')
+print('HUD pictograms and fallback inventory icons written.')
+
+# Border sources are independent of the inventory and minimap artwork.
+import runpy
+runpy.run_path(str(ROOT/'tools/hud.py'))

@@ -1,5 +1,6 @@
 import { addPlugin, defineSystem, GetWorld, Res, Input, Time, Transform, MeshRenderer,
-    Text, UINode, Playthrough, UIEvents } from 'esengine';
+    Text, UINode, UIVisual, UIDisplay, Playthrough, UIEvents } from 'esengine';
+import hudLayout from './hud-layout.json';
 import type { Entity, World } from 'esengine';
 import { canPlace, canWalk, costs, home, type Placement } from './building';
 
@@ -78,7 +79,10 @@ addPlugin({
                     if(kind==='platform') for(const x of [-3.3,3.3])for(const z of [-2,2])visibility(world,`Built ${n} leg ${x} ${z}`,true);
                     if(kind==='purifier') {
                         const base=get(world,`Built ${n} platform`),bt=world.get(base,Transform);bt.scale={x:.018,y:.0032,z:.015};world.insert(base,Transform,bt);
-                        visibility(world,`Built ${n} filter`,true);visibility(world,`Built ${n} control`,true);label(world,'Water objective','☑  建造净水装置  1/1');water=84;
+                        visibility(world,`Built ${n} filter`,true);visibility(world,`Built ${n} control`,true);label(world,'Water objective','建造净水装置  1/1');water=84;
+                        for(const [name,enabled] of [['Water check',false],['Water check completed',true]] as const) {
+                            const check=get(world,name);world.insert(check,UIVisual,{...world.get(check,UIVisual),enabled});
+                        }
                     }
                     toast(world,kind==='purifier'?'净水装置已上线 · 饮水 +20':'加固平台已放置');
                 }
@@ -89,17 +93,21 @@ addPlugin({
             }
             // Train moves along its modelled rail; camera, tool and minimap stay live.
             const train=get(world,'Train'),tt=world.get(train,Transform);tt.position.x=Math.sin(elapsed*.06)*1.5;tt.position.z=tt.position.x*.48;world.insert(train,Transform,tt);
-            const sel=get(world,'Selected slot'),sn=world.get(sel,UINode);sn.insetLeft={unit:0,value:446+(selected-1)*98};world.insert(sel,UINode,sn);
+            const sel=get(world,'Selected slot'),sn=world.get(sel,UINode);sn.insetLeft={unit:0,value:hudLayout.quickbar.first+(selected-1)*hudLayout.quickbar.step};world.insert(sel,UINode,sn);
             label(world,'Building title',kind==='purifier'?'净水装置':'加固平台');
             label(world,'Steel value',`${steel}/${bill.steel}`);label(world,'Circuit value',`${circuits}/${bill.circuits}`);
-            label(world,'Build status',!building?'B  进入建造':valid?'●  可建造':!space?'×  空间不足':!funded?'×  材料不足':'×  已达上限');
+            label(world,'Build status',!building?'B  进入建造':valid?'可建造':!space?'空间不足':!funded?'材料不足':'已达上限');
+            const validIcon=get(world,'Build valid icon'),vi=world.get(validIcon,UIVisual);
+            if(vi.enabled!==(building&&valid))world.insert(validIcon,UIVisual,{...vi,enabled:building&&valid});
             const status=get(world,'Build status'),st=world.get(status,Text);
             const statusColor=!building?{r:.61,g:.78,b:.85,a:1}:valid?{r:.22,g:1,b:.45,a:1}:{r:1,g:.25,b:.35,a:1};
             if(st.color.r!==statusColor.r)world.insert(status,Text,{...st,color:statusColor});
-            label(world,'Controls',building?'鼠标左键 放置   R 旋转   Esc 取消':'WASD 移动   右键环视   B 建造');
+            label(world,'Controls',building?'':'WASD 移动   右键环视   B 建造');
+            const hints=get(world,'Build controls'),hn=world.get(hints,UINode),display=building?UIDisplay.Flex:UIDisplay.None;
+            if(hn.display!==display)world.insert(hints,UINode,{...hn,display});
             label(world,'Vital value 2',`${water}%`);
-            const fill=get(world,'Vital fill 2'),fn=world.get(fill,UINode);fn.width={unit:0,value:181*water/100};world.insert(fill,UINode,fn);
-            const arrow=get(world,'Map player'),an=world.get(arrow,UINode);an.insetLeft={unit:0,value:1500+cam.position.x*1.5};an.insetTop={unit:0,value:105+cam.position.z*1.5};world.insert(arrow,UINode,an);
+            const fill=get(world,'Vital fill 2'),fn=world.get(fill,UINode);fn.width={unit:0,value:hudLayout.vitalWidth*water/100};world.insert(fill,UINode,fn);
+            const arrow=get(world,'Map player'),an=world.get(arrow,UINode);an.insetLeft={unit:0,value:hudLayout.map.playerX+cam.position.x*hudLayout.map.unitsToPixels};an.insetTop={unit:0,value:hudLayout.map.playerY+cam.position.z*hudLayout.map.unitsToPixels};world.insert(arrow,UINode,an);
             const at=world.get(arrow,Transform);at.rotation={x:0,y:0,z:Math.sin(-yaw/2),w:Math.cos(yaw/2)};world.insert(arrow,Transform,at);
             if(toastTime>0) {toastTime-=dt;if(toastTime<=0)label(world,'Toast','');}
             Object.assign(facts,{ready:true,steel,circuits,placed:placed.length,rotation,building,selected,valid,cameraX:cam.position.x,cameraZ:cam.position.z,purifiers:placed.filter(x=>x.kind==='purifier').length});

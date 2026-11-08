@@ -3,9 +3,9 @@
   "version": "2.0",
   "type": "texture",
   "importer": {
-    "maxSize": 2048,
+    "maxSize": 512,
     "filterMode": "linear",
-    "wrapMode": "repeat",
+    "wrapMode": "clamp",
     "premultiplyAlpha": false,
     "sliceBorder": {
       "left": 0,

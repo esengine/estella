@@ -1,3 +1,4 @@
+import { buildHud } from './hud-scene.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -109,66 +110,7 @@ const emitter=(name,p,config)=>add(name,[tr(p),c('ParticleEmitter',{texture:'ass
 emitter('Rain',[0,13,-2],{shape:2,shapeSize:{x:34,y:1,z:28},rate:400,maxParticles:900,lifetimeMin:1.2,lifetimeMax:1.5,speedMin:0,speedMax:0,gravity:vec([1,-18,0]),startColor:rgba(.38,.69,1,.24),endColor:rgba(.38,.69,1,.04),startSizeMin:.018,startSizeMax:.028,endSizeMin:.018,endSizeMax:.028,trailEnabled:true,trailWidth:.015,trailPoints:3,trailMinDistance:.12,blendMode:1});
 for(const [x,z] of [[10,-13],[-15,-5],[17,3]]) emitter('Steam '+x,[x,.5,z],{shape:3,shapeRadius:.22,shapeAngle:12,rate:9,maxParticles:70,lifetimeMin:3,lifetimeMax:5,speedMin:.35,speedMax:.7,gravity:vec([.06,.18,0]),startColor:rgba(.32,.48,.62,.13),endColor:rgba(.35,.5,.7,0),startSizeMin:.6,startSizeMax:1,endSizeMin:2.2,endSizeMax:3.1,blendMode:0});
 
-// Native 2D Canvas over the 3D world; no DOM or reference screenshot in the game.
-const canvas=add('HUD',[tr(),c('Canvas',{designResolution:{x:1672,y:940},scaleMode:2,backgroundColor:rgba(0,0,0,0)}),c('UINode',{})]);
-const px=value=>({unit:0,value});
-function ui(name,x,y,w,h,components=[],parent=canvas) {
-  return add(name,[tr(),c('UINode',{position:1,insetLeft:px(x),insetTop:px(y),width:px(w),height:px(h)}),...components],parent);
-}
-function art(name,asset,x,y,w,h,parent=canvas) {return ui(name,x,y,w,h,[c('UIVisual',{visualType:2,texture:`assets/textures/${asset}.png`,color:rgba(1,1,1),enabled:true})],parent);}
-function rect(name,x,y,w,h,color,parent=canvas) {return ui(name,x,y,w,h,[c('UIVisual',{visualType:1,color,enabled:true})],parent);}
-function label(name,text,x,y,w,h=28,size=20,color=rgba(.91,.96,1),bold=false,align=0,parent=canvas) {return ui(name,x,y,w,h,[c('Text',{content:text,fontSize:size,fontFamily:'Microsoft YaHei, sans-serif',color,bold,align,verticalAlign:1,wordWrap:false})],parent);}
-const cyan=rgba(.1,.84,1),pink=rgba(1,.08,.6),muted=rgba(.61,.78,.85);
-art('Location panel','hud-location',20,20,270,100);
-art('Location icon','hud-symbol-city',33,27,45,45);
-label('Location','下城避难所',82,26,194,28,22,undefined,true);
-label('Day','第 07 天 · 22:16',83,56,195,24,16);
-rect('Location divider',28,81,248,1,rgba(.2,.5,.6,.5));
-art('Weather icon','hud-symbol-rain',35,87,28,28);
-label('Weather','酸雨 · 18°C',79,87,180,27,18);
-art('Objectives panel','hud-objectives',20,134,280,112);
-label('Objective title','建立安全屋',36,143,250,29,21,undefined,true);
-rect('Objective divider',29,176,256,1,rgba(.2,.5,.6,.5));
-label('Power objective','☑  接通备用电源',37,183,240,25,18);
-label('Water objective','□  建造净水装置  0/1',37,214,256,24,17);
-rect('Compass line',508,26,652,1,rgba(.7,.82,.9,.75));
-for(const [i,text] of ['W','NW','N','NE','E'].entries()) {const x=548+i*134;label('Compass '+text,text,x,36,50,27,17,undefined,false,1);rect('Compass tick '+i,x+25,24,1,12,muted);}
-label('North marker','▼',825,5,30,25,17,undefined,false,1);
-label('Waypoint','◇  废料回收站 180 m',928,74,280,28,18,rgba(1,.76,.23));
-art('Minimap','hud-map',1400,21,250,194);
-art('Map border','hud-location',1398,20,254,198);
-// The map is above its backing frame; labels and player marker remain separate.
-art('Minimap detail','hud-map',1405,48,240,159);
-label('Map title','区域扫描',1414,24,180,25,18,undefined,true);
-label('Map north','N',1620,25,22,22,16);
-label('Map player','▲',1523,130,30,30,26,cyan,false,1);
-
-art('Vitals panel','hud-vitals',20,740,260,174);
-for(const [i,icon,title,value,col] of [[0,'health','生命','100',rgba(.12,.93,.48)],[1,'cyber','义体','82%',cyan],[2,'water','饮水','64%',cyan],[3,'energy','能量','71%',rgba(1,.8,.05)]]) {
- const y=748+i*40;art('Vital icon '+i,'hud-symbol-'+icon,32,y,31,31);
- label('Vital label '+i,title,76,y,95,24,18);label('Vital value '+i,value,210,y,48,24,17,undefined,false,2);
- rect('Vital track '+i,76,y+27,181,8,rgba(.13,.24,.28,.9));
- rect('Vital fill '+i,76,y+27,181*[1,.82,.64,.71][i],8,col);
-}
-art('Build panel','hud-build',1392,540,260,190);
-art('Building icon','inventory-4',1403,545,83,63);
-label('Building title','加固平台',1490,554,148,30,22,undefined,true);
-rect('Build divider',1408,604,226,1,muted);
-art('Steel icon','hud-symbol-steel',1410,617,31,31);label('Steel label','废钢',1452,619,95,26,20);label('Steel value','24/4',1560,619,76,26,20,undefined,false,2);
-art('Circuit icon','hud-symbol-chip',1410,654,31,31);label('Circuit label','电子元件',1452,656,100,26,20);label('Circuit value','16/2',1560,656,76,26,20,undefined,false,2);
-label('Build status','●  可建造',1410,695,225,26,19,rgba(.22,1,.45),true);
-art('Controls frame','hud-hint',622,738,430,40);
-label('Controls','鼠标左键 放置   R 旋转   Esc 取消',633,743,408,28,17,undefined,false,1);
-for(let i=0;i<8;i++) {
- const x=446+i*98;const slot=art('Slot '+(i+1),'hud-slot',x,802,92,94);
- entities[slot].components.push(c('Interactable',{enabled:true,raycastTarget:true,blockRaycast:true}));
- label('Slot key '+i,String(i+1),x+9,807,22,22,16);
- art('Item '+i,`inventory-${i+1}`,x+2,819,88,77);
-}
-const select=ui('Selected slot',740,802,92,94);
-art('Selection glow','hud-selected',-6,-6,104,106,select);
-label('Navigation hint','WASD 移动 · 按住右键环视 · B 建造 · F 回收 · Home 参考视角',450,908,800,22,14,muted,false,1);
-label('Crosshair','·',824,452,24,28,27,undefined,false,1);
-label('Toast','',560,672,560,32,21,rgba(.25,1,.85),false,1);
+// Author the native HUD from independently editable panel and atlas sources.
+buildHud({add,tr,c,rgba,read});
 write('assets/scenes/main.esscene',{version:4,name:'下城避难所',entities});
 console.log(`Scene: ${entities.length} entities, ${prefab.entities.length} imported model nodes.`);

@@ -1,0 +1,6 @@
+{
+  "design": { "width": 1672, "height": 940 },
+  "quickbar": { "width": 792, "height": 100, "bottom": 40, "first": 2, "step": 98, "slotWidth": 94, "slotHeight": 96 },
+  "vitalWidth": 182,
+  "map": { "playerX": 112, "playerY": 88, "unitsToPixels": 1.5 }
+}

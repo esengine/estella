@@ -33,12 +33,14 @@ node examples/cyber-rooftop/tools/preview.mjs
 
 - `tools/model.py`：确定性的模型构造源，米制、Y 向上。包含几何、UV、材质与逻辑分组；按材质合并以控制绘制批次。
 - `assets/models/rooftop.glb`：可在常见 DCC 中继续编辑的模型交换文件；同目录的 `.esprefab`、`.esmesh`、`.esmaterial` 是 Estella 导入产物。
-- `tools/scene.mjs`：摄像机、灯光、后处理、粒子、建造对象池与全部 HUD 布局。
-- `tools/textures.py`：可重建的基础表面图、招牌、地图与 HUD 图标；需要 Python Pillow 和 Windows 微软雅黑字体。
+- `tools/scene.mjs`：摄像机、灯光、后处理、粒子与建造对象池；通过 `tools/hud-scene.mjs` 构建原生 HUD。
+- `tools/hud-scene.mjs`：按四角及底部居中锚定面板，保留可编辑的原生文字、状态值和快捷栏交互。`src/hud-layout.json` 供场景构建和运行时共用布局参数。
+- `tools/textures.py`：可重建的基础表面图、招牌、HUD 象形图标与备用物品图标；需要 Python Pillow 和 Windows 微软雅黑字体。末尾调用 `tools/hud.py` 重建边框、勾选状态、按键帽和选中描边。
+- `assets/textures/hud-inventory-atlas.png`：八件物品共用的透明图集；`tools/hud-inventory-frames.json` 保存各图块边界，原生 UIVisual 按 UV 引用。`hud-map.png` 是独立的区域示意底图；玩家标记由运行时更新，底图尚未根据场景自动生成。重建边框不会覆盖这两张图片。
 - `assets/textures/billboard.png`、`worn-paint.png`：广告与磨损表面图；视觉规格保存在 `references/asset-prompts.txt`。
 - `src/building.ts`、`src/main.ts`：空间约束及交互；场景几何和 HUD 都使用 Estella 运行时。
 
-已有纹理保留不变，仅重建场景时执行 `node examples/cyber-rooftop/tools/scene.mjs`。完整重建：
+已有纹理保留不变，仅重建场景时执行 `node examples/cyber-rooftop/tools/scene.mjs`。仅调整 HUD 边框可执行 `python examples/cyber-rooftop/tools/hud.py`。完整重建（保留广告、磨损表面、物品图集及地图底图）：
 
 ```powershell
 python examples/cyber-rooftop/tools/textures.py
@@ -61,6 +63,7 @@ node tools/asset-meta.js examples/cyber-rooftop/assets
 ## 验证
 
 ```powershell
+node build-tools/cli.js check-examples
 & ./sdk/node_modules/.bin/tsc.cmd -p examples/cyber-rooftop/tsconfig.json
 node --test examples/cyber-rooftop/tools/building.test.mjs
 node tools/asset-meta.js examples/cyber-rooftop/assets --check
