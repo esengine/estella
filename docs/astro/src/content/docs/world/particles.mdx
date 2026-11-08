@@ -643,6 +643,18 @@ without WebGPU matters to you.
 - In game code particles advance in **play mode**; in the editor the **Preview
   FX** toggle keeps them live while you author.
 
+## Imported particle units
+
+`ParticleModelUnits` preserves an imported emitter's size ranges, speed ranges
+and gravity in model units. With this component beside `ParticleEmitter`, the
+particle plugin multiplies those values by the largest absolute axis of the
+composed world scale, including parent scale. Emitter position still follows
+`Transform`. This is a scalar conversion for world-space particles, not an
+anisotropic particle simulation.
+
+Edit the values on `ParticleModelUnits` when changing these imported properties:
+the plugin derives the corresponding `ParticleEmitter` fields from them.
+
 ## See also
 
 - [Materials & Shaders](/docs/graphics/materials/) — custom particle materials.

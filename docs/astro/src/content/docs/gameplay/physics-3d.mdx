@@ -619,3 +619,17 @@ Press **J** to reverse their motors; **F1** toggles collider debug drawing. Sele
 either joint in the editor to inspect its limits. Viewport limits are read-only;
 edit their numbers in Details. These components are experimental. Headless Jolt
 checks cover limits and motors; target-device acceptance is recorded separately.
+
+## Imported compound colliders
+
+`CompoundCollider3D` combines boxes, spheres and capsules into one native body on
+the same entity as `RigidBody3D`. Each `parts` entry has a local `position` and
+`rotation`, plus `halfExtents`, `radius` or capsule `halfHeight`. These dimensions
+and offsets are in model units: the entity's composed scale places them in world
+space before the physics unit conversion. Both Jolt and PhysX consume the same
+component and packet layout.
+
+Use finite positive placement scales. A rotated box or capsule under non-uniform
+scale needs baked collision geometry; the component rejects that unsupported
+case instead of creating a mismatched shape. Mesh and convex colliders also apply
+the model's composed scale to their source vertices.

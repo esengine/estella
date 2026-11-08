@@ -339,6 +339,18 @@ the owning plugin (see `tilemapPlugin`) does it at startup.
   [persistent](#persistent-entities), or because nothing owns it (a leak).
 </Aside>
 
+## Imported node visibility
+
+`NodeVisibility.visible` is an animatable gate over a visual subtree. Setting it
+to `false` masks the registered renderer flags of the entity and its descendants;
+showing it again restores their authored flags. Scene serialization preserves
+those authored values while the gate is closed. Cameras, physics bodies and
+gameplay entities remain active.
+
+For particle emitters the registered flag is `enabled`, so hiding such a subtree
+also affects its particle simulation. Put an emitter outside the hidden visual
+subtree when it must continue running independently.
+
 ## See also
 
 - [Prefabs](/docs/world/prefabs/) — spawn reusable entity trees within a scene.

@@ -51,6 +51,7 @@ export const CATEGORY_LABELS: Record<ComponentCategory, string> = {
 
 export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   // ── Core ───────────────────────────────────────────────────────────────────
+  NodeVisibility: { category: 'core', summary: 'An animatable visual gate for an entity subtree that preserves authored renderer flags; particle emitters use their enabled flag while hidden.', doc: 'world/scenes' },
   Transform: { category: 'core', summary: 'Position, rotation and scale — plus the read-only world-space values the engine composes down the parent chain.', doc: 'core-concepts/transforms', anchor: 'the-transform-component', anchorZh: 'transform-组件' },
   Parent: { category: 'core', summary: 'The entity this one hangs under. The engine keeps it and `Children` in step; set it through the hierarchy API.', doc: 'core-concepts/transforms', anchor: 'parenting--hierarchy', anchorZh: '父子层级' },
   Children: { category: 'core', summary: "The entity's children, maintained by the engine alongside `Parent`. Its order is the order UI lays out and draws children in, and what hierarchy-order layers stack by.", doc: 'core-concepts/transforms', anchor: 'parenting--hierarchy', anchorZh: '父子层级' },
@@ -161,6 +162,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   PolygonCollider2D: { category: 'physics', summary: 'A convex polygon collision shape from your own points.', doc: 'gameplay/physics', anchor: 'colliders', anchorZh: '碰撞体' },
   ChainCollider2D: { category: 'physics', summary: 'A polyline of edges — open or looped — for static terrain.', doc: 'gameplay/physics', anchor: 'colliders', anchorZh: '碰撞体' },
   RigidBody3D: { category: 'physics', summary: 'Puts the entity under the 3D solver — its own component set, so a 2D scene keeps the world it already has.', doc: 'gameplay/physics-3d', anchor: 'bodies', anchorZh: '刚体' },
+  CompoundCollider3D: { category: 'physics', summary: 'Boxes, spheres and capsules with local positions and rotations, combined into one native rigid body using the model placement scale.', doc: 'gameplay/physics-3d' },
   BoxCollider3D: { category: 'physics', summary: 'A box collision shape in 3D. Half-extents are in world units.', doc: 'gameplay/physics-3d', anchor: 'shapes', anchorZh: '形状' },
   SphereCollider3D: { category: 'physics', summary: 'A sphere collision shape in 3D.', doc: 'gameplay/physics-3d', anchor: 'shapes', anchorZh: '形状' },
   CapsuleCollider3D: { category: 'physics', summary: 'An upright capsule — what a 3D character is. Total height is 2*(halfHeight + radius).', doc: 'gameplay/physics-3d', anchor: 'shapes', anchorZh: '形状' },
@@ -207,6 +209,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   // ── World ──────────────────────────────────────────────────────────────────
   Tilemap: { category: 'world', summary: 'A Tiled map asset projected into the scene; the engine derives one layer entity per map layer.', doc: 'world/tilemaps', anchor: 'load-a-tiled-map', anchorZh: '加载-tiled-地图' },
   TilemapLayer: { category: 'world', summary: 'One layer of tiles — its tileset, cell size, orientation, sorting and collision.', doc: 'world/tilemaps', anchor: 'the-tilemaplayer-component', anchorZh: 'tilemaplayer-组件' },
+  ParticleModelUnits: { category: 'world', summary: 'Imported particle sizes, speeds and gravity in model units; the particle plugin applies the largest absolute world-scale axis to the emitter.', doc: 'world/particles' },
   ParticleEmitter: { category: 'world', summary: 'A particle system: emission, lifetime, shape, forces, noise, colour and size over life, sub-emitters and trails.', doc: 'world/particles', anchor: 'particleemitter-reference', anchorZh: 'particleemitter-字段参考' },
   ParticleForceField: { category: 'world', summary: 'A field that pushes particles around — point, directional, vortex or drag.', doc: 'world/particles', anchor: 'force-fields', anchorZh: '力场' },
   Marker: { category: 'world', summary: 'A named point or region of gameplay interest — spawn point, waypoint, trigger zone — queryable like any component.', doc: 'gameplay/markers', anchor: 'marker-component-reference', anchorZh: 'marker-组件参考' },

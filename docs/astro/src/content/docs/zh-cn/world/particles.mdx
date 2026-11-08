@@ -585,6 +585,16 @@ world.insert(entity, ParticleEmitter, {
 - **复用发射器**:用 `reset` + `play` 而不是生成/销毁。
 - 游戏代码里粒子在**播放模式**推进;编辑器里 **Preview FX** 开关让它们在创作时保持鲜活。
 
+## 导入粒子的单位
+
+`ParticleModelUnits` 保存导入发射器在模型单位下的尺寸范围、速度范围和重力。
+与 `ParticleEmitter` 同时存在时，粒子插件会将这些值乘以合成世界缩放中绝对值
+最大的轴，其中包含父实体缩放。发射位置仍跟随 `Transform`。这是世界空间粒子的
+统一尺度换算，不是按各轴分别缩放的粒子模拟。
+
+修改这些导入属性时，应编辑 `ParticleModelUnits`；插件会据此更新对应的
+`ParticleEmitter` 字段。
+
 ## 参见
 
 - [材质与着色器](/docs/zh-cn/graphics/materials/) —— 自定义粒子材质。

@@ -1164,6 +1164,47 @@
       ]
     },
     {
+      "name": "CompoundCollider3D",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "parts",
+          "type": "array",
+          "default": "empty"
+        },
+        {
+          "key": "friction",
+          "type": "number",
+          "default": "0.3"
+        },
+        {
+          "key": "restitution",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "isSensor",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "mass",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "friction",
+        "restitution",
+        "mass"
+      ]
+    },
+    {
       "name": "ContentRect",
       "source": "cpp",
       "fields": [
@@ -3765,6 +3806,20 @@
       "tag": true
     },
     {
+      "name": "NodeVisibility",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "visible",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "visible"
+      ]
+    },
+    {
       "name": "Occluder",
       "source": "cpp",
       "fields": [
@@ -4357,6 +4412,58 @@
           "type": "boolean",
           "default": "true"
         }
+      ]
+    },
+    {
+      "name": "ParticleModelUnits",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "startSizeMin",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "startSizeMax",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "endSizeMin",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "endSizeMax",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "speedMin",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "speedMax",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "gravity",
+          "type": "Vec3",
+          "default": "(0, 0, 0)"
+        }
+      ],
+      "animatable": [
+        "startSizeMin",
+        "startSizeMax",
+        "endSizeMin",
+        "endSizeMax",
+        "speedMin",
+        "speedMax",
+        "gravity.x",
+        "gravity.y",
+        "gravity.z"
       ]
     },
     {
