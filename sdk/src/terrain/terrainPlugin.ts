@@ -44,7 +44,7 @@ export { paintWeights };
 import { GroundEdit } from './groundEdit';
 import { FieldSource, ModifiedSource, NoiseSource, type TerrainModifier, type TerrainSource } from './source';
 import { levelRange, nodeKey, parentOf, selectNodes, type QuadtreeParams, type TerrainNode } from './quadtree';
-import { makePage, PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage, type Repaint } from './pages';
+import { makePage, makePageJob, PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage, type Repaint } from './pages';
 import { noiseProvider, ProviderSource, terrainProvider, terrainProvidersRevision, TerrainUnavailable, type TerrainProvider } from './provider';
 import { buildPatchMesh } from './patch';
 import { TerrainSurface, TILE_CELLS, type SurfaceTile } from './surface';
@@ -216,6 +216,8 @@ interface Built {
     wanted: Map<string, TerrainNode>;
     /** Pages asked of a provider that answers later, by key: the frame's budget is not spent waiting for them. */
     asked: Set<string>;
+    /** A synchronous source's page paused inside sampling/painting, rather than blocking a whole frame. */
+    pageWork?: { key: string; epoch: number; edits: number; job: Generator<number, PageImage, void>; image?: PageImage };
     pending: boolean;
     /** Why the ground could not be made, once it could not: nothing is drawn or answered for it. */
     failure: string | null;
@@ -492,7 +494,11 @@ export class Terrains {
 
     /** Makes every page again, for a paint that changed what it answers. */
     repaint(): void {
-        for (const built of this.built_.values()) built.table.clear();
+        for (const built of this.built_.values()) {
+            built.edits++;
+            built.pageWork = undefined;
+            built.table.clear();
+        }
     }
 
     /** @internal Bumped whenever a terrain's ground changes, so what stands on it knows to stand again. */
@@ -939,7 +945,8 @@ export class TerrainPlugin implements Plugin {
         const paint = app.getResource(TerrainsRes).paint_;
         const repaint: Repaint | undefined = paint ? (x, z, h, ny, w) => paint(x + at.x, z + at.z, h + at.y, ny, w) : undefined;
         const bakes = bakesOf(app);
-        if (built.wanted.size === 0) { bakes.mark(built, 'Building the terrain', 1); return; }
+        if (built.wanted.size === 0) { built.pageWork = undefined; bakes.mark(built, 'Building the terrain', 1); return; }
+        if (built.pageWork && (built.pageWork.epoch !== built.epoch || built.pageWork.edits !== built.edits || !built.wanted.has(built.pageWork.key))) built.pageWork = undefined;
         const order = [...built.wanted.values()].sort((a, b) => b.level - a.level
             || Math.hypot(a.x0 + a.size / 2 - eye[0], a.z0 + a.size / 2 - eye[2]) - Math.hypot(b.x0 + b.size / 2 - eye[0], b.z0 + b.size / 2 - eye[2]));
         let made = 0;
@@ -953,6 +960,29 @@ export class TerrainPlugin implements Plugin {
             return true;
         };
         const epoch = built.epoch, edits = built.edits;
+        const base = source instanceof ModifiedSource ? source.base : source;
+        // The built-in noise provider has ready point samples identical to its region samples. External region providers may not.
+        const incremental = !source.region || (base instanceof ProviderSource && base.provider.id === NOISE_PROVIDER);
+        if (incremental) {
+            do {
+                if (!built.pageWork) {
+                    const node = order.find((n) => built.wanted.has(nodeKey(n.level, n.ix, n.iz)));
+                    if (!node) break;
+                    built.pageWork = { key: nodeKey(node.level, node.ix, node.iz), epoch, edits, job: makePageJob(source, node.x0, node.z0, node.size, repaint) };
+                }
+                const work = built.pageWork;
+                if (!work.image) {
+                    const next = work.job.next();
+                    if (next.done) work.image = next.value;
+                }
+                if (work.image) {
+                    if (!store(work.key, work.image)) break;
+                    built.wanted.delete(work.key); built.pageWork = undefined; made++;
+                }
+            } while (bakes.hasTime());
+            bakes.mark(built, 'Building the terrain', made === 0 ? 0 : 1 - built.wanted.size / (built.wanted.size + made));
+            return;
+        }
         for (const node of order) {
             const key = nodeKey(node.level, node.ix, node.iz);
             if (built.asked.has(key)) continue;
@@ -1030,6 +1060,7 @@ export class TerrainPlugin implements Plugin {
         built.nodes.clear();
         built.spare.length = 0;
         built.wanted.clear();
+        built.pageWork = undefined;
         const rm = getResourceManager();
         for (const handle of [built.heights, built.paint, built.paint2]) {
             if (!handle) continue;

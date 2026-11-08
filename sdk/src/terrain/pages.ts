@@ -46,13 +46,25 @@ export function makePage(source: TerrainSource, x0: number, z0: number, size: nu
         return got instanceof Promise ? got.then((r) => encodePage(source, x0, z0, step, r.heights, r, repaint))
             : encodePage(source, x0, z0, step, got.heights, got, repaint);
     }
-    const h = new Float32Array(n * n);
+    return finishPage(makePageJob(source, x0, z0, size, repaint));
+}
+
+/** A page made in bounded sample batches. Use only when height() is ready and synchronous; region-only providers keep their async path. */
+export function* makePageJob(source: TerrainSource, x0: number, z0: number, size: number, repaint?: Repaint): Generator<number, PageImage, void> {
+    const n = PAGE_SIDE, step = size / PAGE_TEXELS, h = new Float32Array(n * n);
     const [bx0, bz0, bx1, bz1] = source.bounds ?? [-Infinity, -Infinity, Infinity, Infinity];
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    for (let k = 0; k < h.length; k++) {
+        const i = k % n, j = Math.floor(k / n);
         const x = Math.min(Math.max(x0 + (i - 1) * step, bx0), bx1), z = Math.min(Math.max(z0 + (j - 1) * step, bz0), bz1);
-        h[j * n + i] = source.height(x, z) ?? source.minHeight;
+        h[k] = source.height(x, z) ?? source.minHeight;
+        if ((k + 1) % 32 === 0) yield 0.4 * (k + 1) / h.length;
     }
-    return encodePage(source, x0, z0, step, h, undefined, repaint);
+    yield 0.4;
+    return yield* encodePageJob(source, x0, z0, step, h, undefined, repaint);
+}
+
+function finishPage(job: Generator<number, PageImage, void>): PageImage {
+    for (;;) { const next = job.next(); if (next.done) return next.value; }
 }
 
 /** The paint of a sample at (x, z) in the terrain's space, `h` high and facing `ny` up, from what it would otherwise be. */
@@ -60,6 +72,10 @@ export type Repaint = (x: number, z: number, h: number, ny: number, w: LayerWeig
 
 /** Encodes a page's samples (row by row, one past each edge): heights and normals into one image, the paint into the other. */
 function encodePage(source: TerrainSource, x0: number, z0: number, step: number, h: Float32Array, given?: TerrainRegionSamples, repaint?: Repaint): PageImage {
+    return finishPage(encodePageJob(source, x0, z0, step, h, given, repaint));
+}
+
+function* encodePageJob(source: TerrainSource, x0: number, z0: number, step: number, h: Float32Array, given?: TerrainRegionSamples, repaint?: Repaint): Generator<number, PageImage, void> {
     const n = PAGE_SIDE;
     const [bx0, bz0, bx1, bz1] = source.bounds ?? [-Infinity, -Infinity, Infinity, Infinity];
     let min = Infinity, max = -Infinity;
@@ -88,6 +104,7 @@ function encodePage(source: TerrainSource, x0: number, z0: number, step: number,
             paint[k * 4 + c] = Math.round(Math.min(Math.max(w[c] ?? 0, 0), 1) * 255);
             paint2[k * 4 + c] = Math.round(Math.min(Math.max(w[c + 4] ?? 0, 0), 1) * 255);
         }
+        if ((k + 1) % 32 === 0) yield 0.4 + 0.6 * (k + 1) / (n * n);
     }
     return { heights, paint, paint2, min: Number.isFinite(min) ? min : source.minHeight, max: Number.isFinite(max) ? max : source.maxHeight };
 }
