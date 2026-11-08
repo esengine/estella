@@ -56,6 +56,18 @@ export function sceneWatchdogMs(backend, host) {
  * verbatim — an empty one is the default sprite scene.
  */
 export const SCENES = [
+  {
+    id: 'planar-tiled-lights', tier: 'pr', webgpu: true,
+    env: {
+      ESTELLA_VERIFY_SCENE: '/scenes/planar-tiled-lights.esscene',
+      ESTELLA_VERIFY_W: '512', ESTELLA_VERIFY_H: '512', ESTELLA_VERIFY_STEPS: '3',
+      ESTELLA_VERIFY_EXPECT: JSON.stringify([
+        { x: 200 / 512, y: 210 / 512, rgb: [255, 0, 0], tol: 25 },
+        { x: 200 / 512, y: 290 / 512, rgb: [255, 0, 0], tol: 25 },
+      ]),
+      ESTELLA_VERIFY_COUNTERS: JSON.stringify({ 'render.planar.tiledLights': 1 }),
+    },
+  },
   // Full 8x8 corner blocks: native Sprite, 5x-wide Sprite, and shared UI geometry.
   { id: 'sprite-nine-slice', tier: 'pr', webgpu: true, env: {
       ESTELLA_VERIFY_SCENE: '/scenes/sprite-nine-slice.esscene',
@@ -979,6 +991,7 @@ const PREPASS_TWINS = [
   // Scenes that draw opaque meshes already.
   'mesh-opaque', 'mesh-instanced', 'prepass-hook', 'corpus-cutout-edge', 'mesh-normalmap', 'mesh-shadow-cutout', 'mesh-shadow', 'sun-shadow',
   { id: 'planar-reflection', counters: { 'render.planar.prepass.draws': 1 } },
+  { id: 'planar-tiled-lights', counters: { 'render.planar.prepass.draws': 2 } },
   // The same scenes with their meshes made opaque (fixtures/scenes/*-opaque.esscene), for what a mesh can be besides a rigid one that is lit:
   // skinned, morphing.
   { id: 'mesh-skin', scene: 'mesh-skin-opaque.esscene' }, { id: 'mesh-morph-shaped', scene: 'mesh-morph-opaque.esscene' },

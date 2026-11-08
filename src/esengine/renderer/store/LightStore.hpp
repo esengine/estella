@@ -20,6 +20,7 @@
 #include "../rhi/GfxEnums.hpp"
 #include "./LightConstants.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <glm/glm.hpp>
 
@@ -73,24 +74,24 @@ public:
         dirty_ = true;
     }
 
-    /// Appends a light the loop's sixteen did not have room for, to be read through the tile masks: it marks every tile of
-    /// @p viewProjection its sphere (@p position, @p radius) can reach. Returns false past MAX_TILED_LIGHTS.
-    bool addTiledLight(const GpuLight& light, const glm::mat4& viewProjection, const glm::vec3& position, f32 radius) {
+    /// Appends a positional light past the loop's sixteen and marks the tiles its sphere reaches through @p viewProjection.
+    /// Returns false past MAX_TILED_LIGHTS.
+    bool addTiledLight(const GpuLight& light, const glm::mat4& viewProjection) {
         if (tiledCount_ >= MAX_TILED_LIGHTS) return false;
         data_.tiledLights[tiledCount_] = light;
-        markLightTiles(viewProjection, position, radius, tiledCount_, reinterpret_cast<u32(*)[4]>(data_.tileMask));
+        markTiledLight(tiledCount_, viewProjection);
         ++tiledCount_;
         data_.tileInfo = glm::vec4(static_cast<f32>(tiledCount_), static_cast<f32>(TILE_COLUMNS), static_cast<f32>(TILE_ROWS), 0.0f);
         dirty_ = true;
         return true;
     }
 
-    /// Hides the tiled lights from the passes that follow, which draw through another camera (a planar reflection): their masks
-    /// were made for the camera this frame is seen from and would be read by pixels they mean nothing to. A false brings them back.
-    void suspendTiled(bool suspended) {
-        const f32 count = suspended ? 0.0f : static_cast<f32>(tiledCount_);
-        if (data_.tileInfo.x == count) return;
-        data_.tileInfo.x = count;
+    /// Reprojects the collected lights for another view without changing their identity, illumination or shadow assignments.
+    /// Call again with the source view after drawing a reflection; its post-processing also reads this block.
+    void setTiledView(const glm::mat4& viewProjection) {
+        if (tiledCount_ == 0) return;
+        std::fill_n(data_.tileMask, TILE_COLUMNS * TILE_ROWS, glm::uvec4(0u));
+        for (u32 i = 0; i < tiledCount_; ++i) markTiledLight(i, viewProjection);
         dirty_ = true;
     }
 
@@ -213,6 +214,13 @@ public:
     const LightConstants& data() const { return data_; }
 
 private:
+    void markTiledLight(u32 index, const glm::mat4& viewProjection) {
+        const auto& light = data_.tiledLights[index];
+        const glm::vec3 position(light.posDir.x, light.posDir.y, light.shadow.z);
+        markLightTiles(viewProjection, position, std::max(light.posDir.w, 0.0f), index,
+                       reinterpret_cast<u32(*)[4]>(data_.tileMask));
+    }
+
     LightConstants data_{};
     u32 count_ = 0;
     u32 tiledCount_ = 0;

@@ -1818,8 +1818,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         lights.addLight(collected[slot].gpu);
     }
     for (const CollectedLight& light : tiled) {
-        const glm::vec3 position(light.gpu.posDir.x, light.gpu.posDir.y, light.gpu.shadow.z);
-        lights.addTiledLight(light.gpu, view_projection_, position, std::max(light.gpu.posDir.w, 0.0f));
+        lights.addTiledLight(light.gpu, view_projection_);
     }
 
     // Last, because which lights the mask can carry is a question about the array the

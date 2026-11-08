@@ -167,11 +167,12 @@ void RenderFrame::executePlanarReflection(ecs::Registry& registry, u32 view) {
     planar_pool_.upload();
     context_.useFrameConstants(capture.frameUbo,
         toClipDepthRange(capture.camera.projection, device_.clipDepthRange()));
-    // The tiled lights' masks are for the camera the scene is seen from; this one looks from the mirror.
-    context_.lights().suspendTiled(true);
-    context_.lights().uploadAndBind();
+    auto& lights = context_.lights();
+    lights.setTiledView(capture.camera.projection);
+    lights.uploadAndBind();
     submitColorList(planar_list_, planar_pool_, nullptr, DrawList::Phase::All, "render.planar.prepass.draws");
-    context_.lights().suspendTiled(false);
+    lights.setTiledView(view_projection_);
+    ES_PROFILE_COUNTER("render.planar.tiledLights", lights.tiledCount());
     capture.valid = true;
     capture.lastTime = planar_elapsed_;
     capture.draws = planar_list_.mergedDrawCallCount();

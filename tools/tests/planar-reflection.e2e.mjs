@@ -62,10 +62,10 @@ try {
       await writeFile(path.join(out, `${backend}-${name}.png`), PNG.sync.write(image));
       return image;
     };
-    const changed = (a,b,startY=0) => {
+    const changed = (a,b,startY=0,tolerance=40) => {
       let count=0;
       for(let i=startY*a.width*4;i<a.data.length;i+=4) {
-        if(Math.abs(a.data[i]-b.data[i])+Math.abs(a.data[i+1]-b.data[i+1])+Math.abs(a.data[i+2]-b.data[i+2])>40) count++;
+        if(Math.abs(a.data[i]-b.data[i])+Math.abs(a.data[i+1]-b.data[i+1])+Math.abs(a.data[i+2]-b.data[i+2])>tolerance) count++;
       }
       return count;
     };
@@ -157,7 +157,55 @@ try {
     assert.ok(pixel(split,72,290)[0]>230,'first view must keep its own reflection');
     assert.ok(pixel(split,375,268)[1]>230,'second view must capture from its own camera');
     assert.deepEqual(errors,[]);
-    report.checks.push({backend,ready,drawsOn,drawsOff,prepassDraws,reflectionPixels:changed(on,off,256),movingPixels:changed(on,moved,256),recovery,secondView,lossLogs,errors});
+
+    // A fresh world: sixteen brighter lights outside the scene move the local light into the tiled list without changing its illumination.
+    await page.reload();
+    await page.evaluate(async () => { await window.__estellaHeadless.ready; });
+    await page.evaluate(() => window.__estellaHeadless.api.setCpuProfiling(true));
+    const tiledLoad = await page.evaluate(() => window.__estellaHeadless.api.loadScene('/scenes/planar-tiled-lights.esscene'));
+    assert.deepEqual(tiledLoad.missing, []);
+    const lightDifference = (a,b) => changed(a,b,0,3);
+    const distant = async enabled => {
+      for (let id=100;id<116;id++) await field(id,'Light','enabled',enabled);
+      await step(3);
+    };
+    await distant(false);
+    const directLight = await capture('direct-light-reference');
+    assert.ok(pixel(directLight,200,210)[0]>80,'the reference source must be lit');
+    assert.ok(pixel(directLight,200,290)[0]>80,'the reference reflection must be lit');
+    await distant(true);
+    const tiledLight = await capture('tiled-light');
+    const tiledCounters = await page.evaluate(() => window.__estellaHeadless.api.getCounters());
+    assert.equal(tiledCounters['render.planar.tiledLights'],1,'the reflection must consume the additional light');
+    assert.equal(lightDifference(directLight,tiledLight),0,'moving a light into the tiled list must preserve source and reflected illumination');
+    await field(116,'Light','type',3);
+    await field(116,'Light','innerAngle',60);
+    await field(116,'Light','outerAngle',90);
+    await step(3);
+    const tiledSpot = await capture('tiled-spot');
+    await distant(false);
+    const directSpot = await capture('direct-spot');
+    assert.ok(pixel(directSpot,200,290)[0]>80,'the reference spot reflection must be lit');
+    assert.equal(lightDifference(directSpot,tiledSpot),0,'a spot must preserve its cone and reflected illumination in the tiled list');
+    await field(116,'Light','type',0);
+    await distant(true);
+    await field(116,'Transform','position.x',1.3);
+    await field(3,'Transform','position.x',1.3);
+    await step(3);
+    const tiledMoved = await capture('tiled-light-moved');
+    await distant(false);
+    const directMoved = await capture('direct-light-moved');
+    assert.equal(lightDifference(directMoved,tiledMoved),0,'moving geometry and light must rebuild both views of the light grid');
+    assert.ok(changed(directLight,tiledMoved,256)>100,'the reflected light must move with the object');
+    await field(1,'Camera','viewport',{x:0,y:0,z:0.5,w:1});
+    await field(6,'Camera','isActive',true); await step(3);
+    const directSplit = await capture('direct-light-two-cameras');
+    await distant(true);
+    const tiledSplit = await capture('tiled-light-two-cameras');
+    assert.equal(lightDifference(directSplit,tiledSplit),0,'each split-screen camera must restore its own light grid after its reflection');
+    assert.deepEqual(errors,[]);
+    report.checks.push({backend,ready,drawsOn,drawsOff,prepassDraws,reflectionPixels:changed(on,off,256),movingPixels:changed(on,moved,256),recovery,secondView,lossLogs,errors,
+      tiledLights:{count:tiledCounters['render.planar.tiledLights'],pixelRgbSumTolerance:3,source:pixel(tiledLight,200,210),reflection:pixel(tiledLight,200,290),singleViewPixels:lightDifference(directLight,tiledLight),spotPixels:lightDifference(directSpot,tiledSpot),movedPixels:lightDifference(directMoved,tiledMoved),splitViewPixels:lightDifference(directSplit,tiledSplit)}});
     await page.close();
   }
   report.status = 'checks-passed';

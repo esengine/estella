@@ -122,27 +122,60 @@ int main() {
         CHECK(tilesWithBit(masks, 3) == kTiles, "and one bigger than the view marks them all");
     }
 
-    // --- the store carries what the tiles name, up to its cap, and a reflection pass can hide them
+    // --- the store carries what the tiles name, up to its cap, across view changes
     {
         LightStore store;
         store.clear();
         GpuLight light;
-        light.posDir = glm::vec4(0.0f, 0.0f, 0.0f, 10.0f);
+        light.posDir = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        light.shadow.z = -50.0f;
         light.color = glm::vec4(1.0f, 0.0f, 0.0f, 2.0f);
         for (u32 i = 0; i < MAX_TILED_LIGHTS; ++i) {
-            if (!store.addTiledLight(light, vp, glm::vec3(0.0f, 0.0f, -50.0f), 1.0f)) { CHECK(false, "a tiled light was refused under the cap"); break; }
+            if (!store.addTiledLight(light, vp)) { CHECK(false, "a tiled light was refused under the cap"); break; }
         }
         CHECK(store.tiledCount() == MAX_TILED_LIGHTS && store.data().tileInfo.x == static_cast<f32>(MAX_TILED_LIGHTS),
               "the store holds a full set of tiled lights and says how many");
-        CHECK(!store.addTiledLight(light, vp, glm::vec3(0.0f, 0.0f, -50.0f), 1.0f), "and refuses the next");
+        CHECK(!store.addTiledLight(light, vp), "and refuses the next");
         CHECK(store.data().tileInfo.y == static_cast<f32>(TILE_COLUMNS) && store.data().tileInfo.z == static_cast<f32>(TILE_ROWS),
               "it says the tile grid's size");
-        store.suspendTiled(true);
-        CHECK(store.data().tileInfo.x == 0.0f, "suspended, the shader's loop does not run");
-        store.suspendTiled(false);
-        CHECK(store.data().tileInfo.x == static_cast<f32>(MAX_TILED_LIGHTS), "and resumed, it does");
+        store.setTiledView(vp);
+        const auto& centre = store.data().tileMask[(TILE_ROWS / 2) * TILE_COLUMNS + TILE_COLUMNS / 2];
+        CHECK(centre.x == 0xffffffffu && centre.y == 0xffffffffu && centre.z == 0xffffffffu && centre.w == 0,
+              "reprojection retains all ninety-six light indices across the three mask words");
+        CHECK(store.data().tileInfo.x == static_cast<f32>(MAX_TILED_LIGHTS), "another view keeps the full light count");
         store.clear();
+        store.setTiledView(vp);
         CHECK(store.tiledCount() == 0 && store.data().tileInfo.x == 0.0f, "a new frame starts with none");
+        bool empty = true;
+        for (const auto& mask : store.data().tileMask) empty &= mask == glm::uvec4(0u);
+        CHECK(empty, "an empty view cannot retain the previous frame's light masks");
+    }
+
+    // --- reflected coordinates replace the source grid, which can be restored for the source camera and its post-processing
+    {
+        LightStore store;
+        const glm::mat4 source = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 0.1f, 100.0f);
+        const glm::mat4 reflected = source * glm::scale(glm::mat4(1.0f), glm::vec3(-1.0f, 1.0f, 1.0f));
+        GpuLight point;
+        point.posDir = {-5.0f, -5.0f, 0.0f, 0.25f};
+        point.shadow.z = -50.0f;
+        point.color = {1.0f, 0.0f, 0.0f, 2.0f};
+        GpuLight spot = point;
+        spot.posDir = {5.0f, 5.0f, 2.0f, 0.25f};
+        spot.spot = {0.0f, 0.0f, 0.9f, 0.5f};
+        CHECK(store.addTiledLight(point, source) && store.addTiledLight(spot, source), "point and spot share the view grid");
+        const LightConstants original = store.data();
+        CHECK((original.tileMask[2 * TILE_COLUMNS + 3].x & 1u) != 0, "the point starts in the lower-left source tiles");
+        CHECK((original.tileMask[8 * TILE_COLUMNS + 11].x & 2u) != 0, "the spot starts in the upper-right source tiles");
+        store.setTiledView(reflected);
+        CHECK((store.data().tileMask[2 * TILE_COLUMNS + 12].x & 1u) != 0, "the point reaches the lower-right reflected tiles");
+        CHECK((store.data().tileMask[9 * TILE_COLUMNS + 4].x & 2u) != 0, "the spot reaches the upper-left reflected tiles");
+        CHECK((store.data().tileMask[2 * TILE_COLUMNS + 3].x & 1u) == 0, "source tiles are cleared rather than accumulated");
+        CHECK(std::memcmp(original.tiledLights, store.data().tiledLights, sizeof(original.tiledLights)) == 0,
+              "view changes preserve positions, radii, colours and spot parameters");
+        store.setTiledView(source);
+        CHECK(std::memcmp(original.tileMask, store.data().tileMask, sizeof(original.tileMask)) == 0,
+              "restoring the source view recovers its exact tile masks");
     }
 
     CHECK(sizeof(LightConstants) <= 16384, "the whole block fits the 16 KB a uniform block is guaranteed");
