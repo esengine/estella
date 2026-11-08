@@ -10,7 +10,7 @@ import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { importModelFile } from '../src/assets/importModelFile';
 
-function triangleGltf(image: string): string {
+function triangleGltf(image: string, specularGlossiness = false): string {
     const positions = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]);
     const indices = new Uint16Array([0, 1, 2, 0]);
     const bytes = Buffer.concat([Buffer.from(positions.buffer), Buffer.from(indices.buffer)]);
@@ -18,7 +18,9 @@ function triangleGltf(image: string): string {
         asset: { version: '2.0' },
         scene: 0, scenes: [{ nodes: [0] }], nodes: [{ mesh: 0, name: 'tri' }],
         meshes: [{ primitives: [{ attributes: { POSITION: 0 }, indices: 1, material: 0 }] }],
-        materials: [{ name: 'wall', pbrMetallicRoughness: { baseColorTexture: { index: 0 } } }],
+        materials: [specularGlossiness
+            ? { extensions: { KHR_materials_pbrSpecularGlossiness: { specularGlossinessTexture: { index: 0 } } } }
+            : { name: 'wall', pbrMetallicRoughness: { baseColorTexture: { index: 0 } } }],
         textures: [{ source: 0 }], images: [{ uri: image }],
         buffers: [{ byteLength: bytes.length, uri: `data:application/octet-stream;base64,${bytes.toString('base64')}` }],
         bufferViews: [{ buffer: 0, byteOffset: 0, byteLength: 36, target: 34962 }, { buffer: 0, byteOffset: 36, byteLength: 6, target: 34963 }],
@@ -33,12 +35,12 @@ describe('a model that names a texture the project does not have', () => {
     const roots: string[] = [];
     afterAll(() => { for (const r of roots) rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
 
-    async function run(image: string, withFile: boolean, besideAs = image) {
+    async function run(image: string, withFile: boolean, besideAs = image, specularGlossiness = false) {
         const root = mkdtempSync(path.join(tmpdir(), 'model-missing-'));
         roots.push(root);
         const src = path.join(root, 'assets', 'models');
         mkdirSync(src, { recursive: true });
-        writeFileSync(path.join(src, 'tri.gltf'), triangleGltf(image));
+        writeFileSync(path.join(src, 'tri.gltf'), triangleGltf(image, specularGlossiness));
         if (withFile) writeFileSync(path.join(src, besideAs), Buffer.from('89504e470d0a1a0a', 'hex'));
         const result = await importModelFile({ root, destDir: 'assets/models', absSource: path.join(src, 'tri.gltf') });
         const text = readdirSync(src).map((f) => (/\.(esprefab|esmaterial)$/.test(f) ? readFileSync(path.join(src, f), 'utf8') : '')).join('\n');
@@ -68,5 +70,20 @@ describe('a model that names a texture the project does not have', () => {
         const { result, text } = await run('E:/props/road/wall.png', false);
         expect(result.warnings.some((w) => w.includes('wall.png'))).toBe(true);
         expect(text).not.toContain('E:/');
+    });
+
+    it('repairs a specular/glossiness map from beside the model', async () => {
+        const { result, text } = await run('E:/props/sg.png', true, 'sg.png', true);
+        expect(result.warnings.some(w => w.includes('is not there'))).toBe(false);
+        expect(text).toContain('"u_metallicRoughnessMap": "sg.png"');
+        expect(text).toContain('u_metallicRoughnessMap');
+        expect(text).not.toContain('E:/');
+    });
+
+    it('removes a missing specular/glossiness map and keeps its workflow', async () => {
+        const { result, text } = await run('E:/props/sg.png', false, 'sg.png', true);
+        expect(result.warnings.some(w => w.includes('sg.png'))).toBe(true);
+        expect(text).not.toContain('sg.png');
+        expect(text).toContain('ES_SPECULAR_GLOSSINESS');
     });
 });

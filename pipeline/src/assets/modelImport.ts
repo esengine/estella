@@ -77,6 +77,8 @@ export interface ImportedMaterial {
     baseColorTexture?: ImportedImageRef;
     /** Tangent-space normal map, read against the mesh's own tangent frame where it has one (see meshTangents.ts). */
     normalTexture?: ImportedImageRef;
+    /** Tangent-space X/Y scale, applied before renormalizing the sampled normal. */
+    normalScale?: number;
     /** Light the surface makes, unaffected by the scene's lights. */
     emissive?: [number, number, number];
     emissiveTexture?: ImportedImageRef;
@@ -93,6 +95,9 @@ export interface ImportedMaterial {
     roughness?: number;
     /** glTF's packing: roughness in green, metal in blue, multiplying the factors. */
     metallicRoughnessTexture?: ImportedImageRef;
+    /** Legacy glTF specular/glossiness: diffuse uses baseColor; specular is linear RGB and gloss is linear alpha. */
+    specularGlossiness?: { specular: [number, number, number]; glossiness: number };
+    specularGlossinessTexture?: ImportedImageRef;
     /**
      * Metalness, roughness and occlusion as the source wrote them: a separate image each, the value in its red channel (roughness
      * inverted when the source gave glossiness). Image preparation packs them into the one map above, glTF's way, and removes this.
@@ -144,6 +149,12 @@ export interface ImportedMaterialAsset {
     /** Every image it references, so the caller can carry the sampler settings over. */
     images: ImportedImageRef[];
 }
+
+/** Every image reference carried by an imported material, shared by preparation, copying and missing-file cleanup. */
+export const IMPORTED_MATERIAL_IMAGE_SLOTS = [
+    'baseColorTexture', 'normalTexture', 'emissiveTexture', 'occlusionTexture',
+    'metallicRoughnessTexture', 'specularGlossinessTexture', 'flowTexture', 'shiftTexture',
+] as const;
 
 /** An image the source carries inline, to be written beside the meshes. */
 export interface ImportedTexture {
@@ -630,7 +641,8 @@ const MATERIAL_LAYER_PROPERTIES: readonly [keyof ImportedMaterial, string][] = [
  */
 function needsMaterial(material: ImportedMaterial | undefined): material is ImportedMaterial {
     return !!material && !!(material.unlit || material.normalTexture || material.emissive || material.emissiveTexture
-        || material.occlusionTexture || material.alphaCutoff || material.metallicRoughnessTexture
+        || material.occlusionTexture || material.alphaCutoff || material.metallicRoughnessTexture || material.specularGlossiness
+        || (material.normalScale ?? 1) !== 1
         || (material.metallic ?? 0) !== 0 || (material.roughness ?? 1) !== 1
         || MATERIAL_LAYER_PROPERTIES.some(([field]) => material[field] !== undefined));
 }
@@ -813,8 +825,8 @@ export function importedImageSettings(meshes: ImportedMesh[]):
     const out = new Map<string, { external: boolean; settings: NonNullable<ImportedImageRef['settings']> }>();
     for (const mesh of meshes) {
         const m = mesh.material;
-        for (const image of [m?.baseColorTexture, m?.normalTexture, m?.emissiveTexture,
-            m?.occlusionTexture, m?.metallicRoughnessTexture, m?.flowTexture, m?.shiftTexture]) {
+        for (const slot of IMPORTED_MATERIAL_IMAGE_SLOTS) {
+            const image = m?.[slot];
             if (!image) continue;
             const seen = out.get(image.file);
             out.set(image.file, { external: image.external, settings: { ...image.settings, ...seen?.settings } });
@@ -845,7 +857,9 @@ export function materialProducts(meshes: ImportedMesh[], stem: string,
             });
             continue;
         }
-        const shading = refs.characters ? characterShading(material) : undefined;
+        // A name-based character preset cannot express specular/glossiness. Keep
+        // that authored BRDF on the general Model shader instead of losing it.
+        const shading = refs.characters && !material.specularGlossiness ? characterShading(material) : undefined;
 
         const images: ImportedImageRef[] = [];
         const properties: Record<string, unknown> = {};
@@ -857,7 +871,13 @@ export function materialProducts(meshes: ImportedMesh[], stem: string,
         bind('u_normalMap', material.normalTexture);
         bind('u_emissiveMap', material.emissiveTexture);
         bind('u_occlusionMap', material.occlusionTexture);
-        bind('u_metallicRoughnessMap', material.metallicRoughnessTexture);
+        bind('u_metallicRoughnessMap', material.specularGlossiness ? material.specularGlossinessTexture : material.metallicRoughnessTexture);
+        if (material.normalScale !== undefined) properties.u_normalScale = material.normalScale;
+        if (material.specularGlossiness) {
+            const [r, g, b] = material.specularGlossiness.specular;
+            properties.u_specularColor = { r, g, b, a: 1 };
+            properties.u_glossiness = material.specularGlossiness.glossiness;
+        }
         // Written even at the engine's own defaults: glTF's are 1 and 1, so a
         // product that left them out would read as a surface it is not.
         if (material.metallic !== undefined) properties.u_metallic = material.metallic;
@@ -884,9 +904,11 @@ export function materialProducts(meshes: ImportedMesh[], stem: string,
                 version: MATERIAL_FORMAT_VERSION,
                 type: 'material',
                 shader: shading ? `builtin:${shading}` : 'builtin:model',
+                ...(material.specularGlossiness ? { switches: { ES_SPECULAR_GLOSSINESS: true } } : {}),
                 // Hair is cut out and feathered by coverage, which only an unblended draw gets.
                 blendMode: material.opaque || shading === 'hair' ? BlendMode.None : BlendMode.Normal,
-                depthTest: material.opaque || shading === 'hair',
+                // Blended surfaces still test against opaque geometry in front.
+                depthTest: true,
                 depthWrite: material.opaque || shading === 'hair',
                 cull: material.cullBackfaces ? CullMode.Back : CullMode.None,
                 properties,

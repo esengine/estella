@@ -11,15 +11,14 @@
 import { PNG } from 'pngjs';
 import { decodeDds, isDds } from './ddsDecode';
 import { encodeRgbaPng } from './png';
-import type { ImportedImageRef, ImportedMaterial, ModelImportResult } from './modelImport';
+import { IMPORTED_MATERIAL_IMAGE_SLOTS, type ImportedImageRef, type ImportedMaterial, type ModelImportResult } from './modelImport';
 
-type ImageSlot = 'baseColorTexture' | 'normalTexture' | 'emissiveTexture'
-    | 'occlusionTexture' | 'metallicRoughnessTexture';
-const SLOTS: ImageSlot[] = ['baseColorTexture', 'normalTexture', 'emissiveTexture',
-    'occlusionTexture', 'metallicRoughnessTexture'];
+type ImageSlot = typeof IMPORTED_MATERIAL_IMAGE_SLOTS[number];
 
 /** Slots whose texels are numbers, not colour: sampled through sRGB decode they bend. */
-const DATA_SLOTS = new Set<ImageSlot>(['normalTexture', 'occlusionTexture', 'metallicRoughnessTexture']);
+// Specular/glossiness shares the Model shader's packed-map unit. Its RGB is
+// decoded explicitly there, while alpha stays linear.
+const DATA_SLOTS = new Set<ImageSlot>(['normalTexture', 'occlusionTexture', 'metallicRoughnessTexture', 'specularGlossinessTexture', 'flowTexture', 'shiftTexture']);
 
 interface Pixels { width: number; height: number; rgba: Uint8Array }
 
@@ -234,7 +233,7 @@ export function prepareModelImages(result: ModelImportResult,
     for (const material of materials) {
         const label = `material "${material.name}"`;
         packSeparateMaps(material, label);
-        for (const slot of SLOTS) {
+        for (const slot of IMPORTED_MATERIAL_IMAGE_SLOTS) {
             const ref = material[slot];
             if (!ref) continue;
             const { pixels, ref: converted } = load(ref, label);

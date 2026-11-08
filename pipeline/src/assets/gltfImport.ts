@@ -46,6 +46,14 @@ interface GltfTextureRef {
     extensions?: Record<string, unknown>;
 }
 
+interface GltfSpecularGlossiness {
+    diffuseFactor?: number[];
+    diffuseTexture?: GltfTextureRef;
+    specularFactor?: number[];
+    glossinessFactor?: number;
+    specularGlossinessTexture?: GltfTextureRef;
+}
+
 /**
  * `EXT_meshopt_compression` on a bufferView: the view's bytes live compressed in
  * another buffer, and decoding one yields exactly the bytes the view declares —
@@ -579,18 +587,18 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
     const src = ctx.json.materials?.[index] ?? {};
     const label = src.name ? `material "${src.name}"` : `material ${index}`;
     const pbr = src.pbrMetallicRoughness ?? {};
-    const factor = pbr.baseColorFactor ?? [1, 1, 1, 1];
+    const legacy = src.extensions?.KHR_materials_pbrSpecularGlossiness;
+    const specGloss = src.extensions?.KHR_materials_unlit === undefined && legacy && typeof legacy === 'object'
+        ? legacy as GltfSpecularGlossiness : undefined;
+    const factor = (specGloss ? specGloss.diffuseFactor : pbr.baseColorFactor) ?? [1, 1, 1, 1];
 
     const unused: string[] = [];
-    if (src.normalTexture?.scale !== undefined && src.normalTexture.scale !== 1) {
-        unused.push(`normal-map scale ${src.normalTexture.scale}`);
-    }
     const partial: string[] = [];
     for (const [name, value] of Object.entries(src.extensions ?? {})) {
         if (!SHADING_EXTENSIONS.has(name)) unused.push(name);
         // A layer's maps are not carried (the Model shader has no unit left for them): its factors are, and what a
         // map would have varied across the surface is said to be flat.
-        else if (value && typeof value === 'object'
+        else if (name !== 'KHR_materials_pbrSpecularGlossiness' && value && typeof value === 'object'
             && Object.keys(value).some(key => key.endsWith('Texture'))) partial.push(name);
     }
     if (unused.length > 0) ctx.warnings.push(`${label}: ${unused.join(', ')} not imported`);
@@ -599,8 +607,8 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
     }
     const layers = readShadingLayers(src.extensions ?? {});
 
-    const texture = pbr.baseColorTexture
-        ? readTexture(ctx, textureCache, pbr.baseColorTexture, label) : null;
+    const colorTexture = specGloss ? specGloss.diffuseTexture : pbr.baseColorTexture;
+    const texture = colorTexture ? readTexture(ctx, textureCache, colorTexture, label) : null;
     // PBR properties are only fallbacks on an unlit material. Reading them as
     // shading would change the authored style and upload textures never sampled.
     if (src.extensions?.KHR_materials_unlit !== undefined) return {
@@ -613,12 +621,17 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
     };
     const normal = src.normalTexture
         ? readTexture(ctx, textureCache, src.normalTexture, label) : null;
+    const normalScale = src.normalTexture?.scale ?? 1;
+    const validNormalScale = typeof normalScale === 'number' && Number.isFinite(normalScale);
+    if (!validNormalScale) ctx.warnings.push(`${label}: invalid normal-map scale; using 1`);
     const emissiveMap = src.emissiveTexture
         ? readTexture(ctx, textureCache, src.emissiveTexture, label) : null;
     const occlusionMap = src.occlusionTexture
         ? readTexture(ctx, textureCache, src.occlusionTexture, label) : null;
-    const metalRoughMap = pbr.metallicRoughnessTexture
+    const metalRoughMap = !specGloss && pbr.metallicRoughnessTexture
         ? readTexture(ctx, textureCache, pbr.metallicRoughnessTexture, label) : null;
+    const specGlossMap = specGloss?.specularGlossinessTexture
+        ? readTexture(ctx, textureCache, specGloss.specularGlossinessTexture, label) : null;
     const strengthExtension = src.extensions?.KHR_materials_emissive_strength as
         { emissiveStrength?: unknown } | undefined;
     const strengthValue = strengthExtension?.emissiveStrength === undefined
@@ -653,6 +666,7 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
         cullBackfaces: src.doubleSided !== true,
         ...(texture ? { baseColorTexture: texture } : {}),
         ...(normal ? { normalTexture: normal } : {}),
+        ...(normal && validNormalScale && normalScale !== 1 ? { normalScale } : {}),
         ...(emissive.some(v => v !== 0)
             ? { emissive: [emissive[0] ?? 0, emissive[1] ?? 0, emissive[2] ?? 0] as [number, number, number] }
             : {}),
@@ -661,9 +675,13 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
             occlusionTexture: occlusionMap,
             occlusionStrength: src.occlusionTexture?.strength ?? 1,
         } : {}),
-        metallic,
-        roughness,
-        ...(metalRoughMap ? { metallicRoughnessTexture: metalRoughMap } : {}),
+        ...(specGloss ? {
+            specularGlossiness: {
+                specular: [specGloss.specularFactor?.[0] ?? 1, specGloss.specularFactor?.[1] ?? 1, specGloss.specularFactor?.[2] ?? 1] as [number, number, number],
+                glossiness: specGloss.glossinessFactor ?? 1,
+            },
+            ...(specGlossMap ? { specularGlossinessTexture: specGlossMap } : {}),
+        } : { metallic, roughness, ...(metalRoughMap ? { metallicRoughnessTexture: metalRoughMap } : {}) }),
         ...(src.alphaMode === 'MASK' ? { alphaCutoff: src.alphaCutoff ?? 0.5 } : {}),
         ...(flow ? { flowTexture: flow } : {}),
         ...(shift ? { shiftTexture: shift } : {}),
@@ -675,6 +693,7 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
 /** The extensions that say something about SHADING and are read into the Model shader's layers. */
 const SHADING_EXTENSIONS = new Set([
     'KHR_materials_unlit',
+    'KHR_materials_pbrSpecularGlossiness',
     'KHR_materials_emissive_strength', 'KHR_materials_clearcoat', 'KHR_materials_sheen', 'KHR_materials_anisotropy',
     'KHR_materials_ior', 'KHR_materials_specular', 'KHR_materials_transmission', 'KHR_materials_volume',
     'KHR_materials_diffuse_transmission', 'KHR_materials_iridescence',

@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { PNG } from 'pngjs';
 import { prepareModelImages } from '../src/assets/modelImages';
 import { encodeRgbaPng } from '../src/assets/png';
-import type { ImportedMaterial, ModelImportResult } from '../src/assets/modelImport';
+import { importedImageSettings, type ImportedMaterial, type ModelImportResult } from '../src/assets/modelImport';
 
 /** An 8x8 uncompressed BGRA DDS, every texel `bgra`. */
 function dds(bgra: number[]): Uint8Array {
@@ -38,6 +38,19 @@ function model(material: Partial<ImportedMaterial>, externalFiles: string[] = []
 }
 
 describe('preparing a model\'s images', () => {
+    it('retains specular RGB and linear gloss alpha while scheduling one explicit shader decode', () => {
+        const packed = png(i => [40 + i, 100, 180, 70 + i]);
+        const result = model({
+            specularGlossiness: { specular: [1, 1, 1], glossiness: 1 },
+            specularGlossinessTexture: { file: 'packed.png', external: true, settings: { sRGB: true, wrapMode: 'clamp' } },
+        }, ['packed.png']);
+        prepareModelImages(result, () => packed);
+        expect(result.meshes[0]!.material!.specularGlossinessTexture).toEqual({ file: 'packed.png', external: true, settings: { sRGB: false, wrapMode: 'clamp' } });
+        expect(importedImageSettings(result.meshes).get('packed.png')?.settings).toMatchObject({ sRGB: false, wrapMode: 'clamp' });
+        expect(result.textures).toEqual([]);
+        expect(result.externalFiles).toEqual(['packed.png']);
+    });
+
     it('turns an external DDS into an embedded PNG, keeping its sampler settings', () => {
         const files: Record<string, Uint8Array> = { 'Textures/Wall.dds': dds([30, 20, 10, 255]) };
         const result = model({ baseColorTexture: { file: 'Textures/Wall.dds', external: true, settings: { wrapMode: 'clamp' } } },

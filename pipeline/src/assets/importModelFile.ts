@@ -16,7 +16,7 @@ import { isInsideRoot, resolveInside } from '../fs/pathSandbox';
 import { adoptOrphan } from './assetMeta';
 import {
     encodeImportedMesh, assembleModelPrefab, materialProducts, applyLightmapUV, importedImageSettings,
-    generateLods, lodName, encodeGeneratedLod, orderHairTriangles,
+    generateLods, lodName, encodeGeneratedLod, orderHairTriangles, IMPORTED_MATERIAL_IMAGE_SLOTS,
     type ImportedMesh, type ImportedNode, type SpecularMapReading,
 } from './modelImport';
 import { modelStem, readModelSource } from './readModelSource';
@@ -126,7 +126,6 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
 
     // A model exported with the path its artist had on their machine (`E:/props/road/wall.png`) names an image that is not there, and which sits
     // beside the model in the project it was brought into: the name alone finds it, as a DCC tool's own import does.
-    const slotNames = ['baseColorTexture', 'normalTexture', 'emissiveTexture', 'occlusionTexture', 'metallicRoughnessTexture', 'flowTexture', 'shiftTexture'] as const;
     const beside = new Map<string, string>();
     for (const [i, uri] of externalFiles.entries()) {
         if (existsSync(path.join(sourceDir, uri))) continue;
@@ -139,7 +138,7 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         for (const mesh of meshes) {
             const material = mesh.material as Record<string, unknown> | undefined;
             if (!material) continue;
-            for (const slot of slotNames) {
+            for (const slot of IMPORTED_MATERIAL_IMAGE_SLOTS) {
                 const image = material[slot] as { external?: boolean; file?: string } | undefined;
                 const found = image?.external && image.file !== undefined ? beside.get(image.file) : undefined;
                 if (image && found !== undefined) image.file = found;
@@ -201,11 +200,10 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
     // `.psd` the project never had).
     const lost = new Set(externalFiles.filter((uri) => !externalRefs.has(uri) && !existsSync(path.join(sourceDir, uri))));
     if (lost.size > 0) {
-        const slots = ['baseColorTexture', 'normalTexture', 'emissiveTexture', 'occlusionTexture', 'metallicRoughnessTexture', 'flowTexture', 'shiftTexture'] as const;
         for (const mesh of meshes) {
             const material = mesh.material as Record<string, unknown> | undefined;
             if (!material) continue;
-            for (const slot of slots) {
+            for (const slot of IMPORTED_MATERIAL_IMAGE_SLOTS) {
                 const image = material[slot] as { external?: boolean; file?: string } | undefined;
                 if (image?.external && image.file !== undefined && lost.has(image.file)) delete material[slot];
             }

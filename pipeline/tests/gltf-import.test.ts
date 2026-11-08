@@ -210,19 +210,68 @@ describe('glTF material import', () => {
       pbrMetallicRoughness: { metallicFactor: 1, roughnessFactor: 0.3 },
       normalTexture: { index: 0, scale: 0.4 }, emissiveFactor: [1, 0, 0],
       alphaMode: 'MASK', alphaCutoff: 0.4, doubleSided: false,
-      extensions: { KHR_materials_pbrSpecularGlossiness: {} },
+      extensions: { EXT_unimplemented_surface: {} },
     }];
     const { meshes, warnings } = await importGltfMeshes(gltf(doc), 'model');
     const line = warnings.join('\n');
-    expect(line).toContain('normal-map scale 0.4');
-    expect(line).toContain('KHR_materials_pbrSpecularGlossiness');
+    expect(line).not.toContain('normal-map scale');
+    expect(line).toContain('EXT_unimplemented_surface');
     // The channels that DO reach a shader are products, not warnings — metal and
     // roughness among them now that the lighting model has a view direction.
     expect(line).not.toContain('metallic-roughness');
     expect(line).not.toContain('emissive');
     expect(line).not.toContain('alpha cutoff');
     expect(materialProducts(meshes, 'model')[0]!.data.properties)
-      .toMatchObject({ u_metallic: 1, u_roughness: 0.3 });
+      .toMatchObject({ u_metallic: 1, u_roughness: 0.3, u_normalScale: 0.4 });
+  });
+
+  it.each([0, 0.5, 2, -1])('preserves normal scale %s through the material product', async scale => {
+    const doc = withInlineImage();
+    (doc.materials as Record<string, unknown>[])[0]!.normalTexture = { index: 0, scale };
+    const result = await importGltfMeshes(gltf(doc), 'normal');
+    expect(result.meshes[0]!.material!.normalScale).toBe(scale);
+    expect(materialProducts(result.meshes, 'normal')[0]!.data.properties.u_normalScale).toBe(scale);
+    expect(result.warnings.join('\n')).not.toContain('normal-map scale');
+  });
+
+  it('reports an invalid normal scale and keeps the default', async () => {
+    const doc = withInlineImage();
+    (doc.materials as Record<string, unknown>[])[0]!.normalTexture = { index: 0, scale: 'wrong' };
+    const result = await importGltfMeshes(gltf(doc), 'normal');
+    expect(result.meshes[0]!.material!.normalScale).toBeUndefined();
+    expect(result.warnings.join('\n')).toContain('invalid normal-map scale');
+  });
+
+  it('prefers specular/glossiness to the metallic fallback and preserves its diffuse alpha and packed map', async () => {
+    const doc = withInlineImage();
+    doc.images = [{ uri: 'diffuse.png' }, { uri: 'specular.png' }, { uri: 'unused-fallback.png' }];
+    doc.textures = [{ source: 0 }, { source: 1 }, { source: 2 }];
+    doc.materials = [{
+      name: 'Skin', alphaMode: 'MASK', alphaCutoff: 0.3,
+      pbrMetallicRoughness: { baseColorFactor: [1, 0, 0, 1], baseColorTexture: { index: 2 }, metallicFactor: 1, roughnessFactor: 1 },
+      extensions: { KHR_materials_pbrSpecularGlossiness: {
+        diffuseFactor: [0.2, 0.4, 0.6, 0.8], diffuseTexture: { index: 0 },
+        specularFactor: [0.08, 0.16, 0.24], glossinessFactor: 0.7, specularGlossinessTexture: { index: 1 },
+      } },
+    }];
+    const { meshes, warnings } = await importGltfMeshes(gltf(doc), 'legacy');
+    const material = meshes[0]!.material!;
+    expect(material).toMatchObject({ baseColor: [0.2, 0.4, 0.6, 0.8], baseColorTexture: { file: 'diffuse.png' }, specularGlossiness: { specular: [0.08, 0.16, 0.24], glossiness: 0.7 }, specularGlossinessTexture: { file: 'specular.png' } });
+    expect(material.metallic).toBeUndefined();
+    expect(material.roughness).toBeUndefined();
+    const product = materialProducts(meshes, 'legacy', { characters: true })[0]!;
+    expect(product.data).toMatchObject({ shader: 'builtin:model', switches: { ES_SPECULAR_GLOSSINESS: true }, properties: { u_specularColor: { r: 0.08, g: 0.16, b: 0.24, a: 1 }, u_glossiness: 0.7, u_alphaCutoff: 0.3 } });
+    expect(product.images.map(i => i.file)).toEqual(['specular.png']);
+    expect(warnings.join('\n')).not.toContain('not imported');
+  });
+
+  it('uses the specular/glossiness defaults even when the metallic fallback says something else', async () => {
+    const doc = withInlineImage();
+    (doc.materials as Record<string, unknown>[])[0]!.extensions = { KHR_materials_pbrSpecularGlossiness: {} };
+    const { meshes } = await importGltfMeshes(gltf(doc), 'legacy');
+    expect(meshes[0]!.material).toMatchObject({ baseColor: [1, 1, 1, 1], specularGlossiness: { specular: [1, 1, 1], glossiness: 1 } });
+    expect(meshes[0]!.material!.baseColorTexture).toBeUndefined();
+    expect(materialProducts(meshes, 'legacy')).toHaveLength(1);
   });
 
   it('is opaque and single-sided unless the source says otherwise', async () => {
@@ -462,14 +511,15 @@ describe('glTF material products', () => {
       ? undefined : { r: strength, g: strength * 0.5, b: 0, a: 1 });
   });
 
-  it('defaults an omitted strength to one and still reports unsupported extensions', async () => {
+  it('defaults an omitted emissive strength to one on a specular/glossiness material', async () => {
     const doc = shaded({
       emissiveFactor: [1, 0.5, 0],
       extensions: { KHR_materials_emissive_strength: {}, KHR_materials_pbrSpecularGlossiness: {} },
     });
     const { meshes, warnings } = await importGltfMeshes(gltf(doc), 'model');
     expect(meshes[0]!.material?.emissive).toEqual([1, 0.5, 0]);
-    expect(warnings).toEqual(['material "Shaded": KHR_materials_pbrSpecularGlossiness not imported']);
+    expect(meshes[0]!.material?.specularGlossiness).toEqual({ specular: [1, 1, 1], glossiness: 1 });
+    expect(warnings).toEqual([]);
   });
 
   it('carries the shading layers its extensions state, as the Model shader parameters', async () => {
@@ -544,7 +594,7 @@ describe('glTF material products', () => {
       emissiveFactor: [1, 1, 1], alphaMode: 'BLEND', doubleSided: true,
     }));
     expect(blended.products[0]!.data).toMatchObject({
-      blendMode: BlendMode.Normal, depthTest: false, depthWrite: false, cull: CullMode.None,
+      blendMode: BlendMode.Normal, depthTest: true, depthWrite: false, cull: CullMode.None,
     });
   });
 
