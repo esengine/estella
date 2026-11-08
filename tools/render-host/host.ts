@@ -455,6 +455,26 @@ const api = {
     /** Waits for submitted shader variants without advancing the simulation clock. */
     waitForShaders: () => shadersCompiled(module),
 
+    /** Uploads the native row-major placement records used by foliage and composite batches. */
+    setMeshPlacements(id: number, values: number[]): void {
+        if (!module?.meshInstances_set || values.length % 16 !== 0 || values.some(v => !Number.isFinite(v))) {
+            throw new Error('setMeshPlacements: expected finite sixteen-float native records');
+        }
+        const entity = requireEntity(id);
+        const instances = getComponent('MeshInstances');
+        if (!instances) throw new Error('setMeshPlacements: MeshInstances is unavailable');
+        if (!app!.world.has(entity, instances)) app!.world.insert(entity, instances, {});
+        const data = new Float32Array(values);
+        const ptr = module._malloc(Math.max(4, data.byteLength));
+        if (!ptr) throw new Error('setMeshPlacements: allocation failed');
+        try {
+            new Float32Array(module.HEAPU8.buffer, ptr, data.length).set(data);
+            module.meshInstances_set(app!.world.getCppRegistry()!, entity, ptr, values.length / 16);
+        } finally {
+            module._free(ptr);
+        }
+    },
+
     /**
      * The frame as the ENGINE holds it, whichever backend drew it. captureViewport
      * reads the page instead, which on WebGPU is a compositor copy — blank in a

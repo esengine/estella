@@ -97,6 +97,9 @@ world.insert(ship, CompositeBatch, {});
 
 根节点上会显示合并结果:**Batched parts**、**Instanced parts**、**Draws**、**Draws before** 和 **Moving parts**。
 
+植被和组合模型共用的原生实例组，会把两个网格 LOD 和材质声明的 `vertexbounds` 一起计入每个实例的范围，
+并覆盖实例的旋转、缩放与剪切。会移动顶点的材质必须声明完整的局部变形范围，避免仍在画面中的表面在视野边缘被剔除。
+
 在编辑器 Play、WebGL2 下实测,一个根节点下 2,004 个部件(1,600 块甲板、400 根柱子、4 个道具):
 
 | | 不加 | `CompositeBatch` |

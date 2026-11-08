@@ -1,0 +1,234 @@
+{
+  "version": 4,
+  "name": "Placement Bounds",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 400
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 200,
+            "nearPlane": 1,
+            "farPlane": 2000,
+            "isActive": true,
+            "clearFlags": 3
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Individual",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -300,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "material": "/scenes/placement-bounds/bend.esmaterial",
+            "opaque": true,
+            "lit": false,
+            "castShadows": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Placements",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "material": "/scenes/placement-bounds/bend.esmaterial",
+            "opaque": true,
+            "lit": false,
+            "castShadows": false,
+            "enabled": false
+          }
+        },
+        {
+          "type": "MeshInstances",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Coarse reference",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 350,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "/scenes/placement-bounds/coarse.esmesh",
+            "material": "/scenes/placement-bounds/plain.esmaterial",
+            "opaque": true,
+            "lit": false,
+            "castShadows": false,
+            "cullBackfaces": false,
+            "enabled": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Coarse placements",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "/scenes/placement-bounds/fine.esmesh",
+            "material": "/scenes/placement-bounds/plain.esmaterial",
+            "opaque": true,
+            "lit": false,
+            "castShadows": false,
+            "cullBackfaces": false,
+            "enabled": false
+          }
+        },
+        {
+          "type": "MeshInstances",
+          "data": {
+            "lod1Mesh": "/scenes/placement-bounds/coarse.esmesh",
+            "lodDistance": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Rotated reference",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 350,
+              "z": 0
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0.7071067811865476,
+              "w": 0.7071067811865476
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "/scenes/placement-bounds/coarse.esmesh",
+            "material": "/scenes/placement-bounds/plain.esmaterial",
+            "opaque": true,
+            "lit": false,
+            "castShadows": false,
+            "cullBackfaces": false,
+            "enabled": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Rotated placements",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "/scenes/placement-bounds/coarse.esmesh",
+            "material": "/scenes/placement-bounds/plain.esmaterial",
+            "opaque": true,
+            "lit": false,
+            "castShadows": false,
+            "cullBackfaces": false,
+            "enabled": false
+          }
+        },
+        {
+          "type": "MeshInstances",
+          "data": {}
+        }
+      ]
+    }
+  ]
+}

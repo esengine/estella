@@ -19,6 +19,7 @@
 #include "../renderer/frame/RenderStage.hpp"
 #include "../renderer/draw/ImmediateDraw.hpp"
 #include "../renderer/draw/CustomGeometry.hpp"
+#include "../renderer/draw/PlacementBounds.hpp"
 #include "../renderer/draw/TextVertexFormat.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../ecs/GroupOpacityLookup.hpp"
@@ -391,11 +392,7 @@ void meshInstances_set(ecs::Registry& registry, u32 entity, uintptr_t dataPtr, u
         const glm::vec3 at(r[3], r[7], r[11]);
         mn = glm::min(mn, at);
         mx = glm::max(mx, at);
-        // The longest column of the linear part: how far the instance stretches its mesh.
-        const f32 c0 = r[0] * r[0] + r[4] * r[4] + r[8] * r[8];
-        const f32 c1 = r[1] * r[1] + r[5] * r[5] + r[9] * r[9];
-        const f32 c2 = r[2] * r[2] + r[6] * r[6] + r[10] * r[10];
-        scale = std::max(scale, std::max(c0, std::max(c1, c2)));
+        scale = std::max(scale, placement_bounds::stretchSquared(r));
     }
     set->originMin = mn;
     set->originMax = mx;

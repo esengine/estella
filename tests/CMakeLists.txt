@@ -414,6 +414,13 @@ target_include_directories(test_lod_selection PRIVATE
 )
 add_test(NAME test_lod_selection COMMAND test_lod_selection)
 
+add_executable(test_placement_bounds renderer/test_placement_bounds.cpp)
+target_include_directories(test_placement_bounds PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_placement_bounds COMMAND test_placement_bounds)
+
 # How a Billboard is turned to a view: the view plane, upright about world up, an orthographic view. Header-only.
 add_executable(test_billboard_facing renderer/test_billboard_facing.cpp)
 target_include_directories(test_billboard_facing PRIVATE

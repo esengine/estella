@@ -33,7 +33,7 @@ env:
     test_shader_device test_draw_params test_per_draw_blocks test_texture_fb test_buffer_device
     test_frame_pacer test_audio_watchdog test_packaged_config test_mapped_file test_sdf_generator
     test_compressed_format test_batch_builder test_skeletal_batch_color test_boundary_span test_webgpu_device
-    test_clip_depth test_planar_reflection test_sort_key test_retained_text test_sprite_mask_range test_sprite_draw_mode test_shadow_atlas test_particle_shapes test_lod_selection test_billboard_facing test_impostor_frames test_view_shading test_mesh_edges test_hdr_format test_probe_store test_occlusion_view test_reflection_store test_tiled_lights test_light_layers test_shadow_channels
+    test_clip_depth test_planar_reflection test_sort_key test_retained_text test_sprite_mask_range test_sprite_draw_mode test_shadow_atlas test_particle_shapes test_lod_selection test_placement_bounds test_billboard_facing test_impostor_frames test_view_shading test_mesh_edges test_hdr_format test_probe_store test_occlusion_view test_reflection_store test_tiled_lights test_light_layers test_shadow_channels
     test_text_edit test_render_graph test_device_loss test_physics_interpolation
     test_bitmap_font test_texture_cache test_material_shader_lifetime test_mesh_recovery test_aot_host test_aot_conformance
     test_touch_stream
@@ -103,6 +103,15 @@ jobs:
         node tools/tests/planar-reflection.e2e.mjs --webgl-only --prepass
     - name: Check paused and scaled render clocks with genuine headless Chromium
       run: node tools/tests/render-clock.e2e.mjs --webgl-only
+    - name: Check native placement bounds with genuine headless Chromium
+      run: node tools/tests/placement-bounds.e2e.mjs --webgl-only
+    - name: Upload native placement observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: placement-bounds-runtime
+        path: output/placement-bounds/
+        retention-days: 3
     - name: Upload render clock runtime observations
       if: always()
       uses: actions/upload-artifact@v7

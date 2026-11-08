@@ -15,6 +15,7 @@
 #include "../../ecs/components/Billboard.hpp"
 #include "../draw/BillboardFacing.hpp"
 #include "../draw/ImpostorFrames.hpp"
+#include "../draw/PlacementBounds.hpp"
 #include "../draw/BatchBuilder.hpp"
 #include "../../ecs/components/Impostor.hpp"
 #include "../../resource/Mesh.hpp"
@@ -612,32 +613,32 @@ void emitImpostorCard(RenderCollectContext& collect, const RenderFrame::Impostor
 template <typename Emit>
 void emitPlacements(const RenderFrameContext& ctx, RenderCollectContext& collect, const ecs::MeshInstances& set,
                     const ecs::MeshRenderer& mesh, const glm::vec3& position, const glm::quat& rotation,
-                    const glm::vec3& scale, const Mesh& fine, const Mesh* coarse, u32& records, Emit&& emit) {
+                    const glm::vec3& scale, const Mesh& fine, const Mesh* coarse,
+                    const glm::vec3& localCentre, const glm::vec3& localHalf, u32& records, Emit&& emit) {
     static thread_local std::vector<u32> nearList, farList;
     nearList.clear();
     farList.clear();
     const glm::mat4 entityModel = glm::translate(glm::mat4(1.0f), position) * glm::mat4_cast(rotation) * glm::scale(glm::mat4(1.0f), scale);
-    const f32 entityScale = std::max(std::abs(scale.x), std::max(std::abs(scale.y), std::abs(scale.z)));
-    const f32 reach = glm::length(glm::max(glm::abs(fine.localMin), glm::abs(fine.localMax)));
+    const glm::mat3 entityLinear(entityModel);
     const bool eyeKnown = ctx.has_view_eye;
     const u32 count = static_cast<u32>(set.transforms.size() / 16);
     u32 tooFar = 0, outside = 0;
     for (u32 i = 0; i < count; ++i) {
         const f32* r = set.transforms.data() + static_cast<usize>(i) * 16;
         const glm::vec3 at = glm::vec3(entityModel * glm::vec4(r[3], r[7], r[11], 1.0f));
-        const f32 c0 = r[0] * r[0] + r[4] * r[4] + r[8] * r[8];
-        const f32 c1 = r[1] * r[1] + r[5] * r[5] + r[9] * r[9];
-        const f32 c2 = r[2] * r[2] + r[6] * r[6] + r[10] * r[10];
-        const f32 radius = reach * std::sqrt(std::max(c0, std::max(c1, c2))) * entityScale;
+        glm::vec3 centre, half;
+        placement_bounds::transformedBox(entityLinear, r, at, localCentre, localHalf, centre, half);
+        const f32 radius = glm::length(half);
         f32 distance = 0.0f;
         if (eyeKnown) {
             distance = glm::distance(at, ctx.view_eye);
-            if (set.drawDistance > 0.0f && distance - radius > set.drawDistance) { ++tooFar; continue; }
-            if (distance + radius < set.minDistance) continue;
-            if (ctx.purpose == RenderPurpose::ShadowDepth && set.shadowDistance > 0.0f && distance - radius > set.shadowDistance) continue;
+            const f32 centreDistance = glm::distance(centre, ctx.view_eye);
+            if (set.drawDistance > 0.0f && centreDistance - radius > set.drawDistance) { ++tooFar; continue; }
+            if (centreDistance + radius < set.minDistance) continue;
+            if (ctx.purpose == RenderPurpose::ShadowDepth && set.shadowDistance > 0.0f && centreDistance - radius > set.shadowDistance) continue;
         }
-        if (!collect.visible(at, glm::vec3(radius), false)) { ++outside; continue; }
-        if (ctx.purpose == RenderPurpose::ShadowDepth && !collect.castsIntoView(at, radius)) { ++outside; continue; }
+        if (!collect.visible(centre, half, false)) { ++outside; continue; }
+        if (ctx.purpose == RenderPurpose::ShadowDepth && !collect.castsIntoView(centre, radius)) { ++outside; continue; }
         (coarse && eyeKnown && set.lodDistance > 0.0f && distance > set.lodDistance ? farList : nearList).push_back(i);
     }
     ES_PROFILE_COUNTER("render.placements.seen", count);
@@ -813,16 +814,6 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 }
             }
         }
-        // A set of placements is bounded by where they stand, grown by how far the mesh reaches from its origin at the greatest scale.
-        const glm::vec3 reach = (placements ? glm::max(glm::abs(resident->localMin), glm::abs(resident->localMax)) * placements->maxScale
-                                            : glm::vec3(0.0f));
-        const glm::vec3 localMin = placements ? placements->originMin - reach
-                                 : group ? levels.localMin
-                                 : resident ? resident->localMin : glm::vec3(mesh.localMin, 0.0f);
-        const glm::vec3 localMax = placements ? placements->originMax + reach
-                                 : group ? levels.localMax
-                                 : resident ? resident->localMax : glm::vec3(mesh.localMax, 0.0f);
-
         // BEFORE the cull, because whether this draw depth-tests decides if an
         // occluder may refuse it, and the material is where that is finally said.
         // Reused by the draw key below: two lookups is how the two come to differ.
@@ -833,8 +824,32 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         const f32 bend = material ? ctx.materials->vertexBounds(mesh.material) : 0.0f;
         const bool depthTested = mesh.opaque || (material && material->depthTest);
 
+        const Mesh* placementCoarse = placements && placements->lod1Mesh.isValid()
+            ? ctx.resources.getMesh(placements->lod1Mesh) : nullptr;
+        if (placementCoarse && (!placementCoarse->isDrawable() || placementCoarse->hasNormals != resident->hasNormals
+                                || placementCoarse->hasTangents != resident->hasTangents
+                                || placementCoarse->hasLightmapUV != resident->hasLightmapUV)) placementCoarse = nullptr;
+        f32 placementRadius = 0.0f;
+        glm::vec3 placementCentre(0.0f), placementHalf(0.0f);
+        if (placements) {
+            const glm::vec3 lo = placementCoarse ? glm::min(resident->localMin, placementCoarse->localMin) : resident->localMin;
+            const glm::vec3 hi = placementCoarse ? glm::max(resident->localMax, placementCoarse->localMax) : resident->localMax;
+            placementRadius = placement_bounds::radius(lo, hi, bend);
+            placementCentre = (lo + hi) * 0.5f;
+            placementHalf = (hi - lo) * 0.5f + glm::vec3(bend);
+        }
+        // Placements can rotate or shear independently. One origin-centred sphere includes both LODs and local deformation.
+        const glm::vec3 reach(placements ? placementRadius * placements->maxScale : 0.0f);
+        const glm::vec3 localMin = placements ? placements->originMin - reach
+                                 : group ? levels.localMin
+                                 : resident ? resident->localMin : glm::vec3(mesh.localMin, 0.0f);
+        const glm::vec3 localMax = placements ? placements->originMax + reach
+                                 : group ? levels.localMax
+                                 : resident ? resident->localMax : glm::vec3(mesh.localMax, 0.0f);
+        const glm::vec3 padding(placements ? 0.0f : bend);
+
         glm::vec3 aabbCenter(0.0f), halfExtents(0.0f);
-        orientedWorldAabb(position, rotation, scale, localMin - glm::vec3(bend), localMax + glm::vec3(bend),
+        orientedWorldAabb(position, rotation, scale, localMin - padding, localMax + padding,
                           aabbCenter, halfExtents);
         // The collect's own predicate, not a frustum test of this plugin's: it
         // answers "outside the view" AND "behind something solid", and a mesh is
@@ -1211,12 +1226,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 };
                 if (placements) {
                     // The record written for the entity above is not drawn: the instances are, each with a record of its own.
-                    const Mesh* coarse = placements->lod1Mesh.isValid() ? ctx.resources.getMesh(placements->lod1Mesh) : nullptr;
-                    if (coarse && (!coarse->isDrawable() || coarse->hasNormals != resident->hasNormals
-                                   || coarse->hasTangents != resident->hasTangents || coarse->hasLightmapUV != resident->hasLightmapUV)) {
-                        coarse = nullptr;
-                    }
-                    emitPlacements(ctx, collect_ctx, *placements, mesh, position, rotation, scale, *resident, coarse, instanceRecords, emit);
+                    emitPlacements(ctx, collect_ctx, *placements, mesh, position, rotation, scale, *resident, placementCoarse,
+                                   placementCentre, placementHalf, instanceRecords, emit);
                     continue;
                 }
                 key.vertexBuffer = resident->vertexBuffer;

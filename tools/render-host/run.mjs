@@ -293,6 +293,11 @@ app.whenReady().then(async () => {
     );
     // Opt-in play mode (ESTELLA_VERIFY_PLAY=1): runs the SDK plugin updates — particle
     // emission/simulation, animation — so time-driven content actually renders.
+    if (process.env.ESTELLA_VERIFY_PLACEMENTS) {
+      for (const { entity, transforms } of JSON.parse(process.env.ESTELLA_VERIFY_PLACEMENTS)) {
+        await exec(`window.__estellaHeadless.api.setMeshPlacements(${Number(entity)}, ${JSON.stringify(transforms)})`);
+      }
+    }
     if (process.env.ESTELLA_VERIFY_PLAY === '1') {
       await exec('window.__estellaHeadless.api.setRunMode(true)');
     }

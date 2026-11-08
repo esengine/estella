@@ -56,6 +56,27 @@ export function sceneWatchdogMs(backend, host) {
  * verbatim — an empty one is the default sprite scene.
  */
 export const SCENES = [
+  ...[
+    { id: 'placements-bent', entity: 2, projection: 1, records: [1, 0, 0, -300, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1], x: 0.5, y: 0.5, coarse: 0 },
+    { id: 'placements-bent-scaled', entity: 2, projection: 1, records: [3, 0, 0, -900, 0, 3, 0, 0, 0, 0, 3, 0, 1, 1, 1, 1], x: 0.5, y: 0.5, coarse: 0 },
+    { id: 'placements-coarse-bounds', entity: 4, projection: 0, records: [1, 0, 0, 350, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1], x: 0.9, y: 0.5, coarse: 1 },
+    { id: 'placements-rotated-bounds', entity: 6, projection: 1, records: [0, -1, 0, 0, 1, 0, 0, 350, 0, 0, 1, 0, 1, 1, 1, 1], x: 0.5, y: 0.1, coarse: 0 },
+    { id: 'placements-tight-bounds', entity: 6, projection: 1, records: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0, 350, 0, 0, 1, 0, 1, 1, 1, 1], x: 0.5, y: 0.5, coarse: 0, outside: 1 },
+  ].map(test => ({
+    id: test.id, tier: 'pr', webgpu: true,
+    env: {
+      ESTELLA_VERIFY_SCENE: '/scenes/placement-bounds.esscene',
+      ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '3',
+      ESTELLA_VERIFY_PLACEMENTS: JSON.stringify([{ entity: test.entity, transforms: test.records }]),
+      ESTELLA_VERIFY_SET_FIELD: JSON.stringify([
+        { entity: 0, component: 'Camera', key: 'projectionType', value: test.projection },
+        { entity: 1, component: 'MeshRenderer', key: 'enabled', value: false },
+        { entity: test.entity, component: 'MeshRenderer', key: 'enabled', value: true },
+      ]),
+      ESTELLA_VERIFY_EXPECT: JSON.stringify([{ x: test.x, y: test.y, rgb: [0, 255, 0], tol: 2 }]),
+      ESTELLA_VERIFY_COUNTERS: JSON.stringify({ 'render.placements.seen': test.records.length / 16, 'render.placements.outside': test.outside ?? 0, 'render.placements.coarse': test.coarse }),
+    },
+  })),
   {
     id: 'render-clock', tier: 'pr',
     // WebGPU captures the next frame; GL reads the already completed frame.

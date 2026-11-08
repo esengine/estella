@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "plain.esshader",
+  "properties": {},
+  "blendMode": 0,
+  "depthTest": true,
+  "depthWrite": true
+}
