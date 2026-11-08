@@ -11105,6 +11105,7 @@ query: QueryCost | undefined
 @internal _params: readonly SystemParam[]
 @internal _runAfter: readonly string[] | undefined
 @internal _runBefore: readonly string[] | undefined
+@internal _runWhenPaused: boolean | undefined
 @internal _touches: SystemTouches | (() => SystemTouches) | undefined
 ```
 
@@ -11113,6 +11114,7 @@ query: QueryCost | undefined
 name: string | undefined
 runAfter: string[] | undefined
 runBefore: string[] | undefined
+runWhenPaused: boolean | undefined
 touches: SystemTouches | (() => SystemTouches) | undefined
 ```
 

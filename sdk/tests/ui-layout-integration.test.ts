@@ -18,6 +18,8 @@ import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { ScreenLayout } from '../src/ui/core/screen-layout';
 import { uiLayoutPlugin } from '../src/ui/layout/layout';
 import { uiRenderOrderPlugin } from '../src/ui/render/render-order';
+import { defineSystem, Schedule } from '../src/ecs/system';
+import { Time } from '../src/ecs/resource';
 import { Transform, Sprite } from '../src/ecs/component';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
@@ -172,6 +174,42 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         expect(nodeH(registry, root)).toBeCloseTo(600, 3);
 
         disposeApp(app, registry);
+    });
+
+    it('lays out the first paused frame, resizes, and applies edits before rendering', async () => {
+        const { app, registry } = createEditorApp();
+        try {
+            const world = app.world, root = world.spawn(), child = world.spawn();
+            world.insert(root, Canvas, {});
+            world.insert(root, UINode, fillNode());
+            world.insert(root, Transform, makeTransform());
+            world.insert(root, Sprite, makeSprite());
+            world.setParent(child, root);
+            world.insert(child, UINode, insetNode(10));
+            world.insert(child, Transform, makeTransform());
+            world.insert(child, Sprite, makeSprite());
+            const widths: number[] = [];
+            let updates = 0;
+            app.addSystem(defineSystem([], () => { updates++; }));
+            app.addSystemToSchedule(Schedule.Last, defineSystem([], () => {
+                widths.push(nodeW(registry, child));
+            }));
+            app.setPaused(true);
+            setCanvasRect(app, -400, -300, 400, 300);
+            await app.tick(0.1);
+            expect(widths).toEqual([780]);
+            expect(registry.getSprite(child).layer).toBeGreaterThan(registry.getSprite(root).layer);
+            setCanvasRect(app, -640, -360, 640, 360);
+            await app.tick(0.1);
+            world.set(child, UINode, insetNode(30));
+            await app.tick(0.1);
+            expect(widths).toEqual([780, 1260, 1220]);
+            expect(nodeH(registry, child)).toBe(660);
+            expect(updates).toBe(0);
+            expect(app.getResource(Time).elapsed).toBe(0);
+        } finally {
+            disposeApp(app, registry);
+        }
     });
 
     it('should compute layout for child UINode entities', async () => {

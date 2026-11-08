@@ -37,14 +37,14 @@ const N = 8;
 useBytesPlatform();
 
 /** The same author's system either way; only whether a twin exists differs. */
-function fadeApp(): { app: ReturnType<typeof bootMockApp>['app']; Fade: AnyComponentDef } {
+function fadeApp(runWhenPaused = false): { app: ReturnType<typeof bootMockApp>['app']; Fade: AnyComponentDef } {
     const { app } = bootMockApp();
     const Fade = defineComponent('Fade', { alpha: 1, step: 0.1 }) as AnyComponentDef;
     app.addSystemToSchedule(Schedule.Update, defineSystem([Query(Mut(Fade))], (query) => {
         for (const [, fade] of query as Iterable<[Entity, { alpha: number; step: number }]>) {
             fade.alpha -= fade.step;
         }
-    }, { name: 'Fade' }));
+    }, { name: 'Fade', runWhenPaused }));
     return { app, Fade };
 }
 
@@ -62,6 +62,28 @@ const alphas = (app: ReturnType<typeof bootMockApp>['app'], Fade: AnyComponentDe
     es.map((e) => (app.world.get(e, Fade) as { alpha: number }).alpha);
 
 describe('an App told to run its compiled twins', () => {
+    it.skipIf(!EMCC)('applies paused presentation policy before dispatching compiled twins', async () => {
+        const wasm = buildFadeModule(EMCC!, FADE_PROBE_C);
+        for (const runWhenPaused of [false, true]) {
+            const { app, Fade } = fadeApp(runWhenPaused);
+            try {
+                await app.useCompiledSystems({ host: new FakeEngine(), manifest: fadeManifest(), wasm });
+                const entities = seed(app, Fade);
+                const before = alphas(app, Fade, entities);
+                app.setPaused(true);
+                await app.tick(0.1);
+                expect(app.compiledSystems.calls).toBe(runWhenPaused ? 1 : 0);
+                expect(alphas(app, Fade, entities)).toEqual(runWhenPaused ? entities.map(() => FADE_PROBE_ALPHA) : before);
+                expect(app.getResource(Time).elapsed).toBe(0);
+                await app.stepFrames(1);
+                expect(app.compiledSystems.calls).toBe(runWhenPaused ? 2 : 1);
+                expect(app.isPaused()).toBe(true);
+            } finally {
+                app.quit();
+            }
+        }
+    });
+
     it.skipIf(!EMCC)('compiled scratch and foreign heap growth preserve held script views and cached query rows',async()=>{
         class GrowingEngine extends FakeEngine {
             grow():void {this.memory.grow(1);this.HEAPU8=new Uint8Array(this.memory.buffer);}

@@ -194,7 +194,7 @@ export class SafeAreaPlugin implements Plugin {
                     }
                 }
             },
-            { name: 'SafeAreaSystem' }
+            { name: 'SafeAreaSystem', runWhenPaused: true }
         ), { runBefore: [SystemLabel.UILayout] });
     }
 }

@@ -338,7 +338,7 @@ export const postProcessVolumeSystem = defineSystem(
             applyBlendedEffects(api, cameraEntity, effectsAt(volumes, p.x, p.y, p.z), cameraData.projectionType !== ProjectionType.Orthographic);
         }
     },
-    { name: 'PostProcessVolumeSystem' }
+    { name: 'PostProcessVolumeSystem', runWhenPaused: true }
 );
 
 /**
@@ -362,7 +362,7 @@ export function editorViewVolumeSystem(app: App) {
             const at = view.perspective ? editorViewEye(view) : { x: view.x, y: view.y, z: view.z };
             applyBlendedEffects(api, eye, effectsAt(volumes, at.x, at.y, at.z), view.perspective);
         },
-        { name: 'EditorViewVolumeSystem' },
+        { name: 'EditorViewVolumeSystem', runWhenPaused: true },
     );
 }
 

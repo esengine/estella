@@ -28,7 +28,7 @@ export class ContentRectPlugin implements Plugin {
                 if (world.isChangedSince(entity, ContentRect, since)) applyContentRect(world, entity);
             }
         };
-        app.addSystemToSchedule(Schedule.PostUpdate, defineSystem([], sync, { name: 'ContentRectSystem' }));
+        app.addSystemToSchedule(Schedule.PostUpdate, defineSystem([], sync, { name: 'ContentRectSystem', runWhenPaused: true }));
         app.addSystemToSchedule(Schedule.Last, defineSystem([], sync, { name: 'ContentRectLateSystem' }));
     }
 }

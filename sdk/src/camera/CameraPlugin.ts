@@ -860,6 +860,7 @@ export function cameraPlugin(
             const uiCameraSyncSystem: SystemDef = {
                 _id: Symbol('UICameraSyncSystem'),
                 _name: 'UICameraSyncSystem',
+                _runWhenPaused: true,
                 _params: [],
                 _fn: () => {
                     const { width, height } = viewport();

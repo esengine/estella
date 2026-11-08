@@ -244,12 +244,12 @@ export class TextPlugin implements Plugin {
             for (const renderer of [state.world.bitmap, state.world.sdf, state.screen.bitmap, state.screen.sdf]) {
                 renderer?.beginFrame();
             }
-        }, { name: 'TextPageLifetimeSystem' }));
+        }, { name: 'TextPageLifetimeSystem', runWhenPaused: true }));
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
             const state = this.states_.get(app);
             if (state && state.preloads.length > 0) this.stepPreloads(app, state.preloads);
-        }, { name: 'TextGlyphPreloadSystem' }));
+        }, { name: 'TextGlyphPreloadSystem', runWhenPaused: true }));
 
         // A Text node inside a UINode is a UI render node: ensure it carries a
         // UIVisual (visualType None — not drawn as a quad) so the UI
@@ -260,13 +260,14 @@ export class TextPlugin implements Plugin {
                 ensureUIVisual(world, e as Entity);
             }
         };
-        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], ensureTextRenderNodes, { name: 'TextRenderNodeSystem' }));
+        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], ensureTextRenderNodes, { name: 'TextRenderNodeSystem', runWhenPaused: true }));
         // A Text spawned in Update is not seen by the PreUpdate pass, so it would
         // reach the order pass with no UIVisual, take no uiOrder, and be drawn at
         // the base layer — under every panel — for its first frame. The late pass
         // gives it one before the order is assigned.
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem([], ensureTextRenderNodes, {
             name: 'TextRenderNodeLateSystem',
+            runWhenPaused: true,
             runBefore: [SystemLabel.UIRenderOrder],
         }));
 
@@ -277,7 +278,7 @@ export class TextPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
             if (!app.hasResource(Localization)) return;
             applyTextLocalization(world as unknown as TextWorldView, app.getResource(Localization));
-        }, { name: 'TextLocalizeSystem' }));
+        }, { name: 'TextLocalizeSystem', runWhenPaused: true }));
 
         const pipeline = app.pipeline;
         if (!pipeline) return; // logic-only host → nothing to draw

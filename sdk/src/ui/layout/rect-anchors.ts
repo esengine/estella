@@ -145,12 +145,12 @@ export class RectAnchorsPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
             [Res(ScreenLayout)],
             (screen: ScreenLayoutData) => alignFrame(world, screen),
-            { name: SystemLabel.RectAnchors },
+            { name: SystemLabel.RectAnchors, runWhenPaused: true },
         ), { runBefore: [SystemLabel.UILayoutLate] });
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
             [Res(ScreenLayout)],
             (screen: ScreenLayoutData) => alignFrame(world, screen),
-            { name: SystemLabel.RectAnchorsLate },
+            { name: SystemLabel.RectAnchorsLate, runWhenPaused: true },
         ), { runAfter: [SystemLabel.RectAnchors], runBefore: [SystemLabel.UIRenderOrder] });
     }
 }

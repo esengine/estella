@@ -159,13 +159,15 @@ export interface SystemDef {
     /** @internal */
     readonly _runAfter?: readonly string[];
     /** @internal */
+    readonly _runWhenPaused?: boolean;
+    /** @internal */
     readonly _touches?: SystemTouches | (() => SystemTouches);
 }
 
 let templateCounter_ = 0;
 
 /**
- * Ordering a system carries with it. The names are matched against other
+ * Scheduling policy a system carries with it. Names are matched against other
  * systems' names and against {@link SystemSet} names, so a set can be ordered
  * against without knowing which systems are in it.
  *
@@ -178,6 +180,8 @@ export interface SystemOptions {
     runBefore?: string[];
     /** This system runs after each of these names (a system or a set). */
     runAfter?: string[];
+    /** Opt into paused First/PreUpdate/Update/PostUpdate frames. Last already runs; fixed steps stay stopped. */
+    runWhenPaused?: boolean;
     /**
      * What the system reaches for through {@link GetWorld}. See {@link SystemTouches}.
      *
@@ -232,6 +236,7 @@ export function defineSystem<P extends readonly SystemParam[]>(
         _name: options?.name ?? '',
         _runBefore: options?.runBefore,
         _runAfter: options?.runAfter,
+        _runWhenPaused: options?.runWhenPaused,
         _touches: options?.touches,
     };
 }

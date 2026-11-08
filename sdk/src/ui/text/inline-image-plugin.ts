@@ -147,7 +147,7 @@ export class InlineImagePlugin implements Plugin {
             for (const [e, kids] of childrenOf) {
                 if (!seen.has(e)) { despawnKids(kids); childrenOf.delete(e); }
             }
-        }, { name: 'InlineImageSystem' }));
+        }, { name: 'InlineImageSystem', runWhenPaused: true }));
 
         function reap(textEntity: Entity): void {
             const kids = childrenOf.get(textEntity);

@@ -96,7 +96,7 @@ export class UILayoutPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(ScreenLayout)],
             layoutFn,
-            { name: 'UILayoutSystem' }
+            { name: 'UILayoutSystem', runWhenPaused: true }
         ));
 
         // No transform pass after the late layout: nothing between PostUpdate and
@@ -105,7 +105,7 @@ export class UILayoutPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
             [Res(ScreenLayout)],
             layoutOnlyFn,
-            { name: 'UILayoutLateSystem' }
+            { name: 'UILayoutLateSystem', runWhenPaused: true }
         ), { runAfter: [SystemLabel.ListView], runBefore: [SystemLabel.UIRenderOrder] });
     }
 }

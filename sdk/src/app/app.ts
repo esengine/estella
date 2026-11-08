@@ -920,6 +920,7 @@ export class App {
         return this;
     }
 
+    /** Pause simulation time and ordinary systems; presentation opt-ins and Last still run. */
     setPaused(paused: boolean): void {
         this.user_paused_ = paused;
     }
@@ -1624,6 +1625,10 @@ export class App {
         this.frame_paused_ = false;
 
         if (this.isPaused() && !this.step_pending_) {
+            await this.runSchedule(Schedule.First, executionEpoch, true);
+            await this.runSchedule(Schedule.PreUpdate, executionEpoch, true);
+            await this.runSchedule(Schedule.Update, executionEpoch, true);
+            await this.runSchedule(Schedule.PostUpdate, executionEpoch, true);
             await this.runSchedule(Schedule.Last, executionEpoch);
         } else {
             await this.runSchedule(Schedule.First, executionEpoch);
@@ -1885,7 +1890,7 @@ export class App {
         }
     }
 
-    private async runSchedule(schedule: Schedule, executionEpoch = this.executionEpoch_): Promise<void> {
+    private async runSchedule(schedule: Schedule, executionEpoch = this.executionEpoch_, pausedOnly = false): Promise<void> {
         const rawSystems = this.systems_.get(schedule);
         if (!rawSystems || !this.runner_ || this.frame_paused_ || this.isExecutionHeld() || executionEpoch !== this.executionEpoch_) {
             return;
@@ -1917,6 +1922,7 @@ export class App {
             const entry = systems[i];
             if (this.frame_paused_ || this.isExecutionHeld() || executionEpoch !== this.executionEpoch_) break;
             if (schedule === Schedule.Startup && entry.startupInvoked) continue;
+            if (pausedOnly && !entry.system._runWhenPaused) continue;
             if (entry.runIf && !entry.runIf()) { if (schedule === Schedule.Startup) entry.startupInvoked = true; continue; }
             if (entry.gate && schedule !== Schedule.Startup && !this.gateOpen_(entry.gate)) continue;
 
@@ -2009,7 +2015,7 @@ export class App {
         const time = this.resources_.get(Time);
         const scale = time.scale >= 0 ? time.scale : 0;
         time.unscaledDelta = delta;
-        time.delta = hostPauseOwners.get(this)?.size && !this.step_pending_ ? 0 : delta * scale;
+        time.delta = this.isPaused() && !this.step_pending_ ? 0 : delta * scale;
         time.elapsed += time.delta;
         time.frameCount++;
         if (this.step_pending_) this.steppedFrames_++;
