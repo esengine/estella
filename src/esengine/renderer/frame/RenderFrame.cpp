@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    RenderFrame.cpp
+ * @brief   Assemble and submit shared scene views, lighting and shadow passes.
+ */
 #include "./RenderFrame.hpp"
 #ifdef ES_ENABLE_GPU_PARTICLES
 #include "./GpuParticles.hpp"
@@ -9,6 +13,8 @@
 #include "../store/LightStore.hpp"
 #include "../draw/BatchBuilder.hpp"
 #include "../draw/ImmediateDraw.hpp"
+#include "../draw/MeshGeometry.hpp"
+#include "../draw/PlacementBounds.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Light.hpp"
 #include "../../ecs/components/Occluder.hpp"
@@ -1934,48 +1940,54 @@ bool RenderFrame::collectEnvironment(const ecs::Light& light, const glm::vec3& s
     return true;
 }
 
-/// The world box every GPU-resident mesh occupies, or false when none does: what a shadow map
-/// covers, and what a face is tested against before it gathers. MeshPlugin culls by the same
-/// boxes, so a frustum missing this misses all. @p castersOnly leaves out what casts nothing.
-bool RenderFrame::meshWorldBounds(ecs::Registry& registry, glm::vec3& outMin, glm::vec3& outMax, bool castersOnly) {
+RenderFrame::ShadowBounds RenderFrame::gatherShadowBounds(ecs::Registry& registry, bool includeHair) {
     auto meshes = registry.activeView<ecs::Transform, ecs::MeshRenderer>();
-    bool any = false;
+    ShadowBounds bounds;
     for (auto entity : meshes) {
         const auto& mesh = meshes.get<ecs::MeshRenderer>(entity);
-        if (!mesh.enabled || !mesh.mesh.isValid() || (castersOnly && !mesh.castShadows)) continue;
+        if (!mesh.enabled || !mesh.mesh.isValid()) continue;
         const Mesh* resident = resource_manager_.getMesh(mesh.mesh);
         if (!resident) continue;
+        const auto* placements = registry.tryGet<ecs::MeshInstances>(entity);
+        if (placements && placements->transforms.empty()) continue;
+        const auto& materials = context_.materials();
+        const f32 bend = materials.vertexBounds(mesh.material);
+        const bool hair = includeHair && materials.hairShadowDensity(mesh.material) > 0.0f;
+        glm::vec3 lo, hi;
+        meshLocalBounds(*resident, placements ? placementCoarseMesh(resource_manager_, *resident, *placements) : nullptr, bend, lo, hi);
+        if (!placements) {
+            const auto* group = registry.tryGet<ecs::LODGroup>(entity);
+            LodLevels levels;
+            if (group && group->enabled && gatherLodLevels(resource_manager_, *group, *resident, levels)) {
+                lo = levels.localMin - glm::vec3(bend);
+                hi = levels.localMax + glm::vec3(bend);
+            }
+        }
         auto& transform = meshes.get<ecs::Transform>(entity);
         transform.ensureDecomposed();
-        glm::vec3 centre(0.0f), half(0.0f);
-        orientedWorldAabb(rebased(transform.worldPosition), transform.worldRotation, transform.worldScale,
-                          resident->localMin, resident->localMax, centre, half);
-        outMin = any ? glm::min(outMin, centre - half) : centre - half;
-        outMax = any ? glm::max(outMax, centre + half) : centre + half;
-        any = true;
+        const glm::vec3 position = rebased(transform.worldPosition);
+        const auto include = [&](const glm::vec3& centre, const glm::vec3& half) {
+            bounds.all.include(centre, half);
+            if (mesh.castShadows) bounds.casters.include(centre, half);
+            if (hair) bounds.hair.include(centre, half);
+        };
+        if (placements) {
+            const glm::mat3 linear(glm::mat4_cast(transform.worldRotation) * glm::scale(glm::mat4(1.0f), transform.worldScale));
+            const glm::vec3 localCentre = (lo + hi) * 0.5f, localHalf = (hi - lo) * 0.5f;
+            for (usize i = 0; i + 16 <= placements->transforms.size(); i += 16) {
+                const f32* r = placements->transforms.data() + i;
+                const glm::vec3 origin = position + linear * glm::vec3(r[3], r[7], r[11]);
+                glm::vec3 centre, half;
+                placement_bounds::transformedBox(linear, r, origin, localCentre, localHalf, centre, half);
+                include(centre, half);
+            }
+        } else {
+            glm::vec3 centre, half;
+            orientedWorldAabb(position, transform.worldRotation, transform.worldScale, lo, hi, centre, half);
+            include(centre, half);
+        }
     }
-    return any;
-}
-
-bool RenderFrame::hairWorldBounds(ecs::Registry& registry, glm::vec3& outMin, glm::vec3& outMax) {
-    auto meshes = registry.activeView<ecs::Transform, ecs::MeshRenderer>();
-    bool any = false;
-    for (auto entity : meshes) {
-        const auto& mesh = meshes.get<ecs::MeshRenderer>(entity);
-        if (!mesh.enabled || !mesh.mesh.isValid() || mesh.material == 0) continue;
-        if (context_.materials().hairShadowDensity(mesh.material) <= 0.0f) continue;
-        const Mesh* resident = resource_manager_.getMesh(mesh.mesh);
-        if (!resident) continue;
-        auto& transform = meshes.get<ecs::Transform>(entity);
-        transform.ensureDecomposed();
-        glm::vec3 centre(0.0f), half(0.0f);
-        orientedWorldAabb(rebased(transform.worldPosition), transform.worldRotation, transform.worldScale,
-                          resident->localMin, resident->localMax, centre, half);
-        outMin = any ? glm::min(outMin, centre - half) : centre - half;
-        outMax = any ? glm::max(outMax, centre + half) : centre + half;
-        any = true;
-    }
-    return any;
+    return bounds;
 }
 
 /// The camera frustum's eight world corners, near plane first (GL clip z in [-1,1],
@@ -2106,17 +2118,21 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
 
     glm::vec3 corners[8];
     frustumCorners(invVP, corners);
-    glm::vec3 boundsMin(0.0f), boundsMax(0.0f);
-    const bool haveBounds = meshWorldBounds(registry, boundsMin, boundsMax);
+    const ShadowBounds sceneBounds = gatherShadowBounds(registry, perspective);
+    const auto& boundsMin = sceneBounds.all.min;
+    const auto& boundsMax = sceneBounds.all.max;
+    const bool haveBounds = sceneBounds.all.valid;
     // A map of a fixed size goes where the shadows come from. Centred on everything, a backdrop far behind a character takes it away from her: a large
     // receiver says nothing of where a shadow can start.
-    glm::vec3 castersMin(0.0f), castersMax(0.0f);
-    const bool haveCasters = meshWorldBounds(registry, castersMin, castersMax, true);
+    const auto& castersMin = sceneBounds.casters.min;
+    const auto& castersMax = sceneBounds.casters.max;
+    const bool haveCasters = sceneBounds.casters.valid;
     // Hair is layers of cards a few millimetres apart, which a cascade spread over the view cannot tell apart: its texel is as wide as the gap.
     // So a perspective sun with cascades of its own also gets one fitted to the hair alone, first in its list (the nearest tile covering a
     // fragment wins), and everything that falls inside it, the face under a fringe included, is shadowed at that resolution.
-    glm::vec3 hairMin(0.0f), hairMax(0.0f);
-    const bool haveHair = perspective && hairWorldBounds(registry, hairMin, hairMax);
+    const auto& hairMin = sceneBounds.hair.min;
+    const auto& hairMax = sceneBounds.hair.max;
+    const bool haveHair = sceneBounds.hair.valid;
 
     f32 nearDist = 0.0f, farDist = 1.0f;
     if (perspective) {

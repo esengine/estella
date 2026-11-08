@@ -112,6 +112,11 @@ mesh LODs and the material's declared `vertexbounds`. Those bounds include
 placement rotation, scale and shear. A material that moves vertices must declare
 its full local displacement so a visible surface is not culled at a view edge.
 
+Shadow-map coverage uses the same usable LOD geometry and declared displacement,
+transformed through every placement and its parent. Empty instance groups add no
+bounds. Receiver, caster and hair-focus bounds are gathered in one traversal, so
+instancing does not move a shadow map away from the geometry it must cover.
+
 Measured in the editor's Play on WebGL2, a model of 2,004 parts (1,600 planks, 400 posts and four
 props) under one root:
 

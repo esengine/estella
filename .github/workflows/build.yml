@@ -105,6 +105,15 @@ jobs:
       run: node tools/tests/render-clock.e2e.mjs --webgl-only
     - name: Check native placement bounds with genuine headless Chromium
       run: node tools/tests/placement-bounds.e2e.mjs --webgl-only
+    - name: Check instance and deformed shadow coverage with genuine headless Chromium
+      run: node tools/tests/placement-shadows.e2e.mjs --webgl-only
+    - name: Upload native placement shadow observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: placement-shadow-runtime
+        path: output/placement-shadows/
+        retention-days: 3
     - name: Upload native placement observations
       if: always()
       uses: actions/upload-artifact@v7

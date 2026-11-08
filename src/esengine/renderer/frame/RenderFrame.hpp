@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    RenderFrame.hpp
+ * @brief   Frame resources and the shared scene rendering contract.
+ */
 #pragma once
 
 #include "../../core/Types.hpp"
@@ -875,12 +879,18 @@ private:
     /// to give back.
     void releaseFrameTargets();
 
-    /// The world box the resident meshes occupy — what a shadow map must cover.
-    /// False when nothing 3D is in the scene.
-    bool meshWorldBounds(ecs::Registry& registry, glm::vec3& outMin, glm::vec3& outMax, bool castersOnly = false);
-    /// The box the meshes drawn with a hair-shadow material occupy (MaterialStore::hairShadowDensity above zero), or false when there are none:
-    /// what the sun's focus cascade is fitted to.
-    bool hairWorldBounds(ecs::Registry& registry, glm::vec3& outMin, glm::vec3& outMax);
+    struct MeshBounds {
+        glm::vec3 min{0.0f}, max{0.0f};
+        bool valid = false;
+        void include(const glm::vec3& centre, const glm::vec3& half) {
+            min = valid ? glm::min(min, centre - half) : centre - half;
+            max = valid ? glm::max(max, centre + half) : centre + half;
+            valid = true;
+        }
+    };
+    struct ShadowBounds { MeshBounds all, casters, hair; };
+    /// One traversal supplies receiver coverage, caster depth and the hair focus cascade from the geometry actually drawn.
+    ShadowBounds gatherShadowBounds(ecs::Registry& registry, bool includeHair);
     /// Opens the frame's own target with @p clear's load-op, for begin() to bind it
     /// eagerly. Every other pass of the frame is the graph's to open.
     void openPass(const PassClear& clear, RenderTargetManager::Handle target);

@@ -1,0 +1,30 @@
+{
+  "version": 4,
+  "name": "PlacementShadowBend",
+  "entities": [
+    { "id": 0, "name": "Camera", "parent": null, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ]
+    },
+    { "id": 1, "name": "Receiver", "parent": null, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": -200 }, "scale": { "x": 600, "y": 600, "z": 1 } } },
+        { "type": "MeshRenderer", "data": { "mesh": "/scenes/shadow-quad.esmesh", "lit": true, "opaque": true, "enabled": true, "castShadows": false } }
+      ]
+    },
+    { "id": 2, "name": "Displaced caster behind camera", "parent": null, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "scale": { "x": 150, "y": 150, "z": 1 } } },
+        { "type": "MeshRenderer", "data": { "mesh": "/scenes/shadow-quad.esmesh", "material": "/scenes/placement-shadow-bend/caster.esmaterial", "opaque": true, "enabled": true } }
+      ]
+    },
+    { "id": 3, "name": "Sun", "parent": null, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": {} },
+        { "type": "Light", "data": { "type": 1, "intensity": 1, "direction": { "x": 0, "y": 0 }, "meshShadows": true, "shadowExtent": 300 } }
+      ]
+    }
+  ]
+}

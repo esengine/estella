@@ -57,6 +57,39 @@ export function sceneWatchdogMs(backend, host) {
  */
 export const SCENES = [
   ...[
+    { id: 'mesh-shadow-placements', scene: 'mesh-shadow', shadowX: 0.708 },
+    { id: 'mesh-shadow-placements-perspective', scene: 'mesh-shadow-perspective', shadowX: 0.86 },
+  ].map(test => ({
+    id: test.id, tier: 'pr', webgpu: true,
+    env: {
+      ESTELLA_VERIFY_SCENE: `/scenes/${test.scene}.esscene`,
+      ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '3',
+      ESTELLA_VERIFY_PLACEMENTS: JSON.stringify([
+        { entity: 1, transforms: [600, 0, 0, 0, 0, 600, 0, 0, 0, 0, 1, -200, 1, 1, 1, 1] },
+        { entity: 2, transforms: [150, 0, 0, 0, 0, 150, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1] },
+      ]),
+      ESTELLA_VERIFY_SET_FIELD: JSON.stringify([1, 2].flatMap(entity => [
+        { entity, component: 'Transform', key: 'position', value: { x: 0, y: 0, z: 0 } },
+        { entity, component: 'Transform', key: 'scale', value: { x: 1, y: 1, z: 1 } },
+      ])),
+      ESTELLA_VERIFY_EXPECT: JSON.stringify([
+        { x: test.shadowX, y: 0.5, rgb: [0, 0, 0], tol: 20 },
+        { x: 0.1, y: 0.5, rgb: [228, 228, 228], tol: 20 },
+      ]),
+    },
+  })),
+  {
+    id: 'shadow-vertex-displacement', tier: 'pr', webgpu: true,
+    env: {
+      ESTELLA_VERIFY_SCENE: '/scenes/placement-shadow-bend.esscene',
+      ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '3',
+      ESTELLA_VERIFY_EXPECT: JSON.stringify([
+        { x: 0.5, y: 0.5, rgb: [0, 0, 0], tol: 20 },
+        { x: 0.1, y: 0.5, rgb: [255, 255, 255], tol: 20 },
+      ]),
+    },
+  },
+  ...[
     { id: 'placements-bent', entity: 2, projection: 1, records: [1, 0, 0, -300, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1], x: 0.5, y: 0.5, coarse: 0 },
     { id: 'placements-bent-scaled', entity: 2, projection: 1, records: [3, 0, 0, -900, 0, 3, 0, 0, 0, 0, 3, 0, 1, 1, 1, 1], x: 0.5, y: 0.5, coarse: 0 },
     { id: 'placements-coarse-bounds', entity: 4, projection: 0, records: [1, 0, 0, 350, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1], x: 0.9, y: 0.5, coarse: 1 },

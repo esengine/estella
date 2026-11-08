@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    MeshPlugin.cpp
+ * @brief   Collect mesh geometry for scene, shadow, depth and motion passes.
+ */
 #include "MeshPlugin.hpp"
 #include "../draw/BatchBuilder.hpp"
 #include "../store/MaterialStore.hpp"
@@ -16,6 +20,7 @@
 #include "../draw/BillboardFacing.hpp"
 #include "../draw/ImpostorFrames.hpp"
 #include "../draw/PlacementBounds.hpp"
+#include "../draw/MeshGeometry.hpp"
 #include "../draw/BatchBuilder.hpp"
 #include "../../ecs/components/Impostor.hpp"
 #include "../../resource/Mesh.hpp"
@@ -174,70 +179,6 @@ bool morphShapes(ecs::Registry& registry, Entity entity, const Mesh& mesh,
                          mesh.morphHasNormals ? 2.0f : 1.0f,
                          static_cast<f32>(MORPH_TEXTURE_WIDTH));
     return true;
-}
-
-/**
- * @brief The levels a group can actually be drawn at, in the order they take over.
- *
- * @details Entry 0 is the renderer's own mesh: a group says what may STAND IN for
- *          it. `localMin/Max` are the UNION over every entry, so what is measured
- *          does not change with what is drawn — bounds read off the current level
- *          feed back into the choice that picked it and oscillate.
- */
-struct LodLevels {
-    const Mesh* mesh[lod::kMaxStandIns + 1]{};
-    lod::LevelSet set;
-    glm::vec3 localMin{0.0f};
-    glm::vec3 localMax{0.0f};
-    /// A slot filled after an empty one, which nothing will ever select.
-    bool gap = false;
-    /// Thresholds that do not descend, or a stand-in the base's skeleton cannot pose.
-    bool disordered = false;
-    bool skinMismatch = false;
-};
-
-/**
- * @brief Reads a group into the levels it can be drawn at. False when it declares
- *        neither a usable stand-in nor a cull size, which leaves the renderer's own
- *        mesh the whole answer. A group with only a cull size is a real one: the
- *        mesh itself to a distance, then nothing (a tuft of grass has no cheaper
- *        version, and still is not worth drawing past sixty metres).
- */
-bool gatherLodLevels(resource::ResourceManager& resources, const ecs::LODGroup& group,
-                     const Mesh& base, LodLevels& out) {
-    out = LodLevels{};
-    out.mesh[0] = &base;
-    out.localMin = base.localMin;
-    out.localMax = base.localMax;
-    out.set.cull = group.cullSize;
-    out.set.hysteresis = group.hysteresis;
-
-    const resource::MeshHandle handles[lod::kMaxStandIns] = {group.lod1, group.lod2, group.lod3};
-    const f32 sizes[lod::kMaxStandIns] = {group.lod1Size, group.lod2Size, group.lod3Size};
-    for (u8 i = 0; i < lod::kMaxStandIns; ++i) {
-        const Mesh* standIn = handles[i].isValid() ? resources.getMesh(handles[i]) : nullptr;
-        if (!standIn || !standIn->isDrawable()) {
-            // Ordered slots: a level nothing hands over TO is a level nothing
-            // reaches, so the run ends here and a later one is an authoring gap.
-            for (u8 j = static_cast<u8>(i + 1); j < lod::kMaxStandIns; ++j) {
-                if (handles[j].isValid()) out.gap = true;
-            }
-            break;
-        }
-        if (base.isSkinned() && standIn->inverseBind.size() != base.inverseBind.size()) {
-            out.skinMismatch = true;
-            break;
-        }
-        if (i > 0 && sizes[i] >= sizes[i - 1]) out.disordered = true;
-        out.mesh[i + 1] = standIn;
-        out.set.takeOver[i] = sizes[i];
-        out.set.count = static_cast<u8>(i + 1);
-        out.localMin = glm::min(out.localMin, standIn->localMin);
-        out.localMax = glm::max(out.localMax, standIn->localMax);
-    }
-    // A skin whose stand-in the skeleton cannot pose is refused whole: a cull size alone is not a reason to keep a group that was authored against
-    // levels it cannot have.
-    return out.set.count > 0 || (out.set.cull > 0.0f && !out.skinMismatch);
 }
 
 /** @brief Says once what a group declares that nothing will ever use. */
@@ -824,19 +765,15 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         const f32 bend = material ? ctx.materials->vertexBounds(mesh.material) : 0.0f;
         const bool depthTested = mesh.opaque || (material && material->depthTest);
 
-        const Mesh* placementCoarse = placements && placements->lod1Mesh.isValid()
-            ? ctx.resources.getMesh(placements->lod1Mesh) : nullptr;
-        if (placementCoarse && (!placementCoarse->isDrawable() || placementCoarse->hasNormals != resident->hasNormals
-                                || placementCoarse->hasTangents != resident->hasTangents
-                                || placementCoarse->hasLightmapUV != resident->hasLightmapUV)) placementCoarse = nullptr;
+        const Mesh* placementCoarse = placements ? placementCoarseMesh(ctx.resources, *resident, *placements) : nullptr;
         f32 placementRadius = 0.0f;
         glm::vec3 placementCentre(0.0f), placementHalf(0.0f);
         if (placements) {
-            const glm::vec3 lo = placementCoarse ? glm::min(resident->localMin, placementCoarse->localMin) : resident->localMin;
-            const glm::vec3 hi = placementCoarse ? glm::max(resident->localMax, placementCoarse->localMax) : resident->localMax;
-            placementRadius = placement_bounds::radius(lo, hi, bend);
+            glm::vec3 lo, hi;
+            meshLocalBounds(*resident, placementCoarse, bend, lo, hi);
+            placementRadius = placement_bounds::radius(lo, hi, 0.0f);
             placementCentre = (lo + hi) * 0.5f;
-            placementHalf = (hi - lo) * 0.5f + glm::vec3(bend);
+            placementHalf = (hi - lo) * 0.5f;
         }
         // Placements can rotate or shear independently. One origin-centred sphere includes both LODs and local deformation.
         const glm::vec3 reach(placements ? placementRadius * placements->maxScale : 0.0f);

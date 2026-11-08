@@ -1,0 +1,26 @@
+#pragma shader "DisplacedShadowCaster"
+#pragma version 300 es
+#pragma domain Unlit
+#pragma vertexbounds 5000
+
+#pragma vertexoffset
+void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
+    local.z += 5000.0;
+}
+#pragma end
+
+#pragma vertexoffset wgsl
+fn esMaterialVertex(local: ptr<function, vec3f>, localNormal: ptr<function, vec3f>, uv: vec2f) {
+    (*local).z += 5000.0;
+}
+#pragma end
+
+#pragma fragment
+precision highp float;
+out vec4 fragColor;
+void main() { fragColor = vec4(0.0, 1.0, 0.0, 1.0); }
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v: VSOut) -> @location(0) vec4f { return vec4f(0.0, 1.0, 0.0, 1.0); }
+#pragma end

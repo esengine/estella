@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "name": "Displaced shadow caster",
+  "shader": "caster.esshader",
+  "properties": {},
+  "blendMode": 0,
+  "depthTest": true,
+  "depthWrite": true,
+  "cull": 0
+}
