@@ -7,6 +7,7 @@ import type { QualityReport } from '../render/quality';
 import {
     buildFrameProfile,
     meanFrameProfile,
+    isNativeProfileCounter,
     type FrameProfile,
     type ScopeCost,
     type SystemCost,
@@ -131,7 +132,13 @@ export function summarizeFrames(frames: readonly CapturedFrame[], budgetMs = 100
 
     const counters: Record<string, number> = {};
     for (const f of frames) {
-        for (const k in f.counters) counters[k] = (counters[k] ?? 0) + f.counters[k];
+        const quantities = { ...f.counters };
+        for (const scope of f.nativeScopes ?? []) {
+            if (isNativeProfileCounter(scope.name) && quantities[scope.name] === undefined) {
+                quantities[scope.name] = scope.ms;
+            }
+        }
+        for (const k in quantities) counters[k] = (counters[k] ?? 0) + quantities[k];
     }
     if (frames.length > 0) for (const k in counters) counters[k] /= frames.length;
 

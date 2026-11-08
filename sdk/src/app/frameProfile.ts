@@ -157,6 +157,12 @@ function byMsDesc(a: ProfileNode, b: ProfileNode): number {
     return b.ms - a.ms;
 }
 
+/** The native mesh collector also publishes work counts in its scope packet.
+ * These are quantities, including in existing captures, never milliseconds. */
+export function isNativeProfileCounter(name: string): boolean {
+    return /^render\.collect\.mesh\.(scene|depth|motion|other)\.(walks|visits)$/.test(name);
+}
+
 /**
  * Fold one frame's flat measurements into the tree the profiler renders.
  *
@@ -166,6 +172,7 @@ function byMsDesc(a: ProfileNode, b: ProfileNode): number {
 export function buildFrameProfile(input: FrameProfileInput): FrameProfile {
     const nativeByDomain = new Map<string, ScopeCost[]>();
     for (const n of input.nativeScopes ?? []) {
+        if (isNativeProfileCounter(n.name)) continue;
         const d = scopeDomain(n.name);
         const list = nativeByDomain.get(d);
         if (list) list.push(n); else nativeByDomain.set(d, [n]);

@@ -9,7 +9,7 @@
  * linear values unencoded, far too dark, and its output transform, MSAA, quality and layer sorting never arrived either.
  */
 import { setLinearColorSpace } from '../ecs/env';
-import { outputTransformCode, type OutputTransform } from '../postprocess';
+import { outputTransformCode, type OutputTransform } from '../postprocess/PostProcessAPI';
 import { installQuality } from '../render/qualityRuntime';
 import { ScreenScaling, SCREEN_FIT_OFF, type ScreenScalingData } from '../camera/ScreenScaling';
 import { RenderResolution } from '../camera/presentPlan';

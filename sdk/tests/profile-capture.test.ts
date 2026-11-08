@@ -74,6 +74,34 @@ describe('summarizeFrames', () => {
         expect(s.counters['batch.draws']).toBeCloseTo(2, 4);
     });
 
+    it('reads native mesh visits as quantities instead of thousands of milliseconds', () => {
+        const measured = frame(0, 16.7, {
+            scopes: [{ name: 'render.submit', ms: 2, system: 'RenderSystem', remainder: 'wait' }],
+            nativeScopes: [
+                { name: 'render.collect.mesh.scene.walks', ms: 1, system: '', remainder: 'work' },
+                { name: 'render.collect.mesh.scene.visits', ms: 3083, system: '', remainder: 'work' },
+                { name: 'render.collect.mesh.scene.ms', ms: .5, system: '', remainder: 'work' },
+            ],
+        });
+        const s = summarizeFrames([measured]);
+        expect(s.counters['render.collect.mesh.scene.visits']).toBe(3083);
+        expect(s.counters['render.collect.mesh.scene.walks']).toBe(1);
+        expect(s.mean.cpuMs).toBeCloseTo(.5, 4);
+        expect(s.mean.waitMs).toBeCloseTo(1.5, 4);
+        expect(JSON.stringify(s.mean.domains)).not.toContain('.visits');
+        expect(JSON.stringify(s.mean.domains)).not.toContain('.walks');
+        expect(JSON.stringify(s.mean.domains)).toContain('scene.ms');
+    });
+
+    it('keeps the typed counter when a capture carries both old and new representations', () => {
+        const name = 'render.collect.mesh.depth.visits';
+        const s = summarizeFrames([
+            frame(0, 16, { counters: { [name]: 8 }, nativeScopes: [{ name, ms: 100, system: '', remainder: 'work' }] }),
+            frame(1, 16),
+        ]);
+        expect(s.counters[name]).toBe(4);
+    });
+
     it('keeps the mean profile summing like a frame', () => {
         const s = summarizeFrames([frame(0, 16.7), frame(1, 16.7)]);
         expect(s.mean.cpuMs + s.mean.waitMs + s.mean.idleMs).toBeCloseTo(s.mean.frameMs, 4);

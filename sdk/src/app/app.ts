@@ -252,6 +252,7 @@ export class App {
     private frame_paused_ = false;
     private user_paused_ = false;
     private step_pending_ = false;
+    private steppedFrames_ = 0;
     private play_speed_ = 1.0;
 
     private constructor() {
@@ -1007,6 +1008,11 @@ export class App {
     /** @experimental Completed frame interval before simulation speed or delta clamping. */
     getFrameTiming(): Readonly<{ seq: number; frameMs: number }> | null {
         return this.frameTiming_;
+    }
+
+    /** Frames requested by stepping controls, excluded from wall-clock FPS windows. */
+    getSteppedFrameCount(): number {
+        return this.steppedFrames_;
     }
 
     /**
@@ -2006,6 +2012,7 @@ export class App {
         time.delta = hostPauseOwners.get(this)?.size && !this.step_pending_ ? 0 : delta * scale;
         time.elapsed += time.delta;
         time.frameCount++;
+        if (this.step_pending_) this.steppedFrames_++;
         time.fixedDelta = this.fixedTimestep_;
     }
 }

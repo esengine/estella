@@ -128,6 +128,20 @@ describe('App.tick()', () => {
 });
 
 describe('App.stepFrames()', () => {
+    it('counts explicitly stepped frames separately from the normal clock', async () => {
+        const app = App.new();
+        await app.tick(1 / 60);
+        expect(app.getSteppedFrameCount()).toBe(0);
+        await app.stepFrames(5);
+        expect(app.getSteppedFrameCount()).toBe(5);
+        expect(app.getResource(Time).frameCount).toBe(6);
+        await app.tick(1 / 60);
+        expect(app.getSteppedFrameCount()).toBe(5);
+        const release = app.holdExecution();
+        await app.stepFrames(2);
+        expect(app.getSteppedFrameCount()).toBe(5);
+        release();
+    });
     it('waits for an in-flight frame and resumes only one loop', async () => {
         const realRaf = globalThis.requestAnimationFrame;
         const realCancel = globalThis.cancelAnimationFrame;
