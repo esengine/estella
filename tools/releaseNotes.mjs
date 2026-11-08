@@ -4128,4 +4128,6 @@ export const NOTED = {
     {"note": "A material parameter named like an engine uniform is refused on every platform."},
   "fix(spine): the atlas reaches the module through the heap as UTF-8 bytes, so an atlas past 60 KB or with non-ASCII names loads":
     {"note": "A Spine atlas of any size loads."},
+  "fix(ios): the host adopts the scene lifecycle, so a game built with Xcode 27 opens on iOS 27":
+    {"note": "An iOS game opens on iOS 27."},
 };

@@ -20,6 +20,7 @@
  * @copyright Copyright (c) 2026 ESEngine Team
  *            Licensed under the Apache License, Version 2.0.
  */
+#import <os/log.h>
 #import <UIKit/UIKit.h>
 #import <QuartzCore/CAMetalLayer.h>
 
@@ -155,7 +156,8 @@ struct IOSPlatform final : eshost::Platform {
     }
 
     void log(bool error, const char* message) override {
-        NSLog(@"[Estella]%s %s", error ? " ERROR:" : "", message);
+        os_log_with_type(OS_LOG_DEFAULT, error ? OS_LOG_TYPE_ERROR : OS_LOG_TYPE_DEFAULT,
+                         "[Estella]%{public}s %{public}s", error ? " ERROR:" : "", message);
     }
 
     eshost::FontMatch matchFont(const std::string& family, u32 codepoint, int style) override {
@@ -202,7 +204,7 @@ IOSPlatform g_platform;
 }
 
 - (void)loadView {
-    self.view = [[EstellaMetalView alloc] initWithFrame:UIScreen.mainScreen.bounds];
+    self.view = [[EstellaMetalView alloc] initWithFrame:CGRectZero];
     self.view.multipleTouchEnabled = YES;  // one id per finger — see touch_stream.hpp
 }
 
@@ -216,9 +218,9 @@ IOSPlatform g_platform;
 
     NSNotificationCenter* nc = NSNotificationCenter.defaultCenter;
     [nc addObserver:self selector:@selector(appBackgrounded)
-               name:UIApplicationDidEnterBackgroundNotification object:nil];
+               name:UISceneDidEnterBackgroundNotification object:nil];
     [nc addObserver:self selector:@selector(appForegrounded)
-               name:UIApplicationWillEnterForegroundNotification object:nil];
+               name:UISceneWillEnterForegroundNotification object:nil];
 }
 
 // The layer's drawable size is in pixels; the engine's viewport and the touch
@@ -395,17 +397,30 @@ IOSPlatform g_platform;
 
 @end
 
-@interface EstellaAppDelegate : UIResponder <UIApplicationDelegate>
+@interface EstellaSceneDelegate : UIResponder <UIWindowSceneDelegate>
 @property(nonatomic, strong) UIWindow* window;
 @end
 
-@implementation EstellaAppDelegate
-- (BOOL)application:(UIApplication*)application
-        didFinishLaunchingWithOptions:(NSDictionary*)options {
-    self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
+@implementation EstellaSceneDelegate
+- (void)scene:(UIScene*)scene willConnectToSession:(UISceneSession*)session
+      options:(UISceneConnectionOptions*)options {
+    if (![scene isKindOfClass:UIWindowScene.class]) return;
+    self.window = [[UIWindow alloc] initWithWindowScene:(UIWindowScene*)scene];
     self.window.rootViewController = [[EstellaViewController alloc] init];
     [self.window makeKeyAndVisible];
-    return YES;
+}
+@end
+
+@interface EstellaAppDelegate : UIResponder <UIApplicationDelegate>
+@end
+
+@implementation EstellaAppDelegate
+- (UISceneConfiguration*)application:(UIApplication*)application
+    configurationForConnectingSceneSession:(UISceneSession*)session
+                                   options:(UISceneConnectionOptions*)options {
+    UISceneConfiguration* config = [[UISceneConfiguration alloc] initWithName:@"Default" sessionRole:session.role];
+    config.delegateClass = EstellaSceneDelegate.class;
+    return config;
 }
 
 - (void)applicationDidReceiveMemoryWarning:(UIApplication*)application {
