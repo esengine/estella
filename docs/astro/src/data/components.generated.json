@@ -2283,6 +2283,31 @@
           "range": "≥ 1"
         },
         {
+          "key": "castShadows",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Generated cells cast shadows. Turn off for dense short grass to avoid drawing every cell again into each shadow cascade. Lighting and received shadows remain."
+        },
+        {
+          "key": "zoneWorld",
+          "type": "string",
+          "default": "empty",
+          "doc": "WorldGen world whose building and road exclusion zones this field respects. Empty uses the first world."
+        },
+        {
+          "key": "zoneTags",
+          "type": "string",
+          "default": "empty",
+          "doc": "Extra comma-separated tags used by zone exclusions. foliage and grass (or tree for a mesh) are included automatically."
+        },
+        {
+          "key": "zonePadding",
+          "type": "number",
+          "default": "0",
+          "doc": "Extra world-space clearance from building and road zones.",
+          "range": "≥ 0"
+        },
+        {
           "key": "cardU0",
           "type": "number",
           "default": "0",
@@ -2332,6 +2357,7 @@
         "bladeWidth",
         "lodDistance",
         "drawDistance",
+        "zonePadding",
         "cardU0",
         "cardV0",
         "cardU1",
