@@ -18,7 +18,7 @@
  */
 import {
     createWebApp, setEditorMode, setPlayMode, Assets, acquireWebGPUDevice,
-    loadSceneData, Renderer, instantiatePrefab, writeFieldPath, Transform, Name,
+    loadSceneData, discoverSceneAssets, Renderer, instantiatePrefab, writeFieldPath, Transform, Name,
     getComponent, DeviceStatus, getDeviceStatus, getDeviceLostReport, recoverDevice,
     getContextLossGuardInfo, decodeImagePixels, captureFramePixels, captureFrame, replayDraw, BatchBreak,
     RenderTexture, Camera, Sprite,
@@ -385,6 +385,7 @@ async function loadSpine(
 async function loadDragonBones(
     target: App, sceneData: SceneData, entityMap: Map<number, number>, toUrl: (ref: string) => string,
 ): Promise<void> {
+    if (discoverSceneAssets(sceneData).dragonBones.length === 0) return;
     const wasm = target.wasmModule;
     if (!wasm) return;
     try {
