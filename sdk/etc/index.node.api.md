@@ -4536,6 +4536,7 @@ cardU0: number
 cardU1: number
 cardV0: number
 cardV1: number
+castShadows: boolean
 cellSize: number
 count: number
 drawDistance: number
@@ -4551,6 +4552,9 @@ seed: number
 sizeX: number
 sizeZ: number
 waterDepth: number
+zonePadding: number
+zoneTags: string
+zoneWorld: string
 ```
 
 ## FoliageField — class @experimental
@@ -7165,6 +7169,7 @@ biome: string
 canopy: number
 far: { u0: number; v0: number; u1: number; v1: number; tent?: boolean; } | null | undefined
 footprint: number
+grounding: GroundFit | undefined
 group: string
 id: string
 interactive: string | null
@@ -8465,6 +8470,7 @@ chance: number | undefined
 count: readonly [number, number] | undefined
 far: { u0: number; v0: number; u1: number; v1: number; tent?: boolean; } | undefined
 footprint: number
+grounding: GroundingOptions | undefined
 id: string
 interactive: string | undefined
 material: string | number | undefined
@@ -8473,6 +8479,7 @@ minUp: number | undefined
 plant: string | undefined
 ring: readonly [number, number] | undefined
 scale: readonly [number, number] | undefined
+scaleFootprint: boolean | undefined
 tags: readonly string[] | undefined
 waterDepth: number | undefined
 ```
@@ -8536,7 +8543,7 @@ OnDemand = 2
 
 ## Rejection — type @experimental
 ```
-'noBiome' | 'density' | 'noGround' | 'slope' | 'water' | 'zone' | 'occupied' | 'conflict'
+'noBiome' | 'density' | 'noGround' | 'slope' | 'water' | 'relief' | 'zone' | 'occupied' | 'conflict'
 ```
 
 ## ReliableOrderedTransport — interface @experimental

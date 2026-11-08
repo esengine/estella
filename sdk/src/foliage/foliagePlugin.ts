@@ -27,6 +27,7 @@ import { TerrainsRes } from '../terrain/terrainPlugin';
 import { Material } from '../render/material';
 import { currentWeather, currentWeatherDrive, WeatherDrive } from '../postprocess/weather';
 import { isEditor, isPlayMode } from '../ecs/env';
+import type { Zones } from '../worldgen/zones';
 import {
     buildBillboardMesh, buildGrassMesh, buildInstancedMesh, scatterCell,
     type Ground, type Plant,
@@ -60,6 +61,14 @@ export interface FoliageData {
     /** Distance past which a cell is drawn as its far version, and past which it is not drawn. */
     lodDistance: number;
     drawDistance: number;
+    /** Whether the generated cells cast shadows. Disable for dense short grass; it still receives lighting and shadows. */
+    castShadows: boolean;
+    /** WorldGen world whose zones reserve roads and buildings. Empty uses its first world; no WorldGen leaves the field unchanged. */
+    zoneWorld: string;
+    /** Extra comma-separated exclusion tags, in addition to foliage and grass/tree. */
+    zoneTags: string;
+    /** Additional world-space clearance from a zone's boundary. */
+    zonePadding: number;
     /** A tree's far version is two crossed cards showing this rectangle of its texture, as uv: left, bottom, right, top. */
     cardU0: number;
     cardV0: number;
@@ -78,7 +87,8 @@ export const Foliage: ComponentDef<FoliageData> = defineComponent<FoliageData>('
     mesh: 0, material: 0,
     sizeX: 400, sizeZ: 400, cellSize: 40, count: 500, seed: 1,
     minScale: 0.8, maxScale: 1.25, minUp: 0.7, heightMin: -100000, heightMax: 100000, waterDepth: 0,
-    bladeHeight: 14, bladeWidth: 1.6, lodDistance: 140, drawDistance: 420,
+    bladeHeight: 14, bladeWidth: 1.6, lodDistance: 140, drawDistance: 420, castShadows: true,
+    zoneWorld: '', zoneTags: '', zonePadding: 0,
     cardU0: 0, cardV0: 0, cardU1: 1, cardV1: 1, cardTent: 0,
 }, {
     assetFields: [{ field: 'mesh', type: 'mesh' }, { field: 'material', type: 'material' }],
@@ -100,6 +110,10 @@ export const Foliage: ComponentDef<FoliageData> = defineComponent<FoliageData>('
         bladeWidth: { min: 0.01, category: 'Grass', tooltip: 'Width of a blade at its base, at scale 1.' },
         lodDistance: { min: 1, category: 'Distance', tooltip: 'Past this a cell is drawn as its far version: fewer, broader blades, or a tree as crossed cards.' },
         drawDistance: { min: 1, category: 'Distance', tooltip: 'Past this a cell is not drawn.' },
+        castShadows: { category: 'Distance', tooltip: 'Generated cells cast shadows. Turn off for dense short grass to avoid drawing every cell again into each shadow cascade. Lighting and received shadows remain.' },
+        zoneWorld: { category: 'Placement', tooltip: 'WorldGen world whose building and road exclusion zones this field respects. Empty uses the first world.' },
+        zoneTags: { category: 'Placement', tooltip: 'Extra comma-separated tags used by zone exclusions. foliage and grass (or tree for a mesh) are included automatically.' },
+        zonePadding: { min: 0, category: 'Placement', tooltip: 'Extra world-space clearance from building and road zones.' },
         cardU0: { label: 'Card left', category: 'Far version', tooltip: 'The part of the plant\'s texture a far tree shows (left, bottom, right, top).' },
         cardV0: { label: 'Card bottom', category: 'Far version' },
         cardU1: { label: 'Card right', category: 'Far version' },
@@ -125,6 +139,12 @@ interface WaterQuery { depthAt(x: number, z: number, y: number): number | null; 
 function waterOf(app: App): WaterQuery | null {
     const w = (app as unknown as { getResourceByName?: (name: string) => unknown }).getResourceByName?.('Waters') as Partial<WaterQuery> | undefined;
     return w && typeof w.depthAt === 'function' ? w as WaterQuery : null;
+}
+
+/** Optional world generation: querying zones must not pull that module into a foliage-only game. */
+function zonesOf(app: App, world: string | undefined): Zones | null {
+    const gens = app.getResourceByName?.('WorldGens') as { zones?(world?: string): Zones } | undefined;
+    return gens?.zones?.(world || undefined) ?? null;
 }
 
 /** The chunk layer a Foliage's cells are. */
@@ -193,7 +213,8 @@ export class FoliagePlugin implements Plugin {
                     field.built_.set(entity, built);
                     void this.start(app, built);
                 }
-                this.layer(app, entity, built, revision, waiting);
+                const zones = zonesOf(app, data.zoneWorld);
+                this.layer(app, entity, built, `${revision}:${zones?.revision ?? 0}`, waiting);
             }
         }, { name: 'FoliageSystem' }));
     }
@@ -260,7 +281,7 @@ export class FoliagePlugin implements Plugin {
      * The field's cells as a layer of chunks: the area's grid, wanted out to `drawDistance` round the streaming sources, grown again
      * (each old cell kept till its new one stands) when a field, the ground or the water changes.
      */
-    private layer(app: App, entity: Entity, built: BuiltFoliage, revision: number, waiting: boolean): void {
+    private layer(app: App, entity: Entity, built: BuiltFoliage, revision: string, waiting: boolean): void {
         const t = app.world.get(entity, Transform) as TransformData;
         const data = built.data, cells = this.cellsAcross(data);
         const sx = t.worldScale.x || 1, sz = t.worldScale.z || 1;
@@ -306,7 +327,10 @@ export class FoliagePlugin implements Plugin {
         const worldX = t.worldPosition.x + localX * sx, worldZ = t.worldPosition.z + localZ * sz;
         const hasTerrain = !!terrains && terrains.built_.size > 0;
         const water = waterOf(app);
+        const zones = zonesOf(app, data.zoneWorld);
+        const tags = ['foliage', data.mesh ? 'tree' : 'grass', ...(data.zoneTags ?? '').split(',').map((s) => s.trim()).filter(Boolean)];
         const ground: Ground = (x, z) => {
+            if (zones?.excluding(x, z, Math.max(0, data.zonePadding ?? 0), tags, data.seed)) return null;
             // With a terrain, a plant stands where there is ground and nowhere else; with none, the area is flat at the entity's height.
             const y = hasTerrain ? terrains!.heightAt(x, z) : t.worldPosition.y;
             if (y === null) return null;
@@ -356,6 +380,7 @@ export class FoliagePlugin implements Plugin {
         world.insert(cell, Transform, { position: { x: localX, y: 0, z: localZ } });
         world.insert(cell, MeshRenderer, {
             mesh: handles[0]!, material: data.material, lit: true, opaque: true, cullBackfaces: false,
+            castShadows: data.castShadows !== false,
             color: { r: 1, g: 1, b: 1, a: 1 },
         } as Partial<MeshRendererData>);
         const lodDef = getComponent('LODGroup');

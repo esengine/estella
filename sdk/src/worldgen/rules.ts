@@ -19,6 +19,7 @@
  */
 import type { FieldFn, NoiseField } from './fields';
 import type { PlantKind } from '../foliage/plantKind';
+import type { GroundingOptions } from './grounding';
 
 /** A band of one field with soft edges: full weight between `min` and `max`, fading to none over `blend` past each. */
 export interface BiomeCondition { field: string; min?: number; max?: number; blend?: number }
@@ -59,8 +60,12 @@ export interface RecipeMember {
     ring?: readonly [number, number];
     arc?: readonly [number, number];
     scale?: readonly [number, number];
-    /** What it takes on the ground (a trunk): nothing else stands within it. */
+    /** Radius it takes on the ground: world units by default, model units with scaleFootprint. */
     footprint: number;
+    /** Scale footprint and canopy with the model. Omitted preserves existing world-unit rules. */
+    scaleFootprint?: boolean;
+    /** Fit an upright building over its whole base; also reserves at least the scaled base's circumcircle. */
+    grounding?: GroundingOptions;
     /** How far it spreads overhead (a crown), for what is kept clear of view; the footprint when absent. */
     canopy?: number;
     /** Upright, or leaning with the ground. */

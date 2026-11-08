@@ -31,6 +31,22 @@ replaces it. Nothing is baked.
 If the scene has a [Terrain](/docs/graphics/terrain/), plants stand on it, keep off what is too steep, and wait for it to be built; with none, the
 area is flat at the entity's height.
 
+## Budget and reservations
+
+`count` is **per cell**, not for the whole area. Before distance and terrain rejection, a 700 × 700 field with 35-unit cells and
+750 plants per cell has 400 cells and up to 300,000 plants. Review density (`count / cellSize²`), cell count, near/far distance and
+shadow passes together. Larger cells reduce submissions but cull more coarsely. Short grass can set `castShadows: false`; it still
+receives light and shadows. Existing scenes keep casting unless this option is changed.
+
+When a WorldGen exists, Foliage respects its exclusion zones. `zoneWorld` selects the world by name (empty uses the first),
+`zoneTags` adds comma-separated tags to `foliage` and `grass` (or `tree` for a mesh), and `zonePadding` adds clearance in world units.
+Reserve building floors, steps and entrances with `WorldZone` boxes and roads with zones from `roadZones` / `setRoad` in
+`esengine/worldgen`. Moving or deleting a zone regenerates the field. Without WorldGen the field grows as before.
+
+The MCP `audit_vegetation` tool reports authored upper bounds and live counters. Warm generation with `step` before measuring;
+`gpuDraws` includes shadow and other passes, while `drawCalls` counts scene lists. Background-window idle time is not a foreground
+frame-rate benchmark. For large forests, `WorldRules.plants` and `PlacedFoliage` share geometry and support per-instance LOD.
+
 ## Wind
 
 The **Foliage** shader (`builtin:foliage`) bends each vertex by a weight painted in its colour (red is how far up the plant it is, so the root

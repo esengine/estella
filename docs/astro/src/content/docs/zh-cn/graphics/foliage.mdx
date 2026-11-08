@@ -24,6 +24,21 @@ description: 一个 Foliage 组件,把草或网格散布到一片区域或地形
 
 如果场景里有 [Terrain](/docs/zh-cn/graphics/terrain/),植物就站在它上面,避开太陡的地方,并等它构建完;没有地形时,区域是实体所在高度的平地。
 
+## 预算与禁植区域
+
+`count` 是**每块**植物数量。700 × 700 的区域使用 35 单位的区块、每块 750 株，在距离和地形筛选前最多有 400 块、30 万株。
+密度约为 `count / cellSize²`，需要和区块数、LOD、绘制距离、阴影一起设置。增大区块可以减少提交，但裁剪会更粗。
+短草可设置 `castShadows: false`，仍然接受光照和阴影。旧场景默认保持投影。
+
+存在 WorldGen 时，Foliage 会读取它的禁植区域。`zoneWorld` 选择世界名称，留空使用第一个世界；`zoneTags` 为逗号分隔的额外标签，
+默认已包含 `foliage` 和 `grass`（使用网格时为 `tree`）；`zonePadding` 是额外的世界单位留白。
+用 WorldZone 方框预留建筑地基、台阶和门前通道，用 `esengine/worldgen` 的 `roadZones` 或 `setRoad` 预留连续道路。
+区域移动或删除后草地会重新生成。没有 WorldGen 的场景保持原有行为。
+
+MCP 的 `audit_vegetation` 会给出配置上限和当前绘制统计。先用 `step` 完成预热，再测量；`gpuDraws` 包含阴影等全部 pass，
+`drawCalls` 是场景列表的绘制数。后台窗口的空闲时间和 1 FPS 不能代表前台游戏帧率。大型森林优先使用支持共享网格和逐实例 LOD 的
+`WorldRules.plants` 或 `PlacedFoliage`。
+
 ## 风
 
 **Foliage** 着色器(`builtin:foliage`)按顶点颜色里画好的权重弯曲每个顶点(红色是它在植物上多高,所以根不动、尖端动;绿色是植物自己的相位,所以一片草地不会整体一起摆),再加一阵在世界上传播的阵风和叠在上面的颤动。参数在材质里:`u_windStrength`、`u_windSpeed`、`u_windDirection`(度)、`u_gustScale`(越小阵风越长)和 `u_flutter`。植物是双面的,并且让光透过(`u_translucency`);带 alpha 通道的叶子纹理(`u_albedo`、`u_useTexture`、`u_alphaCutoff`)能从一张卡片里抠出叶子的轮廓。

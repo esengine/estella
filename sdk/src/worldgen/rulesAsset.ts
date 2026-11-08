@@ -13,6 +13,7 @@
 import type { AssetLoader, LoadContext } from '../asset/AssetLoader';
 import type { PlantKind } from '../foliage/plantKind';
 import type { BiomeDef, PlacementLayer, Recipe, RecipeMember, WorldRules } from './rules';
+import { validateGrounding, type GroundingOptions } from './grounding';
 
 /** Whether a WorldGen's `rules` names a file rather than rules registered by code. */
 export function isRulesFile(ref: string): boolean {
@@ -43,6 +44,14 @@ function member(v: unknown, where: string): RecipeMember {
     if (!v || typeof v !== 'object') fail(where, 'a member, an object');
     const m = v as Record<string, unknown>;
     const mesh = m.mesh;
+    if (m.scaleFootprint !== undefined && typeof m.scaleFootprint !== 'boolean') fail(`${where}.scaleFootprint`, 'a boolean');
+    if (m.grounding !== undefined) {
+        try { validateGrounding(m.grounding as GroundingOptions); }
+        catch (error) { fail(where, error instanceof Error ? error.message : String(error)); }
+        if (m.attach === 'align') fail(`${where}.grounding`, 'footprint fitting requires an upright member');
+    }
+    const scale = range(m.scale, `${where}.scale`);
+    if ((m.grounding || m.scaleFootprint) && scale && scale[0] <= 0) fail(`${where}.scale`, 'positive scales for fitted or scaled footprints');
     if (m.plant !== undefined) str(m.plant, `${where}.plant`);
     else if (typeof mesh !== 'string' && typeof mesh !== 'number') fail(`${where}.mesh`, 'a mesh path, or a plant');
     return {
@@ -53,7 +62,7 @@ function member(v: unknown, where: string): RecipeMember {
         count: range(m.count, `${where}.count`),
         ring: range(m.ring, `${where}.ring`),
         arc: range(m.arc, `${where}.arc`),
-        scale: range(m.scale, `${where}.scale`),
+        scale,
     } as RecipeMember;
 }
 

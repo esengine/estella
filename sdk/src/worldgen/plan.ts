@@ -21,6 +21,7 @@
 import { Environment, fbm, hash01, hashString, type FieldValues } from './fields';
 import { bandWeight, type BiomeDef, type PlacementLayer, type Recipe, type RecipeMember, type WorldRules } from './rules';
 import type { Zones } from './zones';
+import { fitGroundFootprint, type GroundFit } from './grounding';
 
 /** One thing placed. */
 export interface Placement {
@@ -52,12 +53,14 @@ export interface Placement {
     interactive: string | null;
     footprint: number;
     canopy: number;
+    /** Full-footprint measurements when the recipe asks for ground fitting. */
+    grounding?: GroundFit;
     /** The far version it is drawn as past its layer's lodDistance, when its recipe gives one. */
     far: RecipeMember['far'] | null;
 }
 
 /** Why a candidate or a member did not stand. */
-export type Rejection = 'noBiome' | 'density' | 'noGround' | 'slope' | 'water' | 'zone' | 'occupied' | 'conflict';
+export type Rejection = 'noBiome' | 'density' | 'noGround' | 'slope' | 'water' | 'relief' | 'zone' | 'occupied' | 'conflict';
 
 export interface Group {
     id: string;
@@ -80,7 +83,7 @@ interface Candidate {
     biome: string;
     recipe: Recipe;
     radius: number;
-    fields: FieldValues;
+    anchor: Placement;
 }
 
 type Viable = { ok: true; candidate: Candidate } | { ok: false; reason: Rejection; detail?: string };
@@ -89,9 +92,15 @@ type Viable = { ok: true; candidate: Candidate } | { ok: false; reason: Rejectio
 const CACHE_LIMIT = 40000;
 
 function groupRadius(recipe: Recipe): number {
-    let r = recipe.anchor.footprint;
-    for (const m of recipe.members ?? []) r = Math.max(r, (m.ring?.[1] ?? 0) + m.footprint);
+    let r = footprintOf(recipe.anchor, recipe.anchor.scale?.[1] ?? 1);
+    for (const m of recipe.members ?? []) r = Math.max(r, (m.ring?.[1] ?? 0) + footprintOf(m, m.scale?.[1] ?? 1));
     return r;
+}
+
+/** A fitted base cannot reach beyond its reservation, even if the authored radius is smaller. */
+function footprintOf(m: RecipeMember, scale: number): number {
+    return Math.max(m.footprint * (m.scaleFootprint ? Math.abs(scale) : 1),
+        m.grounding ? Math.hypot(...m.grounding.size) * Math.abs(scale) / 2 : 0);
 }
 
 const lerp = (range: readonly [number, number] | undefined, t: number, fallback: number): number =>
@@ -197,7 +206,7 @@ export class WorldPlan {
 
     /** How many candidates of a layer in the square stood, and why the rest did not. */
     stats(layer: string, x0: number, z0: number, x1: number, z1: number): Record<'placed' | Rejection, number> {
-        const counts = { placed: 0, noBiome: 0, density: 0, noGround: 0, slope: 0, water: 0, zone: 0, occupied: 0, conflict: 0 };
+        const counts = { placed: 0, noBiome: 0, density: 0, noGround: 0, slope: 0, water: 0, relief: 0, zone: 0, occupied: 0, conflict: 0 };
         const li = this.layerIndex(layer);
         if (li < 0) return counts;
         const s = this.layers_[li]!.def.spacing;
@@ -257,7 +266,7 @@ export class WorldPlan {
         }
         const groupId = `${layer.def.id}@${layer.def.version ?? 1}:${gx},${gz}`;
         const r = c.recipe;
-        const anchor = this.place(groupId, layer.def, r, r.anchor, 0, c.x, c.z, c.biome, c.fields, 0)!;
+        const anchor = c.anchor;
         const members: Placement[] = [];
         const taken: Placement[] = [anchor];
         for (const [mi, m] of (r.members ?? []).entries()) {
@@ -269,12 +278,11 @@ export class WorldPlan {
                 const dist = lerp(m.ring, h(3, k), 0);
                 const x = c.x + Math.cos(angle) * dist, z = c.z + Math.sin(angle) * dist;
                 const f = this.env.sample(x, z);
-                if (this.standing(f, m) !== null) continue;
-                if (this.zones.excluding(x, z, m.footprint, this.tagsOf(layer.def, r, m), this.seed) !== null) continue;
-                if (this.occupied(li, x, z, m.footprint) !== null) continue;
-                if (taken.some((t) => Math.hypot(t.x - x, t.z - z) < t.footprint + m.footprint)) continue;
                 const p = this.place(groupId, layer.def, r, m, k, x, z, c.biome, f, h(4, k));
-                if (!p) continue;
+                if (typeof p === 'string') continue;
+                if (this.zones.excluding(x, z, p.footprint, this.tagsOf(layer.def, r, m), this.seed) !== null) continue;
+                if (this.occupied(li, x, z, p.footprint) !== null) continue;
+                if (taken.some((t) => Math.hypot(t.x - x, t.z - z) < t.footprint + p.footprint)) continue;
                 members.push(p);
                 taken.push(p);
             }
@@ -283,19 +291,28 @@ export class WorldPlan {
     }
 
     private place(group: string, layer: PlacementLayer, r: Recipe, m: RecipeMember, k: number, x: number, z: number,
-                  biome: string, f: FieldValues, turn: number): Placement | null {
-        if (!Number.isFinite(f.height!)) return null;
+                  biome: string, f: FieldValues, turn: number): Placement | Rejection {
+        const why = this.standing(f, m);
+        if (why) return why;
         const h = hash01(this.worldHash_, hashString(group), hashString(m.id), k, 7);
+        const yaw = (turn || h) * Math.PI * 2, scale = lerp(m.scale, hash01(this.worldHash_, hashString(group), k, 11), 1);
+        let grounding: GroundFit | undefined;
+        if (m.grounding) {
+            const result = fitGroundFootprint(this.env.inputs, x, z, yaw, scale, m.grounding, m);
+            if (!result.ok) return result.reason;
+            grounding = result.fit;
+        }
         const g = this.env.inputs.ground(x, z);
         const up = g?.up ?? 1;
         const n = g?.normal ?? [0, up, Math.sqrt(Math.max(0, 1 - up * up))];
         return {
             id: `${group}/${r.id}@${r.version}/${m.id}.${k}`, group, layer: layer.id, recipe: r.id, recipeVersion: r.version, member: m.id,
             biome, zone: this.zones.at(x, z)[0]?.zone.id ?? null,
-            x, y: f.height!, z, yaw: (turn || h) * Math.PI * 2, scale: lerp(m.scale, hash01(this.worldHash_, hashString(group), k, 11), 1),
+            x, y: grounding?.y ?? f.height!, z, yaw, scale,
             normal: n, attach: m.attach ?? 'upright', mesh: typeof m.mesh === 'number' ? m.mesh : 0,
             material: typeof m.material === 'number' ? m.material : 0, plant: m.plant ?? null, interactive: m.interactive ?? null,
-            footprint: m.footprint, canopy: m.canopy ?? m.footprint, far: m.far ?? null,
+            footprint: footprintOf(m, scale), canopy: (m.canopy ?? m.footprint) * (m.scaleFootprint ? Math.abs(scale) : 1), far: m.far ?? null,
+            ...(grounding ? { grounding } : {}),
         };
     }
 
@@ -338,13 +355,14 @@ export class WorldPlan {
         for (const br of choices) { if (v < br.density) { recipe = this.recipes_.get(br.recipe)!; break; } v -= br.density; }
         if (!recipe) return { ok: false, reason: 'density' };
         const f = this.env.sample(x, z);
-        const why = this.standing(f, recipe.anchor);
-        if (why) return { ok: false, reason: why };
-        const zone = this.zones.excluding(x, z, recipe.anchor.footprint, this.tagsOf(layer.def, recipe, recipe.anchor), this.seed);
+        const groupId = `${layer.def.id}@${layer.def.version ?? 1}:${gx},${gz}`;
+        const anchor = this.place(groupId, layer.def, recipe, recipe.anchor, 0, x, z, biome, f, 0);
+        if (typeof anchor === 'string') return { ok: false, reason: anchor };
+        const zone = this.zones.excluding(x, z, anchor.footprint, this.tagsOf(layer.def, recipe, recipe.anchor), this.seed);
         if (zone) return { ok: false, reason: 'zone', detail: zone.id };
-        const blocker = this.occupied(li, x, z, recipe.anchor.footprint);
+        const blocker = this.occupied(li, x, z, anchor.footprint);
         if (blocker) return { ok: false, reason: 'occupied', detail: blocker };
-        return { ok: true, candidate: { gx, gz, x, z, priority: h(5), biome, recipe, radius: groupRadius(recipe), fields: f } };
+        return { ok: true, candidate: { gx, gz, x, z, priority: h(5), biome, recipe, radius: groupRadius(recipe), anchor } };
     }
 
     /** The id of a placement of an earlier layer whose footprint a footprint of `radius` at (x, z) would overlap, or null. */

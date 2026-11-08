@@ -34,6 +34,7 @@ cardU0: number
 cardU1: number
 cardV0: number
 cardV1: number
+castShadows: boolean
 cellSize: number
 count: number
 drawDistance: number
@@ -49,6 +50,9 @@ seed: number
 sizeX: number
 sizeZ: number
 waterDepth: number
+zonePadding: number
+zoneTags: string
+zoneWorld: string
 ```
 
 ## FoliageField — class @experimental

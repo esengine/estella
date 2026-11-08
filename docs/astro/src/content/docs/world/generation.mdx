@@ -145,6 +145,32 @@ Only the chunks the zone reaches are made again, each keeping its old version un
 
 *A **World Zone**: a circle that tells the generator which biome to grow inside it.*
 
+## Building bases and roads
+
+An upright recipe member can set `grounding: { size: [width, depth], samples: 5, mode: 'highest', maxRelief: 2 }`.
+The base dimensions are model units; yaw and scale are applied before sampling the corners, edges and interior. The grid side may be
+3, 5, 7 or 9. Every sample must have ground and satisfy `minUp` and `waterDepth`; `maxRelief` rejects excessive height variation in
+world units. The base chooses `highest` (default), `lowest`, `mean` or `center`, then adds `offset` in scaled model units.
+`Placement.grounding` reports the range, support depth and burial depth. This is finite-grid support checking, not a terrain flattening
+operation: use a foundation deep enough for the accepted relief, or a flattening WorldZone for an authored site.
+
+The reservation always contains the whole fitted base. `scaleFootprint: true` also treats `footprint` and `canopy` as model-unit radii;
+omitting it preserves the existing world-unit behavior. The planner settles overlaps after choosing deterministic scale and base height.
+`stats` / `explain` report `relief` alongside slope, water, zone and overlap rejection. The World Rules editor exposes these settings.
+
+```ts
+import { setRoad } from 'esengine/worldgen';
+setRoad(worlds.zones('valley'), {
+  id: 'camp-trail', points: [[0, 0], [40, -20], [80, -10]],
+  width: 6, clearance: 2, falloff: 3, excludes: ['tree', 'grass', 'building'],
+});
+```
+
+`roadZones` returns serializable rectangle and circle zones with continuous bends and round end caps. `setRoad` replaces just one
+road's reservations, removing obsolete segments, and `removeRoad` releases them. These reserve space; mesh construction and road
+grading are separate. A 2D world uses the same helpers with its y coordinate in the second point slot. Place the building layer before
+forest layers so trees respect its footprints, and reserve authored building floors and entrances with WorldZones for Foliage.
+
 ## Interactive placements and changes
 
 A member with `interactive` (`'ore'`, `'tree'`) is an entity of its own, carrying a `PlacedObject` with its placement id and kind;

@@ -119,6 +119,23 @@ gens.zones().set({ id: 'house 1', kind: 'building', shape: { type: 'rect', x, z,
 
 *一个 **World Zone**:一个圆,告诉生成器在其中生长哪种群落。*
 
+## 建筑底面与道路
+
+直立建筑的成员可以设置 `grounding: { size: [宽, 深], samples: 5, mode: 'highest', maxRelief: 2 }`。
+宽深使用模型单位，应用旋转和缩放后，对角点、边缘和内部的网格采样；网格边长可以为 3、5、7 或 9。
+每个采样点都要有地面并满足 `minUp`、`waterDepth`，`maxRelief` 按世界单位限制最大高差。
+标高可选最高点（默认）、最低点、平均值或中心点：`highest`、`lowest`、`mean`、`center`，再叠加随模型缩放的 `offset`。
+`Placement.grounding` 提供高度范围、所需支撑深度和埋入深度。它是有限网格检测，不会自动削平地形；
+模型地基需要覆盖允许的高差，手工场地也可以使用 WorldZone 的 `flatten`。
+
+避让范围至少覆盖整块旋转缩放后的底面。`scaleFootprint: true` 将占地和树冠半径视为模型单位；
+留空则保留原有的世界单位含义。`stats` 和 `explain` 用 `relief` 区分高差拒绝，世界规则编辑器中可以直接编辑这些字段。
+
+`esengine/worldgen` 导出的 `roadZones({ id, points, width, clearance, falloff, excludes })` 将折线路径转为矩形段和圆形接头，
+转弯和端点不会留下禁植缺口；`setRoad(zones, options)` 替换一条路并清理旧段，`removeRoad(zones, id)` 释放它。
+这些函数预留空间，路面网格和道路整地另行制作。2D 世界也可以使用，把 y 写在每个点的第二个坐标。
+建筑层放在森林层之前，树木就会避开建筑的占地；Foliage 的建筑底面与门前通道使用 WorldZone 预留。
+
 ## 可交互的放置物与变化
 
 带 `interactive`(如 `'ore'`、`'tree'`)的成员是独立的实体,带有记录放置 ID 与类型的 `PlacedObject`;其余都是装饰,按区块、按种类合并成一个网格绘制。`gens.objectOf(id)` 找到某个放置物对应的实体。
