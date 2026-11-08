@@ -818,7 +818,13 @@ static void testLightingDirect() {
         CHECK(off.find(gone) != std::string::npos, gone);
         CHECK(on.find(gone) == std::string::npos, gone);
     }
-    CHECK(on.find("shadeLight(") != std::string::npos && on.find("g_shadowHard > 0.5") != std::string::npos, "the block's lights and the hard shadow stay");
+    CHECK(on.find("shadeLight(") != std::string::npos && on.find("shadowTap(c + vec2f") != std::string::npos, "the block's lights and the hard shadow stay");
+    CHECK(off.find("if (src <= 0.0 || g_shadowHard > 0.5) {") != std::string::npos, "with everything, a source with size takes the soft path");
+    const size_t hard = on.find("let texelUv = lc.u_shadowParams.y;");
+    CHECK(hard != std::string::npos && on.rfind("if (true) {", hard) != std::string::npos
+          && on.find("if (src <= 0.0 || g_shadowHard > 0.5) {") == std::string::npos,
+          "a source with size is shadowed hard, not left unshadowed, when the soft path is compiled out");
+
 }
 
 int main() {

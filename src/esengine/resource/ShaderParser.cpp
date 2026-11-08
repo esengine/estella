@@ -1587,7 +1587,11 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         // A source with no size throws one edge: a tent over the 3x3 texels around the
         // point, weighted by where it falls among them. Equal weights step at every
         // texel and the map's grid shows along the edge; a 2x2 still stair-steps it.
+#ifdef ES_LIGHT_DIRECT
+        if (true) {
+#else
         if (src <= 0.0 || g_shadowHard > 0.5) {
+#endif
             let texelUv = lc.u_shadowParams.y;
             let f = at0 / texelUv - 1.0;
             let c = (floor(f) + 0.5) * texelUv;
@@ -2545,7 +2549,9 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     // ES_LINEAR world with no per-call-site wiring. It must be set before the
     // renderer compiles shaders; flipping it later requires a reload.
     std::vector<std::string> features = featuresIn;
-    if (parsed.lightingDirect) features.push_back("ES_LIGHT_DIRECT");
+    if (parsed.lightingDirect && std::find(features.begin(), features.end(), "ES_LIGHT_DIRECT") == features.end()) {
+        features.push_back("ES_LIGHT_DIRECT");
+    }
     if (s_linearColor
         && std::find(features.begin(), features.end(), "ES_LINEAR") == features.end()) {
         features.push_back("ES_LINEAR");
@@ -2957,7 +2963,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // A source with no size throws one edge: a tent over the 3x3 texels around the
             // point, weighted by where it falls among them. Equal weights step at every
             // texel and the map's grid shows along the edge; a 2x2 still stair-steps it.
+            "#ifdef ES_LIGHT_DIRECT\n"
+            "        if (true) {\n"
+            "#else\n"
             "        if (src <= 0.0 || g_shadowHard > 0.5) {\n"
+            "#endif\n"
             "            highp float texelUv = u_shadowParams.y;\n"
             "            highp vec2 f = at0 / texelUv - 1.0;\n"
             "            highp vec2 c = (floor(f) + 0.5) * texelUv;\n"
