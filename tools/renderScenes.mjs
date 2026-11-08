@@ -57,6 +57,23 @@ export function sceneWatchdogMs(backend, host) {
  */
 export const SCENES = [
   {
+    id: 'render-clock', tier: 'pr',
+    // WebGPU captures the next frame; GL reads the already completed frame.
+    webgpu: { ESTELLA_VERIFY_EXPECT: JSON.stringify([
+      { x: 0.25, y: 0.5, rgb: [21, 234, 0], tol: 2 },
+      { x: 0.75, y: 0.5, rgb: [21, 234, 0], tol: 2 },
+    ]) },
+    env: {
+      ESTELLA_VERIFY_SCENE: '/scenes/render-clock.esscene',
+      ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '3',
+      // The second GL readback observes the fourth completed frame (4/60 s).
+      ESTELLA_VERIFY_EXPECT: JSON.stringify([
+        { x: 0.25, y: 0.5, rgb: [17, 238, 0], tol: 2 },
+        { x: 0.75, y: 0.5, rgb: [17, 238, 0], tol: 2 },
+      ]),
+    },
+  },
+  {
     id: 'planar-tiled-lights', tier: 'pr', webgpu: true,
     env: {
       ESTELLA_VERIFY_SCENE: '/scenes/planar-tiled-lights.esscene',

@@ -231,7 +231,7 @@ from there; if you are writing a game, you should never need to name them.
 | `app.setFixedTimestep(s)` / `app.getFixedTimestep()` | The `FixedUpdate` cadence. Default `1/60`. |
 | `app.setMaxDeltaTime(s)` | Clamp on a single frame's delta. Default `0.25`. |
 | `app.setMaxFixedSteps(n)` | Cap on fixed-step catch-up per frame. Default `8`. A time budget additionally caps catch-up so a too-heavy sim degrades to slow motion instead of freezing. |
-| `app.setPaused(v)` / `app.isPaused()` | User pause. While paused only `Schedule.Last` runs. |
+| `app.setPaused(v)` / `app.isPaused()` | User pause. `Schedule.Last` and variable-phase systems marked `runWhenPaused` still prepare and draw the frame. |
 | `app.holdExecution()` | Returns an idempotent release function. While any owner holds execution, automatic frames, tick, stepping and native game input are held. Audio and video plugins cooperate. |
 | `app.isExecutionHeld()` / `app.onExecutionChange(fn)` | Query the hold, or observe it with an initial notification and disposer. Observers are withdrawn on quit. |
 | `app.stepFrame()` | Queue exactly one full frame while paused (editor "step"). |
@@ -242,6 +242,13 @@ Within one frame the schedules run: `First` → the fixed trio
 (`FixedPreUpdate` / `FixedUpdate` / `FixedPostUpdate`, zero or more times from
 the accumulator) → `PreUpdate` → `Update` → `PostUpdate` → `Last`. `Startup`
 systems are flushed before the first frame.
+
+The renderer, material and post-process `u_time.x`, and camera blends and shakes
+use `Time.elapsed`: accumulated scaled game time. Pause freezes that clock;
+an explicit frame step advances it by the scaled step duration. `Time.scale = 0`
+also freezes it. Rendering and paused presentation can still respond to viewport
+or property changes. The editor's unpaused edit view continues to animate its
+preview, while `renderCameraFrame()` redraws the most recently sampled time.
 
 ### Execution holds
 

@@ -21,11 +21,11 @@ import {
     loadSceneData, discoverSceneAssets, Renderer, instantiatePrefab, writeFieldPath, Transform, Name,
     getComponent, DeviceStatus, getDeviceStatus, getDeviceLostReport, recoverDevice,
     getContextLossGuardInfo, decodeImagePixels, captureFramePixels, captureFrame, replayDraw, BatchBreak,
-    RenderTexture, Camera, Sprite,
+    RenderTexture, Camera, Sprite, Time,
     planarReflectionStatus,
     EditorViewLighting, EditorViewShading, EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
     ProfileRecorder, AnimatorController, Timeline, onDeviceRestored, Schedule, defineSystem,
-    textureImportSettingsFrom,
+    textureImportSettingsFrom, shadersCompiled,
 } from 'esengine';
 import type { App, SceneData, SceneEntityData, PrefabData, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -452,6 +452,9 @@ const api = {
         return { world: 'engine', frames, dt };
     },
 
+    /** Waits for submitted shader variants without advancing the simulation clock. */
+    waitForShaders: () => shadersCompiled(module),
+
     /**
      * The frame as the ENGINE holds it, whichever backend drew it. captureViewport
      * reads the page instead, which on WebGPU is a compositor copy — blank in a
@@ -822,6 +825,15 @@ declare global {
 window.__estellaHeadless = {
     ready: boot(),
     api,
+    clock: {
+        state: () => ({ ...app!.getResource(Time), paused: app!.isPaused(), renderElapsed: app!.pipeline!.frameElapsed }),
+        pause: (on: boolean) => app!.setPaused(on),
+        scale: (value: number) => {
+            if (!Number.isFinite(value) || value < 0) throw new Error('Clock scale must be finite and non-negative');
+            app!.getResource(Time).scale = value;
+        },
+        step: (dt = 1 / 60) => app!.stepFrames(1, dt),
+    },
     device: {
         status: () => getDeviceStatus(),
         report: () => getDeviceLostReport(),

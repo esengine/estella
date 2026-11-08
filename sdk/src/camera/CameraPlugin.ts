@@ -37,7 +37,7 @@ import { renderTargetSize } from '../render/renderTexture';
 import { cameraClearColor } from './cameraClear';
 import { Renderer } from '../render/renderer';
 import { followRenderOrigin, pushRenderOrigin, renderOrigin } from '../render/renderOrigin';
-import { platformNow, platformDevicePixelRatio } from '../platform';
+import { platformDevicePixelRatio } from '../platform';
 import { SceneManager } from '../scene/sceneManager';
 import {
     ortho, perspective, invertViewZ, invertViewOrbit, invertViewQuat, multiply,
@@ -816,7 +816,6 @@ export function cameraPlugin(
             const module = app.wasmModule;
             const cppRegistry = app.world.getCppRegistry()!;
             const pipeline = app.pipeline!;
-            const startTime = platformNow();
             // Per-App scratch pool for collectCameras — one per plugin instance,
             // so two Apps running at once never clobber each other's CameraInfo.
             const cameraInfoPool: CameraInfo[] = [];
@@ -864,7 +863,7 @@ export function cameraPlugin(
                 _params: [],
                 _fn: () => {
                     const { width, height } = viewport();
-                    const now = (platformNow() - startTime) / 1000;
+                    const now = app.getResource(Time).elapsed;
                     // Peek (advance=false): this early sync must not tick the director's
                     // blend — the render system (end of frame) is the authoritative tick.
                     const cameras = resolveCameras(app, module, cppRegistry, width, height, undefined, undefined, cameraInfoPool, now, false);
@@ -893,7 +892,8 @@ export function cameraPlugin(
                         const canvas = cppRegistry.getCanvas(canvasEntity);
                         clearColor = canvas.backgroundColor;
                     }
-                    const elapsed = (platformNow() - startTime) / 1000;
+                    // Materials and camera motion share gameplay's clock, including pause, time scale and explicit stepping.
+                    const elapsed = app.getResource(Time).elapsed;
 
                     if (width !== lastResizeW || height !== lastResizeH) {
                         app.measureFrameScope('render.resize', () => Renderer.resize(width, height));

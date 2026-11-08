@@ -1,0 +1,8 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "clock.esshader",
+  "blendMode": 0,
+  "depthTest": true,
+  "properties": {}
+}

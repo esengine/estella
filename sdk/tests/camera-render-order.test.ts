@@ -23,6 +23,9 @@ import { Query, Mut } from '../src/ecs/query';
 import type { Entity } from '../src/types';
 import type { CppRegistry } from '../src/wasm';
 import { ScreenScaling } from '../src/camera/ScreenScaling';
+import { Time } from '../src/ecs/resource';
+import { setAppHostPaused } from '../src/app/app';
+import { setViewTarget, BlendCurve, shakeCamera } from '../src/camera/CameraDirector';
 
 /** Where a world point lands in clip space under a view-projection. */
 const ndcX = (vp: Float32Array, x: number, y: number): number =>
@@ -32,6 +35,8 @@ describe('render order: transforms resolve before cameras are read', () => {
     const calls: string[] = [];
     let lastViewProjection: Float32Array | null = null;
     let beginFrames = 0;
+    let wallTime = 0;
+    const drawnTimes: number[] = [];
 
     /**
      * Stands in for the C++ renderer: `beginFrame` clears the transform pass's
@@ -42,7 +47,7 @@ describe('render order: transforms resolve before cameras are read', () => {
         let transformsUpdated = false;
         return {
             init: () => {}, resize: () => {},
-            beginFrame: () => { transformsUpdated = false; beginFrames++; calls.push('beginFrame'); },
+            beginFrame: elapsed => { transformsUpdated = false; beginFrames++; drawnTimes.push(elapsed); calls.push('beginFrame'); },
             updateTransforms: () => {
                 calls.push('updateTransforms');
                 if (transformsUpdated) return;
@@ -71,11 +76,92 @@ describe('render order: transforms resolve before cameras are read', () => {
     }
 
     beforeEach(() => {
-        calls.length = 0; lastViewProjection = null; beginFrames = 0;
-        // The plugin reads the clock at build time; nothing here needs a real one.
-        setPlatform({ now: () => 0, devicePixelRatio: () => 1 } as unknown as PlatformAdapter);
+        calls.length = 0; drawnTimes.length = 0; lastViewProjection = null; beginFrames = 0; wallTime = 0;
+        setPlatform({ now: () => wallTime, devicePixelRatio: () => 1 } as unknown as PlatformAdapter);
     });
     afterEach(() => { setRendererBackend(null); });
+
+    it.each([
+        { dimension: '2D', projection: ProjectionType.Orthographic, owner: 'user' },
+        { dimension: '3D', projection: ProjectionType.Perspective, owner: 'user' },
+        { dimension: '2D', projection: ProjectionType.Orthographic, owner: 'host' },
+        { dimension: '3D', projection: ProjectionType.Perspective, owner: 'host' },
+    ] as const)('$dimension rendering shares scaled time through $owner pause, stepping and resume', async ({ projection, owner }) => {
+        const { app, module } = bootMockApp();
+        const registry = module.getRegistry() as unknown as Record<string, unknown> & CppRegistry;
+        const cam = app.world.spawn('camera');
+        app.world.insert(cam, Transform, { position: { x: 0, y: 0, z: 5 } });
+        app.world.insert(cam, Camera, { isActive: true, projectionType: projection, orthoSize: 300 });
+        registry.getCameraEntities = () => [cam];
+        registry.getCanvasEntities = () => [];
+        const pipeline = new RenderPipeline();
+        app.setPipeline(pipeline);
+        setRendererBackend(fakeBackend(registry, [cam]));
+        app.addPlugin(cameraPlugin(() => ({ width: 800, height: 600 })));
+        const host = {};
+        const pause = (on: boolean) => owner === 'host' ? setAppHostPaused(app, host, on) : app.setPaused(on);
+        wallTime = 10_000;
+        await app.tick(0.1);
+        expect(pipeline.frameElapsed).toBeCloseTo(0.1);
+        app.getResource(Time).scale = 0.5;
+        wallTime += 5000;
+        await app.tick(0.2);
+        expect(pipeline.frameElapsed).toBeCloseTo(0.2);
+        pause(true);
+        wallTime += 60_000;
+        await app.tick(0.2);
+        expect(pipeline.frameElapsed).toBeCloseTo(0.2);
+        expect(beginFrames).toBe(3);
+        await app.stepFrames(1, 0.1);
+        expect(pipeline.frameElapsed).toBeCloseTo(0.25);
+        expect(app.isPaused()).toBe(true);
+        expect(renderCameraFrame(app, 800, 600)).toBe(true);
+        expect(pipeline.frameElapsed).toBeCloseTo(0.25);
+        pause(false);
+        app.getResource(Time).scale = 0;
+        wallTime += 5000;
+        await app.tick(0.2);
+        expect(pipeline.frameElapsed).toBeCloseTo(0.25);
+        app.getResource(Time).scale = 1;
+        await app.tick(0.1);
+        expect(pipeline.frameElapsed).toBeCloseTo(0.35);
+        expect(drawnTimes).toHaveLength(7);
+        for (const [i, expected] of [0.1, 0.2, 0.2, 0.25, 0.25, 0.25, 0.35].entries()) {
+            expect(drawnTimes[i]).toBeCloseTo(expected);
+        }
+        app.quit();
+    });
+
+    it('camera blends and shakes freeze at the same frame as material time', async () => {
+        const { app, module } = bootMockApp();
+        const registry = module.getRegistry() as unknown as Record<string, unknown> & CppRegistry;
+        const cameras = [app.world.spawn('from'), app.world.spawn('to')];
+        for (const [i, cam] of cameras.entries()) {
+            app.world.insert(cam, Transform, { position: { x: i * 100, y: 0, z: 0 } });
+            app.world.insert(cam, Camera, { isActive: i === 0, orthoSize: 300 });
+        }
+        registry.getCameraEntities = () => cameras;
+        registry.getCanvasEntities = () => [];
+        const pipeline = new RenderPipeline();
+        app.setPipeline(pipeline);
+        setRendererBackend(fakeBackend(registry, cameras));
+        app.addPlugin(cameraPlugin(() => ({ width: 800, height: 600 })));
+        await app.tick(0.1);
+        setViewTarget(app, cameras[1], { time: 0.8, curve: BlendCurve.Linear });
+        shakeCamera(app, { amplitude: 4, frequency: 3, duration: 1 });
+        await app.tick(0.1);
+        await app.tick(0.2);
+        const held = Array.from(lastViewProjection!);
+        app.setPaused(true);
+        wallTime = 60_000;
+        await app.tick(0.2);
+        expect(Array.from(lastViewProjection!)).toEqual(held);
+        expect(pipeline.frameElapsed).toBeCloseTo(0.4);
+        await app.stepFrames(1, 0.2);
+        expect(Array.from(lastViewProjection!)).not.toEqual(held);
+        expect(pipeline.frameElapsed).toBeCloseTo(0.6);
+        app.quit();
+    });
 
     it('previews an inactive camera at its latest placement without running Update', async () => {
         const { app, module } = bootMockApp();

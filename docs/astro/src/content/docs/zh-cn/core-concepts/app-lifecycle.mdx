@@ -210,7 +210,7 @@ export const scorePlugin: Plugin = {
 | `app.setFixedTimestep(s)` / `app.getFixedTimestep()` | `FixedUpdate` 节奏。默认 `1/60`。 |
 | `app.setMaxDeltaTime(s)` | 单帧 delta 的钳制上限。默认 `0.25`。 |
 | `app.setMaxFixedSteps(n)` | 每帧固定步追赶的上限。默认 `8`。此外还有时间预算封顶追赶,过重的模拟会退化为慢动作而不是卡死。 |
-| `app.setPaused(v)` / `app.isPaused()` | 用户暂停。暂停期间只有 `Schedule.Last` 运行。 |
+| `app.setPaused(v)` / `app.isPaused()` | 用户暂停。`Schedule.Last` 和标记了 `runWhenPaused` 的可变步长系统仍会准备并绘制画面。 |
 | `app.holdExecution()` | 返回幂等的释放函数。任一持有者挂起时，自动帧、tick、步进及原生游戏输入均停止，音频与视频插件配合挂起。 |
 | `app.isExecutionHeld()` / `app.onExecutionChange(fn)` | 查询挂起状态，或订阅状态变化（含初始通知，返回取消订阅函数）。退出时移除订阅。 |
 | `app.stepFrame()` | 在暂停时排入恰好一整帧(编辑器"步进")。 |
@@ -220,6 +220,11 @@ export const scorePlugin: Plugin = {
 一帧之内调度的运行顺序是:`First` → 固定三件套(`FixedPreUpdate` /
 `FixedUpdate` / `FixedPostUpdate`,由累加器决定跑零到多次)→ `PreUpdate` →
 `Update` → `PostUpdate` → `Last`。`Startup` 系统在首帧之前冲刷。
+
+渲染器、材质与后处理的 `u_time.x`、镜头过渡和震动共同使用 `Time.elapsed`，
+即累计的缩放后游戏时间。暂停会冻结这个时钟；显式单帧步进按缩放后的步长推进它。
+`Time.scale = 0` 也会冻结它。暂停时仍能更新窗口尺寸和属性编辑对应的画面。
+编辑器中未暂停的编辑视图继续播放动态预览，`renderCameraFrame()` 则重绘最近采样的时刻。
 
 ### 执行挂起
 

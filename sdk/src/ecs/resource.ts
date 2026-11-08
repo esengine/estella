@@ -308,7 +308,7 @@ export class ResourceStorage {
 export interface TimeData {
     /** Seconds since the previous frame, scaled by `scale`. */
     delta: number;
-    /** Seconds since the app started. */
+    /** Accumulated scaled game seconds; frozen while paused except for explicit frame steps. */
     elapsed: number;
     /** Render frames completed — machine-dependent; see `fixedTick`. */
     frameCount: number;

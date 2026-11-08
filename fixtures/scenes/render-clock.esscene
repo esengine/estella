@@ -1,0 +1,27 @@
+{
+  "version": 4,
+  "name": "Sprite and Mesh Render Clock",
+  "entities": [
+    {
+      "id": 0, "name": "Camera", "parent": null, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 3 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 1, "fov": 45, "nearPlane": 0.1, "farPlane": 100, "isActive": true, "clearFlags": 3 } }
+      ]
+    },
+    {
+      "id": 1, "name": "Clock Sprite", "parent": null, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -0.5, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 0.7, "y": 0.7 }, "material": "/scenes/mat-clock/clock.esmaterial" } }
+      ]
+    },
+    {
+      "id": 2, "name": "Clock Mesh", "parent": null, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0.5, "y": 0, "z": 0 }, "scale": { "x": 0.006, "y": 0.006, "z": 0.006 } } },
+        { "type": "MeshRenderer", "data": { "mesh": "builtin:cube", "material": "/scenes/mat-clock/clock.esmaterial", "opaque": true, "lit": false, "enabled": true } }
+      ]
+    }
+  ]
+}

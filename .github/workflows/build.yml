@@ -101,6 +101,15 @@ jobs:
         node tools/render-host/build.mjs
         node tools/tests/planar-reflection.e2e.mjs --webgl-only
         node tools/tests/planar-reflection.e2e.mjs --webgl-only --prepass
+    - name: Check paused and scaled render clocks with genuine headless Chromium
+      run: node tools/tests/render-clock.e2e.mjs --webgl-only
+    - name: Upload render clock runtime observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: render-clock-runtime
+        path: output/render-clock/
+        retention-days: 3
     - name: Upload planar reflection runtime observations
       if: always()
       uses: actions/upload-artifact@v7
