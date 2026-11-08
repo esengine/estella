@@ -187,6 +187,10 @@ const DISPOSITION = {
   'ParticleEmitter.startSizeMax': ['renders', 'the particles drawn at it are the picture'],
   'ParticleEmitter.endSizeMin': ['renders', 'the particles drawn at it are the picture'],
   'ParticleEmitter.endSizeMax': ['renders', 'the particles drawn at it are the picture'],
+  'ParticleModelUnits.startSizeMin': ['renders', 'scaled into the emitter, whose particles drawn at it are the picture'],
+  'ParticleModelUnits.startSizeMax': ['renders', 'scaled into the emitter, whose particles drawn at it are the picture'],
+  'ParticleModelUnits.endSizeMin': ['renders', 'scaled into the emitter, whose particles drawn at it are the picture'],
+  'ParticleModelUnits.endSizeMax': ['renders', 'scaled into the emitter, whose particles drawn at it are the picture'],
   'ParticleEmitter.trailWidth': ['renders', 'the ribbon drawn at it is the outline'],
 
   // A world length with no region of its own: it bounds or feeds something else,

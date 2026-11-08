@@ -54,6 +54,7 @@ function setup(components: string[]): { root: string; out: string } {
 }
 
 const run = (f: { root: string; out: string }) => exportGame({
+    minifyScripts: false,
     root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
     sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
     outDir: f.out,
@@ -142,6 +143,7 @@ describe('the debug channel', () => {
         try {
             await run(f);
             const res = await exportGame({
+                minifyScripts: false,
                 root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
                 sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
                 outDir: dev.out, debugChannel: { url: 'ws://192.168.1.2:37420/?token=t' },
@@ -171,6 +173,7 @@ describe('a web package whose project excluded a module', () => {
         ...setup(components), features: { modules },
     });
     const runWith = (f: ReturnType<typeof withChoice>) => exportGame({
+        minifyScripts: false,
         root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
         sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
         outDir: f.out, features: f.features,

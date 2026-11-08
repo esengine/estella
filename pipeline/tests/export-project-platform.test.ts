@@ -90,6 +90,7 @@ describe('exportGame — a platform the project defines', () => {
     expect(platform).not.toBeNull();
 
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused', packagesDir: OFFICIAL_PACKAGES,
@@ -139,6 +140,7 @@ describe('exportGame — a platform the project defines', () => {
 
     const outBare = path.join(root, 'dist-bare');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused', packagesDir: OFFICIAL_PACKAGES,
@@ -158,6 +160,7 @@ describe('exportGame — a platform the project defines', () => {
 
   it('refuses an id that is neither built in nor handed a profile, rather than packaging it as web', async () => {
     await expect(exportGame({
+      minifyScripts: false,
       root, entryScene: 'scenes/main.esscene',
       hostsDir: path.resolve(__dirname, '../src/runtime'), packagesDir: OFFICIAL_PACKAGES,
       sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),

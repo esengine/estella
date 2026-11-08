@@ -44,6 +44,7 @@ afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retr
 describe('exportGame (bilibili)', () => {
   it('writes the appid, the version and the high-performance switches into game.json', async () => {
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       scriptsEntry: 'src/main.ts',

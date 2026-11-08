@@ -57,6 +57,7 @@ afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retr
 describe('exportGame (douyin)', () => {
   it('writes the vendor config Douyin reads, not the one WeChat reads', async () => {
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: path.resolve(__dirname, '../src/runtime'), packagesDir: OFFICIAL_PACKAGES,
@@ -113,6 +114,7 @@ describe('exportGame (douyin)', () => {
     writeFileSync(path.join(esmRoot, 'esengine.js'), 'const M = () => {};\nexport default M;\n');
     writeFileSync(path.join(esmRoot, 'esengine.wasm'), 'wasmbytes');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: path.resolve(__dirname, '../src/runtime'), packagesDir: OFFICIAL_PACKAGES,

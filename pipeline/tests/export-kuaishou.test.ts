@@ -44,6 +44,7 @@ afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retr
 describe('exportGame (kuaishou)', () => {
   it('writes game.json and nothing a Kuaishou package does not carry', async () => {
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: path.resolve(__dirname, '../src/runtime'), packagesDir: OFFICIAL_PACKAGES,

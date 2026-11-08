@@ -46,6 +46,7 @@ describe('OpenPaaS third-party directory export', () => {
         const loaded = (await loadProjectPlatform(root, 'openpaas', dirs))!;
         const out = path.join(root, 'out');
         const result = await exportGame({
+            minifyScripts: false,
             root, platform: 'openpaas', miniGameProfile: loaded.profile,
             entryScene: 'scenes/2d.esscene', sdkDistDir: sdk(), wasmDir: loaded.wasmDir, outDir: out,
             hostsDir: path.resolve(__dirname, '../src/runtime'), packagesDir: OFFICIAL_PACKAGES,

@@ -201,7 +201,7 @@ describe('the 3D world and the ECS', () => {
         stepPhysics3D(app,module,bodies,DEFAULT_PHYSICS3D_CONFIG);
         stepPhysics3D(app,module,bodies,DEFAULT_PHYSICS3D_CONFIG);
         expect(called('setTransform')).toHaveLength(0);
-        const transform=world.get(e,Transform) as TransformData;transform.worldPosition.x=250;
+        world.update(e,Transform,(t:TransformData)=>{t.worldPosition.x=250;});
         stepPhysics3D(app,module,bodies,DEFAULT_PHYSICS3D_CONFIG);
         expect(called('setTransform')[0].args.slice(1,4)).toEqual([2.5,0,0]);
         stepPhysics3D(app,module,bodies,DEFAULT_PHYSICS3D_CONFIG);

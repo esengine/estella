@@ -75,7 +75,7 @@ describe('exportGame (wechat)', () => {
     writeFileSync(path.join(root, `${entry}.meta`), meta('88888888-8888-4888-8888-888888888888', 'scene'));
     const dir = path.join(root, 'dist-wechat-broken-video');
     try {
-      const result = await exportGame({ root, entryScene: entry,
+      const result = await exportGame({ minifyScripts: false, root, entryScene: entry,
         hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
         sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wxwasm'), outDir: dir, platform: 'wechat' });
       expect(result.ok).toBe(false);
@@ -93,7 +93,7 @@ describe('exportGame (wechat)', () => {
     const dir = path.join(root, 'dist-wechat-recook');
     const source = path.join(root, 'assets/hero.png');
     const original = readFileSync(source);
-    const run = () => exportGame({ root, entryScene: 'scenes/main.esscene',
+    const run = () => exportGame({ minifyScripts: false, root, entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
       sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wxwasm'), outDir: dir, platform: 'wechat' });
     try {
@@ -112,6 +112,7 @@ describe('exportGame (wechat)', () => {
 
   it('assembles a MiniGame matching the initWeChatRuntime contract', async () => {
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -197,6 +198,7 @@ describe('exportGame (wechat)', () => {
     writeFileSync(path.join(wxDir, 'physics.wasm'), 'wasmbytes');
     const outWx = path.join(root, 'dist-wechat-wxgame');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -238,6 +240,7 @@ describe('exportGame (wechat)', () => {
   it("judges against the project's own ceiling when it declares one", async () => {
     const outWx = path.join(root, 'dist-wechat-budget');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -273,6 +276,7 @@ describe('exportGame (wechat)', () => {
 
     const outWx = path.join(root, 'dist-wechat-module');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -306,6 +310,7 @@ describe('exportGame (wechat)', () => {
   it('carries the same hot-update delivery the web road does into the boot call', async () => {
     const outWx = path.join(root, 'dist-wechat-hotupdate');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -329,6 +334,7 @@ describe('exportGame (wechat)', () => {
     const cfg = async (debugChannel?: { url: string }) => {
       const out = path.join(root, debugChannel ? 'dist-wechat-dbg' : 'dist-wechat-nodbg');
       const res = await exportGame({
+        minifyScripts: false,
         root, entryScene: 'scenes/main.esscene',
         hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES, scriptsEntry: 'src/main.ts',
         sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wxwasm'), outDir: out,
@@ -352,6 +358,7 @@ describe('exportGame (wechat)', () => {
 
     const outWx = path.join(root, 'dist-wechat-module-webonly');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -372,6 +379,7 @@ describe('exportGame (wechat)', () => {
   it('fails fast when the -t wechat engine runtime is missing', async () => {
     const outMissing = path.join(root, 'dist-wechat-missing');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -409,6 +417,7 @@ describe('exportGame (wechat)', () => {
 
     const outSpine = path.join(root, 'dist-wechat-spine');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes-spine/spine.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -435,6 +444,7 @@ describe('exportGame (wechat)', () => {
   it('a needed spine module missing from the runtime dir fails the export', async () => {
     const outBroken = path.join(root, 'dist-wechat-spine-missing');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes-spine/spine.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -468,6 +478,7 @@ describe('exportGame (wechat)', () => {
 
     const outKtx = path.join(root, 'dist-wechat-ktx2');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes-ktx2/ktx2.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -496,6 +507,7 @@ describe('exportGame (wechat)', () => {
   it('a .ktx2 texture without a wechat basis build fails the export', async () => {
     const outNoBasis = path.join(root, 'dist-wechat-ktx2-missing');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes-ktx2/ktx2.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -521,6 +533,7 @@ describe('exportGame (wechat)', () => {
     writeFileSync(path.join(outStale, 'wasm', 'basis.js'), 'var s = globalThis.document?.currentScript?.src;');
     writeFileSync(path.join(outStale, 'wasm', 'basis.wasm'), 'stalebytes');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -539,6 +552,7 @@ describe('exportGame (wechat)', () => {
   it('content-addressed export carries the logical path as the asset address', async () => {
     const outCa = path.join(root, 'dist-wechat-ca');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -583,6 +597,7 @@ describe('exportGame (wechat)', () => {
 
     const outMulti = path.join(root, 'dist-wechat-multi');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes-multi/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -620,6 +635,7 @@ describe('exportGame (wechat)', () => {
   it('compresses the engine binary to .wasm.br, and tells the loader THAT name', async () => {
     const o = path.join(root, 'dist-wx-br');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -656,6 +672,7 @@ describe('exportGame (wechat)', () => {
     const wxDir = path.join(root, '_wxwasm-spine');
     const o = path.join(root, 'dist-wx-br-side');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes-spine/spine.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -686,6 +703,7 @@ describe('exportGame (wechat)', () => {
   it('leaves the binary alone when the project did not ask', async () => {
     const o = path.join(root, 'dist-wx-nobr');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -713,6 +731,7 @@ describe('exportGame (wechat)', () => {
     }
     const o = path.join(root, 'dist-wx-glx');
     const exportWith = (wasmDir: string) => exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -750,6 +769,7 @@ describe('exportGame (wechat)', () => {
     const shipped = async (name: string): Promise<string> => {
       const o = path.join(root, name);
       const res = await exportGame({
+        minifyScripts: false,
         root, entryScene: 'scenes/main.esscene', hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
         scriptsEntry: 'src/main.ts', sdkDistDir: path.join(root, '_sdk'), wasmDir: base, outDir: o,
         platform: 'wechat', miniGameAppid: 'wxTEST0123456789',
@@ -783,6 +803,7 @@ describe('exportGame (wechat)', () => {
   it('moves the engine binary into a 分包 the entry loads before booting', async () => {
     const o = path.join(root, 'dist-wx-subpkg');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -847,6 +868,7 @@ describe('exportGame (wechat)', () => {
   it('leaves the engine in the main package when the project did not ask', async () => {
     const o = path.join(root, 'dist-wx-nosubpkg');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -869,6 +891,7 @@ describe('exportGame (wechat)', () => {
   it('stages nothing the packer would refuse to upload', async () => {
     const o = path.join(root, 'dist-wx-suffixes');
     const res = await exportGame({
+      minifyScripts: false,
       root,
       entryScene: 'scenes/main.esscene',
       hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -941,6 +964,7 @@ describe('exportGame (wechat) — open data context', () => {
   }
 
   const exportIt = (root: string, out: string) => exportGame({
+    minifyScripts: false,
     root,
     entryScene: 'scenes/main.esscene',
     hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
@@ -1045,6 +1069,7 @@ describe('two assets, one staged file', () => {
 
     const outDir = path.join(dir, 'dist-wechat');
     const res = await exportGame({
+      minifyScripts: false,
       root: dir, entryScene: 'scenes/main.esscene', hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
       sdkDistDir: path.join(dir, '_sdk'), wasmDir: path.join(dir, '_wxwasm'),
       outDir, platform: 'wechat', contentAddressed: true,
