@@ -6,7 +6,6 @@
  */
 
 import { World } from '../ecs/world';
-import { exportNodeVisibility } from './nodeVisibility';
 import { Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
 import { isPrefabEntry, type SceneEntry } from './sceneEntry';
@@ -270,6 +269,21 @@ export function registerWorldSceneComponentCodec(world: World, type: string, cod
     return () => {
         if (codecs.get(type) === codec) codecs.delete(type);
         if (codecs.size === 0) worldComponentCodecs.delete(world);
+    };
+}
+
+export type SceneExportFilter = (entity: Entity, component: string, data: Record<string, unknown>) => void;
+
+const worldExportFilters = new WeakMap<World, Set<SceneExportFilter>>();
+
+/** @internal Lets a plugin rewrite any component's saved record in one world. */
+export function registerWorldSceneExportFilter(world: World, filter: SceneExportFilter): () => void {
+    let filters = worldExportFilters.get(world);
+    if (!filters) worldExportFilters.set(world, filters = new Set());
+    filters.add(filter);
+    return () => {
+        filters.delete(filter);
+        if (filters.size === 0) worldExportFilters.delete(world);
     };
 }
 
@@ -868,7 +882,7 @@ export function serializeEntityComponents(world: World, entity: Entity): SceneCo
         // Components with out-of-band state (e.g. TilemapLayer chunks) fold
         // it into the record via their registered codec.
         sceneComponentCodec(world, typeName)?.exportData?.(entityNum, payload);
-        exportNodeVisibility(world, entity, typeName, payload);
+        for (const filter of worldExportFilters.get(world) ?? []) filter(entity, typeName, payload);
         components.push({
             type: typeName,
             data: payload,

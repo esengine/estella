@@ -42,6 +42,10 @@ describe('the engine modules a package installs', () => {
         expect(engineInstalls({ subsystems: ['characterShaders'] }).subpaths).toEqual(['esengine/character-shaders']);
     });
 
+    it('takes the imported-scene runtime from what a glTF scene writes, so a game without one carries none', () => {
+        expect(engineInstalls({ subsystems: ['importedScene'] }).subpaths).toEqual(['esengine/imported-scene']);
+    });
+
     it('takes splines from a Spline, so a game without one carries none', () => {
         expect(engineInstalls({ subsystems: ['spline'] }).subpaths).toEqual(['esengine/spline']);
     });

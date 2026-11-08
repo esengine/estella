@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { World } from '../src/ecs/world';
 import { Camera, Sprite, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import { BoxCollider2D } from '../src/physics/components';
-import { NodeVisibility, NodeVisibilityState } from '../src/scene/nodeVisibility';
-import { serializeEntityComponents } from '../src/scene/scene';
+import { NodeVisibility, NodeVisibilityState } from '../src/imported-scene/nodeVisibility';
+import { registerWorldSceneExportFilter, serializeEntityComponents } from '../src/scene/scene';
 import { setNestedProperty } from '../src/timeline/TimelineRuntime';
 import { createMockModule } from './mocks/wasm';
 
@@ -20,7 +20,9 @@ function fixture() {
     world.insert(child, Camera, { isActive: true });
     world.insert(child, BoxCollider2D, { enabled: true });
     world.insert(leaf, Sprite, { enabled: true });
-    return { world, root, child, leaf, state: new NodeVisibilityState() };
+    const state = new NodeVisibilityState();
+    registerWorldSceneExportFilter(world, (entity, component, data) => state.exportData(entity, component, data));
+    return { world, root, child, leaf, state };
 }
 
 describe('hierarchical visual visibility', () => {

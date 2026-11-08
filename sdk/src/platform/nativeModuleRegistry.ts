@@ -33,6 +33,7 @@ import * as FoliageModule from '../foliage';
 import * as WorldGenModule from '../worldgen';
 import * as WaterModule from '../water';
 import * as SplineModule from '../spline';
+import * as ImportedSceneModule from '../imported-scene';
 import * as CharacterShadersModule from '../character';
 import * as ScriptGraphModule from '../logic';
 import * as AiModule from '../ai';
@@ -63,6 +64,7 @@ export const NATIVE_MODULE_NAMESPACES: Readonly<Record<string, unknown>> = {
     'esengine/worldgen': WorldGenModule,
     'esengine/water': WaterModule,
     'esengine/spline': SplineModule,
+    'esengine/imported-scene': ImportedSceneModule,
     'esengine/character-shaders': CharacterShadersModule,
     'esengine/logic': ScriptGraphModule,
     'esengine/ai': AiModule,

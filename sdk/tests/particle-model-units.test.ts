@@ -3,7 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { World } from '../src/ecs/world';
 import { ParticleEmitter, Transform, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
-import { ParticleModelUnits, ParticleModelUnitState } from '../src/particle/ParticleModelUnits';
+import { ParticleModelUnits, ParticleModelUnitState } from '../src/imported-scene/particleModelUnits';
 import { createMockModule } from './mocks/wasm';
 
 describe('particle model units', () => {

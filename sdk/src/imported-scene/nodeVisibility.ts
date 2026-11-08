@@ -8,13 +8,6 @@ import type { Entity } from '../types';
 export const NodeVisibility = defineComponent('NodeVisibility', { visible: true }, { animatableFields: ['visible'] });
 
 type Masked = { def: RenderableComponentDef; value: unknown };
-const states = new WeakMap<World, NodeVisibilityState>();
-
-/** Preserve authored renderer flags when saving a world with a hidden subtree. */
-export function exportNodeVisibility(world: World, entity: Entity, component: string, data: Record<string, unknown>): void {
-    const masked = states.get(world)?.masked.get(entity)?.find(row => row.def._name === component);
-    if (masked) data[masked.def.renderableField] = masked.value;
-}
 
 /** No hierarchy walk or renderer write when the gates and scene structure are unchanged. */
 export class NodeVisibilityState {
@@ -22,8 +15,13 @@ export class NodeVisibilityState {
     private gates = new Map<Entity, boolean>();
     private version = -1;
 
+    /** Preserve authored renderer flags when saving a world with a hidden subtree. */
+    exportData(entity: Entity, component: string, data: Record<string, unknown>): void {
+        const masked = this.masked.get(entity)?.find(row => row.def._name === component);
+        if (masked) data[masked.def.renderableField] = masked.value;
+    }
+
     update(world: World): void {
-        states.set(world, this);
         const controls = world.getEntitiesWithComponents([NodeVisibility]);
         if (controls.length === 0 && this.masked.size === 0 && this.gates.size === 0) return;
         const version = world.getWorldVersion();

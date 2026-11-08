@@ -18,7 +18,7 @@ import {
 } from 'esengine';
 import { canSimplify, simplifyMesh, type SimplifierFlag } from './meshSimplify';
 import { SPARSE_LIGHTMAP_UV, OVERLAPPING_LIGHTMAP_UV } from '../../../sdk/src/lightmap/atlas';
-import type { CompoundColliderPart3D } from 'esengine';
+import type { CompoundColliderPart3D } from 'esengine/physics3d';
 
 /** One primitive's worth of geometry, named for the file it will be written to. */
 export interface ImportedMesh {

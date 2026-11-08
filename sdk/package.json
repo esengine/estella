@@ -26,6 +26,7 @@
     "./dist/worldgen/index.js",
     "./dist/water/index.js",
     "./dist/spline/index.js",
+    "./dist/imported-scene/index.js",
     "./dist/character-shaders/index.js",
     "./dist/logic/index.js",
     "./dist/debug-channel/index.js",
@@ -118,6 +119,10 @@
     "./spline": {
       "import": "./dist/spline/index.js",
       "types": "./dist/spline/index.d.ts"
+    },
+    "./imported-scene": {
+      "import": "./dist/imported-scene/index.js",
+      "types": "./dist/imported-scene/index.d.ts"
     },
     "./character-shaders": {
       "import": "./dist/character-shaders/index.js",

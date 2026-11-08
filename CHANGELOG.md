@@ -16,7 +16,7 @@ published separately; it ships inside the editor.
 
 ### Added
 
-- **An imported scene keeps its materials, animation, particles and colliders.** A glTF scene brings the materials, animation, particle emitters and physics shapes it describes rather than geometry alone, and a Godot project can export a scene in that form with the bridge script in `pipeline/bridges/godot`.
+- **An imported scene keeps its materials, animation, particles and colliders.** A glTF scene brings the materials, animation, particle emitters and physics shapes it describes rather than geometry alone, and a Godot project can export a scene in that form with the bridge script in `pipeline/bridges/godot`. The two components only an imported scene writes, `NodeVisibility` and `ParticleModelUnits`, live in `esengine/imported-scene`, which an export adds only when the shipped content uses them.
 - **A 3D body can be several shapes, and a scaled model collides at its scale.** `CompoundCollider3D` makes one body out of child shapes, on Jolt and PhysX alike, and a mesh collider follows its model's scale.
 
 - **A generated building stands on its ground, and generated roads keep foliage off them.** World generation fits an upright building's base to a grid of ground samples over its whole rotated footprint, and refuses a site that is water, too steep, or rises and falls more than a given relief, reporting how deep the foundation has to reach. Foliage takes the zones a WorldGen world reserves for roads and buildings (and any extra tags) as places it does not grow, with an optional clearance. The world rules editor and the editor's agents can set both.

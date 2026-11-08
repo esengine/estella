@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { MeshChannel, MeshChannelType, packChannels, q, type Vec3, type Quat } from 'esengine';
 import type { ImportedMesh, ImportedNode, Trs } from './modelImport';
-import type { CompoundColliderPart3D } from 'esengine';
+import type { CompoundColliderPart3D } from 'esengine/physics3d';
 
 interface BodySource {
     motion?: { type?: string; mass?: number; [key: string]: unknown };

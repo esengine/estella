@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'refactor(sdk): node visibility and particle model units ship in esengine/imported-scene, installed only where the content uses them':
+    {"note":"An imported scene keeps its materials, animation, particles and colliders."},
   'fix(cyber-rooftop): restore wetness masks and fit fixture shadows':
     {"internal":"the cyber-rooftop example's own scene and texture settings; the engine and editor are unchanged"},
   'fix(render): allocate complete point shadows and report new denials':

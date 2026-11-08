@@ -306,8 +306,7 @@ export {
 } from './scene/sceneStreaming';
 
 export { sceneManagerPlugin } from './scene/scenePlugin';
-export { NodeVisibility } from './scene/nodeVisibility';
-export { CompoundCollider3D, type CompoundCollider3DData, type CompoundColliderPart3D } from './physics3d/CompoundCollider3D';
+export { NodeVisibility, ParticleModelUnits, ImportedScenePlugin } from './imported-scene';
 
 // =============================================================================
 // World Residency
@@ -1020,4 +1019,3 @@ export {
 
 export type { CompareOp, BlackboardGuard } from './ai/fsm/types';
 
-export { ParticleModelUnits } from './particle/ParticleModelUnits';

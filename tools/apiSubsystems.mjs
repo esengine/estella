@@ -336,6 +336,16 @@ export const SUBSYSTEMS = [
         entry: ['Spline', 'SplineCurve'],
     },
     {
+        id: 'imported-scene',
+        title: 'Imported scene runtime',
+        titleZh: '导入场景运行时',
+        source: ['imported-scene'],
+        tier: 'experimental',
+        why: 'what a glTF scene brings beside geometry, a node shown or hidden by its animation and particles authored in model units, is checked against the importer, but only imported scenes write it so far',
+        whyZh: 'glTF 场景在几何体之外带来的东西（随动画显隐的节点、按模型单位写的粒子）已经和导入器一起检查过，但目前只有导入的场景会写它们',
+        entry: ['NodeVisibility', 'ParticleModelUnits'],
+    },
+    {
         id: 'water',
         title: 'Water',
         titleZh: '水体',
