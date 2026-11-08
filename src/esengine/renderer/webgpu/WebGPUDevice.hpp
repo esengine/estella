@@ -627,27 +627,18 @@ private:
     WGPUBindGroup bind_group_ = nullptr;    ///< Currently bound group 0 (points INTO the cache; not owned).
     WGPUBindGroup texture_group_ = nullptr; ///< Currently bound group 1 (points INTO the cache; not owned).
 
-    // Bind-group cache. WebGPU bind groups are immutable, so rebuilding one per
-    // draw (release + create) is pure churn — a static scene rebuilds the same
-    // groups every frame. Cache by exact binding contents (group + mask + the
-    // WGPU resource pointers, in binding order): a hit means the identical
-    // bindings were used before (bind_group_dirty_ is set on every binding
-    // change, so the key always reflects the live state). Entries own live WGPU
-    // objects, which internally ref their resources — but a DELETED resource's
-    // entries must be evicted immediately (deleteBuffer/deleteTexture call
-    // evictBindGroups): emscripten WGPU "pointers" are JS-table handle indices
-    // that are reused right after release, so a new resource can inherit a dead
-    // one's id and silently hit the dead one's cached group.
+    // Reuse immutable bind groups only when their layout and ordered bindings match.
+    // Evict before resource release: emscripten reuses WGPU handle indices immediately.
+    // Layouts belong to the device and outlive this cache.
     struct BindGroupCacheEntry {
-        u32 group;
-        u32 mask;
+        WGPUBindGroupLayout layout;
         std::vector<u64> ids;   ///< WGPU resource pointers (buffers, or view+sampler), binding order.
         WGPUBindGroup bg;
     };
     static constexpr u32 kBindGroupCacheCap = 256;
     std::vector<BindGroupCacheEntry> bind_group_cache_;
     /// Reuse a cached group with these exact contents, else create + insert one.
-    WGPUBindGroup cachedBindGroup(u32 group, u32 mask, const u64* ids, u32 idCount,
+    WGPUBindGroup cachedBindGroup(const u64* ids, u32 idCount,
                                   const WGPUBindGroupDescriptor& desc);
     /// Drop every cached group referencing a dying resource id (see cache note).
     void evictBindGroups(u64 id);

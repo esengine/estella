@@ -2127,10 +2127,10 @@ void WebGPUDevice::ensureDummies() {
     }
 }
 
-WGPUBindGroup WebGPUDevice::cachedBindGroup(u32 group, u32 mask, const u64* ids, u32 idCount,
+WGPUBindGroup WebGPUDevice::cachedBindGroup(const u64* ids, u32 idCount,
                                             const WGPUBindGroupDescriptor& desc) {
     for (auto& e : bind_group_cache_) {
-        if (e.group != group || e.mask != mask || e.ids.size() != idCount) continue;
+        if (e.layout != desc.layout || e.ids.size() != idCount) continue;
         bool same = true;
         for (u32 i = 0; i < idCount; ++i) {
             if (e.ids[i] != ids[i]) { same = false; break; }
@@ -2145,7 +2145,7 @@ WGPUBindGroup WebGPUDevice::cachedBindGroup(u32 group, u32 mask, const u64* ids,
         bind_group_cache_.clear();
     }
     WGPUBindGroup bg = wgpuDeviceCreateBindGroup(device_, &desc);
-    if (bg) bind_group_cache_.push_back({group, mask, std::vector<u64>(ids, ids + idCount), bg});
+    if (bg) bind_group_cache_.push_back({desc.layout, std::vector<u64>(ids, ids + idCount), bg});
     return bg;
 }
 
@@ -2201,7 +2201,7 @@ void WebGPUDevice::flushBindGroup() {
             ids[i * 2] = static_cast<u64>(reinterpret_cast<uintptr_t>(entries[i].buffer));
             ids[i * 2 + 1] = (u64{1} << 63) | (entries[i].offset << 20) | entries[i].size;
         }
-        bind_group_ = cachedBindGroup(0, prog->group0Mask, ids, count * 2, bgd);
+        bind_group_ = cachedBindGroup(ids, count * 2, bgd);
         if (bind_group_) wgpuRenderPassEncoderSetBindGroup(pass_, 0, bind_group_, 0, nullptr);
     }
 
@@ -2268,7 +2268,7 @@ void WebGPUDevice::flushBindGroup() {
                 : reinterpret_cast<uintptr_t>(texEntries[i].sampler);
             tids[i] = static_cast<u64>(p);
         }
-        texture_group_ = cachedBindGroup(1, prog->group1Mask, tids, texCount, tgd);
+        texture_group_ = cachedBindGroup(tids, texCount, tgd);
         if (texture_group_) wgpuRenderPassEncoderSetBindGroup(pass_, 1, texture_group_, 0, nullptr);
     }
     bind_group_dirty_ = false;
