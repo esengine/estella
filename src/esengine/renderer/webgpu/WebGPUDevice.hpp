@@ -479,6 +479,9 @@ private:
     /** @brief Draws the internal clear triangle mid-pass. Restores scissor (when
      *         @p region is given), the user's stencil reference, and forces
      *         pipeline + bind groups to re-establish on the next user draw. */
+    bool storesTargetsTopDown() const override { return true; }
+    void copyTextureFlippedY(TextureHandle src, TextureHandle dst) override;
+    WGPURenderPipeline ensureFlipPipeline(WGPUTextureFormat format);
     void drawInternalClear(bool color, bool depth, bool stencil,
                            const f32 rgba[4], i32 stencilValue, const RenderPassDesc* region);
     /** @brief True while inside beginRenderPass/endRenderPass. */
@@ -541,6 +544,9 @@ private:
     // Internal clear family (region-scoped clears + mid-pass clearStencil).
     // Explicit layout so ONE bind group serves every write-mask variant.
     std::unordered_map<u32, WGPURenderPipeline> clear_pipelines_;
+    std::unordered_map<u32, WGPURenderPipeline> flip_pipelines_;
+    WGPUBindGroupLayout flip_bgl_ = nullptr;
+    WGPUPipelineLayout flip_layout_ = nullptr;
     WGPUBindGroupLayout clear_bgl_ = nullptr;
     WGPUPipelineLayout clear_layout_ = nullptr;
     WGPUBindGroup clear_bind_group_ = nullptr;

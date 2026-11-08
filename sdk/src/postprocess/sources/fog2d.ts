@@ -25,9 +25,7 @@ fn fogAt(w : vec2f) -> vec2f {
     if (mc.u_fogW <= 0.0 || mc.u_fogH <= 0.0) { return vec2f(0.0); }
     let uv = (w - vec2f(mc.u_fogL, mc.u_fogB)) / vec2f(mc.u_fogW, mc.u_fogH);
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return vec2f(0.0); }
-    // This device's texture rows run the other way from the clip space the maps were drawn in.
-    let p = vec2f(uv.x, 1.0 - uv.y);
-    return vec2f(textureSampleLevel(u_fogExplored, u_fogExplored_s, p, 0.0).r, textureSampleLevel(u_fogVisible, u_fogVisible_s, p, 0.0).r);
+    return vec2f(textureSampleLevel(u_fogExplored, u_fogExplored_s, uv, 0.0).r, textureSampleLevel(u_fogVisible, u_fogVisible_s, uv, 0.0).r);
 }`;
 
 const SOURCE = `#pragma shader "PP Fog 2D"

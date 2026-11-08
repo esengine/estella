@@ -142,6 +142,9 @@ public:
      */
     virtual ClipDepthRange clipDepthRange() const = 0;
 
+    virtual bool storesTargetsTopDown() const { return false; }
+    virtual void copyTextureFlippedY(TextureHandle src, TextureHandle dst) { (void)src; (void)dst; }
+
     /**
      * @brief Declares the device lost from outside the backend.
      * @details The host observes losses the backend cannot: a browser firing

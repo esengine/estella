@@ -947,6 +947,9 @@ void RenderFrame::end() {
     // not ride into the next one (the swapchain recycles it at task end). On
     // GL this is just the default-framebuffer rebind.
     device_.endRenderPass();
+    if (current_target_ != RenderTargetManager::INVALID_HANDLE) {
+        if (auto* rt = target_manager_.get(current_target_)) rt->publish();
+    }
     runPendingReplay(view_projection_, scene_viewport_.w, scene_viewport_.h);
 
     in_frame_ = false;

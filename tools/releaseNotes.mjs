@@ -4132,6 +4132,8 @@ export const NOTED = {
     {"note": "An iOS game opens on iOS 27."},
   "fix(native): the audio watchdog compiles under the min macro windows.h defines":
     {"internal": "The watchdog had not reached a release; the Windows host failed to build on master only."},
+  "fix(render): a render target hands out its picture the right way up on a device that stores rows top first":
+    {"note": "A render target reads the right way up on WebGPU, Android and iOS."},
   "fix: budget terrain page sampling and painting across frames":
     {"note": "Building terrain no longer stalls a frame."},
   "fix: preserve authored UVs through model transforms and scattering":

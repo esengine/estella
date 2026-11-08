@@ -28,6 +28,7 @@ public:
     void resize(u32 width, u32 height);
 
     TextureHandle getColorTexture() const;
+    void publish();
     TextureHandle getDepthTexture() const;
     glm::uvec2 getSize() const { return { width_, height_ }; }
     u32 getWidth() const { return width_; }
@@ -37,7 +38,9 @@ public:
     FramebufferHandle getFramebuffer() const;
 
 private:
+    GfxDevice* device_ = nullptr;
     Unique<Framebuffer> framebuffer_;
+    Unique<Framebuffer> published_;
     u32 width_ = 0;
     u32 height_ = 0;
     bool has_depth_ = true;

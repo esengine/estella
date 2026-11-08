@@ -249,6 +249,12 @@ void WebGPUDevice::releaseDeviceObjects() {
     clear_pipelines_.clear();
     if (clear_layout_) { wgpuPipelineLayoutRelease(clear_layout_); clear_layout_ = nullptr; }
     if (clear_bgl_) { wgpuBindGroupLayoutRelease(clear_bgl_); clear_bgl_ = nullptr; }
+    for (auto& [key, pipeline] : flip_pipelines_) {
+        if (pipeline) wgpuRenderPipelineRelease(pipeline);
+    }
+    flip_pipelines_.clear();
+    if (flip_layout_) { wgpuPipelineLayoutRelease(flip_layout_); flip_layout_ = nullptr; }
+    if (flip_bgl_) { wgpuBindGroupLayoutRelease(flip_bgl_); flip_bgl_ = nullptr; }
     // The depth-resolve family, for the same reason: every one of these belongs to
     // the device that made it, and Dawn refuses one from the generation before.
     for (auto& [key, pipeline] : depth_resolve_pipelines_) {
@@ -1884,6 +1890,118 @@ void WebGPUDevice::drawInternalClear(bool color, bool depth, bool stencil,
     // user draw to re-establish everything.
     bound_pipeline_ = 0;
     bind_group_dirty_ = true;
+}
+
+WGPURenderPipeline WebGPUDevice::ensureFlipPipeline(WGPUTextureFormat format) {
+    const u32 key = static_cast<u32>(format);
+    if (auto it = flip_pipelines_.find(key); it != flip_pipelines_.end()) return it->second;
+    static const char* kFlipVS = R"(
+@vertex fn vs_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
+    var p = array<vec2f, 3>(vec2f(-1.0, -3.0), vec2f(3.0, 1.0), vec2f(-1.0, 1.0));
+    return vec4f(p[i], 0.0, 1.0);
+}
+)";
+    static const char* kFlipFS = R"(
+@group(0) @binding(0) var source : texture_2d<f32>;
+@fragment fn fs_main(@builtin(position) at : vec4f) -> @location(0) vec4f {
+    let size = vec2i(textureDimensions(source));
+    return textureLoad(source, vec2i(i32(at.x), size.y - 1 - i32(at.y)), 0);
+}
+)";
+    auto makeModule = [&](const char* code) {
+        WGPUShaderSourceWGSL wgsl{};
+        wgsl.chain.sType = WGPUSType_ShaderSourceWGSL;
+        wgsl.code = sv(code);
+        WGPUShaderModuleDescriptor md{};
+        md.nextInChain = &wgsl.chain;
+        return wgpuDeviceCreateShaderModule(device_, &md);
+    };
+    if (!flip_bgl_) {
+        WGPUBindGroupLayoutEntry entry{};
+        entry.binding = 0;
+        entry.visibility = WGPUShaderStage_Fragment;
+        entry.texture.sampleType = WGPUTextureSampleType_UnfilterableFloat;
+        entry.texture.viewDimension = WGPUTextureViewDimension_2D;
+        WGPUBindGroupLayoutDescriptor bld{};
+        bld.entryCount = 1;
+        bld.entries = &entry;
+        flip_bgl_ = wgpuDeviceCreateBindGroupLayout(device_, &bld);
+        WGPUPipelineLayoutDescriptor pld{};
+        pld.bindGroupLayoutCount = 1;
+        pld.bindGroupLayouts = &flip_bgl_;
+        flip_layout_ = wgpuDeviceCreatePipelineLayout(device_, &pld);
+    }
+    WGPUShaderModule vs = makeModule(kFlipVS);
+    WGPUShaderModule fs = makeModule(kFlipFS);
+    WGPUColorTargetState target{};
+    target.format = format;
+    target.writeMask = WGPUColorWriteMask_All;
+    WGPUFragmentState fragment{};
+    fragment.module = fs;
+    fragment.entryPoint = sv("fs_main");
+    fragment.targetCount = 1;
+    fragment.targets = &target;
+    WGPURenderPipelineDescriptor pd{};
+    pd.layout = flip_layout_;
+    pd.vertex.module = vs;
+    pd.vertex.entryPoint = sv("vs_main");
+    pd.primitive.topology = WGPUPrimitiveTopology_TriangleList;
+    pd.primitive.frontFace = WGPUFrontFace_CCW;
+    pd.primitive.cullMode = WGPUCullMode_None;
+    pd.multisample.count = 1;
+    pd.multisample.mask = 0xFFFFFFFFu;
+    pd.fragment = &fragment;
+    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(device_, &pd);
+    wgpuShaderModuleRelease(vs);
+    wgpuShaderModuleRelease(fs);
+    flip_pipelines_[key] = pipeline;
+    return pipeline;
+}
+
+void WebGPUDevice::copyTextureFlippedY(TextureHandle src, TextureHandle dst) {
+    if (!device_ || !isDeviceUsable()) return;
+    const auto from = textures_.find(static_cast<u32>(src));
+    const auto to = textures_.find(static_cast<u32>(dst));
+    if (from == textures_.end() || to == textures_.end()) return;
+    if (from->second.samples > 1 || to->second.samples > 1
+        || from->second.width != to->second.width || from->second.height != to->second.height) {
+        ES_LOG_ERROR("WebGPUDevice::copyTextureFlippedY: the two textures must be single-sampled and the same size");
+        return;
+    }
+    if (pass_) endRenderPass();
+    WGPURenderPipeline pipeline = ensureFlipPipeline(to->second.format);
+    if (!pipeline) return;
+
+    WGPUBindGroupEntry entry{};
+    entry.binding = 0;
+    entry.textureView = from->second.sampleView ? from->second.sampleView : from->second.view;
+    WGPUBindGroupDescriptor bgd{};
+    bgd.layout = flip_bgl_;
+    bgd.entryCount = 1;
+    bgd.entries = &entry;
+    WGPUBindGroup group = wgpuDeviceCreateBindGroup(device_, &bgd);
+
+    WGPURenderPassColorAttachment color{};
+    color.view = to->second.view;
+    color.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+    color.loadOp = WGPULoadOp_Clear;
+    color.storeOp = WGPUStoreOp_Store;
+    WGPURenderPassDescriptor rp{};
+    rp.colorAttachmentCount = 1;
+    rp.colorAttachments = &color;
+
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device_, nullptr);
+    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &rp);
+    wgpuRenderPassEncoderSetPipeline(pass, pipeline);
+    wgpuRenderPassEncoderSetBindGroup(pass, 0, group, 0, nullptr);
+    wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
+    wgpuRenderPassEncoderEnd(pass);
+    wgpuRenderPassEncoderRelease(pass);
+    WGPUCommandBuffer commands = wgpuCommandEncoderFinish(encoder, nullptr);
+    wgpuQueueSubmit(queue_, 1, &commands);
+    wgpuCommandBufferRelease(commands);
+    wgpuCommandEncoderRelease(encoder);
+    wgpuBindGroupRelease(group);
 }
 
 WGPUBindGroupLayout WebGPUDevice::groupLayoutFor(u32 group, u32 mask, u32 depthMask,

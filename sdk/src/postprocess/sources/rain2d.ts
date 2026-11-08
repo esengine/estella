@@ -72,8 +72,7 @@ fn maskAt(w : vec2f) -> vec2f {
     if (mc.u_maskW <= 0.0 || mc.u_maskH <= 0.0) { return vec2f(0.0); }
     let uv = (w - vec2f(mc.u_maskL, mc.u_maskB)) / vec2f(mc.u_maskW, mc.u_maskH);
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return vec2f(0.0); }
-    // This device's texture rows run the other way from the clip space the mask was drawn in.
-    let m = textureSampleLevel(u_shelterMask, u_shelterMask_s, vec2f(uv.x, 1.0 - uv.y), 0.0);
+    let m = textureSampleLevel(u_shelterMask, u_shelterMask_s, uv, 0.0);
     return vec2f(m.a, m.r);
 }
 fn streaks(uv : vec2f, aspect : f32, cols : f32, speed : f32, seed : f32, T : f32) -> f32 {

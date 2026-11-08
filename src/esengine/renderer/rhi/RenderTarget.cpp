@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "./RenderTarget.hpp"
+#include "./GfxDevice.hpp"
 
 namespace esengine {
 
@@ -17,9 +18,16 @@ void RenderTarget::init(GfxDevice& device, u32 width, u32 height, bool depth, bo
     spec.linearFilter = linearFilter;
 
     framebuffer_ = Framebuffer::create(device, spec);
+    device_ = &device;
+    if (device.storesTargetsTopDown()) {
+        FramebufferSpec shown = spec;
+        shown.depthStencil = false;
+        published_ = Framebuffer::create(device, shown);
+    }
 }
 
 void RenderTarget::shutdown() {
+    published_.reset();
     framebuffer_.reset();
     width_ = 0;
     height_ = 0;
@@ -46,10 +54,19 @@ void RenderTarget::resize(u32 width, u32 height) {
     if (framebuffer_) {
         framebuffer_->resize(width, height);
     }
+    if (published_) {
+        published_->resize(width, height);
+    }
 }
 
 TextureHandle RenderTarget::getColorTexture() const {
+    if (published_) return published_->getColorAttachment();
     return framebuffer_ ? framebuffer_->getColorAttachment() : TextureHandle::Invalid;
+}
+
+void RenderTarget::publish() {
+    if (!device_ || !framebuffer_ || !published_) return;
+    device_->copyTextureFlippedY(framebuffer_->getColorAttachment(), published_->getColorAttachment());
 }
 
 TextureHandle RenderTarget::getDepthTexture() const {
