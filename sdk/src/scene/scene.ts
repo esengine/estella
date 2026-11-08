@@ -276,7 +276,7 @@ export type SceneExportFilter = (entity: Entity, component: string, data: Record
 
 const worldExportFilters = new WeakMap<World, Set<SceneExportFilter>>();
 
-/** @internal Lets a plugin rewrite any component's saved record in one world. */
+/** @internal */
 export function registerWorldSceneExportFilter(world: World, filter: SceneExportFilter): () => void {
     let filters = worldExportFilters.get(world);
     if (!filters) worldExportFilters.set(world, filters = new Set());

@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(textures): a pending reply overtaken by its settle notice no longer leaves the texture counted as editor work':
+    {"note":"The editor stops reporting texture work that has finished."},
   'refactor(sdk): node visibility and particle model units ship in esengine/imported-scene, installed only where the content uses them':
     {"note":"An imported scene keeps its materials, animation, particles and colliders."},
   'fix(cyber-rooftop): restore wetness masks and fit fixture shadows':
