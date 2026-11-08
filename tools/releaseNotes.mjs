@@ -4130,4 +4130,14 @@ export const NOTED = {
     {"note": "A Spine atlas of any size loads."},
   "fix(ios): the host adopts the scene lifecycle, so a game built with Xcode 27 opens on iOS 27":
     {"note": "An iOS game opens on iOS 27."},
+  "fix(native): the audio watchdog compiles under the min macro windows.h defines":
+    {"internal": "The watchdog had not reached a release; the Windows host failed to build on master only."},
+  "fix: budget terrain page sampling and painting across frames":
+    {"note": "Building terrain no longer stalls a frame."},
+  "fix: preserve authored UVs through model transforms and scattering":
+    {"note": "A moved or scattered model part keeps its texture mapping."},
+  "feat: fit procedural buildings and reserve roads from foliage":
+    {"note": "A generated building stands on its ground, and generated roads keep foliage off them."},
+  "feat: expose ground fitting and vegetation budgets to editor agents":
+    {"note": "A generated building stands on its ground, and generated roads keep foliage off them."},
 };
