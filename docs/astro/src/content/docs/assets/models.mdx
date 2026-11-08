@@ -192,11 +192,12 @@ component has no room for. Written only when the source uses one of them, on the
 
 | glTF | Material parameter |
 |---|---|
-| `normalTexture` | `u_normalMap` |
+| `normalTexture` / `normalTexture.scale` | `u_normalMap` / `u_normalScale` (default 1) |
 | `emissiveFactor` / `emissiveTexture` | `u_emissive` / `u_emissiveMap` |
 | `occlusionTexture` (+ `strength`) | `u_occlusionMap` / `u_occlusionStrength` |
 | `alphaMode: MASK` + `alphaCutoff` | `u_alphaCutoff` |
 | `metallicFactor` / `roughnessFactor` / `metallicRoughnessTexture` | `u_metallic` / `u_roughness` / `u_metallicRoughnessMap` |
+| `KHR_materials_pbrSpecularGlossiness` | Model variant `ES_SPECULAR_GLOSSINESS`; `u_specularColor`, `u_glossiness`, and the packed map in `u_metallicRoughnessMap` |
 | `KHR_materials_clearcoat` | `u_clearcoat` / `u_clearcoatRoughness` |
 | `KHR_materials_sheen` | `u_sheenColor` / `u_sheenRoughness` |
 | `KHR_materials_anisotropy` | `u_anisotropy` / `u_anisotropyRotation` |
@@ -208,6 +209,19 @@ component has no room for. Written only when the source uses one of them, on the
 Metal and roughness are written even when they match the engine's own defaults: glTF
 defaults both factors to 1 (a fully rough metal) and the shader defaults metal to 0, so a
 product that left them out would describe a surface the source did not.
+
+For a legacy specular/glossiness material, its diffuse texture and factor replace
+the metallic/roughness fallback's base colour on `MeshRenderer`. Its specular RGB
+and glossiness alpha use the same native lighting path as other Model materials;
+RGB is decoded from sRGB, alpha stays linear, and roughness is `1 - glossiness`.
+The packed map reuses the existing sampler slot. Character-name presets do not
+replace this explicitly authored workflow. New authoring can use metallic/roughness;
+this variant preserves existing glTF exports without an approximate conversion.
+
+Normal strength scales the tangent-space X/Y channels before normalization, on
+Model, Skin and Hair materials. Zero produces a flat normal; negative values invert
+the relief. Blended model materials test depth against opaque geometry while leaving
+depth writes off, so transparent leaves behind a wall remain behind it.
 
 A texture the material names that is not in the project (the file is missing next to the
 model) is left off: the model imports without it and a warning says so, instead of keeping a
@@ -337,7 +351,6 @@ when it runs.
 |---|---|
 | A material texture that asks for `TEXCOORD_1`, a `KHR_texture_transform` that offsets, scales or rotates, an FBX uv transform | A material samples the first UV set as authored. (The mesh itself keeps its second UV set, which a lightmap or a material's `v_texCoord1` can read.) |
 | Non-triangle primitives (`mode` ≠ 4) | The renderer draws triangle lists. |
-| `normalTexture.scale` | The map is applied at full strength. |
 | The textures of a shading layer (`clearcoatTexture`, `sheenColorTexture`, `anisotropyTexture`, …), `specularColorFactor`, `attenuationDistance` | Each layer is a constant for the whole material; its factors are kept and the textures are reported. See [Shading layers](/docs/graphics/materials/#shading-layers). |
 | Area and volume lights | Named in the import notes and skipped. (Point, directional and spot lights, and cameras, **are** imported: see [Lights and cameras](#lights-and-cameras).) |
 | Separate FBX metalness/roughness maps, an FBX opacity map | See [FBX](#fbx). |

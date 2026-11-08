@@ -164,11 +164,12 @@ chart,每片投影到自己的平面,再按**同一个**世界-纹素比打包�
 
 | glTF | 材质参数 |
 |---|---|
-| `normalTexture` | `u_normalMap` |
+| `normalTexture` / `normalTexture.scale` | `u_normalMap` / `u_normalScale`（默认 1） |
 | `emissiveFactor` / `emissiveTexture` | `u_emissive` / `u_emissiveMap` |
 | `occlusionTexture`（含 `strength`） | `u_occlusionMap` / `u_occlusionStrength` |
 | `alphaMode: MASK` + `alphaCutoff` | `u_alphaCutoff` |
 | `metallicFactor` / `roughnessFactor` / `metallicRoughnessTexture` | `u_metallic` / `u_roughness` / `u_metallicRoughnessMap` |
+| `KHR_materials_pbrSpecularGlossiness` | Model 变体 `ES_SPECULAR_GLOSSINESS`；`u_specularColor`、`u_glossiness`，打包贴图使用 `u_metallicRoughnessMap` |
 | `KHR_materials_clearcoat` | `u_clearcoat` / `u_clearcoatRoughness` |
 | `KHR_materials_sheen` | `u_sheenColor` / `u_sheenRoughness` |
 | `KHR_materials_anisotropy` | `u_anisotropy` / `u_anisotropyRotation` |
@@ -179,6 +180,15 @@ chart,每片投影到自己的平面,再按**同一个**世界-纹素比打包�
 
 金属度与粗糙度即使等于引擎自己的默认值也会写出来：glTF 把两个系数都默认成 1（完全粗糙的
 金属），而 shader 把金属度默认成 0 —— 省略它们的产物会描述出一个源文件没有说过的表面。
+
+旧版高光/光泽材质会把自身的漫反射贴图和系数写入 `MeshRenderer`，覆盖金属/粗糙度后备材质的
+base color。高光 RGB 与光泽 alpha 共用原生 Model 光照路径：RGB 从 sRGB 解码，alpha 保持线性，
+粗糙度为 `1 - 光泽度`。打包贴图复用已有采样槽，不增加采样器。按名称选择角色材质的设置不会
+覆盖这个明确指定的工作流。新资源可以采用金属/粗糙度；此变体用于保留已有 glTF 的材质语义，
+无需近似转换。
+
+法线强度在归一化前缩放切线空间的 X/Y 通道，适用于 Model、Skin、Hair 材质。0 表示平法线，
+负值反转凹凸。混合透明模型仍对不透明几何进行深度测试，但不写深度，因此墙后的叶片不会盖到墙上。
 
 材质里写的贴图如果项目里没有这个文件(模型旁边找不到),就不会绑上它:模型照常导入并给出警告,而不是留下一个每次使用都加载失败的引用。
 
@@ -293,7 +303,6 @@ Physical、Blender 的 Principled 最终都落到[材质](#材质)那一节列�
 |---|---|
 | 材质贴图要求用 `TEXCOORD_1`、带偏移/缩放/旋转的 `KHR_texture_transform`、FBX 的 uv transform | 材质按作者写的原样读第一套 UV。(mesh 本身保留第二套 UV，光照贴图或材质的 `v_texCoord1` 可以读它。) |
 | 非三角形 primitive（`mode` ≠ 4） | 渲染器画的是三角形列表。 |
-| `normalTexture.scale` | 法线贴图按全强度应用。 |
 | 着色层的贴图(`clearcoatTexture`、`sheenColorTexture`、`anisotropyTexture` 等)、`specularColorFactor`、`attenuationDistance` | 每一层对整个材质是一个常量;系数保留,贴图只做报告。见[着色层](/docs/zh-cn/graphics/materials/#着色层)。 |
 | 面光与体积光 | 在导入提示里点名并跳过。(点光、方向光、聚光灯以及相机**会**导入：见[灯光与相机](#灯光与相机)。) |
 | FBX 分离的金属度/粗糙度贴图、FBX 的不透明度贴图 | 见 [FBX](#fbx)。 |
