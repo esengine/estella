@@ -105,6 +105,9 @@ esjs::Val js_audioSuspendAll(const esjs::Args& a) {
 esjs::Val js_audioResumeAll(const esjs::Args& a) {
     host().audio.resumeAll(); return esjs::undefined();
 }
+esjs::Val js_audioDebugFault(const esjs::Args& a) {
+    host().audio.debugFault(a.size() > 0 ? esjs::toInt32(a[0]) : 0); return esjs::undefined();
+}
 
 }  // namespace
 
@@ -136,6 +139,7 @@ void registerAudioBindings(HostState& h, esjs::Val global) {
     bindGlobal(global, "es_audioVoiceState", js_audioVoiceState, 1);
     bindGlobal(global, "es_audioSuspendAll", js_audioSuspendAll, 0);
     bindGlobal(global, "es_audioResumeAll", js_audioResumeAll, 0);
+    bindGlobal(global, "es_audioDebugFault", js_audioDebugFault, 1);
 }
 
 }  // namespace eshost

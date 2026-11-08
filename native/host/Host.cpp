@@ -379,9 +379,14 @@ void frame(long long vsyncNanos) {
     pumpJs(h);   // run the App tick's async systems and any timers they set
     benchPumpEnd();
 
-    // Notify JS of voices that ended on their own (the audio thread never touches
-    // the JS engine; we poll on this thread and push, like touch). onEnd handlers may
-    // start new sounds synchronously — safe, pumpEnded iterates a snapshot.
+    const AudioEngine::Health audio = h.audio.maintain();
+    if (audio.attempt > 0) {
+        hostLog(!audio.started, "audio: no sound for %.0f ms, %s the device (attempt %d)%s",
+                audio.silentMs, audio.rebuilt ? "rebuilt" : "restarted", audio.attempt,
+                audio.started ? "" : ", which failed");
+    }
+    if (audio.recovered) hostLog(false, "audio: sound is back");
+
     h.audio.pumpEnded([&h](int voiceId) {
         esjs::Enter enter;
         const esjs::Val arg = esjs::int32(voiceId);

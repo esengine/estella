@@ -586,6 +586,10 @@ add_executable(test_shader_variant
 target_include_directories(test_shader_variant PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_shader_variant COMMAND test_shader_variant)
 
+add_executable(test_audio_watchdog native/test_audio_watchdog.cpp)
+target_include_directories(test_audio_watchdog PRIVATE ${CMAKE_SOURCE_DIR}/native/host)
+add_test(NAME test_audio_watchdog COMMAND test_audio_watchdog)
+
 # Texture + Framebuffer decoupling: compiles the converted classes against a
 # MockGfxDevice. The harness stubs the (uncalled) stb file loader.
 add_executable(test_texture_fb

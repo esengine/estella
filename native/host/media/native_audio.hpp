@@ -71,14 +71,25 @@ public:
     void suspendAll();
     void resumeAll();
 
+    struct Health {
+        int attempt = 0;
+        double silentMs = 0.0;
+        bool rebuilt = false;
+        bool started = false;
+        bool recovered = false;
+    };
+    Health maintain();
+    void debugFault(int kind);
+
     /** Report every non-looping voice that ended on its own since the last call,
      *  then free it. Runs on the game thread each frame — miniaudio's public API
      *  is game-thread safe, so the notification reaches JS with no cross-thread
      *  hop into the JS engine. */
     void pumpEnded(const std::function<void(int)>& onEnded);
 
-private:
     struct Impl;
+
+private:
     Impl* impl_ = nullptr;
 };
 

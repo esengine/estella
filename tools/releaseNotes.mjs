@@ -4120,4 +4120,6 @@ export const NOTED = {
     {"note": "On a phone, a lit 3D scene costs about half as much."},
   "fix(native): a render target is made on a device, so RenderTexture and a camera's renderTarget draw there":
     {"note": "A render target works on a native device."},
+  "fix(native): the audio device is watched and brought back when it stops taking sound, so a game is not left silent after the background":
+    {"note": "Sound comes back when a device's audio dies on its own."},
 };

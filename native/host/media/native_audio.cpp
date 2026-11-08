@@ -17,7 +17,10 @@
 #include "native_audio.hpp"
 
 #include "audio_spectrum.hpp"
+#include "audio_watchdog.hpp"
 
+#include <atomic>
+#include <chrono>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -68,6 +71,10 @@ void spectrumTapProcess(ma_node* node, const float** framesIn, ma_uint32* frameC
 
 struct AudioEngine::Impl {
     ma_context context{};
+    ma_device device{};
+    bool deviceReady = false;
+    std::atomic<uint64_t> callbacks{0};
+    AudioWatchdog watchdog;
     ma_engine engine{};
     SpectrumTap tap{};
     bool tapReady = false;
@@ -107,6 +114,38 @@ struct AudioEngine::Impl {
     }
 };
 
+namespace {
+
+double nowMs() {
+    return std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+void deviceData(ma_device* device, void* out, const void*, ma_uint32 frames) {
+    auto* impl = static_cast<AudioEngine::Impl*>(device->pUserData);
+    ma_engine_read_pcm_frames(&impl->engine, out, frames, nullptr);
+    impl->callbacks.fetch_add(1, std::memory_order_relaxed);
+}
+
+bool openDevice(AudioEngine::Impl* impl) {
+    ma_device_config cfg = ma_device_config_init(ma_device_type_playback);
+    cfg.playback.format = ma_format_f32;
+    cfg.playback.channels = impl->channels;
+    cfg.sampleRate = impl->sampleRate;
+    cfg.dataCallback = deviceData;
+    cfg.pUserData = impl;
+    impl->deviceReady = ma_device_init(&impl->context, &cfg, &impl->device) == MA_SUCCESS;
+    return impl->deviceReady;
+}
+
+void closeDevice(AudioEngine::Impl* impl) {
+    if (!impl->deviceReady) return;
+    ma_device_uninit(&impl->device);
+    impl->deviceReady = false;
+}
+
+}  // namespace
+
 AudioEngine::~AudioEngine() { shutdown(); }
 
 bool AudioEngine::init() {
@@ -127,9 +166,17 @@ bool AudioEngine::init() {
     }
     impl_->contextReady = true;
 
+    if (!openDevice(impl_)) {
+        ma_context_uninit(&impl_->context);
+        delete impl_;
+        impl_ = nullptr;
+        return false;
+    }
     ma_engine_config cfg = ma_engine_config_init();
     cfg.pContext = &impl_->context;
+    cfg.pDevice = &impl_->device;
     if (ma_engine_init(&cfg, &impl_->engine) != MA_SUCCESS) {
+        closeDevice(impl_);
         ma_context_uninit(&impl_->context);
         delete impl_;
         impl_ = nullptr;
@@ -138,6 +185,7 @@ bool AudioEngine::init() {
     impl_->ready = true;
     impl_->sampleRate = ma_engine_get_sample_rate(&impl_->engine);
     impl_->channels = ma_engine_get_channels(&impl_->engine);
+    impl_->watchdog.want(true, nowMs());
 
     // The analyser tap, between the voices and the endpoint. Optional: a failure
     // here costs the spectrum, not the sound.
@@ -167,7 +215,9 @@ void AudioEngine::shutdown() {
     for (auto& [id, voice] : impl_->voices) ma_sound_uninit(&voice.sound);
     impl_->voices.clear();
     if (impl_->tapReady) { ma_node_uninit(&impl_->tap.base, nullptr); impl_->tapReady = false; }
+    if (impl_->deviceReady) ma_device_stop(&impl_->device);
     if (impl_->ready) ma_engine_uninit(&impl_->engine);
+    closeDevice(impl_);
     if (impl_->contextReady) ma_context_uninit(&impl_->context);
     for (auto& [id, buf] : impl_->buffers) ma_free(buf.pcm, nullptr);
     impl_->buffers.clear();
@@ -303,11 +353,42 @@ AudioEngine::VoiceState AudioEngine::voiceState(int voiceId) {
 }
 
 void AudioEngine::suspendAll() {
-    if (ready()) ma_engine_stop(&impl_->engine);
+    if (!ready()) return;
+    impl_->watchdog.want(false, nowMs());
+    if (impl_->deviceReady) ma_device_stop(&impl_->device);
 }
 
 void AudioEngine::resumeAll() {
-    if (ready()) ma_engine_start(&impl_->engine);
+    if (!ready()) return;
+    impl_->watchdog.want(true, nowMs());
+    if (impl_->deviceReady) ma_device_start(&impl_->device);
+}
+
+AudioEngine::Health AudioEngine::maintain() {
+    Health health;
+    if (!ready()) return health;
+    const double now = nowMs();
+    const AudioWatchdog::Action action =
+        impl_->watchdog.tick(now, impl_->callbacks.load(std::memory_order_relaxed));
+    health.recovered = impl_->watchdog.takeRecovered();
+    if (action == AudioWatchdog::Action::None) return health;
+    health.attempt = impl_->watchdog.failures();
+    health.silentMs = impl_->watchdog.silentMs(now);
+    health.rebuilt = action == AudioWatchdog::Action::Rebuild || !impl_->deviceReady;
+    if (health.rebuilt) {
+        closeDevice(impl_);
+        health.started = openDevice(impl_) && ma_device_start(&impl_->device) == MA_SUCCESS;
+    } else {
+        ma_device_stop(&impl_->device);
+        health.started = ma_device_start(&impl_->device) == MA_SUCCESS;
+    }
+    return health;
+}
+
+void AudioEngine::debugFault(int kind) {
+    if (!ready()) return;
+    if (kind == 0) ma_device_stop(&impl_->device);
+    else closeDevice(impl_);
 }
 
 void AudioEngine::pumpEnded(const std::function<void(int)>& onEnded) {

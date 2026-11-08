@@ -20,6 +20,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Sound comes back when a device's audio dies on its own.** On the Android and iOS hosts, a game whose audio device did not start again on returning from the background, or whose output stream was dropped while it was away, stayed silent until it was restarted. The host now checks every frame that the device is still taking sound while the game wants it; after half a second of nothing it restarts the device, and from the third try rebuilds it, retrying at growing intervals of up to 5 seconds. Sounds that were playing carry on where they were, and the log says each time it acts.
 - **A render target works on a native device.** On the Android and iOS hosts `RenderTexture.create` handed back 0 for its handle and its texture, so a camera's `renderTarget` and anything painted into a texture drew nothing, and nothing was logged. The SDK asked only the web's engine module for a target; it now asks whichever engine core is running, and a device names the target's texture for a `Sprite` as the web does. A target that cannot be made is now reported once in the log.
 - **A `#pragma lighting direct` surface takes a sun's shadow.** Under a directional light with a size (any `sourceAngle` above 0, the default 0.53 included) such a shader drew no shadow at all; it now draws the hard shadow the directive promises.
 
