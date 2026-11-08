@@ -261,7 +261,7 @@ static prototype: TimelinePlugin
 
 ## Track — type @experimental
 ```
-PropertyTrack | SpineTrack | SpriteAnimTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack | CameraTrack | SequenceTrack
+PropertyTrack | SpineTrack | SpriteAnimTrack | ParticleTrack | AudioTrack | ActivationTrack | MarkerTrack | CustomEventTrack | AnimFramesTrack | CameraTrack | SequenceTrack
 ```
 
 ## TrackType — type @experimental
@@ -296,7 +296,7 @@ PropertyTrack | SpineTrack | SpriteAnimTrack | AudioTrack | ActivationTrack | Ma
 
 ## createTimelineMotionDriver — function @experimental
 ```
-(timeline: TimelineAPI): MotionDriver<AnimatorClipMotion>
+(timeline: TimelineAPI, effects?: TimelineMotionEffects): MotionDriver<AnimatorClipMotion>
 ```
 
 ## evaluateChannel — function @experimental
