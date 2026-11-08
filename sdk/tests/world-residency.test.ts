@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  world-residency.test.ts — why a cell exists, and what the streamer does
- *        about it. The decision is pure and is held to on its own; the streamer
- *        is held to the moves it issues, against a host that records them.
+ * @file    world-residency.test.ts
+ * @brief   Verify residency decisions, asynchronous ownership and world replacement.
  */
 import { describe, it, expect, vi } from 'vitest';
 import {
@@ -160,7 +159,7 @@ function recordingHost(readiness?: () => RenderReadiness) {
         },
         loadAdditive(name) {
             calls.push(`load:${name}`);
-            const settle = (): void => { loaded.add(name); };
+            const settle = (): void => { readied.delete(name); loaded.add(name); };
             if (!deferred) { settle(); return Promise.resolve({}); }
             return new Promise((resolve) => pending.push(() => { settle(); resolve({}); }));
         },
@@ -653,6 +652,191 @@ describe('WorldStreamer', () => {
         // What it acquired came back with it. A discard that forgot the receipts
         // would leak a cell's worth of assets per turn a player takes.
         expect(streamer.status().cancelledRefs).toBe(2);
+    });
+});
+
+describe('world residency teardown and replacement', () => {
+    it('releases prepared assets when the world is cleared', async () => {
+        const h = recordingHost();
+        const streamer = new WorldStreamer(h.host);
+        streamer.loadManifest(manifest(cell(3, 0)));
+        streamer.update([source(0, 50, 100, 150, 400)]);
+        await flush();
+        expect(h.readied.size).toBe(1);
+        await streamer.clear();
+        await flush();
+        expect(h.readied.size).toBe(0);
+        expect(streamer.status().prefetchCells).toEqual([]);
+        expect(streamer.residencyOf('c_3_0')).toBe('unloaded');
+    });
+
+    it('discards a preparation that finishes after clearing began', async () => {
+        const h = recordingHost(); h.defer(true);
+        const streamer = new WorldStreamer(h.host);
+        streamer.loadManifest(manifest(cell(0, 0)));
+        streamer.update([source(50, 50, 10, 20)]);
+        const cleared = streamer.clear();
+        h.settle(); h.defer(false);
+        await cleared; await flush();
+        expect(h.readied.size).toBe(0);
+        expect(h.loaded.size).toBe(0);
+        expect(streamer.residencyOf('c_0_0')).toBe('unloaded');
+    });
+
+    it('unloads a resident cell without preparing it again during clear', async () => {
+        const h = recordingHost();
+        const streamer = new WorldStreamer(h.host);
+        streamer.loadManifest(manifest(cell(0, 0)));
+        streamer.update([source(50, 50, 10, 20, 400)]);
+        await flush();
+        expect(h.loaded.size).toBe(1);
+        await streamer.clear(); await flush();
+        expect(h.loaded.size).toBe(0);
+        expect(h.readied.size).toBe(0);
+        expect(streamer.status().prepareCount).toBe(1);
+    });
+
+    it('does not publish after demand disappears during the final readiness check', async () => {
+        const claim: RenderReadiness = { applicable: true, stamp: { digestLo: 7, digestHi: 0, programEpoch: 3 } };
+        const h = recordingHost();
+        let checks = 0, finish!: (value: RenderReadiness) => void;
+        h.host.readyRenderPrograms = () => ++checks === 1 ? Promise.resolve(claim)
+            : new Promise(resolve => { finish = resolve; });
+        const streamer = new WorldStreamer(h.host);
+        streamer.loadManifest(manifest(cell(0, 0)));
+        streamer.update([source(50, 50, 10, 20)]);
+        await flush();
+        expect(checks).toBe(2);
+        streamer.update([]);
+        finish(claim); await flush(); await flush();
+        expect(h.calls.filter(call => call.startsWith('load:'))).toEqual([]);
+        expect(h.readied.size).toBe(0);
+        expect(streamer.residencyOf('c_0_0')).toBe('unloaded');
+    });
+
+    it('releases assets whose render-program readiness never became valid', async () => {
+        const h = recordingHost(() => ({ applicable: true, stamp: null }));
+        const streamer = new WorldStreamer(h.host);
+        streamer.loadManifest(manifest(cell(0, 0)));
+        streamer.update([source(50, 50, 10, 20)]);
+        await flush();
+        expect(streamer.residencyOf('c_0_0')).toBe('preparing');
+        await streamer.clear(); await flush();
+        expect(h.readied.size).toBe(0);
+        expect(streamer.residencyOf('c_0_0')).toBe('unloaded');
+    });
+
+    it.each(['unclaimed', 'rejected'])('releases %s readiness when the last source leaves', async outcome => {
+        const h = recordingHost(() => {
+            if (outcome === 'rejected') throw new Error('renderer unavailable');
+            return { applicable: true, stamp: null };
+        });
+        const streamer = new WorldStreamer(h.host);
+        await streamer.loadManifest(manifest(cell(0, 0)));
+        streamer.update([source(50, 50, 10, 20)]);
+        await flush();
+        expect(streamer.residencyOf('c_0_0')).toBe('preparing');
+        expect(h.readied.size).toBe(1);
+        streamer.update([]);
+        await flush();
+        expect(h.readied.size).toBe(0);
+        expect(streamer.residencyOf('c_0_0')).toBe('unloaded');
+        expect(h.calls.some(call => call.startsWith('load:'))).toBe(false);
+    });
+
+    it('unloads the previous manifest before registering a replacement', async () => {
+        const h = recordingHost();
+        const streamer = new WorldStreamer(h.host);
+        streamer.loadManifest(manifest(cell(0, 0)));
+        streamer.update([source(50, 50, 10, 20)]);
+        await flush();
+        await streamer.loadManifest(manifest(cell(5, 0)));
+        expect(h.loaded.size).toBe(0);
+        expect(h.calls.indexOf('unload:c_0_0:false')).toBeLessThan(h.calls.indexOf('register:c_5_0'));
+        expect(h.calls).toContain('unload:c_0_0:false');
+    });
+
+    it('returns old preparation receipts before reusing a cell name', async () => {
+        const h = recordingHost(); h.defer(true);
+        const streamer = new WorldStreamer(h.host);
+        streamer.loadManifest(manifest(cell(0, 0)));
+        streamer.update([source(50, 50, 10, 20)]);
+        const replacement = streamer.loadManifest(manifest(cell(0, 0)));
+        h.settle(); h.defer(false);
+        await replacement; await flush();
+        expect(h.readied.size).toBe(0);
+        expect(h.calls).toContain('discard:c_0_0');
+        expect(h.calls.indexOf('discard:c_0_0')).toBeLessThan(h.calls.lastIndexOf('register:c_0_0'));
+    });
+
+    it('waits for in-flight publication and its teardown before clear resolves', async () => {
+        const h = recordingHost();
+        let publish!: () => void;
+        const load = h.host.loadAdditive;
+        h.host.loadAdditive = name => new Promise(resolve => { publish = () => { void load(name).then(resolve); }; });
+        const streamer = new WorldStreamer(h.host);
+        streamer.loadManifest(manifest(cell(0, 0)));
+        streamer.update([source(50, 50, 10, 20)]);
+        await flush();
+        expect(streamer.residencyOf('c_0_0')).toBe('publishing');
+        let cleared = false;
+        const clearing = streamer.clear().then(() => { cleared = true; });
+        streamer.update([source(50, 50, 10, 20)]);
+        await flush(); expect(cleared).toBe(false);
+        publish(); await clearing;
+        expect(h.loaded.size).toBe(0);
+        expect(h.readied.size).toBe(0);
+        expect(streamer.status().loadCount).toBe(1);
+        expect(streamer.status().unloadCount).toBe(1);
+        streamer.update([source(50, 50, 10, 20)]);
+        await flush(); publish(); await flush();
+        expect(h.loaded.size).toBe(1);
+    });
+
+    it('adopts only the latest manifest requested while old work drains', async () => {
+        const h = recordingHost(); h.defer(true);
+        const streamer = new WorldStreamer(h.host);
+        streamer.loadManifest(manifest(cell(0, 0)));
+        streamer.update([source(50, 50, 10, 20)]);
+        const first = streamer.loadManifest(manifest(cell(3, 0)));
+        const last = streamer.loadManifest(manifest(cell(5, 0)));
+        h.settle(); h.defer(false);
+        await Promise.all([first, last]);
+        expect(h.calls).not.toContain('register:c_3_0');
+        expect(streamer.manifest?.cells.map(c => c.name)).toEqual(['c_5_0']);
+        expect(h.readied.size).toBe(0);
+    });
+
+    it('an explicit clear cancels a pending manifest adoption', async () => {
+        const h = recordingHost(); h.defer(true);
+        const streamer = new WorldStreamer(h.host);
+        streamer.loadManifest(manifest(cell(0, 0)));
+        streamer.update([source(50, 50, 10, 20)]);
+        const replacement = streamer.loadManifest(manifest(cell(5, 0)));
+        const cleared = streamer.clear();
+        h.settle(); h.defer(false);
+        await Promise.all([replacement, cleared]);
+        expect(h.calls).not.toContain('register:c_5_0');
+        expect(h.loaded.size).toBe(0);
+        expect(h.readied.size).toBe(0);
+    });
+
+    it('reports a failed unload without spinning or adopting a replacement over live content', async () => {
+        const h = recordingHost();
+        const unload = h.host.unload;
+        let attempts = 0;
+        h.host.unload = () => { attempts++; throw new Error('teardown unavailable'); };
+        const streamer = new WorldStreamer(h.host);
+        streamer.loadManifest(manifest(cell(0, 0)));
+        streamer.update([source(50, 50, 10, 20)]);
+        await flush();
+        await expect(streamer.loadManifest(manifest(cell(5, 0)))).rejects.toThrow('c_0_0');
+        expect(attempts).toBe(1);
+        expect(h.calls).not.toContain('register:c_5_0');
+        expect(h.loaded.size).toBe(1);
+        h.host.unload = unload;
+        await streamer.clear();
+        expect(h.loaded.size).toBe(0);
     });
 });
 

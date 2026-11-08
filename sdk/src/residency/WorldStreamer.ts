@@ -168,19 +168,20 @@ export class WorldStreamer {
     private prefetchHits_ = 0;
     private prefetchMisses_ = 0;
     private lastDemandToResident_ = 0;
+    private readonly operations_ = new Set<Promise<void>>();
+    private clearPromise_: Promise<void> | null = null;
+    private clearing_ = false;
+    private manifestRequest_ = 0;
 
     constructor(host: WorldStreamHost) {
         this.host_ = host;
     }
 
-    /**
-     * Adopt a cooked world: its cells become loadable scenes and residency
-     * answers for them.
-     *
-     * Registered here, not beside the game's own scenes: a cell is content
-     * residency brings in, and `switchTo('cell_3_2')` is a second author.
-     */
-    loadManifest(manifest: WorldManifest, sceneConfig?: (cell: WorldCell) => SceneConfig): void {
+    /** Adopt a cooked world after the previous world's operations and receipts drain. The latest request wins. */
+    async loadManifest(manifest: WorldManifest, sceneConfig?: (cell: WorldCell) => SceneConfig): Promise<void> {
+        const request = ++this.manifestRequest_;
+        if (this.cells_.size > 0 || this.clearing_) await this.clearCells_();
+        if (request !== this.manifestRequest_) return;
         this.manifest_ = manifest;
         this.cells_.clear();
         for (const cell of manifest.cells) {
@@ -272,6 +273,7 @@ export class WorldStreamer {
      * the world the first is standing in.
      */
     update(sources: readonly ResidencySource[]): void {
+        if (this.clearing_) return;
         this.sourceCount_ = sources.length;
         if (this.cells_.size === 0) return;
         const resident = new Set<string>();
@@ -299,18 +301,52 @@ export class WorldStreamer {
         for (const name of decision.prefetch) if (!target.has(name)) this.step_(name);
         for (const name of decision.toUnload) this.step_(name);
         for (const [name, state] of this.cells_) {
-            if (state.residency === 'prepared' && !state.desired && !state.speculated) {
+            if ((state.residency === 'prepared' || state.residency === 'preparing') && !state.desired && !state.speculated) {
                 this.step_(name);
             }
         }
     }
 
-    /** Everything goes; the cells stay registered. For a world being torn down. */
-    clear(): void {
-        for (const [name, state] of this.cells_) {
+    /** Drain every cell and preparation; registrations remain reusable by a later update. Cancels pending adoption. */
+    clear(): Promise<void> {
+        this.manifestRequest_++;
+        return this.clearCells_();
+    }
+
+    private clearCells_(): Promise<void> {
+        if (this.clearPromise_) return this.clearPromise_;
+        this.clearing_ = true;
+        this.sourceCount_ = 0;
+        for (const state of this.cells_.values()) {
             state.desired = false;
-            if (state.residency === 'resident') this.step_(name);
+            state.speculated = false;
         }
+        this.clearPromise_ = (async () => {
+            for (const name of this.cells_.keys()) this.step_(name);
+            // Publication may finish by starting an unload, so drain the entire chain.
+            while (this.operations_.size > 0) await Promise.allSettled([...this.operations_]);
+            const remaining = [...this.cells_].filter(([, state]) => state.residency !== 'unloaded');
+            if (remaining.length > 0) throw new Error(`World residency could not release: ${remaining.map(([name]) => name).join(', ')}`);
+        })().finally(() => {
+            this.clearing_ = false;
+            this.clearPromise_ = null;
+        });
+        return this.clearPromise_;
+    }
+
+    /** Track host operations through their completion handlers so replacement cannot reuse a live scene name. */
+    private run_<T>(action: () => Promise<T>, done: (value: T) => void, failed: (error: unknown) => void): void {
+        let result: Promise<T>;
+        try { result = Promise.resolve(action()); } catch (error) { result = Promise.reject(error); }
+        const operation = result.then(done, failed);
+        this.operations_.add(operation);
+        void operation.then(
+            () => { this.operations_.delete(operation); },
+            error => {
+                this.operations_.delete(operation);
+                log.error('residency', 'cell completion failed', error);
+            },
+        );
     }
 
     status(): WorldStreamerStatus {
@@ -375,12 +411,14 @@ export class WorldStreamer {
     private step_(name: string): void {
         const state = this.cells_.get(name);
         if (!state) return;
+        if (state.readinessInFlight) return;
         if (state.residency === 'preparing') {
             // Assets are in and only the program obligation is left. Retried
             // here, because a claim refused once (a device that rebuilt mid-
             // readying) costs one more attempt rather than the whole preparation.
-            if (state.assetsReady && !state.readinessInFlight) {
-                this.settleReadiness_(name, state);
+            if (state.assetsReady) {
+                if (!state.desired && !state.speculated) this.discardPrepared_(name, state);
+                else this.settleReadiness_(name, state);
             }
             return;
         }
@@ -393,14 +431,18 @@ export class WorldStreamer {
             // Speculation is not authority. A cell nobody is near any more goes
             // back, receipts included, rather than being published because it
             // happens to be ready.
-            this.cancelledRefs_ += this.host_.discardPrepared(name);
-            state.residency = 'unloaded';
-            state.assetsReady = false;
-            state.renderReadiness = null;
-            this.cancelCount_++;
+            this.discardPrepared_(name, state);
         } else if (state.residency === 'resident' && !state.desired) {
             this.beginUnload_(name, state);
         }
+    }
+
+    private discardPrepared_(name: string, state: CellState): void {
+        this.cancelledRefs_ += this.host_.discardPrepared(name);
+        state.residency = 'unloaded';
+        state.assetsReady = false;
+        state.renderReadiness = null;
+        this.cancelCount_++;
     }
 
     private beginPrepare_(name: string, state: CellState): void {
@@ -421,12 +463,12 @@ export class WorldStreamer {
         }
         state.assetsReady = false;
         state.renderReadiness = null;
-        Promise.resolve(this.host_.prepare(name)).then(
+        this.run_(() => this.host_.prepare(name),
             () => {
                 // One obligation of two. `prepared` is not the end of the assets
                 // arriving, it is the end of everything publication requires.
                 state.assetsReady = true;
-                this.settleReadiness_(name, state);
+                this.step_(name);
             },
             (err) => {
                 state.residency = 'unloaded';
@@ -448,9 +490,10 @@ export class WorldStreamer {
         if (!ready) { this.markPrepared_(name, state); return; }
 
         state.readinessInFlight = true;
-        this.askReadiness_(name, ready).then(
+        this.run_(() => this.askReadiness_(name, ready),
             (outcome) => {
                 state.readinessInFlight = false;
+                if (!state.desired && !state.speculated) { this.discardPrepared_(name, state); return; }
                 // Not applicable is an answer, not a claim: a host with no
                 // renderer has nothing to ready and owes nothing.
                 if (!outcome.applicable) { this.markPrepared_(name, state); return; }
@@ -465,6 +508,7 @@ export class WorldStreamer {
             (err) => {
                 state.readinessInFlight = false;
                 log.error('residency', `cell "${name}" could not ready its programs`, err);
+                if (!state.desired && !state.speculated) this.step_(name);
             },
         );
     }
@@ -518,9 +562,10 @@ export class WorldStreamer {
         if (state.readinessInFlight) return;
 
         state.readinessInFlight = true;
-        this.askReadiness_(name, ready).then(
+        this.run_(() => this.askReadiness_(name, ready),
             (outcome) => {
                 state.readinessInFlight = false;
+                if (!state.desired) { this.step_(name); return; }
                 if (!outcome.applicable) { this.beginLoad_(name, state); return; }
                 if (!outcome.stamp) {
                     // Publication created a debt of its own — the readying was
@@ -541,6 +586,7 @@ export class WorldStreamer {
             (err) => {
                 state.readinessInFlight = false;
                 log.error('residency', `cell "${name}" could not re-ready its programs`, err);
+                if (!state.desired) this.step_(name);
             },
         );
     }
@@ -549,7 +595,7 @@ export class WorldStreamer {
         state.residency = 'publishing';
         state.publishedAt = performance.now();
         this.loadCount_++;
-        Promise.resolve(this.host_.loadAdditive(name)).then(
+        this.run_(() => this.host_.loadAdditive(name),
             () => {
                 const now = performance.now();
                 state.residency = 'resident';
@@ -577,12 +623,11 @@ export class WorldStreamer {
         // `keepPersistent: false` is the contract: a cell's unload takes everything
         // the cell brought. Scene persistence answers a different question, and
         // honouring it here leaves exactly what residency exists to remove.
-        Promise.resolve(this.host_.unload(name, { keepPersistent: false })).then(
+        this.run_(() => this.host_.unload(name, { keepPersistent: false }),
             () => { state.residency = 'unloaded'; this.step_(name); },
             (err) => {
                 state.residency = this.host_.isLoaded(name) ? 'resident' : 'unloaded';
                 log.error('residency', `cell "${name}" did not unload`, err);
-                this.step_(name);
             },
         );
     }

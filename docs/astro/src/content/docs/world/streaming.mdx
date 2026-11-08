@@ -183,6 +183,18 @@ report.loadCount;            // places brought in since boot
 Counts rather than a picture, because a cell that is not drawn and a cell that
 does not exist look the same from a camera.
 
+## Clearing or replacing a world
+
+Disable or remove the streaming sources, then await `streamer.clear()`. It releases
+prepared assets and waits for pending preparation, publication and unloading to
+finish. Registrations remain reusable: a later source update can request the cells again.
+
+Await `streamer.loadManifest(manifest, sceneConfig)` when replacing a world. It drains
+the old cells before registering the replacement, including when both manifests reuse
+the same cell names. The latest concurrent replacement request wins; an explicit
+`clear()` cancels pending replacement requests. Failed teardown rejects the operation
+so the replacement cannot take ownership of a name that still has live content.
+
 ## What this version does not do
 
 Cells load asynchronously through the same scene loading a game already uses.

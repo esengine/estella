@@ -23,6 +23,8 @@ import {
     getContextLossGuardInfo, decodeImagePixels, captureFramePixels, captureFrame, replayDraw, BatchBreak,
     RenderTexture, Camera, Sprite, Time,
     Children, MeshRenderer, RuntimeOnly, CompositeBatch, CompositeBatchingRes, StaticBatchingRes,
+    HttpBackend, initRuntime, createRuntimeSceneConfig, WorldStreaming, worldResidencyReport,
+    cutWorld, registryEntityFields, stableEntityId, persistentEntityRows,
     planarReflectionStatus,
     EditorViewLighting, EditorViewShading, EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
     ProfileRecorder, AnimatorController, Timeline, onDeviceRestored, Schedule, defineSystem,
@@ -69,6 +71,7 @@ let canvas: HTMLCanvasElement | null = null;
 // write down. loadSceneData hands back exactly that mapping.
 let sceneRaw: SceneData | null = null;
 let sourceToEntity = new Map<number, number>();
+let streamedSource: RuntimeAssetSource | null = null;
 
 /** A door this host does not have. Naming it beats a silent no-op that renders a wrong frame. */
 function editorOnly(door: string): never {
@@ -441,6 +444,52 @@ const api = {
         if (!canvas) throw new Error('resizeViewport before boot');
         canvas.width = w;
         canvas.height = h;
+    },
+
+    /** Boot the same partition and scene transactions used by cooked games and editor Play. */
+    async loadStreamedWorld(scene: SceneData, name: string) {
+        if (!app || !module || streamedSource) throw new Error('loadStreamedWorld requires a fresh host');
+        const cut = cutWorld(scene, name, { entityFieldsOf: registryEntityFields() });
+        if (!cut || cut.errors.length > 0) throw new Error(`Cannot partition world: ${cut?.errors.join('; ')}`);
+        streamedSource = {
+            backend: new HttpBackend({ baseUrl: '' }),
+            decodePixels: async path => {
+                const response = await fetch(path);
+                if (!response.ok) throw new Error(`Texture fetch failed: ${response.status} ${path}`);
+                return decodeImagePixels(await response.blob());
+            },
+        };
+        await initRuntime({ app, module, source: streamedSource, firstScene: name,
+            scenes: [{ name, data: cut.persistent }], worlds: [cut.manifest], cellDocuments: cut.documents });
+        sourceToEntity = new Map(app.world.getAllEntities().flatMap(entity => {
+            const id = stableEntityId(app!, entity);
+            return id === undefined ? [] : [[id, entity] as [number, number]];
+        }));
+        return cut.manifest;
+    },
+
+    /** Replace the cell manifest while retaining the persistent scene and its sources. */
+    async replaceStreamedWorld(scene: SceneData, name: string) {
+        if (!app || !streamedSource) throw new Error('No streamed world is running');
+        const streamer = app.getResource(WorldStreaming);
+        const cut = cutWorld(scene, name, { entityFieldsOf: registryEntityFields() });
+        if (!cut || cut.errors.length > 0 || !streamer.manifest) throw new Error('Cannot partition replacement world');
+        cut.manifest.scene = streamer.manifest.scene;
+        await streamer.loadManifest(cut.manifest, cell => {
+            const config = createRuntimeSceneConfig(cell.name, cut.documents.get(cell.name),
+                { app: app!, module, source: streamedSource! }, cell.path);
+            config.externalEntities = () => persistentEntityRows(app!, cut.manifest);
+            config.onPhase = (phase, ms) => streamer.recordPhase(cell.name, phase, ms);
+            return config;
+        });
+        return cut.manifest;
+    },
+
+    clearWorldResidency: () => app!.getResource(WorldStreaming).clear(),
+
+    worldResidencySnapshot() {
+        return { ...worldResidencyReport(app!), assets: app!.getResource(Assets).sizes(),
+            entities: app!.world.entityCount(), names: app!.world.getAllEntities().map(entity => app!.world.tryGet(entity, Name)?.value) };
     },
 
     /** Advances frames by hand — the per-frame work app.run()'s loop does. */

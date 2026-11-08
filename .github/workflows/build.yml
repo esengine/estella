@@ -109,6 +109,15 @@ jobs:
       run: node tools/tests/placement-shadows.e2e.mjs --webgl-only
     - name: Check composite lifecycle and mixed shadow policies with genuine headless Chromium
       run: node tools/tests/composite-batch.e2e.mjs --webgl-only
+    - name: Check 2D and 3D world residency teardown with genuine headless Chromium
+      run: node tools/tests/world-residency.e2e.mjs --webgl-only
+    - name: Upload world residency observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: world-residency-webgl2
+        path: output/world-residency/
+        retention-days: 3
     - name: Upload composite batching observations
       if: always()
       uses: actions/upload-artifact@v7
@@ -1120,6 +1129,15 @@ jobs:
       run: node tools/verify-render.mjs --tier pr --backend webgpu --host engine --no-build --budget 45
     - name: Check composite lifecycle and mixed shadow policies on the second backend
       run: node tools/tests/composite-batch.e2e.mjs --webgpu-only
+    - name: Check 2D and 3D world residency teardown on the second backend
+      run: node tools/tests/world-residency.e2e.mjs --webgpu-only
+    - name: Upload second-backend world residency observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: world-residency-webgpu
+        path: output/world-residency/
+        retention-days: 3
     - name: Upload second-backend composite batching observations
       if: always()
       uses: actions/upload-artifact@v7

@@ -13580,9 +13580,9 @@ unload: (name: string, options?: { keepPersistent?: boolean; }) => Promise<void>
 
 ## WorldStreamer — class @experimental
 ```
-clear: () => void
+clear: () => Promise<void>
 delivery: () => Record<string, CellDelivery>
-loadManifest: (manifest: WorldManifest, sceneConfig?: (cell: WorldCell) => SceneConfig) => void
+loadManifest: (manifest: WorldManifest, sceneConfig?: (cell: WorldCell) => SceneConfig) => Promise<void>
 manifest: WorldManifest | null
 recordPhase: (name: string, phase: string, ms: number) => void
 renderReadinessOf: (name: string) => RenderReadinessStamp | null

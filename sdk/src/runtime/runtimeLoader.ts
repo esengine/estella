@@ -914,7 +914,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         const streamer = app.getResource(WorldStreaming);
         // Read out here: inside the callback `config` is the scene's, not this one's.
         const documents = config.cellDocuments;
-        streamer.loadManifest(world, (cell) => {
+        await streamer.loadManifest(world, (cell) => {
             // Set ON the config, not spread into a copy of it: the setup that
             // loads the cell closes over the object this returns, so a copy
             // carries the fields somewhere nothing reads them.
