@@ -4,11 +4,11 @@
  * @file  A generated world in a running app with no renderer (a server): interactive placements are entities with stable ids, a
  *        player's change outlives its chunk, zones keep their ground clear, and unknown rules fail loudly.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
-import { Transform } from '../src/ecs/component';
+import { Parent, SceneOwner, Transform } from '../src/ecs/component';
 import { createMockModule } from './mocks/wasm';
 import { WorldStreamingSource } from '../src/residency/components';
 import {
@@ -17,6 +17,7 @@ import {
 import { registerWorldRules, type WorldRules } from '../src/worldgen/rules';
 import type { Entity } from '../src/types';
 import { Terrain, TerrainExtent, TerrainPlugin, TerrainsRes } from '../src/terrain/terrainPlugin';
+import { recordSceneOrigins, sceneOriginsEnabled } from '../src/scene/sceneOrigins';
 
 const rules: WorldRules = {
     id: 'test:ores', versions: [1],
@@ -146,5 +147,149 @@ describe('a zone that levels its ground', () => {
         await tick(app, 5);
         // On a lattice node the surface is the ground's own sample.
         expect(terrains.heightAt(20, -16)).toBeCloseTo(terrains.heightBeneathAt(20, -16)!, 9);
+    });
+});
+
+describe('authored zone lifetime', () => {
+    const terrain = (app: App) => {
+        app.addPlugin(new TerrainPlugin());
+        const e = app.world.spawn();
+        app.world.insert(e, Transform, placed(0, 0, 0));
+        app.world.insert(e, Terrain, { ...Terrain._default, extent: TerrainExtent.Infinite, height: 80, sizeX: 600 });
+        return app.getResource(TerrainsRes);
+    };
+    const plot = (app: App, scene = 'forest', id = 7) => {
+        const e = app.world.spawn();
+        app.world.insert(e, Transform, placed(30, 0, -20));
+        app.world.insert(e, WorldZone, { radius: 12, falloff: 30, flatten: true });
+        app.world.insert(e, SceneOwner, { scene, persistent: false });
+        recordSceneOrigins(app, new Map([[id, e]]));
+        return e;
+    };
+    const children = (app: App, gen: Entity) => app.world.getEntitiesWithComponents([PlacedObject])
+        .filter(e => app.world.tryGet(e, Parent)?.entity === gen)
+        .map(e => app.world.get(e, PlacedObject).id).sort();
+
+    it('repeats the same falloff placements after reload and releases every authored zone and modifier', async () => {
+        const app = boot();
+        const terrains = terrain(app);
+        const gens = app.getResource(WorldGenRes);
+        expect(sceneOriginsEnabled(app)).toBe(true);
+        let expected: unknown;
+        for (let i = 0; i < 4; i++) {
+            const { gen, source } = world(app);
+            const zone = plot(app);
+            await tick(app, 20);
+            const placements = gens.plan(gen)!.placementsIn(-80, -80, 80, 80);
+            expect(placements.length).toBeGreaterThan(10);
+            if (i === 0) expected = placements;
+            else expect(placements).toEqual(expected);
+            expect([...gens.zones('planet').all()]).toHaveLength(1);
+            expect(terrains.modifiers_.size).toBe(1);
+            app.world.despawn(zone);
+            app.world.despawn(gen);
+            app.world.despawn(source);
+            await tick(app, 2);
+            expect([...gens.zones('planet').all()]).toHaveLength(0);
+            expect(terrains.modifiers_.size).toBe(0);
+            expect(terrains.heightAt(20, -16)).toBeCloseTo(terrains.heightBeneathAt(20, -16)!, 9);
+        }
+    });
+
+    it('namespaces authored ids across additive scenes', async () => {
+        const app = boot();
+        world(app);
+        plot(app, 'village', 7);
+        plot(app, 'forest', 7);
+        await tick(app);
+        expect([...app.getResource(WorldGenRes).zones('planet').all()]).toHaveLength(2);
+    });
+
+    it('moves the authored projection when the world name changes, preserving game zones and saved changes', async () => {
+        const app = boot();
+        const terrains = terrain(app);
+        const { gen } = world(app);
+        plot(app);
+        const gens = app.getResource(WorldGenRes);
+        const savedZone = { id: 'built-home', kind: 'home', shape: { type: 'circle' as const, x: 200, z: 200, radius: 10 }, falloff: 5, priority: 0, excludes: ['*'], flatten: 10 };
+        gens.zones('planet').set(savedZone);
+        gens.diffs('planet').remove('saved-placement');
+        await tick(app, 5);
+        expect(terrains.modifiers_.size).toBe(2);
+        app.world.insert(gen, WorldGen, { ...app.world.get(gen, WorldGen), world: 'new-world' });
+        await tick(app, 5);
+        expect([...gens.zones('planet').all()]).toEqual([savedZone]);
+        expect(gens.diffs('planet').isRemoved('saved-placement')).toBe(true);
+        expect([...gens.zones('new-world').all()]).toHaveLength(1);
+        expect(terrains.modifiers_.size).toBe(1);
+        app.world.remove(gen, WorldGen);
+        await tick(app, 2);
+        expect([...gens.zones('new-world').all()]).toHaveLength(0);
+        expect(terrains.modifiers_.size).toBe(0);
+        gens.zones('planet').set({ ...savedZone, flatten: 20 });
+        expect(terrains.modifiers_.size).toBe(0);
+        world(app);
+        await tick(app, 5);
+        expect(terrains.modifiers_.size).toBe(2);
+    });
+
+    it('updates all live generators without replacing game listeners, and keeps terrain effects until the last one leaves', async () => {
+        const app = boot();
+        const terrains = terrain(app);
+        const a = world(app).gen, b = world(app).gen;
+        const gens = app.getResource(WorldGenRes);
+        const zoneChanged = vi.fn(), diffChanged = vi.fn();
+        gens.zones('planet').onChange = zoneChanged;
+        gens.diffs('planet').onChange = diffChanged;
+        await tick(app, 30);
+        const before = children(app, a);
+        expect(before.length).toBeGreaterThan(5);
+        expect(children(app, b)).toEqual(before);
+        const zone = plot(app);
+        await tick(app, 20);
+        const after = children(app, a);
+        expect(after.length).toBeLessThan(before.length);
+        expect(children(app, b)).toEqual(after);
+        expect(zoneChanged).toHaveBeenCalled();
+        gens.diffs('planet').remove(after[0]!);
+        await tick(app, 10);
+        expect(children(app, a)).toEqual(after.slice(1));
+        expect(children(app, b)).toEqual(after.slice(1));
+        expect(diffChanged).toHaveBeenCalledWith(after[0]);
+        app.world.despawn(b);
+        await tick(app, 2);
+        expect(terrains.modifiers_.size).toBe(1);
+        expect(terrains.paint_).not.toBeNull();
+        expect([...gens.zones('planet').all()]).toHaveLength(1);
+        app.world.despawn(zone);
+        await tick(app, 20);
+        expect(children(app, a)).toEqual(before.filter(id => id !== after[0]));
+        app.world.despawn(a);
+        await tick(app, 2);
+        expect(terrains.modifiers_.size).toBe(0);
+        expect(terrains.paint_).toBeNull();
+    });
+
+    it('detaches retired plans on seed rebuild and plugin cleanup', async () => {
+        const app = boot();
+        const terrains = terrain(app);
+        const { gen } = world(app);
+        plot(app);
+        await tick(app, 5);
+        const gens = app.getResource(WorldGenRes);
+        const retired = vi.spyOn(gens.plan(gen)!, 'invalidate');
+        app.world.insert(gen, WorldGen, { ...app.world.get(gen, WorldGen), seed: 4 });
+        await tick(app, 5);
+        retired.mockClear();
+        gens.zones('planet').set({ id: 'new', kind: 'home', shape: { type: 'circle', x: 0, z: 0, radius: 10 }, falloff: 2, priority: 0, excludes: ['*'], flatten: 20 });
+        expect(retired).not.toHaveBeenCalled();
+        expect(terrains.modifiers_.size).toBe(2);
+        // cleanup owns all generated effects even if the authored entities still exist.
+        new WorldGenPlugin().cleanup(app);
+        expect([...gens.zones('planet').all()].map(z => z.id)).toEqual(['new']);
+        expect(terrains.modifiers_.size).toBe(0);
+        expect(terrains.paint_).toBeNull();
+        gens.zones('planet').delete('new');
+        expect(retired).not.toHaveBeenCalled();
     });
 });

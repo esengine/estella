@@ -7246,6 +7246,7 @@ onChange: ((id: string) => void) | null
 remove: (id: string) => void
 restore: (id: string) => void
 revision: number
+subscribe: (listener: NonNullable<PlacementDiffs["onChange"]>) => () => void
 toJSON: () => PlacementDiffsData
 static new (): PlacementDiffs
 static prototype: PlacementDiffs
@@ -13442,7 +13443,9 @@ state: "failed" | "ready" | "loading"
 ## WorldGens — class @experimental
 ```
 @internal app_: App | null
+@internal authored_: Map<string, Set<string>>
 @internal built_: Map<number, BuiltWorld>
+@internal levelled_: Map<string, { signature: string; owners: Set<BuiltWorld>; }>
 @internal objects_: Map<string, number>
 diffs: (world?: string) => PlacementDiffs
 objectOf: (id: string) => Entity | null
@@ -13707,6 +13710,7 @@ get: (id: string) => ZoneDef | undefined
 onChange: ((bounds: [number, number, number, number], zone: ZoneDef) => void) | null
 revision: number
 set: (zone: ZoneDef) => void
+subscribe: (listener: NonNullable<Zones["onChange"]>) => () => void
 static new (): Zones
 static prototype: Zones
 ```

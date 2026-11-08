@@ -19,30 +19,42 @@ export interface PlacementDiffsData { version: 1; removed: string[]; changed: Re
 export class PlacementDiffs {
     private readonly removed_ = new Set<string>();
     private readonly changed_ = new Map<string, PlacementChange>();
+    private readonly listeners_ = new Set<NonNullable<PlacementDiffs['onChange']>>();
     revision = 0;
     /** Told the id of every placement that changed, so only its chunk is made again. */
     onChange: ((id: string) => void) | null = null;
+
+    /** Listens alongside other consumers; the returned function stops listening. */
+    subscribe(listener: NonNullable<PlacementDiffs['onChange']>): () => void {
+        this.listeners_.add(listener);
+        return () => { this.listeners_.delete(listener); };
+    }
+
+    private notify(id: string): void {
+        this.onChange?.(id);
+        for (const listener of this.listeners_) listener(id);
+    }
 
     /** Takes a placement out of the world for good (felled, mined, picked up). */
     remove(id: string): void {
         if (this.removed_.has(id)) return;
         this.removed_.add(id);
         this.changed();
-        this.onChange?.(id);
+        this.notify(id);
     }
 
     /** Puts a removed placement back (it grew again). */
     restore(id: string): void {
         if (!this.removed_.delete(id)) return;
         this.changed();
-        this.onChange?.(id);
+        this.notify(id);
     }
 
     /** Moves, turns or scales a placement. */
     change(id: string, change: PlacementChange): void {
         this.changed_.set(id, { ...this.changed_.get(id), ...change });
         this.changed();
-        this.onChange?.(id);
+        this.notify(id);
     }
 
     isRemoved(id: string): boolean {
@@ -65,7 +77,7 @@ export class PlacementDiffs {
         for (const id of data.removed) this.removed_.add(id);
         for (const [id, c] of Object.entries(data.changed)) this.changed_.set(id, { ...c });
         this.changed();
-        for (const id of touched) this.onChange?.(id);
+        for (const id of touched) this.notify(id);
     }
 
     private changed(): void {

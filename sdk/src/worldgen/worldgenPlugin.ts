@@ -21,7 +21,7 @@ import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { defineResource } from '../ecs/resource';
 import {
-    defineComponent, getComponent, MeshRenderer, RuntimeOnly, Transform,
+    defineComponent, getComponent, MeshRenderer, RuntimeOnly, SceneOwner, Transform,
     type ComponentDef, type MeshRendererData, type TransformData,
 } from '../ecs/component';
 import { Assets } from '../asset/AssetPlugin';
@@ -30,7 +30,7 @@ import type { MeshData } from '../asset/meshFormat';
 import { log } from '../util/logger';
 import type { Entity } from '../types';
 import { Terrains, TerrainsRes } from '../terrain/terrainPlugin';
-import { flattenModifier, type TerrainModifier } from '../terrain/source';
+import { flattenModifier } from '../terrain/source';
 import { buildBillboardMesh, buildInstancedMesh, type Plant } from '../foliage/builder';
 import { chunksOf, ProceduralChunksRes, streamingSourcesOf, type ChunkLayerStatus, type ChunkSource } from '../residency/chunks';
 import { plantGrowthOf, prepareKinds, type GrownCell, type ReadyKinds } from '../foliage/plantGrowth';
@@ -50,6 +50,7 @@ import { worldRules, worldRulesRevision, type PlacementLayer, type RecipeMember,
 import { Zones, type ZoneDef } from './zones';
 import { PlacementDiffs } from './diffs';
 import { isRulesFile } from './rulesAsset';
+import { enableSceneOrigins, sceneOriginOf } from '../scene/sceneOrigins';
 
 /** The fields of the `WorldGen` component. @experimental */
 export interface WorldGenData {
@@ -169,8 +170,10 @@ interface BuiltWorld {
     failure: string | null;
     /** The terrain's and the water's revisions the plan was read from. */
     ground: string;
-    /** The zones' revision the authored zones were last synced at. */
-    authored: Set<string>;
+    /** Subscriptions and terrain effects owned by this generation, not by its retained chunks. */
+    listeners: (() => void)[];
+    levelled: Set<string>;
+    paint: Terrains['paint_'];
     /** Zones that level their ground and wait for it to be known. */
     levelling: Set<string>;
     /** The rules' plants as kinds, and their parts once the assets are in hand (null while they are being loaded, or when the rules have no plants). */
@@ -229,7 +232,13 @@ function waterOf(app: App): WaterQuery | null {
 }
 
 const layerIdOf = (entity: Entity, layer: string, key = ''): string => `worldgen:${entity}:${key ? `${key}:` : ''}${layer}`;
-const zoneIdOf = (entity: Entity): string => `zone:${entity}`;
+function zoneIdOf(app: App, entity: Entity): string {
+    const origin = sceneOriginOf(app, entity);
+    const scene = app.world.tryGet(entity, SceneOwner)?.scene;
+    return origin !== undefined && scene !== undefined
+        ? `zone:scene:${JSON.stringify([scene, origin])}`
+        : `zone:${entity}`;
+}
 const FACE_KEYS = ['f0', 'f1', 'f2', 'f3', 'f4', 'f5'] as const;
 
 /** Lets go of a layer's chunks, near and far, on a plane and on every face of a planet. */
@@ -244,6 +253,10 @@ export class WorldGens {
     /** @internal */ app_: App | null = null;
     private readonly zones_ = new Map<string, Zones>();
     private readonly diffs_ = new Map<string, PlacementDiffs>();
+    /** @internal Authored projections belong to a named world, shared by all of its generators. */
+    readonly authored_ = new Map<string, Set<string>>();
+    /** @internal A flatten modifier remains until its last live plan lets it go. */
+    readonly levelled_ = new Map<string, { signature: string; owners: Set<BuiltWorld> }>();
     /** @internal The interactive entity of each placement id published now. */
     readonly objects_ = new Map<string, Entity>();
 
@@ -320,6 +333,7 @@ export class WorldGenPlugin implements Plugin {
     private watching_: (() => void) | null = null;
 
     build(app: App): void {
+        enableSceneOrigins(app);
         const gens = new WorldGens();
         gens.app_ = app;
         app.insertResource(WorldGenRes, gens);
@@ -337,9 +351,9 @@ export class WorldGenPlugin implements Plugin {
                     built.waitingForPlanet = false;
                     this.plan(app, gens, entity, built, built.rules);
                 }
-                this.syncZones(app, gens, entity, built);
-                this.publish(app, gens, entity, built);
             }
+            this.syncZones(app, gens);
+            for (const [entity, built] of gens.built_) this.publish(app, gens, entity, built);
         }, { name: 'WorldGenSystem' }));
     }
 
@@ -349,16 +363,17 @@ export class WorldGenPlugin implements Plugin {
         if (!app?.hasResource(WorldGenRes)) return;
         const gens = app.getResource(WorldGenRes);
         for (const entity of [...gens.built_.keys()]) this.drop(app, gens, entity);
+        this.syncZones(app, gens);
     }
 
     /** A WorldGen's rules and plan, or why it has none. */
     private make(app: App, gens: WorldGens, entity: Entity, data: WorldGenData, had: BuiltWorld | undefined): BuiltWorld {
-        if (had) this.retire(had);
+        if (had) this.retire(app, gens, had);
         const meshData: BuiltWorld['meshData'] = new Map();
         const assets = ownedAssetLease(`worldgen:${entity}`, (had?.assets.generation ?? 0) + 1, new AssetScope(), scope => {
             try { scope.releaseAll(); } finally { meshData.clear(); }
         });
-        const built: BuiltWorld = { assets, retired: false, meshData, signature: `${JSON.stringify(data)}#${worldRulesRevision()}`, data: { ...data }, rules: null, plan: null, farPlan: null, failure: null, ground: '', authored: had?.authored ?? new Set(), levelling: new Set(), plants: null, plantsReady: null, faces: null, waitingForPlanet: false };
+        const built: BuiltWorld = { assets, retired: false, meshData, signature: `${JSON.stringify(data)}#${worldRulesRevision()}`, data: { ...data }, rules: null, plan: null, farPlan: null, failure: null, ground: '', listeners: [], levelled: new Set(), paint: null, levelling: new Set(), plants: null, plantsReady: null, faces: null, waitingForPlanet: false };
         // Rules in a project file are read first, then made like rules registered by code.
         if (isRulesFile(data.rules)) {
             if (!app.hasResource(Assets)) {
@@ -467,9 +482,17 @@ export class WorldGenPlugin implements Plugin {
         const terrains = app.hasResource(TerrainsRes) ? app.getResource(TerrainsRes) : null;
         const zones = gens.zones(data.world);
         const t0 = app.world.tryGet(entity, Transform) as TransformData | null;
+        const flatY = t0?.worldPosition.y ?? 0;
         const made = makePlanePlan({
             rules, farRules: farRulesOf(rules), seed: data.seed, world: data.world, zones,
-            ground: terrains && terrains.built_.size > 0 ? terrains : null, flatY: t0?.worldPosition.y ?? 0,
+            // A terrain can finish loading after the plan was created. Read its current
+            // availability rather than capturing a flat fallback for the plan's lifetime.
+            ground: terrains ? {
+                heightAt: (x, z) => terrains.built_.size > 0 || terrains.loading ? terrains.heightAt(x, z) : flatY,
+                normalAt: (x, z) => terrains.normalAt(x, z),
+                paintAt: (x, z) => terrains.paintAt(x, z),
+            } : null,
+            flatY,
             water: { depthAt: (x, z, y) => waterOf(app)?.depthAt(x, z, y) ?? null, shoreAt: (x, z) => waterOf(app)?.shoreAt?.(x, z) ?? null },
             layers: terrains ? terrains.layerNames() : [],
         });
@@ -477,7 +500,7 @@ export class WorldGenPlugin implements Plugin {
         const plan = built.plan;
         built.farPlan = made.farPlan;
         // A zone that changes, or a placement a player changes, makes again only the chunks it reaches.
-        zones.onChange = (bounds, zone) => {
+        built.listeners.push(zones.subscribe((bounds, zone) => {
             plan.invalidate();
             built.farPlan?.invalidate();
             const chunks = chunksOf(app);
@@ -491,20 +514,20 @@ export class WorldGenPlugin implements Plugin {
             // One that levels its ground lays a modifier on the terrain, and takes it off when it goes or stops levelling.
             if (terrains) {
                 const now = zones.get(zone.id);
-                if (now?.flatten !== undefined) this.level(terrains, built, now);
-                else {
-                    built.levelling.delete(zone.id);
-                    if (terrains.modifiers_.has(`zone:${zone.id}`)) terrains.deleteModifier(`zone:${zone.id}`);
-                }
+                if (now?.flatten !== undefined) this.level(terrains, gens, built, now);
+                else this.unlevel(terrains, gens, built, zone.id);
             }
-        };
-        gens.diffs(data.world).onChange = (id) => {
+        }));
+        built.listeners.push(gens.diffs(data.world).subscribe((id) => {
             const at = this.anchorOf(plan, id);
             if (at) chunksOf(app).invalidate(layerIdOf(entity, at.layer), at.x, at.z, at.x, at.z);
-        };
-        if (terrains) terrains.setPaint(data.paintGround ? this.painter(plan) : null);
+        }));
+        if (terrains && data.paintGround) {
+            built.paint = this.painter(plan);
+            terrains.setPaint(built.paint);
+        }
         // Zones that were there before the plan was made level their ground now.
-        if (terrains) for (const zone of zones.all()) if (zone.flatten !== undefined) this.level(terrains, built, zone);
+        if (terrains) for (const zone of zones.all()) if (zone.flatten !== undefined) this.level(terrains, gens, built, zone);
     }
 
     /**
@@ -553,9 +576,31 @@ export class WorldGenPlugin implements Plugin {
     }
 
     /** Levels a zone's ground, or (the ground under its centre not known yet) keeps it to level once it is. */
-    private level(terrains: Terrains, built: BuiltWorld, zone: ZoneDef): void {
-        const modifier = levelling(terrains, zone);
-        if (modifier) { terrains.setModifier(modifier); built.levelling.delete(zone.id); } else built.levelling.add(zone.id);
+    private level(terrains: Terrains, gens: WorldGens, built: BuiltWorld, zone: ZoneDef): void {
+        const height = zone.flatten === 'ground' ? terrains.heightBeneathAt(zone.shape.x, zone.shape.z) : zone.flatten;
+        if (height === null || height === undefined) { built.levelling.add(zone.id); return; }
+        const signature = JSON.stringify([zone.shape, zone.falloff, height]);
+        let held = gens.levelled_.get(zone.id);
+        if (!held) { held = { signature: '', owners: new Set() }; gens.levelled_.set(zone.id, held); }
+        held.owners.add(built);
+        built.levelled.add(zone.id);
+        if (held.signature !== signature) {
+            terrains.setModifier(flattenModifier(`zone:${zone.id}`, zone.shape, height, zone.falloff));
+            held.signature = signature;
+        }
+        built.levelling.delete(zone.id);
+    }
+
+    private unlevel(terrains: Terrains | null, gens: WorldGens, built: BuiltWorld, id: string): void {
+        built.levelling.delete(id);
+        built.levelled.delete(id);
+        const held = gens.levelled_.get(id);
+        if (!held) return;
+        held.owners.delete(built);
+        if (held.owners.size === 0) {
+            terrains?.deleteModifier(`zone:${id}`);
+            gens.levelled_.delete(id);
+        }
     }
 
     /** The ground's paint by a plan's biomes. */
@@ -574,10 +619,21 @@ export class WorldGenPlugin implements Plugin {
     }
 
     /** Puts the authored `WorldZone`s into their world's zones. */
-    private syncZones(app: App, gens: WorldGens, _entity: Entity, built: BuiltWorld): void {
-        const zones = gens.zones(built.data.world);
+    private syncZones(app: App, gens: WorldGens): void {
+        const worlds = new Map([...gens.built_.values()].map(built => [built.data.world, built]));
+        for (const [name, authored] of gens.authored_) {
+            if (worlds.has(name)) continue;
+            for (const id of authored) gens.zones(name).delete(id);
+            gens.authored_.delete(name);
+        }
+        const entities = app.world.getEntitiesWithComponents([WorldZone, Transform]);
+        for (const [name, built] of worlds) this.syncWorldZones(app, gens, name, built, entities);
+    }
+
+    private syncWorldZones(app: App, gens: WorldGens, name: string, built: BuiltWorld, entities: readonly Entity[]): void {
+        const zones = gens.zones(name);
         const seen = new Set<string>();
-        for (const e of app.world.getEntitiesWithComponents([WorldZone, Transform])) {
+        for (const e of entities) {
             const z = app.world.get(e, WorldZone) as WorldZoneData;
             const t = app.world.get(e, Transform) as TransformData;
             const p = t.worldPosition, q = t.worldRotation;
@@ -586,7 +642,7 @@ export class WorldGenPlugin implements Plugin {
             const onPlanet = built.data.surface === WorldSurface.Planet;
             const facing: [number, number, number] = [1 - 2 * (q.y * q.y + q.z * q.z), 2 * (q.x * q.y + q.w * q.z), 2 * (q.x * q.z - q.w * q.y)];
             const def: ZoneDef = {
-                id: zoneIdOf(e), kind: z.kind, falloff: z.falloff, priority: z.priority,
+                id: zoneIdOf(app, e), kind: z.kind, falloff: z.falloff, priority: z.priority,
                 shape: z.shape === ZoneShapeKind.Box
                     ? { type: 'rect', x: p.x, z: p.z, halfX: z.sizeX / 2, halfZ: z.sizeZ / 2, yaw: -yaw, ...(onPlanet ? { y: p.y, facing } : {}) }
                     : { type: 'circle', x: p.x, z: p.z, radius: z.radius, ...(onPlanet ? { y: p.y } : {}) },
@@ -597,8 +653,8 @@ export class WorldGenPlugin implements Plugin {
             zones.set(def);
             seen.add(def.id);
         }
-        for (const id of built.authored) if (!seen.has(id)) zones.delete(id);
-        built.authored = seen;
+        for (const id of gens.authored_.get(name) ?? []) if (!seen.has(id)) zones.delete(id);
+        gens.authored_.set(name, seen);
     }
 
     /** Hands each of the rules' layers to the chunks, made from the plan: of the one plane, or of each face of a planet. */
@@ -632,7 +688,7 @@ export class WorldGenPlugin implements Plugin {
         if (terrains) {
             for (const id of [...built.levelling]) {
                 const zone = gens.zones(built.data.world).get(id);
-                if (zone?.flatten !== undefined) this.level(terrains, built, zone); else built.levelling.delete(id);
+                if (zone?.flatten !== undefined) this.level(terrains, gens, built, zone); else this.unlevel(terrains, gens, built, id);
             }
         }
         // A world on a terrain of an area ends where the terrain does: its chunks are counted over that, and not over a radius of empty world.
@@ -933,8 +989,17 @@ export class WorldGenPlugin implements Plugin {
         chunk.assets = undefined;
     }
 
-    private retire(built: BuiltWorld): void {
+    private retire(app: App, gens: WorldGens, built: BuiltWorld): void {
         built.retired = true;
+        for (const stop of built.listeners.splice(0)) stop();
+        const terrains = app.hasResource(TerrainsRes) ? app.getResource(TerrainsRes) : null;
+        for (const id of built.levelled) this.unlevel(terrains, gens, built, id);
+        built.levelling.clear();
+        if (terrains && built.paint && terrains.paint_ === built.paint) {
+            const remaining = [...gens.built_.values()].reverse().find(other => !other.retired && other.paint);
+            terrains.setPaint(remaining?.paint ?? null);
+        }
+        built.paint = null;
         built.assets.release();
     }
 
@@ -944,24 +1009,16 @@ export class WorldGenPlugin implements Plugin {
             for (const l of built?.rules?.layers ?? []) dropLayer(app, entity, l.id);
             if (built?.faces && app.hasResource(PlanetRegistryRes)) app.getResource(PlanetRegistryRes).setPaint(entity, null);
         }
-        if (built && app.hasResource(TerrainsRes)) app.getResource(TerrainsRes).setPaint(null);
-        if (built) this.retire(built);
+        if (built) this.retire(app, gens, built);
         gens.built_.delete(entity);
     }
 
     private sweep(app: App, gens: WorldGens): void {
         for (const entity of [...gens.built_.keys()]) {
-            if (app.world.valid(entity) && app.world.has(entity, WorldGen)) continue;
+            if (app.world.valid(entity) && app.world.has(entity, WorldGen) && app.world.has(entity, Transform)) continue;
             this.drop(app, gens, entity);
         }
     }
-}
-
-/** The modifier a levelling zone lays on the terrain: its outline, to its height or the ground's at its centre, over its falloff. */
-function levelling(terrains: Terrains, zone: ZoneDef): TerrainModifier | null {
-    const s = zone.shape;
-    const height = zone.flatten === 'ground' ? terrains.heightBeneathAt(s.x, s.z) : zone.flatten!;
-    return height === null || height === undefined ? null : flattenModifier(`zone:${zone.id}`, s, height, zone.falloff);
 }
 
 /** The meshes and materials a rule set's recipes name by path. */

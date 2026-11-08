@@ -14,9 +14,9 @@ import { defineResource } from '../ecs/resource';
 /**
  * Per loaded entity, the id it carried in the scene document.
  *
- * Absent unless something asked for it: a running game never needs to know which
- * document row an entity came from, and the table would be the editor's cost
- * charged to every player.
+ * Absent unless a consumer asks for it. The editor, streamed cells and authored
+ * procedural zones use the document identity across entity lifetimes; games
+ * without those consumers do not pay for the table.
  *
  * @experimental
  */

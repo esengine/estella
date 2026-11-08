@@ -33,7 +33,7 @@ export interface ZoneDef {
     fields?: Readonly<Record<string, number>>;
     /**
      * Levels the terrain under it: to this world height, or ('ground') to the ground's height at its centre as the ground was made,
-     * blending back over its falloff. What it levels is the terrain's for good, until the zone goes.
+     * blending back over its falloff. Live plane generators hold the modifier; it is released when the zone or its last consumer goes.
      */
     flatten?: number | 'ground';
 }
@@ -65,18 +65,31 @@ export function zoneBounds(zone: ZoneDef): [number, number, number, number] {
 /** The zones of one world. */
 export class Zones {
     private readonly zones_ = new Map<string, ZoneDef>();
+    private readonly listeners_ = new Set<NonNullable<Zones['onChange']>>();
     /** Bumped on every change. */
     revision = 0;
     /** Told the area every change touched (the zone's old and new bounds) and the zone there, so only what stands there is placed again. */
     onChange: ((bounds: [number, number, number, number], zone: ZoneDef) => void) | null = null;
+
+    /** Listens alongside other consumers; the returned function stops listening. */
+    subscribe(listener: NonNullable<Zones['onChange']>): () => void {
+        this.listeners_.add(listener);
+        return () => { this.listeners_.delete(listener); };
+    }
+
+    private changed(zone: ZoneDef): void {
+        const bounds = zoneBounds(zone);
+        this.onChange?.(bounds, zone);
+        for (const listener of this.listeners_) listener(bounds, zone);
+    }
 
     set(zone: ZoneDef): void {
         const had = this.zones_.get(zone.id);
         if (had && JSON.stringify(had) === JSON.stringify(zone)) return;
         this.zones_.set(zone.id, zone);
         this.revision++;
-        if (had) this.onChange?.(zoneBounds(had), had);
-        this.onChange?.(zoneBounds(zone), zone);
+        if (had) this.changed(had);
+        this.changed(zone);
     }
 
     delete(id: string): void {
@@ -84,7 +97,7 @@ export class Zones {
         if (!had) return;
         this.zones_.delete(id);
         this.revision++;
-        this.onChange?.(zoneBounds(had), had);
+        this.changed(had);
     }
 
     get(id: string): ZoneDef | undefined {
