@@ -12,7 +12,8 @@ import { requireCurrentEngine } from '../lib/engineBuild.mjs';
 const { PNG } = createRequire(new URL('../../pipeline/package.json', import.meta.url))('pngjs');
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 requireCurrentEngine(repo, path.join(repo, 'build/render-host/wasm'));
-const out = path.join(repo, 'output/rm044-runtime');
+const prepass = process.argv.includes('--prepass');
+const out = path.join(repo, `output/rm044-runtime${prepass ? '-prepass' : ''}`);
 await mkdir(out, { recursive: true });
 const server = http.createServer(async (req, res) => {
   try {
@@ -29,7 +30,7 @@ const server = http.createServer(async (req, res) => {
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const browser = await chromium.launch({ channel: 'chromium', headless: true, args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader', '--mute-audio'] });
-const report = { status: 'failed', mode: 'headless-engine', checks: [], deviceAcceptance: 'pending' };
+const report = { status: 'failed', mode: 'headless-engine', prepass, checks: [], deviceAcceptance: 'pending' };
 try {
   const backends = process.argv.includes('--webgl-only') ? ['webgl2'] : ['webgl2', 'webgpu'];
   for (const backend of backends) {
@@ -41,8 +42,9 @@ try {
     report.errors = errors;
     page.on('pageerror', e => errors.push(String(e)));
     page.on('console', msg => { if (msg.type() === 'error') (injectingLoss ? lossLogs : errors).push(msg.text()); });
-    await page.goto(`http://127.0.0.1:${server.address().port}/?w=512&h=512&backend=${backend}`);
+    await page.goto(`http://127.0.0.1:${server.address().port}/?w=512&h=512&backend=${backend}&prepass=${prepass ? 1 : 0}`);
     await page.evaluate(async () => { await window.__estellaHeadless.ready; });
+    await page.evaluate(() => window.__estellaHeadless.api.setCpuProfiling(true));
     const load = await page.evaluate(() => window.__estellaHeadless.api.loadScene('/scenes/planar-reflection.esscene'));
     assert.deepEqual(load.missing, []);
     const step = n => page.evaluate(n => window.__estellaHeadless.api.step(n), n);
@@ -73,6 +75,10 @@ try {
     assert.equal(ready.width,512); assert.ok(ready.draws>0);
     const on = await capture('enabled');
     const drawsOn = await page.evaluate(() => window.__estellaHeadless.api.getStats().drawCalls);
+    const countersOn = await page.evaluate(() => window.__estellaHeadless.api.getCounters());
+    const prepassDraws = countersOn['render.planar.prepass.draws'];
+    if (prepass) assert.ok(prepassDraws > 0, 'the reflection must execute its depth prepass');
+    else assert.equal(prepassDraws, 0, 'the disabled quality policy must not add a depth prepass');
     await page.evaluate(() => window.__estellaHeadless.api.idleRenderFrames(8));
     assert.equal((await status()).state,'ready','cached editor frames must retain the last capture');
     await step(1);
@@ -85,7 +91,10 @@ try {
     assert.equal((await status()).state,'inactive');
     const off = await capture('disabled');
     const drawsOff = await page.evaluate(() => window.__estellaHeadless.api.getStats().drawCalls);
+    const countersOff = await page.evaluate(() => window.__estellaHeadless.api.getCounters());
     assert.equal(drawsOn-drawsOff,ready.draws,'frame statistics must include the capture cost');
+    assert.equal(countersOn['render.gpu.draws']-countersOff['render.gpu.draws'],ready.draws+prepassDraws,
+      'GPU statistics must include both reflected colour draws and the depth prepass');
     assert.ok(changed(on,off,256)>100,'reflection must change the lower half of the image');
     assert.ok(pixel(off,200,290).every(c=>c<10),'disabled reflection must not leave stale pixels');
     await field(2,'PlanarReflection','enabled',true); await step(2);
@@ -148,7 +157,7 @@ try {
     assert.ok(pixel(split,72,290)[0]>230,'first view must keep its own reflection');
     assert.ok(pixel(split,375,268)[1]>230,'second view must capture from its own camera');
     assert.deepEqual(errors,[]);
-    report.checks.push({backend,ready,drawsOn,drawsOff,reflectionPixels:changed(on,off,256),movingPixels:changed(on,moved,256),recovery,secondView,lossLogs,errors});
+    report.checks.push({backend,ready,drawsOn,drawsOff,prepassDraws,reflectionPixels:changed(on,off,256),movingPixels:changed(on,moved,256),recovery,secondView,lossLogs,errors});
     await page.close();
   }
   report.status = 'checks-passed';

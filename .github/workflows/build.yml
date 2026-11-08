@@ -100,12 +100,15 @@ jobs:
       run: |
         node tools/render-host/build.mjs
         node tools/tests/planar-reflection.e2e.mjs --webgl-only
+        node tools/tests/planar-reflection.e2e.mjs --webgl-only --prepass
     - name: Upload planar reflection runtime observations
       if: always()
       uses: actions/upload-artifact@v7
       with:
         name: planar-reflection-runtime
-        path: output/rm044-runtime/
+        path: |
+          output/rm044-runtime/
+          output/rm044-runtime-prepass/
         retention-days: 3
     - name: Upload OpenPaaS contract observations and frames
       if: always()

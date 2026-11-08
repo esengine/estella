@@ -868,6 +868,9 @@ private:
     void releaseShadowFrameUbos();
     /// The scene pass's body: the draw, and the constants it needs current.
     void drawScene(DrawList::Phase phase = DrawList::Phase::All);
+    /// Shared colour submission for scene and reflected views, including the quality policy's depth prepass and shader timings.
+    void submitColorList(DrawList& list, TransientBufferPool& buffers, FrameCapture* capture,
+                         DrawList::Phase phase, const char* prepassCounter);
     /// Drops the atlas texture id the frame published; its target is the graph's
     /// to give back.
     void releaseFrameTargets();

@@ -260,6 +260,36 @@ bool RenderFrame::gpuDetailWanted() const {
 #endif
 }
 
+void RenderFrame::submitColorList(DrawList& list, TransientBufferPool& buffers, FrameCapture* capture,
+                                  DrawList::Phase phase, const char* prepassCounter) {
+    const bool opaque = phase == DrawList::Phase::All || phase == DrawList::Phase::WithoutSceneColor || phase == DrawList::Phase::OpaqueOnly;
+    const u32 prepassDraws = depth_prepass_ && opaque ? list.depthPrepassDraws() : 0u;
+    const bool prepass = prepassDraws > 0;
+    if (opaque) ES_PROFILE_COUNTER(prepassCounter, prepassDraws);
+    const bool detail = running_pass_timer_ && gpuDetailWanted();
+    const auto sinkFor = [this, &list](const char* prefix) {
+        rg::PassTimer* timer = running_pass_timer_;
+        list.setShaderRunSink([timer, prefix](const char* shader) {
+            timer->segment(shader ? std::string(prefix) + shader : std::string("tail"));
+        });
+    };
+    if (prepass) {
+        ES_PROFILE_SCOPE("render.submit.prepass");
+        if (detail) sinkFor("prepass:");
+        list.execute(device_, buffers, context_.materials(), context_.getWhiteTextureId(),
+                     nullptr, context_.perDrawBlocks(), phase, DrawList::DrawPass::DepthPrepass);
+        if (detail) list.setShaderRunSink(nullptr);
+    }
+    if (detail) sinkFor("");
+    list.execute(device_, buffers, context_.materials(), context_.getWhiteTextureId(),
+                 capture, context_.perDrawBlocks(), phase,
+                 prepass ? DrawList::DrawPass::ColorAfterPrepass : DrawList::DrawPass::Color);
+    if (detail) {
+        running_pass_timer_->segment("tail");
+        list.setShaderRunSink(nullptr);
+    }
+}
+
 void RenderFrame::drawScene(DrawList::Phase phase) {
     // A temporal effect in the chain asks for the picture to be shifted by a different
     // sub-pixel amount each frame, so its history samples what a single frame cannot.
@@ -310,36 +340,7 @@ void RenderFrame::drawScene(DrawList::Phase phase) {
 #ifdef ES_ENABLE_POSTPROCESS
         draw_list_.setGBufferPass(post_process_ && post_process_->sceneHasGBuffer());
 #endif
-        // The opaque surfaces first, depth alone, so the colour pass shades each pixel for the surface that is in front of it and not for every
-        // one that was drawn there on the way. Only a phase that draws the opaque scene, and only when something in the list has a depth program.
-        const bool opaque = phase == DrawList::Phase::All || phase == DrawList::Phase::WithoutSceneColor || phase == DrawList::Phase::OpaqueOnly;
-        const u32 prepassDraws = depth_prepass_ && opaque ? draw_list_.depthPrepassDraws() : 0u;
-        const bool prepass = prepassDraws > 0;
-        if (opaque) ES_PROFILE_COUNTER("render.prepass.draws", prepassDraws);
-        // With the pass timer running and detail asked for, each run of draws of one shader is its own timed segment of the pass.
-        const bool detail = running_pass_timer_ && gpuDetailWanted();
-        const auto sinkFor = [this](const char* prefix) {
-            rg::PassTimer* timer = running_pass_timer_;
-            draw_list_.setShaderRunSink([timer, prefix](const char* shader) {
-                timer->segment(shader ? std::string(prefix) + shader : std::string("tail"));
-            });
-        };
-        if (prepass) {
-            ES_PROFILE_SCOPE("render.submit.prepass");
-            if (detail) sinkFor("prepass:");
-            draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                               nullptr, context_.perDrawBlocks(), phase, DrawList::DrawPass::DepthPrepass);
-            if (detail) draw_list_.setShaderRunSink(nullptr);
-        }
-        if (detail) sinkFor("");
-        draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                           &frame_capture_, context_.perDrawBlocks(), phase,
-                           prepass ? DrawList::DrawPass::ColorAfterPrepass : DrawList::DrawPass::Color);
-        if (detail) {
-            // The rest of the pass (the resolve, the state restored) is its own segment, closed by the graph.
-            running_pass_timer_->segment("tail");
-            draw_list_.setShaderRunSink(nullptr);
-        }
+        submitColorList(draw_list_, pool_, &frame_capture_, phase, "render.prepass.draws");
         draw_list_.setGBufferPass(false);
         if (device_.skipPendingPrograms()) {
             ES_PROFILE_COUNTER("render.draws.waitingForProgram", draw_list_.skippedForProgram());

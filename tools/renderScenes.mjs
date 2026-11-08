@@ -978,16 +978,18 @@ export const SCENES = [
 const PREPASS_TWINS = [
   // Scenes that draw opaque meshes already.
   'mesh-opaque', 'mesh-instanced', 'prepass-hook', 'corpus-cutout-edge', 'mesh-normalmap', 'mesh-shadow-cutout', 'mesh-shadow', 'sun-shadow',
+  { id: 'planar-reflection', counters: { 'render.planar.prepass.draws': 1 } },
   // The same scenes with their meshes made opaque (fixtures/scenes/*-opaque.esscene), for what a mesh can be besides a rigid one that is lit:
   // skinned, morphing.
   { id: 'mesh-skin', scene: 'mesh-skin-opaque.esscene' }, { id: 'mesh-morph-shaped', scene: 'mesh-morph-opaque.esscene' },
   { id: 'mesh-lit', scene: 'mesh-lit-opaque.esscene' }, { id: 'mesh-resident', scene: 'mesh-renderer-opaque.esscene', as: 'mesh-renderer' },
 ];
 for (const entry of PREPASS_TWINS) {
-  const { id, scene, as } = typeof entry === 'string' ? { id: entry } : entry;
+  const { id, scene, as, counters } = typeof entry === 'string' ? { id: entry } : entry;
   const base = SCENES.find((s) => s.id === id);
   if (!base) throw new Error(`renderScenes: no scene "${id}" to run a prepass twin of`);
   const env = { ...base.env, ESTELLA_VERIFY_PREPASS: '1' };
+  if (counters) env.ESTELLA_VERIFY_COUNTERS = JSON.stringify({ ...JSON.parse(env.ESTELLA_VERIFY_COUNTERS ?? '{}'), ...counters });
   if (scene) env.ESTELLA_VERIFY_SCENE = `/scenes/${scene}`;
   SCENES.push({ ...base, id: `${as ?? (scene ? scene.replace('.esscene', '') : id)}-prepass`, env });
 }
