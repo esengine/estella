@@ -6,6 +6,8 @@ import {
     meanFrameProfile,
     scopeDomain,
     DOMAIN_SCRIPTS,
+    MAX_PRESENT_WAIT_MS,
+    UNTIMED_SCOPE_LABEL,
     type FrameProfileInput,
     type ProfileNode,
 } from '../src/app/frameProfile';
@@ -135,6 +137,47 @@ describe('buildFrameProfile', () => {
 
     // The empty-scene reading this model has to reproduce: a 2.1ms RenderSystem
     // that is 0.03ms of work and the rest blocked on the swapchain.
+    describe('a block no present can explain', () => {
+        const stalled = (submitMs: number, nested: { name: string; ms: number }[] = []) => buildFrameProfile({
+            frameMs: submitMs + 1,
+            systems: [{ name: 'RenderSystem', ms: submitMs, domain: 'render' }],
+            scopes: [
+                { name: 'render.submit', ms: submitMs, system: 'RenderSystem', remainder: 'wait' },
+                ...nested.map((s) => ({ ...s, system: 'RenderSystem', remainder: 'work' as const, parent: 'render.submit' })),
+            ],
+            nativeScopes: [{ name: 'render.collect', ms: 0.1, system: '', remainder: 'work' }],
+        });
+
+        it('stays a wait up to the slowest present', () => {
+            const profile = stalled(MAX_PRESENT_WAIT_MS);
+            expect(profile.waitMs).toBeCloseTo(MAX_PRESENT_WAIT_MS - 0.1, 4);
+            expect(findNode(profile.domains, 'RenderSystem/render.submit/~untimed')).toBeNull();
+        });
+
+        it('is work past it, in a row of its own that the cost totals count', () => {
+            const profile = stalled(820);
+            expect(profile.waitMs).toBe(MAX_PRESENT_WAIT_MS);
+            const row = findNode(profile.domains, 'RenderSystem/render.submit/~untimed')!;
+            expect(row.label).toBe(UNTIMED_SCOPE_LABEL);
+            expect(row.ms).toBeCloseTo(820 - 0.1 - MAX_PRESENT_WAIT_MS, 4);
+            expect(profile.domains[0].label).toBe('render');
+            expect(profile.domains[0].ms).toBeCloseTo(820 - MAX_PRESENT_WAIT_MS, 4);
+            expect(profile.cpuMs + profile.waitMs + profile.idleMs).toBeCloseTo(profile.frameMs, 4);
+            for (const domain of profile.domains) assertChildrenSum(domain);
+        });
+
+        it('names the scope that measured it, inside the one that holds it', () => {
+            const profile = stalled(820, [{ name: 'render.text', ms: 800 }]);
+            const submit = findNode(profile.domains, 'RenderSystem/render.submit')!;
+            expect(submit.children[0].label).toBe('render.text');
+            expect(submit.children[0].ms).toBe(800);
+            expect(findNode(profile.domains, 'RenderSystem/render.text')).toBeNull();
+            expect(findNode(profile.domains, 'RenderSystem/render.submit/~untimed')).toBeNull();
+            expect(profile.waitMs).toBeCloseTo(19.9, 4);
+            for (const domain of profile.domains) assertChildrenSum(domain);
+        });
+    });
+
     describe('a scope whose remainder is a wait', () => {
         const emptyScene: FrameProfileInput = {
             frameMs: 16.7,

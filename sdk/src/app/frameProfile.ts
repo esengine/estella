@@ -13,6 +13,12 @@ export const DOMAIN_SCRIPTS = 'scripts';
 /** Systems registered outside both a plugin build and the project bundle. */
 export const DOMAIN_UNATTRIBUTED = 'unattributed';
 
+/** No display refreshes slower than this, so a longer block is not a present. */
+export const MAX_PRESENT_WAIT_MS = 50;
+
+/** The label of the row holding render time that no scope measured and no present explains. */
+export const UNTIMED_SCOPE_LABEL = 'untimed';
+
 /** Time under a scope that none of its children claimed. */
 export type ScopeRemainder = 'work' | 'wait';
 
@@ -30,6 +36,8 @@ export interface ScopeCost {
     /** The system this ran inside; '' when it ran outside every system. */
     readonly system: string;
     readonly remainder: ScopeRemainder;
+    /** The scope this ran inside. Its time is part of that scope's, not beside it. */
+    readonly parent?: string;
 }
 
 export interface FrameProfileInput {
@@ -178,11 +186,25 @@ export function buildFrameProfile(input: FrameProfileInput): FrameProfile {
         if (list) list.push(n); else nativeByDomain.set(d, [n]);
     }
 
+    const named = new Set(input.scopes.map((s) => s.name));
+    const nestedByParent = new Map<string, ScopeCost[]>();
     const scopesBySystem = new Map<string, ScopeCost[]>();
     for (const s of input.scopes) {
-        const list = scopesBySystem.get(s.system);
-        if (list) list.push(s); else scopesBySystem.set(s.system, [s]);
+        const nested = s.parent !== undefined && named.has(s.parent);
+        const groups = nested ? nestedByParent : scopesBySystem;
+        const key = nested ? s.parent! : s.system;
+        const list = groups.get(key);
+        if (list) list.push(s); else groups.set(key, [s]);
     }
+    const nestedNodes = (parent: string, parentId: string): ProfileNode[] =>
+        (nestedByParent.get(parent) ?? []).map((s) => {
+            const id = `${parentId}/${s.name}`;
+            const children = nestedNodes(s.name, id);
+            const left = s.ms - sumMs(children);
+            if (children.length > 0 && left >= EPS_MS) children.push({ id: `${id}/~`, label: 'rest', ms: left, kind: 'rest', children: [] });
+            children.sort(byMsDesc);
+            return { id, label: s.name, ms: s.ms, kind: 'scope', children };
+        });
 
     let waitTotal = 0;
     const domains = new Map<string, ProfileNode[]>();
@@ -195,20 +217,26 @@ export function buildFrameProfile(input: FrameProfileInput): FrameProfile {
             const adopted = scope.remainder === 'wait'
                 ? (nativeByDomain.get(scopeDomain(scope.name)) ?? [])
                 : [];
-            const grandChildren = adopted.map((n): ProfileNode => ({
+            const grandChildren = [...adopted.map((n): ProfileNode => ({
                 id: `${sys.name}/${scope.name}/${n.name}`,
                 label: n.name,
                 ms: n.ms,
                 kind: 'scope',
                 children: [],
-            }));
+            })), ...nestedNodes(scope.name, `${sys.name}/${scope.name}`)];
             const unclaimed = Math.max(0, scope.ms - sumMs(grandChildren));
-            // A wait leaves the tree entirely rather than becoming a row in it:
-            // the tree is work, and time blocked on a swapchain is not work. It
-            // survives as the profile's waitMs, which the frame identity carries.
-            if (scope.remainder === 'wait') {
-                systemWait += unclaimed;
-            } else if (unclaimed >= EPS_MS && grandChildren.length > 0) {
+            const waited = scope.remainder === 'wait' ? Math.min(unclaimed, MAX_PRESENT_WAIT_MS) : 0;
+            const untimed = scope.remainder === 'wait' ? unclaimed - waited : 0;
+            systemWait += waited;
+            if (untimed >= EPS_MS) {
+                grandChildren.push({
+                    id: `${sys.name}/${scope.name}/~untimed`,
+                    label: UNTIMED_SCOPE_LABEL,
+                    ms: untimed,
+                    kind: 'rest',
+                    children: [],
+                });
+            } else if (scope.remainder !== 'wait' && unclaimed >= EPS_MS && grandChildren.length > 0) {
                 grandChildren.push({
                     id: `${sys.name}/${scope.name}/~`,
                     label: 'rest',
@@ -218,7 +246,7 @@ export function buildFrameProfile(input: FrameProfileInput): FrameProfile {
                 });
             }
             grandChildren.sort(byMsDesc);
-            const scopeWork = scope.remainder === 'wait' ? scope.ms - unclaimed : scope.ms;
+            const scopeWork = scope.ms - waited;
             children.push({
                 id: `${sys.name}/${scope.name}`,
                 label: scope.name,

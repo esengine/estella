@@ -248,6 +248,7 @@ export class App {
     private frameScopes_: Map<string, ScopeCost> | null = null;
     /** The system being run, so a scope opened inside one is filed under it. */
     private currentSystem_ = '';
+    private readonly openScopes_: string[] = [];
     private readonly frameObservers_: Array<(dtMs: number) => void> = [];
     private frame_paused_ = false;
     private user_paused_ = false;
@@ -1068,17 +1069,21 @@ export class App {
     measureFrameScope<T>(name: string, fn: () => T, options?: { remainder?: ScopeRemainder }): T {
         const scopes = this.frameScopes_;
         if (!scopes) return fn();
+        const parent = this.openScopes_[this.openScopes_.length - 1];
+        this.openScopes_.push(name);
         const t0 = performance.now();
         try {
             return fn();
         } finally {
             const elapsed = performance.now() - t0;
+            this.openScopes_.pop();
             const prev = scopes.get(name);
             scopes.set(name, {
                 name,
                 ms: (prev?.ms ?? 0) + elapsed,
                 system: prev?.system ?? this.currentSystem_,
                 remainder: options?.remainder ?? 'work',
+                ...(parent !== undefined ? { parent } : {}),
             });
         }
     }

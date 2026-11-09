@@ -4252,4 +4252,6 @@ export const NOTED = {
     {"note": "A streamed world opens in the editor without its cells."},
   "fix(editor): what grows round the view follows the viewport in 2D and 3D, and a terrain stroke keeps only the tiles it touched":
     {"note": "While editing, foliage and generated worlds follow the viewport."},
+  "fix(profiler): a long block in the render submit is work, not vsync, and text has a scope of its own":
+    {"note": "The profiler no longer calls a long render stall vsync."},
 };

@@ -265,6 +265,8 @@ export {
     scopeDomain,
     DOMAIN_SCRIPTS,
     DOMAIN_UNATTRIBUTED,
+    MAX_PRESENT_WAIT_MS,
+    UNTIMED_SCOPE_LABEL,
     type FrameProfile,
     type FrameProfileInput,
     type ProfileNode,

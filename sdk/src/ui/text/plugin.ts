@@ -304,8 +304,8 @@ export class TextPlugin implements Plugin {
 
         // Two passes, because there are two lists: the world's glyphs go into the
         // camera being collected, the screen's into the frame's overlay.
-        pipeline.addPreFlushCallback((_registry, projection) => this.drawDomain(app, /*screen=*/false, projection));
-        pipeline.addScreenOverlayCallback((_registry, projection) => this.drawDomain(app, /*screen=*/true, projection));
+        pipeline.addPreFlushCallback((_registry, projection) => app.measureFrameScope('render.text', () => this.drawDomain(app, false, projection)));
+        pipeline.addScreenOverlayCallback((_registry, projection) => app.measureFrameScope('render.text', () => this.drawDomain(app, true, projection)));
     }
 
     /**
