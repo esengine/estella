@@ -1,0 +1,302 @@
+{
+  "schemaVersion": 1,
+  "collection": "cyber-rooftop-flagship-v1",
+  "reference": "../target.png",
+  "purpose": "Tripo modeling references; candidate designs, not geometry or runtime acceptance.",
+  "viewOrder": [
+    "front",
+    "right",
+    "back"
+  ],
+  "units": "meters",
+  "axisConvention": "Estella Y-up; glTF +Y up; Blender +Z up, convert on export",
+  "palette": {
+    "frame": "#26313a",
+    "paint": "#b0aaa0",
+    "utility": "#b77820",
+    "status": "#2bd5e5",
+    "grow": "#e02e99"
+  },
+  "assets": [
+    {
+      "id": "CHR-001",
+      "name": "屋顶维修员主角",
+      "slug": "rooftop-engineer",
+      "kind": "character",
+      "dimensionsMeters": {
+        "width": 0.65,
+        "height": 1.78,
+        "depth": 0.38
+      },
+      "lod0TriangleTarget": 85000,
+      "reference": "rooftop-engineer-views.png",
+      "prompt": "rooftop-engineer-prompt.txt",
+      "status": "reference-ready",
+      "generationService": "Tripo",
+      "generationTask": null,
+      "sourceModel": null,
+      "licenseVerified": false,
+      "neutralReview": false,
+      "engineAcceptance": false,
+      "referencePixels": {
+        "width": 1536,
+        "height": 1024
+      },
+      "referenceSha256": "231c5cb52b84a4187783b8c363adccfdc1fe70e4320706a7c449f810ba5c69f5",
+      "referenceReview": "Three views inspected; silhouette and material language usable as candidate. Dimensions, small attachments and cross-view consistency require 3D validation.",
+      "dimensionsAreTargets": true
+    },
+    {
+      "id": "BLD-001",
+      "name": "安全屋核心舱",
+      "slug": "shelter-module",
+      "kind": "architecture",
+      "dimensionsMeters": {
+        "width": 6,
+        "height": 3.4,
+        "depth": 3
+      },
+      "lod0TriangleTarget": 60000,
+      "reference": "shelter-module-views.png",
+      "prompt": "shelter-module-prompt.txt",
+      "status": "reference-ready",
+      "generationService": "Tripo",
+      "generationTask": null,
+      "sourceModel": null,
+      "licenseVerified": false,
+      "neutralReview": false,
+      "engineAcceptance": false,
+      "referencePixels": {
+        "width": 1536,
+        "height": 1024
+      },
+      "referenceSha256": "0cd440b1db32f8a6c596db6dcac1e55376649385ce3e4e2cb40e7811ad705832",
+      "referenceReview": "Three views inspected; silhouette and material language usable as candidate. Dimensions, small attachments and cross-view consistency require 3D validation.",
+      "dimensionsAreTargets": true
+    },
+    {
+      "id": "BLD-002",
+      "name": "双层水培种植架",
+      "slug": "hydroponic-rack",
+      "kind": "facility",
+      "dimensionsMeters": {
+        "width": 4,
+        "height": 3.6,
+        "depth": 1.8
+      },
+      "lod0TriangleTarget": 45000,
+      "reference": "hydroponic-rack-views.png",
+      "prompt": "hydroponic-rack-prompt.txt",
+      "status": "reference-ready",
+      "generationService": "Tripo",
+      "generationTask": null,
+      "sourceModel": null,
+      "licenseVerified": false,
+      "neutralReview": false,
+      "engineAcceptance": false,
+      "referencePixels": {
+        "width": 1536,
+        "height": 1024
+      },
+      "referenceSha256": "18faaddecfea0e26526f50720eb011171312345462ce13b8e880861bb71b3ca6",
+      "referenceReview": "Three views inspected; silhouette and material language usable as candidate. Dimensions, small attachments and cross-view consistency require 3D validation.",
+      "dimensionsAreTargets": true
+    },
+    {
+      "id": "FAC-001",
+      "name": "净水处理装置",
+      "slug": "water-purifier",
+      "kind": "facility",
+      "dimensionsMeters": {
+        "width": 2.4,
+        "height": 3.2,
+        "depth": 1.6
+      },
+      "lod0TriangleTarget": 45000,
+      "reference": "water-purifier-views.png",
+      "prompt": "water-purifier-prompt.txt",
+      "status": "reference-ready",
+      "generationService": "Tripo",
+      "generationTask": null,
+      "sourceModel": null,
+      "licenseVerified": false,
+      "neutralReview": false,
+      "engineAcceptance": false,
+      "referencePixels": {
+        "width": 1536,
+        "height": 1024
+      },
+      "referenceSha256": "53781ac1112036967e8da7691742d75ed26bb35e31742cfdcd683323735c44bd",
+      "referenceReview": "Three views inspected; silhouette and material language usable as candidate. Dimensions, small attachments and cross-view consistency require 3D validation.",
+      "dimensionsAreTargets": true
+    },
+    {
+      "id": "FAC-002",
+      "name": "备用能源柜",
+      "slug": "power-station",
+      "kind": "facility",
+      "dimensionsMeters": {
+        "width": 1.8,
+        "height": 2,
+        "depth": 1.2
+      },
+      "lod0TriangleTarget": 30000,
+      "reference": "power-station-views.png",
+      "prompt": "power-station-prompt.txt",
+      "status": "reference-ready",
+      "generationService": "Tripo",
+      "generationTask": null,
+      "sourceModel": null,
+      "licenseVerified": false,
+      "neutralReview": false,
+      "engineAcceptance": false,
+      "referencePixels": {
+        "width": 1536,
+        "height": 1024
+      },
+      "referenceSha256": "2a8f78df39a68d949412b51091759419cd0a9859ef1c6b4785ba2becaa0fe46e",
+      "referenceReview": "Three views inspected; silhouette and material language usable as candidate. Dimensions, small attachments and cross-view consistency require 3D validation.",
+      "dimensionsAreTargets": true
+    },
+    {
+      "id": "BLD-003",
+      "name": "近景住宅塔楼",
+      "slug": "residential-tower",
+      "kind": "architecture",
+      "dimensionsMeters": {
+        "width": 18,
+        "height": 72,
+        "depth": 16
+      },
+      "lod0TriangleTarget": 90000,
+      "reference": "residential-tower-views.png",
+      "prompt": "residential-tower-prompt.txt",
+      "status": "reference-ready",
+      "generationService": "Tripo",
+      "generationTask": null,
+      "sourceModel": null,
+      "licenseVerified": false,
+      "neutralReview": false,
+      "engineAcceptance": false,
+      "referencePixels": {
+        "width": 1536,
+        "height": 1024
+      },
+      "referenceSha256": "3e150edb5303e36fe893658380cf762dacddb6716c8f90013277adfc86b28733",
+      "referenceReview": "Three views inspected; silhouette and material language usable as candidate. Dimensions, small attachments and cross-view consistency require 3D validation.",
+      "dimensionsAreTargets": true
+    },
+    {
+      "id": "BLD-004",
+      "name": "屋顶工业配套楼",
+      "slug": "utility-building",
+      "kind": "architecture",
+      "dimensionsMeters": {
+        "width": 12,
+        "height": 24,
+        "depth": 10
+      },
+      "lod0TriangleTarget": 65000,
+      "reference": "utility-building-views.png",
+      "prompt": "utility-building-prompt.txt",
+      "status": "reference-ready",
+      "generationService": "Tripo",
+      "generationTask": null,
+      "sourceModel": null,
+      "licenseVerified": false,
+      "neutralReview": false,
+      "engineAcceptance": false,
+      "referencePixels": {
+        "width": 1536,
+        "height": 1024
+      },
+      "referenceSha256": "93496c8f3f264e57958cd58e65fd1893dd0c0a6131fbd8dc98e3ca19663da9e8",
+      "referenceReview": "Three views inspected; silhouette and material language usable as candidate. Dimensions, small attachments and cross-view consistency require 3D validation.",
+      "dimensionsAreTargets": true
+    },
+    {
+      "id": "TOOL-001",
+      "name": "第一人称建造工具",
+      "slug": "fabrication-tool",
+      "kind": "equipment",
+      "dimensionsMeters": {
+        "width": 0.24,
+        "height": 0.31,
+        "depth": 0.48
+      },
+      "lod0TriangleTarget": 30000,
+      "reference": "fabrication-tool-views.png",
+      "prompt": "fabrication-tool-prompt.txt",
+      "status": "reference-ready",
+      "generationService": "Tripo",
+      "generationTask": null,
+      "sourceModel": null,
+      "licenseVerified": false,
+      "neutralReview": false,
+      "engineAcceptance": false,
+      "referencePixels": {
+        "width": 1536,
+        "height": 1024
+      },
+      "referenceSha256": "e30a5dabf11753f9fc80b47d3379e32d7d00b3cf2b81683665eadd748295eea9",
+      "referenceReview": "Three views inspected; silhouette and material language usable as candidate. Dimensions, small attachments and cross-view consistency require 3D validation.",
+      "dimensionsAreTargets": true
+    },
+    {
+      "id": "TRN-001",
+      "name": "高架列车车厢",
+      "slug": "elevated-train-car",
+      "kind": "vehicle",
+      "dimensionsMeters": {
+        "width": 2.8,
+        "height": 3.8,
+        "depth": 16
+      },
+      "lod0TriangleTarget": 60000,
+      "reference": "elevated-train-car-views.png",
+      "prompt": "elevated-train-car-prompt.txt",
+      "status": "reference-ready",
+      "generationService": "Tripo",
+      "generationTask": null,
+      "sourceModel": null,
+      "licenseVerified": false,
+      "neutralReview": false,
+      "engineAcceptance": false,
+      "referencePixels": {
+        "width": 1536,
+        "height": 1024
+      },
+      "referenceSha256": "59fafe96a2f66a2d87bbcf1b34bbedb3b7a72f57034edafd7ade8feaeff78f61",
+      "referenceReview": "Three views inspected; silhouette and material language usable as candidate. Dimensions, small attachments and cross-view consistency require 3D validation.",
+      "dimensionsAreTargets": true
+    },
+    {
+      "id": "PROP-001",
+      "name": "可回收工业补给箱",
+      "slug": "supply-crate",
+      "kind": "prop",
+      "dimensionsMeters": {
+        "width": 1.2,
+        "height": 0.9,
+        "depth": 0.8
+      },
+      "lod0TriangleTarget": 16000,
+      "reference": "supply-crate-views.png",
+      "prompt": "supply-crate-prompt.txt",
+      "status": "reference-ready",
+      "generationService": "Tripo",
+      "generationTask": null,
+      "sourceModel": null,
+      "licenseVerified": false,
+      "neutralReview": false,
+      "engineAcceptance": false,
+      "referencePixels": {
+        "width": 1536,
+        "height": 1024
+      },
+      "referenceSha256": "6b926f2cfa3c498300b7326b5a0214832cd2b67f1aec7f97442f2903af113997",
+      "referenceReview": "Three views inspected; silhouette and material language usable as candidate. Dimensions, small attachments and cross-view consistency require 3D validation.",
+      "dimensionsAreTargets": true
+    }
+  ]
+}
