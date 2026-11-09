@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 
 #include <cmath>
+#include "UIBindings.hpp"
 #include "RendererBindings.hpp"
 #include "TestProbeBindings.hpp"
 
@@ -838,6 +839,7 @@ void renderer_submitScreenOverlay(ecs::Registry& registry) {
     if (!g_renderFrame) return;
     ensureTransformsUpdated(registry);
     g_renderFrame->setScreenDomain(screenDomain());
+    g_renderFrame->setUITreeLayers(uiTreeLayers());
     g_renderFrame->submitScreenOverlay(registry);
 }
 
@@ -855,6 +857,7 @@ void renderer_submitAll(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vpW, i32 
     // frame: the set is rebuilt by each layout pass, and a camera holding the
     // previous one would draw a just-reparented element in the wrong domain.
     g_renderFrame->setScreenDomain(screenDomain());
+    g_renderFrame->setUITreeLayers(uiTreeLayers());
     g_renderFrame->processMasks(registry, vpX, vpY, vpW, vpH);
 
     g_renderFrame->collectAll(registry);

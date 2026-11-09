@@ -2489,6 +2489,7 @@ void RenderFrame::executeShadowPass(ecs::Registry& registry) {
             collectCtx.shadowReachCap = view.reachCap;
         }
         collectCtx.screen_ui = screen_domain_;
+        collectCtx.ui_tree_layers = ui_tree_layers_;
         // A shadow is part of the camera's picture: what the camera culled by its level of detail (grass past its distance)
         // does not cast, and what it draws coarse casts coarse.
         collectCtx.lod = {view_id_, &lod_view_state_, nullptr, true};
@@ -2680,6 +2681,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     // entities are laid out in pixels centred on the origin, and drawing them
     // through a view matrix puts a HUD wherever the view happens to be looking.
     collectCtx.screen_ui = screen_domain_;
+    collectCtx.ui_tree_layers = ui_tree_layers_;
     collectCtx.lod = {view_id_, &lod_view_state_, &lod_counts_};
     collectCtx.shading = view_shading_.get(view_id_);
     collectCtx.weights = view_shading_.weights(view_id_);
@@ -2733,6 +2735,7 @@ void RenderFrame::collectMotion(ecs::Registry& registry) {
     RenderCollectContext collectCtx{registry, frustum_, clip_state_, velocity_pool_, velocity_list_, ctx,
                                     computeCameraView(ctx.view_projection)};
     collectCtx.screen_ui = screen_domain_;
+    collectCtx.ui_tree_layers = ui_tree_layers_;
     // The level the scene settled on, not a new choice, and not counted a second time.
     collectCtx.lod = {view_id_, &lod_view_state_, nullptr};
     collectCtx.occlusion = &occlusion_;
@@ -2774,6 +2777,7 @@ void RenderFrame::collectCover(ecs::Registry& registry) {
     RenderCollectContext collectCtx{registry, frustum, clip_state_, cover_pool_, cover_list_, ctx,
                                     computeCameraView(cover_view_projection_)};
     collectCtx.screen_ui = screen_domain_;
+    collectCtx.ui_tree_layers = ui_tree_layers_;
     for (auto& plugin : plugins_) {
         if (plugin->castsShadows()) plugin->collect(collectCtx);
     }

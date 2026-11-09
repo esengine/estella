@@ -66,6 +66,7 @@ void RenderFrame::submitScreenOverlay(ecs::Registry& registry) {
     RenderCollectContext collectCtx{registry, overlayFrustum, clip_state_, pool_, draw_list_,
                                     ctx, computeCameraView(overlay_projection_)};
     collectCtx.screen_ui = screen_domain_;
+    collectCtx.ui_tree_layers = ui_tree_layers_;
     // Only the plugins that can draw an entity out of a UI tree. Everything else
     // draws world content, which by definition is not what this pass is for —
     // and would land in it at layout-pixel coordinates.

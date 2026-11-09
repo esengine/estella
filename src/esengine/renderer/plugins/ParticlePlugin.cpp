@@ -230,9 +230,10 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             }
         }
 
+        const i32 layer = collect_ctx.treeLayer(entity, emitter.layer);
         BatchDrawKey key{
             .stage = ctx.current_stage,
-            .layer = emitter.layer,
+            .layer = layer,
             .shaderId = shaderId,
             .blend = blend,
             .textureId = textureId,
@@ -269,7 +270,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             state->trail_count.size() == state->pool.particles().size()) {
             BatchDrawKey trailKey{
                 .stage = ctx.current_stage,
-                .layer = emitter.layer,
+                .layer = layer,
                 .shaderId = ctx.batch_shader_id,
                 .blend = blendMode,
                 .textureId = ctx.white_texture_id,

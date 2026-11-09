@@ -13,6 +13,7 @@
  */
 #pragma once
 
+#include <unordered_map>
 #include "../core/Types.hpp"
 
 namespace esengine {
@@ -59,6 +60,8 @@ f32 uiNode_computedWidth(ecs::Registry& registry, u32 entity);
 f32 uiNode_computedHeight(ecs::Registry& registry, u32 entity);
 
 void uiRenderOrder_update(ecs::Registry& registry);
+/** The layers of what the Canvases hold with no uiOrder of its own, by entity id. */
+const std::unordered_map<u32, i32>* uiTreeLayers();
 
 /** An entity's UI draw order, so the SDF text path can interleave glyph quads
  *  with UI quads. -1 = not a UI node. */

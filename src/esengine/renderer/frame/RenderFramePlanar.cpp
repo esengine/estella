@@ -159,6 +159,7 @@ void RenderFrame::executePlanarReflection(ecs::Registry& registry, u32 view) {
     RenderCollectContext collect{registry, frustum, clip_state_, planar_pool_, planar_list_, ctx,
                                  computeCameraView(ctx.view_projection)};
     collect.screen_ui = screen_domain_;
+    collect.ui_tree_layers = ui_tree_layers_;
     collect.excluded = capture.receiver;
     collectSky(collect);
     // No recursive frame/scene collect, post-processing, host overlays or HUD.

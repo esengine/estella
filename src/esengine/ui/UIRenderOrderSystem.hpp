@@ -11,11 +11,22 @@
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "CanvasRoots.hpp"
 
+#include <unordered_map>
 #include <vector>
 
 namespace esengine::ecs {
 
-inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter, u32 cullBit) {
+/**
+ * @brief The draw layer of what a Canvas holds that has no uiOrder of its own: an emitter, and a Sprite with no UINode.
+ * @details They paint by their place in the tree like the controls round them, so one listed after a panel is over it and one listed
+ *          before is under it. Written to this table and not to their `layer`, which stays what its author said.
+ */
+struct UITreeOrder {
+    std::unordered_map<u32, i32> layers;
+    i32 base = 0;
+};
+
+inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter, u32 cullBit, UITreeOrder* tree = nullptr) {
     struct Task { Entity entity; u32 cullBit; };
     std::vector<Task> pending{{entity, cullBit}};
     std::vector<u8> visited;
@@ -44,13 +55,12 @@ inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter, u32
                     sprite.layer = counter;
                 }
                 counter++;
-            } else if (auto* emitter = registry.tryGet<ParticleEmitter>(entity)) {
-                // UI emitters inherit tree order so their particles interleave with controls.
-                if (emitter->layer != counter) {
-                    emitter->layer = counter;
-                }
-                counter++;
             }
+        }
+        if (tree && !registry.has<UIVisual>(entity)
+            && (registry.has<ParticleEmitter>(entity) || (registry.has<Sprite>(entity) && !registry.has<UINode>(entity)))) {
+            tree->layers[entity.id()] = tree->base + counter;
+            counter++;
         }
         auto* children = registry.tryGet<Children>(entity);
         if (!children) continue;
@@ -60,12 +70,13 @@ inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter, u32
     return counter;
 }
 
-inline void uiRenderOrderUpdate(Registry& registry) {
+inline void uiRenderOrderUpdate(Registry& registry, UITreeOrder* tree = nullptr) {
+    if (tree) tree->layers.clear();
     i32 counter = 0;
     for (Entity entity : canvasRoots(registry, false)) {
         const auto& canvas = registry.get<Canvas>(entity);
         const u32 bit = (canvas.layer < 0 || canvas.layer >= 32) ? 0u : (1u << canvas.layer);
-        counter = assignRenderOrder(registry, entity, counter, bit);
+        counter = assignRenderOrder(registry, entity, counter, bit, tree);
     }
 }
 

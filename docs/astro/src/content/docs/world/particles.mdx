@@ -190,7 +190,7 @@ See [Noise & turbulence](#noise--turbulence-1) below.
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `blendMode` | `BlendMode` | `Additive` | How particles composite. See [Blend modes](#blend-modes). |
-| `layer` | number | `0` | Sorting layer for draw order. |
+| `layer` | number | `0` | Sorting layer for draw order. Under a `Canvas`, `0` paints by its place in the tree; see [Particles in a UI](#particles-in-a-ui). |
 | `material` | asset | none | Optional custom material/shader. |
 | `simulationSpace` | `SimulationSpace` | `World` | `World` or `Local` (see [below](#simulation-space)). |
 | `renderMode` | `ParticleRenderMode` | `Billboard` | `Billboard` faces the view; `Stretched` lays the quad along the particle's velocity (see [Stretched particles](#stretched-particles)). |
@@ -685,6 +685,12 @@ A kernel appends what happens to a buffer: each birth, death or collision the em
 **The game hears collisions a frame or two late.** With `collisionEvents` on, `ParticleCollisionEvent`, `collisionStats` and the rest read as they do for any other collision, in the same units, once the GPU hands them back. `collisionEventBudget` is how many are read back a time, and `hits` counts the rest. Reading back is the one thing here that costs a trip to the CPU, so leave it off unless the game needs to know.
 
 **Trails** use the same `trailEnabled`, `trailWidth`, `trailPoints` and `trailMinDistance`. Each particle's path is kept in a buffer of its own and drawn as quads along it, narrowing and fading from the head. They cost memory for every slot whether alive or not: `maxParticles` x `trailPoints` x 60 bytes, so 100,000 particles with 12 points is 72 MB. Each piece turns to face the camera that first drew it that frame, so a second camera sees them slightly edge on.
+
+## Particles in a UI
+
+An emitter under a `Canvas` paints by its place in the tree, like the controls round it: listed after a panel or inside it, it is over the panel; listed before, it is under it. A `Sprite` under a `Canvas` with no `UINode` does the same. A `layer` other than `0` opts out and sorts as a layer does, against the controls' 1000 and up: `layer: 5000` holds it over the whole UI.
+
+An emitter that is not under a `Canvas` belongs to the scene, and a screen `Canvas` is drawn after the scene: its particles are always under that UI, whatever their `layer`. To put an effect over a HUD, make it a child of the `Canvas`. `gpuSimulation` emitters do not draw under a screen `Canvas`.
 
 ## Performance & best practices
 

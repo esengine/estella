@@ -4228,6 +4228,8 @@ export const NOTED = {
     {"note": "GPU particles can hit things, tell each other, and drag trails."},
   "feat(particles): draw a ParticleCollider's shape, and check GPU particle collision, events and trails in real frames":
     {"note": "GPU particles can hit things, tell each other, and drag trails."},
+  "fix(ui): particles and plain sprites in a Canvas paint by their place in its tree":
+    {"note": "Particles and plain sprites in a Canvas paint by their place in its tree."},
   "fix(assets): one hot load at a time per asset, so two rescans cannot lose a texture":
     {"note": "A texture stays on a scene that rescans as it is placed."},
   "feat(rig): the 2D rig editor, from an image to a character in the scene":

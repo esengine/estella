@@ -10,6 +10,7 @@
  *          QuickJS wrappers call the same code embind registers.
  */
 #include "UIBindings.hpp"
+#include "../renderer/plugins/UIElementPlugin.hpp"
 
 #include "ActiveContext.hpp"
 #include "../core/EstellaContext.hpp"
@@ -84,8 +85,16 @@ f32 uiNode_computedHeight(ecs::Registry& r, u32 e) {
     return n ? n->computed_size_.y : 0.0f;
 }
 
+// What the Canvases hold with no uiOrder of its own; the frame borrows it. One table: the order pass and every collect it serves run in turn.
+static ecs::UITreeOrder g_uiTreeOrder;
+
+const std::unordered_map<u32, i32>* uiTreeLayers() {
+    return &g_uiTreeOrder.layers;
+}
+
 void uiRenderOrder_update(ecs::Registry& registry) {
-    ecs::uiRenderOrderUpdate(registry);
+    g_uiTreeOrder.base = UIElementPlugin::UI_BASE_LAYER;
+    ecs::uiRenderOrderUpdate(registry, &g_uiTreeOrder);
 }
 
 // The SDF text path (TS) reads an entity's UI

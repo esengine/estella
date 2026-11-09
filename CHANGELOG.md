@@ -32,6 +32,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Particles and plain sprites in a Canvas paint by their place in its tree.** An emitter listed after a panel went under it, and one listed before a plain `Sprite` went over it. Both now follow the hierarchy like the controls round them, and the `layer` they were authored with is no longer overwritten. A `Sprite` with no `UINode` under a Canvas may change place as a result; a non-zero `layer` keeps the old order.
+
 - **A trigger no longer stops a 2D character.** The mover took a sensor for a wall and for a floor.
 - **A 2D character honours one-way platforms.** It was stopped from below by the mover as if they were solid.
 - **A 2D character under a parent moves in the world.** Its local position was handed to the mover as a world position.

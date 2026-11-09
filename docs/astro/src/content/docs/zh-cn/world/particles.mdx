@@ -181,7 +181,7 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 | 属性 | 类型 | 默认 | 说明 |
 |---|---|---|---|
 | `blendMode` | `BlendMode` | `Additive` | 粒子如何合成。见 [混合模式](#混合模式)。 |
-| `layer` | number | `0` | 决定绘制顺序的排序层。 |
+| `layer` | number | `0` | 决定绘制顺序的排序层。Canvas 下为 `0` 时按树中的位置绘制，见 [UI 中的粒子](#ui-中的粒子)。 |
 | `material` | asset | 无 | 可选的自定义材质/着色器。 |
 | `simulationSpace` | `SimulationSpace` | `World` | `World` 或 `Local`(见[下](#模拟空间))。 |
 | `renderMode` | `ParticleRenderMode` | `Billboard` | `Billboard` 朝向视图;`Stretched` 让四边形沿粒子速度方向拉伸(见[拉伸粒子](#拉伸粒子))。 |
@@ -622,6 +622,12 @@ kernel 把发生的事追加到一个缓冲里：`subEmitterTrigger` 要的出�
 **游戏逻辑晚一两帧收到碰撞。** 开启 `collisionEvents` 后，等 GPU 交回数据，`ParticleCollisionEvent`、`collisionStats` 等的读法和其他碰撞一样，单位也相同。`collisionEventBudget` 是每次回读的数量，其余的计入 `hits`。回读是这里唯一需要经过 CPU 的部分，游戏不需要就不要开。
 
 **拖尾** 用同样的 `trailEnabled`、`trailWidth`、`trailPoints` 和 `trailMinDistance`。每个粒子的路径存在单独的缓冲里，沿路径画成四边形，从头部开始逐渐变窄变淡。无论粒子是否存活，每个槽都占内存：`maxParticles` x `trailPoints` x 60 字节，10 万粒子配 12 个点就是 72 MB。每一段都朝向这一帧最先绘制的相机，所以第二个相机看到的会略微偏向侧面。
+
+## UI 中的粒子
+
+`Canvas` 下的发射器按它在树中的位置绘制，和周围的控件一样：排在面板后面或放在面板里面，就在面板上方；排在前面，就在面板下方。`Canvas` 下没有 `UINode` 的 `Sprite` 也一样。`layer` 不为 `0` 时不走树序，按层排序，控件的层从 1000 开始：`layer: 5000` 能让它压在整个 UI 上方。
+
+不在 `Canvas` 下的发射器属于场景，而屏幕 `Canvas` 在场景之后绘制，所以无论 `layer` 是多少，这些粒子都在该 UI 下方。要让特效盖在 HUD 上，把它放到 `Canvas` 下。`gpuSimulation` 发射器不会在屏幕 `Canvas` 下绘制。
 
 ## 性能与最佳实践
 

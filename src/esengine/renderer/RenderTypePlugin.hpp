@@ -27,6 +27,7 @@
 #include <cmath>
 #include <algorithm>
 #include <array>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -257,6 +258,19 @@ struct RenderCollectContext {
      *          and that is all a set is.
      */
     const std::unordered_set<u32>* screen_ui = nullptr;
+
+    /** @brief The layer of each emitter and plain Sprite a Canvas holds, by entity id, or null. @see ecs::UITreeOrder */
+    const std::unordered_map<u32, i32>* ui_tree_layers = nullptr;
+
+    /**
+     * @brief The layer @p entity draws at: its place in a Canvas's tree, unless its author named one.
+     * @details 0 is the default, and says nothing. A layer named outright is the way to hold something over or under a whole UI.
+     */
+    i32 treeLayer(Entity entity, i32 authored) const {
+        if (authored != 0 || !ui_tree_layers) return authored;
+        const auto it = ui_tree_layers->find(entity.id());
+        return it == ui_tree_layers->end() ? authored : it->second;
+    }
 
     /**
      * @brief What this view is already blocked by, or null for a collect that

@@ -216,6 +216,8 @@ public:
     /** @brief The screen's entities (UISystem::screenDomain), borrowed for the
      *         frame. Null partitions nothing — every collect is a world one. */
     void setScreenDomain(const std::unordered_set<u32>* domain) { screen_domain_ = domain; }
+    /** @brief The layers of what a Canvas holds with no uiOrder, borrowed for the frame. @see ecs::UITreeOrder */
+    void setUITreeLayers(const std::unordered_map<u32, i32>* layers) { ui_tree_layers_ = layers; }
 
     /** @brief Opens the overlay: @p projection maps the layout domain onto the
      *         pixel rect @p vpX/@p vpY/@p vpW/@p vpH of the surface. */
@@ -1133,6 +1135,7 @@ private:
 
     /// Borrowed from the UI system for the frame (see setScreenDomain).
     const std::unordered_set<u32>* screen_domain_ = nullptr;
+    const std::unordered_map<u32, i32>* ui_tree_layers_ = nullptr;
     bool overlay_active_ = false;
     glm::mat4 overlay_projection_{1.0f};
     i32 overlay_vp_x_ = 0, overlay_vp_y_ = 0;
