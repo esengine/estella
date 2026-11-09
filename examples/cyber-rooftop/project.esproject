@@ -8,6 +8,6 @@
   "designResolution": { "width": 1672, "height": 940 },
   "spineVersion": "none",
   "scripts": { "main": "src/main.ts" },
-  "assetExclude": ["references", "tools"],
+  "assetExclude": ["tools"],
   "features": { "rendering": { "colorSpace": "linear", "outputTransform": "aces", "quality": { "mode": "high" } } }
 }

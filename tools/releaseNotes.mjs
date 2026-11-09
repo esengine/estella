@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cyber-rooftop): add Tripo equipment sockets and native character assets':
+    {"internal":"the heroine and projector assets it added were removed again before release, since the cyber-rooftop scene never used them"},
   'fix(project): discard stale document reloads':
     { note: 'Returning from Prefab Mode keeps the current scene intact.' },
   'fix(editor): keep stale file events out of the active document':
