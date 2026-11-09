@@ -918,15 +918,73 @@ export function generateChunkCollision(
     const grid = collisionGrid(tileW, tileH, layout), entities: Entity[] = [];
     for (const chunk of chunks) {
         const boxes = collisionBoxes(chunk.tiles, CHUNK_SIZE, CHUNK_SIZE, collisionIds, grid, chunk.x * CHUNK_SIZE, chunk.y * CHUNK_SIZE);
-        for (const box of boxes) {
-            const entity = world.spawn();
-            world.insert(entity, Transform, { position: { x: originX + box.center.x, y: originY + box.center.y, z: 0 } });
-            world.insert(entity, RigidBody2D, { bodyType: BodyType.Static });
-            world.insert(entity, BoxCollider2D, { halfExtents: { x: box.halfExtents.x / pixelsPerUnit, y: box.halfExtents.y / pixelsPerUnit } });
-            entities.push(entity);
-        }
+        for (const box of boxes) entities.push(spawnCollisionBox(world, box, originX, originY, pixelsPerUnit));
     }
     return entities;
+}
+
+function spawnCollisionBox(world: World, box: ReturnType<typeof collisionBoxes>[number], originX: number, originY: number, ppu: number): Entity {
+    const entity = world.spawn();
+    world.insert(entity, Transform, { position: { x: originX + box.center.x, y: originY + box.center.y, z: 0 } });
+    world.insert(entity, RigidBody2D, { bodyType: BodyType.Static });
+    world.insert(entity, BoxCollider2D, { halfExtents: { x: box.halfExtents.x / ppu, y: box.halfExtents.y / ppu } });
+    return entity;
+}
+
+/**
+ * The colliders one chunk should carry, by a key that names a collider's shape and place and nothing else. A rebuild keeps every collider whose key survives,
+ * so a body resting on one sees no contact end and nothing sleeping is woken. `boxTiles` is what the plain boxes merge over; the rich shapes always read `chunk.tiles`.
+ * @internal
+ */
+export function chunkColliderPlan(
+    chunk: { x: number; y: number; tiles: Uint16Array }, boxTiles: Uint16Array,
+    boxIds: ReadonlySet<number>, shapes: ReadonlyMap<number, ResolvedTileCollision>,
+    tileW: number, tileH: number, originX: number, originY: number, ppu: number, layout?: TileGridLayout,
+): Map<string, (world: World) => Entity> {
+    const plan = new Map<string, (world: World) => Entity>();
+    const grid = collisionGrid(tileW, tileH, layout), baseX = chunk.x * CHUNK_SIZE, baseY = chunk.y * CHUNK_SIZE;
+    if (boxIds.size > 0) {
+        for (const box of collisionBoxes(boxTiles, CHUNK_SIZE, CHUNK_SIZE, boxIds as Set<number>, grid, baseX, baseY)) {
+            plan.set(`b${box.center.x},${box.center.y},${box.halfExtents.x},${box.halfExtents.y}`,
+                world => spawnCollisionBox(world, box, originX, originY, ppu));
+        }
+    }
+    if (shapes.size > 0) {
+        for (let i = 0; i < chunk.tiles.length; i++) {
+            const raw = chunk.tiles[i]!, rc = shapes.get(tileIdOf(raw));
+            if (!rc) continue;
+            const gx = baseX + (i % CHUNK_SIZE), gy = baseY + Math.floor(i / CHUNK_SIZE);
+            plan.set(`s${i},${raw}`, world => spawnTileShape(world, rc, raw, gx, gy, tileW, tileH, originX, originY, ppu || 1, grid));
+        }
+    }
+    return plan;
+}
+
+/**
+ * A chunk's tiles with its buried plain boxes cleared: a box every side of which another plain box covers can never be touched from outside.
+ * `neighbour` answers the chunks around it, so a chunk edge reads the next chunk's tiles rather than counting as open ground.
+ * @internal
+ */
+export function exposedCollisionTiles(
+    chunk: { x: number; y: number; tiles: Uint16Array }, boxIds: ReadonlySet<number>,
+    neighbour: (chunkX: number, chunkY: number) => Uint16Array | undefined,
+): Uint16Array {
+    const out = chunk.tiles.slice();
+    const covers = (tiles: Uint16Array | undefined, index: number): boolean =>
+        tiles !== undefined && tiles.length > 0 && boxIds.has(tileIdOf(tiles[index]!));
+    const left = neighbour(chunk.x - 1, chunk.y), right = neighbour(chunk.x + 1, chunk.y);
+    const up = neighbour(chunk.x, chunk.y - 1), down = neighbour(chunk.x, chunk.y + 1);
+    const last = CHUNK_SIZE - 1;
+    for (let y = 0; y < CHUNK_SIZE; y++) for (let x = 0; x < CHUNK_SIZE; x++) {
+        const i = y * CHUNK_SIZE + x;
+        if (!boxIds.has(tileIdOf(chunk.tiles[i]!))) continue;
+        const buried = (x > 0 ? covers(chunk.tiles, i - 1) : covers(left, y * CHUNK_SIZE + last))
+            && (x < last ? covers(chunk.tiles, i + 1) : covers(right, y * CHUNK_SIZE))
+            && (y > 0 ? covers(chunk.tiles, i - CHUNK_SIZE) : covers(up, last * CHUNK_SIZE + x))
+            && (y < last ? covers(chunk.tiles, i + CHUNK_SIZE) : covers(down, x));
+        if (buried) out[i] = 0;
+    }
+    return out;
 }
 
 /**

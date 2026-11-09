@@ -17,6 +17,11 @@ export {
 } from './tiledLoader';
 export { tileCollisionOutlines, type TileCollisionPiece } from './tileCollisionOutline';
 export {
+    DestructibleTilemap, createDestructibleTilemap, peeringRetile,
+    type DestructibleTilemapOptions, type DestructibleTilemapData, type TileEdit, type TileEditCause, type TileHit,
+    type TileExplosionOptions, type TileNavSyncOptions, type TileNavGridOptions, type TileRetile,
+} from './destructibleTilemap';
+export {
     COLLISION_PALETTE_REF, COLLISION_BRUSHES, isCollisionPaletteRef, buildCollisionPaletteModel,
     parseCollisionMaterial, collisionRefWithMaterial,
     type CollisionBrush, type CollisionMaterial,

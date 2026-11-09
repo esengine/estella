@@ -351,6 +351,51 @@ queries](#tilemaps-api-reference) as any painted layer — `isTileSolid`,
 `tileCollisionAt`, `tileCollisionAtWorld` — so nothing downstream needs to know the
 cells came from the built-in palette.
 
+## Destructible tilemaps
+
+`setTile` changes a cell. A sandbox, mining or survival game needs more to follow it: tiles that take several blows, explosions, edges that re-tile, routes that
+change, and a save that remembers it all. `createDestructibleTilemap` opens any layer to that. The layer stays an ordinary layer.
+
+```typescript
+import { createDestructibleTilemap, peeringRetile } from 'esengine/tilemap';
+
+const ground = createDestructibleTilemap(app, layer, {
+  hardness: id => (id === BEDROCK ? Infinity : 3),  // or a `hardness` property on the tile
+  replaceWith: id => (id === STONE ? RUBBLE : 0),   // what a destroyed tile leaves
+  retile: peeringRetile(tileset),                   // neighbours re-resolve their edges
+});
+
+ground.dig(x, y, 1);                                // one blow: { damage, hardness, destroyed }
+ground.digAtWorld(wx, wy);                          // by world position; no power means any hardness
+ground.explode(wx, wy, 64, 10, { shielded: true }); // radius in world units, then force
+ground.set(x, y, BRICK);                            // build; also setMany and fillRect
+ground.subscribe(edits => { /* drops, dust, light: every change of one operation */ });
+```
+
+| What changes | How it follows |
+|---|---|
+| **Drawing** | The chunk's mesh is rebuilt. A row of chunks being edited is held in pieces of four, so a dug tile uploads one piece rather than the whole row; the row becomes one draw again 1800 collects after its last change. |
+| **Collision** | Only colliders whose shape actually changed are replaced, so a body resting on the rest sees no contact end and stays asleep. A destroyed floor wakes what stood on it. |
+| **Autotiles** | `retile` runs over the changed cells and their eight neighbours. `peeringRetile` answers edge and corner terrains; a Wang terrain paints corner colours, so a game using one gives its own function. |
+| **Navigation** | `ground.createNavGrid({ width, height })` places a grid where the layer is drawn and keeps it in step, one cell per change; agents plan again by themselves. `syncNavGrid(grid)` does the same for a grid you made. A tile blocks by the layer's collision, a sensor does not. |
+
+**Collision outline.** A destructible layer generates its plain boxes for exposed tiles only: a tile with a plain box on all four sides has none. Solid ground costs no bodies, and a tunnel dug
+below the surface leaves the surface's colliders alone. Nothing stops a body placed inside the ground, since the shell is all there is. Pass `collisionOutline: false`
+to keep merged ground, or call `TilemapRuntime.setCollisionOutline(layer, on)` for any layer. It applies to orthogonal layers; other orientations keep their merged boxes.
+
+**Saves.** `toJSON()` holds only the cells that differ from the map the layer started as, and the damage standing on any other, so its size follows what the player changed and not what the
+map holds. It is plain JSON for [`SaveManager`](/docs/scripting/save/). `load()` puts this session's changes back first, restores the save exactly without re-tiling, and refuses a damaged save whole, returning `false`.
+
+**Streamed worlds.** Pass `streamed: true` and publish chunks through the layer instead of `setChunkTiles`. What the generator made is laid under the player's changes,
+so a chunk let go and made again comes back as it was left, and a save loaded before a chunk arrives waits for it:
+
+```typescript
+ground.publishChunk(cx, cy, generatedTiles);
+ground.releaseChunk(cx, cy);
+```
+
+A chunk not yet published is not empty ground: nothing can be dug or written there.
+
 ## Object layers
 
 Tiled **object layers** (spawn points, triggers, region shapes) load with the map. The

@@ -76,6 +76,8 @@ export interface TilesetModel {
      * separate from {@link collidableTileIds} so the fast merge path stays correctness-safe.
      */
     tileShapes: Map<number, ResolvedTileCollision>;
+    /** Global tile id → its authored custom properties, as `getTileProperty` answers them. */
+    tileProperties?: Map<number, Record<string, string>>;
 }
 
 /** True for a tile the greedy box merge may fuse: a bare solid box, no modifiers. */
@@ -145,6 +147,7 @@ export function resolveTilesetModel(tilesets: ResolvedTileset[]): TilesetModel {
     const animations = new Map<number, { tileId: number; duration: number }[]>();
     const collidable: number[] = [];
     const tileShapes = new Map<number, ResolvedTileCollision>();
+    const tileProperties = new Map<number, Record<string, string>>();
 
     let firstId = 1;
     for (const { asset, textureHandle, textureHeight } of tilesets) {
@@ -162,6 +165,7 @@ export function resolveTilesetModel(tilesets: ResolvedTileset[]): TilesetModel {
             if (!Number.isInteger(localId) || localId <= 0) continue;
             const globalId = firstId + localId - 1;
             const tile = asset.tiles[localId];
+            if (tile.properties && Object.keys(tile.properties).length > 0) tileProperties.set(globalId, tile.properties);
             if (tile.collision) {
                 // Plain solid boxes greedy-merge; everything richer spawns per-tile.
                 if (isPlainBox(tile.collision)) collidable.push(globalId);
@@ -182,5 +186,5 @@ export function resolveTilesetModel(tilesets: ResolvedTileset[]): TilesetModel {
     }
 
     collidable.sort((a, b) => a - b);
-    return { slots, animations, collidableTileIds: collidable, tileShapes };
+    return { slots, animations, collidableTileIds: collidable, tileShapes, tileProperties };
 }

@@ -42,7 +42,7 @@ export const setupNav = defineSystem([Res(Nav)], (nav) => {
 
 若想从已绘制的瓦片地图推导网格,而不是手写掩码,用 `navGridFromTilemapLayer`(把某图层的
 实心瓦片视作阻挡)或 `navGridFromTiles`。`grid.setWalkable(x, y, false)` 随时可以关掉一格
-——门关上了、塔造起来了——下一次规划就会绕开它。
+——门关上了、塔造起来了——下一次规划就会绕开它。[可破坏瓦片地图](/docs/zh-cn/world/tilemaps/#可破坏瓦片地图)会让网格自动跟上挖掉和建起的东西。
 
 格子上的路线在交出去之前会先**拉直**:A\* 是一格一步作答的,只有路线真正需要转弯的那些格
 留了下来。抄近道只走搜索本身能走的线——线经过的每一格都容得下这个身体,而对角线要求它

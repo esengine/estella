@@ -42,8 +42,9 @@ const V1_HEADER_BYTES = 8;
  * One cell from one encoding into another: the id it holds and the three flags
  * it carries, at the positions this reader uses. -1 where the id does not FIT a
  * narrowed mask — the only honest answers there are the tile or a refusal.
+ * `from` is `[chunkSize, idMask, flipH, flipV, flipD]`.
  */
-function recodeCell(word: number, from: number[]): number {
+export function recodeCell(word: number, from: readonly number[]): number {
     const id = word & from[1]!;
     if (id > TILE_ID_MASK) return -1;
     let next = id;

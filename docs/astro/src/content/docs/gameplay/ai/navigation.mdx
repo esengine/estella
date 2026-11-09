@@ -44,7 +44,8 @@ export const setupNav = defineSystem([Res(Nav)], (nav) => {
 To derive a grid from a painted tilemap instead of hand-authoring the mask, use
 `navGridFromTilemapLayer` (which cells a layer's solid tiles block) or
 `navGridFromTiles`. `grid.setWalkable(x, y, false)` closes a cell at any time — a
-door shuts, a tower goes up — and the next plan routes around it.
+door shuts, a tower goes up — and the next plan routes around it. A
+[destructible tilemap](/docs/world/tilemaps/#destructible-tilemaps) keeps a grid in step with what is dug and built by itself.
 
 A route over a grid is **string-pulled** before it is handed back: A\* answers in
 steps of one cell, and only the cells where the route actually has to turn survive.

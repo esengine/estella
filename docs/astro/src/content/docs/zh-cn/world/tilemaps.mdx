@@ -299,6 +299,49 @@ Tiled 地图享受同等待遇:在 **Tiled 瓦片碰撞编辑器** 里画的形�
 游戏代码通过与任意绘制层相同的[碰撞查询](#tilemaps-api-参考)读取碰撞层——`isTileSolid`、
 `tileCollisionAt`、`tileCollisionAtWorld`——所以下游完全不必知道这些格子来自内置调色板。
 
+## 可破坏瓦片地图
+
+`setTile` 只改一格。沙盒、采矿、生存类游戏还需要后面跟着变的东西:要敲几下才碎的瓦片、爆炸、重新拼接的边缘、会变的路线,以及记得这一切的存档。`createDestructibleTilemap`
+能把任意图层开放给这些操作,图层本身仍是普通图层。
+
+```typescript
+import { createDestructibleTilemap, peeringRetile } from 'esengine/tilemap';
+
+const ground = createDestructibleTilemap(app, layer, {
+  hardness: id => (id === BEDROCK ? Infinity : 3),  // 也可以写在瓦片的 `hardness` 属性上
+  replaceWith: id => (id === STONE ? RUBBLE : 0),   // 瓦片碎掉后留下什么
+  retile: peeringRetile(tileset),                   // 邻居重新解析边缘
+});
+
+ground.dig(x, y, 1);                                // 敲一下:{ damage, hardness, destroyed }
+ground.digAtWorld(wx, wy);                          // 按世界坐标;不给力度就是敲碎任何硬度
+ground.explode(wx, wy, 64, 10, { shielded: true }); // 半径(世界单位),然后是力度
+ground.set(x, y, BRICK);                            // 建造;还有 setMany 和 fillRect
+ground.subscribe(edits => { /* 掉落物、尘土、光照:一次操作的全部改动 */ });
+```
+
+| 改动的是 | 如何跟上 |
+|---|---|
+| **绘制** | 重建该分块的网格。正在被改动的一行分块按每四块一段持有,挖一格只上传一段而不是整行;这一行最后一次改动的 1800 次收集之后,会变回一次绘制。 |
+| **碰撞** | 只替换形状真正变了的碰撞体,所以停在其余部分上的刚体不会收到接触结束,也继续睡眠。地板被毁时,站在上面的东西会被唤醒。 |
+| **自动拼接** | `retile` 会跑过改动的格子和它们的八个邻居。`peeringRetile` 负责边 / 角地形;Wang 地形绘制的是角颜色,所以用它的游戏要给自己的函数。 |
+| **导航** | `ground.createNavGrid({ width, height })` 把网格放在图层绘制的位置并保持同步,每次改动只翻对应的一格;代理会自己重新规划。`syncNavGrid(grid)` 对你自己建的网格做同样的事。瓦片是否阻挡看图层的碰撞,传感器不阻挡。 |
+
+**碰撞轮廓。** 可破坏图层只为露在外面的瓦片生成普通方块碰撞体:四边都被普通方块盖住的瓦片没有碰撞体。实心地面不占刚体,在地表下挖隧道也不会动到地表的碰撞体。因为只有这层壳,放进地面内部的刚体
+不会被挡住。传 `collisionOutline: false` 可以保留合并的实心碰撞体,也可以对任意图层调用 `TilemapRuntime.setCollisionOutline(layer, on)`。只对正交图层生效,其他朝向保持合并碰撞体。
+
+**存档。** `toJSON()` 只保存与图层初始地图不同的格子,以及其他格子上累积的伤害,所以大小取决于玩家改了多少,而不是地图有多大。它是普通 JSON,可以直接交给
+[`SaveManager`](/docs/zh-cn/scripting/save/)。`load()` 会先还原本次会话的改动,再原样恢复存档(不重新拼接);损坏的存档会被整份拒绝,返回 `false`。
+
+**流式世界。** 传 `streamed: true`,并通过它发布分块,而不是直接调用 `setChunkTiles`。生成器做出的内容垫在玩家的改动下面,所以分块放掉再重新生成后仍是离开时的样子,在分块到达前载入的存档也会等它:
+
+```typescript
+ground.publishChunk(cx, cy, generatedTiles);
+ground.releaseChunk(cx, cy);
+```
+
+还没发布的分块不是空地:那里挖不了也写不进去。
+
 ## 对象层
 
 Tiled 的**对象层**(出生点、触发器、区域形状)随地图一起加载。现代的读法是

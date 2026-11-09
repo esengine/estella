@@ -40,6 +40,11 @@ export function _bindTileCollisionLookup(
     lookup_ = lookups[lookups.length - 1]?.fn ?? null;
 }
 
+/** @internal A layer's collision vocabulary, or null when it has none (yet). */
+export function tileCollisionTable(layer: number): LayerCollisionTable | null {
+    return lookup_?.(layer) ?? null;
+}
+
 const PLAIN_BOX: ResolvedTileCollision = { shape: { type: 'box' } };
 
 /**

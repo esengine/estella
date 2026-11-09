@@ -4210,4 +4210,6 @@ export const NOTED = {
     {"note": "A generated building stands on its ground, and generated roads keep foliage off them."},
   "perf(tilemap): a row of tiles being edited uploads a piece of itself":
     {"note": "A row of tiles being edited uploads a piece of itself."},
+  "feat(tilemap): a tile layer can be dug, blown up and rebuilt while the game runs":
+    {"note": "A tile layer can be dug, blown up and rebuilt while the game runs."},
 };

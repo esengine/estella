@@ -15,7 +15,7 @@ import { isCollisionPaletteRef, buildCollisionPaletteModel, parseCollisionMateri
 import { _bindTileCollisionLookup, type LayerCollisionTable } from './tileQuery';
 import type { ResolvedTileCollision } from './tilesetResolve';
 import {
-    generateChunkCollision, generateChunkTileShapes,
+    chunkColliderPlan, exposedCollisionTiles,
     spawnObjectRegion, isCollisionObjectGroup, decodeTiledGid, tiledLayerComponent, tiledGridLayout,
 } from './tiledLoader';
 import { decodeTilemapChunks, type DecodedChunk } from './chunkCodec';
@@ -28,10 +28,11 @@ import { playModeOnly } from '../ecs/env';
 import { log } from '../util/logger';
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
-import { usesStagger } from './tileGeometry';
+import { TilemapOrientation, usesStagger } from './tileGeometry';
 
 
 interface CollisionInputs {
+    outline: boolean;
     gridKey: string;
     originX: number;
     originY: number;
@@ -77,7 +78,11 @@ export class TilemapRuntime {
     private sourceDerivedFrom_ = new Map<number, LoadedTilemapSource>();
     /** tilemap entity → the static collider entities derived from its collidable tiles (play-mode only). */
     private collisionEntities_ = new Map<number, Set<Entity>>();
-    private collisionChunks_ = new Map<number, Map<string, { chunk: DecodedChunk; entities: Entity[] }>>();
+    private collisionChunks_ = new Map<number, Map<string, { chunk: DecodedChunk; colliders: Map<string, Entity> }>>();
+    /** Layers whose plain boxes are generated for exposed tiles only. */
+    private collisionOutlines_ = new Set<number>();
+    /** Layer → the `.estileset` property keys last pushed per tile, so a swap can blank the old ones. */
+    private appliedTileProperties_ = new Map<number, Map<number, Record<string, string>>>();
     /** TilemapLayer entity → its baked collidable tile ids (out-of-band scene data; drives native collision). */
     private nativeCollisionIds_ = new Map<number, number[]>();
     /** TilemapLayer entity → per-tile rich collision shapes (global id → resolved
@@ -266,6 +271,8 @@ export class TilemapRuntime {
                         animatedLayers.delete(entity);
                         this.queryTableCache_.delete(entity);
                         this.derivedLayers_.delete(entity);
+                        this.collisionOutlines_.delete(entity);
+                        this.appliedTileProperties_.delete(entity);
                     }
                 }
 
@@ -378,6 +385,7 @@ export class TilemapRuntime {
                                 animatedLayers.add(entity);
                             }
                             if (model.animations.size === 0) animatedLayers.delete(entity);
+                            this.applyTileProperties_(TilemapAPI, entity, model.tileProperties ?? new Map());
                             if (model.collidableTileIds.length > 0) {
                                 nativeCollisionIds.set(entity, model.collidableTileIds);
                             } else {
@@ -653,9 +661,20 @@ export class TilemapRuntime {
         }
     }
 
+    /** The native store has no way to forget a property, and an empty value reads the same as none. */
+    private applyTileProperties_(tiles: ReturnType<typeof createTilemapAPI>, entity: number, next: Map<number, Record<string, string>>): void {
+        for (const [tileId, props] of this.appliedTileProperties_.get(entity) ?? []) {
+            for (const key of Object.keys(props)) if (next.get(tileId)?.[key] === undefined) tiles.setTileProperty(entity, tileId, key, '');
+        }
+        for (const [tileId, props] of next) for (const [key, value] of Object.entries(props)) tiles.setTileProperty(entity, tileId, key, value);
+        if (next.size > 0) this.appliedTileProperties_.set(entity, next);
+        else this.appliedTileProperties_.delete(entity);
+    }
+
     private syncLayerCollision_(world: World, entity: Entity, layer: TilemapLayerData, ppu: number, playMode: boolean): void {
         if (!playMode || !this.toolkit_) return;
         const ids = this.nativeCollisionIds_.get(entity), shapes = this.nativeTileShapes_.get(entity);
+        const outline = this.collisionOutlines_.has(entity) && (layer.orientation ?? 0) === TilemapOrientation.Orthogonal;
         const hasBoxes = !!ids?.length, hasShapes = !!shapes?.size;
         const current = this.collisionEntities_.get(entity);
         if (!hasBoxes && !hasShapes) {
@@ -669,7 +688,7 @@ export class TilemapRuntime {
         const gridKey = `${layer.orientation ?? 0}|${layer.hexSideLength ?? 0}|${layer.staggerAxis ?? 0}|${layer.staggerIndex ?? 0}`;
         const originX = layer.originOffset?.x ?? 0, originY = layer.originOffset?.y ?? 0;
         const previous = this.collisionInputs_.get(entity);
-        const rebuild = !previous || previous.generation !== generation
+        const rebuild = !previous || previous.generation !== generation || previous.outline !== outline
             || previous.gridKey !== gridKey || previous.width !== layer.cellSize.x || previous.height !== layer.cellSize.y
             || previous.pixelsPerUnit !== ppu || previous.ids !== ids || previous.shapes !== shapes;
         const sameContent = previous && generation !== undefined && revision !== undefined
@@ -691,31 +710,48 @@ export class TilemapRuntime {
         }
         const layout = { orientation: layer.orientation ?? 0, hexSideLength: layer.hexSideLength ?? 0,
             staggerAxisX: layer.staggerAxis === 1, staggerIndexEven: layer.staggerIndex === 1 };
-        const groups = this.collisionChunks_.get(entity) ?? new Map<string, { chunk: DecodedChunk; entities: Entity[] }>();
-        const all = this.collisionEntities_.get(entity) ?? new Set<Entity>(), keys = new Set<string>();
-        const remove = (group: { entities: Entity[] }) => {
-            for (const collider of group.entities) { all.delete(collider); if (world.valid(collider)) world.despawn(collider); }
-        };
-        const boxIds = new Set(ids);
-        for (const chunk of chunks) {
-            const key = `${chunk.x},${chunk.y}`; keys.add(key);
+        const groups = this.collisionChunks_.get(entity) ?? new Map<string, { chunk: DecodedChunk; colliders: Map<string, Entity> }>();
+        const all = this.collisionEntities_.get(entity) ?? new Set<Entity>();
+        const remove = (collider: Entity) => { all.delete(collider); if (world.valid(collider)) world.despawn(collider); };
+        const live = new Map<string, DecodedChunk>(chunks.map(chunk => [`${chunk.x},${chunk.y}`, chunk]));
+        const dirty = new Set<string>();
+        for (const [key, chunk] of live) {
             const old = groups.get(key);
             if (old && (old.chunk.tiles === chunk.tiles || old.chunk.tiles.length === chunk.tiles.length
                 && old.chunk.tiles.every((value, index) => value === chunk.tiles[index]))) continue;
-            if (old) remove(old);
-            const spawned: Entity[] = [];
-            if (hasBoxes) for (const collider of generateChunkCollision(world, [chunk], boxIds, layer.cellSize.x, layer.cellSize.y,
-                originX, originY, ppu, layout)) spawned.push(collider);
-            if (hasShapes) for (const collider of generateChunkTileShapes(world, [chunk], shapes!, layer.cellSize.x, layer.cellSize.y,
-                originX, originY, ppu, layout)) spawned.push(collider);
-            this.attachCollision_(world, entity, spawned);
-            for (const collider of spawned) all.add(collider);
-            groups.set(key, { chunk, entities: spawned });
+            dirty.add(key);
         }
-        for (const [key, old] of groups) if (!keys.has(key)) { remove(old); groups.delete(key); }
+        for (const key of groups.keys()) if (!live.has(key)) dirty.add(key);
+        // Whether a chunk's edge tile is buried is the next chunk's answer too.
+        if (outline) for (const key of [...dirty]) {
+            const [x, y] = key.split(',').map(Number) as [number, number];
+            dirty.add(`${x - 1},${y}`); dirty.add(`${x + 1},${y}`); dirty.add(`${x},${y - 1}`); dirty.add(`${x},${y + 1}`);
+        }
+        const boxIds = new Set(hasBoxes ? ids : []), richShapes = hasShapes ? shapes! : new Map<number, ResolvedTileCollision>();
+        for (const key of dirty) {
+            const chunk = live.get(key), old = groups.get(key);
+            if (!chunk) {
+                if (old) { for (const collider of old.colliders.values()) remove(collider); groups.delete(key); }
+                continue;
+            }
+            const boxTiles = outline
+                ? exposedCollisionTiles(chunk, boxIds, (cx, cy) => live.get(`${cx},${cy}`)?.tiles) : chunk.tiles;
+            const plan = chunkColliderPlan(chunk, boxTiles, boxIds, richShapes, layer.cellSize.x, layer.cellSize.y, originX, originY, ppu, layout);
+            const colliders = new Map<string, Entity>(), spawned: Entity[] = [];
+            for (const [shape, collider] of old?.colliders ?? []) {
+                if (plan.has(shape)) colliders.set(shape, collider); else remove(collider);
+            }
+            for (const [shape, spawn] of plan) {
+                if (colliders.has(shape)) continue;
+                const collider = spawn(world);
+                colliders.set(shape, collider); spawned.push(collider); all.add(collider);
+            }
+            this.attachCollision_(world, entity, spawned);
+            groups.set(key, { chunk, colliders });
+        }
         this.collisionChunks_.set(entity, groups);
         this.collisionEntities_.set(entity, all);
-        this.collisionInputs_.set(entity, { generation, revision, gridKey, originX, originY,
+        this.collisionInputs_.set(entity, { outline, generation, revision, gridKey, originX, originY,
             width: layer.cellSize.x, height: layer.cellSize.y, pixelsPerUnit: ppu, ids, shapes, native });
     }
 
@@ -742,7 +778,7 @@ export class TilemapRuntime {
             this.derivedLayers_.delete(child);
             this.nativeCollisionIds_.delete(child); this.nativeTileShapes_.delete(child);
             this.collisionEntities_.delete(child); this.collisionInputs_.delete(child);
-            this.collisionChunks_.delete(child);
+            this.collisionChunks_.delete(child); this.collisionOutlines_.delete(child);
             this.appliedCellSize_.delete(child); this.appliedGrid_.delete(child);
             // An owner despawn cascades to its children; only a component
             // removal leaves them alive to clean up here.
@@ -762,6 +798,15 @@ export class TilemapRuntime {
         this.applyTilesetRefs_?.(entity, refs);
     }
 
+    /**
+     * Generates a layer's plain boxes for exposed tiles only, so ground dug far below a surface leaves the surface's colliders alone and solid ground costs no bodies.
+     * Nothing stops a body placed inside the ground, since the shell is all there is. Only orthogonal layers follow it.
+     */
+    setCollisionOutline(entity: number, outline: boolean): void {
+        if (outline) this.collisionOutlines_.add(entity);
+        else this.collisionOutlines_.delete(entity);
+    }
+
     resetLayers(): void {
         for (const entity of this.initializedLayers_) {
             this.toolkit_?.destroyLayer(entity);
@@ -777,6 +822,8 @@ export class TilemapRuntime {
         this.collisionEntities_.clear();
         this.collisionInputs_.clear();
         this.collisionChunks_.clear();
+        this.collisionOutlines_.clear();
+        this.appliedTileProperties_.clear();
         this.nativeCollisionIds_.clear();
         this.nativeTileShapes_.clear();
         this.tilesetRefs_.clear();

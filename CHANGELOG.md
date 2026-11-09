@@ -14,9 +14,19 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A tile layer can be dug, blown up and rebuilt while the game runs.** `createDestructibleTilemap` in `esengine/tilemap` gives a layer tiles with hardness that wear down over several blows, circular explosions with falloff that walls can shelter from, and placing and filling, with one list of what changed for drops and effects. The neighbouring autotiles re-resolve, `createNavGrid` or `syncNavGrid` keeps a navigation grid in step one cell at a time, and `toJSON` and `load` save only the cells that differ from the map it started as, refusing a damaged save whole. On a streamed world, `publishChunk` lays a player's changes over what the generator made, so a chunk let go and made again comes back as it was left.
+- **Solid tile ground can have colliders only where it is exposed.** `TilemapRuntime.setCollisionOutline` generates plain boxes for tiles with an open side, so solid ground costs no bodies and a tunnel below a surface leaves the surface's colliders alone. A destructible layer turns it on; `collisionOutline: false` keeps merged ground.
+
 ### Changed
 
+- **Editing a tile no longer replaces the colliders around it.** A tile edit used to destroy and remake every collider in its chunk, which ended a body's contact with the floor it stood on and woke what was asleep there. Now only the colliders whose shape changed are replaced.
 - **A row of tiles being edited uploads a piece of itself.** One changed tile re-uploaded its whole row of chunks, over a megabyte when the row is full. A row that changes is now held in pieces of four chunks, so an edit uploads about an eighth of that, for up to seven more draws in that row until it has rested. A static map is drawn as before.
+
+### Fixed
+
+- **A tile's custom properties in an `.estileset` reach the game.** `getTileProperty` answered nothing on a layer painted from an `.estileset`; only Tiled maps carried them. Replacing a tileset blanks the properties of the old one.
 
 ## [0.100.0] - 2026-11-08
 
