@@ -37,6 +37,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Returning from Prefab Mode keeps the current scene intact.** A delayed file-watcher read or discard prompt for an earlier document no longer reloads the scene now being edited, invalidates freshly reverted prefab instances, or overwrites a newer save's baseline.
 - **Simplifying a mesh preserves painted features.** Vertex colours participate in simplification so a small painted feature is not treated like an otherwise identical, unpainted surface.
 - **A streamed world finishes retiring before it is replaced.** Teardown drains pending cell work and releases its scene resources before another world takes over, for both 2D and 3D content.
 - **Batched and instanced meshes keep their visibility and shadows.** Batches preserve each part's shadow participation, and placement bounds include rotation, scale, shear, usable LODs and declared vertex displacement when culling and fitting shadow maps.
