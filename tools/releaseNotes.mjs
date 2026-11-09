@@ -4226,6 +4226,8 @@ export const NOTED = {
     {"note": "Plants can be touched, felled and harvested."},
   "feat(particles): GPU particles collide with scene depth and distance functions, fire sub-emitters from an event buffer, and drag trails":
     {"note": "GPU particles can hit things, tell each other, and drag trails."},
+  "feat(particles): draw a ParticleCollider's shape, and check GPU particle collision, events and trails in real frames":
+    {"note": "GPU particles can hit things, tell each other, and drag trails."},
   "fix(assets): one hot load at a time per asset, so two rescans cannot lose a texture":
     {"note": "A texture stays on a scene that rescans as it is placed."},
   "feat(rig): the 2D rig editor, from an image to a character in the scene":
