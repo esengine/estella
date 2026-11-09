@@ -34,6 +34,7 @@ import { flattenModifier } from '../terrain/source';
 import { buildBillboardMesh, buildInstancedMesh, type Plant } from '../foliage/builder';
 import { chunksOf, ProceduralChunksRes, streamingSourcesOf, type ChunkLayerStatus, type ChunkSource } from '../residency/chunks';
 import { plantGrowthOf, prepareKinds, type GrownCell, type ReadyKinds } from '../foliage/plantGrowth';
+import { plantInteractionOf } from '../foliage/plantInteraction';
 import { PlanetRegistryRes, type PlanetFacts } from '../terrain/planetQuery';
 import { faceOf } from '../terrain/sphere';
 import { Environment } from './fields';
@@ -864,7 +865,7 @@ export class WorldGenPlugin implements Plugin {
                     if (k < 0) continue;
                     let list = by.get(k);
                     if (!list) by.set(k, list = []);
-                    list.push({ x: p.x - out.at[0], y: p.y - out.at[1] - plants.sinkOf(p.plant), z: p.z - out.at[2], yaw: p.yaw, scale: p.scale * plants.unitOf(p.plant), phase: 0, shade: 1,
+                    list.push({ ...(plants.kinds[k]?.interaction ? { key: p.id } : {}), x: p.x - out.at[0], y: p.y - out.at[1] - plants.sinkOf(p.plant), z: p.z - out.at[2], yaw: p.yaw, scale: p.scale * plants.unitOf(p.plant), phase: 0, shade: 1,
                         ...(leanOf(p) ? { up: leanOf(p)! } : {}) });
                 }
                 if (by.size > 0) out.planted = by;
@@ -928,8 +929,15 @@ export class WorldGenPlugin implements Plugin {
             chunk.entities.push(e);
             chunk.grown = { entity: e, handles: [], dead: false };
             const growth = plantGrowthOf(app);
+            const interactive = built.plants.kinds.some((k) => k.interaction);
+            if (interactive) chunk.grown.sets = [];
             if (chunk.far) growth.growFar(app, chunk.grown, built.plants.kinds, built.plantsReady, chunk.planted, { x: chunk.at[0], z: chunk.at[2], half: chunk.side / 2 }, chunk.thinnedBy);
             else growth.growCell(app, chunk.grown, built.plants.kinds, built.plantsReady, chunk.planted);
+            if (interactive) {
+                const source = `world:${built.data.world}`;
+                if (chunk.far) plantInteractionOf(app).addFarCell(chunk.grown, source, built.plants.kinds, built.plantsReady);
+                else plantInteractionOf(app).addCell(chunk.grown, source, built.plants.kinds, built.plantsReady, chunk.planted, chunk.side / 2);
+            }
         }
         for (const d of chunk.decor) {
             const handle = assets?.createMesh(d.data) ?? 0;

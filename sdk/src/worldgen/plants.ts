@@ -34,11 +34,16 @@ export function expandPlants(plants: Readonly<Record<string, PlantKind>>): Plant
         const first = kinds.length;
         for (const t of tints) {
             const tint = (part: PlacedKind['parts'][number]): PlacedKind['parts'][number] => ({ ...part, tint: [part.tint[0] * t[0], part.tint[1] * t[1], part.tint[2] * t[2], part.tint[3]] });
-            kinds.push({ parts: p.parts.map(tint), lodDistance: p.lodDistance, ...(p.lod2Distance === undefined ? {} : { lod2Distance: p.lod2Distance }), drawDistance: p.drawDistance, far: p.far.map(tint), farDistance: p.farDistance, ...(p.farKeep === undefined ? {} : { farKeep: p.farKeep }) });
+            kinds.push({ parts: p.parts.map(tint), lodDistance: p.lodDistance, ...(p.lod2Distance === undefined ? {} : { lod2Distance: p.lod2Distance }), drawDistance: p.drawDistance, far: p.far.map(tint), farDistance: p.farDistance, ...(p.farKeep === undefined ? {} : { farKeep: p.farKeep }), ...(p.interaction ? { interaction: p.interaction } : {}) });
         }
         slots.set(name, { first, count: tints.length, scale: p.tintScale ?? 1300, seed: hashString(name), sink: p.sink ?? 0, unit: p.unit ?? 1 });
         reach = Math.max(reach, p.drawDistance, p.far.length > 0 ? p.farDistance : 0);
         if (p.far.length > 0 && p.farDistance > p.drawDistance) span = span > 0 ? Math.min(span, p.farDistance - p.drawDistance) : p.farDistance - p.drawDistance;
+    }
+    // A kind a plant turns into is named in the rules, and is a place in the list only now it has been made.
+    const indexOf = (kind: number | string | undefined): number | string | undefined => (typeof kind === 'string' ? slots.get(kind)?.first : kind);
+    for (const k of kinds) {
+        if (k.interaction) k.interaction = { ...k.interaction, felledKind: indexOf(k.interaction.felledKind), harvestedKind: indexOf(k.interaction.harvestedKind) };
     }
     return {
         kinds, reach, span,

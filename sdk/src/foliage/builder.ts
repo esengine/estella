@@ -30,6 +30,10 @@ export interface Plant {
     shade: number;
     /** The ground's normal it leans with (a stone on a slope), after its turn; upright when absent. */
     up?: readonly [number, number, number];
+    /** Who it is, within what grew it: what became of it is kept against this. Only a kind that can be touched has one. */
+    key?: string;
+    /** How far it leans, sideways per unit of height along x and z: a shear, so any material bends with it. */
+    shear?: readonly [number, number];
 }
 
 /** What a place is, as the ground answers: how high it is and how much it faces up. */
@@ -321,6 +325,10 @@ export function buildPlacements(plants: readonly Plant[]): Float32Array {
             column[2] = c === 0 ? -sin : c === 2 ? cos : 0;
             if (lean) lean(column);
             for (let row = 0; row < 3; row++) out[at + row * 4 + c] = column[row]! * scale;
+        }
+        if (plant.shear) {
+            out[at + 1] = out[at + 1]! + plant.shear[0] * scale;
+            out[at + 9] = out[at + 9]! + plant.shear[1] * scale;
         }
         out[at + 3] = plant.x;
         out[at + 7] = plant.y;

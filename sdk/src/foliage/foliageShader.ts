@@ -34,13 +34,37 @@ const FOLIAGE = `#pragma shader "Foliage"
 // Grass thins out toward the distance its cells switch to their far version (the Foliage component writes it; 0 thins nothing): each blade
 // by its own random key, down to the third the far version keeps, so a near cell beside a far one is not three times as dense.
 #pragma param u_thinDistance float default(0) range(0,1000000) ui(slider)
+// How far plants part from what touches them, as a share of its reach. The four contacts are written each frame (a FoliageContact): where each is, and how far it reaches now.
+#pragma param u_contactBend float default(0.7) range(0,2) ui(slider)
+#pragma param u_contact0 vec4 default(0,0,0,0)
+#pragma param u_contact1 vec4 default(0,0,0,0)
+#pragma param u_contact2 vec4 default(0,0,0,0)
+#pragma param u_contact3 vec4 default(0,0,0,0)
 #pragma vertexbounds 30
 #pragma vertexoffset
+// How far one contact parts a vertex: away from it on the ground, most near it and nothing at its reach or far above or below it.
+vec2 foliageContactPush(vec4 contact, vec3 at) {
+    if (contact.w <= 0.0) return vec2(0.0);
+    vec2 away = at.xz - contact.xz;
+    float len = length(away);
+    float near = clamp(1.0 - len / contact.w, 0.0, 1.0);
+    float level = 1.0 - smoothstep(contact.w * 1.2, contact.w * 2.0, abs(at.y - contact.y));
+    return len > 1e-4 ? away / len * near * near * (3.0 - 2.0 * near) * level * contact.w : vec2(0.0);
+}
 void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
     float weight = es_vertexColor.r;
     float phase = es_vertexColor.g * 6.2831853;
     // The wind is in the world, so its phase is by the world's own position, not the render origin's.
     vec3 anchor = (esInstanceModel() * vec4(local, 1.0)).xyz + u_renderOrigin.xyz;
+    vec2 parted = foliageContactPush(u_contact0, anchor) + foliageContactPush(u_contact1, anchor)
+        + foliageContactPush(u_contact2, anchor) + foliageContactPush(u_contact3, anchor);
+    // Bounded so a blade cannot leave what its cell's bounds allow for; the wind has the rest of that.
+    float partedLen = length(parted);
+    if (partedLen > 0.0) {
+        parted *= min(partedLen * u_contactBend, 24.0) / partedLen * weight;
+        local.xz += parted;
+        local.y -= length(parted) * 0.6 * weight;
+    }
     float angle = radians(u_windDirection);
     vec2 dir = vec2(sin(angle), cos(angle));
     float t = u_time.x * u_windSpeed;
@@ -62,10 +86,28 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
 #pragma end
 
 #pragma vertexoffset wgsl
+fn foliageContactPush(contact : vec4f, at : vec3f) -> vec2f {
+    if (contact.w <= 0.0) { return vec2f(0.0); }
+    let away = at.xz - contact.xz;
+    let len = length(away);
+    let near = clamp(1.0 - len / contact.w, 0.0, 1.0);
+    let level = 1.0 - smoothstep(contact.w * 1.2, contact.w * 2.0, abs(at.y - contact.y));
+    if (len <= 1e-4) { return vec2f(0.0); }
+    return away / len * near * near * (3.0 - 2.0 * near) * level * contact.w;
+}
 fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, vec3f>, uv : vec2f) {
     let weight = es_vertexColor.r;
     let phase = es_vertexColor.g * 6.2831853;
     let anchor = (esInstanceModel() * vec4f(*local, 1.0)).xyz + frame.renderOrigin.xyz;
+    var parted = foliageContactPush(mc.u_contact0, anchor) + foliageContactPush(mc.u_contact1, anchor)
+        + foliageContactPush(mc.u_contact2, anchor) + foliageContactPush(mc.u_contact3, anchor);
+    let partedLen = length(parted);
+    if (partedLen > 0.0) {
+        parted = parted * min(partedLen * mc.u_contactBend, 24.0) / partedLen * weight;
+        (*local).x = (*local).x + parted.x;
+        (*local).z = (*local).z + parted.y;
+        (*local).y = (*local).y - length(parted) * 0.6 * weight;
+    }
     let angle = radians(mc.u_windDirection);
     let dir = vec2f(sin(angle), cos(angle));
     let t = tc.u_time.x * mc.u_windSpeed;

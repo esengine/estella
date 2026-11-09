@@ -17,7 +17,7 @@
 import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { defineResource } from '../ecs/resource';
-import { defineComponent, RuntimeOnly, Transform, type ComponentDef, type TransformData } from '../ecs/component';
+import { defineComponent, getComponent, RuntimeOnly, Transform, type ComponentDef, type TransformData } from '../ecs/component';
 import { Assets } from '../asset/AssetPlugin';
 import { log } from '../util/logger';
 import { chunksOf, ProceduralChunksRes } from '../residency/chunks';
@@ -25,6 +25,7 @@ import type { Entity } from '../types';
 import type { Plant } from './builder';
 import { PLACED_STRIDE, type PlacedKind, type PlacedPart } from './plantKind';
 import { plantGrowthOf, prepareKinds, releaseKinds, type GrownCell, type ReadyKinds } from './plantGrowth';
+import { plantInteractionOf } from './plantInteraction';
 
 export { PLACED_STRIDE, type PlacedKind, type PlacedPart };
 
@@ -35,6 +36,8 @@ export interface PlacedFoliageData {
     cellSize: number;
     kinds: PlacedKind[];
     records: number[];
+    /** The name a save keeps what became of these plants under. Empty takes the entity's name. */
+    stateKey: string;
 }
 
 /**
@@ -43,7 +46,7 @@ export interface PlacedFoliageData {
  * @experimental
  */
 export const PlacedFoliage: ComponentDef<PlacedFoliageData> = defineComponent<PlacedFoliageData>('PlacedFoliage', {
-    sizeX: 256, sizeZ: 256, cellSize: 32, kinds: [] as PlacedKind[], records: [] as number[],
+    sizeX: 256, sizeZ: 256, cellSize: 32, kinds: [] as PlacedKind[], records: [] as number[], stateKey: '',
 }, {
     // The kinds name meshes, materials and textures inside a list, which the component's own fields cannot declare; they are listed here
     // so a package carries them, and loaded by path when a cell is grown.
@@ -71,6 +74,7 @@ export const PlacedFoliage: ComponentDef<PlacedFoliageData> = defineComponent<Pl
         cellSize: { min: 4, category: 'Area', tooltip: 'Side of the cells the area is cut into. Each kind in a cell is one mesh a part, culled whole.' },
         kinds: { category: 'Plants', tooltip: 'What each kind of plant is made of: its parts (mesh, cheaper mesh, material, texture, tint) and how far it is drawn.' },
         records: { category: 'Plants', tooltip: 'Where each plant stands: kind index, x, y, z, turn about the vertical in radians and scale, six numbers a plant, in this entity\'s space.' },
+        stateKey: { category: 'Plants', tooltip: 'The name a save keeps what became of these plants under. Empty takes the entity\'s name.' },
     },
 });
 
@@ -198,6 +202,12 @@ export class PlacedFoliagePlugin implements Plugin {
         const cells = this.cellsAcross(data);
         const sx = t.worldScale.x || 1, sz = t.worldScale.z || 1;
         const growth = plantGrowthOf(app), chunks = chunksOf(app);
+        const interactive = data.kinds.some((k) => k.interaction);
+        const sourceOf = (): string => {
+            const name = getComponent('Name');
+            const named = name && app.world.has(entity, name) ? (app.world.get(entity, name) as { value?: string }).value : '';
+            return `placed:${data.stateKey || named || entity}`;
+        };
         let reach = 1, farReach = 0;
         for (const kind of data.kinds) { reach = Math.max(reach, kind.drawDistance); if ((kind.far?.length ?? 0) > 0) farReach = Math.max(farReach, kind.farDistance); }
         const generation = `${built.epoch}:${t.worldPosition.x}:${t.worldPosition.y}:${t.worldPosition.z}:${sx}:${sz}`;
@@ -222,7 +232,11 @@ export class PlacedFoliagePlugin implements Plugin {
             make: (cx, cz) => {
                 if (!built.ready) return null;
                 const made = spawn(cx, cz, 'PlacedCell');
-                if (made?.by) growth.growCell(app, made.cell, data.kinds, built.ready, made.by);
+                if (made?.by) {
+                    if (interactive) made.cell.sets = [];
+                    growth.growCell(app, made.cell, data.kinds, built.ready, made.by);
+                    if (interactive) plantInteractionOf(app).addCell(made.cell, sourceOf(), data.kinds, built.ready, made.by, Math.max(data.sizeX / cells.x * sx, data.sizeZ / cells.z * sz) / 2);
+                }
                 return made?.cell ?? null;
             },
             publish: (_cx, _cz, cell) => { if (cell.entity !== null) app.world.setParent(cell.entity, entity); },
@@ -235,7 +249,11 @@ export class PlacedFoliagePlugin implements Plugin {
             make: (cx, cz) => {
                 if (!built.ready) return null;
                 const made = spawn(cx, cz, 'FarCell');
-                if (made?.by) growth.growFar(app, made.cell, data.kinds, built.ready, made.by, made.at);
+                if (made?.by) {
+                    if (interactive) made.cell.sets = [];
+                    growth.growFar(app, made.cell, data.kinds, built.ready, made.by, made.at);
+                    if (interactive) plantInteractionOf(app).addFarCell(made.cell, sourceOf(), data.kinds, built.ready);
+                }
                 return made?.cell ?? null;
             },
             publish: (_cx, _cz, cell) => { if (cell.entity !== null) app.world.setParent(cell.entity, entity); },
@@ -247,6 +265,7 @@ export class PlacedFoliagePlugin implements Plugin {
     private sort(built: BuiltPlaced, cells: { x: number; z: number }): Map<number, Map<number, Plant[]>> {
         if (built.cells) return built.cells;
         const data = built.data, a = data.records;
+        const keyed = data.kinds.some((k) => k.interaction);
         const w = data.sizeX / cells.x, d = data.sizeZ / cells.z;
         const sorted = new Map<number, Map<number, Plant[]>>();
         for (let i = 0; i + PLACED_STRIDE <= a.length; i += PLACED_STRIDE) {
@@ -258,7 +277,7 @@ export class PlacedFoliagePlugin implements Plugin {
             if (!byKind) sorted.set(key, byKind = new Map());
             let list = byKind.get(kind);
             if (!list) byKind.set(kind, list = []);
-            list.push({ x, y: a[i + 2]!, z, yaw: a[i + 4]!, scale: a[i + 5]!, phase: 0, shade: 1 });
+            list.push({ x, y: a[i + 2]!, z, yaw: a[i + 4]!, scale: a[i + 5]!, phase: 0, shade: 1, ...(keyed && data.kinds[kind]?.interaction ? { key: String(i / PLACED_STRIDE) } : {}) });
         }
         built.cells = sorted;
         return sorted;

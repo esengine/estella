@@ -198,6 +198,7 @@ const DISPOSITION = {
   'ParticleEmitter.collisionMaxDistance': ['no-place', 'query culling threshold relative to the nearest active camera, not an emitter extent'],
   'CharacterController2D.skinWidth': ['no-place', 'a contact skin held off the collider; drawn, it is that outline\'s own line width'],
   'CharacterController2D.stepHeight': ['no-place', 'the highest ledge it walks up: a limit on motion, not a volume'],
+  'FoliageContact.radius': ['no-place', 'how far plants lean from it, seen on the plants themselves; a ring drawn for it would sit under the grass'],
   'CharacterController3D.stepHeight': ['no-place', 'the tallest step it will climb — a limit on motion, not a volume'],
   'NavVolume.cellSize': ['no-place', 'the voxel the box is diced into; the box is what has a place'],
   'NavVolume.cellHeight': ['no-place', 'the voxel the box is diced into; the box is what has a place'],

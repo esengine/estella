@@ -4222,6 +4222,8 @@ export const NOTED = {
     {"note": "A 2D character can be rigged in the editor, with no other program."},
   "feat(physics): a side-on character runs, jumps and forgives, on a mover that handles slopes, ledges and platforms":
     {"note": "A side-on character comes ready to run and jump."},
+  "feat(foliage): plants part for what touches them, come near as entities with colliders, and can be felled and harvested":
+    {"note": "Plants can be touched, felled and harvested."},
   "fix(assets): one hot load at a time per asset, so two rescans cannot lose a texture":
     {"note": "A texture stays on a scene that rescans as it is placed."},
   "feat(rig): the 2D rig editor, from an image to a character in the scene":

@@ -67,6 +67,54 @@ MCP 的 `audit_vegetation` 会给出配置上限和当前绘制统计。先用 `
 
 植物是直立、等比缩放的，记录里没有倾斜。`kinds` 里的路径是项目路径，列出来是为了让包带上它们。
 
+## 触碰植物
+
+森林不可能全是实体，也不需要：能被碰到的只有附近的东西。给角色（或其他植物应该感知的东西）加一个 **`FoliageContact`**。它做两件事，分别对应植物的两种绘制方式。
+
+| 字段 | 作用 |
+|---|---|
+| `radius` | 植物从实体倒开的距离，世界单位。 |
+| `strength` | 力度：1 表示完全倒开。 |
+| `recovery` | 它走后草重新立起来的秒数。 |
+
+**草会分开。** `Foliage` 的一个格子是一个网格，所以弯曲在顶点里算：**Foliage** 着色器接收四个位置（`u_contact0` 到 `u_contact3`），按草叶高度把每片叶子推开，高出或低于接触点越多推得越少。这四个是离流式来源最近的接触点，然后是它们刚离开的位置，这些位置会在 `recovery` 内收拢，所以角色身后留下的是一条慢慢合上的分痕。`u_contactBend` 是叶子分开的距离占接触范围的比例。超过四个时，多余的接触点不会分开任何草，玩家看到的是远处生物周围的草不动。除了加这个组件，不需要打开别的东西。
+
+**放置的植物靠近才激活。** `PlacedFoliage` 或 `WorldRules.plants` 里的种类用 `interaction` 开启。它仍然是 `MeshInstances` 里的一个实例，但接触点在 `activationDistance` 内时，每棵植物还会多一个实体 **`PlantProxy`**，接触点离开后实体消失。画面全程不换手，所以不会跳变。这个实体就是射线或碰撞找到的东西，游戏自己的组件也可以挂上去。
+
+| `interaction` 字段 | 作用 |
+|---|---|
+| `activationDistance` | 接触点多近时植物变成实体，世界单位。0 表示始终是数据。 |
+| `radius`、`height` | 代表它的胶囊体，立在根部，单位是网格单位（乘以缩放）。任一为 0 则没有。 |
+| `bend` | 从接触点倒开的最大角度，弧度。这是对实例矩阵的错切，带弹簧，所以任何材质都能弯，放开时会晃一下。 |
+| `health` | `damage` 要打掉多少才砍倒。0 表示不能这样砍倒。 |
+| `fallSeconds`、`fallAngle`、`lieSeconds` | 倒下用时（默认 1.8）、倒下角度（默认 85 度）、躺多久后沉入地下（默认 30）。 |
+| `felledKind`、`harvestedKind` | 砍倒后留下的种类（树桩）、采完后变成的种类（光秃的灌木）：`kinds` 的下标，或 `WorldRules.plants` 里的名字。不写则什么都不留。 |
+| `yields` | `harvest` 能取多少次。 |
+| `regrowSeconds` | 砍倒或采完后多少秒重新长出，从小长大。0 表示不再长。 |
+
+通过 `esengine/foliage` 的资源访问：
+
+```ts
+import { FoliageContact, PlantInteractionRes } from 'esengine/foliage';
+
+const plants = app.getResource(PlantInteractionRes);
+
+// 这一斧够得着的植物，由近到远。
+const [tree] = plants.near(player.x, player.z, 2);
+if (tree) plants.damage(tree, 25, { x: player.x, z: player.z });   // 血量归零时朝远离这一击的方向倒下
+
+// 射线打到的植物。
+const hit = physics.raycast(eye, forward);
+const plant = hit && plants.of(hit.entity);
+if (plant) inventory.berries += plants.harvest(plant, 1);
+
+plants.on((event) => { if (event.type === 'landed') spawnDust(event.plant); });
+```
+
+砍倒的植物以带自身网格的实体倒下，是绕根部转动的运动学刚体，躺着时会挡住路过的东西；它的实例立刻消失，远景版本也一样。
+
+**植物的结局会保留。** 状态按植物的 key 记录，不按格子，所以砍倒的树在区块卸载再生成后依然是倒的。`plants.saveState()` 把这些都导出成普通数据，包括再生用的时钟；`plants.loadState(state)` 还原，在格子生成前后调用都可以。世界的植物用规划里的位置标识。`PlacedFoliage` 的植物用 `records` 里的下标加 `stateKey`（或实体名）标识，所以除了重排 records，存档都有效；两片植被要起不同的名字。
+
 ## 在包里
 
 植被和地形一样是可选模块:场景里有 `Foliage` 或 `PlacedFoliage` 组件,或脚本导入了 `esengine/foliage`,包里才会带上它。场景里有 `Terrain` 时植被立在地形上;平地上不需要地形模块。
@@ -74,6 +122,9 @@ MCP 的 `audit_vegetation` 会给出配置上限和当前绘制统计。先用 `
 ## 限制
 
 - **只有位置。** 区域被当作不旋转、不缩放;地形的位置和均匀缩放会被跟随,旋转不会。
-- **没有碰撞,也没有交互。** 植物不会被角色压弯;风是唯一能让它们动的东西。
+- **只有放置的植物能砍。** 散布的 `Foliage` 会为接触点分开，但一个格子是一个网格，没有单棵植物可以碰撞、砍伐或采集；要砍的森林请用 `PlacedFoliage` 或 `WorldRules.plants`。
+- **倒下靠规则，不靠求解器。** 它绕根部转到 `fallAngle`，不会贴合斜坡或滚动，所以陡坡上树干可能悬空或插进地里。刚体是运动学的：它推开落点的东西，但没有东西能推它。
+- **碰撞需要 3D 物理模块。** 代理的胶囊体在模块加载后才有，场景里有 `CharacterController3D` 或刚体时会自动加载；没有的话植物仍能弯曲和砍倒，只是没有碰撞。形状只有胶囊体，宽树冠或分叉不会贴合。
+- **倒下中的植物不进存档。** 正在倒的树存为已砍倒，读档后直接消失。
 - **网格的远景版本是卡片,不是 impostor。** 它显示你指定的那个纹理矩形,从各个方向看都一样;纹理里没有这样一张图的树,卡片上就是它的纹理。
 - **格子在每帧预算内生长**,由近及远,所以远处会在一小会儿内填满。

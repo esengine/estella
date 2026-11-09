@@ -28,6 +28,37 @@ export interface PlacedPart {
     castShadows?: boolean;
 }
 
+/**
+ * What a kind of plant does when something comes near. Every length but `activationDistance` is in the plant's own units, multiplied by its scale.
+ *
+ * @experimental
+ */
+export interface PlantInteractionDef {
+    /** How near a `FoliageContact` a plant becomes an entity, in world units. 0 keeps it data, which also leaves it untouchable. */
+    activationDistance?: number;
+    /** The capsule that stands for it to physics, while it is near: its radius and height. Either 0 has none. */
+    radius?: number;
+    height?: number;
+    /** How far it leans from what touches it, in radians. 0 stands firm. */
+    bend?: number;
+    /** What `damage` must take to fell it. 0 cannot be felled that way. */
+    health?: number;
+    /** Seconds it takes to come down. 0 is gone at once. Default 1.8. */
+    fallSeconds?: number;
+    /** How far it comes down, in degrees. Default 85: a crown takes the ground before a trunk does. */
+    fallAngle?: number;
+    /** Seconds it lies before it sinks away. Default 30. */
+    lieSeconds?: number;
+    /** The kind it leaves when felled, a stump: an index into the kinds, or a plant's name in `WorldRules.plants`. Absent leaves nothing. */
+    felledKind?: number | string;
+    /** How many times `harvest` can take from it. 0 cannot be harvested. */
+    yields?: number;
+    /** The kind it becomes with nothing left to take, a bare bush. Absent leaves nothing. */
+    harvestedKind?: number | string;
+    /** Seconds after felling or the last harvest before it stands again, grown back. 0 is never. */
+    regrowSeconds?: number;
+}
+
 /** A kind of plant: its parts, and how far it is drawn. */
 export interface PlacedKind {
     parts: PlacedPart[];
@@ -52,6 +83,8 @@ export interface PlacedKind {
      * cheaper mesh as its far version, thinned.
      */
     farKeep?: number;
+    /** What it does when something comes near. Absent, it is only ever drawn. */
+    interaction?: PlantInteractionDef;
 }
 
 /**

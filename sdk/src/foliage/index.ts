@@ -8,7 +8,11 @@ export {
     type PlacedFoliageData,
 } from './placedFoliage';
 export { PlantGrowth, PlantGrowthRes, plantGrowthOf } from './plantGrowth';
-export { PLACED_STRIDE, type PlacedKind, type PlacedPart, type PlantKind } from './plantKind';
+export { PLACED_STRIDE, type PlacedKind, type PlacedPart, type PlantKind, type PlantInteractionDef } from './plantKind';
+export {
+    FoliageContact, PlantProxy, PlantInteraction, PlantInteractionRes, plantInteractionOf,
+    type FoliageContactData, type PlantProxyData, type PlantRef, type PlantEvent, type PlantState, type PlantSaveState,
+} from './plantInteraction';
 export {
     scatterCell, buildGrassMesh, buildInstancedMesh, buildPlacedMesh, thinPlants, softenNormals, buildBillboardMesh, rng,
     type Plant, type Ground, type ScatterParams, type BladeParams, type CardRect,

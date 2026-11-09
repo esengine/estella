@@ -89,6 +89,60 @@ Ground cover far off then costs a share of what it does near, and the ground's o
 
 Plants stand upright and are scaled uniformly; the records carry no tilt. The paths in `kinds` are the project's, listed so a package carries them.
 
+## Touching plants
+
+A forest cannot be entities and does not need to be: only what stands near something can be touched. Put a **`FoliageContact`** on the character (or anything else plants
+should feel). It does two things, one for each way plants are drawn.
+
+| Field | What it does |
+|---|---|
+| `radius` | How far from the entity plants lean away, in world units. |
+| `strength` | How hard: 1 is a full lean. |
+| `recovery` | Seconds grass takes to stand up again behind it. |
+
+**Grass parts.** A `Foliage` cell is one mesh, so its bend is worked out in the vertices: the **Foliage** shader takes four places (`u_contact0` to `u_contact3`) and moves each blade
+away from them by how far up the blade it is, less the further it stands above or below. The four are the contacts nearest the streaming source, then the places they recently left, which close over `recovery`,
+so a character leaves a parting that closes behind it. `u_contactBend` is how far a blade parts as a share of the contact's reach. A contact past the four does not part anything, which a player sees
+as grass unmoved round a creature far off. Nothing needs to be turned on but the component.
+
+**Placed plants come near.** A kind in `PlacedFoliage` or `WorldRules.plants` opts in with `interaction`. It stays a placement in its `MeshInstances` set, and within `activationDistance` of a contact each plant is also given an entity,
+a **`PlantProxy`**, which goes when the contact does. The picture never changes hands, so nothing pops. The entity is what a ray or a collision finds, and a game's own components can go on it.
+
+| `interaction` field | What it does |
+|---|---|
+| `activationDistance` | How near a contact a plant becomes an entity, in world units. 0 keeps it data. |
+| `radius`, `height` | The capsule that stands for it to physics, standing on its foot, in the mesh's units (multiplied by its scale). Either 0 has none. |
+| `bend` | How far it leans from a contact, in radians. It is a shear of the placement, with a spring, so any material bends with it and it rustles when let go. |
+| `health` | What `damage` must take to fell it. 0 cannot be felled that way. |
+| `fallSeconds`, `fallAngle`, `lieSeconds` | How long it takes to come down (default 1.8), how far (default 85 degrees), and how long it lies before it sinks away (default 30). |
+| `felledKind`, `harvestedKind` | The kind it leaves when felled, a stump, or becomes with nothing left to take, a bare bush: an index into `kinds`, or a plant's name in `WorldRules.plants`. Absent leaves nothing. |
+| `yields` | How many times `harvest` can take from it. |
+| `regrowSeconds` | Seconds after felling or the last harvest before it stands again, growing back from small. 0 is never. |
+
+The plants are reached through a resource, from `esengine/foliage`:
+
+```ts
+import { FoliageContact, PlantInteractionRes } from 'esengine/foliage';
+
+const plants = app.getResource(PlantInteractionRes);
+
+// Whatever an axe swung here reaches, nearest first.
+const [tree] = plants.near(player.x, player.z, 2);
+if (tree) plants.damage(tree, 25, { x: player.x, z: player.z });   // comes down away from the blow at no health left
+
+// What a ray found.
+const hit = physics.raycast(eye, forward);
+const plant = hit && plants.of(hit.entity);
+if (plant) inventory.berries += plants.harvest(plant, 1);
+
+plants.on((event) => { if (event.type === 'landed') spawnDust(event.plant); });
+```
+
+A felled plant comes down as an entity with its own meshes, a kinematic body turning about its foot, so it stops what it lies across while it lies there, and its placement is gone at once, from the far version too.
+
+**What became of a plant lasts.** It is kept against the plant's key, not its cell, so a felled tree is felled when its chunk is let go and grown again. `plants.saveState()` is all of it as plain data, the clock of what is regrowing included, and `plants.loadState(state)` puts it back, before or after the cells are grown.
+A world's plants are known by their places in its plan. A `PlacedFoliage`'s are known by their index in `records` under its `stateKey` (or its entity's name), so a save outlives everything but reordering the records; give two fields different names.
+
 ## In a package
 
 Foliage is an optional module, like terrain: a package carries it when a scene has a `Foliage` or `PlacedFoliage` component or a script imports `esengine/foliage`. It stands on a `Terrain` when the scene has one and needs no terrain module to stand on a flat floor.
@@ -96,7 +150,10 @@ Foliage is an optional module, like terrain: a package carries it when a scene h
 ## Limits
 
 - **Position only.** The area is taken to be unrotated and unscaled; the terrain's position and uniform scale are followed, a rotation is not.
-- **No collision and no interaction.** Plants do not bend away from a character; the wind is the only thing that moves them.
+- **Only placed plants can be felled.** Scattered `Foliage` parts for a contact, but is one mesh a cell, so it has no plants to collide with, fell or harvest: a forest that must be cut is a `PlacedFoliage` or `WorldRules.plants`.
+- **A plant falls by a rule, not by the solver.** It turns about its foot to `fallAngle` and does not settle on a slope or roll, so on steep ground a trunk can stand off the ground or into it. Its body is kinematic: it pushes what it lands on and nothing pushes it.
+- **Collision takes the 3D physics module.** A proxy's capsule is added when the module is loaded, which a scene with a `CharacterController3D` or a body does by itself; without one, plants still lean and can be felled, and nothing collides. A capsule is the one shape: a wide crown or a fork is not followed.
+- **A fallen plant is not in a save.** A tree still coming down is saved as felled, and is gone on loading.
 - **The far version of a mesh is a card, not an impostor.** It shows the rectangle of the plant's texture you name, from every side the same; a
   tree whose texture has no such picture shows its texture there.
 - **Cells are grown within the frame's budget**, nearest first, so the distance fills in over a moment.

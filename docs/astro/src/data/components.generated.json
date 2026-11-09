@@ -2550,6 +2550,43 @@
       ]
     },
     {
+      "name": "FoliageContact",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "40",
+          "doc": "How far from this entity plants lean away.",
+          "range": "≥ 0.01"
+        },
+        {
+          "key": "strength",
+          "type": "number",
+          "default": "1",
+          "doc": "How hard they lean: 1 is a full lean, 0 none.",
+          "range": "0–2, step 0.01"
+        },
+        {
+          "key": "recovery",
+          "type": "number",
+          "default": "0.6",
+          "doc": "How long grass takes to stand up again behind it.",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "radius",
+        "strength",
+        "recovery"
+      ]
+    },
+    {
       "name": "FollowTarget",
       "source": "ts",
       "fields": [
@@ -4854,6 +4891,12 @@
           "type": "array",
           "default": "empty",
           "doc": "Where each plant stands: kind index, x, y, z, turn about the vertical in radians and scale, six numbers a plant, in this entity's space."
+        },
+        {
+          "key": "stateKey",
+          "type": "string",
+          "default": "empty",
+          "doc": "The name a save keeps what became of these plants under. Empty takes the entity's name."
         }
       ],
       "animatable": [
@@ -5143,6 +5186,22 @@
         "seaColor.b",
         "seaColor.a",
         "seaOpacity"
+      ]
+    },
+    {
+      "name": "PlantProxy",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "source",
+          "type": "string",
+          "default": "empty"
+        },
+        {
+          "key": "key",
+          "type": "string",
+          "default": "empty"
+        }
       ]
     },
     {

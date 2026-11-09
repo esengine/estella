@@ -7431,9 +7431,11 @@ static prototype: Planets
 
 ## Plant — interface @experimental
 ```
+key: string | undefined
 phase: number
 scale: number
 shade: number
+shear: readonly [number, number] | undefined
 up: readonly [number, number, number] | undefined
 x: number
 y: number

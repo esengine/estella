@@ -28,6 +28,7 @@ import { Material } from '../render/material';
 import { currentWeather, currentWeatherDrive, WeatherDrive } from '../postprocess/weather';
 import { isEditor, isPlayMode } from '../ecs/env';
 import type { Zones } from '../worldgen/zones';
+import { installFoliageContacts } from './foliageContacts';
 import {
     buildBillboardMesh, buildGrassMesh, buildInstancedMesh, scatterCell,
     type Ground, type Plant,
@@ -188,11 +189,13 @@ export class FoliagePlugin implements Plugin {
     name = 'foliage';
     /** No foliage, no work; the frame after the last one goes still runs its sweep. */
     readonly activeWhen = [Foliage];
+    private clearContacts_: (() => void) | null = null;
 
     build(app: App): void {
         const field = new FoliageField();
         field.app_ = app;
         app.insertResource(FoliageRes, field);
+        this.clearContacts_ = installFoliageContacts(app);
 
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
             if (!app.hasResource(Assets)) return;
@@ -254,6 +257,8 @@ export class FoliagePlugin implements Plugin {
     }
 
     cleanup(app?: App): void {
+        this.clearContacts_?.();
+        this.clearContacts_ = null;
         if (!app?.hasResource(FoliageRes)) return;
         const field = app.getResource(FoliageRes);
         for (const entity of field.built_.keys()) {

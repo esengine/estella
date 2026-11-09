@@ -36,8 +36,30 @@ export interface ReadyPart { part: PlacedPart; mesh: number; lod1: number; lod2?
 /** Every kind's parts in hand, and the parts that stand for each far off; `owned` are the meshes made here, which `releaseKinds` gives back. */
 export interface ReadyKinds { kinds: ReadyPart[][]; far: ReadyPart[][]; owned: number[]; lease: AssetLease<AssetScope> }
 
+/** One set of placements in a cell: the entity holding them, the kind and the plants it was made for. */
+export interface PlacementSet {
+    entity: Entity;
+    kind: number;
+    plants: readonly Plant[];
+    /** Made to show plants that turned into this kind (a stump), rather than the ones grown as it. */
+    turned: boolean;
+}
+
 /** One grown cell: its entity (none where nothing stands), what it owns so far, and whether it has been let go. */
-export interface GrownCell { entity: Entity | null; handles: number[]; dead: boolean; assets?: AssetLease<AssetScope> }
+export interface GrownCell {
+    entity: Entity | null;
+    handles: number[];
+    dead: boolean;
+    assets?: AssetLease<AssetScope>;
+    /** Its placement sets, kept where a plant in it can change; absent, they are made and forgotten. */
+    sets?: PlacementSet[];
+}
+
+/** Who decides what a cell's sets show, where its plants can be touched. */
+export interface PlacementObserver {
+    placementsOf(cell: GrownCell, set: PlacementSet): readonly Plant[];
+    removeCell(cell: GrownCell): void;
+}
 
 /**
  * Loads the meshes, materials and textures of every part of every kind, once. A part whose normals are turned toward up (`soft`) is a mesh of its own,
@@ -113,6 +135,8 @@ export class PlantGrowth {
     /** The pieces not yet made, in the order they were asked. */
     readonly queue: { cell: GrownCell; run: () => void }[] = [];
     app_: App | null = null;
+    /** @internal Installed with the plant interaction, the first time a kind wants it. */
+    observer_: PlacementObserver | null = null;
 
     /** How many pieces are still waiting to be made. */
     get pending(): number { return this.queue.length; }
@@ -125,7 +149,7 @@ export class PlantGrowth {
      * Makes one entity under `parent` that draws `part`'s mesh at every place in `plants`, relative to `parent`. `from` and `to` are the distances
      * from the eye between which a plant is drawn (0 for no limit); `lod` is the distance past which the part's cheaper mesh stands in, and `shadow` the one past which it casts no shadow. All of them are scaled by the quality level's `detailScale`.
      */
-    private place(app: App, parent: Entity, name: string, part: ReadyPart, plants: readonly Plant[], lod: number, from: number, to: number, shadow = 0, far = false, mesh = part.mesh, lod1 = part.lod1): void {
+    private place(app: App, parent: Entity, name: string, part: ReadyPart, plants: readonly Plant[], lod: number, from: number, to: number, shadow = 0, far = false, mesh = part.mesh, lod1 = part.lod1): Entity {
         const world = app.world;
         // The quality level's share of the kind's distances: a weaker device changes to the cheaper mesh sooner and draws less far.
         const quality = app.hasResource(Quality) ? app.getResource(Quality) : null;
@@ -144,16 +168,48 @@ export class PlantGrowth {
         const placements = getComponent('MeshInstances');
         if (placements) world.insert(e, placements, { lod1Mesh: lod1, lodDistance: lod1 ? lod : 0, minDistance: from, drawDistance: to, shadowDistance: shadow });
         world.setParent(e, parent);
+        if (plants.length > 0) this.writePlacements(app, e, plants);
+        return e;
+    }
+
+    /** Tells the engine where a set's plants stand. An empty list clears it. */
+    private writePlacements(app: App, entity: Entity, plants: readonly Plant[]): void {
         const api = engineApi(app);
         const set = api?.meshInstances_set;
-        if (!set || !api._malloc || !api._free || !api.HEAPU8 || plants.length === 0) return;
+        if (!set || !api._malloc || !api._free || !api.HEAPU8) return;
+        const registry = app.world.getCppRegistry() as CppRegistry;
+        if (plants.length === 0) { set(registry, entity, 0, 0); return; }
         const data = buildPlacements(plants);
-        const registry = world.getCppRegistry() as CppRegistry;
         withScratch({ _malloc: api._malloc, _free: api._free }, (alloc) => {
             const ptr = alloc(data.byteLength);
             // Read after the allocation: it may have grown the memory, which replaces the buffer.
             new Float32Array(api.HEAPU8!.buffer, ptr, data.length).set(data);
-            set(registry, e, ptr, data.length / PLACEMENT_FLOATS);
+            set(registry, entity, ptr, data.length / PLACEMENT_FLOATS);
+        });
+    }
+
+    /** @internal Writes a set as its observer says it should be now. */
+    writeSet(app: App, cell: GrownCell, set: PlacementSet): void {
+        if (!app.world.valid(set.entity)) return;
+        this.writePlacements(app, set.entity, this.observer_ ? this.observer_.placementsOf(cell, set) : set.plants);
+    }
+
+    /** Places a set, remembering it where the cell's plants can change, and shows it as it should be now. */
+    private track(app: App, cell: GrownCell, entity: Entity, kind: number, plants: readonly Plant[], turned = false): void {
+        if (!cell.sets) return;
+        const set: PlacementSet = { entity, kind, plants, turned };
+        cell.sets.push(set);
+        if (this.observer_) this.writeSet(app, cell, set);
+    }
+
+    /** @internal The sets that show plants that have turned into `kindIndex`, made at once: there are few, and a stump must stand when its tree starts down. */
+    placeTurned(app: App, cell: GrownCell, kinds: readonly PlacedKind[], ready: ReadyKinds, kindIndex: number): void {
+        const kind = kinds[kindIndex], parts = ready.kinds[kindIndex], parent = cell.entity;
+        if (!kind || !parts || parent === null || !app.world.valid(parent)) return;
+        parts.forEach((r, j) => {
+            const shadow = kind.lodDistance > 0 ? kind.lodDistance * 2 : 0;
+            const e = this.place(app, parent, `turned ${kindIndex}:${j}`, r, [], kind.lodDistance, 0, kind.drawDistance, shadow);
+            this.track(app, cell, e, kindIndex, [], true);
         });
     }
 
@@ -176,8 +232,8 @@ export class PlantGrowth {
                         const shadow = kind.lodDistance > 0 ? kind.lodDistance * 2 : 0;
                         // A third mesh takes over where the kind's `lod2Distance` is: two sets, each drawn between its own distances.
                         const third = r.lod2 && (kind.lod2Distance ?? 0) > 0 ? kind.lod2Distance! : 0;
-                        this.place(app, entity, `${kindIndex}:${j}`, r, plants, kind.lodDistance, 0, third || kind.drawDistance, shadow);
-                        if (third) this.place(app, entity, `${kindIndex}:${j}:lod2`, r, plants, 0, third, kind.drawDistance, shadow, false, r.lod2, 0);
+                        this.track(app, cell, this.place(app, entity, `${kindIndex}:${j}`, r, plants, kind.lodDistance, 0, third || kind.drawDistance, shadow), kindIndex, plants);
+                        if (third) this.track(app, cell, this.place(app, entity, `${kindIndex}:${j}:lod2`, r, plants, 0, third, kind.drawDistance, shadow, false, r.lod2, 0), kindIndex, plants);
                     } catch (error) {
                         log.error('foliage', 'growing a piece of a cell of plants failed', error);
                     }
@@ -200,13 +256,14 @@ export class PlantGrowth {
             const parts = ready.far[kindIndex], kind = kinds[kindIndex];
             if (!kind || !parts || parts.length === 0) continue;
             const kept = thinPlants(plants, kind.farKeep ?? 1, thinnedBy);
-            for (const r of parts) this.place(app, entity, `far ${kindIndex}`, r, kept, 0, kind.drawDistance, kind.farDistance, 0, true);
+            for (const r of parts) this.track(app, cell, this.place(app, entity, `far ${kindIndex}`, r, kept, 0, kind.drawDistance, kind.farDistance, 0, true), kindIndex, kept);
         }
     }
 
     /** Lets a cell go: what it made is despawned, and what it had not yet made is left unmade. */
     release(app: App, cell: GrownCell): void {
         cell.dead = true;
+        this.observer_?.removeCell(cell);
         try {
             if (cell.entity !== null && app.world.valid(cell.entity)) app.world.despawn(cell.entity);
         } finally {
