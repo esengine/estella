@@ -836,6 +836,15 @@ export { WorldPlan, type Placement, type Group, type Rejection } from './worldge
 export { Zones, type ZoneDef, type ZoneShape } from './worldgen/zones';
 export { PlacementDiffs, type PlacementChange, type PlacementDiffsData } from './worldgen/diffs';
 // Splines and water are optional modules too (`esengine/spline`, `esengine/water`).
+export {
+    VoxelTerrain, VoxelTerrains, VoxelTerrainsRes, VoxelPlugin, voxelPlugin,
+    type VoxelTerrainData, type VoxelTerrainStatus, type VoxelEditEvent,
+} from './voxel/voxelPlugin';
+export {
+    VOXEL_MATERIALS, VoxelField,
+    type VoxelEditOptions, type VoxelEditResult, type VoxelFieldData, type VoxelFieldOptions, type VoxelHit, type VoxelOp, type VoxelPoint, type VoxelSample, type VoxelShape, type VoxelSource,
+} from './voxel/field';
+export { heightVoxelSource, noiseVoxelSource, VoxelMaterial, type VoxelNoiseParams } from './voxel/source';
 export { Bone2D, IK2D, BoneConstraint2D, BoneConstraintKind, type Bone2DData, type IK2DData, type BoneConstraint2DData } from './rig2d/rig2dPlugin';
 export { Bakes, BakesRes, bakesOf, finish, type WorkJob, type BakeProgress } from './runtime/bakes';
 export { CollisionGeometry, CollisionGeometryRes, collisionGeometryOf, type CollisionPiece } from './runtime/collisionGeometry';

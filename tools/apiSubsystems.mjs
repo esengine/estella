@@ -326,6 +326,16 @@ export const SUBSYSTEMS = [
         entry: ['Terrain', 'Foliage'],
     },
     {
+        id: 'voxel',
+        title: 'Voxel terrain',
+        titleZh: '体积地形',
+        source: ['voxel'],
+        tier: 'experimental',
+        why: 'carving, the skin, collision and saves are checked against the real solver and on both backends, but it has no levels of detail or editor brush, and nothing has been measured on a device',
+        whyZh: '开挖、网格、碰撞和存档都用真实求解器和两个后端检查过，但还没有 LOD 和编辑器笔刷，也没有在真机上测过',
+        entry: ['VoxelTerrain', 'VoxelTerrains'],
+    },
+    {
         id: 'spline',
         title: 'Splines',
         titleZh: '样条',

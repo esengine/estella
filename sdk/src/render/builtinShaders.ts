@@ -459,7 +459,8 @@ void main() {
 // The shading a glTF material says beyond its base colour. Those channels are
 // per-material constants and per-material samplers, which is what a material has
 // and a component does not — a MeshRenderer's per-object attributes are full.
-const MODEL = `#pragma shader "Model"
+/** The Model shader's source, for what is derived from it in an optional module. */
+export const MODEL = `#pragma shader "Model"
 #pragma version 300 es
 #pragma domain Lit
 #pragma switch ES_SPECULAR_GLOSSINESS

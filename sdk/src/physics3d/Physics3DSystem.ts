@@ -282,8 +282,34 @@ function addTriangles(module: Physics3DWasmModule, entity: Entity,
     }
 }
 
+/** How far past a changed piece a resting body may stand and still have been resting on it, in world units. */
+const PIECE_WAKE_MARGIN = 4;
+
+/**
+ * Wakes what may have rested on a piece that has just changed or gone. A solver does not look again at what sleeps, so a body whose ground was
+ * dug out from under it would stay in the air. A force too small to matter is what both solvers wake a body for.
+ */
+function wakeOn(app: App, module: Physics3DWasmModule, bodies: BodyMap, piece: CollisionPiece, ppu: number): void {
+    if (!module._physics3d_addForce || bodies.size === 0) return;
+    const [ox, oy, oz] = piece.origin, p = piece.positions;
+    let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
+    for (let i = 0; i < p.length; i += 3) {
+        x0 = Math.min(x0, p[i]!); y0 = Math.min(y0, p[i + 1]!); z0 = Math.min(z0, p[i + 2]!);
+        x1 = Math.max(x1, p[i]!); y1 = Math.max(y1, p[i + 1]!); z1 = Math.max(z1, p[i + 2]!);
+    }
+    const m = PIECE_WAKE_MARGIN;
+    for (const [entity, id] of bodies) {
+        if (!app.world.valid(entity) || !app.world.has(entity, RigidBody3D) || !app.world.has(entity, Transform)) continue;
+        if ((app.world.get(entity, RigidBody3D) as RigidBody3DData).bodyType !== MOTION.Dynamic) continue;
+        const at = (app.world.get(entity, Transform) as TransformData).worldPosition;
+        const x = at.x - ox, y = at.y - oy, z = at.z - oz;
+        if (x < x0 - m || x > x1 + m || y < y0 - m || y > y1 + m || z < z0 - m || z > z1 + m) continue;
+        module._physics3d_addForce(id, 0, -1e-6, 0, at.x / ppu, at.y / ppu, at.z / ppu);
+    }
+}
+
 /** Follows the app's collision geometry: a static mesh body a piece, built again when its piece is replaced, removed with it. */
-function syncPieces(module: Physics3DWasmModule, geometry: CollisionGeometry | null, pieces: PieceMap, ppu: number): void {
+function syncPieces(app: App, module: Physics3DWasmModule, geometry: CollisionGeometry | null, pieces: PieceMap, bodies: BodyMap, ppu: number): void {
     if (!geometry && pieces.size === 0) return;
     const live = new Set<string>();
     if (geometry) {
@@ -291,7 +317,10 @@ function syncPieces(module: Physics3DWasmModule, geometry: CollisionGeometry | n
             live.add(key);
             const had = pieces.get(key);
             if (had?.piece === piece) continue;
-            if (had) module._physics3d_removeBody(had.id);
+            if (had) {
+                module._physics3d_removeBody(had.id);
+                wakeOn(app, module, bodies, had.piece, ppu);
+            }
             const [ox, oy, oz] = piece.origin;
             const id = addTriangles(module, piece.owner, piece.positions, piece.indices,
                 ox / ppu, oy / ppu, oz / ppu, { x: 0, y: 0, z: 0, w: 1 }, ppu, piece.layer, piece.friction, piece.restitution);
@@ -302,6 +331,7 @@ function syncPieces(module: Physics3DWasmModule, geometry: CollisionGeometry | n
     for (const [key, had] of pieces) {
         if (live.has(key)) continue;
         module._physics3d_removeBody(had.id);
+        wakeOn(app, module, bodies, had.piece, ppu);
         pieces.delete(key);
     }
 }
@@ -385,7 +415,7 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
         poses.delete(entity);
     }
 
-    syncPieces(module, geometry, pieces, ppu);
+    syncPieces(app, module, geometry, pieces, bodies, ppu);
 
     // Characters have just written local poses of their own, and a body may be
     // parented to one.

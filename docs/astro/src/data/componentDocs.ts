@@ -194,6 +194,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   PlatformerController2D: { category: 'physics', summary: 'Runs and jumps a CharacterController2D from the keyboard or a game, with coyote time, a jump buffer and dropping through one-way platforms.', doc: 'gameplay/physics', anchor: 'platformer-controller' },
   FoliageContact: { category: 'physics', summary: 'Something plants feel: grass parts around it, shrubs lean away, and placed plants near it become entities with colliders.', doc: 'graphics/foliage', anchor: 'touching-plants' },
   PlantProxy: { category: 'physics', summary: 'The entity standing in for a placed plant while something is near it, which a ray or a collision finds.', doc: 'graphics/foliage', anchor: 'touching-plants' },
+  VoxelTerrain: { category: 'world', summary: 'Ground that is a volume, so it can hold caves and overhangs, and be carved while the game runs.', doc: 'world/voxel-terrain' },
   RoadDecal: { category: 'world', summary: 'Lays the entity\'s mesh along a Spline and over the ground, its edges fading into what it lies on.', doc: 'graphics/terrain', anchor: 'blending-what-stands-on-the-ground' },
   OneWayPlatform2D: { category: 'physics', summary: 'Makes a collider solid from one side only, so a body passes up through it and lands on top.', doc: 'gameplay/physics', anchor: 'one-way-platforms', anchorZh: '单向平台' },
   DistanceJoint2D: { category: 'physics', summary: 'Holds two bodies a fixed (or spring-limited) distance apart.', doc: 'gameplay/physics', anchor: 'joints', anchorZh: '关节' },

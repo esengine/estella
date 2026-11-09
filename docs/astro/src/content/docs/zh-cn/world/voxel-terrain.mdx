@@ -1,0 +1,97 @@
+---
+title: 体积地形
+description: 地面是一个体积，所以能有洞穴和悬垂结构；游戏运行时可以开挖，碰撞随之更新，改动按块存档。
+---
+
+[Terrain](/docs/zh-cn/graphics/terrain/) 每个位置只有一个高度，所以表现不了洞穴、悬垂和孔洞。`VoxelTerrain` 在三维网格的每个点上存一个有符号距离，所以可以。适合地面本身就是玩法的游戏：采矿、生存、可破坏世界。它和 Terrain 并存，不替换 Terrain；它是可选模块（`esengine/voxel`），不用它的游戏不会带上它。
+
+## 添加
+
+给实体加上 `VoxelTerrain`。实体的位置决定体积的位置，旋转和缩放不起作用。什么都不设置时，你会得到带隧道的丘陵，土壤在岩石之上，岩石里有矿脉。
+
+| 字段 | 作用 |
+|---|---|
+| `cellSize` | 格子边长，也是地面能表现的最小尺度。边长减半，格子数变成八倍。 |
+| `chunkCells` | 一个块每边的格子数。越小，每次编辑重建得越少，绘制的网格越多。 |
+| `minY`、`maxY` | 体积从实体向下、向上延伸多远。两端封闭：挖不穿底，也建不过顶。 |
+| `seed`、`surfaceHeight`、`hillHeight`、`hillScale` | 默认地面的丘陵。 |
+| `caveWidth`、`caveScale` | 隧道的宽度和间距。`caveWidth` 为 `0` 时没有隧道。 |
+| `soilDepth`、`oreAmount` | 土壤深度，以及岩石里矿的比例。 |
+| `drawDistance`、`castShadows` | 离视点多远内绘制，以及是否投射阴影。 |
+| `collision`、`collisionDistance`、`collisionLayer`、`friction` | 3D 刚体和角色是否与它碰撞，以及围绕它们构建碰撞的范围。 |
+| `color0`..`color3`、`map0`..`map3`、`tile` | 每种材质的颜色和贴图，以及贴图在世界中一次重复的长度。贴图按世界位置从三个方向投射，因为事后提取的表面没有 uv。 |
+| `material` | 使用 `builtin:voxel-ground` 着色器的材质，用来替换默认材质。 |
+
+四种材质是 `VoxelMaterial.Topsoil`、`Soil`、`Rock` 和 `Ore`。
+
+## 开挖
+
+所有操作都通过 `VoxelTerrains` 资源，位置都是世界坐标。
+
+```ts
+import { VoxelTerrain, VoxelTerrainsRes, VoxelMaterial } from 'esengine/voxel';
+
+const voxels = app.getResource(VoxelTerrainsRes);
+
+// 玩家看着的地方。
+const hit = voxels.raycast(eye, forward, 8);
+if (hit) {
+    const dug = voxels.carve(hit.entity, { kind: 'sphere', center: hit.point, radius: 1.5 }, {
+        keep: (material) => material === VoxelMaterial.Ore && !hasPick,
+    });
+    inventory.add('stone', dug.removed[VoxelMaterial.Rock]);
+}
+```
+
+`carve` 返回每种材质被挖走多少，单位是立方世界单位，也就是矿工能带走的量。形状有 `sphere`、`box` 和 `capsule`，用 `capsule` 一次调用就能挖出一条隧道。
+
+| 调用 | 作用 |
+|---|---|
+| `carve(entity, shape, options)` | 挖掉一个形状。 |
+| `fill(entity, shape, material, options)` | 用某种材质填充一个形状。 |
+| `edit(entity, shape, 'paint', { material })` | 改变形状内的材质，不改变外形。 |
+| `raycast(origin, direction, maxDistance)` | 射线最先碰到哪个体积：点、法线、材质和实体。 |
+| `distanceAt(entity, at)`、`materialAt(entity, at)` | 某个位置是什么。小于零是实心。 |
+| `onEdit(listener)` | 监听每一次产生变化的编辑，用来同步导航网格或任务。 |
+| `collisionReadyAt(entity, x, z)` | 那里的碰撞是否已构建，放东西之前可以等它。 |
+| `status(entity)` | 绘制的块数和三角形数、持有和编辑过的块数，以及上次重建的耗时。 |
+
+选项里的 `smooth` 让形状边缘融入相邻部分，单位是世界单位；`keep` 指定这次编辑不能改变的材质。
+
+只有编辑波及的块和它们的碰撞会重建；新网格就绪前旧网格保持不变，每帧至少重建一块。原本压在被挖部分上的物体会被唤醒并掉落。
+
+## 自定义地面
+
+`setSource` 用一个关于位置的函数替换默认丘陵。相同位置必须返回相同结果，因为没有改动过的块会被释放，之后再重新询问。
+
+```ts
+voxels.setSource(entity, (x, y, z, out) => {
+    out.distance = y - Math.sin(x * 0.1) * 4;  // 小于零是实心；靠近表面时应大致等于真实距离
+    out.material = VoxelMaterial.Rock;
+});
+```
+
+`heightVoxelSource` 能给任意高度场一个实体，所以 `heightVoxelSource((x, z) => terrains.heightAt(x, z))` 可以把 Terrain 自己的地面变成体积。
+
+## 存档
+
+存档只包含编辑过的块，是普通 JSON。无尽世界的存档大小只取决于玩家改了多少。
+
+```ts
+const whole = voxels.serialize(entity);                // 所有编辑过的块
+const delta = voxels.serialize(entity, true);          // 只有上次这样调用之后改动的块
+voxels.restore(entity, whole);                         // 恢复：其余部分回到生成源的样子
+voxels.restore(entity, delta, true);                   // 把这些块叠加到现有内容上
+```
+
+种子或生成源必须和存档时相同。来自其他网格（`cellSize` 或 `chunkCells` 不同）的存档会被拒绝且不做任何改动，`restore` 返回 `false`。读不了的块保持原样并给出警告。
+
+## 限制
+
+- **没有 LOD。** `drawDistance` 内的块都是全精度绘制。默认地面在 `drawDistance` 96、`cellSize` 1 时约 170 块、24 万三角形，远景开销比 [Terrain](/docs/zh-cn/graphics/terrain/) 高。
+- **编辑器里没有笔刷。** 布置场景时体积会被绘制，但改动只能在运行时用代码完成。
+- **不能在 Terrain 上开洞。** 两者是各自独立的地面。想挖 Terrain 的形状，用 `heightVoxelSource` 生成体积，并改为绘制体积。
+- **编辑过的块完整保存在内存里，** 默认 24 格时每块约 35 KB，游戏运行期间一直保留。
+- **导航不会自动更新。** 用 `onEdit` 重建游戏需要的部分。
+- **贴图没有法线贴图，** 一个体积最多四种材质。自定义 `material` 必须使用 Voxel Ground 着色器，否则表示材质权重的顶点色会被当成染色。
+- **没有在真机上测过。** 在桌面上，一次波及三块且带碰撞的编辑约占帧时间 4 ms，最高 8 ms。如果是第一次编辑还没读取过的地面，还要加上生成开销：每块约 3 ms。

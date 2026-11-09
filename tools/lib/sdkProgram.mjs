@@ -68,6 +68,7 @@ export const ENTRIES = {
     'worldgen': 'src/worldgen/index.ts',
     'water': 'src/water/index.ts',
     'spline': 'src/spline/index.ts',
+    'voxel': 'src/voxel/index.ts',
     'rig2d': 'src/rig2d/index.ts',
     'imported-scene': 'src/imported-scene/index.ts',
     'character-shaders': 'src/character/index.ts',

@@ -21,6 +21,7 @@ export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
   'esengine/worldgen': 'worldgen/index.js',
   'esengine/water': 'water/index.js',
   'esengine/spline': 'spline/index.js',
+  'esengine/voxel': 'voxel/index.js',
   'esengine/rig2d': 'rig2d/index.js',
   'esengine/imported-scene': 'imported-scene/index.js',
   'esengine/character-shaders': 'character-shaders/index.js',

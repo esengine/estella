@@ -9629,6 +9629,233 @@
       ]
     },
     {
+      "name": "VoxelTerrain",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "cellSize",
+          "type": "number",
+          "default": "1",
+          "doc": "The side of a cell: the finest thing the ground can show. Half the size is eight times the cells.",
+          "range": "≥ 0.05"
+        },
+        {
+          "key": "chunkCells",
+          "type": "number",
+          "default": "24",
+          "doc": "How many cells a chunk has a side. Smaller makes less again for each edit and draws more meshes.",
+          "range": "8–64, step 1",
+          "advanced": true
+        },
+        {
+          "key": "minY",
+          "type": "number",
+          "default": "-48",
+          "doc": "How far down the volume goes from the entity. Nothing digs through its floor."
+        },
+        {
+          "key": "maxY",
+          "type": "number",
+          "default": "48",
+          "doc": "How far up the volume goes from the entity. Nothing is built past it."
+        },
+        {
+          "key": "seed",
+          "type": "number",
+          "default": "1",
+          "doc": "Another seed is another ground. A save holds what was changed in the ground this seed makes.",
+          "range": "step 1"
+        },
+        {
+          "key": "surfaceHeight",
+          "type": "number",
+          "default": "8",
+          "doc": "Where the ground lies on average, from the entity."
+        },
+        {
+          "key": "hillHeight",
+          "type": "number",
+          "default": "14",
+          "doc": "How far the hills rise and fall from it.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "hillScale",
+          "type": "number",
+          "default": "60",
+          "doc": "How wide the hills are.",
+          "range": "≥ 1"
+        },
+        {
+          "key": "caveWidth",
+          "type": "number",
+          "default": "2.5",
+          "doc": "How wide the tunnels through the ground are. 0 has none.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "caveScale",
+          "type": "number",
+          "default": "36",
+          "doc": "How far apart the tunnels are.",
+          "range": "≥ 1"
+        },
+        {
+          "key": "soilDepth",
+          "type": "number",
+          "default": "5",
+          "doc": "How deep the soil goes before rock.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "oreAmount",
+          "type": "number",
+          "default": "0.06",
+          "doc": "How much of the rock is ore.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "drawDistance",
+          "type": "number",
+          "default": "96",
+          "doc": "How far from the eye the ground is drawn.",
+          "range": "≥ 1"
+        },
+        {
+          "key": "castShadows",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Whether the ground casts shadows."
+        },
+        {
+          "key": "collision",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Whether 3D bodies and characters collide with the ground."
+        },
+        {
+          "key": "collisionDistance",
+          "type": "number",
+          "default": "32",
+          "doc": "How far round each moving body and character the ground is built for collision.",
+          "range": "≥ 1"
+        },
+        {
+          "key": "collisionLayer",
+          "type": "number",
+          "default": "0",
+          "doc": "The collision layer the ground is in (0 to 15).",
+          "range": "0–15, step 1",
+          "advanced": true
+        },
+        {
+          "key": "friction",
+          "type": "number",
+          "default": "0.6",
+          "doc": "How much the ground holds what slides on it.",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "material",
+          "type": "Asset<material>",
+          "default": "none",
+          "doc": "A material on the Voxel Ground shader. Empty uses the stock one, with the colours and pictures below."
+        },
+        {
+          "key": "color0",
+          "type": "Color",
+          "default": "#4d6b33"
+        },
+        {
+          "key": "color1",
+          "type": "Color",
+          "default": "#5c452e"
+        },
+        {
+          "key": "color2",
+          "type": "Color",
+          "default": "#6b6966"
+        },
+        {
+          "key": "color3",
+          "type": "Color",
+          "default": "#b88c40"
+        },
+        {
+          "key": "map0",
+          "type": "Asset<texture>",
+          "default": "none",
+          "doc": "Laid from the three sides by world position."
+        },
+        {
+          "key": "map1",
+          "type": "Asset<texture>",
+          "default": "none",
+          "doc": "Laid from the three sides by world position."
+        },
+        {
+          "key": "map2",
+          "type": "Asset<texture>",
+          "default": "none",
+          "doc": "Laid from the three sides by world position."
+        },
+        {
+          "key": "map3",
+          "type": "Asset<texture>",
+          "default": "none",
+          "doc": "Laid from the three sides by world position."
+        },
+        {
+          "key": "tile",
+          "type": "number",
+          "default": "8",
+          "doc": "How long one repeat of the pictures is in the world.",
+          "range": "≥ 0.01"
+        }
+      ],
+      "animatable": [
+        "cellSize",
+        "chunkCells",
+        "minY",
+        "maxY",
+        "seed",
+        "surfaceHeight",
+        "hillHeight",
+        "hillScale",
+        "caveWidth",
+        "caveScale",
+        "soilDepth",
+        "oreAmount",
+        "drawDistance",
+        "collisionDistance",
+        "collisionLayer",
+        "friction",
+        "material",
+        "color0.r",
+        "color0.g",
+        "color0.b",
+        "color0.a",
+        "color1.r",
+        "color1.g",
+        "color1.b",
+        "color1.a",
+        "color2.r",
+        "color2.g",
+        "color2.b",
+        "color2.a",
+        "color3.r",
+        "color3.g",
+        "color3.b",
+        "color3.a",
+        "map0",
+        "map1",
+        "map2",
+        "map3",
+        "tile"
+      ]
+    },
+    {
       "name": "WaterBody",
       "source": "ts",
       "fields": [

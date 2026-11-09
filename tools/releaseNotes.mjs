@@ -4232,6 +4232,8 @@ export const NOTED = {
     {"note": "Particles and plain sprites in a Canvas paint by their place in its tree."},
   "fix(text): stopping lets go of the labels the engine holds, so the next Play cannot draw them on other entities":
     {"note": "Labels no longer come back as black boxes after a change between Plays."},
+  "feat(voxel): ground that is a volume, carved while the game runs, with collision that follows and saves by chunk":
+    {"note": "Ground that is a volume."},
   "feat(terrain): a material that fades into the ground it meets, a road laid over a terrain, and snow on whatever faces the sky":
     {"note": "What stands on the ground can blend into it."},
   "fix(assets): one hot load at a time per asset, so two rescans cannot lose a texture":

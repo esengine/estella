@@ -1,0 +1,97 @@
+---
+title: Voxel Terrain
+description: Ground that is a volume, so it can hold caves and overhangs — carved while the game runs, with its collision following and its changes saved chunk by chunk.
+---
+
+A [Terrain](/docs/graphics/terrain/) has one height for each place, so it cannot hold a cave, an overhang or a hole. A `VoxelTerrain` stores a signed distance at every point of a 3D grid, so it can. Use it where the ground itself is what the game changes: mining, survival, a world that can be blown apart. It stands beside Terrain and does not replace it, and it is an optional module (`esengine/voxel`) that a game without one does not carry.
+
+## Add one
+
+Put a `VoxelTerrain` on an entity. Its position places the volume; its rotation and scale do not apply. With nothing else set you get hills with tunnels through them, soil over rock, and pockets of ore.
+
+| Field | What it does |
+|---|---|
+| `cellSize` | The side of a cell, the finest thing the ground can show. Half the size is eight times the cells. |
+| `chunkCells` | How many cells a chunk has a side. Smaller makes less again for each edit and draws more meshes. |
+| `minY`, `maxY` | How far down and up the volume goes from the entity. It is closed at both ends: nothing digs through its floor or builds past its top. |
+| `seed`, `surfaceHeight`, `hillHeight`, `hillScale` | The stock ground's hills. |
+| `caveWidth`, `caveScale` | How wide its tunnels are and how far apart. `caveWidth` at `0` has none. |
+| `soilDepth`, `oreAmount` | How deep the soil goes, and how much of the rock is ore. |
+| `drawDistance`, `castShadows` | How far from the eye it is drawn, and whether it casts shadows. |
+| `collision`, `collisionDistance`, `collisionLayer`, `friction` | Whether 3D bodies and characters collide with it, and how far round each one it is built. |
+| `color0`..`color3`, `map0`..`map3`, `tile` | Each material's colour and picture, and the length of one repeat in the world. Pictures are laid from the three sides by world position, since a surface found afterwards has no uv. |
+| `material` | A material on the `builtin:voxel-ground` shader, in place of the stock one. |
+
+The four materials are `VoxelMaterial.Topsoil`, `Soil`, `Rock` and `Ore`.
+
+## Dig
+
+Everything goes through the `VoxelTerrains` resource, and places are in the world.
+
+```ts
+import { VoxelTerrain, VoxelTerrainsRes, VoxelMaterial } from 'esengine/voxel';
+
+const voxels = app.getResource(VoxelTerrainsRes);
+
+// What the player is looking at.
+const hit = voxels.raycast(eye, forward, 8);
+if (hit) {
+    const dug = voxels.carve(hit.entity, { kind: 'sphere', center: hit.point, radius: 1.5 }, {
+        keep: (material) => material === VoxelMaterial.Ore && !hasPick,
+    });
+    inventory.add('stone', dug.removed[VoxelMaterial.Rock]);
+}
+```
+
+`carve` answers with how much of each material came out, in cubic world units, which is what a miner carries away. Shapes are `sphere`, `box` and `capsule`, the last being how to cut a tunnel in one call.
+
+| Call | What it does |
+|---|---|
+| `carve(entity, shape, options)` | Takes a shape out. |
+| `fill(entity, shape, material, options)` | Fills a shape with a material. |
+| `edit(entity, shape, 'paint', { material })` | Changes the material inside a shape, and not its form. |
+| `raycast(origin, direction, maxDistance)` | Where a ray first meets any volume: the point, the normal, the material and the entity. |
+| `distanceAt(entity, at)`, `materialAt(entity, at)` | What is at a place. Below zero is solid. |
+| `onEdit(listener)` | Hears every edit that changed something: how to keep a navmesh or a quest in step. |
+| `collisionReadyAt(entity, x, z)` | Whether the ground there is built for collision, to wait on before dropping something. |
+| `status(entity)` | Chunks and triangles drawn, chunks held and edited, and what the last remake cost. |
+
+`smooth` in the options melts the shape's edge into what it meets, in world units, and `keep` names the materials an edit cannot change.
+
+Only the chunks an edit reached are made again, and collision with them; the old mesh stays until the new one is ready, and at least one chunk is made each frame. A body resting on what was dug out is woken and falls.
+
+## Make your own ground
+
+`setSource` replaces the stock hills with a function of the place. It must answer the same for the same place, because a chunk nothing changed is let go and asked for again.
+
+```ts
+voxels.setSource(entity, (x, y, z, out) => {
+    out.distance = y - Math.sin(x * 0.1) * 4;  // below zero is solid; near the surface it should be about true
+    out.material = VoxelMaterial.Rock;
+});
+```
+
+`heightVoxelSource` gives a body to any height field, so `heightVoxelSource((x, z) => terrains.heightAt(x, z))` makes a volume of a Terrain's own ground.
+
+## Save
+
+A save holds only the chunks that were edited, as plain JSON. A world without end costs what the player changed in it.
+
+```ts
+const whole = voxels.serialize(entity);                // every edited chunk
+const delta = voxels.serialize(entity, true);          // only those changed since the last such call
+voxels.restore(entity, whole);                         // put it back: all else returns to the source
+voxels.restore(entity, delta, true);                   // lay chunks over what is there
+```
+
+The seed or source must be the one the save was made with. A save cut from another grid (another `cellSize` or `chunkCells`) is refused and changes nothing: `restore` answers `false`. A chunk that cannot be read is left as it was, with a warning.
+
+## Limits
+
+- **No levels of detail.** Every chunk within `drawDistance` is drawn at full detail. The stock ground at `drawDistance` 96 and `cellSize` 1 is about 170 chunks and 240 000 triangles, so far views cost more than a [Terrain](/docs/graphics/terrain/) does.
+- **No brush in the editor.** The volume is drawn while a scene is laid out, but changes are made from code at run time.
+- **It does not cut a hole in a Terrain.** The two are separate grounds. To dig into a Terrain's shape, make a volume of it with `heightVoxelSource` and draw that instead.
+- **Edited chunks are held in memory whole,** about 35 KB each at the default 24 cells, for as long as the game runs.
+- **Navigation does not follow by itself.** Use `onEdit` to rebuild what a game needs.
+- **Pictures have no normal maps,** and four materials is the most a volume has. A custom `material` must be on the Voxel Ground shader, or the vertex colours that say which material a place is will read as a tint.
+- **Not measured on a device.** On a desktop, an edit reaching three chunks with collision takes about 4 ms of the frame, up to 8 ms. A first edit in ground no one has read yet also has to make it: about 3 ms for each chunk.

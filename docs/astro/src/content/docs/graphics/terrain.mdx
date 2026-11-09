@@ -333,6 +333,8 @@ Such a material is drawn after a copy of the opaque scene is taken, the way wate
 
 ## Limits
 
+- **It is a height for each place.** A cave, an overhang or a hole needs [Voxel Terrain](/docs/world/voxel-terrain/), a separate ground that is a volume.
+
 - **Collision is the finest level.** Far off the ground is drawn coarser than it collides, which is unseen from where anything collides
   with it; only what moves gets ground to hit, within `collisionDistance`.
 - **Paint is as fine as the pages.** Layer weights are sampled with the heights, two to a cell, so a splatmap finer than that near the
