@@ -217,6 +217,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   TilemapLayer: { category: 'world', summary: 'One layer of tiles — its tileset, cell size, orientation, sorting and collision.', doc: 'world/tilemaps', anchor: 'the-tilemaplayer-component', anchorZh: 'tilemaplayer-组件' },
   ParticleModelUnits: { category: 'world', summary: 'Imported particle sizes, speeds and gravity in model units; the particle plugin applies the largest absolute world-scale axis to the emitter.', doc: 'world/particles' },
   ParticleEmitter: { category: 'world', summary: 'A particle system: emission, lifetime, shape, forces, noise, colour and size over life, sub-emitters and trails.', doc: 'world/particles', anchor: 'particleemitter-reference', anchorZh: 'particleemitter-字段参考' },
+  ParticleCollider: { category: 'world', summary: 'A sphere, box or capsule particles bounce off with no physics, for an emitter in Sdf collision mode, on the GPU or the CPU.', doc: 'world/particles', anchor: 'gpu-collision' },
   ParticleForceField: { category: 'world', summary: 'A field that pushes particles around — point, directional, vortex or drag.', doc: 'world/particles', anchor: 'force-fields', anchorZh: '力场' },
   Marker: { category: 'world', summary: 'A named point or region of gameplay interest — spawn point, waypoint, trigger zone — queryable like any component.', doc: 'gameplay/markers', anchor: 'marker-component-reference', anchorZh: 'marker-组件参考' },
 

@@ -1301,6 +1301,54 @@ export function createOccluderData(): OccluderPtrData {
     };
 }
 
+export interface ParticleColliderPtrData {
+    shape: number;
+    radius: number;
+    halfHeight: number;
+    halfExtents: Vec3;
+    inverted: boolean;
+    mask: number;
+    enabled: boolean;
+}
+
+export function fillParticleCollider(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: ParticleColliderPtrData,
+): void {
+    out.shape = u32[ptr >> 2] | 0;
+    out.radius = f32[(ptr + 4) >> 2];
+    out.halfHeight = f32[(ptr + 8) >> 2];
+    const halfExtents_ = out.halfExtents; halfExtents_.x = f32[(ptr + 12) >> 2]; halfExtents_.y = f32[((ptr + 12) >> 2) + 1]; halfExtents_.z = f32[((ptr + 12) >> 2) + 2];
+    out.inverted = u8[ptr + 24] !== 0;
+    out.mask = u32[(ptr + 28) >> 2];
+    out.enabled = u8[ptr + 32] !== 0;
+}
+
+export function writeParticleCollider(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: ParticleColliderPtrData,
+): void {
+    u32[ptr >> 2] = data.shape | 0;
+    f32[(ptr + 4) >> 2] = data.radius;
+    f32[(ptr + 8) >> 2] = data.halfHeight;
+    f32[(ptr + 12) >> 2] = data.halfExtents.x; f32[((ptr + 12) >> 2) + 1] = data.halfExtents.y; f32[((ptr + 12) >> 2) + 2] = data.halfExtents.z;
+    u8[ptr + 24] = data.inverted ? 1 : 0;
+    u32[(ptr + 28) >> 2] = data.mask;
+    u8[ptr + 32] = data.enabled ? 1 : 0;
+}
+
+export function createParticleColliderData(): ParticleColliderPtrData {
+    return {
+        shape: 0,
+        radius: 0,
+        halfHeight: 0,
+        halfExtents: { x: 0, y: 0, z: 0 },
+        inverted: false,
+        mask: 0,
+        enabled: false,
+    };
+}
+
 export interface ParticleEmitterPtrData {
     rate: number;
     burstCount: number;
@@ -1374,6 +1422,7 @@ export interface ParticleEmitterPtrData {
     collisionFallback: number;
     collisionEvents: boolean;
     collisionEventBudget: number;
+    collisionThickness: number;
     collisionBounce: number;
     collisionFriction: number;
     collisionLifetimeLoss: number;
@@ -1455,9 +1504,10 @@ export function fillParticleEmitter(
     out.collisionFallback = u32[(ptr + 328) >> 2] | 0;
     out.collisionEvents = u8[ptr + 332] !== 0;
     out.collisionEventBudget = u32[(ptr + 336) >> 2] | 0;
-    out.collisionBounce = f32[(ptr + 340) >> 2];
-    out.collisionFriction = f32[(ptr + 344) >> 2];
-    out.collisionLifetimeLoss = f32[(ptr + 348) >> 2];
+    out.collisionThickness = f32[(ptr + 340) >> 2];
+    out.collisionBounce = f32[(ptr + 344) >> 2];
+    out.collisionFriction = f32[(ptr + 348) >> 2];
+    out.collisionLifetimeLoss = f32[(ptr + 352) >> 2];
 }
 
 export function writeParticleEmitter(
@@ -1536,9 +1586,10 @@ export function writeParticleEmitter(
     u32[(ptr + 328) >> 2] = data.collisionFallback | 0;
     u8[ptr + 332] = data.collisionEvents ? 1 : 0;
     u32[(ptr + 336) >> 2] = data.collisionEventBudget | 0;
-    f32[(ptr + 340) >> 2] = data.collisionBounce;
-    f32[(ptr + 344) >> 2] = data.collisionFriction;
-    f32[(ptr + 348) >> 2] = data.collisionLifetimeLoss;
+    f32[(ptr + 340) >> 2] = data.collisionThickness;
+    f32[(ptr + 344) >> 2] = data.collisionBounce;
+    f32[(ptr + 348) >> 2] = data.collisionFriction;
+    f32[(ptr + 352) >> 2] = data.collisionLifetimeLoss;
 }
 
 export function createParticleEmitterData(): ParticleEmitterPtrData {
@@ -1615,6 +1666,7 @@ export function createParticleEmitterData(): ParticleEmitterPtrData {
         collisionFallback: 0,
         collisionEvents: false,
         collisionEventBudget: 0,
+        collisionThickness: 0,
         collisionBounce: 0,
         collisionFriction: 0,
         collisionLifetimeLoss: 0,
@@ -2902,6 +2954,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     MeshLightmap: { fill: fillMeshLightmap, write: writeMeshLightmap, create: createMeshLightmapData },
     MeshRenderer: { fill: fillMeshRenderer, write: writeMeshRenderer, create: createMeshRendererData },
     Occluder: { fill: fillOccluder, write: writeOccluder, create: createOccluderData },
+    ParticleCollider: { fill: fillParticleCollider, write: writeParticleCollider, create: createParticleColliderData },
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
     ParticleForceField: { fill: fillParticleForceField, write: writeParticleForceField, create: createParticleForceFieldData },
     PlanarReflection: { fill: fillPlanarReflection, write: writePlanarReflection, create: createPlanarReflectionData },

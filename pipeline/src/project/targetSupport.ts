@@ -53,7 +53,7 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
     importedScene: ['NodeVisibility', 'ParticleModelUnits'],
     // Hair, Skin and Eye are shaders, not components: a character's materials are what name them (see SHADER_SUBSYSTEM).
     characterShaders: [],
-    particles: ['ParticleEmitter', 'ParticleForceField'],
+    particles: ['ParticleEmitter', 'ParticleForceField', 'ParticleCollider'],
     postprocess: ['PostProcessVolume'],
     physics: [
         'RigidBody2D', 'BoxCollider2D', 'CircleCollider2D', 'CapsuleCollider2D', 'SegmentCollider2D',

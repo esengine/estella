@@ -4102,6 +4102,55 @@
       ]
     },
     {
+      "name": "ParticleCollider",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "shape",
+          "type": "enum",
+          "default": "Sphere",
+          "values": [
+            "Sphere",
+            "Box",
+            "Capsule"
+          ]
+        },
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "50",
+          "range": "≥ 0"
+        },
+        {
+          "key": "halfHeight",
+          "type": "number",
+          "default": "50",
+          "range": "≥ 0"
+        },
+        {
+          "key": "halfExtents",
+          "type": "Vec3",
+          "default": "(50, 50, 50)"
+        },
+        {
+          "key": "inverted",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "mask",
+          "type": "number",
+          "default": "65535",
+          "range": "0–65535, step 1"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
       "name": "ParticleEmitter",
       "source": "cpp",
       "fields": [
@@ -4522,7 +4571,9 @@
           "values": [
             "Floor",
             "Physics2D",
-            "Physics3D"
+            "Physics3D",
+            "Depth",
+            "Sdf"
           ]
         },
         {
@@ -4562,6 +4613,12 @@
           "type": "number",
           "default": "32",
           "range": "0–1024, step 1"
+        },
+        {
+          "key": "collisionThickness",
+          "type": "number",
+          "default": "30",
+          "range": "≥ 0"
         },
         {
           "key": "collisionBounce",

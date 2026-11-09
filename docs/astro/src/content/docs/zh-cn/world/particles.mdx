@@ -566,13 +566,62 @@ world.insert(entity, ParticleEmitter, {
 它跑的是同一个发射器:形状、旋度噪声、力场(前八个)、重力、阻尼、地面平面、颜色 / 尺寸 / 速度随生命曲线和精灵表都一样。
 每个发射器用自己固定的种子,所以场景每次回放的粒子相同。它不做的事:
 
-- **没有子发射器、逐粒子拖尾和场景查询碰撞**(`Physics2D` / `Physics3D`)。GPU 发射器只和地面平面碰撞。
+- **没有场景查询碰撞**（`Physics2D` / `Physics3D`）。kernel 问不了物理世界，这两种模式会按 `collisionFallback` 处理。请改用 [`Depth` 或 `Sdf`](#gpu-碰撞)。
 - **不排序。** `Additive` 或镂空的效果是精确的;一大堆 `Normal` 混合的粒子按槽位顺序绘制。
 - **不能放在 UI 树里。** `Canvas` 下的发射器走屏幕叠加层绘制,kernel 不会喂给它;请留在 CPU 上。
 - **`Particle.aliveCount` 是上界。** 真实状态在 GPU 里,不做回读。
 
 它需要支持 compute 的设备——WebGPU。在 WebGL2 和小游戏运行时里,同一个发射器改在 CPU 上跑,**上限 20,000 个粒子**,
 所以为百万粒子做的场景仍能播放,只是更稀。如果在意没有 WebGPU 的平台,请让效果在这个上限下仍然成立。
+
+### GPU 碰撞
+
+有两种碰撞模式是专门给 kernel 准备的，它们都不需要逐粒子做一百万个粒子负担不起的事。
+
+**`Depth` 和相机看到的东西碰撞。** 场景画完后拷一份这一帧的深度，下一帧 kernel 用当时的相机把每个粒子重投影进去。粒子刚好落在表面后方就算撞上；比 `collisionThickness` 更靠后，说明它已经绕到背面，直接穿过。
+
+```ts
+world.insert(entity, ParticleEmitter, {
+  gpuSimulation: true,
+  collisionEnabled: true,
+  collisionMode: ParticleCollisionMode.Depth,
+  collisionThickness: 50,
+  collisionBounce: 0.3,
+});
+```
+
+它不需要任何设置，每帧只多一次拷贝，和场景内容无关，但也受这张深度图的限制：只有相机看得到、且写入深度的东西才算。屏幕外的东西挡不住粒子，背对相机的面不存在，只有精灵的 2D 场景没有深度，落到盒子正面背后的粒子碰到的是正面而不是顶面。它有一帧延迟，并且只认这一帧最先绘制的相机。不管相机怎样都要挡住的场景，请用 `Sdf`。
+
+**`Sdf` 和你放置的形状碰撞。** **`ParticleCollider`** 是球、盒子或胶囊，不绘制、不需要物理。发射器会被场景里前 64 个与 `collisionMask` 有共同位的碰撞体弹开。`inverted` 让粒子留在里面：罐子、法术的护罩。
+
+```ts
+const ball = world.spawn();
+world.insert(ball, Transform, { position: { x: 0, y: 100, z: 0 } });
+world.insert(ball, ParticleCollider, { shape: ParticleColliderShape.Sphere, radius: 120 });
+```
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `shape` | `ParticleColliderShape` | `Sphere` | `Sphere`、`Box` 或 `Capsule`。盒子和胶囊随实体旋转；胶囊的轴是实体的上方向。 |
+| `radius` | number | `50` | 球的半径，胶囊绕轴的半径。按实体最大的缩放值缩放。 |
+| `halfHeight` | number | `50` | 胶囊的轴从中心向两端延伸的长度。 |
+| `halfExtents` | Vec3 | `50, 50, 50` | 盒子的半尺寸。 |
+| `inverted` | boolean | `false` | 把粒子留在里面，而不是挡在外面。 |
+| `mask` | bitmask | 全部（`65535`） | 挡住哪些发射器：`collisionMask` 有共同位的。 |
+
+每个粒子都要询问所有符合 mask 的碰撞体，所以百万粒子配上很多碰撞体确实有开销，请控制数量。`Sdf` 在 CPU 上也能跑，没有 compute 的设备效果不变；`Depth` 不行，在 WebGL2 上按 `collisionFallback` 处理。
+
+粒子在这两种模式下都没有体积，是一个点，中心碰到表面时停下。
+
+### GPU 事件、子发射器和拖尾
+
+kernel 把发生的事追加到一个缓冲里：`subEmitterTrigger` 要的出生、死亡或碰撞，或开启 `collisionEvents` 时的每次碰撞。下面两个功能都读这个缓冲。
+
+**子发射器全程不经过 CPU。** 给 GPU 发射器设一个同样开启 `gpuSimulation` 的 `subEmitter`，子发射器的 kernel 会直接按父发射器的事件点亮粒子槽，每个事件 `burstCount` 个，位置在事件处，并继承 `subEmitterInheritVelocity` 比例的速度。每帧父发射器先运行，所以火花就诞生在水滴消失的地方。每个发射器每帧最多保留 4096 个事件，多余的丢弃。在 CPU 上运行的子发射器不会被 GPU 父发射器驱动。
+
+**游戏逻辑晚一两帧收到碰撞。** 开启 `collisionEvents` 后，等 GPU 交回数据，`ParticleCollisionEvent`、`collisionStats` 等的读法和其他碰撞一样，单位也相同。`collisionEventBudget` 是每次回读的数量，其余的计入 `hits`。回读是这里唯一需要经过 CPU 的部分，游戏不需要就不要开。
+
+**拖尾** 用同样的 `trailEnabled`、`trailWidth`、`trailPoints` 和 `trailMinDistance`。每个粒子的路径存在单独的缓冲里，沿路径画成四边形，从头部开始逐渐变窄变淡。无论粒子是否存活，每个槽都占内存：`maxParticles` x `trailPoints` x 60 字节，10 万粒子配 12 个点就是 72 MB。每一段都朝向这一帧最先绘制的相机，所以第二个相机看到的会略微偏向侧面。
 
 ## 性能与最佳实践
 

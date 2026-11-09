@@ -19,7 +19,7 @@ import type {
     SortingGroupData, GroupOpacityData, SpriteMaskData, LightProbeVolumeData, OccluderData,
     ReflectionProbeData, PlanarReflectionData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
-    TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData, SpringBoneData, SpringBoneColliderData, BillboardData, ImpostorData,
+    TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData, ParticleColliderData, SpringBoneData, SpringBoneColliderData, BillboardData, ImpostorData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
     MeshRendererData as MeshRendererDataCpp,
 } from './component.generated';
@@ -28,7 +28,7 @@ import type {
 // C++ enum and the editor dropdowns derive from the same values. ScaleMode's
 // canonical values come from CanvasScaleMode (only its Cocos-compat aliases
 // ShowAll/NoBorder are TS-side).
-import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, LightType, CanvasScaleMode, ShapeType, ParticleEasing, ParticleCollisionMode, ParticleCollisionFallback, ParticleRenderMode, ReflectionAxis, ReflectionQuality, ReflectionUpdate, SpriteMaskInteraction, SpriteDrawMode, BillboardMode } from '../wasm/wasm.generated';
+import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, ParticleColliderShape, LightType, CanvasScaleMode, ShapeType, ParticleEasing, ParticleCollisionMode, ParticleCollisionFallback, ParticleRenderMode, ReflectionAxis, ReflectionQuality, ReflectionUpdate, SpriteMaskInteraction, SpriteDrawMode, BillboardMode } from '../wasm/wasm.generated';
 import { BlendMode } from '../render/blend';
 import { getDefaultContext } from './context';
 import type {
@@ -818,7 +818,7 @@ export function ensureBuiltinComponentsRegistered(): void {
 // EmitterShape, SimulationSpace, LightType and ShapeType are re-exported from the
 // generated module; their values and the editor dropdowns built from them now have
 // one source.
-export { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, LightType, ShapeType, SpriteMaskInteraction, SpriteDrawMode };
+export { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, ParticleColliderShape, LightType, ShapeType, SpriteMaskInteraction, SpriteDrawMode };
 
 // Canonical values single-sourced from the C++ CanvasScaleMode enum (generated);
 // ShowAll/NoBorder are Cocos-compat aliases with no C++ member.
@@ -846,7 +846,7 @@ export type {
     SortingGroupData, GroupOpacityData, SpriteMaskData, LightProbeVolumeData, OccluderData,
     ReflectionProbeData, PlanarReflectionData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
-    TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData, SpringBoneData, SpringBoneColliderData, BillboardData, ImpostorData,
+    TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData, ParticleColliderData, SpringBoneData, SpringBoneColliderData, BillboardData, ImpostorData,
 };
 
 export type LocalTransformData = TransformData;
@@ -1165,6 +1165,11 @@ export const Impostor = defineBuiltin<ImpostorData>('Impostor',
 // C++ ParticleSystem folds into every nearby world-space particle's integration.
 export const ParticleForceField = defineBuiltin<ParticleForceFieldData>('ParticleForceField',
     metaDefaults<ParticleForceFieldData>('ParticleForceField')
+);
+
+// A shape particles bounce off with no physics: an emitter in `Sdf` collision mode, on the GPU or the CPU, asks its distance.
+export const ParticleCollider = defineBuiltin<ParticleColliderData>('ParticleCollider',
+    metaDefaults<ParticleColliderData>('ParticleCollider')
 );
 
 /**

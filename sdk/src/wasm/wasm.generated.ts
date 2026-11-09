@@ -200,6 +200,17 @@ export enum MaskMode {
 }
 
 /**
+ * The engine's `ParticleColliderShape`, generated from the C++ enum.
+ *
+ * @beta
+ */
+export enum ParticleColliderShape {
+    Sphere = 0,
+    Box = 1,
+    Capsule = 2,
+}
+
+/**
  * The engine's `ParticleCollisionFallback`, generated from the C++ enum.
  *
  * @beta
@@ -218,6 +229,8 @@ export enum ParticleCollisionMode {
     Floor = 0,
     Physics2D = 1,
     Physics3D = 2,
+    Depth = 3,
+    Sdf = 4,
 }
 
 /**
@@ -760,6 +773,16 @@ export interface Parent {
     entity: number;
 }
 
+export interface ParticleCollider {
+    shape: number;
+    radius: number;
+    halfHeight: number;
+    halfExtents: Vec3;
+    inverted: boolean;
+    mask: number;
+    enabled: boolean;
+}
+
 export interface ParticleEmitter {
     rate: number;
     burstCount: number;
@@ -833,6 +856,7 @@ export interface ParticleEmitter {
     collisionFallback: number;
     collisionEvents: boolean;
     collisionEventBudget: number;
+    collisionThickness: number;
     collisionBounce: number;
     collisionFriction: number;
     collisionLifetimeLoss: number;
@@ -1239,6 +1263,10 @@ export interface Registry {
     getParent(entity: Entity): Parent;
     addParent(entity: Entity, component: Parent): void;
     removeParent(entity: Entity): void;
+    hasParticleCollider(entity: Entity): boolean;
+    getParticleCollider(entity: Entity): ParticleCollider;
+    addParticleCollider(entity: Entity, component: ParticleCollider): void;
+    removeParticleCollider(entity: Entity): void;
     hasParticleEmitter(entity: Entity): boolean;
     getParticleEmitter(entity: Entity): ParticleEmitter;
     addParticleEmitter(entity: Entity, component: ParticleEmitter): void;
@@ -1388,6 +1416,7 @@ export interface ESEngineModule {
     MeshSkin: new () => MeshSkin;
     Occluder: new () => Occluder;
     Parent: new () => Parent;
+    ParticleCollider: new () => ParticleCollider;
     ParticleEmitter: new () => ParticleEmitter;
     ParticleForceField: new () => ParticleForceField;
     PlanarReflection: new () => PlanarReflection;

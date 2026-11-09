@@ -417,7 +417,12 @@ void RenderFrame::beginFrame() {
 void RenderFrame::applySceneDepthNeed() {
 #ifdef ES_ENABLE_POSTPROCESS
     if (!post_process_) return;
-    post_process_->setSceneNeedsDepth(!depth_answered_ || depth_seen_
+    bool computeNeedsDepth = false;
+#ifdef ES_ENABLE_GPU_PARTICLES
+    computeNeedsDepth = gpu_particles_ && gpu_particles_->wantsDepth();
+#endif
+    post_process_->setComputeNeedsDepth(computeNeedsDepth);
+    post_process_->setSceneNeedsDepth(!depth_answered_ || depth_seen_ || computeNeedsDepth
                                       || draw_list_.depthMask() != 0);
 #endif
 }
@@ -809,6 +814,11 @@ void RenderFrame::end() {
             if (!glass && presented_overlay_draw_) presented_overlay_draw_->flushDeferred();
         };
         graph_.addPass(std::move(scene));
+#ifdef ES_ENABLE_GPU_PARTICLES
+        if (gpu_particles_) {
+            gpu_particles_->declareDepthCopy(graph_, scene_resource_, width_, height_, toClipDepthRange(view_projection_, device_.clipDepthRange()));
+        }
+#endif
         if (glass) {
 #ifdef ES_ENABLE_POSTPROCESS
             rg::PassDesc copy;

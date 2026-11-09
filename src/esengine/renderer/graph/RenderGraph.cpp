@@ -235,7 +235,7 @@ void RenderGraph::cull(std::vector<bool>& live) const {
     wanted[finalTarget_] = true;
     for (i32 i = static_cast<i32>(passes_.size()) - 1; i >= 0; --i) {
         const PassDesc& pass = passes_[static_cast<usize>(i)];
-        if (pass.write >= resources_.size() || !wanted[pass.write]) continue;
+        if (!pass.keep && (pass.write >= resources_.size() || !wanted[pass.write])) continue;
         live[static_cast<usize>(i)] = true;
         for (ResourceId read : pass.reads) {
             if (read < resources_.size()) wanted[read] = true;

@@ -18,7 +18,7 @@ import type { ModuleChoice } from '../project/format';
 export const LITE_OMITS: readonly Subsystem[] = ['particles', 'postprocess', 'tilemap'];
 
 /** What a script says when it uses one of them. Broad on purpose: a comment that names one only costs the saving. */
-const SCRIPT_MENTIONS = /\b(ParticleEmitter|ParticleForceField|Particle|ParticlePlugin|PostProcess\w*|Tilemap\w*|TilemapLayer|Tilemaps)\b|esengine\/tilemap/;
+const SCRIPT_MENTIONS = /\b(ParticleEmitter|ParticleForceField|ParticleCollider|Particle|ParticlePlugin|PostProcess\w*|Tilemap\w*|TilemapLayer|Tilemaps)\b|esengine\/tilemap/;
 
 const SCRIPT_EXT = /\.(?:[cm]?[jt]sx?)$/;
 const SKIP_DIRS = new Set(['node_modules', '.git', '.esengine', 'dist', 'build', 'out']);

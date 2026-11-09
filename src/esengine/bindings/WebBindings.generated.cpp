@@ -30,6 +30,7 @@
 #include "../ecs/components/Light.hpp"
 #include "../ecs/components/MeshRenderer.hpp"
 #include "../ecs/components/Occluder.hpp"
+#include "../ecs/components/ParticleCollider.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/ParticleForceField.hpp"
 #include "../ecs/components/PlanarReflection.hpp"
@@ -230,6 +231,11 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Scissor", esengine::ecs::MaskMode::Scissor)
         .value("Stencil", esengine::ecs::MaskMode::Stencil);
 
+    enum_<esengine::ecs::ParticleColliderShape>("ParticleColliderShape")
+        .value("Sphere", esengine::ecs::ParticleColliderShape::Sphere)
+        .value("Box", esengine::ecs::ParticleColliderShape::Box)
+        .value("Capsule", esengine::ecs::ParticleColliderShape::Capsule);
+
     enum_<esengine::ecs::ParticleCollisionFallback>("ParticleCollisionFallback")
         .value("Floor", esengine::ecs::ParticleCollisionFallback::Floor)
         .value("Skip", esengine::ecs::ParticleCollisionFallback::Skip);
@@ -237,7 +243,9 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
     enum_<esengine::ecs::ParticleCollisionMode>("ParticleCollisionMode")
         .value("Floor", esengine::ecs::ParticleCollisionMode::Floor)
         .value("Physics2D", esengine::ecs::ParticleCollisionMode::Physics2D)
-        .value("Physics3D", esengine::ecs::ParticleCollisionMode::Physics3D);
+        .value("Physics3D", esengine::ecs::ParticleCollisionMode::Physics3D)
+        .value("Depth", esengine::ecs::ParticleCollisionMode::Depth)
+        .value("Sdf", esengine::ecs::ParticleCollisionMode::Sdf);
 
     enum_<esengine::ecs::ParticleEasing>("ParticleEasing")
         .value("Linear", esengine::ecs::ParticleEasing::Linear)
@@ -1024,6 +1032,7 @@ struct ParticleEmitterJS {
     i32 collisionFallback;
     bool collisionEvents;
     i32 collisionEventBudget;
+    f32 collisionThickness;
     f32 collisionBounce;
     f32 collisionFriction;
     f32 collisionLifetimeLoss;
@@ -1102,6 +1111,7 @@ void particleemitterApplyJS(esengine::ecs::ParticleEmitter& c, const ParticleEmi
     c.collisionFallback = js.collisionFallback;
     c.collisionEvents = js.collisionEvents;
     c.collisionEventBudget = js.collisionEventBudget;
+    c.collisionThickness = js.collisionThickness;
     c.collisionBounce = js.collisionBounce;
     c.collisionFriction = js.collisionFriction;
     c.collisionLifetimeLoss = js.collisionLifetimeLoss;
@@ -1187,6 +1197,7 @@ ParticleEmitterJS particleemitterToJS(const esengine::ecs::ParticleEmitter& c) {
     js.collisionFallback = c.collisionFallback;
     js.collisionEvents = c.collisionEvents;
     js.collisionEventBudget = c.collisionEventBudget;
+    js.collisionThickness = c.collisionThickness;
     js.collisionBounce = c.collisionBounce;
     js.collisionFriction = c.collisionFriction;
     js.collisionLifetimeLoss = c.collisionLifetimeLoss;
@@ -2112,6 +2123,15 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
     value_object<ParentJS>("Parent")
         .field("entity", &ParentJS::entity);
 
+    value_object<esengine::ecs::ParticleCollider>("ParticleCollider")
+        .field("shape", &esengine::ecs::ParticleCollider::shape)
+        .field("radius", &esengine::ecs::ParticleCollider::radius)
+        .field("halfHeight", &esengine::ecs::ParticleCollider::halfHeight)
+        .field("halfExtents", &esengine::ecs::ParticleCollider::halfExtents)
+        .field("inverted", &esengine::ecs::ParticleCollider::inverted)
+        .field("mask", &esengine::ecs::ParticleCollider::mask)
+        .field("enabled", &esengine::ecs::ParticleCollider::enabled);
+
     value_object<ParticleEmitterJS>("ParticleEmitter")
         .field("rate", &ParticleEmitterJS::rate)
         .field("burstCount", &ParticleEmitterJS::burstCount)
@@ -2185,6 +2205,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("collisionFallback", &ParticleEmitterJS::collisionFallback)
         .field("collisionEvents", &ParticleEmitterJS::collisionEvents)
         .field("collisionEventBudget", &ParticleEmitterJS::collisionEventBudget)
+        .field("collisionThickness", &ParticleEmitterJS::collisionThickness)
         .field("collisionBounce", &ParticleEmitterJS::collisionBounce)
         .field("collisionFriction", &ParticleEmitterJS::collisionFriction)
         .field("collisionLifetimeLoss", &ParticleEmitterJS::collisionLifetimeLoss);
@@ -2497,6 +2518,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             if (r.has<esengine::ecs::MeshSkin>(entity)) { if (!names.empty()) names += "|"; names += "MeshSkin"; }
             if (r.has<esengine::ecs::Occluder>(entity)) { if (!names.empty()) names += "|"; names += "Occluder"; }
             if (r.has<esengine::ecs::Parent>(entity)) { if (!names.empty()) names += "|"; names += "Parent"; }
+            if (r.has<esengine::ecs::ParticleCollider>(entity)) { if (!names.empty()) names += "|"; names += "ParticleCollider"; }
             if (r.has<esengine::ecs::ParticleEmitter>(entity)) { if (!names.empty()) names += "|"; names += "ParticleEmitter"; }
             if (r.has<esengine::ecs::ParticleForceField>(entity)) { if (!names.empty()) names += "|"; names += "ParticleForceField"; }
             if (r.has<esengine::ecs::PlanarReflection>(entity)) { if (!names.empty()) names += "|"; names += "PlanarReflection"; }
@@ -2556,6 +2578,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             if (name == "MeshSkin") return static_cast<int>(componentTypeId<esengine::ecs::MeshSkin>());
             if (name == "Occluder") return static_cast<int>(componentTypeId<esengine::ecs::Occluder>());
             if (name == "Parent") return static_cast<int>(componentTypeId<esengine::ecs::Parent>());
+            if (name == "ParticleCollider") return static_cast<int>(componentTypeId<esengine::ecs::ParticleCollider>());
             if (name == "ParticleEmitter") return static_cast<int>(componentTypeId<esengine::ecs::ParticleEmitter>());
             if (name == "ParticleForceField") return static_cast<int>(componentTypeId<esengine::ecs::ParticleForceField>());
             if (name == "PlanarReflection") return static_cast<int>(componentTypeId<esengine::ecs::PlanarReflection>());
@@ -3256,6 +3279,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             esengine::ecs::setParent(r, entity, INVALID_ENTITY);
         }))
 
+        // ParticleCollider
+        .function("hasParticleCollider", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::ParticleCollider>(static_cast<Entity>(e));
+        }))
+        .function("getParticleCollider", optional_override([](Registry& r, u32 e) -> esengine::ecs::ParticleCollider& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::ParticleCollider s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::ParticleCollider>(entity)) return s_dummy;
+            return r.get<esengine::ecs::ParticleCollider>(entity);
+        }), allow_raw_pointers())
+        .function("addParticleCollider", optional_override([](Registry& r, u32 e, const esengine::ecs::ParticleCollider& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::ParticleCollider>(entity, c);
+        }))
+        .function("removeParticleCollider", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ParticleCollider>(entity)) return;
+            r.remove<esengine::ecs::ParticleCollider>(entity);
+        }))
+
         // ParticleEmitter
         .function("hasParticleEmitter", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e));
@@ -3879,6 +3923,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("MeshSkin")));
     arr.set(i++, val(std::string("Occluder")));
     arr.set(i++, val(std::string("Parent")));
+    arr.set(i++, val(std::string("ParticleCollider")));
     arr.set(i++, val(std::string("ParticleEmitter")));
     arr.set(i++, val(std::string("ParticleForceField")));
     arr.set(i++, val(std::string("PlanarReflection")));
@@ -4111,6 +4156,13 @@ static_assert(offsetof(esengine::ecs::MeshRenderer, enabled) == 44, "ABI offset 
 static_assert(offsetof(esengine::ecs::MeshRenderer, mesh) == 48, "ABI offset drift: esengine::ecs::MeshRenderer.mesh (EHT expected 48)");
 static_assert(offsetof(esengine::ecs::Occluder, halfExtents) == 0, "ABI offset drift: esengine::ecs::Occluder.halfExtents (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Occluder, enabled) == 12, "ABI offset drift: esengine::ecs::Occluder.enabled (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::ParticleCollider, shape) == 0, "ABI offset drift: esengine::ecs::ParticleCollider.shape (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::ParticleCollider, radius) == 4, "ABI offset drift: esengine::ecs::ParticleCollider.radius (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::ParticleCollider, halfHeight) == 8, "ABI offset drift: esengine::ecs::ParticleCollider.halfHeight (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::ParticleCollider, halfExtents) == 12, "ABI offset drift: esengine::ecs::ParticleCollider.halfExtents (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::ParticleCollider, inverted) == 24, "ABI offset drift: esengine::ecs::ParticleCollider.inverted (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::ParticleCollider, mask) == 28, "ABI offset drift: esengine::ecs::ParticleCollider.mask (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::ParticleCollider, enabled) == 32, "ABI offset drift: esengine::ecs::ParticleCollider.enabled (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, rate) == 0, "ABI offset drift: esengine::ecs::ParticleEmitter.rate (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstCount) == 4, "ABI offset drift: esengine::ecs::ParticleEmitter.burstCount (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstInterval) == 8, "ABI offset drift: esengine::ecs::ParticleEmitter.burstInterval (EHT expected 8)");
@@ -4183,9 +4235,10 @@ static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionMaxDistance) == 
 static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionFallback) == 328, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionFallback (EHT expected 328)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionEvents) == 332, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionEvents (EHT expected 332)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionEventBudget) == 336, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionEventBudget (EHT expected 336)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionBounce) == 340, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionBounce (EHT expected 340)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionFriction) == 344, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionFriction (EHT expected 344)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionLifetimeLoss) == 348, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionLifetimeLoss (EHT expected 348)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionThickness) == 340, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionThickness (EHT expected 340)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionBounce) == 344, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionBounce (EHT expected 344)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionFriction) == 348, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionFriction (EHT expected 348)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionLifetimeLoss) == 352, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionLifetimeLoss (EHT expected 352)");
 static_assert(offsetof(esengine::ecs::ParticleForceField, type) == 0, "ABI offset drift: esengine::ecs::ParticleForceField.type (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ParticleForceField, strength) == 4, "ABI offset drift: esengine::ecs::ParticleForceField.strength (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ParticleForceField, radius) == 8, "ABI offset drift: esengine::ecs::ParticleForceField.radius (EHT expected 8)");
@@ -4384,7 +4437,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "6bf8e03097b59051";
+static const char* kEsAbiLayoutHash = "5e943b68bf754ab0";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

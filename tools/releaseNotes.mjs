@@ -4224,6 +4224,8 @@ export const NOTED = {
     {"note": "A side-on character comes ready to run and jump."},
   "feat(foliage): plants part for what touches them, come near as entities with colliders, and can be felled and harvested":
     {"note": "Plants can be touched, felled and harvested."},
+  "feat(particles): GPU particles collide with scene depth and distance functions, fire sub-emitters from an event buffer, and drag trails":
+    {"note": "GPU particles can hit things, tell each other, and drag trails."},
   "fix(assets): one hot load at a time per asset, so two rescans cannot lose a texture":
     {"note": "A texture stays on a scene that rescans as it is placed."},
   "feat(rig): the 2D rig editor, from an image to a character in the scene":

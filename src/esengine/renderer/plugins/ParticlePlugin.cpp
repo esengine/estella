@@ -99,6 +99,8 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
         // A GPU emitter's particles are in a buffer a kernel writes: this frame's step is queued, and the draw is told
         // where to read them. The CPU has nothing per particle to do.
         BufferHandle gpuInstances = BufferHandle::Invalid;
+        BufferHandle gpuSegments = BufferHandle::Invalid;
+        u32 gpuSegmentCount = 0;
         u32 particleCount = 0;
         if (state->gpu) {
 #ifdef ES_ENABLE_GPU_PARTICLES
@@ -108,7 +110,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             buffers.reserveStream(LayoutId::ParticleInstance);
             particle::GpuStep step;
             if (!particle_system_->peekGpuStep(entity, step)) continue;
-            if (!gpu->submit(entity, emitter, transform, *particle_system_, step, gpuInstances)) continue;
+            if (!gpu->submit(entity, emitter, transform, *particle_system_, step, collect_ctx.camera.eye, gpuInstances, gpuSegments, gpuSegmentCount)) continue;
             particleCount = step.drawCount;
 #else
             continue;  // no compute in this build: ParticleSystem never marks an emitter GPU-simulated
@@ -249,6 +251,15 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
         // The stream's static unit-quad indices (offset 0) drawn once per particle,
         // with the instance slice based at instByteOffset.
         pushBatchDraw(draw_list, clips, instByteOffset, 0, 0, 6, key);
+
+        // A kernel writes a GPU emitter's trails as quads the particle draw already knows how to draw.
+        if (gpuSegments != BufferHandle::Invalid && gpuSegmentCount > 0) {
+            BatchDrawKey segmentKey = key;
+            segmentKey.textureId = ctx.white_texture_id;
+            segmentKey.instanceCount = gpuSegmentCount;
+            segmentKey.instanceBuffer = gpuSegments;
+            pushBatchDraw(draw_list, clips, 0, 0, 0, 6, segmentKey);
+        }
 
         // --- Per-particle trails --------------------------------------------------
         // Each live particle drags a tapering ribbon along its recorded path. Built on

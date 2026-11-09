@@ -627,6 +627,48 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "Half the solid box, in world units, from the entity's position.",
     },
   },
+  "ParticleCollider": {
+    "halfExtents": {
+      "category": "Shape",
+    },
+    "halfHeight": {
+      "category": "Shape",
+      "min": 0,
+    },
+    "inverted": {
+      "category": "Shape",
+    },
+    "mask": {
+      "bitmask": {
+        "source": "collisionLayers",
+      },
+      "category": "Shape",
+      "max": 65535,
+      "min": 0,
+      "step": 1,
+    },
+    "radius": {
+      "category": "Shape",
+      "min": 0,
+    },
+    "shape": {
+      "category": "Shape",
+      "enum": [
+        {
+          "label": "Sphere",
+          "value": 0,
+        },
+        {
+          "label": "Box",
+          "value": 1,
+        },
+        {
+          "label": "Capsule",
+          "value": 2,
+        },
+      ],
+    },
+  },
   "ParticleEmitter": {
     "addedVelocityMax": {
       "category": "Velocity",
@@ -845,6 +887,14 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
           "label": "Physics3D",
           "value": 2,
         },
+        {
+          "label": "Depth",
+          "value": 3,
+        },
+        {
+          "label": "Sdf",
+          "value": 4,
+        },
       ],
       "shownWhen": {
         "field": "collisionEnabled",
@@ -864,6 +914,16 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
         ],
       },
       "step": 1,
+    },
+    "collisionThickness": {
+      "category": "Collision",
+      "min": 0,
+      "shownWhen": {
+        "field": "collisionEnabled",
+        "values": [
+          1,
+        ],
+      },
     },
     "colorEasing": {
       "category": "Color",

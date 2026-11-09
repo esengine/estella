@@ -8,6 +8,7 @@
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/ParticleForceField.hpp"
+#include "../ecs/components/ParticleCollider.hpp"
 #include "Particle.hpp"
 #include "ParticleBursts.hpp"
 #include "ParticleEasing.hpp"
@@ -50,6 +51,20 @@ struct ForceFieldInstance {
     bool falloff = true;
 };
 
+// A scene ParticleCollider flattened to what a distance function needs, gathered once per update(). The GPU kernel
+// reads the same record: three vec4s and four words, so the layout is the same in both languages.
+struct SdfColliderInstance {
+    glm::vec3 position{0.0f};
+    f32 shape = 0.0f;
+    glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+    f32 ext[3] = {0.0f, 0.0f, 0.0f};  // sphere: radius. box: half extents. capsule: radius, half height.
+    f32 inverted = 0.0f;
+    u32 mask = 0xffffu;
+    u32 pad[3] = {0, 0, 0};
+};
+/// How far a world point is outside a collider, negative inside; what the kernel's sdfOne answers.
+f32 sdfDistance(const SdfColliderInstance& c, const glm::vec3& point);
+
 // Fixed-width batch records shared by Web and native heaps. Integers keep their
 // bits (including generational entity IDs); they are not converted through float.
 struct CollisionQuery {
@@ -82,6 +97,7 @@ struct GpuStep {
     u32 smoothCount = 0;
     u32 drawCount = 0;    ///< Slots that may hold a live particle once this step has run.
     bool reset = false;   ///< Kill everything first (a reset() since the last step).
+    bool fed = false;     ///< A GPU parent's events spawn into it, so any slot may be live whatever was scheduled.
 };
 
 struct EmitterState {
@@ -114,6 +130,7 @@ struct EmitterState {
     u32 gpuSmooth = 0, gpuBurst = 0;
     u32 gpuSpawned = 0;
     bool gpuReset = false;
+    bool gpuFed = false;
 
     explicit EmitterState(u32 capacity) : pool(capacity) {}
 };
@@ -145,6 +162,10 @@ public:
     /// The kernel ran this step: the time and births it covered are spent.
     void commitGpuStep(Entity entity, const GpuStep& step);
     const std::vector<ForceFieldInstance>& forceFields() const { return force_fields_; }
+    const std::vector<SdfColliderInstance>& sdfColliders() const { return sdf_colliders_; }
+
+    /// Collisions a kernel reported, a frame or two late since they come back from the GPU; they reach the game as any others do.
+    void addGpuCollisions(Entity entity, u32 total, const CollisionEvent* events, u32 count);
 
     // update() integrates; resolveCollisions() completes all queries in this same
     // frame before rendering. No reply survives into the next update.
@@ -218,6 +239,7 @@ private:
     void collide(const ecs::ParticleEmitter&, EmitterState&, Particle&, glm::vec3 point,
                  glm::vec3 normal, u32 body, const EmitterFrame&, bool world);
     void floorCollision(const ecs::ParticleEmitter&, EmitterState&, Particle&, const EmitterFrame&, bool world);
+    void sdfCollision(const ecs::ParticleEmitter&, EmitterState&, Particle&, const EmitterFrame&, bool world);
     f32 randomRange(f32 min, f32 max);
 
 
@@ -255,6 +277,9 @@ private:
     // Active scene force fields, rebuilt each update() and applied to world-space
     // particles during integration.
     std::vector<ForceFieldInstance> force_fields_;
+    std::vector<SdfColliderInstance> sdf_colliders_;
+    struct GpuCollisions { Entity entity; u32 total; std::vector<CollisionEvent> events; };
+    std::vector<GpuCollisions> gpu_collisions_;
     // RAII: auto-unregisters from the registry's onDestroy when this system is
     // destroyed, so a torn-down system never leaves a dangling `this` behind.
     Connection destroyConn_;

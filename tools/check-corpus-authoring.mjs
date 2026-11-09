@@ -124,6 +124,7 @@ const DISPOSITION = {
   NetGhost: ['derived', 'replication tags a remote proxy with it; the authority writes it, never the scene'],
   Planet: ['owed', 'authored by a game today (star-neighbors, a round planet from its own generator); an example that registers a planet provider is owed'],
   MeshInstances: ['derived', 'the foliage and world generation systems write it, one entity a kind and part of a cell; its places are data a system computes, not something a scene authors'],
+  ParticleCollider: ['owed', 'no example has a GPU emitter bouncing off a shape yet; the particle-gpu scenes are where the first one goes'],
   PlantProxy: ['derived', 'the plant interaction makes it for a plant near a contact, and takes it away again; a scene never holds one'],
   FoliageContact: ['owed', 'no example has a character walking through plants yet; wilds gains one when it gets a player'],
   PlacedFoliage: ['derived', 'a generated world grows its plants through the same machinery without the component, and a project that places plants by hand writes the kinds and records with a script from its own rules; the lists are generated data, not something a scene is authored by hand with'],

@@ -60,6 +60,8 @@ enum class ParticleCollisionMode : i32 {
     Floor = 0,
     Physics2D = 1,
     Physics3D = 2,
+    Depth = 3,
+    Sdf = 4,
 };
 
 ES_ENUM(stability=beta)
@@ -99,8 +101,8 @@ struct ParticleEmitter {
     i32 maxParticles{1000};
 
     // Simulated by a compute kernel (WebGPU); elsewhere the emitter runs on the CPU, capped. Gravity, damping,
-    // noise, force fields, the floor plane and over-life curves apply; sub-emitters, trails and
-    // scene-query collision are CPU-only.
+    // noise, force fields, over-life curves, the floor plane, depth and distance-function collision,
+    // sub-emitters and trails apply; a Physics2D/Physics3D scene query is CPU-only.
     ES_PROPERTY(category=Emission, tooltip="Simulate on the GPU (WebGPU compute). Falls back to a capped CPU simulation elsewhere. Sub-emitters, trails and physics collision are CPU-only.")
     bool gpuSimulation{false};
 
@@ -328,6 +330,11 @@ struct ParticleEmitter {
 
     ES_PROPERTY(min=0, max=1024, step=1, category=Collision, shown_when=collisionEnabled:true)
     i32 collisionEventBudget{32};
+
+    // Depth mode: how far behind what the camera saw a particle still counts as having hit it, in world units.
+    // Past this it has gone round the back, and passes.
+    ES_PROPERTY(min=0, category=Collision, shown_when=collisionEnabled:true)
+    f32 collisionThickness{30.0f};
 
     // Restitution: 0 = particles stop dead on the floor, 1 = a full elastic bounce.
     ES_PROPERTY(min=0, max=1, category=Collision, shown_when=collisionEnabled:true)

@@ -397,7 +397,7 @@ public:
                                 || output_transform_ != OutputTransform::None
                                 || displayLutActive()
                                 || view_exposure_ != 0.0f
-                                || presentScales() || present_required_);
+                                || presentScales() || present_required_ || compute_needs_depth_);
     }
 
     /**
@@ -421,6 +421,8 @@ public:
      *          viewport are the same geometry, same size and offset, and differ
      *          only in intent; the two rects cannot say which is which.
      */
+    /// A compute pass reads the scene's depth, which only a scene drawn into a target of the graph's has.
+    void setComputeNeedsDepth(bool needs) { compute_needs_depth_ = needs; }
     void setPresentRequired(bool required) { present_required_ = required; }
 
     /**
@@ -672,6 +674,7 @@ private:
     u32 output_vp_x_ = 0;
     u32 output_vp_y_ = 0;
     bool present_required_ = false;
+    bool compute_needs_depth_ = false;
     u32 output_vp_w_ = 0;
     u32 output_vp_h_ = 0;
 

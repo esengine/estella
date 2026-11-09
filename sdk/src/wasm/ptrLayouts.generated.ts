@@ -350,6 +350,18 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 12 },
         ],
     },
+    ParticleCollider: {
+        ptrFn: 'getParticleColliderPtr',
+        fields: [
+            { name: 'shape', type: 'i32', offset: 0 },
+            { name: 'radius', type: 'f32', offset: 4 },
+            { name: 'halfHeight', type: 'f32', offset: 8 },
+            { name: 'halfExtents', type: 'vec3', offset: 12 },
+            { name: 'inverted', type: 'bool', offset: 24 },
+            { name: 'mask', type: 'u32', offset: 28 },
+            { name: 'enabled', type: 'bool', offset: 32 },
+        ],
+    },
     ParticleEmitter: {
         ptrFn: 'getParticleEmitterPtr',
         fields: [
@@ -425,9 +437,10 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'collisionFallback', type: 'i32', offset: 328 },
             { name: 'collisionEvents', type: 'bool', offset: 332 },
             { name: 'collisionEventBudget', type: 'i32', offset: 336 },
-            { name: 'collisionBounce', type: 'f32', offset: 340 },
-            { name: 'collisionFriction', type: 'f32', offset: 344 },
-            { name: 'collisionLifetimeLoss', type: 'f32', offset: 348 },
+            { name: 'collisionThickness', type: 'f32', offset: 340 },
+            { name: 'collisionBounce', type: 'f32', offset: 344 },
+            { name: 'collisionFriction', type: 'f32', offset: 348 },
+            { name: 'collisionLifetimeLoss', type: 'f32', offset: 352 },
         ],
     },
     ParticleForceField: {

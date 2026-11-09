@@ -65,7 +65,44 @@ void ParticleSystem::update(ecs::Registry& registry, f32 frameDt) {
         force_fields_.push_back(inst);
     }
 
+    sdf_colliders_.clear();
+    auto colliderView = registry.activeView<ecs::Transform, ecs::ParticleCollider>();
+    for (auto colliderEntity : colliderView) {
+        const auto& collider = colliderView.get<ecs::ParticleCollider>(colliderEntity);
+        if (!collider.enabled) continue;
+        auto& colliderTransform = colliderView.get<ecs::Transform>(colliderEntity);
+        colliderTransform.ensureDecomposed();
+        const glm::vec3 scale = colliderTransform.worldScale;
+        SdfColliderInstance inst;
+        inst.position = colliderTransform.worldPosition;
+        inst.rotation = colliderTransform.worldRotation;
+        inst.shape = static_cast<f32>(collider.shape);
+        inst.inverted = collider.inverted ? 1.0f : 0.0f;
+        inst.mask = collider.mask & 0xffffu;
+        // A distance function cannot be stretched and stay one, so a round shape takes the largest of its scale.
+        const f32 round = std::max({std::abs(scale.x), std::abs(scale.y), std::abs(scale.z)});
+        if (collider.shape == static_cast<i32>(ecs::ParticleColliderShape::Box)) {
+            inst.ext[0] = collider.halfExtents.x * std::abs(scale.x);
+            inst.ext[1] = collider.halfExtents.y * std::abs(scale.y);
+            inst.ext[2] = collider.halfExtents.z * std::abs(scale.z);
+        } else {
+            inst.ext[0] = collider.radius * round;
+            inst.ext[1] = collider.halfHeight * std::abs(scale.y);
+        }
+        sdf_colliders_.push_back(inst);
+    }
+
     auto view = registry.activeView<ecs::Transform, ecs::ParticleEmitter>();
+    // A GPU parent's events feed its child in the kernel; the child cannot know how many slots that lights.
+    for (auto& [stateEntity, childState] : states_) childState.gpuFed = false;
+    for (auto parentEntity : view) {
+        const auto& parent = view.get<ecs::ParticleEmitter>(parentEntity);
+        if (parent.subEmitter == 0 || !parent.enabled) continue;
+        auto parentState = states_.find(parentEntity), childState = states_.find(Entity::fromRaw(parent.subEmitter));
+        if (parentState != states_.end() && childState != states_.end() && parentState->second.gpu && childState->second.gpu) {
+            childState->second.gpuFed = true;
+        }
+    }
     // Share the App cap across active scene emitters. Rotate remainder slots so
     // a budget smaller than the emitter count never permanently starves a tail.
     collision_quotas_.clear();
@@ -203,6 +240,18 @@ void ParticleSystem::update(ecs::Registry& registry, f32 frameDt) {
             // The kernel does what updateParticles would; this side only keeps the clocks it needs.
             state.noise_time += dt;
             state.gpuDt += dt;
+            if (emitter.collisionEnabled) {
+                CollisionStats stats; stats.emitter = entity.raw;
+                stats.mode = static_cast<u32>(emitter.collisionMode);
+                for (const GpuCollisions& reported : gpu_collisions_) {
+                    if (reported.entity != entity) continue;
+                    stats.hits += reported.total;
+                    stats.events += static_cast<u32>(reported.events.size());
+                    stats.eventDropped += reported.total - static_cast<u32>(reported.events.size());
+                    collision_events_.insert(collision_events_.end(), reported.events.begin(), reported.events.end());
+                }
+                collision_stats_.push_back(stats);
+            }
             continue;
         }
 
@@ -238,6 +287,7 @@ void ParticleSystem::update(ecs::Registry& registry, f32 frameDt) {
                              emitter.subEmitterInheritVelocity, emitter.subEmitterChance);
         }
     }
+    gpu_collisions_.clear();
 }
 
 void ParticleSystem::play(Entity entity) {
@@ -343,6 +393,8 @@ bool ParticleSystem::peekGpuStep(Entity entity, GpuStep& out) const {
     out.spawnCount = std::min(out.smoothCount + state.gpuBurst, state.gpuCapacity);
     out.firstIndex = state.gpuSpawned;
     out.drawCount = std::min(state.gpuSpawned + out.spawnCount, state.gpuCapacity);
+    out.fed = state.gpuFed;
+    if (state.gpuFed) out.drawCount = state.gpuCapacity;
     return true;
 }
 
@@ -736,10 +788,12 @@ void ParticleSystem::collisionStep(const ecs::ParticleEmitter& emitter, EmitterS
                                    Particle& p, glm::vec3 from, const EmitterFrame& frame, bool world) {
     const u32 ordinal = state.collisionOrdinal++;
     if (emitter.collisionMode == 0) { floorCollision(emitter, state, p, frame, world); return; }
+    if (emitter.collisionMode == static_cast<i32>(ecs::ParticleCollisionMode::Sdf)) { sdfCollision(emitter, state, p, frame, world); return; }
     auto& stats = collision_stats_[collision_stats_index_];
     auto fallback = [&] {
         if (emitter.collisionFallback == 0) { ++stats.fallbacks; floorCollision(emitter, state, p, frame, world); }
     };
+    // Depth is a picture only the GPU keeps; here it is what it is on any other unknown mode.
     if (emitter.collisionMode != 1 && emitter.collisionMode != 2) { ++stats.unavailable; fallback(); return; }
     const glm::vec3 start = world ? from : frame.position + frame.rotation * from;
     const glm::vec3 end = world ? p.position : frame.position + frame.rotation * p.position;
@@ -776,6 +830,50 @@ void ParticleSystem::floorCollision(const ecs::ParticleEmitter& emitter, Emitter
     if (std::isfinite(emitter.collisionFloor) && point.y < emitter.collisionFloor && velocity.y < 0) {
         collide(emitter, state, p, {point.x,emitter.collisionFloor,point.z}, {0,1,0}, 0xffffffffu, frame, world);
     }
+}
+
+f32 sdfDistance(const SdfColliderInstance& c, const glm::vec3& point) {
+    const glm::vec3 q = glm::inverse(c.rotation) * (point - c.position);
+    f32 d = 0.0f;
+    if (c.shape > 1.5f) {
+        const f32 along = std::clamp(q.y, -c.ext[1], c.ext[1]);
+        d = glm::length(glm::vec3(q.x, q.y - along, q.z)) - c.ext[0];
+    } else if (c.shape > 0.5f) {
+        const glm::vec3 over = glm::abs(q) - glm::vec3(c.ext[0], c.ext[1], c.ext[2]);
+        d = glm::length(glm::max(over, glm::vec3(0.0f))) + std::min(std::max({over.x, over.y, over.z}), 0.0f);
+    } else {
+        d = glm::length(q) - c.ext[0];
+    }
+    return c.inverted > 0.5f ? -d : d;
+}
+
+void ParticleSystem::sdfCollision(const ecs::ParticleEmitter& emitter, EmitterState& state, Particle& p,
+                                  const EmitterFrame& frame, bool world) {
+    const glm::vec3 point = world ? p.position : frame.position + frame.rotation * p.position;
+    const glm::vec3 velocity = world ? p.velocity : frame.rotation * p.velocity;
+    const SdfColliderInstance* nearest = nullptr;
+    f32 least = 0.0f;
+    for (const SdfColliderInstance& c : sdf_colliders_) {
+        if ((c.mask & emitter.collisionMask) == 0) continue;
+        const f32 d = sdfDistance(c, point);
+        if (d < least) { least = d; nearest = &c; }
+    }
+    if (!nearest) return;
+    // The way out of the shape, measured: the same answer whichever shape it is.
+    const f32 e = std::max(0.01f, -least * 0.1f);
+    const glm::vec3 gradient(
+        sdfDistance(*nearest, point + glm::vec3(e, 0, 0)) - sdfDistance(*nearest, point - glm::vec3(e, 0, 0)),
+        sdfDistance(*nearest, point + glm::vec3(0, e, 0)) - sdfDistance(*nearest, point - glm::vec3(0, e, 0)),
+        sdfDistance(*nearest, point + glm::vec3(0, 0, e)) - sdfDistance(*nearest, point - glm::vec3(0, 0, e)));
+    const f32 size = glm::length(gradient);
+    if (size < 1e-6f) return;
+    const glm::vec3 normal = gradient / size;
+    if (glm::dot(velocity, normal) >= 0.0f) return;
+    collide(emitter, state, p, point - normal * least, normal, 0xffffffffu, frame, world);
+}
+
+void ParticleSystem::addGpuCollisions(Entity entity, u32 total, const CollisionEvent* events, u32 count) {
+    gpu_collisions_.push_back({entity, total, std::vector<CollisionEvent>(events, events + count)});
 }
 
 void ParticleSystem::collide(const ecs::ParticleEmitter& emitter, EmitterState& state, Particle& p,

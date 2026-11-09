@@ -110,6 +110,8 @@ struct PassDesc {
      *        writing `ctx.output`, which has to be a target declared with `storage`. Ordered, culled and recycled like any pass.
      */
     bool compute = false;
+    /// Wanted by a later frame rather than by this picture: not culled for nothing having read it yet.
+    bool keep = false;
     /// Its target's depth is only for testing while it draws, and nothing reads it afterwards (see RenderPassDesc::discardDepth).
     bool discardDepth = false;
     bool clear = false;

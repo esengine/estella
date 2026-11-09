@@ -7,7 +7,7 @@
 import type { AssetFieldType } from '../scene/scene';
 import type { FieldMeta } from './component';
 import type { Color, Entity, Quat, Vec2, Vec3, Vec4 } from '../types';
-import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightType, MaskMode, Padding, ParticleCollisionFallback, ParticleCollisionMode, ParticleEasing, ParticleRenderMode, ProjectionType, ReflectionAxis, ReflectionQuality, ReflectionUpdate, ScrollMovement, ShapeType, SimulationSpace, SpringBoneShape, SpriteDrawMode, SpriteMaskInteraction, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
+import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightType, MaskMode, Padding, ParticleColliderShape, ParticleCollisionFallback, ParticleCollisionMode, ParticleEasing, ParticleRenderMode, ProjectionType, ReflectionAxis, ReflectionQuality, ReflectionUpdate, ScrollMovement, ShapeType, SimulationSpace, SpringBoneShape, SpriteDrawMode, SpriteMaskInteraction, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
 
 /**
  * Single-source-of-truth hash of the C++/TS boundary ABI (component
@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, Canv
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '6bf8e03097b59051';
+export const ABI_LAYOUT_HASH = '5e943b68bf754ab0';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -736,6 +736,29 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: [],
         animatableFields: [],
     },
+    ParticleCollider: {
+        defaults: {
+            shape: 0,
+            radius: 50,
+            halfHeight: 50,
+            halfExtents: { x: 50, y: 50, z: 50 },
+            inverted: false,
+            mask: 65535,
+            enabled: true,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            shape: { enum: [{ label: 'Sphere', value: 0 }, { label: 'Box', value: 1 }, { label: 'Capsule', value: 2 }], category: "Shape" },
+            radius: { min: 0, category: "Shape" },
+            halfHeight: { min: 0, category: "Shape" },
+            halfExtents: { category: "Shape" },
+            inverted: { category: "Shape" },
+            mask: { min: 0, max: 65535, step: 1, category: "Shape", bitmask: { source: "collisionLayers" } },
+        },
+    },
     ParticleEmitter: {
         defaults: {
             rate: 10,
@@ -810,6 +833,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             collisionFallback: 0,
             collisionEvents: false,
             collisionEventBudget: 32,
+            collisionThickness: 30,
             collisionBounce: 0.5,
             collisionFriction: 0.1,
             collisionLifetimeLoss: 0,
@@ -884,13 +908,14 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             trailMinDistance: { min: 0, category: "Trail", shownWhen: { field: "trailEnabled", values: [1] } },
             collisionEnabled: { category: "Collision" },
             collisionFloor: { category: "Collision", shownWhen: { field: "collisionEnabled", values: [1] } },
-            collisionMode: { enum: [{ label: 'Floor', value: 0 }, { label: 'Physics2D', value: 1 }, { label: 'Physics3D', value: 2 }], category: "Collision", shownWhen: { field: "collisionEnabled", values: [1] } },
+            collisionMode: { enum: [{ label: 'Floor', value: 0 }, { label: 'Physics2D', value: 1 }, { label: 'Physics3D', value: 2 }, { label: 'Depth', value: 3 }, { label: 'Sdf', value: 4 }], category: "Collision", shownWhen: { field: "collisionEnabled", values: [1] } },
             collisionMask: { min: 0, max: 65535, step: 1, category: "Collision", bitmask: { source: "collisionLayers" }, shownWhen: { field: "collisionEnabled", values: [1] } },
             collisionQueryBudget: { min: 0, max: 4096, step: 1, category: "Collision", shownWhen: { field: "collisionEnabled", values: [1] } },
             collisionMaxDistance: { min: 0, category: "Collision", shownWhen: { field: "collisionEnabled", values: [1] } },
             collisionFallback: { enum: [{ label: 'Floor', value: 0 }, { label: 'Skip', value: 1 }], category: "Collision", shownWhen: { field: "collisionEnabled", values: [1] } },
             collisionEvents: { category: "Collision", shownWhen: { field: "collisionEnabled", values: [1] } },
             collisionEventBudget: { min: 0, max: 1024, step: 1, category: "Collision", shownWhen: { field: "collisionEnabled", values: [1] } },
+            collisionThickness: { min: 0, category: "Collision", shownWhen: { field: "collisionEnabled", values: [1] } },
             collisionBounce: { min: 0, max: 1, category: "Collision", shownWhen: { field: "collisionEnabled", values: [1] } },
             collisionFriction: { min: 0, max: 1, category: "Collision", shownWhen: { field: "collisionEnabled", values: [1] } },
             collisionLifetimeLoss: { min: 0, max: 1, category: "Collision", shownWhen: { field: "collisionEnabled", values: [1] } },
@@ -1801,6 +1826,22 @@ export interface ParentData {
 }
 
 /**
+ * The fields of the engine's `ParticleCollider` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @beta
+ */
+export interface ParticleColliderData {
+    shape: ParticleColliderShape;
+    radius: number;
+    halfHeight: number;
+    halfExtents: Vec3;
+    inverted: boolean;
+    mask: number;
+    enabled: boolean;
+}
+
+/**
  * The fields of the engine's `ParticleEmitter` component, generated from
  * the C++ struct so the two shapes cannot drift.
  *
@@ -1879,6 +1920,7 @@ export interface ParticleEmitterData {
     collisionFallback: ParticleCollisionFallback;
     collisionEvents: boolean;
     collisionEventBudget: number;
+    collisionThickness: number;
     collisionBounce: number;
     collisionFriction: number;
     collisionLifetimeLoss: number;

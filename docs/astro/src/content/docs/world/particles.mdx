@@ -231,7 +231,7 @@ Shown once `collisionEnabled` is on. See [Floor collision](#floor-collision) and
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `collisionEnabled` | boolean | `false` | Turn collision on. |
-| `collisionMode` | `ParticleCollisionMode` | `Floor` | `Floor` (a horizontal plane), `Physics2D` or `Physics3D` (cast through the physics world). |
+| `collisionMode` | `ParticleCollisionMode` | `Floor` | `Floor` (a horizontal plane), `Physics2D` or `Physics3D` (cast through the physics world, CPU only), `Depth` (what the camera sees, GPU only) or `Sdf` (every `ParticleCollider`). See [GPU collision](#gpu-collision). |
 | `collisionFloor` | number | `0` | World height of the floor plane. |
 | `collisionBounce` | number | `0.5` | 0 = stop dead, 1 = fully elastic. |
 | `collisionFriction` | number | `0.1` | Horizontal speed shed per bounce, 0..1. |
@@ -242,6 +242,7 @@ Shown once `collisionEnabled` is on. See [Floor collision](#floor-collision) and
 | `collisionFallback` | `ParticleCollisionFallback` | `Floor` | `Floor` or `Skip`, when physics is unavailable, the budget is spent or a particle is too far away. |
 | `collisionEvents` | boolean | `false` | Emit `ParticleCollisionEvent`s. |
 | `collisionEventBudget` | number | `32` | Most events this emitter raises per update, 0..1024. |
+| `collisionThickness` | number | `30` | `Depth` mode: how far behind a visible surface a particle still counts as having hit it. Past this it has gone round the back. |
 
 ## Emitter shapes
 
@@ -615,12 +616,12 @@ world.insert(entity, ParticleEmitter, {
 });
 ```
 
-It runs the same emitter, with the same shapes, curl noise, force fields (the first eight), gravity, damping, floor plane,
-color / size / speed over life and sprite sheets. Each emitter draws from a fixed seed of its own, so a scene replays the same
-particles. What it does not do:
+It runs the same emitter, with the same shapes, curl noise, force fields (the first eight), gravity, damping, color / size /
+speed over life, sprite sheets, sub-emitters and trails. Each emitter draws from a fixed seed of its own, so a scene replays the
+same particles. What it does not do:
 
-- **No sub-emitters, no per-particle trails, no scene-query collision** (`Physics2D` / `Physics3D`). A GPU emitter collides
-  with the floor plane only.
+- **No scene-query collision** (`Physics2D` / `Physics3D`). A kernel cannot ask the physics world, so these fall back as
+  `collisionFallback` says. Use [`Depth` or `Sdf`](#gpu-collision) instead.
 - **Not sorted.** An `Additive` or cut-out look is exact; a deep pile of `Normal`-blended particles draws in slot order.
 - **Not in a UI tree.** An emitter under a `Canvas` draws through the screen overlay, which the kernel does not feed; leave it
   on the CPU.
@@ -629,6 +630,61 @@ particles. What it does not do:
 It needs a device with compute — WebGPU. On WebGL2 and in mini-game runtimes the same emitter runs on the CPU, **capped at
 20,000 particles**, so a scene built for a million still plays, thinner. Design the look to survive the cap if a platform
 without WebGPU matters to you.
+
+### GPU collision
+
+Two collision modes are made for a kernel, since neither asks anything per particle that a million particles cannot afford.
+
+**`Depth` collides with what the camera sees.** The frame's depth is copied after the scene is drawn, and next frame the kernel
+reprojects each particle into it with the view that saw it. A particle just behind a surface has hit that surface; one further behind than
+`collisionThickness` has gone round the back, and passes.
+
+```ts
+world.insert(entity, ParticleEmitter, {
+  gpuSimulation: true,
+  collisionEnabled: true,
+  collisionMode: ParticleCollisionMode.Depth,
+  collisionThickness: 50,
+  collisionBounce: 0.3,
+});
+```
+
+It needs no setup and costs one copy a frame, whatever the scene holds, and it has the limits of the picture it reads. Only what the camera
+sees and what writes depth counts: nothing off screen stops a particle, a surface turned away from the camera does not exist, a 2D scene of sprites
+writes none, and a particle behind the front of a box meets the front rather than the top. It is on a frame's delay. The one camera that drew first
+is the one that counts. For a scene that must hold whatever the camera does, use `Sdf`.
+
+**`Sdf` collides with shapes you place.** A **`ParticleCollider`** is a sphere, box or capsule that draws nothing and needs no physics. The emitter bounces off the first 64
+in the scene that share a bit of `collisionMask` with its `mask`. `inverted` keeps particles in instead of out: a jar, a dome round a spell.
+
+```ts
+const ball = world.spawn();
+world.insert(ball, Transform, { position: { x: 0, y: 100, z: 0 } });
+world.insert(ball, ParticleCollider, { shape: ParticleColliderShape.Sphere, radius: 120 });
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `shape` | `ParticleColliderShape` | `Sphere` | `Sphere`, `Box` or `Capsule`. A box and a capsule turn with the entity; a capsule's axis is its up. |
+| `radius` | number | `50` | A sphere's radius, and a capsule's round its axis. Scaled by the entity's largest scale. |
+| `halfHeight` | number | `50` | How far a capsule's axis runs each way from its centre. |
+| `halfExtents` | Vec3 | `50, 50, 50` | A box's half size. |
+| `inverted` | boolean | `false` | Keeps particles in rather than out. |
+| `mask` | bitmask | all (`65535`) | Which emitters it stops: one that shares a bit in its `collisionMask`. |
+
+Every particle asks every collider its mask lets through, so a million particles against many colliders is a real cost; keep them few. `Sdf` also runs on the CPU, so the look survives a device with no compute. `Depth` does not: on WebGL2 it does what `collisionFallback` says.
+
+A particle has no size to either mode: it is a point, stopped where its centre meets the surface.
+
+### GPU events, sub-emitters and trails
+
+A kernel appends what happens to a buffer: each birth, death or collision the emitter's `subEmitterTrigger` asks for, or each collision when `collisionEvents` is on. That buffer is what the other two read.
+
+**A sub-emitter runs with no trip to the CPU.** Give a GPU emitter a `subEmitter` that is also `gpuSimulation`, and its kernel lights slots straight from the parent's events, `burstCount` each, at the event's place, keeping `subEmitterInheritVelocity` of its speed. A parent runs before its child in the frame, so a spark is born where its drop died. At most 4,096 events an emitter a frame are kept; more are dropped. A child on the CPU is not fed by a GPU parent.
+
+**The game hears collisions a frame or two late.** With `collisionEvents` on, `ParticleCollisionEvent`, `collisionStats` and the rest read as they do for any other collision, in the same units, once the GPU hands them back. `collisionEventBudget` is how many are read back a time, and `hits` counts the rest. Reading back is the one thing here that costs a trip to the CPU, so leave it off unless the game needs to know.
+
+**Trails** use the same `trailEnabled`, `trailWidth`, `trailPoints` and `trailMinDistance`. Each particle's path is kept in a buffer of its own and drawn as quads along it, narrowing and fading from the head. They cost memory for every slot whether alive or not: `maxParticles` x `trailPoints` x 60 bytes, so 100,000 particles with 12 points is 72 MB. Each piece turns to face the camera that first drew it that frame, so a second camera sees them slightly edge on.
 
 ## Performance & best practices
 

@@ -27,6 +27,7 @@
 #include "esengine/ecs/components/Light.hpp"
 #include "esengine/ecs/components/MeshRenderer.hpp"
 #include "esengine/ecs/components/Occluder.hpp"
+#include "esengine/ecs/components/ParticleCollider.hpp"
 #include "esengine/ecs/components/ParticleEmitter.hpp"
 #include "esengine/ecs/components/ParticleForceField.hpp"
 #include "esengine/ecs/components/PlanarReflection.hpp"
@@ -218,6 +219,11 @@ ComponentAt engineComponentAt(ecs::Registry& registry, const char* name) {
     if (std::strcmp(name, "Parent") == 0) {
         return [&registry](std::uint32_t raw) -> void* {
             return registry.tryGet<esengine::ecs::Parent>(Entity::fromRaw(raw));
+        };
+    }
+    if (std::strcmp(name, "ParticleCollider") == 0) {
+        return [&registry](std::uint32_t raw) -> void* {
+            return registry.tryGet<esengine::ecs::ParticleCollider>(Entity::fromRaw(raw));
         };
     }
     if (std::strcmp(name, "ParticleEmitter") == 0) {
@@ -499,6 +505,11 @@ CandidatesOf engineComponentCandidates(ecs::Registry& registry, const char* name
             return denseAsIds(registry.entitiesWith<esengine::ecs::Parent>());
         };
     }
+    if (std::strcmp(name, "ParticleCollider") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::ParticleCollider>());
+        };
+    }
     if (std::strcmp(name, "ParticleEmitter") == 0) {
         return [&registry]() -> Candidates {
             return denseAsIds(registry.entitiesWith<esengine::ecs::ParticleEmitter>());
@@ -658,6 +669,7 @@ bool isEngineComponent(const char* name) {
     if (std::strcmp(name, "MeshSkin") == 0) return true;
     if (std::strcmp(name, "Occluder") == 0) return true;
     if (std::strcmp(name, "Parent") == 0) return true;
+    if (std::strcmp(name, "ParticleCollider") == 0) return true;
     if (std::strcmp(name, "ParticleEmitter") == 0) return true;
     if (std::strcmp(name, "ParticleForceField") == 0) return true;
     if (std::strcmp(name, "PlanarReflection") == 0) return true;
