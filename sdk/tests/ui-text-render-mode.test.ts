@@ -189,12 +189,12 @@ describe('world text under a perspective camera', () => {
         const { domainViewOf, glyphKind } = await import('../src/ui/text/plugin');
         const view = domainViewOf(perspective(55, 16 / 9), 1920, 1);
         const at = (scale: number, renderMode: TextRenderMode = TextRenderMode.Auto) =>
-            glyphKind({ renderMode }, { worldScale: { x: scale, y: scale, z: scale } }, 'sans-serif', view);
+            glyphKind({ renderMode, fontSize: 32 }, { worldScale: { x: scale, y: scale, z: scale } }, 'sans-serif', view);
         expect(at(1)).toBe('sdf');
         expect(at(1.5)).toBe('sdf');
         expect(at(1, TextRenderMode.Bitmap)).toBe('bitmap');
         const flat = domainViewOf(ortho(1920), 1920, 1);
-        expect(glyphKind({ renderMode: TextRenderMode.Auto }, { worldScale: { x: 1, y: 1, z: 1 } }, 'sans-serif', flat)).toBe('bitmap');
+        expect(glyphKind({ renderMode: TextRenderMode.Auto, fontSize: 32 }, { worldScale: { x: 1, y: 1, z: 1 } }, 'sans-serif', flat)).toBe('bitmap');
     });
 
     it('never rasterizes a bitmap glyph larger than half an atlas page, and says so once', async () => {
