@@ -34,6 +34,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -134,6 +135,40 @@ u32 skinPose(ecs::Registry& registry, Entity entity, const Mesh& mesh,
         out[i] = world * mesh.inverseBind[i];
     }
     return count;
+}
+
+/**
+ * @brief The world box a skinned mesh can be in, for culling: around its joints, not around its entity.
+ *
+ * @details A skinned mesh's own transform is not read, so the box its entity would give says nothing once the bones have
+ *          carried it elsewhere: an animation that walks a body off its root, or a raised arm, is drawn outside it. A vertex
+ *          stays as far from a joint as it was bound, so each joint reaches as far as the bind box does from it.
+ *
+ * @return False when the entity draws unskinned, and the entity's own box is the answer.
+ */
+bool skinnedWorldBounds(ecs::Registry& registry, Entity entity, const Mesh& mesh, bool& warnedBones,
+                        glm::vec3& centre, glm::vec3& half) {
+    const u32 count = skinJointCount(registry, entity, mesh, warnedBones);
+    if (count == 0) return false;
+    const auto* skin = registry.tryGet<ecs::MeshSkin>(entity);
+    const glm::vec3 bindCentre = (mesh.localMin + mesh.localMax) * 0.5f;
+    const f32 bindRadius = glm::length(mesh.localMax - mesh.localMin) * 0.5f;
+    glm::vec3 lo(std::numeric_limits<f32>::max()), hi(std::numeric_limits<f32>::lowest());
+    for (u32 i = 0; i < count; ++i) {
+        auto* joint = registry.tryGet<ecs::Transform>(skin->joints[i]);
+        if (!joint) continue;
+        joint->ensureDecomposed();
+        const glm::vec3 scale = glm::abs(joint->worldScale);
+        const f32 reach = (glm::length(glm::vec3(mesh.inverseBind[i] * glm::vec4(bindCentre, 1.0f))) + bindRadius)
+                        * std::max({scale.x, scale.y, scale.z});
+        const glm::vec3 at = rebased(joint->worldPosition);
+        lo = glm::min(lo, at - reach);
+        hi = glm::max(hi, at + reach);
+    }
+    if (lo.x > hi.x) return false;
+    centre = (lo + hi) * 0.5f;
+    half = (hi - lo) * 0.5f;
+    return true;
 }
 
 /**
@@ -788,6 +823,9 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         glm::vec3 aabbCenter(0.0f), halfExtents(0.0f);
         orientedWorldAabb(position, rotation, scale, localMin - padding, localMax + padding,
                           aabbCenter, halfExtents);
+        if (resident && !placements && !group) {
+            skinnedWorldBounds(registry, entity, *resident, warned_bones_, aabbCenter, halfExtents);
+        }
         // The collect's own predicate, not a frustum test of this plugin's: it
         // answers "outside the view" AND "behind something solid", and a mesh is
         // what both were built for.
