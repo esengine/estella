@@ -826,9 +826,9 @@ jobs:
       # OS focus and first-paint acceptance use this runner's virtual desktop.
       # Local checks default to hidden windows so they do not interrupt a user.
       env:
-        ELECTRON_DISABLE_SANDBOX: '1'
         ESTELLA_MCP_EDITOR_VISIBLE: '1'
         OUT: '${{ github.workspace }}/output/editor-authoring-${{ matrix.shard }}'
+        ELECTRON_DISABLE_SANDBOX: '1'
       run: |
         mkdir -p "$OUT"
         xvfb-run -a --server-args="-screen 0 1920x1080x24" node scripts/editor-checks/run.mjs --shard ${{ matrix.shard }}/4 || [ $? -eq 2 ]

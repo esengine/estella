@@ -92,6 +92,20 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  'Static geometry can be baked into material-preserving proxies.':
+    { notCertifiable: 'A pipeline bake covered by pipeline/tests/static-proxy.test.ts and tools/tests/static-proxy.e2e.mjs on both render backends; no golden project bakes a static proxy.' },
+  'The cyber-rooftop example has an editable, anchored HUD.':
+    { notCertifiable: 'Cyber-rooftop is not a golden project. check-examples validates its scripts, but the golden packages do not certify this HUD artwork or its interactions.' },
+  'An imported scene keeps its materials, animation, particles and colliders.':
+    { notCertifiable: 'The new import semantics are covered by pipeline/tests/gltf-scene-semantics.test.ts and the SDK node-visibility and particle-model-units suites; the golden model projects do not exercise those imported extensions.' },
+  'A 3D body can be several shapes, and a scaled model collides at its scale.':
+    { notCertifiable: 'Covered by sdk/tests/compound-collider.test.ts; the physics-3d golden project does not author a CompoundCollider3D, so its packaged frame cannot certify compound shapes.' },
+  'A generated building stands on its ground, and generated roads keep foliage off them.':
+    { notCertifiable: 'Covered by sdk/tests/worldgen-pcg.test.ts and foliage-zones.test.ts; no golden project generates buildings or foliage from these world rules.' },
+  "An exported game's scripts are minified, and a WeChat main package is about 0.9MB smaller.":
+    { notCertifiable: 'Export-time bundle transformation and size, covered by pipeline/tests/packaging-settings-reach.test.ts and the export suites; a golden frame cannot distinguish equivalent minified and unminified scripts or certify that size reduction.' },
+  'On a phone, a lit 3D scene costs about half as much.':
+    { notCertifiable: 'Quality policy and direct-lighting compilation are covered by the SDK quality suites and tests/renderer/test_shader_variant.cpp; the speed claim requires device timing, which the golden package frames do not measure.' },
   "Connect AI tools to the editor from one dialog.": { notCertifiable: "The connect dialog is an editor feature, covered by the mcp-connect editor authoring check and the editor tests; a packaged game carries no editor and no MCP endpoint." },
   "Dynamic planar reflections.": { notCertifiable: "Planar reflection is covered by the planar-reflection and planar-reflection-off render-scene pixel gates, tools/tests/planar-reflection.e2e.mjs, test_planar_reflection and the planar-reflection editor authoring check; no golden project carries a reflecting surface." },
   "SUD OpenPaaS development export.": { notCertifiable: "The OpenPaaS export is covered by the pipeline export and package tests, the native SUD runtime end-to-end check and the packer verification; no golden project is packaged for OpenPaaS." },
