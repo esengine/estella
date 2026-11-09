@@ -829,7 +829,9 @@ jobs:
         ELECTRON_DISABLE_SANDBOX: '1'
         ESTELLA_MCP_EDITOR_VISIBLE: '1'
         OUT: '${{ github.workspace }}/output/editor-authoring-${{ matrix.shard }}'
-      run: xvfb-run -a --server-args="-screen 0 1920x1080x24" node scripts/editor-checks/run.mjs --shard ${{ matrix.shard }}/4 || [ $? -eq 2 ]
+      run: |
+        mkdir -p "$OUT"
+        xvfb-run -a --server-args="-screen 0 1920x1080x24" node scripts/editor-checks/run.mjs --shard ${{ matrix.shard }}/4 || [ $? -eq 2 ]
 
     - name: Keep editor authoring captures
       if: always()
