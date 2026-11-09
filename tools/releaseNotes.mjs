@@ -28,6 +28,10 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(project): discard stale document reloads':
+    { note: 'Returning from Prefab Mode keeps the current scene intact.' },
+  'fix(editor): keep stale file events out of the active document':
+    { note: 'Returning from Prefab Mode keeps the current scene intact.' },
   'feat: bake material-aware static geometry proxies':
     { note: 'Static geometry can be baked into material-preserving proxies.' },
   'fix: preserve painted features during mesh simplification':
