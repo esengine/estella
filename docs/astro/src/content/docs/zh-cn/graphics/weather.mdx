@@ -50,7 +50,7 @@ Details 面板把内建天气显示为按钮(项目自己的预设 id 仍然有�
 - **反射。** 烘焙的反射探针显示的是它烘焙时的天空,所以下雨的街道会映出晴天的街道。环境光带有 `reflectionScale` 和
   `reflectionSaturation` 就是为此:探针显示的内容乘以前者、按后者褪色,天气会把两者调低。
 - **天空。** Sky Atmosphere 特效把预设的 `overcast` 当作云量和雾霾:云变厚并连成一片,后面的太阳、月亮和星星被同一份透射率遮住。
-- **风。** 预设的 `wind` 缩放植物摇摆的幅度(Foliage 材质的 `u_windStrength`、Sway 精灵的 `u_swayWind`),`waves` 缩放每片水体的浪高——画出来的和水面查询回答的都一起变。
+- **风。** 预设的 `wind` 缩放 Sky Atmosphere 的云漂移速度和植物摇摆的幅度(Foliage 材质的 `u_windStrength`、Sway 精灵的 `u_swayWind`),`waves` 缩放每片水体的浪高——画出来的和水面查询回答的都一起变。
 - **调色与曝光。** Colour Grade 的饱和度和对比度被缩放,Auto Exposure 的补偿被提高。
 
 这些效果在场景的体积混合之后才施加,所以在同一场雨里,雾设得薄的场景仍然比雾设得厚的场景薄。

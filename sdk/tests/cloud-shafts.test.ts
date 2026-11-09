@@ -15,7 +15,7 @@ const effect = (uniforms: Record<string, number> = {}, enabled = true, textures:
 describe('applyCloudsToFog', () => {
     it('copies the sky\'s cloud layer onto a fog that asks for cloud shafts, with the wind as a velocity in kilometres a second', () => {
         const fog = effect({ u_cloudShade: 0.8 });
-        const sky = effect({ u_cloudShadow: 0.6, u_clouds: 0.4, u_overcast: 0.5, u_cloudBase: 2, u_cloudThickness: 3, u_unitsPerKm: 100000, u_windSpeed: 0.1, u_windDirection: 90 });
+        const sky = effect({ u_cloudDriftX: 7, u_cloudDriftZ: -3, u_cloudEvolve: 0.5, u_cloudScale: 2, u_cloudShadow: 0.6, u_clouds: 0.4, u_overcast: 0.5, u_cloudBase: 2, u_cloudThickness: 3, u_unitsPerKm: 100000, u_windSpeed: 0.1, u_windDirection: 90 });
         applyCloudsToFog(new Map([['heightFog', fog], ['skyAtmosphere', sky]]));
         // An overcast of half is a cover of 0.475, above the sky's own 0.4.
         expect(fog.uniforms.get('u_skyCover')).toBeCloseTo(0.475, 6);
@@ -23,8 +23,10 @@ describe('applyCloudsToFog', () => {
         expect(fog.uniforms.get('u_skyThickness')).toBe(3);
         expect(fog.uniforms.get('u_skyUnits')).toBe(100000);
         expect(fog.uniforms.get('u_skySigma')).toBeCloseTo(1.3 * 1.75, 6);
-        expect(fog.uniforms.get('u_skyWindX')).toBeCloseTo(0.1, 6);
-        expect(fog.uniforms.get('u_skyWindZ')).toBeCloseTo(0, 6);
+        expect(fog.uniforms.get('u_skyDriftX')).toBe(7);
+        expect(fog.uniforms.get('u_skyDriftZ')).toBe(-3);
+        expect(fog.uniforms.get('u_skyEvolve')).toBe(0.5);
+        expect(fog.uniforms.get('u_skyScale')).toBe(2);
     });
 
     it('hands the fog the sky\'s cloud masks and their tiles, and none where the sky has none', () => {

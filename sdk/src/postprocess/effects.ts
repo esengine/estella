@@ -439,6 +439,26 @@ registerEffect({
         // their shape, the noise only erodes it. The second mask is a softer, higher layer folded in at a third.
         { name: 'u_cloudMaskTile', label: 'Cloud Mask Tile (km)', min: 0, max: 100, step: 0.1, defaultValue: 0 },
         { name: 'u_cloudMask2Tile', label: 'Cloud Mask 2 Tile (km)', min: 0, max: 100, step: 0.1, defaultValue: 0 },
+        // The size of the clouds, 2 being half as wide, and how soft their edges are.
+        { name: 'u_cloudScale', label: 'Cloud Scale', min: 0.1, max: 8, step: 0.05, defaultValue: 1 },
+        { name: 'u_cloudSoftness', label: 'Cloud Softness', min: 0.02, max: 1, step: 0.01, defaultValue: 0.22 },
+        // How fast the clouds' shapes change as they drift. 0 keeps each cloud as it is.
+        { name: 'u_cloudChange', label: 'Cloud Change', min: 0, max: 1, step: 0.001, defaultValue: 0.004 },
+        // How bright a cloud's edge is near the sun.
+        { name: 'u_cloudSilver', label: 'Silver Lining', min: 0, max: 2, step: 0.01, defaultValue: 0.6 },
+        // A second layer with a height, a grain and a wind of its own: high thin cloud over the main layer, or a low one under it. 0 costs nothing.
+        { name: 'u_cloud2Coverage', label: 'Upper Layer Coverage', min: 0, max: 1, step: 0.01, defaultValue: 0, neutralValue: 0 },
+        { name: 'u_cloud2Base', label: 'Upper Layer Base', min: 0.2, max: 20, step: 0.1, defaultValue: 6 },
+        { name: 'u_cloud2Thickness', label: 'Upper Layer Thickness', min: 0.05, max: 8, step: 0.05, defaultValue: 0.6 },
+        { name: 'u_cloud2Scale', label: 'Upper Layer Scale', min: 0.1, max: 8, step: 0.05, defaultValue: 1.8 },
+        // × the wind up there: it usually blows harder.
+        { name: 'u_cloud2Wind', label: 'Upper Layer Wind', min: 0, max: 8, step: 0.05, defaultValue: 1.6 },
+        // Where the clouds have got to, added up by the sky's clock (skyClock.ts).
+        { name: 'u_cloudDriftX', label: 'Cloud Drift X', min: -1e8, max: 1e8, step: 0.01, defaultValue: 0, internal: true },
+        { name: 'u_cloudDriftZ', label: 'Cloud Drift Z', min: -1e8, max: 1e8, step: 0.01, defaultValue: 0, internal: true },
+        { name: 'u_cloud2DriftX', label: 'Upper Layer Drift X', min: -1e8, max: 1e8, step: 0.01, defaultValue: 0, internal: true },
+        { name: 'u_cloud2DriftZ', label: 'Upper Layer Drift Z', min: -1e8, max: 1e8, step: 0.01, defaultValue: 0, internal: true },
+        { name: 'u_cloudEvolve', label: 'Cloud Evolve', min: 0, max: 1e8, step: 0.01, defaultValue: 0, internal: true },
     ],
     textures: [
         { name: 'u_cloudMask', label: 'Cloud Mask (tileable coverage, linear, repeat)' },
@@ -552,8 +572,11 @@ registerEffect({
         { name: 'u_skyAltitude', label: 'Sky Altitude', min: 0, max: 20, step: 0.1, defaultValue: 0.1, internal: true },
         { name: 'u_skyUnits', label: 'Sky Units per km', min: 1, max: 100000, step: 1, defaultValue: 1000, internal: true },
         { name: 'u_skySigma', label: 'Sky Cloud Density', min: 0, max: 10, step: 0.1, defaultValue: 1.3, internal: true },
-        { name: 'u_skyWindX', label: 'Sky Wind X', min: -2, max: 2, step: 0.01, defaultValue: 0, internal: true },
-        { name: 'u_skyWindZ', label: 'Sky Wind Z', min: -2, max: 2, step: 0.01, defaultValue: 0, internal: true },
+        { name: 'u_skyDriftX', label: 'Sky Drift X', min: -1e8, max: 1e8, step: 0.01, defaultValue: 0, internal: true },
+        { name: 'u_skyEvolve', label: 'Sky Evolve', min: 0, max: 1e8, step: 0.01, defaultValue: 0, internal: true },
+        { name: 'u_skyScale', label: 'Sky Cloud Scale', min: 0.1, max: 8, step: 0.05, defaultValue: 1, internal: true },
+        { name: 'u_skySoftness', label: 'Sky Cloud Softness', min: 0.02, max: 1, step: 0.01, defaultValue: 0.22, internal: true },
+        { name: 'u_skyDriftZ', label: 'Sky Drift Z', min: -1e8, max: 1e8, step: 0.01, defaultValue: 0, internal: true },
         { name: 'u_cloudMaskTile', label: 'Sky Cloud Mask Tile', min: 0, max: 100, step: 0.1, defaultValue: 0, internal: true },
         { name: 'u_cloudMask2Tile', label: 'Sky Cloud Mask 2 Tile', min: 0, max: 100, step: 0.1, defaultValue: 0, internal: true },
     ],

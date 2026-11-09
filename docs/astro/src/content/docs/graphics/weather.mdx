@@ -61,7 +61,7 @@ Post Process Volume, which the panel says.
   The ambient light carries `reflectionScale` and `reflectionSaturation` for exactly this: what baked probes show is
   multiplied by the first and drained of colour by the second, and the weather turns both down.
 - **Sky.** A Sky Atmosphere effect takes the preset's `overcast` as cloud coverage and haze: the clouds thicken and join up, and the sun, moon and stars behind them are hidden by the same transmittance.
-- **Wind.** The preset's `wind` scales how far plants sway (a Foliage material's `u_windStrength`, a Sway sprite's `u_swayWind`) and `waves` scales the height of the waves on every body of water, in what is drawn and in what the surface answers.
+- **Wind.** The preset's `wind` scales how fast a Sky Atmosphere's clouds drift and how far plants sway (a Foliage material's `u_windStrength`, a Sway sprite's `u_swayWind`) and `waves` scales the height of the waves on every body of water, in what is drawn and in what the surface answers.
 - **Grade and exposure.** Colour Grade's saturation and contrast are scaled, and Auto Exposure's compensation raised.
 
 The effects are applied after the scene's volumes have blended, so a scene that fogs itself thinly stays thinner than

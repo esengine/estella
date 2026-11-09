@@ -30,8 +30,6 @@ export function applyCloudsToFog(effects: Map<string, BlendedEffect>): void {
         return;
     }
     const overcast = Math.min(Math.max(value(sky, 'skyAtmosphere', 'u_overcast'), 0), 1);
-    const angle = value(sky, 'skyAtmosphere', 'u_windDirection') * Math.PI / 180;
-    const speed = value(sky, 'skyAtmosphere', 'u_windSpeed');
     const set = (name: string, v: number): void => { fog.uniforms.set(name, v); };
     set('u_skyCover', Math.max(value(sky, 'skyAtmosphere', 'u_clouds'), overcast * 0.95));
     set('u_skyBase', value(sky, 'skyAtmosphere', 'u_cloudBase'));
@@ -39,8 +37,11 @@ export function applyCloudsToFog(effects: Map<string, BlendedEffect>): void {
     set('u_skyAltitude', value(sky, 'skyAtmosphere', 'u_altitude'));
     set('u_skyUnits', value(sky, 'skyAtmosphere', 'u_unitsPerKm'));
     set('u_skySigma', 1.3 * (1 + overcast * 1.5));
-    set('u_skyWindX', Math.sin(angle) * speed);
-    set('u_skyWindZ', Math.cos(angle) * speed);
+    set('u_skyDriftX', value(sky, 'skyAtmosphere', 'u_cloudDriftX'));
+    set('u_skyDriftZ', value(sky, 'skyAtmosphere', 'u_cloudDriftZ'));
+    set('u_skyEvolve', value(sky, 'skyAtmosphere', 'u_cloudEvolve'));
+    set('u_skyScale', value(sky, 'skyAtmosphere', 'u_cloudScale'));
+    set('u_skySoftness', value(sky, 'skyAtmosphere', 'u_cloudSoftness'));
     // The masks that shape those clouds, as the sky has them: the same drawn clouds and the same lit air.
     for (const [mask, tile] of [['u_cloudMask', 'u_cloudMaskTile'], ['u_cloudMask2', 'u_cloudMask2Tile']] as const) {
         const ref = sky.textures.get(mask);

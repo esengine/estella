@@ -86,6 +86,29 @@ scene is cleared to nothing while the effect is in the chain and its alpha says 
 sky is laid under an edge by that share instead of replacing the pixel. Nothing downstream sees it: the effect hands back alpha 1.
 Turn **Keep Background** up and the scene is cleared to the camera's colour again, which is what keeping the background means.
 
+### Clouds
+
+`skyAtmosphere` marches its clouds through the air, and the sun lights them from inside: each step asks how much of the cloud lies between it and the sun, so the far side of a deep cloud is dark and its thin edge is bright. **Silver Lining** is how bright that edge is near the sun.
+
+| Setting | What it does |
+|---|---|
+| **Cloud Coverage**, **Cloud Base**, **Cloud Thickness** | How much of the sky the main layer covers, and where it stands, in kilometres. |
+| **Cloud Scale**, **Cloud Softness** | How large its clouds are (2 is half as wide), and how soft their edges are. |
+| **Cloud Change** | How fast their shapes change as they go. 0 keeps each cloud as it is. |
+| **Wind Speed**, **Wind Direction** | How fast they drift, in kilometres a second, and which way. |
+| **Upper Layer Coverage** | A second layer. 0 (the default) costs nothing. |
+| **Upper Layer Base**, **Thickness**, **Scale**, **Wind** | Its own height, grain and share of the wind. It is usually high, thin and faster; set below the main layer it stands in front of it. It casts a shadow too. |
+
+**Clouds keep to the game's clock.** Where they are is what the wind has done so far, added up frame by frame, so a stronger wind or one that swings round carries them on from where they are, and a [Weather](/docs/graphics/weather/) can speed them up in the middle of a transition with nothing jumping. A paused game has a still sky, and the same steps make the same one. The fog's shafts read the same place. To bring a sky back from a save, store `skyClockState()` and hand it to `setSkyClockState()`.
+
+### Limits of the clouds
+
+- **Clouds are seen from below.** A camera above the cloud layer sees none of it, so a flight over the clouds has no cloud tops to show.
+- **Their grain.** The march's jitter is filtered on the way back to full size, and a faint pattern can still show near the horizon or at a large **Cloud Scale**.
+- **The fog's shafts stand under the main layer only.** The upper layer does not make beams.
+- **Where a cloud is does not change the key light.** Its shadow is laid on surfaces in the sky's pass; the light's own strength follows the weather, not the cloud in front of the sun.
+- **Not measured on a device.** The upper layer adds 12 samples of its density to each half-size pixel it covers against 64 for the main layer, and nothing at 0.
+
 ### Cloud shadows
 
 Turn **Cloud Shadows** above 0 and the sun's ray from each surface is marched up through the cloud layer the sky draws, against the

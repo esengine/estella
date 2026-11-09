@@ -26,6 +26,7 @@ import {
     blendWeather, setCurrentWeather, weatherPresetId, WEATHER_NONE, WeatherDrive, type WeatherState,
 } from './weather';
 import { Material } from '../render/material';
+import { advanceSkyClock, setSkyClockState } from './skyClock';
 import { timeOfDayAt, setCurrentTimeOfDay, TimeDrive, type TimeOfDayState } from './timeOfDay';
 
 /** What a light was authored with, kept so a weather scales the author's number and never its own last answer. */
@@ -278,6 +279,7 @@ function advance(entity: Entity, data: WeatherData, dt: number): void {
 export const weatherSystem = defineSystem(
     [Query(Mut(Weather)), Query(Mut(TimeOfDay)), Res(Time), GetWorld()],
     (weathers: Iterable<[Entity, WeatherData]>, times: Iterable<[Entity, TimeOfDayData]>, time: TimeData, world: World) => {
+        advanceSkyClock(time.delta);
         let found: [Entity, WeatherData] | null = null;
         for (const entry of weathers) { found = entry; break; }
         let clock: [Entity, TimeOfDayData] | null = null;
@@ -338,4 +340,5 @@ export function resetWeatherSystem(): void {
     cycles.clear();
     setCurrentWeather(null);
     setCurrentTimeOfDay(null);
+    setSkyClockState(null);
 }

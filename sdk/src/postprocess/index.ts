@@ -49,4 +49,5 @@ export {
     type WeatherState,
     type WeatherPreset,
 } from './weather';
+export { skyClockState, setSkyClockState, type SkyClockState } from './skyClock';
 export { timeOfDayAt, sunPosition, currentTimeOfDay, TimeDrive, type TimeOfDayState } from './timeOfDay';

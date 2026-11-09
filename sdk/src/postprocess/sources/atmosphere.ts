@@ -11,6 +11,306 @@ import { rain2dEffects } from './rain2d';
 import { fog2dEffects } from './fog2d';
 import { SSAO_GLSL, SSAO_WGSL, PUDDLE_GLSL, PUDDLE_WGSL, BASIN_GLSL, BASIN_WGSL, GBUFFER_GLSL, GBUFFER_WGSL } from './shared';
 
+/** The sky's clouds, as both of its passes draw them: the half-size pass that works them out, and the composite for the pixels it has no answer for. */
+const CLOUD_GLSL = `/// Where a coverage texture is given, the shape of the clouds on the ground is its, and the noise erodes it. The layers are tiled in kilometres
+/// of the cloud plane, the second a softer, higher one folded in.
+float cloudField(vec2 xz, float noise, float h) {
+    if (u_cloudMaskTile <= 0.0) return noise;
+    float m = textureLod(u_cloudMask, xz / u_cloudMaskTile, 0.0).r;
+    if (u_cloudMask2Tile > 0.0) m = mix(m, textureLod(u_cloudMask2, xz / u_cloudMask2Tile, 0.0).r, 0.3);
+    // A mask knows nothing of height, and a column of it seen along the slab is a streak: the cloud's top stands only over the mask's core, a dome.
+    return mix(m, noise, 0.5) - 0.35 * (h - 0.35);
+}
+
+float cloudDensity(vec3 p, float coverage, float base, float thick, int octaves) {
+    float h = clamp((p.y - base) / thick, 0.0, 1.0);
+    float shape = smoothstep(0.0, 0.14, h) * smoothstep(1.0, 0.55, h);
+    vec3 q = vec3(p.x, p.y * 1.8 + u_cloudEvolve, p.z) * 0.32 * u_cloudScale;
+    float n = vnoise(q) * 0.58 + vnoise(q * 2.13) * 0.28;
+    if (octaves > 2) n += vnoise(q * 4.7) * 0.14;
+    else n += 0.07;
+    n = cloudField(p.xz, n, h);
+    float d = smoothstep(1.0 - coverage, 1.0 - coverage + u_cloudSoftness, n) * shape;
+    // Finer noise bites only where the cloud is thin, so its middle stays whole and its edge is worn into billows. Near the eye only the sky's own march asks.
+    if (octaves > 2 && d > 0.0 && d < 0.9) d = max(d - (1.0 - d) * vnoise(q * 11.0) * 0.55, 0.0);
+    return d;
+}
+
+/// The upper layer: its own height and grain, and thinner, so a few steps see it. No mask: that is the main layer's.
+float cloud2Density(vec3 p) {
+    float h = clamp((p.y - u_cloud2Base) / u_cloud2Thickness, 0.0, 1.0);
+    float shape = smoothstep(0.0, 0.3, h) * smoothstep(1.0, 0.5, h);
+    vec3 q = vec3(p.x, p.y * 3.0 + u_cloudEvolve * 1.7, p.z) * 0.32 * u_cloud2Scale;
+    float n = vnoise(q) * 0.62 + vnoise(q * 2.31) * 0.38;
+    return smoothstep(1.0 - u_cloud2Coverage, 1.0 - u_cloud2Coverage + 0.3, n) * shape;
+}
+
+/// How much of the sun's light goes on toward the eye: mostly the same whichever way, and a bright lobe near the sun that gives a cloud its silver edge.
+float cloudPhase(float cosS) {
+    const float G = 0.86;
+    return 0.42 + 0.018 * u_cloudSilver * (1.0 - G * G) / pow(1.0 + G * G - 2.0 * G * cosS, 1.5);
+}
+
+/// How much of the sun reaches a surface at @p world through the cloud layer: 1 is all of it. The sun's ray is marched up through
+/// the slab against the same density the sky draws, so a shadow falls where the cloud above it is. Ambient light is not shadowed.
+float cloudShadowAt(vec3 world, vec3 cam, vec3 sun, float coverage, float overcast, vec3 drift) {
+    float strength = u_cloudShadow * smoothstep(0.02, 0.14, sun.y);
+    if (strength <= 0.001 || (coverage <= 0.01 && u_cloud2Coverage <= 0.01)) return 1.0;
+    float k = 1.0 / max(u_unitsPerKm, 1e-3);
+    float h = u_altitude + (world.y - cam.y) * k;
+    float tt = (u_cloudBase + u_cloudThickness - h) / sun.y;
+    if (tt <= 0.0) return 1.0;
+    float tb = max(u_cloudBase - h, 0.0) / sun.y;
+    const int N = 6;
+    float ds = (tt - tb) / float(N);
+    float sigma = 1.3 * (1.0 + overcast * 1.5);
+    float tau = 0.0;
+    float jitter = ign(gl_FragCoord.xy);
+    for (int i = 0; i < N; ++i) {
+        float t = tb + (float(i) + jitter) * ds;
+        vec3 p = vec3(world.x * k + sun.x * t, h + sun.y * t, world.z * k + sun.z * t) + drift;
+        tau += cloudDensity(p, coverage, u_cloudBase, u_cloudThickness, 2) * sigma * ds;
+    }
+    if (u_cloud2Coverage > 0.01) {
+        float t = (u_cloud2Base + u_cloud2Thickness * 0.5 - h) / sun.y;
+        vec3 upper = vec3(u_cloud2DriftX - u_cloudDriftX, 0.0, u_cloud2DriftZ - u_cloudDriftZ);
+        if (t > 0.0) tau += cloud2Density(vec3(world.x * k + sun.x * t, h + sun.y * t, world.z * k + sun.z * t) + drift + upper) * sigma * u_cloud2Thickness / sun.y;
+    }
+    return 1.0 - strength * 0.8 * (1.0 - exp(-tau));
+}
+/// The cloud slab along @p dir as a map of what is behind it, colour * T + L: how much of it the clouds let through, and the light they add.
+/// A function of the direction alone, so it can be worked out small and read back big.
+void cloudLayer(vec3 dir, vec3 sun, vec3 dome, vec3 sunTrans, float night, float overcast, vec3 windDrift, out vec3 L, out float T) {
+    L = vec3(0.0);
+    T = 1.0;
+    float coverage = max(u_clouds, overcast * 0.95);
+    if (coverage > 0.01 && dir.y > 0.01) {
+        float base = u_cloudBase;
+        float thick = u_cloudThickness;
+        float tb = max(base - u_altitude, 0.0) / dir.y;
+        float tt = min((base + thick - u_altitude) / dir.y, tb + thick * 6.0);
+        const int STEPS = 16;
+        float ds = (tt - tb) / float(STEPS);
+        float jitter = ign(gl_FragCoord.xy);
+        float sigma = 1.3 * (1.0 + overcast * 1.5);
+        vec3 drift = windDrift;
+        float cosS = dot(dir, sun);
+        float phase = cloudPhase(cosS);
+        vec3 ambient = dome * 0.7 + lin(vec3(0.55, 0.65, 0.9)) * 0.015 * night;
+        vec3 sunLight = sunTrans * 1.2 * u_cloudBrightness;
+        float trans = 1.0;
+        vec3 lit = vec3(0.0);
+        for (int i = 0; i < STEPS; ++i) {
+            if (trans < 0.02) break;
+            float t = tb + (float(i) + jitter) * ds;
+            vec3 p = vec3(dir.x * t, u_altitude + dir.y * t, dir.z * t) + drift;
+            float d = cloudDensity(p, coverage, base, thick, 3);
+            if (d < 0.002) continue;
+            float tau = 0.0;
+            // Short, then longer: the light that matters is lost near the point, and the far side of a deep cloud still has to count.
+            float reach = max(thick, 0.5) * 0.14;
+            for (int k = 1; k <= 3; ++k) {
+                float along = reach * float(k * k);
+                vec3 q = p + sun * along;
+                tau += cloudDensity(q, coverage, base, thick, 2) * reach * float(2 * k - 1) * sigma;
+            }
+            // Beer's law, with the light that scatters on through a cloud many times; and a little less at the very skin, where little has scattered yet.
+            float energy = (exp(-tau * 1.1) + 0.25 * exp(-tau * 0.25)) * mix(1.0, 1.0 - exp(-(d * sigma * ds + tau) * 3.0), 0.5);
+            vec3 S = sunLight * energy * phase * 2.0 + ambient;
+            float ext = d * sigma * ds;
+            float tr = exp(-ext);
+            lit += trans * (1.0 - tr) * S;
+            trans *= tr;
+        }
+        float fade = smoothstep(0.01, 0.14, dir.y);
+        T = mix(1.0, trans, fade);
+        L = lit * fade;
+    }
+    if (u_cloud2Coverage > 0.01 && dir.y > 0.01) {
+        float tb = max(u_cloud2Base - u_altitude, 0.0) / dir.y;
+        float tt = max(u_cloud2Base + u_cloud2Thickness - u_altitude, 0.0) / dir.y;
+        const int STEPS = 6;
+        float ds = (tt - tb) / float(STEPS);
+        float jitter = ign(gl_FragCoord.yx);
+        float sigma = 1.3 * (1.0 + overcast);
+        vec3 drift = windDrift + vec3(u_cloud2DriftX - u_cloudDriftX, 0.0, u_cloud2DriftZ - u_cloudDriftZ);
+        vec3 ambient = dome * 0.7 + lin(vec3(0.55, 0.65, 0.9)) * 0.015 * night;
+        vec3 sunLight = sunTrans * 1.2 * u_cloudBrightness;
+        float phase = cloudPhase(dot(dir, sun));
+        float trans = 1.0;
+        vec3 lit = vec3(0.0);
+        for (int i = 0; i < STEPS; ++i) {
+            float t = tb + (float(i) + jitter) * ds;
+            vec3 p = vec3(dir.x * t, u_altitude + dir.y * t, dir.z * t) + drift;
+            float d = cloud2Density(p);
+            if (d < 0.002) continue;
+            float tau = cloud2Density(p + sun * u_cloud2Thickness * 0.5) * u_cloud2Thickness * 0.5 * sigma;
+            vec3 S = sunLight * exp(-tau) * phase * 2.0 + ambient;
+            float tr = exp(-d * sigma * ds);
+            lit += trans * (1.0 - tr) * S;
+            trans *= tr;
+        }
+        float fade = smoothstep(0.01, 0.14, dir.y);
+        trans = mix(1.0, trans, fade);
+        lit *= fade;
+        // Colour * T + L for the nearer of the two, over the farther: seen from below, the lower is the nearer.
+        if (u_cloud2Base >= u_cloudBase) L += T * lit; else L = lit + trans * L;
+        T *= trans;
+    }
+}
+`;
+
+const CLOUD_WGSL = `fn cloudField(xz : vec2f, noise : f32, h : f32) -> f32 {
+    if (mc.u_cloudMaskTile <= 0.0) { return noise; }
+    var m = textureSampleLevel(u_cloudMask, u_cloudMask_s, xz / mc.u_cloudMaskTile, 0.0).r;
+    if (mc.u_cloudMask2Tile > 0.0) { m = mix(m, textureSampleLevel(u_cloudMask2, u_cloudMask2_s, xz / mc.u_cloudMask2Tile, 0.0).r, 0.3); }
+    return mix(m, noise, 0.5) - 0.35 * (h - 0.35);
+}
+
+fn cloudDensity(p : vec3f, coverage : f32, base : f32, thick : f32, octaves : i32) -> f32 {
+    let h = clamp((p.y - base) / thick, 0.0, 1.0);
+    let shape = smoothstep(0.0, 0.14, h) * smoothstep(1.0, 0.55, h);
+    let q = vec3f(p.x, p.y * 1.8 + mc.u_cloudEvolve, p.z) * 0.32 * mc.u_cloudScale;
+    var n = vnoise(q) * 0.58 + vnoise(q * 2.13) * 0.28;
+    if (octaves > 2) { n = n + vnoise(q * 4.7) * 0.14; } else { n = n + 0.07; }
+    n = cloudField(p.xz, n, h);
+    var d = smoothstep(1.0 - coverage, 1.0 - coverage + mc.u_cloudSoftness, n) * shape;
+    if (octaves > 2 && d > 0.0 && d < 0.9) { d = max(d - (1.0 - d) * vnoise(q * 11.0) * 0.55, 0.0); }
+    return d;
+}
+
+fn cloud2Density(p : vec3f) -> f32 {
+    let h = clamp((p.y - mc.u_cloud2Base) / mc.u_cloud2Thickness, 0.0, 1.0);
+    let shape = smoothstep(0.0, 0.3, h) * smoothstep(1.0, 0.5, h);
+    let q = vec3f(p.x, p.y * 3.0 + mc.u_cloudEvolve * 1.7, p.z) * 0.32 * mc.u_cloud2Scale;
+    let n = vnoise(q) * 0.62 + vnoise(q * 2.31) * 0.38;
+    return smoothstep(1.0 - mc.u_cloud2Coverage, 1.0 - mc.u_cloud2Coverage + 0.3, n) * shape;
+}
+
+fn cloudPhase(cosS : f32) -> f32 {
+    let G = 0.86;
+    return 0.42 + 0.018 * mc.u_cloudSilver * (1.0 - G * G) / pow(1.0 + G * G - 2.0 * G * cosS, 1.5);
+}
+
+fn frame_origin() -> vec3f { return frame.renderOrigin.xyz; }
+
+/// The turn that takes up to +Y by the shortest way: the sky is worked out where up is +Y, so on a round world in the frame of the ground the camera stands on.
+fn upFrame(up : vec3f) -> mat3x3f {
+    let v = vec3f(-up.z, 0.0, up.x);
+    let k = 1.0 / max(1.0 + up.y, 1e-4);
+    let cross = mat3x3f(vec3f(0.0, v.z, -v.y), vec3f(-v.z, 0.0, v.x), vec3f(v.y, -v.x, 0.0));
+    return mat3x3f(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), vec3f(0.0, 0.0, 1.0)) + cross + (cross * cross) * k;
+}
+
+fn cloudShadowAt(world : vec3f, cam : vec3f, sun : vec3f, coverage : f32, overcast : f32, drift : vec3f, px : vec2f) -> f32 {
+    let strength = mc.u_cloudShadow * smoothstep(0.02, 0.14, sun.y);
+    if (strength <= 0.001 || (coverage <= 0.01 && mc.u_cloud2Coverage <= 0.01)) { return 1.0; }
+    let k = 1.0 / max(mc.u_unitsPerKm, 1e-3);
+    let h = mc.u_altitude + (world.y - cam.y) * k;
+    let tt = (mc.u_cloudBase + mc.u_cloudThickness - h) / sun.y;
+    if (tt <= 0.0) { return 1.0; }
+    let tb = max(mc.u_cloudBase - h, 0.0) / sun.y;
+    let N = 6;
+    let ds = (tt - tb) / f32(N);
+    let sigma = 1.3 * (1.0 + overcast * 1.5);
+    var tau = 0.0;
+    let jitter = ign(px);
+    for (var i : i32 = 0; i < N; i = i + 1) {
+        let t = tb + (f32(i) + jitter) * ds;
+        let p = vec3f(world.x * k + sun.x * t, h + sun.y * t, world.z * k + sun.z * t) + drift;
+        tau = tau + cloudDensity(p, coverage, mc.u_cloudBase, mc.u_cloudThickness, 2) * sigma * ds;
+    }
+    if (mc.u_cloud2Coverage > 0.01) {
+        let upT = (mc.u_cloud2Base + mc.u_cloud2Thickness * 0.5 - h) / sun.y;
+        let upper = vec3f(mc.u_cloud2DriftX - mc.u_cloudDriftX, 0.0, mc.u_cloud2DriftZ - mc.u_cloudDriftZ);
+        if (upT > 0.0) { tau = tau + cloud2Density(vec3f(world.x * k + sun.x * upT, h + sun.y * upT, world.z * k + sun.z * upT) + drift + upper) * sigma * mc.u_cloud2Thickness / sun.y; }
+    }
+    return 1.0 - strength * 0.8 * (1.0 - exp(-tau));
+}
+
+struct CloudLayer { L : vec3f, T : f32 };
+
+/// The cloud slab along dir as a map of what is behind it, colour * T + L. A function of the direction alone, so it can be worked out small and read back big.
+fn cloudLayer(dir : vec3f, sun : vec3f, dome : vec3f, sunTrans : vec3f, night : f32, overcast : f32, windDrift : vec3f, px : vec2f) -> CloudLayer {
+    var out : CloudLayer;
+    out.L = vec3f(0.0);
+    out.T = 1.0;
+    let coverage = max(mc.u_clouds, overcast * 0.95);
+    if (coverage > 0.01 && dir.y > 0.01) {
+        let base = mc.u_cloudBase;
+        let thick = mc.u_cloudThickness;
+        let tb = max(base - mc.u_altitude, 0.0) / dir.y;
+        let tt = min((base + thick - mc.u_altitude) / dir.y, tb + thick * 6.0);
+        let STEPS = 16;
+        let ds = (tt - tb) / f32(STEPS);
+        let jitter = ign(px);
+        let sigma = 1.3 * (1.0 + overcast * 1.5);
+        let drift = windDrift;
+        let cosS = dot(dir, sun);
+        let phase = cloudPhase(cosS);
+        let ambient = dome * 0.7 + lin(vec3f(0.55, 0.65, 0.9)) * 0.015 * night;
+        let sunLight = sunTrans * 1.2 * mc.u_cloudBrightness;
+        var trans = 1.0;
+        var lit = vec3f(0.0);
+        for (var i : i32 = 0; i < STEPS; i = i + 1) {
+            if (trans < 0.02) { break; }
+            let t = tb + (f32(i) + jitter) * ds;
+            let p = vec3f(dir.x * t, mc.u_altitude + dir.y * t, dir.z * t) + drift;
+            let d = cloudDensity(p, coverage, base, thick, 3);
+            if (d < 0.002) { continue; }
+            var tau = 0.0;
+            let reach = max(thick, 0.5) * 0.14;
+            for (var k : i32 = 1; k <= 3; k = k + 1) {
+                let along = reach * f32(k * k);
+                let q = p + sun * along;
+                tau = tau + cloudDensity(q, coverage, base, thick, 2) * reach * f32(2 * k - 1) * sigma;
+            }
+            let energy = (exp(-tau * 1.1) + 0.25 * exp(-tau * 0.25)) * mix(1.0, 1.0 - exp(-(d * sigma * ds + tau) * 3.0), 0.5);
+            let S = sunLight * energy * phase * 2.0 + ambient;
+            let ext = d * sigma * ds;
+            let tr = exp(-ext);
+            lit = lit + trans * (1.0 - tr) * S;
+            trans = trans * tr;
+        }
+        let fade = smoothstep(0.01, 0.14, dir.y);
+        out.T = mix(1.0, trans, fade);
+        out.L = lit * fade;
+    }
+    if (mc.u_cloud2Coverage > 0.01 && dir.y > 0.01) {
+        let tb = max(mc.u_cloud2Base - mc.u_altitude, 0.0) / dir.y;
+        let tt = max(mc.u_cloud2Base + mc.u_cloud2Thickness - mc.u_altitude, 0.0) / dir.y;
+        let STEPS = 6;
+        let ds = (tt - tb) / f32(STEPS);
+        let jitter = ign(px.yx);
+        let sigma = 1.3 * (1.0 + overcast);
+        let drift = windDrift + vec3f(mc.u_cloud2DriftX - mc.u_cloudDriftX, 0.0, mc.u_cloud2DriftZ - mc.u_cloudDriftZ);
+        let ambient = dome * 0.7 + lin(vec3f(0.55, 0.65, 0.9)) * 0.015 * night;
+        let sunLight = sunTrans * 1.2 * mc.u_cloudBrightness;
+        let phase = cloudPhase(dot(dir, sun));
+        var trans = 1.0;
+        var lit = vec3f(0.0);
+        for (var i : i32 = 0; i < STEPS; i = i + 1) {
+            let t = tb + (f32(i) + jitter) * ds;
+            let p = vec3f(dir.x * t, mc.u_altitude + dir.y * t, dir.z * t) + drift;
+            let d = cloud2Density(p);
+            if (d < 0.002) { continue; }
+            let tau = cloud2Density(p + sun * mc.u_cloud2Thickness * 0.5) * mc.u_cloud2Thickness * 0.5 * sigma;
+            let S = sunLight * exp(-tau) * phase * 2.0 + ambient;
+            let tr = exp(-d * sigma * ds);
+            lit = lit + trans * (1.0 - tr) * S;
+            trans = trans * tr;
+        }
+        let fade = smoothstep(0.01, 0.14, dir.y);
+        trans = mix(1.0, trans, fade);
+        lit = lit * fade;
+        if (mc.u_cloud2Base >= mc.u_cloudBase) { out.L = out.L + out.T * lit; } else { out.L = lit + trans * out.L; }
+        out.T = out.T * trans;
+    }
+
+    return out;
+}
+`;
+
 export const atmosphereEffects = {
     ...rain2dEffects,
     ...fog2dEffects,
@@ -57,6 +357,20 @@ export const atmosphereEffects = {
 #pragma param u_cloudMaskTile float default(0) range(0,100)
 #pragma param u_cloudMask2 texture default(black)
 #pragma param u_cloudMask2Tile float default(0) range(0,100)
+#pragma param u_cloudScale float default(1) range(0.1,8)
+#pragma param u_cloudSoftness float default(0.22) range(0.02,1)
+#pragma param u_cloudChange float default(0.004) range(0,1)
+#pragma param u_cloudSilver float default(0.6) range(0,2)
+#pragma param u_cloud2Coverage float default(0) range(0,1)
+#pragma param u_cloud2Base float default(6) range(0.2,20)
+#pragma param u_cloud2Thickness float default(0.6) range(0.05,8)
+#pragma param u_cloud2Scale float default(1.8) range(0.1,8)
+#pragma param u_cloud2Wind float default(1.6) range(0,8)
+#pragma param u_cloudDriftX float default(0) range(-100000000,100000000)
+#pragma param u_cloudDriftZ float default(0) range(-100000000,100000000)
+#pragma param u_cloud2DriftX float default(0) range(-100000000,100000000)
+#pragma param u_cloud2DriftZ float default(0) range(-100000000,100000000)
+#pragma param u_cloudEvolve float default(0) range(0,100000000)
 #pragma lights
 
 #pragma fragment
@@ -163,101 +477,17 @@ vec3 scatter(vec3 dir, vec3 sun, float alt, float haze, out vec3 sunTrans) {
     return (sumR * BETA_R * phaseR + sumM * BETA_M * haze * phaseM) * SUN_I;
 }
 
-/// Where a coverage texture is given, the shape of the clouds on the ground is its, and the noise erodes it. The layers are tiled in kilometres
-/// of the cloud plane, the second a softer, higher one folded in.
-float cloudField(vec2 xz, float noise, float h) {
-    if (u_cloudMaskTile <= 0.0) return noise;
-    float m = textureLod(u_cloudMask, xz / u_cloudMaskTile, 0.0).r;
-    if (u_cloudMask2Tile > 0.0) m = mix(m, textureLod(u_cloudMask2, xz / u_cloudMask2Tile, 0.0).r, 0.3);
-    // A mask knows nothing of height, and a column of it seen along the slab is a streak: the cloud's top stands only over the mask's core, a dome.
-    return mix(m, noise, 0.5) - 0.35 * (h - 0.35);
-}
-
-float cloudDensity(vec3 p, float coverage, float base, float thick, int octaves) {
-    float h = clamp((p.y - base) / thick, 0.0, 1.0);
-    float shape = smoothstep(0.0, 0.14, h) * smoothstep(1.0, 0.55, h);
-    vec3 q = vec3(p.x, p.y * 1.8, p.z) * 0.32;
-    float n = vnoise(q) * 0.58 + vnoise(q * 2.13) * 0.28;
-    if (octaves > 2) n += vnoise(q * 4.7) * 0.14;
-    else n += 0.07;
-    n = cloudField(p.xz, n, h);
-    return smoothstep(1.0 - coverage, 1.0 - coverage + 0.22, n) * shape;
-}
-
-/// How much of the sun reaches a surface at @p world through the cloud layer: 1 is all of it. The sun's ray is marched up through
-/// the slab against the same density the sky draws, so a shadow falls where the cloud above it is. Ambient light is not shadowed.
-float cloudShadowAt(vec3 world, vec3 cam, vec3 sun, float coverage, float overcast, vec3 drift) {
-    float strength = u_cloudShadow * smoothstep(0.02, 0.14, sun.y);
-    if (strength <= 0.001 || coverage <= 0.01) return 1.0;
-    float k = 1.0 / max(u_unitsPerKm, 1e-3);
-    float h = u_altitude + (world.y - cam.y) * k;
-    float tt = (u_cloudBase + u_cloudThickness - h) / sun.y;
-    if (tt <= 0.0) return 1.0;
-    float tb = max(u_cloudBase - h, 0.0) / sun.y;
-    const int N = 6;
-    float ds = (tt - tb) / float(N);
-    float sigma = 1.3 * (1.0 + overcast * 1.5);
-    float tau = 0.0;
-    float jitter = ign(gl_FragCoord.xy);
-    for (int i = 0; i < N; ++i) {
-        float t = tb + (float(i) + jitter) * ds;
-        vec3 p = vec3(world.x * k + sun.x * t, h + sun.y * t, world.z * k + sun.z * t) + drift;
-        tau += cloudDensity(p, coverage, u_cloudBase, u_cloudThickness, 2) * sigma * ds;
-    }
-    return 1.0 - strength * 0.8 * (1.0 - exp(-tau));
-}
-/// The cloud slab along @p dir as a map of what is behind it, colour * T + L: how much of it the clouds let through, and the light they add.
-/// A function of the direction alone, so it can be worked out small and read back big.
-void cloudLayer(vec3 dir, vec3 sun, vec3 dome, vec3 sunTrans, float night, float overcast, vec3 windDrift, out vec3 L, out float T) {
-    L = vec3(0.0);
-    T = 1.0;
-    float coverage = max(u_clouds, overcast * 0.95);
-    if (coverage > 0.01 && dir.y > 0.01) {
-        float base = u_cloudBase;
-        float thick = u_cloudThickness;
-        float tb = max(base - u_altitude, 0.0) / dir.y;
-        float tt = (base + thick - u_altitude) / dir.y;
-        const int STEPS = 16;
-        float ds = (tt - tb) / float(STEPS);
-        float jitter = ign(gl_FragCoord.xy);
-        float sigma = 1.3 * (1.0 + overcast * 1.5);
-        vec3 drift = windDrift;
-        float cosS = dot(dir, sun);
-        float phase = mix(0.35 + 0.65 * pow(max(cosS, 0.0), 6.0), 0.5, 0.4);
-        vec3 ambient = dome * 0.7 + lin(vec3(0.55, 0.65, 0.9)) * 0.015 * night;
-        vec3 sunLight = sunTrans * 1.2 * u_cloudBrightness;
-        float trans = 1.0;
-        vec3 lit = vec3(0.0);
-        for (int i = 0; i < STEPS; ++i) {
-            if (trans < 0.02) break;
-            float t = tb + (float(i) + jitter) * ds;
-            vec3 p = vec3(dir.x * t, u_altitude + dir.y * t, dir.z * t) + drift;
-            float d = cloudDensity(p, coverage, base, thick, 3);
-            if (d < 0.002) continue;
-            float tau = 0.0;
-            for (int k = 1; k <= 3; ++k) {
-                vec3 q = p + sun * (0.35 * float(k));
-                tau += cloudDensity(q, coverage, base, thick, 2) * 0.35 * sigma;
-            }
-            float energy = exp(-tau * 1.1) + 0.25 * exp(-tau * 0.25);
-            vec3 S = sunLight * energy * phase * 2.0 + ambient;
-            float ext = d * sigma * ds;
-            float tr = exp(-ext);
-            lit += trans * (1.0 - tr) * S;
-            trans *= tr;
-        }
-        float fade = smoothstep(0.01, 0.14, dir.y);
-        T = mix(1.0, trans, fade);
-        L = lit * fade;
-    }
-
-}
-${SSAO_GLSL}
+${CLOUD_GLSL}${SSAO_GLSL}
 
 const float UP_MIN_WEIGHT = 0.15;
 
 /// The cloud layer for a sky pixel, read from the half-size pass: the sky texels among the four it falls between (a surface's
 /// texel has a negative alpha), by bilinear weight. False when none of them is sky, and the pixel works it out itself.
+vec4 splineWeights(float f) {
+    float f2 = f * f, f3 = f2 * f;
+    return vec4(1.0 - 3.0 * f + 3.0 * f2 - f3, 4.0 - 6.0 * f2 + 3.0 * f3, 1.0 + 3.0 * f + 3.0 * f2 - 3.0 * f3, f3) / 6.0;
+}
+
 bool upsampledClouds(out vec3 L, out float T) {
     ivec2 hsize = textureSize(u_texture, 0);
     vec2 hf = v_texCoord * vec2(hsize) - 0.5;
@@ -265,13 +495,16 @@ bool upsampledClouds(out vec3 L, out float T) {
     vec2 fr = hf - vec2(base);
     vec4 sum = vec4(0.0);
     float wsum = 0.0;
-    for (int j = 0; j < 4; ++j) {
-        ivec2 o = ivec2(j & 1, j >> 1);
-        vec4 h = texelFetch(u_texture, clamp(base + o, ivec2(0), hsize - ivec2(1)), 0);
-        if (h.a < 0.0) continue;
-        float bw = (o.x == 1 ? fr.x : 1.0 - fr.x) * (o.y == 1 ? fr.y : 1.0 - fr.y);
-        sum += h * bw;
-        wsum += bw;
+    // Four texels a side and not two: the march's jitter is a pattern a couple of texels across, which a plain bilinear read shows as a halftone, and a cloud has no edge this softens.
+    vec4 wx = splineWeights(fr.x), wy = splineWeights(fr.y);
+    for (int y = 0; y < 4; ++y) {
+        for (int x = 0; x < 4; ++x) {
+            vec4 h = texelFetch(u_texture, clamp(base + ivec2(x - 1, y - 1), ivec2(0), hsize - ivec2(1)), 0);
+            if (h.a < 0.0) continue;
+            float bw = wx[x] * wy[y];
+            sum += h * bw;
+            wsum += bw;
+        }
     }
     if (wsum < UP_MIN_WEIGHT) return false;
     sum /= wsum;
@@ -343,8 +576,7 @@ void main() {
     bool shadowed = u_cloudShadow > 0.001;
     vec3 entryWorld = entry + u_renderOrigin.xyz;
     vec3 anchor = shadowed ? vec3(entryWorld.x, 0.0, entryWorld.z) / max(u_unitsPerKm, 1e-3) : vec3(0.0);
-    float windAngle = radians(u_windDirection);
-    vec3 windDrift = vec3(sin(windAngle), 0.0, cos(windAngle)) * (u_windSpeed * u_time.x) + anchor;
+    vec3 windDrift = vec3(u_cloudDriftX, 0.0, u_cloudDriftZ) + anchor;
     if (geometry) {
         float lit;
         if (!upsampledShadow(worldFromDepth(v_texCoord, depth), entry, lit)) {
@@ -401,7 +633,7 @@ void main() {
     }
 
     // Clouds: read from the half-size pass, worked out here only where it has nothing for this pixel (a gap in a skyline).
-    if (max(u_clouds, overcast * 0.95) > 0.01 && dir.y > 0.01) {
+    if ((max(u_clouds, overcast * 0.95) > 0.01 || u_cloud2Coverage > 0.01) && dir.y > 0.01) {
         vec3 L;
         float T;
         if (!upsampledClouds(L, T)) cloudLayer(dir, sun, dome, sunTrans, night, overcast, windDrift, L, T);
@@ -512,104 +744,7 @@ fn scatter(dir : vec3f, sun : vec3f, alt : f32, haze : f32) -> Scatter {
     return out;
 }
 
-fn cloudField(xz : vec2f, noise : f32, h : f32) -> f32 {
-    if (mc.u_cloudMaskTile <= 0.0) { return noise; }
-    var m = textureSampleLevel(u_cloudMask, u_cloudMask_s, xz / mc.u_cloudMaskTile, 0.0).r;
-    if (mc.u_cloudMask2Tile > 0.0) { m = mix(m, textureSampleLevel(u_cloudMask2, u_cloudMask2_s, xz / mc.u_cloudMask2Tile, 0.0).r, 0.3); }
-    return mix(m, noise, 0.5) - 0.35 * (h - 0.35);
-}
-
-fn cloudDensity(p : vec3f, coverage : f32, base : f32, thick : f32, octaves : i32) -> f32 {
-    let h = clamp((p.y - base) / thick, 0.0, 1.0);
-    let shape = smoothstep(0.0, 0.14, h) * smoothstep(1.0, 0.55, h);
-    let q = vec3f(p.x, p.y * 1.8, p.z) * 0.32;
-    var n = vnoise(q) * 0.58 + vnoise(q * 2.13) * 0.28;
-    if (octaves > 2) { n = n + vnoise(q * 4.7) * 0.14; } else { n = n + 0.07; }
-    n = cloudField(p.xz, n, h);
-    return smoothstep(1.0 - coverage, 1.0 - coverage + 0.22, n) * shape;
-}
-
-fn frame_origin() -> vec3f { return frame.renderOrigin.xyz; }
-
-/// The turn that takes up to +Y by the shortest way: the sky is worked out where up is +Y, so on a round world in the frame of the ground the camera stands on.
-fn upFrame(up : vec3f) -> mat3x3f {
-    let v = vec3f(-up.z, 0.0, up.x);
-    let k = 1.0 / max(1.0 + up.y, 1e-4);
-    let cross = mat3x3f(vec3f(0.0, v.z, -v.y), vec3f(-v.z, 0.0, v.x), vec3f(v.y, -v.x, 0.0));
-    return mat3x3f(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), vec3f(0.0, 0.0, 1.0)) + cross + (cross * cross) * k;
-}
-
-fn cloudShadowAt(world : vec3f, cam : vec3f, sun : vec3f, coverage : f32, overcast : f32, drift : vec3f, px : vec2f) -> f32 {
-    let strength = mc.u_cloudShadow * smoothstep(0.02, 0.14, sun.y);
-    if (strength <= 0.001 || coverage <= 0.01) { return 1.0; }
-    let k = 1.0 / max(mc.u_unitsPerKm, 1e-3);
-    let h = mc.u_altitude + (world.y - cam.y) * k;
-    let tt = (mc.u_cloudBase + mc.u_cloudThickness - h) / sun.y;
-    if (tt <= 0.0) { return 1.0; }
-    let tb = max(mc.u_cloudBase - h, 0.0) / sun.y;
-    let N = 6;
-    let ds = (tt - tb) / f32(N);
-    let sigma = 1.3 * (1.0 + overcast * 1.5);
-    var tau = 0.0;
-    let jitter = ign(px);
-    for (var i : i32 = 0; i < N; i = i + 1) {
-        let t = tb + (f32(i) + jitter) * ds;
-        let p = vec3f(world.x * k + sun.x * t, h + sun.y * t, world.z * k + sun.z * t) + drift;
-        tau = tau + cloudDensity(p, coverage, mc.u_cloudBase, mc.u_cloudThickness, 2) * sigma * ds;
-    }
-    return 1.0 - strength * 0.8 * (1.0 - exp(-tau));
-}
-
-struct CloudLayer { L : vec3f, T : f32 };
-
-/// The cloud slab along dir as a map of what is behind it, colour * T + L. A function of the direction alone, so it can be worked out small and read back big.
-fn cloudLayer(dir : vec3f, sun : vec3f, dome : vec3f, sunTrans : vec3f, night : f32, overcast : f32, windDrift : vec3f, px : vec2f) -> CloudLayer {
-    var out : CloudLayer;
-    out.L = vec3f(0.0);
-    out.T = 1.0;
-    let coverage = max(mc.u_clouds, overcast * 0.95);
-    if (coverage > 0.01 && dir.y > 0.01) {
-        let base = mc.u_cloudBase;
-        let thick = mc.u_cloudThickness;
-        let tb = max(base - mc.u_altitude, 0.0) / dir.y;
-        let tt = (base + thick - mc.u_altitude) / dir.y;
-        let STEPS = 16;
-        let ds = (tt - tb) / f32(STEPS);
-        let jitter = ign(px);
-        let sigma = 1.3 * (1.0 + overcast * 1.5);
-        let drift = windDrift;
-        let cosS = dot(dir, sun);
-        let phase = mix(0.35 + 0.65 * pow(max(cosS, 0.0), 6.0), 0.5, 0.4);
-        let ambient = dome * 0.7 + lin(vec3f(0.55, 0.65, 0.9)) * 0.015 * night;
-        let sunLight = sunTrans * 1.2 * mc.u_cloudBrightness;
-        var trans = 1.0;
-        var lit = vec3f(0.0);
-        for (var i : i32 = 0; i < STEPS; i = i + 1) {
-            if (trans < 0.02) { break; }
-            let t = tb + (f32(i) + jitter) * ds;
-            let p = vec3f(dir.x * t, mc.u_altitude + dir.y * t, dir.z * t) + drift;
-            let d = cloudDensity(p, coverage, base, thick, 3);
-            if (d < 0.002) { continue; }
-            var tau = 0.0;
-            for (var k : i32 = 1; k <= 3; k = k + 1) {
-                let q = p + sun * (0.35 * f32(k));
-                tau = tau + cloudDensity(q, coverage, base, thick, 2) * 0.35 * sigma;
-            }
-            let energy = exp(-tau * 1.1) + 0.25 * exp(-tau * 0.25);
-            let S = sunLight * energy * phase * 2.0 + ambient;
-            let ext = d * sigma * ds;
-            let tr = exp(-ext);
-            lit = lit + trans * (1.0 - tr) * S;
-            trans = trans * tr;
-        }
-        let fade = smoothstep(0.01, 0.14, dir.y);
-        out.T = mix(1.0, trans, fade);
-        out.L = lit * fade;
-    }
-
-    return out;
-}
-${SSAO_WGSL}
+${CLOUD_WGSL}${SSAO_WGSL}
 
 const UP_MIN_WEIGHT : f32 = 0.15;
 
@@ -617,6 +752,12 @@ struct CloudRead { ok : bool, L : vec3f, T : f32 };
 
 /// The cloud layer for a sky pixel, read from the half-size pass: the sky texels among the four it falls between (a surface's texel has a
 /// negative alpha), by bilinear weight. Not ok when none of them is sky, and the pixel works it out itself.
+fn splineWeights(f : f32) -> vec4f {
+    let f2 = f * f;
+    let f3 = f2 * f;
+    return vec4f(1.0 - 3.0 * f + 3.0 * f2 - f3, 4.0 - 6.0 * f2 + 3.0 * f3, 1.0 + 3.0 * f + 3.0 * f2 - 3.0 * f3, f3) / 6.0;
+}
+
 fn upsampledClouds(uv : vec2f) -> CloudRead {
     var out : CloudRead;
     out.ok = false;
@@ -626,17 +767,16 @@ fn upsampledClouds(uv : vec2f) -> CloudRead {
     let fr = hf - vec2f(base);
     var sum = vec4f(0.0);
     var wsum = 0.0;
-    for (var j : i32 = 0; j < 4; j = j + 1) {
-        let o = vec2i(j & 1, j >> 1);
-        let h = textureLoad(t0, clamp(base + o, vec2i(0), hsize - vec2i(1)), 0);
-        if (h.a < 0.0) { continue; }
-        var bx = 1.0 - fr.x;
-        if (o.x == 1) { bx = fr.x; }
-        var by = 1.0 - fr.y;
-        if (o.y == 1) { by = fr.y; }
-        let bw = bx * by;
-        sum = sum + h * bw;
-        wsum = wsum + bw;
+    let wx = splineWeights(fr.x);
+    let wy = splineWeights(fr.y);
+    for (var y : i32 = 0; y < 4; y = y + 1) {
+        for (var x : i32 = 0; x < 4; x = x + 1) {
+            let h = textureLoad(t0, clamp(base + vec2i(x - 1, y - 1), vec2i(0), hsize - vec2i(1)), 0);
+            if (h.a < 0.0) { continue; }
+            let bw = wx[x] * wy[y];
+            sum = sum + h * bw;
+            wsum = wsum + bw;
+        }
     }
     if (wsum < UP_MIN_WEIGHT) { return out; }
     sum = sum / wsum;
@@ -712,8 +852,7 @@ fn upsampledShadow(uv : vec2f, P : vec3f, entry : vec3f) -> ShadowRead {
     let entryWorld = entry + frame.renderOrigin.xyz;
     var anchor = vec3f(0.0);
     if (mc.u_cloudShadow > 0.001) { anchor = vec3f(entryWorld.x, 0.0, entryWorld.z) / max(mc.u_unitsPerKm, 1e-3); }
-    let windAngle = radians(mc.u_windDirection);
-    let windDrift = vec3f(sin(windAngle), 0.0, cos(windAngle)) * (mc.u_windSpeed * tc.u_time.x) + anchor;
+    let windDrift = vec3f(mc.u_cloudDriftX, 0.0, mc.u_cloudDriftZ) + anchor;
     if (geometry) {
         var lit = 1.0;
         let up = upsampledShadow(v.v_texCoord, worldFromDepth(v.v_texCoord, depth), entry);
@@ -763,7 +902,7 @@ fn upsampledShadow(uv : vec2f, P : vec3f, entry : vec3f) -> ShadowRead {
         }
     }
 
-    if (max(mc.u_clouds, overcast * 0.95) > 0.01 && dir.y > 0.01) {
+    if ((max(mc.u_clouds, overcast * 0.95) > 0.01 || mc.u_cloud2Coverage > 0.01) && dir.y > 0.01) {
         var cl : CloudLayer;
         let up = upsampledClouds(v.v_texCoord);
         if (up.ok) {
@@ -827,6 +966,20 @@ fn upsampledShadow(uv : vec2f, P : vec3f, entry : vec3f) -> ShadowRead {
 #pragma param u_cloudMaskTile float default(0) range(0,100)
 #pragma param u_cloudMask2 texture default(black)
 #pragma param u_cloudMask2Tile float default(0) range(0,100)
+#pragma param u_cloudScale float default(1) range(0.1,8)
+#pragma param u_cloudSoftness float default(0.22) range(0.02,1)
+#pragma param u_cloudChange float default(0.004) range(0,1)
+#pragma param u_cloudSilver float default(0.6) range(0,2)
+#pragma param u_cloud2Coverage float default(0) range(0,1)
+#pragma param u_cloud2Base float default(6) range(0.2,20)
+#pragma param u_cloud2Thickness float default(0.6) range(0.05,8)
+#pragma param u_cloud2Scale float default(1.8) range(0.1,8)
+#pragma param u_cloud2Wind float default(1.6) range(0,8)
+#pragma param u_cloudDriftX float default(0) range(-100000000,100000000)
+#pragma param u_cloudDriftZ float default(0) range(-100000000,100000000)
+#pragma param u_cloud2DriftX float default(0) range(-100000000,100000000)
+#pragma param u_cloud2DriftZ float default(0) range(-100000000,100000000)
+#pragma param u_cloudEvolve float default(0) range(0,100000000)
 #pragma lights
 #pragma highprecision
 
@@ -933,96 +1086,7 @@ vec3 scatter(vec3 dir, vec3 sun, float alt, float haze, out vec3 sunTrans) {
     return (sumR * BETA_R * phaseR + sumM * BETA_M * haze * phaseM) * SUN_I;
 }
 
-/// Where a coverage texture is given, the shape of the clouds on the ground is its, and the noise erodes it. The layers are tiled in kilometres
-/// of the cloud plane, the second a softer, higher one folded in.
-float cloudField(vec2 xz, float noise, float h) {
-    if (u_cloudMaskTile <= 0.0) return noise;
-    float m = textureLod(u_cloudMask, xz / u_cloudMaskTile, 0.0).r;
-    if (u_cloudMask2Tile > 0.0) m = mix(m, textureLod(u_cloudMask2, xz / u_cloudMask2Tile, 0.0).r, 0.3);
-    // A mask knows nothing of height, and a column of it seen along the slab is a streak: the cloud's top stands only over the mask's core, a dome.
-    return mix(m, noise, 0.5) - 0.35 * (h - 0.35);
-}
-
-float cloudDensity(vec3 p, float coverage, float base, float thick, int octaves) {
-    float h = clamp((p.y - base) / thick, 0.0, 1.0);
-    float shape = smoothstep(0.0, 0.14, h) * smoothstep(1.0, 0.55, h);
-    vec3 q = vec3(p.x, p.y * 1.8, p.z) * 0.32;
-    float n = vnoise(q) * 0.58 + vnoise(q * 2.13) * 0.28;
-    if (octaves > 2) n += vnoise(q * 4.7) * 0.14;
-    else n += 0.07;
-    n = cloudField(p.xz, n, h);
-    return smoothstep(1.0 - coverage, 1.0 - coverage + 0.22, n) * shape;
-}
-
-/// How much of the sun reaches a surface at @p world through the cloud layer: 1 is all of it. The sun's ray is marched up through
-/// the slab against the same density the sky draws, so a shadow falls where the cloud above it is. Ambient light is not shadowed.
-float cloudShadowAt(vec3 world, vec3 cam, vec3 sun, float coverage, float overcast, vec3 drift) {
-    float strength = u_cloudShadow * smoothstep(0.02, 0.14, sun.y);
-    if (strength <= 0.001 || coverage <= 0.01) return 1.0;
-    float k = 1.0 / max(u_unitsPerKm, 1e-3);
-    float h = u_altitude + (world.y - cam.y) * k;
-    float tt = (u_cloudBase + u_cloudThickness - h) / sun.y;
-    if (tt <= 0.0) return 1.0;
-    float tb = max(u_cloudBase - h, 0.0) / sun.y;
-    const int N = 6;
-    float ds = (tt - tb) / float(N);
-    float sigma = 1.3 * (1.0 + overcast * 1.5);
-    float tau = 0.0;
-    float jitter = ign(gl_FragCoord.xy);
-    for (int i = 0; i < N; ++i) {
-        float t = tb + (float(i) + jitter) * ds;
-        vec3 p = vec3(world.x * k + sun.x * t, h + sun.y * t, world.z * k + sun.z * t) + drift;
-        tau += cloudDensity(p, coverage, u_cloudBase, u_cloudThickness, 2) * sigma * ds;
-    }
-    return 1.0 - strength * 0.8 * (1.0 - exp(-tau));
-}
-/// The cloud slab along @p dir as a map of what is behind it, colour * T + L: how much of it the clouds let through, and the light they add.
-/// A function of the direction alone, so it can be worked out small and read back big.
-void cloudLayer(vec3 dir, vec3 sun, vec3 dome, vec3 sunTrans, float night, float overcast, vec3 windDrift, out vec3 L, out float T) {
-    L = vec3(0.0);
-    T = 1.0;
-    float coverage = max(u_clouds, overcast * 0.95);
-    if (coverage > 0.01 && dir.y > 0.01) {
-        float base = u_cloudBase;
-        float thick = u_cloudThickness;
-        float tb = max(base - u_altitude, 0.0) / dir.y;
-        float tt = (base + thick - u_altitude) / dir.y;
-        const int STEPS = 16;
-        float ds = (tt - tb) / float(STEPS);
-        float jitter = ign(gl_FragCoord.xy);
-        float sigma = 1.3 * (1.0 + overcast * 1.5);
-        vec3 drift = windDrift;
-        float cosS = dot(dir, sun);
-        float phase = mix(0.35 + 0.65 * pow(max(cosS, 0.0), 6.0), 0.5, 0.4);
-        vec3 ambient = dome * 0.7 + lin(vec3(0.55, 0.65, 0.9)) * 0.015 * night;
-        vec3 sunLight = sunTrans * 1.2 * u_cloudBrightness;
-        float trans = 1.0;
-        vec3 lit = vec3(0.0);
-        for (int i = 0; i < STEPS; ++i) {
-            if (trans < 0.02) break;
-            float t = tb + (float(i) + jitter) * ds;
-            vec3 p = vec3(dir.x * t, u_altitude + dir.y * t, dir.z * t) + drift;
-            float d = cloudDensity(p, coverage, base, thick, 3);
-            if (d < 0.002) continue;
-            float tau = 0.0;
-            for (int k = 1; k <= 3; ++k) {
-                vec3 q = p + sun * (0.35 * float(k));
-                tau += cloudDensity(q, coverage, base, thick, 2) * 0.35 * sigma;
-            }
-            float energy = exp(-tau * 1.1) + 0.25 * exp(-tau * 0.25);
-            vec3 S = sunLight * energy * phase * 2.0 + ambient;
-            float ext = d * sigma * ds;
-            float tr = exp(-ext);
-            lit += trans * (1.0 - tr) * S;
-            trans *= tr;
-        }
-        float fade = smoothstep(0.01, 0.14, dir.y);
-        T = mix(1.0, trans, fade);
-        L = lit * fade;
-    }
-
-}
-
+${CLOUD_GLSL}
 void main() {
     vec4 src = texture(u_texture, v_texCoord);
     ivec2 size = textureSize(u_sceneDepth, 0);
@@ -1060,8 +1124,7 @@ void main() {
     bool shadowed = u_cloudShadow > 0.001;
     vec3 entryWorld = entry + u_renderOrigin.xyz;
     vec3 anchor = shadowed ? vec3(entryWorld.x, 0.0, entryWorld.z) / max(u_unitsPerKm, 1e-3) : vec3(0.0);
-    float windAngle = radians(u_windDirection);
-    vec3 windDrift = vec3(sin(windAngle), 0.0, cos(windAngle)) * (u_windSpeed * u_time.x) + anchor;
+    vec3 windDrift = vec3(u_cloudDriftX, 0.0, u_cloudDriftZ) + anchor;
     if (geometry) {
         float lit = cloudShadowAt(worldFromDepth(v_texCoord, depth) + u_renderOrigin.xyz, entryWorld, sun, max(u_clouds, overcast * 0.95), overcast, windDrift - anchor);
         fragColor = vec4(lit, 0.0, 0.0, -lit);
@@ -1176,104 +1239,7 @@ fn scatter(dir : vec3f, sun : vec3f, alt : f32, haze : f32) -> Scatter {
     return out;
 }
 
-fn cloudField(xz : vec2f, noise : f32, h : f32) -> f32 {
-    if (mc.u_cloudMaskTile <= 0.0) { return noise; }
-    var m = textureSampleLevel(u_cloudMask, u_cloudMask_s, xz / mc.u_cloudMaskTile, 0.0).r;
-    if (mc.u_cloudMask2Tile > 0.0) { m = mix(m, textureSampleLevel(u_cloudMask2, u_cloudMask2_s, xz / mc.u_cloudMask2Tile, 0.0).r, 0.3); }
-    return mix(m, noise, 0.5) - 0.35 * (h - 0.35);
-}
-
-fn cloudDensity(p : vec3f, coverage : f32, base : f32, thick : f32, octaves : i32) -> f32 {
-    let h = clamp((p.y - base) / thick, 0.0, 1.0);
-    let shape = smoothstep(0.0, 0.14, h) * smoothstep(1.0, 0.55, h);
-    let q = vec3f(p.x, p.y * 1.8, p.z) * 0.32;
-    var n = vnoise(q) * 0.58 + vnoise(q * 2.13) * 0.28;
-    if (octaves > 2) { n = n + vnoise(q * 4.7) * 0.14; } else { n = n + 0.07; }
-    n = cloudField(p.xz, n, h);
-    return smoothstep(1.0 - coverage, 1.0 - coverage + 0.22, n) * shape;
-}
-
-fn frame_origin() -> vec3f { return frame.renderOrigin.xyz; }
-
-/// The turn that takes up to +Y by the shortest way: the sky is worked out where up is +Y, so on a round world in the frame of the ground the camera stands on.
-fn upFrame(up : vec3f) -> mat3x3f {
-    let v = vec3f(-up.z, 0.0, up.x);
-    let k = 1.0 / max(1.0 + up.y, 1e-4);
-    let cross = mat3x3f(vec3f(0.0, v.z, -v.y), vec3f(-v.z, 0.0, v.x), vec3f(v.y, -v.x, 0.0));
-    return mat3x3f(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), vec3f(0.0, 0.0, 1.0)) + cross + (cross * cross) * k;
-}
-
-fn cloudShadowAt(world : vec3f, cam : vec3f, sun : vec3f, coverage : f32, overcast : f32, drift : vec3f, px : vec2f) -> f32 {
-    let strength = mc.u_cloudShadow * smoothstep(0.02, 0.14, sun.y);
-    if (strength <= 0.001 || coverage <= 0.01) { return 1.0; }
-    let k = 1.0 / max(mc.u_unitsPerKm, 1e-3);
-    let h = mc.u_altitude + (world.y - cam.y) * k;
-    let tt = (mc.u_cloudBase + mc.u_cloudThickness - h) / sun.y;
-    if (tt <= 0.0) { return 1.0; }
-    let tb = max(mc.u_cloudBase - h, 0.0) / sun.y;
-    let N = 6;
-    let ds = (tt - tb) / f32(N);
-    let sigma = 1.3 * (1.0 + overcast * 1.5);
-    var tau = 0.0;
-    let jitter = ign(px);
-    for (var i : i32 = 0; i < N; i = i + 1) {
-        let t = tb + (f32(i) + jitter) * ds;
-        let p = vec3f(world.x * k + sun.x * t, h + sun.y * t, world.z * k + sun.z * t) + drift;
-        tau = tau + cloudDensity(p, coverage, mc.u_cloudBase, mc.u_cloudThickness, 2) * sigma * ds;
-    }
-    return 1.0 - strength * 0.8 * (1.0 - exp(-tau));
-}
-
-struct CloudLayer { L : vec3f, T : f32 };
-
-/// The cloud slab along dir as a map of what is behind it, colour * T + L. A function of the direction alone, so it can be worked out small and read back big.
-fn cloudLayer(dir : vec3f, sun : vec3f, dome : vec3f, sunTrans : vec3f, night : f32, overcast : f32, windDrift : vec3f, px : vec2f) -> CloudLayer {
-    var out : CloudLayer;
-    out.L = vec3f(0.0);
-    out.T = 1.0;
-    let coverage = max(mc.u_clouds, overcast * 0.95);
-    if (coverage > 0.01 && dir.y > 0.01) {
-        let base = mc.u_cloudBase;
-        let thick = mc.u_cloudThickness;
-        let tb = max(base - mc.u_altitude, 0.0) / dir.y;
-        let tt = (base + thick - mc.u_altitude) / dir.y;
-        let STEPS = 16;
-        let ds = (tt - tb) / f32(STEPS);
-        let jitter = ign(px);
-        let sigma = 1.3 * (1.0 + overcast * 1.5);
-        let drift = windDrift;
-        let cosS = dot(dir, sun);
-        let phase = mix(0.35 + 0.65 * pow(max(cosS, 0.0), 6.0), 0.5, 0.4);
-        let ambient = dome * 0.7 + lin(vec3f(0.55, 0.65, 0.9)) * 0.015 * night;
-        let sunLight = sunTrans * 1.2 * mc.u_cloudBrightness;
-        var trans = 1.0;
-        var lit = vec3f(0.0);
-        for (var i : i32 = 0; i < STEPS; i = i + 1) {
-            if (trans < 0.02) { break; }
-            let t = tb + (f32(i) + jitter) * ds;
-            let p = vec3f(dir.x * t, mc.u_altitude + dir.y * t, dir.z * t) + drift;
-            let d = cloudDensity(p, coverage, base, thick, 3);
-            if (d < 0.002) { continue; }
-            var tau = 0.0;
-            for (var k : i32 = 1; k <= 3; k = k + 1) {
-                let q = p + sun * (0.35 * f32(k));
-                tau = tau + cloudDensity(q, coverage, base, thick, 2) * 0.35 * sigma;
-            }
-            let energy = exp(-tau * 1.1) + 0.25 * exp(-tau * 0.25);
-            let S = sunLight * energy * phase * 2.0 + ambient;
-            let ext = d * sigma * ds;
-            let tr = exp(-ext);
-            lit = lit + trans * (1.0 - tr) * S;
-            trans = trans * tr;
-        }
-        let fade = smoothstep(0.01, 0.14, dir.y);
-        out.T = mix(1.0, trans, fade);
-        out.L = lit * fade;
-    }
-
-    return out;
-}
-
+${CLOUD_WGSL}
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
     let size = vec2i(textureDimensions(t7, 0));
@@ -1304,8 +1270,7 @@ fn cloudLayer(dir : vec3f, sun : vec3f, dome : vec3f, sunTrans : vec3f, night : 
     let entryWorld = entry + frame.renderOrigin.xyz;
     var anchor = vec3f(0.0);
     if (mc.u_cloudShadow > 0.001) { anchor = vec3f(entryWorld.x, 0.0, entryWorld.z) / max(mc.u_unitsPerKm, 1e-3); }
-    let windAngle = radians(mc.u_windDirection);
-    let windDrift = vec3f(sin(windAngle), 0.0, cos(windAngle)) * (mc.u_windSpeed * tc.u_time.x) + anchor;
+    let windDrift = vec3f(mc.u_cloudDriftX, 0.0, mc.u_cloudDriftZ) + anchor;
     if (geometry) {
         let lit = cloudShadowAt(worldFromDepth(v.v_texCoord, depth) + frame.renderOrigin.xyz, entryWorld, sun, max(mc.u_clouds, overcast * 0.95), overcast, windDrift - anchor, v.pos.xy);
         return vec4f(lit, 0.0, 0.0, -lit);
@@ -1364,8 +1329,11 @@ fn cloudLayer(dir : vec3f, sun : vec3f, dome : vec3f, sunTrans : vec3f, night : 
 #pragma param u_skyAltitude float default(0.1) range(0,20)
 #pragma param u_skyUnits float default(1000) range(1,100000)
 #pragma param u_skySigma float default(1.3) range(0,10)
-#pragma param u_skyWindX float default(0) range(-2,2)
-#pragma param u_skyWindZ float default(0) range(-2,2)
+#pragma param u_skyDriftX float default(0) range(-100000000,100000000)
+#pragma param u_skyDriftZ float default(0) range(-100000000,100000000)
+#pragma param u_skyEvolve float default(0) range(0,100000000)
+#pragma param u_skyScale float default(1) range(0.1,8)
+#pragma param u_skySoftness float default(0.22) range(0.02,1)
 #pragma param u_cloudMask texture default(black)
 #pragma param u_cloudMaskTile float default(0) range(0,100)
 #pragma param u_cloudMask2 texture default(black)
@@ -1425,9 +1393,9 @@ float cloudField(vec2 xz, float noise, float h) {
 float cloudDensity(vec3 p, float coverage, float base, float thick) {
     float h = clamp((p.y - base) / thick, 0.0, 1.0);
     float shape = smoothstep(0.0, 0.14, h) * smoothstep(1.0, 0.55, h);
-    vec3 q = vec3(p.x, p.y * 1.8, p.z) * 0.32;
+    vec3 q = vec3(p.x, p.y * 1.8 + u_skyEvolve, p.z) * 0.32 * u_skyScale;
     float n = cloudField(p.xz, vnoise(q) * 0.58 + vnoise(q * 2.13) * 0.28 + 0.07, h);
-    return smoothstep(1.0 - coverage, 1.0 - coverage + 0.22, n) * shape;
+    return smoothstep(1.0 - coverage, 1.0 - coverage + u_skySoftness, n) * shape;
 }
 /// How much of the sun reaches the air at @p world through the cloud layer, 1 being all of it: the sun's ray marched up through the slab.
 float cloudLight(vec3 world, float camY, vec3 sun, vec3 drift) {
@@ -1474,7 +1442,7 @@ vec3 volumeLight(vec3 entry, vec3 dir, float len, bool sky, vec3 sun, vec4 light
     float transmit = 1.0;
     float lit = 0.0;
     // The clouds are as the sky draws them, fixed in the world and drifting; their light changes slowly along the ray, so every third step asks.
-    vec3 drift = vec3(u_skyWindX, 0.0, u_skyWindZ) * u_time.x;
+    vec3 drift = vec3(u_skyDriftX, 0.0, u_skyDriftZ);
     float shade = 1.0;
     for (int i = 0; i < VOLUME_STEPS; ++i) {
         float t = u_startDistance + (float(i) + jitter) * ds;
@@ -1610,9 +1578,9 @@ fn cloudField(xz : vec2f, noise : f32, h : f32) -> f32 {
 fn cloudDensity(p : vec3f, coverage : f32, base : f32, thick : f32) -> f32 {
     let h = clamp((p.y - base) / thick, 0.0, 1.0);
     let shape = smoothstep(0.0, 0.14, h) * smoothstep(1.0, 0.55, h);
-    let q = vec3f(p.x, p.y * 1.8, p.z) * 0.32;
+    let q = vec3f(p.x, p.y * 1.8 + mc.u_skyEvolve, p.z) * 0.32 * mc.u_skyScale;
     let n = cloudField(p.xz, vnoise(q) * 0.58 + vnoise(q * 2.13) * 0.28 + 0.07, h);
-    return smoothstep(1.0 - coverage, 1.0 - coverage + 0.22, n) * shape;
+    return smoothstep(1.0 - coverage, 1.0 - coverage + mc.u_skySoftness, n) * shape;
 }
 fn cloudLight(world : vec3f, camY : f32, sun : vec3f, drift : vec3f) -> f32 {
     if (mc.u_cloudShade <= 0.001 || mc.u_skyCover <= 0.01 || sun.y <= 0.02) { return 1.0; }
@@ -1654,7 +1622,7 @@ fn volumeLight(entry : vec3f, dir : vec3f, len : f32, sky : bool, sun : vec3f, f
     let jitter = ign(px);
     var transmit = 1.0;
     var lit = 0.0;
-    let drift = vec3f(mc.u_skyWindX, 0.0, mc.u_skyWindZ) * tc.u_time.x;
+    let drift = vec3f(mc.u_skyDriftX, 0.0, mc.u_skyDriftZ);
     var shade = 1.0;
     for (var i : i32 = 0; i < VOLUME_STEPS; i = i + 1) {
         let t = mc.u_startDistance + (f32(i) + jitter) * ds;
@@ -1796,8 +1764,11 @@ fn upsampledVolume(uv : vec2f, len : f32) -> VolumeRead {
 #pragma param u_skyAltitude float default(0.1) range(0,20)
 #pragma param u_skyUnits float default(1000) range(1,100000)
 #pragma param u_skySigma float default(1.3) range(0,10)
-#pragma param u_skyWindX float default(0) range(-2,2)
-#pragma param u_skyWindZ float default(0) range(-2,2)
+#pragma param u_skyDriftX float default(0) range(-100000000,100000000)
+#pragma param u_skyDriftZ float default(0) range(-100000000,100000000)
+#pragma param u_skyEvolve float default(0) range(0,100000000)
+#pragma param u_skyScale float default(1) range(0.1,8)
+#pragma param u_skySoftness float default(0.22) range(0.02,1)
 #pragma param u_cloudMask texture default(black)
 #pragma param u_cloudMaskTile float default(0) range(0,100)
 #pragma param u_cloudMask2 texture default(black)
@@ -1855,9 +1826,9 @@ float cloudField(vec2 xz, float noise, float h) {
 float cloudDensity(vec3 p, float coverage, float base, float thick) {
     float h = clamp((p.y - base) / thick, 0.0, 1.0);
     float shape = smoothstep(0.0, 0.14, h) * smoothstep(1.0, 0.55, h);
-    vec3 q = vec3(p.x, p.y * 1.8, p.z) * 0.32;
+    vec3 q = vec3(p.x, p.y * 1.8 + u_skyEvolve, p.z) * 0.32 * u_skyScale;
     float n = cloudField(p.xz, vnoise(q) * 0.58 + vnoise(q * 2.13) * 0.28 + 0.07, h);
-    return smoothstep(1.0 - coverage, 1.0 - coverage + 0.22, n) * shape;
+    return smoothstep(1.0 - coverage, 1.0 - coverage + u_skySoftness, n) * shape;
 }
 /// How much of the sun reaches the air at @p world through the cloud layer, 1 being all of it: the sun's ray marched up through the slab.
 float cloudLight(vec3 world, float camY, vec3 sun, vec3 drift) {
@@ -1904,7 +1875,7 @@ vec3 volumeLight(vec3 entry, vec3 dir, float len, bool sky, vec3 sun, vec4 light
     float transmit = 1.0;
     float lit = 0.0;
     // The clouds are as the sky draws them, fixed in the world and drifting; their light changes slowly along the ray, so every third step asks.
-    vec3 drift = vec3(u_skyWindX, 0.0, u_skyWindZ) * u_time.x;
+    vec3 drift = vec3(u_skyDriftX, 0.0, u_skyDriftZ);
     float shade = 1.0;
     for (int i = 0; i < VOLUME_STEPS; ++i) {
         float t = u_startDistance + (float(i) + jitter) * ds;
@@ -1992,9 +1963,9 @@ fn cloudField(xz : vec2f, noise : f32, h : f32) -> f32 {
 fn cloudDensity(p : vec3f, coverage : f32, base : f32, thick : f32) -> f32 {
     let h = clamp((p.y - base) / thick, 0.0, 1.0);
     let shape = smoothstep(0.0, 0.14, h) * smoothstep(1.0, 0.55, h);
-    let q = vec3f(p.x, p.y * 1.8, p.z) * 0.32;
+    let q = vec3f(p.x, p.y * 1.8 + mc.u_skyEvolve, p.z) * 0.32 * mc.u_skyScale;
     let n = cloudField(p.xz, vnoise(q) * 0.58 + vnoise(q * 2.13) * 0.28 + 0.07, h);
-    return smoothstep(1.0 - coverage, 1.0 - coverage + 0.22, n) * shape;
+    return smoothstep(1.0 - coverage, 1.0 - coverage + mc.u_skySoftness, n) * shape;
 }
 fn cloudLight(world : vec3f, camY : f32, sun : vec3f, drift : vec3f) -> f32 {
     if (mc.u_cloudShade <= 0.001 || mc.u_skyCover <= 0.01 || sun.y <= 0.02) { return 1.0; }
@@ -2036,7 +2007,7 @@ fn volumeLight(entry : vec3f, dir : vec3f, len : f32, sky : bool, sun : vec3f, f
     let jitter = ign(px);
     var transmit = 1.0;
     var lit = 0.0;
-    let drift = vec3f(mc.u_skyWindX, 0.0, mc.u_skyWindZ) * tc.u_time.x;
+    let drift = vec3f(mc.u_skyDriftX, 0.0, mc.u_skyDriftZ);
     var shade = 1.0;
     for (var i : i32 = 0; i < VOLUME_STEPS; i = i + 1) {
         let t = mc.u_startDistance + (f32(i) + jitter) * ds;
