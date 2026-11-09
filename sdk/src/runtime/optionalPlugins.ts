@@ -29,6 +29,7 @@ import { registerFoliageSupport } from '../foliage/foliageSupport';
 import { registerWorldGenSupport } from '../worldgen/worldgenSupport';
 import { registerWaterSupport } from '../water/waterSupport';
 import { registerSplineSupport } from '../spline/splineSupport';
+import { registerRig2DSupport } from '../rig2d/rig2dSupport';
 import { registerImportedSceneSupport } from '../imported-scene/importedSceneSupport';
 import { registerCharacterShaders } from '../character/characterSupport';
 import { registerScriptGraphSupport } from '../logic/logicSupport';
@@ -52,6 +53,7 @@ export function installOptionalPlugins(): void {
     registerWorldGenSupport();
     registerWaterSupport();
     registerSplineSupport();
+    registerRig2DSupport();
     registerImportedSceneSupport();
     registerCharacterShaders();
     registerScriptGraphSupport();

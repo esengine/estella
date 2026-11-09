@@ -241,6 +241,7 @@ export default defineConfig({
             { label: 'Overview', translations: { 'zh-CN': '总览' }, slug: 'animation/overview' },
             { label: 'Timeline', translations: { 'zh-CN': '时间轴' }, slug: 'animation/timeline' },
             { label: 'Spring bones', translations: { 'zh-CN': '弹簧骨骼' }, slug: 'animation/spring-bones' },
+            { label: '2D Rigs', translations: { 'zh-CN': '2D 骨骼' }, slug: 'animation/rig-2d' },
             { label: 'Spine Animation', translations: { 'zh-CN': 'Spine 动画' }, slug: 'animation/spine' },
             { label: 'DragonBones Animation', translations: { 'zh-CN': 'DragonBones 动画' }, slug: 'animation/dragonbones' },
           ],

@@ -3,10 +3,10 @@
   "counts": {
     "public": 115,
     "beta": 176,
-    "experimental": 2875,
+    "experimental": 2918,
     "deprecated": 3
   },
-  "total": 3166,
+  "total": 3209,
   "subsystems": [
     {
       "id": "mobile-controls",
@@ -391,6 +391,19 @@
       "entry": [
         "Spline",
         "SplineCurve"
+      ]
+    },
+    {
+      "id": "rig2d",
+      "title": "2D rigs",
+      "titleZh": "2D 骨骼",
+      "tier": "experimental",
+      "why": "baking, weights and the solvers are checked against the real engine, but no shipped example carries a rig yet, and its editor is new.",
+      "whyZh": "烘焙、权重和解算都对真实引擎做了检查，但还没有示例真正用上骨骼角色，编辑器也是新的。",
+      "entry": [
+        "createRig",
+        "bakeRig",
+        "IK2D"
       ]
     },
     {

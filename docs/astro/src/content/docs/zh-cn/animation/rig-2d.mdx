@@ -1,0 +1,95 @@
+---
+title: 2D 骨骼
+description: 在编辑器里直接做骨骼 2D 角色——部件、骨骼、权重绘制和网格变形——再用片段做动画、用 Animator 混合、用 IK 和约束控制姿势。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+2D 骨骼让一张图像身体一样弯折。任何 PNG 都可以在编辑器里直接做，不需要另外的动画软件，也不依赖第三方格式。
+[Spine](/docs/zh-cn/animation/spine/) 和 [DragonBones](/docs/zh-cn/animation/dragonbones/) 照常可用；角色是用哪个做的，就继续用哪个。
+
+## 整体结构
+
+- **`.esrig`** 是你编辑的文件：从图上切出的部件、部件下面的骨骼、每个顶点跟随哪些骨骼。
+- 保存时在旁边写出 **`.esmesh`** 和 **`.esprefab`**。场景只用这两个，所以打包后的游戏不带编辑数据。
+- **骨骼就是实体。** 每根骨骼都是带 Transform 的普通实体，片段、Animator、遮罩和代码都能像控制其他实体一样控制它。
+
+## 做一个角色
+
+在内容浏览器里右键一张图，选 **创建 2D 骨骼**。然后沿顶部的模式依次操作，顺序就是做角色的顺序：
+
+| 模式 | 做什么 |
+|---|---|
+| **部件** | **按透明区域切分** 把一张肢体拼图切成部件，再拖动摆成角色。右侧列表决定谁画在上面。 |
+| **骨骼** | 选 **新建** 后拖出一根骨骼；从另一根骨骼的末端开始，就接在它后面。选 **选择** 时，拖末端调方向，拖其余位置移动。 |
+| **网格** | 每个部件一开始就盖着一层网格。格子越小弯折越顺，代价也越大。拖动顶点可以微调。 |
+| **权重** | **按距离** 先绑定最近的骨骼，再刷它弄错的地方：在右侧选一根骨骼后拖动。`Shift` 反向，`Ctrl` 平滑，`[` 和 `]` 调半径。**整个部件跟选中骨骼** 用于不弯的部件。 |
+| **变形** | **新建形状**，然后拖动把顶点推过去：呼吸、微笑、鼓起。 |
+
+**试摆** 可以转动骨骼，看权重是否合适。它不改骨骼文件，回到 **绑定姿势** 就复原。**放入场景** 会保存并实例化 prefab。再次保存时所有实例都会更新，实例上后加的内容会保留。
+
+<Aside type="note">
+  这一版不支持单独增删顶点，一个角色只能用一张图。重新生成部件网格会清掉这个部件的权重和变形，操作前会提醒。
+</Aside>
+
+## 做动画
+
+选中角色，在[时间线](/docs/zh-cn/animation/timeline/)里像其他实体一样给骨骼打关键帧。骨骼按它在根下面的路径命名，比如 `hips/spine/arm`。变形是 `MeshMorph` 组件上的权重，打关键帧的方式相同。
+
+混合由 [Animator](/docs/zh-cn/animation/overview/) 负责，和其他角色一样：1D、2D 混合、分层、遮罩和过渡都对骨骼有效。
+
+## IK
+
+给肢体的最后一根骨骼加 **`IK2D`**，把 `target` 指向一个实体。这根骨骼的末端会在动画播放之后去够它，所以不管播哪个片段，手都能握住要握的东西。
+
+| 字段 | 含义 |
+|---|---|
+| `target` | 要够到的实体。 |
+| `chainLength` | 弯折几根骨骼，包括这一根。两根时精确求解并保持弯折方向；更多时迭代求解。 |
+| `bend` | 两根骨骼时中间关节的弯折方向：`1` 逆时针，`-1` 顺时针。 |
+| `weight` | 从动画姿势向解算结果靠拢的比例。可以打关键帧。 |
+| `matchTargetRotation` | 让这根骨骼同时转到目标的旋转，比如脚贴合斜坡。 |
+
+## 约束
+
+给骨骼加 **`BoneConstraint2D`**。约束在 IK 之后运行，从躯干向外：
+
+| `kind` | 作用 |
+|---|---|
+| **Limit Rotation** | 把局部旋转限制在 `min` 和 `max` 之间。穿过这根骨骼的 IK 链也会遵守。 |
+| **Copy Rotation** | 取 `source` 的世界旋转，再加 `offset`。 |
+| **Copy Position** | 站到 `source` 的世界位置上。 |
+| **Look At** | 让骨骼的 +x 指向 `source`，再加 `offset`。 |
+
+IK 和约束在播放模式下运行。根节点用负缩放镜像的角色同样适用。
+
+## 用代码
+
+骨骼是普通数据，游戏或工具都可以自己生成：
+
+```typescript
+import {
+  autoWeightPart, bakeRig, coverRigPart, createRig, rigImageFromRGBA, spawnRig, IK2D,
+} from 'esengine/rig2d';
+
+const image = rigImageFromRGBA(width, height, rgba);
+const rig = createRig('hero.png', width, height);
+rig.bones.push(
+  { name: 'upper', parent: -1, x: 0, y: 0, rotation: 0, length: 50 },
+  { name: 'lower', parent: 0, x: 50, y: 0, rotation: 0, length: 50 },
+);
+const rect = { x: 0, y: 0, w: width, h: height };
+const part = { name: 'arm', rect, x: 0, y: height / 2, ...coverRigPart(image, rect), weights: [] };
+rig.parts.push(part);
+autoWeightPart(rig, part);
+
+const mesh = assets.createMesh(bakeRig(rig));
+const { bones } = spawnRig(world, rig, { mesh, texture });
+world.insert(bones[1], IK2D, { target, chainLength: 2, bend: 1, weight: 1, matchTargetRotation: false, enabled: true });
+```
+
+## 限制
+
+- 一个骨骼角色是一个网格、一次绘制，最多 256 根骨骼。一个顶点最多跟随 4 根。
+- 同一角色的部件按你设定的顺序绘制。和场景其他内容之间，按 `MeshRenderer.layer` 再按 z 排序，和普通网格一样。
+- 选中角色时的外框显示的是绑定姿势，不是当前姿势。

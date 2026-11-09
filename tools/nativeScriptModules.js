@@ -74,6 +74,7 @@ export const MODULES = {
     'esengine/worldgen': { disposition: 'native-subpath' },
     'esengine/water': { disposition: 'native-subpath' },
     'esengine/spline': { disposition: 'native-subpath' },
+    'esengine/rig2d': { disposition: 'native-subpath' },
     'esengine/imported-scene': { disposition: 'native-subpath' },
     'esengine/character-shaders': { disposition: 'native-subpath' },
     'esengine/logic': { disposition: 'native-subpath' },

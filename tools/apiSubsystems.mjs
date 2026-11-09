@@ -336,6 +336,16 @@ export const SUBSYSTEMS = [
         entry: ['Spline', 'SplineCurve'],
     },
     {
+        id: 'rig2d',
+        title: '2D rigs',
+        titleZh: '2D 骨骼',
+        source: ['rig2d'],
+        tier: 'experimental',
+        why: 'baking, weights and the solvers are checked against the real engine, but no shipped example carries a rig yet, and its editor is new.',
+        whyZh: '烘焙、权重和解算都对真实引擎做了检查，但还没有示例真正用上骨骼角色，编辑器也是新的。',
+        entry: ['createRig', 'bakeRig', 'IK2D'],
+    },
+    {
         id: 'imported-scene',
         title: 'Imported scene runtime',
         titleZh: '导入场景运行时',

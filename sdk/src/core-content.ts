@@ -836,6 +836,7 @@ export { WorldPlan, type Placement, type Group, type Rejection } from './worldge
 export { Zones, type ZoneDef, type ZoneShape } from './worldgen/zones';
 export { PlacementDiffs, type PlacementChange, type PlacementDiffsData } from './worldgen/diffs';
 // Splines and water are optional modules too (`esengine/spline`, `esengine/water`).
+export { Bone2D, IK2D, BoneConstraint2D, BoneConstraintKind, type Bone2DData, type IK2DData, type BoneConstraint2DData } from './rig2d/rig2dPlugin';
 export { Bakes, BakesRes, bakesOf, finish, type WorkJob, type BakeProgress } from './runtime/bakes';
 export { CollisionGeometry, CollisionGeometryRes, collisionGeometryOf, type CollisionPiece } from './runtime/collisionGeometry';
 export { Spline, SplinePlugin, splinePlugin, PathFollower, PathMode, PathOrient, pathPlace, type SplineData, type PathFollowerData } from './spline/splinePlugin';

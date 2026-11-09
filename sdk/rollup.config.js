@@ -34,6 +34,7 @@ export default [
             'worldgen/index': 'src/worldgen/index.ts',
             'water/index': 'src/water/index.ts',
             'spline/index': 'src/spline/index.ts',
+            'rig2d/index': 'src/rig2d/index.ts',
             'imported-scene/index': 'src/imported-scene/index.ts',
             'character-shaders/index': 'src/character/index.ts',
             'logic/index': 'src/logic/index.ts',

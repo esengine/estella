@@ -1,0 +1,95 @@
+---
+title: 2D Rigs
+description: Make a skeletal 2D character inside the editor — parts, bones, painted weights and mesh deforms — then animate it with clips, blend it with the Animator, and bend it with IK and constraints.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A 2D rig bends one image the way a skeleton bends a body. You make it in the editor from any PNG, with no separate animation program and no third-party format.
+[Spine](/docs/animation/spine/) and [DragonBones](/docs/animation/dragonbones/) keep working beside it; use whichever a character was made in.
+
+## How it fits together
+
+- **`.esrig`** is what you edit: the parts cut from an image, the bones under them, and what each vertex follows.
+- Saving writes **`.esmesh`** and **`.esprefab`** beside it. Scenes use those, so a built game carries no authoring data.
+- **Bones are entities.** Each is an ordinary entity with a Transform, so clips, the Animator, masks and code reach them like anything else.
+
+## Make a character
+
+Right-click an image in the Content Browser and choose **Create 2D Rig**. Then work through the modes along the top, which are in the order a character is made:
+
+| Mode | What you do |
+|---|---|
+| **Parts** | **Split by Transparency** cuts a sheet of limbs into parts. Drag them into a character. The list on the right sets which draws on top. |
+| **Bones** | With **New**, drag a bone out. Start on another bone's end and it carries on from it. With **Select**, drag an end to aim a bone and the rest to move it. |
+| **Mesh** | Every part starts covered by a grid. Smaller cells bend more smoothly and cost more. Drag a vertex to adjust it. |
+| **Weights** | **By Distance** binds what is nearest, then paint what that got wrong: pick a bone on the right and drag. `Shift` inverts, `Ctrl` smooths, `[` and `]` change the radius. **Whole Part to Selected Bone** is for a piece that does not bend. |
+| **Deforms** | **New Shape**, then drag to push vertices: a breath, a smile, a bulge. |
+
+**Try Pose** turns bones to see how the weights hold up. It changes nothing in the rig, and **Bind Pose** puts it back. **Place in Scene** saves and instantiates the prefab. Saving again updates every instance, keeping what a scene added to one.
+
+<Aside type="note">
+  This version has no adding or deleting single vertices, and a character draws from one image. Generating a part's mesh again clears that part's weights and deforms, and asks first.
+</Aside>
+
+## Animate it
+
+Select the character and key its bones in the [Sequencer](/docs/animation/timeline/) like any other entity. A bone is named by its path under the root, such as `hips/spine/arm`. A deform is a weight on the `MeshMorph` component, which keys the same way.
+
+Blending is the [Animator](/docs/animation/overview/)'s job, as for any other character: 1D and 2D blends, layers, masks and transitions all work on bones.
+
+## IK
+
+Add **`IK2D`** to the last bone of a limb and point `target` at an entity. The end of that bone reaches for it, after the animation has played, so a hand can hold what it holds whichever clip is running.
+
+| Field | Meaning |
+|---|---|
+| `target` | The entity to reach for. |
+| `chainLength` | How many bones bend, counting this one. Two solve exactly and keep their bend; more take an iterative solve. |
+| `bend` | With two bones, the way the middle joint bends: `1` counter-clockwise or `-1`. |
+| `weight` | How far from the animated pose towards the solve. Clips can key it. |
+| `matchTargetRotation` | Also turn this bone to the target's rotation, for a foot flat on a slope. |
+
+## Constraints
+
+Add **`BoneConstraint2D`** to a bone. Constraints run after IK, from the trunk out:
+
+| `kind` | What it does |
+|---|---|
+| **Limit Rotation** | Keeps the local rotation between `min` and `max`. An IK chain through the bone keeps to them too. |
+| **Copy Rotation** | Takes `source`'s world rotation, plus `offset`. |
+| **Copy Position** | Stands on `source`'s world position. |
+| **Look At** | Points the bone's +x at `source`, plus `offset`. |
+
+IK and constraints run in play mode. Both follow a character mirrored by a negative scale on its root.
+
+## In code
+
+Rigs are plain data, so a game or a tool can make one:
+
+```typescript
+import {
+  autoWeightPart, bakeRig, coverRigPart, createRig, rigImageFromRGBA, spawnRig, IK2D,
+} from 'esengine/rig2d';
+
+const image = rigImageFromRGBA(width, height, rgba);
+const rig = createRig('hero.png', width, height);
+rig.bones.push(
+  { name: 'upper', parent: -1, x: 0, y: 0, rotation: 0, length: 50 },
+  { name: 'lower', parent: 0, x: 50, y: 0, rotation: 0, length: 50 },
+);
+const rect = { x: 0, y: 0, w: width, h: height };
+const part = { name: 'arm', rect, x: 0, y: height / 2, ...coverRigPart(image, rect), weights: [] };
+rig.parts.push(part);
+autoWeightPart(rig, part);
+
+const mesh = assets.createMesh(bakeRig(rig));
+const { bones } = spawnRig(world, rig, { mesh, texture });
+world.insert(bones[1], IK2D, { target, chainLength: 2, bend: 1, weight: 1, matchTargetRotation: false, enabled: true });
+```
+
+## Limits
+
+- A rig is one mesh, drawn in one draw call, up to 256 bones. A vertex follows at most 4.
+- Parts of one rig draw in the order you set. Against the rest of the scene, a rig sorts by `MeshRenderer.layer` and then by z, as a mesh does.
+- A selected rig's outline shows its bind pose, not its current pose.

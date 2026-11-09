@@ -91,6 +91,9 @@ export const EXT_TO_TYPE = Object.freeze({
     // `.esmesh`, and that is what a scene references. Typed for the same reason
     // `.esmatgraph` is, and apart from `model` because nothing imports it.
     '.esmodel': 'modeling',
+    // A 2D character as it is authored. Never shipped, for the same reason: saving one bakes
+    // the sibling `.esmesh`, and a scene references that.
+    '.esrig': 'rig',
     '.esanim': 'animclip',
     '.esanimclip': 'animclip',
     '.estimeline': 'animation',

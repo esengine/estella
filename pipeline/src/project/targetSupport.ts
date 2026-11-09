@@ -27,7 +27,7 @@ import { NATIVE_PLATFORMS, type ExportPlatform } from './platforms';
 
 /** An engine subsystem a build target may lack. */
 export type Subsystem =
-    | 'text' | 'tilemap' | 'terrain' | 'foliage' | 'worldgen' | 'water' | 'spline' | 'importedScene' | 'characterShaders' | 'timeline' | 'fxBasic' | 'fxAtmosphere' | 'fxLighting' | 'particles' | 'postprocess' | 'physics' | 'physics3d'
+    | 'text' | 'tilemap' | 'terrain' | 'foliage' | 'worldgen' | 'water' | 'spline' | 'rig2d' | 'importedScene' | 'characterShaders' | 'timeline' | 'fxBasic' | 'fxAtmosphere' | 'fxLighting' | 'particles' | 'postprocess' | 'physics' | 'physics3d'
     | 'spine' | 'dragonbones' | 'video' | 'ai' | 'logic' | 'replication' | 'gameplay';
 
 /**
@@ -49,6 +49,7 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
     worldgen: ['WorldGen', 'WorldZone'],
     water: ['WaterBody', 'WaterZone', 'Floating'],
     spline: ['Spline', 'PathFollower', 'TerrainBand2D'],
+    rig2d: ['Bone2D', 'IK2D', 'BoneConstraint2D'],
     importedScene: ['NodeVisibility', 'ParticleModelUnits'],
     // Hair, Skin and Eye are shaders, not components: a character's materials are what name them (see SHADER_SUBSYSTEM).
     characterShaders: [],
@@ -116,6 +117,7 @@ export const SUBSYSTEM_LABEL: Readonly<Record<Subsystem, string>> = {
     worldgen: 'Generated worlds (biomes, zones, placement)',
     water: 'Water',
     spline: 'Splines',
+    rig2d: '2D rig constraints',
     importedScene: 'Imported scene (node visibility, particle units)',
     characterShaders: 'Character shaders (hair, skin, eye)',
     particles: 'Particles',
@@ -151,6 +153,7 @@ export const SUBSYSTEM_INSTALL: Readonly<Record<Subsystem, string>> = {
     worldgen: 'esengine/worldgen',
     water: 'esengine/water',
     spline: 'esengine/spline',
+    rig2d: 'esengine/rig2d',
     importedScene: 'esengine/imported-scene',
     characterShaders: 'esengine/character-shaders',
     physics: 'esengine/physics',

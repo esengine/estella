@@ -16,6 +16,8 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A 2D character can be rigged in the editor, with no other program.** Right-click an image to create an `.esrig`, then cut it into parts, drag out bones, cover the parts with a mesh, bind by distance and paint weights with add, remove and smooth brushes, and push vertices into named deforms, all on one canvas that can try poses without changing the rig. Saving writes an `.esmesh` and an `.esprefab` beside it, so a built game carries no authoring data. Bones are ordinary entities, so clips, the Animator's blends, layers and masks all reach them, and a deform is a `MeshMorph` weight clips can key.
+- **2D bones can reach for things and follow each other.** `IK2D` on the last bone of a limb bends it to a target after the animation has played, exactly for two bones and iteratively for more, with a weight clips can key. `BoneConstraint2D` limits a joint's rotation, which a chain through it keeps to, or copies another entity's rotation or position, or looks at it. Both follow a character mirrored by a negative scale. `esengine/rig2d` also makes all of this from code.
 - **A tile layer can be dug, blown up and rebuilt while the game runs.** `createDestructibleTilemap` in `esengine/tilemap` gives a layer tiles with hardness that wear down over several blows, circular explosions with falloff that walls can shelter from, and placing and filling, with one list of what changed for drops and effects. The neighbouring autotiles re-resolve, `createNavGrid` or `syncNavGrid` keeps a navigation grid in step one cell at a time, and `toJSON` and `load` save only the cells that differ from the map it started as, refusing a damaged save whole. On a streamed world, `publishChunk` lays a player's changes over what the generator made, so a chunk let go and made again comes back as it was left.
 - **Solid tile ground can have colliders only where it is exposed.** `TilemapRuntime.setCollisionOutline` generates plain boxes for tiles with an open side, so solid ground costs no bodies and a tunnel below a surface leaves the surface's colliders alone. A destructible layer turns it on; `collisionOutline: false` keeps merged ground.
 
@@ -26,6 +28,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A skinned mesh is not culled for where its entity stands.** A skinned mesh is placed by its joints, and was culled by its entity's box in the bind pose, so a body an animation carried away from its root vanished when that box left the view, in 2D and 3D alike. It is now culled around its joints.
+- **A texture stays on a scene that rescans as it is placed.** Two project rescans in a row started two loads of one texture, and the second to finish could release the one the scene was drawing with. The entity then drew white and stayed white, since the load counted as started and nothing asked again. An asset now loads one at a time and loads again afterwards when it was asked for meanwhile.
 - **A tile's custom properties in an `.estileset` reach the game.** `getTileProperty` answered nothing on a layer painted from an `.estileset`; only Tiled maps carried them. Replacing a tileset blanks the properties of the old one.
 
 ## [0.100.0] - 2026-11-08

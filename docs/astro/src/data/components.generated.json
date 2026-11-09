@@ -418,6 +418,74 @@
       ]
     },
     {
+      "name": "Bone2D",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "length",
+          "type": "number",
+          "default": "0",
+          "doc": "How far the bone reaches along its +x. An IK chain ending here reaches for the target with this end.",
+          "range": "≥ 0"
+        }
+      ],
+      "animatable": [
+        "length"
+      ]
+    },
+    {
+      "name": "BoneConstraint2D",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "kind",
+          "type": "enum",
+          "default": "Limit Rotation",
+          "values": [
+            "Limit Rotation",
+            "Copy Rotation",
+            "Copy Position",
+            "Look At"
+          ]
+        },
+        {
+          "key": "source",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The entity copied or looked at. Limit Rotation reads none."
+        },
+        {
+          "key": "min",
+          "type": "number",
+          "default": "-45"
+        },
+        {
+          "key": "max",
+          "type": "number",
+          "default": "45"
+        },
+        {
+          "key": "offset",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "weight",
+          "type": "number",
+          "default": "1",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "weight"
+      ]
+    },
+    {
       "name": "BoxCollider2D",
       "source": "cpp",
       "fields": [
@@ -2811,6 +2879,53 @@
         "rotationSpeed",
         "idleThreshold",
         "cooldown"
+      ]
+    },
+    {
+      "name": "IK2D",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "target",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The entity the end of this bone reaches for."
+        },
+        {
+          "key": "chainLength",
+          "type": "number",
+          "default": "2",
+          "doc": "How many bones bend, counting this one. Two bones solve exactly and keep their bend; more take an iterative solve.",
+          "range": "1–32, step 1"
+        },
+        {
+          "key": "bend",
+          "type": "number",
+          "default": "1",
+          "doc": "Two bones: the way the middle joint bends, 1 counter-clockwise or -1.",
+          "range": "-1–1, step 2"
+        },
+        {
+          "key": "weight",
+          "type": "number",
+          "default": "1",
+          "doc": "How far from the animated pose towards the solve.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "matchTargetRotation",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Also turn this bone to the target's rotation."
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "weight"
       ]
     },
     {
