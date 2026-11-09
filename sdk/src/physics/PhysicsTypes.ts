@@ -118,6 +118,26 @@ export interface MoverResult {
     isOnCeiling: boolean;
     floorNormalX: number;
     floorNormalY: number;
+    /** The entity it stands on, or null when airborne. */
+    floorEntity: Entity | null;
+    /** The dynamic bodies it pressed against this move, with the normals facing it. Absent when none. */
+    hits?: { entity: Entity; normalX: number; normalY: number }[];
+}
+
+/** What else a {@link MoverResult} move is asked to do. */
+export interface MoverOptions {
+    /** Moved with what it stands on, world pixels per second: no part of its own velocity, so what it reports back excludes it. */
+    carry?: Vec2;
+    /** Pass through every one-way surface: a drop. */
+    dropThrough?: boolean;
+    /** Pass through dynamic bodies. */
+    ignoreDynamic?: boolean;
+    /** Treat a slope too steep to stand on as a wall, not something to walk up. */
+    blockSteepSlopes?: boolean;
+    /** It stood on a floor before this move: only then can it step over a ledge. */
+    wasOnFloor?: boolean;
+    /** The highest ledge it steps over, world pixels. */
+    stepHeight?: number;
 }
 
 export interface MassData {

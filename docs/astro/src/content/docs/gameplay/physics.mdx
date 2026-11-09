@@ -468,15 +468,68 @@ body automatically, so its `maskBits` need not avoid its own collision layer. Dr
 | `snapLength` | number | `0` | Down-probe length (pixels) that glues the body to descending stairs/slopes; `0` disables it. Skipped while rising, so a jump still leaves the ground. |
 | `slideOnCeiling` | boolean | `true` | When `false`, a ceiling hit cancels the upward velocity instead of sliding along it. |
 | `maskBits` | number | `0xFFFF` | Layers that block the character. |
+| `stepHeight` | number | `0` | The highest ledge it walks up without jumping (pixels). `0` leaves only what its rounded foot rides over. |
+| `stopOnSlope` | boolean | `true` | Stand still on a walkable slope, and walk along it rather than into it. |
+| `constantSlopeSpeed` | boolean | `false` | Keep the asked speed along the slope. Off, the speed across the ground is what stays, so a climb takes as long as the same distance on the flat. |
+| `blockSteepSlopes` | boolean | `true` | A slope past `floorMaxAngle` is a wall: walking into it does not climb it, and it slides down. |
+| `followPlatform` | boolean | `true` | Ride what it stands on, sideways as well as up and down. |
+| `dynamicBodies` | enum | `Block` | What a dynamic body does to it: `Block` stops it, `Push` stops it and is pushed with up to `pushForce`, `Ignore` lets it through. |
+| `pushForce` | number | `40` | The force of a push, newtons. |
+| `dropThrough` | boolean | `false` | Pass through one-way platforms while on. |
 | `isOnFloor` / `isOnWall` / `isOnCeiling` | boolean | — | **Output**: what was touched this move. |
 | `floorNormal` | Vec2 | — | **Output**: normal of the last floor touched. |
+| `floorEntity` | Entity | — | **Output**: what it stands on, `0` for nothing. |
+| `floorVelocity` | Vec2 | — | **Output**: how fast that is carrying it, pixels/second. |
 | `realVelocity` | Vec2 | — | **Output**: actual displacement / dt after collisions. |
 
 <Aside type="note">`skinWidth`, `maxSlides`, `snapLength`, and `slideOnCeiling` are honored by
 the live native mover **and** by the standalone `moveAndSlide` resolver (`esengine/physics`),
 so they behave the same whichever path you use. The defaults suit a standard character; the
 common tweak is a small `snapLength` (a few pixels) to keep the character glued to descending
-stairs and slopes.</Aside>
+stairs and slopes. The options after `maskBits` are the live mover's alone; `moveAndSlide` has none of them.</Aside>
+
+A trigger never stops a character: a sensor has nothing to say about where it may go.
+
+### Platformer controller
+
+`CharacterController2D` moves what it is told to. For a side-on game add a
+`PlatformerController2D` beside it, and no system of your own: it reads the keyboard, runs,
+jumps and falls, with the forgiveness a platformer is judged on. A jump pressed
+`jumpBuffer` seconds before landing still happens, and so does one pressed `coyoteTime`
+seconds after running off a ledge.
+
+```typescript
+import { Transform, CapsuleCollider2D, CharacterController2D, CharacterDynamicBodies, PlatformerController2D } from 'esengine';
+
+const player = world.spawn();
+world.insert(player, Transform, { position: { x: 0, y: 100, z: 0 } });
+world.insert(player, CapsuleCollider2D, { radius: 0.1, halfHeight: 0.15 });
+world.insert(player, CharacterController2D, { stepHeight: 12, snapLength: 8, dynamicBodies: CharacterDynamicBodies.Push });
+world.insert(player, PlatformerController2D, { moveSpeed: 260, jumpSpeed: 620 });
+```
+
+It moves with A/D or the arrows, jumps with Space, W or Up, and drops through a one-way
+platform with Down or S and jump. Set `readKeyboard: false` to drive it from a game, a
+touch screen or an AI instead: write `moveInput` and `jumpHeld`, and set `jumpPressed` or
+`dropPressed` for the next fixed step to consume. A press is latched per rendered frame,
+so a tap between two fixed steps is not lost.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `moveSpeed` | number | `260` | Top running speed, pixels/second. |
+| `groundAcceleration` / `airAcceleration` | number | `2400` / `1500` | How fast it reaches that speed. |
+| `groundDeceleration` / `airDeceleration` | number | `3000` / `900` | How fast it sheds it when the input centres. |
+| `gravity` | number | `1600` | Downward acceleration, pixels/second². |
+| `fallGravityScale` | number | `1.25` | Gravity multiplier while falling. Above 1 lands faster than it rose. |
+| `maxFallSpeed` | number | `1000` | The fastest it falls. |
+| `jumpSpeed` | number | `620` | Upward speed a jump starts with; `0` disables jumping. |
+| `jumpCut` | number | `0.5` | How much of a rising speed survives letting go of jump. `1` makes every jump full height. |
+| `coyoteTime` | number | `0.1` | Seconds after leaving the ground that a jump still counts as from the ground. |
+| `jumpBuffer` | number | `0.12` | Seconds a jump pressed too early is remembered, to happen on landing. |
+| `airJumps` | number | `0` | Extra jumps before landing again. |
+| `dropTime` | number | `0.2` | Seconds a drop through a one-way platform lasts. |
+| `keepPlatformVelocity` | boolean | `true` | A jump keeps the velocity of the platform it left. |
+| `readKeyboard` | boolean | `true` | Read the keyboard itself. |
 
 ## Debug draw
 

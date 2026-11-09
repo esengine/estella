@@ -20,7 +20,7 @@
  * Units: `velocity`/positions are world pixels (matching `Transform`); collider
  * dimensions are meters and are scaled to pixels via `Physics2DAPI.getPixelsPerUnit()`.
  */
-import type { Vec2 } from '../types';
+import type { Entity, Vec2 } from '../types';
 import { defineComponent } from '../ecs/component';
 
 // =============================================================================
@@ -46,6 +46,22 @@ export interface CharacterController2DData {
     slideOnCeiling: boolean;
     /** Collision layers that block the character. */
     maskBits: number;
+    /** The highest ledge it walks up without jumping (pixels); 0 = only what its rounded foot rides over. */
+    stepHeight: number;
+    /** Stand still on a walkable slope, and walk it without being slowed or sped by gravity. */
+    stopOnSlope: boolean;
+    /** Keep the speed asked for along a slope, rather than the speed across the ground. */
+    constantSlopeSpeed: boolean;
+    /** A slope past `floorMaxAngle` is a wall to walk into, and it slides down it. Off, it walks straight up. */
+    blockSteepSlopes: boolean;
+    /** Move with what it stands on. */
+    followPlatform: boolean;
+    /** How it meets dynamic bodies: a {@link CharacterDynamicBodies}. */
+    dynamicBodies: number;
+    /** Push: the most force it pushes with, in Newtons, as physics measures it. */
+    pushForce: number;
+    /** Pass through one-way platforms while this is on. */
+    dropThrough: boolean;
 
     /** Output: touched a surface classified as floor this move. */
     isOnFloor: boolean;
@@ -57,7 +73,21 @@ export interface CharacterController2DData {
     floorNormal: Vec2;
     /** Output: actual displacement / dt after collisions (pixels/second). */
     realVelocity: Vec2;
+    /** Output: the entity it stands on; 0 when airborne. */
+    floorEntity: Entity;
+    /** Output: the velocity of what it stands on (pixels/second). */
+    floorVelocity: Vec2;
 }
+
+/** How a character meets dynamic bodies. @experimental */
+export const CharacterDynamicBodies = {
+    /** They stop it, and stay where they are. */
+    Block: 0,
+    /** They stop it, and it pushes them with up to `pushForce`. */
+    Push: 1,
+    /** It passes through. */
+    Ignore: 2,
+} as const;
 
 /**
  * A kinematic mover for a player or an NPC: it sweeps rather than being pushed,
@@ -74,13 +104,38 @@ export const CharacterController2D = defineComponent<CharacterController2DData>(
     snapLength: 0,
     slideOnCeiling: true,
     maskBits: 0xFFFF,
+    stepHeight: 0,
+    stopOnSlope: true,
+    constantSlopeSpeed: false,
+    blockSteepSlopes: true,
+    followPlatform: true,
+    dynamicBodies: CharacterDynamicBodies.Block,
+    pushForce: 40,
+    dropThrough: false,
     isOnFloor: false,
     isOnWall: false,
     isOnCeiling: false,
     floorNormal: { x: 0, y: 0 },
     realVelocity: { x: 0, y: 0 },
+    floorEntity: 0 as Entity,
+    floorVelocity: { x: 0, y: 0 },
 }, {
+    entityFields: ['floorEntity'],
     fields: {
+        stepHeight: { min: 0, step: 1, unit: 'px', tooltip: 'The highest ledge it walks up without jumping; 0 = only what its rounded foot rides over' },
+        stopOnSlope: { tooltip: 'Stand still on a walkable slope, and walk it without gravity slowing or speeding it' },
+        constantSlopeSpeed: { advanced: true, tooltip: 'Keep the speed asked for along a slope, rather than the speed across the ground' },
+        blockSteepSlopes: { tooltip: 'A slope past the walkable angle is a wall to walk into. Off, it walks straight up' },
+        followPlatform: { tooltip: 'Move with what it stands on' },
+        dynamicBodies: { enum: [
+            { label: 'Block', value: CharacterDynamicBodies.Block },
+            { label: 'Push', value: CharacterDynamicBodies.Push },
+            { label: 'Ignore', value: CharacterDynamicBodies.Ignore },
+        ], tooltip: 'How it meets dynamic bodies' },
+        pushForce: { min: 0, unit: 'N', shownWhen: { field: 'dynamicBodies', values: [CharacterDynamicBodies.Push] }, tooltip: 'The most force it pushes with' },
+        dropThrough: { advanced: true, tooltip: 'Pass through one-way platforms while on' },
+        floorEntity: { advanced: true },
+        floorVelocity: { advanced: true },
         floorMaxAngle: { min: 0, max: 1.5708, step: 0.01, unit: 'rad', tooltip: 'Max walkable slope from up (radians)' },
         maxSlides: { min: 1, max: 8, step: 1, advanced: true },
         skinWidth: { min: 0, step: 0.25, unit: 'px', advanced: true },

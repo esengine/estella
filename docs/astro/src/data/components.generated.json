@@ -973,6 +973,63 @@
           "advanced": true
         },
         {
+          "key": "stepHeight",
+          "type": "number",
+          "default": "0",
+          "doc": "The highest ledge it walks up without jumping; 0 = only what its rounded foot rides over",
+          "range": "≥ 0, step 1"
+        },
+        {
+          "key": "stopOnSlope",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Stand still on a walkable slope, and walk it without gravity slowing or speeding it"
+        },
+        {
+          "key": "constantSlopeSpeed",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Keep the speed asked for along a slope, rather than the speed across the ground",
+          "advanced": true
+        },
+        {
+          "key": "blockSteepSlopes",
+          "type": "boolean",
+          "default": "true",
+          "doc": "A slope past the walkable angle is a wall to walk into. Off, it walks straight up"
+        },
+        {
+          "key": "followPlatform",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Move with what it stands on"
+        },
+        {
+          "key": "dynamicBodies",
+          "type": "enum",
+          "default": "Block",
+          "doc": "How it meets dynamic bodies",
+          "values": [
+            "Block",
+            "Push",
+            "Ignore"
+          ]
+        },
+        {
+          "key": "pushForce",
+          "type": "number",
+          "default": "40",
+          "doc": "The most force it pushes with",
+          "range": "≥ 0"
+        },
+        {
+          "key": "dropThrough",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Pass through one-way platforms while on",
+          "advanced": true
+        },
+        {
           "key": "isOnFloor",
           "type": "boolean",
           "default": "false",
@@ -1001,6 +1058,18 @@
           "type": "Vec2",
           "default": "(0, 0)",
           "advanced": true
+        },
+        {
+          "key": "floorEntity",
+          "type": "Entity",
+          "default": "none",
+          "advanced": true
+        },
+        {
+          "key": "floorVelocity",
+          "type": "Vec2",
+          "default": "(0, 0)",
+          "advanced": true
         }
       ],
       "animatable": [
@@ -1013,10 +1082,16 @@
         "skinWidth",
         "snapLength",
         "maskBits",
+        "stepHeight",
+        "dynamicBodies",
+        "pushForce",
         "floorNormal.x",
         "floorNormal.y",
         "realVelocity.x",
-        "realVelocity.y"
+        "realVelocity.y",
+        "floorEntity",
+        "floorVelocity.x",
+        "floorVelocity.y"
       ]
     },
     {
@@ -5068,6 +5143,167 @@
         "seaColor.b",
         "seaColor.a",
         "seaOpacity"
+      ]
+    },
+    {
+      "name": "PlatformerController2D",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "moveSpeed",
+          "type": "number",
+          "default": "260",
+          "range": "≥ 0"
+        },
+        {
+          "key": "groundAcceleration",
+          "type": "number",
+          "default": "2400",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "airAcceleration",
+          "type": "number",
+          "default": "1500",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "groundDeceleration",
+          "type": "number",
+          "default": "3000",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "airDeceleration",
+          "type": "number",
+          "default": "900",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "gravity",
+          "type": "number",
+          "default": "1600",
+          "range": "≥ 0"
+        },
+        {
+          "key": "fallGravityScale",
+          "type": "number",
+          "default": "1.25",
+          "doc": "Gravity multiplier while falling. Above 1 lands faster than it rose.",
+          "range": "≥ 0, step 0.05",
+          "advanced": true
+        },
+        {
+          "key": "maxFallSpeed",
+          "type": "number",
+          "default": "1000",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "jumpSpeed",
+          "type": "number",
+          "default": "620",
+          "doc": "Upward speed a jump starts with. 0 = cannot jump.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "jumpCut",
+          "type": "number",
+          "default": "0.5",
+          "doc": "How much of a rising speed survives letting go of jump. 1 makes every jump full height.",
+          "range": "0–1, step 0.05"
+        },
+        {
+          "key": "coyoteTime",
+          "type": "number",
+          "default": "0.1",
+          "doc": "After leaving the ground, how long a jump still counts as from the ground.",
+          "range": "≥ 0, step 0.01"
+        },
+        {
+          "key": "jumpBuffer",
+          "type": "number",
+          "default": "0.12",
+          "doc": "How long a jump pressed too early is remembered, to happen on landing.",
+          "range": "≥ 0, step 0.01"
+        },
+        {
+          "key": "airJumps",
+          "type": "number",
+          "default": "0",
+          "doc": "Extra jumps before landing again.",
+          "range": "≥ 0, step 1"
+        },
+        {
+          "key": "dropTime",
+          "type": "number",
+          "default": "0.2",
+          "doc": "How long a drop through a one-way platform lasts.",
+          "range": "≥ 0, step 0.01"
+        },
+        {
+          "key": "keepPlatformVelocity",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "readKeyboard",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Move with A/D or the arrows, jump with Space, W or Up, drop with Down or S and jump. Off, a game writes the inputs itself."
+        },
+        {
+          "key": "moveInput",
+          "type": "number",
+          "default": "0",
+          "range": "-1–1, step 0.1",
+          "advanced": true
+        },
+        {
+          "key": "jumpHeld",
+          "type": "boolean",
+          "default": "false",
+          "advanced": true
+        },
+        {
+          "key": "jumpPressed",
+          "type": "boolean",
+          "default": "false",
+          "advanced": true
+        },
+        {
+          "key": "dropPressed",
+          "type": "boolean",
+          "default": "false",
+          "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "moveSpeed",
+        "groundAcceleration",
+        "airAcceleration",
+        "groundDeceleration",
+        "airDeceleration",
+        "gravity",
+        "fallGravityScale",
+        "maxFallSpeed",
+        "jumpSpeed",
+        "jumpCut",
+        "coyoteTime",
+        "jumpBuffer",
+        "airJumps",
+        "dropTime",
+        "moveInput"
       ]
     },
     {

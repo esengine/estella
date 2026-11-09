@@ -113,6 +113,8 @@ export {
     type SlideHit,
 } from './CharacterController2D';
 export { registerCharacterController2DSystem } from './CharacterController2DSystem';
+export { PlatformerController2D, type PlatformerController2DData } from './PlatformerController2D';
+export { CharacterDynamicBodies } from './CharacterController2D';
 
 // Importing this subpath INSTALLS 2D physics — see spine/index.ts.
 import { registerPhysics2DSupport } from './physicsSupport';

@@ -72,10 +72,10 @@ EMSCRIPTEN_KEEPALIVE size_t physics_shapeCastBytes() {
     return floatBytes(g_shapeCastBuffer);
 }
 
-// The character mover writes a fixed record (position delta, ground normal, flags),
+// The character mover writes a fixed record (position delta, ground normal, flags, what it stands on and hit),
 // so its whole extent is always live — see physics_moveCharacter.
 EMSCRIPTEN_KEEPALIVE size_t physics_moveCharacterBytes() {
-    return 9 * sizeof(float);
+    return (11 + 4 * 3) * sizeof(float);
 }
 
 }  // extern "C"

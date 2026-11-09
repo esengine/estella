@@ -179,7 +179,7 @@ int physics_shapeCastCapsule(float center1X, float center1Y, float center2X, flo
 // @heapreturn physics_shapeCastBytes()
 uintptr_t physics_getShapeCastBuffer();
 int physics_overlapAABB(float minX, float minY, float maxX, float maxY, uint32_t maskBits);
-int physics_moveCharacter(float px, float py, float c1x, float c1y, float c2x, float c2y, float radius, float velX, float velY, float dt, float upX, float upY, float floorCos, uint32_t maskBits, uint32_t selfEntity, float skinWidth, int maxSlides, float snapLength, int slideOnCeiling);
+int physics_moveCharacter(float px, float py, float c1x, float c1y, float c2x, float c2y, float radius, float velX, float velY, float dt, float upX, float upY, float floorCos, uint32_t maskBits, uint32_t selfEntity, float skinWidth, int maxSlides, float snapLength, int slideOnCeiling, float carryX, float carryY, uint32_t flags, float stepHeight);
 // @heapreturn physics_moveCharacterBytes()
 uintptr_t physics_getMoveCharacterBuffer();
 

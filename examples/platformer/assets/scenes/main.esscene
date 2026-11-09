@@ -444,10 +444,6 @@
           }
         },
         {
-          "type": "Player",
-          "data": {}
-        },
-        {
           "type": "RigidBody2D",
           "data": {
             "bodyType": 1
@@ -468,6 +464,13 @@
           "type": "CharacterController2D",
           "data": {
             "maskBits": 65533
+          }
+        },
+        {
+          "type": "PlatformerController2D",
+          "data": {
+            "moveSpeed": 320,
+            "jumpSpeed": 640
           }
         }
       ],

@@ -204,7 +204,9 @@ export {
 export {
     CharacterController2D,
     type CharacterController2DData,
+    CharacterDynamicBodies,
 } from './physics/CharacterController2D';
+export { PlatformerController2D, type PlatformerController2DData } from './physics/PlatformerController2D';
 
 export {
     readCollider2DShapes,

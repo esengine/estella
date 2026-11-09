@@ -29,7 +29,7 @@ const buf = () => {
 const move = (py, vx, vy, opts = {}) => {
     const { skin = 0, maxSlides = 5, snap = 0, slideCeil = 1, px = 0 } = opts;
     const ok = m._physics_moveCharacter(px, py, 0, 0.08, 0, -0.08, 0.16, vx, vy, 1 / 60, 0, 1,
-        Math.cos(Math.PI / 4), 0xfffd, SELF, skin, maxSlides, snap, slideCeil);
+        Math.cos(Math.PI / 4), 0xfffd, SELF, skin, maxSlides, snap, slideCeil, 0, 0, 0, 0);
     return ok ? buf() : null;
 };
 

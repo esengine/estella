@@ -18,3 +18,4 @@ export {
     type CharacterController2DData, type SlideHit, type SlideCast,
     type MoveAndSlideParams, type MoveAndSlideResult,
 } from './CharacterController2D';
+export { PlatformerController2D, type PlatformerController2DData } from './PlatformerController2D';

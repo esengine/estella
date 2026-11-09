@@ -116,6 +116,14 @@ const spawnBall = defineSystem([Commands()], (cmds) => {
 | `isSensor` | boolean | `false` | 检测重叠但无物理响应(触发器)。 |
 | `categoryBits` | number | `0x0001` | 该碰撞体所在的碰撞层。 |
 | `maskBits` | number | `0xFFFF` | 它与哪些层碰撞。 |
+| `stepHeight` | number | `0` | 不用跳就能走上去的最高台阶(像素)。`0` 表示只有圆形脚底自己能滑过去的高度。 |
+| `stopOnSlope` | boolean | `true` | 在可行走的斜坡上站住不动,并沿坡面走,而不是往坡里走。 |
+| `constantSlopeSpeed` | boolean | `false` | 沿坡面保持要求的速度。关闭时保持的是水平速度,上坡和走同样水平距离的平地用时相同。 |
+| `blockSteepSlopes` | boolean | `true` | 超过 `floorMaxAngle` 的斜坡算作墙:走过去爬不上去,还会滑下来。 |
+| `followPlatform` | boolean | `true` | 跟随脚下的物体移动,水平和上下都跟。 |
+| `dynamicBodies` | enum | `Block` | 动态刚体对角色的作用:`Block` 挡住角色,`Push` 挡住并被以不超过 `pushForce` 的力推动,`Ignore` 直接穿过。 |
+| `pushForce` | number | `40` | 推动的力,牛顿。 |
+| `dropThrough` | boolean | `false` | 开启期间穿过单向平台。 |
 | `enabled` | boolean | `true` | 关掉该形状。刚体的速度、关节和其它碰撞体都留着,只有这一个不再存在——没有东西会撞上它,查询、射线和角色控制器的扫掠也都找不到它。 |
 
 | 组件 | 形状参数 |
@@ -434,11 +442,52 @@ app.addSystemToSchedule(Schedule.FixedUpdate, drive);   // moveX / jumpPressed:�
 | `maskBits` | number | `0xFFFF` | 阻挡角色的层。 |
 | `isOnFloor` / `isOnWall` / `isOnCeiling` | boolean | — | **输出**:这次移动碰到了什么。 |
 | `floorNormal` | Vec2 | — | **输出**:最后接触地面的法线。 |
+| `floorEntity` | Entity | — | **输出**:脚下的实体,没有则为 `0`。 |
+| `floorVelocity` | Vec2 | — | **输出**:它带着角色移动的速度,像素/秒。 |
 | `realVelocity` | Vec2 | — | **输出**:碰撞后的实际位移 / dt。 |
 
 <Aside type="note">`skinWidth`、`maxSlides`、`snapLength`、`slideOnCeiling` 由运行时原生 mover
 **以及**独立的 `moveAndSlide` 解析器(`esengine/physics`)共同遵循,两条路径行为一致。默认值适合
 普通角色;最常见的微调是给 `snapLength` 一个较小值(几个像素),让角色贴住下行的台阶和斜坡。</Aside>
+
+`maskBits` 之后的这些选项只有实时 mover 支持,`moveAndSlide` 没有。触发器永远挡不住角色。
+
+### 平台跳跃控制器
+
+`CharacterController2D` 只按你给的速度移动。横版游戏在它旁边加一个 `PlatformerController2D`
+就够了,不用写自己的系统:它读键盘、跑、跳、下落,并提供平台跳跃手感所依赖的宽容判定——
+落地前 `jumpBuffer` 秒内按下的跳跃仍会触发,跑出边缘后 `coyoteTime` 秒内按下的跳跃也算从地面起跳。
+
+```typescript
+import { Transform, CapsuleCollider2D, CharacterController2D, CharacterDynamicBodies, PlatformerController2D } from 'esengine';
+
+const player = world.spawn();
+world.insert(player, Transform, { position: { x: 0, y: 100, z: 0 } });
+world.insert(player, CapsuleCollider2D, { radius: 0.1, halfHeight: 0.15 });
+world.insert(player, CharacterController2D, { stepHeight: 12, snapLength: 8, dynamicBodies: CharacterDynamicBodies.Push });
+world.insert(player, PlatformerController2D, { moveSpeed: 260, jumpSpeed: 620 });
+```
+
+用 A/D 或方向键移动,Space、W 或上方向键跳跃,下方向键或 S 加跳跃穿过单向平台。把
+`readKeyboard` 设为 `false` 后可由游戏、触屏或 AI 驱动:写 `moveInput` 和 `jumpHeld`,设置
+`jumpPressed` 或 `dropPressed` 由下一个固定步消费。按键按渲染帧锁存,两个固定步之间的轻按不会丢。
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `moveSpeed` | number | `260` | 最高奔跑速度,像素/秒。 |
+| `groundAcceleration` / `airAcceleration` | number | `2400` / `1500` | 达到该速度的加速度。 |
+| `groundDeceleration` / `airDeceleration` | number | `3000` / `900` | 输入归零时的减速度。 |
+| `gravity` | number | `1600` | 向下的加速度,像素/秒²。 |
+| `fallGravityScale` | number | `1.25` | 下落时的重力倍率。大于 1 时落得比升得快。 |
+| `maxFallSpeed` | number | `1000` | 最大下落速度。 |
+| `jumpSpeed` | number | `620` | 起跳的向上速度;`0` 表示不能跳。 |
+| `jumpCut` | number | `0.5` | 松开跳跃键后上升速度保留的比例。`1` 表示每次都跳满。 |
+| `coyoteTime` | number | `0.1` | 离地后多少秒内起跳仍算从地面起跳。 |
+| `jumpBuffer` | number | `0.12` | 提前按下的跳跃被记住多少秒,落地时触发。 |
+| `airJumps` | number | `0` | 落地前的额外跳跃次数。 |
+| `dropTime` | number | `0.2` | 穿过单向平台持续多少秒。 |
+| `keepPlatformVelocity` | boolean | `true` | 起跳时保留所离开平台的速度。 |
+| `readKeyboard` | boolean | `true` | 自己读键盘。 |
 
 ## 调试绘制
 

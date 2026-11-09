@@ -1213,7 +1213,7 @@ export const CAPABILITIES = [
  */
 export const EVIDENCE = {
   physics: /\b(RigidBody2D|BoxCollider2D|CircleCollider2D|CapsuleCollider2D|physics2dPlugin|CharacterController2D)\b/,
-  input: /\b(Input|defineInputMap|isKeyDown|InputState)\b/,
+  input: /\b(Input|defineInputMap|isKeyDown|InputState|PlatformerController2D)\b/,
   animation: /\b(SpriteAnimator|Animator|spriteAnim|Flipbook|TimelinePlayer|AnimClip)\b/,
   ecs: /\b(defineComponent|defineSystem)\b/,
   // The component that RUNS one. A `.esgraph` on disk that no scene

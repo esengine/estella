@@ -4220,6 +4220,8 @@ export const NOTED = {
     {"note": "A skinned mesh is not culled for where its entity stands."},
   "feat(rig2d): a 2D character can be rigged with no other program, with IK and bone constraints":
     {"note": "A 2D character can be rigged in the editor, with no other program."},
+  "feat(physics): a side-on character runs, jumps and forgives, on a mover that handles slopes, ledges and platforms":
+    {"note": "A side-on character comes ready to run and jump."},
   "fix(assets): one hot load at a time per asset, so two rescans cannot lose a texture":
     {"note": "A texture stays on a scene that rescans as it is placed."},
   "feat(rig): the 2D rig editor, from an image to a character in the scene":

@@ -16,6 +16,7 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A side-on character comes ready to run and jump.** `PlatformerController2D` beside a `CharacterController2D` reads the keyboard or a game's input, and has coyote time, a jump buffer, jump cut, air jumps and a drop through one-way platforms. `CharacterController2D` gains `stepHeight`, `followPlatform` (it rides what it stands on, sideways too), `dynamicBodies` (block, push or ignore them), `constantSlopeSpeed` and `dropThrough`, and reports `floorEntity` and `floorVelocity`. The 2D platformer template and example use it.
 - **A 2D character can be rigged in the editor, with no other program.** Right-click an image to create an `.esrig`, then cut it into parts, drag out bones, cover the parts with a mesh, bind by distance and paint weights with add, remove and smooth brushes, and push vertices into named deforms, all on one canvas that can try poses without changing the rig. Saving writes an `.esmesh` and an `.esprefab` beside it, so a built game carries no authoring data. Bones are ordinary entities, so clips, the Animator's blends, layers and masks all reach them, and a deform is a `MeshMorph` weight clips can key.
 - **2D bones can reach for things and follow each other.** `IK2D` on the last bone of a limb bends it to a target after the animation has played, exactly for two bones and iteratively for more, with a weight clips can key. `BoneConstraint2D` limits a joint's rotation, which a chain through it keeps to, or copies another entity's rotation or position, or looks at it. Both follow a character mirrored by a negative scale. `esengine/rig2d` also makes all of this from code.
 - **A tile layer can be dug, blown up and rebuilt while the game runs.** `createDestructibleTilemap` in `esengine/tilemap` gives a layer tiles with hardness that wear down over several blows, circular explosions with falloff that walls can shelter from, and placing and filling, with one list of what changed for drops and effects. The neighbouring autotiles re-resolve, `createNavGrid` or `syncNavGrid` keeps a navigation grid in step one cell at a time, and `toJSON` and `load` save only the cells that differ from the map it started as, refusing a damaged save whole. On a streamed world, `publishChunk` lays a player's changes over what the generator made, so a chunk let go and made again comes back as it was left.
@@ -23,11 +24,15 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **A 2D character stands still on a walkable slope, and a steeper one is a wall.** It used to drift down any slope and could walk up one past `floorMaxAngle`. `stopOnSlope` and `blockSteepSlopes` turn each back off.
 - **Editing a tile no longer replaces the colliders around it.** A tile edit used to destroy and remake every collider in its chunk, which ended a body's contact with the floor it stood on and woke what was asleep there. Now only the colliders whose shape changed are replaced.
 - **A row of tiles being edited uploads a piece of itself.** One changed tile re-uploaded its whole row of chunks, over a megabyte when the row is full. A row that changes is now held in pieces of four chunks, so an edit uploads about an eighth of that, for up to seven more draws in that row until it has rested. A static map is drawn as before.
 
 ### Fixed
 
+- **A trigger no longer stops a 2D character.** The mover took a sensor for a wall and for a floor.
+- **A 2D character honours one-way platforms.** It was stopped from below by the mover as if they were solid.
+- **A 2D character under a parent moves in the world.** Its local position was handed to the mover as a world position.
 - **A skinned mesh is not culled for where its entity stands.** A skinned mesh is placed by its joints, and was culled by its entity's box in the bind pose, so a body an animation carried away from its root vanished when that box left the view, in 2D and 3D alike. It is now culled around its joints.
 - **A texture stays on a scene that rescans as it is placed.** Two project rescans in a row started two loads of one texture, and the second to finish could release the one the scene was drawing with. The entity then drew white and stayed white, since the load counted as started and nothing asked again. An asset now loads one at a time and loads again afterwards when it was asked for meanwhile.
 - **A tile's custom properties in an `.estileset` reach the game.** `getTileProperty` answered nothing on a layer painted from an `.estileset`; only Tiled maps carried them. Replacing a tileset blanks the properties of the old one.

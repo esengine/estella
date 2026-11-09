@@ -191,6 +191,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   DistanceJoint3D: { category: 'physics', summary: 'Keeps two 3D bodies a distance apart: a rope, a rod, or a spring when a frequency is given.', doc: 'gameplay/physics-3d', anchor: 'joints', anchorZh: '关节' },
   FixedJoint3D: { category: 'physics', summary: 'Locks two 3D bodies together in the pose they were placed in — no freedom at all.', doc: 'gameplay/physics-3d', anchor: 'joints', anchorZh: '关节' },
   CharacterController2D: { category: 'physics', summary: 'Kinematic character movement that slides along walls, climbs slopes and reports ground contact.', doc: 'gameplay/physics', anchor: 'character-controller', anchorZh: '角色控制器' },
+  PlatformerController2D: { category: 'physics', summary: 'Runs and jumps a CharacterController2D from the keyboard or a game, with coyote time, a jump buffer and dropping through one-way platforms.', doc: 'gameplay/physics', anchor: 'platformer-controller' },
   OneWayPlatform2D: { category: 'physics', summary: 'Makes a collider solid from one side only, so a body passes up through it and lands on top.', doc: 'gameplay/physics', anchor: 'one-way-platforms', anchorZh: '单向平台' },
   DistanceJoint2D: { category: 'physics', summary: 'Holds two bodies a fixed (or spring-limited) distance apart.', doc: 'gameplay/physics', anchor: 'joints', anchorZh: '关节' },
   HingeJoint2D: { category: 'physics', summary: 'Pins two bodies at a point and lets them rotate — a hinge, with optional limits and a motor.', doc: 'gameplay/physics', anchor: 'joints', anchorZh: '关节' },

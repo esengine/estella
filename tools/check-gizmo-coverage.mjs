@@ -197,6 +197,7 @@ const DISPOSITION = {
   // and a shape drawn for it would claim a place it does not occupy.
   'ParticleEmitter.collisionMaxDistance': ['no-place', 'query culling threshold relative to the nearest active camera, not an emitter extent'],
   'CharacterController2D.skinWidth': ['no-place', 'a contact skin held off the collider; drawn, it is that outline\'s own line width'],
+  'CharacterController2D.stepHeight': ['no-place', 'the highest ledge it walks up: a limit on motion, not a volume'],
   'CharacterController3D.stepHeight': ['no-place', 'the tallest step it will climb — a limit on motion, not a volume'],
   'NavVolume.cellSize': ['no-place', 'the voxel the box is diced into; the box is what has a place'],
   'NavVolume.cellHeight': ['no-place', 'the voxel the box is diced into; the box is what has a place'],

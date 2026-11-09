@@ -22,6 +22,7 @@ import {
     type ShapeCastHit,
     type MassData,
     type MoverResult,
+    type MoverOptions,
 } from './PhysicsTypes';
 
 // =============================================================================
@@ -278,20 +279,29 @@ export class Physics2DAPI {
         velocity: Vec2, dt: number, up: Vec2, floorCos: number,
         maskBits: number, self: Entity,
         skinWidth = 0, maxSlides = 5, snapLength = 0, slideOnCeiling = true,
-        ppu = this.ppu_,
+        ppu = this.ppu_, options: MoverOptions = {},
     ): MoverResult | null {
         const invPpu = 1 / ppu;
+        const flags = (options.dropThrough ? 1 : 0) | (options.ignoreDynamic ? 2 : 0)
+            | (options.blockSteepSlopes ? 4 : 0) | (options.wasOnFloor ? 8 : 0);
         const ok = this.module_._physics_moveCharacter(
             pos.x * invPpu, pos.y * invPpu,
             c1.x * invPpu, c1.y * invPpu, c2.x * invPpu, c2.y * invPpu, radius * invPpu,
             velocity.x * invPpu, velocity.y * invPpu, dt,
             up.x, up.y, floorCos, maskBits, self >>> 0,
             skinWidth * invPpu, maxSlides, snapLength * invPpu, slideOnCeiling ? 1 : 0,
+            (options.carry?.x ?? 0) * invPpu, (options.carry?.y ?? 0) * invPpu, flags, (options.stepHeight ?? 0) * invPpu,
         );
         if (!ok) return null;
         const base = this.module_._physics_getMoveCharacterBuffer() >> 2;
-        const h = this.module_.HEAPF32;
+        const h = this.module_.HEAPF32, bits = this.module_.HEAPU32;
+        const floor = bits[base + 9]!, hitCount = h[base + 10]!;
+        let hits: MoverResult['hits'];
+        for (let i = 0; i < hitCount; i++) {
+            (hits ??= []).push({ entity: bits[base + 11 + i * 3]! as Entity, normalX: h[base + 12 + i * 3]!, normalY: h[base + 13 + i * 3]! });
+        }
         return {
+            floorEntity: floor === 0xFFFFFFFF ? null : floor as Entity, hits,
             dx: h[base] * ppu, dy: h[base + 1] * ppu,
             velX: h[base + 2] * ppu, velY: h[base + 3] * ppu,
             isOnFloor: h[base + 4] !== 0, isOnWall: h[base + 5] !== 0, isOnCeiling: h[base + 6] !== 0,
