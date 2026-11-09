@@ -3,8 +3,9 @@
 /**
  * @file  Brushes on an area's ground: what each one does to a field and to the splatmaps, and that a stroke can be taken back.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { GroundEdit } from '../src/terrain/groundEdit';
+import { Terrains } from '../src/terrain/terrainPlugin';
 import { FieldSource, ModifiedSource, type Splat } from '../src/terrain/source';
 import type { Heightfield } from '../src/terrain/heightfield';
 import { SculptMode, brushWeight, encodeHeightmap, paintSplat, sculptField } from '../src/terrain/sculpt';
@@ -108,6 +109,18 @@ describe('paintSplat', () => {
     });
 });
 
+describe('Terrains.load', () => {
+    it('counts what is still loading and the ground and paint held in memory', () => {
+        const terrains = new Terrains();
+        const field = flat(65);
+        const source = new FieldSource(field, data, { width: 8, height: 8, pixels: new Uint8Array(256) }, null);
+        const wrapped = new ModifiedSource(source, () => [], { x: 0, y: 0, z: 0 }, 1);
+        terrains.built_.set(1 as never, { loading: false, source: wrapped } as never);
+        terrains.built_.set(2 as never, { loading: true, source: null } as never);
+        expect(terrains.load()).toEqual({ loading: 1, cpuBytes: field.data.byteLength + 256 });
+    });
+});
+
 describe('GroundEdit', () => {
     const make = (): { edit: GroundEdit; field: Heightfield; remade: number[][] } => {
         const field = flat(65);
@@ -156,6 +169,47 @@ describe('GroundEdit', () => {
         expect(a.pixels[mid + 3]).toBe(255);
         edit.apply(patch!, 'before');
         expect(a.pixels[mid + 3]).toBe(0);
+    });
+
+    it('copies nothing of the ground to begin a stroke', () => {
+        const { edit, field } = make();
+        const slice = vi.spyOn(field.data, 'slice');
+        edit.begin();
+        edit.sculpt(SculptMode.Raise, 0, 0, 5, 0.5, 5);
+        edit.end();
+        expect(slice).not.toHaveBeenCalled();
+    });
+
+    it('keeps what a diagonal stroke touched, not the square round it', () => {
+        const field = flat(513);
+        const source = new FieldSource(field, data, null, null);
+        const modified = new ModifiedSource(source, () => [], { x: 0, y: 0, z: 0 }, 1);
+        const edit = new GroundEdit({ remake: () => {} }, source, modified, 100, 100);
+        edit.begin();
+        for (let t = -45; t <= 45; t += 2) edit.sculpt(SculptMode.Raise, t, t, 2, 0.5, 5);
+        const patch = edit.end()!;
+        const { rect, tiles } = patch.heights!;
+        const kept = tiles.reduce((n, tile) => n + tile.before.length, 0);
+        expect(kept).toBeLessThan((rect.i1 - rect.i0 + 1) * (rect.j1 - rect.j0 + 1) / 3);
+        const peak = Float32Array.from(field.data);
+        edit.apply(patch, 'before');
+        expect(field.data.every((v) => v === 0.5)).toBe(true);
+        edit.apply(patch, 'after');
+        expect(field.data).toEqual(peak);
+    });
+
+    it('takes a first paint back to the ground it was laid over', () => {
+        const { edit } = make();
+        const ground = (() => {
+            const { edit: untouched } = make();
+            untouched.paint(0, 0, 0, 0.001, 0, 0);
+            return Uint8Array.from(untouched.splatmapPixels().a!.pixels);
+        })();
+        edit.begin();
+        edit.paint(2, 0, 0, 10, 0.5, 1);
+        const patch = edit.end()!;
+        edit.apply(patch, 'before');
+        expect(edit.splatmapPixels().a!.pixels).toEqual(ground);
     });
 
     it('encodes heights as sixteen bits across red and green', () => {

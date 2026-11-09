@@ -37,7 +37,7 @@ export function brushWeight(d: number, radius: number, falloff: number): number 
 }
 
 /** The texel span of a brush over a grid `width` by `height` laid across `sizeX` by `sizeZ`, or null when it reaches none. */
-function reach(width: number, height: number, sizeX: number, sizeZ: number, b: Brush): Dirty | null {
+export function reach(width: number, height: number, sizeX: number, sizeZ: number, b: Brush): Dirty | null {
     const u0 = (b.x - b.radius) / sizeX + 0.5, u1 = (b.x + b.radius) / sizeX + 0.5;
     const v0 = (b.z - b.radius) / sizeZ + 0.5, v1 = (b.z + b.radius) / sizeZ + 0.5;
     const i0 = Math.max(Math.ceil(u0 * (width - 1)), 0), i1 = Math.min(Math.floor(u1 * (width - 1)), width - 1);

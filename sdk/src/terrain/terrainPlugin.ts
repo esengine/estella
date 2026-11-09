@@ -32,7 +32,7 @@ import { BlendMode } from '../render/blend';
 import { createTextureArrayFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
 import { getResourceManager, withdrawTextureContent } from '../wasm/resourceManager';
 import { TextureContent } from '../wasm';
-import { EditorView, editorViewEye } from '../camera/EditorView';
+import { EditorView, editorViewpoint } from '../camera/EditorView';
 import { log } from '../util/logger';
 import { bakesOf } from '../runtime/bakes';
 import type { Color, Entity } from '../types';
@@ -234,6 +234,8 @@ interface Built {
 /** Where a terrain's ground stands: still being made, ready, or failed (with why). */
 export interface TerrainStatus { state: 'loading' | 'ready' | 'failed'; reason?: string }
 
+export interface TerrainLoad { loading: number; cpuBytes: number }
+
 /** Run-time access to the ground: how high it is anywhere, for putting things on it. */
 export class Terrains {
     /** @internal */ readonly built_ = new Map<Entity, Built>();
@@ -427,6 +429,18 @@ export class Terrains {
         if (!built) return null;
         if (built.failure) return { state: 'failed', reason: built.failure };
         return { state: built.loading || !built.source ? 'loading' : 'ready' };
+    }
+
+    load(): TerrainLoad {
+        let loading = 0, cpuBytes = 0;
+        for (const built of this.built_.values()) {
+            if (built.loading) loading++;
+            const source = built.source instanceof ModifiedSource ? built.source.base : built.source;
+            if (!(source instanceof FieldSource)) continue;
+            const { a, b } = source.splats();
+            cpuBytes += source.field.data.byteLength + (a?.pixels.byteLength ?? 0) + (b?.pixels.byteLength ?? 0);
+        }
+        return { loading, cpuBytes };
     }
 
     /** @internal The modifiers laid over every terrain's ground, by id, in the order they were set. */
@@ -860,14 +874,10 @@ export class TerrainPlugin implements Plugin {
         });
     }
 
-    /** Where the eye is, in the terrain's space: the active camera, or the editor's own eye while it looks at the scene in 3D. */
     private eye(app: App, t: TransformData): [number, number, number] | null {
         if (app.hasResource(EditorView)) {
-            const view = app.getResource(EditorView);
-            if (view.active && view.perspective) {
-                const e = editorViewEye(view);
-                return [e.x - t.worldPosition.x, e.y - t.worldPosition.y, e.z - t.worldPosition.z];
-            }
+            const e = editorViewpoint(app.getResource(EditorView));
+            if (e) return [e.x - t.worldPosition.x, e.y - t.worldPosition.y, e.z - t.worldPosition.z];
         }
         for (const entity of app.world.getEntitiesWithComponents([Camera, Transform])) {
             if (!(app.world.get(entity, Camera) as CameraData).isActive) continue;

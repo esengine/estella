@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export {
-    Terrain, TerrainExtent, Terrains, TerrainsRes, TerrainPlugin, terrainPlugin, NOISE_PROVIDER, type TerrainData, type TerrainStatus,
+    Terrain, TerrainExtent, Terrains, TerrainsRes, TerrainPlugin, terrainPlugin, NOISE_PROVIDER, type TerrainData, type TerrainStatus, type TerrainLoad,
 } from './terrainPlugin';
 export {
     erodeHeightfield, erosionJob, heightfieldFromPixels, HeightmapFormat, proceduralHeightfield, sampleHeight, terrainNormal,

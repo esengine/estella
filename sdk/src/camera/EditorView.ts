@@ -241,6 +241,11 @@ export function editorViewEye(view: EditorViewData): Vec3 {
   };
 }
 
+export function editorViewpoint(view: EditorViewData): Vec3 | null {
+  if (!view.active) return null;
+  return view.perspective ? editorViewEye(view) : { x: view.x, y: view.y, z: view.z ?? 0 };
+}
+
 /**
  * Move the focus by an offset in the view's OWN axes, in world units.
  *

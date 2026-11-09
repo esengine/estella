@@ -24,7 +24,7 @@ import type { App } from '../app/app';
 import { defineResource } from '../ecs/resource';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Camera, Transform, type CameraData, type TransformData } from '../ecs/component';
-import { EditorView, editorViewEye } from '../camera/EditorView';
+import { EditorView, editorViewpoint } from '../camera/EditorView';
 import { WorldStreamingSource, type WorldStreamingSourceData } from './components';
 import { bakesOf } from '../runtime/bakes';
 import { log } from '../util/logger';
@@ -342,12 +342,12 @@ function stateOf(c: Chunk<unknown>, generation: number | string): ChunkState {
 /** The resource; {@link chunksOf} installs it where it is missing. @experimental */
 export const ProceduralChunksRes = defineResource<ProceduralChunks>(new ProceduralChunks(), 'ProceduralChunks');
 
-/**
- * The places the world is wanted round: every enabled WorldStreamingSource and, when there is none, the editor's eye while it looks
- * at the scene in 3D, else the active cameras. The same sources the WorldStreamer reads cells by.
- */
 export function streamingSourcesOf(app: App): ChunkSource[] {
     const world = app.world;
+    if (app.hasResource(EditorView)) {
+        const at = editorViewpoint(app.getResource(EditorView));
+        if (at) return [{ x: at.x, y: at.y, z: at.z }];
+    }
     world.ensureTransformsComposed();
     const out: ChunkSource[] = [];
     for (const e of world.getEntitiesWithComponents([WorldStreamingSource, Transform])) {
@@ -356,13 +356,6 @@ export function streamingSourcesOf(app: App): ChunkSource[] {
         out.push({ x: p.x, y: p.y, z: p.z });
     }
     if (out.length > 0) return out;
-    if (app.hasResource(EditorView)) {
-        const view = app.getResource(EditorView);
-        if (view.active && view.perspective) {
-            const eye = editorViewEye(view);
-            return [{ x: eye.x, y: eye.y, z: eye.z }];
-        }
-    }
     for (const e of world.getEntitiesWithComponents([Camera, Transform])) {
         if (!(world.get(e, Camera) as CameraData).isActive) continue;
         const p = (world.get(e, Transform) as TransformData).worldPosition;

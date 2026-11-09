@@ -11432,6 +11432,7 @@ groundKnownAt: (x: number, z: number) => boolean
 heightAt: (x: number, z: number) => number | null
 heightBeneathAt: (x: number, z: number) => number | null
 layerNames: () => string[]
+load: () => TerrainLoad
 loading: boolean
 normalAt: (x: number, z: number) => [number, number, number] | null
 paintAt: (x: number, z: number) => readonly number[] | null

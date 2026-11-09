@@ -24,7 +24,7 @@ import { CullMode, Material, MATERIAL_FORMAT_VERSION } from '../render/material'
 import { BlendMode } from '../render/blend';
 import { updateTextureSubregion } from '../runtime/runtimeAssets';
 import { getResourceManager, withdrawTextureContent } from '../wasm/resourceManager';
-import { EditorView, editorViewEye } from '../camera/EditorView';
+import { EditorView, editorViewpoint } from '../camera/EditorView';
 import { log } from '../util/logger';
 import { renderOrigin } from '../render/renderOrigin';
 import { bakesOf } from '../runtime/bakes';
@@ -321,14 +321,10 @@ export class PlanetPlugin implements Plugin {
         }
     }
 
-    /** Where the eye is, in the planet's space: the editor's, while it looks at the scene in 3D, else the active camera's. */
     private eye(app: App, t: TransformData): [number, number, number] | null {
         if (app.hasResource(EditorView)) {
-            const view = app.getResource(EditorView);
-            if (view.active && view.perspective) {
-                const e = editorViewEye(view);
-                return [e.x - t.worldPosition.x, e.y - t.worldPosition.y, e.z - t.worldPosition.z];
-            }
+            const e = editorViewpoint(app.getResource(EditorView));
+            if (e) return [e.x - t.worldPosition.x, e.y - t.worldPosition.y, e.z - t.worldPosition.z];
         }
         for (const entity of app.world.getEntitiesWithComponents([Camera, Transform])) {
             if (!(app.world.get(entity, Camera) as CameraData).isActive) continue;

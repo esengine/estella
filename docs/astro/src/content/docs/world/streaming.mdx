@@ -183,6 +183,10 @@ report.loadCount;            // places brought in since boot
 Counts rather than a picture, because a cell that is not drawn and a cell that
 does not exist look the same from a camera.
 
+## In the editor
+
+In the edit view, terrain detail, foliage, generated worlds and voxels grow around the viewport, 2D and 3D alike; a `WorldStreamingSource` in the scene only counts while the game runs.
+
 ## Clearing or replacing a world
 
 Disable or remove the streaming sources, then await `streamer.clear()`. It releases
