@@ -2379,6 +2379,162 @@ fn shelteredAt(W : vec3f) -> f32 {
 `;
         return Material.compileShader(source);
     },
+    /**
+     * Snow lying on the picture: whatever faces the sky and is not under something takes it, a terrain and the rock standing on it
+     * alike, with no material of theirs knowing. It thins with the slope and below `u_snowLine`, and it is lit by what the picture
+     * already says of the place, so a shadow on the ground is a shadow on the snow.
+     */
+    createSnowCover(): ShaderHandle {
+        const source = `#pragma shader "PP Snow Cover"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_amount float default(1) range(0,1)
+#pragma param u_snowLine float default(-100000) range(-100000,100000)
+#pragma param u_snowLineBand float default(100) range(0,100000)
+#pragma param u_slopeLimit float default(0.55) range(0,1)
+#pragma param u_grainScale float default(120) range(1,100000)
+#pragma param u_snowColor color default(0.92,0.95,1,1)
+#pragma param u_shelterRange float default(3000) range(100,30000)
+#pragma param u_shelterBias float default(40) range(1,500)
+#pragma param u_coverActive float default(0) range(0,1)
+#pragma param u_coverMatrix0 color default(1,0,0,0)
+#pragma param u_coverMatrix1 color default(0,1,0,0)
+#pragma param u_coverMatrix2 color default(0,0,1,0)
+#pragma param u_coverMatrix3 color default(0,0,0,1)
+#pragma param u_rainCover texture default(white)
+#pragma gbuffer
+
+#pragma fragment
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+uniform highp sampler2D u_sceneDepth;
+uniform highp sampler2D u_gbuffer;
+out vec4 fragColor;
+
+${SSAO_GLSL}
+${GBUFFER_GLSL}
+
+float snowHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float snowNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(snowHash(i), snowHash(i + vec2(1.0, 0.0)), f.x), mix(snowHash(i + vec2(0.0, 1.0)), snowHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float shelteredAt(vec3 W) {
+    if (u_coverActive < 0.5) return 0.0;
+    vec4 c = mat4(u_coverMatrix0, u_coverMatrix1, u_coverMatrix2, u_coverMatrix3) * vec4(W, 1.0);
+    vec2 uv = c.xy / c.w * 0.5 + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
+    float stored = dot(texture(u_rainCover, uv).rgb, vec3(1.0, 1.0 / 255.0, 1.0 / 65025.0));
+    float here = clamp(c.z / c.w * 0.5 + 0.5, 0.0, 1.0);
+    return stored < here - u_shelterBias / (4.0 * u_shelterRange) ? 1.0 : 0.0;
+}
+
+void main() {
+    vec4 src = texture(u_texture, v_texCoord);
+    ivec2 size = textureSize(u_sceneDepth, 0);
+    ivec2 c = screenTexel(v_texCoord, size);
+    float d = depthAt(c, size);
+    vec3 col = src.rgb;
+    Surface surface = readSurface(c);
+    if (d < 1.0 && u_amount > 0.0 && !surface.water) {
+        vec3 P = worldFromDepth(uvOfTexel(c, size), d);
+        float dl = depthAt(c + ivec2(-1, 0), size);
+        float dr = depthAt(c + ivec2( 1, 0), size);
+        float dd = depthAt(c + ivec2(0, -1), size);
+        float du = depthAt(c + ivec2(0,  1), size);
+        vec3 ax = abs(dr - d) < abs(dl - d) ? worldAt(c + ivec2(1, 0), size) - P : P - worldAt(c + ivec2(-1, 0), size);
+        vec3 ay = abs(du - d) < abs(dd - d) ? worldAt(c + ivec2(0, 1), size) - P : P - worldAt(c + ivec2(0, -1), size);
+        vec3 N = normalize(cross(ax, ay));
+        if (dot(N, viewDirection(P)) < 0.0) N = -N;
+        // The surface's own normal where it wrote one, so a rock's bumps hold snow on their tops and shed it from their sides.
+        vec3 Ns = surface.known ? surface.normal : N;
+        if (dot(Ns, viewDirection(P)) < 0.0) Ns = -Ns;
+        float grain = snowNoise(P.xz / u_grainScale) * 0.6 + snowNoise(P.xz / (u_grainScale * 0.43) + 3.7) * 0.28 + snowNoise(P.xz / (u_grainScale * 0.19) + 9.1) * 0.12;
+        float faces = smoothstep(u_slopeLimit - 0.12, u_slopeLimit + 0.12, Ns.y + (grain - 0.5) * 0.25);
+        float height = u_snowLineBand > 0.0 ? smoothstep(0.0, 1.0, (P.y - u_snowLine) / u_snowLineBand + grain - 0.5) : step(u_snowLine, P.y);
+        float lies = faces * height * (1.0 - shelteredAt(P + vec3(0.0, 1.0, 0.0)));
+        // Deeper snow closes over the ground from the grain's high places down; a dusting leaves the low ones bare.
+        float cover = smoothstep(1.0 - u_amount * 1.15, 1.15 - u_amount, grain + 0.15) * lies;
+        vec3 white = u_snowColor.rgb;
+#ifdef ES_LINEAR
+        white = srgbToLinear(white);
+#endif
+        float light = dot(src.rgb, vec3(0.2126, 0.7152, 0.0722));
+        col = mix(col, white * (0.32 + 0.68 * smoothstep(0.0, 0.45, light)), cover);
+    }
+    fragColor = vec4(col, src.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+${SSAO_WGSL}
+${GBUFFER_WGSL}
+
+fn snowHash(p : vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453); }
+fn snowNoise(p : vec2f) -> f32 {
+    let i = floor(p);
+    var f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(snowHash(i), snowHash(i + vec2f(1.0, 0.0)), f.x), mix(snowHash(i + vec2f(0.0, 1.0)), snowHash(i + vec2f(1.0, 1.0)), f.x), f.y);
+}
+fn shelteredAt(W : vec3f) -> f32 {
+    if (mc.u_coverActive < 0.5) { return 0.0; }
+    let m = mat4x4f(mc.u_coverMatrix0, mc.u_coverMatrix1, mc.u_coverMatrix2, mc.u_coverMatrix3);
+    let c = m * vec4f(W, 1.0);
+    let uv = c.xy / c.w * 0.5 + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return 0.0; }
+    // This device's texture rows run the other way from the clip space the map was drawn in.
+    let stored = dot(textureSampleLevel(u_rainCover, u_rainCover_s, vec2f(uv.x, 1.0 - uv.y), 0.0).rgb,
+                     vec3f(1.0, 1.0 / 255.0, 1.0 / 65025.0));
+    let here = clamp(c.z / c.w * 0.5 + 0.5, 0.0, 1.0);
+    return select(0.0, 1.0, stored < here - mc.u_shelterBias / (4.0 * mc.u_shelterRange));
+}
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    let size = vec2i(textureDimensions(t7, 0));
+    let c = screenTexel(v.v_texCoord, size);
+    let d = depthAt(c, size);
+    var col = src.rgb;
+    let surface = readSurface(c);
+    if (d < 1.0 && mc.u_amount > 0.0 && !surface.water) {
+        let P = worldFromDepth(uvOfTexel(c, size), d);
+        let dl = depthAt(c + vec2i(-1, 0), size);
+        let dr = depthAt(c + vec2i( 1, 0), size);
+        let dd = depthAt(c + vec2i(0, -1), size);
+        let du = depthAt(c + vec2i(0,  1), size);
+        var ax = P - worldAt(c + vec2i(-1, 0), size);
+        if (abs(dr - d) < abs(dl - d)) { ax = worldAt(c + vec2i(1, 0), size) - P; }
+        var ay = P - worldAt(c + vec2i(0, -1), size);
+        if (abs(du - d) < abs(dd - d)) { ay = worldAt(c + vec2i(0, 1), size) - P; }
+        var N = normalize(cross(ax, ay));
+        if (dot(N, viewDirection(P)) < 0.0) { N = -N; }
+        var Ns = N;
+        if (surface.known) { Ns = surface.normal; }
+        if (dot(Ns, viewDirection(P)) < 0.0) { Ns = -Ns; }
+        let grain = snowNoise(P.xz / mc.u_grainScale) * 0.6 + snowNoise(P.xz / (mc.u_grainScale * 0.43) + 3.7) * 0.28 + snowNoise(P.xz / (mc.u_grainScale * 0.19) + 9.1) * 0.12;
+        let faces = smoothstep(mc.u_slopeLimit - 0.12, mc.u_slopeLimit + 0.12, Ns.y + (grain - 0.5) * 0.25);
+        var height = step(mc.u_snowLine, P.y);
+        if (mc.u_snowLineBand > 0.0) { height = smoothstep(0.0, 1.0, (P.y - mc.u_snowLine) / mc.u_snowLineBand + grain - 0.5); }
+        let lies = faces * height * (1.0 - shelteredAt(P + vec3f(0.0, 1.0, 0.0)));
+        let cover = smoothstep(1.0 - mc.u_amount * 1.15, 1.15 - mc.u_amount, grain + 0.15) * lies;
+        var white = mc.u_snowColor.rgb;
+#ifdef ES_LINEAR
+        white = srgbToLinear(white);
+#endif
+        let light = dot(src.rgb, vec3f(0.2126, 0.7152, 0.0722));
+        col = mix(col, white * (0.32 + 0.68 * smoothstep(0.0, 0.45, light)), cover);
+    }
+    return vec4f(col, src.a);
+}
+#pragma end
+`;
+        return Material.compileShader(source);
+    },
     createMist2d(): ShaderHandle {
         // Fog that does not ask the depth buffer, because a 2D scene has none: sprites are blended, they write no depth, so the
         // fogs that measure a distance see nothing to fog. This one is a layer of drifting noise laid over the ground in WORLD

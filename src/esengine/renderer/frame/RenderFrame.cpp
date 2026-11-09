@@ -391,7 +391,9 @@ void RenderFrame::beginFrame() {
     if (frame_collected_) {
         depth_answered_ = true;
         if (frame_depth_seen_) depth_seen_ = true;
+        scene_picture_seen_ = frame_scene_picture_seen_;
     }
+    frame_scene_picture_seen_ = false;
     frame_collected_ = false;
     frame_depth_seen_ = false;
     applySceneDepthNeed();
@@ -421,8 +423,8 @@ void RenderFrame::applySceneDepthNeed() {
 #ifdef ES_ENABLE_GPU_PARTICLES
     computeNeedsDepth = gpu_particles_ && gpu_particles_->wantsDepth();
 #endif
-    post_process_->setComputeNeedsDepth(computeNeedsDepth);
-    post_process_->setSceneNeedsDepth(!depth_answered_ || depth_seen_ || computeNeedsDepth
+    post_process_->setComputeNeedsDepth(computeNeedsDepth || scene_picture_seen_);
+    post_process_->setSceneNeedsDepth(!depth_answered_ || depth_seen_ || computeNeedsDepth || scene_picture_seen_
                                       || draw_list_.depthMask() != 0);
 #endif
 }
@@ -2713,6 +2715,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     // editor's grid draws into it between begin() and this collect.
     frame_collected_ = true;
     frame_depth_seen_ = frame_depth_seen_ || draw_list_.needsDepth();
+    frame_scene_picture_seen_ = frame_scene_picture_seen_ || draw_list_.anyNeedsScenePicture(context_.materials());
 }
 
 void RenderFrame::collectMotion(ecs::Registry& registry) {

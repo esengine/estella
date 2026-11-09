@@ -6031,6 +6031,62 @@
       ]
     },
     {
+      "name": "RoadDecal",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "step",
+          "type": "number",
+          "default": "20",
+          "doc": "How far apart its rows are along the curve. Finer follows the ground and the bends more closely.",
+          "range": "≥ 0.01"
+        },
+        {
+          "key": "across",
+          "type": "number",
+          "default": "4",
+          "doc": "How many cells across. More follows a ground that crowns or slopes under the road.",
+          "range": "1–32, step 1"
+        },
+        {
+          "key": "widthScale",
+          "type": "number",
+          "default": "1",
+          "doc": "Times the width each spline point says.",
+          "range": "≥ 0, step 0.01"
+        },
+        {
+          "key": "lift",
+          "type": "number",
+          "default": "0.5",
+          "doc": "How far above the ground it lies. Enough to win against the ground from as far as it is seen.",
+          "range": "≥ 0, step 0.01"
+        },
+        {
+          "key": "edgeFade",
+          "type": "number",
+          "default": "0.35",
+          "doc": "The share of its half width over which each edge fades into the ground.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "tile",
+          "type": "number",
+          "default": "200",
+          "doc": "The length of one repeat of its texture along the curve.",
+          "range": "≥ 0.01"
+        }
+      ],
+      "animatable": [
+        "step",
+        "across",
+        "widthScale",
+        "lift",
+        "edgeFade",
+        "tile"
+      ]
+    },
+    {
       "name": "RuntimeOnly",
       "source": "ts",
       "fields": [],
@@ -9808,7 +9864,8 @@
             "Mist",
             "Overcast",
             "Rain",
-            "Storm"
+            "Storm",
+            "Snow"
           ]
         },
         {
@@ -9821,7 +9878,8 @@
             "Mist",
             "Overcast",
             "Rain",
-            "Storm"
+            "Storm",
+            "Snow"
           ]
         },
         {

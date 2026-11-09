@@ -4232,6 +4232,8 @@ export const NOTED = {
     {"note": "Particles and plain sprites in a Canvas paint by their place in its tree."},
   "fix(text): stopping lets go of the labels the engine holds, so the next Play cannot draw them on other entities":
     {"note": "Labels no longer come back as black boxes after a change between Plays."},
+  "feat(terrain): a material that fades into the ground it meets, a road laid over a terrain, and snow on whatever faces the sky":
+    {"note": "What stands on the ground can blend into it."},
   "fix(assets): one hot load at a time per asset, so two rescans cannot lose a texture":
     {"note": "A texture stays on a scene that rescans as it is placed."},
   "feat(rig): the 2D rig editor, from an image to a character in the scene":

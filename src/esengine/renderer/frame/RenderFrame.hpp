@@ -677,6 +677,9 @@ private:
     bool depth_seen_ = false;
     /// This frame's cameras, OR-ed; rolled into depth_seen_ at the next beginFrame.
     bool frame_depth_seen_ = false;
+    /// A draw last frame could not work without a picture of the scene, so this frame's scene is drawn where one can be read.
+    bool scene_picture_seen_ = false;
+    bool frame_scene_picture_seen_ = false;
     /// Whether this frame collected at all — an uncollected frame answers nothing,
     /// so it must not be read as "nothing here needs depth".
     bool frame_collected_ = false;

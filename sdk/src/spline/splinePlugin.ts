@@ -15,6 +15,7 @@ import { playModeOnly } from '../ecs/env';
 import { defineComponent, Transform, type ComponentDef, type TransformData } from '../ecs/component';
 import { SplineCurve, type SplinePoint } from './curve';
 import { installTerrainBands } from './terrainBand2D';
+import { installRoadDecals } from './roadDecal';
 import { Spline, type SplineData } from './splineComponent';
 
 export { Spline, type SplineData } from './splineComponent';
@@ -100,6 +101,7 @@ export class SplinePlugin implements Plugin {
             defineSystem([Res(Time)], (time: TimeData) => this.follow(app, time.delta), { name: 'PathFollowerSystem' }),
             { runIf: playModeOnly });
         installTerrainBands(app);
+        installRoadDecals(app);
     }
 
     private curveOf(app: App, entity: number): { curve: SplineCurve; at: TransformData } | null {

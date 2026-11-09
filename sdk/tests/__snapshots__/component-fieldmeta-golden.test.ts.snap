@@ -2019,6 +2019,10 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
           "label": "Storm",
           "value": 4,
         },
+        {
+          "label": "Snow",
+          "value": 5,
+        },
       ],
     },
     "progress": {
@@ -2051,6 +2055,10 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
         {
           "label": "Storm",
           "value": 4,
+        },
+        {
+          "label": "Snow",
+          "value": 5,
         },
       ],
     },

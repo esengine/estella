@@ -367,6 +367,13 @@ void DrawList::stageBlocks(const PerDrawBlockSet& blocks) {
     }
 }
 
+bool DrawList::anyNeedsScenePicture(const MaterialStore& materials) const {
+    for (usize i = 0; i < commands_.size(); ++i) {
+        if (commands_[i].material_id != 0 && materials.needsScenePicture(commands_[i].material_id)) return true;
+    }
+    return false;
+}
+
 bool DrawList::anyUsesSceneColor(const MaterialStore& materials) const {
     for (u32 i = 0; i < merged_draw_calls_; ++i) {
         if (commands_[i].material_id != 0 && materials.usesSceneColor(commands_[i].material_id)) return true;

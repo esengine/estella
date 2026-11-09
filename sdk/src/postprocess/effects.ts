@@ -714,6 +714,28 @@ registerEffect({
 });
 
 registerEffect({
+    type: 'snowCover',
+    label: 'Snow Cover',
+    factory: () => postProcessEffects.createSnowCover(),
+    uniforms: [
+        // How much lies: a dusting in the low places at a little, everything closed over at 1.
+        { name: 'u_amount', label: 'Amount', min: 0, max: 1, step: 0.01, defaultValue: 1, neutralValue: 0 },
+        // The height it stops at, in world units, and how far it thins out above that.
+        { name: 'u_snowLine', label: 'Snow Line', min: -100000, max: 100000, step: 1, defaultValue: -100000 },
+        { name: 'u_snowLineBand', label: 'Snow Line Band', min: 0, max: 100000, step: 1, defaultValue: 100 },
+        // How much a surface must face up to hold it: 1 only the flat, 0 almost a wall.
+        { name: 'u_slopeLimit', label: 'Slope Limit', min: 0, max: 1, step: 0.01, defaultValue: 0.55 },
+        // The world size of the drifts.
+        { name: 'u_grainScale', label: 'Drift Size', min: 1, max: 100000, step: 1, defaultValue: 120 },
+        // The same map of what stands over each place as the rain's: no snow under an awning.
+        { name: 'u_shelterRange', label: 'Shelter Range', min: 100, max: 30000, step: 100, defaultValue: 3000 },
+    ],
+    colors: [
+        { name: 'u_snowColor', label: 'Snow Colour', defaultValue: { r: 0.92, g: 0.95, b: 1, a: 1 } },
+    ],
+});
+
+registerEffect({
     type: 'ssao',
     label: 'Ambient Occlusion',
     factory: () => postProcessEffects.createSsaoAo(),
@@ -937,7 +959,7 @@ const CATEGORIES: Record<EffectCategory, string[]> = {
     lens: ['bloom', 'depthOfField', 'motionBlur', 'lensFlare', 'filmGrain', 'chromaticAberration', 'lensDistortion', 'vignette', 'sharpen'],
     color: ['tonemap', 'agx', 'colorGrade', 'lutGrade', 'displayLut', 'autoExposure', 'grayscale'],
     light: ['ssao', 'gtao', 'ssgi', 'ssr', 'voxelGI', 'contactShadows', 'lightShafts', 'subsurface'],
-    atmosphere: ['mist2d', 'rain2d', 'fog2d', 'distanceFog', 'heightFog', 'skyAtmosphere', 'rain'],
+    atmosphere: ['mist2d', 'rain2d', 'fog2d', 'distanceFog', 'heightFog', 'skyAtmosphere', 'rain', 'snowCover'],
     aa: ['fxaa', 'taa'],
     stylize: ['blur', 'pixelate', 'palette', 'outline', 'depthOutline', 'edgeOutline'],
 };

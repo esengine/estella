@@ -302,6 +302,35 @@ The ground collides: the finest nodes within `collisionDistance` of every moving
 
 Set `sea` and the planet has a sea: a translucent, lit sphere at `seaLevel` above the radius, in which the ground that dips below it stands (waves and shore foam are the flat water's and come to the sphere later). The sky follows the horizon round: give `skyAtmosphere` and `heightFog` the planet's radius and centre and they work out the sky and the haze for the ground the camera stands on, with the sun a fixed direction, so a place's day and night are where it is on the planet.
 
+## Blending what stands on the ground
+
+Three things hide the line where a model meets the ground. None of them needs the ground to know.
+
+**The Ground Blend material.** The `builtin:ground-blend` shader is the [Model](/docs/graphics/materials/) shader, with every map and param it has, for a rock, a kerb or a foundation. Where the surface comes close to what stands behind it, it gives way to the picture of that very pixel, so whatever the ground is drawn with (its layers, its light, its shadows) is what the seam fades into, with nothing baked. It works on anything behind it, not only a terrain.
+
+| Param | What it does |
+|---|---|
+| `u_blendDistance` | How high above what is behind the surface has fully arrived, in world units. It is a height and not a distance along the view, so the band holds as the camera tilts. `0` leaves a hard edge. |
+| `u_blendNoise`, `u_blendNoiseScale` | How much the edge wanders, and the world size of its wander, so it is not a ruled line. |
+| `u_layer2`, `u_layer2Tint`, `u_layer2Roughness` | A second layer: dirt, moss, wet stone. |
+| `u_layer2Tile` | The length of one repeat of it in the world, read from above so it lines up across objects. `0` reads the mesh's own uv. |
+| `u_layerReach` | How far up from what is behind it the second layer climbs, as a distance field does. |
+| `u_vertexBlend` | `1` lets a vertex colour's red paint the second layer, and stops the colour tinting the surface. |
+
+Such a material is drawn after a copy of the opaque scene is taken, the way water is, and a scene with one takes that copy even with no post effect of its own.
+
+**A road.** A `RoadDecal` on an entity with a `Spline` lays the entity's `MeshRenderer` along the curve and over the ground, row by row, and is laid again when the spline or the ground changes. Each edge fades over `edgeFade` of its half width, so give it a blended material. With no terrain it lies along the curve as drawn.
+
+| Field | What it does |
+|---|---|
+| `step`, `across` | How far apart its rows are along the curve, and how many cells across. Finer follows the ground and the bends more closely. |
+| `widthScale` | Times the width each spline point says. |
+| `lift` | How far above the ground it lies. Far off the ground is drawn coarser than it is asked, so a road seen from far needs more. |
+| `edgeFade` | The share of its half width over which each edge fades. |
+| `tile` | The length of one repeat of its texture along the curve. |
+
+**Snow and wet.** The `snowCover` [post effect](/docs/graphics/post-processing/) lays snow on whatever faces the sky and stands under nothing, the terrain and the rock on it alike, with no material changed: `u_amount`, `u_snowLine` and `u_snowLineBand` (the height it stops at), `u_slopeLimit` and `u_grainScale`. The `Snow` [weather](/docs/graphics/weather/) brings it. The `rain` effect with `u_intensity` at `0` and `u_wetness` up is the same for a wet ground, under no rain.
+
 ## Limits
 
 - **Collision is the finest level.** Far off the ground is drawn coarser than it collides, which is unseen from where anything collides
@@ -312,5 +341,7 @@ Set `sea` and the planet has a sea: a translucent, lit sphere at `seaLevel` abov
 - **Position only.** The terrain follows its entity's position; its rotation and scale are not taken into account, by `heightAt` or by
   the shader that lifts the ground. Keep the entity unrotated and unscaled, and set the ground's size with `sizeX`, `sizeZ` and `height`.
 - **An infinite ground is made by its provider.** It takes no heightmap or splatmap, and its erosion (the engine's noise) paints no dirt.
+- **Ground Blend fades into what is seen behind it.** Where nothing is close behind the surface (a rock's side seen against a far valley) there is no seam to hide and none is hidden. A wall just behind a Ground Blend object counts as close, as the ground does. Two such objects do not fade into each other: neither is in the copy the other reads. It needs float render targets; without them it draws as a plain Model.
+- **`snowCover` is laid on the picture.** It has no depth, so it does not round an edge or bury a stone, and it is limited to what the camera sees.
 - **Pages are made a few a frame**, so on the first frames, or after a jump of the eye, the ground is drawn coarse for a moment and
   sharpens rather than stalling a frame.

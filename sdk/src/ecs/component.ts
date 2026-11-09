@@ -1384,7 +1384,7 @@ export const PostProcessVolume = defineComponent<PostProcessVolumeData>('PostPro
 });
 
 export interface WeatherData {
-    /** The weather the scene is in (the built-in presets: Clear, Mist, Overcast, Rain, Storm). */
+    /** The weather the scene is in (the built-in presets: Clear, Mist, Overcast, Rain, Storm, Snow). */
     preset: number;
     /** The weather it is turning into; -1 for none. */
     target: number;
@@ -1405,7 +1405,7 @@ export interface WeatherData {
 
 const WEATHER_PRESET_OPTIONS = [
     { label: 'Clear', value: 0 }, { label: 'Mist', value: 1 }, { label: 'Overcast', value: 2 },
-    { label: 'Rain', value: 3 }, { label: 'Storm', value: 4 },
+    { label: 'Rain', value: 3 }, { label: 'Storm', value: 4 }, { label: 'Snow', value: 5 },
 ];
 
 /**

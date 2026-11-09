@@ -11,6 +11,7 @@
  *          frame clock as tc.u_time / tc.u_viewport.
  */
 
+import { deriveGroundBlend } from './groundBlendShader';
 import { paramDefaultValue, reflectEsshader } from './shaderReflect';
 
 export interface BuiltinShaderTemplate {
@@ -1192,6 +1193,9 @@ export const BUILTIN_SHADER_TEMPLATES: readonly BuiltinShaderTemplate[] = [
     template('model', 'Model',
         'What an imported model\'s material says: normal map, emission, occlusion, alpha cutoff.',
         MODEL),
+    template('ground-blend', 'Ground Blend',
+        'Model, for what stands in the ground: fades into whatever is behind where it meets it, and can bring a second layer up from there or paint one with vertex colours.',
+        deriveGroundBlend(MODEL)),
     template('toon', 'Toon',
         'Lit in steps: the light cut into flat bands, a shade colour where it does not reach, a flat highlight and a rim. Shadows are part of a step.',
         TOON),

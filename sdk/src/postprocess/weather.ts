@@ -46,6 +46,8 @@ export interface WeatherState {
     rain: number;
     wetness: number;
     puddles: number;
+    /** How much snow lies, 0..1. Absolute. */
+    snow: number;
     /** × Screen Space Reflections' strength. */
     ssr: number;
     /** × what baked reflection probes show, and × their colour (1 keeps it, 0 is grey): a probe was baked under
@@ -68,7 +70,7 @@ const NEUTRAL: WeatherState = {
     sun: 1, sky: 1, sunTint: [1, 1, 1], shadowSoftness: 1, shadowStrength: 1,
     fogDensity: 1, fogTint: [0.7, 0.72, 0.76], fogTintAmount: 0, fogGlow: 1, skyFog: 1,
     saturation: 1, contrast: 1, exposure: 0,
-    rain: 0, wetness: 0, puddles: 0, ssr: 1,
+    rain: 0, wetness: 0, puddles: 0, snow: 0, ssr: 1,
     reflection: 1, reflectionSaturation: 1, overcast: 0, sound: 0, wind: 1, waves: 1,
 };
 
@@ -78,6 +80,7 @@ export const WEATHER_MIST = 1;
 export const WEATHER_OVERCAST = 2;
 export const WEATHER_RAIN = 3;
 export const WEATHER_STORM = 4;
+export const WEATHER_SNOW = 5;
 /** What `target` says when there is nothing to move toward. */
 export const WEATHER_NONE = -1;
 
@@ -113,6 +116,10 @@ define(WEATHER_RAIN, 'rain', {
     sun: 0.04, sky: 0.75, sunTint: [0.8, 0.86, 1], shadowSoftness: 10, shadowStrength: 0.3, fogDensity: 5.5, fogTint: [0.58, 0.63, 0.7], fogTintAmount: 0.8,
     fogGlow: 0, skyFog: 1.7, saturation: 0.73, contrast: 0.93, exposure: 0.45, rain: 1.1, wetness: 1, puddles: 0.6,
     ssr: 2.6, reflection: 0.55, reflectionSaturation: 0.5, overcast: 0.9, sound: 1, wind: 1.9, waves: 1.5,
+});
+define(WEATHER_SNOW, 'snow', {
+    sun: 0.7, sky: 1.05, sunTint: [0.92, 0.95, 1], shadowSoftness: 2, shadowStrength: 0.7, fogDensity: 1.8, fogTint: [0.82, 0.85, 0.9], fogTintAmount: 0.5,
+    skyFog: 1.3, saturation: 0.85, contrast: 0.96, exposure: 0.1, snow: 0.85, overcast: 0.75, wind: 0.8,
 });
 define(WEATHER_STORM, 'storm', {
     sun: 0.02, sky: 0.5, sunTint: [0.7, 0.78, 1], shadowSoftness: 10, shadowStrength: 0.2, fogDensity: 8, fogTint: [0.4, 0.44, 0.5], fogTintAmount: 0.9,
@@ -281,6 +288,11 @@ export function applyWeatherToEffects(effects: Map<string, BlendedEffect>, state
             ssr.uniforms.set('u_wetness', Math.max(value(ssr, 'ssr', 'u_wetness'), state.wetness));
             ssr.uniforms.set('u_puddles', Math.max(value(ssr, 'ssr', 'u_puddles'), state.puddles));
         }
+    }
+    if ((drive & WeatherDrive.Rain) && (state.snow > 0.001 || effects.has('snowCover'))) {
+        const authored = effects.has('snowCover');
+        const snow = entry(effects, 'snowCover');
+        snow.uniforms.set('u_amount', authored ? Math.max(value(snow, 'snowCover', 'u_amount'), state.snow) : state.snow);
     }
     if (drive & WeatherDrive.Grade) {
         const neutral = Math.abs(state.saturation - 1) < 1e-3 && Math.abs(state.contrast - 1) < 1e-3;

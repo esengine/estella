@@ -1,6 +1,6 @@
 ---
 title: Weather
-description: A Weather component that puts a scene under clear, mist, overcast, rain or storm, turns between them, and cycles by itself.
+description: A Weather component that puts a scene under clear, mist, overcast, rain, storm or snow, turns between them, and cycles by itself.
 ---
 
 A scene's weather is not a pile of effect parameters. A project's fog is in its own units and its sun is as bright
@@ -21,7 +21,7 @@ Add a `Weather` component to one entity.
 
 | Field | What it does |
 |---|---|
-| `preset` | The weather the scene is in: Clear, Mist, Overcast, Rain, Storm. Default Clear. |
+| `preset` | The weather the scene is in: Clear, Mist, Overcast, Rain, Storm, Snow. Default Clear. |
 | `target` | The weather it is turning into; None for none (the default). |
 | `progress` | How far along that turn it is (0–1, default 0). The game advances it; set it in the editor to preview a half-turn. |
 | `duration` | Seconds a turn takes (default 6). |
@@ -32,13 +32,13 @@ Add a `Weather` component to one entity.
 
 A turn is eased, so it starts and ends gently, and a finished turn lands on its target and clears itself.
 
-![Details of a Weather component with the five weathers, the transition target and progress](@/assets/guides/en/details-weather.png)
+![Details of a Weather component with the weathers, the transition target and progress](@/assets/guides/en/details-weather.png)
 
-*The **Weather** component: the five weathers to switch between, and the transition below them.*
+*The **Weather** component: the weathers to switch between, and the transition below them.*
 
 ## In the editor
 
-The Details panel shows the five built-in weathers as buttons (a project's own preset id still works and shows as Custom), the
+The Details panel shows the built-in weathers as buttons (a project's own preset id still works and shows as Custom), the
 move toward the next one as a progress you can drag, the cycle and what the weather drives, and a readout of what it is doing
 to the picture right now — the key light's scale, the fog's, the wetness and the rain. Rain and fog reach the picture through a
 Post Process Volume, which the panel says.
@@ -53,6 +53,7 @@ Post Process Volume, which the panel says.
   the authored darkness) as the sky clouds over, the way an overcast sky's shadows fade into the ground.
 - **Fog.** Height Fog's density, its sun glow and the volumetric light it carries are scaled, its sky haze is raised, and
   its colour moves toward the weather's.
+- **Snow.** The [Snow Cover](/docs/graphics/terrain/#blending-what-stands-on-the-ground) effect is brought with the weather (when the scene has none) and lies on whatever faces the sky. It goes with the same `Rain` drive.
 - **Rain.** The Rain effect is brought with the weather (when the scene has none) at the preset's strength, and Rain and
   Screen Space Reflections are given the wetness and puddles it leaves. Where the scene authored its own rain, the
   weather can only raise it.

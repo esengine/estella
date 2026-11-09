@@ -82,6 +82,8 @@ public:
 
     /// Whether any merged draw reads the picture behind it.
     bool anyUsesSceneColor(const MaterialStore& materials) const;
+    /** @brief Whether a draw is of a material that does not work without a picture of the scene (MaterialStore::needsScenePicture). */
+    bool anyNeedsScenePicture(const MaterialStore& materials) const;
     /// Whether the list holds a blended draw that does not refract: what has to be ordered against a refracting surface by where it is, not by when it was drawn.
     bool anyBlendedWithoutSceneColor(const MaterialStore& materials) const;
     /// Whether any merged draw reads the distance to the opaque scene behind it.

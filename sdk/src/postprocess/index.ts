@@ -44,6 +44,7 @@ export {
     WEATHER_OVERCAST,
     WEATHER_RAIN,
     WEATHER_STORM,
+    WEATHER_SNOW,
     WEATHER_NONE,
     type WeatherState,
     type WeatherPreset,

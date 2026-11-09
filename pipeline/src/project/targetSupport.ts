@@ -48,7 +48,7 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
     foliage: ['Foliage', 'PlacedFoliage', 'FoliageContact', 'PlantProxy'],
     worldgen: ['WorldGen', 'WorldZone'],
     water: ['WaterBody', 'WaterZone', 'Floating'],
-    spline: ['Spline', 'PathFollower', 'TerrainBand2D'],
+    spline: ['Spline', 'PathFollower', 'TerrainBand2D', 'RoadDecal'],
     rig2d: ['Bone2D', 'IK2D', 'BoneConstraint2D'],
     importedScene: ['NodeVisibility', 'ParticleModelUnits'],
     // Hair, Skin and Eye are shaders, not components: a character's materials are what name them (see SHADER_SUBSYSTEM).

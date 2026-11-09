@@ -384,6 +384,13 @@ public:
         const MaterialUniformLayout* layout = m ? layoutFor(m->shaderRef) : nullptr;
         return layout && layout->findTexture("u_sceneDepthMap") != nullptr;
     }
+    /// Whether @p materialId is nothing without that copy: it fades into what is behind it, where water only falls back to a plainer look.
+    /// Seeing one is why a frame with no chain of its own takes one.
+    bool needsScenePicture(u32 materialId) const {
+        const MaterialRecord* m = find(materialId);
+        const MaterialUniformLayout* layout = m ? layoutFor(m->shaderRef) : nullptr;
+        return layout && layout->find("u_blendDistance") != nullptr;
+    }
     /// The copy of the opaque scene's distances the frame took, or invalid when it took none. Bound to a material's `u_sceneDepthMap` unit.
     void setSceneDepth(TextureHandle texture) { sceneDepth_ = texture; }
 
