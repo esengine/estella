@@ -25,6 +25,7 @@ export * from './assets/assetDb';
 export * from './assets/cookAssets';
 export * from './assets/addressableManifest';
 export * from './world/staticProxy';
+export * from './world/terrainTiles';
 export * from './bundle/importMap';
 export * from './bundle/esengineResolve';
 export * from './bundle/bundleDiagnostics';

@@ -54,6 +54,7 @@ import { chunksOf, ProceduralChunksRes } from '../residency/chunks';
 import { movers } from './movers';
 import { createLayerArrays, imagePixelsAt, readAndPackLayers, releaseLayerArrays } from './layerArrays';
 import { createPageAtlases } from './atlases';
+import { parseTerrainTiles, TiledSource } from './tiles';
 
 /** The engine's own provider of ground without end: seeded noise of the world's position. */
 export const NOISE_PROVIDER = 'estella:noise';
@@ -75,6 +76,8 @@ export interface TerrainData {
     generatorVersion: number;
     /** A heightmap image, read as {@link heightmapFormat} says. Empty makes the ground from noise. */
     heightmap: number;
+    /** A `.esterrain` (project path): the area's ground as tiles read where they are looked at, and an overview for the rest. Takes the heightmap's place. */
+    tiles: string;
     /** How the heightmap holds its heights: a {@link HeightmapFormat}. */
     heightmapFormat: number;
     /** An image whose four channels are the weights of layers 1 to 4; empty paints by height and slope. */
@@ -134,7 +137,7 @@ const rgb = (r: number, g: number, b: number): Color => ({ r, g, b, a: 1 });
  * @experimental
  */
 export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponent<TerrainData>('Terrain', {
-    extent: TerrainExtent.Area, provider: NOISE_PROVIDER, world: '', generatorVersion: 1, heightmap: 0, heightmapFormat: HeightmapFormat.Grey, splatmap: 0, splatmap2: 0, layers: [] as string[], material: 0,
+    extent: TerrainExtent.Area, provider: NOISE_PROVIDER, world: '', generatorVersion: 1, heightmap: 0, tiles: '', heightmapFormat: HeightmapFormat.Grey, splatmap: 0, splatmap2: 0, layers: [] as string[], material: 0,
     sizeX: 1000, sizeZ: 1000, height: 150, cellSize: 2, detail: 1, drawDistance: 4000,
     collision: true, collisionDistance: 64, collisionLayer: 0, friction: 0.6,
     seed: 1, frequency: 3, octaves: 5, persistence: 0.5, ridged: 0.35, resolution: 257, warp: 0, erosion: 0,
@@ -148,6 +151,7 @@ export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponen
         world: { category: 'Shape', tooltip: 'The world (a planet, a level) the ground belongs to, as the game names it; handed to the provider.' },
         generatorVersion: { min: 1, step: 1, category: 'Shape', tooltip: 'The generator version the world was made with. A version the provider no longer has fails the terrain rather than growing other ground under what was built.' },
         heightmap: { tooltip: 'A heightmap image, read as data (shipped as the PNG it is). Empty makes the ground from noise; a heightmap that cannot be read fails the terrain instead.', category: 'Shape', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
+        tiles: { category: 'Shape', tooltip: 'A .esterrain: the ground as tiles, read near where it is looked at and let go far from it, with a coarse overview for the rest. Takes the heightmap\'s place.', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
         heightmapFormat: { enum: [{ label: 'Grey (8 or 16 bit)', value: HeightmapFormat.Grey }, { label: 'Red + green (16 bit)', value: HeightmapFormat.RedGreen16 }], category: 'Shape', tooltip: 'How the heightmap holds its heights: grey (or red) at the depth of the file, 16 bits from a 16-bit PNG; or sixteen bits across red (high byte) and green (low byte) of an 8-bit image.', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
         splatmap: { tooltip: 'An image whose red, green, blue and alpha are the weights of grass, dirt, snow and rock.', category: 'Layers', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
         splatmap2: { tooltip: 'An image whose red, green, blue and alpha are the weights of layers 5 to 8.', category: 'Layers', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
@@ -234,7 +238,7 @@ interface Built {
 /** Where a terrain's ground stands: still being made, ready, or failed (with why). */
 export interface TerrainStatus { state: 'loading' | 'ready' | 'failed'; reason?: string }
 
-export interface TerrainLoad { loading: number; cpuBytes: number }
+export interface TerrainLoad { loading: number; cpuBytes: number; tiles: number }
 
 /** Run-time access to the ground: how high it is anywhere, for putting things on it. */
 export class Terrains {
@@ -432,15 +436,22 @@ export class Terrains {
     }
 
     load(): TerrainLoad {
-        let loading = 0, cpuBytes = 0;
+        let loading = 0, cpuBytes = 0, tiles = 0;
         for (const built of this.built_.values()) {
             if (built.loading) loading++;
             const source = built.source instanceof ModifiedSource ? built.source.base : built.source;
+            if (source instanceof TiledSource) {
+                const s = source.stats();
+                loading += s.reading;
+                cpuBytes += s.bytes + source.overviewBytes;
+                tiles += s.resident;
+                continue;
+            }
             if (!(source instanceof FieldSource)) continue;
             const { a, b } = source.splats();
             cpuBytes += source.field.data.byteLength + (a?.pixels.byteLength ?? 0) + (b?.pixels.byteLength ?? 0);
         }
-        return { loading, cpuBytes };
+        return { loading, cpuBytes, tiles };
     }
 
     /** @internal The modifiers laid over every terrain's ground, by id, in the order they were set. */
@@ -543,10 +554,21 @@ function signatureOf(data: TerrainData, at: { x: number; z: number }): string {
     const shape = { ...rest, layered: (layers?.length ?? 0) > 0 };
     // Ground read from a provider is the world's where the terrain stands: moved, it is read again; and a game's own provider is read
     // again when one is registered under its name.
-    const fromProvider = data.extent === TerrainExtent.Infinite || !data.heightmap;
+    const fromProvider = data.extent === TerrainExtent.Infinite || (!data.heightmap && !data.tiles);
     const where = fromProvider ? `@${at.x},${at.z}` : '';
     const late = fromProvider && data.provider !== NOISE_PROVIDER ? `#${terrainProvidersRevision()}` : '';
     return `${JSON.stringify(shape)}${where}${late}`;
+}
+
+async function tiledSourceOf(app: App, data: TerrainData): Promise<TiledSource> {
+    const assets = app.getResource(Assets);
+    const doc = parseTerrainTiles(JSON.parse(await assets.fetchText(data.tiles)), data.tiles);
+    const read = (path: string) => imagePixelsAt(app, path);
+    const [overview, s1, s2] = await Promise.all([read(doc.overview), doc.overviewSplat ? read(doc.overviewSplat) : null, doc.overviewSplat2 ? read(doc.overviewSplat2) : null]);
+    if (!overview) throw new TerrainUnavailable(`the overview of ${data.tiles} (${doc.overview}) could not be read`);
+    const field = heightfieldFromPixels(overview.width, overview.height, overview.pixels, doc.format, overview.wide);
+    const splat = (s: typeof s1) => s && { width: s.width, height: s.height, pixels: s.pixels };
+    return new TiledSource(doc, data, field, splat(s1), splat(s2), read);
 }
 
 /** The provider a terrain names, or why it cannot have it. */
@@ -661,6 +683,9 @@ export class TerrainPlugin implements Plugin {
                 const provider = providerOf(data);
                 built.source = new ProviderSource(provider, data.world, data.seed, data.generatorVersion, t.worldPosition.x, t.worldPosition.z,
                     Math.max(data.cellSize, 1e-3), paintBy(provider, data));
+            } else if (data.tiles) {
+                built.source = await tiledSourceOf(app, data);
+                if (built.epoch !== epoch || !app.world.valid(entity)) return;
             } else {
                 // A heightmap named and not read is a failure: a world built on that ground must not quietly get other ground.
                 const height = await this.pixelsOf(app, data.heightmap);

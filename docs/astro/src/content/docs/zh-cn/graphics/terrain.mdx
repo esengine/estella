@@ -255,6 +255,17 @@ registerPlanetProvider({
 
 **积雪和湿润。** `snowCover` [后处理效果](/docs/zh-cn/graphics/post-processing/)把雪铺在朝天且上方没有遮挡的表面上，地形和上面的岩石一视同仁，不用改任何材质：`u_amount`、`u_snowLine` 和 `u_snowLineBand`（雪线高度）、`u_slopeLimit`、`u_grainScale`。`Snow` [天气](/docs/zh-cn/graphics/weather/)会自动带上它。`rain` 效果把 `u_intensity` 设为 `0`、调高 `u_wetness`，就是不下雨的湿地面。
 
+## 大块地面:分块存储
+
+一张高度图会被整张读进内存:8193×8193 的地面约 256 MiB。把 `tiles` 指向一个 `.esterrain`,地面就按分块存储:每块 513×513 个采样(相邻块共用边),外加一张低精度的总览图。
+
+- 远处的地面从总览图画,总览图一直在内存里。
+- 视点或运动物体附近才读精细分块;超过 256 MiB 时先放掉最久没用的块。还没读到的地方高度暂时未知,碰撞和查询会等它读到后再算。
+- 在地形雕刻面板里点 **拆分为分块**,就能把现有地形转换过去。转换后暂时还不能雕刻。
+- 分块图只经 `.esterrain` 引用,不会像 `heightmap` 那样在打开场景时作为贴图预载、上传。
+
+编辑器里实测(4096 单位见方):8193×8193 的地面按分块打开时占 36 MiB,贴近地面时占 45 MiB。
+
 ## 限制
 
 - **每个位置只有一个高度。** 洞穴、悬垂和孔洞需要[体积地形](/docs/zh-cn/world/voxel-terrain/)，它是独立的体积地面。

@@ -7547,6 +7547,12 @@
           "doc": "A heightmap image, read as data (shipped as the PNG it is). Empty makes the ground from noise; a heightmap that cannot be read fails the terrain instead."
         },
         {
+          "key": "tiles",
+          "type": "string",
+          "default": "empty",
+          "doc": "A .esterrain: the ground as tiles, read near where it is looked at and let go far from it, with a coarse overview for the rest. Takes the heightmap's place."
+        },
+        {
           "key": "heightmapFormat",
           "type": "enum",
           "default": "Grey (8 or 16 bit)",

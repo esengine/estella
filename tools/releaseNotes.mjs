@@ -4248,6 +4248,10 @@ export const NOTED = {
     {"note": "A 2D character can be rigged in the editor, with no other program."},
   "fix(text): a glyph's outline costs what its size does, and text too large for a bitmap glyph draws from a distance field":
     {"note": "Zooming in on outlined text no longer freezes the editor."},
+  "feat(terrain): an area's ground can be kept as tiles, read where it is looked at under a memory budget, with an overview for the distance":
+    {"note": "A terrain can be kept as tiles that are read where they are looked at."},
+  "feat(terrain): a terrain splits into tiles from the sculpt panel, the editor waits for ground still being built, and opening a tiled terrain is measured near and far":
+    {"note": "A terrain can be kept as tiles that are read where they are looked at."},
   "feat(world): a streamed world opens in the editor with only what never streams, and cells are loaded and unloaded in the edit view without touching the document":
     {"note": "A streamed world opens in the editor without its cells."},
   "fix(editor): what grows round the view follows the viewport in 2D and 3D, and a terrain stroke keeps only the tiles it touched":

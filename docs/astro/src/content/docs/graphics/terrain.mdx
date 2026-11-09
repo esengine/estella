@@ -331,6 +331,19 @@ Such a material is drawn after a copy of the opaque scene is taken, the way wate
 
 **Snow and wet.** The `snowCover` [post effect](/docs/graphics/post-processing/) lays snow on whatever faces the sky and stands under nothing, the terrain and the rock on it alike, with no material changed: `u_amount`, `u_snowLine` and `u_snowLineBand` (the height it stops at), `u_slopeLimit` and `u_grainScale`. The `Snow` [weather](/docs/graphics/weather/) brings it. The `rain` effect with `u_intensity` at `0` and `u_wetness` up is the same for a wet ground, under no rain.
 
+## Large ground: tiles
+
+A heightmap is read whole: an 8193 by 8193 field is about 256 MiB. Point `tiles` at a `.esterrain` and the ground is kept as tiles of
+513 by 513 samples (neighbours share their edge) and a low-detail overview.
+
+- Distant ground is drawn from the overview, which is always in memory.
+- Full-detail tiles are read only near the view or a moving body, and past 256 MiB the least recently used are let go. Where no tile has
+  been read yet the height is not known, and collision and queries wait for it.
+- **Split into Tiles** in the terrain sculpt panel converts a terrain. Tiled ground cannot be sculpted yet.
+- The tile images are named only by the `.esterrain`, so they are not preloaded and uploaded as textures the way a `heightmap` is.
+
+Measured in the editor on a 4096-unit area: an 8193 by 8193 field opened as tiles holds 36 MiB, and 45 MiB close to the ground.
+
 ## Limits
 
 - **It is a height for each place.** A cave, an overhang or a hole needs [Voxel Terrain](/docs/world/voxel-terrain/), a separate ground that is a volume.

@@ -495,6 +495,7 @@ sizeZ: number
 snowHeight: number
 splatmap2: number
 splatmap: number
+tiles: string
 warp: number
 world: string
 ```
@@ -530,6 +531,7 @@ tint: [number, number, number]
 ```
 cpuBytes: number
 loading: number
+tiles: number
 ```
 
 ## TerrainModifier — interface @experimental
