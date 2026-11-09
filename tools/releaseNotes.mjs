@@ -4232,6 +4232,8 @@ export const NOTED = {
     {"note": "Particles and plain sprites in a Canvas paint by their place in its tree."},
   "fix(text): stopping lets go of the labels the engine holds, so the next Play cannot draw them on other entities":
     {"note": "Labels no longer come back as black boxes after a change between Plays."},
+  "feat(animation): a rig's hands held in a named pose that fits any skeleton":
+    {"note": "Hands that hold things."},
   "feat(sky): clouds that keep time with the game, follow the weather's wind, and have a second layer":
     {"note": "Clouds that keep time with the game."},
   "feat(voxel): ground that is a volume, carved while the game runs, with collision that follows and saves by chunk":

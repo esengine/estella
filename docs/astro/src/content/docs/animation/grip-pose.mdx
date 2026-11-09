@@ -1,0 +1,80 @@
+---
+title: Grip Pose
+description: Hold a character's hands in a named pose, a pistol grip, a handle, a cup, that fits any rig with fingers.
+---
+
+A `GripPose` holds a rig's hands the way you name: `pistol`, `handle`, `cup`. A pose says only how far each finger bends, how far they fan out and how far the thumb comes across, and nothing in it names a bone, so one pose fits any rig. Which way those bends go is worked out from each rig's own hand, the first time it is held.
+
+It shapes the hand. Putting the hand on an object is up to whatever attaches it, usually an entity under the hand joint and two-bone IK for the arm.
+
+## Hold a hand
+
+Put a `GripPose` on the rig's root and name a pose for either hand:
+
+```ts
+import { GripPose } from 'esengine';
+
+world.insert(hero, GripPose, { rightPose: 'pistol', leftPose: 'support' });
+
+// Squeeze: the index finger goes from resting to pressing, and nothing else moves.
+world.update(hero, GripPose, (grip) => { grip.rightTrigger = 1; });
+```
+
+| Field | What it does |
+|---|---|
+| `rightPose`, `leftPose` | The pose each hand takes. Empty fades that hand out and leaves it to whatever else moves it. |
+| `rightWeight`, `leftWeight` | How much of the pose applies, over what a clip is doing with the fingers. |
+| `rightTrigger`, `leftTrigger` | How far the index finger has gone from resting to pressing, in a pose that has both. |
+| `blendSeconds` | About how long a change of pose takes. It starts from still and comes to rest, with no jump. |
+| `rightHand`, `leftHand` | The hand joint, by path from this entity. Empty looks for it by name. |
+
+It runs after the animator, so a walk cycle goes on moving the arm while the pose holds the fingers, and works with no animator at all. It runs while the game plays, not while a scene is laid out.
+
+## The poses
+
+| Name | For |
+|---|---|
+| `open` | A flat hand, as the rig rests. |
+| `relaxed` | A hand hanging at rest. |
+| `fist` | Closed, the thumb over the fingers. |
+| `pistol` | A pistol's grip, the index finger along the frame. `trigger` presses it. |
+| `support` | A hand under a rifle's foregrip. |
+| `handle` | A hammer, a sword, a tool's handle. |
+| `pinch` | Thumb and index finger together. |
+| `cup` | Round a mug or a ball, fingers apart. |
+
+To add your own, or replace one by name:
+
+```ts
+import { registerGripPose } from 'esengine';
+
+registerGripPose('claw', {
+    thumb: { curl: 0.6, opposition: 0.7 },
+    index: { curl: 0.9, base: 0.2 },
+    middle: { curl: 0.9, base: 0.2 },
+    ring: { curl: 0.9, base: 0.2 },
+    pinky: { curl: 0.9, base: 0.2 },
+});
+```
+
+| Number | What it says |
+|---|---|
+| `curl` | How far the finger bends, 0 as the rig rests to 1 closed. |
+| `base` | How far its first joint bends, where that differs: a finger laid along a frame, or hooked. Defaults to `curl`. |
+| `spread` | How far the fingers fan out, -1 to 1. |
+| `opposition` | The thumb only: how far it comes across the palm, 0 beside the hand to 1 facing the fingers. |
+| `trigger` | On the pose: the index finger as `rightTrigger` takes it to 1. |
+
+## On your rig
+
+The hand is found by name: a joint called something like `RightHand` or `hand_r`, with fingers named `thumb`, `index`, `middle`, `ring`, and `pinky` or `little` under it. Bones in the palm (`index_metacarpal_r`) are passed through. Where a rig's names say nothing of the kind, name the joint in `rightHand`. If its fingers are not named either, it cannot be held.
+
+A rig with fewer fingers does without the rest, and says which in the log. `gripPoseStatus(app, entity)` answers what was found on each hand.
+
+## Limits
+
+- **It does not touch what is held.** A pose is a shape, not a fit: fingers can sink into a wide grip or stop short of a narrow one. Use `curl` for the object, or a pose of its own.
+- **A hand's numbers are worked out once,** from how the rig stands when it is first held. A rig whose hand is mid-animation by then has its axes taken from that. In practice they are close.
+- **Rigs with a negative scale on an arm are not handled.** A mirrored bone turns the wrong way.
+- **Checked on a real rig of one kind.** The poses were tuned on a Mixamo-named character, and the same hand built with bones facing other ways and under other names gives the same fingertips, but no second real rig has been looked at.
+- **Not measured on a device.** It is a few quaternions for each of up to 30 joints a frame, and nothing once settled on a rig no clip moves.

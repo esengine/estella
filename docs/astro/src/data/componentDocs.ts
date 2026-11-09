@@ -207,6 +207,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   // ── Animation ──────────────────────────────────────────────────────────────
   Animator: { category: 'animation', summary: 'Runs an animator controller — states, transitions and blend trees — over the entity.', doc: 'animation/overview', anchor: 'animator-state-machine', anchorZh: '动画状态机' },
   AnimatorRootMotion: { category: 'animation', summary: 'Publishes how far the active animation asks the character to move, for gameplay to hand to a character controller — a request, never a result.', doc: 'animation/overview', anchor: 'root-motion', anchorZh: '根运动' },
+  GripPose: { category: 'animation', summary: 'Holds a rig\'s hands in a named pose, a pistol grip, a handle, a cup, that fits any rig with fingers.', doc: 'animation/grip-pose' },
   SpringBone: { category: 'animation', summary: 'Makes every bone below this root a spring: the chain trails the animated pose by inertia, falls with gravity and is pulled back toward it (hair, tails, cords).', doc: 'animation/spring-bones', anchor: 'the-component', anchorZh: '组件' },
   SpringBoneCollider: { category: 'animation', summary: 'A sphere or capsule that the spring-bone chains naming it are kept out of.', doc: 'animation/spring-bones', anchor: 'the-component', anchorZh: '组件' },
   SpriteAnimator: { category: 'animation', summary: 'Plays a flipbook clip by swapping the sprite frame, with speed, looping and frame events.', doc: 'animation/overview', anchor: 'sprite-animation', anchorZh: '精灵动画' },

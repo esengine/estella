@@ -2741,6 +2741,80 @@
       ]
     },
     {
+      "name": "GripPose",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "rightPose",
+          "type": "string",
+          "default": "empty",
+          "doc": "open, relaxed, fist, pistol, support, handle, pinch, cup, or one the game registers. Empty leaves the hand alone."
+        },
+        {
+          "key": "leftPose",
+          "type": "string",
+          "default": "empty",
+          "doc": "open, relaxed, fist, pistol, support, handle, pinch, cup, or one the game registers. Empty leaves the hand alone."
+        },
+        {
+          "key": "rightWeight",
+          "type": "number",
+          "default": "1",
+          "doc": "How much of the pose applies, over what a clip is doing with the fingers.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "leftWeight",
+          "type": "number",
+          "default": "1",
+          "doc": "How much of the pose applies, over what a clip is doing with the fingers.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "rightTrigger",
+          "type": "number",
+          "default": "0",
+          "doc": "How far the index finger has gone from resting to pressing, in a pose that has both.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "leftTrigger",
+          "type": "number",
+          "default": "0",
+          "doc": "How far the index finger has gone from resting to pressing, in a pose that has both.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "blendSeconds",
+          "type": "number",
+          "default": "0.15",
+          "doc": "About how long a change of pose takes.",
+          "range": "≥ 0, step 0.01"
+        },
+        {
+          "key": "rightHand",
+          "type": "string",
+          "default": "empty",
+          "doc": "The hand joint, by path from this entity. Empty looks for it by name.",
+          "advanced": true
+        },
+        {
+          "key": "leftHand",
+          "type": "string",
+          "default": "empty",
+          "doc": "The hand joint, by path from this entity. Empty looks for it by name.",
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "rightWeight",
+        "leftWeight",
+        "rightTrigger",
+        "leftTrigger",
+        "blendSeconds"
+      ]
+    },
+    {
       "name": "GroupOpacity",
       "source": "cpp",
       "fields": [

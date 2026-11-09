@@ -29,6 +29,7 @@ import { installFogOfWar } from '../render/fogOfWar';
 import { installSwayPush } from '../render/swayPush';
 import { installFootsteps } from '../render/footsteps';
 import { SystemLabel } from '../ecs/systemLabels';
+import { installGripPose } from './gripPose';
 
 export class AnimationPlugin implements Plugin {
     name = 'animation';
@@ -107,6 +108,8 @@ export class AnimationPlugin implements Plugin {
             },
             { name: 'SpriteAnimatorSystem' }
         ), { runAfter: [SystemLabel.Tween, SystemLabel.Animator], runIf: playModeOnly });
+
+        installGripPose(app);
     }
 
     cleanup(app?: App): void {

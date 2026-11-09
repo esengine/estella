@@ -650,6 +650,16 @@ export {
     TweenSequence,
     type Completable,
     type TweenFactory,
+    GripPose,
+    registerGripPose,
+    gripPose,
+    gripPoseNames,
+    gripPoseStatus,
+    type GripPoseData,
+    type GripPoseDef,
+    type GripFinger,
+    type GripThumb,
+    type GripHandStatus,
 } from './animation';
 
 // =============================================================================

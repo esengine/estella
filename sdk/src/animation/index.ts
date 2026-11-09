@@ -81,6 +81,10 @@ export {
     type AnimatorEvalResult,
     type AnimatorPathEvalResult,
 } from './Animator';
+export {
+    GripPose, registerGripPose, gripPose, gripPoseNames, gripPoseStatus,
+    type GripPoseData, type GripPoseDef, type GripFinger, type GripThumb, type GripHandStatus,
+} from './gripPose';
 
 export {
     emptyAnimatorController,
