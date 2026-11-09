@@ -55,7 +55,10 @@
     "validNormalizedWeights": true
   },
   "projectImport": {
-    "status": "GLB source copied into project and model meta registered; no native conversion or scene integration performed"
+    "status": "Native mesh, PBR material, prefab and three source timelines converted; main-scene and grasp integration deferred",
+    "nativePrefab": "../../assets/models/characters/heroine-v01/UC_CH_Heroine_Wasteland_v01_Rigged.esprefab",
+    "sourceGeometryChanges": "None",
+    "suggestedHeightMetres": 1.75
   },
   "riggedExport": {
     "file": "../../assets/models/characters/heroine-v01/UC_CH_Heroine_Wasteland_v01_Rigged.glb",
@@ -79,7 +82,7 @@
       "sampled walk/run/idle poses in Tripo"
     ],
     "finalPreview": "tripo-heroine-final.jpg",
-    "inEngineValidation": "Pending; source asset stored only",
+    "inEngineValidation": "Pending after engine grasp support; previous pose fitting is a local prototype, not accepted character delivery",
     "remaining": [
       "Estella scale and camera validation",
       "full deformation and clothing collision review",

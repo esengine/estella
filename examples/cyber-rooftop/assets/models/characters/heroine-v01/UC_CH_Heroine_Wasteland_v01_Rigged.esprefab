@@ -1,0 +1,2175 @@
+{
+  "version": "2",
+  "name": "UC_CH_Heroine_Wasteland_v01_Rigged",
+  "rootEntityId": "n67",
+  "entities": [
+    {
+      "prefabEntityId": "n67",
+      "name": "Armature",
+      "parent": null,
+      "children": [
+        "n66",
+        "n64",
+        "n65"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "TimelinePlayer",
+          "data": {
+            "timeline": "assets/models/characters/heroine-v01/UC_CH_Heroine_Wasteland_v01_Rigged_run.001.estimeline",
+            "playing": false
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n66",
+      "name": "tripo_node_0a52afa9-f20a-42e7-a344-9be855a1b277",
+      "parent": "n67",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/characters/heroine-v01/UC_CH_Heroine_Wasteland_v01_Rigged.esmesh",
+            "lit": true,
+            "texture": "assets/models/characters/heroine-v01/UC_CH_Heroine_Wasteland_v01_Rigged_1.jpg",
+            "material": "assets/models/characters/heroine-v01/UC_CH_Heroine_Wasteland_v01_Rigged_m0.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        },
+        {
+          "type": "MeshSkin",
+          "data": {
+            "joints": [
+              "n64",
+              "n4",
+              "n3",
+              "n2",
+              "n1",
+              "n0",
+              "n9",
+              "n8",
+              "n7",
+              "n6",
+              "n5",
+              "n63",
+              "n62",
+              "n61",
+              "n33",
+              "n32",
+              "n31",
+              "n30",
+              "n13",
+              "n12",
+              "n11",
+              "n10",
+              "n17",
+              "n16",
+              "n15",
+              "n14",
+              "n21",
+              "n20",
+              "n19",
+              "n18",
+              "n25",
+              "n24",
+              "n23",
+              "n22",
+              "n29",
+              "n28",
+              "n27",
+              "n26",
+              "n36",
+              "n35",
+              "n34",
+              "n60",
+              "n59",
+              "n58",
+              "n57",
+              "n40",
+              "n39",
+              "n38",
+              "n37",
+              "n44",
+              "n43",
+              "n42",
+              "n41",
+              "n48",
+              "n47",
+              "n46",
+              "n45",
+              "n52",
+              "n51",
+              "n50",
+              "n49",
+              "n56",
+              "n55",
+              "n54",
+              "n53",
+              "n65"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n64",
+      "name": "mixamorig:Hips",
+      "parent": "n67",
+      "children": [
+        "n4",
+        "n9",
+        "n63"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.001952128834091127,
+              "y": 0.6032209396362305,
+              "z": 0.017569512128829956
+            },
+            "rotation": {
+              "w": 0.70710688829422,
+              "x": -7.402478985341077e-8,
+              "y": -0.7071066498756409,
+              "z": -3.187795627468404e-8
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 0.9999998211860657,
+              "z": 0.9999998807907104
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n4",
+      "name": "mixamorig:LeftUpLeg",
+      "parent": "n64",
+      "children": [
+        "n3"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 9.930995581441948e-9,
+              "y": -0.011713016778230667,
+              "z": -0.05075646564364433
+            },
+            "rotation": {
+              "w": 0.031755026429891586,
+              "x": -0.9994366765022278,
+              "y": 0.007680112030357122,
+              "z": 0.007676721550524235
+            },
+            "scale": {
+              "x": 1.0000003576278687,
+              "y": 1,
+              "z": 1.0000042915344238
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n3",
+      "name": "mixamorig:LeftLeg",
+      "parent": "n4",
+      "children": [
+        "n2"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -3.4924596548080444e-10,
+              "y": 0.24649988114833832,
+              "z": -2.7255737222731113e-8
+            },
+            "rotation": {
+              "w": 0.9998822212219238,
+              "x": 0.012434177100658417,
+              "y": -0.006253565661609173,
+              "z": 0.0064666676335036755
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n2",
+      "name": "mixamorig:LeftFoot",
+      "parent": "n3",
+      "children": [
+        "n1"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -4.190951585769653e-9,
+              "y": 0.26664111018180847,
+              "z": 1.0404619388282299e-8
+            },
+            "rotation": {
+              "w": 0.8490945100784302,
+              "x": 0.1085691750049591,
+              "y": 0.3474457263946533,
+              "z": -0.38279590010643005
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n1",
+      "name": "mixamorig:LeftToeBase",
+      "parent": "n2",
+      "children": [
+        "n0"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -5.4016709327697754e-8,
+              "y": 0.08282366394996643,
+              "z": -2.514570951461792e-8
+            },
+            "rotation": {
+              "w": 0.8535515069961548,
+              "x": 0.3535546064376831,
+              "y": 0.3535580039024353,
+              "z": -0.14644351601600647
+            },
+            "scale": {
+              "x": 1.000000238418579,
+              "y": 1.000000238418579,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n0",
+      "name": "mixamorig:LeftToe_End",
+      "parent": "n1",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2.5785841017977873e-8,
+              "y": 0.03932669386267662,
+              "z": 3.552435856590819e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": 4.470407688472733e-8,
+              "y": -0.000004306457412894815,
+              "z": -5.9603991076073726e-8
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n9",
+      "name": "mixamorig:RightUpLeg",
+      "parent": "n64",
+      "children": [
+        "n8"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -5.332142283265284e-9,
+              "y": -0.011713038198649883,
+              "z": 0.050756458193063736
+            },
+            "rotation": {
+              "w": 0.031629133969545364,
+              "x": 0.9994326233863831,
+              "y": -0.008183143101632595,
+              "z": -0.008186344988644123
+            },
+            "scale": {
+              "x": 1.0000003576278687,
+              "y": 1,
+              "z": 1.0000044107437134
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n8",
+      "name": "mixamorig:RightLeg",
+      "parent": "n9",
+      "children": [
+        "n7"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -2.3283064365386963e-9,
+              "y": 0.24649988114833832,
+              "z": 1.3184035196900368e-8
+            },
+            "rotation": {
+              "w": 0.9998753070831299,
+              "x": -0.012128702364861965,
+              "y": -0.007276672869920731,
+              "z": 0.007022804580628872
+            },
+            "scale": {
+              "x": 1,
+              "y": 1.0000001192092896,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n7",
+      "name": "mixamorig:RightFoot",
+      "parent": "n8",
+      "children": [
+        "n6"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -6.984919309616089e-10,
+              "y": 0.26664119958877563,
+              "z": -2.5815097615122795e-8
+            },
+            "rotation": {
+              "w": 0.8352877497673035,
+              "x": 0.18360890448093414,
+              "y": 0.37943968176841736,
+              "z": -0.35299813747406006
+            },
+            "scale": {
+              "x": 0.9999998211860657,
+              "y": 0.9999999403953552,
+              "z": 0.9999998807907104
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n6",
+      "name": "mixamorig:RightToeBase",
+      "parent": "n7",
+      "children": [
+        "n5"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -2.7939677238464355e-9,
+              "y": 0.08282359689474106,
+              "z": -3.259629011154175e-8
+            },
+            "rotation": {
+              "w": 0.853551983833313,
+              "x": 0.3535533547401428,
+              "y": 0.35355672240257263,
+              "z": -0.1464468389749527
+            },
+            "scale": {
+              "x": 0.9999998211860657,
+              "y": 1,
+              "z": 0.9999998807907104
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n5",
+      "name": "mixamorig:RightToe_End",
+      "parent": "n6",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1.7083740644352474e-8,
+              "y": 0.03932671621441841,
+              "z": 4.5388559577475007e-10
+            },
+            "rotation": {
+              "w": 1,
+              "x": 1.490118251012973e-8,
+              "y": -0.000004425651695783017,
+              "z": 1.4901076816897785e-8
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n63",
+      "name": "mixamorig:Spine",
+      "parent": "n64",
+      "children": [
+        "n62"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2.2994257609099122e-9,
+              "y": 0.05075651407241821,
+              "z": -8.393508110771108e-11
+            },
+            "rotation": {
+              "w": 0.9985272884368896,
+              "x": -0.0014727575471624732,
+              "y": 0.03834810107946396,
+              "z": 0.0383482463657856
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n62",
+      "name": "mixamorig:Spine1",
+      "parent": "n63",
+      "children": [
+        "n61"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -5.820766091346741e-9,
+              "y": 0.05090637877583504,
+              "z": 1.0477378964424133e-9
+            },
+            "rotation": {
+              "w": 0.9995933175086975,
+              "x": -0.0019519372144713998,
+              "y": 0.020163005217909813,
+              "z": 0.020072389394044876
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 0.9999999403953552,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n61",
+      "name": "mixamorig:Spine2",
+      "parent": "n62",
+      "children": [
+        "n33",
+        "n36",
+        "n60"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -5.6461431086063385e-9,
+              "y": 0.06683175265789032,
+              "z": 1.1641532182693481e-9
+            },
+            "rotation": {
+              "w": 0.9999650120735168,
+              "x": -0.0007260403945110738,
+              "y": 0.0059163556434214115,
+              "z": 0.005871756933629513
+            },
+            "scale": {
+              "x": 0.9999998211860657,
+              "y": 0.9999998807907104,
+              "z": 0.9999998807907104
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n33",
+      "name": "mixamorig:LeftShoulder",
+      "parent": "n61",
+      "children": [
+        "n32"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.0004670596681535244,
+              "y": 0.059584882110357285,
+              "z": -0.03537267819046974
+            },
+            "rotation": {
+              "w": 0.6208662986755371,
+              "x": -0.7806575298309326,
+              "y": 0.05365283414721489,
+              "z": -0.047119028866291046
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 0.9999998807907104,
+              "z": 1.0000001192092896
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n32",
+      "name": "mixamorig:LeftArm",
+      "parent": "n33",
+      "children": [
+        "n31"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -9.313225746154785e-10,
+              "y": 0.032431937754154205,
+              "z": 1.4842953532934189e-8
+            },
+            "rotation": {
+              "w": 0.9161641001701355,
+              "x": -0.3999530076980591,
+              "y": 0.025307651609182358,
+              "z": -0.00636402377858758
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 1.0000001192092896
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n31",
+      "name": "mixamorig:LeftForeArm",
+      "parent": "n32",
+      "children": [
+        "n30"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -5.587935447692871e-9,
+              "y": 0.14723029732704163,
+              "z": 8.987262845039368e-8
+            },
+            "rotation": {
+              "w": 0.9956236481666565,
+              "x": 0.03338288888335228,
+              "y": 0.04314874857664108,
+              "z": -0.07587703317403793
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 0.9999999403953552,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n30",
+      "name": "mixamorig:LeftHand",
+      "parent": "n31",
+      "children": [
+        "n13",
+        "n17",
+        "n21",
+        "n25",
+        "n29"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -6.05359673500061e-9,
+              "y": 0.13775847852230072,
+              "z": -1.0343501344323158e-7
+            },
+            "rotation": {
+              "w": 0.9984041452407837,
+              "x": -0.055939797312021255,
+              "y": -0.005572450812906027,
+              "z": 0.005379889626055956
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 1.0000001192092896,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n13",
+      "name": "mixamorig:LeftHandIndex1",
+      "parent": "n30",
+      "children": [
+        "n12"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.01312721986323595,
+              "y": 0.054684657603502274,
+              "z": 0.0019741118885576725
+            },
+            "rotation": {
+              "w": 0.9999154210090637,
+              "x": -0.004053409676998854,
+              "y": -0.0066526890732347965,
+              "z": 0.010415629483759403
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n12",
+      "name": "mixamorig:LeftHandIndex2",
+      "parent": "n13",
+      "children": [
+        "n11"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1.862645149230957e-9,
+              "y": 0.01614258624613285,
+              "z": 5.995389074087143e-8
+            },
+            "rotation": {
+              "w": 0.9971102476119995,
+              "x": -0.07580900192260742,
+              "y": 0.0011012633331120014,
+              "z": -0.0047835404984653
+            },
+            "scale": {
+              "x": 0.9999998807907104,
+              "y": 0.9999999403953552,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n11",
+      "name": "mixamorig:LeftHandIndex3",
+      "parent": "n12",
+      "children": [
+        "n10"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0.013998139649629593,
+              "z": -5.1048118621110916e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0.0000013332756907402654,
+              "y": 5.587936335871291e-9,
+              "z": 1.350417875300991e-7
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 0.9999999403953552,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n10",
+      "name": "mixamorig:LeftHandIndex4",
+      "parent": "n11",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -2.7939677238464355e-9,
+              "y": 0.013629330322146416,
+              "z": 7.759081199765205e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": 5.160109139978886e-7,
+              "y": -1.1175870895385742e-8,
+              "z": -5.98374754190445e-8
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n17",
+      "name": "mixamorig:LeftHandMiddle1",
+      "parent": "n30",
+      "children": [
+        "n16"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.0009051060769706964,
+              "y": 0.05424266681075096,
+              "z": 0.002061225939542055
+            },
+            "rotation": {
+              "w": 0.9971023797988892,
+              "x": -0.018140261992812157,
+              "y": -0.03959517553448677,
+              "z": 0.06237044930458069
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n16",
+      "name": "mixamorig:LeftHandMiddle2",
+      "parent": "n17",
+      "children": [
+        "n15"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1.1175870895385742e-8,
+              "y": 0.017227759584784508,
+              "z": -2.852175384759903e-8
+            },
+            "rotation": {
+              "w": 0.9880226254463196,
+              "x": -0.15344132483005524,
+              "y": 0.013424807228147984,
+              "z": -0.009325296618044376
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 0.9999999403953552,
+              "z": 0.9999998211860657
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n15",
+      "name": "mixamorig:LeftHandMiddle3",
+      "parent": "n16",
+      "children": [
+        "n14"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1.862645149230957e-9,
+              "y": 0.015814417973160744,
+              "z": 3.541936166584492e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0.0000012958480510860682,
+              "y": 8.451752364635468e-8,
+              "z": 6.170012056827545e-9
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n14",
+      "name": "mixamorig:LeftHandMiddle4",
+      "parent": "n15",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 6.51925802230835e-9,
+              "y": 0.01582985557615757,
+              "z": -3.632158041000366e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": 4.7479991849286307e-7,
+              "y": 8.166534826159477e-8,
+              "z": -1.9907020032405853e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n21",
+      "name": "mixamorig:LeftHandPinky1",
+      "parent": "n30",
+      "children": [
+        "n20"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -0.016905277967453003,
+              "y": 0.044412143528461456,
+              "z": -0.005939038936048746
+            },
+            "rotation": {
+              "w": 0.971813976764679,
+              "x": -0.12142936140298843,
+              "y": -0.11033496260643005,
+              "z": 0.1692890077829361
+            },
+            "scale": {
+              "x": 1,
+              "y": 1.0000001192092896,
+              "z": 1.0000001192092896
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n20",
+      "name": "mixamorig:LeftHandPinky2",
+      "parent": "n21",
+      "children": [
+        "n19"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -3.91155481338501e-8,
+              "y": 0.013468241319060326,
+              "z": -4.563480615615845e-8
+            },
+            "rotation": {
+              "w": 0.993502140045166,
+              "x": -0.09611208736896515,
+              "y": 0.04976504296064377,
+              "z": -0.03520631417632103
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 0.9999999403953552,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n19",
+      "name": "mixamorig:LeftHandPinky3",
+      "parent": "n20",
+      "children": [
+        "n18"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -3.725290298461914e-9,
+              "y": 0.011190107092261314,
+              "z": 6.705522537231445e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": 8.072884156717919e-7,
+              "y": -3.264867984853481e-7,
+              "z": 7.614074775119661e-7
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 0.9999999403953552,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n18",
+      "name": "mixamorig:LeftHandPinky4",
+      "parent": "n19",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1.1175870895385742e-8,
+              "y": 0.01132589764893055,
+              "z": -4.0046870708465576e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": -5.270723590911075e-8,
+              "y": 1.862645149230957e-9,
+              "z": -3.218071640276321e-7
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n25",
+      "name": "mixamorig:LeftHandRing1",
+      "parent": "n30",
+      "children": [
+        "n24"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -0.009289421141147614,
+              "y": 0.051336586475372314,
+              "z": -0.0017066288273781538
+            },
+            "rotation": {
+              "w": 0.9826506972312927,
+              "x": -0.10192807018756866,
+              "y": -0.0848526731133461,
+              "z": 0.12964719533920288
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n24",
+      "name": "mixamorig:LeftHandRing2",
+      "parent": "n25",
+      "children": [
+        "n23"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1.862645149230957e-8,
+              "y": 0.015236744657158852,
+              "z": 3.5157427191734314e-8
+            },
+            "rotation": {
+              "w": 0.9904673099517822,
+              "x": -0.12192017585039139,
+              "y": 0.0500495471060276,
+              "z": -0.04006272181868553
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999998211860657,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n23",
+      "name": "mixamorig:LeftHandRing3",
+      "parent": "n24",
+      "children": [
+        "n22"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1.862645149230957e-9,
+              "y": 0.014010108076035976,
+              "z": -2.8870999813079834e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": 4.988904152014584e-7,
+              "y": -1.2369127944111824e-9,
+              "z": -3.0091842972979066e-7
+            },
+            "scale": {
+              "x": 1,
+              "y": 1.0000001192092896,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n22",
+      "name": "mixamorig:LeftHandRing4",
+      "parent": "n23",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0.012558438815176487,
+              "z": -9.19681042432785e-9
+            },
+            "rotation": {
+              "w": 1,
+              "x": 5.938006530925577e-9,
+              "y": -8.731138034789865e-11,
+              "z": 8.027799935916846e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1.0000001192092896
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n29",
+      "name": "mixamorig:LeftHandThumb1",
+      "parent": "n30",
+      "children": [
+        "n28"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.0101502425968647,
+              "y": 0.020433001220226288,
+              "z": -0.006756347604095936
+            },
+            "rotation": {
+              "w": 0.9461106061935425,
+              "x": -0.07908159494400024,
+              "y": 0.16384980082511902,
+              "z": -0.2679067552089691
+            },
+            "scale": {
+              "x": 1,
+              "y": 1.0000001192092896,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n28",
+      "name": "mixamorig:LeftHandThumb2",
+      "parent": "n29",
+      "children": [
+        "n27"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 5.2619725465774536e-8,
+              "y": 0.017911501228809357,
+              "z": 8.847564458847046e-8
+            },
+            "rotation": {
+              "w": 0.9924225807189941,
+              "x": -0.05817490071058273,
+              "y": -0.08067278563976288,
+              "z": 0.07214542478322983
+            },
+            "scale": {
+              "x": 0.9999998807907104,
+              "y": 0.9999998807907104,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n27",
+      "name": "mixamorig:LeftHandThumb3",
+      "parent": "n28",
+      "children": [
+        "n26"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1.5832483768463135e-8,
+              "y": 0.01941663585603237,
+              "z": 1.210719347000122e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": -4.3958425521850586e-7,
+              "y": 7.264316082000732e-8,
+              "z": 2.1886080503463745e-7
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n26",
+      "name": "mixamorig:LeftHandThumb4",
+      "parent": "n27",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 3.725290298461914e-8,
+              "y": 0.014657914638519287,
+              "z": -6.51925802230835e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": 5.438923835754395e-7,
+              "y": -1.4156103134155273e-7,
+              "z": 1.9557775843281888e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n36",
+      "name": "mixamorig:Neck",
+      "parent": "n61",
+      "children": [
+        "n35"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.0012821325799450278,
+              "y": 0.07069876790046692,
+              "z": 0.00016624026466161013
+            },
+            "rotation": {
+              "w": 0.978533148765564,
+              "x": -0.002652292838320136,
+              "y": -0.1449345499277115,
+              "z": -0.14649182558059692
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999998211860657,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n35",
+      "name": "mixamorig:Head",
+      "parent": "n36",
+      "children": [
+        "n34"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 8.265487849712372e-9,
+              "y": 0.04749841243028641,
+              "z": -3.2014213502407074e-9
+            },
+            "rotation": {
+              "w": 1,
+              "x": 1.1159521307035902e-8,
+              "y": 5.1804814660272314e-8,
+              "z": 5.440749717422477e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 1.0000001192092896,
+              "z": 1.0000001192092896
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n34",
+      "name": "mixamorig:HeadTop_End",
+      "parent": "n35",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1.0622898116707802e-8,
+              "y": 0.11324002593755722,
+              "z": -5.820766091346741e-10
+            },
+            "rotation": {
+              "w": 1,
+              "x": 5.558227655910741e-9,
+              "y": 6.984919309616089e-9,
+              "z": -9.308259052431822e-9
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n60",
+      "name": "mixamorig:RightShoulder",
+      "parent": "n61",
+      "children": [
+        "n59"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -0.00856963824480772,
+              "y": 0.05958486720919609,
+              "z": 0.034322094172239304
+            },
+            "rotation": {
+              "w": 0.4850418269634247,
+              "x": 0.7218590378761292,
+              "y": -0.39126428961753845,
+              "z": -0.3009423017501831
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999998211860657,
+              "z": 0.9999998211860657
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n59",
+      "name": "mixamorig:RightArm",
+      "parent": "n60",
+      "children": [
+        "n58"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1.1874362826347351e-7,
+              "y": 0.03243187814950943,
+              "z": -1.5366822481155396e-8
+            },
+            "rotation": {
+              "w": 0.8623939156532288,
+              "x": 0.33671659231185913,
+              "y": 0.3102806806564331,
+              "z": -0.21592730283737183
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 0.9999999403953552,
+              "z": 0.9999998807907104
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n58",
+      "name": "mixamorig:RightForeArm",
+      "parent": "n59",
+      "children": [
+        "n57"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 8.381903171539307e-9,
+              "y": 0.14723053574562073,
+              "z": -3.003515303134918e-8
+            },
+            "rotation": {
+              "w": 0.9889844655990601,
+              "x": -0.0440715067088604,
+              "y": 0.12304363399744034,
+              "z": -0.06948194652795792
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n57",
+      "name": "mixamorig:RightHand",
+      "parent": "n58",
+      "children": [
+        "n40",
+        "n44",
+        "n48",
+        "n52",
+        "n56"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -9.313225746154785e-9,
+              "y": 0.12520010769367218,
+              "z": 7.799826562404633e-8
+            },
+            "rotation": {
+              "w": 0.9984398484230042,
+              "x": 0.055686239153146744,
+              "y": -0.00014245384954847395,
+              "z": 0.004125501029193401
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 1,
+              "z": 0.9999998211860657
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n40",
+      "name": "mixamorig:RightHandIndex1",
+      "parent": "n57",
+      "children": [
+        "n39"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.014684947207570076,
+              "y": 0.06954929232597351,
+              "z": -0.00065762730082497
+            },
+            "rotation": {
+              "w": 0.999687671661377,
+              "x": -0.0044463942758738995,
+              "y": -0.021107636392116547,
+              "z": 0.012619594112038612
+            },
+            "scale": {
+              "x": 1.0000001192092896,
+              "y": 1,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n39",
+      "name": "mixamorig:RightHandIndex2",
+      "parent": "n40",
+      "children": [
+        "n38"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1.3969838619232178e-9,
+              "y": 0.015399985015392303,
+              "z": -2.0954757928848267e-8
+            },
+            "rotation": {
+              "w": 0.9936477541923523,
+              "x": 0.1124294176697731,
+              "y": -3.585082026802411e-7,
+              "z": 0.004888255149126053
+            },
+            "scale": {
+              "x": 0.9999998807907104,
+              "y": 0.9999998807907104,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n38",
+      "name": "mixamorig:RightHandIndex3",
+      "parent": "n39",
+      "children": [
+        "n37"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2.3283064365386963e-9,
+              "y": 0.014112262055277824,
+              "z": -2.2118911147117615e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": 9.69739630818367e-7,
+              "y": 1.7508864402770996e-7,
+              "z": 3.282912075519562e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1.0000001192092896
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n37",
+      "name": "mixamorig:RightHandIndex4",
+      "parent": "n38",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0.013727165758609772,
+              "z": -1.8131686374545097e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": -3.958120942115784e-9,
+              "y": -8.963980491216716e-8,
+              "z": 6.798654794692993e-8
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 1,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n44",
+      "name": "mixamorig:RightHandMiddle1",
+      "parent": "n57",
+      "children": [
+        "n43"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.0023470171727240086,
+              "y": 0.06795024871826172,
+              "z": -0.0017048600129783154
+            },
+            "rotation": {
+              "w": 0.9919304251670837,
+              "x": 0.005437955725938082,
+              "y": -0.10780894011259079,
+              "z": 0.06649605929851532
+            },
+            "scale": {
+              "x": 1,
+              "y": 1.0000001192092896,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n43",
+      "name": "mixamorig:RightHandMiddle2",
+      "parent": "n44",
+      "children": [
+        "n42"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 8.381903171539307e-9,
+              "y": 0.017284052446484566,
+              "z": -2.9569491744041443e-8
+            },
+            "rotation": {
+              "w": 0.9875428676605225,
+              "x": 0.15300995111465454,
+              "y": 0.02472996525466442,
+              "z": -0.027119237929582596
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n42",
+      "name": "mixamorig:RightHandMiddle3",
+      "parent": "n43",
+      "children": [
+        "n41"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -7.450580596923828e-9,
+              "y": 0.0156155526638031,
+              "z": 7.930793799459934e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": 7.712807246207376e-7,
+              "y": -1.1175871783564162e-8,
+              "z": -4.0745362639427185e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n41",
+      "name": "mixamorig:RightHandMiddle4",
+      "parent": "n42",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2.7939677238464355e-9,
+              "y": 0.01559755764901638,
+              "z": 5.558831617236137e-9
+            },
+            "rotation": {
+              "w": 1,
+              "x": 4.7060899532880285e-7,
+              "y": -2.5960618543763303e-8,
+              "z": 4.2957253754138947e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n48",
+      "name": "mixamorig:RightHandPinky1",
+      "parent": "n57",
+      "children": [
+        "n47"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -0.01660313457250595,
+              "y": 0.058190494775772095,
+              "z": 0.002602245891466737
+            },
+            "rotation": {
+              "w": 0.9517104029655457,
+              "x": 0.16180109977722168,
+              "y": -0.217026486992836,
+              "z": 0.14480045437812805
+            },
+            "scale": {
+              "x": 1.0000001192092896,
+              "y": 1.0000001192092896,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n47",
+      "name": "mixamorig:RightHandPinky2",
+      "parent": "n48",
+      "children": [
+        "n46"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1.862645149230957e-8,
+              "y": 0.01373317651450634,
+              "z": -6.798654794692993e-8
+            },
+            "rotation": {
+              "w": 0.9934683442115784,
+              "x": 0.07382074743509293,
+              "y": 0.054651424288749695,
+              "z": -0.06770870089530945
+            },
+            "scale": {
+              "x": 1.0000001192092896,
+              "y": 1,
+              "z": 1.0000001192092896
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n46",
+      "name": "mixamorig:RightHandPinky3",
+      "parent": "n47",
+      "children": [
+        "n45"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2.9802322387695312e-8,
+              "y": 0.010824695229530334,
+              "z": -3.026798367500305e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": 7.700851369918382e-7,
+              "y": -1.7695128917694092e-8,
+              "z": 4.0025543057709e-7
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1.0000001192092896
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n45",
+      "name": "mixamorig:RightHandPinky4",
+      "parent": "n46",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -7.450580596923828e-9,
+              "y": 0.010905874893069267,
+              "z": 1.210719347000122e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": 1.0658827154230721e-9,
+              "y": -1.2328382581472397e-7,
+              "z": -4.679023835052476e-9
+            },
+            "scale": {
+              "x": 1,
+              "y": 1.0000001192092896,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n52",
+      "name": "mixamorig:RightHandRing1",
+      "parent": "n57",
+      "children": [
+        "n51"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -0.007889498956501484,
+              "y": 0.06567933410406113,
+              "z": 0.0003961424808949232
+            },
+            "rotation": {
+              "w": 0.9679054617881775,
+              "x": 0.10008613765239716,
+              "y": -0.19322055578231812,
+              "z": 0.12572848796844482
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n51",
+      "name": "mixamorig:RightHandRing2",
+      "parent": "n52",
+      "children": [
+        "n50"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 5.587935447692871e-9,
+              "y": 0.014566393569111824,
+              "z": -1.1641532182693481e-8
+            },
+            "rotation": {
+              "w": 0.9849851727485657,
+              "x": 0.13268478214740753,
+              "y": 0.0719715803861618,
+              "z": -0.08378037810325623
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 0.9999998211860657
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n50",
+      "name": "mixamorig:RightHandRing3",
+      "parent": "n51",
+      "children": [
+        "n49"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -7.450580596923828e-9,
+              "y": 0.013694745488464832,
+              "z": -1.1641532182693481e-10
+            },
+            "rotation": {
+              "w": 1,
+              "x": 5.587868372458615e-7,
+              "y": -1.0631629976387558e-7,
+              "z": 1.446591113563045e-7
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n49",
+      "name": "mixamorig:RightHandRing4",
+      "parent": "n50",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 5.587935447692871e-9,
+              "y": 0.012505626305937767,
+              "z": 3.725290298461914e-9
+            },
+            "rotation": {
+              "w": 1,
+              "x": -1.971836027792051e-8,
+              "y": 1.079752180999094e-7,
+              "z": -2.247890904527594e-7
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n56",
+      "name": "mixamorig:RightHandThumb1",
+      "parent": "n57",
+      "children": [
+        "n55"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.010127834975719452,
+              "y": 0.025623992085456848,
+              "z": 0.007203340996056795
+            },
+            "rotation": {
+              "w": 0.9482138156890869,
+              "x": 0.15632468461990356,
+              "y": 0.24062862992286682,
+              "z": -0.13620218634605408
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n55",
+      "name": "mixamorig:RightHandThumb2",
+      "parent": "n56",
+      "children": [
+        "n54"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 3.958120942115784e-8,
+              "y": 0.022920362651348114,
+              "z": -4.516914486885071e-8
+            },
+            "rotation": {
+              "w": 0.9970408082008362,
+              "x": 0.02585458941757679,
+              "y": -0.04810560122132301,
+              "z": 0.054102763533592224
+            },
+            "scale": {
+              "x": 1.0000001192092896,
+              "y": 0.9999999403953552,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n54",
+      "name": "mixamorig:RightHandThumb3",
+      "parent": "n55",
+      "children": [
+        "n53"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2.7939677238464355e-9,
+              "y": 0.0204885583370924,
+              "z": -4.2957253754138947e-8
+            },
+            "rotation": {
+              "w": 1,
+              "x": -7.717754328950832e-7,
+              "y": 9.313225746154785e-8,
+              "z": -7.068738341331482e-7
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999998807907104,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n53",
+      "name": "mixamorig:RightHandThumb4",
+      "parent": "n54",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -2.0489096641540527e-8,
+              "y": 0.01544288918375969,
+              "z": 2.9103830456733704e-9
+            },
+            "rotation": {
+              "w": 1,
+              "x": 3.514578565955162e-7,
+              "y": -3.498280065628023e-8,
+              "z": 3.7718561429755937e-7
+            },
+            "scale": {
+              "x": 1.0000001192092896,
+              "y": 1,
+              "z": 1.0000001192092896
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n65",
+      "name": "neutral_bone",
+      "parent": "n67",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "rotation": {
+              "w": 0.7071067690849304,
+              "x": -0.7071067690849304,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

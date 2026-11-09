@@ -1,0 +1,22 @@
+{
+ "profile": "game",
+ "eps": 4e-05,
+ "tol": 0.000795,
+ "gap": 0.003977,
+ "pass": true,
+ "errors": [],
+ "warnings": [
+  "Body: 1 edge shared by 3 or more faces"
+ ],
+ "per_object": {
+  "Body": {
+   "tris": 10518,
+   "parts": 11,
+   "errors": [],
+   "warnings": [
+    "Body: 1 edge shared by 3 or more faces"
+   ]
+  }
+ },
+ "skipped": []
+}

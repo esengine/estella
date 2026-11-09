@@ -1,0 +1,106 @@
+{
+  "asset": "UC_EQ_ConstructionProjector_v02",
+  "purpose": "Compact single-hand fabrication projector for the wasteland heroine; orange shell, graphite grip, cyan projection lens.",
+  "sourceReference": "../target.png",
+  "referenceViews": [
+    {
+      "slot": "front",
+      "file": "front.png",
+      "sha256": "d0a9a33f66667c490c7d61aa16d07e6d49f6925c3c5c47d564dea8005f83647b"
+    },
+    {
+      "slot": "left",
+      "file": "left.png",
+      "sha256": "977b781cacff1546394b0bad7444323cce64a8a4a0592a27da71325aa4a68004"
+    },
+    {
+      "slot": "right",
+      "file": "right.png",
+      "sha256": "d94dc4db9c2a4537a462e2f384bcbbd1edeb4a09970aab2ccc2c45df3a157ed4"
+    },
+    {
+      "slot": "back",
+      "file": "back.png",
+      "sha256": "83465c0deb6e581828f0e53c79499de8e4779ace6ff5006d776ce1b4fd293f74"
+    }
+  ],
+  "actionPreview": {
+    "file": "heroine-action.png",
+    "kind": "generated concept, not an engine screenshot"
+  },
+  "geometry": {
+    "provider": "Tripo",
+    "model": "P2.0",
+    "mode": "Smart Mesh",
+    "topology": "Quad",
+    "targetFaces": 5000,
+    "displayedFaces": 6108,
+    "displayedVertices": 5402,
+    "exportTriangles": 10518,
+    "exportVertices": 12592,
+    "visibility": "private",
+    "taskId": "4a0bf206-bd6a-48a1-b897-11c429a9165c"
+  },
+  "texturing": {
+    "resolution": [
+      4096,
+      4096
+    ],
+    "maps": [
+      "baseColor",
+      "normal",
+      "metallicRoughness"
+    ],
+    "PBR": true
+  },
+  "export": {
+    "file": "../../assets/models/equipment/construction-projector-v02/UC_EQ_ConstructionProjector_v02.glb",
+    "bytes": 23260084,
+    "sha256": "079972fc7a313a85c25b41dea8e9d612b4abcb320b3a369ba519141cb366c946"
+  },
+  "blenderReview": {
+    "version": "5.2.1 LTS",
+    "deliveryGate": "passed",
+    "warnings": [
+      "One edge shared by three or more faces"
+    ],
+    "geometryChanges": "Uniform normalized-unit to metre conversion only; topology, normals, UVs and PBR preserved byte-for-byte",
+    "audit": "mesh-audit.json"
+  },
+  "projectImport": {
+    "nativePrefab": "../../assets/models/equipment/construction-projector-v02/UC_EQ_ConstructionProjector_v02.esprefab",
+    "status": "Equipment mount nodes authored; character hand solver and main-scene integration deferred",
+    "lengthMetres": 0.314846188,
+    "rootScale": [
+      1,
+      1,
+      1
+    ],
+    "units": "metres",
+    "sockets": "grasp-profile.json",
+    "socketDiagram": "socket-map.png",
+    "socketCount": 13,
+    "sourceScript": "../../tools/projector-sockets.py",
+    "diagramScript": "../../tools/projector-socket-diagram.py",
+    "validation": "socket-validation.json"
+  },
+  "generationCostCredits": 125,
+  "tripoUrl": "https://studio.tripo3d.ai/zh/workspace/texture-pbr/4a0bf206-bd6a-48a1-b897-11c429a9165c",
+  "finalPreview": "tripo-final.png",
+  "remaining": [
+    "Character wrist-to-grasp registration and finger-pad dimensions",
+    "Engine arm and finger grasp solve; trigger guard clearance for press",
+    "Review animation extremes and clothing collisions after integration",
+    "Mobile device and editor acceptance in CI"
+  ],
+  "originalExport": {
+    "file": "External archived Tripo source; see original SHA256",
+    "bytes": 23256768,
+    "sha256": "60d3641684c7a35dc9457856b77ece9741a00f4c48e6507c8a73d231a24ad552"
+  },
+  "sourcePreservation": {
+    "verified": true,
+    "comparison": "Entire GLB binary matches the original export after scaling only POSITION floats by 0.315",
+    "originalSha256": "60d3641684c7a35dc9457856b77ece9741a00f4c48e6507c8a73d231a24ad552"
+  }
+}

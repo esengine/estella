@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:model",
+  "blendMode": 9,
+  "depthTest": true,
+  "depthWrite": true,
+  "cull": 0,
+  "properties": {
+    "u_normalMap": "UC_CH_Heroine_Wasteland_v01_Rigged_0.jpg",
+    "u_metallicRoughnessMap": "UC_CH_Heroine_Wasteland_v01_Rigged_2.png",
+    "u_metallic": 1,
+    "u_roughness": 1
+  }
+}

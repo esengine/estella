@@ -1,0 +1,400 @@
+{
+  "version": "2",
+  "name": "UC_EQ_ConstructionProjector_v02",
+  "rootEntityId": "n0",
+  "entities": [
+    {
+      "prefabEntityId": "n0",
+      "name": "UC_EQ_ConstructionProjector_v02",
+      "parent": null,
+      "children": [
+        "n1",
+        "n2"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n1",
+      "name": "Body",
+      "parent": "n0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/equipment/construction-projector-v02/UC_EQ_ConstructionProjector_v02.esmesh",
+            "lit": true,
+            "texture": "assets/models/equipment/construction-projector-v02/UC_EQ_ConstructionProjector_v02_0.jpg",
+            "material": "assets/models/equipment/construction-projector-v02/UC_EQ_ConstructionProjector_v02_m0.esmaterial",
+            "color": {
+              "r": 0.800000011920929,
+              "g": 0.800000011920929,
+              "b": 0.800000011920929,
+              "a": 1
+            },
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n2",
+      "name": "Mounts",
+      "parent": "n0",
+      "children": [
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "n8",
+        "n9",
+        "n10",
+        "n11",
+        "n12",
+        "n13",
+        "n14",
+        "n15"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n3",
+      "name": "Socket_Grip_R",
+      "parent": "n2",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0.080325,
+              "z": -0.111810505
+            },
+            "rotation": {
+              "w": 0.982765138,
+              "x": 0.18485862,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n4",
+      "name": "Socket_Palm_R",
+      "parent": "n2",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -0.017904878,
+              "y": 0.080325,
+              "z": -0.120329998
+            },
+            "rotation": {
+              "w": 0.702822685,
+              "x": 0.124721855,
+              "y": -0.686906099,
+              "z": -0.136545867
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n5",
+      "name": "Socket_Thumb_R",
+      "parent": "n2",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.015033185,
+              "y": 0.108674996,
+              "z": -0.113400005
+            },
+            "rotation": {
+              "w": 0.515753508,
+              "x": 0.100665122,
+              "y": 0.837193608,
+              "z": 0.151564315
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n6",
+      "name": "Socket_Index_R",
+      "parent": "n2",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -0.031422652,
+              "y": 0.127574995,
+              "z": -0.058274999
+            },
+            "rotation": {
+              "w": 0.706253529,
+              "x": 0.233935148,
+              "y": -0.66728878,
+              "z": -0.03472773
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n7",
+      "name": "Socket_Middle_R",
+      "parent": "n2",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.017607238,
+              "y": 0.078749999,
+              "z": -0.102374993
+            },
+            "rotation": {
+              "w": 0.700568438,
+              "x": 0.123667032,
+              "y": 0.689176202,
+              "z": 0.137646481
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n8",
+      "name": "Socket_Ring_R",
+      "parent": "n2",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.017774824,
+              "y": 0.067725003,
+              "z": -0.108674996
+            },
+            "rotation": {
+              "w": 0.700273991,
+              "x": 0.127782166,
+              "y": 0.689523518,
+              "z": 0.133586943
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n9",
+      "name": "Socket_Pinky_R",
+      "parent": "n2",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.017557114,
+              "y": 0.052919999,
+              "z": -0.114029996
+            },
+            "rotation": {
+              "w": 0.707294047,
+              "x": 0.132683098,
+              "y": 0.6823259,
+              "z": 0.128692538
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n10",
+      "name": "Guide_Middle_R",
+      "parent": "n2",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0.078749999,
+              "z": -0.086358175
+            },
+            "rotation": {
+              "w": 0.951195359,
+              "x": 0.30072698,
+              "y": -0.069065794,
+              "z": -0.004540215
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n11",
+      "name": "Guide_Ring_R",
+      "parent": "n2",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0.067725003,
+              "z": -0.090425387
+            },
+            "rotation": {
+              "w": 0.987080991,
+              "x": 0.146752045,
+              "y": -0.062693313,
+              "z": -0.014300428
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n12",
+      "name": "Guide_Pinky_R",
+      "parent": "n2",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0.052919999,
+              "z": -0.095361307
+            },
+            "rotation": {
+              "w": 0.982789636,
+              "x": 0.173238918,
+              "y": -0.062885955,
+              "z": -0.012575903
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n13",
+      "name": "Socket_Trigger",
+      "parent": "n2",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0.110249996,
+              "z": -0.067816846
+            },
+            "rotation": {
+              "w": 0.999086261,
+              "x": 0.042739283,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n14",
+      "name": "Socket_Support_L",
+      "parent": "n2",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0.106437482,
+              "z": 0.0504
+            },
+            "rotation": {
+              "w": 0.706972301,
+              "x": 0.706406951,
+              "y": -0.031452019,
+              "z": 0.013787684
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n15",
+      "name": "Socket_Muzzle",
+      "parent": "n2",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0.16065,
+              "z": 0.162423094
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

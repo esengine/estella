@@ -33,7 +33,8 @@ node examples/cyber-rooftop/tools/preview.mjs
 
 - `tools/model.py`：确定性的模型构造源，米制、Y 向上。包含几何、UV、材质与逻辑分组；按材质合并以控制绘制批次。
 - `assets/models/rooftop.glb`：可在常见 DCC 中继续编辑的模型交换文件；同目录的 `.esprefab`、`.esmesh`、`.esmaterial` 是 Estella 导入产物。
-- `assets/models/characters/heroine-v01/UC_CH_Heroine_Wasteland_v01_Rigged.glb`：女主首版源资产，40,080 个三角面、4K PBR、66 根 Mixamo 骨骼及待机、行走、跑步三段原地动画。[四视图与资产记录](references/heroine-v01/asset-manifest.json)保存在 `references/heroine-v01/`。当前仅入库，尚未转换为 Estella 运行资源或接入主场景；模型高度归一化约为 1，接入时需核对实际身高、变形和镜头效果。
+- `assets/models/characters/heroine-v01/UC_CH_Heroine_Wasteland_v01_Rigged.glb`：女主首版源资产，40,080 个三角面、4K PBR、66 根 Mixamo 骨骼及待机、行走、跑步三段原地动画。已转换为原生网格、预制体、PBR 材质和动画资源，原始 GLB 保持不变。[四视图与资产记录](references/heroine-v01/asset-manifest.json)保存在 `references/heroine-v01/`。等待引擎抓握功能后接入主场景；模型高度归一化约为 1，接入时需核对实际身高、变形和镜头效果。
+- `assets/models/equipment/construction-projector-v02/UC_EQ_ConstructionProjector_v02.glb`：Tripo 智能网格建造枪，10,518 个三角面、4K PBR、13 个挂点；同目录包含对应原生资源。模型已换算为米，长约 31.5 厘米，所有节点缩放为 1。保持原有拓扑、法线、UV 与贴图，尚未替换场景中的旧工具。
 - `tools/scene.mjs`：摄像机、灯光、后处理、粒子与建造对象池；通过 `tools/hud-scene.mjs` 构建原生 HUD。
 - `tools/hud-scene.mjs`：按四角及底部居中锚定面板，保留可编辑的原生文字、状态值和快捷栏交互。`src/hud-layout.json` 供场景构建和运行时共用布局参数。
 - `tools/textures.py`：可重建的基础表面图、招牌、HUD 象形图标与备用物品图标；需要 Python Pillow 和 Windows 微软雅黑字体。末尾调用 `tools/hud.py` 重建边框、勾选状态、按键帽和选中描边。
@@ -52,6 +53,32 @@ node tools/asset-meta.js examples/cyber-rooftop/assets
 ```
 
 模型脚本同时写出 `output/cyber-rooftop/cyber-rooftop.blend`。这个本地工作文件不入库；可通过源脚本重建。环境与软粒子图复用本仓库 `neon-ascension` 中的资源。
+
+## 建造枪挂点
+
+[挂点图](references/construction-projector-v02/socket-map.png)由实际枪模渲染；[grasp-profile.json](references/construction-projector-v02/grasp-profile.json)记录米制位置、XYZW 四元数、表面法线与角色接口约定。GLB 和原生预制体具有相同的 `Mounts` 子树：
+
+| 节点 | 用途 |
+| --- | --- |
+| `Socket_Grip_R` | 握把内的握持基准；局部 +Y 沿握把向上、+Z 朝前 |
+| `Socket_Palm_R`、`Socket_Thumb_R` | 右手掌心和对侧拇指接触 |
+| `Socket_Index_R` | 食指在护圈外的待机接触 |
+| `Socket_Middle_R`、`Socket_Ring_R`、`Socket_Pinky_R` | 中指、无名指、小指指腹接触 |
+| `Guide_Middle_R`、`Guide_Ring_R`、`Guide_Pinky_R` | 三根手指绕握把前侧的表面引导 |
+| `Socket_Trigger`、`Socket_Support_L` | 可选扳机按压、左手托持 |
+| `Socket_Muzzle` | 发射口，局部 +Z 发射；位于前壳之外 5 毫米 |
+
+装备根节点使用右手坐标系，+Y 向上、+Z 朝枪口。所有表面挂点的局部 +Z 为朝外法线，+Y 为握把上方向在切平面内的投影。**接触点是皮肤接触位置，不是骨骼中心**；角色手部配置需要提供腕部到握持基准的变换、指骨长度、关节限制和指腹厚度。肘部 pole 属于角色。食指按压还需检查护圈空间；当前数据不代表已完成自然抓握或动画验收。
+
+重建挂点、重新导入和验证（只使用后台 Blender）：
+
+```powershell
+& 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe' --background --factory-startup --python-exit-code 1 --python examples/cyber-rooftop/tools/projector-sockets.py -- --write
+node pipeline/bin/estella.mjs import-model examples/cyber-rooftop/assets/models/equipment/construction-projector-v02/UC_EQ_ConstructionProjector_v02.glb examples/cyber-rooftop/assets/models/equipment/construction-projector-v02 --project examples/cyber-rooftop
+& 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe' --background --factory-startup --python-exit-code 1 --python examples/cyber-rooftop/tools/projector-sockets.py -- --render
+```
+
+最后一步检查挂点贴面、四元数、预制体转换和源数据哈希，并渲染挂点图。可编辑图示场景及校验报告保存在 `output/cyber-rooftop/projector-sockets/`。之前的角色握枪试摆已保存在本地 `output/cyber-rooftop/pending-grip-integration/`，不作为已验收的主场景接入。
 
 ## 展示质量与资源约定
 
