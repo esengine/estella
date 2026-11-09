@@ -16,6 +16,9 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Static geometry can be baked into material-preserving proxies.** The pipeline can merge and simplify a static cluster by material and draw state, bounded by a world-space error limit. Moving, deformed and transparent surfaces are refused, and important painted or emissive geometry can be preserved.
+- **The cyber-rooftop example has an editable, anchored HUD.** Status icons, keycaps and inventory artwork share their layout with the runtime, while text and borders remain editable independently of the bitmap atlas.
+
 - **An imported scene keeps its materials, animation, particles and colliders.** A glTF scene brings the materials, animation, particle emitters and physics shapes it describes rather than geometry alone, and a Godot project can export a scene in that form with the bridge script in `pipeline/bridges/godot`. The two components only an imported scene writes, `NodeVisibility` and `ParticleModelUnits`, live in `esengine/imported-scene`, which an export adds only when the shipped content uses them.
 - **A 3D body can be several shapes, and a scaled model collides at its scale.** `CompoundCollider3D` makes one body out of child shapes, on Jolt and PhysX alike, and a mesh collider follows its model's scale.
 
@@ -25,7 +28,21 @@ published separately; it ships inside the editor.
 
 - **On a phone, a lit 3D scene costs about half as much.** The quality level gains `lighting`. At `low` and `medium`, which a phone takes when the project names no level, every lit mesh and material is compiled as `#pragma lighting direct` asks: the same lighting model with the sixteen lights of the light block and hard shadows, without the lights past them, soft shadows or hair shadows. On a Snapdragon 8 Elite a full-screen lit floor drawn fifteen times over went from 57 to 24 ms a frame under the default soft-shadowed sun, and from 33 to 25 ms under a hard-shadowed one. `high`, and a project with quality off, keep everything. **Project Settings → Rendering → Quality → 3D lighting** changes it per level. Sprites keep their 2D lighting at every level.
 
+### Changed
+
+- **Animation tracks reuse named-child lookups.** Repeated tracks in 2D and 3D hierarchies avoid searching the same children each frame, while renaming, reparenting and deleting children still update the result.
+- **Shadow storage and planar reflections avoid unused work.** The shadow atlas allocates storage for occupied tiles, and a planar reflection can reuse the depth prepass.
+
 ### Fixed
+
+- **Simplifying a mesh preserves painted features.** Vertex colours participate in simplification so a small painted feature is not treated like an otherwise identical, unpainted surface.
+- **A streamed world finishes retiring before it is replaced.** Teardown drains pending cell work and releases its scene resources before another world takes over, for both 2D and 3D content.
+- **Batched and instanced meshes keep their visibility and shadows.** Batches preserve each part's shadow participation, and placement bounds include rotation, scale, shear, usable LODs and declared vertex displacement when culling and fitting shadow maps.
+- **Rendering follows the game's clock.** Shader time and rendering follow scaled game time, including pause and manual stepping, instead of advancing independently of the simulation.
+- **A paused scene can prepare its presentation without advancing gameplay.** Camera, text and UI layout preparation can finish while simulation systems remain paused, including compiled systems.
+- **WebGPU keeps incompatible binding layouts separate.** The bind-group cache uses the full layout, preventing resources from being reused with a shader layout they do not match.
+- **Planar reflections keep the scene's tiled lights.** Reflective surfaces retain the lights assigned to their view instead of losing them when the reflection pass changes view state.
+- **Imported skin weights include every glTF attribute set.** Influences on the same joint are combined, the strongest four are retained and normalized, and invalid or empty weights are reported.
 
 - **An imported specular-glossiness material, and a normal map's strength, come through.** A glTF material authored in the specular-glossiness workflow is drawn with the same lighting as a metallic-roughness one instead of losing its look, and a normal map keeps the strength its material gives it, zero and negative included.
 - **Generated plants and placements let go of what they held.** A foliage cell's meshes and materials are released once the last cell using them retires, and world generation releases a scene's zones when the scene goes and keeps an authored placement the same object across regenerations, with shared 2D placements no longer losing each other's change subscriptions.

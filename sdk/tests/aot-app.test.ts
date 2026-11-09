@@ -63,7 +63,7 @@ const alphas = (app: ReturnType<typeof bootMockApp>['app'], Fade: AnyComponentDe
 
 describe('an App told to run its compiled twins', () => {
     it.skipIf(!EMCC)('applies paused presentation policy before dispatching compiled twins', async () => {
-        const wasm = buildFadeModule(EMCC!, FADE_PROBE_C);
+        const wasm = new Uint8Array(buildFadeModule(EMCC!, FADE_PROBE_C)).buffer;
         for (const runWhenPaused of [false, true]) {
             const { app, Fade } = fadeApp(runWhenPaused);
             try {

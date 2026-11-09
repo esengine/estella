@@ -828,7 +828,17 @@ jobs:
       env:
         ELECTRON_DISABLE_SANDBOX: '1'
         ESTELLA_MCP_EDITOR_VISIBLE: '1'
+        OUT: '${{ github.workspace }}/output/editor-authoring-${{ matrix.shard }}'
       run: xvfb-run -a --server-args="-screen 0 1920x1080x24" node scripts/editor-checks/run.mjs --shard ${{ matrix.shard }}/4 || [ $? -eq 2 ]
+
+    - name: Keep editor authoring captures
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: editor-authoring-${{ matrix.shard }}
+        path: output/editor-authoring-${{ matrix.shard }}/
+        if-no-files-found: warn
+        retention-days: 3
 
     - name: Check trusted transform-handle hover and unchanged scene
       if: matrix.shard == 1
@@ -1131,6 +1141,9 @@ jobs:
     - uses: ./.github/actions/setup
 
     - uses: ./.github/actions/render-host
+
+    - name: Install headless Chromium
+      run: pnpm exec playwright install --with-deps chromium
 
     # The adapter Dawn picks for itself, which here is Metal. `swiftshader` is the
     # bundled software one, kept as an explicit opt-in for a machine with no GPU.

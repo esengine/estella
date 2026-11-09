@@ -28,6 +28,38 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat: bake material-aware static geometry proxies':
+    { note: 'Static geometry can be baked into material-preserving proxies.' },
+  'fix: preserve painted features during mesh simplification':
+    { note: 'Simplifying a mesh preserves painted features.' },
+  'fix: drain streamed worlds before teardown and replacement':
+    { note: 'A streamed world finishes retiring before it is replaced.' },
+  'fix: preserve shadow participation when batching meshes':
+    { note: 'Batched and instanced meshes keep their visibility and shadows.' },
+  'fix: fit shadow maps to placed and deformed geometry':
+    { note: 'Batched and instanced meshes keep their visibility and shadows.' },
+  'fix: preserve and tightly cull native mesh placements':
+    { note: 'Batched and instanced meshes keep their visibility and shadows.' },
+  'fix: synchronize rendering with scaled game time':
+    { note: "Rendering follows the game's clock." },
+  'fix: key WebGPU bind groups by their full layout':
+    { note: 'WebGPU keeps incompatible binding layouts separate.' },
+  'fix: preserve tiled lights in planar reflections':
+    { note: "Planar reflections keep the scene's tiled lights." },
+  'perf: reuse depth prepass for planar reflections':
+    { note: 'Shadow storage and planar reflections avoid unused work.' },
+  'fix: skip unused DragonBones runtime in render host':
+    { internal: 'Only the verification render host stops loading an unused runtime; shipped games and the editor are unchanged.' },
+  'fix: prepare paused scenes without advancing simulation':
+    { note: 'A paused scene can prepare its presentation without advancing gameplay.' },
+  'perf: size shadow atlas storage to occupied tiles':
+    { note: 'Shadow storage and planar reflections avoid unused work.' },
+  'perf(ecs): reuse named child lookups for animation tracks':
+    { note: 'Animation tracks reuse named-child lookups.' },
+  'fix(import): normalize skin weights across gltf attribute sets':
+    { note: 'Imported skin weights include every glTF attribute set.' },
+  'feat(cyber-rooftop): rebuild the anchored native HUD from editable assets':
+    { note: 'The cyber-rooftop example has an editable, anchored HUD.' },
   'fix(textures): a pending reply overtaken by its settle notice no longer leaves the texture counted as editor work':
     {"note":"The editor stops reporting texture work that has finished."},
   'refactor(sdk): node visibility and particle model units ship in esengine/imported-scene, installed only where the content uses them':
