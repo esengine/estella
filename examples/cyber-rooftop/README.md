@@ -4,8 +4,6 @@
 
 这是可运行的场景重建版本，**尚未达到参考图的一比一视觉精度**：建筑表面密度、角色手部、工具造型、城市广告布局和电影级光照仍与参考图有差距。验收截图必须使用 `output/cyber-rooftop/actual.png`，不能把 `references/target.png` 当作实机证据。
 
-[旗舰资产参考](references/flagship-v1/README.md) 提供主角、建筑、设施、工具、列车和补给箱的十组三视图、提示词及逐项建模状态。参考图与待审模型不代表运行场景已经完成替换；模型整理、材质、动画和实机验收需要分别通过。
-
 ## 打开与运行
 
 在 Estella 编辑器中打开本目录的 `project.esproject`，打开 `assets/scenes/main.esscene`。本地自动验证仅使用 Blender 后台模式、CLI 和无界面 Chromium；编辑器验收留给 CI。
