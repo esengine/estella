@@ -187,6 +187,8 @@ does not exist look the same from a camera.
 
 In the edit view, terrain detail, foliage, generated worlds and voxels grow around the viewport, 2D and 3D alike; a `WorldStreamingSource` in the scene only counts while the game runs.
 
+A scene with `StreamedWorld` opens with only its `WorldPersistent` entities in the view, and the textures and meshes of its cells are not loaded. The World panel loads and unloads cells one at a time or all at once, the viewport marks the loaded ones, and the next session opens with the same cells loaded. The document always holds every entity: an unloaded cell is saved as it is, and Play and export see the whole world.
+
 ## Clearing or replacing a world
 
 Disable or remove the streaming sources, then await `streamer.clear()`. It releases
