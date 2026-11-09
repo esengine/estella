@@ -4256,4 +4256,8 @@ export const NOTED = {
     {"note": "The profiler no longer calls a long render stall vsync."},
   "fix(profiler): a long block in the render submit is work, not vsync":
     {"note": "The profiler no longer calls a long render stall vsync."},
+  "fix(profiler): a long task is put down to the scope that timed it":
+    {"note": "The profiler no longer calls a long render stall vsync."},
+  "fix(profiler): the long tasks under a pinned frame name the scope that timed them":
+    {"note": "The profiler no longer calls a long render stall vsync."},
 };
