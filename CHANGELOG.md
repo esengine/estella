@@ -36,6 +36,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Zooming in on outlined text no longer freezes the editor.** Growing a bitmap glyph into its outline cost the fourth power of its size on screen, and a label did it again for every glyph at each step of the zoom: past 1500% a single frame took more than 15 seconds, and showing a hidden label at full zoom hung the editor. The outline now costs what the glyph's size does and looks the same, a frame stays under about 70 ms through the whole zoom, and `Auto` text at 128 screen pixels or more draws from a distance field wide enough to hold its outline. `Bitmap` is still honored where it is set, at the new cost.
 - **Labels no longer come back as black boxes after a change between Plays.** Stopping left each label's geometry in the engine, by entity number. Adding, removing or dragging anything before pressing Play again moved those numbers, so the old labels drew on other entities from an atlas already released.
 - **Particles and plain sprites in a Canvas paint by their place in its tree.** An emitter listed after a panel went under it, and one listed before a plain `Sprite` went over it. Both now follow the hierarchy like the controls round them, and the `layer` they were authored with is no longer overwritten. A `Sprite` with no `UINode` under a Canvas may change place as a result; a non-zero `layer` keeps the old order.
 

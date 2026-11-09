@@ -28,6 +28,34 @@ describe('TextRenderMode', () => {
     });
 });
 
+describe('text too large on screen for a bitmap glyph', () => {
+    const flat = (contentScale: number) => ({ contentScale, perspective: false });
+    const unscaled = { worldScale: { x: 1, y: 1, z: 1 } } as never;
+
+    it('leaves the bitmap pipeline once it would rasterize past the limit', async () => {
+        const { glyphKind } = await import('../src/ui/text/plugin');
+        const label = { renderMode: TextRenderMode.Auto, fontSize: 10 };
+        expect(glyphKind(label, unscaled, 'Arial', flat(1))).toBe('bitmap');
+        expect(glyphKind(label, unscaled, 'Arial', flat(12.7))).toBe('bitmap');
+        expect(glyphKind(label, unscaled, 'Arial', flat(12.8))).toBe('large');
+        expect(glyphKind(label, unscaled, 'Arial', flat(58))).toBe('large');
+        expect(glyphKind(label, unscaled, 'Arial', flat(6.4), 2)).toBe('large');
+        expect(glyphKind(label, unscaled, 'Arial', flat(1))).toBe('bitmap');
+    });
+
+    it('does not override a mode the author chose, or a view it does not apply to', async () => {
+        const { glyphKind, drawsLarge } = await import('../src/ui/text/plugin');
+        expect(glyphKind({ renderMode: TextRenderMode.Bitmap, fontSize: 10 }, unscaled, 'Arial', flat(58))).toBe('bitmap');
+        expect(glyphKind({ renderMode: TextRenderMode.Sdf, fontSize: 10 }, unscaled, 'Arial', flat(58))).toBe('sdf');
+        expect(drawsLarge({ renderMode: TextRenderMode.Auto, fontSize: 200 }, 'Arial', { contentScale: 1, perspective: true }, 1)).toBe(false);
+    });
+
+    it('holds a ring as wide as a fifth of the em in its distance field', async () => {
+        const { LARGE_GLYPH_ATLAS } = await import('../src/ui/text/plugin');
+        expect(LARGE_GLYPH_ATLAS.padding).toBeGreaterThanOrEqual(0.2 * LARGE_GLYPH_ATLAS.renderSize);
+    });
+});
+
 describe('resolveTextRenderMode', () => {
     it('forced modes win regardless of scale', () => {
         expect(resolveTextRenderMode(TextRenderMode.Bitmap, 3)).toBe('bitmap');

@@ -118,6 +118,8 @@ interface GlyphIdentity {
     pixelSize: number;
 }
 
+const DILATE_LEVELS = [1, 32, 64, 96, 128, 160, 192, 224, 255];
+
 /**
  * Grow a coverage glyph by @p radius texels: every texel takes the strongest
  * coverage within the radius, faded over its last texel so the ring's edge is
@@ -138,29 +140,62 @@ export function dilateCoverage(alpha: Uint8Array, width: number, height: number,
     const w = width + margin * 2;
     const h = height + margin * 2;
     const out = new Uint8Array(w * h);
-    // The disk's offsets and their weights, once: a texel at distance d inside
-    // r - 0.5 counts whole, one past r + 0.5 not at all.
-    const reach = Math.ceil(r + 0.5);
-    const taps: number[] = [];
-    for (let dy = -reach; dy <= reach; dy++) {
-        for (let dx = -reach; dx <= reach; dx++) {
-            const weight = Math.min(1, Math.max(0, r + 0.5 - Math.hypot(dx, dy)));
-            if (weight > 0) taps.push(dx, dy, weight);
-        }
-    }
-    for (let y = 0; y < h; y++) {
-        const sy = y - margin;
+    const size = w * h;
+    const nearestRow = new Int32Array(size);
+    const inkX = new Int32Array(w);
+    const inkY = new Int32Array(w);
+    const hull = new Int32Array(w);
+    const hullStart = new Float64Array(w + 1);
+    const none = 2 * (w + h);
+    for (const level of DILATE_LEVELS) {
         for (let x = 0; x < w; x++) {
-            const sx = x - margin;
-            let best = 0;
-            for (let t = 0; t < taps.length; t += 3) {
-                const ix = sx + taps[t];
-                const iy = sy + taps[t + 1];
-                if (ix < 0 || iy < 0 || ix >= width || iy >= height) continue;
-                const v = alpha[iy * width + ix] * taps[t + 2];
-                if (v > best) best = v;
+            let row = -none;
+            for (let y = 0; y < h; y++) {
+                const sx = x - margin, sy = y - margin;
+                if (sx >= 0 && sy >= 0 && sx < width && sy < height && alpha[sy * width + sx] >= level) row = y;
+                nearestRow[y * w + x] = row;
             }
-            out[y * w + x] = best + 0.5;
+            row = none + h;
+            for (let y = h - 1; y >= 0; y--) {
+                const sx = x - margin, sy = y - margin;
+                if (sx >= 0 && sy >= 0 && sx < width && sy < height && alpha[sy * width + sx] >= level) row = y;
+                const above = nearestRow[y * w + x];
+                if (row - y < y - above) nearestRow[y * w + x] = row;
+            }
+        }
+        for (let y = 0; y < h; y++) {
+            const line = y * w;
+            let top = -1;
+            for (let x = 0; x < w; x++) {
+                const row = nearestRow[line + x];
+                const dy = y - row;
+                if (Math.abs(dy) >= none) continue;
+                const f = x * x + dy * dy;
+                let start = 0;
+                while (top >= 0) {
+                    const q = hull[top];
+                    const qy = y - nearestRow[line + q];
+                    start = (f - (q * q + qy * qy)) / (2 * (x - q));
+                    if (start > hullStart[top]) break;
+                    top--;
+                }
+                top++;
+                hull[top] = x;
+                hullStart[top] = top === 0 ? -Infinity : start;
+            }
+            if (top < 0) continue;
+            let at = 0;
+            for (let x = 0; x < w; x++) {
+                while (at < top && hullStart[at + 1] <= x) at++;
+                inkX[x] = hull[at];
+                inkY[x] = nearestRow[line + hull[at]];
+            }
+            for (let x = 0; x < w; x++) {
+                const weight = Math.min(1, Math.max(0, r + 0.5 - Math.hypot(x - inkX[x], y - inkY[x])));
+                if (weight <= 0) continue;
+                const v = alpha[(inkY[x] - margin) * width + inkX[x] - margin] * weight + 0.5;
+                if (v > out[line + x]) out[line + x] = v;
+            }
         }
     }
     return { alpha: out, width: w, height: h, margin };

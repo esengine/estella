@@ -44,6 +44,9 @@ Every glyph is rasterized once into a shared atlas and drawn as textured quads.
   configuration. Under a perspective camera world text is always SDF: a world
   unit covers a different number of pixels at every depth, so there is no size a
   bitmap glyph could be drawn at to land 1:1.
+  Text at 128 screen pixels or more (far zoomed in, say) is also SDF, from a field
+  wide enough for an outline of about a quarter of the font size, and returns to
+  bitmap when it shrinks again.
 
 So a pulsing "LEVEL UP!" banner needs nothing special — `Auto` switches it to
 SDF while it scales:

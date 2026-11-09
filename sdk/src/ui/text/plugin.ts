@@ -44,6 +44,8 @@ const GLYPH_BASE_SIZE = 64;
 
 // Auto tolerance: a bitmap glyph still reads as pixel-exact within ±2% of 1:1.
 const BITMAP_SCALE_EPSILON = 0.02;
+const LARGE_GLYPH_PX = 128;
+export const LARGE_GLYPH_ATLAS = { sdf: true, renderSize: 64, padding: 16 };
 
 /**
  * Pure: which glyph pipeline a Text draws with. `effectiveScale` is the
@@ -96,9 +98,18 @@ export function domainViewOf(viewProjection: ArrayLike<number> | undefined, vpW:
     return { contentScale: glyphContentScale(viewProjection?.[0] ?? 0, vpW, dpr), perspective: false };
 }
 
-export function glyphKind(t: Pick<TextData, 'renderMode'>, tr: Pick<TransformData, 'worldScale'>, family: string, view: DomainView): 'bitmap' | 'sdf' {
+export type GlyphKind = 'bitmap' | 'sdf' | 'large';
+
+export function drawsLarge(t: Pick<TextData, 'renderMode' | 'fontSize'>, family: string, view: DomainView, dpr: number): boolean {
+    if (t.renderMode === TextRenderMode.Bitmap || t.renderMode === TextRenderMode.Sdf) return false;
+    if (view.perspective || bitmapFontOf(family)) return false;
+    return t.fontSize * dpr * view.contentScale >= LARGE_GLYPH_PX;
+}
+
+export function glyphKind(t: Pick<TextData, 'renderMode' | 'fontSize'>, tr: Pick<TransformData, 'worldScale'>, family: string, view: DomainView, dpr = 1): GlyphKind {
     if (bitmapFontOf(family)) return 'bitmap';
-    return resolveTextRenderMode(t.renderMode, tr.worldScale.x, view.perspective);
+    const kind = resolveTextRenderMode(t.renderMode, tr.worldScale.x, view.perspective);
+    return kind === 'bitmap' && drawsLarge(t, family, view, dpr) ? 'large' : kind;
 }
 
 export function glyphContentScale(projScaleX: number, vpW: number, dpr: number): number {
@@ -145,6 +156,7 @@ interface RetainedLabel {
     screen: boolean;
     gen: number;
     renderer: SdfTextRenderer;
+    kind: GlyphKind;
 }
 
 export function snapshotOf(t: TextData, family: string): TextSnapshot {
@@ -187,6 +199,7 @@ interface PreloadRun {
 interface TextDomainState {
     bitmap: SdfTextRenderer | null;
     sdf: SdfTextRenderer | null;
+    large: SdfTextRenderer | null;
 }
 
 export class TextPlugin implements Plugin {
@@ -208,8 +221,8 @@ export class TextPlugin implements Plugin {
         let state = this.states_.get(app);
         if (!state) {
             state = {
-                world: { bitmap: null, sdf: null },
-                screen: { bitmap: null, sdf: null },
+                world: { bitmap: null, sdf: null, large: null },
+                screen: { bitmap: null, sdf: null, large: null },
                 matrix: new Float32Array(16), matrixHeap: null,
                 retained: new Map(),
                 preloads: [],
@@ -232,7 +245,7 @@ export class TextPlugin implements Plugin {
         for (const entity of state.retained.keys()) {
             try { api?.renderer_retainedTextClear?.(entity); } catch (error) { errors.push(error); }
         }
-        for (const renderer of [state.world.bitmap, state.world.sdf, state.screen.bitmap, state.screen.sdf]) {
+        for (const renderer of [state.world.bitmap, state.world.sdf, state.world.large, state.screen.bitmap, state.screen.sdf, state.screen.large]) {
             try { renderer?.dispose(); } catch (error) { errors.push(error); }
         }
         if (errors.length) throw new Error(`Failed to release text resources: ${errors.map(String).join('; ')}`);
@@ -247,7 +260,7 @@ export class TextPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
             const state = this.states_.get(app);
             if (!state) return;
-            for (const renderer of [state.world.bitmap, state.world.sdf, state.screen.bitmap, state.screen.sdf]) {
+            for (const renderer of [state.world.bitmap, state.world.sdf, state.world.large, state.screen.bitmap, state.screen.sdf, state.screen.large]) {
                 renderer?.beginFrame();
             }
         }, { name: 'TextPageLifetimeSystem', runWhenPaused: true }));
@@ -348,7 +361,8 @@ export class TextPlugin implements Plugin {
         const world = app.world;
         const registry = world.getCppRegistry() as CppRegistry;
         const dpr = platformDevicePixelRatio();
-        const contentScale = this.domainView(app, screen, dpr).contentScale;
+        const view = this.domainView(app, screen, dpr);
+        const contentScale = view.contentScale;
         const state = screen ? appState.screen : appState.world;
         const retained = appState.retained;
         // The atlas rasterizes for the projection that draws it: bring each existing renderer up to this pass's before asking whether its
@@ -373,7 +387,8 @@ export class TextPlugin implements Plugin {
             seen.add(entity as number);
             // Which glyph pipeline an automatic label gets follows its world scale, which the engine watches (renderer_retainedTextStale): the
             // transform is not read here every frame for every label to find out.
-            if (label && label.gen === label.renderer.atlas.generation && sameSnapshot(label.snap, t, family)) {
+            if (label && label.gen === label.renderer.atlas.generation && sameSnapshot(label.snap, t, family)
+                && (label.kind === 'sdf' || (label.kind === 'large') === drawsLarge(t, family, view, dpr))) {
                 label.renderer.markDrawn(entity as number);
                 continue;
             }
@@ -437,7 +452,7 @@ export class TextPlugin implements Plugin {
         const state = screen ? appState.screen : appState.world;
         const tr = world.get(entity, Transform) as TransformData;
         const family = resolveTextFamily(t.font, t.fontFamily);
-        const kind = glyphKind(t, tr, family, view);
+        const kind = glyphKind(t, tr, family, view, dpr);
         const renderer = this.rendererFor(app, state, kind, view.contentScale, dpr);
         const previous = appState.retained.get(entity as number);
         if (previous && previous.renderer !== renderer) previous.renderer.forget(entity as number);
@@ -503,7 +518,7 @@ export class TextPlugin implements Plugin {
             entity as number, screen, hasBox && frame.ui, t.layer | 0, frame.ui ? w : 0, frame.ui ? h : 0,
             t.renderMode !== TextRenderMode.Bitmap && t.renderMode !== TextRenderMode.Sdf && !bitmapFontOf(family),
         );
-        appState.retained.set(entity as number, { snap: snapshotOf(t, family), screen, gen: renderer.atlas.generation, renderer });
+        appState.retained.set(entity as number, { snap: snapshotOf(t, family), screen, gen: renderer.atlas.generation, renderer, kind });
         // A box that grows to its text: the rectangle the entity occupies takes the height the lines laid out to. The sprite and text follow the
         // rectangle on the next frame, where the box is the same height and nothing changes again.
         if (t.overflow === TextOverflow.ResizeHeight && blockHeight > 0) {
@@ -546,7 +561,7 @@ export class TextPlugin implements Plugin {
             const tr = world.get(entity, Transform) as TransformData;
             const renderer = this.rendererFor(
                 app, state,
-                glyphKind(t, tr, resolveTextFamily(t.font, t.fontFamily), view),
+                glyphKind(t, tr, resolveTextFamily(t.font, t.fontFamily), view, dpr),
                 view.contentScale,
                 dpr,
             );
@@ -639,6 +654,7 @@ export class TextPlugin implements Plugin {
         // would have each pass evict the other's glyphs every frame.
         state.bitmap?.retainOnly(seen);
         state.sdf?.retainOnly(seen);
+        state.large?.retainOnly(seen);
     }
 
     /**
@@ -687,7 +703,7 @@ export class TextPlugin implements Plugin {
         const dpr = platformDevicePixelRatio();
         const view = this.domainView(app, screen, dpr);
         const appState = this.stateFor(app);
-        const renderer = this.rendererFor(app, screen ? appState.screen : appState.world, glyphKind(t, tr, family, view), view.contentScale, dpr);
+        const renderer = this.rendererFor(app, screen ? appState.screen : appState.world, glyphKind(t, tr, family, view, dpr), view.contentScale, dpr);
         run.renderer = renderer;
         const style = (t.bold ? UI_TEXT_BOLD : 0) | (t.italic ? UI_TEXT_ITALIC : 0);
         run.job.step((codepoint) => renderer.preloadGlyph(run, codepoint, family, style, t.fontSize), platformNow);
@@ -714,7 +730,7 @@ export class TextPlugin implements Plugin {
     private rendererFor(
         app: App,
         state: TextDomainState,
-        kind: 'bitmap' | 'sdf',
+        kind: GlyphKind,
         contentScale: number,
         dpr: number,
     ): SdfTextRenderer {
@@ -722,6 +738,10 @@ export class TextPlugin implements Plugin {
         if (kind === 'sdf') {
             if (!state.sdf) state.sdf = new SdfTextRenderer(module, { sdf: true });
             return state.sdf;
+        }
+        if (kind === 'large') {
+            if (!state.large) state.large = new SdfTextRenderer(module, LARGE_GLYPH_ATLAS);
+            return state.large;
         }
         if (!state.bitmap) {
             state.bitmap = new SdfTextRenderer(module, {

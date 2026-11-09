@@ -4246,4 +4246,6 @@ export const NOTED = {
     {"note": "A texture stays on a scene that rescans as it is placed."},
   "feat(rig): the 2D rig editor, from an image to a character in the scene":
     {"note": "A 2D character can be rigged in the editor, with no other program."},
+  "fix(text): a glyph's outline costs what its size does, and text too large for a bitmap glyph draws from a distance field":
+    {"note": "Zooming in on outlined text no longer freezes the editor."},
 };
