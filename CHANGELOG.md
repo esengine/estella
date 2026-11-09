@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.100.0] - 2026-11-08
+
 ### Added
 
 - **Static geometry can be baked into material-preserving proxies.** The pipeline can merge and simplify a static cluster by material and draw state, bounded by a world-space error limit. Moving, deformed and transparent surfaces are refused, and important painted or emissive geometry can be preserved.
@@ -15254,7 +15256,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.99.1...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.100.0...HEAD
+[0.100.0]: https://github.com/esengine/estella/compare/v0.99.1...v0.100.0
 [0.99.1]: https://github.com/esengine/estella/compare/v0.99.0...v0.99.1
 [0.99.0]: https://github.com/esengine/estella/compare/v0.98.0...v0.99.0
 [0.98.0]: https://github.com/esengine/estella/compare/v0.97.0...v0.98.0
