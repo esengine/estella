@@ -4248,4 +4248,6 @@ export const NOTED = {
     {"note": "A 2D character can be rigged in the editor, with no other program."},
   "fix(text): a glyph's outline costs what its size does, and text too large for a bitmap glyph draws from a distance field":
     {"note": "Zooming in on outlined text no longer freezes the editor."},
+  "fix(editor): what grows round the view follows the viewport in 2D and 3D, and a terrain stroke keeps only the tiles it touched":
+    {"note": "While editing, foliage and generated worlds follow the viewport."},
 };
