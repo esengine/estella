@@ -4254,4 +4254,6 @@ export const NOTED = {
     {"note": "While editing, foliage and generated worlds follow the viewport."},
   "fix(profiler): a long block in the render submit is work, not vsync, and text has a scope of its own":
     {"note": "The profiler no longer calls a long render stall vsync."},
+  "fix(profiler): a long block in the render submit is work, not vsync":
+    {"note": "The profiler no longer calls a long render stall vsync."},
 };
