@@ -94,6 +94,11 @@ private:
     // tiles that overlap (a tall tile over its neighbour, an isometric map) are drawn in that order: strips drawn row by row, slot by slot,
     // reproduce it, and a square block of chunks would not.
     static constexpr i32 STRIP_CHUNKS = 32;
+    // A strip makes a frame with no change free and a frame with one dear: one tile dug is the whole row uploaded again, over a megabyte
+    // when the row is full. So a strip whose chunks change is cut into pieces this many chunks wide, of which a change uploads one, until
+    // no change has reached it for this many collects. The pieces cost a few more draws, and are drawn in the order the strip's tiles were.
+    static constexpr i32 STRIP_PIECE_CHUNKS = 4;
+    static constexpr u64 STRIP_PIECES_COLLECTS = 1800;
     /// What the strips of every layer may hold before the ones not drawn lately are given back.
     static constexpr u64 STRIP_BYTES_BUDGET = 96ull * 1024 * 1024;
     struct StripKey {
@@ -128,6 +133,8 @@ private:
         u64 deviceGeneration = 0;      // the device its buffers belong to
         u64 lastUsed = 0;              // the collect that last drew it
         bool built = false;
+        std::vector<Strip> pieces;     // while its chunks keep changing: these are drawn, left to right, and it holds no buffers of its own
+        u64 piecesUntil = 0;           // the collect it goes back to being one strip
     };
 
     struct LayerCache {

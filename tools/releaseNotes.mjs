@@ -4208,4 +4208,6 @@ export const NOTED = {
     {"note": "A generated building stands on its ground, and generated roads keep foliage off them."},
   "feat: expose ground fitting and vegetation budgets to editor agents":
     {"note": "A generated building stands on its ground, and generated roads keep foliage off them."},
+  "perf(tilemap): a row of tiles being edited uploads a piece of itself":
+    {"note": "A row of tiles being edited uploads a piece of itself."},
 };

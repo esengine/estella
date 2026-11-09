@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **A row of tiles being edited uploads a piece of itself.** One changed tile re-uploaded its whole row of chunks, over a megabyte when the row is full. A row that changes is now held in pieces of four chunks, so an edit uploads about an eighth of that, for up to seven more draws in that row until it has rested. A static map is drawn as before.
+
 ## [0.100.0] - 2026-11-08
 
 ### Added

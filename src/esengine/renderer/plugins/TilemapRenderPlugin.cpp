@@ -146,6 +146,8 @@ void TilemapRenderPlugin::releaseStrip(GfxDevice& device, Strip& strip) {
         if (slot.ibo != BufferHandle::Invalid) device.deleteBuffer(slot.ibo);
         slot = StripSlot{};
     }
+    for (Strip& piece : strip.pieces) releaseStrip(device, piece);
+    strip.pieces.clear();
     strip.built = false;
 }
 
@@ -401,22 +403,20 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
 
             visible_strips_scratch_.clear();
             for (i32 cy = minCY; cy < maxCY; ++cy) {
-                for (i32 sx = firstStrip; sx <= lastStrip; ++sx) {
-                    Strip& strip = layerCache.strips[StripKey{sx, cy}];
-                    strip.lastUsed = collect_serial_;
-                    // The chunks the strip is made of, brought up to date: the newest build among them and how many there are say whether the
-                    // strip still describes them.
-                    u64 stamp = 0;
-                    u32 chunkCount = 0;
-                    const i32 cxBegin = sx * STRIP_CHUNKS;
-                    for (i32 cx = cxBegin; cx < cxBegin + STRIP_CHUNKS; ++cx) {
+                // The chunks a strip is made of, brought up to date: the newest build among them and how many there are say whether the
+                // strip still describes them.
+                const auto measure = [&](i32 cxBegin, i32 width, u64& stamp, u32& chunkCount) {
+                    stamp = 0;
+                    chunkCount = 0;
+                    for (i32 cx = cxBegin; cx < cxBegin + width; ++cx) {
                         const tilemap::ChunkCoord coord{cx, cy};
                         const auto chunkIt = layer.chunks.find(coord);
                         if (chunkIt == layer.chunks.end()) continue;
                         stamp = std::max(stamp, ensureChunk(layer, chunkIt->second, coord, slots, resolved, entity, chunkCaches).mesh_serial);
                         ++chunkCount;
                     }
-                    if (chunkCount == 0 && !strip.built) continue;
+                };
+                const auto refresh = [&](Strip& strip, i32 cxBegin, i32 width, u64 stamp, u32 chunkCount) {
                     const bool current = strip.built && strip.stamp == stamp && strip.chunkCount == chunkCount
                         && strip.placement == place && strip.deviceGeneration == generation && strip.slots.size() == slots.size();
                     if (!current) {
@@ -427,7 +427,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                             strip_vertices_scratch_.clear();
                             strip_indices_scratch_.clear();
                             // Chunks in ascending x: the order the merged draw laid a row of them out in.
-                            for (i32 cx = cxBegin; cx < cxBegin + STRIP_CHUNKS; ++cx) {
+                            for (i32 cx = cxBegin; cx < cxBegin + width; ++cx) {
                                 const auto chunkIt = chunkCaches.find(tilemap::ChunkCoord{cx, cy});
                                 if (chunkIt == chunkCaches.end() || si >= chunkIt->second.slots.size()) continue;
                                 if (layer.chunks.find(tilemap::ChunkCoord{cx, cy}) == layer.chunks.end()) continue;
@@ -470,6 +470,35 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                         strip.built = true;
                     }
                     visible_strips_scratch_.push_back(&strip);
+                };
+                for (i32 sx = firstStrip; sx <= lastStrip; ++sx) {
+                    Strip& strip = layerCache.strips[StripKey{sx, cy}];
+                    strip.lastUsed = collect_serial_;
+                    const i32 cxBegin = sx * STRIP_CHUNKS;
+                    u64 stamp = 0;
+                    u32 chunkCount = 0;
+                    measure(cxBegin, STRIP_CHUNKS, stamp, chunkCount);
+                    const bool held = strip.built || !strip.pieces.empty();
+                    if (chunkCount == 0 && !held) continue;
+                    if (held && (strip.stamp != stamp || strip.chunkCount != chunkCount)) strip.piecesUntil = collect_serial_ + STRIP_PIECES_COLLECTS;
+                    if (strip.piecesUntil > collect_serial_) {
+                        if (strip.built) releaseStrip(device, strip);
+                        if (strip.pieces.empty()) strip.pieces.resize(STRIP_CHUNKS / STRIP_PIECE_CHUNKS);
+                        strip.stamp = stamp;
+                        strip.chunkCount = chunkCount;
+                        for (usize i = 0; i < strip.pieces.size(); ++i) {
+                            Strip& piece = strip.pieces[i];
+                            const i32 pieceBegin = cxBegin + static_cast<i32>(i) * STRIP_PIECE_CHUNKS;
+                            u64 pieceStamp = 0;
+                            u32 pieceChunks = 0;
+                            measure(pieceBegin, STRIP_PIECE_CHUNKS, pieceStamp, pieceChunks);
+                            if (pieceChunks == 0 && !piece.built) continue;
+                            refresh(piece, pieceBegin, STRIP_PIECE_CHUNKS, pieceStamp, pieceChunks);
+                        }
+                        continue;
+                    }
+                    if (!strip.pieces.empty()) releaseStrip(device, strip);
+                    refresh(strip, cxBegin, STRIP_CHUNKS, stamp, chunkCount);
                 }
             }
 

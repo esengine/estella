@@ -363,6 +363,85 @@ TEST_CASE("tilemaps: rows of chunks are drawn from the top row down, each a draw
     resources.shutdown();
 }
 
+TEST_CASE("tilemaps: a row being dug uploads the piece that changed, keeps its draw order, and is one strip again once it rests") {
+    Harness h;
+    RenderContext context(h.device);
+    resource::ResourceManager resources;
+    resources.init(h.device);
+    const u8 pixels[16 * 16 * 4] = {};
+    const auto texture = resources.createTexture(resource::ResourceContent::Retained, 16, 16, pixels, TextureFormat::RGBA8);
+    ecs::Registry registry;
+    const auto entity = registry.create();
+    auto& transform = registry.emplace<ecs::Transform>(entity);
+    auto& component = registry.emplace<ecs::TilemapLayer>(entity);
+    component.tileset = texture; component.tilesetColumns = 1; component.cellSize = {16, 16};
+    tilemap::TilemapSystem system;
+    constexpr u32 ROW_TILES = 32 * 16 * 16;
+    system.initLayer(entity, 32 * 16, 16, 16, 16);
+    system.fillRect(entity, 0, 0, 32 * 16, 16, 1);
+    Frustum frustum;
+    RenderFrameContext frameContext{context, resources};
+    RenderCollectContext collect{registry, frustum, h.clips, h.pool, h.list, frameContext, {}};
+    TilemapRenderPlugin plugin; plugin.setTilemapSystem(&system); plugin.init(frameContext);
+    const auto projection = glm::ortho(0.0f, 8300.0f, -300.0f, 0.0f);
+    frustum.extractFromMatrix(projection); collect.camera = computeCameraView(projection);
+    transform.worldPosition = {0, 0, 0}; transform.worldRotation = glm::quat{1, 0, 0, 0};
+    transform.cachedMatrix_ = glm::mat4{1}; transform.decomposed_ = true;
+    const auto frame = [&] { h.pool.beginFrame(); h.list.clear(); h.device.createdBuffers.clear(); plugin.collect(collect); };
+    const auto indices = [&] {
+        u32 total = 0;
+        for (u32 i = 0; i < h.list.commandCount(); ++i) total += h.list.command(i).index_count;
+        return total;
+    };
+    const auto vertexBytes = [&] {
+        usize total = 0;
+        for (const auto& made : h.device.createdBuffers) if (made.desc.usage == GfxBufferUsage::Vertex) total += made.bytes.size();
+        return total;
+    };
+
+    frame();
+    REQUIRE(h.list.commandCount() == 1);
+    const usize wholeRow = vertexBytes();
+    CHECK(indices() == ROW_TILES * 6);
+
+    // The first tile dug cuts the row, so that one uploads all of it, and every piece is drawn left to right.
+    system.setTile(entity, 5 * 16 + 3, 3, 0);
+    frame();
+    REQUIRE(h.list.commandCount() == 8);
+    CHECK(indices() == (ROW_TILES - 1) * 6);
+    std::vector<f32> firstX;
+    for (u32 i = 0; i < 8; ++i) {
+        const u32 id = static_cast<u32>(h.list.command(i).vertex_buffer);
+        const MockGfxDevice::CreatedBuffer* found = nullptr;
+        for (const auto& made : h.device.createdBuffers) if (made.id == id) found = &made;
+        REQUIRE(found != nullptr);
+        firstX.push_back(reinterpret_cast<const BatchVertex*>(found->bytes.data())[0].position.x);
+    }
+    CHECK(std::is_sorted(firstX.begin(), firstX.end()));
+
+    // Every tile after it uploads one piece: an eighth of the row, a vertex and an index buffer.
+    system.setTile(entity, 5 * 16 + 4, 3, 0);
+    frame();
+    CHECK(h.device.createdBuffers.size() == 2);
+    CHECK(vertexBytes() < wholeRow / 8);
+    CHECK(vertexBytes() > wholeRow / 16);
+    CHECK(indices() == (ROW_TILES - 2) * 6);
+
+    // A frame with no change uploads nothing, pieces or not.
+    frame();
+    CHECK(h.device.createdBuffers.empty());
+    CHECK(h.list.commandCount() == 8);
+
+    // At rest the row goes back to one draw, once, and holds still.
+    bool rejoined = false;
+    for (int i = 0; i < 4000 && !rejoined; ++i) { frame(); rejoined = h.list.commandCount() == 1; }
+    REQUIRE(rejoined);
+    CHECK(indices() == (ROW_TILES - 2) * 6);
+    frame();
+    CHECK(h.device.createdBuffers.empty());
+    resources.shutdown();
+}
+
 TEST_CASE("appendQuad: Batch command with baseVertex-offset indices and one texture slot") {
     Harness h;
     BatchVertex quad[4] = {
