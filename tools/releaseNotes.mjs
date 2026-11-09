@@ -4230,6 +4230,8 @@ export const NOTED = {
     {"note": "GPU particles can hit things, tell each other, and drag trails."},
   "fix(ui): particles and plain sprites in a Canvas paint by their place in its tree":
     {"note": "Particles and plain sprites in a Canvas paint by their place in its tree."},
+  "fix(text): stopping lets go of the labels the engine holds, so the next Play cannot draw them on other entities":
+    {"note": "Labels no longer come back as black boxes after a change between Plays."},
   "fix(assets): one hot load at a time per asset, so two rescans cannot lose a texture":
     {"note": "A texture stays on a scene that rescans as it is placed."},
   "feat(rig): the 2D rig editor, from an image to a character in the scene":

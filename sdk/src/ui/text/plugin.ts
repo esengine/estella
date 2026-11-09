@@ -226,6 +226,12 @@ export class TextPlugin implements Plugin {
         this.states_.delete(app);
         for (const run of state.preloads) run.job.finish();
         const errors: unknown[] = [];
+        // The engine keeps these by entity number and may outlive this app: a replay in the same realm numbers its entities afresh,
+        // and a label left behind would draw on whichever one has its number now, from an atlas released below.
+        const api = engineApi(app);
+        for (const entity of state.retained.keys()) {
+            try { api?.renderer_retainedTextClear?.(entity); } catch (error) { errors.push(error); }
+        }
         for (const renderer of [state.world.bitmap, state.world.sdf, state.screen.bitmap, state.screen.sdf]) {
             try { renderer?.dispose(); } catch (error) { errors.push(error); }
         }
