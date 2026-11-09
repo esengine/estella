@@ -33,6 +33,7 @@ node examples/cyber-rooftop/tools/preview.mjs
 
 - `tools/model.py`：确定性的模型构造源，米制、Y 向上。包含几何、UV、材质与逻辑分组；按材质合并以控制绘制批次。
 - `assets/models/rooftop.glb`：可在常见 DCC 中继续编辑的模型交换文件；同目录的 `.esprefab`、`.esmesh`、`.esmaterial` 是 Estella 导入产物。
+- `assets/models/characters/heroine-v01/UC_CH_Heroine_Wasteland_v01_Rigged.glb`：女主首版源资产，40,080 个三角面、4K PBR、66 根 Mixamo 骨骼及待机、行走、跑步三段原地动画。[四视图与资产记录](references/heroine-v01/asset-manifest.json)保存在 `references/heroine-v01/`。当前仅入库，尚未转换为 Estella 运行资源或接入主场景；模型高度归一化约为 1，接入时需核对实际身高、变形和镜头效果。
 - `tools/scene.mjs`：摄像机、灯光、后处理、粒子与建造对象池；通过 `tools/hud-scene.mjs` 构建原生 HUD。
 - `tools/hud-scene.mjs`：按四角及底部居中锚定面板，保留可编辑的原生文字、状态值和快捷栏交互。`src/hud-layout.json` 供场景构建和运行时共用布局参数。
 - `tools/textures.py`：可重建的基础表面图、招牌、HUD 象形图标与备用物品图标；需要 Python Pillow 和 Windows 微软雅黑字体。末尾调用 `tools/hud.py` 重建边框、勾选状态、按键帽和选中描边。

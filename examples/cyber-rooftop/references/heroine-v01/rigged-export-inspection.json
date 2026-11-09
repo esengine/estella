@@ -1,0 +1,141 @@
+{
+  "file": "UC_CH_Heroine_Wasteland_v01_Rigged.glb",
+  "bytes": 24726372,
+  "sha256": "c60bf3d60f6f702603c76cb256cef8a1492211273fede54686fe327d11338cc6",
+  "primitives": [
+    {
+      "mesh": "tripo_mesh_0a52afa9-f20a-42e7-a344-9be855a1b277",
+      "mode": 4,
+      "vertices": 46772,
+      "triangles": 40080,
+      "attributes": [
+        "POSITION",
+        "NORMAL",
+        "TEXCOORD_0",
+        "JOINTS_0",
+        "WEIGHTS_0"
+      ],
+      "bounds": [
+        [
+          -0.2551270127296448,
+          0,
+          -0.10571293532848358
+        ],
+        [
+          0.2551268935203552,
+          0.99951171875,
+          0.1057128757238388
+        ]
+      ],
+      "weightSumRange": [
+        0.9999998582643457,
+        1.0000001303851604
+      ],
+      "nonfiniteWeights": 0,
+      "maxJointIndex": 65
+    }
+  ],
+  "totalTriangles": 40080,
+  "materials": [
+    {
+      "doubleSided": true,
+      "name": "tripo_mat_0a52afa9-f20a-42e7-a344-9be855a1b277",
+      "normalTexture": {
+        "index": 0
+      },
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 1
+        },
+        "metallicRoughnessTexture": {
+          "index": 2
+        }
+      }
+    }
+  ],
+  "images": [
+    {
+      "index": 0,
+      "mimeType": "image/jpeg",
+      "size": [
+        4096,
+        4096
+      ],
+      "bytes": 1937674
+    },
+    {
+      "index": 1,
+      "mimeType": "image/jpeg",
+      "size": [
+        4096,
+        4096
+      ],
+      "bytes": 3904345
+    },
+    {
+      "index": 2,
+      "mimeType": "image/png",
+      "size": [
+        4096,
+        4096
+      ],
+      "bytes": 15706372
+    }
+  ],
+  "skins": [
+    {
+      "name": "Armature",
+      "joints": 66,
+      "inverseBindMatricesCount": 66
+    }
+  ],
+  "animations": [
+    {
+      "name": "run.001",
+      "durationSeconds": 1.2916666269302368,
+      "channels": 195,
+      "rootTranslations": [
+        {
+          "node": "mixamorig:Hips",
+          "range": [
+            3.725290298461914e-09,
+            0.03929400444030762,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "idle.001",
+      "durationSeconds": 15.375,
+      "channels": 195,
+      "rootTranslations": [
+        {
+          "node": "mixamorig:Hips",
+          "range": [
+            8.265487849712372e-09,
+            0.01037442684173584,
+            0.0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "walk.001",
+      "durationSeconds": 2.375,
+      "channels": 195,
+      "rootTranslations": [
+        {
+          "node": "mixamorig:Hips",
+          "range": [
+            1.979060471057892e-09,
+            0.023395895957946777,
+            3.725290298461914e-08
+          ]
+        }
+      ]
+    }
+  ],
+  "extensionsUsed": [],
+  "extensionsRequired": []
+}

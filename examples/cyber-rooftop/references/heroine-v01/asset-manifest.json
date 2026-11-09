@@ -1,0 +1,93 @@
+{
+  "asset": "UC_CH_Heroine_Wasteland_v01",
+  "sourceReference": "Light ash-blonde adult heroine, silver-gray wrap top, blue scarf, dark shorts and wasteland equipment; four locked views accompany this record.",
+  "locationPolicy": "Model source in assets/models/characters/heroine-v01; reference files excluded from runtime by project assetExclude.",
+  "referenceViews": [
+    {
+      "slot": "front",
+      "file": "front.png",
+      "sha256": "160E2FF0A6C22AC1D00DC901BF3616A2B7279A5EA64A1CF5A852F6DFF17EA6C1"
+    },
+    {
+      "slot": "left",
+      "file": "left.png",
+      "noseDirection": "image left",
+      "sha256": "B0049630BCFD65D3F410E948B6196FA94D195BFB68C94EE213795C3C2614277F"
+    },
+    {
+      "slot": "right",
+      "file": "right.png",
+      "noseDirection": "image right",
+      "sha256": "D431FC087A1E22F18AB48F4A40910435C91BE4EC72054E2DADD807D6FA128896"
+    },
+    {
+      "slot": "back",
+      "file": "back.png",
+      "sha256": "F54340084E148BDC222FA73FD351BFC2C7A6CD4A4AB7A4D6157D778A6256A182"
+    }
+  ],
+  "geometry": {
+    "provider": "Tripo",
+    "model": "P2.0",
+    "mode": "Smart Mesh",
+    "topology": "Quad",
+    "targetFaces": 20000,
+    "quantity": 1,
+    "visibility": "private",
+    "taskId": "fd37cce8-5019-4b5d-8f8b-b042cd93f6e1",
+    "status": "generated; visually inspected in Tripo",
+    "displayedFaces": 23276,
+    "displayedVertices": 23057
+  },
+  "texturing": {
+    "status": "4K texture and PBR generated",
+    "resolution": "4K",
+    "deLighting": true,
+    "input": "four reference images carried from geometry",
+    "textPromptSubmitted": false
+  },
+  "rigging": {
+    "status": "completed in Tripo; export inspected",
+    "provider": "Tripo",
+    "type": "humanoid",
+    "preset": "Mixamo",
+    "joints": 66,
+    "validNormalizedWeights": true
+  },
+  "projectImport": {
+    "status": "GLB source copied into project and model meta registered; no native conversion or scene integration performed"
+  },
+  "riggedExport": {
+    "file": "../../assets/models/characters/heroine-v01/UC_CH_Heroine_Wasteland_v01_Rigged.glb",
+    "triangles": 40080,
+    "bytes": 24726372,
+    "sha256": "c60bf3d60f6f702603c76cb256cef8a1492211273fede54686fe327d11338cc6",
+    "animations": [
+      "run.001",
+      "idle.001",
+      "walk.001"
+    ],
+    "inPlace": true,
+    "normalizedHeight": 0.99951171875,
+    "inspection": "rigged-export-inspection.json"
+  },
+  "review": {
+    "status": "first character candidate",
+    "visualChecks": [
+      "gray front/three-quarter/back",
+      "PBR front/back",
+      "sampled walk/run/idle poses in Tripo"
+    ],
+    "finalPreview": "tripo-heroine-final.jpg",
+    "inEngineValidation": "Pending; source asset stored only",
+    "remaining": [
+      "Estella scale and camera validation",
+      "full deformation and clothing collision review",
+      "engine performance acceptance",
+      "internal mesh and material identifiers retain Tripo export names"
+    ]
+  },
+  "generationCostCredits": 145,
+  "tripoUrl": "https://studio.tripo3d.ai/zh/workspace/animate/fd37cce8-5019-4b5d-8f8b-b042cd93f6e1",
+  "modelMetaUuid": "62dad536-bc19-48aa-b471-d107e6cda699"
+}
