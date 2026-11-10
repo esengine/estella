@@ -23,6 +23,8 @@ export {
     getAllEffectDefs,
     PostProcessPlugin,
     postProcessPlugin,
+    defineSkyEffect,
+    type SkyEffectSource,
     registerWeatherPreset,
     weatherPresetId,
     weatherPresetNames,

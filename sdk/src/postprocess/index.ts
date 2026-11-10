@@ -33,6 +33,7 @@ export {
     type PostProcessVolumeConfig,
 } from './volumeSystem';
 export { PostProcessPlugin, postProcessPlugin } from './PostProcessPlugin';
+export { defineSkyEffect, type SkyEffectSource } from './customSky';
 export {
     registerWeatherPreset,
     weatherPresetId,

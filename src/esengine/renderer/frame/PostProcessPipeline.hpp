@@ -598,8 +598,24 @@ public:
      *         land HERE — rebinding the default target mid-capture breaks the stack. */
     FramebufferHandle currentSceneFBO() const;
 
+    /**
+     * @brief Draws pass @p passName once more, next frame, into a @p width x @p height RGBA8 target with its float param
+     *        `u_skyCapture` at 1, and reads it back: a sky effect's panorama (see the SDK's defineSkyEffect).
+     * @details The pass is drawn from a copy with a parameter buffer of its own — the same buffer written twice in one
+     *          frame is one write on WebGPU. A request while one is in flight replaces it.
+     */
+    void requestSkyCapture(const std::string& passName, u32 width, u32 height);
+    /** @brief 0 = not yet, 1 = the pixels are ready (skyCapturePixels), 2 = none was asked for or it failed. Issues the
+     *         readback itself once the capture has been drawn, so call it between frames, never inside one. */
+    i32 pollSkyCapture();
+    /** @brief The captured pixels, RGBA8, rows bottom-up as every readback lands. Valid after poll answered 1. */
+    const std::vector<u8>& skyCapturePixels() const { return sky_capture_.pixels; }
+
 private:
     PostProcessPass* findPass(const std::string& name);
+    /// The capture's node: the copy of @p pass drawn into the capture target. Declared in the chain so it runs with the
+    /// frame's light and time bound, as the pass itself does.
+    void declareSkyCapture(const PostProcessPass& pass, rg::ResourceId input, rg::ResourceId effectInput);
     /** Intermediate/capture attachment format for the active pipeline mode. */
     GfxPixelFormat interFormat() const;
     void commitFormat();
@@ -730,6 +746,19 @@ private:
     /// The motion pass's target, kept across frames for its size, and whether this frame drew into it.
     Unique<Framebuffer> cover_fbo_;
     rg::ResourceId cover_resource_ = rg::kNoResource;
+    /// A sky's panorama, drawn on request from a copy of its pass and read back (requestSkyCapture).
+    struct SkyCapture {
+        enum class State : u8 { Idle, Requested, Drawn, Reading };
+        State state = State::Idle;
+        std::string pass;
+        u32 width = 64;
+        u32 height = 32;
+        Unique<Framebuffer> target;
+        PostProcessPass copy;
+        ReadbackHandle readback = ReadbackHandle::Invalid;
+        std::vector<u8> pixels;
+    };
+    SkyCapture sky_capture_;
     bool cover_active_ = false;
     glm::mat4 cover_matrix_{1.0f};
     Unique<Framebuffer> velocity_fbo_;

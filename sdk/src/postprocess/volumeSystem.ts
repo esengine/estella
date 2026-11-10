@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { isCustomSky } from './customSky';
+import type { BuiltinTexture } from './effects';
 import { defineSystem } from '../ecs/system';
 import type { App } from '../app/app';
 import { EditorView, editorViewEye } from '../camera/EditorView';
@@ -61,7 +63,7 @@ function applyTextures(
 }
 
 /** Uploads the pixels of a texture an effect brings itself: set by the plugin, which is the one that knows the App's module. */
-type BuiltinTextureMaker = (pixels: { width: number; height: number; pixels: Uint8Array }) => number;
+type BuiltinTextureMaker = (pixels: BuiltinTexture) => number;
 let builtinTextureMaker: BuiltinTextureMaker | null = null;
 
 export function setBuiltinTextureMaker(maker: BuiltinTextureMaker | null): void {
@@ -327,8 +329,11 @@ export function effectsAt(volumes: { data: PostProcessVolumeData; tx: VolumeTran
     return blended;
 }
 
-/** The Sky Atmosphere a view resolved this frame, where it asks to light the scene: the game's camera and the editor's eye each. */
-interface ResolvedSkies { game: BlendedEffect | null; editor: BlendedEffect | null }
+/** A sky that lights the scene: Sky Atmosphere, or one a project defined (customSky.ts), and what the volumes resolved for it. */
+export interface LightingSky { type: string; effect: BlendedEffect }
+
+/** The sky a view resolved this frame, where it asks to light the scene: the game's camera and the editor's eye each. */
+interface ResolvedSkies { game: LightingSky | null; editor: LightingSky | null }
 const resolvedSkies = new WeakMap<PostProcessAPI, ResolvedSkies>();
 
 function skiesOf(api: PostProcessAPI): ResolvedSkies {
@@ -337,16 +342,19 @@ function skiesOf(api: PostProcessAPI): ResolvedSkies {
     return s;
 }
 
-const lightingSky = (effects: ResolvedEffects): BlendedEffect | null => {
-    const sky = effects.get('skyAtmosphere');
-    return sky?.enabled && (sky.uniforms.get('u_lightScene') ?? 0) > 0.5 ? sky : null;
+const lightingSky = (effects: ResolvedEffects): LightingSky | null => {
+    for (const [type, effect] of effects) {
+        if (type !== 'skyAtmosphere' && !isCustomSky(type)) continue;
+        if (effect.enabled && (effect.uniforms.get('u_lightScene') ?? 0) > 0.5) return { type, effect };
+    }
+    return null;
 };
 
 /**
  * The Sky Atmosphere that lights the scene this frame, as resolved for the view being drawn: the editor's eye while it looks,
  * else the first active game camera's. Null when that view's sky does not ask to light the scene (or there is none).
  */
-export function resolvedLightingSky(api: PostProcessAPI, editorLooking: boolean): BlendedEffect | null {
+export function resolvedLightingSky(api: PostProcessAPI, editorLooking: boolean): LightingSky | null {
     const s = skiesOf(api);
     return editorLooking ? s.editor : s.game;
 }

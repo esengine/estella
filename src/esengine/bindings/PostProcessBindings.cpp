@@ -15,6 +15,7 @@
 #include "../ecs/TransformSystem.hpp"
 
 #include <glm/glm.hpp>
+#include <cstring>
 
 namespace esengine {
 
@@ -126,6 +127,22 @@ void postprocess_setPassScale(const std::string& passName, f32 scale) {
     if (g_postProcessPipeline) {
         g_postProcessPipeline->setPassScale(passName, scale);
     }
+}
+
+void postprocess_requestSkyCapture(const std::string& passName, u32 width, u32 height) {
+    if (g_postProcessPipeline) g_postProcessPipeline->requestSkyCapture(passName, width, height);
+}
+
+i32 postprocess_pollSkyCapture() {
+    return g_postProcessPipeline ? g_postProcessPipeline->pollSkyCapture() : 2;
+}
+
+bool postprocess_takeSkyCapture(uintptr_t dst, u32 bytes) {
+    if (!g_postProcessPipeline || dst == 0) return false;
+    const std::vector<u8>& px = g_postProcessPipeline->skyCapturePixels();
+    if (px.empty() || px.size() > bytes) return false;
+    std::memcpy(reinterpret_cast<void*>(dst), px.data(), px.size());
+    return true;
 }
 
 void postprocess_setPassContinuesEffect(const std::string& passName) {

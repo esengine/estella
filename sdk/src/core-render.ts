@@ -200,6 +200,8 @@ export {
     currentTimeOfDay,
     TimeDrive,
     type TimeOfDayState,
+    defineSkyEffect,
+    type SkyEffectSource,
 } from './postprocess';
 
 // =============================================================================

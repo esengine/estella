@@ -390,6 +390,32 @@ sub-pass 不只能读上一个 pass,还能读同一效果里更早的 pass:声�
 并让它一直保留到这个 pass 跑完。bloom 的上采样就是这样把同尺寸的下采样加回来的;`scale` 小于 1 的 sub-pass
 以链尺寸的这个比例绘制。
 
+### 自己写的天空
+
+`defineSkyEffect` 把你写的一个函数——天空在某个方向上的辐亮度——变成一个效果,PostProcessVolume 像放别的效果一样放它。
+它画在场景后面;打开 **Light the Scene** 后,引擎大约每秒读回一张它的小全景图,作为场景的环境(漫反射光和反射),
+和 Sky Atmosphere 的做法一样:风格化的天空用它看起来的光照亮世界。
+
+```typescript
+import { defineSkyEffect } from 'esengine';
+
+defineSkyEffect({
+    type: 'duskSky',
+    label: 'Dusk Sky',
+    colors: [{ name: 'u_horizon', label: 'Horizon', defaultValue: { r: 0.95, g: 0.55, b: 0.28, a: 1 } }],
+    glsl: `vec3 skyRadiance(vec3 dir, vec3 sun, vec3 sunColor, float env) {
+        return mix(u_horizon.rgb, vec3(0.05, 0.09, 0.14), smoothstep(0.0, 0.4, dir.y));
+    }`,
+    wgsl: `fn skyRadiance(dir : vec3f, sun : vec3f, sunColor : vec3f, env : f32) -> vec3f {
+        return mix(mc.u_horizon.rgb, vec3f(0.05, 0.09, 0.14), smoothstep(0.0, 0.4, dir.y));
+    }`,
+});
+```
+
+`sun` 是第一盏方向光的方向,`sunColor` 是它的颜色乘强度;画全景图时 `env` 为 1(这时别画太阳圆盘:
+方向光就是太阳的直射光)。返回线性辐亮度。参数是 uniform(WGSL 里写 `mc.`),时间是 `u_time.x`,
+`textures` 用来带上天空需要的贴图(噪声用 `wrap: 'repeat'`)。
+
 | 方法 | 说明 |
 |---|---|
 | `PostProcess.createStack()` | 创建一个空效果栈。 |

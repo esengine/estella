@@ -285,6 +285,10 @@ export const SCENES = [
   // pixel (the grid through the frame's probe atlas) its left end is red and its right blue, as a merged building
   // spanning a shed and the yard is dark under the roof and lit outside.
   { id: "probe-per-pixel", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-per-pixel.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-per-pixel.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.36,\"y\":0.5,\"rgb\":[213,0,38],\"tol\":20},{\"x\":0.625,\"y\":0.5,\"rgb\":[43,0,193],\"tol\":20}]" } },
+  // The same box, and a mesh whose ORIGIN is outside it (x -200) while its right end draws inside: an imported level's
+  // walls keep the origin the file gave them. Chosen by its origin it is in no volume and black; by its box it reads the
+  // grid where each pixel stands.
+  { id: "probe-off-origin", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-off-origin.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-off-origin.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.353,\"y\":0.508,\"rgb\":[205,0,31],\"tol\":20},{\"x\":0.432,\"y\":0.508,\"rgb\":[158,0,77],\"tol\":20}]" } },
   { id: "probe-lightmap", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-lightmap.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-lightmap.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.25,\"y\":0.5667,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.85,\"y\":0.5,\"rgb\":[0,0,255],\"tol\":30}]" } },
   // A clip driving the weight, which is what an imported `weights` channel
   // becomes. The shape has to cross the boundary as a LIST — a weight written
@@ -910,6 +914,10 @@ export const SCENES = [
   // sky with the sun up behind it. The sky lights it as an environment: the blue of the dome above it and, below, the sunlit ground's
   // bounce (Ground Albedo 0.2), which lifts it and warms it a little; off, it is the flat white 255.
   { id: "sky-lights-scene", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_COLORSPACE: "linear", ESTELLA_VERIFY_SCENE: "/scenes/sky-lights-scene.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-backface.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "6", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[142,150,150],\"tol\":12}]" } },
+  // A sky the project wrote (defineSkyEffect): blue above the horizon, red below. It is drawn behind the ball, and with Light
+  // the Scene the engine reads back a panorama of it and lights the ball with it: blue on top, red underneath. Upside
+  // down, the two swap; never captured, the ball is the Ambient light's flat white.
+  { id: "custom-sky", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SETTLE_MS: "1500", ESTELLA_VERIFY_COLORSPACE: "linear", ESTELLA_VERIFY_SCENE: "/scenes/custom-sky.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-backface.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.08,\"y\":0.08,\"rgb\":[89,124,243],\"tol\":10},{\"x\":0.08,\"y\":0.92,\"rgb\":[231,108,63],\"tol\":10},{\"x\":0.5,\"y\":0.32,\"rgb\":[127,121,226],\"tol\":20},{\"x\":0.5,\"y\":0.68,\"rgb\":[217,111,118],\"tol\":20}]" } },
   { id: "sky-fog", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/sky-fog.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/depth-outline.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\": 0.2, \"y\": 0.1, \"rgb\": [144, 175, 187], \"tol\": 12}, {\"x\": 0.5, \"y\": 0.1, \"rgb\": [141, 174, 183], \"tol\": 12}, {\"x\": 0.8, \"y\": 0.2, \"rgb\": [143, 174, 186], \"tol\": 12}, {\"x\": 0.5, \"y\": 0.4, \"rgb\": [139, 171, 180], \"tol\": 12}, {\"x\": 0.2, \"y\": 0.8, \"rgb\": [62, 70, 70], \"tol\": 12}, {\"x\": 0.8, \"y\": 0.8, \"rgb\": [57, 64, 67], \"tol\": 12}]" } },
   // SSAO: one unlit grey floor read at seven places. Contact, corner and
   // step come back darker than the open floor they are made of, the floating

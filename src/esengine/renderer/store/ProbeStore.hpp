@@ -127,6 +127,29 @@ public:
     }
 
     /**
+     * @brief The volume a whole object stands in, by its world box rather than its origin.
+     * @details An imported level's meshes keep their origin where the file put it — often the world's origin, far from
+     *          the walls they draw — so asking at the origin leaves a shed's walls in no volume at all. The box's centre
+     *          is asked first; a box whose centre is in none reads the smallest volume it overlaps, at the point of that
+     *          volume nearest its centre. Per pixel, every pixel then reads the grid where it stands anyway.
+     */
+    bool sampleBox(const glm::vec3& centre, const glm::vec3& half, ProbeConstants& out, bool perPixel = false) const {
+        if (sample(centre, out, perPixel)) return true;
+        const Volume* best = nullptr;
+        f32 bestSize = 0.0f;
+        for (const Volume& v : volumes_) {
+            const glm::vec3 vc = (v.min + v.max) * 0.5f;
+            const glm::vec3 vh = (v.max - v.min) * 0.5f;
+            const glm::vec3 gap = glm::abs(centre - vc) - (half + vh);
+            if (gap.x > 0.0f || gap.y > 0.0f || gap.z > 0.0f) continue;
+            const f32 size = vh.x * vh.y * vh.z;
+            if (!best || size < bestSize) { best = &v; bestSize = size; }
+        }
+        if (!best) return false;
+        return sample(glm::clamp(centre, best->min, best->max), out, perPixel);
+    }
+
+    /**
      * @brief Places every volume's grid in the atlas. True when the atlas's texels changed and want uploading.
      *
      * @details A grid is a block nine coefficient tiles wide (each resX x resY, one per coefficient) and resZ

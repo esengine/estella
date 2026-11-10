@@ -179,6 +179,24 @@ static void testGridRun() {
           "a draw that cannot read the atlas still gets its nine");
 }
 
+/** An object is held by the volume its box is in, not the one its origin is in: a level's mesh whose origin is the
+ *  world's centre still reads the room it draws. The centre wins when it is inside; otherwise the smallest overlap. */
+static void testSampleByBox() {
+    ProbeVolume room = ramp({1, 1, 1}, {3.0f, 0.0f, 0.0f}, {3.0f, 0.0f, 0.0f});
+    ProbeVolume hall = ramp({1, 1, 1}, {7.0f, 0.0f, 0.0f}, {7.0f, 0.0f, 0.0f});
+    ProbeStore store;
+    store.add({10.0f, 0.0f, 10.0f}, {20.0f, 5.0f, 20.0f}, &room);
+    store.add({0.0f, 0.0f, 0.0f}, {40.0f, 10.0f, 40.0f}, &hall);
+
+    ProbeConstants out{};
+    CHECK(!store.sample({-5.0f, 0.0f, -5.0f}, out), "the origin is in no volume");
+    CHECK(store.sampleBox({15.0f, 2.0f, 15.0f}, {20.0f, 3.0f, 20.0f}, out) && near(out.irradiance[0].x, 3.0f),
+          "a box whose centre is in the room reads the room");
+    CHECK(store.sampleBox({-2.0f, 2.0f, -2.0f}, {4.0f, 3.0f, 4.0f}, out) && near(out.irradiance[0].x, 7.0f),
+          "a box whose centre is outside reads the volume it overlaps");
+    CHECK(!store.sampleBox({-50.0f, 0.0f, -50.0f}, {1.0f, 1.0f, 1.0f}, out), "and one touching nothing reads nothing");
+}
+
 int main() {
     testInsideAndOutside();
     testTrilinearOnEachAxis();
@@ -186,6 +204,7 @@ int main() {
     testMalformedGridsRefused();
     testAtlasLayout();
     testGridRun();
+    testSampleByBox();
     std::printf(g_failures ? "\n%d failure(s)\n" : "\nall probe store claims hold\n",
                 g_failures);
     return g_failures ? 1 : 0;

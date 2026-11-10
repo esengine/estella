@@ -1111,8 +1111,9 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     // Per pixel where the program can read the atlas: a mesh with lightmap UVs is compiled with
                     // the bake's sampler on that unit, so it keeps the one value its position reads.
                     const ProbeStore& store = ctx.render_context.probes();
+                    // By the mesh's world box, not its origin: an imported level's origins are wherever the file put them.
                     const bool volume = key.lightmapTextureId == 0
-                        && store.sample(position, probe, !resident->hasLightmapUV);
+                        && store.sampleBox(aabbCenter, halfExtents, probe, !resident->hasLightmapUV);
                     if (volume && probe.irradiance[0].w > 1.5f) key.probeGridTextureId = store.atlasTexture();
                     const u32 slot = ctx.render_context.reflections().slotAt(position);
                     probe.reflection.x = static_cast<f32>(slot);

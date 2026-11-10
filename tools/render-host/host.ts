@@ -28,7 +28,7 @@ import {
     planarReflectionStatus,
     EditorViewLighting, EditorViewShading, EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
     ProfileRecorder, AnimatorController, Timeline, onDeviceRestored, Schedule, defineSystem,
-    textureImportSettingsFrom, shadersCompiled,
+    textureImportSettingsFrom, shadersCompiled, defineSkyEffect,
 } from 'esengine';
 import type { App, SceneData, SceneEntityData, PrefabData, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -80,6 +80,19 @@ function editorOnly(door: string): never {
         + 'Run the gate that needs it against the editor host (--host editor).',
     );
 }
+
+// The host's own sky, for the custom-sky gate: blue above the horizon and red below, so which half lit a surface reads
+// off its colour and a panorama read upside down swaps them.
+defineSkyEffect({
+    type: 'verifySky',
+    label: 'Verify Sky',
+    glsl: `vec3 skyRadiance(vec3 dir, vec3 sun, vec3 sunColor, float env) {
+    return dir.y >= 0.0 ? vec3(0.1, 0.2, 0.9) : vec3(0.8, 0.15, 0.05);
+}`,
+    wgsl: `fn skyRadiance(dir : vec3f, sun : vec3f, sunColor : vec3f, env : f32) -> vec3f {
+    return select(vec3f(0.8, 0.15, 0.05), vec3f(0.1, 0.2, 0.9), dir.y >= 0.0);
+}`,
+});
 
 async function boot(): Promise<void> {
     canvas = document.createElement('canvas');

@@ -28,6 +28,7 @@ import { TextureContent } from '../wasm';
 import type { ESEngineModule } from '../wasm';
 import { withScratch } from '../wasm/wasmScratch';
 import { log } from '../util/logger';
+import { CUSTOM_SKY_HEIGHT, CUSTOM_SKY_WIDTH, decodeSkyCapture } from './customSky';
 
 /** What the sky is made from: the effect's resolved parameters and the direction toward the sun. */
 export interface SkyEnvironmentInput {
@@ -405,6 +406,10 @@ interface BakedSky {
 
 interface SkyEnvironmentCore {
     HEAPF32: Float32Array;
+    HEAPU8: Uint8Array;
+    postprocess_requestSkyCapture?(passName: string, width: number, height: number): void;
+    postprocess_pollSkyCapture?(): number;
+    postprocess_takeSkyCapture?(dst: number, bytes: number): boolean;
     environment_create?(shPtr: number, specularHandle: number, faceSize: number, mipCount: number, maxRange: number, columns: number): number;
     environment_release?(environmentHandle: number): void;
     renderer_setSkyEnvironment?(environmentHandle: number): void;
@@ -419,6 +424,7 @@ export class SkyEnvironment {
     private key_ = '';
     private lastBake_ = -Infinity;
     private warned_ = false;
+    private capturing_ = false;
 
     constructor(private readonly minInterval = 1) {}
 
@@ -446,9 +452,47 @@ export class SkyEnvironment {
         if (key === this.key_) return;
         // A first sky is made at once; a sky that keeps changing waits its turn.
         if (this.baked_ && now - this.lastBake_ < this.minInterval) return;
-        const made = bakeSky(module, core, input);
+        const made = bakePanorama(module, core, skyPanorama(input));
         if (!made) return;
-        core.renderer_setSkyEnvironment(made.environment);
+        this.adopt(core, made, key, now);
+    }
+
+    /**
+     * A sky a project wrote (customSky.ts), lighting the scene from what the GPU drew of it: a panorama of the effect `type`
+     * is asked for, read back over the frames that follow, and made into the environment, once a `minInterval`.
+     */
+    updateCaptured(module: ESEngineModule | null, type: string, now: number): void {
+        const core = module as unknown as SkyEnvironmentCore | null;
+        if (!core?.postprocess_requestSkyCapture || !core.postprocess_pollSkyCapture || !core.postprocess_takeSkyCapture
+            || !core.environment_create || !core.renderer_setSkyEnvironment) {
+            if (!this.warned_) {
+                this.warned_ = true;
+                log.warn('postprocess', 'A custom sky cannot light the scene: this engine build cannot capture it');
+            }
+            return;
+        }
+        if (this.capturing_) {
+            const status = core.postprocess_pollSkyCapture();
+            if (status === 0) return;
+            this.capturing_ = false;
+            if (status !== 1) return;
+            const bytes = CUSTOM_SKY_WIDTH * CUSTOM_SKY_HEIGHT * 4;
+            const pixels = withScratch(core as never, (alloc: (n: number) => number) => {
+                const ptr = alloc(bytes);
+                return core.postprocess_takeSkyCapture!(ptr, bytes) ? core.HEAPU8.slice(ptr, ptr + bytes) : null;
+            });
+            if (!pixels) return;
+            const made = bakePanorama(module, core, decodeSkyCapture(pixels, CUSTOM_SKY_WIDTH, CUSTOM_SKY_HEIGHT));
+            if (made) this.adopt(core, made, `custom:${type}`, now);
+            return;
+        }
+        if (this.baked_ && this.key_ === `custom:${type}` && now - this.lastBake_ < this.minInterval) return;
+        core.postprocess_requestSkyCapture(type, CUSTOM_SKY_WIDTH, CUSTOM_SKY_HEIGHT);
+        this.capturing_ = true;
+    }
+
+    private adopt(core: SkyEnvironmentCore, made: BakedSky, key: string, now: number): void {
+        core.renderer_setSkyEnvironment!(made.environment);
         this.drop(core);
         this.baked_ = made;
         this.key_ = key;
@@ -472,8 +516,8 @@ export class SkyEnvironment {
     }
 }
 
-function bakeSky(module: ESEngineModule | null, core: SkyEnvironmentCore, input: SkyEnvironmentInput): BakedSky | null {
-    const panorama = skyPanorama(input);
+/** A panorama of radiance made into an environment: its nine irradiance coefficients and its prefiltered reflection. */
+function bakePanorama(module: ESEngineModule | null, core: SkyEnvironmentCore, panorama: Panorama): BakedSky | null {
     const irradiance = projectIrradianceSH(panorama);
     const atlas = prefilterOctahedral(panorama, SKY_FACE_SIZE, SKY_MIP_COUNT, SKY_MAX_RANGE);
     // flipY false: the atlas' rows are a layout (row 0 is mip 0), as the environment loader takes it.

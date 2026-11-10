@@ -509,6 +509,34 @@ and the chain binds the output of the pass called `<name>`, keeping it alive unt
 has run. That is how bloom's upsample adds back the downsample of its own size; a sub-pass
 with `scale` below 1 draws at that fraction of the chain.
 
+### A sky of your own
+
+`defineSkyEffect` turns one function you write — the sky's radiance along a direction — into an effect a
+PostProcessVolume carries like any other. It is drawn behind the scene, and with **Light the Scene** on, the engine
+reads back a small panorama of it about once a second and makes it the scene's environment, its diffuse light and
+its reflections, as Sky Atmosphere's is: a stylised sky lights the world with the light it shows.
+
+```typescript
+import { defineSkyEffect } from 'esengine';
+
+defineSkyEffect({
+    type: 'duskSky',
+    label: 'Dusk Sky',
+    colors: [{ name: 'u_horizon', label: 'Horizon', defaultValue: { r: 0.95, g: 0.55, b: 0.28, a: 1 } }],
+    glsl: `vec3 skyRadiance(vec3 dir, vec3 sun, vec3 sunColor, float env) {
+        return mix(u_horizon.rgb, vec3(0.05, 0.09, 0.14), smoothstep(0.0, 0.4, dir.y));
+    }`,
+    wgsl: `fn skyRadiance(dir : vec3f, sun : vec3f, sunColor : vec3f, env : f32) -> vec3f {
+        return mix(mc.u_horizon.rgb, vec3f(0.05, 0.09, 0.14), smoothstep(0.0, 0.4, dir.y));
+    }`,
+});
+```
+
+`sun` is the first directional light's direction, `sunColor` its colour times intensity, and `env` is 1 while the
+panorama is drawn (leave a sun disc out then: the directional light is the sun's direct light). Return linear
+radiance. Params are uniforms (`mc.` in WGSL), the time is `u_time.x`, and `textures` brings tables the sky needs
+(`wrap: 'repeat'` for noise).
+
 | Method | Description |
 |---|---|
 | `PostProcess.createStack()` | Create an empty effect stack. |

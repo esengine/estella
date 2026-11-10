@@ -119,6 +119,8 @@ export interface NativeEngineApi {
     postprocess_init?(width: number, height: number): boolean;
     postprocess_isInitialized?(): boolean;
     postprocess_maxMsaaSamples?(): number;
+    postprocess_pollSkyCapture?(): number;
+    postprocess_requestSkyCapture?(passName: string, width: number, height: number): void;
     postprocess_resize?(width: number, height: number): void;
     postprocess_setBypass?(bypass: boolean): void;
     postprocess_setDisplayLut?(textureHandle: number, amount: number): void;
@@ -136,6 +138,7 @@ export interface NativeEngineApi {
     postprocess_setViewExposure?(ev: number): void;
     postprocess_shutdown?(): void;
     postprocess_supportsCompute?(): boolean;
+    postprocess_takeSkyCapture?(dst: number, bytes: number): boolean;
     probe_volume_create?(resX: number, resY: number, resZ: number, shPtr: number): number;
     probe_volume_release?(volumeHandle: number): void;
     probe_volume_setSkyVisibility?(volumeHandle: number, visibilityPtr: number): void;
@@ -464,6 +467,8 @@ export function createNativeEngineApi(
     bind('postprocess_init', 'es_postprocess_init', false);
     bind('postprocess_isInitialized', 'es_postprocess_isInitialized', false);
     bind('postprocess_maxMsaaSamples', 'es_postprocess_maxMsaaSamples', false);
+    bind('postprocess_pollSkyCapture', 'es_postprocess_pollSkyCapture', false);
+    bind('postprocess_requestSkyCapture', 'es_postprocess_requestSkyCapture', false);
     bind('postprocess_resize', 'es_postprocess_resize', false);
     bind('postprocess_setBypass', 'es_postprocess_setBypass', false);
     bind('postprocess_setDisplayLut', 'es_postprocess_setDisplayLut', false);
@@ -481,6 +486,7 @@ export function createNativeEngineApi(
     bind('postprocess_setViewExposure', 'es_postprocess_setViewExposure', false);
     bind('postprocess_shutdown', 'es_postprocess_shutdown', false);
     bind('postprocess_supportsCompute', 'es_postprocess_supportsCompute', false);
+    bind('postprocess_takeSkyCapture', 'es_postprocess_takeSkyCapture', false);
     bind('probe_volume_create', 'es_probe_volume_create', false);
     bind('probe_volume_release', 'es_probe_volume_release', false);
     bind('probe_volume_setSkyVisibility', 'es_probe_volume_setSkyVisibility', false);

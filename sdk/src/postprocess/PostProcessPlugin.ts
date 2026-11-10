@@ -40,8 +40,11 @@ function skyEnvironmentSystem(app: App, sky: SkyEnvironment) {
         (lights: Iterable<[Entity, LightData, TransformData]>) => {
             if (!app.hasResource(PostProcess)) return;
             const view = app.hasResource(EditorView) ? app.getResource(EditorView) : null;
-            const effect = resolvedLightingSky(app.getResource(PostProcess), !!view?.active);
-            if (!effect) { sky.update(app.wasmModule, null, 0); return; }
+            const lighting = resolvedLightingSky(app.getResource(PostProcess), !!view?.active);
+            if (!lighting) { sky.update(app.wasmModule, null, 0); return; }
+            // A sky a project wrote is read back from the GPU, where it is drawn; Sky Atmosphere is worked out here.
+            if (lighting.type !== 'skyAtmosphere') { sky.updateCaptured(app.wasmModule, lighting.type, performance.now() / 1000); return; }
+            const effect = lighting.effect;
             const params = skyParamsOf(effect);
             sky.update(app.wasmModule, { sun: skySunOf(params, sunFromLights(lights)), params, linear: linearColorSpace() },
                        performance.now() / 1000);
@@ -71,7 +74,7 @@ export class PostProcessPlugin implements Plugin {
             app.hasResource(Assets) ? (app.getResource(Assets).getTexture(ref)?.handle ?? 0) : 0);
         // Textures an effect brings itself (AgX's table): uploaded as data, linear, clamped, with this App's module.
         setBuiltinTextureMaker((pixels) => createTextureFromPixels(app.wasmModule, pixels, TextureContent.Retained, false,
-            { srgb: false, filterMode: 'linear', wrapMode: 'clamp' }));
+            { srgb: false, filterMode: 'linear', wrapMode: pixels.wrap === 'repeat' ? 'repeat' : 'clamp' }));
         // The weather first: the volumes read what it has decided.
         app.addSystemToSchedule(Schedule.PostUpdate, weatherSystem);
         app.addSystemToSchedule(Schedule.PostUpdate, postProcessVolumeSystem);

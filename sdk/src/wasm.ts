@@ -558,6 +558,9 @@ export interface ESEngineModule {
     postprocess_addNativePass?(name: string, kind: string): number;
     postprocess_setPassScale(name: string, scale: number): void;
     postprocess_setPassContinuesEffect(name: string): void;
+    postprocess_requestSkyCapture?(passName: string, width: number, height: number): void;
+    postprocess_pollSkyCapture?(): number;
+    postprocess_takeSkyCapture?(dst: number, bytes: number): boolean;
     postprocess_setMsaaSamples(samples: number): void;
     postprocess_effectiveMsaaSamples?(): number;
     postprocess_maxMsaaSamples?(): number;

@@ -67,6 +67,14 @@ export interface EffectTextureDef {
     internal?: boolean;
 }
 
+/** Pixels an effect brings itself, RGBA8. Clamped at the edges unless `wrap` says it tiles (a noise table read far past 0..1). */
+export interface BuiltinTexture {
+    width: number;
+    height: number;
+    pixels: Uint8Array;
+    wrap?: 'clamp' | 'repeat';
+}
+
 /** A colour parameter (fog colour): the vec4 uniform it feeds and its default. */
 export interface EffectColorDef {
     name: string;
@@ -131,7 +139,7 @@ export interface EffectDef {
      * Textures the effect brings itself, by sampler uniform: made once per App from the pixels a source group installed and bound unless
      * the volume names one. For data an effect is meaningless without (AgX's table), not for a choice an author makes.
      */
-    builtinTextures?: Record<string, () => { width: number; height: number; pixels: Uint8Array }>;
+    builtinTextures?: Record<string, () => BuiltinTexture>;
     /** Colour params, carried on the volume as `colors`. */
     colors?: EffectColorDef[];
     multiPass?: EffectSubPass[];

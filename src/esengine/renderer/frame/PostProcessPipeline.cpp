@@ -207,6 +207,9 @@ void PostProcessPipeline::shutdown() {
 
     for (auto& pass : passes_) releasePassResources(pass);
     for (auto& pass : screenPasses_) releasePassResources(pass);
+    releasePassResources(sky_capture_.copy);
+    sky_capture_.target.reset();
+    sky_capture_.state = SkyCapture::State::Idle;
     for (auto& [source, program] : compute_cache_) device_.deleteCompute(program);
     compute_cache_.clear();
     voxel_gis_.clear();
@@ -627,6 +630,75 @@ PostProcessPipeline::TemporalState* PostProcessPipeline::prepareHistory(Temporal
     state.format = format;
     state.valid = false;
     return &state;
+}
+
+void PostProcessPipeline::requestSkyCapture(const std::string& passName, u32 width, u32 height) {
+    sky_capture_.pass = passName;
+    sky_capture_.width = std::clamp(width, 4u, 512u);
+    sky_capture_.height = std::clamp(height, 2u, 256u);
+    sky_capture_.state = SkyCapture::State::Requested;
+    sky_capture_.readback = ReadbackHandle::Invalid;
+}
+
+i32 PostProcessPipeline::pollSkyCapture() {
+    SkyCapture& c = sky_capture_;
+    switch (c.state) {
+        case SkyCapture::State::Idle: return 2;
+        case SkyCapture::State::Requested: return 0;
+        case SkyCapture::State::Drawn:
+            c.readback = c.target ? device_.requestReadback(c.target->handle(), c.width, c.height) : ReadbackHandle::Invalid;
+            if (c.readback == ReadbackHandle::Invalid) { c.state = SkyCapture::State::Idle; return 2; }
+            c.state = SkyCapture::State::Reading;
+            [[fallthrough]];
+        case SkyCapture::State::Reading: {
+            const GfxReadbackStatus status = device_.pollReadback(c.readback);
+            if (status == GfxReadbackStatus::Pending) return 0;
+            c.state = SkyCapture::State::Idle;
+            if (status != GfxReadbackStatus::Ready) return 2;
+            c.pixels.resize(static_cast<usize>(c.width) * c.height * 4);
+            return device_.takeReadback(c.readback, c.pixels.data(), c.pixels.size()) ? 1 : 2;
+        }
+    }
+    return 2;
+}
+
+void PostProcessPipeline::declareSkyCapture(const PostProcessPass& pass, rg::ResourceId input, rg::ResourceId effectInput) {
+    SkyCapture& c = sky_capture_;
+    if (!c.target || c.target->getSpecification().width != c.width || c.target->getSpecification().height != c.height) {
+        FramebufferSpec spec;
+        spec.colorFormat = GfxPixelFormat::RGBA8;
+        spec.width = c.width;
+        spec.height = c.height;
+        spec.depthStencil = false;
+        spec.linearFilter = true;
+        c.target = Framebuffer::create(device_, spec);
+        if (!c.target) {
+            ES_LOG_ERROR("PostProcessPipeline: could not make the sky capture target");
+            c.state = SkyCapture::State::Idle;
+            return;
+        }
+    }
+    // The pass's shader and settings, its own parameter buffer kept.
+    const BufferHandle ubo = c.copy.paramUbo;
+    c.copy = pass;
+    c.copy.paramUbo = ubo;
+    c.copy.name = pass.name + "_skyCapture";
+    c.copy.temporal = false;
+    c.copy.feedback = false;
+    c.copy.earlierInputs.clear();
+    c.copy.floatUniforms["u_skyCapture"] = 1.0f;
+    c.copy.paramDirty = true;
+
+    rg::PassDesc node;
+    node.name = c.copy.name;
+    node.reads = {input, effectInput};
+    node.keep = true;
+    node.write = graph_->importTarget(c.target->handle(), c.width, c.height, /*output=*/false, c.target->getColorAttachment());
+    node.execute = [this](const rg::PassContext& ctx) {
+        renderPass(sky_capture_.copy, ctx);
+        sky_capture_.state = SkyCapture::State::Drawn;
+    };
+    graph_->addPass(std::move(node));
 }
 
 void PostProcessPipeline::releasePassResources(PostProcessPass& pass) {
@@ -1284,6 +1356,9 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
             effectOutputs.emplace_back(pass.name, input);
             graph_->addPass(std::move(node));
             continue;
+        }
+        if (sky_capture_.state == SkyCapture::State::Requested && pass.name == sky_capture_.pass && &passes == &passes_) {
+            declareSkyCapture(pass, input, effectInput);
         }
         // A temporal pass writes the history target itself, so that what it wrote is
         // still there next frame, and the passes after it read it from there.

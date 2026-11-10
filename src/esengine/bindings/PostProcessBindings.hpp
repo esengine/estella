@@ -53,6 +53,12 @@ std::string postprocess_hdrFormatNames();
 void postprocess_setPassScale(const std::string& passName, f32 scale);
 /** A later pass of a multi-pass effect: it composites over that effect's input. */
 void postprocess_setPassContinuesEffect(const std::string& passName);
+/** Draw @p passName once more next frame into a width x height RGBA8 panorama, its `u_skyCapture` param at 1. */
+void postprocess_requestSkyCapture(const std::string& passName, u32 width, u32 height);
+/** 0 = not yet, 1 = ready to take, 2 = nothing asked for or it failed. Call between frames. */
+i32 postprocess_pollSkyCapture();
+/** Copies the ready capture (RGBA8, rows bottom-up) to @p dst; false when it does not fit @p bytes or is not ready. */
+bool postprocess_takeSkyCapture(uintptr_t dst, u32 bytes);
 void postprocess_setUniformFloat(const std::string& passName,
                                   const std::string& uniform, f32 value);
 void postprocess_setPassTexture(const std::string& passName,
