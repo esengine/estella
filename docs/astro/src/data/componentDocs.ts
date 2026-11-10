@@ -180,7 +180,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   FirstPersonViewModel: { category: 'physics', summary: 'On the player\'s camera: draws what is held with a second camera over the world\'s, with its own field of view and near plane, so it does not go through walls.', doc: 'gameplay/physics-3d', anchor: 'a-view-model', anchorZh: '视图模型' },
   Bone2D: { category: 'animation', summary: 'A bone of a 2D rig: an entity whose Transform is its joint, reaching a length along its own +x.', doc: 'animation/rig-2d' },
   IK2D: { category: 'animation', summary: 'Bends the last bones of a limb after the animation has played, so the end of this bone reaches a target.', doc: 'animation/rig-2d' },
-  BoneConstraint2D: { category: 'animation', summary: 'Limits a bone's rotation, or makes it copy another entity's rotation or position, or look at it.', doc: 'animation/rig-2d' },
+  BoneConstraint2D: { category: 'animation', summary: "Limits a bone's rotation, or makes it copy another entity's rotation or position, or look at it.", doc: 'animation/rig-2d' },
   PathFollower: { category: 'graphics', summary: 'Moves its entity along the Spline of another at a steady speed, once, round or back and forth, turning to face along it if asked.', doc: null },
   TerrainBand2D: { category: 'graphics', summary: 'A 2D ground drawn along the Spline of the same entity: a filled body, a lip along the surface with an optional image, and an optional chain collider.', doc: null },
   SwingTwistJoint3D: { category: 'physics', summary: 'A ball joint with independent twist limits, an elliptical swing cone and optional angular velocity motors.', doc: 'gameplay/physics-3d', anchor: 'joints', anchorZh: '关节' },
