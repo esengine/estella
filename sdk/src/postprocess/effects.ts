@@ -190,13 +190,21 @@ registerEffect({
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 5, step: 0.1, defaultValue: 1.5 },
         { name: 'u_radius', label: 'Radius', min: 0.5, max: 5, step: 0.1, defaultValue: 1 },
     ],
+    // A pyramid, not a blur at full size: the over-range light at half size, five steps down to 1/64, five back up, each
+    // adding the step of its own size back. The glow reaches far and falls off softly, near light stays tight, and almost
+    // all of the work is done on small targets (about a third of the five full-size blurs it replaces).
     multiPass: [
-        { name: 'bloom_extract', factory: () => postProcessEffects.createBloomExtract() },
-        { name: 'bloom_kawase_0', factory: () => postProcessEffects.createBloomKawase(0) },
-        { name: 'bloom_kawase_1', factory: () => postProcessEffects.createBloomKawase(1) },
-        { name: 'bloom_kawase_2', factory: () => postProcessEffects.createBloomKawase(2) },
-        { name: 'bloom_kawase_3', factory: () => postProcessEffects.createBloomKawase(3) },
-        { name: 'bloom_kawase_4', factory: () => postProcessEffects.createBloomKawase(4) },
+        { name: 'bloom_prefilter', factory: () => postProcessEffects.createBloomPrefilter(), scale: 0.5 },
+        { name: 'bloom_down_1', factory: () => postProcessEffects.createBloomDown(1), scale: 0.25 },
+        { name: 'bloom_down_2', factory: () => postProcessEffects.createBloomDown(2), scale: 0.125 },
+        { name: 'bloom_down_3', factory: () => postProcessEffects.createBloomDown(3), scale: 0.0625 },
+        { name: 'bloom_down_4', factory: () => postProcessEffects.createBloomDown(4), scale: 0.03125 },
+        { name: 'bloom_down_5', factory: () => postProcessEffects.createBloomDown(5), scale: 0.015625 },
+        { name: 'bloom_up_4', factory: () => postProcessEffects.createBloomUp(4, 'bloom_down_4'), scale: 0.03125 },
+        { name: 'bloom_up_3', factory: () => postProcessEffects.createBloomUp(3, 'bloom_down_3'), scale: 0.0625 },
+        { name: 'bloom_up_2', factory: () => postProcessEffects.createBloomUp(2, 'bloom_down_2'), scale: 0.125 },
+        { name: 'bloom_up_1', factory: () => postProcessEffects.createBloomUp(1, 'bloom_down_1'), scale: 0.25 },
+        { name: 'bloom_up_0', factory: () => postProcessEffects.createBloomUp(0, 'bloom_prefilter'), scale: 0.5 },
         { name: 'bloom_composite', factory: () => postProcessEffects.createBloomComposite() },
     ],
 });

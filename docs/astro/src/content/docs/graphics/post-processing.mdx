@@ -417,6 +417,10 @@ clamping at the 8-bit store:
 - **`bloom` with `threshold` above 1** blooms only over-range energy — bright
   lights glow while ordinary LDR art stays crisp. This is the classic "emissive
   glow" setup: crank a light's `intensity`, set `threshold` ≈ 1.2–1.5.
+  The glow is built on a pyramid of half-size to 1/64-size images, as Unreal's and
+  Call of Duty's are: it falls off round and soft with a long faint tail, and `radius`
+  widens all of it. Keep a bright sky under `threshold`, or every dark edge against it
+  takes the sky's glow.
 - **`tonemap`** receives true HDR input, so the ACES curve rolls off highlights
   instead of shaping already-clamped values.
 - Without a tonemap pass, over-range values simply clip at the final
@@ -498,6 +502,12 @@ A **multi-pass** effect like `bloom` exposes `def.multiPass`; add each sub-pass
 (`for (const p of grade.multiPass!) stack.addPass(p.name, p.factory())`). For
 anything beyond a fixed pipeline, a `PostProcessVolume` is simpler — it resolves
 multi-pass and texture params for you.
+
+A sub-pass can read an EARLIER pass of its own effect, not only the one before it: declare
+a texture param named `u_pass_<name>` (`#pragma param u_pass_bloom_down_2 texture default(black)`)
+and the chain binds the output of the pass called `<name>`, keeping it alive until this pass
+has run. That is how bloom's upsample adds back the downsample of its own size; a sub-pass
+with `scale` below 1 draws at that fraction of the chain.
 
 | Method | Description |
 |---|---|

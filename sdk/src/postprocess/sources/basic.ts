@@ -39,6 +39,138 @@ function agxStrip(): { width: number; height: number; pixels: Uint8Array } {
     return { width, height: n, pixels };
 }
 
+/**
+ * A downsample of bloom's pyramid, in both languages. Thirteen taps around the destination texel, in source texels: the
+ * centre box (j k l m) and four corner boxes sharing the centre. Weighted 0.5 / 0.125 x 4 as a filter; the prefilter also
+ * weights each box by 1 / (1 + its luma) and renormalises, then keeps only what clears the soft threshold.
+ */
+function bloomDownSource(name: string, prefilter: boolean): string {
+    const glslBox = (v: string) => prefilter ? `(1.0 / (1.0 + dot(${v}, vec3(0.2126, 0.7152, 0.0722))))` : '1.0';
+    const wgslBox = (v: string) => prefilter ? `(1.0 / (1.0 + dot(${v}, vec3f(0.2126, 0.7152, 0.0722))))` : '1.0';
+    const glslThreshold = prefilter ? `
+    float brightness = max(c.r, max(c.g, c.b));
+    float knee = max(u_threshold * 0.5, 1e-4);
+    float soft = clamp(brightness - u_threshold + knee, 0.0, 2.0 * knee);
+    soft = soft * soft / (4.0 * knee);
+    c *= max(soft, brightness - u_threshold) / max(brightness, 1e-5);` : '';
+    const wgslThreshold = prefilter ? `
+    let brightness = max(c.r, max(c.g, c.b));
+    let knee = max(mc.u_threshold * 0.5, 1e-4);
+    var soft = clamp(brightness - mc.u_threshold + knee, 0.0, 2.0 * knee);
+    soft = soft * soft / (4.0 * knee);
+    c *= max(soft, brightness - mc.u_threshold) / max(brightness, 1e-5);` : '';
+    return `#pragma shader "${name}"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma highprecision
+${prefilter ? '#pragma param u_threshold float default(0.4) range(0,2)\n' : ''}
+#pragma fragment
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+out vec4 fragColor;
+
+vec3 tap(vec2 uv) { return min(texture(u_texture, uv).rgb, vec3(65000.0)); }
+
+void main() {
+    vec2 ts = 1.0 / vec2(textureSize(u_texture, 0));
+    vec2 uv = v_texCoord;
+    vec3 a = tap(uv + ts * vec2(-2.0, 2.0)), b = tap(uv + ts * vec2(0.0, 2.0)), cc = tap(uv + ts * vec2(2.0, 2.0));
+    vec3 d = tap(uv + ts * vec2(-2.0, 0.0)), e = tap(uv), f = tap(uv + ts * vec2(2.0, 0.0));
+    vec3 g = tap(uv + ts * vec2(-2.0, -2.0)), h = tap(uv + ts * vec2(0.0, -2.0)), i = tap(uv + ts * vec2(2.0, -2.0));
+    vec3 j = tap(uv + ts * vec2(-1.0, 1.0)), k = tap(uv + ts * vec2(1.0, 1.0));
+    vec3 l = tap(uv + ts * vec2(-1.0, -1.0)), m = tap(uv + ts * vec2(1.0, -1.0));
+    vec3 inner = (j + k + l + m) * 0.25;
+    vec3 tl = (a + b + d + e) * 0.25, tr = (b + cc + e + f) * 0.25;
+    vec3 bl = (d + e + g + h) * 0.25, br = (e + f + h + i) * 0.25;
+    float wi = 0.5 * ${glslBox('inner')};
+    float w0 = 0.125 * ${glslBox('tl')}, w1 = 0.125 * ${glslBox('tr')};
+    float w2 = 0.125 * ${glslBox('bl')}, w3 = 0.125 * ${glslBox('br')};
+    vec3 c = (inner * wi + tl * w0 + tr * w1 + bl * w2 + br * w3) / (wi + w0 + w1 + w2 + w3);${glslThreshold}
+    fragColor = vec4(c, 1.0);
+}
+#pragma end
+
+#pragma fragment wgsl
+fn tap(uv : vec2f) -> vec3f { return min(textureSampleLevel(t0, s0, uv, 0.0).rgb, vec3f(65000.0)); }
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let ts = 1.0 / vec2f(textureDimensions(t0, 0));
+    let uv = v.v_texCoord;
+    let a = tap(uv + ts * vec2f(-2.0, 2.0)); let b = tap(uv + ts * vec2f(0.0, 2.0)); let cc = tap(uv + ts * vec2f(2.0, 2.0));
+    let d = tap(uv + ts * vec2f(-2.0, 0.0)); let e = tap(uv); let f = tap(uv + ts * vec2f(2.0, 0.0));
+    let g = tap(uv + ts * vec2f(-2.0, -2.0)); let h = tap(uv + ts * vec2f(0.0, -2.0)); let i = tap(uv + ts * vec2f(2.0, -2.0));
+    let j = tap(uv + ts * vec2f(-1.0, 1.0)); let k = tap(uv + ts * vec2f(1.0, 1.0));
+    let l = tap(uv + ts * vec2f(-1.0, -1.0)); let m = tap(uv + ts * vec2f(1.0, -1.0));
+    let inner = (j + k + l + m) * 0.25;
+    let tl = (a + b + d + e) * 0.25; let tr = (b + cc + e + f) * 0.25;
+    let bl = (d + e + g + h) * 0.25; let br = (e + f + h + i) * 0.25;
+    let wi = 0.5 * ${wgslBox('inner')};
+    let w0 = 0.125 * ${wgslBox('tl')}; let w1 = 0.125 * ${wgslBox('tr')};
+    let w2 = 0.125 * ${wgslBox('bl')}; let w3 = 0.125 * ${wgslBox('br')};
+    var c = (inner * wi + tl * w0 + tr * w1 + bl * w2 + br * w3) / (wi + w0 + w1 + w2 + w3);${wgslThreshold}
+    return vec4f(c, 1.0);
+}
+#pragma end
+`;
+}
+
+/**
+ * An upsample of bloom's pyramid: the smaller level (the chain's input) through a 3x3 tent of its own texels, mixed with
+ * `from`, the level of this size the way down wrote. Radius widens the tent (in the smaller level's texels) and tips the
+ * mix a little toward the wide light: at 1 each level keeps 0.6 of the one below it, about the weights Unreal's six
+ * bloom sizes default to, so a bigger radius makes the whole glow wider rather than piling it into the flattest level.
+ */
+function bloomUpSource(name: string, from: string): string {
+    const tex = `u_pass_${from}`;
+    return `#pragma shader "${name}"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma highprecision
+#pragma param u_radius float default(1) range(0.5,5)
+#pragma param ${tex} texture default(black)
+
+#pragma fragment
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+out vec4 fragColor;
+
+void main() {
+    vec2 ts = max(u_radius, 0.25) / vec2(textureSize(u_texture, 0));
+    vec2 uv = v_texCoord;
+    vec3 wide = texture(u_texture, uv).rgb * 4.0
+        + (texture(u_texture, uv + vec2(ts.x, 0.0)).rgb + texture(u_texture, uv - vec2(ts.x, 0.0)).rgb
+         + texture(u_texture, uv + vec2(0.0, ts.y)).rgb + texture(u_texture, uv - vec2(0.0, ts.y)).rgb) * 2.0
+        + texture(u_texture, uv + ts).rgb + texture(u_texture, uv - ts).rgb
+        + texture(u_texture, uv + vec2(ts.x, -ts.y)).rgb + texture(u_texture, uv + vec2(-ts.x, ts.y)).rgb;
+    wide *= 1.0 / 16.0;
+    vec3 near = texture(${tex}, uv).rgb;
+    float scatter = clamp(0.5 + 0.1 * u_radius, 0.5, 0.75);
+    fragColor = vec4(mix(near, wide, scatter), 1.0);
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let ts = max(mc.u_radius, 0.25) / vec2f(textureDimensions(t0, 0));
+    let uv = v.v_texCoord;
+    var wide = textureSampleLevel(t0, s0, uv, 0.0).rgb * 4.0
+        + (textureSampleLevel(t0, s0, uv + vec2f(ts.x, 0.0), 0.0).rgb + textureSampleLevel(t0, s0, uv - vec2f(ts.x, 0.0), 0.0).rgb
+         + textureSampleLevel(t0, s0, uv + vec2f(0.0, ts.y), 0.0).rgb + textureSampleLevel(t0, s0, uv - vec2f(0.0, ts.y), 0.0).rgb) * 2.0
+        + textureSampleLevel(t0, s0, uv + ts, 0.0).rgb + textureSampleLevel(t0, s0, uv - ts, 0.0).rgb
+        + textureSampleLevel(t0, s0, uv + vec2f(ts.x, -ts.y), 0.0).rgb + textureSampleLevel(t0, s0, uv + vec2f(-ts.x, ts.y), 0.0).rgb;
+    wide *= 1.0 / 16.0;
+    let near = textureSampleLevel(${tex}, ${tex}_s, uv, 0.0).rgb;
+    let scatter = clamp(0.5 + 0.1 * mc.u_radius, 0.5, 0.75);
+    return vec4f(mix(near, wide, scatter), 1.0);
+}
+#pragma end
+`;
+}
+
 export const basicEffects = {
     /** The AgX table, for the effect to upload once (see `builtinTextures` on its definition). */
     agxLut: agxStrip,
@@ -373,6 +505,25 @@ void main() {
 `;
         return Material.compileShader(source);
     },
+    /**
+     * Bloom's first link, at half size: thirteen taps of the picture (Jimenez, "Next Generation Post Processing in Call of
+     * Duty: Advanced Warfare"), the five overlapping boxes each weighted by 1 / (1 + luma) so one blazing texel cannot
+     * flicker into a blob as it crosses pixels (Karis), then the soft threshold. What is left is only the over-range light.
+     */
+    createBloomPrefilter(): ShaderHandle {
+        return Material.compileShader(bloomDownSource('PP Bloom Prefilter', true));
+    },
+    /** One step down the pyramid: the same thirteen taps, a quarter of the texels, no threshold. */
+    createBloomDown(level: number): ShaderHandle {
+        return Material.compileShader(bloomDownSource(`PP Bloom Down ${level}`, false));
+    },
+    /**
+     * One step up: the smaller level through a 3x3 tent, mixed with the level of this size that the way down left.
+     * The mix keeps the energy (its weights sum to one) and Radius tips it toward the wide levels.
+     */
+    createBloomUp(level: number, from: string): ShaderHandle {
+        return Material.compileShader(bloomUpSource(`PP Bloom Up ${level}`, from));
+    },
     createBloomComposite(): ShaderHandle {
         const source = `#pragma shader "PP Bloom Composite"
 #pragma version 300 es
@@ -388,17 +539,28 @@ uniform sampler2D u_sceneTexture;
 out vec4 fragColor;
 
 void main() {
-    vec4 blur = texture(u_texture, v_texCoord);
+    vec2 ts = 1.0 / vec2(textureSize(u_texture, 0));
+    vec3 blur = texture(u_texture, v_texCoord).rgb * 4.0
+        + (texture(u_texture, v_texCoord + vec2(ts.x, 0.0)).rgb + texture(u_texture, v_texCoord - vec2(ts.x, 0.0)).rgb
+         + texture(u_texture, v_texCoord + vec2(0.0, ts.y)).rgb + texture(u_texture, v_texCoord - vec2(0.0, ts.y)).rgb) * 2.0
+        + texture(u_texture, v_texCoord + ts).rgb + texture(u_texture, v_texCoord - ts).rgb
+        + texture(u_texture, v_texCoord + vec2(ts.x, -ts.y)).rgb + texture(u_texture, v_texCoord + vec2(-ts.x, ts.y)).rgb;
     vec4 scene = texture(u_sceneTexture, v_texCoord);
-    fragColor = vec4(scene.rgb + blur.rgb * u_intensity, scene.a);
+    fragColor = vec4(scene.rgb + blur * (u_intensity / 16.0), scene.a);
 }
 #pragma end
 
 #pragma fragment wgsl
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let blur = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let scene = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
-    return vec4f(scene.rgb + blur.rgb * mc.u_intensity, scene.a);
+    let uv = v.v_texCoord;
+    let ts = 1.0 / vec2f(textureDimensions(t0, 0));
+    let blur = textureSampleLevel(t0, s0, uv, 0.0).rgb * 4.0
+        + (textureSampleLevel(t0, s0, uv + vec2f(ts.x, 0.0), 0.0).rgb + textureSampleLevel(t0, s0, uv - vec2f(ts.x, 0.0), 0.0).rgb
+         + textureSampleLevel(t0, s0, uv + vec2f(0.0, ts.y), 0.0).rgb + textureSampleLevel(t0, s0, uv - vec2f(0.0, ts.y), 0.0).rgb) * 2.0
+        + textureSampleLevel(t0, s0, uv + ts, 0.0).rgb + textureSampleLevel(t0, s0, uv - ts, 0.0).rgb
+        + textureSampleLevel(t0, s0, uv + vec2f(ts.x, -ts.y), 0.0).rgb + textureSampleLevel(t0, s0, uv + vec2f(-ts.x, ts.y), 0.0).rgb;
+    let scene = textureSampleLevel(t1, s1, uv, 0.0);
+    return vec4f(scene.rgb + blur * (mc.u_intensity / 16.0), scene.a);
 }
 #pragma end
 `;

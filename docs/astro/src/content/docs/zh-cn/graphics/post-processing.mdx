@@ -312,6 +312,8 @@ registerEffect({
 
 - **`threshold` 大于 1 的 `bloom`** 只让超范围能量泛光——亮光发辉光,普通 LDR 美术保持锐利。
   这就是经典的"自发光辉光"配方:拉高灯的 `intensity`,把 `threshold` 设在约 1.2–1.5。
+  辉光建在从 1/2 到 1/64 尺寸的图像金字塔上(和 Unreal、使命召唤的做法一样):衰减圆润柔和,
+  带一条很淡的长尾,`radius` 让整体变宽。亮天空要压在 `threshold` 以下,否则每条贴着天空的暗边都会被天空的辉光冲淡。
 - **`tonemap`** 收到真正的 HDR 输入,ACES 曲线得以收卷高光,而不是对已压平的值做整形。
 - 不加 tonemap 时,超范围值在最终的线性→sRGB 编码处直接截断——轻微辉光没问题,大面积过曝会显得生硬。
 
@@ -382,6 +384,11 @@ const setup = defineSystem([Query(Camera), Res(PostProcess)], (q, pp) => {
 **多 pass** 的效果(如 `bloom`)带 `def.multiPass`;逐个 sub-pass 加进去
 (`for (const p of grade.multiPass!) stack.addPass(p.name, p.factory())`)。固定管线之外,
 `PostProcessVolume` 更省事——它会替你解析多 pass 与纹理参数。
+
+sub-pass 不只能读上一个 pass,还能读同一效果里更早的 pass:声明一个名为 `u_pass_<名字>` 的纹理参数
+(`#pragma param u_pass_bloom_down_2 texture default(black)`),链就会绑定名为 `<名字>` 的 pass 的输出,
+并让它一直保留到这个 pass 跑完。bloom 的上采样就是这样把同尺寸的下采样加回来的;`scale` 小于 1 的 sub-pass
+以链尺寸的这个比例绘制。
 
 | 方法 | 说明 |
 |---|---|

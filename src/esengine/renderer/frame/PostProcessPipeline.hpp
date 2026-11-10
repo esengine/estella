@@ -87,6 +87,11 @@ struct PostProcessPass {
     /// starts an effect, so a single-pass effect sees the chain as it reached it.
     bool continuesEffect = false;
 
+    /// What this pass reads from passes earlier in its own effect: a texture param named `u_pass_<name>` is the output
+    /// of the pass called <name> (a bloom's upsample adds the downsample of its own size back). Resolved by the chain
+    /// each frame, which also keeps those targets alive until this pass has run.
+    std::vector<std::pair<std::string, rg::ResourceId>> earlierInputs;
+
     /// A compute pass (see PostProcessPipeline::addComputePass): the program, which floats its params block holds, in
     /// order, and the workgroup the shader declares. Invalid for every pass that draws.
     ComputeHandle compute = ComputeHandle::Invalid;

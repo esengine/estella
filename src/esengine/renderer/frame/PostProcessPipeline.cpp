@@ -968,6 +968,12 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
             for (const auto& [name, glId] : pass.textureUniforms) {
                 if (name == slot.name && glId != 0) { gpu = TextureHandle{glId}; break; }
             }
+            for (const auto& [name, id] : pass.earlierInputs) {
+                if (name != slot.name || !graph_) continue;
+                const TextureHandle earlier = graph_->textureOf(id);
+                if (earlier != TextureHandle::Invalid) gpu = earlier;
+                break;
+            }
             if (gpu != TextureHandle::Invalid) device->bindTexture(slot.unit, gpu);
         }
     } else if (glsl) {
@@ -1177,12 +1183,30 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
 
     rg::ResourceId input = scene;
     rg::ResourceId effectInput = scene;
+    // The outputs of the current effect's passes so far, by pass name: what a `u_pass_<name>` texture reads.
+    std::vector<std::pair<std::string, rg::ResourceId>> effectOutputs;
     for (usize i = 0; i < passes.size(); ++i) {
         auto& pass = passes[i];
         if (!runnable(pass)) continue;
-        if (!pass.continuesEffect) effectInput = input;
+        if (!pass.continuesEffect) {
+            effectInput = input;
+            effectOutputs.clear();
+        }
         rg::PassDesc node;
         node.name = pass.name;
+        pass.earlierInputs.clear();
+        if (const MaterialUniformLayout* layout = context_.materials().layoutFor(pass.shader)) {
+            for (const auto& slot : layout->textures) {
+                if (slot.name.rfind("u_pass_", 0) != 0) continue;
+                const std::string wanted = slot.name.substr(7);
+                for (const auto& [name, id] : effectOutputs) {
+                    if (name != wanted) continue;
+                    pass.earlierInputs.emplace_back(slot.name, id);
+                    node.dependencies.push_back(id);
+                    break;
+                }
+            }
+        }
         // Unit 1 is the image the pass's effect started from, which a composite
         // (bloom's and SSAO's last link) lays its result over — not the untouched
         // scene, which would discard every effect earlier in the chain.
@@ -1190,7 +1214,8 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
         // Every pass samples the scene's depth, so the scene target has to outlive
         // the last pass that reads its colour: returned to the pool any earlier,
         // an SSAO behind a colour grade found no depth and occluded nothing.
-        if (scene_needs_depth_ || scene_gbuffer_) node.dependencies = {scene};
+        // Added to, not assigned: the `u_pass_` targets above are dependencies too, and must outlive this pass.
+        if (scene_needs_depth_ || scene_gbuffer_) node.dependencies.push_back(scene);
         // The motion pass wrote a target this one reads by name, not by unit: the graph owes it ordering
         // (and the pass its place in the culled set), and the pipeline binds it.
         if (velocity_active_ && velocity_resource_ != rg::kNoResource && passHasTexture(pass, "u_velocity")) {
@@ -1256,6 +1281,7 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
             node.write = graph_->createTarget(writeDesc);
             node.execute = [this, &pass](const rg::PassContext& ctx) { computePass(pass, ctx); };
             input = node.write;
+            effectOutputs.emplace_back(pass.name, input);
             graph_->addPass(std::move(node));
             continue;
         }
@@ -1305,6 +1331,7 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
             node.execute = [this, &pass](const rg::PassContext& ctx) { renderPass(pass, ctx); };
         }
         input = node.write;
+        effectOutputs.emplace_back(pass.name, input);
         graph_->addPass(std::move(node));
     }
 
