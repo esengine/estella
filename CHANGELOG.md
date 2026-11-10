@@ -36,6 +36,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Rain does not fall through a glass roof.** The rain's map of what stands overhead took only what casts a shadow, so a see-through roof set to cast none — glass, as it usually is — left the floor under it wet. A see-through surface keeps rain off whether or not light passes it; what is opaque and casts no shadow (a held gun) still stays out. Gate: ssr-shelter-glass.
 - **A character controller or a 3D collider added with its defaults is a real size.** Their defaults were metres (a 0.3 radius, a 0.5 box) under a world that reads centimetres unless told otherwise: a 3 mm character, a 5 mm crate. They are a 1.6 m person and a 1 m box now, in whatever units the project uses. Every example and template stated its sizes, so none changes.
 - **A model's import no longer calls it tiny in a metre project.** The note read every model as if a world unit were a design pixel; it now measures the model in metres by the project's units per metre and suggests that as the Scale.
 - **Navigation bakes an imported level.** The bake took only bodies with a static RigidBody3D, so a level of mesh colliders (static by themselves) baked to no ground; and it placed every collider at its LOCAL pose and unscaled, so one under a parent landed elsewhere. It now takes what the solver builds, where the solver builds it.

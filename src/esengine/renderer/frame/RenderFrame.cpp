@@ -2792,6 +2792,7 @@ void RenderFrame::collectCover(ecs::Registry& registry) {
     auto ctx = makeContext();
     ctx.view_projection = cover_view_projection_;
     ctx.purpose = RenderPurpose::ShadowDepth;
+    ctx.rainCover = true;
     RenderCollectContext collectCtx{registry, frustum, clip_state_, cover_pool_, cover_list_, ctx,
                                     computeCameraView(cover_view_projection_)};
     collectCtx.screen_ui = screen_domain_;

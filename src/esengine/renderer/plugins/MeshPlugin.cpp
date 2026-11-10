@@ -753,8 +753,10 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // Many placements of one mesh, drawn as instances of it. What is placed does not move on its own, so the motion pass has nothing to say.
         const ecs::MeshInstances* placements = resident ? registry.tryGet<ecs::MeshInstances>(entity) : nullptr;
         if (placements && (placements->transforms.empty() || motion)) continue;
-        // What light passes through (water) stands in no light's way.
-        if (shadowDepth && !mesh.castShadows) continue;
+        // What light passes through (water) stands in no light's way. Rain's way is another matter: a see-through surface
+        // set to cast no shadow (glass) still keeps rain off what is under it, so the rain's cover map takes it. What is
+        // opaque and casts no shadow (a held gun, an effect's mesh) stays out of both.
+        if (shadowDepth && !mesh.castShadows && !(ctx.rainCover && !mesh.opaque)) continue;
         // Only a surface that draws opaque and unblended has a motion worth writing: what is blended over
         // something has two, and the picture can follow one.
         if (motion && !mesh.opaque) continue;

@@ -92,6 +92,10 @@ struct RenderFrameContext {
     glm::vec3 view_eye{0.0f};
     bool has_view_eye = false;
     bool lighting_direct = false;
+    /// This shadow-depth collect is the RAIN's map of what stands overhead, not a light's: what keeps rain off is solid
+    /// whether or not light passes it, so a see-through surface that casts no shadow (a glass roof) is in it all the same.
+    /// Last, so the positional initialisers before it keep their places.
+    bool rainCover = false;
 };
 
 /** @brief What every plugin needs to know about the camera, derived once per collect

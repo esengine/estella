@@ -1,0 +1,250 @@
+{
+  "version": 4,
+  "name": "SSR shelter under a glass roof",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 300,
+              "z": 500
+            },
+            "rotation": {
+              "w": 0.9732489894677302,
+              "x": -0.22975292054736118,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 60,
+            "nearPlane": 1,
+            "farPlane": 5000,
+            "isActive": true,
+            "priority": 0
+          }
+        },
+        {
+          "type": "PostProcessVolume",
+          "data": {
+            "isGlobal": true,
+            "priority": 0,
+            "weight": 1,
+            "effects": [
+              {
+                "type": "rain",
+                "enabled": true,
+                "uniforms": {
+                  "u_intensity": 0,
+                  "u_wetness": 0,
+                  "u_puddles": 0
+                }
+              },
+              {
+                "type": "ssr",
+                "enabled": true,
+                "uniforms": {
+                  "u_intensity": 1,
+                  "u_wetness": 1,
+                  "u_puddles": 0,
+                  "u_skyReflection": 0
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Sun",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 0.8646239550683974,
+              "x": -0.476200656600911,
+              "y": -0.14030915235402952,
+              "z": -0.07727672832384176
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 1,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "intensity": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Floor",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 0.7071067811865476,
+              "x": -0.7071067811865475,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 4,
+              "y": 4,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "/scenes/normalmap-quad.esmesh",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": false,
+            "enabled": true,
+            "material": "/scenes/ssr-shelter-floor_m0.esmaterial",
+            "color": {
+              "r": 0.5,
+              "g": 0.5,
+              "b": 0.5,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Wall",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 150,
+              "z": -300
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 4,
+              "y": 1.5,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "/scenes/normalmap-quad.esmesh",
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": false,
+            "enabled": true,
+            "color": {
+              "r": 1,
+              "g": 0.1,
+              "b": 0.1,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Roof",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -300,
+              "y": 700,
+              "z": 100
+            },
+            "rotation": {
+              "w": 0.7071067811865476,
+              "x": -0.7071067811865475,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 2,
+              "y": 3,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "/scenes/normalmap-quad.esmesh",
+            "lit": true,
+            "opaque": false,
+            "cullBackfaces": false,
+            "enabled": true,
+            "color": {
+              "r": 0.6,
+              "g": 0.8,
+              "b": 0.9,
+              "a": 0.3
+            },
+            "material": "/scenes/glass-roof_m0.esmaterial",
+            "castShadows": false
+          }
+        }
+      ]
+    }
+  ]
+}
