@@ -159,6 +159,19 @@ ${line ?? ''}
     expect(Object.keys(libs)).toEqual(['arm64-v8a']);
     expect(libs['arm64-v8a'].map((f) => path.basename(f))).toEqual(['libestella_spine38.so', 'libestella_spine42.so']);
   });
+
+  // v0.101.0 shipped this: the export passes a Map's keys, which the first ABI
+  // used up, so an emulator package carried no Spine on x86_64.
+  it('gives every ABI its libraries when the releases come as an iterator', () => {
+    const dir = manifestDir(ALL);
+    for (const abi of ['arm64-v8a', 'x86_64']) {
+      mkdirSync(path.join(dir, 'plugins', abi), { recursive: true });
+      for (const v of SPINE_RELEASES) writeFileSync(path.join(dir, 'plugins', abi, androidSpineLibrary(v)), 'so');
+    }
+    const libs = androidSpineLibs(dir, ['arm64-v8a', 'x86_64'], new Map([['4.1', []], ['4.2', []]]).keys());
+    expect(Object.keys(libs).sort()).toEqual(['arm64-v8a', 'x86_64']);
+    expect(libs['x86_64'].map((f) => path.basename(f))).toEqual(['libestella_spine41.so', 'libestella_spine42.so']);
+  });
 });
 
 describe('installing a runtime template', () => {

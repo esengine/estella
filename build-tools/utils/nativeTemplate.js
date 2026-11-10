@@ -517,9 +517,12 @@ export const androidSpineLibrary = (version) => `libestella_spine${version.repla
  * @returns {Record<string, string[]>}
  */
 export function androidSpineLibs(dir, abis, versions) {
+    // Read once: an iterator (a Map's keys) is spent by the first ABI, and every
+    // ABI after it would get no Spine at all — v0.101.0's x86_64 emulator did.
+    const releases = [...versions];
     const out = {};
     for (const abi of abis) {
-        const files = [...versions].map((v) => path.join(dir, 'plugins', abi, androidSpineLibrary(v)))
+        const files = releases.map((v) => path.join(dir, 'plugins', abi, androidSpineLibrary(v)))
             .filter((file) => existsSync(file));
         if (files.length) out[abi] = files;
     }

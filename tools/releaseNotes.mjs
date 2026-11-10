@@ -28,6 +28,10 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  "fix(export): an Android package carries its Spine runtimes on every architecture, not the first only":
+    {note: "An Android package built for the emulator carries its Spine runtimes on x86_64 too."},
+  "fix(docs): a component summary with an apostrophe no longer breaks the docs build":
+    {internal: "The docs site failed to build; no shipped game or editor behaviour changed."},
   "feat(export): one decision for which Spine runtimes a package carries, with Include and Exclude per runtime":
     { note: "Which Spine runtimes a package carries can be set per runtime." },
   "feat(native): every Spine release in one native host, each skeleton read by its own":

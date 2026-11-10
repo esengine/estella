@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **An Android package built for the emulator carries its Spine runtimes on x86_64 too.** v0.101.0 put each Spine runtime's library into the first architecture only, so on an x86_64 emulator or device a Spine skeleton did not load. Phones (arm64) were not affected.
+
 ## [0.101.0] - 2026-11-10
 
 ### Added
