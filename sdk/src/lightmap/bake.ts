@@ -48,6 +48,13 @@ export interface BakeOptions {
      *  a bake cannot hold still. Solved after the surfaces, because a probe
      *  gathers what they ended up giving off. */
     probeGrids?: readonly ProbeGrid[];
+    /** Bake the probes WITHOUT the sky, and how much of it each sees: the frame then lights them with
+     *  the sky it has (a live Sky Atmosphere, a weather) seen through that, so a room stays dark under
+     *  a sky that changes. Off, the probes hold the sky as it was at the bake. */
+    skyOcclusion?: boolean;
+    /** What stands in the light and holds none of it: geometry with no lightmap UV set (lit by probes when the
+     *  game runs). It shadows the surfaces and hides the sky from the probes; a ray that meets it finds it unlit. */
+    occluders?: readonly BakeSurface[];
     /** Directions each probe gathers. Over the whole sphere, so this buys less
      *  per ray than a lumel's hemisphere does. */
     probeSamples?: number;
@@ -77,6 +84,9 @@ export interface BakeResult {
     /** Nine RGB coefficients per probe, one array per requested grid, in grid
      *  order with x varying fastest — what a `.esprobes` carries. */
     probes: Float32Array[];
+    /** With {@link BakeOptions.skyOcclusion}: nine coefficients per probe, one array per grid, of how
+     *  much of the sky each sees. Empty without it. */
+    probeSkyVisibility: Float32Array[];
     /** One captured sphere per {@link BakeOptions.reflectionProbes}, in the order
      *  they were given, for the caller to prefilter into an atlas column. */
     reflections: CapturedPanorama[];
@@ -97,6 +107,7 @@ export const BAKE_DEFAULTS = {
     dilate: 2,
     probeGrids: [] as readonly ProbeGrid[],
     probeSamples: 128,
+    skyOcclusion: false,
     reflectionProbes: [] as readonly (readonly [number, number, number])[],
     reflectionWidth: 64,
 };
@@ -104,9 +115,15 @@ export const BAKE_DEFAULTS = {
 const chan = (m: MeshData, s: number): MeshChannelDesc | undefined =>
     m.channels.find((c) => c.semantic === s);
 
-/** Every surface's triangles in world space, plus what a ray hit has to know. */
-function collect(surfaces: readonly BakeSurface[], patches: readonly SurfacePatch[],
-                 size: number, texelsPerUnit: number): { soup: TriangleSoup; lookup: HitLookup } {
+/** Every surface's triangles in world space, plus what a ray hit has to know. Occluders come last, with no
+ *  place in the atlas: a ray that meets one finds something there, unlit. */
+function collect(lit: readonly BakeSurface[], litPatches: readonly SurfacePatch[],
+                 size: number, texelsPerUnit: number,
+                 occluders: readonly BakeSurface[] = []): { soup: TriangleSoup; lookup: HitLookup } {
+    const surfaces = occluders.length ? [...lit, ...occluders] : lit;
+    const patches: readonly SurfacePatch[] = occluders.length
+        ? [...litPatches, ...occluders.map((): SurfacePatch => ({ side: 0, x: -1, y: -1, rotated: false, scaleOffset: [0, 0, 0, 0] }))]
+        : litPatches;
     let total = 0;
     for (const s of surfaces) total += Math.floor(s.mesh.indices.length / 3);
     const positions = new Float32Array(total * 9);
@@ -321,7 +338,7 @@ export function* bakeLightmapSteps(surfaces: readonly BakeSurface[], lights: rea
     const patches = layoutAtlas(surfaces, size, opts.texelsPerUnit);
     if (!patches) throw new Error(refusal(surfaces, size, opts.texelsPerUnit));
     const lumels = rasterizeLumels(surfaces, patches, size);
-    const { soup, lookup } = collect(surfaces, patches, size, opts.texelsPerUnit);
+    const { soup, lookup } = collect(surfaces, patches, size, opts.texelsPerUnit, options.occluders ?? []);
     const skyOf = options.sky ?? { kind: 'flat', rgb: opts.ambient };
     const scene: BakeScene = { lumels, tris: soup, lookup, lights, sky: skyOf,
                                atlasSize: size, samples: opts.samples };
@@ -368,8 +385,13 @@ export function* bakeLightmapSteps(surfaces: readonly BakeSurface[], lights: rea
     // surfaces ended up giving off, and before it is quantised to eight bits.
     let built: Bvh | null = null;
     const bvh = (): Bvh => (built ??= new Bvh(soup));
-    const probes = opts.probeGrids.map((grid) =>
-        solveProbes(grid, bvh(), lookup, radiance, size, opts.probeSamples, sky));
+    const probeSkyVisibility: Float32Array[] = [];
+    const probes = opts.probeGrids.map((grid) => {
+        const visibility = opts.skyOcclusion
+            ? new Float32Array(Math.max(0, grid.resolution[0] * grid.resolution[1] * grid.resolution[2]) * 9) : undefined;
+        if (visibility) probeSkyVisibility.push(visibility);
+        return solveProbes(grid, bvh(), lookup, radiance, size, opts.probeSamples, sky, visibility);
+    });
 
     // Captured from the same field, after the same bounces: a reflection of a
     // wall and the light that wall casts are then the same number.
@@ -385,6 +407,7 @@ export function* bakeLightmapSteps(surfaces: readonly BakeSurface[], lights: rea
         lumels: lumels.count,
         shared: lumels.shared,
         probes,
+        probeSkyVisibility,
         reflections,
     };
 }

@@ -367,6 +367,8 @@ export interface ESEngineModule {
     probe_volume_create?(resX: number, resY: number, resZ: number, shPtr: number): number;
     /** Release a probe volume. */
     probe_volume_release?(volumeHandle: number): void;
+    /** Nine floats per probe of how much of the sky each sees (a bake with sky occlusion). */
+    probe_volume_setSkyVisibility?(volumeHandle: number, visibilityPtr: number): void;
     /** The same for every MeshRenderer in the world; returns how many were frozen. */
     meshRenderer_makeAllResident?(registry: CppRegistry): number;
     /**

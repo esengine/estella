@@ -49,7 +49,9 @@ struct ProbeConstants {
     glm::vec4 irradiance[9]{};
     /// x = which column of the frame's reflection atlas this instance reflects.
     /// 0 is the environment, so an instance inside no probe needs nothing written
-    /// here and a zeroed run is already right.
+    /// here and a zeroed run is already right. y = the first coefficient of the sky's
+    /// visibility (the other eight ride `irradiance[1..8].w`), z = 1 when there is one
+    /// (a grid baked with sky occlusion): the shaders' skyOcclusion().
     glm::vec4 reflection{0.0f};
 };
 

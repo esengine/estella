@@ -551,6 +551,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setSkyEnvironment", &esengine::renderer_setSkyEnvironment);
     emscripten::function("probe_volume_create", &esengine::probe_volume_create);
     emscripten::function("probe_volume_release", &esengine::probe_volume_release);
+    emscripten::function("probe_volume_setSkyVisibility", &esengine::probe_volume_setSkyVisibility);
     emscripten::function("meshRenderer_localBounds", &esengine::meshRenderer_localBounds);
     emscripten::function("meshRenderer_makeAllResident", &esengine::meshRenderer_makeAllResident);
     emscripten::function("meshRenderer_setMeshAll", &esengine::meshRenderer_setMeshAll);

@@ -45,6 +45,11 @@ export function convolveCosine(coefficients: Float32Array, at = 0): void {
     }
 }
 
+/** {@link convolveCosine} for nine scalar coefficients (a visibility, not a colour), in place. */
+export function convolveCosineScalar(coefficients: Float32Array, at = 0): void {
+    for (let i = 0; i < 9; i++) coefficients[at + i]! *= SH_COSINE_BAND[i];
+}
+
 /** Evaluate nine RGB coefficients at `d` — the shader's reconstruction, in
  *  TypeScript, so a test can state what a pixel should be. */
 export function evalIrradianceSH(coefficients: ArrayLike<number>,

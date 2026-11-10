@@ -28,6 +28,9 @@ export interface BakedLightingData {
     /** Directions each probe gathers — over the whole sphere, so this buys less
      *  per ray than a lumel's hemisphere does. */
     probeSamples: number;
+    /** Bake the probes without the sky and with how much of it each sees, so the sky the frame has
+     *  (a live Sky Atmosphere, a weather) lights them through it: a room stays dark under any sky. */
+    skyOcclusion: boolean;
     /** What the last bake was OF. Empty until one has run; different from what
      *  the scene fingerprints to now means the light is out of date. The baker
      *  writes it — not `readonly`, which means "the engine computes this and the
@@ -52,6 +55,7 @@ export const BakedLighting: ComponentDef<BakedLightingData> = defineComponent<Ba
         bounces: BAKE_DEFAULTS.bounces,
         samples: BAKE_DEFAULTS.samples,
         probeSamples: BAKE_DEFAULTS.probeSamples,
+        skyOcclusion: BAKE_DEFAULTS.skyOcclusion,
         bakedFrom: '',
     },
     {
@@ -62,6 +66,7 @@ export const BakedLighting: ComponentDef<BakedLightingData> = defineComponent<Ba
             bounces: { min: 0, max: 16, tooltip: 'How many times light may reflect. 0 = direct only. An enclosed room of light walls needs 8 or more, or it bakes too dark.' },
             samples: { min: 1, tooltip: 'Rays each lumel gathers per bounce.' },
             probeSamples: { min: 1, tooltip: 'Directions each probe gathers, over the whole sphere.' },
+            skyOcclusion: { tooltip: 'Probes keep how much sky they see, not the sky itself: the sky in play (a live Sky Atmosphere, a weather) lights them through it, so rooms stay dark.' },
             bakedFrom: { advanced: true, tooltip: 'Fingerprint of the inputs the last bake read.' },
         },
     },

@@ -177,6 +177,11 @@ u32 probe_volume_create(i32 resX, i32 resY, i32 resZ, uintptr_t shPtr);
 
 /** @brief Releases a probe volume. */
 void probe_volume_release(u32 volumeHandle);
+
+/** @brief Gives a probe grid how much of the sky each probe sees: nine floats per probe, in grid order
+ *         (a bake with sky occlusion). The grid's irradiance then holds the lights alone, and the
+ *         frame's sky is added through this. */
+void probe_volume_setSkyVisibility(u32 volumeHandle, uintptr_t visibilityPtr);
 /** @brief Freezes every MeshRenderer in the world; returns how many were frozen. */
 u32 meshRenderer_makeAllResident(ecs::Registry& registry);
 /** @brief Points every MeshRenderer at one resident mesh; returns how many. */

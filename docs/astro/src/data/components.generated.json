@@ -226,6 +226,12 @@
           "range": "≥ 1"
         },
         {
+          "key": "skyOcclusion",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Probes keep how much sky they see, not the sky itself: the sky in play (a live Sky Atmosphere, a weather) lights them through it, so rooms stay dark."
+        },
+        {
           "key": "bakedFrom",
           "type": "string",
           "default": "empty",

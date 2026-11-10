@@ -1,0 +1,120 @@
+{
+ "version": 4,
+ "name": "LitBuiltinLightmapUv",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 260,
+       "z": 1050
+      },
+      "rotation": {
+       "w": 0.9914,
+       "x": -0.1305,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 50,
+      "nearPlane": 10,
+      "farPlane": 20000,
+      "isActive": true,
+      "priority": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Sun",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "w": 0.8339,
+       "x": -0.5209,
+       "y": 0.1823,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "intensity": 1.2,
+      "color": {
+       "r": 1,
+       "g": 0.96,
+       "b": 0.9,
+       "a": 1
+      },
+      "meshShadows": false,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Plane",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "scale": {
+       "x": 12,
+       "y": 1,
+       "z": 12
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:plane",
+      "lit": true,
+      "opaque": true,
+      "color": {
+       "r": 0.45,
+       "g": 0.47,
+       "b": 0.45,
+       "a": 1
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,137 @@
+{
+ "version": 4,
+ "name": "ProbeSky",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 10
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 1,
+      "orthoSize": 300,
+      "isActive": true,
+      "priority": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Probes",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "LightProbeVolume",
+     "data": {
+      "probes": "/scenes/probe-sky.esprobes",
+      "halfExtents": {
+       "x": 400,
+       "y": 400,
+       "z": 400
+      },
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "LitTriangles",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "scale": {
+       "x": 1,
+       "y": 1,
+       "z": 1
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "layer": 0,
+      "enabled": true,
+      "lit": true,
+      "mesh": "/scenes/lit-triangles.esmesh"
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Sky",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 2,
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "intensity": 1,
+      "enabled": true
+     }
+    }
+   ]
+  }
+ ]
+}

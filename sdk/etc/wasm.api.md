@@ -454,6 +454,7 @@ postprocess_shutdown: () => void
 postprocess_supportsCompute: (() => boolean) | undefined
 probe_volume_create: ((resX: number, resY: number, resZ: number, shPtr: number) => number) | undefined
 probe_volume_release: ((volumeHandle: number) => void) | undefined
+probe_volume_setSkyVisibility: ((volumeHandle: number, visibilityPtr: number) => void) | undefined
 provideReplacementDevice: (() => boolean) | undefined
 recoverDevice: (() => boolean) | undefined
 registryLayoutEpoch: (registry: CppRegistry) => number
@@ -555,6 +556,7 @@ renderer_setPlanarReflectionQuality: ((scale: number, maxSize: number, updatesPe
 renderer_setQualityBudgets: ((atlasSize: number, cellSize: number, cascades: number, particleLimit: number) => void) | undefined
 renderer_setShadow2DSoftSamples: ((samples: number) => void) | undefined
 renderer_setShadowDistance: ((distance: number) => void) | undefined
+renderer_setSkyEnvironment: ((environmentHandle: number) => void) | undefined
 renderer_setStage: (stage: number) => void
 renderer_setTextureParams: (textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number) => void
 renderer_setTreeSortLayers: ((mask: number) => void) | undefined

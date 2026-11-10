@@ -275,6 +275,7 @@ async function bakeScene(baker, meta, sceneFile, check) {
     probeSamples: declared.probeSamples,
   };
   for (const k of Object.keys(options)) if (typeof options[k] !== 'number') delete options[k];
+  if (declared.skyOcclusion === true) options.skyOcclusion = true;
 
   // Where an asset ref resolves to. Not relative to the SCENE: a ref is what the
   // project's asset browser shows, and the editor resolves it against the root.

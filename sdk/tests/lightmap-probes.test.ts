@@ -51,6 +51,54 @@ const baked = (mesh: MeshData): MeshData => unwrapLightmapUV(mesh).mesh;
 /** One probe at the centre of a box that holds nothing. */
 const ONE: ProbeGrid = { min: [-50, -50, -50], max: [50, 50, 50], resolution: [1, 1, 1] };
 
+/** Nine scalar coefficients at `d`, the shaders' skyOcclusion without its clamp. */
+function visibilityAt(v: Float32Array, d: readonly number[], at = 0): number {
+    const [r] = evalIrradianceSH(Float32Array.from([...v.slice(at, at + 9)].flatMap((c) => [c, c, c])), d[0]!, d[1]!, d[2]!);
+    return r;
+}
+
+describe('a probe grid baked with sky occlusion', () => {
+    it('holds no sky, and sees all of it where nothing stands', () => {
+        const result = bakeLightmap([], [], {
+            ambient: [0.25, 0.5, 0.75], probeGrids: [ONE], probeSamples: 256, skyOcclusion: true,
+        });
+        const sh = result.probes[0]!;
+        const sky = result.probeSkyVisibility[0]!;
+        expect(sky.length).toBe(9);
+        for (const d of [[0, 1, 0], [1, 0, 0], [0, -1, 0]]) {
+            expect(evalIrradianceSH(sh, d[0]!, d[1]!, d[2]!).every((c) => Math.abs(c) < 1e-6)).toBe(true);
+            expect(visibilityAt(sky, d)).toBeCloseTo(1, 1);
+        }
+    });
+
+    it('sees less sky toward a wall than away from it', () => {
+        const wall: BakeSurface = { mesh: baked(facingBack(400)), transform: translated(20, 0, 0), albedo: [0.5, 0.5, 0.5] };
+        const result = bakeLightmap([wall], [], {
+            ambient: [1, 1, 1], probeGrids: [ONE], probeSamples: 512, skyOcclusion: true, bounces: 0,
+        });
+        const sky = result.probeSkyVisibility[0]!;
+        expect(visibilityAt(sky, [1, 0, 0])).toBeLessThan(0.4);
+        expect(visibilityAt(sky, [-1, 0, 0])).toBeGreaterThan(0.85);
+    });
+
+    it('is hidden by geometry that holds no baked light of its own (an occluder)', () => {
+        // The same wall with no lightmap UV set: it receives nothing, and still stands between the probe and the sky.
+        const wall: BakeSurface = { mesh: facingBack(400), transform: translated(20, 0, 0), albedo: [0.5, 0.5, 0.5] };
+        const result = bakeLightmap([], [], {
+            ambient: [1, 1, 1], probeGrids: [ONE], probeSamples: 512, skyOcclusion: true, occluders: [wall],
+        });
+        const sky = result.probeSkyVisibility[0]!;
+        expect(visibilityAt(sky, [1, 0, 0])).toBeLessThan(0.4);
+        expect(visibilityAt(sky, [-1, 0, 0])).toBeGreaterThan(0.85);
+    });
+
+    it('is not baked unless asked for', () => {
+        const result = bakeLightmap([], [], { ambient: [1, 1, 1], probeGrids: [ONE], probeSamples: 64 });
+        expect(result.probeSkyVisibility).toEqual([]);
+        expect(evalIrradianceSH(result.probes[0]!, 0, 1, 0)[0]).toBeCloseTo(1, 1);
+    });
+});
+
 describe('a probe grid', () => {
     it('reads back an ambient field as itself', () => {
         // The whole SH convention in one claim: project, convolve, over pi. A

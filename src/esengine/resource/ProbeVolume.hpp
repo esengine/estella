@@ -31,6 +31,16 @@ public:
     /** @brief Nine RGB coefficients per probe, in grid order. */
     std::vector<glm::vec3> irradiance;
 
+    /** @brief How much of the sky each probe sees: nine coefficients per probe, cosine-convolved like the
+     *         irradiance (1 everywhere is open sky), in grid order. Empty for a grid baked without sky
+     *         occlusion, whose irradiance then holds the sky as it was at the bake; with it, the irradiance
+     *         holds the lights and bounces alone and the frame's sky is added through this. */
+    std::vector<f32> skyVisibility;
+
+    bool hasSkyVisibility() const {
+        return !skyVisibility.empty() && skyVisibility.size() == static_cast<usize>(probeCount()) * 9;
+    }
+
     u32 probeCount() const {
         if (resolution.x <= 0 || resolution.y <= 0 || resolution.z <= 0) return 0;
         return static_cast<u32>(resolution.x) * static_cast<u32>(resolution.y)

@@ -12,6 +12,9 @@ interface ProbeVolumeAssetData {
     resolution: [number, number, number];
     /** Nine RGB coefficients per probe, x fastest then y then z. */
     irradiance: number[];
+    /** With sky occlusion: nine coefficients per probe of how much of the sky each sees; the irradiance
+     *  then holds the lights alone, and the frame's sky is added through these. */
+    skyVisibility?: number[];
 }
 
 /** A baked probe grid, named by the handle a LightProbeVolume references. */
@@ -59,6 +62,22 @@ export class ProbeVolumeAssetLoader implements AssetLoader<ProbeVolumeResult> {
 
         if (!handle) {
             throw new Error(`the engine rejected the probe volume in ${path}`);
+        }
+        if (data.skyVisibility !== undefined) {
+            const visibility = data.skyVisibility;
+            const count = res[0] * res[1] * res[2] * 9;
+            if (!Array.isArray(visibility) || visibility.length !== count) {
+                throw new Error(`${path}: ${res[0]}x${res[1]}x${res[2]} probes want ${count} sky visibility `
+                    + `coefficients, got ${Array.isArray(visibility) ? visibility.length : 0}`);
+            }
+            if (!m.probe_volume_setSkyVisibility) {
+                throw new Error(`${path} is baked with sky occlusion, which this engine build cannot read`);
+            }
+            withScratch(m, (alloc) => {
+                const ptr = alloc(count * 4);
+                m.HEAPF32.set(Float32Array.from(visibility), ptr >> 2);
+                m.probe_volume_setSkyVisibility!(handle, ptr);
+            });
         }
         return { handle };
     }

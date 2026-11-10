@@ -80,6 +80,9 @@ export interface ProbeVolumeDocument {
     version: number;
     resolution: [number, number, number];
     irradiance: number[];
+    /** Baked with sky occlusion: nine coefficients per probe of how much of the sky each sees, and the
+     *  irradiance holds the lights alone. Absent otherwise (the irradiance holds the sky as it was). */
+    skyVisibility?: number[];
 }
 
 export interface SceneBakeInput {
@@ -150,7 +153,9 @@ const round6 = (v: number): number => Number(v.toPrecision(6));
 export function probeDocumentText(doc: ProbeVolumeDocument): string {
     return `{\n  "version": ${doc.version},\n`
         + `  "resolution": ${JSON.stringify(doc.resolution)},\n`
-        + `  "irradiance": ${JSON.stringify(doc.irradiance)}\n}\n`;
+        + `  "irradiance": ${JSON.stringify(doc.irradiance)}`
+        + (doc.skyVisibility ? `,\n  "skyVisibility": ${JSON.stringify(doc.skyVisibility)}` : '')
+        + `\n}\n`;
 }
 
 /** Stock geometry as the runtime draws it: the template carries its lightmap UV set, so the bake
@@ -369,6 +374,7 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
     const { lights, environment } = resolveEnvironmentSun(input.lights, input.environment,
                                                           input.options?.ambient ?? [0, 0, 0], warnings);
     const surfaces: BakeSurface[] = [];
+    const occluders: BakeSurface[] = [];
     const slot: number[] = [];
     let moving = 0;
     // Stock geometry is rebuilt from code every run, so its lightmap UVs are
@@ -395,8 +401,11 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
             continue;
         }
         if (!mesh.channels.some((c) => c.semantic === MeshChannel.TexCoord1)) {
-            warnings.push(`${s.label}: no second UV set, so it receives no baked light —`
-                + ' turn on Generate Lightmap UVs in its model\'s import settings and reimport');
+            warnings.push(`${s.label}: no second UV set, so it receives no baked light (it still shadows the bake`
+                + ' and hides the sky from the probes) — turn on Generate Lightmap UVs in its model\'s import'
+                + ' settings and reimport');
+            occluders.push({ mesh, transform: s.transform, label: s.label, twoSided: s.twoSided,
+                             coverage: albedoOf(s, cutoffOf(s.material, cutoffs), averages, warnings).coverage });
             continue;
         }
         slot.push(i);
@@ -449,10 +458,11 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
         for (const w of packed.warnings) warnings.push(w);
         return packed;
     };
-    const asDocument = (grid: ProbeGrid, sh: Float32Array): ProbeVolumeDocument => ({
+    const asDocument = (grid: ProbeGrid, sh: Float32Array, sky?: Float32Array): ProbeVolumeDocument => ({
         version: 1,
         resolution: [grid.resolution[0], grid.resolution[1], grid.resolution[2]],
         irradiance: Array.from(sh, round6),
+        ...(sky ? { skyVisibility: Array.from(sky, round6) } : {}),
     });
 
     if (surfaces.length === 0) {
@@ -460,8 +470,8 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
         // The volumes are still solved: a scene whose only light is ambient has
         // nothing to bake into an atlas and still has somewhere to stand.
         const empty = yield* bakeLightmapSteps([], lights,
-                                               { ...input.options, probeGrids: grids, ...reflectionOptions });
-        gridSlot.forEach((at, k) => { probes[at] = asDocument(grids[k], empty.probes[k]); });
+                                               { ...input.options, probeGrids: grids, occluders, ...reflectionOptions });
+        gridSlot.forEach((at, k) => { probes[at] = asDocument(grids[k], empty.probes[k], empty.probeSkyVisibility[k]); });
         return {
             atlasBytes: encodeRgbaPng(1, 1, new Uint8Array([0, 0, 0, 255])),
             scaleOffset: input.surfaces.map(() => null),
@@ -472,7 +482,7 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
     }
 
     const result = yield* bakeLightmapSteps(surfaces, lights,
-                                            { ...input.options, probeGrids: grids, ...reflectionOptions });
+                                            { ...input.options, probeGrids: grids, occluders, ...reflectionOptions });
     result.shared.forEach((share, k) => {
         if (share > 0.25) {
             warnings.push(`${surfaces[k]!.label ?? `surface ${k}`}: its lightmap UVs lay`
@@ -484,7 +494,7 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
     const scaleOffset: Array<[number, number, number, number] | null> =
         input.surfaces.map(() => null);
     slot.forEach((at, k) => { scaleOffset[at] = result.scaleOffset[k]; });
-    gridSlot.forEach((at, k) => { probes[at] = asDocument(grids[k], result.probes[k]); });
+    gridSlot.forEach((at, k) => { probes[at] = asDocument(grids[k], result.probes[k], result.probeSkyVisibility[k]); });
 
     return {
         atlasBytes: encodeRgbaPng(result.size, result.size, lightmapImage(result.pixels, result.size)),

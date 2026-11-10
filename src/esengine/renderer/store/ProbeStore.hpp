@@ -83,6 +83,7 @@ public:
 
         const i32 strideY = g.resolution.x;
         const i32 strideZ = g.resolution.x * g.resolution.y;
+        const bool sky = g.hasSkyVisibility();
         out = ProbeConstants{};
         for (u32 corner = 0; corner < 8; ++corner) {
             const f32 w = ((corner & 1u) ? frac[0] : 1.0f - frac[0])
@@ -99,8 +100,14 @@ public:
                 out.irradiance[c].y += sh.y * w;
                 out.irradiance[c].z += sh.z * w;
             }
+            // The sky's visibility rides the spare channels: [1..8].w and reflection.y for the first.
+            if (sky) {
+                out.reflection.y += g.skyVisibility[base] * w;
+                for (u32 c = 1; c < 9; ++c) out.irradiance[c].w += g.skyVisibility[base + c] * w;
+            }
         }
         out.irradiance[0].w = 1.0f;
+        if (sky) out.reflection.z = 1.0f;
         return true;
     }
 

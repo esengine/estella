@@ -1949,17 +1949,36 @@ fn bakedIrradiance() -> vec3f {
     return c * c * 8.0;
 }
 #endif
-fn indirectIrradiance(N : vec3f) -> vec3f {
-#ifdef MESH_LIGHTMAP
-    if (g_lightmap.z > 0.5) { return bakedIrradiance() * lc.u_bakedTint.rgb; }
-#endif
+// See the GLSL twin: how much of the sky a probe sees toward d, 1 where nothing was baked of it.
+fn skyOcclusion(d : vec3f) -> f32 {
     let base = clamp(i32(g_probeSlot), 0, 99) * 10;
+    let v = pc.u_probeIrradiance[base + 9].y * 0.282095
+        + pc.u_probeIrradiance[base + 1].w * (0.488603 * d.y)
+        + pc.u_probeIrradiance[base + 2].w * (0.488603 * d.z)
+        + pc.u_probeIrradiance[base + 3].w * (0.488603 * d.x)
+        + pc.u_probeIrradiance[base + 4].w * (1.092548 * d.x * d.y)
+        + pc.u_probeIrradiance[base + 5].w * (1.092548 * d.y * d.z)
+        + pc.u_probeIrradiance[base + 6].w * (0.315392 * (3.0 * d.z * d.z - 1.0))
+        + pc.u_probeIrradiance[base + 7].w * (1.092548 * d.x * d.z)
+        + pc.u_probeIrradiance[base + 8].w * (0.546274 * (d.x * d.x - d.y * d.y));
+    return mix(1.0, clamp(v, 0.0, 1.0), step(0.5, pc.u_probeIrradiance[base + 9].z));
+}
+// See the GLSL twin: one exit, for the shape the two share.
+fn indirectIrradiance(N : vec3f) -> vec3f {
+    let base = clamp(i32(g_probeSlot), 0, 99) * 10;
+    var result : vec3f;
     if (pc.u_probeIrradiance[base].w > 0.5) {
         var sh : array<vec4f, 9>;
         for (var i = 0; i < 9; i = i + 1) { sh[i] = pc.u_probeIrradiance[base + i]; }
-        return max(shIrradiance(sh, N), vec3f(0.0)) * lc.u_bakedTint.rgb;
+        let sky = step(0.5, pc.u_probeIrradiance[base + 9].z);
+        result = max(shIrradiance(sh, N), vec3f(0.0)) * lc.u_bakedTint.rgb + envIrradiance(N) * (skyOcclusion(N) * sky);
+    } else {
+        result = envIrradiance(N);
     }
-    return envIrradiance(N);
+#ifdef MESH_LIGHTMAP
+    if (g_lightmap.z > 0.5) { result = bakedIrradiance() * lc.u_bakedTint.rgb; }
+#endif
+    return result;
 }
 // Which column of the atlas this instance reflects, from the run its own index
 // names. Zero — an instance inside no probe, or a draw that carries no run at all
@@ -2050,7 +2069,7 @@ fn envRadiance(R : vec3f, roughness : f32, column : f32, P : vec3f) -> vec3f {
         let grey = dot(baked, vec3f(0.2126, 0.7152, 0.0722));
         return mix(vec3f(grey), baked, lc.u_reflParams.z) * lc.u_reflParams.y;
     }
-    return lc.u_ambient.rgb + mix(a, b, lod - lo) * lc.u_envTint.rgb;
+    return (lc.u_ambient.rgb + mix(a, b, lod - lo) * lc.u_envTint.rgb) * skyOcclusion(R);
 }
 // Which definition of "where is the light" this surface is shaded with. One with a
 // real third coordinate measures against the light's own; a sprite has no depth to
@@ -3348,17 +3367,44 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "highp float reflectionColumn() { return u_probeIrradiance[probeRun() + 9].x; }\n"
             // A bake outranks a volume for the same reason a volume outranks the sky:
             // it holds every light and bounce that reached this very point.
-            "highp vec3 indirectIrradiance(in highp vec3 N) {\n"
-            "#ifdef MESH_LIGHTMAP\n"
-            "    if (v_lightmap.z > 0.5) return bakedIrradiance() * u_bakedTint.rgb;\n"
-            "#endif\n"
+            // How much of the sky the probe this instance stands among sees toward d: nine coefficients of
+            // visibility, cosine-convolved like the irradiance, packed in the run's spare channels (the w of
+            // [1..8], the y of [9]; [9].z says there are any). 1 where none were baked: the sky is open.
+            "highp float skyOcclusion(in highp vec3 d) {\n"
             "    highp int base = probeRun();\n"
+            "    highp float v = u_probeIrradiance[base + 9].y * 0.282095\n"
+            "        + u_probeIrradiance[base + 1].w * (0.488603 * d.y)\n"
+            "        + u_probeIrradiance[base + 2].w * (0.488603 * d.z)\n"
+            "        + u_probeIrradiance[base + 3].w * (0.488603 * d.x)\n"
+            "        + u_probeIrradiance[base + 4].w * (1.092548 * d.x * d.y)\n"
+            "        + u_probeIrradiance[base + 5].w * (1.092548 * d.y * d.z)\n"
+            "        + u_probeIrradiance[base + 6].w * (0.315392 * (3.0 * d.z * d.z - 1.0))\n"
+            "        + u_probeIrradiance[base + 7].w * (1.092548 * d.x * d.z)\n"
+            "        + u_probeIrradiance[base + 8].w * (0.546274 * (d.x * d.x - d.y * d.y));\n"
+            "    return mix(1.0, clamp(v, 0.0, 1.0), step(0.5, u_probeIrradiance[base + 9].z));\n"
+            "}\n"
+            // A grid baked with sky occlusion holds the lights and their bounces WITHOUT the sky; the sky is
+            // the frame's own (an environment, a live Sky Atmosphere) seen through what the probe sees of it,
+            // so a room stays dark under a sky that changes.
+            // ONE exit and no early return, here and in skyOcclusion: HLSL inlines every function, and D3D's compiler
+            // structures the control flow of what it inlined recursively. Returns from inside branches of the
+            // functions the light loop and the reflection inline (this one, skyOcclusion, envRadiance) took it past
+            // its stack and killed the GPU process (0xC00000FD in D3DCompiler_47) on the lightmapped lit variant.
+            "highp vec3 indirectIrradiance(in highp vec3 N) {\n"
+            "    highp int base = probeRun();\n"
+            "    highp vec3 result;\n"
             "    if (u_probeIrradiance[base].w > 0.5) {\n"
             "        highp vec4 sh[9];\n"
             "        for (int i = 0; i < 9; i++) sh[i] = u_probeIrradiance[base + i];\n"
-            "        return max(shIrradiance(sh, N), vec3(0.0)) * u_bakedTint.rgb;\n"
+            "        highp float sky = step(0.5, u_probeIrradiance[base + 9].z);\n"
+            "        result = max(shIrradiance(sh, N), vec3(0.0)) * u_bakedTint.rgb + envIrradiance(N) * (skyOcclusion(N) * sky);\n"
+            "    } else {\n"
+            "        result = envIrradiance(N);\n"
             "    }\n"
-            "    return envIrradiance(N);\n"
+            "#ifdef MESH_LIGHTMAP\n"
+            "    if (v_lightmap.z > 0.5) result = bakedIrradiance() * u_bakedTint.rgb;\n"
+            "#endif\n"
+            "    return result;\n"
             "}\n"
             // Direction -> the octahedral unit square, +Y at the centre. The importer's
             // octEncode, in the shading language; the two must agree texel for texel.
@@ -3454,7 +3500,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        highp float grey = dot(baked, vec3(0.2126, 0.7152, 0.0722));\n"
             "        return mix(vec3(grey), baked, u_reflParams.z) * u_reflParams.y;\n"
             "    }\n"
-            "    return u_ambient.rgb + mix(a, b, lod - lo) * u_envTint.rgb;\n"
+            // The sky's own column, as much of it as the probe sees (1 without a sky-occlusion bake).
+            "    return (u_ambient.rgb + mix(a, b, lod - lo) * u_envTint.rgb) * skyOcclusion(R);\n"
             "}\n"
             // Where a positional light is, from here, and how far. Real geometry measures
             // against the light's own world height; a sprite has no depth of its own and

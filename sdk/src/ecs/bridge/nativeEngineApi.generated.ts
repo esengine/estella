@@ -137,6 +137,7 @@ export interface NativeEngineApi {
     postprocess_supportsCompute?(): boolean;
     probe_volume_create?(resX: number, resY: number, resZ: number, shPtr: number): number;
     probe_volume_release?(volumeHandle: number): void;
+    probe_volume_setSkyVisibility?(volumeHandle: number, visibilityPtr: number): void;
     registry_batchSyncPhysicsTransforms?(registry: unknown, bufferPtr: number, count: number, ppu: number): void;
     registry_componentMutationRevision?(registry: unknown, component: number, topology: boolean): number;
     registry_entityChangeResetEpoch?(registry: unknown): number;
@@ -480,6 +481,7 @@ export function createNativeEngineApi(
     bind('postprocess_supportsCompute', 'es_postprocess_supportsCompute', false);
     bind('probe_volume_create', 'es_probe_volume_create', false);
     bind('probe_volume_release', 'es_probe_volume_release', false);
+    bind('probe_volume_setSkyVisibility', 'es_probe_volume_setSkyVisibility', false);
     bind('registry_batchSyncPhysicsTransforms', 'es_registry_batchSyncPhysicsTransforms', true);
     bind('registry_componentMutationRevision', 'es_registry_componentMutationRevision', true);
     bind('registry_entityChangeResetEpoch', 'es_registry_entityChangeResetEpoch', true);

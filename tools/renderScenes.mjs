@@ -266,6 +266,10 @@ export const SCENES = [
   // The nine coefficients carry a DIRECTION, not just an amount. The fixture's
   // two triangles face +Z and +X, and the grid is grey with red along +X — so a
   // volume flattened to its constant term paints these two the same grey.
+  // A grid baked with sky occlusion: no light of its own, a fifth of the sky seen everywhere, under a plain white Ambient light. The sky
+  // is the frame's, seen through the grid: a fifth of white, 54. Read as a grid of the old kind (the sky left out) it is black, 3.
+  { id: "lit-builtin-lightmap-uv", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_COLORSPACE": "linear", "ESTELLA_VERIFY_SCENE": "/scenes/lit-builtin-lightmap-uv.esscene", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "4", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.5,\"y\":0.75,\"rgb\":[183,179,164],\"tol\":20}]" } },
+  { id: "probe-sky", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-sky.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-sky.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.3,\"y\":0.556,\"rgb\":[54,54,54],\"tol\":10}]" } },
   { id: "probe-facing", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-facing.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-facing.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.3,\"y\":0.556,\"rgb\":[128,128,128],\"tol\":30},{\"x\":0.7,\"y\":0.556,\"rgb\":[255,128,128],\"tol\":30}]" } },
   // Red at one end of the box, blue at the other. The object in the MIDDLE is the
   // claim: nearest-probe would paint it one of the two, and only a read that

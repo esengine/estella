@@ -13,7 +13,7 @@
 import type { Bvh } from './bvh';
 import { rayRadiance, type HitLookup } from './solve';
 import type { SkyRadiance } from './reflection';
-import { shBasis, convolveCosine } from './sh';
+import { shBasis, convolveCosine, convolveCosineScalar } from './sh';
 
 /** Where one grid of probes sits, and how many. */
 export interface ProbeGrid {
@@ -61,10 +61,16 @@ export function probeAt(min: number, max: number, i: number, n: number): number 
  * `atlas` is the solved light field indexed by texel — what a surface gives off,
  * before its own albedo. A ray that hits geometry with no place in the atlas
  * returns black rather than the sky: something is there, and it is unlit.
+ *
+ * With `skyVisibility` (nine floats per probe, zeroed), the sky is NOT gathered: a
+ * ray that escapes adds to how much of the sky the probe sees instead, convolved
+ * the same way, so the frame can light the probe with whatever sky it has then
+ * (sky occlusion). What the sky gave the surfaces the probe sees, their bounce, is
+ * still in the atlas and so still in the irradiance.
  */
 export function solveProbes(grid: ProbeGrid, bvh: Bvh, lookup: HitLookup,
                             atlas: Float32Array, atlasSize: number, samples: number,
-                            sky: SkyRadiance): Float32Array {
+                            sky: SkyRadiance, skyVisibility?: Float32Array): Float32Array {
     const [nx, ny, nz] = grid.resolution;
     const count = Math.max(0, nx) * Math.max(0, ny) * Math.max(0, nz);
     const out = new Float32Array(count * 27);
@@ -83,14 +89,19 @@ export function solveProbes(grid: ProbeGrid, bvh: Bvh, lookup: HitLookup,
             for (let x = 0; x < nx; x++) {
                 const px = probeAt(grid.min[0], grid.max[0], x, nx);
                 const at = (x + y * nx + z * nx * ny) * 27;
+                const vAt = (x + y * nx + z * nx * ny) * 9;
                 for (let s = 0; s < samples; s++) {
                     const dx = dirs[s * 3]!, dy = dirs[s * 3 + 1]!, dz = dirs[s * 3 + 2]!;
+                    shBasis(dx, dy, dz, basis);
                     if (!rayRadiance(bvh, lookup, atlas, atlasSize, px, py, pz, dx, dy, dz,
                                      seen, 0, at * samples + s)) {
+                        if (skyVisibility) {
+                            for (let i = 0; i < 9; i++) skyVisibility[vAt + i]! += basis[i]! * weight;
+                            continue;
+                        }
                         sky(dx, dy, dz, seen, 0);
                     }
                     const r = seen[0]!, g = seen[1]!, b = seen[2]!;
-                    shBasis(dx, dy, dz, basis);
                     for (let i = 0; i < 9; i++) {
                         const w = basis[i]! * weight;
                         out[at + i * 3]! += r * w;
@@ -99,6 +110,7 @@ export function solveProbes(grid: ProbeGrid, bvh: Bvh, lookup: HitLookup,
                     }
                 }
                 convolveCosine(out, at);
+                if (skyVisibility) convolveCosineScalar(skyVisibility, vAt);
             }
         }
     }
