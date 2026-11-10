@@ -7,7 +7,7 @@ import { EDITOR_VIEW_ENTITY } from '../camera/uiLayoutRect';
 import { defineResource, Res } from '../ecs/resource';
 import { Query } from '../ecs/query';
 import type { Entity } from '../types';
-import { PostProcessVolume, Transform, Camera, ProjectionType, type PostProcessVolumeData, type TransformData, type CameraData } from '../ecs/component';
+import { PostProcessVolume, Transform, Camera, ProjectionType, ClearFlags, type PostProcessVolumeData, type TransformData, type CameraData } from '../ecs/component';
 import { PostProcess, deviceHasCompute, type PostProcessAPI } from './PostProcessAPI';
 import { getEffectDef } from './effects';
 import { blendVolumeEffects, computeVolumeFactor, type ActiveVolume, type BlendedEffect, type VolumeTransform } from './volumeBlending';
@@ -195,6 +195,15 @@ export function withTemporalAntialiasing(api: PostProcessAPI, effects: ResolvedE
     return out;
 }
 
+/** Let a camera's volume stack go, when it has one. */
+function releaseStack(api: PostProcessAPI, camera: Entity): void {
+    const existing = api.volumeStacks.get(camera);
+    if (!existing) return;
+    api.unbind(camera);
+    existing.destroy();
+    api.volumeStacks.delete(camera);
+}
+
 function applyBlendedEffects(
     api: PostProcessAPI,
     camera: Entity,
@@ -363,7 +372,15 @@ export const postProcessVolumeSystem = defineSystem(
         let first = true;
         for (const [cameraEntity, cameraData, cameraTransform] of cameraQuery) {
             if (!cameraData.isActive) continue;
-            const p = cameraTransform.position;
+            // A camera that keeps the colour under it (a first-person view model's, any overlay) draws over another camera's
+            // finished image. A stack of its own would run fog, sky and the look over that whole image again, with this camera's
+            // cleared depth reading as "infinitely far": the world under a held gun went to fog and sky.
+            if (cameraData.clearFlags === ClearFlags.Depth || cameraData.clearFlags === ClearFlags.Nothing) {
+                releaseStack(api, cameraEntity);
+                continue;
+            }
+            // Where the camera IS: a camera under a player has a local position near zero.
+            const p = cameraTransform.worldPosition ?? cameraTransform.position;
             const effects = effectsAt(volumes, p.x, p.y, p.z);
             // The scene has one environment: the first camera's sky lights it.
             if (first) { skies.game = lightingSky(effects); first = false; }

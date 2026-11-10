@@ -429,6 +429,16 @@ public:
     void setPresentRequired(bool required) { present_required_ = required; }
 
     /**
+     * @brief This camera keeps the colour under it: its present composites over the target by coverage.
+     *
+     * @details A camera that does not clear colour (a first-person view model, any overlay) still goes through a capture when
+     *          the frame is linear or has an output transform, and the capture starts empty. Copied over the target as it
+     *          was, it replaced the camera underneath with black. Set by the frame when it opens such a camera's pass (its
+     *          capture is then cleared to transparent); cleared when the camera's chain is done.
+     */
+    void setPresentOver(bool over) { present_over_ = over; }
+
+    /**
      * @brief Whether the present is a whole-multiple upscale of the chain.
      *
      * @details Inferred from the two rects, for the reason presentScales() is:
@@ -594,7 +604,8 @@ private:
     void ensureGraph();
     void ensureScreenQuad();
     void drawScreenQuad();
-    void applyPassPipeline(const Shader& shader);
+    /// @p over: composite onto the target by the source's coverage (premultiplied) instead of replacing it.
+    void applyPassPipeline(const Shader& shader, bool over = false);
     void renderPass(PostProcessPass& pass, const rg::PassContext& ctx);
     /// A compute pass: its params and the size into a block each, the picture, the depth and the output bound, one dispatch over it.
     void computePass(PostProcessPass& pass, const rg::PassContext& ctx);
@@ -679,6 +690,7 @@ private:
     u32 output_vp_x_ = 0;
     u32 output_vp_y_ = 0;
     bool present_required_ = false;
+    bool present_over_ = false;
     bool compute_needs_depth_ = false;
     u32 output_vp_w_ = 0;
     u32 output_vp_h_ = 0;

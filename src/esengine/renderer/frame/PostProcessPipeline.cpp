@@ -713,13 +713,16 @@ void PostProcessPipeline::drawScreenQuad() {
     device_.drawArrays(0, 3);
 }
 
-void PostProcessPipeline::applyPassPipeline(const Shader& shader) {
+void PostProcessPipeline::applyPassPipeline(const Shader& shader, bool over) {
     ensureScreenQuad();
-    // Fullscreen passes overwrite every pixel: no blend, no depth, no stencil.
+    // Fullscreen passes overwrite every pixel: no blend, no depth, no stencil. The one exception is the present of a
+    // camera that keeps the colour under it, which lays its picture over by coverage. The capture was cleared to
+    // transparent, so its colour is already weighted by its alpha (a resolve averages both): premultiplied.
     PipelineDesc desc{};
     desc.program = shader.handle();
     desc.vertexLayout = screen_quad_layout_;
-    desc.blendEnabled = false;
+    desc.blendEnabled = over;
+    if (over) desc.blend = BlendMode::PremultipliedAlpha;
     desc.depthTest = false;
     desc.depthWrite = false;
     device_.setPipeline(device_.createPipeline(desc));
@@ -805,6 +808,7 @@ void PostProcessPipeline::chainDone() {
     device_.invalidatePipelineCache();
     inFrame_ = false;
     output_target_fbo_ = FramebufferHandle::Default;
+    present_over_ = false;
     // Per-frame, like the target above: a camera that asked for a present must not
     // leave the next one engaged for a frame it never asked about.
     present_required_ = false;
@@ -1116,7 +1120,7 @@ void PostProcessPipeline::blitPass() {
         device_.setViewport(output_vp_x_, output_vp_y_, output_vp_w_, output_vp_h_);
     }
 
-    applyPassPipeline(*shader);
+    applyPassPipeline(*shader, present_over_);
     if (shader->hasUniform("u_texture")) shader->setUniform("u_texture", 0);
     shader->commitParams();
     bindBlitInputs(outputHandle);

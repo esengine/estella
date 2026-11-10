@@ -30,6 +30,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A first-person view model no longer hides the world in a linear or tone-mapped project.** A camera that keeps the colour under it (clears depth only, as the held-gun camera of `FirstPersonViewModel` does) still draws through a capture of its own when the frame is linear or has an output transform; that capture started black and was copied over the camera beneath, so the world went black around the gun. It is now laid over by coverage. Gate: overlay-camera-linear.
+- **Post-process volumes skip a camera that draws over another one.** Such a camera was given the scene's global stack too, which ran fog, sky and the look over the whole finished picture again with its own cleared depth — the world under a held gun went to fog. Local volumes now also weigh a camera by where it is in the world, not by its position under its parent.
 - **The editor's MCP server starts its editor again after the editor goes away.** When a call found the editor unreachable before the editor's exit was seen, every later call in the session failed at once with "the editor host is not running" and no editor was started.
 - **A scene whose only 3D physics is a compound collider or a ragdoll gets a physics world.** The scene loader did not count `CompoundCollider3D` or `Ragdoll` as 3D physics, so a scene with nothing else ran with neither moving.
 - **Geometry with no lightmap UV set still stands in a bake's light.** It was left out of the bake altogether, so it cast no shadow on the baked surfaces and the probes saw straight through it. It now shadows them and hides the sky from the probes, while receiving no baked light itself (the import still says to generate lightmap UVs for that).

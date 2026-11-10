@@ -516,6 +516,13 @@ void RenderFrame::openPass(const PassClear& clear, RenderTargetManager::Handle t
     if (usePostProcess && post_process_->sceneCoverageWanted()) {
         for (f32& channel : pass.clearColorValue) channel = 0.0f;
     }
+    // A camera that keeps the colour under it still draws into a capture of its own when the frame is linear or has an
+    // output transform. The capture starts transparent and the present lays it over the camera beneath by coverage, rather
+    // than replacing that camera's picture with black around a held gun.
+    if (usePostProcess && !clear.color) {
+        for (f32& channel : pass.clearColorValue) channel = 0.0f;
+        post_process_->setPresentOver(true);
+    }
 #endif
     pass.clearX = clear.x;
     pass.clearY = clear.y;
