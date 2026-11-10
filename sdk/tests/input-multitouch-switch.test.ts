@@ -11,6 +11,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { InputState, inputEventCallbacks } from '../src/input/input';
 import { inputRouter } from '../src/input/inputRouter';
 import { createPrimaryPointer } from '../src/platform/primaryPointer';
+import { RuntimeConfig, applyBuildRuntimeConfig, parseRuntimeBuildConfig } from '../src/defaults';
 
 let input: InputState;
 let finger: ReturnType<typeof createPrimaryPointer>;
@@ -29,7 +30,7 @@ beforeEach(() => {
         onTouchCancel: (id) => { ui.push(`cancel ${id}`); },
     });
 });
-afterEach(() => unregister());
+afterEach(() => { unregister(); RuntimeConfig.multiTouch = true; });
 
 const ids = () => input.getTouches().map((t) => t.id);
 
@@ -120,5 +121,38 @@ describe('multi-touch switch', () => {
         inputEventCallbacks(input).onInputCancel?.();
         finger.start(5, 0, 0);
         expect(ids()).toEqual([5]);
+    });
+});
+
+// The project's default (Project Settings → Game → Runtime → Multi-touch).
+describe('the project default', () => {
+    const app = { setMaxDeltaTime() {}, setMaxFixedSteps() {} };
+
+    it('is written only when off', () => {
+        expect(parseRuntimeBuildConfig({ multiTouch: false })).toEqual({ multiTouch: false });
+        expect(parseRuntimeBuildConfig({ multiTouch: true })).toEqual({});
+        expect(parseRuntimeBuildConfig({ multiTouch: 'no' })).toEqual({});
+    });
+
+    it('turns multi-touch off for a game that has not said otherwise', () => {
+        applyBuildRuntimeConfig(app, { multiTouch: false });
+        expect(input.isMultiTouchEnabled()).toBe(false);
+        finger.start(1, 10, 10);
+        finger.start(2, 20, 20);
+        expect(ids()).toEqual([1]);
+    });
+
+    it('gives way to the game turning it back on', () => {
+        applyBuildRuntimeConfig(app, { multiTouch: false });
+        input.setMultiTouch(true);
+        finger.start(1, 10, 10);
+        finger.start(2, 20, 20);
+        expect(ids()).toEqual([1, 2]);
+    });
+
+    it('is on again for a config that does not mention it, even after one that turned it off', () => {
+        applyBuildRuntimeConfig(app, { multiTouch: false });
+        applyBuildRuntimeConfig(app, {});
+        expect(input.isMultiTouchEnabled()).toBe(true);
     });
 });

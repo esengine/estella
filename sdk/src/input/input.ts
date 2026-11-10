@@ -11,6 +11,7 @@ import { cancelPrimaryPointer, takePrimaryPointerCancellation } from './pointerC
 import { recordTouchEnd } from './touchEdges';
 import { recordActionEdge, discardActionEdges, clearActionEdges, beginFixedActionEdges, endFixedActionEdges, cancelActionEdges } from './actionEdges';
 import type { Vec2 } from '../types';
+import { RuntimeConfig } from '../defaults';
 
 /**
  * One active touch, in screen pixels with y growing downward.
@@ -234,14 +235,16 @@ export class InputState {
      * ignored for its whole life, by the UI and the game alike, so a second
      * finger cannot press a button or move a joystick under the first.
      */
-    private multiTouch_ = true;
+    /** What the game set with {@link setMultiTouch}, or null to follow the project (RuntimeConfig.multiTouch). */
+    private multiTouch_: boolean | null = null;
     /** Single-touch mode: the finger being handled, or null when none is down. */
     private soleTouch_: number | null = null;
     /** Single-touch mode: fingers ignored until they lift. */
     private ignoredTouches_ = new Set<number>();
 
+    /** On unless the project turned it off (Project Settings → Runtime) or the game did. */
     isMultiTouchEnabled(): boolean {
-        return this.multiTouch_;
+        return this.multiTouch_ ?? RuntimeConfig.multiTouch;
     }
 
     /**
@@ -251,8 +254,9 @@ export class InputState {
      * control they were pressing lets go without a click.
      */
     setMultiTouch(enabled: boolean): void {
-        if (enabled === this.multiTouch_) return;
+        const was = this.isMultiTouchEnabled();
         this.multiTouch_ = enabled;
+        if (enabled === was) return;
         this.ignoredTouches_.clear();
         this.soleTouch_ = null;
         if (enabled) return;
@@ -269,7 +273,7 @@ export class InputState {
 
     /** @internal Whether a finger going down is handled; records it as the one in single-touch mode. */
     admitTouch(id: number): boolean {
-        if (this.multiTouch_) return true;
+        if (this.isMultiTouchEnabled()) return true;
         if (this.soleTouch_ === null || this.soleTouch_ === id) {
             this.soleTouch_ = id;
             return true;

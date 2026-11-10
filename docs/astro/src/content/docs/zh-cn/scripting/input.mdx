@@ -213,7 +213,8 @@ const gestureSystem = defineSystem([Res(Input), Res(Time)], (input, time) => {
 
 ### 单点触控
 
-多点触控默认开启,每根手指都会传给 UI 和游戏。只需要单指操作的场景可以把它关掉:
+多点触控默认开启,每根手指都会传给 UI 和游戏。想让游戏一启动就关闭它,取消勾选 **项目设置 → 游戏 → 运行时 → 多点触控**。
+只需要单指操作的场景也可以在运行中关掉;代码调用 `setMultiTouch` 之后,以代码的设置为准,直到游戏重新启动:
 
 ```ts
 const input = app.getResource(Input);

@@ -9488,7 +9488,7 @@ textureCacheBudget: number | undefined
 
 ## RuntimeConfig — const @experimental
 ```
-{ sceneTransitionDuration: number; sceneTransitionColor: { r: number; g: number; b: number; a: number; }; defaultFontFamily: string; maxDeltaTime: number; maxFixedSteps: number; textCanvasSize: number; assetLoadTimeout: number; assetFailureCooldown: number; textureCacheBudget: number; audioCacheBudget: number; retainedBudget: number; }
+{ sceneTransitionDuration: number; sceneTransitionColor: { r: number; g: number; b: number; a: number; }; defaultFontFamily: string; maxDeltaTime: number; maxFixedSteps: number; textCanvasSize: number; assetLoadTimeout: number; assetFailureCooldown: number; multiTouch: boolean; textureCacheBudget: number; audioCacheBudget: number; retainedBudget: number; }
 ```
 
 ## RuntimeInitConfig — interface @experimental
@@ -9521,6 +9521,7 @@ uiTheme: "light" | "dark" | undefined
 uiThemeOverrides: ThemeOverrides | undefined
 worlds: WorldManifest[] | undefined
 ```
+multiTouch: boolean | undefined
 
 ## RuntimeOnly — const @public
 ```

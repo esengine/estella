@@ -228,8 +228,10 @@ its center point.
 
 ### One finger at a time
 
-Multi-touch is on by default: every finger reaches the UI and the game. A scene
-that only wants one finger can turn it off:
+Multi-touch is on by default: every finger reaches the UI and the game. To start
+a game with it off, untick **Project Settings → Game → Runtime → Multi-touch**.
+A scene that only wants one finger can also turn it off while the game runs. A
+call to `setMultiTouch` wins over the project setting until the game restarts:
 
 ```ts
 const input = app.getResource(Input);

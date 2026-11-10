@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  "feat(input): a project starts with multi-touch on or off, from Project Settings":
+    { note: "Multi-touch can be turned off." },
   "feat(input): multi-touch can be turned off, one finger at a time reaching the UI and the game":
     { note: "Multi-touch can be turned off." },
   "feat(ui): a Spine skeleton in a Canvas paints by its place in the tree, with the UI's opacity, visibility and masks":

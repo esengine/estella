@@ -36,6 +36,8 @@ export const RuntimeConfig = {
     textCanvasSize: 512,
     assetLoadTimeout: 30000,
     assetFailureCooldown: 5000,
+    /** Whether several fingers are handled at once, until a game says otherwise with `Input.setMultiTouch`. */
+    multiTouch: true,
     /**
      * Resident GPU-texture byte budget (see setTextureBudget). Released-but-
      * budgeted textures stay resident as an evictable LRU cache, so re-entering
@@ -75,6 +77,8 @@ export interface RuntimeBuildConfig {
     textureCacheBudget?: number;
     audioCacheBudget?: number;
     retainedBudget?: number;
+    /** Handle several fingers at once (the default), or one at a time; `Input.setMultiTouch` changes it while the game runs. */
+    multiTouch?: boolean;
 }
 
 /**
@@ -93,6 +97,7 @@ export const RUNTIME_BUILD_DEFAULTS: Readonly<Required<RuntimeBuildConfig>> = {
     textureCacheBudget: 64 * 1024 * 1024,
     audioCacheBudget: 32 * 1024 * 1024,
     retainedBudget: 16 * 1024 * 1024,
+    multiTouch: true,
 };
 
 const RUNTIME_BUILD_LIMITS = {
@@ -125,6 +130,7 @@ export function parseRuntimeBuildConfig(value: unknown): RuntimeBuildConfig {
     if (typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color) && color.toLowerCase() !== RUNTIME_BUILD_DEFAULTS.sceneTransitionColor) {
         config.sceneTransitionColor = color.toLowerCase();
     }
+    if (raw.multiTouch === false) config.multiTouch = false;
     const family = raw.defaultFontFamily;
     if (typeof family === 'string' && family.trim() !== '' && family.length <= 200 && family !== RUNTIME_BUILD_DEFAULTS.defaultFontFamily) {
         config.defaultFontFamily = family;
@@ -144,6 +150,8 @@ export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void;
     if (config.textCanvasSize !== undefined) {
         RuntimeConfig.textCanvasSize = config.textCanvasSize;
     }
+    // Written only when off, so absence is on: a realm booted again must not keep a false from before.
+    RuntimeConfig.multiTouch = config.multiTouch ?? true;
     if (config.defaultFontFamily !== undefined) {
         RuntimeConfig.defaultFontFamily = config.defaultFontFamily;
     }
