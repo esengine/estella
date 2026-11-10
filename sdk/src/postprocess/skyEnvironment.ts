@@ -254,6 +254,12 @@ function cloudLayer(dir: readonly number[], sun: readonly number[], dome: Float6
  * clouds over it and the grey an overcast lends it. In the frame's units, before exposure.
  */
 export function skyRadianceAt(dir: readonly number[], input: SkyEnvironmentInput, out: Float64Array): void {
+    skyRadianceAndClouds(dir, input, out);
+}
+
+/** {@link skyRadianceAt}, answering also how much of the light behind the clouds along dir comes through them (1 = clear). */
+function skyRadianceAndClouds(dir: readonly number[], input: SkyEnvironmentInput, out: Float64Array): number {
+    let through = 1;
     const P = input.params;
     const sun = input.sun;
     const overcast = clamp01(P('u_overcast'));
@@ -288,9 +294,27 @@ export function skyRadianceAt(dir: readonly number[], input: SkyEnvironmentInput
                   driftX: P('u_cloud2DriftX') - P('u_cloudDriftX'), driftZ: P('u_cloud2DriftZ') - P('u_cloudDriftZ') },
         }, L);
         for (let c = 0; c < 3; c++) out[c] = out[c]! * T + L[c]!;
+        through = T;
     }
     const luma = 0.2126 * out[0]! + 0.7152 * out[1]! + 0.0722 * out[2]!;
     for (let c = 0; c < 3; c++) out[c] = mix(out[c]!, luma, overcast * 0.5);
+    return through;
+}
+
+/**
+ * What lights the ground under this sky, as irradiance over pi (the unit an environment's coefficients and a light's colour
+ * times intensity are in): the sky's own sun — the brightness its scattering is computed from, through the air at its
+ * elevation and through the clouds as much as they let through on average — and the dome above, `skyAbove`.
+ */
+function groundIrradiance(input: SkyEnvironmentInput, skyAbove: readonly number[], cloudsThrough: number, out: Float64Array): void {
+    const P = input.params;
+    const sun = input.sun;
+    const dome = new Float64Array(3);
+    const sunTrans = new Float64Array(3);
+    scatter([0, 1, 0], sun, P('u_altitude'), P('u_haze') * (1 + clamp01(P('u_overcast')) * 2), dome, sunTrans);
+    // The sun the dome was scattered from, scaled as the dome is (0.55 x Brightness), over pi, onto level ground.
+    const sunOverPi = SUN_I * 0.55 * P('u_intensity') / Math.PI * Math.max(sun[1]!, 0) * cloudsThrough;
+    for (let c = 0; c < 3; c++) out[c] = sunOverPi * sunTrans[c]! + skyAbove[c]!;
 }
 
 /** The sky as an equirectangular panorama of radiance, `width` by `width / 2` (panoramaDirection's mapping). */
@@ -298,11 +322,38 @@ export function skyPanorama(input: SkyEnvironmentInput, width = SKY_PANORAMA_WID
     const height = Math.max(2, width >> 1);
     const rgb = new Float32Array(width * height * 3);
     const c = new Float64Array(3);
+    // Above the horizon: the sky, and as it goes, what it gives level ground (cosine-weighted, over pi) and how much the
+    // clouds let through on average (by solid angle, away from the horizon where the slab is thinnest).
+    const skyAbove = [0, 0, 0];
+    let through = 0, throughWeight = 0;
+    const cellAngle = (2 * Math.PI / width) * (Math.PI / height);
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
-            skyRadianceAt(panoramaDirection((x + 0.5) / width, (y + 0.5) / height), input, c);
+            const dir = panoramaDirection((x + 0.5) / width, (y + 0.5) / height);
+            if (dir[1]! < 0) continue;
+            const t = skyRadianceAndClouds(dir, input, c);
             const o = (y * width + x) * 3;
             rgb[o] = c[0]!; rgb[o + 1] = c[1]!; rgb[o + 2] = c[2]!;
+            const solid = cellAngle * Math.sqrt(Math.max(1 - dir[1]! * dir[1]!, 0));
+            for (let k = 0; k < 3; k++) skyAbove[k]! += c[k]! * dir[1]! * solid / Math.PI;
+            if (dir[1]! > 0.1) { through += t * solid; throughWeight += solid; }
+        }
+    }
+    // Below it: the ground, lit by that sun and that sky (Ground Albedo of it given back, as a matte surface does), fading
+    // into the horizon's own colour toward the horizon, as distant ground does through the haze between.
+    const ground = new Float64Array(3);
+    groundIrradiance(input, skyAbove, throughWeight > 0 ? through / throughWeight : 1, ground);
+    const albedo = clamp01(input.params('u_groundAlbedo'));
+    const horizon = new Float64Array(3);
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const dir = panoramaDirection((x + 0.5) / width, (y + 0.5) / height);
+            if (dir[1]! >= 0) continue;
+            const flat = Math.hypot(dir[0]!, dir[2]!) || 1;
+            skyRadianceAt([dir[0]! / flat, 0, dir[2]! / flat], input, horizon);
+            const t = smoothstep(0, -0.2, dir[1]!);
+            const o = (y * width + x) * 3;
+            for (let k = 0; k < 3; k++) rgb[o + k] = mix(horizon[k]!, albedo * ground[k]!, t);
         }
     }
     return { width, height, rgb };
@@ -336,7 +387,7 @@ export function skyEnvironmentKey(input: SkyEnvironmentInput): string {
     const r = (v: number, step: number): number => Math.round(v / step);
     const parts = [
         r(input.sun[0], 0.004), r(input.sun[1], 0.004), r(input.sun[2], 0.004),
-        r(P('u_intensity'), 0.01), r(P('u_haze'), 0.02), r(P('u_overcast'), 0.01), r(P('u_altitude'), 0.05),
+        r(P('u_intensity'), 0.01), r(P('u_haze'), 0.02), r(P('u_overcast'), 0.01), r(P('u_altitude'), 0.05), r(P('u_groundAlbedo'), 0.01),
         r(P('u_clouds'), 0.01), r(P('u_cloudBase'), 0.02), r(P('u_cloudThickness'), 0.02), r(P('u_cloudBrightness'), 0.02),
         r(P('u_cloudScale'), 0.02), r(P('u_cloudSoftness'), 0.01), r(P('u_cloudSilver'), 0.05),
         r(P('u_cloud2Coverage'), 0.01), r(P('u_cloud2Base'), 0.05), r(P('u_cloud2Thickness'), 0.05), r(P('u_cloud2Scale'), 0.05),

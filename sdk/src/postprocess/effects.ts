@@ -441,6 +441,10 @@ registerEffect({
         { name: 'u_panorama', label: 'Keep Background', min: 0, max: 1, step: 0.01, defaultValue: 0, neutralValue: 1 },
         // 0 is the weather's to say not at all; 1 a sky with no break in it. A Weather component drives it.
         { name: 'u_overcast', label: 'Overcast', min: 0, max: 1, step: 0.01, defaultValue: 0 },
+        // How much of the sun and sky the ground gives back, when this sky lights the scene: the lower half of its light, so
+        // a wall in shadow takes the sunlit ground's bounce as well as the sky's. Unreal's Ground Albedo. Lighting only:
+        // the sky drawn below the horizon is behind the ground anyway.
+        { name: 'u_groundAlbedo', label: 'Ground Albedo', min: 0, max: 1, step: 0.01, defaultValue: 0.2 },
         // How much haze (Mie scattering) the air holds: more is a whiter, glarier sky and a redder sunset.
         { name: 'u_haze', label: 'Haze', min: 0, max: 8, step: 0.05, defaultValue: 1 },
         // The camera's height above the ground the sky is seen from, in kilometres.

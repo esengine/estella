@@ -54,13 +54,23 @@ describe('sky environment', () => {
         expect(disc[1]!).toBeLessThan(beside[1]! * 1.5);
     });
 
-    it('lights what faces up more than what faces down, in the sky\'s colour', () => {
-        const sh = projectIrradianceSH(skyPanorama(clear(35)));
-        const up = evalIrradianceSH(sh, 0, 1, 0);
-        const down = evalIrradianceSH(sh, 0, -1, 0);
-        // Below the horizon is what the effect draws there: the horizon's haze at a quarter, the light a ground sends back.
-        expect(up[1]!).toBeGreaterThan(down[1]! * 1.5);
-        expect(up[2]!).toBeGreaterThan(up[0]!);
+    it('lights what faces up in the sky\'s colour, and what faces down by the sunlit ground', () => {
+        const at = (albedo: number, elevation = 35) => {
+            const sh = projectIrradianceSH(skyPanorama(clear(elevation, { u_groundAlbedo: albedo })));
+            return { up: evalIrradianceSH(sh, 0, 1, 0), down: evalIrradianceSH(sh, 0, -1, 0) };
+        };
+        const black = at(0), grey = at(0.2), light = at(0.4);
+        expect(black.up[2]!).toBeGreaterThan(black.up[0]!);
+        // A black ground sends nothing back: what faces down sees only the haze at the horizon's edge.
+        expect(black.down[1]!).toBeLessThan(black.up[1]! * 0.25);
+        // The bounce is the albedo's share of what reaches the ground, so it grows with it, about in step.
+        const bounce = (r: { down: number[] }) => r.down[1]! - black.down[1]!;
+        expect(bounce(grey)).toBeGreaterThan(0.05);
+        expect(bounce(light) / bounce(grey)).toBeCloseTo(2, 0);
+        // And with the sun: ground under a high sun is brighter than under a low one.
+        expect(bounce(at(0.2, 60))).toBeGreaterThan(bounce(at(0.2, 12)) * 2);
+        // What faces up does not depend on the ground.
+        expect(Math.abs(light.up[1]! - black.up[1]!)).toBeLessThan(black.up[1]! * 0.1);
     });
 
     it('lights the scene with clouds over it as well', () => {
