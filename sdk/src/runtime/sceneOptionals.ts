@@ -24,6 +24,7 @@ import type {
 import type { Physics2DPluginConfig } from '../physics/Physics2DPlugin';
 import type { PhysicsWasmModule } from '../physics/PhysicsModuleLoader';
 import type { Physics3DWasmModule } from '../physics3d/Physics3DModule';
+import type { Physics3DConfig } from '../physics3d/Physics3DSystem';
 
 /** What a scene load needs from Spine, when the build ships it. */
 export interface SpineSupport {
@@ -49,7 +50,8 @@ export interface PhysicsSupport {
 /** What a scene load needs from 3D physics, when the build ships it. */
 export interface Physics3DSupport {
     installed(app: App): boolean;
-    install(app: App, module: Physics3DWasmModule): void;
+    /** `config`: what the scene's PhysicsWorld3D asked for, already turned into plugin config. */
+    install(app: App, module: Physics3DWasmModule, config?: Partial<Physics3DConfig>): void;
 }
 
 /** What a scene load needs from video, when the build ships it. */

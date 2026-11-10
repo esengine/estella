@@ -27,6 +27,7 @@ import { Input, inputEventCallbacks } from '../input/input';
 import { playableAdBridge } from './playableCta';
 import { VideoPlayer } from '../video/VideoAPI';
 import type { Physics3DBackend } from '../sideModules/registry';
+import type { Physics3DWorldConfig } from '../physics3d/worldConfig';
 
 export interface PlayableRuntimeConfig {
     app: App;
@@ -52,6 +53,8 @@ export interface PlayableRuntimeConfig {
     physicsConfig?: Physics2DPluginConfig;
     /** The 3D physics backend the project chose; absent ⇒ Jolt. */
     physics3dBackend?: Physics3DBackend;
+    /** The project's 3D world: scene units per metre and gravity (Project Settings → Physics → 3D). Absent ⇒ centimetre units, Earth gravity. */
+    physics3dWorld?: Partial<Physics3DWorldConfig>;
     /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
     uiTheme?: 'dark' | 'light';
     /** Project-declared theme token overrides (partial re-skin over the base). */
@@ -164,6 +167,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         physicsEnabled: config.physicsEnabled,
         physicsConfig: config.physicsConfig,
         physics3dBackend: config.physics3dBackend,
+        physics3dWorld: config.physics3dWorld,
         uiTheme: config.uiTheme,
         uiThemeOverrides: config.uiThemeOverrides,
         audioConfig: config.audioConfig,

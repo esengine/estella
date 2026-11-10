@@ -38,6 +38,7 @@ import { log } from '../util/logger';
 import { Schedule, defineSystem } from '../ecs/system';
 import type { App } from '../app/app';
 import type { Physics3DBackend } from '../sideModules/registry';
+import type { Physics3DWorldConfig } from '../physics3d/worldConfig';
 
 // =============================================================================
 // Emscripten WASM Instantiation
@@ -126,6 +127,8 @@ export interface MiniGameRuntimeConfig {
     physicsConfig?: Physics2DPluginConfig;
     /** The 3D physics backend the project chose; absent ⇒ Jolt. */
     physics3dBackend?: Physics3DBackend;
+    /** The project's 3D world: scene units per metre and gravity (Project Settings → Physics → 3D). Absent ⇒ centimetre units, Earth gravity. */
+    physics3dWorld?: Partial<Physics3DWorldConfig>;
     /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
     uiTheme?: 'dark' | 'light';
     /** Project-declared theme token overrides (partial re-skin over the base). */
@@ -348,6 +351,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         physicsEnabled: config.physicsEnabled,
         physicsConfig: config.physicsConfig,
         physics3dBackend: config.physics3dBackend,
+        physics3dWorld: config.physics3dWorld,
         uiTheme: config.uiTheme,
         uiThemeOverrides: config.uiThemeOverrides,
         audioConfig: config.audioConfig,

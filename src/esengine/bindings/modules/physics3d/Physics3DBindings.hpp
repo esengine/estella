@@ -36,6 +36,10 @@ int physics3d_isReady();
 void physics3d_step(float dt, int collisionSteps);
 void physics3d_optimize();
 void physics3d_setLayerMask(uint32_t layer, uint32_t mask);
+/// The project's solver settings. Each value <= 0 keeps the backend's own default
+/// (Jolt's for Jolt, Unity's for PhysX); allowSleep is 0 or 1. After init, before bodies.
+void physics3d_setSolver(int velocityIterations, int positionIterations, int allowSleep,
+                         float bounceThreshold);
 
 // Bodies
 uint32_t physics3d_addCompound(uint32_t entity, uintptr_t partsPtr, uint32_t count,

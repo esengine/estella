@@ -46,6 +46,10 @@ constexpr float MAX_ANGULAR_VELOCITY = 50.0f;
 constexpr float MAX_DEPENETRATION_VELOCITY = 10.0f;
 constexpr uint32_t POSITION_ITERATIONS = 6;
 constexpr uint32_t VELOCITY_ITERATIONS = 1;
+/// What the project asked for (physics3d_setSolver), the constants above until it asks.
+uint32_t gPositionIterations = POSITION_ITERATIONS;
+uint32_t gVelocityIterations = VELOCITY_ITERATIONS;
+bool gAllowSleep = true;
 constexpr float BOUNCE_THRESHOLD = 2.0f;
 /// The ABI names no mass, so a body weighs what its volume of water would: the
 /// density the Jolt backend uses, so switching backend does not change a scene.
@@ -222,8 +226,9 @@ uint32_t addBody(uint32_t entity, const PxGeometry& geometry, const PxTransform&
         dynamic->setAngularDamping(how.angularDamping);
         dynamic->setMaxAngularVelocity(MAX_ANGULAR_VELOCITY);
         dynamic->setMaxDepenetrationVelocity(MAX_DEPENETRATION_VELOCITY);
-        dynamic->setSleepThreshold(SLEEP_THRESHOLD);
-        dynamic->setSolverIterationCounts(POSITION_ITERATIONS, VELOCITY_ITERATIONS);
+        // A threshold of 0 is energy no body falls below: it never sleeps.
+        dynamic->setSleepThreshold(gAllowSleep ? SLEEP_THRESHOLD : 0.0f);
+        dynamic->setSolverIterationCounts(gPositionIterations, gVelocityIterations);
         if (how.fixedRotation != 0) {
             dynamic->setRigidDynamicLockFlags(PxRigidDynamicLockFlag::eLOCK_ANGULAR_X
                 | PxRigidDynamicLockFlag::eLOCK_ANGULAR_Y | PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z);
@@ -354,6 +359,15 @@ int physics3d_isReady() { return g().isValid() ? 1 : 0; }
 EMSCRIPTEN_KEEPALIVE
 void physics3d_setLayerMask(uint32_t layer, uint32_t mask) {
     if (layer < px3::LAYER_COUNT) g().masks[layer] = mask;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setSolver(int velocityIterations, int positionIterations, int allowSleep,
+                         float bounceThreshold) {
+    gVelocityIterations = velocityIterations > 0 ? static_cast<uint32_t>(velocityIterations) : VELOCITY_ITERATIONS;
+    gPositionIterations = positionIterations > 0 ? static_cast<uint32_t>(positionIterations) : POSITION_ITERATIONS;
+    gAllowSleep = allowSleep != 0;
+    if (g().isValid()) g().scene->setBounceThresholdVelocity(bounceThreshold > 0.0f ? bounceThreshold : BOUNCE_THRESHOLD);
 }
 
 EMSCRIPTEN_KEEPALIVE

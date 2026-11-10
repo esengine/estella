@@ -787,6 +787,31 @@ step(1);
 check('compound sensor reports overlap', m._physics3d_sensorEntersBytes() > 0);
 m._physics3d_removeBody(visitor); m._physics3d_removeBody(sensorCompound);
 
+// ── The project's solver settings reach the solver ─────────────────────────
+// A fully elastic ball dropped 1 m meets the floor at ~4.4 m/s. Under a bounce threshold of 10 m/s
+// that impact is too slow to bounce; with the backend's own threshold (Jolt 1, PhysX 2) it bounces
+// most of the way back. The same drop, one number changed: what differs is the setting.
+const peakAfterImpact = (entity, x) => {
+    const id = m._physics3d_addSphere(entity, 0.5, x, 1.5, 0, ...IDENTITY, ...FREE(DYNAMIC), 0, 1, 0, 0, 0, 0);
+    let touched = false, peak = -Infinity;
+    for (let i = 0; i < 120; i++) {
+        step(1);
+        const y = bodyState(id)?.y ?? NaN;
+        if (y < 0.56) touched = true;
+        else if (touched) peak = Math.max(peak, y);
+    }
+    m._physics3d_removeBody(id);
+    return touched ? peak : NaN;
+};
+const solverFloor = m._physics3d_addBox(9300, 5, 0.5, 5, 9000, -0.5, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 1, 0, 0, 0, 0);
+m._physics3d_setSolver(0, 0, 1, 10);
+const dead = peakAfterImpact(9301, 9000);
+check('under a 10 m/s bounce threshold a 4.4 m/s impact does not bounce', !(dead > 0.6), `peak=${dead}`);
+m._physics3d_setSolver(0, 0, 1, 0);
+const live = peakAfterImpact(9302, 9002);
+check('with the backend\'s own threshold the same impact bounces', live > 1.0, `peak=${live}`);
+m._physics3d_removeBody(solverFloor);
+
 m._physics3d_shutdown();
 check('the world reports itself gone', m._physics3d_isReady() === 0);
 

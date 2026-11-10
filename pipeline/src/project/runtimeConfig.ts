@@ -26,9 +26,9 @@
  * fails the build when a field in this shape is not carried by every consumer —
  * or is not listed there as a declared, reasoned gap.
  */
-import { parseQualityConfig, parseRuntimeBuildConfig } from 'esengine';
+import { DEFAULT_PHYSICS3D_WORLD, parseQualityConfig, parseRuntimeBuildConfig } from 'esengine';
 import type {
-  AudioProjectConfig, PackagedGameConfig, Physics2DPluginConfig, QualityConfig, RuntimeBuildConfig,
+  AudioProjectConfig, PackagedGameConfig, Physics2DPluginConfig, Physics3DWorldConfig, QualityConfig, RuntimeBuildConfig,
 } from 'esengine';
 import { resolveScreenFit, SORTING_LAYER_COUNT, type ProjectFeatures, type ProjectManifest, type ProjectPackaging } from './format';
 
@@ -62,6 +62,8 @@ export interface RuntimeProjectConfig {
   physicsConfig: Physics2DPluginConfig;
   /** The 3D physics backend; 'jolt' is the default. */
   physics3dBackend: 'jolt' | 'physx';
+  /** The 3D world: scene units per metre and gravity, defaults folded in. */
+  physics3dWorld: Physics3DWorldConfig;
   /** Mixer state: bus volumes, custom buses, effects, duck rules. */
   audioConfig: AudioProjectConfig;
   /** Runtime tuning the project declared — only what differs from the engine's own values, so `{}` is the default. */
@@ -159,6 +161,7 @@ export function runtimeConfigOf(
     physicsEnabled: f?.physics?.enabled ?? false,
     physicsConfig: physicsConfigOf(f),
     physics3dBackend: f?.physics?.backend3d === 'physx' ? 'physx' : 'jolt',
+    physics3dWorld: { ...DEFAULT_PHYSICS3D_WORLD, ...f?.physics?.world3d },
     audioConfig: f?.audio ?? {},
     runtime: parseRuntimeBuildConfig(f?.runtime),
     uiTheme: f?.ui?.theme === 'light' ? 'light' : 'dark',
@@ -193,7 +196,7 @@ export type PackagedRuntimeFields = Pick<
   'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'renderBackend' | 'screenFit'
   | 'msaaSamples' | 'quality'
   | 'uiTheme' | 'uiThemeColors'
-  | 'physicsEnabled' | 'physicsConfig' | 'physics3dBackend' | 'audioConfig' | 'achievements' | 'steamAppId' | 'runtime'
+  | 'physicsEnabled' | 'physicsConfig' | 'physics3dBackend' | 'physics3dWorld' | 'audioConfig' | 'achievements' | 'steamAppId' | 'runtime'
 >;
 
 /**
@@ -230,6 +233,7 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     ...(rc.physicsEnabled ? { physicsEnabled: true } : {}),
     ...(isDefaultPhysics(rc.physicsConfig) ? {} : { physicsConfig: rc.physicsConfig }),
     ...(rc.physics3dBackend === 'physx' ? { physics3dBackend: rc.physics3dBackend } : {}),
+    ...(isDefaultPhysics3dWorld(rc.physics3dWorld) ? {} : { physics3dWorld: rc.physics3dWorld }),
     ...(rc.audioConfig.buses?.length || rc.audioConfig.maxVoices !== undefined
       || Object.keys(rc.audioConfig.loadTypes ?? {}).length > 0
       ? { audioConfig: rc.audioConfig } : {}),
@@ -251,6 +255,10 @@ export function qualityShips(quality: QualityConfig): boolean {
 }
 
 /** Whether the world config is exactly what a runtime would default to anyway. */
+function isDefaultPhysics3dWorld(world: Physics3DWorldConfig): boolean {
+  return JSON.stringify(world) === JSON.stringify(DEFAULT_PHYSICS3D_WORLD);
+}
+
 function isDefaultPhysics(config: Physics2DPluginConfig): boolean {
   return JSON.stringify(config) === JSON.stringify(DEFAULT_PHYSICS_CONFIG);
 }

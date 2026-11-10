@@ -19,8 +19,8 @@
  */
 
 import {
-  parseAudioProjectConfig, parseQualityConfig, parseRuntimeBuildConfig, THEME_COLOR_ROLES,
-  type AudioProjectConfig, type QualityConfig, type RuntimeBuildConfig,
+  parseAudioProjectConfig, parseQualityConfig, parseRuntimeBuildConfig, physics3DPluginConfigOf, THEME_COLOR_ROLES,
+  type AudioProjectConfig, type Physics3DWorldConfig, type QualityConfig, type RuntimeBuildConfig,
 } from 'esengine';
 import { normalizePlatform, type ExportPlatform } from './platforms';
 import { cspConnectSources } from '../export/cspConnect';
@@ -162,6 +162,9 @@ export interface ProjectFeatures {
     collisionLayers?: string[];
     /** The solver behind 3D physics: Jolt (default) or PhysX, the one Unity runs. */
     backend3d?: 'jolt' | 'physx';
+    /** The 3D world (Project Settings → Physics → 3D): units per metre, gravity, solver. Only what differs from
+     *  the engine's own values is written; the fixed step and the collision matrix are the ones above, shared with 2D. */
+    world3d?: Partial<Physics3DWorldConfig>;
     /** Per-layer collision masks (the UE/Unity collision matrix): masks[i] bit j set ⇒
      *  layer i collides with layer j. 16 entries; absent ⇒ all-collide. */
     collisionLayerMasks?: number[];
@@ -849,6 +852,16 @@ export function parseManifest(raw: unknown): ProjectManifest {
       if (typeof p.enableSleep === 'boolean') physics.enableSleep = p.enableSleep;
       if (p.backend3d === 'jolt' || p.backend3d === 'physx') physics.backend3d = p.backend3d;
       if (typeof p.enableContinuous === 'boolean') physics.enableContinuous = p.enableContinuous;
+      if (p.world3d && typeof p.world3d === 'object') {
+        // The SDK's own reader decides what is valid, so a value the runtime would refuse is not kept here either.
+        const valid = physics3DPluginConfigOf(p.world3d as Partial<Physics3DWorldConfig>);
+        const world3d: Partial<Physics3DWorldConfig> = {};
+        if (valid.pixelsPerUnit !== undefined) world3d.unitsPerMeter = valid.pixelsPerUnit;
+        for (const k of ['gravity', 'collisionSteps', 'maxBodies', 'velocityIterations', 'positionIterations', 'enableSleep', 'bounceThreshold'] as const) {
+          if (valid[k] !== undefined) (world3d as Record<string, unknown>)[k] = valid[k];
+        }
+        if (Object.keys(world3d).length > 0) physics.world3d = world3d;
+      }
       features.physics = physics;
     }
     if (f.rendering && typeof f.rendering === 'object') {

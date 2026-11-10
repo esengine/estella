@@ -30,6 +30,7 @@ import { VideoPlayer } from '../video/VideoAPI';
 import type { App } from '../app/app';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { registerSideModule, type Physics3DBackend } from '../sideModules/registry';
+import type { Physics3DWorldConfig } from '../physics3d/worldConfig';
 import type { AotManifest } from '../ecs/aot/AotSystems';
 
 /**
@@ -107,6 +108,8 @@ export interface PackagedGameConfig {
     physicsConfig?: Physics2DPluginConfig;
     /** The 3D physics backend the project chose; absent ⇒ Jolt. */
     physics3dBackend?: Physics3DBackend;
+    /** The project's 3D world: scene units per metre and gravity (Project Settings → Physics → 3D). Absent ⇒ centimetre units, Earth gravity. */
+    physics3dWorld?: Partial<Physics3DWorldConfig>;
     /** Project mixer state: bus volumes, custom buses, effects, duck rules.
      *  Absent ⇒ the default mix. */
     audioConfig?: AudioProjectConfig;
@@ -242,12 +245,14 @@ export function packagedAppOptions(
  */
 export function packagedRuntimeInit(
     config: Pick<PackagedGameConfig,
-        'physicsEnabled' | 'physicsConfig' | 'physics3dBackend' | 'audioConfig' | 'uiTheme' | 'uiThemeColors'
+        'physicsEnabled' | 'physicsConfig' | 'physics3dBackend' | 'physics3dWorld' | 'audioConfig' | 'uiTheme' | 'uiThemeColors'
         | 'achievements' | 'steamAppId' | 'screenFit' | 'aot' | 'debugChannel' | 'runtime'>,
 ): {
     physicsEnabled?: boolean;
     physicsConfig?: Physics2DPluginConfig;
     physics3dBackend?: Physics3DBackend;
+    /** The project's 3D world: scene units per metre and gravity (Project Settings → Physics → 3D). Absent ⇒ centimetre units, Earth gravity. */
+    physics3dWorld?: Partial<Physics3DWorldConfig>;
     audioConfig?: AudioProjectConfig;
     runtime?: RuntimeBuildConfig;
     uiTheme?: 'light';
@@ -262,6 +267,7 @@ export function packagedRuntimeInit(
         physicsEnabled: config.physicsEnabled,
         physicsConfig: config.physicsConfig,
         physics3dBackend: config.physics3dBackend,
+        physics3dWorld: config.physics3dWorld,
         audioConfig: config.audioConfig,
         runtime: config.runtime,
         uiTheme: config.uiTheme,

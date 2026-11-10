@@ -330,6 +330,7 @@ export {
     type EmbeddedSideModuleRegistry,
     type WeChatSideModuleFactories,
 } from './sideModules';
+export { DEFAULT_PHYSICS3D_WORLD, physics3DPluginConfigOf, physics3DInstallConfig, type Physics3DWorldConfig } from './physics3d/worldConfig';
 
 // =============================================================================
 // Playable Runtime

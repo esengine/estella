@@ -9,8 +9,8 @@ export function registerPhysics3DSupport(): void {
     setSceneOptionals({
         physics3d: {
             installed: (app) => !!app.getPlugin(Physics3DPluginCtor),
-            install: (app, module) =>
-                app.addPlugin(new Physics3DPluginCtor('', {}, () => Promise.resolve(module))),
+            install: (app, module, config) =>
+                app.addPlugin(new Physics3DPluginCtor('', config ?? {}, () => Promise.resolve(module))),
         },
     });
 }

@@ -44,6 +44,14 @@ export interface Physics3DConfig {
     collisionSteps: number;
     pixelsPerUnit: number;
     maxBodies: number;
+    /** Solver passes; 0 keeps the backend's own (Jolt 10 / PhysX 1). */
+    velocityIterations: number;
+    /** 0 keeps the backend's own (Jolt 2 / PhysX 6). */
+    positionIterations: number;
+    /** Resting bodies stop being simulated until something touches them. */
+    enableSleep: boolean;
+    /** Slower impacts than this (m/s) do not bounce; 0 keeps the backend's own (Jolt 1 / PhysX 2). */
+    bounceThreshold: number;
 }
 
 export const DEFAULT_PHYSICS3D_CONFIG: Physics3DConfig = {
@@ -52,6 +60,10 @@ export const DEFAULT_PHYSICS3D_CONFIG: Physics3DConfig = {
     collisionSteps: 1,
     pixelsPerUnit: 100,
     maxBodies: 1024,
+    velocityIterations: 0,
+    positionIterations: 0,
+    enableSleep: true,
+    bounceThreshold: 0,
 };
 
 /** Which body an entity owns, so a removed component takes its body with it. */

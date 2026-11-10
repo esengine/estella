@@ -267,6 +267,21 @@ void physics3d_setLayerMask(uint32_t layer, uint32_t mask) {
     }
 }
 
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setSolver(int velocityIterations, int positionIterations, int allowSleep,
+                         float bounceThreshold) {
+    if (!g().isValid()) return;
+    // From Jolt's own defaults, not from what is set now: 0 means "Jolt's value", so a
+    // setting cleared after being changed goes back rather than staying where it was.
+    const PhysicsSettings jolt;
+    PhysicsSettings settings = g().system->GetPhysicsSettings();
+    settings.mNumVelocitySteps = velocityIterations > 0 ? static_cast<JPH::uint>(velocityIterations) : jolt.mNumVelocitySteps;
+    settings.mNumPositionSteps = positionIterations > 0 ? static_cast<JPH::uint>(positionIterations) : jolt.mNumPositionSteps;
+    settings.mAllowSleeping = allowSleep != 0;
+    settings.mMinVelocityForRestitution = bounceThreshold > 0.0f ? bounceThreshold : jolt.mMinVelocityForRestitution;
+    g().system->SetPhysicsSettings(settings);
+}
+
 /// Advance the world, then refill the transform buffer with every active body.
 EMSCRIPTEN_KEEPALIVE
 void physics3d_step(float dt, int collisionSteps) {

@@ -19,6 +19,9 @@ export interface Physics3DWasmModule {
     _physics3d_step(dt: number, collisionSteps: number): void;
     _physics3d_optimize(): void;
     _physics3d_setLayerMask(layer: number, mask: number): void;
+    /** Each value <= 0 keeps the backend's own default; after init, before bodies. */
+    _physics3d_setSolver(velocityIterations: number, positionIterations: number, allowSleep: number,
+                         bounceThreshold: number): void;
 
     _physics3d_addBox(entity: number, hx: number, hy: number, hz: number,
                       px: number, py: number, pz: number,
@@ -158,7 +161,7 @@ export type Physics3DModuleFactory =
 export const PHYSICS3D_TRANSFORM_STRIDE = 8;
 
 const REQUIRED_EXPORTS = [
-    '_physics3d_init', '_physics3d_shutdown', '_physics3d_isReady', '_physics3d_step',
+    '_physics3d_init', '_physics3d_shutdown', '_physics3d_isReady', '_physics3d_step', '_physics3d_setSolver',
     '_physics3d_addBox', '_physics3d_addSphere', '_physics3d_addCapsule',
     '_physics3d_removeBody', '_physics3d_setTransform', '_physics3d_raycast',
     '_physics3d_transforms', '_physics3d_transformsBytes',

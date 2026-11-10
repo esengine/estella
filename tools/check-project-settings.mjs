@@ -87,6 +87,9 @@ const DECLARED_GAPS = {
   physicsConfig: {
     editor: 'edit mode does not simulate — see physicsEnabled',
   },
+  physics3dWorld: {
+    editor: 'edit mode does not simulate — see physicsEnabled',
+  },
   colorSpace: {
     editor: 'boot-fixed — shaders compile against it, so the settings page asks '
       + 'for a reload rather than applying live (EngineHost.resolveColorSpace)',
@@ -123,6 +126,7 @@ const PARSE_KEY = {
   physicsEnabled: 'p.enabled',
   physicsConfig: 'physics',
   physics3dBackend: 'backend3d',
+  physics3dWorld: 'world3d',
   audioConfig: 'parseAudioProjectConfig',
   runtime: 'parseRuntimeBuildConfig',
   uiTheme: 'u.theme',
@@ -148,6 +152,7 @@ const AUTHORING = {
   steamAppId: { ui: 'project.packaging.desktop.steam.appId' },
   physicsEnabled: { ui: 'project.physics.enabled' },
   physics3dBackend: { ui: 'project.physics.backend3d' },
+  physics3dWorld: { ui: ['project.physics.world3d.'] },
   physicsConfig: { ui: ['project.physics.gravityX', 'project.physics.gravityY', 'project.physics.fixedTimestep'] },
   audioConfig: { ui: ['project.audio.maxVoices', 'project.audio.buses', 'project.audio.effects'] },
   runtime: { ui: ['project.runtime.'] },

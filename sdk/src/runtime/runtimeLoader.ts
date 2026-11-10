@@ -61,6 +61,7 @@ import type { DragonBonesAssetInfo } from '../dragonbones/loadDragonBonesScene';
 import type { AddressableManifest, ManifestModel } from '../asset/AddressableManifest';
 import type { Catalog } from '../asset/Catalog';
 import { physics3dModuleId, type Physics3DBackend } from '../sideModules/registry';
+import { physics3DInstallConfig, type Physics3DWorldConfig } from '../physics3d/worldConfig';
 
 // =============================================================================
 // Public Interface
@@ -211,6 +212,8 @@ export interface LoadRuntimeSceneOptions {
     physicsConfig?: Physics2DPluginConfig;
     /** The 3D physics backend; selects the side module the 3D world is acquired from. Absent ⇒ Jolt. */
     physics3dBackend?: Physics3DBackend;
+    /** The project's 3D world: scene units per metre and gravity (Project Settings → Physics → 3D). Absent ⇒ centimetre units, Earth gravity. */
+    physics3dWorld?: Partial<Physics3DWorldConfig>;
     /** Project-declared physics enable (`.uproject` features analog) — installs
      *  physics even for runtime-spawned bodies the static scene doesn't show.
      *  OR-combined with a content scan. */
@@ -237,6 +240,7 @@ const PHYSICS_COMPONENT_TYPES = new Set([
 const PHYSICS3D_COMPONENT_TYPES = new Set([
     'RigidBody3D', 'BoxCollider3D', 'SphereCollider3D', 'CapsuleCollider3D',
     'MeshCollider3D', 'ConvexCollider3D', 'CharacterController3D',
+    'CompoundCollider3D', 'Ragdoll',
     'PointJoint3D', 'HingeJoint3D', 'SliderJoint3D', 'DistanceJoint3D', 'FixedJoint3D', 'SwingTwistJoint3D', 'SixDOFJoint3D',
 ]);
 
@@ -523,8 +527,9 @@ export async function prepareRuntimeScene(
                     + ` this realm has no side-module host or the ${options.physics3dBackend ?? 'jolt'} module failed to load`);
                 return;
             }
-            p3d.install(app, module3d);
-            log.info('physics3d', 'installed');
+            const config3d = physics3DInstallConfig(options.physics3dWorld, physicsConfig);
+            p3d.install(app, module3d, config3d);
+            log.info('physics3d', `installed (${config3d.pixelsPerUnit ?? 100} units per metre)`);
         });
     }
 
@@ -786,6 +791,8 @@ export interface RuntimeInitConfig {
     physicsConfig?: Physics2DPluginConfig;
     /** The 3D physics backend; selects the side module the 3D world is acquired from. Absent ⇒ Jolt. */
     physics3dBackend?: Physics3DBackend;
+    /** The project's 3D world: scene units per metre and gravity (Project Settings → Physics → 3D). Absent ⇒ centimetre units, Earth gravity. */
+    physics3dWorld?: Partial<Physics3DWorldConfig>;
     /** Project-declared physics enable; see {@link LoadRuntimeSceneOptions.physicsEnabled}. */
     physicsEnabled?: boolean;
     /** Project-declared mixer state (bus volumes / custom buses / effects / duck
@@ -882,6 +889,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         physicsModule: config.physicsModule,
         physicsConfig: config.physicsConfig,
         physics3dBackend: config.physics3dBackend,
+        physics3dWorld: config.physics3dWorld,
         physicsEnabled: config.physicsEnabled,
         uiTheme: config.uiTheme,
         uiThemeOverrides: config.uiThemeOverrides,
