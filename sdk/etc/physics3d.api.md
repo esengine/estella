@@ -262,12 +262,16 @@ ResourceDef<Physics3DQueries | null>
 
 ## Physics3DConfig — interface @experimental
 ```
+bounceThreshold: number
 collisionSteps: number
+enableSleep: boolean
 fixedTimestep: number
 gravity: { x: number; y: number; z: number; }
 layerMasks: number[] | undefined
 maxBodies: number
 pixelsPerUnit: number
+positionIterations: number
+velocityIterations: number
 ```
 
 ## Physics3DDebugDraw — const @experimental
@@ -313,7 +317,7 @@ static prototype: Physics3DPlugin
 ```
 overlapBox: (centre: { x: number; y: number; z: number; }, halfExtents: { x: number; y: number; z: number; }, layerMask?: number) => Overlap3DHit[]
 overlapSphere: (centre: { x: number; y: number; z: number; }, radius: number, layerMask?: number) => Overlap3DHit[]
-raycast: (origin: { x: number; y: number; z: number; }, direction: { x: number; y: number; z: number; }, layerMask?: number) => Cast3DHit | null
+raycast: (origin: { x: number; y: number; z: number; }, direction: { x: number; y: number; z: number; }, layerMask?: number, options?: { characters?: boolean; }) => Cast3DHit | null
 sphereCast: (origin: { x: number; y: number; z: number; }, radius: number, direction: { x: number; y: number; z: number; }, layerMask?: number) => Cast3DHit | null
 teleportCharacter: (entity: Entity, position: { x: number; y: number; z: number; }) => boolean
 static new (module_: Physics3DWasmModule, ppu_: number, characters_?: ReadonlyMap<Entity, number>): Physics3DQueries
@@ -369,6 +373,7 @@ _physics3d_overlapSphere: (px: number, py: number, pz: number, radius: number, l
 _physics3d_queryResult: () => number
 _physics3d_queryResultBytes: () => number
 _physics3d_raycast: (ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, layerMask: number) => number
+_physics3d_raycastWith: (ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, layerMask: number, flags: number) => number
 _physics3d_removeBody: (bodyId: number) => void
 _physics3d_removeCharacter: (characterId: number) => void
 _physics3d_removeJoint: (entity: number, bodyA: number, bodyB: number) => void
@@ -381,6 +386,7 @@ _physics3d_setCharacterPosition: (characterId: number, px: number, py: number, p
 _physics3d_setJointMotor: (entity: number, enable: number, speed: number) => void
 _physics3d_setLayerMask: (layer: number, mask: number) => void
 _physics3d_setLinearVelocity: (bodyId: number, vx: number, vy: number, vz: number) => void
+_physics3d_setSolver: (velocityIterations: number, positionIterations: number, allowSleep: number, bounceThreshold: number) => void
 _physics3d_setTransform: (bodyId: number, px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number) => void
 _physics3d_shutdown: () => void
 _physics3d_sphereCast: (px: number, py: number, pz: number, radius: number, dx: number, dy: number, dz: number, layerMask: number) => number

@@ -817,6 +817,9 @@ jobs:
 
     - uses: ./.github/actions/editor-host
 
+    - name: Fetch the commit the hand checks take their rigged character from
+      run: git fetch --depth=1 origin 73ebaae9d
+
     # Exit 2 is "this machine cannot answer", as in the script-failure step above:
     # a check whose play realm never said hello measured nothing about the editor,
     # and this runner takes longer than the 90s boot deadline under load while the

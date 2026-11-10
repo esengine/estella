@@ -52,7 +52,9 @@ ComponentDef<FirstPersonControllerData>
 ```
 acceleration: number
 airControl: number
+airTime: number
 camera: number
+coyoteTime: number
 crouchEyeHeight: number
 crouchHalfHeight: number
 crouchMultiplier: number
@@ -62,7 +64,11 @@ enabled: boolean
 eye: number
 eyeHeight: number
 eyeSpeed: number
+gravityScale: number
+jumpBuffer: number
+jumpHeld: number
 jumpSpeed: number
+jumped: boolean
 lookSensitivity: number
 moveSpeed: number
 pitch: number

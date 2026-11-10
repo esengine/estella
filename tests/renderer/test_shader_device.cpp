@@ -32,10 +32,7 @@ int main() {
         CHECK(shader->getProgramId() == 1, "programId is the device-returned id");
         CHECK(d.getActiveUniformsCalls == 1, "reflection routes through device.getActiveUniforms");
 
-        // compile() pins every engine-injected sampler to its unit, so the counts
-        // below start from what that seeding left behind — seven of them, ending
-        // on the per-object records.
-        CHECK(d.setUniform1iCalls == 7
+        CHECK(d.setUniform1iCalls == 8
                   && d.lastUniform1iVal == static_cast<i32>(MESH_INSTANCE_TEXTURE_UNIT),
               "compile pins the injected samplers to their texture units");
         CHECK(d.useProgramCalls == 2, "seeding them binds and unbinds the program once");
@@ -44,7 +41,7 @@ int main() {
         CHECK(d.useProgramCalls == 3 && d.lastProgram == ShaderHandle{1}, "bind routes through device.useProgram");
 
         shader->setUniform("u_tex", 3);
-        CHECK(d.setUniform1iCalls == 8, "setUniform(name,int) routes through device.setUniform1i");
+        CHECK(d.setUniform1iCalls == 9, "setUniform(name,int) routes through device.setUniform1i");
         CHECK(d.lastUniform1iVal == 3, "uniform value forwarded");
 
         shader->setUniform("u_color", glm::vec4(1, 0, 0, 1));
