@@ -94,8 +94,11 @@ gating installs physics or spine exactly as it does in a browser (see
 
 Spine is the one build-time choice: the vendored runtimes (2.1 / 3.8 / 4.1 / 4.2 / 4.3)
 export the same symbol names, so a binary carries exactly one.
-`-DESTELLA_SPINE_VERSION=4.1` picks another; `spine_runtimeVersion()` reports what
-was linked, and content authored against a different release is told so by name
+`node build-tools/cli.js native --spine 4.1` (or `-DESTELLA_SPINE_VERSION=4.1`) picks
+another, and the template's `template.json` records what the build linked, read from
+its CMake cache; an export names each skeleton of another version in its warnings.
+`spine_runtimeVersion()` reports what was linked at runtime, and content authored
+against a different release is told so by name
 instead of being decoded by the wrong parser. Which runtime backend a release uses
 follows from its tree: 3.8 through 4.2 vendor the pure-C runtime, 2.1 vendors it flat
 and in a dialect old enough to warrant its own backend, and 4.3 replaced it with a

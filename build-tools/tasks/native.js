@@ -9,7 +9,7 @@
 // --dawn / --dawn-build or ESTELLA_DAWN_DIR / ESTELLA_DAWN_BUILD.
 
 import path from 'path';
-import { existsSync, readFileSync, writeFileSync, statSync } from 'fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, statSync } from 'fs';
 import { mkdir, rm, cp, readdir } from 'fs/promises';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
@@ -434,6 +434,7 @@ async function buildDesktopHost(options) {
         `-DESTELLA_NATIVE_GEN_DIR=${fwd(genDir)}`,
         `-DESTELLA_JS_ENGINE=${js.engine}`,
         `-DESTELLA_V8_DIR=${js.v8 ? fwd(js.v8) : ''}`,
+        ...spineFlags(rootDir, options),
     ], { cwd: rootDir });
 
     logger.step('Building desktop host...');
@@ -451,6 +452,29 @@ async function buildDesktopHost(options) {
     }
     logger.info(`Run an export with: ${path.relative(rootDir, exe)} <exported-project-dir>`);
     return exe;
+}
+
+/**
+ * `--spine <version>` as a CMake flag. A host links ONE Spine runtime — every
+ * vendored one exports the same symbols — so a project whose skeletons are 3.8
+ * needs a template built for 3.8; the default is native/CMakeLists.txt's (4.2).
+ * Absent, the build keeps whatever its cache already says, and the template
+ * manifest records that (see builtSpineVersion), so it never claims a default.
+ */
+function spineFlags(rootDir, options) {
+    const version = options.spine;
+    if (!version) return [];
+    checkSpineVendored(rootDir, version);
+    logger.info(`Linking Spine ${version}`);
+    return [`-DESTELLA_SPINE_VERSION=${version}`];
+}
+
+/** Refuses a --spine no runtime is vendored for — before any dependency builds. */
+function checkSpineVendored(rootDir, version) {
+    if (existsSync(path.join(rootDir, 'third_party', `spine-runtimes-${version}`))) return;
+    const vendored = readdirSync(path.join(rootDir, 'third_party'))
+        .filter((d) => d.startsWith('spine-runtimes-')).map((d) => d.slice('spine-runtimes-'.length));
+    throw new Error(`--spine ${version}: no such Spine runtime is vendored (have ${vendored.join(', ')}).`);
 }
 
 // CMake parses backslashes in -D string values as escapes (F:\estella -> \e), so
@@ -505,6 +529,7 @@ async function buildAndroidHost(options) {
         '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
         `-DESTELLA_DAWN_DIR=${dawnDir}`,
         `-DESTELLA_DAWN_BUILD=${dawnBuild}`,
+        ...spineFlags(rootDir, options),
     ];
     if (ninja) configureArgs.push(`-DCMAKE_MAKE_PROGRAM=${ninja}`);
     if (quickjs) {
@@ -682,6 +707,7 @@ async function buildIosHost(options) {
         '-DCMAKE_OSX_ARCHITECTURES=arm64',
         `-DCMAKE_OSX_DEPLOYMENT_TARGET=${deploymentTarget}`,
         `-DCMAKE_OSX_SYSROOT=${slice.sysroot}`,
+        ...spineFlags(rootDir, options),
         '-DCMAKE_BUILD_TYPE=Release',
         '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON',
         `-DESTELLA_DAWN_DIR=${fwd(dawnDir)}`,
@@ -894,6 +920,7 @@ async function buildNativeDeps(options) {
 }
 
 export async function buildNative(options = {}) {
+    if (options.spine) checkSpineVendored(config.paths.root, options.spine);
     // Before anything that needs a toolchain: this only reads the manifest, and CI
     // asks for it on a runner that has not set one up yet.
     if (options.depsCacheKey) {

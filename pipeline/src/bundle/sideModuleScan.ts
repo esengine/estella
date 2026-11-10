@@ -33,7 +33,7 @@ export const WECHAT_MODULE_BUILD_TARGET: Record<string, string> = {
   'spine:4.3': 'spine-wechat',
 };
 
-interface CookEntryLike {
+export interface CookEntryLike {
   path: string;
   sourcePath?: string;
   type?: string;
@@ -158,19 +158,38 @@ export async function scanSideModuleIds(input: SideModuleScanInput): Promise<Set
     if (/\.esv(\.bin)?$/.test(lower)) ids.add('videodec');
     const editorType = getEditorType(e.sourcePath ?? e.path);
     if (editorType === 'dragonbones-skeleton' || editorType === 'dragonbones-atlas') ids.add('dragonbones');
+  }
+  for (const v of (await scanSpineSkeletons(input.cookEntries, input.stagedDir)).keys()) ids.add(spineModuleId(v));
+  return ids;
+}
+
+/**
+ * Each staged skeleton by the Spine runtime it was exported for, read from the
+ * file itself (paths are the authored ones). The web carries a side module per
+ * version; a native host links ONE runtime, so this is also what an export holds
+ * a native template against.
+ */
+export async function scanSpineSkeletons(
+  cookEntries: readonly CookEntryLike[], stagedDir: string,
+): Promise<Map<SpineVersion, string[]>> {
+  const byVersion = new Map<SpineVersion, string[]>();
+  for (const e of cookEntries) {
     if (e.type !== 'spine') continue;
     const ext = path.extname(e.sourcePath ?? e.path).toLowerCase();
     try {
       let v: SpineVersion | null = null;
       if (ext === '.skel') {
-        v = detectSpineVersion(new Uint8Array(await readFile(path.join(input.stagedDir, e.path))));
+        v = detectSpineVersion(new Uint8Array(await readFile(path.join(stagedDir, e.path))));
       } else if (ext === '.json') {
-        v = detectSpineVersionJson(await readFile(path.join(input.stagedDir, e.path), 'utf8'));
+        v = detectSpineVersionJson(await readFile(path.join(stagedDir, e.path), 'utf8'));
       }
-      if (v) ids.add(spineModuleId(v));
+      if (!v) continue;
+      const list = byVersion.get(v) ?? [];
+      list.push(e.sourcePath ?? e.path);
+      byVersion.set(v, list);
     } catch { /* unreadable cook entry — cookAssets already warned */ }
   }
-  return ids;
+  return byVersion;
 }
 
 /**

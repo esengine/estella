@@ -168,6 +168,7 @@ program
     .option('--quickjs <dir>', 'QuickJS-ng source dir (default: the pinned checkout; or ESTELLA_QUICKJS_DIR)')
     .option('--js-engine <engine>', 'JS engine the host embeds: v8 (default where pinned: Windows, Android) or quickjs (iOS always; or ESTELLA_JS_ENGINE)')
     .option('--v8 <dir>', 'A prebuilt V8 (include/ + libraries) instead of the pinned one (or ESTELLA_V8_DIR)')
+    .option('--spine <version>', 'Spine runtime the host links (4.3, 4.2, 4.1, 3.8 or 2.1; default 4.2). A host links ONE: a project whose skeletons are another version needs a template built with this')
     .option('--sdl <dir>', 'Desktop: SDL3 source dir or install prefix (default: the pinned checkout; or ESTELLA_SDL_DIR)')
     .option('--steam-sdk <dir>', 'Desktop: a Steamworks SDK on this machine; its redistributable ships in the package (and in a template built with --template-out)')
     .option('--macos-archs <archs>', 'Desktop: CMAKE_OSX_ARCHITECTURES (arm64, or "arm64;x86_64" for a universal build)')
@@ -209,6 +210,7 @@ program
                 quickjs: options.quickjs,
                 jsEngine: options.jsEngine,
                 v8: options.v8,
+                spine: options.spine,
                 sdl: options.sdl,
                 steamSdk: options.steamSdk,
                 macosArchs: options.macosArchs,

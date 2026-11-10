@@ -25,7 +25,10 @@ export interface NativeTemplateManifest {
     /** Matched EXACTLY against the editor's version: the SDK bundle is compiled
      *  into the host binary, so a near-miss fails on a device. */
     engineVersion: string;
-    spineVersion: string;
+    /** The one Spine runtime the host links (read from its build, not assumed).
+     *  Absent on templates written before it was recorded: those are 4.2 —
+     *  read it through {@link templateSpineVersion}. */
+    spineVersion?: string;
     /** iOS only. */
     deploymentTarget?: string;
     /** Android only. */
@@ -98,6 +101,9 @@ export function writeTemplateManifest(
   meta: { platform: TemplatePlatform; engineVersion: string; abi?: string } & Record<string, unknown>,
 ): NativeTemplateManifest;
 export function readTemplateManifest(dir: string): NativeTemplateManifest | null;
+export const DEFAULT_TEMPLATE_SPINE: string;
+export function templateSpineVersion(manifest: Pick<NativeTemplateManifest, 'spineVersion'> | null | undefined): string;
+export function builtSpineVersion(root: string, platform: TemplatePlatform, abis?: readonly string[]): string | null;
 export function templateMatches(manifest: NativeTemplateManifest | null, want: TemplateWant): boolean;
 export function templateZipName(platform: TemplatePlatform, engineVersion: string): string;
 export function estellaDataDir(): string;

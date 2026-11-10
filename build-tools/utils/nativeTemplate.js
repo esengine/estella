@@ -443,6 +443,45 @@ export function readTemplateManifest(dir) {
     }
 }
 
+/** What a host links when nobody chose: native/CMakeLists.txt's own default. */
+export const DEFAULT_TEMPLATE_SPINE = '4.2';
+
+/** The Spine runtime a template without the field was built with — every one
+ *  published before the manifest recorded it took the CMake default. */
+export function templateSpineVersion(manifest) {
+    return manifest?.spineVersion || DEFAULT_TEMPLATE_SPINE;
+}
+
+/** The build directories a template for `platform` is packed from. */
+function hostBuildDirs(root, platform, abis) {
+    if (platform === 'ios') return [path.join(root, 'build/cmake/native-ios')];
+    if (platform === 'android') return (abis ?? []).map((abi) => path.join(root, 'build/cmake/native', abi));
+    return [path.join(root, `build/cmake/native-${platform}`)];
+}
+
+/**
+ * The Spine runtime the host builds behind a template actually linked, read from
+ * their CMake caches. A host links exactly one (every vendored runtime exports the
+ * same symbols), and the manifest is what an export checks a project against, so
+ * it records what the build DID — a cache set by hand included — not a default.
+ * Null when no build dir has a cache to read.
+ */
+export function builtSpineVersion(root, platform, abis) {
+    const seen = new Map();
+    for (const dir of hostBuildDirs(root, platform, abis)) {
+        const cache = path.join(dir, 'CMakeCache.txt');
+        if (!existsSync(cache)) continue;
+        const m = /^ESTELLA_SPINE_VERSION:[A-Z]+=(.*)$/m.exec(readFileSync(cache, 'utf8'));
+        seen.set(dir, m ? m[1].trim() : DEFAULT_TEMPLATE_SPINE);
+    }
+    const versions = new Set(seen.values());
+    if (versions.size > 1) {
+        throw new Error(`The ${platform} builds link different Spine runtimes (${[...seen].map(([d, v]) => `${path.basename(d)}: ${v}`).join(', ')}): `
+            + 'one template carries one. Rebuild them with the same --spine.');
+    }
+    return versions.size ? [...versions][0] : null;
+}
+
 export function writeTemplateManifest(dir, meta) {
     const manifest = {
         kind: 'estella-native-template',

@@ -209,7 +209,7 @@ behaves exactly as it does in a browser.
 | Sprites, tilemaps, particles, post-processing | Native (Dawn) |
 | Text, bitmap text, rich text | Same atlas + layout as the web; glyphs rasterized from the OS font |
 | Physics (Box2D) | Compiled in; solved across worker threads |
-| Spine | Compiled in — one runtime version per binary (`-DESTELLA_SPINE_VERSION`) |
+| Spine | Compiled in — one runtime version per binary; see [Spine versions](#spine-versions) |
 | DragonBones | Compiled in — one runtime, since the format is frozen |
 | Video | Compiled in (cooked at build, decoded on device) |
 | Audio | Native mixer ([miniaudio](https://miniaud.io/)) — CoreAudio / AAudio |
@@ -218,6 +218,33 @@ behaves exactly as it does in a browser.
 | Terrain and streamed worlds | Run on the native runtime. A terrain's layer textures go to the device as bytes, as every other texture does (a device has no wasm heap to copy them through), and a chunked world's maker uses a cancellation handle of its own, because the native runtime has no `AbortController` |
 | Compressed textures | KTX2 transcoded to the device's format (ASTC → ETC2 → BC), with mip chains |
 | Lifecycle | `onShow` / `onHide` and OS memory warnings reach the app |
+
+### Spine versions
+
+A browser build carries a Spine runtime for each version its skeletons were
+exported from. A native app cannot: every vendored Spine runtime (2.1, 3.8, 4.1,
+4.2, 4.3) exports the same symbols, so a host binary links **one**. The official
+runtime templates link **4.2**.
+
+The Spine version in Project Settings is a preference; the skeleton files decide.
+When you package for Android, iOS or the desktop, the export reads the version
+of every skeleton it ships and compares it with the version the installed
+template links. The app is still assembled, since the rest of the game runs,
+but the export's warnings name every skeleton that will not play in it and the
+template build that would play it. Project Settings → Spine also shows which
+version each installed template links.
+
+To ship skeletons of another version, build the template yourself with that
+runtime linked:
+
+```bash
+node build-tools/cli.js native --target android --spine 3.8
+```
+
+`--target` is `android`, `ios`, `windows`, `macos` or `linux`. The build
+installs the template for this editor version, and its `template.json` records
+the version the host linked. One project can only use one Spine version
+natively: skeletons from two versions have to be exported again from one.
 
 If a future build ever *does* drop a subsystem, the export names it — with the
 scenes that use it — instead of quietly shipping a package missing half a scene.

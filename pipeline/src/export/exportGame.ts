@@ -87,7 +87,8 @@ import { sizeSettingsOf } from './sizeHistory';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { subsystemGapWarnings, targetGaps } from '../project/targetSupport';
 import { contentSubsystems } from './contentSubsystems';
-import { scanSideModuleIds, sideModuleFiles, shipsSideModule, textureDecoderBytes } from '../bundle/sideModuleScan';
+import { scanSideModuleIds, scanSpineSkeletons, sideModuleFiles, shipsSideModule, textureDecoderBytes } from '../bundle/sideModuleScan';
+import { nativeSpineMismatch } from './nativeTemplates';
 import { MODULES, NATIVE_MODULE_REGISTRY } from '../../../tools/nativeScriptModules.js';
 
 
@@ -1042,6 +1043,12 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // asset model in the package — the mini-game export has always done this.
   await rm(path.join(payloadDir, 'assets.manifest.json'), { force: true });
 
+  // A native host links one Spine runtime, so a skeleton of another version
+  // does not play on it (#115). Read from the files: the project setting is a
+  // preference, and editor Play loads every version.
+  const nativeSpine = nativeContent
+    ? await scanSpineSkeletons(cookEntries, payloadDir) : new Map<string, string[]>();
+
   // What wasm this project's content pulls in — evidence for the plan below, and
   // the filter the runtime tree is copied through further down.
   const sideModuleIds = !nativeContent && existsSync(opts.wasmDir)
@@ -1306,6 +1313,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     if (platform === 'ios') {
       progress({ phase: 'Writing Xcode project' });
       const sources = opts.iosSources ?? null;
+      const spineProblem = sources ? nativeSpineMismatch(nativeSpine, path.dirname(sources.xcframework), 'ios') : null;
+      if (spineProblem) warnings.push(spineProblem);
       if (sources) {
         const projectDir = await emitIosXcodeProject(absOut, appConfig, sources, undefined, icon);
         xcodeProject = projectDir;
@@ -1328,6 +1337,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
           + 'Project, then export again.');
       }
       for (const { os, dir } of templates) {
+        const spineProblem = nativeSpineMismatch(nativeSpine, dir, os);
+        if (spineProblem) warnings.push(spineProblem);
         progress({ phase: `Assembling the ${os} app` });
         const built = await assembleDesktopApp({
           platform: os, templateDir: dir, contentDir: absOut, outDir: absOut, app: appConfig,
@@ -1389,6 +1400,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
             + 'PhysX library: the app runs on Jolt. Install a template built with PhysX, then export again.');
         }
       }
+      const spineProblem = template ? nativeSpineMismatch(nativeSpine, template, 'android') : null;
+      if (spineProblem) warnings.push(spineProblem);
       if (!template) {
         warnings.push(`No Android runtime template is installed for this editor version, so no ${
           wantsProject ? 'project was written' : 'APK was assembled'} — the content is here. `
