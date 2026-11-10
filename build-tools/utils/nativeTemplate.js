@@ -287,6 +287,13 @@ export function templateLayout(platform, options = {}) {
                 rel: `plugins/${abi}/${ANDROID_PHYSX_LIBRARY}`, strip: true, abi, optional: true,
                 from: (ctx) => path.join(ctx.root, 'build/cmake/native', abi, ANDROID_PHYSX_LIBRARY),
             },
+            // Each Spine release, outside lib/ for the same reason: a package carries
+            // the ones its skeletons were exported from (androidSpineLibs). Optional,
+            // since a build narrowed with --spine leaves the others out.
+            ...SPINE_RELEASES.map((version) => ({
+                rel: `plugins/${abi}/${androidSpineLibrary(version)}`, strip: true, abi, optional: true,
+                from: (ctx) => path.join(ctx.root, 'build/cmake/native', abi, androidSpineLibrary(version)),
+            })),
             {
                 // Its startup snapshot, which this V8 keeps outside the library. An
                 // asset, read by the host before the engine starts (Runtime.cpp).
@@ -443,13 +450,18 @@ export function readTemplateManifest(dir) {
     }
 }
 
-/** What a host links when nobody chose: native/CMakeLists.txt's own default. */
-export const DEFAULT_TEMPLATE_SPINE = '4.2';
+/** What a template written before the manifest recorded Spine links: every one
+ *  of those was built with native/CMakeLists.txt's single-release default. */
+export const LEGACY_TEMPLATE_SPINE = '4.2';
 
-/** The Spine runtime a template without the field was built with — every one
- *  published before the manifest recorded it took the CMake default. */
-export function templateSpineVersion(manifest) {
-    return manifest?.spineVersion || DEFAULT_TEMPLATE_SPINE;
+/**
+ * The Spine releases a template's host carries. Current templates carry every
+ * vendored release (`spineVersions`); one from before carried a single release
+ * (`spineVersion`), or did not say, which meant the 4.2 default.
+ */
+export function templateSpineVersions(manifest) {
+    if (Array.isArray(manifest?.spineVersions)) return manifest.spineVersions;
+    return [manifest?.spineVersion || LEGACY_TEMPLATE_SPINE];
 }
 
 /** The build directories a template for `platform` is packed from. */
@@ -460,26 +472,58 @@ function hostBuildDirs(root, platform, abis) {
 }
 
 /**
- * The Spine runtime the host builds behind a template actually linked, read from
- * their CMake caches. A host links exactly one (every vendored runtime exports the
- * same symbols), and the manifest is what an export checks a project against, so
- * it records what the build DID — a cache set by hand included — not a default.
- * Null when no build dir has a cache to read.
+ * The Spine releases the host builds behind a template linked, read from their
+ * CMake caches (ESTELLA_SPINE_VERSIONS). The manifest is what an export holds a
+ * package's skeletons to, so it records what the build DID, a narrowed --spine or
+ * a cache edited by hand included. Null when no build dir has a cache to read.
  */
-export function builtSpineVersion(root, platform, abis) {
+export function builtSpineVersions(root, platform, abis) {
     const seen = new Map();
     for (const dir of hostBuildDirs(root, platform, abis)) {
         const cache = path.join(dir, 'CMakeCache.txt');
         if (!existsSync(cache)) continue;
-        const m = /^ESTELLA_SPINE_VERSION:[A-Z]+=(.*)$/m.exec(readFileSync(cache, 'utf8'));
-        seen.set(dir, m ? m[1].trim() : DEFAULT_TEMPLATE_SPINE);
+        const text = readFileSync(cache, 'utf8');
+        const list = /^ESTELLA_SPINE_VERSIONS:[A-Z]+=(.*)$/m.exec(text);
+        const single = /^ESTELLA_SPINE_VERSION:[A-Z]+=(.*)$/m.exec(text);
+        const versions = list ? list[1].trim().split(';').filter(Boolean)
+            : [single ? single[1].trim() : LEGACY_TEMPLATE_SPINE];
+        seen.set(dir, versions.sort().join(';'));
     }
-    const versions = new Set(seen.values());
-    if (versions.size > 1) {
-        throw new Error(`The ${platform} builds link different Spine runtimes (${[...seen].map(([d, v]) => `${path.basename(d)}: ${v}`).join(', ')}): `
-            + 'one template carries one. Rebuild them with the same --spine.');
+    const sets = new Set(seen.values());
+    if (sets.size > 1) {
+        throw new Error(`The ${platform} builds carry different Spine releases (${[...seen].map(([d, v]) => `${path.basename(d)}: ${v}`).join(', ')}): `
+            + 'one template carries one set. Rebuild them with the same --spine.');
     }
-    return versions.size ? [...versions][0] : null;
+    return sets.size ? [...sets][0].split(';') : null;
+}
+
+/**
+ * The Spine releases a template can carry. Written out because the editor reads
+ * this file where no third_party/ exists; pipeline/tests/native-template.test.ts
+ * holds it to the vendored trees and to the SDK's SPINE_VERSIONS.
+ */
+export const SPINE_RELEASES = ['2.1', '3.8', '4.1', '4.2', '4.3'];
+
+/** One Spine release's library on Android, kept under plugins/<abi>/ in the template. */
+export const androidSpineLibrary = (version) => `libestella_spine${version.replace('.', '')}.so`;
+
+/**
+ * The Spine libraries for `versions` in each of `abis`, for a package's lib/<abi>/:
+ * the releases its skeletons were exported from, and no others.
+ *
+ * @param {string} dir  An installed android template.
+ * @param {string[]} abis  The ABIs the package carries.
+ * @param {Iterable<string>} versions  The Spine releases the package's skeletons need.
+ * @returns {Record<string, string[]>}
+ */
+export function androidSpineLibs(dir, abis, versions) {
+    const out = {};
+    for (const abi of abis) {
+        const files = [...versions].map((v) => path.join(dir, 'plugins', abi, androidSpineLibrary(v)))
+            .filter((file) => existsSync(file));
+        if (files.length) out[abi] = files;
+    }
+    return out;
 }
 
 export function writeTemplateManifest(dir, meta) {

@@ -71,7 +71,7 @@ import { orientationCss, orientationOverlayHtml, orientationLockScript, orientat
 import { PAGE_BACKGROUND, splashCss, splashHtml, type SplashLook } from './splash';
 import { emitIosXcodeProject, type IosProjectSources } from '../../../build-tools/utils/iosProject.js';
 import { emitAndroidGradleProject } from '../../../build-tools/utils/gradleProject.js';
-import { androidPhysXLibs, androidTemplateSources, packageAbis } from '../../../build-tools/utils/nativeTemplate.js';
+import { androidPhysXLibs, androidSpineLibs, androidTemplateSources, packageAbis } from '../../../build-tools/utils/nativeTemplate.js';
 import { assembleApk, apkFileName } from '../../../build-tools/utils/apk.js';
 import { ANDROID_AOT_LIBRARY, androidAotCompilers } from './androidAot';
 import { assembleAab, aabFileName } from '../../../build-tools/utils/aab.js';
@@ -1390,6 +1390,14 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       // PhysX is the host's optional library: in this package only when the project
       // picked it, beside the compiled systems in lib/<abi>/ (the host dlopens it).
       let extraLibs = androidAotLibs;
+      // The Spine releases this package's skeletons were exported from, one library
+      // each, and no others: a release no skeleton uses is not downloaded (#115).
+      if (template && nativeSpine.size > 0) {
+        const spine = androidSpineLibs(template, packageAbis(template, { emulator: opts.androidEmulatorAbi === true }),
+          nativeSpine.keys());
+        extraLibs = { ...(extraLibs ?? {}) };
+        for (const [abi, files] of Object.entries(spine)) extraLibs[abi] = [...(extraLibs[abi] ?? []), ...files];
+      }
       if (template && opts.features?.physics?.backend3d === 'physx') {
         const physx = androidPhysXLibs(template, packageAbis(template, { emulator: opts.androidEmulatorAbi === true }));
         if (physx) {

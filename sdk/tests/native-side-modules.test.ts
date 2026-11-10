@@ -10,7 +10,7 @@
 // Driven against a mock host scope — the marshalling is what these check, not Box2D.
 import { describe, it, expect, vi } from 'vitest';
 import {
-    createNativeSideModules, NATIVE_SIDE_MODULE_PROBES, NATIVE_PREFIX_ALIASES, SPINE_VERSION_BINDING,
+    createNativeSideModules, NATIVE_SIDE_MODULE_PROBES, NATIVE_PREFIX_ALIASES,
 } from '../src/ecs/bridge/nativeSideModules';
 import { HEAP_BINDINGS } from '../src/ecs/bridge/nativeHeap';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
@@ -19,7 +19,7 @@ import type { DragonBonesWasmModule } from '../src/dragonbones/DragonBonesModule
 
 /** A host that compiled physics in: the heap plus a few es_physics_* globals. */
 function mockNativeHost(options: {
-    physics?: boolean; heap?: boolean; spine?: number; dragonbones?: boolean;
+    physics?: boolean; heap?: boolean; spine?: number | number[]; dragonbones?: boolean;
 } = {}) {
     const { physics = true, heap = true, spine, dragonbones = false } = options;
     const buffer = new ArrayBuffer(4096);
@@ -43,14 +43,15 @@ function mockNativeHost(options: {
         // the module's bytes there), exactly like a wasm pointer.
         scope['es_physics_getDynamicBodyTransforms'] = () => 64;
     }
-    if (spine !== undefined) {
-        // A host links ONE spine runtime and says which (spine_runtimeVersion).
-        scope[SPINE_VERSION_BINDING] = () => spine;
-        scope['es_spine_loadSkeleton'] = (...args: unknown[]) => { calls.push({ name: 'loadSkeleton', args }); return 1; };
-        scope['es_spine_playAnimation'] = (...args: unknown[]) => { calls.push({ name: 'playAnimation', args }); return 1; };
+    // A host carries every Spine release it was built with, each under its own
+    // prefix (es_spine38_*, es_spine42_*): the tag says which ones this mock has.
+    for (const tag of spine === undefined ? [] : [spine].flat()) {
+        const record = (name: string) => (...args: unknown[]) => { calls.push({ name: `${tag}:${name}`, args }); return 1; };
+        scope[`es_spine${tag}_loadSkeleton`] = record('loadSkeleton');
+        scope[`es_spine${tag}_playAnimation`] = record('playAnimation');
         // A C string crosses as a JS string, in and out — the generated wrapper reads
         // and writes them, so nothing here needs the heap.
-        scope['es_spine_getAnimations'] = () => 'idle,walk,run';
+        scope[`es_spine${tag}_getAnimations`] = () => `idle,walk,run@${tag}`;
     }
     if (dragonbones) {
         // One runtime, no version to declare: the format is frozen, so unlike Spine
@@ -189,14 +190,27 @@ describe('the runtime installs physics from a native host', () => {
 });
 
 describe('spine on a native host', () => {
-    it('answers the version the host actually linked', async () => {
-        const host = createNativeSideModules(mockNativeHost({ spine: 42 }).scope);
+    it('answers each version the host carries', async () => {
+        const host = createNativeSideModules(mockNativeHost({ spine: [38, 42] }).scope);
         expect(await host.acquire('spine:4.2')).not.toBeNull();
+        expect(await host.acquire('spine:3.8')).not.toBeNull();
     });
 
-    it('refuses a version it did not link, rather than mis-decoding a skeleton', async () => {
-        // The three vendored runtimes export the same symbols, so the entry points
-        // being present says nothing about the format they can read.
+    // #115: one binary, several runtimes, and the call reaches the one the skeleton
+    // was exported from — never another release's decoder.
+    it('routes each version to its own runtime', async () => {
+        const { scope, calls } = mockNativeHost({ spine: [38, 42] });
+        const host = createNativeSideModules(scope);
+        type Mod = { _spine_loadSkeleton(...a: unknown[]): number; cwrap(i: string, r: string, a: string[]): (...a: unknown[]) => unknown };
+        const v38 = (await host.acquire('spine:3.8')) as unknown as Mod;
+        const v42 = (await host.acquire('spine:4.2')) as unknown as Mod;
+        v38._spine_loadSkeleton('a');
+        v42._spine_loadSkeleton('b');
+        expect(calls.map((c) => c.name)).toEqual(['38:loadSkeleton', '42:loadSkeleton']);
+        expect(v38.cwrap('spine_getAnimations', 'string', ['number'])(1)).toBe('idle,walk,run@38');
+    });
+
+    it('refuses a version the app does not carry, rather than mis-decoding a skeleton', async () => {
         const host = createNativeSideModules(mockNativeHost({ spine: 42 }).scope);
         expect(await host.acquire('spine:3.8')).toBeNull();
         expect(await host.acquire('spine:4.1')).toBeNull();
@@ -214,10 +228,10 @@ describe('spine on a native host', () => {
         };
         const play = mod.cwrap('spine_playAnimation', 'number', ['number', 'string', 'number', 'number']);
         expect(play(1, 'walk', 1, 0)).toBe(1);
-        expect(calls.at(-1)).toEqual({ name: 'playAnimation', args: [1, 'walk', 1, 0] });
+        expect(calls.at(-1)).toEqual({ name: '42:playAnimation', args: [1, 'walk', 1, 0] });
 
         const list = mod.cwrap('spine_getAnimations', 'string', ['number']);
-        expect(list(1)).toBe('idle,walk,run');
+        expect(list(1)).toBe('idle,walk,run@42');
     });
 
     it('reads and writes heap strings the way emscripten states them', async () => {

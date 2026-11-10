@@ -47,7 +47,7 @@ sp::SpineExtension* spine::getDefaultExtension() {
     return new sp::DefaultSpineExtension();
 }
 
-namespace es::spine {
+namespace es::ES_SPINE_NS {
 
 namespace {
 
@@ -623,4 +623,4 @@ int version() {
     return ES_SPINE_VERSION;
 }
 
-}  // namespace es::spine
+}  // namespace es::ES_SPINE_NS

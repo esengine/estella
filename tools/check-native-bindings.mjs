@@ -28,7 +28,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'src');
 const BINDINGS = path.join(SRC, 'esengine', 'bindings');
 
-const { NATIVE_BINDING_HEADERS, PHYSX_ALIAS } = await import('../build-tools/tasks/native.js');
+const { NATIVE_BINDING_HEADERS, PHYSX_ALIAS, SPINE_BINDING_HEADER, spineAlias, vendoredSpineVersions } =
+    await import('../build-tools/tasks/native.js');
 
 let failed = false;
 const fail = (msg) => { console.error(msg); failed = true; };
@@ -101,8 +102,41 @@ const header = readFileSync(path.join(BINDINGS, 'modules/physics3d/Physics3DBind
 for (const [, name] of header.matchAll(/\b(physics3d_\w+)\s*\(/g)) {
     if (!renameText.includes(`#define ${name} physx3d_`)) fail(`${name} is not renamed for the PhysX build`);
 }
+
+// 5. Every vendored Spine release gets the whole spine_* surface under its own
+//    prefix, and nothing of it leaks into the host TU: a host carries them all
+//    side by side, so an unrenamed name would bind one release to another's code.
+const spineHeader = readFileSync(path.join(BINDINGS, SPINE_BINDING_HEADER), 'utf8');
+const spineNames = [...new Set([...spineHeader.matchAll(/(spine_\w+)\s*\(/g)].map((m) => m[1]))];
+if (/"es_spine_/.test(text)) fail('unprefixed es_spine_* wrappers leaked into the host TU — every Spine release has its own');
+const spineVersions = vendoredSpineVersions(ROOT);
+for (const version of spineVersions) {
+    const tag = version.replace('.', '');
+    const wrappers = path.join(out, `SpineFunctionBindings${tag}.generated.cpp`);
+    const rename = path.join(out, `SpineRename${tag}.generated.hpp`);
+    try {
+        execFileSync(python, [
+            path.join(ROOT, 'tools', 'eht.py'),
+            '--native-functions', path.join(BINDINGS, SPINE_BINDING_HEADER),
+            '--native-shim', 'esn_shim.hpp',
+            '--native-functions-alias', spineAlias(version),
+            '--native-functions-alias-output', wrappers,
+            '--native-functions-alias-header', rename,
+        ], { cwd: ROOT, stdio: 'pipe' });
+    } catch (e) {
+        fail(`EHT failed on Spine ${version}: ${String(e.stderr || e.message)}`);
+        continue;
+    }
+    const renameText = readFileSync(rename, 'utf8');
+    for (const name of spineNames) {
+        if (!renameText.includes(`#define ${name} spine${tag}_`)) fail(`${name} is not renamed for Spine ${version}`);
+    }
+    if (!readFileSync(wrappers, 'utf8').includes(`\nvoid esn_register_functions_spine${tag}(esjs::Val global) {`)) {
+        fail(`the Spine ${version} TU has no esn_register_functions_spine${tag}`);
+    }
+}
 rmSync(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 
 if (failed) process.exit(1);
 console.log(`native bindings OK: ${abs.length} headers, ${includes.length} generated include(s) resolve, `
-    + `${physxWrapped.size} PhysX twins.`);
+    + `${physxWrapped.size} PhysX twins, ${spineVersions.length} Spine releases.`);

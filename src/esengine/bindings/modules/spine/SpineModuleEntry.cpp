@@ -45,12 +45,12 @@
 
 namespace {
 
-using es::spine::ConstraintKind;
-using es::spine::Event;
-using es::spine::InstancePtr;
-using es::spine::PathMix;
-using es::spine::SkeletonPtr;
-using es::spine::TransformMix;
+using es::ES_SPINE_NS::ConstraintKind;
+using es::ES_SPINE_NS::Event;
+using es::ES_SPINE_NS::InstancePtr;
+using es::ES_SPINE_NS::PathMix;
+using es::ES_SPINE_NS::SkeletonPtr;
+using es::ES_SPINE_NS::TransformMix;
 
 struct LiveInstance {
     InstancePtr instance;
@@ -73,7 +73,7 @@ struct Context {
     }
 
     void forgetEvents(const LiveInstance& live) {
-        const auto source = es::spine::eventSource(live.instance.get());
+        const auto source = es::ES_SPINE_NS::eventSource(live.instance.get());
         auto owner = eventOwners.find(source);
         if (owner != eventOwners.end()) {
             if (selectedEventInstance == owner->second) selectedEventInstance = -1;
@@ -95,12 +95,12 @@ struct Context {
         skeletons.clear();
     }
 
-    es::spine::Instance* instanceOf(int id) {
+    es::ES_SPINE_NS::Instance* instanceOf(int id) {
         auto* live = instances.find(id);
         return live ? live->instance.get() : nullptr;
     }
 
-    es::spine::Skeleton* skeletonOf(int handle) {
+    es::ES_SPINE_NS::Skeleton* skeletonOf(int handle) {
         auto* held = skeletons.find(handle);
         return held ? held->get() : nullptr;
     }
@@ -127,10 +127,10 @@ struct CountingSink final : es::skeletal::TriangleSink {
 };
 
 /** The last probe run's counts. Benchmark only; a frame never writes it. */
-es::spine::ProbeCounts g_probeCounts{};
+es::ES_SPINE_NS::ProbeCounts g_probeCounts{};
 
 /** The last staged pose's counts. Benchmark only, for the same reason. */
-es::spine::PoseCounts g_poseCounts{};
+es::ES_SPINE_NS::PoseCounts g_poseCounts{};
 
 void extractBatches(int instanceId) {
     g_ctx.batches.reset();
@@ -138,7 +138,7 @@ void extractBatches(int instanceId) {
     if (!instance) return;
 
     es::skeletal::BatchCollector collector(g_ctx.batches);
-    es::spine::render(instance, collector, g_ctx.clippingEnabled);
+    es::ES_SPINE_NS::render(instance, collector, g_ctx.clippingEnabled);
 }
 
 const char* publish(const char* text) { return g_ctx.strings.publish(text); }
@@ -156,7 +156,7 @@ int spine_loadSkeleton(uintptr_t skelDataPtr, int skelDataLen,
                        uintptr_t atlasPtr, int atlasLen, int isBinary) {
     g_ctx.lastError.clear();
 
-    es::spine::Skeleton* loaded = es::spine::loadSkeleton(
+    es::ES_SPINE_NS::Skeleton* loaded = es::ES_SPINE_NS::loadSkeleton(
         reinterpret_cast<const void*>(skelDataPtr), skelDataLen,
         reinterpret_cast<const char*>(atlasPtr), atlasLen, isBinary != 0, g_ctx.lastError);
     if (!loaded) return -1;
@@ -185,18 +185,18 @@ void spine_unloadSkeleton(int handle) {
 
 EMSCRIPTEN_KEEPALIVE
 int spine_getAtlasPageCount(int handle) {
-    return es::spine::atlasPageCount(g_ctx.skeletonOf(handle));
+    return es::ES_SPINE_NS::atlasPageCount(g_ctx.skeletonOf(handle));
 }
 
 EMSCRIPTEN_KEEPALIVE
 const char* spine_getAtlasPageTextureName(int handle, int pageIndex) {
-    return publish(es::spine::atlasPageName(g_ctx.skeletonOf(handle), pageIndex));
+    return publish(es::ES_SPINE_NS::atlasPageName(g_ctx.skeletonOf(handle), pageIndex));
 }
 
 EMSCRIPTEN_KEEPALIVE
 void spine_setAtlasPageTexture(int handle, int pageIndex,
                                uint32_t textureId, int width, int height) {
-    es::spine::setAtlasPageTexture(g_ctx.skeletonOf(handle), pageIndex, textureId, width, height);
+    es::ES_SPINE_NS::setAtlasPageTexture(g_ctx.skeletonOf(handle), pageIndex, textureId, width, height);
 }
 
 // =============================================================================
@@ -208,11 +208,11 @@ int spine_createInstance(int skeletonHandle) {
     auto* skeleton = g_ctx.skeletonOf(skeletonHandle);
     if (!skeleton) return -1;
 
-    es::spine::Instance* created = es::spine::createInstance(skeleton);
+    es::ES_SPINE_NS::Instance* created = es::ES_SPINE_NS::createInstance(skeleton);
     if (!created) return -1;
 
     const int id = g_ctx.instances.add(LiveInstance{InstancePtr(created), skeletonHandle, {}});
-    g_ctx.eventOwners.emplace(es::spine::eventSource(created), id);
+    g_ctx.eventOwners.emplace(es::ES_SPINE_NS::eventSource(created), id);
     return id;
 }
 
@@ -227,25 +227,25 @@ void spine_destroyInstance(int instanceId) {
 // =============================================================================
 
 /** Back to where the data says the skeleton starts — the one state a replay can
- *  be reproduced from. See es::spine::setToSetupPose. */
+ *  be reproduced from. See es::ES_SPINE_NS::setToSetupPose. */
 EMSCRIPTEN_KEEPALIVE
 void spine_setToSetupPose(int instanceId) {
-    es::spine::setToSetupPose(g_ctx.instanceOf(instanceId));
+    es::ES_SPINE_NS::setToSetupPose(g_ctx.instanceOf(instanceId));
 }
 
 EMSCRIPTEN_KEEPALIVE
 int spine_playAnimation(int instanceId, const char* name, int loop, int track) {
-    return es::spine::playAnimation(g_ctx.instanceOf(instanceId), name, loop != 0, track) ? 1 : 0;
+    return es::ES_SPINE_NS::playAnimation(g_ctx.instanceOf(instanceId), name, loop != 0, track) ? 1 : 0;
 }
 
 EMSCRIPTEN_KEEPALIVE
 int spine_addAnimation(int instanceId, const char* name, int loop, float delay, int track) {
-    return es::spine::addAnimation(g_ctx.instanceOf(instanceId), name, loop != 0, delay, track) ? 1 : 0;
+    return es::ES_SPINE_NS::addAnimation(g_ctx.instanceOf(instanceId), name, loop != 0, delay, track) ? 1 : 0;
 }
 
 EMSCRIPTEN_KEEPALIVE
 void spine_setSkin(int instanceId, const char* name) {
-    es::spine::setSkin(g_ctx.instanceOf(instanceId), name);
+    es::ES_SPINE_NS::setSkin(g_ctx.instanceOf(instanceId), name);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -254,7 +254,7 @@ void spine_update(int instanceId, float dt) {
     if (!instance) return;
     // The composition lives in the runtime beside the two halves, so there is
     // one definition of what a whole frame is rather than one here as well.
-    es::spine::update(instance, dt);
+    es::ES_SPINE_NS::update(instance, dt);
 }
 
 /**
@@ -267,7 +267,7 @@ EMSCRIPTEN_KEEPALIVE
 void spine_advanceAndApply(int instanceId, float dt) {
     auto* instance = g_ctx.instanceOf(instanceId);
     if (!instance) return;
-    es::spine::advanceAndApply(instance, dt);
+    es::ES_SPINE_NS::advanceAndApply(instance, dt);
 }
 
 /**
@@ -277,19 +277,19 @@ void spine_advanceAndApply(int instanceId, float dt) {
  */
 EMSCRIPTEN_KEEPALIVE
 void spine_materializeWorldPose(int instanceId, float dt) {
-    es::spine::materializeWorldPose(g_ctx.instanceOf(instanceId), dt);
+    es::ES_SPINE_NS::materializeWorldPose(g_ctx.instanceOf(instanceId), dt);
 }
 
 /** How long one animation runs; negative where there is no such animation. */
 EMSCRIPTEN_KEEPALIVE
 float spine_getAnimationDuration(int skeletonHandle, const char* animation) {
-    return es::spine::animationDuration(g_ctx.skeletonOf(skeletonHandle), animation);
+    return es::ES_SPINE_NS::animationDuration(g_ctx.skeletonOf(skeletonHandle), animation);
 }
 
 /** 1 where this skeleton's world pose carries state and may not be deferred. */
 EMSCRIPTEN_KEEPALIVE
 int spine_requiresContinuousWorldPose(int skeletonHandle) {
-    return es::spine::requiresContinuousWorldPose(g_ctx.skeletonOf(skeletonHandle)) ? 1 : 0;
+    return es::ES_SPINE_NS::requiresContinuousWorldPose(g_ctx.skeletonOf(skeletonHandle)) ? 1 : 0;
 }
 
 // =============================================================================
@@ -300,22 +300,22 @@ EMSCRIPTEN_KEEPALIVE
 const char* spine_getAnimations(int instanceId) {
     auto* instance = g_ctx.instanceOf(instanceId);
     if (!instance) return publish("[]");
-    return g_ctx.strings.publishArray(es::spine::animationCount(instance),
-                                      [instance](int i) { return es::spine::animationName(instance, i); });
+    return g_ctx.strings.publishArray(es::ES_SPINE_NS::animationCount(instance),
+                                      [instance](int i) { return es::ES_SPINE_NS::animationName(instance, i); });
 }
 
 EMSCRIPTEN_KEEPALIVE
 const char* spine_getSkins(int instanceId) {
     auto* instance = g_ctx.instanceOf(instanceId);
     if (!instance) return publish("[]");
-    return g_ctx.strings.publishArray(es::spine::skinCount(instance),
-                                      [instance](int i) { return es::spine::skinName(instance, i); });
+    return g_ctx.strings.publishArray(es::ES_SPINE_NS::skinCount(instance),
+                                      [instance](int i) { return es::ES_SPINE_NS::skinName(instance, i); });
 }
 
 EMSCRIPTEN_KEEPALIVE
 int spine_getBonePosition(int instanceId, const char* bone,
                           uintptr_t outXPtr, uintptr_t outYPtr) {
-    return es::spine::bonePosition(g_ctx.instanceOf(instanceId), bone,
+    return es::ES_SPINE_NS::bonePosition(g_ctx.instanceOf(instanceId), bone,
                                    reinterpret_cast<float*>(outXPtr),
                                    reinterpret_cast<float*>(outYPtr))
                ? 1
@@ -327,8 +327,8 @@ EMSCRIPTEN_KEEPALIVE
 const char* spine_getBones(int instanceId) {
     auto* instance = g_ctx.instanceOf(instanceId);
     if (!instance) return publish("[]");
-    return g_ctx.strings.publishArray(es::spine::boneCount(instance),
-                                      [instance](int i) { return es::spine::boneName(instance, i); });
+    return g_ctx.strings.publishArray(es::ES_SPINE_NS::boneCount(instance),
+                                      [instance](int i) { return es::ES_SPINE_NS::boneName(instance, i); });
 }
 
 /**
@@ -341,13 +341,13 @@ int spine_getBonePoses(int instanceId, uintptr_t outPtr, int capacity) {
     auto* instance = g_ctx.instanceOf(instanceId);
     if (!instance) return 0;
     float* out = reinterpret_cast<float*>(outPtr);
-    const int n = std::min(es::spine::boneCount(instance), capacity);
+    const int n = std::min(es::ES_SPINE_NS::boneCount(instance), capacity);
     int written = 0;
     for (int i = 0; i < n; ++i) {
         float x = 0, y = 0, degrees = 0, length = 0;
-        if (!es::spine::bonePose(instance, i, &x, &y, &degrees, &length)) continue;
+        if (!es::ES_SPINE_NS::bonePose(instance, i, &x, &y, &degrees, &length)) continue;
         float* at = out + written * 5;
-        at[0] = static_cast<float>(es::spine::boneParent(instance, i));
+        at[0] = static_cast<float>(es::ES_SPINE_NS::boneParent(instance, i));
         at[1] = x;
         at[2] = y;
         at[3] = degrees;
@@ -360,14 +360,14 @@ int spine_getBonePoses(int instanceId, uintptr_t outPtr, int capacity) {
 EMSCRIPTEN_KEEPALIVE
 float spine_getBoneRotation(int instanceId, const char* bone) {
     float degrees = 0.0f;
-    es::spine::boneRotation(g_ctx.instanceOf(instanceId), bone, &degrees);
+    es::ES_SPINE_NS::boneRotation(g_ctx.instanceOf(instanceId), bone, &degrees);
     return degrees;
 }
 
 EMSCRIPTEN_KEEPALIVE
 void spine_getBounds(int instanceId, uintptr_t outXPtr, uintptr_t outYPtr,
                      uintptr_t outWPtr, uintptr_t outHPtr) {
-    es::spine::bounds(g_ctx.instanceOf(instanceId),
+    es::ES_SPINE_NS::bounds(g_ctx.instanceOf(instanceId),
                       reinterpret_cast<float*>(outXPtr), reinterpret_cast<float*>(outYPtr),
                       reinterpret_cast<float*>(outWPtr), reinterpret_cast<float*>(outHPtr));
 }
@@ -386,7 +386,7 @@ int spine_getSkeletonBounds(int skeletonHandle, uintptr_t outXPtr, uintptr_t out
     auto* w = reinterpret_cast<float*>(outWPtr);
     auto* h = reinterpret_cast<float*>(outHPtr);
     *x = *y = *w = *h = 0.0f;
-    return es::spine::skeletonBounds(g_ctx.skeletonOf(skeletonHandle), x, y, w, h) ? 1 : 0;
+    return es::ES_SPINE_NS::skeletonBounds(g_ctx.skeletonOf(skeletonHandle), x, y, w, h) ? 1 : 0;
 }
 
 // =============================================================================
@@ -402,17 +402,17 @@ int spine_getSkeletonBounds(int skeletonHandle, uintptr_t outXPtr, uintptr_t out
  */
 EMSCRIPTEN_KEEPALIVE
 int spine_probe_extract(int instanceId, int stage, int useCollector) {
-    g_probeCounts = es::spine::ProbeCounts{};
+    g_probeCounts = es::ES_SPINE_NS::ProbeCounts{};
     auto* instance = g_ctx.instanceOf(instanceId);
     if (!instance) return 0;
     if (useCollector) {
         g_ctx.batches.reset();
         es::skeletal::BatchCollector collector(g_ctx.batches);
-        return es::spine::renderStage(instance, collector, g_ctx.clippingEnabled,
+        return es::ES_SPINE_NS::renderStage(instance, collector, g_ctx.clippingEnabled,
                                       stage, &g_probeCounts) ? 1 : 0;
     }
     CountingSink sink;
-    return es::spine::renderStage(instance, sink, g_ctx.clippingEnabled,
+    return es::ES_SPINE_NS::renderStage(instance, sink, g_ctx.clippingEnabled,
                                   stage, &g_probeCounts) ? 1 : 0;
 }
 
@@ -447,19 +447,19 @@ void spine_probe_counts(std::uint32_t* out) {
 }
 
 /** The last staged open's counts. Benchmark only; a frame never writes it. */
-es::spine::ClipStartCounts g_clipStartCounts{};
+static es::ES_SPINE_NS::ClipStartCounts g_clipStartCounts{};
 
 /**
  * BENCHMARK ONLY — open the instance's first clip region to `stage`
- * (es::spine::ClipStartStage), so what a 39-vertex polygon costs before a single
+ * (es::ES_SPINE_NS::ClipStartStage), so what a 39-vertex polygon costs before a single
  * triangle is cut can be priced without a clock inside the preparation.
  */
 EMSCRIPTEN_KEEPALIVE
 int spine_probe_clip_start(int instanceId, int stage) {
-    g_clipStartCounts = es::spine::ClipStartCounts{};
+    g_clipStartCounts = es::ES_SPINE_NS::ClipStartCounts{};
     auto* instance = g_ctx.instanceOf(instanceId);
     if (!instance) return 0;
-    const bool ran = es::spine::clipStartStage(instance, stage, &g_clipStartCounts);
+    const bool ran = es::ES_SPINE_NS::clipStartStage(instance, stage, &g_clipStartCounts);
     return ran ? 1 : 0;
 }
 
@@ -491,9 +491,9 @@ int spine_clipBudget(int instanceId, std::uint32_t* out) {
     auto* instance = g_ctx.instanceOf(instanceId);
     if (!instance) return 0;
 
-    es::spine::ProbeCounts counts{};
+    es::ES_SPINE_NS::ProbeCounts counts{};
     CountingSink sink;
-    if (!es::spine::renderCounted(instance, sink, g_ctx.clippingEnabled, &counts)) return 0;
+    if (!es::ES_SPINE_NS::renderCounted(instance, sink, g_ctx.clippingEnabled, &counts)) return 0;
 
     out[0] = counts.clipPolygonVertices;
     out[1] = counts.clipPolygons;
@@ -514,8 +514,8 @@ int spine_clipBudget(int instanceId, std::uint32_t* out) {
 EMSCRIPTEN_KEEPALIVE
 void spine_probe_clip_storage(std::uint32_t* out) {
     if (!out) return;
-    es::spine::ClipStorage held{};
-    es::spine::clipStorage(&held);
+    es::ES_SPINE_NS::ClipStorage held{};
+    es::ES_SPINE_NS::clipStorage(&held);
     out[0] = held.polygon;
     out[1] = held.output;
     out[2] = held.vertices;
@@ -525,16 +525,16 @@ void spine_probe_clip_storage(std::uint32_t* out) {
 }
 
 /**
- * BENCHMARK ONLY — the pose run to `stage` (es::spine::PoseStage). Advancing a
+ * BENCHMARK ONLY — the pose run to `stage` (es::ES_SPINE_NS::PoseStage). Advancing a
  * pose is not a query: this MOVES the instance forward, so a caller measuring
  * with it owns the instance's clock.
  */
 EMSCRIPTEN_KEEPALIVE
 int spine_probe_pose(int instanceId, float dt, int stage) {
-    g_poseCounts = es::spine::PoseCounts{};
+    g_poseCounts = es::ES_SPINE_NS::PoseCounts{};
     auto* instance = g_ctx.instanceOf(instanceId);
     if (!instance) return 0;
-    return es::spine::poseStage(instance, dt, stage, &g_poseCounts) ? 1 : 0;
+    return es::ES_SPINE_NS::poseStage(instance, dt, stage, &g_poseCounts) ? 1 : 0;
 }
 
 /** The counts of the last {@link spine_probe_pose}, into nine u32 slots. */
@@ -622,18 +622,18 @@ void spine_setClippingEnabled(int enabled) {
 
 EMSCRIPTEN_KEEPALIVE
 void spine_setDefaultMix(int skeletonHandle, float duration) {
-    es::spine::setDefaultMix(g_ctx.skeletonOf(skeletonHandle), duration);
+    es::ES_SPINE_NS::setDefaultMix(g_ctx.skeletonOf(skeletonHandle), duration);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void spine_setMixDuration(int skeletonHandle, const char* fromAnim,
                           const char* toAnim, float duration) {
-    es::spine::setMixDuration(g_ctx.skeletonOf(skeletonHandle), fromAnim, toAnim, duration);
+    es::ES_SPINE_NS::setMixDuration(g_ctx.skeletonOf(skeletonHandle), fromAnim, toAnim, duration);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void spine_setTrackAlpha(int instanceId, int track, float alpha) {
-    es::spine::setTrackAlpha(g_ctx.instanceOf(instanceId), track, alpha);
+    es::ES_SPINE_NS::setTrackAlpha(g_ctx.instanceOf(instanceId), track, alpha);
 }
 
 // =============================================================================
@@ -644,8 +644,8 @@ EMSCRIPTEN_KEEPALIVE
 void spine_enableEvents(int instanceId) {
     auto* instance = g_ctx.instanceOf(instanceId);
     if (!instance) return;
-    es::spine::setEventSink(collectEvent);
-    es::spine::enableEvents(instance);
+    es::ES_SPINE_NS::setEventSink(collectEvent);
+    es::ES_SPINE_NS::enableEvents(instance);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -699,13 +699,13 @@ const char* spine_getEventStringValue(int index) {
 
 EMSCRIPTEN_KEEPALIVE
 int spine_setAttachment(int instanceId, const char* slotName, const char* attachmentName) {
-    return es::spine::setAttachment(g_ctx.instanceOf(instanceId), slotName, attachmentName) ? 1 : 0;
+    return es::ES_SPINE_NS::setAttachment(g_ctx.instanceOf(instanceId), slotName, attachmentName) ? 1 : 0;
 }
 
 EMSCRIPTEN_KEEPALIVE
 int spine_setIKTarget(int instanceId, const char* constraintName,
                       float targetX, float targetY, float mix) {
-    return es::spine::setIkTarget(g_ctx.instanceOf(instanceId), constraintName,
+    return es::ES_SPINE_NS::setIkTarget(g_ctx.instanceOf(instanceId), constraintName,
                                   targetX, targetY, mix)
                ? 1
                : 0;
@@ -732,10 +732,10 @@ const char* spine_listConstraints(int instanceId) {
         out += '"';
         out += kinds[k].key;
         out += "\":[";
-        const int count = es::spine::constraintCount(instance, kinds[k].kind);
+        const int count = es::ES_SPINE_NS::constraintCount(instance, kinds[k].kind);
         for (int i = 0; i < count; ++i) {
             if (i > 0) out += ',';
-            const char* name = es::spine::constraintName(instance, kinds[k].kind, i);
+            const char* name = es::ES_SPINE_NS::constraintName(instance, kinds[k].kind, i);
             out += '"';
             out += name ? name : "";
             out += '"';
@@ -749,7 +749,7 @@ const char* spine_listConstraints(int instanceId) {
 EMSCRIPTEN_KEEPALIVE
 const char* spine_getTransformConstraintMix(int instanceId, const char* name) {
     TransformMix mix;
-    if (!es::spine::transformMix(g_ctx.instanceOf(instanceId), name, &mix)) return publish("");
+    if (!es::ES_SPINE_NS::transformMix(g_ctx.instanceOf(instanceId), name, &mix)) return publish("");
 
     char buffer[256];
     std::snprintf(buffer, sizeof(buffer),
@@ -763,13 +763,13 @@ EMSCRIPTEN_KEEPALIVE
 int spine_setTransformConstraintMix(int instanceId, const char* name, float rotate,
                                     float x, float y, float scaleX, float scaleY, float shearY) {
     const TransformMix mix{rotate, x, y, scaleX, scaleY, shearY};
-    return es::spine::setTransformMix(g_ctx.instanceOf(instanceId), name, mix) ? 1 : 0;
+    return es::ES_SPINE_NS::setTransformMix(g_ctx.instanceOf(instanceId), name, mix) ? 1 : 0;
 }
 
 EMSCRIPTEN_KEEPALIVE
 const char* spine_getPathConstraintMix(int instanceId, const char* name) {
     PathMix mix;
-    if (!es::spine::pathMix(g_ctx.instanceOf(instanceId), name, &mix)) return publish("");
+    if (!es::ES_SPINE_NS::pathMix(g_ctx.instanceOf(instanceId), name, &mix)) return publish("");
 
     char buffer[256];
     std::snprintf(buffer, sizeof(buffer),
@@ -783,20 +783,20 @@ EMSCRIPTEN_KEEPALIVE
 int spine_setPathConstraintMix(int instanceId, const char* name, float position,
                                float spacing, float rotate, float x, float y) {
     const PathMix mix{position, spacing, rotate, x, y};
-    return es::spine::setPathMix(g_ctx.instanceOf(instanceId), name, mix) ? 1 : 0;
+    return es::ES_SPINE_NS::setPathMix(g_ctx.instanceOf(instanceId), name, mix) ? 1 : 0;
 }
 
 EMSCRIPTEN_KEEPALIVE
 int spine_setSlotColor(int instanceId, const char* slotName,
                        float r, float g, float b, float a) {
-    return es::spine::setSlotColor(g_ctx.instanceOf(instanceId), slotName, r, g, b, a) ? 1 : 0;
+    return es::ES_SPINE_NS::setSlotColor(g_ctx.instanceOf(instanceId), slotName, r, g, b, a) ? 1 : 0;
 }
 
 // Whole-skeleton tint: extraction already multiplies the skeleton colour into every
 // vertex, so this is all the wiring a SpineAnimation.color needs.
 EMSCRIPTEN_KEEPALIVE
 int spine_setSkeletonColor(int instanceId, float r, float g, float b, float a) {
-    return es::spine::setSkeletonColor(g_ctx.instanceOf(instanceId), r, g, b, a) ? 1 : 0;
+    return es::ES_SPINE_NS::setSkeletonColor(g_ctx.instanceOf(instanceId), r, g, b, a) ? 1 : 0;
 }
 
 // Which Spine runtime this build linked. Every backend exports the same symbols, so a
@@ -804,7 +804,7 @@ int spine_setSkeletonColor(int instanceId, float r, float g, float b, float a) {
 // artifact instead — spine38.wasm / spine41 / spine42 / spine43).
 EMSCRIPTEN_KEEPALIVE
 int spine_runtimeVersion() {
-    return es::spine::version();
+    return es::ES_SPINE_NS::version();
 }
 
 // The live extent of the event buffer, for the readback getter above: it is this

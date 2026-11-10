@@ -56,7 +56,7 @@ char* _spUtil_readFile(const char* path, int* length) {
     return nullptr;
 }
 
-namespace es::spine {
+namespace es::ES_SPINE_NS {
 
 // =============================================================================
 // Resources
@@ -1249,4 +1249,4 @@ int version() {
     return ES_SPINE_VERSION;
 }
 
-}  // namespace es::spine
+}  // namespace es::ES_SPINE_NS

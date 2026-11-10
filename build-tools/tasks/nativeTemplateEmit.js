@@ -21,7 +21,7 @@ import { makeZip, zipTree } from '../utils/zip.js';
 import {
     templateLayout, templateId, ANDROID_ABIS, templateAbis, writeTemplateManifest,
     missingTemplateFiles, installedTemplateDir, templateZipName, TEMPLATE_INDEX, TEMPLATE_FORMAT, templateJsEngine,
-    BYTECODE_FILE, builtSpineVersion, DEFAULT_TEMPLATE_SPINE,
+    BYTECODE_FILE, builtSpineVersions, LEGACY_TEMPLATE_SPINE,
 } from '../utils/nativeTemplate.js';
 
 /** The Java shim's sources — the IME's own side of an editable field, which has to
@@ -231,10 +231,10 @@ export async function emitNativeTemplate(options) {
     const manifest = writeTemplateManifest(dir, {
         platform,
         engineVersion,
-        // What the host build linked, from its CMake cache: an export refuses to
-        // pair this template with skeletons of another version (#115).
-        spineVersion: builtSpineVersion(root, platform, platform === 'android' ? templateAbis(dir) : undefined)
-            ?? DEFAULT_TEMPLATE_SPINE,
+        // The Spine releases the host build carries, from its CMake cache: an
+        // export names any skeleton of a release outside them (#115).
+        spineVersions: builtSpineVersions(root, platform, platform === 'android' ? templateAbis(dir) : undefined)
+            ?? [LEGACY_TEMPLATE_SPINE],
         // What runs the game's JS, so the editor (and a person) can tell a JIT
         // template from an interpreter one without opening the binary.
         jsEngine: templateJsEngine(dir, platform),

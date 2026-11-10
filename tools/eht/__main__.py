@@ -155,9 +155,10 @@ def main() -> int:
     # Function wrappers are parsed from declarations, not component reflection —
     # emit them before (and independently of) the component pass.
     if args.native_functions:
-        if args.native_functions_output is None and args.native_functions_ts is None:
-            print("[FAIL] --native-functions needs --native-functions-output and/or "
-                  "--native-functions-ts.")
+        if (args.native_functions_output is None and args.native_functions_ts is None
+                and args.native_functions_alias_output is None):
+            print("[FAIL] --native-functions needs --native-functions-output, "
+                  "--native-functions-ts and/or --native-functions-alias-output.")
             return 1
         code = _emit_native_functions(args)
         if code != 0 or args.native_output is None:

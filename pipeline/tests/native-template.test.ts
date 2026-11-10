@@ -21,7 +21,8 @@ import {
 import { listPlatforms } from '../src/export/platformCatalog';
 import {
   requiredTemplateFiles, templateLayout, installedTemplateDir, parseTemplateIndex,
-  missingTemplateEntries, isTemplatePlatform, builtSpineVersion, templateSpineVersion,
+  missingTemplateEntries, isTemplatePlatform, builtSpineVersions, templateSpineVersions, SPINE_RELEASES,
+  androidSpineLibs, androidSpineLibrary,
   TEMPLATE_FORMAT, TEMPLATE_MANIFEST, TEMPLATE_INDEX, TEMPLATE_PLATFORMS,
   type TemplatePlatform,
 } from '../../build-tools/utils/nativeTemplate.js';
@@ -75,17 +76,19 @@ function writeTemplateZip(version: string, omit?: string, platform: TemplatePlat
   return file;
 }
 
-// #115: a host links ONE Spine runtime, so the template says which, read off the
-// build rather than assumed, and an export holds the skeletons it ships to it.
-describe('the Spine runtime a template links', () => {
-  function manifestDir(spineVersion?: string): string {
+// #115: a host carries every vendored Spine release, each reading the skeletons
+// exported from it. The template says which it carries, read off the build, and
+// an Android package takes only the releases its skeletons need.
+describe('the Spine releases a template carries', () => {
+  function manifestDir(fields: Record<string, unknown> = {}): string {
     const dir = mkdtempSync(path.join(scratch, 'tmpl-'));
     writeFileSync(path.join(dir, TEMPLATE_MANIFEST), JSON.stringify({
       kind: 'estella-native-template', formatVersion: TEMPLATE_FORMAT, id: 'android', platform: 'android',
-      engineVersion: VERSION, ...(spineVersion ? { spineVersion } : {}),
+      engineVersion: VERSION, ...fields,
     }));
     return dir;
   }
+  const ALL = { spineVersions: [...SPINE_RELEASES] };
   function hostCache(rel: string, line: string | null): void {
     mkdirSync(path.join(scratch, rel), { recursive: true });
     writeFileSync(path.join(scratch, rel, 'CMakeCache.txt'),
@@ -94,50 +97,67 @@ ${line ?? ''}
 `);
   }
 
-  it('reads what the host build linked from its CMake cache', () => {
-    hostCache('build/cmake/native-windows', 'ESTELLA_SPINE_VERSION:STRING=3.8');
-    expect(builtSpineVersion(scratch, 'windows')).toBe('3.8');
-    hostCache('build/cmake/native/arm64-v8a', 'ESTELLA_SPINE_VERSION:STRING=3.8');
-    expect(builtSpineVersion(scratch, 'android', ['arm64-v8a'])).toBe('3.8');
+  it('lists every vendored release, and the ones the SDK can ask for', async () => {
+    const { readdirSync } = await import('node:fs');
+    const vendored = readdirSync(path.join(__dirname, '../../third_party'))
+      .filter((d) => d.startsWith('spine-runtimes-')).map((d) => d.slice('spine-runtimes-'.length)).sort();
+    expect([...SPINE_RELEASES]).toEqual(vendored);
+    const { SPINE_VERSIONS } = await import('esengine');
+    expect([...SPINE_RELEASES]).toEqual([...SPINE_VERSIONS].sort());
   });
 
-  it('takes the CMake default from a cache that never set it, and says nothing without a build', () => {
-    hostCache('build/cmake/native-linux', null);
-    expect(builtSpineVersion(scratch, 'linux')).toBe('4.2');
-    expect(builtSpineVersion(scratch, 'macos')).toBeNull();
+  it('reads the releases the host build carried from its CMake cache', () => {
+    hostCache('build/cmake/native-windows', 'ESTELLA_SPINE_VERSIONS:STRING=4.2;3.8');
+    expect(builtSpineVersions(scratch, 'windows')).toEqual(['3.8', '4.2']);
+    hostCache('build/cmake/native/arm64-v8a', 'ESTELLA_SPINE_VERSIONS:STRING=3.8;4.2');
+    expect(builtSpineVersions(scratch, 'android', ['arm64-v8a'])).toEqual(['3.8', '4.2']);
   });
 
-  it('refuses to pack ABIs that linked different runtimes into one template', () => {
-    hostCache('build/cmake/native/arm64-v8a', 'ESTELLA_SPINE_VERSION:STRING=3.8');
-    hostCache('build/cmake/native/x86_64', 'ESTELLA_SPINE_VERSION:STRING=4.2');
-    expect(() => builtSpineVersion(scratch, 'android', ['arm64-v8a', 'x86_64'])).toThrow(/same --spine/);
+  it('reads a single-release build as the one release it linked, and says nothing without a build', () => {
+    hostCache('build/cmake/native-linux', 'ESTELLA_SPINE_VERSION:STRING=3.8');
+    expect(builtSpineVersions(scratch, 'linux')).toEqual(['3.8']);
+    expect(builtSpineVersions(scratch, 'macos')).toBeNull();
   });
 
-  it('reads a template written before the field as the 4.2 it was built with', () => {
-    expect(templateSpineVersion({})).toBe('4.2');
-    expect(templateSpineVersion({ spineVersion: '3.8' })).toBe('3.8');
+  it('refuses to pack ABIs that carried different releases into one template', () => {
+    hostCache('build/cmake/native/arm64-v8a', 'ESTELLA_SPINE_VERSIONS:STRING=3.8');
+    hostCache('build/cmake/native/x86_64', 'ESTELLA_SPINE_VERSIONS:STRING=4.2');
+    expect(() => builtSpineVersions(scratch, 'android', ['arm64-v8a', 'x86_64'])).toThrow(/same --spine/);
   });
 
-  it('passes skeletons of the linked version, and content with no skeletons at all', () => {
-    expect(nativeSpineMismatch(new Map([['3.8', ['a.skel']]]), manifestDir('3.8'), 'android')).toBeNull();
-    expect(nativeSpineMismatch(new Map(), manifestDir('3.8'), 'android')).toBeNull();
+  it('reads an older template as the one release it linked', () => {
+    expect(templateSpineVersions({})).toEqual(['4.2']);
+    expect(templateSpineVersions({ spineVersion: '3.8' })).toEqual(['3.8']);
+    expect(templateSpineVersions(ALL)).toEqual([...SPINE_RELEASES]);
   });
 
-  it('names the skeletons that will not play, and the build that would play them', () => {
-    const why = nativeSpineMismatch(new Map([['3.8', ['hero.skel']]]), manifestDir(), 'android');
-    expect(why).toContain('hero.skel');
-    expect(why).toContain('Spine 4.2');
-    expect(why).toContain('node build-tools/cli.js native --target android --spine 3.8');
+  it('plays skeletons of every release on a current template', () => {
+    const skeletons = new Map([['3.8', ['a.skel']], ['4.1', ['b.json']], ['4.2', ['c.skel']]]);
+    expect(nativeSpineMismatch(skeletons, manifestDir(ALL), 'android')).toBeNull();
+    expect(nativeSpineMismatch(new Map(), manifestDir(), 'android')).toBeNull();
   });
 
-  // spine-demo ships 4.1 and 4.2: on the 4.2 template the 4.2 ones play, so only
-  // the 4.1 ones are named — and no single --spine build would play them all.
-  it('names only the skeletons of another version when some match', () => {
+  // The reporter's case on a template from before: named, and fixed by installing
+  // the editor's own template — not by a build only a source checkout can run.
+  it('names the skeletons an older template cannot play, and the template that can', () => {
     const why = nativeSpineMismatch(
-      new Map([['4.2', ['ok.skel']], ['4.1', ['a.json', 'b.json', 'c.json', 'd.json']]]), manifestDir('4.2'), 'windows');
-    expect(why).toContain('4 Spine skeletons are 4.1 (a.json, b.json, c.json, and 1 more)');
+      new Map([['4.2', ['ok.skel']], ['3.8', ['a.json', 'b.json', 'c.json', 'd.json']]]), manifestDir(), 'android');
+    expect(why).toContain('4 Spine skeletons are 3.8 (a.json, b.json, c.json, and 1 more)');
+    expect(why).toContain('carries Spine 4.2 only');
     expect(why).not.toContain('ok.skel');
-    expect(why).toContain('from one version');
+    expect(why).toContain('runtime template from Package Project');
+    expect(why).not.toContain('build-tools');
+  });
+
+  it('gives an Android package the libraries of the releases its skeletons need, and no others', () => {
+    const dir = manifestDir(ALL);
+    for (const abi of ['arm64-v8a', 'x86_64']) {
+      mkdirSync(path.join(dir, 'plugins', abi), { recursive: true });
+      for (const v of SPINE_RELEASES) writeFileSync(path.join(dir, 'plugins', abi, androidSpineLibrary(v)), 'so');
+    }
+    const libs = androidSpineLibs(dir, ['arm64-v8a'], ['3.8', '4.2']);
+    expect(Object.keys(libs)).toEqual(['arm64-v8a']);
+    expect(libs['arm64-v8a'].map((f) => path.basename(f))).toEqual(['libestella_spine38.so', 'libestella_spine42.so']);
   });
 });
 

@@ -22,7 +22,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import {
     findTemplate, readTemplateManifest, missingTemplateFiles, installedTemplateDir,
     templateStoreDir, iosTemplateSources, releaseAssetBases, parseTemplateIndex,
-    TEMPLATE_INDEX, templateSpineVersion,
+    TEMPLATE_INDEX, templateSpineVersions,
     type TemplatePlatform, type NativeTemplateManifest,
 } from '../../../build-tools/utils/nativeTemplate.js';
 import { extractZip } from '../../../build-tools/utils/zip.js';
@@ -31,31 +31,24 @@ export type { NativeTemplateManifest };
 
 /**
  * Which Spine skeletons a package ships will not play on a template, said as a
- * warning, or null when every one will. A native host links ONE Spine runtime
- * (every vendored one exports the same symbols), so a skeleton plays only if it
- * was exported from the version the template was built with — the project
- * setting is a preference, the skeleton files are the fact (#115). The package
+ * warning, or null when every one will. A host carries every vendored Spine
+ * release, each reading the skeletons exported from it (#115); only a template
+ * from before that, or one built with a narrowed --spine, lacks one. The package
  * is still assembled: the rest of the game runs, and the runtime names each
- * skeleton it refuses. `target` is the `cli native --target` name.
+ * skeleton it cannot read. `target` names the template (`android`, `windows`, …).
  */
 export function nativeSpineMismatch(
     skeletons: ReadonlyMap<string, readonly string[]>, templateDir: string, target: string,
 ): string | null {
-    const linked = templateSpineVersion(readTemplateManifest(templateDir));
-    const other = [...skeletons].filter(([v]) => v !== linked).sort(([a], [b]) => a.localeCompare(b));
-    if (other.length === 0) return null;
-    const files = other.flatMap(([, paths]) => paths);
+    const carried = templateSpineVersions(readTemplateManifest(templateDir));
+    const missing = [...skeletons].filter(([v]) => !carried.includes(v)).sort(([a], [b]) => a.localeCompare(b));
+    if (missing.length === 0) return null;
+    const files = missing.flatMap(([, paths]) => paths);
     const named = files.slice(0, 3).join(', ') + (files.length > 3 ? `, and ${files.length - 3} more` : '');
-    const versions = other.map(([v]) => v);
-    const them = files.length === 1 ? 'it' : 'them';
-    const fix = versions.length === 1 && !skeletons.has(linked)
-        ? `Build a template for ${versions[0]} with \`node build-tools/cli.js native --target ${target} --spine ${versions[0]}\`, `
-            + `or export ${them} from Spine ${linked}.`
-        : `Export ${them} from Spine ${linked}, or export every skeleton from one version and build a template for `
-            + `that version with \`node build-tools/cli.js native --target ${target} --spine <version>\`.`;
-    return `${files.length} Spine skeleton${files.length === 1 ? ' is' : 's are'} ${versions.join(' / ')} (${named}), `
-        + `and the ${target} runtime template links Spine ${linked}: a native host carries one Spine runtime, `
-        + `so ${files.length === 1 ? 'it does' : 'they do'} not play in this app. ${fix}`;
+    return `${files.length} Spine skeleton${files.length === 1 ? ' is' : 's are'} ${missing.map(([v]) => v).join(' / ')} `
+        + `(${named}), and the installed ${target} runtime template carries Spine ${carried.join(', ')} only, so `
+        + `${files.length === 1 ? 'it does' : 'they do'} not play in this app. Install this editor version's ${target} `
+        + 'runtime template from Package Project, then export again.';
 }
 
 /** A template this editor can actually use, with where it came from. */
@@ -92,9 +85,9 @@ export interface NativeTemplateEntry {
     /** Android: the architectures it carries. */
     abis: string[];
     engineVersion: string;
-    /** The one Spine runtime the host links; skeletons of any other version do
-     *  not play on it (see {@link nativeSpineMismatch}). */
-    spineVersion: string;
+    /** The Spine releases the host carries; a skeleton of any other does not
+     *  play on it (see {@link nativeSpineMismatch}). */
+    spineVersions: string[];
     dir: string;
     /** Usable by THIS editor — an older release's template stays listed (removing
      *  it is the user's call) but cannot be packaged with. */
@@ -117,7 +110,7 @@ export function listNativeTemplates(engineVersion: string): NativeTemplateEntry[
                 platform: manifest.platform,
                 abis: manifest.abis ?? [],
                 engineVersion: manifest.engineVersion,
-                spineVersion: templateSpineVersion(manifest),
+                spineVersions: templateSpineVersions(manifest),
                 dir,
                 current: manifest.engineVersion === engineVersion
                     && missingTemplateFiles(dir, manifest.platform).length === 0,

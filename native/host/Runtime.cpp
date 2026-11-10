@@ -28,7 +28,9 @@
 #include "esengine_bundle.h"     // the real SDK, bundled: installs globalThis.ESEngine
 #include "host_bootstrap.h"      // bootstrap.js, embedded
 
-#if defined(__ANDROID__) && !defined(ES_ENABLE_PHYSX)
+#include "SpineTags.generated.hpp"  // ES_SPINE_TAGS(X): the Spine releases this host carries
+
+#if defined(__ANDROID__)
 #include <dlfcn.h>
 #endif
 
@@ -45,6 +47,15 @@ using namespace esengine;
 // is registered directly; an Android host ships it as libestella_physx.so, which
 // only a PhysX project's package carries (see loadPhysXLibrary).
 void esn_register_functions_physx3d(esjs::Val global);
+
+// Every Spine release this host was built with, each under its own prefix
+// (es_spine38_*, es_spine42_*; native/CMakeLists.txt). Linked in everywhere but
+// Android, where each is a library a package carries only if its skeletons need it.
+#if !defined(__ANDROID__)
+#define ES_SPINE_DECLARE(tag) void esn_register_functions_spine##tag(esjs::Val global);
+ES_SPINE_TAGS(ES_SPINE_DECLARE)
+#undef ES_SPINE_DECLARE
+#endif
 
 namespace eshost {
 
@@ -135,6 +146,37 @@ void loadPhysXLibrary(esjs::Val global) {
     ESHOST_LOGI("PhysX loaded (libestella_physx.so)");
 }
 #endif
+
+#if defined(__ANDROID__)
+/**
+ * The Spine releases this package carries. The export packs libestella_spine<tag>.so
+ * into lib/<abi>/ for each release the project's skeletons were exported from, and
+ * the app's linker namespace finds it by its bare name; a release no skeleton uses
+ * is simply not there, which is the normal case, not an error.
+ */
+void loadSpineLibrary(esjs::Val global, const char* file) {
+    void* lib = dlopen(file, RTLD_NOW | RTLD_LOCAL);
+    if (lib == nullptr) return;
+    using Register = void (*)(esjs::Val*);
+    auto reg = reinterpret_cast<Register>(dlsym(lib, "estella_spine_register"));
+    if (reg == nullptr) {
+        ESHOST_LOGE("%s has no estella_spine_register: %s", file, dlerror());
+        return;
+    }
+    reg(&global);
+    ESHOST_LOGI("Spine loaded (%s)", file);
+}
+#endif
+
+void registerSpine(esjs::Val global) {
+#if defined(__ANDROID__)
+#define ES_SPINE_REGISTER(tag) loadSpineLibrary(global, "libestella_spine" #tag ".so");
+#else
+#define ES_SPINE_REGISTER(tag) esn_register_functions_spine##tag(global);
+#endif
+    ES_SPINE_TAGS(ES_SPINE_REGISTER)
+#undef ES_SPINE_REGISTER
+}
 
 esjs::Val consoleWrite(const esjs::Args& a, bool error) {
     std::string line;
@@ -403,6 +445,7 @@ void initRuntime(HostState& h) {
     // from, so the SDK reaches the engine by the same names on either platform.
     esn_register(global);
     esn_register_functions(global);
+    registerSpine(global);
 #if defined(ES_ENABLE_PHYSX)
     esn_register_functions_physx3d(global);
 #elif defined(__ANDROID__)

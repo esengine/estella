@@ -25,9 +25,10 @@ export interface NativeTemplateManifest {
     /** Matched EXACTLY against the editor's version: the SDK bundle is compiled
      *  into the host binary, so a near-miss fails on a device. */
     engineVersion: string;
-    /** The one Spine runtime the host links (read from its build, not assumed).
-     *  Absent on templates written before it was recorded: those are 4.2 —
-     *  read it through {@link templateSpineVersion}. */
+    /** The Spine releases the host carries, read from its build. Read it through
+     *  {@link templateSpineVersions}: older templates carry one (`spineVersion`). */
+    spineVersions?: string[];
+    /** Templates before `spineVersions`: the one release the host linked. */
     spineVersion?: string;
     /** iOS only. */
     deploymentTarget?: string;
@@ -101,9 +102,12 @@ export function writeTemplateManifest(
   meta: { platform: TemplatePlatform; engineVersion: string; abi?: string } & Record<string, unknown>,
 ): NativeTemplateManifest;
 export function readTemplateManifest(dir: string): NativeTemplateManifest | null;
-export const DEFAULT_TEMPLATE_SPINE: string;
-export function templateSpineVersion(manifest: Pick<NativeTemplateManifest, 'spineVersion'> | null | undefined): string;
-export function builtSpineVersion(root: string, platform: TemplatePlatform, abis?: readonly string[]): string | null;
+export const LEGACY_TEMPLATE_SPINE: string;
+export const SPINE_RELEASES: readonly string[];
+export function templateSpineVersions(manifest: Pick<NativeTemplateManifest, 'spineVersion' | 'spineVersions'> | null | undefined): string[];
+export function builtSpineVersions(root: string, platform: TemplatePlatform, abis?: readonly string[]): string[] | null;
+export function androidSpineLibrary(version: string): string;
+export function androidSpineLibs(dir: string, abis: readonly string[], versions: Iterable<string>): Record<string, string[]>;
 export function templateMatches(manifest: NativeTemplateManifest | null, want: TemplateWant): boolean;
 export function templateZipName(platform: TemplatePlatform, engineVersion: string): string;
 export function estellaDataDir(): string;

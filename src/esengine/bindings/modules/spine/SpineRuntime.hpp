@@ -35,7 +35,15 @@
 
 #include "./SkeletalModule.hpp"
 
-namespace es::spine {
+// The namespace this release's backend lives in. A web side module carries one
+// release and keeps the plain name; a native host carries every release, so its
+// build compiles each backend with its own (spine38, spine42, …), the same way
+// each spine-c release gets its own C names (native/spine/SpineCRename*.hpp).
+#ifndef ES_SPINE_NS
+#define ES_SPINE_NS spine
+#endif
+
+namespace es::ES_SPINE_NS {
 
 /** A loaded skeleton: its atlas, its data, and the mix table instances share. */
 struct Skeleton;
@@ -119,7 +127,7 @@ const void* eventSource(Instance* instance);
  * premultiplied twins of the first two, which is how the engine's renderer reads it.
  */
 /// The shared one (SkeletalModule.hpp): batching is not a Spine idea, and the
-/// backends below name this type, so it stays spelled `es::spine::TriangleSink`.
+/// backends below name this type, so it stays spelled `es::ES_SPINE_NS::TriangleSink`.
 using TriangleSink = es::skeletal::TriangleSink;
 
 /**
@@ -432,4 +440,4 @@ bool poseStage(Instance* instance, float dt, int stage, PoseCounts* counts);
 /** 21 / 38 / 41 / 42 / 43 — whatever `spine_runtimeVersion()` should report. */
 int version();
 
-}  // namespace es::spine
+}  // namespace es::ES_SPINE_NS

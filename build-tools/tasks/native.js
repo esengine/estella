@@ -76,9 +76,28 @@ export const MODULE_BINDING_HEADERS = [
     'modules/physics/PhysicsBindings.hpp',
     'modules/physics3d/Physics3DBindings.hpp',
     'modules/video/VideoBindings.hpp',
-    'modules/spine/SpineBindings.hpp',
     'modules/dragonbones/DragonBonesBindings.hpp',
 ];
+
+// Spine is not in the list above: a host carries every vendored release, each
+// answering the one spine_* surface under its own prefix (spine38_, spine42_, …),
+// so its wrappers are only ever the renamed copies (SPINE_ALIAS, one per release).
+export const SPINE_BINDING_HEADER = 'modules/spine/SpineBindings.hpp';
+
+/** Every Spine release vendored under third_party/, oldest first. */
+export function vendoredSpineVersions(rootDir) {
+    return readdirSync(path.join(rootDir, 'third_party'))
+        .filter((d) => d.startsWith('spine-runtimes-'))
+        .map((d) => d.slice('spine-runtimes-'.length))
+        .sort();
+}
+
+/** One release's copy of the spine_* surface — what native/CMakeLists.txt links
+ *  as estella_spine_<tag> and the SDK asks for as es_spine<tag>_* (nativeSpinePrefix). */
+export const spineAlias = (version) => {
+    const tag = version.replace('.', '');
+    return `spine_=spine${tag}_:ES_SPINE${tag}`;
+};
 
 export const NATIVE_BINDING_HEADERS = [...ENGINE_BINDING_HEADERS, ...MODULE_BINDING_HEADERS];
 
@@ -112,6 +131,21 @@ async function generateNativeFunctionBindings(rootDir, genDir, python) {
         '--native-functions-alias-output', path.join(genDir, 'PhysX3DFunctionBindings.generated.cpp'),
         '--native-functions-alias-header', path.join(genDir, 'PhysX3DRename.generated.hpp'),
     ], { cwd: rootDir });
+    // Every vendored Spine release, each its own TU and rename header: they are
+    // linked side by side (or, on Android, each into a library of its own), so one
+    // header holding them all would rename one name four ways. The build compiles
+    // the ones ESTELLA_SPINE_VERSIONS names.
+    for (const version of vendoredSpineVersions(rootDir)) {
+        const tag = version.replace('.', '');
+        await runCommand(python, [
+            eht,
+            '--native-functions', abs(SPINE_BINDING_HEADER),
+            '--native-shim', 'esn_shim.hpp',
+            '--native-functions-alias', spineAlias(version),
+            '--native-functions-alias-output', path.join(genDir, `SpineFunctionBindings${tag}.generated.cpp`),
+            '--native-functions-alias-header', path.join(genDir, `SpineRename${tag}.generated.hpp`),
+        ], { cwd: rootDir });
+    }
     // The TS engine surface: the CORE headers only. It is committed (the SDK compiles
     // without running EHT), so it is refreshed here rather than updated by hand —
     // after a native build, a surface that moved shows up as a diff instead of as a
@@ -439,6 +473,7 @@ async function buildDesktopHost(options) {
 
     logger.step('Building desktop host...');
     await runCommand('cmake', ['--build', buildDir, '-j', String(getCpuCount())], { cwd: rootDir });
+    await verifySpineSymbols(buildDir);
 
     const exe = path.join(buildDir, target === 'windows' ? 'estella_desktop.exe' : 'estella_desktop');
     logger.success(`Desktop host: ${path.relative(rootDir, exe)}`);
@@ -455,26 +490,49 @@ async function buildDesktopHost(options) {
 }
 
 /**
- * `--spine <version>` as a CMake flag. A host links ONE Spine runtime — every
- * vendored one exports the same symbols — so a project whose skeletons are 3.8
- * needs a template built for 3.8; the default is native/CMakeLists.txt's (4.2).
- * Absent, the build keeps whatever its cache already says, and the template
- * manifest records that (see builtSpineVersion), so it never claims a default.
+ * The Spine releases a host carries, as a CMake flag: every vendored one unless
+ * `--spine 3.8,4.2` narrows it (a size experiment). Always passed, so a narrowed
+ * build does not linger in the cache; the template manifest records the set the
+ * build linked (see builtSpineVersions), and an export names any skeleton outside it.
  */
-function spineFlags(rootDir, options) {
-    const version = options.spine;
-    if (!version) return [];
-    checkSpineVendored(rootDir, version);
-    logger.info(`Linking Spine ${version}`);
-    return [`-DESTELLA_SPINE_VERSION=${version}`];
+/**
+ * Every Spine release linked side by side must keep its names to itself: one left
+ * unprefixed links silently and binds a call to another release's code. Read off
+ * the built libraries where an llvm-nm is at hand (the Android NDK's, or NM);
+ * otherwise say it was not checked rather than pass.
+ */
+async function verifySpineSymbols(buildDir) {
+    const { verifyBuild } = await import('../../tools/spine-c-rename.mjs');
+    let result;
+    try {
+        result = verifyBuild(buildDir);
+    } catch (err) {
+        logger.warn(`Spine symbol check skipped: ${err.message}`);
+        return;
+    }
+    if (result.escaped.length) {
+        throw new Error(`Spine names outside their release's prefix (run node tools/spine-c-rename.mjs):\n  ${result.escaped.join('\n  ')}`);
+    }
+    logger.info(`Spine symbols: ${result.libs.length} libraries, every name prefixed by its release`);
 }
 
-/** Refuses a --spine no runtime is vendored for — before any dependency builds. */
-function checkSpineVendored(rootDir, version) {
-    if (existsSync(path.join(rootDir, 'third_party', `spine-runtimes-${version}`))) return;
-    const vendored = readdirSync(path.join(rootDir, 'third_party'))
-        .filter((d) => d.startsWith('spine-runtimes-')).map((d) => d.slice('spine-runtimes-'.length));
-    throw new Error(`--spine ${version}: no such Spine runtime is vendored (have ${vendored.join(', ')}).`);
+function spineFlags(rootDir, options) {
+    const versions = spineSelection(rootDir, options);
+    if (options.spine) logger.info(`Linking Spine ${versions.join(', ')}`);
+    return [`-DESTELLA_SPINE_VERSIONS=${versions.join(';')}`];
+}
+
+/** `--spine` as a list, refused before any dependency builds if it names a release
+ *  nothing is vendored for. */
+function spineSelection(rootDir, options) {
+    const vendored = vendoredSpineVersions(rootDir);
+    if (!options.spine) return vendored;
+    const wanted = String(options.spine).split(',').map((v) => v.trim()).filter(Boolean);
+    const unknown = wanted.filter((v) => !vendored.includes(v));
+    if (unknown.length || wanted.length === 0) {
+        throw new Error(`--spine ${options.spine}: no such Spine runtime is vendored (have ${vendored.join(', ')}).`);
+    }
+    return wanted;
 }
 
 // CMake parses backslashes in -D string values as escapes (F:\estella -> \e), so
@@ -540,6 +598,7 @@ async function buildAndroidHost(options) {
 
     logger.step('Building native host...');
     await runCommand(cmake, ['--build', buildDir, '-j', String(getCpuCount())], { cwd: rootDir });
+    await verifySpineSymbols(buildDir);
 
     logger.success(`Host: ${path.join('build/cmake/native', abi, 'libestella_js_host.so')}`);
 
@@ -718,6 +777,7 @@ async function buildIosHost(options) {
 
     logger.step(`Building iOS host (${slice.label})...`);
     await runCommand('cmake', ['--build', buildDir, '-j', String(getCpuCount())], { cwd: rootDir, env });
+    await verifySpineSymbols(buildDir);
 
     logger.success(`iOS host: ${path.join(slice.dir, 'libestella_ios.a')}`);
     await assembleXcframework(rootDir, env, genDir);
@@ -920,7 +980,7 @@ async function buildNativeDeps(options) {
 }
 
 export async function buildNative(options = {}) {
-    if (options.spine) checkSpineVendored(config.paths.root, options.spine);
+    if (options.spine) spineSelection(config.paths.root, options);
     // Before anything that needs a toolchain: this only reads the manifest, and CI
     // asks for it on a runner that has not set one up yet.
     if (options.depsCacheKey) {

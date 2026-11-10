@@ -143,46 +143,107 @@ target_compile_features(jolt PUBLIC cxx_std_17)
 target_compile_definitions(jolt PUBLIC JPH_USE_CPU_COMPUTE)
 es_silence_warnings(jolt)
 
-# The Spine runtime: the vendored release plus the module's entry points, compiled
-# into the host. Every runtime backend exports the same symbol names, so a binary
-# carries exactly ONE — which is why the web ships a module per version and a native
-# app picks at build time. `spine_runtimeVersion()` reports the choice, and the SDK's
-# acquirer answers only that version's id.
+# The Spine runtimes: every vendored release, each with the module's entry points,
+# side by side in one host — as the web carries a side module per version, so a
+# skeleton is read by the runtime it was exported from whatever the project
+# setting says (#115).
 #
-# Which backend goes with which release is the tree's shape, exactly as the web build
-# reads it (es_add_spine_module in cmake/Emscripten.cmake): 3.8 - 4.2 vendor the pure-C
-# runtime nested a level deep, 2.1 the same runtime flat and in a dialect of its own,
-# and 4.3 replaced it with a generated wrapper so we bind spine-cpp instead.
-set(ESTELLA_SPINE_VERSION "4.2" CACHE STRING "Spine runtime to link (4.3 / 4.2 / 4.1 / 3.8 / 2.1)")
-set(SPINE_ROOT "${TP}/spine-runtimes-${ESTELLA_SPINE_VERSION}")
-if(EXISTS "${SPINE_ROOT}/spine-c/spine-c/include")
-    set(SPINE_BACKEND "${SRC}/esengine/bindings/modules/spine/SpineRuntimeC.cpp")
-    set(SPINE_INCLUDE "${SPINE_ROOT}/spine-c/spine-c/include")
-    file(GLOB SPINE_SOURCES "${SPINE_ROOT}/spine-c/spine-c/src/spine/*.c")
-elseif(EXISTS "${SPINE_ROOT}/spine-cpp/include")
-    set(SPINE_BACKEND "${SRC}/esengine/bindings/modules/spine/SpineRuntimeCpp.cpp")
-    set(SPINE_INCLUDE "${SPINE_ROOT}/spine-cpp/include")
-    file(GLOB SPINE_SOURCES "${SPINE_ROOT}/spine-cpp/src/spine/*.cpp")
-elseif(EXISTS "${SPINE_ROOT}/spine-c/include/spine")
-    set(SPINE_BACKEND "${SRC}/esengine/bindings/modules/spine/SpineRuntime21.cpp")
-    set(SPINE_INCLUDE "${SPINE_ROOT}/spine-c/include")
-    file(GLOB SPINE_SOURCES "${SPINE_ROOT}/spine-c/src/spine/*.c")
-else()
-    message(FATAL_ERROR "Spine runtime ${ESTELLA_SPINE_VERSION} not vendored at ${SPINE_ROOT}. "
-        "Pass -DESTELLA_SPINE_VERSION=<4.3|4.2|4.1|3.8|2.1>.")
+# The releases define the same names, so each is compiled apart:
+#   - spine-c (2.1 / 3.8 / 4.1 / 4.2) with native/spine/SpineCRename<tag>.hpp
+#     force-included, prefixing every C symbol it defines or expects from the
+#     backend (tools/spine-c-rename.mjs reads them off the compiled objects);
+#     spine-cpp (4.3) lives in namespace spine and needs none;
+#   - the backend in namespace es::spine<tag> (ES_SPINE_NS);
+#   - the spine_* entry points renamed spine<tag>_* by the header EHT writes
+#     beside their wrappers (build-tools/tasks/native.js), which register them as
+#     es_spine<tag>_*: the names sdk/src/ecs/bridge/nativeSideModules.ts asks for.
+#
+# ESTELLA_SPINE_VERSIONS narrows the set (a size experiment, a missing submodule);
+# the template records what was linked, and an export warns about a skeleton of a
+# release it does not carry.
+if(NOT ESTELLA_NATIVE_GEN_DIR)
+    set(ESTELLA_NATIVE_GEN_DIR "${CMAKE_BINARY_DIR}/gen")
 endif()
+file(GLOB _spine_trees LIST_DIRECTORIES true "${TP}/spine-runtimes-*")
+set(_spine_vendored "")
+foreach(_tree IN LISTS _spine_trees)
+    get_filename_component(_name "${_tree}" NAME)
+    string(REPLACE "spine-runtimes-" "" _v "${_name}")
+    list(APPEND _spine_vendored "${_v}")
+endforeach()
+set(ESTELLA_SPINE_VERSIONS "${_spine_vendored}" CACHE STRING
+    "Spine releases the host carries, ;-separated (default: every vendored one)")
+set(ESTELLA_SPINE_TARGETS "")
+set(ESTELLA_SPINE_RUNTIMES "")
+set(ESTELLA_SPINE_FN_BINDINGS "")
+foreach(_v IN LISTS ESTELLA_SPINE_VERSIONS)
+    set(_root "${TP}/spine-runtimes-${_v}")
+    string(REPLACE "." "" _tag "${_v}")
+    set(_c_rename "")
+    if(EXISTS "${_root}/spine-c/spine-c/include")
+        set(_backend "${SRC}/esengine/bindings/modules/spine/SpineRuntimeC.cpp")
+        set(_inc "${_root}/spine-c/spine-c/include")
+        file(GLOB _sources "${_root}/spine-c/spine-c/src/spine/*.c")
+        set(_c_rename "${CMAKE_CURRENT_SOURCE_DIR}/spine/SpineCRename${_tag}.hpp")
+    elseif(EXISTS "${_root}/spine-cpp/include")
+        set(_backend "${SRC}/esengine/bindings/modules/spine/SpineRuntimeCpp.cpp")
+        set(_inc "${_root}/spine-cpp/include")
+        file(GLOB _sources "${_root}/spine-cpp/src/spine/*.cpp")
+    elseif(EXISTS "${_root}/spine-c/include/spine")
+        set(_backend "${SRC}/esengine/bindings/modules/spine/SpineRuntime21.cpp")
+        set(_inc "${_root}/spine-c/include")
+        file(GLOB _sources "${_root}/spine-c/src/spine/*.c")
+        set(_c_rename "${CMAKE_CURRENT_SOURCE_DIR}/spine/SpineCRename${_tag}.hpp")
+    else()
+        message(FATAL_ERROR "Spine runtime ${_v} not vendored at ${_root} "
+            "(ESTELLA_SPINE_VERSIONS=${ESTELLA_SPINE_VERSIONS}).")
+    endif()
+    if(_c_rename AND NOT EXISTS "${_c_rename}")
+        message(FATAL_ERROR "Missing ${_c_rename} — run `node tools/spine-c-rename.mjs`.")
+    endif()
+    set(_fn_rename "${ESTELLA_NATIVE_GEN_DIR}/SpineRename${_tag}.generated.hpp")
 
-add_library(spine_runtime STATIC ${SPINE_SOURCES})
-target_include_directories(spine_runtime PUBLIC "${SPINE_INCLUDE}")
-es_silence_warnings(spine_runtime)
+    # PRIVATE includes throughout: every release has its own spine/spine.h.
+    add_library(spine_runtime_${_tag} STATIC ${_sources})
+    target_include_directories(spine_runtime_${_tag} PRIVATE "${_inc}")
+    es_silence_warnings(spine_runtime_${_tag})
 
-string(REPLACE "." "" SPINE_TAG ${ESTELLA_SPINE_VERSION})
-add_library(estella_spine STATIC
-    "${SRC}/esengine/bindings/modules/spine/SpineModuleEntry.cpp"
-    "${SPINE_BACKEND}")
-target_include_directories(estella_spine PUBLIC "${SRC}")
-target_link_libraries(estella_spine PUBLIC spine_runtime)
-target_compile_definitions(estella_spine PRIVATE ES_SPINE_VERSION=${SPINE_TAG})
+    add_library(estella_spine_${_tag} STATIC
+        "${SRC}/esengine/bindings/modules/spine/SpineModuleEntry.cpp" "${_backend}")
+    target_include_directories(estella_spine_${_tag} PUBLIC "${SRC}" PRIVATE "${_inc}")
+    target_link_libraries(estella_spine_${_tag} PUBLIC spine_runtime_${_tag})
+    target_compile_definitions(estella_spine_${_tag} PRIVATE
+        ES_SPINE_VERSION=${_tag} ES_SPINE_NS=spine${_tag})
+    foreach(_header IN ITEMS "${_c_rename}" "${_fn_rename}")
+        if(NOT _header)
+            continue()
+        endif()
+        if(MSVC)
+            set(_fi "/FI${_header}")
+        else()
+            set(_fi "SHELL:-include \"${_header}\"")
+        endif()
+        target_compile_options(estella_spine_${_tag} PRIVATE "${_fi}")
+        if(_header STREQUAL _c_rename)
+            target_compile_options(spine_runtime_${_tag} PRIVATE "${_fi}")
+        endif()
+    endforeach()
+
+    list(APPEND ESTELLA_SPINE_TARGETS estella_spine_${_tag})
+    list(APPEND ESTELLA_SPINE_RUNTIMES spine_runtime_${_tag})
+    list(APPEND ESTELLA_SPINE_FN_BINDINGS "${ESTELLA_NATIVE_GEN_DIR}/SpineFunctionBindings${_tag}.generated.cpp")
+    string(APPEND _spine_tag_list " X(${_tag})")
+endforeach()
+# The releases this host was built with, for host/Runtime.cpp to register (or, on
+# Android, to look for as libraries): ES_SPINE_TAGS(X) expands X(38) X(42) ….
+file(WRITE "${ESTELLA_NATIVE_GEN_DIR}/SpineTags.generated.hpp.in"
+    "// Generated by native/CMakeLists.txt — the Spine releases this host carries.
+"
+    "#pragma once
+#define ES_SPINE_TAGS(X)${_spine_tag_list}
+")
+configure_file("${ESTELLA_NATIVE_GEN_DIR}/SpineTags.generated.hpp.in"
+    "${ESTELLA_NATIVE_GEN_DIR}/SpineTags.generated.hpp" COPYONLY)
 
 # DragonBones: the same two TUs the web links as the "dragonbones" side module,
 # over the vendored core. One runtime, not one per version — the format is frozen,
@@ -481,12 +542,17 @@ if(ESTELLA_QUICKJS_DIR)
         host/media/audio_spectrum.cpp PROPERTIES
             COMPILE_OPTIONS "-x;objective-c++")
         target_link_libraries(estella_js_host esengine estella_physics estella_physics3d
-            estella_video estella_spine
+            estella_video ${ESTELLA_SPINE_TARGETS}
             estella_dragonbones esjs_engine
             "-framework UIKit" "-framework QuartzCore" "-framework Foundation"
             "-framework CoreMotion" "-framework CoreHaptics"
             "-framework AVFoundation" "-framework CoreAudio" "-framework AudioToolbox"
             "-framework CoreText" "-framework CoreGraphics")
+        target_sources(estella_js_host PRIVATE ${ESTELLA_SPINE_FN_BINDINGS})
+        set(_spine_archives "")
+        foreach(_t IN LISTS ESTELLA_SPINE_TARGETS ESTELLA_SPINE_RUNTIMES)
+            list(APPEND _spine_archives "$<TARGET_FILE:${_t}>")
+        endforeach()
         # Merge host + engine + deps + Dawn into ONE archive, so the Xcode app is a
         # thin shell that links a single library at a fixed path (native/ios).
         add_custom_command(TARGET estella_js_host POST_BUILD
@@ -495,7 +561,7 @@ if(ESTELLA_QUICKJS_DIR)
                     $<TARGET_FILE:estella_physics> $<TARGET_FILE:box2d>
                     $<TARGET_FILE:estella_physics3d> $<TARGET_FILE:jolt>
                     $<TARGET_FILE:estella_video>
-                    $<TARGET_FILE:estella_spine> $<TARGET_FILE:spine_runtime>
+                    ${_spine_archives}
                     $<TARGET_FILE:estella_dragonbones> $<TARGET_FILE:dragonbones_runtime>
                     $<TARGET_FILE:qjs> $<TARGET_FILE:yogacore> "${ESTELLA_DAWN_LIB}"
             COMMENT "Merging the iOS host, engine and Dawn into libestella_ios.a")
@@ -518,7 +584,8 @@ if(ESTELLA_QUICKJS_DIR)
         set_target_properties(estella_js_host PROPERTIES OUTPUT_NAME estella_desktop)
         target_compile_definitions(estella_js_host PRIVATE ESTELLA_DESKTOP)
         target_link_libraries(estella_js_host esengine estella_physics estella_physics3d
-            estella_video estella_spine estella_dragonbones esjs_engine SDL3::SDL3)
+            estella_video ${ESTELLA_SPINE_TARGETS} estella_dragonbones esjs_engine SDL3::SDL3)
+        target_sources(estella_js_host PRIVATE ${ESTELLA_SPINE_FN_BINDINGS})
         if(TARGET estella_physics3d_physx)
             # Linked in: a desktop app's size is not a download a player waits on
             # the way a phone's is, and an executable cannot be linked against
@@ -574,8 +641,23 @@ if(ESTELLA_QUICKJS_DIR)
         # link libs). native_audio.cpp's Obj-C paths are __APPLE__-guarded out.
         add_library(estella_js_host SHARED ${HOST_SOURCES} host/platform/android.cpp host/platform/android_device.cpp)
         target_link_libraries(estella_js_host esengine estella_physics estella_physics3d
-            estella_video estella_spine
-            estella_dragonbones esjs_engine native_app_glue android log)
+            estella_video estella_dragonbones esjs_engine native_app_glue android log)
+        # Each Spine release a library of its own, as PhysX is below: a package
+        # carries only the releases its skeletons were exported from (the export
+        # reads them), the template keeps them under plugins/, and the host dlopens
+        # whichever of libestella_spine<tag>.so the package has (host/Runtime.cpp).
+        foreach(_spine IN LISTS ESTELLA_SPINE_TARGETS)
+            string(REPLACE "estella_spine_" "" _tag "${_spine}")
+            add_library(estella_spine${_tag} SHARED
+                "${ESTELLA_NATIVE_GEN_DIR}/SpineFunctionBindings${_tag}.generated.cpp"
+                host/plugins/spine_plugin.cpp)
+            target_link_libraries(estella_spine${_tag} PRIVATE ${_spine} estella_js_host)
+            target_include_directories(estella_spine${_tag} PRIVATE
+                "${CMAKE_CURRENT_SOURCE_DIR}/host" "${ESTELLA_NATIVE_GEN_DIR}"
+                $<TARGET_PROPERTY:esengine,INTERFACE_INCLUDE_DIRECTORIES>)
+            target_compile_definitions(estella_spine${_tag} PRIVATE ES_SPINE_TAG=${_tag}
+                $<TARGET_PROPERTY:esengine,INTERFACE_COMPILE_DEFINITIONS>)
+        endforeach()
         if(TARGET estella_physics3d_physx)
             # A library of its own, so a package carries it only when its project
             # picked PhysX (4.9 MB per ABI): the template keeps it under plugins/,
