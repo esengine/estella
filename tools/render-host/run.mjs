@@ -57,6 +57,7 @@ import { app, BrowserWindow } from 'electron';
 for (const stream of [process.stdout, process.stderr]) stream.on('error', () => app.exit(0));
 import os from 'node:os';
 import { writeFile } from 'node:fs/promises';
+import { appendFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
@@ -258,7 +259,7 @@ app.whenReady().then(async () => {
   let server;
   try {
     server = await serveHost(DIST);
-    const url = `http://127.0.0.1:${server.address().port}/${PAGE}?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${OUTPUT_TRANSFORM ? `&outputTransform=${OUTPUT_TRANSFORM}` : ''}${MSAA ? `&msaa=${MSAA}` : ''}${PREPASS ? '&prepass=1' : ''}${TEXTURES ? `&textures=${TEXTURES}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}${RENDER_RESOLUTION ? `&renderResolution=${RENDER_RESOLUTION}` : ''}${SEED ? `&seed=${SEED}` : ''}${process.env.ESTELLA_VERIFY_NO_COMPUTE === '1' ? '&noCompute=1' : ''}`;
+    const url = `http://127.0.0.1:${server.address().port}/${PAGE}?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${OUTPUT_TRANSFORM ? `&outputTransform=${OUTPUT_TRANSFORM}` : ''}${MSAA ? `&msaa=${MSAA}` : ''}${PREPASS ? '&prepass=1' : ''}${TEXTURES ? `&textures=${TEXTURES}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}${RENDER_RESOLUTION ? `&renderResolution=${RENDER_RESOLUTION}` : ''}${SEED ? `&seed=${SEED}` : ''}${process.env.ESTELLA_VERIFY_NO_COMPUTE === '1' ? '&noCompute=1' : ''}${process.env.ESTELLA_VERIFY_GL_TRACE ? '&gltrace=1' : ''}`;
 
     // useContentSize: the capture rectangle must be the page area, not the
     // outer frame (the same trap the parity runner documents).
@@ -266,7 +267,13 @@ app.whenReady().then(async () => {
       show: false, width: W, height: H, useContentSize: true,
       webPreferences: { offscreen: false },
     });
+    // ESTELLA_VERIFY_GL_TRACE=<file>: every shader compiled, program linked, program used and draw made, in order, written to the
+    // file as the page makes them — with each program's sources — so a GPU process that dies mid-frame leaves the call it died on as
+    // the last line. Lines arrive through the console because the page may not live to be asked.
+    const GL_TRACE = process.env.ESTELLA_VERIFY_GL_TRACE || '';
+    if (GL_TRACE) writeFileSync(GL_TRACE, '');
     onRendererConsole(win.webContents, (msg) => {
+      if (GL_TRACE && msg.startsWith('GLTRACE ')) { appendFileSync(GL_TRACE, msg.slice(8) + '\n'); return; }
       // `webgpu` spelled out: "webgl" does not match it, so the second backend's
       // boot — including which adapter served it — was the one thing never shown.
       if (/error|fail|unwind|exception|webgl|webgpu|adapter|recovery|placeholder/i.test(msg)) console.log('[renderer]', msg.slice(0, 240));

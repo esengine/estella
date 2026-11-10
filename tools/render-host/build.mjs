@@ -57,5 +57,6 @@ await build({
 });
 
 await cp(path.join(HERE, 'index.html'), path.join(OUT, 'index.html'));
+await cp(path.join(HERE, 'gltrace.js'), path.join(OUT, 'gltrace.js'));
 await cp(WASM_SRC, path.join(OUT, 'wasm'), { recursive: true });
 console.log(`render-host: built into ${path.relative(ROOT, OUT)}`);
