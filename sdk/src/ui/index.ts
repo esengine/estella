@@ -60,6 +60,7 @@ export {
 } from './core/ui-visual';
 
 export { UIMask, MaskMode, type UIMaskData } from './core/ui-mask';
+export { UIWorldAnchor, placeOnScreen, type UIWorldAnchorData, type AnchorLens, type AnchorPlacement } from './core/world-anchor';
 export { UIScroll, ScrollMovement, type UIScrollData } from './core/ui-scroll';
 export { ContentRect, applyContentRect, contentRectContains, localPointInRect, type ContentRectData } from './core/content-rect';
 export { contentRectPlugin, ContentRectPlugin } from './render/content-rect';
