@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  "feat(ui): a Spine skeleton in a Canvas paints by its place in the tree, with the UI's opacity, visibility and masks":
+    { note: "A Spine skeleton can be part of a UI." },
   "fix(export): an Android package carries its Spine runtimes on every architecture, not the first only":
     {note: "An Android package built for the emulator carries its Spine runtimes on x86_64 too."},
   "fix(docs): a component summary with an apostrophe no longer breaks the docs build":

@@ -93,10 +93,19 @@ void RenderFrame::submitSkeletalBatch(
     const u16* indices, i32 indexCount,
     u32 textureId, i32 blendMode,
     const f32* transform16,
-    Entity entity, i32 layer, f32 depth, u32 materialId, bool premultipliedColor
+    Entity entity, i32 layer, f32 depth, u32 materialId, bool premultipliedColor,
+    f32 treeAlpha, u32 cullBit
 ) {
-    if (vertexCount <= 0 || indexCount <= 0
-        || !batchEntityVisible(draw_list_, clip_state_, entity, layer)) return;
+    // The screen overlay and the cameras partition the world (RenderCollectContext::accepts):
+    // a skeleton under a screen Canvas is the overlay's, and a camera drawing it too is how it
+    // showed in the world at the Canvas' pixel coordinates while missing from the UI.
+    const bool screen = screen_domain_ && screen_domain_->count(entity.id()) != 0;
+    if (screen != overlay_active_) return;
+    if (layer == 0 && ui_tree_layers_) {
+        if (const auto it = ui_tree_layers_->find(entity.id()); it != ui_tree_layers_->end()) layer = it->second;
+    }
+    if (vertexCount <= 0 || indexCount <= 0 || treeAlpha <= 0.0f
+        || !batchEntityVisible(draw_list_, clip_state_, entity, layer, cullBit)) return;
 
     constexpr i32 FLOATS_PER_VERTEX = 8;
     glm::mat4 model = glm::make_mat4(transform16);
@@ -114,7 +123,8 @@ void RenderFrame::submitSkeletalBatch(
     for (i32 i = 0; i < vertexCount; ++i) {
         const f32* v = vertices + i * FLOATS_PER_VERTEX;
         glm::vec4 worldPos = model * glm::vec4(v[0], v[1], 0.0f, 1.0f);
-        glm::vec4 color(v[4], v[5], v[6], v[7]);
+        // The UI tree's opacity, as a control's quad takes it: premultiplied colour scales whole.
+        glm::vec4 color = glm::vec4(v[4], v[5], v[6], v[7]) * (premultipliedColor ? glm::vec4(treeAlpha) : glm::vec4(1.0f, 1.0f, 1.0f, treeAlpha));
         if (premultipliedColor && builtinColor) {
             // Recover straight color before 8-bit packing and the shader EOTF.
             color = color.a > 0.0f ? glm::vec4(glm::vec3(color) / color.a, color.a)
@@ -133,6 +143,7 @@ void RenderFrame::submitSkeletalBatch(
         .blend = blend,
         .textureId = textureId,
         .depth = depth,
+        .cullBit = cullBit,
         .entity = entity,
         .type = RenderType::Skeletal,
     };

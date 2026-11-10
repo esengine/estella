@@ -684,6 +684,17 @@ u32 probe_volume_create(i32 resX, i32 resY, i32 resZ, uintptr_t shPtr) {
 }
 
 /** @brief Releases a probe volume. */
+void probe_volume_setSkyVisibility(u32 volumeHandle, uintptr_t visibilityPtr) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    if (!rm) return;
+    ProbeVolume* grid = rm->getProbeVolume(resource::ProbeVolumeHandle(volumeHandle));
+    if (!grid || !grid->isValid()) return;
+    const u32 want = grid->probeCount() * 9;
+    const f32* v = boundarySpan<f32>(visibilityPtr, want, "probe_volume_setSkyVisibility.visibility");
+    if (!v) return;
+    grid->skyVisibility.assign(v, v + want);
+}
+
 void probe_volume_release(u32 volumeHandle) {
     if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
         rm->releaseProbeVolume(resource::ProbeVolumeHandle(volumeHandle));

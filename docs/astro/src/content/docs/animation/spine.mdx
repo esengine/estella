@@ -109,6 +109,24 @@ const skins  = spine.getSkins(entity);        // string[]
 const bounds = spine.getBounds(entity);       // { x, y, width, height } | null
 ```
 
+## Spine in a UI
+
+A skeleton can be part of a Canvas. Put the entity with `SpineAnimation` under
+the Canvas, with or without a `UINode` to place it, and it paints by its place
+in the Canvas tree, like the controls around it. A skeleton listed after a
+panel is drawn over it, and one listed before is drawn under it. It also takes
+on the rest of the UI tree's rules:
+
+- the `opacity` of the UI nodes above it fades it;
+- a hidden parent hides it;
+- a `UIMask` above it cuts it.
+
+A skeleton under a screen-space Canvas is drawn with the UI in the screen
+overlay, after every camera. A non-zero `layer` keeps the old behaviour and
+holds the skeleton over or under the whole UI. A skeleton outside any Canvas
+draws as before. DragonBones armatures under a screen Canvas are drawn in the
+overlay too.
+
 ## Animation events
 
 The `SpineEvents` resource publishes track events once per frame — read it the same

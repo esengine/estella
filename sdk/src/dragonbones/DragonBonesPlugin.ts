@@ -22,6 +22,7 @@ import { DragonBonesManager } from './DragonBonesManager';
 import { DragonBonesModuleController } from './DragonBonesController';
 import { wrapDragonBonesModule, type DragonBonesWasmModule } from './DragonBonesModuleLoader';
 import { log } from '../util/logger';
+import { addSkeletalSubmit } from '../skeletal/submitDomains';
 
 /** Reach the manager from a system or from gameplay code. Null until acquired. */
 export const DragonBones = defineResource<DragonBonesManager | null>(null, 'DragonBones');
@@ -98,10 +99,11 @@ export class DragonBonesPlugin implements Plugin {
         if (!this.submitWired_) {
             this.submitWired_ = true;
             const core = engineApi(app);
-            app.pipeline?.addPreFlushCallback(registry => {
+            // The cameras' armatures, then a screen Canvas' in the overlay (skeletal/submitDomains).
+            addSkeletalSubmit(app, (registry, include) => {
                 if (core) this.manager_?.submitMeshes(core, registry._cpp, (e) =>
-                    (app.world.tryGet(e, DragonBonesAnimation)?.material as number | undefined) ?? 0, isActive);
-            });
+                    (app.world.tryGet(e, DragonBonesAnimation)?.material as number | undefined) ?? 0, include);
+            }, isActive);
         }
 
         // Carries DragonBonesAnimation.enabled across before advancing — the flag

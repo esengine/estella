@@ -9,6 +9,7 @@
 #include "../ecs/components/UIVisual.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
+#include "../ecs/components/SpineAnimation.hpp"
 #include "CanvasRoots.hpp"
 
 #include <unordered_map>
@@ -17,7 +18,7 @@
 namespace esengine::ecs {
 
 /**
- * @brief The draw layer of what a Canvas holds that has no uiOrder of its own: an emitter, and a Sprite with no UINode.
+ * @brief The draw layer of what a Canvas holds that has no uiOrder of its own: an emitter, a Spine skeleton, and a Sprite with no UINode.
  * @details They paint by their place in the tree like the controls round them, so one listed after a panel is over it and one listed
  *          before is under it. Written to this table and not to their `layer`, which stays what its author said.
  */
@@ -58,7 +59,8 @@ inline i32 assignRenderOrder(Registry& registry, Entity entity, i32 counter, u32
             }
         }
         if (tree && !registry.has<UIVisual>(entity)
-            && (registry.has<ParticleEmitter>(entity) || (registry.has<Sprite>(entity) && !registry.has<UINode>(entity)))) {
+            && (registry.has<ParticleEmitter>(entity) || registry.has<SpineAnimation>(entity)
+                || (registry.has<Sprite>(entity) && !registry.has<UINode>(entity)))) {
             tree->layers[entity.id()] = tree->base + counter;
             counter++;
         }

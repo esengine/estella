@@ -31,7 +31,9 @@ describe.skipIf(!HAS_WASM || !hasSideModule('spine38') || !hasSideModule('dragon
         core.renderer_submitSkeletalBatchByEntityEx = core.renderer_submitSkeletalBatchByEntity;
         const app = App.new(); app.connectCpp(registry, core);
         const callbacks: Array<(r: { _cpp: CppRegistry }) => void> = [];
-        app.setPipeline({ addPreFlushCallback: (cb: (r: { _cpp: CppRegistry }) => void) => callbacks.push(cb) } as unknown as RenderPipeline);
+        // The cameras' pass only: the screen overlay's submits nothing in a world with no Canvas.
+        app.setPipeline({ addPreFlushCallback: (cb: (r: { _cpp: CppRegistry }) => void) => callbacks.push(cb),
+            addScreenOverlayCallback: () => {} } as unknown as RenderPipeline);
         const world = app.world;
         const parent = world.spawn('parent'); world.insert(parent, Transform, {});
         const child = world.spawn('skeleton'); world.insert(child, Transform, {}); world.setParent(child, parent);

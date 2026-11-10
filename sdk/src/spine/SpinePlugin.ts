@@ -13,6 +13,7 @@ import { engineApi } from '../ecs/bridge/engineApi';
 import { AnimatorController } from '../animation/Animator';
 import { SpineAnimation } from '../ecs/component';
 import { SkeletalEnableMirror } from '../skeletal/enableSync';
+import { addSkeletalSubmit } from '../skeletal/submitDomains';
 
 export type SpineEventType = 'start' | 'interrupt' | 'end' | 'complete' | 'event';
 
@@ -96,10 +97,12 @@ export class SpinePlugin implements Plugin {
         if (this.submitWired_) return;
         this.submitWired_ = true;
         const isActive = (e: Entity) => app.world.isEntityActive(e);
-        app.pipeline?.addPreFlushCallback((registry) => {
+        // Twice a frame: the cameras' skeletons, then a screen Canvas' in the overlay,
+        // where they paint by their place in its tree (skeletal/submitDomains).
+        addSkeletalSubmit(app, (registry, include) => {
             this.spineManager_?.submitMeshes(registry._cpp, (e: Entity) =>
-                (app.world.tryGet(e, SpineAnimation)?.material as number | undefined) ?? 0, isActive);
-        });
+                (app.world.tryGet(e, SpineAnimation)?.material as number | undefined) ?? 0, include);
+        }, isActive);
     }
 
     build(app: App): void {

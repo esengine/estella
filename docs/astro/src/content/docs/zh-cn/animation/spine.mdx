@@ -101,6 +101,20 @@ const skins  = spine.getSkins(entity);        // string[]
 const bounds = spine.getBounds(entity);       // { x, y, width, height } | null
 ```
 
+## 在 UI 中使用 Spine
+
+骨骼可以作为 Canvas 的一部分。把带 `SpineAnimation` 的实体放到 Canvas 下面(可以带 `UINode` 来定位,也可以不带),
+它就会和周围的控件一样,按在 Canvas 节点树里的位置绘制:排在某个面板后面就画在面板上面,排在前面就被面板挡住。
+它同时遵循 UI 树的其他规则:
+
+- 上方 UI 节点的 `opacity` 会让它一起变淡;
+- 父节点隐藏时它也隐藏;
+- 上方的 `UIMask` 会裁剪它。
+
+屏幕空间 Canvas 下的骨骼和 UI 一起在屏幕叠加层里绘制,也就是在所有相机之后。
+把 `layer` 设为非 0 会保留原来的行为,让骨骼整体压在 UI 上面或下面。不在任何 Canvas 下的骨骼绘制方式不变。
+屏幕 Canvas 下的 DragonBones 骨架同样在叠加层里绘制。
+
 ## 动画事件
 
 `SpineEvents` 资源每帧发布一次轨道事件——在同一帧读取:
