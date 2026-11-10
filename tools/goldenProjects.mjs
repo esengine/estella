@@ -92,6 +92,44 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  "A native app plays every Spine version.":
+    { notCertifiable: "Every Spine release linked side by side is covered by sdk/tests/native-side-modules.test.ts (each version routed to its own runtime), tools/check-native-bindings.mjs and the post-build symbol check in tools/spine-c-rename.mjs; one APK with 3.8, 4.1 and 4.2 skeletons was played on a phone. No golden project ships skeletons of more than one version." },
+  "Which Spine runtimes a package carries can be set per runtime.":
+    { notCertifiable: "An export-time decision covered by pipeline/tests/spine-runtimes.test.ts against real vendored skeletons and pipeline/tests/native-template.test.ts; a golden frame shows a skeleton playing, not which runtimes the package left out." },
+  "An agent can open any Settings page.":
+    { notCertifiable: "An editor MCP tool, used by editor checks; a packaged game carries no editor." },
+  "Holding an object in both hands.":
+    { notCertifiable: "Covered by sdk/tests/grip-hold-wasm.test.ts and the grip-hold editor check on both backends; no golden project carries a GripHolder." },
+  "A tiled terrain exports and imports its heightmap":
+    { notCertifiable: "Covered by sdk/tests/terrain-tiled-sculpt.test.ts; an editor round trip of heightmap images that no packaged frame can show." },
+  "Tiled terrain can be sculpted and painted":
+    { notCertifiable: "Covered by sdk/tests/terrain-tiled-sculpt.test.ts and the terrain-open editor check; editing and saving happen in the editor, which a packaged game does not carry." },
+  "A terrain can be kept as tiles":
+    { notCertifiable: "Covered by sdk/tests/terrain-tiles.test.ts, pipeline/tests/terrain-tiles-split.test.ts and the terrain-open editor check (measured at 513, 2049 and 4097); no golden project carries a tiled terrain." },
+  "A streamed world opens in the editor without its cells.":
+    { notCertifiable: "An editor behaviour covered by desktop/tests/editor-cells.test.ts, editor-cells-world.test.ts and the world-edit-cells editor check; Play and export still see the whole world, so a packaged frame cannot tell." },
+  "Hands that hold things.":
+    { notCertifiable: "Covered by sdk/tests/grip-pose-wasm.test.ts and the grip-pose editor check on both backends; no golden project carries a GripPose." },
+  "Clouds that keep time with the game.":
+    { notCertifiable: "Covered by sdk/tests/sky-clock.test.ts and the sky-clouds editor check on both backends; a single golden frame cannot show clouds moving with the game clock." },
+  "Ground that is a volume.":
+    { notCertifiable: "Covered by sdk/tests/voxel-terrain-wasm.test.ts and the voxel-terrain editor check on both backends; no golden project carries a VoxelTerrain." },
+  "What stands on the ground can blend into it.":
+    { notCertifiable: "Covered by sdk/tests/road-decal.test.ts, sdk/tests/shader-twins.test.ts and the ground-blend editor check (blended seam, road and snow on both backends); no golden project carries ground-blend, a RoadDecal or snow." },
+  "GPU particles can hit things":
+    { notCertifiable: "Covered by sdk/tests/particle-collision-wasm.test.ts, particle-sdf-collision-wasm.test.ts, tests/particle/test_particle.cpp and the particle-gpu-collision editor check; the particles golden project uses no collision, sub-emitters or GPU trails." },
+  "Plants can be touched, felled and harvested.":
+    { notCertifiable: "Covered by sdk/tests/plant-interaction-wasm.test.ts and the plant-contact editor check; no golden project carries interactive plants." },
+  "A side-on character comes ready to run and jump.":
+    { notCertifiable: "Covered by sdk/tests/platformer-controller-2d-wasm.test.ts and the platformer-controller editor check; jumping and landing need input over time, which a golden frame does not drive." },
+  "A 2D character can be rigged in the editor":
+    { notCertifiable: "An editor tool covered by sdk/tests/rig2d.test.ts, desktop/tests/rig-view.test.ts and the rig-editor editor check; a packaged game carries the baked mesh and prefab, not the rig editor." },
+  "2D bones can reach for things and follow each other.":
+    { notCertifiable: "Covered by sdk/tests/rig2d-wasm.test.ts; no golden project carries IK2D or BoneConstraint2D." },
+  "A tile layer can be dug, blown up and rebuilt":
+    { notCertifiable: "Covered by sdk/tests/destructible-tilemap-wasm.test.ts; the tilemap golden project is static and changes nothing while it runs." },
+  "Solid tile ground can have colliders only where it is exposed.":
+    { notCertifiable: "Covered by sdk/tests/destructible-tilemap-wasm.test.ts; colliders are not drawn in a golden frame." },
   'Static geometry can be baked into material-preserving proxies.':
     { notCertifiable: 'A pipeline bake covered by pipeline/tests/static-proxy.test.ts and tools/tests/static-proxy.e2e.mjs on both render backends; no golden project bakes a static proxy.' },
   'The cyber-rooftop example has an editable, anchored HUD.':

@@ -28,6 +28,22 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  "feat(export): one decision for which Spine runtimes a package carries, with Include and Exclude per runtime":
+    { note: "Which Spine runtimes a package carries can be set per runtime." },
+  "feat(native): every Spine release in one native host, each skeleton read by its own":
+    { note: "A native app plays every Spine version." },
+  "feat(native): a template says which Spine runtime it links, and an export names the skeletons it cannot play":
+    { note: "A native app plays every Spine version." },
+  "fix(ecs): the native registry answers every entity op the web one does, from one generated table":
+    { note: "Physics no longer stops on Android and the desktop host." },
+  "feat(mcp): open_settings opens any settings page, and run_editor_command refuses an id that does not exist":
+    { note: "An agent can open any Settings page." },
+  "feat(settings): a row per Spine runtime — Auto, Include or Exclude — with what the build detected":
+    { note: "Which Spine runtimes a package carries can be set per runtime." },
+  "feat(settings): native packages carry every Spine release, so the Spine row only speaks up for an old template":
+    { note: "Which Spine runtimes a package carries can be set per runtime." },
+  "feat(settings): the Spine row says which version each native template links":
+    { note: "Which Spine runtimes a package carries can be set per runtime." },
   'feat(cyber-rooftop): add Tripo equipment sockets and native character assets':
     {"internal":"the heroine and projector assets it added were removed again before release, since the cyber-rooftop scene never used them"},
   'fix(project): discard stale document reloads':

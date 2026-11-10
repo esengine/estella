@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.101.0] - 2026-11-10
+
 ### Added
 
 - **Holding an object in both hands.** A `GripProfile` on an object says where each palm sits on it, by anchor entities, and how its fingers are held; a `GripHolder` on a character takes hold of it, bends the supporting arm (and with the object placed by the game, the leading one) to the anchors and blends the fingers over the clip by `slerp(clip, grip, weight)`. It runs in one fixed order that cannot loop, eases every joint when what is held changes, puts the palm on the anchor for any arm length within reach, and gives the same bones for the same inputs. `captureFingerPose` keeps a hand's fingers as JSON.
@@ -32,14 +34,21 @@ published separately; it ships inside the editor.
 - **2D bones can reach for things and follow each other.** `IK2D` on the last bone of a limb bends it to a target after the animation has played, exactly for two bones and iteratively for more, with a weight clips can key. `BoneConstraint2D` limits a joint's rotation, which a chain through it keeps to, or copies another entity's rotation or position, or looks at it. Both follow a character mirrored by a negative scale. `esengine/rig2d` also makes all of this from code.
 - **A tile layer can be dug, blown up and rebuilt while the game runs.** `createDestructibleTilemap` in `esengine/tilemap` gives a layer tiles with hardness that wear down over several blows, circular explosions with falloff that walls can shelter from, and placing and filling, with one list of what changed for drops and effects. The neighbouring autotiles re-resolve, `createNavGrid` or `syncNavGrid` keeps a navigation grid in step one cell at a time, and `toJSON` and `load` save only the cells that differ from the map it started as, refusing a damaged save whole. On a streamed world, `publishChunk` lays a player's changes over what the generator made, so a chunk let go and made again comes back as it was left.
 - **Solid tile ground can have colliders only where it is exposed.** `TilemapRuntime.setCollisionOutline` generates plain boxes for tiles with an open side, so solid ground costs no bodies and a tunnel below a surface leaves the surface's colliders alone. A destructible layer turns it on; `collisionOutline: false` keeps merged ground.
+- **A native app plays every Spine version.** Android, iOS and desktop apps now read skeletons exported from Spine 2.1, 3.8, 4.1, 4.2 and 4.3, each with the runtime of its own version, as a browser build does, so a project can mix them. The official runtime templates carry all five. An Android package includes only the runtimes its skeletons need, at 0.2 to 1 MB each per ABI; iOS and desktop link all of them, about 1 MB more. Packaging with a template from an older release, which carries one version, lists every skeleton it cannot play. Before this, a project whose skeletons were not 4.2 needed an engine source checkout to build its own template.
+- **Which Spine runtimes a package carries can be set per runtime.** Project Settings → Spine has a row per runtime with Auto, Include and Exclude, and each row says what the build will do. Auto carries a runtime when a packaged skeleton was exported from it. Include is for skeletons only code loads, such as a path built at run time or content fetched later. Exclude leaves a runtime out, and an export whose skeletons need it fails and names them. The same decision applies to web, playable, mini-game and Android packages, and each export result lists every runtime with why it was carried or left out. The old single Spine version setting, which never changed a package, is gone.
+- **An agent can open any Settings page.** The editor's `open_settings` tool opens the Settings window on a section, or on the section holding a given row, so a screenshot can show it.
 
 ### Changed
+
+- **`run_editor_command` refuses an id that does not exist.** It used to answer "ok" for any id. A disabled command now answers `{ ran: false, reason: "disabled" }`.
 
 - **A 2D character stands still on a walkable slope, and a steeper one is a wall.** It used to drift down any slope and could walk up one past `floorMaxAngle`. `stopOnSlope` and `blockSteepSlopes` turn each back off.
 - **Editing a tile no longer replaces the colliders around it.** A tile edit used to destroy and remake every collider in its chunk, which ended a body's contact with the floor it stood on and woke what was asleep there. Now only the colliders whose shape changed are replaced.
 - **A row of tiles being edited uploads a piece of itself.** One changed tile re-uploaded its whole row of chunks, over a megabyte when the row is full. A row that changes is now held in pieces of four chunks, so an edit uploads about an eighth of that, for up to seven more draws in that row until it has rested. A static map is drawn as before.
 
 ### Fixed
+
+- **Physics no longer stops on Android and the desktop host.** The native host had no way to ask whether an entity was still alive, so `PhysicsStepSystem` threw `n.valid is not a function` every frame and nothing moved (#114). The Registry's entity operations are now generated from one table for the web and native hosts, and a native host that lacks one fails at startup and names it.
 
 - **The profiler no longer calls a long render stall vsync.** Time in the render submit that nothing measured was all filed as "present · vsync", with a hint that it was idle: an 820 ms frame spent growing text outlines read as waiting, and its banner blamed two domains of 0.1 ms. A wait now counts up to 50 ms, the slowest a display presents; the rest shows as "untimed work", marked as a hotspot. Text drawing has its own `render.text` row, and when timed work explains under half an over-budget frame the banner says so instead of naming a domain. A long task under a pinned frame is put down to the scope that timed it rather than to "GC / uninstrumented JS". `ScopeCost` gains `parent`: a scope measured inside another is listed under it.
 - **While editing, foliage and generated worlds follow the viewport.** A `WorldStreamingSource` in the scene used to hold foliage, generated worlds and voxels around itself in the edit view while terrain detail followed the viewport, and a 2D view counted as no viewpoint at all. Sculpting and painting a terrain also no longer copies the whole ground at each stroke: it keeps 32 by 32 tiles as they are first touched, so a diagonal stroke's undo holds what it reached and not the square around it.
@@ -15297,7 +15306,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.100.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.101.0...HEAD
+[0.101.0]: https://github.com/esengine/estella/compare/v0.100.0...v0.101.0
 [0.100.0]: https://github.com/esengine/estella/compare/v0.99.1...v0.100.0
 [0.99.1]: https://github.com/esengine/estella/compare/v0.99.0...v0.99.1
 [0.99.0]: https://github.com/esengine/estella/compare/v0.98.0...v0.99.0
