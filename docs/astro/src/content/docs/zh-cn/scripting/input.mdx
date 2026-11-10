@@ -211,6 +211,22 @@ const gestureSystem = defineSystem([Res(Input), Res(Time)], (input, time) => {
 点按 = 0.3 s 内、移动小于 10 px;滑动需 ≥ 50 px 且 ≥ 200 px/s;捏合报告双指
 间距逐帧的缩放系数及中心点。
 
+### 单点触控
+
+多点触控默认开启,每根手指都会传给 UI 和游戏。只需要单指操作的场景可以把它关掉:
+
+```ts
+const input = app.getResource(Input);
+input.setMultiTouch(false);   // 一次只处理一根手指
+input.setMultiTouch(true);    // 恢复处理所有手指
+input.isMultiTouchEnabled();  // 当前是哪种模式
+```
+
+关闭后,只处理第一根按下的手指,直到它抬起。期间按下的其他手指在抬起前都会被忽略,UI 和游戏都收不到,
+所以第二根手指既按不了按钮,也推不动摇杆。如果关闭时已经有多根手指按着,会保留最早按下的那根,
+其余的按取消处理:不产生抬起事件,正被它们按着的按钮会松开,也不会触发点击。
+这个设置在所有平台上都生效:网页、小游戏和原生应用。
+
 ## 输入路由(分层)
 
 原始平台事件在落进 `Input` 资源之前,会先经过 **`InputRouter`**——一条三层的

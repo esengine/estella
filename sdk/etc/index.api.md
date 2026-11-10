@@ -5508,7 +5508,10 @@ isMouseButtonPressed: (button: number) => boolean
 isMouseButtonReleased: (button: number) => boolean
 isPointerOverUI: () => boolean
 isTouchActive: (id: number) => boolean
+@internal admitTouch: (id: number) => boolean
 keysDown: Set<string>
+@internal forgetTouches: () => void
+@internal touchIgnored: (id: number, retiring?: boolean) => boolean
 keysPressed: Set<string>
 keysPressedFixed: Set<string>
 keysReleased: Set<string>
@@ -5540,6 +5543,7 @@ touchesStarted: Map<number, TouchPoint>
 updateGamepads: (snapshots: GamepadSnapshot[]) => void
 static new (): InputState
 static prototype: InputState
+isMultiTouchEnabled: () => boolean
 ```
 
 ## InstantiatePrefabOptions — interface @experimental
@@ -5565,6 +5569,7 @@ BuiltinComponentDef<InteractableData>
 ## InteractableData — interface @experimental
 ```
 blockRaycast: boolean
+setMultiTouch: (enabled: boolean) => void
 enabled: boolean
 raycastTarget: boolean
 ```

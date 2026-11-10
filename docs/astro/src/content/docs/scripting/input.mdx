@@ -226,6 +226,26 @@ A tap is a touch under 0.3 s with less than 10 px of travel; a swipe needs ≥ 5
 at ≥ 200 px/s; pinch reports the frame-to-frame scale of a two-finger spread with
 its center point.
 
+### One finger at a time
+
+Multi-touch is on by default: every finger reaches the UI and the game. A scene
+that only wants one finger can turn it off:
+
+```ts
+const input = app.getResource(Input);
+input.setMultiTouch(false);   // one finger at a time
+input.setMultiTouch(true);    // every finger again
+input.isMultiTouchEnabled();  // which mode is on
+```
+
+When it is off, the first finger to go down is handled until it lifts. A finger
+pressed during that time is ignored until it lifts, by the UI as well as the
+game, so a second finger cannot press a button or move a joystick while the
+first is down. If several fingers are down when you turn it off, the first one
+to go down is kept. The others are cancelled: they end with no release edge,
+and a button they were pressing lets go without a click. The setting applies on
+every platform: the web, mini-games and native apps.
+
 ## Input routing (layers)
 
 Before a raw platform event lands in the `Input` resource, it passes through the

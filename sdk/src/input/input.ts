@@ -226,6 +226,74 @@ export class InputState {
         this.touchesEnded.set(id, point);
     }
 
+    // — Multi-touch —
+    /**
+     * Whether several fingers are handled at once. On (the default), every touch
+     * reaches the UI and the game. Off, one finger at a time does: the first to
+     * go down is the touch until it lifts, and a finger pressed meanwhile is
+     * ignored for its whole life, by the UI and the game alike, so a second
+     * finger cannot press a button or move a joystick under the first.
+     */
+    private multiTouch_ = true;
+    /** Single-touch mode: the finger being handled, or null when none is down. */
+    private soleTouch_: number | null = null;
+    /** Single-touch mode: fingers ignored until they lift. */
+    private ignoredTouches_ = new Set<number>();
+
+    isMultiTouchEnabled(): boolean {
+        return this.multiTouch_;
+    }
+
+    /**
+     * Handle several fingers at once, or one. Turning it off while several are
+     * down keeps the first that went down and cancels the rest, as the platform
+     * cancelling them would: their touches end with no release edge, and a UI
+     * control they were pressing lets go without a click.
+     */
+    setMultiTouch(enabled: boolean): void {
+        if (enabled === this.multiTouch_) return;
+        this.multiTouch_ = enabled;
+        this.ignoredTouches_.clear();
+        this.soleTouch_ = null;
+        if (enabled) return;
+        const down = [...this.touches.keys()];
+        this.soleTouch_ = down[0] ?? null;
+        for (const id of down.slice(1)) {
+            inputRouter.dispatchTouchCancel(id);
+            this.touches.delete(id);
+            this.touchesStarted.delete(id);
+            this.touchesEnded.delete(id);
+            this.ignoredTouches_.add(id);
+        }
+    }
+
+    /** @internal Whether a finger going down is handled; records it as the one in single-touch mode. */
+    admitTouch(id: number): boolean {
+        if (this.multiTouch_) return true;
+        if (this.soleTouch_ === null || this.soleTouch_ === id) {
+            this.soleTouch_ = id;
+            return true;
+        }
+        this.ignoredTouches_.add(id);
+        return false;
+    }
+
+    /** @internal Whether a finger's move, lift or cancel is ignored; a lift or cancel also retires it. */
+    touchIgnored(id: number, retiring = false): boolean {
+        if (this.ignoredTouches_.has(id)) {
+            if (retiring) this.ignoredTouches_.delete(id);
+            return true;
+        }
+        if (retiring && this.soleTouch_ === id) this.soleTouch_ = null;
+        return false;
+    }
+
+    /** @internal Every finger is gone (focus lost, the app hidden). */
+    forgetTouches(): void {
+        this.soleTouch_ = null;
+        this.ignoredTouches_.clear();
+    }
+
     // — Virtual (an on-screen control, or anything else that decides to be input) —
     /**
      * Named 2D values a game writes itself — an on-screen control, the only
@@ -510,6 +578,8 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
         },
         onTouchStart(id, x, y) {
             if (executionOwners.has(state)) return;
+            // Before the UI: with multi-touch off, a second finger presses nothing.
+            if (!state.admitTouch(id)) return;
             if (inputRouter.dispatchTouchStart(id, x, y)) return;
             const point = { id, x, y };
             state.touches.set(id, point);
@@ -517,6 +587,7 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
         },
         onTouchMove(id, x, y) {
             if (executionOwners.has(state)) return;
+            if (state.touchIgnored(id)) return;
             if (inputRouter.dispatchTouchMove(id, x, y)) return;
             const existing = state.touches.get(id);
             if (existing) {
@@ -526,10 +597,12 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
         },
         onTouchEnd(id) {
             if (executionOwners.has(state)) return;
+            if (state.touchIgnored(id, true)) return;
             finishTouch(id, inputRouter.dispatchTouchEnd(id));
         },
         onTouchCancel(id, primary) {
             if (executionOwners.has(state)) return;
+            if (state.touchIgnored(id, true)) return;
             inputRouter.dispatchTouchCancel(id);
             state.touches.delete(id);
             state.touchesStarted.delete(id);
@@ -549,6 +622,7 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
             state.keysDown.clear();
             state.mouseButtons.clear();
             state.touches.clear();
+            state.forgetTouches();
             state.cancelVirtualSources();
             state.clearFrameState();
             cancelActionEdges(state);
