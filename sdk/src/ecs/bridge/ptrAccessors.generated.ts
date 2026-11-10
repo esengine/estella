@@ -932,6 +932,7 @@ export interface LightPtrData {
     radius: number;
     innerRadius: number;
     falloff: number;
+    inverseSquare: boolean;
     shadowStrength: number;
     layerMin: number;
     layerMax: number;
@@ -967,29 +968,30 @@ export function fillLight(
     out.radius = f32[(ptr + 24) >> 2];
     out.innerRadius = f32[(ptr + 28) >> 2];
     out.falloff = f32[(ptr + 32) >> 2];
-    out.shadowStrength = f32[(ptr + 36) >> 2];
-    out.layerMin = u32[(ptr + 40) >> 2] | 0;
-    out.layerMax = u32[(ptr + 44) >> 2] | 0;
-    out.cookie = u32[(ptr + 48) >> 2];
-    const cookieSize_ = out.cookieSize; cookieSize_.x = f32[(ptr + 52) >> 2]; cookieSize_.y = f32[((ptr + 52) >> 2) + 1];
-    out.innerAngle = f32[(ptr + 60) >> 2];
-    out.outerAngle = f32[(ptr + 64) >> 2];
-    out.shadowSoftness = f32[(ptr + 68) >> 2];
-    out.sourceAngle = f32[(ptr + 72) >> 2];
-    out.shadowDistance = f32[(ptr + 76) >> 2];
-    out.meshShadows = u8[ptr + 80] !== 0;
-    out.shadowExtent = f32[(ptr + 84) >> 2];
-    out.followEnvironmentSun = u8[ptr + 88] !== 0;
-    out.aimFollowedSun = u8[ptr + 89] !== 0;
-    out.environment = u32[(ptr + 92) >> 2];
-    out.environmentRotation = f32[(ptr + 96) >> 2];
-    out.drawEnvironment = u8[ptr + 100] !== 0;
-    out.reflectionScale = f32[(ptr + 104) >> 2];
-    out.reflectionSaturation = f32[(ptr + 108) >> 2];
-    const bakedTint_ = out.bakedTint; bakedTint_.r = f32[(ptr + 112) >> 2]; bakedTint_.g = f32[((ptr + 112) >> 2) + 1]; bakedTint_.b = f32[((ptr + 112) >> 2) + 2]; bakedTint_.a = f32[((ptr + 112) >> 2) + 3];
-    out.hemisphere = u8[ptr + 128] !== 0;
-    const groundColor_ = out.groundColor; groundColor_.r = f32[(ptr + 132) >> 2]; groundColor_.g = f32[((ptr + 132) >> 2) + 1]; groundColor_.b = f32[((ptr + 132) >> 2) + 2]; groundColor_.a = f32[((ptr + 132) >> 2) + 3];
-    out.enabled = u8[ptr + 148] !== 0;
+    out.inverseSquare = u8[ptr + 36] !== 0;
+    out.shadowStrength = f32[(ptr + 40) >> 2];
+    out.layerMin = u32[(ptr + 44) >> 2] | 0;
+    out.layerMax = u32[(ptr + 48) >> 2] | 0;
+    out.cookie = u32[(ptr + 52) >> 2];
+    const cookieSize_ = out.cookieSize; cookieSize_.x = f32[(ptr + 56) >> 2]; cookieSize_.y = f32[((ptr + 56) >> 2) + 1];
+    out.innerAngle = f32[(ptr + 64) >> 2];
+    out.outerAngle = f32[(ptr + 68) >> 2];
+    out.shadowSoftness = f32[(ptr + 72) >> 2];
+    out.sourceAngle = f32[(ptr + 76) >> 2];
+    out.shadowDistance = f32[(ptr + 80) >> 2];
+    out.meshShadows = u8[ptr + 84] !== 0;
+    out.shadowExtent = f32[(ptr + 88) >> 2];
+    out.followEnvironmentSun = u8[ptr + 92] !== 0;
+    out.aimFollowedSun = u8[ptr + 93] !== 0;
+    out.environment = u32[(ptr + 96) >> 2];
+    out.environmentRotation = f32[(ptr + 100) >> 2];
+    out.drawEnvironment = u8[ptr + 104] !== 0;
+    out.reflectionScale = f32[(ptr + 108) >> 2];
+    out.reflectionSaturation = f32[(ptr + 112) >> 2];
+    const bakedTint_ = out.bakedTint; bakedTint_.r = f32[(ptr + 116) >> 2]; bakedTint_.g = f32[((ptr + 116) >> 2) + 1]; bakedTint_.b = f32[((ptr + 116) >> 2) + 2]; bakedTint_.a = f32[((ptr + 116) >> 2) + 3];
+    out.hemisphere = u8[ptr + 132] !== 0;
+    const groundColor_ = out.groundColor; groundColor_.r = f32[(ptr + 136) >> 2]; groundColor_.g = f32[((ptr + 136) >> 2) + 1]; groundColor_.b = f32[((ptr + 136) >> 2) + 2]; groundColor_.a = f32[((ptr + 136) >> 2) + 3];
+    out.enabled = u8[ptr + 152] !== 0;
 }
 
 export function writeLight(
@@ -1002,29 +1004,30 @@ export function writeLight(
     f32[(ptr + 24) >> 2] = data.radius;
     f32[(ptr + 28) >> 2] = data.innerRadius;
     f32[(ptr + 32) >> 2] = data.falloff;
-    f32[(ptr + 36) >> 2] = data.shadowStrength;
-    u32[(ptr + 40) >> 2] = data.layerMin | 0;
-    u32[(ptr + 44) >> 2] = data.layerMax | 0;
-    u32[(ptr + 48) >> 2] = data.cookie;
-    f32[(ptr + 52) >> 2] = data.cookieSize.x; f32[((ptr + 52) >> 2) + 1] = data.cookieSize.y;
-    f32[(ptr + 60) >> 2] = data.innerAngle;
-    f32[(ptr + 64) >> 2] = data.outerAngle;
-    f32[(ptr + 68) >> 2] = data.shadowSoftness;
-    f32[(ptr + 72) >> 2] = data.sourceAngle;
-    f32[(ptr + 76) >> 2] = data.shadowDistance;
-    u8[ptr + 80] = data.meshShadows ? 1 : 0;
-    f32[(ptr + 84) >> 2] = data.shadowExtent;
-    u8[ptr + 88] = data.followEnvironmentSun ? 1 : 0;
-    u8[ptr + 89] = data.aimFollowedSun ? 1 : 0;
-    u32[(ptr + 92) >> 2] = data.environment;
-    f32[(ptr + 96) >> 2] = data.environmentRotation;
-    u8[ptr + 100] = data.drawEnvironment ? 1 : 0;
-    f32[(ptr + 104) >> 2] = data.reflectionScale;
-    f32[(ptr + 108) >> 2] = data.reflectionSaturation;
-    f32[(ptr + 112) >> 2] = data.bakedTint.r; f32[((ptr + 112) >> 2) + 1] = data.bakedTint.g; f32[((ptr + 112) >> 2) + 2] = data.bakedTint.b; f32[((ptr + 112) >> 2) + 3] = data.bakedTint.a;
-    u8[ptr + 128] = data.hemisphere ? 1 : 0;
-    f32[(ptr + 132) >> 2] = data.groundColor.r; f32[((ptr + 132) >> 2) + 1] = data.groundColor.g; f32[((ptr + 132) >> 2) + 2] = data.groundColor.b; f32[((ptr + 132) >> 2) + 3] = data.groundColor.a;
-    u8[ptr + 148] = data.enabled ? 1 : 0;
+    u8[ptr + 36] = data.inverseSquare ? 1 : 0;
+    f32[(ptr + 40) >> 2] = data.shadowStrength;
+    u32[(ptr + 44) >> 2] = data.layerMin | 0;
+    u32[(ptr + 48) >> 2] = data.layerMax | 0;
+    u32[(ptr + 52) >> 2] = data.cookie;
+    f32[(ptr + 56) >> 2] = data.cookieSize.x; f32[((ptr + 56) >> 2) + 1] = data.cookieSize.y;
+    f32[(ptr + 64) >> 2] = data.innerAngle;
+    f32[(ptr + 68) >> 2] = data.outerAngle;
+    f32[(ptr + 72) >> 2] = data.shadowSoftness;
+    f32[(ptr + 76) >> 2] = data.sourceAngle;
+    f32[(ptr + 80) >> 2] = data.shadowDistance;
+    u8[ptr + 84] = data.meshShadows ? 1 : 0;
+    f32[(ptr + 88) >> 2] = data.shadowExtent;
+    u8[ptr + 92] = data.followEnvironmentSun ? 1 : 0;
+    u8[ptr + 93] = data.aimFollowedSun ? 1 : 0;
+    u32[(ptr + 96) >> 2] = data.environment;
+    f32[(ptr + 100) >> 2] = data.environmentRotation;
+    u8[ptr + 104] = data.drawEnvironment ? 1 : 0;
+    f32[(ptr + 108) >> 2] = data.reflectionScale;
+    f32[(ptr + 112) >> 2] = data.reflectionSaturation;
+    f32[(ptr + 116) >> 2] = data.bakedTint.r; f32[((ptr + 116) >> 2) + 1] = data.bakedTint.g; f32[((ptr + 116) >> 2) + 2] = data.bakedTint.b; f32[((ptr + 116) >> 2) + 3] = data.bakedTint.a;
+    u8[ptr + 132] = data.hemisphere ? 1 : 0;
+    f32[(ptr + 136) >> 2] = data.groundColor.r; f32[((ptr + 136) >> 2) + 1] = data.groundColor.g; f32[((ptr + 136) >> 2) + 2] = data.groundColor.b; f32[((ptr + 136) >> 2) + 3] = data.groundColor.a;
+    u8[ptr + 152] = data.enabled ? 1 : 0;
 }
 
 export function createLightData(): LightPtrData {
@@ -1035,6 +1038,7 @@ export function createLightData(): LightPtrData {
         radius: 0,
         innerRadius: 0,
         falloff: 0,
+        inverseSquare: false,
         shadowStrength: 0,
         layerMin: 0,
         layerMax: 0,

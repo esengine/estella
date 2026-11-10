@@ -817,6 +817,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setImpostorAtlas", &esengine::renderer_setImpostorAtlas);
     emscripten::function("renderer_takeTextureWants", &esengine::renderer_takeTextureWants);
     emscripten::function("renderer_setViewShading", &esengine::renderer_setViewShading);
+    emscripten::function("renderer_setWorldUnitsPerMeter", &esengine::renderer_setWorldUnitsPerMeter);
     emscripten::function("renderer_setMeshEdgeBuffers", &esengine::renderer_setMeshEdgeBuffers);
     emscripten::function("renderer_setViewSkinWeights", &esengine::renderer_setViewSkinWeights);
     emscripten::function("renderer_lightStatus", &esengine::renderer_lightStatus);

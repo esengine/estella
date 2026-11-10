@@ -433,8 +433,9 @@ void lm_scene(const float* pos, int triCount, const float* triUV, const int* tri
 
 /**
  * Direct light at every lumel. `lights` is 16 doubles each: kind (0 directional,
- * 1 point, 2 spot), position 3, direction 3, colour 3, intensity, radius,
- * inner cos, outer cos, unused.
+ * 1 point, 2 spot), position 3, direction 3, colour 3, inner radius, intensity, radius,
+ * inner cos, outer cos, and the falloff: the ramp's power, or minus the world units in a
+ * metre for an inverse-square light — the frame's distanceFalloff, so bake and frame agree.
  */
 void lm_direct(const float* position, const float* normal, int count,
                const double* lights, int lightCount, float* out, int threads) {
@@ -457,11 +458,17 @@ void lm_direct(const float* position, const float* normal, int count,
                 if (distance < 1e-6) continue;
                 lx /= distance; ly /= distance; lz /= distance;
                 const double radius = L[12];
-                if (radius > 0) {
-                    if (distance >= radius) continue;
-                    const double k = 1 - distance / radius;
-                    falloff = k * k;
+                if (radius > 0 && distance >= radius) continue;
+                if (L[15] < 0) {
+                    const double m = distance / -L[15];
+                    const double q = radius > 0 ? distance / radius : 0.0;
+                    const double w = std::min(std::max(1.0 - q * q * q * q, 0.0), 1.0);
+                    falloff = w * w / std::max(m * m, 0.01);
+                } else if (radius > 0) {
+                    const double ramp = std::min(std::max((radius - distance) / std::max(radius - std::max(L[10], 0.0), 1e-4), 0.0), 1.0);
+                    falloff = std::pow(ramp, std::max(L[15], 1e-3));
                 }
+                if (falloff <= 0) continue;
                 if (kind == 2) {
                     const double len = lengthOr1(L[4], L[5], L[6]);
                     const double cosA = -(lx * L[4] + ly * L[5] + lz * L[6]) / len;

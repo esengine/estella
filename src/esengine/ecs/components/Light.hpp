@@ -87,6 +87,15 @@ struct Light {
                 tooltip="Falloff shape: 1 = linear, higher pools near the light, lower reaches further.")
     f32 falloff{1.0f};
 
+    /** @brief Falls off as the inverse square of the distance, in metres, as a real light does (Unreal's Use Inverse
+     *         Squared Falloff, glTF's and three.js's point lights): `intensity` is then what reaches a surface one metre
+     *         away, and @ref radius is only where it is let go — the last of it eased to nothing over the far end — so
+     *         a lamp pools under itself rather than washing a room evenly. Off, the light ramps from @ref innerRadius to
+     *         @ref radius by @ref falloff. Point and Spot only. */
+    ES_PROPERTY(shown_when=type:Point|Spot,
+                tooltip="Fall off as 1/distance² in metres (a real lamp): intensity is the light 1 m away, radius only where it ends.")
+    bool inverseSquare{false};
+
     /** @brief How much of this light a shadow takes away, 0..1. 1 (the default) is the
      *         whole of it; 0.7 leaves a shadow that is dark rather than black, which is
      *         what a 2D scene with bounce light in it looks like. Applies to both kinds

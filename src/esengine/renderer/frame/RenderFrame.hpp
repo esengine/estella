@@ -405,6 +405,8 @@ public:
      *          window they are looking through.
      */
     void setViewShading(u32 view, ShadingMode mode) { view_shading_.set(view, mode); }
+    /** @brief How many world units make a metre (the project's setting): what an inverse-square light measures in. */
+    void setWorldUnitsPerMeter(f32 units) { world_units_per_meter_ = units > 0.0f ? units : 100.0f; }
 
     /**
      * @brief Colour @p entity in @p view by how much @p joint moves each of its vertices.
@@ -787,6 +789,7 @@ private:
     };
     std::unordered_map<u32, PlanarCapture> planar_captures_;
     TransientBufferPool planar_pool_{device_};
+    f32 world_units_per_meter_ = 100.0f;
     /// The probe volumes' grids, packed for the per-pixel read (ProbeStore::layoutAtlas). Remade only when a grid
     /// or the set of grids changes, so a still scene uploads it once.
     Unique<Texture> probe_atlas_;

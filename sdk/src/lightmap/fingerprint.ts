@@ -79,6 +79,7 @@ export function bakeFingerprint(inputs: BakeInputs): string {
     for (const l of inputs.lights) {
         lines.push(`l|${l.kind}|${nums(l.position)}|${nums(l.direction)}|${nums(l.color)}`
             + `|${num(l.intensity)}|${num(l.radius)}|${num(l.innerCos)}|${num(l.outerCos)}`
+            + `|${num(l.innerRadius)}|${num(l.falloff)}|${num(l.metre)}`
             + `${l.followsEnvironmentSun ? '|sun' : ''}`);
     }
     for (const v of inputs.volumes) {

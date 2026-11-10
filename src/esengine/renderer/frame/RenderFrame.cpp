@@ -1743,8 +1743,10 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         // Clamped where it is PACKED: a shader given a negative exponent lights the far
         // side of the radius, and a fragment cannot say who authored it. The shader
         // floors the exponent too — pow(0, 0) is 1, which lights the whole screen.
+        // y: the ramp's power, or for an inverse-square light minus the world units in a metre (a power is never
+        // negative, so the sign says which; distanceFalloff reads both).
         gpu.falloff = glm::vec4(std::max(light.innerRadius, 0.0f),
-                                std::max(light.falloff, 0.0f),
+                                light.inverseSquare ? -world_units_per_meter_ : std::max(light.falloff, 0.0f),
                                 // w: the shape mask channel, -1 for a light with no shape of its own. A zero would read channel 0 of whatever sits on that unit.
                                 std::clamp(light.shadowStrength, 0.0f, 1.0f), -1.0f);
         // The sprite layers it reaches ride above the tile count the shadow atlas fills in later.

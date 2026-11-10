@@ -2149,7 +2149,12 @@ fn towardLight(toLight : vec3f, N : vec3f) -> vec3f {
 // a light that reaches nowhere would light everything.
 fn distanceFalloff(dist : f32, reach : f32, fo : vec4f) -> f32 {
     let ramp = clamp((reach - dist) / max(reach - fo.x, 1e-4), 0.0, 1.0);
-    return pow(ramp, max(fo.y, 1e-3));
+    let shaped = pow(ramp, max(fo.y, 1e-3));
+    // See the GLSL twin: fo.y < 0 is an inverse-square light, -fo.y world units to the metre.
+    let metres = dist / max(-fo.y, 1e-4);
+    let q = dist / max(reach, 1e-4);
+    let w = clamp(1.0 - q * q * q * q, 0.0, 1.0);
+    return select(shaped, w * w / max(metres * metres, 0.01), fo.y < 0.0);
 }
 )"
 // Split again for the same reason: the surface layers and the lighting that reads them.
@@ -3643,7 +3648,14 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "highp float distanceFalloff(in highp float dist, in highp float reach,\n"
             "                            in highp vec4 fo) {\n"
             "    highp float ramp = clamp((reach - dist) / max(reach - fo.x, 1e-4), 0.0, 1.0);\n"
-            "    return pow(ramp, max(fo.y, 1e-3));\n"
+            "    highp float shaped = pow(ramp, max(fo.y, 1e-3));\n"
+            // An inverse-square light (fo.y < 0, -fo.y world units to the metre): 1/d^2 in metres, held at 10 cm so a
+            // surface on the lamp is bright and not infinite, and let go over the reach by (1 - (d/r)^4)^2 — three.js's
+            // and glTF's window, so a lamp brought over from either lights the same. One exit: this inlines into the light loop.
+            "    highp float metres = dist / max(-fo.y, 1e-4);\n"
+            "    highp float q = dist / max(reach, 1e-4);\n"
+            "    highp float w = clamp(1.0 - q * q * q * q, 0.0, 1.0);\n"
+            "    return fo.y < 0.0 ? w * w / max(metres * metres, 0.01) : shaped;\n"
             "}\n"
             // What a surface has beyond a base colour and a metal/rough pair: a clear coat over it, a sheen on it, grooves that stretch
             // its highlight, light that scatters into it or passes through it, a thin film that tints its reflection. All zero is the

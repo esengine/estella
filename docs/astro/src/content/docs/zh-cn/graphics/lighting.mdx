@@ -46,6 +46,7 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `radius` | `200` | 衰减半径,世界单位(Point / Spot)。 |
 | `innerRadius` | `0` | 衰减开始前保持满强度的半径(Point / Spot)。 |
 | `falloff` | `1` | 衰减形状:`1` 为线性,更大则光集中在光源附近,更小则照得更远。 |
+| `inverseSquare` | `false` | 按距离(米)的平方反比衰减,和真实的灯一样(Point / Spot)。 |
 | `shadowStrength` | `1` | 这盏灯的阴影能去掉多少光;`0.6` 让阴影暗而不黑。 |
 | `cookie` | — | 一张纹理,它的 **alpha** 就是这盏灯的形状(Point / Spot)。 |
 | `cookieSize` | `{0,0}` | cookie 绘制的大小,世界单位;`0` 覆盖灯自己的照射范围。 |
@@ -150,6 +151,21 @@ entity.insert(Light, {
 ```
 
 两者默认都是那条直线,所以在它们出现之前写的场景渲染结果与以前完全一致。
+
+### 真实的灯:平方反比衰减
+
+**`inverseSquare`** 让 Point 或 Spot 灯像真实的灯一样,按距离的平方反比衰减——即虚幻的
+*Use Inverse Squared Falloff*,也是 glTF 和 three.js 点光源的行为。这时 `intensity` 是照到 **1 米**
+外表面的光(1 米是多少单位由项目的"每米单位数"决定),2 米外只剩四分之一;`radius` 只是光被放掉的地方:
+最后一段以 glTF 和 three.js 相同的窗口函数平滑收到零。灯下会形成光斑,而不是把整个房间均匀照亮。
+`innerRadius` 和 `falloff` 在这种模式下不起作用。
+
+```ts
+// 一盏棚灯:1 米外和强度 3 的太阳一样亮。
+entity.insert(Light, { type: LightType.Point, intensity: 3, radius: 13, inverseSquare: true });
+```
+
+glTF 的点光源导入时就是这种模式(坎德拉除以 π,作用距离随模型缩放);烘焙时的衰减也和运行时一致。
 
 ## 给灯一个形状
 

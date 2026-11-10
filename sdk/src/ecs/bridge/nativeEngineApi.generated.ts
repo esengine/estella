@@ -244,6 +244,7 @@ export interface NativeEngineApi {
     renderer_setViewShading?(view: number, mode: number): void;
     renderer_setViewSkinWeights?(view: number, entity: number, joint: number): void;
     renderer_setViewport?(x: number, y: number, w: number, h: number): void;
+    renderer_setWorldUnitsPerMeter?(units: number): void;
     renderer_setYSortLayers?(mask: number): void;
     renderer_shadowStatus?(entity: number, outPtr: number): number;
     renderer_snapshotMatchesCapture?(): boolean;
@@ -592,6 +593,7 @@ export function createNativeEngineApi(
     bind('renderer_setViewShading', 'es_renderer_setViewShading', false);
     bind('renderer_setViewSkinWeights', 'es_renderer_setViewSkinWeights', false);
     bind('renderer_setViewport', 'es_renderer_setViewport', false);
+    bind('renderer_setWorldUnitsPerMeter', 'es_renderer_setWorldUnitsPerMeter', false);
     bind('renderer_setYSortLayers', 'es_renderer_setYSortLayers', false);
     bind('renderer_shadowStatus', 'es_renderer_shadowStatus', false);
     bind('renderer_snapshotMatchesCapture', 'es_renderer_snapshotMatchesCapture', false);

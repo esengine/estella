@@ -23,8 +23,11 @@ export function packLights(lights: readonly BakeLight[]): Float64Array<ArrayBuff
         const at = i * LIGHT_DOUBLES;
         const p = l.position ?? [0, 0, 0];
         const d = l.direction ?? [0, 0, -1];
+        // [10] the inner radius, [15] the ramp's power — or minus the world units in a metre for an inverse-square
+        // light (a power is never negative), as the frame packs it.
+        const shape = l.metre && l.metre > 0 ? -l.metre : Math.max(l.falloff ?? 1, 0);
         out.set([LIGHT_KIND[l.kind], p[0], p[1], p[2], d[0], d[1], d[2], l.color[0], l.color[1], l.color[2],
-                 0, l.intensity, l.radius ?? 0, l.innerCos ?? 0.9, l.outerCos ?? 0.7, 0], at);
+                 Math.max(l.innerRadius ?? 0, 0), l.intensity, l.radius ?? 0, l.innerCos ?? 0.9, l.outerCos ?? 0.7, shape], at);
     });
     return out;
 }

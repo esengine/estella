@@ -25,12 +25,34 @@ export interface BakeLight {
     intensity: number;
     /** Reach, in world units. Past it a point or spot light contributes nothing. */
     radius?: number;
+    /** How the light ends, as the frame lights it (distanceFalloff): held at full out to `innerRadius`, then ramped to
+     *  `radius` raised to `falloff` (1 = linear) — or, with `metre` set, 1/d² in metres (`metre` world units to one)
+     *  let go over the reach by (1 - (d/r)^4)^2. A bake that disagreed with the frame lit a lamp's room twice over. */
+    innerRadius?: number;
+    falloff?: number;
+    metre?: number;
     /** Cosines of the half angles a spot falls off between. */
     innerCos?: number;
     outerCos?: number;
     /** Directional only: this light is the environment's sun. The bake takes its
      *  direction and colour from there, and the sky without it. */
     followsEnvironmentSun?: boolean;
+}
+
+/** How much of a point or spot light reaches `distance` away: the frame's distanceFalloff, so a bake and the frame agree. */
+export function lightFalloff(distance: number, light: BakeLight): number {
+    const radius = light.radius ?? 0;
+    if (radius > 0 && distance >= radius) return 0;
+    if (light.metre && light.metre > 0) {
+        const m = distance / light.metre;
+        const q = radius > 0 ? distance / radius : 0;
+        const w = Math.min(Math.max(1 - q * q * q * q, 0), 1);
+        return (w * w) / Math.max(m * m, 0.01);
+    }
+    if (!(radius > 0)) return 1;
+    const inner = Math.max(light.innerRadius ?? 0, 0);
+    const ramp = Math.min(Math.max((radius - distance) / Math.max(radius - inner, 1e-4), 0), 1);
+    return Math.pow(ramp, Math.max(light.falloff ?? 1, 1e-3));
 }
 
 /** Where a ray that hit triangle `t` lands in the atlas, and what it reflects. */
@@ -175,12 +197,8 @@ export function solveDirect(lumels: LumelField, bvh: Bvh, lookup: HitLookup,
                 distance = Math.hypot(lx, ly, lz);
                 if (distance < 1e-6) continue;
                 lx /= distance; ly /= distance; lz /= distance;
-                const radius = light.radius ?? 0;
-                if (radius > 0) {
-                    if (distance >= radius) continue;
-                    const k = 1 - distance / radius;
-                    falloff = k * k;
-                }
+                falloff = lightFalloff(distance, light);
+                if (falloff <= 0) continue;
                 if (light.kind === 'spot') {
                     const d = light.direction ?? [0, 0, -1];
                     const len = Math.hypot(d[0], d[1], d[2]) || 1;

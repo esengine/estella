@@ -3555,6 +3555,12 @@
           "range": "0–8"
         },
         {
+          "key": "inverseSquare",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Fall off as 1/distance² in metres (a real lamp): intensity is the light 1 m away, radius only where it ends."
+        },
+        {
           "key": "shadowStrength",
           "type": "number",
           "default": "1",

@@ -20,6 +20,14 @@ export const REFERENCE_UNITS_PER_METER = 100;
 
 let unitsPerMeter = REFERENCE_UNITS_PER_METER;
 let epoch = 0;
+const listeners = new Set<(unitsPerMeter: number) => void>();
+
+/** Calls `fn` now and on every change: how the renderer learns what a metre is (inverse-square lights measure in it). */
+export function onWorldUnitsPerMeter(fn: (unitsPerMeter: number) => void): () => void {
+    listeners.add(fn);
+    fn(unitsPerMeter);
+    return () => listeners.delete(fn);
+}
 
 /**
  * Set the project's units per metre. Called before a scene loads (by the runtime from the project's config, by the
@@ -30,6 +38,7 @@ export function setWorldUnitsPerMeter(value: number): void {
     if (v === unitsPerMeter) return;
     unitsPerMeter = v;
     epoch++;
+    for (const fn of listeners) fn(v);
 }
 
 /** The project's units per metre. */

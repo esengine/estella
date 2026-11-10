@@ -48,6 +48,7 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `radius` | `200` | Falloff reach in world units (Point / Spot). |
 | `innerRadius` | `0` | Radius held at full strength before the falloff starts (Point / Spot). |
 | `falloff` | `1` | Falloff shape: `1` is linear, higher pools near the light, lower reaches further. |
+| `inverseSquare` | `false` | Fall off as 1/distance² in metres, as a real lamp does (Point / Spot). |
 | `shadowStrength` | `1` | How much of this light its shadows remove; `0.6` leaves a shadow that is dark rather than black. |
 | `cookie` | — | A texture whose **alpha** is this light's shape (Point / Spot). |
 | `cookieSize` | `{0,0}` | How big the cookie is drawn, in world units; `0` covers the light's own reach. |
@@ -160,6 +161,24 @@ entity.insert(Light, {
 
 Both default to the straight line, so a scene written before them renders exactly as it
 did.
+
+### A real lamp: inverse-square falloff
+
+**`inverseSquare`** makes a Point or Spot light fall off as a real one does, as the
+inverse square of the distance — Unreal's *Use Inverse Squared Falloff*, and what a glTF
+or three.js point light is. `intensity` is then the light reaching a surface **one metre**
+away (the project's units per metre say what a metre is), four times dimmer at two metres,
+and `radius` is only where the light is let go: the last of it eases to nothing over the
+far end, by the same window glTF and three.js use. A lamp pools under itself instead of
+washing a room evenly. `innerRadius` and `falloff` do not apply.
+
+```ts
+// A shed lamp: as bright 1 m away as a sun of 3.
+entity.insert(Light, { type: LightType.Point, intensity: 3, radius: 13, inverseSquare: true });
+```
+
+A glTF's punctual lights import this way (candela over π, their range scaled with the
+model), and a bake falls light off the same way the frame does.
 
 ## Giving a light a shape
 

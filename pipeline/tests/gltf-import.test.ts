@@ -1318,7 +1318,13 @@ describe('lights and cameras', () => {
     const comp = (name: string, type: string) =>
       prefab.entities.find((e) => e.name === name)!.components.find((c) => c.type === type)?.data;
     expect(comp('Sun', 'Light')).toEqual({ type: 1, color: { r: 1, g: 0.9, b: 0.8, a: 1 }, intensity: 3 });
-    expect(comp('Lamp', 'Light')).toMatchObject({ type: 3, intensity: 20, radius: 12 });
+    // A punctual lamp is in candela and falls off as 1/d²: an inverse-square Light at candela over pi, its range in metres.
+    expect(comp('Lamp', 'Light')).toMatchObject({ type: 3, radius: 12, inverseSquare: true });
+    expect((comp('Lamp', 'Light') as { intensity: number }).intensity).toBeCloseTo(20 / Math.PI);
+    // Imported into a centimetre project, the range is scaled with the model; the falloff measures in metres anyway.
+    const scaled = assembleModelPrefab('model', meshes, { nodes, scale: 100 });
+    expect(scaled.entities.find((e) => e.name === 'Lamp')!.components.find((c) => c.type === 'Light')!.data)
+        .toMatchObject({ radius: 1200, inverseSquare: true });
     // A model's camera never takes over the scene it is dropped into.
     expect(comp('Eye', 'Camera')).toMatchObject({ projectionType: 0, nearPlane: 0.05, farPlane: 200, isActive: false });
     expect(comp('Plan', 'Camera')).toMatchObject({ projectionType: 1, orthoSize: 3 });

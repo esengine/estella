@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, Canv
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '5e943b68bf754ab0';
+export const ABI_LAYOUT_HASH = '04486d0b29ae33ae';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -526,6 +526,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             radius: 200,
             innerRadius: 0,
             falloff: 1,
+            inverseSquare: false,
             shadowStrength: 1,
             layerMin: -128,
             layerMax: 127,
@@ -561,6 +562,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             radius: { min: 0, tooltip: "Falloff reach in world units (Point / Spot).", shownWhen: { field: "type", values: [0, 3] } },
             innerRadius: { min: 0, tooltip: "Radius held at full strength before the falloff starts.", shownWhen: { field: "type", values: [0, 3] } },
             falloff: { min: 0, max: 8, tooltip: "Falloff shape: 1 = linear, higher pools near the light, lower reaches further.", shownWhen: { field: "type", values: [0, 3] } },
+            inverseSquare: { tooltip: "Fall off as 1/distance² in metres (a real lamp): intensity is the light 1 m away, radius only where it ends.", shownWhen: { field: "type", values: [0, 3] } },
             shadowStrength: { min: 0, max: 1, slider: true, tooltip: "How much of this light its shadows remove (1 = all of it).", shownWhen: { field: "type", values: [0, 1, 3] } },
             layerMin: { min: -128, max: 127, step: 1, tooltip: "The lowest sprite layer this light reaches (default: every layer).", shownWhen: { field: "type", values: [0, 1, 3] } },
             layerMax: { min: -128, max: 127, step: 1, tooltip: "The highest sprite layer this light reaches (default: every layer).", shownWhen: { field: "type", values: [0, 1, 3] } },
@@ -1728,6 +1730,7 @@ export interface LightData {
     radius: number;
     innerRadius: number;
     falloff: number;
+    inverseSquare: boolean;
     shadowStrength: number;
     layerMin?: number;
     layerMax?: number;

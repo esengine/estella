@@ -688,6 +688,7 @@ export interface Light {
     radius: number;
     innerRadius: number;
     falloff: number;
+    inverseSquare: boolean;
     shadowStrength: number;
     layerMin: number;
     layerMax: number;

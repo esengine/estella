@@ -1015,13 +1015,19 @@ function transformComponent(trs?: Trs, scale?: number): ComponentData {
 const UNBOUNDED_LIGHT_RANGE = 4096;
 const LIGHT_TYPE = { point: 0, directional: 1, spot: 3 } as const;
 
-function lightComponent(light: ImportedLight): ComponentData {
+/**
+ * A KHR_lights_punctual light. A point or spot one is in candela and falls off as the inverse square of the distance, so
+ * it is an inverse-square Light at candela over pi (a Light's intensity is what reaches a surface over pi, the unit a
+ * directional one's is in); its range is in metres, so it is scaled with the model.
+ */
+function lightComponent(light: ImportedLight, scale = 1): ComponentData {
     const [r, g, b] = light.color;
+    const positional = light.type !== 'directional';
     return { type: 'Light', data: {
         type: LIGHT_TYPE[light.type],
         color: { r, g, b, a: 1 },
-        intensity: light.intensity,
-        ...(light.type === 'directional' ? {} : { radius: light.range ?? UNBOUNDED_LIGHT_RANGE }),
+        intensity: positional ? light.intensity / Math.PI : light.intensity,
+        ...(positional ? { radius: (light.range ?? UNBOUNDED_LIGHT_RANGE) * scale, inverseSquare: true } : {}),
         ...(light.type === 'spot' ? { innerAngle: light.innerAngle ?? 0, outerAngle: light.outerAngle ?? 90 } : {}),
     } };
 }
@@ -1150,7 +1156,7 @@ export function assembleModelPrefab(name: string, meshes: ImportedMesh[],
                ...morphComponent(drawn[0])] : [];
         const self = entity(id, node.name, parent, [
             transformComponent(node, rootScale), ...own,
-            ...(node.light ? [lightComponent(node.light)] : []),
+            ...(node.light ? [lightComponent(node.light, options.scale ?? 1)] : []),
             ...(node.camera ? [cameraComponent(node.camera)] : []),
             ...(node.visibility !== undefined ? [{ type: 'NodeVisibility', data: { visible: node.visibility } }] : []),
         ]);

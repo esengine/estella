@@ -324,8 +324,12 @@ void renderer_setImpostorAtlas(u32 entity, u32 texture, u32 frames);
  */
 std::string renderer_takeTextureWants();
 
+/** How many world units make a metre: what an inverse-square light measures distance in. */
+void renderer_setWorldUnitsPerMeter(f32 units);
+
 /**
- * @brief Shade a view's meshes as authored (0), as neutral clay (1) or as flat albedo (2).
+ * @brief Shade a view's meshes as authored (0), as neutral clay (1), as flat albedo (2), as wireframe (3), or as clay
+ *        lit by the lights alone (4) or by everything that is not a light (5).
  * @details View state, like the LOD preview beside it: the same scene drawn through
  *          another view keeps its own look. Out-of-range modes mean authored.
  */

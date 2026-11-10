@@ -1413,6 +1413,10 @@ void renderer_setLodPreview(u32 view, u32 entity, i32 level) {
     g_renderFrame->setLodPreview(view, Entity::fromRaw(entity), held);
 }
 
+void renderer_setWorldUnitsPerMeter(f32 units) {
+    if (g_renderFrame) g_renderFrame->setWorldUnitsPerMeter(units);
+}
+
 void renderer_setViewShading(u32 view, i32 mode) {
     if (!g_renderFrame) return;
     // An unknown mode is the authored look, not a crash: a newer editor may ask for

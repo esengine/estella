@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { onWorldUnitsPerMeter } from '../ecs/worldUnits';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import { CoreApiBridge } from '../wasm/CoreApiBridge';
 import { handleWasmError } from '../wasm/wasmError';
@@ -529,7 +530,14 @@ function installContextLossGuard(m: ESEngineModule): void {
 }
 
 /** @internal Wired by the engine plugins — not part of the public API. */
+let unitsSubscription: (() => void) | null = null;
+
 export function initRendererAPI(wasmModule: ESEngineModule): void {
+    // The frame measures inverse-square lights in metres: it is told what one is, now and whenever the project says.
+    unitsSubscription?.();
+    unitsSubscription = onWorldUnitsPerMeter((units) => {
+        (wasmModule as unknown as { renderer_setWorldUnitsPerMeter?(u: number): void }).renderer_setWorldUnitsPerMeter?.(units);
+    });
     bridge.connect(wasmModule);
     module = bridge.module;
     installContextLossGuard(module);

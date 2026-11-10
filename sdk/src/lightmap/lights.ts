@@ -13,6 +13,7 @@
 import { LightType } from '../wasm/wasm.generated';
 import { COMPONENT_META } from './metaAccess';
 import type { BakeLight } from './solve';
+import { worldUnitsPerMeter } from '../ecs/worldUnits';
 
 /** A Light's authored fields, as loosely as a document may state them. */
 export interface AuthoredLight {
@@ -20,6 +21,9 @@ export interface AuthoredLight {
     color?: { r?: number; g?: number; b?: number };
     intensity?: number;
     radius?: number;
+    innerRadius?: number;
+    falloff?: number;
+    inverseSquare?: boolean;
     innerAngle?: number;
     outerAngle?: number;
     followEnvironmentSun?: boolean;
@@ -77,6 +81,10 @@ export function bakeLightOf(authored: AuthoredLight | undefined,
             color: rgb,
             intensity,
             radius: kind === 'directional' ? undefined : (v.radius ?? 200),
+            // How it ends, as the frame lights it: the bake must agree, or a lamp lights its room twice over.
+            ...(kind === 'directional' ? {} : v.inverseSquare
+                ? { metre: worldUnitsPerMeter() }
+                : { innerRadius: v.innerRadius ?? 0, falloff: v.falloff ?? 1 }),
             innerCos: cos(v.innerAngle ?? 30),
             outerCos: cos(v.outerAngle ?? 45),
             ...(kind === 'directional' && v.followEnvironmentSun ? { followsEnvironmentSun: true } : {}),

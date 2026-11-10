@@ -400,6 +400,16 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "min": 0,
       "tooltip": "Brightness multiplier of the light.",
     },
+    "inverseSquare": {
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          0,
+          3,
+        ],
+      },
+      "tooltip": "Fall off as 1/distance² in metres (a real lamp): intensity is the light 1 m away, radius only where it ends.",
+    },
     "layerMax": {
       "max": 127,
       "min": -128,
