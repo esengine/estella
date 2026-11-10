@@ -3,7 +3,7 @@ title: Grip Pose
 description: Hold a character's hands in a named pose, a pistol grip, a handle, a cup, that fits any rig with fingers.
 ---
 
-A `GripPose` holds a rig's hands the way you name: `pistol`, `handle`, `cup`. A pose says only how far each finger bends, how far they fan out and how far the thumb comes across, and nothing in it names a bone, so one pose fits any rig. Which way those bends go is worked out from each rig's own hand, the first time it is held.
+A `GripPose` holds a rig's hands the way you name: `pistol`, `handle`, `cup`. A pose says only how far each finger bends, how far they fan out and what the thumb reaches for, and nothing in it names a bone, so one pose fits any rig. Which way those bends go is worked out from each rig's own hand, the first time it is held.
 
 It shapes the hand. Putting the hand on an object is up to whatever attaches it, usually an entity under the hand joint and two-bone IK for the arm.
 
@@ -49,7 +49,7 @@ To add your own, or replace one by name:
 import { registerGripPose } from 'esengine';
 
 registerGripPose('claw', {
-    thumb: { curl: 0.6, opposition: 0.7 },
+    thumb: { opposition: 1, gap: 0.2 },
     index: { curl: 0.9, base: 0.2 },
     middle: { curl: 0.9, base: 0.2 },
     ring: { curl: 0.9, base: 0.2 },
@@ -62,7 +62,11 @@ registerGripPose('claw', {
 | `curl` | How far the finger bends, 0 as the rig rests to 1 closed. |
 | `base` | How far its first joint bends, where that differs: a finger laid along a frame, or hooked. Defaults to `curl`. |
 | `spread` | How far the fingers fan out, -1 to 1. |
-| `opposition` | The thumb only: how far it comes across the palm, 0 beside the hand to 1 facing the fingers. |
+| `opposition` | The thumb: how far it goes from where it rests to what it reaches for, 0 to 1. |
+| `to` | The thumb: `fingers` (the middle of the middle finger, as a fist or a handle) or `index` (the index tip, as a pinch). |
+| `gap` | The thumb: how far short of it it stops, in lengths of the index finger: the grip or the mug in between. |
+
+The thumb is not bent by numbers of its own: it reaches. Its tip goes to a point on the other fingers as they stand that frame, on the palm's side of them, and its two joints bend together to get there, so it lies over the fingers in a fist and comes round a grip. Out of reach (flat fingers are), it points at the place.
 | `trigger` | On the pose: the index finger as `rightTrigger` takes it to 1. |
 
 ## On your rig

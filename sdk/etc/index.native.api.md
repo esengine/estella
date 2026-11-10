@@ -5083,10 +5083,9 @@ trigger: GripFinger | undefined
 
 ## GripThumb — interface @experimental
 ```
-base: number | undefined
-curl: number
+gap: number | undefined
 opposition: number
-spread: number | undefined
+to: "fingers" | "index" | undefined
 ```
 
 ## Ground — type @experimental
@@ -8763,7 +8762,12 @@ TextureUploadDecision
 
 ## REGISTRY_BINDINGS — const @experimental
 ```
-{ readonly createEntity: "es_createEntity"; readonly destroyEntity: "es_destroyEntity"; readonly setParent: "es_setParent"; readonly hasParent: "es_hasParent"; readonly getParent: "es_getParent"; readonly removeParent: "es_removeParent"; readonly hasChildren: "es_hasChildren"; readonly getChildren: "es_getChildren"; readonly getMeshSkinJoints: "es_getMeshSkinJoints"; readonly setMeshSkinJoints: "es_setMeshSkinJoints"; readonly layoutEpoch: "es_registryLayoutEpoch"; readonly transformEpoch: "es_transformEpochBuffer"; readonly ensureComposed: "es_transformEnsureComposed"; }
+{ readonly hasParent: "es_hasParent"; readonly getParent: "es_getParent"; readonly removeParent: "es_removeParent"; readonly hasChildren: "es_hasChildren"; readonly getChildren: "es_getChildren"; readonly getMeshSkinJoints: "es_getMeshSkinJoints"; readonly setMeshSkinJoints: "es_setMeshSkinJoints"; readonly layoutEpoch: "es_registryLayoutEpoch"; readonly transformEpoch: "es_transformEpochBuffer"; readonly ensureComposed: "es_transformEnsureComposed"; }
+```
+
+## REGISTRY_OPS — const @experimental
+```
+{ readonly create: "es_registry_create"; readonly destroy: "es_registry_destroy"; readonly valid: "es_registry_valid"; readonly entityCount: "es_registry_entityCount"; readonly reserveDestruction: "es_registry_reserveDestruction"; readonly releaseDestruction: "es_registry_releaseDestruction"; readonly destructionPending: "es_registry_destructionPending"; readonly setEntityEnabled: "es_registry_setEntityEnabled"; readonly isEntityActive: "es_registry_isEntityActive"; readonly isEntityEnabled: "es_registry_isEntityEnabled"; readonly hasInactiveEntities: "es_registry_hasInactiveEntities"; readonly activityEpoch: "es_registry_activityEpoch"; readonly setParent: "es_registry_setParent"; }
 ```
 
 ## RENAMED_COMPONENT_TYPES — const @experimental

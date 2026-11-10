@@ -5070,10 +5070,9 @@ trigger: GripFinger | undefined
 
 ## GripThumb — interface @experimental
 ```
-base: number | undefined
-curl: number
+gap: number | undefined
 opposition: number
-spread: number | undefined
+to: "fingers" | "index" | undefined
 ```
 
 ## Ground — type @experimental

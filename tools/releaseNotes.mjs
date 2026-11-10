@@ -4236,6 +4236,8 @@ export const NOTED = {
     {"note": "Labels no longer come back as black boxes after a change between Plays."},
   "feat(animation): a rig's hands held in a named pose that fits any skeleton":
     {"note": "Hands that hold things."},
+  "fix(animation): a held hand's thumb reaches for the fingers and lies over them, instead of standing out from the palm":
+    {"note": "Hands that hold things."},
   "feat(sky): clouds that keep time with the game, follow the weather's wind, and have a second layer":
     {"note": "Clouds that keep time with the game."},
   "feat(voxel): ground that is a volume, carved while the game runs, with collision that follows and saves by chunk":

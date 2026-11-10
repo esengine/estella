@@ -166,9 +166,10 @@ describe.skipIf(!HAS_WASM)('a grip pose', () => {
     });
 
     it('turns the thumb toward the fingers by its opposition, whatever else it does', async () => {
-        const none = { curl: 0 };
-        registerGripPose('thumb-beside', { thumb: { curl: 0, opposition: 0 }, index: none, middle: none, ring: none, pinky: none });
-        registerGripPose('thumb-across', { thumb: { curl: 0, opposition: 1 }, index: none, middle: none, ring: none, pinky: none });
+        // On closed fingers, where a thumb can reach them; it cannot reach the middle of a flat finger, and points at it instead.
+        const shut = { curl: 1 };
+        registerGripPose('thumb-beside', { thumb: { opposition: 0 }, index: shut, middle: shut, ring: shut, pinky: shut });
+        registerGripPose('thumb-across', { thumb: { opposition: 1 }, index: shut, middle: shut, ring: shut, pinky: shut });
         const s = scene();
         const beside = buildRig(s.world);
         hold(s.world, beside, { rightPose: 'thumb-beside' });
@@ -178,8 +179,11 @@ describe.skipIf(!HAS_WASM)('a grip pose', () => {
         await s.tick(2);
         await t.tick(2);
         const a = tips(s.world, beside).thumb!, b = tips(t.world, across).thumb!;
-        expect(b.z).toBeLessThan(a.z - 0.01);
-        expect(b.y).toBeGreaterThan(a.y);
+        // It reaches for the middle of the middle finger: on the palm's side of it, by about a finger's thickness.
+        const middleOf = (world: World, rig: ReturnType<typeof buildRig>): V => { const m = rig.bones.middle!; const p = placeOf(world, m[1]!, rig.hand), r = placeOf(world, m[2]!, rig.hand); return { x: (p.x + r.x) / 2, y: (p.y + r.y) / 2, z: (p.z + r.z) / 2 }; };
+        expect(dist(b, middleOf(t.world, across))).toBeLessThan(dist(a, middleOf(s.world, beside)) * 0.5);
+        expect(dist(b, middleOf(t.world, across))).toBeLessThan(0.02);
+        expect(b.z).toBeLessThan(a.z);
         expect(tips(t.world, across).index!.z).toBeCloseTo(tips(s.world, beside).index!.z, 5);
     });
 
@@ -416,7 +420,7 @@ describe.skipIf(!HAS_WASM)('a grip pose', () => {
     });
 
     it('takes a pose of the game\'s own, and leaves a name it does not know alone', async () => {
-        registerGripPose('claw', { thumb: { curl: 1, opposition: 1 }, index: { curl: 1, base: 0 }, middle: { curl: 1, base: 0 }, ring: { curl: 1, base: 0 }, pinky: { curl: 1, base: 0 } });
+        registerGripPose('claw', { thumb: { opposition: 1 }, index: { curl: 1, base: 0 }, middle: { curl: 1, base: 0 }, ring: { curl: 1, base: 0 }, pinky: { curl: 1, base: 0 } });
         expect(gripPoseNames()).toContain('claw');
         const s = scene();
         const rig = buildRig(s.world);

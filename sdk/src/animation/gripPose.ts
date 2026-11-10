@@ -35,10 +35,14 @@ export interface GripFinger {
     spread?: number;
 }
 
-/** How the thumb is held. @experimental */
-export interface GripThumb extends GripFinger {
-    /** How far it comes across the palm, 0 beside the hand to 1 facing the fingers. */
+/** How the thumb is held: as a reach, since where it can rest is somewhere on the other fingers. @experimental */
+export interface GripThumb {
+    /** How far it goes from where it rests to what it reaches for, 0 to 1. */
     opposition: number;
+    /** What it reaches for: the middle of the middle finger, as a fist or a handle has it, or the index finger's tip, as a pinch does. Defaults to `fingers`. */
+    to?: 'fingers' | 'index';
+    /** How far short of them it stops, in lengths of the index finger: what is held between, a grip or a mug. Defaults to 0. */
+    gap?: number;
 }
 
 /** How a whole hand is held. Nothing in it names a bone, so it fits any rig. @experimental */
@@ -53,20 +57,20 @@ export interface GripPoseDef {
 }
 
 const f = (curl: number, base?: number, spread?: number): GripFinger => ({ curl, ...(base !== undefined ? { base } : {}), ...(spread !== undefined ? { spread } : {}) });
-const thumb = (curl: number, opposition: number, base?: number): GripThumb => ({ curl, opposition, ...(base !== undefined ? { base } : {}) });
+const thumb = (opposition: number, gap = 0, to: 'fingers' | 'index' = 'fingers'): GripThumb => ({ opposition, gap, to });
 
 const poses = new Map<string, GripPoseDef>(Object.entries({
-    open: { thumb: thumb(0, 0), index: f(0), middle: f(0), ring: f(0), pinky: f(0) },
-    relaxed: { thumb: thumb(0.15, 0.25), index: f(0.18, 0.15), middle: f(0.25, 0.2), ring: f(0.3, 0.25), pinky: f(0.35, 0.3) },
-    fist: { thumb: thumb(0.7, 0.85), index: f(1), middle: f(1), ring: f(1), pinky: f(1) },
+    open: { thumb: thumb(0), index: f(0), middle: f(0), ring: f(0), pinky: f(0) },
+    relaxed: { thumb: thumb(0.25, 0.6), index: f(0.18, 0.15), middle: f(0.25, 0.2), ring: f(0.3, 0.25), pinky: f(0.35, 0.3) },
+    fist: { thumb: thumb(1), index: f(1), middle: f(1), ring: f(1), pinky: f(1) },
     pistol: {
-        thumb: thumb(0.45, 0.8), index: f(0.1, 0.32), middle: f(0.78, 0.72), ring: f(0.82, 0.76), pinky: f(0.85, 0.8),
+        thumb: thumb(1, 0.4), index: f(0.1, 0.32), middle: f(0.78, 0.72), ring: f(0.82, 0.76), pinky: f(0.85, 0.8),
         trigger: f(0.55, 0.42),
     },
-    support: { thumb: thumb(0.3, 0.65), index: f(0.4, 0.35), middle: f(0.45, 0.4), ring: f(0.48, 0.42), pinky: f(0.5, 0.45) },
-    handle: { thumb: thumb(0.6, 0.85), index: f(0.78, 0.7), middle: f(0.82, 0.75), ring: f(0.85, 0.78), pinky: f(0.88, 0.8) },
-    pinch: { thumb: thumb(0.5, 0.8), index: f(0.55, 0.5), middle: f(0.25, 0.2), ring: f(0.25, 0.2), pinky: f(0.25, 0.2) },
-    cup: { thumb: thumb(0.25, 0.7), index: f(0.45, 0.25, 0.3), middle: f(0.45, 0.25, 0.3), ring: f(0.45, 0.25, 0.3), pinky: f(0.45, 0.25, 0.3) },
+    support: { thumb: thumb(0.9, 0.5), index: f(0.4, 0.35), middle: f(0.45, 0.4), ring: f(0.48, 0.42), pinky: f(0.5, 0.45) },
+    handle: { thumb: thumb(1, 0.1), index: f(0.78, 0.7), middle: f(0.82, 0.75), ring: f(0.85, 0.78), pinky: f(0.88, 0.8) },
+    pinch: { thumb: thumb(1, 0, 'index'), index: f(0.55, 0.5), middle: f(0.25, 0.2), ring: f(0.25, 0.2), pinky: f(0.25, 0.2) },
+    cup: { thumb: thumb(0.9, 0.8), index: f(0.45, 0.25, 0.3), middle: f(0.45, 0.25, 0.3), ring: f(0.45, 0.25, 0.3), pinky: f(0.45, 0.25, 0.3) },
 } satisfies Record<string, GripPoseDef>));
 
 /** Adds a pose of the game's own, or replaces one by name. @experimental */
@@ -138,8 +142,6 @@ const INSIDE_PALM = /metacarpal|palm/i;
 
 /** How far each joint of a finger bends when it is closed: first, second, third. In radians. */
 const CLOSED = [Math.PI / 2, (100 * Math.PI) / 180, (70 * Math.PI) / 180];
-/** The thumb's are far less: its root barely bends, and what it does there is opposition's. */
-const THUMB_CLOSED = [(15 * Math.PI) / 180, (60 * Math.PI) / 180, (80 * Math.PI) / 180];
 const SPREAD = (15 * Math.PI) / 180;
 const FAN: Record<FingerName, number> = { thumb: 0, index: 1, middle: 0.15, ring: -0.6, pinky: -1 };
 
@@ -164,9 +166,6 @@ interface Joint {
     curlAxis: Vec3;
     /** On a finger's first joint. */
     spreadAxis?: Vec3;
-    /** On the thumb's first joint: the turn that faces it to the fingers at full opposition, as an axis and an angle. */
-    opposeAxis?: Vec3;
-    opposeAngle?: number;
     /** What this wrote last, to tell it from what a clip has written since. */
     written: Quat;
 }
@@ -174,18 +173,21 @@ interface Joint {
 /** A finger's joints, knuckle first. Those it has no joint for are left out. */
 type Finger = { name: FingerName; joints: Joint[]; fan: number };
 
-/** Numbers a hand is held by, kept flat so two poses can be eased between: curl, base, spread for each finger, then the thumb's opposition. */
-const NUMBERS = FINGERS.length * 3 + 1;
+/** Numbers a hand is held by, kept flat so two poses can be eased between: curl, base, spread for each finger, then the thumb's reach, how much of it is for the index tip, and its gap. */
+const NUMBERS = FINGERS.length * 3 + 3;
+const REACH = NUMBERS - 3, TO_INDEX = NUMBERS - 2, GAP = NUMBERS - 1;
 
 function numbersOf(pose: GripPoseDef | null, out: Float64Array): void {
     let i = 0;
     for (const name of FINGERS) {
-        const finger = pose?.[name];
+        const finger = name === 'thumb' ? undefined : pose?.[name];
         out[i++] = clamp01(finger?.curl ?? 0);
         out[i++] = clamp01(finger?.base ?? finger?.curl ?? 0);
         out[i++] = Math.max(-1, Math.min(1, finger?.spread ?? 0));
     }
-    out[i] = clamp01(pose?.thumb.opposition ?? 0);
+    out[REACH] = clamp01(pose?.thumb.opposition ?? 0);
+    out[TO_INDEX] = pose?.thumb.to === 'index' ? 1 : 0;
+    out[GAP] = Math.max(0, pose?.thumb.gap ?? 0);
 }
 
 const clamp01 = (v: number): number => (v > 0 ? (v < 1 ? v : 1) : 0);
@@ -206,6 +208,27 @@ interface HandState {
     settled: boolean;
     pose: string;
     trigger: number;
+    /** What the thumb reaches with, where it has a chain long enough to bend. */
+    thumb: ThumbReach | null;
+    /** The hand's own directions, in its frame. */
+    palm: Vec3;
+    across: Vec3;
+    /** The index finger's length: what a gap is measured in, and about how thick a finger is. */
+    reachUnit: number;
+    index: Entity[];
+    middle: Entity[];
+}
+
+/** The thumb as a chain that reaches: where its root stands and how long each bone is, as the rig rests, in the hand's frame. */
+interface ThumbReach {
+    root: Vec3;
+    lengths: [number, number, number];
+    /** Each bone's direction as it rests, and each joint's turn from the hand. */
+    restDirs: [Vec3, Vec3, Vec3];
+    restTurns: [Quat, Quat, Quat];
+    /** The turn of the joint the thumb's root hangs from. */
+    parentTurn: Quat;
+    restTip: Vec3;
 }
 
 /** A finger's bones in order, from the hand: those named for it, knuckle first, those in the palm passed through. */
@@ -278,7 +301,7 @@ function buildHand(world: World, hand: Entity, side: 'right' | 'left'): HandStat
     for (const name of FINGERS) chains[name] = fingerChain(world, hand, name);
     const shape = palmOf(world, side, chains);
     if (!shape) return null;
-    const { palm, across, forward } = shape;
+    const { palm, across } = shape;
     const fingers: Finger[] = [];
     const missing: FingerName[] = [];
     for (const name of FINGERS) {
@@ -287,13 +310,7 @@ function buildHand(world: World, hand: Entity, side: 'right' | 'left'): HandStat
         const { at, turn } = fromHand(world, chain);
         // Its first joint to its second is the way it points; a finger of one joint points as the joint does from the hand.
         const pointing = norm(chain.length > 1 ? sub(at[1]!, at[0]!) : at[0]!);
-        // The thumb's way to the fingers is a direction and not a turn about some axis: where it starts from differs from rig to rig, and where it has to get to does not.
-        const facing = name === 'thumb' ? norm(add(add(scale(forward, 0.85), scale(palm, 0.45)), scale(across, 0.25))) : pointing;
-        const oppose = q.rotationTo(pointing, facing);
-        // A closing thumb lies over the first two fingers, its tip going on toward the little finger.
-        const towards = name === 'thumb' ? norm(add(add(scale(palm, 0.15), scale(across, -1)), scale(forward, -0.1))) : palm;
-        // Worked out where it faces once opposed, and taken back to where it rests, since that turn comes first.
-        const bend = q.rotate(q.conjugate(oppose), norm(cross(facing, towards)));
+        const bend = norm(cross(pointing, palm));
         // The last bone of a chain that goes on past three is the tip's end, which nothing bends.
         const moved = chain.slice(0, 3);
         const joints: Joint[] = moved.map((entity, i) => {
@@ -304,18 +321,82 @@ function buildHand(world: World, hand: Entity, side: 'right' | 'left'): HandStat
                 joint.spreadAxis = norm(q.rotate(toJoint, palm));
                 // Toward the index finger for a positive spread.
                 if (dot(cross(palm, pointing), across) < 0) joint.spreadAxis = scale(joint.spreadAxis, -1);
-                if (name === 'thumb') {
-                    const half = Math.min(1, Math.abs(oppose.w));
-                    const axis = norm({ x: oppose.x, y: oppose.y, z: oppose.z });
-                    joint.opposeAxis = norm(q.rotate(toJoint, oppose.w < 0 ? scale(axis, -1) : axis));
-                    joint.opposeAngle = 2 * Math.acos(half);
-                }
             }
             return joint;
         });
         fingers.push({ name, joints, fan: FAN[name] });
     }
-    return { hand, fingers, missing, current: new Float64Array(NUMBERS), wanted: new Float64Array(NUMBERS), weight: 0, speed: new Float64Array(NUMBERS + 1), settled: false, pose: '', trigger: 0 };
+    const index = chains.index ?? [], middle = chains.middle ?? [];
+    const lengthOf = (chain: Entity[]): number => {
+        const at = chain.length ? fromHand(world, chain).at : [];
+        let n = 0;
+        for (let i = 1; i < at.length; i++) n += Math.hypot(at[i]!.x - at[i - 1]!.x, at[i]!.y - at[i - 1]!.y, at[i]!.z - at[i - 1]!.z);
+        return n;
+    };
+    const reachUnit = lengthOf(index) || lengthOf(middle) || 0;
+    return {
+        hand, fingers, missing, current: new Float64Array(NUMBERS), wanted: new Float64Array(NUMBERS), weight: 0, speed: new Float64Array(NUMBERS + 1), settled: false, pose: '', trigger: 0,
+        thumb: thumbReach(world, chains.thumb ?? []), palm, across, reachUnit, index, middle,
+    };
+}
+
+/** The thumb's chain as it rests: null with fewer than three bones, since two cannot both reach and curl. */
+function thumbReach(world: World, chain: Entity[]): ThumbReach | null {
+    if (chain.length < 3) return null;
+    const { at, turn } = fromHand(world, chain);
+    const segment = (i: number): Vec3 => sub(at[i + 1]!, at[i]!);
+    const third = chain.length > 3 ? segment(2) : scale(segment(1), 0.85);
+    const lengths: [number, number, number] = [Math.hypot(...xyz(segment(0))), Math.hypot(...xyz(segment(1))), Math.hypot(...xyz(third))];
+    if (lengths.some((l) => !(l > 1e-6))) return null;
+    const local0 = (world.get(chain[0]!, Transform) as TransformData).rotation;
+    return {
+        root: at[0]!, lengths, restDirs: [norm(segment(0)), norm(segment(1)), norm(third)], restTurns: [turn[0]!, turn[1]!, turn[2]!],
+        parentTurn: q.normalize(q.mul(turn[0]!, q.conjugate(local0))), restTip: add(at[2]!, third),
+    };
+}
+
+const xyz = (v: Vec3): [number, number, number] => [v.x, v.y, v.z];
+
+/** Where a bent chain's tip is, when its second and third joints each turn by `bend`, measured along its first bone and square to it. */
+function chainTip(lengths: readonly number[], bend: number): [number, number] {
+    const [a, b, c] = lengths as [number, number, number];
+    return [a + b * Math.cos(bend) + c * Math.cos(2 * bend), b * Math.sin(bend) + c * Math.sin(2 * bend)];
+}
+
+/**
+ * The thumb's joints turned so its tip lands on `goal`, its bones curling toward `inward`: the bend found by halving, the plane by where the goal is.
+ * Answers each joint's turn from the hand.
+ */
+function reachThumb(reach: ThumbReach, goal: Vec3, inward: Vec3): [Quat, Quat, Quat] {
+    const toGoal = sub(goal, reach.root);
+    const total = reach.lengths[0] + reach.lengths[1] + reach.lengths[2];
+    const want = Math.min(Math.max(Math.hypot(...xyz(toGoal)), total * 0.35), total - 1e-6);
+    let lo = 0, hi = 1.7;
+    for (let i = 0; i < 24; i++) {
+        const mid = (lo + hi) / 2;
+        const [x, y] = chainTip(reach.lengths, mid);
+        if (Math.hypot(x, y) > want) lo = mid; else hi = mid;
+    }
+    const bend = (lo + hi) / 2;
+    const [tx, ty] = chainTip(reach.lengths, bend);
+    const lean = Math.atan2(ty, tx);
+    const u = norm(toGoal);
+    const off = sub(inward, scale(u, dot(inward, u)));
+    const v = Math.hypot(...xyz(off)) > 1e-6 ? norm(off) : norm(cross(u, { x: 0, y: 0, z: 1 }));
+    const along = (angle: number): Vec3 => add(scale(u, Math.cos(angle)), scale(v, Math.sin(angle)));
+    const dirs = [along(-lean), along(bend - lean), along(2 * bend - lean)];
+    // Each bone turned the least way from where its parent left it: no twist added along it.
+    const turns: Quat[] = [];
+    let parentNow = reach.parentTurn, parentRest = reach.parentTurn;
+    for (let i = 0; i < 3; i++) {
+        const carried = q.normalize(q.mul(q.mul(parentNow, q.conjugate(parentRest)), reach.restTurns[i]!));
+        const facing = q.rotate(q.mul(parentNow, q.conjugate(parentRest)), reach.restDirs[i]!);
+        const turned = q.normalize(q.mul(q.rotationTo(facing, dirs[i]!), carried));
+        turns.push(turned);
+        parentRest = reach.restTurns[i]!;
+        parentNow = turned;
+    }
+    return turns as [Quat, Quat, Quat];
 }
 
 const NAMED_HAND = /hand|wrist/i;
@@ -384,8 +465,10 @@ function holdHand(world: World, state: HandState, poseName: string, weight: numb
     state.weight = ease(state.weight, wantedWeight, state, NUMBERS, blend, dt);
     if (state.weight !== wantedWeight) arrived = false;
 
-    const opposition = state.current[NUMBERS - 1]!;
-    for (const finger of state.fingers) {
+    // The thumb last: what it reaches for is where the other fingers have just been put.
+    const ordered = [...state.fingers.filter((x) => x.name !== 'thumb'), ...state.fingers.filter((x) => x.name === 'thumb')];
+    for (const finger of ordered) {
+        const reached = finger.name === 'thumb' && state.thumb ? thumbTurns(world, state) : null;
         const at = FINGERS.indexOf(finger.name) * 3;
         let curl = state.current[at]!, base = state.current[at + 1]!;
         const spread = state.current[at + 2]!;
@@ -395,10 +478,16 @@ function holdHand(world: World, state: HandState, poseName: string, weight: numb
         }
         for (let i = 0; i < finger.joints.length; i++) {
             const joint = finger.joints[i]!;
-            let turn = axisAngle(joint.curlAxis, (i === 0 ? base : curl) * (finger.name === 'thumb' ? THUMB_CLOSED : CLOSED)[i]!);
-            if (joint.spreadAxis && spread !== 0 && finger.fan !== 0) turn = q.mul(axisAngle(joint.spreadAxis, spread * finger.fan * SPREAD), turn);
-            if (joint.opposeAxis && opposition > 0) turn = q.mul(axisAngle(joint.opposeAxis, opposition * joint.opposeAngle!), turn);
-            const target = q.normalize(q.mul(joint.rest, turn));
+            let target: Quat;
+            if (reached) {
+                // From the joint's turn from the hand to its own: its parent is the joint before, or for the first what the thumb hangs from.
+                const parent = i === 0 ? state.thumb!.parentTurn : reached[i - 1]!;
+                target = q.normalize(q.mul(q.conjugate(parent), reached[i]!));
+            } else {
+                let turn = axisAngle(joint.curlAxis, (i === 0 ? base : curl) * CLOSED[i]!);
+                if (joint.spreadAxis && spread !== 0 && finger.fan !== 0) turn = q.mul(axisAngle(joint.spreadAxis, spread * finger.fan * SPREAD), turn);
+                target = q.normalize(q.mul(joint.rest, turn));
+            }
             const local = world.get(joint.entity, Transform) as TransformData;
             // Moved since this wrote it, a clip is speaking and the pose goes over that; otherwise over how the rig rests.
             const from = same(local.rotation, joint.written) ? joint.rest : local.rotation;
@@ -411,6 +500,32 @@ function holdHand(world: World, state: HandState, poseName: string, weight: numb
         }
     }
     state.settled = arrived;
+}
+
+/**
+ * Where the thumb goes this frame, as each joint's turn from the hand: from where it rests toward the middle of the middle finger (or the index tip) as
+ * they now stand, on the palm's side of them by a finger's thickness and the pose's gap. Null with no reach asked, which leaves it as it rests.
+ */
+function thumbTurns(world: World, state: HandState): [Quat, Quat, Quat] | null {
+    const reach = state.thumb!;
+    const amount = state.current[REACH]!;
+    if (amount <= 0) return null;
+    const middleOf = (chain: Entity[]): Vec3 | null => {
+        if (chain.length < 3) return null;
+        const at = fromHand(world, chain).at;
+        return scale(add(at[1]!, at[2]!), 0.5);
+    };
+    const tipOf = (chain: Entity[]): Vec3 | null => (chain.length ? fromHand(world, chain).at[chain.length - 1]! : null);
+    // The middle finger's, not the index's: an index finger on a trigger would move the thumb with it.
+    const fingers = middleOf(state.middle) ?? middleOf(state.index);
+    const index = tipOf(state.index) ?? fingers;
+    if (!fingers || !index) return null;
+    const toIndex = state.current[TO_INDEX]!;
+    const on = add(scale(fingers, 1 - toIndex), scale(index, toIndex));
+    const thickness = state.reachUnit * 0.16;
+    const contact = add(on, scale(state.palm, thickness + state.current[GAP]! * state.reachUnit));
+    const goal = add(scale(reach.restTip, 1 - amount), scale(contact, amount));
+    return reachThumb(reach, goal, norm(add(scale(state.across, -0.8), scale(state.palm, 0.6))));
 }
 
 function letGo(world: World, state: HandState | null): void {
