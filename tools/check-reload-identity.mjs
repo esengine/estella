@@ -64,6 +64,7 @@ const DISPOSITIONS = {
     defineInputMap: { kind: 'no-id', why: 'a plain action table — nothing addresses a World through it' },
     defineContract: { kind: 'no-id', why: 'a contract is addressed by the fingerprint of its schemas, not by a minted symbol — evaluating it twice yields the same fingerprint' },
     defineBehavior: { kind: 'delegates', via: 'defineComponent' },
+    defineSkyEffect: { kind: 'no-id', why: 'an effect is addressed by its type name — defining a type again replaces the entry under that name, so a re-run lands on the same one' },
 };
 
 const problems = [];

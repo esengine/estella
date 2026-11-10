@@ -190,6 +190,18 @@ export const FACTS = [
         digest: { name: 'engine-abi', path: 'sdk/src/ecs/aot/abiDigest.ts', probe: /trig=/ },
     },
     {
+        id: 'registryEntityOps',
+        what: 'The Registry entity operations, and the native host global each one is bound to.',
+        surface: 'runtime-wasm-abi',
+        authors: [
+            { path: 'tools/eht/registry_ops.py', probe: /REGISTRY_OPS: Tuple/, kind: 'semantic' },
+        ],
+        projections: ['sdk/src/ecs/bridge/registryOps.generated.ts'],
+        verification: [
+            { path: 'sdk/tests/native-registry.test.ts', how: 'test', probe: /REGISTRY_OPS/ },
+        ],
+    },
+    {
         id: 'tweenWireEnums',
         what: 'The tween easing/state/loop/target enums, which cross the boundary as bare numbers.',
         surface: 'runtime-wasm-abi',
@@ -349,6 +361,14 @@ export const NOT_CONTRACT = {
         'a measured baseline, not a derivation — accepted with `perf-guard --update`.',
     'sdk/src/runtime/planWorkerBundle.generated.ts':
         'the compiled text of src/worldgen/planWorker.ts, built by sdk/scripts/build-worker.mjs — one source file bundled, not a projection of a fact two places must agree on.',
+    'native/spine/SpineCRename21.hpp':
+        'the symbols a pinned vendored spine-c 2.1 release defines, read off its compiled objects by tools/spine-c-rename.mjs — a derivation of third-party code, nothing in the engine it must agree with.',
+    'native/spine/SpineCRename38.hpp':
+        'the symbols a pinned vendored spine-c 3.8 release defines, read off its compiled objects by tools/spine-c-rename.mjs — a derivation of third-party code, nothing in the engine it must agree with.',
+    'native/spine/SpineCRename41.hpp':
+        'the symbols a pinned vendored spine-c 4.1 release defines, read off its compiled objects by tools/spine-c-rename.mjs — a derivation of third-party code, nothing in the engine it must agree with.',
+    'native/spine/SpineCRename42.hpp':
+        'the symbols a pinned vendored spine-c 4.2 release defines, read off its compiled objects by tools/spine-c-rename.mjs — a derivation of third-party code, nothing in the engine it must agree with.',
     'sdk/src/postprocess/agxLut.generated.ts':
         "a table baked once from Blender's AgX .cube by tools/gen-agx-lut.py — third-party data, nothing in the engine it must agree with.",
 };

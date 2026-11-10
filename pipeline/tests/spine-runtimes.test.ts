@@ -33,7 +33,7 @@ beforeAll(() => {
   staged = mkdtempSync(path.join(tmpdir(), 'estella-spine-rt-'));
   for (const [v, file] of Object.entries(SKELETONS)) copyFileSync(file, path.join(staged, `hero${v}.skel`));
 });
-afterAll(() => rmSync(staged, { recursive: true, force: true }));
+afterAll(() => rmSync(staged, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 const entries = (...versions: string[]) =>
   versions.map((v) => ({ path: `hero${v}.skel`, sourcePath: `assets/hero${v}.skel`, type: 'spine' }));

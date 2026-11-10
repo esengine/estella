@@ -1995,7 +1995,8 @@ fn skyOcclusion(d : vec3f) -> f32 {
     return mix(1.0, clamp(v, 0.0, 1.0), step(0.5, pc.u_probeIrradiance[base + 9].z));
 }
 // See the GLSL twin: one exit, for the shape the two share.
-fn indirectIrradiance(N : vec3f) -> vec3f {
+)"
+R"(fn indirectIrradiance(N : vec3f) -> vec3f {
     let base = clamp(i32(g_probeSlot), 0, 99) * 10;
     let mode = pc.u_probeIrradiance[base].w;
     var result : vec3f;

@@ -36,7 +36,7 @@ const BASELINE = path.join(ROOT, 'tools', 'baselines', 'core-carries-options.jso
  *  are DECLARATIONS. A missing entry means the whole subsystem is solver. */
 const SUBSYSTEMS = {
   physics: 'components.ts',
-  physics3d: null,
+  physics3d: 'components.ts',
   spine: null,
   dragonbones: null,
   video: null,

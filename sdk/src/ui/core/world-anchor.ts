@@ -208,7 +208,7 @@ export class UIWorldAnchorPlugin implements Plugin {
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
             [GetWorld(), Res(ScreenLayout)],
             (world: World, screen: ScreenLayoutData) => stepWorldAnchors(world, screen),
-            { name: 'UIWorldAnchorSystem' },
+            { name: 'UIWorldAnchorSystem', touches: { reads: ['Camera', 'Transform'], writes: ['UINode', 'UIWorldAnchor'] } },
         ), { runBefore: [SystemLabel.UILayoutLate] });
     }
 }

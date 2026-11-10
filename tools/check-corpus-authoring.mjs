@@ -128,6 +128,8 @@ const DISPOSITION = {
   GripProfile: ['owed', 'no example holds an object in its two hands yet; a character with a rifle is where the first one goes'],
   GripHolder: ['owed', 'no example holds an object in its two hands yet; a character with a rifle is where the first one goes'],
   GripPose: ['owed', 'no example holds a tool in a named pose yet; a character with something in its hand is where the first one goes'],
+  GripSurface: ['owed', 'no example marks where a hand may take hold of a mesh yet; the character with a rifle that gets the first grip is where the first one goes'],
+  UIWorldAnchor: ['owed', 'no example pins a HUD marker over a point in the 3D world yet; the first 3D example with an objective marker is where the first one goes'],
   VoxelTerrain: ['owed', 'no example digs in a volume yet; a small mine is where the first one goes'],
   RoadDecal: ['owed', 'no example lays a road over a terrain yet; wilds is where the first one goes'],
   PlantProxy: ['derived', 'the plant interaction makes it for a plant near a contact, and takes it away again; a scene never holds one'],
