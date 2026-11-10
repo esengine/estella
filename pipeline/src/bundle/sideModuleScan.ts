@@ -8,8 +8,9 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { statSync } from 'node:fs';
+import { spineChoiceKey, type ModuleChoice } from '../project/format';
 import {
-  SIDE_MODULES, spineModuleId, physics3dModuleId, getEditorType,
+  SIDE_MODULES, SPINE_VERSIONS, spineModuleId, physics3dModuleId, getEditorType,
   sceneUsesPhysics, sceneUses3DPhysics,
   type SideModuleId, type SpineVersion, type Physics3DBackend,
 } from 'esengine';
@@ -56,6 +57,77 @@ export interface SideModuleScanInput {
   forced?: readonly string[];
   /** The project's 3D backend: which module answers for the 3D world. Absent ⇒ Jolt. */
   physics3dBackend?: Physics3DBackend;
+  /** What the project said per module, from `moduleChoices` — read here for the
+   *  Spine runtimes (`esengine/spine@<version>`, see resolveSpineRuntimes). */
+  choices?: Readonly<Record<string, ModuleChoice>>;
+}
+
+/** Why one Spine runtime is in a package or not, for the export to report. */
+export interface SpineRuntimeDecision {
+  version: SpineVersion;
+  ships: boolean;
+  /** `detected`: a shipped skeleton was exported from it. `included`/`excluded`:
+   *  the project said so. `unused`: nothing needs it and nothing asked. */
+  why: 'detected' | 'included' | 'excluded' | 'unused';
+  /** The shipped skeletons exported from it (authored paths). */
+  skeletons: readonly string[];
+}
+
+/** The Spine runtimes a package carries, decided once for every target. */
+export interface SpineRuntimePlan {
+  versions: readonly SpineVersion[];
+  decisions: readonly SpineRuntimeDecision[];
+  /** Runtimes the project excluded that shipped skeletons need: the export fails,
+   *  since the alternative is a package whose skeletons silently do not play. */
+  refused: ReadonlyArray<{ version: SpineVersion; skeletons: readonly string[] }>;
+}
+
+/**
+ * Which Spine runtimes a package carries: the ones its skeletons were exported
+ * from, plus what the project included, minus what it excluded. Every target
+ * asks this one function — web and playable side modules, a mini-game's
+ * per-version wasm, Android's per-release libraries — so a runtime cannot ship on
+ * one and be missing on another. Detection reads the skeleton files themselves;
+ * `include` is for skeletons only code loads (a path built at run time, content
+ * fetched later), `exclude` for one detection collected that never plays.
+ */
+export function resolveSpineRuntimes(
+  skeletons: ReadonlyMap<string, readonly string[]>,
+  choices: Readonly<Record<string, ModuleChoice>> = {},
+): SpineRuntimePlan {
+  const moduleExcluded = choices['esengine/spine'] === 'exclude';
+  const decisions: SpineRuntimeDecision[] = [];
+  const refused: Array<{ version: SpineVersion; skeletons: readonly string[] }> = [];
+  for (const version of SPINE_VERSIONS) {
+    const used = skeletons.get(version) ?? [];
+    const choice = moduleExcluded ? 'exclude' : (choices[spineChoiceKey(version)] ?? 'auto');
+    if (choice === 'exclude') {
+      decisions.push({ version, ships: false, why: 'excluded', skeletons: used });
+      // The whole-module refusal is engineInstalls'; this names the runtime.
+      if (used.length && !moduleExcluded) refused.push({ version, skeletons: used });
+    } else if (choice === 'include') {
+      decisions.push({ version, ships: true, why: used.length ? 'detected' : 'included', skeletons: used });
+    } else {
+      decisions.push({ version, ships: used.length > 0, why: used.length ? 'detected' : 'unused', skeletons: used });
+    }
+  }
+  return { versions: decisions.filter((d) => d.ships).map((d) => d.version), decisions, refused };
+}
+
+/** A refused runtime, said the way the other module refusals are. */
+export function spineRefusalMessage(r: { version: string; skeletons: readonly string[] }): string {
+  const named = r.skeletons.slice(0, 3).join(', ') + (r.skeletons.length > 3 ? `, and ${r.skeletons.length - 3} more` : '');
+  return `${spineChoiceKey(r.version)} is excluded in Project Settings, and this build ships `
+    + `${r.skeletons.length} skeleton${r.skeletons.length === 1 ? '' : 's'} exported from Spine ${r.version} `
+    + `(${named}). Set it to Auto or Include, or export those skeletons from a runtime the package carries.`;
+}
+
+/** What a package carries, with the Spine part spelled out. */
+export interface SideModulePlan {
+  ids: Set<SideModuleId>;
+  spine: SpineRuntimePlan;
+  /** Every shipped skeleton by the runtime it was exported from. */
+  skeletons: ReadonlyMap<SpineVersion, readonly string[]>;
 }
 
 const VERSION_PREFIXES: ReadonlyArray<readonly [string, SpineVersion]> = [
@@ -136,6 +208,12 @@ async function readDocuments(root: string, includedPaths: readonly string[]): Pr
  * entry scene.
  */
 export async function scanSideModuleIds(input: SideModuleScanInput): Promise<Set<SideModuleId>> {
+  return (await planSideModules(input)).ids;
+}
+
+/** {@link scanSideModuleIds}, with the Spine decision and its evidence: what an
+ *  export reports, and refuses on. */
+export async function planSideModules(input: SideModuleScanInput): Promise<SideModulePlan> {
   const ids = new Set<SideModuleId>();
   const docs = await readDocuments(input.root, input.includedPaths);
 
@@ -159,8 +237,26 @@ export async function scanSideModuleIds(input: SideModuleScanInput): Promise<Set
     const editorType = getEditorType(e.sourcePath ?? e.path);
     if (editorType === 'dragonbones-skeleton' || editorType === 'dragonbones-atlas') ids.add('dragonbones');
   }
-  for (const v of (await scanSpineSkeletons(input.cookEntries, input.stagedDir)).keys()) ids.add(spineModuleId(v));
-  return ids;
+  const skeletons = await scanSpineSkeletons(input.cookEntries, input.stagedDir);
+  const spine = resolveSpineRuntimes(skeletons, input.choices);
+  for (const v of spine.versions) ids.add(spineModuleId(v));
+  return { ids, spine, skeletons };
+}
+
+/**
+ * The Spine runtime one skeleton file was exported from, read from its bytes —
+ * null for an atlas, an unreadable file, or a version no runtime reads. `named`
+ * is the path whose extension says which format it is (a cooked copy may carry
+ * a `.bin` suffix). Shared with the settings page, so it attributes skeletons
+ * to runtimes exactly as the export does.
+ */
+export async function spineSkeletonVersion(file: string, named: string = file): Promise<SpineVersion | null> {
+  const ext = path.extname(named).toLowerCase();
+  try {
+    if (ext === '.skel') return detectSpineVersion(new Uint8Array(await readFile(file)));
+    if (ext === '.json') return detectSpineVersionJson(await readFile(file, 'utf8'));
+  } catch { /* unreadable — cookAssets already warned */ }
+  return null;
 }
 
 /**
@@ -175,19 +271,11 @@ export async function scanSpineSkeletons(
   const byVersion = new Map<SpineVersion, string[]>();
   for (const e of cookEntries) {
     if (e.type !== 'spine') continue;
-    const ext = path.extname(e.sourcePath ?? e.path).toLowerCase();
-    try {
-      let v: SpineVersion | null = null;
-      if (ext === '.skel') {
-        v = detectSpineVersion(new Uint8Array(await readFile(path.join(stagedDir, e.path))));
-      } else if (ext === '.json') {
-        v = detectSpineVersionJson(await readFile(path.join(stagedDir, e.path), 'utf8'));
-      }
-      if (!v) continue;
-      const list = byVersion.get(v) ?? [];
-      list.push(e.sourcePath ?? e.path);
-      byVersion.set(v, list);
-    } catch { /* unreadable cook entry — cookAssets already warned */ }
+    const v = await spineSkeletonVersion(path.join(stagedDir, e.path), e.sourcePath ?? e.path);
+    if (!v) continue;
+    const list = byVersion.get(v) ?? [];
+    list.push(e.sourcePath ?? e.path);
+    byVersion.set(v, list);
   }
   return byVersion;
 }

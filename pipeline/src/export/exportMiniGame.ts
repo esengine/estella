@@ -33,7 +33,7 @@ import { packagedDebugChannel } from './debugChannel';
 import { packagedHotUpdate } from './hotUpdateConfig';
 import { loadEsbuild } from '../bundle/esbuildRuntime';
 import { liteEngineAnswer, scriptsMentionOmitted } from './liteEngine';
-import type { ProjectFeatures, ProjectPackaging } from '../project/format';
+import type { ModuleChoice, ProjectFeatures, ProjectPackaging } from '../project/format';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, withAudioLoadTypes, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
@@ -51,7 +51,7 @@ import { breakdownOf, type ModuleBytes } from './bundleBreakdown';
 import { esengineAlias } from '../bundle/esengineResolve';
 import { officialPackagesPlugin } from '../bundle/officialPackages';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
-import { scanSideModuleIds, sideModuleFiles, textureDecoderBytes } from '../bundle/sideModuleScan';
+import { planSideModules, spineRefusalMessage, sideModuleFiles, textureDecoderBytes, type SpineRuntimePlan } from '../bundle/sideModuleScan';
 import { exportedAssetFiles, pruneExportedAssets } from './assetCleanup';
 import { OPEN_DATA_DIR, isEsModule } from './miniGameExportProfile';
 import type { RpkSigningKey } from './rpk';
@@ -82,6 +82,8 @@ export interface ExportMiniGameResult {
   included: number;
   warnings: string[];
   errors: string[];
+  /** Each Spine runtime, whether this package carries it, and why. */
+  spineRuntimes?: SpineRuntimePlan['decisions'];
   /** @internal Why each asset is in the build; the size report consumes and drops it. */
   inclusion?: Record<string, Inclusion>;
   /** What each subsystem costs inside `game-bundle.js`, largest first. The bundle
@@ -222,11 +224,18 @@ async function scanSideModules(
   wasmDir: string,
   errors: string[],
   forced: readonly string[],
-  physics3dBackend?: Physics3DBackend,
+  physics3dBackend: Physics3DBackend | undefined,
+  choices: Readonly<Record<string, ModuleChoice>>,
+  onSpine: (plan: SpineRuntimePlan) => void,
 ): Promise<Array<{ id: string; file: string }>> {
-  const ids = await scanSideModuleIds({
-    root, includedPaths, cookEntries, stagedDir: absOut, forced, physics3dBackend,
+  // One decision for every target (resolveSpineRuntimes): a mini-game pays for
+  // each Spine runtime it carries, and fails to boot a skeleton whose runtime it
+  // dropped, so the project's per-runtime choice is applied here too.
+  const { ids, spine } = await planSideModules({
+    root, includedPaths, cookEntries, stagedDir: absOut, forced, physics3dBackend, choices,
   });
+  for (const r of spine.refused) errors.push(spineRefusalMessage(r));
+  onSpine(spine);
   const { files, unknown } = sideModuleFiles(ids);
   for (const id of unknown) errors.push(`internal: no artifact mapping for side module "${id}"`);
 
@@ -443,10 +452,14 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // 1b. Scan the shipped content for the optional modules it needs (physics/spine),
   //     so the generated entry requires exactly those — the export-time half of
   //     the runtime's self-gating.
+  const moduleChoiceMap = moduleChoices(opts.features, opts.modulesByPlatform?.[profile.id]);
+  let spineRuntimes: SpineRuntimePlan['decisions'] | undefined;
   const engineSideModules = await scanSideModules(
     profile, opts.root, cook.includedPaths, cookEntries, absOut, opts.wasmDir, errors,
-    forcedSideModules(moduleChoices(opts.features, opts.modulesByPlatform?.[profile.id])),
+    forcedSideModules(moduleChoiceMap),
     opts.features?.physics?.backend3d,
+    moduleChoiceMap,
+    (spine) => { spineRuntimes = spine.decisions; },
   );
   // …plus the ones the PROJECT supplies. They are not scanned for: a project put
   // them in `.esengine/modules/` in order to use them, and unlike physics or
@@ -775,5 +788,6 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     // export that made them names them.
     subPackageRoots: subPackages.subPackages.map((sp) => sp.root),
     ...(Object.keys(packedFrom).length > 0 ? { packedFrom } : {}),
+    ...(spineRuntimes ? { spineRuntimes } : {}),
   };
 }

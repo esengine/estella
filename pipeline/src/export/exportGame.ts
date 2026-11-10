@@ -87,7 +87,7 @@ import { sizeSettingsOf } from './sizeHistory';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { subsystemGapWarnings, targetGaps } from '../project/targetSupport';
 import { contentSubsystems } from './contentSubsystems';
-import { scanSideModuleIds, scanSpineSkeletons, sideModuleFiles, shipsSideModule, textureDecoderBytes } from '../bundle/sideModuleScan';
+import { planSideModules, spineRefusalMessage, type SpineRuntimeDecision, sideModuleFiles, shipsSideModule, textureDecoderBytes } from '../bundle/sideModuleScan';
 import { nativeSpineMismatch } from './nativeTemplates';
 import { MODULES, NATIVE_MODULE_REGISTRY } from '../../../tools/nativeScriptModules.js';
 
@@ -287,6 +287,9 @@ export interface ExportGameResult {
   packedFrom?: Record<string, number>;
   warnings: string[];
   errors: string[];
+  /** Each Spine runtime, whether this package carries it, and why — detected from
+   *  a skeleton, included or excluded in Project Settings, or unused. */
+  spineRuntimes?: readonly SpineRuntimeDecision[];
   /** A native target's bundle id, as the installed app is known to the OS. */
   appId?: string;
   /** Android: the generated Gradle project, for the editor to reveal. Absent
@@ -946,6 +949,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   let appId: string | undefined;
   let androidProject: string | undefined;
   let apkFile: string | undefined;
+  let spineRuntimes: readonly SpineRuntimeDecision[] | undefined;
   let aabFile: string | undefined;
   /** Desktop: one assembled app per desktop OS a template is installed for. */
   let appBundles: { os: DesktopOs; dir: string }[] = [];
@@ -1043,24 +1047,27 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // asset model in the package — the mini-game export has always done this.
   await rm(path.join(payloadDir, 'assets.manifest.json'), { force: true });
 
-  // A native host links one Spine runtime, so a skeleton of another version
-  // does not play on it (#115). Read from the files: the project setting is a
-  // preference, and editor Play loads every version.
-  const nativeSpine = nativeContent
-    ? await scanSpineSkeletons(cookEntries, payloadDir) : new Map<string, string[]>();
-
-  // What wasm this project's content pulls in — evidence for the plan below, and
-  // the filter the runtime tree is copied through further down.
-  const sideModuleIds = !nativeContent && existsSync(opts.wasmDir)
-    ? await scanSideModuleIds({
-      root: opts.root, includedPaths: cook.includedPaths, cookEntries,
-      stagedDir: payloadDir,
-      // One path for old and new: moduleChoices reads `physics.enabled` as an
-      // include, so the legacy flag arrives here as the choice it always meant.
-      forced: forcedSideModules(moduleChoices(opts.features, opts.modulesByPlatform?.[platform])),
-      physics3dBackend: opts.features?.physics?.backend3d,
-    })
-    : [];
+  // What this package's content pulls in, decided once for every target: the
+  // web's side modules and, on Android, which Spine release libraries ship. The
+  // project's per-module choices (Spine per runtime) are applied here, so a
+  // runtime only code reaches can be included and one detection over-collected
+  // excluded — and an exclusion the content contradicts fails the export.
+  const choices = moduleChoices(opts.features, opts.modulesByPlatform?.[platform]);
+  const sidePlan = await planSideModules({
+    root: opts.root, includedPaths: cook.includedPaths, cookEntries,
+    stagedDir: payloadDir,
+    // One path for old and new: moduleChoices reads `physics.enabled` as an
+    // include, so the legacy flag arrives here as the choice it always meant.
+    forced: forcedSideModules(choices),
+    physics3dBackend: opts.features?.physics?.backend3d,
+    choices,
+  });
+  for (const r of sidePlan.spine.refused) errors.push(spineRefusalMessage(r));
+  spineRuntimes = sidePlan.spine.decisions;
+  /** The Spine runtimes a native package carries, with the skeletons each reads:
+   *  Android packs one library per entry; the other targets carry every release. */
+  const nativeSpine = new Map(sidePlan.spine.versions.map((v) => [v, sidePlan.skeletons.get(v) ?? []]));
+  const sideModuleIds = !nativeContent && existsSync(opts.wasmDir) ? sidePlan.ids : [];
   /** The subpaths this package installs, and whether a lean entry can carry it.
    *  Set on the browser path once the project's own imports are known. */
   let plan: EngineInstallPlan = { lean: false, subpaths: [], refused: [] };
@@ -1452,5 +1459,6 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     ...(appBundles.length > 0 ? { appBundles } : {}),
     ...(steamChecklist ? { steamChecklist } : {}),
     ...(splashBytes !== undefined ? { splashBytes } : {}),
+    ...(spineRuntimes ? { spineRuntimes } : {}),
   };
 }

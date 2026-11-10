@@ -39,10 +39,10 @@ import type { ScreenOrientation } from './orientationHtml';
 import { genericPlayableProfile, playableAdInjection, isPlayableZipFileName, type PlayableAdProfile } from './playableAdProfile';
 import { checkPlayable, type PlayableCheckReport } from './playableCheck';
 import { makeZip } from '../../../build-tools/utils/zip.js';
-import { scanSideModuleIds, sideModuleFiles } from '../bundle/sideModuleScan';
+import { planSideModules, spineRefusalMessage, sideModuleFiles } from '../bundle/sideModuleScan';
 import type { Physics3DBackend } from 'esengine';
 import { forcedSideModules, moduleChoices } from '../bundle/engineInstalls';
-import type { ProjectFeatures, ProjectPackaging } from '../project/format';
+import type { ModuleChoice, ProjectFeatures, ProjectPackaging } from '../project/format';
 
 export interface ExportPlayableResult {
   ok: boolean;
@@ -160,11 +160,15 @@ async function collectSideModules(
   wasmDir: string,
   errors: string[],
   forced: readonly string[],
-  physics3dBackend?: Physics3DBackend,
+  physics3dBackend: Physics3DBackend | undefined,
+  choices: Readonly<Record<string, ModuleChoice>>,
 ): Promise<Record<string, { glue: PackedBytes; wasm: PackedBytes }>> {
-  const ids = await scanSideModuleIds({
-    root, includedPaths, cookEntries: manifestEntries, stagedDir: cookDir, forced, physics3dBackend,
+  // A playable inlines every runtime it carries into one file under a hard size
+  // cap, so it takes the same per-runtime Spine decision as every other target.
+  const { ids, spine } = await planSideModules({
+    root, includedPaths, cookEntries: manifestEntries, stagedDir: cookDir, forced, physics3dBackend, choices,
   });
+  for (const r of spine.refused) errors.push(spineRefusalMessage(r));
   const { files, unknown } = sideModuleFiles(ids);
   for (const id of unknown) errors.push(`internal: no artifact mapping for side module "${id}"`);
 
@@ -371,10 +375,12 @@ export async function exportPlayable(opts: {
   //     A needed module missing from wasmDir is a HARD error — better a failed
   //     export than a playable that silently ships without physics.
   progress({ phase: 'Embedding modules' });
+  const playableChoices = moduleChoices(opts.features, opts.modulesByPlatform?.playable);
   const sideModules = await collectSideModules(
     opts.root, cook.includedPaths, manifestEntries, cookDir, opts.wasmDir, errors,
-    forcedSideModules(moduleChoices(opts.features, opts.modulesByPlatform?.playable)),
+    forcedSideModules(playableChoices),
     opts.features?.physics?.backend3d,
+    playableChoices,
   );
 
   // 6. Assemble once for each measured candidate, with fixed engine/script spans.

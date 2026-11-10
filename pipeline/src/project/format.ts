@@ -134,6 +134,18 @@ export interface ProjectScripts {
  */
 export type ModuleChoice = 'auto' | 'include' | 'exclude';
 
+/**
+ * The `features.modules` key for one Spine runtime: `esengine/spine@3.8`. Spine
+ * is the one module with several runtimes, and which ones a package carries is
+ * the question that sizes it — a mini-game or an Android package pays for each.
+ * `auto` carries a runtime when a shipped skeleton was exported from it;
+ * `include` carries it for skeletons only code loads; `exclude` drops it, and an
+ * export whose content needs it fails (see resolveSpineRuntimes).
+ */
+export function spineChoiceKey(version: string): string {
+  return `esengine/spine@${version}`;
+}
+
 export interface ProjectFeatures {
   /**
    * Per-module override, keyed by the `esengine/` subpath that installs it — the

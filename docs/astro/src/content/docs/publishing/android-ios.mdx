@@ -232,6 +232,22 @@ library (0.2 to 1 MB per ABI). The export reads the version of every skeleton
 it packages and includes only the libraries those skeletons need. On iOS and
 the desktop all versions are linked into the app, which adds about 1 MB.
 
+Which runtimes a package carries is decided once for every target: the web,
+playables, mini-games and Android. Project Settings → Spine has a row per
+runtime, and each row says what the build will do with it:
+
+- **Auto** (the default) carries the runtime when a packaged skeleton was
+  exported from it.
+- **Include** carries it even when no packaged skeleton uses it. Use it for
+  skeletons that only code loads, such as a path built at run time or content
+  fetched later.
+- **Exclude** leaves it out. If a packaged skeleton needs that runtime, the
+  export fails and names the skeleton, so it never ships a skeleton that cannot
+  play.
+
+The export result lists every runtime with the reason it was carried or left
+out.
+
 A runtime template from an older release carries a single Spine version. If
 you package with one, the export lists every skeleton the template cannot
 play. Install this editor version's template from Package Project to fix it.
