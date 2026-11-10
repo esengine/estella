@@ -4248,6 +4248,8 @@ export const NOTED = {
     {"note": "A 2D character can be rigged in the editor, with no other program."},
   "fix(text): a glyph's outline costs what its size does, and text too large for a bitmap glyph draws from a distance field":
     {"note": "Zooming in on outlined text no longer freezes the editor."},
+  "feat(terrain): a tiled terrain's heights export to one image and import from one, over every tile or only the loaded ones":
+    {"note": "A tiled terrain exports and imports its heightmap, over every tile or only the loaded ones."},
   "fix(editor): a tiled terrain's .esterrain is a known asset, and the cell load and split buttons carry their state and tip through Button's own props":
     {"note": "Tiled terrain can be sculpted and painted, and a save writes only what changed."},
   "feat(terrain): tiled ground is sculpted and painted on the tiles in memory, a changed tile stays until it is saved, and a save writes only what changed":

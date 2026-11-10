@@ -142,3 +142,55 @@ describe('brushes on ground kept as tiles', () => {
         expect(out.document?.overviewSplat).toBe('o_splat.png');
     });
 });
+
+describe('a heightmap in and out of ground kept as tiles', () => {
+    const heightsOf = (img: { width: number; height: number; pixels: Uint8Array }): Float32Array =>
+        Float32Array.from({ length: img.width * img.height }, (_, k) => (img.pixels[k * 4]! * 256 + img.pixels[k * 4 + 1]!) / 65535);
+
+    it('exports every tile as the whole field', async () => {
+        const t = tiled();
+        const out = (await t.edit.exportImage('all'))!;
+        expect([out.width, out.height]).toEqual([N, N]);
+        const got = heightsOf(out);
+        for (let k = 0; k < N * N; k++) expect(got[k]).toBeCloseTo(ground(k % N, Math.floor(k / N)), 4);
+    });
+
+    it('exports what is loaded at the whole size, the rest from the overview, reading nothing', async () => {
+        const t = tiled();
+        await t.source.readTile(1, 0);
+        await t.source.readTile(2, 1);
+        t.reads.length = 0;
+        const out = (await t.edit.exportImage('loaded'))!;
+        expect(t.reads).toEqual([]);
+        expect([out.width, out.height]).toEqual([N, N]);
+        const got = heightsOf(out);
+        expect(got[3 * N + T - 1 + 3]).toBeCloseTo(ground(T - 1 + 3, 3), 4);
+        const off = -SIZE / 2 + 3 * SIZE / (N - 1);
+        const fromOverview = (t.source.region(off, off, 1e9, 1) as { heights: Float32Array }).heights[0]! / HEIGHT;
+        expect(got[3 * N + 3]).toBeCloseTo(fromOverview, 4);
+        expect(await tiled().edit.exportImage('loaded')).toBeNull();
+    });
+
+    it('imports onto every tile, or only those in memory, and the overview follows', async () => {
+        const flat: Heightfield = { width: 5, height: 5, data: new Float32Array(25).fill(0.25) };
+        const all = tiled();
+        await all.source.readTile(0, 0);
+        const written = all.edit.importImage(flat, 'all').map((i) => i.path);
+        expect(written.length).toBe(TILES * TILES + 1);
+        expect(all.source.height(-230, -230)).toBeCloseTo(25, 4);
+        expect(all.source.overview.data.every((v) => Math.abs(v - 0.25) < 1e-6)).toBe(true);
+
+        const some = tiled();
+        await some.source.readTile(0, 0);
+        expect(some.edit.importImage(flat, 'loaded').map((i) => i.path)).toEqual(['t0_0.png', 'o.png']);
+        expect(some.source.overview.data[0]).toBeCloseTo(0.25, 6);
+        expect(some.source.overview.data[80]).not.toBeCloseTo(0.25, 3);
+    });
+
+    it('refuses to import over changes not saved', async () => {
+        const t = tiled();
+        await loadAll(t.source);
+        t.edit.sculpt(SculptMode.Raise, 0, 0, 30, 0.5, 10);
+        expect(() => t.edit.importImage({ width: 2, height: 2, data: new Float32Array(4) }, 'all')).toThrow(/save or undo/);
+    });
+});

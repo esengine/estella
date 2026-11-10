@@ -163,6 +163,62 @@ export class TiledGroundEdit {
         return { images, document: named ? doc : null };
     }
 
+    /**
+     * The whole area as one heightmap image, the size {@link importImage} takes: from every tile (`all`, each read in turn), or from
+     * the tiles in memory (`loaded`), the rest from the overview. Null when `loaded` finds no tile in memory.
+     */
+    async exportImage(mode: 'all' | 'loaded'): Promise<{ width: number; height: number; pixels: Uint8Array } | null> {
+        const s = this.source, n = s.doc.tileSamples - 1, t = n + 1;
+        const chosen = s.doc.tiles.filter((e) => mode === 'all' || s.tileAt(e.x, e.z));
+        if (chosen.length === 0) return null;
+        const x0 = 0, z0 = 0;
+        const field: Heightfield = { width: s.samplesX, height: s.samplesZ, data: new Float32Array(s.samplesX * s.samplesZ) };
+        const ov = s.overview;
+        for (let j = 0; j < field.height; j++) for (let i = 0; i < field.width; i++) {
+            const u = (x0 + i) / (s.samplesX - 1) * (ov.width - 1), v = (z0 + j) / (s.samplesZ - 1) * (ov.height - 1);
+            field.data[j * field.width + i] = bilinear(ov.data, ov.width, u, v);
+        }
+        for (const e of chosen) {
+            const tile = s.tileAt(e.x, e.z) ?? (mode === 'all' ? await s.readTile(e.x, e.z) : null);
+            if (!tile) continue;
+            for (let j = 0; j < t; j++) {
+                const row = (e.z * n + j - z0) * field.width + (e.x * n - x0);
+                field.data.set(tile.field.data.subarray(j * t, j * t + t), row);
+            }
+        }
+        return { width: field.width, height: field.height, pixels: encodeHeightmap(field) };
+    }
+
+    /**
+     * A heightmap laid over the ground: on every tile (`all`) or the tiles in memory (`loaded`). `field` covers the whole area and is
+     * resampled to it if its size differs. The tiles in memory take it at once; what comes back is every image to write (the tiles'
+     * and the overview's). Refused while there are changes not saved, which it would overwrite.
+     */
+    importImage(field: Heightfield, mode: 'all' | 'loaded'): TiledGroundImage[] {
+        const s = this.source, n = s.doc.tileSamples - 1, t = n + 1;
+        if (s.dirtyTiles().length > 0 || s.overviewDirty) throw new Error('save or undo the changes to this terrain before importing over it');
+        const at = (gi: number, gj: number): number => bilinear(field.data, field.width,
+            gi / (s.samplesX - 1) * (field.width - 1), gj / (s.samplesZ - 1) * (field.height - 1));
+        const chosen = s.doc.tiles.filter((e) => mode === 'all' || s.tileAt(e.x, e.z));
+        const images: TiledGroundImage[] = [];
+        for (const e of chosen) {
+            const heights: Heightfield = { width: t, height: t, data: new Float32Array(t * t) };
+            for (let j = 0; j < t; j++) for (let i = 0; i < t; i++) heights.data[j * t + i] = at(e.x * n + i, e.z * n + j);
+            const tile = s.tileAt(e.x, e.z);
+            if (tile) tile.field.data.set(heights.data);
+            images.push({ path: e.height, width: t, height: t, pixels: encodeHeightmap(heights) });
+        }
+        const ov = s.overview;
+        for (let oj = 0; oj < ov.height; oj++) for (let oi = 0; oi < ov.width; oi++) {
+            const gi = oi / (ov.width - 1) * (s.samplesX - 1), gj = oj / (ov.height - 1) * (s.samplesZ - 1);
+            const tx = Math.min(Math.floor(gi / n), s.doc.tilesX - 1), tz = Math.min(Math.floor(gj / n), s.doc.tilesZ - 1);
+            if (chosen.some((e) => e.x === tx && e.z === tz)) ov.data[oj * ov.width + oi] = at(gi, gj);
+        }
+        images.push({ path: s.doc.overview, width: ov.width, height: ov.height, pixels: encodeHeightmap(ov) });
+        this.host.remake(this.world([-this.sizeX / 2, -this.sizeZ / 2, this.sizeX / 2, this.sizeZ / 2]));
+        return images;
+    }
+
     /** After the images of {@link saveImages} are written: the tiles may leave memory again. */
     saved(): void {
         this.source.markSaved();
