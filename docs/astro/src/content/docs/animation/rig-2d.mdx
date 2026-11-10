@@ -26,7 +26,7 @@ Right-click an image in the Content Browser and choose **Create 2D Rig**. Then w
 | **Weights** | **By Distance** binds what is nearest, then paint what that got wrong: pick a bone on the right and drag. `Shift` inverts, `Ctrl` smooths, `[` and `]` change the radius. **Whole Part to Selected Bone** is for a piece that does not bend. |
 | **Deforms** | **New Shape**, then drag to push vertices: a breath, a smile, a bulge. |
 
-**Try Pose** turns bones to see how the weights hold up. It changes nothing in the rig, and **Bind Pose** puts it back. **Place in Scene** saves and instantiates the prefab. Saving again updates every instance in the open scene, keeping what a scene added to one; when the scene has unsaved changes, its instances update the next time it opens.
+**Try Pose** turns bones to see how the weights hold up. It changes nothing in the rig, and **Bind Pose** puts it back. **Place in Scene** saves and instantiates the prefab. Saving again updates every instance in the open scene at once, keeping what a scene added to one.
 
 <Aside type="note">
   This version has no adding or deleting single vertices, and a character draws from one image. Generating a part's mesh again clears that part's weights and deforms, and asks first.

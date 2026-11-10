@@ -64,6 +64,13 @@ The editor marks overrides so you always know what's local:
 
 Reset a single field with its ↺ button and the value falls back to the prefab's.
 
+When the prefab changes, the open scene's instances take the change at once: saved from
+Prefab Mode, applied from another instance, rewritten on disk by a pull or another tool, or
+re-baked from the 2D rig it came from. Each instance keeps its overrides and anything the scene
+parented inside it, and every entity the prefab still has stays the same entity, so the
+selection and other entities' references to it hold. The scene is not marked as changed,
+because its file stores only the overrides.
+
 ### Apply · Revert · Unpack · Variant
 
 Right-click an instance in the Outliner (or use the Inspector's prefab bar) for the identity
