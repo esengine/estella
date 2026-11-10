@@ -726,7 +726,7 @@ jobs:
       ESTELLA_WIN_H: '920'
     # Forty-two authoring checks are sixteen minutes of it on their own, and four
     # more steps follow. At 30 the job was killed mid-step rather than reporting.
-    timeout-minutes: 45
+    timeout-minutes: 75
 
     steps:
     - uses: actions/checkout@v7
