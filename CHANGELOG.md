@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.101.1] - 2026-11-10
+
 ### Fixed
 
 - **An Android package built for the emulator carries its Spine runtimes on x86_64 too.** v0.101.0 put each Spine runtime's library into the first architecture only, so on an x86_64 emulator or device a Spine skeleton did not load. Phones (arm64) were not affected.
@@ -15310,7 +15312,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.101.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.101.1...HEAD
+[0.101.1]: https://github.com/esengine/estella/compare/v0.101.0...v0.101.1
 [0.101.0]: https://github.com/esengine/estella/compare/v0.100.0...v0.101.0
 [0.100.0]: https://github.com/esengine/estella/compare/v0.99.1...v0.100.0
 [0.99.1]: https://github.com/esengine/estella/compare/v0.99.0...v0.99.1
