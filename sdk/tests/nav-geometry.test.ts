@@ -30,7 +30,8 @@ const BOX = { min: { x: -500, y: -500, z: -500 }, max: { x: 500, y: 500, z: 500 
 /** A static box collider at `at`, plus whatever else the caller wants on it. */
 function addFloor(world: World, at = { x: 0, y: 0, z: 0 }, body = {}, collider = {}): number {
     const e = world.spawn();
-    world.insert(e, Transform, { position: at });
+    // The mock composes nothing, so the world pose a running game composes is written beside the local one.
+    world.insert(e, Transform, { position: at, worldPosition: at });
     world.insert(e, RigidBody3D, { bodyType: 0, ...body });
     world.insert(e, BoxCollider3D, { halfExtents: { x: 100, y: 10, z: 100 }, ...collider });
     return e;
@@ -50,6 +51,29 @@ function boundsOf(geo: { verts: Float32Array }): { min: number[]; max: number[] 
 }
 
 describe('collectNavGeometry', () => {
+    // An imported level is a MeshCollider3D on each mesh and no RigidBody3D: static, as in Unity and as the solver
+    // builds it. It baked to no ground, and an agent on Saltline's yard had nowhere to walk.
+    it('takes a collider with no RigidBody3D as ground, at its world pose', () => {
+        const world = testWorld();
+        const e = world.spawn();
+        world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 }, worldPosition: { x: 50, y: 20, z: -30 } });
+        world.insert(e, BoxCollider3D, { halfExtents: { x: 100, y: 10, z: 100 } });
+        const geo = collectNavGeometry(world, BOX);
+        expect(geo.bodyCount).toBe(1);
+        const { min, max } = boundsOf(geo);
+        expect(min).toEqual([-50, 10, -130]);
+        expect(max).toEqual([150, 30, 70]);
+    });
+
+    it('leaves a collider-only character out of the ground', () => {
+        const world = testWorld();
+        const e = world.spawn();
+        world.insert(e, Transform, { position: { x: 0, y: 0, z: 0 }, worldPosition: { x: 0, y: 0, z: 0 } });
+        world.insert(e, BoxCollider3D, { halfExtents: { x: 100, y: 10, z: 100 } });
+        world.insert(e, CharacterController3D);
+        expect(collectNavGeometry(world, BOX).bodyCount).toBe(0);
+    });
+
     it('takes a static collider, at the size and place the scene put it', () => {
         const world = testWorld();
         addFloor(world, { x: 50, y: 20, z: -30 });

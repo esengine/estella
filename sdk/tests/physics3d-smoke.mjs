@@ -198,6 +198,20 @@ check('a character walks where it is sent', walked.x > landed.x + 0.8,
       `x=${walked.x.toFixed(4)} from ${landed.x.toFixed(4)}`);
 check('and stays on the ground while walking', walked.ground === ON_GROUND);
 
+// A shot has to meet a character; line of sight and a camera's boom must not. A ray across the hero's capsule at
+// chest height: the plain one passes it, the one that asks for characters stops on its surface, 0.3 short of its axis.
+{
+    const ox = walked.x, ray = (flags, mask = 0) => (m._physics3d_raycastWith(ox, 0.8, -5, 0, 0, 10, mask, flags) ? readRay() : null);
+    const plain = ray(0);
+    check('a plain ray passes through a character', !plain || plain.entity !== 9, JSON.stringify(plain));
+    const shot = ray(1);
+    check('a ray asking for characters meets one', shot && shot.entity === 9, JSON.stringify(shot));
+    check('on its capsule, 0.3 before its axis', shot && near(shot.z, -0.3, 0.02) && near(shot.fraction, 0.47, 0.01),
+          `z=${shot?.z?.toFixed(4)} fraction=${shot?.fraction?.toFixed(4)}`);
+    check('with the normal facing the ray', shot && near(shot.nz, -1, 0.05), `nz=${shot?.nz?.toFixed(4)}`);
+    check('and not when its layer is masked out', !ray(1, 1 << 1));
+}
+
 // A 0.2m step is climbed rather than stopped at: without WalkStairs the character
 // stops dead against it, so the y AFTER is what tells the two apart.
 m._physics3d_addBox(10, 0.5, 0.1, 5, walked.x + 1.3, 0.1, 0, ...IDENTITY,

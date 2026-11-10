@@ -848,6 +848,48 @@ int physics3d_raycast(float ox, float oy, float oz, float dx, float dy, float dz
     return 1;
 }
 
+/**
+ * @brief The world's nearest hit, or a character's when one is nearer and `flags` bit 0 asks for them.
+ * @details A CharacterVirtual is not a body, so the narrow phase cannot meet it; each capsule is cast against in its
+ *          own space instead, which is what Jolt's own CharacterVirtual queries do. A ray that starts inside a capsule
+ *          meets it at 0 — a shooter's own character is left out by its layer.
+ */
+EMSCRIPTEN_KEEPALIVE
+int physics3d_raycastWith(float ox, float oy, float oz, float dx, float dy, float dz,
+                          uint32_t layerMask, uint32_t flags) {
+    const int worldHit = physics3d_raycast(ox, oy, oz, dx, dy, dz, layerMask);
+    if ((flags & 1u) == 0 || !g().isValid()) return worldHit;
+    float best = worldHit ? g().queryBuffer[1] : 1.0f;
+    const RRayCast ray{RVec3(ox, oy, oz), Vec3(dx, dy, dz)};
+    uint32_t entity = 0;
+    Vec3 normal = Vec3::sZero();
+    bool found = false;
+    for (const auto& entry : g().characters) {
+        const auto layer = g().characterLayers.find(entry.first);
+        if (!layerPasses(layerMask, layer == g().characterLayers.end() ? 0u : layer->second)) continue;
+        const auto owner = g().entityOf.find(entry.first | CHARACTER_ID_TAG);
+        if (owner == g().entityOf.end()) continue;
+        const RMat44 com = entry.second->GetCenterOfMassTransform();
+        const RayCast local(ray.Transformed(com.InversedRotationTranslation()));
+        RayCastResult hit;
+        hit.mFraction = best;
+        const Shape* shape = entry.second->GetShape();
+        if (!shape->CastRay(local, SubShapeIDCreator(), hit) || hit.mFraction >= best) continue;
+        best = hit.mFraction;
+        entity = owner->second;
+        normal = com.Multiply3x3(shape->GetSurfaceNormal(hit.mSubShapeID2, local.GetPointOnRay(best))).NormalizedOr(Vec3::sAxisY());
+        found = true;
+    }
+    if (!found) return worldHit;
+    const RVec3 point = ray.GetPointOnRay(best);
+    g().queryBuffer = {
+        static_cast<float>(entity), best,
+        static_cast<float>(point.GetX()), static_cast<float>(point.GetY()), static_cast<float>(point.GetZ()),
+        normal.GetX(), normal.GetY(), normal.GetZ(),
+    };
+    return 1;
+}
+
 // Readback
 
 EMSCRIPTEN_KEEPALIVE

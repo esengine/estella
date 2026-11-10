@@ -386,21 +386,55 @@ int physics3d_sphereCast(float px, float py, float pz, float radius,
 
 EMSCRIPTEN_KEEPALIVE
 int physics3d_raycast(float ox, float oy, float oz, float dx, float dy, float dz, uint32_t layerMask) {
+    return physics3d_raycastWith(ox, oy, oz, dx, dy, dz, layerMask, 0);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics3d_raycastWith(float ox, float oy, float oz, float dx, float dy, float dz, uint32_t layerMask,
+                          uint32_t flags) {
     g().queryBuffer.clear();
     if (!g().isValid()) return 0;
     PxVec3 dir(dx, dy, dz);
     const float length = dir.normalizeSafe();
     if (!(length > 0.0f)) return 0;
+    const PxVec3 origin(ox, oy, oz);
+    float best = length;
+    PxVec3 point(0.0f), normal(0.0f);
+    uint32_t entity = 0;
+    bool found = false;
     PxRaycastBuffer hit;
     LayerFilter filter(layerMask, false);
-    const PxVec3 origin(ox, oy, oz);
-    if (!g().scene->raycast(origin, dir, length, hit, PxHitFlag::ePOSITION | PxHitFlag::eNORMAL,
-                            queryData(), &filter)
-        || !hit.hasBlock) return 0;
-    const PxRaycastHit& b = hit.block;
-    const PxVec3 point = origin + dir * b.distance;
-    g().queryBuffer = {static_cast<float>(px3::entityOf(b.actor)), b.distance / length,
-                       point.x, point.y, point.z, b.normal.x, b.normal.y, b.normal.z};
+    if (g().scene->raycast(origin, dir, length, hit, PxHitFlag::ePOSITION | PxHitFlag::eNORMAL, queryData(), &filter)
+        && hit.hasBlock) {
+        best = hit.block.distance;
+        point = origin + dir * best;
+        normal = hit.block.normal;
+        entity = px3::entityOf(hit.block.actor);
+        found = true;
+    }
+    // Characters where they are NOW: a controller's actor reaches the pose a move gave it only at the next simulate, so
+    // the scene would answer with last step's capsule. Cast against each one directly, as the Jolt backend does.
+    if ((flags & 1u) != 0) {
+        const PxQuat upright(PxHalfPi, PxVec3(0.0f, 0.0f, 1.0f));
+        const uint32_t mask = layerMask == 0 ? 0xFFFFFFFFu : layerMask;
+        for (const auto& entry : g().characters) {
+            const Character& c = *entry.second;
+            if ((mask & (1u << c.layer)) == 0) continue;
+            auto& capsule = static_cast<PxCapsuleController&>(*c.controller);
+            const PxCapsuleGeometry geometry(capsule.getRadius(), 0.5f * capsule.getHeight());
+            const PxTransform pose(toVec(c.controller->getPosition()), upright);
+            PxRaycastHit h;
+            if (PxGeometryQuery::raycast(origin, dir, geometry, pose, best, PxHitFlag::ePOSITION | PxHitFlag::eNORMAL, 1, &h) == 0) continue;
+            if (h.distance >= best && found) continue;
+            best = h.distance;
+            point = origin + dir * best;
+            normal = h.normal;
+            entity = c.entity;
+            found = true;
+        }
+    }
+    if (!found) return 0;
+    g().queryBuffer = {static_cast<float>(entity), best / length, point.x, point.y, point.z, normal.x, normal.y, normal.z};
     return 1;
 }
 

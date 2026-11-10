@@ -23,7 +23,9 @@ import { Physics3D } from '../../physics3d/Physics3DPlugin';
 import type { Physics3DQueries } from '../../physics3d/Physics3DQueries';
 import { senseTarget, facingFromRotation } from './sense';
 import type { Vec3 } from '../../types';
-import { Perceiver, Perception, PerceptionTarget, type PerceptionData } from './components';
+import { Perceiver, Perception, PerceptionTarget, Noise, type PerceptionData, type NoisePayload } from './components';
+import { EventReader } from '../../ecs/event';
+import { Res, Time, type TimeData } from '../../ecs/resource';
 
 /** The slice of `World` the perception step needs — lets tests inject a fake. */
 export interface PerceptionWorldView {
@@ -32,6 +34,8 @@ export interface PerceptionWorldView {
     set<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>): void;
     has(entity: Entity, component: AnyComponentDef): boolean;
     insert<C extends AnyComponentDef>(entity: Entity, component: C, data?: Partial<ComponentData<C>>): unknown;
+    /** Make composed (world) poses current; a fake world without them leaves this out. */
+    ensureTransformsComposed?(): void;
 }
 
 /**
@@ -46,18 +50,28 @@ export type LosCheck = (
     layers: number,
 ) => boolean;
 
-/** Update every Perceiver's Perception with the nearest visible target. */
-export function stepPerception(world: PerceptionWorldView, isBlocked?: LosCheck): void {
+/** Where an entity is in the world: its composed pose where the world keeps one, its own otherwise (a fake world). */
+const worldAt = (tf: { position: unknown; worldPosition?: unknown }) => (tf.worldPosition ?? tf.position) as Vec3;
+
+/**
+ * Update every Perceiver's Perception: the nearest visible target, and the nearest noise it heard.
+ * Positions are WORLD positions, so a perceiver can sit on an eye (a head bone, a sensor) and a target on what is
+ * looked at (a player's eye camera); sight measured from one character's feet to another's was cut by every kerb.
+ * `noises` are this step's {@link Noise} events; `dt` ages what was heard before.
+ */
+export function stepPerception(world: PerceptionWorldView, isBlocked?: LosCheck,
+                               noises: readonly NoisePayload[] = [], dt = 0): void {
+    world.ensureTransformsComposed?.();
     const targets = world.getEntitiesWithComponents([PerceptionTarget, Transform]).map(e => {
         const t = world.get(e, Transform);
-        return { e, at: t.position as Vec3 };
+        return { e, at: worldAt(t) };
     });
 
     for (const e of world.getEntitiesWithComponents([Perceiver, Transform])) {
         const cfg = world.get(e, Perceiver);
         const tf = world.get(e, Transform);
-        const at = tf.position as Vec3;
-        const facing = facingFromRotation(tf.rotation, cfg.facingAxis);
+        const at = worldAt(tf);
+        const facing = facingFromRotation((tf.worldRotation ?? tf.rotation) as typeof tf.rotation, cfg.facingAxis);
         const halfFov = ((cfg.fovDegrees * Math.PI) / 180) / 2;
 
         let best: { at: Vec3; distance: number; dir: Vec3 } | null = null;
@@ -70,13 +84,29 @@ export function stepPerception(world: PerceptionWorldView, isBlocked?: LosCheck)
             }
         }
 
+        // Hearing: the nearest noise within reach this step, else what was heard before, a step older.
+        const before = world.has(e, Perception) ? world.get(e, Perception) as Partial<PerceptionData> : null;
+        let heard: NoisePayload | null = null, heardAt = Infinity;
+        const hearing = cfg.hearingRange ?? 0;
+        if (hearing > 0) {
+            for (const n of noises) {
+                if (n.source === e) continue;
+                const d = Math.hypot(n.x - at.x, n.y - at.y, n.z - at.z);
+                if (d <= hearing * (n.loudness ?? 1) && d < heardAt) { heard = n; heardAt = d; }
+            }
+        }
+        const since = before?.sinceHeard ?? -1;
+        const ears = heard
+            ? { heard: true, noiseX: heard.x, noiseY: heard.y, noiseZ: heard.z, sinceHeard: 0 }
+            : { heard: false, noiseX: before?.noiseX ?? 0, noiseY: before?.noiseY ?? 0, noiseZ: before?.noiseZ ?? 0, sinceHeard: since < 0 ? -1 : since + dt };
+
         const p: PerceptionData = best
             ? {
                 visible: true, distance: best.distance,
                 targetX: best.at.x, targetY: best.at.y, targetZ: best.at.z,
-                dirX: best.dir.x, dirY: best.dir.y, dirZ: best.dir.z,
+                dirX: best.dir.x, dirY: best.dir.y, dirZ: best.dir.z, ...ears,
             }
-            : { visible: false, distance: 0, targetX: 0, targetY: 0, targetZ: 0, dirX: 0, dirY: 0, dirZ: 0 };
+            : { visible: false, distance: 0, targetX: 0, targetY: 0, targetZ: 0, dirX: 0, dirY: 0, dirZ: 0, ...ears };
 
         if (world.has(e, Perception)) world.set(e, Perception, p);
         else world.insert(e, Perception, p);
@@ -125,15 +155,15 @@ export class PerceptionPlugin implements Plugin {
         app.addSystemToSchedule(
             Schedule.PreUpdate,
             defineSystem(
-                [GetWorld()],
-                world => {
+                [GetWorld(), EventReader(Noise), Res(Time)],
+                (world, noises: Iterable<NoisePayload>, time: TimeData) => {
                     // The 3D solver first where a scene has one: its bodies are the
                     // walls of a 3D scene, and the 2D one knows nothing about them.
                     const q3d = app.hasResource(Physics3D)
                         ? app.getResource<Physics3DQueries | null>(Physics3D) : null;
                     const physics = app.hasResource(Physics2D) ? app.getResource<Physics2DAPI>(Physics2D) : null;
                     const los = q3d ? makeLosCheck3D(q3d) : physics ? makeLosCheck(physics) : undefined;
-                    stepPerception(world as PerceptionWorldView, los);
+                    stepPerception(world as PerceptionWorldView, los, [...noises], time.delta);
                 },
                 {
                     name: 'PerceptionSystem',

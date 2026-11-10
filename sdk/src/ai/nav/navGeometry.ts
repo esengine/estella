@@ -20,7 +20,7 @@ import type { Entity, Quat, Vec3 } from '../../types';
 import type { World } from '../../ecs/world';
 import { Transform } from '../../ecs/component';
 import {
-    RigidBody3D, MeshCollider3D, ConvexCollider3D,
+    RigidBody3D, MeshCollider3D, ConvexCollider3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D,
     type RigidBody3DData, type MeshCollider3DData, type ConvexCollider3DData,
 } from '../../physics3d/Physics3DComponents';
 import {
@@ -28,6 +28,7 @@ import {
     type Collider3DInstance,
 } from '../../physics3d/ColliderShape3D';
 import { getMeshCollision } from '../../asset/meshCollision';
+import { isImplicitStatic } from '../../physics3d/implicitStatic';
 
 /** World-space triangle soup: `verts` is `vertexCount * 3` floats. */
 export interface NavGeometry {
@@ -53,8 +54,7 @@ export interface CollectNavGeometryOptions {
  * produces no shape at all, so the projection would always report nothing amiss.
  */
 export function navGeometryReady(world: World, layers = 0): boolean {
-    for (const entity of world.getEntitiesWithComponents([RigidBody3D, Transform])) {
-        if (!isBakeable(world, entity, layers)) continue;
+    for (const entity of bakeableEntities(world, layers)) {
         const handle = namedMesh(world, entity);
         if (handle !== 0 && getMeshCollision(handle) === null) return false;
     }
@@ -77,23 +77,23 @@ export function collectNavGeometry(world: World, opts: CollectNavGeometryOptions
     const indices: number[] = [];
     let bodyCount = 0;
 
-    for (const entity of world.getEntitiesWithComponents([RigidBody3D, Transform])) {
-        if (!isBakeable(world, entity, layers)) continue;
+    for (const entity of bakeableEntities(world, layers)) {
         const local = localTriangles(world, entity);
         if (!local) continue;
 
-        // The transform the 3D SOLVER builds its bodies from. A mesh baked from
-        // anywhere else would describe a world the agent does not collide with.
+        // The transform the 3D SOLVER builds its bodies from — the composed WORLD pose, and for a mesh its world
+        // scale. The local pose put every collider under a parent (a prefab's meshes, a level's) somewhere else.
         const tf = world.get(entity, Transform);
-        const at = tf.position as Vec3;
-        const rot = tf.rotation as Quat;
+        const at = (tf.worldPosition ?? tf.position) as Vec3;
+        const rot = (tf.worldRotation ?? tf.rotation) as Quat;
+        const sc = local.scaled ? ((tf.worldScale ?? tf.scale) as Vec3 | undefined) : undefined;
 
         const base = verts.length / 3;
         let minX = Infinity, minY = Infinity, minZ = Infinity;
         let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
         for (let i = 0; i + 2 < local.positions.length; i += 3) {
             const p = rotateVec3ByQuat(rot, {
-                x: local.positions[i]!, y: local.positions[i + 1]!, z: local.positions[i + 2]!,
+                x: local.positions[i]! * (sc?.x ?? 1), y: local.positions[i + 1]! * (sc?.y ?? 1), z: local.positions[i + 2]! * (sc?.z ?? 1),
             });
             const x = at.x + p.x;
             const y = at.y + p.y;
@@ -126,6 +126,27 @@ function isBakeable(world: World, entity: Entity, layers: number): boolean {
     return layers === 0 || (layers & (1 << body.layer)) !== 0;
 }
 
+/**
+ * The ground: every static body, the authored ones and the colliders that are static for having no RigidBody3D
+ * (implicitStatic.ts) — an imported level is a MeshCollider3D on each mesh and nothing else, and baked to no ground.
+ */
+function* bakeableEntities(world: World, layers: number): Iterable<Entity> {
+    // World poses are read below, so they are made current first, as the solver does before it builds a body.
+    world.ensureTransformsComposed?.();
+    for (const entity of world.getEntitiesWithComponents([RigidBody3D, Transform])) {
+        if (isBakeable(world, entity, layers)) yield entity;
+    }
+    const seen = new Set<Entity>();
+    for (const def of IMPLICIT_GROUND) {
+        for (const entity of world.getEntitiesWithComponents([def, Transform])) {
+            if (seen.has(entity) || !isImplicitStatic(world, entity)) continue;
+            seen.add(entity);
+            const layer = (world.get(entity, def) as { layer?: number }).layer ?? 0;
+            if (layers === 0 || (layers & (1 << layer)) !== 0) yield entity;
+        }
+    }
+}
+
 /** The one shape the solver builds for this entity, if it is part of the ground.
  *  A character is an agent walking the mesh rather than part of what it walks
  *  on, and a sensor is a trigger nobody bumps into. */
@@ -140,7 +161,7 @@ function activeCollider(world: World, entity: Entity): Collider3DInstance | null
 
 function localTriangles(
     world: World, entity: Entity,
-): { positions: Float32Array; indices: ArrayLike<number> } | null {
+): { positions: Float32Array; indices: ArrayLike<number>; scaled?: boolean } | null {
     const active = activeCollider(world, entity);
     if (!active) return null;
     if (active.component === 'MeshCollider3D' || active.component === 'ConvexCollider3D') {
@@ -148,9 +169,11 @@ function localTriangles(
         // The hull a convex collider builds is not the mesh, but the mesh's own
         // triangles are what describe where it is; the difference is a dent the
         // voxeliser would have rounded away in any case.
-        return data ? { positions: data.positions, indices: data.indices } : null;
+        return data ? { positions: data.positions, indices: data.indices, scaled: true } : null;
     }
     return collider3DTriangles(active.shape);
 }
 
 const STATIC = 0;
+/** Colliders that are ground on their own, with no RigidBody3D. */
+const IMPLICIT_GROUND = [MeshCollider3D, ConvexCollider3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D] as const;

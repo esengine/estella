@@ -7,8 +7,8 @@
 
 export { senseTarget, facingFromRotation, normalizeAngle, type SenseResult, type FacingAxis } from './sense';
 export {
-    Perceiver, Perception, PerceptionTarget,
-    type PerceiverData, type PerceptionData,
+    Perceiver, Perception, PerceptionTarget, Noise,
+    type PerceiverData, type PerceptionData, type NoisePayload,
 } from './components';
 export {
     PerceptionPlugin, perceptionPlugin, stepPerception, makeLosCheck,

@@ -87,6 +87,9 @@ export interface Physics3DWasmModule {
     _physics3d_setCharacterPosition(characterId: number, px: number, py: number,
                                     pz: number): void;
 
+    /** `_physics3d_raycast` with flags: bit 0 also meets characters. */
+    _physics3d_raycastWith(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number,
+                           layerMask: number, flags: number): number;
     _physics3d_raycast(ox: number, oy: number, oz: number,
                        dx: number, dy: number, dz: number, layerMask: number): number;
     _physics3d_sphereCast(px: number, py: number, pz: number, radius: number,
@@ -163,7 +166,7 @@ export const PHYSICS3D_TRANSFORM_STRIDE = 8;
 const REQUIRED_EXPORTS = [
     '_physics3d_init', '_physics3d_shutdown', '_physics3d_isReady', '_physics3d_step', '_physics3d_setSolver',
     '_physics3d_addBox', '_physics3d_addSphere', '_physics3d_addCapsule',
-    '_physics3d_removeBody', '_physics3d_setTransform', '_physics3d_raycast',
+    '_physics3d_removeBody', '_physics3d_setTransform', '_physics3d_raycast', '_physics3d_raycastWith',
     '_physics3d_transforms', '_physics3d_transformsBytes',
     '_physics3d_addCharacter', '_physics3d_moveCharacter', '_physics3d_removeCharacter',
     '_physics3d_setCharacterPosition',

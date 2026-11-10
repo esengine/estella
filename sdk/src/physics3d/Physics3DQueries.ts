@@ -59,14 +59,22 @@ export class Physics3DQueries {
         return true;
     }
 
-    /** The nearest body along a ray, or null. `direction` carries its length. */
+    /**
+     * The nearest body along a ray, or null. `direction` carries its length.
+     *
+     * Characters (CharacterController3D) are passed through unless `options.characters` asks for them: line of sight and
+     * a camera's boom ask about the world, a shot asks about who is in the way. A ray that starts inside a character
+     * meets it at once, so a shooter leaves its own out by its layer.
+     */
     raycast(origin: { x: number; y: number; z: number },
             direction: { x: number; y: number; z: number },
-            layerMask = 0): Cast3DHit | null {
+            layerMask = 0, options?: { characters?: boolean }): Cast3DHit | null {
         const p = this.ppu_;
-        const hit = this.module_._physics3d_raycast(
-            origin.x / p, origin.y / p, origin.z / p,
-            direction.x / p, direction.y / p, direction.z / p, layerMask);
+        const args = [origin.x / p, origin.y / p, origin.z / p,
+            direction.x / p, direction.y / p, direction.z / p, layerMask] as const;
+        const hit = options?.characters
+            ? this.module_._physics3d_raycastWith(...args, 1)
+            : this.module_._physics3d_raycast(...args);
         return hit ? this.readCast_() : null;
     }
 

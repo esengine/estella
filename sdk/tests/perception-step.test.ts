@@ -129,3 +129,59 @@ describe('stepPerception', () => {
     expect(w.get(p, Perception).targetX).toBe(60);
   });
 });
+
+// Hearing: Saltline's machines come to a gunshot within 45 m, through the containers between. Unreal's hearing sense is
+// the same shape: a noise of some loudness, heard within hearingRange * loudness, walls or not.
+describe('stepPerception hearing', () => {
+  const noise = (x: number, y: number, loudness = 1, source = 0 as Entity) => ({ x, y, z: 0, loudness, source });
+  const listener = (w: FakeWorld, x: number, hearingRange: number) =>
+    w.spawn([[Perceiver, Perceiver.create({ range: 10, hearingRange })], [Transform, tf(x, 0)]]);
+
+  it('hears a noise within reach, where it was made, through anything', () => {
+    const w = new FakeWorld();
+    const p = listener(w, 0, 45);
+    stepPerception(w, () => true, [noise(40, 0)], 0.016);
+    const per = w.get(p, Perception);
+    expect(per.heard).toBe(true);
+    expect(per.visible).toBe(false);
+    expect([per.noiseX, per.noiseY, per.sinceHeard]).toEqual([40, 0, 0]);
+  });
+
+  it('does not hear past its range scaled by loudness, nor a noise of its own, and a deaf one hears nothing', () => {
+    const w = new FakeWorld();
+    const p = listener(w, 0, 45);
+    const deaf = listener(w, 0, 0);
+    stepPerception(w, undefined, [noise(50, 0), noise(20, 0, 0.4), noise(1, 0, 1, p)], 0.016);
+    expect(w.get(p, Perception).heard).toBe(false);
+    expect(w.get(deaf, Perception).heard).toBe(false);
+    stepPerception(w, undefined, [noise(80, 0, 2)], 0.016);
+    expect(w.get(p, Perception).heard).toBe(true);
+  });
+
+  it('keeps where it last heard something, older each step, until it hears again', () => {
+    const w = new FakeWorld();
+    const p = listener(w, 0, 45);
+    stepPerception(w, undefined, [], 0.5);
+    expect(w.get(p, Perception).sinceHeard).toBe(-1);
+    stepPerception(w, undefined, [noise(10, 5)], 0.5);
+    stepPerception(w, undefined, [], 0.5);
+    stepPerception(w, undefined, [], 0.25);
+    const per = w.get(p, Perception);
+    expect([per.heard, per.noiseX, per.noiseY, per.sinceHeard]).toEqual([false, 10, 5, 0.75]);
+  });
+});
+
+// A perceiver on an eye and a target on an eye: both are children, and their own positions are near the origin.
+describe('stepPerception in the world', () => {
+  it('senses from and to WORLD positions where the world keeps them', () => {
+    const w = new FakeWorld();
+    const eye = w.spawn([[Perceiver, Perceiver.create({ range: 100 })],
+      [Transform, { position: { x: 0, y: 0.6, z: 0 }, worldPosition: { x: 10, y: 1.6, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, worldRotation: { x: 0, y: 0, z: 0, w: 1 } }]]);
+    w.spawn([[PerceptionTarget, {}], [Transform, { position: { x: 0, y: 0.7, z: 0 }, worldPosition: { x: 40, y: 1.6, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } }]]);
+    stepPerception(w);
+    const per = w.get(eye, Perception);
+    expect(per.visible).toBe(true);
+    expect(per.distance).toBeCloseTo(30);
+    expect(per.targetX).toBe(40);
+  });
+});

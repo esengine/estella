@@ -36,6 +36,10 @@ int physics3d_isReady();
 void physics3d_step(float dt, int collisionSteps);
 void physics3d_optimize();
 void physics3d_setLayerMask(uint32_t layer, uint32_t mask);
+/// physics3d_raycast with flags: bit 0 also meets characters (a shot, which must hit an enemy that walks).
+/// Plain physics3d_raycast stays blind to them: line of sight and a camera's boom ask about the world.
+int physics3d_raycastWith(float ox, float oy, float oz, float dx, float dy, float dz,
+                          uint32_t layerMask, uint32_t flags);
 /// The project's solver settings. Each value <= 0 keeps the backend's own default
 /// (Jolt's for Jolt, Unity's for PhysX); allowSleep is 0 or 1. After init, before bodies.
 void physics3d_setSolver(int velocityIterations, int positionIterations, int allowSleep,
