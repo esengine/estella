@@ -2672,6 +2672,12 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     // After the lights: what a bake says a surface MIRRORS replaces what the
     // ambient light's own environment would have answered.
     { ES_PROFILE_SCOPE("render.collect.reflections"); collectReflections(registry); }
+    // A view that shows one part of the light keeps only that part, for this camera alone.
+    {
+        const ShadingMode viewMode = view_shading_.get(view_id_);
+        if (viewMode == ShadingMode::DirectLighting) context_.lights().isolate(true);
+        else if (viewMode == ShadingMode::IndirectLighting) context_.lights().isolate(false);
+    }
     // Before the plugins and after nothing: it reads the scene and this camera's
     // projection, both of which are already settled when the collect opens.
     { ES_PROFILE_SCOPE("render.collect.occluders"); collectOccluders(registry); }

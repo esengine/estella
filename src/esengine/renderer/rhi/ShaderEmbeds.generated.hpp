@@ -1092,8 +1092,7 @@ fn esPrevBone(joint : u32) -> mat4x4f {
         let chosen = u32(esInstanceTint().x);
         let own = vec4f(v.a_joints == vec4u(chosen));
         let heat = dot(own, v.a_weights);
-)esshader"
-    R"esshader(        out.v_color = vec4f(select(mix(vec3f(0.2, 0.4, 1.0), vec3f(1.0, 0.25, 0.2), clamp(heat, 0.0, 1.0)),
+        out.v_color = vec4f(select(mix(vec3f(0.2, 0.4, 1.0), vec3f(1.0, 0.25, 0.2), clamp(heat, 0.0, 1.0)),
                                    vec3f(0.1), heat < 0.01), 1.0);
     }
 #endif
@@ -1104,7 +1103,8 @@ fn esPrevBone(joint : u32) -> mat4x4f {
                            select(0.0, 1.0, lmRect.x > 0.0));
 #endif
 #ifdef SHADOW_DEPTH
-    out.v_shadowClip = out.pos;
+)esshader"
+    R"esshader(    out.v_shadowClip = out.pos;
 #endif
 #ifdef ES_VELOCITY
     {

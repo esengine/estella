@@ -275,7 +275,7 @@ void applyShading(ecs::MeshRenderer& mesh, ShadingMode mode) {
         mesh.color = kWireFill;
         mesh.lit = false;
         mesh.opaque = true;
-    } else if (mode == ShadingMode::Clay) {
+    } else if (shadesAsClay(mode)) {
         mesh.texture = {};
         mesh.color = glm::vec4(0.74f, 0.74f, 0.76f, 1.0f);
         mesh.lit = true;

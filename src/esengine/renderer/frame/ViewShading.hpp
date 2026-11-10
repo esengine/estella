@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    ViewShading.hpp
- * @brief   How a view shades the meshes it draws: as authored, clay, flat albedo, or wireframe.
+ * @brief   How a view shades the meshes it draws: as authored, clay, flat albedo, wireframe, or one part of the light.
  */
 #pragma once
 
@@ -28,9 +28,20 @@ enum class ShadingMode : u8 {
     Albedo = 2,
     /// A dark surface with every triangle edge drawn on it, hidden edges hidden.
     Wireframe = 3,
+    /// Clay lit by the lights alone: no ambient, environment, reflection, probe or bake. Unreal's lighting
+    /// components with Indirect off; with IndirectLighting it splits what Clay shows into the two halves.
+    DirectLighting = 4,
+    /// Clay lit by what is NOT a light: the ambient, the environment and sky, reflections, probe volumes and
+    /// bakes. What fills a shadow, on its own.
+    IndirectLighting = 5,
 };
 
-inline constexpr u8 kShadingModeCount = 4;
+inline constexpr u8 kShadingModeCount = 6;
+
+/// Whether a mode draws meshes as clay (the lit neutral surface).
+inline bool shadesAsClay(ShadingMode mode) {
+    return mode == ShadingMode::Clay || mode == ShadingMode::DirectLighting || mode == ShadingMode::IndirectLighting;
+}
 
 /**
  * @brief The one skinned entity a view colours by a joint's weights, and which joint.

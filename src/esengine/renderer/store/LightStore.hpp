@@ -166,6 +166,29 @@ public:
     }
 
     /// What baked indirect light is multiplied by this frame: the day's or the weather's say on a bake of one moment.
+    /**
+     * @brief Keeps one part of the light: @p direct the lights alone, otherwise everything that is not a light.
+     * @details For a view that splits lighting (ShadingMode::DirectLighting / IndirectLighting). Direct zeroes the
+     *          ambient, the environment's both halves (its tint scales the reflection too), the baked columns' and
+     *          the bake's tint, which together are every term indirectIrradiance and envRadiance read. Indirect drops
+     *          every light, tiled ones included.
+     */
+    void isolate(bool direct) {
+        if (direct) {
+            data_.ambient = glm::vec4(0.0f, 0.0f, 0.0f, data_.ambient.w);
+            data_.ambientGround = glm::vec4(0.0f);
+            for (auto& c : data_.envIrradiance) c = glm::vec4(0.0f);
+            data_.envTint = glm::vec4(0.0f);
+            data_.reflParams.y = 0.0f;
+            data_.bakedTint = glm::vec4(0.0f);
+        } else {
+            count_ = 0;
+            tiledCount_ = 0;
+            data_.ambient.w = 0.0f;
+        }
+        dirty_ = true;
+    }
+
     void setBakedTint(const glm::vec3& tint) {
         data_.bakedTint = glm::vec4(tint, 1.0f);
         dirty_ = true;

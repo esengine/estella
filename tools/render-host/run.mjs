@@ -32,6 +32,7 @@
  *   ESTELLA_VERIFY_ORBIT     turn the editor eye before capture ("yaw,pitch" degrees)
  *   ESTELLA_VERIFY_STUDIO    the editor view's studio lighting and exposure (JSON: see the block)
  *   ESTELLA_VERIFY_SHADING   the editor view's clay and albedo shading (any non-empty value; see the block)
+ *   ESTELLA_VERIFY_LIGHTING_SPLIT  the editor view's direct-only and indirect-only lighting against clay (see the block)
  *   ESTELLA_VERIFY_SKIN_WEIGHTS  colour a skinned entity by joint weights (JSON {id, joints}; see the block)
  *   ESTELLA_VERIFY_COUNTERS  engine counters the drawn frame must report (JSON)
  *   ESTELLA_VERIFY_COUNTERS_MAX  counters the frame must stay UNDER — a budget (JSON)
@@ -239,7 +240,7 @@ function finish(result, server) {
     (result.seam?.ok ?? true) && (result.nineSlice?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) && (result.studio?.ok ?? true) && (result.shading?.ok ?? true) && (result.skinWeights?.ok ?? true) &&
-    (result.draws?.ok ?? true) && (result.counters?.ok ?? true) && (result.gpuPasses?.ok ?? true) && (result.frameDebug?.ok ?? true) && (result.edge?.ok ?? true) && (result.cutoutEdge?.ok ?? true) && (result.minified?.ok ?? true) &&
+    (result.draws?.ok ?? true) && (result.lightingSplit?.ok ?? true) && (result.counters?.ok ?? true) && (result.gpuPasses?.ok ?? true) && (result.frameDebug?.ok ?? true) && (result.edge?.ok ?? true) && (result.cutoutEdge?.ok ?? true) && (result.minified?.ok ?? true) &&
     (result.roundtrip?.ok ?? true) && deviceLossOk && meshOk && pickOk;
   const why = assetsOk ? '' : `: could not load ${result.missingAssets.join(', ')}`;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})${why}`);
@@ -1220,6 +1221,58 @@ app.whenReady().then(async () => {
           && L.chroma > 12 && L.spread < A.spread && dAlbedo.differing > 200
           && W.chroma < 6 && W.litShare > 0.003 && W.litShare < 0.2 && dWire.differing > 500 && back.max === 0 };
     }
+    // ESTELLA_VERIFY_LIGHTING_SPLIT: clay C, direct-only D, indirect-only I, authored again. Over the pixels clay lights (the
+    // meshes), I keeps the fill and loses the sun, so it is flatter than C and still above black; D keeps the sun and loses
+    // the fill, so its dark end sits a fill below C's; and the two halves add up to C (a gamma frame adds as it stores).
+    let lightingSplit = null;
+    if (process.env.ESTELLA_VERIFY_LIGHTING_SPLIT) {
+      const api = (call) => exec(`(async () => { const api = window.__estellaHeadless.api; ${call}; await api.step(2, 1 / 60); })()`);
+      await api(`api.setViewShading('clay')`);
+      await readFrame(`window.__split = { C: px.slice() }; return 0;`);
+      await api(`api.setViewShading('directLighting')`);
+      await readFrame(`window.__split.D = px.slice(); return 0;`);
+      await api(`api.setViewShading('indirectLighting')`);
+      await readFrame(`window.__split.I = px.slice(); return 0;`);
+      await api(`api.setViewShading('shaded')`);
+      // ESTELLA_VERIFY_SPLIT_OUT=<prefix>: the three frames as <prefix>-clay.png, -direct.png, -indirect.png, to be looked at.
+      if (process.env.ESTELLA_VERIFY_SPLIT_OUT) {
+        for (const [key, name] of [['C', 'clay'], ['D', 'direct'], ['I', 'indirect']]) {
+          const url = await readFrame(`
+            const P = window.__split[${JSON.stringify(key)}];
+            const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+            const ctx = cv.getContext('2d'); const img = ctx.createImageData(w, h);
+            for (let y = 0; y < h; y++) { const sy = (h - 1 - y) * w * 4; img.data.set(P.subarray(sy, sy + w * 4), y * w * 4); }
+            ctx.putImageData(img, 0, 0);
+            return cv.toDataURL('image/png');
+          `);
+          await writeFile(`${process.env.ESTELLA_VERIFY_SPLIT_OUT}-${name}.png`, Buffer.from(url.split(',')[1], 'base64'));
+        }
+      }
+      lightingSplit = await readFrame(`
+        const { C, D, I } = window.__split;
+        const lum = (P, i) => 0.2126 * P[i] + 0.7152 * P[i + 1] + 0.0722 * P[i + 2];
+        const lc = [], ld = [], li = []; let chroma = 0;
+        for (let i = 0; i < C.length; i += 4) {
+          if (lum(C, i) <= 30) continue;
+          lc.push(lum(C, i)); ld.push(lum(D, i)); li.push(lum(I, i));
+          chroma += Math.max(D[i], D[i + 1], D[i + 2]) - Math.min(D[i], D[i + 1], D[i + 2]);
+          chroma += Math.max(I[i], I[i + 1], I[i + 2]) - Math.min(I[i], I[i + 1], I[i + 2]);
+        }
+        const n = lc.length;
+        const mean = (a) => a.reduce((s, v) => s + v, 0) / Math.max(a.length, 1);
+        const q = (a, f) => { const b = a.slice().sort((x, y) => x - y); return b[Math.floor((b.length - 1) * f)] ?? 0; };
+        return { pixels: n, chroma: n ? chroma / (2 * n) : 0,
+                 clay: { mean: mean(lc), p10: q(lc, 0.1), p90: q(lc, 0.9) },
+                 direct: { mean: mean(ld), p10: q(ld, 0.1), p90: q(ld, 0.9) },
+                 indirect: { mean: mean(li), p10: q(li, 0.1), p90: q(li, 0.9) } };
+      `);
+      const { clay, direct, indirect } = lightingSplit;
+      lightingSplit.ok = lightingSplit.pixels > 500 && lightingSplit.chroma < 6
+        && indirect.mean > 20 && indirect.mean < clay.mean && (indirect.p90 - indirect.p10) < (clay.p90 - clay.p10)
+        && direct.p10 < clay.p10 - 0.5 * indirect.mean
+        && Math.abs(direct.mean + indirect.mean - clay.mean) < 0.1 * clay.mean;
+      console.log('lighting split', JSON.stringify(lightingSplit));
+    }
     // ESTELLA_VERIFY_SKIN_WEIGHTS = {id, joints:[a, b]}: authored A, the entity coloured by joint a,
     // by joint b, authored again. Each joint moves a different part, so the two heat frames differ
     // from each other and from A, each carries the hot end of the ramp, and A2 == A byte for byte.
@@ -1254,7 +1307,7 @@ app.whenReady().then(async () => {
       skinWeights = { H0, H1, dA, dJoints, back,
         ok: H0.hot > 20 && H1.hot > 20 && dA.differing > 300 && dJoints.differing > 300 && back.max === 0 };
     }
-    finish({ ok: true, studio, shading, skinWeights, entityCount, missingAssets, drawCalls, draws, counters, gpuPasses, frameDebug, edge, cutoutEdge, minified, profile, capture, expect, twins, nineSlice, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
+    finish({ ok: true, studio, shading, lightingSplit, skinWeights, entityCount, missingAssets, drawCalls, draws, counters, gpuPasses, frameDebug, edge, cutoutEdge, minified, profile, capture, expect, twins, nineSlice, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

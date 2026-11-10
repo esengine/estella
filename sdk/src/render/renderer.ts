@@ -149,9 +149,13 @@ export interface LightStatus {
  * beside this one would be free to disagree with the picture on screen.
  */
 /** How a view shades its meshes. @experimental */
-export type ViewShading = 'shaded' | 'clay' | 'albedo' | 'wireframe';
+/** `directLighting` / `indirectLighting`: clay lit by the lights alone, or by everything that is not a light (ambient,
+ *  sky, reflections, probes, bakes) — Unreal's lighting components, for asking where a shadow's fill comes from. */
+export type ViewShading = 'shaded' | 'clay' | 'albedo' | 'wireframe' | 'directLighting' | 'indirectLighting';
 
-const VIEW_SHADING_CODE: Record<ViewShading, number> = { shaded: 0, clay: 1, albedo: 2, wireframe: 3 };
+const VIEW_SHADING_CODE: Record<ViewShading, number> = {
+    shaded: 0, clay: 1, albedo: 2, wireframe: 3, directLighting: 4, indirectLighting: 5,
+};
 
 export interface LodDecision {
     /** The level drawn, or `null` when the object was small enough to be culled. */

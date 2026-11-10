@@ -175,6 +175,9 @@ export const SCENES = [
   // The editor eye's clay and albedo modes: clay drops everyone's colours and keeps the light,
   // albedo keeps the colours and drops the light, and leaving either restores the authored frame.
   { id: "view-shading", tier: "pr", webgpu: true, env: {"ESTELLA_VERIFY_SCENE": "/scenes/view-shading.esscene", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "3", "ESTELLA_VERIFY_SHADING": "1"} },
+  // Clay split into its two halves, as Unreal's lighting components do: the lights alone (the faces turned from the sun go
+  // black) and everything that is not a light (the ambient's fill, flat and still lit). Where a shadow's light comes from.
+  { id: "view-lighting-split", tier: "pr", webgpu: true, env: {"ESTELLA_VERIFY_SCENE": "/scenes/view-lighting.esscene", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "3", "ESTELLA_VERIFY_LIGHTING_SPLIT": "1"} },
   // A skinned surface coloured by one joint's weights: each of the two joints of the rig colours its own
   // half, the hot end of the ramp is on screen, and leaving the view returns the authored frame.
   { id: "view-skin-weights", tier: "pr", webgpu: true, env: {"ESTELLA_VERIFY_SCENE": "/scenes/mesh-skin.esscene", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_SKIN_WEIGHTS": "{\"id\":3,\"joints\":[0,1]}"} },
