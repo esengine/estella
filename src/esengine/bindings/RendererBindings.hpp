@@ -332,6 +332,8 @@ i32 renderer_pollProbeCapture();
 bool renderer_takeProbeCapture(uintptr_t dst, u32 bytes);
 /** The grid the volume on @p entity reads instead of its own (a capture's); 0 stops. */
 void renderer_setProbeVolumeOverride(u32 entity, u32 volumeHandle);
+/** The volume on @p entity reflects column @p slot of @p environmentHandle (an atlas of captures, column 0 the sky); 0 stops. */
+void renderer_setProbeVolumeReflection(u32 entity, u32 environmentHandle, u32 slot);
 
 /** How many world units make a metre: what an inverse-square light measures distance in. */
 void renderer_setWorldUnitsPerMeter(f32 units);

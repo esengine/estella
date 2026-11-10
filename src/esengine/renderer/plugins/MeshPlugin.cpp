@@ -1115,7 +1115,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     const bool volume = key.lightmapTextureId == 0
                         && store.sampleBox(aabbCenter, halfExtents, probe, !resident->hasLightmapUV);
                     if (volume && probe.irradiance[0].w > 1.5f) key.probeGridTextureId = store.atlasTexture();
-                    const u32 slot = ctx.render_context.reflections().slotAt(position);
+                    const u32 slot = ctx.render_context.reflections().slotForBox(aabbCenter, halfExtents);
                     probe.reflection.x = static_cast<f32>(slot);
                     if (volume || slot != 0) key.probeIndex = draw_list.addProbe(probe);
                 }

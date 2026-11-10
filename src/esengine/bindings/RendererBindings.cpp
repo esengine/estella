@@ -1429,6 +1429,10 @@ bool renderer_takeProbeCapture(uintptr_t dst, u32 bytes) {
     return true;
 }
 
+void renderer_setProbeVolumeReflection(u32 entity, u32 environmentHandle, u32 slot) {
+    if (g_renderFrame) g_renderFrame->setProbeVolumeReflection(entity, environmentHandle, slot);
+}
+
 void renderer_setProbeVolumeOverride(u32 entity, u32 volumeHandle) {
     if (g_renderFrame) g_renderFrame->setProbeVolumeOverride(entity, resource::ProbeVolumeHandle(volumeHandle));
 }

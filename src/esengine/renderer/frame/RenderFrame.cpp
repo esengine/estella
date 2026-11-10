@@ -1606,6 +1606,20 @@ void RenderFrame::collectReflections(ecs::Registry& registry) {
         const glm::vec3 half = glm::abs(probe.halfExtents);
         store.add(centre - half, centre + half, probe.slot, probe.reflection.id());
     }
+    // Probe volumes filled at run time reflect their capture too, a column each of the atlas the SDK built from them;
+    // the frame binds one atlas, so a scene with baked reflection probes keeps those.
+    if (store.empty() && !probe_reflections_.empty()) {
+        auto volumes = registry.activeView<ecs::LightProbeVolume>();
+        for (auto entity : volumes) {
+            const auto found = probe_reflections_.find(static_cast<u32>(entity));
+            if (found == probe_reflections_.end() || !volumes.get(entity).enabled) continue;
+            const auto* transform = registry.tryGet<ecs::Transform>(entity);
+            if (!transform) continue;
+            const glm::vec3 centre = rebased(transform->worldPosition);
+            const glm::vec3 half = glm::abs(volumes.get(entity).halfExtents);
+            store.add(centre - half, centre + half, found->second.slot, found->second.environment);
+        }
+    }
     if (store.empty()) return;
 
     const Environment* baked =

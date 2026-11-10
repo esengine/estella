@@ -564,6 +564,7 @@ export interface ESEngineModule {
     renderer_pollProbeCapture?(): number;
     renderer_takeProbeCapture?(dst: number, bytes: number): boolean;
     renderer_setProbeVolumeOverride?(entity: number, volumeHandle: number): void;
+    renderer_setProbeVolumeReflection?(entity: number, environmentHandle: number, slot: number): void;
     postprocess_pollSkyCapture?(): number;
     postprocess_takeSkyCapture?(dst: number, bytes: number): boolean;
     postprocess_setMsaaSamples(samples: number): void;

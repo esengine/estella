@@ -376,11 +376,14 @@ app.whenReady().then(async () => {
       // — video (HTMLVideoElement) decodes frames in real time and its system
       // uploads the newest frame each tick. Interleave engine steps with real
       // delays so frames actually arrive before the capture. Requires play mode.
+      // ESTELLA_VERIFY_SETTLE_STEPS: at least this many steps as well. Content that takes frames rather than time — a
+      // probe capture draws a face a frame — would otherwise lose the race on a loaded machine, whose steps run slow.
       const ms = Number(process.env.ESTELLA_VERIFY_SETTLE_MS) || 1500;
+      const minSteps = Number(process.env.ESTELLA_VERIFY_SETTLE_STEPS) || 0;
       await exec(`(async () => {
         const api = window.__estellaHeadless.api;
         const end = performance.now() + ${ms};
-        while (performance.now() < end) {
+        for (let n = 0; performance.now() < end || n < ${minSteps}; n++) {
           await api.step(1, 1 / 60);
           await new Promise((r) => setTimeout(r, 16));
         }

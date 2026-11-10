@@ -551,6 +551,11 @@ entity.insert(LightProbeVolume, { halfExtents: { x: 22, y: 7, z: 11 }, capture: 
 - **`captureInterval`** recaptures every so many seconds (0 = once). Each capture sees the room lit by the last one, so a
   few are a few bounces.
 - The box is one point of light: it is right for a room, not for a long hall whose ends differ — use several boxes.
+- What a shiny surface inside the box **reflects** is the capture too, projected onto the box's walls: a chrome tap in
+  the shed shows the shed, not the sky outside. A scene with baked `ReflectionProbe`s keeps those; the frame binds one
+  reflection atlas.
+- Keep the box's centre clear: the capture is taken from there, and an object around that point (a mirror ball at the
+  centre) is all it sees.
 
 ### What a shiny surface reflects indoors
 

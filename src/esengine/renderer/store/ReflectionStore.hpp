@@ -83,6 +83,26 @@ public:
         return best ? best->slot : 0u;
     }
 
+    /**
+     * @brief The column a whole object reflects, by its world box rather than its origin (ProbeStore::sampleBox's rule):
+     *        its centre's, else the smallest probe the box overlaps. An imported level's walls keep their origin at the
+     *        world's centre, outside the room they stand in.
+     */
+    u32 slotForBox(const glm::vec3& centre, const glm::vec3& half) const {
+        if (const u32 at = slotAt(centre); at != 0) return at;
+        const Probe* best = nullptr;
+        f32 bestSize = 0.0f;
+        for (const Probe& v : probes_) {
+            const glm::vec3 vc = (v.min + v.max) * 0.5f;
+            const glm::vec3 vh = (v.max - v.min) * 0.5f;
+            const glm::vec3 gap = glm::abs(centre - vc) - (half + vh);
+            if (gap.x > 0.0f || gap.y > 0.0f || gap.z > 0.0f) continue;
+            const f32 size = vh.x * vh.y * vh.z;
+            if (!best || size < bestSize) { best = &v; bestSize = size; }
+        }
+        return best ? best->slot : 0u;
+    }
+
     /** @brief The probes themselves, for the frame block that carries their boxes. */
     const std::vector<Probe>& probes() const { return probes_; }
 

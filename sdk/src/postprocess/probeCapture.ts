@@ -17,7 +17,10 @@ import { Transform, LightProbeVolume, type TransformData, type LightProbeVolumeD
 import type { Entity } from '../types';
 import type { ESEngineModule } from '../wasm';
 import { withScratch } from '../wasm/wasmScratch';
-import { projectIrradianceSH, type Panorama } from '../lightmap/environmentAtlas';
+import { projectIrradianceSH, prefilterOctahedral, type Panorama } from '../lightmap/environmentAtlas';
+import { createTextureFromPixels } from '../runtime/runtimeAssets';
+import { getResourceManager } from '../wasm/resourceManager';
+import { TextureContent } from '../wasm';
 import { panoramaDirection, panoramaUV } from '../lightmap/panorama';
 
 /** Pixels a face is across: the light a room sends is smooth, and six of these are drawn one a frame. */
@@ -84,14 +87,75 @@ interface CaptureCore {
     renderer_pollProbeCapture?(): number;
     renderer_takeProbeCapture?(dst: number, bytes: number): boolean;
     renderer_setProbeVolumeOverride?(entity: number, volumeHandle: number): void;
+    renderer_setProbeVolumeReflection?(entity: number, environmentHandle: number, slot: number): void;
+    environment_create?(shPtr: number, specularHandle: number, faceSize: number, mipCount: number, maxRange: number, columns: number): number;
+    environment_release?(environmentHandle: number): void;
     probe_volume_create?(resX: number, resY: number, resZ: number, shPtr: number): number;
     probe_volume_release?(handle: number): void;
 }
 
 /** Each capturing volume's grid and when it was last filled, and the one capture in flight. */
 interface CaptureState {
-    grids: Map<Entity, { handle: number; at: number }>;
+    grids: Map<Entity, { handle: number; at: number; panorama: Panorama }>;
     pending: Entity | null;
+    /** The reflection atlas the captures make, and the environment the frame reads it through. */
+    reflection: { environment: number; texture: number } | null;
+    /** The sky panorama that atlas's column 0 was made from: a new sky (the one first made after the captures, a changing
+     *  weather) remakes it. */
+    sky: Panorama | null;
+}
+
+/** The reflections' atlas: the same size as the sky's, so a surface leaving a room sees no change of sharpness. */
+const REFLECTION_FACE = 32;
+const REFLECTION_MIPS = 3;
+const REFLECTION_RANGE = 8;
+
+/**
+ * One atlas, column 0 the sky and a column for each capture in order, prefiltered as an environment's reflection is: what
+ * a surface inside a captured box reflects is the room around it rather than the sky outside.
+ */
+export function reflectionAtlas(sky: Panorama, captures: readonly Panorama[]): { width: number; height: number; rgba: Uint8Array; columns: number } {
+    const columns = 1 + captures.length;
+    const pyramids = [sky, ...captures].map((p) => prefilterOctahedral(p, REFLECTION_FACE, REFLECTION_MIPS, REFLECTION_RANGE));
+    const colWidth = pyramids[0]!.width, height = pyramids[0]!.height;
+    const rgba = new Uint8Array(colWidth * columns * height * 4);
+    pyramids.forEach((pyramid, column) => {
+        for (let y = 0; y < height; y++) {
+            rgba.set(pyramid.rgba.subarray(y * colWidth * 4, (y + 1) * colWidth * 4), (y * colWidth * columns + column * colWidth) * 4);
+        }
+    });
+    return { width: colWidth * columns, height, rgba, columns };
+}
+
+/** Rebuilds the reflection atlas from every capture held, and points each volume at its column; lets the last one go. */
+function rebuildReflections(core: CaptureCore, module: ESEngineModule | null, state: CaptureState, sky: Panorama | null): void {
+    const entities = [...state.grids.keys()];
+    state.sky = sky;
+    const drop = state.reflection;
+    state.reflection = null;
+    if (sky && entities.length && core.environment_create && core.renderer_setProbeVolumeReflection) {
+        const atlas = reflectionAtlas(sky, entities.map((e) => state.grids.get(e)!.panorama));
+        const texture = createTextureFromPixels(module, { width: atlas.width, height: atlas.height, pixels: atlas.rgba },
+            TextureContent.Retained, false, { filterMode: 'linear', wrapMode: 'clamp', srgb: false });
+        if (texture) {
+            const environment = withScratch(core as never, (alloc: (n: number) => number) => {
+                const shPtr = alloc(27 * 4);
+                core.HEAPF32.set(projectIrradianceSH(sky), shPtr >> 2);
+                return core.environment_create!(shPtr, texture, REFLECTION_FACE, REFLECTION_MIPS, REFLECTION_RANGE, atlas.columns);
+            });
+            if (environment) {
+                state.reflection = { environment, texture };
+                entities.forEach((e, i) => core.renderer_setProbeVolumeReflection!(e as unknown as number, environment, i + 1));
+            } else {
+                getResourceManager()?.releaseTexture(texture);
+            }
+        }
+    }
+    if (!state.reflection) for (const e of entities) core.renderer_setProbeVolumeReflection?.(e as unknown as number, 0, 0);
+    if (drop) {
+        core.environment_release?.(drop.environment);
+        getResourceManager()?.releaseTexture(drop.texture);
+    }
 }
 
 /**
@@ -99,7 +163,7 @@ interface CaptureState {
  * `captureInterval` seconds (or once). `sky` answers the panorama the scene's sky was last made from, for what shows of it.
  */
 export function probeCaptureSystem(module: () => ESEngineModule | null, sky: () => Panorama | null) {
-    const state: CaptureState = { grids: new Map(), pending: null };
+    const state: CaptureState = { grids: new Map(), pending: null, reflection: null, sky: null };
     return defineSystem(
         [Query(LightProbeVolume, Transform)],
         (volumes: Iterable<[Entity, LightProbeVolumeData, TransformData]>) => {
@@ -119,13 +183,17 @@ export function probeCaptureSystem(module: () => ESEngineModule | null, sky: () 
                 const p = transform.worldPosition ?? transform.position;
                 if (!due || since > due.since) due = { entity, at: [p.x, p.y, p.z], since };
             }
-            // A volume that stopped capturing goes back to its bake.
+            // A volume that stopped capturing goes back to its bake, and leaves the reflections.
+            let dropped = false;
             for (const [entity, grid] of state.grids) {
                 if (live.has(entity)) continue;
                 core.renderer_setProbeVolumeOverride(entity as unknown as number, 0);
+                core.renderer_setProbeVolumeReflection?.(entity as unknown as number, 0, 0);
                 core.probe_volume_release?.(grid.handle);
                 state.grids.delete(entity);
+                dropped = true;
             }
+            if (dropped || (state.grids.size && sky() !== state.sky)) rebuildReflections(core, module(), state, sky());
             if (state.pending !== null) {
                 const status = core.renderer_pollProbeCapture();
                 if (status === 0) return;
@@ -133,19 +201,22 @@ export function probeCaptureSystem(module: () => ESEngineModule | null, sky: () 
                 state.pending = null;
                 if (status !== 1 || !live.has(entity)) return;
                 const bytes = PROBE_CAPTURE_FACE * 6 * PROBE_CAPTURE_FACE * 4;
+                let panorama: Panorama | null = null;
                 const handle = withScratch(core as never, (alloc: (n: number) => number) => {
                     const px = alloc(bytes);
                     if (!core.renderer_takeProbeCapture!(px, bytes)) return 0;
-                    const sh = projectIrradianceSH(capturePanorama(core.HEAPU8.slice(px, px + bytes), PROBE_CAPTURE_FACE, sky()));
+                    panorama = capturePanorama(core.HEAPU8.slice(px, px + bytes), PROBE_CAPTURE_FACE, sky());
                     const shPtr = alloc(27 * 4);
-                    core.HEAPF32.set(sh, shPtr >> 2);
+                    core.HEAPF32.set(projectIrradianceSH(panorama), shPtr >> 2);
                     return core.probe_volume_create!(1, 1, 1, shPtr);
                 });
-                if (!handle) return;
+                if (!handle || !panorama) return;
                 core.renderer_setProbeVolumeOverride(entity as unknown as number, handle);
                 const old = state.grids.get(entity);
                 if (old) core.probe_volume_release?.(old.handle);
-                state.grids.set(entity, { handle, at: now });
+                state.grids.set(entity, { handle, at: now, panorama });
+                // What a shiny surface in the box reflects follows what lights it.
+                rebuildReflections(core, module(), state, sky());
                 return;
             }
             if (due) {

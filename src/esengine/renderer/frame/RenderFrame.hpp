@@ -416,6 +416,12 @@ public:
     const std::vector<u8>& probeCapturePixels() const { return probe_capture_.pixels; }
     /** @brief The grid a volume reads instead of its own `probes` (a capture's), or an invalid handle to stop. */
     void setProbeVolumeOverride(u32 entity, resource::ProbeVolumeHandle grid);
+    /** @brief The volume on @p entity reflects column @p slot of @p environment (an atlas built from captures, column 0 the
+     *         sky); an invalid environment stops. Used only where no baked ReflectionProbe is. */
+    void setProbeVolumeReflection(u32 entity, u32 environment, u32 slot) {
+        if (environment != 0 && slot != 0) probe_reflections_[entity] = {environment, slot};
+        else probe_reflections_.erase(entity);
+    }
 
     /** @brief How many world units make a metre (the project's setting): what an inverse-square light measures in. */
     void setWorldUnitsPerMeter(f32 units) { world_units_per_meter_ = units > 0.0f ? units : 100.0f; }
@@ -802,6 +808,8 @@ private:
     };
     ProbeCapture probe_capture_;
     std::unordered_map<u32, resource::ProbeVolumeHandle> probe_overrides_;
+    struct CapturedReflection { u32 environment = 0; u32 slot = 0; };
+    std::unordered_map<u32, CapturedReflection> probe_reflections_;
     void executePlanarReflection(ecs::Registry& registry, u32 view);
     struct PlanarCapture {
         Unique<Framebuffer> target;

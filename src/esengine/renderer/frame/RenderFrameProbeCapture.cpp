@@ -70,7 +70,7 @@ void RenderFrame::declareProbeCapture(ecs::Registry& registry) {
     const u32 n = c.face;
     const GfxPixelFormat format = linear_color_ && device_.supportsFloatTargets() && !planar_float_refused_
         ? GfxPixelFormat::RGBA16F : GfxPixelFormat::RGBA8;
-    const u32 f = c.next;
+    const u32 f = std::min(c.next, 5u);
     auto& target = c.faces[f];
     if (!target || target->getWidth() != n || target->getSpecification().colorFormat != format) {
         FramebufferSpec spec;
@@ -115,12 +115,16 @@ void RenderFrame::declareProbeCapture(ecs::Registry& registry) {
     pack.viewportY = 0;
     pack.viewportW = n;
     pack.viewportH = n;
+    // The face counts as done when it is DRAWN, not when it is declared: a frame whose graph is built and not run would
+    // otherwise skip it for good, and the last one would leave the capture waiting for ever.
     pack.execute = [this, f](const rg::PassContext&) {
         post_process_->encodeRgbm();
-        if (f == 5) probe_capture_.state = ProbeCapture::State::Drawn;
+        ProbeCapture& done = probe_capture_;
+        if (done.state != ProbeCapture::State::Capturing || done.next != f) return;
+        done.next = f + 1;
+        if (f == 5) done.state = ProbeCapture::State::Drawn;
     };
     graph_.addPass(std::move(pack));
-    c.next = f + 1;
 #else
     (void)registry;
 #endif
