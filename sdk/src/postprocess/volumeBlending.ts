@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { PostProcessVolumeData } from '../ecs/component';
-import { getEffectDef } from './effects';
+import { getEffectDef, uniformInUnits } from './effects';
+import { worldUnitScale } from '../ecs/worldUnits';
 import { log } from '../util/logger';
 
 export interface VolumeTransform {
@@ -190,5 +191,14 @@ export function blendVolumeEffects(
         }
     }
 
+    // A world-unit uniform no volume stated takes its default in the project's units (a metre project's rain shelters
+    // within 30 m, not 3000). Unblended, as the shader's own default would have been; nothing to do at the reference scale.
+    if (worldUnitScale() !== 1) {
+        for (const [type, blended] of result) {
+            for (const u of getEffectDef(type)?.uniforms ?? []) {
+                if (u.worldUnits && !blended.uniforms.has(u.name)) blended.uniforms.set(u.name, uniformInUnits(u).defaultValue);
+            }
+        }
+    }
     return result;
 }

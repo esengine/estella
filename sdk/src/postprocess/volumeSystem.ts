@@ -9,7 +9,7 @@ import { Query } from '../ecs/query';
 import type { Entity } from '../types';
 import { PostProcessVolume, Transform, Camera, ProjectionType, ClearFlags, type PostProcessVolumeData, type TransformData, type CameraData } from '../ecs/component';
 import { PostProcess, deviceHasCompute, type PostProcessAPI } from './PostProcessAPI';
-import { getEffectDef } from './effects';
+import { getEffectDef, uniformInUnits } from './effects';
 import { blendVolumeEffects, computeVolumeFactor, type ActiveVolume, type BlendedEffect, type VolumeTransform } from './volumeBlending';
 import type { ShaderHandle } from '../render/material';
 import { Material } from '../render/material';
@@ -267,12 +267,12 @@ function applyBlendedEffects(
             for (const [index, subPass] of def.fallback.entries()) {
                 const shader = getOrCreateShader(api, subPass.name, subPass.factory);
                 stack.addPass(subPass.name, shader, subPass.scale ?? 1, index > 0);
-                for (const u of def.uniforms) stack.setUniform(subPass.name, u.name, effectData.uniforms.get(u.name) ?? u.defaultValue);
+                for (const u of def.uniforms) stack.setUniform(subPass.name, u.name, effectData.uniforms.get(u.name) ?? uniformInUnits(u).defaultValue);
                 for (const [name, value] of Object.entries(subPass.uniforms ?? {})) stack.setUniform(subPass.name, name, value);
             }
         } else if (def.native) {
             stack.addNativePass(effectType, def.native);
-            for (const u of def.uniforms) stack.setUniform(effectType, u.name, effectData.uniforms.get(u.name) ?? u.defaultValue);
+            for (const u of def.uniforms) stack.setUniform(effectType, u.name, effectData.uniforms.get(u.name) ?? uniformInUnits(u).defaultValue);
         } else if (def.compute) {
             // The params block is the effect's uniforms in their listed order, each at the volume's value or the effect's own default.
             stack.addComputePass(effectType, {
@@ -280,7 +280,7 @@ function applyBlendedEffects(
                 params: def.uniforms.map((u) => u.name),
                 workgroupSize: def.compute.workgroupSize ?? [8, 8],
             });
-            for (const u of def.uniforms) stack.setUniform(effectType, u.name, effectData.uniforms.get(u.name) ?? u.defaultValue);
+            for (const u of def.uniforms) stack.setUniform(effectType, u.name, effectData.uniforms.get(u.name) ?? uniformInUnits(u).defaultValue);
         } else if (def.factory) {
             const shader = getOrCreateShader(api, effectType, def.factory);
             stack.addPass(effectType, shader);

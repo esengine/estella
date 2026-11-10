@@ -14,7 +14,7 @@
  *          effects that result.
  */
 import type { BlendedEffect, Rgba } from './volumeBlending';
-import { getEffectDef } from './effects';
+import { getEffectDef, uniformInUnits } from './effects';
 
 export interface WeatherState {
     /** × the directional lights' strength. */
@@ -213,7 +213,9 @@ export function currentWeatherDrive(): number {
 function value(effect: BlendedEffect, type: string, name: string, fallback = 0): number {
     const set = effect.uniforms.get(name);
     if (set !== undefined) return set;
-    return getEffectDef(type)?.uniforms.find((u) => u.name === name)?.defaultValue ?? fallback;
+    // In the project's units: a fog the weather makes from nothing is as thick per metre as one a volume left unset.
+    const u = getEffectDef(type)?.uniforms.find((d) => d.name === name);
+    return u ? uniformInUnits(u).defaultValue : fallback;
 }
 
 function entry(effects: Map<string, BlendedEffect>, type: string): BlendedEffect {

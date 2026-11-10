@@ -174,6 +174,7 @@ export {
     type EffectUniformDef,
     registerEffect,
     getEffectDef,
+    uniformInUnits,
     getEffectTypes,
     getAllEffectDefs,
     registerWeatherPreset,

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ShaderHandle } from '../render/material';
+import { worldUnitScale } from '../ecs/worldUnits';
 import { FOG_UNIFORMS, FOG_EXPLORED_TEXTURE, FOG_VISIBLE_TEXTURE } from './fogOfWarMask';
 import { RAIN_SHELTER_UNIFORMS, RAIN_SHELTER_MASK_TEXTURE, RAIN_SHELTER_MASK_SIZE, RAIN_SHELTER_MASK_MIN, RAIN_SHELTER_MASK_MAX } from './rainShelterMask';
 import { effectSourcesOf, computeSourceOf } from './effectSources';
@@ -37,6 +38,25 @@ export interface EffectUniformDef {
     neutralValue?: number;
     /** Set by the engine from another effect, not by a scene: an inspector does not list it. */
     internal?: boolean;
+    /**
+     * A world length (1) or a world rate per length (-1): its default is written at 100 units a metre and follows the
+     * project's units per metre when a volume leaves it unset (ecs/worldUnits.ts). A value a volume states is never scaled.
+     */
+    worldUnits?: 1 | -1;
+}
+
+/**
+ * A uniform as it reads in this project: a world-unit one's default and range scaled to the project's units per metre
+ * (a length by the scale, a rate per length by its inverse), any other as declared. What the volume system fills an
+ * unset uniform with, and what an inspector offers.
+ */
+export function uniformInUnits(u: EffectUniformDef): EffectUniformDef {
+    if (!u.worldUnits) return u;
+    const s = worldUnitScale();
+    if (s === 1) return u;
+    const k = u.worldUnits === 1 ? s : 1 / s;
+    const lo = u.min * k, hi = u.max * k;
+    return { ...u, defaultValue: u.defaultValue * k, min: Math.min(lo, hi), max: Math.max(lo, hi), step: u.step * k };
 }
 
 /** A texture parameter (LUT, mask): the sampler uniform it binds to. */
@@ -488,7 +508,7 @@ registerEffect({
         // Rays per surface point: more is smoother and costs in proportion.
         { name: 'u_rays', label: 'Rays', min: 1, max: 32, step: 1, defaultValue: 8 },
         // The world size of a voxel: the cache is 128 x 64 x 128 of them around the camera, so this sets how far it reaches and how finely.
-        { name: 'u_voxelSize', label: 'Voxel Size', min: 0.01, max: 400, step: 0.01, defaultValue: 40 },
+        { name: 'u_voxelSize', label: 'Voxel Size', min: 0.01, max: 400, step: 0.01, defaultValue: 40, worldUnits: 1 },
         // How far a ray looks, in voxels.
         { name: 'u_range', label: 'Range', min: 4, max: 90, step: 1, defaultValue: 48 },
         // Brighter than this a surface does not give out, so one lamp does not light the street from a single pixel.
@@ -538,16 +558,16 @@ registerEffect({
     ],
     uniforms: [
         // Per WORLD unit at the base height: the share of light a unit of fog takes out.
-        { name: 'u_density', label: 'Density', min: 0, max: 0.05, step: 0.0001, defaultValue: 0.0015, neutralValue: 0 },
+        { name: 'u_density', label: 'Density', min: 0, max: 0.05, step: 0.0001, defaultValue: 0.0015, neutralValue: 0, worldUnits: -1 },
         // How fast the fog thins with height; 0 is a fog of one density at every height.
-        { name: 'u_heightFalloff', label: 'Height Falloff', min: 0, max: 0.1, step: 0.0005, defaultValue: 0.003 },
-        { name: 'u_baseHeight', label: 'Base Height', min: -1000, max: 5000, step: 10, defaultValue: 0 },
+        { name: 'u_heightFalloff', label: 'Height Falloff', min: 0, max: 0.1, step: 0.0005, defaultValue: 0.003, worldUnits: -1 },
+        { name: 'u_baseHeight', label: 'Base Height', min: -1000, max: 5000, step: 10, defaultValue: 0, worldUnits: 1 },
         // On a planet the fog's height is the height above the ground's sphere, not world Y: the radius, above 0, turns that on, and the centre is where the planet stands.
         { name: 'u_planetRadius', label: 'Planet Radius', min: 0, max: 100000000, step: 100, defaultValue: 0, neutralValue: 0 },
         { name: 'u_planetX', label: 'Planet Centre X', min: -100000000, max: 100000000, step: 100, defaultValue: 0 },
         { name: 'u_planetY', label: 'Planet Centre Y', min: -100000000, max: 100000000, step: 100, defaultValue: 0 },
         { name: 'u_planetZ', label: 'Planet Centre Z', min: -100000000, max: 100000000, step: 100, defaultValue: 0 },
-        { name: 'u_startDistance', label: 'Start Distance', min: 0, max: 3000, step: 10, defaultValue: 0 },
+        { name: 'u_startDistance', label: 'Start Distance', min: 0, max: 3000, step: 10, defaultValue: 0, worldUnits: 1 },
         { name: 'u_maxOpacity', label: 'Max Opacity', min: 0, max: 1, step: 0.01, defaultValue: 1 },
         // 1: the sun is the scene's own directional light — its direction and colour — and the two angles below are
         // only what a scene with no sun falls back to. 0: the angles are the sun.
@@ -564,7 +584,7 @@ registerEffect({
         // directional light that casts a shadow, and costs 24 taps a pixel.
         { name: 'u_volumetric', label: 'Volumetric Light', min: 0, max: 1, step: 0.01, defaultValue: 0, neutralValue: 0 },
         // How far from the camera the air is walked: past it the fog still dims, but takes no shafts.
-        { name: 'u_volumeRange', label: 'Volumetric Range', min: 100, max: 1000000, step: 100, defaultValue: 3000 },
+        { name: 'u_volumeRange', label: 'Volumetric Range', min: 100, max: 1000000, step: 100, defaultValue: 3000, worldUnits: 1 },
         // How much the sky's clouds cut the beams: a gap in them is a shaft, and what they cover is dark air. It follows the clouds
         // of a skyAtmosphere that has Cloud Shadows above 0 (the clouds are then fixed to the world, so the shafts stand where they do).
         { name: 'u_cloudShade', label: 'Cloud Shafts', min: 0, max: 1, step: 0.01, defaultValue: 0, neutralValue: 0 },
@@ -601,9 +621,9 @@ registerEffect({
         // How much of the bounced light is added: 1 is what the surfaces gave out, scaled by the receiver's colour.
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 4, step: 0.01, defaultValue: 1, neutralValue: 0 },
         // A WORLD length: how far from a surface the rays look for something to bounce light from.
-        { name: 'u_radius', label: 'Radius', min: 0.05, max: 1500, step: 0.05, defaultValue: 150 },
+        { name: 'u_radius', label: 'Radius', min: 0.05, max: 1500, step: 0.05, defaultValue: 150, worldUnits: 1 },
         // A WORLD length: how thick a thing the rays can land on, so a far wall is not taken for the one beside it.
-        { name: 'u_thickness', label: 'Thickness', min: 0.01, max: 300, step: 0.01, defaultValue: 30 },
+        { name: 'u_thickness', label: 'Thickness', min: 0.01, max: 300, step: 0.01, defaultValue: 30, worldUnits: 1 },
         // Brighter than this a surface does not bounce, so one lamp does not light the street from a single pixel.
         { name: 'u_maxBounce', label: 'Max Bounce', min: 0.5, max: 16, step: 0.5, defaultValue: 3 },
     ],
@@ -622,9 +642,9 @@ registerEffect({
         // How dark a contact shadow is.
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 1, step: 0.01, defaultValue: 0.6, neutralValue: 0 },
         // A WORLD length: how far from a surface the ray looks for something standing in the light's way.
-        { name: 'u_length', label: 'Length', min: 5, max: 600, step: 1, defaultValue: 60 },
+        { name: 'u_length', label: 'Length', min: 5, max: 600, step: 1, defaultValue: 60, worldUnits: 1 },
         // A WORLD length: how thick a thing can be and still shadow, so a far wall does not shadow what is in front of it.
-        { name: 'u_thickness', label: 'Thickness', min: 0.5, max: 80, step: 0.5, defaultValue: 8 },
+        { name: 'u_thickness', label: 'Thickness', min: 0.5, max: 80, step: 0.5, defaultValue: 8, worldUnits: 1 },
         { name: 'u_followSun', label: 'Follow Scene Sun', min: 0, max: 1, step: 1, defaultValue: 1, neutralValue: 1 },
         { name: 'u_sunAzimuth', label: 'Sun Azimuth', min: 0, max: 360, step: 1, defaultValue: 40 },
         { name: 'u_sunElevation', label: 'Sun Elevation', min: -90, max: 90, step: 1, defaultValue: 35 },
@@ -684,7 +704,7 @@ registerEffect({
     factory: () => postProcessEffects.createDofGather(),
     uniforms: [
         // A WORLD length from the camera to what is in focus (what the lens rests on when Auto Focus is off).
-        { name: 'u_focusDistance', label: 'Focus Distance', min: 1, max: 5000, step: 1, defaultValue: 600 },
+        { name: 'u_focusDistance', label: 'Focus Distance', min: 1, max: 5000, step: 1, defaultValue: 600, worldUnits: 1 },
         // 1: the lens focuses on the surface under the focus point, and glides there at Focus Speed.
         { name: 'u_autoFocus', label: 'Auto Focus', min: 0, max: 1, step: 1, defaultValue: 0, neutralValue: 0 },
         // Where on the screen the auto-focus looks, as a share of its width from the left and of its height from the top.
@@ -692,7 +712,7 @@ registerEffect({
         { name: 'u_focusY', label: 'Focus Point Y', min: 0, max: 1, step: 0.01, defaultValue: 0.5 },
         { name: 'u_focusSpeed', label: 'Focus Speed', min: 0.1, max: 40, step: 0.1, defaultValue: 5 },
         // How deep a slab around it stays sharp, before the blur starts.
-        { name: 'u_focusRange', label: 'Focus Range', min: 0, max: 2000, step: 1, defaultValue: 100 },
+        { name: 'u_focusRange', label: 'Focus Range', min: 0, max: 2000, step: 1, defaultValue: 100, worldUnits: 1 },
         // The blur, in pixels, of something infinitely far: a bigger lens blurs sooner and harder.
         { name: 'u_aperture', label: 'Aperture (px)', min: 0, max: 64, step: 0.5, defaultValue: 24, neutralValue: 0 },
         { name: 'u_maxBlur', label: 'Max Blur (px)', min: 1, max: 32, step: 0.5, defaultValue: 14 },
@@ -725,14 +745,14 @@ registerEffect({
         { name: 'u_speed', label: 'Speed', min: 0.2, max: 6, step: 0.1, defaultValue: 1.6 },
         { name: 'u_streakLength', label: 'Streak Length', min: 0.05, max: 0.9, step: 0.01, defaultValue: 0.3 },
         // A WORLD length: the size of the grid cell each ring lives in.
-        { name: 'u_rippleScale', label: 'Ripple Scale', min: 5, max: 400, step: 1, defaultValue: 60 },
+        { name: 'u_rippleScale', label: 'Ripple Scale', min: 5, max: 400, step: 1, defaultValue: 60, worldUnits: 1 },
         // How far from the camera, in world units, the map of what stands over each place reaches: ground under an awning
         // inside it stays dry. The map is the scene drawn from straight above, so this is also how much of it costs.
-        { name: 'u_shelterRange', label: 'Shelter Range', min: 100, max: 30000, step: 100, defaultValue: 3000 },
+        { name: 'u_shelterRange', label: 'Shelter Range', min: 100, max: 30000, step: 100, defaultValue: 3000, worldUnits: 1 },
         // How much of the flat ground is standing water, and how big the pools are (a WORLD length).
         // The reflections effect draws the same pools when it is given the same two numbers.
         { name: 'u_puddles', label: 'Puddles', min: 0, max: 1, step: 0.01, defaultValue: 0.3, neutralValue: 0 },
-        { name: 'u_puddleScale', label: 'Puddle Size', min: 40, max: 2000, step: 10, defaultValue: 350 },
+        { name: 'u_puddleScale', label: 'Puddle Size', min: 40, max: 2000, step: 10, defaultValue: 350, worldUnits: 1 },
     ],
     colors: [
         { name: 'u_streakColor', label: 'Streak Colour', defaultValue: { r: 0.78, g: 0.82, b: 0.9, a: 1 } },
@@ -747,14 +767,14 @@ registerEffect({
         // How much lies: a dusting in the low places at a little, everything closed over at 1.
         { name: 'u_amount', label: 'Amount', min: 0, max: 1, step: 0.01, defaultValue: 1, neutralValue: 0 },
         // The height it stops at, in world units, and how far it thins out above that.
-        { name: 'u_snowLine', label: 'Snow Line', min: -100000, max: 100000, step: 1, defaultValue: -100000 },
-        { name: 'u_snowLineBand', label: 'Snow Line Band', min: 0, max: 100000, step: 1, defaultValue: 100 },
+        { name: 'u_snowLine', label: 'Snow Line', min: -100000, max: 100000, step: 1, defaultValue: -100000, worldUnits: 1 },
+        { name: 'u_snowLineBand', label: 'Snow Line Band', min: 0, max: 100000, step: 1, defaultValue: 100, worldUnits: 1 },
         // How much a surface must face up to hold it: 1 only the flat, 0 almost a wall.
         { name: 'u_slopeLimit', label: 'Slope Limit', min: 0, max: 1, step: 0.01, defaultValue: 0.55 },
         // The world size of the drifts.
-        { name: 'u_grainScale', label: 'Drift Size', min: 1, max: 100000, step: 1, defaultValue: 120 },
+        { name: 'u_grainScale', label: 'Drift Size', min: 1, max: 100000, step: 1, defaultValue: 120, worldUnits: 1 },
         // The same map of what stands over each place as the rain's: no snow under an awning.
-        { name: 'u_shelterRange', label: 'Shelter Range', min: 100, max: 30000, step: 100, defaultValue: 3000 },
+        { name: 'u_shelterRange', label: 'Shelter Range', min: 100, max: 30000, step: 100, defaultValue: 3000, worldUnits: 1 },
     ],
     colors: [
         { name: 'u_snowColor', label: 'Snow Colour', defaultValue: { r: 0.92, g: 0.95, b: 1, a: 1 } },
@@ -771,7 +791,7 @@ registerEffect({
     uniforms: [
         // A WORLD length: positions come back in world space, so this is "how far
         // around a point counts as its neighbourhood", not a pixel count.
-        { name: 'u_radius', label: 'Radius', min: 0.01, max: 400, step: 0.01, defaultValue: 60 },
+        { name: 'u_radius', label: 'Radius', min: 0.01, max: 400, step: 0.01, defaultValue: 60, worldUnits: 1 },
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 2, step: 0.01, defaultValue: 1 },
         // How far above the tangent plane a sample must sit to count. This is
         // what keeps a flat floor from occluding itself into grey.
@@ -819,7 +839,7 @@ registerEffect({
     // The horizon-based estimator in place of the ring of samples: no bias to tune against a surface occluding itself,
     // so a flat floor stays white and a crease darkens by how closed it really is. The blur and the composite are SSAO's.
     uniforms: [
-        { name: 'u_radius', label: 'Radius', min: 0.01, max: 500, step: 0.01, defaultValue: 80 },
+        { name: 'u_radius', label: 'Radius', min: 0.01, max: 500, step: 0.01, defaultValue: 80, worldUnits: 1 },
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 2, step: 0.01, defaultValue: 1 },
         { name: 'u_power', label: 'Power', min: 0.5, max: 4, step: 0.05, defaultValue: 1.4, neutralValue: 1 },
         // 0 trusts every occluder to be as tall as it looks; 1 lets a thin one (a railing, a leaf) be seen past.
@@ -841,16 +861,16 @@ registerEffect({
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 2, step: 0.01, defaultValue: 1, neutralValue: 0 },
         // A WORLD length, like SSAO's radius: how far a reflected ray may travel before the
         // search gives up. Step count is a constant, so a longer reach is a coarser step.
-        { name: 'u_maxDistance', label: 'Max Distance', min: 10, max: 3000, step: 10, defaultValue: 400 },
+        { name: 'u_maxDistance', label: 'Max Distance', min: 10, max: 3000, step: 10, defaultValue: 400, worldUnits: 1 },
         // How far behind a visible surface a ray may pass and still count as having hit it.
-        { name: 'u_thickness', label: 'Thickness', min: 1, max: 200, step: 1, defaultValue: 12 },
+        { name: 'u_thickness', label: 'Thickness', min: 1, max: 200, step: 1, defaultValue: 12, worldUnits: 1 },
         // 1 = only surfaces that face up reflect (wet ground, polished floors, and not the walls beside them);
         // 0 = any surface smooth enough to show a reflection does.
         { name: 'u_floorBias', label: 'Floor Bias', min: 0, max: 1, step: 0.01, defaultValue: 0 },
         // Standing water: flat, and a mirror. Give it the same two numbers as the Rain effect's puddles
         // and the pools it darkens are the pools that reflect.
         { name: 'u_puddles', label: 'Puddles', min: 0, max: 1, step: 0.01, defaultValue: 0, neutralValue: 0 },
-        { name: 'u_puddleScale', label: 'Puddle Size', min: 40, max: 2000, step: 10, defaultValue: 350 },
+        { name: 'u_puddleScale', label: 'Puddle Size', min: 40, max: 2000, step: 10, defaultValue: 350, worldUnits: 1 },
         // Surfaces rougher than this reflect nothing and cost nothing: the ray is never marched for them.
         { name: 'u_maxRoughness', label: 'Max Roughness', min: 0.05, max: 1, step: 0.01, defaultValue: 0.75 },
         // How wet the ground is: wet is smoother, so it reflects. Give it the Rain effect's wetness.
