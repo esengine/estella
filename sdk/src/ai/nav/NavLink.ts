@@ -39,6 +39,8 @@ export const NavLink = defineComponent<NavLinkData>('NavLink', {
     radius: 50,
     enabled: true,
 }, {
+    // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
+    worldUnitFields: ['end', 'radius'],
     fields: {
         start: { unit: 'px', category: 'Navigation' },
         end: { unit: 'px', category: 'Navigation' },

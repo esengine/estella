@@ -62,6 +62,7 @@ import type { AddressableManifest, ManifestModel } from '../asset/AddressableMan
 import type { Catalog } from '../asset/Catalog';
 import { physics3dModuleId, type Physics3DBackend } from '../sideModules/registry';
 import { physics3DInstallConfig, type Physics3DWorldConfig } from '../physics3d/worldConfig';
+import { setWorldUnitsPerMeter, REFERENCE_UNITS_PER_METER } from '../ecs/worldUnits';
 
 // =============================================================================
 // Public Interface
@@ -829,6 +830,9 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     const { app, firstScene, aspectRatio } = config;
 
     flushPendingRegistrations(app);
+
+    // Before any scene: what a component's default fills in is in the project's units (ecs/worldUnits.ts).
+    setWorldUnitsPerMeter(config.physics3dWorld?.unitsPerMeter ?? REFERENCE_UNITS_PER_METER);
 
     // First: the asset timeouts and cache budgets are read by the very first load below.
     if (config.runtime) applyBuildRuntimeConfig(app, config.runtime);

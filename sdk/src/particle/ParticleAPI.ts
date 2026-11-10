@@ -63,6 +63,19 @@ export class ParticleAPI {
         this.module_.particle_reset?.(this.registry_, entity as number);
     }
 
+    /**
+     * Spawn `count` of `entity`'s particles at a world point, now — an impact's sparks, a muzzle's flash — without moving
+     * the emitter or replaying it (Unity's `ParticleSystem.Emit`). The emitter's own settings make them; its shape's +Y (a
+     * cone's or hemisphere's axis) points along `options.normal` when given, else as the entity is turned, and
+     * `options.velocity` is added to each. CPU-simulated emitters only. Returns how many were spawned.
+     */
+    emitAt(entity: Entity, count: number, position: { x: number; y: number; z: number },
+           options: { normal?: { x: number; y: number; z: number }; velocity?: { x: number; y: number; z: number } } = {}): number {
+        const n = options.normal ?? { x: 0, y: 0, z: 0 }, v = options.velocity ?? { x: 0, y: 0, z: 0 };
+        return this.module_.particle_emitAt?.(this.registry_, entity as number, Math.max(0, Math.floor(count)),
+            position.x, position.y, position.z, n.x, n.y, n.z, v.x, v.y, v.z) ?? 0;
+    }
+
     getAliveCount(entity: Entity): number {
         return this.module_.particle_getAliveCount?.(entity as number) ?? 0;
     }

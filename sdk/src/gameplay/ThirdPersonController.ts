@@ -68,6 +68,8 @@ export const ThirdPersonController: ComponentDef<ThirdPersonControllerData> =
         idleThreshold: 8,
         enabled: true,
     }, {
+    // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
+    worldUnitFields: ['moveSpeed', 'acceleration', 'deceleration', 'jumpSpeed', 'idleThreshold'],
         entityFields: ['camera'],
         fields: {
             camera: { tooltip: 'Whose forward the stick is read against.' },

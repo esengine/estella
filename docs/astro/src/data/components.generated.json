@@ -556,7 +556,7 @@
         {
           "key": "halfExtents",
           "type": "Vec3",
-          "default": "(0.5, 0.5, 0.5)"
+          "default": "(50, 50, 50)"
         },
         {
           "key": "center",
@@ -836,13 +836,13 @@
         {
           "key": "radius",
           "type": "number",
-          "default": "0.3",
+          "default": "30",
           "range": "≥ 0"
         },
         {
           "key": "halfHeight",
           "type": "number",
-          "default": "0.5",
+          "default": "50",
           "range": "≥ 0"
         },
         {
@@ -1112,13 +1112,13 @@
         {
           "key": "radius",
           "type": "number",
-          "default": "0.3",
+          "default": "30",
           "range": "≥ 0"
         },
         {
           "key": "halfHeight",
           "type": "number",
-          "default": "0.5",
+          "default": "50",
           "range": "≥ 0"
         },
         {
@@ -1138,14 +1138,14 @@
         {
           "key": "stepHeight",
           "type": "number",
-          "default": "0.4",
+          "default": "40",
           "range": "≥ 0, step 0.05",
           "advanced": true
         },
         {
           "key": "snapDown",
           "type": "number",
-          "default": "0.5",
+          "default": "50",
           "range": "≥ 0, step 0.05",
           "advanced": true
         },
@@ -1896,6 +1896,29 @@
           "range": "≥ 0"
         },
         {
+          "key": "gravityScale",
+          "type": "number",
+          "default": "1",
+          "doc": "The player's gravity as a share of the world's. Above 1 falls faster and jumps feel snappier.",
+          "range": "≥ 0, step 0.05"
+        },
+        {
+          "key": "coyoteTime",
+          "type": "number",
+          "default": "0.1",
+          "doc": "How long after walking off an edge a jump still works.",
+          "range": "≥ 0, step 0.01",
+          "advanced": true
+        },
+        {
+          "key": "jumpBuffer",
+          "type": "number",
+          "default": "0.12",
+          "doc": "How long a jump pressed just before landing is kept.",
+          "range": "≥ 0, step 0.01",
+          "advanced": true
+        },
+        {
           "key": "lookSensitivity",
           "type": "number",
           "default": "0.12",
@@ -2009,6 +2032,24 @@
           "type": "number",
           "default": "0",
           "readonly": true
+        },
+        {
+          "key": "airTime",
+          "type": "number",
+          "default": "0",
+          "readonly": true
+        },
+        {
+          "key": "jumpHeld",
+          "type": "number",
+          "default": "0",
+          "readonly": true
+        },
+        {
+          "key": "jumped",
+          "type": "boolean",
+          "default": "false",
+          "readonly": true
         }
       ],
       "animatable": [
@@ -2019,6 +2060,9 @@
         "deceleration",
         "airControl",
         "jumpSpeed",
+        "gravityScale",
+        "coyoteTime",
+        "jumpBuffer",
         "lookSensitivity",
         "touchSensitivity",
         "pitchMin",
@@ -2033,7 +2077,9 @@
         "pitch",
         "standHalfHeight",
         "eye",
-        "rebuild"
+        "rebuild",
+        "airTime",
+        "jumpHeld"
       ]
     },
     {
@@ -5139,12 +5185,20 @@
           "doc": "3D layer mask the sight ray may hit; 0 = every layer.",
           "range": "≥ 0",
           "advanced": true
+        },
+        {
+          "key": "hearingRange",
+          "type": "number",
+          "default": "0",
+          "doc": "How far a noise of loudness 1 is heard, through walls; 0 = deaf.",
+          "range": "≥ 0"
         }
       ],
       "animatable": [
         "range",
         "fovDegrees",
-        "losLayers"
+        "losLayers",
+        "hearingRange"
       ]
     },
     {
@@ -5192,6 +5246,31 @@
           "key": "dirZ",
           "type": "number",
           "default": "0"
+        },
+        {
+          "key": "heard",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "key": "noiseX",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "noiseY",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "noiseZ",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "sinceHeard",
+          "type": "number",
+          "default": "-1"
         }
       ],
       "transient": true,
@@ -5202,7 +5281,11 @@
         "targetZ",
         "dirX",
         "dirY",
-        "dirZ"
+        "dirZ",
+        "noiseX",
+        "noiseY",
+        "noiseZ",
+        "sinceHeard"
       ]
     },
     {
@@ -7011,7 +7094,7 @@
         {
           "key": "radius",
           "type": "number",
-          "default": "0.5",
+          "default": "50",
           "range": "≥ 0"
         },
         {
@@ -9786,6 +9869,80 @@
         "color.b",
         "color.a",
         "fillAmount"
+      ]
+    },
+    {
+      "name": "UIWorldAnchor",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "target",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The entity to stand over. Empty: stand over the world point Offset."
+        },
+        {
+          "key": "offset",
+          "type": "Vec3",
+          "default": "(0, 0, 0)",
+          "doc": "Added to the target's position (world units): above a head, at a door. The point itself with no target."
+        },
+        {
+          "key": "camera",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The camera that looks. Empty: the camera on screen.",
+          "advanced": true
+        },
+        {
+          "key": "clampToEdges",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Off screen, stand at the edge in its direction instead of leaving it."
+        },
+        {
+          "key": "edgeMargin",
+          "type": "number",
+          "default": "24",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "hideWhenBehind",
+          "type": "boolean",
+          "default": "true",
+          "advanced": true
+        },
+        {
+          "key": "onScreen",
+          "type": "boolean",
+          "default": "false",
+          "readonly": true,
+          "advanced": true
+        },
+        {
+          "key": "behind",
+          "type": "boolean",
+          "default": "false",
+          "readonly": true,
+          "advanced": true
+        },
+        {
+          "key": "distance",
+          "type": "number",
+          "default": "0",
+          "readonly": true,
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "target",
+        "offset.x",
+        "offset.y",
+        "offset.z",
+        "camera",
+        "edgeMargin",
+        "distance"
       ]
     },
     {

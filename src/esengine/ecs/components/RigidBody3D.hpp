@@ -74,8 +74,9 @@ struct RigidBody3D {
 /** @brief An axis-aligned box, sized in world units around the entity's origin. */
 ES_COMPONENT()
 struct BoxCollider3D {
+    // World units at the reference 100 a metre, scaled by the project's units per metre (sdk ecs/worldUnits.ts).
     ES_PROPERTY()
-    glm::vec3 halfExtents{0.5f, 0.5f, 0.5f};
+    glm::vec3 halfExtents{50.0f, 50.0f, 50.0f};
 
     /** @brief Where the shape sits from the entity's origin, in world units; zero is centred on it. */
     ES_PROPERTY(optional)
@@ -98,7 +99,7 @@ struct BoxCollider3D {
 ES_COMPONENT()
 struct SphereCollider3D {
     ES_PROPERTY(min=0)
-    f32 radius{0.5f};
+    f32 radius{50.0f};
 
     /** @brief Where the shape sits from the entity's origin, in world units; zero is centred on it. */
     ES_PROPERTY(optional)
@@ -127,10 +128,10 @@ struct SphereCollider3D {
 ES_COMPONENT()
 struct CapsuleCollider3D {
     ES_PROPERTY(min=0)
-    f32 radius{0.3f};
+    f32 radius{30.0f};
 
     ES_PROPERTY(min=0)
-    f32 halfHeight{0.5f};
+    f32 halfHeight{50.0f};
 
     /** @brief Where the shape sits from the entity's origin, in world units; zero is centred on it. */
     ES_PROPERTY(optional)
@@ -218,12 +219,15 @@ struct CharacterController3D {
     ES_PROPERTY()
     glm::vec3 velocity{0.0f, 0.0f, 0.0f};
 
+    /** @brief World units, as every length here: these defaults are a 1.6 m person at the reference scale of 100 units
+     *         a metre, and scale with the project's units per metre (sdk ecs/worldUnits.ts). They read 0.3 / 0.5 before —
+     *         metres, under a solver that reads centimetres by default, which made a 3 mm character. */
     ES_PROPERTY(min=0)
-    f32 radius{0.3f};
+    f32 radius{30.0f};
 
     /** @brief Half the cylinder; total height is `2*(halfHeight + radius)`. */
     ES_PROPERTY(min=0)
-    f32 halfHeight{0.5f};
+    f32 halfHeight{50.0f};
 
     /** @brief Steepest ground it can stand on. Beyond this it slides. */
     ES_PROPERTY(min=0, max=1.5708, unit="rad")
@@ -231,11 +235,11 @@ struct CharacterController3D {
 
     /** @brief Tallest step it climbs instead of stopping at. 0 = climbs nothing. */
     ES_PROPERTY(min=0, advanced)
-    f32 stepHeight{0.4f};
+    f32 stepHeight{40.0f};
 
     /** @brief How far it reaches down to stay on the floor over a crest. 0 = off. */
     ES_PROPERTY(min=0, advanced)
-    f32 snapDown{0.5f};
+    f32 snapDown{50.0f};
 
     /** @brief Mass used when it pushes dynamic bodies. */
     ES_PROPERTY(min=0, advanced)

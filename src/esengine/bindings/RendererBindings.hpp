@@ -209,6 +209,10 @@ void particle_collisionSetBudget(u32 queries, u32 events, bool debug);
 void particle_play(ecs::Registry& registry, u32 entity);
 void particle_stop(ecs::Registry& registry, u32 entity);
 void particle_reset(ecs::Registry& registry, u32 entity);
+/// Spawn @p count of an emitter's particles at a world point now (normal: the shape's +Y, zero = the entity's own turn).
+/// Returns how many were spawned.
+u32 particle_emitAt(ecs::Registry& registry, u32 entity, u32 count, f32 px, f32 py, f32 pz,
+                    f32 nx, f32 ny, f32 nz, f32 vx, f32 vy, f32 vz);
 u32 particle_getAliveCount(u32 entity);
 void particle_set_color_lut(u32 entity, uintptr_t ptr, i32 count);
 void particle_set_size_lut(u32 entity, uintptr_t ptr, i32 count);

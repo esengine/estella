@@ -299,6 +299,30 @@ parts — the clipped box, the oversized child — without the one fact that it 
   **+ Add → Create entity… → ScrollView** gives you all three already assembled.
 </Aside>
 
+### `UIWorldAnchor` — UI over a point in the world
+
+A HUD often marks something in the 3D world: an objective, a name over a head, a health bar. `UIWorldAnchor`
+puts its UI node at the screen position of an entity (plus `offset`) or of a world point, every frame. The node
+is placed Absolute by its left/top insets in its parent, which should cover the screen (a screen Canvas root or
+a full-screen panel); centre it on the point with negative margins of half its size.
+
+- `clampToEdges` keeps a marker that is off screen, or behind the camera, on the screen's edge in the point's
+  real direction — the usual objective marker. Without it, a point behind the camera hides the node.
+- `onScreen`, `behind` and `distance` (world units from the camera) read back, for a "34m" label.
+- The camera is the one on screen (the active camera that clears colour with the highest priority), or the one
+  `camera` names.
+
+It projects from the camera's pose at the end of Update, so a marker does not trail a first-person view that
+turned this frame. It only hides a node while the point is behind the camera, and shows again only a node it
+hid itself: a marker the game hides (an objective done) stays hidden.
+
+```typescript
+import { UIWorldAnchor, UINode } from 'esengine';
+
+world.insert(marker, UINode, { width: px(60), height: px(40), marginLeft: px(-30), marginTop: px(-20) });
+world.insert(marker, UIWorldAnchor, { target: relay, offset: { x: 0, y: 2.5, z: 0 }, clampToEdges: true });
+```
+
 ## Editor or code
 
 ![A UI Canvas laid out in the editor viewport](@/assets/guides/en/ui-screen.png)

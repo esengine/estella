@@ -87,9 +87,6 @@ const DECLARED_GAPS = {
   physicsConfig: {
     editor: 'edit mode does not simulate — see physicsEnabled',
   },
-  physics3dWorld: {
-    editor: 'edit mode does not simulate — see physicsEnabled',
-  },
   colorSpace: {
     editor: 'boot-fixed — shaders compile against it, so the settings page asks '
       + 'for a reload rather than applying live (EngineHost.resolveColorSpace)',

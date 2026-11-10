@@ -29,6 +29,8 @@ export const NavObstacle = defineComponent<NavObstacleData>('NavObstacle', {
     halfExtents: { x: 50, y: 100, z: 50 },
     enabled: true,
 }, {
+    // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
+    worldUnitFields: ['halfExtents'],
     fields: {
         halfExtents: { unit: 'px', category: 'Navigation' },
         enabled: { category: 'Navigation', tooltip: 'Whether it blocks right now — a door that opens.' },

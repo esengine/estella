@@ -216,7 +216,8 @@ const MODEL: ImporterFieldSpec[] = [
     key: 'scale', label: 'Scale', type: 'number', default: 1, min: 0.0001, step: 0.1,
     category: 'Import',
     tooltip: 'Uniform scale on the imported prefab\u0027s root. A model is authored in metres '
-      + 'and a world unit is a design pixel, so a real-world model arrives a few pixels across.',
+      + 'whose real size in this project is set by its units per metre (Project Settings, Physics, 3D): '
+      + 'a Scale of 100 by default, 1 in a metre project, brings it in at real size.',
   },
   {
     key: 'lightmapUV', label: 'Generate Lightmap UVs', type: 'bool', default: false,

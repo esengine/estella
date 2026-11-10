@@ -70,10 +70,12 @@ describe('crouching', () => {
 });
 
 /** An input that holds the keys it is told to, and a pointer that has moved by what it is told. */
-function fakeInput(keys: string[] = [], mouse = { x: 0, y: 0 }) {
+function fakeInput(keys: string[] = [], mouse = { x: 0, y: 0 }, pressedKeys: string[] = []) {
     const down = new Set(keys);
+    const pressed = new Set(pressedKeys);
     return {
         isKeyDown: (k: string) => down.has(k),
+        isKeyPressed: (k: string) => pressed.has(k),
         isMouseButtonDown: (b: number) => b === 0,
         isMouseButtonPressed: () => false,
         getMouseDelta: () => mouse,
@@ -162,6 +164,45 @@ describe.skipIf(!HAS_WASM)('a first-person player in the engine world', () => {
         const blocked = { raycast: () => ({ distance: 1 }) } as never;
         move(world, fakeInput([]), blocked, 1 / 60);
         expect((world.get(body, FirstPersonController) as FirstPersonControllerData).crouching).toBe(true);
+    });
+
+    // The original's feel (Saltline: coyote 0.12 s, buffer 0.13 s, a player falling at 21 m/s² in a 9.81 world).
+    const airborne = (body: number, over: Partial<FirstPersonControllerData>) => {
+        world.update(body, CharacterController3D, (c: { isOnFloor: boolean; realVelocity: { x: number; y: number; z: number } }) => { c.isOnFloor = false; c.realVelocity = { x: 0, y: 0, z: 0 }; });
+        world.update(body, FirstPersonController, (c: FirstPersonControllerData) => Object.assign(c, over));
+    };
+    const vy = (body: number) => (world.get(body, CharacterController3D) as { velocity: { y: number } }).velocity.y;
+
+    it('still jumps just after walking off an edge, and not once the coyote time is gone', () => {
+        const { body } = player({ coyoteTime: 0.1 });
+        airborne(body, { airTime: 0.05, jumped: false });
+        move(world, fakeInput(['Space'], undefined, ['Space']), null, 1 / 60);
+        expect(vy(body)).toBe(420);
+        airborne(body, { airTime: 0.3, jumped: false, jumpHeld: 0 });
+        move(world, fakeInput(['Space'], undefined, ['Space']), null, 1 / 60);
+        expect(vy(body)).toBe(0);
+    });
+
+    it('keeps a jump pressed just before landing and takes off as it lands', () => {
+        const { body } = player({ jumpBuffer: 0.12 });
+        airborne(body, { airTime: 1, jumped: true });
+        move(world, fakeInput([], undefined, ['Space']), null, 1 / 60);
+        expect(vy(body)).toBe(0);
+        world.update(body, CharacterController3D, (c: { isOnFloor: boolean }) => { c.isOnFloor = true; });
+        move(world, fakeInput(), null, 1 / 60);
+        expect(vy(body)).toBe(420);
+    });
+
+    it("falls by its own gravity when it has one: twice the world's, from what it really moved at", () => {
+        const { body } = player({ gravityScale: 2 });
+        airborne(body, { airTime: 0.5, jumped: true });
+        world.update(body, CharacterController3D, (c: { realVelocity: { y: number } }) => { c.realVelocity.y = -100; });
+        move(world, fakeInput(), null, 0.5, -981);
+        expect(vy(body)).toBeCloseTo(-100 - 981 * 2 * 0.5);
+        const { body: plain } = player();
+        airborne(plain, { airTime: 0.5, jumped: true });
+        move(world, fakeInput(), null, 0.5, -981);
+        expect(vy(plain)).toBe(0);   // scale 1: the solver carries the fall, as it always did
     });
 
     it('draws what is held by a second camera over the world\'s, and keeps the world\'s from drawing it', () => {

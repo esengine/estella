@@ -71,6 +71,8 @@ export const Hunter: ComponentDef<HunterData> = defineComponent<HunterData>('Hun
     state: 'idle',
     cooldown: 0,
 }, {
+    // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
+    worldUnitFields: ['attackRange', 'idleThreshold'],
     readonlyFields: ['state', 'cooldown'],
     fields: {
         attackRange: { min: 0, tooltip: 'How close it gets before it swings.' },

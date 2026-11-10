@@ -160,7 +160,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
     },
     BoxCollider3D: {
         defaults: {
-            halfExtents: { x: 0.5, y: 0.5, z: 0.5 },
+            halfExtents: { x: 50, y: 50, z: 50 },
             center: { x: 0, y: 0, z: 0 },
             friction: 0.3,
             restitution: 0,
@@ -256,8 +256,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
     },
     CapsuleCollider3D: {
         defaults: {
-            radius: 0.3,
-            halfHeight: 0.5,
+            radius: 30,
+            halfHeight: 50,
             center: { x: 0, y: 0, z: 0 },
             friction: 0.3,
             restitution: 0,
@@ -278,11 +278,11 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
     CharacterController3D: {
         defaults: {
             velocity: { x: 0, y: 0, z: 0 },
-            radius: 0.3,
-            halfHeight: 0.5,
+            radius: 30,
+            halfHeight: 50,
             maxSlope: 0.87,
-            stepHeight: 0.4,
-            snapDown: 0.5,
+            stepHeight: 40,
+            snapDown: 50,
             mass: 70,
             pushForce: 5000,
             enabled: true,
@@ -1103,7 +1103,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
     },
     SphereCollider3D: {
         defaults: {
-            radius: 0.5,
+            radius: 50,
             center: { x: 0, y: 0, z: 0 },
             friction: 0.3,
             restitution: 0,

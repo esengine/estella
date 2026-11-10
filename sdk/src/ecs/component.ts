@@ -6,6 +6,7 @@
  */
 
 import { Entity, Vec2, Vec3, Color, Quat } from '../types';
+import { worldUnitDefaults, BUILTIN_WORLD_UNIT_FIELDS } from './worldUnits';
 import { deepClone } from '../util/deepClone';
 import { hasOwn, setOwn } from '../util/ownProperties';
 import { COMPONENT_META, type AssetFieldMeta, type SkeletalFieldMeta } from './component.generated';
@@ -135,6 +136,12 @@ export interface FieldMeta {
  * @public
  */
 export interface ComponentMetadata {
+    /**
+     * Fields that are world lengths, speeds or accelerations (a radius, a walk speed, gravity): their defaults are
+     * written at the reference 100 units a metre and scale with the project's units per metre (ecs/worldUnits.ts).
+     * A value a scene states is never scaled.
+     */
+    worldUnitFields?: string[];
     assetFields?: AssetFieldMeta[];
     skeletalFields?: SkeletalFieldMeta;
     entityFields?: string[];
@@ -347,6 +354,10 @@ function createComponentDef<T extends object>(
     }
     const keyInfo = classifyKeys(defaults);
     const defaultsRec = defaults as Record<string, unknown>;
+    for (const f of metadata?.worldUnitFields ?? []) {
+        if (!hasOwn(defaultsRec, f)) throw new Error(`Component "${name}": worldUnitFields names unknown field "${f}"`);
+    }
+    const currentDefaults = worldUnitDefaults(defaults, metadata?.worldUnitFields ?? []);
     // A replicated name that matches no field would silently sync nothing — the
     // drift class this metadata exists to kill, so it fails loud (same spirit as
     // EHT rejecting a malformed known annotation).
@@ -366,7 +377,8 @@ function createComponentDef<T extends object>(
     return {
         _id: componentId(name),
         _name: name,
-        _default: defaults,
+        // In the project's units: what a default fills in follows its units per metre.
+        get _default() { return currentDefaults(); },
         _builtin: false as const,
         assetFields: metadata?.assetFields ?? [],
         skeletalFields: metadata?.skeletalFields,
@@ -380,9 +392,10 @@ function createComponentDef<T extends object>(
         transient: metadata?.transient ?? false,
         renderableField: renderableField ?? null,
         create(data?: Partial<T>): T {
+            const now = currentDefaults();
             // Flat defaults have nothing to merge into, so they take the cheap path.
-            if (keyInfo) return mergeIntoDefaults(defaults, data);
-            return data ? { ...defaults, ...data } : { ...defaults };
+            if (keyInfo) return mergeIntoDefaults(now, data);
+            return data ? { ...now, ...data } : { ...now };
         }
     };
 }
@@ -767,12 +780,14 @@ export function defineBuiltin<T>(name: string, defaults: T, metadata?: Component
     }
 
     const meta = COMPONENT_META[name];
+    const currentDefaults = worldUnitDefaults(defaults, metadata?.worldUnitFields ?? BUILTIN_WORLD_UNIT_FIELDS[name] ?? []);
     const def: BuiltinComponentDef<T> = {
         _id: Symbol(`Builtin_${name}`),
         _name: name,
         _cppName: name,
         _builtin: true,
-        _default: defaults,
+        // In the project's units: what a default fills in follows its units per metre.
+        get _default() { return currentDefaults(); },
         assetFields: metadata?.assetFields ?? meta?.assetFields ?? [],
         skeletalFields: metadata?.skeletalFields ?? meta?.skeletal,
         entityFields: metadata?.entityFields ?? meta?.entityFields ?? [],

@@ -32,6 +32,16 @@ export interface FirstPersonControllerData {
     airControl: number;
     /** Upward speed a jump starts with; 0 disables jumping. */
     jumpSpeed: number;
+    /**
+     * The player's own gravity, as a share of the world's: 1 falls as everything else does; a game that wants a
+     * snappier arc than the world's bodies (Saltline's 21 m/s² against 9.81) sets more. The controller carries its own
+     * vertical speed while airborne then.
+     */
+    gravityScale: number;
+    /** Seconds after walking off an edge in which a jump still takes off ("coyote time"). */
+    coyoteTime: number;
+    /** Seconds a jump pressed before landing is kept, so it takes off on the frame the player lands. */
+    jumpBuffer: number;
     /** Degrees of turn for each pixel the pointer moves. */
     lookSensitivity: number;
     /** Degrees of turn for each pixel a finger drags. */
@@ -67,6 +77,12 @@ export interface FirstPersonControllerData {
     eye: number;
     /** A rebuild of the capsule in progress: 0 none, 1 the old one is let go and the new one made on the next step. */
     rebuild: number;
+    /** Seconds since the character last stood on the floor; set by the controller. */
+    airTime: number;
+    /** Seconds the last jump press has left to take off in; set by the controller. */
+    jumpHeld: number;
+    /** Whether the jump this airborne spell started with has been used; set by the controller. */
+    jumped: boolean;
 }
 
 /**
@@ -76,13 +92,16 @@ export interface FirstPersonControllerData {
  */
 export const FirstPersonController: ComponentDef<FirstPersonControllerData> = defineComponent<FirstPersonControllerData>('FirstPersonController', {
     moveSpeed: 320, sprintMultiplier: 1.6, crouchMultiplier: 0.5, acceleration: 2400, deceleration: 3200, airControl: 0.3, jumpSpeed: 420,
+    gravityScale: 1, coyoteTime: 0.1, jumpBuffer: 0.12,
     lookSensitivity: 0.12, touchSensitivity: 0.2, pitchMin: -85, pitchMax: 85,
     eyeHeight: 70, crouchEyeHeight: 28, crouchHalfHeight: 45, eyeSpeed: 400,
     camera: 0 as Entity, pointerLock: true, touchLook: true, touchLookFrom: 480, enabled: true,
-    yaw: 0, pitch: 0, crouching: false, standHalfHeight: 0, eye: -1, rebuild: 0,
+    yaw: 0, pitch: 0, crouching: false, standHalfHeight: 0, eye: -1, rebuild: 0, airTime: 0, jumpHeld: 0, jumped: false,
 }, {
+    // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
+    worldUnitFields: ['moveSpeed', 'acceleration', 'deceleration', 'jumpSpeed', 'eyeHeight', 'crouchEyeHeight', 'crouchHalfHeight', 'eyeSpeed'],
     entityFields: ['camera'],
-    readonlyFields: ['crouching', 'standHalfHeight', 'eye', 'rebuild'],
+    readonlyFields: ['crouching', 'standHalfHeight', 'eye', 'rebuild', 'airTime', 'jumpHeld', 'jumped'],
     fields: {
         moveSpeed: { min: 0, category: 'Movement' },
         sprintMultiplier: { min: 1, step: 0.05, category: 'Movement' },
@@ -91,6 +110,9 @@ export const FirstPersonController: ComponentDef<FirstPersonControllerData> = de
         deceleration: { min: 0, category: 'Movement', advanced: true },
         airControl: { min: 0, max: 1, step: 0.05, category: 'Movement', advanced: true },
         jumpSpeed: { min: 0, category: 'Movement', tooltip: 'Upward speed a jump starts with. 0 = cannot jump.' },
+        gravityScale: { min: 0, step: 0.05, category: 'Movement', tooltip: 'The player\'s gravity as a share of the world\'s. Above 1 falls faster and jumps feel snappier.' },
+        coyoteTime: { min: 0, step: 0.01, unit: 's', category: 'Movement', advanced: true, tooltip: 'How long after walking off an edge a jump still works.' },
+        jumpBuffer: { min: 0, step: 0.01, unit: 's', category: 'Movement', advanced: true, tooltip: 'How long a jump pressed just before landing is kept.' },
         lookSensitivity: { min: 0, step: 0.01, unit: '°/px', category: 'Look' },
         touchSensitivity: { min: 0, step: 0.01, unit: '°/px', category: 'Look' },
         pitchMin: { min: -90, max: 0, unit: '°', category: 'Look' },
@@ -127,6 +149,8 @@ export interface FirstPersonViewModelData {
 export const FirstPersonViewModel: ComponentDef<FirstPersonViewModelData> = defineComponent<FirstPersonViewModelData>('FirstPersonViewModel', {
     layer: 20, fov: 60, nearPlane: 1, farPlane: 1000,
 }, {
+    // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
+    worldUnitFields: ['nearPlane', 'farPlane'],
     fields: {
         layer: { min: 0, max: 31, category: 'View model', tooltip: 'The sorting layer the held thing is on: put it on its renderers, under this camera.' },
         fov: { min: 1, max: 170, unit: '°', category: 'View model', tooltip: 'The held thing\'s own field of view, so it does not stretch with a wide view of the world.' },

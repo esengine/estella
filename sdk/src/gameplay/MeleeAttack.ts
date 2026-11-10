@@ -69,6 +69,8 @@ export const MeleeAttack: ComponentDef<MeleeAttackData> =
         attackId: 0,
         hitCount: 0,
     }, {
+    // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
+    worldUnitFields: ['radius'],
         entityFields: ['anchor'],
         readonlyFields: ['attackId', 'hitCount'],
         fields: {

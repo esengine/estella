@@ -638,6 +638,8 @@ export interface ESEngineModule {
     particle_collisionResolve?(registry: CppRegistry, ptr: number, count: number): void;
     particle_collisionSetBudget?(queries: number, events: number, debug: boolean): void;
     particle_play?(registry: CppRegistry, entity: number): void;
+    particle_emitAt?(registry: CppRegistry, entity: number, count: number, px: number, py: number, pz: number,
+                     nx: number, ny: number, nz: number, vx: number, vy: number, vz: number): number;
     particle_stop?(registry: CppRegistry, entity: number): void;
     particle_reset?(registry: CppRegistry, entity: number): void;
     particle_getAliveCount?(entity: number): number;

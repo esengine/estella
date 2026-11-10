@@ -51,6 +51,8 @@ export const NavAgent = defineComponent<NavAgentData>('NavAgent', {
     targetZ: 0,
     arrived: false,
 }, {
+    // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
+    worldUnitFields: ['speed', 'radius', 'arriveRadius'],
     fields: {
         speed: { min: 0, unit: 'px/s', category: 'Navigation' },
         radius: { min: 0, unit: 'px', category: 'Navigation' },

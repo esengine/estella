@@ -34,6 +34,8 @@ export const NavArea = defineComponent<NavAreaData>('NavArea', {
     cost: 3,
     enabled: true,
 }, {
+    // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
+    worldUnitFields: ['halfExtents'],
     fields: {
         halfExtents: { unit: 'px', category: 'Navigation' },
         cost: { min: 0, category: 'Navigation', tooltip: 'What crossing it costs against 1 for open ground.' },

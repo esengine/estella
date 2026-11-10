@@ -191,6 +191,27 @@ world.insert(banner, RectAnchors, {
 });
 ```
 
+### `UIWorldAnchor` —— 立在世界某一点上的 UI
+
+HUD 常要标出 3D 世界里的东西：目标点、头顶的名字、血条。`UIWorldAnchor` 每帧把所在的 UI 节点放到一个实体
+（加 `offset`）或一个世界坐标点在屏幕上的位置。节点按 Absolute 定位，用左/上内边距放在父节点里，父节点应铺满
+屏幕（屏幕 Canvas 根或全屏面板）；用一半尺寸的负外边距让它以该点为中心。
+
+- `clampToEdges`：点在屏幕外或摄像机背后时，标记停在屏幕边缘、指向点的真实方向——常见的目标标记。不开时，
+  点在摄像机背后就隐藏节点。
+- `onScreen`、`behind`、`distance`（离摄像机的世界单位）可读回，用来显示“34m”。
+- 摄像机是屏幕上那台（清颜色、优先级最高的激活摄像机），或 `camera` 指定的那台。
+
+它在 Update 结束时按摄像机的位姿投影，所以第一人称视角本帧转动时标记不会滞后一帧。它只在点位于摄像机背后时
+隐藏节点，也只重新显示它自己隐藏的节点：游戏自己隐藏的标记（目标已完成）会保持隐藏。
+
+```typescript
+import { UIWorldAnchor, UINode } from 'esengine';
+
+world.insert(marker, UINode, { width: px(60), height: px(40), marginLeft: px(-30), marginTop: px(-20) });
+world.insert(marker, UIWorldAnchor, { target: relay, offset: { x: 0, y: 2.5, z: 0 }, clampToEdges: true });
+```
+
 ### `UIPages` —— 用到才存在的页面
 
 一个有很多页面的界面不需要把它们同时放进世界。`UIPages` 把每个页面存成预制体,第一次打开时才构建:

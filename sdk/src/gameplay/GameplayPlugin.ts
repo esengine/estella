@@ -18,7 +18,7 @@ import { playModeOnly } from '../ecs/env';
 import { Input, type InputState } from '../input/input';
 import { Transform, type TransformData } from '../ecs/component';
 import { CharacterController3D, type CharacterController3DData } from '../physics3d/Physics3DComponents';
-import { Physics3D } from '../physics3d/Physics3DPlugin';
+import { Physics3D, Physics3DRuntime } from '../physics3d/Physics3DPlugin';
 import type { Physics3DQueries } from '../physics3d/Physics3DQueries';
 import { Animator, AnimatorController, type AnimatorControllerAPI } from '../animation/Animator';
 import {
@@ -342,7 +342,9 @@ export class GameplayPlugin implements Plugin {
             [Res(Time), Res(Input)],
             (time: TimeData, input: InputState) => {
                 const queries = app.hasResource(Physics3D) ? app.getResource(Physics3D) : null;
-                moveFirstPerson(world, input, queries, time.fixedDelta);
+                // The world's gravity in world units per second squared, for a player whose own differs from it.
+                const config = app.hasResource(Physics3DRuntime) ? app.getResource(Physics3DRuntime).config : null;
+                moveFirstPerson(world, input, queries, time.fixedDelta, config ? config.gravity.y * config.pixelsPerUnit : 0);
             },
             { name: 'FirstPersonControllerSystem' },
         ), { runIf: playModeOnly });

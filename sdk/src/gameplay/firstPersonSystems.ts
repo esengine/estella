@@ -101,7 +101,7 @@ export function look(world: World, input: InputState, dt: number, touch: TouchLo
 }
 
 /** Before the physics step: what the player asks of the character, and the height it asks to be. */
-export function move(world: World, input: InputState, queries: Physics3DQueries | null, dt: number): void {
+export function move(world: World, input: InputState, queries: Physics3DQueries | null, dt: number, gravity = 0): void {
     for (const entity of world.getEntitiesWithComponents([FirstPersonController, CharacterController3D])) {
         const data = world.get(entity, FirstPersonController) as FirstPersonControllerData;
         if (!data.enabled) continue;
@@ -144,9 +144,29 @@ export function move(world: World, input: InputState, queries: Physics3DQueries 
         const authority = character.isOnFloor ? 1 : Math.max(0, Math.min(1, data.airControl));
         const next = approachVelocity({ x: character.velocity.x, z: character.velocity.z }, { x: direction.x * speed, z: direction.z * speed },
             data.acceleration * authority, data.deceleration * authority, dt);
-        const jumping = data.jumpSpeed > 0 && character.isOnFloor && !data.crouching && input.isKeyDown('Space');
+        // Coyote time and a jump buffer: a jump just after walking off an edge, or pressed just before landing, still
+        // takes off. Holding the key on the floor jumps as it always did.
+        const airTime = character.isOnFloor ? 0 : (data.airTime ?? 0) + dt;
+        const pressed = input.isKeyPressed('Space');
+        const jumpHeld = pressed ? (data.jumpBuffer ?? 0) : Math.max(0, (data.jumpHeld ?? 0) - dt);
+        const grounded = character.isOnFloor || (!data.jumped && airTime <= (data.coyoteTime ?? 0));
+        const wants = (character.isOnFloor && input.isKeyDown('Space')) || pressed || jumpHeld > 0;
+        const jumping = data.jumpSpeed > 0 && grounded && !data.crouching && wants;
+        // The player's own gravity: in the air at a scale other than 1, the vertical speed is carried here (the solver
+        // takes a non-zero one as given), from what the character really moved at the last step.
+        const scale = data.gravityScale ?? 1;
+        let vy = jumping ? data.jumpSpeed : 0;
+        if (!jumping && !character.isOnFloor && scale !== 1 && gravity !== 0) {
+            vy = character.realVelocity.y + gravity * scale * dt;
+            if (vy === 0) vy = gravity * scale * dt;
+        }
         world.update(entity, CharacterController3D, (c: CharacterController3DData) => {
-            c.velocity.x = next.x; c.velocity.z = next.z; c.velocity.y = jumping ? data.jumpSpeed : 0;
+            c.velocity.x = next.x; c.velocity.z = next.z; c.velocity.y = vy;
+        });
+        world.update(entity, FirstPersonController, (c: FirstPersonControllerData) => {
+            c.airTime = airTime;
+            c.jumpHeld = jumping ? 0 : jumpHeld;
+            c.jumped = jumping ? true : character.isOnFloor ? false : c.jumped;
         });
     }
 }

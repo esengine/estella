@@ -38,7 +38,8 @@ export const RigidBody3D = defineBuiltin<RigidBody3DData>('RigidBody3D', {
 });
 
 export const BoxCollider3D = defineBuiltin<BoxCollider3DData>('BoxCollider3D', {
-    halfExtents: { x: 0.5, y: 0.5, z: 0.5 },
+    // World units at the reference 100 a metre (a 1 m box), scaled by the project's units per metre.
+    halfExtents: { x: 50, y: 50, z: 50 },
     center: { x: 0, y: 0, z: 0 },
     friction: 0.3,
     restitution: 0.0,
@@ -47,7 +48,7 @@ export const BoxCollider3D = defineBuiltin<BoxCollider3DData>('BoxCollider3D', {
 });
 
 export const SphereCollider3D = defineBuiltin<SphereCollider3DData>('SphereCollider3D', {
-    radius: 0.5,
+    radius: 50,
     center: { x: 0, y: 0, z: 0 },
     friction: 0.3,
     restitution: 0.0,
@@ -56,8 +57,8 @@ export const SphereCollider3D = defineBuiltin<SphereCollider3DData>('SphereColli
 });
 
 export const CapsuleCollider3D = defineBuiltin<CapsuleCollider3DData>('CapsuleCollider3D', {
-    radius: 0.3,
-    halfHeight: 0.5,
+    radius: 30,
+    halfHeight: 50,
     center: { x: 0, y: 0, z: 0 },
     friction: 0.3,
     restitution: 0.0,
@@ -104,12 +105,13 @@ export const ConvexCollider3D = defineBuiltin<ConvexCollider3DData>('ConvexColli
 export const CharacterController3D = defineBuiltin<CharacterController3DData>(
     'CharacterController3D', {
         velocity: { x: 0, y: 0, z: 0 },
-        radius: 0.3,
-        halfHeight: 0.5,
+        // World units at the reference 100 a metre (a 1.6 m person), scaled by the project's units per metre.
+        radius: 30,
+        halfHeight: 50,
         maxSlope: 0.87,
         layer: 0,
-        stepHeight: 0.4,
-        snapDown: 0.5,
+        stepHeight: 40,
+        snapDown: 50,
         mass: 70,
         pushForce: 5000,
         enabled: true,

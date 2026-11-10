@@ -20,6 +20,7 @@ import {
     type ImportedMesh, type ImportedNode, type SpecularMapReading,
 } from './modelImport';
 import { modelStem, readModelSource } from './readModelSource';
+import { parseManifest } from '../project/format';
 
 export interface ModelImportSettings {
     scale: number;
@@ -103,6 +104,18 @@ function collectNodeMeshes(nodes: ImportedNode[], meshFiles: string[], out: Map<
  * Import `absSource` into `destDir` of the project at `root`, writing the meshes, the images it carries, the materials, the clips and the
  * prefab that assembles them.
  */
+/** The project's units per metre (`features.physics.world3d.unitsPerMeter`), or the engine's 100 when it states none or is no project. */
+function projectUnitsPerMeter(root: string): number {
+  try {
+    const file = path.join(root, 'project.esproject');
+    if (!existsSync(file)) return 100;
+    const text = readFileSync(file, 'utf8');
+    return parseManifest(JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text)).features?.physics?.world3d?.unitsPerMeter ?? 100;
+  } catch {
+    return 100;
+  }
+}
+
 export async function importModelFile(opts: ImportModelOptions): Promise<ImportedModel> {
     const { root, destDir, absSource } = opts;
     const absDir = destDir ? resolveInside(root, destDir, 'model destination') : path.resolve(root);
@@ -259,11 +272,15 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
     if (meshes.length > 0) {
         const prefab = assembleModelPrefab(stem, meshes, { refs, nodes, scale, timeline: firstClip });
         prefabRef = await write(`${stem}.esprefab`, `${JSON.stringify(prefab, null, 2)}\n`);
-        // Models are authored in metres and a world unit is a design pixel, so a real-world model arrives a few pixels across. Said, not
-        // guessed at: the scale is the user's, and this is where they find out they have one.
+        // A model is authored in metres; what it measures in this project depends on the project's units per metre (Project Settings →
+        // Physics → 3D: 100 unless set, 1 in a metre project). Under 8 cm in real terms, it is almost always a model whose Scale does not
+        // match the project — said, not guessed at: the scale is the user's, and this is where they find out they have one.
         const extent = Math.max(...meshes.flatMap((m) => m.data.aabbMax.map((v, i) => v - (m.data.aabbMin[i] ?? 0))));
-        if (scale === 1 && extent < 8) {
-            warnings.push(`the model is ${extent.toFixed(2)} units across — set Scale in its import settings and reimport if it should be bigger`);
+        const unitsPerMeter = projectUnitsPerMeter(root);
+        const metres = (extent * scale) / unitsPerMeter;
+        if (metres < 0.08 && scale !== unitsPerMeter) {
+            warnings.push(`the model is ${metres.toFixed(3)} m across in this project (${unitsPerMeter} units a metre) — `
+                + `set Scale to ${unitsPerMeter} in its import settings and reimport if it is a real-world size`);
         }
     }
 

@@ -67,6 +67,8 @@ export const ThirdPersonCamera: ComponentDef<ThirdPersonCameraData> =
         obstructionLayers: 0,
         enabled: true,
     }, {
+    // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
+    worldUnitFields: ['distance', 'targetOffset', 'obstructionRadius'],
         entityFields: ['target'],
         fields: {
             target: { tooltip: 'The transform this camera orbits.' },

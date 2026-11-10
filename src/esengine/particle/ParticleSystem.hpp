@@ -183,6 +183,18 @@ public:
     void reset(Entity entity);
 
     u32 aliveCount(Entity entity) const;
+
+    /**
+     * @brief Spawn @p count of @p entity's particles at a world point, now: an impact's sparks, a muzzle's flash, without
+     *        moving the emitter or replaying it.
+     * @details The emitter's own settings make them (shape, speed, size, colour, life). Its shape stands at @p position,
+     *          turned so its local +Y — a cone's or a hemisphere's axis — points along @p normal when one is given, and
+     *          as the entity is turned otherwise; @p velocity is added to every particle. A Local-space emitter keeps them
+     *          in its own frame, as a sub-emitter's burst is kept. CPU-simulated emitters only: a GPU one answers 0.
+     * @return How many were spawned (fewer than asked when the pool or the particle budget is full).
+     */
+    u32 emitAt(ecs::Registry& registry, Entity entity, u32 count, const glm::vec3& position,
+               const glm::vec3& normal, const glm::vec3& velocity);
     u32 totalAliveParticles() const;
     void setParticleLimit(u32 limit) { particle_limit_ = limit; }
 

@@ -8,6 +8,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { App } from '../src/app/app';
 import { MeshRenderer, Parent, RuntimeOnly, Transform, type TransformData } from '../src/ecs/component';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
+import { setWorldUnitsPerMeter, REFERENCE_UNITS_PER_METER } from '../src/ecs/worldUnits';
 import { Assets } from '../src/asset/AssetPlugin';
 import type { Assets as AssetsApi } from '../src/asset/Assets';
 import type { MeshData } from '../src/asset/meshFormat';
@@ -30,6 +31,7 @@ const apps: App[] = [];
 afterEach(() => {
     while (apps.length) apps.pop()!.quit?.();
     setEditorMode(false); setPlayMode(false);
+    setWorldUnitsPerMeter(REFERENCE_UNITS_PER_METER);
 });
 
 interface Scene {
@@ -45,6 +47,8 @@ async function scene(options: { physics?: boolean; solver?: string; fields?: Rec
     setPlayMode(true);
     if (options.physics !== false) {
         const module = await loadSideModule<Physics3DWasmModule>(options.solver ?? 'physics3d');
+        // A metre world, as a project with world3d.unitsPerMeter 1 is: its defaults (a character's capsule) are in metres too.
+        setWorldUnitsPerMeter(1);
         app.addPlugin(new Physics3DPlugin('', { fixedTimestep: 1 / 60, pixelsPerUnit: 1 }, async () => module));
         await app.getResource(Physics3DRuntime).initPromise;
     }

@@ -41,6 +41,8 @@ export const Perceiver = defineComponent<PerceiverData>('Perceiver', {
     losLayers: 0,
     hearingRange: 0,
 }, {
+    // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
+    worldUnitFields: ['range', 'hearingRange'],
     fields: {
         range: { min: 0, unit: 'px', category: 'Perception' },
         fovDegrees: { min: 0, max: 360, unit: '°', category: 'Perception' },

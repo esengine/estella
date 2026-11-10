@@ -952,6 +952,13 @@ void particle_reset(ecs::Registry& registry, u32 entity) {
     g_particleSystem->reset(Entity::fromRaw(entity));
 }
 
+u32 particle_emitAt(ecs::Registry& registry, u32 entity, u32 count, f32 px, f32 py, f32 pz,
+                    f32 nx, f32 ny, f32 nz, f32 vx, f32 vy, f32 vz) {
+    if (!g_particleSystem) return 0;
+    return g_particleSystem->emitAt(registry, Entity::fromRaw(entity), count, glm::vec3(px, py, pz),
+                                    glm::vec3(nx, ny, nz), glm::vec3(vx, vy, vz));
+}
+
 u32 particle_getAliveCount(u32 entity) {
     if (!g_particleSystem) return 0;
     return g_particleSystem->aliveCount(Entity::fromRaw(entity));

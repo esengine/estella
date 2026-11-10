@@ -49,6 +49,8 @@ export const NavVolume = defineComponent<NavVolumeData>('NavVolume', {
     stepHeight: 40,
     layers: 0,
 }, {
+    // World lengths and speeds: written at 100 units a metre, scaled to the project (ecs/worldUnits.ts).
+    worldUnitFields: ['halfExtents', 'cellSize', 'cellHeight', 'agentHeight', 'agentRadius', 'stepHeight'],
     fields: {
         halfExtents: { unit: 'px', category: 'Navigation' },
         cellSize: { min: 1, unit: 'px', category: 'Navigation' },

@@ -522,6 +522,45 @@ void ParticleSystem::emitInto(const ecs::ParticleEmitter& emitter, EmitterState&
     }
 }
 
+u32 ParticleSystem::emitAt(ecs::Registry& registry, Entity entity, u32 count, const glm::vec3& position,
+                           const glm::vec3& normal, const glm::vec3& velocity) {
+    if (count == 0 || !registry.valid(entity) || !registry.has<ecs::ParticleEmitter>(entity)) return 0;
+    const auto& emitter = registry.get<ecs::ParticleEmitter>(entity);
+    if (emitter.gpuSimulation && gpu_available_) return 0;
+    auto it = states_.find(entity);
+    if (it == states_.end()) {
+        it = states_.emplace(entity, EmitterState(static_cast<u32>(std::clamp(emitter.maxParticles, 0, 1'000'000)))).first;
+    }
+    EmitterState& state = it->second;
+    if (state.gpu) return 0;
+
+    glm::quat rotation(1.0f, 0.0f, 0.0f, 0.0f);
+    glm::vec3 scale(1.0f);
+    EmitterFrame storage;
+    if (registry.has<ecs::Transform>(entity)) {
+        const auto& t = registry.get<ecs::Transform>(entity);
+        rotation = t.worldRotation;
+        scale = t.worldScale;
+        storage = {t.worldPosition, t.worldRotation, t.worldScale};
+    }
+    const f32 n = glm::length(normal);
+    if (n > 1e-6f) {
+        // The shortest turn from +Y onto the normal; straight down is a half turn about X.
+        const glm::vec3 to = normal / n;
+        const f32 d = glm::dot(glm::vec3(0.0f, 1.0f, 0.0f), to);
+        if (d < -0.9999f) rotation = glm::quat(0.0f, 1.0f, 0.0f, 0.0f);
+        else {
+            const glm::vec3 axis = glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), to);
+            rotation = glm::normalize(glm::quat(1.0f + d, axis.x, axis.y, axis.z));
+        }
+    }
+    const bool local = emitter.simulationSpace == static_cast<i32>(ecs::SimulationSpace::Local);
+    const u32 before = state.pool.aliveCount();
+    emitInto(emitter, state, EmitterFrame{position, rotation, scale}, /*isWorldSpace=*/true, velocity, count,
+             /*allowBirthTrigger=*/true, 0, local ? &storage : nullptr);
+    return state.pool.aliveCount() - before;
+}
+
 void ParticleSystem::drainSubEmitters(ecs::Registry& registry, Entity parent, Entity child,
                                       f32 inheritVelocity, f32 chance) {
     // Take ownership of the queue up front: emitInto below spawns into the child
