@@ -199,6 +199,32 @@ describe('volumeBlending', () => {
     });
 
     describe('blendVolumeEffects', () => {
+        const volumeOf = (uniforms: Record<string, unknown>, colors?: Record<string, unknown>) => ({
+            data: {
+                effects: [{ type: 'heightFog', enabled: true, uniforms, ...(colors ? { colors } : {}) }],
+                isGlobal: true, shape: 'box', size: { x: 5, y: 5 }, priority: 0, weight: 1, blendDistance: 0,
+            } as never,
+            factor: 1,
+        });
+
+        it('reads a colour written among the uniforms as the colour it is, not as NaN', () => {
+            const fog = blendVolumeEffects([volumeOf({ u_density: 0.01, u_fogColor: { r: 0.5, g: 0.6, b: 0.7, a: 1 } })]).get('heightFog')!;
+            expect(fog.uniforms.has('u_fogColor')).toBe(false);
+            expect(fog.colors.get('u_fogColor')).toEqual({ r: 0.5, g: 0.6, b: 0.7, a: 1 });
+            expect([...fog.uniforms.values()].every(Number.isFinite)).toBe(true);
+        });
+
+        it('lets the colours block win over the same colour among the uniforms', () => {
+            const fog = blendVolumeEffects([volumeOf({ u_fogColor: { r: 1, g: 0, b: 0, a: 1 } }, { u_fogColor: { r: 0, g: 0, b: 1, a: 1 } })]).get('heightFog')!;
+            expect(fog.colors.get('u_fogColor')).toEqual({ r: 0, g: 0, b: 1, a: 1 });
+        });
+
+        it('leaves out a uniform that is not a number', () => {
+            const fog = blendVolumeEffects([volumeOf({ u_density: 'thick', u_startDistance: 2 })]).get('heightFog')!;
+            expect(fog.uniforms.has('u_density')).toBe(false);
+            expect(fog.uniforms.get('u_startDistance')).toBe(2);
+        });
+
         it('returns empty map when no active volumes', () => {
             const result = blendVolumeEffects([]);
             expect(result.size).toBe(0);

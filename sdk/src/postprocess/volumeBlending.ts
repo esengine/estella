@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { PostProcessVolumeData } from '../ecs/component';
 import { getEffectDef } from './effects';
+import { log } from '../util/logger';
 
 export interface VolumeTransform {
     x: number;
@@ -100,6 +101,36 @@ export function computeVolumeFactor(
     return (1 - dist / volume.blendDistance) * volume.weight;
 }
 
+const isRgb = (v: unknown): v is { r: number; g: number; b: number; a?: number } =>
+    !!v && typeof v === 'object' && ['r', 'g', 'b'].every((k) => typeof (v as Record<string, unknown>)[k] === 'number');
+
+const warned = new Set<string>();
+const warnOnce = (key: string, message: string): void => {
+    if (warned.has(key)) return;
+    warned.add(key);
+    log.warn('postprocess', message);
+};
+
+/**
+ * An effect's floats and colours as the volume states them. A colour belongs in `colors`; one written among the floats (by hand,
+ * by a tool) was blended as a number into NaN, and the effect drew garbage — Height Fog turned a whole scene teal. Its meaning is
+ * not in doubt, so it is read as the colour it is and the author is told where it goes; anything else that is not a number is left out.
+ */
+function effectParams(effect: PostProcessVolumeData['effects'][number]): { floats: [string, number][]; colors: [string, Rgba][] } {
+    const floats: [string, number][] = [];
+    const colors: [string, Rgba][] = Object.entries(effect.colors ?? {});
+    for (const [key, value] of Object.entries(effect.uniforms as Record<string, unknown>)) {
+        if (typeof value === 'number' && Number.isFinite(value)) { floats.push([key, value]); continue; }
+        if (isRgb(value)) {
+            warnOnce(`${effect.type}.${key}:colour`, `${effect.type}: ${key} is a colour written among the uniforms; read as a colour (it belongs in "colors")`);
+            if (!colors.some(([k]) => k === key)) colors.push([key, { r: value.r, g: value.g, b: value.b, a: value.a ?? 1 }]);
+            continue;
+        }
+        warnOnce(`${effect.type}.${key}:nan`, `${effect.type}: ${key} is not a number (${JSON.stringify(value)}); left out`);
+    }
+    return { floats, colors };
+}
+
 export function blendVolumeEffects(
     activeVolumes: ActiveVolume[]
 ): Map<string, BlendedEffect> {
@@ -114,13 +145,14 @@ export function blendVolumeEffects(
             if (!effect.enabled) continue;
 
             const existing = result.get(effect.type);
+            const params = effectParams(effect);
             if (!existing) {
                 // Blend from each param's neutral ("effect does nothing") value, not
                 // from 0 — else a multiplicative param (contrast/saturation/zoom,
                 // neutral 1) fades to 0 (black / extreme distortion) at the edge.
                 const def = getEffectDef(effect.type);
                 const uniforms = new Map<string, number>();
-                for (const [key, value] of Object.entries(effect.uniforms)) {
+                for (const [key, value] of params.floats) {
                     const neutral = def?.uniforms.find((u) => u.name === key)?.neutralValue ?? 0;
                     uniforms.set(key, neutral + (value - neutral) * factor);
                 }
@@ -133,11 +165,9 @@ export function blendVolumeEffects(
                 // A colour fades from the effect's declared default, as a float fades
                 // from its neutral: a half-weight volume is half the way to its colour.
                 const colors = new Map<string, Rgba>();
-                if (effect.colors) {
-                    for (const [key, value] of Object.entries(effect.colors)) {
-                        const base = def?.colors?.find((c) => c.name === key)?.defaultValue ?? value;
-                        colors.set(key, lerpRgba(base, value, factor));
-                    }
+                for (const [key, value] of params.colors) {
+                    const base = def?.colors?.find((c) => c.name === key)?.defaultValue ?? value;
+                    colors.set(key, lerpRgba(base, value, factor));
                 }
                 result.set(effect.type, { enabled: true, uniforms, textures, colors });
             } else {
@@ -146,17 +176,15 @@ export function blendVolumeEffects(
                         if (ref) existing.textures.set(key, ref);
                     }
                 }
-                for (const [key, value] of Object.entries(effect.uniforms)) {
+                for (const [key, value] of params.floats) {
                     const prev = existing.uniforms.get(key) ?? 0;
                     existing.uniforms.set(key, prev + (value - prev) * factor);
                 }
-                if (effect.colors) {
-                    const def = getEffectDef(effect.type);
-                    for (const [key, value] of Object.entries(effect.colors)) {
-                        const prev = existing.colors.get(key)
-                            ?? def?.colors?.find((c) => c.name === key)?.defaultValue ?? value;
-                        existing.colors.set(key, lerpRgba(prev, value, factor));
-                    }
+                const def = getEffectDef(effect.type);
+                for (const [key, value] of params.colors) {
+                    const prev = existing.colors.get(key)
+                        ?? def?.colors?.find((c) => c.name === key)?.defaultValue ?? value;
+                    existing.colors.set(key, lerpRgba(prev, value, factor));
                 }
             }
         }
