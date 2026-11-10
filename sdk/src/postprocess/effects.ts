@@ -246,6 +246,18 @@ registerEffect({
         { name: 'u_saturation', label: 'Saturation', min: 0, max: 2, step: 0.01, defaultValue: 1, neutralValue: 1 },
         { name: 'u_temperature', label: 'Temperature', min: -1, max: 1, step: 0.01, defaultValue: 0 },
         { name: 'u_tint', label: 'Tint', min: -1, max: 1, step: 0.01, defaultValue: 0 },
+        // Split toning and the black level act on the picture as the display shows it, so they belong AFTER Tonemap; before it, 0 to 1
+        // is only part of the scene's light and the tints would act on that part.
+        { name: 'u_toneLow', label: 'Tone Low', min: 0, max: 1, step: 0.01, defaultValue: 0.03 },
+        { name: 'u_toneHigh', label: 'Tone High', min: 0, max: 1, step: 0.01, defaultValue: 0.55 },
+        { name: 'u_curve', label: 'S-Curve', min: 0, max: 1, step: 0.01, defaultValue: 0, neutralValue: 0 },
+    ],
+    colors: [
+        // Multipliers, not colour-managed: white leaves a tone as it is, teal in the shadows and warm in the highlights is the cinema look.
+        { name: 'u_shadowTint', label: 'Shadow Tint', defaultValue: { r: 1, g: 1, b: 1, a: 1 } },
+        { name: 'u_highlightTint', label: 'Highlight Tint', defaultValue: { r: 1, g: 1, b: 1, a: 1 } },
+        // Added to every tone, a tenth of the colour: lifted blacks that carry a hue.
+        { name: 'u_lift', label: 'Lift', defaultValue: { r: 0, g: 0, b: 0, a: 1 } },
     ],
 });
 

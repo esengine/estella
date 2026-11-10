@@ -580,6 +580,12 @@ void main() {
 #pragma param u_saturation float default(1) range(0,2)
 #pragma param u_temperature float default(0) range(-1,1)
 #pragma param u_tint float default(0) range(-1,1)
+#pragma param u_shadowTint color default(1,1,1,1)
+#pragma param u_highlightTint color default(1,1,1,1)
+#pragma param u_toneLow float default(0.03) range(0,1)
+#pragma param u_toneHigh float default(0.55) range(0,1)
+#pragma param u_curve float default(0) range(0,1)
+#pragma param u_lift color default(0,0,0,1)
 
 #pragma fragment
 precision highp float;
@@ -603,6 +609,18 @@ void main() {
     // Contrast about mid-grey.
     ${contrastGlsl}
 
+    // Split toning: what is dark is multiplied by the shadow tint and what is bright by the highlight tint, blended by luma between
+    // Tone Low and Tone High. White is no change. Meant for the picture after Tonemap, where 0 to 1 is what the display shows.
+    float tone = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    c *= mix(u_shadowTint.rgb, u_highlightTint.rgb, smoothstep(u_toneLow, max(u_toneHigh, u_toneLow + 1e-4), tone));
+
+    // S-curve: the smoothstep about the picture's range, so shadows sink and highlights lift; Curve is how much of it.
+    vec3 cc = clamp(c, 0.0, 1.0);
+    c = mix(c, cc * cc * (3.0 - 2.0 * cc), u_curve);
+
+    // Lift: a tinted black level, added to everything (a tenth of the colour, so a small lift is a usable colour).
+    c += u_lift.rgb * 0.1;
+
     // Saturation about Rec.709 luma.
     float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
     c = mix(vec3(luma), c, u_saturation);
@@ -623,6 +641,14 @@ void main() {
     c.g *= 1.0 + mc.u_tint * 0.2;
 
     ${contrastWgsl}
+
+    let tone = dot(c, vec3f(0.2126, 0.7152, 0.0722));
+    c *= mix(mc.u_shadowTint.rgb, mc.u_highlightTint.rgb, smoothstep(mc.u_toneLow, max(mc.u_toneHigh, mc.u_toneLow + 1e-4), tone));
+
+    let cc = clamp(c, vec3f(0.0), vec3f(1.0));
+    c = mix(c, cc * cc * (3.0 - 2.0 * cc), mc.u_curve);
+
+    c += mc.u_lift.rgb * 0.1;
 
     let luma = dot(c, vec3f(0.2126, 0.7152, 0.0722));
     c = mix(vec3f(luma), c, mc.u_saturation);

@@ -1,0 +1,199 @@
+{
+  "version": 4,
+  "name": "Color Grade Split Tone",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "Dark",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -150,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 100,
+              "y": 100
+            },
+            "color": {
+              "r": 0.05,
+              "g": 0.05,
+              "b": 0.05,
+              "a": 1
+            }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "Mid",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 100,
+              "y": 100
+            },
+            "color": {
+              "r": 0.35,
+              "g": 0.35,
+              "b": 0.35,
+              "a": 1
+            }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Bright",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 150,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 100,
+              "y": 100
+            },
+            "color": {
+              "r": 0.8,
+              "g": 0.8,
+              "b": 0.8,
+              "a": 1
+            }
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "PostProcess",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "PostProcessVolume",
+          "data": {
+            "isGlobal": true,
+            "priority": 0,
+            "weight": 1,
+            "blendDistance": 0,
+            "shape": "box",
+            "size": {
+              "x": 5,
+              "y": 5
+            },
+            "effects": [
+              {
+                "type": "colorGrade",
+                "enabled": true,
+                "uniforms": {
+                  "u_toneLow": 0.1,
+                  "u_toneHigh": 0.6
+                },
+                "colors": {
+                  "u_shadowTint": {
+                    "r": 0.5,
+                    "g": 0.8,
+                    "b": 1,
+                    "a": 1
+                  },
+                  "u_highlightTint": {
+                    "r": 1,
+                    "g": 0.8,
+                    "b": 0.5,
+                    "a": 1
+                  },
+                  "u_lift": {
+                    "r": 0,
+                    "g": 0,
+                    "b": 0.5,
+                    "a": 1
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}
