@@ -126,7 +126,10 @@ export const DECISIONS = [
       owed: 'nothing in sdk/src or pipeline/src reads it; sideModuleScan detects '
         + 'each skeleton\'s version instead. Wiring it up is a feature, not a gap to close here',
     },
-    editor: { has: true, cite: { path: 'desktop/src/settings/projectSettings.ts', probe: /'project\.spine\.version'/ } },
+    editor: {
+      has: false,
+      owed: 'the per-runtime Spine rows (Auto, Include, Exclude) replaced the version row; no row records a preference now',
+    },
     agent: { has: true, cite: { path: 'desktop/src/main.tsx', probe: /spineVersion: \(v\) => ProjectStore\.setSpineVersion/ } },
   },
   {

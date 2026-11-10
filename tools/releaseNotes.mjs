@@ -4306,4 +4306,82 @@ export const NOTED = {
     {"note": "The profiler no longer calls a long render stall vsync."},
   "fix(profiler): the long tasks under a pinned frame name the scope that timed them":
     {"note": "The profiler no longer calls a long render stall vsync."},
+  "fix(gates): the world anchor system declares what it touches, the sky effect door and the 3D physics declarations have their dispositions, and the generated tables, baked scene and long shader literal follow":
+    {"internal": "a build-check and generated-file fix; nothing a creator can observe"},
+  "fix(ci): the shading-mode count test names the last mode, the fetch names the full commit, and the pipeline tests get the Spine runtimes they read":
+    {"internal": "a build-check and generated-file fix; nothing a creator can observe"},
+  "fix(ci): refresh the API snapshots, count the probe grid sampler, and fetch the commit the grip checks read":
+    {"internal": "a build-check and generated-file fix; nothing a creator can observe"},
+  "feat(post): Color Grade has split toning, an S-curve and lift":
+    {"note": "Color Grade has split toning, an S-curve and lift."},
+  "feat(probes): a captured probe volume drives reflections too":
+    {"note": "A captured probe volume drives reflections too."},
+  "feat(probes): a probe volume can be filled at run time":
+    {"note": "A probe volume can be filled at run time."},
+  "feat(light): inverse-square falloff; a bake falls light off as the frame does":
+    {"note": "Lamps can fall off as real ones do."},
+  "feat(sky): a project's own sky lights the scene; probes chosen by a mesh's box":
+    {"note": "A sky of your own lights the scene."},
+  "feat(sky): the sky's lower half is the sunlit ground":
+    {"note": "The sky's lower half is the sunlit ground."},
+  "feat(render): Direct and Indirect Lighting Only view modes":
+    {"note": "Direct Lighting Only and Indirect Lighting Only view modes."},
+  "feat(postprocess): pyramid bloom; a pass reads earlier passes of its effect":
+    {"note": "Bloom glows round and soft, and costs less."},
+  "feat(render): probe volumes light each pixel":
+    {"note": "A probe volume lights each pixel, not each object."},
+  "fix(render): a glass roof keeps rain off":
+    {"note": "Rain does not fall through a glass roof."},
+  "feat(postprocess): effect lengths follow the project's units":
+    {"note": "Defaults follow the project's units."},
+  "feat: defaults follow the project's units; Particle.emitAt; first-person jump feel":
+    {"note": "Defaults follow the project's units."},
+  "feat(ui): UIWorldAnchor \u2014 a UI node over a point in the 3D world":
+    {"note": "A UI node can stand over a point in the 3D world."},
+  "feat(ai): hearing, world-pose perception, nav bakes implicit statics; rays can meet characters":
+    {"note": "Perceivers hear."},
+  "fix(render): an overlay camera composites over the camera beneath":
+    {"note": "Post-process volumes skip a camera that draws over another one."},
+  "feat(physics3d): a collider with no RigidBody3D is a static body":
+    {"note": "A 3D collider with no RigidBody3D is a static body, as in Unity."},
+  "feat(physics3d): the 3D world is made from project settings, not constants":
+    {"note": "The 3D physics world is set in Project Settings, not in code."},
+  "feat(render): sky occlusion \u2014 rooms stay dark under a sky that changes":
+    {"note": "Rooms stay dark under a sky that changes (sky occlusion)."},
+  "feat(prefab): instances in the open scene take a changed prefab at once":
+    {"note": "Instances in the open scene take a changed prefab at once."},
+  "fix(editor): the prefab bar and the Details header fit a narrow panel":
+    {"note": "The prefab bar and the Details header fit a narrow panel."},
+  "feat(rig2d): bones keep an id, take a new parent, and rebind onto another skeleton by name":
+    {"note": "A 2D rig's bones keep an id, take a new parent and rebind onto another skeleton."},
+  "feat(render): the sky lights the scene \u2014 Sky Atmosphere as the environment":
+    {"note": "The sky lights the scene."},
+  "fix(render): what a three.js container port showed \u2014 tiled maps, the sky through walls, wet floors indoors":
+    {"note": "A material reads its maps through Tiling, Offset and Rotation."},
+  "fix(postprocess): a colour written among a volume's uniforms is read as a colour, not blended into NaN":
+    {"note": "A colour written among a post-process volume's uniforms is read as a colour."},
+  "feat(viewport): Direct and Indirect Lighting Only view modes":
+    {"note": "Direct Lighting Only and Indirect Lighting Only view modes."},
+  "feat(editor): post-process inspector in the project's units":
+    {"note": "Defaults follow the project's units."},
+  "feat(editor): defaults follow the project's 3D units; import note reads them":
+    {"note": "Defaults follow the project's units."},
+  "fix(mcp): start the editor again after it goes away":
+    {"note": "The editor's MCP server starts its editor again after the editor goes away."},
+  "feat(settings): the 3D physics world is set in Project Settings":
+    {"note": "The 3D physics world is set in Project Settings, not in code."},
+  "feat(lighting): a Sky occlusion switch in the bake settings":
+    {"note": "Rooms stay dark under a sky that changes (sky occlusion)."},
+  "feat(prefab): a changed prefab reaches the open scene's instances at once":
+    {"note": "Instances in the open scene take a changed prefab at once."},
+  "fix(editor): the prefab bar and the Details header fit a narrow panel":
+    {"note": "The prefab bar and the Details header fit a narrow panel."},
+  "feat(rig): rebind a 2D rig after it is bound \u2014 new parents, another rig's skeleton, clips that follow, skins rebound in the scene":
+    {"note": "A 2D rig's bones keep an id, take a new parent and rebind onto another skeleton."},
+  "feat(editor): a finger joint is dragged in the viewport, a clip plays under the grip, and the fingers' surfaces are listed and made":
+    {"note": "A grip is edited where it is held."},
+  "feat(settings): Project Settings \u2192 Runtime \u2192 Multi-touch sets whether a game starts with several fingers or one":
+    {"note": "Multi-touch can be turned off."},
+  "feat(viewport): a perceiver's hearing range is drawn beside its sight, and the sky occlusion hint uses the editor's own tip":
+    {"note": "Perceivers hear."},
 };

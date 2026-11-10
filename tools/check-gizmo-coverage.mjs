@@ -71,6 +71,7 @@ const DISPOSITION = {
   'GripSurface.size': 'extent',
   'Hunter.attackRange': 'extent',
   'Perceiver.range': 'extent',
+  'Perceiver.hearingRange': 'extent',
   'ThirdPersonCamera.distance': 'extent',
   'ThirdPersonCamera.obstructionRadius': 'extent',
   'BoxCollider2D.radius': 'extent',

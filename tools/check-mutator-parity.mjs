@@ -49,7 +49,9 @@ const REACHED_VIA = {
  * adding one is a visible diff — which is the only ratchet a discovered list can
  * have without becoming a place to put the next one.
  */
-const OWED = {};
+const OWED = {
+  setSpineVersion: 'the per-runtime Spine rows replaced the version row, and nothing reads the recorded preference, so no person has a door to it',
+};
 
 if (!existsSync(EDITOR)) {
   console.log('check-mutator-parity: no editor checkout — no mutator was judged.');

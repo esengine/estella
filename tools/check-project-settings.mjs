@@ -185,10 +185,8 @@ if (fields.length === 0) {
 
 // The consumers, each as "does this text carry the field". Deliberately textual:
 // the alternative is importing the editor's module graph into a lint script.
-const editorApply = storeSrc.slice(
-  storeSrc.indexOf('private applyEditorRuntimeConfig'),
-  storeSrc.indexOf('private applyEditorRuntimeConfig') + 1200,
-);
+const editorApplyAt = storeSrc.indexOf('private applyEditorRuntimeConfig');
+const editorApply = storeSrc.slice(editorApplyAt, storeSrc.indexOf('\n  }\n', editorApplyAt));
 const playPayload = storeSrc.slice(
   storeSrc.indexOf('playPayload()'),
   storeSrc.indexOf('audioFeature()'),
@@ -323,7 +321,7 @@ const BLOCKS = [
     name: 'RuntimeBuildConfig', file: 'sdk/src/defaults.ts',
     keys: Object.fromEntries([
       'sceneTransitionDuration', 'sceneTransitionColor', 'defaultFontFamily', 'maxDeltaTime', 'maxFixedSteps', 'textCanvasSize',
-      'assetLoadTimeout', 'assetFailureCooldown', 'textureCacheBudget', 'audioCacheBudget', 'retainedBudget',
+      'assetLoadTimeout', 'assetFailureCooldown', 'textureCacheBudget', 'audioCacheBudget', 'retainedBudget', 'multiTouch',
     ].map((k) => [k, { ui: `project.runtime.${k}` }])),
   },
 ];
@@ -375,12 +373,7 @@ const CONSUMPTION = {
   spineVersion: {
     kind: 'metadata-only',
     why: 'the runtimes a package carries are detected from its own skeletons '
-      + '(sideModuleScan → detectSpineVersion); nothing reads this field',
-    /** Everything a creator is told about it: none of it may promise an effect. */
-    saidBy: ['set.project.spine.version.desc', 'set.project.spine.none'],
-    /** …and one of them must SAY it has none. Absence of a lie is not a truth: the
-     *  row looks like every other one, so silence still reads as "this works". */
-    disclaimedBy: 'set.project.spine.version.desc',
+      + '(sideModuleScan → detectSpineVersion) and decided per runtime by the Spine rows; nothing reads this field',
     /**
      * The readers that are not the settings UI. An agent tool's
      * description promised "the build bundles that runtime", which matches no
@@ -399,7 +392,7 @@ const messages = existsSync(path.join(ROOT, MESSAGES)) ? read(MESSAGES) : '';
 /** Every tracked line naming `needle` under `dirs`, as `<path>:<line>`. */
 function grep(needle, dirs) {
   try {
-    return execFileSync('git', ['grep', '-n', '--', needle, ...dirs],
+    return execFileSync('git', ['grep', '-nw', '--', needle, ...dirs],
       { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean)
       .filter((l) => !l.includes('.generated.'));
   } catch {
