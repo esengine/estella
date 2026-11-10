@@ -175,6 +175,10 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
         for (u8 slot = cmd.texture_count; slot < 5; ++slot) cmd.texture_ids[slot] = key.textureId;
         cmd.texture_ids[5] = key.lightmapTextureId;
         cmd.texture_count = 6;
+    } else if (key.probeGridTextureId != 0 && cmd.texture_count >= 1 && key.layoutId != LayoutId::Batch) {
+        for (u8 slot = cmd.texture_count; slot < 5; ++slot) cmd.texture_ids[slot] = key.textureId;
+        cmd.texture_ids[5] = key.probeGridTextureId;
+        cmd.texture_count = 6;
     }
     cmd.entity = key.entity;
     cmd.type = key.type;

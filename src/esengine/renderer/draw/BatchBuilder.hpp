@@ -156,6 +156,9 @@ struct BatchDrawKey {
     /// Part of the key and not only of the command: two objects sharing a mesh but
     /// baked into different atlases are two draws.
     u32 lightmapTextureId = 0;
+    /// The frame's probe atlas, for a draw that reads its probe volume per pixel. On the lightmap's unit,
+    /// which such a draw never needs: a draw reading a bake asks no volume for its light.
+    u32 probeGridTextureId = 0;
 };
 
 /// Check before formatting caller-owned vertices, using the same group layer,

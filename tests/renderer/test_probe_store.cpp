@@ -119,11 +119,73 @@ static void testMalformedGridsRefused() {
     CHECK(store.count() == 1, "the one that can be read is");
 }
 
+/** The atlas a per-pixel read samples: each grid a block of nine coefficient tiles,
+ *  slices stacked down; a coefficient's texel is where the shader will look for it,
+ *  and its alpha is the sky the probe sees. A grid two volumes share is one block. */
+static void testAtlasLayout() {
+    ProbeVolume a = ramp({2, 1, 3}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f});
+    a.skyVisibility.assign(a.irradiance.size(), 0.25f);
+    a.revision = 1;
+    ProbeVolume b = ramp({3, 2, 1}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
+    b.revision = 2;
+    ProbeStore store;
+    store.add({-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, &a);
+    store.add({5.0f, 5.0f, 5.0f}, {6.0f, 6.0f, 6.0f}, &b);
+    store.add({-9.0f, -9.0f, -9.0f}, {-8.0f, -8.0f, -8.0f}, &a);
+
+    CHECK(store.layoutAtlas(2048), "a first layout wants an upload");
+    CHECK(store.atlasWidth() == 27, "the widest block is nine tiles of three");
+    CHECK(store.atlasHeight() == 3 + 2, "two blocks, the shared grid placed once");
+    CHECK(!store.layoutAtlas(2048), "the same grids again want nothing uploaded");
+    b.revision = 3;
+    CHECK(store.layoutAtlas(2048), "a grid that changed wants the atlas again");
+
+    std::vector<u16> texels;
+    store.fillAtlas(texels);
+    CHECK(texels.size() == 27u * 5u * 4u, "four halves a texel");
+    // a's last probe (x 1, z 2) is its ramp's end, blue; its coefficient 0 is tile 0, row z*resY + y = 2.
+    const usize last = (2u * 27u + 1u) * 4u;
+    CHECK(texels[last + 2] == packHalf(1.0f) && texels[last + 0] == packHalf(0.0f), "a coefficient sits where the shader reads it");
+    CHECK(texels[last + 3] == packHalf(0.25f), "the sky's visibility rides alpha");
+    // b sits below a: row 3, its constant green.
+    CHECK(texels[(3u * 27u) * 4u + 1] == packHalf(1.0f), "the second block starts under the first");
+    CHECK(texels[(3u * 27u) * 4u + 3] == packHalf(0.0f), "a grid without sky occlusion leaves alpha 0");
+}
+
+/** Asked per pixel, a volume in the atlas answers where its grid is rather than what
+ *  it holds; asked per object, or with no atlas texture, it answers as it always did. */
+static void testGridRun() {
+    ProbeVolume v = ramp({3, 2, 1}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f});
+    v.revision = 7;
+    ProbeStore store;
+    store.add({-4.0f, 0.0f, -1.0f}, {4.0f, 2.0f, 1.0f}, &v);
+    store.layoutAtlas(2048);
+
+    ProbeConstants out{};
+    CHECK(store.sample({0.0f, 1.0f, 0.0f}, out, true), "a point in the box is held");
+    CHECK(near(out.irradiance[0].w, 1.0f), "with no atlas texture the read stays per object");
+
+    store.setAtlasTexture(42);
+    CHECK(store.sample({0.0f, 1.0f, 0.0f}, out, true), "and with one");
+    CHECK(near(out.irradiance[0].w, 2.0f), "the run is marked as a grid");
+    CHECK(near(out.irradiance[1].x, -4.0f) && near(out.irradiance[1].w, 3.0f), "the box's min and resX");
+    CHECK(near(out.irradiance[2].x, 2.0f / 8.0f) && near(out.irradiance[2].y, 1.0f / 2.0f), "probes per unit along x and y");
+    CHECK(near(out.irradiance[2].z, 0.0f), "a flat axis reads one slice");
+    CHECK(near(out.irradiance[3].z, 1.0f / 27.0f) && near(out.irradiance[3].w, 1.0f / 2.0f), "the atlas's inverse size");
+    CHECK(near(out.irradiance[4].x, 1.0f), "resZ");
+
+    ProbeConstants object{};
+    CHECK(store.sample({0.0f, 1.0f, 0.0f}, object, false) && near(object.irradiance[0].w, 1.0f),
+          "a draw that cannot read the atlas still gets its nine");
+}
+
 int main() {
     testInsideAndOutside();
     testTrilinearOnEachAxis();
     testSmallestVolumeWins();
     testMalformedGridsRefused();
+    testAtlasLayout();
+    testGridRun();
     std::printf(g_failures ? "\n%d failure(s)\n" : "\nall probe store claims hold\n",
                 g_failures);
     return g_failures ? 1 : 0;

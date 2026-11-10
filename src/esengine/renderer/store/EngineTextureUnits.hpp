@@ -44,6 +44,13 @@ inline constexpr const char* LIGHTMAP_SAMPLER = "u_lightmap";
 inline constexpr u32 LIGHTMAP_TEXTURE_UNIT = 5;
 
 /**
+ * @brief The frame's probe atlas, read per pixel, on the bake's unit.
+ * @details A draw that reads a bake asks no volume for its light, so the two never meet in one draw; a mesh
+ *          variant compiled with the bake's sampler declares no atlas at all and reads its volume per object.
+ */
+inline constexpr const char* PROBE_GRID_SAMPLER = "u_probeGrid";
+
+/**
  * @brief The 2D light-shape mask, and the unit below the shadow mask's.
  * @details The same target shape carrying the other half of "how much of this light is
  *          here": what its SHAPE covers, drawn as the light's own cookie. Two planes

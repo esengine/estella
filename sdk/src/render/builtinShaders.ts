@@ -967,6 +967,7 @@ void main() {
         if (gl > glossLevel) { glossLevel = gl; glossTint = g / max(gl, 1e-4); }
     }
     float lightAmount = clamp(max(lit.r, max(lit.g, lit.b)), 0.0, 1.0);
+    g_probePos = P;
     vec3 ambient = indirectIrradiance(N) * ao;
     // The shade colour fills in where the steps leave off, so the cut between lit and shaded is a change of colour and not only of brightness.
     vec3 colour = base.rgb * (ambient + lit + u_shadeColor.rgb * (1.0 - lightAmount));
@@ -1044,6 +1045,7 @@ fn packNormal(n : vec3f) -> vec2f {
         if (gl > glossLevel) { glossLevel = gl; glossTint = term.gloss / max(gl, 1e-4); }
     }
     let lightAmount = clamp(max(lit.r, max(lit.g, lit.b)), 0.0, 1.0);
+    g_probePos = P;
     let ambient = indirectIrradiance(N) * ao;
     var colour = base.rgb * (ambient + lit + mc.u_shadeColor.rgb * (1.0 - lightAmount));
     let spec = smoothstep(mc.u_specThreshold - mc.u_specSoftness, mc.u_specThreshold + mc.u_specSoftness, glossLevel);

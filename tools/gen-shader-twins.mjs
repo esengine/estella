@@ -90,6 +90,8 @@ const ENGINE_SAMPLERS = [
   { name: 'u_shadow2D', unit: 7 },
   { name: 'u_lightShape2D', unit: 6 },
   { name: 'u_lightmap', unit: 5 },
+  // The probe atlas a volume read per pixel samples, on the bake's unit: a variant declares one or the other (EngineTextureUnits.hpp).
+  { name: 'u_probeGrid', unit: 5 },
   // The two the VERTEX stage reads, pinned in MorphConstants.hpp and
   // InstanceConstants.hpp. The record sits on the TOP unit, above every unit a
   // material's own textures are handed (see GfxEnums MESH_INSTANCE_TEXTURE_UNIT).

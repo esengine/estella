@@ -9,6 +9,7 @@
 #include "../core/Types.hpp"
 #include "../math/Math.hpp"
 
+#include <atomic>
 #include <vector>
 
 namespace esengine {
@@ -36,6 +37,16 @@ public:
      *         occlusion, whose irradiance then holds the sky as it was at the bake; with it, the irradiance
      *         holds the lights and bounces alone and the frame's sky is added through this. */
     std::vector<f32> skyVisibility;
+
+    /** @brief Changes whenever the coefficients do (a new grid, its sky visibility set): what the frame's probe
+     *         atlas keys on, so it uploads a grid once and again only when the grid itself changed. Unique across
+     *         grids, so a released grid whose memory a new one reuses is never mistaken for it. */
+    u64 revision = 0;
+
+    static u64 nextRevision() {
+        static std::atomic<u64> next{0};
+        return ++next;
+    }
 
     bool hasSkyVisibility() const {
         return !skyVisibility.empty() && skyVisibility.size() == static_cast<usize>(probeCount()) * 9;

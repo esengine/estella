@@ -278,6 +278,10 @@ export const SCENES = [
   // A baked surface and a probe-lit one inside ONE volume. The bake already holds
   // every bounce that reached it, so the atlas half must stay red: a draw taking
   // both would come out purple, and only a frame with both in it can say so.
+  // ONE mesh across the same box. Read per object it would be the purple its centre stands in, end to end; read per
+  // pixel (the grid through the frame's probe atlas) its left end is red and its right blue, as a merged building
+  // spanning a shed and the yard is dark under the roof and lit outside.
+  { id: "probe-per-pixel", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-per-pixel.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-per-pixel.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.36,\"y\":0.5,\"rgb\":[213,0,38],\"tol\":20},{\"x\":0.625,\"y\":0.5,\"rgb\":[43,0,193],\"tol\":20}]" } },
   { id: "probe-lightmap", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-lightmap.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-lightmap.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.25,\"y\":0.5667,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.85,\"y\":0.5,\"rgb\":[0,0,255],\"tol\":30}]" } },
   // A clip driving the weight, which is what an imported `weights` channel
   // becomes. The shape has to cross the boundary as a LIST — a weight written

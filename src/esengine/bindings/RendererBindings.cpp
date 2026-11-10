@@ -693,6 +693,7 @@ void probe_volume_setSkyVisibility(u32 volumeHandle, uintptr_t visibilityPtr) {
     const f32* v = boundarySpan<f32>(visibilityPtr, want, "probe_volume_setSkyVisibility.visibility");
     if (!v) return;
     grid->skyVisibility.assign(v, v + want);
+    grid->revision = ProbeVolume::nextRevision();
 }
 
 void probe_volume_release(u32 volumeHandle) {

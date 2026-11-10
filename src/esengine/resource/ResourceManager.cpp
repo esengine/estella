@@ -899,6 +899,7 @@ ProbeVolumeHandle ResourceManager::createProbeVolume(const glm::ivec3& resolutio
     for (usize i = 0; i < volume->irradiance.size(); ++i) {
         volume->irradiance[i] = {irradiance[i * 3], irradiance[i * 3 + 1], irradiance[i * 3 + 2]};
     }
+    volume->revision = ProbeVolume::nextRevision();
     return probeVolumes_.add(std::move(volume));
 }
 

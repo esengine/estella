@@ -1108,8 +1108,12 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 // like anything else. At the ENTITY's position: bones place a skin.
                 if (!depthPass) {
                     ProbeConstants probe;
+                    // Per pixel where the program can read the atlas: a mesh with lightmap UVs is compiled with
+                    // the bake's sampler on that unit, so it keeps the one value its position reads.
+                    const ProbeStore& store = ctx.render_context.probes();
                     const bool volume = key.lightmapTextureId == 0
-                        && ctx.render_context.probes().sample(position, probe);
+                        && store.sample(position, probe, !resident->hasLightmapUV);
+                    if (volume && probe.irradiance[0].w > 1.5f) key.probeGridTextureId = store.atlasTexture();
                     const u32 slot = ctx.render_context.reflections().slotAt(position);
                     probe.reflection.x = static_cast<f32>(slot);
                     if (volume || slot != 0) key.probeIndex = draw_list.addProbe(probe);

@@ -24,6 +24,7 @@
 #endif
 #include "./FrameCapture.hpp"
 #include "../rhi/GfxDevice.hpp"
+#include "../rhi/Texture.hpp"
 #include "../rhi/TransientBufferPool.hpp"
 #include "../draw/DrawList.hpp"
 #include "../draw/RetainedText.hpp"
@@ -786,6 +787,10 @@ private:
     };
     std::unordered_map<u32, PlanarCapture> planar_captures_;
     TransientBufferPool planar_pool_{device_};
+    /// The probe volumes' grids, packed for the per-pixel read (ProbeStore::layoutAtlas). Remade only when a grid
+    /// or the set of grids changes, so a still scene uploads it once.
+    Unique<Texture> probe_atlas_;
+    std::vector<u16> probe_atlas_texels_;
     DrawList planar_list_;
     u64 planar_frame_ = 0;
     f32 planar_elapsed_ = 0;
