@@ -31,7 +31,7 @@ int main() {
     CHECK(shading.get(7) == ShadingMode::Shaded, "asking for the authored look goes back to it");
     CHECK(shading.count() == 1, "and leaves no entry behind, so nothing leaks over a session");
 
-    CHECK(static_cast<u8>(ShadingMode::Wireframe) + 1 == kShadingModeCount, "the modes the bindings accept are the ones the enum declares");
+    CHECK(static_cast<u8>(ShadingMode::IndirectLighting) + 1 == kShadingModeCount, "the modes the bindings accept are the ones the enum declares");
 
     if (g_failures) {
         std::printf("%d failure(s)\n", g_failures);

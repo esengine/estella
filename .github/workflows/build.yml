@@ -450,6 +450,9 @@ jobs:
         ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
         history: full
 
+    - name: Init the Spine runtimes whose exported skeletons the pipeline tests read
+      run: git submodule update --init --depth 1 third_party/spine-runtimes-3.8 third_party/spine-runtimes-4.2
+
     - uses: ./.github/actions/setup
 
     # Every static gate, from the one list in tools/gates.mjs. CI and the
@@ -818,7 +821,7 @@ jobs:
     - uses: ./.github/actions/editor-host
 
     - name: Fetch the commit the hand checks take their rigged character from
-      run: git fetch --depth=1 origin 73ebaae9d
+      run: git fetch --depth=1 origin 73ebaae9d2eb8ced17cd106ef01dd716bec3d6b6
 
     # Exit 2 is "this machine cannot answer", as in the script-failure step above:
     # a check whose play realm never said hello measured nothing about the editor,
