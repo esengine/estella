@@ -339,7 +339,9 @@ A heightmap is read whole: an 8193 by 8193 field is about 256 MiB. Point `tiles`
 - Distant ground is drawn from the overview, which is always in memory.
 - Full-detail tiles are read only near the view or a moving body, and past 256 MiB the least recently used are let go. Where no tile has
   been read yet the height is not known, and collision and queries wait for it.
-- **Split into Tiles** in the terrain sculpt panel converts a terrain. Tiled ground cannot be sculpted yet.
+- **Split into Tiles** in the terrain sculpt panel converts a terrain.
+- Tiled ground is sculpted and painted like any other, on the tiles in memory: a dab over a tile not read yet is skipped and the tile
+  is read. A changed tile stays in memory until it is saved, and a save writes the changed tiles and the overview only.
 - The tile images are named only by the `.esterrain`, so they are not preloaded and uploaded as textures the way a `heightmap` is.
 
 Measured in the editor on a 4096-unit area: an 8193 by 8193 field opened as tiles holds 36 MiB, and 45 MiB close to the ground.

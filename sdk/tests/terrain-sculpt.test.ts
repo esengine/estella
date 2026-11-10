@@ -117,7 +117,7 @@ describe('Terrains.load', () => {
         const wrapped = new ModifiedSource(source, () => [], { x: 0, y: 0, z: 0 }, 1);
         terrains.built_.set(1 as never, { loading: false, source: wrapped } as never);
         terrains.built_.set(2 as never, { loading: true, source: null } as never);
-        expect(terrains.load()).toEqual({ loading: 1, cpuBytes: field.data.byteLength + 256, tiles: 0 });
+        expect(terrains.load()).toEqual({ loading: 1, cpuBytes: field.data.byteLength + 256, tiles: 0, unsaved: 0 });
     });
 });
 

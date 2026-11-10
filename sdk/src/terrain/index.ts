@@ -32,4 +32,5 @@ export {
     type SphereNode, type SphereTreeParams,
 } from './sphere';
 export { GroundEdit, type GroundPatch } from './groundEdit';
+export { TiledGroundEdit, type TiledGroundPatch, type TiledGroundImage } from './tiledGroundEdit';
 export { SculptMode, brushWeight, encodeHeightmap, paintSplat, sculptField, unionDirty, type Brush, type Dirty, type PaintDab, type SculptDab } from './sculpt';

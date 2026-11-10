@@ -11478,7 +11478,7 @@ collisionReadyAt: (x: number, z: number) => boolean
 deleteModifier: (id: string) => void
 findPath: (from: { x: number; z: number; }, to: { x: number; z: number; }, options?: ReachOptions) => ReachResult
 groundData: () => GroundData | null
-groundEdit: (entity: Entity) => GroundEdit | null
+groundEdit: (entity: Entity) => GroundEdit | TiledGroundEdit | null
 groundKnownAt: (x: number, z: number) => boolean
 heightAt: (x: number, z: number) => number | null
 heightBeneathAt: (x: number, z: number) => number | null
@@ -11912,6 +11912,16 @@ title: number
 
 ## TiledSource — class @experimental
 ```
+@internal dirtyTiles: () => string[]
+@internal ensureTileSplats: (tile: Tile, tx: number, tz: number, second: boolean) => void
+@internal hasTile: (tx: number, tz: number) => boolean
+@internal markDirty: (tx: number, tz: number) => void
+@internal markOverviewDirty: () => void
+@internal markSaved: () => void
+@internal overviewDirty: boolean
+@internal overviewSplats: (make: boolean, second: boolean) => { a: Splat | null; b: Splat | null; }
+@internal readTile: (tx: number, tz: number) => Promise<Tile | null>
+@internal tileAt: (tx: number, tz: number) => Tile | undefined
 bounds: readonly [number, number, number, number]
 budget: number
 doc: TerrainTilesDocument
@@ -11920,6 +11930,7 @@ infinite: false
 maxHeight: number
 minHeight: 0
 normal: (x: number, z: number) => [number, number, number] | null
+overview: Heightfield
 overviewBytes: number
 overviewSpacing: number
 paint: (x: number, z: number, h: number, ny: number) => LayerWeights

@@ -60,7 +60,8 @@ export function parseTerrainTiles(json: unknown, file = 'terrain tiles'): Terrai
         overview: o.overview, overviewSplat: o.overviewSplat, overviewSplat2: o.overviewSplat2, tiles: o.tiles };
 }
 
-interface Tile { field: Heightfield; splat: Splat | null; splat2: Splat | null; bytes: number; used: number }
+/** @internal One tile in memory. */
+export interface Tile { field: Heightfield; splat: Splat | null; splat2: Splat | null; bytes: number; used: number }
 
 type Params = Pick<TerrainData, 'sizeX' | 'sizeZ' | 'height' | 'rockSlope' | 'dirtHeight' | 'snowHeight'>;
 
@@ -79,6 +80,8 @@ export class TiledSource implements TerrainSource {
     private readonly entries_ = new Map<string, TerrainTileEntry>();
     private readonly tiles_ = new Map<string, Tile>();
     private readonly reading_ = new Map<string, Promise<Tile | null>>();
+    private readonly dirty_ = new Set<string>();
+    private overviewDirty_ = false;
     private clock_ = 0;
     private bytes_ = 0;
     private reads_ = 0;
@@ -87,9 +90,9 @@ export class TiledSource implements TerrainSource {
     constructor(
         readonly doc: TerrainTilesDocument,
         private readonly params: Params,
-        private readonly overview: Heightfield,
-        private readonly overviewSplat: Splat | null,
-        private readonly overviewSplat2: Splat | null,
+        readonly overview: Heightfield,
+        private overviewSplat: Splat | null,
+        private overviewSplat2: Splat | null,
         private readonly read: (path: string) => Promise<TerrainImage | null>,
         readonly budget = TERRAIN_TILE_BUDGET,
     ) {
@@ -155,13 +158,89 @@ export class TiledSource implements TerrainSource {
     /** Lets go of tiles, least recently used first, until what is held is within the budget; those in `keep` stay. */
     trim(keep: ReadonlySet<string> = new Set()): void {
         if (this.bytes_ <= this.budget) return;
-        const order = [...this.tiles_].filter(([k]) => !keep.has(k)).sort((a, b) => a[1].used - b[1].used);
+        const order = [...this.tiles_].filter(([k]) => !keep.has(k) && !this.dirty_.has(k)).sort((a, b) => a[1].used - b[1].used);
         for (const [key, tile] of order) {
             if (this.bytes_ <= this.budget) break;
             this.tiles_.delete(key);
             this.bytes_ -= tile.bytes;
             this.evictions_++;
         }
+    }
+
+    /** @internal The tile at (tx, tz) if it is in memory. */
+    tileAt(tx: number, tz: number): Tile | undefined {
+        return this.tile(`${tx}:${tz}`);
+    }
+
+    /** @internal Reads the tile at (tx, tz) if it is not in memory; null where the document has none. */
+    readTile(tx: number, tz: number): Promise<Tile | null> {
+        return this.ensure(`${tx}:${tz}`);
+    }
+
+    /** @internal Whether the document has a tile at (tx, tz). */
+    hasTile(tx: number, tz: number): boolean {
+        return this.entries_.has(`${tx}:${tz}`);
+    }
+
+    /** @internal Keeps a changed tile in memory until {@link markSaved}: a tile let go with changes in it would lose them. */
+    markDirty(tx: number, tz: number): void {
+        this.dirty_.add(`${tx}:${tz}`);
+    }
+
+    /** @internal The tiles changed since they were read or last saved. */
+    dirtyTiles(): string[] {
+        return [...this.dirty_].sort();
+    }
+
+    /** @internal Whether the overview has changed since it was read or last saved. */
+    get overviewDirty(): boolean {
+        return this.overviewDirty_;
+    }
+
+    /** @internal */
+    markOverviewDirty(): void {
+        this.overviewDirty_ = true;
+    }
+
+    /** @internal Lets saved tiles go again. */
+    markSaved(): void {
+        this.dirty_.clear();
+        this.overviewDirty_ = false;
+        this.trim();
+    }
+
+    /** @internal Gives a tile in memory its splatmaps where it has none, painted as the ground is painted now. */
+    ensureTileSplats(tile: Tile, tx: number, tz: number, second: boolean): void {
+        const t = this.doc.tileSamples, n = t - 1;
+        const make = (layers: number): Splat => {
+            const pixels = new Uint8Array(t * t * 4);
+            for (let j = 0; j < t; j++) for (let i = 0; i < t; i++) {
+                const x = ((tx * n + i) / (this.samplesX - 1) - 0.5) * this.params.sizeX, z = ((tz * n + j) / (this.samplesZ - 1) - 0.5) * this.params.sizeZ;
+                const h = this.params.height * tile.field.data[j * t + i]!;
+                const w = this.paint(x, z, h, this.normal(x, z)?.[1] ?? 1);
+                for (let c = 0; c < 4; c++) pixels[(j * t + i) * 4 + c] = Math.round(Math.min(Math.max(w[c + layers] ?? 0, 0), 1) * 255);
+            }
+            return { width: t, height: t, pixels };
+        };
+        if (!tile.splat) { tile.splat = make(0); tile.bytes += tile.splat.pixels.byteLength; this.bytes_ += tile.splat.pixels.byteLength; }
+        if (second && !tile.splat2) { tile.splat2 = make(4); tile.bytes += tile.splat2.pixels.byteLength; this.bytes_ += tile.splat2.pixels.byteLength; }
+    }
+
+    /** @internal The overview's splatmaps, made at the overview's size where it has none. */
+    overviewSplats(make: boolean, second: boolean): { a: Splat | null; b: Splat | null } {
+        const w = this.overview.width, h = this.overview.height;
+        if (make && !this.overviewSplat) {
+            const pixels = new Uint8Array(w * h * 4), d = this.overview.data, ex = this.params.sizeX / (w - 1), ez = this.params.sizeZ / (h - 1);
+            for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+                const at = (ii: number, jj: number) => d[Math.min(Math.max(jj, 0), h - 1) * w + Math.min(Math.max(ii, 0), w - 1)]! * this.params.height;
+                const sx = (at(i + 1, j) - at(i - 1, j)) / (2 * ex), sz = (at(i, j + 1) - at(i, j - 1)) / (2 * ez);
+                const weights = paintWeights(d[j * w + i]!, 1 / Math.hypot(sx, 1, sz), this.params);
+                for (let c = 0; c < 4; c++) pixels[(j * w + i) * 4 + c] = Math.round(weights[c]! * 255);
+            }
+            this.overviewSplat = { width: w, height: h, pixels };
+        }
+        if (make && second && !this.overviewSplat2) this.overviewSplat2 = { width: w, height: h, pixels: new Uint8Array(w * h * 4) };
+        return { a: this.overviewSplat, b: this.overviewSplat2 };
     }
 
     private tile(key: string): Tile | undefined {

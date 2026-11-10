@@ -19,7 +19,8 @@ type Texels = Float32Array | Uint8Array;
 
 interface Tile<T> { rect: Dirty; before: T; after: T }
 
-interface Piece<T> { rect: Dirty; width: number; tiles: Tile<T>[] }
+/** @internal What one stroke changed in one array: the 32-by-32 tiles it touched, as they were and as they are. */
+export interface Piece<T> { rect: Dirty; width: number; tiles: Tile<T>[] }
 
 const TILE = 32;
 
@@ -30,7 +31,8 @@ export interface GroundPatch {
     splat2: Piece<Uint8Array> | null;
 }
 
-class BeforeTiles<T extends Texels> {
+/** @internal */
+export class BeforeTiles<T extends Texels> {
     readonly kept = new Map<number, { rect: Dirty; before: T }>();
 
     constructor(private readonly width: number, private readonly height: number, private readonly stride: number) {}
@@ -74,6 +76,8 @@ export class GroundEdit {
                 private readonly sizeX: number, private readonly sizeZ: number) {}
 
     get field(): Heightfield { return this.source.field; }
+    get samplesX(): number { return this.source.field.width; }
+    get samplesZ(): number { return this.source.field.height; }
     /** The world height the field's 0 sits at and its 1 reaches. */
     get minHeight(): number { return this.source.minHeight; }
     get maxHeight(): number { return this.source.maxHeight; }
@@ -186,7 +190,8 @@ function copied<T extends Texels>(from: T, width: number, rect: Dirty, stride: n
     return out;
 }
 
-function put<T extends Texels>(into: T, p: Piece<T>, side: 'before' | 'after', stride: number): void {
+/** @internal */
+export function put<T extends Texels>(into: T, p: Piece<T>, side: 'before' | 'after', stride: number): void {
     for (const tile of p.tiles) {
         const from = tile[side], r = tile.rect, w = (r.i1 - r.i0 + 1) * stride;
         for (let j = r.j0; j <= r.j1; j++) {

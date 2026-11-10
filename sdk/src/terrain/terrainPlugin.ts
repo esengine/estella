@@ -55,6 +55,7 @@ import { movers } from './movers';
 import { createLayerArrays, imagePixelsAt, readAndPackLayers, releaseLayerArrays } from './layerArrays';
 import { createPageAtlases } from './atlases';
 import { parseTerrainTiles, TiledSource } from './tiles';
+import { TiledGroundEdit } from './tiledGroundEdit';
 
 /** The engine's own provider of ground without end: seeded noise of the world's position. */
 export const NOISE_PROVIDER = 'estella:noise';
@@ -238,7 +239,7 @@ interface Built {
 /** Where a terrain's ground stands: still being made, ready, or failed (with why). */
 export interface TerrainStatus { state: 'loading' | 'ready' | 'failed'; reason?: string }
 
-export interface TerrainLoad { loading: number; cpuBytes: number; tiles: number }
+export interface TerrainLoad { loading: number; cpuBytes: number; tiles: number; unsaved: number }
 
 /** Run-time access to the ground: how high it is anywhere, for putting things on it. */
 export class Terrains {
@@ -436,7 +437,7 @@ export class Terrains {
     }
 
     load(): TerrainLoad {
-        let loading = 0, cpuBytes = 0, tiles = 0;
+        let loading = 0, cpuBytes = 0, tiles = 0, unsaved = 0;
         for (const built of this.built_.values()) {
             if (built.loading) loading++;
             const source = built.source instanceof ModifiedSource ? built.source.base : built.source;
@@ -445,13 +446,14 @@ export class Terrains {
                 loading += s.reading;
                 cpuBytes += s.bytes + source.overviewBytes;
                 tiles += s.resident;
+                unsaved += source.dirtyTiles().length;
                 continue;
             }
             if (!(source instanceof FieldSource)) continue;
             const { a, b } = source.splats();
             cpuBytes += source.field.data.byteLength + (a?.pixels.byteLength ?? 0) + (b?.pixels.byteLength ?? 0);
         }
-        return { loading, cpuBytes, tiles };
+        return { loading, cpuBytes, tiles, unsaved };
     }
 
     /** @internal The modifiers laid over every terrain's ground, by id, in the order they were set. */
@@ -480,8 +482,11 @@ export class Terrains {
      * A handle to change the ground of the area terrain on `entity` with brushes (sculpt.ts), or null while it is being made, when it
      * is not an area of its own heights (infinite ground, a provider's) or when it is not a terrain.
      */
-    groundEdit(entity: Entity): GroundEdit | null {
+    groundEdit(entity: Entity): GroundEdit | TiledGroundEdit | null {
         const built = this.built_.get(entity), source = built?.source;
+        if (built && source instanceof ModifiedSource && source.base instanceof TiledSource) {
+            return new TiledGroundEdit({ remake: (b) => this.remake_(b) }, source.base, source, built.data.sizeX, built.data.sizeZ);
+        }
         if (!built || !(source instanceof ModifiedSource) || !(source.base instanceof FieldSource)) return null;
         return new GroundEdit({ remake: (b) => this.remake_(b) }, source.base, source, built.data.sizeX, built.data.sizeZ);
     }
