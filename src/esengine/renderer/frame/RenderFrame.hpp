@@ -123,6 +123,11 @@ public:
     /// Draws the opaque scene twice, depth alone first (see DrawList::DrawPass). Off unless asked: where a GPU already shades each pixel once
     /// (a tiled one), the second pass is geometry paid for twice.
     void setDepthPrepass(bool on) { depth_prepass_ = on; }
+    /**
+     * @brief The environment the sky lights the scene with (the Sky Atmosphere's, worked out by the SDK as the sky changes), or an
+     *        invalid handle for none. An Ambient light that names no environment of its own lights with it.
+     */
+    void setSkyEnvironment(resource::EnvironmentHandle environment) { sky_environment_ = environment; }
     void setLightingDirect(bool on);
     bool lightingDirect() const { return lighting_direct_; }
     void setPlanarQuality(f32 scale, u32 maxSize, f32 updatesPerSecond);
@@ -307,14 +312,26 @@ public:
      * @details Serves every such runtime — Spine and DragonBones both arrive here — and
      *          links none of them: what crosses is x,y,u,v,r,g,b,a per vertex. @p materialId
      *          is the entity's material, resolved the way a Sprite's is (0 = the batch shader).
+     *
+     *          A skeleton a Canvas holds paints by its place in the tree, like the controls round
+     *          it (unless its author named a layer), and one a SCREEN Canvas holds is drawn by the
+     *          screen overlay and by no camera: each call lands only in the collect it belongs to.
+     *          @p treeAlpha is the opacity the UI tree above it multiplies in, and @p cullBit its
+     *          Canvas' layer bit, as text carries them (0 = drawn by every camera).
      */
     void submitSkeletalBatch(
         const f32* vertices, i32 vertexCount,
         const u16* indices, i32 indexCount,
         u32 textureId, i32 blendMode,
         const f32* transform16,
-        Entity entity, i32 layer, f32 depth, u32 materialId = 0, bool premultipliedColor = false
+        Entity entity, i32 layer, f32 depth, u32 materialId = 0, bool premultipliedColor = false,
+        f32 treeAlpha = 1.0f, u32 cullBit = 0
     );
+
+    /** @brief Whether a Canvas holds @p entity with no uiOrder of its own (an emitter, a skeleton, a plain Sprite). */
+    bool uiTreeHolds(Entity entity) const {
+        return ui_tree_layers_ && ui_tree_layers_->count(entity.id()) != 0;
+    }
 
     void setStage(RenderStage stage) { current_stage_ = stage; }
     RenderStage getStage() const { return current_stage_; }
@@ -792,6 +809,9 @@ private:
     /// @p withoutSun lights with the sky alone, where a light casts its sun.
     /// @return false when it names none, leaving the caller to add a flat term.
     bool collectEnvironment(const ecs::Light& light, const glm::vec3& scale, bool withoutSun);
+    /// The environment an Ambient light lights with: its own, else the sky's (setSkyEnvironment).
+    resource::EnvironmentHandle environmentOf(const ecs::Light& light) const;
+    resource::EnvironmentHandle sky_environment_{};
     /**
      * @brief Decides what the shadow pass will draw, without drawing any of it.
      *

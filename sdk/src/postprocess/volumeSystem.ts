@@ -318,6 +318,30 @@ export function effectsAt(volumes: { data: PostProcessVolumeData; tx: VolumeTran
     return blended;
 }
 
+/** The Sky Atmosphere a view resolved this frame, where it asks to light the scene: the game's camera and the editor's eye each. */
+interface ResolvedSkies { game: BlendedEffect | null; editor: BlendedEffect | null }
+const resolvedSkies = new WeakMap<PostProcessAPI, ResolvedSkies>();
+
+function skiesOf(api: PostProcessAPI): ResolvedSkies {
+    let s = resolvedSkies.get(api);
+    if (!s) { s = { game: null, editor: null }; resolvedSkies.set(api, s); }
+    return s;
+}
+
+const lightingSky = (effects: ResolvedEffects): BlendedEffect | null => {
+    const sky = effects.get('skyAtmosphere');
+    return sky?.enabled && (sky.uniforms.get('u_lightScene') ?? 0) > 0.5 ? sky : null;
+};
+
+/**
+ * The Sky Atmosphere that lights the scene this frame, as resolved for the view being drawn: the editor's eye while it looks,
+ * else the first active game camera's. Null when that view's sky does not ask to light the scene (or there is none).
+ */
+export function resolvedLightingSky(api: PostProcessAPI, editorLooking: boolean): BlendedEffect | null {
+    const s = skiesOf(api);
+    return editorLooking ? s.editor : s.game;
+}
+
 export const postProcessVolumeSystem = defineSystem(
     [Res(PostProcess), Query(PostProcessVolume, Transform), Query(Camera, Transform)],
     (
@@ -334,10 +358,16 @@ export const postProcessVolumeSystem = defineSystem(
         }
 
         // Recomputed per camera: a local volume's weight depends on the camera position.
+        const skies = skiesOf(api);
+        skies.game = null;
+        let first = true;
         for (const [cameraEntity, cameraData, cameraTransform] of cameraQuery) {
             if (!cameraData.isActive) continue;
             const p = cameraTransform.position;
-            applyBlendedEffects(api, cameraEntity, effectsAt(volumes, p.x, p.y, p.z), cameraData.projectionType !== ProjectionType.Orthographic);
+            const effects = effectsAt(volumes, p.x, p.y, p.z);
+            // The scene has one environment: the first camera's sky lights it.
+            if (first) { skies.game = lightingSky(effects); first = false; }
+            applyBlendedEffects(api, cameraEntity, effects, cameraData.projectionType !== ProjectionType.Orthographic);
         }
     },
     { name: 'PostProcessVolumeSystem', runWhenPaused: true }
@@ -354,6 +384,7 @@ export function editorViewVolumeSystem(app: App) {
             const view = app.hasResource(EditorView) ? app.getResource(EditorView) : null;
             const eye = EDITOR_VIEW_ENTITY as Entity;
             if (!view || !view.active || !app.getResource(PostProcessVolumeConfigResource).enabled) {
+                skiesOf(api).editor = null;
                 if (api.volumeStacks.has(eye)) applyBlendedEffects(api, eye, new Map() as ResolvedEffects, false);
                 return;
             }
@@ -362,7 +393,9 @@ export function editorViewVolumeSystem(app: App) {
                 volumes.push({ data: volumeData, tx: { x: transform.position.x, y: transform.position.y, z: transform.position.z } });
             }
             const at = view.perspective ? editorViewEye(view) : { x: view.x, y: view.y, z: view.z };
-            applyBlendedEffects(api, eye, effectsAt(volumes, at.x, at.y, at.z), view.perspective);
+            const effects = effectsAt(volumes, at.x, at.y, at.z);
+            skiesOf(api).editor = lightingSky(effects);
+            applyBlendedEffects(api, eye, effects, view.perspective);
         },
         { name: 'EditorViewVolumeSystem', runWhenPaused: true },
     );

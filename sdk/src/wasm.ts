@@ -350,6 +350,8 @@ export interface ESEngineModule {
     /** Release an environment; its atlas is an ordinary texture and outlives it. */
     environment_release?(environmentHandle: number): void;
     environment_setSky?(environmentHandle: number, skyHandle: number): void;
+    /** The environment the sky lights the scene with, 0 for none (postprocess/skyEnvironment). */
+    renderer_setSkyEnvironment?(environmentHandle: number): void;
     /**
      * Give an environment the sun its importer separated from the sky: 27 floats of
      * irradiance without it, the direction toward it (panorama frame) and its

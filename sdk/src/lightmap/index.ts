@@ -19,3 +19,5 @@ export { sceneAmbientLights, sceneEnvironment, carriesEnvironment, type SceneAmb
 export { BAKE_DEFAULTS } from './bake';
 export { shBasis, convolveCosine, evalIrradianceSH, SH_BASIS_SCALE, SH_COSINE_BAND } from './sh';
 export { panoramaDirection, panoramaUV } from './panorama';
+export { samplePanorama, octDecode, octEncode, projectIrradianceSH, atlasLayout, encodeRgbm, decodeRgbm, prefilterOctahedral,
+         type Panorama } from './environmentAtlas';

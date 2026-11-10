@@ -406,6 +406,9 @@ registerEffect({
         { name: 'u_planetZ', label: 'Planet Centre Z', min: -100000000, max: 100000000, step: 100, defaultValue: 0 },
         // How bright the sky is.
         { name: 'u_intensity', label: 'Brightness', min: 0, max: 8, step: 0.01, defaultValue: 1 },
+        // The sky as the scene's environment: every Ambient light that names no environment of its own lights with this sky (its diffuse
+        // light and its reflection), worked out again as the sky changes. Off, the sky is only seen (postprocess/skyEnvironment).
+        { name: 'u_lightScene', label: 'Light the Scene', min: 0, max: 1, step: 1, defaultValue: 0, neutralValue: 0 },
         // How much of the sky behind the scene (a panorama, a clear colour) is kept: 0 replaces it, 1 leaves it.
         { name: 'u_panorama', label: 'Keep Background', min: 0, max: 1, step: 0.01, defaultValue: 0, neutralValue: 1 },
         // 0 is the weather's to say not at all; 1 a sky with no break in it. A Weather component drives it.

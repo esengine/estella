@@ -30,6 +30,8 @@
 #include "../core/EntityPose2D.hpp"
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
+#include "../ecs/components/UINode.hpp"
+#include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Transform.hpp"
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/MeshRenderer.hpp"
@@ -142,9 +144,34 @@ void renderer_submitSkeletalBatchByEntityEx(
     auto* vertices = boundarySpan<f32>(verticesPtr, static_cast<u64>(vertexCount) * 8, "renderer_submitSkeletalBatchByEntity.vertices");
     auto* indices = boundarySpan<u16>(indicesPtr, static_cast<u64>(indexCount), "renderer_submitSkeletalBatchByEntity.indices");
     if (!vertices || !indices) return;
+    // A skeleton a Canvas holds takes what the UI tree above it says, as a control does: the
+    // opacity of the nearest UINode (itself included, which already carries every ancestor's)
+    // and the culling bit of the Canvas that holds it.
+    f32 treeAlpha = 1.0f;
+    u32 cullBit = 0;
+    if (g_renderFrame->uiTreeHolds(ent)) {
+        bool alphaFound = false;
+        Entity at = ent;
+        for (u32 guard = 0; registry.valid(at) && guard < 4096; ++guard) {
+            if (!alphaFound) {
+                if (const auto* node = registry.tryGet<ecs::UINode>(at)) {
+                    treeAlpha = node->alpha_in_tree_;
+                    alphaFound = true;
+                }
+            }
+            if (const auto* canvas = registry.tryGet<ecs::Canvas>(at)) {
+                cullBit = (canvas->layer < 0 || canvas->layer >= 32) ? 0u : (1u << canvas->layer);
+                break;
+            }
+            const auto* parent = registry.tryGet<ecs::Parent>(at);
+            if (!parent) break;
+            at = parent->entity;
+        }
+    }
     g_renderFrame->submitSkeletalBatch(
         vertices, vertexCount, indices, indexCount,
-        textureId, blendMode, &model[0][0], ent, layer, depth, materialId, premultipliedColor);
+        textureId, blendMode, &model[0][0], ent, layer, depth, materialId, premultipliedColor,
+        treeAlpha, cullBit);
 }
 
 /**
@@ -161,6 +188,10 @@ void renderer_entityVisibleToCamera(
     if (!out) return;
     *out = 1;
     if (!g_initialized || !g_renderFrame) return;
+    // The screen overlay has no camera to be outside of: what it draws is on the screen by
+    // construction (RenderCollectContext::visible), and the frustum still in hand is the last
+    // camera's, which would cull a skeleton in a screen Canvas by its pixel coordinates.
+    if (g_renderFrame->screenOverlayOpen()) return;
     const Entity ent = Entity::fromRaw(entity);
     if (!registry.has<ecs::Transform>(ent)) return;
 
@@ -587,6 +618,11 @@ u32 environment_create(uintptr_t shPtr, u32 specularHandle, f32 faceSize, u32 mi
     return rm->createEnvironment(ConstSpan<f32>(sh, 27),
                                  resource::TextureHandle(specularHandle),
                                  faceSize, mipCount, maxRange, columns).id();
+}
+
+void renderer_setSkyEnvironment(u32 environmentHandle) {
+    if (!g_renderFrame) return;
+    g_renderFrame->setSkyEnvironment(resource::EnvironmentHandle(environmentHandle));
 }
 
 /** @brief Gives an environment the panorama its sky is drawn from. */

@@ -1645,8 +1645,8 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         if (!light.enabled || light.intensity <= 0.0f) continue;
         const auto type = static_cast<ecs::LightType>(light.type);
         if (type == ecs::LightType::Directional && light.followEnvironmentSun) sunFollowed = true;
-        if (sky || type != ecs::LightType::Ambient || !light.environment.isValid()) continue;
-        if (const Environment* environment = resource_manager_.getEnvironment(light.environment)) {
+        if (sky || type != ecs::LightType::Ambient || !environmentOf(light).isValid()) continue;
+        if (const Environment* environment = resource_manager_.getEnvironment(environmentOf(light))) {
             sky = environment;
             skyLight = entity;
             const glm::vec3 rgb = linear_color_ ? srgbToLinearCpu(glm::vec3{light.color})
@@ -1924,10 +1924,15 @@ void RenderFrame::collectStudioLights(ecs::Registry& registry) {
     collectShape2D(registry);
 }
 
+resource::EnvironmentHandle RenderFrame::environmentOf(const ecs::Light& light) const {
+    return light.environment.isValid() ? light.environment : sky_environment_;
+}
+
 bool RenderFrame::collectEnvironment(const ecs::Light& light, const glm::vec3& scale,
                                      bool withoutSun) {
-    if (!light.environment.isValid()) return false;
-    const Environment* environment = resource_manager_.getEnvironment(light.environment);
+    const resource::EnvironmentHandle handle = environmentOf(light);
+    if (!handle.isValid()) return false;
+    const Environment* environment = resource_manager_.getEnvironment(handle);
     if (!environment) return false;
 
     u32 textureId = 0;

@@ -200,6 +200,8 @@ export {
  */
 export {
     shBasis, convolveCosine, evalIrradianceSH, SH_BASIS_SCALE, SH_COSINE_BAND, panoramaDirection, panoramaUV,
+    samplePanorama, octDecode, octEncode, projectIrradianceSH, atlasLayout, encodeRgbm, decodeRgbm, prefilterOctahedral,
+    type Panorama,
 } from './lightmap';
 /**
  * Stock geometry a `builtin:<id>` mesh ref names. Public because the editor's
@@ -657,6 +659,11 @@ export {
     gripPoseStatus,
     gripPoseByJoint,
     gripPoseFromJson,
+    gripHandJoints,
+    GripSurface,
+    GripSurfaceShape,
+    type GripSurfaceData,
+    type GripJoint,
     type GripPoseData,
     type GripPoseDef,
     type GripFinger,

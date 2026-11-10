@@ -168,6 +168,10 @@ void environment_setSun(u32 environmentHandle, uintptr_t skyShPtr, f32 dx, f32 d
 /** @brief Releases an environment; its atlas is an ordinary texture and outlives it. */
 void environment_release(u32 environmentHandle);
 
+/** @brief The environment the sky lights the scene with, 0 for none: an Ambient light that names no
+ *         environment of its own lights with it (the Sky Atmosphere's Light the Scene). */
+void renderer_setSkyEnvironment(u32 environmentHandle);
+
 /** @brief Registers a grid of baked irradiance: `x*y*z*27` floats, x fastest. */
 u32 probe_volume_create(i32 resX, i32 resY, i32 resZ, uintptr_t shPtr);
 
