@@ -162,6 +162,8 @@ struct MeshProgramFacts {
     bool lightmapped = false;
     /** Whether the geometry carries a tangent frame (with its normals): the program then declares and reads it. */
     bool tangents = false;
+    /** Whether it draws unblended (MeshRenderer.opaque). A document row does not say, and most meshes are, so readying assumes so. */
+    bool opaque = true;
     u32 materialId = 0;
 };
 

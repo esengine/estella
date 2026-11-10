@@ -83,6 +83,12 @@ void main() {
 #endif
     // The editor view's exposure (u_time.z, stops): zero outside the editor, where
     // exp2(0) = 1 leaves every pixel as it was. Before the curve, like any exposure.
+#ifdef ES_COPY_EXACT
+    // The picture as it is, alpha included: the opaque scene kept aside and put back around the blended draws. Its alpha is how much
+    // of each pixel geometry covers (the sky reads it), so a copy that marked it would leave every pixel half covered.
+    fragColor = c;
+    return;
+#endif
 #ifdef ES_COPY
     // A copy of the picture for a surface that looks through to it. Alpha 0.5 says "a real copy": the texture param a shader falls
     // back to when the frame took none is white, whose alpha is 1.
@@ -174,6 +180,9 @@ fn displayLookup(c : vec3f) -> vec3f {
     var c = upscale(v.v_texCoord);
 #else
     var c = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+#endif
+#ifdef ES_COPY_EXACT
+    return c;
 #endif
 #ifdef ES_COPY
     return vec4f(c.rgb, 0.5);

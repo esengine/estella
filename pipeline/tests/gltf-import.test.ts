@@ -400,12 +400,45 @@ describe('glTF material import', () => {
     expect(warnings.join('\n')).toContain('a skin naming joints');
   });
 
-  it('reports a uv rewrite it does not apply', async () => {
+  it("carries a uv transform to the material, in the engine's flipped uv", async () => {
     const doc = withInlineImage();
     (doc.materials as { pbrMetallicRoughness: { baseColorTexture: Record<string, unknown> } }[])[0]!
-      .pbrMetallicRoughness.baseColorTexture.extensions = { KHR_texture_transform: { scale: [2, 2] } };
-    const { warnings } = await importGltfMeshes(gltf(doc), 'model');
-    expect(warnings.join('\n')).toContain('KHR_texture_transform not imported');
+      .pbrMetallicRoughness.baseColorTexture.extensions = { KHR_texture_transform: { scale: [2, 3], offset: [0.25, 0.5] } };
+    const { meshes, warnings } = await importGltfMeshes(gltf(doc), 'model');
+    expect(warnings).toEqual([]);
+    // glTF reads (0.25 + 2u, 0.5 + 3v) of its own uv; with v' = 1 - v that is 1 - (0.5 + 3(1 - v')) = -2.5 + 3v'.
+    expect(meshes[0]!.material!.uvTransform).toEqual({ tiling: [2, 3], offset: [0.25, -2.5], rotation: 0 });
+    // The mesh's own uvs are left as authored: the material moves where they are read.
+    expect(texCoords(meshes[0]!)).toEqual([0, 1, 1, 1, 0, 0]);
+  });
+
+  it('turns a rotated transform the other way, about the flipped origin', async () => {
+    const doc = withInlineImage();
+    (doc.materials as { pbrMetallicRoughness: { baseColorTexture: Record<string, unknown> } }[])[0]!
+      .pbrMetallicRoughness.baseColorTexture.extensions = { KHR_texture_transform: { rotation: Math.PI / 2 } };
+    const { meshes } = await importGltfMeshes(gltf(doc), 'model');
+    const t = meshes[0]!.material!.uvTransform!;
+    expect(t.rotation).toBeCloseTo(-Math.PI / 2);
+    // glTF turns its uv (x, 1 - y) to (1 - y, -x); flipped back, the engine reads (1 - y, 1 + x).
+    const at = (x: number, y: number): [number, number] => {
+      const c = Math.cos(t.rotation), s = Math.sin(t.rotation);
+      return [c * x + s * y + t.offset[0], -s * x + c * y + t.offset[1]];
+    };
+    for (const [x, y] of [[0, 0], [0.3, 0.7], [1, 0.2]] as const) {
+      const [ex, ey] = at(x, y);
+      expect(ex).toBeCloseTo(1 - y);
+      expect(ey).toBeCloseTo(1 + x);
+    }
+  });
+
+  it('reads every map through the first one when their transforms disagree, and says so', async () => {
+    const doc = withInlineImage();
+    const material = (doc.materials as Record<string, any>[])[0]!;
+    material.pbrMetallicRoughness.baseColorTexture.extensions = { KHR_texture_transform: { scale: [4, 4] } };
+    material.normalTexture = { index: 0 };
+    const { meshes, warnings } = await importGltfMeshes(gltf(doc), 'model');
+    expect(meshes[0]!.material!.uvTransform?.tiling).toEqual([4, 4]);
+    expect(warnings.join('\n')).toContain('different KHR_texture_transform');
   });
 
   it.each([{}, { texCoord: 0 }, { offset: [0, 0], scale: [1, 1], rotation: 0 }])
@@ -474,6 +507,15 @@ describe('glTF material products', () => {
       u_metallic: 1,
       u_roughness: 1,
     });
+  });
+
+  it('writes a tiled texture set as the Model shader\'s Tiling and Offset, which alone needs a material', async () => {
+    const { products } = await productsOf(shaded({
+      pbrMetallicRoughness: { baseColorTexture: { index: 0, extensions: { KHR_texture_transform: { scale: [0.5, 0.5] } } } },
+    }));
+    expect(products).toHaveLength(1);
+    expect(products[0]!.data.properties).toMatchObject({ u_uvTiling: { x: 0.5, y: 0.5 }, u_uvOffset: { x: 0, y: 0.5 } });
+    expect(products[0]!.data.properties).not.toHaveProperty('u_uvRotation');
   });
 
   it('takes the normal map WITH it, off the component', async () => {

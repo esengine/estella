@@ -84,12 +84,12 @@ export function deriveVoxelGround(model: string): string {
     let s = swap(model, '#pragma shader "Model"', '#pragma shader "Voxel Ground"');
     s = swap(s, '#pragma param u_iridescence float', `${PARAMS}#pragma param u_iridescence float`);
     s = swap(s, '#pragma param u_emissiveMap texture default(white)\n', '');
-    s = swap(s, 'texture(u_emissiveMap, v_texCoord).rgb', 'vec3(1.0)');
-    s = swap(s, 'textureSampleGrad(u_emissiveMap, u_emissiveMap_s, v.v_texCoord, duvx, duvy).rgb', 'vec3f(1.0)');
+    s = swap(s, 'texture(u_emissiveMap, uv).rgb', 'vec3(1.0)');
+    s = swap(s, 'textureSampleGrad(u_emissiveMap, u_emissiveMap_s, uv, duvx, duvy).rgb', 'vec3f(1.0)');
     s = swap(s, 'float specularAA(highp vec3', `${GLSL_HELPERS}float specularAA(highp vec3`);
     s = swap(s, 'fn specularAA(dndx : vec3f', `${WGSL_HELPERS}fn specularAA(dndx : vec3f`);
-    s = swap(s, '    vec4 base = texture(u_textures[0], v_texCoord) * v_color * u_tint;\n', GLSL_SURFACE);
-    s = swap(s, '    var base = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy) * v.v_color * mc.u_tint;\n', WGSL_SURFACE);
+    s = swap(s, '    vec4 base = texture(u_textures[0], uv) * v_color * u_tint;\n', GLSL_SURFACE);
+    s = swap(s, '    var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;\n', WGSL_SURFACE);
     s = swap(s, 'float roughness = u_roughness * mr.g;', 'float roughness = u_roughness * mr.g * dot(voxelMix, u_voxelRoughness);');
     s = swap(s, 'var roughness = mc.u_roughness * mr.g;', 'var roughness = mc.u_roughness * mr.g * dot(voxelMix, mc.u_voxelRoughness);');
     return s;

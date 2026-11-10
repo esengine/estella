@@ -202,7 +202,8 @@ public:
             const bool mentionsGbuffer = source.find("ES_GBUFFER") != std::string::npos;
             const bool writesAlbedo = mentionsGbuffer && source.find("fragAlbedo") != std::string::npos;
             const bool takesLight = source.find("applyLighting") != std::string::npos;
-            sources_[shader.id()] = { std::move(source), std::move(features), mentionsGbuffer, writesAlbedo, takesLight };
+            const bool mentionsOpaque = source.find("ES_OPAQUE") != std::string::npos;
+            sources_[shader.id()] = { std::move(source), std::move(features), mentionsGbuffer, writesAlbedo, takesLight, mentionsOpaque };
         }
     }
 
@@ -212,7 +213,7 @@ public:
     u32 meshProgram(u32 materialId, resource::ResourceManager& resources,
                     bool withNormals = false, bool skinned = false,
                     bool envMapped = false, bool lightmapped = false, bool gbuffer = false,
-                    bool tangents = false, bool tipPass = false) const;
+                    bool tangents = false, bool tipPass = false, bool opaque = false) const;
 
     void setLightingDirect(bool on) { lighting_direct_ = on; }
     bool lightingDirect() const { return lighting_direct_; }
@@ -475,6 +476,8 @@ private:
         /// attachment existed writes two outputs, and its pipeline must leave the third alone.
         bool writesAlbedo = false;
         bool takesLight = false;
+        /// Whether the source has an ES_OPAQUE branch: only then is an unblended draw worth a program of its own.
+        bool mentionsOpaque = false;
     };
     std::unordered_map<u32, ShaderSource> sources_;
     bool lighting_direct_ = false;

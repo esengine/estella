@@ -309,6 +309,7 @@ MeshProgramFacts meshFactsFromEntity(RenderFrameContext& ctx, ecs::Registry& reg
     MeshProgramFacts facts;
     facts.hasNormals = resident && resident->hasNormals;
     facts.lit = mesh.lit;
+    facts.opaque = mesh.opaque;
     facts.materialId = mesh.material;
     // Only meaningful with normals to perturb AND a draw that takes light.
     if (mesh.normalMap.isValid() && mesh.lit && resident && resident->hasNormals) {
@@ -465,7 +466,8 @@ RenderPrewarmResult MeshPlugin::prewarmFacts(RenderFrameContext& ctx,
                 facts[i].materialId, facts[i].hasNormals, facts[i].skinned, envMapped,
                 facts[i].lightmapped, facts[i].tangents));
             ctx.materials->meshProgram(facts[i].materialId, ctx.resources, facts[i].hasNormals,
-                                       facts[i].skinned, envMapped, facts[i].lightmapped, false, facts[i].tangents);
+                                       facts[i].skinned, envMapped, facts[i].lightmapped, false, facts[i].tangents,
+                                       false, facts[i].opaque);
         }
     }
     if (ctx.materials) {
@@ -1121,7 +1123,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                                                                  key.envTextureId != 0,
                                                                  resident->hasLightmapUV,
                                                                  ctx.gbuffer && !shadowDepth,
-                                                                 resident->hasTangents);
+                                                                 resident->hasTangents, false,
+                                                                 key.blend == BlendMode::None);
                     if (materialProgram == 0) {
                         if (!warned_material_) {
                             warned_material_ = true;
@@ -1188,7 +1191,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     if (!depthPass && !wire && key.materialId != 0 && ctx.materials && ctx.materials->hasTipPass(key.materialId)) {
                         const u32 tipProgram = ctx.materials->meshProgram(key.materialId, ctx.resources, geo.hasNormals, skinned,
                                                                           key.envTextureId != 0, geo.hasLightmapUV, false,
-                                                                          geo.hasTangents, true);
+                                                                          geo.hasTangents, true, false);
                         if (tipProgram != 0) {
                             BatchDrawKey tips = drawn;
                             tips.shaderId = tipProgram;

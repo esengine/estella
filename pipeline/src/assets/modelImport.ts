@@ -90,6 +90,10 @@ export interface ImportedMaterial {
     /** How far in from the cutoff a hair card's edge fades (`extras.suggested_tipSoftness`). */
     tipSoftness?: number;
     occlusionStrength?: number;
+    /** Where every map is read: the UV scaled, turned (radians) and moved — glTF's KHR_texture_transform, the Model shader's
+     *  Tiling, Offset and Rotation — in the ENGINE's uv (V up), not the source's. Absent when the maps are read where the
+     *  mesh's UVs say. */
+    uvTransform?: { tiling: [number, number]; offset: [number, number]; rotation: number };
     /** How metal and how rough the surface is, as constants. */
     metallic?: number;
     roughness?: number;
@@ -642,7 +646,7 @@ const MATERIAL_LAYER_PROPERTIES: readonly [keyof ImportedMaterial, string][] = [
 function needsMaterial(material: ImportedMaterial | undefined): material is ImportedMaterial {
     return !!material && !!(material.unlit || material.normalTexture || material.emissive || material.emissiveTexture
         || material.occlusionTexture || material.alphaCutoff || material.metallicRoughnessTexture || material.specularGlossiness
-        || (material.normalScale ?? 1) !== 1
+        || (material.normalScale ?? 1) !== 1 || material.uvTransform
         || (material.metallic ?? 0) !== 0 || (material.roughness ?? 1) !== 1
         || MATERIAL_LAYER_PROPERTIES.some(([field]) => material[field] !== undefined));
 }
@@ -890,6 +894,12 @@ export function materialProducts(meshes: ImportedMesh[], stem: string,
             properties.u_occlusionStrength = material.occlusionStrength;
         }
         if (material.alphaCutoff !== undefined) properties.u_alphaCutoff = material.alphaCutoff;
+        if (material.uvTransform && !shading) {
+            const { tiling, offset, rotation } = material.uvTransform;
+            properties.u_uvTiling = { x: tiling[0], y: tiling[1] };
+            properties.u_uvOffset = { x: offset[0], y: offset[1] };
+            if (rotation !== 0) properties.u_uvRotation = rotation;
+        }
         if (shading) characterProperties(shading, material, properties, bind);
         else for (const [field, parameter] of MATERIAL_LAYER_PROPERTIES) {
             const value = material[field];

@@ -67,19 +67,31 @@ void MaterialStore::clear() {
         for (const auto& [shape, handle] : programs) resources_->releaseShader(handle);
 }
 
+namespace {
+// A material that moves where its maps are read (the Model shader's Tiling, Offset and Rotation) has its cut-out read
+// there too, by the depth programs that reproduce its coverage — or a tiled fence casts the shadow of an untiled one.
+bool declaresUvTransform(const resource::ParsedShader& material) {
+    for (const auto& p : material.properties) if (p.name == "u_uvTiling") return true;
+    return false;
+}
+}  // namespace
+
 u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resources,
                                bool withNormals, bool skinned, bool envMapped,
-                               bool lightmapped, bool gbuffer, bool tangents, bool tipPass) const {
+                               bool lightmapped, bool gbuffer, bool tangents, bool tipPass, bool opaque) const {
     // Only for a shader that has something to write: one that never mentions the feature would
     // compile the same program twice and then be declared to write an output it does not have.
     bool albedo = false;
     bool direct = false;
-    if (gbuffer || lighting_direct_) {
+    if (gbuffer || lighting_direct_ || opaque) {
         const MaterialRecord* rec = find(materialId);
         const auto src = rec && rec->shaderRef.isValid() ? sources_.find(rec->shaderRef.id()) : sources_.end();
         gbuffer = gbuffer && src != sources_.end() && src->second.mentionsGbuffer;
         albedo = gbuffer && src->second.writesAlbedo;
         direct = lighting_direct_ && src != sources_.end() && src->second.takesLight;
+        // An unblended draw writes its alpha straight into the frame, where the sky reads it as coverage: a shader that
+        // says what an opaque surface's alpha is gets a program for it, and one that does not keeps sharing the blended one.
+        opaque = opaque && src != sources_.end() && src->second.mentionsOpaque;
     }
     // Keyed by shader AND vertex shape: a layout may not declare an attribute its
     // shader ignores, so geometry with normals — or posed by bones — needs its own.
@@ -90,7 +102,8 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
                     | (gbuffer ? (1ull << 38) : 0ull)
                     | (tangents && withNormals ? (1ull << 39) : 0ull)
                     | (tipPass ? (1ull << 40) : 0ull)
-                    | (direct ? (1ull << 42) : 0ull);
+                    | (direct ? (1ull << 42) : 0ull)
+                    | (opaque ? (1ull << 43) : 0ull);
     // A program already made for this shader and vertex shape is the answer, and almost every draw of a frame asks for one: it is looked up before
     // the feature list is built, since building it (nine strings and the vector that holds them) was most of what a cached answer cost.
     if (const MaterialRecord* rec = find(materialId); rec && rec->shaderRef.isValid()) {
@@ -119,6 +132,7 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
     if (gbuffer) features.push_back("ES_GBUFFER");
     if (tipPass) features.push_back("ES_TIP_PASS");
     if (direct) features.push_back("ES_LIGHT_DIRECT");
+    if (opaque) features.push_back("ES_OPAQUE");
     const u32 program = variantProgram(materialId, resources, shape, features, "resident geometry");
     if (gbuffer && program != 0) markGBufferProgram(program, albedo);
     return program;
@@ -165,6 +179,7 @@ u32 MaterialStore::shadowProgram(u32 materialId, resource::ResourceManager& reso
     features.emplace_back("SHADOW_DEPTH");
     if (hooked) features.emplace_back("ES_MATERIAL_VERTEX");
     if (cutout) features.emplace_back("SHADOW_ALPHA");
+    if (cutout && declaresUvTransform(material)) features.emplace_back("ES_UV_TRANSFORM");
     const auto target = resources.preferredShaderTarget();
     const std::string vert = resource::ShaderParser::assembleStage(depth, resource::ShaderStage::Vertex, "", features, target);
     const std::string frag = resource::ShaderParser::assembleStage(depth, resource::ShaderStage::Fragment, "", features, target);
@@ -220,6 +235,7 @@ u32 MaterialStore::prepassCoverageProgram(u32 materialId, resource::ResourceMana
     if (skinned) features.emplace_back("SKINNED");
     features.emplace_back("SHADOW_DEPTH");
     features.emplace_back("PREPASS_COVERAGE");
+    if (declaresUvTransform(material)) features.emplace_back("ES_UV_TRANSFORM");
     const auto target = resources.preferredShaderTarget();
     const std::string vert = resource::ShaderParser::assembleStage(depth, resource::ShaderStage::Vertex, "", features, target);
     const std::string frag = resource::ShaderParser::assembleStage(depth, resource::ShaderStage::Fragment, "", features, target);

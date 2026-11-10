@@ -352,6 +352,12 @@ void main() {
 #endif
 
 
+#ifdef ES_COPY_EXACT
+
+
+    fragColor = c;
+    return;
+#endif
 #ifdef ES_COPY
 
 
@@ -443,6 +449,9 @@ fn displayLookup(c : vec3f) -> vec3f {
     var c = upscale(v.v_texCoord);
 #else
     var c = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+#endif
+#ifdef ES_COPY_EXACT
+    return c;
 #endif
 #ifdef ES_COPY
     return vec4f(c.rgb, 0.5);
@@ -870,6 +879,21 @@ vec2 packNormal(vec3 n) {
 out vec4 fragColor;
 #endif
 
+
+
+highp vec2 coverageUv() {
+#ifdef ES_UV_TRANSFORM
+    highp vec2 uv = v_texCoord * u_uvTiling;
+    if (u_uvRotation != 0.0) {
+        float c = cos(u_uvRotation), sn = sin(u_uvRotation);
+        uv = vec2(c * uv.x + sn * uv.y, -sn * uv.x + c * uv.y);
+    }
+    return uv + u_uvOffset;
+#else
+    return v_texCoord;
+#endif
+}
+
 void main() {
 #ifdef ES_VELOCITY
 
@@ -882,7 +906,7 @@ void main() {
 #ifdef PREPASS_COVERAGE
 
 
-    highp float baseAlpha = texture(u_texture, v_texCoord).a * v_color.a * u_tint.a;
+    highp float baseAlpha = texture(u_texture, coverageUv()).a * v_color.a * u_tint.a;
     highp float coverage = (baseAlpha - u_alphaCutoff) / max(fwidth(baseAlpha), 1e-4) + 0.5;
     if (coverage <= 0.0) discard;
     fragColor = vec4(0.0, 0.0, 0.0, min(coverage, 1.0));
@@ -890,7 +914,7 @@ void main() {
 #ifdef SHADOW_ALPHA
 
 
-    if (texture(u_texture, v_texCoord).a * v_color.a < u_alphaCutoff) discard;
+    if (texture(u_texture, coverageUv()).a * v_color.a < u_alphaCutoff) discard;
 #endif
 
 
@@ -1068,7 +1092,8 @@ fn esPrevBone(joint : u32) -> mat4x4f {
         let chosen = u32(esInstanceTint().x);
         let own = vec4f(v.a_joints == vec4u(chosen));
         let heat = dot(own, v.a_weights);
-        out.v_color = vec4f(select(mix(vec3f(0.2, 0.4, 1.0), vec3f(1.0, 0.25, 0.2), clamp(heat, 0.0, 1.0)),
+)esshader"
+    R"esshader(        out.v_color = vec4f(select(mix(vec3f(0.2, 0.4, 1.0), vec3f(1.0, 0.25, 0.2), clamp(heat, 0.0, 1.0)),
                                    vec3f(0.1), heat < 0.01), 1.0);
     }
 #endif
@@ -1090,8 +1115,7 @@ fn esPrevBone(joint : u32) -> mat4x4f {
                      + v.a_weights.z * esPrevBone(v.a_joints.z) + v.a_weights.w * esPrevBone(v.a_joints.w);
         let L = prevSkin * vec4f(local, 1.0);
 #else
-)esshader"
-    R"esshader(        let L = vec4f(local, 1.0);
+        let L = vec4f(local, 1.0);
 #endif
         let before = esInstanceTint();
         out.v_velCur = out.pos;
@@ -1184,6 +1208,21 @@ struct VSOut {
     @location(6) @interpolate(flat) v_probeSlot : f32,
 };
 
+
+fn coverageUv(uv0 : vec2f) -> vec2f {
+#ifdef ES_UV_TRANSFORM
+    var uv = uv0 * mc.u_uvTiling;
+    if (mc.u_uvRotation != 0.0) {
+        let c = cos(mc.u_uvRotation);
+        let sn = sin(mc.u_uvRotation);
+        uv = vec2f(c * uv.x + sn * uv.y, -sn * uv.x + c * uv.y);
+    }
+    return uv + mc.u_uvOffset;
+#else
+    return uv0;
+#endif
+}
+
 #ifdef ES_GBUFFER
 
 struct FragOut {
@@ -1223,9 +1262,10 @@ fn packNormal(n : vec3f) -> vec2f {
 #elif defined(SHADOW_DEPTH)
 #ifdef PREPASS_COVERAGE
 
-    let duvx = dpdx(v.v_texCoord);
-    let duvy = dpdy(v.v_texCoord);
-    let baseAlpha = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy).a * v.v_color.a * mc.u_tint.a;
+    let cuv = coverageUv(v.v_texCoord);
+    let duvx = dpdx(cuv);
+    let duvy = dpdy(cuv);
+    let baseAlpha = textureSampleGrad(t0, s0, cuv, duvx, duvy).a * v.v_color.a * mc.u_tint.a;
     let edge = max(fwidth(baseAlpha), 1e-4);
     let coverage = (baseAlpha - mc.u_alphaCutoff) / max(edge, 1e-4) + 0.5;
     if (coverage <= 0.0) { discard; }
@@ -1233,9 +1273,10 @@ fn packNormal(n : vec3f) -> vec2f {
 #else
 #ifdef SHADOW_ALPHA
 
-    let duvx = dpdx(v.v_texCoord);
-    let duvy = dpdy(v.v_texCoord);
-    if (textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy).a * v.v_color.a < mc.u_alphaCutoff) { discard; }
+    let cuv = coverageUv(v.v_texCoord);
+    let duvx = dpdx(cuv);
+    let duvy = dpdy(cuv);
+    if (textureSampleGrad(t0, s0, cuv, duvx, duvy).a * v.v_color.a < mc.u_alphaCutoff) { discard; }
 #endif
 
 

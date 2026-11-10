@@ -795,7 +795,7 @@ const std::unordered_map<std::string, std::string>& engineUniformNames(const Par
     probe.stages[ShaderStage::Fragment] = "void main() {}\n";
     const std::vector<std::string> everything{
         "MESH", "MESH_NORMALS", "MESH_TANGENTS", "MESH_LIGHTMAP", "SKINNED", "ES_RECEIVE_SHADOW",
-        "ES_ENV_MAP", "ES_SURFACE_3D", "ES_GBUFFER", "ES_VELOCITY"};
+        "ES_ENV_MAP", "ES_SURFACE_3D", "ES_GBUFFER", "ES_VELOCITY", "ES_OPAQUE"};
     auto& names = byDomain[key];
     for (const ShaderStage stage : {ShaderStage::Vertex, ShaderStage::Fragment}) {
         collectUniformNames(ShaderParser::assembleStage(probe, stage, "", everything, ShaderTargetLanguage::GLSL_ES300), names);

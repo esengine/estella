@@ -267,8 +267,9 @@ public:
     rg::TargetDesc grabTarget() const { return chainTarget(/*withDepth=*/false); }
 
     /// Copies what is bound at unit 0 (the scene, as the pass before drew it) into the target being drawn. No exposure, no curve, no
-    /// encode: a copy, with the alpha set to a marker (0.5) a shader can tell from the white a texture param falls back to.
-    void grabScene();
+    /// encode: a copy, with the alpha set to a marker (0.5) a shader can tell from the white a texture param falls back to — unless
+    /// @p marked is false, for a copy that stands in for the scene itself (kept aside and put back): its alpha is coverage, and is kept.
+    void grabScene(bool marked = true);
 
     /// Whether this device can hold the distances a depth copy is made of: a float target. Without one a surface that measures
     /// the water in front of what is behind it gets no depth and falls back to a fixed column.
@@ -334,6 +335,8 @@ public:
     bool coverWanted();
     /// How far from the camera, in world units, that map reaches each way (the effect's `u_shelterRange`).
     f32 coverRange();
+    /// The bias the drawing effect reads the map with (its u_shelterBias), for a pass that only borrows the map.
+    f32 coverBias();
     /// The map's target for this frame, declared in the graph (kNoResource when it cannot be made).
     rg::ResourceId declareCover(u32 size);
     /// The matrix the map was drawn through, for the effect to put a world point in it.
@@ -643,6 +646,8 @@ private:
     BufferHandle blitParamUbo_ = BufferHandle::Invalid;
     f32 blitParamAmount_ = -1.0f;
     resource::ShaderHandle copyShader_;
+    /// The copy that keeps alpha (grabScene(false)): the opaque scene kept aside and put back around the blended draws.
+    resource::ShaderHandle exactCopyShader_;
     resource::ShaderHandle copyDepthShader_;
 
     std::vector<PostProcessPass> passes_;
@@ -714,6 +719,8 @@ private:
     rg::ResourceId velocity_resource_ = rg::kNoResource;
     bool velocity_active_ = false;
     bool passHasTexture(const PostProcessPass& pass, const char* name);
+    /// A pass that has the overhead cover map drawn for it (it states a reach, u_shelterRange), not one that only reads it.
+    bool passDrawsCover(const PostProcessPass& pass);
     /// A history made (or kept) at @p w x @p h, or null when it cannot be.
     TemporalState* prepareHistory(TemporalState& state, u32 w, u32 h, GfxPixelFormat format);
     /// The pass writes a measurement, so its target is a float one where the device has them.

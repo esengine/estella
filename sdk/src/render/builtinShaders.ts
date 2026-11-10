@@ -465,6 +465,10 @@ export const MODEL = `#pragma shader "Model"
 #pragma domain Lit
 #pragma switch ES_SPECULAR_GLOSSINESS
 #pragma param u_tint color default(1,1,1,1)
+// Where every map is read: the mesh's UV scaled, then turned, then moved (glTF's KHR_texture_transform, Unity's Tiling and Offset).
+#pragma param u_uvTiling vec2 default(1,1)
+#pragma param u_uvOffset vec2 default(0,0)
+#pragma param u_uvRotation float default(0) range(-3.1416,3.1416) ui(slider)
 #pragma param u_normalMap texture default(flatnormal) texel(data)
 #pragma param u_normalScale float default(1) range(-4,4) ui(slider)
 #pragma param u_emissive color default(0,0,0,1)
@@ -567,7 +571,13 @@ void main() {
     highp vec3 dndx = dFdx(v_worldNormal);
     highp vec3 dndy = dFdy(v_worldNormal);
 #endif
-    vec4 base = texture(u_textures[0], v_texCoord) * v_color * u_tint;
+    highp vec2 uv = v_texCoord * u_uvTiling;
+    if (u_uvRotation != 0.0) {
+        float c = cos(u_uvRotation), sn = sin(u_uvRotation);
+        uv = vec2(c * uv.x + sn * uv.y, -sn * uv.x + c * uv.y);
+    }
+    uv += u_uvOffset;
+    vec4 base = texture(u_textures[0], uv) * v_color * u_tint;
     // A cutout is glTF's MASK (cutoutCoverage): cut at the cutoff, sharpened to a pixel so alpha-to-coverage feathers the edge.
     float alpha = base.a;
     if (u_alphaCutoff > 0.0) {
@@ -577,15 +587,15 @@ void main() {
     }
 #ifdef MESH_NORMALS
     highp vec3 Ng = normalize(v_worldNormal);
-    highp vec3 N = perturbNormal(Ng, v_worldXYZ, v_texCoord,
-                                 scaleNormal(sampleNormal(u_normalMap, v_texCoord), u_normalScale));
+    highp vec3 N = perturbNormal(Ng, v_worldXYZ, uv,
+                                 scaleNormal(sampleNormal(u_normalMap, uv), u_normalScale));
     // A double-sided surface is lit from the side it is seen from (glTF's rule).
     if (!gl_FrontFacing) { N = -N; Ng = -Ng; }
 #else
-    vec3 N = scaleNormal(sampleNormal(u_normalMap, v_texCoord), u_normalScale);
+    vec3 N = scaleNormal(sampleNormal(u_normalMap, uv), u_normalScale);
 #endif
-    float ao = mix(1.0, texture(u_occlusionMap, v_texCoord).r, u_occlusionStrength);
-    vec4 mr = texture(u_metallicRoughnessMap, v_texCoord);
+    float ao = mix(1.0, texture(u_occlusionMap, uv).r, u_occlusionStrength);
+    vec4 mr = texture(u_metallicRoughnessMap, uv);
 #ifdef MESH_NORMALS
     // The surface's OWN place, which a point light, a probe volume and a
     // reflection's box projection all measure against; z = 0 is a plane's answer.
@@ -618,7 +628,7 @@ void main() {
     }
     if (u_anisotropy != 0.0) {
         // The direction the grooves run, from the UV frame turned by the rotation, then made to lie across N.
-        highp vec3 T = perturbNormal(Ng, P, v_texCoord, vec3(cos(u_anisotropyRotation), sin(u_anisotropyRotation), 0.0));
+        highp vec3 T = perturbNormal(Ng, P, uv, vec3(cos(u_anisotropyRotation), sin(u_anisotropyRotation), 0.0));
         T -= N * dot(N, T);
         if (dot(T, T) < 1e-6) T = cross(N, abs(N.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0));
         ext.aniso = vec4(normalize(T), clamp(u_anisotropy, -0.99, 0.99));
@@ -643,13 +653,13 @@ void main() {
             vec3 bent = refract(-viewDir, N, 1.0 / max(u_ior, 1.0));
             float depth = max(u_thickness, 0.15) * 60.0 * u_refractionStrength;
             vec4 landed = u_projection * vec4(P + bent * depth, 1.0);
-            vec2 uv = landed.xy / max(landed.w, 1e-4) * 0.5 + 0.5;
+            vec2 screenUv = landed.xy / max(landed.w, 1e-4) * 0.5 + 0.5;
             float spread = roughness * roughness * 0.04;
-            vec3 behind = texture(u_sceneColor, clamp(uv, vec2(0.001), vec2(0.999))).rgb;
+            vec3 behind = texture(u_sceneColor, clamp(screenUv, vec2(0.001), vec2(0.999))).rgb;
             for (int i = 0; i < 8; ++i) {
                 float a = float(i) * 2.39996;
                 vec2 o = vec2(cos(a), sin(a)) * (spread * sqrt((float(i) + 0.5) / 8.0));
-                behind += texture(u_sceneColor, clamp(uv + o, vec2(0.001), vec2(0.999))).rgb;
+                behind += texture(u_sceneColor, clamp(screenUv + o, vec2(0.001), vec2(0.999))).rgb;
             }
             seen = behind / 9.0 * u_attenuationColor.rgb * (1.0 - fresnel) * u_transmission;
             refracted = 1.0;
@@ -668,8 +678,14 @@ void main() {
     vec3 lit = applyLightingSurface(base.rgb * (1.0 - u_transmission * refracted), N, P, viewDir,
                                     metallic, roughness, u_specular, ao, ext);
 #endif
+#ifdef ES_OPAQUE
+    // Drawn unblended, so this alpha lands in the frame as it is, where the sky reads it as how much of the pixel is covered.
+    // glTF's OPAQUE ignores the base colour's alpha (a map's alpha is often a mask for something else): only a cut-out's
+    // coverage and the subsurface mark below say anything here.
+    if (u_alphaCutoff <= 0.0) alpha = 1.0;
+#endif
     if (u_subsurface > 0.0 && u_alphaCutoff <= 0.0) alpha = min(alpha, 0.996);
-    fragColor = vec4(lit + seen + u_emissive.rgb * texture(u_emissiveMap, v_texCoord).rgb, alpha);
+    fragColor = vec4(lit + seen + u_emissive.rgb * texture(u_emissiveMap, uv).rgb, alpha);
 #ifdef ES_GBUFFER
     // Alpha says something was drawn here (0 is "nothing wrote"), and carries the metalness above 0.75: a pixel that
     // multisampling averaged with an unwritten one falls below it, and an effect can tell such an edge from a surface.
@@ -709,8 +725,15 @@ fn packNormal(n : vec3f) -> vec2f {
 @fragment fn fs_main(v : VSOut, @builtin(front_facing) front : bool) -> @location(0) vec4f {
 #endif
     // Taken before any branch: a derivative needs every fragment of its quad.
-    let duvx = dpdx(v.v_texCoord);
-    let duvy = dpdy(v.v_texCoord);
+    var uv = v.v_texCoord * mc.u_uvTiling;
+    if (mc.u_uvRotation != 0.0) {
+        let c = cos(mc.u_uvRotation);
+        let sn = sin(mc.u_uvRotation);
+        uv = vec2f(c * uv.x + sn * uv.y, -sn * uv.x + c * uv.y);
+    }
+    uv += mc.u_uvOffset;
+    let duvx = dpdx(uv);
+    let duvy = dpdy(uv);
 #ifdef MESH_NORMALS
     let dndx = dpdx(v.v_worldNormal);
     let dndy = dpdy(v.v_worldNormal);
@@ -725,7 +748,7 @@ fn packNormal(n : vec3f) -> vec2f {
 #ifdef MESH_TANGENTS
     g_worldTangent = v.v_worldTangent;
 #endif
-    var base = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy) * v.v_color * mc.u_tint;
+    var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;
     // Before any discard: a derivative needs every fragment of its quad.
     let edge = max(fwidth(base.a), 1e-4);
     var alpha = base.a;
@@ -736,15 +759,15 @@ fn packNormal(n : vec3f) -> vec2f {
     }
 #ifdef MESH_NORMALS
     var Ng = normalize(v.v_worldNormal);
-    var N = perturbNormal(Ng, v.v_worldXYZ, v.v_texCoord,
-                          scaleNormal(sampleNormalGrad(u_normalMap, u_normalMap_s, v.v_texCoord, duvx, duvy), mc.u_normalScale));
+    var N = perturbNormal(Ng, v.v_worldXYZ, uv,
+                          scaleNormal(sampleNormalGrad(u_normalMap, u_normalMap_s, uv, duvx, duvy), mc.u_normalScale));
     if (!front) { N = -N; Ng = -Ng; }
 #else
-    let N = scaleNormal(sampleNormalGrad(u_normalMap, u_normalMap_s, v.v_texCoord, duvx, duvy), mc.u_normalScale);
+    let N = scaleNormal(sampleNormalGrad(u_normalMap, u_normalMap_s, uv, duvx, duvy), mc.u_normalScale);
 #endif
-    let occl = textureSampleGrad(u_occlusionMap, u_occlusionMap_s, v.v_texCoord, duvx, duvy).r;
+    let occl = textureSampleGrad(u_occlusionMap, u_occlusionMap_s, uv, duvx, duvy).r;
     let ao = mix(1.0, occl, mc.u_occlusionStrength);
-    let mr = textureSampleGrad(u_metallicRoughnessMap, u_metallicRoughnessMap_s, v.v_texCoord, duvx, duvy);
+    let mr = textureSampleGrad(u_metallicRoughnessMap, u_metallicRoughnessMap_s, uv, duvx, duvy);
 #ifdef MESH_NORMALS
     let P = v.v_worldXYZ;
 #else
@@ -773,7 +796,7 @@ fn packNormal(n : vec3f) -> vec2f {
         ext.coatN = vec4f(Ng, 0.0);
     }
     if (mc.u_anisotropy != 0.0) {
-        var T = perturbNormal(Ng, P, v.v_texCoord, vec3f(cos(mc.u_anisotropyRotation), sin(mc.u_anisotropyRotation), 0.0));
+        var T = perturbNormal(Ng, P, uv, vec3f(cos(mc.u_anisotropyRotation), sin(mc.u_anisotropyRotation), 0.0));
         T -= N * dot(N, T);
         if (dot(T, T) < 1e-6) {
             var seed = vec3f(1.0, 0.0, 0.0);
@@ -801,13 +824,13 @@ fn packNormal(n : vec3f) -> vec2f {
             let landed = frame.projection * vec4f(P + bent * depth, 1.0);
             let w = max(landed.w, 1e-4);
             // This device's rows run down the texture, so clip y is flipped on the way to a uv.
-            let uv = vec2f(landed.x / w * 0.5 + 0.5, 0.5 - landed.y / w * 0.5);
+            let screenUv = vec2f(landed.x / w * 0.5 + 0.5, 0.5 - landed.y / w * 0.5);
             let spread = roughness * roughness * 0.04;
-            var behind = textureSampleLevel(u_sceneColor, u_sceneColor_s, clamp(uv, vec2f(0.001), vec2f(0.999)), 0.0).rgb;
+            var behind = textureSampleLevel(u_sceneColor, u_sceneColor_s, clamp(screenUv, vec2f(0.001), vec2f(0.999)), 0.0).rgb;
             for (var i : i32 = 0; i < 8; i = i + 1) {
                 let a = f32(i) * 2.39996;
                 let o = vec2f(cos(a), sin(a)) * (spread * sqrt((f32(i) + 0.5) / 8.0));
-                behind = behind + textureSampleLevel(u_sceneColor, u_sceneColor_s, clamp(uv + o, vec2f(0.001), vec2f(0.999)), 0.0).rgb;
+                behind = behind + textureSampleLevel(u_sceneColor, u_sceneColor_s, clamp(screenUv + o, vec2f(0.001), vec2f(0.999)), 0.0).rgb;
             }
             seen = behind / 9.0 * mc.u_attenuationColor.rgb * (1.0 - fresnel) * mc.u_transmission;
             refracted = 1.0;
@@ -824,9 +847,12 @@ fn packNormal(n : vec3f) -> vec2f {
     let lit = applyLightingSurface(base.rgb * (1.0 - mc.u_transmission * refracted), N, P, viewDir,
                                     metallic, roughness, mc.u_specular, ao, ext);
 #endif
+#ifdef ES_OPAQUE
+    if (mc.u_alphaCutoff <= 0.0) { alpha = 1.0; }
+#endif
     if (mc.u_subsurface > 0.0 && mc.u_alphaCutoff <= 0.0) { alpha = min(alpha, 0.996); }
     let emit = mc.u_emissive.rgb
-             * textureSampleGrad(u_emissiveMap, u_emissiveMap_s, v.v_texCoord, duvx, duvy).rgb;
+             * textureSampleGrad(u_emissiveMap, u_emissiveMap_s, uv, duvx, duvy).rgb;
 #ifdef ES_GBUFFER
     var frag : FragOut;
     frag.color = vec4f(lit + seen + emit, alpha);

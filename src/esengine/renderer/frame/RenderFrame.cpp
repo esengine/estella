@@ -827,7 +827,8 @@ void RenderFrame::end() {
             copy.name = "scene-grab";
             copy.reads = {scene_resource_};
             copy.write = layered ? grabOpaque : grab;
-            copy.execute = [this](const rg::PassContext&) { post_process_->grabScene(); };
+            // Layered, this copy is only ever put back (scene-restore): kept exact, alpha and all. Otherwise the water reads it, marked.
+            copy.execute = [this, layered](const rg::PassContext&) { post_process_->grabScene(/*marked=*/!layered); };
             graph_.addPass(std::move(copy));
             if (grabDepth != rg::kNoResource) {
                 rg::PassDesc copyDepth;
@@ -850,7 +851,9 @@ void RenderFrame::end() {
                 restore.name = "scene-restore";
                 restore.reads = {grabOpaque};
                 restore.write = scene_resource_;
-                restore.execute = [this](const rg::PassContext&) { post_process_->grabScene(); };
+                // Exact: the scene's alpha is how much of each pixel geometry covers, which the sky reads. Restored through the marked
+                // copy, every pixel came back half covered and the sky showed through every wall, wherever water and a pane were both in view.
+                restore.execute = [this](const rg::PassContext&) { post_process_->grabScene(/*marked=*/false); };
                 graph_.addPass(std::move(restore));
             }
 #endif

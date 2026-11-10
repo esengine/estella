@@ -246,6 +246,10 @@ void PostProcessPipeline::shutdown() {
         resourceManager_.releaseShader(copyShader_);
         copyShader_ = resource::ShaderHandle{};
     }
+    if (exactCopyShader_.isValid()) {
+        resourceManager_.releaseShader(exactCopyShader_);
+        exactCopyShader_ = resource::ShaderHandle{};
+    }
     if (copyDepthShader_.isValid()) {
         resourceManager_.releaseShader(copyDepthShader_);
         copyDepthShader_ = resource::ShaderHandle{};
@@ -507,22 +511,39 @@ PostProcessPipeline::TemporalView PostProcessPipeline::peekTemporalView(const gl
     return view;
 }
 
+// The map is drawn for an effect that says how far it reaches (rain, snow): one that only reads it (reflections, keeping the
+// ground under a roof dry) borrows it where it is drawn, and does not cost a second picture of the scene by being on alone.
+bool PostProcessPipeline::passDrawsCover(const PostProcessPass& pass) {
+    if (!passHasTexture(pass, "u_rainCover")) return false;
+    const MaterialUniformLayout* layout = context_.materials().layoutFor(pass.shader);
+    return layout && layout->find("u_shelterRange");
+}
+
 bool PostProcessPipeline::coverWanted() {
     if (!initialized_ || bypass_) return false;
     for (const auto& pass : passes_) {
-        if (pass.enabled && passHasTexture(pass, "u_rainCover")) return true;
+        if (pass.enabled && passDrawsCover(pass)) return true;
     }
     return false;
 }
 
 f32 PostProcessPipeline::coverRange() {
     for (const auto& pass : passes_) {
-        if (!pass.enabled || !passHasTexture(pass, "u_rainCover")) continue;
+        if (!pass.enabled || !passDrawsCover(pass)) continue;
         if (auto it = pass.floatUniforms.find("u_shelterRange"); it != pass.floatUniforms.end()) {
             return std::max(it->second, 10.0f);
         }
     }
     return 3000.0f;
+}
+
+f32 PostProcessPipeline::coverBias() {
+    for (const auto& pass : passes_) {
+        if (!pass.enabled || !passDrawsCover(pass)) continue;
+        if (auto it = pass.floatUniforms.find("u_shelterBias"); it != pass.floatUniforms.end()) return it->second;
+        return 40.0f;
+    }
+    return 40.0f;
 }
 
 rg::ResourceId PostProcessPipeline::declareCover(u32 size) {
@@ -832,6 +853,10 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
             pass.vec4Uniforms["u_coverMatrix" + std::to_string(c)] = glm::vec4(cover_matrix_[c]);
         }
         pass.floatUniforms["u_coverActive"] = cover_active_ ? 1.0f : 0.0f;
+        // The reach the map was drawn with and the bias it is read with, for a pass that reads it without stating either (reflections
+        // read the rain's): both are the drawing effect's, in its world's units.
+        if (layout->find("u_coverRange")) pass.floatUniforms["u_coverRange"] = coverRange();
+        if (layout->find("u_coverBias")) pass.floatUniforms["u_coverBias"] = coverBias();
         pass.paramDirty = true;
     }
     if (layout && layout->usesLights) {
@@ -1038,20 +1063,21 @@ void PostProcessPipeline::setOutputViewport(u32 x, u32 y, u32 w, u32 h) {
     output_vp_h_ = h;
 }
 
-void PostProcessPipeline::grabScene() {
-    if (!copyShader_.isValid()) {
-        copyShader_ = compileBlit({"ES_COPY"});
-        if (!copyShader_.isValid()) {
+void PostProcessPipeline::grabScene(bool marked) {
+    resource::ShaderHandle& handle = marked ? copyShader_ : exactCopyShader_;
+    if (!handle.isValid()) {
+        handle = compileBlit({marked ? "ES_COPY" : "ES_COPY_EXACT"});
+        if (!handle.isValid()) {
             ES_LOG_ERROR("PostProcessPipeline: no copy shader; a refractive surface sees nothing behind it");
             return;
         }
     }
-    Shader* shader = resourceManager_.getShader(copyShader_);
+    Shader* shader = resourceManager_.getShader(handle);
     if (!shader) return;
     applyPassPipeline(*shader);
     if (shader->hasUniform("u_texture")) shader->setUniform("u_texture", 0);
     shader->commitParams();
-    bindBlitInputs(copyShader_);
+    bindBlitInputs(handle);
     drawScreenQuad();
 }
 
@@ -1102,7 +1128,7 @@ void PostProcessPipeline::bindBlitInputs(const resource::ShaderHandle& handle) {
     const MaterialUniformLayout* layout = context_.materials().layoutFor(handle);
     if (!layout) return;
     // Only the last pass applies the look: the copies share the file, and read the amount as none.
-    const bool lastPass = handle.id() != copyShader_.id() && handle.id() != copyDepthShader_.id();
+    const bool lastPass = handle.id() != copyShader_.id() && handle.id() != exactCopyShader_.id() && handle.id() != copyDepthShader_.id();
     const f32 amount = lastPass && displayLutActive() ? display_lut_amount_ : 0.0f;
     if (layout->blockSize > 0) {
         if (blitParamUbo_ == BufferHandle::Invalid || blitParamAmount_ != amount) {

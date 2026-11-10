@@ -274,6 +274,14 @@ fn project(P : vec3f) -> vec3f {
 #pragma param u_envTint color default(0,0,0,0)
 #pragma param u_reflParams color default(1,0,0,0)
 #pragma param u_environment texture default(black)
+#pragma param u_coverActive float default(0) range(0,1)
+#pragma param u_coverRange float default(3000) range(10,30000)
+#pragma param u_coverBias float default(40) range(0,500)
+#pragma param u_coverMatrix0 color default(1,0,0,0)
+#pragma param u_coverMatrix1 color default(0,1,0,0)
+#pragma param u_coverMatrix2 color default(0,0,1,0)
+#pragma param u_coverMatrix3 color default(0,0,0,1)
+#pragma param u_rainCover texture default(white)
 #pragma gbuffer
 
 #pragma fragment
@@ -291,6 +299,19 @@ ${BASIN_GLSL}
 ${GBUFFER_GLSL}
 ${ENV_GLSL}
 ${GLSL}
+
+/// 1 under a roof, an awning, a tree — the rain's own map of what stands over each place (see the Rain effect) — and 0 in the
+/// open. The ground there is as dry as the rain left it: no film of water, no pools. Without a Rain effect there is no map, and
+/// everything is open. The reach and the bias are the Rain effect's, handed over with its map.
+float coveredAt(vec3 W) {
+    if (u_coverActive < 0.5) return 0.0;
+    vec4 c = mat4(u_coverMatrix0, u_coverMatrix1, u_coverMatrix2, u_coverMatrix3) * vec4(W, 1.0);
+    vec2 uv = c.xy / c.w * 0.5 + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
+    float stored = dot(texture(u_rainCover, uv).rgb, vec3(1.0, 1.0 / 255.0, 1.0 / 65025.0));
+    float here = clamp(c.z / c.w * 0.5 + 0.5, 0.0, 1.0);
+    return stored < here - u_coverBias / (4.0 * u_coverRange) ? 1.0 : 0.0;
+}
 
 void main() {
     vec4 scene = texture(u_texture, v_texCoord);
@@ -329,13 +350,15 @@ void main() {
     // Standing water is flat and mirror-like whatever the ground under it is: its normal is
     // straight up, and a still surface reflects far more than the 4% a dry one does.
     float flatUp = smoothstep(0.86, 0.95, N.y);
+    // Wet and pooled only where the rain reaches.
+    float wetUp = (u_puddles > 0.0 || u_wetness > 0.0) ? flatUp * (1.0 - coveredAt(P)) : 0.0;
     float puddle = 0.0;
     if (u_puddles > 0.0) {
-        puddle = puddleMask(P.xz, basinCoverage(c, size, P, u_puddles, u_puddleScale), u_puddleScale) * flatUp;
+        puddle = puddleMask(P.xz, basinCoverage(c, size, P, u_puddles, u_puddleScale), u_puddleScale) * wetUp;
         N = normalize(mix(N, vec3(0.0, 1.0, 0.0), puddle));
     }
     // Wet ground is smoother than dry: a film of water fills the pores a rough surface scatters from.
-    rough = mix(rough, rough * 0.35, u_wetness * flatUp);
+    rough = mix(rough, rough * 0.35, u_wetness * wetUp);
     rough = mix(rough, 0.04, puddle);
     // Too rough to show anything: skipped before the march, which is the whole cost.
     if (rough > u_maxRoughness) { fragColor = scene; return; }
@@ -427,6 +450,19 @@ ${GBUFFER_WGSL}
 ${ENV_WGSL}
 ${WGSL}
 
+fn coveredAt(W : vec3f) -> f32 {
+    if (mc.u_coverActive < 0.5) { return 0.0; }
+    let m = mat4x4f(mc.u_coverMatrix0, mc.u_coverMatrix1, mc.u_coverMatrix2, mc.u_coverMatrix3);
+    let c = m * vec4f(W, 1.0);
+    let uv = c.xy / c.w * 0.5 + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return 0.0; }
+    // This device's texture rows run the other way from the clip space the map was drawn in.
+    let stored = dot(textureSampleLevel(u_rainCover, u_rainCover_s, vec2f(uv.x, 1.0 - uv.y), 0.0).rgb,
+                     vec3f(1.0, 1.0 / 255.0, 1.0 / 65025.0));
+    let here = clamp(c.z / c.w * 0.5 + 0.5, 0.0, 1.0);
+    return select(0.0, 1.0, stored < here - mc.u_coverBias / (4.0 * mc.u_coverRange));
+}
+
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let scene = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
     let size = vec2i(textureDimensions(t7, 0));
@@ -457,12 +493,14 @@ ${WGSL}
     let metal = sf.metallic;
 
     let flatUp = smoothstep(0.86, 0.95, N.y);
+    var wetUp = 0.0;
+    if (mc.u_puddles > 0.0 || mc.u_wetness > 0.0) { wetUp = flatUp * (1.0 - coveredAt(P)); }
     var puddle = 0.0;
     if (mc.u_puddles > 0.0) {
-        puddle = puddleMask(P.xz, basinCoverage(c, size, P, mc.u_puddles, mc.u_puddleScale), mc.u_puddleScale) * flatUp;
+        puddle = puddleMask(P.xz, basinCoverage(c, size, P, mc.u_puddles, mc.u_puddleScale), mc.u_puddleScale) * wetUp;
         N = normalize(mix(N, vec3f(0.0, 1.0, 0.0), puddle));
     }
-    rough = mix(rough, rough * 0.35, mc.u_wetness * flatUp);
+    rough = mix(rough, rough * 0.35, mc.u_wetness * wetUp);
     rough = mix(rough, 0.04, puddle);
     if (rough > mc.u_maxRoughness) { return scene; }
 

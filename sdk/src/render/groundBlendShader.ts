@@ -78,7 +78,7 @@ const GLSL_SURFACE = `    float groundFade = 1.0;
         if (u_layerReach > 0.0) layerWeight = max(layerWeight, near * (1.0 - smoothstep(0.0, 1.0, above / u_layerReach + wander)));
     }
 #endif
-    vec4 base = texture(u_textures[0], v_texCoord) * u_tint;
+    vec4 base = texture(u_textures[0], uv) * u_tint;
     if (u_vertexBlend <= 0.5) base *= v_color;
     if (layerWeight > 0.0) {
 #ifdef MESH_NORMALS
@@ -123,7 +123,7 @@ const WGSL_SURFACE = `#ifdef MESH_NORMALS
         if (mc.u_layerReach > 0.0) { layerWeight = max(layerWeight, near * (1.0 - smoothstep(0.0, 1.0, above / mc.u_layerReach + wander))); }
     }
 #endif
-    var base = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy) * mc.u_tint;
+    var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * mc.u_tint;
     if (mc.u_vertexBlend <= 0.5) { base = base * v.v_color; }
     if (layerWeight > 0.0) {
 #ifdef MESH_NORMALS
@@ -156,12 +156,12 @@ export function deriveGroundBlend(model: string): string {
     s = swap(s, '#pragma param u_iridescence float', `${PARAMS}#pragma param u_iridescence float`);
     s = swap(s, 'float specularAA(highp vec3', `${GLSL_HELPERS}float specularAA(highp vec3`);
     s = swap(s, 'fn specularAA(dndx : vec3f', `${WGSL_HELPERS}fn specularAA(dndx : vec3f`);
-    s = swap(s, '    vec4 base = texture(u_textures[0], v_texCoord) * v_color * u_tint;\n', GLSL_SURFACE);
-    s = swap(s, '    var base = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy) * v.v_color * mc.u_tint;\n', WGSL_SURFACE);
+    s = swap(s, '    vec4 base = texture(u_textures[0], uv) * v_color * u_tint;\n', GLSL_SURFACE);
+    s = swap(s, '    var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;\n', WGSL_SURFACE);
     s = swap(s, 'float roughness = u_roughness * mr.g;', 'float roughness = mix(u_roughness * mr.g, u_layer2Roughness, layerWeight);');
     s = swap(s, 'var roughness = mc.u_roughness * mr.g;', 'var roughness = mix(mc.u_roughness * mr.g, mc.u_layer2Roughness, layerWeight);');
-    s = swap(s, 'fragColor = vec4(lit + seen + u_emissive.rgb * texture(u_emissiveMap, v_texCoord).rgb, alpha);',
-             'fragColor = vec4(mix(groundBehind, lit + seen + u_emissive.rgb * texture(u_emissiveMap, v_texCoord).rgb, groundFade), alpha);');
+    s = swap(s, 'fragColor = vec4(lit + seen + u_emissive.rgb * texture(u_emissiveMap, uv).rgb, alpha);',
+             'fragColor = vec4(mix(groundBehind, lit + seen + u_emissive.rgb * texture(u_emissiveMap, uv).rgb, groundFade), alpha);');
     s = swap(s, 'frag.color = vec4f(lit + seen + emit, alpha);', 'frag.color = vec4f(mix(groundBehind, lit + seen + emit, groundFade), alpha);');
     s = swap(s, 'return vec4f(lit + seen + emit, alpha);', 'return vec4f(mix(groundBehind, lit + seen + emit, groundFade), alpha);');
     return s;

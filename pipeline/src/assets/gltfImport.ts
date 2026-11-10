@@ -43,7 +43,7 @@ interface GltfTextureRef {
     index: number; texCoord?: number;
     /** How much of an occlusionTexture's shadowing applies (occlusionTextureInfo only). */
     strength?: number;
-    /** KHR_texture_transform and friends: a uv rewrite this importer does not do. */
+    /** KHR_texture_transform (read per material, see uvTransformOf) and any extension this importer does not read. */
     extensions?: Record<string, unknown>;
 }
 
@@ -525,14 +525,8 @@ function readTexture(ctx: MaterialContext, cache: Map<number, ImportedImageRef |
         ctx.warnings.push(`${label}: samples TEXCOORD_${texCoord}; materials read the first set, so it will sample UV0`);
     }
     for (const name of Object.keys(ref.extensions ?? {})) {
-        // Exporters also emit this extension when it only selects UV0. Nothing
-        // is lost in that case; warn only when the source needs a UV rewrite.
-        if (name === 'KHR_texture_transform' && transform
-            && (transform.rotation ?? 0) === 0
-            && (transform.offset === undefined || (transform.offset.length === 2
-                && transform.offset[0] === 0 && transform.offset[1] === 0))
-            && (transform.scale === undefined || (transform.scale.length === 2
-                && transform.scale[0] === 1 && transform.scale[1] === 1))) continue;
+        // The transform is the MATERIAL's to carry (one per material, see uvTransformOf), not the image's.
+        if (name === 'KHR_texture_transform') continue;
         ctx.warnings.push(`${label}: ${name} not imported (uvs are used as authored)`);
     }
     const cached = cache.get(ref.index);
@@ -583,6 +577,53 @@ function readTexture(ctx: MaterialContext, cache: Map<number, ImportedImageRef |
  * One glTF material, read into the two things that can hold it (@ref
  * materialProducts).
  */
+type UvTransform = NonNullable<ImportedMaterial['uvTransform']>;
+
+/** One texture slot's KHR_texture_transform as the Model shader's Tiling, Offset and Rotation; identity when it has none. */
+function slotTransform(ref: GltfTextureRef): UvTransform {
+    const t = ref.extensions?.KHR_texture_transform as { offset?: unknown; scale?: unknown; rotation?: unknown } | undefined;
+    const pair = (v: unknown, d: number): [number, number] => Array.isArray(v) && v.length === 2
+        && v.every(x => typeof x === 'number' && Number.isFinite(x)) ? [v[0], v[1]] : [d, d];
+    return {
+        tiling: pair(t?.scale, 1),
+        offset: pair(t?.offset, 0),
+        rotation: typeof t?.rotation === 'number' && Number.isFinite(t.rotation) ? t.rotation : 0,
+    };
+}
+
+const sameTransform = (a: UvTransform, b: UvTransform): boolean =>
+    a.tiling[0] === b.tiling[0] && a.tiling[1] === b.tiling[1] && a.offset[0] === b.offset[0] && a.offset[1] === b.offset[1]
+    && a.rotation === b.rotation;
+
+/**
+ * The transform a material's maps are read through. glTF lets each slot have its own; the Model shader has one for all of
+ * them, which is what every exporter that writes the extension does in practice (three.js, Blender: a tiled texture set).
+ * Maps that disagree keep the base colour's (or the first map's) and say so — the others will read where it does.
+ */
+function uvTransformOf(refs: (GltfTextureRef | undefined)[], label: string, warnings: string[]): UvTransform | undefined {
+    const present = refs.filter((r): r is GltfTextureRef => !!r);
+    if (present.length === 0) return undefined;
+    const chosen = slotTransform(present[0]);
+    if (present.some(r => !sameTransform(slotTransform(r), chosen))) {
+        warnings.push(`${label}: its maps have different KHR_texture_transform; all are read through the first map's`);
+    }
+    const identity = sameTransform(chosen, { tiling: [1, 1], offset: [0, 0], rotation: 0 });
+    return identity ? undefined : toEngineUv(chosen);
+}
+
+/**
+ * glTF's transform, which acts on its own uv (origin at the image's top-left), as the same transform on the engine's
+ * (V flipped on import, see readUvs). With F(v) = (v.x, 1 - v.y) the read point is F(O + R(θ)·S·F(u)): the tiling is
+ * unchanged, the turn runs the other way, and the offset picks up where the flipped origin lands.
+ */
+function toEngineUv(t: UvTransform): UvTransform {
+    const [ox, oy] = t.offset, [, sy] = t.tiling;
+    const c = Math.cos(t.rotation), s = Math.sin(t.rotation);
+    const offset: [number, number] = [ox + s * sy, 1 - oy - c * sy];
+    return { tiling: [t.tiling[0], t.tiling[1]], offset: offset.map(v => Math.abs(v) < 1e-12 ? 0 : v) as [number, number],
+             rotation: t.rotation === 0 ? 0 : -t.rotation };
+}
+
 function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedImageRef | null>,
                       index: number): ImportedMaterial {
     const src = ctx.json.materials?.[index] ?? {};
@@ -612,6 +653,15 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
     const texture = colorTexture ? readTexture(ctx, textureCache, colorTexture, label) : null;
     // PBR properties are only fallbacks on an unlit material. Reading them as
     // shading would change the authored style and upload textures never sampled.
+    if (src.extensions?.KHR_materials_unlit !== undefined) {
+        if (colorTexture && uvTransformOf([colorTexture], label, ctx.warnings)) {
+            ctx.warnings.push(`${label}: KHR_texture_transform not imported on an unlit material (uvs are used as authored)`);
+        }
+    }
+    const uvTransform = src.extensions?.KHR_materials_unlit !== undefined ? undefined : uvTransformOf([
+        colorTexture, src.normalTexture, src.occlusionTexture, src.emissiveTexture,
+        specGloss ? specGloss.specularGlossinessTexture : pbr.metallicRoughnessTexture,
+    ], label, ctx.warnings);
     if (src.extensions?.KHR_materials_unlit !== undefined) return {
         index, name: src.name ?? `material_${index}`, unlit: true,
         ...((src.extras as any)?.estella?.blendMode === 1 ? { blendMode: 1 } : {}),
@@ -684,6 +734,7 @@ function readMaterial(ctx: MaterialContext, textureCache: Map<number, ImportedIm
             ...(specGlossMap ? { specularGlossinessTexture: specGlossMap } : {}),
         } : { metallic, roughness, ...(metalRoughMap ? { metallicRoughnessTexture: metalRoughMap } : {}) }),
         ...(src.alphaMode === 'MASK' ? { alphaCutoff: src.alphaCutoff ?? 0.5 } : {}),
+        ...(uvTransform ? { uvTransform } : {}),
         ...(flow ? { flowTexture: flow } : {}),
         ...(shift ? { shiftTexture: shift } : {}),
         ...(typeof tipSoftness === 'number' && tipSoftness >= 0 ? { tipSoftness } : {}),

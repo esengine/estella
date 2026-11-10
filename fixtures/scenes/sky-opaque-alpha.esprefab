@@ -1,0 +1,32 @@
+{
+  "version": "2",
+  "name": "sky-opaque-alpha",
+  "rootEntityId": "n0",
+  "entities": [
+    {
+      "prefabEntityId": "n0",
+      "name": "Quad",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "scenes/normalmap-quad.esmesh",
+            "lit": true,
+            "material": "scenes/sky-opaque-alpha_m0.esmaterial",
+            "color": { "r": 0.8, "g": 0.2, "b": 0.2, "a": 0.5 },
+            "opaque": true,
+            "cullBackfaces": false,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

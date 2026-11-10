@@ -325,6 +325,21 @@ vec2 packNormal(vec3 n) {
 out vec4 fragColor;
 #endif
 
+// Where a material's cut-out is read: its Tiling, Offset and Rotation when it has them (ES_UV_TRANSFORM, the Model shader's), so the
+// depth programs that reproduce its coverage cut where its colour pass does.
+highp vec2 coverageUv() {
+#ifdef ES_UV_TRANSFORM
+    highp vec2 uv = v_texCoord * u_uvTiling;
+    if (u_uvRotation != 0.0) {
+        float c = cos(u_uvRotation), sn = sin(u_uvRotation);
+        uv = vec2(c * uv.x + sn * uv.y, -sn * uv.x + c * uv.y);
+    }
+    return uv + u_uvOffset;
+#else
+    return v_texCoord;
+#endif
+}
+
 void main() {
 #ifdef ES_VELOCITY
     // How far this pixel's surface moved in the picture since last frame, in uv, and the depth it sits at
@@ -337,7 +352,7 @@ void main() {
 #ifdef PREPASS_COVERAGE
     // The colour pass's own: base alpha is the texture's times the draw's colour times the material's tint, in that order, and the cut is sharpened to
     // about a pixel. The derivative is taken before the discard, where every fragment of the quad still runs. Nothing is written but the coverage.
-    highp float baseAlpha = texture(u_texture, v_texCoord).a * v_color.a * u_tint.a;
+    highp float baseAlpha = texture(u_texture, coverageUv()).a * v_color.a * u_tint.a;
     highp float coverage = (baseAlpha - u_alphaCutoff) / max(fwidth(baseAlpha), 1e-4) + 0.5;
     if (coverage <= 0.0) discard;
     fragColor = vec4(0.0, 0.0, 0.0, min(coverage, 1.0));
@@ -345,7 +360,7 @@ void main() {
 #ifdef SHADOW_ALPHA
     // A cut-out's shadow is cut where the cut-out is, at the cutoff (glTF's MASK), through the mip chain: seen small from the light, the
     // cut-out keeps its share of the light because its mips keep their coverage at the cutoff (preserveAlphaCoverage).
-    if (texture(u_texture, v_texCoord).a * v_color.a < u_alphaCutoff) discard;
+    if (texture(u_texture, coverageUv()).a * v_color.a < u_alphaCutoff) discard;
 #endif
     // The expression the receiver evaluates on u_shadowMatrix, evaluated here on the
     // same matrix and at the same point: whatever each backend's clip z means, both
@@ -638,6 +653,21 @@ struct VSOut {
     @location(6) @interpolate(flat) v_probeSlot : f32,
 };
 
+// See the GLSL twin.
+fn coverageUv(uv0 : vec2f) -> vec2f {
+#ifdef ES_UV_TRANSFORM
+    var uv = uv0 * mc.u_uvTiling;
+    if (mc.u_uvRotation != 0.0) {
+        let c = cos(mc.u_uvRotation);
+        let sn = sin(mc.u_uvRotation);
+        uv = vec2f(c * uv.x + sn * uv.y, -sn * uv.x + c * uv.y);
+    }
+    return uv + mc.u_uvOffset;
+#else
+    return uv0;
+#endif
+}
+
 #ifdef ES_GBUFFER
 // What the frame's second attachment takes, beside the colour (see the GLSL twin).
 struct FragOut {
@@ -677,9 +707,10 @@ fn packNormal(n : vec3f) -> vec2f {
 #elif defined(SHADOW_DEPTH)
 #ifdef PREPASS_COVERAGE
     // See the GLSL twin: the colour pass's coverage, by its expression on its inputs.
-    let duvx = dpdx(v.v_texCoord);
-    let duvy = dpdy(v.v_texCoord);
-    let baseAlpha = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy).a * v.v_color.a * mc.u_tint.a;
+    let cuv = coverageUv(v.v_texCoord);
+    let duvx = dpdx(cuv);
+    let duvy = dpdy(cuv);
+    let baseAlpha = textureSampleGrad(t0, s0, cuv, duvx, duvy).a * v.v_color.a * mc.u_tint.a;
     let edge = max(fwidth(baseAlpha), 1e-4);
     let coverage = (baseAlpha - mc.u_alphaCutoff) / max(edge, 1e-4) + 0.5;
     if (coverage <= 0.0) { discard; }
@@ -687,9 +718,10 @@ fn packNormal(n : vec3f) -> vec2f {
 #else
 #ifdef SHADOW_ALPHA
     // See the GLSL twin: through the mip chain (level 0 alone left a card's shadow a different shape from WebGL2's), cut at the cutoff.
-    let duvx = dpdx(v.v_texCoord);
-    let duvy = dpdy(v.v_texCoord);
-    if (textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy).a * v.v_color.a < mc.u_alphaCutoff) { discard; }
+    let cuv = coverageUv(v.v_texCoord);
+    let duvx = dpdx(cuv);
+    let duvy = dpdy(cuv);
+    if (textureSampleGrad(t0, s0, cuv, duvx, duvy).a * v.v_color.a < mc.u_alphaCutoff) { discard; }
 #endif
     // The expression the receiver evaluates on u_shadowMatrix, evaluated here on the
     // same matrix and at the same point: whatever each backend's clip z means, both
