@@ -28,6 +28,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
  * intended state: a field that earns an entry here is work, not permission.
  */
 const DECLARED_GAPS = {
+    'Perception.heard': 'a perceiver senses a noise and writes the flag for a script or a behaviour tree to read; no engine system turns a hunter toward a noise yet',
 };
 
 const components = JSON.parse(
