@@ -18,6 +18,7 @@ export interface MockModule extends ESEngineModule {
 export function createMockModule(): MockModule {
     const entities = new Set<Entity>();
     const components = new Map<Entity, Map<string, any>>();
+    const destructionPending = new Set<Entity>();
     let nextEntity = 1;
 
     const baseRegistry = {
@@ -38,6 +39,17 @@ export function createMockModule(): MockModule {
         },
 
         entityCount: () => entities.size,
+
+        // Shared subtree teardown ownership, as Registry::reserveDestruction has
+        // it: one owner at a time, and only over a live entity. Every core binds
+        // these, so World takes ownership without asking whether it may.
+        reserveDestruction: (entity: Entity) => {
+            if (!entities.has(entity) || destructionPending.has(entity)) return false;
+            destructionPending.add(entity);
+            return true;
+        },
+        releaseDestruction: (entity: Entity) => { destructionPending.delete(entity); },
+        destructionPending: (entity: Entity) => destructionPending.has(entity),
 
         /**
          * Every engine pool's version. A constant, and the TRUTH rather than a

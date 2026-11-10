@@ -11,6 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import { createNativeWorld } from '../src/ecs/bridge/nativeRuntime';
 import { PTR_ACCESSORS } from '../src/ecs/bridge/ptrAccessors.generated';
+import { installRegistryOpDefaults } from './helpers/nativeRegistryOps';
 import { Sprite, Transform } from '../src/ecs/component';
 
 /** A self-contained fake native ECS + the host bindings createNativeWorld expects. */
@@ -27,8 +28,8 @@ function mockNativeEcs() {
     };
 
     const scope: Record<string, unknown> = {
-        es_createEntity: () => { const e = nextId++; alive.add(e); return e; },
-        es_destroyEntity: (e: number) => {
+        es_registry_create: () => { const e = nextId++; alive.add(e); return e; },
+        es_registry_destroy: (e: number) => {
             alive.delete(e);
             for (const m of comps.values()) m.delete(e);
             const p = parents.get(e);
@@ -37,7 +38,7 @@ function mockNativeEcs() {
             children.delete(e);
         },
         es_hasParent: (e: number) => parents.has(e),
-        es_setParent: (c: number, p: number) => {
+        es_registry_setParent: (c: number, p: number) => {
             parents.set(c, p);
             let s = children.get(p);
             if (!s) { s = new Set(); children.set(p, s); }
@@ -51,6 +52,7 @@ function mockNativeEcs() {
         es_hasChildren: (e: number) => (children.get(e)?.size ?? 0) > 0,
         es_getChildren: (e: number) => [...(children.get(e) ?? [])],
     };
+    installRegistryOpDefaults(scope, alive);
     for (const cppName of Object.keys(PTR_ACCESSORS)) {
         scope[`es_${cppName}_buffer`] = (e: number) => {
             const m = store(cppName);

@@ -61,7 +61,7 @@ export type { MemoryProvider, ComponentHeap, NativeComponentBufferFn } from './e
 export { createNativeRegistry } from './ecs/bridge/nativeRegistry';
 
 // The es_* names a host binds, declared once and checked at boot.
-export { REGISTRY_BINDINGS, RESOURCE_BINDINGS, PLATFORM_BINDINGS, assertNativeBindings } from './ecs/bridge/nativeBindings';
+export { REGISTRY_BINDINGS, REGISTRY_OPS, RESOURCE_BINDINGS, PLATFORM_BINDINGS, assertNativeBindings } from './ecs/bridge/nativeBindings';
 
 // The native ResourceManager — the embind-ResourceManager sibling the SDK's asset
 // pipeline drives (createTexture / releaseTexture / dims). Built over the host's

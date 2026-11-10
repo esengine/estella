@@ -20,6 +20,7 @@ import { shutdownResourceManager } from '../src/wasm/resourceManager';
 import { TextureContent } from '../src/wasm';
 import { setPlatform } from '../src/platform/base';
 import type { NativeBridge } from '../src/platform/native/bridge';
+import { withRegistryOps } from './helpers/nativeRegistryOps';
 
 /** A mock native ResourceManager scope: a Map-backed texture pool addressed by
  *  handle, exposed through the es_* host globals the SDK's native RM binds to. */
@@ -131,7 +132,7 @@ describe('native Assets.loadTexture', () => {
     it('decodes through the bridge and uploads via the native ResourceManager', async () => {
         const { scope, createSpy, releaseSpy } = makeTextureScope();
         const bridge = makeBridge({ 'logo.png': solidImage(4, 2) });
-        const app = createNativeApp(bridge, scope);
+        const app = createNativeApp(bridge, withRegistryOps(scope));
         await app.tick(0);   // finish plugin builds + install platform
 
         const assets = app.getResource(Assets);
@@ -196,7 +197,7 @@ describe('native Assets mesh loading', () => {
             mesh_createFromChannels: scope.es_mesh_createFromChannels as never,
         });
         try {
-            const app = createNativeApp(makeBridge({}), scope);
+            const app = createNativeApp(makeBridge({}), withRegistryOps(scope));
             await app.tick(0);
             const assets = app.getResource(Assets);
 

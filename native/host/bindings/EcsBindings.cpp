@@ -2,15 +2,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    EcsBindings.cpp
- * @brief   Entity + hierarchy — the base Registry surface the SDK's World drives.
+ * @brief   Hierarchy reads and the transform composition — the entity-level
+ *          entry points that are not Registry methods on the web.
  * @details Entity ids cross as the native Entity's raw u32 (round-tripped via
  *          Entity::fromRaw), so a hierarchy query returns ids the SDK recognises.
  *
- *          Hand-written because there is nothing to generate from: the web build
- *          reaches the registry as an embind CLASS, not as free binding entry
- *          points, so no binding header declares this surface. Everything
- *          per-component — es_set_<C>, es_<C>_buffer, _has, _remove — IS generated,
- *          from the same reflection the web's embind bindings come from.
+ *          The Registry's own entity ops (create, destroy, valid, activity,
+ *          destruction ownership, setParent) are NOT here: they are generated as
+ *          es_registry_<op> from tools/eht/registry_ops.py, the table the embind
+ *          Registry is generated from, so the two hosts cannot bind different
+ *          sets. What stays is what embind answers through the Parent/Children
+ *          components or module free functions, which have no native surface.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -31,9 +33,6 @@ using namespace esengine;
 namespace eshost {
 namespace {
 
-esjs::Val js_createEntity(const esjs::Args& a) {
-    return esjs::uint32(host().registry->create().id());
-}
 /**
  * Every pool's version in one number — `Registry::layoutEpoch`, which the web
  * build reaches as an embind free function. A holder of raw addresses asks this
@@ -42,38 +41,6 @@ esjs::Val js_createEntity(const esjs::Args& a) {
  */
 esjs::Val js_layoutEpoch(const esjs::Args& a) {
     return esjs::number(host().registry->layoutEpoch());
-}
-esjs::Val js_destroyEntity(const esjs::Args& a) {
-    host().registry->destroy(esn_entity(a[0]));
-    return esjs::undefined();
-}
-esjs::Val js_setParent(const esjs::Args& a) {
-    return esjs::boolean(ecs::setParent(*host().registry, esn_entity(a[0]), esn_entity(a[1])));
-}
-esjs::Val js_reserveDestruction(const esjs::Args& a) {
-    return esjs::boolean(host().registry->reserveDestruction(esn_entity(a[0])));
-}
-esjs::Val js_releaseDestruction(const esjs::Args& a) {
-    host().registry->releaseDestruction(esn_entity(a[0]));
-    return esjs::undefined();
-}
-esjs::Val js_destructionPending(const esjs::Args& a) {
-    return esjs::boolean(host().registry->destructionPending(esn_entity(a[0])));
-}
-esjs::Val js_setEntityEnabled(const esjs::Args& a) {
-    return esjs::boolean(host().registry->setEntityEnabled(esn_entity(a[0]), esjs::toBool(a[1])));
-}
-esjs::Val js_isEntityActive(const esjs::Args& a) {
-    return esjs::boolean(host().registry->isEntityActive(esn_entity(a[0])));
-}
-esjs::Val js_isEntityEnabled(const esjs::Args& a) {
-    return esjs::boolean(host().registry->isEntityEnabled(esn_entity(a[0])));
-}
-esjs::Val js_hasInactiveEntities(const esjs::Args& a) {
-    return esjs::boolean(host().registry->hasInactiveEntities());
-}
-esjs::Val js_activityEpoch(const esjs::Args& a) {
-    return esjs::uint32(host().registry->activityEpoch());
 }
 esjs::Val js_hasParent(const esjs::Args& a) {
     return esjs::boolean(host().registry->has<ecs::Parent>(esn_entity(a[0])));
@@ -186,17 +153,6 @@ esjs::Val js_transformEnsureComposed(const esjs::Args& a) {
 }  // namespace
 
 void registerEcsBindings(HostState& h, esjs::Val global) {
-    bindGlobal(global, "es_createEntity", js_createEntity, 0);
-    bindGlobal(global, "es_destroyEntity", js_destroyEntity, 1);
-    bindGlobal(global, "es_setParent", js_setParent, 2);
-    bindGlobal(global, "es_reserveDestruction", js_reserveDestruction, 1);
-    bindGlobal(global, "es_releaseDestruction", js_releaseDestruction, 1);
-    bindGlobal(global, "es_destructionPending", js_destructionPending, 1);
-    bindGlobal(global, "es_setEntityEnabled", js_setEntityEnabled, 2);
-    bindGlobal(global, "es_isEntityActive", js_isEntityActive, 1);
-    bindGlobal(global, "es_isEntityEnabled", js_isEntityEnabled, 1);
-    bindGlobal(global, "es_hasInactiveEntities", js_hasInactiveEntities, 0);
-    bindGlobal(global, "es_activityEpoch", js_activityEpoch, 0);
     bindGlobal(global, "es_hasParent", js_hasParent, 1);
     bindGlobal(global, "es_getParent", js_getParent, 1);
     bindGlobal(global, "es_removeParent", js_removeParent, 1);

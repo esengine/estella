@@ -13,7 +13,7 @@ shutdown: () => void
 
 ## CppRegistry — interface @experimental
 ```
-activityEpoch: (() => number) | undefined
+activityEpoch: () => number
 addBillboard: (entity: Entity, component: Billboard) => void
 addBitmapText: (entity: Entity, component: BitmapText) => void
 addBoxCollider2D: (entity: Entity, component: BoxCollider2D) => void
@@ -74,7 +74,7 @@ componentTypeId: ((name: string) => number) | undefined
 create: () => Entity
 delete: () => void
 destroy: (entity: Entity) => void
-destructionPending: ((entity: Entity) => boolean) | undefined
+destructionPending: (entity: Entity) => boolean
 entityCount: () => number
 getBillboard: (entity: Entity) => Billboard
 getBitmapText: (entity: Entity) => BitmapText
@@ -151,7 +151,7 @@ hasDragonBonesAnimation: (entity: Entity) => boolean
 hasFlexContainer: (entity: Entity) => boolean
 hasGroupOpacity: (entity: Entity) => boolean
 hasImpostor: (entity: Entity) => boolean
-hasInactiveEntities: (() => boolean) | undefined
+hasInactiveEntities: () => boolean
 hasInteractable: (entity: Entity) => boolean
 hasLODGroup: (entity: Entity) => boolean
 hasLight: (entity: Entity) => boolean
@@ -190,10 +190,10 @@ hasUINode: (entity: Entity) => boolean
 hasUIScroll: (entity: Entity) => boolean
 hasUIVisual: (entity: Entity) => boolean
 hasVelocity: (entity: Entity) => boolean
-isEntityActive: ((entity: Entity) => boolean) | undefined
-isEntityEnabled: ((entity: Entity) => boolean) | undefined
+isEntityActive: (entity: Entity) => boolean
+isEntityEnabled: (entity: Entity) => boolean
 layoutEpoch: (() => number) | undefined
-releaseDestruction: ((entity: Entity) => void) | undefined
+releaseDestruction: (entity: Entity) => void
 removeBillboard: (entity: Entity) => void
 removeBitmapText: (entity: Entity) => void
 removeBoxCollider2D: (entity: Entity) => void
@@ -250,9 +250,9 @@ removeUINode: (entity: Entity) => void
 removeUIScroll: (entity: Entity) => void
 removeUIVisual: (entity: Entity) => void
 removeVelocity: (entity: Entity) => void
-reserveDestruction: ((entity: Entity) => boolean) | undefined
-setEntityEnabled: ((entity: Entity, enabled: boolean) => boolean) | undefined
-setParent: (child: Entity, parent: Entity) => boolean | void
+reserveDestruction: (entity: Entity) => boolean
+setEntityEnabled: (entity: Entity, enabled: boolean) => boolean
+setParent: (child: Entity, parent: Entity) => boolean
 valid: (entity: Entity) => boolean
 ```
 

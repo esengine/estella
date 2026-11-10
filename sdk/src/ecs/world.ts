@@ -401,14 +401,14 @@ export class World {
             // Detach before taking native ownership: setParent also rejects
             // reserved entities. The same core guard then protects raw registry
             // calls and native teardown invoked from an SDK callback.
-            if (cppRegistry?.reserveDestruction && cppRegistry.releaseDestruction) {
+            if (cppRegistry) {
                 for (const current of owned) {
                     if (cppRegistry.reserveDestruction(current)) nativeOwned.push(current);
                 }
             }
             for (const current of postorder) if (this.valid(current)) this.despawnOne_(current, cppRegistry);
         } finally {
-            for (const current of nativeOwned) cppRegistry!.releaseDestruction!(current);
+            for (const current of nativeOwned) cppRegistry!.releaseDestruction(current);
             for (const current of owned) reserved.delete(current);
             if (reserved.size === 0) this.despawning_ = null;
         }

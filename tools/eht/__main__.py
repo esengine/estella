@@ -298,6 +298,7 @@ def main() -> int:
     ts_gen = TypeScriptGenerator(cpp_parser.components, cpp_parser.enums)
     ts_content = ts_gen.generate()
     write_ts('wasm/wasm.generated.ts', ts_content)
+    write_ts('ecs/bridge/registryOps.generated.ts', ts_gen.generate_registry_ops())
 
     # ── Component Metadata ──
     meta_gen = MetadataGenerator(cpp_parser.components, cpp_parser.enums, abi_hash=abi_hash)

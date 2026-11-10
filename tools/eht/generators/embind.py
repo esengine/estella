@@ -1,6 +1,7 @@
 """Emscripten embind C++ bindings generator."""
 
 from typing import List, Set
+from ..registry_ops import REGISTRY_OPS
 from ..data import Component, Enum, HIERARCHY_COMPONENTS, READ_HOOKS
 from ..type_system import TypeSystem
 
@@ -352,6 +353,19 @@ class EmbindGenerator:
             '        }))',
         ]
 
+    def _gen_registry_ops(self) -> List[str]:
+        """The entity ops, from the one table every backend reads (registry_ops)."""
+        lines = []
+        for op in REGISTRY_OPS:
+            params = ''.join(f', {"bool" if k == "bool" else "u32"} {n}' for n, k in op.params)
+            args = [f'static_cast<Entity>({n})' if k == 'entity' else n for n, k in op.params]
+            call = op.call.format(*args)
+            body = (f'{call};' if op.returns == 'void'
+                    else f'return static_cast<u32>({call});' if op.returns == 'entity'
+                    else f'return {call};')
+            lines.append(f'        .function("{op.name}", optional_override([](Registry& r{params}) {{ {body} }}))')
+        return lines
+
     def _gen_registry(self) -> List[str]:
         lines = [
             '// =============================================================================',
@@ -361,27 +375,9 @@ class EmbindGenerator:
             'EMSCRIPTEN_BINDINGS(esengine_registry) {',
             '    class_<Registry>("Registry")',
             '        .constructor<>()',
-            '        .function("create", optional_override([](Registry& r) {',
-            '            return static_cast<u32>(r.create());',
-            '        }))',
-            '        .function("destroy", optional_override([](Registry& r, u32 e) {',
-            '            r.destroy(static_cast<Entity>(e));',
-            '        }))',
-            '        .function("valid", optional_override([](Registry& r, u32 e) {',
-            '            return r.valid(static_cast<Entity>(e));',
-            '        }))',
-            '        .function("reserveDestruction", optional_override([](Registry& r, u32 e) {',
-            '            return r.reserveDestruction(static_cast<Entity>(e));',
-            '        }))',
-            '        .function("releaseDestruction", optional_override([](Registry& r, u32 e) {',
-            '            r.releaseDestruction(static_cast<Entity>(e));',
-            '        }))',
-            '        .function("destructionPending", optional_override([](Registry& r, u32 e) {',
-            '            return r.destructionPending(static_cast<Entity>(e));',
-            '        }))',
-            '        .function("entityCount", &Registry::entityCount)',
-            '',
         ]
+        lines.extend(self._gen_registry_ops())
+        lines.append('')
 
         lines.extend([
             '        .function("getBuiltinComponentNames", optional_override([](Registry& r, u32 e) {',
@@ -468,18 +464,6 @@ class EmbindGenerator:
             lines.append('        }))')
             lines.append('')
 
-        lines.extend([
-            '        // Hierarchy Utilities',
-            '        .function("setEntityEnabled", optional_override([](Registry& r, u32 e, bool enabled) { return r.setEntityEnabled(static_cast<Entity>(e), enabled); }))',
-            '        .function("isEntityActive", optional_override([](Registry& r, u32 e) { return r.isEntityActive(static_cast<Entity>(e)); }))',
-            '        .function("isEntityEnabled", optional_override([](Registry& r, u32 e) { return r.isEntityEnabled(static_cast<Entity>(e)); }))',
-            '        .function("hasInactiveEntities", &Registry::hasInactiveEntities)',
-            '        .function("activityEpoch", &Registry::activityEpoch)',
-            '        .function("setParent", optional_override([](Registry& r, u32 child, u32 parent) {',
-            '            return esengine::ecs::setParent(r, static_cast<Entity>(child), static_cast<Entity>(parent));',
-            '        }))',
-            '',
-        ])
         lines.append('        ;')
         lines.append('}')
         return lines

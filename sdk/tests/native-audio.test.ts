@@ -13,7 +13,7 @@ import type { NativeBridge } from '../src/platform/native';
 import { NativeAudioBackend } from '../src/audio/NativeAudioBackend';
 import {
     AUDIO_BINDINGS, hasAudioBindings,
-    REGISTRY_BINDINGS, RESOURCE_BINDINGS, PLATFORM_BINDINGS,
+    REGISTRY_BINDINGS, REGISTRY_OPS, RESOURCE_BINDINGS, PLATFORM_BINDINGS,
 } from '../src/ecs/bridge/nativeBindings';
 
 function hostGlobals(): Record<string, unknown> {
@@ -302,6 +302,7 @@ describe('assertNativeHost — audio stays optional', () => {
     it('passes on a host with no audio engine', () => {
         const scope = hostGlobals();
         for (const name of [
+            ...Object.values(REGISTRY_OPS),
             ...Object.values(REGISTRY_BINDINGS),
             ...Object.values(RESOURCE_BINDINGS),
             ...Object.values(PLATFORM_BINDINGS),

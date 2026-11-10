@@ -14,6 +14,10 @@ import { createNativeRegistry } from '../src/ecs/bridge/nativeRegistry';
 import { NativeMemoryProvider } from '../src/ecs/bridge/memoryProvider';
 import { PTR_ACCESSORS } from '../src/ecs/bridge/ptrAccessors.generated';
 import { Sprite } from '../src/ecs/component';
+import { COMPONENT_META } from '../src/ecs/component.generated';
+import { INSPECTION_BINDINGS, REGISTRY_BINDINGS, REGISTRY_OPS } from '../src/ecs/bridge/nativeBindings';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 /**
  * A fake native host: each component's storage is an entity->ArrayBuffer map, with
@@ -103,39 +107,66 @@ describe('createNativeRegistry', () => {
         expect(reg.getShadowCaster2D(1)).toEqual({ size: { x: 32, y: 48 }, enabled: false,
             path: [{ x: 1, y: 2 }, { x: 3, y: 4 }] });
     });
-    it('forwards shared destruction ownership only when the complete host contract exists', () => {
+    it('forwards shared destruction ownership to the host', () => {
         const pending = new Set<number>();
         const reg = createNativeRegistry({
-            es_reserveDestruction: (e: number) => { if (pending.has(e)) return false; pending.add(e); return true; },
-            es_releaseDestruction: (e: number) => { pending.delete(e); },
-            es_destructionPending: (e: number) => pending.has(e),
+            es_registry_reserveDestruction: (e: number) => { if (pending.has(e)) return false; pending.add(e); return true; },
+            es_registry_releaseDestruction: (e: number) => { pending.delete(e); },
+            es_registry_destructionPending: (e: number) => pending.has(e),
         });
-        expect(reg.reserveDestruction!(1 as never)).toBe(true);
-        expect(reg.reserveDestruction!(1 as never)).toBe(false);
-        expect(reg.destructionPending!(1 as never)).toBe(true);
-        reg.releaseDestruction!(1 as never);
-        expect(reg.destructionPending!(1 as never)).toBe(false);
-        expect(createNativeRegistry({}).reserveDestruction).toBeUndefined();
-        expect(createNativeRegistry({ es_reserveDestruction: () => true }).reserveDestruction).toBeUndefined();
+        expect(reg.reserveDestruction(1 as never)).toBe(true);
+        expect(reg.reserveDestruction(1 as never)).toBe(false);
+        expect(reg.destructionPending(1 as never)).toBe(true);
+        reg.releaseDestruction(1 as never);
+        expect(reg.destructionPending(1 as never)).toBe(false);
     });
-    it('forwards the optional shared activity contract and preserves legacy hosts', () => {
+    it('forwards entity activity to the host', () => {
         let enabled = true;
         const reg = createNativeRegistry({
-            es_setEntityEnabled: (_e: number, value: boolean) => { enabled = value; return true; },
-            es_isEntityEnabled: () => enabled,
-            es_isEntityActive: () => enabled,
-            es_hasInactiveEntities: () => !enabled,
-            es_activityEpoch: () => 7,
+            es_registry_setEntityEnabled: (_e: number, value: boolean) => { enabled = value; return true; },
+            es_registry_isEntityEnabled: () => enabled,
+            es_registry_isEntityActive: () => enabled,
+            es_registry_hasInactiveEntities: () => !enabled,
+            es_registry_activityEpoch: () => 7,
         });
-        expect(reg.setEntityEnabled!(1 as never, false)).toBe(true);
-        expect(reg.isEntityEnabled!(1 as never)).toBe(false);
-        expect(reg.isEntityActive!(1 as never)).toBe(false);
-        expect(reg.hasInactiveEntities!()).toBe(true);
-        expect(reg.activityEpoch!()).toBe(7);
-        expect(createNativeRegistry({}).isEntityActive).toBeUndefined();
+        expect(reg.setEntityEnabled(1 as never, false)).toBe(true);
+        expect(reg.isEntityEnabled(1 as never)).toBe(false);
+        expect(reg.isEntityActive(1 as never)).toBe(false);
+        expect(reg.hasInactiveEntities()).toBe(true);
+        expect(reg.activityEpoch()).toBe(7);
+    });
+    // #114: `valid` was the one op the native registry lacked, and the mutation
+    // reader's subtree walk called it, so PhysicsStepSystem threw every frame.
+    it('asks the host whether an entity is alive, destroyed ones included', () => {
+        const alive = new Set([42]);
+        const reg = createNativeRegistry({ es_registry_valid: (e: number) => alive.has(e) });
+        expect(reg.valid(42 as never)).toBe(true);
+        expect(reg.valid(43 as never)).toBe(false);
+        alive.delete(42);
+        expect(reg.valid(42 as never)).toBe(false);
+    });
+    it('names the binding when a host left an op unbound', () => {
+        expect(() => createNativeRegistry({}).valid(1 as never)).toThrow(/es_registry_valid/);
+    });
+    // The class of #114, not the instance: every non-component method the web's
+    // embind Registry has, the native registry has too. Read from the generated
+    // bindings, so a method added to embind without a native route fails here.
+    it('has every entity-level method the embind Registry has', () => {
+        const cpp = readFileSync(resolve(__dirname, '../../src/esengine/bindings/WebBindings.generated.cpp'), 'utf8');
+        const block = cpp.slice(cpp.indexOf('EMSCRIPTEN_BINDINGS(esengine_registry)'));
+        const perComponent = new Set(Object.keys(COMPONENT_META).flatMap(
+            (c) => ['has', 'get', 'add', 'remove'].map((verb) => `${verb}${c}`)));
+        const web = [...block.slice(0, block.indexOf('\n}')).matchAll(/\.function\("(\w+)"/g)]
+            .map((m) => m[1]).filter((name) => !perComponent.has(name));
+        expect(web).toContain('valid');
+        const scope: Record<string, unknown> = {};
+        for (const name of [...Object.values(REGISTRY_OPS), ...Object.values(REGISTRY_BINDINGS),
+            ...Object.values(INSPECTION_BINDINGS)]) scope[name] = () => undefined;
+        const reg = createNativeRegistry(scope) as unknown as Record<string, unknown>;
+        expect(web.filter((name) => typeof reg[name] !== 'function')).toEqual([]);
     });
     it.each([true, false])('forwards native hierarchy acceptance %s', (accepted) => {
-        const reg = createNativeRegistry({ es_setParent: () => accepted });
+        const reg = createNativeRegistry({ es_registry_setParent: () => accepted });
         expect(reg.setParent(1 as never, 2 as never)).toBe(accepted);
     });
     it('round-trips a component through add / has / get / remove (embind shape)', () => {
@@ -231,7 +262,7 @@ describe('createNativeRegistry', () => {
         const parents = new Map<number, number>();
         const children = new Map<number, number[]>();
         const scope: Record<string, unknown> = {
-            es_setParent: (c: number, p: number) => {
+            es_registry_setParent: (c: number, p: number) => {
                 parents.set(c, p);
                 (children.get(p) ?? children.set(p, []).get(p)!).push(c);
             },

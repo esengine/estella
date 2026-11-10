@@ -2465,25 +2465,19 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
 EMSCRIPTEN_BINDINGS(esengine_registry) {
     class_<Registry>("Registry")
         .constructor<>()
-        .function("create", optional_override([](Registry& r) {
-            return static_cast<u32>(r.create());
-        }))
-        .function("destroy", optional_override([](Registry& r, u32 e) {
-            r.destroy(static_cast<Entity>(e));
-        }))
-        .function("valid", optional_override([](Registry& r, u32 e) {
-            return r.valid(static_cast<Entity>(e));
-        }))
-        .function("reserveDestruction", optional_override([](Registry& r, u32 e) {
-            return r.reserveDestruction(static_cast<Entity>(e));
-        }))
-        .function("releaseDestruction", optional_override([](Registry& r, u32 e) {
-            r.releaseDestruction(static_cast<Entity>(e));
-        }))
-        .function("destructionPending", optional_override([](Registry& r, u32 e) {
-            return r.destructionPending(static_cast<Entity>(e));
-        }))
-        .function("entityCount", &Registry::entityCount)
+        .function("create", optional_override([](Registry& r) { return static_cast<u32>(r.create()); }))
+        .function("destroy", optional_override([](Registry& r, u32 entity) { r.destroy(static_cast<Entity>(entity)); }))
+        .function("valid", optional_override([](Registry& r, u32 entity) { return r.valid(static_cast<Entity>(entity)); }))
+        .function("entityCount", optional_override([](Registry& r) { return r.entityCount(); }))
+        .function("reserveDestruction", optional_override([](Registry& r, u32 entity) { return r.reserveDestruction(static_cast<Entity>(entity)); }))
+        .function("releaseDestruction", optional_override([](Registry& r, u32 entity) { r.releaseDestruction(static_cast<Entity>(entity)); }))
+        .function("destructionPending", optional_override([](Registry& r, u32 entity) { return r.destructionPending(static_cast<Entity>(entity)); }))
+        .function("setEntityEnabled", optional_override([](Registry& r, u32 entity, bool enabled) { return r.setEntityEnabled(static_cast<Entity>(entity), enabled); }))
+        .function("isEntityActive", optional_override([](Registry& r, u32 entity) { return r.isEntityActive(static_cast<Entity>(entity)); }))
+        .function("isEntityEnabled", optional_override([](Registry& r, u32 entity) { return r.isEntityEnabled(static_cast<Entity>(entity)); }))
+        .function("hasInactiveEntities", optional_override([](Registry& r) { return r.hasInactiveEntities(); }))
+        .function("activityEpoch", optional_override([](Registry& r) { return r.activityEpoch(); }))
+        .function("setParent", optional_override([](Registry& r, u32 child, u32 parent) { return esengine::ecs::setParent(r, static_cast<Entity>(child), static_cast<Entity>(parent)); }))
 
         .function("getBuiltinComponentNames", optional_override([](Registry& r, u32 e) {
             const auto entity = static_cast<Entity>(e);
@@ -3870,16 +3864,6 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::Velocity>(entity)) return;
             r.remove<esengine::ecs::Velocity>(entity);
-        }))
-
-        // Hierarchy Utilities
-        .function("setEntityEnabled", optional_override([](Registry& r, u32 e, bool enabled) { return r.setEntityEnabled(static_cast<Entity>(e), enabled); }))
-        .function("isEntityActive", optional_override([](Registry& r, u32 e) { return r.isEntityActive(static_cast<Entity>(e)); }))
-        .function("isEntityEnabled", optional_override([](Registry& r, u32 e) { return r.isEntityEnabled(static_cast<Entity>(e)); }))
-        .function("hasInactiveEntities", &Registry::hasInactiveEntities)
-        .function("activityEpoch", &Registry::activityEpoch)
-        .function("setParent", optional_override([](Registry& r, u32 child, u32 parent) {
-            return esengine::ecs::setParent(r, static_cast<Entity>(child), static_cast<Entity>(parent));
         }))
 
         ;

@@ -9,7 +9,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createHostBridge, assertHostEnvironment, assertNativeHost, NativePlatformAdapter } from '../src/platform/native';
 import { cacheEntryName } from '../src/platform/cacheEntryName';
-import { REGISTRY_BINDINGS, RESOURCE_BINDINGS, PLATFORM_BINDINGS } from '../src/ecs/bridge/nativeBindings';
+import { REGISTRY_BINDINGS, REGISTRY_OPS, RESOURCE_BINDINGS, PLATFORM_BINDINGS } from '../src/ecs/bridge/nativeBindings';
 
 /** The globals a real host installs (console, timers, clock, decoder). */
 function hostGlobals(): Record<string, unknown> {
@@ -261,6 +261,7 @@ describe('assertNativeHost', () => {
     function fullHost(): Record<string, unknown> {
         const scope = hostGlobals();
         for (const name of [
+            ...Object.values(REGISTRY_OPS),
             ...Object.values(REGISTRY_BINDINGS),
             ...Object.values(RESOURCE_BINDINGS),
             ...Object.values(PLATFORM_BINDINGS),
@@ -274,9 +275,9 @@ describe('assertNativeHost', () => {
 
     it('lists every missing binding at once, not just the first', () => {
         const scope = fullHost();
-        delete scope[REGISTRY_BINDINGS.setParent];
+        delete scope[REGISTRY_OPS.setParent];
         delete scope[RESOURCE_BINDINGS.createTexture];
-        expect(() => assertNativeHost(scope)).toThrow(/es_setParent/);
+        expect(() => assertNativeHost(scope)).toThrow(/es_registry_setParent/);
         expect(() => assertNativeHost(scope)).toThrow(new RegExp(RESOURCE_BINDINGS.createTexture));
     });
 

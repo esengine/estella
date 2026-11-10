@@ -35,10 +35,6 @@ export interface CppRegistry extends GeneratedRegistry {
      *  registry itself. The web module answers the same question as a free
      *  function; absent on a core built before either existed. */
     layoutEpoch?(): number;
-    /** Shared subtree teardown ownership; optional for older hosts. */
-    reserveDestruction?(entity: Entity): boolean;
-    releaseDestruction?(entity: Entity): void;
-    destructionPending?(entity: Entity): boolean;
 
     [key: string]: Function | undefined;
 }

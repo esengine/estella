@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { createNativeApp } from '../src/ecs/bridge/nativeRuntime';
 import { Input } from '../src/input/input';
 import type { NativeBridge, NativeInputListener } from '../src/platform/native/bridge';
+import { hostWithRegistryOps } from './helpers/nativeRegistryOps';
 
 /** A NativeBridge whose registerInput captures the engine's listener; everything
  *  else is a stub (input needs none of it). */
@@ -34,7 +35,7 @@ function makeBridge() {
 describe('createNativeApp', () => {
     it('routes host touch through the real input plugin to the Input resource', async () => {
         const { bridge, listener } = makeBridge();
-        const app = createNativeApp(bridge, {});
+        const app = createNativeApp(bridge, hostWithRegistryOps());
 
         // First tick finishes plugin builds: inputPlugin.build calls
         // getPlatform().bindInputEvents, which registers with the host bridge.
@@ -56,7 +57,7 @@ describe('createNativeApp', () => {
 
     it('gives the game the real World over the native core', async () => {
         const { bridge } = makeBridge();
-        const app = createNativeApp(bridge, {});
+        const app = createNativeApp(bridge, hostWithRegistryOps());
         await app.tick(0);
         expect(app.world).toBeDefined();
         expect(app.world.hasCpp).toBe(true);            // connected to the native registry

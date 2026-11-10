@@ -17,7 +17,7 @@
 import type { CppRegistry } from '../../wasm';
 import type { Entity } from '../../types';
 import { PTR_ACCESSORS } from './ptrAccessors.generated';
-import { REGISTRY_BINDINGS, SCENE_QUERY_BINDINGS, ACTIVITY_BINDINGS, DESTRUCTION_BINDINGS, INSPECTION_BINDINGS } from './nativeBindings';
+import { REGISTRY_BINDINGS, REGISTRY_OPS, SCENE_QUERY_BINDINGS, INSPECTION_BINDINGS } from './nativeBindings';
 import { COMPONENT_META } from '../component.generated';
 import { convertForWasm, convertFromWasm } from './BuiltinBridge';
 
@@ -78,7 +78,7 @@ function vectorEntity(
 
 /**
  * Build the full CppRegistry over the host's native bindings — entity lifecycle +
- * hierarchy (es_createEntity / es_destroyEntity / es_setParent / …) plus, per
+ * hierarchy (the generated REGISTRY_OPS, es_getChildren / …) plus, per
  * component, the generated es_<Component>_buffer / _has / _remove. `scope` holds
  * those globals (the QuickJS global object on a device; a plain object in tests).
  * Only components whose three bindings are present get component methods, so a host
@@ -91,28 +91,21 @@ export function createNativeRegistry(
     for (const [method, binding] of Object.entries(INSPECTION_BINDINGS)) {
         if (typeof scope[binding] === 'function') reg[method] = (...args: unknown[]) => hostCall(scope, binding, args);
     }
-    for (const [method, binding] of Object.entries(ACTIVITY_BINDINGS)) {
-        if (typeof scope[binding] === 'function') reg[method] = (...args: unknown[]) => hostCall(scope, binding, args);
-    }
-    if (Object.values(DESTRUCTION_BINDINGS).every(binding => typeof scope[binding] === 'function')) {
-        for (const [method, binding] of Object.entries(DESTRUCTION_BINDINGS)) {
-            reg[method] = (entity: Entity) => hostCall(scope, binding, [entity]);
-        }
+    // The Registry's entity ops, every one the web has: the list is generated
+    // from the table embind is generated from, and `assertNativeBindings`
+    // requires each at boot, so a missing op is a boot error rather than a
+    // TypeError in whichever system first calls it (#114 was `valid`).
+    for (const [method, binding] of Object.entries(REGISTRY_OPS)) {
+        reg[method] = (...args: unknown[]) => hostCall(scope, binding, args);
     }
 
-    // Entity lifecycle + hierarchy — the base Registry surface World drives (spawn,
-    // despawn, parent/child). These are not per-component; the host binds them by
-    // hand (the native siblings of the embind Registry's entity ops).
-    reg.create = (): Entity => hostCall(scope, REGISTRY_BINDINGS.createEntity, []) as Entity;
-    reg.destroy = (e: Entity): void => { hostCall(scope, REGISTRY_BINDINGS.destroyEntity, [e]); };
+    // Entity hierarchy reads and the module-level epochs — the native siblings of
+    // what embind answers through the Parent/Children components and free functions.
     // Required like the rest of the set, and `assertNativeBindings` says so at
     // boot: a host that cannot date its world makes every holder of an address
     // re-resolve it every frame, silently.
     reg.layoutEpoch = (): number => hostCall(scope, REGISTRY_BINDINGS.layoutEpoch, []) as number;
     reg.hasParent = (e: Entity): boolean => !!hostCall(scope, REGISTRY_BINDINGS.hasParent, [e]);
-    reg.setParent = (child: Entity, parent: Entity): boolean | void => {
-        return hostCall(scope, REGISTRY_BINDINGS.setParent, [child, parent]) as boolean | void;
-    };
     reg.removeParent = (e: Entity): void => { hostCall(scope, REGISTRY_BINDINGS.removeParent, [e]); };
     reg.hasChildren = (e: Entity): boolean => !!hostCall(scope, REGISTRY_BINDINGS.hasChildren, [e]);
     reg.getChildren = (e: Entity) => ({
@@ -128,14 +121,14 @@ export function createNativeRegistry(
         entity: (hostCall(scope, REGISTRY_BINDINGS.getParent, [e]) as Entity),
     });
     reg.addParent = (child: Entity, data: { entity: Entity }): void => {
-        hostCall(scope, REGISTRY_BINDINGS.setParent, [child, data.entity]);
+        hostCall(scope, REGISTRY_OPS.setParent, [child, data.entity]);
     };
     // Children is the reverse index of Parent; write it by re-parenting each listed
     // child. Rarely called (scenes rebuild the tree with setParent), but a complete
     // surface keeps the two registries interchangeable.
     reg.addChildren = (parent: Entity, data: { entities: Iterable<Entity> }): void => {
         for (const child of data.entities ?? []) {
-            hostCall(scope, REGISTRY_BINDINGS.setParent, [child, parent]);
+            hostCall(scope, REGISTRY_OPS.setParent, [child, parent]);
         }
     };
     reg.removeChildren = (parent: Entity): void => {

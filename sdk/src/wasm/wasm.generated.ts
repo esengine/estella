@@ -1134,10 +1134,32 @@ export interface Velocity {
 
 // Registry
 export interface Registry {
+    /** A new entity. */
     create(): Entity;
+    /** Destroys the entity and its components. */
     destroy(entity: Entity): void;
+    /** Whether the id names a live entity. */
     valid(entity: Entity): boolean;
+    /** Live entities. */
     entityCount(): number;
+    /** Claims the subtree teardown; false when another owner already has it. */
+    reserveDestruction(entity: Entity): boolean;
+    /** Gives back a claim from reserveDestruction. */
+    releaseDestruction(entity: Entity): void;
+    /** Whether a teardown has claimed the entity. */
+    destructionPending(entity: Entity): boolean;
+    /** Sets the entity's own enabled flag; activity follows the hierarchy. */
+    setEntityEnabled(entity: Entity, enabled: boolean): boolean;
+    /** Enabled itself and under enabled ancestors. */
+    isEntityActive(entity: Entity): boolean;
+    /** The entity's own flag, ignoring ancestors. */
+    isEntityEnabled(entity: Entity): boolean;
+    /** Whether any entity is inactive (lets a query skip the activity check). */
+    hasInactiveEntities(): boolean;
+    /** Bumped by every activity change. */
+    activityEpoch(): number;
+    /** Re-parents child; false when refused (a cycle, an invalid entity). */
+    setParent(child: Entity, parent: Entity): boolean;
     /** All generated builtin names, separated by |; absent on older cores. */
     getBuiltinComponentNames?(entity: Entity): string;
     /** Host-local component ID; -1 for an unknown name. */
@@ -1367,14 +1389,6 @@ export interface Registry {
     getVelocity(entity: Entity): Velocity;
     addVelocity(entity: Entity, component: Velocity): void;
     removeVelocity(entity: Entity): void;
-
-    // Hierarchy Utilities
-    setEntityEnabled?(entity: Entity, enabled: boolean): boolean;
-    isEntityActive?(entity: Entity): boolean;
-    isEntityEnabled?(entity: Entity): boolean;
-    hasInactiveEntities?(): boolean;
-    activityEpoch?(): number;
-    setParent(child: Entity, parent: Entity): boolean | void;
 }
 
 // Module

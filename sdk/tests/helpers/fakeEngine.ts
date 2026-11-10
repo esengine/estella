@@ -42,7 +42,17 @@ export function connectFakeCpp(world: World): void {
     }
     // AFTER the generic pass: Parent and Children are not rows, they are two
     // halves of one link, and the accessors named for them answer from it.
+    // Teardown ownership as Registry::reserveDestruction keeps it: one owner at a
+    // time. Every core binds it, so World takes it without asking.
+    const pendingTeardown = new Set<number>();
     Object.assign(registry, {
+        reserveDestruction: (e: number) => {
+            if (pendingTeardown.has(e)) return false;
+            pendingTeardown.add(e);
+            return true;
+        },
+        releaseDestruction: (e: number) => { pendingTeardown.delete(e); },
+        destructionPending: (e: number) => pendingTeardown.has(e),
         create: () => nextEntity++,
         destroy: (e: number) => {
             unlink(e);

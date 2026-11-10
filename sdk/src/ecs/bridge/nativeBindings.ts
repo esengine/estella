@@ -23,11 +23,20 @@
  *          those, are hand-written in `native/host/bindings/`.
  */
 
-/** Entity + hierarchy — the base Registry surface the SDK's World drives. */
+import { REGISTRY_OPS } from './registryOps.generated';
+
+export { REGISTRY_OPS, type RegistryOp } from './registryOps.generated';
+
+/**
+ * The hierarchy reads and the other entity-level entry points that are not
+ * Registry methods on the web. The Registry's own entity ops (create, destroy,
+ * valid, activity, destruction ownership, setParent) are {@link REGISTRY_OPS},
+ * generated from the one table embind is generated from, so a host cannot bind
+ * fewer of them than the web has.
+ */
 export const REGISTRY_BINDINGS = {
-    createEntity: 'es_createEntity',
-    destroyEntity: 'es_destroyEntity',
-    setParent: 'es_setParent',
+    // Embind answers these through the Parent/Children component methods; a
+    // native host has no such component surface, so they are entity ops here.
     hasParent: 'es_hasParent',
     getParent: 'es_getParent',
     removeParent: 'es_removeParent',
@@ -45,22 +54,6 @@ export const REGISTRY_BINDINGS = {
     // write announces through it.
     transformEpoch: 'es_transformEpochBuffer',
     ensureComposed: 'es_transformEnsureComposed',
-} as const;
-
-/** Optional shared destruction ownership for current native hosts. */
-export const DESTRUCTION_BINDINGS = {
-    reserveDestruction: 'es_reserveDestruction',
-    releaseDestruction: 'es_releaseDestruction',
-    destructionPending: 'es_destructionPending',
-} as const;
-
-/** Effective entity activity, available on hosts implementing the shared core. */
-export const ACTIVITY_BINDINGS = {
-    setEntityEnabled: 'es_setEntityEnabled',
-    isEntityActive: 'es_isEntityActive',
-    isEntityEnabled: 'es_isEntityEnabled',
-    hasInactiveEntities: 'es_hasInactiveEntities',
-    activityEpoch: 'es_activityEpoch',
 } as const;
 
 /**
@@ -300,6 +293,7 @@ export function assertNativeBindings(
     scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
 ): void {
     const missing = [
+        ...Object.values(REGISTRY_OPS),
         ...Object.values(REGISTRY_BINDINGS),
         ...Object.values(RESOURCE_BINDINGS),
         ...Object.values(PLATFORM_BINDINGS),

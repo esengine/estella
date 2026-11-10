@@ -24,6 +24,7 @@ import { SdfTextRenderer } from '../src/ui/text/text-renderer';
 import { Text, TextRenderMode } from '../src/ui/core/text';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { PTR_ACCESSORS } from '../src/ecs/bridge/ptrAccessors.generated';
+import { installRegistryOpDefaults } from './helpers/nativeRegistryOps';
 import type { PlatformGlyphRequest } from '../src/platform/types';
 import type { NativeBridge } from '../src/platform/native/bridge';
 
@@ -37,13 +38,14 @@ function installMockEcs(scope: Record<string, unknown>): void {
         if (!m) { m = new Map(); comps.set(cpp, m); }
         return m;
     };
-    scope.es_createEntity = () => nextId++;
-    scope.es_destroyEntity = (e: number) => { for (const m of comps.values()) m.delete(e); };
+    scope.es_registry_create = () => nextId++;
+    scope.es_registry_destroy = (e: number) => { for (const m of comps.values()) m.delete(e); };
     scope.es_hasParent = () => false;
-    scope.es_setParent = () => {};
+    scope.es_registry_setParent = () => {};
     scope.es_removeParent = () => {};
     scope.es_hasChildren = () => false;
     scope.es_getChildren = () => [];
+    installRegistryOpDefaults(scope);
     for (const cppName of Object.keys(PTR_ACCESSORS)) {
         scope[`es_${cppName}_buffer`] = (e: number) => {
             const m = store(cppName);
