@@ -25,6 +25,7 @@ import {
     type ConvexCollider3DData,
 } from './Physics3DComponents';
 import { getMeshCollision } from '../asset/meshCollision';
+import { isImplicitStatic } from './implicitStatic';
 import { CompoundCollider3D, encodeCompoundParts } from './CompoundCollider3D';
 import { syncJoints3D, type Joint3DMap } from './Physics3DJoints';
 import type { Entity } from '../types';
@@ -376,6 +377,15 @@ function addConvexBody(module: Physics3DWasmModule, entity: Entity,
     }
 }
 
+/** The colliders that make a static body on their own, with no RigidBody3D. */
+const IMPLICIT_STATIC_COLLIDERS = [MeshCollider3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D, ConvexCollider3D, CompoundCollider3D];
+/** Per body map: which of its bodies are static for having no RigidBody3D. */
+const implicitBodies = new WeakMap<BodyMap, Set<Entity>>();
+const IMPLICIT_STATIC: RigidBody3DData = {
+    bodyType: 0, layer: 0, gravityScale: 0, linearDamping: 0, angularDamping: 0,
+    fixedRotation: false, continuousCollision: false, enabled: true,
+};
+
 /** Bring the world's population in line with the ECS, then step and read back. */
 export function stepPhysics3D(app: App, module: Physics3DWasmModule,
                               bodies: BodyMap, config: Physics3DConfig,
@@ -395,10 +405,32 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
     authoredPoses.set(bodies, poses);
     app.world.ensureTransformsComposed();
     const live = new Set<Entity>();
+    // A collider with no RigidBody3D is a static body, as in Unity: an imported level is collided against with a
+    // MeshCollider3D on each mesh and nothing else. Its own `layer` (a mesh collider has one) is the body's.
+    const bodied: Array<[Entity, RigidBody3DData]> = [];
     for (const entity of app.world.queryEntities([RigidBody3D])) {
-        const body = app.world.get(entity, RigidBody3D) as RigidBody3DData;
-        if (!body.enabled) continue;
+        bodied.push([entity, app.world.get(entity, RigidBody3D) as RigidBody3DData]);
+    }
+    for (const collider of IMPLICIT_STATIC_COLLIDERS) {
+        for (const entity of app.world.queryEntities([collider])) {
+            if (!isImplicitStatic(app.world, entity)) continue;
+            const layer = (app.world.get(entity, collider) as { layer?: number }).layer ?? 0;
+            bodied.push([entity, { ...IMPLICIT_STATIC, layer }]);
+        }
+    }
+    const implicit = implicitBodies.get(bodies) ?? new Set<Entity>();
+    implicitBodies.set(bodies, implicit);
+    for (const [entity, body] of bodied) {
+        if (!body.enabled || live.has(entity)) continue;
         live.add(entity);
+        // A body that changed kind (its RigidBody3D came or went, the collider stayed) is made again as the new kind.
+        const isImplicit = !app.world.has(entity, RigidBody3D);
+        if (bodies.has(entity) && isImplicit !== implicit.has(entity)) {
+            module._physics3d_removeBody(bodies.get(entity)!);
+            bodies.delete(entity);
+            poses.delete(entity);
+        }
+        if (isImplicit) implicit.add(entity); else implicit.delete(entity);
         const created = !bodies.has(entity);
         if (created) {
             const id = createBody(app, module, entity, body, ppu);

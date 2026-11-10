@@ -209,13 +209,14 @@ describe('what a 3D collider looks like', () => {
             releaseMeshCollision(555);
         });
 
-        it('reports no active shape without a rigid body, and the world builds none', () => {
+        // Unity's rule, and how an imported level collides: a MeshCollider3D on each mesh and nothing else.
+        it('reports a collider with no rigid body as a static body, and the world builds it', () => {
             const e = spawn(false);
             world.insert(e, BoxCollider3D);
 
-            expect(read(e)).toHaveLength(1);          // still authorable, still drawn
-            expect(read(e)[0]!.active).toBe(false);
-            expect(built()).toBeNull();
+            expect(read(e)).toHaveLength(1);
+            expect(read(e)[0]!.active).toBe(true);
+            expect(built()).toBe('addBox');
         });
 
         it('reports no active shape for a disabled body', () => {

@@ -19,7 +19,8 @@
  * Units: 3D collider fields are world units already (the system divides by
  * pixels-per-unit on its way into the solver), so nothing here scales.
  */
-import type { Vec3, Quat } from '../types';
+import type { Entity, Vec3, Quat } from '../types';
+import { isImplicitStatic } from './implicitStatic';
 import { q } from '../math/quat';
 import type { World } from '../ecs/world';
 import {
@@ -97,7 +98,8 @@ export function readCollider3DShapes(world: World, entity: number): Collider3DIn
     const on = (c: { enabled?: boolean }): boolean => c.enabled !== false;
     const body = world.has(entity, RigidBody3D)
         ? world.get(entity, RigidBody3D) as RigidBody3DData : null;
-    const bodyLive = body !== null && on(body);
+    // With no RigidBody3D a collider is a static body of its own (implicitStatic.ts), as the world builds it.
+    const bodyLive = body !== null ? on(body) : isImplicitStatic(world, entity as Entity);
     let taken = false;
     if (world.has(entity, CompoundCollider3D)) {
         const c = world.get(entity, CompoundCollider3D), scale = world.has(entity, Transform)

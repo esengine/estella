@@ -10,7 +10,7 @@
  * behaves.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Transform } from '../src/ecs/component';
+import { Parent, Transform } from '../src/ecs/component';
 import type { TransformData } from '../src/ecs/component.generated';
 import {
     RigidBody3D, BoxCollider3D, SphereCollider3D, CapsuleCollider3D, CharacterController3D,
@@ -294,10 +294,31 @@ describe('the 3D world and the ECS', () => {
         stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
         expect(bodies.size).toBe(1);
 
+        // The collider stays, so the entity is a static body now: the dynamic one goes and a static one is made.
         world.remove(e, RigidBody3D);
+        module.calls.length = 0;
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
+        expect(called('removeBody')).toHaveLength(1);
+        expect(called('addBox')).toHaveLength(1);
+        expect(bodies.size).toBe(1);
+
+        world.remove(e, BoxCollider3D);
+        module.calls.length = 0;
         stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
         expect(called('removeBody')).toHaveLength(1);
         expect(bodies.size).toBe(0);
+    });
+
+    it('builds a collider under a rigid body as nothing of its own', () => {
+        const parent = spawn();
+        world.insert(parent, BoxCollider3D);
+        const child = world.spawn();
+        world.insert<TransformData>(child, Transform, {});
+        world.insert(child, Parent, { entity: parent });
+        world.insert(child, SphereCollider3D);
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
+        expect(called('addSphere')).toHaveLength(0);
+        expect(bodies.size).toBe(1);
     });
 
     it('sweeps a character in metres and reads its ground state back', () => {
@@ -625,6 +646,7 @@ describe('the 3D world and the ECS', () => {
             stepJoints();
             module.calls.length = 0;
             world.remove(b, RigidBody3D);
+            world.remove(b, BoxCollider3D);
             stepJoints();
 
             const removeJoint = module.calls.findIndex((c) => c.name === 'removeJoint');
