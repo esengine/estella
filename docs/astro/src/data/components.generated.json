@@ -2916,11 +2916,48 @@
           "type": "string",
           "default": "\"support\"",
           "doc": "The supporting hand's fingers."
+        },
+        {
+          "key": "mainFingers",
+          "type": "string",
+          "default": "empty",
+          "doc": "The leading hand's fingers joint by joint, as JSON. Written by the grip editor; over mainPose where set.",
+          "advanced": true
+        },
+        {
+          "key": "supportFingers",
+          "type": "string",
+          "default": "empty",
+          "doc": "The supporting hand's fingers joint by joint, as JSON.",
+          "advanced": true
+        },
+        {
+          "key": "hand",
+          "type": "enum",
+          "default": "Right",
+          "doc": "The hand the anchors were placed for. Held with the other leading, they are mirrored.",
+          "values": [
+            "Right",
+            "Left"
+          ]
+        },
+        {
+          "key": "mirror",
+          "type": "enum",
+          "default": "YZ (X)",
+          "doc": "The object's own plane that mirrors the anchors to the other hand.",
+          "values": [
+            "YZ (X)",
+            "XZ (Y)",
+            "XY (Z)"
+          ]
         }
       ],
       "animatable": [
         "mainAnchor",
-        "supportAnchor"
+        "supportAnchor",
+        "hand",
+        "mirror"
       ]
     },
     {

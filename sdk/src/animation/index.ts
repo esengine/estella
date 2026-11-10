@@ -82,11 +82,11 @@ export {
     type AnimatorPathEvalResult,
 } from './Animator';
 export {
-    GripPose, registerGripPose, gripPose, gripPoseNames, gripPoseStatus,
+    GripPose, registerGripPose, gripPose, gripPoseNames, gripPoseStatus, gripPoseByJoint, gripPoseFromJson,
     type GripPoseData, type GripPoseDef, type GripFinger, type GripThumb, type GripHandStatus,
 } from './gripPose';
 export {
-    GripProfile, GripHolder, GripHand, GripPlacement, registerFingerPose, fingerPose, captureFingerPose, gripHolderStatus, slerpQuat,
+    GripProfile, GripHolder, GripHand, GripPlacement, GripMirror, releaseGripHolds, registerFingerPose, fingerPose, captureFingerPose, gripHolderStatus, slerpQuat,
     type GripProfileData, type GripHolderData, type FingerPoseDef,
 } from './gripHold';
 

@@ -18,7 +18,7 @@ import { defineSystem, GetWorld, Schedule } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import type { World } from '../ecs/world';
 import { resolveChildEntity } from '../ecs/childPath';
-import { playModeOnly } from '../ecs/env';
+import { fxPreviewOrPlayMode } from '../ecs/env';
 import { SystemLabel } from '../ecs/systemLabels';
 import { log } from '../util/logger';
 import { q } from '../math/quat';
@@ -33,6 +33,10 @@ export interface GripFinger {
     base?: number;
     /** How far the fingers fan out from one another, -1 to 1. */
     spread?: number;
+    /** Each joint's bend, knuckle first, in degrees from where the rig rests: what a hand posed joint by joint keeps. Over `curl` and `base`. */
+    bend?: [number, number, number];
+    /** How far this finger leans out from the middle of the hand, in degrees: the index and middle toward the thumb, the ring and little finger away. Over `spread`. */
+    fan?: number;
 }
 
 /** How the thumb is held: as a reach, since where it can rest is somewhere on the other fingers. @experimental */
@@ -173,24 +177,89 @@ interface Joint {
 /** A finger's joints, knuckle first. Those it has no joint for are left out. */
 type Finger = { name: FingerName; joints: Joint[]; fan: number };
 
-/** Numbers a hand is held by, kept flat so two poses can be eased between: curl, base, spread for each finger, then the thumb's reach, how much of it is for the index tip, and its gap. */
-const NUMBERS = FINGERS.length * 3 + 3;
+/** Numbers a hand is held by, kept flat so two poses can be eased between: each finger's three joint bends and its lean (radians), then the thumb's reach, how much of it is for the index tip, and its gap. */
+const PER_FINGER = 4;
+const NUMBERS = FINGERS.length * PER_FINGER + 3;
 const REACH = NUMBERS - 3, TO_INDEX = NUMBERS - 2, GAP = NUMBERS - 1;
+
+/** Which way a positive `fan` leans each finger along its spread axis: out from the middle of the hand. */
+const FAN_SIDE: Record<FingerName, number> = { thumb: 0, index: 1, middle: 1, ring: -1, pinky: -1 };
+const RAD = Math.PI / 180;
+const clampTo = (v: number, lo: number, hi: number): number => (v > lo ? (v < hi ? v : hi) : lo);
+
+/** A finger's three joint bends and its lean, in radians: a bend by joint where it says one, else its curl and base. */
+function anglesOf(name: FingerName, finger: GripFinger | undefined): [number, number, number, number] {
+    const curl = clamp01(finger?.curl ?? 0), base = clamp01(finger?.base ?? finger?.curl ?? 0);
+    const bend = (i: number, fallback: number): number => {
+        const deg = finger?.bend?.[i];
+        return typeof deg === 'number' && Number.isFinite(deg) ? clampTo(deg, -45, 130) * RAD : fallback;
+    };
+    const fan = finger?.fan;
+    return [
+        bend(0, base * CLOSED[0]!), bend(1, curl * CLOSED[1]!), bend(2, curl * CLOSED[2]!),
+        typeof fan === 'number' && Number.isFinite(fan) ? FAN_SIDE[name] * clampTo(fan, -30, 30) * RAD : clampTo(finger?.spread ?? 0, -1, 1) * FAN[name] * SPREAD,
+    ];
+}
 
 function numbersOf(pose: GripPoseDef | null, out: Float64Array): void {
     let i = 0;
     for (const name of FINGERS) {
-        const finger = name === 'thumb' ? undefined : pose?.[name];
-        out[i++] = clamp01(finger?.curl ?? 0);
-        out[i++] = clamp01(finger?.base ?? finger?.curl ?? 0);
-        out[i++] = Math.max(-1, Math.min(1, finger?.spread ?? 0));
+        const angles = name === 'thumb' ? [0, 0, 0, 0] : anglesOf(name, pose?.[name]);
+        for (const a of angles) out[i++] = a;
     }
-    out[REACH] = clamp01(pose?.thumb.opposition ?? 0);
-    out[TO_INDEX] = pose?.thumb.to === 'index' ? 1 : 0;
-    out[GAP] = Math.max(0, pose?.thumb.gap ?? 0);
+    out[REACH] = clamp01(pose?.thumb?.opposition ?? 0);
+    out[TO_INDEX] = pose?.thumb?.to === 'index' ? 1 : 0;
+    out[GAP] = Math.max(0, pose?.thumb?.gap ?? 0);
 }
 
 const clamp01 = (v: number): number => (v > 0 ? (v < 1 ? v : 1) : 0);
+
+/**
+ * A pose with every finger said joint by joint, in degrees: what an editor starts from when a preset is to be changed one joint at a time. It holds
+ * the hand exactly as the preset does.
+ *
+ * @experimental
+ */
+export function gripPoseByJoint(pose: GripPoseDef): GripPoseDef {
+    const deg = (r: number): number => Math.round((r / RAD) * 10) / 10;
+    const byJoint = (name: FingerName, finger: GripFinger | undefined): GripFinger => {
+        const [a0, a1, a2, lean] = anglesOf(name, finger);
+        const side = FAN_SIDE[name];
+        return { curl: finger?.curl ?? 0, bend: [deg(a0), deg(a1), deg(a2)], fan: side ? deg(lean / side) : 0 };
+    };
+    const out: GripPoseDef = {
+        thumb: { opposition: clamp01(pose.thumb?.opposition ?? 0), to: pose.thumb?.to === 'index' ? 'index' : 'fingers', gap: Math.max(0, pose.thumb?.gap ?? 0) },
+        index: byJoint('index', pose.index), middle: byJoint('middle', pose.middle), ring: byJoint('ring', pose.ring), pinky: byJoint('pinky', pose.pinky),
+    };
+    if (pose.trigger) out.trigger = byJoint('index', pose.trigger);
+    return out;
+}
+
+/** A pose read from JSON as an editor writes it, any part it leaves out taken as open. Null for text that is not one. @experimental */
+export function gripPoseFromJson(text: string): GripPoseDef | null {
+    if (!text) return null;
+    let raw: unknown;
+    try { raw = JSON.parse(text); } catch { return null; }
+    if (!raw || typeof raw !== 'object') return null;
+    const o = raw as Record<string, unknown>;
+    const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
+    const finger = (v: unknown): GripFinger => {
+        const f = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+        const out: GripFinger = { curl: num(f.curl) ?? 0 };
+        if (num(f.base) !== undefined) out.base = num(f.base);
+        if (num(f.spread) !== undefined) out.spread = num(f.spread);
+        if (Array.isArray(f.bend) && f.bend.length === 3 && f.bend.every((x) => num(x) !== undefined)) out.bend = [f.bend[0], f.bend[1], f.bend[2]] as [number, number, number];
+        if (num(f.fan) !== undefined) out.fan = num(f.fan);
+        return out;
+    };
+    const t = (o.thumb && typeof o.thumb === 'object' ? o.thumb : {}) as Record<string, unknown>;
+    const pose: GripPoseDef = {
+        thumb: { opposition: num(t.opposition) ?? 0, to: t.to === 'index' ? 'index' : 'fingers', gap: num(t.gap) ?? 0 },
+        index: finger(o.index), middle: finger(o.middle), ring: finger(o.ring), pinky: finger(o.pinky),
+    };
+    if (o.trigger) pose.trigger = finger(o.trigger);
+    return pose;
+}
 
 /** What is known of one hand on one rig. */
 interface HandState {
@@ -453,7 +522,7 @@ export function findHand(world: World, root: Entity, side: 'right' | 'left'): En
 }
 
 /** What one rig's hands are doing. */
-interface RigState { right: HandState | null; left: HandState | null; rightHand: string; leftHand: string; tried: { right: boolean; left: boolean } }
+interface RigState { right: HandState | null; left: HandState | null; rightHand: string; leftHand: string; tried: { right: boolean; left: boolean }; byComponent: boolean; blend: number }
 
 const SAME = 1e-6;
 const same = (a: Quat, b: Quat): boolean => Math.abs(a.w - b.w) < SAME && Math.abs(a.x - b.x) < SAME && Math.abs(a.y - b.y) < SAME && Math.abs(a.z - b.z) < SAME;
@@ -475,9 +544,9 @@ function ease(value: number, wanted: number, state: HandState, slot: number, ble
     return next;
 }
 
-/** Holds one hand a frame: eases its numbers on, and turns each joint to them over what is there. */
-function holdHand(world: World, state: HandState, poseName: string, weight: number, trigger: number, blend: number, dt: number, moved: boolean): void {
-    const pose = poseName ? poses.get(poseName) ?? null : null;
+/** Holds one hand a frame: eases its numbers on, and turns each joint to them over what is there. `poseName` tells one pose from the next; `def` is it. */
+function holdHand(world: World, state: HandState, poseName: string, def: GripPoseDef | null, weight: number, trigger: number, blend: number, dt: number, moved: boolean): void {
+    const pose = poseName ? def : null;
     if (poseName !== state.pose) {
         if (poseName && !pose) log.warn('animation', `there is no grip pose called "${poseName}": the hand is left alone`);
         state.pose = poseName;
@@ -504,12 +573,12 @@ function holdHand(world: World, state: HandState, poseName: string, weight: numb
     const ordered = [...state.fingers.filter((x) => x.name !== 'thumb'), ...state.fingers.filter((x) => x.name === 'thumb')];
     for (const finger of ordered) {
         const reached = finger.name === 'thumb' && state.thumb ? thumbTurns(world, state) : null;
-        const at = FINGERS.indexOf(finger.name) * 3;
-        let curl = state.current[at]!, base = state.current[at + 1]!;
-        const spread = state.current[at + 2]!;
+        const at = FINGERS.indexOf(finger.name) * PER_FINGER;
+        const bends = [state.current[at]!, state.current[at + 1]!, state.current[at + 2]!];
+        const lean = state.current[at + 3]!;
         if (finger.name === 'index' && press > 0 && pose?.trigger) {
-            curl += (clamp01(pose.trigger.curl) - curl) * press;
-            base += (clamp01(pose.trigger.base ?? pose.trigger.curl) - base) * press;
+            const pressed = anglesOf('index', pose.trigger);
+            for (let i = 0; i < 3; i++) bends[i] = bends[i]! + (pressed[i]! - bends[i]!) * press;
         }
         for (let i = 0; i < finger.joints.length; i++) {
             const joint = finger.joints[i]!;
@@ -519,8 +588,8 @@ function holdHand(world: World, state: HandState, poseName: string, weight: numb
                 const parent = i === 0 ? state.thumb!.parentTurn : reached[i - 1]!;
                 target = q.normalize(q.mul(q.conjugate(parent), reached[i]!));
             } else {
-                let turn = axisAngle(joint.curlAxis, (i === 0 ? base : curl) * CLOSED[i]!);
-                if (joint.spreadAxis && spread !== 0 && finger.fan !== 0) turn = q.mul(axisAngle(joint.spreadAxis, spread * finger.fan * SPREAD), turn);
+                let turn = axisAngle(joint.curlAxis, bends[i]!);
+                if (joint.spreadAxis && lean !== 0) turn = q.mul(axisAngle(joint.spreadAxis, lean), turn);
                 target = q.normalize(q.mul(joint.rest, turn));
             }
             const local = world.get(joint.entity, Transform) as TransformData;
@@ -574,6 +643,33 @@ function letGo(world: World, state: HandState | null): void {
     }
 }
 
+/**
+ * A hand pose something else asks of a rig each frame: a holder handing the fingers its grip. Over the rig's own GripPose for that hand, if it has
+ * one. `key` tells one pose from the next. @internal
+ */
+export interface HeldHand { key: string; pose: GripPoseDef | null; weight: number }
+/** @internal */
+export interface HeldHands { right?: HeldHand; left?: HeldHand; blendSeconds: number; rightHand: string; leftHand: string }
+
+const asked = new WeakMap<App, Map<Entity, HeldHands>>();
+
+/** Asks for a rig's hands this frame. Read by the next run of the grip-pose system, then forgotten. @internal */
+export function askHeldHands(app: App, rig: Entity, hands: HeldHands): void {
+    let map = asked.get(app);
+    if (!map) { map = new Map(); asked.set(app, map); }
+    map.set(rig, hands);
+}
+
+/** Every hand this has posed put back as the rig rests, and forgotten: an editor leaving its preview. @internal */
+export function releaseGripPoses(app: App): void {
+    const known = rigs.get(app);
+    if (known) {
+        for (const state of known.values()) { letGo(app.world, state.right); letGo(app.world, state.left); }
+        known.clear();
+    }
+    asked.get(app)?.clear();
+}
+
 /** What a rig's hand was found to have. @experimental */
 export interface GripHandStatus {
     /** The joint it took for the hand, or null where none could be found. */
@@ -608,37 +704,59 @@ export function installGripPose(app: App): void {
     const hasClipOn = (world: World, rig: Entity): boolean => ['Animator', 'TimelinePlayer'].some((name) => { const def = getComponent(name); return !!def && world.has(rig, def); });
     // system-access: the hand's joints are found by walking the rig, so which entities it writes is known only then, and only their Transforms.
     app.addSystemToSchedule(Schedule.Update, defineSystem([Res(Time), GetWorld()], (time: TimeData, world: World) => {
+        const wanted = asked.get(app) ?? new Map<Entity, HeldHands>();
+        asked.set(app, wanted);
+        const comps = new Set(world.getEntitiesWithComponents([GripPose]));
         for (const [rig, state] of known) {
-            if (world.valid(rig) && world.has(rig, GripPose)) continue;
-            letGo(world, state.right);
-            letGo(world, state.left);
-            known.delete(rig);
+            if (!world.valid(rig)) { known.delete(rig); continue; }
+            if (comps.has(rig) || wanted.has(rig)) continue;
+            // A component taken off lets go at once, as it always has; hands a holder stopped asking for fade out below.
+            if (state.byComponent) { letGo(world, state.right); letGo(world, state.left); known.delete(rig); }
         }
-        for (const rig of world.getEntitiesWithComponents([GripPose])) {
-            const data = world.get(rig, GripPose) as GripPoseData;
-            if (!data.rightPose && !data.leftPose && !known.has(rig)) continue;
+        const rigsNow = new Set<Entity>([...comps, ...wanted.keys(), ...known.keys()]);
+        for (const rig of rigsNow) {
+            if (!world.valid(rig)) continue;
+            const data = comps.has(rig) ? world.get(rig, GripPose) as GripPoseData : null;
+            const ask = wanted.get(rig);
+            const rightHandPath = data?.rightHand || ask?.rightHand || '', leftHandPath = data?.leftHand || ask?.leftHand || '';
+            const handOf = (side: 'right' | 'left'): { key: string; def: GripPoseDef | null; weight: number; trigger: number } => {
+                const held = ask?.[side];
+                if (held) return { key: held.key, def: held.pose, weight: held.weight, trigger: data ? (side === 'right' ? data.rightTrigger : data.leftTrigger) : 0 };
+                if (data) {
+                    const name = side === 'right' ? data.rightPose : data.leftPose;
+                    return { key: name, def: poses.get(name) ?? null, weight: side === 'right' ? data.rightWeight : data.leftWeight, trigger: side === 'right' ? data.rightTrigger : data.leftTrigger };
+                }
+                return { key: '', def: null, weight: 0, trigger: 0 };
+            };
+            const hands = { right: handOf('right'), left: handOf('left') };
+            if (!hands.right.key && !hands.left.key && !known.has(rig)) continue;
             let state = known.get(rig);
-            if (!state || state.rightHand !== data.rightHand || state.leftHand !== data.leftHand) {
+            if (!state || state.rightHand !== rightHandPath || state.leftHand !== leftHandPath) {
                 if (state) { letGo(world, state.right); letGo(world, state.left); }
-                state = { right: null, left: null, rightHand: data.rightHand, leftHand: data.leftHand, tried: { right: false, left: false } };
+                state = { right: null, left: null, rightHand: rightHandPath, leftHand: leftHandPath, tried: { right: false, left: false }, byComponent: !!data, blend: 0.15 };
                 known.set(rig, state);
             }
+            state.byComponent = !!data;
+            // Asked for, the holder's; on the rig's own, its; fading out once neither speaks, the last there was.
+            const blend = ask ? ask.blendSeconds : data ? data.blendSeconds : state.blend;
+            state.blend = blend;
             const moved = hasClipOn(world, rig);
             for (const side of ['right', 'left'] as const) {
-                const poseName = side === 'right' ? data.rightPose : data.leftPose;
+                const poseName = hands[side].key;
                 if (!state[side] && poseName && !state.tried[side]) {
                     state.tried[side] = true;
-                    const path = side === 'right' ? data.rightHand : data.leftHand;
+                    const path = side === 'right' ? rightHandPath : leftHandPath;
                     const hand = path ? resolveChildEntity(world, rig, path) : findHand(world, rig, side);
                     state[side] = hand === null ? null : buildHand(world, hand, side);
                     if (!state[side]) log.warn('animation', `a GripPose found no ${side} hand with fingers on "${nameOf(world, rig)}"${path ? ` at "${path}"` : ''}: name its joint in ${side}Hand`);
                     else if (state[side]!.missing.length) log.warn('animation', `the ${side} hand of "${nameOf(world, rig)}" has no bones for its ${state[side]!.missing.join(', ')}: a pose does without them`);
                 }
                 const hand = state[side];
-                if (hand) {
-                    holdHand(world, hand, poseName, side === 'right' ? data.rightWeight : data.leftWeight, side === 'right' ? data.rightTrigger : data.leftTrigger, data.blendSeconds, time.delta, moved);
-                }
+                if (hand) holdHand(world, hand, poseName, hands[side].def, hands[side].weight, hands[side].trigger, blend, time.delta, moved);
             }
+            // Hands no one asks for any more, faded all the way out: nothing is left to hold.
+            if (!data && !ask && (!state.right || state.right.weight === 0) && (!state.left || state.left.weight === 0)) known.delete(rig);
         }
-    }, { name: 'GripPoseSystem' }), { runAfter: [SystemLabel.Animator], runIf: playModeOnly });
+        wanted.clear();
+    }, { name: 'GripPoseSystem' }), { runAfter: [SystemLabel.Animator], runIf: fxPreviewOrPlayMode });
 }

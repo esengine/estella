@@ -142,6 +142,7 @@ const NAMES_THE_SAME_THING = [
   ['.ts-p', 'the tileset collision-polygon editor, a canvas of its own'],
   ['.ax.', "an Inspector vec field's axis letters: the legend for the gizmo's arms"],
   ['.world__', "the World panel's residency colours — its key, a cell's dot and state word — for what the viewport draws"],
+  ['.gi-tag', "the GripProfile section's hand tags: the legend for the palm markers the viewport draws in those colours"],
   ['components/GizmoReadout.tsx', 'the drag readout carries the dot of the gizmo axis it reports'],
   ['panels/SequencerCurve.tsx', 'a curve channel IS the axis channel, so it takes the axis colour'],
 ];

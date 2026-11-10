@@ -7,10 +7,10 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { App } from '../src/app/app';
 import { AnimationPlugin } from '../src/animation/AnimationPlugin';
-import { GripHolder, GripPlacement, GripProfile, captureFingerPose, gripHolderStatus, registerFingerPose, slerpQuat, type GripHolderData } from '../src/animation/gripHold';
-import { palmFrameOf } from '../src/animation/gripPose';
-import { Name, Parent, Transform, type TransformData } from '../src/ecs/component';
-import { setEditorMode, setPlayMode } from '../src/ecs/env';
+import { GripHand, GripHolder, GripMirror, GripPlacement, GripProfile, captureFingerPose, gripHolderStatus, registerFingerPose, releaseGripHolds, slerpQuat, type GripHolderData, type GripProfileData } from '../src/animation/gripHold';
+import { GripPose, gripPose, gripPoseByJoint, gripPoseFromJson, gripPoseStatus, palmFrameOf, registerGripPose } from '../src/animation/gripPose';
+import { Children, Name, Parent, Transform, type TransformData } from '../src/ecs/component';
+import { setEditorMode, setFxEditPreview, setPlayMode } from '../src/ecs/env';
 import { q } from '../src/math/quat';
 import type { Entity } from '../src/types';
 import type { ESEngineModule } from '../src/wasm';
@@ -22,7 +22,7 @@ const I: Q = { w: 1, x: 0, y: 0, z: 0 };
 
 let core: ESEngineModule;
 const apps: App[] = [];
-afterEach(() => { while (apps.length) apps.pop()!.quit?.(); setEditorMode(false); setPlayMode(false); });
+afterEach(() => { while (apps.length) apps.pop()!.quit?.(); setEditorMode(false); setPlayMode(false); setFxEditPreview(false); });
 
 function scene() {
     core.setActiveContext(null);
@@ -358,9 +358,177 @@ describe.skipIf(!HAS_WASM)('holding an object', () => {
         s.world.update(g.e, GripProfile, (p: { mainPose: string; supportPose: string }) => { p.mainPose = 'pistol'; p.supportPose = 'support'; });
         holder(s.world, b.root, { held: g.e, placement: GripPlacement.Hand });
         await s.tick(3);
-        const grip = s.world.get(b.root, (await import('../src/animation/gripPose')).GripPose) as { rightPose: string; leftPose: string; rightWeight: number };
-        expect(grip.rightPose).toBe('pistol');
-        expect(grip.leftPose).toBe('support');
-        expect(grip.rightWeight).toBe(1);
+        const status = gripPoseStatus(s.app, b.root)!;
+        expect(status.right.pose).toBe('pistol');
+        expect(status.left.pose).toBe('support');
+        expect(status.right.weight).toBe(1);
+        // Handed over without writing a GripPose onto the rig: an editor's preview must not leave a component behind.
+        expect(s.world.has(b.root, GripPose)).toBe(false);
+        // Let go of, the hands fade out and are forgotten once nothing is left of them.
+        s.world.update(b.root, GripHolder, (h: GripHolderData) => { h.held = 0 as Entity; });
+        await s.tick(3);
+        expect(gripPoseStatus(s.app, b.root)).toBeNull();
+    });
+
+    it('mirrors the anchors in the object\'s own plane when the other hand leads, so one set serves either hand', async () => {
+        const run = async (mainHand: number, x: number) => {
+            const s = scene();
+            const b = body(s.world);
+            const g = gun(s.world, { x, y: 1.25, z: 0.45 });
+            // Turned off the gun's own plane (yawed, then rolled), so a mirror that kept the turn would put the palm the wrong way round.
+            const tilt = q.normalize(q.mul({ w: Math.cos(0.2), x: 0, y: Math.sin(0.2), z: 0 }, q.mul({ w: Math.cos(0.15), x: 0, y: 0, z: Math.sin(0.15) }, { w: 0, x: 0, y: 0, z: 1 })));
+            s.world.update(g.main, Transform, (t: TransformData) => { t.rotation = tilt; });
+            holder(s.world, b.root, { held: g.e, placement: GripPlacement.Object, supportWeight: 0, mainHand });
+            await s.tick(2);
+            return { s, b, g };
+        };
+        const right = await run(GripHand.Right, -0.15);
+        const left = await run(GripHand.Left, 0.15);
+        expect(gripHolderStatus(left.s.app, left.b.root)!.mirrored).toBe(true);
+        expect(gripHolderStatus(right.s.app, right.b.root)!.mirrored).toBe(false);
+        // The left palm sits on the anchor mirrored in the gun's YZ plane: its place with x negated, its turn the mirror of the anchor's.
+        const o = worldPose(left.s.world, left.g.e);
+        const a = left.s.world.get(left.g.main, Transform) as TransformData;
+        const at = q.rotate(o.r, { x: -a.position.x, y: a.position.y, z: a.position.z });
+        const want = { p: { x: o.p.x + at.x, y: o.p.y + at.y, z: o.p.z + at.z }, r: q.normalize(q.mul(o.r, { w: a.rotation.w, x: a.rotation.x, y: -a.rotation.y, z: -a.rotation.z })) };
+        const palm = palmOf(left.s.world, left.b.arms.Left!.hand, 'left');
+        expect(dist(palm.p, want.p)).toBeLessThan(1e-3);
+        expect(angle(palm.r, want.r)).toBeLessThan(0.01);
+        // And on a body that is its own mirror, the whole left arm is the right one's mirror image.
+        const pr = palmOf(right.s.world, right.b.arms.Right!.hand, 'right').p;
+        expect(dist(palm.p, { x: -pr.x, y: pr.y, z: pr.z })).toBeLessThan(1e-3);
+        const er = worldPose(right.s.world, right.b.arms.Right!.fore).p, el = worldPose(left.s.world, left.b.arms.Left!.fore).p;
+        expect(dist(el, { x: -er.x, y: er.y, z: er.z })).toBeLessThan(1e-3);
+    });
+
+    it('does not mirror anchors placed for the hand that leads, whichever it is', async () => {
+        const s = scene();
+        const b = body(s.world);
+        const g = gun(s.world, { x: 0.15, y: 1.25, z: 0.45 });
+        s.world.update(g.e, GripProfile, (p: { hand: number; mirror: number }) => { p.hand = GripHand.Left; p.mirror = GripMirror.X; });
+        holder(s.world, b.root, { held: g.e, placement: GripPlacement.Object, supportWeight: 0, mainHand: GripHand.Left });
+        await s.tick(2);
+        expect(gripHolderStatus(s.app, b.root)!.mirrored).toBe(false);
+        const palm = palmOf(s.world, b.arms.Left!.hand, 'left');
+        expect(dist(palm.p, worldPose(s.world, g.main).p)).toBeLessThan(1e-3);
+    });
+
+    it('holds fingers said joint by joint exactly as the preset they were expanded from, and one joint changed moves that joint alone', async () => {
+        const fingersOf = async (profile: Partial<GripProfileData>) => {
+            const s = scene();
+            const b = body(s.world);
+            const g = gun(s.world, { x: 3, y: 0, z: 0 });
+            s.world.update(g.e, GripProfile, (p: GripProfileData) => { Object.assign(p, profile); });
+            holder(s.world, b.root, { held: g.e, placement: GripPlacement.Hand });
+            await s.tick(30);
+            return captureFingerPose(s.world, b.arms.Right!.hand).joints;
+        };
+        const byName = await fingersOf({ mainPose: 'pistol' });
+        const expanded = gripPoseByJoint(gripPose('pistol')!);
+        const byJoint = await fingersOf({ mainPose: '', mainFingers: JSON.stringify(expanded) });
+        expect(Object.keys(byJoint).length).toBeGreaterThan(10);
+        for (const [name, r] of Object.entries(byName)) expect(angle(r, byJoint[name]!)).toBeLessThan(2e-3);
+        // Twenty degrees more on the middle finger's knuckle: that joint turns by twenty degrees, nothing else on the hand moves.
+        const edited = JSON.parse(JSON.stringify(expanded));
+        edited.middle.bend[0] += 20;
+        const changed = await fingersOf({ mainPose: '', mainFingers: JSON.stringify(edited) });
+        for (const [name, r] of Object.entries(byJoint)) {
+            const turned = angle(r, changed[name]!);
+            if (name === 'mixamorig:RightHandMiddle1') expect(Math.abs(turned - (20 * Math.PI) / 180)).toBeLessThan(2e-3);
+            else if (/Thumb/.test(name)) continue; // the thumb reaches for the middle finger, which has moved
+            else expect(turned).toBeLessThan(1e-4);
+        }
+    });
+
+    it('holds a pose said joint by joint the same on either hand, mirrored, lean included', async () => {
+        registerGripPose('test-by-joint', { thumb: { opposition: 0 }, index: { curl: 0, bend: [30, 40, 20], fan: 12 }, middle: { curl: 0, bend: [50, 60, 30], fan: 4 }, ring: { curl: 0, bend: [55, 70, 35], fan: 8 }, pinky: { curl: 0, bend: [60, 75, 40], fan: 15 } });
+        const s = scene();
+        const b = body(s.world);
+        s.world.insert(b.root, GripPose, { rightPose: 'test-by-joint', leftPose: 'test-by-joint', blendSeconds: 0 });
+        await s.tick(2);
+        for (const finger of ['Index', 'Middle', 'Ring', 'Pinky']) {
+            const r = worldPose(s.world, descendant(s.world, b.root, `mixamorig:RightHand${finger}4`)).p;
+            const l = worldPose(s.world, descendant(s.world, b.root, `mixamorig:LeftHand${finger}4`)).p;
+            expect(dist(l, { x: -r.x, y: r.y, z: r.z })).toBeLessThan(1e-4);
+        }
+    });
+
+    it('leans a finger out from the middle of the hand for a positive lean, the index toward the thumb and the little finger away', async () => {
+        const tips = async (fan: number) => {
+            registerGripPose(`test-fan-${fan}`, { thumb: { opposition: 0 }, index: { curl: 0, fan }, middle: { curl: 0 }, ring: { curl: 0 }, pinky: { curl: 0, fan } });
+            const s = scene();
+            const b = body(s.world);
+            s.world.insert(b.root, GripPose, { rightPose: `test-fan-${fan}`, blendSeconds: 0 });
+            await s.tick(2);
+            const at = (f: string) => worldPose(s.world, descendant(s.world, b.root, `mixamorig:RightHand${f}4`)).p;
+            return { index: at('Index'), pinky: at('Pinky'), middle: at('Middle') };
+        };
+        const flat = await tips(0), out = await tips(20);
+        expect(dist(out.index, out.pinky)).toBeGreaterThan(dist(flat.index, flat.pinky) + 0.02);
+        expect(dist(out.index, out.middle)).toBeGreaterThan(dist(flat.index, flat.middle) + 0.01);
+    });
+
+    it('reads fingers from JSON leniently, and refuses text that is not a pose', () => {
+        expect(gripPoseFromJson('')).toBeNull();
+        expect(gripPoseFromJson('not json')).toBeNull();
+        expect(gripPoseFromJson('3')).toBeNull();
+        const partial = gripPoseFromJson('{"index":{"bend":[10,20,30]},"thumb":{"opposition":0.5,"to":"index"}}')!;
+        expect(partial.index.bend).toEqual([10, 20, 30]);
+        expect(partial.middle.curl).toBe(0);
+        expect(partial.thumb).toEqual({ opposition: 0.5, to: 'index', gap: 0 });
+        expect(gripPoseFromJson('{"index":{"bend":[10,"x",30]}}')!.index.bend).toBeUndefined();
+    });
+
+    it('says how far a palm stops short of an anchor out of reach, and nothing within it', async () => {
+        const s = scene();
+        const b = body(s.world);
+        const g = gun(s.world, { x: -0.15, y: 1.25, z: 0.45 });
+        holder(s.world, b.root, { held: g.e, placement: GripPlacement.Object, supportWeight: 0 });
+        await s.tick(2);
+        expect(gripHolderStatus(s.app, b.root)!.short.main).toBe(0);
+        s.world.update(g.e, Transform, (t: TransformData) => { t.position = { x: -0.15, y: 1.25, z: 3 }; });
+        await s.tick(2);
+        const short = gripHolderStatus(s.app, b.root)!.short.main;
+        // The arm is 0.57 long from a shoulder at z 0.05; the anchor is about 2.93 ahead of it.
+        expect(short).toBeGreaterThan(2.2);
+        expect(short).toBeLessThan(2.5);
+    });
+
+    it('previews in an editor only with the effects preview on, and gives every bone and the carried object back when it ends', async () => {
+        const s = scene();
+        setPlayMode(false);
+        setEditorMode(true);
+        const b = body(s.world);
+        const g = gun(s.world, { x: 3, y: 0, z: 0 });
+        s.world.update(g.e, GripProfile, (p: { mainPose: string; supportPose: string }) => { p.mainPose = 'fist'; p.supportPose = 'fist'; });
+        reachable(s.world, g);
+        holder(s.world, b.root, { held: g.e, placement: GripPlacement.Hand });
+        const fingers = () => Object.values(captureFingerPose(s.world, b.arms.Left!.hand).joints);
+        const before = { arms: rotationsOf(s.world, armJoints(b)), fingers: fingers(), gun: { ...(s.world.get(g.e, Transform) as TransformData).position } };
+        await s.tick(5);
+        expect(rotationsOf(s.world, armJoints(b))).toEqual(before.arms);
+        setFxEditPreview(true);
+        await s.tick(30);
+        expect(dist((s.world.get(g.e, Transform) as TransformData).position, before.gun)).toBeGreaterThan(1);
+        expect(Math.max(...rotationsOf(s.world, armJoints(b)).map((r, i) => angle(r, before.arms[i]!)))).toBeGreaterThan(0.1);
+        expect(Math.max(...fingers().map((r, i) => angle(r, before.fingers[i]!)))).toBeGreaterThan(0.5);
+        releaseGripHolds(s.app);
+        setFxEditPreview(false);
+        await s.tick(2);
+        rotationsOf(s.world, armJoints(b)).forEach((r, i) => expect(angle(r, before.arms[i]!)).toBeLessThan(1e-5));
+        fingers().forEach((r, i) => expect(angle(r, before.fingers[i]!)).toBeLessThan(1e-5));
+        expect(dist((s.world.get(g.e, Transform) as TransformData).position, before.gun)).toBeLessThan(1e-6);
     });
 });
+
+/** An entity below `root` by name. */
+function descendant(world: World, root: Entity, name: string): Entity {
+    const stack = [root];
+    while (stack.length) {
+        const at = stack.pop()!;
+        if ((world.tryGet(at, Name) as { value?: string } | null)?.value === name) return at;
+        stack.push(...((world.tryGet(at, Children) as { entities?: Entity[] } | null)?.entities ?? []));
+    }
+    throw new Error(`no ${name}`);
+}
+

@@ -4254,6 +4254,8 @@ export const NOTED = {
     {"note": "Particles and plain sprites in a Canvas paint by their place in its tree."},
   "fix(text): stopping lets go of the labels the engine holds, so the next Play cannot draw them on other entities":
     {"note": "Labels no longer come back as black boxes after a change between Plays."},
+  "feat(editor): a grip is edited where it is held, the character holding it live in the edit viewport":
+    {"note": "A grip is edited where it is held."},
   "feat(animation): a character holds an object by anchors on it, the arms bent to them in one order that cannot loop":
     {"note": "Holding an object in both hands."},
   "feat(animation): a rig's hands held in a named pose that fits any skeleton":

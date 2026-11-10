@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A grip is edited where it is held.** Select an object with a `GripProfile` and its Details section edits the grip while a character in the scene holds it in the edit viewport, without Play: pick the character (it is given a `GripHolder`), create and pick the two palm anchors, see each palm drawn where it goes, switch the leading hand, and change every finger joint by joint in degrees, starting from a grip pose. Anchors are placed once and mirrored in the object's own plane for the other hand (`GripProfile.hand`, `mirror`); fingers said joint by joint (`GripFinger.bend`, `fan`, kept in `mainFingers`/`supportFingers`) are measured on the hand's own axes, so they mirror and fit any rig. The preview is the viewport's Preview FX and gives the bones back when it is turned off.
+
 ## [0.101.1] - 2026-11-10
 
 ### Fixed

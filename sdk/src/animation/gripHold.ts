@@ -18,12 +18,12 @@ import { defineSystem, GetWorld, Schedule } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import type { World } from '../ecs/world';
 import { resolveChildEntity } from '../ecs/childPath';
-import { playModeOnly } from '../ecs/env';
+import { fxPreviewOrPlayMode } from '../ecs/env';
 import { SystemLabel } from '../ecs/systemLabels';
 import { log } from '../util/logger';
 import { q } from '../math/quat';
 import type { Entity } from '../types';
-import { findHand, gripPose, GripPose, palmFrameOf, type GripPoseData } from './gripPose';
+import { askHeldHands, findHand, gripPose, gripPoseFromJson, palmFrameOf, releaseGripPoses, type GripPoseDef, type HeldHand } from './gripPose';
 
 interface Vec3 { x: number; y: number; z: number }
 interface Quat { w: number; x: number; y: number; z: number }
@@ -37,7 +37,17 @@ export interface GripProfileData {
     /** The fingers of each: a pose captured from a hand (registerFingerPose), or a GripPose by name. */
     mainPose: string;
     supportPose: string;
+    /** The fingers of each said joint by joint, as JSON of a GripPoseDef (an editor writes it). Over the pose by name where it is set. */
+    mainFingers: string;
+    supportFingers: string;
+    /** The hand the anchors were placed for. Held with the other hand leading, both anchors are mirrored to it. */
+    hand: number;
+    /** The plane of the object's own that mirrors them: the one square to its X, Y or Z. */
+    mirror: number;
 }
+
+/** The plane an object's anchors are mirrored in, by the axis square to it. @experimental */
+export const GripMirror = { X: 0, Y: 1, Z: 2 } as const;
 
 /**
  * How an object is held. Goes on the object; its anchors are entities under it.
@@ -45,10 +55,14 @@ export interface GripProfileData {
  * @experimental
  */
 export const GripProfile: ComponentDef<GripProfileData> = /* @__PURE__ */ defineComponent<GripProfileData>('GripProfile', {
-    mainAnchor: 0 as Entity, supportAnchor: 0 as Entity, mainPose: 'handle', supportPose: 'support',
+    mainAnchor: 0 as Entity, supportAnchor: 0 as Entity, mainPose: 'handle', supportPose: 'support', mainFingers: '', supportFingers: '', hand: 0, mirror: 0,
 }, {
     entityFields: ['mainAnchor', 'supportAnchor'],
     fields: {
+        mainFingers: { advanced: true, tooltip: 'The leading hand\'s fingers joint by joint, as JSON. Written by the grip editor; over mainPose where set.' },
+        supportFingers: { advanced: true, tooltip: 'The supporting hand\'s fingers joint by joint, as JSON.' },
+        hand: { enum: [{ label: 'Right', value: 0 }, { label: 'Left', value: 1 }], tooltip: 'The hand the anchors were placed for. Held with the other leading, they are mirrored.' },
+        mirror: { enum: [{ label: 'YZ (X)', value: 0 }, { label: 'XZ (Y)', value: 1 }, { label: 'XY (Z)', value: 2 }], tooltip: 'The object\'s own plane that mirrors the anchors to the other hand.' },
         mainAnchor: { tooltip: 'Where the leading palm sits: an entity under this one. Its +Z is the way the fingers point, +Y the way the palm faces.' },
         supportAnchor: { tooltip: 'Where the supporting palm sits. Empty holds this in one hand.' },
         mainPose: { tooltip: 'The leading hand\'s fingers: a captured finger pose, or a grip pose (pistol, handle, support, ...).' },
@@ -186,6 +200,13 @@ function anchorOn(world: World, object: Entity, anchor: Entity): Pose3 | null {
     return null;
 }
 
+/** An anchor's pose on its object, mirrored in the plane square to one of the object's axes: what the other hand's palm takes there. */
+function mirrored(a: Pose3, axis: number): Pose3 {
+    const p = { ...a.p }, r = { ...a.r };
+    if (axis === 1) { p.y = -p.y; r.x = -r.x; r.z = -r.z; } else if (axis === 2) { p.z = -p.z; r.x = -r.x; r.y = -r.y; } else { p.x = -p.x; r.y = -r.y; r.z = -r.z; }
+    return { p, r, s: a.s };
+}
+
 /** One hand's arm and palm, found once. */
 interface Arm {
     hand: Entity;
@@ -230,6 +251,13 @@ interface HolderState {
     written: Map<Entity, Quat>;
     /** Each joint's turn as something else last left it: the clip's, which a hold goes over. */
     base: Map<Entity, Quat>;
+    /** Each object it carried on a hand: where it was before, and where this last put it, to give it back when a preview ends. */
+    carried: Map<Entity, { rest: { p: Vec3; r: Quat }; put: { p: Vec3; r: Quat } }>;
+    /** The fingers last asked of each hand, faded out by `amount` once nothing is held. */
+    asked: { right?: HeldHand & { share: number }; left?: HeldHand & { share: number } };
+    /** How far each palm stops short of its anchor, as the arm reaches: 0 within reach. */
+    short: { main: number; support: number };
+    mirrored: boolean;
 }
 
 /** Eases `value` toward `wanted`, critically damped: from still, and to rest without passing it. */
@@ -248,14 +276,15 @@ function ease(value: number, speed: number, wanted: number, blend: number, dt: n
  * The upper arm and forearm turned so the hand joint lands on `goal`, the elbow keeping the side it is bent toward; then the hand turned to `handTurn`.
  * World turns in, each joint's own turn out. The arm cannot be longer than it is: past its reach it points straight at the goal.
  */
-function bendArm(world: World, arm: Arm, goal: Vec3, handTurn: Quat): Map<Entity, Quat> {
+function bendArm(world: World, arm: Arm, goal: Vec3, handTurn: Quat): Map<Entity, Quat> & { short?: number } {
     const upper = worldOf(world, arm.upper), fore = worldOf(world, arm.forearm), hand = worldOf(world, arm.hand);
     const shoulder = parentOf(world, arm.upper);
     const shoulderTurn = shoulder === null ? { w: 1, x: 0, y: 0, z: 0 } : worldOf(world, shoulder).r;
     const a = len(sub(fore.p, upper.p)), b = len(sub(hand.p, fore.p));
     const reach = sub(goal, upper.p);
-    const out = new Map<Entity, Quat>();
+    const out: Map<Entity, Quat> & { short?: number } = new Map<Entity, Quat>();
     if (a < 1e-9 || b < 1e-9 || len(reach) < 1e-9) return out;
+    out.short = Math.max(0, len(reach) - (a + b));
     const c = Math.min(Math.max(len(reach), Math.abs(a - b) + 1e-6), a + b - 1e-6);
     const along = norm(reach);
     // The side the elbow is bent to now; a straight arm takes any side off the line.
@@ -316,17 +345,59 @@ export function installGripHold(app: App): void {
             }
         }
         if (restored) world.ensureTransformsComposed();
-        for (const rig of holders) hold(world, known, rig, world.get(rig, GripHolder) as GripHolderData, time.delta);
-    }, { name: 'GripHoldSystem' }), { runAfter: [SystemLabel.Animator], runIf: playModeOnly });
+        for (const rig of holders) hold(app, world, known, rig, world.get(rig, GripHolder) as GripHolderData, time.delta);
+    }, { name: 'GripHoldSystem' }), { runAfter: [SystemLabel.Animator], runIf: fxPreviewOrPlayMode });
 }
 
-function hold(world: World, known: Map<Entity, HolderState>, rig: Entity, data: GripHolderData, dt: number): void {
+/**
+ * Every joint a hold turned, and every object it carried, given back as they were before it, and every holder forgotten: an editor leaving its
+ * preview, where nothing moves the bones back. What something else has moved since is left as it is. @experimental
+ */
+export function releaseGripHolds(app: App): void {
+    const world = app.world;
+    const known = rigs.get(app);
+    for (const state of known?.values() ?? []) {
+        for (const [joint, written] of state.written) {
+            const base = state.base.get(joint);
+            if (!base || !world.valid(joint) || !world.has(joint, Transform)) continue;
+            if (same((world.get(joint, Transform) as TransformData).rotation, written)) world.update(joint, Transform, (t: TransformData) => { t.rotation = { ...base }; });
+        }
+        for (const [object, { rest, put }] of state.carried) {
+            if (!world.valid(object) || !world.has(object, Transform)) continue;
+            const t0 = world.get(object, Transform) as TransformData;
+            if (near(t0.position, put.p) && same(t0.rotation, put.r)) world.update(object, Transform, (t: TransformData) => { t.position = { ...rest.p }; t.rotation = { ...rest.r }; });
+        }
+    }
+    known?.clear();
+    releaseGripPoses(app);
+}
+
+const near = (a: Vec3, b: Vec3): boolean => Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6 && Math.abs(a.z - b.z) < 1e-6;
+
+/** Inline finger poses read once per text. */
+const parsedFingers = new Map<string, GripPoseDef | null>();
+function inlineFingers(text: string): GripPoseDef | null {
+    if (!text) return null;
+    let pose = parsedFingers.get(text);
+    if (pose === undefined) {
+        if (parsedFingers.size > 64) parsedFingers.clear();
+        pose = gripPoseFromJson(text);
+        if (!pose) log.warn('animation', 'a GripProfile\'s fingers are not a grip pose in JSON: the pose by name is used');
+        parsedFingers.set(text, pose);
+    }
+    return pose;
+}
+
+function hold(app: App, world: World, known: Map<Entity, HolderState>, rig: Entity, data: GripHolderData, dt: number): void {
     const paths = `${data.rightHand}|${data.leftHand}`;
     let state = known.get(rig);
     if (!state || state.paths !== paths) {
         const right = armOf(world, rig, 'right', data.rightHand), left = armOf(world, rig, 'left', data.leftHand);
         if (!right && !left) log.warn('animation', `a GripHolder found no arm with a hand on "${(world.tryGet(rig, Name) as { value?: string } | null)?.value ?? rig}"`);
-        state = { arms: { right, left }, paths, held: 0 as Entity, amount: 0, speed: 0, from: new Map(), change: 1, changeSpeed: 0, written: new Map(), base: new Map() };
+        state = {
+            arms: { right, left }, paths, held: 0 as Entity, amount: 0, speed: 0, from: new Map(), change: 1, changeSpeed: 0, written: new Map(), base: new Map(),
+            carried: new Map(), asked: {}, short: { main: 0, support: 0 }, mirrored: false,
+        };
         known.set(rig, state);
     }
     const held = data.held && world.valid(data.held) && world.has(data.held, GripProfile) ? data.held : 0 as Entity;
@@ -342,12 +413,16 @@ function hold(world: World, known: Map<Entity, HolderState>, rig: Entity, data: 
     const main = data.mainHand === GripHand.Left ? state.arms.left : state.arms.right;
     const support = data.mainHand === GripHand.Left ? state.arms.right : state.arms.left;
     const wanted = new Map<Entity, Quat>();
-    const fingerNames: { arm: Arm; pose: string; weight: number }[] = [];
+    const fingerNames: { arm: Arm; pose: string; inline: string; weight: number }[] = [];
+    state.short = { main: 0, support: 0 };
 
     if (held && main) {
         const profile = world.get(held, GripProfile) as GripProfileData;
-        const mainAnchor = profile.mainAnchor ? anchorOn(world, held, profile.mainAnchor) : null;
-        const supportAnchor = profile.supportAnchor ? anchorOn(world, held, profile.supportAnchor) : null;
+        // Placed for the other hand: both anchors mirrored in the object's own plane, so one set serves either.
+        state.mirrored = data.mainHand !== profile.hand;
+        const place = (anchor: Pose3 | null): Pose3 | null => (anchor && state!.mirrored ? mirrored(anchor, profile.mirror) : anchor);
+        const mainAnchor = place(profile.mainAnchor ? anchorOn(world, held, profile.mainAnchor) : null);
+        const supportAnchor = place(profile.supportAnchor ? anchorOn(world, held, profile.supportAnchor) : null);
         if (mainAnchor) {
             const handWorld = worldOf(world, main.hand);
             let object: Pose3;
@@ -355,48 +430,68 @@ function hold(world: World, known: Map<Entity, HolderState>, rig: Entity, data: 
                 // The game has put the object: the leading arm is brought to its anchor.
                 object = worldOf(world, held);
                 const goal = handFor(main, then(object, mainAnchor), handWorld.s);
-                for (const [joint, turn] of bendArm(world, main, goal.at, goal.turn)) wanted.set(joint, turn);
+                const turns = bendArm(world, main, goal.at, goal.turn);
+                for (const [joint, turn] of turns) wanted.set(joint, turn);
+                state.short.main = turns.short ?? 0;
             } else {
                 // The object rides the leading hand, wherever the clip has put it.
                 object = then(then(handWorld, main.palm), inverse(mainAnchor));
                 const parent = parentOf(world, held);
                 const local = parent === null ? object : then(inverse(worldOf(world, parent)), object);
+                const before = world.get(held, Transform) as TransformData;
+                const carried = state.carried.get(held);
+                if (!carried || !(near(before.position, carried.put.p) && same(before.rotation, carried.put.r))) {
+                    state.carried.set(held, { rest: { p: { ...before.position }, r: { ...before.rotation } }, put: { p: { ...before.position }, r: { ...before.rotation } } });
+                }
                 world.update(held, Transform, (t: TransformData) => {
                     t.position = { ...local.p };
                     t.rotation = { ...local.r };
                 });
+                const after = world.get(held, Transform) as TransformData;
+                state.carried.get(held)!.put = { p: { ...after.position }, r: { ...after.rotation } };
             }
-            fingerNames.push({ arm: main, pose: profile.mainPose, weight: 1 });
+            fingerNames.push({ arm: main, pose: profile.mainPose, inline: profile.mainFingers, weight: 1 });
             const supportWeight = Math.min(1, Math.max(0, data.supportWeight));
             if (support && supportAnchor && supportWeight > 0) {
                 // Read off the object as it now stands; the object never reads this hand.
                 const goal = handFor(support, then(object, supportAnchor), worldOf(world, support.hand).s);
-                for (const [joint, turn] of bendArm(world, support, goal.at, goal.turn)) {
+                const turns = bendArm(world, support, goal.at, goal.turn);
+                for (const [joint, turn] of turns) {
                     wanted.set(joint, turn);
                     supportWeights.set(joint, supportWeight);
                 }
-                fingerNames.push({ arm: support, pose: profile.supportPose, weight: supportWeight });
+                state.short.support = turns.short ?? 0;
+                fingerNames.push({ arm: support, pose: profile.supportPose, inline: profile.supportFingers, weight: supportWeight });
             }
         }
     }
 
-    // The fingers last: a captured pose by joint, or a grip pose handed to the GripPose that holds the hand.
-    const presets: Partial<GripPoseData> = {};
-    for (const { arm, pose, weight } of fingerNames) {
-        const captured = capturedFingers(arm, pose);
+    // The fingers last: a pose said joint by joint on the profile, a captured one by joint name, or a grip pose by name; the last two kinds are handed
+    // to the grip-pose system, which eases them on over whatever else holds that hand.
+    const now: HolderState['asked'] = {};
+    for (const { arm, pose, inline, weight } of fingerNames) {
+        const side = arm === state.arms.right ? 'right' : 'left';
+        const joints = inlineFingers(inline);
+        const captured = joints ? null : capturedFingers(arm, pose);
         if (captured) {
             for (const [joint, turn] of captured) { wanted.set(joint, turn); supportWeights.set(joint, weight); }
+        } else if (joints) {
+            now[side] = { key: inline, pose: joints, weight: 0, share: weight };
         } else if (gripPose(pose)) {
-            const right = arm === state.arms.right;
-            if (right) { presets.rightPose = pose; presets.rightWeight = state.amount * weight; } else { presets.leftPose = pose; presets.leftWeight = state.amount * weight; }
+            now[side] = { key: pose, pose: gripPose(pose)!, weight: 0, share: weight };
         }
     }
-    if (Object.keys(presets).length || world.has(rig, GripPose)) {
-        if (!world.has(rig, GripPose)) world.insert(rig, GripPose, { blendSeconds: data.blendSeconds });
-        world.update(rig, GripPose, (g: GripPoseData) => {
-            if (presets.rightPose !== undefined) { g.rightPose = presets.rightPose; g.rightWeight = presets.rightWeight!; } else if (state!.amount === 0) g.rightWeight = 0;
-            if (presets.leftPose !== undefined) { g.leftPose = presets.leftPose; g.leftWeight = presets.leftWeight!; } else if (state!.amount === 0) g.leftWeight = 0;
-        });
+    // Let go of, the last grip fades out with the hold; held, what is asked now.
+    if (held && main) state.asked = now;
+    if (state.amount > 0 || held) {
+        const hands = { blendSeconds: data.blendSeconds, rightHand: data.rightHand, leftHand: data.leftHand } as Parameters<typeof askHeldHands>[2];
+        for (const side of ['right', 'left'] as const) {
+            const a = state.asked[side];
+            if (a) hands[side] = { key: a.key, pose: a.pose, weight: state.amount * a.share };
+        }
+        if (hands.right || hands.left) askHeldHands(app, rig, hands);
+    } else {
+        state.asked = {};
     }
 
     // Every joint once: the clip's turn, toward the hold's by how much of it applies, and from the old grip by how far the change has come.
@@ -427,7 +522,16 @@ const supportWeights = new Map<Entity, number>();
 const same = (a: Quat, b: Quat): boolean => Math.abs(a.w - b.w) < 1e-6 && Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6 && Math.abs(a.z - b.z) < 1e-6;
 
 /** What a holder found and is doing. @experimental */
-export function gripHolderStatus(app: App, rig: Entity): { right: boolean; left: boolean; amount: number; held: Entity } | null {
+export function gripHolderStatus(app: App, rig: Entity): {
+    right: boolean; left: boolean; amount: number; held: Entity;
+    /** How far each palm stops short of its anchor, in world units: 0 where the arm reaches it. */
+    short: { main: number; support: number };
+    /** Whether the anchors are mirrored this frame: held by the other hand than they were placed for. */
+    mirrored: boolean;
+    /** How long the palm is, from the wrist to the middle knuckle, in the hand's own units: what an editor sizes an anchor's marker by. 0 with no hand found. */
+    palm: number;
+} | null {
     const state = rigs.get(app)?.get(rig);
-    return state ? { right: !!state.arms.right, left: !!state.arms.left, amount: state.amount, held: state.held } : null;
+    const arm = state?.arms.right ?? state?.arms.left;
+    return state ? { right: !!state.arms.right, left: !!state.arms.left, amount: state.amount, held: state.held, short: { ...state.short }, mirrored: state.mirrored, palm: arm ? 2 * len(arm.palm.p) : 0 } : null;
 }

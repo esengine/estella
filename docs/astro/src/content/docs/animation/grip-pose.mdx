@@ -62,12 +62,16 @@ registerGripPose('claw', {
 | `curl` | How far the finger bends, 0 as the rig rests to 1 closed. |
 | `base` | How far its first joint bends, where that differs: a finger laid along a frame, or hooked. Defaults to `curl`. |
 | `spread` | How far the fingers fan out, -1 to 1. |
+| `bend` | Each joint's bend in degrees, knuckle first, from where the rig rests: `[30, 45, 20]`. Over `curl` and `base`. What the editor writes. |
+| `fan` | How far this one finger leans out from the middle of the hand, in degrees: the index and middle toward the thumb, the ring and little finger away. Over `spread`. |
+| `trigger` | On the pose: the index finger as `rightTrigger` takes it to 1. |
 | `opposition` | The thumb: how far it goes from where it rests to what it reaches for, 0 to 1. |
 | `to` | The thumb: `fingers` (the middle of the middle finger, as a fist or a handle) or `index` (the index tip, as a pinch). |
 | `gap` | The thumb: how far short of it it stops, in lengths of the index finger: the grip or the mug in between. |
 
 The thumb is not bent by numbers of its own: it reaches. Its tip goes to a point on the other fingers as they stand that frame, on the palm's side of them, and its two joints bend together to get there, so it lies over the fingers in a fist and comes round a grip. Out of reach (flat fingers are), it points at the place.
-| `trigger` | On the pose: the index finger as `rightTrigger` takes it to 1. |
+
+`gripPoseByJoint(pose)` writes any pose out joint by joint, holding the hand exactly as before: the starting point for changing one joint. `bend` and `fan` are measured on the hand's own axes, not a bone's, so a pose said joint by joint still fits any rig and either hand.
 
 ## On your rig
 
@@ -103,11 +107,33 @@ world.insert(hero, GripHolder, { held: rifle, placement: GripPlacement.Object })
 | `blendSeconds` | How long taking hold, letting go and changing what is held take. Every joint eases from where it was, from still and to rest, so no hand jumps. |
 | `rightHand`, `leftHand` | The hand joints by path, where their names do not find them. |
 
+| `GripProfile` field | What it does |
+|---|---|
+| `mainAnchor`, `supportAnchor` | The anchor entities. No supporting anchor holds the object in one hand. |
+| `mainPose`, `supportPose` | Each hand's fingers: a grip pose by name, or a captured finger pose. |
+| `mainFingers`, `supportFingers` | Each hand's fingers joint by joint, as JSON of a grip pose (the editor writes it). Over the pose by name where set. |
+| `hand` | The hand the anchors were placed for. Held with the other hand leading, both are mirrored. |
+| `mirror` | The object's own plane that mirrors them: the one square to its X (the default), Y or Z. |
+
 It runs after the animator, in one order every frame, so nothing can drive itself round a loop: the clip's pose; then the object, on the leading hand or where the game put it; then the supporting anchor, read off the object as it now stands; then that arm; then the fingers of both. The object never reads the supporting hand. Each frame solves from the clip's pose, never from its own last answer, and nothing reads a clock but the game's: the same inputs and steps give the same bones, bit for bit.
 
 ### Finger poses
 
 `captureFingerPose(world, handJoint)` takes the turn of every named joint under a hand as it stands, as plain JSON; `registerFingerPose(name, pose)` keeps it for a `GripProfile` to name. Pose the hand with a `GripPose`, a clip or by hand, capture it, and save the JSON with the game. A captured pose names its rig's bones, so it belongs to that rig; a grip pose by name fits any.
+
+### The other hand
+
+Anchors are placed once, for the hand `hand` names. A holder leading with the other hand gets both anchors mirrored in the object's `mirror` plane: their places reflected and their turns made the other hand's palm. Fingers by name, and fingers joint by joint, are a hand's shape rather than its bones, so they mirror too. A captured pose does not: it names one hand's bones.
+
+### In the editor
+
+Select an object with a `GripProfile`. Its section in Details edits the grip, and a character holding it shows the grip in the viewport as you change it, without Play:
+
+- **Preview.** Pick the character. One without a `GripHolder` gets one, holding this object and placed by it, so it reaches for the object where it stands in the scene. The leading-hand switch sets the holder's `mainHand`, which is how to see the mirrored grip. A palm that cannot reach its anchor says how far short it stops.
+- **Anchors.** Pick an entity, or Create one under the object. Select moves to it, for the move and rotate gizmos. The viewport draws each palm where it goes, mirrored when the other hand leads: a frame for the palm, an arrow the way the fingers point, a dashed line the way the palm faces, a stub on the thumb's side; amber for the leading hand, blue for the supporting one.
+- **Fingers.** Start from a grip pose, then change any joint's bend or any finger's lean in degrees. The first change writes the pose out joint by joint into `mainFingers` or `supportFingers`; Reset goes back to the pose itself.
+
+The preview is the viewport's **Preview FX**, the same switch spring bones use. It moves only the viewport's bones and the held object, never the scene, and turning it off gives them back as the scene has them.
 
 ### On another body
 
@@ -116,7 +142,8 @@ Anchors are where a palm goes, not where a hand joint goes, and the arm is solve
 ### Limits of holding
 
 - **The fingers do not fit the object.** A pose is set, not found on the surface: they can sink into a thick grip or stop short of a thin one. Fitting them to it is not built.
-- **No editor for anchors or poses yet.** Anchors are moved with the ordinary gizmos; a finger pose is captured from code.
+- **Fingers are edited as numbers.** There is no dragging a finger joint in the viewport, and a captured pose is not edited in the section.
+- **A preview with no clip.** In the editor the character holds from the pose it stands in in the scene; how the grip sits over a clip is seen in Play.
 - **Only the supporting arm is bent with `Hand` placement,** and only the leading one is first with `Object`; a shoulder or the spine does not lean to help an arm reach.
 - **One object a holder.**
 
