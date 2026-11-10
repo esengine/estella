@@ -4262,6 +4262,8 @@ export const NOTED = {
     {"note": "Labels no longer come back as black boxes after a change between Plays."},
   "feat(editor): a grip is edited where it is held, the character holding it live in the edit viewport":
     {"note": "A grip is edited where it is held."},
+  "feat(animation): fingers close onto what they hold, a finger joint is dragged in the viewport, and a clip plays under the grip in edit mode":
+    {"note": "Fingers close onto what they hold."},
   "feat(animation): a character holds an object by anchors on it, the arms bent to them in one order that cannot loop":
     {"note": "Holding an object in both hands."},
   "feat(animation): a rig's hands held in a named pose that fits any skeleton":

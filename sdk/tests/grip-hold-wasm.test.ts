@@ -8,7 +8,8 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { App } from '../src/app/app';
 import { AnimationPlugin } from '../src/animation/AnimationPlugin';
 import { GripHand, GripHolder, GripMirror, GripPlacement, GripProfile, captureFingerPose, gripHolderStatus, registerFingerPose, releaseGripHolds, slerpQuat, type GripHolderData, type GripProfileData } from '../src/animation/gripHold';
-import { GripPose, gripPose, gripPoseByJoint, gripPoseFromJson, gripPoseStatus, palmFrameOf, registerGripPose } from '../src/animation/gripPose';
+import { GripPose, gripHandJoints, gripPose, gripPoseByJoint, gripPoseFromJson, gripPoseStatus, palmFrameOf, registerGripPose } from '../src/animation/gripPose';
+import { GripSurface, GripSurfaceShape, closeFinger, gripSurfaceLines, surfaceDistance, surfacesUnder } from '../src/animation/gripContact';
 import { Children, Name, Parent, Transform, type TransformData } from '../src/ecs/component';
 import { setEditorMode, setFxEditPreview, setPlayMode } from '../src/ecs/env';
 import { q } from '../src/math/quat';
@@ -532,3 +533,160 @@ function descendant(world: World, root: Entity, name: string): Entity {
     throw new Error(`no ${name}`);
 }
 
+
+/** How far a point is from a line through `on` along `along` (a unit vector). */
+function fromLine(p: V, on: V, along: V): number {
+    const d = { x: p.x - on.x, y: p.y - on.y, z: p.z - on.z };
+    const k = d.x * along.x + d.y * along.y + d.z * along.z;
+    return Math.hypot(d.x - along.x * k, d.y - along.y * k, d.z - along.z * k);
+}
+
+describe.skipIf(!HAS_WASM)('closing the fingers onto what is held', () => {
+    beforeAll(async () => { if (HAS_WASM) core = await loadWasmModule(); });
+
+    const FOUR = ['Index', 'Middle', 'Ring', 'Pinky'] as const;
+    /** The index finger's length, and a finger's thickness from its line to its skin: what the fingers stop short of a surface by. */
+    const SKIN = (0.04 + 0.025 + 0.02) * 0.08;
+
+    /**
+     * A right hand held on a gun by its anchor, a handle running across the palm under the knuckles: a cylinder on the anchor, along its X,
+     * `radius` round. Its axis in the world, and the hand's finger bones, come back.
+     */
+    async function onHandle(radius: number, options: { pose?: string; wrap?: boolean; shape?: number; size?: V; fingers?: string; center?: V } = {}) {
+        const s = scene();
+        const b = body(s.world);
+        const g = gun(s.world, { x: -0.15, y: 1.25, z: 0.45 });
+        s.world.update(g.e, GripProfile, (p: GripProfileData) => { p.mainPose = options.pose ?? 'fist'; p.wrap = options.wrap ?? true; p.mainFingers = options.fingers ?? ''; });
+        // The palm faces the anchor's +Y: the handle lies that way from it, a little ahead, under where the fingers start.
+        const center = options.center ?? { x: 0, y: radius + 0.012, z: 0.05 };
+        s.world.insert(g.main, GripSurface, { shape: options.shape ?? GripSurfaceShape.Cylinder, direction: 0, center, radius, height: 0.2, size: options.size ?? { x: 0.2, y: 0.03, z: 0.03 } });
+        holder(s.world, b.root, { held: g.e, placement: GripPlacement.Object, supportWeight: 0 });
+        await s.tick(4);
+        const anchor = worldPose(s.world, g.main);
+        const axis = { on: (() => { const v = q.rotate(anchor.r, center); return { x: anchor.p.x + v.x, y: anchor.p.y + v.y, z: anchor.p.z + v.z }; })(), along: q.rotate(anchor.r, { x: 1, y: 0, z: 0 }) };
+        const bones = (finger: string): V[] => [1, 2, 3, 4].map((i) => worldPose(s.world, descendant(s.world, b.arms.Right!.hand, `mixamorig:RightHand${finger}${i}`)).p);
+        /** The nearest any point of a finger's bones comes to the handle's axis. */
+        const nearest = (finger: string): number => {
+            const at = bones(finger);
+            let best = Infinity;
+            for (let k = 0; k < 3; k++) for (let i = 0; i <= 8; i++) {
+                const t = i / 8, a = at[k]!, c = at[k + 1]!;
+                best = Math.min(best, fromLine({ x: a.x + (c.x - a.x) * t, y: a.y + (c.y - a.y) * t, z: a.z + (c.z - a.z) * t }, axis.on, axis.along));
+            }
+            return best;
+        };
+        const bendOf = (finger: string): number => [1, 2, 3].reduce((n, i) => n + angle((s.world.get(descendant(s.world, b.arms.Right!.hand, `mixamorig:RightHand${finger}${i}`), Transform) as TransformData).rotation, I), 0);
+        return { s, b, g, axis, bones, nearest, bendOf, status: () => gripPoseStatus(s.app, b.root)!.right };
+    }
+
+    it('closes each finger until its bones meet the handle, and no further: on its skin, never inside it', async () => {
+        const R = 0.02;
+        const h = await onHandle(R);
+        expect(h.status().touching.filter((f) => f !== 'thumb').sort()).toEqual(['index', 'middle', 'pinky', 'ring']);
+        for (const finger of FOUR) {
+            // Within a ten-thousandth of the skin: the bisection's own step, and float32 bones.
+            expect(h.nearest(finger)).toBeGreaterThan(R + SKIN - 3e-4);
+            expect(h.nearest(finger)).toBeLessThan(R + SKIN + 1e-3);
+        }
+    });
+
+    it('closes further round a thinner handle, and less round a thicker one', async () => {
+        const thin = await onHandle(0.012), thick = await onHandle(0.03);
+        for (const finger of FOUR) expect(thin.bendOf(finger)).toBeGreaterThan(thick.bendOf(finger) + 0.1);
+    });
+
+    it('closes no further than the pose does, where the pose stops short of the handle', async () => {
+        const open = await onHandle(0.02, { pose: 'relaxed' });
+        const unwrapped = await onHandle(0.02, { pose: 'relaxed', wrap: false });
+        // The relaxed index finger is the least curled: it stops short, and is exactly as the pose has it.
+        expect(open.status().touching).not.toContain('index');
+        for (const finger of FOUR) {
+            if (open.status().touching.includes(finger.toLowerCase())) expect(open.bendOf(finger)).toBeLessThan(unwrapped.bendOf(finger));
+            else expect(Math.abs(open.bendOf(finger) - unwrapped.bendOf(finger))).toBeLessThan(1e-4);
+        }
+    });
+
+    it('goes through the handle with wrap off, as the pose says', async () => {
+        const h = await onHandle(0.02, { wrap: false });
+        expect(h.status().touching).toEqual([]);
+        expect(Math.min(...FOUR.map((f) => h.nearest(f)))).toBeLessThan(0.02);
+    });
+
+    it('rests the thumb on the handle rather than inside it', async () => {
+        const R = 0.02;
+        const h = await onHandle(R);
+        const tip = worldPose(h.s.world, descendant(h.s.world, h.b.arms.Right!.hand, 'mixamorig:RightHandThumb4')).p;
+        expect(fromLine(tip, h.axis.on, h.axis.along)).toBeGreaterThan(R + SKIN - 3e-4);
+        expect(h.nearest('Thumb')).toBeGreaterThan(R + SKIN - 3e-4);
+        expect(h.status().touching).toContain('thumb');
+    });
+
+    it('closes onto a box and a sphere the same way, on their skin', async () => {
+        const box = await onHandle(0.02, { shape: GripSurfaceShape.Box, size: { x: 0.2, y: 0.04, z: 0.04 } });
+        expect(box.status().touching.length).toBeGreaterThan(2);
+        const ball = await onHandle(0.03, { shape: GripSurfaceShape.Sphere });
+        expect(ball.status().touching.length).toBeGreaterThan(0);
+    });
+
+    it('holds every joint before the bone that touched: a fingertip meeting the object first stops the whole finger there', () => {
+        // Three joints closing to 1 together; the tip's bone (2) touches once the last joint passes 0.5.
+        const { bends, touched } = closeFinger([0, 0, 0], [1, 1, 1], (b, from) => (from <= 2 && b[2]! >= 0.5 ? 2 : -1));
+        expect(touched).toBe(true);
+        for (const b of bends) expect(b).toBeCloseTo(0.5, 2);
+        // A knuckle's bone touching holds only the knuckle: the rest go on to the pose.
+        const knuckle = closeFinger([0, 0, 0], [1, 1, 1], (b, from) => (from <= 0 && b[0]! >= 0.3 ? 0 : -1));
+        expect(knuckle.bends[0]).toBeCloseTo(0.3, 2);
+        expect(knuckle.bends[1]).toBe(1);
+        expect(knuckle.bends[2]).toBe(1);
+    });
+
+    it('fits a finger as it leans: each finger leaning out, closed onto a ball, rests on its skin', async () => {
+        const lean = (fan: number) => ({ curl: 1, bend: [90, 100, 70], fan });
+        const fingers = JSON.stringify({ thumb: { opposition: 0 }, index: lean(25), middle: lean(25), ring: lean(25), pinky: lean(25) });
+        const h = await onHandle(0.03, { shape: GripSurfaceShape.Sphere, fingers, center: { x: 0, y: 0.045, z: 0.06 } });
+        const placed = surfacesUnder(h.s.world, h.g.e);
+        const touching = h.status().touching.filter((f) => f !== 'thumb');
+        expect(touching.length).toBeGreaterThan(1);
+        for (const finger of touching) {
+            const at = h.bones(finger.charAt(0).toUpperCase() + finger.slice(1));
+            let near = Infinity;
+            for (let k = 0; k < 3; k++) for (let i = 0; i <= 8; i++) {
+                const t = i / 8, a = at[k]!, c = at[k + 1]!;
+                near = Math.min(near, surfaceDistance(placed, { x: a.x + (c.x - a.x) * t, y: a.y + (c.y - a.y) * t, z: a.z + (c.z - a.z) * t }));
+            }
+            expect(near, finger).toBeGreaterThan(SKIN - 3e-4);
+            expect(near, finger).toBeLessThan(SKIN + 1e-3);
+        }
+    });
+
+    it('goes back over fingers something else turned after the hand settled, with no clip component to say so: an editor sampling a clip', async () => {
+        const h = await onHandle(0.02);
+        const knuckle = descendant(h.s.world, h.b.arms.Right!.hand, 'mixamorig:RightHandIndex1');
+        const held = { ...(h.s.world.get(knuckle, Transform) as TransformData).rotation };
+        h.s.world.update(knuckle, Transform, (t: TransformData) => { t.rotation = q.normalize({ w: 0.9, x: 0.3, y: 0.2, z: 0.1 }); });
+        await h.s.tick(1);
+        expect(angle((h.s.world.get(knuckle, Transform) as TransformData).rotation, held)).toBeLessThan(1e-4);
+    });
+
+    it('says which joints each hand bends and the axis a positive bend turns each about', async () => {
+        const h = await onHandle(0.02);
+        const joints = gripHandJoints(h.s.app, h.b.root)!;
+        expect(joints.right.map((j) => `${j.finger}${j.joint}`)).toEqual(['index0', 'index1', 'index2', 'middle0', 'middle1', 'middle2', 'ring0', 'ring1', 'ring2', 'pinky0', 'pinky1', 'pinky2']);
+        const knuckle = joints.right[0]!;
+        expect(knuckle.entity).toBe(descendant(h.s.world, h.b.arms.Right!.hand, 'mixamorig:RightHandIndex1'));
+        expect(Math.hypot(knuckle.axis.x, knuckle.axis.y, knuckle.axis.z)).toBeCloseTo(1, 5);
+        // The knuckle's bone runs to the next joint; the last joint's to the fingertip.
+        expect(dist(knuckle.bone, (h.s.world.get(descendant(h.s.world, h.b.arms.Right!.hand, 'mixamorig:RightHandIndex2'), Transform) as TransformData).position)).toBeLessThan(1e-6);
+        expect(dist(joints.right[2]!.bone, (h.s.world.get(descendant(h.s.world, h.b.arms.Right!.hand, 'mixamorig:RightHandIndex4'), Transform) as TransformData).position)).toBeLessThan(1e-6);
+    });
+
+    it('draws each surface where the fingers meet it: every point of its lines on it', async () => {
+        for (const shape of [GripSurfaceShape.Cylinder, GripSurfaceShape.Capsule, GripSurfaceShape.Sphere, GripSurfaceShape.Box]) {
+            const h = await onHandle(0.02, { shape, size: { x: 0.1, y: 0.04, z: 0.03 } });
+            const lines = gripSurfaceLines(h.s.world, h.g.e);
+            expect(lines.length).toBeGreaterThan(2);
+            const placed = surfacesUnder(h.s.world, h.g.e);
+            for (const line of lines) for (const p of line) expect(Math.abs(surfaceDistance(placed, p))).toBeLessThan(1e-5);
+        }
+    });
+});

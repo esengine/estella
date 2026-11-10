@@ -114,12 +114,29 @@ world.insert(hero, GripHolder, { held: rifle, placement: GripPlacement.Object })
 | `mainFingers`, `supportFingers` | Each hand's fingers joint by joint, as JSON of a grip pose (the editor writes it). Over the pose by name where set. |
 | `hand` | The hand the anchors were placed for. Held with the other hand leading, both are mirrored. |
 | `mirror` | The object's own plane that mirrors them: the one square to its X (the default), Y or Z. |
+| `wrap` | Whether the fingers close onto the object's `GripSurface` shapes, each stopping where it meets one. On by default; with no surface it does nothing. |
 
 It runs after the animator, in one order every frame, so nothing can drive itself round a loop: the clip's pose; then the object, on the leading hand or where the game put it; then the supporting anchor, read off the object as it now stands; then that arm; then the fingers of both. The object never reads the supporting hand. Each frame solves from the clip's pose, never from its own last answer, and nothing reads a clock but the game's: the same inputs and steps give the same bones, bit for bit.
 
 ### Finger poses
 
 `captureFingerPose(world, handJoint)` takes the turn of every named joint under a hand as it stands, as plain JSON; `registerFingerPose(name, pose)` keeps it for a `GripProfile` to name. Pose the hand with a `GripPose`, a clip or by hand, capture it, and save the JSON with the game. A captured pose names its rig's bones, so it belongs to that rig; a grip pose by name fits any.
+
+### Closing onto the object
+
+A pose says how far the fingers close; what they close onto is the object's. Put a `GripSurface` on the object, or on anything under it, for each part a hand goes round: a cylinder or capsule for a handle or a barrel, a sphere, a box for a block grip. It is sized in its entity's own units, as a collider is:
+
+| `GripSurface` field | What it does |
+|---|---|
+| `shape` | Cylinder, Capsule, Sphere or Box. |
+| `direction` | The axis a cylinder or capsule runs along: X, Y or Z of the entity. |
+| `center` | Its middle, in the entity's own units. |
+| `radius`, `height` | A cylinder's, capsule's or sphere's radius, and a cylinder's or capsule's whole length. |
+| `size` | A box's size. |
+
+With `wrap` on, each finger closes from open toward the pose's angles, all its joints together; the bone that first meets a surface stops there with every joint before it, and the joints after it go on closing. The thumb comes in along the way it reaches and stops where a bone of it meets one. A finger stops a little short of the shape, by about its own thickness (8% of the index finger's length), and never goes further than the pose: a finger the pose leaves open stays open. A bone that starts inside a surface (a handle pressed into the palm) may go on, but no deeper. It is a distance from a point to a shape, a few hundred a hand: no physics and no mesh, and the same every time.
+
+So a `fist` with `wrap` on closes every finger onto the handle, whatever its thickness, and a `pistol` keeps its index finger out along the frame.
 
 ### The other hand
 
@@ -131,7 +148,9 @@ Select an object with a `GripProfile`. Its section in Details edits the grip, an
 
 - **Preview.** Pick the character. One without a `GripHolder` gets one, holding this object and placed by it, so it reaches for the object where it stands in the scene. The leading-hand switch sets the holder's `mainHand`, which is how to see the mirrored grip. A palm that cannot reach its anchor says how far short it stops.
 - **Anchors.** Pick an entity, or Create one under the object. Select moves to it, for the move and rotate gizmos. The viewport draws each palm where it goes, mirrored when the other hand leads: a frame for the palm, an arrow the way the fingers point, a dashed line the way the palm faces, a stub on the thumb's side; amber for the leading hand, blue for the supporting one.
-- **Fingers.** Start from a grip pose, then change any joint's bend or any finger's lean in degrees. The first change writes the pose out joint by joint into `mainFingers` or `supportFingers`; Reset goes back to the pose itself.
+- **Clip.** Pick a timeline and drag the time, or play it: the character is posed by it in the viewport and the grip goes over it, as in Play. Only the viewport is posed; taking the clip off, turning the preview off or leaving the section gives the pose back.
+- **Fingers.** Start from a grip pose, then change any joint's bend or any finger's lean in degrees. The first change writes the pose out joint by joint into `mainFingers` or `supportFingers`; Reset goes back to the pose itself. In the viewport, each finger joint of the previewing character has a handle (amber on the leading hand, blue on the supporting one): drag it to bend that joint, one undo step a drag.
+- **Close onto surfaces.** The `wrap` switch, which fingers touch a surface now, and the object's surfaces. Create adds a cylinder across the leading palm under its anchor, sized by the character's palm, to fit to the handle with the gizmos and its fields. The viewport draws the surfaces in green with the palms.
 
 The preview is the viewport's **Preview FX**, the same switch spring bones use. It moves only the viewport's bones and the held object, never the scene, and turning it off gives them back as the scene has them.
 
@@ -141,15 +160,15 @@ Anchors are where a palm goes, not where a hand joint goes, and the arm is solve
 
 ### Limits of holding
 
-- **The fingers do not fit the object.** A pose is set, not found on the surface: they can sink into a thick grip or stop short of a thin one. Fitting them to it is not built.
-- **Fingers are edited as numbers.** There is no dragging a finger joint in the viewport, and a captured pose is not edited in the section.
-- **A preview with no clip.** In the editor the character holds from the pose it stands in in the scene; how the grip sits over a clip is seen in Play.
+- **Fingers close onto simple shapes, not the mesh.** An object's surfaces are what it says they are; a grip of an odd shape is a few of them.
+- **The thumb has no handle in the viewport.** It is reached for, not bent, so it is set by its numbers; a captured pose is not edited in the section.
+- **The editor plays a timeline, not an Animator's state machine,** under the grip; the machine itself runs in Play.
 - **Only the supporting arm is bent with `Hand` placement,** and only the leading one is first with `Object`; a shoulder or the spine does not lean to help an arm reach.
 - **One object a holder.**
 
 ## Limits
 
-- **It does not touch what is held.** A pose is a shape, not a fit: fingers can sink into a wide grip or stop short of a narrow one. Use `curl` for the object, or a pose of its own.
+- **A `GripPose` on its own does not touch anything.** A pose is a shape, not a fit: fingers can sink into a wide grip or stop short of a narrow one. Holding the object with a `GripHolder` and putting `GripSurface`s on it closes them onto it.
 - **A hand's numbers are worked out once,** from how the rig stands when it is first held. A rig whose hand is mid-animation by then has its axes taken from that. In practice they are close.
 - **Rigs with a negative scale on an arm are not handled.** A mirrored bone turns the wrong way.
 - **Checked on a real rig of one kind.** The poses were tuned on a Mixamo-named character, and the same hand built with bones facing other ways and under other names gives the same fingertips, but no second real rig has been looked at.

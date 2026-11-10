@@ -44,6 +44,8 @@ export interface GripProfileData {
     hand: number;
     /** The plane of the object's own that mirrors them: the one square to its X, Y or Z. */
     mirror: number;
+    /** Whether the fingers close onto the object's grip surfaces (GripSurface, on it or under it), each stopping where it meets one. */
+    wrap: boolean;
 }
 
 /** The plane an object's anchors are mirrored in, by the axis square to it. @experimental */
@@ -55,7 +57,7 @@ export const GripMirror = { X: 0, Y: 1, Z: 2 } as const;
  * @experimental
  */
 export const GripProfile: ComponentDef<GripProfileData> = /* @__PURE__ */ defineComponent<GripProfileData>('GripProfile', {
-    mainAnchor: 0 as Entity, supportAnchor: 0 as Entity, mainPose: 'handle', supportPose: 'support', mainFingers: '', supportFingers: '', hand: 0, mirror: 0,
+    mainAnchor: 0 as Entity, supportAnchor: 0 as Entity, mainPose: 'handle', supportPose: 'support', mainFingers: '', supportFingers: '', hand: 0, mirror: 0, wrap: true,
 }, {
     entityFields: ['mainAnchor', 'supportAnchor'],
     fields: {
@@ -67,6 +69,7 @@ export const GripProfile: ComponentDef<GripProfileData> = /* @__PURE__ */ define
         supportAnchor: { tooltip: 'Where the supporting palm sits. Empty holds this in one hand.' },
         mainPose: { tooltip: 'The leading hand\'s fingers: a captured finger pose, or a grip pose (pistol, handle, support, ...).' },
         supportPose: { tooltip: 'The supporting hand\'s fingers.' },
+        wrap: { tooltip: 'Close the fingers onto the GripSurface shapes on this object and under it, each stopping where it meets one. The pose says how far they may close.' },
     },
 });
 
@@ -469,6 +472,7 @@ function hold(app: App, world: World, known: Map<Entity, HolderState>, rig: Enti
     // The fingers last: a pose said joint by joint on the profile, a captured one by joint name, or a grip pose by name; the last two kinds are handed
     // to the grip-pose system, which eases them on over whatever else holds that hand.
     const now: HolderState['asked'] = {};
+    const wrapOn = held && (world.get(held, GripProfile) as GripProfileData).wrap !== false ? { wrap: held } : {};
     for (const { arm, pose, inline, weight } of fingerNames) {
         const side = arm === state.arms.right ? 'right' : 'left';
         const joints = inlineFingers(inline);
@@ -476,9 +480,9 @@ function hold(app: App, world: World, known: Map<Entity, HolderState>, rig: Enti
         if (captured) {
             for (const [joint, turn] of captured) { wanted.set(joint, turn); supportWeights.set(joint, weight); }
         } else if (joints) {
-            now[side] = { key: inline, pose: joints, weight: 0, share: weight };
+            now[side] = { key: inline, pose: joints, weight: 0, share: weight, ...wrapOn };
         } else if (gripPose(pose)) {
-            now[side] = { key: pose, pose: gripPose(pose)!, weight: 0, share: weight };
+            now[side] = { key: pose, pose: gripPose(pose)!, weight: 0, share: weight, ...wrapOn };
         }
     }
     // Let go of, the last grip fades out with the hold; held, what is asked now.
@@ -487,7 +491,7 @@ function hold(app: App, world: World, known: Map<Entity, HolderState>, rig: Enti
         const hands = { blendSeconds: data.blendSeconds, rightHand: data.rightHand, leftHand: data.leftHand } as Parameters<typeof askHeldHands>[2];
         for (const side of ['right', 'left'] as const) {
             const a = state.asked[side];
-            if (a) hands[side] = { key: a.key, pose: a.pose, weight: state.amount * a.share };
+            if (a) hands[side] = { key: a.key, pose: a.pose, weight: state.amount * a.share, ...(a.wrap !== undefined ? { wrap: a.wrap } : {}) };
         }
         if (hands.right || hands.left) askHeldHands(app, rig, hands);
     } else {

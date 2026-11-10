@@ -662,6 +662,7 @@ export {
     gripHandJoints,
     GripSurface,
     GripSurfaceShape,
+    gripSurfaceLines,
     type GripSurfaceData,
     type GripJoint,
     type GripPoseData,

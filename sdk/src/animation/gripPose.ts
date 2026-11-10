@@ -9,11 +9,11 @@
  *          The axes are worked out from each rig's own hand, once, from where its joints stand: which way the palm faces, which way each
  *          finger points. What runs each frame is then a few quaternions a joint, and nothing at all once a hand has settled on a rig no clip moves.
  *
- *          It does not know what is held. Putting the hand on an object is the attachment's business, and fitting the fingers to its
- *          surface a later step's.
+ *          It does not know what is held. Putting the hand on an object is the attachment's business; a holder can ask for the fingers
+ *          to close onto the object's grip surfaces, which each finger then does joint by joint, the pose saying how far it may go.
  */
 import type { App } from '../app/app';
-import { defineComponent, getComponent, Children, Name, Transform, type ComponentDef, type TransformData } from '../ecs/component';
+import { defineComponent, getComponent, Children, Name, Parent, Transform, type ComponentDef, type TransformData } from '../ecs/component';
 import { defineSystem, GetWorld, Schedule } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import type { World } from '../ecs/world';
@@ -24,6 +24,7 @@ import { log } from '../util/logger';
 import { q } from '../math/quat';
 import type { Entity } from '../types';
 import { leanQuat } from './quatMix';
+import { boneDistance, closeFinger, surfacesUnder, type PlacedSurface } from './gripContact';
 
 /** How one finger is held. @experimental */
 export interface GripFinger {
@@ -167,6 +168,8 @@ const childrenOf = (world: World, e: Entity): Entity[] => (world.tryGet(e, Child
 interface Joint {
     entity: Entity;
     rest: Quat;
+    /** Where it stands from its parent as the rig rests. */
+    at: Vec3;
     curlAxis: Vec3;
     /** On a finger's first joint. */
     spreadAxis?: Vec3;
@@ -175,7 +178,13 @@ interface Joint {
 }
 
 /** A finger's joints, knuckle first. Those it has no joint for are left out. */
-type Finger = { name: FingerName; joints: Joint[]; fan: number };
+type Finger = {
+    name: FingerName; joints: Joint[]; fan: number;
+    /** Where its first joint's parent stands in the hand, and its turn: the hand itself, or a bone in the palm. */
+    root: { p: Vec3; r: Quat };
+    /** Its tip, from the last joint a pose bends. */
+    tip: Vec3;
+};
 
 /** Numbers a hand is held by, kept flat so two poses can be eased between: each finger's three joint bends and its lean (radians), then the thumb's reach, how much of it is for the index tip, and its gap. */
 const PER_FINGER = 4;
@@ -270,6 +279,13 @@ interface HandState {
     /** The numbers now, and how much of them is applied now: both eased. */
     current: Float64Array;
     wanted: Float64Array;
+    /** The pose's own numbers: what `wanted` is, until fingers closing onto a surface stop short of them. */
+    posed: Float64Array;
+    /** The fingers whose bones touch a surface, and the surfaces and the hand as this frame has them while the hand closes onto any. */
+    touching: FingerName[];
+    thumbTouching: boolean;
+    surfaces: PlacedSurface[] | null;
+    world: { p: Vec3; r: Quat; s: number };
     weight: number;
     /** How fast each number is moving, and the weight after them. */
     speed: Float64Array;
@@ -385,7 +401,8 @@ function buildHand(world: World, hand: Entity, side: 'right' | 'left'): HandStat
         const joints: Joint[] = moved.map((entity, i) => {
             const toJoint = q.conjugate(turn[i]!);
             const rest = q.normalize((world.get(entity, Transform) as TransformData).rotation);
-            const joint: Joint = { entity, rest: { ...rest }, curlAxis: norm(q.rotate(toJoint, bend)), written: { ...rest } };
+            const at0 = (world.get(entity, Transform) as TransformData).position;
+            const joint: Joint = { entity, rest: { ...rest }, at: { x: at0.x, y: at0.y, z: at0.z }, curlAxis: norm(q.rotate(toJoint, bend)), written: { ...rest } };
             if (i === 0) {
                 joint.spreadAxis = norm(q.rotate(toJoint, palm));
                 // Toward the index finger for a positive spread.
@@ -393,7 +410,7 @@ function buildHand(world: World, hand: Entity, side: 'right' | 'left'): HandStat
             }
             return joint;
         });
-        fingers.push({ name, joints, fan: FAN[name] });
+        fingers.push({ name, joints, fan: FAN[name], root: rootOf(world, hand, chain[0]!), tip: tipOf(world, chain) });
     }
     const index = chains.index ?? [], middle = chains.middle ?? [];
     const lengthOf = (chain: Entity[]): number => {
@@ -404,9 +421,35 @@ function buildHand(world: World, hand: Entity, side: 'right' | 'left'): HandStat
     };
     const reachUnit = lengthOf(index) || lengthOf(middle) || 0;
     return {
-        hand, fingers, missing, current: new Float64Array(NUMBERS), wanted: new Float64Array(NUMBERS), weight: 0, speed: new Float64Array(NUMBERS + 1), settled: false, pose: '', trigger: 0,
+        hand, fingers, missing, current: new Float64Array(NUMBERS), wanted: new Float64Array(NUMBERS), posed: new Float64Array(NUMBERS), touching: [], thumbTouching: false, surfaces: null,
+        world: { p: { x: 0, y: 0, z: 0 }, r: { w: 1, x: 0, y: 0, z: 0 }, s: 1 }, weight: 0, speed: new Float64Array(NUMBERS + 1), settled: false, pose: '', trigger: 0,
         thumb: thumbReach(world, chains.thumb ?? []), palm, across, reachUnit, index, middle,
     };
+}
+
+/** Where a finger's first joint's parent stands in the hand as the rig rests, and its turn: through any bone in the palm between. */
+function rootOf(world: World, hand: Entity, first: Entity): { p: Vec3; r: Quat } {
+    const up: Entity[] = [];
+    for (let at = (world.tryGet(first, Parent) as { entity?: Entity } | null)?.entity, guard = 0; at !== undefined && at !== hand && guard < 8; guard++) {
+        up.unshift(at);
+        at = (world.tryGet(at, Parent) as { entity?: Entity } | null)?.entity;
+    }
+    let p: Vec3 = { x: 0, y: 0, z: 0 }, r: Quat = { w: 1, x: 0, y: 0, z: 0 };
+    for (const e of up) {
+        const local = world.get(e, Transform) as TransformData;
+        p = add(p, q.rotate(r, local.position));
+        r = q.normalize(q.mul(r, local.rotation));
+    }
+    return { p, r };
+}
+
+/** A finger's tip from its last bent joint: the next bone where the chain has one, else most of the bone before, as fingers end. */
+function tipOf(world: World, chain: Entity[]): Vec3 {
+    if (chain.length > 3) return { ...(world.get(chain[3]!, Transform) as TransformData).position };
+    const last = chain[chain.length - 1]!;
+    const local = world.get(last, Transform) as TransformData;
+    // The bone before, seen from the last joint: its own place from its parent, turned into its frame.
+    return scale(q.rotate(q.conjugate(q.normalize(local.rotation)), local.position), 0.8);
 }
 
 /** The thumb's chain as it rests: null with fewer than three bones, since two cannot both reach and curl. */
@@ -434,9 +477,9 @@ function chainTip(lengths: readonly number[], bend: number): [number, number] {
 
 /**
  * The thumb's joints turned so its tip lands on `goal`, its bones curling toward `inward`: the bend found by halving, the plane by where the goal is.
- * Answers each joint's turn from the hand.
+ * Answers each joint's turn from the hand; `points`, where given, gets where its root, its joints and its tip then stand in the hand.
  */
-function reachThumb(reach: ThumbReach, goal: Vec3, inward: Vec3): [Quat, Quat, Quat] {
+function reachThumb(reach: ThumbReach, goal: Vec3, inward: Vec3, points?: Vec3[]): [Quat, Quat, Quat] {
     const toGoal = sub(goal, reach.root);
     const total = reach.lengths[0] + reach.lengths[1] + reach.lengths[2];
     const want = Math.min(Math.max(Math.hypot(...xyz(toGoal)), total * 0.35), total - 1e-6);
@@ -454,6 +497,11 @@ function reachThumb(reach: ThumbReach, goal: Vec3, inward: Vec3): [Quat, Quat, Q
     const v = Math.hypot(...xyz(off)) > 1e-6 ? norm(off) : norm(cross(u, { x: 0, y: 0, z: 1 }));
     const along = (angle: number): Vec3 => add(scale(u, Math.cos(angle)), scale(v, Math.sin(angle)));
     const dirs = [along(-lean), along(bend - lean), along(2 * bend - lean)];
+    if (points) {
+        let at = reach.root;
+        points.push(at);
+        for (let i = 0; i < 3; i++) { at = add(at, scale(dirs[i]!, reach.lengths[i]!)); points.push(at); }
+    }
     // Each bone turned the least way from where its parent left it: no twist added along it.
     const turns: Quat[] = [];
     let parentNow = reach.parentTurn, parentRest = reach.parentTurn;
@@ -544,21 +592,99 @@ function ease(value: number, wanted: number, state: HandState, slot: number, ble
     return next;
 }
 
-/** Holds one hand a frame: eases its numbers on, and turns each joint to them over what is there. `poseName` tells one pose from the next; `def` is it. */
-function holdHand(world: World, state: HandState, poseName: string, def: GripPoseDef | null, weight: number, trigger: number, blend: number, dt: number, moved: boolean): void {
+/** A finger's joints and tip in the world, its joints bent by `bends` and its first leaning by `lean`, from the hand as this frame has it. */
+function fingerInWorld(state: HandState, finger: Finger, bends: readonly number[], lean: number): Vec3[] {
+    let p = finger.root.p, r = finger.root.r;
+    const out: Vec3[] = [];
+    const w = state.world;
+    const toWorld = (v: Vec3): Vec3 => add(w.p, q.rotate(w.r, scale(v, w.s)));
+    for (let i = 0; i < finger.joints.length; i++) {
+        const joint = finger.joints[i]!;
+        p = add(p, q.rotate(r, joint.at));
+        let turn = axisAngle(joint.curlAxis, bends[i] ?? 0);
+        if (joint.spreadAxis && lean !== 0) turn = q.mul(axisAngle(joint.spreadAxis, lean), turn);
+        r = q.normalize(q.mul(r, q.mul(joint.rest, turn)));
+        out.push(toWorld(p));
+    }
+    out.push(toWorld(add(p, q.rotate(r, finger.tip))));
+    return out;
+}
+
+/** A finger's bone from the line through it to its skin: a share of the index finger's length, as fingers are. */
+const THICKNESS = 0.08;
+
+/**
+ * Each finger closed from open toward the pose, joint by joint, until it meets a surface: what `wanted` asks of its bends then. Answers whether
+ * that changed anything. The thumb is moved out of the surfaces where it reaches (`thumbTurns`).
+ */
+function closeOnto(world: World, state: HandState, surfaces: PlacedSurface[]): boolean {
+    const t = world.get(state.hand, Transform) as TransformData;
+    state.world = { p: { ...t.worldPosition }, r: q.normalize(t.worldRotation), s: Math.abs(t.worldScale.x) || 1 };
+    state.surfaces = surfaces;
+    const skin = state.reachUnit * THICKNESS * state.world.s;
+    let changed = false;
+    const touching: FingerName[] = [];
+    for (const finger of state.fingers) {
+        if (finger.name === 'thumb') continue;
+        const at = FINGERS.indexOf(finger.name) * PER_FINGER;
+        const n = finger.joints.length;
+        const limit = Array.from({ length: n }, (_, i) => state.posed[at + i]!);
+        const lean = state.posed[at + 3]!;
+        const start = limit.map((b) => Math.min(0, b));
+        // A bone already within its thickness of a surface as the finger opens (a handle pressed into the palm) may go on, but no deeper than it started.
+        const open = fingerInWorld(state, finger, start, lean);
+        const reach = Array.from({ length: n }, (_, k) => Math.min(skin, boneDistance(surfaces, open[k]!, open[k + 1]!) - 1e-6));
+        const { bends, touched } = closeFinger(start, limit, (b, from) => {
+            const points = fingerInWorld(state, finger, b, lean);
+            for (let k = from; k < n; k++) if (boneDistance(surfaces, points[k]!, points[k + 1]!) <= reach[k]!) return k;
+            return -1;
+        });
+        if (touched) touching.push(finger.name);
+        for (let i = 0; i < n; i++) {
+            if (Math.abs(state.wanted[at + i]! - bends[i]!) > 1e-5) { state.wanted[at + i] = bends[i]!; changed = true; }
+        }
+    }
+    state.touching = touching;
+    return changed;
+}
+
+/** Whether every joint still stands as this last wrote it: something else (a clip, an editor sampling one) may have turned them since. */
+function standsAsWritten(world: World, state: HandState): boolean {
+    for (const finger of state.fingers) {
+        for (const joint of finger.joints) {
+            if (!world.valid(joint.entity) || !same((world.get(joint.entity, Transform) as TransformData).rotation, joint.written)) return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Holds one hand a frame: eases its numbers on, and turns each joint to them over what is there. `poseName` tells one pose from the next; `def` is it.
+ * `surfaces`, where there are any, are what the fingers close onto.
+ */
+function holdHand(world: World, state: HandState, poseName: string, def: GripPoseDef | null, weight: number, trigger: number, blend: number, dt: number, moved: boolean, surfaces: PlacedSurface[] | null): void {
     const pose = poseName ? def : null;
     if (poseName !== state.pose) {
         if (poseName && !pose) log.warn('animation', `there is no grip pose called "${poseName}": the hand is left alone`);
         state.pose = poseName;
         // A new pose eases on from where the hand is; a hand let go keeps its numbers and fades by its weight.
-        if (pose) numbersOf(pose, state.wanted);
+        if (pose) { numbersOf(pose, state.posed); state.wanted.set(state.posed); }
+        state.settled = false;
+    }
+    if (pose && surfaces && surfaces.length) {
+        if (closeOnto(world, state, surfaces)) state.settled = false;
+    } else if (state.surfaces) {
+        // Nothing to close onto any more: back to the pose itself.
+        state.surfaces = null;
+        state.touching = [];
+        if (pose) state.wanted.set(state.posed);
         state.settled = false;
     }
     const wantedWeight = pose ? clamp01(weight) : 0;
     const press = pose?.trigger ? clamp01(trigger) : 0;
     if (press !== state.trigger) { state.trigger = press; state.settled = false; }
     if (wantedWeight !== state.weight) state.settled = false;
-    if (state.settled && !moved) return;
+    if (state.settled && !moved && standsAsWritten(world, state)) return;
 
     let arrived = true;
     for (let i = 0; i < NUMBERS; i++) {
@@ -628,8 +754,28 @@ function thumbTurns(world: World, state: HandState): [Quat, Quat, Quat] | null {
     const on = add(scale(fingers, 1 - toIndex), scale(index, toIndex));
     const thickness = state.reachUnit * 0.16;
     const contact = add(on, scale(state.palm, thickness + state.current[GAP]! * state.reachUnit));
-    const goal = add(scale(reach.restTip, 1 - amount), scale(contact, amount));
-    return reachThumb(reach, goal, norm(add(scale(state.across, -0.8), scale(state.palm, 0.6))));
+    const inward = norm(add(scale(state.across, -0.8), scale(state.palm, 0.6)));
+    const goalAt = (a: number): Vec3 => add(scale(reach.restTip, 1 - a), scale(contact, a));
+    state.thumbTouching = false;
+    if (!state.surfaces) return reachThumb(reach, goalAt(amount), inward);
+    // Over a surface, the thumb comes in along the same way and stops where a bone of it meets one: a goal on the far side of a handle, past
+    // where the thumb can reach, would otherwise straighten it through the handle.
+    const w = state.world, surfaces = state.surfaces;
+    const skin = state.reachUnit * THICKNESS * w.s;
+    const bonesAt = (a: number): Vec3[] => {
+        const points: Vec3[] = [];
+        reachThumb(reach, goalAt(a), inward, points);
+        return points.map((p) => add(w.p, q.rotate(w.r, scale(p, w.s))));
+    };
+    const open = bonesAt(0);
+    const limit = [0, 1, 2].map((k) => Math.min(skin, boneDistance(surfaces, open[k]!, open[k + 1]!) - 1e-6));
+    const { bends, touched } = closeFinger([0], [amount], (a, from) => {
+        if (from > 0) return -1;
+        const points = bonesAt(a[0]!);
+        return [0, 1, 2].some((k) => boneDistance(surfaces, points[k]!, points[k + 1]!) <= limit[k]!) ? 0 : -1;
+    });
+    state.thumbTouching = touched;
+    return reachThumb(reach, goalAt(bends[0]!), inward);
 }
 
 function letGo(world: World, state: HandState | null): void {
@@ -647,7 +793,11 @@ function letGo(world: World, state: HandState | null): void {
  * A hand pose something else asks of a rig each frame: a holder handing the fingers its grip. Over the rig's own GripPose for that hand, if it has
  * one. `key` tells one pose from the next. @internal
  */
-export interface HeldHand { key: string; pose: GripPoseDef | null; weight: number }
+export interface HeldHand {
+    key: string; pose: GripPoseDef | null; weight: number;
+    /** An object whose grip surfaces, on it and under it, the fingers close onto, the pose saying how far they may. */
+    wrap?: Entity;
+}
 /** @internal */
 export interface HeldHands { right?: HeldHand; left?: HeldHand; blendSeconds: number; rightHand: string; leftHand: string }
 
@@ -682,6 +832,29 @@ export interface GripHandStatus {
     pose: string;
     /** How much of it applies now. */
     weight: number;
+    /** The fingers whose bones touch a surface they were closed onto. */
+    touching: string[];
+}
+
+/** One joint a pose bends, and the axis it bends about in its own frame: a positive bend turns it that way. @experimental */
+export interface GripJoint {
+    finger: string;
+    /** 0 the knuckle, 1 the middle joint, 2 the last. */
+    joint: number;
+    entity: Entity;
+    axis: { x: number; y: number; z: number };
+    /** The bone it turns, to the next joint or the fingertip, in its own frame: where a handle shows which way a bend moves it. */
+    bone: { x: number; y: number; z: number };
+}
+
+/** The joints each hand of a rig bends, once the grip-pose system has seen it: what an editor puts a handle on. @experimental */
+export function gripHandJoints(app: App, rig: Entity): { right: GripJoint[]; left: GripJoint[] } | null {
+    const state = rigs.get(app)?.get(rig);
+    if (!state) return null;
+    const of = (h: HandState | null): GripJoint[] => (h ? h.fingers.filter((f) => f.name !== 'thumb').flatMap((f) => f.joints.map((j, i) => ({
+        finger: f.name, joint: i, entity: j.entity, axis: { ...j.curlAxis }, bone: { ...(f.joints[i + 1]?.at ?? f.tip) },
+    }))) : []);
+    return { right: of(state.right), left: of(state.left) };
 }
 
 const rigs = new WeakMap<App, Map<Entity, RigState>>();
@@ -692,6 +865,7 @@ export function gripPoseStatus(app: App, rig: Entity): { right: GripHandStatus; 
     if (!state) return null;
     const of = (h: HandState | null): GripHandStatus => ({
         hand: h?.hand ?? null, joints: h ? h.fingers.reduce((n, finger) => n + finger.joints.length, 0) : 0, missing: h ? [...h.missing] : [...FINGERS], pose: h?.pose ?? '', weight: h?.weight ?? 0,
+        touching: h ? [...(h.thumbTouching && h.surfaces ? ['thumb'] : []), ...h.touching] : [],
     });
     return { right: of(state.right), left: of(state.left) };
 }
@@ -714,14 +888,24 @@ export function installGripPose(app: App): void {
             if (state.byComponent) { letGo(world, state.right); letGo(world, state.left); known.delete(rig); }
         }
         const rigsNow = new Set<Entity>([...comps, ...wanted.keys(), ...known.keys()]);
+        // Closing onto a surface measures where the hand and the object are this frame, after the hold has moved both.
+        const placed = new Map<Entity, PlacedSurface[]>();
+        let composed = false;
+        const surfacesOf = (object: Entity | undefined): PlacedSurface[] | null => {
+            if (object === undefined || !world.valid(object)) return null;
+            if (!composed) { world.ensureTransformsComposed(); composed = true; }
+            let found = placed.get(object);
+            if (!found) { found = surfacesUnder(world, object); placed.set(object, found); }
+            return found;
+        };
         for (const rig of rigsNow) {
             if (!world.valid(rig)) continue;
             const data = comps.has(rig) ? world.get(rig, GripPose) as GripPoseData : null;
             const ask = wanted.get(rig);
             const rightHandPath = data?.rightHand || ask?.rightHand || '', leftHandPath = data?.leftHand || ask?.leftHand || '';
-            const handOf = (side: 'right' | 'left'): { key: string; def: GripPoseDef | null; weight: number; trigger: number } => {
+            const handOf = (side: 'right' | 'left'): { key: string; def: GripPoseDef | null; weight: number; trigger: number; wrap?: Entity } => {
                 const held = ask?.[side];
-                if (held) return { key: held.key, def: held.pose, weight: held.weight, trigger: data ? (side === 'right' ? data.rightTrigger : data.leftTrigger) : 0 };
+                if (held) return { key: held.key, def: held.pose, weight: held.weight, trigger: data ? (side === 'right' ? data.rightTrigger : data.leftTrigger) : 0, wrap: held.wrap };
                 if (data) {
                     const name = side === 'right' ? data.rightPose : data.leftPose;
                     return { key: name, def: poses.get(name) ?? null, weight: side === 'right' ? data.rightWeight : data.leftWeight, trigger: side === 'right' ? data.rightTrigger : data.leftTrigger };
@@ -752,7 +936,7 @@ export function installGripPose(app: App): void {
                     else if (state[side]!.missing.length) log.warn('animation', `the ${side} hand of "${nameOf(world, rig)}" has no bones for its ${state[side]!.missing.join(', ')}: a pose does without them`);
                 }
                 const hand = state[side];
-                if (hand) holdHand(world, hand, poseName, hands[side].def, hands[side].weight, hands[side].trigger, blend, time.delta, moved);
+                if (hand) holdHand(world, hand, poseName, hands[side].def, hands[side].weight, hands[side].trigger, blend, time.delta, moved, surfacesOf(hands[side].wrap));
             }
             // Hands no one asks for any more, faded all the way out: nothing is left to hold.
             if (!data && !ask && (!state.right || state.right.weight === 0) && (!state.left || state.left.weight === 0)) known.delete(rig);

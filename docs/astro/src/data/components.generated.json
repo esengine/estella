@@ -2951,6 +2951,12 @@
             "XZ (Y)",
             "XY (Z)"
           ]
+        },
+        {
+          "key": "wrap",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Close the fingers onto the GripSurface shapes on this object and under it, each stopping where it meets one. The pose says how far they may close."
         }
       ],
       "animatable": [
@@ -2958,6 +2964,73 @@
         "supportAnchor",
         "hand",
         "mirror"
+      ]
+    },
+    {
+      "name": "GripSurface",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "shape",
+          "type": "enum",
+          "default": "Cylinder",
+          "doc": "What the fingers close onto.",
+          "values": [
+            "Cylinder",
+            "Capsule",
+            "Sphere",
+            "Box"
+          ]
+        },
+        {
+          "key": "direction",
+          "type": "enum",
+          "default": "Y",
+          "doc": "The axis a cylinder or capsule runs along.",
+          "values": [
+            "X",
+            "Y",
+            "Z"
+          ]
+        },
+        {
+          "key": "center",
+          "type": "Vec3",
+          "default": "(0, 0, 0)",
+          "doc": "Its middle, in this entity's own units."
+        },
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "0.5",
+          "doc": "A cylinder's, capsule's or sphere's radius.",
+          "range": "≥ 0, step 0.001"
+        },
+        {
+          "key": "height",
+          "type": "number",
+          "default": "1",
+          "doc": "A cylinder's or capsule's whole length.",
+          "range": "≥ 0, step 0.001"
+        },
+        {
+          "key": "size",
+          "type": "Vec3",
+          "default": "(1, 1, 1)",
+          "doc": "A box's size."
+        }
+      ],
+      "animatable": [
+        "shape",
+        "direction",
+        "center.x",
+        "center.y",
+        "center.z",
+        "radius",
+        "height",
+        "size.x",
+        "size.y",
+        "size.z"
       ]
     },
     {
