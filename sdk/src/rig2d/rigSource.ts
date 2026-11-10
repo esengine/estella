@@ -27,6 +27,11 @@ export interface RigBone {
     rotation: number;
     /** How far it reaches along its own +x. Draws the bone, aims an IK chain, and shapes automatic weights. */
     length: number;
+    /**
+     * What the prefab names this bone's entity by, so what a scene adds to it stays on it when bones are reordered, removed or reparented.
+     * Missing on a rig saved before there were ids, which is read as `b<index>`, the name those prefabs used. See {@link ensureRigBoneIds}.
+     */
+    id?: string;
 }
 
 /** @experimental */
@@ -82,11 +87,14 @@ export function checkRig(rig: RigSource): string[] {
     if (!(rig.textureWidth > 0) || !(rig.textureHeight > 0)) out.push('the image size is missing');
     if (!(rig.unitsPerPixel > 0)) out.push('unitsPerPixel must be above 0');
     if (!Array.isArray(rig.bones) || !Array.isArray(rig.parts) || !Array.isArray(rig.deforms)) return [...out, 'bones, parts and deforms must be lists'];
-    const boneNames = new Set<string>();
+    const boneNames = new Set<string>(), boneIds = new Set<string>();
     rig.bones.forEach((b, i) => {
         if (typeof b?.name !== 'string' || b.name === '') out.push(`bone ${i} has no name`);
         else if (boneNames.has(b.name)) out.push(`two bones are called "${b.name}": a clip names a bone by its path, so the second could not be reached`);
         else boneNames.add(b.name);
+        if (b?.id !== undefined && (typeof b.id !== 'string' || b.id === '')) out.push(`bone "${b?.name}" has a bad id`);
+        else if (b?.id !== undefined && boneIds.has(b.id)) out.push(`two bones have the id "${b.id}": a scene could not tell their entities apart`);
+        else if (b?.id !== undefined) boneIds.add(b.id);
         if (!Number.isInteger(b?.parent) || b.parent < -1 || b.parent >= i) out.push(`bone "${b?.name}" must name a parent earlier in the list`);
         if (![b?.x, b?.y, b?.rotation, b?.length].every(finite) || b.length < 0) out.push(`bone "${b?.name}" has a bad position, rotation or length`);
     });
@@ -134,6 +142,32 @@ export function serializeRig(rig: RigSource): string {
     return `${JSON.stringify(rig, (_key, value) => (typeof value === 'number' && !Number.isInteger(value) ? Number(value.toFixed(5)) : value), 2)}\n`;
 }
 
+const ID_PATTERN = /^b(\d+)$/;
+
+/** The id the prefab names bone `index`'s entity by. A bone with none is named by its index, which is what every rig saved before ids had. @experimental */
+export function rigBoneId(bones: readonly RigBone[], index: number): string {
+    return bones[index]?.id ?? `b${index}`;
+}
+
+/**
+ * Gives every bone without an id one, without reusing one already given: a scene may still hold what it added to a removed bone's entity,
+ * and a new bone must not inherit it. Call before anything reorders the list.
+ * @experimental
+ */
+export function ensureRigBoneIds(rig: RigSource): void {
+    // A rig with no ids yet is one saved before them: its bones keep the names its prefab already gave their entities.
+    if (rig.bones.every(b => !b.id)) { rig.bones.forEach((b, i) => { b.id = `b${i}`; }); return; }
+    let next = rig.bones.length;
+    for (const b of rig.bones) next = Math.max(next, Number(ID_PATTERN.exec(b.id ?? '')?.[1] ?? -1) + 1);
+    const used = new Set(rig.bones.flatMap(b => (b.id ? [b.id] : [])));
+    for (const b of rig.bones) {
+        if (b.id) continue;
+        while (used.has(`b${next}`)) next++;
+        b.id = `b${next++}`;
+        used.add(b.id);
+    }
+}
+
 /** A bone's place in rig space. @experimental */
 export interface RigBoneWorld { x: number; y: number; rotation: number }
 
@@ -152,6 +186,8 @@ export function rigBoneWorlds(bones: readonly RigBone[], rotations?: ArrayLike<n
 
 /** Takes a bone out, giving its children to its parent where they stand, and its vertices to its parent or nearest survivor. @experimental */
 export function removeRigBone(rig: RigSource, index: number): void {
+    // The survivors move up the list, so they need names that do not.
+    ensureRigBoneIds(rig);
     const worlds = rigBoneWorlds(rig.bones), gone = rig.bones[index];
     if (!gone) return;
     const heir = gone.parent >= 0 ? gone.parent : -1;

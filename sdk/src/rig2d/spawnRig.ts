@@ -9,7 +9,7 @@ import { PREFAB_FORMAT_VERSION } from '../prefab/migrate';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { Bone2D } from './rig2dPlugin';
-import type { RigSource } from './rigSource';
+import { rigBoneId, type RigSource } from './rigSource';
 
 /** @experimental */
 export interface SpawnedRig {
@@ -46,7 +46,8 @@ export function spawnRig(world: World, rig: RigSource, opts: { mesh: number; tex
  * @experimental
  */
 export function rigPrefab(rig: RigSource, name: string, mesh: string, texture: string): { version: string; name: string; rootEntityId: string; entities: Record<string, unknown>[] } {
-    const idOf = (i: number): string => `b${i}`;
+    // By id, not index: what a scene added to a bone's entity has to stay on that bone when the rig's list is reordered.
+    const idOf = (i: number): string => rigBoneId(rig.bones, i);
     const children = (parent: number): string[] => rig.bones.flatMap((b, i) => (b.parent === parent ? [idOf(i)] : []));
     const entities: Record<string, unknown>[] = [{
         prefabEntityId: 'root', name, parent: null, children: children(-1), visible: true,

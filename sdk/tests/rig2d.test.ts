@@ -5,7 +5,8 @@ import { decodeMesh, encodeMesh, MeshChannel } from '../src/asset/meshFormat';
 import {
     autoWeightPart, bakeRig, bindPartToBone, chainTip, checkRig, clampAngle, coverRigPart, createRig, findRigParts, paintPartWeights, parseRig,
     partWeightsOf, pushRigDeform, removeRigBone, rigBoneWorlds, rigImageFromRGBA, rigVertex, serializeRig, skinRigPart, solveChain2D,
-    type ChainBone, type RigPart, type RigSource,
+    ensureRigBoneIds, rebindRigToSkeleton, remapRigPath, rigBoneId, rigBonePaths, rigParentProblem, rigPathChanges, rigPrefab, setRigBoneParent,
+    type ChainBone, type RigBone, type RigPart, type RigSource,
 } from '../src/rig2d/index';
 
 const solidImage = (w: number, h: number, drawn: (x: number, y: number) => boolean) => ({ width: w, height: h, alpha: (x: number, y: number) => (drawn(x, y) ? 255 : 0) });
@@ -315,5 +316,120 @@ describe('chain solving', () => {
         expect(clampAngle(-3.1, 2.8, 3.4)).toBeCloseTo(-3.1 + Math.PI * 2);
         expect(clampAngle(0, -1, 1)).toBe(0);
         expect(clampAngle(5, undefined, undefined)).toBe(5);
+    });
+});
+
+describe('rebinding', () => {
+    /** a -> b -> c along +x, and d a second root, each vertex on one bone. */
+    function chain(): RigSource {
+        const rig = createRig('x.png', 10, 10);
+        rig.bones.push(
+            { name: 'a', parent: -1, x: 0, y: 0, rotation: 0.3, length: 10 },
+            { name: 'b', parent: 0, x: 10, y: 0, rotation: 0.4, length: 10 },
+            { name: 'c', parent: 1, x: 10, y: 0, rotation: -0.2, length: 10 },
+            { name: 'd', parent: -1, x: 5, y: 20, rotation: 1, length: 10 },
+        );
+        rig.parts.push({ name: 'p', rect: { x: 0, y: 0, w: 1, h: 1 }, x: 0, y: 0, vertices: [0, 0, 1, 0, 2, 0, 3, 0], triangles: [], weights: [[0, 1], [1, 1], [2, 1], [3, 1]] });
+        return rig;
+    }
+    const worldsByName = (rig: RigSource) => new Map(rigBoneWorlds(rig.bones).map((w, i) => [rig.bones[i]!.name, w]));
+
+    it("gives an old rig's bones the ids its prefab already used, and a new bone one nobody had", () => {
+        const rig = chain();
+        ensureRigBoneIds(rig);
+        expect(rig.bones.map(b => b.id)).toEqual(['b0', 'b1', 'b2', 'b3']);
+        removeRigBone(rig, 3);
+        rig.bones.push({ name: 'e', parent: -1, x: 0, y: 0, rotation: 0, length: 1 });
+        ensureRigBoneIds(rig);
+        expect(rig.bones[3]!.id).not.toBe('b3');
+        removeRigBone(rig, 1);
+        rig.bones.push({ name: 'f', parent: -1, x: 0, y: 0, rotation: 0, length: 1 });
+        ensureRigBoneIds(rig);
+        expect(new Set(rig.bones.map(b => b.id)).size).toBe(rig.bones.length);
+        expect(checkRig(rig)).toEqual([]);
+    });
+
+    it("names a bone's prefab entity by its id, so a reorder leaves a scene's additions on the same bone", () => {
+        const rig = chain();
+        ensureRigBoneIds(rig);
+        const before = rigPrefab(rig, 'R', 'm', 't').entities.find(e => e.name === 'd')!.prefabEntityId;
+        setRigBoneParent(rig, 0, 3);
+        const prefab = rigPrefab(rig, 'R', 'm', 't');
+        expect(prefab.entities.find(e => e.name === 'd')!.prefabEntityId).toBe(before);
+        expect(prefab.entities.find(e => e.name === 'a')!.parent).toBe(before);
+    });
+
+    it("refuses two bones of one id, and a parent below the bone", () => {
+        const rig = chain();
+        ensureRigBoneIds(rig);
+        rig.bones[1]!.id = 'b0';
+        expect(checkRig(rig).join(' ')).toMatch(/id "b0"/);
+        expect(rigParentProblem(chain(), 0, 2)).toMatch(/below/);
+        expect(rigParentProblem(chain(), 1, 1)).toMatch(/own parent/);
+        expect(() => setRigBoneParent(chain(), 0, 2)).toThrow(/below/);
+    });
+
+    it("reparents where the bone stands, reordering the list and the weights with it", () => {
+        const rig = chain();
+        const before = worldsByName(rig);
+        const index = setRigBoneParent(rig, 0, 3);
+        expect(rig.bones.map(b => b.name)).toEqual(['d', 'a', 'b', 'c']);
+        expect(index).toBe(1);
+        expect(rig.bones[1]!.parent).toBe(0);
+        for (const [name, w] of worldsByName(rig)) {
+            expect(w.x).toBeCloseTo(before.get(name)!.x); expect(w.y).toBeCloseTo(before.get(name)!.y); expect(w.rotation).toBeCloseTo(before.get(name)!.rotation);
+        }
+        // Each vertex still follows the bone of the same name.
+        expect(rig.parts[0]!.weights.map(w => rig.bones[w[0]!]!.name)).toEqual(['a', 'b', 'c', 'd']);
+        expect(checkRig(rig)).toEqual([]);
+        expect(() => bakeRig(rig)).not.toThrow();
+    });
+
+    it("makes a bone a root where it stands", () => {
+        const rig = chain();
+        const before = worldsByName(rig).get('c')!;
+        setRigBoneParent(rig, 2, -1);
+        const after = worldsByName(rig).get('c')!;
+        expect(after.x).toBeCloseTo(before.x); expect(after.y).toBeCloseTo(before.y); expect(after.rotation).toBeCloseTo(before.rotation);
+        expect(rigBonePaths(rig.bones)).toContain('c');
+    });
+
+    it("binds to another skeleton by name, giving an unmatched bone's vertices to its nearest matched ancestor", () => {
+        const rig = chain();
+        const skeleton: RigBone[] = [
+            { name: 'root', parent: -1, x: 0, y: 0, rotation: 0, length: 1, id: 'r' },
+            { name: 'a', parent: 0, x: 0, y: 0, rotation: 0, length: 12, id: 'ka' },
+            { name: 'b', parent: 1, x: 12, y: 0, rotation: 0, length: 12, id: 'kb' },
+        ];
+        const vertsBefore = JSON.stringify(rig.parts[0]!.vertices);
+        const report = rebindRigToSkeleton(rig, skeleton);
+        expect(rig.bones.map(b => b.id)).toEqual(['r', 'ka', 'kb']);
+        expect(report.matched).toEqual(['a', 'b']);
+        expect(report.moved).toEqual([{ from: 'c', to: 'b' }, { from: 'd', to: expect.any(String) }]);
+        expect(rig.parts[0]!.weights.slice(0, 3).map(w => rig.bones[w[0]!]!.name)).toEqual(['a', 'b', 'b']);
+        expect(JSON.stringify(rig.parts[0]!.vertices)).toBe(vertsBefore);
+        expect(checkRig(rig)).toEqual([]);
+        // The skeleton handed in is not changed by the rig that took it.
+        expect(skeleton[1]!.length).toBe(12);
+    });
+
+    it("tells a clip's paths what they became: renamed, reparented, below a bone, and gone", () => {
+        const before = chain().bones;
+        ensureRigBoneIds({ bones: before } as RigSource);
+        const rig = chain();
+        rig.bones.forEach((b, i) => { b.id = before[i]!.id; });
+        rig.bones[1]!.name = 'mid';
+        setRigBoneParent(rig, 3, 0);
+        removeRigBone(rig, rig.bones.findIndex(b => b.name === 'c'));
+        const changes = rigPathChanges(before, rig.bones);
+        expect(remapRigPath('a', changes)).toBe('a');
+        expect(remapRigPath('a/b', changes)).toBe('a/mid');
+        expect(remapRigPath('d', changes)).toBe('a/d');
+        expect(remapRigPath('a/b/sword', changes)).toBe('a/mid/sword');
+        expect(remapRigPath('a/b/c', changes)).toBeNull();
+        expect(remapRigPath('a/b/c/tip', changes)).toBeNull();
+        expect(remapRigPath('elsewhere', changes)).toBe('elsewhere');
+        expect(remapRigPath('', changes)).toBe('');
+        expect(rigBoneId(rig.bones, 0)).toBe('b0');
     });
 });

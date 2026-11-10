@@ -26,11 +26,28 @@ Right-click an image in the Content Browser and choose **Create 2D Rig**. Then w
 | **Weights** | **By Distance** binds what is nearest, then paint what that got wrong: pick a bone on the right and drag. `Shift` inverts, `Ctrl` smooths, `[` and `]` change the radius. **Whole Part to Selected Bone** is for a piece that does not bend. |
 | **Deforms** | **New Shape**, then drag to push vertices: a breath, a smile, a bulge. |
 
-**Try Pose** turns bones to see how the weights hold up. It changes nothing in the rig, and **Bind Pose** puts it back. **Place in Scene** saves and instantiates the prefab. Saving again updates every instance, keeping what a scene added to one.
+**Try Pose** turns bones to see how the weights hold up. It changes nothing in the rig, and **Bind Pose** puts it back. **Place in Scene** saves and instantiates the prefab. Saving again updates every instance in the open scene, keeping what a scene added to one; when the scene has unsaved changes, its instances update the next time it opens.
 
 <Aside type="note">
   This version has no adding or deleting single vertices, and a character draws from one image. Generating a part's mesh again clears that part's weights and deforms, and asks first.
 </Aside>
+
+## Rebind after binding
+
+A character is never locked to the skeleton it was weighted on.
+
+- **Move a bone.** In **Bind Pose**, dragging a bone or typing its length or rotation changes the bind pose itself. The picture stays where it is, so a bone placed wrong can just be moved.
+- **New parent.** In **Bones**, pick **Parent** for the selected bone, or **None (root)**. It keeps its place in the picture, and so does everything below it.
+- **Rename or remove.** Removing a bone hands its children and vertices to its parent.
+- **Recompute weights.** **By Distance** again, or **Whole Part to Selected Bone**, then paint.
+- **Another rig's skeleton.** Under **Skeleton**, pick another `.esrig` and **Rebind to This Skeleton**. Bones are matched by name. A vertex on a bone with no namesake goes to its nearest matched parent. Rigs that share a skeleton have the same bone names and paths, so they play the same clips.
+
+Saving keeps up what depended on the old names:
+
+- Clips (`.estimeline`) and Animator layer masks (`.esanimator`) that named a renamed or reparented bone by its path are rewritten. A clip counts as this rig's when most of its paths are this rig's bones. A track on a removed bone keeps its path, and the save says how many there are.
+- Each bone keeps an id, which is what its prefab entity is named by. What the scene added to a bone, such as an `IK2D` or a sword parented to the hand, stays on that bone through reordering, reparenting and removal elsewhere.
+
+**In the scene**, select an entity with a `MeshSkin` and use **Rebind To** in Details: pick another skeleton in the scene and **Rebind Joints by Name**. Each joint finds the entity of its name below that skeleton. When a name appears twice, as `hand` does under both arms, the parents' names decide. A joint with no match keeps its entity and is named. This works for 3D skins too, for example a jacket bound to a body.
 
 ## Animate it
 
