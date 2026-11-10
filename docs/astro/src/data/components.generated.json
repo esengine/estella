@@ -3751,6 +3751,19 @@
           "doc": "Baked probe grid (.esprobes) filling this box."
         },
         {
+          "key": "capture",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Fill this box at run time from a capture at its centre (the room as lit now), not from a bake."
+        },
+        {
+          "key": "captureInterval",
+          "type": "number",
+          "default": "0",
+          "doc": "Seconds between captures (0 = once). Each one adds a bounce.",
+          "range": "≥ 0"
+        },
+        {
           "key": "halfExtents",
           "type": "Vec3",
           "default": "(100, 100, 100)",

@@ -405,6 +405,18 @@ public:
      *          window they are looking through.
      */
     void setViewShading(u32 view, ShadingMode mode) { view_shading_.set(view, mode); }
+    /**
+     * @brief Capture the scene around @p position (world) into six @p face-pixel faces, one a frame, and read them back:
+     *        a probe volume filled at run time (RenderFrameProbeCapture.cpp). A request replaces one in flight.
+     */
+    void requestProbeCapture(const glm::vec3& position, u32 face);
+    /** @brief 0 = not yet, 1 = ready (probeCapturePixels), 2 = none asked for or it failed. Between frames only. */
+    i32 pollProbeCapture();
+    /** @brief The six faces side by side, +X -X +Y -Y +Z -Z, RGBM over 8 in RGBA8 (alpha 0 = nothing drawn), rows bottom-up. */
+    const std::vector<u8>& probeCapturePixels() const { return probe_capture_.pixels; }
+    /** @brief The grid a volume reads instead of its own `probes` (a capture's), or an invalid handle to stop. */
+    void setProbeVolumeOverride(u32 entity, resource::ProbeVolumeHandle grid);
+
     /** @brief How many world units make a metre (the project's setting): what an inverse-square light measures in. */
     void setWorldUnitsPerMeter(f32 units) { world_units_per_meter_ = units > 0.0f ? units : 100.0f; }
 
@@ -772,6 +784,24 @@ private:
     /** @brief Gathers the scene's reflection probes and binds the atlas they name. */
     void collectReflections(ecs::Registry& registry);
     void declarePlanarReflection(ecs::Registry& registry);
+    void declareProbeCapture(ecs::Registry& registry);
+    void executeProbeFace(ecs::Registry& registry);
+    struct ProbeCapture {
+        enum class State : u8 { Idle, Capturing, Drawn, Reading };
+        State state = State::Idle;
+        glm::vec3 position{0.0f};
+        u32 face = 32;
+        u32 next = 0;
+        u64 frame = ~0ull;
+        glm::mat4 viewProjection{1.0f};
+        Unique<Framebuffer> faces[6];
+        Unique<Framebuffer> atlas;
+        BufferHandle frameUbo = BufferHandle::Invalid;
+        ReadbackHandle readback = ReadbackHandle::Invalid;
+        std::vector<u8> pixels;
+    };
+    ProbeCapture probe_capture_;
+    std::unordered_map<u32, resource::ProbeVolumeHandle> probe_overrides_;
     void executePlanarReflection(ecs::Registry& registry, u32 view);
     struct PlanarCapture {
         Unique<Framebuffer> target;
@@ -789,6 +819,8 @@ private:
     };
     std::unordered_map<u32, PlanarCapture> planar_captures_;
     TransientBufferPool planar_pool_{device_};
+    TransientBufferPool probe_pool_{device_};
+    DrawList probe_list_;
     f32 world_units_per_meter_ = 100.0f;
     /// The probe volumes' grids, packed for the per-pixel read (ProbeStore::layoutAtlas). Remade only when a grid
     /// or the set of grids changes, so a still scene uploads it once.

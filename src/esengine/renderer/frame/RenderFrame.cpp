@@ -190,6 +190,7 @@ void RenderFrame::init(u32 width, u32 height) {
     velocity_pool_.init();
     cover_pool_.init();
     planar_pool_.init();
+    probe_pool_.init();
     batch_shader_id_ = initBatchShader();
 
     RenderFrameContext initCtx{
@@ -227,6 +228,11 @@ void RenderFrame::shutdown() {
         cover_frame_ubo_ = BufferHandle::Invalid;
     }
     planar_pool_.shutdown();
+    probe_pool_.shutdown();
+    if (probe_capture_.frameUbo != BufferHandle::Invalid) {
+        device_.deleteBuffer(probe_capture_.frameUbo);
+        probe_capture_.frameUbo = BufferHandle::Invalid;
+    }
     releasePlanarCaptures();
     releaseShadowFrameUbos();
     releaseShadow2DResources();
@@ -1529,7 +1535,10 @@ void RenderFrame::collectProbes(ecs::Registry& registry) {
     for (auto entity : view) {
         const auto& volume = view.get(entity);
         if (!volume.enabled) continue;
-        const ProbeVolume* grid = resource_manager_.getProbeVolume(volume.probes);
+        // A volume filled at run time (a capture's grid) reads that instead of what it was baked with.
+        const auto overridden = probe_overrides_.find(static_cast<u32>(entity));
+        const ProbeVolume* grid = resource_manager_.getProbeVolume(
+            overridden != probe_overrides_.end() ? overridden->second : volume.probes);
         if (!grid) continue;
         // The box is axis-aligned around the entity's world position: a grid was
         // solved on world axes, so a turned volume would be read along axes it
@@ -2691,6 +2700,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     { ES_PROFILE_SCOPE("render.collect.shadow2dDeclare"); declareShadow2DPass(); }
     { ES_PROFILE_SCOPE("render.collect.shape2dDeclare"); declareShape2DPass(); }
     { ES_PROFILE_SCOPE("render.collect.planar"); declarePlanarReflection(registry); }
+    { ES_PROFILE_SCOPE("render.collect.probeCapture"); declareProbeCapture(registry); }
 
     auto ctx = makeContext();
 #ifdef ES_ENABLE_POSTPROCESS

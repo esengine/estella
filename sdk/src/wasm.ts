@@ -560,6 +560,10 @@ export interface ESEngineModule {
     postprocess_setPassContinuesEffect(name: string): void;
     postprocess_requestSkyCapture?(passName: string, width: number, height: number): void;
     renderer_setWorldUnitsPerMeter?(units: number): void;
+    renderer_requestProbeCapture?(x: number, y: number, z: number, face: number): void;
+    renderer_pollProbeCapture?(): number;
+    renderer_takeProbeCapture?(dst: number, bytes: number): boolean;
+    renderer_setProbeVolumeOverride?(entity: number, volumeHandle: number): void;
     postprocess_pollSkyCapture?(): number;
     postprocess_takeSkyCapture?(dst: number, bytes: number): boolean;
     postprocess_setMsaaSamples(samples: number): void;

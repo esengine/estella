@@ -425,8 +425,13 @@ export class SkyEnvironment {
     private lastBake_ = -Infinity;
     private warned_ = false;
     private capturing_ = false;
+    private panorama_: Panorama | null = null;
 
     constructor(private readonly minInterval = 1) {}
+
+    /** The panorama the sky's environment was last made from (radiance, Panorama's layout), or null: what a probe capture
+     *  shows where it sees the sky. */
+    get panorama(): Panorama | null { return this.panorama_; }
 
     /** The environment handle the frame is lighting with, 0 when none. */
     get environment(): number { return this.baked_?.environment ?? 0; }
@@ -452,8 +457,10 @@ export class SkyEnvironment {
         if (key === this.key_) return;
         // A first sky is made at once; a sky that keeps changing waits its turn.
         if (this.baked_ && now - this.lastBake_ < this.minInterval) return;
-        const made = bakePanorama(module, core, skyPanorama(input));
+        const panorama = skyPanorama(input);
+        const made = bakePanorama(module, core, panorama);
         if (!made) return;
+        this.panorama_ = panorama;
         this.adopt(core, made, key, now);
     }
 
@@ -482,8 +489,9 @@ export class SkyEnvironment {
                 return core.postprocess_takeSkyCapture!(ptr, bytes) ? core.HEAPU8.slice(ptr, ptr + bytes) : null;
             });
             if (!pixels) return;
-            const made = bakePanorama(module, core, decodeSkyCapture(pixels, CUSTOM_SKY_WIDTH, CUSTOM_SKY_HEIGHT));
-            if (made) this.adopt(core, made, `custom:${type}`, now);
+            const panorama = decodeSkyCapture(pixels, CUSTOM_SKY_WIDTH, CUSTOM_SKY_HEIGHT);
+            const made = bakePanorama(module, core, panorama);
+            if (made) { this.panorama_ = panorama; this.adopt(core, made, `custom:${type}`, now); }
             return;
         }
         if (this.baked_ && this.key_ === `custom:${type}` && now - this.lastBake_ < this.minInterval) return;

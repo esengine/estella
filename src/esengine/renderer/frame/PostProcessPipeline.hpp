@@ -605,6 +605,9 @@ public:
      *          frame is one write on WebGPU. A request while one is in flight replaces it.
      */
     void requestSkyCapture(const std::string& passName, u32 width, u32 height);
+    /** @brief Draws the texture on unit 0 into the bound target as RGBM over 8 (alpha 0 kept for nothing drawn): a probe
+     *         capture's face, packed for an 8-bit readback. Called inside a graph pass that reads that texture. */
+    void encodeRgbm();
     /** @brief 0 = not yet, 1 = the pixels are ready (skyCapturePixels), 2 = none was asked for or it failed. Issues the
      *         readback itself once the capture has been drawn, so call it between frames, never inside one. */
     i32 pollSkyCapture();
@@ -759,6 +762,7 @@ private:
         std::vector<u8> pixels;
     };
     SkyCapture sky_capture_;
+    resource::ShaderHandle rgbmShader_;
     bool cover_active_ = false;
     glm::mat4 cover_matrix_{1.0f};
     Unique<Framebuffer> velocity_fbo_;

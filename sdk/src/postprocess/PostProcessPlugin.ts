@@ -17,6 +17,7 @@ import { linearColorSpace } from '../ecs/env';
 import type { Entity } from '../types';
 import { resolvedLightingSky } from './volumeSystem';
 import { SkyEnvironment, skyParamsOf, skySunOf } from './skyEnvironment';
+import { probeCaptureSystem } from './probeCapture';
 
 /** Toward the sun from the first directional light that shines: the way the sky's shader finds it (the light's aim reversed). */
 function sunFromLights(lights: Iterable<[Entity, LightData, TransformData]>): [number, number, number] | null {
@@ -83,6 +84,8 @@ export class PostProcessPlugin implements Plugin {
         const sky = new SkyEnvironment();
         this.skies_.set(app, sky);
         app.addSystemToSchedule(Schedule.PostUpdate, skyEnvironmentSystem(app, sky));
+        // After the sky: a volume filled at run time shows the sky that lights the scene where it sees it.
+        app.addSystemToSchedule(Schedule.PostUpdate, probeCaptureSystem(() => app.wasmModule, () => sky.panorama));
     }
 
     cleanup(app?: App): void {

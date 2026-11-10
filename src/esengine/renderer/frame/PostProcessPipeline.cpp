@@ -253,6 +253,10 @@ void PostProcessPipeline::shutdown() {
         resourceManager_.releaseShader(exactCopyShader_);
         exactCopyShader_ = resource::ShaderHandle{};
     }
+    if (rgbmShader_.isValid()) {
+        resourceManager_.releaseShader(rgbmShader_);
+        rgbmShader_ = resource::ShaderHandle{};
+    }
     if (copyDepthShader_.isValid()) {
         resourceManager_.releaseShader(copyDepthShader_);
         copyDepthShader_ = resource::ShaderHandle{};
@@ -630,6 +634,20 @@ PostProcessPipeline::TemporalState* PostProcessPipeline::prepareHistory(Temporal
     state.format = format;
     state.valid = false;
     return &state;
+}
+
+void PostProcessPipeline::encodeRgbm() {
+    if (!rgbmShader_.isValid()) {
+        rgbmShader_ = compileBlit({"ES_RGBM"});
+        if (!rgbmShader_.isValid()) { ES_LOG_ERROR("PostProcessPipeline: the RGBM pack would not compile"); return; }
+    }
+    Shader* shader = resourceManager_.getShader(rgbmShader_);
+    if (!shader) return;
+    applyPassPipeline(*shader);
+    if (shader->hasUniform("u_texture")) shader->setUniform("u_texture", 0);
+    shader->commitParams();
+    bindBlitInputs(rgbmShader_);
+    drawScreenQuad();
 }
 
 void PostProcessPipeline::requestSkyCapture(const std::string& passName, u32 width, u32 height) {

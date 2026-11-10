@@ -818,6 +818,10 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_takeTextureWants", &esengine::renderer_takeTextureWants);
     emscripten::function("renderer_setViewShading", &esengine::renderer_setViewShading);
     emscripten::function("renderer_setWorldUnitsPerMeter", &esengine::renderer_setWorldUnitsPerMeter);
+    emscripten::function("renderer_requestProbeCapture", &esengine::renderer_requestProbeCapture);
+    emscripten::function("renderer_pollProbeCapture", &esengine::renderer_pollProbeCapture);
+    emscripten::function("renderer_takeProbeCapture", &esengine::renderer_takeProbeCapture);
+    emscripten::function("renderer_setProbeVolumeOverride", &esengine::renderer_setProbeVolumeOverride);
     emscripten::function("renderer_setMeshEdgeBuffers", &esengine::renderer_setMeshEdgeBuffers);
     emscripten::function("renderer_setViewSkinWeights", &esengine::renderer_setViewSkinWeights);
     emscripten::function("renderer_lightStatus", &esengine::renderer_lightStatus);

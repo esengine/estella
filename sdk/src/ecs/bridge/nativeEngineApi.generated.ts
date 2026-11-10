@@ -205,6 +205,7 @@ export interface NativeEngineApi {
     renderer_lodInspect?(view: number, entity: number, outPtr: number): number;
     renderer_pollFrameCapture?(handle: number): number;
     renderer_pollPreviewReadback?(): number;
+    renderer_pollProbeCapture?(): number;
     renderer_pollSkeletalPreview?(preview: number): number;
     renderer_pollSnapshotReadback?(): number;
     renderer_programEpoch?(): number;
@@ -213,6 +214,7 @@ export interface NativeEngineApi {
     renderer_renderMeshPreview?(meshId: number, w: number, h: number): void;
     renderer_renderSkeletalPreview?(preview: number, viewProjectionPtr: number): number;
     renderer_replayToDrawCall?(drawCallIndex: number): void;
+    renderer_requestProbeCapture?(x: number, y: number, z: number, face: number): void;
     renderer_resize?(width: number, height: number): void;
     renderer_retainedTextBatch?(entity: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, pageId: number, glyphMode: number): void;
     renderer_retainedTextBegin?(entity: number, sdf: number, screen: number, hasBox: number, layer: number, boxWidth: number, boxHeight: number, autoKind: number): void;
@@ -232,6 +234,7 @@ export interface NativeEngineApi {
     renderer_setMeshEdgeBuffers?(enabled: boolean): void;
     renderer_setOrigin?(x: number, y: number, z: number): void;
     renderer_setPlanarReflectionQuality?(scale: number, maxSize: number, updatesPerSecond: number): void;
+    renderer_setProbeVolumeOverride?(entity: number, volumeHandle: number): void;
     renderer_setQualityBudgets?(atlasSize: number, cellSize: number, cascades: number, particleLimit: number): void;
     renderer_setShadow2DSoftSamples?(samples: number): void;
     renderer_setShadowDistance?(distance: number): void;
@@ -256,6 +259,7 @@ export interface NativeEngineApi {
     renderer_submitSkeletalPreviewBatchEx?(preview: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, layer: number, depth: number, materialId: number, premultipliedColor: boolean): number;
     renderer_submitTextBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, glyphMode: number, cullBit: number): void;
     renderer_takeFrameCapture?(handle: number, dest: number, destSize: number): boolean;
+    renderer_takeProbeCapture?(dst: number, bytes: number): boolean;
     renderer_takeTextureWants?(): string;
     renderer_updateTransforms?(registry: unknown): void;
     rm_acquireTextureByPath?(rm: unknown, path: string): number;
@@ -554,6 +558,7 @@ export function createNativeEngineApi(
     bind('renderer_lodInspect', 'es_renderer_lodInspect', false);
     bind('renderer_pollFrameCapture', 'es_renderer_pollFrameCapture', false);
     bind('renderer_pollPreviewReadback', 'es_renderer_pollPreviewReadback', false);
+    bind('renderer_pollProbeCapture', 'es_renderer_pollProbeCapture', false);
     bind('renderer_pollSkeletalPreview', 'es_renderer_pollSkeletalPreview', false);
     bind('renderer_pollSnapshotReadback', 'es_renderer_pollSnapshotReadback', false);
     bind('renderer_programEpoch', 'es_renderer_programEpoch', false);
@@ -562,6 +567,7 @@ export function createNativeEngineApi(
     bind('renderer_renderMeshPreview', 'es_renderer_renderMeshPreview', false);
     bind('renderer_renderSkeletalPreview', 'es_renderer_renderSkeletalPreview', false);
     bind('renderer_replayToDrawCall', 'es_renderer_replayToDrawCall', false);
+    bind('renderer_requestProbeCapture', 'es_renderer_requestProbeCapture', false);
     bind('renderer_resize', 'es_renderer_resize', false);
     bind('renderer_retainedTextBatch', 'es_renderer_retainedTextBatch', false);
     bind('renderer_retainedTextBegin', 'es_renderer_retainedTextBegin', false);
@@ -581,6 +587,7 @@ export function createNativeEngineApi(
     bind('renderer_setMeshEdgeBuffers', 'es_renderer_setMeshEdgeBuffers', false);
     bind('renderer_setOrigin', 'es_renderer_setOrigin', false);
     bind('renderer_setPlanarReflectionQuality', 'es_renderer_setPlanarReflectionQuality', false);
+    bind('renderer_setProbeVolumeOverride', 'es_renderer_setProbeVolumeOverride', false);
     bind('renderer_setQualityBudgets', 'es_renderer_setQualityBudgets', false);
     bind('renderer_setShadow2DSoftSamples', 'es_renderer_setShadow2DSoftSamples', false);
     bind('renderer_setShadowDistance', 'es_renderer_setShadowDistance', false);
@@ -605,6 +612,7 @@ export function createNativeEngineApi(
     bind('renderer_submitSkeletalPreviewBatchEx', 'es_renderer_submitSkeletalPreviewBatchEx', false);
     bind('renderer_submitTextBatch', 'es_renderer_submitTextBatch', false);
     bind('renderer_takeFrameCapture', 'es_renderer_takeFrameCapture', false);
+    bind('renderer_takeProbeCapture', 'es_renderer_takeProbeCapture', false);
     bind('renderer_takeTextureWants', 'es_renderer_takeTextureWants', false);
     bind('renderer_updateTransforms', 'es_renderer_updateTransforms', true);
     bind('rm_acquireTextureByPath', 'es_rm_acquireTextureByPath', true);

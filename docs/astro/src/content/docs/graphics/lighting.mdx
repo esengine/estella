@@ -535,6 +535,23 @@ and fills in every `MeshLightmap`, and `node pipeline/bin/estella.mjs bake-scene
 (Blender's Cycles, a Substance bake, any renderer that writes a lightmap and its UV
 layout) is still read exactly as well — the component is the contract, not the baker.
 
+### A room lit by what it looks like now: runtime capture
+
+A bake sees only what it can hold: a mesh without a lightmap UV set is black to it, so lamps that light the walls of a
+shed put none of that light back into its probes. Set **`capture`** on a `LightProbeVolume` and it is filled at run time
+instead: the scene is drawn from the box's centre all round — the walls as the lights light them now, the sky through
+the openings — and that is the light everything inside reads, in place of a bake. It is Unreal's real-time Sky Light or
+Reflection Capture, and the "interior environment" a hand-built renderer captures inside a building.
+
+```ts
+entity.insert(LightProbeVolume, { halfExtents: { x: 22, y: 7, z: 11 }, capture: true, captureInterval: 2 });
+```
+
+- One face is drawn a frame, small (32 pixels), so a capture costs six small extra scene draws spread over six frames.
+- **`captureInterval`** recaptures every so many seconds (0 = once). Each capture sees the room lit by the last one, so a
+  few are a few bounces.
+- The box is one point of light: it is right for a room, not for a long hall whose ends differ — use several boxes.
+
 ### What a shiny surface reflects indoors
 
 A lightmap is the diffuse half. The other half is what a **mirror** shows, and without

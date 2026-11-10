@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, Canv
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '04486d0b29ae33ae';
+export const ABI_LAYOUT_HASH = '9b9790d2839bd020';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -590,6 +590,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
     LightProbeVolume: {
         defaults: {
             probes: 0,
+            capture: false,
+            captureInterval: 0,
             halfExtents: { x: 100, y: 100, z: 100 },
             spacing: 100,
             enabled: true,
@@ -600,6 +602,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         animatableFields: [],
         fields: {
             probes: { tooltip: "Baked probe grid (.esprobes) filling this box." },
+            capture: { tooltip: "Fill this box at run time from a capture at its centre (the room as lit now), not from a bake." },
+            captureInterval: { min: 0, tooltip: "Seconds between captures (0 = once). Each one adds a bounce.", shownWhen: { field: "capture", values: [1] } },
             halfExtents: { min: 0, tooltip: "Half the box this volume covers, from the entity's position." },
             spacing: { min: 1, tooltip: "World units between probes the next bake lays down." },
         },
@@ -1758,6 +1762,8 @@ export interface LightData {
 
 export interface LightProbeVolumeData {
     probes: number;
+    capture: boolean;
+    captureInterval: number;
     halfExtents: Vec3;
     spacing: number;
     enabled: boolean;

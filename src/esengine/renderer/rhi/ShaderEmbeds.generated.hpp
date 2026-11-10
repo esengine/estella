@@ -364,6 +364,16 @@ void main() {
     fragColor = vec4(c.rgb, 0.5);
     return;
 #endif
+#ifdef ES_RGBM
+
+
+    if (c.a <= 0.001) { fragColor = vec4(0.0); return; }
+    vec3 h = clamp(c.rgb, vec3(0.0), vec3(8.0));
+    float m = clamp(max(max(h.r, h.g), max(h.b, 1e-6)) / 8.0, 1.0 / 255.0, 1.0);
+    m = ceil(m * 255.0) / 255.0;
+    fragColor = vec4(h / (m * 8.0), m);
+    return;
+#endif
     c = vec4(c.rgb * exp2(u_time.z), c.a);
 #ifdef ES_TONEMAP
 
@@ -455,6 +465,13 @@ fn displayLookup(c : vec3f) -> vec3f {
 #endif
 #ifdef ES_COPY
     return vec4f(c.rgb, 0.5);
+#endif
+#ifdef ES_RGBM
+    if (c.a <= 0.001) { return vec4f(0.0); }
+    let h = clamp(c.rgb, vec3f(0.0), vec3f(8.0));
+    var m = clamp(max(max(h.r, h.g), max(h.b, 1e-6)) / 8.0, 1.0 / 255.0, 1.0);
+    m = ceil(m * 255.0) / 255.0;
+    return vec4f(h / (m * 8.0), m);
 #endif
     c = vec4f(c.rgb * exp2(tc.u_time.z), c.a);
 #ifdef ES_TONEMAP

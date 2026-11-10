@@ -762,6 +762,8 @@ LightJS lightToJS(const esengine::ecs::Light& c) {
 
 struct LightProbeVolumeJS {
     u32 probes;
+    bool capture;
+    f32 captureInterval;
     glm::vec3 halfExtents;
     f32 spacing;
     bool enabled;
@@ -769,6 +771,8 @@ struct LightProbeVolumeJS {
 
 void lightprobevolumeApplyJS(esengine::ecs::LightProbeVolume& c, const LightProbeVolumeJS& js) {
     c.probes = resource::ProbeVolumeHandle(js.probes);
+    c.capture = js.capture;
+    c.captureInterval = js.captureInterval;
     c.halfExtents = js.halfExtents;
     c.spacing = js.spacing;
     c.enabled = js.enabled;
@@ -783,6 +787,8 @@ esengine::ecs::LightProbeVolume lightprobevolumeFromJS(const LightProbeVolumeJS&
 LightProbeVolumeJS lightprobevolumeToJS(const esengine::ecs::LightProbeVolume& c) {
     LightProbeVolumeJS js;
     js.probes = c.probes.id();
+    js.capture = c.capture;
+    js.captureInterval = c.captureInterval;
     js.halfExtents = c.halfExtents;
     js.spacing = c.spacing;
     js.enabled = c.enabled;
@@ -2078,6 +2084,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
 
     value_object<LightProbeVolumeJS>("LightProbeVolume")
         .field("probes", &LightProbeVolumeJS::probes)
+        .field("capture", &LightProbeVolumeJS::capture)
+        .field("captureInterval", &LightProbeVolumeJS::captureInterval)
         .field("halfExtents", &LightProbeVolumeJS::halfExtents)
         .field("spacing", &LightProbeVolumeJS::spacing)
         .field("enabled", &LightProbeVolumeJS::enabled);
@@ -4116,9 +4124,11 @@ static_assert(offsetof(esengine::ecs::Light, hemisphere) == 132, "ABI offset dri
 static_assert(offsetof(esengine::ecs::Light, groundColor) == 136, "ABI offset drift: esengine::ecs::Light.groundColor (EHT expected 136)");
 static_assert(offsetof(esengine::ecs::Light, enabled) == 152, "ABI offset drift: esengine::ecs::Light.enabled (EHT expected 152)");
 static_assert(offsetof(esengine::ecs::LightProbeVolume, probes) == 0, "ABI offset drift: esengine::ecs::LightProbeVolume.probes (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::LightProbeVolume, halfExtents) == 4, "ABI offset drift: esengine::ecs::LightProbeVolume.halfExtents (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::LightProbeVolume, spacing) == 16, "ABI offset drift: esengine::ecs::LightProbeVolume.spacing (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::LightProbeVolume, enabled) == 20, "ABI offset drift: esengine::ecs::LightProbeVolume.enabled (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::LightProbeVolume, capture) == 4, "ABI offset drift: esengine::ecs::LightProbeVolume.capture (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::LightProbeVolume, captureInterval) == 8, "ABI offset drift: esengine::ecs::LightProbeVolume.captureInterval (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::LightProbeVolume, halfExtents) == 12, "ABI offset drift: esengine::ecs::LightProbeVolume.halfExtents (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::LightProbeVolume, spacing) == 24, "ABI offset drift: esengine::ecs::LightProbeVolume.spacing (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::LightProbeVolume, enabled) == 28, "ABI offset drift: esengine::ecs::LightProbeVolume.enabled (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, mesh) == 0, "ABI offset drift: esengine::ecs::MeshCollider3D.mesh (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, friction) == 4, "ABI offset drift: esengine::ecs::MeshCollider3D.friction (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::MeshCollider3D.restitution (EHT expected 8)");
@@ -4426,7 +4436,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "04486d0b29ae33ae";
+static const char* kEsAbiLayoutHash = "9b9790d2839bd020";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

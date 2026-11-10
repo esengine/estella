@@ -1413,6 +1413,26 @@ void renderer_setLodPreview(u32 view, u32 entity, i32 level) {
     g_renderFrame->setLodPreview(view, Entity::fromRaw(entity), held);
 }
 
+void renderer_requestProbeCapture(f32 x, f32 y, f32 z, u32 face) {
+    if (g_renderFrame) g_renderFrame->requestProbeCapture({x, y, z}, face);
+}
+
+i32 renderer_pollProbeCapture() {
+    return g_renderFrame ? g_renderFrame->pollProbeCapture() : 2;
+}
+
+bool renderer_takeProbeCapture(uintptr_t dst, u32 bytes) {
+    if (!g_renderFrame || dst == 0) return false;
+    const std::vector<u8>& px = g_renderFrame->probeCapturePixels();
+    if (px.empty() || px.size() > bytes) return false;
+    std::memcpy(reinterpret_cast<void*>(dst), px.data(), px.size());
+    return true;
+}
+
+void renderer_setProbeVolumeOverride(u32 entity, u32 volumeHandle) {
+    if (g_renderFrame) g_renderFrame->setProbeVolumeOverride(entity, resource::ProbeVolumeHandle(volumeHandle));
+}
+
 void renderer_setWorldUnitsPerMeter(f32 units) {
     if (g_renderFrame) g_renderFrame->setWorldUnitsPerMeter(units);
 }

@@ -716,6 +716,8 @@ export interface Light {
 
 export interface LightProbeVolume {
     probes: number;
+    capture: boolean;
+    captureInterval: number;
     halfExtents: Vec3;
     spacing: number;
     enabled: boolean;

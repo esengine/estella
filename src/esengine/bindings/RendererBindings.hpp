@@ -324,6 +324,15 @@ void renderer_setImpostorAtlas(u32 entity, u32 texture, u32 frames);
  */
 std::string renderer_takeTextureWants();
 
+/** Capture the scene around (x, y, z) into six face-pixel faces, one a frame (RenderFrame::requestProbeCapture). */
+void renderer_requestProbeCapture(f32 x, f32 y, f32 z, u32 face);
+/** 0 = not yet, 1 = ready to take, 2 = none asked for or it failed. Between frames only. */
+i32 renderer_pollProbeCapture();
+/** Copies the capture (six faces side by side, RGBM RGBA8, rows bottom-up) to @p dst; false when it does not fit or is not ready. */
+bool renderer_takeProbeCapture(uintptr_t dst, u32 bytes);
+/** The grid the volume on @p entity reads instead of its own (a capture's); 0 stops. */
+void renderer_setProbeVolumeOverride(u32 entity, u32 volumeHandle);
+
 /** How many world units make a metre: what an inverse-square light measures distance in. */
 void renderer_setWorldUnitsPerMeter(f32 units);
 

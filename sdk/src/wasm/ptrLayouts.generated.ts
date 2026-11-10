@@ -295,9 +295,11 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
         ptrFn: 'getLightProbeVolumePtr',
         fields: [
             { name: 'probes', type: 'u32', offset: 0 },
-            { name: 'halfExtents', type: 'vec3', offset: 4 },
-            { name: 'spacing', type: 'f32', offset: 16 },
-            { name: 'enabled', type: 'bool', offset: 20 },
+            { name: 'capture', type: 'bool', offset: 4 },
+            { name: 'captureInterval', type: 'f32', offset: 8 },
+            { name: 'halfExtents', type: 'vec3', offset: 12 },
+            { name: 'spacing', type: 'f32', offset: 24 },
+            { name: 'enabled', type: 'bool', offset: 28 },
         ],
     },
     MeshCollider3D: {

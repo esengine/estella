@@ -283,6 +283,17 @@ struct LightProbeVolume {
     ES_PROPERTY(asset = probeVolume, tooltip="Baked probe grid (.esprobes) filling this box.")
     resource::ProbeVolumeHandle probes;
 
+    /** @brief Fill the box at run time from what a camera at its centre sees, all round: the walls as the lights light
+     *         them now, the sky through the openings — Unreal's real-time Sky Light / Reflection Capture, and the interior
+     *         capture a hand-built renderer takes. One grid point for the whole box, read in place of @ref probes. */
+    ES_PROPERTY(tooltip="Fill this box at run time from a capture at its centre (the room as lit now), not from a bake.")
+    bool capture{false};
+
+    /** @brief Seconds between captures; 0 captures once. Each lit view of the room includes the last capture's fill, so a
+     *         few captures are a few bounces. */
+    ES_PROPERTY(min=0, shown_when=capture:true, tooltip="Seconds between captures (0 = once). Each one adds a bounce.")
+    f32 captureInterval{0.0f};
+
     /** @brief Half the box's size, in world units, from the entity's position. */
     ES_PROPERTY(min=0, tooltip="Half the box this volume covers, from the entity's position.")
     glm::vec3 halfExtents{100.0f, 100.0f, 100.0f};
