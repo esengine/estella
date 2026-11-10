@@ -2741,6 +2741,81 @@
       ]
     },
     {
+      "name": "GripHolder",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "held",
+          "type": "Entity",
+          "default": "none",
+          "doc": "What is held: an entity with a GripProfile."
+        },
+        {
+          "key": "mainHand",
+          "type": "enum",
+          "default": "Right",
+          "doc": "The hand that leads.",
+          "values": [
+            "Right",
+            "Left"
+          ]
+        },
+        {
+          "key": "placement",
+          "type": "enum",
+          "default": "Hand",
+          "doc": "Hand: the object rides the leading hand as the clip moves it. Object: the game places it (aiming) and the leading arm is brought to it.",
+          "values": [
+            "Hand",
+            "Object"
+          ]
+        },
+        {
+          "key": "weight",
+          "type": "number",
+          "default": "1",
+          "doc": "How much of the hold applies over the clip.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "supportWeight",
+          "type": "number",
+          "default": "1",
+          "doc": "How much of the supporting hand's hold applies, under the weight.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "blendSeconds",
+          "type": "number",
+          "default": "0.2",
+          "doc": "About how long taking hold, letting go, or changing what is held takes.",
+          "range": "≥ 0, step 0.01"
+        },
+        {
+          "key": "rightHand",
+          "type": "string",
+          "default": "empty",
+          "doc": "The right hand joint, by path from this entity. Empty finds it by name.",
+          "advanced": true
+        },
+        {
+          "key": "leftHand",
+          "type": "string",
+          "default": "empty",
+          "doc": "The left hand joint, by path from this entity. Empty finds it by name.",
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "held",
+        "mainHand",
+        "placement",
+        "weight",
+        "supportWeight",
+        "blendSeconds"
+      ]
+    },
+    {
       "name": "GripPose",
       "source": "ts",
       "fields": [
@@ -2812,6 +2887,40 @@
         "rightTrigger",
         "leftTrigger",
         "blendSeconds"
+      ]
+    },
+    {
+      "name": "GripProfile",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "mainAnchor",
+          "type": "Entity",
+          "default": "none",
+          "doc": "Where the leading palm sits: an entity under this one. Its +Z is the way the fingers point, +Y the way the palm faces."
+        },
+        {
+          "key": "supportAnchor",
+          "type": "Entity",
+          "default": "none",
+          "doc": "Where the supporting palm sits. Empty holds this in one hand."
+        },
+        {
+          "key": "mainPose",
+          "type": "string",
+          "default": "\"handle\"",
+          "doc": "The leading hand's fingers: a captured finger pose, or a grip pose (pistol, handle, support, ...)."
+        },
+        {
+          "key": "supportPose",
+          "type": "string",
+          "default": "\"support\"",
+          "doc": "The supporting hand's fingers."
+        }
+      ],
+      "animatable": [
+        "mainAnchor",
+        "supportAnchor"
       ]
     },
     {

@@ -404,8 +404,43 @@ const NOT_A_HAND = /thumb|index|middle|ring|pinky|pinkie|little|finger|metacarpa
 const IS_RIGHT = /right|(^|[^a-z])r($|[^a-z])/i;
 const IS_LEFT = /left|(^|[^a-z])l($|[^a-z])/i;
 
-/** The joint named for that hand under `root`, nearest first. */
-function findHand(world: World, root: Entity, side: 'right' | 'left'): Entity | null {
+/**
+ * The palm of a hand joint, in the hand's own frame: its centre (halfway to the middle knuckle), and the turn whose +Z is the way the fingers point
+ * and whose +Y is the way the palm faces. Null for a hand whose fingers say neither. @internal
+ */
+export function palmFrameOf(world: World, hand: Entity, side: 'right' | 'left'): { center: Vec3; turn: Quat } | null {
+    const chains: Partial<Record<FingerName, Entity[]>> = {};
+    for (const name of FINGERS) chains[name] = fingerChain(world, hand, name);
+    const shape = palmOf(world, side, chains);
+    const knuckle = (chains.middle?.length ? chains.middle : chains.index?.length ? chains.index : chains.ring) ?? null;
+    if (!shape || !knuckle?.length) return null;
+    const z = shape.forward, y = norm(sub(shape.palm, scale(z, dot(shape.palm, z))));
+    const x = cross(y, z);
+    return { center: scale(fromHand(world, [knuckle[0]!]).at[0]!, 0.5), turn: basisTurn(x, y, z) };
+}
+
+/** The turn that takes +X, +Y, +Z to three square unit vectors. */
+function basisTurn(x: Vec3, y: Vec3, z: Vec3): Quat {
+    const trace = x.x + y.y + z.z;
+    let w: number, qx: number, qy: number, qz: number;
+    if (trace > 0) {
+        const s = Math.sqrt(trace + 1) * 2;
+        w = s / 4; qx = (y.z - z.y) / s; qy = (z.x - x.z) / s; qz = (x.y - y.x) / s;
+    } else if (x.x > y.y && x.x > z.z) {
+        const s = Math.sqrt(1 + x.x - y.y - z.z) * 2;
+        w = (y.z - z.y) / s; qx = s / 4; qy = (y.x + x.y) / s; qz = (z.x + x.z) / s;
+    } else if (y.y > z.z) {
+        const s = Math.sqrt(1 + y.y - x.x - z.z) * 2;
+        w = (z.x - x.z) / s; qx = (y.x + x.y) / s; qy = s / 4; qz = (z.y + y.z) / s;
+    } else {
+        const s = Math.sqrt(1 + z.z - x.x - y.y) * 2;
+        w = (x.y - y.x) / s; qx = (z.x + x.z) / s; qy = (z.y + y.z) / s; qz = s / 4;
+    }
+    return q.normalize({ w, x: qx, y: qy, z: qz });
+}
+
+/** The joint named for that hand under `root`, nearest first. @internal */
+export function findHand(world: World, root: Entity, side: 'right' | 'left'): Entity | null {
     const wanted = side === 'right' ? IS_RIGHT : IS_LEFT;
     const queue: Entity[] = [root];
     for (let i = 0; i < queue.length && i < 512; i++) {

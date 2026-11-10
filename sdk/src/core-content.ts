@@ -660,6 +660,18 @@ export {
     type GripFinger,
     type GripThumb,
     type GripHandStatus,
+    GripProfile,
+    GripHolder,
+    GripHand,
+    GripPlacement,
+    registerFingerPose,
+    fingerPose,
+    captureFingerPose,
+    gripHolderStatus,
+    slerpQuat,
+    type GripProfileData,
+    type GripHolderData,
+    type FingerPoseDef,
 } from './animation';
 
 // =============================================================================

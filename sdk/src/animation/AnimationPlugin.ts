@@ -30,6 +30,7 @@ import { installSwayPush } from '../render/swayPush';
 import { installFootsteps } from '../render/footsteps';
 import { SystemLabel } from '../ecs/systemLabels';
 import { installGripPose } from './gripPose';
+import { installGripHold } from './gripHold';
 
 export class AnimationPlugin implements Plugin {
     name = 'animation';
@@ -109,6 +110,8 @@ export class AnimationPlugin implements Plugin {
             { name: 'SpriteAnimatorSystem' }
         ), { runAfter: [SystemLabel.Tween, SystemLabel.Animator], runIf: playModeOnly });
 
+        // The hold first: it hands the fingers it does not pose itself to the grip pose after it.
+        installGripHold(app);
         installGripPose(app);
     }
 

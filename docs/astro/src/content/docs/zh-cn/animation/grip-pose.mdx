@@ -75,6 +75,51 @@ registerGripPose('claw', {
 
 手指较少的骨架会跳过缺失的手指，并在日志里说明。`gripPoseStatus(app, entity)` 可以查询每只手找到了什么。
 
+## 握持物体
+
+分成三个部分，各回答一个问题：
+
+| 部分 | 负责 |
+|---|---|
+| `GripProfile`（在物体上） | 每只手的掌心放在物体的什么位置：主手、副手各一个锚点实体，以及各自的手指姿势。 |
+| 手臂 | 肩、肘、腕怎样把掌心送到那里：two-bone IK，手肘保持动画原本弯向的一侧，手腕转到锚点的朝向。 |
+| 手指 | 每根手指怎么握：截取下来的手指姿势按 `slerp(clip, grip, weight)` 叠加在动画上，或者用一个 GripPose 名字。 |
+
+锚点就是物体下的普通子实体，用现有的移动、旋转 gizmo 摆放。它的原点是掌心中心（手部关节到中指根的中点），+Z 是手指指向，+Y 是掌心朝向。
+
+```ts
+import { GripHolder, GripPlacement, GripProfile } from 'esengine';
+
+world.insert(rifle, GripProfile, { mainAnchor: gripAnchor, supportAnchor: foregripAnchor, mainPose: 'pistol', supportPose: 'support' });
+world.insert(hero, GripHolder, { held: rifle, placement: GripPlacement.Object });
+```
+
+| `GripHolder` 字段 | 作用 |
+|---|---|
+| `held` | 握着的物体：一个带 `GripProfile` 的实体。为空时松手。 |
+| `mainHand` | `Right` 或 `Left`：主手。 |
+| `placement` | `Hand`：物体跟着动画里的主手走。`Object`：物体由游戏放置（比如瞄准），主手手臂被带到物体上。 |
+| `weight`、`supportWeight` | 握持在动画之上应用多少，以及副手在此之下应用多少。 |
+| `blendSeconds` | 握住、松开、换物体分别花多久。每个关节都从原来的位置平滑过渡，起步和停止都平稳，手不会跳。 |
+| `rightHand`、`leftHand` | 名字找不到手时，手部关节的路径。 |
+
+它在动画系统之后运行，每帧按固定顺序单向计算，所以不会形成循环：动画姿态；然后物体（跟着主手，或者在游戏放的位置）；然后从物体当前位置读出副手锚点；然后副手手臂；最后两只手的手指。物体从不读取副手。每帧都从动画姿态开始求解，从不在自己上一帧的结果上继续；除了游戏时钟不读任何时钟。所以同样的输入和步进得到逐位相同的骨骼。
+
+### 手指姿势
+
+`captureFingerPose(world, handJoint)` 把手下面每个有名字的关节当前的旋转截取成普通 JSON；`registerFingerPose(name, pose)` 保存它，供 `GripProfile` 引用。用 GripPose、动画片段或手动摆好手型后截取下来，把 JSON 和游戏一起保存。截取的姿势用的是骨骼名字，所以属于那套骨架；GripPose 名字则适用于任何骨架。
+
+### 换一个体型
+
+锚点表示掌心的位置，不是手部关节的位置，手臂每帧按所在的身体求解，所以手臂更长或更短的身体仍然能把掌心放到锚点上。够不着时，手臂伸直指向锚点，手腕仍然转到锚点朝向：掌心停在锚点前方，每次结果都一样。
+
+### 握持的限制
+
+- **手指不贴合物体。** 姿势是设定好的，不是在表面上找到的：握把太粗时手指会陷进去，太细时碰不到。贴合还没有做。
+- **还没有锚点和姿势的编辑器。** 锚点用普通 gizmo 移动，手指姿势要用代码截取。
+- **`Hand` 模式只弯副手手臂，`Object` 模式先弯主手；** 肩膀和脊柱不会为了够到而倾斜。
+- **一个持有者只能握一个物体。**
+
 ## 限制
 
 - **不接触被握的物体。** 姿势只是手型，不做贴合：握把太粗时手指可能陷进去，太细时可能碰不到。可以调 `curl`，或者给这个物体单独做一个姿势。

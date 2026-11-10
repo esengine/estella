@@ -75,6 +75,51 @@ The hand is found by name: a joint called something like `RightHand` or `hand_r`
 
 A rig with fewer fingers does without the rest, and says which in the log. `gripPoseStatus(app, entity)` answers what was found on each hand.
 
+## Holding an object
+
+Three parts, each answering one question:
+
+| Part | Answers |
+|---|---|
+| `GripProfile`, on the object | Where on it each palm sits: an anchor entity for the leading hand and one for the supporting hand, and the fingers' pose for each. |
+| The arm | How the shoulder, elbow and wrist get the palm there: two-bone IK, the elbow keeping the side the clip bends it to, the wrist turned to the anchor. |
+| The fingers | How each finger is held: a pose captured from a hand, blended over the clip as `slerp(clip, grip, weight)`, or a grip pose by name. |
+
+An anchor is any entity under the object, placed with the ordinary move and rotate gizmos. Its origin is the palm's centre (halfway from the hand joint to the middle knuckle), its +Z the way the fingers point, and its +Y the way the palm faces.
+
+```ts
+import { GripHolder, GripPlacement, GripProfile } from 'esengine';
+
+world.insert(rifle, GripProfile, { mainAnchor: gripAnchor, supportAnchor: foregripAnchor, mainPose: 'pistol', supportPose: 'support' });
+world.insert(hero, GripHolder, { held: rifle, placement: GripPlacement.Object });
+```
+
+| `GripHolder` field | What it does |
+|---|---|
+| `held` | The object held: an entity with a `GripProfile`. None lets go. |
+| `mainHand` | `Right` or `Left`: the hand that leads. |
+| `placement` | `Hand`: the object rides the leading hand wherever the clip puts it. `Object`: the game places the object (aiming) and the leading arm is brought to it. |
+| `weight`, `supportWeight` | How much of the hold applies over the clip, and of the supporting hand's under that. |
+| `blendSeconds` | How long taking hold, letting go and changing what is held take. Every joint eases from where it was, from still and to rest, so no hand jumps. |
+| `rightHand`, `leftHand` | The hand joints by path, where their names do not find them. |
+
+It runs after the animator, in one order every frame, so nothing can drive itself round a loop: the clip's pose; then the object, on the leading hand or where the game put it; then the supporting anchor, read off the object as it now stands; then that arm; then the fingers of both. The object never reads the supporting hand. Each frame solves from the clip's pose, never from its own last answer, and nothing reads a clock but the game's: the same inputs and steps give the same bones, bit for bit.
+
+### Finger poses
+
+`captureFingerPose(world, handJoint)` takes the turn of every named joint under a hand as it stands, as plain JSON; `registerFingerPose(name, pose)` keeps it for a `GripProfile` to name. Pose the hand with a `GripPose`, a clip or by hand, capture it, and save the JSON with the game. A captured pose names its rig's bones, so it belongs to that rig; a grip pose by name fits any.
+
+### On another body
+
+Anchors are where a palm goes, not where a hand joint goes, and the arm is solved each frame from the body it is on, so a body with longer or shorter arms still puts its palm on the anchor. Past its reach, the arm points straight at the anchor and the wrist still turns to it: the palm stops short, the same way every time.
+
+### Limits of holding
+
+- **The fingers do not fit the object.** A pose is set, not found on the surface: they can sink into a thick grip or stop short of a thin one. Fitting them to it is not built.
+- **No editor for anchors or poses yet.** Anchors are moved with the ordinary gizmos; a finger pose is captured from code.
+- **Only the supporting arm is bent with `Hand` placement,** and only the leading one is first with `Object`; a shoulder or the spine does not lean to help an arm reach.
+- **One object a holder.**
+
 ## Limits
 
 - **It does not touch what is held.** A pose is a shape, not a fit: fingers can sink into a wide grip or stop short of a narrow one. Use `curl` for the object, or a pose of its own.

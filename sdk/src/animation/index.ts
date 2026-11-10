@@ -85,6 +85,10 @@ export {
     GripPose, registerGripPose, gripPose, gripPoseNames, gripPoseStatus,
     type GripPoseData, type GripPoseDef, type GripFinger, type GripThumb, type GripHandStatus,
 } from './gripPose';
+export {
+    GripProfile, GripHolder, GripHand, GripPlacement, registerFingerPose, fingerPose, captureFingerPose, gripHolderStatus, slerpQuat,
+    type GripProfileData, type GripHolderData, type FingerPoseDef,
+} from './gripHold';
 
 export {
     emptyAnimatorController,
