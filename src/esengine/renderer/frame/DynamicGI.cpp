@@ -671,6 +671,7 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
                                   u32 width, u32 height) {
     if (!ensure() || input == rg::kNoResource || scene == rg::kNoResource) return input;
     if (!upload()) return input;
+    if (params.skip & 8u) return input;  // measuring: nothing declared at all
     // About 160 x 90 probes whatever the size of the picture: 8 pixels apart at 720p, 12 at 1080p, 16 at 1440p. Their cost is in their number.
     probeSpacing_ = std::clamp(((height + 89) / 90 + 1) / 2 * 2, 8u, 32u);
     const u32 tilesX = (width + probeSpacing_ - 1) / probeSpacing_, tilesY = (height + probeSpacing_ - 1) / probeSpacing_;
@@ -786,6 +787,7 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
         graph.addPass(std::move(pass));
     }
 
+    if (params.skip & 16u) return input;  // measuring: the cards and the probes, and no apply pass nor the target it writes
     rg::TargetDesc full;
     full.format = GfxPixelFormat::RGBA16F;
     full.storage = true;

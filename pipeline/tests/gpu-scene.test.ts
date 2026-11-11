@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { MeshChannel, MeshChannelType, type MeshData } from 'esengine';
 import { bakeMeshCards } from '../src/assets/meshCards';
 import { bakeMeshSdf } from '../src/assets/meshSdf';
-import { buildInstances, type GIEntry } from '../../sdk/src/gi/dynamicGISystem';
+import { buildInstances, instanceKey, type GIEntry } from '../../sdk/src/gi/dynamicGISystem';
 import { packGPUScene, GI_HEADER_FLOATS, GI_INSTANCE_FLOATS } from '../../sdk/src/gi/gpuScene';
 import { GlobalSdf } from '../../sdk/src/gi/globalSdf';
 
@@ -69,6 +69,13 @@ describe('which renderers become instances', () => {
         expect(Array.from(instances[0]!.cards.cards[2]!.emissive.slice(0, 3))).toEqual([255, 128, 0]);
         const m = instances[0]!.worldFromLocal;
         expect(Math.abs(m[2]! + 1)).toBeLessThan(1e-6);  // local x now points along world -z
+    });
+
+    it('has a key that can be had without building: the same string, for the system to ask every frame', () => {
+        const entries = [entry(CUBE, transform([0, 0, 0], [2, 1, 3]), null, [1, 0, 0]), entry(9, transform([300, 0, 0], [2, 2, 2]), 'assets/rock.esmesh'), entry(9, transform([0, 0, 0], [1, 2, 1]), 'assets/rock.esmesh')];
+        const found = (p: string) => (p === 'assets/rock.esmesh' ? baked : null);
+        expect(instanceKey(entries, CUBE, found)).toBe(buildInstances(entries, CUBE, found).key);
+        expect(instanceKey(entries, CUBE, () => null)).toBe(buildInstances(entries, CUBE, () => null).key);
     });
 
     it('changes its key when anything that matters moves, and not when nothing does', () => {

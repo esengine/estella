@@ -411,6 +411,8 @@ bool PostProcessPipeline::passesWantGBuffer() {
         if (!pass.enabled) continue;
         // The voxel GI reads the surface's normal, whatever the effect's shader (it has none).
         if (!pass.nativeKind.empty()) {
+            // Measuring (DynamicGI u_skip bit 32): this pass does not ask for the G-buffer, to read what the G-buffer scene costs by itself.
+            if (const auto skip = pass.floatUniforms.find("u_skip"); skip != pass.floatUniforms.end() && (static_cast<u32>(skip->second) & 32u)) continue;
             if (device_.supportsCompute()) return true;
             continue;
         }

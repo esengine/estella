@@ -59,13 +59,38 @@ export interface GISidecars { sdf: MeshSdf; cards: MeshCards }
  * mesh is the baked `.esmeshsdf` and `.esmeshcards` beside it, when it has them and is scaled the same along every axis (a distance field
  * does not survive a stretch). Everything else is not in the GI scene.
  */
+function poseKey(e: GIEntry): string {
+    const s = e.transform.worldScale, p = e.transform.worldPosition, q = e.transform.worldRotation;
+    return `${[p.x, p.y, p.z, q.x, q.y, q.z, q.w, s.x, s.y, s.z].map((v) => v.toFixed(3)).join(',')};${e.colour.join(',')};${e.emissive.join(',')}`;
+}
+
+/**
+ * What `buildInstances` would make of the entries, as a string, without making it. The system asks this every frame and builds only when it
+ * changes: building is the distance fields and cards of every box, which is milliseconds on a desktop and tens on a phone, and a scene that
+ * has not moved should cost a string compare and not that.
+ */
+export function instanceKey(entries: readonly GIEntry[], cube: number, sidecars: (path: string) => GISidecars | null): string {
+    let key = '';
+    for (const e of entries) {
+        const s = e.transform.worldScale;
+        if (e.mesh === cube) key += `|c${poseKey(e)}`;
+        else if (e.path) {
+            if (!sidecars(e.path)) continue;
+            const lo = Math.min(s.x, s.y, s.z), hi = Math.max(s.x, s.y, s.z);
+            if (lo <= 0 || hi / lo > 1.05) continue;
+            key += `|m${e.path};${poseKey(e)}`;
+        }
+    }
+    return key;
+}
+
 export function buildInstances(entries: readonly GIEntry[], cube: number, sidecars: (path: string) => GISidecars | null): { instances: GIInstance[]; key: string } {
     const instances: GIInstance[] = [];
     let key = '';
     const extent = Math.max(1, ...entries.filter((e) => e.mesh === cube).flatMap((e) => [e.transform.worldScale.x, e.transform.worldScale.y, e.transform.worldScale.z].map((v) => v * CUBE)));
     for (const e of entries) {
-        const s = e.transform.worldScale, p = e.transform.worldPosition, q = e.transform.worldRotation;
-        const pose = `${[p.x, p.y, p.z, q.x, q.y, q.z, q.w, s.x, s.y, s.z].map((v) => v.toFixed(3)).join(',')};${e.colour.join(',')};${e.emissive.join(',')}`;
+        const s = e.transform.worldScale;
+        const pose = poseKey(e);
         if (e.mesh === cube) {
             const size: [number, number, number] = [s.x * CUBE, s.y * CUBE, s.z * CUBE];
             // A box with a cell fine enough that a wall a tenth of a metre thick is still more than one.
@@ -196,15 +221,17 @@ export function dynamicGISystem(app: App) {
                 }
                 entries.push({ mesh: r.mesh, transform: t, colour: [r.color.r, r.color.g, r.color.b], emissive: emissiveOf(r.material), path });
             }
-            const { instances, key: sceneKey } = buildInstances(entries, cube, (p) => sidecars.get(p) ?? null);
+            const sceneKey = instanceKey(entries, cube, (p) => sidecars.get(p) ?? null);
             // A cell size asks for the field that follows the eye: three levels, each four times the last, around the camera. Without one the
             // field is a single window that holds the whole scene.
             const following = effect.cellSize > 0 && eye !== null;
             const snap = following ? effect.cellSize * 8 : 1;
             const eyeKey = following ? eye!.map((v) => Math.floor(v / snap)).join(',') : '';
             const key = (light ? `${light.toLight.join(',')}|${light.radiance.join(',')}` : 'dark') + sceneKey + '#' + lightKey + '#' + effect.cellSize + eyeKey;
-            if (key === lastKey || instances.length === 0) return;
+            if (key === lastKey || sceneKey === '') return;
             lastKey = key;
+            const { instances } = buildInstances(entries, cube, (p) => sidecars.get(p) ?? null);
+            if (instances.length === 0) return;
             let sdf: GlobalSdf | undefined;
             if (following) {
                 const cell = effect.cellSize;
