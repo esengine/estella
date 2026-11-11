@@ -36,7 +36,7 @@ struct DynamicGIParams {
     /// How much of the gathered light is added over the picture.
     f32 intensity = 1.0f;
     /// How much of each frame's card lighting replaces what the card held (the rest is history, which is what smooths the noise).
-    f32 blend = 0.3f;
+    f32 blend = 0.15f;
 };
 
 /**

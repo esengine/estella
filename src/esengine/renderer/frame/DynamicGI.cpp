@@ -369,17 +369,19 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
     let pos = worldFromDepth((vec2f(p) + 0.5) / vec2f(size), depth);
     if (dot(n, viewDirection(pos)) < 0.0) { n = -n; }
     let tiles = vec2i(gi.counts.zw);
-    // The four probes round the pixel: probe (tx, ty) stands at pixel (tx * 8 + 4, ty * 8 + 4).
+    // The probes round the pixel: probe (tx, ty) stands at pixel (tx * 8 + 4, ty * 8 + 4). The nine nearest are looked at, since in the
+    // corner of two walls the four nearest can all be on the other wall, and a probe on another plane has nothing to say about this one.
     let q = (vec2f(p) - vec2f(4.0)) / 8.0;
     let q0 = vec2i(floor(q));
-    let f = q - vec2f(q0);
+    let eye = max(length(pos - frame.camera.xyz), 1.0);
     var E = vec3f(0.0);
     var total = 0.0;
-    var nearestE = vec3f(0.0);
-    var nearestW = -1.0;
-    for (var k = 0; k < 4; k = k + 1) {
-        let o = vec2i(k & 1, k >> 1);
-        let tile = clamp(q0 + o, vec2i(0), tiles - vec2i(1));
+    var Erelaxed = vec3f(0.0);
+    var totalRelaxed = 0.0;
+    for (var k = 0; k < 16; k = k + 1) {
+        let o = vec2i(k & 3, k >> 2) - vec2i(1);
+        let tile = q0 + o;
+        if (any(tile < vec2i(0)) || any(tile >= tiles)) { continue; }
         let pp = min(tile * 8 + vec2i(4), size - vec2i(1));
         let pd = textureLoad(depthTex, pp, 0);
         let pg = textureLoad(gbuffer, pp, 0);
@@ -387,20 +389,25 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
         let ppos = worldFromDepth((vec2f(pp) + 0.5) / vec2f(size), pd);
         var pn = decodeNormal(pg);
         if (dot(pn, viewDirection(ppos)) < 0.0) { pn = -pn; }
-        let eye = max(length(pos - frame.camera.xyz), 1.0);
+        // A tent over a tile and a half round the pixel, so a probe two tiles away does not count.
+        let d = abs(vec2f(tile) - q);
+        let tent = max(1.0 - d.x / 1.6, 0.0) * max(1.0 - d.y / 1.6, 0.0);
+        if (tent <= 0.0) { continue; }
         let plane = abs(dot(n, ppos - pos)) / (0.02 * eye);
-        let bilinear = select(1.0 - f.x, f.x, o.x == 1) * select(1.0 - f.y, f.y, o.y == 1);
-        let w = bilinear / (1.0 + plane * plane) * pow(max(dot(pn, n), 0.0), 8.0);
+        let wPlane = tent / (1.0 + plane * plane);
+        let wNormal = pow(max(dot(pn, n), 0.0), 4.0);
         let base = vec2i(tile.x * 3, tile.y);
         let vr = textureLoad(probes, base, 0).xyz;
         let vg = textureLoad(probes, base + vec2i(1, 0), 0).xyz;
         let vb = textureLoad(probes, base + vec2i(2, 0), 0).xyz;
         let e = max(vec3f(dot(vr, n), dot(vg, n), dot(vb, n)), vec3f(0.0));
-        E = E + e * w;
-        total = total + w;
-        if (w > nearestW) { nearestW = w; nearestE = e; }
+        E = E + e * wPlane * wNormal;
+        total = total + wPlane * wNormal;
+        // The same without the normal, for a pixel whose every neighbour faces another way.
+        Erelaxed = Erelaxed + e * wPlane;
+        totalRelaxed = totalRelaxed + wPlane;
     }
-    if (total > 1e-5) { E = E / total; } else { E = nearestE; }
+    if (total > 0.05) { E = E / total; } else if (totalRelaxed > 1e-5) { E = Erelaxed / totalRelaxed; } else { E = vec3f(0.0); }
     textureStore(outTex, p, vec4f(scene.rgb + albedo.rgb * E * gi.sdf.w, scene.a));
 }
 )WGSL";

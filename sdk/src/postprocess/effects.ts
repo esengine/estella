@@ -576,7 +576,7 @@ registerEffect({
         // How much of the gathered light is added over the picture.
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 4, step: 0.01, defaultValue: 1, neutralValue: 0 },
         // How much of each frame replaces what the cards and probes held; lower is smoother and slower to follow a change.
-        { name: 'u_blend', label: 'Temporal Blend', min: 0.02, max: 1, step: 0.01, defaultValue: 0.3 },
+        { name: 'u_blend', label: 'Temporal Blend', min: 0.02, max: 1, step: 0.01, defaultValue: 0.15 },
     ],
 });
 
