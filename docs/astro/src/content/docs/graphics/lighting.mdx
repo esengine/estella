@@ -650,6 +650,10 @@ refreshPlanarReflection(app, surface);
 const capture = planarReflectionStatus(app, surface, cameraEntity);
 ```
 
+The reflection is filtered by the surface's roughness (nine taps, a pixel and a half at the least and wider as the surface gets rougher), so a damp road
+shows a soft reflection where a puddle's stays crisp, and a reflected sun or sky hot spot is brought under a soft ceiling of 1.5 by its brightest channel
+(a knee from 0.75, hue kept) instead of clipping toward white.
+
 The existing material controls tint, metallic response, Fresnel and roughness.
 The captured radiance replaces the environment's specular input for this draw;
 it is not added over an already reflected sky. The roughness filter is a small

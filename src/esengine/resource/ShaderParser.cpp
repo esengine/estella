@@ -2087,12 +2087,26 @@ fn envRadiance(R : vec3f, roughness : f32, column : f32, P : vec3f) -> vec3f {
         if (any(uv < vec2f(0.0)) || any(uv > vec2f(1.0))) { return vec3f(0.0); }
         // A small spatial filter, not prefiltered GGX: preserves material roughness
         // without allocating a second blur chain or claiming an exact BRDF convolution.
-        let r = max(planar.planarParams.zw, vec2f(roughness * roughness * 0.015));
-        return (textureSampleLevel(t3, s3, uv, 0.0).rgb * 4.0
-            + textureSampleLevel(t3, s3, clamp(uv + vec2f(r.x, 0.0), vec2f(0.0), vec2f(1.0)), 0.0).rgb
+        // Blurred by how rough the surface is, a pixel and a half at the least (a mirror is never razor sharp at this size) and
+        // wider as the roughness grows, so a wet road's reflection softens where a puddle's stays crisp: nine taps, the middle one
+        // weighted most. The sideways reach follows the target's shape, so the blur is round on screen.
+        let reach = max(planar.planarParams.z * 1.5, roughness * roughness * 0.04);
+        let r = vec2f(reach, reach * planar.planarParams.w / planar.planarParams.z);
+        let d = r * 0.7071;
+        let seen = textureSampleLevel(t3, s3, uv, 0.0).rgb * 0.2
+            + (textureSampleLevel(t3, s3, clamp(uv + vec2f(r.x, 0.0), vec2f(0.0), vec2f(1.0)), 0.0).rgb
             + textureSampleLevel(t3, s3, clamp(uv - vec2f(r.x, 0.0), vec2f(0.0), vec2f(1.0)), 0.0).rgb
             + textureSampleLevel(t3, s3, clamp(uv + vec2f(0.0, r.y), vec2f(0.0), vec2f(1.0)), 0.0).rgb
-            + textureSampleLevel(t3, s3, clamp(uv - vec2f(0.0, r.y), vec2f(0.0), vec2f(1.0)), 0.0).rgb) * 0.125;
+            + textureSampleLevel(t3, s3, clamp(uv - vec2f(0.0, r.y), vec2f(0.0), vec2f(1.0)), 0.0).rgb
+            + textureSampleLevel(t3, s3, clamp(uv + d, vec2f(0.0), vec2f(1.0)), 0.0).rgb
+            + textureSampleLevel(t3, s3, clamp(uv - d, vec2f(0.0), vec2f(1.0)), 0.0).rgb
+            + textureSampleLevel(t3, s3, clamp(uv + vec2f(d.x, -d.y), vec2f(0.0), vec2f(1.0)), 0.0).rgb
+            + textureSampleLevel(t3, s3, clamp(uv + vec2f(-d.x, d.y), vec2f(0.0), vec2f(1.0)), 0.0).rgb) * 0.1;
+        // A reflected sun or a sky's hot spot is far brighter than any picture holds, and a mirror shows all of it: the colour is
+        // brought under a soft ceiling of 1.5 by its brightest channel (a knee from 0.75, so no edge shows where it starts), so a burning orange stays orange instead of clipping toward white.
+        let peak = max(seen.r, max(seen.g, seen.b));
+        let held = select(0.75 + 0.75 * (1.0 - exp(-(peak - 0.75) / 0.75)), peak, peak <= 0.75);
+        return seen * (held / max(peak, 1e-4));
     }
 #endif
     if (lc.u_envParams.x < 0.5) { return ambientFacing(R); }
@@ -3579,12 +3593,23 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        if (clip.w <= 0.0) return vec3(0.0);\n"
             "        highp vec2 uv = clip.xy / clip.w * vec2(0.5, 0.5 * u_planarParams.y) + 0.5;\n"
             "        if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return vec3(0.0);\n"
-            "        highp vec2 r = max(u_planarParams.zw, vec2(roughness * roughness * 0.015));\n"
-            "        return (textureLod(u_envMap, uv, 0.0).rgb * 4.0\n"
-            "            + textureLod(u_envMap, clamp(uv + vec2(r.x, 0.0), 0.0, 1.0), 0.0).rgb\n"
+            // Blurred by how rough the surface is (see the WGSL twin): a pixel and a half at the least, wider as the roughness grows.
+            "        highp float reach = max(u_planarParams.z * 1.5, roughness * roughness * 0.04);\n"
+            "        highp vec2 r = vec2(reach, reach * u_planarParams.w / u_planarParams.z);\n"
+            "        highp vec2 d = r * 0.7071;\n"
+            "        highp vec3 seen = textureLod(u_envMap, uv, 0.0).rgb * 0.2\n"
+            "            + (textureLod(u_envMap, clamp(uv + vec2(r.x, 0.0), 0.0, 1.0), 0.0).rgb\n"
             "            + textureLod(u_envMap, clamp(uv - vec2(r.x, 0.0), 0.0, 1.0), 0.0).rgb\n"
             "            + textureLod(u_envMap, clamp(uv + vec2(0.0, r.y), 0.0, 1.0), 0.0).rgb\n"
-            "            + textureLod(u_envMap, clamp(uv - vec2(0.0, r.y), 0.0, 1.0), 0.0).rgb) * 0.125;\n"
+            "            + textureLod(u_envMap, clamp(uv - vec2(0.0, r.y), 0.0, 1.0), 0.0).rgb\n"
+            "            + textureLod(u_envMap, clamp(uv + d, 0.0, 1.0), 0.0).rgb\n"
+            "            + textureLod(u_envMap, clamp(uv - d, 0.0, 1.0), 0.0).rgb\n"
+            "            + textureLod(u_envMap, clamp(uv + vec2(d.x, -d.y), 0.0, 1.0), 0.0).rgb\n"
+            "            + textureLod(u_envMap, clamp(uv + vec2(-d.x, d.y), 0.0, 1.0), 0.0).rgb) * 0.1;\n"
+            // See the WGSL twin: a soft ceiling on the brightest channel, so the hue holds and no edge shows.
+            "        highp float peak = max(seen.r, max(seen.g, seen.b));\n"
+            "        highp float held = peak <= 0.75 ? peak : 0.75 + 0.75 * (1.0 - exp(-(peak - 0.75) / 0.75));\n"
+            "        return seen * (held / max(peak, 1e-4));\n"
             "    }\n"
             "#endif\n"
             "    if (u_envParams.x < 0.5) return ambientFacing(R);\n"
