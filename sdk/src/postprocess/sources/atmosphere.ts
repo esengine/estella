@@ -2174,6 +2174,11 @@ ${BASIN_GLSL}
 ${GBUFFER_GLSL}
 ${GLSL}
 
+/// Where a view ray starts: the near plane of a perspective eye. An orthographic eye's depth range runs from far BEHIND the camera to far ahead of it
+/// (the projection is built with near = -far), so depth 0 is that far-behind plane, and the layers of rain, which stand 120, 450 and 1400 units in front of
+/// the camera, would all stand in front of every surface. Mid-depth is the plane the camera stands in.
+vec3 rayStart(vec2 uv) { return worldFromDepth(uv, u_camera.w > 0.5 ? 0.0 : 0.5); }
+
 /// 1 where something stands over a point, as the map of the scene seen from straight above says — an awning, a roof,
 /// a tree — and 0 in the open. The map stores the depth the shadow maps do, so a point on the surface itself is not over it.
 float shelteredAt(vec3 W) {
@@ -2194,7 +2199,7 @@ void main() {
     ivec2 size = textureSize(u_sceneDepth, 0);
     ivec2 c = screenTexel(v_texCoord, size);
     float d = depthAt(c, size);
-    vec3 entry = worldFromDepth(v_texCoord, 0.0);
+    vec3 entry = rayStart(v_texCoord);
     // How far the surface here is, measured along the same ray as the streak layers are.
     float dist = d >= 1.0 ? 1e9 : length(worldFromDepth(uvOfTexel(c, size), d) - entry);
 
@@ -2278,6 +2283,9 @@ ${BASIN_WGSL}
 ${GBUFFER_WGSL}
 ${WGSL}
 
+/// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
+fn rayStart(uv : vec2f) -> vec3f { return worldFromDepth(uv, select(0.5, 0.0, frame.camera.w > 0.5)); }
+
 fn shelteredAt(W : vec3f) -> f32 {
     if (mc.u_coverActive < 0.5) { return 0.0; }
     let m = mat4x4f(mc.u_coverMatrix0, mc.u_coverMatrix1, mc.u_coverMatrix2, mc.u_coverMatrix3);
@@ -2299,7 +2307,7 @@ fn shelteredAt(W : vec3f) -> f32 {
     let size = vec2i(textureDimensions(t7, 0));
     let c = screenTexel(v.v_texCoord, size);
     let d = depthAt(c, size);
-    let entry = worldFromDepth(v.v_texCoord, 0.0);
+    let entry = rayStart(v.v_texCoord);
     var dist = 1e9;
     if (d < 1.0) { dist = length(worldFromDepth(uvOfTexel(c, size), d) - entry); }
 

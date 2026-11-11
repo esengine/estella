@@ -1,0 +1,244 @@
+{
+ "version": 4,
+ "name": "oracle-dof-perspective",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 405,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.7071067811865476,
+       "y": 0,
+       "z": 0,
+       "w": 0.7071067811865476
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "orthoSize": 100,
+      "nearPlane": 1,
+      "farPlane": 8000,
+      "isActive": true,
+      "priority": 0,
+      "fov": 40
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "NearBlack",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -1036.3970234266203,
+       "y": 2.5,
+       "z": 0
+      },
+      "scale": {
+       "x": 19.272059531467598,
+       "y": 0.05,
+       "z": 14
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0,
+       "g": 0,
+       "b": 0,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "NearWhite",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -36.39702342662024,
+       "y": 2.5,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.7279404685324047,
+       "y": 0.05,
+       "z": 14
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.8,
+       "g": 0.8,
+       "b": 0.8,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "FarBlack",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 90.99255856655058,
+       "y": -597.5,
+       "z": 0
+      },
+      "scale": {
+       "x": 1.8198511713310117,
+       "y": 0.05,
+       "z": 14
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0,
+       "g": 0,
+       "b": 0,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "name": "FarWhite",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 1090.9925585665505,
+       "y": -597.5,
+       "z": 0
+      },
+      "scale": {
+       "x": 18.18014882866899,
+       "y": 0.05,
+       "z": 14
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.8,
+       "g": 0.8,
+       "b": 0.8,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "name": "Look",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "PostProcessVolume",
+     "data": {
+      "isGlobal": true,
+      "priority": 0,
+      "weight": 1,
+      "effects": [
+       {
+        "type": "depthOfField",
+        "enabled": true,
+        "uniforms": {
+         "u_focusDistance": 400,
+         "u_autoFocus": 0,
+         "u_focusRange": 50,
+         "u_aperture": 24,
+         "u_maxBlur": 8,
+         "u_highlight": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

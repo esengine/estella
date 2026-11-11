@@ -95,6 +95,21 @@ defineSkyEffect({
 }`,
 });
 
+// A sky with a known formula, for the oracle scenes (tools/oracle/sky.mjs): a gradient from a warm horizon to a blue zenith by the
+// height of the view direction, and the sun's colour in a narrow lobe round the sun, so that what a pixel shows is a sum a test can write.
+defineSkyEffect({
+    type: 'oracleSky',
+    label: 'Oracle Sky',
+    glsl: `vec3 skyRadiance(vec3 dir, vec3 sun, vec3 sunColor, float env) {
+    float t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
+    return mix(vec3(0.6, 0.3, 0.1), vec3(0.1, 0.3, 0.8), t) + sunColor * pow(max(dot(dir, sun), 0.0), 64.0) * 0.5;
+}`,
+    wgsl: `fn skyRadiance(dir : vec3f, sun : vec3f, sunColor : vec3f, env : f32) -> vec3f {
+    let t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
+    return mix(vec3f(0.6, 0.3, 0.1), vec3f(0.1, 0.3, 0.8), t) + sunColor * pow(max(dot(dir, sun), 0.0), 64.0) * 0.5;
+}`,
+});
+
 async function boot(): Promise<void> {
     canvas = document.createElement('canvas');
     canvas.id = 'canvas';

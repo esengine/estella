@@ -1339,7 +1339,7 @@ void main() {
     float target = u_focusDistance;
     if (u_autoFocus > 0.5) {
         ivec2 size = textureSize(u_sceneDepth, 0);
-        vec3 eye = worldFromDepth(vec2(u_focusX, 1.0 - u_focusY), 0.0);
+        vec3 eye = worldFromDepth(vec2(u_focusX, 1.0 - u_focusY), u_camera.w > 0.5 ? 0.0 : 0.5);
         // Nine taps a little apart: what is under the point, not whatever one pixel of it happens to be.
         float sum = 0.0;
         float n = 0.0;
@@ -1373,7 +1373,7 @@ ${SSAO_WGSL}
     var target_d = mc.u_focusDistance;
     if (mc.u_autoFocus > 0.5) {
         let size = vec2i(textureDimensions(t7, 0));
-        let eye = worldFromDepth(vec2f(mc.u_focusX, mc.u_focusY), 0.0);
+        let eye = worldFromDepth(vec2f(mc.u_focusX, mc.u_focusY), select(0.5, 0.0, frame.camera.w > 0.5));
         var sum = 0.0;
         var n = 0.0;
         for (var j : i32 = -1; j <= 1; j = j + 1) {
@@ -1432,7 +1432,9 @@ void main() {
     float depth = depthAt(screenTexel(v_texCoord, size), size);
     float coc = min(u_aperture, u_maxBlur);
     if (depth < 1.0) {
-        vec3 eye = u_camera.w > 0.5 ? u_camera.xyz : worldFromDepth(v_texCoord, 0.0);
+        // An orthographic eye has no point to measure from; its depth range runs from far behind the camera to far ahead of it (near = -far), so the plane it
+        // stands in is mid-depth, and a surface is as far as it is along the view.
+        vec3 eye = u_camera.w > 0.5 ? u_camera.xyz : worldFromDepth(v_texCoord, 0.5);
         float dist = length(worldFromDepth(v_texCoord, depth) - eye);
         coc = min(u_aperture * max(abs(dist - focus) - u_focusRange, 0.0) / max(dist, 1e-3), u_maxBlur);
     }
@@ -1450,7 +1452,7 @@ ${SSAO_WGSL}
     let depth = depthAt(screenTexel(v.v_texCoord, size), size);
     var coc = min(mc.u_aperture, mc.u_maxBlur);
     if (depth < 1.0) {
-        var eye = worldFromDepth(v.v_texCoord, 0.0);
+        var eye = worldFromDepth(v.v_texCoord, 0.5);
         if (frame.camera.w > 0.5) { eye = frame.camera.xyz; }
         let dist = length(worldFromDepth(v.v_texCoord, depth) - eye);
         coc = min(mc.u_aperture * max(abs(dist - focus) - mc.u_focusRange, 0.0) / max(dist, 1e-3), mc.u_maxBlur);

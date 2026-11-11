@@ -68,7 +68,7 @@ for (const s of SCENES) {
     if (!existsSync(file) || readFileSync(file, 'utf8').split(String.fromCharCode(13)).join('') !== want) {
       fail(`"${o.id}" is not what tools/oracle generates — run node tools/make-oracle-scenes.mjs`);
     }
-    if (!o.expect?.length && !o.twins?.pairs?.length) fail(`"${o.id}" has no probes`);
+    if (!o.expect?.length && !o.twins?.pairs?.length && !o.count?.length) fail(`"${o.id}" has no probes`);
   }
 }
 

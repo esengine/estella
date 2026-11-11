@@ -11,9 +11,9 @@
  *
  * Probes keep clear of the sun's disc and its glow, and the scenes carry no clouds, no moon and no stars (the sun is well up).
  */
-import { scene, camera, mesh, probe, probeFrom, SIZE } from './scene.mjs';
+import { scene, camera, mesh, sun, probe, probeFrom, SIZE } from './scene.mjs';
 import { volume } from './scene.mjs';
-import { axisAngle, rotate, norm, dot, encodeLinear8, clamp01, smoothstep } from './formulas.mjs';
+import { axisAngle, rotate, norm, dot, encodeLinear8, clamp01, smoothstep, srgbDecode, sunAim } from './formulas.mjs';
 
 const R_E = 6360, R_A = 6420;
 const BETA_R = [0.0058, 0.0135, 0.0331], BETA_M = 0.021, H_R = 8, H_M = 1.2, SUN_I = 22, G = 0.76;
@@ -163,6 +163,43 @@ function cloudShadow({ id, ortho, altitude, shadowed }) {
   return { id, doc, colorSpace: 'linear', expect, floorAltitude, about: `Cloud shadow, ${ortho ? 'orthographic' : 'perspective'} camera, slab ${shadowed ? 'above' : 'below'} the floor` };
 }
 
+
+/**
+ * A custom sky is the user's own radiance function of the view direction, laid under the scene the way the built-in dome is. The host's
+ * `oracleSky` is a gradient by height plus the sun's light in a lobe round the sun, so a pixel is that sum exactly. An orthographic camera's
+ * rays are parallel, so all of its pixels look along one direction and must be one colour.
+ */
+function customSky({ id, ortho, pitch, yaw, sunPitch, sunYaw, intensity = 0.9 }) {
+  const aim = sunAim(sunPitch, sunYaw), sunColour = [1, 0.5, 0.25], sunI = 1;
+  const doc = scene(id, () => [
+    camera(ortho ? {} : { projectionType: 0, fov: FOV, nearPlane: 1, farPlane: 2000 }),
+    sun(aim, sunI, sunColour),
+    volume([{ type: 'oracleSky', enabled: true, uniforms: { u_intensity: intensity } }]),
+  ]);
+  const cam = doc.entities.find((e) => e.name === 'Camera');
+  cam.components[0].data.position = { x: 0, y: 0, z: 0 };
+  cam.components[0].data.rotation = cameraQuat(pitch, yaw);
+  const sunLinear = sunColour.map(srgbDecode).map((c) => c * sunI);
+  const radiance = (dir) => {
+    const t = clamp01(dir[1] * 0.5 + 0.5), g = Math.pow(Math.max(dot(dir, aim.toLight), 0), 64) * 0.5;
+    return [0.6, 0.3, 0.1].map((h, k) => ([0.1, 0.3, 0.8][k] - h) * t + h + sunLinear[k] * g).map((v) => v * intensity);
+  };
+  const expect = [];
+  const grid = 6;
+  for (let a = 0; a < grid; a++) {
+    for (let b = 0; b < grid; b++) {
+      const i = Math.round(((a + 0.5) / grid) * (SIZE - 1)), j = Math.round(((b + 0.5) / grid) * (SIZE - 1));
+      const dir = ortho ? pixelDirOrtho(pitch, yaw) : pixelDir(i, j, pitch, yaw);
+      expect.push({ x: i / (SIZE - 1), y: j / (SIZE - 1), rgb: encodeLinear8(radiance(dir).map(clamp01)), tol: 4 });
+    }
+  }
+  // Every pixel one colour is the point of the orthographic case, and the harness wants that said: the colour, and all of the frame's pixels.
+  const uniform = ortho ? { uniform: true, count: [{ rgb: expect[0].rgb, tol: 4, atLeast: SIZE * SIZE }] } : {};
+  return { id, doc, colorSpace: 'linear', expect, ...uniform, about: `Custom sky: gradient + sun lobe, ${ortho ? 'orthographic (one direction, one colour)' : 'perspective'}` };
+}
+/** The one direction every ray of an orthographic camera looks along. */
+const pixelDirOrtho = (pitch, yaw) => norm(rotate(axisAngle([0, 1, 0], yaw), rotate(axisAngle([1, 0, 0], pitch), [0, 0, -1])));
+
 export const SKY_SCENES = [
   skyDome({ id: 'oracle-sky-noon', elevation: 65, azimuth: 40, pitch: 35, yaw: 200 }),
   skyDome({ id: 'oracle-sky-afternoon', elevation: 35, azimuth: 40, pitch: 30, yaw: 140 }),
@@ -175,4 +212,7 @@ export const SKY_SCENES = [
   cloudShadow({ id: 'oracle-cloud-shadow-clear-perspective', ortho: false, altitude: 5, shadowed: false }),
   cloudShadow({ id: 'oracle-cloud-shadow-under-ortho', ortho: true, altitude: 2.2, shadowed: true }),
   cloudShadow({ id: 'oracle-cloud-shadow-under-perspective', ortho: false, altitude: 2.2, shadowed: true }),
+  // The sun is 50 degrees up toward yaw 20; the camera looks 40 up toward it, so the lobe is on screen 10 degrees above the middle.
+  customSky({ id: 'oracle-custom-sky-perspective', ortho: false, pitch: 40, yaw: 20, sunPitch: 50, sunYaw: 200 }),
+  customSky({ id: 'oracle-custom-sky-ortho', ortho: true, pitch: 40, yaw: 20, sunPitch: 50, sunYaw: 200 }),
 ];
