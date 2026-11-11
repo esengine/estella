@@ -73,12 +73,6 @@ export {
     updateCameras,
 } from './GameplayPlugin';
 
-
-// Importing this subpath INSTALLS the gameplay runtime — see spine/index.ts.
-import { registerGameplaySupport } from './gameplaySupport';
-
-registerGameplaySupport();
-
 export {
     gridCellAt,
     gridCellCentre,

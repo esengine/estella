@@ -18,6 +18,8 @@ import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 import { GameSocket } from '../src/net/GameSocket';
 import type { ReliableOrderedTransport } from '../src/net/NetChannel';
 import { replicationPlugin, Net, Replicated } from '../src/net/replication';
+// The subpath's entry is what installs replication into an app; the barrel above is only its names.
+import '../src/net/replication/entry';
 import { setPlatform } from '../src/platform/base';
 import { nodeAdapter } from '../src/platform/node';
 

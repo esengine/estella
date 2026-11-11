@@ -65,11 +65,6 @@ export {
     type NetRoleKind,
 } from './ReplicationPlugin';
 
-// Importing this subpath INSTALLS replication — see spine/index.ts.
-import { registerReplicationSupport } from './replicationSupport';
-
-registerReplicationSupport();
-
 // The channel and the transports a game drives replication over: they chunk
 // with the protocol, so this is where a package pays for them.
 export {
