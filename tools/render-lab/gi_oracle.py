@@ -31,6 +31,8 @@ METHODS = {
     'baked': {'BAKE': '1', 'BOUNCES': '8'},
     'vgi': {'EFFECTS': json.dumps([{'type': 'voxelGI', 'enabled': True, 'uniforms': {}}])},
     'dgi': {'BACKEND': 'webgpu', 'HEADLESS_GPU': '1', 'EFFECTS': json.dumps([{'type': 'dynamicGI', 'enabled': True, 'uniforms': {}}])},
+    # The same, with every box a mesh and the `.esmeshsdf` / `.esmeshcards` an import with `dynamicGI` on writes beside it (make_mesh_boxes.mjs).
+    'dgim': {'BACKEND': 'webgpu', 'HEADLESS_GPU': '1', 'MESH_BOXES': '1', 'EFFECTS': json.dumps([{'type': 'dynamicGI', 'enabled': True, 'uniforms': {}}])},
 }
 
 # The share of Cycles' light, per region, each method is allowed (measured 2026-11-11). A region the sun lights directly reads about 1 for all.
@@ -45,6 +47,11 @@ BANDS = {
     ('gi_room', 'dgi'): (0.45, 1.25),
     ('gi_away', 'dgi'): (0.45, 1.00),
     ('gi_leak', 'dgi'): ('zero', 0.0005),
+    ('gi_emissive', 'dgi'): (0.75, 1.35),
+    ('gi_room', 'dgim'): (0.45, 1.45),
+    ('gi_away', 'dgim'): (0.45, 1.30),
+    ('gi_leak', 'dgim'): ('zero', 0.0005),
+    ('gi_emissive', 'dgim'): (0.75, 1.50),
 }
 # Wrong today, on purpose written down: the lightmap baker has no notion of an emissive surface (tools/lightmap-wasm/kernel.cpp carries albedo
 # and the sun, nothing that emits), so a room lit only by a glowing panel bakes black. The region shares are asserted to stay under this.
@@ -54,7 +61,6 @@ BANDS = {
 KNOWN_GAP = {
     ('gi_emissive', 'baked'): ('the lightmap baker does not light from emissive surfaces', 0.05),
     ('gi_leak', 'vgi'): ('the voxel method lets the sun through thin walls', 0.008),
-    ('gi_emissive', 'dgi'): ('the dynamic GI does not read the emissive colour of a material into its cards yet', 0.05),
 }
 
 

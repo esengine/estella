@@ -375,7 +375,7 @@ async function computeDeps(
   const byPath = new Map(entries.map((e) => [e.path, e]));
   const uuids = new Set(entries.map((e) => e.uuid));
   const refEntries = (targets ?? entries).filter(
-    (e) => JSON_REF_TYPES.has(e.type) || e.type === BITMAP_FONT
+    (e) => JSON_REF_TYPES.has(e.type) || e.type === BITMAP_FONT || e.type === 'mesh'
       || SKELETAL_ATLAS_TYPES.has(getEditorType(e.path)),
   );
   type DepResult = { uuid: string; refs: string[] } | { warning: string };
@@ -405,7 +405,15 @@ async function computeDeps(
     const isBitmapFont = entry.type === BITMAP_FONT;
     try {
       const refs = new Set<string>();
-      if (isBitmapFont) {
+      if (entry.type === 'mesh') {
+        // A mesh is binary and names nothing; the files the dynamic GI reads are its siblings, kept whenever the mesh is (an import with
+        // `dynamicGI` on wrote them, and the runtime asks for them by the mesh's own path).
+        const stem = entry.path.replace(/\.esmesh$/i, '');
+        for (const ext of ['.esmeshsdf', '.esmeshcards']) {
+          const dep = byPath.get(stem + ext);
+          if (dep) refs.add(dep.uuid);
+        }
+      } else if (isBitmapFont) {
         const content = await readTextInRoot(path.join(root, entry.path));
         for (const m of content.matchAll(FNT_PAGE)) {
           const dep = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, m[1])));

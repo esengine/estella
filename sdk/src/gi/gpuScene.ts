@@ -44,7 +44,7 @@ export const GI_HEADER_FLOATS = 24;
 export const GI_INSTANCE_FLOATS = 80;
 
 /** A box of the given size centred on the origin, as a distance field and as cards, without any mesh: what a primitive is to the GI. */
-export function analyticBox(size: readonly [number, number, number], colour: readonly [number, number, number], cell: number, cardCell: number, maxResolution = 24): GIInstance['sdf'] & { cards: MeshCards } {
+export function analyticBox(size: readonly [number, number, number], colour: readonly [number, number, number], cell: number, cardCell: number, maxResolution = 24, emissive: readonly [number, number, number] = [0, 0, 0]): GIInstance['sdf'] & { cards: MeshCards } {
     const h = size.map((s) => s / 2);
     const inflate = 0.5 * cell, pad = 2;
     const dims = size.map((s) => Math.max(Math.ceil(s / cell), 1) + 2 * pad) as [number, number, number];
@@ -55,16 +55,19 @@ export function analyticBox(size: readonly [number, number, number], colour: rea
         const d = Math.hypot(Math.max(q[0]!, 0), Math.max(q[1]!, 0), Math.max(q[2]!, 0)) + Math.min(Math.max(q[0]!, q[1]!, q[2]!), 0);
         distance[x + y * dims[0] + z * dims[0] * dims[1]] = d - inflate;
     }
-    const cards: MeshCards = { aabbMin: h.map((v) => -v) as [number, number, number], aabbMax: h as [number, number, number], cell: cardCell, emissiveScale: 1, cards: [] };
+    const cards: MeshCards = { aabbMin: h.map((v) => -v) as [number, number, number], aabbMax: h as [number, number, number], cell: cardCell, emissiveScale: Math.max(emissive[0], emissive[1], emissive[2], 1e-6), cards: [] };
     const cap = Math.max(...size) / maxResolution, px = Math.max(cardCell, cap);
     for (const { axis, sign, u, v } of CARD_AXES) {
         const width = Math.max(1, Math.min(maxResolution, Math.ceil(size[u]! / px))), height = Math.max(1, Math.min(maxResolution, Math.ceil(size[v]! / px)));
-        const n = width * height, normal = new Int8Array(n * 3), albedo = new Uint8Array(n * 3);
+        const n = width * height, normal = new Int8Array(n * 3), albedo = new Uint8Array(n * 3), emit = new Uint8Array(n * 3);
         for (let i = 0; i < n; i++) {
             normal[i * 3 + axis] = 127 * sign;
-            for (let k = 0; k < 3; k++) albedo[i * 3 + k] = Math.round(Math.min(Math.max(colour[k]!, 0), 1) * 255);
+            for (let k = 0; k < 3; k++) {
+                albedo[i * 3 + k] = Math.round(Math.min(Math.max(colour[k]!, 0), 1) * 255);
+                emit[i * 3 + k] = Math.round(Math.min(Math.max(emissive[k]! / cards.emissiveScale, 0), 1) * 255);
+            }
         }
-        cards.cards.push({ width, height, depth: new Uint16Array(n), normal, albedo, emissive: new Uint8Array(n * 3) });
+        cards.cards.push({ width, height, depth: new Uint16Array(n), normal, albedo, emissive: emit });
     }
     return { dims, cell, origin, distance, inflate, cards };
 }

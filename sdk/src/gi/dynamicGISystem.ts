@@ -4,13 +4,13 @@
  * @file    dynamicGISystem.ts
  * @brief   Feeds the dynamic GI the scene (docs/GI_LUMEN_DESIGN.md): the instances in the world, composed and handed to the engine when they change.
  *
- * @details Runs only while a PostProcessVolume carries an enabled `dynamicGI` effect. What it sees of the scene is the MeshRenderers whose mesh
- *          is the built-in cube: each is a box of its world scale, with its colour, and a box needs no baked file (analyticBox). A mesh
- *          with a baked `.esmeshsdf` / `.esmeshcards` beside it is the next step; until then it is not in the GI's scene.
- *          The sun is the first enabled directional light.
+ * @details Runs only while a PostProcessVolume carries an enabled `dynamicGI` effect. A MeshRenderer whose mesh is the built-in cube is a box of
+ *          its world scale, with its colour and the emissive colour of its material, and needs no baked file (analyticBox). Any other mesh is the
+ *          `.esmeshsdf` and `.esmeshcards` the import wrote beside it (the `dynamicGI` import setting), placed with the entity's transform; a
+ *          mesh without them is not in the GI's scene. The sun is the first enabled directional light.
  *
  *          Composition is JavaScript work on the cells the instances touch and runs when the scene changes (a key of the instances'
- *          transforms and colours and the sun), not every frame.
+ *          transforms, colours and emission, and the sun), not every frame.
  */
 import type { App } from '../app/app';
 import { defineSystem } from '../ecs/system';
@@ -20,18 +20,63 @@ import { LightType } from '../wasm/wasm.generated';
 import { Assets } from '../asset/AssetPlugin';
 import type { Entity } from '../types';
 import { withScratch } from '../wasm/wasmScratch';
+import { Material } from '../render/material';
 import { analyticBox, packGPUScene, type GIInstance, type GILight } from './gpuScene';
+import type { MeshSdf } from './meshSdfFormat';
+import type { MeshCards } from './cardFormat';
 
 const CUBE = 100;  // the built-in cube is 100 units across
 
-function matrixOf(t: TransformData): number[] {
+function matrixOf(t: TransformData, scale = 1): number[] {
     const { x, y, z, w } = t.worldRotation, p = t.worldPosition;
     return [
-        1 - 2 * (y * y + z * z), 2 * (x * y + z * w), 2 * (x * z - y * w), 0,
-        2 * (x * y - z * w), 1 - 2 * (x * x + z * z), 2 * (y * z + x * w), 0,
-        2 * (x * z + y * w), 2 * (y * z - x * w), 1 - 2 * (x * x + y * y), 0,
+        (1 - 2 * (y * y + z * z)) * scale, 2 * (x * y + z * w) * scale, 2 * (x * z - y * w) * scale, 0,
+        2 * (x * y - z * w) * scale, (1 - 2 * (x * x + z * z)) * scale, 2 * (y * z + x * w) * scale, 0,
+        2 * (x * z + y * w) * scale, 2 * (y * z - x * w) * scale, (1 - 2 * (x * x + y * y)) * scale, 0,
         p.x, p.y, p.z, 1,
     ];
+}
+
+/** What the system reads of one MeshRenderer: enough to place it in the GI scene. */
+export interface GIEntry {
+    mesh: number;
+    transform: TransformData;
+    colour: readonly [number, number, number];
+    emissive: readonly [number, number, number];
+    /** The asset path of the mesh, where it has one (a built-in cube has none the GI needs). */
+    path: string | null;
+}
+
+export interface GISidecars { sdf: MeshSdf; cards: MeshCards }
+
+/**
+ * The instances of the GI scene from the renderers: a built-in cube is a box of its world scale (with its colour and emission); any other
+ * mesh is the baked `.esmeshsdf` and `.esmeshcards` beside it, when it has them and is scaled the same along every axis (a distance field
+ * does not survive a stretch). Everything else is not in the GI scene.
+ */
+export function buildInstances(entries: readonly GIEntry[], cube: number, sidecars: (path: string) => GISidecars | null): { instances: GIInstance[]; key: string } {
+    const instances: GIInstance[] = [];
+    let key = '';
+    const extent = Math.max(1, ...entries.filter((e) => e.mesh === cube).flatMap((e) => [e.transform.worldScale.x, e.transform.worldScale.y, e.transform.worldScale.z].map((v) => v * CUBE)));
+    for (const e of entries) {
+        const s = e.transform.worldScale, p = e.transform.worldPosition, q = e.transform.worldRotation;
+        const pose = `${[p.x, p.y, p.z, q.x, q.y, q.z, q.w, s.x, s.y, s.z].map((v) => v.toFixed(3)).join(',')};${e.colour.join(',')};${e.emissive.join(',')}`;
+        if (e.mesh === cube) {
+            const size: [number, number, number] = [s.x * CUBE, s.y * CUBE, s.z * CUBE];
+            // A box with a cell fine enough that a wall a tenth of a metre thick is still more than one.
+            const { cards, ...sdf } = analyticBox(size, e.colour, Math.max(extent / 60, 1e-3), extent / 20, 24, e.emissive);
+            instances.push({ sdf, cards, worldFromLocal: matrixOf({ ...e.transform, worldScale: { x: 1, y: 1, z: 1 } }) });
+            key += `|c${pose}`;
+        } else if (e.path) {
+            const found = sidecars(e.path);
+            if (!found) continue;
+            const lo = Math.min(s.x, s.y, s.z), hi = Math.max(s.x, s.y, s.z);
+            if (lo <= 0 || hi / lo > 1.05) continue;
+            instances.push({ sdf: found.sdf, cards: found.cards, worldFromLocal: matrixOf(e.transform, (s.x + s.y + s.z) / 3) });
+            key += `|m${e.path};${pose}`;
+        }
+    }
+    return { instances, key };
 }
 
 function wantsDynamicGI(volumes: Iterable<[Entity, PostProcessVolumeData]>): boolean {
@@ -41,8 +86,38 @@ function wantsDynamicGI(volumes: Iterable<[Entity, PostProcessVolumeData]>): boo
     return false;
 }
 
+/** The emissive colour of a material, black where it has none. */
+export function emissiveOf(material: number): [number, number, number] {
+    if (material === 0) return [0, 0, 0];
+    const v = Material.getUniform(material as never, 'u_emissive') as unknown;
+    if (Array.isArray(v)) return [Number(v[0]) || 0, Number(v[1]) || 0, Number(v[2]) || 0];
+    const o = v as { x?: number; y?: number; z?: number; r?: number; g?: number; b?: number } | undefined;
+    if (!o || typeof o !== 'object') return [0, 0, 0];
+    return [o.x ?? o.r ?? 0, o.y ?? o.g ?? 0, o.z ?? o.b ?? 0];
+}
+
+type Loader = {
+    loadTyped?(type: string, ref: string): Promise<unknown>;
+    pathForHandle?(kind: string, handle: number): string | null;
+    catalog?: { addressOf?(path: string): string | null };
+};
+
 export function dynamicGISystem(app: App) {
     let cube = 0, loading = false, lastKey = '';
+    // The baked files beside a mesh, by its path: null while loading and for a mesh that has none.
+    const sidecars = new Map<string, GISidecars | null>();
+    const request = (path: string): void => {
+        if (sidecars.has(path) || !app.hasResource(Assets)) return;
+        sidecars.set(path, null);
+        const assets = app.getResource(Assets) as unknown as Loader;
+        // A packaged build renames every asset to its hash; the files beside the mesh are named from where it was authored.
+        const authored = assets.catalog?.addressOf?.(path) ?? path;
+        const base = authored.replace(/\.esmesh$/, '');
+        if (!assets.loadTyped || base === authored) return;
+        void Promise.all([assets.loadTyped('meshSdf', `${base}.esmeshsdf`), assets.loadTyped('meshCards', `${base}.esmeshcards`)]).then(
+            ([sdf, cards]) => { sidecars.set(path, { sdf: sdf as MeshSdf, cards: cards as MeshCards }); lastKey = ''; },
+            () => { /* a mesh with no baked files is simply not in the scene */ });
+    };
     return defineSystem(
         [Query(MeshRenderer, Transform), Query(Light, Transform), Query(PostProcessVolume)],
         (meshes: Iterable<[Entity, MeshRendererData, TransformData]>, lights: Iterable<[Entity, LightData, TransformData]>,
@@ -67,25 +142,21 @@ export function dynamicGISystem(app: App) {
                 light = { toLight: [-ax / n, -ay / n, -az / n], radiance: [l.color.r * l.intensity, l.color.g * l.intensity, l.color.b * l.intensity] };
                 break;
             }
-            const boxes: Array<{ matrix: number[]; size: [number, number, number]; colour: [number, number, number] }> = [];
-            let key = light ? `${light.toLight.join(',')}|${light.radiance.join(',')}` : 'dark';
+            const assets = app.hasResource(Assets) ? app.getResource(Assets) as unknown as Loader : null;
+            const entries: GIEntry[] = [];
             for (const [, r, t] of meshes) {
-                if (!r.enabled || r.mesh !== cube) continue;
-                const s = t.worldScale, matrix = matrixOf(t);
-                const size: [number, number, number] = [s.x * CUBE, s.y * CUBE, s.z * CUBE];
-                const colour: [number, number, number] = [r.color.r, r.color.g, r.color.b];
-                boxes.push({ matrix, size, colour });
-                key += `|${matrix.slice(0, 3).concat(matrix.slice(12, 15)).map((v) => v.toFixed(3)).join(',')};${size.join(',')};${colour.join(',')}`;
+                if (!r.enabled) continue;
+                let path: string | null = null;
+                if (r.mesh !== cube && r.mesh !== 0) {
+                    path = assets?.pathForHandle?.('mesh', r.mesh) ?? null;
+                    if (path) request(path);
+                }
+                entries.push({ mesh: r.mesh, transform: t, colour: [r.color.r, r.color.g, r.color.b], emissive: emissiveOf(r.material), path });
             }
-            if (key === lastKey || boxes.length === 0) return;
+            const { instances, key: sceneKey } = buildInstances(entries, cube, (p) => sidecars.get(p) ?? null);
+            const key = (light ? `${light.toLight.join(',')}|${light.radiance.join(',')}` : 'dark') + sceneKey;
+            if (key === lastKey || instances.length === 0) return;
             lastKey = key;
-            const extent = Math.max(...boxes.flatMap((b) => b.size));
-            const instances: GIInstance[] = boxes.map((b) => {
-                // A box of the field's own cell size: fine enough that a wall a tenth of a metre thick is still more than a cell.
-                const cell = Math.max(extent / 60, 1e-3);
-                const { cards, ...sdf } = analyticBox(b.size, b.colour, cell, extent / 20);
-                return { sdf, cards, worldFromLocal: b.matrix };
-            });
             const scene = packGPUScene(instances, light);
             if (!scene) return;
             withScratch(m, (alloc) => {

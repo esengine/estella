@@ -36,14 +36,22 @@ if 'emission' in spec:
     json.dump({'uuid': mid, 'version': '2.0', 'type': 'material', 'importer': {}}, open(proj + '/assets/materials/panel.esmaterial.meta', 'w'), indent=2)
     panel_material = '@uuid:' + mid
 
+MESH_BOXES = os.environ.get('MESH_BOXES') == '1'
+if MESH_BOXES:
+    # Each box a mesh with the files the dynamic GI reads beside it, as an import with `dynamicGI` on would write them.
+    import subprocess
+    boxes = [{'size': list(b[2]), 'colour': list(b[3]), 'emissive': [spec.get('emission', 0)] * 3 if b[0] == 'panel' else [0, 0, 0]} for b in spec['boxes']]
+    json.dump(boxes, open(proj + '/boxes.json', 'w'))
+    subprocess.check_call(['node', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'make_mesh_boxes.mjs'), proj, proj + '/boxes.json'])
+
 for i, (name, centre, size, colour) in enumerate(spec['boxes']):
-    mr = {'mesh': 'builtin:cube', 'lit': True, 'opaque': True, 'cullBackfaces': True,
+    mr = {'mesh': 'assets/meshes/box_%d.esmesh' % i if MESH_BOXES else 'builtin:cube', 'lit': True, 'opaque': True, 'cullBackfaces': True,
           'color': {'r': colour[0], 'g': colour[1], 'b': colour[2], 'a': 1}}
     if name == 'panel' and panel_material:
         mr['material'] = panel_material
     entities.append({'id': 10 + i, 'name': name, 'parent': None, 'children': [], 'visible': True, 'components': [
         {'type': 'Transform', 'data': {'position': {'x': centre[0], 'y': centre[1], 'z': centre[2]},
-                                       'scale': {'x': size[0] / 100.0, 'y': size[1] / 100.0, 'z': size[2] / 100.0}}},
+                                       'scale': {'x': 1, 'y': 1, 'z': 1} if MESH_BOXES else {'x': size[0] / 100.0, 'y': size[1] / 100.0, 'z': size[2] / 100.0}}},
         {'type': 'MeshRenderer', 'data': mr}]})
 
 if spec['sun']:
