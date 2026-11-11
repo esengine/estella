@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  A model imported with `distanceField` on gets a `.esmeshsdf` beside each mesh; without it, none.
+ * @file  A model imported with `dynamicGI` on gets a `.esmeshsdf` and `.esmeshcards` beside each mesh; without it, none.
  */
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,6 +9,7 @@ import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { importModelFile } from '../src/assets/importModelFile';
 import { decodeMeshSdf, sampleMeshSdf } from '../src/assets/meshSdf';
+import { decodeMeshCards } from '../../sdk/src/gi/cardFormat';
 
 /** A cube of half extent 50 (units), glTF with outward winding. */
 function cubeGltf(): string {
@@ -40,13 +41,13 @@ describe('importing a model with a distance field', () => {
     const roots: string[] = [];
     afterAll(() => { for (const r of roots) rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
 
-    async function run(distanceField: boolean) {
+    async function run(dynamicGI: boolean) {
         const root = mkdtempSync(path.join(tmpdir(), 'model-sdf-'));
         roots.push(root);
         const dir = path.join(root, 'assets', 'models');
         mkdirSync(dir, { recursive: true });
         writeFileSync(path.join(dir, 'cube.gltf'), cubeGltf());
-        const result = await importModelFile({ root, destDir: 'assets/models', absSource: path.join(dir, 'cube.gltf'), settings: { distanceField } });
+        const result = await importModelFile({ root, destDir: 'assets/models', absSource: path.join(dir, 'cube.gltf'), settings: { dynamicGI } });
         return { result, dir, files: readdirSync(dir) };
     }
 
@@ -58,10 +59,13 @@ describe('importing a model with a distance field', () => {
         const sdf = decodeMeshSdf(new Uint8Array(readFileSync(path.join(dir, name!))));
         expect(sampleMeshSdf(sdf, [0, 0, 0])).toBeLessThan(-40);
         expect(sampleMeshSdf(sdf, [80, 0, 0])).toBeGreaterThan(20);
+        const cardsName = files.find((f) => f.endsWith('.esmeshcards'));
+        expect(cardsName).toBeDefined();
+        expect(decodeMeshCards(new Uint8Array(readFileSync(path.join(dir, cardsName!)))).cards.length).toBe(6);
     });
 
     it('writes none unless it is asked to', async () => {
         const { files } = await run(false);
-        expect(files.some((f) => f.endsWith('.esmeshsdf'))).toBe(false);
+        expect(files.some((f) => f.endsWith('.esmeshsdf') || f.endsWith('.esmeshcards'))).toBe(false);
     });
 });

@@ -42,6 +42,7 @@ import { isBuiltinMeshRef } from './builtinMeshes';
 import { EnvironmentAssetLoader } from './loaders/EnvironmentAssetLoader';
 import { ProbeVolumeAssetLoader } from './loaders/ProbeVolumeAssetLoader';
 import { MeshSdfAssetLoader } from './loaders/MeshSdfAssetLoader';
+import { MeshCardsAssetLoader } from './loaders/MeshCardsAssetLoader';
 import { FontAssetLoader } from './loaders/FontAssetLoader';
 import { AudioAssetLoader } from './loaders/AudioAssetLoader';
 import { AnimClipAssetLoader } from './loaders/AnimClipAssetLoader';
@@ -2693,6 +2694,7 @@ export class Assets {
         this.register(new EnvironmentAssetLoader(core));
         this.register(new ProbeVolumeAssetLoader(core));
         this.register(new MeshSdfAssetLoader());
+        this.register(new MeshCardsAssetLoader());
         // The audio loader needs the AudioAPI outside load() too (unload /
         // invalidate have no LoadContext), so it shares Assets' lazy accessor.
         this.register(new AudioAssetLoader(() => this.getAudio_()));

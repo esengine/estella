@@ -88,6 +88,7 @@ export const EXT_TO_TYPE = Object.freeze({
     '.esprobes': 'probeVolume',
     '.esmesh': 'mesh',
     '.esmeshsdf': 'meshSdf',
+    '.esmeshcards': 'meshCards',
     // A model as the steps that build it. Never shipped: saving one bakes the sibling
     // `.esmesh`, and that is what a scene references. Typed for the same reason
     // `.esmatgraph` is, and apart from `model` because nothing imports it.

@@ -21,6 +21,8 @@ import {
 } from './modelImport';
 import { modelStem, readModelSource } from './readModelSource';
 import { bakeMeshSdf, encodeMeshSdf } from './meshSdf';
+import { bakeMeshCards } from './meshCards';
+import { encodeMeshCards } from '../../../sdk/src/gi/cardFormat';
 import { parseManifest } from '../project/format';
 
 export interface ModelImportSettings {
@@ -31,8 +33,8 @@ export interface ModelImportSettings {
     lodMinTriangles: number;
     characters: boolean;
     springBones: boolean;
-    /** Bake a signed distance field beside each mesh (`<name>.esmeshsdf`), which the dynamic GI traces against. */
-    distanceField: boolean;
+    /** Bake what the dynamic GI reads of each mesh: its distance field (`<name>.esmeshsdf`) and its surface cards (`<name>.esmeshcards`). */
+    dynamicGI: boolean;
 }
 
 export interface ImportedModel {
@@ -66,7 +68,7 @@ export interface ImportModelOptions {
 }
 
 const DEFAULTS: ModelImportSettings = {
-    scale: 1, lightmapUV: false, specularMap: 'color', lodLevels: 0, lodMinTriangles: 256, characters: false, springBones: false, distanceField: false,
+    scale: 1, lightmapUV: false, specularMap: 'color', lodLevels: 0, lodMinTriangles: 256, characters: false, springBones: false, dynamicGI: false,
 };
 
 /** What a model's `.meta` asks of the import; the schema's defaults where it is silent or unreadable. One read, because two would be two chances to disagree. */
@@ -74,7 +76,7 @@ export function modelSettings(absSource: string): ModelImportSettings {
     try {
         const meta = JSON.parse(readFileSync(`${absSource}.meta`, 'utf8')) as
             { importer?: { scale?: unknown; lightmapUV?: unknown; specularMap?: unknown;
-                lodLevels?: unknown; lodMinTriangles?: unknown; characterMaterials?: unknown; springBones?: unknown; distanceField?: unknown } };
+                lodLevels?: unknown; lodMinTriangles?: unknown; characterMaterials?: unknown; springBones?: unknown; dynamicGI?: unknown } };
         const imp = meta.importer;
         const scale = imp?.scale;
         const levels = imp?.lodLevels;
@@ -87,7 +89,7 @@ export function modelSettings(absSource: string): ModelImportSettings {
             lodMinTriangles: typeof minTriangles === 'number' && minTriangles >= 0 ? minTriangles : 256,
             characters: imp?.characterMaterials === 'auto',
             springBones: imp?.springBones === 'auto',
-            distanceField: imp?.distanceField === true,
+            dynamicGI: imp?.dynamicGI === true,
         };
     } catch {
         return { ...DEFAULTS };
@@ -127,7 +129,7 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
     const sourceDir = opts.originDir ?? path.dirname(absSource);
     const stem = modelStem(absSource);
     const projectRef = (abs: string): string => path.relative(path.resolve(root), abs).split(path.sep).join('/');
-    const { scale, lightmapUV, specularMap, lodLevels, lodMinTriangles, characters, springBones, distanceField } = { ...modelSettings(absSource), ...opts.settings };
+    const { scale, lightmapUV, specularMap, lodLevels, lodMinTriangles, characters, springBones, dynamicGI } = { ...modelSettings(absSource), ...opts.settings };
 
     const { meshes, textures, nodes, animations, externalFiles, warnings } = await readModelSource(
         new Uint8Array(readFileSync(absSource)), stem,
@@ -259,9 +261,15 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
                 await write(`${lodName(mesh, i + 1)}.esmesh`, lodBytes);
             }
             // A skinned or morphing mesh moves its surface: a field baked from the bind pose would be a wrong wall.
-            if (distanceField && !mesh.data.inverseBindMatrices && !mesh.data.morph) {
+            if (dynamicGI && !mesh.data.inverseBindMatrices && !mesh.data.morph) {
                 const field = bakeMeshSdf(mesh.data, { cellSize: (0.1 * projectUnitsPerMeter(root)) / Math.max(scale, 1e-6) });
                 if (field) await write(`${mesh.name}.esmeshsdf`, encodeMeshSdf(field));
+                const m = mesh.material;
+                const cards = bakeMeshCards(mesh.data, {
+                    cell: (0.25 * projectUnitsPerMeter(root)) / Math.max(scale, 1e-6),
+                    baseColor: m ? [m.baseColor[0], m.baseColor[1], m.baseColor[2]] : undefined, emissive: m?.emissive,
+                });
+                if (cards) await write(`${mesh.name}.esmeshcards`, encodeMeshCards(cards));
             }
         }
     }
