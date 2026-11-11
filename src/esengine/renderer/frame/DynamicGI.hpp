@@ -37,6 +37,10 @@ struct DynamicGIParams {
     f32 intensity = 1.0f;
     /// How much of each frame's card lighting replaces what the card held (the rest is history, which is what smooths the noise).
     f32 blend = 0.15f;
+    /// The cards are relit a slice at a time over this many frames (their light changes slowly; the cost is in proportion).
+    u32 cardSlices = 4;
+    /// One in this many of a probe rays is traced each frame, alternating, so the history fills the rest in.
+    u32 probeStride = 2;
 };
 
 /**
@@ -92,6 +96,8 @@ private:
     bool failed_ = false;
     u32 frame_ = 0;
     u32 pixelCount_ = 0;
+    /// Pixels between probes, chosen from the height of the picture.
+    u32 probeSpacing_ = 8;
 };
 
 }  // namespace esengine

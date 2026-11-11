@@ -86,7 +86,7 @@ describe('the packed scene', () => {
         expect(scene.header.length).toBe(GI_HEADER_FLOATS);
         const [dim, cell, , , , reach, count, pixels] = scene.header;
         expect(dim).toBe(128);
-        expect(scene.sdf.length).toBe(128 ** 3);
+        expect(scene.sdf.length).toBe(128 ** 3 * 1.25);  // the field, then the nearest instance of each cell, four to a word
         expect(reach).toBeCloseTo(cell! * 6, 4);
         expect(count).toBe(2);
         expect(scene.instances.length).toBe(2 * GI_INSTANCE_FLOATS);

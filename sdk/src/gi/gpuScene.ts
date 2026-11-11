@@ -8,7 +8,7 @@
  *
  *            header  (floats) dim, cell, origin x y z (cells), reach, instances, card pixels, sun toLight x y z, sun on, sun radiance r g b,
  *                    ray bias, ray range, card tolerance, sky r g b, hit fraction
- *            sdf     dim^3 floats, toroidal like GlobalSdf's level
+ *            sdf     dim^3 floats, toroidal like GlobalSdf's level, then dim^3 / 4 words holding the id (+ 1) of the instance nearest each cell
  *            instance (20 vec4 = 80 floats) 0-3 local to world (column major) | 4-6 world to local rows, w the translation, scale divided out |
  *                    7 world box min, w scale | 8 world box max, w card pixel size | 9 local box min, w emission scale | 10 local box max |
  *                    11-16 the six faces (width, height, first pixel) | 17-19 spare
@@ -142,5 +142,10 @@ export function packGPUScene(instances: readonly GIInstance[], light: GILight | 
     set(0, dim, cell, level.origin[0]!, level.origin[1]!, level.origin[2]!, cell * GlobalSdf.REACH_CELLS, instances.length, pixelTotal);
     set(8, ...(light?.toLight ?? [0, 1, 0]), light ? 1 : 0, ...(light?.radiance ?? [0, 0, 0]), bias, extent * 2.5, cell * 3);
     set(18, ...(options.sky ?? [0, 0, 0]), 0.25);
-    return { header, sdf: level.data, instances: instanceData, pixels };
+    // The field, then which instance each cell is nearest to, four cells to a word of seven-bit ids (a word with a top bit set could read as a
+    // NaN, and a device is free to change those).
+    const cells = level.data.length, packed = new Float32Array(cells + cells / 4), words = new Uint32Array(packed.buffer, cells * 4, cells / 4);
+    packed.set(level.data);
+    for (let i = 0; i < cells; i++) words[i >> 2]! |= level.owner[i]! << ((i & 3) * 8);
+    return { header, sdf: packed, instances: instanceData, pixels };
 }

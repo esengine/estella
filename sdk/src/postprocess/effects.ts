@@ -577,6 +577,10 @@ registerEffect({
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 4, step: 0.01, defaultValue: 1, neutralValue: 0 },
         // How much of each frame replaces what the cards and probes held; lower is smoother and slower to follow a change.
         { name: 'u_blend', label: 'Temporal Blend', min: 0.02, max: 1, step: 0.01, defaultValue: 0.15 },
+        // The cards (the surfaces the rays read light from) are relit a slice at a time over this many frames: their light changes slowly.
+        { name: 'u_cardSlices', label: 'Card Update Frames', min: 1, max: 16, step: 1, defaultValue: 4 },
+        // One in this many of a probe's 64 rays is traced each frame, alternating; the history fills the rest in.
+        { name: 'u_probeStride', label: 'Probe Ray Stride', min: 1, max: 8, step: 1, defaultValue: 2 },
     ],
 });
 

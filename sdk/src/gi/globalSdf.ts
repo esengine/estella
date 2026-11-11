@@ -46,6 +46,8 @@ interface Level {
     /** The window's first cell, in whole cells of the level. */
     origin: [number, number, number];
     data: Float32Array;
+    /** Per cell, 1 + the id of the instance nearest to it (127 for an id past 125), 0 where nothing is within reach. */
+    owner: Uint8Array;
 }
 
 export class GlobalSdf {
@@ -57,7 +59,7 @@ export class GlobalSdf {
     constructor(levels: readonly GlobalSdfLevel[]) {
         this.levels = levels.map((l) => {
             if ((l.dim & (l.dim - 1)) !== 0 || l.dim < 2) throw new Error(`a clipmap level is a power of two cells across, got ${l.dim}`);
-            const level: Level = { dim: l.dim, cell: l.cell, origin: [0, 0, 0], data: new Float32Array(l.dim ** 3) };
+            const level: Level = { dim: l.dim, cell: l.cell, origin: [0, 0, 0], data: new Float32Array(l.dim ** 3), owner: new Uint8Array(l.dim ** 3) };
             level.data.fill(l.cell * GlobalSdf.REACH_CELLS);
             return level;
         });
@@ -207,9 +209,14 @@ export class GlobalSdf {
         const mask = level.dim - 1;
         for (let z = a[2]!; z < b[2]!; z++) for (let y = a[1]!; y < b[1]!; y++) for (let x = a[0]!; x < b[0]!; x++) {
             const p: [number, number, number] = [(x + 0.5) * level.cell, (y + 0.5) * level.cell, (z + 0.5) * level.cell];
-            let d = reach;
-            for (const placed of near) d = Math.min(d, this.distanceTo_(placed, p));
-            level.data[(x & mask) + (y & mask) * level.dim + (z & mask) * level.dim * level.dim] = Math.max(d, -reach);
+            let d = reach, owner = 0;
+            for (const placed of near) {
+                const v = this.distanceTo_(placed, p);
+                if (v < d) { d = v; owner = placed.instance.id < 126 ? placed.instance.id + 1 : 127; }
+            }
+            const at = (x & mask) + (y & mask) * level.dim + (z & mask) * level.dim * level.dim;
+            level.data[at] = Math.max(d, -reach);
+            level.owner[at] = owner;
         }
     }
 

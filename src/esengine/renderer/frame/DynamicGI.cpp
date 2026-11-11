@@ -37,8 +37,9 @@ struct ParamsBlock {
     f32 sunRad[4];
     f32 trace[4];
     f32 sky[4];
+    f32 misc[4];
 };
-static_assert(sizeof(ParamsBlock) == 112, "the GI block is seven vec4s");
+static_assert(sizeof(ParamsBlock) == 128, "the GI block is eight vec4s");
 
 #ifdef ES_ENABLE_WEBGPU
 // The CPU twin of what is here is in sdk/src/gi (globalSdf.ts sphereTrace, surfaceCache.ts lookup, screenProbes.ts tracePoint);
@@ -57,6 +58,7 @@ struct GI {
     sunRad : vec4f,    // rgb: radiance; w: how far off a surface a ray starts
     trace : vec4f,     // x: how far a ray looks, y: card tolerance, z: blend, w: hit fraction of a cell
     sky : vec4f,       // rgb: what a ray that meets nothing brings
+    misc : vec4f,      // x: how many frames the cards are spread over; y: 1 of every this many rays of a probe is traced a frame; z: pixels between probes
 };
 @group(0) @binding(0) var<uniform> frame : Frame;
 @group(0) @binding(1) var<uniform> gi : GI;
@@ -98,6 +100,10 @@ fn sdfTrace(origin : vec3f, dir : vec3f, maxT : f32) -> f32 {
         if (t >= maxT) { return -1.0; }
         let p = origin + dir * t;
         if (!inField(p)) { return -1.0; }
+        // Far from anything (the cell the point is in says so by more than three cells) one read is enough: the field there, less the
+        // farthest a point can be from its cell's centre, is a distance nothing is nearer than. Close to a surface the 8 reads of a trilinear.
+        let near = cellValue(vec3i(floor(p / cell)));
+        if (near > cell * 3.0) { t = t + near - cell * 0.87; continue; }
         let d = sdfSample(p);
         if (d < cell * gi.trace.w) { return t; }
         t = t + max(d, cell * 0.25);
@@ -128,57 +134,80 @@ fn unpackColour(w : u32) -> vec3f {
     return vec3f(f32(w & 255u), f32((w >> 8u) & 255u), f32((w >> 16u) & 255u)) / 255.0;
 }
 
-// What a ray brings back from the surface it hit at point, travelling along dir: the cards that face it, blended by how squarely each
-// does, from the pixel whose surface is within the tolerance of the point; of the instances that hold the point, the nearest wins.
+// What the cards of one instance say a ray brings back from the surface it hit at point, travelling along dir: the cards that face it,
+// blended by how squarely each does, from the pixel whose surface is within the tolerance of the point. w is how far that pixel is, or
+// -1 when no card of the instance holds the point.
+fn lookupIn(i : u32, point : vec3f, dir : vec3f) -> vec4f {
+    let tol = gi.trace.y;
+    let b = instBase(i);
+    let wmin = insts[b + 7u];
+    let wmax = insts[b + 8u];
+    if (any(point < wmin.xyz - vec3f(tol)) || any(point > wmax.xyz + vec3f(tol))) { return vec4f(0.0, 0.0, 0.0, -1.0); }
+    let r0 = insts[b + 4u]; let r1 = insts[b + 5u]; let r2 = insts[b + 6u];
+    let local = vec3f(dot(r0.xyz, point) + r0.w, dot(r1.xyz, point) + r1.w, dot(r2.xyz, point) + r2.w);
+    var d = vec3f(dot(r0.xyz, dir), dot(r1.xyz, dir), dot(r2.xyz, dir));
+    d = d / max(length(d), 1e-9);
+    let lmin = insts[b + 9u].xyz;
+    let lmax = insts[b + 10u].xyz;
+    let scale = wmin.w;
+    let cell = wmax.w;
+    var sum = vec3f(0.0);
+    var total = 0.0;
+    var error = 0.0;
+    for (var axis = 0u; axis < 3u; axis = axis + 1u) {
+        let da = comp(d, axis);
+        let weight = abs(da);
+        if (weight < 0.05) { continue; }
+        let face = axis * 2u + select(0u, 1u, da > 0.0);
+        let uv = faceAxes(face);
+        let lu = comp(local, uv.x); let lv = comp(local, uv.y);
+        if (lu < comp(lmin, uv.x) - cell || lu > comp(lmax, uv.x) + cell || lv < comp(lmin, uv.y) - cell || lv > comp(lmax, uv.y) + cell) { continue; }
+        let f = insts[b + 11u + face];
+        let fu = clamp((lu - comp(lmin, uv.x)) / max(comp(lmax, uv.x) - comp(lmin, uv.x), 1e-9), 0.0, 0.99999);
+        let fv = clamp((lv - comp(lmin, uv.y)) / max(comp(lmax, uv.y) - comp(lmin, uv.y), 1e-9), 0.0, 0.99999);
+        let px = u32(floor(fu * f.x));
+        let py = u32(floor(fv * f.y));
+        let idx = u32(f.z) + px + py * u32(f.x);
+        let pix = cardPix[idx];
+        let depth16 = pix.x & 0xffffu;
+        if (depth16 == 65535u) { continue; }
+        let ext = comp(lmax, axis) - comp(lmin, axis);
+        let sgn = face % 2u == 0u;
+        let la = comp(local, axis);
+        let pointDepth = select(la - comp(lmin, axis), comp(lmax, axis) - la, sgn);
+        let cardDepth = f32(depth16) / 65534.0 * ext;
+        let off = abs(cardDepth - pointDepth) * scale;
+        if (off > tol) { continue; }
+        error = max(error, off);
+        sum = sum + weight * radIn[idx].xyz;
+        total = total + weight;
+    }
+    if (total <= 0.0) { return vec4f(0.0, 0.0, 0.0, -1.0); }
+    return vec4f(sum / total, error);
+}
+
+// Which instance a cell is nearest to (id + 1; 0 for none, 127 for an id the table cannot hold). The words after the field hold four each.
+fn ownerAt(c : vec3i) -> u32 {
+    let d = i32(gi.sdf.x);
+    let w = c & vec3i(d - 1);
+    let idx = u32(w.x + w.y * d + w.z * d * d);
+    let cells = u32(d * d * d);
+    return (bitcast<u32>(sdfData[cells + (idx >> 2u)]) >> ((idx & 3u) * 8u)) & 127u;
+}
+
+// What a ray brings back from the surface it hit at point. The field names the instance the point is by, so the cards of that one are
+// asked; only where it says none (or its cards do not hold the point) are all of them, and of those the nearest wins.
 fn lookup(point : vec3f, dir : vec3f) -> vec3f {
+    let owner = ownerAt(vec3i(floor(point / gi.sdf.y)));
+    if (owner > 0u && owner < 127u && owner <= gi.counts.x) {
+        let r = lookupIn(owner - 1u, point, dir);
+        if (r.w >= 0.0) { return r.xyz; }
+    }
     var best = vec3f(0.0);
     var bestError = 1e30;
-    let tol = gi.trace.y;
     for (var i = 0u; i < gi.counts.x; i = i + 1u) {
-        let b = instBase(i);
-        let wmin = insts[b + 7u];
-        let wmax = insts[b + 8u];
-        if (any(point < wmin.xyz - vec3f(tol)) || any(point > wmax.xyz + vec3f(tol))) { continue; }
-        let r0 = insts[b + 4u]; let r1 = insts[b + 5u]; let r2 = insts[b + 6u];
-        let local = vec3f(dot(r0.xyz, point) + r0.w, dot(r1.xyz, point) + r1.w, dot(r2.xyz, point) + r2.w);
-        var d = vec3f(dot(r0.xyz, dir), dot(r1.xyz, dir), dot(r2.xyz, dir));
-        d = d / max(length(d), 1e-9);
-        let lmin = insts[b + 9u].xyz;
-        let lmax = insts[b + 10u].xyz;
-        let scale = wmin.w;
-        let cell = wmax.w;
-        var sum = vec3f(0.0);
-        var total = 0.0;
-        var error = 0.0;
-        for (var axis = 0u; axis < 3u; axis = axis + 1u) {
-            let da = comp(d, axis);
-            let weight = abs(da);
-            if (weight < 0.05) { continue; }
-            let face = axis * 2u + select(0u, 1u, da > 0.0);
-            let uv = faceAxes(face);
-            let lu = comp(local, uv.x); let lv = comp(local, uv.y);
-            if (lu < comp(lmin, uv.x) - cell || lu > comp(lmax, uv.x) + cell || lv < comp(lmin, uv.y) - cell || lv > comp(lmax, uv.y) + cell) { continue; }
-            let f = insts[b + 11u + face];
-            let fu = clamp((lu - comp(lmin, uv.x)) / max(comp(lmax, uv.x) - comp(lmin, uv.x), 1e-9), 0.0, 0.99999);
-            let fv = clamp((lv - comp(lmin, uv.y)) / max(comp(lmax, uv.y) - comp(lmin, uv.y), 1e-9), 0.0, 0.99999);
-            let px = u32(floor(fu * f.x));
-            let py = u32(floor(fv * f.y));
-            let idx = u32(f.z) + px + py * u32(f.x);
-            let pix = cardPix[idx];
-            let depth16 = pix.x & 0xffffu;
-            if (depth16 == 65535u) { continue; }
-            let ext = comp(lmax, axis) - comp(lmin, axis);
-            let sgn = face % 2u == 0u;
-            let la = comp(local, axis);
-            let pointDepth = select(la - comp(lmin, axis), comp(lmax, axis) - la, sgn);
-            let cardDepth = f32(depth16) / 65534.0 * ext;
-            let off = abs(cardDepth - pointDepth) * scale;
-            if (off > tol) { continue; }
-            error = max(error, off);
-            sum = sum + weight * radIn[idx].xyz;
-            total = total + weight;
-        }
-        if (total > 0.0 && error < bestError) { bestError = error; best = sum / total; }
+        let r = lookupIn(i, point, dir);
+        if (r.w >= 0.0 && r.w < bestError) { bestError = r.w; best = r.xyz; }
     }
     return best;
 }
@@ -214,16 +243,25 @@ fn rayRadiance(origin : vec3f, d : vec3f) -> vec3f {
 }
 )WGSL";
 
+// One workgroup relights one card pixel: its 64 threads are the 64 rays (one a thread, so the GPU is kept busy where one thread tracing
+// 64 in turn left it waiting on its own chain of reads), reduced in shared memory. Only a slice of the cards is relit each frame, round
+// robin. The cards are updated in place (a ray that reads a card another workgroup is rewriting sees the old or the new light, either
+// of which is a frame of the right answer), so radIn is declared read-write here.
 const char* kCardLight = R"WGSL(
-@group(0) @binding(6) var<storage, read_write> radOut : array<vec4f>;
+var<workgroup> cardSum : array<vec3f, 64>;
 
 @compute @workgroup_size(64)
-fn main(@builtin(global_invocation_id) id : vec3u) {
-    let p = id.x;
-    if (p >= gi.counts.y) { return; }
+fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_index) lid : u32) {
+    let slices = max(u32(gi.misc.x), 1u);
+    let chunk = (gi.counts.y + slices - 1u) / slices;
+    let settled = gi.origin.w >= 2;
+    let start = select(0u, (u32(gi.origin.w) % slices) * chunk, settled);
+    let end = select(gi.counts.y, min(start + chunk, gi.counts.y), settled);
+    let p = start + wg.x + wg.y * 65535u;
+    if (p >= end) { return; }
     let pix = cardPix[p];
     let depth16 = pix.x & 0xffffu;
-    if (depth16 == 65535u) { radOut[p] = vec4f(0.0); return; }
+    if (depth16 == 65535u) { if (lid == 0u) { radIn[p] = vec4f(0.0); } return; }
     let instance = pix.w >> 3u;
     let face = pix.w & 7u;
     let b = instBase(instance);
@@ -246,30 +284,26 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
     let scale = insts[b + 7u].w;
     let nl = unpackNormal(pix.x, pix.y);
     let n = normalize((m0.xyz * nl.x + m1.xyz * nl.y + m2.xyz * nl.z) / scale);
+    let origin = pos + n * gi.sunRad.w;
+    let d = probeRay(lid & 7u, lid >> 3u, n, p, u32(gi.origin.w));
+    cardSum[lid] = rayRadiance(origin, d) * dot(d, n);
+    workgroupBarrier();
+    for (var s = 32u; s > 0u; s = s >> 1u) {
+        if (lid < s) { cardSum[lid] = cardSum[lid] + cardSum[lid + s]; }
+        workgroupBarrier();
+    }
+    if (lid != 0u) { return; }
     let albedo = unpackColour(pix.y >> 8u);
     let emissive = unpackColour(pix.z) * insts[b + 9u].w;
-
     var direct = vec3f(0.0);
     if (gi.sunDir.w > 0.5) {
         let ndl = dot(n, gi.sunDir.xyz);
-        if (ndl > 0.0) {
-            let t = sdfTrace(pos + n * gi.sunRad.w, gi.sunDir.xyz, gi.trace.x);
-            if (t < 0.0) { direct = gi.sunRad.xyz * ndl; }
-        }
+        if (ndl > 0.0 && sdfTrace(origin, gi.sunDir.xyz, gi.trace.x) < 0.0) { direct = gi.sunRad.xyz * ndl; }
     }
-    let origin = pos + n * gi.sunRad.w;
-    var sum = vec3f(0.0);
-    let frameIndex = u32(gi.origin.w);
-    for (var j = 0u; j < 8u; j = j + 1u) {
-        for (var i = 0u; i < 8u; i = i + 1u) {
-            let d = probeRay(i, j, n, p, frameIndex);
-            sum = sum + rayRadiance(origin, d) * dot(d, n);
-        }
-    }
-    let indirect = sum * (2.0 / 64.0);
-    let now = albedo * (direct + indirect) + emissive;
-    let blend = select(gi.trace.z, 1.0, gi.origin.w < 2);
-    radOut[p] = vec4f(mix(radIn[p].xyz, now, blend), 1.0);
+    let now = albedo * (direct + cardSum[0] * (2.0 / 64.0)) + emissive;
+    // A card is relit once in `slices` frames, so each relight carries that much more of the change.
+    let blend = select(min(gi.trace.z * f32(slices), 1.0), 1.0, !settled);
+    radIn[p] = vec4f(mix(radIn[p].xyz, now, blend), 1.0);
 }
 )WGSL";
 
@@ -307,7 +341,8 @@ var<workgroup> shB : array<vec3f, 64>;
 @compute @workgroup_size(8, 8)
 fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_id) lid3 : vec3u, @builtin(local_invocation_index) lid : u32) {
     let size = vec2i(textureDimensions(depthTex));
-    let t = min(vec2i(wg.xy) * 8 + vec2i(4), size - vec2i(1));
+    let spacing = i32(gi.misc.z);
+    let t = min(vec2i(wg.xy) * spacing + vec2i(spacing / 2), size - vec2i(1));
     let depth = textureLoad(depthTex, t, 0);
     let g = textureLoad(gbuffer, t, 0);
     let valid = depth < 1.0 && g.a > 0.7;
@@ -318,9 +353,13 @@ fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_id) lid3 : 
         let pos = worldFromDepth((vec2f(t) + 0.5) / vec2f(size), depth);
         if (dot(n, viewDirection(pos)) < 0.0) { n = -n; }
         eyeDistance = length(pos - frame.camera.xyz);
-        let d = probeRay(lid3.x, lid3.y, n, wg.x + wg.y * gi.counts.z, u32(gi.origin.w));
-        let L = rayRadiance(pos + n * gi.sunRad.w, d);
-        contribution = array<vec3f, 3>(d * L.x, d * L.y, d * L.z);
+        // One ray in `stride` of the 64 is traced this frame, the cells alternating like a checkerboard from frame to frame.
+        let stride = max(u32(gi.misc.y), 1u);
+        if (((lid3.x + lid3.y * 3u + u32(gi.origin.w)) % stride) == 0u) {
+            let d = probeRay(lid3.x, lid3.y, n, wg.x + wg.y * gi.counts.z, u32(gi.origin.w));
+            let L = rayRadiance(pos + n * gi.sunRad.w, d);
+            contribution = array<vec3f, 3>(d * L.x * f32(stride), d * L.y * f32(stride), d * L.z * f32(stride));
+        }
     }
     shR[lid] = contribution[0]; shG[lid] = contribution[1]; shB[lid] = contribution[2];
     workgroupBarrier();
@@ -369,9 +408,10 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
     let pos = worldFromDepth((vec2f(p) + 0.5) / vec2f(size), depth);
     if (dot(n, viewDirection(pos)) < 0.0) { n = -n; }
     let tiles = vec2i(gi.counts.zw);
-    // The probes round the pixel: probe (tx, ty) stands at pixel (tx * 8 + 4, ty * 8 + 4). The nine nearest are looked at, since in the
+    // The probes round the pixel: probe (tx, ty) stands at pixel (tx * spacing + spacing / 2, ty * spacing + spacing / 2). The nine nearest are looked at, since in the
     // corner of two walls the four nearest can all be on the other wall, and a probe on another plane has nothing to say about this one.
-    let q = (vec2f(p) - vec2f(4.0)) / 8.0;
+    let spacing = i32(gi.misc.z);
+    let q = (vec2f(p) - vec2f(f32(spacing / 2))) / f32(spacing);
     let q0 = vec2i(floor(q));
     let eye = max(length(pos - frame.camera.xyz), 1.0);
     var E = vec3f(0.0);
@@ -382,7 +422,7 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
         let o = vec2i(k & 3, k >> 2) - vec2i(1);
         let tile = q0 + o;
         if (any(tile < vec2i(0)) || any(tile >= tiles)) { continue; }
-        let pp = min(tile * 8 + vec2i(4), size - vec2i(1));
+        let pp = min(tile * spacing + vec2i(spacing / 2), size - vec2i(1));
         let pd = textureLoad(depthTex, pp, 0);
         let pg = textureLoad(gbuffer, pp, 0);
         if (pd >= 1.0 || pg.a <= 0.7) { continue; }
@@ -418,6 +458,14 @@ const char* kSurface = "";
 const char* kProbe = "";
 const char* kApply = "";
 #endif
+
+/// The card relight writes the cards it reads (one buffer, updated in place): the common block declares them read-only.
+std::string readWriteCards(std::string s) {
+    const std::string from = "var<storage, read> radIn";
+    const size_t at = s.find(from);
+    if (at != std::string::npos) s.replace(at, from.size(), "var<storage, read_write> radIn");
+    return s;
+}
 
 std::string join(const char* a, const char* b, const char* c = "") {
     return std::string(a) + b + c;
@@ -468,7 +516,7 @@ bool DynamicGI::ensure() {
         }
         return true;
     };
-    return make(cardLight_, join(kCommon, kCardLight), "card light") && make(probe_, join(kCommon, kSurface, kProbe), "probe")
+    return make(cardLight_, readWriteCards(join(kCommon, kCardLight)), "card light") && make(probe_, join(kCommon, kSurface, kProbe), "probe")
         && make(apply_, join(kCommon, kSurface, kApply), "apply");
 }
 
@@ -495,18 +543,16 @@ bool DynamicGI::upload() {
         return false;
     }
     pixelCount_ = static_cast<u32>(s.header[kPixels]);
-    // The radiance the cards hold: 16 bytes a pixel, two of them (this frame is written from the last), zeroed again on a new scene.
+    // The radiance the cards hold: 16 bytes a pixel, zeroed again on a new scene.
     const u32 radianceBytes = std::max(pixelCount_ * 16u, 16u);
     if (radianceBytes != radianceBytes_ || radiance_[0] == BufferHandle::Invalid) {
-        for (BufferHandle& r : radiance_) {
-            if (r != BufferHandle::Invalid) device_.deleteBuffer(r);
-            r = device_.createBuffer({GfxBufferUsage::Storage, radianceBytes, false}, GfxContent::transient(), nullptr);
-        }
+        if (radiance_[0] != BufferHandle::Invalid) device_.deleteBuffer(radiance_[0]);
+        radiance_[0] = device_.createBuffer({GfxBufferUsage::Storage, radianceBytes, false}, GfxContent::transient(), nullptr);
         radianceBytes_ = radianceBytes;
-        if (radiance_[0] == BufferHandle::Invalid || radiance_[1] == BufferHandle::Invalid) { failed_ = true; return false; }
+        if (radiance_[0] == BufferHandle::Invalid) { failed_ = true; return false; }
     }
     std::vector<f32> zero(radianceBytes / 4, 0.0f);
-    for (BufferHandle r : radiance_) device_.updateBuffer(r, 0, zero.data(), radianceBytes);
+    device_.updateBuffer(radiance_[0], 0, zero.data(), radianceBytes);
     frame_ = 0;
     uploadedVersion_ = s.version;
     return true;
@@ -538,7 +584,9 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
                                   u32 width, u32 height) {
     if (!ensure() || input == rg::kNoResource || scene == rg::kNoResource) return input;
     if (!upload()) return input;
-    const u32 tilesX = (width + kProbeSize - 1) / kProbeSize, tilesY = (height + kProbeSize - 1) / kProbeSize;
+    // About 160 x 90 probes whatever the size of the picture: 8 pixels apart at 720p, 12 at 1080p, 16 at 1440p. Their cost is in their number.
+    probeSpacing_ = std::clamp(((height + 89) / 90 + 1) / 2 * 2, 8u, 32u);
+    const u32 tilesX = (width + probeSpacing_ - 1) / probeSpacing_, tilesY = (height + probeSpacing_ - 1) / probeSpacing_;
     if (!ensureProbes(tilesX, tilesY)) return input;
 
     rg::TargetDesc token;
@@ -563,6 +611,8 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
         b.sunRad[0] = h[kSunR]; b.sunRad[1] = h[kSunG]; b.sunRad[2] = h[kSunB]; b.sunRad[3] = h[kBias];
         b.trace[0] = h[kRange]; b.trace[1] = h[kTolerance]; b.trace[2] = std::clamp(p.blend, 0.01f, 1.0f); b.trace[3] = h[kHit];
         b.sky[0] = h[kSkyR]; b.sky[1] = h[kSkyG]; b.sky[2] = h[kSkyB];
+        b.misc[0] = static_cast<f32>(std::clamp(p.cardSlices, 1u, 4096u)); b.misc[1] = static_cast<f32>(std::clamp(p.probeStride, 1u, 8u));
+        b.misc[2] = static_cast<f32>(probeSpacing_);
         device_.updateBuffer(params_, 0, &b, sizeof(b));
     };
 
@@ -573,20 +623,22 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
         pass.compute = true;
         pass.dependencies = {scene};
         pass.write = lit;
-        pass.execute = [this, writeParams](const rg::PassContext&) {
+        pass.execute = [this, writeParams, p](const rg::PassContext&) {
             writeParams();
-            // This frame's lighting is written to one of the two buffers and read from the other.
-            const BufferHandle in = radiance_[frame_ & 1u], out = radiance_[(frame_ & 1u) ^ 1u];
-            const GfxComputeBinding bindings[7] = {
+            const GfxComputeBinding bindings[6] = {
                 GfxComputeBinding::uniform(0, context_.frameUbo()),
                 GfxComputeBinding::uniform(1, params_),
                 GfxComputeBinding::storageRead(2, sdf_),
                 GfxComputeBinding::storageRead(3, instances_),
                 GfxComputeBinding::storageRead(4, pixels_),
-                GfxComputeBinding::storageRead(5, in),
-                GfxComputeBinding::storage(6, out),
+                GfxComputeBinding::storage(5, radiance_[0]),
             };
-            device_.dispatchCompute(cardLight_, bindings, 7, (pixelCount_ + 63) / 64);
+            // One workgroup a card pixel to relight: all of them for the first frames, then one slice of them.
+            const u32 slices = std::clamp(p.cardSlices, 1u, 4096u);
+            const u32 chunk = (pixelCount_ + slices - 1) / slices;
+            const u32 active = frame_ < 2 ? pixelCount_ : chunk;
+            if (active == 0) return;
+            device_.dispatchCompute(cardLight_, bindings, 6, std::min(active, 65535u), (active + 65534u) / 65535u);
         };
         graph.addPass(std::move(pass));
     }
@@ -603,7 +655,7 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
             const TextureHandle gbuffer = graph.gbufferTextureOf(scene);
             if (depth == TextureHandle::Invalid || gbuffer == TextureHandle::Invalid) return;
             // The cards were just written into the buffer the next frame reads: the probes see this frame's lighting.
-            const BufferHandle cards = radiance_[(frame_ & 1u) ^ 1u];
+            const BufferHandle cards = radiance_[0];
             const u32 cur = frame_ & 1u;
             const GfxComputeBinding bindings[10] = {
                 GfxComputeBinding::uniform(0, context_.frameUbo()),
