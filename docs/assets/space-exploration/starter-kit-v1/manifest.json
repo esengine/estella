@@ -1,0 +1,181 @@
+{
+  "asset_id": "space-exploration-starter-kit-v1",
+  "status": "concept_modeling_reference",
+  "purpose": [
+    "3D modular ship modeling",
+    "2D ship assembly interface reference"
+  ],
+  "interface_dimensions_approved": false,
+  "geometry_consistency_verified_from_mesh": false,
+  "tripo_model_generated": false,
+  "engine_verified": false,
+  "design_principle": "Shared interfaces and reusable parts, freely chosen silhouettes, player-specific identity continuity.",
+  "boards": [
+    {
+      "path": "01-starter-six-views.png",
+      "role": "baseline_assembly"
+    },
+    {
+      "path": "02-module-breakdown.png",
+      "role": "module_concept"
+    },
+    {
+      "path": "03-player-layout-variants.png",
+      "role": "peer_layout_examples"
+    }
+  ],
+  "tripo_views": {
+    "front": "tripo-views/front.png",
+    "left": "tripo-views/left.png",
+    "back": "tripo-views/back.png",
+    "right": "tripo-views/right.png"
+  },
+  "tripo_excluded": [
+    "01-starter-six-views.png",
+    "02-module-breakdown.png",
+    "03-player-layout-variants.png",
+    "references/initial-direction.png"
+  ],
+  "camera_notes": {
+    "front": "toward nose",
+    "back": "toward stern",
+    "left": "port side, nose screen-left",
+    "right": "starboard side, nose screen-right",
+    "top": "nose screen-left in board",
+    "bottom": "nose screen-left in board"
+  },
+  "interfaces": [
+    {
+      "id": "U1",
+      "role": "structural_coupling",
+      "shape": "chamfer_corner_square",
+      "dimensions_status": "to_be_locked_in_mesh"
+    },
+    {
+      "id": "U2",
+      "role": "keyed_equipment_mount",
+      "shape": "small_keyed_mount",
+      "dimensions_status": "to_be_locked_in_mesh"
+    }
+  ],
+  "modules": [
+    {
+      "id": "C01",
+      "name": "楔形驾驶舱",
+      "role": "command_pod",
+      "baseline_count": 1
+    },
+    {
+      "id": "S01",
+      "name": "直线龙骨舱段",
+      "role": "repeatable_spine",
+      "count_status": "layout_dependent"
+    },
+    {
+      "id": "J01",
+      "name": "多向连接节点",
+      "role": "branch_junction",
+      "baseline_count": 1
+    },
+    {
+      "id": "H01",
+      "name": "动力与服务舱",
+      "role": "service_body",
+      "baseline_count": 1
+    },
+    {
+      "id": "G01",
+      "name": "外挂货舱",
+      "role": "cargo",
+      "baseline_count": 2
+    },
+    {
+      "id": "P01",
+      "name": "圆柱推进器",
+      "role": "engine",
+      "baseline_count": 2
+    },
+    {
+      "id": "A01",
+      "name": "推进器/设备支架",
+      "role": "pylon",
+      "baseline_count": 2
+    },
+    {
+      "id": "K01",
+      "name": "整流外壳与封口盖",
+      "role": "fairing_set",
+      "count_status": "layout_dependent"
+    }
+  ],
+  "layout_examples": [
+    "LONG",
+    "WIDE",
+    "OFFSET"
+  ],
+  "files": [
+    {
+      "path": "01-starter-six-views.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1877132,
+      "sha256": "5765a1fb63f0ed8547cb971927eb91dec04f270a08d89125804775cdec63390d"
+    },
+    {
+      "path": "02-module-breakdown.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2254631,
+      "sha256": "fd9f6b9da9ad1de3368ff35cbf3ec6ed0850282f812ed545e63e9ad2c369401b"
+    },
+    {
+      "path": "03-player-layout-variants.png",
+      "width": 1774,
+      "height": 887,
+      "bytes": 2015764,
+      "sha256": "5d62e2149cf4a68691e2a62223e5990d6ef7897221c294575fb5cf7f60fa72e9"
+    },
+    {
+      "path": "references/initial-direction.png",
+      "width": 1672,
+      "height": 941,
+      "bytes": 2416948,
+      "sha256": "8b0a3118d3782df6986a9032fd9b32012478b59853eaa8bdca12c35fde77156a"
+    },
+    {
+      "path": "tripo-views/back.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1794051,
+      "sha256": "0e053fa30a0c68afd17b90e9dcc66ce36d5698565af5f1172406a79e1f2db6fa"
+    },
+    {
+      "path": "tripo-views/front.png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1948644,
+      "sha256": "16f104726fddccd2106d6a785c687fe5c6c2f89f42589bf27e1c13489ee40d1c"
+    },
+    {
+      "path": "tripo-views/left.png",
+      "width": 2172,
+      "height": 724,
+      "bytes": 1715014,
+      "sha256": "481f55dace71c55c3c78e0954c5753e37a129700c7e83b5ac8d5fd8a022e1586"
+    },
+    {
+      "path": "tripo-views/right.png",
+      "width": 2172,
+      "height": 724,
+      "bytes": 1666521,
+      "sha256": "11e5323ae14994bc93f46eceabdf0a4524fe972f9f976c88798a40997f8a51c2"
+    }
+  ],
+  "validation": {
+    "visual_review": "completed_for_direction_component_count_labels_and_silhouette",
+    "png_decode": "completed",
+    "shared_mesh_turntable": false,
+    "physical_fit": false,
+    "mobile_runtime": false
+  }
+}
