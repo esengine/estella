@@ -1027,16 +1027,34 @@ void main() {
     float az = radians(u_sunAzimuth);
     float el = radians(u_sunElevation);
     vec3 sun = follow ? lightDir.xyz : vec3(cos(el) * sin(az), sin(el), cos(el) * cos(az));
-    vec3 eye = worldFromDepth(v_texCoord, 0.0);
-    vec4 clip = u_projection * vec4(eye + sun * 10000.0, 1.0);
-    // Behind the camera there is no screen position to march toward.
-    if (clip.w <= 1e-4) { fragColor = src; return; }
-    vec2 sunUv = clip.xy / clip.w * 0.5 + 0.5;
-
     ivec2 size = textureSize(u_sceneDepth, 0);
-    vec2 toSun = (sunUv - v_texCoord) * u_reach;
     float aspect = float(size.x) / float(size.y);
-    float dist = length(vec2((sunUv.x - v_texCoord.x) * aspect, sunUv.y - v_texCoord.y));
+    vec2 toSun;
+    float dist;
+    if (u_camera.w > 0.5) {
+        vec3 eye = worldFromDepth(v_texCoord, 0.0);
+        vec4 clip = u_projection * vec4(eye + sun * 10000.0, 1.0);
+        // Behind the camera there is no screen position to march toward.
+        if (clip.w <= 1e-4) { fragColor = src; return; }
+        vec2 sunUv = clip.xy / clip.w * 0.5 + 0.5;
+        toSun = (sunUv - v_texCoord) * u_reach;
+        dist = length(vec2((sunUv.x - v_texCoord.x) * aspect, sunUv.y - v_texCoord.y));
+    } else {
+        // An orthographic camera has no place on screen for the sun: it is at infinity, and every ray is parallel. It is taken as a
+        // perspective camera of 60 degrees would have it, so the shafts keep their strength by how near the view is to facing the sun
+        // (dist = tan(angle off the axis) / tan(30 degrees), one value for the whole frame) and run along the sun's direction on screen.
+        // The rows of the view-projection are the camera's axes in the world, scaled.
+        vec3 right = normalize(vec3(u_projection[0][0], u_projection[1][0], u_projection[2][0]));
+        vec3 upAxis = normalize(vec3(u_projection[0][1], u_projection[1][1], u_projection[2][1]));
+        // The depth row of an orthographic projection is negative (it maps the view's -z onto +z), so its direction is where the camera looks.
+        vec3 forward = normalize(vec3(u_projection[0][2], u_projection[1][2], u_projection[2][2]));
+        float front = dot(sun, forward);
+        if (front <= 0.05) { fragColor = src; return; }
+        vec2 across = vec2(dot(sun, right), dot(sun, upAxis));
+        float reach2 = length(across);
+        dist = (reach2 / front) / 0.57735;
+        toSun = (reach2 > 1e-4 ? normalize(vec2(across.x / aspect, across.y)) : vec2(0.0)) * 0.5 * u_reach;
+    }
     vec2 stepUv = toSun / float(SAMPLES);
     vec2 uv = v_texCoord + stepUv * ign(gl_FragCoord.xy);
     float light = 0.0;
@@ -1076,16 +1094,35 @@ fn ign(p : vec2f) -> f32 {
     let el = radians(mc.u_sunElevation);
     var sun = vec3f(cos(el) * sin(az), sin(el), cos(el) * cos(az));
     if (follow) { sun = found.dir.xyz; }
-    let eye = worldFromDepth(v.v_texCoord, 0.0);
-    let clip = frame.projection * vec4f(eye + sun * 10000.0, 1.0);
-    if (clip.w <= 1e-4) { return src; }
-    // This device's uv runs down the rows, so clip y is flipped on the way back.
-    let sunUv = vec2f(clip.x / clip.w * 0.5 + 0.5, 0.5 - clip.y / clip.w * 0.5);
-
     let size = vec2i(textureDimensions(t7, 0));
-    let toSun = (sunUv - v.v_texCoord) * mc.u_reach;
     let aspect = f32(size.x) / f32(size.y);
-    let dist = length(vec2f((sunUv.x - v.v_texCoord.x) * aspect, sunUv.y - v.v_texCoord.y));
+    var toSun = vec2f(0.0);
+    var dist = 0.0;
+    if (frame.camera.w > 0.5) {
+        let eye = worldFromDepth(v.v_texCoord, 0.0);
+        let clip = frame.projection * vec4f(eye + sun * 10000.0, 1.0);
+        if (clip.w <= 1e-4) { return src; }
+        // This device's uv runs down the rows, so clip y is flipped on the way back.
+        let sunUv = vec2f(clip.x / clip.w * 0.5 + 0.5, 0.5 - clip.y / clip.w * 0.5);
+        toSun = (sunUv - v.v_texCoord) * mc.u_reach;
+        dist = length(vec2f((sunUv.x - v.v_texCoord.x) * aspect, sunUv.y - v.v_texCoord.y));
+    } else {
+        // See the GLSL twin: an orthographic camera has the sun in a direction on screen and no place there.
+        let m = frame.projection;
+        let right = normalize(vec3f(m[0][0], m[1][0], m[2][0]));
+        let upAxis = normalize(vec3f(m[0][1], m[1][1], m[2][1]));
+        let forward = normalize(vec3f(m[0][2], m[1][2], m[2][2]));
+        let front = dot(sun, forward);
+        if (front <= 0.05) { return src; }
+        let across = vec2f(dot(sun, right), dot(sun, upAxis));
+        let reach2 = length(across);
+        dist = (reach2 / front) / 0.57735;
+        // Rows run down this device's picture, so the direction's up is minus y.
+        if (reach2 > 1e-4) {
+            let d = normalize(vec2f(across.x / aspect, across.y));
+            toSun = vec2f(d.x, -d.y) * 0.5 * mc.u_reach;
+        }
+    }
     let stepUv = toSun / f32(SAMPLES);
     var uv = v.v_texCoord + stepUv * ign(v.pos.xy);
     var light = 0.0;

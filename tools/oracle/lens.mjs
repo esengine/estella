@@ -7,11 +7,11 @@
  * each and the two have to agree about a surface that is plainly 100 (or 400, or 2000) units below the eye.
  */
 import { scene, camera, mesh, volume, probe, probeFrom, SIZE } from './scene.mjs';
-import { encodeLinear8, clamp01 } from './formulas.mjs';
+import { encodeLinear8, clamp01, srgbDecode } from './formulas.mjs';
 
 const FLOOR_TOP = 5;
 const FLOOR = 0.8;
-const fx = (type, uniforms) => ({ type, enabled: true, uniforms });
+const fx = (type, uniforms, colors) => ({ type, enabled: true, uniforms, ...(colors ? { colors } : {}) });
 const eye = (ortho, drop, extra = {}) => camera({ ...(ortho ? {} : { projectionType: 0, fov: 40, nearPlane: 1 }), farPlane: 8000, ...extra });
 /** The camera that stands `drop` units over the floor top. */
 function placeCamera(doc, drop) {
@@ -102,6 +102,50 @@ function depthOfField({ id, ortho }) {
   return { id, doc, colorSpace: 'linear', expect, about: `Depth of field, ${ortho ? 'orthographic' : 'perspective'}: the in-focus edge is sharp, the far one is blurred by the circle of confusion` };
 }
 
+
+// ---- light shafts ----------------------------------------------------------------------------------------------------------------
+
+/**
+ * Light shafts: from each pixel, 40 samples march toward the sun on screen and add up how much of the way is open sky, each sample worth
+ * `decay` times the one before. The whole frame is sky above the horizon and a wall below it, so a pixel high in the sky has every sample
+ * open (and the clamped edge of the frame is sky too): it gains  tint x S x falloff x intensity, with S = (1 - decay^40) / (1 - decay) / 40.
+ * A wall pixel far enough below the horizon that the march never reaches the sky gains nothing.
+ *
+ * `falloff` is 1 - smoothstep(0, 1.2, d), d the screen distance from the pixel to the sun. A perspective camera has the sun at a place on
+ * screen. An orthographic camera has no such place (the sun is at infinity, every ray is parallel), so it is taken as a perspective one
+ * of 60 degrees would have it: d = tan(angle off the view axis) / tan(30 degrees), the same for every pixel, and the march runs along the
+ * sun's direction on screen. A sun behind the view throws no shafts.
+ */
+function lightShafts({ id, ortho, sunElevation, tint = [1, 0.85, 0.6], intensity = 1 }) {
+  const DECAY = 0.96, REACH = 0.6, N = 40, FOV = 70;
+  const doc = scene(id, () => [
+    camera(ortho ? {} : { projectionType: 0, fov: FOV, nearPlane: 1, farPlane: 2000 }),
+    mesh('Wall', 'cube', [0, -100, -300], [8, 2, 0.1], [0.5, 0.5, 0.5], { lit: false }),
+    volume([fx('lightShafts', { u_sunAzimuth: 180, u_sunElevation: sunElevation, u_followSun: 0, u_intensity: intensity, u_decay: DECAY, u_reach: REACH }, { u_sunColor: { r: tint[0], g: tint[1], b: tint[2], a: 1 } })]),
+  ]);
+  doc.entities.find((e) => e.name === 'Camera').components[0].data.position = { x: 0, y: 0, z: 0 };
+  doc.entities.find((e) => e.name === 'Camera').components[0].data.rotation = { x: 0, y: 0, z: 0, w: 1 };
+  const el = (sunElevation * Math.PI) / 180;
+  const full = (1 - Math.pow(DECAY, N)) / (1 - DECAY) / N;
+  const tintLinear = tint.map(srgbDecode);
+  // Where the sun is on screen (up from the middle, as a share of the frame height) and how far a pixel is from it.
+  const tanA = Math.tan(el);
+  const sunUp = ortho ? null : 0.5 + (tanA / Math.tan((FOV * Math.PI) / 360)) * 0.5;
+  const fall = (d) => { const t = clamp01(d / 1.2); return 1 - t * t * (3 - 2 * t); };
+  const expect = [];
+  // High in the sky (rows 0.55 to 0.9 up from the bottom), every sample open.
+  for (const up of [0.58, 0.66, 0.74, 0.82, 0.9]) {
+    for (const across of [0.2, 0.5, 0.8]) {
+      const d = ortho ? tanA / Math.tan(Math.PI / 6) : Math.hypot((across - 0.5) * 1, up - sunUp);
+      const add = tintLinear.map((c) => c * full * fall(d) * intensity);
+      expect.push({ x: across, y: 1 - up, rgb: encodeLinear8(add), tol: 3 });
+    }
+  }
+  // Deep in the wall (the whole march stays inside it): the wall's own colour, untouched.
+  for (const up of ortho ? [0.06, 0.15] : [0.04, 0.08]) expect.push({ x: 0.5, y: 1 - up, rgb: encodeLinear8([0.5, 0.5, 0.5]), tol: 2 });
+  return { id, doc, colorSpace: 'linear', expect, about: `Light shafts, ${ortho ? 'orthographic' : 'perspective'}: open sky adds the sun's tint x S x falloff` };
+}
+
 export const LENS_SCENES = [
   rainWet({ id: 'oracle-rain-wet-ortho', ortho: true }),
   rainWet({ id: 'oracle-rain-wet-perspective', ortho: false }),
@@ -111,4 +155,7 @@ export const LENS_SCENES = [
   rainLayers({ id: 'oracle-rain-layers-far-perspective', ortho: false, drop: 2000, streaks: true }),
   depthOfField({ id: 'oracle-dof-ortho', ortho: true }),
   depthOfField({ id: 'oracle-dof-perspective', ortho: false }),
+  lightShafts({ id: 'oracle-shafts-perspective', ortho: false, sunElevation: 20 }),
+  lightShafts({ id: 'oracle-shafts-ortho', ortho: true, sunElevation: 20 }),
+  lightShafts({ id: 'oracle-shafts-ortho-low-sun', ortho: true, sunElevation: 12, tint: [0.9, 0.9, 1], intensity: 0.8 }),
 ];

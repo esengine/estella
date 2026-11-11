@@ -1,0 +1,131 @@
+{
+ "version": 4,
+ "name": "oracle-shafts-ortho",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "x": 0,
+       "y": 0,
+       "z": 0,
+       "w": 1
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 1,
+      "orthoSize": 100,
+      "nearPlane": 1,
+      "farPlane": 2000,
+      "isActive": true,
+      "priority": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Wall",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -100,
+       "z": -300
+      },
+      "scale": {
+       "x": 8,
+       "y": 2,
+       "z": 0.1
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.5,
+       "g": 0.5,
+       "b": 0.5,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Look",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "PostProcessVolume",
+     "data": {
+      "isGlobal": true,
+      "priority": 0,
+      "weight": 1,
+      "effects": [
+       {
+        "type": "lightShafts",
+        "enabled": true,
+        "uniforms": {
+         "u_sunAzimuth": 180,
+         "u_sunElevation": 20,
+         "u_followSun": 0,
+         "u_intensity": 1,
+         "u_decay": 0.96,
+         "u_reach": 0.6
+        },
+        "colors": {
+         "u_sunColor": {
+          "r": 1,
+          "g": 0.85,
+          "b": 0.6,
+          "a": 1
+         }
+        }
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}
