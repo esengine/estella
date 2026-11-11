@@ -54,6 +54,13 @@ for i, (name, centre, size, colour) in enumerate(spec['boxes']):
                                        'scale': {'x': 1, 'y': 1, 'z': 1} if MESH_BOXES else {'x': size[0] / 100.0, 'y': size[1] / 100.0, 'z': size[2] / 100.0}}},
         {'type': 'MeshRenderer', 'data': mr}]})
 
+if spec.get('point'):
+    pt = spec['point']
+    entities.append({'id': 7, 'name': 'Lamp', 'parent': None, 'children': [], 'visible': True, 'components': [
+        {'type': 'Transform', 'data': {'position': {'x': pt['pos'][0], 'y': pt['pos'][1], 'z': pt['pos'][2]}}},
+        {'type': 'Light', 'data': {'type': 0, 'color': {'r': 1, 'g': 1, 'b': 1, 'a': 1}, 'intensity': pt['intensity'], 'radius': pt['radius'],
+                                   'innerRadius': 0.0, 'falloff': 1.0, 'inverseSquare': False, 'enabled': True, 'meshShadows': True, 'shadowStrength': 1.0}}]})
+
 if spec['sun']:
     sw, sx, sy, sz = L.sun_quaternion(spec['sun']['dir'])
     entities.append({'id': 5, 'name': 'Sun', 'parent': None, 'children': [], 'visible': True, 'components': [

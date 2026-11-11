@@ -26,8 +26,11 @@ constexpr u32 kProbeTexels = 3;  // the vector that integrates a probe against a
 /// The header the SDK writes (sdk/src/gi/gpuScene.ts), by index.
 enum Header : u32 {
     kDim = 0, kCell, kOriginX, kOriginY, kOriginZ, kReach, kInstances, kPixels,
-    kSunX, kSunY, kSunZ, kSunOn, kSunR, kSunG, kSunB, kBias, kRange, kTolerance, kSkyR, kSkyG, kSkyB, kHit, kHeaderSize
+    kSunX, kSunY, kSunZ, kSunOn, kSunR, kSunG, kSunB, kBias, kRange, kTolerance, kSkyR, kSkyG, kSkyB, kHit, kLevels, kLights,
+    /// Levels 1 and 2, eight floats each: dim, cell, origin x y z, reach, offset, owner offset. Then the lights, sixteen floats each.
+    kLevelBlock = 24, kLightBlock = 40, kHeaderSize = 40
 };
+constexpr u32 kMaxLevels = 3, kMaxLights = 8, kLightFloats = 16;
 
 struct ParamsBlock {
     f32 sdf[4];
@@ -38,8 +41,12 @@ struct ParamsBlock {
     f32 trace[4];
     f32 sky[4];
     f32 misc[4];
+    i32 levelA[kMaxLevels][4];  // origin xyz, cells per axis
+    f32 levelB[kMaxLevels][4];  // cell size, reach
+    u32 levelC[kMaxLevels][4];  // where the field starts in the buffer, and its owner words
+    f32 lights[kMaxLights * 4][4];
 };
-static_assert(sizeof(ParamsBlock) == 128, "the GI block is eight vec4s");
+static_assert(sizeof(ParamsBlock) == 128 + 3 * 48 + 512, "the GI block: eight vec4s, three levels, eight lights of four");
 
 #ifdef ES_ENABLE_WEBGPU
 // The CPU twin of what is here is in sdk/src/gi (globalSdf.ts sphereTrace, surfaceCache.ts lookup, screenProbes.ts tracePoint);
@@ -51,14 +58,18 @@ static_assert(sizeof(ParamsBlock) == 128, "the GI block is eight vec4s");
 const char* kCommon = R"WGSL(
 struct Frame { projection : mat4x4f, camera : vec4f, inverseViewProjection : mat4x4f, renderOrigin : vec4f };
 struct GI {
-    sdf : vec4f,       // x: cells per axis, y: cell size, z: reach, w: intensity
-    origin : vec4i,    // xyz: the window's first cell; w: the frame
+    sdf : vec4f,       // x: levels of the field, y: lights, w: intensity
+    origin : vec4i,    // w: the frame
     counts : vec4u,    // x: instances, y: card pixels, z: probe tiles x, w: probe tiles y
     sunDir : vec4f,    // xyz: toward the sun; w: 1 when there is one
     sunRad : vec4f,    // rgb: radiance; w: how far off a surface a ray starts
     trace : vec4f,     // x: how far a ray looks, y: card tolerance, z: blend, w: hit fraction of a cell
     sky : vec4f,       // rgb: what a ray that meets nothing brings
     misc : vec4f,      // x: how many frames the cards are spread over; y: 1 of every this many rays of a probe is traced a frame; z: pixels between probes
+    levelA : array<vec4i, 3>,   // per level: the first cell of its window, cells per axis
+    levelB : array<vec4f, 3>,   // per level: cell size, reach
+    levelC : array<vec4u, 3>,   // per level: where its field starts in sdfData, and its owner words
+    lights : array<vec4f, 32>,  // eight lights of four: position and reach | colour and kind | aim and falloff | inner radius and cone cosines
 };
 @group(0) @binding(0) var<uniform> frame : Frame;
 @group(0) @binding(1) var<uniform> gi : GI;
@@ -69,42 +80,49 @@ struct GI {
 
 const PI : f32 = 3.14159265;
 
-fn cellValue(c : vec3i) -> f32 {
-    let d = i32(gi.sdf.x);
+fn cellValue(l : u32, c : vec3i) -> f32 {
+    let d = gi.levelA[l].w;
     let w = c & vec3i(d - 1);
-    return sdfData[u32(w.x + w.y * d + w.z * d * d)];
+    return sdfData[gi.levelC[l].x + u32(w.x + w.y * d + w.z * d * d)];
 }
-fn sdfSample(p : vec3f) -> f32 {
-    let g = p / gi.sdf.y - vec3f(0.5);
+fn sdfSample(l : u32, p : vec3f) -> f32 {
+    let g = p / gi.levelB[l].x - vec3f(0.5);
     let i0 = vec3i(floor(g));
     let f = g - vec3f(i0);
-    let c000 = cellValue(i0);
-    let c100 = cellValue(i0 + vec3i(1, 0, 0));
-    let c010 = cellValue(i0 + vec3i(0, 1, 0));
-    let c110 = cellValue(i0 + vec3i(1, 1, 0));
-    let c001 = cellValue(i0 + vec3i(0, 0, 1));
-    let c101 = cellValue(i0 + vec3i(1, 0, 1));
-    let c011 = cellValue(i0 + vec3i(0, 1, 1));
-    let c111 = cellValue(i0 + vec3i(1, 1, 1));
+    let c000 = cellValue(l, i0);
+    let c100 = cellValue(l, i0 + vec3i(1, 0, 0));
+    let c010 = cellValue(l, i0 + vec3i(0, 1, 0));
+    let c110 = cellValue(l, i0 + vec3i(1, 1, 0));
+    let c001 = cellValue(l, i0 + vec3i(0, 0, 1));
+    let c101 = cellValue(l, i0 + vec3i(1, 0, 1));
+    let c011 = cellValue(l, i0 + vec3i(0, 1, 1));
+    let c111 = cellValue(l, i0 + vec3i(1, 1, 1));
     return mix(mix(mix(c000, c100, f.x), mix(c010, c110, f.x), f.y), mix(mix(c001, c101, f.x), mix(c011, c111, f.x), f.y), f.z);
 }
-fn inField(p : vec3f) -> bool {
-    let c = p / gi.sdf.y - vec3f(gi.origin.xyz);
-    return all(c >= vec3f(1.0)) && all(c <= vec3f(gi.sdf.x - 1.0));
+// The finest level whose window holds p at least a cell from its edge, or -1.
+fn levelAt(p : vec3f) -> i32 {
+    for (var l = 0u; l < u32(gi.sdf.x); l = l + 1u) {
+        let c = p / gi.levelB[l].x - vec3f(gi.levelA[l].xyz);
+        if (all(c >= vec3f(1.0)) && all(c <= vec3f(f32(gi.levelA[l].w) - 1.0))) { return i32(l); }
+    }
+    return -1;
 }
-// Distance along dir to the first surface within maxT, or -1. A ray that starts inside a body hits at 0.
+// Distance along dir to the first surface within maxT, or -1. A ray that starts inside a body hits at 0. It walks the finest level
+// that holds it and hands over to a coarser one where the finer ends.
 fn sdfTrace(origin : vec3f, dir : vec3f, maxT : f32) -> f32 {
     var t = 0.0;
-    let cell = gi.sdf.y;
     for (var i = 0; i < 160; i = i + 1) {
         if (t >= maxT) { return -1.0; }
         let p = origin + dir * t;
-        if (!inField(p)) { return -1.0; }
+        let li = levelAt(p);
+        if (li < 0) { return -1.0; }
+        let l = u32(li);
+        let cell = gi.levelB[l].x;
         // Far from anything (the cell the point is in says so by more than three cells) one read is enough: the field there, less the
-        // farthest a point can be from its cell's centre, is a distance nothing is nearer than. Close to a surface the 8 reads of a trilinear.
-        let near = cellValue(vec3i(floor(p / cell)));
+        // farthest a point can be from its cell centre, is a distance nothing is nearer than. Close to a surface the 8 reads of a trilinear.
+        let near = cellValue(l, vec3i(floor(p / cell)));
         if (near > cell * 3.0) { t = t + near - cell * 0.87; continue; }
-        let d = sdfSample(p);
+        let d = sdfSample(l, p);
         if (d < cell * gi.trace.w) { return t; }
         t = t + max(d, cell * 0.25);
     }
@@ -137,8 +155,7 @@ fn unpackColour(w : u32) -> vec3f {
 // What the cards of one instance say a ray brings back from the surface it hit at point, travelling along dir: the cards that face it,
 // blended by how squarely each does, from the pixel whose surface is within the tolerance of the point. w is how far that pixel is, or
 // -1 when no card of the instance holds the point.
-fn lookupIn(i : u32, point : vec3f, dir : vec3f) -> vec4f {
-    let tol = gi.trace.y;
+fn lookupIn(i : u32, point : vec3f, dir : vec3f, tol : f32) -> vec4f {
     let b = instBase(i);
     let wmin = insts[b + 7u];
     let wmax = insts[b + 8u];
@@ -186,30 +203,64 @@ fn lookupIn(i : u32, point : vec3f, dir : vec3f) -> vec4f {
     return vec4f(sum / total, error);
 }
 
-// Which instance a cell is nearest to (id + 1; 0 for none, 127 for an id the table cannot hold). The words after the field hold four each.
-fn ownerAt(c : vec3i) -> u32 {
-    let d = i32(gi.sdf.x);
+// Which instance a cell of a level is nearest to (id + 1; 0 for none, 127 for an id the table cannot hold). The words after the field hold four each.
+fn ownerAt(l : u32, c : vec3i) -> u32 {
+    let d = gi.levelA[l].w;
     let w = c & vec3i(d - 1);
     let idx = u32(w.x + w.y * d + w.z * d * d);
-    let cells = u32(d * d * d);
-    return (bitcast<u32>(sdfData[cells + (idx >> 2u)]) >> ((idx & 3u) * 8u)) & 127u;
+    return (bitcast<u32>(sdfData[gi.levelC[l].y + (idx >> 2u)]) >> ((idx & 3u) * 8u)) & 127u;
 }
 
 // What a ray brings back from the surface it hit at point. The field names the instance the point is by, so the cards of that one are
-// asked; only where it says none (or its cards do not hold the point) are all of them, and of those the nearest wins.
+// asked; only where it says none (or its cards do not hold the point) are all of them, and of those the nearest wins. A hit found in a
+// coarse level is a cell of that level off the surface, and the cards are asked to forgive as much.
 fn lookup(point : vec3f, dir : vec3f) -> vec3f {
-    let owner = ownerAt(vec3i(floor(point / gi.sdf.y)));
+    let l = u32(max(levelAt(point), 0));
+    let cell = gi.levelB[l].x;
+    let tol = max(gi.trace.y, cell * 1.5);
+    let owner = ownerAt(l, vec3i(floor(point / cell)));
     if (owner > 0u && owner < 127u && owner <= gi.counts.x) {
-        let r = lookupIn(owner - 1u, point, dir);
+        let r = lookupIn(owner - 1u, point, dir, tol);
         if (r.w >= 0.0) { return r.xyz; }
     }
     var best = vec3f(0.0);
     var bestError = 1e30;
     for (var i = 0u; i < gi.counts.x; i = i + 1u) {
-        let r = lookupIn(i, point, dir);
+        let r = lookupIn(i, point, dir, tol);
         if (r.w >= 0.0 && r.w < bestError) { bestError = r.w; best = r.xyz; }
     }
     return best;
+}
+
+// The frame falloff of a light over a distance (distanceFalloff in ShaderParser.cpp): held at full to the inner radius, ramped to the reach
+// raised to the power fy; or, for fy < 0, 1 / d^2 in metres (-fy world units to one) let go over the reach.
+fn lightFalloff(dist : f32, reach : f32, inner : f32, fy : f32) -> f32 {
+    let ramp = clamp((reach - dist) / max(reach - inner, 1e-4), 0.0, 1.0);
+    let shaped = pow(ramp, max(fy, 1e-3));
+    let metres = dist / max(-fy, 1e-4);
+    let q = dist / max(reach, 1e-4);
+    let w = clamp(1.0 - q * q * q * q, 0.0, 1.0);
+    return select(shaped, w * w / max(metres * metres, 0.01), fy < 0.0);
+}
+
+// What the point and spot lights give a surface at pos facing n, shadowed by the field: each is a ray from just off the surface to the light.
+fn lightsDirect(pos : vec3f, n : vec3f, origin : vec3f) -> vec3f {
+    var sum = vec3f(0.0);
+    for (var i = 0u; i < u32(gi.sdf.y); i = i + 1u) {
+        let a = gi.lights[i * 4u]; let b = gi.lights[i * 4u + 1u]; let c = gi.lights[i * 4u + 2u]; let d = gi.lights[i * 4u + 3u];
+        let to = a.xyz - pos;
+        let dist = length(to);
+        if (dist < 1e-4 || dist >= a.w) { continue; }
+        let dir = to / dist;
+        let ndl = dot(n, dir);
+        if (ndl <= 0.0) { continue; }
+        var atten = lightFalloff(dist, a.w, d.x, c.w);
+        if (b.w > 1.5) { atten = atten * smoothstep(d.z, d.y, dot(c.xyz, -dir)); }
+        if (atten <= 0.0) { continue; }
+        let t = sdfTrace(origin, dir, max(dist - gi.sunRad.w, 0.0));
+        if (t < 0.0) { sum = sum + b.xyz * atten * ndl; }
+    }
+    return sum;
 }
 
 fn hash3(a : u32, b : u32, c : u32) -> f32 {
@@ -300,6 +351,7 @@ fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_index) lid 
         let ndl = dot(n, gi.sunDir.xyz);
         if (ndl > 0.0 && sdfTrace(origin, gi.sunDir.xyz, gi.trace.x) < 0.0) { direct = gi.sunRad.xyz * ndl; }
     }
+    direct = direct + lightsDirect(pos, n, origin);
     let now = albedo * (direct + cardSum[0] * (2.0 / 64.0)) + emissive;
     // A card is relit once in `slices` frames, so each relight carries that much more of the change.
     let blend = select(min(gi.trace.z * f32(slices), 1.0), 1.0, !settled);
@@ -602,9 +654,26 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
         const DynamicGIScene& s = dynamicGIScene();
         const std::vector<f32>& h = s.header;
         ParamsBlock b{};
-        b.sdf[0] = h[kDim]; b.sdf[1] = h[kCell]; b.sdf[2] = h[kReach]; b.sdf[3] = p.intensity;
-        b.origin[0] = static_cast<i32>(h[kOriginX]); b.origin[1] = static_cast<i32>(h[kOriginY]); b.origin[2] = static_cast<i32>(h[kOriginZ]);
+        const u32 levels = std::clamp(static_cast<u32>(h[kLevels]), 1u, kMaxLevels);
+        const u32 lights = std::min(static_cast<u32>(h[kLights]), kMaxLights);
+        b.sdf[0] = static_cast<f32>(levels); b.sdf[1] = static_cast<f32>(lights); b.sdf[3] = p.intensity;
         b.origin[3] = static_cast<i32>(frame_);
+        // Level 0 is the header's own fields; its field starts the buffer and its owner words follow it.
+        const u32 dim0 = static_cast<u32>(h[kDim]);
+        b.levelA[0][0] = static_cast<i32>(h[kOriginX]); b.levelA[0][1] = static_cast<i32>(h[kOriginY]); b.levelA[0][2] = static_cast<i32>(h[kOriginZ]);
+        b.levelA[0][3] = static_cast<i32>(dim0);
+        b.levelB[0][0] = h[kCell]; b.levelB[0][1] = h[kReach];
+        b.levelC[0][0] = 0; b.levelC[0][1] = dim0 * dim0 * dim0;
+        for (u32 k = 1; k < levels; ++k) {
+            const u32 at = kLevelBlock + (k - 1) * 8;
+            b.levelA[k][0] = static_cast<i32>(h[at + 2]); b.levelA[k][1] = static_cast<i32>(h[at + 3]); b.levelA[k][2] = static_cast<i32>(h[at + 4]);
+            b.levelA[k][3] = static_cast<i32>(h[at]);
+            b.levelB[k][0] = h[at + 1]; b.levelB[k][1] = h[at + 5];
+            b.levelC[k][0] = static_cast<u32>(h[at + 6]); b.levelC[k][1] = static_cast<u32>(h[at + 7]);
+        }
+        for (u32 i = 0; i < lights; ++i) {
+            for (u32 v = 0; v < 4; ++v) for (u32 c = 0; c < 4; ++c) b.lights[i * 4 + v][c] = h[kLightBlock + i * kLightFloats + v * 4 + c];
+        }
         b.counts[0] = static_cast<u32>(h[kInstances]); b.counts[1] = static_cast<u32>(h[kPixels]);
         b.counts[2] = probeTilesX_; b.counts[3] = probeTilesY_;
         b.sunDir[0] = h[kSunX]; b.sunDir[1] = h[kSunY]; b.sunDir[2] = h[kSunZ]; b.sunDir[3] = h[kSunOn];

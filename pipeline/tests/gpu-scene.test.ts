@@ -10,6 +10,7 @@ import { bakeMeshCards } from '../src/assets/meshCards';
 import { bakeMeshSdf } from '../src/assets/meshSdf';
 import { buildInstances, type GIEntry } from '../../sdk/src/gi/dynamicGISystem';
 import { packGPUScene, GI_HEADER_FLOATS, GI_INSTANCE_FLOATS } from '../../sdk/src/gi/gpuScene';
+import { GlobalSdf } from '../../sdk/src/gi/globalSdf';
 
 function box(h: [number, number, number]): MeshData {
     const p: number[] = [];
@@ -127,5 +128,61 @@ describe('the packed scene', () => {
 
     it('is nothing for a scene with nothing in it', () => {
         expect(packGPUScene([], null)).toBeNull();
+    });
+});
+
+describe('a field that follows the camera', () => {
+    const boxes = [entry(CUBE, transform([0, 0, 0], [8, 1, 8])), entry(CUBE, transform([600, 50, 0], [2, 2, 2])), entry(CUBE, transform([-2500, 0, 0], [20, 4, 20]))];
+    const { instances } = buildInstances(boxes, CUBE, () => null);
+
+    it('packs three levels, each four times the last, with their windows and where their fields start', () => {
+        const sdf = new GlobalSdf([{ dim: 128, cell: 5 }, { dim: 128, cell: 20 }, { dim: 128, cell: 80 }]);
+        sdf.setCenter([0, 0, 0]);
+        instances.forEach((inst, id) => sdf.update({ id, sdf: inst.sdf, worldFromLocal: inst.worldFromLocal }));
+        const scene = packGPUScene(instances, null, { sdf })!;
+        const h = scene.header, cells = 128 ** 3, stride = cells + cells / 4;
+        expect(h[22]).toBe(3);
+        expect(scene.sdf.length).toBe(3 * stride);
+        // Level 1 and 2: dim, cell, origin, reach, field offset, owner offset.
+        expect([h[24], h[25], h[30], h[31]]).toEqual([128, 20, stride, stride + cells]);
+        expect([h[32], h[33], h[38], h[39]]).toEqual([128, 80, 2 * stride, 2 * stride + cells]);
+        // The finest window is centred on the camera: 64 cells of 5 either side.
+        expect(h[2]).toBe(-64);
+    });
+
+    it('hands a ray over to a coarser level where the finer window ends, and finds the far box there', () => {
+        const sdf = new GlobalSdf([{ dim: 128, cell: 5 }, { dim: 128, cell: 20 }, { dim: 128, cell: 80 }]);
+        sdf.setCenter([0, 0, 0]);
+        instances.forEach((inst, id) => sdf.update({ id, sdf: inst.sdf, worldFromLocal: inst.worldFromLocal }));
+        const levelOf = (p: [number, number, number]) => sdf.levels.indexOf(sdf.levelAt(p)!);
+        // The windows are 640, 2560 and 10240 across: 100 is in the first, 1000 in the second, 2000 only in the third.
+        expect([levelOf([100, 0, 0]), levelOf([-1000, 0, 0]), levelOf([-2000, 0, 0])]).toEqual([0, 1, 2]);
+        // From beside the near box toward the far one (its face is at x = -1500, 1050 away): the ray crosses all three levels and stops at it.
+        const t = sdf.sphereTrace([-450, 0, 0], [-1, 0, 0], 4000)!;
+        expect(t).toBeGreaterThan(950);
+        expect(t).toBeLessThan(1100);
+        // Straight past it, at a height the box does not reach, nothing is in the way.
+        expect(sdf.sphereTrace([-450, 900, 0], [-1, 0, 0], 4000)).toBeNull();
+    });
+});
+
+describe('lights in the packed scene', () => {
+    const { instances } = buildInstances([entry(CUBE, transform([0, 0, 0], [4, 1, 4]))], CUBE, () => null);
+
+    it('packs a lamp and a spot as the sixteen floats the kernels read', () => {
+        const scene = packGPUScene(instances, null, { lights: [
+            { position: [1, 2, 3], radiance: [0.3, 0.4, 0.5], reach: 600, innerRadius: 50, falloff: 2 },
+            { position: [4, 5, 6], radiance: [1, 1, 1], reach: 300, metre: 100, spot: { axis: [0, -2, 0], innerCos: 0.9, outerCos: 0.7 } },
+        ] })!;
+        const h = scene.header, f = (i: number, n: number) => Array.from(h.slice(40 + i * 16, 40 + i * 16 + n)).map((v) => +v.toFixed(4));
+        expect(h[23]).toBe(2);
+        expect(f(0, 16)).toEqual([1, 2, 3, 600, 0.3, 0.4, 0.5, 0, 0, -1, 0, 2, 50, 1, 0, 0]);
+        // The spot: kind 2, its aim normalised, an inverse-square falloff written as minus the units to a metre, then the cone cosines.
+        expect(f(1, 16)).toEqual([4, 5, 6, 300, 1, 1, 1, 2, 0, -1, 0, -100, 0, 0.9, 0.7, 0]);
+    });
+
+    it('takes no more lights than the kernels have room for', () => {
+        const many = Array.from({ length: 12 }, (_, i) => ({ position: [i, 0, 0] as [number, number, number], radiance: [1, 1, 1] as [number, number, number], reach: 100 }));
+        expect(packGPUScene(instances, null, { lights: many })!.header[23]).toBe(8);
     });
 });

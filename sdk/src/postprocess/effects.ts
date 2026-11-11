@@ -581,6 +581,9 @@ registerEffect({
         { name: 'u_cardSlices', label: 'Card Update Frames', min: 1, max: 16, step: 1, defaultValue: 4 },
         // One in this many of a probe's 64 rays is traced each frame, alternating; the history fills the rest in.
         { name: 'u_probeStride', label: 'Probe Ray Stride', min: 1, max: 8, step: 1, defaultValue: 2 },
+        // 0 fits one field to the whole scene. A size (world units) makes three levels, each four times the last, that follow the camera: the
+        // finest holds what is near the eye at this resolution and the others carry the far scene, so a world larger than one window works.
+        { name: 'u_cellSize', label: 'Field Cell Size', min: 0, max: 1000, step: 0.1, defaultValue: 0, worldUnits: 1 },
     ],
 });
 

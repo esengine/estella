@@ -211,6 +211,9 @@ export class GlobalSdf {
             const p: [number, number, number] = [(x + 0.5) * level.cell, (y + 0.5) * level.cell, (z + 0.5) * level.cell];
             let d = reach, owner = 0;
             for (const placed of near) {
+                // An instance further from the cell than the reach (outside its own box grown by it) cannot be what the cell remembers.
+                if (p[0] < placed.min[0]! - reach || p[0] > placed.max[0]! + reach || p[1] < placed.min[1]! - reach || p[1] > placed.max[1]! + reach
+                    || p[2] < placed.min[2]! - reach || p[2] > placed.max[2]! + reach) continue;
                 const v = this.distanceTo_(placed, p);
                 if (v < d) { d = v; owner = placed.instance.id < 126 ? placed.instance.id + 1 : 127; }
             }

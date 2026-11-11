@@ -68,6 +68,9 @@ GI = {
     # The room closed, the sun on its roof and walls outside: every pixel inside is 0 in Cycles, so whatever the engine shows is leak.
     'gi_leak': dict(cam=CAM_IN, boxes=room(), sun=dict(dir=sun_dir(40.0, 60.0), intensity=1.0)),
     # The room closed and dark but for an emissive panel on the back wall: the light of an emissive surface, which a lamp list does not have.
+    # The room closed and lit by one lamp inside it (linear falloff to its radius): the engine lights what the lamp reaches, and the GI adds what those
+    # surfaces bounce. No Cycles reference (its point lights are inverse-square watts); the reference is the CPU solver the GI is held to, tools/render-lab/gi_point_reference.json.
+    'gi_point': dict(cam=CAM_IN, boxes=room(), sun=None, point=dict(pos=(0.0, 200.0, 50.0), intensity=0.3, radius=600.0)),
     'gi_emissive': dict(cam=CAM_IN, boxes=room(emissive=dict(centre=(0.0, 150.0, 248.0), size=(120.0, 70.0, 4.0))), sun=None, emission=4.0),
 }
 
@@ -86,6 +89,10 @@ REGIONS = {
     'gi_leak': [
         ('ceiling', (0.0, 299.0, 150.0)), ('red wall', (199.0, 120.0, 120.0)), ('green wall', (-199.0, 120.0, 120.0)),
         ('back wall', (60.0, 200.0, 249.0)), ('floor', (100.0, 1.0, 150.0)),
+    ],
+    'gi_point': [
+        ('ceiling', (0.0, 299.0, 50.0)), ('red wall', (199.0, 150.0, 50.0)), ('green wall', (-199.0, 150.0, 50.0)),
+        ('back wall', (0.0, 150.0, 249.0)), ('floor', (0.0, 1.0, 50.0)), ('block, lit side', (-90.0, 50.0, 29.0)),
     ],
     'gi_emissive': [
         ('panel (emitter)', (0.0, 150.0, 246.0)), ('ceiling', (0.0, 299.0, 150.0)), ('red wall', (199.0, 120.0, 150.0)),

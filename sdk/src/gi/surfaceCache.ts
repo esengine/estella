@@ -32,8 +32,43 @@ export interface SunLight {
     radiance: readonly [number, number, number];
 }
 
+/**
+ * A point or spot light, as the frame lights with it (distanceFalloff and spotCone in ShaderParser.cpp): held at full out to `innerRadius`,
+ * then ramped to `reach` raised to `falloff`; or, with `metre` set, 1/d^2 in metres (`metre` world units to one) let go over the reach by
+ * (1 - (d/reach)^4)^2. A spot is also cut to its cone by a smoothstep from the cosine of the outer half angle to the inner one.
+ */
+export interface PointLight {
+    position: readonly [number, number, number];
+    /** Colour times intensity. */
+    radiance: readonly [number, number, number];
+    reach: number;
+    innerRadius?: number;
+    /** The power the ramp is raised to (1 = linear); ignored when `metre` is set. */
+    falloff?: number;
+    /** World units to a metre: set for an inverse-square light. */
+    metre?: number;
+    spot?: { axis: readonly [number, number, number]; innerCos: number; outerCos: number };
+}
+
+/** How much of a light reaches `distance` away: the frame's distanceFalloff. */
+export function lightReach(light: PointLight, distance: number): number {
+    if (distance >= light.reach) return 0;
+    if (light.metre && light.metre > 0) {
+        const m = distance / light.metre, q = distance / Math.max(light.reach, 1e-4);
+        const w = Math.min(Math.max(1 - q * q * q * q, 0), 1);
+        return (w * w) / Math.max(m * m, 0.01);
+    }
+    const inner = Math.max(light.innerRadius ?? 0, 0);
+    const ramp = Math.min(Math.max((light.reach - distance) / Math.max(light.reach - inner, 1e-4), 0), 1);
+    return Math.pow(ramp, Math.max(light.falloff ?? 1, 1e-3));
+}
+
+const smoothstep = (a: number, b: number, x: number): number => { const t = Math.min(Math.max((x - a) / (b - a || 1e-9), 0), 1); return t * t * (3 - 2 * t); };
+
 export interface LightOptions {
     sun?: SunLight;
+    /** Point and spot lights, shadowed by the distance field like the sun. */
+    lights?: readonly PointLight[];
     /** Shadows from the scene distance field; the sun is unshadowed without it. */
     sdf?: GlobalSdf;
     /** How far a shadow ray looks. */
@@ -127,6 +162,24 @@ export class SurfaceCache {
                             const blocked = options.sdf ? options.sdf.sphereTrace(origin, sun.toLight as [number, number, number], range) !== null : false;
                             if (!blocked) for (let k = 0; k < 3; k++) light[k] += sun.radiance[k]! * ndl;
                         }
+                    }
+                    for (const l of options.lights ?? []) {
+                        const to = [l.position[0] - s.position[0], l.position[1] - s.position[1], l.position[2] - s.position[2]];
+                        const dist = Math.hypot(to[0]!, to[1]!, to[2]!);
+                        if (dist < 1e-6 || dist >= l.reach) continue;
+                        const dir = [to[0]! / dist, to[1]! / dist, to[2]! / dist];
+                        const ndl = s.normal[0] * dir[0]! + s.normal[1] * dir[1]! + s.normal[2] * dir[2]!;
+                        if (ndl <= 0) continue;
+                        let atten = lightReach(l, dist);
+                        if (l.spot) {
+                            const a = l.spot.axis, len = Math.hypot(a[0], a[1], a[2]) || 1;
+                            atten *= smoothstep(l.spot.outerCos, l.spot.innerCos, -(dir[0]! * a[0] + dir[1]! * a[1] + dir[2]! * a[2]) / len);
+                        }
+                        if (atten <= 0) continue;
+                        const origin: [number, number, number] = [s.position[0] + s.normal[0] * bias, s.position[1] + s.normal[1] * bias, s.position[2] + s.normal[2] * bias];
+                        // The ray stops at the light: a body between is what blocks it.
+                        const blocked = options.sdf ? options.sdf.sphereTrace(origin, dir as [number, number, number], dist - bias) !== null : false;
+                        if (!blocked) for (let k = 0; k < 3; k++) light[k] += l.radiance[k]! * atten * ndl;
                     }
                     if (options.indirect) {
                         const g = options.indirect(s.position, s.normal);

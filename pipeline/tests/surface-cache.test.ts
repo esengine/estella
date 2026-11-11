@@ -149,3 +149,61 @@ describe('the surface cache', () => {
         expect(cache.lookup([0.5, 1, 0.5], [0, -1, 0], 0.3)).toBeNull();
     });
 });
+
+describe('point and spot lights in the surface cache', () => {
+    const plate = bakeMeshCards(box([200, 5, 200]), { cell: 50, baseColor: [0.5, 0.5, 0.5] })!;
+    const cache = (placeAt: [number, number, number] = [0, 0, 0]) => {
+        const c = new SurfaceCache();
+        c.add({ id: 1, cards: plate, worldFromLocal: matrix(placeAt) });
+        return c;
+    };
+    // The plate's top card is 8 x 8 pixels of 50: the pixel centre at (25, 25) is where a lamp straight above it is 100 away at a right angle.
+    const topCentre = (c: SurfaceCache) => c.lookup([25, 5, 25], [0, -1, 0], 1)![0]!;
+
+    it('lights a surface under a lamp by the lamp, the falloff and the cosine', () => {
+        const c = cache();
+        const lamp = { position: [25, 105, 25] as [number, number, number], radiance: [2, 2, 2] as [number, number, number], reach: 400, innerRadius: 0, falloff: 1 };
+        c.light({ lights: [lamp] });
+        // 100 above, straight down: the ramp is (400 - 100) / 400 = 0.75, the cosine 1, albedo 0.5.
+        expect(topCentre(c)).toBeCloseTo(0.5 * 2 * 0.75, 2);
+    });
+
+    it('follows the frame inverse-square falloff, let go over the reach', () => {
+        const c = cache();
+        const lamp = { position: [25, 105, 25] as [number, number, number], radiance: [1, 1, 1] as [number, number, number], reach: 400, metre: 100 };
+        c.light({ lights: [lamp] });
+        const q = 100 / 400, w = (1 - q ** 4) ** 2;
+        expect(topCentre(c)).toBeCloseTo(0.5 * w / 1, 2);
+    });
+
+    it('lights nothing past its reach, or from behind the surface', () => {
+        const c = cache();
+        c.light({ lights: [{ position: [25, 605, 25], radiance: [1, 1, 1], reach: 400 }] });
+        expect(topCentre(c)).toBe(0);
+        const d = cache();
+        d.light({ lights: [{ position: [25, -95, 25], radiance: [1, 1, 1], reach: 400 }] });
+        expect(topCentre(d)).toBe(0);
+    });
+
+    it('cuts a spot to its cone', () => {
+        const spot = (aim: [number, number, number]) => ({ position: [25, 105, 25] as [number, number, number], radiance: [1, 1, 1] as [number, number, number], reach: 400, falloff: 1,
+            spot: { axis: aim, innerCos: Math.cos(0.3), outerCos: Math.cos(0.5) } });
+        const on = cache(), off = cache();
+        on.light({ lights: [spot([0, -1, 0])] });
+        off.light({ lights: [spot([1, 0, 0])] });
+        expect(topCentre(on)).toBeGreaterThan(0.3);
+        expect(topCentre(off)).toBe(0);
+    });
+
+    it('is shadowed by a body between the surface and the lamp', () => {
+        const c = cache();
+        const sdf = new GlobalSdf([{ dim: 64, cell: 8 }]);
+        sdf.setCenter([0, 100, 0]);
+        sdf.update({ id: 2, sdf: bakeMeshSdf(box([40, 5, 40]), { cellSize: 8 })!, worldFromLocal: matrix([25, 60, 25]) });
+        c.light({ lights: [{ position: [25, 140, 25], radiance: [1, 1, 1], reach: 400 }], sdf, bias: 12 });
+        expect(topCentre(c)).toBe(0);
+        const lit = cache();
+        lit.light({ lights: [{ position: [25, 140, 25], radiance: [1, 1, 1], reach: 400 }] });
+        expect(topCentre(lit)).toBeGreaterThan(0);
+    });
+});

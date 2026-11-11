@@ -8,14 +8,14 @@
  * tools/render-lab/gi_reference.json: Cycles' linear light, 12 bounces, over a patch of each surface. What is asserted is the same
  * share of Cycles' light the lab check (gi_oracle.py) uses for the engine's other methods.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { MeshChannel, MeshChannelType, type MeshData } from 'esengine';
 import { bakeMeshCards } from '../src/assets/meshCards';
 import { bakeMeshSdf } from '../src/assets/meshSdf';
 import { GlobalSdf } from '../../sdk/src/gi/globalSdf';
-import { SurfaceCache } from '../../sdk/src/gi/surfaceCache';
+import { SurfaceCache, type PointLight } from '../../sdk/src/gi/surfaceCache';
 import { solveBounces, type ProbeScene } from '../../sdk/src/gi/screenProbes';
 
 const reference = JSON.parse(readFileSync(path.resolve(import.meta.dirname, '../../tools/render-lab/gi_reference.json'), 'utf8')).regions as Record<string, Record<string, number[]>>;
@@ -72,7 +72,7 @@ const sunTravel = (elev: number, azim: number): [number, number, number] => {
     return [Math.cos(e) * Math.sin(a), -Math.sin(e), Math.cos(e) * Math.cos(a)];
 };
 
-function solve(boxes: Box[], sun: { elev: number; azim: number } | null, bounces = 4, raysSeed = 0) {
+function solve(boxes: Box[], sun: { elev: number; azim: number } | null, bounces = 4, raysSeed = 0, lights: PointLight[] = []) {
     const sdf = new GlobalSdf([{ dim: 128, cell: 5 }]);
     sdf.setCenter([0, 150, 0]);
     const cache = new SurfaceCache();
@@ -84,7 +84,7 @@ function solve(boxes: Box[], sun: { elev: number; azim: number } | null, bounces
     });
     const scene: ProbeScene = { sdf, cache, range: 900, bias: 9, tolerance: 14 };
     const travel = sun ? sunTravel(sun.elev, sun.azim) : null;
-    solveBounces(scene, { sun: travel ? { toLight: [-travel[0], -travel[1], -travel[2]], radiance: [1, 1, 1] } : undefined, sdf, bias: 9, shadowRange: 900 }, bounces);
+    solveBounces(scene, { sun: travel ? { toLight: [-travel[0], -travel[1], -travel[2]], radiance: [1, 1, 1] } : undefined, lights, sdf, bias: 9, shadowRange: 900 }, bounces);
     void raysSeed;
     return { cache, sdf };
 }
@@ -129,5 +129,23 @@ describe('the dynamic GI over the render lab rooms', () => {
         // Measured 2026-11-11: 0.46 to 1.89 of Cycles' light (the cards are 25 cm, a probe is 64 rays), on screen and off alike. The voxel method
         // is 0.1 to 1.7 on screen and 0.3 to 0.5 off it; the band is the accuracy this has today, so a change that makes it worse fails.
         for (const s of [...shares, ...awayShares]) { expect(s).toBeGreaterThan(0.4); expect(s).toBeLessThan(2.0); }
+    }, 300000);
+
+    it('lights the room of gi_point by a lamp: the CPU reference the GPU method is held to', () => {
+        // The lamp of tools/render-lab/gi_specs.py: at (0, 200, 50), intensity 0.3 (an 8-bit picture cannot hold more), linear falloff to 600.
+        const lamp: PointLight = { position: [0, 200, 50], radiance: [0.3, 0.3, 0.3], reach: 600, innerRadius: 0, falloff: 1 };
+        const { cache } = solve(room(), null, 5, 0, [lamp]);
+        const rows: Array<[string, [number, number, number], [number, number, number]]> = [
+            ['ceiling', [0, 299, 50], [0, -1, 0]], ['red wall', [199, 150, 50], [-1, 0, 0]], ['green wall', [-199, 150, 50], [1, 0, 0]],
+            ['back wall', [0, 150, 249], [0, 0, -1]], ['floor', [0, 1, 50], [0, 1, 0]], ['block, lit side', [-90, 50, 29], [0, 0, -1]],
+        ];
+        const out: Record<string, number[]> = {};
+        for (const [name, p, n] of rows) {
+            const e = share(cache, p, n, [1, 1, 1]).e;
+            out[name] = e;
+            console.log(`gi_point ${name.padEnd(16)} ${e.map((v) => v.toFixed(3)).join(' ')}`);
+            expect(Math.max(...e)).toBeGreaterThan(0.02);
+        }
+        if (process.env.WRITE_REF) writeFileSync(path.resolve(import.meta.dirname, '../../tools/render-lab/gi_point_reference.json'), JSON.stringify({ source: 'the CPU solver of pipeline/tests/gi-lab.test.ts (distance field + surface cache + probes, 5 bounces), linear radiance at each region', regions: out }, null, 1));
     }, 300000);
 });

@@ -31,6 +31,8 @@ METHODS = {
     'baked': {'BAKE': '1', 'BOUNCES': '8'},
     'vgi': {'EFFECTS': json.dumps([{'type': 'voxelGI', 'enabled': True, 'uniforms': {}}])},
     'dgi': {'BACKEND': 'webgpu', 'HEADLESS_GPU': '1', 'EFFECTS': json.dumps([{'type': 'dynamicGI', 'enabled': True, 'uniforms': {}}])},
+    # The same with a field that follows the camera: three levels from a 2.5 cm cell, so the far half of the room is in the coarse ones.
+    'dgil': {'BACKEND': 'webgpu', 'HEADLESS_GPU': '1', 'EFFECTS': json.dumps([{'type': 'dynamicGI', 'enabled': True, 'uniforms': {'u_cellSize': 2.5}}])},
     # The same, with every box a mesh and the `.esmeshsdf` / `.esmeshcards` an import with `dynamicGI` on writes beside it (make_mesh_boxes.mjs).
     'dgim': {'BACKEND': 'webgpu', 'HEADLESS_GPU': '1', 'MESH_BOXES': '1', 'EFFECTS': json.dumps([{'type': 'dynamicGI', 'enabled': True, 'uniforms': {}}])},
 }
@@ -51,6 +53,12 @@ BANDS = {
     ('gi_room', 'dgim'): (0.45, 1.45),
     ('gi_away', 'dgim'): (0.45, 1.30),
     ('gi_leak', 'dgim'): ('zero', 0.0005),
+    ('gi_point', 'dgi'): (0.8, 1.25),
+    ('gi_point', 'dgim'): (0.7, 1.4),
+    ('gi_room', 'dgil'): (0.45, 1.45),
+    ('gi_away', 'dgil'): (0.45, 1.30),
+    ('gi_leak', 'dgil'): ('zero', 0.0005),
+    ('gi_point', 'dgil'): (0.7, 1.4),
     ('gi_emissive', 'dgim'): (0.75, 1.50),
 }
 # Wrong today, on purpose written down: the lightmap baker has no notion of an emissive surface (tools/lightmap-wasm/kernel.cpp carries albedo
@@ -62,6 +70,10 @@ KNOWN_GAP = {
     ('gi_emissive', 'baked'): ('the lightmap baker does not light from emissive surfaces', 0.05),
     ('gi_leak', 'vgi'): ('the voxel method lets the sun through thin walls', 0.008),
 }
+
+
+# A lab with no Cycles picture (a lamp) is for the methods that light from the scene's own lights.
+ONLY = {'gi_point': ['dgi', 'dgim', 'dgil']}
 
 
 def lin(img):
@@ -101,6 +113,8 @@ def main():
     flag = lambda n, d: args[args.index(n) + 1] if n in args else d
     labs = flag('--labs', ','.join(S.GI)).split(',')
     if '--reference' in args:
+        labs = [l for l in labs if os.path.exists(os.path.join(OUT, 'ref_%s.png' % l))]
+    if '--reference' in args:
         data = {}
         for lab in labs:
             data[lab] = read(os.path.join(OUT, 'ref_%s.png' % lab), lab)
@@ -113,6 +127,8 @@ def main():
     failures = []
     for lab in labs:
         for method in methods:
+            if method not in ONLY.get(lab, methods):
+                continue
             got = read(run_engine(lab, method), lab)
             ref = reference[lab]
             band = BANDS.get((lab, method))

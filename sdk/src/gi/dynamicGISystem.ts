@@ -15,13 +15,16 @@
 import type { App } from '../app/app';
 import { defineSystem } from '../ecs/system';
 import { Query } from '../ecs/query';
-import { MeshRenderer, Transform, Light, PostProcessVolume, type MeshRendererData, type TransformData, type LightData, type PostProcessVolumeData } from '../ecs/component';
+import { MeshRenderer, Transform, Light, Camera, PostProcessVolume, type MeshRendererData, type TransformData, type LightData, type CameraData, type PostProcessVolumeData } from '../ecs/component';
 import { LightType } from '../wasm/wasm.generated';
 import { Assets } from '../asset/AssetPlugin';
 import type { Entity } from '../types';
 import { withScratch } from '../wasm/wasmScratch';
 import { Material } from '../render/material';
 import { analyticBox, packGPUScene, type GIInstance, type GILight } from './gpuScene';
+import { GlobalSdf } from './globalSdf';
+import type { PointLight } from './surfaceCache';
+import { worldUnitsPerMeter } from '../ecs/worldUnits';
 import type { MeshSdf } from './meshSdfFormat';
 import type { MeshCards } from './cardFormat';
 
@@ -79,11 +82,28 @@ export function buildInstances(entries: readonly GIEntry[], cube: number, sideca
     return { instances, key };
 }
 
-function wantsDynamicGI(volumes: Iterable<[Entity, PostProcessVolumeData]>): boolean {
+/** The settings of the first enabled `dynamicGI` effect of the volumes, or null when there is none. */
+function dynamicGIEffect(volumes: Iterable<[Entity, PostProcessVolumeData]>): { cellSize: number } | null {
     for (const [, v] of volumes) {
-        for (const e of v.effects as Array<{ type: string; enabled?: boolean }>) if (e.type === 'dynamicGI' && e.enabled !== false) return true;
+        for (const e of v.effects as Array<{ type: string; enabled?: boolean; uniforms?: Record<string, number> }>) {
+            if (e.type === 'dynamicGI' && e.enabled !== false) return { cellSize: Number(e.uniforms?.u_cellSize ?? 0) || 0 };
+        }
     }
-    return false;
+    return null;
+}
+
+/** A point or spot light of the scene, as the GI lights with it. */
+export function pointLightOf(l: LightData, t: TransformData): PointLight | null {
+    if (!l.enabled || l.intensity <= 0 || (l.type !== LightType.Point && l.type !== LightType.Spot) || l.radius <= 0) return null;
+    const q = t.worldRotation, p = t.worldPosition;
+    const radiance: [number, number, number] = [l.color.r * l.intensity, l.color.g * l.intensity, l.color.b * l.intensity];
+    const light: PointLight = { position: [p.x, p.y, p.z], radiance, reach: l.radius, innerRadius: l.innerRadius, falloff: l.falloff, ...(l.inverseSquare ? { metre: worldUnitsPerMeter() } : {}) };
+    if (l.type === LightType.Spot) {
+        // The aim is the rotation's -Z, as the sun's is.
+        const ax = -(2 * (q.x * q.z + q.w * q.y)), ay = -(2 * (q.y * q.z - q.w * q.x)), az = -(1 - 2 * (q.x * q.x + q.y * q.y));
+        light.spot = { axis: [ax, ay, az], innerCos: Math.cos((l.innerAngle * Math.PI) / 360), outerCos: Math.cos((l.outerAngle * Math.PI) / 360) };
+    }
+    return light;
 }
 
 /** The emissive colour of a material, black where it has none. */
@@ -104,6 +124,8 @@ type Loader = {
 
 export function dynamicGISystem(app: App) {
     let cube = 0, loading = false, lastKey = '';
+    // The field that follows the camera, kept between frames so that a camera that moves rebuilds only the slabs that came into view.
+    let follow: { sdf: GlobalSdf; instancesKey: string; cell: number } | null = null;
     // The baked files beside a mesh, by its path: null while loading and for a mesh that has none.
     const sidecars = new Map<string, GISidecars | null>();
     const request = (path: string): void => {
@@ -119,10 +141,11 @@ export function dynamicGISystem(app: App) {
             () => { /* a mesh with no baked files is simply not in the scene */ });
     };
     return defineSystem(
-        [Query(MeshRenderer, Transform), Query(Light, Transform), Query(PostProcessVolume)],
+        [Query(MeshRenderer, Transform), Query(Light, Transform), Query(PostProcessVolume), Query(Camera, Transform)],
         (meshes: Iterable<[Entity, MeshRendererData, TransformData]>, lights: Iterable<[Entity, LightData, TransformData]>,
-         volumes: Iterable<[Entity, PostProcessVolumeData]>) => {
-            if (!wantsDynamicGI(volumes)) { lastKey = ''; return; }
+         volumes: Iterable<[Entity, PostProcessVolumeData]>, cameras: Iterable<[Entity, CameraData, TransformData]>) => {
+            const effect = dynamicGIEffect(volumes);
+            if (!effect) { lastKey = ''; follow = null; return; }
             const m = app.wasmModule;
             if (!m?.postprocess_setGIScene) return;
             if (cube === 0) {
@@ -142,6 +165,13 @@ export function dynamicGISystem(app: App) {
                 light = { toLight: [-ax / n, -ay / n, -az / n], radiance: [l.color.r * l.intensity, l.color.g * l.intensity, l.color.b * l.intensity] };
                 break;
             }
+            const point: PointLight[] = [];
+            for (const [, l, t] of lights) { const p = pointLightOf(l, t); if (p) point.push(p); }
+            let eye: [number, number, number] | null = null;
+            for (const [, c, t] of cameras) if (c.isActive) { eye = [t.worldPosition.x, t.worldPosition.y, t.worldPosition.z]; break; }
+            // The lights that matter are the ones nearest the eye: only a handful fit.
+            if (eye && point.length > 8) point.sort((a, b) => Math.hypot(a.position[0] - eye![0], a.position[1] - eye![1], a.position[2] - eye![2]) - Math.hypot(b.position[0] - eye![0], b.position[1] - eye![1], b.position[2] - eye![2]));
+            const lightKey = point.slice(0, 8).map((l) => `${l.position.map((v) => v.toFixed(2)).join(',')};${l.radiance.join(',')};${l.reach};${l.innerRadius};${l.falloff};${l.metre ?? 0};${l.spot ? l.spot.axis.map((v) => v.toFixed(3)).join(',') + l.spot.innerCos + l.spot.outerCos : ''}`).join('|');
             const assets = app.hasResource(Assets) ? app.getResource(Assets) as unknown as Loader : null;
             const entries: GIEntry[] = [];
             for (const [, r, t] of meshes) {
@@ -154,10 +184,30 @@ export function dynamicGISystem(app: App) {
                 entries.push({ mesh: r.mesh, transform: t, colour: [r.color.r, r.color.g, r.color.b], emissive: emissiveOf(r.material), path });
             }
             const { instances, key: sceneKey } = buildInstances(entries, cube, (p) => sidecars.get(p) ?? null);
-            const key = (light ? `${light.toLight.join(',')}|${light.radiance.join(',')}` : 'dark') + sceneKey;
+            // A cell size asks for the field that follows the eye: three levels, each four times the last, around the camera. Without one the
+            // field is a single window that holds the whole scene.
+            const following = effect.cellSize > 0 && eye !== null;
+            const snap = following ? effect.cellSize * 8 : 1;
+            const eyeKey = following ? eye!.map((v) => Math.floor(v / snap)).join(',') : '';
+            const key = (light ? `${light.toLight.join(',')}|${light.radiance.join(',')}` : 'dark') + sceneKey + '#' + lightKey + '#' + effect.cellSize + eyeKey;
             if (key === lastKey || instances.length === 0) return;
             lastKey = key;
-            const scene = packGPUScene(instances, light);
+            let sdf: GlobalSdf | undefined;
+            if (following) {
+                const cell = effect.cellSize;
+                if (!follow || follow.cell !== cell || follow.instancesKey !== sceneKey) {
+                    const fresh = new GlobalSdf([{ dim: 128, cell }, { dim: 128, cell: cell * 4 }, { dim: 128, cell: cell * 16 }]);
+                    fresh.setCenter(eye!);
+                    instances.forEach((inst, id) => fresh.update({ id, sdf: inst.sdf, worldFromLocal: inst.worldFromLocal }));
+                    follow = { sdf: fresh, instancesKey: sceneKey, cell };
+                } else {
+                    follow.sdf.setCenter(eye!);
+                }
+                sdf = follow.sdf;
+            } else {
+                follow = null;
+            }
+            const scene = packGPUScene(instances, light, { sdf, lights: point.slice(0, 8) });
             if (!scene) return;
             withScratch(m, (alloc) => {
                 const put = (data: ArrayBufferView): number => {

@@ -17,6 +17,7 @@
  *          The CPU twins (globalSdf.ts, surfaceCache.ts, screenProbes.ts) are checked against Cycles; the kernels are the same arithmetic.
  */
 import { GlobalSdf, type SdfInstance } from './globalSdf';
+import type { PointLight } from './surfaceCache';
 import { CARD_AXES, NO_DEPTH, type MeshCards } from './cardFormat';
 import type { MeshSdf } from './meshSdfFormat';
 
@@ -40,7 +41,11 @@ export interface GPUScene {
     pixels: Uint32Array;
 }
 
-export const GI_HEADER_FLOATS = 24;
+/** Header floats: 0-21 the first level and the scene (see the layout above), 22 levels, 23 lights, 24-39 the second and third level, 40- the lights. */
+export const GI_MAX_LEVELS = 3;
+export const GI_MAX_LIGHTS = 8;
+export const GI_LIGHT_FLOATS = 16;
+export const GI_HEADER_FLOATS = 40 + GI_MAX_LIGHTS * GI_LIGHT_FLOATS;
 export const GI_INSTANCE_FLOATS = 80;
 
 /** A box of the given size centred on the origin, as a distance field and as cards, without any mesh: what a primitive is to the GI. */
@@ -74,11 +79,21 @@ export function analyticBox(size: readonly [number, number, number], colour: rea
 
 const scaleOf = (m: ArrayLike<number>): number => Math.hypot(m[0]!, m[1]!, m[2]!);
 
-/** Composes the instances into one distance field window and lays everything out for the engine. */
-export function packGPUScene(instances: readonly GIInstance[], light: GILight | null, options: { dim?: number; sky?: readonly [number, number, number]; bias?: number } = {}): GPUScene | null {
-    if (instances.length === 0) return null;
-    const dim = options.dim ?? 128;
-    // The window covers the instances' boxes: the cell is the smallest power-free size that fits them, with the border a trace needs.
+export interface PackOptions {
+    dim?: number;
+    sky?: readonly [number, number, number];
+    bias?: number;
+    /** Point and spot lights, up to GI_MAX_LIGHTS. */
+    lights?: readonly PointLight[];
+    /**
+     * A field to pack as it stands (levels that follow the camera, composed by the caller); without one the instances are composed into a
+     * single window that holds them all.
+     */
+    sdf?: GlobalSdf;
+}
+
+/** The bounds of the instances' cards in the world. */
+export function instanceBounds(instances: readonly GIInstance[]): { min: number[]; max: number[] } {
     const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
     for (const inst of instances) {
         const m = inst.worldFromLocal, { aabbMin, aabbMax } = inst.cards;
@@ -90,12 +105,26 @@ export function packGPUScene(instances: readonly GIInstance[], light: GILight | 
             }
         }
     }
+    return { min, max };
+}
+
+/** Composes the instances into a distance field (one window that holds them all, or the caller's) and lays everything out for the engine. */
+export function packGPUScene(instances: readonly GIInstance[], light: GILight | null, options: PackOptions = {}): GPUScene | null {
+    if (instances.length === 0) return null;
+    const dim = options.dim ?? 128;
+    const { min, max } = instanceBounds(instances);
     const extent = Math.max(max[0]! - min[0]!, max[1]! - min[1]!, max[2]! - min[2]!);
-    const cell = (extent * 1.15) / (dim - 4);
-    const sdf = new GlobalSdf([{ dim, cell }]);
-    sdf.setCenter([(min[0]! + max[0]!) / 2, (min[1]! + max[1]!) / 2, (min[2]! + max[2]!) / 2]);
-    instances.forEach((inst, id) => { const s: SdfInstance = { id, sdf: inst.sdf, worldFromLocal: inst.worldFromLocal }; sdf.update(s); });
-    const level = sdf.levels[0]!;
+    let sdf = options.sdf;
+    if (!sdf) {
+        // The window covers the instances' boxes: the cell is the one that fits them, with the border a trace needs.
+        const cell = (extent * 1.15) / (dim - 4);
+        sdf = new GlobalSdf([{ dim, cell }]);
+        sdf.setCenter([(min[0]! + max[0]!) / 2, (min[1]! + max[1]!) / 2, (min[2]! + max[2]!) / 2]);
+        instances.forEach((inst, id) => { const s: SdfInstance = { id, sdf: inst.sdf, worldFromLocal: inst.worldFromLocal }; sdf!.update(s); });
+    }
+    const levels = sdf.levels.slice(0, GI_MAX_LEVELS);
+    const level = levels[0]!;
+    const cell = level.cell;
 
     const pixelTotal = instances.reduce((a, inst) => a + inst.cards.cards.reduce((b, c) => b + c.width * c.height, 0), 0);
     const header = new Float32Array(GI_HEADER_FLOATS);
@@ -137,15 +166,39 @@ export function packGPUScene(instances: readonly GIInstance[], light: GILight | 
         });
     });
 
-    const bias = options.bias ?? Math.max(cell * 1.6, 0.5);
+    // A ray starts off its surface by more than the instances' own fields are grown (a body is half a cell of ITS mesh fatter than it is), or it
+    // starts inside the body it left; and a card is forgiven by about as much. This is the meshes' cell, not the clipmap's.
+    const growth = Math.max(...instances.map((inst) => inst.sdf.inflate), 0);
+    const bias = options.bias ?? Math.max(cell * 1.6, growth * 1.8, 0.5);
+    const tolerance = Math.max(cell * 3, growth * 3.5);
     const set = (i: number, ...v: number[]) => { v.forEach((x, k) => { header[i + k] = x; }); };
-    set(0, dim, cell, level.origin[0]!, level.origin[1]!, level.origin[2]!, cell * GlobalSdf.REACH_CELLS, instances.length, pixelTotal);
-    set(8, ...(light?.toLight ?? [0, 1, 0]), light ? 1 : 0, ...(light?.radiance ?? [0, 0, 0]), bias, extent * 2.5, cell * 3);
+    set(0, level.dim, cell, level.origin[0]!, level.origin[1]!, level.origin[2]!, cell * GlobalSdf.REACH_CELLS, instances.length, pixelTotal);
+    set(8, ...(light?.toLight ?? [0, 1, 0]), light ? 1 : 0, ...(light?.radiance ?? [0, 0, 0]), bias, extent * 2.5, tolerance);
     set(18, ...(options.sky ?? [0, 0, 0]), 0.25);
-    // The field, then which instance each cell is nearest to, four cells to a word of seven-bit ids (a word with a top bit set could read as a
-    // NaN, and a device is free to change those).
-    const cells = level.data.length, packed = new Float32Array(cells + cells / 4), words = new Uint32Array(packed.buffer, cells * 4, cells / 4);
-    packed.set(level.data);
-    for (let i = 0; i < cells; i++) words[i >> 2]! |= level.owner[i]! << ((i & 3) * 8);
+    set(22, levels.length);
+    // The field of every level, each followed by its owner words (four cells to a word of seven-bit ids; a word with a top bit set could
+    // read as a NaN, and a device is free to change those). Level 0 sits first, so the header's offsets for it are 0 and dim^3.
+    let floats = 0;
+    for (const l of levels) floats += l.data.length + l.data.length / 4;
+    const packed = new Float32Array(floats);
+    let at = 0;
+    levels.forEach((l, k) => {
+        const cells = l.data.length;
+        packed.set(l.data, at);
+        const words = new Uint32Array(packed.buffer, (at + cells) * 4, cells / 4);
+        for (let i = 0; i < cells; i++) words[i >> 2]! |= l.owner[i]! << ((i & 3) * 8);
+        if (k > 0) set(24 + (k - 1) * 8, l.dim, l.cell, l.origin[0]!, l.origin[1]!, l.origin[2]!, l.cell * GlobalSdf.REACH_CELLS, at, at + cells);
+        at += cells + cells / 4;
+    });
+    const lights = (options.lights ?? []).slice(0, GI_MAX_LIGHTS);
+    set(23, lights.length);
+    lights.forEach((l, i) => {
+        const o = 40 + i * GI_LIGHT_FLOATS, aim = l.spot?.axis ?? [0, -1, 0];
+        const len = Math.hypot(aim[0], aim[1], aim[2]) || 1;
+        // fo.y of the frame's distanceFalloff: the ramp's power, or minus the world units to the metre for an inverse-square light.
+        const fy = l.metre && l.metre > 0 ? -l.metre : (l.falloff ?? 1);
+        set(o, l.position[0], l.position[1], l.position[2], l.reach, l.radiance[0], l.radiance[1], l.radiance[2], l.spot ? 2 : 0,
+            aim[0] / len, aim[1] / len, aim[2] / len, fy, l.innerRadius ?? 0, l.spot?.innerCos ?? 1, l.spot?.outerCos ?? 0, 0);
+    });
     return { header, sdf: packed, instances: instanceData, pixels };
 }
