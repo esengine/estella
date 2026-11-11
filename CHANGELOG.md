@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Several editors open at once can be told apart by an agent, and each grants on its own.** An editor advertises itself in a file of its own (its process id, its project, its port, its permission) instead of the one file the last editor to start overwrote. An agent attached to more than one gets `list_editors` and `select_editor` (or `--instance` / `ESTELLA_MCP_INSTANCE`), and until it chooses it is refused with the list rather than sent to whichever window won. It then drives the editor it chose and no other. The Read only / Can edit permission belongs to the editor window it is switched in and every editor starts read-only; it is no longer a saved setting that a second editor inherited. The Connect AI Tools dialog shows which editor it is.
+
 ### Changed
 
 - **The 3D Starter looks finished out of the box.** Its sun casts mesh shadows (they were off, so every object floated), its camera carries a `PostProcessVolume` with a sky that lights the scene, height fog, GTAO, auto exposure, bloom, grade, vignette and FXAA, and its ground reaches the horizon. A new guide, *Getting a good 3D look*, lists what it sets and how to carry a three.js scene's numbers over (units, light intensity, colours, lamps).

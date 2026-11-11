@@ -33,7 +33,7 @@ overwritten.
 
 - **No Node.js install needed** — the entry runs the bundled script on the editor's
   own executable.
-- **What an agent may do** is switched in the dialog: Read only / Can edit. The editor
+- **What an agent may do** is switched in the dialog: Read only / Can edit. It belongs to the editor window you switch it in: it is never saved, so every editor starts read-only, and granting edits in one open editor says nothing of another. The editor
   decides it live and the entries carry no permission, so a change reaches every
   connected tool at once, with no restart and no config rewritten.
 - **Whether it really connected** is the line at the bottom: "Last call: Claude Code,
@@ -122,6 +122,20 @@ instead of `--editor`:
 Order doesn't matter: the server resolves the editor **per call**, so you can start
 your AI tool first and open the editor later, and restarting the editor mid-session
 reconnects automatically rather than stranding the agent.
+
+### Several editors open at once
+
+Each editor advertises itself in its own file (`mcp-instances/<pid>.json` in the user-data folder) with its process id, the project it holds, its port and its own
+permission, so an agent can tell them apart. With one editor open the session simply drives it. With two or more, the agent is not left to guess, because a call
+that lands in the wrong window changes the wrong project: every tool but two answers with the list until it picks.
+
+- `list_editors` shows each open editor: pid, project, port, and whether it lets agents change the project.
+- `select_editor` takes a pid, a port or part of a project name or path. The session then drives that editor and no other, and an editor opened later does not
+  take it over. If that editor closes, the session asks again.
+- To fix the choice in the tool's config instead, pass `--instance <pid | project name>` to the script or set `ESTELLA_MCP_INSTANCE`.
+
+The permission (Read only / Can edit) belongs to each editor window and starts read-only, so granting one editor never grants another. The connect dialog shows
+which editor it is: its project, process id and port.
 
 ## What the agent can do
 
