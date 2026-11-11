@@ -556,6 +556,7 @@ export interface ESEngineModule {
     postprocess_addComputePass?(name: string, wgsl: string, params: string, workgroupX: number, workgroupY: number): number;
     postprocess_supportsCompute?(): boolean;
     postprocess_addNativePass?(name: string, kind: string): number;
+    postprocess_updateGIField?(headerPtr: number, headerCount: number, sdfPtr: number, sdfOffset: number, sdfCount: number): boolean;
     postprocess_setGIScene?(headerPtr: number, headerCount: number, sdfPtr: number, sdfCount: number, instancesPtr: number, instanceCount: number, pixelsPtr: number, pixelCount: number): boolean;
     postprocess_setPassScale(name: string, scale: number): void;
     postprocess_setPassContinuesEffect(name: string): void;

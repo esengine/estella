@@ -100,6 +100,23 @@ bool postprocess_setGIScene(uintptr_t headerPtr, u32 headerCount, uintptr_t sdfP
     scene.sdf.assign(sdf, sdf + sdfCount);
     scene.instances.assign(instances, instances + instanceCount);
     scene.pixels.assign(pixels, pixels + pixelCount);
+    scene.full = true;
+    ++scene.version;
+    return true;
+}
+
+bool postprocess_updateGIField(uintptr_t headerPtr, u32 headerCount, uintptr_t sdfPtr, u32 sdfOffset, u32 sdfCount) {
+    DynamicGIScene& scene = dynamicGIScene();
+    if (scene.sdf.empty() || scene.header.size() < 22 || headerCount != scene.header.size() || static_cast<u64>(sdfOffset) + sdfCount > scene.sdf.size()) return false;
+    const f32* header = boundarySpan<f32>(headerPtr, headerCount, "postprocess_updateGIField.header");
+    const f32* sdf = boundarySpan<f32>(sdfPtr, sdfCount, "postprocess_updateGIField.sdf");
+    if (!header || !sdf) return false;
+    std::copy(header, header + headerCount, scene.header.begin());
+    std::copy(sdf, sdf + sdfCount, scene.sdf.begin() + sdfOffset);
+    if (!scene.full) {
+        scene.dirtyBegin = scene.dirtyEnd == scene.dirtyBegin ? sdfOffset : std::min(scene.dirtyBegin, sdfOffset);
+        scene.dirtyEnd = std::max(scene.dirtyEnd, sdfOffset + sdfCount);
+    }
     ++scene.version;
     return true;
 }

@@ -23,7 +23,7 @@ import { withScratch } from '../wasm/wasmScratch';
 import { marshallingCore } from '../asset/loaders/engineCore';
 import { nativeEngineApi } from '../ecs/bridge/engineApi';
 import { Material } from '../render/material';
-import { analyticBox, packGPUScene, type GIInstance, type GILight, type GPUScene } from './gpuScene';
+import { analyticBox, instanceBounds, packGPUScene, type GIInstance, type GILight, type GPUScene } from './gpuScene';
 import { GlobalSdf } from './globalSdf';
 import type { PointLight } from './surfaceCache';
 import { worldUnitsPerMeter } from '../ecs/worldUnits';
@@ -152,18 +152,38 @@ type Loader = {
 /**
  * Gives the engine a packed scene, and records what the rebuild behind it cost (for tools/gi/measure-camera-move.mjs): the milliseconds of the
  * boxes, of the field and of the pack, then the hand-over's own. Said to the device log every 8 rebuilds, where that is the only place to read it.
+ *
+ * The first time, and after a scene change, the whole of it goes. After a camera move only the levels that were rebuilt do (10 MB a level, and the
+ * finest is nearly all there is to send), by the range of the field they fill: the engine leaves the cards and the light on them alone.
  */
-function handOver(m: NonNullable<ReturnType<typeof marshallingCore>>, scene: GPUScene, [instancesMs, fieldMs, packMs]: [number, number, number]): void {
+function sendScene(m: NonNullable<ReturnType<typeof marshallingCore>>, field: { sdf: GlobalSdf; sent: number[] | null }, scene: GPUScene,
+    full: boolean, [instancesMs, fieldMs, packMs]: [number, number, number]): void {
     const t = performance.now();
+    const levels = field.sdf.levels.slice(0, 3);
     withScratch(m, (alloc) => {
         const put = (data: ArrayBufferView): number => {
             const ptr = alloc(data.byteLength);
             m.HEAPU8.set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength), ptr);
             return ptr;
         };
-        m.postprocess_setGIScene!(put(scene.header), scene.header.length, put(scene.sdf), scene.sdf.length,
-            put(scene.instances), scene.instances.length, put(scene.pixels), scene.pixels.length);
+        if (full || !field.sent || !m.postprocess_updateGIField) {
+            m.postprocess_setGIScene!(put(scene.header), scene.header.length, put(scene.sdf), scene.sdf.length,
+                put(scene.instances), scene.instances.length, put(scene.pixels), scene.pixels.length);
+            return;
+        }
+        let at = 0, sent = 0;
+        const headerPtr = put(scene.header);
+        levels.forEach((l, k) => {
+            if (field.sent![k] !== l.version) {
+                m.postprocess_updateGIField!(headerPtr, scene.header.length, put(scene.sdf.subarray(at, at + l.storage.length)), at, l.storage.length);
+                sent++;
+            }
+            at += l.storage.length;
+        });
+        // Nothing of the field changed (the light did): the header alone.
+        if (sent === 0) m.postprocess_updateGIField!(headerPtr, scene.header.length, headerPtr, 0, 0);
     });
+    field.sent = levels.map((l) => l.version);
     const record = ((globalThis as { __estellaGIBuild?: { ms: number[][] } }).__estellaGIBuild ??= { ms: [] });
     record.ms.push([instancesMs, fieldMs, packMs, performance.now() - t, scene.sdf.byteLength / 1048576]);
     if (record.ms.length > 256) record.ms.shift();
@@ -176,10 +196,10 @@ function handOver(m: NonNullable<ReturnType<typeof marshallingCore>>, scene: GPU
 export function dynamicGISystem(app: App) {
     let cube = 0, loading = false, lastKey = '';
     // The field that follows the camera, kept between frames so that a camera that moves rebuilds only the slabs that came into view.
-    let follow: { sdf: GlobalSdf; instancesKey: string; cell: number } | null = null;
+    let field: { sdf: GlobalSdf; sceneKey: string; cell: number; sent: number[] | null } | null = null;
     let built: { sceneKey: string; instances: GIInstance[] } | null = null;
     // A camera that moved while the field is still being rebuilt for the last move: what is waiting to be packed and sent when it is done.
-    let waiting: { instances: GIInstance[]; light: GILight | null; lights: PointLight[]; work: number } | null = null;
+    let waiting: { instances: GIInstance[]; light: GILight | null; lights: PointLight[]; work: number; full: boolean; build: number } | null = null;
     // The baked files beside a mesh, by its path: null while loading and for a mesh that has none.
     const sidecars = new Map<string, GISidecars | null>();
     const request = (path: string): void => {
@@ -209,7 +229,7 @@ export function dynamicGISystem(app: App) {
                 });
             };
             const effect = dynamicGIEffect(volumes);
-            if (!effect) { lastKey = ''; follow = null; return; }
+            if (!effect) { lastKey = ''; field = null; waiting = null; return; }
             // The web's module, or a device's host (which answers the same heap from its arena): the arrays cross the boundary through it.
             const m = marshallingCore(app.wasmModule ?? nativeEngineApi());
             if (!m?.postprocess_setGIScene) return;
@@ -257,16 +277,16 @@ export function dynamicGISystem(app: App) {
             const key = (light ? `${light.toLight.join(',')}|${light.radiance.join(',')}` : 'dark') + sceneKey + '#' + lightKey + '#' + effect.cellSize + eyeKey;
             // The rebuild a camera move asked for goes on a few milliseconds a frame, and is handed to the engine when it is whole: until then
             // the engine traces the field as it was, which is a window a little behind the eye and nothing worse.
-            if (follow && waiting) {
+            if (field && waiting) {
                 const ts = performance.now();
-                const finished = follow.sdf.step(3);
+                const finished = field.sdf.step(3);
                 waiting.work += performance.now() - ts;
                 if (finished) {
-                    const { instances: held, light: heldLight, lights: heldLights, work } = waiting;
-                    const tPack = performance.now();
-                    const done = packGPUScene(held, heldLight, { sdf: follow.sdf, lights: heldLights });
-                    if (done) handOver(m, done, [0, work, performance.now() - tPack]);
+                    const w = waiting;
                     waiting = null;
+                    const tPack = performance.now();
+                    const done = packGPUScene(w.instances, w.light, { sdf: field.sdf, lights: w.lights });
+                    if (done) sendScene(m, field, done, w.full, [w.build, w.work, performance.now() - tPack]);
                 }
             }
             if (key === lastKey || sceneKey === '') return;
@@ -276,30 +296,28 @@ export function dynamicGISystem(app: App) {
             if (!built || built.sceneKey !== sceneKey) built = { sceneKey, instances: buildInstances(entries, cube, (p) => sidecars.get(p) ?? null).instances };
             const instances = built.instances;
             if (instances.length === 0) return;
-            const t1 = performance.now();
-            let sdf: GlobalSdf | undefined;
-            if (following) {
-                const cell = effect.cellSize;
-                if (!follow || follow.cell !== cell || follow.instancesKey !== sceneKey) {
-                    const fresh = new GlobalSdf([{ dim: 128, cell }, { dim: 128, cell: cell * 4 }, { dim: 128, cell: cell * 16 }]);
-                    fresh.setCenter(eye!);
-                    instances.forEach((inst, id) => fresh.update({ id, sdf: inst.sdf, worldFromLocal: inst.worldFromLocal }));
-                    follow = { sdf: fresh, instancesKey: sceneKey, cell };
+            const cell = following ? effect.cellSize : 0;
+            if (!field || field.sceneKey !== sceneKey || field.cell !== cell) {
+                // A scene the field has not seen: a new field, over the frames that follow, and the whole of it sent when it is done.
+                let sdf: GlobalSdf;
+                if (following) {
+                    sdf = new GlobalSdf([{ dim: 128, cell }, { dim: 128, cell: cell * 4 }, { dim: 128, cell: cell * 16 }]);
+                    sdf.setCenter(eye!);
                 } else {
-                    // Only the eye moved: queue the slabs and let the frames do them (see above); the scene is sent when they are done.
-                    follow.sdf.setCenter(eye!, true);
-                    waiting = { instances, light, lights: point.slice(0, 8), work: 0 };
-                    return;
+                    const { min, max } = instanceBounds(instances);
+                    const extent = Math.max(max[0]! - min[0]!, max[1]! - min[1]!, max[2]! - min[2]!);
+                    sdf = new GlobalSdf([{ dim: 128, cell: (extent * 1.15) / 124 }]);
+                    sdf.setCenter([(min[0]! + max[0]!) / 2, (min[1]! + max[1]!) / 2, (min[2]! + max[2]!) / 2]);
                 }
-                sdf = follow.sdf;
-            } else {
-                follow = null;
+                instances.forEach((inst, id) => sdf.update({ id, sdf: inst.sdf, worldFromLocal: inst.worldFromLocal }, true));
+                sdf.queueAll();
+                field = { sdf, sceneKey, cell, sent: null };
+                waiting = { instances, light, lights: point.slice(0, 8), work: 0, full: true, build: performance.now() - t0 };
+                return;
             }
-            const t2 = performance.now();
-            const scene = packGPUScene(instances, light, { sdf, lights: point.slice(0, 8) });
-            if (!scene) return;
-            const t3 = performance.now();
-            handOver(m, scene, [t1 - t0, t2 - t1, t3 - t2]);
+            // The same scene: the eye moved (queue the slabs that came into view), or only the light did (nothing to queue). Either way it is sent when whole.
+            if (following) field.sdf.setCenter(eye!, true);
+            waiting = { instances, light, lights: point.slice(0, 8), work: waiting?.work ?? 0, full: waiting?.full ?? false, build: 0 };
         },
         { name: 'DynamicGISystem', runWhenPaused: true },
     );

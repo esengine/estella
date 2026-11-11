@@ -608,6 +608,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("postprocess_supportsCompute", &esengine::postprocess_supportsCompute);
     emscripten::function("postprocess_addNativePass", &esengine::postprocess_addNativePass);
     emscripten::function("postprocess_setGIScene", &esengine::postprocess_setGIScene);
+    emscripten::function("postprocess_updateGIField", &esengine::postprocess_updateGIField);
     emscripten::function("postprocess_setPassScale", &esengine::postprocess_setPassScale);
     emscripten::function("postprocess_setPassContinuesEffect", &esengine::postprocess_setPassContinuesEffect);
     emscripten::function("postprocess_requestSkyCapture", &esengine::postprocess_requestSkyCapture);

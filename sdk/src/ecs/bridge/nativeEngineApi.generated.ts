@@ -141,6 +141,7 @@ export interface NativeEngineApi {
     postprocess_shutdown?(): void;
     postprocess_supportsCompute?(): boolean;
     postprocess_takeSkyCapture?(dst: number, bytes: number): boolean;
+    postprocess_updateGIField?(headerPtr: number, headerCount: number, sdfPtr: number, sdfOffset: number, sdfCount: number): boolean;
     probe_volume_create?(resX: number, resY: number, resZ: number, shPtr: number): number;
     probe_volume_release?(volumeHandle: number): void;
     probe_volume_setSkyVisibility?(volumeHandle: number, visibilityPtr: number): void;
@@ -497,6 +498,7 @@ export function createNativeEngineApi(
     bind('postprocess_shutdown', 'es_postprocess_shutdown', false);
     bind('postprocess_supportsCompute', 'es_postprocess_supportsCompute', false);
     bind('postprocess_takeSkyCapture', 'es_postprocess_takeSkyCapture', false);
+    bind('postprocess_updateGIField', 'es_postprocess_updateGIField', false);
     bind('probe_volume_create', 'es_probe_volume_create', false);
     bind('probe_volume_release', 'es_probe_volume_release', false);
     bind('probe_volume_setSkyVisibility', 'es_probe_volume_setSkyVisibility', false);

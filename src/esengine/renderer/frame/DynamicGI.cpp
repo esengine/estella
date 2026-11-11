@@ -616,9 +616,17 @@ bool DynamicGI::ensure() {
 }
 
 bool DynamicGI::upload() {
-    const DynamicGIScene& s = dynamicGIScene();
+    DynamicGIScene& s = dynamicGIScene();
     if (s.header.size() < kHeaderSize || s.sdf.empty() || s.instances.empty() || s.pixels.empty()) return false;
     if (s.version == uploadedVersion_) return true;
+    // A camera moved: only the range of the field that was rewritten goes over. The cards, the instances and the light the cards hold stay as they
+    // are (a whole upload zeroes the light and starts the bounces again from the first, which a moving camera would see as a pop every step).
+    if (!s.full && sdf_ != BufferHandle::Invalid && sdfBytes_ == std::max(static_cast<u32>(s.sdf.size() * 4), 16u) && s.dirtyEnd <= s.sdf.size()) {
+        if (s.dirtyEnd > s.dirtyBegin) device_.updateBuffer(sdf_, s.dirtyBegin * 4u, s.sdf.data() + s.dirtyBegin, (s.dirtyEnd - s.dirtyBegin) * 4u);
+        s.dirtyBegin = s.dirtyEnd = 0;
+        uploadedVersion_ = s.version;
+        return true;
+    }
     const auto put = [&](BufferHandle& buffer, u32& have, const void* data, u32 bytes) {
         bytes = std::max(bytes, 16u);
         if (buffer == BufferHandle::Invalid || have != bytes) {
@@ -650,6 +658,8 @@ bool DynamicGI::upload() {
     device_.updateBuffer(radiance_[0], 0, zero.data(), radianceBytes);
     frame_ = 0;
     uploadedVersion_ = s.version;
+    s.full = false;
+    s.dirtyBegin = s.dirtyEnd = 0;
     return true;
 }
 

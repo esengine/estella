@@ -33,6 +33,12 @@ u32 postprocess_addNativePass(const std::string& name, const std::string& kind);
  */
 bool postprocess_setGIScene(uintptr_t headerPtr, u32 headerCount, uintptr_t sdfPtr, u32 sdfCount, uintptr_t instancesPtr, u32 instanceCount,
                             uintptr_t pixelsPtr, u32 pixelCount);
+/**
+ * @brief Updates the scene the dynamic GI traces after the camera moved: the header, and @p sdfCount floats of the field from float @p sdfOffset on.
+ * @details Nothing else of the scene changes, and the GPU is sent only that range: the cards keep the light they have. Needs a scene set whole first.
+ * @return false when there is no scene yet, or the range falls outside it.
+ */
+bool postprocess_updateGIField(uintptr_t headerPtr, u32 headerCount, uintptr_t sdfPtr, u32 sdfOffset, u32 sdfCount);
 /** The project's multisampling request for the scene target; 1 = off. Clamped
  *  by what the device supports — the device answers capability, not policy. */
 void postprocess_setMsaaSamples(u32 samples);

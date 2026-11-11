@@ -121,11 +121,19 @@ export class GlobalSdf {
         for (let z = lo[2]!; z < hi[2]!; z += 16) this.jobs_.push({ level, lo: [lo[0]!, lo[1]!, z], hi: [hi[0]!, hi[1]!, Math.min(z + 16, hi[2]!)] });
     }
 
-    /** Adds an instance, or moves/replaces the one with its id. */
-    update(instance: SdfInstance): void {
+    /** Queues the whole of every window to be rebuilt (see `step`): after instances were placed with `update(instance, true)`. */
+    queueAll(): void {
+        for (const level of this.levels) {
+            this.schedule_(level, [level.origin[0]!, level.origin[1]!, level.origin[2]!], [level.origin[0]! + level.dim, level.origin[1]! + level.dim, level.origin[2]! + level.dim], true);
+        }
+    }
+
+    /** Adds an instance, or moves/replaces the one with its id. With `lazy` it is only placed: the cells round it are for `queueAll` and `step` to do. */
+    update(instance: SdfInstance, lazy = false): void {
         const previous = this.placed_.get(instance.id);
         const placed = this.place_(instance);
         this.placed_.set(instance.id, placed);
+        if (lazy) return;
         for (const level of this.levels) {
             if (previous) this.rebuildBox_(level, previous.min, previous.max);
             this.rebuildBox_(level, placed.min, placed.max);

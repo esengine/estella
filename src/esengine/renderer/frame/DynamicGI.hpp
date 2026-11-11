@@ -60,6 +60,10 @@ struct DynamicGIScene {
     /// 4 words a card pixel.
     std::vector<u32> pixels;
     u32 version = 0;
+    /// What changed since the GPU copy was made: everything (a whole scene was set), or only the floats [dirtyBegin, dirtyEnd) of the field and the header
+    /// (a camera moved; the cards and their light are the same, and are not touched).
+    bool full = true;
+    u32 dirtyBegin = 0, dirtyEnd = 0;
 };
 
 /**
