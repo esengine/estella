@@ -15,8 +15,9 @@ import { OCCLUSION_SCENES } from './occlusion.mjs';
 import { REFLECTION_SCENES } from './reflection.mjs';
 import { AGX_SCENES } from './agx.mjs';
 import { SOFT_LIGHT_SCENES } from './softlight.mjs';
+import { PBR_SCENES } from './pbr.mjs';
 
-export const ORACLE = [...LIGHT_SCENES, ...SHADOW_SCENES, ...POST_SCENES, ...SKY_SCENES, ...LENS_SCENES, ...VOLUMETRIC_SCENES, ...EXPOSURE_SCENES, ...OCCLUSION_SCENES, ...REFLECTION_SCENES, ...AGX_SCENES, ...SOFT_LIGHT_SCENES];
+export const ORACLE = [...LIGHT_SCENES, ...SHADOW_SCENES, ...POST_SCENES, ...SKY_SCENES, ...LENS_SCENES, ...VOLUMETRIC_SCENES, ...EXPOSURE_SCENES, ...OCCLUSION_SCENES, ...REFLECTION_SCENES, ...AGX_SCENES, ...SOFT_LIGHT_SCENES, ...PBR_SCENES];
 
 /** The renderScenes.mjs entry for one oracle scene. */
 export const oracleEntry = (o) => ({
