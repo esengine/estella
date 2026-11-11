@@ -4390,4 +4390,14 @@ export const NOTED = {
     {"note": "A planar reflection softens with roughness and keeps a hot spot's hue."},
   "fix(editor): a reload from disk gives way to an edit made while the file is read":
     {"note": "A prefab reverted just after the editor noticed its scene file change is no longer lost."},
+  "fix(terrain): an edited page keeps drawing as it was until it is made again, so a brush stroke leaves no hole":
+    {"note": "A terrain brush stroke no longer makes the ground vanish for a moment."},
+  "feat(editor): several editors open at once are told apart by an agent, and each grants on its own (refs esengine/estella#118)":
+    {"note": "Several editors open at once can be told apart by an agent, and each grants on its own."},
+  "feat(rhi): a shader program that holds the page is named in the log; terrain-water compiles in the background":
+    {"internal": "A log line for engineers (a shader program that held the page 40 ms or more) and one example project's own quality setting."},
+  "fix(voxel): Voxel Ground compiles on WebGPU again, the wet map no longer pushes it past its texture units":
+    {"note": "Voxel Ground compiles on WebGPU again."},
+  "fix: the docs build parses the GripSurface summary; dusk-fort keeps its fog colour in colors":
+    {"internal": "A docs build error and an example scene's fog colour moved to where the loader reads it; no creator's project changes."},
 };

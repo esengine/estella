@@ -85,6 +85,12 @@ export function deriveVoxelGround(model: string): string {
     s = swap(s, '#pragma param u_iridescence float', `${PARAMS}#pragma param u_iridescence float`);
     s = swap(s, '#pragma param u_emissiveMap texture default(white)\n', '');
     s = swap(s, 'texture(u_emissiveMap, uv).rgb', 'vec3(1.0)');
+    // The wet-ground map: Voxel Ground already reads seven textures, and a shader has only so many units for them. A texture past the last
+    // unit gets none, its declaration is dropped, and the whole shader stops compiling (WebGPU said `unresolved value u_wetMask`). Ground
+    // made of voxels takes no wet map, so what it would have read is dry.
+    s = swap(s, '#pragma param u_wetMask texture default(black) texel(data)\n', '');
+    s = swap(s, 'textureLod(u_wetMask, wuv, 0.0).rg', 'vec2(0.0)');
+    s = swap(s, 'textureSampleLevel(u_wetMask, u_wetMask_s, wuv, 0.0).rg', 'vec2f(0.0)');
     s = swap(s, 'textureSampleGrad(u_emissiveMap, u_emissiveMap_s, uv, duvx, duvy).rgb', 'vec3f(1.0)');
     s = swap(s, 'float specularAA(highp vec3', `${GLSL_HELPERS}float specularAA(highp vec3`);
     s = swap(s, 'fn specularAA(dndx : vec3f', `${WGSL_HELPERS}fn specularAA(dndx : vec3f`);

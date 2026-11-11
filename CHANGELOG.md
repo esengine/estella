@@ -16,6 +16,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A terrain brush stroke no longer makes the ground vanish for a moment.** An edited page of the ground used to be thrown away at once and rebuilt over the next frames, so the touched area had no ground to draw until it was done; it now goes on being drawn as it was, and changes in place.
+- **Voxel Ground compiles on WebGPU again.** The Model shader's new wet-ground map left the voxel ground one texture past what a shader has units for, so its last texture was dropped and the whole shader was refused (`unresolved value 'u_wetMask'`). Voxel ground takes no wet map.
 - **Several editors open at once can be told apart by an agent, and each grants on its own.** An editor advertises itself in a file of its own (its process id, its project, its port, its permission) instead of the one file the last editor to start overwrote. An agent attached to more than one gets `list_editors` and `select_editor` (or `--instance` / `ESTELLA_MCP_INSTANCE`), and until it chooses it is refused with the list rather than sent to whichever window won. It then drives the editor it chose and no other. The Read only / Can edit permission belongs to the editor window it is switched in and every editor starts read-only; it is no longer a saved setting that a second editor inherited. The Connect AI Tools dialog shows which editor it is.
 
 ### Changed

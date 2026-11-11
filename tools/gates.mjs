@@ -313,10 +313,6 @@ export const GATES = [
   { id: 'verifier-exit', run: 'node tools/check-verifier-exit.mjs', needs: 'editor' },
   { id: 'render-scenes', run: 'node tools/check-render-scenes.mjs' },
   { id: 'release-metadata', run: 'node tools/check-release-metadata.mjs' },
-  // The other half: metadata reads the CHANGELOG's shape, this reads whether
-  // anything shipped without reaching it. Three releases running lost features
-  // that only a hand-read of `git log` found.
-  { id: 'changelog-covers', run: 'node tools/check-changelog-covers.mjs', needs: 'editor' },
   // A published desktop artifact has one name, declared, whitespace-free, and
   // still distinct once the asset store has normalised it.
   { id: 'release-artifact-names', run: 'node tools/check-release-artifact-names.mjs', needs: 'editor' },
@@ -389,6 +385,12 @@ export const GATES = [
   { id: 'rm-retries', run: 'node tools/check-rm-retries.mjs' },
   { id: 'examples', exclusive: true, run: 'node build-tools/cli.js check-examples' },
   { id: 'documents', exclusive: true, run: 'node build-tools/cli.js validate-documents' },
+  // The other half of release-metadata: metadata reads the CHANGELOG's shape, this reads whether anything shipped without reaching it. Three
+  // releases running lost features that only a hand-read of `git log` found.
+  // LAST on purpose. The list stops at its first red, and this one is red on any push whose user-facing commit has no note yet
+  // (12 of the last 13 CI runs): sitting in the middle it hid the 22 gates after it on every one of them. It reads only git history, so
+  // nothing after it depends on it, and nothing before it is hidden by it.
+  { id: 'changelog-covers', run: 'node tools/check-changelog-covers.mjs', needs: 'editor' },
 ];
 
 /** Whether `p` names, or sits under, one of `roots`. */
