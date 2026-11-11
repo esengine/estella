@@ -440,7 +440,18 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
 }
 
 void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::Handle target,
-                        const PassClear& clear) {
+                        const PassClear& camera_clear) {
+    // A chain that is engaged draws the scene into a capture exactly as big as the camera's rect, and only its present lands at
+    // the rect's offset (setOutputViewport). So the camera's rect starts at the capture's origin: left at the camera's own x/y
+    // it names pixels outside the capture, and a camera that does not start at the window's corner (the right half of a split,
+    // a minimap) drew nothing at all whenever the frame was linear, tone mapped or post-processed.
+    PassClear clear = camera_clear;
+#ifdef ES_ENABLE_POSTPROCESS
+    if (post_process_ && post_process_->isEngaged()) {
+        clear.x = 0;
+        clear.y = 0;
+    }
+#endif
     // Emptied before the device is asked, so a refused frame starts empty too: the host still submits text and skinned batches into
     // it, and while a lost device waits for its content no end() ever ran to empty them, so the staging grew every frame until an
     // allocation of gigabytes failed.
