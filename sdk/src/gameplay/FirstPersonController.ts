@@ -34,7 +34,7 @@ export interface FirstPersonControllerData {
     jumpSpeed: number;
     /**
      * The player's own gravity, as a share of the world's: 1 falls as everything else does; a game that wants a
-     * snappier arc than the world's bodies (Saltline's 21 m/s² against 9.81) sets more. The controller carries its own
+     * snappier arc than the world's bodies (21 m/s² against 9.81) sets more. The controller carries its own
      * vertical speed while airborne then.
      */
     gravityScale: number;

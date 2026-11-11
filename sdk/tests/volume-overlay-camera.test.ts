@@ -5,7 +5,7 @@
  *
  * A first-person view model is a second camera that clears depth only and draws the held gun over the world's finished
  * image. Given the scene's global stack too, it ran height fog and sky over that whole image with its own cleared depth
- * reading as infinitely far, and the world under the gun was painted out (Saltline, 2026-11-11). And a camera under a
+ * reading as infinitely far, and the world under the gun was painted out (2026-11-11). And a camera under a
  * player was placed at its LOCAL position, near the origin, for the weight of a local volume.
  */
 import { describe, it, expect } from 'vitest';

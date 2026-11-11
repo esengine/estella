@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file  Particle.emitAt through the real core: a burst where something happened, now, from an emitter that is neither
- *        moved nor replayed — Saltline's bullet impacts were a pool of emitters dragged to each hit and restarted.
+ *        moved nor replayed — a game's bullet impacts were a pool of emitters dragged to each hit and restarted.
  */
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { App } from '../src/app/app';

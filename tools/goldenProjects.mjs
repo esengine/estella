@@ -92,6 +92,62 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  "Multi-touch can be turned off.":
+    { notCertifiable: "Covered by sdk/tests/input-multitouch-switch.test.ts (the switch, its project default and the call that wins over it); a golden frame cannot show whether a second finger was ignored." },
+  "A Spine skeleton can be part of a UI.":
+    { notCertifiable: "Covered by the spine-ui-order editor check; no golden project puts a skeleton in a Canvas." },
+  "A grip is edited where it is held.":
+    { notCertifiable: "An editor feature, covered by the grip-edit editor check; a packaged game carries no editor." },
+  "Fingers close onto what they hold.":
+    { notCertifiable: "Covered by the grip-edit and grip-hold editor checks on both backends; no golden project carries a GripHolder." },
+  "A material reads its maps through Tiling, Offset and Rotation.":
+    { notCertifiable: "Covered by pipeline/tests/gltf-import.test.ts, which reads a glTF material's texture transform into the material's tiling, offset and rotation; no golden project carries a model with a transformed map." },
+  "The sky lights the scene.":
+    { notCertifiable: "Covered by the sky-lights-scene gate on both backends (a wall in shadow takes the sky's and the sunlit ground's fill); no golden project lights a scene from Sky Atmosphere." },
+  "The sky's lower half is the sunlit ground.":
+    { notCertifiable: "Covered by the sky-lights-scene gate, whose expectation moved with it; lighting only, so no golden frame of a sky shows it." },
+  "Rooms stay dark under a sky that changes (sky occlusion).":
+    { notCertifiable: "Covered by sdk/tests/lightmap-probes.test.ts (the baked skyVisibility); a bake is an editor act and no golden project ships a sky-occluded probe bake." },
+  "A planar reflection softens with roughness and keeps a hot spot's hue.":
+    { notCertifiable: "Covered by the planar-reflection-hot gate and the planar-reflection gates on both backends; no golden project carries a Planar Reflection." },
+  "Wet ground: a map says where it is damp and where water stands.":
+    { notCertifiable: "Covered by the wet-ground gate on both backends and sdk/tests/shader-reflect.test.ts (the map is data); no golden project carries a wet map." },
+  "Color Grade has split toning, an S-curve and lift.":
+    { notCertifiable: "Covered by the color-grade-split gate on both backends and sdk/tests/postprocess.test.ts (the defaults are the identity); no golden project grades with the new controls." },
+  "A captured probe volume drives reflections too.":
+    { notCertifiable: "Covered by the probe-capture-reflection gate on both backends; no golden project captures a probe volume." },
+  "A probe volume can be filled at run time.":
+    { notCertifiable: "Covered by the probe-capture gate on both backends and sdk/tests/probe-capture.test.ts; no golden project captures a probe volume." },
+  "Lamps can fall off as real ones do.":
+    { notCertifiable: "Covered by the point-inverse-square gate on both backends, sdk/tests/lightmap-falloff.test.ts (the bake falls off as the frame does) and the glTF light import in pipeline/tests/gltf-import.test.ts; no golden project sets Inverse Square." },
+  "A sky of your own lights the scene.":
+    { notCertifiable: "Covered by the custom-sky gate on both backends; no golden project defines its own sky." },
+  "Direct Lighting Only and Indirect Lighting Only view modes.":
+    { notCertifiable: "An editor viewport mode, covered by the view-lighting-split gate; a packaged game carries no editor viewport." },
+  "A post-process pass can read an earlier pass of its own effect.":
+    { notCertifiable: "Covered by the bloom-round gate, whose pyramid is built on it, on both backends; no golden project defines an effect of its own." },
+  "A probe volume lights each pixel, not each object.":
+    { notCertifiable: "Covered by the probe-per-pixel and probe-off-origin gates on both backends; no golden project ships a probe volume with a bake." },
+  "Instances in the open scene take a changed prefab at once.":
+    { notCertifiable: "An editor behaviour, covered by the prefab-propagation editor check; a packaged game has no open scene being edited." },
+  "A 2D rig's bones keep an id, take a new parent and rebind onto another":
+    { notCertifiable: "Covered by sdk/tests/rig2d.test.ts (ids, reparenting, rebinding and the clip rewrite); no golden project carries a 2D rig." },
+  "Defaults follow the project's units.":
+    { notCertifiable: "Covered by sdk/tests/effect-world-units.test.ts and sdk/tests/world-units.test.ts; a golden project at the reference scale cannot tell a default that followed its units from one that did not." },
+  "`Particle.emitAt(emitter, count, position, { normal, velocity })` spaw":
+    { notCertifiable: "Covered by sdk/tests/particle-emit-at-wasm.test.ts against the real engine; no golden project spawns particles at a point." },
+  "A first-person player has its own jump feel.":
+    { notCertifiable: "Covered by sdk/tests/first-person.test.ts (gravity share, coyote time, jump buffer); no golden project carries a FirstPersonController." },
+  "A UI node can stand over a point in the 3D world.":
+    { notCertifiable: "No test in this repo pins UIWorldAnchor yet (tools/check-corpus-authoring.mjs only knows the component); No golden project carries one." },
+  "Perceivers hear.":
+    { notCertifiable: "Covered by sdk/tests/perception-step.test.ts (range, loudness, through walls, heard and sinceHeard); no golden project carries a Perceiver." },
+  "A ray can meet characters.":
+    { notCertifiable: "No test in this repo pins the characters option yet; No golden project shoots a character." },
+  "A 3D collider with no RigidBody3D is a static body, as in Unity.":
+    { notCertifiable: "No test in this repo pins the implicit static body directly (sdk/tests/nav-geometry.test.ts only reads the result); an imported level relies on it for every mesh. No golden project has a bare collider." },
+  "The 3D physics world is set in Project Settings, not in code.":
+    { notCertifiable: "Covered by pipeline/tests/physics3d-world.test.ts (the project block read into the world and defaults writing nothing); no golden project sets world3d." },
   "A native app plays every Spine version.":
     { notCertifiable: "Every Spine release linked side by side is covered by sdk/tests/native-side-modules.test.ts (each version routed to its own runtime), tools/check-native-bindings.mjs and the post-build symbol check in tools/spine-c-rename.mjs; one APK with 3.8, 4.1 and 4.2 skeletons was played on a phone. No golden project ships skeletons of more than one version." },
   "Which Spine runtimes a package carries can be set per runtime.":

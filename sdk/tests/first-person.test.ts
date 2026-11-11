@@ -166,7 +166,7 @@ describe.skipIf(!HAS_WASM)('a first-person player in the engine world', () => {
         expect((world.get(body, FirstPersonController) as FirstPersonControllerData).crouching).toBe(true);
     });
 
-    // The original's feel (Saltline: coyote 0.12 s, buffer 0.13 s, a player falling at 21 m/s² in a 9.81 world).
+    // The original's feel (coyote 0.12 s, buffer 0.13 s, a player falling at 21 m/s² in a 9.81 world).
     const airborne = (body: number, over: Partial<FirstPersonControllerData>) => {
         world.update(body, CharacterController3D, (c: { isOnFloor: boolean; realVelocity: { x: number; y: number; z: number } }) => { c.isOnFloor = false; c.realVelocity = { x: 0, y: 0, z: 0 }; });
         world.update(body, FirstPersonController, (c: FirstPersonControllerData) => Object.assign(c, over));
