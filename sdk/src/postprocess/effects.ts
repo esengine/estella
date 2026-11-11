@@ -987,7 +987,11 @@ registerEffect({
         // The look: 1 is AgX Base, 1.2 is the Medium High Contrast look Blender offers.
         { name: 'u_contrast', label: 'Contrast (Look)', min: 0.5, max: 2, step: 0.01, defaultValue: 1, neutralValue: 1 },
     ],
-    builtinTextures: { u_lut: () => postProcessEffects.agxLut() },
+    builtinTextures: {
+        u_lut: () => postProcessEffects.agxLut(),
+        u_lookHigh: () => postProcessEffects.agxLookHigh(),
+        u_lookLow: () => postProcessEffects.agxLookLow(),
+    },
 });
 
 registerEffect({

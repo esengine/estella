@@ -370,5 +370,5 @@ export const NOT_CONTRACT = {
     'native/spine/SpineCRename42.hpp':
         'the symbols a pinned vendored spine-c 4.2 release defines, read off its compiled objects by tools/spine-c-rename.mjs — a derivation of third-party code, nothing in the engine it must agree with.',
     'sdk/src/postprocess/agxLut.generated.ts':
-        "a table baked once from Blender's AgX .cube by tools/gen-agx-lut.py — third-party data, nothing in the engine it must agree with.",
+        "the two tables of Blender's AgX (its view transform and the luminance compensation of its contrast looks), packed once from Blender's .cube files by tools/gen-agx-lut.py — third-party data, nothing in the engine it must agree with (tools/oracle/agx.mjs checks the engine's AgX against Blender's own output).",
 };

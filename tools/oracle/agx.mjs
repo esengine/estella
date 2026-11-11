@@ -34,15 +34,13 @@ function agxPatches({ id, reference, from, contrast, tol }) {
 
 const BASE = load('reference.json'), MEDIUM_HIGH = load('reference-AgX-Medium-High-Contrast.json');
 /**
- * Where the engine and Blender are not the same, and why (measured against Blender 5.2.1):
- *   neutrals     within 2 codes. (The table was read trilinearly before, which tinted every grey, red 6 codes short at middle grey; the
- *                tetrahedral read Blender's config names is what holds them.)
- *   saturated    within 7. The engine's table is 32^3, resampled from Blender's 57^3, and where one channel is dark and another bright the
- *                transform bends faster than 32 nodes follow. A 57^3 table would close it, at about 740 KB of SDK.
- *   contrast 1.2 neutrals within 2, saturated colours within 14. Blender's look is a contrast in ANOTHER log space (inset Rec.2020, through a
- *                luminance-compensation table), the engine's is in E-Gamut's: the same on greys, near on colours.
+ * The engine's AgX is Blender's: its two tables (the 57^3 view transform and the 37^3 luminance compensation of the contrast looks), its
+ * matrices, its log encode, its tetrahedral interpolation. What is left between them is the 8-bit tables and Blender writing 8-bit: every
+ * patch, grey or saturated, base look or Medium High Contrast, is within 1 code. (Before the 57^3 table, the tetrahedral read and the
+ * look's own log space, saturated colours were up to 7 codes off and the contrast look up to 14.)
  */
-const NEUTRAL = 3, SATURATED = 8, LOOK_SATURATED = 16;
+const TOL = 2;
+const NEUTRAL = TOL, SATURATED = TOL, LOOK_SATURATED = TOL;
 
 export const AGX_SCENES = [
   agxPatches({ id: 'oracle-agx-grey-low', reference: BASE, from: 0, contrast: 1, tol: NEUTRAL }),

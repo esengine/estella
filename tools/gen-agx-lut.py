@@ -1,19 +1,29 @@
-"""Regenerates sdk/src/postprocess/agxLut.generated.ts: the AgX view transform, as a 32^3 table of Rec.1886-encoded values over the log2-encoded
-E-Gamut cube, resampled from the 57^3 AgX_Base_sRGB.cube that ships in Blender's colour-management data (AgX by Troy Sobotka and EaryChow,
-MIT licence upstream: github.com/EaryChow/AgX).
+"""Regenerates sdk/src/postprocess/agxLut.generated.ts: the two tables of Blender's AgX, packed small.
 
-usage: python tools/gen-agx-lut.py [path/to/AgX_Base_sRGB.cube]
+  AgX_Base_sRGB.cube              57^3, the view transform: Rec.1886-encoded display values over the log2-encoded E-Gamut cube. Kept at 8 bits.
+  luminance_compensation_bt2020   37^3, the first step of AgX's contrast looks: E-Gamut log in, E-Gamut log out, with what falls outside
+                                  Rec.2020 brought inside it. Kept at 12 bits (at 10 a look is up to 3 codes off, at 12 one).
 
-The log2 encode, the E-Gamut matrix and the contrast pivot live in the shader (sources/basic.ts createAgx); this file is only the table.
+Both ship in Blender's colour-management data (AgX by Troy Sobotka and EaryChow, MIT licence upstream: github.com/EaryChow/AgX).
+
+usage: python tools/gen-agx-lut.py [path/to/colormanagement/luts]
+
+Packing: each table is walked in file order (red fastest, then green, then blue), each channel predicted from the seven neighbours it has
+behind it (the inclusion-exclusion predictor, exact on anything trilinear), the residual zigzag-coded to 16 bits and split into a plane of
+low bytes and a plane of high bytes, and the lot deflated (raw, level 9) and written as base64. The runtime (postprocess/agxTables.ts)
+inflates and undoes the prediction. The tables are smooth, so 57^3 x 3 bytes and 37^3 x 3 x 12 bits come to about 70 KB together,
+less than the 32^3 table this replaces.
+
+The log2 encode, the matrices and the contrast pivot live in the shader (sources/basic.ts createAgx); this file is only the tables.
 """
 import base64
 import os
 import sys
+import zlib
 
 import numpy as np
 
-DEFAULT = 'C:/Program Files/Blender Foundation/Blender 5.2/5.2/datafiles/colormanagement/luts/AgX_Base_sRGB.cube'
-SIZE = 32
+DEFAULT = 'C:/Program Files/Blender Foundation/Blender 5.2/5.2/datafiles/colormanagement/luts'
 
 
 def load_cube(path):
@@ -24,37 +34,58 @@ def load_cube(path):
             size = int(line.split()[1])
         elif line and (line[0].isdigit() or line[0] in '-.'):
             rows.append([float(v) for v in line.split()])
-    return size, np.array(rows).reshape(size, size, size, 3)  # [b][g][r], red fastest as the format says
+    return size, np.array(rows).reshape(size, size, size, 3)  # [b][g][r][channel], red fastest as the format says
 
 
-def trilinear(lut, n, p):
-    q = np.clip(p, 0, 1) * (n - 1)
-    i0 = np.minimum(np.floor(q).astype(int), n - 2)
-    f = q - i0
-    out = np.zeros((len(p), 3))
-    for dr in (0, 1):
-        for dg in (0, 1):
-            for db in (0, 1):
-                w = (np.where(dr, f[:, 0], 1 - f[:, 0]) * np.where(dg, f[:, 1], 1 - f[:, 1]) * np.where(db, f[:, 2], 1 - f[:, 2]))[:, None]
-                out += w * lut[i0[:, 2] + db, i0[:, 1] + dg, i0[:, 0] + dr]
+def shifted(a, axes):
+    """a moved one step along each of `axes`, with zero where nothing is behind."""
+    out = a
+    for ax in axes:
+        out = np.roll(out, 1, axis=ax)
+        index = [slice(None)] * out.ndim
+        index[ax] = 0
+        out[tuple(index)] = 0
     return out
 
 
-path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT
-n, lut = load_cube(path)
-g = np.linspace(0, 1, SIZE)
-B, G, R = np.meshgrid(g, g, g, indexing='ij')           # b slowest, r fastest: the order the texture strip is read in
-grid = np.stack([R.ravel(), G.ravel(), B.ravel()], 1)
-small = np.clip(np.round(trilinear(lut, n, grid) * 255), 0, 255).astype(np.uint8)
-data = base64.b64encode(small.tobytes()).decode('ascii')
+def residual(q):
+    q = q.astype(np.int64)
+    predicted = (shifted(q, [0]) + shifted(q, [1]) + shifted(q, [2])
+                 - shifted(q, [0, 1]) - shifted(q, [0, 2]) - shifted(q, [1, 2]) + shifted(q, [0, 1, 2]))
+    return q - predicted
+
+
+def pack(values, bits):
+    scale = (1 << bits) - 1
+    q = np.clip(np.round(values * scale), 0, scale).astype(np.int64)
+    r = residual(q)
+    zig = np.where(r >= 0, r * 2, -r * 2 - 1)
+    assert zig.max() < 65536, 'residual does not fit in 16 bits'
+    planes = []
+    for c in range(3):
+        v = zig[..., c].ravel().astype('<u2')
+        planes.append((v & 0xFF).astype(np.uint8).tobytes())
+        planes.append((v >> 8).astype(np.uint8).tobytes())
+    deflater = zlib.compressobj(9, zlib.DEFLATED, -15)
+    return base64.b64encode(deflater.compress(b''.join(planes)) + deflater.flush()).decode('ascii')
+
+
+folder = sys.argv[1] if len(sys.argv) > 1 else DEFAULT
+base_n, base = load_cube(os.path.join(folder, 'AgX_Base_sRGB.cube'))
+look_n, look = load_cube(os.path.join(folder, 'luminance_compensation_bt2020.cube'))
+BASE_BITS, LOOK_BITS = 8, 12
+base_data, look_data = pack(base, BASE_BITS), pack(look, LOOK_BITS)
 
 out_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'sdk', 'src', 'postprocess', 'agxLut.generated.ts')
 with open(out_path, 'w', newline='\n') as f:
     f.write('// SPDX-License-Identifier: Apache-2.0\n')
     f.write('// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team\n')
-    f.write('// Generated by tools/gen-agx-lut.py from Blender\'s AgX_Base_sRGB.cube (AgX by Troy Sobotka and EaryChow, MIT upstream). Do not edit.\n')
-    f.write('/** Edge length of the AgX table. */\n')
-    f.write('export const AGX_LUT_SIZE = %d;\n' % SIZE)
-    f.write('/** RGB bytes, %d^3 of them, red fastest then green then blue: Rec.1886-encoded display values over the log2-encoded E-Gamut cube. */\n' % SIZE)
-    f.write("export const AGX_LUT_BASE64 =\n  '%s';\n" % data)
-print('wrote', out_path, len(data), 'base64 characters')
+    f.write("// Generated by tools/gen-agx-lut.py from Blender's AgX_Base_sRGB.cube and luminance_compensation_bt2020.cube (AgX by Troy Sobotka and EaryChow, MIT upstream). Do not edit.\n")
+    f.write('/** Edge length of the AgX view transform table, and the bits each of its values keeps. */\n')
+    f.write('export const AGX_BASE_SIZE = %d;\nexport const AGX_BASE_BITS = %d;\n' % (base_n, BASE_BITS))
+    f.write('/** Edge length of the luminance-compensation table (the first step of the contrast looks), and the bits each of its values keeps. */\n')
+    f.write('export const AGX_LOOK_SIZE = %d;\nexport const AGX_LOOK_BITS = %d;\n' % (look_n, LOOK_BITS))
+    f.write('/** Predicted, zigzagged, byte-planed and deflated (raw) tables, base64: see tools/gen-agx-lut.py and postprocess/agxTables.ts. */\n')
+    f.write("export const AGX_BASE_DATA =\n  '%s';\n" % base_data)
+    f.write("export const AGX_LOOK_DATA =\n  '%s';\n" % look_data)
+print('wrote', out_path, 'base', len(base_data), 'look', len(look_data), 'base64 characters')

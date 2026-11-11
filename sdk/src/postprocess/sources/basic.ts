@@ -10,34 +10,12 @@ import { linearColorSpace } from '../../ecs/env';
 import { registerEffectSources, registerComputeSource } from '../effectSources';
 import { SHARPEN_WGSL } from '../computeEffects';
 import { lensEffects } from '../lensEffects';
-import { AGX_LUT_BASE64, AGX_LUT_SIZE } from '../agxLut.generated';
+import { agxBaseTexture, agxLookHighTexture, agxLookLowTexture, agxAtlasColumns, AGX_BASE_SIZE, AGX_LOOK_SIZE } from '../agxTables';
 import { SSAO_GLSL, SSAO_WGSL, GBUFFER_GLSL, GBUFFER_WGSL } from './shared';
 
-const BASE64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-
-/** The AgX table as the strip the shader reads (32 slices of 32x32 side by side, slice = blue), RGBA bytes. Decoded by hand: not every runtime has `atob`. */
-function agxStrip(): { width: number; height: number; pixels: Uint8Array } {
-    const n = AGX_LUT_SIZE;
-    const rgb = new Uint8Array(n * n * n * 3);
-    let bits = 0, held = 0, out = 0;
-    for (let i = 0; i < AGX_LUT_BASE64.length && out < rgb.length; i++) {
-        const v = BASE64.indexOf(AGX_LUT_BASE64[i]!);
-        if (v < 0) continue;
-        held = (held << 6) | v;
-        bits += 6;
-        if (bits >= 8) { bits -= 8; rgb[out++] = (held >> bits) & 0xff; }
-    }
-    const width = n * n, pixels = new Uint8Array(width * n * 4);
-    for (let b = 0; b < n; b++) {
-        for (let g = 0; g < n; g++) {
-            for (let r = 0; r < n; r++) {
-                const from = ((b * n + g) * n + r) * 3, to = (g * width + b * n + r) * 4;
-                pixels[to] = rgb[from]!; pixels[to + 1] = rgb[from + 1]!; pixels[to + 2] = rgb[from + 2]!; pixels[to + 3] = 255;
-            }
-        }
-    }
-    return { width, height: n, pixels };
-}
+/** The atlas layout of the two AgX tables (see agxTables.ts), spelt into the shader the same way the tables are written. */
+const AGX_BASE_COLUMNS = agxAtlasColumns(AGX_BASE_SIZE);
+const AGX_LOOK_COLUMNS = agxAtlasColumns(AGX_LOOK_SIZE);
 
 /**
  * A downsample of bloom's pyramid, in both languages. Thirteen taps around the destination texel, in source texels: the
@@ -173,16 +151,23 @@ void main() {
 
 export const basicEffects = {
     /** The AgX table, for the effect to upload once (see `builtinTextures` on its definition). */
-    agxLut: agxStrip,
+    agxLut: agxBaseTexture,
+    /** The luminance-compensation table of the contrast looks, in two textures: its top eight bits and its low four. */
+    agxLookHigh: agxLookHighTexture,
+    agxLookLow: agxLookLowTexture,
     createAgx(): ShaderHandle {
-        // AgX, the view transform Blender uses, from the data Blender ships: a log2 encode of E-Gamut, a 32^3 table (agxLut.generated.ts)
-        // and the look's contrast about 0.4 (1 is AgX Base, 1.2 is Medium High Contrast). It writes display-linear, so it goes last and
-        // the project's output transform stays "none".
+        // AgX, the view transform Blender uses, from the data Blender ships (agxTables.ts): the colour to FilmLight E-Gamut, a log2 encode over
+        // -12.47393 .. +12.5260688 stops, the 57^3 table read tetrahedrally (as Blender's configuration says), and the display's own encode.
+        // The contrast looks ("Medium High Contrast" is 1.2) are Blender's too: the colour first goes through the luminance-compensation
+        // table, into the inset Rec.2020 gamut AgX's log is taken in, takes its contrast about 0.4 there, and comes back. 1 is AgX Base and
+        // skips all of that. It writes display-linear, so it goes last and the project's output transform stays "none".
         const source = `#pragma shader "PP AgX"
 #pragma version 300 es
 #pragma domain PostProcess
 #pragma param u_contrast float default(1) range(0.5,2)
 #pragma param u_lut texture default(white)
+#pragma param u_lookHigh texture default(white)
+#pragma param u_lookLow texture default(white)
 
 #pragma fragment
 precision highp float;
@@ -193,39 +178,64 @@ out vec4 fragColor;
 
 // Scene-linear Rec.709 to FilmLight E-Gamut (Rec.709 to XYZ D65, then XYZ to E-Gamut).
 const mat3 TO_EGAMUT = mat3(0.5593711, 0.0762207, 0.0655267, 0.3047833, 0.7879718, 0.1645467, 0.1358455, 0.1358075, 0.7699265);
+// E-Gamut linear to the inset Rec.2020 gamut AgX Log is taken in, and back (the inset and rotation Blender's config gives, over E-Gamut to Rec.2020).
+const mat3 TO_LOOK = mat3(0.9679715, 0.1318101, 0.0468787, 0.1178901, 0.9160784, 0.0124328, -0.0858616, -0.0478886, 0.9406886);
+const mat3 FROM_LOOK = mat3(1.0473108, -0.1533149, -0.0501658, -0.1359818, 1.1107622, -0.0079040, 0.0886710, 0.0425528, 1.0580698);
 
-// The table is 32^3 and Blender reads it by tetrahedral interpolation, which this does too. Trilinear interpolation (two bilinear taps
-// and a mix) is exact on the table's nodes and not between them, and AgX's table is far from linear there: inside a cell, the grey
-// axis of the cube is not an edge of the interpolation, so a neutral input came out tinted (middle grey 6 codes short in red, and a
-// saturated blue lost 12 of its red). A tetrahedron has the grey diagonal for an edge, so a neutral stays neutral.
-vec3 lutNode(ivec3 n) {
-    return texelFetch(u_lut, ivec2(n.b * 32 + n.r, n.g), 0).rgb;
+const float LOG_LOW = -12.47393;
+const float LOG_SPAN = 25.0;
+vec3 encodeLog(vec3 e) { return clamp((log2(max(e, vec3(1e-10))) - LOG_LOW) / LOG_SPAN, 0.0, 1.0); }
+vec3 decodeLog(vec3 t) { return exp2(t * LOG_SPAN + LOG_LOW); }
+
+// A table is read by tetrahedral interpolation, which is what Blender's configuration names for these tables. Trilinear interpolation is
+// exact on a table's nodes and not between them, and these tables bend fast: inside a cell the grey axis of the cube is not an edge of the
+// interpolation, so a neutral input came out tinted. A tetrahedron has it for an edge. From the cell's low corner it walks along the axes,
+// the one with the biggest fraction first, four nodes in all.
+void tetraCell(vec3 t, int size, out ivec3 n0, out ivec3 n1, out ivec3 n2, out ivec3 n3, out vec3 f) {
+    vec3 p = clamp(t, 0.0, 1.0) * float(size - 1);
+    ivec3 i0 = ivec3(min(floor(p), vec3(float(size - 2))));
+    vec3 g = p - vec3(i0);
+    ivec3 a1 = ivec3(1, 0, 0), a2 = ivec3(0, 1, 0), a3 = ivec3(0, 0, 1);
+    float f1 = g.r, f2 = g.g, f3 = g.b;
+    if (f2 > f1) { ivec3 ta = a1; a1 = a2; a2 = ta; float tf = f1; f1 = f2; f2 = tf; }
+    if (f3 > f2) { ivec3 ta = a2; a2 = a3; a3 = ta; float tf = f2; f2 = f3; f3 = tf; }
+    if (f2 > f1) { ivec3 ta = a1; a1 = a2; a2 = ta; float tf = f1; f1 = f2; f2 = tf; }
+    n0 = i0; n1 = n0 + a1; n2 = n1 + a2; n3 = n2 + a3;
+    f = vec3(f1, f2, f3);
 }
 
-vec3 sampleLut(vec3 t) {
-    vec3 p = clamp(t, 0.0, 1.0) * 31.0;
-    ivec3 i0 = ivec3(min(floor(p), vec3(30.0)));
-    vec3 f = p - vec3(i0);
-    // Walk from the cell's low corner along its axes, the one with the biggest fraction first.
-    ivec3 axis1 = ivec3(1, 0, 0), axis2 = ivec3(0, 1, 0), axis3 = ivec3(0, 0, 1);
-    float f1 = f.r, f2 = f.g, f3 = f.b;
-    if (f2 > f1) { ivec3 ta = axis1; axis1 = axis2; axis2 = ta; float tf = f1; f1 = f2; f2 = tf; }
-    if (f3 > f2) { ivec3 ta = axis2; axis2 = axis3; axis3 = ta; float tf = f2; f2 = f3; f3 = tf; }
-    if (f2 > f1) { ivec3 ta = axis1; axis1 = axis2; axis2 = ta; float tf = f1; f1 = f2; f2 = tf; }
-    vec3 c0 = lutNode(i0);
-    vec3 c1 = lutNode(i0 + axis1);
-    vec3 c2 = lutNode(i0 + axis1 + axis2);
-    vec3 c3 = lutNode(i0 + axis1 + axis2 + axis3);
-    return c0 + (c1 - c0) * f1 + (c2 - c1) * f2 + (c3 - c2) * f3;
+// The tables are atlases of slices (agxTables.ts): the blue index picks the tile, red runs along it and green down it.
+vec3 baseNode(ivec3 n) { return texelFetch(u_lut, ivec2((n.b % ${AGX_BASE_COLUMNS}) * ${AGX_BASE_SIZE} + n.r, (n.b / ${AGX_BASE_COLUMNS}) * ${AGX_BASE_SIZE} + n.g), 0).rgb; }
+// Twelve bits a value, split over two textures: the top eight, and the low four held in the top of a byte.
+vec3 lookNode(ivec3 n) {
+    ivec2 at = ivec2((n.b % ${AGX_LOOK_COLUMNS}) * ${AGX_LOOK_SIZE} + n.r, (n.b / ${AGX_LOOK_COLUMNS}) * ${AGX_LOOK_SIZE} + n.g);
+    vec3 high = floor(texelFetch(u_lookHigh, at, 0).rgb * 255.0 + 0.5);
+    vec3 low = floor(texelFetch(u_lookLow, at, 0).rgb * 255.0 / 16.0 + 0.5);
+    return (high * 16.0 + low) / 4095.0;
+}
+
+vec3 sampleBase(vec3 t) {
+    ivec3 n0, n1, n2, n3; vec3 f;
+    tetraCell(t, ${AGX_BASE_SIZE}, n0, n1, n2, n3, f);
+    vec3 c0 = baseNode(n0), c1 = baseNode(n1), c2 = baseNode(n2), c3 = baseNode(n3);
+    return c0 + (c1 - c0) * f.x + (c2 - c1) * f.y + (c3 - c2) * f.z;
+}
+vec3 sampleLook(vec3 t) {
+    ivec3 n0, n1, n2, n3; vec3 f;
+    tetraCell(t, ${AGX_LOOK_SIZE}, n0, n1, n2, n3, f);
+    vec3 c0 = lookNode(n0), c1 = lookNode(n1), c2 = lookNode(n2), c3 = lookNode(n3);
+    return c0 + (c1 - c0) * f.x + (c2 - c1) * f.y + (c3 - c2) * f.z;
 }
 
 void main() {
     vec4 color = texture(u_texture, v_texCoord);
     vec3 e = TO_EGAMUT * max(color.rgb, vec3(0.0));
-    // log2 over -12.47393 .. +12.5260688 stops, then the look's contrast about 0.4, then the AgX table (Rec.1886 encoded).
-    vec3 t = clamp((log2(max(e, vec3(1e-10))) + 12.47393) / 25.0, 0.0, 1.0);
-    t = clamp((t - 0.4) * u_contrast + 0.4, 0.0, 1.0);
-    vec3 encoded = sampleLut(t);
+    if (u_contrast != 1.0) {
+        // AgX Log: through the luminance compensation, into the inset gamut, log-encoded, and the contrast about 0.4 (the log of 18% grey).
+        vec3 t = (encodeLog(TO_LOOK * decodeLog(sampleLook(encodeLog(e)))) - 0.4) * u_contrast + 0.4;
+        e = FROM_LOOK * decodeLog(t);
+    }
+    vec3 encoded = sampleBase(encodeLog(e));
     // Back to display-linear: the blit that follows applies the display's own encode.
     fragColor = vec4(pow(encoded, vec3(2.4)), color.a);
 }
@@ -233,37 +243,67 @@ void main() {
 
 #pragma fragment wgsl
 const TO_EGAMUT = mat3x3f(vec3f(0.5593711, 0.0762207, 0.0655267), vec3f(0.3047833, 0.7879718, 0.1645467), vec3f(0.1358455, 0.1358075, 0.7699265));
+const TO_LOOK = mat3x3f(vec3f(0.9679715, 0.1318101, 0.0468787), vec3f(0.1178901, 0.9160784, 0.0124328), vec3f(-0.0858616, -0.0478886, 0.9406886));
+const FROM_LOOK = mat3x3f(vec3f(1.0473108, -0.1533149, -0.0501658), vec3f(-0.1359818, 1.1107622, -0.0079040), vec3f(0.0886710, 0.0425528, 1.0580698));
 
-fn lutNode(n : vec3i) -> vec3f {
-    return textureLoad(u_lut, vec2i(n.z * 32 + n.x, n.y), 0).rgb;
+const LOG_LOW : f32 = -12.47393;
+const LOG_SPAN : f32 = 25.0;
+fn encodeLog(e : vec3f) -> vec3f { return clamp((log2(max(e, vec3f(1e-10))) - LOG_LOW) / LOG_SPAN, vec3f(0.0), vec3f(1.0)); }
+fn decodeLog(t : vec3f) -> vec3f { return exp2(t * LOG_SPAN + LOG_LOW); }
+
+struct Cell { n0 : vec3i, n1 : vec3i, n2 : vec3i, n3 : vec3i, f : vec3f }
+
+fn tetraCell(t : vec3f, size : i32) -> Cell {
+    let p = clamp(t, vec3f(0.0), vec3f(1.0)) * f32(size - 1);
+    let i0 = vec3i(min(floor(p), vec3f(f32(size - 2))));
+    let g = p - vec3f(i0);
+    var a1 = vec3i(1, 0, 0);
+    var a2 = vec3i(0, 1, 0);
+    var a3 = vec3i(0, 0, 1);
+    var f1 = g.x;
+    var f2 = g.y;
+    var f3 = g.z;
+    if (f2 > f1) { let ta = a1; a1 = a2; a2 = ta; let tf = f1; f1 = f2; f2 = tf; }
+    if (f3 > f2) { let ta = a2; a2 = a3; a3 = ta; let tf = f2; f2 = f3; f3 = tf; }
+    if (f2 > f1) { let ta = a1; a1 = a2; a2 = ta; let tf = f1; f1 = f2; f2 = tf; }
+    let n1 = i0 + a1;
+    let n2 = n1 + a2;
+    return Cell(i0, n1, n2, n2 + a3, vec3f(f1, f2, f3));
 }
 
-fn sampleLut(t : vec3f) -> vec3f {
-    let p = clamp(t, vec3f(0.0), vec3f(1.0)) * 31.0;
-    let i0 = vec3i(min(floor(p), vec3f(30.0)));
-    let f = p - vec3f(i0);
-    var axis1 = vec3i(1, 0, 0);
-    var axis2 = vec3i(0, 1, 0);
-    var axis3 = vec3i(0, 0, 1);
-    var f1 = f.x;
-    var f2 = f.y;
-    var f3 = f.z;
-    if (f2 > f1) { let ta = axis1; axis1 = axis2; axis2 = ta; let tf = f1; f1 = f2; f2 = tf; }
-    if (f3 > f2) { let ta = axis2; axis2 = axis3; axis3 = ta; let tf = f2; f2 = f3; f3 = tf; }
-    if (f2 > f1) { let ta = axis1; axis1 = axis2; axis2 = ta; let tf = f1; f1 = f2; f2 = tf; }
-    let c0 = lutNode(i0);
-    let c1 = lutNode(i0 + axis1);
-    let c2 = lutNode(i0 + axis1 + axis2);
-    let c3 = lutNode(i0 + axis1 + axis2 + axis3);
-    return c0 + (c1 - c0) * f1 + (c2 - c1) * f2 + (c3 - c2) * f3;
+fn baseNode(n : vec3i) -> vec3f { return textureLoad(u_lut, vec2i((n.z % ${AGX_BASE_COLUMNS}) * ${AGX_BASE_SIZE} + n.x, (n.z / ${AGX_BASE_COLUMNS}) * ${AGX_BASE_SIZE} + n.y), 0).rgb; }
+fn lookNode(n : vec3i) -> vec3f {
+    let at = vec2i((n.z % ${AGX_LOOK_COLUMNS}) * ${AGX_LOOK_SIZE} + n.x, (n.z / ${AGX_LOOK_COLUMNS}) * ${AGX_LOOK_SIZE} + n.y);
+    let high = floor(textureLoad(u_lookHigh, at, 0).rgb * 255.0 + 0.5);
+    let low = floor(textureLoad(u_lookLow, at, 0).rgb * 255.0 / 16.0 + 0.5);
+    return (high * 16.0 + low) / 4095.0;
+}
+
+fn sampleBase(t : vec3f) -> vec3f {
+    let c = tetraCell(t, ${AGX_BASE_SIZE});
+    let c0 = baseNode(c.n0);
+    let c1 = baseNode(c.n1);
+    let c2 = baseNode(c.n2);
+    let c3 = baseNode(c.n3);
+    return c0 + (c1 - c0) * c.f.x + (c2 - c1) * c.f.y + (c3 - c2) * c.f.z;
+}
+fn sampleLook(t : vec3f) -> vec3f {
+    let c = tetraCell(t, ${AGX_LOOK_SIZE});
+    let c0 = lookNode(c.n0);
+    let c1 = lookNode(c.n1);
+    let c2 = lookNode(c.n2);
+    let c3 = lookNode(c.n3);
+    return c0 + (c1 - c0) * c.f.x + (c2 - c1) * c.f.y + (c3 - c2) * c.f.z;
 }
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let color = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let e = TO_EGAMUT * max(color.rgb, vec3f(0.0));
-    var t = clamp((log2(max(e, vec3f(1e-10))) + 12.47393) / 25.0, vec3f(0.0), vec3f(1.0));
-    t = clamp((t - 0.4) * mc.u_contrast + 0.4, vec3f(0.0), vec3f(1.0));
-    let encoded = sampleLut(t);
+    var e = TO_EGAMUT * max(color.rgb, vec3f(0.0));
+    if (mc.u_contrast != 1.0) {
+        let t = (encodeLog(TO_LOOK * decodeLog(sampleLook(encodeLog(e)))) - 0.4) * mc.u_contrast + 0.4;
+        e = FROM_LOOK * decodeLog(t);
+    }
+    let encoded = sampleBase(encodeLog(e));
     return vec4f(pow(encoded, vec3f(2.4)), color.a);
 }
 #pragma end
