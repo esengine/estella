@@ -148,4 +148,25 @@ describe('the dynamic GI over the render lab rooms', () => {
         }
         if (process.env.WRITE_REF) writeFileSync(path.resolve(import.meta.dirname, '../../tools/render-lab/gi_point_reference.json'), JSON.stringify({ source: 'the CPU solver of pipeline/tests/gi-lab.test.ts (distance field + surface cache + probes, 5 bounces), linear radiance at each region', regions: out }, null, 1));
     }, 300000);
+
+    it('lights the room of gi_spot by a spot aimed down: the CPU reference for the cone', () => {
+        // tools/render-lab/gi_specs.py: at (0, 250, 50), aimed straight down, 25 degrees inner and 50 outer (full angles), intensity 0.5, linear falloff to 600.
+        const half = (deg: number) => Math.cos((deg * Math.PI) / 360);
+        const spot: PointLight = { position: [0, 250, 50], radiance: [0.5, 0.5, 0.5], reach: 600, innerRadius: 0, falloff: 1, spot: { axis: [0, -1, 0], innerCos: half(25), outerCos: half(50) } };
+        const { cache } = solve(room(), null, 5, 0, [spot]);
+        const rows: Array<[string, [number, number, number], [number, number, number]]> = [
+            ['floor, in the cone', [0, 1, 50], [0, 1, 0]], ['floor, penumbra', [98, 1, 50], [0, 1, 0]], ['floor, out of the cone', [170, 1, 50], [0, 1, 0]],
+            ['back wall', [0, 150, 249], [0, 0, -1]], ['red wall', [199, 150, 50], [-1, 0, 0]], ['ceiling', [0, 299, 50], [0, -1, 0]],
+        ];
+        const out: Record<string, number[]> = {};
+        for (const [name, p, n] of rows) {
+            const e = share(cache, p, n, [1, 1, 1]).e;
+            out[name] = e;
+            console.log(`gi_spot ${name.padEnd(24)} ${e.map((v) => v.toFixed(3)).join(' ')}`);
+            expect(Math.max(...e)).toBeGreaterThan(0.005);
+        }
+        // The cone is the point: the floor in it is far brighter than the floor out of it, which only bounce reaches.
+        expect(out['floor, in the cone']![1]!).toBeGreaterThan(4 * out['floor, out of the cone']![1]!);
+        if (process.env.WRITE_REF) writeFileSync(path.resolve(import.meta.dirname, '../../tools/render-lab/gi_spot_reference.json'), JSON.stringify({ source: 'the CPU solver of pipeline/tests/gi-lab.test.ts (distance field + surface cache + probes, 5 bounces), linear radiance at each region', regions: out }, null, 1));
+    }, 300000);
 });

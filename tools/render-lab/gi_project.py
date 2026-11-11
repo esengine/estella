@@ -61,6 +61,15 @@ if spec.get('point'):
         {'type': 'Light', 'data': {'type': 0, 'color': {'r': 1, 'g': 1, 'b': 1, 'a': 1}, 'intensity': pt['intensity'], 'radius': pt['radius'],
                                    'innerRadius': 0.0, 'falloff': 1.0, 'inverseSquare': False, 'enabled': True, 'meshShadows': True, 'shadowStrength': 1.0}}]})
 
+if spec.get('spot'):
+    sp = spec['spot']
+    # Aimed down: the rotation of -45 degrees about X takes the light's forward (-Z) to -Y.
+    entities.append({'id': 8, 'name': 'Spot', 'parent': None, 'children': [], 'visible': True, 'components': [
+        {'type': 'Transform', 'data': {'position': {'x': sp['pos'][0], 'y': sp['pos'][1], 'z': sp['pos'][2]}, 'rotation': {'w': 0.70710678, 'x': -0.70710678, 'y': 0.0, 'z': 0.0}}},
+        {'type': 'Light', 'data': {'type': 3, 'color': {'r': 1, 'g': 1, 'b': 1, 'a': 1}, 'intensity': sp['intensity'], 'radius': sp['radius'],
+                                   'innerRadius': 0.0, 'falloff': 1.0, 'inverseSquare': False, 'innerAngle': sp['inner'], 'outerAngle': sp['outer'],
+                                   'enabled': True, 'meshShadows': True, 'shadowStrength': 1.0}}]})
+
 if spec['sun']:
     sw, sx, sy, sz = L.sun_quaternion(spec['sun']['dir'])
     entities.append({'id': 5, 'name': 'Sun', 'parent': None, 'children': [], 'visible': True, 'components': [

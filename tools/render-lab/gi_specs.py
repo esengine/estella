@@ -71,6 +71,9 @@ GI = {
     # The room closed and lit by one lamp inside it (linear falloff to its radius): the engine lights what the lamp reaches, and the GI adds what those
     # surfaces bounce. No Cycles reference (its point lights are inverse-square watts); the reference is the CPU solver the GI is held to, tools/render-lab/gi_point_reference.json.
     'gi_point': dict(cam=CAM_IN, boxes=room(), sun=None, point=dict(pos=(0.0, 200.0, 50.0), intensity=0.3, radius=600.0)),
+    # The same room lit by a spot aimed straight down from 2.5 m (a 25 degree cone, falling off to 50): the floor under it in the light, in the penumbra and out of it, and
+    # the rest by what the floor bounces. The reference is the CPU solver (tools/render-lab/gi_spot_reference.json), as for the lamp.
+    'gi_spot': dict(cam=CAM_IN, boxes=room(), sun=None, spot=dict(pos=(0.0, 250.0, 50.0), intensity=0.5, radius=600.0, inner=25.0, outer=50.0)),
     'gi_emissive': dict(cam=CAM_IN, boxes=room(emissive=dict(centre=(0.0, 150.0, 248.0), size=(120.0, 70.0, 4.0))), sun=None, emission=4.0),
 }
 
@@ -93,6 +96,10 @@ REGIONS = {
     'gi_point': [
         ('ceiling', (0.0, 299.0, 50.0)), ('red wall', (199.0, 150.0, 50.0)), ('green wall', (-199.0, 150.0, 50.0)),
         ('back wall', (0.0, 150.0, 249.0)), ('floor', (0.0, 1.0, 50.0)), ('block, lit side', (-90.0, 50.0, 29.0)),
+    ],
+    'gi_spot': [
+        ('floor, in the cone', (0.0, 1.0, 50.0)), ('floor, penumbra', (98.0, 1.0, 50.0)), ('floor, out of the cone', (170.0, 1.0, 50.0)),
+        ('back wall', (0.0, 150.0, 249.0)), ('red wall', (199.0, 150.0, 50.0)), ('ceiling', (0.0, 299.0, 50.0)),
     ],
     'gi_emissive': [
         ('panel (emitter)', (0.0, 150.0, 246.0)), ('ceiling', (0.0, 299.0, 150.0)), ('red wall', (199.0, 120.0, 150.0)),

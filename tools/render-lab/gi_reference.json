@@ -150,9 +150,42 @@
     0.2366098314523697,
     0.17272616922855377
    ]
+  },
+  "gi_spot": {
+   "floor, in the cone": [
+    0.2844533324241638,
+    0.27987661957740784,
+    0.278847336769104
+   ],
+   "floor, penumbra": [
+    0.07574715465307236,
+    0.07048594206571579,
+    0.06914962828159332
+   ],
+   "floor, out of the cone": [
+    0.021014686673879623,
+    0.012942289933562279,
+    0.011831202544271946
+   ],
+   "back wall": [
+    0.019766028970479965,
+    0.01717907376587391,
+    0.01577451452612877
+   ],
+   "red wall": [
+    0.020654188469052315,
+    0.0045111351646482944,
+    0.0033426841255277395
+   ],
+   "ceiling": [
+    0.03363505005836487,
+    0.030868973582983017,
+    0.029185950756072998
+   ]
   }
  },
  "sources": {
-  "gi_point": "the CPU solver of pipeline/tests/gi-lab.test.ts (distance field + surface cache + probes, 5 bounces), linear radiance at each region"
+  "gi_point": "the CPU solver of pipeline/tests/gi-lab.test.ts (distance field + surface cache + probes, 5 bounces), linear radiance at each region",
+  "gi_spot": "the CPU solver of pipeline/tests/gi-lab.test.ts (distance field + surface cache + probes, 5 bounces), linear radiance at each region"
  }
 }

@@ -59,6 +59,9 @@ BANDS = {
     ('gi_away', 'dgil'): (0.45, 1.30),
     ('gi_leak', 'dgil'): ('zero', 0.0005),
     ('gi_point', 'dgil'): (0.7, 1.4),
+    ('gi_spot', 'dgi'): (0.75, 1.3),
+    ('gi_spot', 'dgim'): (0.7, 1.6),
+    ('gi_spot', 'dgil'): (0.7, 1.4),
     ('gi_emissive', 'dgim'): (0.75, 1.50),
 }
 # Wrong today, on purpose written down: the lightmap baker has no notion of an emissive surface (tools/lightmap-wasm/kernel.cpp carries albedo
@@ -73,7 +76,7 @@ KNOWN_GAP = {
 
 
 # A lab with no Cycles picture (a lamp) is for the methods that light from the scene's own lights.
-ONLY = {'gi_point': ['dgi', 'dgim', 'dgil']}
+ONLY = {'gi_point': ['dgi', 'dgim', 'dgil'], 'gi_spot': ['dgi', 'dgim', 'dgil']}
 
 
 def lin(img):
