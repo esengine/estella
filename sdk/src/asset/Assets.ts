@@ -2552,6 +2552,23 @@ export class Assets {
         this.assetRefResolver_ = resolver;
     }
 
+    private readonly assetProblems_ = new Map<string, readonly string[]>();
+    private assetProblemListener_: ((asset: string, problems: readonly string[]) => void) | null = null;
+
+    /**
+     * What is wrong with an asset that loaded: the parts of it that were left out, each said once. Empty when it is whole (or was never
+     * loaded). A material whose texture would not load, or whose value has a shape nothing reads, is here and not in a failed load.
+     * @experimental
+     */
+    getAssetProblems(asset: string): readonly string[] {
+        return this.assetProblems_.get(asset) ?? [];
+    }
+
+    /** Hear every change to an asset's problems (the editor's diagnostics). One listener; null removes it. @experimental */
+    setAssetProblemListener(listener: ((asset: string, problems: readonly string[]) => void) | null): void {
+        this.assetProblemListener_ = listener;
+    }
+
     getAssetRefResolver(): AssetRefResolver | null {
         return this.assetRefResolver_;
     }
@@ -3017,6 +3034,13 @@ export class Assets {
             async acquireTexture(path: string, flipY?: boolean): Promise<AssetLease<TextureResult>> {
                 const { result, lease } = await self.acquireTextureVariant_(path, flipY !== false);
                 return self.textureLease_(lease, result);
+            },
+            noteAssetProblems(asset: string, problems: readonly string[]): void {
+                const path = self.resolveLoadPath_(asset);
+                const same = (self.assetProblems_.get(path) ?? []).join('\n') === problems.join('\n');
+                if (problems.length === 0) self.assetProblems_.delete(path);
+                else self.assetProblems_.set(path, [...problems]);
+                if (!same) self.assetProblemListener_?.(path, problems);
             },
             noteMaterialTexture(material: string, texture: string): void {
                 if (self.meshMaterials_.has(self.resolveLoadPath_(material)) || self.meshMaterials_.has(material)) {

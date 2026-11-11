@@ -75,6 +75,31 @@ describe('MaterialAssetLoader texture failure', () => {
     });
 });
 
+describe('MaterialAssetLoader says what a half-loaded material is missing', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        (Material.createFromAsset as ReturnType<typeof vi.fn>).mockReturnValue(11);
+        (Material.compileShader as ReturnType<typeof vi.fn>).mockReturnValue(7);
+    });
+
+    it('reports a texture that would not load, against the material, by param name', async () => {
+        const loader = new MaterialAssetLoader();
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const ctx = makeCtx();
+        const noted = vi.fn();
+        ctx.noteAssetProblems = noted;
+
+        await loader.load(MAT_PATH, ctx);
+
+        expect(noted).toHaveBeenCalledTimes(1);
+        const [asset, problems] = noted.mock.calls[0] as [string, string[]];
+        expect(asset).toBe(MAT_PATH);
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toMatch(/^mainTex: the texture "assets\/materials\/missing\.png" did not load \(404 not found\)/);
+        warnSpy.mockRestore();
+    });
+});
+
 describe('MaterialAssetLoader ownership on unload', () => {
     beforeEach(() => {
         vi.clearAllMocks();

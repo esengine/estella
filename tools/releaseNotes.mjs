@@ -4400,4 +4400,8 @@ export const NOTED = {
     {"note": "Voxel Ground compiles on WebGPU again."},
   "fix: the docs build parses the GripSurface summary; dusk-fort keeps its fog colour in colors":
     {"internal": "A docs build error and an example scene's fog colour moved to where the loader reads it; no creator's project changes."},
+  "feat(assets): a material says what it left out - a texture that would not load, a property nothing reads":
+    {"note": "A material that loaded with part of it missing no longer fails in silence."},
+  "feat(editor): an asset that loaded with part of it missing is a diagnostic and a project warning, not a log line":
+    {"note": "A material that loaded with part of it missing no longer fails in silence."},
 };

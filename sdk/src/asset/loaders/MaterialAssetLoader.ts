@@ -4,6 +4,7 @@ import type { AssetLoader, LoadContext, MaterialResult } from '../AssetLoader';
 import { isBuiltinAssetRef, resolveDocumentRef } from '../documentRef';
 import type { MaterialAssetData } from '../../render/material';
 import { Material } from '../../render/material';
+import { assetPropertyProblems } from '../../render/materialProblems';
 import type { MaterialShaderSource } from './MaterialShaderAssetLoader';
 import { log } from '../../util/logger';
 
@@ -27,7 +28,8 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
             const parentPath = resolveDocumentRef(path, data.instanceOf);
             const parent = await ctx.acquireAsset<MaterialResult>('material', parentPath);
             const handle = Material.createFromAsset(data, 0, parent.value.handle);
-            await this.applyTextureProps(handle, data, path, ctx);
+            const missing = await this.applyTextureProps(handle, data, path, ctx);
+            ctx.noteAssetProblems?.(path, [...assetPropertyProblems(data.properties), ...missing]);
             return { handle, shaderHandle: parent.value.shaderHandle };
         }
 
@@ -37,7 +39,10 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         const source = await ctx.acquireAsset<MaterialShaderSource>('material-shader', shaderPath);
         const shaderHandle = source.value.compile(features);
         const handle = Material.createFromAsset(data, shaderHandle);
-        await this.applyTextureProps(handle, data, path, ctx);
+        const missing = await this.applyTextureProps(handle, data, path, ctx);
+        // The material loaded, and draws with what could be read. Said once, where the editor's diagnostics and an agent can find it: a surface
+        // that quietly falls back to the default look is otherwise indistinguishable from one that is meant to look that way.
+        ctx.noteAssetProblems?.(path, [...assetPropertyProblems(data.properties), ...missing]);
 
         return { handle, shaderHandle };
     }
@@ -51,7 +56,8 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         data: MaterialAssetData,
         matPath: string,
         ctx: LoadContext,
-    ): Promise<void> {
+    ): Promise<string[]> {
+        const problems: string[] = [];
         for (const [name, value] of Object.entries(data.properties)) {
             if (typeof value !== 'string') continue;
             const texPath = resolveDocumentRef(matPath, value);
@@ -62,8 +68,10 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
             } catch (e) {
                 // Missing texture: leave the param unbound (it samples whatever is at the unit).
                 log.warn('asset', `Material ${matPath}: failed to load texture '${texPath}' for param '${name}'`, e);
+                problems.push(`${name}: the texture "${texPath}" did not load (${e instanceof Error ? e.message : String(e)}), so the surface draws without it`);
             }
         }
+        return problems;
     }
 
     unload(asset: MaterialResult): void {

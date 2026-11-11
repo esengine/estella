@@ -128,6 +128,12 @@ export interface LoadContext {
     /** Say that material @p material binds texture @p texture, before it is acquired: a mesh material's textures may start small. */
     noteMaterialTexture?(material: string, texture: string): void;
     /**
+     * Say what is wrong with an asset that LOADED anyway: a part of it was left out (a texture that would not load, a value of a shape nothing
+     * reads) and what draws is the rest. Replaces the list this asset had; an empty list says it is whole. Without this a half-loaded material
+     * looks exactly like a good one: a log line, and then a default-looking surface nobody can attribute.
+     */
+    noteAssetProblems?(asset: string, problems: readonly string[]): void;
+    /**
      * The same for an asset of ANY type — a material instance acquiring the
      * parent it diffs against. The general door; {@link acquireTexture} is the
      * one specialization, for the flip variants a texture has.
