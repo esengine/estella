@@ -194,16 +194,29 @@ out vec4 fragColor;
 // Scene-linear Rec.709 to FilmLight E-Gamut (Rec.709 to XYZ D65, then XYZ to E-Gamut).
 const mat3 TO_EGAMUT = mat3(0.5593711, 0.0762207, 0.0655267, 0.3047833, 0.7879718, 0.1645467, 0.1358455, 0.1358075, 0.7699265);
 
+// The table is 32^3 and Blender reads it by tetrahedral interpolation, which this does too. Trilinear interpolation (two bilinear taps
+// and a mix) is exact on the table's nodes and not between them, and AgX's table is far from linear there: inside a cell, the grey
+// axis of the cube is not an edge of the interpolation, so a neutral input came out tinted (middle grey 6 codes short in red, and a
+// saturated blue lost 12 of its red). A tetrahedron has the grey diagonal for an edge, so a neutral stays neutral.
+vec3 lutNode(ivec3 n) {
+    return texelFetch(u_lut, ivec2(n.b * 32 + n.r, n.g), 0).rgb;
+}
+
 vec3 sampleLut(vec3 t) {
-    const float size = 32.0;
-    float b = clamp(t.b, 0.0, 1.0) * (size - 1.0);
-    float slice0 = floor(b);
-    float slice1 = min(slice0 + 1.0, size - 1.0);
-    float u = (clamp(t.r, 0.0, 1.0) * (size - 1.0) + 0.5) / (size * size);
-    float v = (clamp(t.g, 0.0, 1.0) * (size - 1.0) + 0.5) / size;
-    vec3 a = texture(u_lut, vec2(u + slice0 / size, v)).rgb;
-    vec3 d = texture(u_lut, vec2(u + slice1 / size, v)).rgb;
-    return mix(a, d, b - slice0);
+    vec3 p = clamp(t, 0.0, 1.0) * 31.0;
+    ivec3 i0 = ivec3(min(floor(p), vec3(30.0)));
+    vec3 f = p - vec3(i0);
+    // Walk from the cell's low corner along its axes, the one with the biggest fraction first.
+    ivec3 axis1 = ivec3(1, 0, 0), axis2 = ivec3(0, 1, 0), axis3 = ivec3(0, 0, 1);
+    float f1 = f.r, f2 = f.g, f3 = f.b;
+    if (f2 > f1) { ivec3 ta = axis1; axis1 = axis2; axis2 = ta; float tf = f1; f1 = f2; f2 = tf; }
+    if (f3 > f2) { ivec3 ta = axis2; axis2 = axis3; axis3 = ta; float tf = f2; f2 = f3; f3 = tf; }
+    if (f2 > f1) { ivec3 ta = axis1; axis1 = axis2; axis2 = ta; float tf = f1; f1 = f2; f2 = tf; }
+    vec3 c0 = lutNode(i0);
+    vec3 c1 = lutNode(i0 + axis1);
+    vec3 c2 = lutNode(i0 + axis1 + axis2);
+    vec3 c3 = lutNode(i0 + axis1 + axis2 + axis3);
+    return c0 + (c1 - c0) * f1 + (c2 - c1) * f2 + (c3 - c2) * f3;
 }
 
 void main() {
@@ -221,16 +234,28 @@ void main() {
 #pragma fragment wgsl
 const TO_EGAMUT = mat3x3f(vec3f(0.5593711, 0.0762207, 0.0655267), vec3f(0.3047833, 0.7879718, 0.1645467), vec3f(0.1358455, 0.1358075, 0.7699265));
 
+fn lutNode(n : vec3i) -> vec3f {
+    return textureLoad(u_lut, vec2i(n.z * 32 + n.x, n.y), 0).rgb;
+}
+
 fn sampleLut(t : vec3f) -> vec3f {
-    let size = 32.0;
-    let b = clamp(t.b, 0.0, 1.0) * (size - 1.0);
-    let slice0 = floor(b);
-    let slice1 = min(slice0 + 1.0, size - 1.0);
-    let u = (clamp(t.r, 0.0, 1.0) * (size - 1.0) + 0.5) / (size * size);
-    let v = (clamp(t.g, 0.0, 1.0) * (size - 1.0) + 0.5) / size;
-    let a = textureSampleLevel(u_lut, u_lut_s, vec2f(u + slice0 / size, v), 0.0).rgb;
-    let d = textureSampleLevel(u_lut, u_lut_s, vec2f(u + slice1 / size, v), 0.0).rgb;
-    return mix(a, d, b - slice0);
+    let p = clamp(t, vec3f(0.0), vec3f(1.0)) * 31.0;
+    let i0 = vec3i(min(floor(p), vec3f(30.0)));
+    let f = p - vec3f(i0);
+    var axis1 = vec3i(1, 0, 0);
+    var axis2 = vec3i(0, 1, 0);
+    var axis3 = vec3i(0, 0, 1);
+    var f1 = f.x;
+    var f2 = f.y;
+    var f3 = f.z;
+    if (f2 > f1) { let ta = axis1; axis1 = axis2; axis2 = ta; let tf = f1; f1 = f2; f2 = tf; }
+    if (f3 > f2) { let ta = axis2; axis2 = axis3; axis3 = ta; let tf = f2; f2 = f3; f3 = tf; }
+    if (f2 > f1) { let ta = axis1; axis1 = axis2; axis2 = ta; let tf = f1; f1 = f2; f2 = tf; }
+    let c0 = lutNode(i0);
+    let c1 = lutNode(i0 + axis1);
+    let c2 = lutNode(i0 + axis1 + axis2);
+    let c3 = lutNode(i0 + axis1 + axis2 + axis3);
+    return c0 + (c1 - c0) * f1 + (c2 - c1) * f2 + (c3 - c2) * f3;
 }
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
