@@ -1,0 +1,57 @@
+---
+title: 做出好看的 3D 画面
+description: 让 3D 场景看起来像成品而不是白模的设置——色彩管线、天空光、太阳阴影、雾、曝光与调色,以及怎样把 three.js 场景里的数值搬过来。
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+three.js 示例里"好看"的场景很少是物理精确的,它其实是一片天空、一个带阴影的太阳、一点雾、
+一个曝光和一套调色,凭眼睛调出来的。Estella 这些都有,只是项目不主动要求就不会打开。
+**3D 入门**模板把它们都打开了,本页列出它设置了什么、为什么。
+
+## 3D 入门模板设置了什么
+
+| 位置 | 设置 | 原因 |
+| --- | --- | --- |
+| `project.esproject` | `colorSpace: linear`,`outputTransform: aces` | 光照在线性空间相加再做色调映射。回退到 gamma 时受光场景会过曝(实测:一帧里 80% 的像素有通道到 255,而 three.js 原版只有 2.6%)。 |
+| `Sun`(Light,Directional) | `meshShadows`、`shadowExtent`、`shadowSoftness` | **网格阴影默认关闭。** 没有阴影,物体像漂在地上,画面发平。 |
+| `Sky`(Light,Ambient) | 不指定环境,强度 1 | 开启"照亮场景"后,没有指定环境的 Ambient 光由天空提供。 |
+| Camera → `PostProcessVolume` | `skyAtmosphere` 并开启 **Light the Scene** | 画出天空,并用它照亮场景(漫反射与反射)。 |
+| | `heightFog` | 让地面有地平线,看不到地面的边缘。 |
+| | `gtao` | 物体与地面接触处的暗化。 |
+| | `autoExposure`、`bloom`、`colorGrade`、`vignette`、`fxaa` | 随光线变化的曝光、亮部辉光、轻微的对比与饱和度、干净的边缘。 |
+| `Camera` | `farPlane` 20000 | 地面与天空能延伸到地平线。 |
+
+## 把 three.js 的数值搬过来
+
+- **单位。** 项目物理默认每米 100 单位,glTF 导入则是米。后处理特效的默认值按厘米世界设计
+  (雨的遮蔽范围、SSR 距离、GTAO 半径、接触阴影长度),米制场景要手动重调。
+- **光强。** Estella 直接用强度乘反照率(实测太阳 1.8 即反照率 × 1.8 × 余弦)。较新的
+  three.js 会除以 π,所以 three.js 的数值搬过来通常要除以 π,再凭眼睛判断。
+- **颜色。** 线性模式下,普通颜色框里输入的十六进制按原值存储,看起来发白。给
+  `MeshRenderer.color` 填值时先把 sRGB 转成线性。
+- **点光。** 要让灯像 three.js 里 `decay: 2` 的 `PointLight` 那样聚成光池,开启
+  **Inverse Square**,其强度是 1 米外的亮度。
+- **新建材质。** 检查手写材质的 `depthTest`。关掉它会让远处的面盖住近处的面,看起来像
+  阴影 bug,其实不是。
+- **半球光。** 用开启 **Hemisphere** 的 Ambient 光(上方天空色、下方地面色)对应 `HemisphereLight`。
+
+## 做成自己的风格
+
+按这个顺序调,越靠前对画面影响越大:
+
+1. **太阳方向与颜色。** 傍晚低而暖,正午高而白。保持阴影开启。
+2. **天空。** `u_clouds`、`u_haze` 与太阳高度决定氛围。阴影太黑就提高 Sky Light 强度。
+3. **雾。** 一点点密度,雾色接近地平线的颜色。
+4. **曝光。** 先调 `autoExposure` 的偏移,再调色调映射之后的 Color Grade。
+5. **调色。** 分色调(`shadowTint`、`highlightTint`)和 `lift` 决定画面的色彩性格,
+   调色放在色调映射之后。
+
+<Aside type="tip">
+  先看画面,再每次只改一件事。固定相机,把特效逐个关掉,比读数值更快找出是哪个效果让画面发白。
+</Aside>
+
+## 另请参阅
+
+- [2D 光照与阴影](/docs/zh-cn/graphics/lighting/):Light 组件与阴影选项。
+- [后处理](/docs/zh-cn/graphics/post-processing/):各特效的参数。

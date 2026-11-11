@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **The 3D Starter looks finished out of the box.** Its sun casts mesh shadows (they were off, so every object floated), its camera carries a `PostProcessVolume` with a sky that lights the scene, height fog, GTAO, auto exposure, bloom, grade, vignette and FXAA, and its ground reaches the horizon. A new guide, *Getting a good 3D look*, lists what it sets and how to carry a three.js scene's numbers over (units, light intensity, colours, lamps).
+
 ## [0.102.0] - 2026-11-11
 
 ### Added

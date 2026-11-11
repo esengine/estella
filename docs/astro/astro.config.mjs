@@ -223,6 +223,7 @@ export default defineConfig({
             { label: 'Camera', translations: { 'zh-CN': '相机' }, slug: 'graphics/camera' },
             { label: 'Materials & Shaders', translations: { 'zh-CN': '材质与着色器' }, slug: 'graphics/materials' },
             { label: '2D Lighting & Shadows', translations: { 'zh-CN': '2D 光照与阴影' }, slug: 'graphics/lighting' },
+            { label: 'Getting a good 3D look', translations: { 'zh-CN': '做出好看的 3D 画面' }, slug: 'graphics/3d-look' },
             { label: 'Post-processing', translations: { 'zh-CN': '后处理' }, slug: 'graphics/post-processing' },
             { label: 'Terrain', translations: { 'zh-CN': '地形' }, slug: 'graphics/terrain' },
             { label: 'Foliage', translations: { 'zh-CN': '植被' }, slug: 'graphics/foliage' },

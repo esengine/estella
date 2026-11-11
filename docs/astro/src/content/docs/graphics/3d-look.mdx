@@ -1,0 +1,65 @@
+---
+title: Getting a good 3D look
+description: The settings that make a 3D scene look finished instead of flat — colour pipeline, sky light, sun shadows, fog, exposure and grade — and how to carry numbers over from a three.js scene.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+A scene that looks "good" in a three.js demo is rarely physically exact. It is a sky,
+a sun with shadows, some fog, an exposure and a grade, tuned by eye. Estella has every
+one of those; they are just not on until a project asks for them. The **3D Starter**
+template turns them on, and this page lists what it sets and why.
+
+## What the 3D Starter sets
+
+| Where | Setting | Why |
+| --- | --- | --- |
+| `project.esproject` | `colorSpace: linear`, `outputTransform: aces` | Lighting is added in linear space and then tone mapped. With the gamma fallback a lit scene saturates (measured: 80% of a frame had a channel at 255, against 2.6% in the three.js original). |
+| `Sun` (Light, Directional) | `meshShadows`, `shadowExtent`, `shadowSoftness` | **Mesh shadows are off by default.** Without them every object floats and the scene reads flat. |
+| `Sky` (Light, Ambient) | no environment, intensity 1 | With *Light the Scene* on, an Ambient light that names no environment is lit by the sky. |
+| Camera → `PostProcessVolume` | `skyAtmosphere` with **Light the Scene** | Draws a sky and lights the scene from it, diffuse and reflection. |
+| | `heightFog` | Gives the ground a horizon, so the ground's edge never shows. |
+| | `gtao` | Contact darkening where objects meet the ground. |
+| | `autoExposure`, `bloom`, `colorGrade`, `vignette`, `fxaa` | Exposure that follows the light, glow on bright pixels, a touch of contrast and saturation, and clean edges. |
+| `Camera` | `farPlane` 20000 | The ground and sky reach the horizon. |
+
+## Carrying numbers over from three.js
+
+- **Units.** A project's physics defaults to 100 units per metre. A glTF import comes in
+  metres. Post effects ship with defaults sized for centimetre worlds (rain shelter range,
+  SSR distance, GTAO radius, contact shadow length): retune them by hand for a metre-scale
+  scene.
+- **Light intensity.** Estella multiplies albedo by the intensity directly (a sun of 1.8
+  measured as albedo × 1.8 × cosine). Recent three.js divides by π, so a three.js value
+  often needs dividing by π here. Start there and judge by eye.
+- **Colours.** In linear mode a hex typed into a plain colour field is stored raw and
+  reads pale. Convert sRGB to linear for `MeshRenderer.color`.
+- **Point lamps.** Turn on **Inverse Square** for a lamp that pools light the way a
+  three.js `PointLight` with `decay: 2` does. Its intensity is the light one metre away.
+- **New materials.** Check `depthTest` on a hand-written material. One written with it off
+  draws far faces over near ones, which looks like a shadow bug and is not.
+- **Hemisphere light.** Use an Ambient light with **Hemisphere** on, sky colour above and
+  ground colour below, for the equivalent of `HemisphereLight`.
+
+## Making it your own
+
+Change the look in this order. Each step changes more of the picture than the next:
+
+1. **Sun direction and colour.** Low and warm for evening, high and white for noon. Keep
+   shadows on.
+2. **Sky.** `u_clouds`, `u_haze` and the sun elevation set the mood. Raise *Sky Light*
+   intensity if shadows are too black.
+3. **Fog.** A little density and a fog colour near the horizon colour.
+4. **Exposure.** `autoExposure` bias, then the Color Grade after the tone map.
+5. **Grade.** Split tone (`shadowTint`, `highlightTint`) and `lift` are what give a frame
+   a colour identity. Put the grade after the tone map.
+
+<Aside type="tip">
+  Look at the frame, then change one thing. Turning effects off one at a time at a fixed
+  camera finds which one is washing a frame out far faster than reading values.
+</Aside>
+
+## See also
+
+- [2D Lighting & Shadows](/docs/graphics/lighting/) for the Light component and shadow options.
+- [Post-processing](/docs/graphics/post-processing/) for each effect's parameters.
