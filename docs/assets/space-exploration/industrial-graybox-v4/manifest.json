@@ -1,0 +1,56 @@
+{
+  "version": 4,
+  "title": "Industrial spacecraft graybox look development",
+  "status": "image-based-concept",
+  "images": [
+    {
+      "file": "01-industrial-module-overview.png",
+      "width": 1683,
+      "height": 935,
+      "bytes": 2032285,
+      "sha256": "d959f72b650e18f03b506ee27f36d5b1d2e1ae51e9a81b29ed70134f0b5a3530"
+    },
+    {
+      "file": "02-industrial-assembled-ship.png",
+      "width": 1774,
+      "height": 887,
+      "bytes": 2087533,
+      "sha256": "9c7ed4c71bfe016967d1b8e755492eb1e9d0eb1b1e44de92d586baa122b2ff02"
+    },
+    {
+      "file": "03-industrial-gameplay-atmosphere.png",
+      "width": 1774,
+      "height": 887,
+      "bytes": 2197884,
+      "sha256": "cb99393c911b5491897a1205872b0b2e16071b08f26105bed78141e98737ed8d"
+    },
+    {
+      "file": "references/graybox-overview.png",
+      "width": 1800,
+      "height": 1000,
+      "bytes": 1138905,
+      "sha256": "7e96ecd136d1496dd6cad8ede0ab60d0d3b6b5d28c4168d82a1f83ae99918235"
+    },
+    {
+      "file": "references/graybox-assembled.png",
+      "width": 1600,
+      "height": 800,
+      "bytes": 1059777,
+      "sha256": "6ceb0ed17c56c0de7db89f56f720265c65114538a7c8599ab4ff335fbc6e3078"
+    }
+  ],
+  "geometry_evidence": "source-dimensions.json",
+  "verification": {
+    "png_decode": "passed",
+    "visual_review": "passed-concept-scope",
+    "source_blend_read": "headless-Blender-5.2.1-LTS",
+    "source_unit_and_bounds_check": "passed",
+    "base_module_count": 12,
+    "assembly_module_count": 6,
+    "exact_image_geometry_match": false,
+    "shader_changes_saved_to_blend": false,
+    "interior_clearance_validated": false,
+    "production_mesh_and_material_acceptance": false,
+    "mobile_engine_acceptance": false
+  }
+}

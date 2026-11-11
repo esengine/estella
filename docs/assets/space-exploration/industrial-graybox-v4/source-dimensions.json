@@ -1,0 +1,102 @@
+{
+  "source_file": "modular_ship_kit.blend",
+  "source_sha256": "b85d0abab648a06df0d7510bf051ec82c99c76f5528defb1f1dbb44e883e29b8",
+  "source_bytes": 177684,
+  "source_last_write_utc": "2026-11-11T08:33:52.0632333Z",
+  "inspection_blender_version": "5.2.1 LTS",
+  "source_unit_system": "METRIC",
+  "source_unit_scale": 1.0,
+  "total_mesh_objects": 223,
+  "base_modules": [
+    "cargo_2x2x1",
+    "cockpit_2x2x1",
+    "corridor_2x1x1",
+    "dock_1x1x1",
+    "engine_L_2x2x2",
+    "hull_1x1x1",
+    "hull_2x2x1",
+    "hull_2x4x1",
+    "reactor_2x2x1",
+    "solar_1x1x1",
+    "thruster_1x1x1",
+    "turret_1x1x1"
+  ],
+  "assembly_modules": [
+    "ship_cargo_2x2x1.001",
+    "ship_cockpit_2x2x1.001",
+    "ship_engine_L_2x2x2.001",
+    "ship_reactor_2x2x1.001",
+    "ship_solar_1x1x1.001",
+    "ship_turret_1x1x1.001"
+  ],
+  "measured_mesh_bounds": [
+    {
+      "object": "body",
+      "module": "cargo_2x2x1",
+      "dimensions_m": [
+        3.9,
+        3.9,
+        1.9
+      ],
+      "vertices": 24,
+      "faces": 26
+    },
+    {
+      "object": "hull_1x1x1_body",
+      "module": "hull_1x1x1",
+      "dimensions_m": [
+        1.9,
+        1.9,
+        1.9
+      ],
+      "vertices": 24,
+      "faces": 26
+    },
+    {
+      "object": "hull_2x2x1_body",
+      "module": "hull_2x2x1",
+      "dimensions_m": [
+        3.9,
+        3.9,
+        1.9
+      ],
+      "vertices": 24,
+      "faces": 26
+    },
+    {
+      "object": "hull_2x4x1_body",
+      "module": "hull_2x4x1",
+      "dimensions_m": [
+        3.9,
+        7.9,
+        1.9
+      ],
+      "vertices": 24,
+      "faces": 26
+    },
+    {
+      "object": "PORT_hull_2x2x1_+X_00",
+      "module": "hull_2x2x1",
+      "dimensions_m": [
+        0.06,
+        1.0,
+        1.0
+      ],
+      "vertices": 8,
+      "faces": 6
+    },
+    {
+      "object": "tube",
+      "module": "corridor_2x1x1",
+      "dimensions_m": [
+        3.9,
+        1.4,
+        1.4
+      ],
+      "vertices": 24,
+      "faces": 26
+    }
+  ],
+  "inspection_scope": "Read-only geometry bounds, named module structure and scene units. No production topology, collision, interior, or engine acceptance.",
+  "output_scope": "Image-based material and lighting concepts; no material changes saved into source blend."
+}
