@@ -1352,6 +1352,10 @@ out vec4 fragColor;
 ${SSAO_GLSL}
 
 const float FAR_RAY = 100000.0;
+/// Where a view ray starts: the near plane of a perspective eye. An orthographic eye's depth range runs from far BEHIND the camera to far ahead of it
+/// (the projection is built with near = -far, so 2D content behind the camera plane still draws), so depth 0 is that far-behind plane, and a ray measured
+/// from it carries a camera-length of air that is not in front of the camera. Mid-depth is the plane the camera stands in.
+vec3 rayStart(vec2 uv) { return worldFromDepth(uv, u_camera.w > 0.5 ? 0.0 : 0.5); }
 const int VOLUME_STEPS = 24;
 
 float ign(vec2 p) {
@@ -1472,7 +1476,7 @@ bool upsampledVolume(float len, out vec3 add) {
         ivec2 t = clamp(base + o, ivec2(0), hsize - ivec2(1));
         vec2 uv = uvOfTexel(t, hsize);
         float dj = depthAt(screenTexel(uv, dsize), dsize);
-        float lj = dj >= 1.0 ? FAR_RAY : length(worldFromDepth(uv, dj) - worldFromDepth(uv, 0.0));
+        float lj = dj >= 1.0 ? FAR_RAY : length(worldFromDepth(uv, dj) - rayStart(uv));
         float bw = (o.x == 1 ? fr.x : 1.0 - fr.x) * (o.y == 1 ? fr.y : 1.0 - fr.y);
         float rel = abs(lj - len) / max(len, 1.0);
         float w = bw / (1.0 + 400.0 * rel * rel);
@@ -1489,9 +1493,8 @@ void main() {
     float depth = texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)), ivec2(0), size - ivec2(1)), 0).r;
     bool sky = depth >= 1.0;
 
-    // The ray starts on the near plane, which is the one place that is a point under a
-    // perspective camera and under an orthographic one alike.
-    vec3 entry = worldFromDepth(v_texCoord, 0.0);
+    // The ray starts where the eye is: the near plane under a perspective camera, the plane the camera stands in under an orthographic one.
+    vec3 entry = rayStart(v_texCoord);
     vec3 target = worldFromDepth(v_texCoord, sky ? 1.0 : depth);
     vec3 dir = normalize(target - entry);
     float len = sky ? FAR_RAY : length(target - entry);
@@ -1543,6 +1546,8 @@ void main() {
 #pragma fragment wgsl
 ${SSAO_WGSL}
 const FAR_RAY : f32 = 100000.0;
+/// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
+fn rayStart(uv : vec2f) -> vec3f { return worldFromDepth(uv, select(0.5, 0.0, frame.camera.w > 0.5)); }
 const VOLUME_STEPS : i32 = 24;
 
 fn ign(p : vec2f) -> f32 {
@@ -1657,7 +1662,7 @@ fn upsampledVolume(uv : vec2f, len : f32) -> VolumeRead {
         let tuv = uvOfTexel(t, hsize);
         let dj = depthAt(screenTexel(tuv, dsize), dsize);
         var lj = FAR_RAY;
-        if (dj < 1.0) { lj = length(worldFromDepth(tuv, dj) - worldFromDepth(tuv, 0.0)); }
+        if (dj < 1.0) { lj = length(worldFromDepth(tuv, dj) - rayStart(tuv)); }
         var bx = 1.0 - fr.x;
         if (o.x == 1) { bx = fr.x; }
         var by = 1.0 - fr.y;
@@ -1678,7 +1683,7 @@ fn upsampledVolume(uv : vec2f, len : f32) -> VolumeRead {
     let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
     let sky = depth >= 1.0;
 
-    let entry = worldFromDepth(v.v_texCoord, 0.0);
+    let entry = rayStart(v.v_texCoord);
     var d = depth;
     if (sky) { d = 1.0; }
     let tgt = worldFromDepth(v.v_texCoord, d);
@@ -1785,6 +1790,10 @@ uniform highp sampler2D u_sceneDepth;
 out vec4 fragColor;
 
 const float FAR_RAY = 100000.0;
+/// Where a view ray starts: the near plane of a perspective eye. An orthographic eye's depth range runs from far BEHIND the camera to far ahead of it
+/// (the projection is built with near = -far, so 2D content behind the camera plane still draws), so depth 0 is that far-behind plane, and a ray measured
+/// from it carries a camera-length of air that is not in front of the camera. Mid-depth is the plane the camera stands in.
+vec3 rayStart(vec2 uv) { return worldFromDepth(uv, u_camera.w > 0.5 ? 0.0 : 0.5); }
 const int VOLUME_STEPS = 24;
 
 float ign(vec2 p) {
@@ -1894,9 +1903,8 @@ void main() {
     float depth = texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)), ivec2(0), size - ivec2(1)), 0).r;
     bool sky = depth >= 1.0;
 
-    // The ray starts on the near plane, which is the one place that is a point under a
-    // perspective camera and under an orthographic one alike.
-    vec3 entry = worldFromDepth(v_texCoord, 0.0);
+    // The ray starts where the eye is: the near plane under a perspective camera, the plane the camera stands in under an orthographic one.
+    vec3 entry = rayStart(v_texCoord);
     vec3 target = worldFromDepth(v_texCoord, sky ? 1.0 : depth);
     vec3 dir = normalize(target - entry);
     float len = sky ? FAR_RAY : length(target - entry);
@@ -1928,6 +1936,8 @@ void main() {
 
 #pragma fragment wgsl
 const FAR_RAY : f32 = 100000.0;
+/// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
+fn rayStart(uv : vec2f) -> vec3f { return worldFromDepth(uv, select(0.5, 0.0, frame.camera.w > 0.5)); }
 const VOLUME_STEPS : i32 = 24;
 
 fn ign(p : vec2f) -> f32 {
@@ -2028,7 +2038,7 @@ fn volumeLight(entry : vec3f, dir : vec3f, len : f32, sky : bool, sun : vec3f, f
     let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
     let sky = depth >= 1.0;
 
-    let entry = worldFromDepth(v.v_texCoord, 0.0);
+    let entry = rayStart(v.v_texCoord);
     var d = depth;
     if (sky) { d = 1.0; }
     let tgt = worldFromDepth(v.v_texCoord, d);

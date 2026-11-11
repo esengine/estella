@@ -26,6 +26,16 @@ export function probe(x, z) {
   return { x: px.i / (SIZE - 1), y: pz.i / (SIZE - 1), at: [px.world, pz.world] };
 }
 
+/**
+ * A frame probe for the point (x, z) on a horizontal surface `drop` units below a perspective camera that looks straight down with
+ * vertical field of view `fov` degrees: the surface's half-width in view is drop * tan(fov / 2), so x and z scale by it.
+ */
+export function probeFrom(x, z, drop, fov) {
+  const half = drop * Math.tan((fov * Math.PI) / 360);
+  const at = (w) => Math.min(SIZE - 1, Math.max(0, Math.floor((w / (2 * half) + 0.5) * SIZE)));
+  return { x: at(x) / (SIZE - 1), y: at(z) / (SIZE - 1) };
+}
+
 let nextId;
 const entity = (name, components) => ({ id: nextId++, name, parent: null, children: [], visible: true, components });
 const transform = (position, rotation, scale) => ({

@@ -1,0 +1,411 @@
+{
+ "version": 4,
+ "name": "oracle-height-fog-perspective",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 400,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.7071067811865476,
+       "y": 0,
+       "z": 0,
+       "w": 0.7071067811865476
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "orthoSize": 100,
+      "nearPlane": 1,
+      "farPlane": 2000,
+      "isActive": true,
+      "priority": 0,
+      "fov": 40
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Patch0",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -75,
+       "y": 2.5,
+       "z": -50
+      },
+      "scale": {
+       "x": 0.4,
+       "y": 0.05,
+       "z": 0.4
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.10800000000000001,
+       "g": 0.10800000000000001,
+       "b": 0.10800000000000001,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Patch1",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -25,
+       "y": 22.5,
+       "z": -50
+      },
+      "scale": {
+       "x": 0.4,
+       "y": 0.45,
+       "z": 0.4
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.14,
+       "g": 0.14,
+       "b": 0.14,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Patch2",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 25,
+       "y": 42.5,
+       "z": -50
+      },
+      "scale": {
+       "x": 0.4,
+       "y": 0.85,
+       "z": 0.4
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.244,
+       "g": 0.244,
+       "b": 0.244,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "name": "Patch3",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 75,
+       "y": 62.5,
+       "z": -50
+      },
+      "scale": {
+       "x": 0.4,
+       "y": 1.25,
+       "z": 0.4
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.5,
+       "g": 0.5,
+       "b": 0.5,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "name": "Patch4",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -75,
+       "y": 82.5,
+       "z": 50
+      },
+      "scale": {
+       "x": 0.4,
+       "y": 1.65,
+       "z": 0.4
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.9,
+       "g": 0.9,
+       "b": 0.9,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "name": "Patch5",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -25,
+       "y": 102.5,
+       "z": 50
+      },
+      "scale": {
+       "x": 0.4,
+       "y": 2.05,
+       "z": 0.4
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.9,
+       "g": 0.9,
+       "b": 0.9,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "name": "Patch6",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 25,
+       "y": 122.5,
+       "z": 50
+      },
+      "scale": {
+       "x": 0.4,
+       "y": 2.45,
+       "z": 0.4
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.9,
+       "g": 0.9,
+       "b": 0.9,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "name": "Patch7",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 75,
+       "y": 142.5,
+       "z": 50
+      },
+      "scale": {
+       "x": 0.4,
+       "y": 2.85,
+       "z": 0.4
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.9,
+       "g": 0.9,
+       "b": 0.9,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 9,
+   "name": "Look",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "PostProcessVolume",
+     "data": {
+      "isGlobal": true,
+      "priority": 0,
+      "weight": 1,
+      "effects": [
+       {
+        "type": "heightFog",
+        "enabled": true,
+        "uniforms": {
+         "u_density": 0.004,
+         "u_heightFalloff": 0.002,
+         "u_baseHeight": 0,
+         "u_inscatter": 0,
+         "u_skyFog": 0.8
+        },
+        "colors": {
+         "u_fogColor": {
+          "r": 0.55,
+          "g": 0.65,
+          "b": 0.8,
+          "a": 1
+         }
+        }
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

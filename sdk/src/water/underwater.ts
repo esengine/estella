@@ -59,6 +59,10 @@ out vec4 fragColor;
 const int SHAFT_STEPS = 24;
 
 ${CAUSTICS_GLSL}
+/// Where a view ray starts: the near plane of a perspective eye. An orthographic eye's depth range runs from far BEHIND the camera to far ahead of it
+/// (the projection is built with near = -far), so depth 0 is that far-behind plane, above the water for a camera under it; mid-depth is the plane
+/// the camera stands in.
+vec3 rayStart(vec2 uv) { return worldFromDepth(uv, u_camera.w > 0.5 ? 0.0 : 0.5); }
 float ign(vec2 p) {
     return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
 }
@@ -73,7 +77,7 @@ void main() {
     ivec2 size = textureSize(u_sceneDepth, 0);
     float depth = texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)), ivec2(0), size - ivec2(1)), 0).r;
     bool sky = depth >= 1.0;
-    vec3 entry = worldFromDepth(v_texCoord, 0.0);
+    vec3 entry = rayStart(v_texCoord);
     vec3 target = worldFromDepth(v_texCoord, sky ? 1.0 : depth);
     // The face of what is seen, from how the picture's own world positions change from one pixel to the next (taken here, before any branch).
     vec3 facing = cross(dFdx(target), dFdy(target));
@@ -144,6 +148,8 @@ void main() {
 const SHAFT_STEPS : i32 = 24;
 
 ${CAUSTICS_WGSL}
+/// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
+fn rayStart(uv : vec2f) -> vec3f { return worldFromDepth(uv, select(0.5, 0.0, frame.camera.w > 0.5)); }
 fn ign(p : vec2f) -> f32 {
     return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715))));
 }
@@ -157,7 +163,7 @@ fn phaseHG(cosine : f32) -> f32 {
     let size = vec2i(textureDimensions(t7, 0));
     let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
     let sky = depth >= 1.0;
-    let entry = worldFromDepth(v.v_texCoord, 0.0);
+    let entry = rayStart(v.v_texCoord);
     var d = depth;
     if (sky) { d = 1.0; }
     let hit = worldFromDepth(v.v_texCoord, d);
