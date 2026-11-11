@@ -58,6 +58,21 @@ The **Water** shader (`builtin:water`) draws a body of water: refraction by meas
 ocean, a lake or a river is, and a `WaterZone` bakes them into one surface drawn with it, lifts the geometry with waves and answers for the surface from code.
 All of it is in [Water](/docs/graphics/water/).
 
+## Wet ground
+
+A Model material can lay a **wet map** over the ground, so a yard is damp in places and has standing water in others rather than one roughness
+all over. Give it `u_wetMask`, a small texture read in the world's X and Z (red is standing water, 0 dry to 1 a puddle; green is dampness),
+the world corner it starts at (`u_wetOrigin`) and how big it is (`u_wetSize`, 0 leaves wetness off), and raise `u_wetness` above 0:
+
+| Where the map says | The surface |
+|---|---|
+| damp (green, or red) | darkens by `u_wetDarken` (water in the pores takes the light a dry surface scatters) and grows smoother, toward `u_wetRoughness` |
+| a puddle (red) | goes flat (the normal map is let go of) and nearly a mirror, roughness 0.05 |
+| outside the map | stays dry |
+
+Put a **Planar Reflection** on the same mesh (see Lighting) and the puddles show the scene. The map is data, not a picture: import it without sRGB (the
+shader's `texel(data)` says so). With `u_wetness` at 0, which is the default, a surface pays one comparison.
+
 ## Skin and hair
 
 Two shaders for the parts of a character a metal/rough pair does not describe. Both take the base colour from the mesh's own texture, as

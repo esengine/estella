@@ -140,6 +140,8 @@ describe('which texture params a shader reads as numbers', () => {
             u_normalMap: 'data', u_emissiveMap: 'colour', u_occlusionMap: 'data', u_metallicRoughnessMap: 'data',
             // The picture of the scene the frame binds for refraction: never a project texture, so nothing to flag.
             u_sceneColor: 'colour',
+            // Wet ground's map holds amounts, not a picture.
+            u_wetMask: 'data',
         });
     });
 });

@@ -1,0 +1,23 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:model",
+  "blendMode": 9,
+  "depthTest": true,
+  "depthWrite": true,
+  "cull": 1,
+  "properties": {
+    "u_metallic": 0,
+    "u_roughness": 0.8,
+    "u_wetness": 1,
+    "u_wetMask": "wet-ground-mask.png",
+    "u_wetOrigin": {
+      "x": -300,
+      "y": -100
+    },
+    "u_wetSize": {
+      "x": 600,
+      "y": 200
+    }
+  }
+}

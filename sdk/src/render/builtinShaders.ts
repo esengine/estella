@@ -510,6 +510,16 @@ export const MODEL = `#pragma shader "Model"
 #pragma param u_iridescence float default(0) range(0,1) ui(slider)
 #pragma param u_iridescenceIor float default(1.3) range(1,2.5) ui(slider)
 #pragma param u_iridescenceThickness float default(400) range(0,1200) ui(slider)
+// Wet ground: a map laid over the world's ground (X and Z) that says where it is damp and where water stands. Red is standing water
+// (0 dry to 1 a puddle), green dampness; where it reads above zero the surface darkens, grows smoother and, in a puddle, goes flat and
+// mirror-like, which a Planar Reflection on the same mesh then shows. Wetness is the master amount: 0 leaves the surface alone and
+// pays one comparison. The map starts at Origin, in world X and Z, and is Size wide and deep; outside it the ground is dry.
+#pragma param u_wetness float default(0) range(0,1) ui(slider)
+#pragma param u_wetMask texture default(black) texel(data)
+#pragma param u_wetOrigin vec2 default(0,0)
+#pragma param u_wetSize vec2 default(0,0)
+#pragma param u_wetDarken float default(0.4) range(0,1) ui(slider)
+#pragma param u_wetRoughness float default(0.3) range(0,1) ui(slider)
 
 #pragma fragment
 precision mediump float;
@@ -613,6 +623,20 @@ void main() {
     float roughness = u_roughness * mr.g;
 #endif
 #ifdef MESH_NORMALS
+    // Wet ground: where the map says damp the surface is darker (water in the pores takes the light a dry one scatters) and smoother;
+    // where it says water stands it is flat and nearly a mirror. Before the specular anti-aliasing, which works on the roughness left.
+    if (u_wetness > 0.0 && u_wetSize.x > 0.0 && u_wetSize.y > 0.0) {
+        vec2 wuv = (P.xz + u_renderOrigin.xz - u_wetOrigin) / u_wetSize;
+        if (wuv.x >= 0.0 && wuv.x <= 1.0 && wuv.y >= 0.0 && wuv.y <= 1.0) {
+            vec2 wm = textureLod(u_wetMask, wuv, 0.0).rg;
+            float puddle = u_wetness * wm.r;
+            float damp = u_wetness * max(wm.g, wm.r);
+            base.rgb *= 1.0 - u_wetDarken * damp;
+            roughness = mix(roughness, min(roughness, u_wetRoughness), damp);
+            roughness = mix(roughness, 0.05, puddle);
+            N = normalize(mix(N, Ng, puddle));
+        }
+    }
     roughness = specularAA(dndx, dndy, roughness);
 #endif
     SurfaceExt ext = surfaceExtNone(N);
@@ -782,6 +806,19 @@ fn packNormal(n : vec3f) -> vec2f {
     var roughness = mc.u_roughness * mr.g;
 #endif
 #ifdef MESH_NORMALS
+    // See the GLSL twin: wet ground, before the specular anti-aliasing.
+    if (mc.u_wetness > 0.0 && mc.u_wetSize.x > 0.0 && mc.u_wetSize.y > 0.0) {
+        let wuv = (P.xz + frame.renderOrigin.xz - mc.u_wetOrigin) / mc.u_wetSize;
+        if (wuv.x >= 0.0 && wuv.x <= 1.0 && wuv.y >= 0.0 && wuv.y <= 1.0) {
+            let wm = textureSampleLevel(u_wetMask, u_wetMask_s, wuv, 0.0).rg;
+            let puddle = mc.u_wetness * wm.r;
+            let damp = mc.u_wetness * max(wm.g, wm.r);
+            base = vec4f(base.rgb * (1.0 - mc.u_wetDarken * damp), base.a);
+            roughness = mix(roughness, min(roughness, mc.u_wetRoughness), damp);
+            roughness = mix(roughness, 0.05, puddle);
+            N = normalize(mix(N, Ng, vec3f(puddle)));
+        }
+    }
     roughness = specularAA(dndx, dndy, roughness);
 #endif
     var ext = surfaceExtNone(N);
