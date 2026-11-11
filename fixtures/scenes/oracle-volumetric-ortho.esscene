@@ -1,0 +1,373 @@
+{
+ "version": 4,
+ "name": "oracle-volumetric-ortho",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "x": 0,
+       "y": 0,
+       "z": 0,
+       "w": 1
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 1,
+      "orthoSize": 100,
+      "nearPlane": 1,
+      "farPlane": 2000,
+      "isActive": true,
+      "priority": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Patch0",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -72,
+       "y": 0,
+       "z": -101
+      },
+      "scale": {
+       "x": 0.18,
+       "y": 0.4,
+       "z": 0.02
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.5,
+       "g": 0.5,
+       "b": 0.5,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Patch1",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -48,
+       "y": 0,
+       "z": -201
+      },
+      "scale": {
+       "x": 0.18,
+       "y": 0.4,
+       "z": 0.02
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.5,
+       "g": 0.5,
+       "b": 0.5,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Patch2",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -24,
+       "y": 0,
+       "z": -301
+      },
+      "scale": {
+       "x": 0.18,
+       "y": 0.4,
+       "z": 0.02
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.5,
+       "g": 0.5,
+       "b": 0.5,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "name": "Patch3",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": -401
+      },
+      "scale": {
+       "x": 0.18,
+       "y": 0.4,
+       "z": 0.02
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.5,
+       "g": 0.5,
+       "b": 0.5,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "name": "Patch4",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 24,
+       "y": 0,
+       "z": -501
+      },
+      "scale": {
+       "x": 0.18,
+       "y": 0.4,
+       "z": 0.02
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.5,
+       "g": 0.5,
+       "b": 0.5,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "name": "Patch5",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 48,
+       "y": 0,
+       "z": -601
+      },
+      "scale": {
+       "x": 0.18,
+       "y": 0.4,
+       "z": 0.02
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.5,
+       "g": 0.5,
+       "b": 0.5,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "name": "Sun",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "w": 5.657130561438501e-17,
+       "x": -2.3432602026631493e-17,
+       "y": 0.9238795325112867,
+       "z": 0.3826834323650898
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 1,
+       "g": 0.9,
+       "b": 0.8,
+       "a": 1
+      },
+      "intensity": 2,
+      "meshShadows": false,
+      "shadowExtent": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "name": "Look",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "PostProcessVolume",
+     "data": {
+      "isGlobal": true,
+      "priority": 0,
+      "weight": 1,
+      "effects": [
+       {
+        "type": "heightFog",
+        "enabled": true,
+        "uniforms": {
+         "u_density": 0.0033,
+         "u_heightFalloff": 0,
+         "u_baseHeight": 0,
+         "u_inscatter": 1,
+         "u_volumetric": 0.8,
+         "u_sunExponent": 8,
+         "u_followSun": 1,
+         "u_volumeRange": 3000
+        },
+        "colors": {
+         "u_fogColor": {
+          "r": 0.5,
+          "g": 0.6,
+          "b": 0.8,
+          "a": 1
+         }
+        }
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}
