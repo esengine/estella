@@ -20,7 +20,7 @@ published separately; it ships inside the editor.
 
 ### Changed
 
-- **The 3D Starter looks finished out of the box.** Its sun casts mesh shadows (they were off, so every object floated), its camera carries a `PostProcessVolume` with a sky that lights the scene, height fog, GTAO, auto exposure, bloom, grade, vignette and FXAA, and its ground reaches the horizon. A new guide, *Getting a good 3D look*, lists what it sets and how to carry a three.js scene's numbers over (units, light intensity, colours, lamps).
+- **The 3D Starter looks finished out of the box.** Its sun casts mesh shadows (they were off, so every object floated), its camera carries a `PostProcessVolume` with a sky that lights the scene, height fog, GTAO, auto exposure, bloom, grade, vignette and FXAA, and its ground reaches the horizon. The editor's MCP teaches the same: `audit_look` says what a flat 3D scene lacks (shadow maps off, no sky light, fog, exposure or grade, gamma colour) with the fix for each, and `apply_look` adds it in one undo step, in a day, overcast or dusk mood.
 
 ## [0.102.0] - 2026-11-11
 
