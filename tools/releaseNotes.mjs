@@ -4384,4 +4384,6 @@ export const NOTED = {
     {"note": "Multi-touch can be turned off."},
   "feat(viewport): a perceiver's hearing range is drawn beside its sight, and the sky occlusion hint uses the editor's own tip":
     {"note": "Perceivers hear."},
+  "feat(material): wet ground: a map says where it is damp and where water stands":
+    {"note": "Wet ground: a map says where it is damp and where water stands."},
 };
