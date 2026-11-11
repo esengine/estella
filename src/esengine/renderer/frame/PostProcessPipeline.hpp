@@ -33,6 +33,7 @@ class GfxDevice;
 class RenderContext;
 class Shader;
 class VoxelGI;
+class DynamicGI;
 
 namespace resource {
     class ResourceManager;
@@ -641,6 +642,7 @@ private:
     /// The voxel GI's cache lives here, across frames: what it has seen is the point of it. One per camera, since a cache is a
     /// window around the eye and two eyes would take turns tearing each other's down.
     std::unordered_map<u64, Unique<VoxelGI>> voxel_gis_;
+    std::unordered_map<u64, Unique<DynamicGI>> dynamic_gis_;
     /// The size block a compute pass reads, one for all of them (each dispatch writes it just before it runs).
     BufferHandle compute_view_ubo_ = BufferHandle::Invalid;
     /// Declares one chain onto an already-begun graph and runs it, ending in the

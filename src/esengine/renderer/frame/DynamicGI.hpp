@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    DynamicGI.hpp
+ * @brief   Diffuse global illumination from the scene's distance field and surface cache, run as compute passes (WebGPU).
+ *
+ * @details The design is docs/GI_LUMEN_DESIGN.md and the CPU reference is sdk/src/gi (globalSdf, surfaceCache, screenProbes), checked against
+ *          Cycles in pipeline/tests/gi-lab.test.ts. This is the GPU form of that reference.
+ *
+ *          What the scene is comes from script: the SDK composes the scene's distance field and lays out its surface cards, and hands
+ *          them over through `setScene` (the bindings' gi_setScene) whenever they change. The engine keeps them in storage buffers and
+ *          runs three passes a frame:
+ *            card light   every card pixel: the sun (shadowed by a ray through the field) plus the light 64 rays bring from the other
+ *                         cards, times its albedo, plus what it emits. Run every frame, it converges on many bounces.
+ *            probe        one probe per 8 x 8 pixels of the picture: 64 rays from the surface there through the field into the cards,
+ *                         reduced to the vector that integrates them against any normal (see kProbe).
+ *            apply        every pixel takes the light of the four probes around it, weighted by depth and normal, times its albedo.
+ *          Needs a device with a compute stage; elsewhere the pass is left out of the chain, as the voxel GI is.
+ */
+#pragma once
+
+#include "../../core/Types.hpp"
+#include "../graph/RenderGraph.hpp"
+#include "../rhi/GfxEnums.hpp"
+
+#include <glm/glm.hpp>
+#include <vector>
+
+namespace esengine {
+
+class GfxDevice;
+class RenderContext;
+
+/** What the effect is asked for, from the pass's uniforms. */
+struct DynamicGIParams {
+    /// How much of the gathered light is added over the picture.
+    f32 intensity = 1.0f;
+    /// How much of each frame's card lighting replaces what the card held (the rest is history, which is what smooths the noise).
+    f32 blend = 0.3f;
+};
+
+/**
+ * The scene as the SDK lays it out. All of it is plain numbers; the layouts are in DynamicGI.cpp (kLayout) and sdk/src/gi/gpuScene.ts.
+ */
+struct DynamicGIScene {
+    /// Header: sdf dim, cell size, origin x y z (cells), reach, instance count, card pixel count, sun (toLight xyz, on), sun radiance rgb, bias, range, tolerance, sky rgb.
+    std::vector<f32> header;
+    /// The distance field, dim^3 cells, toroidal.
+    std::vector<f32> sdf;
+    /// 64 floats an instance.
+    std::vector<f32> instances;
+    /// 4 words a card pixel.
+    std::vector<u32> pixels;
+    u32 version = 0;
+};
+
+/** The scene the next frame draws from; written by script through the bindings. */
+DynamicGIScene& dynamicGIScene();
+
+class DynamicGI {
+public:
+    DynamicGI(GfxDevice& device, RenderContext& context);
+    ~DynamicGI();
+
+    DynamicGI(const DynamicGI&) = delete;
+    DynamicGI& operator=(const DynamicGI&) = delete;
+
+    /** Declares the passes onto @p graph; returns the picture with the light added, or @p input when there is nothing to do. */
+    rg::ResourceId declare(rg::RenderGraph& graph, rg::ResourceId input, rg::ResourceId scene, const DynamicGIParams& params, u32 width, u32 height);
+
+    void release();
+
+private:
+    bool ensure();
+    bool upload();
+    bool ensureProbes(u32 tilesX, u32 tilesY);
+
+    GfxDevice& device_;
+    RenderContext& context_;
+    BufferHandle params_ = BufferHandle::Invalid;
+    BufferHandle sdf_ = BufferHandle::Invalid;
+    BufferHandle instances_ = BufferHandle::Invalid;
+    BufferHandle pixels_ = BufferHandle::Invalid;
+    BufferHandle radiance_[2] = {BufferHandle::Invalid, BufferHandle::Invalid};
+    u32 sdfBytes_ = 0, instanceBytes_ = 0, pixelBytes_ = 0, radianceBytes_ = 0;
+    TextureHandle probes_[2] = {TextureHandle::Invalid, TextureHandle::Invalid};
+    u32 probeTilesX_ = 0, probeTilesY_ = 0;
+    ComputeHandle cardLight_ = ComputeHandle::Invalid;
+    ComputeHandle probe_ = ComputeHandle::Invalid;
+    ComputeHandle apply_ = ComputeHandle::Invalid;
+    u32 uploadedVersion_ = 0;
+    bool failed_ = false;
+    u32 frame_ = 0;
+    u32 pixelCount_ = 0;
+};
+
+}  // namespace esengine

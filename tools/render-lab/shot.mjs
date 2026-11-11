@@ -7,7 +7,7 @@ const web = process.argv[3];
 const view = process.argv[4] ?? 'front';
 const server = await serveHost(path.resolve(web));
 const gpu = process.env.BACKEND === 'webgpu';
-const browser = await chromium.launch({ headless: !gpu && process.env.HEADED !== '1', args: gpu ? ['--enable-unsafe-webgpu', '--disable-gpu-sandbox', '--ignore-gpu-blocklist'] : ['--use-angle=d3d11', '--enable-webgl', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch({ ...(process.env.HEADLESS_GPU === '1' ? { channel: 'chromium' } : {}), headless: (gpu && process.env.HEADLESS_GPU === '1') || (!gpu && process.env.HEADED !== '1'), args: gpu ? (process.env.HEADLESS_GPU === '1' ? ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader', '--mute-audio'] : ['--enable-unsafe-webgpu', '--disable-gpu-sandbox', '--ignore-gpu-blocklist']) : ['--use-angle=d3d11', '--enable-webgl', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'] });
 const logs = [];
 try {
   const page = await browser.newPage({ viewport: { width: Number(process.env.W || 1280), height: Number(process.env.H || 720) }, deviceScaleFactor: 1 });

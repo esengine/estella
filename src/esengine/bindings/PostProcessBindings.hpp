@@ -26,6 +26,13 @@ bool postprocess_supportsCompute();
  * @details On a device with no compute stage the pass is left out of the chain and the picture goes through as it was.
  */
 u32 postprocess_addNativePass(const std::string& name, const std::string& kind);
+/**
+ * @brief Hands the dynamic GI the scene it traces: the header, the distance field, the instances and the card pixels, laid out as
+ *        sdk/src/gi/gpuScene.ts writes them (see DynamicGI.hpp). The engine copies them; the pointers are free after the call.
+ * @return false when a count does not match what the header says.
+ */
+bool postprocess_setGIScene(uintptr_t headerPtr, u32 headerCount, uintptr_t sdfPtr, u32 sdfCount, uintptr_t instancesPtr, u32 instanceCount,
+                            uintptr_t pixelsPtr, u32 pixelCount);
 /** The project's multisampling request for the scene target; 1 = off. Clamped
  *  by what the device supports — the device answers capability, not policy. */
 void postprocess_setMsaaSamples(u32 samples);

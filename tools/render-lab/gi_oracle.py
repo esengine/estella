@@ -30,6 +30,7 @@ RADIUS = 10
 METHODS = {
     'baked': {'BAKE': '1', 'BOUNCES': '8'},
     'vgi': {'EFFECTS': json.dumps([{'type': 'voxelGI', 'enabled': True, 'uniforms': {}}])},
+    'dgi': {'BACKEND': 'webgpu', 'HEADLESS_GPU': '1', 'EFFECTS': json.dumps([{'type': 'dynamicGI', 'enabled': True, 'uniforms': {}}])},
 }
 
 # The share of Cycles' light, per region, each method is allowed (measured 2026-11-11). A region the sun lights directly reads about 1 for all.
@@ -41,14 +42,19 @@ BANDS = {
     ('gi_room', 'vgi'): (0.10, 1.70),
     ('gi_away', 'vgi'): (0.25, 0.75),
     ('gi_emissive', 'vgi'): (0.05, 0.70),
+    ('gi_room', 'dgi'): (0.45, 1.25),
+    ('gi_away', 'dgi'): (0.45, 1.00),
+    ('gi_leak', 'dgi'): ('zero', 0.0005),
 }
 # Wrong today, on purpose written down: the lightmap baker has no notion of an emissive surface (tools/lightmap-wasm/kernel.cpp carries albedo
 # and the sun, nothing that emits), so a room lit only by a glowing panel bakes black. The region shares are asserted to stay under this.
+# The dynamic GI (distance field + surface cache + probes; WebGPU, headless on swiftshader) is the one with no leak and no screen-only memory.
 # Likewise the voxel method lets the sun through a sealed room's walls: its voxels are larger than a 10 cm wall, so one that holds the lit outside
 # of a wall holds its dark inside too (with the sun taken out the room is exactly black). 0.005 linear, about 16 codes, in a room Cycles leaves black.
 KNOWN_GAP = {
     ('gi_emissive', 'baked'): ('the lightmap baker does not light from emissive surfaces', 0.05),
     ('gi_leak', 'vgi'): ('the voxel method lets the sun through thin walls', 0.008),
+    ('gi_emissive', 'dgi'): ('the dynamic GI does not read the emissive colour of a material into its cards yet', 0.05),
 }
 
 

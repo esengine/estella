@@ -7,6 +7,7 @@
 #include "BoundarySpan.hpp"
 #include "../renderer/rhi/GfxDevice.hpp"
 #include "../renderer/frame/PostProcessPipeline.hpp"
+#include "../renderer/frame/DynamicGI.hpp"
 #include "../renderer/frame/RenderContext.hpp"
 #include "../renderer/frame/RenderFrame.hpp"
 #include "../renderer/draw/ImmediateDraw.hpp"
@@ -85,6 +86,22 @@ u32 postprocess_addComputePass(const std::string& name, const std::string& wgsl,
 u32 postprocess_addNativePass(const std::string& name, const std::string& kind) {
     if (!g_postProcessPipeline) return 0;
     return g_postProcessPipeline->addNativePass(name, kind);
+}
+
+bool postprocess_setGIScene(uintptr_t headerPtr, u32 headerCount, uintptr_t sdfPtr, u32 sdfCount, uintptr_t instancesPtr, u32 instanceCount,
+                            uintptr_t pixelsPtr, u32 pixelCount) {
+    const f32* header = boundarySpan<f32>(headerPtr, headerCount, "postprocess_setGIScene.header");
+    const f32* sdf = boundarySpan<f32>(sdfPtr, sdfCount, "postprocess_setGIScene.sdf");
+    const f32* instances = boundarySpan<f32>(instancesPtr, instanceCount, "postprocess_setGIScene.instances");
+    const u32* pixels = boundarySpan<u32>(pixelsPtr, pixelCount, "postprocess_setGIScene.pixels");
+    if (!header || !sdf || !instances || !pixels || headerCount < 22) return false;
+    DynamicGIScene& scene = dynamicGIScene();
+    scene.header.assign(header, header + headerCount);
+    scene.sdf.assign(sdf, sdf + sdfCount);
+    scene.instances.assign(instances, instances + instanceCount);
+    scene.pixels.assign(pixels, pixels + pixelCount);
+    ++scene.version;
+    return true;
 }
 
 bool postprocess_supportsCompute() {

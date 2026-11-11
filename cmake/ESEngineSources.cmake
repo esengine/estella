@@ -113,6 +113,7 @@ if(ES_ENABLE_POSTPROCESS)
     list(APPEND ESENGINE_SOURCES
         ${ESENGINE_ROOT}/src/esengine/renderer/frame/PostProcessPipeline.cpp
         ${ESENGINE_ROOT}/src/esengine/renderer/frame/VoxelGI.cpp
+        ${ESENGINE_ROOT}/src/esengine/renderer/frame/DynamicGI.cpp
     )
 endif()
 

@@ -15,6 +15,7 @@
 #include "../RenderOrigin.hpp"
 #include "./RenderContext.hpp"
 #include "./VoxelGI.hpp"
+#include "./DynamicGI.hpp"
 #include "../rhi/GfxDevice.hpp"
 #include "../store/MaterialConstants.hpp"
 #include "../store/MaterialStore.hpp"
@@ -213,6 +214,7 @@ void PostProcessPipeline::shutdown() {
     for (auto& [source, program] : compute_cache_) device_.deleteCompute(program);
     compute_cache_.clear();
     voxel_gis_.clear();
+    dynamic_gis_.clear();
     if (compute_view_ubo_ != BufferHandle::Invalid) {
         device_.deleteBuffer(compute_view_ubo_);
         compute_view_ubo_ = BufferHandle::Invalid;
@@ -1324,6 +1326,25 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
         if (passIsHighPrecision(pass)) writeDesc.format = GfxPixelFormat::RGBA16F;
         if (!pass.nativeKind.empty()) {
             // A pass the engine implements itself, in compute passes of its own that it declares onto the graph.
+            if (pass.nativeKind == "dynamicGI" && &passes == &passes_ && (scene_needs_depth_ || scene_gbuffer_) && scene_gbuffer_) {
+                const auto get = [&pass](const char* name, f32 fallback) {
+                    const auto it = pass.floatUniforms.find(name);
+                    return it != pass.floatUniforms.end() ? it->second : fallback;
+                };
+                DynamicGIParams gi;
+                gi.intensity = get("u_intensity", gi.intensity);
+                gi.blend = get("u_blend", gi.blend);
+                auto& cache = dynamic_gis_[temporalKey_];
+                if (!cache) {
+                    if (dynamic_gis_.size() > 4) {
+                        for (auto it = dynamic_gis_.begin(); it != dynamic_gis_.end(); ++it) {
+                            if (it->first != temporalKey_) { dynamic_gis_.erase(it); break; }
+                        }
+                    }
+                    dynamic_gis_[temporalKey_] = makeUnique<DynamicGI>(device_, context_);
+                }
+                input = dynamic_gis_[temporalKey_]->declare(*graph_, input, scene, gi, width_, height_);
+            }
             if (pass.nativeKind == "voxelGI" && &passes == &passes_ && (scene_needs_depth_ || scene_gbuffer_) && scene_gbuffer_) {
                 const auto get = [&pass](const char* name, f32 fallback) {
                     const auto it = pass.floatUniforms.find(name);

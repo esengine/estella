@@ -565,6 +565,21 @@ registerEffect({
     ],
 });
 
+// Diffuse global illumination from the scene's distance field and surface cache (docs/GI_LUMEN_DESIGN.md): rays traced through the field,
+// the light of the surfaces they meet read from cards the engine keeps lit, probes of 8 x 8 pixels interpolated to the picture. Compute passes the
+// engine declares itself, so WebGPU only; the scene it traces is fed by sdk/src/gi/dynamicGISystem.ts. Leaves no light through a wall.
+registerEffect({
+    type: 'dynamicGI',
+    label: 'Dynamic GI',
+    native: 'dynamicGI',
+    uniforms: [
+        // How much of the gathered light is added over the picture.
+        { name: 'u_intensity', label: 'Intensity', min: 0, max: 4, step: 0.01, defaultValue: 1, neutralValue: 0 },
+        // How much of each frame replaces what the cards and probes held; lower is smoother and slower to follow a change.
+        { name: 'u_blend', label: 'Temporal Blend', min: 0.02, max: 1, step: 0.01, defaultValue: 0.3 },
+    ],
+});
+
 // A compute effect on a device with a compute stage (WebGPU); a fragment pass of the same arithmetic stands in for it on one without (WebGL2).
 registerEffect({
     type: 'sharpen',
