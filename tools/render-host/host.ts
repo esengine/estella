@@ -43,7 +43,8 @@ const width = Number(params.get('w')) || 1280;
 const height = Number(params.get('h')) || 720;
 const backend = params.get('backend') === 'webgpu' ? 'webgpu' : 'webgl2';
 const colorSpace = params.get('colorSpace') === 'linear' ? 'linear' : undefined;
-const outputTransform = params.get('outputTransform') === 'aces' ? 'aces' : undefined;
+const requestedTransform = params.get('outputTransform');
+const outputTransform = requestedTransform === 'aces' || requestedTransform === 'neutral' ? requestedTransform : undefined;
 const msaaSamples = Number(params.get('msaa')) || undefined;
 /** The opaque scene drawn twice, depth alone first: the quality levels turn it on, and this host has none. */
 const depthPrepass = params.get('prepass') === '1';

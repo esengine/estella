@@ -1,0 +1,124 @@
+{
+ "version": 4,
+ "name": "oracle-spot-cone",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 400,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.7071067811865476,
+       "y": 0,
+       "z": 0,
+       "w": 0.7071067811865476
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 1,
+      "orthoSize": 100,
+      "nearPlane": 1,
+      "farPlane": 2000,
+      "isActive": true,
+      "priority": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Floor",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "scale": {
+       "x": 4,
+       "y": 0.1,
+       "z": 4
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Lamp",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 105,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.7071067811865475,
+       "y": 0,
+       "z": 0,
+       "w": 0.7071067811865476
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 3,
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "intensity": 0.6,
+      "radius": 600,
+      "falloff": 1,
+      "innerAngle": 20,
+      "outerAngle": 50
+     }
+    }
+   ]
+  }
+ ]
+}

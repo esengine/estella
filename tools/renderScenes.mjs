@@ -20,6 +20,8 @@
  */
 
 /** Cheapest tier a scene runs at; tiers are cumulative. */
+import { ORACLE, oracleEntry } from './oracle/index.mjs';
+
 export const TIERS = ['pr', 'nightly'];
 
 /** Electron's own bundled SwiftShader is the adapter a GPU-less runner gets, and
@@ -1119,6 +1121,8 @@ export const SCENES = [
   { id: "device-roundtrip-editor-3d", tier: "pr", host: "editor", env: { ESTELLA_VERIFY_DEVICE_LOSS: "roundtrip", ESTELLA_VERIFY_LOSS_ROUNDS: "2", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3" } },
   { id: "device-roundtrip-editor-grid", tier: "pr", host: "editor", env: { ESTELLA_VERIFY_DEVICE_LOSS: "roundtrip", ESTELLA_VERIFY_LOSS_ROUNDS: "2", ESTELLA_VERIFY_LOSS_GRID: "64", ESTELLA_VERIFY_SCENE: "/scenes/sprite-rendering.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/sprite-rendering.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3" } },
   { id: "device-roundtrip-post", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_DEVICE_LOSS: "roundtrip", ESTELLA_VERIFY_LOSS_ROUNDS: "2", ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/ui-screen-post.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-screen-post.textures.json", ESTELLA_VERIFY_W: "640", ESTELLA_VERIFY_H: "360", ESTELLA_VERIFY_STEPS: "4" } },
+  // Closed-form oracles (tools/oracle): the number each scene must draw comes from the maths, not from a frame.
+  ...ORACLE.map(oracleEntry),
 ];
 
 /**

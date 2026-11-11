@@ -44,7 +44,7 @@
  *   ESTELLA_VERIFY_TWINS     pairs of points that must match (JSON: pairs [[x1,y1,x2,y2]], tol)
  *   ESTELLA_VERIFY_MINIFIED  how much a far-off texture shimmers pixel to pixel (JSON: box, maxRipple, minMean)
  *   ESTELLA_VERIFY_SCALE     copy the scene's content onto a grid (JSON), for a cost gate
- *   ESTELLA_VERIFY_OUTPUT_TRANSFORM  the frame's output curve ("aces")
+ *   ESTELLA_VERIFY_OUTPUT_TRANSFORM  the frame's output curve ("aces" or "neutral")
  *   ESTELLA_VERIFY_MSAA      multisample count the scene asks for (the app's default otherwise)
  *   ESTELLA_VERIFY_PREPASS   1: draw the opaque scene twice, depth alone first (what a quality level does)
  *   ESTELLA_VERIFY_TEXTURES  "runtime": images upload through the engine, as a shipped game's do
@@ -104,7 +104,7 @@ const BACKEND = process.env.ESTELLA_VERIFY_BACKEND === 'webgpu' ? 'webgpu' : 'we
 const COLORSPACE = process.env.ESTELLA_VERIFY_COLORSPACE === 'linear' ? 'linear' : '';
 // ESTELLA_VERIFY_OUTPUT_TRANSFORM=aces boots the project output transform, which
 // is a curve on the way out and engages the capture on its own.
-const OUTPUT_TRANSFORM = process.env.ESTELLA_VERIFY_OUTPUT_TRANSFORM === 'aces' ? 'aces' : '';
+const OUTPUT_TRANSFORM = ['aces', 'neutral'].includes(process.env.ESTELLA_VERIFY_OUTPUT_TRANSFORM) ? process.env.ESTELLA_VERIFY_OUTPUT_TRANSFORM : '';
 const MSAA = process.env.ESTELLA_VERIFY_MSAA ?? '';
 const PREPASS = process.env.ESTELLA_VERIFY_PREPASS === '1';
 const TEXTURES = process.env.ESTELLA_VERIFY_TEXTURES === 'runtime' ? 'runtime' : '';

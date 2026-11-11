@@ -2627,11 +2627,12 @@ void main() {
     float depth = texelFetch(u_sceneDepth, ivec2(gl_FragCoord.xy), 0).r;
     if (depth >= 1.0) { fragColor = src; return; }
 
-    // Un-projected twice, at the sample and at the near plane along the SAME ray.
-    // An orthographic eye has no point to measure from, and this needs none: the
-    // near plane is one, per pixel, and it is where fog should start anyway.
+    // Un-projected twice, at the sample and at the start of the ray: the near plane of a perspective eye. An orthographic eye has no point to
+    // measure from, and its depth range runs from far BEHIND the camera to far ahead of it (the projection is built with near = -far, so 2D
+    // content behind the camera plane still draws): depth 0 is that far-behind plane, which put every surface past the fog's end. Mid-depth
+    // is the plane the camera stands in, and the distance a person means.
     vec3 world = worldFromDepth(v_texCoord, depth);
-    vec3 entry = worldFromDepth(v_texCoord, 0.0);
+    vec3 entry = worldFromDepth(v_texCoord, u_camera.w > 0.5 ? 0.0 : 0.5);
     float dist = length(world - entry);
     float t = clamp((dist - u_fogNear) / max(u_fogFar - u_fogNear, 1e-4), 0.0, 1.0);
     // Authored as sRGB, like every colour: a linear frame takes it as light, not as a code.
@@ -2650,7 +2651,7 @@ void main() {
     if (depth >= 1.0) { return src; }
 
     let world = worldFromDepth(v.v_texCoord, depth);
-    let entry = worldFromDepth(v.v_texCoord, 0.0);
+    let entry = worldFromDepth(v.v_texCoord, select(0.5, 0.0, frame.camera.w > 0.5));
     let dist = length(world - entry);
     let t = clamp((dist - mc.u_fogNear) / max(mc.u_fogFar - mc.u_fogNear, 1e-4), 0.0, 1.0);
     var fog = mc.u_fogColor.rgb;

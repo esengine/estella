@@ -49,6 +49,12 @@ for (const f of files) {
     drivers.push(readFileSync(path.join(ROOT, f), 'utf8'));
 }
 
+// The oracle scenes are generated from tools/oracle/ and registered by id, so no source names their file: the generator is the driver.
+{
+    const { ORACLE } = await import('./oracle/index.mjs');
+    for (const o of ORACLE) drivers.push(`${o.id}.esscene`);
+}
+
 const scenes = readdirSync(path.join(ROOT, SCENES)).filter((f) => f.endsWith('.esscene'));
 const undriven = scenes.filter((s) => !drivers.some((t) => t.includes(s)));
 const problems = [];

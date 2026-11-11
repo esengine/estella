@@ -58,6 +58,20 @@ for (const s of SCENES) {
   }
 }
 
+// The oracle scenes are generated from tools/oracle/, next to the numbers they must draw. A hand-edited fixture, or an edit to the
+// generator that was never written out, would leave a scene and its expectation describing different frames.
+{
+  const { ORACLE } = await import('./oracle/index.mjs');
+  for (const o of ORACLE) {
+    const file = path.join(FIXTURES, 'scenes', `${o.id}.esscene`);
+    const want = JSON.stringify(o.doc, null, 1) + String.fromCharCode(10);
+    if (!existsSync(file) || readFileSync(file, 'utf8').split(String.fromCharCode(13)).join('') !== want) {
+      fail(`"${o.id}" is not what tools/oracle generates — run node tools/make-oracle-scenes.mjs`);
+    }
+    if (!o.expect?.length) fail(`"${o.id}" has no probes`);
+  }
+}
+
 // CI has to take its list from here. Inlining scene invocations again is exactly
 // how the two lists came to disagree in the first place.
 if (existsSync(WORKFLOW)) {
