@@ -23,7 +23,7 @@ import { withScratch } from '../wasm/wasmScratch';
 import { marshallingCore } from '../asset/loaders/engineCore';
 import { nativeEngineApi } from '../ecs/bridge/engineApi';
 import { Material } from '../render/material';
-import { analyticBox, packGPUScene, type GIInstance, type GILight } from './gpuScene';
+import { analyticBox, packGPUScene, type GIInstance, type GILight, type GPUScene } from './gpuScene';
 import { GlobalSdf } from './globalSdf';
 import type { PointLight } from './surfaceCache';
 import { worldUnitsPerMeter } from '../ecs/worldUnits';
@@ -149,10 +149,37 @@ type Loader = {
     catalog?: { addressOf?(path: string): string | null };
 };
 
+/**
+ * Gives the engine a packed scene, and records what the rebuild behind it cost (for tools/gi/measure-camera-move.mjs): the milliseconds of the
+ * boxes, of the field and of the pack, then the hand-over's own. Said to the device log every 8 rebuilds, where that is the only place to read it.
+ */
+function handOver(m: NonNullable<ReturnType<typeof marshallingCore>>, scene: GPUScene, [instancesMs, fieldMs, packMs]: [number, number, number]): void {
+    const t = performance.now();
+    withScratch(m, (alloc) => {
+        const put = (data: ArrayBufferView): number => {
+            const ptr = alloc(data.byteLength);
+            m.HEAPU8.set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength), ptr);
+            return ptr;
+        };
+        m.postprocess_setGIScene!(put(scene.header), scene.header.length, put(scene.sdf), scene.sdf.length,
+            put(scene.instances), scene.instances.length, put(scene.pixels), scene.pixels.length);
+    });
+    const record = ((globalThis as { __estellaGIBuild?: { ms: number[][] } }).__estellaGIBuild ??= { ms: [] });
+    record.ms.push([instancesMs, fieldMs, packMs, performance.now() - t, scene.sdf.byteLength / 1048576]);
+    if (record.ms.length > 256) record.ms.shift();
+    if (record.ms.length % 8 === 0) {
+        const totals = record.ms.slice(-8).map((r) => r[0]! + r[1]! + r[2]! + r[3]!).sort((x, y) => x - y);
+        console.log(`[gi] last 8 rebuilds: median ${totals[4]!.toFixed(1)} ms, worst ${totals[7]!.toFixed(1)} ms (${scene.sdf.byteLength >> 20} MB of field)`);
+    }
+}
+
 export function dynamicGISystem(app: App) {
     let cube = 0, loading = false, lastKey = '';
     // The field that follows the camera, kept between frames so that a camera that moves rebuilds only the slabs that came into view.
     let follow: { sdf: GlobalSdf; instancesKey: string; cell: number } | null = null;
+    let built: { sceneKey: string; instances: GIInstance[] } | null = null;
+    // A camera that moved while the field is still being rebuilt for the last move: what is waiting to be packed and sent when it is done.
+    let waiting: { instances: GIInstance[]; light: GILight | null; lights: PointLight[]; work: number } | null = null;
     // The baked files beside a mesh, by its path: null while loading and for a mesh that has none.
     const sidecars = new Map<string, GISidecars | null>();
     const request = (path: string): void => {
@@ -228,10 +255,28 @@ export function dynamicGISystem(app: App) {
             const snap = following ? effect.cellSize * 8 : 1;
             const eyeKey = following ? eye!.map((v) => Math.floor(v / snap)).join(',') : '';
             const key = (light ? `${light.toLight.join(',')}|${light.radiance.join(',')}` : 'dark') + sceneKey + '#' + lightKey + '#' + effect.cellSize + eyeKey;
+            // The rebuild a camera move asked for goes on a few milliseconds a frame, and is handed to the engine when it is whole: until then
+            // the engine traces the field as it was, which is a window a little behind the eye and nothing worse.
+            if (follow && waiting) {
+                const ts = performance.now();
+                const finished = follow.sdf.step(3);
+                waiting.work += performance.now() - ts;
+                if (finished) {
+                    const { instances: held, light: heldLight, lights: heldLights, work } = waiting;
+                    const tPack = performance.now();
+                    const done = packGPUScene(held, heldLight, { sdf: follow.sdf, lights: heldLights });
+                    if (done) handOver(m, done, [0, work, performance.now() - tPack]);
+                    waiting = null;
+                }
+            }
             if (key === lastKey || sceneKey === '') return;
             lastKey = key;
-            const { instances } = buildInstances(entries, cube, (p) => sidecars.get(p) ?? null);
+            const t0 = performance.now();
+            // The boxes are built when the scene changes, not when only the eye did: a camera that walks changes the key every few steps.
+            if (!built || built.sceneKey !== sceneKey) built = { sceneKey, instances: buildInstances(entries, cube, (p) => sidecars.get(p) ?? null).instances };
+            const instances = built.instances;
             if (instances.length === 0) return;
+            const t1 = performance.now();
             let sdf: GlobalSdf | undefined;
             if (following) {
                 const cell = effect.cellSize;
@@ -241,23 +286,20 @@ export function dynamicGISystem(app: App) {
                     instances.forEach((inst, id) => fresh.update({ id, sdf: inst.sdf, worldFromLocal: inst.worldFromLocal }));
                     follow = { sdf: fresh, instancesKey: sceneKey, cell };
                 } else {
-                    follow.sdf.setCenter(eye!);
+                    // Only the eye moved: queue the slabs and let the frames do them (see above); the scene is sent when they are done.
+                    follow.sdf.setCenter(eye!, true);
+                    waiting = { instances, light, lights: point.slice(0, 8), work: 0 };
+                    return;
                 }
                 sdf = follow.sdf;
             } else {
                 follow = null;
             }
+            const t2 = performance.now();
             const scene = packGPUScene(instances, light, { sdf, lights: point.slice(0, 8) });
             if (!scene) return;
-            withScratch(m, (alloc) => {
-                const put = (data: ArrayBufferView): number => {
-                    const ptr = alloc(data.byteLength);
-                    m.HEAPU8.set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength), ptr);
-                    return ptr;
-                };
-                m.postprocess_setGIScene!(put(scene.header), scene.header.length, put(scene.sdf), scene.sdf.length,
-                    put(scene.instances), scene.instances.length, put(scene.pixels), scene.pixels.length);
-            });
+            const t3 = performance.now();
+            handOver(m, scene, [t1 - t0, t2 - t1, t3 - t2]);
         },
         { name: 'DynamicGISystem', runWhenPaused: true },
     );

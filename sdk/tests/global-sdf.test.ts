@@ -89,6 +89,28 @@ describe('the scene distance field', () => {
         }
     });
 
+    it('queues the slabs of a lazy move and, stepped to the end, leaves the same field as an eager one', () => {
+        const build = (lazy: boolean) => {
+            const g = field();
+            g.setCenter([0, 0, 0]);
+            g.update(instance(1, sphereSdf(1, 0.1), [3, 0, 0]));
+            g.update(instance(2, sphereSdf(1, 0.1), [12, 1, 0]));
+            g.setCenter([5, 1, 2], lazy);
+            return g;
+        };
+        const eager = build(false), lazy = build(true);
+        expect(lazy.pending).toBe(true);
+        expect(eager.pending).toBe(false);
+        let guard = 0;
+        while (!lazy.step(2)) expect(++guard).toBeLessThan(10000);
+        expect(lazy.pending).toBe(false);
+        for (let l = 0; l < eager.levels.length; l++) {
+            expect(Array.from(lazy.levels[l]!.data.subarray(0, 4096))).toEqual(Array.from(eager.levels[l]!.data.subarray(0, 4096)));
+            expect(lazy.levels[l]!.version).toBeGreaterThan(0);
+        }
+        for (const p of [[3, 0.5, 0], [11, 1, 0.5], [5, 5, 5]] as const) expect(lazy.sample(p)).toBe(eager.sample(p));
+    });
+
     it('falls back to a coarser level where the finer window ends', () => {
         const g = field();  // fine window is 16 across, coarse 64
         g.setCenter([0, 0, 0]);

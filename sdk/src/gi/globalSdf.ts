@@ -46,8 +46,15 @@ interface Level {
     /** The window's first cell, in whole cells of the level. */
     origin: [number, number, number];
     data: Float32Array;
-    /** Per cell, 1 + the id of the instance nearest to it (127 for an id past 125), 0 where nothing is within reach. */
-    owner: Uint8Array;
+    /**
+     * One array holding the field and then, in the same memory, the instance nearest each cell (1 + its id, 127 for an id past 125, 0 where
+     * nothing is within reach; four cells to a word of seven-bit ids, since a word with a top bit set could read as a NaN and a device is free
+     * to change those). `data` and `ownerWords` are views of it: what the engine reads is this array, as it is.
+     */
+    storage: Float32Array;
+    ownerWords: Uint32Array;
+    /** Counts the rebuilds that touched the level, so a packer can leave a level that did not change where it is. */
+    version: number;
 }
 
 export class GlobalSdf {
@@ -59,7 +66,8 @@ export class GlobalSdf {
     constructor(levels: readonly GlobalSdfLevel[]) {
         this.levels = levels.map((l) => {
             if ((l.dim & (l.dim - 1)) !== 0 || l.dim < 2) throw new Error(`a clipmap level is a power of two cells across, got ${l.dim}`);
-            const level: Level = { dim: l.dim, cell: l.cell, origin: [0, 0, 0], data: new Float32Array(l.dim ** 3), owner: new Uint8Array(l.dim ** 3) };
+            const cells = l.dim ** 3, storage = new Float32Array(cells + cells / 4);
+            const level: Level = { dim: l.dim, cell: l.cell, origin: [0, 0, 0], data: storage.subarray(0, cells), storage, ownerWords: new Uint32Array(storage.buffer, cells * 4, cells / 4), version: 0 };
             level.data.fill(l.cell * GlobalSdf.REACH_CELLS);
             return level;
         });
@@ -68,14 +76,19 @@ export class GlobalSdf {
     reach(level: Level): number { return level.cell * GlobalSdf.REACH_CELLS; }
 
     /** Moves every window so it is centred on `p`, to whole cells: only the slabs that came into view are rebuilt. */
-    setCenter(p: readonly [number, number, number]): void {
+    /**
+     * With `lazy`, the slabs that came into view are queued, not rebuilt: `step` does them a few milliseconds a frame. The windows move at once
+     * (what a trace reads is whatever the caller last packed, and it should not pack until `pending` is false: the cells of the new edge hold
+     * what the far side of the torus held).
+     */
+    setCenter(p: readonly [number, number, number], lazy = false): void {
         for (const level of this.levels) {
             const target = [0, 1, 2].map((k) => Math.floor(p[k]! / level.cell) - level.dim / 2) as [number, number, number];
             const move = [0, 1, 2].map((k) => target[k]! - level.origin[k]!);
             if (move.every((m) => m === 0)) continue;
             const old = level.origin;
             level.origin = target;
-            if (move.some((m) => Math.abs(m) >= level.dim)) { this.rebuild_(level, [target[0]!, target[1]!, target[2]!], [target[0]! + level.dim, target[1]! + level.dim, target[2]! + level.dim]); continue; }
+            if (move.some((m) => Math.abs(m) >= level.dim)) { this.schedule_(level, [target[0]!, target[1]!, target[2]!], [target[0]! + level.dim, target[1]! + level.dim, target[2]! + level.dim], lazy); continue; }
             // One slab per axis that moved: [new edge].
             for (let k = 0; k < 3; k++) {
                 const m = move[k]!;
@@ -83,9 +96,29 @@ export class GlobalSdf {
                 const lo = [...target] as [number, number, number], hi = [target[0]! + level.dim, target[1]! + level.dim, target[2]! + level.dim] as [number, number, number];
                 if (m > 0) lo[k] = old[k]! + level.dim; else hi[k] = old[k]!;
                 lo[k] = Math.max(lo[k]!, target[k]!); hi[k] = Math.min(hi[k]!, target[k]! + level.dim);
-                this.rebuild_(level, lo, hi);
+                this.schedule_(level, lo, hi, lazy);
             }
         }
+    }
+
+    private jobs_: Array<{ level: Level; lo: [number, number, number]; hi: [number, number, number] }> = [];
+
+    /** Whether slabs are still waiting to be rebuilt (see `setCenter`). */
+    get pending(): boolean { return this.jobs_.length > 0; }
+
+    /** Rebuilds queued slabs until `budgetMs` has gone; true when none is left. A slab is cut into pieces of 16 layers so a budget can stop between them. */
+    step(budgetMs: number): boolean {
+        const start = performance.now();
+        while (this.jobs_.length > 0 && performance.now() - start < budgetMs) {
+            const job = this.jobs_.shift()!;
+            this.rebuild_(job.level, job.lo, job.hi);
+        }
+        return this.jobs_.length === 0;
+    }
+
+    private schedule_(level: Level, lo: [number, number, number], hi: [number, number, number], lazy: boolean): void {
+        if (!lazy) { this.rebuild_(level, lo, hi); return; }
+        for (let z = lo[2]!; z < hi[2]!; z += 16) this.jobs_.push({ level, lo: [lo[0]!, lo[1]!, z], hi: [hi[0]!, hi[1]!, Math.min(z + 16, hi[2]!)] });
     }
 
     /** Adds an instance, or moves/replaces the one with its id. */
@@ -197,6 +230,7 @@ export class GlobalSdf {
     private rebuild_(level: Level, lo: [number, number, number], hi: [number, number, number]): void {
         const a = [0, 1, 2].map((k) => Math.max(lo[k]!, level.origin[k]!)), b = [0, 1, 2].map((k) => Math.min(hi[k]!, level.origin[k]! + level.dim));
         if (a.some((v, k) => v >= b[k]!)) return;
+        level.version++;
         const reach = this.reach(level);
         const near: Placed[] = [];
         for (const placed of this.placed_.values()) {
@@ -206,20 +240,28 @@ export class GlobalSdf {
             }
             if (overlaps) near.push(placed);
         }
-        const mask = level.dim - 1;
+        const mask = level.dim - 1, dim = level.dim, cell = level.cell;
+        // Every cell of the region starts as "nothing within reach", then each instance writes the cells round it: the work follows the surfaces, not the
+        // volume, so a room of a few boxes costs its walls and not its air.
         for (let z = a[2]!; z < b[2]!; z++) for (let y = a[1]!; y < b[1]!; y++) for (let x = a[0]!; x < b[0]!; x++) {
-            const p: [number, number, number] = [(x + 0.5) * level.cell, (y + 0.5) * level.cell, (z + 0.5) * level.cell];
-            let d = reach, owner = 0;
-            for (const placed of near) {
-                // An instance further from the cell than the reach (outside its own box grown by it) cannot be what the cell remembers.
+            const at = (x & mask) + (y & mask) * dim + (z & mask) * dim * dim;
+            level.data[at] = reach;
+            level.ownerWords[at >> 2] = (level.ownerWords[at >> 2]! & ~(255 << ((at & 3) * 8))) >>> 0;
+        }
+        const p: [number, number, number] = [0, 0, 0];
+        for (const placed of near) {
+            const owner = placed.instance.id < 126 ? placed.instance.id + 1 : 127;
+            // The cells within the reach of this instance box, inside the region.
+            const lo2 = [0, 1, 2].map((k) => Math.max(a[k]!, Math.floor((placed.min[k]! - reach) / cell))), hi2 = [0, 1, 2].map((k) => Math.min(b[k]!, Math.ceil((placed.max[k]! + reach) / cell)));
+            for (let z = lo2[2]!; z < hi2[2]!; z++) for (let y = lo2[1]!; y < hi2[1]!; y++) for (let x = lo2[0]!; x < hi2[0]!; x++) {
+                p[0] = (x + 0.5) * cell; p[1] = (y + 0.5) * cell; p[2] = (z + 0.5) * cell;
                 if (p[0] < placed.min[0]! - reach || p[0] > placed.max[0]! + reach || p[1] < placed.min[1]! - reach || p[1] > placed.max[1]! + reach
                     || p[2] < placed.min[2]! - reach || p[2] > placed.max[2]! + reach) continue;
-                const v = this.distanceTo_(placed, p);
-                if (v < d) { d = v; owner = placed.instance.id < 126 ? placed.instance.id + 1 : 127; }
+                const v = this.distanceTo_(placed, p), at = (x & mask) + (y & mask) * dim + (z & mask) * dim * dim;
+                if (v >= level.data[at]!) continue;
+                level.data[at] = Math.max(v, -reach);
+                level.ownerWords[at >> 2] = ((level.ownerWords[at >> 2]! & ~(255 << ((at & 3) * 8))) | (owner << ((at & 3) * 8))) >>> 0;
             }
-            const at = (x & mask) + (y & mask) * level.dim + (z & mask) * level.dim * level.dim;
-            level.data[at] = Math.max(d, -reach);
-            level.owner[at] = owner;
         }
     }
 

@@ -79,6 +79,9 @@ export function analyticBox(size: readonly [number, number, number], colour: rea
 
 const scaleOf = (m: ArrayLike<number>): number => Math.hypot(m[0]!, m[1]!, m[2]!);
 
+/** What a pack of a field left behind: the packed array and the version of each level it holds (see `Level.version`). */
+const packCache = new WeakMap<GlobalSdf, { packed: Float32Array; versions: number[] }>();
+
 export interface PackOptions {
     dim?: number;
     sky?: readonly [number, number, number];
@@ -176,19 +179,20 @@ export function packGPUScene(instances: readonly GIInstance[], light: GILight | 
     set(8, ...(light?.toLight ?? [0, 1, 0]), light ? 1 : 0, ...(light?.radiance ?? [0, 0, 0]), bias, extent * 2.5, tolerance);
     set(18, ...(options.sky ?? [0, 0, 0]), 0.25);
     set(22, levels.length);
-    // The field of every level, each followed by its owner words (four cells to a word of seven-bit ids; a word with a top bit set could
-    // read as a NaN, and a device is free to change those). Level 0 sits first, so the header's offsets for it are 0 and dim^3.
+    // The field of every level, each followed by its owner words, level 0 first (so the header's offsets for it are 0 and dim^3). A level is
+    // copied into the packed array only if it changed since the last pack of this field: a camera that moves rebuilds the finest level
+    // nearly every step and the others once in a long while, and the copy is 10 MB a level.
     let floats = 0;
-    for (const l of levels) floats += l.data.length + l.data.length / 4;
-    const packed = new Float32Array(floats);
+    for (const l of levels) floats += l.storage.length;
+    let cache = packCache.get(sdf);
+    if (!cache || cache.packed.length !== floats) { cache = { packed: new Float32Array(floats), versions: levels.map(() => -1) }; packCache.set(sdf, cache); }
+    const packed = cache.packed;
     let at = 0;
     levels.forEach((l, k) => {
         const cells = l.data.length;
-        packed.set(l.data, at);
-        const words = new Uint32Array(packed.buffer, (at + cells) * 4, cells / 4);
-        for (let i = 0; i < cells; i++) words[i >> 2]! |= l.owner[i]! << ((i & 3) * 8);
+        if (cache!.versions[k] !== l.version) { packed.set(l.storage, at); cache!.versions[k] = l.version; }
         if (k > 0) set(24 + (k - 1) * 8, l.dim, l.cell, l.origin[0]!, l.origin[1]!, l.origin[2]!, l.cell * GlobalSdf.REACH_CELLS, at, at + cells);
-        at += cells + cells / 4;
+        at += l.storage.length;
     });
     const lights = (options.lights ?? []).slice(0, GI_MAX_LIGHTS);
     set(23, lights.length);

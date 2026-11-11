@@ -82,6 +82,16 @@ if os.environ.get('BAKE') == '1':
         {'type': 'BakedLighting', 'data': {'atlasSize': 1024, 'texelsPerUnit': float(os.environ.get('TPU', '0.2')), 'bounces': int(os.environ.get('BOUNCES', '4')),
                                            'samples': int(os.environ.get('BAKE_SAMPLES', '256')), 'probeSamples': 128}}]})
 
+if os.environ.get('CAM_MOVE') == '1':
+    # A script that walks the camera back and forth along z, 200 units over a few seconds: a camera moving through the room, for the cost of moving it.
+    os.makedirs(proj + '/src', exist_ok=True)
+    open(proj + '/src/main.ts', 'w').write("""import { addSystemToSchedule, defineSystem, Query, Mut, Res, Time, Transform, Camera, Schedule } from 'esengine';
+let t = 0;
+addSystemToSchedule(Schedule.PostUpdate, defineSystem([Query(Mut(Transform), Camera), Res(Time)], (cameras, time) => {
+    t += time.delta;
+    for (const [, transform] of cameras) transform.position.z = -235 + 100 * (1 - Math.cos(t * 0.6));
+}, { name: 'CameraWalk' }));
+""")
 effects = json.loads(os.environ.get('EFFECTS', '[]'))
 if effects:
     entities[0]['components'].append({'type': 'PostProcessVolume', 'data': {'isGlobal': True, 'weight': 1, 'priority': 0, 'effects': effects}})
