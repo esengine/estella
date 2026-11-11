@@ -613,6 +613,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("postprocess_requestSkyCapture", &esengine::postprocess_requestSkyCapture);
     emscripten::function("postprocess_pollSkyCapture", &esengine::postprocess_pollSkyCapture);
     emscripten::function("postprocess_takeSkyCapture", &esengine::postprocess_takeSkyCapture);
+    emscripten::function("postprocess_giStats", &esengine::postprocess_giStats);
     emscripten::function("postprocess_setMsaaSamples", &esengine::postprocess_setMsaaSamples);
     emscripten::function("postprocess_effectiveMsaaSamples", &esengine::postprocess_effectiveMsaaSamples);
     emscripten::function("postprocess_maxMsaaSamples", &esengine::postprocess_maxMsaaSamples);

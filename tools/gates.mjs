@@ -312,6 +312,12 @@ export const GATES = [
   },
   { id: 'verifier-exit', run: 'node tools/check-verifier-exit.mjs', needs: 'editor' },
   { id: 'render-scenes', run: 'node tools/check-render-scenes.mjs' },
+  {
+    id: 'gi-cost',
+    run: 'node tools/gi/check-gi-cost.mjs',
+    where: 'local',
+    why: 'it exports the GI lab and runs it on the machine GPU for the work counters of the dynamic GI; it says so and passes where there is no WebGPU adapter, and CI has none',
+  },
   { id: 'release-metadata', run: 'node tools/check-release-metadata.mjs' },
   // A published desktop artifact has one name, declared, whitespace-free, and
   // still distinct once the asset store has normalised it.

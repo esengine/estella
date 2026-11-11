@@ -146,6 +146,16 @@ export function dynamicGISystem(app: App) {
         [Query(MeshRenderer, Transform), Query(Light, Transform), Query(PostProcessVolume), Query(Camera, Transform)],
         (meshes: Iterable<[Entity, MeshRendererData, TransformData]>, lights: Iterable<[Entity, LightData, TransformData]>,
          volumes: Iterable<[Entity, PostProcessVolumeData]>, cameras: Iterable<[Entity, CameraData, TransformData]>) => {
+            // The work counters of the last frame, for a cost gate (tools/gi/check-gi-cost.mjs) and for anyone profiling: where the work is is the engine's,
+            // what it costs is the device's.
+            (globalThis as { __estellaGIStats?: () => number[] | null }).__estellaGIStats ??= () => {
+                const core = marshallingCore(app.wasmModule ?? nativeEngineApi());
+                if (!core?.postprocess_giStats) return null;
+                return withScratch(core, (alloc) => {
+                    const ptr = alloc(64);
+                    return core.postprocess_giStats!(ptr, 16) === 16 ? Array.from(core.HEAPF32.subarray(ptr >> 2, (ptr >> 2) + 16)) : null;
+                });
+            };
             const effect = dynamicGIEffect(volumes);
             if (!effect) { lastKey = ''; follow = null; return; }
             // The web's module, or a device's host (which answers the same heap from its arena): the arrays cross the boundary through it.

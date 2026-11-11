@@ -568,6 +568,7 @@ export interface ESEngineModule {
     renderer_setProbeVolumeReflection?(entity: number, environmentHandle: number, slot: number): void;
     postprocess_pollSkyCapture?(): number;
     postprocess_takeSkyCapture?(dst: number, bytes: number): boolean;
+    postprocess_giStats?(dst: number, capacity: number): number;
     postprocess_setMsaaSamples(samples: number): void;
     postprocess_effectiveMsaaSamples?(): number;
     postprocess_maxMsaaSamples?(): number;

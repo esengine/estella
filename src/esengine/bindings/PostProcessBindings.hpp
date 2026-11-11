@@ -66,6 +66,8 @@ void postprocess_requestSkyCapture(const std::string& passName, u32 width, u32 h
 i32 postprocess_pollSkyCapture();
 /** Copies the ready capture (RGBA8, rows bottom-up) to @p dst; false when it does not fit @p bytes or is not ready. */
 bool postprocess_takeSkyCapture(uintptr_t dst, u32 bytes);
+/** The dynamic GI's last-frame work counters (DynamicGIStats), written as floats to @p dst; returns how many, 0 when @p capacity is short. */
+u32 postprocess_giStats(uintptr_t dst, u32 capacity);
 void postprocess_setUniformFloat(const std::string& passName,
                                   const std::string& uniform, f32 value);
 void postprocess_setPassTexture(const std::string& passName,

@@ -154,6 +154,17 @@ i32 postprocess_pollSkyCapture() {
     return g_postProcessPipeline ? g_postProcessPipeline->pollSkyCapture() : 2;
 }
 
+u32 postprocess_giStats(uintptr_t dst, u32 capacity) {
+    if (capacity < kDynamicGIStatFloats) return 0;
+    f32* out = boundarySpanMut<f32>(dst, kDynamicGIStatFloats, "postprocess_giStats.out");
+    if (!out) return 0;
+    const DynamicGIStats& s = dynamicGIStats();
+    const f32 v[kDynamicGIStatFloats] = {s.width, s.height, s.probeSpacing, s.probes, s.probeRays, s.cardPixels, s.cardPixelsRelit, s.cardRays,
+                                         s.applyPixels, s.applyLoadsPerPixel, s.forcedAttachmentBytes, s.residentBytes, s.levels, s.lights, s.instances, s.frame};
+    std::memcpy(out, v, sizeof(v));
+    return kDynamicGIStatFloats;
+}
+
 bool postprocess_takeSkyCapture(uintptr_t dst, u32 bytes) {
     if (!g_postProcessPipeline || dst == 0) return false;
     const std::vector<u8>& px = g_postProcessPipeline->skyCapturePixels();

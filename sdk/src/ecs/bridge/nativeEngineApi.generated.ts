@@ -114,6 +114,7 @@ export interface NativeEngineApi {
     postprocess_end?(): void;
     postprocess_endScreenCapture?(): void;
     postprocess_executeScreenPasses?(): void;
+    postprocess_giStats?(dst: number, capacity: number): number;
     postprocess_hdrFormat?(outPtr: number): number;
     postprocess_hdrFormatNames?(): string;
     postprocess_init?(width: number, height: number): boolean;
@@ -469,6 +470,7 @@ export function createNativeEngineApi(
     bind('postprocess_end', 'es_postprocess_end', false);
     bind('postprocess_endScreenCapture', 'es_postprocess_endScreenCapture', false);
     bind('postprocess_executeScreenPasses', 'es_postprocess_executeScreenPasses', false);
+    bind('postprocess_giStats', 'es_postprocess_giStats', false);
     bind('postprocess_hdrFormat', 'es_postprocess_hdrFormat', false);
     bind('postprocess_hdrFormatNames', 'es_postprocess_hdrFormatNames', false);
     bind('postprocess_init', 'es_postprocess_init', false);
