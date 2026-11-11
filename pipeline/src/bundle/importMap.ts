@@ -60,6 +60,9 @@ export function engineImportMap(entry: string, subpaths: Iterable<string>): Engi
     return finish(imports);
 }
 
+/** A page with nothing to resolve: the SDK is inside the bundles it loads, so no bare `esengine` reaches the browser. */
+export const NO_IMPORT_MAP: EngineImportMap = finish({});
+
 /** Every subsystem the engine has, for a realm that authors all of them. */
 export const FULL_IMPORT_MAP: EngineImportMap = finish({
     esengine: STAGED + FULL_ENTRY_FILE,

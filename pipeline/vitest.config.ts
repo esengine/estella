@@ -18,5 +18,8 @@ export default defineConfig({
     // The native AOT build needs a C compiler; a run without one must declare
     // it rather than skip. See globalSetup.ts.
     globalSetup: ['tests/globalSetup.ts'],
+    // The web export bundles the SDK it is given, and most of these tests hand it a stub tree that is not a bundle. They exercise the
+    // copied tree; the tree-shaken package is built from the real SDK in export-web-bundle.test.ts.
+    env: { ESTELLA_WEB_BUNDLE_ENGINE: '0' },
   },
 });

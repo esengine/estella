@@ -130,7 +130,7 @@ mkdirSync(WORK, { recursive: true });
 {
     const out = pack(project('sound'), 'sound');
     const cfg = JSON.parse(readFileSync(path.join(out, 'game.config.json'), 'utf8'));
-    check('a project with code declares it in the package', cfg.scripts === 'scripts.mjs',
+    check('a project with code declares it in the package', /^scripts\.m?js$/.test(cfg.scripts),
           `scripts ${JSON.stringify(cfg.scripts)}`);
     const run = boot(out);
     const said = errorLines(run.text);

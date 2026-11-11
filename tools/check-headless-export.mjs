@@ -29,7 +29,7 @@ const PROJECT = path.join(ROOT, 'examples', 'hello-world');
 const CLI = path.join(ROOT, 'pipeline', 'bin', 'estella.mjs');
 
 /** What a web package has to carry to be one at all. */
-const EXPECTED = ['index.html', 'game.js', 'game.config.json', 'scripts.mjs', 'sdk', 'wasm', 'assets'];
+const EXPECTED = ['index.html', 'game.js', 'game.config.json', 'scripts.js', 'chunks', 'wasm', 'assets'];
 
 const work = mkdtempSync(path.join(tmpdir(), 'estella-headless-'));
 const out = path.join(work, 'package');

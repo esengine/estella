@@ -39,7 +39,7 @@ import { packagedHotUpdate } from './hotUpdateConfig';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, withAudioLoadTypes, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
-import { engineImportMap, FULL_IMPORT_MAP, LEAN_ENTRY_FILE, FULL_ENTRY_FILE, type EngineImportMap } from '../bundle/importMap';
+import { engineImportMap, FULL_IMPORT_MAP, NO_IMPORT_MAP, LEAN_ENTRY_FILE, FULL_ENTRY_FILE, type EngineImportMap } from '../bundle/importMap';
 import { engineInstalls, forcedSideModules, moduleChoices, type EngineInstallPlan } from '../bundle/engineInstalls';
 import { exportMiniGame } from './exportMiniGame';
 import { wechatExportProfile, douyinExportProfile, kuaishouExportProfile, bilibiliExportProfile, quickgameExportProfile, alipayExportProfile, huaweiExportProfile } from './miniGameExportProfile';
@@ -59,7 +59,7 @@ import type { PlayableCheckReport } from './playableCheck';
 import { exportPlayable } from './exportPlayable';
 import { genericPlayableProfile, type PlayableAdProfile } from './playableAdProfile';
 import type { OnExportProgress } from './exportProgress';
-import { ESENGINE_EXTERNAL, ESENGINE_SUBPATHS } from '../bundle/esengineResolve';
+import { ESENGINE_EXTERNAL, ESENGINE_SUBPATHS, esengineAlias } from '../bundle/esengineResolve';
 import { officialPackagesPlugin } from '../bundle/officialPackages';
 import type { RpkSigningKey } from './rpk';
 import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
@@ -507,6 +507,11 @@ export interface ExportGameOptions {
   webConnect?: string[];
   /** Web: carry the plain-JavaScript engine for browsers without WebAssembly. Absent ⇒ false. */
   webEngineJs?: boolean;
+  /**
+   * Web: bundle the SDK, the host and the project scripts into one tree-shaken, code-split graph (one shared SDK) instead
+   * of copying the SDK's chunks beside the page for an import map to resolve. Absent ⇒ true; false keeps the copied tree.
+   */
+  bundleEngine?: boolean;
   leaderboardEncryptionKey?: string;
   sdkDistDir: string;
   /** The engine runtime to copy. */
@@ -1017,6 +1022,10 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     errors.push(`cook manifest: ${err instanceof Error ? err.message : String(err)}`);
   }
 
+  /** Web: the SDK is bundled with the host and the scripts, not copied beside them. */
+  const bundleEngine = platform === 'web' && opts.bundleEngine !== false
+    && process.env.ESTELLA_WEB_BUNDLE_ENGINE !== '0'
+    && existsSync(path.join(opts.sdkDistDir, FULL_ENTRY_FILE));
   /** What the host must import, or null when this build has no project code. */
   let scriptsFile: string | null = null;
   /** The `esengine/*` specifiers the bundles above left for the import map. */
@@ -1087,7 +1096,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
           plugins: [esengineGlobalPlugin(), officialPackagesPlugin(opts.packagesDir)],
           entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.js'),
         })
-        : await build({ ...common, entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.mjs') });
+        // Bundling the engine in rebuilds this below, once the plan is known; this pass is only evidence.
+        : await build({ ...common, entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.mjs'), write: !bundleEngine });
       errors.push(...explainBundleErrors(proj.errors));
       for (const spec of externalEngineImports(proj.metafile)) scriptImports.add(spec);
     }
@@ -1117,19 +1127,52 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       // a subpath only lets the page resolve it; a subsystem is installed by
       // something importing it, and on a lean entry nothing else does.
       const hostEntry = runtimeHostEntry(opts.hostsDir, 'gameHost');
-      const host = await build({
-        ...common,
-        define: { ...common.define, __ESTELLA_LAN_PREVIEW__: opts.developmentPreview ? 'true' : 'false' },
-        stdin: {
-          contents: plan.subpaths.map((m) => `import ${JSON.stringify(m)};\n`).join('')
-            + `import ${JSON.stringify(hostEntry)};\n`,
-          resolveDir: path.dirname(hostEntry),
-          loader: 'js',
-          sourcefile: 'game-entry.js',
-        },
-        outfile: path.join(payloadDir, 'game.js'),
-      });
-      errors.push(...explainBundleErrors(host.errors));
+      const hostContents = plan.subpaths.map((m) => `import ${JSON.stringify(m)};\n`).join('')
+        + `import ${JSON.stringify(hostEntry)};\n`;
+      const define = { ...common.define, __ESTELLA_LAN_PREVIEW__: opts.developmentPreview ? 'true' : 'false' };
+      if (bundleEngine) {
+        // One graph: the host and the scripts import the SDK from the same chunks, so there is one instance of it (what
+        // the import map gave the copied tree), and what neither of them reaches is not shipped.
+        const entryId = 'estella:game-entry';
+        const leanEntry = plan.lean && existsSync(path.join(opts.sdkDistDir, LEAN_ENTRY_FILE));
+        await rm(path.join(payloadDir, 'chunks'), { recursive: true, force: true });
+        await rm(path.join(payloadDir, 'scripts.mjs'), { force: true });
+        const bundled = await build({
+          ...common,
+          define,
+          external: [],
+          alias: esengineAlias(opts.sdkDistDir, leanEntry ? LEAN_ENTRY_FILE : FULL_ENTRY_FILE),
+          splitting: true,
+          outdir: payloadDir,
+          entryNames: '[name]',
+          chunkNames: 'chunks/[name]-[hash]',
+          entryPoints: [{ in: entryId, out: 'game' }, ...(scriptsFile && scriptsAbs ? [{ in: scriptsAbs, out: 'scripts' }] : [])],
+          plugins: [...(common.plugins ?? []), {
+            name: 'estella-game-entry',
+            setup(b) {
+              b.onResolve({ filter: /^estella:game-entry$/ }, () => ({ path: entryId, namespace: 'estella-entry' }));
+              b.onLoad({ filter: /.*/, namespace: 'estella-entry' }, () => ({
+                contents: hostContents, resolveDir: path.dirname(hostEntry), loader: 'js',
+              }));
+            },
+          }],
+        });
+        errors.push(...explainBundleErrors(bundled.errors));
+        if (scriptsFile) scriptsFile = 'scripts.js';
+      } else {
+        const host = await build({
+          ...common,
+          define,
+          stdin: {
+            contents: hostContents,
+            resolveDir: path.dirname(hostEntry),
+            loader: 'js',
+            sourcefile: 'game-entry.js',
+          },
+          outfile: path.join(payloadDir, 'game.js'),
+        });
+        errors.push(...explainBundleErrors(host.errors));
+      }
     }
 
   } catch (err) {
@@ -1217,7 +1260,11 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       : engineImportMap(FULL_ENTRY_FILE, Object.keys(ESENGINE_SUBPATHS));
 
     progress({ phase: 'Copying SDK + runtime' });
-    if (existsSync(opts.sdkDistDir)) {
+    if (bundleEngine) {
+      // The SDK is inside game.js and the chunks beside it; a tree left by an earlier export would only be dead weight.
+      engineMap = NO_IMPORT_MAP;
+      await rm(path.join(payloadDir, 'sdk'), { recursive: true, force: true });
+    } else if (existsSync(opts.sdkDistDir)) {
       const sdkOut = await resetRuntimeTree(payloadDir, 'sdk', [opts.sdkDistDir, opts.wasmDir]);
       await cp(opts.sdkDistDir, sdkOut, {
         recursive: true, filter: shipsToBrowser(sourceMaps, opts.sdkDistDir, engineMap.entries),
