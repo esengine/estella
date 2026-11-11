@@ -67,6 +67,14 @@ describe('the engine modules a package installs', () => {
         expect([...collectSubsystems({ components: [{ type: 'Weather', data: {} }] })]).toEqual(['fxAtmosphere']);
     });
 
+    it('carries AgX and its tables only for a volume that names agx, not for the other colour effects', async () => {
+        const { collectSubsystems } = await import('../src/project/targetSupport');
+        const volume = (types: string[]) => ({ entities: [{ components: [{ type: 'PostProcessVolume', data: { effects: types.map((type) => ({ type })) } }] }] });
+        expect([...collectSubsystems(volume(['bloom', 'vignette', 'colorGrade']))].sort()).toEqual(['fxBasic', 'postprocess']);
+        expect([...collectSubsystems(volume(['agx']))].sort()).toEqual(['fxAgx', 'postprocess']);
+        expect(engineInstalls({ subsystems: ['fxBasic', 'fxAgx'] }).subpaths).toEqual(['esengine/fx-agx', 'esengine/fx-basic']);
+    });
+
     it('takes timelines from a TimelinePlayer or from the .estimeline it plays', () => {
         expect(engineInstalls({ subsystems: ['timeline'] }).subpaths).toEqual(['esengine/timeline']);
         expect(engineInstalls({ assetPaths: ['assets/cutscenes/Intro.estimeline'] }).subpaths).toEqual(['esengine/timeline']);

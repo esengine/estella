@@ -2,13 +2,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
 import { deflateRawSync } from 'node:zlib';
-import { basicEffects } from '../src/postprocess/sources/basic';
+import { agxEffects } from '../src/postprocess/sources/agx';
 import { getEffectDef } from '../src/postprocess/effects';
 import { inflateRaw } from '../src/postprocess/inflate';
 import { AGX_BASE_SIZE, AGX_LOOK_SIZE, agxAtlasColumns } from '../src/postprocess/agxTables';
 
 describe('the AgX tables an effect brings itself', () => {
-    const base = basicEffects.agxLut();
+    const base = agxEffects.agxLut();
     const baseAt = (r: number, g: number, b: number): number[] => {
         const columns = agxAtlasColumns(AGX_BASE_SIZE);
         const x = (b % columns) * AGX_BASE_SIZE + r, y = Math.floor(b / columns) * AGX_BASE_SIZE + g, i = (y * base.width + x) * 4;
@@ -38,7 +38,7 @@ describe('the AgX tables an effect brings itself', () => {
     });
 
     it('carries the look table as two textures that put back its twelve bits', () => {
-        const high = basicEffects.agxLookHigh(), low = basicEffects.agxLookLow();
+        const high = agxEffects.agxLookHigh(), low = agxEffects.agxLookLow();
         const columns = agxAtlasColumns(AGX_LOOK_SIZE);
         expect([high.width, high.height, low.width, low.height]).toEqual([columns * AGX_LOOK_SIZE, Math.ceil(AGX_LOOK_SIZE / columns) * AGX_LOOK_SIZE, high.width, high.height]);
         // The corners of a luminance-compensation table: nothing in is nothing out, and a full-scale input stays near full.

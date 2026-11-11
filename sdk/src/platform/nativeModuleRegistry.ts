@@ -29,6 +29,7 @@ import * as TimelineModule from '../timeline/api';
 import * as FxBasicModule from '../postprocess/fxBasic';
 import * as FxAtmosphereModule from '../postprocess/fxAtmosphere';
 import * as FxLightingModule from '../postprocess/fxLighting';
+import * as FxAgxModule from '../postprocess/fxAgx';
 import * as FoliageModule from '../foliage';
 import * as WorldGenModule from '../worldgen';
 import * as WaterModule from '../water';
@@ -63,6 +64,7 @@ export const NATIVE_MODULE_NAMESPACES: Readonly<Record<string, unknown>> = {
     'esengine/fx-basic': FxBasicModule,
     'esengine/fx-atmosphere': FxAtmosphereModule,
     'esengine/fx-lighting': FxLightingModule,
+    'esengine/fx-agx': FxAgxModule,
     'esengine/foliage': FoliageModule,
     'esengine/worldgen': WorldGenModule,
     'esengine/water': WaterModule,

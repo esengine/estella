@@ -17,6 +17,7 @@ export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
   'esengine/fx-basic': 'fx-basic/index.js',
   'esengine/fx-atmosphere': 'fx-atmosphere/index.js',
   'esengine/fx-lighting': 'fx-lighting/index.js',
+  'esengine/fx-agx': 'fx-agx/index.js',
   'esengine/foliage': 'foliage/index.js',
   'esengine/worldgen': 'worldgen/index.js',
   'esengine/water': 'water/index.js',

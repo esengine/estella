@@ -23,6 +23,7 @@ import { registerTilemapSupport } from '../tilemap/tilemapSupport';
 import { registerBasicEffectSources } from '../postprocess/sources/basic';
 import { registerAtmosphereEffectSources } from '../postprocess/sources/atmosphere';
 import { registerLightingEffectSources } from '../postprocess/sources/lighting';
+import { registerAgxEffectSources } from '../postprocess/sources/agx';
 import { registerSkeletalAnimationSupport } from '../animation/skeletalAnimationSupport';
 import { registerTimelineSupport } from '../timeline/timelineSupport';
 import { registerTerrainSupport } from '../terrain/terrainSupport';
@@ -51,6 +52,7 @@ export function installOptionalPlugins(): void {
     registerBasicEffectSources();
     registerAtmosphereEffectSources();
     registerLightingEffectSources();
+    registerAgxEffectSources();
     registerTerrainSupport();
     registerFoliageSupport();
     registerWorldGenSupport();

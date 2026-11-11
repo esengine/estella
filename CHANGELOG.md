@@ -28,6 +28,7 @@ published separately; it ships inside the editor.
 - **The 3D Starter looks finished out of the box.** Its sun casts mesh shadows (they were off, so every object floated), its camera carries a `PostProcessVolume` with a sky that lights the scene, height fog, GTAO, auto exposure, bloom, grade, vignette and FXAA, and its ground reaches the horizon. The editor's MCP teaches the same: `audit_look` says what a flat 3D scene lacks (shadow maps off, no sky light, fog, exposure or grade, gamma colour) with the fix for each, and `apply_look` adds it in one undo step, in a day, overcast or dusk mood.
 
 ## [0.102.0] - 2026-11-11
+- **AgX is its own effect group, `esengine/fx-agx`.** It brings Blender's tables (about 80 KB of source), so it no longer rides in `esengine/fx-basic`: a package whose volumes name `bloom`, `vignette` or `colorGrade` and not `agx` is about 92 KB smaller (measured on a WeChat export of the 3D Starter with a bloom volume against one with an agx volume), and the export still takes the group by itself for a volume that names `agx`. An AgX effect added from a script needs `import 'esengine/fx-agx'` (or the module set to Include in Project Settings), like the other groups; the editor and any entry that is not lean carry it as before.
 
 ### Added
 

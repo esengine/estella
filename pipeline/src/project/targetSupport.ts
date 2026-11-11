@@ -27,7 +27,7 @@ import { NATIVE_PLATFORMS, type ExportPlatform } from './platforms';
 
 /** An engine subsystem a build target may lack. */
 export type Subsystem =
-    | 'text' | 'tilemap' | 'terrain' | 'foliage' | 'worldgen' | 'water' | 'spline' | 'voxel' | 'rig2d' | 'importedScene' | 'skeletalAnimation' | 'characterShaders' | 'timeline' | 'fxBasic' | 'fxAtmosphere' | 'fxLighting' | 'particles' | 'postprocess' | 'physics' | 'physics3d'
+    | 'text' | 'tilemap' | 'terrain' | 'foliage' | 'worldgen' | 'water' | 'spline' | 'voxel' | 'rig2d' | 'importedScene' | 'skeletalAnimation' | 'characterShaders' | 'timeline' | 'fxBasic' | 'fxAtmosphere' | 'fxLighting' | 'fxAgx' | 'particles' | 'postprocess' | 'physics' | 'physics3d'
     | 'spine' | 'dragonbones' | 'video' | 'ai' | 'logic' | 'replication' | 'gameplay';
 
 /**
@@ -45,6 +45,7 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
     fxBasic: [],
     fxAtmosphere: ['Weather', 'TimeOfDay'],
     fxLighting: [],
+    fxAgx: [],
     foliage: ['Foliage', 'PlacedFoliage', 'FoliageContact', 'PlantProxy'],
     worldgen: ['WorldGen', 'WorldZone'],
     water: ['WaterBody', 'WaterZone', 'Floating'],
@@ -88,7 +89,7 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
 export const POST_PROCESS_EFFECT_GROUP: Readonly<Record<string, Subsystem>> = {
     blur: 'fxBasic', bloom: 'fxBasic', vignette: 'fxBasic', grayscale: 'fxBasic', colorGrade: 'fxBasic',
     chromaticAberration: 'fxBasic', tonemap: 'fxBasic', fxaa: 'fxBasic', lensDistortion: 'fxBasic', pixelate: 'fxBasic',
-    outline: 'fxBasic', depthOutline: 'fxBasic', edgeOutline: 'fxBasic', lutGrade: 'fxBasic', palette: 'fxBasic', agx: 'fxBasic', sharpen: 'fxBasic', filmGrain: 'fxBasic',
+    outline: 'fxBasic', depthOutline: 'fxBasic', edgeOutline: 'fxBasic', lutGrade: 'fxBasic', palette: 'fxBasic', agx: 'fxAgx', sharpen: 'fxBasic', filmGrain: 'fxBasic',
     motionBlur: 'fxBasic', lensFlare: 'fxBasic',
     mist2d: 'fxAtmosphere', rain2d: 'fxAtmosphere', fog2d: 'fxAtmosphere', distanceFog: 'fxAtmosphere', skyAtmosphere: 'fxAtmosphere', heightFog: 'fxAtmosphere', rain: 'fxAtmosphere',
     voxelGI: 'fxLighting', ssgi: 'fxLighting', contactShadows: 'fxLighting', lightShafts: 'fxLighting',
@@ -115,6 +116,7 @@ export const SUBSYSTEM_LABEL: Readonly<Record<Subsystem, string>> = {
     fxBasic: 'Post-process effects (colour, lens, edges)',
     fxAtmosphere: 'Post-process effects (sky, fog, rain)',
     fxLighting: 'Post-process effects (occlusion, reflections, exposure)',
+    fxAgx: 'Post-process effect (AgX view transform and its tables)',
     foliage: 'Foliage',
     worldgen: 'Generated worlds (biomes, zones, placement)',
     water: 'Water',
@@ -153,6 +155,7 @@ export const SUBSYSTEM_INSTALL: Readonly<Record<Subsystem, string>> = {
     fxBasic: 'esengine/fx-basic',
     fxAtmosphere: 'esengine/fx-atmosphere',
     fxLighting: 'esengine/fx-lighting',
+    fxAgx: 'esengine/fx-agx',
     foliage: 'esengine/foliage',
     worldgen: 'esengine/worldgen',
     water: 'esengine/water',

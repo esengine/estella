@@ -577,19 +577,20 @@ stack.addPass('lutGrade', getEffectDef('lutGrade')!.factory())
 
 ## In a package
 
-An effect's definition (its name and parameters) is in every package; its shaders are most of the bytes, so they come in three groups that a
+An effect's definition (its name and parameters) is in every package; its shaders are most of the bytes, so they come in four groups that a
 package carries only when its content uses one:
 
 | Group | Subpath | Effects |
 |---|---|---|
-| Basic | `esengine/fx-basic` | blur, bloom, vignette, grayscale, colorGrade, lutGrade, agx, chromaticAberration, tonemap, fxaa, sharpen, lensDistortion, pixelate, palette, outline, depthOutline, edgeOutline, filmGrain, motionBlur, lensFlare |
+| Basic | `esengine/fx-basic` | blur, bloom, vignette, grayscale, colorGrade, lutGrade, chromaticAberration, tonemap, fxaa, sharpen, lensDistortion, pixelate, palette, outline, depthOutline, edgeOutline, filmGrain, motionBlur, lensFlare |
 | Atmosphere | `esengine/fx-atmosphere` | mist2d, rain2d, fog2d, skyAtmosphere, heightFog, distanceFog, rain |
 | Lighting | `esengine/fx-lighting` | ssao, gtao, ssr, ssgi, voxelGI, contactShadows, lightShafts, autoExposure, depthOfField, subsurface, taa |
+| AgX | `esengine/fx-agx` | agx (it carries Blender's AgX tables, about 80 KB, so a package that uses bloom or a vignette and not AgX does not pay for them) |
 
 The export reads the effects a `PostProcessVolume` names (and a `Weather` or `TimeOfDay` component, which drive the atmosphere group) and imports
 the groups they need. An effect you add **from a script** — `getEffectDef('bloom')!.factory()` — leaves no trace in the content, so import its group
 (`import 'esengine/fx-basic'`) or set the module to **Include** in Project Settings; otherwise the effect says which group it needs when it is
-first used. The editor, and any entry that is not lean, carries all three.
+first used. The editor, and any entry that is not lean, carries all four.
 
 ## Best practices
 

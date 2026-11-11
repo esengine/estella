@@ -55,7 +55,7 @@ export function effectSourcesOf<T extends object>(): T {
                 const fn = factories.get(key);
                 if (!fn) {
                     throw new Error(`The post-process effect needs "${key}", which this package does not carry. `
-                        + 'Import the effect group that has it (esengine/fx-basic, esengine/fx-atmosphere or esengine/fx-lighting), '
+                        + 'Import the effect group that has it (esengine/fx-basic, esengine/fx-atmosphere, esengine/fx-lighting or esengine/fx-agx), '
                         + 'or set the module to Include in Project Settings.');
                 }
                 return (fn as (...a: unknown[]) => unknown)(...args);

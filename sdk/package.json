@@ -22,6 +22,7 @@
     "./dist/fx-basic/index.js",
     "./dist/fx-atmosphere/index.js",
     "./dist/fx-lighting/index.js",
+    "./dist/fx-agx/index.js",
     "./dist/foliage/index.js",
     "./dist/worldgen/index.js",
     "./dist/water/index.js",
@@ -98,6 +99,10 @@
     "./fx-lighting": {
       "import": "./dist/fx-lighting/index.js",
       "types": "./dist/fx-lighting/index.d.ts"
+    },
+    "./fx-agx": {
+      "import": "./dist/fx-agx/index.js",
+      "types": "./dist/fx-agx/index.d.ts"
     },
     "./timeline": {
       "import": "./dist/timeline/index.js",

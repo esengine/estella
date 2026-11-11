@@ -452,17 +452,18 @@ stack.addPass('lutGrade', getEffectDef('lutGrade')!.factory())
 
 ## 在包里
 
-效果的定义(名字和参数)每个包都带;它的着色器才是大头,所以分成三组,包里只带内容用到的那几组:
+效果的定义(名字和参数)每个包都带;它的着色器才是大头,所以分成四组,包里只带内容用到的那几组:
 
 | 组 | 子路径 | 效果 |
 |---|---|---|
-| 基础 | `esengine/fx-basic` | blur、bloom、vignette、grayscale、colorGrade、lutGrade、agx、chromaticAberration、tonemap、fxaa、sharpen、lensDistortion、pixelate、palette、outline、depthOutline、edgeOutline、filmGrain、motionBlur、lensFlare |
+| 基础 | `esengine/fx-basic` | blur、bloom、vignette、grayscale、colorGrade、lutGrade、chromaticAberration、tonemap、fxaa、sharpen、lensDistortion、pixelate、palette、outline、depthOutline、edgeOutline、filmGrain、motionBlur、lensFlare |
 | 大气 | `esengine/fx-atmosphere` | mist2d、rain2d、fog2d、skyAtmosphere、heightFog、distanceFog、rain |
 | 光照 | `esengine/fx-lighting` | ssao、gtao、ssr、ssgi、voxelGI、contactShadows、lightShafts、autoExposure、depthOfField、subsurface、taa |
+| AgX | `esengine/fx-agx` | agx(带 Blender 的 AgX 表,约 80 KB,所以只用泛光、暗角而不用 AgX 的包不必为它们付出体积) |
 
 导出会读 `PostProcessVolume` 里写了哪些效果(以及驱动大气组的 `Weather`、`TimeOfDay` 组件),并导入它们需要的组。**从脚本里**加的效果——
 `getEffectDef('bloom')!.factory()`——在内容里没有痕迹,所以要自己导入对应的组(`import 'esengine/fx-basic'`),或在项目设置里把该模块设为**包含**;否则这个效果第一次
-被用到时会告诉你它需要哪一组。编辑器和任何非精简入口三组都带。
+被用到时会告诉你它需要哪一组。编辑器和任何非精简入口四组都带。
 
 ## 最佳实践
 

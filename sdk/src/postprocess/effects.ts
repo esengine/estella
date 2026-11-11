@@ -8,6 +8,7 @@ import { effectSourcesOf, computeSourceOf } from './effectSources';
 import type { basicEffects } from './sources/basic';
 import type { atmosphereEffects } from './sources/atmosphere';
 import type { lightingEffects } from './sources/lighting';
+import type { agxEffects } from './sources/agx';
 import type { lensEffects as LensEffects } from './lensEffects';
 import type { gtaoPasses as GtaoPasses } from './gtao';
 import type { subsurfacePasses as SubsurfacePasses } from './subsurface';
@@ -16,7 +17,7 @@ import { VOXEL_ATLAS } from './voxelAtlas';
 
 // The effect shaders are installed by group (see effectSources.ts). These read like the objects they stand for.
 /** The factories of the built-in effects' shaders. Calling one needs the group that carries it installed. */
-export const postProcessEffects = effectSourcesOf<typeof basicEffects & typeof atmosphereEffects & typeof lightingEffects>();
+export const postProcessEffects = effectSourcesOf<typeof basicEffects & typeof atmosphereEffects & typeof lightingEffects & typeof agxEffects>();
 const lensEffects = effectSourcesOf<typeof LensEffects>();
 const gtaoPasses = effectSourcesOf<typeof GtaoPasses>();
 const subsurfacePasses = effectSourcesOf<typeof SubsurfacePasses>();
