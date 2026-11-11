@@ -56,7 +56,9 @@
                 "uniforms": {
                   "u_fogNear": 140,
                   "u_fogFar": 480,
-                  "u_intensity": 0.55,
+                  "u_intensity": 0.55
+                },
+                "colors": {
                   "u_fogColor": {
                     "r": 0.62,
                     "g": 0.42,

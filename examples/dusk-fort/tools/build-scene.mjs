@@ -76,7 +76,7 @@ const camera = add({ name: 'Camera', parent: null, components: [
     isGlobal: true, priority: 0, weight: 1,
     effects: [
       { type: 'ssao', enabled: true, uniforms: { u_radius: 90, u_intensity: 1.1, u_bias: 0.12, u_power: 1.5 } },
-      { type: 'distanceFog', enabled: true, uniforms: { u_fogNear: 140, u_fogFar: 480, u_intensity: 0.55, u_fogColor: { r: 0.62, g: 0.42, b: 0.40, a: 1 } } },
+      { type: 'distanceFog', enabled: true, uniforms: { u_fogNear: 140, u_fogFar: 480, u_intensity: 0.55 }, colors: { u_fogColor: { r: 0.62, g: 0.42, b: 0.40, a: 1 } } },
       { type: 'bloom', enabled: true, uniforms: { u_threshold: 0.85, u_intensity: 0.9, u_radius: 1.4 } },
       { type: 'colorGrade', enabled: true, uniforms: { u_exposure: 0.1, u_contrast: 1.08, u_saturation: 1.1, u_temperature: 0.08, u_tint: 0 } },
       { type: 'tonemap', enabled: true, uniforms: { u_exposure: 0.2 } },
