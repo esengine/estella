@@ -10,8 +10,9 @@ import { POST_SCENES } from './post.mjs';
 import { SKY_SCENES } from './sky.mjs';
 import { LENS_SCENES } from './lens.mjs';
 import { VOLUMETRIC_SCENES } from './volumetric.mjs';
+import { EXPOSURE_SCENES } from './exposure.mjs';
 
-export const ORACLE = [...LIGHT_SCENES, ...SHADOW_SCENES, ...POST_SCENES, ...SKY_SCENES, ...LENS_SCENES, ...VOLUMETRIC_SCENES];
+export const ORACLE = [...LIGHT_SCENES, ...SHADOW_SCENES, ...POST_SCENES, ...SKY_SCENES, ...LENS_SCENES, ...VOLUMETRIC_SCENES, ...EXPOSURE_SCENES];
 
 /** The renderScenes.mjs entry for one oracle scene. */
 export const oracleEntry = (o) => ({
