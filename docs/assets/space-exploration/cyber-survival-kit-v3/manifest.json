@@ -1,0 +1,65 @@
+{
+  "version": 3,
+  "title": "Cyberpunk space survival modular kit",
+  "status": "concept-reference",
+  "grid": {
+    "snap_meters": 2,
+    "hull_2x2_footprint_meters": [
+      4,
+      4
+    ],
+    "hull_2x4_footprint_meters": [
+      4,
+      8
+    ],
+    "dimensions_status": "proposed-not-geometry-verified"
+  },
+  "module_categories": [
+    "cockpit",
+    "hull_2x2",
+    "hull_2x4",
+    "corridor",
+    "cargo_bay",
+    "engine_large",
+    "engine_small",
+    "thruster",
+    "turret",
+    "reactor",
+    "solar_panel",
+    "docking_port"
+  ],
+  "images": [
+    {
+      "file": "01-module-atlas.png",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 2077205,
+      "sha256": "16bdb7d1d421a86435f4c69ac0f997013a217df92399d3f86a6ae3c775f09b81"
+    },
+    {
+      "file": "02-assembly-comparison.png",
+      "width": 1774,
+      "height": 887,
+      "bytes": 2055677,
+      "sha256": "d67d364dcf5bb38081df1eef0f4e40adf464ed8ae05e5cacda079d9305f63e7a"
+    },
+    {
+      "file": "03-gameplay-atmosphere.png",
+      "width": 1672,
+      "height": 941,
+      "bytes": 1845160,
+      "sha256": "7145b5977f5d8a95275719fcff223f87df62cde4264dea1679c6554669676e5e"
+    }
+  ],
+  "verification": {
+    "image_decode": "passed",
+    "visual_review": "passed-concept-scope",
+    "native_resolution_preserved": true,
+    "native_8k": false,
+    "strict_orthographic_projection": false,
+    "module_count_verified": false,
+    "three_d_interface_fit_verified": false,
+    "interior_clearance_verified": false,
+    "mobile_engine_acceptance": false
+  }
+}
