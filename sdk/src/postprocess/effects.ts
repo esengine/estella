@@ -584,6 +584,8 @@ registerEffect({
         // 0 fits one field to the whole scene. A size (world units) makes three levels, each four times the last, that follow the camera: the
         // finest holds what is near the eye at this resolution and the others carry the far scene, so a world larger than one window works.
         // Measuring: skip the cards (1), the probes (2), the apply (4), declare nothing (8), or stop before the apply (16), to read what the rest costs.
+        // Pixels between probes; 0 keeps about 160 x 90 of them whatever the size of the picture.
+        { name: 'u_probeSpacing', label: 'Probe Spacing', min: 0, max: 64, step: 1, defaultValue: 0 },
         { name: 'u_skip', label: 'Skip Passes (profiling)', min: 0, max: 63, step: 1, defaultValue: 0 },
         { name: 'u_cellSize', label: 'Field Cell Size', min: 0, max: 1000, step: 0.1, defaultValue: 0, worldUnits: 1 },
     ],

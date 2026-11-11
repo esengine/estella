@@ -43,6 +43,8 @@ struct DynamicGIParams {
     u32 probeStride = 2;
     /// For measuring: skip the cards (1), the probes (2) or the apply (4), to read what the rest of the frame costs.
     u32 skip = 0;
+    /// Pixels between probes: 0 picks about 160 x 90 probes whatever the picture size.
+    u32 probeSpacing = 0;
 };
 
 /**

@@ -465,11 +465,11 @@ const char* kApply = R"WGSL(
 @group(0) @binding(12) var probeGeo : texture_2d<f32>;
 
 // What one probe says about the pixel at pos facing n: its light by the normal, and how much it should count (plane, then normal).
-fn probeTerm(tile : vec2i, q : vec2f, pos : vec3f, n : vec3f, eye : f32, e : ptr<function, vec3f>, w : ptr<function, vec2f>) -> bool {
+fn probeTerm(tile : vec2i, q : vec2f, radius : f32, pos : vec3f, n : vec3f, eye : f32, e : ptr<function, vec3f>, w : ptr<function, vec2f>) -> bool {
     let geo1 = textureLoad(probeGeo, vec2i(tile.x * 2 + 1, tile.y), 0);
     if (geo1.w < 0.5) { return false; }
     let d = abs(vec2f(tile) - q);
-    let tent = max(1.0 - d.x / 1.6, 0.0) * max(1.0 - d.y / 1.6, 0.0);
+    let tent = max(1.0 - d.x / radius, 0.0) * max(1.0 - d.y / radius, 0.0);
     if (tent <= 0.0) { return false; }
     let geo0 = textureLoad(probeGeo, vec2i(tile.x * 2, tile.y), 0);
     let plane = abs(dot(n, geo0.xyz - pos)) / (0.02 * eye);
@@ -509,18 +509,36 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
     var total = 0.0;
     var Erelaxed = vec3f(0.0);
     var totalRelaxed = 0.0;
-    for (var k = 0; k < 16; k = k + 1) {
-        let near = (k & 3) >= 1 && (k & 3) <= 2 && (k >> 2) >= 1 && (k >> 2) <= 2;
-        if (!near && total > 0.15) { continue; }
-        let tile = q0 + vec2i(k & 3, k >> 2) - vec2i(1);
+    // The four nearest with a bilinear weight, which is nothing at a tile's far edge: that the weights go to zero exactly where the set of
+    // probes changes is what keeps the picture from showing the probe grid as squares. Only where those four are on another plane or face
+    // another way (the corner of two walls) are the sixteen round them asked, with a wider tent.
+    for (var k = 0; k < 4; k = k + 1) {
+        let tile = q0 + vec2i(k & 1, k >> 1);
         if (any(tile < vec2i(0)) || any(tile >= tiles)) { continue; }
         var e = vec3f(0.0);
         var w = vec2f(0.0);
-        if (!probeTerm(tile, q, pos, n, eye, &e, &w)) { continue; }
+        if (!probeTerm(tile, q, 1.0, pos, n, eye, &e, &w)) { continue; }
         E = E + e * w.x;
         total = total + w.x;
         Erelaxed = Erelaxed + e * w.y;
         totalRelaxed = totalRelaxed + w.y;
+    }
+    if (total <= 0.15) {
+        E = vec3f(0.0);
+        total = 0.0;
+        Erelaxed = vec3f(0.0);
+        totalRelaxed = 0.0;
+        for (var k = 0; k < 16; k = k + 1) {
+            let tile = q0 + vec2i(k & 3, k >> 2) - vec2i(1);
+            if (any(tile < vec2i(0)) || any(tile >= tiles)) { continue; }
+            var e = vec3f(0.0);
+            var w = vec2f(0.0);
+            if (!probeTerm(tile, q, 1.6, pos, n, eye, &e, &w)) { continue; }
+            E = E + e * w.x;
+            total = total + w.x;
+            Erelaxed = Erelaxed + e * w.y;
+            totalRelaxed = totalRelaxed + w.y;
+        }
     }
     if (total > 0.05) { E = E / total; } else if (totalRelaxed > 1e-5) { E = Erelaxed / totalRelaxed; } else { E = vec3f(0.0); }
     textureStore(outTex, p, vec4f(scene.rgb + albedo.rgb * E * gi.sdf.w, scene.a));
@@ -673,7 +691,15 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
     if (!upload()) return input;
     if (params.skip & 8u) return input;  // measuring: nothing declared at all
     // About 160 x 90 probes whatever the size of the picture: 8 pixels apart at 720p, 12 at 1080p, 16 at 1440p. Their cost is in their number.
-    probeSpacing_ = std::clamp(((height + 89) / 90 + 1) / 2 * 2, 8u, 32u);
+    // On a phone half as many rows: the pass costs per probe (a workgroup of 64 rays and its reduction) and a phone has the most pixels
+    // and the least to spend, 11 ms of a 23 on a Snapdragon 8 Elite at 160 x 90 probes against 3 at half of that along each axis.
+#if defined(__ANDROID__)
+    constexpr u32 kProbeRows = 45;
+#else
+    constexpr u32 kProbeRows = 90;
+#endif
+    probeSpacing_ = params.probeSpacing > 0 ? std::clamp(params.probeSpacing, 4u, 64u)
+                                            : std::clamp(((height + kProbeRows - 1) / kProbeRows + 1) / 2 * 2, 8u, 32u);
     const u32 tilesX = (width + probeSpacing_ - 1) / probeSpacing_, tilesY = (height + probeSpacing_ - 1) / probeSpacing_;
     if (!ensureProbes(tilesX, tilesY)) return input;
 
