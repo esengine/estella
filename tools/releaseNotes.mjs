@@ -4404,4 +4404,6 @@ export const NOTED = {
     {"note": "A material that loaded with part of it missing no longer fails in silence."},
   "feat(editor): an asset that loaded with part of it missing is a diagnostic and a project warning, not a log line":
     {"note": "A material that loaded with part of it missing no longer fails in silence."},
+  "feat(editor): a material written with something that will not take effect says so in the reply, and its field in Details is marked":
+    {"note": "A material that loaded with part of it missing no longer fails in silence."},
 };
