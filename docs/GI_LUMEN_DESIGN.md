@@ -111,7 +111,7 @@
 
 | 期 | 内容 | 验收 |
 |---|---|---|
-| P0 | 网格 SDF 烘焙(pipeline,**烘焙器 `pipeline/src/assets/meshSdf.ts` 已落地并有闭式测试**;`.esmeshsdf` 资源类型和运行时加载器同批接入,避免先注册一个无人读取的资源类型)+ 全局距离场 clipmap + `sphereTrace`/`occlusion` 公共 WGSL | 新 oracle 场景:球、盒、薄墙的距离值和闭式解比对(`tools/oracle`);薄墙 10 cm 在 0.1 m 格下 `occlusion` 为真 |
+| P0 | 网格 SDF 烘焙(pipeline)+ `.esmeshsdf` 资源类型与加载器 + 全局距离场。**已落地(2026-11-11)**:烘焙器 `pipeline/src/assets/meshSdf.ts`;导入设置 `distanceField`(默认关);`MeshSdfAssetLoader`;CPU 合成的 clipmap `sdk/src/gi/globalSdf.ts`(环形寻址、按脏区重建、`sphereTrace`/`occluded`);WGSL 追踪 `GLOBAL_SDF_WGSL`,由 `tools/gi/check-sdf-wgsl.mjs` 在无头 WebGPU 上与球的闭式解比对。**未做**:clipmap 接到渲染帧的网格实例、上传 GPU 存储缓冲、编辑器里的导入开关+ 全局距离场 clipmap + `sphereTrace`/`occlusion` 公共 WGSL | 新 oracle 场景:球、盒、薄墙的距离值和闭式解比对(`tools/oracle`);薄墙 10 cm 在 0.1 m 格下 `occlusion` 为真 |
 | P1 | 表面缓存:card 烘焙、图集分配、直接光 + 自发光刷新 | 卡面亮度与 `shade()` 参考一致;自发光面板出现在命中点取光里 |
 | P2 | 屏幕探针 + SDF 追踪 + 时间/空间滤波,单次反弹 | `gi_leak` 为 0;`gi_room` 阴影区 0.6–1.1 |
 | P3 | 表面缓存吃上一帧间接光(多次反弹)+ 世界辐射缓存 | `gi_room` 0.8–1.1;`gi_away` ≥ 0.8;`gi_emissive` ≥ 0.8 |
