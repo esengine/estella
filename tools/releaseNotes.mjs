@@ -4386,4 +4386,8 @@ export const NOTED = {
     {"note": "Perceivers hear."},
   "feat(material): wet ground: a map says where it is damp and where water stands":
     {"note": "Wet ground: a map says where it is damp and where water stands."},
+  "feat(planar): a reflection softens with roughness and keeps a hot spot's hue":
+    {"note": "A planar reflection softens with roughness and keeps a hot spot's hue."},
+  "fix(editor): a reload from disk gives way to an edit made while the file is read":
+    {"note": "A prefab reverted just after the editor noticed its scene file change is no longer lost."},
 };
