@@ -7,8 +7,9 @@ import { SIZE } from './scene.mjs';
 import { LIGHT_SCENES } from './lights.mjs';
 import { SHADOW_SCENES } from './shadows.mjs';
 import { POST_SCENES } from './post.mjs';
+import { SKY_SCENES } from './sky.mjs';
 
-export const ORACLE = [...LIGHT_SCENES, ...SHADOW_SCENES, ...POST_SCENES];
+export const ORACLE = [...LIGHT_SCENES, ...SHADOW_SCENES, ...POST_SCENES, ...SKY_SCENES];
 
 /** The renderScenes.mjs entry for one oracle scene. */
 export const oracleEntry = (o) => ({
@@ -18,6 +19,8 @@ export const oracleEntry = (o) => ({
     ESTELLA_VERIFY_W: String(SIZE), ESTELLA_VERIFY_H: String(SIZE), ESTELLA_VERIFY_STEPS: '3',
     ...(o.colorSpace === 'linear' ? { ESTELLA_VERIFY_COLORSPACE: 'linear' } : {}),
     ...(o.outputTransform ? { ESTELLA_VERIFY_OUTPUT_TRANSFORM: o.outputTransform } : {}),
-    ESTELLA_VERIFY_EXPECT: JSON.stringify(o.expect),
+    ...(o.expect ? { ESTELLA_VERIFY_EXPECT: JSON.stringify(o.expect) } : {}),
+    ...(o.play ? { ESTELLA_VERIFY_PLAY: '1' } : {}),
+    ...(o.twins ? { ESTELLA_VERIFY_TWINS: JSON.stringify(o.twins) } : {}),
   },
 });

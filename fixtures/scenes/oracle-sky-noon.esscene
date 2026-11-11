@@ -1,0 +1,85 @@
+{
+ "version": 4,
+ "name": "oracle-sky-noon",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "w": -0.16561121050749114,
+       "x": -0.05221701409779434,
+       "y": 0.939227847276016,
+       "z": -0.29613740272754274
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "orthoSize": 100,
+      "nearPlane": 1,
+      "farPlane": 2000,
+      "isActive": true,
+      "priority": 0,
+      "fov": 70
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Look",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "PostProcessVolume",
+     "data": {
+      "isGlobal": true,
+      "priority": 0,
+      "weight": 1,
+      "effects": [
+       {
+        "type": "skyAtmosphere",
+        "enabled": true,
+        "uniforms": {
+         "u_clouds": 0,
+         "u_sunElevation": 65,
+         "u_sunAzimuth": 40,
+         "u_haze": 1,
+         "u_intensity": 0.5,
+         "u_altitude": 0.1,
+         "u_sunBrightness": 40
+        }
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -389,6 +389,10 @@ const float BETA_M = 0.021;
 const float H_R = 8.0;
 const float H_M = 1.2;
 const float SUN_I = 22.0;
+/// Where a view ray starts: the near plane of a perspective eye. An orthographic eye's depth range runs from far BEHIND the camera to far ahead of it
+/// (the projection is built with near = -far), so depth 0 is that far-behind plane, kilometres above a camera that stands on the ground: the plane
+/// the camera stands in is mid-depth. The cloud layer is placed by this height, so a start behind the camera moves the clouds and their shadows.
+vec3 rayStart(vec2 uv) { return worldFromDepth(uv, u_camera.w > 0.5 ? 0.0 : 0.5); }
 
 float hash13(vec3 p) {
     p = fract(p * 0.1031);
@@ -551,7 +555,7 @@ void main() {
     bool geometry = covered ? (depth < 1.0 && src.a > 0.999) : depth < 1.0;
     if (geometry && u_cloudShadow <= 0.001) { fragColor = src; return; }
 
-    vec3 entry = worldFromDepth(v_texCoord, 0.0);
+    vec3 entry = rayStart(v_texCoord);
     vec3 dir = normalize(worldFromDepth(v_texCoord, 1.0) - entry);
 
     vec4 lightDir, lightColor;
@@ -661,6 +665,8 @@ const BETA_M : f32 = 0.021;
 const H_R : f32 = 8.0;
 const H_M : f32 = 1.2;
 const SUN_I : f32 = 22.0;
+/// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
+fn rayStart(uv : vec2f) -> vec3f { return worldFromDepth(uv, select(0.5, 0.0, frame.camera.w > 0.5)); }
 
 fn hash13(p0 : vec3f) -> f32 {
     var p = fract(p0 * 0.1031);
@@ -830,7 +836,7 @@ fn upsampledShadow(uv : vec2f, P : vec3f, entry : vec3f) -> ShadowRead {
     let geometry = (covered && depth < 1.0 && src.a > 0.999) || (!covered && depth < 1.0);
     if (geometry && mc.u_cloudShadow <= 0.001) { return src; }
 
-    let entry = worldFromDepth(v.v_texCoord, 0.0);
+    let entry = rayStart(v.v_texCoord);
     var dir = normalize(worldFromDepth(v.v_texCoord, 1.0) - entry);
 
     let found = findSun();
@@ -998,6 +1004,10 @@ const float BETA_M = 0.021;
 const float H_R = 8.0;
 const float H_M = 1.2;
 const float SUN_I = 22.0;
+/// Where a view ray starts: the near plane of a perspective eye. An orthographic eye's depth range runs from far BEHIND the camera to far ahead of it
+/// (the projection is built with near = -far), so depth 0 is that far-behind plane, kilometres above a camera that stands on the ground: the plane
+/// the camera stands in is mid-depth. The cloud layer is placed by this height, so a start behind the camera moves the clouds and their shadows.
+vec3 rayStart(vec2 uv) { return worldFromDepth(uv, u_camera.w > 0.5 ? 0.0 : 0.5); }
 
 float hash13(vec3 p) {
     p = fract(p * 0.1031);
@@ -1099,7 +1109,7 @@ void main() {
     // the alpha; a surface texel holds the cloud shadow it lies in, its light in the red and minus that in the alpha.
     if (geometry && u_cloudShadow <= 0.001) { fragColor = vec4(1.0, 0.0, 0.0, -1.0); return; }
 
-    vec3 entry = worldFromDepth(v_texCoord, 0.0);
+    vec3 entry = rayStart(v_texCoord);
     vec3 dir = normalize(worldFromDepth(v_texCoord, 1.0) - entry);
 
     vec4 lightDir, lightColor;
@@ -1156,6 +1166,8 @@ const BETA_M : f32 = 0.021;
 const H_R : f32 = 8.0;
 const H_M : f32 = 1.2;
 const SUN_I : f32 = 22.0;
+/// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
+fn rayStart(uv : vec2f) -> vec3f { return worldFromDepth(uv, select(0.5, 0.0, frame.camera.w > 0.5)); }
 
 fn hash13(p0 : vec3f) -> f32 {
     var p = fract(p0 * 0.1031);
@@ -1248,7 +1260,7 @@ ${CLOUD_WGSL}
     let geometry = (covered && depth < 1.0 && src.a > 0.999) || (!covered && depth < 1.0);
     if (geometry && mc.u_cloudShadow <= 0.001) { return vec4f(1.0, 0.0, 0.0, -1.0); }
 
-    let entry = worldFromDepth(v.v_texCoord, 0.0);
+    let entry = rayStart(v.v_texCoord);
     var dir = normalize(worldFromDepth(v.v_texCoord, 1.0) - entry);
 
     let found = findSun();
