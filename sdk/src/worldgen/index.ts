@@ -20,8 +20,3 @@ export {
 } from './fields';
 
 export { PlanetFace, FaceZones, planetFaces, faceHalf, faceUnit, type PlaneFrame } from './planetSurface';
-
-// Importing this subpath INSTALLS generated worlds — see tilemap/index.ts. Their ground is the terrain's when the scene has one.
-import { registerWorldGenSupport } from './worldgenSupport';
-
-registerWorldGenSupport();

@@ -19,8 +19,3 @@ export {
     type Bone2DData, type IK2DData, type BoneConstraint2DData,
 } from './rig2dPlugin';
 export { spawnRig, rigPrefab, type SpawnedRig } from './spawnRig';
-
-// Importing this subpath INSTALLS the constraints — see tilemap/index.ts.
-import { registerRig2DSupport } from './rig2dSupport';
-
-registerRig2DSupport();

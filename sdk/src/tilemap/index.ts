@@ -73,8 +73,3 @@ export {
     navGridFromTilemapLayer,
     type BuildNavGridOptions,
 } from './navGridFromTilemap';
-
-// Importing this subpath INSTALLS tilemaps — see spine/index.ts.
-import { registerTilemapSupport } from './tilemapSupport';
-
-registerTilemapSupport();

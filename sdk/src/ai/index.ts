@@ -63,8 +63,3 @@ export {
 
 // Perception: sight/FOV sensing into a Perception component (read by FSM/BT).
 export * from './perception';
-
-// Importing this subpath INSTALLS gameplay AI — see spine/index.ts.
-import { registerAiSupport } from './aiSupport';
-
-registerAiSupport();

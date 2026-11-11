@@ -22,8 +22,3 @@ export {
 } from './loadDragonBonesScene';
 export type { DragonBonesAssetInfo } from './loadDragonBonesScene';
 export type { RuntimeAssetSource } from '../runtime/runtimeAssets';
-
-// Importing this subpath INSTALLS DragonBones — see spine/index.ts.
-import { registerDragonBonesSupport } from './dragonBonesSupport';
-
-registerDragonBonesSupport();
