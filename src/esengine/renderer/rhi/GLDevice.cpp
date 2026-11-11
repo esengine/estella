@@ -19,6 +19,7 @@
 #include <emscripten/html5.h>
 #endif
 
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 
@@ -671,6 +672,39 @@ void GLDevice::setCullFace(bool front) {
 // Shader Program
 // =============================================================================
 
+namespace {
+
+/// A program that held the page for this long is named in the log, so a hitch has a culprit.
+constexpr double kSlowProgramMs = 40.0;
+
+double msSince(std::chrono::steady_clock::time_point start) {
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+}
+
+/// The `#define`s a program was assembled with (its feature set), the only name a source string carries.
+std::string describeProgram(const char* fragmentSrc, usize vertexBytes, usize fragmentBytes) {
+    std::string defines;
+    if (fragmentSrc) {
+        const char* p = fragmentSrc;
+        for (int lines = 0; *p && lines < 200 && defines.size() < 160; ++lines) {
+            const char* end = std::strchr(p, '\n');
+            const usize len = end ? static_cast<usize>(end - p) : std::strlen(p);
+            if (len > 8 && std::strncmp(p, "#define ", 8) == 0) {
+                std::string name(p + 8, len - 8);
+                const usize cut = name.find_first_of(" \r\t");
+                if (cut != std::string::npos) name.resize(cut);
+                if (!defines.empty()) defines += ',';
+                defines += name;
+            }
+            if (!end) break;
+            p = end + 1;
+        }
+    }
+    return "vs " + std::to_string(vertexBytes) + "B, fs " + std::to_string(fragmentBytes) + "B, defines [" + defines + "]";
+}
+
+}  // namespace
+
 bool GLDevice::backendCreateProgram(u32 id, const GfxShaderSource& source,
                                     const GfxAttribBinding* bindings, u32 bindingCount,
                                     std::string* outLog, GfxShaderStage* outFailedStage) {
@@ -682,6 +716,7 @@ bool GLDevice::backendCreateProgram(u32 id, const GfxShaderSource& source,
     }
     const char* vertexSrc = source.vertexSrc;
     const char* fragmentSrc = source.fragmentSrc;
+    const auto createStart = std::chrono::steady_clock::now();
     auto setFailure = [&](GfxShaderStage stage, std::string&& log) {
         if (outLog) *outLog = std::move(log);
         if (outFailedStage) *outFailedStage = stage;
@@ -729,7 +764,8 @@ bool GLDevice::backendCreateProgram(u32 id, const GfxShaderSource& source,
     glLinkProgram(program);
 
     if (defer) {
-        pending_programs_[id] = PendingProgram{vertexShader, fragmentShader};
+        pending_programs_[id] = PendingProgram{vertexShader, fragmentShader,
+            describeProgram(fragmentSrc, std::strlen(vertexSrc), std::strlen(fragmentSrc))};
         if (outFailedStage) *outFailedStage = GfxShaderStage::None;
         setName(program_names_, id, program);
         return true;
@@ -749,6 +785,11 @@ bool GLDevice::backendCreateProgram(u32 id, const GfxShaderSource& source,
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
 
+    if (const double ms = msSince(createStart); ms >= kSlowProgramMs) {
+        ES_LOG_WARN("Slow shader program {} ({:.0f} ms, compiled in place): {}", id, ms,
+                    describeProgram(fragmentSrc, std::strlen(vertexSrc), std::strlen(fragmentSrc)));
+    }
+
     if (outFailedStage) *outFailedStage = GfxShaderStage::None;
     setName(program_names_, id, program);
     return true;
@@ -766,7 +807,11 @@ bool GLDevice::backendFinishProgram(u32 id) {
     pending_programs_.erase(it);
     const GLuint program = nameOf(program_names_, id);
     GLint success = 0;
+    const auto waitStart = std::chrono::steady_clock::now();
     glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (const double ms = msSince(waitStart); ms >= kSlowProgramMs) {
+        ES_LOG_WARN("Slow shader program {} ({:.0f} ms waited for at its first use): {}", id, ms, shaders.label);
+    }
     if (!success) {
         // Only now does anyone ask why: the stage that refused, then the link.
         GLint vertexOk = 0, fragmentOk = 0;

@@ -217,7 +217,7 @@ private:
     std::vector<u32> texture_names_;
     std::vector<u32> program_names_;
     /// A program made with deferLink, until something waits for it: the shader objects to delete once it has linked.
-    struct PendingProgram { u32 vertex = 0; u32 fragment = 0; };
+    struct PendingProgram { u32 vertex = 0; u32 fragment = 0; std::string label; };
     std::unordered_map<u32, PendingProgram> pending_programs_;
     /// The program's GL name, waiting for it first if it was deferred: every use of a program goes through here.
     u32 programName(u32 id);

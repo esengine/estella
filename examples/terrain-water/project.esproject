@@ -15,7 +15,9 @@
       "colorSpace": "linear",
       "outputTransform": "neutral",
       "quality": {
-        "mode": "high"
+        "mode": "high",
+        "asyncShaderCompile": true,
+        "prewarmShaders": true
       }
     }
   }
