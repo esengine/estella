@@ -366,6 +366,16 @@ export const SUBSYSTEMS = [
         entry: ['NodeVisibility', 'ParticleModelUnits'],
     },
     {
+        id: 'skeletal-animation',
+        title: 'Skeletal animation',
+        titleZh: '骨骼动画',
+        source: ['skeletal-animation'],
+        tier: 'experimental',
+        why: 'the animator graph and grip poses are checked against the engine, and a lean package installs them only where its content uses them',
+        whyZh: '动画状态机和握持姿态已对引擎做过检查，精简包只在内容用到时才安装它们',
+        entry: ['Animator', 'AnimatorController', 'GripPose'],
+    },
+    {
         id: 'water',
         title: 'Water',
         titleZh: '水体',

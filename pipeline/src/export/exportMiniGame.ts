@@ -32,7 +32,7 @@ import type { DebugChannelConfig } from 'esengine';
 import { packagedDebugChannel } from './debugChannel';
 import { packagedHotUpdate } from './hotUpdateConfig';
 import { loadEsbuild } from '../bundle/esbuildRuntime';
-import { liteEngineAnswer, scriptsMentionOmitted } from './liteEngine';
+import { liteEngineAnswer, scriptsMentionOmitted, scriptsMentionSkeletal } from './liteEngine';
 import type { ModuleChoice, ProjectFeatures, ProjectPackaging } from '../project/format';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, withAudioLoadTypes, type RuntimeProjectConfig,
@@ -551,8 +551,10 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // gets, from the same evidence, so a subsystem cannot be installed on one
   // target and silently missing on the other.
   const usedSubsystems = await contentSubsystems(opts.root, cook.includedPaths);
+  // A script can add an Animator to a world no scene mentioned, and the name is exported from `esengine` itself.
+  const needsSkeletal = !usedSubsystems.has('skeletalAnimation') && await scriptsMentionSkeletal(opts.root, opts.scriptsEntry);
   const plan = engineInstalls({
-    subsystems: usedSubsystems.keys(),
+    subsystems: needsSkeletal ? [...usedSubsystems.keys(), 'skeletalAnimation'] : usedSubsystems.keys(),
     assetPaths: cook.includedPaths,
     sideModuleIds: sideModules.map((m) => m.id),
     choices: moduleChoices(opts.features, opts.modulesByPlatform?.[profile.id]),

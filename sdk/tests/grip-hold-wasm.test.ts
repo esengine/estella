@@ -7,6 +7,7 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { App } from '../src/app/app';
 import { AnimationPlugin } from '../src/animation/AnimationPlugin';
+import { SkeletalAnimationPlugin } from '../src/animation/SkeletalAnimationPlugin';
 import { GripHand, GripHolder, GripMirror, GripPlacement, GripProfile, captureFingerPose, gripHolderStatus, registerFingerPose, releaseGripHolds, slerpQuat, type GripHolderData, type GripProfileData } from '../src/animation/gripHold';
 import { GripPose, gripHandJoints, gripPose, gripPoseByJoint, gripPoseFromJson, gripPoseStatus, palmFrameOf, registerGripPose } from '../src/animation/gripPose';
 import { GripSurface, GripSurfaceShape, closeFinger, gripSurfaceLines, surfaceDistance, surfacesUnder } from '../src/animation/gripContact';
@@ -30,6 +31,7 @@ function scene() {
     const app = App.new(); apps.push(app); app.connectCpp(new core.Registry(), core, { ownedRegistry: true });
     setPlayMode(true);
     app.addPlugin(new AnimationPlugin());
+    app.addPlugin(new SkeletalAnimationPlugin());
     const tick = async (n = 1, dt = 1 / 60): Promise<void> => { for (let i = 0; i < n; i++) { await app.tick(dt); await Promise.resolve(); } };
     return { app, world: app.world, tick };
 }

@@ -29,6 +29,7 @@
     "./dist/voxel/index.js",
     "./dist/rig2d/index.js",
     "./dist/imported-scene/index.js",
+    "./dist/skeletal-animation/index.js",
     "./dist/character-shaders/index.js",
     "./dist/logic/index.js",
     "./dist/debug-channel/index.js",
@@ -133,6 +134,10 @@
     "./imported-scene": {
       "import": "./dist/imported-scene/index.js",
       "types": "./dist/imported-scene/index.d.ts"
+    },
+    "./skeletal-animation": {
+      "import": "./dist/skeletal-animation/index.js",
+      "types": "./dist/skeletal-animation/index.d.ts"
     },
     "./character-shaders": {
       "import": "./dist/character-shaders/index.js",

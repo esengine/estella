@@ -71,6 +71,7 @@ export const ENTRIES = {
     'voxel': 'src/voxel/index.ts',
     'rig2d': 'src/rig2d/index.ts',
     'imported-scene': 'src/imported-scene/index.ts',
+    'skeletal-animation': 'src/skeletal-animation/index.ts',
     'character-shaders': 'src/character/index.ts',
     'logic': 'src/logic/index.ts',
     'debug-channel': 'src/debug-channel/index.ts',

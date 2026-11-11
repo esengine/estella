@@ -24,8 +24,24 @@ const SCRIPT_EXT = /\.(?:[cm]?[jt]sx?)$/;
 const SKIP_DIRS = new Set(['node_modules', '.git', '.esengine', 'dist', 'build', 'out']);
 const MAX_FILES = 4000;
 
+/**
+ * What a script says when it uses the animator graph or a grip pose. Those names are exported from `esengine` itself, not
+ * only from the subpath that installs them, so a script that reaches one by name leaves no import to read. `SpriteAnimator`
+ * does not match: the boundary sits before `Animator`, not inside a longer name.
+ */
+const SKELETAL_MENTIONS = /\b(Animator\w*|Grip[A-Z]\w*|registerAnimatorController|getRegisteredAnimatorController|solveAnimatorIK|parseAvatar|emptyAvatar|avatarResolver|MotionRegistry|motionOf|blend[12]DMotionDriver)\b|esengine\/skeletal-animation/;
+
 /** Whether any of the project's script sources mentions a subsystem the lite engine leaves out. */
-export async function scriptsMentionOmitted(root: string, scriptsEntry?: string): Promise<boolean> {
+export function scriptsMentionOmitted(root: string, scriptsEntry?: string): Promise<boolean> {
+  return scriptsMatch(root, scriptsEntry, SCRIPT_MENTIONS);
+}
+
+/** Whether any of the project's script sources names the animator graph or a grip pose. */
+export function scriptsMentionSkeletal(root: string, scriptsEntry?: string): Promise<boolean> {
+  return scriptsMatch(root, scriptsEntry, SKELETAL_MENTIONS);
+}
+
+async function scriptsMatch(root: string, scriptsEntry: string | undefined, pattern: RegExp): Promise<boolean> {
   let seen = 0;
   const walk = async (dir: string): Promise<boolean> => {
     let entries;
@@ -37,7 +53,7 @@ export async function scriptsMentionOmitted(root: string, scriptsEntry?: string)
       } else if (SCRIPT_EXT.test(e.name) && !e.name.endsWith('.d.ts')) {
         if (++seen > MAX_FILES) return true;  // too many to say: carry everything
         try {
-          if (SCRIPT_MENTIONS.test(await readFile(path.join(dir, e.name), 'utf8'))) return true;
+          if (pattern.test(await readFile(path.join(dir, e.name), 'utf8'))) return true;
         } catch { return true; }
       }
     }

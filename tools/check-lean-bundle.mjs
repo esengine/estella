@@ -67,7 +67,22 @@ for (const [source, bytes] of bySource) {
   if (m) byDir.set(m[1], (byDir.get(m[1]) ?? 0) + bytes);
 }
 
+/** Files that belong to an optional module inside a directory the base also uses: the animator graph is esengine/skeletal-animation, the tweens and sprite clips beside it are not. */
+const FILE_CEILING = { 'animation/Animator.ts': 0, 'animation/motion.ts': 0, 'animation/animatorIK.ts': 0, 'animation/animatorAvatar.ts': 0, 'animation/layerStack.ts': 0 };
+const byFile = new Map();
+for (const [source, bytes] of bySource) {
+  const m = /sdk\/src\/(.+)$/.exec(source.split(BS).join('/'));
+  if (m) byFile.set(m[1], (byFile.get(m[1]) ?? 0) + bytes);
+}
+
 let failed = false;
+for (const [file, ceiling] of Object.entries(FILE_CEILING)) {
+  const bytes = byFile.get(file) ?? 0;
+  if (bytes > ceiling) {
+    failed = true;
+    console.error(`check-lean-bundle: ${file} left ${bytes} bytes in a blank package (ceiling ${ceiling}) — a subsystem is riding along again`);
+  }
+}
 for (const [dir, ceiling] of Object.entries(CEILING)) {
   const bytes = byDir.get(dir) ?? 0;
   if (bytes > ceiling) {

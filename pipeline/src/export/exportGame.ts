@@ -87,6 +87,7 @@ import { sizeSettingsOf } from './sizeHistory';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { subsystemGapWarnings, targetGaps } from '../project/targetSupport';
 import { contentSubsystems } from './contentSubsystems';
+import { scriptsMentionSkeletal } from './liteEngine';
 import { planSideModules, spineRefusalMessage, type SpineRuntimeDecision, sideModuleFiles, shipsSideModule, textureDecoderBytes } from '../bundle/sideModuleScan';
 import { nativeSpineMismatch } from './nativeTemplates';
 import { MODULES, NATIVE_MODULE_REGISTRY } from '../../../tools/nativeScriptModules.js';
@@ -1094,8 +1095,11 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     //    so the shipped game shares one SDK with the project bundle and runs
     //    custom systems (same shape as the play realm).
     if (!nativeContent) {
+      const usedSubsystems = await contentSubsystems(opts.root, cook.includedPaths);
+      // A script can add an Animator to a world no scene mentioned, and the name is exported from `esengine` itself.
+      const needsSkeletal = !usedSubsystems.has('skeletalAnimation') && await scriptsMentionSkeletal(opts.root, opts.scriptsEntry);
       plan = engineInstalls({
-        subsystems: (await contentSubsystems(opts.root, cook.includedPaths)).keys(),
+        subsystems: needsSkeletal ? [...usedSubsystems.keys(), 'skeletalAnimation'] : usedSubsystems.keys(),
         assetPaths: cook.includedPaths,
         sideModuleIds,
         scriptImports,

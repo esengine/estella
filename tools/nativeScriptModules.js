@@ -77,6 +77,7 @@ export const MODULES = {
     'esengine/voxel': { disposition: 'native-subpath' },
     'esengine/rig2d': { disposition: 'native-subpath' },
     'esengine/imported-scene': { disposition: 'native-subpath' },
+    'esengine/skeletal-animation': { disposition: 'native-subpath' },
     'esengine/character-shaders': { disposition: 'native-subpath' },
     'esengine/logic': { disposition: 'native-subpath' },
     'esengine/ai': { disposition: 'native-subpath' },

@@ -37,6 +37,7 @@ export default [
             'voxel/index': 'src/voxel/index.ts',
             'rig2d/index': 'src/rig2d/index.ts',
             'imported-scene/index': 'src/imported-scene/index.ts',
+            'skeletal-animation/index': 'src/skeletal-animation/index.ts',
             'character-shaders/index': 'src/character/index.ts',
             'logic/index': 'src/logic/index.ts',
             'debug-channel/index': 'src/debug-channel/index.ts',

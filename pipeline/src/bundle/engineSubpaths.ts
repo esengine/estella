@@ -24,6 +24,7 @@ export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
   'esengine/voxel': 'voxel/index.js',
   'esengine/rig2d': 'rig2d/index.js',
   'esengine/imported-scene': 'imported-scene/index.js',
+  'esengine/skeletal-animation': 'skeletal-animation/index.js',
   'esengine/character-shaders': 'character-shaders/index.js',
   'esengine/logic': 'logic/index.js',
   'esengine/debug-channel': 'debug-channel/index.js',

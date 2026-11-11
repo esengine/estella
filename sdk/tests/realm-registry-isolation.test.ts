@@ -177,6 +177,8 @@ describe('two realms in one process do not share an asset', () => {
         // This round changes which realm answers, not who wins: a name the game
         // registered in code is still the one an Animator gets.
         const { AnimatorControllerAPI } = await import('../src/animation/Animator');
+        // The controller loader ships with the skeletal-animation module, installed where the content uses it.
+        (await import('../src/animation/skeletalAnimationSupport')).registerSkeletalAnimationSupport();
         const CODE = { initialState: 'run', states: [{ name: 'run' }] };
         const DISK = JSON.stringify({ initialState: 'idle', states: [{ name: 'idle' }] });
         const a = realm(() => DISK);

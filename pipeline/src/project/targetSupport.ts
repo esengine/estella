@@ -27,7 +27,7 @@ import { NATIVE_PLATFORMS, type ExportPlatform } from './platforms';
 
 /** An engine subsystem a build target may lack. */
 export type Subsystem =
-    | 'text' | 'tilemap' | 'terrain' | 'foliage' | 'worldgen' | 'water' | 'spline' | 'voxel' | 'rig2d' | 'importedScene' | 'characterShaders' | 'timeline' | 'fxBasic' | 'fxAtmosphere' | 'fxLighting' | 'particles' | 'postprocess' | 'physics' | 'physics3d'
+    | 'text' | 'tilemap' | 'terrain' | 'foliage' | 'worldgen' | 'water' | 'spline' | 'voxel' | 'rig2d' | 'importedScene' | 'skeletalAnimation' | 'characterShaders' | 'timeline' | 'fxBasic' | 'fxAtmosphere' | 'fxLighting' | 'particles' | 'postprocess' | 'physics' | 'physics3d'
     | 'spine' | 'dragonbones' | 'video' | 'ai' | 'logic' | 'replication' | 'gameplay';
 
 /**
@@ -52,6 +52,7 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
     voxel: ['VoxelTerrain'],
     rig2d: ['Bone2D', 'IK2D', 'BoneConstraint2D'],
     importedScene: ['NodeVisibility', 'ParticleModelUnits'],
+    skeletalAnimation: ['Animator', 'AnimatorRootMotion', 'GripPose', 'GripSurface', 'GripProfile', 'GripHolder'],
     // Hair, Skin and Eye are shaders, not components: a character's materials are what name them (see SHADER_SUBSYSTEM).
     characterShaders: [],
     particles: ['ParticleEmitter', 'ParticleForceField', 'ParticleCollider'],
@@ -121,6 +122,7 @@ export const SUBSYSTEM_LABEL: Readonly<Record<Subsystem, string>> = {
     voxel: 'Voxel terrain',
     rig2d: '2D rig constraints',
     importedScene: 'Imported scene (node visibility, particle units)',
+    skeletalAnimation: 'Skeletal animation (animator, grip poses)',
     characterShaders: 'Character shaders (hair, skin, eye)',
     particles: 'Particles',
     postprocess: 'Post-processing',
@@ -158,6 +160,7 @@ export const SUBSYSTEM_INSTALL: Readonly<Record<Subsystem, string>> = {
     voxel: 'esengine/voxel',
     rig2d: 'esengine/rig2d',
     importedScene: 'esengine/imported-scene',
+    skeletalAnimation: 'esengine/skeletal-animation',
     characterShaders: 'esengine/character-shaders',
     physics: 'esengine/physics',
     physics3d: 'esengine/physics3d',

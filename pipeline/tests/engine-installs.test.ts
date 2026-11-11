@@ -46,6 +46,13 @@ describe('the engine modules a package installs', () => {
         expect(engineInstalls({ subsystems: ['importedScene'] }).subpaths).toEqual(['esengine/imported-scene']);
     });
 
+    it('takes the animator graph and grip poses from an Animator or a controller asset, so a 2D game carries none', () => {
+        expect(engineInstalls({ subsystems: ['skeletalAnimation'] }).subpaths).toEqual(['esengine/skeletal-animation']);
+        expect(engineInstalls({ assetPaths: ['assets/hero.esanimator'] }).subpaths).toEqual(['esengine/skeletal-animation']);
+        expect(engineInstalls({ assetPaths: ['assets/hero.esavatar'] }).subpaths).toEqual(['esengine/skeletal-animation']);
+        expect(engineInstalls({ assetPaths: ['assets/hero.esanim'] }).subpaths).toEqual([]);
+    });
+
     it('takes splines from a Spline, so a game without one carries none', () => {
         expect(engineInstalls({ subsystems: ['spline'] }).subpaths).toEqual(['esengine/spline']);
     });

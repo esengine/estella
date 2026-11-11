@@ -8,6 +8,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { Animator } from '../src/animation';
 import { AnimationPlugin } from '../src/animation/AnimationPlugin';
+import { SkeletalAnimationPlugin } from '../src/animation/SkeletalAnimationPlugin';
 import { GripPose, gripPoseNames, gripPoseStatus, registerGripPose, type GripPoseData } from '../src/animation/gripPose';
 import { Name, Transform, type TransformData } from '../src/ecs/component';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
@@ -29,6 +30,7 @@ function scene() {
     const app = App.new(); apps.push(app); app.connectCpp(new core.Registry(), core, { ownedRegistry: true });
     setPlayMode(true);
     app.addPlugin(new AnimationPlugin());
+    app.addPlugin(new SkeletalAnimationPlugin());
     const tick = async (n = 1): Promise<void> => { for (let i = 0; i < n; i++) { await app.tick(1 / 60); await Promise.resolve(); } };
     return { app, world: app.world, tick };
 }

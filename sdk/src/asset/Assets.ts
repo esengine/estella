@@ -45,8 +45,6 @@ import { FontAssetLoader } from './loaders/FontAssetLoader';
 import { AudioAssetLoader } from './loaders/AudioAssetLoader';
 import { AnimClipAssetLoader } from './loaders/AnimClipAssetLoader';
 import { PrefabAssetLoader } from './loaders/PrefabAssetLoader';
-import { AnimatorControllerAssetLoader } from './loaders/AnimatorControllerAssetLoader';
-import { AvatarAssetLoader } from './loaders/AvatarAssetLoader';
 import { preparePrefabFromSource, type PreparedPrefab } from '../prefab/preparedPrefab';
 import type { PrefabOverride } from '../prefab';
 import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
@@ -2705,8 +2703,6 @@ export class Assets {
             load: (path, context) => this.bakePrefab_(path, context as LoadContext & { recorder: DependencyRecorder }),
             unload: (prepared) => prepared.release(),
         });
-        this.register(new AnimatorControllerAssetLoader());
-        this.register(new AvatarAssetLoader());
         this.register(new LocaleAssetLoader());
         this.register(new JsonAssetLoader());
         this.register(new SoundEventAssetLoader());

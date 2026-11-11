@@ -70,7 +70,7 @@ export const presentationBasePlugins = (): Plugin[] => [
  * set or from `entryPlugins()` — so the order is declared, not positional.
  */
 export const PLUGIN_BUILD_ORDER: readonly string[] = [
-    'Diagnostics', 'timer', 'velocity', 'lifecycle', 'animation', 'audio', 'video',
+    'Diagnostics', 'timer', 'velocity', 'lifecycle', 'animation', 'skeletalAnimation', 'audio', 'video',
     'importedScene', 'particle', 'trail', 'springBone', 'meshRenderer', 'staticBatch', 'compositeBatch', 'impostor', 'textureStreaming', 'terrain', 'voxel', 'foliage', 'spline', 'water', 'floating', 'underwater', 'tilemap', 'postProcess', 'timeline',
     'gameplay',
     'perception', 'fsm', 'bt', 'scriptGraph', 'nav', 'eventBinding', 'replication',

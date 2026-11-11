@@ -36,6 +36,7 @@ import * as SplineModule from '../spline';
 import * as VoxelModule from '../voxel';
 import * as Rig2DModule from '../rig2d';
 import * as ImportedSceneModule from '../imported-scene';
+import * as SkeletalAnimationModule from '../skeletal-animation';
 import * as CharacterShadersModule from '../character';
 import * as ScriptGraphModule from '../logic';
 import * as AiModule from '../ai';
@@ -69,6 +70,7 @@ export const NATIVE_MODULE_NAMESPACES: Readonly<Record<string, unknown>> = {
     'esengine/voxel': VoxelModule,
     'esengine/rig2d': Rig2DModule,
     'esengine/imported-scene': ImportedSceneModule,
+    'esengine/skeletal-animation': SkeletalAnimationModule,
     'esengine/character-shaders': CharacterShadersModule,
     'esengine/logic': ScriptGraphModule,
     'esengine/ai': AiModule,

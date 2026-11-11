@@ -3,13 +3,13 @@
 /**
  * @file    AnimationPlugin.ts
  * @brief   Animation plugin registering Tween and SpriteAnimator systems
+ *
+ * The animator graph and grip poses are SkeletalAnimationPlugin's.
  */
 
 import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res } from '../ecs/resource';
-import { EventWriter, type EventWriterInstance } from '../ecs/event';
-import { AnimatorEvent, type AnimatorEventPayload } from './animatorEvent';
 import { Time, type TimeData } from '../ecs/resource';
 import type { Entity } from '../types';
 import type { CppRegistry } from '../wasm';
@@ -18,8 +18,6 @@ import { log } from '../util/logger';
 import type { AnimCore } from './Tween';
 import { Tween, TweenAPI } from './Tween';
 import { SpriteAnimation, SpriteAnimationAPI, type SpriteAnimClip } from './SpriteAnimator';
-import { AnimatorController, AnimatorControllerAPI, type AnimatorControllerDef } from './Animator';
-import type { AnimatorAvatar } from './animatorAvatar';
 import { appRegistryAsset } from '../asset/registryLookup';
 import { playModeOnly } from '../ecs/env';
 import { installCoverFade } from '../render/coverFade';
@@ -29,8 +27,6 @@ import { installFogOfWar } from '../render/fogOfWar';
 import { installSwayPush } from '../render/swayPush';
 import { installFootsteps } from '../render/footsteps';
 import { SystemLabel } from '../ecs/systemLabels';
-import { installGripPose } from './gripPose';
-import { installGripHold } from './gripHold';
 
 export class AnimationPlugin implements Plugin {
     name = 'animation';
@@ -51,14 +47,11 @@ export class AnimationPlugin implements Plugin {
         app.insertResource(Tween, tween);
         const anim = new SpriteAnimationAPI();
         app.insertResource(SpriteAnimation, anim);
-        const animator = new AnimatorControllerAPI();
-        app.insertResource(AnimatorController, animator);
         const world = app.world;
 
         const offDespawn = world.onDespawn((entity: Entity) => {
             tween.cancelAll(entity);
             anim.removeEntityListeners(entity);
-            animator.removeEntity(entity);
         });
         // A roof or a crown with a CoverFade thins out over what stands under it; with none in the scene the system finds nothing and returns.
         const offCoverFade = installCoverFade(app);
@@ -80,27 +73,10 @@ export class AnimationPlugin implements Plugin {
             { name: 'TweenSystem' }
         ), { runIf: playModeOnly });
 
-        // A `.esanim` / `.esanimator` comes from THIS app's realm, whose slots
-        // answer to the authored ref as well as the resolved path. A code
-        // registration still wins over one.
+        // A `.esanim` comes from THIS app's realm, whose slots answer to the
+        // authored ref as well as the resolved path. A code registration still
+        // wins over one.
         anim.useAssetClips((ref) => appRegistryAsset<SpriteAnimClip>(app, 'anim-clip', ref));
-        animator.useAssetAvatars((ref) => appRegistryAsset<AnimatorAvatar>(app, 'avatar', ref));
-        animator.useAssetControllers(
-            (ref) => appRegistryAsset<AnimatorControllerDef>(app, 'animatorcontroller', ref),
-        );
-
-        // The state machine runs before the sprite animator so a transition's
-        // clip switch applies the same frame it fires.
-        app.addSystemToSchedule(Schedule.Update, defineSystem(
-            [Res(Time), Res(AnimatorController), EventWriter(AnimatorEvent)],
-            (
-                time: TimeData, ctrl: AnimatorControllerAPI,
-                events: EventWriterInstance<AnimatorEventPayload>,
-            ) => {
-                ctrl.update(world, time.delta, events);
-            },
-            { name: 'AnimatorSystem' }
-        ), { runAfter: [SystemLabel.Tween], runIf: playModeOnly });
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time), Res(SpriteAnimation)],
@@ -109,10 +85,6 @@ export class AnimationPlugin implements Plugin {
             },
             { name: 'SpriteAnimatorSystem' }
         ), { runAfter: [SystemLabel.Tween, SystemLabel.Animator], runIf: playModeOnly });
-
-        // The hold first: it hands the fingers it does not pose itself to the grip pose after it.
-        installGripHold(app);
-        installGripPose(app);
     }
 
     cleanup(app?: App): void {
