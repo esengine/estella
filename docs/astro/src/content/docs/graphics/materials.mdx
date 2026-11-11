@@ -70,6 +70,8 @@ the world corner it starts at (`u_wetOrigin`) and how big it is (`u_wetSize`, 0 
 | a puddle (red) | goes flat (the normal map is let go of) and nearly a mirror, roughness 0.05 |
 | outside the map | stays dry |
 
+The picture is laid over the ground the way a map is read from the map's own corner: its left column is at the origin's X and its **top row is the far (largest Z) edge**, so a map painted as a plan with +Z up lines up with the world.
+
 Put a **Planar Reflection** on the same mesh (see Lighting) and the puddles show the scene. The map is data, not a picture: import it without sRGB (the
 shader's `texel(data)` says so). With `u_wetness` at 0, which is the default, a surface pays one comparison.
 
