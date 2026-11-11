@@ -20,6 +20,13 @@ for (const o of ORACLE) {
   if (check) {
     if (!existsSync(file) || readFileSync(file, 'utf8').replace(/\r\n/g, '\n') !== text) { console.error(`stale: ${o.id}`); stale++; }
   } else writeFileSync(file, text);
+  // Files a scene loads beside it (a material), written the same way.
+  for (const [name, body] of Object.entries(o.files ?? {})) {
+    const extra = path.join(OUT, name), content = JSON.stringify(body, null, 2) + String.fromCharCode(10);
+    if (check) {
+      if (!existsSync(extra) || readFileSync(extra, 'utf8').split(String.fromCharCode(13)).join('') !== content) { console.error(`stale: ${name}`); stale++; }
+    } else writeFileSync(extra, content);
+  }
 }
 if (check && stale) { console.error('make-oracle-scenes: run `node tools/make-oracle-scenes.mjs`'); process.exit(1); }
 console.log(`make-oracle-scenes: ${ORACLE.length} scene(s) ${check ? 'up to date' : 'written'}`);

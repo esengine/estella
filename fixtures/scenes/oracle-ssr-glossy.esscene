@@ -1,0 +1,164 @@
+{
+ "version": 4,
+ "name": "oracle-ssr-glossy",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 230,
+       "z": 280
+      },
+      "rotation": {
+       "x": -0.3007057995042731,
+       "y": 0,
+       "z": 0,
+       "w": 0.9537169507482269
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "orthoSize": 100,
+      "nearPlane": 1,
+      "farPlane": 4000,
+      "isActive": true,
+      "priority": 0,
+      "fov": 50
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Floor",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "scale": {
+       "x": 8,
+       "y": 0.1,
+       "z": 8
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.5,
+       "g": 0.5,
+       "b": 0.5,
+       "a": 1
+      },
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "material": "/scenes/oracle-ssr-glossy_m0.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Box",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 50,
+       "z": -160
+      },
+      "scale": {
+       "x": 1.2,
+       "y": 0.9,
+       "z": 0.2
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "color": {
+       "r": 0.9,
+       "g": 0.35,
+       "b": 0.2,
+       "a": 1
+      },
+      "lit": false,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Look",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "PostProcessVolume",
+     "data": {
+      "isGlobal": true,
+      "priority": 0,
+      "weight": 1,
+      "effects": [
+       {
+        "type": "ssr",
+        "enabled": true,
+        "uniforms": {
+         "u_intensity": 1,
+         "u_maxDistance": 700,
+         "u_thickness": 12,
+         "u_floorBias": 0,
+         "u_skyReflection": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}

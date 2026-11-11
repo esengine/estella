@@ -68,6 +68,12 @@ for (const s of SCENES) {
     if (!existsSync(file) || readFileSync(file, 'utf8').split(String.fromCharCode(13)).join('') !== want) {
       fail(`"${o.id}" is not what tools/oracle generates — run node tools/make-oracle-scenes.mjs`);
     }
+    for (const [name, body] of Object.entries(o.files ?? {})) {
+      const extra = path.join(FIXTURES, 'scenes', name), content = JSON.stringify(body, null, 2) + String.fromCharCode(10);
+      if (!existsSync(extra) || readFileSync(extra, 'utf8').split(String.fromCharCode(13)).join('') !== content) {
+        fail(`"${name}" is not what tools/oracle generates — run node tools/make-oracle-scenes.mjs`);
+      }
+    }
     if (!o.expect?.length && !o.twins?.pairs?.length && !o.count?.length) fail(`"${o.id}" has no probes`);
   }
 }
