@@ -28,6 +28,8 @@ export interface Page {
     max: number;
     /** When it was last drawn, for choosing which to give up. */
     used: number;
+    /** The ground changed under it: it is still drawn, as it was, until a new image takes its slot. */
+    stale?: boolean;
 }
 
 /** The pixels of one page. */
@@ -140,6 +142,9 @@ export class PageTable {
 
     /** A slot for a new page under `key`: a free one, or the least recently drawn one not drawn this frame. Null when every slot is in use now. */
     claim(key: string, min: number, max: number): Page | null {
+        // A page the ground changed under is made again in its own slot, so what is drawn there changes in place and never goes missing.
+        const had = this.pages_.get(key);
+        if (had) { had.min = min; had.max = max; had.used = this.clock_; had.stale = false; return had; }
         let slot = this.free_.pop();
         if (slot === undefined) {
             let oldest: string | null = null, at = Infinity;
@@ -160,6 +165,19 @@ export class PageTable {
             this.pages_.delete(key);
             this.free_.push(page.slot);
         }
+    }
+
+    /**
+     * Marks the pages `test` names as out of date without taking them away: they go on being drawn as they were until each is made again
+     * (`claim` on its key), so an edit never leaves a hole in the ground while its pages are rebuilt over the next frames.
+     */
+    markStale(test: (key: string) => boolean): void {
+        for (const [key, page] of this.pages_) if (test(key)) page.stale = true;
+    }
+
+    /** Whether the page under `key` is out of date. */
+    isStale(key: string): boolean {
+        return this.pages_.get(key)?.stale === true;
     }
 
     /** Forgets every page (the device lost the atlas, or the ground changed). */

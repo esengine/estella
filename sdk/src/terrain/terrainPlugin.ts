@@ -498,7 +498,7 @@ export class Terrains {
             const source = built.source;
             if (!(source instanceof ModifiedSource)) continue;
             const o = source.origin, leaf = PATCH_CELLS * Math.max(built.data.cellSize, 1e-3);
-            built.table.forget((key) => {
+            built.table.markStale((key) => {
                 const [level, ix, iz] = key.split(':').map(Number) as [number, number, number];
                 const size = leaf * 2 ** level, x0 = ix * size + o.x, z0 = iz * size + o.z;
                 return x0 <= b[2] && x0 + size >= b[0] && z0 <= b[3] && z0 + size >= b[1];
@@ -527,7 +527,7 @@ export class Terrains {
         for (const built of this.built_.values()) {
             built.edits++;
             built.pageWork = undefined;
-            built.table.clear();
+            built.table.markStale(() => true);
         }
     }
 
@@ -946,13 +946,15 @@ export class TerrainPlugin implements Plugin {
         for (const node of chosen) {
             let n: TerrainNode | null = node;
             const own = nodeKey(node.level, node.ix, node.iz);
-            if (!table.get(own)) built.wanted.set(own, node);
+            if (!table.get(own) || table.isStale(own)) built.wanted.set(own, node);
             while (n && !table.get(nodeKey(n.level, n.ix, n.iz))) {
                 n = n.level + 1 < tree.levels ? parentOf(n, tree.leafSize) : null;
                 if (n && !table.get(nodeKey(n.level, n.ix, n.iz))) built.wanted.set(nodeKey(n.level, n.ix, n.iz), n);
             }
             if (!n) continue;
             const key = nodeKey(n.level, n.ix, n.iz);
+            // An ancestor drawn in place of a missing page and out of date is made again too.
+            if (n !== node && table.isStale(key)) built.wanted.set(key, n);
             if (n !== node) covered.add(key);
             drawn.set(key, n);
         }

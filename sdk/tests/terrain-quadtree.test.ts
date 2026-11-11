@@ -89,4 +89,21 @@ describe('the pages', () => {
         expect(table.get('p0')).toBeUndefined();
         expect(page.slot).toBeGreaterThanOrEqual(0);
     });
+
+    it('keeps a page the ground changed under, drawn as it was, until it is made again in its own slot', () => {
+        const table = new PageTable(PAGE_SIDE * 2);
+        const slot = table.claim('a', 0, 1)!.slot;
+        table.claim('b', 0, 1);
+        table.markStale((key) => key === 'a');
+        // Still there to draw: an edit leaves no hole while its pages are rebuilt.
+        expect(table.get('a')).toBeDefined();
+        expect(table.isStale('a')).toBe(true);
+        expect(table.isStale('b')).toBe(false);
+        const again = table.claim('a', 0.25, 2)!;
+        expect(again.slot).toBe(slot);
+        expect(again.min).toBe(0.25);
+        expect(again.max).toBe(2);
+        expect(table.isStale('a')).toBe(false);
+        expect(table.size).toBe(2);
+    });
 });
