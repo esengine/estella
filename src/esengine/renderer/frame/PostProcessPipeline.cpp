@@ -1336,6 +1336,7 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
                 gi.blend = get("u_blend", gi.blend);
                 gi.cardSlices = static_cast<u32>(std::max(get("u_cardSlices", static_cast<f32>(gi.cardSlices)), 1.0f));
                 gi.probeStride = static_cast<u32>(std::max(get("u_probeStride", static_cast<f32>(gi.probeStride)), 1.0f));
+                gi.skip = static_cast<u32>(std::max(get("u_skip", 0.0f), 0.0f));
                 auto& cache = dynamic_gis_[temporalKey_];
                 if (!cache) {
                     if (dynamic_gis_.size() > 4) {

@@ -20,6 +20,8 @@ import { LightType } from '../wasm/wasm.generated';
 import { Assets } from '../asset/AssetPlugin';
 import type { Entity } from '../types';
 import { withScratch } from '../wasm/wasmScratch';
+import { marshallingCore } from '../asset/loaders/engineCore';
+import { nativeEngineApi } from '../ecs/bridge/engineApi';
 import { Material } from '../render/material';
 import { analyticBox, packGPUScene, type GIInstance, type GILight } from './gpuScene';
 import { GlobalSdf } from './globalSdf';
@@ -146,7 +148,8 @@ export function dynamicGISystem(app: App) {
          volumes: Iterable<[Entity, PostProcessVolumeData]>, cameras: Iterable<[Entity, CameraData, TransformData]>) => {
             const effect = dynamicGIEffect(volumes);
             if (!effect) { lastKey = ''; follow = null; return; }
-            const m = app.wasmModule;
+            // The web's module, or a device's host (which answers the same heap from its arena): the arrays cross the boundary through it.
+            const m = marshallingCore(app.wasmModule ?? nativeEngineApi());
             if (!m?.postprocess_setGIScene) return;
             if (cube === 0) {
                 if (!loading && app.hasResource(Assets)) {

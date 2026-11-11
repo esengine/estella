@@ -41,6 +41,8 @@ struct DynamicGIParams {
     u32 cardSlices = 4;
     /// One in this many of a probe rays is traced each frame, alternating, so the history fills the rest in.
     u32 probeStride = 2;
+    /// For measuring: skip the cards (1), the probes (2) or the apply (4), to read what the rest of the frame costs.
+    u32 skip = 0;
 };
 
 /**
@@ -88,6 +90,8 @@ private:
     BufferHandle radiance_[2] = {BufferHandle::Invalid, BufferHandle::Invalid};
     u32 sdfBytes_ = 0, instanceBytes_ = 0, pixelBytes_ = 0, radianceBytes_ = 0;
     TextureHandle probes_[2] = {TextureHandle::Invalid, TextureHandle::Invalid};
+    /// Where each probe stands and faces (two full-float texels a probe), written by the probe pass and read by the apply.
+    TextureHandle probeGeo_ = TextureHandle::Invalid;
     u32 probeTilesX_ = 0, probeTilesY_ = 0;
     ComputeHandle cardLight_ = ComputeHandle::Invalid;
     ComputeHandle probe_ = ComputeHandle::Invalid;

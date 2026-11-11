@@ -385,6 +385,7 @@ const char* kProbe = R"WGSL(
 @group(0) @binding(7) var gbuffer : texture_2d<f32>;
 @group(0) @binding(8) var probeOut : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(9) var probeHist : texture_2d<f32>;
+@group(0) @binding(10) var probeGeo : texture_storage_2d<rgba32float, write>;
 
 var<workgroup> shR : array<vec3f, 64>;
 var<workgroup> shG : array<vec3f, 64>;
@@ -400,11 +401,15 @@ fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_id) lid3 : 
     let valid = depth < 1.0 && g.a > 0.7;
     var contribution = array<vec3f, 3>(vec3f(0.0), vec3f(0.0), vec3f(0.0));
     var eyeDistance = 0.0;
+    var probePos = vec3f(0.0);
+    var probeNormal = vec3f(0.0, 1.0, 0.0);
     if (valid) {
         var n = decodeNormal(g);
         let pos = worldFromDepth((vec2f(t) + 0.5) / vec2f(size), depth);
         if (dot(n, viewDirection(pos)) < 0.0) { n = -n; }
         eyeDistance = length(pos - frame.camera.xyz);
+        probePos = pos;
+        probeNormal = n;
         // One ray in `stride` of the 64 is traced this frame, the cells alternating like a checkerboard from frame to frame.
         let stride = max(u32(gi.misc.y), 1u);
         if (((lid3.x + lid3.y * 3u + u32(gi.origin.w)) % stride) == 0u) {
@@ -431,6 +436,10 @@ fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_id) lid3 : 
             vg = mix(textureLoad(probeHist, base + vec2i(1, 0), 0).xyz, vg, a);
             vb = mix(textureLoad(probeHist, base + vec2i(2, 0), 0).xyz, vb, a);
         }
+        // Where the probe stands and which way it faces, for the pixels that take its light: stored once here, so that the apply does not read the
+        // depth and the G-buffer and rebuild a world position for each probe it looks at, for every pixel.
+        textureStore(probeGeo, vec2i(i32(wg.x) * 2, i32(wg.y)), vec4f(probePos, eyeDistance));
+        textureStore(probeGeo, vec2i(i32(wg.x) * 2 + 1, i32(wg.y)), vec4f(probeNormal, select(0.0, 1.0, valid)));
         textureStore(probeOut, base, vec4f(vr, eyeDistance));
         textureStore(probeOut, base + vec2i(1, 0), vec4f(vg, 0.0));
         textureStore(probeOut, base + vec2i(2, 0), vec4f(vb, 0.0));
@@ -445,6 +454,27 @@ const char* kApply = R"WGSL(
 @group(0) @binding(9) var probes : texture_2d<f32>;
 @group(0) @binding(10) var sceneTex : texture_2d<f32>;
 @group(0) @binding(11) var outTex : texture_storage_2d<rgba16float, write>;
+@group(0) @binding(12) var probeGeo : texture_2d<f32>;
+
+// What one probe says about the pixel at pos facing n: its light by the normal, and how much it should count (plane, then normal).
+fn probeTerm(tile : vec2i, q : vec2f, pos : vec3f, n : vec3f, eye : f32, e : ptr<function, vec3f>, w : ptr<function, vec2f>) -> bool {
+    let geo1 = textureLoad(probeGeo, vec2i(tile.x * 2 + 1, tile.y), 0);
+    if (geo1.w < 0.5) { return false; }
+    let d = abs(vec2f(tile) - q);
+    let tent = max(1.0 - d.x / 1.6, 0.0) * max(1.0 - d.y / 1.6, 0.0);
+    if (tent <= 0.0) { return false; }
+    let geo0 = textureLoad(probeGeo, vec2i(tile.x * 2, tile.y), 0);
+    let plane = abs(dot(n, geo0.xyz - pos)) / (0.02 * eye);
+    let wPlane = tent / (1.0 + plane * plane);
+    let wNormal = pow(max(dot(geo1.xyz, n), 0.0), 4.0);
+    let base = vec2i(tile.x * 3, tile.y);
+    let vr = textureLoad(probes, base, 0).xyz;
+    let vg = textureLoad(probes, base + vec2i(1, 0), 0).xyz;
+    let vb = textureLoad(probes, base + vec2i(2, 0), 0).xyz;
+    *e = max(vec3f(dot(vr, n), dot(vg, n), dot(vb, n)), vec3f(0.0));
+    *w = vec2f(wPlane * wNormal, wPlane);
+    return true;
+}
 
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) id : vec3u) {
@@ -460,8 +490,9 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
     let pos = worldFromDepth((vec2f(p) + 0.5) / vec2f(size), depth);
     if (dot(n, viewDirection(pos)) < 0.0) { n = -n; }
     let tiles = vec2i(gi.counts.zw);
-    // The probes round the pixel: probe (tx, ty) stands at pixel (tx * spacing + spacing / 2, ty * spacing + spacing / 2). The nine nearest are looked at, since in the
-    // corner of two walls the four nearest can all be on the other wall, and a probe on another plane has nothing to say about this one.
+    // The probes round the pixel: probe (tx, ty) stands at pixel (tx * spacing + spacing / 2, ...). The four nearest are asked first (a pixel
+    // in the open has all it needs there); only where they are on another plane or face another way, as at the corner of two walls, are the
+    // twelve beyond them.
     let spacing = i32(gi.misc.z);
     let q = (vec2f(p) - vec2f(f32(spacing / 2))) / f32(spacing);
     let q0 = vec2i(floor(q));
@@ -471,33 +502,17 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
     var Erelaxed = vec3f(0.0);
     var totalRelaxed = 0.0;
     for (var k = 0; k < 16; k = k + 1) {
-        let o = vec2i(k & 3, k >> 2) - vec2i(1);
-        let tile = q0 + o;
+        let near = (k & 3) >= 1 && (k & 3) <= 2 && (k >> 2) >= 1 && (k >> 2) <= 2;
+        if (!near && total > 0.15) { continue; }
+        let tile = q0 + vec2i(k & 3, k >> 2) - vec2i(1);
         if (any(tile < vec2i(0)) || any(tile >= tiles)) { continue; }
-        let pp = min(tile * spacing + vec2i(spacing / 2), size - vec2i(1));
-        let pd = textureLoad(depthTex, pp, 0);
-        let pg = textureLoad(gbuffer, pp, 0);
-        if (pd >= 1.0 || pg.a <= 0.7) { continue; }
-        let ppos = worldFromDepth((vec2f(pp) + 0.5) / vec2f(size), pd);
-        var pn = decodeNormal(pg);
-        if (dot(pn, viewDirection(ppos)) < 0.0) { pn = -pn; }
-        // A tent over a tile and a half round the pixel, so a probe two tiles away does not count.
-        let d = abs(vec2f(tile) - q);
-        let tent = max(1.0 - d.x / 1.6, 0.0) * max(1.0 - d.y / 1.6, 0.0);
-        if (tent <= 0.0) { continue; }
-        let plane = abs(dot(n, ppos - pos)) / (0.02 * eye);
-        let wPlane = tent / (1.0 + plane * plane);
-        let wNormal = pow(max(dot(pn, n), 0.0), 4.0);
-        let base = vec2i(tile.x * 3, tile.y);
-        let vr = textureLoad(probes, base, 0).xyz;
-        let vg = textureLoad(probes, base + vec2i(1, 0), 0).xyz;
-        let vb = textureLoad(probes, base + vec2i(2, 0), 0).xyz;
-        let e = max(vec3f(dot(vr, n), dot(vg, n), dot(vb, n)), vec3f(0.0));
-        E = E + e * wPlane * wNormal;
-        total = total + wPlane * wNormal;
-        // The same without the normal, for a pixel whose every neighbour faces another way.
-        Erelaxed = Erelaxed + e * wPlane;
-        totalRelaxed = totalRelaxed + wPlane;
+        var e = vec3f(0.0);
+        var w = vec2f(0.0);
+        if (!probeTerm(tile, q, pos, n, eye, &e, &w)) { continue; }
+        E = E + e * w.x;
+        total = total + w.x;
+        Erelaxed = Erelaxed + e * w.y;
+        totalRelaxed = totalRelaxed + w.y;
     }
     if (total > 0.05) { E = E / total; } else if (totalRelaxed > 1e-5) { E = Erelaxed / totalRelaxed; } else { E = vec3f(0.0); }
     textureStore(outTex, p, vec4f(scene.rgb + albedo.rgb * E * gi.sdf.w, scene.a));
@@ -544,6 +559,8 @@ void DynamicGI::release() {
         if (*c != ComputeHandle::Invalid) device_.deleteCompute(*c);
         *c = ComputeHandle::Invalid;
     }
+    if (probeGeo_ != TextureHandle::Invalid) device_.deleteTexture(probeGeo_);
+    probeGeo_ = TextureHandle::Invalid;
     probeTilesX_ = probeTilesY_ = 0;
     sdfBytes_ = instanceBytes_ = pixelBytes_ = radianceBytes_ = 0;
     uploadedVersion_ = 0;
@@ -616,6 +633,8 @@ bool DynamicGI::ensureProbes(u32 tilesX, u32 tilesY) {
         if (t != TextureHandle::Invalid) device_.deleteTexture(t);
         t = TextureHandle::Invalid;
     }
+    if (probeGeo_ != TextureHandle::Invalid) device_.deleteTexture(probeGeo_);
+    probeGeo_ = TextureHandle::Invalid;
     TextureDesc desc;
     desc.width = tilesX * kProbeTexels;
     desc.height = tilesY;
@@ -623,7 +642,15 @@ bool DynamicGI::ensureProbes(u32 tilesX, u32 tilesY) {
     desc.minFilter = desc.magFilter = TextureFilter::Nearest;
     desc.storage = true;
     for (TextureHandle& t : probes_) t = device_.createTexture(desc, GfxContent::transient(), nullptr);
-    if (probes_[0] == TextureHandle::Invalid || probes_[1] == TextureHandle::Invalid) {
+    // Where each probe stands and which way it faces: full floats, a position is more than a half can hold.
+    TextureDesc geo;
+    geo.width = tilesX * 2;
+    geo.height = tilesY;
+    geo.format = GfxPixelFormat::RGBA32F;
+    geo.minFilter = geo.magFilter = TextureFilter::Nearest;
+    geo.storage = true;
+    probeGeo_ = device_.createTexture(geo, GfxContent::transient(), nullptr);
+    if (probes_[0] == TextureHandle::Invalid || probes_[1] == TextureHandle::Invalid || probeGeo_ == TextureHandle::Invalid) {
         ES_LOG_ERROR("DynamicGI: could not allocate the probes");
         return false;
     }
@@ -706,7 +733,7 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
             const u32 slices = std::clamp(p.cardSlices, 1u, 4096u);
             const u32 chunk = (pixelCount_ + slices - 1) / slices;
             const u32 active = frame_ < 2 ? pixelCount_ : chunk;
-            if (active == 0) return;
+            if (active == 0 || (p.skip & 1u)) return;
             device_.dispatchCompute(cardLight_, bindings, 6, std::min(active, 65535u), (active + 65534u) / 65535u);
         };
         graph.addPass(std::move(pass));
@@ -719,14 +746,15 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
         pass.compute = true;
         pass.dependencies = {scene, lit};
         pass.write = probed;
-        pass.execute = [this, &graph, scene](const rg::PassContext&) {
+        pass.execute = [this, &graph, scene, p](const rg::PassContext&) {
+            if (p.skip & 2u) return;
             const TextureHandle depth = graph.depthTextureOf(scene);
             const TextureHandle gbuffer = graph.gbufferTextureOf(scene);
             if (depth == TextureHandle::Invalid || gbuffer == TextureHandle::Invalid) return;
             // The cards were just written into the buffer the next frame reads: the probes see this frame's lighting.
             const BufferHandle cards = radiance_[0];
             const u32 cur = frame_ & 1u;
-            const GfxComputeBinding bindings[10] = {
+            const GfxComputeBinding bindings[11] = {
                 GfxComputeBinding::uniform(0, context_.frameUbo()),
                 GfxComputeBinding::uniform(1, params_),
                 GfxComputeBinding::storageRead(2, sdf_),
@@ -737,8 +765,9 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
                 GfxComputeBinding::sampled(7, gbuffer),
                 GfxComputeBinding::storageTexture(8, probes_[cur]),
                 GfxComputeBinding::sampled(9, probes_[cur ^ 1u]),
+                GfxComputeBinding::storageTexture(10, probeGeo_),
             };
-            device_.dispatchCompute(probe_, bindings, 10, probeTilesX_, probeTilesY_);
+            device_.dispatchCompute(probe_, bindings, 11, probeTilesX_, probeTilesY_);
         };
         graph.addPass(std::move(pass));
     }
@@ -755,14 +784,15 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
         pass.reads = {input};
         pass.dependencies = {scene, probed};
         pass.write = result;
-        pass.execute = [this, &graph, scene](const rg::PassContext& ctx) {
+        pass.execute = [this, &graph, scene, p](const rg::PassContext& ctx) {
+            if (p.skip & 4u) { ++frame_; return; }
             const TextureHandle depth = graph.depthTextureOf(scene);
             const TextureHandle gbuffer = graph.gbufferTextureOf(scene);
             const TextureHandle albedo = graph.albedoTextureOf(scene);
             if (depth == TextureHandle::Invalid || gbuffer == TextureHandle::Invalid || albedo == TextureHandle::Invalid
                 || ctx.output == TextureHandle::Invalid) return;
             const u32 cur = frame_ & 1u;
-            const GfxComputeBinding bindings[12] = {
+            const GfxComputeBinding bindings[13] = {
                 GfxComputeBinding::uniform(0, context_.frameUbo()),
                 GfxComputeBinding::uniform(1, params_),
                 GfxComputeBinding::storageRead(2, sdf_),
@@ -775,8 +805,9 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
                 GfxComputeBinding::sampled(9, probes_[cur]),
                 GfxComputeBinding::sampled(10, ctx.input(0)),
                 GfxComputeBinding::storageTexture(11, ctx.output),
+                GfxComputeBinding::sampled(12, probeGeo_),
             };
-            device_.dispatchCompute(apply_, bindings, 12, (ctx.width + 7) / 8, (ctx.height + 7) / 8);
+            device_.dispatchCompute(apply_, bindings, 13, (ctx.width + 7) / 8, (ctx.height + 7) / 8);
             ++frame_;
         };
         graph.addPass(std::move(pass));
