@@ -113,7 +113,7 @@
 |---|---|---|
 | P0 | 网格 SDF 烘焙 + `.esmeshsdf` 资源类型与加载器 + 全局距离场 clipmap + 公共 WGSL 追踪 | 球、盒、薄墙的距离和追踪与闭式解比对;WGSL 追踪由 `tools/gi/check-sdf-wgsl.mjs` 在无头 WebGPU 上校验。**已落地(2026-11-11)**:`pipeline/src/assets/meshSdf.ts`、`MeshSdfAssetLoader`、`sdk/src/gi/globalSdf.ts`;导入设置 `dynamicGI`(默认关)。**未做**:clipmap 接到渲染帧的网格实例、上传 GPU 存储缓冲、编辑器导入开关 |
 | P1 | 表面缓存:card 烘焙、直接光 + 自发光、命中点取光 | 卡面亮度与 Lambert 闭式值一致,SDF 遮挡产生阴影,自发光出现在命中点取光里。**CPU 参考已落地(2026-11-11)**:`pipeline/src/assets/meshCards.ts`(`.esmeshcards`,6 个轴向 card)、`MeshCardsAssetLoader`、`sdk/src/gi/surfaceCache.ts`(`light`、`lookup`)、`pipeline/tests/surface-cache.test.ts`。**未做**:基色贴图不读(只用材质基色与顶点色)、图集分配、GPU 刷新通道 |
-| P2 | 屏幕探针 + SDF 追踪 + 时间/空间滤波,单次反弹 | `gi_leak` 为 0;`gi_room` 阴影区 0.6–1.1 |
+| P2 | 屏幕探针 + SDF 追踪 + 时间/空间滤波,单次反弹 | `gi_leak` 为 0;`gi_room` 阴影区 0.6–1.1。**CPU 参考已落地并对 Cycles 验证(2026-11-11)**:`sdk/src/gi/screenProbes.ts`(8×8 八面体探针、半球积分、多次反弹迭代),`pipeline/tests/gi-lab.test.ts`。实测:`gi_leak` 室内最亮 0(体素 GI 为 0.005);`gi_room` 与 `gi_away` 为 Cycles 的 0.46–1.89 倍,屏幕内外一致(体素 GI 是 0.1–1.7 与 0.31–0.52)。**未做**:GPU 通道(探针追踪/插值到像素/时间滤波)、渲染帧实例接入;精度偏差(天花板 1.9、侧墙 0.5)主要来自 25 cm 的 card 和每探针 64 条光线 |
 | P3 | 表面缓存吃上一帧间接光(多次反弹)+ 世界辐射缓存 | `gi_room` 0.8–1.1;`gi_away` ≥ 0.8;`gi_emissive` ≥ 0.8 |
 | P4 | 成本:自适应探针、光线预算、QualityConfig 档位、手机与桌面实测 | 帧时间达标;gate 内加成本断言(同阴影通道做法) |
 | P5 | 编辑器:设置面板、调试视图(SDF、card、探针)、文档;`esengine/fx-gi` 分组与包体 | 编辑器检查;包体断言 |

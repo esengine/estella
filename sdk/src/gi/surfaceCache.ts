@@ -145,6 +145,8 @@ export class SurfaceCache {
      * blended by how squarely each does, from the pixel whose surface is within `tolerance` of the point. Null when no card sees it.
      */
     lookup(point: readonly [number, number, number], dir: readonly [number, number, number], tolerance: number): [number, number, number] | null {
+        // Of the instances whose cards hold the point, the one whose surface it is nearest to.
+        let best: [number, number, number] | null = null, bestError = Infinity;
         for (const placed of this.placed_.values()) {
             let near = true;
             for (let k = 0; k < 3; k++) if (point[k]! < placed.min[k]! - tolerance || point[k]! > placed.max[k]! + tolerance) { near = false; break; }
@@ -155,14 +157,22 @@ export class SurfaceCache {
             const dl = Math.hypot(...d) || 1;
             const { cards } = placed.instance;
             const sum = [0, 0, 0];
-            let total = 0;
+            let total = 0, error = 0;
             for (let axis = 0; axis < 3; axis++) {
                 const weight = Math.abs(d[axis]! / dl);
                 if (weight < 0.05) continue;
                 // The face the ray looks at: the one on the side it came from.
                 const face = axis * 2 + (d[axis]! > 0 ? 1 : 0);
+                // The point must stand over the card (within a pixel of its edge); a card does not speak for what lies past its rim.
                 const clamped: [number, number, number] = [local[0], local[1], local[2]];
-                for (let k = 0; k < 3; k++) clamped[k] = Math.min(Math.max(clamped[k]!, cards.aabbMin[k]!), cards.aabbMax[k]! - 1e-9);
+                const { u, v } = CARD_AXES[face]!;
+                let over = true;
+                for (const k of [u, v]) {
+                    if (local[k]! < cards.aabbMin[k]! - cards.cell || local[k]! > cards.aabbMax[k]! + cards.cell) over = false;
+                    clamped[k] = Math.min(Math.max(local[k]!, cards.aabbMin[k]!), cards.aabbMax[k]! - 1e-9);
+                }
+                if (!over) continue;
+                clamped[axis] = local[axis]!;
                 const px = cardPixel(cards, face, clamped);
                 if (!px) continue;
                 const card = cards.cards[face]!, idx = px.x + px.y * card.width;
@@ -170,13 +180,15 @@ export class SurfaceCache {
                 const ext = cards.aabbMax[axis]! - cards.aabbMin[axis]!;
                 const cardDepth = (card.depth[idx]! / 65534) * ext;
                 const pointDepth = px.depth * ext;
-                if (Math.abs(cardDepth - pointDepth) * placed.scale > tolerance) continue;
+                const off = Math.abs(cardDepth - pointDepth) * placed.scale;
+                if (off > tolerance) continue;
+                error = Math.max(error, off);
                 const r = placed.radiance[face]!;
                 for (let k = 0; k < 3; k++) sum[k] += weight * r[idx * 3 + k]!;
                 total += weight;
             }
-            if (total > 0) return [sum[0]! / total, sum[1]! / total, sum[2]! / total];
+            if (total > 0 && error < bestError) { bestError = error; best = [sum[0]! / total, sum[1]! / total, sum[2]! / total]; }
         }
-        return null;
+        return best;
     }
 }
