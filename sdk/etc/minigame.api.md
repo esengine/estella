@@ -11769,6 +11769,8 @@ cellSize: number
 collision: boolean
 collisionDistance: number
 collisionLayer: number
+colorMap: number
+colorMapStrength: number
 detail: number
 dirtHeight: number
 drawDistance: number

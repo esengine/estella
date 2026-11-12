@@ -7902,6 +7902,19 @@
           "doc": "An image whose red, green, blue and alpha are the weights of layers 5 to 8."
         },
         {
+          "key": "colorMap",
+          "type": "Asset<texture>",
+          "default": "none",
+          "doc": "A picture laid over the whole area and mixed into the ground's colour by its alpha. Its Use is Colour."
+        },
+        {
+          "key": "colorMapStrength",
+          "type": "number",
+          "default": "1",
+          "doc": "How much of the colour map is mixed in where its alpha is whole.",
+          "range": "0–1, step 0.01"
+        },
+        {
           "key": "layers",
           "type": "array",
           "default": "empty",
@@ -8089,6 +8102,8 @@
         "heightmapFormat",
         "splatmap",
         "splatmap2",
+        "colorMap",
+        "colorMapStrength",
         "material",
         "sizeX",
         "sizeZ",
