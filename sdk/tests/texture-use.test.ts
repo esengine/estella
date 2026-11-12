@@ -15,7 +15,8 @@ describe('the fields that read a texture as numbers', () => {
 
     it('answer for one field', () => {
         expect(readsTextureAsNumbers('Terrain', 'heightmap')).toBe(true);
-        expect(readsTextureAsNumbers('Terrain', 'splatmap')).toBe(false);
+        expect(readsTextureAsNumbers('Terrain', 'splatmap')).toBe(true);
+        expect(readsTextureAsNumbers('Terrain', 'material')).toBe(false);
         expect(readsTextureAsNumbers('Sprite', 'texture')).toBe(false);
     });
 });

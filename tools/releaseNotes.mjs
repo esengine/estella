@@ -4518,4 +4518,6 @@ export const NOTED = {
     {"note": "One setting says what a unit is, for materials too."},
   "feat(assets): a texture's Use says whether it is a picture or numbers - Data keeps its depth and its size in a build, a 16-bit PNG is imported as Data, a Terrain's heightmap is marked Data when it is set, and Project Health lists the ones that are not":
     {"note": "A texture says whether it is a picture or numbers."},
+  "feat(editor): a texture given to a Terrain as its heightmap is marked Data, and Project Health lists the ones read as numbers that are still pictures":
+    {"note": "A texture says whether it is a picture or numbers."},
 };

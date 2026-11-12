@@ -160,7 +160,7 @@ describe('a PNG of 16 bits a channel', () => {
 });
 
 describe('a texture a component reads as numbers', () => {
-  it('is found, while its Use is still Colour, from the Terrain that names it as its heightmap', async () => {
+  it('is found, while its Use is still Colour, from the Terrain that names it as its heightmap or a splatmap', async () => {
     const { numberTexturesMarkedColour } = await import('../src/assets/dataTextureAudit');
     const scene = JSON.stringify({ entities: [
       { components: [{ type: 'Terrain', data: { heightmap: 'assets/height.png', splatmap: 'assets/colour.png' } }] },
@@ -173,8 +173,9 @@ describe('a texture a component reads as numbers', () => {
       resolveRef: (ref) => (ref === '@uuid:h2' ? 'assets/other.png' : ref.startsWith('@uuid:') ? null : ref),
       importer: (p) => importers[p],
     });
-    expect(findings.map((f) => f.texture)).toEqual(['assets/height.png', 'assets/other.png']);
-    expect(findings[0]!.readBy[0]).toEqual({ document: 'assets/scenes/a.esscene', component: 'Terrain', field: 'heightmap' });
+    expect(findings.map((f) => f.texture)).toEqual(['assets/colour.png', 'assets/height.png', 'assets/other.png']);
+    expect(findings[0]!.readBy[0]).toEqual({ document: 'assets/scenes/a.esscene', component: 'Terrain', field: 'splatmap' });
+    expect(findings[1]!.readBy[0]).toEqual({ document: 'assets/scenes/a.esscene', component: 'Terrain', field: 'heightmap' });
   });
 
   it('marked Data ships uncapped by default, and at its own depth when its Max Size caps it', async () => {
