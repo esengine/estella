@@ -500,7 +500,9 @@ fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_id) lid3 : 
         // is kept in the w of the other two texels). What is mixed in is the last frame of the nine, the middle one counting for most: 32
         // rays a frame toward a sun patch a few of them find is grain a probe wide, and the neighbours are the rays it did not trace.
         let hr = textureLoad(probeHist, base, 0);
-        if (valid && hr.w > 0.0 && abs(hr.w - eyeDistance) < 0.02 * eyeDistance && gi.origin.w > 1) {
+        // A probe whose own last frame is of another surface (the camera moved and the tile now lies across an edge) still has the
+        // neighbours that are on this one: without them it shows the 32 rays of one frame, a bright or a dark blob beside every moving edge.
+        if (valid && gi.origin.w > 1) {
             var hR = vec3f(0.0); var hG = vec3f(0.0); var hB = vec3f(0.0); var hW = 0.0;
             for (var oy = -1; oy <= 1; oy = oy + 1) {
                 for (var ox = -1; ox <= 1; ox = ox + 1) {
