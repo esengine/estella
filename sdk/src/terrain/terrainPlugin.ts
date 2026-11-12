@@ -139,13 +139,15 @@ const rgb = (r: number, g: number, b: number): Color => ({ r, g, b, a: 1 });
  */
 export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponent<TerrainData>('Terrain', {
     extent: TerrainExtent.Area, provider: NOISE_PROVIDER, world: '', generatorVersion: 1, heightmap: 0, tiles: '', heightmapFormat: HeightmapFormat.Grey, splatmap: 0, splatmap2: 0, layers: [] as string[], material: 0,
-    sizeX: 1000, sizeZ: 1000, height: 150, cellSize: 2, detail: 1, drawDistance: 4000,
-    collision: true, collisionDistance: 64, collisionLayer: 0, friction: 0.6,
+    // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): a kilometre of ground 150 m high on 2 m cells in any project.
+    sizeX: 100000, sizeZ: 100000, height: 15000, cellSize: 200, detail: 1, drawDistance: 400000,
+    collision: true, collisionDistance: 6400, collisionLayer: 0, friction: 0.6,
     seed: 1, frequency: 3, octaves: 5, persistence: 0.5, ridged: 0.35, resolution: 257, warp: 0, erosion: 0,
     rockSlope: 0.35, dirtHeight: 0.62, snowHeight: 0.88,
     layerColor0: rgb(0.28, 0.46, 0.2), layerColor1: rgb(0.45, 0.36, 0.24), layerColor2: rgb(0.93, 0.95, 0.98), layerColor3: rgb(0.4, 0.38, 0.36),
 }, {
     assetFields: [{ field: 'heightmap', type: 'texture' }, { field: 'splatmap', type: 'texture' }, { field: 'splatmap2', type: 'texture' }, { field: 'material', type: 'material' }],
+    worldUnitFields: ['sizeX', 'sizeZ', 'height', 'cellSize', 'drawDistance', 'collisionDistance'],
     fields: {
         extent: { enum: [{ label: 'Area', value: TerrainExtent.Area }, { label: 'Infinite', value: TerrainExtent.Infinite }], category: 'Shape', tooltip: 'An area of its own size, from a heightmap or noise; or ground that goes on for ever, from noise read anywhere (the same seed is the same ground).' },
         provider: { category: 'Shape', tooltip: 'The generator the ground is made by, without end or (with no heightmap) in an area: estella:noise, or one the game registers. The same provider, world, seed and version are the same ground on every machine, and two areas side by side join.' },
@@ -1005,7 +1007,8 @@ export class TerrainPlugin implements Plugin {
         set('u_terrainEye', { x: eyeAt[0] + t.worldPosition.x, y: eyeAt[1] + t.worldPosition.y, z: eyeAt[2] + t.worldPosition.z, w: 1 });
         const b = source.bounds;
         set('u_terrainBounds', b ? { x: b[0], y: b[1], z: b[2], w: b[3] } : { x: -1e9, y: -1e9, z: 1e9, w: 1e9 });
-        if (!built.data.material) {
+        // The four layer colours are the Terrain shader's; ground with layers is drawn by another, which has no such params.
+        if (!built.data.material && (built.data.layers?.length ?? 0) === 0) {
             const d = built.data;
             for (const [i, c] of [d.layerColor0, d.layerColor1, d.layerColor2, d.layerColor3].entries()) set(`u_tint${i}`, { x: c.r, y: c.g, z: c.b, w: c.a });
         }

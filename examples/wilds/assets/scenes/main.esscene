@@ -252,6 +252,7 @@
       "sizeZ": 3200,
       "height": 560,
       "cellSize": 4,
+      "collisionDistance": 64,
       "detail": 1.4,
       "heightmap": "assets/textures/height.png",
       "rockSlope": 0.34,

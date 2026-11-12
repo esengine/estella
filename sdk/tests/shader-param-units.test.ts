@@ -6,6 +6,7 @@ import { setWorldUnitsPerMeter } from '../src/ecs/worldUnits';
 import { WATER_SHADER_TEMPLATE } from '../src/water/waterShader';
 import { WaterBody } from '../src/water/waterPlugin';
 import { WaterZone } from '../src/water/zone';
+import { TERRAIN_LAYERS_SHADER_TEMPLATE, TERRAIN_SHADER_TEMPLATE } from '../src/terrain/terrainShader';
 
 const SOURCE = `#pragma shader "T"
 #pragma param u_reach float default(250) range(10,4000) unit(length)
@@ -28,6 +29,20 @@ describe('a shader param that is a world length', () => {
         expect(param(SOURCE, 'u_reach').range).toEqual({ min: 0.1, max: 40 });
         expect(param(SOURCE, 'u_density').default[0]).toBeCloseTo(0.12, 9);
         expect(param(SOURCE, 'u_gain').default).toEqual([2]);
+    });
+
+    it('is how the ground says its lengths: a layer 24 m across, relief of 5 cm, the wet line where the scene puts it', () => {
+        const ground = TERRAIN_SHADER_TEMPLATE.source, layered = TERRAIN_LAYERS_SHADER_TEMPLATE.source;
+        expect(param(ground, 'u_tile0').default).toEqual([2400]);
+        expect(param(ground, 'u_relief').default).toEqual([5]);
+        setWorldUnitsPerMeter(1);
+        expect(param(ground, 'u_tile0').default[0]).toBeCloseTo(24, 9);
+        expect(param(ground, 'u_tile3').default[0]).toBeCloseTo(40, 9);
+        expect(param(ground, 'u_relief').default[0]).toBeCloseTo(0.05, 9);
+        // A slider's reach is a length too: either ground shader's wet line can be put a kilometre up, whatever a unit is.
+        for (const source of [ground, layered]) {
+            for (const name of ['u_wetLevel', 'u_wetBand']) expect(param(source, name).range!.max).toBeCloseTo(1000, 9);
+        }
     });
 
     it('is how the water says its lengths: the same water in a centimetre project and a metre one', () => {

@@ -240,6 +240,7 @@
       "dirtHeight": 0.55,
       "snowHeight": 0.86,
       "cellSize": 4,
+      "collisionDistance": 64,
       "detail": 1.4,
       "drawDistance": 9000,
       "material": "assets/materials/terrain.esmaterial"

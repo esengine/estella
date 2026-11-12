@@ -107,10 +107,10 @@ const TERRAIN = `#pragma shader "Terrain"
 #pragma param u_tint1 color default(0.45,0.36,0.24,1)
 #pragma param u_tint2 color default(0.93,0.95,0.98,1)
 #pragma param u_tint3 color default(0.4,0.38,0.36,1)
-#pragma param u_tile0 float default(24) range(1,800) ui(slider)
-#pragma param u_tile1 float default(24) range(1,800) ui(slider)
-#pragma param u_tile2 float default(24) range(1,800) ui(slider)
-#pragma param u_tile3 float default(40) range(1,800) ui(slider)
+#pragma param u_tile0 float default(2400) range(100,80000) ui(slider) unit(length)
+#pragma param u_tile1 float default(2400) range(100,80000) ui(slider) unit(length)
+#pragma param u_tile2 float default(2400) range(100,80000) ui(slider) unit(length)
+#pragma param u_tile3 float default(4000) range(100,80000) ui(slider) unit(length)
 // How much a layer with more weight takes over from the others at the seam: 1 is a plain blend, higher a harder edge.
 #pragma param u_sharpness float default(1.6) range(1,8) ui(slider)
 // How much the seams follow the layers' own relief (their brightness): rock shows through the gaps in the grass before the grass gives way,
@@ -126,10 +126,10 @@ const TERRAIN = `#pragma shader "Terrain"
 // The wide, slow variation in brightness laid over every layer so a big meadow is not one colour.
 #pragma param u_macroVariation float default(0.35) range(0,1) ui(slider)
 // How deep, in world units, the layers' relief is drawn into the light (their brightness taken as height); 0 leaves the ground smooth.
-#pragma param u_relief float default(0.05) range(0,100000) ui(slider)
+#pragma param u_relief float default(5) range(0,10000000) ui(slider) unit(length)
 // Ground at the water: below u_wetLevel + u_wetBand (world heights) it darkens and shines, most at the waterline. A band of 0 draws none.
-#pragma param u_wetLevel float default(0) range(-100000,100000) ui(slider)
-#pragma param u_wetBand float default(0) range(0,100000) ui(slider)
+#pragma param u_wetLevel float default(0) range(-100000,100000) ui(slider) unit(length)
+#pragma param u_wetBand float default(0) range(0,100000) ui(slider) unit(length)
 #pragma param u_roughness float default(0.92) range(0,1) ui(slider)
 // The ground in pages (pages.ts; the Terrain component writes these): heights and normals, and the paint, in two atlases; heights over
 // u_heightRange above u_terrainOrigin; level 0 drawn out to u_lodRange0, each level twice as far; nothing off u_terrainBounds.
@@ -513,8 +513,8 @@ const TERRAIN_LAYERS = `#pragma shader "Terrain Layers"
 // How steep the ground must be (1 minus its normal's up) before the layers are also projected from the sides.
 #pragma param u_triplanarFrom float default(0.15) range(0,1) ui(slider)
 // Ground at the water: below u_wetLevel + u_wetBand (world heights) it darkens and shines, most at the waterline. A band of 0 draws none.
-#pragma param u_wetLevel float default(0) range(-100000,100000) ui(slider)
-#pragma param u_wetBand float default(0) range(0,100000) ui(slider)
+#pragma param u_wetLevel float default(0) range(-100000,100000) ui(slider) unit(length)
+#pragma param u_wetBand float default(0) range(0,100000) ui(slider) unit(length)
 // The ground in pages, as the Terrain shader has them, with the paint of layers 5 to 8 in an atlas of its own.
 #pragma param u_terrainPages float default(0) range(0,1) ui(slider)
 #pragma param u_heightPages texture default(white) texel(data)

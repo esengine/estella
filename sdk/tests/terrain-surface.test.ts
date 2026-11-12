@@ -3,7 +3,7 @@
 /**
  * @file  The ground is one set of triangles: what is drawn near the eye, what bodies collide with and what heightAt answers.
  */
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
@@ -21,7 +21,12 @@ import { Physics3D, Physics3DPlugin, Physics3DRuntime } from '../src/physics3d/P
 import type { Physics3DWasmModule } from '../src/physics3d/Physics3DModule';
 import type { ESEngineModule } from '../src/wasm';
 import type { Entity } from '../src/types';
+import { setWorldUnitsPerMeter, REFERENCE_UNITS_PER_METER } from '../src/ecs/worldUnits';
 import { HAS_WASM, hasSideModule, loadSideModule, loadWasmModule } from './helpers/loadWasm';
+
+// These scenes are written in metres: a project of one unit a metre, so the Terrain's own defaults are metres beside them.
+beforeAll(() => setWorldUnitsPerMeter(1));
+afterAll(() => setWorldUnitsPerMeter(REFERENCE_UNITS_PER_METER));
 
 const params: NoiseParams = { seed: 3, frequency: 4, octaves: 5, persistence: 0.5, ridged: 0.3, warp: 0.2, erosion: 1, sizeX: 400, height: 40,
     rockSlope: 0.35, dirtHeight: 0.62, snowHeight: 0.88 };

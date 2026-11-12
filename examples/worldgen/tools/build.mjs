@@ -236,7 +236,7 @@ function scene() {
     entity(4, 'Ground', [
       { type: 'Transform', data: {} },
       { type: 'Terrain', data: {
-        extent: 1, provider: 'estella:noise', world: 'demo', generatorVersion: 1, ...GROUND, cellSize: 4, detail: 1.4, drawDistance: 9000,
+        extent: 1, provider: 'estella:noise', world: 'demo', generatorVersion: 1, ...GROUND, cellSize: 4, detail: 1.4, drawDistance: 9000, collisionDistance: 64,
         material: 'assets/materials/terrain.esmaterial' } },
     ]),
     entity(5, 'World', [

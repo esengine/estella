@@ -349,7 +349,7 @@ function scene() {
     entity(4, 'Terrain', [
       { type: 'Transform', data: {} },
       { type: 'Terrain', data: {
-        sizeX: WORLD.size, sizeZ: WORLD.size, height: WORLD.height, cellSize: 4, detail: 1.4,
+        sizeX: WORLD.size, sizeZ: WORLD.size, height: WORLD.height, cellSize: 4, detail: 1.4, collisionDistance: 64,
         heightmap: 'assets/textures/height.png', heightmapFormat: 1, rockSlope: 0.34, dirtHeight: 0.5, snowHeight: 0.84, material: 'assets/materials/terrain.esmaterial' } },
     ]),
     entity(5, 'Lake', [

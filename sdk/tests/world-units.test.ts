@@ -10,6 +10,7 @@ import { defineComponent } from '../src/ecs/component';
 import { CharacterController3D, BoxCollider3D } from '../src/physics3d/Physics3DComponents';
 import { FirstPersonController, FirstPersonViewModel } from '../src/gameplay/FirstPersonController';
 import { NavVolume } from '../src/ai/nav/NavVolume';
+import { Terrain } from '../src/terrain/terrainPlugin';
 import { getComponent } from '../src/ecs/component';
 
 afterEach(() => setWorldUnitsPerMeter(REFERENCE_UNITS_PER_METER));
@@ -32,6 +33,15 @@ describe('world-unit defaults', () => {
         expect(FirstPersonViewModel.create().nearPlane).toBeCloseTo(0.01);
         expect(BoxCollider3D._default.halfExtents).toEqual({ x: 0.5, y: 0.5, z: 0.5 });
         expect(NavVolume.create().cellSize).toBeCloseTo(0.5);
+    });
+
+    it('make a new Terrain a kilometre of ground on 2 m cells whatever a unit is in the project', () => {
+        expect(Terrain._default).toMatchObject({ sizeX: 100000, sizeZ: 100000, height: 15000, cellSize: 200, drawDistance: 400000, collisionDistance: 6400 });
+        setWorldUnitsPerMeter(1);
+        const t = Terrain._default;
+        expect([t.sizeX, t.sizeZ, t.height, t.cellSize, t.drawDistance, t.collisionDistance].map((v) => Math.round(v * 1000) / 1000)).toEqual([1000, 1000, 150, 2, 4000, 64]);
+        // What is not a length stays: how many hills, how steep rock is.
+        expect(t.frequency).toBe(3);
     });
 
     it('never touch a value the scene states, nor a field that is not a length', () => {

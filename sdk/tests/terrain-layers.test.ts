@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { setWorldUnitsPerMeter, REFERENCE_UNITS_PER_METER } from '../src/ecs/worldUnits';
 import { packLayers, parseTerrainLayer, type LayerImage } from '../src/terrain/layers';
 import { FieldSource } from '../src/terrain/source';
 import { makePage, PAGE_SIDE } from '../src/terrain/pages';
@@ -11,10 +12,20 @@ const solid = (size: number, rgba: [number, number, number, number]): LayerImage
     return { width: size, height: size, pixels };
 };
 
+afterEach(() => setWorldUnitsPerMeter(REFERENCE_UNITS_PER_METER));
+
 describe('a terrain layer file', () => {
     it('takes what it names and puts the rest at their defaults', () => {
         const l = parseTerrainLayer({ albedo: 'assets/grass.png', tile: 3 });
         expect(l).toMatchObject({ albedo: 'assets/grass.png', normal: undefined, mask: undefined, tile: 3, tint: [1, 1, 1], roughness: 0.9, normalStrength: 1 });
+    });
+
+    it('repeats every 4 m when it names no tile, in the units of the project', () => {
+        expect(parseTerrainLayer({}).tile).toBe(400);
+        setWorldUnitsPerMeter(1);
+        expect(parseTerrainLayer({}).tile).toBeCloseTo(4);
+        // What a file states is the project's already.
+        expect(parseTerrainLayer({ tile: 3 }).tile).toBe(3);
     });
 
     it('keeps a height blend of its own only when it names one', () => {

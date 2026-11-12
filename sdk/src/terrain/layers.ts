@@ -15,6 +15,7 @@
  *          but its tile.
  */
 import type { AssetLoader, LoadContext } from '../asset/AssetLoader';
+import { worldUnitScale } from '../ecs/worldUnits';
 
 /** One kind of ground, as a `.esterrainlayer` file holds it. @experimental */
 export interface TerrainLayerDef {
@@ -37,7 +38,9 @@ export interface TerrainLayerDef {
     heightBlend?: number;
 }
 
-const DEFAULTS: TerrainLayerDef = { tile: 4, tint: [1, 1, 1], roughness: 0.9, normalStrength: 1 };
+/** A layer file that names no tile repeats every 4 m: 400 units at the engine's reference, in the project's own (ecs/worldUnits.ts). */
+const DEFAULT_TILE = 400;
+const DEFAULTS: TerrainLayerDef = { tile: DEFAULT_TILE, tint: [1, 1, 1], roughness: 0.9, normalStrength: 1 };
 
 /** A layer from a file's JSON, with what it leaves out at its defaults; throws naming the first field it cannot take. */
 export function parseTerrainLayer(json: unknown, file = 'terrain layer'): TerrainLayerDef {
@@ -60,7 +63,7 @@ export function parseTerrainLayer(json: unknown, file = 'terrain layer'): Terrai
         throw new Error(`${file}.tint: three numbers, red, green and blue`);
     return {
         albedo: path('albedo'), normal: path('normal'), mask: path('mask'),
-        tile: num('tile', DEFAULTS.tile, 1e-3, 1e6),
+        tile: num('tile', DEFAULT_TILE * worldUnitScale(), 1e-3, 1e6),
         tint: tint as [number, number, number],
         roughness: num('roughness', DEFAULTS.roughness, 0, 1),
         normalStrength: num('normalStrength', DEFAULTS.normalStrength, 0, 4),

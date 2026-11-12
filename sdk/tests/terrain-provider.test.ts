@@ -1,17 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
 import { Transform } from '../src/ecs/component';
 import { createMockModule } from './mocks/wasm';
+import { setWorldUnitsPerMeter, REFERENCE_UNITS_PER_METER } from '../src/ecs/worldUnits';
 import { Terrain, TerrainExtent, TerrainPlugin, TerrainsRes, paintWeights } from '../src/terrain/terrainPlugin';
 import {
     noiseProvider, ProviderSource, registerTerrainProvider, TerrainUnavailable, type TerrainProvider, type TerrainRegion,
 } from '../src/terrain/provider';
 import { makePage, PAGE_SIDE, PAGE_TEXELS, type PageImage } from '../src/terrain/pages';
 import { flattenModifier, type NoiseParams } from '../src/terrain/source';
+
+// These scenes are written in metres: a project of one unit a metre, so the Terrain's own defaults are metres beside them.
+beforeAll(() => setWorldUnitsPerMeter(1));
+afterAll(() => setWorldUnitsPerMeter(REFERENCE_UNITS_PER_METER));
 
 const params: NoiseParams = { seed: 7, frequency: 3, octaves: 5, persistence: 0.5, ridged: 0.35, warp: 0.3, erosion: 1, sizeX: 2000, height: 300,
     rockSlope: 0.35, dirtHeight: 0.62, snowHeight: 0.88 };
