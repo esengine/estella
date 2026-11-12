@@ -90,6 +90,56 @@ int main() {
               "a light whose map is taken away keeps its range");
     }
 
+    // --- which of the loop's lights can reach a lit quad (lightReachMask2D)
+    {
+        GpuLight lamp;
+        lamp.posDir = glm::vec4(0.0f, 0.0f, 0.0f, 10.0f);
+        lamp.color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+        GpuLight away = lamp;
+        away.posDir.x = 100.0f;
+        GpuLight sun;
+        sun.posDir = glm::vec4(0.0f, -1.0f, 1.0f, 0.0f);
+        sun.color = glm::vec4(1.0f);
+        GpuLight dark = lamp;
+        dark.color.a = 0.0f;
+        const GpuLight lights[4] = {lamp, away, sun, dark};
+        CHECK(lightReachMask2D(lights, 4, {-1.0f, -1.0f}, {1.0f, 1.0f}) == 0b0101u,
+              "a quad under a lamp is reached by it and by the sun, not by a lamp across the level nor one of no intensity");
+        CHECK(lightReachMask2D(lights, 4, {9.5f, -1.0f}, {12.0f, 1.0f}) == 0b0101u, "a quad whose near edge is inside the radius is reached");
+        CHECK(lightReachMask2D(lights, 4, {10.5f, -1.0f}, {12.0f, 1.0f}) == 0b0100u, "one wholly past the radius is not");
+        CHECK(lightReachMask2D(lights, 4, {8.0f, 8.0f}, {9.0f, 9.0f}) == 0b0100u,
+              "nor one past it on the diagonal, though it is inside the radius along each axis");
+        CHECK(lightReachMask2D(lights, 4, {95.0f, -1.0f}, {96.0f, 1.0f}) == 0b0110u, "the far lamp reaches what stands by it");
+        CHECK(lightReachMask2D(lights, 2, {-1.0f, -1.0f}, {1.0f, 1.0f}) == 0b0001u, "lights past the count are not asked");
+
+        GpuLight sixteen[MAX_LIGHTS];
+        for (GpuLight& l : sixteen) l = lamp;
+        CHECK(lightReachMask2D(sixteen, MAX_LIGHTS, {-1.0f, -1.0f}, {1.0f, 1.0f}) == 0x7fffu,
+              "fifteen lights have a bit; the sixteenth has none and is always worked out");
+    }
+
+    // --- the reach rides beside the layer in one lane, and comes apart whole (the decode is applyLighting2DLayer's, line for line)
+    {
+        const auto layerOf = [](f32 lane) { const f32 a = std::fabs(lane); return a - std::floor(a * 0.001953125f) * 512.0f; };
+        const auto reachOf = [](f32 lane) {
+            return lane < 0.0f ? static_cast<u32>(std::floor(std::fabs(lane) * 0.001953125f)) + 32768u : 65535u;
+        };
+        bool ok = true;
+        const u32 masks[] = {0u, 1u, 0x4000u, 0x2aaau, 0x7fffu};
+        for (i32 layer = -128; layer <= 127; ++layer) {
+            for (u32 mask : masks) {
+                const f32 lane = packSpriteLightLane(layer, mask);
+                if (!(lane < 0.0f) || layerOf(lane) != static_cast<f32>(layer) + SPRITE_LAYER_BIAS || reachOf(lane) != (mask | 0x8000u)) ok = false;
+            }
+        }
+        CHECK(ok, "every layer with every reach round-trips, and the sixteenth light's bit is always set");
+        CHECK(std::fabs(packSpriteLightLane(127, 0x7fffu)) < 16777216.0f, "the largest lane fits a float exactly");
+        CHECK(packSpriteLightLane(0, 0xffffu) == packSpriteLightLane(0, 0x7fffu), "a bit past the fifteen is dropped, not carried into the layer");
+        const f32 bare = 5.0f + SPRITE_LAYER_BIAS;
+        CHECK(layerOf(bare) == bare && reachOf(bare) == 65535u, "a lane that is the bare layer, as it was once written, means every light");
+        CHECK(layerOf(0.0f) == 0.0f && reachOf(0.0f) == 65535u, "and a zero lane (a tilemap's) is no layer and every light");
+    }
+
     std::printf("%s\n", g_failures == 0 ? "all passed" : "FAILED");
     return g_failures == 0 ? 0 : 1;
 }

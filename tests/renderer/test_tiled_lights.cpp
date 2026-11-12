@@ -178,6 +178,56 @@ int main() {
               "restoring the source view recovers its exact tile masks");
     }
 
+    // --- the loop's own sixteen are marked per tile too, in the fourth word, for the flat lit surfaces
+    {
+        LightStore store;
+        store.clear();
+        const glm::mat4 source = glm::ortho(-10.0f, 10.0f, -10.0f, 10.0f, 0.1f, 100.0f);
+        const glm::mat4 reflected = source * glm::scale(glm::mat4(1.0f), glm::vec3(-1.0f, 1.0f, 1.0f));
+        GpuLight lamp;
+        lamp.posDir = {-5.0f, -5.0f, 0.0f, 0.25f};
+        lamp.color = {1.0f, 0.0f, 0.0f, 2.0f};
+        GpuLight sun;
+        sun.posDir = {0.0f, -1.0f, 1.0f, 0.0f};
+        sun.color = {1.0f, 1.0f, 1.0f, 1.0f};
+        store.addLight(lamp);
+        store.addLight(sun);
+        CHECK(store.data().tileInfo.w == 0.0f, "until the loop's lights are marked the block says the word is not there");
+        store.markLoopLights(source);
+        const LightConstants marked = store.data();
+        CHECK(marked.tileInfo.w == 1.0f && marked.tileInfo.y == static_cast<f32>(TILE_COLUMNS) && marked.tileInfo.z == static_cast<f32>(TILE_ROWS),
+              "marking says the word is there and how big the grid is, with no tiled light in the frame");
+        CHECK((marked.tileMask[2 * TILE_COLUMNS + 3].w & 1u) != 0, "the lamp is marked in the lower-left tiles it stands in");
+        CHECK((marked.tileMask[8 * TILE_COLUMNS + 11].w & 1u) == 0, "and not across the picture");
+        u32 lampTiles = 0;
+        bool sunEverywhere = true, othersUntouched = true;
+        for (const auto& mask : marked.tileMask) {
+            lampTiles += mask.w & 1u;
+            sunEverywhere &= (mask.w & 2u) != 0;
+            othersUntouched &= mask.x == 0u && mask.y == 0u && mask.z == 0u && (mask.w >> 2) == 0u;
+        }
+        CHECK(lampTiles > 0 && lampTiles <= 4, "a lamp a quarter of a unit wide is in the few tiles round it");
+        CHECK(sunEverywhere, "a directional light is marked in every tile");
+        CHECK(othersUntouched, "the tiled lights' three words and the unused bits stay clear");
+        CHECK(store.loopTileBits() == lampTiles + kTiles, "and the count of pairs left set is what a gate reads");
+
+        store.setTiledView(reflected);
+        CHECK((store.data().tileMask[2 * TILE_COLUMNS + 12].w & 1u) != 0 && (store.data().tileMask[2 * TILE_COLUMNS + 3].w & 1u) == 0,
+              "another view moves the lamp's tiles with it");
+        store.setTiledView(source);
+        CHECK(std::memcmp(marked.tileMask, store.data().tileMask, sizeof(marked.tileMask)) == 0, "and the source view brings them back");
+
+        // A view that lets depth into the picture's x and y cannot say which tile a flat surface's pixel is lit in.
+        store.markLoopLights(glm::perspective(glm::radians(60.0f), 1.0f, 0.1f, 100.0f)
+                             * glm::lookAt(glm::vec3(0.0f, 0.0f, 20.0f), glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
+        bool all = true;
+        for (const auto& mask : store.data().tileMask) all &= (mask.w & 3u) == 3u;
+        CHECK(all && store.loopTileBits() == 2 * kTiles, "through a perspective camera every light is marked everywhere: nothing is skipped");
+
+        store.clear();
+        CHECK(store.data().tileInfo.w == 0.0f && store.loopTileBits() == 0, "a new frame starts unmarked");
+    }
+
     CHECK(sizeof(LightConstants) <= 16384, "the whole block fits the 16 KB a uniform block is guaranteed");
 
     std::printf(g_failures == 0 ? "\nALL PASS\n" : "\n%d FAILURE(S)\n", g_failures);
