@@ -29,6 +29,8 @@ import type { PlanetPainter } from '../terrain/planetQuery';
 import { faceOf, type SphereNode } from '../terrain/sphere';
 import { makePlanetPage, type PlanetPageSource } from '../terrain/planetPages';
 import { makePage, type PageImage } from '../terrain/pages';
+import type { MeshData } from '../asset/meshFormat';
+import { buildFoliageCell, cellTransfers, type CellSurroundings, type FoliageCellSpec } from '../foliage/cellBuild';
 
 /** What a plan is made from: everything the main thread knew when it made its own. */
 export interface PlanSpec {
@@ -213,14 +215,69 @@ export async function groundPage(r: GroundPageRequest, load: ProviderLoader = bl
     return { result: image, transfer: [image.heights.buffer as ArrayBuffer, image.paint.buffer as ArrayBuffer, image.paint2.buffer as ArrayBuffer] };
 }
 
+/** What a Foliage's cells are grown against, as data: the ground (none for a flat area), the water, the zones that keep plants out. */
+export interface FoliageSurroundingsSpec {
+    ground: GroundData | null;
+    flatY: number;
+    water: WaterQueryData | null;
+    zones: ZoneDef[];
+}
+
+/** A cell of a Foliage to grow. */
+export interface FoliageCellRequest {
+    id: number;
+    type: 'foliageCell';
+    /** Names what the cell is grown against; a worker that has not seen it is sent `around` with it. */
+    key: string;
+    around?: FoliageSurroundingsSpec;
+    /** Names the mesh a cell of copies copies; a worker that has not seen it is sent `source` with it. Absent for grass. */
+    sourceKey?: string;
+    source?: MeshData;
+    cell: FoliageCellSpec;
+}
+
+const surroundings = new Map<string, CellSurroundings>();
+const plantSources = new Map<string, MeshData>();
+const SURROUNDINGS_KEPT = 8;
+
+/** The geometry of a Foliage's cell, as the main thread would build it: the same function, given the same ground as data. @internal */
+export function foliageCell(r: FoliageCellRequest): { result: MeshData[]; transfer: ArrayBuffer[] } {
+    let around = surroundings.get(r.key);
+    if (!around) {
+        if (!r.around) throw new Error(`what the foliage ${r.key} grows against is not known to this worker`);
+        const zones = new Zones();
+        for (const z of r.around.zones) zones.set(z);
+        around = {
+            ground: r.around.ground ? new GroundQuery(r.around.ground) : null, flatY: r.around.flatY,
+            water: r.around.water ? new WaterQuery(r.around.water) : null, zones,
+        };
+        surroundings.set(r.key, around);
+        if (surroundings.size > SURROUNDINGS_KEPT) surroundings.delete(surroundings.keys().next().value!);
+    }
+    let source: MeshData | null = null;
+    if (r.sourceKey !== undefined) {
+        if (r.source) {
+            plantSources.set(r.sourceKey, r.source);
+            if (plantSources.size > SURROUNDINGS_KEPT) plantSources.delete(plantSources.keys().next().value!);
+        }
+        source = plantSources.get(r.sourceKey) ?? null;
+        if (!source) throw new Error(`the mesh ${r.sourceKey} is not known to this worker`);
+    }
+    const meshes = buildFoliageCell(r.cell, around, source);
+    return { result: meshes, transfer: cellTransfers(meshes) };
+}
+
 // The worker's loop. Absent where this file is imported as a module (a test), where `self` is not a worker's scope.
-declare const self: { onmessage: ((e: { data: PlacementsRequest | PageRequest | GroundPageRequest }) => void) | null; postMessage(m: unknown, transfer?: ArrayBuffer[]): void } | undefined;
+declare const self: { onmessage: ((e: { data: PlacementsRequest | PageRequest | GroundPageRequest | FoliageCellRequest }) => void) | null; postMessage(m: unknown, transfer?: ArrayBuffer[]): void } | undefined;
 if (typeof self !== 'undefined' && typeof (self as { importScripts?: unknown }).importScripts === 'function') {
     self.onmessage = (e) => {
         const m = e.data;
         const fail = (err: unknown): void => self!.postMessage({ id: m.id, error: err instanceof Error ? err.message : String(err) });
         if ((m as { type?: string }).type === 'page') page(m as PageRequest).then((r) => self!.postMessage({ id: m.id, result: r.result }, r.transfer), fail);
         else if ((m as { type?: string }).type === 'groundPage') groundPage(m as GroundPageRequest).then((r) => self!.postMessage({ id: m.id, result: r.result }, r.transfer), fail);
+        else if ((m as { type?: string }).type === 'foliageCell') {
+            try { const r = foliageCell(m as FoliageCellRequest); self!.postMessage({ id: m.id, result: r.result }, r.transfer); } catch (err) { fail(err); }
+        }
         else placements(m as PlacementsRequest).then((result) => self!.postMessage({ id: m.id, result }), fail);
     };
 }

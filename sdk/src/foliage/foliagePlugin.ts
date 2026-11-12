@@ -30,10 +30,10 @@ import { isEditor, isPlayMode } from '../ecs/env';
 import type { Zones } from '../worldgen/zones';
 import { installFoliageContacts } from './foliageContacts';
 import { lodCullSizeWithin, lodSizeAtDistance, lodSphereRadius } from '../render/lodDistance';
-import {
-    buildBillboardMesh, buildGrassMesh, buildInstancedMesh, scatterCell,
-    type Ground, type Plant,
-} from './builder';
+import { buildFoliageCell, type CellSurroundings, type FoliageCellSpec } from './cellBuild';
+import { bakesOf } from '../runtime/bakes';
+import { firstSend, forgetSent, planPool } from '../runtime/planPool';
+import type { FoliageCellRequest, FoliageSurroundingsSpec } from '../worldgen/planWorker';
 
 /** The fields of the `Foliage` component. @experimental */
 export interface FoliageData {
@@ -130,13 +130,21 @@ interface BuiltFoliage {
     source: MeshData | null;
     loading: boolean;
     epoch: number;
+    /** What its cells are being grown for now: a cell that lands for an earlier one is not put in the world. */
+    generation?: string;
+    /** Its cells' geometry made on the workers, for the surroundings `key` names; null where they cannot be given those. */
+    away?: { key: string; grow: ((cell: FoliageCellSpec) => Promise<MeshData[]>) | null };
 }
 
 /** One grown cell: its entity (none where nothing grew) and the meshes it owns. */
 interface GrownCell { entity: Entity | null; handles: number[] }
 
 /** The water, as foliage asks it (the water module is optional: read by name, not imported). */
-interface WaterQuery { depthAt(x: number, z: number, y: number): number | null; revision_: number; baking: boolean }
+interface WaterQuery {
+    depthAt(x: number, z: number, y: number): number | null; revision_: number; baking: boolean;
+    /** The water as data a worker can answer from, and whether there is none at all. */
+    queryData?(): FoliageSurroundingsSpec['water']; readonly empty?: boolean;
+}
 
 function waterOf(app: App): WaterQuery | null {
     const w = (app as unknown as { getResourceByName?: (name: string) => unknown }).getResourceByName?.('Waters') as Partial<WaterQuery> | undefined;
@@ -159,6 +167,9 @@ export class FoliageField {
     readonly authoredWind_ = new Map<number, number>();
 
     /** @internal */ app_: App | null = null;
+
+    /** @internal Cells whose geometry has come back from a worker and is waiting to be put in the world, a few a frame. */
+    readonly landed_: (() => void)[] = [];
 
     /** How many cells near enough to be drawn, across every field, are still waiting to be grown. */
     get pending(): number {
@@ -203,6 +214,11 @@ export class FoliagePlugin implements Plugin {
             const terrains = app.hasResource(TerrainsRes) ? app.getResource(TerrainsRes) : null;
             this.sweep(app, field);
             this.blow(app, field);
+            // Cells made on the workers are put in the world here, within the frame's budget: making them cost the frame nothing, and
+            // a dozen landing at once must not cost it a dozen uploads.
+            const bakes = bakesOf(app);
+            for (let first = true; field.landed_.length > 0 && (first || bakes.hasTime(field)); first = false) field.landed_.shift()!();
+            bakes.mark(field, 'Growing the plants', field.landed_.length === 0 ? 1 : 0.5);
             // Plants are grown again when the ground they stand on or the water they keep out of changes, and wait while either is
             // being made: a plant placed before its terrain is read would stand on nothing.
             const water = waterOf(app);
@@ -266,6 +282,8 @@ export class FoliagePlugin implements Plugin {
             if (app.hasResource(ProceduralChunksRes)) app.getResource(ProceduralChunksRes).remove(layerOf(entity));
         }
         field.built_.clear();
+        // What had come back and not landed is let go with the field: its cells are no longer anyone's.
+        field.landed_.length = 0;
     }
 
     /** Reads the plant's geometry, if it has one; the cells wait for it. */
@@ -292,16 +310,21 @@ export class FoliagePlugin implements Plugin {
         const data = built.data, cells = this.cellsAcross(data);
         const sx = t.worldScale.x || 1, sz = t.worldScale.z || 1;
         const assets = app.getResource(Assets);
+        const generation = `${built.epoch}:${revision}:${t.worldPosition.x}:${t.worldPosition.y}:${t.worldPosition.z}:${sx}:${sz}`;
+        built.generation = generation;
+        const away = waiting || built.loading ? null : this.awayFor(app, entity, built, revision, t.worldPosition.y);
         chunksOf(app).set<GrownCell>(layerOf(entity), {
             label: 'Growing the plants',
+            // Made on the workers where they can be: the layer then takes none of the frame's budget to make, only to land.
+            async: away !== null,
             originX: t.worldPosition.x - data.sizeX / 2 * sx, originZ: t.worldPosition.z - data.sizeZ / 2 * sz,
             sizeX: data.sizeX / cells.x * sx, sizeZ: data.sizeZ / cells.z * sz,
             extent: [0, 0, cells.x, cells.z],
             loadRadius: data.drawDistance,
             unloadRadius: data.drawDistance + Math.max(1, data.cellSize) * 1.5,
-            generation: `${built.epoch}:${revision}:${t.worldPosition.x}:${t.worldPosition.y}:${t.worldPosition.z}:${sx}:${sz}`,
+            generation,
             // Plants stand on the ground and keep out of the water: while either is still being made, they wait.
-            make: (cx, cz) => (waiting || built.loading ? null : this.grow(app, entity, built, cx, cz)),
+            make: (cx, cz, signal) => (waiting || built.loading ? null : this.grow(app, entity, built, cx, cz, away, generation, signal)),
             publish: (_cx, _cz, cell) => { if (cell.entity !== null) app.world.setParent(cell.entity, entity); },
             release: (_cx, _cz, cell) => {
                 if (cell.entity !== null && app.world.valid(cell.entity)) app.world.despawn(cell.entity);
@@ -315,12 +338,55 @@ export class FoliagePlugin implements Plugin {
         return { x: Math.min(200, Math.max(1, Math.ceil(data.sizeX / side))), z: Math.min(200, Math.max(1, Math.ceil(data.sizeZ / side))) };
     }
 
-    /** Grows cell (cx, cz): its plants, their meshes and the entity that draws them, not yet in the world (its parent is set on publishing). */
-    private grow(app: App, parent: Entity, built: BuiltFoliage, cx: number, cz: number): GrownCell | null {
+    /**
+     * What makes a Foliage's cells on the workers, when what they are grown against can be handed over as data: no terrain (a flat
+     * area) or one a worker can rebuild, water that is baked or absent, and the zones, which are data already. Null when it cannot,
+     * and the cells are made here. Worked out again only when the ground, the water or the zones change.
+     */
+    private awayFor(app: App, entity: Entity, built: BuiltFoliage, revision: string, flatY: number): ((cell: FoliageCellSpec) => Promise<MeshData[]>) | null {
+        const key = `foliage:${entity}:${built.epoch}:${revision}:${flatY}`;
+        if (built.away?.key === key) return built.away.grow;
+        const none = (): null => { built.away = { key, grow: null }; return null; };
+        const pool = planPool();
+        if (!pool) return none();
+        const terrains = app.hasResource(TerrainsRes) ? app.getResource(TerrainsRes) : null;
+        const hasTerrain = !!terrains && terrains.built_.size > 0;
+        const ground = hasTerrain ? terrains!.groundData() : null;
+        if (hasTerrain && !ground) return none();
+        const water = waterOf(app);
+        const waterData = water?.queryData?.() ?? null;
+        if (water && !waterData && !water.empty) return none();
+        const zones = zonesOf(app, built.data.zoneWorld);
+        const around = (): FoliageSurroundingsSpec => ({ ground, flatY, water: waterData, zones: zones ? [...zones.all()] : [] });
+        const source = built.source;
+        const sourceKey = source ? `${key}:mesh` : undefined;
+        const grow = (cell: FoliageCellSpec): Promise<MeshData[]> => {
+            // Cells are spread over the workers by where they are, as the world's squares are.
+            const worker = Math.abs((Math.floor(cell.centerX / 256) * 73856093) ^ (Math.floor(cell.centerZ / 256) * 19349663)) % pool.size;
+            const first = firstSend(worker, key);
+            const request: FoliageCellRequest = {
+                id: 0, type: 'foliageCell', key, cell,
+                ...(first ? { around: around() } : {}),
+                ...(sourceKey ? { sourceKey, ...(first ? { source: source! } : {}) } : {}),
+            };
+            return pool.run<MeshData[]>(worker, request as unknown as Record<string, unknown>).catch((e: unknown) => {
+                forgetSent(worker, key);
+                throw e;
+            });
+        };
+        built.away = { key, grow };
+        return grow;
+    }
+
+    /**
+     * Grows cell (cx, cz): its plants, their meshes and the entity that draws them, not yet in the world (its parent is set on publishing).
+     * The geometry is made on a worker where `away` can make it, and the cell lands a frame or two later; else it is made here.
+     */
+    private grow(app: App, parent: Entity, built: BuiltFoliage, cx: number, cz: number,
+                 away: ((cell: FoliageCellSpec) => Promise<MeshData[]>) | null = null, generation?: string, signal?: AbortSignal): GrownCell | Promise<GrownCell | null> | null {
         const world = app.world;
         if (!world.valid(parent)) return null;
         const data = built.data;
-        const assets = app.getResource(Assets);
         const terrains = app.hasResource(TerrainsRes) ? app.getResource(TerrainsRes) : null;
         const t = world.tryGet(parent, Transform) as TransformData | null;
         if (!t) return null;
@@ -332,45 +398,50 @@ export class FoliagePlugin implements Plugin {
         const sx = t.worldScale.x || 1, sz = t.worldScale.z || 1;
         const worldX = t.worldPosition.x + localX * sx, worldZ = t.worldPosition.z + localZ * sz;
         const hasTerrain = !!terrains && terrains.built_.size > 0;
-        const water = waterOf(app);
-        const zones = zonesOf(app, data.zoneWorld);
-        const tags = ['foliage', data.mesh ? 'tree' : 'grass', ...(data.zoneTags ?? '').split(',').map((s) => s.trim()).filter(Boolean)];
-        const ground: Ground = (x, z) => {
-            if (zones?.excluding(x, z, Math.max(0, data.zonePadding ?? 0), tags, data.seed)) return null;
-            // With a terrain, a plant stands where there is ground and nowhere else; with none, the area is flat at the entity's height.
-            const y = hasTerrain ? terrains!.heightAt(x, z) : t.worldPosition.y;
-            if (y === null) return null;
-            // Nor under water deeper than it may stand in.
-            const depth = water?.depthAt(x, z, y);
-            if (depth != null && depth > data.waterDepth) return null;
-            if (!hasTerrain) return { y, up: 1 };
-            const n = terrains!.normalAt(x, z);
-            return { y, up: n ? n[1] : 1 };
-        };
         // Grass thins toward where its cells turn to their far version, so a near cell beside a far one is not three times as thick.
         if (data.material && !built.source) Material.setUniform(data.material, 'u_thinDistance', data.lodDistance);
-        const plants: Plant[] = scatterCell({
+        const spec: FoliageCellSpec = {
             centerX: worldX, centerZ: worldZ, size: Math.min(side, data.sizeX / cells.x), count: Math.floor(data.count), seed: data.seed,
             cellKey: cz * 1000 + cx, minScale: data.minScale, maxScale: data.maxScale, minUp: data.minUp,
             heightMin: data.heightMin, heightMax: data.heightMax,
-        }, ground);
-        if (plants.length === 0) return { entity: null, handles: [] };
-        // The cell stands at its centre, on the entity's own base height; the plants carry the ground's height relative to that.
-        for (const p of plants) p.y -= t.worldPosition.y;
-
-        const paint = data.material ? null : { base: [0.14, 0.3, 0.08] as [number, number, number], tip: [0.55, 0.72, 0.25] as [number, number, number] };
-        const source = built.source;
-        const meshes: MeshData[] = [];
-        if (source) {
-            meshes.push(buildInstancedMesh(source, plants, paint));
-            const width = Math.max(source.aabbMax[0] - source.aabbMin[0], source.aabbMax[2] - source.aabbMin[2]);
-            meshes.push(buildBillboardMesh(plants, width, source.aabbMax[1] - source.aabbMin[1],
-                { u0: data.cardU0, v0: data.cardV0, u1: data.cardU1, v1: data.cardV1 }, paint, data.cardTent === 1));
-        } else {
-            const blade = { height: data.bladeHeight, width: data.bladeWidth, paint };
-            meshes.push(buildGrassMesh(plants, { ...blade, segments: 3, thin: 1 }));
-            meshes.push(buildGrassMesh(plants, { ...blade, segments: 1, thin: 3 }));
+            waterDepth: data.waterDepth, zonePadding: data.zonePadding ?? 0,
+            tags: ['foliage', data.mesh ? 'tree' : 'grass', ...(data.zoneTags ?? '').split(',').map((s) => s.trim()).filter(Boolean)],
+            baseY: t.worldPosition.y,
+            paint: data.material ? null : { base: [0.14, 0.3, 0.08], tip: [0.55, 0.72, 0.25] },
+            look: built.source
+                ? { kind: 'mesh', card: { u0: data.cardU0, v0: data.cardV0, u1: data.cardU1, v1: data.cardV1 }, tent: data.cardTent === 1 }
+                : { kind: 'grass', bladeHeight: data.bladeHeight, bladeWidth: data.bladeWidth },
+        };
+        const here = (): MeshData[] => {
+            const around: CellSurroundings = {
+                ground: hasTerrain ? terrains! : null, flatY: t.worldPosition.y, water: waterOf(app), zones: zonesOf(app, data.zoneWorld),
+            };
+            return buildFoliageCell(spec, around, built.source);
+        };
+        if (away) {
+            const field = app.getResource(FoliageRes);
+            // A worker that fails a cell does not leave a hole in the field: that cell is made here, and so are the ones after it.
+            const made = away(spec).catch((e: unknown) => {
+                if (built.away?.grow) log.warn('foliage', 'the workers failed a cell; this field grows its cells on the main thread from here', e);
+                if (built.away) built.away = { key: built.away.key, grow: null };
+                return null;
+            });
+            return made.then((meshes) => new Promise<GrownCell | null>((resolve, reject) => {
+                // Put in the world on a later frame, within its budget; not at all if the field has moved on while it was being made.
+                field.landed_.push(() => {
+                    if (signal?.aborted || built.generation !== generation || !app.world.valid(parent)) { resolve(null); return; }
+                    try { resolve(this.land(app, built, cx, cz, localX, localZ, meshes ?? here())); } catch (e) { reject(e); }
+                });
+            }));
         }
+        return this.land(app, built, cx, cz, localX, localZ, here());
+    }
+
+    /** Puts a cell's geometry in the world: its meshes on the GPU and the entity that draws them (its parent is set on publishing). */
+    private land(app: App, built: BuiltFoliage, cx: number, cz: number, localX: number, localZ: number, meshes: MeshData[]): GrownCell {
+        if (meshes.length === 0) return { entity: null, handles: [] };
+        const world = app.world, data = built.data;
+        const assets = app.getResource(Assets);
         const handles: number[] = [];
         for (const mesh of meshes) {
             const handle = assets.createMesh(mesh);

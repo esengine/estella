@@ -4,13 +4,15 @@ import { describe, expect, it } from 'vitest';
 import type { PlanetFacts } from '../src/terrain/planetQuery';
 import { PlanetFace, FaceZones } from '../src/worldgen/planetSurface';
 import { farRulesOf, makeFacePlan } from '../src/worldgen/facePlan';
-import { groundPage, page, placements, type GroundPageRequest, type PageRequest, type PlacementsRequest, type PlanSpec, type PlaneSpec } from '../src/worldgen/planWorker';
+import { foliageCell, groundPage, page, placements, type FoliageCellRequest, type FoliageSurroundingsSpec, type GroundPageRequest, type PageRequest, type PlacementsRequest, type PlanSpec, type PlaneSpec } from '../src/worldgen/planWorker';
 import { makePlanePlan } from '../src/worldgen/planePlan';
 import { GroundQuery, groundSourceOf, type GroundData } from '../src/terrain/groundQuery';
 import { makePageJob, type PageImage } from '../src/terrain/pages';
 import { noiseProvider, ProviderSource } from '../src/terrain/provider';
 import { ModifiedSource } from '../src/terrain/source';
 import { paintWeights } from '../src/terrain/paint';
+import { buildFoliageCell, type FoliageCellSpec } from '../src/foliage/cellBuild';
+import { buildGrassMesh } from '../src/foliage/builder';
 import { WaterQuery, type WaterQueryData } from '../src/water/waterQuery';
 import { Zones } from '../src/worldgen/zones';
 import { makePlanetPage } from '../src/terrain/planetPages';
@@ -220,5 +222,70 @@ describe("a terrain's pages made in a worker", () => {
     it('says so when its plan has no ground to make a page of', async () => {
         const request: GroundPageRequest = { id: 1, type: 'groundPage', key: 'flat', spec: { ...structuredClone(planeSpec), ground: null }, x0: 0, z0: 0, size: 128, paint: true };
         await expect(groundPage(request, loader)).rejects.toThrow(/no ground/);
+    });
+});
+
+// A cell of grass is 4 to 12 ms of arithmetic, which is a frame's whole budget: it is made on a worker and only landed here.
+describe("a Foliage's cells made in a worker", () => {
+    const params = { seed: 5, frequency: 6, octaves: 4, persistence: 0.5, ridged: 0.3, warp: 0.35, erosion: 1, sizeX: 400, height: 60, rockSlope: 0.5, dirtHeight: 0.4, snowHeight: 0.9 };
+    const ground: GroundData = { origin: { x: 0, y: 0, z: 0 }, cell: 2, source: { kind: 'noise', data: params }, shift: { x: 0, z: 0 } };
+    const around: FoliageSurroundingsSpec = {
+        ground, flatY: 0, water: null,
+        zones: [{ id: 'home', kind: 'reserve', shape: { type: 'circle', x: 10, z: 10, radius: 6 }, falloff: 2, priority: 0, excludes: ['*'] } as never],
+    };
+    const cell: FoliageCellSpec = {
+        centerX: 8, centerZ: 8, size: 16, count: 600, seed: 11, cellKey: 3004, minScale: 0.8, maxScale: 1.25, minUp: 0.3, heightMin: -1e5, heightMax: 1e5,
+        waterDepth: 0, zonePadding: 0, tags: ['foliage', 'grass'], baseY: 0, paint: null, look: { kind: 'grass', bladeHeight: 1.4, bladeWidth: 0.16 },
+    };
+    const here = (spec: FoliageCellSpec) => {
+        const zones = new Zones();
+        for (const z of around.zones) zones.set(z);
+        return buildFoliageCell(spec, { ground: new GroundQuery(ground), flatY: 0, water: null, zones }, null);
+    };
+    const same = (a: { vertices: Uint8Array; indices: Uint32Array }[], b: { vertices: Uint8Array; indices: Uint32Array }[]) => {
+        expect(a).toHaveLength(b.length);
+        for (let i = 0; i < a.length; i++) {
+            expect(Buffer.from(a[i]!.vertices).equals(Buffer.from(b[i]!.vertices))).toBe(true);
+            expect(Buffer.from(a[i]!.indices.buffer).equals(Buffer.from(b[i]!.indices.buffer))).toBe(true);
+        }
+    };
+
+    it('are the cells the main thread grows, from the ground, the water and the zones as data', () => {
+        const request: FoliageCellRequest = { id: 1, type: 'foliageCell', key: 'field', around: structuredClone(around), cell };
+        const away = foliageCell(request);
+        const mine = here(cell);
+        expect(mine).toHaveLength(2);
+        expect(mine[0]!.vertexCount).toBeGreaterThan(1000);
+        same(away.result, mine);
+        // Two meshes, a vertex and an index buffer each, handed back and not copied.
+        expect(away.transfer).toHaveLength(4);
+        // The zone is read: without it the cell grows more.
+        const open = buildFoliageCell(cell, { ground: new GroundQuery(ground), flatY: 0, water: null, zones: null }, null);
+        expect(open[0]!.vertexCount).toBeGreaterThan(mine[0]!.vertexCount);
+    });
+
+    it('keeps what a field grows against, and answers later cells from it', () => {
+        foliageCell({ id: 1, type: 'foliageCell', key: 'kept', around: structuredClone(around), cell });
+        const next = { ...cell, centerX: 24, cellKey: 3005 };
+        same(foliageCell({ id: 2, type: 'foliageCell', key: 'kept', cell: next }).result, here(next));
+        expect(() => foliageCell({ id: 3, type: 'foliageCell', key: 'never sent', cell })).toThrow(/not known to this worker/);
+    });
+
+    it('grows copies of a mesh it was sent once, and nothing where nothing can stand', () => {
+        const blade = buildGrassMesh([{ x: 0, y: 0, z: 0, yaw: 0, scale: 1, phase: 0, shade: 1 }], { height: 2, width: 0.5, paint: null, segments: 2, thin: 1 });
+        const trees: FoliageCellSpec = { ...cell, count: 40, tags: ['foliage', 'tree'], look: { kind: 'mesh', card: { u0: 0, v0: 0, u1: 1, v1: 1 }, tent: false } };
+        const first = foliageCell({ id: 1, type: 'foliageCell', key: 'trees', around: structuredClone(around), sourceKey: 'trees:mesh', source: structuredClone(blade), cell: trees });
+        expect(first.result).toHaveLength(2);
+        const zones = new Zones();
+        for (const z of around.zones) zones.set(z);
+        same(first.result, buildFoliageCell(trees, { ground: new GroundQuery(ground), flatY: 0, water: null, zones }, blade));
+        // The mesh is not sent again.
+        const again = foliageCell({ id: 2, type: 'foliageCell', key: 'trees', sourceKey: 'trees:mesh', cell: { ...trees, cellKey: 9 } });
+        expect(again.result).toHaveLength(2);
+        expect(() => foliageCell({ id: 3, type: 'foliageCell', key: 'trees', sourceKey: 'other:mesh', cell: trees })).toThrow(/not known to this worker/);
+        // Too steep everywhere to grow on: no meshes, and nothing to hand back.
+        const none = foliageCell({ id: 4, type: 'foliageCell', key: 'trees', cell: { ...cell, minUp: 2 } });
+        expect(none.result).toEqual([]);
+        expect(none.transfer).toEqual([]);
     });
 });
