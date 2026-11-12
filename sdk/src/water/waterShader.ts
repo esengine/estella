@@ -868,12 +868,7 @@ void main() {
     ext.misc.x = 0.0;
     vec3 albedo = mix(scatterColor * murk, u_foamColor.rgb, foam);
     // Rain stipples the surface finer than any ring: it reflects a little less sharply.
-    // Waves finer than a pixel cannot be drawn as glints: they would flash pixel by pixel. How far the normal turns across a pixel is
-    // how many of them it covers, and that widens the highlight instead (the variance of the normals under the pixel, capped), so a far sea shines evenly.
-    vec3 turnX = dFdx(N), turnY = dFdy(N);
-    float spread = min(0.5 * (dot(turnX, turnX) + dot(turnY, turnY)), 0.18);
-    float plain = mix(u_roughness + 0.05 * clamp(u_rain, 0.0, 1.0), 0.7, foam);
-    float roughness = sqrt(sqrt(clamp(plain * plain * plain * plain + spread, 0.0, 1.0)));
+    float roughness = mix(u_roughness + 0.05 * clamp(u_rain, 0.0, 1.0), 0.7, foam);
     // The sea is seldom in shadow and its edge is lost in the waves: the sun's shadow is read as one hard edge here, not as a penumbra.
     g_shadowHard = 1.0;
     ext.coat = vec4(1.0, roughness, max(u_reflectance, 1e-4), 0.0);
@@ -1385,11 +1380,7 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, px : vec4f, amp : f32, calm :
     var ext = surfaceExtNone(N);
     ext.misc.x = 0.0;
     let albedo = mix(scatterColor * murk, mc.u_foamColor.rgb, vec3f(foam));
-    let turnX = dpdx(N);
-    let turnY = dpdy(N);
-    let spread = min(0.5 * (dot(turnX, turnX) + dot(turnY, turnY)), 0.18);
-    let plain = mix(mc.u_roughness + 0.05 * clamp(mc.u_rain, 0.0, 1.0), 0.7, foam);
-    let roughness = sqrt(sqrt(clamp(plain * plain * plain * plain + spread, 0.0, 1.0)));
+    let roughness = mix(mc.u_roughness + 0.05 * clamp(mc.u_rain, 0.0, 1.0), 0.7, foam);
     g_shadowHard = 1.0;
     ext.coat = vec4f(1.0, roughness, max(mc.u_reflectance, 1e-4), 0.0);
     let lit = applyLightingSurface(albedo, Nbody, P, viewDir, 0.0, 1.0, 0.0, 1.0, ext);
