@@ -28,7 +28,7 @@ import { join, relative, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { parseArgs } from 'node:util';
 import {
-    EXT_TO_TYPE, metaTypeForExt, metaTypeForContent, needsContentType, CONTENT_SNIFF_BYTES,
+    EXT_TO_TYPE, metaTypeForExt, metaTypeForContent, needsContentType, CONTENT_SNIFF_BYTES, dataImporterForHead,
 } from './assetMetaTable.js';
 
 const META_VERSION = '2.0';
@@ -111,13 +111,29 @@ async function getAssetType(filePath) {
     return metaTypeForContent(filePath, await readHead(filePath, CONTENT_SNIFF_BYTES));
 }
 
-/** Builds the meta object (JSON-shape) for a given type. */
-function buildMeta(type) {
+/** The first `bytes` of a file, or null if it can't be read. */
+async function readHeadBytes(filePath, bytes) {
+    let handle;
+    try {
+        handle = await open(filePath, 'r');
+        const buf = Buffer.alloc(bytes);
+        const { bytesRead } = await handle.read(buf, 0, bytes, 0);
+        return buf.subarray(0, bytesRead);
+    } catch {
+        return null;
+    } finally {
+        await handle?.close();
+    }
+}
+
+/** Builds the meta object (JSON-shape) for a given type; a texture file that is plainly numbers is adopted as Data. */
+async function buildMeta(type, filePath) {
+    const data = type === 'texture' && filePath ? dataImporterForHead(filePath, await readHeadBytes(filePath, 32)) : null;
     return {
         uuid: randomUUID(),
         version: META_VERSION,
         type,
-        importer: getImporterDefaults(type),
+        importer: data ?? getImporterDefaults(type),
     };
 }
 
@@ -189,7 +205,7 @@ export async function generateMetaForDir(dir, options = {}) {
             continue;
         }
 
-        const meta = buildMeta(type);
+        const meta = await buildMeta(type, filePath);
         created.push({ path: filePath, metaPath, meta });
 
         if (!dryRun && !check) {

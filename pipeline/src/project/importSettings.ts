@@ -54,10 +54,20 @@ const powerOfTwo = [256, 512, 1024, 2048, 4096, 8192];
 
 const TEXTURE: ImporterFieldSpec[] = [
   {
+    key: 'use', label: 'Use', type: 'enum', default: 'colour', category: 'Texture',
+    options: [{ label: 'Colour', value: 'colour' }, { label: 'Data', value: 'data' }],
+    read: textureUse,
+    tooltip: 'What the image holds. Colour is a picture: a build may shrink it to Max Size, compress it and fill the colour under '
+      + 'its clear texels. Data is numbers a texel, read as they are - a heightmap, a mask of measured values, a lookup table: a '
+      + 'build keeps its depth (16 bits a sample stay 16), never compresses it or decodes it as sRGB, and shrinks it only when '
+      + 'Max Size says so.',
+  },
+  {
     key: 'maxSize', label: 'Max Size', type: 'enum', default: 2048, category: 'Texture',
-    options: powerOfTwo.map((n) => ({ label: String(n), value: n })),
+    options: [{ label: 'Source size', value: 0 }, ...powerOfTwo.map((n) => ({ label: String(n), value: n }))],
     tooltip: 'Downscale cap applied at cook (power of two). A source larger than this on '
-      + 'its longest side is box-filtered down; smaller sources are untouched.',
+      + 'its longest side is box-filtered down; smaller sources are untouched. Source size never shrinks it, which is what a '
+      + 'Data texture starts at: half the samples of a heightmap is other ground.',
   },
   {
     key: 'compress', label: 'Compression', type: 'enum', default: 'auto', category: 'Texture',
@@ -374,26 +384,41 @@ export function textureCompression(stored: unknown): TextureCompression {
   return stored === false ? 'off' : 'auto';
 }
 
+/** What a texture holds: a picture, or numbers a texel (the `use` import setting). */
+export type TextureUse = 'colour' | 'data';
+
+/** A stored Use as it reads today: anything that is not `data` is a picture. */
+export function textureUse(stored: unknown): TextureUse {
+  return stored === 'data' ? 'data' : 'colour';
+}
+
+export { DATA_TEXTURE_IMPORTER } from '../../../tools/assetMetaTable.js';
+
 export function readTextureCookSettings(importer: Record<string, unknown> | undefined, platform?: string): {
-  compress: TextureCompression; format: 'uastc' | 'etc1s'; maxSize: number; srgb: boolean; mipCoverage: number; mipmaps: boolean;
+  use: TextureUse; compress: TextureCompression; format: 'uastc' | 'etc1s'; maxSize: number; srgb: boolean; mipCoverage: number; mipmaps: boolean;
 } {
+  const use = textureUse(importer?.use);
   const compress = importer?.compress;
   const mipCoverage = importer?.mipCoverage;
   const format = importer?.compressFormat;
   const maxSize = importer?.maxSize;
   const srgb = importer?.sRGB;
+  const data = use === 'data';
   const resolved = {
-    compress: textureCompression(compress),
+    use,
+    // Numbers are never encoded, decoded as colour or averaged into a coverage: whatever the other rows say, Data says these.
+    compress: data ? 'off' as TextureCompression : textureCompression(compress),
     format: (format === 'etc1s' ? 'etc1s' : 'uastc') as 'uastc' | 'etc1s',
-    maxSize: typeof maxSize === 'number' && maxSize > 0 ? maxSize : 2048,
-    srgb: typeof srgb === 'boolean' ? srgb : true,
-    mipCoverage: typeof mipCoverage === 'number' && mipCoverage > 0 && mipCoverage < 1 ? mipCoverage : 0,
+    // 0 is the source's own size, stated. Unstated, a picture is capped at 2048 and numbers are not capped.
+    maxSize: typeof maxSize === 'number' && maxSize >= 0 ? maxSize : data ? 0 : 2048,
+    srgb: data ? false : typeof srgb === 'boolean' ? srgb : true,
+    mipCoverage: !data && typeof mipCoverage === 'number' && mipCoverage > 0 && mipCoverage < 1 ? mipCoverage : 0,
     mipmaps: importer?.mipmaps !== false,
   };
   const overrides = importer?.overrides as Record<string, TexturePlatformOverride> | undefined;
   const ov = platform ? overrides?.[platform] : undefined;
   if (ov?.enabled) {
-    if (ov.compress !== undefined) resolved.compress = textureCompression(ov.compress);
+    if (ov.compress !== undefined && !data) resolved.compress = textureCompression(ov.compress);
     if (ov.compressFormat === 'etc1s' || ov.compressFormat === 'uastc') resolved.format = ov.compressFormat;
     if (typeof ov.maxSize === 'number' && ov.maxSize > 0) resolved.maxSize = ov.maxSize;
   }

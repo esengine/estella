@@ -10,6 +10,7 @@
  */
 import { readTextureCookSettings } from '../project/importSettings';
 import { decodePngImage, encodeRgbaPng, downscaleRgba } from './atlasPacker';
+import { decodeGrey16, downscaleGrey16, encodeGrey16 } from './png16';
 import {
   decideTextureCook, cookIntentDefeated, explainTextureCook, downscaledSize,
   type TextureCookDecision,
@@ -99,7 +100,8 @@ export function fillClearTexels(image: { rgba: Uint8Array; width: number; height
 
 /** Whether an importer lets its clear texels be filled: a colour image that has not said no. */
 export function fillsClearTexels(importer: Record<string, unknown> | undefined, platform?: string): boolean {
-  return readTextureCookSettings(importer, platform).srgb && importer?.alphaIsTransparency !== false;
+  const tex = readTextureCookSettings(importer, platform);
+  return tex.use !== 'data' && tex.srgb && importer?.alphaIsTransparency !== false;
 }
 
 /**
@@ -179,8 +181,6 @@ export interface TextureCookInput {
   atlasTextures: boolean;
   /** A mesh draws this texture (texturesDrawnIn3D) — what Auto compression resolves by. */
   drawnIn3D: boolean;
-  /** A component reads this texture as numbers (a Terrain's heightmap): it is neither resized nor encoded. */
-  readAsNumbers?: boolean;
   /** Answer only from the cook cache: an encode it would have to run is left
    *  undone, and the output says `pending` instead. */
   cachedOnly?: boolean;
@@ -214,13 +214,26 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
   const tex = readTextureCookSettings(input.importer, platform);
   const raster = ext.toLowerCase() === '.png';
   const textureEnc = input.encoder?.module ?? null;
-  // A texture a component reads as numbers (a heightmap), and any PNG of 16 bits a channel, is not a picture: the size cap would ship
-  // different ground, and shrinking, filling and encoding all decode to 8 bits first. It ships as the file it is.
-  if (input.readAsNumbers || (raster && pngBitDepth(data) === 16)) {
+  // Numbers, not a picture: a texture whose Use is Data, and any PNG of 16 bits a sample whatever it is marked (the paths below all
+  // decode to 8 bits first). It is never encoded or filled; it is shrunk only where a Data texture's Max Size says so, at its own depth.
+  const wide = raster && pngBitDepth(data) === 16;
+  if (tex.use === 'data' || wide) {
     const cook = decideTextureCook({
       compressTextures: input.compressTextures, atlasTextures: input.atlasTextures, inAtlas: false, raster,
-      compress: 'off', drawnIn3D: input.drawnIn3D, format: tex.format, size: safePngDimensions(data),
+      compress: 'off', drawnIn3D: input.drawnIn3D, format: tex.format, size: raster ? safePngDimensions(data) : null,
     });
+    const size = raster ? safePngDimensions(data) : null;
+    const capped = tex.use === 'data' && (textureEnc || input.resizeTextures) && size && tex.maxSize > 0 && tex.maxSize < Math.max(size.width, size.height);
+    if (tex.use !== 'data') {
+      warnings.push(`${path}: holds 16 bits a sample but its Use is Colour - shipped as the file it is, uncapped. Set Use to Data to say so, and to cap it.`);
+    } else if (capped) {
+      const grey = wide ? decodeGrey16(data) : null;
+      if (grey) data = encodeGrey16(downscaleGrey16(grey, tex.maxSize));
+      else if (!wide) {
+        const small = downscaleRgba(decodePngImage(path, data), tex.maxSize);
+        data = encodeRgbaPng(small.width, small.height, small.rgba);
+      } else warnings.push(`${path}: Max Size ${tex.maxSize} was not applied - a 16-bit PNG that is not plain grey is shipped at its own size.`);
+    }
     return { data, ext, cook, warnings, defeatedByFormat: false };
   }
   // maxSize downscale first — it applies even when a texture opts OUT of

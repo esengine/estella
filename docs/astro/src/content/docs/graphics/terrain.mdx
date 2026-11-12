@@ -25,7 +25,7 @@ The ground is one of two kinds, chosen by `extent`:
 | Field | What it does |
 |---|---|
 | `extent` | `Area` or `Infinite`, as above. |
-| `heightmap` | Area only. An image read as data: its bytes as the file holds them, with no colour conversion, so it ships as the PNG it is (a heightmap compressed on the way fails the terrain, saying so). Empty makes the ground from noise. |
+| `heightmap` | Area only. An image read as data: its bytes as the file holds them, with no colour conversion, so it ships as the PNG it is (a heightmap compressed on the way fails the terrain, saying so). Its texture is marked **Data** in its import settings when it is put here (see [Textures](/assets/textures/)): no size cap unless you set one, and a cap keeps the file's 16 bits. Empty makes the ground from noise. |
 | `heightmapFormat` | How the heightmap holds its heights. **Grey**: the grey (or red) channel, at the depth of the file: 16 bits from a 16-bit PNG (what World Machine, Gaea and most tools export), 256 steps from an 8-bit one. **Red + green**: sixteen bits across red (high byte) and green (low byte) of an 8-bit image. |
 | `sizeX`, `sizeZ`, `height` | An area's world size and the world height of its highest ground. For infinite ground `sizeX` is the span that `frequency` hills are spread over, and `sizeZ` is not used. |
 | `cellSize` | The finest cell of the ground's mesh, in world units: what the ground is drawn at near the eye. Further off the cells double, level by level. |

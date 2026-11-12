@@ -4516,4 +4516,6 @@ export const NOTED = {
     {"note": "An ocean reaches the horizon."},
   "feat(units): a shader param says it is a length with unit(length) and follows the project's units per metre, as components and effects do - the water's defaults were metres in an engine of centimetres":
     {"note": "One setting says what a unit is, for materials too."},
+  "feat(assets): a texture's Use says whether it is a picture or numbers - Data keeps its depth and its size in a build, a 16-bit PNG is imported as Data, a Terrain's heightmap is marked Data when it is set, and Project Health lists the ones that are not":
+    {"note": "A texture says whether it is a picture or numbers."},
 };

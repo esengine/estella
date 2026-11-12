@@ -160,29 +160,68 @@ describe('a PNG of 16 bits a channel', () => {
 });
 
 describe('a texture a component reads as numbers', () => {
-  it('is found from the Terrain that names it as its heightmap, by path or by uuid', async () => {
-    const { texturesReadAsNumbers } = await import('../src/assets/textureUsage');
-    const entries = [
-      { uuid: 'h1', path: 'assets/height.png', type: 'texture' }, { uuid: 'h2', path: 'assets/other.png', type: 'texture' },
-      { uuid: 'c1', path: 'assets/colour.png', type: 'texture' }, { uuid: 's1', path: 'assets/scenes/a.esscene', type: 'scene' },
-    ] as never[];
+  it('is found, while its Use is still Colour, from the Terrain that names it as its heightmap', async () => {
+    const { numberTexturesMarkedColour } = await import('../src/assets/dataTextureAudit');
     const scene = JSON.stringify({ entities: [
       { components: [{ type: 'Terrain', data: { heightmap: 'assets/height.png', splatmap: 'assets/colour.png' } }] },
       { components: [{ type: 'Terrain', data: { heightmap: '@uuid:h2' } }, { type: 'MeshRenderer', data: { texture: 'assets/colour.png' } }] },
+      { components: [{ type: 'Terrain', data: { heightmap: 'assets/marked.png' } }] },
     ] });
-    expect([...await texturesReadAsNumbers('/', entries, async () => scene)].sort()).toEqual(['h1', 'h2']);
+    const importers: Record<string, Record<string, unknown>> = { 'assets/marked.png': { use: 'data' }, 'assets/height.png': { maxSize: 2048 } };
+    const findings = await numberTexturesMarkedColour({
+      documents: ['assets/scenes/a.esscene'], readText: async () => scene,
+      resolveRef: (ref) => (ref === '@uuid:h2' ? 'assets/other.png' : ref.startsWith('@uuid:') ? null : ref),
+      importer: (p) => importers[p],
+    });
+    expect(findings.map((f) => f.texture)).toEqual(['assets/height.png', 'assets/other.png']);
+    expect(findings[0]!.readBy[0]).toEqual({ document: 'assets/scenes/a.esscene', component: 'Terrain', field: 'heightmap' });
   });
 
-  it('ships as the file it is though it is over its size cap', async () => {
+  it('marked Data ships uncapped by default, and at its own depth when its Max Size caps it', async () => {
     const root = mkdtempSync(path.join(tmpdir(), 'estella-numbers-'));
     try {
-      const png = noisePng(96, 96);
-      const input = { root, path: 'assets/height.png', data: png, ext: '.png', platform: 'web', importer: { maxSize: 32 },
-        compressTextures: false, atlasTextures: false, resizeTextures: true, drawnIn3D: false, encoder: null } as Parameters<typeof cookTexture>[0];
-      const capped = await cookTexture(input);
-      expect(decodePngImage('h', capped.data).width).toBe(32);
-      const kept = await cookTexture({ ...input, readAsNumbers: true });
+      const { encodeGrey16, decodeGrey16 } = await import('../src/assets/png16');
+      const { DATA_TEXTURE_IMPORTER } = await import('../src/project/importSettings');
+      // A ramp of 16-bit heights no 8-bit image can hold: 64 x 64, every sample its own value.
+      const ramp = new Uint16Array(64 * 64).map((_, i) => 1000 + i * 13);
+      const png = encodeGrey16({ width: 64, height: 64, data: ramp });
+      expect(decodeGrey16(png)!.data).toEqual(ramp);
+      const base = { root, path: 'assets/height.png', data: png, ext: '.png', platform: 'web', compressTextures: true, atlasTextures: false,
+        resizeTextures: true, drawnIn3D: true, encoder: null } as Parameters<typeof cookTexture>[0];
+      // Data: no cap unless one is stated, never encoded.
+      const kept = await cookTexture({ ...base, importer: { ...DATA_TEXTURE_IMPORTER } });
       expect(Buffer.from(kept.data).equals(Buffer.from(png))).toBe(true);
+      expect(kept.cook.selected).toBe('raw');
+      // Data with a cap: half the samples a side, still 16 bits, each the mean of the four it covers.
+      const capped = await cookTexture({ ...base, importer: { ...DATA_TEXTURE_IMPORTER, maxSize: 32 } });
+      const small = decodeGrey16(capped.data)!;
+      expect([small.width, small.height]).toEqual([32, 32]);
+      expect(small.data[0]).toBe(Math.round((ramp[0]! + ramp[1]! + ramp[64]! + ramp[65]!) / 4));
+      // Not marked: shipped as it is, and the build says so.
+      const unmarked = await cookTexture({ ...base, importer: { maxSize: 32 } });
+      expect(Buffer.from(unmarked.data).equals(Buffer.from(png))).toBe(true);
+      expect(unmarked.warnings.join(' ')).toMatch(/Use is Colour/);
+      // An 8-bit image marked Data is capped as numbers too: shrunk, never filled or encoded.
+      const eight = await cookTexture({ ...base, data: noisePng(96, 96), importer: { ...DATA_TEXTURE_IMPORTER, maxSize: 32 } });
+      expect(decodePngImage('h', eight.data).width).toBe(32);
+    } finally {
+      rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    }
+  });
+
+  it('is adopted as Data when its file is a PNG of 16 bits a sample', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'estella-adopt16-'));
+    try {
+      const { encodeGrey16 } = await import('../src/assets/png16');
+      const { adoptOrphan } = await import('../src/assets/assetMeta');
+      const file = path.join(root, 'height.png'), flat = path.join(root, 'flat.png');
+      writeFileSync(file, encodeGrey16({ width: 8, height: 8, data: new Uint16Array(64).fill(40000) }));
+      writeFileSync(flat, solidPng(8, 8, [10, 20, 30, 255]));
+      await adoptOrphan(file);
+      await adoptOrphan(flat);
+      const importer = (f: string) => JSON.parse(readFileSync(f + '.meta', 'utf8')).importer;
+      expect(importer(file)).toMatchObject({ use: 'data', maxSize: 0, compress: 'off', sRGB: false });
+      expect(importer(flat).use).toBe('colour');
     } finally {
       rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }

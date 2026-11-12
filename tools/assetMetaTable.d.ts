@@ -8,3 +8,5 @@ export function metaTypeForExt(fileOrExt: string): string | null;
 export function needsContentType(fileOrExt: string): boolean;
 export function metaTypeForContent(fileOrExt: string, head: string): string | null;
 export function isProjectPlumbing(fileOrPath: string): boolean;
+export const DATA_TEXTURE_IMPORTER: Readonly<Record<string, unknown>>;
+export function dataImporterForHead(fileOrPath: string, head: Uint8Array | null | undefined): Record<string, unknown> | null;

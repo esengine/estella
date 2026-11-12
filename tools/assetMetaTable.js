@@ -219,3 +219,22 @@ export function metaTypeForContent(fileOrExt, head) {
     if (!needsContentType(fileOrExt)) return null;
     return SPINE_SKELETON_JSON.test(head) ? 'spine' : 'json';
 }
+
+/**
+ * The import settings of a texture read as numbers (its `use` is `data`): no size cap (0 is the source's own size), no codec,
+ * no colour decode, no mips or fill. What marking a texture Data writes, and what {@link dataImporterForHead} adopts one with.
+ */
+export const DATA_TEXTURE_IMPORTER = Object.freeze({
+    use: 'data', maxSize: 0, compress: 'off', mipmaps: false, sRGB: false, alphaIsTransparency: false,
+});
+
+/**
+ * What a texture file's first bytes say it needs, or null for a picture: a PNG of 16 bits a sample is numbers (a heightmap, in
+ * nearly every case), and a picture's settings would shrink it and take its depth. Both mint doors ask this, so the same file
+ * is adopted the same way from the CLI and from the editor.
+ */
+export function dataImporterForHead(fileOrPath, head) {
+    if (!String(fileOrPath).toLowerCase().endsWith('.png') || !head || head.length < 25) return null;
+    const png = head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47;
+    return png && head[24] === 16 ? { ...DATA_TEXTURE_IMPORTER, filterMode: 'linear', wrapMode: 'clamp' } : null;
+}

@@ -16,7 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { META_EXT } from './contentPolicy';
 import { importerDefaults } from '../project/importSettings';
 import {
-  EXT_TO_TYPE, metaTypeForExt, metaTypeForContent, needsContentType, CONTENT_SNIFF_BYTES,
+  EXT_TO_TYPE, metaTypeForExt, metaTypeForContent, needsContentType, CONTENT_SNIFF_BYTES, dataImporterForHead,
 } from '../../../tools/assetMetaTable.js';
 
 export const META_VERSION = '2.0';
@@ -83,7 +83,22 @@ export async function lutStripImporter(absFile: string): Promise<Record<string, 
     if (bytesRead < 24 || head.readUInt32BE(0) !== 0x89504e47) return null;
     const width = head.readUInt32BE(16), height = head.readUInt32BE(20);
     if (![16, 32, 64].includes(height) || width !== height * height) return null;
-    return { compress: 'off', mipmaps: false, sRGB: false, filterMode: 'linear', wrapMode: 'clamp', maxSize: width };
+    return { use: 'data', compress: 'off', mipmaps: false, sRGB: false, filterMode: 'linear', wrapMode: 'clamp', maxSize: width };
+  } catch {
+    return null;
+  } finally {
+    await handle?.close();
+  }
+}
+
+/** What a texture file that is plainly numbers needs (assetMetaTable's `dataImporterForHead`), or null for a picture. */
+export async function wideImageImporter(absFile: string): Promise<Record<string, unknown> | null> {
+  let handle: Awaited<ReturnType<typeof open>> | undefined;
+  try {
+    handle = await open(absFile, 'r');
+    const head = Buffer.alloc(32);
+    const { bytesRead } = await handle.read(head, 0, 32, 0);
+    return dataImporterForHead(absFile, head.subarray(0, bytesRead));
   } catch {
     return null;
   } finally {
@@ -102,7 +117,7 @@ export async function adoptOrphan(absFile: string,
   const type = await metaTypeForFile(absFile);
   if (!type) return 'unknown-type';
   // What the file's own shape says comes first, and what an importing source asked for over it.
-  if (type === 'texture') importer = { ...(await lutStripImporter(absFile) ?? {}), ...importer };
+  if (type === 'texture') importer = { ...(await lutStripImporter(absFile) ?? await wideImageImporter(absFile) ?? {}), ...importer };
   // Exclusive: the file's creator may have written its sidecar since the check, and
   // the uuid it handed out is the one refs point at.
   try {
