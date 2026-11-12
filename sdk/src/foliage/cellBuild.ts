@@ -28,6 +28,7 @@ export interface CellSurroundings {
     flatY: number;
     water: { depthAt(x: number, z: number, y: number): number | null } | null;
     zones: { excluding(x: number, z: number, radius: number, tags: readonly string[], seed: number): unknown } | null;
+    density?: DensityMap | null;
 }
 
 /** A blade's or a plant's own colours, where no material paints it. */
@@ -60,10 +61,42 @@ export interface FoliageCellSpec {
         | { kind: 'mesh'; card: { u0: number; v0: number; u1: number; v1: number }; tent: boolean };
 }
 
+/** How densely plants stand over an area, read from an image's red: 0 none, 255 as many as the field asks. Nothing grows off it. */
+export interface DensityMap {
+    width: number;
+    height: number;
+    values: Uint8Array;
+    /** The corner and the size of what the image covers, in the world. */
+    originX: number;
+    originZ: number;
+    sizeX: number;
+    sizeZ: number;
+}
+
+/** The share of plants that stand at (x, z), 0 to 1: the four texels about it blended. */
+export function densityAt(map: DensityMap, x: number, z: number): number {
+    const u = (x - map.originX) / map.sizeX, v = (z - map.originZ) / map.sizeZ;
+    if (!(u >= 0 && u <= 1 && v >= 0 && v <= 1)) return 0;
+    const fx = Math.min(u * map.width - 0.5, map.width - 1), fz = Math.min(v * map.height - 0.5, map.height - 1);
+    const x0 = Math.max(Math.floor(fx), 0), z0 = Math.max(Math.floor(fz), 0);
+    const x1 = Math.min(x0 + 1, map.width - 1), z1 = Math.min(z0 + 1, map.height - 1);
+    const tx = Math.min(Math.max(fx - x0, 0), 1), tz = Math.min(Math.max(fz - z0, 0), 1);
+    const at = (ix: number, iz: number): number => map.values[iz * map.width + ix]!;
+    return ((at(x0, z0) * (1 - tx) + at(x1, z0) * tx) * (1 - tz) + (at(x0, z1) * (1 - tx) + at(x1, z1) * tx) * tz) / 255;
+}
+
+/** A number from 0 to 1 that is a place's own, whichever cell or thread asks: which plants a density thins out. */
+function lot(x: number, z: number, seed: number): number {
+    let h = Math.imul(Math.floor(x * 64) | 0, 374761393) ^ Math.imul(Math.floor(z * 64) | 0, 668265263) ^ Math.imul(seed | 0, 2246822519);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
 /** Where a plant may stand in a cell, as `scatterCell` asks it. */
 export function cellGround(spec: FoliageCellSpec, around: CellSurroundings): Ground {
     return (x, z) => {
         if (around.zones?.excluding(x, z, Math.max(0, spec.zonePadding), spec.tags, spec.seed)) return null;
+        if (around.density && lot(x, z, spec.seed) >= densityAt(around.density, x, z)) return null;
         // With a terrain, a plant stands where there is ground and nowhere else; with none, the area is flat at the entity's height.
         const y = around.ground ? around.ground.heightAt(x, z) : around.flatY;
         if (y === null) return null;

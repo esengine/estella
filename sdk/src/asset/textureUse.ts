@@ -13,6 +13,8 @@
 export const DATA_TEXTURE_FIELDS: Readonly<Record<string, readonly string[]>> = {
     // The splatmaps are weights, four a texel: a picture's clear-texel fill writes its neighbours' colour wherever the fourth is 0.
     Terrain: ['heightmap', 'splatmap', 'splatmap2'],
+    // How many plants stand where: a number a texel.
+    Foliage: ['densityMap'],
 };
 
 /** Whether `component.field` reads its texture as numbers. */

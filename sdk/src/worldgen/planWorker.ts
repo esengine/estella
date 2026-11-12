@@ -30,7 +30,7 @@ import { faceOf, type SphereNode } from '../terrain/sphere';
 import { makePlanetPage, type PlanetPageSource } from '../terrain/planetPages';
 import { makePage, type PageImage } from '../terrain/pages';
 import type { MeshData } from '../asset/meshFormat';
-import { buildFoliageCell, cellTransfers, type CellSurroundings, type FoliageCellSpec } from '../foliage/cellBuild';
+import { buildFoliageCell, cellTransfers, type CellSurroundings, type DensityMap, type FoliageCellSpec } from '../foliage/cellBuild';
 
 /** What a plan is made from: everything the main thread knew when it made its own. */
 export interface PlanSpec {
@@ -221,6 +221,7 @@ export interface FoliageSurroundingsSpec {
     flatY: number;
     water: WaterQueryData | null;
     zones: ZoneDef[];
+    density?: DensityMap | null;
 }
 
 /** A cell of a Foliage to grow. */
@@ -249,7 +250,7 @@ export function foliageCell(r: FoliageCellRequest): { result: MeshData[]; transf
         for (const z of r.around.zones) zones.set(z);
         around = {
             ground: r.around.ground ? new GroundQuery(r.around.ground) : null, flatY: r.around.flatY,
-            water: r.around.water ? new WaterQuery(r.around.water) : null, zones,
+            water: r.around.water ? new WaterQuery(r.around.water) : null, zones, density: r.around.density ?? null,
         };
         surroundings.set(r.key, around);
         if (surroundings.size > SURROUNDINGS_KEPT) surroundings.delete(surroundings.keys().next().value!);

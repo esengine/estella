@@ -30,7 +30,8 @@ import { isEditor, isPlayMode } from '../ecs/env';
 import type { Zones } from '../worldgen/zones';
 import { installFoliageContacts } from './foliageContacts';
 import { lodCullSizeWithin, lodSizeAtDistance, lodSphereRadius } from '../render/lodDistance';
-import { buildFoliageCell, type CellSurroundings, type FoliageCellSpec } from './cellBuild';
+import { buildFoliageCell, type CellSurroundings, type DensityMap, type FoliageCellSpec } from './cellBuild';
+import { imagePixelsAt } from '../terrain/layerArrays';
 import { bakesOf } from '../runtime/bakes';
 import { firstSend, forgetSent, planPool } from '../runtime/planPool';
 import type { FoliageCellRequest, FoliageSurroundingsSpec } from '../worldgen/planWorker';
@@ -50,6 +51,14 @@ export interface FoliageData {
     mesh: number;
     /** A material on the Foliage shader, which makes the wind. Empty draws the plants in their own colours, still. */
     material: number;
+    /** An image over the area whose red says how many of the plants stand where: none at 0, all the field asks at white. Empty grows them everywhere. */
+    densityMap: number;
+    /** A picture over the area that colours the plants by where they stand, mixed in by its alpha (the material's shader reads it). */
+    colorMap: number;
+    /** How much of the colour map is mixed in where its alpha is whole. */
+    colorMapStrength: number;
+    /** How far up a plant the colour map begins: 0 colours it whole, 0.6 only its top (a flower's head, on a mesh whose red rises to it). */
+    colorMapFrom: number;
     /** The area, centred on the entity, and the side of the cells it is cut into. */
     sizeX: number;
     sizeZ: number;
@@ -95,17 +104,21 @@ export interface FoliageData {
  * @experimental
  */
 export const Foliage: ComponentDef<FoliageData> = defineComponent<FoliageData>('Foliage', {
-    mesh: 0, material: 0,
+    mesh: 0, material: 0, densityMap: 0, colorMap: 0, colorMapStrength: 1, colorMapFrom: 0,
     sizeX: 400, sizeZ: 400, cellSize: 40, count: 500, seed: 1,
     minScale: 0.8, maxScale: 1.25, minUp: 0.7, heightMin: -100000, heightMax: 100000, waterDepth: 0,
     bladeHeight: 14, bladeWidth: 1.6, lodDistance: 140, drawDistance: 420, castShadows: true,
     zoneWorld: '', zoneTags: '', zonePadding: 0,
     cardU0: 0, cardV0: 0, cardU1: 1, cardV1: 1, cardTent: 0,
 }, {
-    assetFields: [{ field: 'mesh', type: 'mesh' }, { field: 'material', type: 'material' }],
+    assetFields: [{ field: 'mesh', type: 'mesh' }, { field: 'material', type: 'material' }, { field: 'densityMap', type: 'texture' }, { field: 'colorMap', type: 'texture' }],
     fields: {
         mesh: { tooltip: 'The plant to scatter. Empty grows grass.', category: 'Plant' },
         material: { tooltip: 'A material on the Foliage shader, which makes the wind. Empty draws the plants still, in their own colours.', category: 'Plant' },
+        densityMap: { tooltip: 'An image over the area whose red says how many of the plants stand where: none at black, all of them at white. Its Use is Data. Empty grows them everywhere.', category: 'Placement' },
+        colorMap: { tooltip: 'A picture over the area that colours the plants by where they stand, mixed in by its alpha. Needs a material.', category: 'Plant' },
+        colorMapStrength: { min: 0, max: 1, step: 0.01, slider: true, category: 'Plant', tooltip: 'How much of the colour map is mixed in where its alpha is whole.' },
+        colorMapFrom: { min: 0, max: 1, step: 0.01, slider: true, category: 'Plant', tooltip: 'How far up a plant the colour map begins: 0 colours it whole, higher only its top.' },
         sizeX: { min: 1, category: 'Area', tooltip: 'World size along x, centred on this entity.' },
         sizeZ: { min: 1, category: 'Area', tooltip: 'World size along z, centred on this entity.' },
         cellSize: { min: 4, category: 'Area', tooltip: 'Side of the cells the area is cut into. Each is one mesh, culled whole.' },
@@ -137,6 +150,8 @@ interface BuiltFoliage {
     signature: string;
     data: FoliageData;
     source: MeshData | null;
+    /** The density map's red, read once; null where the field has none. */
+    density: { width: number; height: number; values: Uint8Array } | null;
     loading: boolean;
     epoch: number;
     /** What its cells are being grown for now: a cell that lands for an earlier one is not put in the world. */
@@ -174,6 +189,8 @@ export class FoliageField {
     /** @internal */ readonly built_ = new Map<Entity, BuiltFoliage>();
     /** @internal The u_windStrength each material had before the weather's wind scaled it, to put back. */
     readonly authoredWind_ = new Map<number, number>();
+    /** The materials a colour map is written to, so taking it off is written once. */
+    readonly washed_ = new Set<number>();
 
     /** @internal */ app_: App | null = null;
 
@@ -235,13 +252,17 @@ export class FoliagePlugin implements Plugin {
             const waiting = !!terrains?.loading || !!water?.baking;
             for (const entity of app.world.getEntitiesWithComponents([Foliage, Transform])) {
                 const data = app.world.get(entity, Foliage) as FoliageData;
-                const signature = JSON.stringify(data);
+                // The colour map is read by the material each frame: changing it grows nothing again.
+                const { colorMap: _c, colorMapStrength: _s, colorMapFrom: _f, ...grown } = data;
+                const signature = JSON.stringify(grown);
                 let built = field.built_.get(entity);
                 if (!built || built.signature !== signature) {
-                    built = { signature, data: { ...data }, source: null, loading: true, epoch: (built?.epoch ?? 0) + 1 };
+                    built = { signature, data: { ...data }, source: null, density: null, loading: true, epoch: (built?.epoch ?? 0) + 1 };
                     field.built_.set(entity, built);
                     void this.start(app, built);
                 }
+                built.data = { ...data };
+                this.wash(app, entity, data);
                 const zones = zonesOf(app, data.zoneWorld);
                 this.layer(app, entity, built, `${revision}:${zones?.revision ?? 0}`, waiting);
             }
@@ -303,6 +324,17 @@ export class FoliagePlugin implements Plugin {
                 built.source = await app.getResource(Assets).readMeshData(data.mesh);
                 if (!built.source) log.warn('foliage', `the geometry of mesh ${data.mesh} cannot be read, so its plants are grass instead`);
             }
+            if (data.densityMap) {
+                const path = app.getResource(Assets).pathForHandle('texture', data.densityMap);
+                const image = path ? await imagePixelsAt(app, path) : null;
+                if (image) {
+                    const values = new Uint8Array(image.width * image.height);
+                    for (let i = 0; i < values.length; i++) values[i] = image.pixels[i * 4]!;
+                    built.density = { width: image.width, height: image.height, values };
+                } else {
+                    log.warn('foliage', `the density map (texture ${data.densityMap}) cannot be read, so its plants grow everywhere`);
+                }
+            }
         } catch (e) {
             log.error('foliage', 'growing the foliage failed', e);
         } finally {
@@ -342,6 +374,30 @@ export class FoliagePlugin implements Plugin {
         });
     }
 
+    /** The field's density map where it lies in the world: over the whole area. */
+    private densityOf(app: App, entity: Entity, built: BuiltFoliage): DensityMap | null {
+        const t = app.world.tryGet(entity, Transform) as TransformData | null;
+        if (!built.density || !t) return null;
+        const sizeX = built.data.sizeX * (t.worldScale.x || 1), sizeZ = built.data.sizeZ * (t.worldScale.z || 1);
+        return { ...built.density, originX: t.worldPosition.x - sizeX / 2, originZ: t.worldPosition.z - sizeZ / 2, sizeX, sizeZ };
+    }
+
+    /** Writes the colour map to the field's material: the picture, where it lies and how much of it. */
+    private wash(app: App, entity: Entity, data: FoliageData): void {
+        if (!data.material) return;
+        const field = app.getResource(FoliageRes);
+        const t = app.world.tryGet(entity, Transform) as TransformData | null;
+        const strength = data.colorMap && t ? data.colorMapStrength : 0;
+        if (strength > 0 && t) {
+            const sizeX = data.sizeX * (t.worldScale.x || 1), sizeZ = data.sizeZ * (t.worldScale.z || 1);
+            Material.setUniform(data.material, 'u_colorMap', Material.tex(data.colorMap));
+            Material.setUniform(data.material, 'u_colorMapArea', { x: t.worldPosition.x - sizeX / 2, y: t.worldPosition.z - sizeZ / 2, z: sizeX, w: sizeZ });
+            Material.setUniform(data.material, 'u_colorMapFrom', data.colorMapFrom);
+        }
+        if (strength > 0 || field.washed_.has(data.material)) Material.setUniform(data.material, 'u_colorMapStrength', strength);
+        if (strength > 0) field.washed_.add(data.material); else field.washed_.delete(data.material);
+    }
+
     private cellsAcross(data: FoliageData): { x: number; z: number } {
         return foliageCellsAcross(data.sizeX, data.sizeZ, data.cellSize);
     }
@@ -365,7 +421,8 @@ export class FoliagePlugin implements Plugin {
         const waterData = water?.queryData?.() ?? null;
         if (water && !waterData && !water.empty) return none();
         const zones = zonesOf(app, built.data.zoneWorld);
-        const around = (): FoliageSurroundingsSpec => ({ ground, flatY, water: waterData, zones: zones ? [...zones.all()] : [] });
+        const density = this.densityOf(app, entity, built);
+        const around = (): FoliageSurroundingsSpec => ({ ground, flatY, water: waterData, zones: zones ? [...zones.all()] : [], density });
         const source = built.source;
         const sourceKey = source ? `${key}:mesh` : undefined;
         const grow = (cell: FoliageCellSpec): Promise<MeshData[]> => {
@@ -423,6 +480,7 @@ export class FoliagePlugin implements Plugin {
         const here = (): MeshData[] => {
             const around: CellSurroundings = {
                 ground: hasTerrain ? terrains! : null, flatY: t.worldPosition.y, water: waterOf(app), zones: zonesOf(app, data.zoneWorld),
+                density: this.densityOf(app, parent, built),
             };
             return buildFoliageCell(spec, around, built.source);
         };
