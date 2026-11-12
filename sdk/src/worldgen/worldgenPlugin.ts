@@ -51,6 +51,7 @@ import { worldRules, worldRulesRevision, type PlacementLayer, type RecipeMember,
 import { Zones, type ZoneDef } from './zones';
 import { PlacementDiffs } from './diffs';
 import { isRulesFile } from './rulesAsset';
+import { lodCullSizeWithin, lodSizeAtDistance, lodSphereRadius } from '../render/lodDistance';
 import { enableSceneOrigins, sceneOriginOf } from '../scene/sceneOrigins';
 
 /** The fields of the `WorldGen` component. @experimental */
@@ -208,7 +209,7 @@ interface Unit {
 interface PlacedChunk {
     assets?: AssetLease<AssetScope>;
     /** A kind of decoration: its near mesh and, when it has one, its far cards; drawn near out to `lodDistance`, out to `drawDistance`. */
-    decor: { mesh: number; material: number; data: MeshData; far: MeshData | null; origin: [number, number, number]; radius: number; lodDistance: number; drawDistance: number }[];
+    decor: { mesh: number; material: number; data: MeshData; far: MeshData | null; origin: [number, number, number]; lodDistance: number; drawDistance: number }[];
     objects: Placement[];
     /** The plants of the rules' `plants` in it, by kind, standing relative to `at` (the chunk's centre), and what grew them once published. */
     planted: Map<number, Plant[]> | null;
@@ -890,7 +891,7 @@ export class WorldGenPlugin implements Plugin {
                 out.decor.push({
                     mesh: list[0]!.mesh, material: list[0]!.material, data: buildInstancedMesh(source, plants), origin,
                     far: far ? buildBillboardMesh(plants, width, source.aabbMax[1] - source.aabbMin[1], far, undefined, far.tent === true) : null,
-                    radius: Math.SQRT2 * size / 2, lodDistance: layer.lodDistance ?? layer.drawDistance, drawDistance: layer.drawDistance,
+                    lodDistance: layer.lodDistance ?? layer.drawDistance, drawDistance: layer.drawDistance,
                 });
             }
             return out;
@@ -954,11 +955,12 @@ export class WorldGenPlugin implements Plugin {
             } as Partial<MeshRendererData>);
             const lodDef = getComponent('LODGroup');
             if (lodDef) {
-                // Measured as the engine measures it, by the share of the screen the chunk's sphere covers, for a 60 degree view.
-                const sizeAt = (distance: number): number => d.radius / (Math.max(1, distance) * 0.577);
+                // The layer's distances as the screen sizes the engine compares, on the sphere it will measure: the one round
+                // what this chunk actually holds, which for a chunk with one group of rocks in it is a small part of the chunk.
+                const radius = lodSphereRadius([d.data, farHandle ? d.far : null]);
                 world.insert(e, lodDef, {
-                    lod1: farHandle, lod2: 0, lod3: 0, lod1Size: farHandle ? sizeAt(d.lodDistance) : 0, lod2Size: 0, lod3Size: 0,
-                    cullSize: sizeAt(d.drawDistance + d.radius), hysteresis: 0.1, enabled: true,
+                    lod1: farHandle, lod2: 0, lod3: 0, lod1Size: farHandle ? lodSizeAtDistance(radius, d.lodDistance) : 0, lod2Size: 0, lod3Size: 0,
+                    cullSize: lodCullSizeWithin(radius, d.drawDistance), hysteresis: 0.1, enabled: true,
                 });
             }
             world.setParent(e, parent);

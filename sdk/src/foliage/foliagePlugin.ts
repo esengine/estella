@@ -29,6 +29,7 @@ import { currentWeather, currentWeatherDrive, WeatherDrive } from '../postproces
 import { isEditor, isPlayMode } from '../ecs/env';
 import type { Zones } from '../worldgen/zones';
 import { installFoliageContacts } from './foliageContacts';
+import { lodCullSizeWithin, lodSizeAtDistance, lodSphereRadius } from '../render/lodDistance';
 import {
     buildBillboardMesh, buildGrassMesh, buildInstancedMesh, scatterCell,
     type Ground, type Plant,
@@ -390,12 +391,13 @@ export class FoliagePlugin implements Plugin {
         } as Partial<MeshRendererData>);
         const lodDef = getComponent('LODGroup');
         if (lodDef) {
-            // The engine measures a cell by how much of the screen its bounding sphere covers: radius over distance, for a 60 degree view.
-            const radius = Math.hypot(side, side) * 0.5;
-            const sizeAt = (distance: number): number => radius / (Math.max(1, distance) * 0.577);
+            // The component's distances as the screen sizes the engine compares, on the sphere it will measure: the one round the
+            // plants this cell grew, not round the cell — a cell with a few plants at one edge is a fraction of its own square.
+            const radius = lodSphereRadius(handles.length > 1 ? meshes : [meshes[0]]);
             world.insert(cell, lodDef, {
                 lod1: handles[1] ?? 0, lod2: 0, lod3: 0,
-                lod1Size: sizeAt(data.lodDistance), lod2Size: 0, lod3Size: 0, cullSize: sizeAt(data.drawDistance), hysteresis: 0.1, enabled: true,
+                lod1Size: lodSizeAtDistance(radius, data.lodDistance), lod2Size: 0, lod3Size: 0,
+                cullSize: lodCullSizeWithin(radius, data.drawDistance), hysteresis: 0.1, enabled: true,
             });
         }
         return { entity: cell, handles };
