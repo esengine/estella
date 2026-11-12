@@ -4552,6 +4552,8 @@ export const NOTED = {
     {"internal": "How the repository's own checks are run before a push; nothing a creator sees."},
   "feat(foliage): a field draws with its own instance of its material, grass widens as it thins, and a palette colours each plant - two fields on one material wrote their own values over each other's; a blade now widens by as much as its neighbours are left out so the field covers the same ground at every distance; and Foliage.palette is a strip each plant takes the colour of its top from":
     {"note": "A Foliage field has its own material instance, grass that widens as it thins, and a palette."},
+  "feat(terrain): a baked occlusion over the ground - Terrain.occlusionMap is an image whose red says how much of the sky reaches the ground, for the gullies and cliff feet no screen-space pass sees across; it dims the light from all round and leaves the sun's to the shadows":
+    {"note": "A baked occlusion over the ground."},
   "fix(terrain): a splatmap is numbers too - cooked as a picture its three weights were overwritten wherever the fourth was 0, and the whole ground was painted as grass; it is marked Data when it is set, as the heightmap is":
     {"note": "A texture says whether it is a picture or numbers."},
 };

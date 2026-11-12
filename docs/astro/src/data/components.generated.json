@@ -7990,6 +7990,19 @@
           "range": "0–1, step 0.01"
         },
         {
+          "key": "occlusionMap",
+          "type": "Asset<texture>",
+          "default": "none",
+          "doc": "An image over the whole area whose red says how much of the sky reaches the ground: white all of it, black none. It dims the light from all round, not the sun's. Its Use is Data."
+        },
+        {
+          "key": "occlusionStrength",
+          "type": "number",
+          "default": "1",
+          "doc": "How much of the occlusion map is applied.",
+          "range": "0–1, step 0.01"
+        },
+        {
           "key": "layers",
           "type": "array",
           "default": "empty",
@@ -8179,6 +8192,8 @@
         "splatmap2",
         "colorMap",
         "colorMapStrength",
+        "occlusionMap",
+        "occlusionStrength",
         "material",
         "sizeX",
         "sizeZ",

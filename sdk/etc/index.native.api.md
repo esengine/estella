@@ -11730,6 +11730,8 @@ layerColor2: Color
 layerColor3: Color
 layers: string[]
 material: number
+occlusionMap: number
+occlusionStrength: number
 octaves: number
 persistence: number
 provider: string
