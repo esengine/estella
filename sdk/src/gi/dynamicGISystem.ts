@@ -279,7 +279,8 @@ export function dynamicGISystem(app: App) {
             // the engine traces the field as it was, which is a window a little behind the eye and nothing worse.
             if (field && waiting) {
                 const ts = performance.now();
-                const finished = field.sdf.step(3);
+                // A scene with no GI yet is worth a few slow frames (about 2 s on a phone instead of 10); a camera that moves is not.
+                const finished = field.sdf.step(waiting.full ? 12 : 3);
                 waiting.work += performance.now() - ts;
                 if (finished) {
                     const w = waiting;
