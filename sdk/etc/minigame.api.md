@@ -4635,6 +4635,7 @@ maxScale: number
 mesh: number
 minScale: number
 minUp: number
+palette: number
 seed: number
 sizeX: number
 sizeZ: number
@@ -4652,7 +4653,7 @@ zoneWorld: string
 @internal landed_: (() => void)[]
 cellCount: number
 pending: number
-washed_: Set<number>
+retired_: { instance: number; frames: number; }[]
 static new (): FoliageField
 static prototype: FoliageField
 ```

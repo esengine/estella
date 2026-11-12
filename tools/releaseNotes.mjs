@@ -4550,6 +4550,8 @@ export const NOTED = {
     {"note": "Foliage thins plant by plant with distance, and is grown only where it is drawn."},
   "feat(gates): --suites related runs of an owed suite only the tests that reach what changed - where its runner can follow imports from every changed file, and the whole suite where it cannot; the run names each suite it ran in part":
     {"internal": "How the repository's own checks are run before a push; nothing a creator sees."},
+  "feat(foliage): a field draws with its own instance of its material, grass widens as it thins, and a palette colours each plant - two fields on one material wrote their own values over each other's; a blade now widens by as much as its neighbours are left out so the field covers the same ground at every distance; and Foliage.palette is a strip each plant takes the colour of its top from":
+    {"note": "A Foliage field has its own material instance, grass that widens as it thins, and a palette."},
   "fix(terrain): a splatmap is numbers too - cooked as a picture its three weights were overwritten wherever the fourth was 0, and the whole ground was painted as grass; it is marked Data when it is set, as the heightmap is":
     {"note": "A texture says whether it is a picture or numbers."},
 };

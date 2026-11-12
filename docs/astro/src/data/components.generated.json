@@ -2444,6 +2444,12 @@
           "range": "0–1, step 0.01"
         },
         {
+          "key": "palette",
+          "type": "Asset<texture>",
+          "default": "none",
+          "doc": "A strip of colours each plant takes the colour of its top from, by a number of its own: as wide a share of the strip, as many of the plants. Needs a material; the top begins at its Tip From."
+        },
+        {
           "key": "farLevels",
           "type": "number",
           "default": "1",
@@ -2642,6 +2648,7 @@
         "colorMap",
         "colorMapStrength",
         "colorMapFrom",
+        "palette",
         "farLevels",
         "farKeep",
         "farStep",
