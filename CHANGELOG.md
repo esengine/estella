@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A 16-bit heightmap keeps its depth and size in a build.** A texture is capped at its Max Size (2048 unless set) when a build cooks it, and the cap decodes a PNG to 8 bits a channel on the way. A `Terrain` heightmap of 4096 samples and 16 bits therefore shipped as 2048 samples of 256 steps: the exported ground was terraced and coarser than the same ground in the editor, which reads the file itself, and nothing said so. A PNG that holds 16 bits a channel now ships byte for byte.
+
 ## [0.103.0] - 2026-11-12
 
 ### Added

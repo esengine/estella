@@ -131,6 +131,34 @@ describe('a texture compressed for the editor', () => {
   }, 60_000);
 });
 
+describe('a PNG of 16 bits a channel', () => {
+  it('ships as the file it is, whatever its size and settings: every other path would decode it to 8 bits', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'estella-png16-'));
+    try {
+      // A 16-bit grey PNG, 4 x 4, written by hand: the IHDR says depth 16, and the cook must not look further than that.
+      const { deflateSync, crc32 } = await import('node:zlib');
+      const chunk = (type: string, body: Buffer): Buffer => {
+        const head = Buffer.alloc(8); head.writeUInt32BE(body.length, 0); head.write(type, 4, 'latin1');
+        const tail = Buffer.alloc(4); tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), body])) >>> 0, 0);
+        return Buffer.concat([head, body, tail]);
+      };
+      const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(4096, 0); ihdr.writeUInt32BE(4, 4); ihdr[8] = 16; ihdr[9] = 0;
+      const rows = Buffer.alloc(4 * (1 + 4096 * 2));
+      for (let i = 0; i < rows.length; i++) rows[i] = i % (1 + 4096 * 2) === 0 ? 0 : (i * 37) & 255;
+      const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(rows)), chunk('IEND', Buffer.alloc(0))]);
+      const out = await cookTexture({
+        root, path: 'assets/height.png', data: png, ext: '.png', platform: 'web', importer: { maxSize: 2048 },
+        compressTextures: true, atlasTextures: false, resizeTextures: true, drawnIn3D: true, encoder: null,
+      } as Parameters<typeof cookTexture>[0]);
+      expect(out.ext).toBe('.png');
+      expect(Buffer.from(out.data).equals(png)).toBe(true);
+      expect(out.cook.selected).toBe('raw');
+    } finally {
+      rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    }
+  });
+});
+
 describe('a cutout texture the cook ships', () => {
   it('has the colour of its solid texels carried into its clear ones, and a texture that is no cutout keeps what is under its alpha', async () => {
     // Green on the left, and white under alpha 0 on the right: the white a mip would average in at the leaf's edge.

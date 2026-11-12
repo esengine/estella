@@ -148,6 +148,11 @@ function looksPremultiplied(rgba: Uint8Array): boolean {
   return partial;
 }
 
+/** Bits a channel a PNG holds (1 to 16), from its header; 8 for anything that is not a PNG. */
+export function pngBitDepth(png: Uint8Array): number {
+  return png.byteLength > 24 && png[1] === 0x50 && png[2] === 0x4e && png[3] === 0x47 ? png[24]! : 8;
+}
+
 function safePngDimensions(png: Uint8Array): { width: number; height: number } | null {
   try {
     return pngDimensions(png);
@@ -210,6 +215,15 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
   // maxSize downscale first — it applies even when a texture opts OUT of
   // compression (a huge UI sprite can ship as a smaller raw PNG), and the
   // ENCODED size is what block alignment is judged on.
+  // A PNG of 16 bits a channel is numbers, not a picture: a heightmap, a field of measured values. Shrinking, filling and encoding all
+  // decode to 8 bits first, so a build would ship 256 steps where the file holds 65536, a size smaller, and say nothing. It ships as it is.
+  if (raster && pngBitDepth(data) === 16) {
+    const cook = decideTextureCook({
+      compressTextures: input.compressTextures, atlasTextures: input.atlasTextures, inAtlas: false, raster,
+      compress: 'off', drawnIn3D: input.drawnIn3D, format: tex.format, size: safePngDimensions(data),
+    });
+    return { data, ext, cook, warnings, defeatedByFormat: false };
+  }
   const sourceSize = raster ? safePngDimensions(data) : null;
   const scaled = !!((textureEnc || input.resizeTextures) && sourceSize && tex.maxSize > 0 &&
     tex.maxSize < Math.max(sourceSize.width, sourceSize.height));

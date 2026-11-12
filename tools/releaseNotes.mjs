@@ -4508,4 +4508,6 @@ export const NOTED = {
     {"note": "A wall under a roof is no longer sunlit along its top."},
   "feat(settings): a row for the cheaper dynamic GI, per quality level":
     {"note": "A quality level decides what the dynamic GI spends."},
+  "fix(export): a 16-bit PNG ships as the file it is - a build shrank a 4096 heightmap to 2048 and decoded it to 8 bits, so exported ground stood in 256 steps where the editor drew 65536":
+    {"note": "A 16-bit heightmap keeps its depth and size in a build."},
 };
