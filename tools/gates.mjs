@@ -34,6 +34,8 @@ export const SCOPES = ['local', 'ci'];
  * that run a suite — orthogonal to `where`, which says a gate CANNOT run here.
  * `owns` is the other half: the SOURCE a suite answers for, and `--suites owed`
  * runs the ones a change touched, so it meets its unit-test owner before the remote.
+ * `related` is how a suite runs IN PART: `root`, the package its runner takes paths from, and `run`, the command the changed files are
+ * handed to, which runs the tests that reach them (`--suites related`, see relatedRun). A suite without one is run whole.
  */
 export const GATES = [
   // `exclusive: true` is a build or a writer of what a later gate reads: a `--jobs` run cuts the list there and runs it alone.
@@ -113,11 +115,13 @@ export const GATES = [
   // The engine's own TS suites (pipeline + tooling). They lived in desktop/tests
   // until the editor split, where a checkout without the editor ran none of them.
   { id: 'engine-tests', run: 'pnpm run test', covers: ['pipeline/tests', 'tools/tests'],
-    owns: ['pipeline', 'tools'] },
+    owns: ['pipeline', 'tools'],
+    related: { root: '.', run: 'pnpm exec vitest related --run --config vitest.engine.config.ts' } },
   // The SDK's own suites. They were run by NOTHING until 2026-08-30: the gate
   // list said 76/76 while four of them did not compile against the source they
   // test, and only a hand-run vitest found it.
-  { id: 'sdk-tests', run: 'pnpm --filter ./sdk test', covers: ['sdk/tests'], owns: ['sdk'] },
+  { id: 'sdk-tests', run: 'pnpm --filter ./sdk test', covers: ['sdk/tests'], owns: ['sdk'],
+    related: { root: 'sdk', run: 'pnpm --filter ./sdk exec vitest related --run' } },
   // The AOT compiler carries its own oracle: a real example system lowered to
   // EIR must move a world exactly the way node moves it.
   // It also compiles the emitted C and requires the same bytes back: natively
@@ -423,6 +427,31 @@ export function owedSuites(changed) {
     if (g.owns && changed.some((p) => under(p, g.owns))) owed.add(g.id);
   }
   return owed;
+}
+
+/** The most changed files a suite is run in part for: past it the whole suite is the cheaper answer and the surer one. */
+export const RELATED_MOST = 80;
+
+/**
+ * How `gate` runs in part for `changed`: the command that runs only the tests that reach what changed under it, and how many files
+ * that is. Null where the whole suite is owed instead, which is every case this cannot answer for: a suite with no `related`, a change
+ * that is not TypeScript source its runner can follow (a config, a fixture, a generated binary: anything may read those), a file that
+ * is gone (what imported it is not named by its path any more), or more files than RELATED_MOST.
+ *
+ * @details A runner follows imports, so a test that reads a changed file some other way (a path it builds, a file it opens) is missed.
+ *          That is why this is a mode a caller asks for by name and the run says so, and why CI runs every suite whole.
+ */
+export function relatedRun(gate, changed, exists = () => true) {
+  if (!gate.related || !gate.owns) return null;
+  const mine = changed.filter((p) => under(p, gate.owns));
+  if (mine.length === 0 || mine.length > RELATED_MOST) return null;
+  const root = gate.related.root === '.' ? '' : `${gate.related.root}/`;
+  const files = [];
+  for (const p of mine) {
+    if (!/\.(ts|tsx|mts)$/.test(p) || /(^|\/)[^/]*\.config\.[a-z]+$/.test(p) || !p.startsWith(root) || !exists(p)) return null;
+    files.push(p.slice(root.length));
+  }
+  return { run: `${gate.related.run} ${files.map((f) => `"${f}"`).join(' ')}`, files: files.length };
 }
 
 /**

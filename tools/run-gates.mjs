@@ -17,6 +17,7 @@
  *   node tools/run-gates.mjs --scope local
  *   node tools/run-gates.mjs --scope ci
  *   node tools/run-gates.mjs --scope local --suites owed
+ *   node tools/run-gates.mjs --scope local --suites related
  *   node tools/run-gates.mjs --scope local --where local
  *   node tools/run-gates.mjs --scope local --keep-going --matrix out.json
  */
@@ -24,7 +25,7 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SCOPES, GATES, gatesFor, owedSuites } from './gates.mjs';
+import { SCOPES, GATES, gatesFor, owedSuites, relatedRun } from './gates.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -45,12 +46,13 @@ if (!SCOPES.includes(SCOPE)) {
 const HAS_EDITOR = existsSync(path.join(ROOT, 'desktop', 'package.json'));
 /**
  * Which suite gates this caller pays for: `all` (default, and CI), `owed` (those
- * whose `owns` this change touched), or `none`.
+ * whose `owns` this change touched), `related` (those, and of each only the tests
+ * that reach what changed, where its runner can say which), or `none`.
  *
  * @details A machine that cannot run an owed suite is not silently excused: it
  *          says what it needs and the run stops, per check-suite-preconditions.
  */
-const SUITE_MODES = ['all', 'owed', 'none'];
+const SUITE_MODES = ['all', 'owed', 'related', 'none'];
 if (argv.includes('--no-suites')) {
   console.error('run-gates: --no-suites is now --suites none (or --suites owed).');
   process.exit(2);
@@ -79,8 +81,9 @@ function changedPaths() {
   return [...new Set(out.split('\n').map((l) => l.trim()).filter(Boolean))];
 }
 
-const changed = SUITE_MODE === 'owed' ? changedPaths() : [];
-const SUITES = SUITE_MODE === 'owed' ? owedSuites(changed) : SUITE_MODE;
+const BY_CHANGE = SUITE_MODE === 'owed' || SUITE_MODE === 'related';
+const changed = BY_CHANGE ? changedPaths() : [];
+const SUITES = BY_CHANGE ? owedSuites(changed) : SUITE_MODE;
 /**
  * Whether every DECLARED gate has to have run, not just every gate that could.
  *
@@ -96,6 +99,10 @@ const COMPLETE = argv.includes('--complete');
  * second question cannot be answered one re-run at a time.
  */
 const SCAN = argv.includes('--keep-going');
+if (COMPLETE && SUITE_MODE === 'related') {
+  console.error('run-gates: --suites related cannot be --complete — a suite run in part answers for the tests it ran.');
+  process.exit(2);
+}
 /** Where to write the matrix, for a reader that is not a terminal. */
 const MATRIX = (() => {
   const i = argv.indexOf('--matrix');
@@ -155,8 +162,16 @@ if (WHERE && !SCOPES.includes(WHERE)) {
   console.error(`run-gates: unknown --where "${WHERE}" (have: ${SCOPES.join(', ')})`);
   process.exit(2);
 }
+/** The suites run in part, and for how many changed files each: a green from one of them is about those tests only. */
+const inPart = new Map();
 const gates = gatesFor(SCOPE, HAS_EDITOR, { suites: SUITES })
-  .filter((g) => (!ONLY || ONLY.includes(g.id)) && (!WHERE || g.where === WHERE));
+  .filter((g) => (!ONLY || ONLY.includes(g.id)) && (!WHERE || g.where === WHERE))
+  .map((g) => {
+    const part = SUITE_MODE === 'related' ? relatedRun(g, changed, (p) => existsSync(path.join(ROOT, p))) : null;
+    if (!part) return g;
+    inPart.set(g.id, part.files);
+    return { ...g, run: part.run };
+  });
 /** Either form answers for the gates it selected and for nothing else. */
 const NARROWED = Boolean(ONLY || WHERE);
 if (NARROWED) {
@@ -182,10 +197,10 @@ if (NARROWED) {
 const skipped = GATES.filter((g) => g.where && g.where !== SCOPE);
 /** Suites this run is not paying for — named, never silently absent. */
 const unpaid = gatesFor(SCOPE, HAS_EDITOR)
-  .filter((g) => g.covers?.length && !gates.includes(g));
+  .filter((g) => g.covers?.length && !gates.some((ran) => ran.id === g.id));
 /** Everything a narrowing left out, suites included: such a run answers for the
  *  gates it selected and nothing else, and must not read as a list that went green. */
-const narrowed = NARROWED ? gatesFor(SCOPE, HAS_EDITOR).filter((g) => !gates.includes(g)) : [];
+const narrowed = NARROWED ? gatesFor(SCOPE, HAS_EDITOR).filter((g) => !gates.some((ran) => ran.id === g.id)) : [];
 const noEditor = HAS_EDITOR ? [] : GATES.filter((g) => g.needs === 'editor' && (!g.where || g.where === SCOPE));
 console.log(`gates ${SCOPE}: ${gates.length} of ${GATES.length}`);
 if (noEditor.length) {
@@ -208,7 +223,11 @@ if (argv.includes('--plan')) {
  */
 function reportSuites() {
   const suites = gates.filter((g) => g.covers?.length);
-  if (suites.length) console.log(`  test suites run: ${suites.map((g) => g.id).join(', ')}`);
+  const whole = suites.filter((g) => !inPart.has(g.id));
+  if (whole.length) console.log(`  test suites run: ${whole.map((g) => g.id).join(', ')}`);
+  for (const [id, files] of inPart) {
+    console.log(`  test suite run IN PART: ${id} — only the tests that reach the ${files} changed file(s) under it; CI runs it whole`);
+  }
   // A declared profile narrows what a suite covered, and the summary is where
   // that has to be said — otherwise "green" quietly means "green minus 300".
   for (const g of declared) console.log(`  ${g.env}=${g.value} — ${g.says}`);
@@ -219,12 +238,12 @@ function reportSuites() {
   // The whole point of not paying for a suite is that it is CHEAP, not that it
   // is quiet. Under `owed` the count of paths is part of the claim: "no suite was
   // owed" means nothing unless it is attached to a diff that was actually read.
-  if (SUITE_MODE === 'owed') {
+  if (BY_CHANGE) {
     console.log(`  ${changed.length} changed path(s) read for suite ownership`
       + `${SUITES.size ? '' : ' — none of them under a suite\'s `owns`'}`);
   }
   if (unpaid.length && !NARROWED) {
-    const why = SUITE_MODE === 'owed'
+    const why = BY_CHANGE
       ? 'nothing changed under what they answer for; CI runs them all'
       : `--suites ${SUITE_MODE}; CI runs them`;
     console.log(`  test suites NOT run: ${unpaid.map((g) => g.id).join(', ')} — ${why}`);

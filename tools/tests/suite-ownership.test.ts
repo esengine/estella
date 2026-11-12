@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — a repo tool, shipped as .mjs with no declarations
-import { GATES, owedSuites } from '../gates.mjs';
+import { GATES, owedSuites, relatedRun, RELATED_MOST } from '../gates.mjs';
 
 const owed = (...paths: string[]): string[] => [...owedSuites(paths)].sort();
 
@@ -54,5 +54,34 @@ describe('owedSuites names the direct unit-test owner of a change', () => {
             .filter((g) => g.covers?.length && !g.owns?.length)
             .map((g) => g.id);
         expect(orphans).toEqual([]);
+    });
+});
+
+describe('relatedRun runs a suite in part only where its runner can say which part', () => {
+    const gate = (id: string) => (GATES as { id: string }[]).find((g) => g.id === id)!;
+
+    it('hands the changed sources, by the paths of its package, to the runner that follows imports', () => {
+        const part = relatedRun(gate('sdk-tests'), ['sdk/src/foliage/builder.ts', 'sdk/tests/foliage-builder.test.ts', 'docs/x.md']);
+        expect(part.files).toBe(2);
+        expect(part.run).toBe('pnpm --filter ./sdk exec vitest related --run "src/foliage/builder.ts" "tests/foliage-builder.test.ts"');
+        expect(relatedRun(gate('engine-tests'), ['pipeline/src/world/cookWorld.ts']).run)
+            .toBe('pnpm exec vitest related --run --config vitest.engine.config.ts "pipeline/src/world/cookWorld.ts"');
+    });
+
+    it('owes the whole suite for what no import names: a config, a fixture, a script, a file that is gone', () => {
+        const sdk = gate('sdk-tests');
+        expect(relatedRun(sdk, ['sdk/package.json'])).toBeNull();
+        expect(relatedRun(sdk, ['sdk/vitest.config.ts'])).toBeNull();
+        expect(relatedRun(sdk, ['sdk/src/a.ts', 'sdk/tests/fixtures/scene.json'])).toBeNull();
+        expect(relatedRun(gate('engine-tests'), ['tools/gates.mjs'])).toBeNull();
+        expect(relatedRun(sdk, ['sdk/src/gone.ts'], () => false)).toBeNull();
+    });
+
+    it('owes the whole suite past the most files, for a suite with no runner of the kind, and nothing where nothing changed under it', () => {
+        const many = Array.from({ length: RELATED_MOST + 1 }, (_, i) => `sdk/src/f${i}.ts`);
+        expect(relatedRun(gate('sdk-tests'), many)).toBeNull();
+        expect(relatedRun(gate('sdk-tests'), many.slice(1)).files).toBe(RELATED_MOST);
+        expect(relatedRun(gate('editor-tests'), ['desktop/src/a.ts'])).toBeNull();
+        expect(relatedRun(gate('sdk-tests'), ['pipeline/src/a.ts'])).toBeNull();
     });
 });
