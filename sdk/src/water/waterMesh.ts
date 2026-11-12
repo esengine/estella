@@ -24,9 +24,10 @@ interface Grid {
 
 /**
  * An ocean of `rings` rings of `cells` cells a side (a multiple of four), the innermost with `cellSize` cells. It reaches
- * `cells * cellSize * 2^(rings - 1) / 2` out from its centre.
+ * `cells * cellSize * 2^(rings - 1) / 2` out from its centre, and with `skirt` a flat apron runs on from there to that
+ * half-extent: the sea out to the horizon, at the cost of one cell's quads along each side.
  */
-export function buildOceanMesh(cells: number, rings: number, cellSize: number): MeshData {
+export function buildOceanMesh(cells: number, rings: number, cellSize: number, skirt = 0): MeshData {
     const n = Math.max(4, Math.round(cells / 4) * 4);
     const levels = Math.min(8, Math.max(1, Math.floor(rings)));
     const grids: Grid[] = [];
@@ -51,6 +52,24 @@ export function buildOceanMesh(cells: number, rings: number, cellSize: number): 
                 if (grid.hole > 0 && Math.abs(cx) < grid.hole && Math.abs(cz) < grid.hole) continue;
                 quad(indices, base + j * stride + i, base + (j + 1) * stride + i, base + j * stride + i + 1, base + (j + 1) * stride + i + 1);
             }
+        }
+    }
+    const outer = grids[grids.length - 1]!;
+    if (skirt > outer.half) {
+        // Each cell of the outermost ring's edge is carried out to the apron's edge along its own side; the corners take a quad each.
+        const base = positions.length / 3, k = skirt / outer.half;
+        const edge: Array<[number, number]> = [];
+        for (let i = 0; i <= n; i++) edge.push([-outer.half + i * outer.cell, -outer.half]);
+        for (let i = 1; i <= n; i++) edge.push([outer.half, -outer.half + i * outer.cell]);
+        for (let i = 1; i <= n; i++) edge.push([outer.half - i * outer.cell, outer.half]);
+        for (let i = 1; i < n; i++) edge.push([-outer.half, outer.half - i * outer.cell]);
+        for (const [x, z] of edge) { positions.push(x, 0, z); colors.push(outer.ring / 7, 1, 0, 1); }
+        for (const [x, z] of edge) { positions.push(x * k, 0, z * k); colors.push(outer.ring / 7, 1, 0, 1); }
+        const m = edge.length;
+        for (let i = 0; i < m; i++) {
+            const a = base + i, b = base + ((i + 1) % m), c = base + m + i, d = base + m + ((i + 1) % m);
+            // The edge runs clockwise seen from above (+x, then +z): the apron is on its left, and faces up in this order.
+            indices.push(a, b, c, b, d, c);
         }
     }
     return pack(positions, colors, indices);

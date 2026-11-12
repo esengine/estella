@@ -110,6 +110,27 @@ describe('the waves', () => {
     });
 });
 
+describe('an ocean\'s apron', () => {
+    it('runs from the rings to the horizon, facing up, with no gap and no overlap', () => {
+        const cells = 16, rings = 3, cell = 1, far = 1000;
+        const plain = buildOceanMesh(cells, rings, cell), mesh = buildOceanMesh(cells, rings, cell, far);
+        const p = positions(mesh), reach = oceanReach(cells, rings, cell);
+        expect(mesh.aabbMax[0]).toBeCloseTo(far, 3);
+        expect(mesh.aabbMin[2]).toBeCloseTo(-far, 3);
+        let area = 0;
+        for (let t = plain.indices.length; t < mesh.indices.length; t += 3) {
+            const f = facing(p, mesh.indices[t]!, mesh.indices[t + 1]!, mesh.indices[t + 2]!);
+            expect(f).toBeGreaterThan(0);
+            area += f / 2;
+        }
+        expect(area).toBeCloseTo((2 * far) ** 2 - (2 * reach) ** 2, 1);
+    });
+
+    it('is not there when it would end inside the rings', () => {
+        expect(buildOceanMesh(16, 3, 1, 10).indices.length).toBe(buildOceanMesh(16, 3, 1).indices.length);
+    });
+});
+
 describe('the surface\'s mesh', () => {
     const cells = 16, rings = 4, cell = 1;
     const mesh = buildOceanMesh(cells, rings, cell);
