@@ -141,9 +141,9 @@ fn sdfTrace(origin : vec3f, dir : vec3f, maxT : f32) -> f32 {
 // Where a ray from a surface point may start. Lifted off its own surface the point can still be inside what a trace calls a hit of ANOTHER
 // surface (a wall the next wall over meets: the corner of a room), and every ray from there would hit at 0 and bring nothing, which is a
 // black band along every edge of the room, as wide as the cell is coarse. It is moved out along the field's slope until it is clear.
-fn clearOrigin(o : vec3f) -> vec3f {
+fn clearOrigin(o : vec3f, seen : bool) -> vec3f {
     var p = o;
-    for (var i = 0; i < 2; i = i + 1) {
+    for (var i = 0; i < 3; i = i + 1) {
         let li = levelAt(p);
         if (li < 0) { return p; }
         let l = u32(li);
@@ -153,7 +153,8 @@ fn clearOrigin(o : vec3f) -> vec3f {
         if (d >= want) { return p; }
         // Under the surface of another body (a card pixel of a wall's end, buried in the wall it meets): left where it is, to bring nothing.
         // Moved out it would come up on whichever side is nearer, the lit outside of a sealed room among them, and the room would leak.
-        if (i == 0 && d < cell * 0.1 - gi.misc.w) { return p; }
+        // A point the eye sees (`seen`: a screen probe) is under nothing, whatever the field says of it a tenth of a cell from a wall.
+        if (!seen && i == 0 && d < cell * 0.1 - gi.misc.w) { return p; }
         let h = cell * 0.5;
         let g = vec3f(sdfSample(l, p + vec3f(h, 0.0, 0.0)) - sdfSample(l, p - vec3f(h, 0.0, 0.0)),
                       sdfSample(l, p + vec3f(0.0, h, 0.0)) - sdfSample(l, p - vec3f(0.0, h, 0.0)),
@@ -371,7 +372,7 @@ fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_index) lid 
     let scale = insts[b + 7u].w;
     let nl = unpackNormal(pix.x, pix.y);
     let n = normalize((m0.xyz * nl.x + m1.xyz * nl.y + m2.xyz * nl.z) / scale);
-    let origin = clearOrigin(pos + n * gi.sunRad.w);
+    let origin = clearOrigin(pos + n * gi.sunRad.w, false);
     let d = probeRay(lid & 7u, lid >> 3u, n, p, u32(gi.origin.w));
     cardSum[lid] = rayRadiance(origin, d) * dot(d, n);
     workgroupBarrier();
@@ -423,6 +424,18 @@ const char* kProbe = R"WGSL(
 @group(0) @binding(9) var probeHist : texture_2d<f32>;
 @group(0) @binding(10) var probeGeo : texture_storage_2d<rgba32float, write>;
 
+// A probe's normal in two numbers (octahedral), for the history: see where it is read.
+fn packHistNormal(n : vec3f) -> vec2f {
+    let p = n.xy / (abs(n.x) + abs(n.y) + abs(n.z));
+    if (n.z >= 0.0) { return p; }
+    return (vec2f(1.0) - abs(p.yx)) * vec2f(select(-1.0, 1.0, p.x >= 0.0), select(-1.0, 1.0, p.y >= 0.0));
+}
+fn histNormal(x : f32, y : f32) -> vec3f {
+    var n = vec3f(x, y, 1.0 - abs(x) - abs(y));
+    let t = max(-n.z, 0.0);
+    n.x = n.x + select(t, -t, n.x >= 0.0); n.y = n.y + select(t, -t, n.y >= 0.0);
+    return normalize(n);
+}
 var<workgroup> shR : array<vec3f, 64>;
 var<workgroup> shG : array<vec3f, 64>;
 var<workgroup> shB : array<vec3f, 64>;
@@ -450,7 +463,7 @@ fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_id) lid3 : 
         let stride = max(u32(gi.misc.y), 1u);
         if (((lid3.x + lid3.y * 3u + u32(gi.origin.w)) % stride) == 0u) {
             let d = probeRay(lid3.x, lid3.y, n, wg.x + wg.y * gi.counts.z, u32(gi.origin.w));
-            let L = rayRadiance(clearOrigin(pos + n * gi.sunRad.w), d);
+            let L = rayRadiance(clearOrigin(pos + n * gi.sunRad.w, true), d);
             contribution = array<vec3f, 3>(d * L.x * f32(stride), d * L.y * f32(stride), d * L.z * f32(stride));
         }
     }
@@ -465,20 +478,39 @@ fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_id) lid3 : 
         var vr = shR[0] * k; var vg = shG[0] * k; var vb = shB[0] * k;
         let base = vec2i(i32(wg.x) * 3, i32(wg.y));
         // The last frames agree where the probe still looks at the same surface (its distance from the eye is the key, kept in w).
+        // And the probes round it agree with it where they stand on the same surface (as far from the eye, facing the same way: the normal
+        // is kept in the w of the other two texels). What is mixed in is the last frame of the nine, the middle one counting for most: 32
+        // rays a frame toward a sun patch a few of them find is grain a probe wide, and the neighbours are the rays it did not trace.
         let hr = textureLoad(probeHist, base, 0);
         if (valid && hr.w > 0.0 && abs(hr.w - eyeDistance) < 0.02 * eyeDistance && gi.origin.w > 1) {
+            var hR = vec3f(0.0); var hG = vec3f(0.0); var hB = vec3f(0.0); var hW = 0.0;
+            for (var oy = -1; oy <= 1; oy = oy + 1) {
+                for (var ox = -1; ox <= 1; ox = ox + 1) {
+                    let tx = i32(wg.x) + ox; let ty = i32(wg.y) + oy;
+                    if (tx < 0 || ty < 0 || tx >= i32(gi.counts.z) || ty >= i32(gi.counts.w)) { continue; }
+                    let nb = vec2i(tx * 3, ty);
+                    let r = textureLoad(probeHist, nb, 0);
+                    let g2 = textureLoad(probeHist, nb + vec2i(1, 0), 0);
+                    let b2 = textureLoad(probeHist, nb + vec2i(2, 0), 0);
+                    if (r.w <= 0.0 || abs(r.w - eyeDistance) > 0.03 * eyeDistance) { continue; }
+                    let facing = dot(histNormal(g2.w, b2.w), probeNormal);
+                    if (facing < 0.95) { continue; }
+                    let w = select(0.3, 1.0, ox == 0 && oy == 0);
+                    hR = hR + r.xyz * w; hG = hG + g2.xyz * w; hB = hB + b2.xyz * w; hW = hW + w;
+                }
+            }
             let a = gi.trace.z;
-            vr = mix(textureLoad(probeHist, base, 0).xyz, vr, a);
-            vg = mix(textureLoad(probeHist, base + vec2i(1, 0), 0).xyz, vg, a);
-            vb = mix(textureLoad(probeHist, base + vec2i(2, 0), 0).xyz, vb, a);
+            // None agrees, the probe's own last frame among them (its normal changed: it stands on an edge), and there is nothing to mix.
+            if (hW > 0.0) { vr = mix(hR / hW, vr, a); vg = mix(hG / hW, vg, a); vb = mix(hB / hW, vb, a); }
         }
         // Where the probe stands and which way it faces, for the pixels that take its light: stored once here, so that the apply does not read the
         // depth and the G-buffer and rebuild a world position for each probe it looks at, for every pixel.
         textureStore(probeGeo, vec2i(i32(wg.x) * 2, i32(wg.y)), vec4f(probePos, eyeDistance));
         textureStore(probeGeo, vec2i(i32(wg.x) * 2 + 1, i32(wg.y)), vec4f(probeNormal, select(0.0, 1.0, valid)));
         textureStore(probeOut, base, vec4f(vr, eyeDistance));
-        textureStore(probeOut, base + vec2i(1, 0), vec4f(vg, 0.0));
-        textureStore(probeOut, base + vec2i(2, 0), vec4f(vb, 0.0));
+        let packedN = packHistNormal(probeNormal);
+        textureStore(probeOut, base + vec2i(1, 0), vec4f(vg, packedN.x));
+        textureStore(probeOut, base + vec2i(2, 0), vec4f(vb, packedN.y));
     }
 }
 )WGSL";
@@ -493,7 +525,7 @@ const char* kApply = R"WGSL(
 @group(0) @binding(12) var probeGeo : texture_2d<f32>;
 
 // What one probe says about the pixel at pos facing n: its light by the normal, and how much it should count (plane, then normal).
-fn probeTerm(tile : vec2i, q : vec2f, radius : f32, pos : vec3f, n : vec3f, eye : f32, e : ptr<function, vec3f>, w : ptr<function, vec2f>) -> bool {
+fn probeTerm(tile : vec2i, q : vec2f, radius : f32, pos : vec3f, n : vec3f, eye : f32, e : ptr<function, vec3f>, own : ptr<function, vec3f>, w : ptr<function, vec2f>) -> bool {
     let geo1 = textureLoad(probeGeo, vec2i(tile.x * 2 + 1, tile.y), 0);
     if (geo1.w < 0.5) { return false; }
     let d = abs(vec2f(tile) - q);
@@ -508,6 +540,9 @@ fn probeTerm(tile : vec2i, q : vec2f, radius : f32, pos : vec3f, n : vec3f, eye 
     let vg = textureLoad(probes, base + vec2i(1, 0), 0).xyz;
     let vb = textureLoad(probes, base + vec2i(2, 0), 0).xyz;
     *e = max(vec3f(dot(vr, n), dot(vg, n), dot(vb, n)), vec3f(0.0));
+    // What the probe gets itself, for a pixel whose own normal no probe agrees with: a pixel on the edge two walls share, where the
+    // resolved G-buffer holds a normal that is neither wall's and may face along both.
+    *own = max(vec3f(dot(vr, geo1.xyz), dot(vg, geo1.xyz), dot(vb, geo1.xyz)), vec3f(0.0));
     *w = vec2f(wPlane * wNormal, wPlane);
     return true;
 }
@@ -545,10 +580,11 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
         if (any(tile < vec2i(0)) || any(tile >= tiles)) { continue; }
         var e = vec3f(0.0);
         var w = vec2f(0.0);
-        if (!probeTerm(tile, q, 1.0, pos, n, eye, &e, &w)) { continue; }
+        var own = vec3f(0.0);
+        if (!probeTerm(tile, q, 1.0, pos, n, eye, &e, &own, &w)) { continue; }
         E = E + e * w.x;
         total = total + w.x;
-        Erelaxed = Erelaxed + e * w.y;
+        Erelaxed = Erelaxed + own * w.y;
         totalRelaxed = totalRelaxed + w.y;
     }
     if (total <= 0.15) {
@@ -561,10 +597,11 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
             if (any(tile < vec2i(0)) || any(tile >= tiles)) { continue; }
             var e = vec3f(0.0);
             var w = vec2f(0.0);
-            if (!probeTerm(tile, q, 1.6, pos, n, eye, &e, &w)) { continue; }
+        var own = vec3f(0.0);
+            if (!probeTerm(tile, q, 1.6, pos, n, eye, &e, &own, &w)) { continue; }
             E = E + e * w.x;
             total = total + w.x;
-            Erelaxed = Erelaxed + e * w.y;
+            Erelaxed = Erelaxed + own * w.y;
             totalRelaxed = totalRelaxed + w.y;
         }
     }

@@ -59,7 +59,8 @@ BANDS = {
     ('gi_away', 'dgil'): (0.45, 1.30),
     ('gi_leak', 'dgil'): ('zero', 0.0005),
     ('gi_point', 'dgil'): (0.7, 1.4),
-    ('gi_spot', 'dgi'): (0.75, 1.3),
+    # 1.4 since the corners of a room stopped being black (they give light back now): the dim walls read 1.25 to 1.32 from run to run.
+    ('gi_spot', 'dgi'): (0.75, 1.4),
     ('gi_spot', 'dgim'): (0.7, 1.6),
     ('gi_spot', 'dgil'): (0.7, 1.4),
     ('gi_emissive', 'dgim'): (0.75, 1.50),
