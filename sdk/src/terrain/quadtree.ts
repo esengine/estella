@@ -92,3 +92,28 @@ export function parentOf(n: TerrainNode, leafSize: number): TerrainNode {
 export function nodeKey(level: number, ix: number, iz: number): string {
     return `${level}:${ix}:${iz}`;
 }
+
+/** How much a fit that is over its budget gives up at a time, and how far under the budget the next step up has to be before it is taken back. */
+const FIT_STEP = 0.9;
+const FIT_ROOM = 0.85;
+
+/**
+ * The share of its `range0` a tree (`tree(share)`) can keep and still draw the eye's ground in `most` nodes: a node is a page, and a tree
+ * that wants more pages than the atlas holds is drawn in part by coarser pages, which do not meet their finer neighbours' edges (cracks).
+ * `held` is the share the frame before settled on: given up a step at a time while the nodes are too many, taken back a step only with
+ * room to spare, so an eye moving along the edge of the budget does not change the ground every frame.
+ */
+export function fitRange(tree: (share: number) => QuadtreeParams, ex: number, ey: number, ez: number, most: number, held = 1): { share: number; nodes: TerrainNode[] } {
+    let share = Math.min(Math.max(held, 0.01), 1);
+    let nodes = selectNodes(tree(share), ex, ey, ez);
+    while (nodes.length > most && share > 0.01) {
+        share *= FIT_STEP;
+        nodes = selectNodes(tree(share), ex, ey, ez);
+    }
+    if (share < 1 && nodes.length <= most) {
+        const up = Math.min(share / FIT_STEP, 1);
+        const more = selectNodes(tree(up), ex, ey, ez);
+        if (more.length <= most * FIT_ROOM) return { share: up, nodes: more };
+    }
+    return { share, nodes };
+}

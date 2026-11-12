@@ -148,6 +148,11 @@ Pages are made as the tree asks for them, a few each frame within a time budget,
 made, the node is drawn by its nearest ancestor that has one, so the ground is there at once and sharpens as the pages come in. When
 the atlas is full, the page drawn least recently gives up its place.
 
+The pages are a budget, and the nodes drawn at once have to fit in it: a page that stands in for a finer one does not meet its finer
+neighbours' edges, and the ground cracks along them. So a `detail` that asks for more nodes than the atlas has pages for (about 4 on
+1.5 m cells from most places) is drawn at the share of its range that fits, 0.9 of it at a time, and a warning says so once with the
+detail the ground is being drawn at.
+
 ### Building over frames
 
 Making pages and wearing an area by rain are spread over frames rather than done in one, so neither holds up a frame. While they run

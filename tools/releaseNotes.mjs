@@ -4574,4 +4574,6 @@ export const NOTED = {
     {"note": "The sea past the rings lies at the sea's level."},
   "feat(water): a waterfall - a Waterfall on an entity at a lip throws sheets of water level at a speed and lets gravity take them, each ending where it meets the ground or water that is not the water it left; it is the entity's own MeshRenderer, and with no material it takes the stock Waterfall shader, glass at the lip tearing into strands that ride down with the water":
     {"note": "A waterfall."},
+  "fix(terrain): a detail the pages cannot hold no longer cracks the ground - a tree that wanted more nodes than the atlas has pages was drawn in part by coarser pages standing in, which do not meet their finer neighbours' edges, and the pages were fought over every frame; the ground is now drawn at the share of its detail's range that fits, and says so once":
+    {"note": "A detail the pages cannot hold no longer cracks the ground."},
 };

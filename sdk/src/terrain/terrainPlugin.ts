@@ -43,7 +43,7 @@ import { paintWeights } from './paint';
 export { paintWeights };
 import { GroundEdit } from './groundEdit';
 import { FieldSource, ModifiedSource, NoiseSource, type NoiseParams, type TerrainModifier, type TerrainSource } from './source';
-import { levelRange, nodeKey, parentOf, selectNodes, type QuadtreeParams, type TerrainNode } from './quadtree';
+import { fitRange, levelRange, nodeKey, parentOf, type QuadtreeParams, type TerrainNode } from './quadtree';
 import { makePage, makePageJob, PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage, type Repaint } from './pages';
 import { noiseProvider, ProviderSource, terrainProvider, terrainProvidersRevision, TerrainUnavailable, type TerrainProvider } from './provider';
 import { buildPatchMesh } from './patch';
@@ -202,6 +202,8 @@ export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponen
 
 /** The side of the atlases the pages are kept in, in texels: 900 pages of 67 by 67. */
 const ATLAS_SIZE = 2048;
+/** The share of the atlas the nodes drawn may fill: the rest is for the coarser pages that stand in while a finer one is made. */
+const PAGE_SHARE = 0.85;
 /** The most layers a terrain draws: two paint atlases of four weights. */
 const MAX_LAYERS = 8;
 /** The chunk layer a terrain's collision is, and the key of one tile's piece of collision geometry. */
@@ -239,6 +241,9 @@ interface Built {
     spare: Entity[];
     /** Pages wanted and not made yet, by key. */
     wanted: Map<string, TerrainNode>;
+    /** The share of its detail's range the ground is drawn at, so its nodes fit the pages there are (see fitRange). */
+    fit: number;
+    fitSaid?: boolean;
     /** Pages asked of a provider that answers later, by key: the frame's budget is not spent waiting for them. */
     asked: Set<string>;
     /** The workers failed one of this terrain's pages: it makes its own. */
@@ -682,7 +687,7 @@ export class TerrainPlugin implements Plugin {
                     built = {
                         signature, data: { ...data }, source: null, surface: null, epoch: (built?.epoch ?? 0) + 1, loading: true, cancel: null,
                         table: new PageTable(ATLAS_SIZE), heights: 0, paint: 0, mesh: 0, instance: 0,
-                        nodes: new Map(), spare: [], wanted: new Map(), asked: new Set(), pending: false, failure: null, edits: 0,
+                        nodes: new Map(), spare: [], wanted: new Map(), fit: 1, asked: new Set(), pending: false, failure: null, edits: 0,
                         paint2: 0, arrays: [], packed: '', packing: false, washed: false, shaded: false,
                     };
                     terrains.built_.set(entity, built);
@@ -966,10 +971,10 @@ export class TerrainPlugin implements Plugin {
     }
 
     /** The quadtree's cut for this terrain: leaf nodes a patch of the finest cells, ranges doubling, enough levels to cover it. */
-    private treeOf(built: Built, source: TerrainSource): QuadtreeParams {
+    private treeOf(built: Built, source: TerrainSource, share = 1): QuadtreeParams {
         const d = built.data;
         const leafSize = PATCH_CELLS * Math.max(d.cellSize, 1e-3);
-        const range0 = leafSize * 2.5 * Math.max(d.detail, 0.25);
+        const range0 = leafSize * 2.5 * Math.max(d.detail, 0.25) * share;
         const reach = source.bounds ? Math.max(source.bounds[2] - source.bounds[0], source.bounds[3] - source.bounds[1]) : Math.max(d.drawDistance, leafSize);
         let levels = 1;
         while (levels < 16 && (source.bounds ? leafSize * 2 ** (levels - 1) < reach : levelRange({ range0 }, levels - 1) < reach)) levels++;
@@ -981,10 +986,17 @@ export class TerrainPlugin implements Plugin {
         const source = built.source!;
         const t = app.world.get(entity, Transform) as TransformData;
         const eye = this.eye(app, t);
-        const tree = this.treeOf(built, source);
         const eyeAt = eye ?? [0, source.maxHeight, 0];
-        const chosen = selectNodes(tree, eyeAt[0], eyeAt[1], eyeAt[2]);
         const table = built.table;
+        // The pages are a budget (see fitRange): a `detail` that asks for more than the atlas holds is drawn at the share of it that fits.
+        const fitted = fitRange((share) => this.treeOf(built, source, share), eyeAt[0], eyeAt[1], eyeAt[2], Math.floor(table.capacity * PAGE_SHARE), built.fit);
+        if (fitted.share < 1 && !built.fitSaid) {
+            built.fitSaid = true;
+            log.warn('terrain', `detail ${built.data.detail} asks for more pages than the ${table.capacity} there are; the ground is drawn at ${(built.data.detail * fitted.share).toFixed(2)}`);
+        }
+        built.fit = fitted.share;
+        const tree = this.treeOf(built, source, fitted.share);
+        const chosen = fitted.nodes;
         table.tick();
 
         // Each node is drawn by its own page, or by its nearest ancestor that has one; a node under an ancestor drawn instead is not.

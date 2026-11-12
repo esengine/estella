@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
-import { levelRange, parentOf, selectNodes, type QuadtreeParams, type TerrainNode } from '../src/terrain/quadtree';
+import { fitRange, levelRange, parentOf, selectNodes, type QuadtreeParams, type TerrainNode } from '../src/terrain/quadtree';
 import { makePage, PageTable, PAGE_SIDE } from '../src/terrain/pages';
 import { NoiseSource, noised } from '../src/terrain/source';
 
@@ -105,5 +105,34 @@ describe('the pages', () => {
         expect(again.max).toBe(2);
         expect(table.isStale('a')).toBe(false);
         expect(table.size).toBe(2);
+    });
+});
+
+describe('a tree fitted to the pages there are', () => {
+    // Six kilometres of ground on 1.5 m cells at a detail of 4: what a fjord's cliffs cracked at, wanting 1153 pages of 900.
+    const island = (share: number): QuadtreeParams => ({ leafSize: 48, levels: 8, range0: 480 * share, bounds: [-3072, -3072, 3072, 3072], minHeight: 0, maxHeight: 528 });
+
+    it('keeps its whole range where the nodes fit', () => {
+        const fitted = fitRange(island, -300, 119, -640, 5000);
+        expect(fitted.share).toBe(1);
+        expect(fitted.nodes).toEqual(selectNodes(island(1), -300, 119, -640));
+    });
+
+    it('gives up range until the nodes fit, and no more than that', () => {
+        expect(selectNodes(island(1), -300, 119, -640).length).toBeGreaterThan(900);
+        const fitted = fitRange(island, -300, 119, -640, 765);
+        expect(fitted.nodes.length).toBeLessThanOrEqual(765);
+        expect(fitted.share).toBeLessThan(1);
+        expect(selectNodes(island(fitted.share / 0.9), -300, 119, -640).length).toBeGreaterThan(765);
+        expect(fitted.nodes).toEqual(selectNodes(island(fitted.share), -300, 119, -640));
+    });
+
+    it('holds what it settled on, and takes range back only with room to spare', () => {
+        const settled = fitRange(island, -300, 119, -640, 765).share;
+        expect(fitRange(island, -300, 119, -640, 765, settled).share).toBe(settled);
+        // A budget just over what the next step up wants is not room: one far over it is.
+        const next = selectNodes(island(settled / 0.9), -300, 119, -640).length;
+        expect(fitRange(island, -300, 119, -640, next + 1, settled).share).toBe(settled);
+        expect(fitRange(island, -300, 119, -640, next * 2, settled).share).toBeCloseTo(settled / 0.9, 9);
     });
 });
