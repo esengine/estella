@@ -212,9 +212,6 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
   const tex = readTextureCookSettings(input.importer, platform);
   const raster = ext.toLowerCase() === '.png';
   const textureEnc = input.encoder?.module ?? null;
-  // maxSize downscale first — it applies even when a texture opts OUT of
-  // compression (a huge UI sprite can ship as a smaller raw PNG), and the
-  // ENCODED size is what block alignment is judged on.
   // A PNG of 16 bits a channel is numbers, not a picture: a heightmap, a field of measured values. Shrinking, filling and encoding all
   // decode to 8 bits first, so a build would ship 256 steps where the file holds 65536, a size smaller, and say nothing. It ships as it is.
   if (raster && pngBitDepth(data) === 16) {
@@ -224,6 +221,9 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
     });
     return { data, ext, cook, warnings, defeatedByFormat: false };
   }
+  // maxSize downscale first — it applies even when a texture opts OUT of
+  // compression (a huge UI sprite can ship as a smaller raw PNG), and the
+  // ENCODED size is what block alignment is judged on.
   const sourceSize = raster ? safePngDimensions(data) : null;
   const scaled = !!((textureEnc || input.resizeTextures) && sourceSize && tex.maxSize > 0 &&
     tex.maxSize < Math.max(sourceSize.width, sourceSize.height));
