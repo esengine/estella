@@ -4520,4 +4520,6 @@ export const NOTED = {
     {"note": "A texture says whether it is a picture or numbers."},
   "feat(editor): a texture given to a Terrain as its heightmap is marked Data, and Project Health lists the ones read as numbers that are still pictures":
     {"note": "A texture says whether it is a picture or numbers."},
+  "fix(terrain): a splatmap is numbers too - cooked as a picture its three weights were overwritten wherever the fourth was 0, and the whole ground was painted as grass; it is marked Data when it is set, as the heightmap is":
+    {"note": "A texture says whether it is a picture or numbers."},
 };
