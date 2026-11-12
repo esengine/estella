@@ -300,7 +300,14 @@ is its x and z, `u_origin` is where the mesh was moved to as it follows the came
 - **Caustics.** `u_causticStrength` (0 turns them off), `u_causticScale` (the size of one cell, in world units) and `u_causticSpeed` shape the web of light on what is under the water, seen from
   above and, through the effect, from below.
 - **Waves.** `u_waveLength`, `u_waveHeight`, `u_waveSpeed`, `u_waveDirection`; the ripples the wind raises (`u_rippleStrength`, `u_rippleLength`) ride
-  on them: six short waves around the wind's heading, from `u_rippleLength` down to a fifth of it, each fading out with distance before it would shimmer.
+  on them: three layers of a tiling map of ripples the engine makes (`default(ripples)`, or the material's own `u_detailMap`), at sizes that share no
+  multiple so no repeat shows, each carried downwind, their mips flattening what a pixel cannot hold. `u_rippleTile` is the map's repeat in ripple lengths,
+  `u_rippleFineSize` / `u_rippleWideSize` the other two layers' sizes as shares of it, `u_rippleWeight` / `u_rippleFineWeight` / `u_rippleWideWeight` how much
+  each adds, `u_rippleTurn` how far off the wind two of them run. Gusts ruffle the water in slow patches and leave slicks between: `u_rippleGusts` (0 for an
+  even sea), `u_gustCalm` and `u_gustRuffle` (what a slick and a ruffled patch multiply the ripples by), `u_gustSize`.
+- **Body and surface.** The water's own colour is lit as light from under the surface, and the surface over it mirrors by the ripples: `u_bodyShading` is how
+  much the ripples shade the colour as well (0.25; at 1 every ripple darkens the water on its far side, as a painted surface would), `u_reflectance` what the
+  surface mirrors seen straight on (water's 0.0204).
 - **Rain.** When a `Weather` drives the rain, drops ring out on the surface (`u_rain`, written by the zone): rings that spread and die, a few to every
   `u_rippleLength`, more of them the harder it rains, and the surface a little less sharp. They are drawn, not simulated: they put nothing in the zone's ripples
   and make no foam, and they fade out with distance. On a zone's surface the zone writes the four every frame (its own length, speed and heading, and

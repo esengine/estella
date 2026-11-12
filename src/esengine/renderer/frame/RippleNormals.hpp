@@ -12,8 +12,8 @@
 namespace esengine {
 
 inline constexpr u32 RIPPLE_NORMALS_SIZE = 256;
-/// The longest wave in a field runs this many times across the texture: a reader that wants ripples of length L tiles it every L times this.
-inline constexpr u32 RIPPLE_NORMALS_LONGEST = 6;
+/// The longest wave in a field runs this many times across the texture, the shortest twenty: a field read at one size holds a decade of lengths.
+inline constexpr u32 RIPPLE_NORMALS_LONGEST = 2;
 
 /// RGBA8, RIPPLE_NORMALS_SIZE square. A texel's rg (and ba) is the xy of a unit normal whose z is up: the slope there is xy / z.
 std::vector<u8> buildRippleNormals();

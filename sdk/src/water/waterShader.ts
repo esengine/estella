@@ -50,6 +50,23 @@ const WATER = `#pragma shader "Water"
 // The small ripples the long waves carry: how steep and how long each is.
 #pragma param u_rippleStrength float default(0.3) range(0,1) ui(slider)
 #pragma param u_rippleLength float default(250) range(10,4000) ui(slider) unit(length)
+// The ripples' three layers: the map's repeat in ripple lengths, the fine and the wide layer's size as shares of it, each layer's weight, and how far
+// off the wind (degrees) the fine and the wide one run. Then the gusts: how much of them, what a slick and a ruffled patch multiply the ripples by, a patch's size.
+#pragma param u_rippleTile float default(9) range(1,64) ui(slider)
+#pragma param u_rippleFineSize float default(0.317) range(0.05,1) ui(slider)
+#pragma param u_rippleWideSize float default(2.65) range(1,16) ui(slider)
+#pragma param u_rippleWeight float default(1.26) range(0,4) ui(slider)
+#pragma param u_rippleFineWeight float default(0.84) range(0,4) ui(slider)
+#pragma param u_rippleWideWeight float default(0.98) range(0,4) ui(slider)
+#pragma param u_rippleTurn float default(25) range(0,90) ui(slider)
+#pragma param u_rippleGusts float default(0.6) range(0,1) ui(slider)
+#pragma param u_gustCalm float default(0.35) range(0,1) ui(slider)
+#pragma param u_gustRuffle float default(1.45) range(1,3) ui(slider)
+#pragma param u_gustSize float default(2200) range(100,100000) ui(slider) unit(length)
+// How much the ripples shade the water's own colour (1: wholly, as a painted surface; 0: not at all, as light from under one), and what the surface
+// mirrors seen straight on (water's 0.0204).
+#pragma param u_bodyShading float default(0.25) range(0,1) ui(slider)
+#pragma param u_reflectance float default(0.0204) range(0,0.2) ui(slider)
 // How hard it rains on the water (the weather writes it): drops ring out on the surface, a few to every u_rippleLength.
 #pragma param u_rain float default(0) range(0,4) ui(slider)
 #pragma param u_roughness float default(0.04) range(0,1) ui(slider)
@@ -400,19 +417,27 @@ float waterNoise(vec2 p) {
     return mix(mix(waterHash(i), waterHash(i + vec2(1.0, 0.0)), f.x),
                mix(waterHash(i + vec2(0.0, 1.0)), waterHash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
-/// The slope of the ripples the wind raises at p: two fields of the ripple map (u_detailMap: the engine's own, default(ripples), unless a material
-/// gives another), the longest wave of the first u_rippleLength long, the second finer and running off the wind, each carried downwind at the speed
-/// its length gives deep water. px is how far p moves a pixel right and a pixel up: the map is read by it, so its mips flatten what a pixel cannot hold.
+/// The slope of the ripples the wind raises at p: three reads of the ripple map (u_detailMap: the engine's own, default(ripples), unless a material
+/// gives another) at sizes that share no multiple, each carried its own way downwind, so no one size's repeat shows; and gusts, slow patches where
+/// the wind ruffles the water and slicks where it does not (u_rippleGusts). px is how far p moves a pixel right and up: the map's mips flatten what a pixel cannot hold.
 vec2 rippleSlope(vec2 p, float time, vec4 px) {
     float base = radians(u_waveDirection);
+    float turn = radians(u_rippleTurn);
     vec2 along = vec2(sin(base), cos(base));
-    vec2 aside = vec2(along.x * 0.906308 + along.y * 0.422618, along.y * 0.906308 - along.x * 0.422618);
-    float tile = u_rippleLength * 6.0;
-    float fine = tile * 0.37;
-    float run = sqrt(9.8 * u_rippleLength / 6.2831853) * u_waveSpeed * time;
-    vec2 a = textureGrad(u_detailMap, (p - along * run) / tile, px.xy / tile, px.zw / tile).rg * 2.0 - 1.0;
-    vec2 b = textureGrad(u_detailMap, (p - aside * (run * 0.608276)) / fine, px.xy / fine, px.zw / fine).ba * 2.0 - 1.0;
-    return (a / sqrt(max(1.0 - dot(a, a), 0.0625)) + b / sqrt(max(1.0 - dot(b, b), 0.0625))) * (u_rippleStrength * 1.3);
+    vec2 aside = vec2(sin(base + turn), cos(base + turn));
+    float tile = u_rippleLength * u_rippleTile;
+    float fine = tile * u_rippleFineSize;
+    float wide = tile * u_rippleWideSize;
+    // Each layer is carried at the speed deep water gives the waves it mostly holds, a quarter of its repeat long.
+    vec3 run = sqrt(9.8 * vec3(tile, fine, wide) / 25.1327412) * (u_waveSpeed * time);
+    vec2 a = textureGrad(u_detailMap, (p - along * run.x) / tile, px.xy / tile, px.zw / tile).rg * 2.0 - 1.0;
+    vec2 b = textureGrad(u_detailMap, (p.yx - aside.yx * run.y) / fine + 0.4, px.yx / fine, px.wz / fine).ba * 2.0 - 1.0;
+    vec2 c = textureGrad(u_detailMap, (p + aside * run.z) / wide + 0.7, px.xy / wide, px.zw / wide).ba * 2.0 - 1.0;
+    vec2 slope = a / sqrt(max(1.0 - dot(a, a), 0.0625)) * u_rippleWeight + (b / sqrt(max(1.0 - dot(b, b), 0.0625))).yx * u_rippleFineWeight
+        + c / sqrt(max(1.0 - dot(c, c), 0.0625)) * u_rippleWideWeight;
+    float paws = waterNoise(p / u_gustSize + along * (time * 0.11)) * 0.6 + waterNoise(p / (u_gustSize * 3.4) - aside * (time * 0.03)) * 0.4;
+    float gust = mix(1.0, mix(u_gustCalm, u_gustRuffle, smoothstep(0.3, 0.7, paws)), u_rippleGusts);
+    return slope * (u_rippleStrength * gust);
 }
 
 /// The slope rain adds at p: in every cell of two offset grids a third of u_rippleLength across, a drop lands at a place and a moment of
@@ -827,8 +852,11 @@ void main() {
     // Foam floats on top: from under the water it is a thin shadow on the light, not a white sheet.
     if (below) foam *= 0.2;
 
+    // Two layers, as water is: the body, lit as what is under the surface (its light does not turn with every ripple, so the ripples do not
+    // shade it in dark spots), and the surface over it, a coat of water's own reflectance that mirrors by the ripples' normal.
+    vec3 Nbody = normalize(mix(Ngeo, N, u_bodyShading));
     SurfaceExt ext = surfaceExtNone(N);
-    ext.misc.x = 0.0204;
+    ext.misc.x = 0.0;
     vec3 albedo = mix(scatterColor * murk, u_foamColor.rgb, foam);
     // Rain stipples the surface finer than any ring: it reflects a little less sharply.
     // Waves finer than a pixel cannot be drawn as glints: they would flash pixel by pixel. How far the normal turns across a pixel is
@@ -839,14 +867,15 @@ void main() {
     float roughness = sqrt(sqrt(clamp(plain * plain * plain * plain + spread, 0.0, 1.0)));
     // The sea is seldom in shadow and its edge is lost in the waves: the sun's shadow is read as one hard edge here, not as a penumbra.
     g_shadowHard = 1.0;
-    vec3 lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, roughness, 1.0, 1.0, ext);
+    ext.coat = vec4(1.0, roughness, max(u_reflectance, 1e-4), 0.0);
+    vec3 lit = applyLightingSurface(albedo, Nbody, P, viewDir, 0.0, 1.0, 0.0, 1.0, ext);
     float cosV = clamp(dot(N, viewDir), 0.0, 1.0);
-    float fresnel = 0.0204 + (1.0 - 0.0204) * pow(1.0 - cosV, 5.0);
+    float fresnel = u_reflectance + (1.0 - u_reflectance) * pow(1.0 - cosV, 5.0);
     if (below) {
         // Out of the water the glancing rays are reflected whole: Snell's window, a cone of sky overhead in a mirror of the water below it.
         float sinT = 1.333 * sqrt(max(1.0 - cosV * cosV, 0.0));
         float cosT = sqrt(max(1.0 - sinT * sinT, 0.0));
-        fresnel = sinT >= 1.0 ? 1.0 : 0.0204 + (1.0 - 0.0204) * pow(1.0 - cosT, 5.0);
+        fresnel = sinT >= 1.0 ? 1.0 : u_reflectance + (1.0 - u_reflectance) * pow(1.0 - cosT, 5.0);
     }
     vec3 seen = behind * transmit * (1.0 - fresnel) * (1.0 - foam);
     // From below the water is a mirror past the critical angle, and what it mirrors is the world under it: the picture, followed along the reflected ray.
@@ -919,14 +948,21 @@ fn waterNoise(p : vec2f) -> f32 {
 
 fn rippleSlope(p : vec2f, time : f32, px : vec4f) -> vec2f {
     let base = radians(mc.u_waveDirection);
+    let turn = radians(mc.u_rippleTurn);
     let along = vec2f(sin(base), cos(base));
-    let aside = vec2f(along.x * 0.906308 + along.y * 0.422618, along.y * 0.906308 - along.x * 0.422618);
-    let tile = mc.u_rippleLength * 6.0;
-    let fine = tile * 0.37;
-    let run = sqrt(9.8 * mc.u_rippleLength / 6.2831853) * mc.u_waveSpeed * time;
-    let a = textureSampleGrad(u_detailMap, u_detailMap_s, (p - along * run) / tile, px.xy / tile, px.zw / tile).rg * 2.0 - vec2f(1.0);
-    let b = textureSampleGrad(u_detailMap, u_detailMap_s, (p - aside * (run * 0.608276)) / fine, px.xy / fine, px.zw / fine).ba * 2.0 - vec2f(1.0);
-    return (a / sqrt(max(1.0 - dot(a, a), 0.0625)) + b / sqrt(max(1.0 - dot(b, b), 0.0625))) * (mc.u_rippleStrength * 1.3);
+    let aside = vec2f(sin(base + turn), cos(base + turn));
+    let tile = mc.u_rippleLength * mc.u_rippleTile;
+    let fine = tile * mc.u_rippleFineSize;
+    let wide = tile * mc.u_rippleWideSize;
+    let run = sqrt(9.8 * vec3f(tile, fine, wide) / 25.1327412) * (mc.u_waveSpeed * time);
+    let a = textureSampleGrad(u_detailMap, u_detailMap_s, (p - along * run.x) / tile, px.xy / tile, px.zw / tile).rg * 2.0 - vec2f(1.0);
+    let b = textureSampleGrad(u_detailMap, u_detailMap_s, (p.yx - aside.yx * run.y) / fine + vec2f(0.4), px.yx / fine, px.wz / fine).ba * 2.0 - vec2f(1.0);
+    let c = textureSampleGrad(u_detailMap, u_detailMap_s, (p + aside * run.z) / wide + vec2f(0.7), px.xy / wide, px.zw / wide).ba * 2.0 - vec2f(1.0);
+    let slope = a / sqrt(max(1.0 - dot(a, a), 0.0625)) * mc.u_rippleWeight + (b / sqrt(max(1.0 - dot(b, b), 0.0625))).yx * mc.u_rippleFineWeight
+        + c / sqrt(max(1.0 - dot(c, c), 0.0625)) * mc.u_rippleWideWeight;
+    let paws = waterNoise(p / mc.u_gustSize + along * (time * 0.11)) * 0.6 + waterNoise(p / (mc.u_gustSize * 3.4) - aside * (time * 0.03)) * 0.4;
+    let gust = mix(1.0, mix(mc.u_gustCalm, mc.u_gustRuffle, smoothstep(0.3, 0.7, paws)), mc.u_rippleGusts);
+    return slope * (mc.u_rippleStrength * gust);
 }
 
 fn rainRings(p : vec2f, time : f32, rain : f32) -> vec2f {
@@ -1332,8 +1368,9 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, px : vec4f, amp : f32, calm :
     }
     if (below) { foam = foam * 0.2; }
 
+    let Nbody = normalize(mix(Ngeo, N, mc.u_bodyShading));
     var ext = surfaceExtNone(N);
-    ext.misc.x = 0.0204;
+    ext.misc.x = 0.0;
     let albedo = mix(scatterColor * murk, mc.u_foamColor.rgb, vec3f(foam));
     let turnX = dpdx(N);
     let turnY = dpdy(N);
@@ -1341,13 +1378,14 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, px : vec4f, amp : f32, calm :
     let plain = mix(mc.u_roughness + 0.05 * clamp(mc.u_rain, 0.0, 1.0), 0.7, foam);
     let roughness = sqrt(sqrt(clamp(plain * plain * plain * plain + spread, 0.0, 1.0)));
     g_shadowHard = 1.0;
-    let lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, roughness, 1.0, 1.0, ext);
+    ext.coat = vec4f(1.0, roughness, max(mc.u_reflectance, 1e-4), 0.0);
+    let lit = applyLightingSurface(albedo, Nbody, P, viewDir, 0.0, 1.0, 0.0, 1.0, ext);
     let cosV = clamp(dot(N, viewDir), 0.0, 1.0);
-    var fresnel = 0.0204 + (1.0 - 0.0204) * pow(1.0 - cosV, 5.0);
+    var fresnel = mc.u_reflectance + (1.0 - mc.u_reflectance) * pow(1.0 - cosV, 5.0);
     if (below) {
         let sinT = 1.333 * sqrt(max(1.0 - cosV * cosV, 0.0));
         let cosT = sqrt(max(1.0 - sinT * sinT, 0.0));
-        if (sinT >= 1.0) { fresnel = 1.0; } else { fresnel = 0.0204 + (1.0 - 0.0204) * pow(1.0 - cosT, 5.0); }
+        if (sinT >= 1.0) { fresnel = 1.0; } else { fresnel = mc.u_reflectance + (1.0 - mc.u_reflectance) * pow(1.0 - cosT, 5.0); }
     }
     var seen = behind * transmit * (1.0 - fresnel) * (1.0 - foam);
     var mirror = vec3f(0.0);

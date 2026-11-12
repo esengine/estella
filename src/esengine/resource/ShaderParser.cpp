@@ -2288,7 +2288,9 @@ fn applyLightingSurfaceBRDF(diffuse : vec3f, F0 : vec3f, N : vec3f, worldPos : v
     if (ext.coat.x > 0.0) {
         let coatNdotV = max(dot(ext.coatN.xyz, V), 1e-4);
         let cab = envBRDFApprox(coatNdotV, ext.coat.y);
-        let Fc = (0.04 * cab.x + cab.y) * ext.coat.x;
+        // coat.z is the coat's reflectance seen straight on; 0 is a varnish's 0.04.
+        let coatF0 = select(0.04, ext.coat.z, ext.coat.z > 0.0);
+        let Fc = (coatF0 * cab.x + cab.y) * ext.coat.x;
         baseScale *= 1.0 - Fc;
         extra += envRadiance(reflect(-V, ext.coatN.xyz), ext.coat.y, reflectionColumn(), worldPos) * (ao * Fc);
     }
@@ -2422,7 +2424,8 @@ fn shadeLight(pd : vec4f, col : vec4f, sp : vec4f, sh : vec4f, sm : vec4f, fo : 
             if (ext.coat.x > 0.0) {
                 let coatNdotL = max(dot(ext.coatN.xyz, L), 0.0);
                 let coatA = max(ext.coat.y * ext.coat.y, 1e-3);
-                let Fc = (0.04 + 0.96 * pow(1.0 - VdotH, 5.0)) * ext.coat.x;
+                let coatF0 = select(0.04, ext.coat.z, ext.coat.z > 0.0);
+                let Fc = (coatF0 + (1.0 - coatF0) * pow(1.0 - VdotH, 5.0)) * ext.coat.x;
                 extra += irr * coatNdotL
                        * (distributionGGX(max(dot(ext.coatN.xyz, Hx), 0.0), coatA) * (0.25 / max(VdotH * VdotH, 1e-4))
                           * Fc * 3.14159265);
@@ -3844,7 +3847,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    if (ext.coat.x > 0.0) {\n"
             "        highp float coatNdotV = max(dot(ext.coatN.xyz, V), 1e-4);\n"
             "        highp vec2 cab = envBRDFApprox(coatNdotV, ext.coat.y);\n"
-            "        highp float Fc = (0.04 * cab.x + cab.y) * ext.coat.x;\n"
+            "        highp float coatF0 = ext.coat.z > 0.0 ? ext.coat.z : 0.04;\n"
+            "        highp float Fc = (coatF0 * cab.x + cab.y) * ext.coat.x;\n"
             "        baseScale *= 1.0 - Fc;\n"
             "        extra += envRadiance(reflect(-V, ext.coatN.xyz), ext.coat.y, reflectionColumn(), worldPos) * (ao * Fc);\n"
             "    }\n"
@@ -3975,7 +3979,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            if (ext.coat.x > 0.0) {\n"
             "                highp float coatNdotL = max(dot(ext.coatN.xyz, L), 0.0);\n"
             "                highp float coatA = max(ext.coat.y * ext.coat.y, 1e-3);\n"
-            "                highp float Fc = (0.04 + 0.96 * pow(1.0 - VdotH, 5.0)) * ext.coat.x;\n"
+            "                highp float coatF0 = ext.coat.z > 0.0 ? ext.coat.z : 0.04;\n"
+            "                highp float Fc = (coatF0 + (1.0 - coatF0) * pow(1.0 - VdotH, 5.0)) * ext.coat.x;\n"
             "                extra += irr * coatNdotL\n"
             "                       * (distributionGGX(max(dot(ext.coatN.xyz, Hx), 0.0), coatA) * (0.25 / max(VdotH * VdotH, 1e-4))\n"
             "                          * Fc * 3.14159265);\n"

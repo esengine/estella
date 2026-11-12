@@ -26,17 +26,17 @@ u32 next(u32& state) {
 f32 unit(u32& state) { return static_cast<f32>(next(state) >> 8) / 16777216.0f; }
 
 /// Whole numbers of cycles across the texture, so the field tiles; many of them at every heading, so no two draw a lattice. A wave's
-/// slope falls with its frequency as a wind sea's does (height by k^-2, slope by k^-1).
+/// slope falls slowly with its frequency (k^-0.55): the long ones carry the look, the short ones the glitter.
 std::vector<Wave> spectrum(u32 seed) {
     std::vector<Wave> waves;
     waves.reserve(WAVES);
     u32 state = seed;
     while (waves.size() < WAVES) {
-        const i32 kx = static_cast<i32>(next(state) % 81) - 40;
-        const i32 kz = static_cast<i32>(next(state) % 81) - 40;
+        const i32 kx = static_cast<i32>(next(state) % 41) - 20;
+        const i32 kz = static_cast<i32>(next(state) % 41) - 20;
         const f32 k = std::sqrt(static_cast<f32>(kx * kx + kz * kz));
-        if (k < static_cast<f32>(RIPPLE_NORMALS_LONGEST) || k > 40.0f) continue;
-        waves.push_back({static_cast<f32>(kx), static_cast<f32>(kz), 1.0f / k, unit(state) * TAU});
+        if (k < static_cast<f32>(RIPPLE_NORMALS_LONGEST) || k > 20.0f) continue;
+        waves.push_back({static_cast<f32>(kx), static_cast<f32>(kz), std::pow(k, -0.55f), unit(state) * TAU});
     }
     return waves;
 }
