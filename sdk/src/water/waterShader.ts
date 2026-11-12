@@ -137,7 +137,6 @@ const WATER = `#pragma shader "Water"
 
 #pragma vertexbounds 16
 #pragma vertexoffset
-// The height of the waves at p: the same peaked sines the fragment takes its slope from, so the surface that is lit is the one that is drawn.
 // Where the waves are read for the true place p, bent by the given span (waves.ts: waveBend): crests of straight sines a few directions apart
 // add up to long parallel lines, a sea scored with strokes that turn with the wind. xy to read at; zw dx/dz and dz/dx, for a slope. One
 // sine an axis: this runs for every pixel of the water, and with a term more a phone paid 11 ms a frame for it.

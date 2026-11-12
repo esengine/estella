@@ -4532,6 +4532,10 @@ export const NOTED = {
     {"note": "A shader param's range is where its slider runs."},
   "feat(water): the wind's ripples are a map of many waves, not six - two fields of a built-in tiling normal map, default(ripples), read with mips, where six straight wave trains crossed in a board of dark spots once the short ones had faded":
     {"note": "The wind's ripples are a map of many waves."},
+  "feat(water): a sea is eight waves spread about the wind, not four - each shorter and lower than the last at a heading of its own, so the swell no longer reads as bands; the shader's waves are written out from the one table the CPU sums, and a quality level allows 3, 5 or 8 of them":
+    {"note": "A sea is eight waves spread about the wind."},
+  "feat(water): the quality row and the checks know the water's eight waves":
+    {"note": "A sea is eight waves spread about the wind."},
   "fix(terrain): a splatmap is numbers too - cooked as a picture its three weights were overwritten wherever the fourth was 0, and the whole ground was painted as grass; it is marked Data when it is set, as the heightmap is":
     {"note": "A texture says whether it is a picture or numbers."},
 };
