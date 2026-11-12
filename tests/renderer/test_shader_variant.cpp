@@ -304,8 +304,14 @@ static void testMaterialOverflowUnits() {
     CHECK(unitOf(litFull, "u_m9") == -1, "a Lit shader's tenth texture finds no unit");
 
     // What the shader's own text reads is not free, in either language.
-    ParsedShader readsBatch = ShaderParser::parse(manyTextures("Unlit", 8, "    c += texture(u_textures[0], v_texCoord);\n"));
-    CHECK(unitOf(readsBatch, "u_m7") == -1, "a shader that reads the batch textures keeps all of 0..7");
+    // The batch textures: one read by a literal index is that unit alone (a mesh's base texture), and an index worked out is
+    // every one of 0..7 (a merged run of sprites).
+    ParsedShader readsBase = ShaderParser::parse(manyTextures("Unlit", 9, "    c += texture(u_textures[0], v_texCoord);\n"));
+    CHECK(unitOf(readsBase, "u_m7") == 7 && unitOf(readsBase, "u_m8") == 6, "a shader that reads u_textures[0] keeps unit 0 only");
+    ParsedShader litBase = ShaderParser::parse(manyTextures("Lit", 9, "    c += texture(u_textures[0], v_texCoord);\n"));
+    CHECK(unitOf(litBase, "u_m7") == 1 && unitOf(litBase, "u_m8") == -1, "a Lit shader that reads its base texture has unit 1 left");
+    ParsedShader readsRun = ShaderParser::parse(manyTextures("Unlit", 8, "    c += texture(u_textures[int(v_texCoord.x)], v_texCoord);\n"));
+    CHECK(unitOf(readsRun, "u_m7") == -1, "a shader that indexes the batch textures keeps all of 0..7");
     ParsedShader readsT7 = ShaderParser::parse(manyTextures("Unlit", 8, "", "    c += textureSample(t7, s7, v.v_texCoord);\n"));
     CHECK(unitOf(readsT7, "u_m7") == 6, "a WGSL twin that reads t7 leaves unit 7 alone");
     ParsedShader readsShape = ShaderParser::parse(manyTextures("Unlit", 8, "    c += texture(u_lightShape2D, v_texCoord);\n"));

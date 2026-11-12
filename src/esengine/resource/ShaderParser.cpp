@@ -4301,6 +4301,37 @@ bool namesIdentifier(const std::string& text, std::string_view word) {
     return false;
 }
 
+/**
+ * The batch units @p text reads through `u_textures`, as a mask: the one a literal index names (`u_textures[0]`), every one of
+ * 0..7 where the index is worked out (a merged run of sprites) or the array is handed on whole.
+ */
+u32 batchUnitsRead(const std::string& text) {
+    constexpr std::string_view word = "u_textures";
+    const auto isIdent = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; };
+    u32 mask = 0;
+    for (usize at = text.find(word); at != std::string::npos; at = text.find(word, at + 1)) {
+        usize i = at + word.size();
+        if ((at > 0 && isIdent(text[at - 1])) || (i < text.size() && isIdent(text[i]))) continue;
+        // A type before the name is its declaration, whose size is no read.
+        usize before = at;
+        while (before > 0 && std::isspace(static_cast<unsigned char>(text[before - 1]))) --before;
+        if (before > 0 && before < at && isIdent(text[before - 1])) continue;
+        while (i < text.size() && std::isspace(static_cast<unsigned char>(text[i]))) ++i;
+        if (i >= text.size() || text[i] != '[') return 0xFFu;
+        const usize close = text.find(']', i);
+        if (close == std::string::npos) return 0xFFu;
+        u32 index = 0;
+        bool literal = close > i + 1;
+        for (usize c = i + 1; c < close && literal; ++c) {
+            if (std::isdigit(static_cast<unsigned char>(text[c]))) index = std::min(index * 10u + static_cast<u32>(text[c] - '0'), 255u);
+            else if (!std::isspace(static_cast<unsigned char>(text[c]))) literal = false;
+        }
+        if (!literal) return 0xFFu;
+        if (index < MATERIAL_TEXTURE_UNIT_BASE) mask |= 1u << index;
+    }
+    return mask;
+}
+
 }  // namespace
 
 /**
@@ -4308,8 +4339,8 @@ bool namesIdentifier(const std::string& text, std::string_view word) {
  * @details The engine binds those units per draw, so one is free only where this shader never reads what the engine puts
  *          there. Two questions decide it. What the domain's injected code reads: a Lit stage takes the shadow map, the
  *          reflection atlas, the bake and both 2D masks, and every mesh variant takes the morph deltas. And what the
- *          shader's own text names, in either language, all variants at once: the batch textures (u_textures, every one
- *          of 0..7, since a merged run puts its sprites there), an engine sampler by name, or a `tN`/`sN` unit. A
+ *          shader's own text names, in either language, all variants at once: the batch textures (u_textures: the one a
+ *          literal index names, every one where the index is worked out), an engine sampler by name, or a `tN`/`sN` unit. A
  *          fullscreen pass and the UI reach their low units through their own conventions, so they keep none free.
  */
 u32 ShaderParser::materialOverflowUnits(const ParsedShader& shader) {
@@ -4330,7 +4361,7 @@ u32 ShaderParser::materialOverflowUnits(const ParsedShader& shader) {
     for (const auto& [stage, source] : shader.wgslStages) wgsl += source;
     const std::string both = glsl + wgsl;
 
-    if (namesIdentifier(both, "u_textures")) reads |= 0xFFu;
+    reads |= batchUnitsRead(both);
     static constexpr struct { const char* name; u32 unit; } kEngine[] = {
         {SHADOW_MAP_SAMPLER, SHADOW_MAP_TEXTURE_UNIT},   {ENV_MAP_SAMPLER, ENV_MAP_TEXTURE_UNIT},
         {MORPH_DELTA_SAMPLER, MORPH_DELTA_TEXTURE_UNIT}, {LIGHTMAP_SAMPLER, LIGHTMAP_TEXTURE_UNIT},
