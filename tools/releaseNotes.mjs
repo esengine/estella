@@ -4554,6 +4554,8 @@ export const NOTED = {
     {"note": "A Foliage field has its own material instance, grass that widens as it thins, and a palette."},
   "feat(terrain): a baked occlusion over the ground - Terrain.occlusionMap is an image whose red says how much of the sky reaches the ground, for the gullies and cliff feet no screen-space pass sees across; it dims the light from all round and leaves the sun's to the shadows":
     {"note": "A baked occlusion over the ground."},
+  "fix(water): water is as deep as it is, not as far as the eye's line through it - the light a pixel shows crossed the depth under it at the slope light takes in water, where the straight line to the bed made any sea seen low across it deep and blue; the bed is dimmed by the water its light came down through too, and how soon the water's colour deepens is a param":
+    {"note": "Water is as deep as it is, not as far as the eye's line through it."},
   "fix(terrain): a splatmap is numbers too - cooked as a picture its three weights were overwritten wherever the fourth was 0, and the whole ground was painted as grass; it is marked Data when it is set, as the heightmap is":
     {"note": "A texture says whether it is a picture or numbers."},
 };
