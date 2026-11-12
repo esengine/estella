@@ -4548,6 +4548,8 @@ export const NOTED = {
     {"note": "A Foliage field of any size is cut into cells no wider than its cell size."},
   "feat(foliage): far versions that thin plant by plant and are grown only where they are drawn - up to three, each the same plants fewer and larger, chosen by each plant's own number so nothing jumps where one takes over; with a material each is a layer of cells of its own, so a meadow is whole near the eye and a tenth of itself far off, and it fades to none at its draw distance":
     {"note": "Foliage thins plant by plant with distance, and is grown only where it is drawn."},
+  "feat(gates): --suites related runs of an owed suite only the tests that reach what changed - where its runner can follow imports from every changed file, and the whole suite where it cannot; the run names each suite it ran in part":
+    {"internal": "How the repository's own checks are run before a push; nothing a creator sees."},
   "fix(terrain): a splatmap is numbers too - cooked as a picture its three weights were overwritten wherever the fourth was 0, and the whole ground was painted as grass; it is marked Data when it is set, as the heightmap is":
     {"note": "A texture says whether it is a picture or numbers."},
 };
