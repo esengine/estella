@@ -29,6 +29,7 @@ const FOLIAGE = `#pragma shader "Foliage"
 #pragma coverage u_alphaCutoff
 // A picture over the field that colours the plants by where they stand (the Foliage component writes it): mixed in by its alpha, from
 // u_colorMapFrom up the plant, over the area whose corner and size u_colorMapArea is.
+// Its first row lies along the area's least z, as the density map's does: a texture is stored last row first, so v is turned.
 #pragma param u_colorMap texture default(white)
 #pragma param u_colorMapStrength float default(0) range(0,1) ui(slider)
 #pragma param u_colorMapFrom float default(0) range(0,1) ui(slider)
@@ -239,7 +240,7 @@ void main() {
 #ifdef MESH_NORMALS
     if (u_colorMapStrength > 0.0) {
         vec2 over = (P.xz + u_renderOrigin.xz - u_colorMapArea.xy) / max(u_colorMapArea.zw, vec2(1e-4));
-        vec4 wash = textureLod(u_colorMap, over, 0.0);
+        vec4 wash = textureLod(u_colorMap, vec2(over.x, 1.0 - over.y), 0.0);
         float up = u_colorMapFrom > 0.0 ? smoothstep(u_colorMapFrom * 0.8, u_colorMapFrom, height) : 1.0;
         albedo = mix(albedo, wash.rgb, wash.a * u_colorMapStrength * up);
     }
@@ -315,7 +316,7 @@ fn packNormal(n : vec3f) -> vec2f {
 #ifdef MESH_NORMALS
     if (mc.u_colorMapStrength > 0.0) {
         let over = (P.xz + frame.renderOrigin.xz - mc.u_colorMapArea.xy) / max(mc.u_colorMapArea.zw, vec2f(1e-4));
-        let wash = textureSampleLevel(u_colorMap, u_colorMap_s, over, 0.0);
+        let wash = textureSampleLevel(u_colorMap, u_colorMap_s, vec2f(over.x, 1.0 - over.y), 0.0);
         var up = 1.0;
         if (mc.u_colorMapFrom > 0.0) { up = smoothstep(mc.u_colorMapFrom * 0.8, mc.u_colorMapFrom, height); }
         albedo = mix(albedo, wash.rgb, vec3f(wash.a * mc.u_colorMapStrength * up));

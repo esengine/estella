@@ -134,6 +134,7 @@ const TERRAIN = `#pragma shader "Terrain"
 // terrain's own x and z) and how much of it.
 #pragma param u_colorMap texture default(white)
 #pragma param u_colorMapStrength float default(0) range(0,1) ui(slider)
+// An image's first row lies along the area's least z, as a heightmap's and a splatmap's do: a texture is stored last row first, so v is turned.
 #pragma param u_colorMapArea vec4 default(0,0,1,1)
 // How much of the sky reaches the ground, baked over the same area: its red dims the light that comes from all round (a gully, the foot
 // of a cliff), and leaves the sun's own to the shadows.
@@ -308,7 +309,7 @@ void main() {
 
     if (u_colorMapStrength > 0.0) {
         vec2 over = (Pw.xz - u_terrainOrigin.xz - u_colorMapArea.xy) / max(u_colorMapArea.zw, vec2(1e-4));
-        vec4 wash = texture(u_colorMap, over);
+        vec4 wash = texture(u_colorMap, vec2(over.x, 1.0 - over.y));
         bool on = all(greaterThanEqual(over, vec2(0.0))) && all(lessThanEqual(over, vec2(1.0)));
         albedo = mix(albedo, wash.rgb, on ? wash.a * u_colorMapStrength : 0.0);
     }
@@ -322,7 +323,7 @@ void main() {
     float open = 1.0;
     if (u_occlusionStrength > 0.0) {
         vec2 under = (Pw.xz - u_terrainOrigin.xz - u_colorMapArea.xy) / max(u_colorMapArea.zw, vec2(1e-4));
-        if (all(greaterThanEqual(under, vec2(0.0))) && all(lessThanEqual(under, vec2(1.0)))) open = mix(1.0, textureLod(u_occlusionMap, under, 0.0).r, u_occlusionStrength);
+        if (all(greaterThanEqual(under, vec2(0.0))) && all(lessThanEqual(under, vec2(1.0)))) open = mix(1.0, textureLod(u_occlusionMap, vec2(under.x, 1.0 - under.y), 0.0).r, u_occlusionStrength);
     }
     vec3 lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, roughness, 0.5, open, ext);
     fragColor = vec4(lit, 1.0);
@@ -479,7 +480,7 @@ fn packNormal(n : vec3f) -> vec2f {
 
     if (mc.u_colorMapStrength > 0.0) {
         let over = (Pw.xz - mc.u_terrainOrigin.xz - mc.u_colorMapArea.xy) / max(mc.u_colorMapArea.zw, vec2f(1e-4));
-        let wash = textureSampleLevel(u_colorMap, u_colorMap_s, over, 0.0);
+        let wash = textureSampleLevel(u_colorMap, u_colorMap_s, vec2f(over.x, 1.0 - over.y), 0.0);
         if (all(over >= vec2f(0.0)) && all(over <= vec2f(1.0))) { albedo = mix(albedo, wash.rgb, vec3f(wash.a * mc.u_colorMapStrength)); }
     }
     var wet = 0.0;
@@ -492,7 +493,7 @@ fn packNormal(n : vec3f) -> vec2f {
     var open = 1.0;
     if (mc.u_occlusionStrength > 0.0) {
         let under = (Pw.xz - mc.u_terrainOrigin.xz - mc.u_colorMapArea.xy) / max(mc.u_colorMapArea.zw, vec2f(1e-4));
-        if (all(under >= vec2f(0.0)) && all(under <= vec2f(1.0))) { open = mix(1.0, textureSampleLevel(u_occlusionMap, u_occlusionMap_s, under, 0.0).r, mc.u_occlusionStrength); }
+        if (all(under >= vec2f(0.0)) && all(under <= vec2f(1.0))) { open = mix(1.0, textureSampleLevel(u_occlusionMap, u_occlusionMap_s, vec2f(under.x, 1.0 - under.y), 0.0).r, mc.u_occlusionStrength); }
     }
     let lit = applyLightingSurface(albedo, Ns, P, viewDir, 0.0, roughness, 0.5, open, ext);
 #ifdef ES_GBUFFER
@@ -549,6 +550,7 @@ const TERRAIN_LAYERS = `#pragma shader "Terrain Layers"
 // terrain's own x and z) and how much of it.
 #pragma param u_colorMap texture default(white)
 #pragma param u_colorMapStrength float default(0) range(0,1) ui(slider)
+// An image's first row lies along the area's least z, as a heightmap's and a splatmap's do: a texture is stored last row first, so v is turned.
 #pragma param u_colorMapArea vec4 default(0,0,1,1)
 // How much of the sky reaches the ground, baked over the same area: its red dims the light that comes from all round (a gully, the foot
 // of a cliff), and leaves the sun's own to the shadows.
@@ -760,7 +762,7 @@ void main() {
 
     if (u_colorMapStrength > 0.0) {
         vec2 over = (Pw.xz - u_terrainOrigin.xz - u_colorMapArea.xy) / max(u_colorMapArea.zw, vec2(1e-4));
-        vec4 wash = texture(u_colorMap, over);
+        vec4 wash = texture(u_colorMap, vec2(over.x, 1.0 - over.y));
         bool on = all(greaterThanEqual(over, vec2(0.0))) && all(lessThanEqual(over, vec2(1.0)));
         colour = mix(colour, wash.rgb, on ? wash.a * u_colorMapStrength : 0.0);
     }
@@ -774,7 +776,7 @@ void main() {
     float open = 1.0;
     if (u_occlusionStrength > 0.0) {
         vec2 under = (Pw.xz - u_terrainOrigin.xz - u_colorMapArea.xy) / max(u_colorMapArea.zw, vec2(1e-4));
-        if (all(greaterThanEqual(under, vec2(0.0))) && all(lessThanEqual(under, vec2(1.0)))) open = mix(1.0, textureLod(u_occlusionMap, under, 0.0).r, u_occlusionStrength);
+        if (all(greaterThanEqual(under, vec2(0.0))) && all(lessThanEqual(under, vec2(1.0)))) open = mix(1.0, textureLod(u_occlusionMap, vec2(under.x, 1.0 - under.y), 0.0).r, u_occlusionStrength);
     }
     vec3 lit = applyLightingSurface(colour, N, P, viewDir, 0.0, roughness, 0.5, surface.r * open, ext);
     fragColor = vec4(lit, 1.0);
@@ -987,7 +989,7 @@ fn packNormal(n : vec3f) -> vec2f {
 
     if (mc.u_colorMapStrength > 0.0) {
         let over = (Pw.xz - mc.u_terrainOrigin.xz - mc.u_colorMapArea.xy) / max(mc.u_colorMapArea.zw, vec2f(1e-4));
-        let wash = textureSampleLevel(u_colorMap, u_colorMap_s, over, 0.0);
+        let wash = textureSampleLevel(u_colorMap, u_colorMap_s, vec2f(over.x, 1.0 - over.y), 0.0);
         if (all(over >= vec2f(0.0)) && all(over <= vec2f(1.0))) { colour = mix(colour, wash.rgb, vec3f(wash.a * mc.u_colorMapStrength)); }
     }
     var wet = 0.0;
@@ -1000,7 +1002,7 @@ fn packNormal(n : vec3f) -> vec2f {
     var open = 1.0;
     if (mc.u_occlusionStrength > 0.0) {
         let under = (Pw.xz - mc.u_terrainOrigin.xz - mc.u_colorMapArea.xy) / max(mc.u_colorMapArea.zw, vec2f(1e-4));
-        if (all(under >= vec2f(0.0)) && all(under <= vec2f(1.0))) { open = mix(1.0, textureSampleLevel(u_occlusionMap, u_occlusionMap_s, under, 0.0).r, mc.u_occlusionStrength); }
+        if (all(under >= vec2f(0.0)) && all(under <= vec2f(1.0))) { open = mix(1.0, textureSampleLevel(u_occlusionMap, u_occlusionMap_s, vec2f(under.x, 1.0 - under.y), 0.0).r, mc.u_occlusionStrength); }
     }
     let lit = applyLightingSurface(colour, N, P, viewDir, 0.0, roughness, 0.5, surface.r * open, ext);
 #ifdef ES_GBUFFER

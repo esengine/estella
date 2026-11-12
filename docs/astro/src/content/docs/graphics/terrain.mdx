@@ -39,7 +39,7 @@ The ground is one of two kinds, chosen by `extent`:
 | `erosion` | 0 to 4: how much rain wears the ground (below). 0 leaves it as made. |
 | `splatmap` | Area only. An image whose four channels are the weights of layers 1 to 4. Empty paints by height and slope. |
 | `splatmap2` | Area only. The weights of layers 5 to 8, read with the first. |
-| `colorMap` | Area only. A picture laid over the whole area and mixed into the ground's colour by its alpha: a meadow's flowers, the regions of a map, scorched ground. One texture for the whole terrain, on top of the layers; its import Use is Colour. |
+| `colorMap` | Area only. A picture laid over the whole area and mixed into the ground's colour by its alpha: a meadow's flowers, the regions of a map, scorched ground. One texture for the whole terrain, on top of the layers; its import Use is Colour. Its first row lies along the area's least z, as the heightmap's does. |
 | `colorMapStrength` | How much of the colour map is mixed in where its alpha is whole (1). Read each frame: changing it rebuilds nothing. |
 | `occlusionMap`, `occlusionStrength` | Area only. An image over the whole area whose red says how much of the sky reaches the ground there: a baked occlusion for gullies, hollows and the foot of a cliff, which are too large for a screen-space pass to see. It dims the light that comes from all round and leaves the sun's own to the shadows, so it is quiet in full sun and tells in shade. Its import Use is Data. |
 | `layers` | The [terrain layers](#terrain-layers) the ground is drawn with, up to eight, in the order the paint weighs them. Empty draws the four layer colours or the Terrain material's textures. |
