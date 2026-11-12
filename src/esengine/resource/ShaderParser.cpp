@@ -1629,12 +1629,24 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         // Ask a step toward the light rather than shift the answer: a step in world units
         // is the same step whether a map's depth runs linearly with distance or
         // hyperbolically, which is what lets one expression serve a cascade and a cone.
+#ifdef ES_LIGHT_DIRECT
+        // A level that lights directly (the weaker two) has coarse maps, and there the step toward the light is the wrong one for a surface
+        // that stands steeply to it: it is 1.5 texels over the cosine, eleven texels for a wall the sun grazes, and with a texel of a few
+        // units that is further than a ceiling is thick - the top of every wall under a roof came out lit. Moved off the surface along its
+        // normal instead (as far as a texel of it is wide at that angle) the point clears its own texel without leaving what covers it.
+        let aside = worldPos + N * (texel * 1.5 * sqrt(1.0 - NoL * NoL));
+        let lcq = m * vec4f(aside, 1.0);
+        let uvq = lcq.xy / max(lcq.w, 1e-6) * 0.5 + 0.5;
+        let here = shadowDepth(m, aside + L * (texel * 1.5));
+#else
+        let uvq = uv;
         let here = shadowDepth(m, worldPos + L * stepFor(texel, slope, 0.0));
+#endif
         // The ONE place the two backends must not agree: v = 0 samples a texture's
         // bottom in GL and its top here, and the rect arrives with its low corner in
         // GL's terms — so the tile and the square inside it are both turned over.
         let base = vec2f(rect.x, 1.0 - rect.y - rect.z);
-        let at0 = base + vec2f(uv.x, 1.0 - uv.y) * rect.z;
+        let at0 = base + vec2f(uvq.x, 1.0 - uvq.y) * rect.z;
         let lo = base + lc.u_shadowParams.y * 0.5;
         let hi = base + rect.z - lc.u_shadowParams.y * 0.5;
         // How wide the source is in the unit this map measures depth in: world units
@@ -3105,8 +3117,17 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // Ask a step toward the light rather than shift the answer: a step in world
             // units is the same step whether a map's depth runs linearly with distance or
             // hyperbolically, which is what lets one expression serve a cascade and a cone.
+            // See the WGSL twin: a level that lights directly moves the point off the surface along its normal, not toward the light.
+            "#ifdef ES_LIGHT_DIRECT\n"
+            "        highp vec3 aside = worldPos + N * (texel * 1.5 * sqrt(1.0 - NoL * NoL));\n"
+            "        highp vec4 lcq = m * vec4(aside, 1.0);\n"
+            "        highp vec2 uvq = lcq.xy / max(lcq.w, 1e-6) * 0.5 + 0.5;\n"
+            "        highp float here = shadowDepth(m, aside + L * (texel * 1.5));\n"
+            "#else\n"
+            "        highp vec2 uvq = uv;\n"
             "        highp float here = shadowDepth(m, worldPos + L * stepFor(texel, slope, 0.0));\n"
-            "        highp vec2 at0 = rect.xy + uv * rect.z;\n"
+            "#endif\n"
+            "        highp vec2 at0 = rect.xy + uvq * rect.z;\n"
             "        highp vec2 lo = rect.xy + u_shadowParams.y * 0.5;\n"
             "        highp vec2 hi = rect.xy + rect.z - u_shadowParams.y * 0.5;\n"
             // How wide the source is in the unit this map measures depth in: world units
