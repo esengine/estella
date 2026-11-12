@@ -42,6 +42,11 @@ const WATER = `#pragma shader "Water"
 // How fast each colour is absorbed along the way through the water (red goes first), and how thick the water is, per world unit.
 #pragma param u_absorption color default(0.45,0.09,0.05,1)
 #pragma param u_density float default(0.0012) range(0,0.04) ui(slider) unit(perLength)
+// How soon the water's own colour turns from the shallow one to the deep one, as a share of the density: lower keeps a lagoon its shallow colour over deeper water.
+#pragma param u_deepening float default(0.5) range(0,4) ui(slider)
+// How much the bed is dimmed by the water its light came down through, as well as by the water it is seen through: 1 is what water does
+// (a bed ten metres down is lit by what ten metres let through), 0 lights it as if it were dry.
+#pragma param u_bedShade float default(1) range(0,1) ui(slider)
 // The waves: height, length of the longest, how sharp their crests are drawn, how fast they travel and which way (degrees).
 #pragma param u_waveHeight float default(30) range(0,800) ui(slider) unit(length)
 #pragma param u_waveLength float default(1400) range(50,30000) ui(slider) unit(length)
@@ -807,11 +812,15 @@ void main() {
     }
 
     // The water in between takes the light out of it, red first, and gives back its own colour: more of it the deeper it goes.
-    vec3 transmit = exp(-u_absorption.rgb * (u_density * column));
+    // Light bends down as it enters water and is never more than 49 degrees off straight down in it: what it crosses is the depth over that
+    // slope, not the eye's own line to the bed, which seen low across the water is many times as long and would turn any sea deep.
+    float across = sqrt(max(1.0 - viewDir.y * viewDir.y, 0.0)) / 1.333;
+    float water = below ? column : column * abs(viewDir.y) / sqrt(1.0 - across * across);
+    vec3 transmit = exp(-u_absorption.rgb * (u_density * water));
     // From below the water between the eye and the surface is the camera's own medium (the underwater effect fogs it), not a column behind the surface.
     if (below) transmit = vec3(1.0);
     float murk = 1.0 - dot(transmit, vec3(1.0 / 3.0));
-    vec3 scatterColor = mix(u_shallowColor.rgb, u_deepColor.rgb, 1.0 - exp(-column * u_density * 0.5));
+    vec3 scatterColor = mix(u_shallowColor.rgb, u_deepColor.rgb, 1.0 - exp(-water * u_density * u_deepening));
 
     // Foam: along the shore, where the water is shallow, broken by noise that moves; and on the crests of the waves.
     float vertical = column * max(abs(viewDir.y), 0.15);
@@ -877,7 +886,8 @@ void main() {
         float cosT = sqrt(max(1.0 - sinT * sinT, 0.0));
         fresnel = sinT >= 1.0 ? 1.0 : u_reflectance + (1.0 - u_reflectance) * pow(1.0 - cosT, 5.0);
     }
-    vec3 seen = behind * transmit * (1.0 - fresnel) * (1.0 - foam);
+    vec3 down = below ? vec3(1.0) : exp(-u_absorption.rgb * (u_density * column * abs(viewDir.y) * u_bedShade));
+    vec3 seen = behind * transmit * down * (1.0 - fresnel) * (1.0 - foam);
     // From below the water is a mirror past the critical angle, and what it mirrors is the world under it: the picture, followed along the reflected ray.
     vec3 mirror = vec3(0.0);
     if (below && fresnel > 0.02 && haveColor && haveDepth && u_mirror > 0.5) {
@@ -1322,10 +1332,13 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, px : vec4f, amp : f32, calm :
         }
     }
 
-    var transmit = exp(-mc.u_absorption.rgb * (mc.u_density * column));
+    let across = sqrt(max(1.0 - viewDir.y * viewDir.y, 0.0)) / 1.333;
+    var water = column;
+    if (!below) { water = column * abs(viewDir.y) / sqrt(1.0 - across * across); }
+    var transmit = exp(-mc.u_absorption.rgb * (mc.u_density * water));
     if (below) { transmit = vec3f(1.0); }
     let murk = 1.0 - dot(transmit, vec3f(1.0 / 3.0));
-    let scatterColor = mix(mc.u_shallowColor.rgb, mc.u_deepColor.rgb, vec3f(1.0 - exp(-column * mc.u_density * 0.5)));
+    let scatterColor = mix(mc.u_shallowColor.rgb, mc.u_deepColor.rgb, vec3f(1.0 - exp(-water * mc.u_density * mc.u_deepening)));
 
     let vertical = column * max(abs(viewDir.y), 0.15);
     var baked = min(shoreDist, shoreDepth);
@@ -1387,7 +1400,9 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, px : vec4f, amp : f32, calm :
         let cosT = sqrt(max(1.0 - sinT * sinT, 0.0));
         if (sinT >= 1.0) { fresnel = 1.0; } else { fresnel = mc.u_reflectance + (1.0 - mc.u_reflectance) * pow(1.0 - cosT, 5.0); }
     }
-    var seen = behind * transmit * (1.0 - fresnel) * (1.0 - foam);
+    var down = vec3f(1.0);
+    if (!below) { down = exp(-mc.u_absorption.rgb * (mc.u_density * column * abs(viewDir.y) * mc.u_bedShade)); }
+    var seen = behind * transmit * down * (1.0 - fresnel) * (1.0 - foam);
     var mirror = vec3f(0.0);
     if (below && fresnel > 0.02 && haveColor && haveDepth && mc.u_mirror > 0.5) {
         let met = waterReflect(P, reflect(-viewDir, N), waterDist);

@@ -308,6 +308,10 @@ is its x and z, `u_origin` is where the mesh was moved to as it follows the came
 - **Body and surface.** The water's own colour is lit as light from under the surface, and the surface over it mirrors by the ripples: `u_bodyShading` is how
   much the ripples shade the colour as well (0.25; at 1 every ripple darkens the water on its far side, as a painted surface would), `u_reflectance` what the
   surface mirrors seen straight on (water's 0.0204).
+- **Depth.** The water a pixel's light crossed is the depth under it over the slope light takes in water (never more than 49 degrees off straight
+  down), not the eye's own line to the bed: a lagoon seen low across the sea is as clear as from above it. `u_density` and `u_absorption` take the light
+  out, `u_deepening` is how soon the water's own colour turns from shallow to deep (a share of the density; lower keeps a lagoon turquoise over deeper
+  water), and `u_bedShade` how much the bed is also dimmed by the water its light came down through (1, as water does; 0 lights it as if dry).
 - **Rain.** When a `Weather` drives the rain, drops ring out on the surface (`u_rain`, written by the zone): rings that spread and die, a few to every
   `u_rippleLength`, more of them the harder it rains, and the surface a little less sharp. They are drawn, not simulated: they put nothing in the zone's ripples
   and make no foam, and they fade out with distance. On a zone's surface the zone writes the four every frame (its own length, speed and heading, and
