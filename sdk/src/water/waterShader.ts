@@ -574,7 +574,8 @@ float waterSunVisibility(vec3 worldPos, int first, int count) {
 
 /// What a ray from p along r meets in the picture of the scene the frame copied, as a colour with alpha 1, or alpha 0 where it meets nothing on screen.
 vec4 waterReflect(vec3 p, vec3 r, float eyeDist) {
-    float stride = max(0.5, eyeDist * 0.03);
+    // Every length here is a share of how far off the water is: a step, and how thick what the ray meets is taken to be. None is a number of units.
+    float stride = max(eyeDist * 0.03, 1e-4);
     float travelled = stride;
     for (int i = 0; i < 20; ++i) {
         vec3 q = p + r * travelled;
@@ -589,7 +590,7 @@ vec4 waterReflect(vec3 p, vec3 r, float eyeDist) {
         // The ray has gone behind something the picture holds: that is what it met, if it did not skip clean through a thin one.
         // Fading toward the picture's edge: a reflection that runs off screen thins away instead of stopping on a line.
         vec2 edge = min(uv, 1.0 - uv);
-        if (scene.g < 0.5 && sceneDist < qDist && qDist - sceneDist < stride * 2.0 + 1.0) return vec4(textureLod(u_sceneColor, uv, 0.0).rgb, smoothstep(0.0, 0.08, min(edge.x, edge.y)));
+        if (scene.g < 0.5 && sceneDist < qDist && qDist - sceneDist < stride * 2.0 + qDist * 0.002) return vec4(textureLod(u_sceneColor, uv, 0.0).rgb, smoothstep(0.0, 0.08, min(edge.x, edge.y)));
         stride *= 1.25;
         travelled += stride;
     }
@@ -1098,7 +1099,7 @@ fn waterSunVisibility(worldPos : vec3f, first : i32, count : i32) -> f32 {
 
 /// What a ray from p along r meets in the picture of the scene the frame copied: the colour (xyz) and 1 (w), or w 0 where it meets nothing on screen.
 fn waterReflect(p : vec3f, r : vec3f, eyeDist : f32) -> vec4f {
-    var stride = max(0.5, eyeDist * 0.03);
+    var stride = max(eyeDist * 0.03, 1e-4);
     var travelled = stride;
     for (var i = 0; i < 20; i++) {
         let q = p + r * travelled;
@@ -1111,7 +1112,7 @@ fn waterReflect(p : vec3f, r : vec3f, eyeDist : f32) -> vec4f {
         let scene = textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, uv, 0.0).rg;
         let sceneDist = scene.r;
         let edge = min(uv, vec2f(1.0) - uv);
-        if (scene.g < 0.5 && sceneDist < qDist && qDist - sceneDist < stride * 2.0 + 1.0) { return vec4f(textureSampleLevel(u_sceneColor, u_sceneColor_s, uv, 0.0).rgb, smoothstep(0.0, 0.08, min(edge.x, edge.y))); }
+        if (scene.g < 0.5 && sceneDist < qDist && qDist - sceneDist < stride * 2.0 + qDist * 0.002) { return vec4f(textureSampleLevel(u_sceneColor, u_sceneColor_s, uv, 0.0).rgb, smoothstep(0.0, 0.08, min(edge.x, edge.y))); }
         stride = stride * 1.25;
         travelled = travelled + stride;
     }
