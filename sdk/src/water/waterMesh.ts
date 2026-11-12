@@ -63,8 +63,9 @@ export function buildOceanMesh(cells: number, rings: number, cellSize: number, s
         for (let i = 1; i <= n; i++) edge.push([outer.half, -outer.half + i * outer.cell]);
         for (let i = 1; i <= n; i++) edge.push([outer.half - i * outer.cell, outer.half]);
         for (let i = 1; i < n; i++) edge.push([-outer.half, outer.half - i * outer.cell]);
-        for (const [x, z] of edge) { positions.push(x, 0, z); colors.push(outer.ring / 7, 1, 0, 1); }
-        for (const [x, z] of edge) { positions.push(x * k, 0, z * k); colors.push(outer.ring / 7, 1, 0, 1); }
+        // Green 0 marks the apron: the Water shader lays it at the open sea's level whatever water its inner edge stands over.
+        for (const [x, z] of edge) { positions.push(x, 0, z); colors.push(outer.ring / 7, 0, 0, 1); }
+        for (const [x, z] of edge) { positions.push(x * k, 0, z * k); colors.push(outer.ring / 7, 0, 0, 1); }
         const m = edge.length;
         for (let i = 0; i < m; i++) {
             const a = base + i, b = base + ((i + 1) % m), c = base + m + i, d = base + m + ((i + 1) % m);

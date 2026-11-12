@@ -261,7 +261,10 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
     vec4 field = u_zoneOn > 0.5 ? waterZoneField(p) : vec4(1e6, 0.0, 0.0, 1.0);
     float still = u_zoneOn > 0.5 ? waterZoneStill(p) : 1.0;
     float surf = waterSurf(u_zoneOn > 0.5 ? waterZoneSurf(p) : 1e6, field.x, u_surfHeight * u_waveHeight * zone.z * zone.w * still, u_time.x).x;
-    local.y += zone.x + (waterWaveHeight(p, u_time.x, cell) * zone.z * field.w + surf) * u_geoWaves;
+    // The apron past the rings (green 0, see waterMesh.ts) is the open sea out to the horizon: an edge vertex that stands over a river on a
+    // cliff, or on the land beside one, would lift a strip of sea eighty kilometres long to the river's height.
+    float rest = es_vertexColor.g < 0.5 && u_oceanOn > 0.5 ? u_oceanLevel : zone.x;
+    local.y += rest + (waterWaveHeight(p, u_time.x, cell) * zone.z * field.w + surf) * u_geoWaves;
 }
 #pragma end
 
@@ -371,7 +374,9 @@ fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, ve
     var surfAt = 1e6;
     if (mc.u_zoneOn > 0.5) { surfAt = waterZoneSurf(p); }
     let surf = waterSurf(surfAt, field.x, mc.u_surfHeight * mc.u_waveHeight * zone.z * zone.w * still, tc.u_time.x).x;
-    (*local).y = (*local).y + zone.x + (waterWaveHeight(p, tc.u_time.x, cell) * zone.z * field.w + surf) * mc.u_geoWaves;
+    var rest = zone.x;
+    if (es_vertexColor.g < 0.5 && mc.u_oceanOn > 0.5) { rest = mc.u_oceanLevel; }
+    (*local).y = (*local).y + rest + (waterWaveHeight(p, tc.u_time.x, cell) * zone.z * field.w + surf) * mc.u_geoWaves;
 }
 #pragma end
 

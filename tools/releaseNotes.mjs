@@ -4570,4 +4570,6 @@ export const NOTED = {
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":
     {"note": "A colour map and an occlusion map lie the way the heightmap does."},
+  "fix(water): the sea past the rings lies at the sea's level - the apron that carries an ocean to the horizon took its inner edge's height from the water under it, so with a river on high ground under that edge a strip of sea eighty kilometres long rose to the river's height; the apron's vertices are marked and the shader lays them at the ocean's level":
+    {"note": "The sea past the rings lies at the sea's level."},
 };

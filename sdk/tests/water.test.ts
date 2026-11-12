@@ -126,6 +126,18 @@ describe('an ocean\'s apron', () => {
         expect(area).toBeCloseTo((2 * far) ** 2 - (2 * reach) ** 2, 1);
     });
 
+    it('is marked (green 0) and the rings are not, and the shader lays what is marked at the open sea’s level', () => {
+        const plain = buildOceanMesh(16, 3, 1), mesh = buildOceanMesh(16, 3, 1, 1000);
+        const channel = mesh.channels.find((c) => c.semantic === MeshChannel.Color)!;
+        const green = (i: number): number => mesh.vertices[i * mesh.vertexStride + channel.offset + 1]!;
+        for (let i = 0; i < plain.vertexCount; i++) expect(green(i)).toBe(255);
+        for (let i = plain.vertexCount; i < mesh.vertexCount; i++) expect(green(i)).toBe(0);
+        // A river over a cliff under the rings' edge otherwise lifts its strip of the apron, out to the horizon, to the river's height.
+        const source = WATER_SHADER_TEMPLATE.source;
+        expect(source).toContain('float rest = es_vertexColor.g < 0.5 && u_oceanOn > 0.5 ? u_oceanLevel : zone.x;');
+        expect(source).toContain('if (es_vertexColor.g < 0.5 && mc.u_oceanOn > 0.5) { rest = mc.u_oceanLevel; }');
+    });
+
     it('is not there when it would end inside the rings', () => {
         expect(buildOceanMesh(16, 3, 1, 10).indices.length).toBe(buildOceanMesh(16, 3, 1).indices.length);
     });
