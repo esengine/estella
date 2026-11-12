@@ -275,8 +275,14 @@ function applyBlendedEffects(
         } else if (def.native) {
             stack.addNativePass(effectType, def.native);
             for (const u of def.uniforms) stack.setUniform(effectType, u.name, effectData.uniforms.get(u.name) ?? uniformInUnits(u).defaultValue);
-            // The quality level's say over how the dynamic GI gathers: on where the level asks, whatever the volume holds.
-            if (effectType === 'dynamicGI' && api.dynamicGIHalfRes) stack.setUniform(effectType, 'u_halfRes', 1);
+            // The quality level's say over what the dynamic GI spends: its cheaper way where the level asks, and never dearer than the volume set.
+            if (effectType === 'dynamicGI' && api.dynamicGIReduced) {
+                const held = (name: string, fallback: number): number => effectData.uniforms.get(name) ?? fallback;
+                stack.setUniform(effectType, 'u_halfRes', 1);
+                stack.setUniform(effectType, 'u_probeStride', Math.max(held('u_probeStride', 2), 4));
+                stack.setUniform(effectType, 'u_cardSlices', Math.max(held('u_cardSlices', 4), 8));
+                stack.setUniform(effectType, 'u_probeDensity', Math.min(held('u_probeDensity', 1), 2 / 3));
+            }
         } else if (def.compute) {
             // The params block is the effect's uniforms in their listed order, each at the volume's value or the effect's own default.
             stack.addComputePass(effectType, {

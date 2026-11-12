@@ -869,8 +869,11 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
 #else
     constexpr u32 kProbeRows = 90;
 #endif
+    // A quality level may ask for fewer rows still (`probeDensity` under 1): two thirds of them is 30 rows on a phone, 1.2 ms of a
+    // Snapdragon 8 Elite's 6.6.
+    const u32 rows = std::max(static_cast<u32>(static_cast<f32>(kProbeRows) * std::clamp(params.probeDensity, 0.25f, 1.0f) + 0.5f), 8u);
     probeSpacing_ = params.probeSpacing > 0 ? std::clamp(params.probeSpacing, 4u, 64u)
-                                            : std::clamp(((height + kProbeRows - 1) / kProbeRows + 1) / 2 * 2, 8u, 32u);
+                                            : std::clamp(((height + rows - 1) / rows + 1) / 2 * 2, 8u, 48u);
     const u32 tilesX = (width + probeSpacing_ - 1) / probeSpacing_, tilesY = (height + probeSpacing_ - 1) / probeSpacing_;
     if (!ensureProbes(tilesX, tilesY)) return input;
 

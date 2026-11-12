@@ -48,6 +48,8 @@ struct DynamicGIParams {
     /// The probes are asked by one pixel in four and the rest take the light of the four round them: about half the reads of a pixel, for
     /// light that runs a pixel or two across an edge two surfaces share. What a quality level below the highest runs.
     bool halfRes = false;
+    /// How many of the rows of probes the picture would have are kept, 0.25 to 1 (it acts where `probeSpacing` is 0).
+    f32 probeDensity = 1.0f;
 };
 
 /**

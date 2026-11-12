@@ -1341,6 +1341,7 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
                 gi.skip = static_cast<u32>(std::max(get("u_skip", 0.0f), 0.0f));
                 gi.probeSpacing = static_cast<u32>(std::max(get("u_probeSpacing", 0.0f), 0.0f));
                 gi.halfRes = get("u_halfRes", 0.0f) > 0.5f;
+                gi.probeDensity = get("u_probeDensity", 1.0f);
                 auto& cache = dynamic_gis_[temporalKey_];
                 if (!cache) {
                     if (dynamic_gis_.size() > 4) {

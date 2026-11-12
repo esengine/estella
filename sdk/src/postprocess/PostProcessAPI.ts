@@ -263,9 +263,9 @@ export class PostProcessAPI {
         return this.qualityFilter_?.antialiasing ?? 'msaa';
     }
 
-    /** Whether the quality level in force has the dynamic GI gather at half resolution: the volume system sets the effect's switch from it. */
-    get dynamicGIHalfRes(): boolean {
-        return this.qualityFilter_?.dynamicGIHalfRes ?? false;
+    /** Whether the quality level in force has the dynamic GI run its cheaper way: the volume system sets the effect's switches from it. */
+    get dynamicGIReduced(): boolean {
+        return this.qualityFilter_?.dynamicGIReduced ?? false;
     }
 
     /**

@@ -232,6 +232,12 @@ describe('what a quality level lets the chain run', () => {
         }
     });
 
+    it('runs the dynamic GI its cheaper way at the medium level and the full way at the high one', () => {
+        expect(new QualityController({ mode: 'medium' }).profile.dynamicGIReduced).toBe(true);
+        expect(new QualityController({ mode: 'high' }).profile.dynamicGIReduced).toBe(false);
+        expect(new QualityController({ mode: 'high', profiles: { high: { dynamicGIReduced: true } } }).profile.dynamicGIReduced).toBe(true);
+    });
+
     it('keeps the old prefix reading for a name no effect answers to, and the ssao and post-process switches', async () => {
         const { qualityPassAllowed } = await import('../src/postprocess/qualityFilter');
         expect(qualityPassAllowed(level(['custom']), 'custom_pass')).toBe(false);

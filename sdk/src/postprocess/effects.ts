@@ -589,6 +589,8 @@ registerEffect({
         { name: 'u_skip', label: 'Skip Passes (profiling)', min: 0, max: 63, step: 1, defaultValue: 0 },
         // 1: one pixel in four asks the probes and the rest take the light of the four round them. A quality level below the highest turns it on.
         { name: 'u_halfRes', label: 'Half Resolution', min: 0, max: 1, step: 1, defaultValue: 0 },
+        // How many of the rows of probes are kept where Probe Spacing is 0: fewer cost less and blur the light more.
+        { name: 'u_probeDensity', label: 'Probe Density', min: 0.25, max: 1, step: 0.01, defaultValue: 1 },
         { name: 'u_cellSize', label: 'Field Cell Size', min: 0, max: 1000, step: 0.1, defaultValue: 0, worldUnits: 1 },
     ],
 });
