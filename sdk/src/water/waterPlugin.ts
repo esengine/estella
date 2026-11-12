@@ -158,6 +158,14 @@ export class Waters {
         return this.field_?.query().data ?? null;
     }
 
+    /**
+     * Whether there is no water to ask about: nothing is baked, so `depthAt` answers null everywhere. A world laid out with no water at
+     * all is laid out the same here and on a worker, which "no data to hand over" alone does not say.
+     */
+    get empty(): boolean {
+        return this.field_ === null;
+    }
+
     /** How deep the water stands at rest over the world height `y` at (x, z): above zero under water, null where there is none. */
     depthAt(x: number, z: number, y: number): number | null {
         return this.field_?.query().depthAt(x, z, y) ?? null;

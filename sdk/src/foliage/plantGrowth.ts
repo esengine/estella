@@ -277,7 +277,7 @@ export class PlantGrowth {
     step(app: App): void {
         const bakes = bakesOf(app);
         let first = true;
-        while (this.queue.length > 0 && (first || bakes.hasTime())) {
+        while (this.queue.length > 0 && (first || bakes.hasTime(this))) {
             first = false;
             const piece = this.queue.shift()!;
             if (piece.cell.dead) continue;

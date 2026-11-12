@@ -20,14 +20,15 @@ import { Zones } from './zones';
 import { PlanetFace } from './planetSurface';
 import { farRulesOf, makeFacePlan } from './facePlan';
 import { makePlanePlan } from './planePlan';
-import { GroundQuery, type GroundData } from '../terrain/groundQuery';
+import { GroundQuery, groundSourceOf, type GroundData } from '../terrain/groundQuery';
+import type { TerrainSource } from '../terrain/source';
 import { WaterQuery, type WaterQueryData } from '../water/waterQuery';
 import type { PlanetFacts } from '../terrain/planetQuery';
 import type { PlanetProvider } from '../terrain/planetProvider';
 import type { PlanetPainter } from '../terrain/planetQuery';
 import { faceOf, type SphereNode } from '../terrain/sphere';
 import { makePlanetPage, type PlanetPageSource } from '../terrain/planetPages';
-import type { PageImage } from '../terrain/pages';
+import { makePage, type PageImage } from '../terrain/pages';
 
 /** What a plan is made from: everything the main thread knew when it made its own. */
 export interface PlanSpec {
@@ -74,7 +75,11 @@ export interface PlacementsRequest {
     z1: number;
 }
 
-interface Made { plan: WorldPlan; farPlan: WorldPlan | null; face: PlanetFace | null }
+interface Made {
+    plan: WorldPlan; farPlan: WorldPlan | null; face: PlanetFace | null;
+    /** A plane's ground as its terrain reads it (in the terrain's own space) and where that terrain stands: what its pages are made from. */
+    ground?: { source: TerrainSource; origin: { x: number; y: number; z: number } } | null;
+}
 
 /** The plans kept, newest last, and the providers loaded (by the text of their source). */
 const plans = new Map<string, Made>();
@@ -100,6 +105,7 @@ function makePlane(spec: PlaneSpec): Made {
     for (const z of spec.zones) zones.set(z);
     return {
         face: null,
+        ground: spec.ground ? { source: groundSourceOf(spec.ground), origin: spec.ground.origin } : null,
         ...makePlanePlan({
             rules: spec.rules, farRules: farRulesOf(spec.rules), seed: spec.seed, world: spec.world, zones,
             ground: spec.ground ? new GroundQuery(spec.ground) : null, flatY: spec.flatY, water: spec.water ? new WaterQuery(spec.water) : null, layers: spec.layers,
@@ -178,13 +184,43 @@ export async function page(r: PageRequest, load: ProviderLoader = blobLoader): P
     return { result: image, transfer: [image.heights.buffer as ArrayBuffer, image.paint.buffer as ArrayBuffer, image.paint2.buffer as ArrayBuffer] };
 }
 
+/** A page of a plane's terrain to make: the square of the terrain's own space, and the plan whose biomes paint it. */
+export interface GroundPageRequest {
+    id: number;
+    type: 'groundPage';
+    /** Names the plan, as a placements question does; a worker that has not seen it is sent `spec` with it. */
+    key: string;
+    spec?: PlaneSpec;
+    x0: number;
+    z0: number;
+    size: number;
+    /** Whether the world has the last word on the ground's paint. */
+    paint: boolean;
+}
+
+/**
+ * The page of a terrain's node, as the terrain would make it: the same source, sampled at the same points, painted by the same plan.
+ * The paint is the part worth leaving the main thread for: a world's biomes are read at every sample, tens of milliseconds a page.
+ * @internal
+ */
+export async function groundPage(r: GroundPageRequest, load: ProviderLoader = blobLoader): Promise<{ result: PageImage; transfer: ArrayBuffer[] }> {
+    const made = await planFor(r.key, r.spec, load);
+    const ground = made.ground;
+    if (!ground) throw new Error(`the plan ${r.key} has no ground to make a page of`);
+    const { origin } = ground;
+    // The terrain hands its repaint world positions, and so does this.
+    const image = await makePage(ground.source, r.x0, r.z0, r.size, r.paint ? (x, z, _h, _ny, w) => made.plan.paint(x + origin.x, z + origin.z, w) : undefined);
+    return { result: image, transfer: [image.heights.buffer as ArrayBuffer, image.paint.buffer as ArrayBuffer, image.paint2.buffer as ArrayBuffer] };
+}
+
 // The worker's loop. Absent where this file is imported as a module (a test), where `self` is not a worker's scope.
-declare const self: { onmessage: ((e: { data: PlacementsRequest | PageRequest }) => void) | null; postMessage(m: unknown, transfer?: ArrayBuffer[]): void } | undefined;
+declare const self: { onmessage: ((e: { data: PlacementsRequest | PageRequest | GroundPageRequest }) => void) | null; postMessage(m: unknown, transfer?: ArrayBuffer[]): void } | undefined;
 if (typeof self !== 'undefined' && typeof (self as { importScripts?: unknown }).importScripts === 'function') {
     self.onmessage = (e) => {
         const m = e.data;
         const fail = (err: unknown): void => self!.postMessage({ id: m.id, error: err instanceof Error ? err.message : String(err) });
         if ((m as { type?: string }).type === 'page') page(m as PageRequest).then((r) => self!.postMessage({ id: m.id, result: r.result }, r.transfer), fail);
+        else if ((m as { type?: string }).type === 'groundPage') groundPage(m as GroundPageRequest).then((r) => self!.postMessage({ id: m.id, result: r.result }, r.transfer), fail);
         else placements(m as PlacementsRequest).then((result) => self!.postMessage({ id: m.id, result }), fail);
     };
 }

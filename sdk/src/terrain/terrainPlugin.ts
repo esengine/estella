@@ -42,7 +42,7 @@ import { paintWeights } from './paint';
 
 export { paintWeights };
 import { GroundEdit } from './groundEdit';
-import { FieldSource, ModifiedSource, NoiseSource, type TerrainModifier, type TerrainSource } from './source';
+import { FieldSource, ModifiedSource, NoiseSource, type NoiseParams, type TerrainModifier, type TerrainSource } from './source';
 import { levelRange, nodeKey, parentOf, selectNodes, type QuadtreeParams, type TerrainNode } from './quadtree';
 import { makePage, makePageJob, PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage, type Repaint } from './pages';
 import { noiseProvider, ProviderSource, terrainProvider, terrainProvidersRevision, TerrainUnavailable, type TerrainProvider } from './provider';
@@ -194,6 +194,12 @@ const MAX_LAYERS = 8;
 const collisionLayerOf = (entity: Entity): string => `terrain-collision:${entity}`;
 const tileKey = (entity: Entity, tx: number, tz: number): string => `terrain:${entity}:${tx}:${tz}`;
 
+/**
+ * Makes the page of the square (x0, z0) to (x0 + size, z0 + size) of a terrain's own space somewhere else, painted as the terrain would
+ * paint it; null when it cannot make this one.
+ */
+export type TerrainPager = (x0: number, z0: number, size: number) => Promise<PageImage> | null;
+
 /** Pages asked at once of a provider that answers later. */
 const PAGES_IN_FLIGHT = 16;
 
@@ -221,6 +227,8 @@ interface Built {
     wanted: Map<string, TerrainNode>;
     /** Pages asked of a provider that answers later, by key: the frame's budget is not spent waiting for them. */
     asked: Set<string>;
+    /** The workers failed one of this terrain's pages: it makes its own. */
+    pagerFailed?: boolean;
     /** A synchronous source's page paused inside sampling/painting, rather than blocking a whole frame. */
     pageWork?: { key: string; epoch: number; edits: number; job: Generator<number, PageImage, void>; image?: PageImage };
     pending: boolean;
@@ -304,8 +312,9 @@ export class Terrains {
     }
 
     /**
-     * The ground as data a worker can rebuild it from, when it can be: one terrain, made, of a field or of noise, with nothing laid over it. Null otherwise
-     * (a provider's ground, a modified one, several terrains, one still being made), when what is laid out over it must ask here.
+     * The ground as data a worker can rebuild it from, when it can be: one terrain, made, of a field or of noise (the engine's own noise provider
+     * included, whose ground is its parameters), with nothing laid over it. Null otherwise (a game's provider, a modified ground, several terrains,
+     * one still being made), when what is laid out over it must ask here.
      */
     groundData(): GroundData | null {
         const world = this.app_?.world;
@@ -318,6 +327,15 @@ export class Terrains {
         const origin = { x: t.worldPosition.x, y: t.worldPosition.y, z: t.worldPosition.z };
         if (base instanceof FieldSource) return { origin, cell: built.surface.cell, source: { kind: 'field', data: base.toData() } };
         if (base instanceof NoiseSource) return { origin, cell: built.surface.cell, source: { kind: 'noise', data: base.toData() } };
+        // The engine's noise as a provider: the same function, read at the world's position and not the terrain's own.
+        if (base instanceof ProviderSource && base.provider.id === NOISE_PROVIDER) {
+            const d = built.data;
+            const params: NoiseParams = {
+                seed: d.seed, frequency: d.frequency, octaves: d.octaves, persistence: d.persistence, ridged: d.ridged, warp: d.warp, erosion: d.erosion,
+                sizeX: d.sizeX, height: d.height, rockSlope: d.rockSlope, dirtHeight: d.dirtHeight, snowHeight: d.snowHeight,
+            };
+            return { origin, cell: built.surface.cell, source: { kind: 'noise', data: params }, shift: { x: origin.x, z: origin.z } };
+        }
         return null;
     }
 
@@ -520,6 +538,18 @@ export class Terrains {
         if (paint === this.paint_) return;
         this.paint_ = paint;
         this.repaint();
+    }
+
+    /** @internal Who makes the ground's pages off the main thread, if anyone does. */
+    pager_: TerrainPager | null = null;
+
+    /**
+     * Hands the making of pages to `pager` (or back to the terrain, with null). A world that paints the ground has the plan the paint is
+     * read from on its workers already, and a page painted there costs the frame nothing; painted here it is tens of milliseconds a page.
+     * The pager answers null for a page it cannot make (its plan is no longer the ground's), and the terrain makes that one itself.
+     */
+    setPager(pager: TerrainPager | null): void {
+        this.pager_ = pager;
     }
 
     /** Makes every page again, for a paint that changed what it answers. */
@@ -982,12 +1012,54 @@ export class TerrainPlugin implements Plugin {
         this.place(app, entity, built, drawn);
     }
 
-    /** Makes the wanted pages, coarse and near first, for as long as the frame can spare. */
+    /** Makes the wanted pages, coarse and near first: asked of the workers where a pager can make them, else made here for as long as the frame can spare. */
     private makePages(app: App, built: Built, source: TerrainSource, eye: [number, number, number], at: { x: number; y: number; z: number }): void {
-        const paint = app.getResource(TerrainsRes).paint_;
+        const terrains = app.getResource(TerrainsRes);
+        const paint = terrains.paint_;
         const repaint: Repaint | undefined = paint ? (x, z, h, ny, w) => paint(x + at.x, z + at.z, h + at.y, ny, w) : undefined;
         const bakes = bakesOf(app);
-        if (built.wanted.size === 0) { built.pageWork = undefined; bakes.mark(built, 'Building the terrain', 1); return; }
+        if (built.wanted.size === 0) { built.pageWork = undefined; bakes.mark(built, 'Building the terrain', 1); bakes.urge(built, false); return; }
+        // How far along: the pages there are, of those and the ones still wanted. (It was the pages made THIS frame, which read 0% for half a minute.)
+        const progress = (): number => built.table.size / (built.table.size + built.wanted.size);
+        // The page under the eye is the ground the player is standing on drawn too coarse: the frame gives more until it is made.
+        bakes.urge(built, [...built.wanted.values()].some((n) => n.level === 0
+            && eye[0] >= n.x0 && eye[0] < n.x0 + n.size && eye[2] >= n.z0 && eye[2] < n.z0 + n.size));
+        const pager = built.pagerFailed ? null : terrains.pager_;
+        if (pager) {
+            const sorted = [...built.wanted.values()].sort((a, b) => b.level - a.level
+                || Math.hypot(a.x0 + a.size / 2 - eye[0], a.z0 + a.size / 2 - eye[2]) - Math.hypot(b.x0 + b.size / 2 - eye[0], b.z0 + b.size / 2 - eye[2]));
+            const epoch = built.epoch, edits = built.edits;
+            let refused = false;
+            for (const node of sorted) {
+                const key = nodeKey(node.level, node.ix, node.iz);
+                if (built.asked.has(key)) continue;
+                if (built.asked.size >= PAGES_IN_FLIGHT) break;
+                const image = pager(node.x0, node.z0, node.size);
+                if (!image) { refused = true; break; }
+                built.asked.add(key);
+                void image.then((img) => {
+                    built.asked.delete(key);
+                    // Thrown away if the ground or its paint changed while it was being made: the page is wanted again, and asked again.
+                    if (built.epoch !== epoch || built.edits !== edits || !built.heights) return;
+                    const page = built.table.claim(key, img.min, img.max);
+                    if (!page) return;
+                    const [ox, oy] = built.table.origin(page.slot);
+                    updateTextureSubregion(app.wasmModule, built.heights, ox, oy, PAGE_SIDE, PAGE_SIDE, img.heights);
+                    updateTextureSubregion(app.wasmModule, built.paint, ox, oy, PAGE_SIDE, PAGE_SIDE, img.paint);
+                    if (built.paint2) updateTextureSubregion(app.wasmModule, built.paint2, ox, oy, PAGE_SIDE, PAGE_SIDE, img.paint2);
+                }, (e) => {
+                    built.asked.delete(key);
+                    // A worker that cannot make this ground's pages will not make the next one either: the terrain makes its own from here.
+                    if (!built.pagerFailed) log.warn('terrain', 'the workers failed a page; the terrain makes its pages on the main thread from here', e);
+                    built.pagerFailed = true;
+                });
+            }
+            if (!refused) {
+                built.pageWork = undefined;
+                bakes.mark(built, 'Building the terrain', progress());
+                return;
+            }
+        }
         if (built.pageWork && (built.pageWork.epoch !== built.epoch || built.pageWork.edits !== built.edits || !built.wanted.has(built.pageWork.key))) built.pageWork = undefined;
         const order = [...built.wanted.values()].sort((a, b) => b.level - a.level
             || Math.hypot(a.x0 + a.size / 2 - eye[0], a.z0 + a.size / 2 - eye[2]) - Math.hypot(b.x0 + b.size / 2 - eye[0], b.z0 + b.size / 2 - eye[2]));
@@ -1021,8 +1093,8 @@ export class TerrainPlugin implements Plugin {
                     if (!store(work.key, work.image)) break;
                     built.wanted.delete(work.key); built.pageWork = undefined; made++;
                 }
-            } while (bakes.hasTime());
-            bakes.mark(built, 'Building the terrain', made === 0 ? 0 : 1 - built.wanted.size / (built.wanted.size + made));
+            } while (bakes.hasTime(built));
+            bakes.mark(built, 'Building the terrain', progress());
             return;
         }
         for (const node of order) {
@@ -1046,9 +1118,9 @@ export class TerrainPlugin implements Plugin {
             built.wanted.delete(key);
             made++;
             // The frame's one budget, shared with the bakes and the chunks of the world; at least one page a frame.
-            if (!bakes.hasTime()) break;
+            if (!bakes.hasTime(built)) break;
         }
-        bakes.mark(built, 'Building the terrain', made === 0 ? 0 : 1 - built.wanted.size / (built.wanted.size + made));
+        bakes.mark(built, 'Building the terrain', progress());
     }
 
     /** Puts a node entity on each node drawn (reusing the ones it had), and takes the rest away. */

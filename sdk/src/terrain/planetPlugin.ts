@@ -538,7 +538,7 @@ export class PlanetPlugin implements Plugin {
             built.wanted.delete(key);
             made++;
             // The frame's one budget, shared with the bakes and the chunks of the world; at least one page a frame.
-            if (!bakes.hasTime()) break;
+            if (!bakes.hasTime(built)) break;
         }
         bakes.mark(built, 'Building the planet', made === 0 ? 0 : 1 - built.wanted.size / (built.wanted.size + made));
     }

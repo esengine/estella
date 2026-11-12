@@ -43,7 +43,8 @@ import { makePlanePlan } from './planePlan';
 import type { WaterQueryData } from '../water/waterQuery';
 import type { JobPool } from '../runtime/jobs';
 import { firstSend, forgetSent, planPool } from '../runtime/planPool';
-import type { PlacementsRequest, PlanSpec, PlaneSpec } from './planWorker';
+import type { GroundPageRequest, PlacementsRequest, PlanSpec, PlaneSpec } from './planWorker';
+import type { PageImage } from '../terrain/pages';
 import { FaceZones, faceHalf, planetFaces, type PlanetFace } from './planetSurface';
 import { expandPlants, type PlantSet } from './plants';
 import { WorldPlan, type Placement } from './plan';
@@ -176,6 +177,9 @@ interface BuiltWorld {
     listeners: (() => void)[];
     levelled: Set<string>;
     paint: Terrains['paint_'];
+    /** The maker of the ground's pages this world handed its terrain, and the plan it was made for. */
+    pager?: Terrains['pager_'];
+    pagerKey?: string;
     /** Zones that level their ground and wait for it to be known. */
     levelling: Set<string>;
     /** The rules' plants as kinds, and their parts once the assets are in hand (null while they are being loaded, or when the rules have no plants). */
@@ -226,7 +230,7 @@ interface PlacedChunk {
 }
 
 /** The water, as worldgen asks it (the water module is optional: read by name, not imported). */
-interface WaterQuery { depthAt(x: number, z: number, y: number): number | null; shoreAt?(x: number, z: number): number | null; queryData?(): WaterQueryData | null; revision_: number; baking: boolean }
+interface WaterQuery { depthAt(x: number, z: number, y: number): number | null; shoreAt?(x: number, z: number): number | null; queryData?(): WaterQueryData | null; readonly empty?: boolean; revision_: number; baking: boolean }
 
 function waterOf(app: App): WaterQuery | null {
     const w = (app as unknown as { getResourceByName?: (name: string) => unknown }).getResourceByName?.('Waters') as Partial<WaterQuery> | undefined;
@@ -708,11 +712,15 @@ export class WorldGenPlugin implements Plugin {
      */
     private awayOnPlane(app: App, gens: WorldGens, entity: Entity, built: BuiltWorld, terrains: Terrains | null, water: WaterQuery | null, waiting: boolean): Unit['away'] | undefined {
         const pool = planPool();
-        if (!pool || waiting || built.data.surface !== WorldSurface.Plane) return undefined;
+        // The ground's pages go where the plan is: a world that paints the ground has its biomes read on the workers, or here when they cannot have the plan.
+        const mine = built.paint !== null && terrains?.paint_ === built.paint;
+        const none = (): undefined => { if (mine && terrains && built.pager && terrains.pager_ === built.pager) terrains.setPager(null); built.pager = null; built.pagerKey = undefined; return undefined; };
+        if (!pool || waiting || built.data.surface !== WorldSurface.Plane) return none();
         const ground = terrains && terrains.built_.size > 0 ? terrains.groundData() : null;
-        if (terrains && terrains.built_.size > 0 && !ground) return undefined;
+        if (terrains && terrains.built_.size > 0 && !ground) return none();
         const waterData = water ? water.queryData?.() ?? null : null;
-        if (water && !waterData && water.queryData) return undefined;
+        // Water that cannot be handed over keeps the plan here; water there is none of is handed over as none.
+        if (water && !waterData && water.queryData && !water.empty) return none();
         const zones = gens.zones(built.data.world);
         const key = `${built.signature}:plane:t${terrains?.revision_ ?? 0}:w${water?.revision_ ?? 0}:z${zones.revision}`;
         const flatY = (app.world.tryGet(entity, Transform) as TransformData | null)?.worldPosition.y ?? 0;
@@ -720,9 +728,27 @@ export class WorldGenPlugin implements Plugin {
             plane: true, rules: { ...built.rules!, fields: undefined, plants: undefined } as WorldRules, seed: built.data.seed, world: built.data.world,
             ground, flatY, water: waterData, layers: terrains ? terrains.layerNames() : [], zones: [...zones.all()],
         });
+        // The same key and the same workers as the placements: a worker that has laid a square out has the plan a page of it is painted from.
+        const workerAt = (x: number, z: number): number => Math.abs((Math.floor(x / 256) * 73856093) ^ (Math.floor(z / 256) * 19349663)) % pool.size;
+        if (mine && terrains && ground && built.pagerKey !== key) {
+            const origin = ground.origin;
+            built.pagerKey = key;
+            built.pager = (x0, z0, size) => {
+                // Asked for a ground that has changed since (a modifier laid on it, another terrain): not this plan's to make.
+                if (built.pagerKey !== key || terrains.groundData() === null) return null;
+                const worker = workerAt(x0 + origin.x, z0 + origin.z);
+                const first = firstSend(worker, key);
+                const request: GroundPageRequest = { id: 0, type: 'groundPage', key, x0, z0, size, paint: true, ...(first ? { spec: spec() } : {}) };
+                return pool.run<PageImage>(worker, request as unknown as Record<string, unknown>).catch((e: unknown) => {
+                    forgetSent(worker, key);
+                    throw e;
+                });
+            };
+            terrains.setPager(built.pager);
+        }
         return (layer, far, x0, z0, x1, z1) => {
             // Squares are spread over the workers by where they are, so neighbours share a worker and what it has worked out.
-            const worker = Math.abs((Math.floor(x0 / 256) * 73856093) ^ (Math.floor(z0 / 256) * 19349663)) % pool.size;
+            const worker = workerAt(x0, z0);
             const first = firstSend(worker, key);
             const request: PlacementsRequest = { id: 0, key, layer, far, x0, z0, x1, z1, ...(first ? { spec: spec() } : {}) };
             return pool.run<Placement[]>(worker, request as unknown as Record<string, unknown>).catch((e: unknown) => {
@@ -1009,6 +1035,8 @@ export class WorldGenPlugin implements Plugin {
             const remaining = [...gens.built_.values()].reverse().find(other => !other.retired && other.paint);
             terrains.setPaint(remaining?.paint ?? null);
         }
+        if (terrains && built.pager && terrains.pager_ === built.pager) terrains.setPager(null);
+        built.pager = null;
         built.paint = null;
         built.assets.release();
     }

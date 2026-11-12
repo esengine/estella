@@ -4,9 +4,13 @@ import { describe, expect, it } from 'vitest';
 import type { PlanetFacts } from '../src/terrain/planetQuery';
 import { PlanetFace, FaceZones } from '../src/worldgen/planetSurface';
 import { farRulesOf, makeFacePlan } from '../src/worldgen/facePlan';
-import { page, placements, type PageRequest, type PlacementsRequest, type PlanSpec, type PlaneSpec } from '../src/worldgen/planWorker';
+import { groundPage, page, placements, type GroundPageRequest, type PageRequest, type PlacementsRequest, type PlanSpec, type PlaneSpec } from '../src/worldgen/planWorker';
 import { makePlanePlan } from '../src/worldgen/planePlan';
-import { GroundQuery, type GroundData } from '../src/terrain/groundQuery';
+import { GroundQuery, groundSourceOf, type GroundData } from '../src/terrain/groundQuery';
+import { makePageJob, type PageImage } from '../src/terrain/pages';
+import { noiseProvider, ProviderSource } from '../src/terrain/provider';
+import { ModifiedSource } from '../src/terrain/source';
+import { paintWeights } from '../src/terrain/paint';
 import { WaterQuery, type WaterQueryData } from '../src/water/waterQuery';
 import { Zones } from '../src/worldgen/zones';
 import { makePlanetPage } from '../src/terrain/planetPages';
@@ -158,5 +162,63 @@ describe('a flat world planned in a worker', () => {
             expect(away.length).toBeGreaterThan(5);
             expect(JSON.parse(JSON.stringify(away))).toEqual(JSON.parse(JSON.stringify(here)));
         }
+    });
+});
+
+// A terrain's pages cost the frame tens of milliseconds each once a world's biomes paint them, so they are made where the plan is.
+// What comes back has to be the page the terrain would have made itself, byte for byte: a seam between a page made here and one
+// made there is a line across the ground.
+describe("a terrain's pages made in a worker", () => {
+    const params = { seed: 5, frequency: 6, octaves: 4, persistence: 0.5, ridged: 0.3, warp: 0.35, erosion: 1, sizeX: 400, height: 60, rockSlope: 0.5, dirtHeight: 0.4, snowHeight: 0.9 };
+    // The engine's noise as a provider is the world's ground: a terrain standing at (120, 3, -30) reads it there.
+    const origin = { x: 120, y: 3, z: -30 };
+    const ground: GroundData = { origin, cell: 2, source: { kind: 'noise', data: params }, shift: { x: origin.x, z: origin.z } };
+    const paintRules: WorldRules = { ...rules, biomes: [{ ...rules.biomes![0]!, conditions: [{ field: 'height', min: -100, max: 100 }], paint: { grass: 0.2, dirt: 0.8 } } as never] };
+    const planeSpec: PlaneSpec = { plane: true, rules: paintRules, seed: 9, world: 'w', ground, flatY: 0, water: null, layers: ['grass', 'dirt', 'snow', 'rock'], zones: [] };
+
+    /** The terrain's own source for that ground, as terrainPlugin makes it, and the page it makes on the main thread. */
+    const here = (x0: number, z0: number, size: number, paint: boolean): PageImage => {
+        const provider = noiseProvider(() => params);
+        const base = new ProviderSource(provider, 'w', params.seed, 1, origin.x, origin.z, 2, (h, ny) => paintWeights(h / Math.max(params.height, 1e-6), ny, params));
+        const source = new ModifiedSource(base, () => [], origin, 2);
+        const { plan } = makePlanePlan({
+            rules: paintRules, farRules: farRulesOf(paintRules), seed: 9, world: 'w', zones: new Zones(), ground: new GroundQuery(ground), flatY: 0, water: null, layers: planeSpec.layers,
+        });
+        const job = makePageJob(source, x0, z0, size, paint ? (x, z, _h, _ny, w) => plan.paint(x + origin.x, z + origin.z, w) : undefined);
+        for (;;) { const next = job.next(); if (next.done) return next.value; }
+    };
+
+    it("reads the same ground as the terrain standing on a provider's world", () => {
+        const provider = noiseProvider(() => params);
+        const base = new ProviderSource(provider, 'w', params.seed, 1, origin.x, origin.z, 2, () => [1, 0, 0, 0]);
+        const away = groundSourceOf(ground);
+        for (const [x, z] of [[0, 0], [17.5, -3], [-400, 912.25], [3000, -2000]] as const) {
+            expect(away.height(x, z)).toBe(base.height(x, z));
+        }
+        // And it is not the terrain's own noise read at its own origin, which is other ground.
+        expect(groundSourceOf({ ...ground, shift: undefined }).height(17.5, -3)).not.toBe(base.height(17.5, -3));
+    });
+
+    it('are the pages the terrain makes, at every level, painted by the world or not', async () => {
+        let k = 0;
+        for (const [x0, z0, size] of [[0, 0, 128], [-256, 128, 128], [-2048, 0, 2048], [4096, -4096, 4096]] as const) {
+            for (const paint of [true, false]) {
+                const request: GroundPageRequest = { id: 1, type: 'groundPage', key: `ground${paint}`, ...(k++ < 2 ? { spec: structuredClone(planeSpec) } : {}), x0, z0, size, paint };
+                const away = await groundPage(request, loader);
+                const mine = here(x0, z0, size, paint);
+                expect(away.result.min).toBe(mine.min);
+                expect(away.result.max).toBe(mine.max);
+                expect(Buffer.from(away.result.heights).equals(Buffer.from(mine.heights))).toBe(true);
+                expect(Buffer.from(away.result.paint).equals(Buffer.from(mine.paint))).toBe(true);
+                expect(Buffer.from(away.result.paint2).equals(Buffer.from(mine.paint2))).toBe(true);
+                // Handed back, not copied: three buffers a page.
+                expect(away.transfer).toHaveLength(3);
+            }
+        }
+    });
+
+    it('says so when its plan has no ground to make a page of', async () => {
+        const request: GroundPageRequest = { id: 1, type: 'groundPage', key: 'flat', spec: { ...structuredClone(planeSpec), ground: null }, x0: 0, z0: 0, size: 128, paint: true };
+        await expect(groundPage(request, loader)).rejects.toThrow(/no ground/);
     });
 });

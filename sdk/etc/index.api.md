@@ -1604,10 +1604,14 @@ texelsPerUnit: number
 active: BakeProgress[]
 budgetMs: number
 clear: (owner: object) => void
-hasTime: () => boolean
+frameBudgetMs: number
+hasTime: (owner?: object) => boolean
 mark: (owner: object, label: string, progress: number) => void
+priorityExtraMs: number
 run: <T>(label: string, job: WorkJob<T>) => { done: Promise<T>; cancel: () => void; }
 step: (now?: () => number) => void
+urge: (owner: object, urgent: boolean) => void
+urgent: boolean
 static new (): Bakes
 static prototype: Bakes
 ```
@@ -8361,7 +8365,7 @@ remove: (id: string) => void
 set: <T>(id: string, def: ChunkLayer<T>) => void
 stateAt: (id: string, x: number, z: number) => ChunkState | null
 status: (id: string) => ChunkLayerStatus | null
-step: (hasTime: () => boolean) => void
+step: (hasTime: () => boolean) => boolean
 suspended: boolean
 static new (): ProceduralChunks
 static prototype: ProceduralChunks
@@ -11655,6 +11659,7 @@ static prototype: TerrainUnavailable
 @internal app_: App | null
 @internal built_: Map<number, Built>
 @internal modifiers_: Map<string, TerrainModifier>
+@internal pager_: TerrainPager | null
 @internal paint_: Repaint | null
 @internal remake_: (b: readonly [number, number, number, number]) => void
 @internal revision_: number
@@ -11676,6 +11681,7 @@ pending: number
 raycast: (origin: { x: number; y: number; z: number; }, direction: { x: number; y: number; z: number; }, maxDistance: number) => { distance: number; point: { x: number; y: number; z: number; }; normal: { x: number; y: number; z: number; }; entity: Entity; } | null
 repaint: () => void
 setModifier: (modifier: TerrainModifier) => void
+setPager: (pager: TerrainPager | null) => void
 setPaint: (paint: Repaint | null) => void
 status: (entity: Entity) => TerrainStatus | null
 static new (): Terrains
@@ -13803,6 +13809,7 @@ baking: boolean
 bodyAt: (x: number, z: number) => { entity: Entity; bodyId: string; form: number; level: number; } | null
 depthAt: (x: number, z: number, y: number) => number | null
 disturb: (x: number, y: number, z: number, radius: number, strength: number) => boolean
+empty: boolean
 heightAt: (x: number, z: number) => number | null
 quality: WaterQuality
 queryData: () => WaterQueryData | null

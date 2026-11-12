@@ -9,7 +9,7 @@
  *          alone, so a worker given the data (`GroundData`) answers as the terrain does, and what a world is laid out from does not depend on which of them
  *          was asked.
  */
-import { FieldSource, NoiseSource, type FieldSourceData, type NoiseParams, type TerrainSource } from './source';
+import { FieldSource, NoiseSource, type FieldSourceData, type LayerWeights, type NoiseParams, type TerrainSource } from './source';
 import { TerrainSurface } from './surface';
 
 /** Where a terrain stands, in the world. */
@@ -39,6 +39,36 @@ export interface GroundData {
     /** The lattice's cell, in the terrain's units. */
     cell: number;
     source: { kind: 'field'; data: FieldSourceData } | { kind: 'noise'; data: NoiseParams };
+    /**
+     * How far from the terrain's own space the source is read. The engine's noise as a PROVIDER is the world's ground, the same
+     * wherever a terrain stands on it, so its terrain reads it at its own position; absent, the source is the terrain's own.
+     */
+    shift?: { x: number; z: number };
+}
+
+/** A source read a fixed distance from where it is asked: a terrain's window on ground that belongs to the world. */
+class ShiftedSource implements TerrainSource {
+    readonly infinite: boolean;
+    readonly bounds: TerrainSource['bounds'];
+    readonly minHeight: number;
+    readonly maxHeight: number;
+
+    constructor(private readonly base: TerrainSource, private readonly dx: number, private readonly dz: number) {
+        this.infinite = base.infinite;
+        this.bounds = base.bounds;
+        this.minHeight = base.minHeight;
+        this.maxHeight = base.maxHeight;
+    }
+
+    height(x: number, z: number): number | null { return this.base.height(x + this.dx, z + this.dz); }
+    normal(x: number, z: number): [number, number, number] | null { return this.base.normal(x + this.dx, z + this.dz); }
+    paint(x: number, z: number, h: number, ny: number): LayerWeights { return this.base.paint(x + this.dx, z + this.dz, h, ny); }
+}
+
+/** The source `data` describes, in the terrain's own space: what a terrain made of the same data reads its pages and its points from. */
+export function groundSourceOf(data: GroundData): TerrainSource {
+    const base = data.source.kind === 'field' ? FieldSource.fromData(data.source.data) : NoiseSource.fromData(data.source.data);
+    return data.shift ? new ShiftedSource(base, data.shift.x, data.shift.z) : base;
 }
 
 /** The ground of a terrain from its data. */
@@ -48,7 +78,7 @@ export class GroundQuery {
     private readonly origin_: GroundOrigin;
 
     constructor(data: GroundData) {
-        this.source_ = data.source.kind === 'field' ? FieldSource.fromData(data.source.data) : NoiseSource.fromData(data.source.data);
+        this.source_ = groundSourceOf(data);
         this.surface_ = new TerrainSurface(this.source_, data.cell);
         this.origin_ = data.origin;
     }

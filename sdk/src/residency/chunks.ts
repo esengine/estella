@@ -194,7 +194,7 @@ export class ProceduralChunks {
      * One frame: releases what no source is near, then makes what is wanted, nearest first across every layer: the chunks a source
      * stands in at once, and the rest while `hasTime` says so (an `async` layer's, all of them).
      */
-    step(hasTime: () => boolean): void {
+    step(hasTime: () => boolean): boolean {
         const world = this.suspended ? [] : this.sources_();
         const wanted: { layer: Layer<unknown>; cx: number; cz: number; dist: number }[] = [];
         for (const layer of this.layers_.values()) {
@@ -239,12 +239,19 @@ export class ProceduralChunks {
             for (const c of layer.chunks.values()) if (c.making) n++;
             inFlight.set(layer, n);
         }
+        let nearLeft = false;
+        let spent = false;
         for (const w of wanted) {
             // A layer whose chunks are answered later (off the main thread) takes no time from the frame: it is not held to the frame's budget.
-            if (w.dist > 0 && !w.layer.def.async && !hasTime()) continue;
+            // Once the frame has said no it is not asked again for every chunk still wanted: there can be a thousand of them.
+            if (w.dist > 0 && !w.layer.def.async && (spent || (spent = !hasTime()))) {
+                if (w.dist <= Math.max(w.layer.def.sizeX, w.layer.def.sizeZ)) nearLeft = true;
+                continue;
+            }
             if ((inFlight.get(w.layer) ?? 0) >= MAX_IN_FLIGHT) continue;
             if (this.make(w.layer, w.cx, w.cz)) inFlight.set(w.layer, (inFlight.get(w.layer) ?? 0) + 1);
         }
+        return nearLeft;
     }
 
     /** Makes one chunk; true when it is now being answered later. */
@@ -373,7 +380,8 @@ export function chunksOf(app: App): ProceduralChunks {
         const bakes = bakesOf(app);
         const shown = new Set<object>();
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem([], () => {
-            app.measureFrameScope('chunks.step', () => chunks.step(() => bakes.hasTime()));
+            // Chunks beside a source that are still to be made here are a hole the player is standing next to: the frame gives more.
+            app.measureFrameScope('chunks.step', () => bakes.urge(chunks, chunks.step(() => bakes.hasTime(chunks))));
             const now = new Set<object>();
             for (const p of chunks.progress_()) { bakes.mark(p.owner, p.label, p.progress); now.add(p.owner); }
             for (const owner of shown) if (!now.has(owner)) bakes.clear(owner);

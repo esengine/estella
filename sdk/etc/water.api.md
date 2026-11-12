@@ -232,6 +232,7 @@ baking: boolean
 bodyAt: (x: number, z: number) => { entity: Entity; bodyId: string; form: number; level: number; } | null
 depthAt: (x: number, z: number, y: number) => number | null
 disturb: (x: number, y: number, z: number, radius: number, strength: number) => boolean
+empty: boolean
 heightAt: (x: number, z: number) => number | null
 quality: WaterQuality
 queryData: () => WaterQueryData | null
