@@ -11,15 +11,15 @@ const textureParams = (source: string): string[] =>
 describe('Voxel Ground, derived from the Model shader', () => {
     const derived = deriveVoxelGround(MODEL);
 
-    it('declares no more textures than a shader has units for', () => {
-        // What the Model shader gains, Voxel Ground (which adds three maps of its own) must give up, or its last texture is dropped
-        // and the shader no longer compiles on WebGPU.
-        expect(textureParams(derived).length).toBeLessThanOrEqual(7);
+    it('declares no more textures than a Lit mesh shader has units for', () => {
+        // Seven material units and unit 1, the one engine unit a shader that reads only its base texture leaves (ShaderParser::materialOverflowUnits).
+        expect(textureParams(derived).length).toBeLessThanOrEqual(8);
     });
 
-    it('has no wet map to read, and nothing in either language still names one', () => {
-        expect(textureParams(derived)).not.toContain('u_wetMask');
-        expect(derived).not.toMatch(/textureLod\(u_wetMask|u_wetMask_s/);
+    it('reads the wet map as other ground does, in both languages', () => {
+        expect(textureParams(derived)).toContain('u_wetMask');
+        expect(derived).toMatch(/textureLod\(u_wetMask/);
+        expect(derived).toMatch(/u_wetMask_s/);
     });
 
     it('keeps the three materials it lays by world position', () => {

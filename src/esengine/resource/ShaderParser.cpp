@@ -4335,13 +4335,10 @@ u32 batchUnitsRead(const std::string& text) {
 }  // namespace
 
 /**
- * The units below MATERIAL_TEXTURE_UNIT_BASE a material texture may take on @p shader, as a mask.
- * @details The engine binds those units per draw, so one is free only where this shader never reads what the engine puts
- *          there. Two questions decide it. What the domain's injected code reads: a Lit stage takes the shadow map, the
- *          reflection atlas, the bake and both 2D masks, and every mesh variant takes the morph deltas. And what the
- *          shader's own text names, in either language, all variants at once: the batch textures (u_textures: the one a
- *          literal index names, every one where the index is worked out), an engine sampler by name, or a `tN`/`sN` unit. A
- *          fullscreen pass and the UI reach their low units through their own conventions, so they keep none free.
+ * The units below MATERIAL_TEXTURE_UNIT_BASE a material texture may take on @p shader, as a mask: those the engine binds per draw that
+ * this shader never reads. Read are what its domain's injected code takes (Lit: shadow map, reflections, bake, both 2D masks; every
+ * mesh: morph deltas) and what its own text names in either language: batch textures (batchUnitsRead), an engine sampler, a `tN`/`sN`
+ * unit. A fullscreen pass and the UI reach their low units through their own conventions and keep none free.
  */
 u32 ShaderParser::materialOverflowUnits(const ParsedShader& shader) {
     u32 reads = 0;

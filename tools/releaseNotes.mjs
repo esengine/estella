@@ -4540,6 +4540,8 @@ export const NOTED = {
     {"note": "Water is a body and a surface."},
   "feat(terrain): a colour map over the ground - Terrain.colorMap is a picture laid over a whole area and mixed into the ground's colour by its alpha, on the plain shader and on the layered one, with colorMapStrength read each frame":
     {"note": "A colour map over the ground."},
+  "fix(materials): a mesh shader's eighth texture finds a unit - reading its base texture as u_textures[0] was counted as reading all eight batch units, so Ground Blend lost its wet map and did not compile on WebGPU, and voxel ground had given its own up; a literal index is that unit alone":
+    {"note": "A mesh shader's eighth texture finds a unit."},
   "fix(terrain): a splatmap is numbers too - cooked as a picture its three weights were overwritten wherever the fourth was 0, and the whole ground was painted as grass; it is marked Data when it is set, as the heightmap is":
     {"note": "A texture says whether it is a picture or numbers."},
 };
