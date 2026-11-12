@@ -44,6 +44,7 @@ describe('world-unit defaults', () => {
         expect(t.frequency).toBe(3);
         // And the colour map: none, and all of one when it is set.
         expect([t.colorMap, t.colorMapStrength]).toEqual([0, 1]);
+        expect([t.occlusionMap, t.occlusionStrength]).toEqual([0, 1]);
     });
 
     it('never touch a value the scene states, nor a field that is not a length', () => {

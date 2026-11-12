@@ -135,6 +135,10 @@ const TERRAIN = `#pragma shader "Terrain"
 #pragma param u_colorMap texture default(white)
 #pragma param u_colorMapStrength float default(0) range(0,1) ui(slider)
 #pragma param u_colorMapArea vec4 default(0,0,1,1)
+// How much of the sky reaches the ground, baked over the same area: its red dims the light that comes from all round (a gully, the foot
+// of a cliff), and leaves the sun's own to the shadows.
+#pragma param u_occlusionMap texture default(white) texel(data)
+#pragma param u_occlusionStrength float default(0) range(0,1) ui(slider)
 #pragma param u_roughness float default(0.92) range(0,1) ui(slider)
 // The ground in pages (pages.ts; the Terrain component writes these): heights and normals, and the paint, in two atlases; heights over
 // u_heightRange above u_terrainOrigin; level 0 drawn out to u_lodRange0, each level twice as far; nothing off u_terrainBounds.
@@ -315,7 +319,12 @@ void main() {
 
     SurfaceExt ext = surfaceExtNone(N);
     vec3 viewDir = viewDirection(P);
-    vec3 lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, roughness, 0.5, 1.0, ext);
+    float open = 1.0;
+    if (u_occlusionStrength > 0.0) {
+        vec2 under = (Pw.xz - u_terrainOrigin.xz - u_colorMapArea.xy) / max(u_colorMapArea.zw, vec2(1e-4));
+        if (all(greaterThanEqual(under, vec2(0.0))) && all(lessThanEqual(under, vec2(1.0)))) open = mix(1.0, textureLod(u_occlusionMap, under, 0.0).r, u_occlusionStrength);
+    }
+    vec3 lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, roughness, 0.5, open, ext);
     fragColor = vec4(lit, 1.0);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(N), roughness, 0.75);
@@ -480,7 +489,12 @@ fn packNormal(n : vec3f) -> vec2f {
 
     let ext = surfaceExtNone(Ns);
     let viewDir = viewDirection(P);
-    let lit = applyLightingSurface(albedo, Ns, P, viewDir, 0.0, roughness, 0.5, 1.0, ext);
+    var open = 1.0;
+    if (mc.u_occlusionStrength > 0.0) {
+        let under = (Pw.xz - mc.u_terrainOrigin.xz - mc.u_colorMapArea.xy) / max(mc.u_colorMapArea.zw, vec2f(1e-4));
+        if (all(under >= vec2f(0.0)) && all(under <= vec2f(1.0))) { open = mix(1.0, textureSampleLevel(u_occlusionMap, u_occlusionMap_s, under, 0.0).r, mc.u_occlusionStrength); }
+    }
+    let lit = applyLightingSurface(albedo, Ns, P, viewDir, 0.0, roughness, 0.5, open, ext);
 #ifdef ES_GBUFFER
     var frag : FragOut;
     frag.color = vec4f(lit, 1.0);
@@ -536,6 +550,10 @@ const TERRAIN_LAYERS = `#pragma shader "Terrain Layers"
 #pragma param u_colorMap texture default(white)
 #pragma param u_colorMapStrength float default(0) range(0,1) ui(slider)
 #pragma param u_colorMapArea vec4 default(0,0,1,1)
+// How much of the sky reaches the ground, baked over the same area: its red dims the light that comes from all round (a gully, the foot
+// of a cliff), and leaves the sun's own to the shadows.
+#pragma param u_occlusionMap texture default(white) texel(data)
+#pragma param u_occlusionStrength float default(0) range(0,1) ui(slider)
 // The ground in pages, as the Terrain shader has them, with the paint of layers 5 to 8 in an atlas of its own.
 #pragma param u_terrainPages float default(0) range(0,1) ui(slider)
 #pragma param u_heightPages texture default(white) texel(data)
@@ -753,7 +771,12 @@ void main() {
 
     SurfaceExt ext = surfaceExtNone(N);
     vec3 viewDir = viewDirection(P);
-    vec3 lit = applyLightingSurface(colour, N, P, viewDir, 0.0, roughness, 0.5, surface.r, ext);
+    float open = 1.0;
+    if (u_occlusionStrength > 0.0) {
+        vec2 under = (Pw.xz - u_terrainOrigin.xz - u_colorMapArea.xy) / max(u_colorMapArea.zw, vec2(1e-4));
+        if (all(greaterThanEqual(under, vec2(0.0))) && all(lessThanEqual(under, vec2(1.0)))) open = mix(1.0, textureLod(u_occlusionMap, under, 0.0).r, u_occlusionStrength);
+    }
+    vec3 lit = applyLightingSurface(colour, N, P, viewDir, 0.0, roughness, 0.5, surface.r * open, ext);
     fragColor = vec4(lit, 1.0);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(N), roughness, 0.75);
@@ -974,7 +997,12 @@ fn packNormal(n : vec3f) -> vec2f {
 
     let ext = surfaceExtNone(N);
     let viewDir = viewDirection(P);
-    let lit = applyLightingSurface(colour, N, P, viewDir, 0.0, roughness, 0.5, surface.r, ext);
+    var open = 1.0;
+    if (mc.u_occlusionStrength > 0.0) {
+        let under = (Pw.xz - mc.u_terrainOrigin.xz - mc.u_colorMapArea.xy) / max(mc.u_colorMapArea.zw, vec2f(1e-4));
+        if (all(under >= vec2f(0.0)) && all(under <= vec2f(1.0))) { open = mix(1.0, textureSampleLevel(u_occlusionMap, u_occlusionMap_s, under, 0.0).r, mc.u_occlusionStrength); }
+    }
+    let lit = applyLightingSurface(colour, N, P, viewDir, 0.0, roughness, 0.5, surface.r * open, ext);
 #ifdef ES_GBUFFER
     var frag : FragOut;
     frag.color = vec4f(lit, 1.0);

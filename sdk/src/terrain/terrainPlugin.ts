@@ -89,6 +89,10 @@ export interface TerrainData {
     colorMap: number;
     /** How much of the colour map is mixed in where its alpha is whole. */
     colorMapStrength: number;
+    /** An image over the whole of an area whose red says how much of the sky reaches the ground there: a baked occlusion, for the folds no screen-space pass can see across. */
+    occlusionMap: number;
+    /** How much of the occlusion map is applied. */
+    occlusionStrength: number;
     /**
      * The terrain layers (`.esterrainlayer` files, up to eight) the ground is drawn with, in the order the paint weighs them. With any,
      * the ground is drawn on the Terrain Layers shader (its material, if one is named, must be on it); with none, by the four colours.
@@ -142,7 +146,7 @@ const rgb = (r: number, g: number, b: number): Color => ({ r, g, b, a: 1 });
  * @experimental
  */
 export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponent<TerrainData>('Terrain', {
-    extent: TerrainExtent.Area, provider: NOISE_PROVIDER, world: '', generatorVersion: 1, heightmap: 0, tiles: '', heightmapFormat: HeightmapFormat.Grey, splatmap: 0, splatmap2: 0, colorMap: 0, colorMapStrength: 1, layers: [] as string[], material: 0,
+    extent: TerrainExtent.Area, provider: NOISE_PROVIDER, world: '', generatorVersion: 1, heightmap: 0, tiles: '', heightmapFormat: HeightmapFormat.Grey, splatmap: 0, splatmap2: 0, colorMap: 0, colorMapStrength: 1, occlusionMap: 0, occlusionStrength: 1, layers: [] as string[], material: 0,
     // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): a kilometre of ground 150 m high on 2 m cells in any project.
     sizeX: 100000, sizeZ: 100000, height: 15000, cellSize: 200, detail: 1, drawDistance: 400000,
     collision: true, collisionDistance: 6400, collisionLayer: 0, friction: 0.6,
@@ -150,7 +154,7 @@ export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponen
     rockSlope: 0.35, dirtHeight: 0.62, snowHeight: 0.88,
     layerColor0: rgb(0.28, 0.46, 0.2), layerColor1: rgb(0.45, 0.36, 0.24), layerColor2: rgb(0.93, 0.95, 0.98), layerColor3: rgb(0.4, 0.38, 0.36),
 }, {
-    assetFields: [{ field: 'heightmap', type: 'texture' }, { field: 'splatmap', type: 'texture' }, { field: 'splatmap2', type: 'texture' }, { field: 'colorMap', type: 'texture' }, { field: 'material', type: 'material' }],
+    assetFields: [{ field: 'heightmap', type: 'texture' }, { field: 'splatmap', type: 'texture' }, { field: 'splatmap2', type: 'texture' }, { field: 'colorMap', type: 'texture' }, { field: 'occlusionMap', type: 'texture' }, { field: 'material', type: 'material' }],
     worldUnitFields: ['sizeX', 'sizeZ', 'height', 'cellSize', 'drawDistance', 'collisionDistance'],
     fields: {
         extent: { enum: [{ label: 'Area', value: TerrainExtent.Area }, { label: 'Infinite', value: TerrainExtent.Infinite }], category: 'Shape', tooltip: 'An area of its own size, from a heightmap or noise; or ground that goes on for ever, from noise read anywhere (the same seed is the same ground).' },
@@ -164,6 +168,8 @@ export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponen
         splatmap2: { tooltip: 'An image whose red, green, blue and alpha are the weights of layers 5 to 8.', category: 'Layers', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
         colorMap: { tooltip: 'A picture laid over the whole area and mixed into the ground\'s colour by its alpha. Its Use is Colour.', category: 'Layers', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
         colorMapStrength: { min: 0, max: 1, step: 0.01, slider: true, category: 'Layers', tooltip: 'How much of the colour map is mixed in where its alpha is whole.', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
+        occlusionMap: { tooltip: 'An image over the whole area whose red says how much of the sky reaches the ground: white all of it, black none. It dims the light from all round, not the sun\'s. Its Use is Data.', category: 'Layers', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
+        occlusionStrength: { min: 0, max: 1, step: 0.01, slider: true, category: 'Layers', tooltip: 'How much of the occlusion map is applied.', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
         layers: { tooltip: 'The terrain layers (.esterrainlayer, up to eight) the ground is drawn with, in the order the paint weighs them. Empty draws the four layer colours.', category: 'Layers' },
         material: { tooltip: 'A material on the Terrain shader (on Terrain Layers when the ground has layers). Empty uses the stock one.', category: 'Layers' },
         sizeX: { min: 1, category: 'Shape', tooltip: 'An area\'s size along x; for ground without end, the span its hills are spread over.' },
@@ -252,6 +258,8 @@ interface Built {
     packing: boolean;
     /** Whether the colour map is on the material: so taking it off is written once, and ground without one is written nothing. */
     washed: boolean;
+    /** The same of the occlusion map. */
+    shaded: boolean;
 }
 
 /** Where a terrain's ground stands: still being made, ready, or failed (with why). */
@@ -594,7 +602,7 @@ export const TerrainsRes = /* @__PURE__ */ defineResource<Terrains>(/* @__PURE__
 /** What, changed, rebuilds the ground: everything but the colours, the colour map, the detail and the collision, which are read each frame. */
 function signatureOf(data: TerrainData, at: { x: number; z: number }): string {
     const { layerColor0: _a, layerColor1: _b, layerColor2: _c, layerColor3: _d, detail: _e, drawDistance: _f,
-        collision: _g, collisionDistance: _h, collisionLayer: _i, friction: _j, colorMap: _k, colorMapStrength: _l, layers, ...rest } = data;
+        collision: _g, collisionDistance: _h, collisionLayer: _i, friction: _j, colorMap: _k, colorMapStrength: _l, occlusionMap: _m, occlusionStrength: _n, layers, ...rest } = data;
     // Which layers are only what the arrays are packed from; whether there are any is which shader the ground is drawn with.
     const shape = { ...rest, layered: (layers?.length ?? 0) > 0 };
     // Ground read from a provider is the world's where the terrain stands: moved, it is read again; and a game's own provider is read
@@ -675,7 +683,7 @@ export class TerrainPlugin implements Plugin {
                         signature, data: { ...data }, source: null, surface: null, epoch: (built?.epoch ?? 0) + 1, loading: true, cancel: null,
                         table: new PageTable(ATLAS_SIZE), heights: 0, paint: 0, mesh: 0, instance: 0,
                         nodes: new Map(), spare: [], wanted: new Map(), asked: new Set(), pending: false, failure: null, edits: 0,
-                        paint2: 0, arrays: [], packed: '', packing: false, washed: false,
+                        paint2: 0, arrays: [], packed: '', packing: false, washed: false, shaded: false,
                     };
                     terrains.built_.set(entity, built);
                     void this.load(app, entity, built);
@@ -1016,10 +1024,13 @@ export class TerrainPlugin implements Plugin {
         const b = source.bounds;
         set('u_terrainBounds', b ? { x: b[0], y: b[1], z: b[2], w: b[3] } : { x: -1e9, y: -1e9, z: 1e9, w: 1e9 });
         const wash = b && built.data.colorMap ? built.data.colorMapStrength : 0;
-        if (wash > 0 && b) {
-            set('u_colorMap', Material.tex(built.data.colorMap));
-            set('u_colorMapArea', { x: b[0], y: b[1], z: b[2] - b[0], w: b[3] - b[1] });
-        }
+        const shade = b && built.data.occlusionMap ? built.data.occlusionStrength : 0;
+        // Both maps lie over the whole area.
+        if ((wash > 0 || shade > 0) && b) set('u_colorMapArea', { x: b[0], y: b[1], z: b[2] - b[0], w: b[3] - b[1] });
+        if (wash > 0) set('u_colorMap', Material.tex(built.data.colorMap));
+        if (shade > 0) set('u_occlusionMap', Material.tex(built.data.occlusionMap));
+        if (shade > 0 || built.shaded) set('u_occlusionStrength', shade);
+        built.shaded = shade > 0;
         if (wash > 0 || built.washed) set('u_colorMapStrength', wash);
         built.washed = wash > 0;
         // The four layer colours are the Terrain shader's; ground with layers is drawn by another, which has no such params.
