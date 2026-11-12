@@ -39,6 +39,7 @@ import { setPlatform } from '../base';
 import { createPrimaryPointer } from '../primaryPointer';
 import { NativeAudioBackend } from '../../audio/NativeAudioBackend';
 import { createNativeTextEditor } from './textEditor';
+import { browserLanguageTag } from './languageTag';
 import { createSteamAchievements } from './steamAchievements';
 import type { AchievementProvider } from '../../services/achievements';
 import type { NativeBridge, NativeInputListener } from './bridge';
@@ -148,8 +149,9 @@ export class NativePlatformAdapter implements PlatformAdapter {
     }
 
     language(): string {
-        // platformLanguage() normalizes underscores ('zh_CN' → 'zh-CN').
-        return this.bridge_.language?.() ?? 'en';
+        // The OS's spelling ('zh-Hans-CN', 'zh_CN.UTF-8') reduced to the one a
+        // browser reports ('zh-CN'), so a game compares the same tag everywhere.
+        return browserLanguageTag(this.bridge_.language?.()) ?? 'en';
     }
 
     bindInputEvents(callbacks: InputEventCallbacks): void {

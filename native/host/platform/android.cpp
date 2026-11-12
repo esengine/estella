@@ -249,6 +249,45 @@ struct AndroidPlatform final : eshost::Platform {
         return std::string(model) + ", Android " + release + ", " + abi;
     }
 
+    /**
+     * `Locale.getDefault().toLanguageTag()` — 'zh-Hans-CN' on a phone set to
+     * Simplified Chinese.
+     *
+     * The process default rather than the system property: it is what follows a
+     * per-app language (Android 13) and a language changed while the game is in
+     * the background. java.util.Locale is a boot class, so FindClass resolves it
+     * from the frame loop's thread, where an app class would not.
+     */
+    std::string language() override {
+        if (!vm) return {};
+        JNIEnv* env = nullptr;
+        if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+            if (vm->AttachCurrentThread(&env, nullptr) != JNI_OK || !env) return {};
+        }
+        std::string out;
+        if (jclass cls = env->FindClass("java/util/Locale")) {
+            const jmethodID getDefault = env->GetStaticMethodID(cls, "getDefault", "()Ljava/util/Locale;");
+            const jmethodID toTag = env->GetMethodID(cls, "toLanguageTag", "()Ljava/lang/String;");
+            jobject locale = getDefault && toTag ? env->CallStaticObjectMethod(cls, getDefault) : nullptr;
+            if (locale && !env->ExceptionCheck()) {
+                if (auto tag = static_cast<jstring>(env->CallObjectMethod(locale, toTag))) {
+                    if (const char* utf8 = env->GetStringUTFChars(tag, nullptr)) {
+                        out = utf8;
+                        env->ReleaseStringUTFChars(tag, utf8);
+                    }
+                    env->DeleteLocalRef(tag);
+                }
+            }
+            if (locale) env->DeleteLocalRef(locale);
+            env->DeleteLocalRef(cls);
+        }
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+            return {};
+        }
+        return out;
+    }
+
     WGPUBackendType backend() const override { return WGPUBackendType_Vulkan; }
 
     WebGPUDevice::NativeSurface surface() override {

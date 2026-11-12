@@ -230,6 +230,21 @@ struct DesktopPlatform final : eshost::Platform {
         return out;
     }
 
+    /** The player's first preferred locale, which SDL reads from each OS's own
+     *  setting (the Windows display language, AppleLanguages, LANG) — so this is
+     *  one answer for the three desktops like the rest of this file. */
+    std::string language() override {
+        int count = 0;
+        SDL_Locale** locales = SDL_GetPreferredLocales(&count);
+        std::string out;
+        if (locales && count > 0 && locales[0] && locales[0]->language) {
+            out = locales[0]->language;
+            if (locales[0]->country) out += std::string("-") + locales[0]->country;
+        }
+        SDL_free(locales);
+        return out;
+    }
+
     WGPUBackendType backend() const override {
 #if defined(__APPLE__)
         return WGPUBackendType_Metal;

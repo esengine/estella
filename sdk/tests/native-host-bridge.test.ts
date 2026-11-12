@@ -364,3 +364,43 @@ describe('the host bridge names its device and carries its socket client', () =>
         expect(bridge.socket).toBeUndefined();
     });
 });
+
+describe('the device language', () => {
+    const language = (es_language?: () => string) =>
+        new NativePlatformAdapter(createHostBridge(hostScope(es_language ? { es_language } : {}) as never)).language();
+
+    it('reduces what each OS says to the tag a browser reports', () => {
+        expect(language(() => 'zh-Hans-CN')).toBe('zh-CN');     // Android, iOS
+        expect(language(() => 'zh-Hant-TW')).toBe('zh-TW');
+        expect(language(() => 'zh_CN.UTF-8')).toBe('zh-CN');    // POSIX
+        expect(language(() => 'en-US')).toBe('en-US');
+        expect(language(() => 'sr-Latn-RS')).toBe('sr-RS');
+        expect(language(() => 'ja')).toBe('ja');
+        expect(language(() => 'es-419')).toBe('es-419');
+        expect(language(() => 'en-US-u-ca-gregory')).toBe('en-US');
+    });
+
+    it('lets the script decide the Chinese region when the two disagree or one is missing', () => {
+        expect(language(() => 'zh-Hant')).toBe('zh-TW');
+        expect(language(() => 'zh-Hans')).toBe('zh-CN');
+        expect(language(() => 'zh-Hant-CN')).toBe('zh-TW');
+        expect(language(() => 'zh-Hans-HK')).toBe('zh-CN');
+        expect(language(() => 'zh-Hant-HK')).toBe('zh-HK');
+        expect(language(() => 'zh-Hans-SG')).toBe('zh-SG');
+    });
+
+    it('reads the host each time, since the player can change it while the game is away', () => {
+        let tag = 'zh-Hans-CN';
+        const adapter = new NativePlatformAdapter(createHostBridge(hostScope({ es_language: () => tag }) as never));
+        expect(adapter.language()).toBe('zh-CN');
+        tag = 'ja-JP';
+        expect(adapter.language()).toBe('ja-JP');
+    });
+
+    it("stays 'en' when the host has no answer", () => {
+        expect(language()).toBe('en');
+        expect(language(() => '')).toBe('en');
+        expect(language(() => 'C')).toBe('en');
+        expect(language(() => 'POSIX')).toBe('en');
+    });
+});

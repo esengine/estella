@@ -223,7 +223,9 @@ export interface NativeBridge {
     /** High-resolution clock. Optional — falls back to the host's `performance.now()`,
      *  then `Date.now()`, whose whole milliseconds read sub-millisecond spans as 0. */
     now?(): number;
-    /** Host UI language ('zh-CN', 'en-US', …). Optional — falls back to 'en'. */
+    /** The device language as the OS spells it ('zh-Hans-CN', 'en-US', 'zh_CN');
+     *  the adapter reduces it to language-region. Optional, and an empty answer
+     *  counts as none — both fall back to 'en'. */
     language?(): string;
 
     /** The native audio engine, when the host has a sound device. Absent → silent

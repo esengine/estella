@@ -3,7 +3,8 @@
 /**
  * @file    DeviceBindings.cpp
  * @brief   es_deviceName: what a person would call this device in a list — the
- *          name a development build gives the editor when it connects.
+ *          name a development build gives the editor when it connects. Also
+ *          es_language, the device's language as its OS reports it.
  */
 #include "Bindings.hpp"
 
@@ -65,6 +66,12 @@ esjs::Val js_isHandheld(const esjs::Args& a) {
 #endif
 }
 
+/** Asked on every call rather than kept: a player can change the system language
+ *  while the game is in the background. */
+esjs::Val js_language(const esjs::Args& a) {
+    return esjs::string(hostAlive() && host().platform ? host().platform->language().c_str() : "");
+}
+
 esjs::Val js_deviceCapabilities(const esjs::Args& a) {
     return esjs::int32(hostAlive() && host().platform ? host().platform->deviceCapabilities() : 0);
 }
@@ -117,6 +124,7 @@ esjs::Val js_setTargetFrameRate(const esjs::Args& a) {
 void registerDeviceBindings(HostState& h, esjs::Val global) {
     bindGlobal(global, "es_deviceName", js_deviceName, 0);
     bindGlobal(global, "es_isHandheld", js_isHandheld, 0);
+    bindGlobal(global, "es_language", js_language, 0);
     bindGlobal(global, "es_deviceCapabilities", js_deviceCapabilities, 0);
     bindGlobal(global, "es_startMotion", js_startMotion, 3);
     bindGlobal(global, "es_stopMotion", js_stopMotion, 0);

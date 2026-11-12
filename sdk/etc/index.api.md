@@ -1035,6 +1035,7 @@ diskCacheReport: (rescan?: boolean) => Promise<ContentCacheReport>
 fetchBinary: (ref: string) => Promise<ArrayBuffer>
 fetchJson: <T = unknown>(ref: string) => Promise<T>
 fetchText: (ref: string) => Promise<string>
+getAssetProblems: (asset: string) => readonly string[]
 getAssetRefResolver: () => AssetRefResolver | null
 getAtlasFrame: (ref: string) => AtlasFrameInfo | null
 getLoader: <T>(type: string) => AssetLoader<T> | undefined
@@ -1093,6 +1094,7 @@ resolveSceneAssetPaths: (sceneData: SceneData, result: SceneAssetResult) => void
 restorePersistedUpdate: (key: string) => boolean
 retainDiskCacheVersion: (revision: string, retain?: boolean) => Promise<ContentCacheReport>
 reuploadTexturesAfterDeviceLoss: () => Promise<number>
+setAssetProblemListener: (listener: ((asset: string, problems: readonly string[]) => void) | null) => void
 setAssetRefResolver: (resolver: AssetRefResolver) => void
 setManifest: (manifest: AddressableManifest | ManifestModel | null) => void
 setRefCounter: (counter: AssetRefCounter) => void
@@ -6819,6 +6821,7 @@ tiles: number[]
 max: number
 min: number
 slot: number
+stale: boolean | undefined
 used: number
 ```
 
@@ -6857,6 +6860,8 @@ claim: (key: string, min: number, max: number) => Page | null
 clear: () => void
 forget: (test: (key: string) => boolean) => void
 get: (key: string) => Page | undefined
+isStale: (key: string) => boolean
+markStale: (test: (key: string) => boolean) => void
 origin: (slot: number) => [number, number]
 perRow: number
 size: number

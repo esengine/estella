@@ -191,6 +191,7 @@ tiles: number[]
 max: number
 min: number
 slot: number
+stale: boolean | undefined
 used: number
 ```
 
@@ -211,6 +212,8 @@ claim: (key: string, min: number, max: number) => Page | null
 clear: () => void
 forget: (test: (key: string) => boolean) => void
 get: (key: string) => Page | undefined
+isStale: (key: string) => boolean
+markStale: (test: (key: string) => boolean) => void
 origin: (slot: number) => [number, number]
 perRow: number
 size: number

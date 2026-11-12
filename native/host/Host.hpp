@@ -171,6 +171,18 @@ struct Platform {
     virtual std::string describe() = 0;
 
     /**
+     * The language the player set their device to, as the OS spells it
+     * ('zh-Hans-CN', 'en-US', 'zh_CN').
+     *
+     * Nothing else can answer this: a native script has no `navigator`, and the
+     * JS engine's own `Intl` reports the locale it was built with, not the
+     * phone's. Raw on purpose — the SDK reduces it to the language-region form a
+     * browser reports, in one place for every host. Empty when the platform
+     * cannot say, and the SDK then falls back to 'en'.
+     */
+    virtual std::string language() { return {}; }
+
+    /**
      * The directory the executable is in, with a trailing separator — the only
      * place a shipped app's sibling libraries are looked for.
      *

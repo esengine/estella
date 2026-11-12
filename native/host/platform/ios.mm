@@ -144,6 +144,13 @@ struct IOSPlatform final : eshost::Platform {
              + std::string([[d systemVersion] UTF8String]) + ", arm64";
     }
 
+    /** The first language the app can actually be shown in ('zh-Hans-CN'):
+     *  preferredLanguages is the player's ordered list, per-app setting included. */
+    std::string language() override {
+        NSString* tag = [NSLocale preferredLanguages].firstObject;
+        return tag ? std::string([tag UTF8String]) : std::string();
+    }
+
     WGPUBackendType backend() const override { return WGPUBackendType_Metal; }
 
     WebGPUDevice::NativeSurface surface() override {

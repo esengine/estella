@@ -115,6 +115,9 @@ export interface NativeHostBindings extends NativeDeviceHost {
     /** Whether this host is a phone or a tablet. */
     es_isHandheld?(): boolean;
 
+    /** The device language, raw from the OS ('zh-Hans-CN'); empty when unknown. */
+    es_language?(): string;
+
     /** The host's `ws://` client: events arrive on the JS thread, `close` last. */
     es_wsOpen?(url: string, onEvent: (event: NativeSocketEvent) => void): number;
     es_wsSend?(id: number, data: string | ArrayBuffer): boolean;
@@ -208,6 +211,7 @@ export function createHostBridge(
         fetch: (url, options) => hostFetch(bindings, url, options),
         ...(bindings.es_deviceName ? { deviceName: () => bindings.es_deviceName!() } : {}),
         ...(bindings.es_isHandheld ? { isHandheld: () => bindings.es_isHandheld!() } : {}),
+        ...(bindings.es_language ? { language: () => bindings.es_language!() } : {}),
         ...(bindings.es_wsOpen && bindings.es_wsSend && bindings.es_wsClose ? {
             socket: {
                 open: (url, onEvent) => {
