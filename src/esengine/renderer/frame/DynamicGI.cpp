@@ -36,7 +36,9 @@ enum Header : u32 {
     kDim = 0, kCell, kOriginX, kOriginY, kOriginZ, kReach, kInstances, kPixels,
     kSunX, kSunY, kSunZ, kSunOn, kSunR, kSunG, kSunB, kBias, kRange, kTolerance, kSkyR, kSkyG, kSkyB, kHit, kLevels, kLights,
     /// Levels 1 and 2, eight floats each: dim, cell, origin x y z, reach, offset, owner offset. Then the lights, sixteen floats each.
-    kLevelBlock = 24, kLightBlock = 40, kHeaderSize = 40
+    kLevelBlock = 24, kLightBlock = 40, kHeaderSize = 40,
+    /// After the lights: how much fatter than its mesh the fattest body's field is.
+    kGrowth = 40 + 8 * 16
 };
 constexpr u32 kMaxLevels = 3, kMaxLights = 8, kLightFloats = 16;
 
@@ -73,7 +75,7 @@ struct GI {
     sunRad : vec4f,    // rgb: radiance; w: how far off a surface a ray starts
     trace : vec4f,     // x: how far a ray looks, y: card tolerance, z: blend, w: hit fraction of a cell
     sky : vec4f,       // rgb: what a ray that meets nothing brings
-    misc : vec4f,      // x: how many frames the cards are spread over; y: 1 of every this many rays of a probe is traced a frame; z: pixels between probes
+    misc : vec4f,      // x: how many frames the cards are spread over; y: 1 of every this many rays of a probe is traced a frame; z: pixels between probes; w: how much fatter than its mesh a body's field is
     levelA : array<vec4i, 3>,   // per level: the first cell of its window, cells per axis
     levelB : array<vec4f, 3>,   // per level: cell size, reach
     levelC : array<vec4u, 3>,   // per level: where its field starts in sdfData, and its owner words
@@ -135,6 +137,32 @@ fn sdfTrace(origin : vec3f, dir : vec3f, maxT : f32) -> f32 {
         t = t + max(d, cell * 0.25);
     }
     return -1.0;
+}
+// Where a ray from a surface point may start. Lifted off its own surface the point can still be inside what a trace calls a hit of ANOTHER
+// surface (a wall the next wall over meets: the corner of a room), and every ray from there would hit at 0 and bring nothing, which is a
+// black band along every edge of the room, as wide as the cell is coarse. It is moved out along the field's slope until it is clear.
+fn clearOrigin(o : vec3f) -> vec3f {
+    var p = o;
+    for (var i = 0; i < 2; i = i + 1) {
+        let li = levelAt(p);
+        if (li < 0) { return p; }
+        let l = u32(li);
+        let cell = gi.levelB[l].x;
+        let want = cell * (gi.trace.w + 0.25);
+        let d = sdfSample(l, p);
+        if (d >= want) { return p; }
+        // Under the surface of another body (a card pixel of a wall's end, buried in the wall it meets): left where it is, to bring nothing.
+        // Moved out it would come up on whichever side is nearer, the lit outside of a sealed room among them, and the room would leak.
+        if (i == 0 && d < cell * 0.1 - gi.misc.w) { return p; }
+        let h = cell * 0.5;
+        let g = vec3f(sdfSample(l, p + vec3f(h, 0.0, 0.0)) - sdfSample(l, p - vec3f(h, 0.0, 0.0)),
+                      sdfSample(l, p + vec3f(0.0, h, 0.0)) - sdfSample(l, p - vec3f(0.0, h, 0.0)),
+                      sdfSample(l, p + vec3f(0.0, 0.0, h)) - sdfSample(l, p - vec3f(0.0, 0.0, h)));
+        let len = length(g);
+        if (len < 1e-6) { return p; }
+        p = p + g / len * (want - d);
+    }
+    return p;
 }
 
 fn instBase(i : u32) -> u32 { return i * 20u; }
@@ -343,7 +371,7 @@ fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_index) lid 
     let scale = insts[b + 7u].w;
     let nl = unpackNormal(pix.x, pix.y);
     let n = normalize((m0.xyz * nl.x + m1.xyz * nl.y + m2.xyz * nl.z) / scale);
-    let origin = pos + n * gi.sunRad.w;
+    let origin = clearOrigin(pos + n * gi.sunRad.w);
     let d = probeRay(lid & 7u, lid >> 3u, n, p, u32(gi.origin.w));
     cardSum[lid] = rayRadiance(origin, d) * dot(d, n);
     workgroupBarrier();
@@ -422,7 +450,7 @@ fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_id) lid3 : 
         let stride = max(u32(gi.misc.y), 1u);
         if (((lid3.x + lid3.y * 3u + u32(gi.origin.w)) % stride) == 0u) {
             let d = probeRay(lid3.x, lid3.y, n, wg.x + wg.y * gi.counts.z, u32(gi.origin.w));
-            let L = rayRadiance(pos + n * gi.sunRad.w, d);
+            let L = rayRadiance(clearOrigin(pos + n * gi.sunRad.w), d);
             contribution = array<vec3f, 3>(d * L.x * f32(stride), d * L.y * f32(stride), d * L.z * f32(stride));
         }
     }
@@ -754,6 +782,7 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
         b.sky[0] = h[kSkyR]; b.sky[1] = h[kSkyG]; b.sky[2] = h[kSkyB];
         b.misc[0] = static_cast<f32>(std::clamp(p.cardSlices, 1u, 4096u)); b.misc[1] = static_cast<f32>(std::clamp(p.probeStride, 1u, 8u));
         b.misc[2] = static_cast<f32>(probeSpacing_);
+        b.misc[3] = h.size() > kGrowth ? h[kGrowth] : 0.0f;
         device_.updateBuffer(params_, 0, &b, sizeof(b));
     };
 

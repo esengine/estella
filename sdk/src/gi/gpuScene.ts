@@ -45,7 +45,8 @@ export interface GPUScene {
 export const GI_MAX_LEVELS = 3;
 export const GI_MAX_LIGHTS = 8;
 export const GI_LIGHT_FLOATS = 16;
-export const GI_HEADER_FLOATS = 40 + GI_MAX_LIGHTS * GI_LIGHT_FLOATS;
+/** The header ends with one float past the lights: the growth of the fattest instance's field (see `clearOrigin` in DynamicGI.cpp). */
+export const GI_HEADER_FLOATS = 40 + GI_MAX_LIGHTS * GI_LIGHT_FLOATS + 1;
 export const GI_INSTANCE_FLOATS = 80;
 
 /** A box of the given size centred on the origin, as a distance field and as cards, without any mesh: what a primitive is to the GI. */
@@ -179,6 +180,7 @@ export function packGPUScene(instances: readonly GIInstance[], light: GILight | 
     set(8, ...(light?.toLight ?? [0, 1, 0]), light ? 1 : 0, ...(light?.radiance ?? [0, 0, 0]), bias, extent * 2.5, tolerance);
     set(18, ...(options.sky ?? [0, 0, 0]), 0.25);
     set(22, levels.length);
+    set(GI_HEADER_FLOATS - 1, growth);
     // The field of every level, each followed by its owner words, level 0 first (so the header's offsets for it are 0 and dim^3). A level is
     // copied into the packed array only if it changed since the last pack of this field: a camera that moves rebuilds the finest level
     // nearly every step and the others once in a long while, and the copy is 10 MB a level.
