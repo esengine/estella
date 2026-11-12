@@ -63,6 +63,19 @@ describe('a cell of grass', () => {
         }
     });
 
+    it('leaves a blade its own width where each version is a layer: the shader widens them all, at every distance, as they thin', () => {
+        const far = { levels: 2, keep: 0.25, grow: 4, cards: false };
+        const rootWidth = (mesh: MeshData): number => {
+            const at = mesh.channels.find((c) => c.semantic === MeshChannel.Position)!.offset;
+            const view = new DataView(mesh.vertices.buffer, mesh.vertices.byteOffset);
+            const x = (v: number, k: number): number => view.getFloat32(v * mesh.vertexStride + at + k * 4, true);
+            return Math.hypot(x(1, 0) - x(0, 0), x(1, 2) - x(0, 2));
+        };
+        expect(rootWidth(buildFoliageCell(spec({ ...far, only: 2 }), around, null)[0]!)).toBeCloseTo(0.1, 5);
+        // Picked by a LODGroup, with no shader to widen it, a far blade is made wider once: by the root of what it stands for.
+        expect(rootWidth(buildFoliageCell(spec(far), around, null)[2]!)).toBeCloseTo(0.4, 5);
+    });
+
     it('has no far version past the last plant, and none at all where nothing grows', () => {
         const few = { ...spec({ levels: 3, keep: 0.1, grow: 4, cards: false }), count: 6 };
         const meshes = buildFoliageCell(few, around, null);

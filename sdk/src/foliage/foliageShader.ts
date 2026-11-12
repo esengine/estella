@@ -18,6 +18,10 @@ const FOLIAGE = `#pragma shader "Foliage"
 #pragma param u_tipColor color default(0.55,0.72,0.25,1)
 // How far up the plant the tip's colour begins: 0 runs from the root (a blade), 0.85 keeps a stem the base colour under a head of the tip's.
 #pragma param u_tipFrom float default(0) range(0,0.99) ui(slider)
+// A strip of colours each plant takes its tip's colour from, by a number of its own (the Foliage component writes it): a field of one
+// mesh and one material in many colours, in the shares the strip gives each.
+#pragma param u_palette texture default(white)
+#pragma param u_paletteOn float default(0) range(0,1) ui(slider)
 // A texture over the plant (leaves, bark), and whether it is used at all: grass is drawn from the two colours and wants none.
 #pragma param u_albedo texture default(white)
 #pragma param u_useTexture float default(0) range(0,1) ui(slider)
@@ -49,6 +53,10 @@ const FOLIAGE = `#pragma shader "Foliage"
 // How many far versions are layers of their own (0: none are, and a mesh is drawn at any distance): a mesh says which it is in its
 // colour's alpha, in thirds, and is drawn from where it takes over to where the next does.
 #pragma param u_thinLevels float default(0) range(0,3) ui(slider)
+// Grass: a blade's width at its root (0 for a mesh) and the most it widens. As its neighbours are left out a blade widens by as much as
+// they were, along its own width, so the ground the field covers is the same at every distance.
+#pragma param u_bladeWidth float default(0) range(0,100000) ui(slider)
+#pragma param u_thinGrow float default(2) range(1,16) ui(slider)
 // How far plants part from what touches them, as a share of its reach. The four contacts are written each frame (a FoliageContact): where each is, and how far it reaches now.
 #pragma param u_contactBend float default(0.7) range(0,2) ui(slider)
 #pragma param u_contact0 vec4 default(0,0,0,0)
@@ -103,6 +111,12 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
             if (away < nearEdge || away >= farEdge) keep = -1.0;
         }
         // Every vertex of a blade left out goes to one point: its triangles have no area and draw nothing.
+        if (u_bladeWidth > 0.0 && keep > 0.0) {
+            // The blade's width runs square to its normal on the ground: its uv says which edge this is and how far up.
+            vec2 side = normalize(vec2(localNormal.z, -localNormal.x) + vec2(1e-6, 0.0));
+            float wider = min(1.0 / keep, u_thinGrow) - 1.0;
+            local.xz += side * ((uv.x * 2.0 - 1.0) * u_bladeWidth * 0.5 * (1.0 - uv.y * 0.85) * wider);
+        }
         if (es_vertexColor.g > keep) local = vec3(0.0);
     }
 }
@@ -154,6 +168,13 @@ fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, ve
             if (level < mc.u_thinLevels - 0.5) { farEdge = mc.u_thinDistance * pow(mc.u_thinStep, level); }
             if (away < nearEdge || away >= farEdge) { keep = -1.0; }
         }
+        if (mc.u_bladeWidth > 0.0 && keep > 0.0) {
+            let side = normalize(vec2f((*localNormal).z, -(*localNormal).x) + vec2f(1e-6, 0.0));
+            let wider = min(1.0 / keep, mc.u_thinGrow) - 1.0;
+            let wide = side * ((uv.x * 2.0 - 1.0) * mc.u_bladeWidth * 0.5 * (1.0 - uv.y * 0.85) * wider);
+            (*local).x = (*local).x + wide.x;
+            (*local).z = (*local).z + wide.y;
+        }
         if (es_vertexColor.g > keep) { *local = vec3f(0.0); }
     }
 }
@@ -200,7 +221,13 @@ void main() {
     vec4 tex = texture(u_albedo, v_texCoord);
     // Before the branch: a derivative needs every fragment of its quad.
     float edgeA = fwidth(tex.a);
-    vec3 albedo = mix(u_baseColor.rgb, u_tipColor.rgb, clamp((height - u_tipFrom) / (1.0 - u_tipFrom), 0.0, 1.0));
+    vec3 tip = u_tipColor.rgb;
+    if (u_paletteOn > 0.5) {
+        // Not the number plants thin by, or the far field would be the strip's first colours: one drawn from it. A texel's centre, so two colours never blend.
+        float across = float(textureSize(u_palette, 0).x);
+        tip = textureLod(u_palette, vec2((floor(fract(v_color.g * 13.7 + 0.31) * across) + 0.5) / across, 0.5), 0.0).rgb;
+    }
+    vec3 albedo = mix(u_baseColor.rgb, tip, clamp((height - u_tipFrom) / (1.0 - u_tipFrom), 0.0, 1.0));
     float alpha = 1.0;
     if (u_useTexture > 0.5) {
         albedo *= tex.rgb;
@@ -272,7 +299,12 @@ fn packNormal(n : vec3f) -> vec2f {
 #endif
     let height = clamp(v.v_color.r, 0.0, 1.0);
     let light = v.v_color.b;
-    var albedo = mix(mc.u_baseColor.rgb, mc.u_tipColor.rgb, vec3f(clamp((height - mc.u_tipFrom) / (1.0 - mc.u_tipFrom), 0.0, 1.0)));
+    var tip = mc.u_tipColor.rgb;
+    if (mc.u_paletteOn > 0.5) {
+        let across = f32(textureDimensions(u_palette, 0).x);
+        tip = textureSampleLevel(u_palette, u_palette_s, vec2f((floor(fract(v.v_color.g * 13.7 + 0.31) * across) + 0.5) / across, 0.5), 0.0).rgb;
+    }
+    var albedo = mix(mc.u_baseColor.rgb, tip, vec3f(clamp((height - mc.u_tipFrom) / (1.0 - mc.u_tipFrom), 0.0, 1.0)));
     var alpha = 1.0;
     if (mc.u_useTexture > 0.5) {
         albedo = albedo * tex.rgb;

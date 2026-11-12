@@ -57,6 +57,8 @@ export interface FoliageData {
     colorMap: number;
     /** How much of the colour map is mixed in where its alpha is whole. */
     colorMapStrength: number;
+    /** A strip of colours each plant takes the colour of its top from, by a number of its own: as wide a share of the strip, as many of the plants. */
+    palette: number;
     /** How many far versions a cell has, 1 to 3: each is the same plants, fewer and larger, and takes over `farStep` times further out than the last. */
     farLevels: number;
     /** The share of its plants each far version keeps of the one before. They thin to it plant by plant before it takes over, so nothing jumps. */
@@ -114,7 +116,7 @@ export interface FoliageData {
  * @experimental
  */
 export const Foliage: ComponentDef<FoliageData> = defineComponent<FoliageData>('Foliage', {
-    mesh: 0, material: 0, densityMap: 0, colorMap: 0, colorMapStrength: 1, colorMapFrom: 0,
+    mesh: 0, material: 0, densityMap: 0, colorMap: 0, colorMapStrength: 1, colorMapFrom: 0, palette: 0,
     farLevels: 1, farKeep: 0.34, farStep: 2, farGrow: 2, farCards: true,
     sizeX: 400, sizeZ: 400, cellSize: 40, count: 500, seed: 1,
     minScale: 0.8, maxScale: 1.25, minUp: 0.7, heightMin: -100000, heightMax: 100000, waterDepth: 0,
@@ -122,13 +124,14 @@ export const Foliage: ComponentDef<FoliageData> = defineComponent<FoliageData>('
     zoneWorld: '', zoneTags: '', zonePadding: 0,
     cardU0: 0, cardV0: 0, cardU1: 1, cardV1: 1, cardTent: 0,
 }, {
-    assetFields: [{ field: 'mesh', type: 'mesh' }, { field: 'material', type: 'material' }, { field: 'densityMap', type: 'texture' }, { field: 'colorMap', type: 'texture' }],
+    assetFields: [{ field: 'mesh', type: 'mesh' }, { field: 'material', type: 'material' }, { field: 'densityMap', type: 'texture' }, { field: 'colorMap', type: 'texture' }, { field: 'palette', type: 'texture' }],
     fields: {
         mesh: { tooltip: 'The plant to scatter. Empty grows grass.', category: 'Plant' },
         material: { tooltip: 'A material on the Foliage shader, which makes the wind. Empty draws the plants still, in their own colours.', category: 'Plant' },
         densityMap: { tooltip: 'An image over the area whose red says how many of the plants stand where: none at black, all of them at white. Its Use is Data. Empty grows them everywhere.', category: 'Placement' },
         colorMap: { tooltip: 'A picture over the area that colours the plants by where they stand, mixed in by its alpha. Needs a material.', category: 'Plant' },
         colorMapStrength: { min: 0, max: 1, step: 0.01, slider: true, category: 'Plant', tooltip: 'How much of the colour map is mixed in where its alpha is whole.' },
+        palette: { tooltip: 'A strip of colours each plant takes the colour of its top from, by a number of its own: as wide a share of the strip, as many of the plants. Needs a material; the top begins at its Tip From.', category: 'Plant' },
         colorMapFrom: { min: 0, max: 1, step: 0.01, slider: true, category: 'Plant', tooltip: 'How far up a plant the colour map begins: 0 colours it whole, higher only its top.' },
         sizeX: { min: 1, category: 'Area', tooltip: 'World size along x, centred on this entity.' },
         sizeZ: { min: 1, category: 'Area', tooltip: 'World size along z, centred on this entity.' },
@@ -166,6 +169,8 @@ interface BuiltFoliage {
     signature: string;
     data: FoliageData;
     source: MeshData | null;
+    /** The field's own instance of its material (0 with none): what its cells are drawn with and where everything the field itself says is written, so two fields on one material do not write over each other. */
+    instance: number;
     /** The density map's red, read once; null where the field has none. */
     density: { width: number; height: number; values: Uint8Array } | null;
     loading: boolean;
@@ -216,8 +221,8 @@ export class FoliageField {
     /** @internal */ readonly built_ = new Map<Entity, BuiltFoliage>();
     /** @internal The u_windStrength each material had before the weather's wind scaled it, to put back. */
     readonly authoredWind_ = new Map<number, number>();
-    /** The materials a colour map is written to, so taking it off is written once. */
-    readonly washed_ = new Set<number>();
+    /** Instances of materials no field draws with any more, let go once the cells grown with them are gone. */
+    readonly retired_: { instance: number; frames: number }[] = [];
 
     /** @internal */ app_: App | null = null;
 
@@ -285,16 +290,20 @@ export class FoliagePlugin implements Plugin {
             for (const entity of app.world.getEntitiesWithComponents([Foliage, Transform])) {
                 const data = app.world.get(entity, Foliage) as FoliageData;
                 // The colour map is read by the material each frame: changing it grows nothing again.
-                const { colorMap: _c, colorMapStrength: _s, colorMapFrom: _f, ...grown } = data;
+                const { colorMap: _c, colorMapStrength: _s, colorMapFrom: _f, palette: _p, ...grown } = data;
                 const signature = JSON.stringify(grown);
                 let built = field.built_.get(entity);
                 if (!built || built.signature !== signature) {
-                    built = { signature, data: { ...data }, source: null, density: null, loading: true, epoch: (built?.epoch ?? 0) + 1 };
+                    // The instance outlives a rebuild on the same material; one on a material no longer the field's is let go once its old cells are.
+                    const kept = built && built.data.material === data.material ? built.instance : 0;
+                    if (built && built.instance && !kept) field.retired_.push({ instance: built.instance, frames: 600 });
+                    const instance = kept || (data.material ? Material.createInstance(data.material) : 0);
+                    built = { signature, data: { ...data }, source: null, instance, density: null, loading: true, epoch: (built?.epoch ?? 0) + 1 };
                     field.built_.set(entity, built);
                     void this.start(app, built);
                 }
                 built.data = { ...data };
-                this.wash(app, entity, data);
+                this.wash(app, entity, built);
                 const zones = zonesOf(app, data.zoneWorld);
                 this.layer(app, entity, built, `${revision}:${zones?.revision ?? 0}`, waiting);
             }
@@ -343,6 +352,9 @@ export class FoliagePlugin implements Plugin {
         for (const entity of field.built_.keys()) {
             if (app.hasResource(ProceduralChunksRes)) for (let level = 0; level <= FAR_LEVELS; level++) app.getResource(ProceduralChunksRes).remove(layerOf(entity, level));
         }
+        for (const built of field.built_.values()) if (built.instance) Material.release(built.instance);
+        for (const r of field.retired_) Material.release(r.instance);
+        field.retired_.length = 0;
         field.built_.clear();
         // What had come back and not landed is let go with the field: its cells are no longer anyone's.
         field.landed_.length = 0;
@@ -422,20 +434,21 @@ export class FoliagePlugin implements Plugin {
         return { ...built.density, originX: t.worldPosition.x - sizeX / 2, originZ: t.worldPosition.z - sizeZ / 2, sizeX, sizeZ };
     }
 
-    /** Writes the colour map to the field's material: the picture, where it lies and how much of it. */
-    private wash(app: App, entity: Entity, data: FoliageData): void {
-        if (!data.material) return;
-        const field = app.getResource(FoliageRes);
+    /** Writes the colour map and the palette to the field's instance of its material. */
+    private wash(app: App, entity: Entity, built: BuiltFoliage): void {
+        const material = built.instance, data = built.data;
+        if (!material) return;
         const t = app.world.tryGet(entity, Transform) as TransformData | null;
         const strength = data.colorMap && t ? data.colorMapStrength : 0;
         if (strength > 0 && t) {
             const sizeX = data.sizeX * (t.worldScale.x || 1), sizeZ = data.sizeZ * (t.worldScale.z || 1);
-            Material.setUniform(data.material, 'u_colorMap', Material.tex(data.colorMap));
-            Material.setUniform(data.material, 'u_colorMapArea', { x: t.worldPosition.x - sizeX / 2, y: t.worldPosition.z - sizeZ / 2, z: sizeX, w: sizeZ });
-            Material.setUniform(data.material, 'u_colorMapFrom', data.colorMapFrom);
+            Material.setUniform(material, 'u_colorMap', Material.tex(data.colorMap));
+            Material.setUniform(material, 'u_colorMapArea', { x: t.worldPosition.x - sizeX / 2, y: t.worldPosition.z - sizeZ / 2, z: sizeX, w: sizeZ });
+            Material.setUniform(material, 'u_colorMapFrom', data.colorMapFrom);
         }
-        if (strength > 0 || field.washed_.has(data.material)) Material.setUniform(data.material, 'u_colorMapStrength', strength);
-        if (strength > 0) field.washed_.add(data.material); else field.washed_.delete(data.material);
+        Material.setUniform(material, 'u_colorMapStrength', strength);
+        if (data.palette) Material.setUniform(material, 'u_palette', Material.tex(data.palette));
+        Material.setUniform(material, 'u_paletteOn', data.palette ? 1 : 0);
     }
 
     private cellsAcross(data: FoliageData): { x: number; z: number } {
@@ -505,13 +518,15 @@ export class FoliagePlugin implements Plugin {
         const worldX = t.worldPosition.x + localX * sx, worldZ = t.worldPosition.z + localZ * sz;
         const hasTerrain = !!terrains && terrains.built_.size > 0;
         // Plants thin, each by its own number, to what the next far version keeps before it takes over, and to none at the draw distance.
-        if (data.material) {
+        if (built.instance) {
             const thins = !built.source || !data.farCards;
-            Material.setUniform(data.material, 'u_thinLevels', farLevelsOf(data, !!built.source));
-            Material.setUniform(data.material, 'u_thinDistance', thins ? data.lodDistance : 0);
-            Material.setUniform(data.material, 'u_thinKeep', Math.min(Math.max(data.farKeep, 0.01), 1));
-            Material.setUniform(data.material, 'u_thinStep', Math.max(data.farStep, 1.01));
-            Material.setUniform(data.material, 'u_thinEnd', thins ? data.drawDistance : 0);
+            Material.setUniform(built.instance, 'u_thinLevels', farLevelsOf(data, !!built.source));
+            Material.setUniform(built.instance, 'u_bladeWidth', built.source ? 0 : data.bladeWidth);
+            Material.setUniform(built.instance, 'u_thinGrow', Math.max(data.farGrow, 1));
+            Material.setUniform(built.instance, 'u_thinDistance', thins ? data.lodDistance : 0);
+            Material.setUniform(built.instance, 'u_thinKeep', Math.min(Math.max(data.farKeep, 0.01), 1));
+            Material.setUniform(built.instance, 'u_thinStep', Math.max(data.farStep, 1.01));
+            Material.setUniform(built.instance, 'u_thinEnd', thins ? data.drawDistance : 0);
         }
         const spec: FoliageCellSpec = {
             centerX: worldX, centerZ: worldZ, size: Math.min(side, data.sizeX / cells.x), count: Math.floor(data.count), seed: data.seed,
@@ -571,7 +586,7 @@ export class FoliagePlugin implements Plugin {
         const cell = world.spawn(`FoliageCell ${cx},${cz}`);
         world.insert(cell, Transform, { position: { x: localX, y: 0, z: localZ } });
         world.insert(cell, MeshRenderer, {
-            mesh: handles[0]!, material: data.material, lit: true, opaque: true, cullBackfaces: false,
+            mesh: handles[0]!, material: built.instance || data.material, lit: true, opaque: true, cullBackfaces: false,
             castShadows: data.castShadows !== false,
             color: { r: 1, g: 1, b: 1, a: 1 },
         } as Partial<MeshRendererData>);
@@ -593,10 +608,16 @@ export class FoliagePlugin implements Plugin {
     }
 
     private sweep(app: App, field: FoliageField): void {
-        for (const entity of field.built_.keys()) {
+        for (const [entity, built] of field.built_) {
             if (app.world.valid(entity) && app.world.has(entity, Foliage)) continue;
             if (app.hasResource(ProceduralChunksRes)) for (let level = 0; level <= FAR_LEVELS; level++) app.getResource(ProceduralChunksRes).remove(layerOf(entity, level));
+            if (built.instance) field.retired_.push({ instance: built.instance, frames: 2 });
             field.built_.delete(entity);
+        }
+        for (let i = field.retired_.length - 1; i >= 0; i--) {
+            if (--field.retired_[i]!.frames > 0) continue;
+            Material.release(field.retired_[i]!.instance);
+            field.retired_.splice(i, 1);
         }
     }
 }

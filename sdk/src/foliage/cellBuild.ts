@@ -129,7 +129,8 @@ export function buildFoliageCell(spec: FoliageCellSpec, around: CellSurroundings
     for (const p of plants) p.y -= spec.baseY;
     const levels = Math.min(Math.max(Math.floor(spec.far.levels), 1), 3);
     const share = (level: number): number => Math.pow(Math.min(Math.max(spec.far.keep, 0.01), 1), level);
-    const wider = (level: number): number => Math.min(Math.sqrt(1 / share(level)), Math.max(spec.far.grow, 1));
+    // Where each version is a layer of its own the shader widens every blade as its neighbours thin, at any distance; here a far blade is made wider once.
+    const wider = (level: number): number => (spec.far.only != null ? 1 : Math.min(Math.sqrt(1 / share(level)), Math.max(spec.far.grow, 1)));
     const only = spec.far.only ?? null;
     const band = only === null ? undefined : only;
     const copies = (level: number): MeshData | null => {
