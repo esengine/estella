@@ -4556,6 +4556,8 @@ export const NOTED = {
     {"note": "A baked occlusion over the ground."},
   "fix(water): water is as deep as it is, not as far as the eye's line through it - the light a pixel shows crossed the depth under it at the slope light takes in water, where the straight line to the bed made any sea seen low across it deep and blue; the bed is dimmed by the water its light came down through too, and how soon the water's colour deepens is a param":
     {"note": "Water is as deep as it is, not as far as the eye's line through it."},
+  "fix(water): a far sea mirrors the sky again - the widening of the highlight by how the normal turns across a pixel made distant water as rough as chalk and took most of its glancing reflection away; it is gone, and the ripple map's own mips are what keep far water from flashing":
+    {"note": "Water mirrors only what is there."},
   "fix(terrain): a splatmap is numbers too - cooked as a picture its three weights were overwritten wherever the fourth was 0, and the whole ground was painted as grass; it is marked Data when it is set, as the heightmap is":
     {"note": "A texture says whether it is a picture or numbers."},
   "perf(lighting): a lit sprite is lit by its own short function - the general model's sums term for term, the two 2D masks read once for the pixel where each light read them again, and none of the highlight carried along; 32 screen-filling lit layers under four lamps go from 5.4 ms to 4.7 on WebGL2 and from 8.8 to 6.5 on WebGPU, and the note prices what is left":
