@@ -118,7 +118,20 @@ description: 若干 WaterBody 组件说明海洋、湖泊或河流在哪里,一�
 及其流速（`u_run`）、底部少掉多少（`u_veil`）和落到多深撕成那样（`u_tearBy`）、`u_opacity` 和 `u_roughness`。自己写材质时可以读网格
 带的数据：`uv.x` 是横向位置，`uv.y` 是那里的水已经下落的秒数，颜色的红是下落完成的比例，绿是每片水帘自己的编号。
 
-瀑布只是水帘本身：底部的水雾和落水处的白沫由 `ParticleEmitter` 和水潭自己来画。
+瀑布只画水帘本身。要放在瀑布某处的东西，做成带 **`WaterfallAnchor`** 的子实体：瀑布会把这个子实体保持在水流路径的中线上，
+`at` 为 1 时在落点（水落到哪里就在哪里），0 在崖口，中间的值按下落时间的比例取点，`lift` 是高出路径多少。子实体上放一个
+[`ParticleEmitter`](/docs/zh-cn/world/particles/) 就是水雾，瀑布下方的地形或水域变了，它会跟着落点走：
+
+```json
+{ "name": "Foot Mist", "parent": 31, "components": [
+  { "type": "Transform", "data": {} },
+  { "type": "WaterfallAnchor", "data": { "at": 1 } },
+  { "type": "ParticleEmitter", "data": { "shape": 5, "shapeRadius": 700, "rate": 22, "speedMin": 150, "speedMax": 600,
+      "lifetimeMin": 4, "lifetimeMax": 8, "startSizeMin": 400, "startSizeMax": 800, "endSizeMin": 1400, "endSizeMax": 2400,
+      "blendMode": 0, "startColor": { "r": 1, "g": 1, "b": 1, "a": 0.12 }, "endColor": { "r": 1, "g": 1, "b": 1, "a": 0 } } } ] }
+```
+
+锚点只设置子实体的位置（在瀑布自己的空间里），旋转和缩放保持原样。
 
 ## 漂浮
 

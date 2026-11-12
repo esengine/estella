@@ -14,10 +14,13 @@
  *          What a vertex carries for a material: uv.x across the sheet (0 to 1), uv.y the seconds the water there has been falling, colour
  *          red the share of the fall done (0 at the lip, 1 at the foot), green a number of the sheet's own (so sheets do not move as one),
  *          and alpha 0 at the sheet's two edges.
+ *
+ *          The sheet is all a fall draws. What belongs at a place on it (the mist at its foot, the sound of it) is a child entity
+ *          with a `WaterfallAnchor`, kept on the middle of the fall at a share of the way down wherever the fall lands.
  */
 import type { App } from '../app/app';
 import type { Entity } from '../types';
-import { defineComponent, MeshRenderer, Transform, type ComponentDef, type MeshRendererData, type TransformData } from '../ecs/component';
+import { Children, defineComponent, MeshRenderer, Transform, type ComponentDef, type MeshRendererData, type TransformData } from '../ecs/component';
 import { defineSystem, Schedule } from '../ecs/system';
 import { worldUnitsPerMeter } from '../ecs/worldUnits';
 import { Assets } from '../asset/AssetPlugin';
@@ -66,6 +69,35 @@ export const Waterfall: ComponentDef<WaterfallData> = /* @__PURE__ */ defineComp
         across: { min: 1, max: 32, step: 1, tooltip: 'Cells across a sheet.' },
     },
 });
+
+/** The fields of the `WaterfallAnchor` component. @experimental */
+export interface WaterfallAnchorData {
+    /** Where on the fall, as a share of the time the water takes to come down: 0 the lip, 1 the foot. */
+    at: number;
+    /** How far above the fall's path there, in world units. */
+    lift: number;
+}
+
+/**
+ * Keeps the entity, a child of a `Waterfall`'s, on the middle of the fall: at its foot wherever that is, or a share of the way down.
+ *
+ * @experimental
+ */
+export const WaterfallAnchor: ComponentDef<WaterfallAnchorData> = /* @__PURE__ */ defineComponent<WaterfallAnchorData>('WaterfallAnchor', {
+    at: 1, lift: 0,
+}, {
+    worldUnitFields: ['lift'],
+    fields: {
+        at: { min: 0, max: 1, step: 0.01, tooltip: 'Where on the fall, as a share of the time the water takes to come down: 0 the lip, 1 the foot.' },
+        lift: { unit: 'wu', tooltip: 'How far above the path of the fall there.' },
+    },
+});
+
+/** Where an anchor sits in the fall's own space (the throw along -z), on a fall that takes `seconds` to come down. */
+export function waterfallAnchorPoint(fall: WaterfallData, seconds: number, anchor: WaterfallAnchorData): [number, number, number] {
+    const t = Math.max(0, Math.min(1, anchor.at)) * seconds;
+    return [0, anchor.lift - 0.5 * GRAVITY * worldUnitsPerMeter() * t * t, -fall.speed * t];
+}
 
 /**
  * What a fall lands on: the ground's height at a place, and the water there (which body's it is, and how far `y` is above its surface,
@@ -207,7 +239,7 @@ function landingOf(app: App): { query: WaterfallLanding; revision: string; waiti
 
 /** Keeps every `Waterfall` falling to what is under it. Called once by the water plugin. */
 export function installWaterfalls(app: App): void {
-    const built = new Map<Entity, { key: string; handle: number }>();
+    const built = new Map<Entity, { key: string; handle: number; seconds: number }>();
     let stock = 0, asked = false;
     const letGo = (entity: Entity): void => {
         const held = built.get(entity);
@@ -215,6 +247,15 @@ export function installWaterfalls(app: App): void {
         if (held?.handle && app.hasResource(Assets)) app.getResource(Assets).releaseBuiltMesh(held.handle);
     };
     app.world.onDespawn(letGo);
+    const anchor = (entity: Entity, fall: WaterfallData, seconds: number): void => {
+        const world = app.world;
+        for (const child of (world.tryGet(entity, Children) as { entities?: Entity[] } | null)?.entities ?? []) {
+            if (!world.has(child, WaterfallAnchor) || !world.has(child, Transform)) continue;
+            const [x, y, z] = waterfallAnchorPoint(fall, seconds, world.get(child, WaterfallAnchor) as WaterfallAnchorData);
+            const t = world.get(child, Transform) as TransformData;
+            if (t.position.x !== x || t.position.y !== y || t.position.z !== z) world.set(child, Transform, { ...t, position: { x, y, z } });
+        }
+    };
     app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
         const world = app.world;
         if (!app.hasResource(Assets)) return;
@@ -244,11 +285,13 @@ export function installWaterfalls(app: App): void {
             const lip = { x: t.worldPosition.x, y: t.worldPosition.y, z: t.worldPosition.z, dirX, dirZ };
             const key = JSON.stringify([fall, lip, landing.revision, worldUnitsPerMeter(), own ? renderer!.material : stock]);
             const held = built.get(entity);
-            if (held?.key === key) continue;
+            if (held?.key === key) { anchor(entity, fall, held.seconds); continue; }
             const mesh = buildWaterfall(fall, lip, landing.query);
             const handle = mesh ? assets.createMesh(mesh) : 0;
             if (held?.handle) assets.releaseBuiltMesh(held.handle);
-            built.set(entity, { key, handle });
+            const { seconds } = waterfallFlight(fall, lip, landing.query);
+            built.set(entity, { key, handle, seconds });
+            anchor(entity, fall, seconds);
             world.insert(entity, MeshRenderer, {
                 ...renderer, enabled: true, mesh: handle, material: own ? renderer!.material : stock, opaque: false, castShadows: false, cullBackfaces: false,
             } as Partial<MeshRendererData>);

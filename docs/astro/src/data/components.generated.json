@@ -10751,6 +10751,29 @@
       ]
     },
     {
+      "name": "WaterfallAnchor",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "at",
+          "type": "number",
+          "default": "1",
+          "doc": "Where on the fall, as a share of the time the water takes to come down: 0 the lip, 1 the foot.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "lift",
+          "type": "number",
+          "default": "0",
+          "doc": "How far above the path of the fall there."
+        }
+      ],
+      "animatable": [
+        "at",
+        "lift"
+      ]
+    },
+    {
       "name": "Weather",
       "source": "ts",
       "fields": [

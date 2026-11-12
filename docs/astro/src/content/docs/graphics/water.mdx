@@ -176,7 +176,21 @@ fast they run (`u_run`), how much of the sheet is gone at its foot (`u_veil`) an
 `u_opacity` and `u_roughness`. A material of your own reads what the mesh carries: `uv.x` across the sheet, `uv.y` the seconds the water
 there has been falling, the colour's red the share of the fall done, its green a number of the sheet's own.
 
-The fall is the sheet alone: the mist at its foot and the white water where it lands are a `ParticleEmitter`'s and the pool's own to draw.
+The fall is the sheet alone. What belongs at a place on it is a child entity with a **`WaterfallAnchor`**: the fall keeps that child on
+the middle of its path, at the foot wherever the water lands (`at` 1), at the lip (0), or a share of the time down between them, `lift`
+above the path. A [`ParticleEmitter`](/docs/world/particles/) on the child is the mist, and it moves with the foot when the ground or the
+water under the fall changes:
+
+```json
+{ "name": "Foot Mist", "parent": 31, "components": [
+  { "type": "Transform", "data": {} },
+  { "type": "WaterfallAnchor", "data": { "at": 1 } },
+  { "type": "ParticleEmitter", "data": { "shape": 5, "shapeRadius": 700, "rate": 22, "speedMin": 150, "speedMax": 600,
+      "lifetimeMin": 4, "lifetimeMax": 8, "startSizeMin": 400, "startSizeMax": 800, "endSizeMin": 1400, "endSizeMax": 2400,
+      "blendMode": 0, "startColor": { "r": 1, "g": 1, "b": 1, "a": 0.12 }, "endColor": { "r": 1, "g": 1, "b": 1, "a": 0 } } } ] }
+```
+
+The anchor sets the child's position only, in the fall's own space: its turn and scale stay what they were given.
 
 ## Floating
 

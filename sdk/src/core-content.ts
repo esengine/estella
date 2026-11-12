@@ -891,7 +891,10 @@ export {
 export { WAVE_SET, waveFade, waveHeight, waveSlope, type WaveParams } from './water/waves';
 export { WaterZone, WaterField, currentShare, type WaterZoneData, type FieldSample } from './water/zone';
 export { buildOceanMesh, oceanReach, oceanSnap } from './water/waterMesh';
-export { Waterfall, buildWaterfall, waterfallFlight, waterfallHeading, type WaterfallData, type WaterfallLanding, type WaterfallLip } from './water/waterfall';
+export {
+    Waterfall, WaterfallAnchor, buildWaterfall, waterfallAnchorPoint, waterfallFlight, waterfallHeading,
+    type WaterfallAnchorData, type WaterfallData, type WaterfallLanding, type WaterfallLip,
+} from './water/waterfall';
 export { WATERFALL_SHADER_TEMPLATE } from './water/waterfallShader';
 export { polygonSdf, shoreDamp, type Point2 } from './water/shore';
 export { findBasins, drainPath, type Basin, type BasinMap, type BasinOptions } from './water/basins';

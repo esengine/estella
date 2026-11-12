@@ -7,7 +7,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setWorldUnitsPerMeter } from '../src/ecs/worldUnits';
 import { MeshChannel, type MeshData } from '../src/asset/meshFormat';
-import { Waterfall, buildWaterfall, waterfallFlight, waterfallHeading, type WaterfallData, type WaterfallLip } from '../src/water/waterfall';
+import { Waterfall, WaterfallAnchor, buildWaterfall, waterfallAnchorPoint, waterfallFlight, waterfallHeading, type WaterfallData, type WaterfallLip } from '../src/water/waterfall';
 import { WATERFALL_SHADER_TEMPLATE } from '../src/water/waterfallShader';
 
 beforeAll(() => setWorldUnitsPerMeter(1));
@@ -103,5 +103,26 @@ describe('the Waterfall component and its shader', () => {
         expect(source).toContain('(v_texCoord.y - u_time.x) * u_run');
         expect(source).toContain('(v.v_texCoord.y - tc.u_time.x) * mc.u_run');
         for (const p of ['u_water', 'u_foam', 'u_strands', 'u_run', 'u_veil', 'u_tearBy', 'u_opacity', 'u_roughness']) expect(source).toContain(`#pragma param ${p} `);
+    });
+});
+
+describe('a WaterfallAnchor', () => {
+    it('sits at the lip, at the foot, or a share of the time down, on the path the water takes', () => {
+        const f = fall({ speed: 5 });
+        const { seconds, drop } = waterfallFlight(f, lip, { heightAt: () => 20 });
+        expect(waterfallAnchorPoint(f, seconds, { at: 0, lift: 0 }).map(Math.abs)).toEqual([0, 0, 0]);
+        const foot = waterfallAnchorPoint(f, seconds, { at: 1, lift: 0 });
+        expect(foot[1]).toBeCloseTo(-drop, 6);
+        expect(foot[2]).toBeCloseTo(-5 * seconds, 6);
+        const half = waterfallAnchorPoint(f, seconds, { at: 0.5, lift: 0 });
+        expect(half[1]).toBeCloseTo(-drop / 4, 6);
+        expect(half[2]).toBeCloseTo(-2.5 * seconds, 6);
+    });
+
+    it('is lifted off the path by its own lift, and holds a share past either end to that end', () => {
+        const f = fall();
+        expect(waterfallAnchorPoint(f, 2, { at: 1, lift: 3 })[1]).toBeCloseTo(waterfallAnchorPoint(f, 2, { at: 1, lift: 0 })[1] + 3, 6);
+        expect(waterfallAnchorPoint(f, 2, { at: 4, lift: 0 })).toEqual(waterfallAnchorPoint(f, 2, { at: 1, lift: 0 }));
+        expect(WaterfallAnchor._default).toEqual({ at: 1, lift: 0 });
     });
 });

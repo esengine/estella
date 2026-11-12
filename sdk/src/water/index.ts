@@ -9,7 +9,10 @@ export { RippleField } from './ripples';
 export { Floating, FloatingPlugin, floatingForce, wakeStrength, type FloatingBody, type FloatingData, type FloatingForce } from './floating';
 export { WaterZone, WaterField, currentShare, type WaterZoneData, type FieldSample } from './zone';
 export { buildOceanMesh, oceanReach, oceanSnap } from './waterMesh';
-export { Waterfall, buildWaterfall, waterfallFlight, waterfallHeading, type WaterfallData, type WaterfallLanding, type WaterfallLip } from './waterfall';
+export {
+    Waterfall, WaterfallAnchor, buildWaterfall, waterfallAnchorPoint, waterfallFlight, waterfallHeading,
+    type WaterfallAnchorData, type WaterfallData, type WaterfallLanding, type WaterfallLip,
+} from './waterfall';
 export { WATERFALL_SHADER_TEMPLATE } from './waterfallShader';
 export { polygonSdf, shoreDamp, type Point2 } from './shore';
 export { findBasins, drainPath, type Basin, type BasinMap, type BasinOptions } from './basins';

@@ -4574,6 +4574,8 @@ export const NOTED = {
     {"note": "The sea past the rings lies at the sea's level."},
   "feat(water): a waterfall - a Waterfall on an entity at a lip throws sheets of water level at a speed and lets gravity take them, each ending where it meets the ground or water that is not the water it left; it is the entity's own MeshRenderer, and with no material it takes the stock Waterfall shader, glass at the lip tearing into strands that ride down with the water":
     {"note": "A waterfall."},
+  "feat(water): an anchor on a waterfall - a child of a Waterfall with a WaterfallAnchor is kept on the middle of the fall, at its foot wherever the water lands or a share of the time down, so the mist a ParticleEmitter makes there follows the fall when what is under it changes":
+    {"note": "An anchor on a waterfall."},
   "fix(terrain): a detail the pages cannot hold no longer cracks the ground - a tree that wanted more nodes than the atlas has pages was drawn in part by coarser pages standing in, which do not meet their finer neighbours' edges, and the pages were fought over every frame; the ground is now drawn at the share of its detail's range that fits, and says so once":
     {"note": "A detail the pages cannot hold no longer cracks the ground."},
   "fix(foliage): a far plant grows across the ground, not taller - a mesh plant kept in a far version was grown the same every way to cover the ground of those left out, so a flower that stood for ten stood ten times as high and a far meadow was a field of poles; it now grows across the ground only, and Foliage.farGrowUp gives its height a share of the growth back":
