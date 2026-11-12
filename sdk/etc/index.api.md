@@ -8113,6 +8113,7 @@ antialiasing: "msaa" | "temporal"
 begin: () => void
 bind: (camera: Entity, stack: PostProcessStack) => void
 createStack: () => PostProcessStack
+dynamicGIHalfRes: boolean
 effectAllowed: (type: string) => boolean
 end: () => void
 getStack: (camera: Entity) => PostProcessStack | null
@@ -8590,6 +8591,7 @@ antialiasing: "msaa" | "temporal"
 depthPrepass: boolean
 detailScale: number
 drawCallBudget: number
+dynamicGIHalfRes: boolean
 lighting: "full" | "direct"
 minRenderScale: number
 msaaSamples: 2 | 1 | 4 | 8

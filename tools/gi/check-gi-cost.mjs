@@ -58,7 +58,8 @@ function skip(why) {
 const source = readFileSync(path.join(root, 'src/esengine/renderer/frame/DynamicGI.cpp'), 'utf8');
 const applySource = source.slice(source.indexOf('const char* kApply'), source.indexOf('#else', source.indexOf('const char* kApply')));
 const probeTerm = applySource.slice(applySource.indexOf('fn probeTerm'), applySource.indexOf('@compute', applySource.indexOf('fn probeTerm')));
-const main = applySource.slice(applySource.indexOf('@compute'));
+// The kernel every pixel runs by default (the half-resolution pair, kGather and kComposite, is a quality level's and is not what is budgeted here).
+const main = applySource.slice(applySource.indexOf('const char* kApplyFull'), applySource.indexOf('const char* kGather'));
 const loads = (text) => (text.match(/textureLoad\(/g) ?? []).length;
 const mainLoads = loads(main), perProbe = loads(probeTerm);
 // The geometry of a probe is read before the early-out on a probe with nothing in it; five loads a probe is what a probe that counts costs.

@@ -263,6 +263,11 @@ export class PostProcessAPI {
         return this.qualityFilter_?.antialiasing ?? 'msaa';
     }
 
+    /** Whether the quality level in force has the dynamic GI gather at half resolution: the volume system sets the effect's switch from it. */
+    get dynamicGIHalfRes(): boolean {
+        return this.qualityFilter_?.dynamicGIHalfRes ?? false;
+    }
+
     /**
      * Whether the quality level in force runs an effect, by its type. For a system that prepares something for an effect off the GPU (the dynamic GI
      * builds a distance field, a second of a phone's CPU): it asks before it does.

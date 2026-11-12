@@ -572,16 +572,8 @@ fn probeTerm(tile : vec2i, q : vec2f, radius : f32, pos : vec3f, n : vec3f, eye 
     return true;
 }
 
-@compute @workgroup_size(8, 8)
-fn main(@builtin(global_invocation_id) id : vec3u) {
-    let size = vec2i(textureDimensions(depthTex));
-    let p = vec2i(id.xy);
-    if (p.x >= size.x || p.y >= size.y) { return; }
-    let scene = textureLoad(sceneTex, p, 0);
-    let depth = textureLoad(depthTex, p, 0);
-    let g = textureLoad(gbuffer, p, 0);
-    let albedo = textureLoad(albedoTex, p, 0);
-    if (depth >= 1.0 || g.a <= 0.7 || albedo.a <= 0.5) { textureStore(outTex, p, scene); return; }
+// The light the probes round pixel p give it (rgb), and how far the pixel is from the eye (a).
+fn irradiance(p : vec2i, size : vec2i, depth : f32, g : vec4f) -> vec4f {
     var n = decodeNormal(g);
     let pos = worldFromDepth((vec2f(p) + 0.5) / vec2f(size), depth);
     if (dot(n, viewDirection(pos)) < 0.0) { n = -n; }
@@ -631,6 +623,81 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
         }
     }
     if (total > 0.05) { E = E / total; } else if (totalRelaxed > 1e-5) { E = Erelaxed / totalRelaxed; } else { E = vec3f(0.0); }
+    return vec4f(E, eye);
+}
+)WGSL";
+
+// The light added to every pixel, each asking the probes itself.
+const char* kApplyFull = R"WGSL(
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) id : vec3u) {
+    let size = vec2i(textureDimensions(depthTex));
+    let p = vec2i(id.xy);
+    if (p.x >= size.x || p.y >= size.y) { return; }
+    let scene = textureLoad(sceneTex, p, 0);
+    let depth = textureLoad(depthTex, p, 0);
+    let g = textureLoad(gbuffer, p, 0);
+    let albedo = textureLoad(albedoTex, p, 0);
+    if (depth >= 1.0 || g.a <= 0.7 || albedo.a <= 0.5) { textureStore(outTex, p, scene); return; }
+    let E = irradiance(p, size, depth, g).rgb;
+    textureStore(outTex, p, vec4f(scene.rgb + albedo.rgb * E * gi.sdf.w, scene.a));
+}
+)WGSL";
+
+// The cheaper way, in two: one pixel in four asks the probes (this), and every pixel takes its light from the four of those round it (kComposite).
+// outTex is half the picture a side; a is the distance from the eye, or -1 where there is no surface.
+const char* kGather = R"WGSL(
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) id : vec3u) {
+    let size = vec2i(textureDimensions(depthTex));
+    let h = vec2i(id.xy);
+    if (h.x * 2 >= size.x + 1 || h.y * 2 >= size.y + 1) { return; }
+    let p = min(h * 2, size - vec2i(1));
+    let depth = textureLoad(depthTex, p, 0);
+    let g = textureLoad(gbuffer, p, 0);
+    if (depth >= 1.0 || g.a <= 0.7) { textureStore(outTex, h, vec4f(0.0, 0.0, 0.0, -1.0)); return; }
+    textureStore(outTex, h, irradiance(p, size, depth, g));
+}
+)WGSL";
+
+// Every pixel: the light of the four gathered pixels round it, each counting by how near it is on the screen and how nearly as far from the eye
+// (so the light of a wall does not run onto what stands in front of it). Normals are not asked: across the edge two walls share, where both are
+// as far from the eye, the light of one runs a pixel or two onto the other.
+const char* kComposite = R"WGSL(
+@group(0) @binding(6) var depthTex : texture_depth_2d;
+@group(0) @binding(8) var albedoTex : texture_2d<f32>;
+@group(0) @binding(10) var sceneTex : texture_2d<f32>;
+@group(0) @binding(11) var outTex : texture_storage_2d<rgba16float, write>;
+@group(0) @binding(13) var gathered : texture_2d<f32>;
+
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) id : vec3u) {
+    let size = vec2i(textureDimensions(depthTex));
+    let p = vec2i(id.xy);
+    if (p.x >= size.x || p.y >= size.y) { return; }
+    let scene = textureLoad(sceneTex, p, 0);
+    let depth = textureLoad(depthTex, p, 0);
+    let albedo = textureLoad(albedoTex, p, 0);
+    if (depth >= 1.0 || albedo.a <= 0.5) { textureStore(outTex, p, scene); return; }
+    let pos = worldFromDepth((vec2f(p) + 0.5) / vec2f(size), depth);
+    let eye = max(length(pos - frame.camera.xyz), 1.0);
+    let hs = vec2i(textureDimensions(gathered));
+    let q = vec2f(p) * 0.5;
+    let q0 = vec2i(floor(q));
+    let f = q - vec2f(q0);
+    var E = vec3f(0.0); var total = 0.0;
+    var plain = vec3f(0.0); var count = 0.0;
+    for (var k = 0; k < 4; k = k + 1) {
+        let o = vec2i(k & 1, k >> 1);
+        let v = textureLoad(gathered, clamp(q0 + o, vec2i(0), hs - vec2i(1)), 0);
+        if (v.a < 0.0) { continue; }
+        let wb = select(1.0 - f.x, f.x, o.x == 1) * select(1.0 - f.y, f.y, o.y == 1) + 0.01;
+        let off = (v.a - eye) / (0.03 * eye);
+        let w = wb / (1.0 + off * off * off * off);
+        E = E + v.rgb * w; total = total + w;
+        plain = plain + v.rgb; count = count + 1.0;
+    }
+    if (total > 0.02) { E = E / total; } else if (count > 0.0) { E = plain / count; } else { E = vec3f(0.0); }
     textureStore(outTex, p, vec4f(scene.rgb + albedo.rgb * E * gi.sdf.w, scene.a));
 }
 )WGSL";
@@ -640,6 +707,9 @@ const char* kCardLight = "";
 const char* kSurface = "";
 const char* kProbe = "";
 const char* kApply = "";
+const char* kApplyFull = "";
+const char* kGather = "";
+const char* kComposite = "";
 #endif
 
 /// The card relight writes the cards it reads (one buffer, updated in place): the common block declares them read-only.
@@ -671,7 +741,7 @@ void DynamicGI::release() {
         if (t != TextureHandle::Invalid) device_.deleteTexture(t);
         t = TextureHandle::Invalid;
     }
-    for (ComputeHandle* c : {&cardLight_, &probe_, &apply_}) {
+    for (ComputeHandle* c : {&cardLight_, &probe_, &apply_, &gather_, &composite_}) {
         if (*c != ComputeHandle::Invalid) device_.deleteCompute(*c);
         *c = ComputeHandle::Invalid;
     }
@@ -702,7 +772,8 @@ bool DynamicGI::ensure() {
         return true;
     };
     return make(cardLight_, readWriteCards(join(kCommon, kCardLight)), "card light") && make(probe_, join(kCommon, kSurface, kProbe), "probe")
-        && make(apply_, join(kCommon, kSurface, kApply), "apply");
+        && make(apply_, join(kCommon, kSurface, (std::string(kApply) + kApplyFull).c_str()), "apply")
+        && make(gather_, join(kCommon, kSurface, (std::string(kApply) + kGather).c_str()), "gather") && make(composite_, join(kCommon, kSurface, kComposite), "composite");
 }
 
 bool DynamicGI::upload() {
@@ -915,6 +986,42 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
     }
 
     if (params.skip & 16u) return input;  // measuring: the cards and the probes, and no apply pass nor the target it writes
+    // Half resolution: the probes are asked by one pixel in four, into a target half the picture a side, and the pass below spreads it.
+    rg::ResourceId gathered = rg::kNoResource;
+    if (params.halfRes) {
+        rg::TargetDesc half;
+        half.scale = 0.5f;
+        half.format = GfxPixelFormat::RGBA16F;
+        half.storage = true;
+        half.linearFilter = false;
+        gathered = graph.createTarget(half);
+        rg::PassDesc pass;
+        pass.name = "dgi_gather";
+        pass.compute = true;
+        pass.dependencies = {scene, probed};
+        pass.write = gathered;
+        pass.execute = [this, &graph, scene, p](const rg::PassContext& ctx) {
+            if (p.skip & 4u) return;
+            const TextureHandle depth = graph.depthTextureOf(scene);
+            const TextureHandle gbuffer = graph.gbufferTextureOf(scene);
+            if (depth == TextureHandle::Invalid || gbuffer == TextureHandle::Invalid || ctx.output == TextureHandle::Invalid) return;
+            const GfxComputeBinding bindings[11] = {
+                GfxComputeBinding::uniform(0, context_.frameUbo()),
+                GfxComputeBinding::uniform(1, params_),
+                GfxComputeBinding::storageRead(2, sdf_),
+                GfxComputeBinding::storageRead(3, instances_),
+                GfxComputeBinding::storageRead(4, pixels_),
+                GfxComputeBinding::storageRead(5, radiance_[0]),
+                GfxComputeBinding::depth(6, depth),
+                GfxComputeBinding::sampled(7, gbuffer),
+                GfxComputeBinding::sampled(9, probes_[frame_ & 1u]),
+                GfxComputeBinding::storageTexture(11, ctx.output),
+                GfxComputeBinding::sampled(12, probeGeo_),
+            };
+            device_.dispatchCompute(gather_, bindings, 11, (ctx.width + 7) / 8, (ctx.height + 7) / 8);
+        };
+        graph.addPass(std::move(pass));
+    }
     rg::TargetDesc full;
     full.format = GfxPixelFormat::RGBA16F;
     full.storage = true;
@@ -924,13 +1031,15 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
         rg::PassDesc pass;
         pass.name = "dgi_apply";
         pass.compute = true;
-        pass.reads = {input};
+        pass.reads = gathered != rg::kNoResource ? std::vector<rg::ResourceId>{input, gathered} : std::vector<rg::ResourceId>{input};
         pass.dependencies = {scene, probed};
         pass.write = result;
         pass.execute = [this, &graph, scene, p](const rg::PassContext& ctx) {
             // A pixel reads the scene, the depth, the G-buffer and the albedo, and from each of the four nearest probes two geometry texels and three of light.
             g_stats.applyPixels = (p.skip & 4u) ? 0.0f : static_cast<f32>(ctx.width) * static_cast<f32>(ctx.height);
-            g_stats.applyLoadsPerPixel = 4.0f + 4.0f * 5.0f;
+            // Half resolution: a pixel reads the scene, the depth, the albedo and four gathered pixels, and a quarter of what a gathering pixel reads
+            // (the depth, the G-buffer, and the probes as above).
+            g_stats.applyLoadsPerPixel = p.halfRes ? 3.0f + 4.0f + (2.0f + 4.0f * 5.0f) / 4.0f : 4.0f + 4.0f * 5.0f;
             g_stats.width = static_cast<f32>(ctx.width);
             g_stats.height = static_cast<f32>(ctx.height);
             g_stats.forcedAttachmentBytes = static_cast<f32>(ctx.width) * static_cast<f32>(ctx.height) * 12.0f;
@@ -947,6 +1056,26 @@ rg::ResourceId DynamicGI::declare(rg::RenderGraph& graph, rg::ResourceId input, 
             const TextureHandle albedo = graph.albedoTextureOf(scene);
             if (depth == TextureHandle::Invalid || gbuffer == TextureHandle::Invalid || albedo == TextureHandle::Invalid
                 || ctx.output == TextureHandle::Invalid) return;
+            if (p.halfRes) {
+                const TextureHandle half = ctx.input(1);
+                if (depth == TextureHandle::Invalid || albedo == TextureHandle::Invalid || half == TextureHandle::Invalid || ctx.output == TextureHandle::Invalid) return;
+                const GfxComputeBinding composite[11] = {
+                    GfxComputeBinding::uniform(0, context_.frameUbo()),
+                    GfxComputeBinding::uniform(1, params_),
+                    GfxComputeBinding::storageRead(2, sdf_),
+                    GfxComputeBinding::storageRead(3, instances_),
+                    GfxComputeBinding::storageRead(4, pixels_),
+                    GfxComputeBinding::storageRead(5, radiance_[0]),
+                    GfxComputeBinding::depth(6, depth),
+                    GfxComputeBinding::sampled(8, albedo),
+                    GfxComputeBinding::sampled(10, ctx.input(0)),
+                    GfxComputeBinding::storageTexture(11, ctx.output),
+                    GfxComputeBinding::sampled(13, half),
+                };
+                device_.dispatchCompute(composite_, composite, 11, (ctx.width + 7) / 8, (ctx.height + 7) / 8);
+                ++frame_;
+                return;
+            }
             const u32 cur = frame_ & 1u;
             const GfxComputeBinding bindings[13] = {
                 GfxComputeBinding::uniform(0, context_.frameUbo()),

@@ -587,6 +587,8 @@ registerEffect({
         // Pixels between probes; 0 keeps about 160 x 90 of them whatever the size of the picture.
         { name: 'u_probeSpacing', label: 'Probe Spacing', min: 0, max: 64, step: 1, defaultValue: 0 },
         { name: 'u_skip', label: 'Skip Passes (profiling)', min: 0, max: 63, step: 1, defaultValue: 0 },
+        // 1: one pixel in four asks the probes and the rest take the light of the four round them. A quality level below the highest turns it on.
+        { name: 'u_halfRes', label: 'Half Resolution', min: 0, max: 1, step: 1, defaultValue: 0 },
         { name: 'u_cellSize', label: 'Field Cell Size', min: 0, max: 1000, step: 0.1, defaultValue: 0, worldUnits: 1 },
     ],
 });

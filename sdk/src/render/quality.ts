@@ -83,6 +83,11 @@ export interface QualityProfile {
     shadowSoftSamples: number;
     lighting: 'full' | 'direct';
     /**
+     * Whether the dynamic GI asks its probes for one pixel in four and spreads the light to the rest: about half of what a pixel reads, for
+     * light that runs a pixel or two across an edge two surfaces share. It acts on a volume that lists `dynamicGI`, at a level that runs it.
+     */
+    dynamicGIHalfRes: boolean;
+    /**
      * The most draws a frame at this level should ask of the GPU, every pass counted (shadows, prepass, reflections and post-processing with the
      * scene). Nothing is held back to meet it: the profiler and the stats overlay show a frame over it, and the frame debugger says where the draws
      * went. Draw calls cost the CPU and the driver more than the GPU, and on a phone or in a mini game they are what a 3D scene runs out of first.
@@ -149,7 +154,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 0.5, particleLimit: 1000, postProcess: true, ssao: false,
         waterWaves: 2, waterRippleCells: 32, waterDisplacement: false, waterMirror: false, waterCaustics: false,
         skipEffects: ['ssr', 'taa', 'depthOfField', 'lightShafts', 'motionBlur', 'lensFlare', 'gtao', 'subsurface', 'voxelGI', 'dynamicGI'],
-        shelterMaskSize: 256, shadowSoftSamples: 8, lighting: 'direct', drawCallBudget: 150, textureStreaming: true, textureStreamingBudget: 128,
+        shelterMaskSize: 256, shadowSoftSamples: 8, lighting: 'direct', dynamicGIHalfRes: true, drawCallBudget: 150, textureStreaming: true, textureStreamingBudget: 128,
     },
     medium: {
         renderScale: 1, minRenderScale: 0.65, msaaSamples: 2, antialiasing: 'temporal',
@@ -158,7 +163,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 0.8, particleLimit: 5000, postProcess: true, ssao: true,
         waterWaves: 3, waterRippleCells: 64, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: ['ssr', 'depthOfField'],
-        shelterMaskSize: 512, shadowSoftSamples: 12, lighting: 'direct', drawCallBudget: 400, textureStreaming: true, textureStreamingBudget: 256,
+        shelterMaskSize: 512, shadowSoftSamples: 12, lighting: 'direct', dynamicGIHalfRes: true, drawCallBudget: 400, textureStreaming: true, textureStreamingBudget: 256,
     },
     high: {
         renderScale: 1, minRenderScale: 0.75, msaaSamples: 4, antialiasing: 'msaa',
@@ -169,7 +174,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 1, particleLimit: 20000, postProcess: true, ssao: true,
         waterWaves: 4, waterRippleCells: 128, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: [],
-        shelterMaskSize: 1024, shadowSoftSamples: 16, lighting: 'full', drawCallBudget: 1500, textureStreaming: false, textureStreamingBudget: 0,
+        shelterMaskSize: 1024, shadowSoftSamples: 16, lighting: 'full', dynamicGIHalfRes: false, drawCallBudget: 1500, textureStreaming: false, textureStreamingBudget: 0,
     },
 };
 
@@ -272,6 +277,7 @@ function resolveProfile(level: QualityLevel, value: unknown): QualityProfile {
         depthPrepass: typeof r.depthPrepass === 'boolean' ? r.depthPrepass : base.depthPrepass,
         postProcess: typeof r.postProcess === 'boolean' ? r.postProcess : base.postProcess,
         ssao: typeof r.ssao === 'boolean' ? r.ssao : base.ssao,
+        dynamicGIHalfRes: typeof r.dynamicGIHalfRes === 'boolean' ? r.dynamicGIHalfRes : base.dynamicGIHalfRes,
         waterWaves: Math.round(finite(r.waterWaves, base.waterWaves, 1, 4)),
         waterRippleCells: Math.round(finite(r.waterRippleCells, base.waterRippleCells, 0, 256)),
         waterDisplacement: typeof r.waterDisplacement === 'boolean' ? r.waterDisplacement : base.waterDisplacement,

@@ -45,6 +45,9 @@ struct DynamicGIParams {
     u32 skip = 0;
     /// Pixels between probes: 0 picks about 160 x 90 probes whatever the picture size.
     u32 probeSpacing = 0;
+    /// The probes are asked by one pixel in four and the rest take the light of the four round them: about half the reads of a pixel, for
+    /// light that runs a pixel or two across an edge two surfaces share. What a quality level below the highest runs.
+    bool halfRes = false;
 };
 
 /**
@@ -126,6 +129,8 @@ private:
     ComputeHandle cardLight_ = ComputeHandle::Invalid;
     ComputeHandle probe_ = ComputeHandle::Invalid;
     ComputeHandle apply_ = ComputeHandle::Invalid;
+    ComputeHandle gather_ = ComputeHandle::Invalid;
+    ComputeHandle composite_ = ComputeHandle::Invalid;
     u32 uploadedVersion_ = 0;
     bool failed_ = false;
     u32 frame_ = 0;
