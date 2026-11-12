@@ -197,6 +197,25 @@ export function withTemporalAntialiasing(api: PostProcessAPI, effects: ResolvedE
     return out;
 }
 
+/**
+ * The effects with the dynamic GI set to its cheaper way, where the quality level in force asks for it (see `QualityProfile.dynamicGIReduced`).
+ *
+ * It is done to the effects and not to the stack as it is built: the stack is built once and a level is put in force after it, and what is
+ * written here is part of what tells a stack its effects changed. It only ever makes the volume's own numbers cheaper.
+ */
+export function withReducedDynamicGI(api: PostProcessAPI, effects: ResolvedEffects): ResolvedEffects {
+    const gi = effects.get('dynamicGI');
+    if (!gi || !gi.enabled || !api.dynamicGIReduced) return effects;
+    const uniforms = new Map(gi.uniforms);
+    uniforms.set('u_halfRes', 1);
+    uniforms.set('u_probeStride', Math.max(uniforms.get('u_probeStride') ?? 2, 4));
+    uniforms.set('u_cardSlices', Math.max(uniforms.get('u_cardSlices') ?? 4, 8));
+    uniforms.set('u_probeDensity', Math.min(uniforms.get('u_probeDensity') ?? 1, 2 / 3));
+    const out: ResolvedEffects = new Map(effects);
+    out.set('dynamicGI', { ...gi, uniforms });
+    return out;
+}
+
 /** Let a camera's volume stack go, when it has one. */
 function releaseStack(api: PostProcessAPI, camera: Entity): void {
     const existing = api.volumeStacks.get(camera);
@@ -212,7 +231,7 @@ function applyBlendedEffects(
     blended: ResolvedEffects,
     perspective: boolean,
 ): void {
-    const effects = withTemporalAntialiasing(api, blended, perspective);
+    const effects = withReducedDynamicGI(api, withTemporalAntialiasing(api, blended, perspective));
     if (effects.size === 0) {
         const existing = api.volumeStacks.get(camera);
         if (existing) {
@@ -275,14 +294,6 @@ function applyBlendedEffects(
         } else if (def.native) {
             stack.addNativePass(effectType, def.native);
             for (const u of def.uniforms) stack.setUniform(effectType, u.name, effectData.uniforms.get(u.name) ?? uniformInUnits(u).defaultValue);
-            // The quality level's say over what the dynamic GI spends: its cheaper way where the level asks, and never dearer than the volume set.
-            if (effectType === 'dynamicGI' && api.dynamicGIReduced) {
-                const held = (name: string, fallback: number): number => effectData.uniforms.get(name) ?? fallback;
-                stack.setUniform(effectType, 'u_halfRes', 1);
-                stack.setUniform(effectType, 'u_probeStride', Math.max(held('u_probeStride', 2), 4));
-                stack.setUniform(effectType, 'u_cardSlices', Math.max(held('u_cardSlices', 4), 8));
-                stack.setUniform(effectType, 'u_probeDensity', Math.min(held('u_probeDensity', 1), 2 / 3));
-            }
         } else if (def.compute) {
             // The params block is the effect's uniforms in their listed order, each at the volume's value or the effect's own default.
             stack.addComputePass(effectType, {

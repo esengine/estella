@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { QualityController, defaultQualityMode, defaultQualityProfile } from '../src/render/quality';
 import { browserIsHandheld } from '../src/platform/web';
-import { withTemporalAntialiasing } from '../src/postprocess/volumeSystem';
+import { withReducedDynamicGI, withTemporalAntialiasing } from '../src/postprocess/volumeSystem';
 import type { PostProcessAPI } from '../src/postprocess/PostProcessAPI';
 
 describe('the level a project gets that names none', () => {
@@ -38,5 +38,30 @@ describe('the temporal smoothing a level asks for', () => {
     it('still gives an orthographic camera the pass its author listed', () => {
         const listed = new Map([['taa', { enabled: true, uniforms: new Map(), textures: new Map(), colors: new Map() }]]);
         expect(withTemporalAntialiasing(asking, listed, false).has('taa')).toBe(true);
+    });
+});
+
+describe('the cheaper dynamic GI a level asks for', () => {
+    const effect = (uniforms: Array<[string, number]>) => new Map([['dynamicGI', { enabled: true, uniforms: new Map(uniforms), textures: new Map(), colors: new Map() }]]);
+    const asking = { dynamicGIReduced: true } as unknown as PostProcessAPI;
+    const full = { dynamicGIReduced: false } as unknown as PostProcessAPI;
+
+    it('is written on the effects, so a level put in force after the stack was built still reaches it', () => {
+        const u = withReducedDynamicGI(asking, effect([])).get('dynamicGI')!.uniforms;
+        expect([u.get('u_halfRes'), u.get('u_probeStride'), u.get('u_cardSlices')]).toEqual([1, 4, 8]);
+        expect(u.get('u_probeDensity')).toBeCloseTo(2 / 3);
+    });
+
+    it('never makes what the volume set dearer, and leaves the volume itself alone', () => {
+        const authored = effect([['u_probeStride', 8], ['u_cardSlices', 2], ['u_probeDensity', 0.5]]);
+        const u = withReducedDynamicGI(asking, authored).get('dynamicGI')!.uniforms;
+        expect([u.get('u_probeStride'), u.get('u_cardSlices'), u.get('u_probeDensity')]).toEqual([8, 8, 0.5]);
+        expect(authored.get('dynamicGI')!.uniforms.has('u_halfRes')).toBe(false);
+    });
+
+    it('does nothing at a level that runs it whole, or with no dynamic GI listed', () => {
+        const authored = effect([]);
+        expect(withReducedDynamicGI(full, authored)).toBe(authored);
+        expect(withReducedDynamicGI(asking, new Map()).size).toBe(0);
     });
 });
