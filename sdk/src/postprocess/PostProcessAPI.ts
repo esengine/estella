@@ -9,6 +9,7 @@ import { WasmBridge } from '../wasm/WasmBridge';
 import { PostProcessStack, PostProcessState } from './PostProcessStack';
 import type { QualityProfile } from '../render/quality';
 import { qualityPassAllowed } from './qualityFilter';
+import { effectPassNames } from './effects';
 
 /**
  * The post-process entry points as a core that HAS them answers them. Named, not
@@ -260,6 +261,15 @@ export class PostProcessAPI {
     /** How the quality level in force smooths edges: the volume system adds the temporal pass where it says `temporal`. */
     get antialiasing(): 'msaa' | 'temporal' {
         return this.qualityFilter_?.antialiasing ?? 'msaa';
+    }
+
+    /**
+     * Whether the quality level in force runs an effect, by its type. For a system that prepares something for an effect off the GPU (the dynamic GI
+     * builds a distance field, a second of a phone's CPU): it asks before it does.
+     */
+    effectAllowed(type: string): boolean {
+        const passes = effectPassNames(type);
+        return (passes.length > 0 ? passes : [type]).every((name) => qualityPassAllowed(this.qualityFilter_, name));
     }
 
     private allowQualityPass_ = (name: string): boolean => {

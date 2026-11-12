@@ -23,6 +23,7 @@ import { withScratch } from '../wasm/wasmScratch';
 import { marshallingCore } from '../asset/loaders/engineCore';
 import { nativeEngineApi } from '../ecs/bridge/engineApi';
 import { Material } from '../render/material';
+import { PostProcess } from '../postprocess/PostProcessAPI';
 import { analyticBox, instanceBounds, packGPUScene, type GIInstance, type GILight, type GPUScene } from './gpuScene';
 import { GlobalSdf } from './globalSdf';
 import type { PointLight } from './surfaceCache';
@@ -229,7 +230,9 @@ export function dynamicGISystem(app: App) {
                 });
             };
             const effect = dynamicGIEffect(volumes);
-            if (!effect) { lastKey = ''; field = null; waiting = null; return; }
+            // A quality level that leaves the effect out (the low one does: a device that cannot afford the passes) builds no field either.
+            const allowed = !app.hasResource(PostProcess) || app.getResource(PostProcess).effectAllowed('dynamicGI');
+            if (!effect || !allowed) { lastKey = ''; field = null; waiting = null; return; }
             // The web's module, or a device's host (which answers the same heap from its arena): the arrays cross the boundary through it.
             const m = marshallingCore(app.wasmModule ?? nativeEngineApi());
             if (!m?.postprocess_setGIScene) return;

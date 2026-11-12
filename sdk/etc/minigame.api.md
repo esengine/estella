@@ -8405,6 +8405,7 @@ antialiasing: "msaa" | "temporal"
 begin: () => void
 bind: (camera: Entity, stack: PostProcessStack) => void
 createStack: () => PostProcessStack
+effectAllowed: (type: string) => boolean
 end: () => void
 getStack: (camera: Entity) => PostProcessStack | null
 hdrFormat: () => HdrFormat | null

@@ -148,7 +148,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         planarReflectionScale: 0.25, planarReflectionMaxSize: 512, planarReflectionUpdatesPerSecond: 0, depthPrepass: false,
         shadowDistance: 0, detailScale: 0.5, particleLimit: 1000, postProcess: true, ssao: false,
         waterWaves: 2, waterRippleCells: 32, waterDisplacement: false, waterMirror: false, waterCaustics: false,
-        skipEffects: ['ssr', 'taa', 'depthOfField', 'lightShafts', 'motionBlur', 'lensFlare', 'gtao', 'subsurface', 'voxelGI'],
+        skipEffects: ['ssr', 'taa', 'depthOfField', 'lightShafts', 'motionBlur', 'lensFlare', 'gtao', 'subsurface', 'voxelGI', 'dynamicGI'],
         shelterMaskSize: 256, shadowSoftSamples: 8, lighting: 'direct', drawCallBudget: 150, textureStreaming: true, textureStreamingBudget: 128,
     },
     medium: {

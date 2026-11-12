@@ -221,6 +221,17 @@ describe('what a quality level lets the chain run', () => {
         expect(qualityPassAllowed(profile, 'ssr'), 'ssr').toBe(true);
     });
 
+    it('leaves the dynamic GI out of the low level and in the other two', async () => {
+        const { qualityPassAllowed } = await import('../src/postprocess/qualityFilter');
+        const { effectPassNames } = await import('../src/postprocess/effects');
+        const passes = effectPassNames('dynamicGI');
+        expect(passes.length).toBeGreaterThan(0);
+        for (const mode of ['low', 'medium', 'high'] as const) {
+            const profile = new QualityController({ mode }).profile;
+            for (const pass of passes) expect(qualityPassAllowed(profile, pass), `${mode} ${pass}`).toBe(mode !== 'low');
+        }
+    });
+
     it('keeps the old prefix reading for a name no effect answers to, and the ssao and post-process switches', async () => {
         const { qualityPassAllowed } = await import('../src/postprocess/qualityFilter');
         expect(qualityPassAllowed(level(['custom']), 'custom_pass')).toBe(false);
