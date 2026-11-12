@@ -138,6 +138,19 @@ fn sdfTrace(origin : vec3f, dir : vec3f, maxT : f32) -> f32 {
     }
     return -1.0;
 }
+// Which way the field rises at p (away from the nearest surface), or zero where no level holds p.
+fn sdfSlope(p : vec3f) -> vec3f {
+    let li = levelAt(p);
+    if (li < 0) { return vec3f(0.0); }
+    let l = u32(li);
+    let h = gi.levelB[l].x * 0.5;
+    let g = vec3f(sdfSample(l, p + vec3f(h, 0.0, 0.0)) - sdfSample(l, p - vec3f(h, 0.0, 0.0)),
+                  sdfSample(l, p + vec3f(0.0, h, 0.0)) - sdfSample(l, p - vec3f(0.0, h, 0.0)),
+                  sdfSample(l, p + vec3f(0.0, 0.0, h)) - sdfSample(l, p - vec3f(0.0, 0.0, h)));
+    let len = length(g);
+    if (len < 1e-6) { return vec3f(0.0); }
+    return g / len;
+}
 // Where a ray from a surface point may start. Lifted off its own surface the point can still be inside what a trace calls a hit of ANOTHER
 // surface (a wall the next wall over meets: the corner of a room), and every ray from there would hit at 0 and bring nothing, which is a
 // black band along every edge of the room, as wide as the cell is coarse. It is moved out along the field's slope until it is clear.
@@ -457,6 +470,11 @@ fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_id) lid3 : 
         let pos = worldFromDepth((vec2f(t) + 0.5) / vec2f(size), depth);
         if (dot(n, viewDirection(pos)) < 0.0) { n = -n; }
         eyeDistance = length(pos - frame.camera.xyz);
+        // A pixel on the edge two walls share holds, in a resolved G-buffer, a normal that is neither wall's (two octahedral codes averaged)
+        // and may face into one of them: a probe there would gather what comes out of that wall alone, and the edge pixels beside it, which
+        // hold the same wrong normal, would take it as theirs - a dashed dark line down the edge. The field knows which way is out.
+        let away = sdfSlope(pos);
+        if (dot(away, away) > 0.5 && dot(n, away) < 0.2) { n = away; }
         probePos = pos;
         probeNormal = n;
         // One ray in `stride` of the 64 is traced this frame, the cells alternating like a checkerboard from frame to frame.
@@ -543,6 +561,9 @@ fn probeTerm(tile : vec2i, q : vec2f, radius : f32, pos : vec3f, n : vec3f, eye 
     // What the probe gets itself, for a pixel whose own normal no probe agrees with: a pixel on the edge two walls share, where the
     // resolved G-buffer holds a normal that is neither wall's and may face along both.
     *own = max(vec3f(dot(vr, geo1.xyz), dot(vg, geo1.xyz), dot(vb, geo1.xyz)), vec3f(0.0));
+    // The less the probe faces the pixel's way, the more of what it gets itself: a pixel whose normal is wrong (see the probes) is not let
+    // weigh the light by it.
+    *e = mix(*own, *e, wNormal);
     *w = vec2f(wPlane * wNormal, wPlane);
     return true;
 }
