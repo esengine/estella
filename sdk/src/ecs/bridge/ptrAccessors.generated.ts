@@ -2435,6 +2435,7 @@ export interface TilemapLayerPtrData {
     opacity: number;
     parallaxFactor: Vec2;
     visible: boolean;
+    lit: boolean;
 }
 
 export function fillTilemapLayer(
@@ -2454,6 +2455,7 @@ export function fillTilemapLayer(
     out.opacity = f32[(ptr + 56) >> 2];
     const parallaxFactor_ = out.parallaxFactor; parallaxFactor_.x = f32[(ptr + 60) >> 2]; parallaxFactor_.y = f32[((ptr + 60) >> 2) + 1];
     out.visible = u8[ptr + 68] !== 0;
+    out.lit = u8[ptr + 69] !== 0;
 }
 
 export function writeTilemapLayer(
@@ -2473,6 +2475,7 @@ export function writeTilemapLayer(
     f32[(ptr + 56) >> 2] = data.opacity;
     f32[(ptr + 60) >> 2] = data.parallaxFactor.x; f32[((ptr + 60) >> 2) + 1] = data.parallaxFactor.y;
     u8[ptr + 68] = data.visible ? 1 : 0;
+    u8[ptr + 69] = data.lit ? 1 : 0;
 }
 
 export function createTilemapLayerData(): TilemapLayerPtrData {
@@ -2490,6 +2493,7 @@ export function createTilemapLayerData(): TilemapLayerPtrData {
         opacity: 0,
         parallaxFactor: { x: 0, y: 0 },
         visible: false,
+        lit: false,
     };
 }
 

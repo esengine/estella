@@ -8947,6 +8947,12 @@
           "key": "visible",
           "type": "boolean",
           "default": "true"
+        },
+        {
+          "key": "lit",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Receive 2D lights: Light entities light this layer's tiles (flat normal)."
         }
       ],
       "animatable": [

@@ -646,6 +646,7 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'opacity', type: 'f32', offset: 56 },
             { name: 'parallaxFactor', type: 'vec2', offset: 60 },
             { name: 'visible', type: 'bool', offset: 68 },
+            { name: 'lit', type: 'bool', offset: 69 },
         ],
     },
     TrailRenderer: {

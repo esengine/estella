@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, Canv
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '9b9790d2839bd020';
+export const ABI_LAYOUT_HASH = 'cb0184ba3431d6f9';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -1288,6 +1288,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             opacity: 1,
             parallaxFactor: { x: 1, y: 1 },
             visible: true,
+            lit: false,
         },
         renderableField: 'visible',
         assetFields: [{ field: 'tileset', type: 'texture' as AssetFieldType }],
@@ -1302,6 +1303,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             tilesetColumns: { min: 1, step: 1 },
             renderLayer: { step: 1, enumSource: "sortingLayers" },
             opacity: { min: 0, max: 1, slider: true, tooltip: "Layer transparency (0 = invisible, 1 = opaque)." },
+            lit: { tooltip: "Receive 2D lights: Light entities light this layer's tiles (flat normal)." },
         },
     },
     TrailRenderer: {
@@ -2151,6 +2153,7 @@ export interface TilemapLayerData {
     opacity: number;
     parallaxFactor: Vec2;
     visible: boolean;
+    lit?: boolean;
 }
 
 export interface TrailRendererData {

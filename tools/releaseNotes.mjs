@@ -4558,4 +4558,10 @@ export const NOTED = {
     {"note": "Water is as deep as it is, not as far as the eye's line through it."},
   "fix(terrain): a splatmap is numbers too - cooked as a picture its three weights were overwritten wherever the fourth was 0, and the whole ground was painted as grass; it is marked Data when it is set, as the heightmap is":
     {"note": "A texture says whether it is a picture or numbers."},
+  "perf(lighting): a lit sprite is lit by its own short function - the general model's sums term for term, the two 2D masks read once for the pixel where each light read them again, and none of the highlight carried along; 32 screen-filling lit layers under four lamps go from 5.4 ms to 4.7 on WebGL2 and from 8.8 to 6.5 on WebGPU, and the note prices what is left":
+    {"note": "2D lighting works out only the lights that reach a pixel."},
+  "perf(lighting): a lit quad says which lights can reach it and its pixels work out only those - the reach is settled where the sprite is submitted, quad by quad, and rides beside the layer in the lane the layer already had; 448 lit tiles four deep under sixteen local lamps go from 2.03 ms to 0.58 on WebGL2 and from 2.72 to 0.76 on WebGPU with the same pixels, and a render gate pins the light slots spared":
+    {"note": "2D lighting works out only the lights that reach a pixel."},
+  "feat(tilemap): a tilemap layer can be lit - TilemapLayer.lit draws its tiles with the program a lit sprite uses, and which of the loop's lights a flat lit pixel works out is its screen tile's say, so strips stay on the GPU while lights move; four lit layers under sixteen local lamps cost 0.71 ms where working every light out cost 2.58":
+    {"note": "A tilemap layer can be lit."},
 };

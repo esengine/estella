@@ -2512,23 +2512,31 @@ fn applyLighting2DReach(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32, r
         }
     }
 #endif
-    let lightCount = i32(lc.u_ambient.a);
-    for (var i = 0; i < lightCount; i++) {
-        if (((reach >> u32(i)) & 1u) == 0u) { continue; }
-        lit += shadeLight2D(lc.u_lights[i].posDir, lc.u_lights[i].color, lc.u_lights[i].spot, lc.u_lights[i].shadow,
-                            lc.u_lights[i].shadowMap, lc.u_lights[i].falloff, N, P, masked, shadowMask, shapeMask, true);
-    }
+    // The screen tile this pixel is in says which lights can reach it (see the GLSL twin): the fourth word is the loop's own sixteen.
+    var reachBits = reach;
 #ifndef ES_LIGHT_DIRECT
     let tiledCount = i32(lc.tileInfo.x);
-    if (tiledCount > 0) {
+    var tileBits = vec4u(0u);
+    if (tiledCount > 0 || lc.tileInfo.w > 0.5) {
         let tileClip = frame.projection * vec4f(P, 1.0);
         let tileNdc = tileClip.xy / max(tileClip.w, 1e-4);
         let tileCount = vec2i(i32(lc.tileInfo.y), i32(lc.tileInfo.z));
         let tile = clamp(vec2i(floor((tileNdc * 0.5 + 0.5) * vec2f(tileCount))), vec2i(0), tileCount - vec2i(1));
-        let mask = lc.tileMask[tile.y * tileCount.x + tile.x];
+        tileBits = lc.tileMask[tile.y * tileCount.x + tile.x];
+        if (lc.tileInfo.w > 0.5) { reachBits = reachBits & tileBits.w; }
+    }
+#endif
+    let lightCount = i32(lc.u_ambient.a);
+    for (var i = 0; i < lightCount; i++) {
+        if (((reachBits >> u32(i)) & 1u) == 0u) { continue; }
+        lit += shadeLight2D(lc.u_lights[i].posDir, lc.u_lights[i].color, lc.u_lights[i].spot, lc.u_lights[i].shadow,
+                            lc.u_lights[i].shadowMap, lc.u_lights[i].falloff, N, P, masked, shadowMask, shapeMask, true);
+    }
+#ifndef ES_LIGHT_DIRECT
+    if (tiledCount > 0) {
         for (var w = 0; w < 3; w++) {
-            var bits = mask.x;
-            if (w == 1) { bits = mask.y; } else if (w == 2) { bits = mask.z; }
+            var bits = tileBits.x;
+            if (w == 1) { bits = tileBits.y; } else if (w == 2) { bits = tileBits.z; }
             if (bits == 0u) { continue; }
             for (var b = 0; b < 32; b++) {
                 if ((bits & (1u << u32(b))) == 0u) { continue; }
@@ -4162,6 +4170,20 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        }\n"
             "    }\n"
             "#endif\n"
+            // The screen tile this pixel is in says which lights can reach it: the tiled ones in its first three words, and in the
+            // fourth the loop's own sixteen (LightStore::markLoopLights), which is what spares a tilemap, whose vertices carry no reach.
+            "#ifndef ES_LIGHT_DIRECT\n"
+            "    int tiledCount = int(u_tileInfo.x);\n"
+            "    highp uvec4 tileBits = uvec4(0u);\n"
+            "    if (tiledCount > 0 || u_tileInfo.w > 0.5) {\n"
+            "        highp vec4 tileClip = u_projection * vec4(P, 1.0);\n"
+            "        highp vec2 tileNdc = tileClip.xy / max(tileClip.w, 1e-4);\n"
+            "        ivec2 tileCount = ivec2(int(u_tileInfo.y), int(u_tileInfo.z));\n"
+            "        ivec2 tile = clamp(ivec2(floor((tileNdc * 0.5 + 0.5) * vec2(tileCount))), ivec2(0), tileCount - ivec2(1));\n"
+            "        tileBits = u_tileMask[tile.y * tileCount.x + tile.x];\n"
+            "        if (u_tileInfo.w > 0.5) reach = reach & int(tileBits.w);\n"
+            "    }\n"
+            "#endif\n"
             "    int lightCount = int(u_ambient.a);\n"
             "    for (int i = 0; i < lightCount; ++i) {\n"
             "        if (((reach >> i) & 1) == 0) continue;\n"
@@ -4169,15 +4191,9 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "                     u_lights[i].shadowMap, u_lights[i].falloff, N, P, masked, shadowMask, shapeMask, lit, true);\n"
             "    }\n"
             "#ifndef ES_LIGHT_DIRECT\n"
-            "    int tiledCount = int(u_tileInfo.x);\n"
             "    if (tiledCount > 0) {\n"
-            "        highp vec4 tileClip = u_projection * vec4(P, 1.0);\n"
-            "        highp vec2 tileNdc = tileClip.xy / max(tileClip.w, 1e-4);\n"
-            "        ivec2 tileCount = ivec2(int(u_tileInfo.y), int(u_tileInfo.z));\n"
-            "        ivec2 tile = clamp(ivec2(floor((tileNdc * 0.5 + 0.5) * vec2(tileCount))), ivec2(0), tileCount - ivec2(1));\n"
-            "        highp uvec4 mask = u_tileMask[tile.y * tileCount.x + tile.x];\n"
             "        for (int w = 0; w < 3; ++w) {\n"
-            "            highp uint bits = w == 0 ? mask.x : (w == 1 ? mask.y : mask.z);\n"
+            "            highp uint bits = w == 0 ? tileBits.x : (w == 1 ? tileBits.y : tileBits.z);\n"
             "            if (bits == 0u) continue;\n"
             "            for (int b = 0; b < 32; ++b) {\n"
             "                if ((bits & (1u << uint(b))) == 0u) continue;\n"

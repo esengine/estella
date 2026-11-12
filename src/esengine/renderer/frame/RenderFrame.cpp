@@ -699,6 +699,8 @@ void RenderFrame::publishFrameCounters() {
     ES_PROFILE_COUNTER("render.sprites", stats_.sprites);
     // Light slots the lit quads were spared: a light out of reach added nothing before either, so no pixel says whether it is skipped.
     ES_PROFILE_COUNTER("render.lights2d.spared", stats_.lightsSpared);
+    // The same for what has no quads of its own to say it (a tilemap's strips): how many (screen tile, loop light) pairs are left set.
+    ES_PROFILE_COUNTER("render.lights2d.tileBits", context_.lights().loopTileBits());
     // The 3D path had no counter at all, and its cost is the one a pixel hides
     // best: identical geometry drawn N times merges into ONE instanced call, so
     // batch.draws does not move when a cull stops working. These two do.
@@ -1894,6 +1896,8 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     for (const CollectedLight& light : tiled) {
         lights.addTiledLight(light.gpu, view_projection_);
     }
+    // ...and which screen tiles each of the loop's own lights can reach, for the flat lit surfaces (sprites, tilemap layers).
+    lights.markLoopLights(view_projection_);
 
     // Last, because which lights the mask can carry is a question about the array the
     // loop above just filled.

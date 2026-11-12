@@ -216,6 +216,8 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
         glm::vec2 parallax;
         resource::TextureHandle singleTileset;  // single-tileset fallback source
         u32 singleColumns;
+        // Lit by the scene's 2D lights. A layer drawn from a LayerData alone has no component to say so, and is not.
+        bool lit = false;
         // Where this layer's grid starts. A layer whose tiles are drawn from a
         // LayerData has no component to author it on, so it starts at the origin.
         glm::vec2 originOffset{0.0f, 0.0f};
@@ -229,6 +231,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
             singleTileset = comp->tileset;
             singleColumns = static_cast<u32>(comp->tilesetColumns);
             originOffset = comp->originOffset;
+            lit = comp->lit;
         } else {
             visible = layer.visible;
             sortLayer = layer.sort_layer;
@@ -288,6 +291,14 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
             anySlotValid = true;
         }
         if (!anySlotValid) continue;
+
+        // The same program a lit sprite draws with. Its vertices carry no layer and no reach of their own (the lane is zero), so
+        // every light's layer range takes the tiles in and which lights are worked out is the screen tile's say (LightStore::markLoopLights):
+        // a strip stays on the GPU as it is while the lights move over it.
+        u32 layerShader = batch_shader_id_;
+        if (lit && ctx.frame) {
+            if (const u32 litProgram = ctx.frame->batchProgram({"LIT"})) layerShader = litProgram;
+        }
 
         f32 originX = 0, originY = 0, angle = 0;
         Entity transformEntity = (layer.origin_entity != INVALID_ENTITY)
@@ -511,7 +522,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                     BatchDrawKey key{
                         .stage = ctx.current_stage,
                         .layer = sortLayer,
-                        .shaderId = batch_shader_id_,
+                        .shaderId = layerShader,
                         .blend = BlendMode::Normal,
                         .textureId = resolved[si].glTexId,
                         .depth = depth,
@@ -579,7 +590,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                 BatchDrawKey{
                     .stage = ctx.current_stage,
                     .layer = sortLayer,
-                    .shaderId = batch_shader_id_,
+                    .shaderId = layerShader,
                     .blend = BlendMode::Normal,
                     .textureId = resolved[si].glTexId,
                     // Authored, not measured: a tilemap layer is flat content stacked

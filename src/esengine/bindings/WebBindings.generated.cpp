@@ -1564,6 +1564,7 @@ struct TilemapLayerJS {
     f32 opacity;
     glm::vec2 parallaxFactor;
     bool visible;
+    bool lit;
 };
 
 void tilemaplayerApplyJS(esengine::ecs::TilemapLayer& c, const TilemapLayerJS& js) {
@@ -1580,6 +1581,7 @@ void tilemaplayerApplyJS(esengine::ecs::TilemapLayer& c, const TilemapLayerJS& j
     c.opacity = js.opacity;
     c.parallaxFactor = js.parallaxFactor;
     c.visible = js.visible;
+    c.lit = js.lit;
 }
 
 esengine::ecs::TilemapLayer tilemaplayerFromJS(const TilemapLayerJS& js) {
@@ -1603,6 +1605,7 @@ TilemapLayerJS tilemaplayerToJS(const esengine::ecs::TilemapLayer& c) {
     js.opacity = c.opacity;
     js.parallaxFactor = c.parallaxFactor;
     js.visible = c.visible;
+    js.lit = c.lit;
     return js;
 }
 
@@ -2380,7 +2383,8 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("tintColor", &TilemapLayerJS::tintColor)
         .field("opacity", &TilemapLayerJS::opacity)
         .field("parallaxFactor", &TilemapLayerJS::parallaxFactor)
-        .field("visible", &TilemapLayerJS::visible);
+        .field("visible", &TilemapLayerJS::visible)
+        .field("lit", &TilemapLayerJS::lit);
 
     value_object<TrailRendererJS>("TrailRenderer")
         .field("time", &TrailRendererJS::time)
@@ -4360,6 +4364,7 @@ static_assert(offsetof(esengine::ecs::TilemapLayer, tintColor) == 40, "ABI offse
 static_assert(offsetof(esengine::ecs::TilemapLayer, opacity) == 56, "ABI offset drift: esengine::ecs::TilemapLayer.opacity (EHT expected 56)");
 static_assert(offsetof(esengine::ecs::TilemapLayer, parallaxFactor) == 60, "ABI offset drift: esengine::ecs::TilemapLayer.parallaxFactor (EHT expected 60)");
 static_assert(offsetof(esengine::ecs::TilemapLayer, visible) == 68, "ABI offset drift: esengine::ecs::TilemapLayer.visible (EHT expected 68)");
+static_assert(offsetof(esengine::ecs::TilemapLayer, lit) == 69, "ABI offset drift: esengine::ecs::TilemapLayer.lit (EHT expected 69)");
 static_assert(offsetof(esengine::ecs::TrailRenderer, time) == 0, "ABI offset drift: esengine::ecs::TrailRenderer.time (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::TrailRenderer, minVertexDistance) == 4, "ABI offset drift: esengine::ecs::TrailRenderer.minVertexDistance (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::TrailRenderer, emitting) == 8, "ABI offset drift: esengine::ecs::TrailRenderer.emitting (EHT expected 8)");
@@ -4436,7 +4441,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "9b9790d2839bd020";
+static const char* kEsAbiLayoutHash = "cb0184ba3431d6f9";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

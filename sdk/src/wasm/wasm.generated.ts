@@ -1039,6 +1039,7 @@ export interface TilemapLayer {
     opacity: number;
     parallaxFactor: Vec2;
     visible: boolean;
+    lit: boolean;
 }
 
 export interface TrailRenderer {

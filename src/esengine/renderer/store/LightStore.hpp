@@ -21,6 +21,7 @@
 #include "./LightConstants.hpp"
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <glm/glm.hpp>
 
@@ -43,6 +44,8 @@ public:
         data_ = LightConstants{};
         count_ = 0;
         tiledCount_ = 0;
+        loopMarked_ = false;
+        loopTileBits_ = 0;
         hasEnvironment_ = false;
         dirty_ = true;
     }
@@ -81,7 +84,7 @@ public:
         data_.tiledLights[tiledCount_] = light;
         markTiledLight(tiledCount_, viewProjection);
         ++tiledCount_;
-        data_.tileInfo = glm::vec4(static_cast<f32>(tiledCount_), static_cast<f32>(TILE_COLUMNS), static_cast<f32>(TILE_ROWS), 0.0f);
+        data_.tileInfo = glm::vec4(static_cast<f32>(tiledCount_), static_cast<f32>(TILE_COLUMNS), static_cast<f32>(TILE_ROWS), data_.tileInfo.w);
         dirty_ = true;
         return true;
     }
@@ -89,13 +92,55 @@ public:
     /// Reprojects the collected lights for another view without changing their identity, illumination or shadow assignments.
     /// Call again with the source view after drawing a reflection; its post-processing also reads this block.
     void setTiledView(const glm::mat4& viewProjection) {
-        if (tiledCount_ == 0) return;
+        if (tiledCount_ == 0 && !loopMarked_) return;
         std::fill_n(data_.tileMask, TILE_COLUMNS * TILE_ROWS, glm::uvec4(0u));
         for (u32 i = 0; i < tiledCount_; ++i) markTiledLight(i, viewProjection);
+        if (loopMarked_) markLoopLights(viewProjection);
+        dirty_ = true;
+    }
+
+    /**
+     * @brief Says, per screen tile, which of the LOOP's sixteen lights can reach a flat lit surface there: the masks' spare fourth word.
+     * @details A lit sprite or tile works out every light in the loop for every pixel, and that arithmetic is what 2D lighting costs
+     *          (docs/GPU_PERFORMANCE_OPTIONS.md, section 9). With this a pixel skips the lights that cannot reach its tile, and a
+     *          tilemap's strips, which stay on the GPU, need nothing written into them when a light moves. `tileInfo.w` says the word
+     *          is there. Call once the loop's lights are all added.
+     *
+     *          A flat surface measures a light in the plane's XY alone, whatever its depth, so a tile is only a sound answer where
+     *          the view keeps depth out of the picture's x and y: an orthographic camera looking down the plane's normal. Through
+     *          any other the word is all ones and nothing is skipped. A directional light reaches every tile.
+     */
+    void markLoopLights(const glm::mat4& viewProjection) {
+        auto* masks = reinterpret_cast<u32(*)[4]>(data_.tileMask);
+        for (u32 t = 0; t < TILE_COLUMNS * TILE_ROWS; ++t) masks[t][3] = 0u;
+        const bool flatView = viewProjection[2][0] == 0.0f && viewProjection[2][1] == 0.0f
+            && viewProjection[0][3] == 0.0f && viewProjection[1][3] == 0.0f && viewProjection[2][3] == 0.0f;
+        for (u32 i = 0; i < count_; ++i) {
+            const GpuLight& light = data_.lights[i];
+            const bool directional = light.posDir.z >= 0.5f && light.posDir.z < 1.5f;
+            if (!flatView || directional) {
+                for (u32 t = 0; t < TILE_COLUMNS * TILE_ROWS; ++t) masks[t][3] |= 1u << i;
+                continue;
+            }
+            if (light.color.a == 0.0f) continue;
+            // A hair wide, as lightReachMask2D is: the fragment's tile comes from an interpolated position.
+            const f32 reach = std::max(light.posDir.w, 0.0001f) * 1.001f + 0.001f;
+            markLightTiles(viewProjection, glm::vec3(light.posDir.x, light.posDir.y, 0.0f), reach, 96u + i, masks);
+        }
+        data_.tileInfo.y = static_cast<f32>(TILE_COLUMNS);
+        data_.tileInfo.z = static_cast<f32>(TILE_ROWS);
+        data_.tileInfo.w = 1.0f;
+        loopTileBits_ = 0;
+        for (u32 t = 0; t < TILE_COLUMNS * TILE_ROWS; ++t) loopTileBits_ += static_cast<u32>(std::popcount(masks[t][3]));
+        loopMarked_ = true;
         dirty_ = true;
     }
 
     u32 tiledCount() const { return tiledCount_; }
+
+    /// How many (screen tile, loop light) pairs the last markLoopLights left set: 192 tiles times the lights when nothing could be
+    /// told apart, far fewer under local lights. No pixel shows a light that is skipped, so this is what a gate reads.
+    u32 loopTileBits() const { return loopTileBits_; }
 
     /// Hands over the shadow tiles a frame rendered: per tile a world -> clip matrix
     /// and the atlas rect it was drawn into (bias in w), plus the params whose x is
@@ -247,6 +292,8 @@ private:
     LightConstants data_{};
     u32 count_ = 0;
     u32 tiledCount_ = 0;
+    bool loopMarked_ = false;
+    u32 loopTileBits_ = 0;
     bool hasEnvironment_ = false;
     BufferHandle ubo_ = BufferHandle::Invalid;
     bool dirty_ = true;

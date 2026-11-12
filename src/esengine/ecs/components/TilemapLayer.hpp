@@ -89,6 +89,10 @@ struct TilemapLayer {
     ES_PROPERTY()
     bool visible{true};
 
+    /** @brief Lit by the scene's 2D lights (Light), as a Sprite's `lit` is: flat normal, the layer's tint as the albedo. Off = unlit. */
+    ES_PROPERTY(optional, tooltip="Receive 2D lights: Light entities light this layer's tiles (flat normal).")
+    bool lit{false};
+
     // Runtime-only; not ES_PROPERTY so it isn't serialized.
     bool needsSync{true};
 

@@ -500,6 +500,7 @@ BuiltinComponentDef<TilemapLayerData>
 ```
 cellSize: Vec2
 hexSideLength: number
+lit: boolean | undefined
 opacity: number
 orientation: TilemapOrientation
 originOffset: Vec2
