@@ -57,6 +57,16 @@ export interface FoliageData {
     colorMap: number;
     /** How much of the colour map is mixed in where its alpha is whole. */
     colorMapStrength: number;
+    /** How many far versions a cell has, 1 to 3: each is the same plants, fewer and larger, and takes over `farStep` times further out than the last. */
+    farLevels: number;
+    /** The share of its plants each far version keeps of the one before. They thin to it plant by plant before it takes over, so nothing jumps. */
+    farKeep: number;
+    /** How many times further out each far version takes over than the one before: the first at `lodDistance`. */
+    farStep: number;
+    /** The most a plant kept in a far version is grown by, to cover the ground the ones left out did. */
+    farGrow: number;
+    /** A mesh's far version is crossed cards of its texture (a tree). Off, it is the plant itself, fewer and larger (a flower). */
+    farCards: boolean;
     /** How far up a plant the colour map begins: 0 colours it whole, 0.6 only its top (a flower's head, on a mesh whose red rises to it). */
     colorMapFrom: number;
     /** The area, centred on the entity, and the side of the cells it is cut into. */
@@ -105,6 +115,7 @@ export interface FoliageData {
  */
 export const Foliage: ComponentDef<FoliageData> = defineComponent<FoliageData>('Foliage', {
     mesh: 0, material: 0, densityMap: 0, colorMap: 0, colorMapStrength: 1, colorMapFrom: 0,
+    farLevels: 1, farKeep: 0.34, farStep: 2, farGrow: 2, farCards: true,
     sizeX: 400, sizeZ: 400, cellSize: 40, count: 500, seed: 1,
     minScale: 0.8, maxScale: 1.25, minUp: 0.7, heightMin: -100000, heightMax: 100000, waterDepth: 0,
     bladeHeight: 14, bladeWidth: 1.6, lodDistance: 140, drawDistance: 420, castShadows: true,
@@ -132,6 +143,11 @@ export const Foliage: ComponentDef<FoliageData> = defineComponent<FoliageData>('
         waterDepth: { min: 0, category: 'Placement', tooltip: 'How deep under water a plant may stand. 0 keeps them on dry ground; reeds stand in the shallows.' },
         bladeHeight: { min: 0.1, category: 'Grass', tooltip: 'Height of a blade at scale 1.' },
         bladeWidth: { min: 0.01, category: 'Grass', tooltip: 'Width of a blade at its base, at scale 1.' },
+        farLevels: { min: 1, max: 3, step: 1, category: 'Distance', tooltip: 'How many far versions a cell has: each is the same plants, fewer and larger, and takes over further out than the last.' },
+        farKeep: { min: 0.1, max: 1, step: 0.01, slider: true, category: 'Distance', tooltip: 'The share of its plants each far version keeps of the one before. They thin to it plant by plant before it takes over.' },
+        farStep: { min: 1.2, max: 4, step: 0.05, category: 'Distance', tooltip: 'How many times further out each far version takes over than the one before. The first takes over at the LOD distance.' },
+        farGrow: { min: 1, max: 6, step: 0.1, category: 'Distance', tooltip: 'The most a plant kept in a far version is grown by, to cover the ground the ones left out did.' },
+        farCards: { category: 'Far version', tooltip: 'A mesh\'s far version is crossed cards of its texture (a tree). Off, it is the plant itself, fewer and larger (a flower).' },
         lodDistance: { min: 1, category: 'Distance', tooltip: 'Past this a cell is drawn as its far version: fewer, broader blades, or a tree as crossed cards.' },
         drawDistance: { min: 1, category: 'Distance', tooltip: 'Past this a cell is not drawn.' },
         castShadows: { category: 'Distance', tooltip: 'Generated cells cast shadows. Turn off for dense short grass to avoid drawing every cell again into each shadow cascade. Lighting and received shadows remain.' },
@@ -182,7 +198,18 @@ function zonesOf(app: App, world: string | undefined): Zones | null {
 }
 
 /** The chunk layer a Foliage's cells are. */
-const layerOf = (entity: Entity): string => `foliage:${entity}`;
+/** The most far versions a cell has. */
+const FAR_LEVELS = 3;
+/** A field's layer of cells; with `level`, the layer of one version of them (0 the near one). */
+const layerOf = (entity: Entity, level = 0): string => (level === 0 ? `foliage:${entity}` : `foliage:${entity}:${level}`);
+/**
+ * Whether a field's versions are layers of their own, each grown only as far out as it is drawn and told apart by the shader: what a
+ * material makes possible, for grass and for a mesh whose far version is itself. Else a cell holds its versions and a LODGroup picks one.
+ */
+const farLevelsOf = (data: FoliageData, mesh: boolean): number =>
+    (data.material && (!mesh || !data.farCards) ? Math.min(Math.max(Math.floor(data.farLevels), 1), FAR_LEVELS) : 0);
+/** Where far version `level` (1 on) takes over from the one before. */
+const takesOverAt = (data: FoliageData, level: number): number => data.lodDistance * Math.pow(Math.max(data.farStep, 1.01), level - 1);
 
 /** Run-time facts about the foliage the plugin has grown. */
 export class FoliageField {
@@ -200,7 +227,10 @@ export class FoliageField {
     /** How many cells near enough to be drawn, across every field, are still waiting to be grown. */
     get pending(): number {
         let n = 0;
-        for (const [entity, b] of this.built_) n += (this.statusOf_(entity)?.pending ?? 0) + (b.loading ? 1 : 0);
+        for (const [entity, b] of this.built_) {
+            for (let level = 0; level <= FAR_LEVELS; level++) n += this.statusOf_(entity, level)?.pending ?? 0;
+            if (b.loading) n++;
+        }
         return n;
     }
 
@@ -208,15 +238,17 @@ export class FoliageField {
     get cellCount(): number {
         let n = 0;
         for (const entity of this.built_.keys()) {
-            const s = this.statusOf_(entity);
-            if (s) n += s.ready + s.stale;
+            for (let level = 0; level <= FAR_LEVELS; level++) {
+                const s = this.statusOf_(entity, level);
+                if (s) n += s.ready + s.stale;
+            }
         }
         return n;
     }
 
-    private statusOf_(entity: Entity): ChunkLayerStatus | null {
+    private statusOf_(entity: Entity, level = 0): ChunkLayerStatus | null {
         const app = this.app_;
-        return app?.hasResource(ProceduralChunksRes) ? app.getResource(ProceduralChunksRes).status(layerOf(entity)) : null;
+        return app?.hasResource(ProceduralChunksRes) ? app.getResource(ProceduralChunksRes).status(layerOf(entity, level)) : null;
     }
 }
 
@@ -309,7 +341,7 @@ export class FoliagePlugin implements Plugin {
         if (!app?.hasResource(FoliageRes)) return;
         const field = app.getResource(FoliageRes);
         for (const entity of field.built_.keys()) {
-            if (app.hasResource(ProceduralChunksRes)) app.getResource(ProceduralChunksRes).remove(layerOf(entity));
+            if (app.hasResource(ProceduralChunksRes)) for (let level = 0; level <= FAR_LEVELS; level++) app.getResource(ProceduralChunksRes).remove(layerOf(entity, level));
         }
         field.built_.clear();
         // What had come back and not landed is let go with the field: its cells are no longer anyone's.
@@ -354,24 +386,32 @@ export class FoliagePlugin implements Plugin {
         const generation = `${built.epoch}:${revision}:${t.worldPosition.x}:${t.worldPosition.y}:${t.worldPosition.z}:${sx}:${sz}`;
         built.generation = generation;
         const away = waiting || built.loading ? null : this.awayFor(app, entity, built, revision, t.worldPosition.y);
-        chunksOf(app).set<GrownCell>(layerOf(entity), {
-            label: 'Growing the plants',
-            // Made on the workers where they can be: the layer then takes none of the frame's budget to make, only to land.
-            async: away !== null,
-            originX: t.worldPosition.x - data.sizeX / 2 * sx, originZ: t.worldPosition.z - data.sizeZ / 2 * sz,
-            sizeX: data.sizeX / cells.x * sx, sizeZ: data.sizeZ / cells.z * sz,
-            extent: [0, 0, cells.x, cells.z],
-            loadRadius: data.drawDistance,
-            unloadRadius: data.drawDistance + Math.max(1, data.cellSize) * 1.5,
-            generation,
-            // Plants stand on the ground and keep out of the water: while either is still being made, they wait.
-            make: (cx, cz, signal) => (waiting || built.loading ? null : this.grow(app, entity, built, cx, cz, away, generation, signal)),
-            publish: (_cx, _cz, cell) => { if (cell.entity !== null) app.world.setParent(cell.entity, entity); },
-            release: (_cx, _cz, cell) => {
-                if (cell.entity !== null && app.world.valid(cell.entity)) app.world.despawn(cell.entity);
-                for (const handle of cell.handles) assets.releaseBuiltMesh(handle);
-            },
-        });
+        const far = farLevelsOf(data, !!built.source);
+        const side = Math.max(1, data.cellSize);
+        for (let level = 0; level <= FAR_LEVELS; level++) {
+            if (level > far) { chunksOf(app).remove(layerOf(entity, level)); continue; }
+            // A version is grown as far out as it is drawn: to where the next takes over, and the last to the draw distance.
+            const reach = far === 0 || level === far ? data.drawDistance : Math.min(takesOverAt(data, level + 1) + side, data.drawDistance);
+            const only = far === 0 ? null : level;
+            chunksOf(app).set<GrownCell>(layerOf(entity, level), {
+                label: 'Growing the plants',
+                // Made on the workers where they can be: the layer then takes none of the frame's budget to make, only to land.
+                async: away !== null,
+                originX: t.worldPosition.x - data.sizeX / 2 * sx, originZ: t.worldPosition.z - data.sizeZ / 2 * sz,
+                sizeX: data.sizeX / cells.x * sx, sizeZ: data.sizeZ / cells.z * sz,
+                extent: [0, 0, cells.x, cells.z],
+                loadRadius: reach,
+                unloadRadius: reach + side * 1.5,
+                generation,
+                // Plants stand on the ground and keep out of the water: while either is still being made, they wait.
+                make: (cx, cz, signal) => (waiting || built.loading ? null : this.grow(app, entity, built, cx, cz, away, generation, signal, only)),
+                publish: (_cx, _cz, cell) => { if (cell.entity !== null) app.world.setParent(cell.entity, entity); },
+                release: (_cx, _cz, cell) => {
+                    if (cell.entity !== null && app.world.valid(cell.entity)) app.world.despawn(cell.entity);
+                    for (const handle of cell.handles) assets.releaseBuiltMesh(handle);
+                },
+            });
+        }
     }
 
     /** The field's density map where it lies in the world: over the whole area. */
@@ -448,7 +488,8 @@ export class FoliagePlugin implements Plugin {
      * The geometry is made on a worker where `away` can make it, and the cell lands a frame or two later; else it is made here.
      */
     private grow(app: App, parent: Entity, built: BuiltFoliage, cx: number, cz: number,
-                 away: ((cell: FoliageCellSpec) => Promise<MeshData[]>) | null = null, generation?: string, signal?: AbortSignal): GrownCell | Promise<GrownCell | null> | null {
+                 away: ((cell: FoliageCellSpec) => Promise<MeshData[]>) | null = null, generation?: string, signal?: AbortSignal,
+                 only: number | null = null): GrownCell | Promise<GrownCell | null> | null {
         const world = app.world;
         if (!world.valid(parent)) return null;
         const data = built.data;
@@ -463,8 +504,15 @@ export class FoliagePlugin implements Plugin {
         const sx = t.worldScale.x || 1, sz = t.worldScale.z || 1;
         const worldX = t.worldPosition.x + localX * sx, worldZ = t.worldPosition.z + localZ * sz;
         const hasTerrain = !!terrains && terrains.built_.size > 0;
-        // Grass thins toward where its cells turn to their far version, so a near cell beside a far one is not three times as thick.
-        if (data.material && !built.source) Material.setUniform(data.material, 'u_thinDistance', data.lodDistance);
+        // Plants thin, each by its own number, to what the next far version keeps before it takes over, and to none at the draw distance.
+        if (data.material) {
+            const thins = !built.source || !data.farCards;
+            Material.setUniform(data.material, 'u_thinLevels', farLevelsOf(data, !!built.source));
+            Material.setUniform(data.material, 'u_thinDistance', thins ? data.lodDistance : 0);
+            Material.setUniform(data.material, 'u_thinKeep', Math.min(Math.max(data.farKeep, 0.01), 1));
+            Material.setUniform(data.material, 'u_thinStep', Math.max(data.farStep, 1.01));
+            Material.setUniform(data.material, 'u_thinEnd', thins ? data.drawDistance : 0);
+        }
         const spec: FoliageCellSpec = {
             centerX: worldX, centerZ: worldZ, size: Math.min(side, data.sizeX / cells.x), count: Math.floor(data.count), seed: data.seed,
             cellKey: cz * 1000 + cx, minScale: data.minScale, maxScale: data.maxScale, minUp: data.minUp,
@@ -473,6 +521,7 @@ export class FoliagePlugin implements Plugin {
             tags: ['foliage', data.mesh ? 'tree' : 'grass', ...(data.zoneTags ?? '').split(',').map((s) => s.trim()).filter(Boolean)],
             baseY: t.worldPosition.y,
             paint: data.material ? null : { base: [0.14, 0.3, 0.08], tip: [0.55, 0.72, 0.25] },
+            far: { levels: data.farLevels, keep: data.farKeep, grow: data.farGrow, cards: data.farCards, only },
             look: built.source
                 ? { kind: 'mesh', card: { u0: data.cardU0, v0: data.cardV0, u1: data.cardU1, v1: data.cardV1 }, tent: data.cardTent === 1 }
                 : { kind: 'grass', bladeHeight: data.bladeHeight, bladeWidth: data.bladeWidth },
@@ -496,15 +545,15 @@ export class FoliagePlugin implements Plugin {
                 // Put in the world on a later frame, within its budget; not at all if the field has moved on while it was being made.
                 field.landed_.push(() => {
                     if (signal?.aborted || built.generation !== generation || !app.world.valid(parent)) { resolve(null); return; }
-                    try { resolve(this.land(app, built, cx, cz, localX, localZ, meshes ?? here())); } catch (e) { reject(e); }
+                    try { resolve(this.land(app, built, cx, cz, localX, localZ, meshes ?? here(), only !== null)); } catch (e) { reject(e); }
                 });
             }));
         }
-        return this.land(app, built, cx, cz, localX, localZ, here());
+        return this.land(app, built, cx, cz, localX, localZ, here(), only !== null);
     }
 
     /** Puts a cell's geometry in the world: its meshes on the GPU and the entity that draws them (its parent is set on publishing). */
-    private land(app: App, built: BuiltFoliage, cx: number, cz: number, localX: number, localZ: number, meshes: MeshData[]): GrownCell {
+    private land(app: App, built: BuiltFoliage, cx: number, cz: number, localX: number, localZ: number, meshes: MeshData[], banded = false): GrownCell {
         if (meshes.length === 0) return { entity: null, handles: [] };
         const world = app.world, data = built.data;
         const assets = app.getResource(Assets);
@@ -526,14 +575,17 @@ export class FoliagePlugin implements Plugin {
             castShadows: data.castShadows !== false,
             color: { r: 1, g: 1, b: 1, a: 1 },
         } as Partial<MeshRendererData>);
-        const lodDef = getComponent('LODGroup');
+        // A version that is a layer of its own is drawn in its band by its shader and let go with its layer: nothing picks among versions.
+        const lodDef = banded ? null : getComponent('LODGroup');
         if (lodDef) {
             // The component's distances as the screen sizes the engine compares, on the sphere it will measure: the one round the
             // plants this cell grew, not round the cell — a cell with a few plants at one edge is a fraction of its own square.
             const radius = lodSphereRadius(handles.length > 1 ? meshes : [meshes[0]]);
+            const step = Math.max(data.farStep, 1.01);
+            const sizeAt = (level: number): number => (handles[level] ? lodSizeAtDistance(radius, data.lodDistance * Math.pow(step, level - 1)) : 0);
             world.insert(cell, lodDef, {
-                lod1: handles[1] ?? 0, lod2: 0, lod3: 0,
-                lod1Size: lodSizeAtDistance(radius, data.lodDistance), lod2Size: 0, lod3Size: 0,
+                lod1: handles[1] ?? 0, lod2: handles[2] ?? 0, lod3: handles[3] ?? 0,
+                lod1Size: sizeAt(1), lod2Size: sizeAt(2), lod3Size: sizeAt(3),
                 cullSize: lodCullSizeWithin(radius, data.drawDistance), hysteresis: 0.1, enabled: true,
             });
         }
@@ -543,7 +595,7 @@ export class FoliagePlugin implements Plugin {
     private sweep(app: App, field: FoliageField): void {
         for (const entity of field.built_.keys()) {
             if (app.world.valid(entity) && app.world.has(entity, Foliage)) continue;
-            if (app.hasResource(ProceduralChunksRes)) app.getResource(ProceduralChunksRes).remove(layerOf(entity));
+            if (app.hasResource(ProceduralChunksRes)) for (let level = 0; level <= FAR_LEVELS; level++) app.getResource(ProceduralChunksRes).remove(layerOf(entity, level));
             field.built_.delete(entity);
         }
     }

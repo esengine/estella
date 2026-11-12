@@ -16,6 +16,8 @@ const FOLIAGE = `#pragma shader "Foliage"
 #pragma domain Lit
 #pragma param u_baseColor color default(0.14,0.30,0.08,1)
 #pragma param u_tipColor color default(0.55,0.72,0.25,1)
+// How far up the plant the tip's colour begins: 0 runs from the root (a blade), 0.85 keeps a stem the base colour under a head of the tip's.
+#pragma param u_tipFrom float default(0) range(0,0.99) ui(slider)
 // A texture over the plant (leaves, bark), and whether it is used at all: grass is drawn from the two colours and wants none.
 #pragma param u_albedo texture default(white)
 #pragma param u_useTexture float default(0) range(0,1) ui(slider)
@@ -37,9 +39,16 @@ const FOLIAGE = `#pragma shader "Foliage"
 #pragma param u_windDirection float default(40) range(0,360) ui(slider)
 #pragma param u_gustScale float default(0.02) range(0.001,0.5) ui(slider)
 #pragma param u_flutter float default(0.4) range(0,4) ui(slider)
-// Grass thins out toward the distance its cells switch to their far version (the Foliage component writes it; 0 thins nothing): each blade
-// by its own random key, down to the third the far version keeps, so a near cell beside a far one is not three times as dense.
+// Plants thin with distance, each by its own number (the Foliage component writes these; a thin distance of 0 thins nothing): the share
+// drawn falls as a power of the distance so that it is u_thinKeep where the first far version takes over (u_thinDistance), u_thinKeep of
+// that u_thinStep times further out, and so on, and none at u_thinEnd. Each far version holds the plants still drawn where it takes over.
 #pragma param u_thinDistance float default(0) range(0,1000000) ui(slider)
+#pragma param u_thinKeep float default(0.34) range(0.01,1) ui(slider)
+#pragma param u_thinStep float default(2) range(1.01,8) ui(slider)
+#pragma param u_thinEnd float default(0) range(0,1000000) ui(slider)
+// How many far versions are layers of their own (0: none are, and a mesh is drawn at any distance): a mesh says which it is in its
+// colour's alpha, in thirds, and is drawn from where it takes over to where the next does.
+#pragma param u_thinLevels float default(0) range(0,3) ui(slider)
 // How far plants part from what touches them, as a share of its reach. The four contacts are written each frame (a FoliageContact): where each is, and how far it reaches now.
 #pragma param u_contactBend float default(0.7) range(0,2) ui(slider)
 #pragma param u_contact0 vec4 default(0,0,0,0)
@@ -84,7 +93,15 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
     if (u_thinDistance > 0.0 && u_camera.w > 0.5) {
         // Measured from the cell's centre, so every vertex of a blade agrees on whether it is kept.
         vec3 cell = (esInstanceModel() * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-        float keep = mix(1.0, 0.34, smoothstep(u_thinDistance * 0.55, u_thinDistance, length(cell - u_camera.xyz)));
+        float away = max(length(cell - u_camera.xyz), 1e-3);
+        float keep = min(pow(u_thinDistance / (u_thinStep * away), log(1.0 / u_thinKeep) / log(u_thinStep)), 1.0);
+        if (u_thinEnd > 0.0) keep *= 1.0 - smoothstep(u_thinEnd * 0.85, u_thinEnd, away);
+        if (u_thinLevels > 0.5) {
+            float level = floor(es_vertexColor.a * 3.0 + 0.5);
+            float nearEdge = level < 0.5 ? 0.0 : u_thinDistance * pow(u_thinStep, level - 1.0);
+            float farEdge = level > u_thinLevels - 0.5 ? 1e30 : u_thinDistance * pow(u_thinStep, level);
+            if (away < nearEdge || away >= farEdge) keep = -1.0;
+        }
         // Every vertex of a blade left out goes to one point: its triangles have no area and draw nothing.
         if (es_vertexColor.g > keep) local = vec3(0.0);
     }
@@ -126,7 +143,17 @@ fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, ve
     (*local).y = (*local).y - abs(bend) * 0.35 * weight;
     if (mc.u_thinDistance > 0.0 && frame.camera.w > 0.5) {
         let cell = (esInstanceModel() * vec4f(0.0, 0.0, 0.0, 1.0)).xyz;
-        let keep = mix(1.0, 0.34, smoothstep(mc.u_thinDistance * 0.55, mc.u_thinDistance, length(cell - frame.camera.xyz)));
+        let away = max(length(cell - frame.camera.xyz), 1e-3);
+        var keep = min(pow(mc.u_thinDistance / (mc.u_thinStep * away), log(1.0 / mc.u_thinKeep) / log(mc.u_thinStep)), 1.0);
+        if (mc.u_thinEnd > 0.0) { keep = keep * (1.0 - smoothstep(mc.u_thinEnd * 0.85, mc.u_thinEnd, away)); }
+        if (mc.u_thinLevels > 0.5) {
+            let level = floor(es_vertexColor.a * 3.0 + 0.5);
+            var nearEdge = 0.0;
+            if (level > 0.5) { nearEdge = mc.u_thinDistance * pow(mc.u_thinStep, level - 1.0); }
+            var farEdge = 1e30;
+            if (level < mc.u_thinLevels - 0.5) { farEdge = mc.u_thinDistance * pow(mc.u_thinStep, level); }
+            if (away < nearEdge || away >= farEdge) { keep = -1.0; }
+        }
         if (es_vertexColor.g > keep) { *local = vec3f(0.0); }
     }
 }
@@ -173,7 +200,7 @@ void main() {
     vec4 tex = texture(u_albedo, v_texCoord);
     // Before the branch: a derivative needs every fragment of its quad.
     float edgeA = fwidth(tex.a);
-    vec3 albedo = mix(u_baseColor.rgb, u_tipColor.rgb, height);
+    vec3 albedo = mix(u_baseColor.rgb, u_tipColor.rgb, clamp((height - u_tipFrom) / (1.0 - u_tipFrom), 0.0, 1.0));
     float alpha = 1.0;
     if (u_useTexture > 0.5) {
         albedo *= tex.rgb;
@@ -245,7 +272,7 @@ fn packNormal(n : vec3f) -> vec2f {
 #endif
     let height = clamp(v.v_color.r, 0.0, 1.0);
     let light = v.v_color.b;
-    var albedo = mix(mc.u_baseColor.rgb, mc.u_tipColor.rgb, vec3f(height));
+    var albedo = mix(mc.u_baseColor.rgb, mc.u_tipColor.rgb, vec3f(clamp((height - mc.u_tipFrom) / (1.0 - mc.u_tipFrom), 0.0, 1.0)));
     var alpha = 1.0;
     if (mc.u_useTexture > 0.5) {
         albedo = albedo * tex.rgb;

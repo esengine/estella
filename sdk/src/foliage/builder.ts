@@ -88,8 +88,13 @@ export function scatterCell(p: ScatterParams, ground: Ground): Plant[] {
     return out;
 }
 
+/** A band as a colour's alpha: thirds, which a byte holds exactly; 1 where there is none (the shader is then told there are no bands). */
+const bandAlpha = (band: number | undefined): number => (band === undefined ? 1 : Math.min(Math.max(Math.round(band), 0), 3) / 3);
+
 /** The vertices a patch is made of, before they are packed. */
 interface Builder {
+    /** What every vertex's colour carries in its alpha: which far version the mesh is (see BladeParams.band). */
+    alpha: number;
     pos: number[];
     uv: number[];
     color: number[];
@@ -97,13 +102,13 @@ interface Builder {
     idx: number[];
 }
 
-const newBuilder = (): Builder => ({ pos: [], uv: [], color: [], nrm: [], idx: [] });
+const newBuilder = (alpha = 1): Builder => ({ alpha, pos: [], uv: [], color: [], nrm: [], idx: [] });
 
 function vertex(b: Builder, x: number, y: number, z: number, u: number, v: number,
                 r: number, g: number, bl: number, nx: number, ny: number, nz: number): number {
     b.pos.push(x, y, z);
     b.uv.push(u, v);
-    b.color.push(r, g, bl, 1);
+    b.color.push(r, g, bl, b.alpha);
     b.nrm.push(nx, ny, nz);
     return b.pos.length / 3 - 1;
 }
@@ -148,6 +153,8 @@ export interface BladeParams {
     thin: number;
     /** Paint a colour the plain material shows, instead of the wind's weights. */
     paint?: { base: [number, number, number]; tip: [number, number, number] } | null;
+    /** Which version of its cell this mesh is, 0 the near one to 3, written to every vertex for the Foliage shader to draw it only in its own band of distances. Absent: drawn at any. */
+    band?: number;
 }
 
 /**
@@ -155,7 +162,7 @@ export interface BladeParams {
  * so a meadow is lit as one surface and not as ten thousand knives.
  */
 export function buildGrassMesh(plants: readonly Plant[], blade: BladeParams): MeshData {
-    const b = newBuilder();
+    const b = newBuilder(bandAlpha(blade.band));
     const segments = Math.max(1, Math.floor(blade.segments));
     const thin = Math.max(1, Math.floor(blade.thin));
     const widen = Math.sqrt(thin);
@@ -216,8 +223,8 @@ function reader(mesh: MeshData, semantic: number, components: number): ((v: numb
  * Copies of a mesh, one per plant, as one mesh: placed, turned about the vertical and scaled, with the wind's weights painted by how
  * high each vertex stands on its own copy (a tree's trunk hardly moves, its crown does).
  */
-export function buildInstancedMesh(source: MeshData, plants: readonly Plant[], paint?: BladeParams['paint']): MeshData {
-    const b = newBuilder();
+export function buildInstancedMesh(source: MeshData, plants: readonly Plant[], paint?: BladeParams['paint'], band?: number): MeshData {
+    const b = newBuilder(bandAlpha(band));
     const readPosition = reader(source, MeshChannel.Position, 3);
     const readNormal = reader(source, MeshChannel.Normal, 3);
     const readUv = reader(source, MeshChannel.TexCoord0, 2);
@@ -355,6 +362,21 @@ export function softenNormals(source: MeshData, amount: number): MeshData {
         f32[o] = x / len; f32[o + 1] = y / len; f32[o + 2] = z / len;
     }
     return { ...source, vertices };
+}
+
+/**
+ * The plants a far version keeps when it keeps a share `keep` of them: those whose own number (`phase`) is under it, each grown so the
+ * ground they cover is what it was, to `most` times at most. By the plant's number and not its place in the list, because that number is
+ * what the Foliage shader thins by: the version that takes over at a distance holds exactly the plants still drawn there. `slack` keeps a
+ * few more, for the stretch either side of the switch where the two versions trade places.
+ */
+export function rankedPlants(plants: readonly Plant[], keep: number, most: number, slack = 1.25): readonly Plant[] {
+    const share = Math.min(Math.max(keep, 1e-3), 1);
+    if (share >= 1) return plants;
+    const grow = Math.min(Math.sqrt(1 / share), Math.max(most, 1));
+    const out: Plant[] = [];
+    for (const p of plants) if (p.phase < share * slack) out.push({ ...p, scale: p.scale * grow });
+    return out;
 }
 
 /**
