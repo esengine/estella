@@ -2449,9 +2449,97 @@ fn shadeLight(pd : vec4f, col : vec4f, sp : vec4f, sh : vec4f, sm : vec4f, fo : 
     }
     return LightTerm(lit, gloss, extra);
 }
+)"
+// Split for MSVC's cap on one string literal, as above.
+R"(// A lit sprite's light, written out as only what it is (see the GLSL twin): the general model's sums term for term, with the two 2D masks
+// read once for the pixel and nothing of the highlight carried along.
+fn shadeLight2D(pd : vec4f, col : vec4f, sp : vec4f, sh : vec4f, sm : vec4f, fo : vec4f, N : vec3f, worldPos : vec3f,
+                masked : bool, shadowMask : vec4f, shapeMask : vec4f, shadow3D : bool) -> vec3f {
+    if (col.a == 0.0 || !lightReachesLayer(sm.y)) { return vec3f(0.0); }
+    var L : vec3f;
+    var atten = 1.0;
+    var castShadow = true;
+    if (pd.z < 0.5) {
+        let toL = lightVector(pd, sh, worldPos);
+        let dist = lightDistance(toL);
+        atten = distanceFalloff(dist, max(pd.w, 0.0001), fo);
+        L = towardLight(toL, N);
+    } else if (pd.z < 1.5) {
+        L = normalize(-vec3f(pd.xy, pd.w));
+        var toLight = vec2f(0.0, 0.0);
+        if (dot(pd.xy, pd.xy) > 1e-8) { toLight = normalize(-pd.xy); }
+        castShadow = sh.y > 0.0 && dot(toLight, toLight) > 0.5;
+    } else {
+        let toL = lightVector(pd, sh, worldPos);
+        let dist = lightDistance(toL);
+        atten = distanceFalloff(dist, max(pd.w, 0.0001), fo);
+        L = towardLight(toL, N);
+        atten *= spotCone(sp, sh, toL, dist);
+    }
+#ifndef ES_LIGHT_DIRECT
+    if (masked && col.a > 0.0 && atten > 0.0) {
+        if (fo.w >= 0.0) { atten *= min(mask2DChannel(shapeMask, fo.w), 1.0); }
+        if (castShadow && sm.w >= 0.0 && atten > 0.0) {
+            var hidden = 0.0;
+            if (sm.w < 3.5) { hidden = mask2DChannel(shadowMask, sm.w); }
+            else { hidden = mask2DChannel(shapeMask, sm.w - 4.0); }
+            atten *= mix(1.0, 1.0 - min(hidden, 1.0), fo.z);
+        }
+    }
+#endif
+    if (shadow3D && sm.y % 8.0 > 0.0 && atten > 0.0) {
+        atten *= mix(1.0,
+                     shadowFactor3D(worldPos, N, L, vec2f(sh.x, sm.z), i32(sm.x), i32(sm.y % 8.0)),
+                     fo.z);
+    }
+    return col.rgb * (col.a * max(dot(N, L), 0.0) * atten);
+}
 fn applyLighting2DAO(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32) -> vec3f {
     let P = vec3f(worldPos, 0.0);
-    return applyLightingPBR(albedo, N, P, viewDirection(P), 0.0, 1.0, 0.0, ao);
+    g_probePos = P;
+    var lit = indirectIrradiance(N) * ao;
+    var masked = false;
+    var shadowMask = vec4f(0.0);
+    var shapeMask = vec4f(0.0);
+#ifndef ES_LIGHT_DIRECT
+    if (lc.u_mask2DRect.z > 0.0) {
+        let maskUv = mask2DUv(worldPos);
+        if (!(maskUv.x < 0.0)) {
+            masked = true;
+            shadowMask = textureSampleLevel(t7, s7, maskUv, 0.0);
+            shapeMask = textureSampleLevel(t6, s6, maskUv, 0.0);
+        }
+    }
+#endif
+    let lightCount = i32(lc.u_ambient.a);
+    for (var i = 0; i < lightCount; i++) {
+        lit += shadeLight2D(lc.u_lights[i].posDir, lc.u_lights[i].color, lc.u_lights[i].spot, lc.u_lights[i].shadow,
+                            lc.u_lights[i].shadowMap, lc.u_lights[i].falloff, N, P, masked, shadowMask, shapeMask, true);
+    }
+#ifndef ES_LIGHT_DIRECT
+    let tiledCount = i32(lc.tileInfo.x);
+    if (tiledCount > 0) {
+        let tileClip = frame.projection * vec4f(P, 1.0);
+        let tileNdc = tileClip.xy / max(tileClip.w, 1e-4);
+        let tileCount = vec2i(i32(lc.tileInfo.y), i32(lc.tileInfo.z));
+        let tile = clamp(vec2i(floor((tileNdc * 0.5 + 0.5) * vec2f(tileCount))), vec2i(0), tileCount - vec2i(1));
+        let mask = lc.tileMask[tile.y * tileCount.x + tile.x];
+        for (var w = 0; w < 3; w++) {
+            var bits = mask.x;
+            if (w == 1) { bits = mask.y; } else if (w == 2) { bits = mask.z; }
+            if (bits == 0u) { continue; }
+            for (var b = 0; b < 32; b++) {
+                if ((bits & (1u << u32(b))) == 0u) { continue; }
+                let k = w * 32 + b;
+                if (k >= tiledCount) { break; }
+                lit += shadeLight2D(lc.tiledLights[k].posDir, lc.tiledLights[k].color, lc.tiledLights[k].spot,
+                                    lc.tiledLights[k].shadow, lc.tiledLights[k].shadowMap, lc.tiledLights[k].falloff,
+                                    N, P, masked, shadowMask, shapeMask, false);
+            }
+        }
+    }
+#endif
+    return albedo * lit;
 }
 fn applyLighting2D(albedo : vec3f, N : vec3f, worldPos : vec2f) -> vec3f {
     return applyLighting2DAO(albedo, N, worldPos, 1.0);
@@ -4000,10 +4088,96 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            }\n"
             "        }\n"
             "}\n"
+            // A lit sprite's light: the general model at metallic 0, roughness 1, specular 0, which is albedo times what arrives, written
+            // out as only that. The sums are the general ones term for term, so the picture is the same; what differs is what a pixel
+            // pays: the two 2D masks are read once for the pixel and not once per light, and nothing of the highlight is carried along.
+            // The three kinds of light keep a branch each, as the general function has them: folding point and spot into one, or
+            // leaving early when a light does not reach, measured SLOWER on D3D (5.7 ms against 4.7). 32 screen-filling lit layers
+            // under four lamps: 5.4 ms to 4.7 on WebGL2, 8.8 to 6.5 on WebGPU (docs/GPU_PERFORMANCE_OPTIONS.md, section 9).
+            "void shadeLight2D(in highp vec4 pd, in highp vec4 col, in highp vec4 sp, in highp vec4 sh, in highp vec4 sm,\n"
+            "                  in highp vec4 fo, in highp vec3 N, in highp vec3 worldPos, in bool masked,\n"
+            "                  in highp vec4 shadowMask, in highp vec4 shapeMask, inout highp vec3 lit, in bool shadow3D) {\n"
+            "    if (col.a == 0.0 || !lightReachesLayer(sm.y)) return;\n"
+            "    highp vec3 L;\n"
+            "    highp float atten = 1.0;\n"
+            "    bool castShadow = true;\n"
+            "    if (pd.z < 0.5) {\n"
+            "        highp vec3 toL = lightVector(pd, sh, worldPos);\n"
+            "        highp float dist = lightDistance(toL);\n"
+            "        atten = distanceFalloff(dist, max(pd.w, 0.0001), fo);\n"
+            "        L = towardLight(toL, N);\n"
+            "    } else if (pd.z < 1.5) {\n"
+            "        L = normalize(-vec3(pd.xy, pd.w));\n"
+            "        highp vec2 toLight = (dot(pd.xy, pd.xy) > 1e-8) ? normalize(-pd.xy) : vec2(0.0);\n"
+            "        castShadow = sh.y > 0.0 && dot(toLight, toLight) > 0.5;\n"
+            "    } else {\n"
+            "        highp vec3 toL = lightVector(pd, sh, worldPos);\n"
+            "        highp float dist = lightDistance(toL);\n"
+            "        atten = distanceFalloff(dist, max(pd.w, 0.0001), fo);\n"
+            "        L = towardLight(toL, N);\n"
+            "        atten *= spotCone(sp, sh, toL, dist);\n"
+            "    }\n"
+            "#ifndef ES_LIGHT_DIRECT\n"
+            "    if (masked && col.a > 0.0 && atten > 0.0) {\n"
+            "        if (fo.w >= 0.0) atten *= min(mask2DChannel(shapeMask, fo.w), 1.0);\n"
+            "        if (castShadow && sm.w >= 0.0 && atten > 0.0) {\n"
+            "            highp float hidden = (sm.w < 3.5) ? mask2DChannel(shadowMask, sm.w) : mask2DChannel(shapeMask, sm.w - 4.0);\n"
+            "            atten *= mix(1.0, 1.0 - min(hidden, 1.0), fo.z);\n"
+            "        }\n"
+            "    }\n"
+            "#endif\n"
+            "    if (shadow3D && mod(sm.y, 8.0) > 0.0 && atten > 0.0) {\n"
+            "        atten *= mix(1.0, shadowFactor3D(worldPos, N, L, vec2(sh.x, sm.z),\n"
+            "                                         int(sm.x), int(mod(sm.y, 8.0))), fo.z);\n"
+            "    }\n"
+            "    lit += col.rgb * (col.a * max(dot(N, L), 0.0) * atten);\n"
+            "}\n"
             "highp vec3 applyLighting2DAO(highp vec3 albedo, highp vec3 N, highp vec2 worldPos,\n"
             "                             highp float ao) {\n"
             "    highp vec3 P = vec3(worldPos, 0.0);\n"
-            "    return applyLightingPBR(albedo, N, P, viewDirection(P), 0.0, 1.0, 0.0, ao);\n"
+            "    g_probePos = P;\n"
+            "    highp vec3 lit = indirectIrradiance(N) * ao;\n"
+            "    bool masked = false;\n"
+            "    highp vec4 shadowMask = vec4(0.0);\n"
+            "    highp vec4 shapeMask = vec4(0.0);\n"
+            "#ifndef ES_LIGHT_DIRECT\n"
+            "    if (u_mask2DRect.z > 0.0) {\n"
+            "        highp vec2 maskUv = mask2DUv(worldPos);\n"
+            "        if (!(maskUv.x < 0.0)) {\n"
+            "            masked = true;\n"
+            "            shadowMask = textureLod(u_shadow2D, maskUv, 0.0);\n"
+            "            shapeMask = textureLod(u_lightShape2D, maskUv, 0.0);\n"
+            "        }\n"
+            "    }\n"
+            "#endif\n"
+            "    int lightCount = int(u_ambient.a);\n"
+            "    for (int i = 0; i < lightCount; ++i) {\n"
+            "        shadeLight2D(u_lights[i].posDir, u_lights[i].color, u_lights[i].spot, u_lights[i].shadow,\n"
+            "                     u_lights[i].shadowMap, u_lights[i].falloff, N, P, masked, shadowMask, shapeMask, lit, true);\n"
+            "    }\n"
+            "#ifndef ES_LIGHT_DIRECT\n"
+            "    int tiledCount = int(u_tileInfo.x);\n"
+            "    if (tiledCount > 0) {\n"
+            "        highp vec4 tileClip = u_projection * vec4(P, 1.0);\n"
+            "        highp vec2 tileNdc = tileClip.xy / max(tileClip.w, 1e-4);\n"
+            "        ivec2 tileCount = ivec2(int(u_tileInfo.y), int(u_tileInfo.z));\n"
+            "        ivec2 tile = clamp(ivec2(floor((tileNdc * 0.5 + 0.5) * vec2(tileCount))), ivec2(0), tileCount - ivec2(1));\n"
+            "        highp uvec4 mask = u_tileMask[tile.y * tileCount.x + tile.x];\n"
+            "        for (int w = 0; w < 3; ++w) {\n"
+            "            highp uint bits = w == 0 ? mask.x : (w == 1 ? mask.y : mask.z);\n"
+            "            if (bits == 0u) continue;\n"
+            "            for (int b = 0; b < 32; ++b) {\n"
+            "                if ((bits & (1u << uint(b))) == 0u) continue;\n"
+            "                int k = w * 32 + b;\n"
+            "                if (k >= tiledCount) break;\n"
+            "                shadeLight2D(u_tiledLights[k].posDir, u_tiledLights[k].color, u_tiledLights[k].spot,\n"
+            "                             u_tiledLights[k].shadow, u_tiledLights[k].shadowMap, u_tiledLights[k].falloff,\n"
+            "                             N, P, masked, shadowMask, shapeMask, lit, false);\n"
+            "            }\n"
+            "        }\n"
+            "    }\n"
+            "#endif\n"
+            "    return albedo * lit;\n"
             "}\n"
             "highp vec3 applyLighting2D(highp vec3 albedo, highp vec3 N, highp vec2 worldPos) {\n"
             "    return applyLighting2DAO(albedo, N, worldPos, 1.0);\n"
