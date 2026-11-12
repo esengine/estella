@@ -27,6 +27,17 @@ describe('custom sky', () => {
         expect(src.match(/skyRadiance\(/g)!.length).toBeGreaterThanOrEqual(6);
     });
 
+    it('multiplies the surfaces it finds by the shadow the sky gives, at their world place, only when the sky has one', () => {
+        const sky = { type: 't', label: 'T', glsl: '', wgsl: '' };
+        expect(skyEffectSource(sky)).not.toContain('skyShadow');
+        const src = skyEffectSource({ ...sky, groundShadow: true });
+        expect(src).toContain('src.rgb * clamp(skyShadow(worldFromDepth(v_texCoord, depth) + u_renderOrigin.xyz, sun), 0.0, 1.0)');
+        expect(src).toContain('src.rgb * clamp(skyShadow(worldFromDepth(v.v_texCoord, depth) + frame.renderOrigin.xyz, sun), 0.0, 1.0)');
+        // The sun is found before the surface is left, in both languages.
+        expect(src.indexOf('findSun(lightDir')).toBeLessThan(src.indexOf('skyShadow('));
+        expect(src.indexOf('let found = findSun()')).toBeLessThan(src.lastIndexOf('skyShadow('));
+    });
+
     it('registers an effect that can light the scene', () => {
         defineSkyEffect({ type: 'unitSky', label: 'Unit Sky', glsl: '', wgsl: '' });
         expect(isCustomSky('unitSky')).toBe(true);

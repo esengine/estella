@@ -15,6 +15,10 @@
  *          1 while the panorama is drawn — when a sun disc should be left out, since the directional light is the sun's
  *          direct light there. It returns linear radiance, before exposure. The effect's own params are uniforms like any
  *          effect's: in GLSL by name, in WGSL as `mc.<name>`; the time is `u_time.x` / `tc.u_time.x`.
+ *
+ *          A sky with clouds can shade the ground under them, as Sky Atmosphere's do: with `groundShadow` the author writes a
+ *          second function, `skyShadow(world, sun)`, how much of the scene's light is left at a world position (1 is all of
+ *          it), and every surface the pass finds is multiplied by it.
  */
 
 import type { ShaderHandle } from '../render/material';
@@ -36,6 +40,11 @@ export interface SkyEffectSource {
     glsl: string;
     /** The same in WGSL: `fn skyRadiance(dir : vec3f, sun : vec3f, sunColor : vec3f, env : f32) -> vec3f`. */
     wgsl: string;
+    /**
+     * The sky shades the ground: the sources also hold `float skyShadow(vec3 world, vec3 sun)` and
+     * `fn skyShadow(world : vec3f, sun : vec3f) -> f32`, what is left of a surface's light at a world position, 0 to 1.
+     */
+    groundShadow?: boolean;
 }
 
 /** The sky types defined here: what the volumes look for, beside Sky Atmosphere, to light the scene. */
@@ -115,7 +124,7 @@ void main() {
     vec4 src = texture(u_sceneTexture, v_texCoord);
     ivec2 size = textureSize(u_sceneDepth, 0);
     float depth = texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)), ivec2(0), size - ivec2(1)), 0).r;
-    if (depth < 1.0 && src.a > 0.999) { fragColor = src; return; }
+    if (depth < 1.0 && src.a > 0.999) { fragColor = ${src.groundShadow ? 'vec4(src.rgb * clamp(skyShadow(worldFromDepth(v_texCoord, depth) + u_renderOrigin.xyz, sun), 0.0, 1.0), src.a)' : 'src'}; return; }
     vec3 entry = worldFromDepth(v_texCoord, 0.0);
     vec3 dir = normalize(worldFromDepth(v_texCoord, 1.0) - entry);
     vec3 col = skyRadiance(dir, sun, sunColor, 0.0) * u_intensity;
@@ -147,7 +156,7 @@ fn esSkyPanoramaDir(uv : vec2f) -> vec3f {
     let src = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
     let size = vec2i(textureDimensions(t7, 0));
     let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
-    if (depth < 1.0 && src.a > 0.999) { return src; }
+    if (depth < 1.0 && src.a > 0.999) { return ${src.groundShadow ? 'vec4f(src.rgb * clamp(skyShadow(worldFromDepth(v.v_texCoord, depth) + frame.renderOrigin.xyz, sun), 0.0, 1.0), src.a)' : 'src'}; }
     let entry = worldFromDepth(v.v_texCoord, 0.0);
     let dir = normalize(worldFromDepth(v.v_texCoord, 1.0) - entry);
     let col = skyRadiance(dir, sun, sunColor, 0.0) * mc.u_intensity;

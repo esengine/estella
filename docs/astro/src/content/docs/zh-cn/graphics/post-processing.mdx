@@ -427,6 +427,11 @@ defineSkyEffect({
 方向光就是太阳的直射光)。返回线性辐亮度。参数是 uniform(WGSL 里写 `mc.`),时间是 `u_time.x`,
 `textures` 用来带上天空需要的贴图(噪声用 `wrap: 'repeat'`)。
 
+有云的天空可以给云下的地面投影。设 `groundShadow: true`,并在第一个函数旁边再写一个
+`float skyShadow(vec3 world, vec3 sun)`(WGSL 为 `fn skyShadow(world : vec3f, sun : vec3f) -> f32`):某个世界位置上
+还剩多少光,1 为全部。画面里的每个表面都乘上它,和 Sky Atmosphere 的 **Cloud Shadows** 对自己的云做的一样,
+所以它压暗的是表面的全部光照,不只是太阳的;下限要明显高于 0。
+
 | 方法 | 说明 |
 |---|---|
 | `PostProcess.createStack()` | 创建一个空效果栈。 |

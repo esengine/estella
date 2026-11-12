@@ -551,6 +551,12 @@ panorama is drawn (leave a sun disc out then: the directional light is the sun's
 radiance. Params are uniforms (`mc.` in WGSL), the time is `u_time.x`, and `textures` brings tables the sky needs
 (`wrap: 'repeat'` for noise).
 
+A sky with clouds can shade the ground under them. Set `groundShadow: true` and write a second function beside the
+first, `float skyShadow(vec3 world, vec3 sun)` (WGSL `fn skyShadow(world : vec3f, sun : vec3f) -> f32`): what is left
+of the light at a world position, 1 for all of it. Every surface in the frame is multiplied by it, as Sky
+Atmosphere's **Cloud Shadows** does with its own clouds, so it dims the whole of a surface's light and not the
+sun's alone; keep its floor well above 0.
+
 | Method | Description |
 |---|---|
 | `PostProcess.createStack()` | Create an empty effect stack. |

@@ -10230,6 +10230,7 @@ upperDriftZ: number
 ```
 colors: EffectColorDef[] | undefined
 glsl: string
+groundShadow: boolean | undefined
 label: string
 textures: Record<string, () => BuiltinTexture> | undefined
 type: string
