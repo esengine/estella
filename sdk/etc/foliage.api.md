@@ -5,6 +5,7 @@ Symbols: 0 public · 0 beta · 44 experimental · 0 deprecated
 
 ## BladeParams — interface @experimental
 ```
+band: number | undefined
 height: number
 paint: { base: [number, number, number]; tip: [number, number, number]; } | null | undefined
 segments: number
@@ -55,6 +56,11 @@ colorMapStrength: number
 count: number
 densityMap: number
 drawDistance: number
+farCards: boolean
+farGrow: number
+farKeep: number
+farLevels: number
+farStep: number
 heightMax: number
 heightMin: number
 lodDistance: number
@@ -345,7 +351,7 @@ size: number
 
 ## buildInstancedMesh — function @experimental
 ```
-(source: MeshData, plants: readonly Plant[], paint?: BladeParams["paint"]): MeshData
+(source: MeshData, plants: readonly Plant[], paint?: BladeParams["paint"], band?: number): MeshData
 ```
 
 ## buildPlacedMesh — function @experimental

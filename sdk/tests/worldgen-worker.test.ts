@@ -235,7 +235,7 @@ describe("a Foliage's cells made in a worker", () => {
     };
     const cell: FoliageCellSpec = {
         centerX: 8, centerZ: 8, size: 16, count: 600, seed: 11, cellKey: 3004, minScale: 0.8, maxScale: 1.25, minUp: 0.3, heightMin: -1e5, heightMax: 1e5,
-        waterDepth: 0, zonePadding: 0, tags: ['foliage', 'grass'], baseY: 0, paint: null, look: { kind: 'grass', bladeHeight: 1.4, bladeWidth: 0.16 },
+        waterDepth: 0, zonePadding: 0, tags: ['foliage', 'grass'], baseY: 0, paint: null, far: { levels: 1, keep: 0.34, grow: 2, cards: true }, look: { kind: 'grass', bladeHeight: 1.4, bladeWidth: 0.16 },
     };
     const here = (spec: FoliageCellSpec) => {
         const zones = new Zones();

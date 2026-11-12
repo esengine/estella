@@ -1790,6 +1790,7 @@ value: string | number | boolean | undefined
 
 ## BladeParams — interface @experimental
 ```
+band: number | undefined
 height: number
 paint: { base: [number, number, number]; tip: [number, number, number]; } | null | undefined
 segments: number
@@ -4621,6 +4622,11 @@ colorMapStrength: number
 count: number
 densityMap: number
 drawDistance: number
+farCards: boolean
+farGrow: number
+farKeep: number
+farLevels: number
+farStep: number
 heightMax: number
 heightMin: number
 lodDistance: number
@@ -15089,7 +15095,7 @@ MotionDriver<AnimatorBlend2DMotion>
 
 ## buildInstancedMesh — function @experimental
 ```
-(source: MeshData, plants: readonly Plant[], paint?: BladeParams["paint"]): MeshData
+(source: MeshData, plants: readonly Plant[], paint?: BladeParams["paint"], band?: number): MeshData
 ```
 
 ## buildOceanMesh — function @experimental

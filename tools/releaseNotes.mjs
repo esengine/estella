@@ -4546,6 +4546,8 @@ export const NOTED = {
     {"note": "A meadow: a density map and a colour map for Foliage."},
   "fix(foliage): a field of any size is cut into cells no wider than its cell size - past 200 cells a side each cell was left wider than the plants scattered in it, so a meadow over a large terrain grew in clumps with bare ground between":
     {"note": "A Foliage field of any size is cut into cells no wider than its cell size."},
+  "feat(foliage): far versions that thin plant by plant and are grown only where they are drawn - up to three, each the same plants fewer and larger, chosen by each plant's own number so nothing jumps where one takes over; with a material each is a layer of cells of its own, so a meadow is whole near the eye and a tenth of itself far off, and it fades to none at its draw distance":
+    {"note": "Foliage thins plant by plant with distance, and is grown only where it is drawn."},
   "fix(terrain): a splatmap is numbers too - cooked as a picture its three weights were overwritten wherever the fourth was 0, and the whole ground was painted as grass; it is marked Data when it is set, as the heightmap is":
     {"note": "A texture says whether it is a picture or numbers."},
 };
