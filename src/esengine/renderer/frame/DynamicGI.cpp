@@ -517,7 +517,9 @@ fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_id) lid3 : 
                     hR = hR + r.xyz * w; hG = hG + g2.xyz * w; hB = hB + b2.xyz * w; hW = hW + w;
                 }
             }
-            let a = gi.trace.z;
+            // A probe that has not moved (the eye is where it was, to a five-hundredth of the distance) keeps five times the history: what is left of the
+            // grain after the neighbours is blotches a few probes wide, which on a still wall read as dirt.
+            let a = select(gi.trace.z, gi.trace.z * 0.2, abs(hr.w - eyeDistance) < 2e-3 * eyeDistance);
             // None agrees, the probe's own last frame among them (its normal changed: it stands on an edge), and there is nothing to mix.
             if (hW > 0.0) { vr = mix(hR / hW, vr, a); vg = mix(hG / hW, vg, a); vb = mix(hB / hW, vb, a); }
         }
