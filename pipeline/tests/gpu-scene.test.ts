@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { MeshChannel, MeshChannelType, type MeshData } from 'esengine';
 import { bakeMeshCards } from '../src/assets/meshCards';
 import { bakeMeshSdf } from '../src/assets/meshSdf';
-import { buildInstances, instanceKey, type GIEntry } from '../../sdk/src/gi/dynamicGISystem';
+import { buildInstances, instanceKey, type GIEntry } from '../../sdk/src/gi/giInstances';
 import { packGPUScene, GI_HEADER_FLOATS, GI_INSTANCE_FLOATS } from '../../sdk/src/gi/gpuScene';
 import { GlobalSdf } from '../../sdk/src/gi/globalSdf';
 

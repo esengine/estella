@@ -1135,7 +1135,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
         // the import map gave the copied tree), and what neither of them reaches is not shipped.
         const entryId = 'estella:game-entry';
         const leanEntry = plan.lean && existsSync(path.join(opts.sdkDistDir, LEAN_ENTRY_FILE));
-        await rm(path.join(payloadDir, 'chunks'), { recursive: true, force: true });
+        await rm(path.join(payloadDir, 'chunks'), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         await rm(path.join(payloadDir, 'scripts.mjs'), { force: true });
         const bundled = await build({
           ...common,
@@ -1263,7 +1263,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     if (bundleEngine) {
       // The SDK is inside game.js and the chunks beside it; a tree left by an earlier export would only be dead weight.
       engineMap = NO_IMPORT_MAP;
-      await rm(path.join(payloadDir, 'sdk'), { recursive: true, force: true });
+      await rm(path.join(payloadDir, 'sdk'), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     } else if (existsSync(opts.sdkDistDir)) {
       const sdkOut = await resetRuntimeTree(payloadDir, 'sdk', [opts.sdkDistDir, opts.wasmDir]);
       await cp(opts.sdkDistDir, sdkOut, {

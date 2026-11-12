@@ -179,16 +179,28 @@ jobs:
         node pipeline/bin/estella.mjs export examples/mobile-controls --platform web --wasm build/wasm/web --out output/poki-training-ci-standalone --json output/poki-training-ci-standalone.json
         node tools/tests/poki-training.e2e.mjs --dir output/poki-training-ci-export --standalone output/poki-training-ci-standalone --out output/poki-training-ci-check
     - name: Check CrazyGames gameplay, storage and host mute in SDK mocks
+      # These scripts reach into the page for the SDK itself (`import('esengine')`: Scores, Storage, Time), which only the package with the SDK
+      # copied beside it can answer; the bundled package, which is what an export makes by default, is the Poki step's above.
+      env:
+        ESTELLA_WEB_BUNDLE_ENGINE: '0'
       run: |
         node pipeline/bin/estella.mjs export examples/mobile-controls --profile crazygames --wasm build/wasm/web --out output/crazygames-training-ci-export --json output/crazygames-training-ci-export.json
         node tools/tests/crazygames-training.e2e.mjs --dir output/crazygames-training-ci-export --out output/crazygames-training-ci-check
         node tools/tests/export-crazygames-score-fixture.mjs --wasm build/wasm/web --out output/crazygames-training-ci-score-export
         node tools/tests/crazygames-training.e2e.mjs --dir output/crazygames-training-ci-score-export --expect-scores --out output/crazygames-training-ci-score-check
     - name: Check execution holds in an authored game and real browser media
+      # These scripts reach into the page for the SDK itself (`import('esengine')`: Scores, Storage, Time), which only the package with the SDK
+      # copied beside it can answer; the bundled package, which is what an export makes by default, is the Poki step's above.
+      env:
+        ESTELLA_WEB_BUNDLE_ENGINE: '0'
       run: |
         node tools/tests/export-execution-hold-fixture.mjs --wasm build/wasm/web --out output/execution-hold-ci-export
         node tools/tests/execution-hold.e2e.mjs --dir output/execution-hold-ci-export --out output/execution-hold-ci-check
     - name: Check YouTube readiness, SDK pause and cloud saves in SDK mocks
+      # These scripts reach into the page for the SDK itself (`import('esengine')`: Scores, Storage, Time), which only the package with the SDK
+      # copied beside it can answer; the bundled package, which is what an export makes by default, is the Poki step's above.
+      env:
+        ESTELLA_WEB_BUNDLE_ENGINE: '0'
       run: |
         node pipeline/bin/estella.mjs export examples/mobile-controls --profile youtube --wasm build/wasm/web --out output/youtube-training-ci-export
         node tools/tests/youtube-training.e2e.mjs --dir output/youtube-training-ci-export --out output/youtube-training-ci-check

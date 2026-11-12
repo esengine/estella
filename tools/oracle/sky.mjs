@@ -104,7 +104,7 @@ function sunTransmittance(sun, alt, haze) {
   return BETA_R.map((b) => Math.exp(-(b * od[0] + BETA_M * haze * 1.1 * od[1])));
 }
 
-function skyDome({ id, elevation, azimuth, pitch, yaw, haze = 1, intensity = 0.5, tol = 18, grid = 5, glow = false, sunBrightness = 40 }) {
+function skyDome({ id, elevation, azimuth, pitch, yaw, haze = 1, intensity = 0.5, tol = 18, grid = 5, glow = false, sunBrightness = 40, disc = glow }) {
   const sun = sunVector(elevation, azimuth);
   const doc = scene(id, () => [
     camera({ projectionType: 0, fov: FOV, nearPlane: 1, farPlane: 2000 }),
@@ -124,7 +124,7 @@ function skyDome({ id, elevation, azimuth, pitch, yaw, haze = 1, intensity = 0.5
       expect.push({ x: i / (SIZE - 1), y: j / (SIZE - 1), rgb: encodeLinear8(col.map(clamp01)), tol, dir });
     }
   }
-  if (glow) {
+  if (disc) {
     // The pixel at the middle of the frame looks along the sun: its disc, which adds the sun's own transmitted light to the dome.
     const j = SIZE / 2, dir = pixelDir(j, j, pitch, yaw), trans = sunTransmittance(sun, 0.1, haze);
     const col = domeRef(dir, sun, { altitude: 0.1, haze, intensity }).map((v, k) => v + trans[k] * sunBrightness);
@@ -205,7 +205,9 @@ export const SKY_SCENES = [
   skyDome({ id: 'oracle-sky-afternoon', elevation: 35, azimuth: 40, pitch: 30, yaw: 140 }),
   skyDome({ id: 'oracle-sky-low-sun', elevation: 8, azimuth: 40, pitch: 25, yaw: 215 }),
   skyDome({ id: 'oracle-sky-sun-glow', elevation: 35, azimuth: 40, pitch: 35, yaw: 220, intensity: 0.08, sunBrightness: 1, glow: true }),
-  skyDome({ id: 'oracle-sky-sun-glow-low', elevation: 14, azimuth: 40, pitch: 14, yaw: 220, intensity: 0.06, sunBrightness: 1, glow: true }),
+  // The glow round a low sun, without the pixel on the disc itself: the disc is a third of a degree across and its edge a pixel wide here,
+  // and a software rasterizer reads the middle pixel on that edge (97 where a GPU reads 244). The disc is oracle-sky-sun-glow's to hold.
+  skyDome({ id: 'oracle-sky-sun-glow-low', elevation: 14, azimuth: 40, pitch: 14, yaw: 220, intensity: 0.06, sunBrightness: 1, glow: true, disc: false }),
   skyDome({ id: 'oracle-sky-hazy', elevation: 35, azimuth: 40, pitch: 30, yaw: 140, haze: 3, intensity: 0.4 }),
   // Slab 1.5 to 4.0 km. A floor at altitude 5 - 0.395 is above it, a floor at 1 - 0.395 is below its base.
   cloudShadow({ id: 'oracle-cloud-shadow-clear-ortho', ortho: true, altitude: 5, shadowed: false }),

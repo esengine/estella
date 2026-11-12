@@ -4502,4 +4502,10 @@ export const NOTED = {
     {"note": "The 3D Starter looks finished out of the box."},
   "feat(mcp): audit_look says why a 3D scene looks flat, and apply_look gives it a finished look":
     {"note": "The 3D Starter looks finished out of the box."},
+  "fix(prefab): a prefab whose root was parented under an authored Canvas saves with that Canvas as its root, so it opens again":
+    {"note": "A prefab whose root was put under a Canvas opens again."},
+  "fix(shadows): the lookup steps toward the light as far as a slope of 1.2 asks and takes the rest along the normal - a floor under a sun reads as it did, and a wall the light grazes still does not reach past a ceiling":
+    {"note": "A wall under a roof is no longer sunlit along its top."},
+  "feat(settings): a row for the cheaper dynamic GI, per quality level":
+    {"note": "A quality level decides what the dynamic GI spends."},
 };

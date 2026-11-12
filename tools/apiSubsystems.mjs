@@ -26,6 +26,7 @@
  * subsystem cannot be mistaken for adding plumbing.
  */
 export const INFRASTRUCTURE = {
+    gi: 'the dynamic GI\'s scene feed and baked file formats, run by the post-process effect: a creator turns on the effect and an import setting, and builds on neither',
     'debug-channel': 'a development build\'s line back to the editor — tooling, never in a shipped game',
     diagnostics: 'the engine reporting on itself — a census and a stats overlay, read by tooling',
     document: 'document-model diagnostics shared with the editor, not part of a game',
@@ -373,7 +374,7 @@ export const SUBSYSTEMS = [
         tier: 'experimental',
         why: 'the animator graph and grip poses are checked against the engine, and a lean package installs them only where its content uses them',
         whyZh: '动画状态机和握持姿态已对引擎做过检查，精简包只在内容用到时才安装它们',
-        entry: ['Animator', 'AnimatorController', 'GripPose'],
+        entry: ['AnimatorController', 'GripPose'],
     },
     {
         id: 'water',

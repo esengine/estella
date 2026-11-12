@@ -313,6 +313,12 @@ export const GATES = [
   { id: 'verifier-exit', run: 'node tools/check-verifier-exit.mjs', needs: 'editor' },
   { id: 'render-scenes', run: 'node tools/check-render-scenes.mjs' },
   {
+    id: 'gi-sdf-wgsl',
+    run: 'node tools/gi/check-sdf-wgsl.mjs',
+    where: 'local',
+    why: 'it runs the distance field trace on a WebGPU device against the closed-form distance to a sphere, and CI has no adapter',
+  },
+  {
     id: 'gi-cost',
     run: 'node tools/gi/check-gi-cost.mjs',
     where: 'local',

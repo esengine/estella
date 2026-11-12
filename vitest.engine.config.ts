@@ -21,6 +21,9 @@ export default defineConfig({
   test: {
     include: ['pipeline/tests/**/*.test.ts', 'tools/tests/**/*.test.ts'],
     environment: 'node',
+    // As in pipeline/vitest.config.ts, which this config stands in for when the suite is run from the root: the web export bundles the SDK
+    // it is given, and most export tests hand it a stub tree. export-web-bundle.test.ts clears this for itself and builds from the real SDK.
+    env: { ESTELLA_WEB_BUNDLE_ENGINE: '0' },
     // The cook and export suites shell out and touch temp directories; the
     // default 5s is not enough for the ones that package a whole project.
     testTimeout: 30_000,
