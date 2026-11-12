@@ -34,8 +34,6 @@ export const SCOPES = ['local', 'ci'];
  * that run a suite — orthogonal to `where`, which says a gate CANNOT run here.
  * `owns` is the other half: the SOURCE a suite answers for, and `--suites owed`
  * runs the ones a change touched, so it meets its unit-test owner before the remote.
- * `related` is how a suite runs IN PART: `root`, the package its runner takes paths from, and `run`, the command the changed files are
- * handed to, which runs the tests that reach them (`--suites related`, see relatedRun). A suite without one is run whole.
  */
 export const GATES = [
   // `exclusive: true` is a build or a writer of what a later gate reads: a `--jobs` run cuts the list there and runs it alone.
@@ -433,13 +431,10 @@ export function owedSuites(changed) {
 export const RELATED_MOST = 80;
 
 /**
- * How `gate` runs in part for `changed`: the command that runs only the tests that reach what changed under it, and how many files
- * that is. Null where the whole suite is owed instead, which is every case this cannot answer for: a suite with no `related`, a change
- * that is not TypeScript source its runner can follow (a config, a fixture, a generated binary: anything may read those), a file that
- * is gone (what imported it is not named by its path any more), or more files than RELATED_MOST.
- *
- * @details A runner follows imports, so a test that reads a changed file some other way (a path it builds, a file it opens) is missed.
- *          That is why this is a mode a caller asks for by name and the run says so, and why CI runs every suite whole.
+ * How `gate` runs in part for `changed` (`--suites related`): its `related.run` handed the changed files under `related.root`, which
+ * runs the tests that import them. Null where the whole suite is owed: no `related`, a change that is not TypeScript source (a config,
+ * a fixture: anything may read those), a file that is gone, or more than RELATED_MOST. A test that reads a file without importing it
+ * is missed, so the run says which suites were run in part and CI runs every suite whole.
  */
 export function relatedRun(gate, changed, exists = () => true) {
   if (!gate.related || !gate.owns) return null;

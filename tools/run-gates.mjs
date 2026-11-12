@@ -45,9 +45,8 @@ if (!SCOPES.includes(SCOPE)) {
 // disappears quietly is the same as one that always passes.
 const HAS_EDITOR = existsSync(path.join(ROOT, 'desktop', 'package.json'));
 /**
- * Which suite gates this caller pays for: `all` (default, and CI), `owed` (those
- * whose `owns` this change touched), `related` (those, and of each only the tests
- * that reach what changed, where its runner can say which), or `none`.
+ * Which suite gates this caller pays for: `all` (default, and CI), `owed` (those whose `owns` this change touched),
+ * `related` (those, and of each only the tests that reach what changed: gates.mjs relatedRun), or `none`.
  *
  * @details A machine that cannot run an owed suite is not silently excused: it
  *          says what it needs and the run stops, per check-suite-preconditions.
