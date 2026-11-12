@@ -34,6 +34,8 @@ const basePlugins = webBasePlugins();
 
 
 export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptions): App {
+    // A host built here is this App's alone and ends with it; one passed in may serve others.
+    const ownsSideModules = !options?.sideModules && Boolean(options?.wasmBaseUrl);
     const sideModules: SideModuleHost | undefined = options?.sideModules
         ?? (options?.wasmBaseUrl ? createFetchSideModuleHost(options.wasmBaseUrl) : undefined);
     // Spine and DragonBones each fetch their wasm only when asked, so installing
@@ -43,7 +45,7 @@ export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptio
     // Ordered, not concatenated: where a plugin came from is not where it goes.
     const plugins = [...uiPlugins, ...inBuildOrder([...basePlugins, ...entryPlugins()]),
         ...(options?.plugins ?? [])];
-    return _createWebApp(module, { ...options, sideModules, plugins });
+    return _createWebApp(module, { ...options, sideModules, ownsSideModules, plugins });
 }
 
 export interface HeadlessAppOptions {

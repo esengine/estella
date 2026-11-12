@@ -55,11 +55,20 @@ self.onmessage = (e) => {
 `;
 }
 
+/** A transcoder that owns threads, and so has to be told when it is done with. */
+export interface WorkerBasisTranscoder extends BasisTranscoder {
+    /** Stop the workers. What is still in flight settles as "no result"; later calls do too. Idempotent. */
+    dispose(): void;
+}
+
 /**
  * A transcoder whose work runs on `count` workers, or null where this realm has
  * no `Worker` (mini-game hosts, node) — the caller then transcodes in place.
+ *
+ * The caller owns the workers: each holds its own instance of the module, and a
+ * running worker is never collected, so they last until {@link WorkerBasisTranscoder.dispose}.
  */
-export function createWorkerBasisTranscoder(source: SideModuleSource, count: number): BasisTranscoder | null {
+export function createWorkerBasisTranscoder(source: SideModuleSource, count: number): WorkerBasisTranscoder | null {
     if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL?.createObjectURL !== 'function') {
         return null;
     }
@@ -77,6 +86,11 @@ export function createWorkerBasisTranscoder(source: SideModuleSource, count: num
                 if (e.data.error !== undefined) p.reject(new Error(`transcode worker: ${e.data.error}`));
                 else p.resolve(e.data.result ?? null);
             };
+            // A worker whose script will not even start answers nothing; without this its loads wait for good.
+            w.onerror = (e: ErrorEvent) => {
+                const failed = new Error(`transcode worker: ${e.message || 'the worker stopped'}`);
+                for (const [id, p] of pending) { pending.delete(id); p.reject(failed); }
+            };
             // Each worker gets its own copy: a transferred buffer would leave the next one empty.
             w.postMessage({ init: true, glueText: source.glueText, globalName: source.globalName, wasmBytes: source.wasmBytes.slice(0) });
             workers.push(w);
@@ -86,7 +100,9 @@ export function createWorkerBasisTranscoder(source: SideModuleSource, count: num
     }
     // Least-loaded, so one slow 4K texture does not queue the small ones behind it.
     const inFlight = new Array<number>(workers.length).fill(0);
+    let disposed = false;
     const run = (ktx2: Uint8Array, code: number): Promise<TranscodeResult | null> => {
+        if (disposed) return Promise.resolve(null);
         const i = inFlight.indexOf(Math.min(...inFlight));
         const id = nextId++;
         inFlight[i]++;
@@ -100,6 +116,13 @@ export function createWorkerBasisTranscoder(source: SideModuleSource, count: num
     return {
         transcode: (ktx2: Uint8Array, target: CompressedTextureFormat) => run(ktx2, FORMAT_CODE[target]),
         transcodeToRgba: (ktx2: Uint8Array) => run(ktx2, RGBA_CODE) as Promise<RgbaResult | null>,
+        dispose(): void {
+            if (disposed) return;
+            disposed = true;
+            for (const w of workers) w.terminate();
+            // Whoever is still waiting is being torn down with the realm: no result, and no error to report.
+            for (const [id, p] of pending) { pending.delete(id); p.resolve(null); }
+        },
     };
 }
 
@@ -114,6 +137,10 @@ function workerCount(): number {
  * in front of it where the host can hand over the module's source and the realm
  * has `Worker`. A worker that fails once (a CSP refusing blob workers, a module
  * that will not start) sends that load and every later one to the main thread.
+ *
+ * The workers are the host's: they stop when it is disposed, which is what an App
+ * does on quit. A realm that starts a game over and over would otherwise keep
+ * every earlier game's workers, each with a WebAssembly memory of its own.
  */
 export function basisTranscoderFor(host: SideModuleHost | null | undefined): Promise<BasisTranscoder | null> {
     if (!host) return Promise.resolve(null);
@@ -135,11 +162,14 @@ async function makeTranscoder(host: SideModuleHost): Promise<BasisTranscoder | n
     const source = host.source ? await host.source('basis').catch(() => null) : null;
     const workers = source ? createWorkerBasisTranscoder(source, workerCount()) : null;
     if (!workers) return main;
+    host.onDispose?.(() => workers.dispose());
     let broken = false;
     const either = <R>(off: () => R | Promise<R>, on: () => R | Promise<R>): Promise<R> => {
         if (broken) return Promise.resolve(on());
         return Promise.resolve(off()).catch((e: unknown) => {
             broken = true;
+            // Not coming back, so they do not keep their memory either.
+            workers.dispose();
             log.warn('asset', 'KTX2 transcoding moved back to the main thread: the transcode workers failed', e);
             return on();
         });

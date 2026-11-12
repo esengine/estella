@@ -15,7 +15,7 @@ import { WASM_DIR, hasSideModule, loadSideModule } from './helpers/loadWasm';
 import { basisTranscoderFor, createWorkerBasisTranscoder } from '../src/asset/basisWorkers';
 import { transcoderFromModule, type BasisWasmModule } from '../src/asset/basisTranscoder';
 import { CompressedTextureFormat, type TranscodeResult } from '../src/asset/compressed';
-import type { SideModuleHost, SideModuleSource } from '../src/sideModules/host';
+import { createSideModuleHost, type SideModuleHost, type SideModuleSource } from '../src/sideModules/host';
 import { log } from '../src/util/logger';
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -24,6 +24,9 @@ const blobs = new Map<string, string>();
 const saved = { Worker: globalThis.Worker, createObjectURL: URL.createObjectURL, revokeObjectURL: URL.revokeObjectURL };
 
 class StandInWorker {
+    /** Workers started and not yet terminated: each one is a thread and a WebAssembly memory the page keeps. */
+    static live = 0;
+    private stopped = false;
     onmessage: ((e: { data: unknown }) => void) | null = null;
     private readonly scope: { onmessage: ((e: { data: unknown }) => void) | null; postMessage(d: unknown): void } & Record<string, unknown>;
     constructor(url: string) {
@@ -49,11 +52,18 @@ class StandInWorker {
             )(scope, shadow, importScripts);
         };
         new Function('self', 'importScripts', text)(scope, importScripts);
+        StandInWorker.live++;
     }
     postMessage(d: unknown): void {
         setTimeout(() => this.scope.onmessage?.({ data: structuredClone(d) }), 0);
     }
-    terminate(): void {}
+    terminate(): void {
+        if (this.stopped) return;
+        this.stopped = true;
+        StandInWorker.live--;
+        this.onmessage = null;
+        this.scope.onmessage = null;
+    }
 }
 
 beforeAll(() => {
@@ -103,10 +113,46 @@ describe.skipIf(!hasSideModule('basis'))('KTX2 transcoding on workers', () => {
         same(await workers.transcode(ktx2, CompressedTextureFormat.ASTC_4x4),
              await main.transcode(ktx2, CompressedTextureFormat.ASTC_4x4));
         same(await workers.transcodeToRgba(ktx2), await main.transcodeToRgba(ktx2));
+        workers.dispose();
+    });
+
+    const realmHost = (): SideModuleHost => ({
+        ...createSideModuleHost(async () => (main as unknown as { mod: unknown }).mod as never),
+        source: async () => source,
+    });
+
+    it('stops its workers with the host that made them, and answers nothing after', async () => {
+        const before = StandInWorker.live;
+        const host = realmHost();
+        const t = (await basisTranscoderFor(host))!;
+        expect(StandInWorker.live).toBeGreaterThan(before);
+        const inFlight = t.transcode(ktx2, CompressedTextureFormat.ASTC_4x4);
+        host.dispose!();
+        expect(StandInWorker.live).toBe(before);
+        // Torn down mid-load: no result and no error, and no fall back to a module that is going away too.
+        const warn = vi.spyOn(log, 'warn');
+        expect(await inFlight).toBeNull();
+        expect(await t.transcode(ktx2, CompressedTextureFormat.ASTC_4x4)).toBeNull();
+        expect(warn).not.toHaveBeenCalled();
+        warn.mockRestore();
+    });
+
+    // The editor starts a game, stops it and starts it again in one page. Each start made a host and up to four
+    // workers and nothing ended them: a dozen starts later the page had no WebAssembly memory left (#121).
+    it('leaves no worker behind however many times a realm is started and stopped', async () => {
+        const before = StandInWorker.live;
+        for (let play = 0; play < 20; play++) {
+            const host = realmHost();
+            const t = (await basisTranscoderFor(host))!;
+            same(await t.transcode(ktx2, CompressedTextureFormat.ASTC_4x4), await main.transcode(ktx2, CompressedTextureFormat.ASTC_4x4));
+            host.dispose!();
+        }
+        expect(StandInWorker.live).toBe(before);
     });
 
     it('goes back to the main thread, once and for good, when the workers fail', async () => {
         const warn = vi.spyOn(log, 'warn');
+        const before = StandInWorker.live;
         const host: SideModuleHost = {
             acquire: async () => (main as unknown as { mod: unknown }).mod as never,
             source: async () => ({ ...source, glueText: 'throw new Error("no glue")' }),
@@ -115,6 +161,8 @@ describe.skipIf(!hasSideModule('basis'))('KTX2 transcoding on workers', () => {
         same(await t.transcode(ktx2, CompressedTextureFormat.ASTC_4x4), await main.transcode(ktx2, CompressedTextureFormat.ASTC_4x4));
         await t.transcode(ktx2, CompressedTextureFormat.ASTC_4x4);
         expect(warn.mock.calls.filter((c) => String(c[1]).includes('main thread'))).toHaveLength(1);
+        // Workers that will never answer do not keep their threads.
+        expect(StandInWorker.live).toBe(before);
         warn.mockRestore();
     });
 

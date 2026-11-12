@@ -40,6 +40,8 @@ export function createFetchSideModuleHost(baseUrl: string): SideModuleHost {
         // Instantiation may detach the buffer it is given; the kept one stays whole.
         return instantiateFromGlueText(glueText, wasmBytes.slice(0), descriptor);
     }, { requiresWebAssembly: true });
+    // The bytes go with the host: a worker pool tied to it has made its copies by then.
+    host.onDispose?.(() => fetched.clear());
     return {
         ...host,
         async source(id: SideModuleId): Promise<SideModuleSource | null> {

@@ -251,6 +251,8 @@ export class App {
     // The realm's acquirer for optional native modules (physics, spine). Set once
     // at app creation; physics/spine self-gate off it. Null in headless/test apps.
     private sideModules_: SideModuleHost | null = null;
+    /** This App made the host, so quitting disposes it; one handed in is its maker's to end. */
+    private ownsSideModules_ = false;
     private pluginsFinished_ = false;
     private readonly eventRegistry_ = new EventRegistry();
     private readonly sortedSystemsCache_ = new Map<Schedule, SystemEntry[]>();
@@ -312,8 +314,14 @@ export class App {
         return this.sideModules_;
     }
 
-    setSideModules(host: SideModuleHost): void {
+    /**
+     * `owned` says the host was made for this App alone: quitting then disposes
+     * it, with the workers and module instances tied to it. A host shared with
+     * anything else is left as it is, and whoever made it disposes it.
+     */
+    setSideModules(host: SideModuleHost, options?: { owned?: boolean }): void {
         this.sideModules_ = host;
+        this.ownsSideModules_ = options?.owned === true;
     }
 
     addPlugins(plugins: Plugin[]): this {
@@ -1556,6 +1564,11 @@ export class App {
         this.ownedCppRegistry_ = null;
         try { ownedRegistry?.delete(); }
         catch (e) { log.warn('app', 'Shutdown registry release error', e); }
+        // After the plugins, which may still have asked it for something on their way out.
+        const modules = this.ownsSideModules_ ? this.sideModules_ : null;
+        this.ownsSideModules_ = false;
+        try { modules?.dispose?.(); }
+        catch (e) { log.warn('app', 'Shutdown module-host release error', e); }
 
         for (const [, entries] of this.systems_) {
             entries.length = 0;
@@ -2099,6 +2112,8 @@ export interface WebAppOptions {
     /** The realm's optional-native-module acquirer; set before plugins build so
      *  SpinePlugin (and later physics) can pull from it. See {@link App.sideModules}. */
     sideModules?: SideModuleHost;
+    /** `sideModules` was made for this App alone, so quitting disposes it. See {@link App.setSideModules}. */
+    ownsSideModules?: boolean;
     /**
      * Bitmask of render layers (bits 0..31) that sort by world Y within the
      * layer — top-down occlusion (lower on screen draws on top). Project-level
@@ -2192,7 +2207,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
     // entry snapshots the baseline — e.g. in unit tests that never load it).
     seedEngineComponents();
     const app = App.new();
-    if (options?.sideModules) app.setSideModules(options.sideModules);
+    if (options?.sideModules) app.setSideModules(options.sideModules, { owned: options.ownsSideModules });
     const cppRegistry = new module.Registry() as unknown as CppRegistry;
 
     try {

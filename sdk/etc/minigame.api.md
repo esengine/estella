@@ -818,7 +818,7 @@ setPaused: (paused: boolean) => void
 setPipeline: (pipeline: RenderPipeline) => void
 setPlaySpeed: (speed: number) => void
 setRunInBackground: (on: boolean) => void
-setSideModules: (host: SideModuleHost) => void
+setSideModules: (host: SideModuleHost, options?: { owned?: boolean; }) => void
 setTargetFrameRate: (fps: number) => void
 sideModules: SideModuleHost | null
 spineInitPromise: Promise<unknown> | undefined
@@ -3122,6 +3122,7 @@ depthLayers: number | undefined
 getViewportSize: (() => { width: number; height: number; }) | undefined
 msaaSamples: number | undefined
 outputTransform: OutputTransform | undefined
+ownsSideModules: boolean | undefined
 plugins: Plugin[] | undefined
 quality: QualityConfig | undefined
 randomSeed: number | undefined
@@ -10368,6 +10369,8 @@ globalName: string | undefined
 ## SideModuleHost — interface @experimental
 ```
 acquire: (id: SideModuleId) => Promise<SideModule | null>
+dispose: (() => void) | undefined
+onDispose: ((release: () => void) => void) | undefined
 source: ((id: SideModuleId) => Promise<SideModuleSource | null>) | undefined
 ```
 
@@ -14198,6 +14201,7 @@ depthLayers: number | undefined
 getViewportSize: (() => { width: number; height: number; }) | undefined
 msaaSamples: number | undefined
 outputTransform: OutputTransform | undefined
+ownsSideModules: boolean | undefined
 plugins: Plugin[] | undefined
 quality: QualityConfig | undefined
 randomSeed: number | undefined

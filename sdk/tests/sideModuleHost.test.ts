@@ -6,7 +6,9 @@
  *        WeChat) is exercised by the per-realm export + runtime paths.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { createSideModuleHost, SideModuleAbsent } from '../src/sideModules/host';
+import { createSideModuleHost, isOutOfWasmMemory, SideModuleAbsent } from '../src/sideModules/host';
+import { App } from '../src/app/app';
+import { log } from '../src/util/logger';
 import { SIDE_MODULES, SPINE_VERSIONS, spineModuleId } from '../src/sideModules/registry';
 
 describe('side-module registry', () => {
@@ -113,4 +115,64 @@ describe('createSideModuleHost', () => {
     }
   });
 
+});
+
+describe('a module host ends', () => {
+  it('releases what was tied to it, newest first and once', () => {
+    const host = createSideModuleHost(vi.fn());
+    const order: string[] = [];
+    host.onDispose!(() => order.push('first'));
+    host.onDispose!(() => { throw new Error('one bad release'); });
+    host.onDispose!(() => order.push('last'));
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+    host.dispose!();
+    host.dispose!();
+    warn.mockRestore();
+    // One that throws does not keep the others from running.
+    expect(order).toEqual(['last', 'first']);
+    // Tied too late: there is no later moment to wait for.
+    host.onDispose!(() => order.push('late'));
+    expect(order).toEqual(['last', 'first', 'late']);
+  });
+
+  it('gives nothing once disposed, and does not ask the transport', async () => {
+    const instantiate = vi.fn().mockResolvedValue({});
+    const host = createSideModuleHost(instantiate);
+    await host.acquire('physics');
+    host.dispose!();
+    expect(await host.acquire('physics')).toBeNull();
+    expect(await host.acquire('basis')).toBeNull();
+    expect(instantiate).toHaveBeenCalledTimes(1);
+  });
+
+  it('is disposed by the App it was made for, and left alone by one it was lent to', () => {
+    const owned = createSideModuleHost(vi.fn());
+    const lent = createSideModuleHost(vi.fn());
+    const ended: string[] = [];
+    owned.onDispose!(() => ended.push('owned'));
+    lent.onDispose!(() => ended.push('lent'));
+    const a = App.new();
+    a.setSideModules(owned, { owned: true });
+    const b = App.new();
+    b.setSideModules(lent);
+    a.quit();
+    b.quit();
+    expect(ended).toEqual(['owned']);
+  });
+});
+
+describe('a module that would not load', () => {
+  it('is not called a missing build when the process had no memory for it', async () => {
+    const oom = new RangeError('WebAssembly.instantiate(): Out of memory: Cannot allocate Wasm memory for new instance');
+    expect(isOutOfWasmMemory(oom)).toBe(true);
+    expect(isOutOfWasmMemory(new Error('fetch /wasm/basis.js → 404'))).toBe(false);
+    const error = vi.spyOn(log, 'error').mockImplementation(() => {});
+    expect(await createSideModuleHost(vi.fn().mockRejectedValue(oom)).acquire('basis')).toBeNull();
+    expect(await createSideModuleHost(vi.fn().mockRejectedValue(new Error('404'))).acquire('basis')).toBeNull();
+    const said = error.mock.calls.map((c) => String(c[1]));
+    error.mockRestore();
+    expect(said[0]).toMatch(/no WebAssembly memory left/);
+    expect(said[0]).not.toMatch(/not built locally/);
+    expect(said[1]).toMatch(/not built locally/);
+  });
 });

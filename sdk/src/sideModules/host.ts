@@ -24,6 +24,23 @@ export interface SideModuleHost {
     /** The glue and binary `id` is instantiated from, for a worker to instantiate
      *  its own copy; absent where the realm has none to hand over. */
     source?(id: SideModuleId): Promise<SideModuleSource | null>;
+    /**
+     * Tie something to this host's life: a pool of workers that each instantiated
+     * one of its modules. `release` runs once, when the host is disposed — or at
+     * once, if it already has been.
+     */
+    onDispose?(release: () => void): void;
+    /**
+     * Let go of everything the host holds: the instances it cached and whatever
+     * was tied to it. Whoever made the host calls this when the realm it served
+     * is over; an App does it on quit for a host it created itself. Idempotent,
+     * and a disposed host answers every later `acquire` with null.
+     *
+     * Nothing else ends these. A worker is never collected while it runs, and
+     * each one holds a WebAssembly memory, so a host dropped without this leaks
+     * them for as long as the page lives.
+     */
+    dispose?(): void;
 }
 
 export interface SideModuleSource {
@@ -68,8 +85,25 @@ export interface SideModuleHostOptions {
 
 export function createSideModuleHost(instantiate: SideModuleInstantiator, options: SideModuleHostOptions = {}): SideModuleHost {
     const cache = new Map<SideModuleId, Promise<SideModule | null>>();
+    const releases: Array<() => void> = [];
+    let disposed = false;
+    const run = (release: () => void): void => {
+        try { release(); } catch (e) { log.warn('sidemodule', 'a release tied to the module host failed', e); }
+    };
     return {
+        onDispose(release: () => void): void {
+            if (disposed) run(release);
+            else releases.push(release);
+        },
+        dispose(): void {
+            if (disposed) return;
+            disposed = true;
+            // Last tied, first released: what was built on a module goes before the module's own entry.
+            for (const release of releases.splice(0).reverse()) run(release);
+            cache.clear();
+        },
         acquire(id: SideModuleId): Promise<SideModule | null> {
+            if (disposed) return Promise.resolve(null);
             const cached = cache.get(id);
             if (cached) return cached;
             const descriptor = sideModuleDescriptor(id);
@@ -88,7 +122,7 @@ export function createSideModuleHost(instantiate: SideModuleInstantiator, option
                       // Absent BY DESIGN is the answer null already means; only a
                       // module that was meant to be here is a failure to report.
                       if (e instanceof SideModuleAbsent) log.info('sidemodule', e.message);
-                      else log.error('sidemodule', `failed to load "${id}" (${descriptor.file}) — ${howToFix(id)}`, e);
+                      else log.error('sidemodule', `failed to load "${id}" (${descriptor.file}) — ${howToFix(id, e)}`, e);
                       return null;
                   })
                 // Unknown ids used to be impossible (the type was closed) and so
@@ -103,6 +137,12 @@ export function createSideModuleHost(instantiate: SideModuleInstantiator, option
     };
 }
 
+/** The engine refused the memory: the artifact was found and compiled, so this is not a missing build. */
+export function isOutOfWasmMemory(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /out of memory|cannot allocate wasm memory/i.test(message);
+}
+
 /**
  * What to do about a module that would not load, which differs by who built it.
  *
@@ -110,8 +150,15 @@ export function createSideModuleHost(instantiate: SideModuleInstantiator, option
  * the advice is the build command. For a project's own module the engine has no
  * idea how it is produced — pointing someone at `pnpm build -t rive` would be a
  * command that does not exist — so it says where the export looked instead.
+ *
+ * Neither applies when the process had no WebAssembly memory left to give: the
+ * module is there, and telling someone to rebuild it sends them the wrong way.
  */
-function howToFix(id: SideModuleId): string {
+function howToFix(id: SideModuleId, error: unknown): string {
+    if (isOutOfWasmMemory(error)) {
+        return 'the module is present, but this process has no WebAssembly memory left to start it: '
+            + 'something is holding earlier instances (in the editor, restart it and report this)';
+    }
     if (id in SIDE_MODULES) {
         return 'likely not built locally: run the matching wasm build (spine 4.2 = '
             + '`pnpm build -t spine`, others match their file name, `-t all` builds '
