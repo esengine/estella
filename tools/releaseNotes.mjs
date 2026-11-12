@@ -4520,6 +4520,16 @@ export const NOTED = {
     {"note": "A texture says whether it is a picture or numbers."},
   "feat(editor): a texture given to a Terrain as its heightmap is marked Data, and Project Health lists the ones read as numbers that are still pictures":
     {"note": "A texture says whether it is a picture or numbers."},
+  "fix(terrain): the ground's lengths follow the project's units - a new Terrain is a kilometre on 2 m cells in a centimetre project and a metre one, its shaders' tiles, relief and wet line say unit(length), a layer with no tile repeats every 4 m, and ground with layers is no longer sent four colours its shader does not have":
+    {"note": "The ground's lengths follow the project's units."},
+  "fix(water): water mirrors only what is there - over open sea with nothing behind it the reflection took the unpainted sky for something met and went black, and a ripple that sent the ray down drew the sea bed as white flecks; the copy of the scene's distances marks the sky, a ray goes on up, and waves finer than a pixel widen the highlight":
+    {"note": "Water mirrors only what is there."},
+  "feat(material): a shader param's range is where its slider runs, not a limit on the value - a material may hold a number typed past it, as a UI range does in Unreal":
+    {"note": "A shader param's range is where its slider runs."},
+  "fix(water): a reflection's step and the thickness of what it meets are shares of the distance, not a number of units, and the sky in the copy of distances is as far as the copy can say":
+    {"note": "Water mirrors only what is there."},
+  "feat(material): a shader param's range is where its slider runs, not a limit - a typed value may go past it":
+    {"note": "A shader param's range is where its slider runs."},
   "fix(terrain): a splatmap is numbers too - cooked as a picture its three weights were overwritten wherever the fourth was 0, and the whole ground was painted as grass; it is marked Data when it is set, as the heightmap is":
     {"note": "A texture says whether it is a picture or numbers."},
 };
