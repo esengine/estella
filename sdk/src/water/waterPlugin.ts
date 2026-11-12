@@ -36,6 +36,7 @@ import { bakesOf } from '../runtime/bakes';
 import type { Entity } from '../types';
 import { surfHeight, waveHeight, waveSlope, WAVE_SET_SIZE, type WaveParams } from './waves';
 import { buildOceanMesh, oceanReach, oceanSnap } from './waterMesh';
+import { installWaterfalls } from './waterfall';
 import { worldUnitsPerMeter } from '../ecs/worldUnits';
 import { type Point2 } from './shore';
 import { Spline, type SplineData } from '../spline/splinePlugin';
@@ -411,6 +412,7 @@ export class WaterPlugin implements Plugin {
         this.waters_ = waters;
         waters.app_ = app;
         app.insertResource(WatersRes, waters);
+        installWaterfalls(app);
 
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
             const policy = app.hasResource(Quality) ? app.getResource(Quality) : null;

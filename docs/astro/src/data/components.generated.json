@@ -10671,6 +10671,78 @@
       ]
     },
     {
+      "name": "Waterfall",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "width",
+          "type": "number",
+          "default": "800",
+          "doc": "How wide the water is where it leaves the lip.",
+          "range": "≥ 0.01"
+        },
+        {
+          "key": "speed",
+          "type": "number",
+          "default": "500",
+          "doc": "How fast it leaves the lip, level and along the entity's forward. Faster throws it further out.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "flare",
+          "type": "number",
+          "default": "1.1",
+          "doc": "How much wider a sheet is at its foot than at the lip, as a share of its width.",
+          "range": "0–4, step 0.01"
+        },
+        {
+          "key": "sheets",
+          "type": "number",
+          "default": "3",
+          "doc": "How many sheets, one behind another along the throw.",
+          "range": "1–5, step 1"
+        },
+        {
+          "key": "sheetGap",
+          "type": "number",
+          "default": "90",
+          "doc": "How far apart the sheets leave the lip.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "maxDrop",
+          "type": "number",
+          "default": "30000",
+          "doc": "How far under the lip a fall that meets nothing ends.",
+          "range": "≥ 0.01"
+        },
+        {
+          "key": "rows",
+          "type": "number",
+          "default": "56",
+          "doc": "Rows down a sheet. More follows the curve more closely.",
+          "range": "2–256, step 1"
+        },
+        {
+          "key": "across",
+          "type": "number",
+          "default": "6",
+          "doc": "Cells across a sheet.",
+          "range": "1–32, step 1"
+        }
+      ],
+      "animatable": [
+        "width",
+        "speed",
+        "flare",
+        "sheets",
+        "sheetGap",
+        "maxDrop",
+        "rows",
+        "across"
+      ]
+    },
+    {
       "name": "Weather",
       "source": "ts",
       "fields": [

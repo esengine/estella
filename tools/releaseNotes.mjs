@@ -4572,4 +4572,6 @@ export const NOTED = {
     {"note": "A colour map and an occlusion map lie the way the heightmap does."},
   "fix(water): the sea past the rings lies at the sea's level - the apron that carries an ocean to the horizon took its inner edge's height from the water under it, so with a river on high ground under that edge a strip of sea eighty kilometres long rose to the river's height; the apron's vertices are marked and the shader lays them at the ocean's level":
     {"note": "The sea past the rings lies at the sea's level."},
+  "feat(water): a waterfall - a Waterfall on an entity at a lip throws sheets of water level at a speed and lets gravity take them, each ending where it meets the ground or water that is not the water it left; it is the entity's own MeshRenderer, and with no material it takes the stock Waterfall shader, glass at the lip tearing into strands that ride down with the water":
+    {"note": "A waterfall."},
 };

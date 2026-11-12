@@ -8,12 +8,14 @@
 import { addEntryPlugin } from '../runtime/entryPlugins';
 import { registerBuiltinShaderTemplate } from '../render/builtinShaders';
 import { WATER_SHADER_TEMPLATE } from './waterShader';
+import { WATERFALL_SHADER_TEMPLATE } from './waterfallShader';
 import { WaterPlugin } from './waterPlugin';
 import { FloatingPlugin } from './floating';
 import { UnderwaterPlugin, registerUnderwaterEffect } from './underwater';
 
 export function registerWaterSupport(): void {
     registerBuiltinShaderTemplate(WATER_SHADER_TEMPLATE);
+    registerBuiltinShaderTemplate(WATERFALL_SHADER_TEMPLATE);
     addEntryPlugin('water', () => new WaterPlugin());
     addEntryPlugin('floating', () => new FloatingPlugin());
     addEntryPlugin('underwater', () => new UnderwaterPlugin());

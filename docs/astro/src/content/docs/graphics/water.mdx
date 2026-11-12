@@ -153,6 +153,31 @@ so a river runs downhill. Put a `Spline` and a `WaterBody` with `form` River on 
 - **Banks and mouths.** A bank is where the field's shore distance crosses zero, traced at the zone's resolution. Where a river runs into a lake, the sea or
   another river, the two are blended over a texel and a half, so there is no seam, no shore across the mouth and no step in height.
 
+## Waterfalls
+
+A river's surface is a field over the ground and cannot stand on end, so a river that comes to a cliff stops at its edge. A **`Waterfall`**
+is what goes on from there. Put it on an entity at the lip, turned to face the way the water leaves (its forward): the water is thrown
+level at `speed` and pulled down by gravity, and each sheet ends where it meets the ground, or water that is not the water it left, or
+`maxDrop` under the lip. It is drawn as the entity's own `MeshRenderer`, and made again when its fields, its place or what is under it change.
+
+| Field | What it does |
+|---|---|
+| `width` | How wide the water is where it leaves the lip. |
+| `speed` | How fast it leaves, level and along the entity's forward. Faster throws it further from the cliff. |
+| `flare` | How much wider a sheet is at its foot than at the lip, as a share of its width. |
+| `sheets`, `sheetGap` | How many sheets (1 to 5), one behind another along the throw, and how far apart they leave the lip. The middle one is whole, the others narrower. |
+| `maxDrop` | How far under the lip a fall that meets nothing ends. |
+| `rows`, `across` | Rows down a sheet and cells across it. |
+
+Only the entity's turn about the vertical aims it: keep it upright and unscaled. With no material on the `MeshRenderer` it takes the stock
+**Waterfall** shader: glass at the lip that tears into strands and then veils, its pattern riding down with the water. Its params are the
+water's colour at the lip (`u_water`) and the white it breaks into (`u_foam`), how many strands lie across a sheet (`u_strands`) and how
+fast they run (`u_run`), how much of the sheet is gone at its foot (`u_veil`) and how far down it is torn that much (`u_tearBy`),
+`u_opacity` and `u_roughness`. A material of your own reads what the mesh carries: `uv.x` across the sheet, `uv.y` the seconds the water
+there has been falling, the colour's red the share of the fall done, its green a number of the sheet's own.
+
+The fall is the sheet alone: the mist at its foot and the white water where it lands are a `ParticleEmitter`'s and the pool's own to draw.
+
 ## Floating
 
 Put a `Floating` component on an entity with a `RigidBody3D` and a collider and the water holds it up and carries it along. It works through forces on the
