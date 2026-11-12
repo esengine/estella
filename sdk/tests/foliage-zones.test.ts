@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { foliageCellsAcross } from '../src/foliage/foliagePlugin';
 import { describe, expect, it } from 'vitest';
 import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
@@ -26,6 +27,17 @@ const boot = () => {
     return { app, entity };
 };
 const cells = (app: App) => app.world.getEntitiesWithComponents([MeshRenderer]);
+
+describe('the cells of a Foliage area', () => {
+    it('are never wider than the cell size, over a field of any size', () => {
+        expect(foliageCellsAcross(400, 400, 40)).toEqual({ x: 10, z: 10 });
+        // An island of six kilometres on 12 m cells: 512 of them, not the 200 a cap once left 31 m wide with plants in 12 m of each.
+        const island = foliageCellsAcross(6144, 6144, 12);
+        expect(island).toEqual({ x: 512, z: 512 });
+        expect(6144 / island.x).toBeLessThanOrEqual(12);
+        expect(foliageCellsAcross(5, 5, 40)).toEqual({ x: 1, z: 1 });
+    });
+});
 
 describe('grass reservations and shadows', () => {
     it('grows without worldgen and applies the authored shadow policy to generated cells', async () => {

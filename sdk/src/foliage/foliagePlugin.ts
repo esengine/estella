@@ -35,6 +35,15 @@ import { bakesOf } from '../runtime/bakes';
 import { firstSend, forgetSent, planPool } from '../runtime/planPool';
 import type { FoliageCellRequest, FoliageSurroundingsSpec } from '../worldgen/planWorker';
 
+/**
+ * How many cells an area is cut into along x and z: as many as it takes for none to be wider than `cellSize`, however large the area.
+ * Only those near the eye are ever grown, so the count costs nothing; a cap on it would leave each cell wider than the plants scattered in it.
+ */
+export function foliageCellsAcross(sizeX: number, sizeZ: number, cellSize: number): { x: number; z: number } {
+    const side = Math.max(1, cellSize);
+    return { x: Math.max(1, Math.ceil(sizeX / side)), z: Math.max(1, Math.ceil(sizeZ / side)) };
+}
+
 /** The fields of the `Foliage` component. @experimental */
 export interface FoliageData {
     /** The plant to scatter. Empty grows grass, blades made here. */
@@ -334,8 +343,7 @@ export class FoliagePlugin implements Plugin {
     }
 
     private cellsAcross(data: FoliageData): { x: number; z: number } {
-        const side = Math.max(1, data.cellSize);
-        return { x: Math.min(200, Math.max(1, Math.ceil(data.sizeX / side))), z: Math.min(200, Math.max(1, Math.ceil(data.sizeZ / side))) };
+        return foliageCellsAcross(data.sizeX, data.sizeZ, data.cellSize);
     }
 
     /**

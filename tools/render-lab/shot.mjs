@@ -15,7 +15,7 @@ try {
   page.on('pageerror', (e) => logs.push('pageerror ' + String(e)));
   page.on('console', (m) => { if (process.env.DEBUG_LOGS === '1' || m.type() === 'error' || m.type() === 'warning') logs.push(m.type() + ' ' + m.text().slice(0, 700)); });
   await page.goto(`http://127.0.0.1:${server.address().port}/${gpu ? "" : "?headless"}`, { waitUntil: 'load' });
-  await page.waitForTimeout(12000);
+  await page.waitForTimeout(Number(process.env.WAIT_MS || 12000));
   await page.screenshot({ path: out + `/lab-${view}.png`, timeout: 120000 }).catch((e) => logs.push('screenshot ' + String(e).slice(0, 160)));
   console.log('context:', await page.evaluate(() => { const c = document.querySelector('canvas'); return c ? (c.getContext('webgpu') ? 'webgpu' : c.getContext('webgl2') ? 'webgl2' : 'unknown') : 'no canvas'; }).catch((e) => String(e)));
   const facts = await page.evaluate(() => (window.__estellaCooked ? window.__estellaCooked.facts() : 'no hook')).catch((e) => String(e));
