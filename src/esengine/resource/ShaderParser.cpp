@@ -4262,6 +4262,7 @@ ShaderProperty ShaderParser::parseParamDirective(const std::string& argument) {
 
     if (auto d = clause("default")) prop.defaultValue = *d;
     if (auto u = clause("ui")) prop.ui = *u;
+    if (auto u = clause("unit")) prop.worldUnits = *u == "length" ? 1 : *u == "perLength" ? -1 : 0;
     if (auto r = clause("range")) {
         usize comma = r->find(',');
         if (comma != std::string::npos) {

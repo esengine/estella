@@ -55,6 +55,7 @@ struct MaterialParamSlot {
     u32 offset = 0;  ///< std140 byte offset within the block.
     u32 arity = 1;   ///< Float component count (1..4); textures are not slots.
     f32 defaults[4] = {0, 0, 0, 0};  ///< Shader-declared default(...); the block's initial value.
+    i8 worldUnits = 0;  ///< 1 a length, -1 a rate per length: the default is at 100 units a metre (ShaderProperty::worldUnits).
 };
 
 /** @brief Which built-in texture a param falls back to when a material leaves it unset. */
@@ -445,6 +446,10 @@ public:
     /// No-op for materials whose shader declares no params (uboBytes stays empty).
     void bindForDraw(u32 materialId);
 
+    /// Says what a world unit is (the project's units per metre). A param a material left at its default follows the change;
+    /// one it set, to anything else, is the material's and stays.
+    void setWorldUnitsPerMeter(f32 unitsPerMeter);
+
     /// Frees every per-material GPU UBO and clears all records/layouts. Call while the
     /// device is still valid (RenderContext::shutdown).
     void clear();
@@ -452,14 +457,25 @@ public:
 private:
     /// Fills an unpacked block with the shader's param defaults, so a material that never
     /// sets a param still draws with the declared default(...) values (not zeros).
-    static void ensureDefaults(MaterialRecord& rec, const MaterialUniformLayout& layout) {
+    void ensureDefaults(MaterialRecord& rec, const MaterialUniformLayout& layout) const {
         if (layout.blockSize == 0 || rec.uboBytes.size() >= layout.blockSize) return;
         rec.uboBytes.resize(layout.blockSize, 0);
         for (const auto& p : layout.params) {
-            std::memcpy(rec.uboBytes.data() + p.offset, p.defaults, p.arity * sizeof(f32));
+            f32 value[4];
+            defaultInUnits(p, world_unit_scale_, value);
+            std::memcpy(rec.uboBytes.data() + p.offset, value, p.arity * sizeof(f32));
         }
         rec.uboDirty = true;
     }
+
+    /// A slot's default at @p scale units to the reference: a length times it, a rate per length over it, any other as declared.
+    static void defaultInUnits(const MaterialParamSlot& p, f32 scale, f32* out) {
+        const f32 k = p.worldUnits > 0 ? scale : p.worldUnits < 0 ? 1.0f / scale : 1.0f;
+        for (u32 i = 0; i < 4; ++i) out[i] = p.defaults[i] * k;
+    }
+
+    /// The project's units per metre over the reference 100: what a world-unit default is scaled by.
+    f32 world_unit_scale_ = 1.0f;
 
     std::unordered_map<u32, MaterialRecord> materials_;
     std::unordered_map<u32, MaterialUniformLayout> layouts_;

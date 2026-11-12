@@ -17,10 +17,12 @@
  *          otherwise drop without a word.
  *
  *          Grammar (matches ShaderParser):
- *            #pragma param <name> <type> [default(csv)] [range(min,max)] [ui(hint)] [texel(data)]
+ *            #pragma param <name> <type> [default(csv)] [range(min,max)] [ui(hint)] [texel(data)] [unit(length|perLength)]
  *            (<type> `textureArray` reads as a `texture` param with `layered` set)
  *            #pragma domain <Unlit|Lit|PostProcess|UI>
  */
+
+import { worldUnitScale } from '../ecs/worldUnits';
 
 export type ShaderParamType = 'float' | 'vec2' | 'vec3' | 'vec4' | 'color' | 'int' | 'texture';
 
@@ -43,11 +45,29 @@ export interface ShaderParam {
      */
     texel?: 'data';
     /**
+     * `unit(length)` (1) or `unit(perLength)` (-1): the default and range are written at 100 world units a metre, the
+     * engine's reference, and follow the project's units per metre where a material leaves the param unset
+     * (ecs/worldUnits.ts; {@link shaderParamInUnits} is what an inspector shows). Absent is a plain number.
+     */
+    worldUnits?: 1 | -1;
+    /**
      * Declared `textureArray`: a 2D texture array, sampled with a layer index
      * (`texture(u_x, vec3(uv, layer))`). Set it with `Material.tex` on a handle from
      * `createTextureArrayFromPixels`. Absent means a plain 2D texture.
      */
     layered?: true;
+}
+
+/**
+ * A param as it reads in this project: a world-unit one's default and range scaled to the project's units per metre (a length
+ * by the scale, a rate per length by its inverse), as the engine fills it; any other as declared.
+ */
+export function shaderParamInUnits(p: ShaderParam): ShaderParam {
+    const s = worldUnitScale();
+    if (!p.worldUnits || s === 1) return p;
+    const k = p.worldUnits === 1 ? s : 1 / s;
+    const range = p.range ? { min: p.range.min * k, max: p.range.max * k } : undefined;
+    return { ...p, default: p.default.map((v) => v * k), ...(range ? { range } : {}) };
 }
 
 export interface ShaderReflection {
@@ -113,6 +133,8 @@ function parseParam(arg: string): ShaderParam | null {
     if (ui !== undefined) param.ui = ui;
 
     if (type === 'texture' && clause(arg, 'texel') === 'data') param.texel = 'data';
+    const unit = clause(arg, 'unit');
+    if (type !== 'texture' && (unit === 'length' || unit === 'perLength')) param.worldUnits = unit === 'length' ? 1 : -1;
 
     return param;
 }
@@ -143,7 +165,7 @@ export function paramDefaultValue(param: ShaderParam): unknown {
  */
 export const RENAMED_DOMAINS: Readonly<Record<string, string>> = { Lit2D: 'Lit', Unlit2D: 'Unlit' };
 
-/** Parse a `.esshader` source into its declared parameters and domain. */
+/** Parse a `.esshader` source into its declared parameters (world-unit ones in the project's units) and domain. */
 export function reflectEsshader(source: string): ShaderReflection {
     const params: ShaderParam[] = [];
     let domain = 'Unlit';
@@ -158,7 +180,8 @@ export function reflectEsshader(source: string): ShaderReflection {
 
         if (directive === 'param') {
             const p = parseParam(arg);
-            if (p) params.push(p);
+            // In the project's units, as the engine fills an unset param: an inspector, a template and a tool all read the same number.
+            if (p) params.push(shaderParamInUnits(p));
         } else if (directive === 'domain' && arg) {
             domain = RENAMED_DOMAINS[arg] ?? arg;
         }

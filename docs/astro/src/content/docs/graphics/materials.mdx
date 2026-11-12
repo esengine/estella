@@ -253,6 +253,17 @@ says which one found no unit.
 Params live in an engine-generated std140 block, initialized from their `default(…)`
 values — a material that never sets a param still draws correctly.
 
+A param that is a distance in the world says so with `unit(length)`, and one that is a rate per distance (a fog or water density) with
+`unit(perLength)`. Its default and range are then written at the engine's reference of 100 world units a metre, and follow the project's
+own **Units per Metre** (Project Settings → Physics → 3D): `default(250) unit(length)` is 2.5 m of whatever a unit is, 250 in a
+centimetre project and 2.5 in a metre one. The inspector shows the project's numbers, and a value a material states is never scaled.
+It is the same rule a component's lengths and a post-process effect's follow, so a project says what a unit is once.
+
+```glsl
+#pragma param u_foamWidth float default(120)    range(0, 2000) ui(slider) unit(length)
+#pragma param u_density   float default(0.0012) range(0, 0.04)            unit(perLength)
+```
+
 ### Injected uniforms & helpers
 
 The engine injects these into every compiled `.esshader` — never declare them yourself:

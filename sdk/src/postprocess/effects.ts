@@ -490,7 +490,7 @@ registerEffect({
         // How much of the sun the clouds keep off the scene's surfaces. Above 0 the clouds are fixed to the world, not carried along with the camera.
         { name: 'u_cloudShadow', label: 'Cloud Shadows', min: 0, max: 1, step: 0.01, defaultValue: 0, neutralValue: 0 },
         // How many world units are a kilometre: the sky is in kilometres, the scene in its own units.
-        { name: 'u_unitsPerKm', label: 'World Units per km', min: 1, max: 100000, step: 1, defaultValue: 1000 },
+        { name: 'u_unitsPerKm', label: 'World Units per km', min: 100, max: 10000000, step: 100, defaultValue: 100000, worldUnits: 1 },
         // With a Cloud Mask, how many kilometres of the cloud layer one repeat of it covers (0 leaves the clouds to the noise): the mask gives the clouds
         // their shape, the noise only erodes it. The second mask is a softer, higher layer folded in at a third.
         { name: 'u_cloudMaskTile', label: 'Cloud Mask Tile (km)', min: 0, max: 100, step: 0.1, defaultValue: 0 },

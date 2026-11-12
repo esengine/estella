@@ -371,6 +371,7 @@ MaterialUniformLayout MaterialStore::layoutOf(const resource::ParsedShader& pars
             }
         } else if (p.std140Offset >= 0) {
             MaterialParamSlot slot{ p.name, static_cast<u32>(p.std140Offset), paramArity(p.type) };
+            slot.worldUnits = p.worldUnits;
             // default(a,b,c,d) csv -> the slot's initial block value.
             // A trailing comma ends the list, as a stream's getline would: no empty last field.
             usize at = 0;
@@ -404,6 +405,28 @@ void MaterialStore::seedSamplers(Shader& shader, const resource::ParsedShader& p
         }
         s.unbind();
     });
+}
+
+void MaterialStore::setWorldUnitsPerMeter(f32 unitsPerMeter) {
+    const f32 scale = (unitsPerMeter > 0.0f ? unitsPerMeter : 100.0f) / 100.0f;
+    if (scale == world_unit_scale_) return;
+    const f32 was = world_unit_scale_;
+    world_unit_scale_ = scale;
+    // Blocks filled before the project said its unit hold the old defaults. No record says which params a material set, so one is
+    // taken to be unset where it still holds exactly what the default was.
+    for (auto& [id, rec] : materials_) {
+        auto lit = layouts_.find(rec.shaderRef.id());
+        if (lit == layouts_.end() || rec.uboBytes.size() < lit->second.blockSize) continue;
+        for (const auto& p : lit->second.params) {
+            if (p.worldUnits == 0) continue;
+            f32 before[4], now[4];
+            defaultInUnits(p, was, before);
+            if (std::memcmp(rec.uboBytes.data() + p.offset, before, p.arity * sizeof(f32)) != 0) continue;
+            defaultInUnits(p, scale, now);
+            std::memcpy(rec.uboBytes.data() + p.offset, now, p.arity * sizeof(f32));
+            rec.uboDirty = true;
+        }
+    }
 }
 
 void MaterialStore::bindForDraw(u32 materialId) {

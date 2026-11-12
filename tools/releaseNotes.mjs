@@ -4510,4 +4510,10 @@ export const NOTED = {
     {"note": "A quality level decides what the dynamic GI spends."},
   "fix(export): a 16-bit PNG ships as the file it is - a build shrank a 4096 heightmap to 2048 and decoded it to 8 bits, so exported ground stood in 256 steps where the editor drew 65536":
     {"note": "A 16-bit heightmap keeps its depth and size in a build."},
+  "fix(export): a texture a Terrain reads as its heightmap ships as the file it is, whatever its size cap - an 8-bit heightmap over Max Size was still shrunk":
+    {"note": "A 16-bit heightmap keeps its depth and size in a build."},
+  "feat(water): an ocean reaches the horizon - a flat apron carries the surface on from its rings, so the sea no longer ends in a line where its mesh does":
+    {"note": "An ocean reaches the horizon."},
+  "feat(units): a shader param says it is a length with unit(length) and follows the project's units per metre, as components and effects do - the water's defaults were metres in an engine of centimetres":
+    {"note": "One setting says what a unit is, for materials too."},
 };

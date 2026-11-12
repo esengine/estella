@@ -59,11 +59,13 @@ export interface WaterZoneData {
  * @experimental
  */
 export const WaterZone: ComponentDef<WaterZoneData> = /* @__PURE__ */ defineComponent<WaterZoneData>('WaterZone', {
-    sizeX: 200, sizeZ: 200, resolution: 256, material: 0,
-    waveLength: 14, waveSpeed: 1, waveDirection: 30, surf: 0.6, surfLength: 8,
-    cellSize: 1, cells: 64, rings: 5,
-    ripples: 0, rippleSize: 64, rippleSpeed: 6, rippleDamping: 0.8, foamFade: 0.4,
+    // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): 14 m waves on metre cells in any project.
+    sizeX: 20000, sizeZ: 20000, resolution: 256, material: 0,
+    waveLength: 1400, waveSpeed: 1, waveDirection: 30, surf: 0.6, surfLength: 800,
+    cellSize: 100, cells: 64, rings: 5,
+    ripples: 0, rippleSize: 6400, rippleSpeed: 600, rippleDamping: 0.8, foamFade: 0.4,
 }, {
+    worldUnitFields: ['sizeX', 'sizeZ', 'waveLength', 'surfLength', 'cellSize', 'rippleSize', 'rippleSpeed'],
     assetFields: [{ field: 'material', type: 'material' }],
     fields: {
         sizeX: { min: 1, category: 'Region', tooltip: 'The region baked along x, centred on the entity. Water outside it is not drawn; an ocean goes on past it.' },

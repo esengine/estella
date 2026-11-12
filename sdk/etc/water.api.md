@@ -259,7 +259,7 @@ speed: number
 
 ## buildOceanMesh — function @experimental
 ```
-(cells: number, rings: number, cellSize: number): MeshData
+(cells: number, rings: number, cellSize: number, skirt?: number): MeshData
 ```
 
 ## currentShare — function @experimental

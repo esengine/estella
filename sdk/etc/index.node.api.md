@@ -9967,6 +9967,7 @@ range: { min: number; max: number; } | undefined
 texel: "data" | undefined
 type: ShaderParamType
 ui: string | undefined
+worldUnits: 1 | -1 | undefined
 ```
 
 ## ShaderParamType — type @experimental
@@ -14778,7 +14779,7 @@ MotionDriver<AnimatorBlend2DMotion>
 
 ## buildOceanMesh — function @experimental
 ```
-(cells: number, rings: number, cellSize: number): MeshData
+(cells: number, rings: number, cellSize: number, skirt?: number): MeshData
 ```
 
 ## buildPatchMesh — function @experimental

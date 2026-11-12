@@ -23,30 +23,30 @@ const WATER = `#pragma shader "Water"
 #pragma param u_deepColor color default(0.01,0.08,0.15,1)
 // How fast each colour is absorbed along the way through the water (red goes first), and how thick the water is, per world unit.
 #pragma param u_absorption color default(0.45,0.09,0.05,1)
-#pragma param u_density float default(0.12) range(0,4) ui(slider)
+#pragma param u_density float default(0.0012) range(0,0.04) ui(slider) unit(perLength)
 // The waves: height, length of the longest, how sharp their crests are drawn, how fast they travel and which way (degrees).
-#pragma param u_waveHeight float default(0.3) range(0,8) ui(slider)
-#pragma param u_waveLength float default(14) range(0.5,300) ui(slider)
+#pragma param u_waveHeight float default(30) range(0,800) ui(slider) unit(length)
+#pragma param u_waveLength float default(1400) range(50,30000) ui(slider) unit(length)
 #pragma param u_waveSpeed float default(1) range(0,4) ui(slider)
 #pragma param u_waveDirection float default(30) range(0,360) ui(slider)
 // The small ripples the long waves carry: how steep and how long each is.
 #pragma param u_rippleStrength float default(0.3) range(0,1) ui(slider)
-#pragma param u_rippleLength float default(2.5) range(0.1,40) ui(slider)
+#pragma param u_rippleLength float default(250) range(10,4000) ui(slider) unit(length)
 // How hard it rains on the water (the weather writes it): drops ring out on the surface, a few to every u_rippleLength.
 #pragma param u_rain float default(0) range(0,4) ui(slider)
 #pragma param u_roughness float default(0.04) range(0,1) ui(slider)
 // How far what is seen through the water is shifted by its waves, and the depth of water at which that stops growing.
 #pragma param u_refractionStrength float default(1) range(0,4) ui(slider)
-#pragma param u_distortionRange float default(12) range(0.1,200) ui(slider)
+#pragma param u_distortionRange float default(1200) range(10,20000) ui(slider) unit(length)
 // Foam: its colour, how deep the water is where it begins at the shore (world units), and how much of the wave crests carry it.
 #pragma param u_foamColor color default(0.95,0.97,1,1)
-#pragma param u_foamWidth float default(1.2) range(0,20) ui(slider)
+#pragma param u_foamWidth float default(120) range(0,2000) ui(slider) unit(length)
 #pragma param u_foamCrest float default(0.5) range(0,1) ui(slider)
 // How deep, in world units, the water is where it has thinned to nothing at its edge: over that last depth the ground behind shows through
 // more and more, so the water meets it along a soft line. 0 keeps a hard edge.
-#pragma param u_edgeSoftness float default(0.3) range(0,1000) ui(slider)
+#pragma param u_edgeSoftness float default(30) range(0,100000) ui(slider) unit(length)
 // The depth taken where the device could not measure one.
-#pragma param u_fallbackDepth float default(4) range(0,200) ui(slider)
+#pragma param u_fallbackDepth float default(400) range(0,20000) ui(slider) unit(length)
 // Where the waves are measured. 0 is the world's xz plane, which is what a plain mesh of water wants. 1 is the surface a WaterZone draws: the mesh's uv
 // is its x and z (plus u_origin, which the zone moves as the mesh follows the camera, so the waves stay put in the world), and the vertices are lifted
 // to the zone's water and its waves.
@@ -73,7 +73,7 @@ const WATER = `#pragma shader "Water"
 // The surf (the WaterZone writes these): how high a breaker stands against its body's waves (with the weather in), how long the surf's waves
 // are, and a multiplier on their speed. 0 draws none.
 #pragma param u_surfHeight float default(0) range(0,4) ui(slider)
-#pragma param u_surfLength float default(10) range(0.1,100000) ui(slider)
+#pragma param u_surfLength float default(1000) range(10,10000000) ui(slider) unit(length)
 #pragma param u_surfSpeed float default(1) range(0,4) ui(slider)
 // How long, in seconds, each of the two copies of the surface the shader carries down a current lives before the other takes over.
 #pragma param u_flowCycle float default(2) range(0.2,20) ui(slider)
@@ -82,7 +82,7 @@ const WATER = `#pragma shader "Water"
 // The net of light the waves throw on what is under the water: how strong it is, how large one cell of it is (world units), and how fast it swims. The Underwater
 // effect draws the same one from below, with these numbers, so the two halves of the picture agree.
 #pragma param u_causticStrength float default(0.6) range(0,3) ui(slider)
-#pragma param u_causticScale float default(2) range(0.05,2000) ui(slider)
+#pragma param u_causticScale float default(200) range(5,200000) ui(slider) unit(length)
 #pragma param u_causticSpeed float default(0.35) range(0,4) ui(slider)
 // What the quality level allows (the WaterZone writes these): how many of the four waves are summed, whether the surface seen from below mirrors the world under it,
 // and whether the sun's web of light is drawn on what lies under the water.

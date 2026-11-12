@@ -119,6 +119,9 @@ struct ShaderProperty {
     f32 rangeMin = 0.0f;
     f32 rangeMax = 1.0f;
     std::string ui;                       ///< UI hint, e.g. "slider", "color" (free-form).
+    /// `unit(length)` (1) or `unit(perLength)` (-1): the default and range are written at 100 world units a metre and
+    /// follow the project's units per metre where a material leaves the param unset. 0 is a plain number.
+    i8 worldUnits = 0;
 };
 
 /**

@@ -50,6 +50,7 @@ export interface FloatingData {
 export const Floating: ComponentDef<FloatingData> = defineComponent<FloatingData>('Floating', {
     buoyancy: 2, drag: 1, radius: 50, points: [] as Vec3Like[], wake: 1,
 }, {
+    worldUnitFields: ['radius'],
     fields: {
         buoyancy: { min: 0, max: 20, category: 'Water', tooltip: 'The water\'s density against the body\'s. 1 holds it up exactly when it is wholly under; 2 floats it half under.' },
         drag: { min: 0, max: 20, category: 'Water', tooltip: 'How hard the water resists the body moving through it, per second.' },

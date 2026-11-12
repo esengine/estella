@@ -36,6 +36,7 @@ import { bakesOf } from '../runtime/bakes';
 import type { Entity } from '../types';
 import { surfHeight, waveHeight, waveSlope, type WaveParams } from './waves';
 import { buildOceanMesh, oceanReach, oceanSnap } from './waterMesh';
+import { worldUnitsPerMeter } from '../ecs/worldUnits';
 import { type Point2 } from './shore';
 import { Spline, type SplineData } from '../spline/splinePlugin';
 import { SplineCurve } from '../spline/curve';
@@ -79,8 +80,10 @@ export interface WaterBodyData {
  * @experimental
  */
 export const WaterBody: ComponentDef<WaterBodyData> = /* @__PURE__ */ defineComponent<WaterBodyData>('WaterBody', {
-    form: WaterForm.Lake, bodyId: '', sizeX: 100, sizeZ: 100, boundary: [] as Point2[], shoreWidth: 3, flowSpeed: 2, waveHeight: 0.3, bedDepth: 0,
+    // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): a 100 m lake with 30 cm waves in any project.
+    form: WaterForm.Lake, bodyId: '', sizeX: 10000, sizeZ: 10000, boundary: [] as Point2[], shoreWidth: 300, flowSpeed: 200, waveHeight: 30, bedDepth: 0,
 }, {
+    worldUnitFields: ['sizeX', 'sizeZ', 'shoreWidth', 'flowSpeed', 'waveHeight', 'bedDepth'],
     fields: {
         form: { enum: [{ label: 'Ocean', value: WaterForm.Ocean }, { label: 'Lake', value: WaterForm.Lake }, { label: 'River', value: WaterForm.River }], category: 'Shape', tooltip: 'An ocean is without edge: everywhere at its height where the ground is lower; a lake is a rectangle or an outline of its own; a river follows the Spline on the same entity.' },
         bodyId: { category: 'Shape', tooltip: 'What the game calls this body, the same in every session: what a query names the water by. Empty is named by its entity.' },
@@ -134,7 +137,8 @@ export function waterQualityOf(profile: Readonly<QualityProfile> | null, miniGam
 }
 
 /** The zone a scene without a `WaterZone` is given: the component's defaults, over every lake and river. */
-const ZONE_DEFAULTS: WaterZoneData = { ...WaterZone._default };
+/** The zone's defaults in the project's units: asked each time, since a project says what a unit is before its scene loads. */
+const zoneDefaults = (): WaterZoneData => ({ ...WaterZone._default });
 
 /** Run-time access to the water: where its surface is at a point, for what floats on it or swims in it. */
 export class Waters {
@@ -143,7 +147,7 @@ export class Waters {
     quality: WaterQuality = FULL_WATER;
     /** The baked water, and the zone it was baked by. @internal */
     field_: WaterField | null = null;
-    /** @internal */ zone_: WaterZoneData = ZONE_DEFAULTS;
+    /** @internal */ zone_: WaterZoneData = zoneDefaults();
     /** The ripples the zone keeps, where it asks for them. @internal */
     ripples_: RippleField | null = null;
     /** The material instance the surface is drawn with, for what draws the same water (the underwater effect). @internal */
@@ -516,7 +520,7 @@ export class WaterPlugin implements Plugin {
                 keyParts.push([key, d.form, spline.points, spline.closed, d.flowSpeed, d.waveHeight, d.shoreWidth, t.worldPosition, t.worldRotation, scale]);
             }
         }
-        let zone = ZONE_DEFAULTS;
+        let zone = zoneDefaults();
         let grid: ZoneGrid | null = null;
         for (const entity of app.world.getEntitiesWithComponents([WaterZone, Transform])) {
             zone = app.world.get(entity, WaterZone) as WaterZoneData;
@@ -603,7 +607,9 @@ export class WaterPlugin implements Plugin {
             const source = zone.material || await this.stock(app);
             if (s.epoch !== epoch || this.surface_ !== s) return;
             const assets = app.getResource(Assets);
-            const mesh = assets.createMesh(buildOceanMesh(zone.cells, zone.rings, zone.cellSize));
+            // The rings are where the waves are; past them a flat apron carries the sea to the horizon (80 km, further than a camera a
+            // kilometre up can see), so an ocean does not end in a straight line where its mesh does.
+            const mesh = assets.createMesh(buildOceanMesh(zone.cells, zone.rings, zone.cellSize, 80000 * worldUnitsPerMeter()));
             if (mesh === 0) { log.warn('water', 'the engine refused the water geometry'); return; }
             const instance = Material.createInstance(source);
             if (instance === 0) { assets.releaseBuiltMesh(mesh); log.warn('water', 'the water material could not be instanced'); return; }

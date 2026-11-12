@@ -14,9 +14,14 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **An ocean reaches the horizon.** The sea's surface is rings of mesh round the camera, and it ended where they did: from a hill, or with a small `cells` and `rings`, a straight edge with nothing past it. A flat apron now carries it on to 80 km, at the cost of one row of quads.
+- **One setting says what a unit is, for materials too.** A shader param declares `unit(length)` or `unit(perLength)` and its default and range follow the project's Units per Metre, as a component's lengths and a post-process effect's already did; the inspector shows the project's numbers. The water was the reason: its shader, `WaterBody`, `WaterZone` and the sky's World Units per km held their defaults in metres while the engine's reference is centimetres, so stock water in a default project was a hundredth of its size and a scene in metres copied from one in centimetres drew clear water. They are now written once, at the reference, and are the same water in either. **A scene that relied on the old defaults in a centimetre project** (a `WaterBody` or `WaterZone` field left unset, a Water material with unset lengths, clouds with World Units per km unset) draws them a hundred times larger than before, which is what they were meant to be; state the values, or set Units per Metre to 1 if the scene is in metres.
+
 ### Fixed
 
-- **A 16-bit heightmap keeps its depth and size in a build.** A texture is capped at its Max Size (2048 unless set) when a build cooks it, and the cap decodes a PNG to 8 bits a channel on the way. A `Terrain` heightmap of 4096 samples and 16 bits therefore shipped as 2048 samples of 256 steps: the exported ground was terraced and coarser than the same ground in the editor, which reads the file itself, and nothing said so. A PNG that holds 16 bits a channel now ships byte for byte.
+- **A 16-bit heightmap keeps its depth and size in a build.** A texture is capped at its Max Size (2048 unless set) when a build cooks it, and the cap decodes a PNG to 8 bits a channel on the way. A `Terrain` heightmap of 4096 samples and 16 bits therefore shipped as 2048 samples of 256 steps: the exported ground was terraced and coarser than the same ground in the editor, which reads the file itself, and nothing said so. A PNG that holds 16 bits a channel now ships byte for byte. A texture a `Terrain` names as its heightmap is never capped either, at any depth.
 
 ## [0.103.0] - 2026-11-12
 

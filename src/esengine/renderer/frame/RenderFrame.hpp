@@ -424,7 +424,11 @@ public:
     }
 
     /** @brief How many world units make a metre (the project's setting): what an inverse-square light measures in. */
-    void setWorldUnitsPerMeter(f32 units) { world_units_per_meter_ = units > 0.0f ? units : 100.0f; }
+    void setWorldUnitsPerMeter(f32 units) {
+        world_units_per_meter_ = units > 0.0f ? units : 100.0f;
+        // The same answer for every default that is a length: a material's unset params follow it (MaterialParamSlot::worldUnits).
+        context_.materials().setWorldUnitsPerMeter(world_units_per_meter_);
+    }
 
     /**
      * @brief Colour @p entity in @p view by how much @p joint moves each of its vertices.
