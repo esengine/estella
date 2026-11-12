@@ -7916,28 +7916,28 @@
         {
           "key": "sizeX",
           "type": "number",
-          "default": "1000",
+          "default": "100000",
           "doc": "An area's size along x; for ground without end, the span its hills are spread over.",
           "range": "≥ 1"
         },
         {
           "key": "sizeZ",
           "type": "number",
-          "default": "1000",
+          "default": "100000",
           "doc": "An area's size along z.",
           "range": "≥ 1"
         },
         {
           "key": "height",
           "type": "number",
-          "default": "150",
+          "default": "15000",
           "doc": "World height of the highest ground.",
           "range": "≥ 0"
         },
         {
           "key": "cellSize",
           "type": "number",
-          "default": "2",
+          "default": "200",
           "doc": "The finest cell of the ground's mesh, in world units: what it is drawn at near the eye. Further off the cells double, level by level.",
           "range": "≥ 0.01"
         },
@@ -7951,7 +7951,7 @@
         {
           "key": "drawDistance",
           "type": "number",
-          "default": "4000",
+          "default": "400000",
           "doc": "How far ground without end is drawn.",
           "range": "≥ 1"
         },
@@ -7964,7 +7964,7 @@
         {
           "key": "collisionDistance",
           "type": "number",
-          "default": "64",
+          "default": "6400",
           "doc": "How far round each moving body and character the ground is built for collision, in world units.",
           "range": "≥ 1"
         },
@@ -10360,14 +10360,14 @@
         {
           "key": "sizeX",
           "type": "number",
-          "default": "100",
+          "default": "10000",
           "doc": "A lake's size along x.",
           "range": "≥ 1"
         },
         {
           "key": "sizeZ",
           "type": "number",
-          "default": "100",
+          "default": "10000",
           "doc": "A lake's size along z.",
           "range": "≥ 1"
         },
@@ -10380,21 +10380,21 @@
         {
           "key": "shoreWidth",
           "type": "number",
-          "default": "3",
+          "default": "300",
           "doc": "How far in from the shore, and how deep, the waves take to come to full height. 0 leaves them whole to the edge.",
           "range": "≥ 0"
         },
         {
           "key": "flowSpeed",
           "type": "number",
-          "default": "2",
+          "default": "200",
           "doc": "A river's current, in world units a second where it is as wide as its widest. A narrower reach runs faster.",
           "range": "0–5000"
         },
         {
           "key": "waveHeight",
           "type": "number",
-          "default": "0.3",
+          "default": "30",
           "doc": "The height of the tallest wave, in world units. Their length, speed and heading are the zone's.",
           "range": "0–800"
         },
@@ -10423,14 +10423,14 @@
         {
           "key": "sizeX",
           "type": "number",
-          "default": "200",
+          "default": "20000",
           "doc": "The region baked along x, centred on the entity. Water outside it is not drawn; an ocean goes on past it.",
           "range": "≥ 1"
         },
         {
           "key": "sizeZ",
           "type": "number",
-          "default": "200",
+          "default": "20000",
           "doc": "The region baked along z, centred on the entity.",
           "range": "≥ 1"
         },
@@ -10450,7 +10450,7 @@
         {
           "key": "waveLength",
           "type": "number",
-          "default": "14",
+          "default": "1400",
           "doc": "The length of the longest wave. Every body shares the waves; each sets how high they stand.",
           "range": "0.5–3000"
         },
@@ -10478,14 +10478,14 @@
         {
           "key": "surfLength",
           "type": "number",
-          "default": "8",
+          "default": "800",
           "doc": "The length of the surf's waves, in world units. They run in over four lengths of water, break, and run up the ground past the shore.",
           "range": "0.1–100000"
         },
         {
           "key": "cellSize",
           "type": "number",
-          "default": "1",
+          "default": "100",
           "doc": "The cell size of the finest ring of the surface. Waves shorter than six cells are not drawn as geometry there (the shading still shows them).",
           "range": "≥ 0.05"
         },
@@ -10513,14 +10513,14 @@
         {
           "key": "rippleSize",
           "type": "number",
-          "default": "64",
+          "default": "6400",
           "doc": "The side of the window the ripples are kept in, in world units. It follows the camera.",
           "range": "≥ 4"
         },
         {
           "key": "rippleSpeed",
           "type": "number",
-          "default": "6",
+          "default": "600",
           "doc": "How fast a ripple spreads, in world units a second.",
           "range": "0.1–4000"
         },

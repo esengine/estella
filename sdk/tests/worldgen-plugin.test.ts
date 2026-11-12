@@ -4,7 +4,8 @@
  * @file  A generated world in a running app with no renderer (a server): interactive placements are entities with stable ids, a
  *        player's change outlives its chunk, zones keep their ground clear, and unknown rules fail loudly.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { setWorldUnitsPerMeter, REFERENCE_UNITS_PER_METER } from '../src/ecs/worldUnits';
 import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { setEditorMode, setPlayMode } from '../src/ecs/env';
@@ -18,6 +19,10 @@ import { registerWorldRules, type WorldRules } from '../src/worldgen/rules';
 import type { Entity } from '../src/types';
 import { Terrain, TerrainExtent, TerrainPlugin, TerrainsRes } from '../src/terrain/terrainPlugin';
 import { recordSceneOrigins, sceneOriginsEnabled } from '../src/scene/sceneOrigins';
+
+// These worlds are written in metres: a project of one unit a metre, so the Terrain's own defaults are metres beside them.
+beforeAll(() => setWorldUnitsPerMeter(1));
+afterAll(() => setWorldUnitsPerMeter(REFERENCE_UNITS_PER_METER));
 
 const rules: WorldRules = {
     id: 'test:ores', versions: [1],
