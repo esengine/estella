@@ -789,12 +789,14 @@ app.whenReady().then(async () => {
     let gpuPasses = null;
     if (process.env.ESTELLA_VERIFY_GPU_PASSES) {
       await exec('window.__estellaHeadless.api.setCpuProfiling(true)');
+      // The eighth frame that reports, not the first: the first one a timer answers for carries whatever the device did
+      // once on the way (32 lit sprite layers read 50 ms there and 5.4 ms on every frame after), and a cost is the steady one.
       let scopes = {};
-      for (let i = 0; i < 40; i++) {
+      for (let i = 0, reported = 0; i < 60 && reported < 8; i++) {
         await exec('window.__estellaHeadless.api.step(1, 1 / 60)');
         await new Promise((r) => setTimeout(r, 40));
-        scopes = await exec('window.__estellaHeadless.api.getGpuScopes()');
-        if (Object.keys(scopes).some((k) => k.startsWith('pass/'))) break;
+        const read = await exec('window.__estellaHeadless.api.getGpuScopes()');
+        if (Object.keys(read).some((k) => k.startsWith('pass/'))) { scopes = read; reported++; }
       }
       const rows = Object.entries(scopes).filter(([k]) => k.startsWith('pass/')).sort((a, b) => b[1] - a[1]);
       console.log(`gpu passes (${BACKEND}): graph ${(scopes.graph ?? -1).toFixed(3)} ms, ${rows.length} passes`);

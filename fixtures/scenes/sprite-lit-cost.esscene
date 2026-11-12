@@ -1,0 +1,72 @@
+{
+  "version": 4,
+  "name": "SpriteLitCost",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 300, "isActive": true, "priority": 0 } }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Layer",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 2400, "y": 1400 }, "color": { "r": 0.9, "g": 0.8, "b": 0.7, "a": 0.5 }, "lit": true } }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "LampEast",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 250, "y": 0, "z": 0 } } },
+        { "type": "Light", "data": { "type": 0, "color": { "r": 1, "g": 0.8, "b": 0.6, "a": 1 }, "intensity": 1, "radius": 500 } }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "LampNorth",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 150, "z": 0 } } },
+        { "type": "Light", "data": { "type": 0, "color": { "r": 1, "g": 0.8, "b": 0.6, "a": 1 }, "intensity": 1, "radius": 500 } }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "LampWest",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": -250, "y": 0, "z": 0 } } },
+        { "type": "Light", "data": { "type": 0, "color": { "r": 1, "g": 0.8, "b": 0.6, "a": 1 }, "intensity": 1, "radius": 500 } }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "LampSouth",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": -150, "z": 0 } } },
+        { "type": "Light", "data": { "type": 0, "color": { "r": 1, "g": 0.8, "b": 0.6, "a": 1 }, "intensity": 1, "radius": 500 } }
+      ]
+    }
+  ]
+}

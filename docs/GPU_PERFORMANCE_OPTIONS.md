@@ -88,6 +88,29 @@
 - 分块 GPU 上深度预通道是几何画两次,所以 low 档默认关;**没有在任何手机上量过**,预通道的收益和代价应该在真机上各量一次再定 medium 档要不要开。
 - 分块 GPU 对“把场景拷出来再折射”(水)特别贵(要把片上内存刷出去),所以水在 low 档应该走平面折射或假折射;这个示例的 low 档已经是“平水面”。
 
+### 9. 2D 受光精灵(2026-11-12 实测,桌面)
+
+**怎么量:**`fixtures/scenes/sprite-lit-cost.esscene` 是一张铺满屏幕的半透明受光精灵加四盏点光;渲染宿主把它叠 32 层(相机和灯不复制),1920×1080,RTX 3060:
+
+```
+ESTELLA_VERIFY_SCENE=/scenes/sprite-lit-cost.esscene ESTELLA_VERIFY_MANIFEST=/scenes/sprite-lit.textures.json
+ESTELLA_VERIFY_W=1920 ESTELLA_VERIFY_H=1080 ESTELLA_VERIFY_SCALE={"copies":32,"cols":32,"spacing":[0.01,0]}
+ESTELLA_VERIFY_GPU_PASSES=print node tools/run-electron.mjs tools/render-host/run.mjs
+```
+
+(在 PowerShell 里设环境变量;Git Bash 会把 `/scenes/...` 改写成 Windows 路径。)
+
+| 32 层全屏 | WebGL2 | WebGPU |
+|---|---|---|
+| 不受光 | 0.84 ms | 1.28 ms |
+| 受光,四盏点光 | 5.4 ms | 8.8 ms |
+
+- 受光精灵走的是和三维表面同一个光照函数(`applyLightingPBR`,金属度 0、粗糙度 1、镜面 0)。每层全屏约 0.14 ms(WebGL2),是不受光的六倍,但绝对值小:桌面上不是瓶颈。
+- **镜面为 0 时跳过环境镜面那一段(DFG 拟合加反射查找)没有收益**:5.40 对 5.40 ms。镜面是编译期常数 0,驱动的编译器已经把那一段折掉了。改动已撤回。
+- WebGPU 比 WebGL2 慢约 1.5 倍,受光与不受光一样,所以是后端(混合/光栅)的差别,不是光照代码的。
+- **读数陷阱(已修):**`ESTELLA_VERIFY_GPU_PASSES=print` 原来取第一个有读数的帧,这一帧在这个场景上读成 50 ms(着色器第一次被用到的一次性开销),稳态是 5.4 ms。现在取第八个有读数的帧。那 50 ms 本身是真的首帧卡顿,属于"着色器首次编译"那一类(见 `docs/TERRAIN_WATER_GPU_COST.md` 的 Web 一节)。
+- **没有量的:**手机。移动端的编译器不一定折掉常数分支(水着色器上量到过没走的分支也花时间),这条路径在分块 GPU 上值得单独量一次再决定要不要给 2D 一条更短的光照函数。
+
 ## 这一轮已经量过、**不是**杠杆的(别再花时间)
 
 | 想法 | 结果 |
@@ -100,6 +123,7 @@
 | FXAA | 噪声 |
 | 近处树提前换 LOD | 预通道之后 0 到 2 ms,树冠变疏 |
 | 水的质量档位 | 都在噪声里 |
+| 受光精灵:镜面为 0 时跳过环境镜面 | 桌面上不变(5.40 对 5.40 ms),编译器已折掉 |
 
 ## 建议的顺序
 
