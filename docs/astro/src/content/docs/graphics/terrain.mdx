@@ -39,6 +39,8 @@ The ground is one of two kinds, chosen by `extent`:
 | `erosion` | 0 to 4: how much rain wears the ground (below). 0 leaves it as made. |
 | `splatmap` | Area only. An image whose four channels are the weights of layers 1 to 4. Empty paints by height and slope. |
 | `splatmap2` | Area only. The weights of layers 5 to 8, read with the first. |
+| `colorMap` | Area only. A picture laid over the whole area and mixed into the ground's colour by its alpha: a meadow's flowers, the regions of a map, scorched ground. One texture for the whole terrain, on top of the layers; its import Use is Colour. |
+| `colorMapStrength` | How much of the colour map is mixed in where its alpha is whole (1). Read each frame: changing it rebuilds nothing. |
 | `layers` | The [terrain layers](#terrain-layers) the ground is drawn with, up to eight, in the order the paint weighs them. Empty draws the four layer colours or the Terrain material's textures. |
 | `rockSlope`, `dirtHeight`, `snowHeight` | How steep ground must be to turn to rock, and the heights, as a share of `height`, where grass gives way to dirt and where snow begins. |
 | `layerColor0`–`3` | Grass, dirt, snow, rock: the colours the ground is drawn in when it has no material. |

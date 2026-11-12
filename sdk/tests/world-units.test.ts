@@ -42,6 +42,8 @@ describe('world-unit defaults', () => {
         expect([t.sizeX, t.sizeZ, t.height, t.cellSize, t.drawDistance, t.collisionDistance].map((v) => Math.round(v * 1000) / 1000)).toEqual([1000, 1000, 150, 2, 4000, 64]);
         // What is not a length stays: how many hills, how steep rock is.
         expect(t.frequency).toBe(3);
+        // And the colour map: none, and all of one when it is set.
+        expect([t.colorMap, t.colorMapStrength]).toEqual([0, 1]);
     });
 
     it('never touch a value the scene states, nor a field that is not a length', () => {

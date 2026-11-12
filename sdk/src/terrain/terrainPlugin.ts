@@ -85,6 +85,10 @@ export interface TerrainData {
     splatmap: number;
     /** An image whose four channels are the weights of layers 5 to 8, read with the first. */
     splatmap2: number;
+    /** A picture laid over the whole of an area and mixed into the ground's colour by its alpha: a meadow's flowers, a map's regions, scorched ground. */
+    colorMap: number;
+    /** How much of the colour map is mixed in where its alpha is whole. */
+    colorMapStrength: number;
     /**
      * The terrain layers (`.esterrainlayer` files, up to eight) the ground is drawn with, in the order the paint weighs them. With any,
      * the ground is drawn on the Terrain Layers shader (its material, if one is named, must be on it); with none, by the four colours.
@@ -138,7 +142,7 @@ const rgb = (r: number, g: number, b: number): Color => ({ r, g, b, a: 1 });
  * @experimental
  */
 export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponent<TerrainData>('Terrain', {
-    extent: TerrainExtent.Area, provider: NOISE_PROVIDER, world: '', generatorVersion: 1, heightmap: 0, tiles: '', heightmapFormat: HeightmapFormat.Grey, splatmap: 0, splatmap2: 0, layers: [] as string[], material: 0,
+    extent: TerrainExtent.Area, provider: NOISE_PROVIDER, world: '', generatorVersion: 1, heightmap: 0, tiles: '', heightmapFormat: HeightmapFormat.Grey, splatmap: 0, splatmap2: 0, colorMap: 0, colorMapStrength: 1, layers: [] as string[], material: 0,
     // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): a kilometre of ground 150 m high on 2 m cells in any project.
     sizeX: 100000, sizeZ: 100000, height: 15000, cellSize: 200, detail: 1, drawDistance: 400000,
     collision: true, collisionDistance: 6400, collisionLayer: 0, friction: 0.6,
@@ -146,7 +150,7 @@ export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponen
     rockSlope: 0.35, dirtHeight: 0.62, snowHeight: 0.88,
     layerColor0: rgb(0.28, 0.46, 0.2), layerColor1: rgb(0.45, 0.36, 0.24), layerColor2: rgb(0.93, 0.95, 0.98), layerColor3: rgb(0.4, 0.38, 0.36),
 }, {
-    assetFields: [{ field: 'heightmap', type: 'texture' }, { field: 'splatmap', type: 'texture' }, { field: 'splatmap2', type: 'texture' }, { field: 'material', type: 'material' }],
+    assetFields: [{ field: 'heightmap', type: 'texture' }, { field: 'splatmap', type: 'texture' }, { field: 'splatmap2', type: 'texture' }, { field: 'colorMap', type: 'texture' }, { field: 'material', type: 'material' }],
     worldUnitFields: ['sizeX', 'sizeZ', 'height', 'cellSize', 'drawDistance', 'collisionDistance'],
     fields: {
         extent: { enum: [{ label: 'Area', value: TerrainExtent.Area }, { label: 'Infinite', value: TerrainExtent.Infinite }], category: 'Shape', tooltip: 'An area of its own size, from a heightmap or noise; or ground that goes on for ever, from noise read anywhere (the same seed is the same ground).' },
@@ -158,6 +162,8 @@ export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponen
         heightmapFormat: { enum: [{ label: 'Grey (8 or 16 bit)', value: HeightmapFormat.Grey }, { label: 'Red + green (16 bit)', value: HeightmapFormat.RedGreen16 }], category: 'Shape', tooltip: 'How the heightmap holds its heights: grey (or red) at the depth of the file, 16 bits from a 16-bit PNG; or sixteen bits across red (high byte) and green (low byte) of an 8-bit image.', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
         splatmap: { tooltip: 'An image whose red, green, blue and alpha are the weights of grass, dirt, snow and rock.', category: 'Layers', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
         splatmap2: { tooltip: 'An image whose red, green, blue and alpha are the weights of layers 5 to 8.', category: 'Layers', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
+        colorMap: { tooltip: 'A picture laid over the whole area and mixed into the ground\'s colour by its alpha. Its Use is Colour.', category: 'Layers', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
+        colorMapStrength: { min: 0, max: 1, step: 0.01, slider: true, category: 'Layers', tooltip: 'How much of the colour map is mixed in where its alpha is whole.', shownWhen: { field: 'extent', values: [TerrainExtent.Area] } },
         layers: { tooltip: 'The terrain layers (.esterrainlayer, up to eight) the ground is drawn with, in the order the paint weighs them. Empty draws the four layer colours.', category: 'Layers' },
         material: { tooltip: 'A material on the Terrain shader (on Terrain Layers when the ground has layers). Empty uses the stock one.', category: 'Layers' },
         sizeX: { min: 1, category: 'Shape', tooltip: 'An area\'s size along x; for ground without end, the span its hills are spread over.' },
@@ -244,6 +250,8 @@ interface Built {
     arrays: number[];
     packed: string;
     packing: boolean;
+    /** Whether the colour map is on the material: so taking it off is written once, and ground without one is written nothing. */
+    washed: boolean;
 }
 
 /** Where a terrain's ground stands: still being made, ready, or failed (with why). */
@@ -583,10 +591,10 @@ export class Terrains {
 /** The resource the plugin installs. @experimental */
 export const TerrainsRes = /* @__PURE__ */ defineResource<Terrains>(/* @__PURE__ */ new Terrains(), 'Terrains');
 
-/** What, changed, rebuilds the ground: everything but the colours, the detail and the collision, which are read each frame. */
+/** What, changed, rebuilds the ground: everything but the colours, the colour map, the detail and the collision, which are read each frame. */
 function signatureOf(data: TerrainData, at: { x: number; z: number }): string {
     const { layerColor0: _a, layerColor1: _b, layerColor2: _c, layerColor3: _d, detail: _e, drawDistance: _f,
-        collision: _g, collisionDistance: _h, collisionLayer: _i, friction: _j, layers, ...rest } = data;
+        collision: _g, collisionDistance: _h, collisionLayer: _i, friction: _j, colorMap: _k, colorMapStrength: _l, layers, ...rest } = data;
     // Which layers are only what the arrays are packed from; whether there are any is which shader the ground is drawn with.
     const shape = { ...rest, layered: (layers?.length ?? 0) > 0 };
     // Ground read from a provider is the world's where the terrain stands: moved, it is read again; and a game's own provider is read
@@ -667,7 +675,7 @@ export class TerrainPlugin implements Plugin {
                         signature, data: { ...data }, source: null, surface: null, epoch: (built?.epoch ?? 0) + 1, loading: true, cancel: null,
                         table: new PageTable(ATLAS_SIZE), heights: 0, paint: 0, mesh: 0, instance: 0,
                         nodes: new Map(), spare: [], wanted: new Map(), asked: new Set(), pending: false, failure: null, edits: 0,
-                        paint2: 0, arrays: [], packed: '', packing: false,
+                        paint2: 0, arrays: [], packed: '', packing: false, washed: false,
                     };
                     terrains.built_.set(entity, built);
                     void this.load(app, entity, built);
@@ -1007,6 +1015,13 @@ export class TerrainPlugin implements Plugin {
         set('u_terrainEye', { x: eyeAt[0] + t.worldPosition.x, y: eyeAt[1] + t.worldPosition.y, z: eyeAt[2] + t.worldPosition.z, w: 1 });
         const b = source.bounds;
         set('u_terrainBounds', b ? { x: b[0], y: b[1], z: b[2], w: b[3] } : { x: -1e9, y: -1e9, z: 1e9, w: 1e9 });
+        const wash = b && built.data.colorMap ? built.data.colorMapStrength : 0;
+        if (wash > 0 && b) {
+            set('u_colorMap', Material.tex(built.data.colorMap));
+            set('u_colorMapArea', { x: b[0], y: b[1], z: b[2] - b[0], w: b[3] - b[1] });
+        }
+        if (wash > 0 || built.washed) set('u_colorMapStrength', wash);
+        built.washed = wash > 0;
         // The four layer colours are the Terrain shader's; ground with layers is drawn by another, which has no such params.
         if (!built.data.material && (built.data.layers?.length ?? 0) === 0) {
             const d = built.data;

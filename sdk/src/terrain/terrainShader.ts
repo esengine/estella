@@ -130,6 +130,11 @@ const TERRAIN = `#pragma shader "Terrain"
 // Ground at the water: below u_wetLevel + u_wetBand (world heights) it darkens and shines, most at the waterline. A band of 0 draws none.
 #pragma param u_wetLevel float default(0) range(-100000,100000) ui(slider) unit(length)
 #pragma param u_wetBand float default(0) range(0,100000) ui(slider) unit(length)
+// A picture laid over the whole ground and mixed into its colour by the picture's alpha: where it lies (its corner and its size on the
+// terrain's own x and z) and how much of it.
+#pragma param u_colorMap texture default(white)
+#pragma param u_colorMapStrength float default(0) range(0,1) ui(slider)
+#pragma param u_colorMapArea vec4 default(0,0,1,1)
 #pragma param u_roughness float default(0.92) range(0,1) ui(slider)
 // The ground in pages (pages.ts; the Terrain component writes these): heights and normals, and the paint, in two atlases; heights over
 // u_heightRange above u_terrainOrigin; level 0 drawn out to u_lodRange0, each level twice as far; nothing off u_terrainBounds.
@@ -297,6 +302,12 @@ void main() {
     bool upright = abs(normalize(cross(dpx, dpy)).y) > 0.5;
     if (abs(det) > 1e-12 && u_relief > 0.0 && upright) N = Nb;
 
+    if (u_colorMapStrength > 0.0) {
+        vec2 over = (Pw.xz - u_terrainOrigin.xz - u_colorMapArea.xy) / max(u_colorMapArea.zw, vec2(1e-4));
+        vec4 wash = texture(u_colorMap, over);
+        bool on = all(greaterThanEqual(over, vec2(0.0))) && all(lessThanEqual(over, vec2(1.0)));
+        albedo = mix(albedo, wash.rgb, on ? wash.a * u_colorMapStrength : 0.0);
+    }
     // Wet at the water: darker, and smooth enough to shine.
     float wet = u_wetBand > 0.0 ? 1.0 - smoothstep(u_wetLevel, u_wetLevel + u_wetBand, P.y) : 0.0;
     albedo *= mix(1.0, 0.55, wet);
@@ -457,6 +468,11 @@ fn packNormal(n : vec3f) -> vec2f {
     let upright = abs(normalize(cross(dpx, dpy)).y) > 0.5;
     if (abs(det) > 1e-12 && mc.u_relief > 0.0 && upright) { Ns = Nb; }
 
+    if (mc.u_colorMapStrength > 0.0) {
+        let over = (Pw.xz - mc.u_terrainOrigin.xz - mc.u_colorMapArea.xy) / max(mc.u_colorMapArea.zw, vec2f(1e-4));
+        let wash = textureSampleLevel(u_colorMap, u_colorMap_s, over, 0.0);
+        if (all(over >= vec2f(0.0)) && all(over <= vec2f(1.0))) { albedo = mix(albedo, wash.rgb, vec3f(wash.a * mc.u_colorMapStrength)); }
+    }
     var wet = 0.0;
     if (mc.u_wetBand > 0.0) { wet = 1.0 - smoothstep(mc.u_wetLevel, mc.u_wetLevel + mc.u_wetBand, P.y); }
     albedo = albedo * mix(1.0, 0.55, wet);
@@ -515,6 +531,11 @@ const TERRAIN_LAYERS = `#pragma shader "Terrain Layers"
 // Ground at the water: below u_wetLevel + u_wetBand (world heights) it darkens and shines, most at the waterline. A band of 0 draws none.
 #pragma param u_wetLevel float default(0) range(-100000,100000) ui(slider) unit(length)
 #pragma param u_wetBand float default(0) range(0,100000) ui(slider) unit(length)
+// A picture laid over the whole ground and mixed into its colour by the picture's alpha: where it lies (its corner and its size on the
+// terrain's own x and z) and how much of it.
+#pragma param u_colorMap texture default(white)
+#pragma param u_colorMapStrength float default(0) range(0,1) ui(slider)
+#pragma param u_colorMapArea vec4 default(0,0,1,1)
 // The ground in pages, as the Terrain shader has them, with the paint of layers 5 to 8 in an atlas of its own.
 #pragma param u_terrainPages float default(0) range(0,1) ui(slider)
 #pragma param u_heightPages texture default(white) texel(data)
@@ -719,6 +740,12 @@ void main() {
     colour *= mix(1.0, 0.7 + 0.6 * broad, u_macroVariation);
     N = normalize(N + slope);
 
+    if (u_colorMapStrength > 0.0) {
+        vec2 over = (Pw.xz - u_terrainOrigin.xz - u_colorMapArea.xy) / max(u_colorMapArea.zw, vec2(1e-4));
+        vec4 wash = texture(u_colorMap, over);
+        bool on = all(greaterThanEqual(over, vec2(0.0))) && all(lessThanEqual(over, vec2(1.0)));
+        colour = mix(colour, wash.rgb, on ? wash.a * u_colorMapStrength : 0.0);
+    }
     // Wet at the water: darker, and smooth enough to shine.
     float wet = u_wetBand > 0.0 ? 1.0 - smoothstep(u_wetLevel, u_wetLevel + u_wetBand, P.y) : 0.0;
     colour *= mix(1.0, 0.55, wet);
@@ -935,6 +962,11 @@ fn packNormal(n : vec3f) -> vec2f {
     colour = colour * mix(1.0, 0.7 + 0.6 * broad, mc.u_macroVariation);
     N = normalize(N + slope);
 
+    if (mc.u_colorMapStrength > 0.0) {
+        let over = (Pw.xz - mc.u_terrainOrigin.xz - mc.u_colorMapArea.xy) / max(mc.u_colorMapArea.zw, vec2f(1e-4));
+        let wash = textureSampleLevel(u_colorMap, u_colorMap_s, over, 0.0);
+        if (all(over >= vec2f(0.0)) && all(over <= vec2f(1.0))) { colour = mix(colour, wash.rgb, vec3f(wash.a * mc.u_colorMapStrength)); }
+    }
     var wet = 0.0;
     if (mc.u_wetBand > 0.0) { wet = 1.0 - smoothstep(mc.u_wetLevel, mc.u_wetLevel + mc.u_wetBand, P.y); }
     colour = colour * mix(1.0, 0.55, wet);
