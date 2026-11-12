@@ -1629,19 +1629,14 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         // Ask a step toward the light rather than shift the answer: a step in world units
         // is the same step whether a map's depth runs linearly with distance or
         // hyperbolically, which is what lets one expression serve a cascade and a cone.
-#ifdef ES_LIGHT_DIRECT
-        // A level that lights directly (the weaker two) has coarse maps, and there the step toward the light is the wrong one for a surface
-        // that stands steeply to it: it is 1.5 texels over the cosine, eleven texels for a wall the sun grazes, and with a texel of a few
-        // units that is further than a ceiling is thick - the top of every wall under a roof came out lit. Moved off the surface along its
-        // normal instead (as far as a texel of it is wide at that angle) the point clears its own texel without leaving what covers it.
-        let aside = worldPos + N * (texel * 1.5 * sqrt(1.0 - NoL * NoL));
+        // The point asked about is moved off the surface along its normal, as far as a texel of the surface is wide at the angle it
+        // stands to the light, and then a texel and a half toward the light. All of it toward the light, which is what this did, is
+        // 1.5 texels over the cosine: eleven texels for a wall the sun grazes, and where a texel is a few units (a coarse map, a
+        // large scene) that is further than a ceiling is thick - the top of every wall under a roof came out lit.
+        let aside = worldPos + N * (texel * 1.0 * sqrt(1.0 - NoL * NoL));
         let lcq = m * vec4f(aside, 1.0);
         let uvq = lcq.xy / max(lcq.w, 1e-6) * 0.5 + 0.5;
         let here = shadowDepth(m, aside + L * (texel * 1.5));
-#else
-        let uvq = uv;
-        let here = shadowDepth(m, worldPos + L * stepFor(texel, slope, 0.0));
-#endif
         // The ONE place the two backends must not agree: v = 0 samples a texture's
         // bottom in GL and its top here, and the rect arrives with its low corner in
         // GL's terms — so the tile and the square inside it are both turned over.
@@ -1707,7 +1702,8 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         let turn = vec2f(cos(spin), sin(spin));
         // See the GLSL twin: the matrix is applied to the direction once, and each tap moves the clip position along it.
         let toLight = m * vec4f(L, 0.0);
-        let stepBase = texel * 1.5 * (1.0 + slope);
+        // The taps are round the moved point, so what is left to forgive is the texel and a half and what each tap's own distance is worth.
+        let stepBase = texel * 1.5;
         let stepPer = texel * slope;
         var sum = 0.0;
         var hits = 0.0;
@@ -1717,7 +1713,7 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
             let off = vec2f(p.x * turn.x - p.y * turn.y, -(p.x * turn.y + p.y * turn.x));
             let at = clamp(at0 + off * lc.u_shadowParams.y, lo, hi);
             let d = unpackDepth(textureSampleLevel(t2, s2, at, 0.0).rgb);
-            let cr = lcp + toLight * (stepBase + max(length(off), 1.0) * stepPer);
+            let cr = lcq + toLight * (stepBase + max(length(off), 1.0) * stepPer);
             let reach = clamp(cr.z / max(cr.w, 1e-6) * 0.5 + 0.5, 0.0, 1.0);
             if (d < reach) { sum += d; hits += 1.0; }
         }
@@ -1726,7 +1722,7 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
             let off = kShadowDisc * vec2f(p.x * turn.x - p.y * turn.y, -(p.x * turn.y + p.y * turn.x));
             let at = clamp(at0 + off * lc.u_shadowParams.y, lo, hi);
             let d = unpackDepth(textureSampleLevel(t2, s2, at, 0.0).rgb);
-            let cr = lcp + toLight * (stepBase + max(length(off), 1.0) * stepPer);
+            let cr = lcq + toLight * (stepBase + max(length(off), 1.0) * stepPer);
             let reach = clamp(cr.z / max(cr.w, 1e-6) * 0.5 + 0.5, 0.0, 1.0);
             if (d < reach) { sum += d; hits += 1.0; }
         }
@@ -1748,7 +1744,7 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         // span beyond it — which is why a shadow hardens as its caster nears what it
         // falls on, and why a sun's angle and a lamp's size are the same expression.
         let radius = clamp(src * span / max(dbw * texel, 1e-4), 0.5, kShadowDisc);
-        let wide = shadowDepth(m, worldPos + L * stepFor(texel, slope, radius));
+        let wide = shadowDepth(m, aside + L * (texel * (1.5 + radius * slope)));
         // Thirty-two, where the hard edge needs four: the disc is as wide as the source
         // makes it, and a penumbra averaged over too few taps bands instead of blurring.
         var soft = 0.0;
@@ -3117,16 +3113,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // Ask a step toward the light rather than shift the answer: a step in world
             // units is the same step whether a map's depth runs linearly with distance or
             // hyperbolically, which is what lets one expression serve a cascade and a cone.
-            // See the WGSL twin: a level that lights directly moves the point off the surface along its normal, not toward the light.
-            "#ifdef ES_LIGHT_DIRECT\n"
-            "        highp vec3 aside = worldPos + N * (texel * 1.5 * sqrt(1.0 - NoL * NoL));\n"
+            // See the WGSL twin: the point is moved off the surface along its normal, and only a texel and a half toward the light.
+            "        highp vec3 aside = worldPos + N * (texel * 1.0 * sqrt(1.0 - NoL * NoL));\n"
             "        highp vec4 lcq = m * vec4(aside, 1.0);\n"
             "        highp vec2 uvq = lcq.xy / max(lcq.w, 1e-6) * 0.5 + 0.5;\n"
             "        highp float here = shadowDepth(m, aside + L * (texel * 1.5));\n"
-            "#else\n"
-            "        highp vec2 uvq = uv;\n"
-            "        highp float here = shadowDepth(m, worldPos + L * stepFor(texel, slope, 0.0));\n"
-            "#endif\n"
             "        highp vec2 at0 = rect.xy + uvq * rect.z;\n"
             "        highp vec2 lo = rect.xy + u_shadowParams.y * 0.5;\n"
             "        highp vec2 hi = rect.xy + rect.z - u_shadowParams.y * 0.5;\n"
@@ -3188,7 +3179,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        // The depth a tap forgives to is that of the point a step toward the light, and the step is linear in how far the tap stands: so the\n"
             "        // matrix is applied to the direction once, and a tap moves the clip position along it instead of going through the matrix again.\n"
             "        highp vec4 toLight = m * vec4(L, 0.0);\n"
-            "        highp float stepBase = texel * 1.5 * (1.0 + slope);\n"
+            "        highp float stepBase = texel * 1.5;\n"
             "        highp float stepPer = texel * slope;\n"
             "        highp float sum = 0.0;\n"
             "        highp float hits = 0.0;\n"
@@ -3200,7 +3191,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            highp vec2 off = vec2(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);\n"
             "            highp vec2 at = clamp(at0 + off * u_shadowParams.y, lo, hi);\n"
             "            highp float d = unpackDepth(texture(u_shadowMap, at).rgb);\n"
-            "            highp vec4 cr = lc + toLight * (stepBase + max(length(off), 1.0) * stepPer);\n"
+            "            highp vec4 cr = lcq + toLight * (stepBase + max(length(off), 1.0) * stepPer);\n"
             "            highp float reach = clamp(cr.z / max(cr.w, 1e-6) * 0.5 + 0.5, 0.0, 1.0);\n"
             "            if (d < reach) { sum += d; hits += 1.0; }\n"
             "        }\n"
@@ -3209,7 +3200,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            highp vec2 off = kShadowDisc * vec2(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);\n"
             "            highp vec2 at = clamp(at0 + off * u_shadowParams.y, lo, hi);\n"
             "            highp float d = unpackDepth(texture(u_shadowMap, at).rgb);\n"
-            "            highp vec4 cr = lc + toLight * (stepBase + max(length(off), 1.0) * stepPer);\n"
+            "            highp vec4 cr = lcq + toLight * (stepBase + max(length(off), 1.0) * stepPer);\n"
             "            highp float reach = clamp(cr.z / max(cr.w, 1e-6) * 0.5 + 0.5, 0.0, 1.0);\n"
             "            if (d < reach) { sum += d; hits += 1.0; }\n"
             "        }\n"
@@ -3234,7 +3225,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // it falls on, and why a sun's angle and a lamp's size are one expression.
             "        highp float radius = clamp(src * span / max(dbw * texel, 1e-4),\n"
             "                                   0.5, kShadowDisc);\n"
-            "        highp float wide = shadowDepth(m, worldPos + L * stepFor(texel, slope, radius));\n"
+            "        highp float wide = shadowDepth(m, aside + L * (texel * (1.5 + radius * slope)));\n"
             // Thirty-two, where the hard edge needs four: the disc is as wide as the
             // source makes it, and a penumbra averaged over too few taps bands rather
             // than blurs.
