@@ -1626,14 +1626,9 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         let texels = max(rect.z / max(lc.u_shadowParams.y, 1e-9), 1.0);
         let across = length(vec3f(m[0].x, m[1].x, m[2].x));
         let texel = 2.0 * lcp.w / max(across * texels, 1e-9);
-        // Ask a step toward the light rather than shift the answer: a step in world units
-        // is the same step whether a map's depth runs linearly with distance or
-        // hyperbolically, which is what lets one expression serve a cascade and a cone.
-        // The point asked about is stepped toward the light, a texel and a half of doubt and what that is worth at the angle the surface
-        // stands - but only as far as a slope of 1.2 asks (a floor under a sun 40 degrees up or more: all of it, as it always was). Past
-        // that the rest of the clearance is taken along the normal instead. All of it toward the light is 1.5 texels over the cosine,
-        // eleven texels for a wall the sun grazes, and where a texel is a few units (a coarse map, a large scene) that is further than
-        // a ceiling is thick: the top of every wall under a roof came out lit.
+        // A step in world units toward the light, not a shifted answer, so one expression serves a cascade and a cone - but only as far
+        // as a slope of 1.2 asks, the rest of the clearance along the normal: all of it toward the light is eleven texels on a wall the
+        // sun grazes, further than a ceiling is thick where a texel is coarse, and the wall's top came out lit.
         let lean = min(slope, 1.2);
         let aside = worldPos + N * (texel * 1.5 * max(sqrt(1.0 - NoL * NoL) - lean * NoL, 0.0));
         let lcq = m * vec4f(aside, 1.0);
@@ -3115,7 +3110,6 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // Ask a step toward the light rather than shift the answer: a step in world
             // units is the same step whether a map's depth runs linearly with distance or
             // hyperbolically, which is what lets one expression serve a cascade and a cone.
-            // See the WGSL twin: toward the light as far as a slope of 1.2 asks, and along the normal for the rest.
             "        highp float lean = min(slope, 1.2);\n"
             "        highp vec3 aside = worldPos + N * (texel * 1.5 * max(sqrt(1.0 - NoL * NoL) - lean * NoL, 0.0));\n"
             "        highp vec4 lcq = m * vec4(aside, 1.0);\n"
