@@ -159,6 +159,36 @@ describe('a PNG of 16 bits a channel', () => {
   });
 });
 
+describe('a texture a component reads as numbers', () => {
+  it('is found from the Terrain that names it as its heightmap, by path or by uuid', async () => {
+    const { texturesReadAsNumbers } = await import('../src/assets/textureUsage');
+    const entries = [
+      { uuid: 'h1', path: 'assets/height.png', type: 'texture' }, { uuid: 'h2', path: 'assets/other.png', type: 'texture' },
+      { uuid: 'c1', path: 'assets/colour.png', type: 'texture' }, { uuid: 's1', path: 'assets/scenes/a.esscene', type: 'scene' },
+    ] as never[];
+    const scene = JSON.stringify({ entities: [
+      { components: [{ type: 'Terrain', data: { heightmap: 'assets/height.png', splatmap: 'assets/colour.png' } }] },
+      { components: [{ type: 'Terrain', data: { heightmap: '@uuid:h2' } }, { type: 'MeshRenderer', data: { texture: 'assets/colour.png' } }] },
+    ] });
+    expect([...await texturesReadAsNumbers('/', entries, async () => scene)].sort()).toEqual(['h1', 'h2']);
+  });
+
+  it('ships as the file it is though it is over its size cap', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'estella-numbers-'));
+    try {
+      const png = noisePng(96, 96);
+      const input = { root, path: 'assets/height.png', data: png, ext: '.png', platform: 'web', importer: { maxSize: 32 },
+        compressTextures: false, atlasTextures: false, resizeTextures: true, drawnIn3D: false, encoder: null } as Parameters<typeof cookTexture>[0];
+      const capped = await cookTexture(input);
+      expect(decodePngImage('h', capped.data).width).toBe(32);
+      const kept = await cookTexture({ ...input, readAsNumbers: true });
+      expect(Buffer.from(kept.data).equals(Buffer.from(png))).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    }
+  });
+});
+
 describe('a cutout texture the cook ships', () => {
   it('has the colour of its solid texels carried into its clear ones, and a texture that is no cutout keeps what is under its alpha', async () => {
     // Green on the left, and white under alpha 0 on the right: the white a mip would average in at the leaf's edge.

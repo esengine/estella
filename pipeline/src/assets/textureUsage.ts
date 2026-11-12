@@ -33,6 +33,14 @@ const MESH_MATERIAL_FIELDS: Readonly<Record<string, readonly string[]>> = {
   MeshRenderer: ['material'],
 };
 
+/**
+ * Component fields whose texture is read as numbers, a sample a texel, never drawn: a size cap or a codec is not a smaller
+ * picture there but different ground.
+ */
+const NUMBER_TEXTURE_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  Terrain: ['heightmap'],
+};
+
 interface Documented {
   entities?: Array<{ components?: Array<{ type?: string; data?: Record<string, unknown> }> }>;
 }
@@ -118,4 +126,38 @@ export async function meshTextureRoles(
     }
   }));
   return drawn;
+}
+
+/**
+ * The uuids of the textures a component in @p entries' scenes and prefabs reads as numbers (a Terrain's heightmap). A build ships
+ * these as the files they are.
+ */
+export async function texturesReadAsNumbers(
+  root: string,
+  entries: readonly AssetEntry[],
+  read: (file: string) => Promise<string> = (file) => readFile(path.join(root, file), 'utf8'),
+): Promise<Set<string>> {
+  const byUuid = new Map(entries.map((e) => [e.uuid, e]));
+  const byPath = new Map(entries.map((e) => [e.path, e]));
+  const found = new Set<string>();
+  await Promise.all(entries.filter((e) => e.type === 'scene' || e.type === 'prefab').map(async (doc) => {
+    let parsed: Documented;
+    try {
+      parsed = JSON.parse(await read(doc.path)) as Documented;
+    } catch {
+      return;
+    }
+    for (const entity of parsed.entities ?? []) {
+      for (const component of entity.components ?? []) {
+        for (const field of NUMBER_TEXTURE_FIELDS[component.type ?? ''] ?? []) {
+          const ref = component.data?.[field];
+          if (typeof ref !== 'string' || ref === '' || isBuiltinAssetRef(ref) || ref.includes('://')) continue;
+          const target = ref.startsWith(UUID_PREFIX) ? byUuid.get(ref.slice(UUID_PREFIX.length))
+            : byPath.get(resolveDocumentRef(doc.path, ref).replace(/^\/+/, ''));
+          if (target?.type === 'texture') found.add(target.uuid);
+        }
+      }
+    }
+  }));
+  return found;
 }

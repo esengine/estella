@@ -51,7 +51,7 @@ import {
 } from './ktx2Mips';
 import { cookCached } from './cookCache';
 import { cookTexture, loadTextureEncoder, pngDimensions, fillClearTexels, fillsClearTexels, COMPRESSED_TARGETS, type BasisEncoderModule } from './textureCook';
-import { meshTextureRoles } from './textureUsage';
+import { meshTextureRoles, texturesReadAsNumbers } from './textureUsage';
 import { makeStreamTail, type StreamTail } from './streamTail';
 import { matchScriptAssetRefs, scanScriptAssetRefs } from './scriptAssetRefs';
 import { readManifest } from '../project/readProject';
@@ -681,6 +681,7 @@ export async function cookAssets(
   // What Auto compression resolves by: whether a mesh anywhere in the project draws it.
   const roles = await meshTextureRoles(root, shippable);
   const drawnIn3D = new Set(roles.keys());
+  const readAsNumbers = await texturesReadAsNumbers(root, shippable);
   const pageCompressedBy = (frame: AssetEntry): boolean =>
     textureAsksCompression(readTextureCookSettings(frame.importer, platform).compress, drawnIn3D.has(frame.uuid));
 
@@ -851,7 +852,7 @@ export async function cookAssets(
           root, path: entry.path, data, ext, importer: entry.importer, platform,
           encoder: textureEnc ? { module: textureEnc, id: encoderId } : null,
           compressTextures, atlasTextures, drawnIn3D: drawnIn3D.has(entry.uuid),
-          resizeTextures: opts.resizeTextures,
+          resizeTextures: opts.resizeTextures, readAsNumbers: readAsNumbers.has(entry.uuid),
         });
         data = t.data; ext = t.ext; cook = t.cook; compressedFormats = t.compressedFormats;
         warnings.push(...t.warnings);

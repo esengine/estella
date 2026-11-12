@@ -179,6 +179,8 @@ export interface TextureCookInput {
   atlasTextures: boolean;
   /** A mesh draws this texture (texturesDrawnIn3D) — what Auto compression resolves by. */
   drawnIn3D: boolean;
+  /** A component reads this texture as numbers (a Terrain's heightmap): it is neither resized nor encoded. */
+  readAsNumbers?: boolean;
   /** Answer only from the cook cache: an encode it would have to run is left
    *  undone, and the output says `pending` instead. */
   cachedOnly?: boolean;
@@ -212,9 +214,9 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
   const tex = readTextureCookSettings(input.importer, platform);
   const raster = ext.toLowerCase() === '.png';
   const textureEnc = input.encoder?.module ?? null;
-  // A PNG of 16 bits a channel is numbers, not a picture: a heightmap, a field of measured values. Shrinking, filling and encoding all
-  // decode to 8 bits first, so a build would ship 256 steps where the file holds 65536, a size smaller, and say nothing. It ships as it is.
-  if (raster && pngBitDepth(data) === 16) {
+  // A texture a component reads as numbers (a heightmap), and any PNG of 16 bits a channel, is not a picture: the size cap would ship
+  // different ground, and shrinking, filling and encoding all decode to 8 bits first. It ships as the file it is.
+  if (input.readAsNumbers || (raster && pngBitDepth(data) === 16)) {
     const cook = decideTextureCook({
       compressTextures: input.compressTextures, atlasTextures: input.atlasTextures, inAtlas: false, raster,
       compress: 'off', drawnIn3D: input.drawnIn3D, format: tex.format, size: safePngDimensions(data),
