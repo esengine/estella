@@ -661,7 +661,9 @@ jobs:
     name: Render verify (headless)
     runs-on: ubuntu-latest
     needs: build-emscripten
-    timeout-minutes: 20
+    # 414 scenes at a little over two seconds each on this runner is fifteen minutes with none to spare: the tier ran 362 of them and
+    # was red for the 52 it never reached. Twenty-five of budget, five more to set up and tear down.
+    timeout-minutes: 32
 
     steps:
     - uses: actions/checkout@v7
@@ -696,10 +698,10 @@ jobs:
       # --no-build: the host is already built two steps up. --host engine takes
       # the scenes that need no editor; verify-editor runs the rest.
       # --budget: on a runner whose GPU keeps dropping command buffers, the retry
-      # policy correctly retries each outage and the tier outgrows the job's 20
+      # policy correctly retries each outage and the tier outgrows the job's
       # minutes — which GitHub answers by killing it, so the run says nothing at
       # all. A budget makes it report what it measured and name what it did not.
-      run: node tools/verify-render.mjs --tier pr --host engine --no-build --budget 15
+      run: node tools/verify-render.mjs --tier pr --host engine --no-build --budget 25
 
     # The EDITOR's authoring surface, driven for real. The engine has had a pixel
     # gate for years; the editor had none, which is how depth layers shipped
