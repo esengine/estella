@@ -4530,6 +4530,8 @@ export const NOTED = {
     {"note": "Water mirrors only what is there."},
   "feat(material): a shader param's range is where its slider runs, not a limit - a typed value may go past it":
     {"note": "A shader param's range is where its slider runs."},
+  "feat(water): the wind's ripples are a map of many waves, not six - two fields of a built-in tiling normal map, default(ripples), read with mips, where six straight wave trains crossed in a board of dark spots once the short ones had faded":
+    {"note": "The wind's ripples are a map of many waves."},
   "fix(terrain): a splatmap is numbers too - cooked as a picture its three weights were overwritten wherever the fourth was 0, and the whole ground was painted as grass; it is marked Data when it is set, as the heightmap is":
     {"note": "A texture says whether it is a picture or numbers."},
 };

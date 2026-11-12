@@ -118,7 +118,7 @@ The **Model** shader is a metal/rough surface with layers on top. Each is off at
 Everything here is written by model import from the glTF extensions of the same names (`KHR_materials_clearcoat`, `_sheen`, `_anisotropy`, `_ior`, `_specular`, `_iridescence`, `_transmission`, `_volume`, `_diffuse_transmission`) — see [Models](/docs/assets/models/).
 
 In the editor a Model material shows each layer as a section of its own with a switch in the header: off sets the layer's
-strength to 0 (its colour to black for sheen), on gives it a strength where it looks like itself, and the section's fields tune
+strength to 0 (its colour to`default(white | black | flatnormal | ripples)` fallback when unset (`ripples` is the engine's tiling map of wind ripples: two fields of normals, in rg and in ba).for sheen), on gives it a strength where it looks like itself, and the section's fields tune
 it. Reflectance, the index of refraction and the specular scale, has no switch.
 
 **Limits.** These are cheap, real-time models, and say where they stop:
@@ -248,7 +248,7 @@ says which one found no unit.
 | `float` / `int` | `float` / `int` | `number` | Scalar knob; `range(min,max)` + `ui(slider)` for the inspector. |
 | `vec2` / `vec3` / `vec4` | same | `[x, y, …]` | Vector knob. |
 | `color` | `vec4` | `[r, g, b, a]` | RGBA, 0..1; color picker in the inspector. |
-| `texture` | `sampler2D` | texture handle | `default(white \| black \| flatnormal)` fallback when unset. Add `texel(data)` when the shader reads the texels as numbers (a normal map, packed roughness): Project Health then flags a texture bound there that is still marked sRGB, which the linear pipeline would decode as colour. |
+| `texture` | `sampler2D` | texture handle | `default(white | black | flatnormal | ripples)` fallback when unset (`ripples` is the engine's tiling map of wind ripples: two fields of normals, in rg and in ba).\| black \| flatnormal)` fallback when unset. Add `texel(data)` when the shader reads the texels as numbers (a normal map, packed roughness): Project Health then flags a texture bound there that is still marked sRGB, which the linear pipeline would decode as colour. |
 
 Params live in an engine-generated std140 block, initialized from their `default(…)`
 values — a material that never sets a param still draws correctly.
