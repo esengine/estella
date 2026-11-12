@@ -357,10 +357,10 @@ export {
     type PreSceneDrawCallback,
     type PreSceneDrawInfo,
 } from './render/customDraw';
-export { QualityController, parseQualityConfig, resolveQualityProfile, defaultQualityProfile, defaultQualityMode } from './render/quality';
+export { QualityController, judgeFrames, parseQualityConfig, resolveQualityProfile, defaultQualityProfile, defaultQualityMode } from './render/quality';
 export type {
     QualityConfig, QualityProfile, QualityLevel, QualityMode,
-    QualityReport, DeviceQualityInfo, DeviceQualityRule,
+    QualityReport, QualitySample, FrameVerdict, DeviceQualityInfo, DeviceQualityRule,
 } from './render/quality';
 export { Quality } from './render/qualityRuntime';
 export { warmShaders, shadersCompiled, pendingShaders } from './render/shaderWarmup';

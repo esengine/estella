@@ -80,10 +80,15 @@ export function installQuality(app: App, config: QualityConfig, authoredMsaa: nu
         check();
         powerTimer = setInterval(check, 5000);
     }
+    // The interval is the platform clock's, edge to edge, so it holds what the display made the loop wait; the frame's
+    // own run is the loop's reading of it, and the GPU's is the renderer's.
     const stop = app.onFrameEnd(() => {
         const now = platformNow();
-        if (!hidden && !app.isPaused() && last > 0) quality.sample(now - last,
-            engineApi(app)?.renderer_getGpuTimeMs?.() ?? -1);
+        if (!hidden && !app.isPaused() && last > 0) quality.sample({
+            frameMs: now - last,
+            busyMs: app.getFrameTiming()?.busyMs,
+            gpuMs: engineApi(app)?.renderer_getGpuTimeMs?.(),
+        });
         last = hidden || app.isPaused() ? 0 : now;
     });
     app.addPlugin({ name: 'quality', build() {}, cleanup() { stop(); hide(); show(); if (powerTimer !== null) clearInterval(powerTimer); } });

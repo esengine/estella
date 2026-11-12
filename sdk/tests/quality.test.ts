@@ -2,12 +2,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 
 import { describe, expect, it } from 'vitest';
-import { parseQualityConfig, QualityController } from '../src/render/quality';
+import { judgeFrames, parseQualityConfig, QualityController } from '../src/render/quality';
 
 describe('quality selection', () => {
     it('keeps unconfigured projects at their authored resolution', () => {
         const q = new QualityController({});
-        for (let i = 0; i < 100; i++) q.sample(40);
+        for (let i = 0; i < 100; i++) q.sample({ frameMs: 40 });
         expect(q.enabled).toBe(false);
         expect(q.renderScale).toBe(1);
     });
@@ -56,13 +56,13 @@ describe('quality selection', () => {
 
 describe('dynamic resolution', () => {
     const make = () => new QualityController({ mode: 'high', dynamicResolution: true });
-    const sample = (q: QualityController, frames: number, frameMs: number, gpuMs = -1) => {
-        for (let i = 0; i < frames; i++) q.sample(frameMs, gpuMs);
+    const sample = (q: QualityController, frames: number, frameMs: number, gpuMs = -1, busyMs = -1) => {
+        for (let i = 0; i < frames; i++) q.sample({ frameMs, gpuMs, busyMs });
     };
 
     it('ignores a transient spike, then reduces resolution under sustained pressure', () => {
         const q = make();
-        q.sample(40, 40);
+        q.sample({ frameMs: 40, gpuMs: 40 });
         expect(q.renderScale).toBe(1);
         sample(q, 20, 40, 40);
         expect(q.renderScale).toBeLessThan(1);
@@ -90,6 +90,64 @@ describe('dynamic resolution', () => {
         expect(q.renderScale).toBeLessThanOrEqual(1);
     });
 
+    // A phone whose GPU timer reads half a millisecond while the frame takes 27: the frame's own run fits the budget,
+    // so the wait is the GPU's, whatever its timer says (#120).
+    it('lowers resolution when the frame is late and its own run was not, however little the GPU timer reads', () => {
+        const q = make();
+        sample(q, 30, 27, 0.5, 15);
+        expect(q.renderScale).toBeLessThan(1);
+        expect(q.report().reason).toBe('frame-pressure');
+        sample(q, 300, 27, 0.5, 15);
+        expect(q.renderScale).toBe(0.75);
+        expect(q.report()).toMatchObject({ reason: 'resolution-floor', gpuMs: 0.5, busyMs: 15 });
+        expect(q.report().frameMs).toBeCloseTo(27);
+    });
+
+    it('leaves resolution alone when the frame is late because its own run is long', () => {
+        const withTimer = make();
+        sample(withTimer, 200, 40, 0.5, 38);
+        expect(withTimer.renderScale).toBe(1);
+        // No GPU timer at all: the run still says whose frame it is.
+        const without = make();
+        sample(without, 200, 40, -1, 38);
+        expect(without.renderScale).toBe(1);
+        // And with neither, a late frame is all there is to go on.
+        const blind = make();
+        sample(blind, 200, 40);
+        expect(blind.renderScale).toBe(0.75);
+    });
+
+    it('stops stepping back up when every step up has to be taken back', () => {
+        // The same phone: on budget at 0.8 and under, late above it, and a GPU timer that always claims headroom.
+        const q = make();
+        let changes = 0;
+        const run = (ms: number) => {
+            for (let t = 0; t < ms;) {
+                const frameMs = q.renderScale > 0.8 ? 27 : 16.7;
+                const before = q.renderScale;
+                q.sample({ frameMs, gpuMs: 0.5, busyMs: 10 });
+                if (q.renderScale !== before) changes++;
+                t += frameMs;
+            }
+        };
+        run(10_000);
+        expect(q.renderScale).toBeLessThanOrEqual(0.85);
+        changes = 0;
+        run(120_000);
+        // A fixed two-second wait would trade the two scales about fifty times in two minutes.
+        expect(changes).toBeLessThanOrEqual(14);
+        expect(q.renderScale).toBeGreaterThanOrEqual(0.8);
+    });
+
+    it('takes a step up again once the scene is lighter', () => {
+        const q = make();
+        sample(q, 300, 27, 0.5, 15);
+        expect(q.renderScale).toBe(0.75);
+        sample(q, 1500, 16.7, 0.5, 8);
+        expect(q.renderScale).toBe(1);
+        expect(q.report().reason).toBe('manual');
+    });
+
     it('says which post-process effects each level leaves out, and takes an override', () => {
         const levels = (config: object, level: 'low' | 'medium' | 'high') => {
             const q = new QualityController({ mode: level, ...config });
@@ -106,12 +164,39 @@ describe('dynamic resolution', () => {
 
     it('does not react to background gaps, invalid clocks or a static tier', () => {
         const q = make();
-        for (const ms of [NaN, Infinity, 0, -5, 30000]) q.sample(ms);
+        for (const ms of [NaN, Infinity, 0, -5, 30000]) q.sample({ frameMs: ms });
         expect(q.renderScale).toBe(1);
         expect(q.report().frameMs).toBe(0);
         const staticQ = new QualityController({ mode: 'low' });
         sample(staticQ, 100, 40);
         expect(staticQ.renderScale).toBe(0.75);
+    });
+});
+
+describe('judgeFrames', () => {
+    const budget = 1000 / 60;
+    const judge = (frameMs: number, gpuMs = -1, busyMs = -1) => judgeFrames({ frameMs, gpuMs, busyMs }, budget);
+
+    it('takes a GPU reading over the budget at its word', () => {
+        expect(judge(40, 40)).toBe('gpu-pressure');
+        expect(judge(40, 40, 38)).toBe('gpu-pressure');
+        expect(judge(16.7, 20, 5)).toBe('gpu-pressure');
+    });
+
+    it('asks the frame before believing a small one', () => {
+        expect(judge(27, 0.5, 15)).toBe('frame-pressure');
+        expect(judge(27, 0.5, 26)).toBe('headroom');   // the CPU's frame, and the GPU is idle: resolution is free
+        expect(judge(27, 15, 26)).toBe('steady');
+        expect(judge(16.7, 0.5, 8)).toBe('headroom');
+        expect(judge(16.7, 15, 8)).toBe('steady');
+    });
+
+    it('falls back to what it is given', () => {
+        expect(judge(40, 5)).toBe('headroom');          // no run time: the GPU reading stands, as it always did
+        expect(judge(40)).toBe('frame-pressure');
+        expect(judge(40, -1, 38)).toBe('steady');
+        expect(judge(10)).toBe('headroom');
+        expect(judge(16.7)).toBe('steady');
     });
 });
 

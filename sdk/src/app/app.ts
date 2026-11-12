@@ -109,6 +109,25 @@ export interface FrameCosts {
     scopes: ScopeCost[];
 }
 
+/**
+ * @experimental What the loop's own clock read for one completed frame. The one
+ * place frame time is measured: the profiler, the debug channel and the quality
+ * controller all take it from here instead of each keeping a clock.
+ */
+export interface FrameTiming {
+    /** Counts completed frames, so a reader can tell a new one from the last. */
+    seq: number;
+    /** Interval since the previous frame, before simulation speed or delta clamping. */
+    frameMs: number;
+    /**
+     * How long this frame's own run took, first system to last; -1 where there is
+     * no clock. What is left of `frameMs` is time the loop waited for its next
+     * turn, so a frame that came late with this inside the budget was not held up
+     * by its systems.
+     */
+    busyMs: number;
+}
+
 /** A system still running, and what decides who may start beside it. */
 interface InflightSystem {
     /** Its position in the sorted list — how a dependant recognises it. */
@@ -196,7 +215,7 @@ export class App {
     private runInBackground_ = false;
     private onVisibility_: (() => void) | null = null;
     private frameInFlight_: Promise<void> | null = null;
-    private frameTiming_: { seq: number; frameMs: number } | null = null;
+    private frameTiming_: FrameTiming | null = null;
     private lastTime_ = 0;
     private fixedTimestep_ = 1 / 60;
     private fixedAccumulator_ = 0;
@@ -1007,8 +1026,8 @@ export class App {
         return this.phaseTimings_;
     }
 
-    /** @experimental Completed frame interval before simulation speed or delta clamping. */
-    getFrameTiming(): Readonly<{ seq: number; frameMs: number }> | null {
+    /** @experimental The last completed frame's clock readings; see {@link FrameTiming}. */
+    getFrameTiming(): Readonly<FrameTiming> | null {
         return this.frameTiming_;
     }
 
@@ -1620,6 +1639,8 @@ export class App {
         if (this.isExecutionHeld()) return;
         const executionEpoch = this.executionEpoch_;
         const current = () => !this.isExecutionHeld() && executionEpoch === this.executionEpoch_;
+        const frameClock = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance : null;
+        const frameStart = frameClock ? frameClock.now() : 0;
         this.runner_?.clearTimings();
         this.phaseTimings_?.clear();
         this.frameScopes_?.clear();
@@ -1691,7 +1712,10 @@ export class App {
         }
 
         if (!current()) return;
-        this.frameTiming_ = { seq: (this.frameTiming_?.seq ?? 0) + 1, frameMs };
+        this.frameTiming_ = {
+            seq: (this.frameTiming_?.seq ?? 0) + 1, frameMs,
+            busyMs: frameClock ? frameClock.now() - frameStart : -1,
+        };
         for (const observe of this.frameObservers_) {
             try { observe(frameMs); } catch (e) {
                 log.error('app', 'Frame observer error', e);

@@ -644,6 +644,12 @@ const api = {
         }
     },
 
+    /** The GPU's time for a whole frame as a shipped game reads it — the number dynamic resolution steers by. -1 until
+     *  the device has answered, and late in the same way as the scopes below. */
+    getGpuTimeMs(): number {
+        return module?.renderer_getGpuTimeMs?.() ?? -1;
+    },
+
     /** What the GPU spent on the newest frame the device has answered for: `graph` and `pass/<name>`. The answer comes
      *  a few frames late and, on a browser, between tasks — a caller steps, waits, and asks again. */
     getGpuScopes(): Record<string, number> {

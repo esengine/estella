@@ -240,7 +240,7 @@ function finish(result, server) {
     (result.seam?.ok ?? true) && (result.nineSlice?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) && (result.studio?.ok ?? true) && (result.shading?.ok ?? true) && (result.skinWeights?.ok ?? true) &&
-    (result.draws?.ok ?? true) && (result.lightingSplit?.ok ?? true) && (result.counters?.ok ?? true) && (result.gpuPasses?.ok ?? true) && (result.frameDebug?.ok ?? true) && (result.edge?.ok ?? true) && (result.cutoutEdge?.ok ?? true) && (result.minified?.ok ?? true) &&
+    (result.draws?.ok ?? true) && (result.lightingSplit?.ok ?? true) && (result.counters?.ok ?? true) && (result.gpuPasses?.ok ?? true) && (result.gpuFrame?.ok ?? true) && (result.frameDebug?.ok ?? true) && (result.edge?.ok ?? true) && (result.cutoutEdge?.ok ?? true) && (result.minified?.ok ?? true) &&
     (result.roundtrip?.ok ?? true) && deviceLossOk && meshOk && pickOk;
   const why = assetsOk ? '' : `: could not load ${result.missingAssets.join(', ')}`;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})${why}`);
@@ -749,6 +749,39 @@ app.whenReady().then(async () => {
                          ok: (got?.['render.prepass.draws'] ?? 0) >= 1 }] : []),
       ];
       counters = { points, ok: points.every((p) => p.ok) };
+    }
+    // ESTELLA_VERIFY_GPU_FRAME=print|require: the frame's GPU time read the way a shipped game reads it (profiler
+    // off, one span over the graph) beside the sum of its passes (profiler on). They are the same question asked two
+    // ways, and a backend that answers the first with one pass of the frame reads far under the second — which is
+    // how a phone held 37 fps with dynamic resolution on (#120). `require` fails when the two disagree by more than
+    // half; local-only like the pass timer, and for a scene with passes off the surface, or there is nothing to miss.
+    let gpuFrame = null;
+    if (process.env.ESTELLA_VERIFY_GPU_FRAME) {
+      const settle = async (read, done) => {
+        const seen = [];
+        for (let i = 0; i < 60 && seen.length < 8; i++) {
+          await exec('window.__estellaHeadless.api.step(1, 1 / 60)');
+          await new Promise((r) => setTimeout(r, 40));
+          const value = await exec(read);
+          if (done(value)) seen.push(value);
+        }
+        return seen;
+      };
+      const mean = (values) => (values.length ? values.reduce((a, b) => a + b, 0) / values.length : -1);
+      await exec('window.__estellaHeadless.api.setCpuProfiling(false)');
+      const spans = await settle('window.__estellaHeadless.api.getGpuTimeMs()', (ms) => ms > 0);
+      await exec('window.__estellaHeadless.api.setCpuProfiling(true)');
+      const scoped = await settle('window.__estellaHeadless.api.getGpuScopes()', (s) => Object.keys(s).some((k) => k.startsWith('pass/')));
+      // Left as the run had it: a gate below that reads the last frame's counters needs the profiler it turned on.
+      if (!(process.env.ESTELLA_VERIFY_COUNTERS || process.env.ESTELLA_VERIFY_COUNTERS_MAX || process.env.ESTELLA_VERIFY_FRAME_DEBUG || PREPASS)) {
+        await exec('window.__estellaHeadless.api.setCpuProfiling(false)');
+      }
+      const sums = scoped.map((s) => Object.entries(s).filter(([k]) => k.startsWith('pass/')).reduce((a, [, v]) => a + v, 0));
+      const passCount = scoped.length ? Object.keys(scoped[scoped.length - 1]).filter((k) => k.startsWith('pass/')).length : 0;
+      const frameMs = mean(spans), passesMs = mean(sums);
+      const agree = frameMs > 0 && passesMs > 0 && frameMs >= passesMs * 0.5 && frameMs <= passesMs * 2;
+      console.log(`gpu frame (${BACKEND}): span ${frameMs.toFixed(3)} ms over ${spans.length} frames, passes ${passesMs.toFixed(3)} ms (${passCount} passes) — ${agree ? 'agree' : 'DISAGREE'}`);
+      gpuFrame = { frameMs, passesMs, passCount, ok: process.env.ESTELLA_VERIFY_GPU_FRAME !== 'require' || agree };
     }
     // ESTELLA_VERIFY_GPU_PASSES=print|require: per-pass GPU time on this backend. The device answers a few frames
     // late and between tasks, so frames are stepped with a pause until the render graph's passes report. `require`
@@ -1310,7 +1343,7 @@ app.whenReady().then(async () => {
       skinWeights = { H0, H1, dA, dJoints, back,
         ok: H0.hot > 20 && H1.hot > 20 && dA.differing > 300 && dJoints.differing > 300 && back.max === 0 };
     }
-    finish({ ok: true, studio, shading, lightingSplit, skinWeights, entityCount, missingAssets, drawCalls, draws, counters, gpuPasses, frameDebug, edge, cutoutEdge, minified, profile, capture, expect, twins, nineSlice, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
+    finish({ ok: true, studio, shading, lightingSplit, skinWeights, entityCount, missingAssets, drawCalls, draws, counters, gpuPasses, gpuFrame, frameDebug, edge, cutoutEdge, minified, profile, capture, expect, twins, nineSlice, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

@@ -535,6 +535,7 @@ export {
     addPlugin,
     flushPendingRegistrations,
     type FrameCosts,
+    type FrameTiming,
     type Plugin,
     type PluginDependency,
     type WebAppOptions,

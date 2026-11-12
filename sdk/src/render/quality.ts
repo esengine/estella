@@ -316,12 +316,64 @@ export interface QualityReport {
     level: QualityLevel;
     renderScale: number;
     targetFps: number;
+    /** Smoothed frame interval. */
     frameMs: number;
+    /** Smoothed time the frame's own run took, and the GPU's time for it; -1 where the host does not say. */
+    busyMs: number;
+    gpuMs: number;
     reason: string;
     limitations: string[];
     /** The level's draw call budget (see `QualityProfile.drawCallBudget`). */
     drawCallBudget: number;
 }
+
+/**
+ * @experimental One frame's clock readings, as dynamic resolution takes them. `frameMs` is the interval since the last
+ * frame; `busyMs` how long the frame's own run took (`FrameTiming.busyMs`); `gpuMs` the GPU's time for the frame. The
+ * last two are optional, and a value that is not a positive number counts as not given.
+ */
+export interface QualitySample {
+    frameMs: number;
+    busyMs?: number;
+    gpuMs?: number;
+}
+
+/** @experimental What a stretch of frames says about the render resolution. */
+export type FrameVerdict = 'gpu-pressure' | 'frame-pressure' | 'headroom' | 'steady';
+
+const PRESSURE = 1.1;
+const HEADROOM = 0.8;
+
+/**
+ * @experimental Whether resolution should go down, may come back up, or stay, from smoothed readings (-1 = not known)
+ * and the frame budget. Pure.
+ *
+ * A GPU reading over the budget is pressure on its own word. A small one is not headroom on its own word: a timer
+ * can cover less than the frame (a tile renderer has not drawn when the pass is stamped), so what a low reading may
+ * do is decided with the frame itself. A frame that came late although its own run fitted the budget waited on the
+ * GPU or the display, and resolution is the lever for that; one whose run did not fit is the CPU's, and resolution
+ * would buy nothing.
+ */
+export function judgeFrames(avg: Readonly<Required<QualitySample>>, budgetMs: number): FrameVerdict {
+    const gpuKnown = avg.gpuMs > 0;
+    const busyKnown = avg.busyMs > 0;
+    if (gpuKnown && avg.gpuMs > budgetMs * PRESSURE) return 'gpu-pressure';
+    const gpuFree = gpuKnown && avg.gpuMs < budgetMs * HEADROOM;
+    if (avg.frameMs > budgetMs * PRESSURE) {
+        if (busyKnown ? avg.busyMs <= budgetMs : !gpuKnown) return 'frame-pressure';
+        return gpuFree ? 'headroom' : 'steady';
+    }
+    return (gpuKnown ? gpuFree : avg.frameMs < budgetMs * HEADROOM) ? 'headroom' : 'steady';
+}
+
+/** Pressure for this long lowers the scale a step; headroom for `RECOVER_MS` and up raises it one. */
+const PRESSURE_MS = 500;
+const RECOVER_MS = 2000;
+const RECOVER_MAX_MS = 32000;
+/** A step up that is taken back within this long was a mistake, not a change of scene. */
+const BOUNCE_MS = 5000;
+
+const known = (ms: number | undefined): ms is number => ms !== undefined && Number.isFinite(ms) && ms > 0;
 
 /** @experimental Per-app policy; authored scene components remain unchanged. */
 export class QualityController {
@@ -332,9 +384,14 @@ export class QualityController {
     private ceiling_: QualityLevel | null = null;
     private profile_: QualityProfile = PROFILES.high;
     private scale_ = 1;
-    private average_ = 0;
+    private average_: Required<QualitySample> = { frameMs: 0, busyMs: -1, gpuMs: -1 };
     private pressureMs_ = 0;
     private recoveryMs_ = 0;
+    /** Sampled time, the clock the two below are read on. */
+    private clockMs_ = 0;
+    private raisedAt_ = -1;
+    /** How long headroom must last before a step up; grows while steps up keep being taken back. */
+    private recoverAfterMs_ = RECOVER_MS;
     private reason_ = 'disabled';
     private modeReason_ = 'disabled';
     private limitations_ = new Set<string>();
@@ -358,7 +415,7 @@ export class QualityController {
         this.level_ = this.ceilingOf_(this.modeLevel_);
         this.profile_ = resolveProfile(this.level_, this.config_.profiles?.[this.level_]);
         this.scale_ = mode === 'off' ? 1 : this.profile_.renderScale;
-        this.average_ = this.pressureMs_ = this.recoveryMs_ = 0;
+        this.resetSampling_(true);
         this.reason_ = mode === 'off' ? 'disabled' : mode !== 'auto' ? 'manual'
             : rule ? 'device-rule' : low ? 'device-capacity' : 'device-unknown';
         this.modeReason_ = this.reason_;
@@ -381,7 +438,7 @@ export class QualityController {
         this.level_ = next;
         this.profile_ = resolveProfile(next, this.config_.profiles?.[next]);
         this.scale_ = this.enabled ? this.profile_.renderScale : 1;
-        this.average_ = this.pressureMs_ = this.recoveryMs_ = 0;
+        this.resetSampling_(true);
         this.reason_ = next !== this.modeLevel_ ? 'power-saver' : this.modeReason_;
     }
 
@@ -390,25 +447,53 @@ export class QualityController {
         else this.limitations_.delete(reason);
     }
 
-    sample(frameMs: number, gpuMs = -1): void {
+    /** Forget the running averages; `all` also forgets what was learned about stepping back up. */
+    private resetSampling_(all: boolean): void {
+        this.average_ = { frameMs: 0, busyMs: -1, gpuMs: -1 };
+        this.pressureMs_ = this.recoveryMs_ = 0;
+        if (all) { this.clockMs_ = 0; this.raisedAt_ = -1; this.recoverAfterMs_ = RECOVER_MS; }
+    }
+
+    /**
+     * Take one frame's readings. Sustained pressure lowers the render scale a step towards the level's floor;
+     * sustained headroom raises it back a step. See {@link judgeFrames} for what counts as which.
+     */
+    sample(sample: Readonly<QualitySample>): void {
         if (!this.enabled || !this.config_.dynamicResolution) return;
+        const { frameMs } = sample;
         if (!Number.isFinite(frameMs) || frameMs <= 0 || frameMs > 250) {
-            this.average_ = this.pressureMs_ = this.recoveryMs_ = 0;
+            this.resetSampling_(false);
             return;
         }
-        const ms = Number.isFinite(gpuMs) && gpuMs > 0 ? gpuMs : frameMs;
+        const first = this.average_.frameMs === 0;
         const weight = 1 - Math.exp(-frameMs / 250);
-        this.average_ = this.average_ === 0 ? ms : this.average_ + weight * (ms - this.average_);
-        const budget = 1000 / (this.config_.targetFps ?? 60);
-        this.pressureMs_ = this.average_ > budget * 1.1 ? this.pressureMs_ + frameMs : 0;
-        this.recoveryMs_ = this.average_ < budget * 0.8 ? this.recoveryMs_ + frameMs : 0;
-        if (this.pressureMs_ >= 500) {
+        const blend = (avg: number, ms: number | undefined): number =>
+            !known(ms) ? -1 : first || avg < 0 ? ms : avg + weight * (ms - avg);
+        this.average_ = {
+            frameMs: blend(this.average_.frameMs, frameMs),
+            busyMs: blend(this.average_.busyMs, sample.busyMs),
+            gpuMs: blend(this.average_.gpuMs, sample.gpuMs),
+        };
+        this.clockMs_ += frameMs;
+        const verdict = judgeFrames(this.average_, 1000 / (this.config_.targetFps ?? 60));
+        const pressed = verdict === 'gpu-pressure' || verdict === 'frame-pressure';
+        this.pressureMs_ = pressed ? this.pressureMs_ + frameMs : 0;
+        this.recoveryMs_ = verdict === 'headroom' ? this.recoveryMs_ + frameMs : 0;
+        if (this.pressureMs_ >= PRESSURE_MS) {
+            // A step up that had to be taken straight back: whatever called that headroom cannot be trusted on this
+            // device, so the next one waits twice as long instead of flickering between two scales.
+            if (this.raisedAt_ >= 0 && this.clockMs_ - this.raisedAt_ <= BOUNCE_MS) {
+                this.recoverAfterMs_ = Math.min(RECOVER_MAX_MS, this.recoverAfterMs_ * 2);
+            }
+            this.raisedAt_ = -1;
             this.scale_ = Math.max(this.profile_.minRenderScale,
                 Math.round((this.scale_ - 0.05) * 100) / 100);
-            this.reason_ = this.scale_ === this.profile_.minRenderScale
-                ? 'resolution-floor' : gpuMs > 0 ? 'gpu-pressure' : 'frame-pressure';
+            this.reason_ = this.scale_ === this.profile_.minRenderScale ? 'resolution-floor' : verdict;
             this.pressureMs_ = this.recoveryMs_ = 0;
-        } else if (this.recoveryMs_ >= 2000) {
+        } else if (this.recoveryMs_ >= this.recoverAfterMs_) {
+            // The last step up held, so the wait eases back towards its start.
+            if (this.raisedAt_ >= 0) this.recoverAfterMs_ = Math.max(RECOVER_MS, this.recoverAfterMs_ / 2);
+            this.raisedAt_ = this.scale_ < this.profile_.renderScale ? this.clockMs_ : -1;
             this.scale_ = Math.min(this.profile_.renderScale,
                 Math.round((this.scale_ + 0.05) * 100) / 100);
             this.reason_ = this.scale_ === this.profile_.renderScale ? this.modeReason_ : 'recovery';
@@ -420,7 +505,8 @@ export class QualityController {
         return {
             mode: this.config_.mode ?? 'off', level: this.level_,
             renderScale: this.renderScale, targetFps: this.config_.targetFps ?? 60,
-            frameMs: this.average_, reason: this.reason_, limitations: [...this.limitations_],
+            frameMs: this.average_.frameMs, busyMs: this.average_.busyMs, gpuMs: this.average_.gpuMs,
+            reason: this.reason_, limitations: [...this.limitations_],
             drawCallBudget: this.profile_.drawCallBudget,
         };
     }

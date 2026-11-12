@@ -181,6 +181,10 @@ void WebGPUDevice::releaseDeviceObjects() {
     capture_copied_ = false;
     pass_is_surface_ = false;
     pass_timed_ = false;
+    span_open_ = false;
+    span_closing_ = false;
+    span_slot_ = kGpuTimeRing;
+    span_passes_ = 0;
 
     // bind_group_/texture_group_ point INTO the cache — release the cache, not them.
     for (auto& e : bind_group_cache_) if (e.bg) wgpuBindGroupRelease(e.bg);
@@ -2477,23 +2481,10 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
 
     encoder_ = wgpuDeviceCreateCommandEncoder(device_, nullptr);
 
-    // GPU timing: time the surface (present) pass — one timestamped pass per frame
-    // in the common case. Reserve a free ring slot; skip timing if none is free.
-    pass_timed_ = false;
-    gpu_time_slot_ = kGpuTimeRing;
-    // A pass the graph armed is timed whatever it draws to; it takes the timestamp slot the surface pass would have used.
+    // GPU timing. A pass the graph armed is timed under its own name; any other pass that opens inside a timer span
+    // adds its time to the span, whatever it draws to — the span is the frame's, not the surface pass's.
     pass_time_slot_ = takePassTimeSlot();
-    if (timestamp_supported_ && pass_time_slot_ == kNoPassSlot && desc.target == FramebufferHandle::Default) {
-        for (u32 i = 0; i < kGpuTimeRing; ++i) {
-            const u32 s = (gpu_time_next_ + i) % kGpuTimeRing;
-            if (!gpu_time_ring_[s].pending) {
-                gpu_time_slot_ = s;
-                gpu_time_next_ = (s + 1) % kGpuTimeRing;
-                break;
-            }
-        }
-        pass_timed_ = (gpu_time_slot_ < kGpuTimeRing);
-    }
+    pass_timed_ = pass_time_slot_ == kNoPassSlot && spanTakesPass();
 
     const bool scoped = desc.clearW != 0;
     WGPURenderPassColorAttachment color{};
@@ -2582,12 +2573,8 @@ void WebGPUDevice::endRenderPass() {
     const u32 passSlot = encoder_ ? pass_time_slot_ : kNoPassSlot;
     pass_time_slot_ = kNoPassSlot;
     if (passSlot != kNoPassSlot) resolvePassTime(encoder_, passSlot);
-    const bool timed = pass_timed_ && gpu_time_slot_ < kGpuTimeRing && encoder_;
-    if (timed) {
-        wgpuCommandEncoderResolveQuerySet(encoder_, timestamp_qset_, 0, 2, timestamp_resolve_, 0);
-        wgpuCommandEncoderCopyBufferToBuffer(encoder_, timestamp_resolve_, 0,
-                                             gpu_time_ring_[gpu_time_slot_].buf, 0, 16);
-    }
+    if (pass_timed_ && encoder_) resolveSpanPass(encoder_);
+    pass_timed_ = false;
 
     // A booked capture rides the pass's OWN encoder: the browser presents the
     // swapchain image with this submit, so a copy encoded afterwards copies a
@@ -2605,19 +2592,11 @@ void WebGPUDevice::endRenderPass() {
     wgpuCommandBufferRelease(commands);
 
     if (passSlot != kNoPassSlot) mapPassTime(passSlot);
-    if (timed) {
-        // Map async — drained by getTimerQueryNs a few frames later (the GpuTimer
-        // ring tolerates the latency).
-        gpu_time_ring_[gpu_time_slot_].pending = true;
-        WGPUBufferMapCallbackInfo cb = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
-        cb.mode = WGPUCallbackMode_AllowSpontaneous;
-        cb.callback = &WebGPUDevice::onGpuTimeMapped;
-        cb.userdata1 = this;
-        cb.userdata2 = reinterpret_cast<void*>(static_cast<uintptr_t>(gpu_time_slot_));
-        wgpuBufferMapAsync(gpu_time_ring_[gpu_time_slot_].buf, WGPUMapMode_Read, 0, 16, cb);
+    // The span was closed while this pass was still open: it was the last one in it.
+    if (span_closing_) {
+        span_closing_ = false;
+        finishSpan();
     }
-    pass_timed_ = false;
-    gpu_time_slot_ = kGpuTimeRing;
 }
 
 /** Give the swapchain texture back: the frame is over (see GfxDevice::endFrame).
@@ -2833,7 +2812,7 @@ void WebGPUDevice::ensureTimestamps() {
 
     WGPUQuerySetDescriptor qd{};
     qd.type = WGPUQueryType_Timestamp;
-    qd.count = 2;  // begin + end of the timed pass
+    qd.count = 2;  // begin + end of the pass being timed; resolved out before the next pass reuses them
     timestamp_qset_ = wgpuDeviceCreateQuerySet(device_, &qd);
     if (!timestamp_qset_) return;
 
@@ -2844,21 +2823,78 @@ void WebGPUDevice::ensureTimestamps() {
     for (u32 i = 0; i < kGpuTimeRing; ++i) {
         WGPUBufferDescriptor bd{};
         bd.usage = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst;
-        bd.size = 16;
+        bd.size = 16 * kSpanPasses;
         gpu_time_ring_[i].buf = wgpuDeviceCreateBuffer(device_, &bd);
     }
     timestamp_supported_ = timestamp_resolve_ && gpu_time_ring_[0].buf;
 }
 
-// One query set serves every timer: timing rides the surface pass, so a query id
+// One query set serves every timer: timing rides the passes, so a query id
 // only has to exist for the engine's GpuTimer to turn on.
 bool WebGPUDevice::backendCreateTimerQuery(u32) {
     ensureTimestamps();
     return timestamp_supported_;
 }
 
-void WebGPUDevice::beginTimerQuery(u32) {}  // timing rides the pass: attached at beginRenderPass, resolved at endRenderPass
-void WebGPUDevice::endTimerQuery() {}
+// A span is what GL's GL_TIME_ELAPSED gives between the same two calls: the GPU's time for everything issued inside
+// it. WebGPU can only stamp a pass, so every pass that opens inside the span is stamped and the span is their sum.
+void WebGPUDevice::beginTimerQuery(u32) {
+    if (!timestamp_supported_) return;
+    span_closing_ = false;
+    span_slot_ = kGpuTimeRing;
+    span_passes_ = 0;
+    for (u32 i = 0; i < kGpuTimeRing; ++i) {
+        const u32 s = (gpu_time_next_ + i) % kGpuTimeRing;
+        if (!gpu_time_ring_[s].pending) {
+            span_slot_ = s;
+            gpu_time_next_ = (s + 1) % kGpuTimeRing;
+            break;
+        }
+    }
+    // With every readback still in flight the span goes untimed, and says so with a zero rather than no answer:
+    // the caller keeps one query in flight per span and would otherwise wait on this one for good.
+    span_open_ = true;
+}
+
+void WebGPUDevice::endTimerQuery() {
+    if (!span_open_) return;
+    span_open_ = false;
+    // A pass still open belongs to the span and has not been stamped yet; its end finishes the span.
+    if (pass_) span_closing_ = true;
+    else finishSpan();
+}
+
+bool WebGPUDevice::spanTakesPass() const {
+    return timestamp_supported_ && span_open_ && span_slot_ < kGpuTimeRing && span_passes_ < kSpanPasses;
+}
+
+void WebGPUDevice::resolveSpanPass(WGPUCommandEncoder encoder) {
+    wgpuCommandEncoderResolveQuerySet(encoder, timestamp_qset_, 0, 2, timestamp_resolve_, 0);
+    wgpuCommandEncoderCopyBufferToBuffer(encoder, timestamp_resolve_, 0,
+                                         gpu_time_ring_[span_slot_].buf, 16ull * span_passes_, 16);
+    ++span_passes_;
+}
+
+void WebGPUDevice::finishSpan() {
+    const u32 slot = span_slot_;
+    const u32 passes = span_passes_;
+    span_slot_ = kGpuTimeRing;
+    span_passes_ = 0;
+    if (!timestamp_supported_) return;
+    if (slot >= kGpuTimeRing || passes == 0) {
+        if (gpu_time_results_.size() < 16) gpu_time_results_.push_back(0);
+        return;
+    }
+    // Map async — drained by getTimerQueryNs a few frames later (the GpuTimer ring tolerates the latency).
+    gpu_time_ring_[slot].pending = true;
+    gpu_time_ring_[slot].passes = passes;
+    WGPUBufferMapCallbackInfo cb = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
+    cb.mode = WGPUCallbackMode_AllowSpontaneous;
+    cb.callback = &WebGPUDevice::onGpuTimeMapped;
+    cb.userdata1 = this;
+    cb.userdata2 = reinterpret_cast<void*>(static_cast<uintptr_t>(slot));
+    wgpuBufferMapAsync(gpu_time_ring_[slot].buf, WGPUMapMode_Read, 0, 16ull * passes, cb);
+}
 bool WebGPUDevice::timerDisjoint() { return false; }
 
 bool WebGPUDevice::getTimerQueryNs(u32 query, u64* outNs) {
@@ -2938,11 +2974,16 @@ void WebGPUDevice::onGpuTimeMapped(WGPUMapAsyncStatus status, WGPUStringView /*m
     const u32 slot = static_cast<u32>(reinterpret_cast<uintptr_t>(userdata2));
     if (!self || slot >= kGpuTimeRing) return;
     WGPUBuffer buf = self->gpu_time_ring_[slot].buf;
+    const u32 passes = self->gpu_time_ring_[slot].passes;
     if (status == WGPUMapAsyncStatus_Success && buf) {
-        const auto* ts = static_cast<const u64*>(wgpuBufferGetConstMappedRange(buf, 0, 16));
+        const auto* ts = static_cast<const u64*>(wgpuBufferGetConstMappedRange(buf, 0, 16ull * passes));
+        // The span is the sum of its passes; a pair that ran backwards (a timestamp reset) counts for nothing.
+        u64 total = 0;
+        for (u32 i = 0; ts && i < passes; ++i) {
+            if (ts[2 * i + 1] >= ts[2 * i]) total += ts[2 * i + 1] - ts[2 * i];
+        }
         // Cap the FIFO so a stalled consumer can't grow it without bound.
-        if (ts && ts[1] >= ts[0] && self->gpu_time_results_.size() < 16)
-            self->gpu_time_results_.push_back(ts[1] - ts[0]);
+        if (ts && self->gpu_time_results_.size() < 16) self->gpu_time_results_.push_back(total);
         wgpuBufferUnmap(buf);
     }
     self->gpu_time_ring_[slot].pending = false;
@@ -3180,8 +3221,11 @@ bool WebGPUDevice::backendDispatchCompute(u32 id, const GfxComputeBinding* bindi
     WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device_, nullptr);
     WGPUComputePassDescriptor pd = WGPU_COMPUTE_PASS_DESCRIPTOR_INIT;
     const u32 passSlot = takePassTimeSlot();
+    // A kernel is the frame's GPU time as much as a draw is. No render pass is open here to carry a span past its
+    // end, so this one is resolved and counted before the call returns.
+    const bool inSpan = passSlot == kNoPassSlot && spanTakesPass();
     WGPUPassTimestampWrites tw{};
-    if (passSlot != kNoPassSlot) {
+    if (passSlot != kNoPassSlot || inSpan) {
         tw.querySet = timestamp_qset_;
         tw.beginningOfPassWriteIndex = 0;
         tw.endOfPassWriteIndex = 1;
@@ -3194,6 +3238,7 @@ bool WebGPUDevice::backendDispatchCompute(u32 id, const GfxComputeBinding* bindi
     wgpuComputePassEncoderEnd(pass);
     wgpuComputePassEncoderRelease(pass);
     if (passSlot != kNoPassSlot) resolvePassTime(encoder, passSlot);
+    if (inSpan) resolveSpanPass(encoder);
     WGPUCommandBuffer commands = wgpuCommandEncoderFinish(encoder, nullptr);
     wgpuCommandEncoderRelease(encoder);
     wgpuQueueSubmit(queue_, 1, &commands);

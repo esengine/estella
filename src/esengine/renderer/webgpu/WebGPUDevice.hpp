@@ -651,22 +651,32 @@ private:
     // GPU timing — the WebGPU analog of GLDevice's GL_TIME_ELAPSED timer, so the
     // profiler's gpuMs/gpuScopes populate on both backends. Active only when the
     // device has the timestamp-query feature; otherwise createTimerQuery returns 0
-    // and timing stays off (unchanged behavior). The surface (present) pass writes
-    // a begin/end timestamp; endRenderPass resolves them into a ring of readback
-    // buffers mapped asynchronously, and getTimerQueryNs drains the elapsed ns into
-    // the engine's GpuTimer (whose ring already tolerates a few frames of latency).
+    // and timing stays off (unchanged behavior). begin/endTimerQuery bracket a span;
+    // every render or compute pass that opens inside it writes a begin/end timestamp,
+    // resolved into the span's readback buffer, and the span is their sum — the
+    // whole frame's GPU time, as GL's query gives it, not one pass's. The buffers are
+    // mapped asynchronously and getTimerQueryNs drains the elapsed ns into the
+    // engine's GpuTimer (whose ring already tolerates a few frames of latency).
     bool timestamp_supported_ = false;
     bool timestamp_init_done_ = false;
     WGPUQuerySet timestamp_qset_ = nullptr;   ///< 2 slots: begin/end of the timed pass.
     WGPUBuffer timestamp_resolve_ = nullptr;  ///< QueryResolve target (16 bytes).
     static constexpr u32 kGpuTimeRing = 4;
-    struct GpuTimeSlot { WGPUBuffer buf = nullptr; bool pending = false; };
+    /// Passes one span can sum. A frame with more is timed up to here, which reads low rather than wrong-way.
+    static constexpr u32 kSpanPasses = 96;
+    struct GpuTimeSlot { WGPUBuffer buf = nullptr; bool pending = false; u32 passes = 0; };
     GpuTimeSlot gpu_time_ring_[kGpuTimeRing] = {};
     u32 gpu_time_next_ = 0;                ///< Round-robin cursor into the ring.
-    u32 gpu_time_slot_ = kGpuTimeRing;     ///< Slot reserved for the in-flight timed pass (== kGpuTimeRing: none).
-    bool pass_timed_ = false;              ///< Did the current pass attach timestampWrites?
+    bool span_open_ = false;               ///< Between beginTimerQuery and endTimerQuery.
+    bool span_closing_ = false;            ///< Ended with a render pass still open; that pass's end finishes it.
+    u32 span_slot_ = kGpuTimeRing;         ///< Ring slot the open span resolves into (== kGpuTimeRing: none).
+    u32 span_passes_ = 0;                  ///< Passes resolved into it so far.
+    bool pass_timed_ = false;              ///< Does the open render pass carry timestamps for the span?
     std::vector<u64> gpu_time_results_;    ///< Resolved elapsed-ns, FIFO, drained by getTimerQueryNs.
     void ensureTimestamps();               ///< Lazily create the query set + buffers (feature-gated).
+    bool spanTakesPass() const;            ///< Should a pass opening now be stamped for the span?
+    void resolveSpanPass(WGPUCommandEncoder encoder);  ///< After such a pass ends, on its encoder.
+    void finishSpan();                     ///< Map the span's buffer; its sum arrives in gpu_time_results_.
 
     // Per-pass timing: armPassTimer names the next pass, which carries the timestamps and has them resolved into a
     // pooled readback buffer; the result is filed under the name (a timer query id) it was armed with.

@@ -795,7 +795,11 @@ public:
     /** @brief Creates a GPU elapsed-time query, or 0 when the backend cannot time GPU work. */
     u32 createTimerQuery();
 
-    /** @brief Starts timing GPU work into a query; one query may be active at a time. */
+    /**
+     * @brief Starts timing GPU work into a query; one query may be active at a time.
+     * @details The same span on every backend: the GPU's time for everything issued until endTimerQuery, every pass
+     *          included. A render pass still open at the end belongs to the span up to where the pass ends.
+     */
     virtual void beginTimerQuery(u32 query) = 0;
 
     /** @brief Stops the active timer query */
