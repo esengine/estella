@@ -583,11 +583,13 @@ vec4 waterReflect(vec3 p, vec3 r, float eyeDist) {
         vec2 uv = clip.xy / clip.w * 0.5 + 0.5;
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) break;
         float qDist = u_camera.w > 0.5 ? length(q - u_camera.xyz) : -dot(q, u_camera.xyz);
-        float sceneDist = textureLod(u_sceneDepthMap, uv, 0.0).r;
+        // r how far the picture is, g whether it holds nothing there (the sky, painted after this copy was taken): nothing to meet, and the sky the lighting gave stays.
+        vec2 scene = textureLod(u_sceneDepthMap, uv, 0.0).rg;
+        float sceneDist = scene.r;
         // The ray has gone behind something the picture holds: that is what it met, if it did not skip clean through a thin one.
         // Fading toward the picture's edge: a reflection that runs off screen thins away instead of stopping on a line.
         vec2 edge = min(uv, 1.0 - uv);
-        if (sceneDist < qDist && qDist - sceneDist < stride * 2.0 + 1.0) return vec4(textureLod(u_sceneColor, uv, 0.0).rgb, smoothstep(0.0, 0.08, min(edge.x, edge.y)));
+        if (scene.g < 0.5 && sceneDist < qDist && qDist - sceneDist < stride * 2.0 + 1.0) return vec4(textureLod(u_sceneColor, uv, 0.0).rgb, smoothstep(0.0, 0.08, min(edge.x, edge.y)));
         stride *= 1.25;
         travelled += stride;
     }
@@ -827,7 +829,12 @@ void main() {
     ext.misc.x = 0.0204;
     vec3 albedo = mix(scatterColor * murk, u_foamColor.rgb, foam);
     // Rain stipples the surface finer than any ring: it reflects a little less sharply.
-    float roughness = mix(u_roughness + 0.05 * clamp(u_rain, 0.0, 1.0), 0.7, foam);
+    // Waves finer than a pixel cannot be drawn as glints: they would flash pixel by pixel. How far the normal turns across a pixel is
+    // how many of them it covers, and that widens the highlight instead (the variance of the normals under the pixel, capped), so a far sea shines evenly.
+    vec3 turnX = dFdx(N), turnY = dFdy(N);
+    float spread = min(0.5 * (dot(turnX, turnX) + dot(turnY, turnY)), 0.18);
+    float plain = mix(u_roughness + 0.05 * clamp(u_rain, 0.0, 1.0), 0.7, foam);
+    float roughness = sqrt(sqrt(clamp(plain * plain * plain * plain + spread, 0.0, 1.0)));
     // The sea is seldom in shadow and its edge is lost in the waves: the sun's shadow is read as one hard edge here, not as a penumbra.
     g_shadowHard = 1.0;
     vec3 lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, roughness, 1.0, 1.0, ext);
@@ -851,7 +858,11 @@ void main() {
     // From above, what the surface mirrors is the world as well as the sky: the reflected ray followed through the picture. Where it meets
     // something on screen that takes the reflected share's place; where it leaves the screen, the sky the lighting gave stays.
     if (!below && fresnel > 0.03 && haveColor && haveDepth && u_mirror > 0.5) {
-        vec4 met = waterReflect(P, reflect(-viewDir, N), waterDist);
+        // A ripple tilted far enough sends the ray down into the sea, where the picture holds the bed and not the next wave the ray would
+        // really meet (the bed, undimmed by its water, drawn as white flecks all over a shallow sea): it goes on up, as off that wave.
+        vec3 away = reflect(-viewDir, N);
+        away.y = abs(away.y);
+        vec4 met = waterReflect(P, away, waterDist);
         color = mix(color, met.rgb, met.a * fresnel * (1.0 - foam) * 0.9);
     }
     // At its edge the water thins to nothing: over the last u_edgeSoftness of depth the ground behind shows through more and more, so the
@@ -1097,9 +1108,10 @@ fn waterReflect(p : vec3f, r : vec3f, eyeDist : f32) -> vec4f {
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { break; }
         var qDist = -dot(q, frame.camera.xyz);
         if (frame.camera.w > 0.5) { qDist = length(q - frame.camera.xyz); }
-        let sceneDist = textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, uv, 0.0).r;
+        let scene = textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, uv, 0.0).rg;
+        let sceneDist = scene.r;
         let edge = min(uv, vec2f(1.0) - uv);
-        if (sceneDist < qDist && qDist - sceneDist < stride * 2.0 + 1.0) { return vec4f(textureSampleLevel(u_sceneColor, u_sceneColor_s, uv, 0.0).rgb, smoothstep(0.0, 0.08, min(edge.x, edge.y))); }
+        if (scene.g < 0.5 && sceneDist < qDist && qDist - sceneDist < stride * 2.0 + 1.0) { return vec4f(textureSampleLevel(u_sceneColor, u_sceneColor_s, uv, 0.0).rgb, smoothstep(0.0, 0.08, min(edge.x, edge.y))); }
         stride = stride * 1.25;
         travelled = travelled + stride;
     }
@@ -1332,7 +1344,11 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, amp : f32, calm : f32) -> vec
     var ext = surfaceExtNone(N);
     ext.misc.x = 0.0204;
     let albedo = mix(scatterColor * murk, mc.u_foamColor.rgb, vec3f(foam));
-    let roughness = mix(mc.u_roughness + 0.05 * clamp(mc.u_rain, 0.0, 1.0), 0.7, foam);
+    let turnX = dpdx(N);
+    let turnY = dpdy(N);
+    let spread = min(0.5 * (dot(turnX, turnX) + dot(turnY, turnY)), 0.18);
+    let plain = mix(mc.u_roughness + 0.05 * clamp(mc.u_rain, 0.0, 1.0), 0.7, foam);
+    let roughness = sqrt(sqrt(clamp(plain * plain * plain * plain + spread, 0.0, 1.0)));
     g_shadowHard = 1.0;
     let lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, roughness, 1.0, 1.0, ext);
     let cosV = clamp(dot(N, viewDir), 0.0, 1.0);
@@ -1351,7 +1367,9 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, amp : f32, calm : f32) -> vec
     seen = seen + mirror * fresnel * (1.0 - foam);
     var color = lit + seen;
     if (!below && fresnel > 0.03 && haveColor && haveDepth && mc.u_mirror > 0.5) {
-        let met = waterReflect(P, reflect(-viewDir, N), waterDist);
+        var away = reflect(-viewDir, N);
+        away.y = abs(away.y);
+        let met = waterReflect(P, away, waterDist);
         color = mix(color, met.xyz, met.w * fresnel * (1.0 - foam) * 0.9);
     }
     if (!below && haveColor && haveDepth && mc.u_edgeSoftness > 0.0) {
