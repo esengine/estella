@@ -106,6 +106,22 @@ const FRAME_NOT_JUDGED = {
     'event-system': 'its first sprite needs 1.5 s of simulated time, which a loaded runner reaches later than the wall clock does',
 };
 
+/**
+ * The same admission for one platform alone: the Android emulator of a runner with no GPU rasterizes on the CPU, and what a scene costs
+ * there is not what it costs on a phone. Named by what was measured, not by how heavy a scene looks.
+ */
+const FRAME_NOT_JUDGED_ON = {
+    android: {
+        // One frame in the 45 s the first launch has, a flat one; the relaunch that follows a "too slow" finds the emulator's GPU thread
+        // hung ("Timeout when waiting for the Qsri fence") and never reports ready. The iOS simulator, on the host's GPU, judges its frame.
+        'cyber-rooftop': 'a lit 3D night city draws one frame in 45 s on the emulator\'s software rasterizer, and the relaunch that asks for more hangs it',
+    },
+};
+/** Why @p name's frame is not counted on this platform, or undefined when it is. */
+function frameNotJudged(name) {
+    return FRAME_NOT_JUDGED[name] ?? FRAME_NOT_JUDGED_ON[opts.platform]?.[name];
+}
+
 function parseArgs(argv) {
     const opts = {
         platform: 'android', timeout: 120, settle: 3, frames: 30,
@@ -866,10 +882,10 @@ for (const name of examples) {
     try {
         const { app, work, appId } = packageExample(driver, name, opts);
         APP_ID = appId;
-        r = await verifyApp(driver, app, name, opts, !FRAME_NOT_JUDGED[name]);
+        r = await verifyApp(driver, app, name, opts, !frameNotJudged(name));
         if (worthAnotherLaunch(r)) {
             const first = retainFirstLaunch(r, opts.out, `${driver.name}-${name}`);
-            r = await verifyApp(driver, app, name, opts, !FRAME_NOT_JUDGED[name], 2);
+            r = await verifyApp(driver, app, name, opts, !frameNotJudged(name), 2);
             r.firstTry = first;
         }
         // Each APK carries the whole runtime template; keeping 40 of them around
@@ -879,7 +895,7 @@ for (const name of examples) {
         r = { ok: false, why: err.message, log: '', colors: 0, frames: 0, unjudged: null, size: '-' };
     }
     results.push({ name, ...r });
-    const frameNote = FRAME_NOT_JUDGED[name] ? ' (frame not judged)'
+    const frameNote = frameNotJudged(name) ? ' (frame not judged)'
         : r.unjudged ? ` — ${r.unjudged}` : '';
     // What the first launch said, kept in the line: a run that needed two is not
     // the same event as one that needed one, and a name that starts appearing
@@ -921,10 +937,10 @@ if (known.length) {
     console.log(`\n${known.length} example(s) are recorded as already broken:`);
     for (const name of known) console.log(`  ${name} — ${KNOWN_FAILURES[name]}`);
 }
-const unjudged = Object.keys(FRAME_NOT_JUDGED).filter((n) => examples.includes(n));
+const unjudged = examples.filter((n) => frameNotJudged(n));
 if (unjudged.length) {
     console.log(`\n${unjudged.length} example(s) launched but had their frame taken on trust:`);
-    for (const name of unjudged) console.log(`  ${name} — ${FRAME_NOT_JUDGED[name]}`);
+    for (const name of unjudged) console.log(`  ${name} — ${frameNotJudged(name)}`);
 }
 
 for (const r of brokeUnexpectedly) {

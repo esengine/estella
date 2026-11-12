@@ -53,6 +53,12 @@ on:
         required: false
         default: ''
         type: string
+      # The artifact holding the engine this run built (desktop/public/wasm), when the caller has one. The cook derives a shader's
+      # WGSL twin with the engine's own headers, and without it a project shader ships GLSL alone and fails on the device.
+      engine-artifact:
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -188,6 +194,13 @@ jobs:
           tag: ${{ steps.src.outputs.tag }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Take the engine this run built, for the cook to derive shader twins with
+        if: inputs.engine-artifact != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.engine-artifact }}
+          path: desktop/public
+
       - name: Build the SDK the games are bundled against
         run: pnpm --filter ./sdk build
 
@@ -272,6 +285,13 @@ jobs:
           from-dir: ${{ steps.src.outputs.tag == '' && 'templates' || '' }}
           tag: ${{ steps.src.outputs.tag }}
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Take the engine this run built, for the cook to derive shader twins with
+        if: inputs.engine-artifact != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.engine-artifact }}
+          path: desktop/public
 
       - name: Build the SDK the games are bundled against
         run: pnpm --filter ./sdk build
