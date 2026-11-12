@@ -224,6 +224,7 @@ public:
 private:
     void initDefaultTextures();
     TextureHandle make1x1Texture(u32 rgba);
+    TextureHandle makeRipplesTexture();
     void initFrameUbo();
 
     void uploadFrameConstants(const glm::mat4& upload, const glm::mat4& engine);
@@ -234,6 +235,7 @@ private:
     TextureHandle whiteTexture_ = TextureHandle::Invalid;
     TextureHandle blackTexture_ = TextureHandle::Invalid;
     TextureHandle flatNormalTexture_ = TextureHandle::Invalid;
+    TextureHandle ripplesTexture_ = TextureHandle::Invalid;
     BufferHandle frameUbo_ = BufferHandle::Invalid;
     BufferHandle timeUbo_ = BufferHandle::Invalid;
     BufferHandle drawParamsFallback_ = BufferHandle::Invalid;

@@ -12,6 +12,7 @@
  */
 
 #include "./RenderContext.hpp"
+#include "./RippleNormals.hpp"
 #include "../rhi/GfxDevice.hpp"
 #include "./FrameConstants.hpp"
 #include "../RenderOrigin.hpp"
@@ -50,7 +51,7 @@ void RenderContext::init() {
     initDefaultTextures();
     initFrameUbo();
     materials_.setDevice(&device_);
-    materials_.setBuiltinDefaults(whiteTexture_, blackTexture_, flatNormalTexture_);
+    materials_.setBuiltinDefaults(whiteTexture_, blackTexture_, flatNormalTexture_, ripplesTexture_);
     lights_.setDevice(&device_);
 
     initialized_ = true;
@@ -61,7 +62,7 @@ void RenderContext::shutdown() {
         return;
     }
 
-    for (TextureHandle* tex : {&whiteTexture_, &blackTexture_, &flatNormalTexture_}) {
+    for (TextureHandle* tex : {&whiteTexture_, &blackTexture_, &flatNormalTexture_, &ripplesTexture_}) {
         if (*tex != TextureHandle::Invalid) {
             device_.deleteTexture(*tex);
             *tex = TextureHandle::Invalid;
@@ -104,11 +105,25 @@ TextureHandle RenderContext::make1x1Texture(u32 rgba) {
     return device_.createTexture(desc, GfxContent::retained(), &rgba);
 }
 
+TextureHandle RenderContext::makeRipplesTexture() {
+    TextureDesc desc;
+    desc.width = RIPPLE_NORMALS_SIZE;
+    desc.height = RIPPLE_NORMALS_SIZE;
+    desc.wrapS = TextureWrap::Repeat;
+    desc.wrapT = TextureWrap::Repeat;
+    desc.mipmaps = true;
+    const std::vector<u8> pixels = buildRippleNormals();
+    const TextureHandle texture = device_.createTexture(desc, GfxContent::retained(), pixels.data());
+    if (texture != TextureHandle::Invalid) device_.generateMipmaps(texture);
+    return texture;
+}
+
 void RenderContext::initDefaultTextures() {
     // Byte order in memory is R,G,B,A; these u32s are little-endian (so 0xAABBGGRR).
     whiteTexture_ = make1x1Texture(0xFFFFFFFF);       // RGBA(255,255,255,255)
     blackTexture_ = make1x1Texture(0xFF000000);       // RGBA(0,0,0,255)
     flatNormalTexture_ = make1x1Texture(0xFFFF8080);  // RGB(128,128,255) → normal (0,0,1)
+    ripplesTexture_ = makeRipplesTexture();
     ES_LOG_DEBUG("Default textures created (white {}, black {}, flatNormal {})",
                  static_cast<u32>(whiteTexture_), static_cast<u32>(blackTexture_),
                  static_cast<u32>(flatNormalTexture_));

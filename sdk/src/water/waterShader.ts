@@ -95,7 +95,7 @@ const WATER = `#pragma shader "Water"
 // Two tiled normal maps that scroll over the surface, for the sparkle the sun makes of a water's small slopes, in the one texture a material has room
 // for: red and green the first's slope (x and z, 0.5 flat), blue and alpha the second's, read as data. Each is u_detailTile world units to a repeat,
 // u_detailStrength times as steep as drawn (0 leaves it out), and slides u_detailFlow world units a second.
-#pragma param u_detailMap texture default(flatnormal) texel(data)
+#pragma param u_detailMap texture default(ripples) texel(data)
 #pragma param u_detailTile0 float default(2) range(0.01,100000) ui(slider)
 #pragma param u_detailTile1 float default(4.3) range(0.01,100000) ui(slider)
 #pragma param u_detailStrength0 float default(0) range(0,8) ui(slider)
@@ -383,31 +383,19 @@ float waterNoise(vec2 p) {
     return mix(mix(waterHash(i), waterHash(i + vec2(1.0, 0.0)), f.x),
                mix(waterHash(i + vec2(0.0, 1.0)), waterHash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
-/// The slope of the ripples the wind raises at p: six short waves within seventy-five degrees of it, from u_rippleLength down to a fifth of it, each
-/// running at the speed its length gives deep water and at a phase of its own, each as steep as u_rippleStrength a third. A sum of waves
-/// has no cells or blobs, which drifting noise has. A ripple shorter than a pixel would shimmer: each fades out with distance.
-// One of them: turned by (turnCos, turnSin) off the wind, its frequency and its reach perLength times the longest's, its speed perRoot times.
-vec2 rippleWave(vec2 p, vec2 along, float k, float run, float far, float turnCos, float turnSin, float perLength, float perRoot, float phase) {
-    vec2 d = vec2(along.x * turnCos + along.y * turnSin, along.y * turnCos - along.x * turnSin);
-    float theta = k * perLength * dot(d, p) - run * perRoot + phase;
-    return d * (cos(theta) * clamp(1.0 - far * perLength, 0.0, 1.0) * 0.33);
-}
-vec2 rippleSlope(vec2 p, float time, float dist) {
-    // What every wave shares, once: the wind's heading, and the longest wave's frequency, how far it has run and how far off it is seen. The rest of each
-    // wave is a number written down: a phone does not take these out of the loop for itself, and asked per pixel they were a quarter of what its water cost.
+/// The slope of the ripples the wind raises at p: two fields of the ripple map (u_detailMap: the engine's own, default(ripples), unless a material
+/// gives another), the longest wave of the first u_rippleLength long, the second finer and running off the wind, each carried downwind at the speed
+/// its length gives deep water. px is how far p moves a pixel right and a pixel up: the map is read by it, so its mips flatten what a pixel cannot hold.
+vec2 rippleSlope(vec2 p, float time, vec4 px) {
     float base = radians(u_waveDirection);
     vec2 along = vec2(sin(base), cos(base));
-    float k = 6.2831853 / u_rippleLength;
-    float run = sqrt(9.8 * k) * u_waveSpeed * time;
-    float far = dist / (u_rippleLength * 150.0);
-    vec2 slope = vec2(0.0);
-    slope += rippleWave(p, along, k, run, far, 0.970296, -0.241922, 1.000000, 1.000000, 0.0);  // -14 degrees off the wind, 1 of the length
-    slope += rippleWave(p, along, k, run, far, 0.838671, 0.544639, 1.408451, 1.186782, 1.7);  // 33 degrees off the wind, 0.71 of the length
-    slope += rippleWave(p, along, k, run, far, 0.529919, -0.848048, 1.886792, 1.373606, 3.1);  // -58 degrees off the wind, 0.53 of the length
-    slope += rippleWave(p, along, k, run, far, 0.981627, 0.190809, 2.564103, 1.601282, 4.4);  // 11 degrees off the wind, 0.39 of the length
-    slope += rippleWave(p, along, k, run, far, 0.275637, 0.961262, 3.448276, 1.856953, 0.9);  // 74 degrees off the wind, 0.29 of the length
-    slope += rippleWave(p, along, k, run, far, 0.754710, -0.656059, 4.761905, 2.182179, 2.6);  // -41 degrees off the wind, 0.21 of the length
-    return slope * u_rippleStrength;
+    vec2 aside = vec2(along.x * 0.906308 + along.y * 0.422618, along.y * 0.906308 - along.x * 0.422618);
+    float tile = u_rippleLength * 6.0;
+    float fine = tile * 0.37;
+    float run = sqrt(9.8 * u_rippleLength / 6.2831853) * u_waveSpeed * time;
+    vec2 a = textureGrad(u_detailMap, (p - along * run) / tile, px.xy / tile, px.zw / tile).rg * 2.0 - 1.0;
+    vec2 b = textureGrad(u_detailMap, (p - aside * (run * 0.608276)) / fine, px.xy / fine, px.zw / fine).ba * 2.0 - 1.0;
+    return (a / sqrt(max(1.0 - dot(a, a), 0.0625)) + b / sqrt(max(1.0 - dot(b, b), 0.0625))) * (u_rippleStrength * 1.3);
 }
 
 /// The slope rain adds at p: in every cell of two offset grids a third of u_rippleLength across, a drop lands at a place and a moment of
@@ -439,7 +427,7 @@ vec2 rainRings(vec2 p, float time, float rain) {
 
 /// The slope of the water's surface at p (d height / d x, d height / d z) and how near the waves are to a crest, 0 to 1.
 /// Four waves a few directions apart, each a peaked sine (exp(sin - 1)) whose crests are narrower than its troughs.
-// One of them, as rippleWave's: xy its slope, without its height; z its crest.
+// One of them: xy its slope, without its height; z its crest.
 vec3 peakedWave(vec2 at, vec2 along, float k, float run, float far, float turnCos, float turnSin, float perLength, float perRun, float share) {
     vec2 d = vec2(along.x * turnCos + along.y * turnSin, along.y * turnCos - along.x * turnSin);
     float theta = k * perLength * dot(d, at) - run * perRun;
@@ -614,10 +602,10 @@ vec2 detailSlope(vec2 p, float time) {
 
 /// The slope of the surface at p and how near it is to a crest: the waves, amp times as high as u_waveHeight says, and the ripples they carry,
 /// calm of their strength, flattened with distance.
-vec2 waterSurface(vec2 p, float time, float dist, float amp, float calm, out float crest) {
+vec2 waterSurface(vec2 p, float time, float dist, vec4 px, float amp, float calm, out float crest) {
     vec2 slope = waveSlope(p, time, dist, crest) * amp;
     crest *= calm;
-    return slope + rippleSlope(p, time, dist) * calm;
+    return slope + rippleSlope(p, time, px) * calm;
 }
 
 void main() {
@@ -689,6 +677,7 @@ void main() {
     // Where the foam texture is read, and how fast that moves across the screen: taken here because the read itself waits until there is foam.
     vec2 foamUv = (wp + u_foamFlow * time) / max(u_foamTile, 1e-4);
     vec2 foamDx = dFdx(foamUv), foamDy = dFdy(foamUv);
+    vec4 px = vec4(dFdx(wp), dFdy(wp));
     float crest;
     vec2 slope;
     if (dot(flow, flow) > 1e-6) {
@@ -700,12 +689,12 @@ void main() {
         float w0 = 1.0 - abs(2.0 * ph0 - 1.0);
         float crest0, crest1;
         // Named copy0/copy1 because a t or s followed by a number is a texture unit's name (ShaderParser::materialOverflowUnits).
-        vec2 copy0 = waterSurface(wp - flow * (ph0 * cycle), time, waterDist, damp, calm, crest0);
-        vec2 copy1 = waterSurface(wp - flow * (ph1 * cycle), time, waterDist, damp, calm, crest1);
+        vec2 copy0 = waterSurface(wp - flow * (ph0 * cycle), time, waterDist, px, damp, calm, crest0);
+        vec2 copy1 = waterSurface(wp - flow * (ph1 * cycle), time, waterDist, px, damp, calm, crest1);
         slope = mix(copy1, copy0, w0);
         crest = mix(crest1, crest0, w0);
     } else {
-        slope = waterSurface(wp, time, waterDist, damp, calm, crest);
+        slope = waterSurface(wp, time, waterDist, px, damp, calm, crest);
     }
     // Rain rings are fine: where a pixel grows past a ring's crests they would shimmer, so they fade out before it.
     float rainFade = 1.0 - smoothstep(u_rippleLength * 8.0, u_rippleLength * 20.0, waterDist);
@@ -915,25 +904,17 @@ fn waterNoise(p : vec2f) -> f32 {
     return mix(mix(waterHash(i), waterHash(i + vec2f(1.0, 0.0)), f.x),
                mix(waterHash(i + vec2f(0.0, 1.0)), waterHash(i + vec2f(1.0, 1.0)), f.x), f.y);
 }
-fn rippleWave(p : vec2f, along : vec2f, k : f32, run : f32, far : f32, turnCos : f32, turnSin : f32, perLength : f32, perRoot : f32, phase : f32) -> vec2f {
-    let d = vec2f(along.x * turnCos + along.y * turnSin, along.y * turnCos - along.x * turnSin);
-    let theta = k * perLength * dot(d, p) - run * perRoot + phase;
-    return d * (cos(theta) * clamp(1.0 - far * perLength, 0.0, 1.0) * 0.33);
-}
-fn rippleSlope(p : vec2f, time : f32, dist : f32) -> vec2f {
+
+fn rippleSlope(p : vec2f, time : f32, px : vec4f) -> vec2f {
     let base = radians(mc.u_waveDirection);
     let along = vec2f(sin(base), cos(base));
-    let k = 6.2831853 / mc.u_rippleLength;
-    let run = sqrt(9.8 * k) * mc.u_waveSpeed * time;
-    let far = dist / (mc.u_rippleLength * 150.0);
-    var slope = vec2f(0.0);
-    slope = slope + rippleWave(p, along, k, run, far, 0.970296, -0.241922, 1.000000, 1.000000, 0.0);
-    slope = slope + rippleWave(p, along, k, run, far, 0.838671, 0.544639, 1.408451, 1.186782, 1.7);
-    slope = slope + rippleWave(p, along, k, run, far, 0.529919, -0.848048, 1.886792, 1.373606, 3.1);
-    slope = slope + rippleWave(p, along, k, run, far, 0.981627, 0.190809, 2.564103, 1.601282, 4.4);
-    slope = slope + rippleWave(p, along, k, run, far, 0.275637, 0.961262, 3.448276, 1.856953, 0.9);
-    slope = slope + rippleWave(p, along, k, run, far, 0.754710, -0.656059, 4.761905, 2.182179, 2.6);
-    return slope * mc.u_rippleStrength;
+    let aside = vec2f(along.x * 0.906308 + along.y * 0.422618, along.y * 0.906308 - along.x * 0.422618);
+    let tile = mc.u_rippleLength * 6.0;
+    let fine = tile * 0.37;
+    let run = sqrt(9.8 * mc.u_rippleLength / 6.2831853) * mc.u_waveSpeed * time;
+    let a = textureSampleGrad(u_detailMap, u_detailMap_s, (p - along * run) / tile, px.xy / tile, px.zw / tile).rg * 2.0 - vec2f(1.0);
+    let b = textureSampleGrad(u_detailMap, u_detailMap_s, (p - aside * (run * 0.608276)) / fine, px.xy / fine, px.zw / fine).ba * 2.0 - vec2f(1.0);
+    return (a / sqrt(max(1.0 - dot(a, a), 0.0625)) + b / sqrt(max(1.0 - dot(b, b), 0.0625))) * (mc.u_rippleStrength * 1.3);
 }
 
 fn rainRings(p : vec2f, time : f32, rain : f32) -> vec2f {
@@ -1134,9 +1115,9 @@ fn detailSlope(p : vec2f, time : f32) -> vec2f {
 }
 
 /// The slope of the surface at p (x, y) and how near it is to a crest (z): the waves, and the ripples they carry, flattened with distance.
-fn waterSurface(p : vec2f, time : f32, dist : f32, amp : f32, calm : f32) -> vec3f {
+fn waterSurface(p : vec2f, time : f32, dist : f32, px : vec4f, amp : f32, calm : f32) -> vec3f {
     let waves = waveSlope(p, time, dist);
-    return vec3f(waves.slope * amp + rippleSlope(p, time, dist) * calm, waves.crest * calm);
+    return vec3f(waves.slope * amp + rippleSlope(p, time, px) * calm, waves.crest * calm);
 }
 
 #ifdef ES_GBUFFER
@@ -1221,6 +1202,7 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, amp : f32, calm : f32) -> vec
     let foamUv = (wp + mc.u_foamFlow * time) / max(mc.u_foamTile, 1e-4);
     let foamDx = dpdx(foamUv);
     let foamDy = dpdy(foamUv);
+    let px = vec4f(dpdx(wp), dpdy(wp));
     var surface = vec3f(0.0);
     if (dot(flow, flow) > 1e-6) {
         // A current: two copies of the surface carried downstream a cycle at a time, each fading in as the other fades out.
@@ -1229,11 +1211,11 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, amp : f32, calm : f32) -> vec
         let ph1 = fract(time / cycle + 0.5);
         let w0 = 1.0 - abs(2.0 * ph0 - 1.0);
         // Named copy0/copy1: in WGSL an s followed by a number names a texture unit's sampler.
-        let copy0 = waterSurface(wp - flow * (ph0 * cycle), time, waterDist, damp, calm);
-        let copy1 = waterSurface(wp - flow * (ph1 * cycle), time, waterDist, damp, calm);
+        let copy0 = waterSurface(wp - flow * (ph0 * cycle), time, waterDist, px, damp, calm);
+        let copy1 = waterSurface(wp - flow * (ph1 * cycle), time, waterDist, px, damp, calm);
         surface = mix(copy1, copy0, w0);
     } else {
-        surface = waterSurface(wp, time, waterDist, damp, calm);
+        surface = waterSurface(wp, time, waterDist, px, damp, calm);
     }
     var waves : Waves;
     waves.crest = surface.z;

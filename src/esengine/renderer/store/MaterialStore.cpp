@@ -486,6 +486,7 @@ TextureHandle MaterialStore::builtinDefault(MaterialDefaultTexture which) const 
     switch (which) {
     case MaterialDefaultTexture::Black:      return defaultBlack_;
     case MaterialDefaultTexture::FlatNormal: return defaultFlatNormal_;
+    case MaterialDefaultTexture::Ripples:    return defaultRipples_;
     case MaterialDefaultTexture::White:      break;
     }
     return defaultWhite_;

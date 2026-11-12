@@ -59,12 +59,13 @@ struct MaterialParamSlot {
 };
 
 /** @brief Which built-in texture a param falls back to when a material leaves it unset. */
-enum class MaterialDefaultTexture : u8 { White, Black, FlatNormal };
+enum class MaterialDefaultTexture : u8 { White, Black, FlatNormal, Ripples };
 
 /** @brief Maps a shader's declared `default(<name>)` to the built-in it names. */
 inline MaterialDefaultTexture materialDefaultByName(const std::string& name) {
     if (name == "black") return MaterialDefaultTexture::Black;
     if (name == "flatnormal" || name == "normal") return MaterialDefaultTexture::FlatNormal;
+    if (name == "ripples") return MaterialDefaultTexture::Ripples;
     return MaterialDefaultTexture::White;  // "white" / empty / unknown
 }
 
@@ -172,10 +173,11 @@ public:
     void forgetShader(resource::ShaderHandle shader);
 
     /// The context's built-in fallbacks.
-    void setBuiltinDefaults(TextureHandle white, TextureHandle black, TextureHandle flatNormal) {
+    void setBuiltinDefaults(TextureHandle white, TextureHandle black, TextureHandle flatNormal, TextureHandle ripples) {
         defaultWhite_ = white;
         defaultBlack_ = black;
         defaultFlatNormal_ = flatNormal;
+        defaultRipples_ = ripples;
     }
 
     /// The context's current fallback for a declared `default(...)`. One authority,
@@ -531,6 +533,7 @@ private:
     TextureHandle defaultWhite_ = TextureHandle::Invalid;
     TextureHandle defaultBlack_ = TextureHandle::Invalid;
     TextureHandle defaultFlatNormal_ = TextureHandle::Invalid;
+    TextureHandle defaultRipples_ = TextureHandle::Invalid;
 };
 
 }  // namespace esengine
