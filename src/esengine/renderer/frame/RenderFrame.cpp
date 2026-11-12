@@ -697,6 +697,8 @@ void RenderFrame::publishFrameCounters() {
     ES_PROFILE_COUNTER("render.cull.occluders", occlusion_.boxes());
     ES_PROFILE_COUNTER("render.reflection.probes", context_.reflections().count());
     ES_PROFILE_COUNTER("render.sprites", stats_.sprites);
+    // Light slots the lit quads were spared: a light out of reach added nothing before either, so no pixel says whether it is skipped.
+    ES_PROFILE_COUNTER("render.lights2d.spared", stats_.lightsSpared);
     // The 3D path had no counter at all, and its cost is the one a pixel hides
     // best: identical geometry drawn N times merges into ONE instanced call, so
     // batch.draws does not move when a cull stops working. These two do.
@@ -2768,6 +2770,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     // cameras reports every cull each of them made.
     stats_.culled += collectCtx.culled;
     stats_.occluded += collectCtx.occluded;
+    stats_.lightsSpared += collectCtx.lightsSpared;
 
     velocity_list_.clear();
     cover_list_.clear();

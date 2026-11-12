@@ -377,6 +377,13 @@ struct RenderCollectContext {
     u32 occluded = 0;
 
     /**
+     * @brief Light slots the lit quads of this collect were spared: per quad, the loop lights that cannot reach it.
+     * @details What `lightReachMask2D` took off the fragments. A pixel shows nothing of it (a light out of reach added
+     *          zero before as well), so this is the number that says the reach still rides in the lane.
+     */
+    u32 lightsSpared = 0;
+
+    /**
      * @brief Which view is looking, where its level choices are kept, and where
      *        the selections it makes are counted.
      *

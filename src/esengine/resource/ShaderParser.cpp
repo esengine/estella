@@ -2494,7 +2494,8 @@ fn shadeLight2D(pd : vec4f, col : vec4f, sp : vec4f, sh : vec4f, sm : vec4f, fo 
     }
     return col.rgb * (col.a * max(dot(N, L), 0.0) * atten);
 }
-fn applyLighting2DAO(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32) -> vec3f {
+// `reach`: bit i set when loop light i can reach this quad at all (see the GLSL twin); the rest are not worked out.
+fn applyLighting2DReach(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32, reach : u32) -> vec3f {
     let P = vec3f(worldPos, 0.0);
     g_probePos = P;
     var lit = indirectIrradiance(N) * ao;
@@ -2513,6 +2514,7 @@ fn applyLighting2DAO(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32) -> v
 #endif
     let lightCount = i32(lc.u_ambient.a);
     for (var i = 0; i < lightCount; i++) {
+        if (((reach >> u32(i)) & 1u) == 0u) { continue; }
         lit += shadeLight2D(lc.u_lights[i].posDir, lc.u_lights[i].color, lc.u_lights[i].spot, lc.u_lights[i].shadow,
                             lc.u_lights[i].shadowMap, lc.u_lights[i].falloff, N, P, masked, shadowMask, shapeMask, true);
     }
@@ -2541,13 +2543,21 @@ fn applyLighting2DAO(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32) -> v
 #endif
     return albedo * lit;
 }
+fn applyLighting2DAO(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32) -> vec3f {
+    return applyLighting2DReach(albedo, N, worldPos, ao, 65535u);
+}
 fn applyLighting2D(albedo : vec3f, N : vec3f, worldPos : vec2f) -> vec3f {
     return applyLighting2DAO(albedo, N, worldPos, 1.0);
 }
-// The same, for a sprite that knows its layer: layerLane is the varying the vertex stage wrote (v_lightLayer).
+// The same, for a sprite that knows its layer: layerLane is the varying the vertex stage wrote (v_lightLayer). A negative lane carries,
+// above the layer, which lights reach the quad (packSpriteLightLane); the sixteenth light has no bit and is always worked out.
 fn applyLighting2DLayer(albedo : vec3f, N : vec3f, worldPos : vec2f, layerLane : f32) -> vec3f {
-    g_surfaceLayer = layerLane;
-    return applyLighting2DAO(albedo, N, worldPos, 1.0);
+    let lane = abs(layerLane);
+    let reachLane = floor(lane * 0.001953125);
+    g_surfaceLayer = lane - reachLane * 512.0;
+    var reach = 65535u;
+    if (layerLane < 0.0) { reach = u32(reachLane) + 32768u; }
+    return applyLighting2DReach(albedo, N, worldPos, 1.0, reach);
 }
 )";
 
@@ -4132,8 +4142,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    }\n"
             "    lit += col.rgb * (col.a * max(dot(N, L), 0.0) * atten);\n"
             "}\n"
-            "highp vec3 applyLighting2DAO(highp vec3 albedo, highp vec3 N, highp vec2 worldPos,\n"
-            "                             highp float ao) {\n"
+            // `reach`: bit i set when loop light i can reach this quad at all (lightReachMask2D, settled where the quad was submitted);
+            // the rest are not worked out. All sixteen bits for a surface nobody settled it for.
+            "highp vec3 applyLighting2DReach(highp vec3 albedo, highp vec3 N, highp vec2 worldPos,\n"
+            "                                highp float ao, int reach) {\n"
             "    highp vec3 P = vec3(worldPos, 0.0);\n"
             "    g_probePos = P;\n"
             "    highp vec3 lit = indirectIrradiance(N) * ao;\n"
@@ -4152,6 +4164,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "#endif\n"
             "    int lightCount = int(u_ambient.a);\n"
             "    for (int i = 0; i < lightCount; ++i) {\n"
+            "        if (((reach >> i) & 1) == 0) continue;\n"
             "        shadeLight2D(u_lights[i].posDir, u_lights[i].color, u_lights[i].spot, u_lights[i].shadow,\n"
             "                     u_lights[i].shadowMap, u_lights[i].falloff, N, P, masked, shadowMask, shapeMask, lit, true);\n"
             "    }\n"
@@ -4179,13 +4192,21 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "#endif\n"
             "    return albedo * lit;\n"
             "}\n"
+            "highp vec3 applyLighting2DAO(highp vec3 albedo, highp vec3 N, highp vec2 worldPos,\n"
+            "                             highp float ao) {\n"
+            "    return applyLighting2DReach(albedo, N, worldPos, ao, 65535);\n"
+            "}\n"
             "highp vec3 applyLighting2D(highp vec3 albedo, highp vec3 N, highp vec2 worldPos) {\n"
             "    return applyLighting2DAO(albedo, N, worldPos, 1.0);\n"
             "}\n"
             // The same, for a sprite that knows its layer: layerLane is the varying the vertex stage wrote (v_lightLayer).
+            // A negative lane carries, above the layer, which lights reach the quad (packSpriteLightLane): 512 apart, so the two come
+            // apart by a power of two and whole. The sixteenth light has no bit and is always worked out.
             "highp vec3 applyLighting2DLayer(highp vec3 albedo, highp vec3 N, highp vec2 worldPos, highp float layerLane) {\n"
-            "    g_surfaceLayer = layerLane;\n"
-            "    return applyLighting2DAO(albedo, N, worldPos, 1.0);\n"
+            "    highp float lane = abs(layerLane);\n"
+            "    highp float reach = floor(lane * 0.001953125);\n"
+            "    g_surfaceLayer = lane - reach * 512.0;\n"
+            "    return applyLighting2DReach(albedo, N, worldPos, 1.0, layerLane < 0.0 ? int(reach) + 32768 : 65535);\n"
             "}\n";
         // Emitted only for a variant that has the feature, not behind an #ifdef:
         // a varying declared in dead text still reads as one to a tool that

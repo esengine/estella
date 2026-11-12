@@ -15,7 +15,10 @@
 #include "../draw/SpriteDrawResolve.hpp"
 #include "../store/LightConstants.hpp"
 
+#include "../store/LightStore.hpp"
+
 #include <algorithm>
+#include <bit>
 #include <cmath>
 
 namespace esengine {
@@ -197,9 +200,27 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
         if (sprite.lit || sprite.material != 0) {
             const u32 vertexEnd = buffers.vertexBytesUsed(LayoutId::Batch);
             auto* vertices = reinterpret_cast<BatchVertex*>(buffers.vertexData(LayoutId::Batch));
-            const f32 lane = static_cast<f32>(std::clamp(sprite.layer, -128, 127)) + SPRITE_LAYER_BIAS;
-            for (u32 i = vertexStart / sizeof(BatchVertex); i < vertexEnd / sizeof(BatchVertex); ++i) {
-                vertices[i].sdfBias = lane;
+            // ...and with it, which of the frame's lights can reach each quad, so a pixel works out the lamps near it and not every
+            // lamp in the level (packSpriteLightLane). Quad by quad: a tiled floor is one sprite and hundreds of quads, and it is
+            // the floor that is lit. The lights were collected before any plugin ran, so the slots are the ones the loop reads.
+            const LightStore& lights = ctx.render_context.lights();
+            const GpuLight* slots = lights.data().lights;
+            const u32 lightCount = lights.count();
+            const u32 first = vertexStart / sizeof(BatchVertex);
+            const u32 end = vertexEnd / sizeof(BatchVertex);
+            const u32 step = (end - first) % 4 == 0 ? 4 : std::max(end - first, 1u);
+            for (u32 q = first; q < end; q += step) {
+                glm::vec2 lo{vertices[q].position};
+                glm::vec2 hi = lo;
+                for (u32 i = q + 1; i < q + step; ++i) {
+                    lo = glm::min(lo, glm::vec2{vertices[i].position});
+                    hi = glm::max(hi, glm::vec2{vertices[i].position});
+                }
+                const u32 reach = lightReachMask2D(slots, lightCount, lo, hi);
+                collect_ctx.lightsSpared += std::min(lightCount, SPRITE_LIGHT_REACH_BITS)
+                                          - static_cast<u32>(std::popcount(reach));
+                const f32 lane = packSpriteLightLane(sprite.layer, reach);
+                for (u32 i = q; i < q + step; ++i) vertices[i].sdfBias = lane;
             }
         }
     }

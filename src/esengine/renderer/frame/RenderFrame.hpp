@@ -104,6 +104,8 @@ public:
         u32 culled = 0;
         /// Of `culled`, how many an occluder refused rather than the frustum.
         u32 occluded = 0;
+        /// Loop lights the lit quads did not have to work out (RenderCollectContext::lightsSpared).
+        u32 lightsSpared = 0;
         f32 gpu_time_ms = -1.0f; // -1 when the timer is unavailable
     };
 

@@ -185,6 +185,48 @@ struct LightConstants {
     glm::vec4 ambientGround{0.0f};
 };
 
+/**
+ * @brief Which of the loop's lights can reach a lit quad rides in the same vertex lane as its layer: `-(layer + 129 + 512 * reach)`.
+ * @details A lit pixel used to work every light of the frame out, the ones across the level included, and that arithmetic is the whole
+ *          cost of 2D lighting (docs/GPU_PERFORMANCE_OPTIONS.md, section 9). The quad's box is known where it is submitted, so which
+ *          lights reach it is settled there and the fragment skips the rest. NEGATIVE says the lane carries a reach at all: a lane
+ *          written by anything older, or by a draw that does not know, is the bare layer and every light is worked out as before.
+ *          Fifteen bits, because 9 bits of layer and 15 of reach is what a float carries whole; the sixteenth light is always worked out.
+ */
+inline constexpr f32 SPRITE_LIGHT_REACH_STEP = 512.0f;
+inline constexpr u32 SPRITE_LIGHT_REACH_BITS = 15;
+
+/**
+ * @brief Bit i set when loop light i can put any light on the box @p lo .. @p hi (the plane's XY, the space the vertices are in).
+ * @details A light's ramp is zero from its radius outward whichever way it falls off (distanceFalloff), so a box wholly past the
+ *          radius gets exactly nothing from it. A directional light reaches everything; a light of no intensity reaches nothing.
+ *          The radius is taken a hair wide: the fragment measures from an interpolated position, not from the corners.
+ */
+inline u32 lightReachMask2D(const GpuLight* lights, u32 count, const glm::vec2& lo, const glm::vec2& hi) {
+    u32 mask = 0;
+    const u32 n = std::min(count, SPRITE_LIGHT_REACH_BITS);
+    for (u32 i = 0; i < n; ++i) {
+        const GpuLight& light = lights[i];
+        if (light.color.a == 0.0f) continue;
+        const bool directional = light.posDir.z >= 0.5f && light.posDir.z < 1.5f;
+        if (!directional) {
+            const f32 dx = std::max(std::max(lo.x - light.posDir.x, light.posDir.x - hi.x), 0.0f);
+            const f32 dy = std::max(std::max(lo.y - light.posDir.y, light.posDir.y - hi.y), 0.0f);
+            const f32 reach = std::max(light.posDir.w, 0.0001f) * 1.001f + 0.001f;
+            if (dx * dx + dy * dy >= reach * reach) continue;
+        }
+        mask |= 1u << i;
+    }
+    return mask;
+}
+
+/** @brief The lane a lit quad carries: its layer and the lights that reach it (lightReachMask2D). */
+inline f32 packSpriteLightLane(i32 layer, u32 reachMask) {
+    const f32 layerLane = static_cast<f32>(std::clamp(layer, -128, 127)) + SPRITE_LAYER_BIAS;
+    const u32 reach = reachMask & ((1u << SPRITE_LIGHT_REACH_BITS) - 1u);
+    return -(layerLane + SPRITE_LIGHT_REACH_STEP * static_cast<f32>(reach));
+}
+
 static_assert(sizeof(GpuLight) == 96, "GpuLight must be std140-tight (six vec4s)");
 static_assert(sizeof(LightConstants) <= 16384, "the block has to fit the 16 KB every device guarantees a uniform block");
 static_assert(sizeof(LightConstants) == 16 + 96 * MAX_LIGHTS + 16
