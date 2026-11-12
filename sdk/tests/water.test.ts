@@ -32,7 +32,7 @@ function facing(p: Float32Array, a: number, b: number, c: number): number {
 }
 
 describe('the waves', () => {
-    it('is the sum of the set\'s four peaked sines', () => {
+    it('is the sum of the set\'s peaked sines', () => {
         const t = 1.3;
         const [x, z] = waveBend(3.7, -2.2, params.length);
         let expected = 0;
@@ -80,7 +80,7 @@ describe('the waves', () => {
         WAVE_SET.forEach(([heading, lengthShare, heightShare, speedShare]) => {
             const radians = heading * Math.PI / 180;
             const numbers = [Math.cos(radians), Math.sin(radians), 1 / lengthShare, speedShare / Math.sqrt(lengthShare)].map((n) => n.toFixed(6));
-            const call = `run, far, ${numbers.join(', ')}, ${Number.isInteger(heightShare) ? heightShare.toFixed(1) : heightShare})`;
+            const call = `run, far, ${numbers.join(', ')}, ${heightShare.toFixed(6)})`;
             expect(source.split(call).length - 1, call).toBe(2);
         });
     });

@@ -357,7 +357,7 @@ export {
     type PreSceneDrawCallback,
     type PreSceneDrawInfo,
 } from './render/customDraw';
-export { QualityController, judgeFrames, parseQualityConfig, resolveQualityProfile, defaultQualityProfile, defaultQualityMode } from './render/quality';
+export { QualityController, judgeFrames, parseQualityConfig, resolveQualityProfile, defaultQualityProfile, defaultQualityMode, MOST_WATER_WAVES } from './render/quality';
 export type {
     QualityConfig, QualityProfile, QualityLevel, QualityMode,
     QualityReport, QualitySample, FrameVerdict, DeviceQualityInfo, DeviceQualityRule,

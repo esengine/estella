@@ -64,7 +64,7 @@ terrain changes, at a cost of the texels times the bodies.
 
 ## Waves
 
-Four peaked sines (`exp(sin(theta) - 1)`: a crest narrower than its trough) a few directions apart, each with a length, a height and a speed
+Eight peaked sines (`exp(sin(theta) - 1)`: a crest narrower than its trough) spread about the wind, each shorter than the last, each with a length, a height and a speed
 that are shares of the zone's `waveLength`, `waveSpeed` and `waveDirection`. Every body shares them; how high they stand at a place is that place's in the
 field: its body's `waveHeight`, times the share the shore leaves, times the weather's (a `Weather` that drives the wind scales the waves as far as the water
 is open to it: wind waves grow with the water they blow over, so the sea takes the weather whole, a lake the more the wider it is against eight `waveLength`s,
@@ -262,7 +262,7 @@ Water spends what the project's quality level says it may. The five fields are i
 
 | Field | Low | Medium | High | What it does |
 |---|---|---|---|---|
-| `waterWaves` | 2 | 3 | 4 | How many of the four waves are summed: in the geometry, the shading, and what `Waters.sample` answers. |
+| `waterWaves` | 3 | 5 | 8 | How many of the eight waves are summed, longest first: in the geometry, the shading, and what `Waters.sample` answers. |
 | `waterRippleCells` | 32 | 64 | 128 | The most cells along a side of the ripple grid; the zone's own `ripples` is held to it, and 0 keeps none. |
 | `waterDisplacement` | off | on | on | Whether the waves lift the geometry. Off is the **lite water**: a surface at the water's rest height whose waves are in the shading only. |
 | `waterMirror` | off | on | on | Whether the surface seen from below mirrors the world under it (the screen-space march). |
@@ -350,4 +350,4 @@ What is not there yet, so nobody is surprised:
 - The mirror from below is screen-space: it shows only what the frame has on screen, and a ray that leaves the picture or meets nothing finds the water's own colour.
 - Ripples only bend the shading and carry foam: they do not lift the geometry, and they are one window following the camera, so water far from the camera keeps none and two cameras
   in a split screen share the first's. Foam that a ripple leaves is not carried by a river's current, and the waves the geometry is lifted by are not carried by it either (only the shading's).
-- The waves are the four peaked sines, not a spectrum, and they lift the surface without pushing it sideways.
+- The waves are eight peaked sines spread about the wind, not a simulated spectrum, and they lift the surface without pushing it sideways.

@@ -34,7 +34,7 @@ import { BlendMode } from '../render/blend';
 import { log } from '../util/logger';
 import { bakesOf } from '../runtime/bakes';
 import type { Entity } from '../types';
-import { surfHeight, waveHeight, waveSlope, type WaveParams } from './waves';
+import { surfHeight, waveHeight, waveSlope, WAVE_SET_SIZE, type WaveParams } from './waves';
 import { buildOceanMesh, oceanReach, oceanSnap } from './waterMesh';
 import { worldUnitsPerMeter } from '../ecs/worldUnits';
 import { type Point2 } from './shore';
@@ -124,7 +124,7 @@ export interface WaterQuality {
 }
 
 /** Everything on: a project with no quality policy, off a minigame. */
-export const FULL_WATER: WaterQuality = { waves: 4, rippleCells: 256, displacement: true, mirror: true, caustics: true };
+export const FULL_WATER: WaterQuality = { waves: WAVE_SET_SIZE, rippleCells: 256, displacement: true, mirror: true, caustics: true };
 
 /**
  * What water is allowed: the active quality profile when the project has a quality policy running; else the low profile on a minigame, which has the least to spend and

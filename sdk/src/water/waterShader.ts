@@ -8,6 +8,24 @@
  */
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
 import { CAUSTICS_GLSL, CAUSTICS_WGSL } from '../render/waterCaustics';
+import { WAVE_SET, WAVE_SET_SIZE } from './waves';
+
+// The waves, written into the shader from the one table the CPU sums (waves.ts).
+const num = (v: number): string => v.toFixed(6);
+const WAVE_ROWS = WAVE_SET.map(([heading, length, height, speed]) => `(${num(heading)}, ${num(length)}, ${num(height)}, ${num(speed)})`);
+const WAVES_GLSL = `const vec4 SET[${WAVE_SET_SIZE}] = vec4[${WAVE_SET_SIZE}](${WAVE_ROWS.map((r) => `vec4${r}`).join(', ')});`;
+const WAVES_WGSL = `var wave = array<vec4f, ${WAVE_SET_SIZE}>(${WAVE_ROWS.map((r) => `vec4f${r}`).join(', ')});`;
+/** One wave's arguments to `peakedWave`: its turn off the wind, its frequency and its speed as multiples of the longest's, its share of the height. */
+const waveArgs = ([heading, length, height, speed]: readonly [number, number, number, number]): string => {
+    const a = heading * Math.PI / 180;
+    return `${num(Math.cos(a))}, ${num(Math.sin(a))}, ${num(1 / length)}, ${num(speed / Math.sqrt(length))}, ${num(height)}`;
+};
+const SLOPES_GLSL = WAVE_SET.map((w, i) => i === 0
+    ? `    vec3 sum = peakedWave(bend.xy, along, k, run, far, ${waveArgs(w)});\n    float weightSum = ${num(w[2])};`
+    : `    if (u_waveCount > ${i}.5) { sum += peakedWave(bend.xy, along, k, run, far, ${waveArgs(w)}); weightSum += ${num(w[2])}; }`).join('\n');
+const SLOPES_WGSL = WAVE_SET.map((w, i) => i === 0
+    ? `    var sum = peakedWave(bend.xy, along, k, run, far, ${waveArgs(w)});\n    var weightSum = ${num(w[2])};`
+    : `    if (mc.u_waveCount > ${i}.5) { sum = sum + peakedWave(bend.xy, along, k, run, far, ${waveArgs(w)}); weightSum = weightSum + ${num(w[2])}; }`).join('\n');
 
 // A horizontal body of water: waves that travel, the scene seen through it bent and tinted by how much water lies in front of it, the sky
 // and the lights reflected off it, and foam where it meets what it lies on and on the crests. It reads the picture of the opaque scene
@@ -86,7 +104,7 @@ const WATER = `#pragma shader "Water"
 #pragma param u_causticSpeed float default(0.35) range(0,4) ui(slider)
 // What the quality level allows (the WaterZone writes these): how many of the four waves are summed, whether the surface seen from below mirrors the world under it,
 // and whether the sun's web of light is drawn on what lies under the water.
-#pragma param u_waveCount float default(4) range(1,4) ui(slider)
+#pragma param u_waveCount float default(${WAVE_SET_SIZE}) range(1,${WAVE_SET_SIZE}) ui(slider)
 #pragma param u_mirror float default(1) range(0,1) ui(slider)
 #pragma param u_causticOn float default(1) range(0,1) ui(slider)
 // The disturbance the water keeps (WaterZone ripples): a window of the xz plane, red the height of the ripples (0.5 at rest, u_rippleRange above or below at 1 and 0)
@@ -119,7 +137,7 @@ const WATER = `#pragma shader "Water"
 
 #pragma vertexbounds 16
 #pragma vertexoffset
-// The height of the waves at p: the same four peaked sines the fragment takes its slope from, so the surface that is lit is the one that is drawn.
+// The height of the waves at p: the same peaked sines the fragment takes its slope from, so the surface that is lit is the one that is drawn.
 // Where the waves are read for the true place p, bent by the given span (waves.ts: waveBend): crests of straight sines a few directions apart
 // add up to long parallel lines, a sea scored with strokes that turn with the wind. xy to read at; zw dx/dz and dz/dx, for a slope. One
 // sine an axis: this runs for every pixel of the water, and with a term more a phone paid 11 ms a frame for it.
@@ -130,10 +148,10 @@ vec4 waterBend(vec2 p, float span) {
 }
 float waterWaveHeight(vec2 p, float time, float cell) {
     vec2 at = waterBend(p, u_waveLength).xy;
-    const vec4 SET[4] = vec4[4](vec4(0.0, 1.0, 1.0, 1.0), vec4(28.0, 0.62, 0.55, 1.1), vec4(-37.0, 0.37, 0.3, 1.2), vec4(71.0, 0.21, 0.15, 1.35));
+    ${WAVES_GLSL}
     float height = 0.0;
     float base = radians(u_waveDirection);
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < ${WAVE_SET_SIZE}; ++i) {
         if (float(i) >= u_waveCount) break;
         float length_ = u_waveLength * SET[i].y;
         float k = 6.2831853 / length_;
@@ -234,10 +252,10 @@ fn waterBend(p : vec2f, span : f32) -> vec4f {
 }
 fn waterWaveHeight(p : vec2f, time : f32, cell : f32) -> f32 {
     let at = waterBend(p, mc.u_waveLength).xy;
-    var wave = array<vec4f, 4>(vec4f(0.0, 1.0, 1.0, 1.0), vec4f(28.0, 0.62, 0.55, 1.1), vec4f(-37.0, 0.37, 0.3, 1.2), vec4f(71.0, 0.21, 0.15, 1.35));
+    ${WAVES_WGSL}
     var height = 0.0;
     let base = radians(mc.u_waveDirection);
-    for (var i : i32 = 0; i < 4; i = i + 1) {
+    for (var i : i32 = 0; i < ${WAVE_SET_SIZE}; i = i + 1) {
         if (f32(i) >= mc.u_waveCount) { break; }
         let spec = wave[i];
         let span = mc.u_waveLength * spec.y;
@@ -426,7 +444,7 @@ vec2 rainRings(vec2 p, float time, float rain) {
 }
 
 /// The slope of the water's surface at p (d height / d x, d height / d z) and how near the waves are to a crest, 0 to 1.
-/// Four waves a few directions apart, each a peaked sine (exp(sin - 1)) whose crests are narrower than its troughs.
+/// The set's waves, each a peaked sine (exp(sin - 1)) whose crests are narrower than its troughs.
 // One of them: xy its slope, without its height; z its crest.
 vec3 peakedWave(vec2 at, vec2 along, float k, float run, float far, float turnCos, float turnSin, float perLength, float perRun, float share) {
     vec2 d = vec2(along.x * turnCos + along.y * turnSin, along.y * turnCos - along.x * turnSin);
@@ -442,12 +460,7 @@ vec2 waveSlope(vec2 p, float time, float dist, out float crest) {
     float k = 6.2831853 / u_waveLength;
     float run = sqrt(9.8 * k) * u_waveSpeed * time;
     float far = dist / (u_waveLength * 220.0);
-    // Headings 0, 28, -37 and 71 degrees off the wind; lengths 1, 0.62, 0.37 and 0.21 of the longest; heights 1, 0.55, 0.3 and 0.15 of it.
-    vec3 sum = peakedWave(bend.xy, along, k, run, far, 1.000000, 0.000000, 1.000000, 1.000000, 1.0);
-    float weightSum = 1.0;
-    if (u_waveCount > 1.5) { sum += peakedWave(bend.xy, along, k, run, far, 0.882948, 0.469472, 1.612903, 1.397001, 0.55); weightSum += 0.55; }
-    if (u_waveCount > 2.5) { sum += peakedWave(bend.xy, along, k, run, far, 0.798636, -0.601815, 2.702703, 1.972788, 0.3); weightSum += 0.3; }
-    if (u_waveCount > 3.5) { sum += peakedWave(bend.xy, along, k, run, far, 0.325568, 0.945519, 4.761905, 2.945942, 0.15); weightSum += 0.15; }
+${SLOPES_GLSL}
     vec2 slope = sum.xy * u_waveHeight;
     crest = sum.z / weightSum;
     return vec2(slope.x + slope.y * bend.w, slope.y + slope.x * bend.z);
@@ -957,11 +970,7 @@ fn waveSlope(p : vec2f, time : f32, dist : f32) -> Waves {
     let k = 6.2831853 / mc.u_waveLength;
     let run = sqrt(9.8 * k) * mc.u_waveSpeed * time;
     let far = dist / (mc.u_waveLength * 220.0);
-    var sum = peakedWave(bend.xy, along, k, run, far, 1.000000, 0.000000, 1.000000, 1.000000, 1.0);
-    var weightSum = 1.0;
-    if (mc.u_waveCount > 1.5) { sum = sum + peakedWave(bend.xy, along, k, run, far, 0.882948, 0.469472, 1.612903, 1.397001, 0.55); weightSum = weightSum + 0.55; }
-    if (mc.u_waveCount > 2.5) { sum = sum + peakedWave(bend.xy, along, k, run, far, 0.798636, -0.601815, 2.702703, 1.972788, 0.3); weightSum = weightSum + 0.3; }
-    if (mc.u_waveCount > 3.5) { sum = sum + peakedWave(bend.xy, along, k, run, far, 0.325568, 0.945519, 4.761905, 2.945942, 0.15); weightSum = weightSum + 0.15; }
+${SLOPES_WGSL}
     let slope = sum.xy * mc.u_waveHeight;
     var out : Waves;
     out.slope = vec2f(slope.x + slope.y * bend.w, slope.y + slope.x * bend.z);

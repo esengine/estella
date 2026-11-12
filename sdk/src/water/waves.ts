@@ -4,10 +4,10 @@
  * @file    waves.ts
  * @brief   The height of the water, in one formula the CPU and the Water shader share.
  *
- * @details Four peaked sines (`exp(sin(theta) - 1)`: a crest narrower than its trough) a few directions apart, each with its own length,
- *          weight and speed taken from four numbers. The shader's `waterWaveHeight` and `waveSlope` are the same arithmetic written in
- *          GLSL and WGSL, so what a floating object reads here is what is drawn there. Change a constant in one place and the other
- *          two places have to change with it; the table below is the one the shaders repeat.
+ * @details A set of peaked sines (`exp(sin(theta) - 1)`: a crest narrower than its trough) spread about the wind, each with its own length,
+ *          height and speed. The shader's `waterWaveHeight` and `waveSlope` are the same arithmetic in GLSL and WGSL, written out FROM the
+ *          table below when the shader's source is assembled (waterShader.ts), so what a floating object reads here is what is drawn there
+ *          and there is one place to change a wave.
  *
  *          Each wave is taken at a place bent off the true one (`waveBend`). Straight sines a few directions apart add up to crests
  *          that are long parallel lines, which is how a sea of them looked from above: scored with diagonal strokes, turning with the
@@ -16,17 +16,38 @@
  *          Everything here is in the body's own space: x and z along its surface, the height along its up.
  */
 
+/** How many waves a sea is the sum of at most. */
+export const WAVE_SET_SIZE = 8;
+/** How far to either side of the wind the waves head, in degrees. */
+const SPREAD = 65;
+/** Each wave's length as a share of the one before it. */
+const SHORTER = 0.78;
+/** What the heights of the whole set add up to, as a share of the body's height: the most a crest can stand above the rest plane. */
+export const WAVE_SET_HEIGHT = 2;
+
+/**
+ * The set a sea is summed from, longest first: the first heads with the wind, each after it is shorter by the same share, lower as nearly as
+ * much (a wind sea's waves are about as steep at every length) and off the wind by a golden-ratio step, so no two headings are near and no
+ * two lengths share a multiple. Every wave travels at the speed its length gives deep water.
+ */
+function buildWaveSet(): readonly (readonly [number, number, number, number])[] {
+    const raw: [number, number, number, number][] = [];
+    for (let i = 0; i < WAVE_SET_SIZE; i++) {
+        const length = SHORTER ** i;
+        const turn = i * 0.6180339887;
+        raw.push([i === 0 ? 0 : SPREAD * ((turn - Math.floor(turn)) * 2 - 1), length, length ** 0.9, 1]);
+    }
+    const total = raw.reduce((sum, w) => sum + w[2], 0);
+    const round = (v: number, digits: number): number => Number(v.toFixed(digits));
+    return raw.map(([heading, length, height, speed]) => [round(heading, 1), round(length, 4), round(height * WAVE_SET_HEIGHT / total, 4), speed] as const);
+}
+
 /** Each wave of the set: its heading off the base direction (degrees), its length and its height as shares of the body's, and its speed share. */
-export const WAVE_SET: readonly (readonly [number, number, number, number])[] = [
-    [0, 1, 1, 1],
-    [28, 0.62, 0.55, 1.1],
-    [-37, 0.37, 0.3, 1.2],
-    [71, 0.21, 0.15, 1.35],
-];
+export const WAVE_SET: readonly (readonly [number, number, number, number])[] = buildWaveSet();
 
 /** What shapes the waves: a WaterZone's and its bodies' heights, and the parameters of the Water material they are written to. */
 export interface WaveParams {
-    /** Height of the tallest wave, in world units. */
+    /** Half of the most a crest stands above the rest plane (the set's heights add up to twice this), in world units. */
     height: number;
     /** Length of the longest wave. */
     length: number;
@@ -34,7 +55,7 @@ export interface WaveParams {
     speed: number;
     /** The base heading, in degrees. */
     direction: number;
-    /** How many of the set's waves are summed, 1 to 4 (the quality level's); all of them when absent. */
+    /** How many of the set's waves are summed, longest first (the quality level's); all of them when absent. */
     count?: number;
 }
 
