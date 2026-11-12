@@ -4620,7 +4620,11 @@ cardV0: number
 cardV1: number
 castShadows: boolean
 cellSize: number
+colorMap: number
+colorMapFrom: number
+colorMapStrength: number
 count: number
+densityMap: number
 drawDistance: number
 heightMax: number
 heightMin: number
@@ -4647,6 +4651,7 @@ zoneWorld: string
 @internal landed_: (() => void)[]
 cellCount: number
 pending: number
+washed_: Set<number>
 static new (): FoliageField
 static prototype: FoliageField
 ```

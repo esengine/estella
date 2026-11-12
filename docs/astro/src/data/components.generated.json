@@ -2418,6 +2418,32 @@
           "doc": "A material on the Foliage shader, which makes the wind. Empty draws the plants still, in their own colours."
         },
         {
+          "key": "densityMap",
+          "type": "Asset<texture>",
+          "default": "none",
+          "doc": "An image over the area whose red says how many of the plants stand where: none at black, all of them at white. Its Use is Data. Empty grows them everywhere."
+        },
+        {
+          "key": "colorMap",
+          "type": "Asset<texture>",
+          "default": "none",
+          "doc": "A picture over the area that colours the plants by where they stand, mixed in by its alpha. Needs a material."
+        },
+        {
+          "key": "colorMapStrength",
+          "type": "number",
+          "default": "1",
+          "doc": "How much of the colour map is mixed in where its alpha is whole.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "colorMapFrom",
+          "type": "number",
+          "default": "0",
+          "doc": "How far up a plant the colour map begins: 0 colours it whole, higher only its top.",
+          "range": "0–1, step 0.01"
+        },
+        {
           "key": "sizeX",
           "type": "number",
           "default": "400",
@@ -2578,6 +2604,10 @@
       "animatable": [
         "mesh",
         "material",
+        "densityMap",
+        "colorMap",
+        "colorMapStrength",
+        "colorMapFrom",
         "sizeX",
         "sizeZ",
         "cellSize",

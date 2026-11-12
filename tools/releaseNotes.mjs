@@ -4542,6 +4542,10 @@ export const NOTED = {
     {"note": "A colour map over the ground."},
   "fix(materials): a mesh shader's eighth texture finds a unit - reading its base texture as u_textures[0] was counted as reading all eight batch units, so Ground Blend lost its wet map and did not compile on WebGPU, and voxel ground had given its own up; a literal index is that unit alone":
     {"note": "A mesh shader's eighth texture finds a unit."},
+  "feat(foliage): a density map and a colour map - Foliage.densityMap says how many of the plants stand where, so flowers grow in drifts, and Foliage.colorMap colours them by where they stand, so one mesh and one material make a meadow of many colours":
+    {"note": "A meadow: a density map and a colour map for Foliage."},
+  "fix(foliage): a field of any size is cut into cells no wider than its cell size - past 200 cells a side each cell was left wider than the plants scattered in it, so a meadow over a large terrain grew in clumps with bare ground between":
+    {"note": "A Foliage field of any size is cut into cells no wider than its cell size."},
   "fix(terrain): a splatmap is numbers too - cooked as a picture its three weights were overwritten wherever the fourth was 0, and the whole ground was painted as grass; it is marked Data when it is set, as the heightmap is":
     {"note": "A texture says whether it is a picture or numbers."},
 };
