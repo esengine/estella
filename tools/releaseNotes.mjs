@@ -4406,4 +4406,100 @@ export const NOTED = {
     {"note": "A material that loaded with part of it missing no longer fails in silence."},
   "feat(editor): a material written with something that will not take effect says so in the reply, and its field in Details is marked":
     {"note": "A material that loaded with part of it missing no longer fails in silence."},
+  "fix(shadows): every level asks its shadow from a point moved off the surface along the normal - the full-lighting path too, hard edge, blocker search and soft filter; the nine shadow oracles hold on both backends":
+    {"note": "A wall under a roof is no longer sunlit along its top."},
+  "perf(foliage): a field's cells are made on the workers and only landed in the frame - the first seconds of a generated world run at 5-12 ms a frame instead of 20":
+    {"note": "A generated world is there in a second instead of thirty."},
+  "perf(streaming): a generated world is there in a second instead of thirty - terrain pages are made on the workers, the frame's budget is shared among what streams, and what stands by the player gets more of it":
+    {"note": "A generated world is there in a second instead of thirty."},
+  "fix(shadows): no sunlight on the top of a wall under a roof at the low and medium levels - a level that lights directly moves the lookup off the surface along its normal instead of up to eleven coarse texels toward the light, which was further than a ceiling is thick":
+    {"note": "A wall under a roof is no longer sunlit along its top."},
+  "fix(quality): the cheaper dynamic GI reaches a level put in force after the stack was built - it is written on the effects each frame, not on the stack as it is made; on a phone the switch did nothing (14.9 ms) and now gives 12.3":
+    {"note": "A quality level decides what the dynamic GI spends."},
+  "perf(gi): the medium level runs the dynamic GI its cheaper way - half-resolution gather, a quarter of a probe's rays a frame, cards over eight frames, two thirds of the probe rows; 7.3 -> 4.5 ms on a Snapdragon 8 Elite":
+    {"note": "A quality level decides what the dynamic GI spends."},
+  "fix(worldgen): a chunk of decoration or grass is drawn out to the distance its rule names, however little stands in it - a chunk with one group of rocks was culled 60 m away under a rule that said 1200":
+    {"note": "A chunk of decoration or grass is drawn out to the distance its rule names."},
+  "feat(gi): a half-resolution way to add the light - one pixel in four asks the probes and every pixel takes it from the four round it; the medium level runs it, and the apply costs 0.14 ms where it cost 0.25 at 1080p":
+    {"note": "A quality level decides what the dynamic GI spends."},
+  "feat(quality): the low level leaves the dynamic GI out, and a level that does builds no distance field for it either":
+    {"note": "A quality level decides what the dynamic GI spends."},
+  "fix(gi): no bright and dark blobs beside an edge the camera moves past - a probe whose own history is of another surface still mixes with the neighbours that are on its own":
+    {"note": "Dynamic global illumination that does not leak."},
+  "feat(audio): a native host streams long clips - the file stays compressed and each voice decodes as it plays, by the same rule as the web; a 175 s mp3 keeps 2.3 MB instead of 64, and loads in no time instead of a decode on the frame":
+    {"note": "A native app streams long audio clips."},
+  "fix(gi): walls that looked dirty - a probe that has not moved keeps five times the history, so the blotches left of the grain on a still wall go":
+    {"note": "Dynamic global illumination that does not leak."},
+  "fix(sidemodules): a game started over and over in one page no longer runs out of WebAssembly memory - the module host has an end, the App that made it disposes it on quit, and the KTX2 transcode workers stop with it":
+    {"note": "A game started over and over in one page no longer runs out of WebAssembly memory."},
+  "fix(gi): no dashed dark line down the edge two walls share - a probe whose G-buffer normal faces into a wall takes the field's way out instead, and a pixel weighs a probe's light by its own normal only as far as the probe faces the same way":
+    {"note": "Dynamic global illumination that does not leak."},
+  "fix(quality): dynamic resolution lowers the scale when the frame is late and its own run was not - a GPU timer that reads half a millisecond no longer counts as headroom, and on WebGPU that timer now covers the whole frame instead of the surface pass":
+    {"note": "Dynamic resolution lowers the scale when a frame is late."},
+  "fix(gi): the grain and the dots in the corners - a probe's history is mixed with the eight round it on the same surface, a probe the eye sees is always moved clear of the walls it stands between, and a pixel no probe agrees with takes what the probes get themselves":
+    {"note": "Dynamic global illumination that does not leak."},
+  "fix(native): the device language reaches the game - Android, iOS and desktop report the system locale, and 'zh-Hans-CN' reads as the 'zh-CN' a browser gives instead of always 'en'":
+    {"note": "The device's language reaches a native game."},
+  "fix(gi): no black band along the edges of a room - a ray that starts in a corner is moved clear of the wall next to it, and a card pixel buried in another body stays where it is so a sealed room stays dark":
+    {"note": "Dynamic global illumination that does not leak."},
+  "perf(gi): a scene with no GI yet is built 12 ms a frame instead of 3 - on a phone the first light comes in about 2 s, not 10; a moving camera keeps 3 ms":
+    {"note": "Dynamic global illumination that does not leak."},
+  "perf(gi): the first build of the field is sliced over frames, and a camera move sends only the rebuilt range - the cards keep their light instead of starting the bounces again every step":
+    {"note": "Dynamic global illumination that does not leak."},
+  "perf(gi): a camera that moves rebuilds the following field a few milliseconds a frame - boxes built only when the scene changes, levels repacked only when they changed, slabs queued; measured with a walking camera":
+    {"note": "Dynamic global illumination that does not leak."},
+  "perf(gi): half the probe rows on a phone, and a continuous probe filter - GI on a Snapdragon 8 Elite 20.5 -> 6.4 ms":
+    {"note": "Dynamic global illumination that does not leak."},
+  "perf(gi): the scene key is asked every frame and the boxes are built only when it changes; profiling switch u_skip is declared so it reaches the engine":
+    {"note": "Dynamic global illumination that does not leak."},
+  "fix(gi): the dynamic GI runs on a device - the scene is fed through the native heap, the apply reads each probe's stored position instead of rebuilding it; phone numbers and a skip switch for measuring":
+    {"note": "Dynamic global illumination that does not leak."},
+  "feat(gi): a distance field of three levels that follows the camera, and point and spot lights - lit in the cards with the frame's own falloff, shadowed through the field, held to the CPU reference on the lamp lab":
+    {"note": "Dynamic global illumination that does not leak."},
+  "perf(gi): dynamic GI 8.9 -> 3.3 ms at 1080p - a card relit by a workgroup of 64 rays, cards relit in slices, probes by stride and a fixed count, the nearest instance recorded per field cell; frame timing tool":
+    {"note": "Dynamic global illumination that does not leak."},
+  "fix(gi): the dynamic GI has no dark seam in a wall corner and a quieter picture - probes are taken from the nine nearest with a tent weight, history blend 0.15":
+    {"note": "Dynamic global illumination that does not leak."},
+  "feat(gi): the dynamic GI reads material emission and baked meshes - cards carry the emissive colour, a mesh brings its distance field and cards through the cook, checked on the lab rooms as meshes":
+    {"note": "Dynamic global illumination that does not leak."},
+  "feat(gi): dynamic GI on the GPU - card lighting, 8x8 screen probes traced through the distance field, applied to the picture; no leak in the sealed room and 0.54-1.08 of Cycles in the lab rooms":
+    {"note": "Dynamic global illumination that does not leak."},
+  "feat(gi): screen probes - octahedral hemisphere probes traced through the distance field into the surface cache, many bounces by iteration, checked against Cycles on the lab rooms":
+    {"note": "Dynamic global illumination that does not leak."},
+  "feat(gi): surface cache - mesh cards baked at import, lit by the sun with distance-field shadows, and looked up by a ray's hit":
+    {"note": "Dynamic global illumination that does not leak."},
+  "feat(gi): mesh distance fields load as assets, import can bake them, and the scene field composes them into clipmaps with a sphere trace checked on WebGPU":
+    {"note": "Dynamic global illumination that does not leak."},
+  "feat(pipeline): mesh signed distance field baker for the dynamic GI - exact near the surface, thin walls grown to a body, half-float file format":
+    {"note": "Dynamic global illumination that does not leak."},
+  "fix(sdk): importing esengine/gameplay or esengine/replication installs them under a bundler that treats chunks as pure":
+    {"note": "Importing a feature module installs it under a bundler that treats chunks as pure."},
+  "feat(post): AgX is its own effect group, esengine/fx-agx, so a package that does not use it does not carry its 80 KB of tables":
+    {"note": "AgX is its own effect group, `esengine/fx-agx`."},
+  "feat(post): AgX carries Blender's own tables and looks - 57^3 view transform and the luminance-compensated contrast look - read tetrahedrally, packed to 81 KB; within 1 code of Blender":
+    {"note": "AgX is Blender's AgX."},
+  "feat(export): a web package bundles the SDK with the host and the scripts, so what the game does not reach is not shipped":
+    {"note": "A web package carries only the SDK its game reaches."},
+  "fix(sdk): importing esengine/ai, tilemap, logic, worldgen, rig2d or dragonbones installs them under a bundler that treats chunks as pure":
+    {"note": "Importing a feature module installs it under a bundler that treats chunks as pure."},
+  "fix(post): AgX reads its table tetrahedrally as Blender does, so greys stay grey; oracle scenes for AgX against Blender and for soft point and spot shadows":
+    {"note": "AgX is Blender's AgX."},
+  "refactor(sdk): the animator graph and grip poses ship in esengine/skeletal-animation, installed only where the content uses them":
+    {"note": "The animator graph and grip poses ship in `esengine/skeletal-animation`."},
+  "fix(post): light shafts run along the sun's direction on screen under an orthographic camera; oracle scenes for shafts":
+    {"note": "Fog, water, sky, rain, depth of field and light shafts work under an orthographic camera."},
+  "fix(post): rain and depth of field measure from the camera's plane under an orthographic camera; oracle scenes for rain, depth of field and custom sky":
+    {"note": "Fog, water, sky, rain, depth of field and light shafts work under an orthographic camera."},
+  "fix(render): a camera that does not start at the window's corner draws through the post chain":
+    {"note": "A camera whose viewport does not start at the window's corner draws through the post-process chain."},
+  "fix(post): sky and clouds place the cloud layer from the camera's plane under an orthographic camera; oracle scenes for the sky dome and cloud shadows":
+    {"note": "Fog, water, sky, rain, depth of field and light shafts work under an orthographic camera."},
+  "fix(post): height fog and underwater start their ray at the camera's plane under an orthographic camera; oracle scenes for both":
+    {"note": "Fog, water, sky, rain, depth of field and light shafts work under an orthographic camera."},
+  "feat(mcp): the 3D look is taught by the editor's MCP, not a guide page":
+    {"note": "The 3D Starter looks finished out of the box."},
+  "feat(templates): the 3D Starter ships a finished look - sun shadows, sky light, fog, exposure and grade - with a guide to getting it":
+    {"note": "The 3D Starter looks finished out of the box."},
+  "feat(mcp): audit_look says why a 3D scene looks flat, and apply_look gives it a finished look":
+    {"note": "The 3D Starter looks finished out of the box."},
 };

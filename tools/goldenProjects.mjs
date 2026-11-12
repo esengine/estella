@@ -92,6 +92,12 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  "Dynamic global illumination that does not leak.":
+    { notCertifiable: "Covered by tools/render-lab/gi_oracle.py (six lab rooms held to Blender Cycles, the sealed room held to zero) and the gi-cost gate; no golden project lists the effect, and it needs WebGPU compute, which the golden frames are not drawn with." },
+  "A quality level decides what the dynamic GI spends.":
+    { notCertifiable: "Covered by sdk/tests/quality.test.ts and quality-default.test.ts (what each level skips and sets) and measured on a phone by hand; a golden frame is drawn at one level and cannot show what another spends." },
+  "A native app streams long audio clips.":
+    { notCertifiable: "A native host's memory and start time, which no golden frame can show. Measured by hand on Windows with a 175 s mp3 and run once on an Android phone; the repo has no test of it." },
   "Multi-touch can be turned off.":
     { notCertifiable: "Covered by sdk/tests/input-multitouch-switch.test.ts (the switch, its project default and the call that wins over it); a golden frame cannot show whether a second finger was ignored." },
   "A Spine skeleton can be part of a UI.":
