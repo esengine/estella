@@ -4624,6 +4624,7 @@ densityMap: number
 drawDistance: number
 farCards: boolean
 farGrow: number
+farGrowUp: number
 farKeep: number
 farLevels: number
 farStep: number
@@ -7692,6 +7693,7 @@ phase: number
 scale: number
 shade: number
 shear: readonly [number, number] | undefined
+spread: number | undefined
 up: readonly [number, number, number] | undefined
 x: number
 y: number

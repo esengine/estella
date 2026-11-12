@@ -25,6 +25,8 @@ export interface Plant {
     /** Turn about the vertical, radians. */
     yaw: number;
     scale: number;
+    /** How many times wider it is than its scale makes it, across the ground only: a far version's plant, standing for those left out. 1 when absent. */
+    spread?: number;
     /** 0 to 1: its own phase in the wind, and how dark its roots are. */
     phase: number;
     shade: number;
@@ -240,7 +242,10 @@ export function buildInstancedMesh(source: MeshData, plants: readonly Plant[], p
             if (!readNormal(v, n3)) { n3[0] = 0; n3[1] = 1; n3[2] = 0; }
             if (!readUv(v, uv2)) { uv2[0] = 0; uv2[1] = 0; }
             const t = Math.min(Math.max((p3[1]! - minY) / span, 0), 1);
-            const x = p3[0]! * plant.scale, y = p3[1]! * plant.scale, z = p3[2]! * plant.scale;
+            const wide = plant.spread ?? 1;
+            const x = p3[0]! * plant.scale * wide, y = p3[1]! * plant.scale, z = p3[2]! * plant.scale * wide;
+            // A normal turns the other way from what stretches its surface.
+            if (wide !== 1) { n3[0] = n3[0]! / wide; n3[2] = n3[2]! / wide; const l = Math.hypot(n3[0]!, n3[1]!, n3[2]!) || 1; n3[0] /= l; n3[1] = n3[1]! / l; n3[2] /= l; }
             const color = paint ? paintColor(paint, t, plant.shade) : [t, plant.phase, plant.shade * (0.6 + 0.4 * t)] as const;
             q[0] = x * cos + z * sin; q[1] = y; q[2] = -x * sin + z * cos;
             m[0] = n3[0]! * cos + n3[2]! * sin; m[1] = n3[1]!; m[2] = -n3[0]! * sin + n3[2]! * cos;
@@ -365,17 +370,18 @@ export function softenNormals(source: MeshData, amount: number): MeshData {
 }
 
 /**
- * The plants a far version keeps when it keeps a share `keep` of them: those whose own number (`phase`) is under it, each grown so the
- * ground they cover is what it was, to `most` times at most. By the plant's number and not its place in the list, because that number is
- * what the Foliage shader thins by: the version that takes over at a distance holds exactly the plants still drawn there. `slack` keeps a
- * few more, for the stretch either side of the switch where the two versions trade places.
+ * The plants a far version keeps of a share `keep`: those whose own number (`phase`) is under it (the number the Foliage shader thins by,
+ * so the version holds exactly the plants still drawn where it takes over; `slack` keeps a few more for the switch), each grown to cover
+ * the ground of those left out, `most` times at most. `up` is the share of that growth its height takes: at 0 it grows across the ground
+ * only (a clump of flowers is no taller than a flower), at 1 the same every way.
  */
-export function rankedPlants(plants: readonly Plant[], keep: number, most: number, slack = 1.25): readonly Plant[] {
+export function rankedPlants(plants: readonly Plant[], keep: number, most: number, slack = 1.25, up = 0): readonly Plant[] {
     const share = Math.min(Math.max(keep, 1e-3), 1);
     if (share >= 1) return plants;
     const grow = Math.min(Math.sqrt(1 / share), Math.max(most, 1));
     const out: Plant[] = [];
-    for (const p of plants) if (p.phase < share * slack) out.push({ ...p, scale: p.scale * grow });
+    const tall = 1 + (grow - 1) * Math.min(Math.max(up, 0), 1);
+    for (const p of plants) if (p.phase < share * slack) out.push({ ...p, scale: p.scale * tall, spread: (p.spread ?? 1) * (grow / tall) });
     return out;
 }
 
