@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AudioAPI } from '../src/audio/Audio';
+import { log } from '../src/util/logger';
 import { Assets } from '../src/asset/Assets';
 import type { Backend } from '../src/asset/Backend';
 import type { PlatformAudioBackend, AudioBufferHandle, AudioHandle } from '../src/audio/PlatformAudioBackend';
@@ -313,5 +314,67 @@ describe('AudioAPI buffer residency', () => {
 
         audio.releaseBuffer('sfx/held.mp3');   // cache refills after the trim
         expect(audio.getBufferStats().evictableCount).toBe(1);
+    });
+});
+
+// A three-minute track decoded is about 64 MB and the default cache is 32: the clip is larger than the whole
+// budget, so whatever loads next evicts it. A play that was waiting on it then found nothing and said nothing (#122).
+describe('a clip larger than the whole audio cache', () => {
+    function sized(bytes: Record<string, number>) {
+        const backend = createMockBackend();
+        const played: number[] = [];
+        let nextId = 100;
+        backend.loadBuffer = async (url: string): Promise<AudioBufferHandle> => {
+            backend.loads.push(url);
+            return { id: ++nextId, duration: 1, bytes: bytes[url] ?? 10 };
+        };
+        const play = backend.play;
+        backend.play = (buffer, config) => { played.push(buffer.id); return play(buffer, config); };
+        const audio = new AudioAPI(backend);
+        audio.setBufferBudget(32);
+        return { audio, backend, played };
+    }
+
+    it('still plays when other clips finish loading beside it', async () => {
+        const { audio, backend, played } = sized({ 'music/theme.mp3': 64 });
+        const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+        audio.playBGM('music/theme.mp3');
+        await Promise.all(['sfx/a.wav', 'sfx/b.wav', 'sfx/c.wav'].map((url) => audio.preload(url)));
+        await new Promise((r) => setTimeout(r, 0));
+        const said = warn.mock.calls.map((c) => String(c[1]));
+        warn.mockRestore();
+        expect(backend.loads).toContain('music/theme.mp3');
+        expect(played).toHaveLength(1);
+        expect(said.filter((m) => m.includes('did not play'))).toEqual([]);
+        // Said once, by name and with the numbers: it will be decoded again on its next play.
+        expect(said.filter((m) => m.includes('more than the whole'))).toHaveLength(1);
+        expect(said.find((m) => m.includes('more than the whole'))).toMatch(/music\/theme\.mp3.*streaming/);
+    });
+
+    it('is evictable again once its play has started', async () => {
+        const { audio } = sized({ 'music/theme.mp3': 64 });
+        const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+        audio.playBGM('music/theme.mp3');
+        await new Promise((r) => setTimeout(r, 0));
+        expect(audio.getBufferHandle('music/theme.mp3')).toBeDefined();
+        await audio.preload('sfx/a.wav');
+        warn.mockRestore();
+        // The waiting play is what held it; the cache is back under its budget now.
+        expect(audio.getBufferHandle('music/theme.mp3')).toBeUndefined();
+        expect(audio.getBufferStats().bufferBytes).toBeLessThanOrEqual(32);
+    });
+
+    it('says nothing about a streamed clip, which keeps only its file', async () => {
+        const { audio, backend } = sized({});
+        backend.loadBuffer = async (url: string): Promise<AudioBufferHandle> => (url.startsWith('music/')
+            ? { id: 7, duration: 175, bytes: 3, streamed: true, savedBytes: 64 } : { id: 8 + url.length, duration: 1, bytes: 10 });
+        const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+        audio.playBGM('music/theme.mp3');
+        await Promise.all(['sfx/a.wav', 'sfx/b.wav'].map((url) => audio.preload(url)));
+        await new Promise((r) => setTimeout(r, 0));
+        expect(warn).not.toHaveBeenCalled();
+        warn.mockRestore();
+        expect(audio.getBufferHandle('music/theme.mp3')).toBeDefined();
+        expect(audio.getBufferStats()).toMatchObject({ streamedCount: 1, streamedSavedBytes: 64 });
     });
 });

@@ -6712,7 +6712,7 @@ width: number
 
 ## NativeHostBindings — interface @experimental
 ```
-es_audioLoad: ((bytes: ArrayBuffer) => { id: number; duration: number; bytes: number; } | null) | undefined
+es_audioLoad: ((bytes: ArrayBuffer, stream?: boolean) => { id: number; duration: number; bytes: number; streamed?: boolean; } | null) | undefined
 es_audioPause: ((voiceId: number) => void) | undefined
 es_audioPlay: ((bufferId: number, volume: number, pan: number, loop: boolean, rate: number) => number) | undefined
 es_audioResume: ((voiceId: number) => void) | undefined

@@ -9,8 +9,11 @@
  *          The SDK's NativeAudioBackend is a thin shell over the es_audio*
  *          bindings, which in turn are a thin shell over this.
  *
- *          A buffer id names a decoded clip; a voice id names one playing
- *          instance. The miniaudio header is kept out of this interface (pimpl),
+ *          A buffer id names a loaded clip; a voice id names one playing
+ *          instance. A clip is held one of two ways: decoded to PCM, which starts
+ *          with no delay and costs its whole length in memory (0.37 MB a second),
+ *          or streamed, which keeps the compressed file and decodes each voice as
+ *          it plays — what music and anything else long wants. The miniaudio header is kept out of this interface (pimpl),
  *          so host_core.cpp does not pay to compile it.
  */
 #pragma once
@@ -36,11 +39,16 @@ public:
 
     struct Loaded {
         int id;             ///< < 0 on decode failure.
-        double duration;    ///< Seconds.
-        long long bytes;    ///< Decoded PCM size, for the residency budget.
+        double duration;    ///< Seconds; 0 when a streamed file does not say.
+        long long bytes;    ///< What stays resident: the PCM, or the compressed file when streamed.
+        bool streamed;      ///< Held compressed and decoded while it plays.
     };
-    /** Decode a compressed clip to PCM and register it. */
-    Loaded load(const uint8_t* bytes, size_t n);
+    /**
+     * Register a compressed clip: decoded to PCM now, or with @p stream kept as it
+     * is and decoded by each voice as it plays. A file that cannot be streamed is
+     * decoded instead, and `streamed` says which happened.
+     */
+    Loaded load(const uint8_t* bytes, size_t n, bool stream = false);
     void unload(int bufferId);
 
     /**

@@ -128,17 +128,22 @@ export interface NativeTextEditorBridge {
  * when the host bound the audio primitives; a host without a sound device omits
  * `NativeBridge.audio` and the audio system stays silent (the Null backend).
  *
- * A `bufferId` names a decoded clip; a `voiceId` names one playing instance of
+ * A `bufferId` names a loaded clip; a `voiceId` names one playing instance of
  * it. Both are non-negative host handles; a failed load or play returns null / -1.
  */
 export interface NativeAudioBridge {
     /** `bins` byte magnitudes of what is playing (0..Nyquist), or null when the
      *  host has no analyser / nothing has played. The device's AnalyserNode. */
     spectrum?(bins: number): ArrayBuffer | null;
-    /** Decode + register a clip from its (compressed) file bytes. Returns the
-     *  buffer handle, its length in seconds and its decoded size in bytes (for the
-     *  residency budget), or null on decode failure. */
-    load(bytes: ArrayBuffer): { id: number; duration: number; bytes: number } | null;
+    /**
+     * Register a clip from its (compressed) file bytes: decoded to PCM now, or —
+     * with `stream` — kept as the file and decoded by each voice as it plays.
+     * Returns the buffer handle, its length in seconds (0 when a streamed file does
+     * not say) and what stays resident in bytes, for the residency budget; null on
+     * decode failure. `streamed` is what the host did: one that cannot stream the
+     * file, or predates the argument, decodes it and leaves this unset.
+     */
+    load(bytes: ArrayBuffer, stream?: boolean): { id: number; duration: number; bytes: number; streamed?: boolean } | null;
     unload(bufferId: number): void;
     /** Start a voice on a loaded buffer. Returns its voice id, or -1 if the buffer
      *  is unknown. */

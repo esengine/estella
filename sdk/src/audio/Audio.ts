@@ -131,6 +131,10 @@ export class AudioAPI {
     private readonly bufferSources_ = new Map<string, SharedAudioBuffer>();
     /** refCount==0 urls in eviction order (oldest first); access re-appends. */
     private readonly evictOrder_ = new Set<string>();
+    /** Urls a play is waiting on, by how many: not evictable until that play has started. */
+    private readonly awaitingPlay_ = new Map<string, number>();
+    /** Clips already reported as larger than the whole budget. */
+    private readonly oversizeReported_ = new Set<string>();
     private residentBytes_ = 0;
     private bufferBudgetOverride_: number | null = null;
     /** Importer choices by authored path; a clip with none is `auto`. */
@@ -317,9 +321,26 @@ export class AudioAPI {
         if (!source.charged) {
             source.charged = true;
             this.residentBytes_ += handle.bytes ?? 0;
+            this.reportOversize_(url, handle);
             this.enforceBudget_();
         }
         this.evictOrder_.add(url);
+    }
+
+    /**
+     * A clip that is larger than the whole budget cannot be kept warm: making room for it empties the cache,
+     * and the next clip to load evicts it in turn, so it is decoded again every time it is played. Nothing
+     * about that is visible from the game — the sound just starts late, or not at all — so it is said once.
+     */
+    private reportOversize_(url: string, handle: AudioBufferHandle): void {
+        const bytes = handle.bytes ?? 0;
+        const budget = this.bufferBudget;
+        if (budget === 0 || bytes <= budget || this.oversizeReported_.has(url)) return;
+        this.oversizeReported_.add(url);
+        const mb = (n: number): string => (n / (1024 * 1024)).toFixed(1);
+        log.warn('audio', `${url} takes ${mb(bytes)} MB decoded, more than the whole ${mb(budget)} MB audio cache `
+            + '(audioCacheBudget): it is dropped as soon as another clip loads and decoded again on its next play. '
+            + "Set its import to 'streaming', or raise the budget");
     }
 
     /** Cache lookup for playback: refreshes the LRU position of an evictable
@@ -362,6 +383,8 @@ export class AudioAPI {
         if (budget === 0) return;
         for (const url of this.evictOrder_) {
             if (this.residentBytes_ <= budget) break;
+            // A play is about to start on it: evicting it now is a sound that never happens.
+            if (this.awaitingPlay_.has(url)) continue;
             const entry = this.bufferCache_.get(url);
             if (entry) this.freeBuffer_(url, entry);
         }
@@ -451,6 +474,29 @@ export class AudioAPI {
         await this.ensureBuffer_(url, source => (options ? this.backend_.loadBuffer(source, options) : this.backend_.loadBuffer(source)));
     }
 
+    /**
+     * Load `url` for a play that is waiting on it and start that play, as one step: the clip cannot be
+     * evicted between arriving and being played, which is what a load finishing beside it used to do to a
+     * clip larger than the budget. Says so when the clip is not there to play after all, instead of the
+     * silence that left a game with no music and nothing in its log.
+     */
+    private async loadThenPlay_(url: string, what: string, play: (buffer: AudioBufferHandle) => void): Promise<void> {
+        this.awaitingPlay_.set(url, (this.awaitingPlay_.get(url) ?? 0) + 1);
+        try {
+            await this.preload(url);
+            if (this.disposed_) return;
+            const buffer = this.lookupBuffer_(url);
+            if (buffer) play(buffer);
+            else log.warn('audio', `${what} did not play: ${url} loaded, but was gone from the audio cache before it could start`);
+        } catch (err) {
+            log.warn('audio', `Failed to preload ${what}: ${url}`, err);
+        } finally {
+            const left = (this.awaitingPlay_.get(url) ?? 1) - 1;
+            if (left > 0) this.awaitingPlay_.set(url, left);
+            else this.awaitingPlay_.delete(url);
+        }
+    }
+
     async preloadAll(urls: string[]): Promise<void> {
         await Promise.all(urls.map(url => this.preload(url)));
     }
@@ -506,14 +552,9 @@ export class AudioAPI {
         const buffer = this.lookupBuffer_(url);
         if (!buffer) {
             const pending = this.createDeferredHandle_(playConfig.volume ?? 1);
-            this.preload(url).then(() => {
-                if (this.disposed_ || epoch !== this.playbackEpoch_ || pending.cancelled) return;
-                const buf = this.lookupBuffer_(url);
-                if (buf) {
-                    pending.resolve(overrides => this.playVoice_(buf, { ...playConfig, ...overrides }));
-                }
-            }).catch(err => {
-                log.warn('audio', `Failed to preload audio: ${url}`, err);
+            void this.loadThenPlay_(url, 'audio', buf => {
+                if (epoch !== this.playbackEpoch_ || pending.cancelled) return;
+                pending.resolve(overrides => this.playVoice_(buf, { ...playConfig, ...overrides }));
             });
             return pending;
         }
@@ -556,15 +597,7 @@ export class AudioAPI {
         if (buffer) {
             play(buffer);
         } else {
-            this.preload(url).then(() => {
-                if (this.disposed_) return;
-                const buf = this.lookupBuffer_(url);
-                if (buf) {
-                    play(buf);
-                }
-            }).catch(err => {
-                log.warn('audio', `Failed to preload BGM: ${url}`, err);
-            });
+            void this.loadThenPlay_(url, 'BGM', play);
         }
     }
 

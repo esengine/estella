@@ -20,8 +20,9 @@ export interface AudioHandle {
 
 /**
  * How a clip is held: `decompress` decodes it to PCM at load, `streaming` plays it from its compressed
- * file, `auto` lets its length decide (see audioStreaming.ts). A backend with one way of playing a clip
- * ignores it.
+ * file, `auto` lets its length decide (see audioStreaming.ts) — the same rule on the web and on a native
+ * host, so a track that streams in the editor streams on the phone. A backend with one way of playing a
+ * clip ignores it.
  */
 export type AudioLoadType = 'auto' | 'decompress' | 'streaming';
 
@@ -32,7 +33,11 @@ export interface AudioLoadOptions {
 export interface AudioBufferHandle {
     readonly id: number;
     readonly duration: number;
-    /** Played from the compressed file, not decoded: `bytes` is then 0 and `savedBytes` is what decoding would have cost. */
+    /**
+     * Played from the compressed file, not decoded. `bytes` is then what the backend still keeps of it — nothing
+     * where the host's media element reads the file (web), the file itself where the engine decodes from memory
+     * (native) — and `savedBytes` is what decoding would have cost on top of that.
+     */
     readonly streamed?: boolean;
     /** The PCM a streamed clip did not take, estimated from its length. */
     readonly savedBytes?: number;

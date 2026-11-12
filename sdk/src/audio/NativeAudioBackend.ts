@@ -10,6 +10,10 @@
  *          JS — the no-JIT budget forbids it. `mixer` is therefore null (no JS
  *          DSP graph), like WeChat; per-voice volume / pan / rate / loop are the
  *          full control surface.
+ *
+ *          A clip the importer (or its length, under `auto`) says to stream is
+ *          handed to the host to keep compressed: the rule is audioStreaming.ts,
+ *          the one the web backend follows, so the two agree on which clips.
  */
 import type { AudioMixer } from './AudioMixer';
 import type {
@@ -17,6 +21,8 @@ import type {
     PlatformAudioBackend, PlayConfig,
 } from './PlatformAudioBackend';
 import type { NativeAudioBridge } from '../platform/native/bridge';
+import type { AudioLoadOptions } from './PlatformAudioBackend';
+import { decodedPcmBytes, shouldStream } from './audioStreaming';
 import { platformReadFile } from '../platform/base';
 import { scalar } from '../math/scalar';
 
@@ -82,21 +88,27 @@ export class NativeAudioBackend implements PlatformAudioBackend {
     async initialize(_options?: AudioBackendInitOptions): Promise<void> {}
     async ensureResumed(): Promise<void> {}
 
-    async loadBuffer(url: string): Promise<AudioBufferHandle> {
+    async loadBuffer(url: string, options?: AudioLoadOptions): Promise<AudioBufferHandle> {
         // On native the audio ref resolver hands back a packaged path (not bytes),
         // so read the file through the same platform channel as every other asset,
         // then let the native engine decode it.
-        return this.loadFromBytes_(await platformReadFile(url));
+        return this.loadFromBytes_(await platformReadFile(url), options);
     }
 
-    async loadBufferFromData(_url: string, data: ArrayBuffer): Promise<AudioBufferHandle> {
-        return this.loadFromBytes_(data);
+    async loadBufferFromData(_url: string, data: ArrayBuffer, options?: AudioLoadOptions): Promise<AudioBufferHandle> {
+        return this.loadFromBytes_(data, options);
     }
 
-    private loadFromBytes_(bytes: ArrayBuffer): AudioBufferHandle {
-        const decoded = this.audio_.load(bytes);
-        if (!decoded) throw new Error('[native] audio decode failed');
-        return { id: decoded.id, duration: decoded.duration, bytes: decoded.bytes };
+    private loadFromBytes_(bytes: ArrayBuffer, options?: AudioLoadOptions): AudioBufferHandle {
+        const loaded = this.audio_.load(bytes, shouldStream(options?.loadType, bytes));
+        if (!loaded) throw new Error('[native] audio decode failed');
+        // What the host DID, not what was asked: one that could not stream the file decoded it, and its PCM
+        // is then what counts against the budget.
+        if (!loaded.streamed) return { id: loaded.id, duration: loaded.duration, bytes: loaded.bytes };
+        return {
+            id: loaded.id, duration: loaded.duration, bytes: loaded.bytes, streamed: true,
+            savedBytes: Math.max(0, decodedPcmBytes(loaded.duration) - loaded.bytes),
+        };
     }
 
     unloadBuffer(handle: AudioBufferHandle): void {

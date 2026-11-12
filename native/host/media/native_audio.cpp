@@ -27,14 +27,23 @@
 
 namespace eshost {
 
-// A decoded clip. register_decoded_data() does NOT copy the PCM, so `pcm` must
-// outlive every voice playing it — freed only once unloaded AND no voice remains
-// (`refs` == 0), or a still-playing sound would read freed memory.
+// A loaded clip: its PCM, or — streamed — its compressed file, which every voice
+// decodes for itself as it plays. Neither register_decoded_data() nor
+// register_encoded_data() copies, so the data must outlive every voice playing it
+// — freed only once unloaded AND no voice remains (`refs` == 0), or a
+// still-playing sound would read freed memory.
 struct Buffer {
     std::string name;       // "buf://<id>", the resource-manager key
     void* pcm = nullptr;    // owned; f32 interleaved at the engine's rate/channels
+    std::vector<uint8_t> encoded;   // streamed: the file as it was loaded
     int refs = 0;           // live voices playing this buffer
     bool unloaded = false;  // SDK dropped it; free when the last voice releases
+
+    void free() {
+        if (pcm) ma_free(pcm, nullptr);
+        pcm = nullptr;
+        encoded = {};
+    }
 };
 
 // One playing instance. ma_sound is a node in the engine graph and must not move,
@@ -99,7 +108,7 @@ struct AudioEngine::Impl {
         auto it = buffers.find(bufferId);
         if (it == buffers.end()) return;
         if (--it->second.refs <= 0 && it->second.unloaded) {
-            ma_free(it->second.pcm, nullptr);
+            it->second.free();
             buffers.erase(it);
         }
     }
@@ -219,7 +228,7 @@ void AudioEngine::shutdown() {
     if (impl_->ready) ma_engine_uninit(&impl_->engine);
     closeDevice(impl_);
     if (impl_->contextReady) ma_context_uninit(&impl_->context);
-    for (auto& [id, buf] : impl_->buffers) ma_free(buf.pcm, nullptr);
+    for (auto& [id, buf] : impl_->buffers) buf.free();
     impl_->buffers.clear();
     delete impl_;
     impl_ = nullptr;
@@ -227,12 +236,41 @@ void AudioEngine::shutdown() {
 
 bool AudioEngine::ready() const { return impl_ && impl_->ready; }
 
-AudioEngine::Loaded AudioEngine::load(const uint8_t* bytes, size_t n) {
-    const Loaded fail{-1, 0.0, 0};
+AudioEngine::Loaded AudioEngine::load(const uint8_t* bytes, size_t n, bool stream) {
+    const Loaded fail{-1, 0.0, 0, false};
     if (!ready() || !bytes || n == 0) return fail;
 
     // Decode straight to the engine's format so playback never resamples.
     ma_decoder_config dcfg = ma_decoder_config_init(ma_format_f32, impl_->channels, impl_->sampleRate);
+
+    // Streamed: keep the file and hand the manager a view of it. A sound made from
+    // an ENCODED registration gets a decoder of its own over these bytes and reads
+    // it as the mixer asks, so what stays resident is the file — megabytes for a
+    // track whose PCM would be tens of them — and nothing is decoded up front,
+    // which is also the stall a long clip used to cost the frame that loaded it.
+    if (stream) {
+        // Opened once here for two answers: that it decodes at all, and how long it
+        // is. A file that fails either way falls through to the decoded path, which
+        // reports the failure the way it always has.
+        ma_decoder probe;
+        if (ma_decoder_init_memory(bytes, n, &dcfg, &probe) == MA_SUCCESS) {
+            ma_uint64 frames = 0;
+            if (ma_decoder_get_length_in_pcm_frames(&probe, &frames) != MA_SUCCESS) frames = 0;
+            ma_decoder_uninit(&probe);
+
+            const int id = impl_->nextBuffer++;
+            Buffer& buf = impl_->buffers[id];
+            buf.name = "buf://" + std::to_string(id);
+            buf.encoded.assign(bytes, bytes + n);
+            if (ma_resource_manager_register_encoded_data(
+                    ma_engine_get_resource_manager(&impl_->engine), buf.name.c_str(),
+                    buf.encoded.data(), buf.encoded.size()) == MA_SUCCESS) {
+                const double seconds = impl_->sampleRate ? static_cast<double>(frames) / impl_->sampleRate : 0.0;
+                return Loaded{id, seconds, static_cast<long long>(n), true};
+            }
+            impl_->buffers.erase(id);
+        }
+    }
     ma_uint64 frames = 0;
     void* pcm = nullptr;
     if (ma_decode_memory(bytes, n, &dcfg, &frames, &pcm) != MA_SUCCESS || !pcm) return fail;
@@ -246,15 +284,15 @@ AudioEngine::Loaded AudioEngine::load(const uint8_t* bytes, size_t n) {
     if (ma_resource_manager_register_decoded_data(
             ma_engine_get_resource_manager(&impl_->engine), buf.name.c_str(),
             pcm, frames, ma_format_f32, impl_->channels, impl_->sampleRate) != MA_SUCCESS) {
+        buf.free();
         impl_->buffers.erase(id);
-        ma_free(pcm, nullptr);
         return fail;
     }
 
     const double duration = impl_->sampleRate ? static_cast<double>(frames) / impl_->sampleRate : 0.0;
     const long long decodedBytes =
         static_cast<long long>(frames) * impl_->channels * static_cast<long long>(sizeof(float));
-    return Loaded{id, duration, decodedBytes};
+    return Loaded{id, duration, decodedBytes, false};
 }
 
 void AudioEngine::unload(int bufferId) {
@@ -267,7 +305,7 @@ void AudioEngine::unload(int bufferId) {
         ma_engine_get_resource_manager(&impl_->engine), it->second.name.c_str());
     it->second.unloaded = true;
     if (it->second.refs <= 0) {
-        ma_free(it->second.pcm, nullptr);
+        it->second.free();
         impl_->buffers.erase(it);
     }
 }
@@ -281,7 +319,9 @@ int AudioEngine::play(int bufferId, float volume, float pan, bool loop, float ra
     Voice& voice = impl_->voices[id];   // node-stable: &voice.sound is fixed
     voice.bufferId = bufferId;
     voice.loop = loop;
-    // Data is already decoded + registered, so init just wraps it (no decode).
+    // The data is registered under the name, so init wraps it: the PCM as it is,
+    // or — for a streamed clip — a decoder over the file that this voice alone
+    // reads, which is why two voices of one track do not share a cursor.
     // NO_SPATIALIZATION: 2D games pan explicitly; the 3D positioner would fight it.
     if (ma_sound_init_from_file(&impl_->engine, bit->second.name.c_str(),
                                 MA_SOUND_FLAG_NO_SPATIALIZATION, nullptr, nullptr,

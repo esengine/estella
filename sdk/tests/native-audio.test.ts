@@ -311,3 +311,55 @@ describe('assertNativeHost — audio stays optional', () => {
         expect(() => assertNativeHost(scope)).not.toThrow();
     });
 });
+
+// The same rule the web backend follows (audioStreaming.ts), so a track that streams in the editor streams on the
+// phone: before this the native host decoded every clip whole, 0.37 MB a second (#122).
+describe('NativeAudioBackend streaming', () => {
+    /** A PCM WAV header that says `seconds`, with one byte a second so the file stays small. */
+    function wav(seconds: number): ArrayBuffer {
+        const view = new DataView(new ArrayBuffer(44 + seconds));
+        view.setUint32(0, 0x52494646, false); view.setUint32(8, 0x57415645, false);
+        view.setUint32(12, 0x666d7420, false); view.setUint32(16, 16, true);
+        view.setUint32(28, 1, true);   // byte rate
+        view.setUint32(36, 0x64617461, false); view.setUint32(40, seconds, true);
+        return view.buffer;
+    }
+
+    function streamingHost(canStream = true) {
+        const scope = audioScope();
+        const asked: boolean[] = [];
+        scope.es_audioLoad = (bytes: ArrayBuffer, stream?: boolean) => {
+            asked.push(stream === true);
+            return stream && canStream
+                ? { id: 1, duration: 175, bytes: bytes.byteLength, streamed: true }
+                : { id: 1, duration: 175, bytes: 67_057_376 };
+        };
+        return { backend: new NativeAudioBackend(createHostBridge(scope).audio!), asked };
+    }
+
+    it('hands the host a clip the importer says to stream, and reports what that saved', async () => {
+        const { backend, asked } = streamingHost();
+        const data = new ArrayBuffer(2_400_000);
+        const buffer = await backend.loadBufferFromData('music', data, { loadType: 'streaming' });
+        expect(asked).toEqual([true]);
+        // What stays resident is the file; the PCM it did not take is the rest of what decoding would cost.
+        expect(buffer).toMatchObject({ streamed: true, bytes: 2_400_000, duration: 175 });
+        expect(buffer.savedBytes).toBe(175 * 48000 * 2 * 4 - 2_400_000);
+    });
+
+    it('lets the length decide under auto, and decodes what the importer says to decode', async () => {
+        const { backend, asked } = streamingHost();
+        await backend.loadBufferFromData('long', wav(40));
+        await backend.loadBufferFromData('short', wav(5));
+        await backend.loadBufferFromData('forced', wav(40), { loadType: 'decompress' });
+        expect(asked).toEqual([true, false, false]);
+    });
+
+    it('reports a decoded clip as decoded when the host could not stream it', async () => {
+        const { backend, asked } = streamingHost(false);
+        const buffer = await backend.loadBufferFromData('music', new ArrayBuffer(2_400_000), { loadType: 'streaming' });
+        expect(asked).toEqual([true]);
+        expect(buffer.streamed).toBeUndefined();
+        expect(buffer.bytes).toBe(67_057_376);
+    });
+});

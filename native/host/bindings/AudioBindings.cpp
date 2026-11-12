@@ -28,19 +28,24 @@ using namespace esengine;
 namespace eshost {
 namespace {
 
-// es_audioLoad(ArrayBuffer | TypedArray) -> { id, duration, bytes } | null. The
-// SDK hands the compressed clip bytes; the engine decodes + registers them.
+// es_audioLoad(ArrayBuffer | TypedArray, stream?) -> { id, duration, bytes, streamed } | null.
+// The SDK hands the compressed clip bytes and says whether to stream it; the
+// engine decodes + registers them, or keeps the file and decodes as it plays.
+// `streamed` is what happened, which is how the SDK tells a host that streams
+// from one that predates the second argument and decoded regardless.
 esjs::Val js_audioLoad(const esjs::Args& a) {
     if (a.size() < 1) return esjs::null();
     std::vector<u8> bytes;
     readByteSource(a[0], bytes);
     if (bytes.empty()) return esjs::null();
-    auto r = host().audio.load(bytes.data(), bytes.size());
+    const bool stream = a.size() > 1 && esjs::toBool(a[1]);
+    auto r = host().audio.load(bytes.data(), bytes.size(), stream);
     if (r.id < 0) return esjs::null();
     esjs::Val o = esjs::object();
     esjs::set(o, "id", esjs::int32(r.id));
     esjs::set(o, "duration", esjs::number(r.duration));
     esjs::set(o, "bytes", esjs::int64(r.bytes));
+    esjs::set(o, "streamed", esjs::boolean(r.streamed));
     return o;
 }
 
@@ -125,7 +130,7 @@ esjs::Val js_audioSpectrum(const esjs::Args& a) {
 
 void registerAudioBindings(HostState& h, esjs::Val global) {
     if (!h.audio.ready()) return;
-    bindGlobal(global, "es_audioLoad", js_audioLoad, 1);
+    bindGlobal(global, "es_audioLoad", js_audioLoad, 2);
     bindGlobal(global, "es_audioUnload", js_audioUnload, 1);
     bindGlobal(global, "es_audioPlay", js_audioPlay, 5);
     bindGlobal(global, "es_audioStop", js_audioStop, 1);
