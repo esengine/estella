@@ -17,6 +17,7 @@
 #pragma once
 
 #include "../../core/Types.hpp"
+#include "../../core/Revision.hpp"
 #include "./LightConstants.hpp"
 
 #include <glm/glm.hpp>
@@ -59,6 +60,30 @@ public:
 
     bool empty() const { return probes_.empty(); }
     u32 count() const { return static_cast<u32>(probes_.size()); }
+
+    /**
+     * @brief What the frame's reflection probes say, as a number that changes whenever it does (see core/Revision.hpp): asked after the
+     *        collect, it moves only when this frame's set differs from the one it last answered for.
+     */
+    u64 revision() const {
+        u64 h = 0xcbf29ce484222325ull;
+        const auto mix = [&h](const void* data, usize bytes) {
+            const auto* p = static_cast<const u8*>(data);
+            for (usize i = 0; i < bytes; ++i) { h ^= p[i]; h *= 0x100000001b3ull; }
+        };
+        mix(&environment_, sizeof(environment_));
+        for (const Probe& p : probes_) {
+            mix(&p.min, sizeof(p.min));
+            mix(&p.max, sizeof(p.max));
+            mix(&p.slot, sizeof(p.slot));
+        }
+        if (revision_ == 0 || h != revision_hash_) {
+            revision_hash_ = h;
+            revision_ = nextRevision();
+        }
+        return revision_;
+    }
+
 
     /** @brief The baked environment every probe of this frame reads, or 0. */
     u32 environment() const { return environment_; }
@@ -109,6 +134,8 @@ public:
 private:
     std::vector<Probe> probes_;
     u32 environment_ = 0;
+    mutable u64 revision_ = 0;
+    mutable u64 revision_hash_ = 0;
 };
 
 }  // namespace esengine

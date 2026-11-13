@@ -193,6 +193,7 @@ void GfxDevice::settleRecovery() {
 void GfxDevice::payTexture(u32 id, GfxTextureRecord& record) {
     if (!record.owed) return;
     record.owed = false;
+    record.revision = nextRevision();
     --owed_count_;
     if (record.desc.mipmaps && record.realized) backendGenerateMipmaps(id);
     settleRecovery();
@@ -460,6 +461,7 @@ bool GfxDevice::restoreCompressedTexture(TextureHandle texture, GfxCompressedFor
         keepBytes(record->bytes, std::vector<u8>(first, first + byteLength));
     }
     record->realized = backendCreateCompressedTexture(id, record->desc, format, data, byteLength, mipLevels);
+    record->revision = nextRevision();
     if (record->realized) payTexture(id, *record);
     return record->realized;
 }
@@ -486,6 +488,7 @@ bool GfxDevice::restoreTextureFromNative(TextureHandle texture, u32 nativeId) {
     if (!record || !isDeviceUsable()) return false;
     if (record->realized) backendDeleteTexture(id);
     record->realized = backendAdoptTexture(id, nativeId, record->desc);
+    record->revision = nextRevision();
     if (record->realized) payTexture(id, *record);
     return record->realized;
 }
@@ -509,6 +512,7 @@ bool GfxDevice::adoptTextureContent(TextureHandle into, TextureHandle from) {
     target->compressedFormat = source->compressedFormat;
     target->mipLevels = source->mipLevels;
     target->realized = true;
+    target->revision = nextRevision();
     std::vector<u8> sourceBytes = takeBytes(source->bytes);
     if (target->content.kind() == GfxContentKind::Retained) {
         keepBytes(target->bytes, std::move(sourceBytes));
@@ -556,6 +560,7 @@ void GfxDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u3
         keepBytes(record->bytes, uploadOrderImage(upload, pixels));
     }
     if (record->realized) backendUpdateTexture(id, x, y, width, height, pixels, flipY);
+    record->revision = nextRevision();
     // An owed texture's chain is rebuilt when it is paid.
     const bool rebuildChain = record->realized && desc.mipmaps && !record->owed;
     if (whole) payTexture(id, *record);
@@ -571,6 +576,7 @@ void GfxDevice::setTextureParams(TextureHandle texture, TextureFilter min, Textu
     record->desc.magFilter = mag;
     record->desc.wrapS = wrapS;
     record->desc.wrapT = wrapT;
+    record->revision = nextRevision();
     if (record->realized) backendSetTextureParams(id, record->desc);
 }
 
@@ -579,7 +585,13 @@ void GfxDevice::generateMipmaps(TextureHandle texture) {
     auto* record = registry_.textures.find(id);
     if (!record) return;
     record->desc.mipmaps = true;
+    record->revision = nextRevision();
     if (record->realized) backendGenerateMipmaps(id);
+}
+
+u64 GfxDevice::textureRevision(TextureHandle texture) const {
+    const auto* record = registry_.textures.find(static_cast<u32>(texture));
+    return record ? record->revision : 0;
 }
 
 const TextureDesc* GfxDevice::textureDesc(TextureHandle texture) const {

@@ -4836,4 +4836,6 @@ export const NOTED = {
     {"note": "Nudging a selection moves each selected root once, so a selected child no longer travels twice."},
   "fix(pick): a shape is selected by its drawn size and layer, so a click inside it lands":
     {"note": "A click selects a shape by its drawn size, and a bare Canvas no longer takes the click."},
+  "feat(render): a mesh, a material, a texture and the frame's probes each carry a revision that changes whenever their content does - one counter for all of them (core/Revision.hpp), so what the renderer derives from a resource can be kept until the resource itself changes":
+    {"note": "Resources carry a revision that changes with their content."},
 };

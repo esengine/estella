@@ -7,6 +7,7 @@
 #pragma once
 
 #include "../core/Types.hpp"
+#include "../core/Revision.hpp"
 #include "../math/Math.hpp"
 
 #include <atomic>
@@ -43,10 +44,7 @@ public:
      *         grids, so a released grid whose memory a new one reuses is never mistaken for it. */
     u64 revision = 0;
 
-    static u64 nextRevision() {
-        static std::atomic<u64> next{0};
-        return ++next;
-    }
+    static u64 nextRevision() { return esengine::nextRevision(); }
 
     bool hasSkyVisibility() const {
         return !skyVisibility.empty() && skyVisibility.size() == static_cast<usize>(probeCount()) * 9;

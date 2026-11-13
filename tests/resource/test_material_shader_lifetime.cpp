@@ -21,6 +21,46 @@ void main() { fragColor = v_color; }
 #pragma end
 )";
 int main() {
+    // --- A material's revision moves with every change to it, and only then ---
+    {
+        MockGfxDevice device; resource::ResourceManager rm; rm.init(device);
+        MaterialStore store; store.setDevice(&device); store.setResourceManager(&rm);
+        auto shader = rm.createShader("vertex", "fragment", false);
+        auto other = rm.createShader("vertex", "fragment", false);
+        MaterialUniformLayout layout;
+        layout.blockSize = 16;
+        layout.params.push_back(MaterialParamSlot{"u_tint", 0, 4});
+        MaterialTextureSlot tex;
+        tex.name = "u_tex";
+        tex.unit = 0;
+        layout.textures.push_back(tex);
+        store.registerLayout(shader, layout);
+        store.registerLayout(other, {});
+        CHECK(store.revisionOf(1) == 0, "no material, no revision");
+        MaterialRecord record; record.shaderRef = shader; store.define(1, record);
+        MaterialRecord second; second.shaderRef = other; store.define(2, second);
+        const u64 defined = store.revisionOf(1);
+        CHECK(defined != 0 && defined != store.revisionOf(2), "a defined material has a revision of its own");
+        store.find(1); store.layoutFor(shader);
+        CHECK(store.revisionOf(1) == defined, "reading it changes nothing");
+        const f32 tint[4] = {1, 0, 0, 1};
+        store.setUniform(1, "u_tint", tint, 4);
+        const u64 tinted = store.revisionOf(1);
+        CHECK(tinted != defined, "a param moves it");
+        store.setUniform(1, "u_missing", tint, 4);
+        CHECK(store.revisionOf(1) == tinted, "a param it does not have does not");
+        store.setTexture(1, "u_tex", resource::TextureHandle(3));
+        const u64 textured = store.revisionOf(1);
+        CHECK(textured != tinted, "a texture moves it");
+        record.blend = BlendMode::Additive; store.define(1, record);
+        const u64 redefined = store.revisionOf(1);
+        CHECK(redefined != textured, "its state pushed again moves it");
+        const u64 otherBefore = store.revisionOf(2);
+        store.registerLayout(shader, layout);
+        CHECK(store.revisionOf(1) != redefined, "its shader's layout replaced moves it");
+        CHECK(store.revisionOf(2) == otherBefore, "and leaves a material on another shader alone");
+        store.clear(); rm.releaseShader(shader); rm.releaseShader(other); rm.shutdown();
+    }
     {
         MockGfxDevice device; resource::ResourceManager rm; rm.init(device);
         MaterialStore store; store.setDevice(&device); store.setResourceManager(&rm);

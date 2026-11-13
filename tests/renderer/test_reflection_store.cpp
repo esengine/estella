@@ -85,7 +85,26 @@ static void testClearing() {
           "clearing leaves the next frame nothing of this one's");
 }
 
+/** Rebuilt every frame: the revision says whether this frame's probes are the last frame's. */
+static void testRevision() {
+    ReflectionStore store;
+    store.add({-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, 1, 7);
+    const u64 first = store.revision();
+    CHECK(first != 0 && store.revision() == first, "a frame's probes have a revision, asked as often as one likes");
+    store.clear();
+    store.add({-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, 1, 7);
+    CHECK(store.revision() == first, "the same probes the next frame keep it");
+    store.clear();
+    store.add({-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, 2, 7);
+    CHECK(store.revision() != first, "a probe in another column moves it");
+    const u64 column = store.revision();
+    store.clear();
+    store.add({-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, 2, 8);
+    CHECK(store.revision() != column, "and so does another bake");
+}
+
 int main() {
+    testRevision();
     testEmpty();
     testInsideAndOutside();
     testSmallestWins();

@@ -436,6 +436,9 @@ public:
     void generateMipmaps(TextureHandle texture);
 
     /** @brief A texture's description as it stands, or null for a handle that names none. */
+    /** @brief What @p texture's content is, as a number that changes whenever the device is given new content or sampling
+     *         for it (see GfxTextureRecord::revision); 0 for none. */
+    u64 textureRevision(TextureHandle texture) const;
     const TextureDesc* textureDesc(TextureHandle texture) const;
 
     /** @brief Activates a texture slot and binds a 2D texture */

@@ -270,6 +270,45 @@ int main() {
         CHECK(rm.getMesh(h)->isDrawable(), "and keeps the geometry the device restored");
     }
 
+    // --- A mesh's revision is new each time it is realized, and its own ---
+    {
+        MockGfxDevice d;
+        resource::ResourceManager rm;
+        rm.init(d);
+        const auto a = makeMesh(rm, MeshRecovery::SourceReplayable);
+        const auto b = makeMesh(rm, MeshRecovery::SourceReplayable);
+        const u64 first = rm.getMesh(a)->revision;
+        CHECK(first != 0 && first != rm.getMesh(b)->revision, "a realized mesh has a revision of its own");
+        CHECK(rematerialize(rm, a, 2.0f) && rm.getMesh(a)->revision != first, "realized again, it has another");
+        const u64 standing = rm.getMesh(a)->revision;
+        d.createBufferSucceeds = false;
+        rematerializeWide(rm, a);
+        d.createBufferSucceeds = true;
+        CHECK(rm.getMesh(a)->revision == standing, "a rebuild that failed leaves it as it was");
+    }
+
+    // --- A texture's revision moves when the device is given new content or sampling for it ---
+    {
+        MockGfxDevice d;
+        TextureDesc desc;
+        desc.width = 2;
+        desc.height = 2;
+        const u8 pixels[16] = {};
+        const TextureHandle t = d.createTexture(desc, GfxContent::transient(), pixels);
+        const TextureHandle u = d.createTexture(desc, GfxContent::transient(), pixels);
+        const u64 made = d.textureRevision(t);
+        CHECK(made != 0 && made != d.textureRevision(u), "a texture has a revision of its own");
+        d.updateTexture(t, 0, 0, 1, 1, pixels, false);
+        const u64 updated = d.textureRevision(t);
+        CHECK(updated != made, "an upload moves it");
+        d.setTextureParams(t, TextureFilter::Nearest, TextureFilter::Nearest, TextureWrap::ClampToEdge, TextureWrap::ClampToEdge);
+        CHECK(d.textureRevision(t) != updated, "new sampling moves it");
+        d.textureDesc(t);
+        const u64 asked = d.textureRevision(t);
+        CHECK(d.textureRevision(t) == asked, "asking about it does not");
+        CHECK(d.textureRevision(TextureHandle::Invalid) == 0, "no texture, no revision");
+    }
+
     std::printf(g_failures ? "\n%d FAILURE(S)\n" : "\nall passed\n", g_failures);
     return g_failures ? 1 : 0;
 }

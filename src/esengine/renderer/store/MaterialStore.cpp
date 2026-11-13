@@ -36,6 +36,7 @@ void MaterialStore::setResourceManager(resource::ResourceManager* resources) {
 
 void MaterialStore::forgetShader(resource::ShaderHandle shader) {
     forgetLookups();
+    reviseMaterialsOf(shader);
     layouts_.erase(shader.id());
     sources_.erase(shader.id());
     auto found = mesh_programs_.find(shader.id());
@@ -428,6 +429,7 @@ void MaterialStore::setWorldUnitsPerMeter(f32 unitsPerMeter) {
             defaultInUnits(p, scale, now);
             std::memcpy(rec.uboBytes.data() + p.offset, now, p.arity * sizeof(f32));
             rec.uboDirty = true;
+                rec.revision = nextRevision();
         }
     }
 }

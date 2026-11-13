@@ -197,7 +197,30 @@ static void testSampleByBox() {
     CHECK(!store.sampleBox({-50.0f, 0.0f, -50.0f}, {1.0f, 1.0f, 1.0f}, out), "and one touching nothing reads nothing");
 }
 
+/** The store is rebuilt every frame: its revision says whether this frame's volumes are the last frame's. */
+static void testRevision() {
+    ProbeVolume v = ramp({1, 1, 1}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f});
+    v.revision = ProbeVolume::nextRevision();
+    ProbeStore store;
+    store.add({-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, &v);
+    const u64 first = store.revision();
+    CHECK(first != 0 && store.revision() == first, "a frame's volumes have a revision, asked as often as one likes");
+    store.clear();
+    store.add({-1.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, &v);
+    CHECK(store.revision() == first, "the same volumes the next frame keep it");
+    v.revision = ProbeVolume::nextRevision();
+    CHECK(store.revision() != first, "a grid given new coefficients moves it");
+    const u64 regrid = store.revision();
+    store.clear();
+    store.add({-2.0f, -1.0f, -1.0f}, {1.0f, 1.0f, 1.0f}, &v);
+    CHECK(store.revision() != regrid, "a volume that moved moves it");
+    const u64 moved = store.revision();
+    store.clear();
+    CHECK(store.revision() != moved, "and so does no volume at all");
+}
+
 int main() {
+    testRevision();
     testInsideAndOutside();
     testTrilinearOnEachAxis();
     testSmallestVolumeWins();

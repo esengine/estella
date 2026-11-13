@@ -130,6 +130,9 @@ public:
         return morphTargetCount > 0 && morphTexture != TextureHandle::Invalid;
     }
 
+    /** Changes whenever this mesh's geometry does (it is realized again: a reload, a recovery): see core/Revision.hpp. */
+    u64 revision = 0;
+
     /** Whether GPU buffers stand behind this identity. */
     bool hasRealization() const {
         return vertexBuffer != BufferHandle::Invalid

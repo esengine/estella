@@ -13,6 +13,7 @@
 #pragma once
 
 #include "./GfxContent.hpp"
+#include "../../core/Revision.hpp"
 #include "./GfxEnums.hpp"
 #include "./PipelineState.hpp"
 
@@ -58,6 +59,10 @@ struct GfxTextureRecord {
     u32 mipLevels = 1;
     bool realized = false;
     bool owed = false;
+    /// Changes whenever the device is given its content (made, updated, restored, adopted) or its sampling: see
+    /// core/Revision.hpp and GfxDevice::textureRevision. Not when the GPU writes it (a render target, a storage texture) or
+    /// a host swaps what an imported texture shows: those are not uploads this device sees.
+    u64 revision = nextRevision();
 };
 
 struct GfxProgramRecord {

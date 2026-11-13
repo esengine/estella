@@ -18,6 +18,7 @@
 #include "ShaderParser.hpp"
 #include "../text/BitmapFont.hpp"
 #include "../core/Log.hpp"
+#include "../core/Revision.hpp"
 #include "../renderer/rhi/GfxDevice.hpp"
 #include "../renderer/rhi/Shader.hpp"
 #include "../renderer/rhi/Texture.hpp"
@@ -723,6 +724,7 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
         std::memcpy(mesh.inverseBind.data(), inverseBind.data(), joints * sizeof(glm::mat4));
     }
     mesh.vertexCount = vertexStride > 0 ? static_cast<u32>(vertexBytes.size()) / vertexStride : 0;
+    mesh.revision = nextRevision();
 
     // The shapes, last: geometry that draws is worth having even when the deltas
     // behind it are refused, and the refusal leaves a mesh in its authored shape

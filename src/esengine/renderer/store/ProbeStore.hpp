@@ -18,6 +18,7 @@
 #pragma once
 
 #include "../../core/Half.hpp"
+#include "../../core/Revision.hpp"
 #include "../../core/Types.hpp"
 #include "../../resource/ProbeVolume.hpp"
 #include "./ProbeConstants.hpp"
@@ -54,6 +55,30 @@ public:
 
     bool empty() const { return volumes_.empty(); }
     u32 count() const { return static_cast<u32>(volumes_.size()); }
+
+    /**
+     * @brief What the frame's probe volumes say, as a number that changes whenever it does (see core/Revision.hpp): asked after the
+     *        collect, it moves only when this frame's set differs from the one it last answered for.
+     */
+    u64 revision() const {
+        u64 h = 0xcbf29ce484222325ull;
+        const auto mix = [&h](const void* data, usize bytes) {
+            const auto* p = static_cast<const u8*>(data);
+            for (usize i = 0; i < bytes; ++i) { h ^= p[i]; h *= 0x100000001b3ull; }
+        };
+        for (const Volume& v : volumes_) {
+            mix(&v.min, sizeof(v.min));
+            mix(&v.max, sizeof(v.max));
+            mix(&v.grid, sizeof(v.grid));
+            mix(&v.grid->revision, sizeof(v.grid->revision));
+        }
+        if (revision_ == 0 || h != revision_hash_) {
+            revision_hash_ = h;
+            revision_ = nextRevision();
+        }
+        return revision_;
+    }
+
 
     /**
      * @brief The irradiance at @p p, read trilinearly. False = no volume holds it.
@@ -255,6 +280,8 @@ private:
     }
 
     std::vector<Volume> volumes_;
+    mutable u64 revision_ = 0;
+    mutable u64 revision_hash_ = 0;
     std::vector<u64> atlas_key_;
     u32 atlas_width_ = 0;
     u32 atlas_height_ = 0;

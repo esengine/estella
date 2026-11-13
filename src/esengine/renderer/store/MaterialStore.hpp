@@ -23,6 +23,7 @@
 #pragma once
 
 #include "../../core/Types.hpp"
+#include "../../core/Revision.hpp"
 #include "../../resource/Handle.hpp"
 #include "../draw/BlendMode.hpp"
 #include "../rhi/GfxEnums.hpp"
@@ -186,6 +187,9 @@ struct MaterialRecord {
 
     /// Texture params bound to sampler units, by handle (see MaterialTextureBinding).
     std::vector<MaterialTextureBinding> textures;
+
+    /// Changes whenever anything above does, or its shader's layout: see core/Revision.hpp and MaterialStore::revisionOf.
+    u64 revision = 0;
 };
 
 /**
@@ -341,6 +345,17 @@ public:
         if (!shader.isValid()) return;
         layout.resolveNamed();
         layouts_[shader.id()] = std::move(layout);
+        // Every material on it now reads its params through another layout.
+        reviseMaterialsOf(shader);
+    }
+
+    /**
+     * @brief What @p materialId is, as a number that changes whenever it does: its state, a param, a texture, its shader's layout.
+     * @return 0 for no material. A reader that derived something from a material keeps this beside it (see core/Revision.hpp).
+     */
+    u64 revisionOf(u32 materialId) const {
+        const MaterialRecord* m = find(materialId);
+        return m ? m->revision : 0;
     }
 
     /// Pushes a material's resolved render state. Preserves any already-packed constants
@@ -350,7 +365,9 @@ public:
         if (materialId == 0) return;
         auto it = materials_.find(materialId);
         if (it == materials_.end()) {
-            materials_[materialId] = record;
+            MaterialRecord& added = materials_[materialId];
+            added = record;
+            added.revision = nextRevision();
             return;
         }
         MaterialRecord& rec = it->second;
@@ -368,6 +385,7 @@ public:
             rec.textures = std::move(texs);
         }
         rec.uboDirty = true; // re-upload on next bind
+        rec.revision = nextRevision();
     }
 
     /// Writes a named param's float components into the material's std140 buffer at the
@@ -384,6 +402,7 @@ public:
         const u32 n = std::min(arity, slot->arity);
         std::memcpy(rec.uboBytes.data() + slot->offset, values, n * sizeof(f32));
         rec.uboDirty = true;
+        rec.revision = nextRevision();
     }
 
     /// Binds a texture to a named texture param's sampler unit. No-op if the material,
@@ -395,6 +414,7 @@ public:
         if (lit == layouts_.end()) return;
         const MaterialTextureSlot* slot = lit->second.findTexture(name);
         if (!slot) return;
+        it->second.revision = nextRevision();
         for (auto& b : it->second.textures) {
             if (b.unit == slot->unit) { b.texture = texture; return; }
         }
@@ -541,6 +561,10 @@ private:
     mutable u32 last_layout_id_ = 0;
     mutable const MaterialUniformLayout* last_layout_ = nullptr;
     void forgetLookups() { last_material_ = nullptr; last_material_id_ = 0; last_layout_ = nullptr; last_layout_id_ = 0; }
+    /** Every material on @p shader takes a new revision: its layout changed or went. */
+    void reviseMaterialsOf(resource::ShaderHandle shader) {
+        for (auto& [id, rec] : materials_) if (rec.shaderRef == shader) rec.revision = nextRevision();
+    }
 
     /// A material shader's authored source + features, filed under its handle for
     /// the same reason the layout is: a rebuilt program changes the id.
