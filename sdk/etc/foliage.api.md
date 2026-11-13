@@ -56,6 +56,8 @@ colorMapStrength: number
 count: number
 densityMap: number
 drawDistance: number
+faceEye: number
+faceEyeNear: number
 farCards: boolean
 farGrow: number
 farGrowUp: number
@@ -356,7 +358,7 @@ size: number
 
 ## buildInstancedMesh — function @experimental
 ```
-(source: MeshData, plants: readonly Plant[], paint?: BladeParams["paint"], band?: number): MeshData
+(source: MeshData, plants: readonly Plant[], paint?: BladeParams["paint"], band?: number, seats?: boolean): MeshData
 ```
 
 ## buildPlacedMesh — function @experimental

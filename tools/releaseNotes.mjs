@@ -4576,10 +4576,6 @@ export const NOTED = {
     {"note": "An AI can lay leaflets along a stem in one step."},
   "feat(modeling): the model tools say scatter's rows - rows, sweep, lift, up and sizes are in what model_write offers":
     {"note": "An AI can lay leaflets along a stem in one step."},
-  "feat(modeling): a model source names its numbers and repeats its steps, and a leaf is a strip that reads a picture - params, sums written \"=length * 0.4\", repeat over rows and let; a strip step for a band with no thickness and a picture along it, material.texture for the picture, and an up for loft; a palm is six steps written and a third of the triangles":
-    {"note": "A model is written once for all its like parts, and a leaf can be a picture."},
-  "feat(modeling): the model tools say names, sums and repeats, strip, and a material's picture - and a model whose picture is not in the project is refused before anything is written":
-    {"note": "A model is written once for all its like parts, and a leaf can be a picture."},
   "feat(sky): a sky of your own shades the ground under its clouds - defineSkyEffect takes groundShadow and a second function, skyShadow(world, sun), what is left of the light at a world position, and the sky pass multiplies every surface it finds by it, as Sky Atmosphere does with its own clouds":
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":

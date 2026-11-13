@@ -54,6 +54,11 @@ const FOLIAGE = `#pragma shader "Foliage"
 // How many far versions are layers of their own (0: none are, and a mesh is drawn at any distance): a mesh says which it is in its
 // colour's alpha, in thirds, and is drawn from where it takes over to where the next does.
 #pragma param u_thinLevels float default(0) range(0,3) ui(slider)
+// A mesh plant's head turns to face the eye (the Foliage component writes these): by u_faceEyeNear close to and u_faceEye from
+// u_faceEyeBy away, 0 not at all and 1 square on. A head is the vertices whose second uv says where they sit from the plant's axis.
+#pragma param u_faceEyeNear float default(0) range(0,1) ui(slider)
+#pragma param u_faceEye float default(0) range(0,1) ui(slider)
+#pragma param u_faceEyeBy float default(1) range(0.001,1000000) ui(slider)
 // Grass: a blade's width at its root (0 for a mesh) and the most it widens. As its neighbours are left out a blade widens by as much as
 // they were, along its own width, so the ground the field covers is the same at every distance.
 #pragma param u_bladeWidth float default(0) range(0,100000) ui(slider)
@@ -76,6 +81,22 @@ vec2 foliageContactPush(vec4 contact, vec3 at) {
     return len > 1e-4 ? away / len * near * near * (3.0 - 2.0 * near) * level * contact.w : vec2(0.0);
 }
 void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
+    if (dot(es_vertexUv1, es_vertexUv1) > 0.0 && u_camera.w > 0.5) {
+        // The vertex lies in the head's own plane, so where it sits across the ground says how high it sits too.
+        vec3 facing = normalize(localNormal);
+        vec3 seat = vec3(es_vertexUv1.x, abs(facing.y) > 0.2 ? -(facing.x * es_vertexUv1.x + facing.z * es_vertexUv1.y) / facing.y : 0.0, es_vertexUv1.y);
+        vec3 pivot = local - seat;
+        mat4 model = esInstanceModel();
+        vec3 toEye = u_camera.xyz - (model * vec4(pivot, 1.0)).xyz;
+        float turn = mix(u_faceEyeNear, u_faceEye, smoothstep(0.0, u_faceEyeBy, length(toEye)));
+        vec3 want = normalize(mix(facing, normalize(toEye * mat3(model)), turn));
+        // The shortest turn from the way it faced to the way it faces now, of the seat and so of the vertex.
+        vec3 axis = cross(facing, want);
+        float c = dot(facing, want);
+        if (c > -0.999) seat = seat * c + cross(axis, seat) + axis * (dot(axis, seat) / (1.0 + c));
+        local = pivot + seat;
+        localNormal = want;
+    }
     float weight = es_vertexColor.r;
     float phase = es_vertexColor.g * 6.2831853;
     // The wind is in the world, so its phase is by the world's own position, not the render origin's.
@@ -134,6 +155,22 @@ fn foliageContactPush(contact : vec4f, at : vec3f) -> vec2f {
     return away / len * near * near * (3.0 - 2.0 * near) * level * contact.w;
 }
 fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, vec3f>, uv : vec2f) {
+    if (dot(es_vertexUv1, es_vertexUv1) > 0.0 && frame.camera.w > 0.5) {
+        let facing = normalize(*localNormal);
+        var up = 0.0;
+        if (abs(facing.y) > 0.2) { up = -(facing.x * es_vertexUv1.x + facing.z * es_vertexUv1.y) / facing.y; }
+        var seat = vec3f(es_vertexUv1.x, up, es_vertexUv1.y);
+        let pivot = *local - seat;
+        let model = esInstanceModel();
+        let toEye = frame.camera.xyz - (model * vec4f(pivot, 1.0)).xyz;
+        let turn = mix(mc.u_faceEyeNear, mc.u_faceEye, smoothstep(0.0, mc.u_faceEyeBy, length(toEye)));
+        let want = normalize(mix(facing, normalize(toEye * mat3x3f(model[0].xyz, model[1].xyz, model[2].xyz)), vec3f(turn)));
+        let axis = cross(facing, want);
+        let c = dot(facing, want);
+        if (c > -0.999) { seat = seat * c + cross(axis, seat) + axis * (dot(axis, seat) / (1.0 + c)); }
+        *local = pivot + seat;
+        *localNormal = want;
+    }
     let weight = es_vertexColor.r;
     let phase = es_vertexColor.g * 6.2831853;
     let anchor = (esInstanceModel() * vec4f(*local, 1.0)).xyz + frame.renderOrigin.xyz;

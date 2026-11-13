@@ -457,14 +457,15 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
     src +=
         "    return out;\n"
         "}\n";
-    // The vertex's own colour is the one per-vertex channel a hook has besides its position, normal and uv: wind sways a plant by
-    // a weight painted in it. A hook reads `es_vertexColor`, and what it leaves there is the colour the fragment gets (a terrain
-    // tells it where the vertex lies in its height pages); one that does not touch it is not changed.
+    // A hook's own per-vertex channels: `es_vertexColor` (a painted weight; what the hook leaves there is the colour the fragment gets,
+    // untouched if it leaves it) and `es_vertexUv1`, the mesh's second uv (where a vertex sits from its plant's pivot), zero on a mesh
+    // with none.
     fillHook(src, "@@WGSL_MESH_COLOR@@", hook.empty() ? std::string("v.a_color") : std::string("es_vertexColor"));
     fillHook(src, "@@WGSL_HOOK@@", hook.empty() ? std::string() :
-        "#ifdef MESH\nvar<private> es_vertexColor : vec4f;\n" + hook + "\n#endif\n");
+        "#ifdef MESH\nvar<private> es_vertexColor : vec4f;\nvar<private> es_vertexUv1 : vec2f;\n" + hook + "\n#endif\n");
     fillHook(src, "@@WGSL_CALL@@", hook.empty() ? std::string() :
-        "    es_vertexColor = v.a_color;\n    esMaterialVertex(&local, &localNormal, v.a_texCoord);\n");
+        "    es_vertexColor = v.a_color;\n#ifdef MESH_LIGHTMAP\n    es_vertexUv1 = v.a_texCoord1;\n#else\n    es_vertexUv1 = vec2f(0.0);\n#endif\n"
+        "    esMaterialVertex(&local, &localNormal, v.a_texCoord);\n");
     return src;
 }
 
@@ -702,9 +703,10 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
     src += "}\n";
     fillHook(src, "@@GLSL_MESH_COLOR@@", hook.empty() ? std::string("a_color") : std::string("es_vertexColor"));
     fillHook(src, "@@GLSL_HOOK@@", hook.empty() ? std::string() :
-        "#ifdef MESH\nhighp vec4 es_vertexColor;\n" + hook + "\n#endif\n");
+        "#ifdef MESH\nhighp vec4 es_vertexColor;\nhighp vec2 es_vertexUv1;\n" + hook + "\n#endif\n");
     fillHook(src, "@@GLSL_CALL@@", hook.empty() ? std::string() :
-        "    es_vertexColor = a_color;\n    esMaterialVertex(local, localNormal, a_texCoord);\n");
+        "    es_vertexColor = a_color;\n#ifdef MESH_LIGHTMAP\n    es_vertexUv1 = a_texCoord1;\n#else\n    es_vertexUv1 = vec2(0.0);\n#endif\n"
+        "    esMaterialVertex(local, localNormal, a_texCoord);\n");
     return src;
 }
 

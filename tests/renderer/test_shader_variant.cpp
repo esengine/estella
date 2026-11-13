@@ -751,11 +751,16 @@ static void testVertexHook() {
     CHECK(ws.find("fn esMaterialVertex(") != std::string::npos, "WGSL: the hook is defined in the vertex stage");
     CHECK(ws.find("esMaterialVertex(&local, &localNormal, v.a_texCoord);") != std::string::npos, "WGSL: the hook is called");
     CHECK(ws.find("var<uniform> mc : MaterialConstants") != std::string::npos, "WGSL: the hook can read the material's params");
+    // The hook reads the mesh's second uv where the mesh has one, and zero where it has none: one hook serves both.
+    CHECK(ws.find("#ifdef MESH_LIGHTMAP\n    es_vertexUv1 = v.a_texCoord1;\n#else\n    es_vertexUv1 = vec2f(0.0);\n#endif\n    esMaterialVertex(") != std::string::npos
+              || ws.find("es_vertexUv1 = vec2f(0.0);") != std::string::npos, "WGSL: a mesh with no second uv hands the hook zero");
+    const std::string wsUv = ShaderParser::assembleStage(p, ShaderStage::Vertex, "", {"MESH", "MESH_NORMALS", "MESH_LIGHTMAP"}, ShaderTargetLanguage::WGSL);
+    CHECK(wsUv.find("es_vertexUv1 = v.a_texCoord1;") != std::string::npos, "WGSL: a mesh with a second uv hands it to the hook");
 
     // The hook is for resident meshes. Without MESH the call is compiled out, 2D batches draw as before.
     const std::string batch = ShaderParser::assembleStage(p, ShaderStage::Vertex, "", {});
     CHECK(batch.find("#define MESH") == std::string::npos
-              && batch.find("#ifdef MESH\nhighp vec4 es_vertexColor;\nvoid esMaterialVertex(") != std::string::npos
+              && batch.find("#ifdef MESH\nhighp vec4 es_vertexColor;\nhighp vec2 es_vertexUv1;\nvoid esMaterialVertex(") != std::string::npos
               && batch.find("#ifdef MESH\n    vec3 local = a_position;") != std::string::npos,
           "GLSL: the hook and its call sit under MESH, so a 2D batch variant compiles them out");
 

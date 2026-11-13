@@ -32,6 +32,7 @@ replaces it. Nothing is baked.
 | `farLevels`, `farKeep`, `farStep`, `farGrow` | The far versions: how many (1 to 3), the share of its plants each keeps of the one before (0.34), how many times further out each takes over than the last (2), and the most a kept plant is grown by to cover the ground of those left out (2). Every plant has a number of its own; they thin by it with distance, and a far version holds exactly the plants still drawn where it takes over, so nothing jumps at the switch. With a material each version is a layer of cells of its own, grown only as far out as it is drawn: the full meadow exists near the eye and a tenth of it far off. |
 | `farGrowUp` | The share of that growth a mesh plant's height takes, 0 to 1 (0). At 0 a kept plant grows across the ground only: it covers what those left out did and is no taller for it, as a clump of flowers is no taller than a flower. At 1 it grows the same every way, as it did before this field. Grass grows broader, never higher. |
 | `farTilt` | How far the top of a mesh plant (the last tenth of its height: a flower on its stem) is tipped over in its far versions, in degrees, each plant its own way round (0). A flat flower faces the sky, so from a low eye a field away it is seen edge on and the field has no colour; tipped, half the field shows its face. The stem under it stays upright. |
+| `faceEyeNear`, `faceEye` | How far the head of a mesh plant (the last tenth of its height) turns to face the eye, 0 to 1: `faceEyeNear` close to, `faceEye` from half the draw distance away, between them in between (0, 0). A flat flower faces the sky and is edge on to a low eye; turned, a field shows its colour from the side, as a clump of flowers does. Above zero, the copies carry in a second uv where each vertex of a head sits from its plant's axis, and the Foliage shader turns the head about it. Needs a material. |
 | `farCards` | A mesh's far version is crossed cards of its texture (on: a tree) or the plant itself, fewer and larger (off: a flower, a fern). |
 | `cardU0`, `cardV0`, `cardU1`, `cardV1` | A mesh's far version is two crossed cards showing this rectangle of its texture (`cardTent` `1` cuts them as tents, a conifer's outline, instead of rectangles). |
 
@@ -62,7 +63,7 @@ a flutter on top. Its parameters are in the material: `u_windStrength`, `u_windS
 longer a gust) and `u_flutter`. Plants are two-sided and let light through them (`u_translucency`); a leaf texture with an alpha channel
 (`u_albedo`, `u_useTexture`, `u_alphaCutoff`) cuts the outline of a leaf out of a card.
 
-A shader of your own can read the same weights: a vertex hook (`#pragma vertexoffset`) sees the vertex colour as `es_vertexColor`.
+A shader of your own can read the same weights: a vertex hook (`#pragma vertexoffset`) sees the vertex colour as `es_vertexColor` and the mesh's second uv as `es_vertexUv1` (zero on a mesh with none): where a head's vertex sits from its plant's axis, when `faceEye` asks for it.
 
 ## Levels of detail
 

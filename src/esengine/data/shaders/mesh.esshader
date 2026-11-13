@@ -174,6 +174,8 @@ out highp vec4 v_velPrev;
 #ifdef ES_MATERIAL_VERTEX
 // The vertex's own colour, for a hook that bends by a weight painted in it (see ShaderParser's canonical stage).
 highp vec4 es_vertexColor;
+// Its second uv, zero on a mesh with none.
+highp vec2 es_vertexUv1;
 @@ES_VERTEX_HOOK@@
 #endif
 
@@ -199,6 +201,11 @@ void main() {
     applyMorph(local, localNormal);
 #ifdef ES_MATERIAL_VERTEX
     es_vertexColor = a_color;
+#ifdef MESH_LIGHTMAP
+    es_vertexUv1 = a_texCoord1;
+#else
+    es_vertexUv1 = vec2(0.0);
+#endif
     esMaterialVertex(local, localNormal, a_texCoord);
 #endif
 #ifdef SKINNED
@@ -472,6 +479,7 @@ struct VSOut {
 
 #ifdef ES_MATERIAL_VERTEX
 var<private> es_vertexColor : vec4f;
+var<private> es_vertexUv1 : vec2f;
 @@ES_VERTEX_HOOK@@
 #endif
 
@@ -510,6 +518,11 @@ fn esPrevBone(joint : u32) -> mat4x4f {
     }
 #ifdef ES_MATERIAL_VERTEX
     es_vertexColor = v.a_color;
+#ifdef MESH_LIGHTMAP
+    es_vertexUv1 = v.a_texCoord1;
+#else
+    es_vertexUv1 = vec2f(0.0);
+#endif
     esMaterialVertex(&local, &localNormal, v.a_texCoord);
 #endif
 #ifdef SKINNED

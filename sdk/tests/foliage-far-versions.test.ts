@@ -163,3 +163,42 @@ describe('a far plant with its top tipped', () => {
         expect(rankedPlants(plants, 1, 4, undefined, 0, 0.7)).toBe(plants);
     });
 });
+
+describe('the head of a mesh plant that turns to the eye', () => {
+    const flower = mesh([[0, 0, 0], [0, 1, 0], [-0.2, 1, -0.2], [0.2, 1, -0.2], [0.2, 1, 0.2], [-0.2, 1, 0.2]], Array.from({ length: 6 }, () => [0, 1, 0]));
+    const seatOf = (m: MeshData, v: number): number[] => {
+        const c = m.channels.find((ch) => ch.semantic === MeshChannel.TexCoord1)!;
+        const view = new DataView(m.vertices.buffer, m.vertices.byteOffset);
+        return [view.getFloat32(v * m.vertexStride + c.offset, true), view.getFloat32(v * m.vertexStride + c.offset + 4, true)];
+    };
+
+    it('carries in a second uv where each vertex of the head sits from its own plant, and nothing below the head', () => {
+        const plants = [{ x: 5, y: 2, z: -3, yaw: 0, scale: 1, phase: 0, shade: 1 }, { x: -8, y: 0, z: 4, yaw: Math.PI / 2, scale: 2, phase: 0.5, shade: 1 }];
+        const m = buildInstancedMesh(flower, plants, undefined, undefined, true);
+        // the root has no seat; the stem's top is on the axis; a corner sits where it is from the axis, whatever the plant's place
+        expect(seatOf(m, 0)).toEqual([0, 0]);
+        expect(seatOf(m, 1).map(Math.abs)).toEqual([0, 0]);
+        expect(seatOf(m, 4).map((v) => +v.toFixed(5))).toEqual([0.2, 0.2]);
+        // the second plant is turned a quarter round and twice the size: its corner is where that puts it
+        const turned = seatOf(m, 6 + 4).map((v) => +v.toFixed(5));
+        expect(Math.hypot(turned[0]!, turned[1]!)).toBeCloseTo(0.4 * Math.SQRT2, 4);
+        expect(turned).toEqual([0.4, -0.4]);
+    });
+
+    it('is a channel only a field that asks for it has: other meshes are the size they were', () => {
+        const plain = buildInstancedMesh(flower, [{ x: 0, y: 0, z: 0, yaw: 0, scale: 1, phase: 0, shade: 1 }]);
+        expect(plain.channels.some((c) => c.semantic === MeshChannel.TexCoord1)).toBe(false);
+        const cellOf = (seats: boolean) => buildFoliageCell({ ...spec({ levels: 1, keep: 0.5, grow: 2, cards: false }), look: { kind: 'mesh', card: { u0: 0, v0: 0, u1: 1, v1: 1 }, tent: false }, seats }, around, flower);
+        expect(cellOf(true)[0]!.channels.some((c) => c.semantic === MeshChannel.TexCoord1)).toBe(true);
+        expect(cellOf(false)[0]!.channels.some((c) => c.semantic === MeshChannel.TexCoord1)).toBe(false);
+    });
+
+    it('is turned in the shader about that seat, by more the further off, in both languages', async () => {
+        const { FOLIAGE_SHADER_TEMPLATE } = await import('../src/foliage/foliageShader');
+        const source = FOLIAGE_SHADER_TEMPLATE.source;
+        for (const p of ['u_faceEyeNear', 'u_faceEye', 'u_faceEyeBy']) expect(source).toContain(`#pragma param ${p} float`);
+        expect(source).toContain('mix(u_faceEyeNear, u_faceEye, smoothstep(0.0, u_faceEyeBy, length(toEye)))');
+        expect(source).toContain('mix(mc.u_faceEyeNear, mc.u_faceEye, smoothstep(0.0, mc.u_faceEyeBy, length(toEye)))');
+        expect(source.match(/dot\(es_vertexUv1, es_vertexUv1\) > 0\.0/g)).toHaveLength(2);
+    });
+});

@@ -28,8 +28,6 @@ import { HUMANOID_TAGS, humanoid, humanoidJoints, type HumanoidBuild } from './h
 import { VIEW_NAMES } from './surfaceLine';
 import { cardsOnly, hair, hasCards, type HairSway } from './hair';
 import { scatter } from './scatter';
-import { strip } from './strip';
-import { expandSteps, ModelExpandError, needsExpanding } from './modelExpand';
 import { checkAnimations, checkController, checkRig, checkShapes, resolveJoints, type AnimationSource, type ControllerSource, type RigSource, type ShapeSource } from './rig';
 import { compact, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
@@ -67,12 +65,6 @@ export interface ModelSource {
     shapes?: ShapeSource[];
     /** Which clip plays when: an `.esanimator` the prefab's Animator runs. */
     controller?: ControllerSource;
-    /**
-     * Numbers and points named once, for the sums in the steps: `{ "length": 1.9, "tip": [0, 2, 0] }`. A value written
-     * `"=length * 0.4"` is worked out from them, and a later name may use an earlier one.
-     */
-    params?: Record<string, unknown>;
-    /** As well as the ops, a step may be `repeat` (its `steps` once for each row of `over`, or `count` times) or `let` (names for the steps after it). */
     steps: ModelStep[];
 }
 
@@ -87,11 +79,6 @@ export interface ModelMaterial {
     cutoff?: number;
     /** Light it gives off, linear [r, g, b], past 1 for what glows and blooms: fire, a lit window. With a colour bake, multiplied by the paint. */
     emissive?: readonly number[];
-    /**
-     * A picture the faces read where their mapping puts it, by project path: a leaf drawn with image_write, its alpha
-     * the leaf's outline under `alpha: "cutout"`. A `strip` lays it from root to tip; other faces take it by their `uv`.
-     */
-    texture?: string;
 }
 
 export interface ModelAttachment {
@@ -149,8 +136,7 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     sphere: { params: { radius: 'number', rings: 'integer', sides: 'integer', ...PLACED }, required: ['radius'], run: ops.sphere as OpSpec['run'], says: 'adds a sphere' },
     prism: { params: { points: 'points', height: 'number', ...PLACED }, required: ['points', 'height'], run: ops.prism as OpSpec['run'], says: 'stands a floor plan of [x, z] points up to `height`' },
     lathe: { params: { profile: 'points', sides: 'integer', arc: 'number', closed: 'boolean', curve: 'integer', axis: 'axis', ...PLACED }, required: ['profile'], run: lathe as unknown as OpSpec['run'], says: 'turns a half-outline of [distance from axis, height] round an axis: a vase, a glass, a column' },
-    loft: { params: { sections: 'sections', path: 'vec3s', section: 'section', scales: 'numbers', sides: 'integer', closed: 'boolean', curve: 'integer', up: 'vec3', ...PLACED }, required: [], run: loft as unknown as OpSpec['run'], says: 'joins cross-sections along a path: a pipe, a handle, a bottle, a hull; `up` says which way a section stands where the path starts' },
-    strip: { params: { path: 'vec3s', width: 'number', widths: 'numbers', up: 'vec3', cup: 'number', twist: 'number', curve: 'integer', region: 'numbers', ...PLACED }, required: ['path', 'width'], run: strip as unknown as OpSpec['run'], says: 'carries a flat band along a `path`, `width` wide and shaped by `widths` from root to tip, its face to `up`, folded by `cup`: a leaf, a blade of grass, a ribbon. It has no thickness and both sides draw; a picture lies along it root to tip (`region` for one of a sheet), which with `material.texture` and `alpha` gives it the picture\'s outline' },
+    loft: { params: { sections: 'sections', path: 'vec3s', section: 'section', scales: 'numbers', sides: 'integer', closed: 'boolean', curve: 'integer', ...PLACED }, required: [], run: loft as unknown as OpSpec['run'], says: 'joins cross-sections along a path: a pipe, a handle, a bottle, a hull' },
     organic: { params: { parts: 'parts', resolution: 'integer', blend: 'number', noise: 'noise', at: 'vec3', tag: 'string', color: 'color' }, required: ['parts'], run: organic as unknown as OpSpec['run'], says: 'adds one continuous skin over a body of parts that melt into each other' },
     humanoid: { params: { height: 'number', head: 'number', shoulders: 'number', chest: 'number', waist: 'number', hips: 'number', limbs: 'number', resolution: 'integer', eyes: 'string', skin: 'color', sclera: 'color', iris: 'color', lips: 'color', tag: 'string' }, required: [], run: humanoid as unknown as OpSpec['run'], says: 'adds a whole person standing in an A-pose, facing +z with feet on y 0, whole from every side, with fingers, a face and ears; `rig: { humanoid: {...} }` gives bones that fit the same build' },
     garment: { params: { faces: 'faces', ease: 'number', relax: 'number', loose: 'loose', cut: 'cuts', thickness: 'number', hide: 'boolean', color: 'color', tag: 'string' }, required: ['faces'], run: garment as unknown as OpSpec['run'], says: 'makes clothes from a piece of the surface already there: relaxed, stood off by `ease`, `loose` for a bell sleeve, `cut` for a hem, with a thickness; they fit from every side and move with the same bones' },
@@ -393,53 +379,16 @@ function checkNormalBake(v: unknown, steps: readonly Partial<ModelStep>[]): stri
     return last === 0 ? 'has nothing to carry: the decimate is the first step' : null;
 }
 
-/** Where each step that came out of a repeat or a sum was written, and the step of the source it belongs to. */
-const WRITTEN = new WeakMap<object, { where: string; index: number }>();
 const stepLabel = (step: Partial<ModelStep> | null, index: number): string =>
-    (step && WRITTEN.get(step)?.where) || `step ${index}${step?.id ? ` "${step.id}"` : ''}${step?.op ? ` (${step.op})` : ''}`;
-/** The step of the source as written that @p step belongs to: what an edit would name. */
-const writtenIndex = (step: Partial<ModelStep> | null, index: number): number => (step && WRITTEN.get(step)?.index) ?? index;
+    `step ${index}${step?.id ? ` "${step.id}"` : ''}${step?.op ? ` (${step.op})` : ''}`;
 
-/**
- * The source as plain steps: its names, sums and repeats worked out (modelExpand.ts). A source with none is itself.
- * What a build runs and what a report counts; what is saved and edited is the source as written.
- */
-export function expandModelSource(source: ModelSource): ModelSource {
-    if (!Array.isArray(source.steps) || !needsExpanding(source)) return source;
-    let expanded;
-    try {
-        expanded = expandSteps(source);
-    } catch (e) {
-        if (e instanceof ModelExpandError) throw new ModelBuildError(e.message, e.index, null, null);
-        throw e;
-    }
-    const { params: _params, ...rest } = source;
-    return {
-        ...rest,
-        steps: expanded.steps.map(({ step, where, index }) => {
-            if (typeof step === 'object' && step !== null) WRITTEN.set(step, { where, index });
-            return step as ModelStep;
-        }),
-    };
-}
-
-/**
- * The source if it is well formed; otherwise throws, naming the step and the field. A source with names, sums or
- * repeats is checked as the plain steps it comes to and handed back as written, since that is what is saved.
- */
+/** The source if it is well formed; otherwise throws, naming the step and the field. */
 export function validateModelSource(raw: unknown): ModelSource {
-    const written = raw as { steps?: unknown; params?: unknown } | null;
-    if (typeof raw !== 'object' || raw === null || Array.isArray(raw) || !Array.isArray(written!.steps) || !needsExpanding(written!)) return validatePlain(raw);
-    const checked = validatePlain(expandModelSource(raw as ModelSource));
-    return { ...checked, ...(written!.params !== undefined ? { params: written!.params as Record<string, unknown> } : {}), steps: written!.steps as ModelStep[] };
-}
-
-function validatePlain(raw: unknown): ModelSource {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ModelBuildError('a model source must be an object with `steps`', null, null, null);
     const source = raw as Record<string, unknown>;
     for (const key of Object.keys(source)) {
-        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'material', 'hairSway', 'attach', 'normalBake', 'rig', 'shapes', 'animations', 'controller', 'params', 'steps'].includes(key)) {
-            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, material, hairSway, attach, normalBake, rig, shapes, animations, controller, params, steps`, null, null, null);
+        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'material', 'hairSway', 'attach', 'normalBake', 'rig', 'shapes', 'animations', 'controller', 'steps'].includes(key)) {
+            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, material, hairSway, attach, normalBake, rig, shapes, animations, controller, steps`, null, null, null);
         }
     }
     if (source.version !== undefined && source.version !== MODEL_SOURCE_VERSION) {
@@ -483,7 +432,7 @@ function validatePlain(raw: unknown): ModelSource {
     if (!Array.isArray(source.steps)) throw new ModelBuildError('`steps` must be an array', null, null, null);
     if (source.material !== undefined) {
         const m = source.material as Record<string, unknown> | null;
-        if (typeof m !== 'object' || m === null || Array.isArray(m)) throw new ModelBuildError('material must be { roughness?, metallic?, alpha?, cutoff?, emissive?, texture? }', null, null, null);
+        if (typeof m !== 'object' || m === null || Array.isArray(m)) throw new ModelBuildError('material must be { roughness?, metallic?, alpha?, cutoff?, emissive? }', null, null, null);
         for (const [key, value] of Object.entries(m)) {
             if (key === 'alpha') {
                 if (value !== 'cutout' && value !== 'blend') throw new ModelBuildError('material.alpha must be cutout or blend', null, null, null);
@@ -493,11 +442,7 @@ function validatePlain(raw: unknown): ModelSource {
                 if (!(isNums(value, 3) && (value as number[]).every((c) => c >= 0))) throw new ModelBuildError('material.emissive must be [r, g, b], none below 0', null, null, null);
                 continue;
             }
-            if (key === 'texture') {
-                if (typeof value !== 'string' || !/\.(png|jpg|jpeg|webp)$/i.test(value)) throw new ModelBuildError('material.texture must be a project path to a picture (.png, .jpg, .webp)', null, null, null);
-                continue;
-            }
-            if (!['roughness', 'metallic', 'cutoff'].includes(key)) throw new ModelBuildError(`material has an unknown field "${key}"; it takes roughness, metallic, alpha, cutoff, emissive, texture`, null, null, null);
+            if (!['roughness', 'metallic', 'cutoff'].includes(key)) throw new ModelBuildError(`material has an unknown field "${key}"; it takes roughness, metallic, alpha, cutoff, emissive`, null, null, null);
             if (!(isNum(value) && value >= 0 && value <= 1)) throw new ModelBuildError(`material.${key} must be 0..1`, null, null, null);
         }
     }
@@ -539,15 +484,15 @@ function validatePlain(raw: unknown): ModelSource {
     const ids = new Set<string>();
     source.steps.forEach((step: Partial<ModelStep> | null, index: number) => {
         const refuse = (what: string): never => {
-            throw new ModelBuildError(`${stepLabel(step, index)}: ${what}`, writtenIndex(step, index), step?.id ?? null, step?.op ?? null);
+            throw new ModelBuildError(`${stepLabel(step, index)}: ${what}`, index, step?.id ?? null, step?.op ?? null);
         };
         if (typeof step !== 'object' || step === null) return refuse('must be an object');
         if (typeof step.id === 'string') {
-            if (ids.has(step.id)) refuse(`the id "${step.id}" is already used by an earlier step${WRITTEN.has(step) ? '; a step inside a repeat is made once for each row, so it cannot have an id' : ''}`);
+            if (ids.has(step.id)) refuse(`the id "${step.id}" is already used by an earlier step`);
             ids.add(step.id);
         } else if (step.id !== undefined) refuse('id must be a string');
         const spec = typeof step.op === 'string' ? MODEL_OPS[step.op] : undefined;
-        if (!spec) return refuse(`unknown op ${JSON.stringify(step.op)}; there are ${Object.keys(MODEL_OPS).join(', ')}, and repeat and let`);
+        if (!spec) return refuse(`unknown op ${JSON.stringify(step.op)}; there are ${Object.keys(MODEL_OPS).join(', ')}`);
         for (const [key, value] of Object.entries(step)) {
             if (key === 'id' || key === 'op') continue;
             const kind = spec.params[key];
@@ -583,8 +528,7 @@ export interface ModelBuild {
 }
 
 /** Runs the steps in order. A step that cannot run throws a {@link ModelBuildError} naming it. */
-export function buildPolyMesh(written: ModelSource): ModelBuild {
-    const source = expandModelSource(written);
+export function buildPolyMesh(source: ModelSource): ModelBuild {
     let mesh: PolyMesh = { positions: [], faces: [] };
     const steps: StepReport[] = [];
     const bake = source.normalBake;
@@ -606,7 +550,7 @@ export function buildPolyMesh(written: ModelSource): ModelBuild {
                 ? stain(input, params as never, undefined, { roughness: source.material?.roughness ?? 1, metallic: source.material?.metallic ?? 0 })
                 : MODEL_OPS[op]!.run(input, (op === 'decimate' ? rest : params) as never);
         } catch (e) {
-            throw new ModelBuildError(`${stepLabel(step, index)}: ${e instanceof Error ? e.message : String(e)}`, writtenIndex(step, index), id ?? null, op);
+            throw new ModelBuildError(`${stepLabel(step, index)}: ${e instanceof Error ? e.message : String(e)}`, index, id ?? null, op);
         }
         if (mesh.notes) {
             for (const note of mesh.notes) notes.push(`${stepLabel(step, index)}: ${note}`);
@@ -625,7 +569,7 @@ export type ModelEdit =
     | { op: 'set'; step: string | number; fields: Record<string, unknown> }
     | { op: 'insert'; step: ModelStep; before?: string | number; after?: string | number }
     | { op: 'remove'; step: string | number }
-    | { op: 'settings'; fields: Pick<ModelSource, 'smoothAngle' | 'uvScale' | 'uvAtlas' | 'material' | 'attach' | 'normalBake' | 'rig' | 'shapes' | 'animations' | 'controller' | 'params'> };
+    | { op: 'settings'; fields: Pick<ModelSource, 'smoothAngle' | 'uvScale' | 'uvAtlas' | 'material' | 'attach' | 'normalBake' | 'rig' | 'shapes' | 'animations' | 'controller'> };
 
 function indexOfStep(source: ModelSource, ref: string | number): number {
     const i = typeof ref === 'number' ? ref : source.steps.findIndex((s) => s.id === ref);

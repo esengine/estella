@@ -746,6 +746,8 @@ out highp vec4 v_velPrev;
 #ifdef ES_MATERIAL_VERTEX
 
 highp vec4 es_vertexColor;
+
+highp vec2 es_vertexUv1;
 @@ES_VERTEX_HOOK@@
 #endif
 
@@ -771,6 +773,11 @@ void main() {
     applyMorph(local, localNormal);
 #ifdef ES_MATERIAL_VERTEX
     es_vertexColor = a_color;
+#ifdef MESH_LIGHTMAP
+    es_vertexUv1 = a_texCoord1;
+#else
+    es_vertexUv1 = vec2(0.0);
+#endif
     esMaterialVertex(local, localNormal, a_texCoord);
 #endif
 #ifdef SKINNED
@@ -1044,6 +1051,7 @@ struct VSOut {
 
 #ifdef ES_MATERIAL_VERTEX
 var<private> es_vertexColor : vec4f;
+var<private> es_vertexUv1 : vec2f;
 @@ES_VERTEX_HOOK@@
 #endif
 
@@ -1082,6 +1090,11 @@ fn esPrevBone(joint : u32) -> mat4x4f {
     }
 #ifdef ES_MATERIAL_VERTEX
     es_vertexColor = v.a_color;
+#ifdef MESH_LIGHTMAP
+    es_vertexUv1 = v.a_texCoord1;
+#else
+    es_vertexUv1 = vec2f(0.0);
+#endif
     esMaterialVertex(&local, &localNormal, v.a_texCoord);
 #endif
 #ifdef SKINNED
@@ -1113,7 +1126,8 @@ fn esPrevBone(joint : u32) -> mat4x4f {
         out.v_color = vec4f(select(mix(vec3f(0.2, 0.4, 1.0), vec3f(1.0, 0.25, 0.2), clamp(heat, 0.0, 1.0)),
                                    vec3f(0.1), heat < 0.01), 1.0);
     }
-#endif
+)esshader"
+    R"esshader(#endif
 #endif
 #ifdef MESH_LIGHTMAP
     let lmRect = esInstanceLightmapRect();
@@ -1121,8 +1135,7 @@ fn esPrevBone(joint : u32) -> mat4x4f {
                            select(0.0, 1.0, lmRect.x > 0.0));
 #endif
 #ifdef SHADOW_DEPTH
-)esshader"
-    R"esshader(    out.v_shadowClip = out.pos;
+    out.v_shadowClip = out.pos;
 #endif
 #ifdef ES_VELOCITY
     {

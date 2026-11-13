@@ -221,8 +221,6 @@ export interface LoftParams extends Placed {
     closed?: boolean;
     /** Segments between sections; 1 keeps them straight. */
     curve?: number;
-    /** The way a section's "up" points where the path starts; it is carried along from there. Default: as near upright as the path allows. */
-    up?: Vec3;
 }
 
 function outlineOf(s: LoftSection, sides: number): { ring: [number, number][]; corners: boolean } {
@@ -344,12 +342,6 @@ export function loft(mesh: PolyMesh, p: LoftParams): PolyMesh {
     const first = tangentAt(0);
     let right = normalize(cross(Math.abs(first[1]) > 0.99 ? [0, 0, 1] : [0, 1, 0], first));
     if (Math.abs(first[1]) > 0.99) right = normalize(cross([0, 0, -1], first));
-    if (p.up) {
-        // A section's up is the given one with what runs along the path taken out, so its across is their cross.
-        const across = cross(p.up, first);
-        if (length(across) < EPS) throw new Error('`up` runs along the path where it starts: give one that points off it');
-        right = normalize(across);
-    }
     const world: number[][][] = sections.map((_, i) => {
         const t = tangentAt(i);
         right = normalize(sub(right, scale(t, dot(right, t))));

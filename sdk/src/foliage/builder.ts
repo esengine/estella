@@ -104,6 +104,8 @@ interface Builder {
     color: number[];
     nrm: number[];
     idx: number[];
+    /** The second uv, where the mesh has one: for each vertex of a plant's head, where it sits from the plant's axis (see buildInstancedMesh). */
+    seat?: number[];
 }
 
 const newBuilder = (alpha = 1): Builder => ({ alpha, pos: [], uv: [], color: [], nrm: [], idx: [] });
@@ -123,7 +125,9 @@ function pack(b: Builder): MeshData {
         { semantic: MeshChannel.TexCoord0, components: 2, type: MeshChannelType.Float32 },
         { semantic: MeshChannel.Color, components: 4, type: MeshChannelType.UNorm8 },
         { semantic: MeshChannel.Normal, components: 3, type: MeshChannelType.Float32 },
+        ...(b.seat ? [{ semantic: MeshChannel.TexCoord1, components: 2, type: MeshChannelType.Float32 }] : []),
     ]);
+    const seatAt = b.seat ? channels[4]!.offset : -1;
     const vertexCount = b.pos.length / 3;
     const vertices = new Uint8Array(Math.max(1, vertexCount) * vertexStride);
     const view = new DataView(vertices.buffer);
@@ -141,6 +145,7 @@ function pack(b: Builder): MeshData {
         }
         view.setFloat32(at + uvAt, b.uv[i * 2]!, true);
         view.setFloat32(at + uvAt + 4, b.uv[i * 2 + 1]!, true);
+        if (seatAt >= 0) { view.setFloat32(at + seatAt, b.seat![i * 2] ?? 0, true); view.setFloat32(at + seatAt + 4, b.seat![i * 2 + 1] ?? 0, true); }
         for (let k = 0; k < 4; k++) view.setUint8(at + colorAt + k, Math.round(Math.min(Math.max(b.color[i * 4 + k]!, 0), 1) * 255));
     }
     if (vertexCount === 0) { min.fill(0); max.fill(0); }
@@ -225,13 +230,16 @@ function reader(mesh: MeshData, semantic: number, components: number): ((v: numb
 
 /**
  * Copies of a mesh, one per plant, as one mesh: placed, turned about the vertical and scaled, with the wind's weights painted by how
- * high each vertex stands on its own copy (a tree's trunk hardly moves, its crown does).
+ * high each vertex stands on its own copy (a tree's trunk hardly moves, its crown does). With `seats` the mesh has a second uv: for a
+ * vertex of a plant's head (the last tenth of its height) where it sits from the plant's own axis, across the ground, and zero below
+ * it. It is the pivot a shader turns the head about (the Foliage shader's u_faceEye), as a pivot painted into a uv is elsewhere.
  */
 /** The share of a plant's height where its top begins to tip, and where it is tipped whole. */
 const TIP_FROM = 0.9, TIP_WHOLE = 0.95;
 
-export function buildInstancedMesh(source: MeshData, plants: readonly Plant[], paint?: BladeParams['paint'], band?: number): MeshData {
+export function buildInstancedMesh(source: MeshData, plants: readonly Plant[], paint?: BladeParams['paint'], band?: number, seats = false): MeshData {
     const b = newBuilder(bandAlpha(band));
+    if (seats) b.seat = [];
     const readPosition = reader(source, MeshChannel.Position, 3);
     const readNormal = reader(source, MeshChannel.Normal, 3);
     const readUv = reader(source, MeshChannel.TexCoord0, 2);
@@ -241,7 +249,7 @@ export function buildInstancedMesh(source: MeshData, plants: readonly Plant[], p
         const base = b.pos.length / 3;
         const cos = Math.cos(plant.yaw), sin = Math.sin(plant.yaw);
         const lean = plant.up ? leanTo(plant.up) : null;
-        const q = [0, 0, 0], m = [0, 0, 0];
+        const q = [0, 0, 0], m = [0, 0, 0], axis = [0, 0, 0];
         const tilt = plant.tilt ?? 0, top = source.aabbMax[1] * plant.scale;
         for (let v = 0; v < source.vertexCount; v++) {
             readPosition(v, p3);
@@ -265,6 +273,13 @@ export function buildInstancedMesh(source: MeshData, plants: readonly Plant[], p
             m[0] = n3[0]! * cos + n3[2]! * sin; m[1] = n3[1]!; m[2] = -n3[0]! * sin + n3[2]! * cos;
             if (lean) { lean(q); lean(m); }
             vertex(b, plant.x + q[0]!, plant.y + q[1]!, plant.z + q[2]!, uv2[0]!, uv2[1]!, color[0], color[1], color[2], m[0]!, m[1]!, m[2]!);
+            if (b.seat) {
+                // From the point of the plant's axis at this vertex's own height, leaned as the plant is.
+                axis[0] = 0; axis[1] = y; axis[2] = 0;
+                if (lean) lean(axis);
+                const head = t > TIP_FROM;
+                b.seat.push(head ? q[0]! - axis[0]! : 0, head ? q[2]! - axis[2]! : 0);
+            }
         }
         for (const i of source.indices) b.idx.push(base + i);
     }

@@ -4627,6 +4627,8 @@ colorMapStrength: number
 count: number
 densityMap: number
 drawDistance: number
+faceEye: number
+faceEyeNear: number
 farCards: boolean
 farGrow: number
 farGrowUp: number
@@ -14869,7 +14871,7 @@ MotionDriver<AnimatorBlend2DMotion>
 
 ## buildInstancedMesh — function @experimental
 ```
-(source: MeshData, plants: readonly Plant[], paint?: BladeParams["paint"], band?: number): MeshData
+(source: MeshData, plants: readonly Plant[], paint?: BladeParams["paint"], band?: number, seats?: boolean): MeshData
 ```
 
 ## buildOceanMesh — function @experimental

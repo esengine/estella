@@ -55,6 +55,8 @@ export interface FoliageCellSpec {
     tags: string[];
     /** The Foliage entity's height: the plants carry the ground's height relative to it. */
     baseY: number;
+    /** The copies of a mesh carry, in a second uv, where each vertex of a head sits from its plant's axis: what a shader turns the head about. */
+    seats?: boolean;
     paint: CellPaint;
     /**
      * The far versions: how many there are (1 to 3), the share of its plants each keeps of the one before, the most a kept plant is
@@ -135,7 +137,7 @@ export function buildFoliageCell(spec: FoliageCellSpec, around: CellSurroundings
     const band = only === null ? undefined : only;
     const copies = (level: number): MeshData | null => {
         const kept = level === 0 ? plants : rankedPlants(plants, share(level), spec.far.grow, undefined, spec.far.up ?? 0, spec.far.tilt ?? 0);
-        return kept.length === 0 ? null : buildInstancedMesh(source!, kept, spec.paint, band);
+        return kept.length === 0 ? null : buildInstancedMesh(source!, kept, spec.paint, band, !!spec.seats);
     };
     // A far blade is one quad, a little taller and as much wider as covers the ground of the ones left out: grass grows broader, not higher.
     const blades = (level: number): MeshData | null => {

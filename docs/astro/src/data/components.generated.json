@@ -2492,6 +2492,20 @@
           "range": "0–90, step 1"
         },
         {
+          "key": "faceEyeNear",
+          "type": "number",
+          "default": "0",
+          "doc": "How far the head of a mesh plant (the last tenth of its height) is turned to face the eye, close to. Needs a material.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "faceEye",
+          "type": "number",
+          "default": "0",
+          "doc": "How far it is turned to face the eye half the draw distance away and beyond: a far flower stands for a clump, and a clump shows its colour from the side. Needs a material.",
+          "range": "0–1, step 0.01"
+        },
+        {
           "key": "farCards",
           "type": "boolean",
           "default": "true",
@@ -2669,6 +2683,8 @@
         "farGrow",
         "farGrowUp",
         "farTilt",
+        "faceEyeNear",
+        "faceEye",
         "sizeX",
         "sizeZ",
         "cellSize",
