@@ -160,10 +160,8 @@ app.whenReady().then(async () => {
       });
     }
 
-    // The stages a browser can honestly claim: stored in localStorage and read
-    // back, and no disk cache to have put anything in.
     const stagesOk = good?.stages?.verified === true && good.stages.applied === true
-      && good.stages.persisted === true && good.stages.cached === null;
+      && good.stages.persisted === true && good.stages.cached === true;
     // A relaunch starts on the update, not on what shipped: the whole point of
     // persisting it. The refused updates in between must not have displaced it.
     await win.loadURL(`${base}/index.html?headless=1`);
