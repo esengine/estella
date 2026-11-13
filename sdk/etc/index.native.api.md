@@ -9056,7 +9056,7 @@ TextureUploadDecision
 
 ## REGISTRY_OPS — const @experimental
 ```
-{ readonly create: "es_registry_create"; readonly destroy: "es_registry_destroy"; readonly valid: "es_registry_valid"; readonly entityCount: "es_registry_entityCount"; readonly reserveDestruction: "es_registry_reserveDestruction"; readonly releaseDestruction: "es_registry_releaseDestruction"; readonly destructionPending: "es_registry_destructionPending"; readonly setEntityEnabled: "es_registry_setEntityEnabled"; readonly isEntityActive: "es_registry_isEntityActive"; readonly isEntityEnabled: "es_registry_isEntityEnabled"; readonly hasInactiveEntities: "es_registry_hasInactiveEntities"; readonly activityEpoch: "es_registry_activityEpoch"; readonly setParent: "es_registry_setParent"; }
+{ readonly create: "es_registry_create"; readonly destroy: "es_registry_destroy"; readonly valid: "es_registry_valid"; readonly entityCount: "es_registry_entityCount"; readonly reserveDestruction: "es_registry_reserveDestruction"; readonly releaseDestruction: "es_registry_releaseDestruction"; readonly destructionPending: "es_registry_destructionPending"; readonly setEntityEnabled: "es_registry_setEntityEnabled"; readonly isEntityActive: "es_registry_isEntityActive"; readonly isEntityEnabled: "es_registry_isEntityEnabled"; readonly hasInactiveEntities: "es_registry_hasInactiveEntities"; readonly activityEpoch: "es_registry_activityEpoch"; readonly changeTick: "es_registry_changeTick"; readonly beginChangeRead: "es_registry_beginChangeRead"; readonly setChangeAudit: "es_registry_setChangeAudit"; readonly auditChanges: "es_registry_auditChanges"; readonly changeAuditTotal: "es_registry_changeAuditTotal"; readonly setParent: "es_registry_setParent"; }
 ```
 
 ## RENAMED_COMPONENT_TYPES — const @experimental
@@ -14380,6 +14380,7 @@ Generator<number, T, void>
 @internal beginIteration: () => void
 @internal bufferedWriteRows: (component: AnyComponentDef) => number
 @internal builtin: BuiltinBridge
+@internal changeAuditTotal: () => number
 @internal changes_: ChangeTracker
 @internal closeSpeculation: () => void
 @internal commitReservedSpawn: (entity: Entity, name?: string) => void
@@ -14450,6 +14451,7 @@ Generator<number, T, void>
 @internal scriptLayoutEpoch: () => number
 @internal scriptSpanOf: (component: AnyComponentDef) => { rows: number; stride: number; sparse: number; sparseCount: number; owners: number; ownerCount: number; } | undefined
 @internal setAssetFieldResolver: (resolver: AssetFieldResolver | null) => void
+@internal setChangeAudit: (enabled: boolean) => void
 @internal setQueryCostEnabled: (enabled: boolean) => void
 @internal setTransformChangeTracking: (on: boolean) => boolean
 @internal speculating: boolean

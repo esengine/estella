@@ -80,6 +80,9 @@ struct SpringBone {
     std::vector<Entity> colliders;
 
     SpringBone() = default;
+
+    /// Compared member by member: what the change audit checks a write of this component against (Registry::auditChanges).
+    bool operator==(const SpringBone&) const = default;
 };
 
 /**

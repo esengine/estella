@@ -140,6 +140,126 @@ public:
         entity_changes_.record(entity.id(), flags, component);
     }
 
+    // =========================================================================
+    // Change Detection
+    // =========================================================================
+    //
+    // Every component carries the tick of its last write. A write stamps the tick that is current; a reader asks
+    // beginChangeRead(), which hands back the tick it read at and moves the clock on, and next time takes as changed whatever is
+    // stamped after that. A write made after a reader looked is stamped later than what it read at, so it is seen the next time,
+    // whichever frame it happened in.
+    //
+    // What writes says so: patch<T>() (a mutable reference that stamps), markChanged<T>() (after writing through a reference
+    // already held), add, replace and remove. get<T>() announces nothing; setChangeAudit() reports what changed without saying.
+
+    /** @brief The tick a write made now is stamped with. */
+    u32 changeTick() const { return change_tick_; }
+
+    /**
+     * @brief For a reader about to look: the tick it is looking at, after which the clock moves on.
+     * @details Keep the answer; next time, changedSince(it) is what was written since this look. Stamps older than half the
+     *          counter's range are lifted on the way, so an untouched component never reads as newer once the tick wraps.
+     */
+    u32 beginChangeRead() {
+        const u32 seen = change_tick_;
+        ++change_tick_;
+        if (change_tick_ == 0) change_tick_ = 1;
+        if ((change_tick_ & ((1u << 20) - 1)) == 0) {
+            const u32 floor = change_tick_ - (1u << 30);
+            for (auto& pool : pools_) if (pool) pool->clampStamps(floor);
+        }
+        return seen;
+    }
+
+    /** @brief Mutable access that says it writes: @p entity's T, stamped. Fatal where it has none, as get<T>() is. */
+    template<typename T>
+    T& patch(Entity entity) {
+        auto* pool = getPool<T>();
+        ES_VERIFY_FATAL(pool != nullptr, noPoolMessage(entity));
+        T& component = pool->get(entity);
+        pool->markChanged(entity, change_tick_);
+        return component;
+    }
+
+    /** @brief Says @p entity's T was written, through a reference held from before. */
+    template<typename T>
+    void markChanged(Entity entity) {
+        if (auto* pool = getPool<T>()) pool->markChanged(entity, change_tick_);
+    }
+
+    /** @brief Whether @p entity's T was written, added or replaced after @p tick (an answer of beginChangeRead). */
+    template<typename T>
+    bool changedSince(Entity entity, u32 tick) const {
+        const auto* pool = getPool<T>();
+        return pool && tickAfter(pool->changedTick(entity), tick);
+    }
+
+    /** @brief Whether any T was written, added or removed after @p tick: the question a frame that may skip its walk asks first. */
+    template<typename T>
+    bool anyChangedSince(u32 tick) const {
+        const auto* pool = getPool<T>();
+        return pool && tickAfter(pool->lastChangedTick(), tick);
+    }
+
+    /**
+     * @brief Turns the change audit on or off. On, auditChanges() compares every auditable component with the copy it kept and
+     *        reports each one whose bytes changed with no stamp to say so — a write some consumer will never see.
+     * @details A check for tests and gates: it copies every component once per audit.
+     */
+    void setChangeAudit(bool enabled) {
+        change_audit_ = enabled;
+        audit_copies_.clear();
+        audit_reported_.clear();
+        if (enabled) auditChanges();
+    }
+    bool changeAuditEnabled() const { return change_audit_; }
+
+    /**
+     * @brief Compares, reports, and keeps a new copy. @return The unstamped writes found since the last call (0 while off).
+     * @details Each component type is named in the log the first time one of its writes goes unstamped, with the entity; every
+     *          one is counted. A type that can be neither copied as bytes nor compared is named once, at the first audit, as unchecked.
+     */
+    u32 auditChanges() {
+        if (!change_audit_) return 0;
+        u32 found = 0;
+        if (audit_copies_.size() < pools_.size()) audit_copies_.resize(pools_.size());
+        if (audit_reported_.size() < pools_.size()) audit_reported_.resize(pools_.size(), 0);
+        for (usize id = 0; id < pools_.size(); ++id) {
+            const auto& pool = pools_[id];
+            if (!pool) continue;
+            if (!pool->auditable()) {
+                if (!audit_reported_[id]) {
+                    audit_reported_[id] = 2;
+                    ES_LOG_INFO("change audit: {} can be neither copied as bytes nor compared with ==, and is not checked", std::string(pool->typeName()));
+                }
+                continue;
+            }
+            auto& copy = audit_copies_[id];
+            if (!copy.entities.empty() || copy.tick != 0) {
+                struct Sink { Registry* self; usize id; Entity first = INVALID_ENTITY; };
+                Sink sink{this, id};
+                const u32 here = pool->auditCompare(copy, [](void* user, Entity entity) {
+                    auto* s = static_cast<Sink*>(user);
+                    if (s->first == INVALID_ENTITY) s->first = entity;
+                }, &sink);
+                if (here && audit_reported_[id] != 1) {
+                    audit_reported_[id] = 1;
+                    ES_LOG_WARN("change audit: {} was written without a stamp (entity {}, {} this frame) - a consumer of changes "
+                                "will not see it", std::string(pool->typeName()), sink.first.index(), here);
+                }
+                found += here;
+                audit_unstamped_total_ += here;
+            }
+            pool->auditKeep(copy, change_tick_);
+        }
+        // The copies were taken at this tick: a write from here on has to be stamped later than it to count as said.
+        beginChangeRead();
+        return found;
+    }
+
+    /** @brief Unstamped writes the audit has found since it was turned on. */
+    u32 changeAuditTotal() const { return audit_unstamped_total_; }
+
     template<class... C> auto activeView() {
         return ActiveView<View<C...>, Registry>(view<C...>(), *this);
     }
@@ -263,6 +383,7 @@ public:
         component_masks_[idx].forEachSet([&](u32 bit) {
             if (bit < pools_.size() && pools_[bit]) {
                 pools_[bit]->remove(entity);
+                pools_[bit]->noteStructural(change_tick_);
             }
         });
 
@@ -357,6 +478,7 @@ public:
         auto& pool = assurePool<T>();
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
         component_masks_[entity.index()].set(componentTypeId<T>());
+        pool.markChanged(entity, change_tick_);
         recordComponentChange<T>(entity);
         return result;
     }
@@ -379,11 +501,13 @@ public:
         if (pool.contains(entity)) {
             auto& comp = pool.get(entity);
             comp = T(std::forward<Args>(args)...);
+            pool.markChanged(entity, change_tick_);
             recordComponentChange<T>(entity, ENTITY_CHANGE_REPLACED);
             return comp;
         }
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
         component_masks_[entity.index()].set(componentTypeId<T>());
+        pool.markChanged(entity, change_tick_);
         recordComponentChange<T>(entity);
         return result;
     }
@@ -400,6 +524,7 @@ public:
         auto* pool = getPool<T>();
         if (pool && pool->contains(entity)) {
             pool->remove(entity);
+            pool->noteStructural(change_tick_);
             recordComponentChange<T>(entity);
             const u32 idx = entity.index();
             if (idx < component_masks_.size()) {
@@ -469,6 +594,7 @@ public:
         ES_VERIFY_FATAL(valid(entity), invalidEntityMessage("getOrEmplace", entity));
         auto& result = pool.emplace(entity, std::forward<Args>(args)...);
         component_masks_[entity.index()].set(componentTypeId<T>());
+        pool.markChanged(entity, change_tick_);
         recordComponentChange<T>(entity);
         return result;
     }
@@ -676,9 +802,8 @@ public:
         auto* pool = getPool<T>();
         if (!pool) return;
 
-        auto& entities = pool->entities();
-        auto& components = pool->components();
-        usize n = entities.size();
+        const auto& components = pool->components();
+        const usize n = components.size();
         if (n <= 1) return;
 
         std::vector<usize> perm(n);
@@ -687,27 +812,8 @@ public:
         std::sort(perm.begin(), perm.end(), [&](usize a, usize b) {
             return compare(components[a], components[b]);
         });
-
-        for (usize i = 0; i < n; ++i) {
-            if (perm[i] == i) continue;
-
-            usize j = i;
-            Entity tmpEntity = std::move(entities[i]);
-            T tmpComponent = std::move(components[i]);
-
-            while (perm[j] != i) {
-                usize src = perm[j];
-                entities[j] = std::move(entities[src]);
-                components[j] = std::move(components[src]);
-                perm[j] = j;
-                j = src;
-            }
-
-            entities[j] = std::move(tmpEntity);
-            components[j] = std::move(tmpComponent);
-            perm[j] = j;
-        }
-        pool->rebuildSparse();
+        // The entity, its component and its stamp move together.
+        pool->permute(perm);
     }
 
     /**
@@ -884,6 +990,13 @@ private:
 
     /** @brief Type-erased component pools indexed by TypeId */
     std::vector<Unique<SparseSetBase>> pools_;
+
+    /// The tick a write is stamped with (see beginChangeRead). Starts at 1: 0 is "never written".
+    u32 change_tick_ = 1;
+    bool change_audit_ = false;
+    std::vector<SparseSetBase::AuditCopy> audit_copies_;
+    std::vector<u8> audit_reported_;
+    u32 audit_unstamped_total_ = 0;
 
     Signal<void(Entity)> on_destroy_signal_;
     // Indexed by the canonical entity slot/generation. Grow during activation,

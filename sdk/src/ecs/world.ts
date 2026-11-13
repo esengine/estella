@@ -1485,6 +1485,26 @@ export class World {
     /** @internal The frame runner's clock for change detection. */
     advanceTick(): void {
         this.changes_.advanceTick();
+        // Once a frame, while the audit is on: the engine compares its components with the copy it kept and counts each one
+        // whose bytes changed without a change stamp (Registry::auditChanges).
+        if (this.changeAudit_) this.builtin_.getCppRegistry()?.auditChanges?.();
+    }
+
+    private changeAudit_ = false;
+
+    /**
+     * @internal Turns on the engine's change audit, for tests and gates: every frame from here on, a component written without
+     * a change stamp is counted, and its type named in the log the first time. It copies every component once a frame.
+     */
+    setChangeAudit(enabled: boolean): void {
+        const registry = this.builtin_.getCppRegistry();
+        registry?.setChangeAudit?.(enabled);
+        this.changeAudit_ = enabled && typeof registry?.auditChanges === 'function';
+    }
+
+    /** @internal Component writes the audit has found without a change stamp since it was turned on. */
+    changeAuditTotal(): number {
+        return this.builtin_.getCppRegistry()?.changeAuditTotal?.() ?? 0;
     }
 
     /** @internal */

@@ -47,6 +47,9 @@ const PROFILE = argv.includes('--profile');
 const GLCALLS = argv.includes('--glcalls');
 /** Time frames with the engine's profiler left off: what a frame costs a player, not a profiled one. No scopes are read. */
 const WALL = argv.includes('--wall');
+// --audit: after the scene settles, turn on the engine's change audit, play two seconds, and list the component types written
+// without a change stamp (World.setChangeAudit) - the census of what a consumer of changes would not see.
+const AUDIT = argv.includes('--audit');
 const NO_EXPORT = argv.includes('--no-export');
 const ONLY = flag('only', '') ? new Set(flag('only', '').split(',')) : null;
 /** A png of the last measured frame, to compare two builds' pictures. */
@@ -122,6 +125,8 @@ async function measure(browser, dir) {
   }
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e).slice(0, 200)));
+  const audit = [];
+  if (AUDIT) page.on('console', (m) => { if (m.text().includes('change audit:')) audit.push(m.text().replace(/^.*change audit: /, '')); });
   if (argv.includes('--logs')) {
     page.on('console', (m) => { if (['warning', 'error'].includes(m.type())) console.log(`  [${m.type()}] ${m.text().slice(0, 300)}`); });
     page.on('pageerror', (e) => console.log(`  [pageerror] ${String(e).slice(0, 300)}`));
@@ -148,6 +153,18 @@ async function measure(browser, dir) {
       }
       return -1;
     });
+    let auditTotal = null;
+    if (AUDIT) {
+      auditTotal = await page.evaluate(async () => {
+        const c = window.__estellaCooked;
+        if (!c.changeAudit) throw new Error('this package has no change audit (no changeAudit()): re-export it');
+        c.changeAudit(true);
+        for (let i = 0; i < 12; i++) { await c.step(10, 1 / 60); await new Promise((r) => setTimeout(r, 10)); }
+        const total = c.changeAuditTotal();
+        c.changeAudit(false);
+        return total;
+      });
+    }
     let cdp = null;
     if (PROFILE) {
       cdp = await context.newCDPSession(page);
@@ -188,7 +205,8 @@ async function measure(browser, dir) {
     const keys = new Set(result.scopes.flatMap((s) => Object.keys(s ?? {})));
     const native = {};
     for (const k of keys) native[k] = median(result.scopes.map((s) => s?.[k] ?? 0));
-    return { ms: median(result.ms), native, counters: result.counters, systems: result.systems, settled, errors, profile, gl: result.gl };
+    return { ms: median(result.ms), native, counters: result.counters, systems: result.systems, settled, errors, profile, gl: result.gl,
+             audit: AUDIT ? { total: auditTotal, lines: audit } : null };
   } finally {
     await context.close();
     await new Promise((r) => server.close(r));
@@ -243,12 +261,16 @@ try {
     const r = await measure(browser, dir);
     const n = r.native, c = r.counters;
     const renderCpu = (n['render.collect'] ?? 0) + (n['render.finalize'] ?? 0) + (n['render.submit'] ?? 0) + (n['render.graph'] ?? 0);
-    table[spread] = { ms: r.ms, renderCpu, native: n, counters: c, settled: r.settled, errors: r.errors, gl: r.gl };
+    table[spread] = { ms: r.ms, renderCpu, native: n, counters: c, settled: r.settled, errors: r.errors, gl: r.gl, audit: r.audit };
     console.log(`${spread.padEnd(8)} frame ${r.ms.toFixed(2)} ms   collect ${(n['render.collect'] ?? 0).toFixed(2)}  finalize ${(n['render.finalize'] ?? 0).toFixed(2)}  submit ${(n['render.submit'] ?? 0).toFixed(2)}  graph ${(n['render.graph'] ?? 0).toFixed(2)}  -> render CPU ${renderCpu.toFixed(2)} ms   draws ${c['batch.draws'] ?? '?'} (gpu ${c['render.gpu.draws'] ?? '?'}, merged ${c['batch.merged'] ?? '?'}, shadow ${c['render.shadow.draws'] ?? '?'})  tris ${((c['render.triangles'] ?? 0) / 1e6).toFixed(2)}M  settled ${r.settled}${r.errors.length ? '  ERRORS ' + r.errors[0] : ''}`);
     const breaks = Object.entries(c).filter(([k]) => k.startsWith('batch.break.')).map(([k, v]) => `${k.slice(12)}=${v}`).join(' ');
     if (breaks) console.log(`         merge breaks: ${breaks}`);
     const sys = (r.systems ?? []).slice().sort((a, b) => b.ms - a.ms).slice(0, 6).map((s) => `${s.name} ${s.ms.toFixed(2)}`).join(', ');
     if (sys) console.log(`         top systems: ${sys}`);
+    if (r.audit) {
+      console.log(`         change audit: ${r.audit.total} unstamped write(s) in 120 frames`);
+      for (const line of r.audit.lines) console.log(`           ${line}`);
+    }
     if (r.gl) {
       const rows = Object.entries(r.gl).sort((a, b) => b[1] - a[1]);
       const total = rows.reduce((t, [, v]) => t + v, 0);

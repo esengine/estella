@@ -47,6 +47,9 @@ struct ShadowCaster2D {
     /** @brief Disabled casters are skipped during collection. */
     ES_PROPERTY()
     bool enabled{true};
+
+    /// Compared member by member: what the change audit checks a write of this component against (Registry::auditChanges).
+    bool operator==(const ShadowCaster2D&) const = default;
 };
 
 }  // namespace esengine::ecs

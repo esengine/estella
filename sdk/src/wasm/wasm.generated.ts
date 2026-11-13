@@ -1165,6 +1165,16 @@ export interface Registry {
     hasInactiveEntities(): boolean;
     /** Bumped by every activity change. */
     activityEpoch(): number;
+    /** The tick a component write made now is stamped with. */
+    changeTick(): number;
+    /** For a reader about to look for changes: the tick it looks at; the clock then moves on. */
+    beginChangeRead(): number;
+    /** Turns on the audit that finds component writes made without a change stamp. */
+    setChangeAudit(enabled: boolean): void;
+    /** Unstamped component writes since the last audit (0 while the audit is off). */
+    auditChanges(): number;
+    /** Unstamped component writes the audit has found since it was turned on. */
+    changeAuditTotal(): number;
     /** Re-parents child; false when refused (a cycle, an invalid entity). */
     setParent(child: Entity, parent: Entity): boolean;
     /** All generated builtin names, separated by |; absent on older cores. */

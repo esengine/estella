@@ -27,8 +27,12 @@
 // Standard library
 #include <algorithm>
 #include <array>
+#include <concepts>
+#include <cstring>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace esengine::ecs {
@@ -114,6 +118,41 @@ public:
     /** @brief Rank for an entity the caller did not order — sorts last, stably. */
     static constexpr u32 UNRANKED = 0xFFFFFFFFu;
 
+    // ---- Change stamps --------------------------------------------------------------------------------------------------------
+    // Every component carries the tick of its last write beside it (see Registry::changeTick for what a tick is). Written by
+    // whoever writes the component: Registry::patch and markChanged here, the generated setters from script.
+
+    /** @brief The tick of the last write to any component of this pool, or of the last add or remove: "anything since?" in O(1). */
+    virtual u32 lastChangedTick() const = 0;
+    /** @brief Notes an add or a remove at @p tick, which no stamp of a component that is still there records. */
+    virtual void noteStructural(u32 tick) = 0;
+    /** @brief Lifts every stamp older than @p floor to it, so a stamp never reads as newer after the tick wraps. */
+    virtual void clampStamps(u32 floor) = 0;
+    /** @brief The component type's name, for what the audit says. */
+    virtual std::string_view typeName() const = 0;
+
+    // ---- The audit -------------------------------------------------------------------------------------------------------------
+    // A write that left no stamp is a consumer that will never see it (a renderer drawing the old state). The audit keeps a copy
+    // of every component and reports each one that changed since the copy while its stamp did not move: by its bytes where they
+    // are its value (trivially copyable), by == where it says what equal is; a component that is neither is listed as unchecked.
+
+    /** @brief What the audit kept of a pool: its entities and their components' bytes, as they were at @p tick. */
+    struct AuditCopy {
+        std::vector<Entity> entities;
+        std::vector<u8> bytes;                 ///< a trivially copyable component's bytes
+        std::shared_ptr<void> values;          ///< otherwise a copy of the components, compared with ==
+        u32 tick = 0;
+    };
+    /** @brief Whether this pool's components can be audited (see above). */
+    virtual bool auditable() const = 0;
+    /** @brief Keeps the pool's state as it is at @p tick. */
+    virtual void auditKeep(AuditCopy& copy, u32 tick) const = 0;
+    /**
+     * @brief Calls @p report for each entity whose component changed since @p copy without a stamp after copy.tick.
+     * @return How many did.
+     */
+    virtual u32 auditCompare(const AuditCopy& copy, void (*report)(void* user, Entity entity), void* user) const = 0;
+
     /**
      * @brief Which current slot belongs at each position when `dense` is put in `rank` order (stable).
      * @details Not a member of the template: the sort does not depend on the component type, and a copy of `std::stable_sort` and its
@@ -132,6 +171,37 @@ public:
         return perm;
     }
 };
+
+/** @brief T's name as the compiler spells it, without a namespace: what an audit report says. */
+template<typename T>
+std::string_view componentTypeName() {
+#if defined(_MSC_VER) && !defined(__clang__)
+    constexpr std::string_view full = __FUNCSIG__;
+    constexpr std::string_view open = "componentTypeName<";
+    constexpr std::string_view close = ">(void)";
+#else
+    constexpr std::string_view full = __PRETTY_FUNCTION__;
+    constexpr std::string_view open = "T = ";
+    constexpr std::string_view close = "]";
+#endif
+    const usize start = full.find(open);
+    if (start == std::string_view::npos) return full;
+    std::string_view name = full.substr(start + open.size());
+    const usize end = name.rfind(close);
+    if (end != std::string_view::npos) name = name.substr(0, end);
+    const usize colon = name.rfind("::");
+    if (colon != std::string_view::npos) name = name.substr(colon + 2);
+    // MSVC writes "struct X" / "class X".
+    for (std::string_view tag : {std::string_view("struct "), std::string_view("class ")}) {
+        if (name.substr(0, tag.size()) == tag) name = name.substr(tag.size());
+    }
+    return name;
+}
+
+/** @brief Whether stamp @p a is later than tick @p b, across a wrap of the counter (stamps are kept within half its range). */
+inline bool tickAfter(u32 a, u32 b) {
+    return static_cast<i32>(a - b) > 0;
+}
 
 // =============================================================================
 // SparseSet
@@ -271,6 +341,82 @@ public:
     }
 
     // =========================================================================
+    // Change Stamps
+    // =========================================================================
+
+    /** @brief The tick of @p entity's last write, 0 when it has none here. */
+    u32 changedTick(Entity entity) const {
+        const u32 di = denseIndexOf(entity);
+        return di != INVALID_INDEX && dense_[di] == entity ? changed_[di] : 0;
+    }
+
+    /** @brief Stamps @p entity's component with @p tick: it was written. No-op for an entity without one. */
+    void markChanged(Entity entity, u32 tick) {
+        const u32 di = denseIndexOf(entity);
+        if (di == INVALID_INDEX || dense_[di] != entity) return;
+        changed_[di] = tick;
+        if (tickAfter(tick, last_changed_)) last_changed_ = tick;
+    }
+
+    /** @brief The stamps, parallel to components(): where a writer that holds a component's place stamps it. */
+    u32* changeTicks() { return changed_.data(); }
+    const u32* changeTicks() const { return changed_.data(); }
+
+    /** @brief Where the pool's last-change tick lives, for a writer that stamps through changeTicks() to lift with it. */
+    u32* lastChangedSlot() { return &last_changed_; }
+
+    u32 lastChangedTick() const override { return last_changed_; }
+    void noteStructural(u32 tick) override {
+        if (tickAfter(tick, last_changed_)) last_changed_ = tick;
+    }
+    void clampStamps(u32 floor) override {
+        for (u32& t : changed_) if (tickAfter(floor, t)) t = floor;
+        if (tickAfter(floor, last_changed_)) last_changed_ = floor;
+    }
+    std::string_view typeName() const override { return componentTypeName<T>(); }
+
+    static constexpr bool kAuditBytes = std::is_trivially_copyable_v<T>;
+    static constexpr bool kAuditValues = !kAuditBytes && std::is_copy_constructible_v<T> && std::equality_comparable<T>;
+    bool auditable() const override { return kAuditBytes || kAuditValues; }
+    void auditKeep(AuditCopy& copy, u32 tick) const override {
+        copy.tick = tick;
+        copy.entities = dense_;
+        copy.bytes.clear();
+        copy.values.reset();
+        if constexpr (kAuditBytes) {
+            copy.bytes.resize(components_.size() * sizeof(T));
+            if (!components_.empty()) std::memcpy(copy.bytes.data(), components_.data(), copy.bytes.size());
+        } else if constexpr (kAuditValues) {
+            copy.values = std::make_shared<std::vector<T>>(components_);
+        }
+    }
+    u32 auditCompare(const AuditCopy& copy, void (*report)(void*, Entity), void* user) const override {
+        if constexpr (!kAuditBytes && !kAuditValues) {
+            return 0;
+        } else {
+            const auto* values = kAuditValues ? static_cast<const std::vector<T>*>(copy.values.get()) : nullptr;
+            if (kAuditValues && !values) return 0;
+            u32 found = 0;
+            for (usize k = 0; k < copy.entities.size(); ++k) {
+                const Entity entity = copy.entities[k];
+                const u32 di = denseIndexOf(entity);
+                if (di == INVALID_INDEX || dense_[di] != entity) continue;  // removed since: the journal says so
+                if (tickAfter(changed_[di], copy.tick)) continue;           // written, and said so
+                bool same = false;
+                if constexpr (kAuditBytes) {
+                    same = std::memcmp(&components_[di], copy.bytes.data() + k * sizeof(T), sizeof(T)) == 0;
+                } else {
+                    same = components_[di] == (*values)[k];
+                }
+                if (same) continue;
+                ++found;
+                if (report) report(user, entity);
+            }
+            return found;
+        }
+    }
+
+    // =========================================================================
     // Modification Operations
     // =========================================================================
 
@@ -315,8 +461,11 @@ public:
         // pointers into components_ become stale. A non-reallocating append
         // leaves existing component addresses intact, so no bump is needed.
         const T* before = components_.data();
+        const u32* stampsBefore = changed_.data();
         components_.emplace_back(std::forward<Args>(args)...);
-        if (components_.data() != before) ++version_;
+        // Unstamped: whoever adds it stamps it with the tick it belongs to (Registry::emplace).
+        changed_.push_back(0);
+        if (components_.data() != before || changed_.data() != stampsBefore) ++version_;
 
         return components_.back();
     }
@@ -344,6 +493,7 @@ public:
         if (denseIdx == static_cast<u32>(dense_.size()) - 1) {
             dense_.pop_back();
             components_.pop_back();
+            changed_.pop_back();
             (*pages_[pageIndex])[offset] = INVALID_INDEX;
             return;
         }
@@ -352,6 +502,8 @@ public:
 
         dense_[denseIdx] = last;
         components_[denseIdx] = std::move(components_.back());
+        changed_[denseIdx] = changed_.back();
+        changed_.pop_back();
 
         const u32 lastIdx = last.index();
         (*pages_[lastIdx / SPARSE_PAGE_SIZE])[lastIdx % SPARSE_PAGE_SIZE] = denseIdx;
@@ -385,6 +537,7 @@ public:
         pages_.clear();
         dense_.clear();
         components_.clear();
+        changed_.clear();
     }
 
     /** @copydoc SparseSetBase::version() */
@@ -400,34 +553,47 @@ public:
         // one function for every component type (see stablePermutation).
         std::vector<usize> perm = stablePermutation(dense_, rank);
 
+        permute(perm);
+    }
+
+    /**
+     * @brief Puts slot perm[i] at position i, for every i: the entity, its component and its stamp together.
+     * @details The one way storage is reordered (reorderBy, Registry::sort). A permutation that moves nothing leaves storage, and
+     *          every handed-out pointer, alone. Consumes @p perm.
+     */
+    void permute(std::vector<usize>& perm) {
+        const usize n = dense_.size();
         bool moved = false;
         for (usize i = 0; i < n; ++i) {
             if (perm[i] != i) { moved = true; break; }
         }
-        if (!moved) return;  // already in order — no version bump, no stale pointers
+        if (!moved) return;
 
-        // Cycle-walk the permutation in place (same idiom as Registry::sort).
+        // Cycle-walk the permutation in place.
         for (usize i = 0; i < n; ++i) {
             if (perm[i] == i) continue;
             usize j = i;
             Entity tmpEntity = std::move(dense_[i]);
             T tmpComponent = std::move(components_[i]);
+            const u32 tmpStamp = changed_[i];
             while (perm[j] != i) {
                 const usize src = perm[j];
                 dense_[j] = std::move(dense_[src]);
                 components_[j] = std::move(components_[src]);
+                changed_[j] = changed_[src];
                 perm[j] = j;
                 j = src;
             }
             dense_[j] = std::move(tmpEntity);
             components_[j] = std::move(tmpComponent);
+            changed_[j] = tmpStamp;
             perm[j] = j;
         }
         rebuildSparse();
     }
 
     void rebuildSparse() {
-        // Called after Registry::sort permutes dense_/components_ in place —
+        // Called after permute() moves dense_/components_ in place —
         // component addresses changed, so any handed-out raw pointer is stale.
         ++version_;
         pages_.clear();
@@ -468,14 +634,6 @@ public:
      */
     const std::vector<Entity>& entities() const override { return dense_; }
 
-    /**
-     * @brief Gets the dense entity array (non-const)
-     * @return Reference to entity vector
-     *
-     * @details Allows direct modification of entity order (e.g., for sorting).
-     *          Use with caution - must maintain correspondence with components().
-     */
-    std::vector<Entity>& entities() { return dense_; }
 
     /**
      * @brief Gets the component array for direct iteration
@@ -549,6 +707,12 @@ private:
      * @details components_[i] belongs to entity dense_[i].
      */
     std::vector<T> components_;
+
+    /** @brief Change stamps, parallel to components_: changed_[i] is the tick of components_[i]'s last write. */
+    std::vector<u32> changed_;
+
+    /** @brief The latest tick any component here was written, added or removed at. */
+    u32 last_changed_ = 0;
 
     /** @brief Pointer-staleness generation; see SparseSetBase::version(). */
     u32 version_ = 0;

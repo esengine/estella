@@ -36,6 +36,8 @@ struct MeshVertex2D {
     glm::vec2 position{0.0f, 0.0f};
     glm::vec2 uv{0.0f, 0.0f};
     u32 color = 0xFFFFFFFFu;
+
+    bool operator==(const MeshVertex2D&) const = default;
 };
 
 // =============================================================================
@@ -123,6 +125,9 @@ struct MeshRenderer {
     glm::vec2 localMax{0.0f, 0.0f};
 
     MeshRenderer() = default;
+
+    /// Compared member by member: what the change audit checks a write of this component against (Registry::auditChanges).
+    bool operator==(const MeshRenderer&) const = default;
 };
 
 // =============================================================================

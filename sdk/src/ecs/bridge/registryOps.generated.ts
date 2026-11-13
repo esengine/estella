@@ -19,6 +19,11 @@ export const REGISTRY_OPS = {
     isEntityEnabled: 'es_registry_isEntityEnabled',
     hasInactiveEntities: 'es_registry_hasInactiveEntities',
     activityEpoch: 'es_registry_activityEpoch',
+    changeTick: 'es_registry_changeTick',
+    beginChangeRead: 'es_registry_beginChangeRead',
+    setChangeAudit: 'es_registry_setChangeAudit',
+    auditChanges: 'es_registry_auditChanges',
+    changeAuditTotal: 'es_registry_changeAuditTotal',
     setParent: 'es_registry_setParent',
 } as const satisfies { readonly [K in keyof Registry]?: string };
 

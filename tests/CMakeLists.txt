@@ -825,6 +825,15 @@ target_compile_options(test_registry_safety PRIVATE $<${_es_safety_asan}:-fsanit
 target_link_options(test_registry_safety PRIVATE $<${_es_safety_asan}:-fsanitize=address>)
 add_test(NAME test_registry_safety COMMAND test_registry_safety)
 
+# Change stamps: a write is seen once by the reader that looked before it, a stamp moves with its component, and the audit
+# finds a write that left none. Header-only against Registry.hpp.
+add_executable(test_change_stamps
+    ecs/test_change_stamps.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_change_stamps PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME test_change_stamps COMMAND test_change_stamps)
+
 # onDestroy RAII Connection / dual-order teardown safety (RC12 B1, fixes A12).
 # Built with AddressSanitizer so the use-after-free the old bare-`this` callback
 # caused (in either teardown order) is actually caught, not just "didn't crash".

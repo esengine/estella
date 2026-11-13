@@ -694,6 +694,14 @@ async function boot(): Promise<void> {
       quiet(): void {
         module.engine_setCpuProfiling?.(false);
       },
+      /** The change audit (World.setChangeAudit): on, every frame counts component writes made without a change stamp. */
+      changeAudit(enabled: boolean): void {
+        app.world.setChangeAudit(enabled);
+      },
+      /** Component writes found without a change stamp since the audit was turned on. */
+      changeAuditTotal(): number {
+        return app.world.changeAuditTotal();
+      },
       /**
        * What the last frame's renderer counted — the work a picture cannot show.
        * A field of props drawn at three levels and one drawn at one look alike

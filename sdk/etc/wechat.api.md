@@ -14180,6 +14180,7 @@ Generator<number, T, void>
 @internal beginIteration: () => void
 @internal bufferedWriteRows: (component: AnyComponentDef) => number
 @internal builtin: BuiltinBridge
+@internal changeAuditTotal: () => number
 @internal changes_: ChangeTracker
 @internal closeSpeculation: () => void
 @internal commitReservedSpawn: (entity: Entity, name?: string) => void
@@ -14250,6 +14251,7 @@ Generator<number, T, void>
 @internal scriptLayoutEpoch: () => number
 @internal scriptSpanOf: (component: AnyComponentDef) => { rows: number; stride: number; sparse: number; sparseCount: number; owners: number; ownerCount: number; } | undefined
 @internal setAssetFieldResolver: (resolver: AssetFieldResolver | null) => void
+@internal setChangeAudit: (enabled: boolean) => void
 @internal setQueryCostEnabled: (enabled: boolean) => void
 @internal setTransformChangeTracking: (on: boolean) => boolean
 @internal speculating: boolean

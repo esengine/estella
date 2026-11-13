@@ -4818,4 +4818,6 @@ export const NOTED = {
     {"internal": "The transform cache this restores was made lazy after the last release; no release kept a child in its old place."},
   "perf(render): a run of mesh draws that differ only by their geometry and records is one call - with WEBGL_multi_draw, each draw reads its record base and probe offset by gl_DrawID from one block staged for the run, so a run binds its blocks once and draws once":
     {"note": "A run of mesh draws is one call on WebGL2."},
+  "feat(ecs): every component carries the tick of its last write, and an audit finds a write that left none - Registry::patch, markChanged, changedSince and anyChangedSince over stamps kept beside the components, the reader's tick from beginChangeRead, and setChangeAudit, which reports each component type written without a stamp; the first step toward a renderer that walks only what changed":
+    {"note": "Components carry the tick of their last write."},
 };
