@@ -48,8 +48,9 @@ export interface LayerArrays {
 export async function readAndPackLayers(app: App, refs: readonly string[], most: number): Promise<PackedLayers> {
     const assets = app.getResource(Assets);
     if (refs.length > most) log.warn('terrain', `a ground draws ${most} layers at most; it names ${refs.length}`);
-    const sources: LayerSource[] = [];
-    for (const ref of refs.slice(0, most)) {
+    // Every layer's pictures are asked for at once: one that is a recipe is drawn on a worker, and twelve drawn one after another kept a ground
+    // out of sight for as long as all of them took in a row.
+    const sources: LayerSource[] = await Promise.all(refs.slice(0, most).map(async (ref) => {
         const def = await assets.load<TerrainLayerDef>('terrain-layer', ref);
         const image = async (path: string | undefined): Promise<LayerImage | null> => {
             if (!path) return null;
@@ -57,8 +58,9 @@ export async function readAndPackLayers(app: App, refs: readonly string[], most:
             if (!got) log.warn('terrain', `the texture ${path} of terrain layer ${ref} could not be read`);
             return got;
         };
-        sources.push({ def, albedo: await image(def.albedo), normal: await image(def.normal), mask: await image(def.mask) });
-    }
+        const [albedo, normal, mask] = await Promise.all([image(def.albedo), image(def.normal), image(def.mask)]);
+        return { def, albedo, normal, mask };
+    }));
     return packLayers(sources, isMiniGame() ? 512 : 1024);
 }
 
