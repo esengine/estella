@@ -205,7 +205,7 @@ its `.png` has.
 ```
 
 A 512 pixel plate of noise, rust, a stripe and rivets is 691 bytes as a recipe and 351 KB as a PNG. What draws recipes is the
-`esengine/image` module, about 172 KB of a web package before compression (62 KB gzipped): an export adds it when a recipe ships, and a script that
+`esengine/image` module, about 220 KB of a web package before compression (81 KB gzipped): an export adds it when a recipe ships, and a script that
 loads one by code imports it where the game starts. A package with no recipe does not carry it.
 
 What a recipe costs is time, once. It is drawn on a worker thread, so the game keeps running while it draws, and the pixels are
@@ -215,8 +215,28 @@ uncompressed (16 MB for that plate) and nothing removes them unasked: `assets.cl
 longest ago first, and a removed picture is drawn again. Where there are no workers the recipe is drawn on the main thread; where there is no cache it is drawn every run. A changed recipe, or a changed raster, is a
 different entry, so nothing stale is ever read.
 
-A picture with a `figure` layer or text needs the authoring tools to draw and is baked to its `.png` instead; so is a source's
-surface (its normal and roughness maps).
+A recipe is read wherever an image is: as a texture, and by what reads an image as numbers (a ground's layers, its splatmap, a
+field's density and scale maps).
+
+**Surface maps.** A source with a `material` is a surface as well as a colour. Each of its maps is a texture of its own, so it is a
+file of its own, two lines that name the picture:
+
+```json
+{ "mapOf": "assets/tex/wall.esimage", "map": "normal" }
+```
+
+`map` is `normal` or `surface` (roughness in green, metal in blue; one pixel where both are one value everywhere). Save it as an
+`.esimage`, give it the import settings a map has (Use: Data or Normal map), and name it where the map goes. The picture it is a map
+of ships with it, named anywhere else or not.
+
+**What a recipe may name.** A picture it lays in (an `image` layer's `src`: a PNG, or another recipe), and a font file its text is
+set in. They ship with the recipe, and a change in any of them draws it again.
+
+**Text** is set by the device's own 2D canvas, on the worker where the worker has one. A `font` that is a file of the project is
+drawn in that file's glyphs everywhere; a family name, or none, is whatever the device has, so the same recipe can come out
+differently on two devices. A host with no 2D canvas (the native hosts) refuses a recipe with text and says to bake it.
+
+**A `figure` layer** is posed and flattened on the device by the same code that draws it where it is authored.
 
 ## Memory & residency
 

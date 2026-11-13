@@ -7,6 +7,7 @@
  *        effects, and this owns everything that has to be exact: antialiased edges, gradients, soft shadows.
  *        On the CPU rather than through a canvas, so the same source makes the same bytes on any machine and a test can read them.
  */
+import { flattenFigure } from './imageFigure';
 import { applyAdjust, applyFilter, lightnessOf } from './imageAdjust';
 import { IMAGE_BRUSHES, isGuideLayer, MAX_MARK_STROKES } from './imageSource';
 import type { ImageFill, ImageLayer, ImageSource, ImageAlong, ImageBrushSettings, ImageEffect, ImageField, ImageMark, ImageStroke, ImageSweep, ImageTransform } from './imageSource';
@@ -34,14 +35,6 @@ export interface FlatFigure {
     joints: Record<string, readonly [number, number]>;
     lines: readonly (readonly (readonly [number, number])[])[];
     light: readonly [number, number, number];
-}
-
-/**
- * What draws a `figure` layer, handed to renderImage by whoever has a body to pose (the authoring pipeline). A game that evaluates a
- * picture has none, and a picture with a figure in it is one to bake before it ships.
- */
-export interface ImageFigureDrawer {
-    flatten(layer: ImageLayer, w: number, h: number, project: (p: readonly [number, number]) => readonly [number, number], scale: number): FlatFigure;
 }
 
 const unit3 = (v: readonly number[]): [number, number, number] => {
@@ -695,7 +688,7 @@ function effectLayers(effects: readonly ImageEffect[] | undefined, under: boolea
     }
 }
 
-interface Drawn { figure?: ImageFigureDrawer; masks: Map<string, Float32Array>; notes: string[]; bounds: Map<string, ImageBox>; painted: Map<string, { entries: number; strokes: number }>; figures: Map<string, FlatFigure>; figureJoints: Map<string, Record<string, readonly [number, number]>>; showGuides: boolean; pictures: Readonly<Record<string, RgbaBitmap>>; images: Map<string, Float32Array>; text: ImageTextDrawer | undefined; blocks: Map<string, Record<string, readonly (readonly number[])[]>> }
+interface Drawn { masks: Map<string, Float32Array>; notes: string[]; bounds: Map<string, ImageBox>; painted: Map<string, { entries: number; strokes: number }>; figures: Map<string, FlatFigure>; figureJoints: Map<string, Record<string, readonly [number, number]>>; showGuides: boolean; pictures: Readonly<Record<string, RgbaBitmap>>; images: Map<string, Float32Array>; text: ImageTextDrawer | undefined; blocks: Map<string, Record<string, readonly (readonly number[])[]>> }
 
 /** x, y, width and height in the picture's pixels. */
 export type ImageBox = readonly [number, number, number, number];
@@ -1499,8 +1492,7 @@ function drawPaint(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, o
 /** The blocks in plain grey, with the bones and a mark on each joint: enough to draw over, and nothing to be mistaken for the drawing. */
 function drawFigure(c: Canvas, layer: ImageLayer, parent: Matrix, drawn: Drawn, opacity: number, blend: Blend, clip: Float32Array | undefined): void {
     const { w, h } = c;
-    if (!drawn.figure) throw new Error('this picture has a figure layer, and nothing here draws figures: it is baked where it is authored');
-    const figure = drawn.figure.flatten(layer, w, h, (p) => apply(parent, p), drawnScale(parent));
+    const figure = flattenFigure(layer, w, h, (p) => apply(parent, p), drawnScale(parent));
     // Past the blocks a little way, so cloth that hangs off them is lit as what it hangs from.
     const reach = Math.max(2, (layer.height as number) * 0.03);
     const spread = blurMask(figure.mask, w, h, reach);
@@ -1971,10 +1963,10 @@ export interface RenderedImage extends RgbaBitmap {
 }
 
 /** Draws a source that has been validated. */
-export function renderImage(source: ImageSource, options: { guides?: boolean; pictures?: Readonly<Record<string, RgbaBitmap>>; text?: ImageTextDrawer; figure?: ImageFigureDrawer } = {}): RenderedImage {
+export function renderImage(source: ImageSource, options: { guides?: boolean; pictures?: Readonly<Record<string, RgbaBitmap>>; text?: ImageTextDrawer } = {}): RenderedImage {
     const [w, h] = typeof source.size === 'number' ? [source.size, source.size] : source.size;
     const canvas = new Canvas(w, h);
-    const drawn: Drawn = { figure: options.figure, masks: new Map(), notes: [], bounds: new Map(), painted: new Map(), figures: new Map(), figureJoints: new Map(), showGuides: options.guides === true, pictures: options.pictures ?? {}, images: new Map(), text: options.text, blocks: new Map() };
+    const drawn: Drawn = { masks: new Map(), notes: [], bounds: new Map(), painted: new Map(), figures: new Map(), figureJoints: new Map(), showGuides: options.guides === true, pictures: options.pictures ?? {}, images: new Map(), text: options.text, blocks: new Map() };
     // What every layer so far amounts to, chained: a layer changed leaves the keys before it as they were.
     let key = textHash(JSON.stringify([w, h, source.background ?? null, options.guides === true, picturesDigest(options.pictures), source.tile === true]));
     const keys = source.layers.map((layer) => (key = textHash(key + JSON.stringify(layer))));

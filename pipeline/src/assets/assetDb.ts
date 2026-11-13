@@ -239,6 +239,8 @@ const JSON_REF_TYPES = new Set([
   'json', 'sound-event', 'world-rules', 'terrain-layer', 'terrain-tiles',
 ]);
 
+const isTextureRecipe = (e: { type: string; path: string }): boolean => e.type === 'texture' && e.path.toLowerCase().endsWith('.esimage');
+
 /**
  * Collect every asset reference in a JSON document:
  *   - `@uuid:<id>` refs (editor-serialized stable refs)
@@ -375,7 +377,8 @@ async function computeDeps(
   const byPath = new Map(entries.map((e) => [e.path, e]));
   const uuids = new Set(entries.map((e) => e.uuid));
   const refEntries = (targets ?? entries).filter(
-    (e) => JSON_REF_TYPES.has(e.type) || e.type === BITMAP_FONT || e.type === 'mesh'
+    // A texture that is a recipe names what it is drawn from: the pictures it lays in, its font files, the picture it is a map of.
+    (e) => JSON_REF_TYPES.has(e.type) || e.type === BITMAP_FONT || e.type === 'mesh' || isTextureRecipe(e)
       || SKELETAL_ATLAS_TYPES.has(getEditorType(e.path)),
   );
   type DepResult = { uuid: string; refs: string[] } | { warning: string };

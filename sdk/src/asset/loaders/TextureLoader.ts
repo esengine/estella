@@ -306,7 +306,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         this.lastDecision_ = RAW_PAYLOAD_UPLOAD;
         // A recipe is drawn here, from its source, and is then a texture like any decoded one.
         if (isTextureRecipePath(buildPath)) {
-            const drawn = await renderTextureRecipe(await ctx.backend.fetchText(buildPath), path);
+            const drawn = await renderTextureRecipe(path, (p) => ctx.backend.fetchBinary(p === path ? buildPath : ctx.catalog?.getBuildPath(p) ?? p));
             const handle = createTextureFromPixels(this.module_, drawn, TextureContent.Asset, flip, pixelParams(settings));
             return { handle, width: drawn.width, height: drawn.height };
         }

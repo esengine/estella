@@ -10,21 +10,9 @@
  */
 import { organic, type OrganicPart } from './organic';
 import type { PolyMesh, Vec3 } from './polyMesh';
-import type { RigJointSource } from './rig';
+import { humanoidFrame, TORSO, type HumanoidBuild, type Section } from '../../../sdk/src/image/figureSkeleton';
 
-export interface HumanoidBuild {
-    /** From the floor to the crown. Default 1.6. */
-    height?: number;
-    /** Size of the head against the body. Default 1; above it younger or more stylised. */
-    head?: number;
-    /** Width of each, against the table. Default 1. */
-    shoulders?: number;
-    chest?: number;
-    waist?: number;
-    hips?: number;
-    /** Thickness of the arms and legs. Default 1. */
-    limbs?: number;
-}
+export { humanoidFrame, humanoidJoints, type HumanoidBuild, type HumanoidFrame } from '../../../sdk/src/image/figureSkeleton';
 
 export interface HumanoidParams extends HumanoidBuild {
     /** Grid cells along the height of the body. Default 240; the face and hands get finer faces anyway. */
@@ -37,107 +25,6 @@ export interface HumanoidParams extends HumanoidBuild {
     iris?: readonly number[];
     lips?: readonly number[];
     tag?: string;
-}
-
-interface Section { y: number; across: number; front: number; back: number; z: number; x?: number }
-
-/** The table is for a body 1.6 tall. */
-const TABLE_HEIGHT = 1.6;
-
-const TORSO: readonly Section[] = [
-    { y: 1.345, across: 0.05, front: 0.05, back: 0.055, z: -0.018 },
-    { y: 1.315, across: 0.082, front: 0.058, back: 0.066, z: -0.022 },
-    { y: 1.285, across: 0.145, front: 0.068, back: 0.074, z: -0.022 },
-    { y: 1.25, across: 0.158, front: 0.08, back: 0.08, z: -0.018 },
-    { y: 1.2, across: 0.142, front: 0.094, back: 0.082, z: -0.012 },
-    { y: 1.145, across: 0.125, front: 0.098, back: 0.076, z: -0.006 },
-    { y: 1.09, across: 0.108, front: 0.08, back: 0.068, z: -0.004 },
-    { y: 1.03, across: 0.096, front: 0.066, back: 0.056, z: -0.002 },
-    { y: 0.975, across: 0.104, front: 0.068, back: 0.058, z: 0 },
-    { y: 0.915, across: 0.122, front: 0.074, back: 0.076, z: -0.004 },
-    { y: 0.85, across: 0.14, front: 0.076, back: 0.088, z: -0.006 },
-    { y: 0.79, across: 0.132, front: 0.07, back: 0.08, z: -0.004 },
-    { y: 0.745, across: 0.08, front: 0.06, back: 0.06, z: -0.004 },
-];
-
-const ARM_DROP = (62 * Math.PI) / 180;
-
-export interface HumanoidFrame {
-    k: number;
-    shoulder: Vec3; elbow: Vec3; wrist: Vec3; knuckle: Vec3;
-    hip: Vec3; knee: Vec3; ankle: Vec3; ball: Vec3; toe: Vec3;
-    pelvis: Vec3; waist: Vec3; chest: Vec3; neck: Vec3; head: Vec3; crown: Vec3;
-    /** Along the arm, from the shoulder out and down. */
-    along: Vec3;
-    fingers: readonly { name: string; base: Vec3; length: number; radius: number }[];
-    thumb: { base: Vec3; mid: Vec3; tip: Vec3 };
-}
-
-/** Where everything is, in the table's own proportions times its height. Also what a skeleton is laid on. */
-export function humanoidFrame(b: HumanoidBuild = {}): HumanoidFrame {
-    const k = (b.height ?? TABLE_HEIGHT) / TABLE_HEIGHT;
-    const s = (x: number, y: number, z: number): Vec3 => [x * k, y * k, z * k];
-    const along: Vec3 = [Math.sin(ARM_DROP), -Math.cos(ARM_DROP), 0];
-    const shoulderX = 0.158 * (b.shoulders ?? 1);
-    const at = (d: number): Vec3 => s(shoulderX + along[0] * d, 1.268 + along[1] * d, -0.018);
-    const palmAt = 0.27 + 0.235 + 0.09;
-    const fingers = [
-        { name: 'index', z: 0.027, length: 0.078, radius: 0.0085 },
-        { name: 'middle', z: 0.009, length: 0.086, radius: 0.0088 },
-        { name: 'ring', z: -0.009, length: 0.08, radius: 0.0082 },
-        { name: 'little', z: -0.026, length: 0.062, radius: 0.0072 },
-    ].map((f) => {
-        const base = at(palmAt);
-        return { name: f.name, base: [base[0], base[1], base[2] + f.z * k] as Vec3, length: f.length * k, radius: f.radius * k };
-    });
-    const wrist = at(0.27 + 0.235);
-    const thumbBase: Vec3 = [wrist[0] + along[0] * 0.022 * k, wrist[1] + along[1] * 0.022 * k - 0.004 * k, wrist[2] + 0.028 * k];
-    const thumbMid: Vec3 = [thumbBase[0] + along[0] * 0.038 * k, thumbBase[1] + along[1] * 0.038 * k - 0.006 * k, thumbBase[2] + 0.024 * k];
-    const thumbTip: Vec3 = [thumbMid[0] + along[0] * 0.036 * k, thumbMid[1] + along[1] * 0.036 * k - 0.006 * k, thumbMid[2] + 0.01 * k];
-    return {
-        k, along,
-        shoulder: at(0), elbow: at(0.27), wrist, knuckle: at(palmAt),
-        hip: s(0.08, 0.81, -0.004), knee: s(0.068, 0.445, 0.006), ankle: s(0.067, 0.078, -0.016), ball: s(0.072, 0.022, 0.09), toe: s(0.072, 0.018, 0.165),
-        pelvis: s(0, 0.86, -0.004), waist: s(0, 1.0, 0), chest: s(0, 1.16, -0.008), neck: s(0, 1.32, -0.022), head: s(0, 1.405, -0.01), crown: s(0, TABLE_HEIGHT, -0.012),
-        fingers, thumb: { base: thumbBase, mid: thumbMid, tip: thumbTip },
-    };
-}
-
-/** The bones of a humanoid of this build, named as a clip names them. `.L` is her left, on +x. */
-export function humanoidJoints(b: HumanoidBuild = {}): RigJointSource[] {
-    const f = humanoidFrame(b);
-    const mid = (a: Vec3, c: Vec3, t: number): Vec3 => [a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t, a[2] + (c[2] - a[2]) * t];
-    const clavicle: Vec3 = [0.03 * f.k, 1.29 * f.k, -0.008 * f.k];
-    const joints: RigJointSource[] = [
-        { name: 'hips', at: f.pelvis },
-        { name: 'spine', at: f.waist, parent: 'hips' },
-        { name: 'chest', at: f.chest, parent: 'spine' },
-        { name: 'neck', at: f.neck, parent: 'chest' },
-        { name: 'head', at: f.head, parent: 'neck' },
-        { name: 'crown', at: f.crown, parent: 'head' },
-        { name: 'clavicle', at: clavicle, parent: 'chest', mirror: 'x' },
-        { name: 'upperArm', at: f.shoulder, parent: 'clavicle', mirror: 'x' },
-        { name: 'forearm', at: f.elbow, parent: 'upperArm', mirror: 'x' },
-        { name: 'hand', at: f.wrist, parent: 'forearm', mirror: 'x' },
-        { name: 'thumb1', at: f.thumb.base, parent: 'hand', mirror: 'x' },
-        { name: 'thumb2', at: f.thumb.mid, parent: 'thumb1', mirror: 'x' },
-        { name: 'thumb3', at: f.thumb.tip, parent: 'thumb2', mirror: 'x' },
-        { name: 'thigh', at: f.hip, parent: 'hips', mirror: 'x' },
-        { name: 'shin', at: f.knee, parent: 'thigh', mirror: 'x' },
-        { name: 'foot', at: f.ankle, parent: 'shin', mirror: 'x' },
-        { name: 'toes', at: f.ball, parent: 'foot', mirror: 'x' },
-        { name: 'toeTip', at: f.toe, parent: 'toes', mirror: 'x' },
-    ];
-    for (const finger of f.fingers) {
-        let parent = 'hand';
-        for (let i = 0; i < 4; i++) {
-            const name = `${finger.name}${i + 1}`;
-            const t = [0, 0.45, 0.75, 1][i]!;
-            joints.push({ name, at: mid(finger.base, [finger.base[0] + f.along[0] * finger.length, finger.base[1] + f.along[1] * finger.length, finger.base[2]], t), parent, mirror: 'x' });
-            parent = name;
-        }
-    }
-    return joints;
 }
 
 /** The tags a humanoid's own skin carries: what it wears is everything else. */

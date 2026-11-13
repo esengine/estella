@@ -9,6 +9,7 @@ import { Assets } from '../asset/AssetPlugin';
 import { platformLoadImagePixels } from '../platform/base';
 import { decodeImagePixels } from '../asset/imageDecode';
 import { decodePngData } from '../asset/pngData';
+import { isTextureRecipePath, renderTextureRecipe } from '../asset/textureRecipe';
 import { isMiniGame } from '../platform';
 import { createTextureArrayFromPixels } from '../runtime/runtimeAssets';
 import { getResourceManager, provideTextureContent, withdrawTextureContent } from '../wasm/resourceManager';
@@ -21,6 +22,8 @@ export async function imagePixelsAt(app: App, path: string): Promise<{ width: nu
     if (!app.hasResource(Assets)) return null;
     const assets = app.getResource(Assets);
     try {
+        // A recipe is drawn, and is then pixels as a decoded image's are.
+        if (isTextureRecipePath(path)) return await renderTextureRecipe(path, (p) => assets.fetchBinary(p));
         // The bytes the asset layer would load, decoded unmodified (no premultiply, no colour conversion): a height is data.
         if (typeof createImageBitmap === 'function' && typeof Blob !== 'undefined') {
             const bytes = new Uint8Array(await assets.fetchBinary(path));

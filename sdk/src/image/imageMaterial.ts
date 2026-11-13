@@ -13,7 +13,7 @@
  *        cheap guess every texture tool makes, and it is right for mortar and wrong for a painted stripe, which is why
  *        a relief can be drawn instead.
  */
-import { renderImage, type RenderedImage, type RgbaBitmap, type ImageFigureDrawer, type ImageTextDrawer } from './imageRaster';
+import { renderImage, type RenderedImage, type RgbaBitmap, type ImageTextDrawer } from './imageRaster';
 import type { ImageLayer, ImageMaterial, ImageSource } from './imageSource';
 
 export type { ImageMaterial } from './imageSource';
@@ -31,7 +31,7 @@ export interface MaterialMaps {
     notes: string[];
 }
 
-type DrawOptions = { pictures?: Readonly<Record<string, RgbaBitmap>>; text?: ImageTextDrawer; figure?: ImageFigureDrawer };
+type DrawOptions = { pictures?: Readonly<Record<string, RgbaBitmap>>; text?: ImageTextDrawer };
 
 const lightness = (p: Uint8Array, i: number): number => (p[i * 4]! * 0.2126 + p[i * 4 + 1]! * 0.7152 + p[i * 4 + 2]! * 0.0722) / 255;
 

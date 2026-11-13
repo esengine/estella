@@ -7,61 +7,12 @@
  *        pressed into the surface, by the same weights, so a still and a game agree and a pose is an edit to some angles
  *        rather than to a drawing.
  */
-import { HUMANOID_TAGS, humanoidJoints, type HumanoidBuild } from './humanoid';
-import { compact, type PolyMesh, type Vec3 } from './polyMesh';
-import { computeWornWeights, jointFrames, jointPositions, posedPositions, resolveJoints, type AnimationSource, type AnimationTrack, type RigJoint, type SkinWeights } from './rig';
+import { HUMANOID_TAGS } from './humanoid';
+import { poseClip, type PoseParams } from '../../../sdk/src/image/figureSkeleton';
 
-export interface PoseParams {
-    /** The bones of a humanoid of this build; true for the default one. */
-    humanoid: HumanoidBuild | true;
-    /** joint name to [x, y, z] degrees from its rest, X then Y then Z. */
-    rotate?: Readonly<Record<string, readonly number[]>>;
-    /** joint name to [x, y, z] from where it rests: `hips` lowers a sitting body. */
-    move?: Readonly<Record<string, readonly number[]>>;
-    /** joint name to where it must be, in the model's own space: a hand on a bow, a foot on the ground. The two bones above it turn to put it there; `pole` is the way the middle one bends. */
-    reach?: Readonly<Record<string, { at: readonly number[]; pole?: readonly number[] }>>;
-    /** The whole mesh rides on this one joint, whole: hair cards, which have no skin between them for weights to spread over. */
-    rigid?: string;
-}
-
-/** A pose as the clip that holds it, on the bones it is for. */
-function poseClip(p: PoseParams): { joints: RigJoint[]; animation: AnimationSource } {
-    if (p.humanoid === undefined) throw new Error('`humanoid` says whose bones: true, or the build it was given');
-    const joints: RigJoint[] = resolveJoints({ joints: humanoidJoints(p.humanoid === true ? {} : p.humanoid) });
-    const names = new Set(joints.map((j) => j.name));
-    const known = (name: string): void => {
-        if (!names.has(name)) throw new Error(`no joint "${name}"; there are ${[...names].join(', ')}`);
-    };
-    const tracks = new Map<string, { rotate?: number[][]; move?: number[][]; reach?: number[][]; pole?: readonly number[] }>();
-    for (const [name, r] of Object.entries(p.rotate ?? {})) {
-        known(name);
-        if (r.length !== 3) throw new Error(`rotate of "${name}" must be [x, y, z] degrees`);
-        tracks.set(name, { rotate: [[0, r[0]!, r[1]!, r[2]!]] });
-    }
-    for (const [name, m] of Object.entries(p.move ?? {})) {
-        known(name);
-        if (m.length !== 3) throw new Error(`move of "${name}" must be [x, y, z]`);
-        tracks.set(name, { ...tracks.get(name), move: [[0, m[0]!, m[1]!, m[2]!]] });
-    }
-    for (const [name, r] of Object.entries(p.reach ?? {})) {
-        known(name);
-        if (r.at?.length !== 3) throw new Error(`reach of "${name}" needs at: [x, y, z]`);
-        tracks.set(name, { ...tracks.get(name), reach: [[0, r.at[0]!, r.at[1]!, r.at[2]!]], ...(r.pole ? { pole: r.pole } : {}) });
-    }
-    return { joints, animation: { name: 'pose', duration: 1, loop: false, tracks: [...tracks].map(([joint, t]) => ({ joint, ...t })) as AnimationTrack[] } };
-}
-
-/** Where each joint is in a pose, without the seconds a surface takes. */
-export function poseJoints(p: PoseParams): Record<string, Vec3> {
-    const { joints, animation } = poseClip(p);
-    return jointPositions(joints, animation, 0);
-}
-
-/** The same, with which way each joint has turned. */
-export function poseFrames(p: PoseParams): ReturnType<typeof jointFrames> {
-    const { joints, animation } = poseClip(p);
-    return jointFrames(joints, animation, 0);
-}
+export { poseJoints, poseFrames, type PoseParams } from '../../../sdk/src/image/figureSkeleton';
+import { compact, type PolyMesh } from './polyMesh';
+import { computeWornWeights, posedPositions, type SkinWeights } from './rig';
 
 export function poseStep(mesh: PolyMesh, p: PoseParams): PolyMesh {
     const { joints, animation } = poseClip(p);

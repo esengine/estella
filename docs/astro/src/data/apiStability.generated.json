@@ -3,10 +3,10 @@
   "counts": {
     "public": 117,
     "beta": 178,
-    "experimental": 3069,
+    "experimental": 3075,
     "deprecated": 3
   },
-  "total": 3364,
+  "total": 3370,
   "subsystems": [
     {
       "id": "mobile-controls",
@@ -410,8 +410,8 @@
       "title": "Texture recipes",
       "titleZh": "贴图配方",
       "tier": "experimental",
-      "why": "a recipe draws on the device to the very pixels its baked picture has, checked in a headless game, and is drawn on a worker once and read from the content cache after, checked in a browser opened twice; but it has not been timed on a phone, and the surface maps of a source are still baked",
-      "whyZh": "配方在设备上画出来的像素与烘焙好的图片逐像素一致，已在无头游戏里检查过；它在工作线程上画一次，之后从内容缓存读取，已在浏览器里两次打开检查过；但没有在手机上计过时，源文件的表面贴图仍需烘焙",
+      "why": "a recipe draws on the device to the very pixels its baked picture has, checked in a headless game, and is drawn on a worker once and read from the content cache after, checked in a browser opened twice, text, figures, laid-in pictures and surface maps included; but it has not been timed on a phone, text follows the fonts of the device unless a font file is named, and a ground reading a recipe as its layer is checked by a test and not in a game",
+      "whyZh": "配方在设备上画出来的像素与烘焙好的图片逐像素一致，已在无头游戏里检查过；它在工作线程上画一次，之后从内容缓存读取，已在浏览器里两次打开检查过，文字、人物、铺入的图片和表面贴图都在内；但没有在手机上计过时，不指定字体文件时文字跟随设备字体，地形把配方当图层读只有测试检查过、没在游戏里检查过",
       "entry": [
         "renderImage",
         "validateImageSource"
