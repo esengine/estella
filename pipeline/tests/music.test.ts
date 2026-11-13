@@ -487,3 +487,114 @@ describe('an introduction heard once before the round', () => {
         expect(() => piece(tracks, { instruments, song: ['a', 'a'], intro: 1 })).toThrow(/intro is the part of a loop that is heard once/);
     });
 });
+
+describe('a line that is played and not only sounded', () => {
+    const EIGHT = '1 - - - 1 - - - 1 - - - 1 - - -';
+
+    it('moves evenly from the loudness one bar begins on to the next', () => {
+        const source = validateMusicSource({
+            tempo: 120, key: 'A', humanize: 0, instruments: { tone, other: tone },
+            patterns: { a: { bars: 2, dynamics: { tone: [0.5, 1, 0.6] }, tracks: { tone: `${EIGHT} | ${EIGHT}`, other: `${EIGHT} | ${EIGHT}` } } }, song: ['a'],
+        });
+        const e = compileMusic(source).events;
+        const of = (name: string): number[] => e.filter((x) => x.instrument === name).map((x) => Math.round(x.loud * 1000) / 1000);
+        // Up through the first bar and down through the second, a quarter of the way at each beat.
+        expect(of('tone')).toEqual([0.5, 0.625, 0.75, 0.875, 1, 0.9, 0.8, 0.7]);
+        // An instrument with no line of its own is as written.
+        expect(of('other')).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
+        // And "all" is for every instrument that has none of its own.
+        const all = compileMusic(validateMusicSource({ ...source, patterns: { a: { ...source.patterns.a!, dynamics: { all: [0.5], tone: [1] } } } })).events;
+        expect([...new Set(all.filter((x) => x.instrument === 'other').map((x) => x.loud))]).toEqual([0.5]);
+        expect([...new Set(all.filter((x) => x.instrument === 'tone').map((x) => x.loud))]).toEqual([1]);
+    });
+
+    it('is heard to rise and fall', () => {
+        const m = renderMusic(validateMusicSource({
+            tempo: 120, key: 'A', humanize: 0, loop: false, gain: 0.5, instruments: { tone },
+            patterns: { a: { bars: 2, dynamics: { tone: [0.4, 1, 0.4] }, tracks: { tone: `${EIGHT} | ${EIGHT}` } } }, song: ['a'],
+        })).channels[0]!;
+        expect(level(m, 44100, 0.05, 0.4)).toBeLessThan(level(m, 44100, 2.05, 2.4) * 0.5);
+        expect(level(m, 44100, 3.55, 3.9)).toBeLessThan(level(m, 44100, 2.05, 2.4) * 0.65);
+    });
+
+    it('takes a soft or a loud recording where the dynamics make a step soft or loud', () => {
+        const recorded = (hz: number): SampleData => ({ rate: 44100, channels: [Float32Array.from({ length: 22050 }, (_, n) => 0.5 * Math.sin((2 * Math.PI * hz * n) / 44100))] });
+        const m = renderMusic(validateMusicSource({
+            tempo: 120, key: 'A', humanize: 0, loop: false,
+            instruments: { keys: { samples: [{ file: 'n.wav', note: 'A4' }, { file: 's.wav', note: 'A4', dynamic: 'soft' }] } },
+            patterns: { a: { bars: 2, dynamics: { keys: [0.5, 1] }, tracks: { keys: `1 - - . . . . . . . . . . . . . | 1 - - . . . . . . . . . . . . .` } } }, song: ['a'],
+        }), { 'n.wav': recorded(440), 's.wav': recorded(330) }).channels[0]!;
+        expect(pitchOf(m, 44100, 0.05, 0.3)).toBeCloseTo(330, -1);
+        expect(pitchOf(m, 44100, 2.05, 2.3)).toBeCloseTo(440, -1);
+    });
+
+    it('slurs a note that runs straight on from the last, and strikes one that does not', () => {
+        const source = (line: string, legato: unknown = true) => validateMusicSource({
+            tempo: 120, key: 'A', humanize: 0, instruments: { tone: { ...tone, legato } }, patterns: { a: { bars: 1, tracks: { tone: line } } }, song: ['a'],
+        });
+        const slurs = (line: string): string => compileMusic(source(line)).events.map((e) => (e.slur ? 's' : '-') + (e.tied ? 't' : '-')).join(' ');
+        // Four notes end to end: the first is struck, the rest come in under the one before.
+        expect(slurs('1 - - - 2 - - - 3 - - - 4 - - -')).toBe('-t st st s-');
+        // A silence between is a breath taken; an accent is a note struck; a chord is struck.
+        expect(slurs('1 - - . 2 - - - 3! - - - [1 3] - - -')).toBe('-- -- -- -- --');
+        // And an instrument without it strikes every note.
+        expect(compileMusic(source('1 - - - 2 - - - 3 - - - 4 - - -', false)).events.some((e) => e.slur || e.tied)).toBe(false);
+        expect(() => source(EIGHT, 2)).toThrow(/legato must be true, or the seconds one note takes to come in under the last/);
+    });
+
+    it('does not let the sound drop between slurred notes, where struck ones leave a gap', () => {
+        // A slow attack, so a note struck afresh begins from nothing.
+        const bowed = { layers: [{ source: 'sine', freq: 440, attack: 0.08 }], release: 0.02 };
+        const play = (legato: boolean) => renderMusic(validateMusicSource({
+            tempo: 120, key: 'A', humanize: 0, loop: false, gain: 0.5, instruments: { tone: { ...bowed, ...(legato ? { legato: 0.06 } : {}) } },
+            patterns: { a: { bars: 1, tracks: { tone: '1 - - - 1 - - - 1 - - - 1 - - -' } } }, song: ['a'],
+        })).channels[0]!;
+        // The quietest fiftieth of a second round each join, against the level in the middle of a note.
+        const dip = (c: Float32Array): number => {
+            let low = Infinity;
+            for (let t = 0.46; t < 0.56; t += 0.01) low = Math.min(low, level(c, 44100, t, t + 0.02));
+            return low / level(c, 44100, 0.2, 0.4);
+        };
+        expect(dip(play(false))).toBeLessThan(0.45);
+        expect(dip(play(true))).toBeGreaterThan(0.7);
+    });
+
+    it('takes a slurred recording from past its attack', () => {
+        // A recording that begins with a second of 880 Hz... of a tenth, and is 440 after: the attack is the high part.
+        const data: SampleData = { rate: 44100, channels: [Float32Array.from({ length: 44100 }, (_, n) => 0.5 * Math.sin((2 * Math.PI * (n < 3528 ? 880 : 440) * n) / 44100))] };
+        const m = renderMusic(validateMusicSource({
+            tempo: 120, key: 'A', humanize: 0, loop: false, instruments: { keys: { samples: [{ file: 'a.wav', note: 'A4' }], legato: 0.05 } },
+            patterns: { a: { bars: 1, tracks: { keys: '1 - - - 1 - - - . . . . . . . .' } } }, song: ['a'],
+        }), { 'a.wav': data }).channels[0]!;
+        // The first note has the attack in it; the second, slurred, has none of it.
+        expect(pitchOf(m, 44100, 0.005, 0.07)).toBeGreaterThan(800);
+        expect(pitchOf(m, 44100, 0.6, 0.9)).toBeCloseTo(440, -1);
+        expect(pitchOf(m, 44100, 0.56, 0.6)).toBeLessThan(500);
+    });
+
+    it('holds every note to the end of its bar under the pedal', () => {
+        const pluck = { layers: [{ source: 'sine', freq: 440, decay: 3 }], release: 0.05 };
+        const source = (pedal: boolean) => validateMusicSource({
+            tempo: 120, key: 'A', humanize: 0, loop: false, gain: 0.5, instruments: { keys: { ...pluck, ...(pedal ? { pedal: true } : {}) } },
+            patterns: { a: { bars: 2, tracks: { keys: `1 . . . 3 . . . . . . . . . . . | ${REST}` } } }, song: ['a'],
+        });
+        const e = compileMusic(source(true)).events;
+        // Written a sixteenth each; the first rings two seconds to the bar line, the second a second and a half.
+        expect(e.map((x) => [x.seconds, x.sounds])).toEqual([[0.125, 2], [0.125, 1.5]]);
+        expect(compileMusic(source(false)).events.every((x) => x.sounds === undefined)).toBe(true);
+        const [dry, wet] = [renderMusic(source(false)).channels[0]!, renderMusic(source(true)).channels[0]!];
+        // Half a second after it is let go, the dry note is gone and the pedalled one is still there.
+        expect(level(dry, 44100, 1, 1.4)).toBeLessThan(1e-4);
+        expect(level(wet, 44100, 1, 1.4)).toBeGreaterThan(0.05);
+        // And the pedal is lifted at the bar line: nothing is left in the second bar.
+        expect(level(wet, 44100, 2.3, 3.9)).toBeLessThan(1e-3);
+    });
+
+    it('refuses dynamics that are not a loudness for each bar', () => {
+        const bad = (dynamics: unknown) => () => validateMusicSource({ tempo: 120, key: 'A', instruments: { tone }, patterns: { a: { bars: 2, dynamics, tracks: { tone: `${EIGHT} | ${EIGHT}` } } }, song: ['a'] });
+        expect(bad({ drums: [1] })).toThrow(/dynamics for "drums", which is not an instrument; the instruments are tone, or "all"/);
+        expect(bad({ tone: [1, 1, 1, 1] })).toThrow(/one for each of its 2 bars and at most one more/);
+        expect(bad({ tone: [1, 5] })).toThrow(/0\.1\.\.2 with 1 as written/);
+        expect(bad({ all: [] })).toThrow(/how loud each bar begins/);
+    });
+});

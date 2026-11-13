@@ -31,8 +31,16 @@ export interface MusicEvent {
     part: number;
     /** Written with # or b: outside the key. */
     outside: boolean;
-    /** Marked softer (-1) or louder (1) than the rest; 0 for neither. */
+    /** Softer (-1) or louder (1) than the rest by its mark and by where it lies in the dynamics; 0 for neither. */
     mark: -1 | 0 | 1;
+    /** How loud it is written, by its mark and the dynamics, before the hand's unevenness. */
+    hard: number;
+    /** How long it sounds, where that is longer than it is written: held on by the pedal to the end of its bar. */
+    sounds?: number;
+    /** It comes in under the note before it and is not struck afresh. */
+    slur?: boolean;
+    /** The note after it comes in under it, and it stays a moment longer for that. */
+    tied?: boolean;
 }
 
 export interface CompiledMusic {
@@ -106,6 +114,16 @@ export function compileMusic(source: MusicSource): CompiledMusic {
             const instrument = source.instruments[track]!;
             if (instrument.follow && !pattern.chords) say(`"${track}" follows the chords, and pattern "${name}" has none: it plays every bar on chord 1`);
             const steps = parseTrack(line, pattern.bars, stepsToBar, `pattern "${name}", track "${track}"`);
+            // How loud the line is at each step: between the number its bar begins on and the next bar's.
+            const levels = pattern.dynamics?.[track] ?? pattern.dynamics?.all;
+            const levelAt = (i: number): number => {
+                if (!levels) return 1;
+                const bar = i / stepsToBar;
+                const [a, b] = [levels[Math.min(Math.floor(bar), levels.length - 1)]!, levels[Math.min(Math.floor(bar) + 1, levels.length - 1)]!];
+                return a + (b - a) * (bar - Math.floor(bar));
+            };
+            // The last single note of this line, and the step it ends on: what a note that follows straight on is slurred from.
+            let before: { end: number; event: MusicEvent } | null = null;
             for (let i = 0; i < steps.length; i++) {
                 const s = steps[i]!;
                 if (s.kind === 'hold' && (i === 0 || steps[i - 1]!.kind === 'rest')) say(`pattern "${name}", track "${track}": a "-" at step ${(i % stepsToBar) + 1} of bar ${Math.floor(i / stepsToBar) + 1} has no note before it to hold, and is silent`);
@@ -115,21 +133,30 @@ export function compileMusic(source: MusicSource): CompiledMusic {
                 // Every second step late, which is what makes a line swing.
                 const late = div % 2 === 0 && i % 2 === 1 ? (source.swing ?? 0) * step : 0;
                 const when = Math.max(0, at + i * step + late + human * 0.012 * random());
-                const loud = s.loud * (1 + human * 0.25 * random());
-                const mark = s.loud > 1 ? 1 : s.loud < 1 ? -1 : 0;
+                const hard = s.loud * levelAt(i);
+                const loud = hard * (1 + human * 0.25 * random());
+                const mark = hard > 1.15 ? 1 : hard < 0.8 ? -1 : 0;
+                // The pedal is down to the end of the bar: the note rings on to there.
+                const toBarEnd = (Math.floor(i / stepsToBar) + 1) * stepsToBar * step - i * step;
+                const sounds = instrument.pedal && toBarEnd > held * step ? { sounds: toBarEnd } : {};
                 played.add(track);
                 if (s.kind === 'hit') {
-                    events.push({ instrument: track, at: when, seconds: held * step, midi: null, loud, part: p, outside: false, mark });
+                    events.push({ instrument: track, at: when, seconds: held * step, midi: null, loud, part: p, outside: false, mark, hard, ...sounds });
+                    before = null;
                     continue;
                 }
+                // One note running straight on from one note, and not struck harder: in the same breath.
+                const slurred = !!instrument.legato && s.notes.length === 1 && before !== null && before.end === i && s.loud <= 1;
+                if (slurred) before!.event.tied = true;
                 const chord = instrument.follow && pattern.chords ? pattern.chords[Math.floor(i / stepsToBar) % pattern.chords.length]! : 1;
                 // A root on 5, 6 or 7 is taken below the tonic, so the chords lie round it and a bass does not climb away.
                 const drop = chord >= 5 ? -7 : 0;
                 for (const n of s.notes) {
                     const index = n.degree - 1 + chord - 1 + drop + 7;
                     const midi = 60 + tonic + scale[index % 7]! + 12 * (Math.floor(index / 7) - 1 + n.octave + (instrument.octave ?? 0)) + n.alter;
-                    events.push({ instrument: track, at: when, seconds: held * step, midi, loud, part: p, outside: n.alter !== 0, mark });
+                    events.push({ instrument: track, at: when, seconds: held * step, midi, loud, part: p, outside: n.alter !== 0, mark, hard, ...sounds, ...(slurred ? { slur: true } : {}) });
                 }
+                before = s.notes.length === 1 ? { end: i + held, event: events.at(-1)! } : null;
             }
         }
         if (events.length === before) notes.push(`part ${p + 1} of the song ("${name}") plays nothing`);
@@ -174,10 +201,11 @@ function reach(layer: SoundLayer, held: number): number {
 }
 
 /** A layer with no length of its own lasts as long as the note, and dies over the instrument's release. */
-function forNote(layer: SoundLayer, held: number, release: number): SoundLayer {
-    if (layer.source === 'group') return { ...layer, layers: layer.layers!.map((l) => forNote(l, held, release)) };
-    if (layer.length !== undefined) return layer;
-    return { ...layer, length: Math.max(0.01, held + release - (layer.start ?? 0)), release: layer.release ?? release };
+function forNote(layer: SoundLayer, held: number, release: number, slur = 0): SoundLayer {
+    if (layer.source === 'group') return { ...layer, layers: layer.layers!.map((l) => forNote(l, held, release, slur)) };
+    // A layer with a length of its own is the knock at the front of a note, which a slurred note has none of.
+    if (layer.length !== undefined) return slur > 0 ? { ...layer, mute: true } : layer;
+    return { ...layer, length: Math.max(0.01, held + release - (layer.start ?? 0)), release: layer.release ?? release, ...(slur > 0 ? { attack: Math.max(layer.attack ?? 0, slur) } : {}) };
 }
 
 /**
@@ -211,13 +239,16 @@ export function sampleZone(instrument: MusicInstrument, midi: number | null, mar
     return { index: left[turn % left.length]!, matched };
 }
 
-function sampleNote(name: string, instrument: MusicInstrument, index: number, midi: number | null, held: number, rate: number, given: Readonly<Record<string, SampleData>>): Float32Array[] {
+function sampleNote(name: string, instrument: MusicInstrument, index: number, midi: number | null, held: number, rate: number, given: Readonly<Record<string, SampleData>>, slur = 0): Float32Array[] {
     const zone = instrument.samples![index]!;
     const data = given[zone.file];
     if (!data) throw new Error(`instrument "${name}": the recording ${zone.file} was not found`);
     const frames = data.channels[0]!.length;
     const step = (midi === null ? 1 : Math.pow(2, (midi - midiOf(zone.note)! - (zone.tune ?? 0) / 100) / 12)) * (data.rate / rate);
-    const [attack, release] = [instrument.attack ?? 0.003, instrument.release ?? 0.08];
+    // Slurred, it is not the start of the recording that is wanted, which is the bow biting or the breath beginning,
+    // but what comes after; and it comes in over the time the note before takes to go.
+    const skip = slur > 0 ? Math.min(0.12 * data.rate, frames * 0.25) : 0;
+    const [attack, release] = [slur > 0 ? slur : instrument.attack ?? 0.003, instrument.release ?? 0.08];
     // Round its steady middle, or the seconds given, with the end of each turn faded into the start of the next.
     let [from, to] = [0, 0];
     if (zone.loop) {
@@ -225,7 +256,7 @@ function sampleNote(name: string, instrument: MusicInstrument, index: number, mi
     }
     const round = to - from;
     const fade = round > 0 ? Math.min(0.12 * data.rate, round / 3, from) : 0;
-    const count = Math.max(1, Math.round(Math.min(held + release, round > 0 ? 30 : (frames - 2) / step / rate) * rate));
+    const count = Math.max(1, Math.round(Math.min(held + release, round > 0 ? 30 : (frames - 2 - skip) / step / rate) * rate));
     const at = (channel: Float32Array, p: number): number => {
         // Through four points, so a note played slower is not a staircase.
         const i = Math.floor(p), t = p - i;
@@ -236,7 +267,7 @@ function sampleNote(name: string, instrument: MusicInstrument, index: number, mi
     const letGo = Math.round(held * rate);
     const ending = Math.min(count, Math.round(0.005 * rate));
     for (let n = 0; n < count; n++) {
-        let p = n * step;
+        let p = skip + n * step;
         let blend = 0;
         if (round > 0 && p >= to - fade) {
             p = from + ((p - from) % round);
@@ -348,16 +379,21 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
     const cache = new Map<string, Float32Array[]>();
     const noteOf = (name: string, instrument: MusicInstrument, e: MusicEvent, turn: number, zone: number): Float32Array[] => {
         // The same note is made a few times over and no more: enough that a hat is not one sample struck again.
-        const key = `${name}|${e.midi}|${Math.round(e.seconds * 1000)}|${instrument.samples ? `z${zone}` : turn % 3}`;
+        const legato = instrument.legato === true ? 0.07 : instrument.legato || 0;
+        const slur = e.slur ? legato : 0;
+        // As long as it sounds: as written, or on to the bar line under the pedal, and a moment more where the next
+        // note comes in under it.
+        const held = (e.sounds ?? e.seconds) + (e.tied ? legato : 0);
+        const key = `${name}|${e.midi}|${Math.round(held * 1000)}|${slur}|${instrument.samples ? `z${zone}` : turn % 3}`;
         let made = cache.get(key);
         if (!made && instrument.samples) {
-            made = sampleNote(name, instrument, zone, e.midi, e.seconds, rate, given);
+            made = sampleNote(name, instrument, zone, e.midi, held, rate, given, slur);
             cache.set(key, made);
         }
         if (!made) {
             const release = instrument.release ?? 0.08;
-            const layers = instrument.layers!.map((l) => forNote(l, e.seconds, release));
-            const duration = Math.min(8, Math.max(0.02, ...layers.map((l) => reach(l, e.seconds + release))));
+            const layers = instrument.layers!.map((l) => forNote(l, held, release, slur));
+            const duration = Math.min(8, Math.max(0.02, ...layers.map((l) => reach(l, held + release))));
             made = renderSound({ duration, rate, layers, normalize: false }, 0, { pitch: e.midi === null ? 1 : Math.pow(2, (e.midi - 69) / 12), seed: (turn % 3) * 7919, raw: true }).channels;
             cache.set(key, made);
         }
@@ -382,7 +418,7 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
         const pan = instrument.pan ?? 0;
         // Equal power, and full in the middle. A recording made as hard as the note is marked is already that loud:
         // the mark is not counted twice.
-        const loud = (zone.matched ? e.loud / (e.mark > 0 ? 1.3 : 0.6) : e.loud) * (instrument.gain ?? 1) * Math.SQRT2;
+        const loud = (zone.matched ? e.loud / e.hard : e.loud) * (instrument.gain ?? 1) * Math.SQRT2;
         const [gl, gr] = [Math.cos(((pan + 1) * Math.PI) / 4) * loud, Math.sin(((pan + 1) * Math.PI) / 4) * loud];
         const [left, right] = buses.get(e.instrument)!;
         const from = Math.round(e.at * rate);

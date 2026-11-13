@@ -73,6 +73,20 @@ export interface MusicInstrument {
     follow?: boolean;
     /** Seconds a held note takes to die after it is let go. Default 0.08. */
     release?: number;
+    /**
+     * A line played in one breath. Where one note of its line runs straight into the next, with no silence between
+     * and the next not marked `!`, the next is not struck afresh: it comes in under the one before over this many
+     * seconds (true is 0.07) while that one goes out, and a recording is taken from past its attack. This is a bow
+     * that does not leave the string and a breath that is not taken again; without it every note of a violin or a
+     * flute begins from nothing and a tune is a row of separate notes. Chords are struck as they were.
+     */
+    legato?: boolean | number;
+    /**
+     * The sustaining pedal, held down through each bar and changed on the bar line: every note rings on to the end
+     * of its bar however short it is written, so the notes of a broken chord pile up into the chord and one bar
+     * runs into the next. A piano without it is dry and its chords are apart.
+     */
+    pedal?: boolean;
     /** How much of it goes to the room, 0..1. Default 0.3; a bass or a kick wants 0. */
     reverb?: number;
 }
@@ -83,6 +97,13 @@ export interface MusicPattern {
     div?: number;
     /** The chord of each bar, as the degree its root is on: [1, 6, 3, 7]. Fewer than the bars come round again. Only instruments that `follow` hear them. */
     chords?: readonly number[];
+    /**
+     * How loud each bar begins, for an instrument or for `all` of them, 1 being as written: `{ lead: [0.6, 0.8, 1,
+     * 0.7] }`. Between one bar's number and the next the loudness moves evenly, which is a crescendo or a
+     * diminuendo; one number more than there are bars is where the last bar ends. A phrase that is all one loudness
+     * is not heard as a phrase.
+     */
+    dynamics?: Readonly<Record<string, readonly number[]>>;
     /**
      * A line of steps for each instrument that plays, separated by spaces, bars by `|`. A step is: `.` silence; `-` the
      * note before, still held; a degree 1..7 with `'` for each octave up and `,` for each down, `#` or `b` before it to
@@ -207,7 +228,7 @@ export function parseTrack(text: string, bars: number, stepsToBar: number, where
 }
 
 const SOURCE_FIELDS = ['version', 'tempo', 'beats', 'key', 'scale', 'swing', 'humanize', 'seed', 'instruments', 'patterns', 'song', 'loop', 'intro', 'fadeIn', 'fadeOut', 'stems', 'reverb', 'gain', 'rate'];
-const INSTRUMENT_FIELDS = ['layers', 'samples', 'attack', 'gain', 'pan', 'octave', 'follow', 'release', 'reverb'];
+const INSTRUMENT_FIELDS = ['layers', 'samples', 'attack', 'gain', 'pan', 'octave', 'follow', 'release', 'reverb', 'legato', 'pedal'];
 const RECORDING = /\.(wav|ogg|mp3|flac|m4a|aac|webm)$/i;
 
 function checkSamples(samples: unknown, where: string): void {
@@ -228,7 +249,7 @@ function checkSamples(samples: unknown, where: string): void {
         }
     });
 }
-const PATTERN_FIELDS = ['bars', 'div', 'chords', 'tracks'];
+const PATTERN_FIELDS = ['bars', 'div', 'chords', 'dynamics', 'tracks'];
 
 /** Seconds the song lasts, before anything that rings past its end. */
 export function musicSeconds(source: MusicSource): number {
@@ -283,6 +304,8 @@ export function validateMusicSource(raw: unknown): MusicSource {
         if (value.follow !== undefined && typeof value.follow !== 'boolean') throw new Error(`${where}: follow must be true or false`);
         if (value.release !== undefined && !between(value.release, 0, 4)) throw new Error(`${where}: release must be seconds, 0..4`);
         if (value.reverb !== undefined && !between(value.reverb, 0, 1)) throw new Error(`${where}: reverb must be 0..1`);
+        if (value.legato !== undefined && typeof value.legato !== 'boolean' && !between(value.legato, 0.01, 0.5)) throw new Error(`${where}: legato must be true, or the seconds one note takes to come in under the last, 0.01..0.5`);
+        if (value.pedal !== undefined && typeof value.pedal !== 'boolean') throw new Error(`${where}: pedal must be true or false`);
     }
 
     const beats = (s.beats as number | undefined) ?? 4;
@@ -297,6 +320,15 @@ export function validateMusicSource(raw: unknown): MusicSource {
         if (value.chords !== undefined) {
             if (!Array.isArray(value.chords) || value.chords.length === 0 || value.chords.length > (value.bars as number) || value.chords.some((c) => !(Number.isInteger(c) && c >= 1 && c <= 7))) {
                 throw new Error(`${where}: chords must be the degree of each bar's root, 1..7, no more of them than bars`);
+            }
+        }
+        if (value.dynamics !== undefined) {
+            if (!isObj(value.dynamics)) throw new Error(`${where}: dynamics must be { instrument or "all": [how loud each bar begins] }`);
+            for (const [who, levels] of Object.entries(value.dynamics)) {
+                if (who !== 'all' && !(who in s.instruments)) throw new Error(`${where}: dynamics for "${who}", which is not an instrument; the instruments are ${Object.keys(s.instruments).join(', ')}, or "all"`);
+                if (!Array.isArray(levels) || levels.length === 0 || levels.length > (value.bars as number) + 1 || levels.some((v) => !between(v, 0.1, 2))) {
+                    throw new Error(`${where}: dynamics for "${who}" must be how loud each bar begins, 0.1..2 with 1 as written, one for each of its ${String(value.bars)} bars and at most one more for where the last ends`);
+                }
             }
         }
         if (!isObj(value.tracks) || Object.keys(value.tracks).length === 0) throw new Error(`${where}: tracks must be { instrument: "steps" }, at least one`);
