@@ -173,7 +173,8 @@ Only the entity's turn about the vertical aims it: keep it upright and unscaled.
 **Waterfall** shader: glass at the lip that tears into strands and then veils, its pattern riding down with the water. Its params are the
 water's colour at the lip (`u_water`) and the white it breaks into (`u_foam`), how many strands lie across half a sheet (`u_strands`) and how
 many times in a second of its fall a strand changes (`u_run`: fewer is longer strands), how much of the sheet is gone at its foot (`u_veil`) and how far down it is torn that much (`u_tearBy`),
-`u_opacity` and `u_roughness`. A material of your own reads what the mesh carries: `uv.x` across the sheet, `uv.y` the seconds the water
+`u_opacity`, `u_roughness`, and how much of the light goes through the sheet (`u_translucency`: a veil of water is lit from whichever side
+the sun is on, where 0 lights it as an opaque surface). A material of your own reads what the mesh carries: `uv.x` across the sheet, `uv.y` the seconds the water
 there has been falling, the colour's red the share of the fall done, its green a number of the sheet's own.
 
 The fall is the sheet alone. What belongs at a place on it is a child entity with a **`WaterfallAnchor`**: the fall keeps that child on

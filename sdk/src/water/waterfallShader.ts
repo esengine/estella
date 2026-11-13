@@ -21,10 +21,13 @@ const WATERFALL = `#pragma shader "Waterfall"
 #pragma param u_strands float default(3.75) range(0.5,400) ui(slider)
 #pragma param u_run float default(0.97) range(0,40) ui(slider)
 // How much of the sheet is gone at its foot (0 a whole sheet to the bottom, 1 nothing left of it), and how far down it is torn that much.
-#pragma param u_veil float default(0.47) range(0,1) ui(slider)
-#pragma param u_tearBy float default(0.85) range(0.05,1) ui(slider)
+#pragma param u_veil float default(0.75) range(0,1) ui(slider)
+#pragma param u_tearBy float default(1) range(0.05,1) ui(slider)
 #pragma param u_opacity float default(1) range(0,1) ui(slider)
 #pragma param u_roughness float default(0.6) range(0.02,1) ui(slider)
+// How much of the light goes through the sheet: a veil of water is lit from whichever side the sun is on, not as a wall facing it.
+// 0 lights it as an opaque surface.
+#pragma param u_translucency float default(1) range(0,1) ui(slider)
 
 #pragma fragment
 precision highp float;
@@ -77,6 +80,10 @@ void main() {
     if (alpha < 0.02) discard;
     vec3 albedo = mix(u_water.rgb, u_foam.rgb, smoothstep(0.0, 0.10, k) * (0.6 + 0.4 * strands));
     SurfaceExt ext = surfaceExtNone(N);
+    if (u_translucency > 0.0) {
+        ext.scatter = vec4(albedo, u_translucency * 0.5);
+        ext.trans = vec4(u_translucency, 0.0, 0.0, 0.0);
+    }
     vec3 lit = applyLightingSurface(albedo, N, P, V, 0.0, u_roughness, 0.5, 1.0, ext);
     fragColor = vec4(lit, alpha);
 #ifdef ES_GBUFFER
@@ -130,7 +137,11 @@ struct FragOut {
     alpha = clamp(alpha * mc.u_opacity, 0.0, 1.0);
     if (alpha < 0.02) { discard; }
     let albedo = mix(mc.u_water.rgb, mc.u_foam.rgb, smoothstep(0.0, 0.10, k) * (0.6 + 0.4 * strands));
-    let ext = surfaceExtNone(N);
+    var ext = surfaceExtNone(N);
+    if (mc.u_translucency > 0.0) {
+        ext.scatter = vec4f(albedo, mc.u_translucency * 0.5);
+        ext.trans = vec4f(mc.u_translucency, 0.0, 0.0, 0.0);
+    }
     let lit = applyLightingSurface(albedo, N, P, V, 0.0, mc.u_roughness, 0.5, 1.0, ext);
 #ifdef ES_GBUFFER
     var frag : FragOut;

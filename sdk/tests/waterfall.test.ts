@@ -106,6 +106,10 @@ describe('the Waterfall component and its shader', () => {
         expect(source).toContain('#pragma param u_strands float default(3.75)');
         expect(source).toContain('#pragma param u_run float default(0.97)');
         expect(source).not.toContain('u_run * 28.0');
+        // Light goes through the sheet by default, in both languages, through the lit model's own scatter and transmission.
+        expect(source).toContain('#pragma param u_translucency float default(1)');
+        expect(source).toContain('ext.trans = vec4(u_translucency, 0.0, 0.0, 0.0);');
+        expect(source).toContain('ext.trans = vec4f(mc.u_translucency, 0.0, 0.0, 0.0);');
         for (const p of ['u_water', 'u_foam', 'u_strands', 'u_run', 'u_veil', 'u_tearBy', 'u_opacity', 'u_roughness']) expect(source).toContain(`#pragma param ${p} `);
     });
 });
