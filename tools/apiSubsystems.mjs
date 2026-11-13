@@ -352,8 +352,8 @@ export const SUBSYSTEMS = [
         titleZh: '贴图配方',
         source: ['image'],
         tier: 'experimental',
-        why: 'a recipe draws on the device to the very pixels its baked picture has, checked in a headless game, but it is drawn on the main thread at load, is not kept between runs, and has not been timed on a phone',
-        whyZh: '配方在设备上画出来的像素与烘焙好的图片逐像素一致，已在无头游戏里检查过；但它在加载时于主线程绘制，不跨次运行缓存，也没有在手机上计过时',
+        why: 'a recipe draws on the device to the very pixels its baked picture has, checked in a headless game, and is drawn on a worker once and read from the content cache after, checked in a browser opened twice; but it has not been timed on a phone, and the surface maps of a source are still baked',
+        whyZh: '配方在设备上画出来的像素与烘焙好的图片逐像素一致，已在无头游戏里检查过；它在工作线程上画一次，之后从内容缓存读取，已在浏览器里两次打开检查过；但没有在手机上计过时，源文件的表面贴图仍需烘焙',
         entry: ['renderImage', 'validateImageSource'],
     },
     {

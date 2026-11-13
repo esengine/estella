@@ -205,12 +205,18 @@ its `.png` has.
 ```
 
 A 512 pixel plate of noise, rust, a stripe and rivets is 691 bytes as a recipe and 351 KB as a PNG. What draws recipes is the
-`esengine/image` module, about 86 KB of a web package before compression: an export adds it when a recipe ships, and a script that
+`esengine/image` module, about 172 KB of a web package before compression (62 KB gzipped): an export adds it when a recipe ships, and a script that
 loads one by code imports it where the game starts. A package with no recipe does not carry it.
 
-What a recipe costs is time: it is drawn on the main thread when it loads, every run. Draw large ones behind a loading screen. A
-picture with a `figure` layer or text needs the authoring tools to draw and is baked to its `.png` instead; so is a source's surface
-(its normal and roughness maps).
+What a recipe costs is time, once. It is drawn on a worker thread, so the game keeps running while it draws, and the pixels are
+kept in the device's content cache: the next run reads them and draws nothing. A 2048 pixel plate took 4.1 s on a desktop worker
+the first visit, with the main thread never held longer than its usual start-up; the second visit drew nothing. The kept pixels are
+uncompressed (16 MB for that plate) and nothing removes them unasked: `assets.cleanDiskCache(budget, true)` gives up what was read
+longest ago first, and a removed picture is drawn again. Where there are no workers the recipe is drawn on the main thread; where there is no cache it is drawn every run. A changed recipe, or a changed raster, is a
+different entry, so nothing stale is ever read.
+
+A picture with a `figure` layer or text needs the authoring tools to draw and is baked to its `.png` instead; so is a source's
+surface (its normal and roughness maps).
 
 ## Memory & residency
 

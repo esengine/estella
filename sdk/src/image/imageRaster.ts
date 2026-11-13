@@ -13,6 +13,12 @@ import type { ImageFill, ImageLayer, ImageSource, ImageAlong, ImageBrushSettings
 import { type Pt, parsePath } from './imagePath';
 import { type Rgba, blurMask, fractalNoise, gradientNoise, isWrapping, parseColor, setWrapping } from './imageNoise';
 
+/**
+ * How this raster draws, as a name: what a picture drawn and kept (a texture recipe in the content cache) is kept under. It changes
+ * whenever the same source would come out as other pixels; tests/image-raster-revision.test.ts fails until it does.
+ */
+export const IMAGE_RASTER_REVISION = '1';
+
 export interface RgbaBitmap { width: number; height: number; rgba: Uint8Array }
 
 /** A `figure` layer flattened into the picture: what the drawer of figures hands the raster. */

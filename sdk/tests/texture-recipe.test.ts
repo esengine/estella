@@ -5,7 +5,9 @@
  * @brief   A texture that is a recipe: which paths are one, what draws them, and that what is drawn is the picture its source says.
  */
 import { afterEach, describe, expect, it } from 'vitest';
-import { hasTextureRecipeRenderer, isTextureRecipePath, renderTextureRecipe, setTextureRecipeRenderer } from '../src/asset/textureRecipe';
+import { hasTextureRecipeRenderer, isTextureRecipePath, renderTextureRecipe, setTextureRecipeRenderer, textureRecipeCacheKey, textureRecipeStats } from '../src/asset/textureRecipe';
+import { setPlatform } from '../src/platform/base';
+import type { PlatformAdapter } from '../src/platform/types';
 import { getAddressableType } from '../src/assetTypes';
 
 afterEach(() => setTextureRecipeRenderer(null));
@@ -44,5 +46,75 @@ describe('a texture recipe', () => {
         await expect(renderTextureRecipe('{"size":8}', 'a.esimage')).rejects.toThrow();
         const figure = JSON.stringify({ size: 64, layers: [{ id: 'f', shape: 'figure', at: [32, 60], height: 50 }] });
         await expect(renderTextureRecipe(figure, 'a.esimage')).rejects.toThrow(/figure/);
+    });
+});
+
+describe('a drawn recipe is kept', () => {
+    /** A platform that is nothing but a content cache, and counts what is asked of it. */
+    const cachePlatform = () => {
+        const files = new Map<string, ArrayBuffer>();
+        const asked = { reads: 0, writes: 0 };
+        const adapter = {
+            name: 'web',
+            readCacheFile: async (key: string) => { asked.reads++; return files.get(key) ?? null; },
+            writeCacheFile: async (key: string, bytes: ArrayBuffer) => { asked.writes++; files.set(key, bytes.slice(0)); },
+        } as unknown as PlatformAdapter;
+        return { adapter, files, asked };
+    };
+    const SOURCE = JSON.stringify({ size: [4, 2], background: '#00ff00', layers: [] });
+    const settle = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
+    let drawn = 0;
+    const install = (revision: string): void => setTextureRecipeRenderer(() => {
+        drawn++;
+        return { width: 4, height: 2, pixels: new Uint8Array(32).fill(7) };
+    }, revision);
+
+    it('is drawn once and read back after, by the same source and the same drawer', async () => {
+        const { adapter, files, asked } = cachePlatform();
+        setPlatform(adapter);
+        textureRecipeStats(true);
+        drawn = 0;
+        install('r1');
+        const first = await renderTextureRecipe(SOURCE, 'a.esimage');
+        await settle();
+        expect([drawn, asked.writes, files.size]).toEqual([1, 1, 1]);
+        const second = await renderTextureRecipe(SOURCE, 'a.esimage');
+        expect(drawn).toBe(1);
+        expect([second.width, second.height]).toEqual([4, 2]);
+        expect(Array.from(second.pixels)).toEqual(Array.from(first.pixels));
+        expect(textureRecipeStats()).toMatchObject({ drawn: 1, reused: 1 });
+    });
+
+    it('is drawn again for another source, and for a drawer that draws differently', async () => {
+        const { adapter } = cachePlatform();
+        setPlatform(adapter);
+        drawn = 0;
+        install('r1');
+        await renderTextureRecipe(SOURCE, 'a.esimage');
+        await settle();
+        await renderTextureRecipe(SOURCE.replace('#00ff00', '#00ff01'), 'a.esimage');
+        expect(drawn).toBe(2);
+        await settle();
+        install('r2');
+        await renderTextureRecipe(SOURCE, 'a.esimage');
+        expect(drawn).toBe(3);
+        expect(textureRecipeCacheKey(SOURCE, 'r1')).not.toBe(textureRecipeCacheKey(SOURCE, 'r2'));
+    });
+
+    it('is drawn again where what was kept is not the size it says, and where nothing is kept at all', async () => {
+        const { adapter, files } = cachePlatform();
+        setPlatform(adapter);
+        drawn = 0;
+        install('r1');
+        await renderTextureRecipe(SOURCE, 'a.esimage');
+        await settle();
+        for (const key of files.keys()) files.set(key, files.get(key)!.slice(0, 20));
+        await renderTextureRecipe(SOURCE, 'a.esimage');
+        expect(drawn).toBe(2);
+        // A platform with no cache: every run draws, and nothing is thrown for the want of one.
+        setPlatform({ name: 'web' } as unknown as PlatformAdapter);
+        await renderTextureRecipe(SOURCE, 'a.esimage');
+        await renderTextureRecipe(SOURCE, 'a.esimage');
+        expect(drawn).toBe(4);
     });
 });

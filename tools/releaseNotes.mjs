@@ -4672,6 +4672,8 @@ export const NOTED = {
     {"note": "A splatmap is read between its pixels."},
   "feat(assets): a texture can ship as its recipe - an .esimage named where a texture goes is carried as its source and drawn on the device when it loads, to the pixels its png has; the raster that draws it moved from the pipeline into the SDK as esengine/image, which an export adds when a recipe ships":
     {"note": "A texture can ship as its recipe."},
+  "feat(assets): a texture recipe is drawn on a worker, once - the picture is drawn off the main thread and its pixels are kept in the content cache, so the next run reads them and draws nothing; a browser has a content cache now, in IndexedDB, and a changed recipe or raster is a different entry":
+    {"note": "A texture recipe is drawn on a worker, once."},
   "fix(terrain): a detail the pages cannot hold no longer cracks the ground - a tree that wanted more nodes than the atlas has pages was drawn in part by coarser pages standing in, which do not meet their finer neighbours' edges, and the pages were fought over every frame; the ground is now drawn at the share of its detail's range that fits, and says so once":
     {"note": "A detail the pages cannot hold no longer cracks the ground."},
   "fix(foliage): a far plant grows across the ground, not taller - a mesh plant kept in a far version was grown the same every way to cover the ground of those left out, so a flower that stood for ten stood ten times as high and a far meadow was a field of poles; it now grows across the ground only, and Foliage.farGrowUp gives its height a share of the growth back":

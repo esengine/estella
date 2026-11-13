@@ -29,6 +29,8 @@ import { GameSocket } from '../net/GameSocket';
 import { createPrimaryPointer } from './primaryPointer';
 import { createWebRecorder } from './webRecorder';
 import { WebDevice } from '../device/web';
+import { cacheEntryName } from './cacheEntryName';
+import { webCacheAvailable, webCacheList, webCacheRead, webCacheRemove, webCacheWrite } from './webCacheStore';
 
 const WHEEL_LINE_HEIGHT = 16;
 
@@ -339,6 +341,18 @@ class WebPlatformAdapter implements PlatformAdapter {
 
     createSocket(options: PlatformSocketOptions): PlatformSocket {
         return new GameSocket(options);
+    }
+
+    // The content cache, in IndexedDB (webCacheStore.ts): what a page makes and would make again each visit, and what a hot
+    // update downloads, kept under the cache's own names.
+    hasCacheStorage(): boolean { return webCacheAvailable(); }
+    canManageCache(): boolean { return webCacheAvailable(); }
+    readCacheFile(key: string): Promise<ArrayBuffer | null> { return webCacheRead(cacheEntryName(key)); }
+    writeCacheFile(key: string, bytes: ArrayBuffer): Promise<void> { return webCacheWrite(cacheEntryName(key), bytes); }
+    listCacheFiles(): Promise<{ name: string; size: number; lastAccess: number }[]> { return webCacheList(); }
+    removeCacheFile(name: string): Promise<void> {
+        if (!/^[0-9a-f]{16}$/.test(name)) throw Error('invalid cache entry');
+        return webCacheRemove(name);
     }
 
     getStorageItem(key: string): string | null {
