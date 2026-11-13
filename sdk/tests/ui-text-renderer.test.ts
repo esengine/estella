@@ -10,7 +10,7 @@ import { TEXT_VERTEX_FLOATS } from '../src/ui/text/submit';
 import {
     GlyphAtlas, type GlyphRasterizer, type AtlasPageStore, type RasterGlyph,
 } from '../src/ui/text/glyph-atlas';
-import { drawTextWith, signatureOf, tapAlpha } from '../src/ui/text/text-renderer';
+import { drawTextWith, shadowTaps, signatureOf, tapAlpha } from '../src/ui/text/text-renderer';
 import type { DrawTextParams } from '../src/ui/text/text-renderer';
 
 function makeAtlas(pageSize: number, spread = 6, metricsOnly = false): GlyphAtlas {
@@ -243,6 +243,25 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
             outline: { color: [0, 0, 0, 1], width: 1 },
         });
         expect(sink).toHaveBeenCalledTimes(9); // 8 directions + fill
+    });
+
+    // One ring of eight is a blur of a few pixels. A title set large with a blur of eighteen drew its nine copies fourteen pixels
+    // apart: the label over and over, in blocks, where a soft shadow was asked for.
+    it('draws a wide blur as enough copies that none stands apart from the rest', () => {
+        const small = shadowTaps(3, 24);
+        expect(small.length).toBe(9);
+        const wide = shadowTaps(18, 84);
+        expect(wide.length).toBeGreaterThan(9);
+        expect(wide.length).toBeLessThanOrEqual(64);
+        // All within the blur, and each within a stroke's thickness of another.
+        const stroke = 84 * 0.07 * 1.6;
+        for (const [x, y] of wide) {
+            expect(Math.hypot(x, y)).toBeLessThanOrEqual(18);
+            const nearest = Math.min(...wide.filter((t) => t[0] !== x || t[1] !== y).map((t) => Math.hypot(t[0] - x, t[1] - y)));
+            expect(nearest).toBeLessThanOrEqual(stroke);
+        }
+        // However wide the blur and small the type, the copies are counted: each is the whole label again.
+        expect(shadowTaps(60, 12).length).toBeLessThanOrEqual(64);
     });
 
     it('spreads a blurred shadow into a ring, still behind the fill', () => {

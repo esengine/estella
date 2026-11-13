@@ -112,6 +112,38 @@ const SHADOW_RING: ReadonlyArray<readonly [number, number, number]> = [
     [-0.55, 0.55, 1], [0, 0.78, 1], [0.55, 0.55, 1],
 ];
 
+/** The widest blur one ring of taps covers: past it its copies stand apart, and a shadow is the label eight times over. */
+const SHADOW_RING_REACH = 3;
+/** The most copies a blurred shadow is drawn as, however wide: each is the whole label again. */
+const MOST_SHADOW_TAPS = 64;
+
+/**
+ * Where a blurred shadow's copies go, as offsets from the shadow's own place.
+ *
+ * A blur of a few pixels is one ring. A wider one is as many rings as keep each copy within a stroke's thickness of its neighbours
+ * (a share of the font size, and never coarser than a quarter of the blur), so they read as one soft shape: a title set large with a
+ * blur of eighteen pixels drew nine separate copies of itself fourteen pixels apart, blocks of dark squares round every stroke.
+ */
+export function shadowTaps(blur: number, fontSize: number): ReadonlyArray<readonly [number, number]> {
+    if (blur <= SHADOW_RING_REACH) return SHADOW_RING.map(([x, y, r]) => [x * blur * r, y * blur * r] as const);
+    const reach = blur * 0.78;
+    let gap = Math.max(1.5, Math.min(blur / 4, fontSize * 0.07));
+    const ringsOf = (g: number): number[] => {
+        const rings = Math.max(1, Math.ceil(reach / g));
+        return Array.from({ length: rings }, (_, k) => Math.max(6, Math.ceil((2 * Math.PI * reach * (k + 1) / rings) / g)));
+    };
+    let rings = ringsOf(gap);
+    while (1 + rings.reduce((a, b) => a + b, 0) > MOST_SHADOW_TAPS) { gap *= 1.15; rings = ringsOf(gap); }
+    const taps: [number, number][] = [[0, 0]];
+    rings.forEach((count, k) => {
+        const radius = reach * (k + 1) / rings.length;
+        // Every other ring is turned half a step, so the copies of one do not line up with those of the next.
+        const turn = (k % 2) * Math.PI / count;
+        for (let i = 0; i < count; i++) taps.push([Math.cos(turn + 2 * Math.PI * i / count) * radius, Math.sin(turn + 2 * Math.PI * i / count) * radius]);
+    });
+    return taps;
+}
+
 /**
  * Per-tap alpha for `n` stacked copies that should composite to `target`.
  * Straight division under-shoots badly: eight layers of `a/8` reach
@@ -328,11 +360,10 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         const color = decoration(p.shadow.color);
         const blur = p.shadow.blur ?? 0;
         if (blur > 0) {
-            const a = tapAlpha(color[3], SHADOW_RING.length);
+            const taps = shadowTaps(blur, fontSizePx);
+            const a = tapAlpha(color[3], taps.length);
             const tap: RGBA = [color[0], color[1], color[2], a];
-            for (const [rx, ry, r] of SHADOW_RING) {
-                emitPass(tap, dx + rx * blur * r, -dy + ry * blur * r, 0, false, baked ? TextGlyphMode.Mask : undefined);
-            }
+            for (const [ox, oy] of taps) emitPass(tap, dx + ox, -dy + oy, 0, false, baked ? TextGlyphMode.Mask : undefined);
         } else {
             emitPass(color, dx, -dy, 0, false, baked ? TextGlyphMode.Mask : undefined);
         }

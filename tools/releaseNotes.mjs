@@ -4772,4 +4772,6 @@ export const NOTED = {
     {"note": "Drawing a frame costs the CPU a third of what it did."},
   "fix(foliage): a mesh scattered with no material keeps its own colours - a field with no material painted every plant the stock green of grass from root to tip, a mesh's own vertex colours with it, so a grey rock came out a green one and a dark spruce a pale one; a mesh that has colours is painted in them, each plant by its shade, and one with none (or white throughout) is painted as before":
     {"note": "A mesh scattered with no material keeps its own colours."},
+  "fix(text): a wide blurred shadow is one soft shape - a blur was always one ring of eight copies of the label at its own radius, which is a soft edge at two or three pixels and nine separate labels at eighteen: a title set large stood in blocks of dark squares; past three pixels the copies are as many rings as keep each within a stroke's thickness of its neighbours, sixty-four at the most":
+    {"note": "A wide blurred text shadow is one soft shape."},
 };
