@@ -92,7 +92,9 @@ describe('music from instruments and patterns', () => {
         const instruments = { tone: { layers: [{ source: 'sine', freq: 440, length: 0.8, decay: 0.3 }] }, click, low: tone };
         const open = renderMusic(piece({ tone: last }, { loop: false, instruments }));
         const round = renderMusic(piece({ tone: last }, { loop: true, instruments }));
-        expect(round.channels[0]!.length).toBe(open.channels[0]!.length);
+        // The one that ends rings on past its last bar; the loop is its bars and no more.
+        expect(round.channels[0]!.length).toBe(2 * round.rate);
+        expect(open.channels[0]!.length).toBeGreaterThan(round.channels[0]!.length);
         expect(level(open.channels[0]!, open.rate, 0.05, 0.4)).toBeLessThan(1e-4);
         expect(level(round.channels[0]!, round.rate, 0.05, 0.4)).toBeGreaterThan(0.05);
         expect(pitchOf(round.channels[0]!, round.rate, 0.05, 0.4)).toBeCloseTo(440, -1);
@@ -326,5 +328,63 @@ describe('an instrument made of recordings', () => {
         expect(bad({ samples: [{ file: 'a.wav', note: 'C4', loop: [0.5, 0.5] }] })).toThrow(/loop must be true, or \[from, to\]/);
         expect(bad({ samples: [{ file: 'a.wav', note: 'C4', root: 'C4' }] })).toThrow(/unknown "root"; a sample has file, note, low, high, loop/);
         expect(bad({ layers: [{ source: 'noise' }], attack: 0.1 })).toThrow(/attack is for samples/);
+    });
+});
+
+describe('how a piece begins, ends and meets itself', () => {
+    const long = { layers: [{ source: 'sine', freq: 440, length: 0.8, decay: 0.3 }] };
+    const last = `${REST.slice(0, -1)}1`;
+    const FULL = '1 - - - 1 - - - 1 - - - 1 - - -';
+
+    it('rings out past its last bar when it ends, and the file is that much longer', () => {
+        const m = renderMusic(piece({ tone: last }, { instruments: { tone: long, click, low: tone } }));
+        // The note starts an eighth of a second before the end and lasts 0.8.
+        expect(m.seconds).toBe(2);
+        expect(m.tailSeconds).toBeGreaterThan(0.5);
+        expect(m.tailSeconds).toBeLessThan(0.8);
+        expect(m.channels[0]!.length).toBe(Math.round((2 + m.tailSeconds) * m.rate));
+        expect(level(m.channels[0]!, m.rate, 2.05, 2.3)).toBeGreaterThan(0.01);
+        // And it ends on nothing.
+        expect(Math.abs(m.channels[0]!.at(-1)!)).toBeLessThan(1e-3);
+        // A piece with nothing left over is as long as its bars.
+        expect(renderMusic(piece({ click: steps('x') })).tailSeconds).toBe(0);
+        expect(renderMusic(piece({ tone: last }, { loop: true, instruments: { tone: long, click, low: tone } })).tailSeconds).toBe(0);
+    });
+
+    it('comes up from nothing and goes down to nothing over the seconds asked', () => {
+        const m = renderMusic(piece({ tone: '1 - - - - - - - - - - - - - - -' }, { fadeIn: 0.5, fadeOut: 0.5 }));
+        const c = m.channels[0]!;
+        const middle = level(c, m.rate, 0.9, 1.1);
+        expect(level(c, m.rate, 0, 0.1)).toBeLessThan(middle * 0.05);
+        expect(level(c, m.rate, 0.2, 0.3)).toBeLessThan(middle * 0.5);
+        expect(level(c, m.rate, 0.6, 0.8)).toBeCloseTo(middle, 2);
+        expect(level(c, m.rate, 1.7, 1.8)).toBeLessThan(middle * 0.5);
+        expect(level(c, m.rate, 1.9, 2)).toBeLessThan(middle * 0.05);
+        // Faded to nothing by the end of the bar, it has nothing to ring.
+        expect(m.tailSeconds).toBe(0);
+        expect(c.length).toBe(2 * m.rate);
+    });
+
+    it('will not write a fade into a loop, and says who fades one', () => {
+        expect(() => piece({ tone: FULL }, { loop: true, fadeIn: 1 })).toThrow(/fadeIn is for a piece that ends \(loop: false\).*playBGM\(url, \{ fadeIn \}\).*stopBGM\(seconds\)/);
+        expect(() => validateMusicSource({ tempo: 120, key: 'A', instruments: { tone }, patterns: { a: { bars: 1, tracks: { tone: FULL } } }, song: ['a'], fadeOut: 1 })).toThrow(/fadeOut is for a piece that ends/);
+        expect(() => piece({ tone: FULL }, { fadeOut: 3 })).toThrow(/fadeOut must be seconds, above 0 and no longer than the piece \(2 s\)/);
+    });
+
+    it('says where a loop meets itself, and when the music changes at once there', () => {
+        const instruments = { tone, click, low: tone, pad: tone, bass: tone };
+        const thin = { pattern: 'a', only: ['tone'] };
+        const tracks = { tone: FULL, pad: FULL.replace(/1/g, '3'), bass: FULL.replace(/1/g, "5,"), click: steps('x', '.', 'x', '.', 'x') };
+        const of = (song: unknown[]) => renderMusic(piece(tracks, { loop: true, instruments, song }));
+        // Thin first and full last: the join is a drop.
+        const drop = of([thin, 'a', 'a']);
+        expect(drop.join).toMatchObject({ begins: ['tone'], ends: ['tone', 'click', 'pad', 'bass'] });
+        expect(drop.join!.endDb).toBeGreaterThan(drop.join!.startDb + 3);
+        expect(drop.notes.join()).toMatch(/where the loop meets itself the music changes at once: its last bar has tone, click, pad, bass at .* and its first has tone at .*, so click, pad, bass stop dead/);
+        // As full at its end as at its start, or thin at both: nothing to say.
+        expect(of(['a', 'a', 'a']).notes.join()).not.toMatch(/meets itself/);
+        expect(of([thin, 'a', thin]).notes.join()).not.toMatch(/meets itself/);
+        // A piece that ends has no join.
+        expect(renderMusic(piece(tracks, { instruments, song: [thin, 'a'] })).join).toBeNull();
     });
 });

@@ -103,8 +103,15 @@ export interface MusicSource {
     patterns: Readonly<Record<string, MusicPattern>>;
     /** The patterns in the order they come, each whole, or with some instruments left out or only some kept. */
     song: readonly SongPart[];
-    /** What rings past the end comes in at the start, so the piece runs into itself. Default true. */
+    /**
+     * What rings past the end comes in at the start, so the piece runs into itself. Default true. False is a piece
+     * with an end: its last notes and the room ring out after the last bar, and the file is that much longer.
+     */
     loop?: boolean;
+    /** Seconds over which it comes up from nothing at its start. A loop comes round to its start again and again, so only a piece that ends has one; a game fades a loop in as it starts it. */
+    fadeIn?: number;
+    /** Seconds before the end of the last bar over which it goes down to nothing, for a piece that ends and has no ending written. */
+    fadeOut?: number;
     /** Also a file for each instrument, which add up to the whole: a game brings them in and out. */
     stems?: boolean;
     /** The room it is all in: `size` 0..1, `mix` 0..1. */
@@ -182,7 +189,7 @@ export function parseTrack(text: string, bars: number, stepsToBar: number, where
     return out;
 }
 
-const SOURCE_FIELDS = ['version', 'tempo', 'beats', 'key', 'scale', 'swing', 'humanize', 'seed', 'instruments', 'patterns', 'song', 'loop', 'stems', 'reverb', 'gain', 'rate'];
+const SOURCE_FIELDS = ['version', 'tempo', 'beats', 'key', 'scale', 'swing', 'humanize', 'seed', 'instruments', 'patterns', 'song', 'loop', 'fadeIn', 'fadeOut', 'stems', 'reverb', 'gain', 'rate'];
 const INSTRUMENT_FIELDS = ['layers', 'samples', 'attack', 'gain', 'pan', 'octave', 'follow', 'release', 'reverb'];
 const RECORDING = /\.(wav|ogg|mp3|flac|m4a|aac|webm)$/i;
 
@@ -297,6 +304,11 @@ export function validateMusicSource(raw: unknown): MusicSource {
     });
     const source = s as unknown as MusicSource;
     const seconds = musicSeconds(source);
+    for (const key of ['fadeIn', 'fadeOut'] as const) {
+        if (s[key] === undefined) continue;
+        if (s.loop !== false) throw new Error(`${key} is for a piece that ends (loop: false). A loop comes round to its start with no gap, and a fade written into it would be heard every time round: the game fades it, playBGM(url, { fadeIn }) to start it and stopBGM(seconds) to end it`);
+        if (!(isNum(s[key]) && (s[key] as number) > 0 && (s[key] as number) <= seconds)) throw new Error(`${key} must be seconds, above 0 and no longer than the piece (${Math.round(seconds * 10) / 10} s)`);
+    }
     if (seconds > MAX_MUSIC_SECONDS) throw new Error(`the song lasts ${Math.round(seconds)} s; at most ${MAX_MUSIC_SECONDS}`);
     return source;
 }

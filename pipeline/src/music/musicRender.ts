@@ -47,6 +47,10 @@ export interface RenderedMusic extends CompiledMusic {
     channels: Float32Array[];
     peak: number;
     rms: number;
+    /** For a piece that ends: seconds it rings on after its last bar, which the file is longer by. */
+    tailSeconds: number;
+    /** For a loop: what sounds in its last bar and in its first, and how loud each is, in decibels beside the whole. Null for a piece that ends. */
+    join: { ends: string[]; begins: string[]; endDb: number; startDb: number } | null;
     /** Each instrument alone, when the source asks for stems: they add up to `channels`. */
     stems: Record<string, Float32Array[]> | null;
     /** What each instrument played, and how loud it is beside the whole, in decibels. */
@@ -355,17 +359,30 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
     }
 
     const loop = source.loop !== false;
+    // A piece that ends rings out: the file runs on past its last bar until what is left cannot be heard. One that fades
+    // out is at nothing by the end of the bar, and has nothing to ring.
+    let total = count;
+    if (!loop && !source.fadeOut) {
+        let last = count;
+        for (const channel of [...room, ...names.flatMap((name) => buses.get(name)!)]) for (let n = work - 1; n > last; n--) if (Math.abs(channel[n]!) > 2e-4) { last = n; break; }
+        total = Math.min(work, last + (last > count ? Math.round(0.05 * rate) : 0));
+    }
     const finish = (channel: Float32Array): Float32Array => {
-        const out = channel.slice(0, count);
+        const out = channel.slice(0, total);
         if (loop) for (let n = count; n < work; n++) out[(n - count) % count]! += channel[n]!;
-        else { const fade = Math.min(count, Math.round(0.02 * rate)); for (let n = 0; n < fade; n++) out[count - 1 - n]! *= n / fade; }
+        else {
+            if (source.fadeIn) { const rise = Math.round(source.fadeIn * rate); for (let n = 0; n < rise && n < total; n++) out[n]! *= (n / rise) ** 2; }
+            // Let down over the seconds asked, or over the last fiftieth of one so that it does not stop on a step.
+            const fall = Math.min(total, Math.round((source.fadeOut ?? 0.02) * rate));
+            for (let n = 0; n < fall; n++) out[total - 1 - n]! *= source.fadeOut ? (n / fall) ** 2 : n / fall;
+        }
         return out;
     };
     const stems: Record<string, Float32Array[]> = {};
     for (const name of names) stems[name] = buses.get(name)!.map(finish);
     const channels = [0, 1].map((c) => {
         const sum = finish(room[c]!);
-        for (const name of names) { const stem = stems[name]![c]!; for (let n = 0; n < count; n++) sum[n]! += stem[n]!; }
+        for (const name of names) { const stem = stems[name]![c]!; for (let n = 0; n < total; n++) sum[n]! += stem[n]!; }
         return sum;
     });
 
@@ -398,9 +415,30 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
     const target = source.gain ?? 0.9;
     const scale = peak > 1e-6 ? target / peak : 1;
     if (peak <= 1e-6) notes.push('the piece is silent: nothing in it reaches a level that can be heard');
-    for (const list of [channels, ...Object.values(stems)]) for (const channel of list) for (let n = 0; n < count; n++) channel[n]! *= scale;
-    const rmsOf = (list: Float32Array[]): number => { let s = 0; for (const channel of list) for (const v of channel) s += v * v; return Math.sqrt(s / (count * list.length)); };
+    for (const list of [channels, ...Object.values(stems)]) for (const channel of list) for (let n = 0; n < total; n++) channel[n]! *= scale;
+    const rmsOf = (list: Float32Array[], from = 0, to = count): number => { let s = 0; for (const channel of list) for (let n = from; n < to; n++) s += channel[n]! * channel[n]!; return Math.sqrt(s / (Math.max(1, to - from) * list.length)); };
     const rms = rmsOf(channels);
+
+    // Where a loop meets itself. The samples join without a step whatever is written; what the ear hears as a join is
+    // the music changing at once, a full last bar running into a first bar with two instruments in it.
+    let join: RenderedMusic['join'] = null;
+    if (loop) {
+        const bar = Math.min(count, Math.round(compiled.barSeconds * rate));
+        const sounding = (from: number, to: number): string[] => {
+            // In the bar for more than a twentieth of it: a note let go on the bar line, a few thousandths late, is not in the next bar.
+            const least = compiled.barSeconds * 0.05;
+            return names.filter((name) => compiled.events.some((e) => e.instrument === name && Math.min(to, e.at + e.seconds) - Math.max(from, e.at) > least));
+        };
+        const db = (level: number): number => (level > 0 && rms > 0 ? Math.round(20 * Math.log10(level / rms) * 10) / 10 : -120);
+        join = {
+            ends: sounding(compiled.seconds - compiled.barSeconds, compiled.seconds), begins: sounding(0, compiled.barSeconds),
+            endDb: db(rmsOf(channels, count - bar, count)), startDb: db(rmsOf(channels, 0, bar)),
+        };
+        const [gone, come] = [join.ends.filter((n) => !join!.begins.includes(n)), join.begins.filter((n) => !join!.ends.includes(n))];
+        if (count > bar * 2 && (Math.abs(join.endDb - join.startDb) > 6 || gone.length + come.length > Math.max(1, names.length / 3))) {
+            notes.push(`where the loop meets itself the music changes at once: its last bar has ${join.ends.join(', ') || 'nothing'} at ${join.endDb} dB and its first has ${join.begins.join(', ') || 'nothing'} at ${join.startDb} dB${gone.length ? `, so ${gone.join(', ')} stop${gone.length === 1 ? 's' : ''} dead` : ''}. A loop is heard as one piece when its end is as full as its start: end on a part like the first (thin the last part with \`without\`, or begin as full as it ends), and put a build that happens once in a piece of its own with loop false`);
+        }
+    }
 
     const instruments: RenderedMusic['instruments'] = {};
     for (const name of names) {
@@ -413,5 +451,5 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
             levelDb: level > 0 && rms > 0 ? Math.round(20 * Math.log10(level / rms) * 10) / 10 : -120,
         };
     }
-    return { ...compiled, notes, rate, channels, peak: peak > 1e-6 ? target : 0, rms, stems: source.stems ? stems : null, instruments };
+    return { ...compiled, notes, rate, channels, peak: peak > 1e-6 ? target : 0, rms, tailSeconds: (total - count) / rate, join, stems: source.stems ? stems : null, instruments };
 }

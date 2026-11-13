@@ -50,7 +50,8 @@ export function musicPicture(music: RenderedMusic): MusicPicture {
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) put(x, y, y < waveH ? 22 : 10, y < waveH ? 24 : 10, y < waveH ? 30 : 16);
 
     // Loudness: each column from the quietest to the loudest sample it covers.
-    const frames = music.channels[0]!.length;
+    // The bars only: what a piece that ends rings on by is past the right edge.
+    const frames = Math.min(music.channels[0]!.length, Math.round(music.seconds * music.rate));
     for (let x = 0; x < width; x++) {
         const [from, to] = [Math.floor((x / width) * frames), Math.floor(((x + 1) / width) * frames)];
         let top = 0;
