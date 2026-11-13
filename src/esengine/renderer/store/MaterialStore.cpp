@@ -370,7 +370,7 @@ MaterialUniformLayout MaterialStore::layoutOf(const resource::ParsedShader& pars
                 // Resolve the param's `default(<name>)` to a built-in default texture, bound when
                 // a material leaves the param unset.
                 layout.textures.push_back({ p.name, static_cast<u32>(p.textureUnit),
-                                            materialDefaultByName(p.defaultValue) });
+                                            materialDefaultByName(p.defaultValue), p.layered });
             }
         } else if (p.std140Offset >= 0) {
             MaterialParamSlot slot{ p.name, static_cast<u32>(p.std140Offset), paramArity(p.type) };
@@ -465,7 +465,7 @@ void MaterialStore::bindForDraw(u32 materialId, u32 samplerUnits) {
     if (lit != layouts_.end()) {
         for (const auto& slot : lit->second.textures) {
             if (slot.unit < 32 && !((samplerUnits >> slot.unit) & 1u)) continue;
-            TextureHandle gpu = builtinDefault(slot.defaultTexture);
+            TextureHandle gpu = builtinDefault(slot);
             // What stood behind this draw, where the frame took a copy of it; a material that named a texture there keeps its own.
             if (sceneColor_ != TextureHandle::Invalid && slot.name == "u_sceneColor") gpu = sceneColor_;
             if (sceneDepth_ != TextureHandle::Invalid && slot.name == "u_sceneDepthMap") gpu = sceneDepth_;

@@ -228,7 +228,7 @@ public:
 
 private:
     void initDefaultTextures();
-    TextureHandle make1x1Texture(u32 rgba);
+    TextureHandle make1x1Texture(u32 rgba, u32 layers = 1);
     TextureHandle makeRipplesTexture();
     void initFrameUbo();
 
@@ -238,6 +238,10 @@ private:
     u64 program_epoch_ = 0;
 
     TextureHandle whiteTexture_ = TextureHandle::Invalid;
+    /// Layers (two: one layer is a plain 2D texture) of white, black and a flat normal: what an unset `textureArray` param binds.
+    TextureHandle whiteArrayTexture_ = TextureHandle::Invalid;
+    TextureHandle blackArrayTexture_ = TextureHandle::Invalid;
+    TextureHandle flatNormalArrayTexture_ = TextureHandle::Invalid;
     TextureHandle blackTexture_ = TextureHandle::Invalid;
     TextureHandle flatNormalTexture_ = TextureHandle::Invalid;
     TextureHandle ripplesTexture_ = TextureHandle::Invalid;

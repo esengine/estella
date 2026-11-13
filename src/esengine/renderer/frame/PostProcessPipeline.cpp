@@ -1111,7 +1111,7 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
     // Texture params (LUTs, masks) bind at their reflected material units;
         // an unset param gets its declared default (white/black/flatnormal).
         for (const auto& slot : layout->textures) {
-            TextureHandle gpu = context_.materials().builtinDefault(slot.defaultTexture);
+            TextureHandle gpu = context_.materials().builtinDefault(slot);
             if (temporal && (slot.name == "u_history" || slot.name == "u_feedback")
                 && temporal->history[temporal->readIndex]) {
                 gpu = temporal->history[temporal->readIndex]->getColorAttachment();
@@ -1336,7 +1336,7 @@ void PostProcessPipeline::bindBlitInputs(const resource::ShaderHandle& handle) {
         device_.setUniformBuffer(MATERIAL_CONSTANTS_BINDING, blitParamUbo_);
     }
     for (const auto& slot : layout->textures) {
-        TextureHandle gpu = context_.materials().builtinDefault(slot.defaultTexture);
+        TextureHandle gpu = context_.materials().builtinDefault(slot);
         if (slot.name == "u_displayLut" && lastPass && display_lut_texture_ != 0) gpu = TextureHandle{display_lut_texture_};
         if (gpu != TextureHandle::Invalid) device_.bindTexture(slot.unit, gpu);
     }

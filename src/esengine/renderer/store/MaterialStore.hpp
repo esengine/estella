@@ -77,6 +77,9 @@ struct MaterialTextureSlot {
     /// rather than the resolved id: the built-ins are re-created when the device
     /// is, and an id resolved at registration would outlive the texture it names.
     MaterialDefaultTexture defaultTexture = MaterialDefaultTexture::White;
+    /// Declared `textureArray` (a `sampler2DArray`): left unset, it binds layers of its default's colour (setBuiltinDefaultArrays),
+    /// as a 2D default under an array sampler reads black on WebGL.
+    bool layered = false;
 };
 
 /** @brief A material's bound texture at a sampler unit. */
@@ -213,6 +216,19 @@ public:
     /// The context's current fallback for a declared `default(...)`. One authority,
     /// so the post-process pipeline's params fall back to the same textures.
     TextureHandle builtinDefault(MaterialDefaultTexture which) const;
+    /// The context's layers of white, black and a flat normal: what an unset `textureArray` param binds.
+    void setBuiltinDefaultArrays(TextureHandle white, TextureHandle black, TextureHandle flatNormal) {
+        defaultWhiteArray_ = white;
+        defaultBlackArray_ = black;
+        defaultFlatNormalArray_ = flatNormal;
+    }
+    /// What an unset param of `slot` binds: its declared default, as layers for an array (ripples are white there).
+    TextureHandle builtinDefault(const MaterialTextureSlot& slot) const {
+        if (!slot.layered) return builtinDefault(slot.defaultTexture);
+        if (slot.defaultTexture == MaterialDefaultTexture::Black) return defaultBlackArray_;
+        if (slot.defaultTexture == MaterialDefaultTexture::FlatNormal) return defaultFlatNormalArray_;
+        return defaultWhiteArray_;
+    }
 
     /**
      * @brief Point each of @p shader's texture params at its unit.
@@ -578,6 +594,9 @@ private:
     TextureHandle defaultBlack_ = TextureHandle::Invalid;
     TextureHandle defaultFlatNormal_ = TextureHandle::Invalid;
     TextureHandle defaultRipples_ = TextureHandle::Invalid;
+    TextureHandle defaultWhiteArray_ = TextureHandle::Invalid;
+    TextureHandle defaultBlackArray_ = TextureHandle::Invalid;
+    TextureHandle defaultFlatNormalArray_ = TextureHandle::Invalid;
 };
 
 }  // namespace esengine

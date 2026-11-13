@@ -52,6 +52,7 @@ void RenderContext::init() {
     initFrameUbo();
     materials_.setDevice(&device_);
     materials_.setBuiltinDefaults(whiteTexture_, blackTexture_, flatNormalTexture_, ripplesTexture_);
+    materials_.setBuiltinDefaultArrays(whiteArrayTexture_, blackArrayTexture_, flatNormalArrayTexture_);
     lights_.setDevice(&device_);
 
     initialized_ = true;
@@ -62,7 +63,8 @@ void RenderContext::shutdown() {
         return;
     }
 
-    for (TextureHandle* tex : {&whiteTexture_, &blackTexture_, &flatNormalTexture_, &ripplesTexture_}) {
+    for (TextureHandle* tex : {&whiteTexture_, &blackTexture_, &flatNormalTexture_, &ripplesTexture_, &whiteArrayTexture_,
+                             &blackArrayTexture_, &flatNormalArrayTexture_}) {
         if (*tex != TextureHandle::Invalid) {
             device_.deleteTexture(*tex);
             *tex = TextureHandle::Invalid;
@@ -96,13 +98,15 @@ void RenderContext::shutdown() {
     ES_LOG_INFO("RenderContext shutdown");
 }
 
-TextureHandle RenderContext::make1x1Texture(u32 rgba) {
+TextureHandle RenderContext::make1x1Texture(u32 rgba, u32 layers) {
     TextureDesc desc;
     desc.width = 1;
     desc.height = 1;
+    desc.layers = layers;
     desc.minFilter = TextureFilter::Nearest;
     desc.magFilter = TextureFilter::Nearest;
-    return device_.createTexture(desc, GfxContent::retained(), &rgba);
+    const std::vector<u32> texels(layers, rgba);
+    return device_.createTexture(desc, GfxContent::retained(), texels.data());
 }
 
 namespace {
@@ -143,6 +147,9 @@ void RenderContext::initDefaultTextures() {
     whiteTexture_ = make1x1Texture(0xFFFFFFFF);       // RGBA(255,255,255,255)
     blackTexture_ = make1x1Texture(0xFF000000);       // RGBA(0,0,0,255)
     flatNormalTexture_ = make1x1Texture(0xFFFF8080);  // RGB(128,128,255) → normal (0,0,1)
+    whiteArrayTexture_ = make1x1Texture(0xFFFFFFFF, 2);
+    blackArrayTexture_ = make1x1Texture(0xFF000000, 2);
+    flatNormalArrayTexture_ = make1x1Texture(0xFFFF8080, 2);
     ripplesTexture_ = makeRipplesTexture();
     ES_LOG_DEBUG("Default textures created (white {}, black {}, flatNormal {})",
                  static_cast<u32>(whiteTexture_), static_cast<u32>(blackTexture_),

@@ -4820,4 +4820,6 @@ export const NOTED = {
     {"note": "A run of mesh draws is one call on WebGL2."},
   "feat(ecs): every component carries the tick of its last write, and an audit finds a write that left none - Registry::patch, markChanged, changedSince and anyChangedSince over stamps kept beside the components, the reader's tick from beginChangeRead, and setChangeAudit, which reports each component type written without a stamp; the first step toward a renderer that walks only what changed":
     {"note": "Components carry the tick of their last write."},
+  "fix(render): an unset texture array binds layers of its default - a textureArray param a material leaves unset was given the 2D white texture, which a sampler2DArray cannot read: on WebGL it read black, so a Planet with no layers packed yet, or any material whose array was not set, drew black where WebGPU drew white; the render context keeps white, black and flat-normal layers and MaterialStore::builtinDefault binds them for an array slot, in the scene and in post-processing alike":
+    {"note": "An unset texture array reads its default on WebGL."},
 };
