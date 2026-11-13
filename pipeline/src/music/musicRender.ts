@@ -31,6 +31,8 @@ export interface MusicEvent {
     part: number;
     /** Written with # or b: outside the key. */
     outside: boolean;
+    /** Marked softer (-1) or louder (1) than the rest; 0 for neither. */
+    mark: -1 | 0 | 1;
 }
 
 export interface CompiledMusic {
@@ -112,9 +114,10 @@ export function compileMusic(source: MusicSource): CompiledMusic {
                 const late = div % 2 === 0 && i % 2 === 1 ? (source.swing ?? 0) * step : 0;
                 const when = Math.max(0, at + i * step + late + human * 0.012 * random());
                 const loud = s.loud * (1 + human * 0.25 * random());
+                const mark = s.loud > 1 ? 1 : s.loud < 1 ? -1 : 0;
                 played.add(track);
                 if (s.kind === 'hit') {
-                    events.push({ instrument: track, at: when, seconds: held * step, midi: null, loud, part: p, outside: false });
+                    events.push({ instrument: track, at: when, seconds: held * step, midi: null, loud, part: p, outside: false, mark });
                     continue;
                 }
                 const chord = instrument.follow && pattern.chords ? pattern.chords[Math.floor(i / stepsToBar) % pattern.chords.length]! : 1;
@@ -123,7 +126,7 @@ export function compileMusic(source: MusicSource): CompiledMusic {
                 for (const n of s.notes) {
                     const index = n.degree - 1 + chord - 1 + drop + 7;
                     const midi = 60 + tonic + scale[index % 7]! + 12 * (Math.floor(index / 7) - 1 + n.octave + (instrument.octave ?? 0)) + n.alter;
-                    events.push({ instrument: track, at: when, seconds: held * step, midi, loud, part: p, outside: n.alter !== 0 });
+                    events.push({ instrument: track, at: when, seconds: held * step, midi, loud, part: p, outside: n.alter !== 0, mark });
                 }
             }
         }
@@ -180,17 +183,38 @@ function forNote(layer: SoundLayer, held: number, release: number): SoundLayer {
  * to be lower, let go over the release. A recording an octave from its note is another instrument, which is why there
  * are several; within three semitones the ear takes it for the same one.
  */
-function sampleNote(name: string, instrument: MusicInstrument, midi: number | null, held: number, rate: number, given: Readonly<Record<string, SampleData>>): Float32Array[] {
+const HARDNESS = { soft: -1, normal: 0, loud: 1 } as const;
+
+/**
+ * Which of an instrument's recordings plays a note. First by how hard: the recordings made as hard as the note is
+ * marked, or failing those the nearest in hardness. Then by pitch: the ones whose range holds the note, or failing
+ * those the nearest. And where several are left that are the same note, they take turns, so the same key struck
+ * four times is not one recording four times.
+ */
+export function sampleZone(instrument: MusicInstrument, midi: number | null, mark: number, turn: number): { index: number; matched: boolean } {
     const zones = instrument.samples!;
-    let zone = zones[0]!;
+    const hard = (i: number): number => HARDNESS[zones[i]!.dynamic ?? 'normal'];
+    let left = zones.map((_, i) => i);
+    const nearest = Math.min(...left.map((i) => Math.abs(hard(i) - mark)));
+    left = left.filter((i) => Math.abs(hard(i) - mark) === nearest);
+    const matched = nearest === 0 && mark !== 0;
     if (midi !== null) {
-        const ranged = zones.find((z) => (z.low !== undefined || z.high !== undefined) && midi >= (midiOf(z.low) ?? 0) && midi <= (midiOf(z.high) ?? 127));
-        zone = ranged ?? zones.reduce((best, z) => (Math.abs(midiOf(z.note)! - midi) < Math.abs(midiOf(best.note)! - midi) ? z : best));
-    }
+        const ranged = left.filter((i) => (zones[i]!.low !== undefined || zones[i]!.high !== undefined) && midi >= (midiOf(zones[i]!.low) ?? 0) && midi <= (midiOf(zones[i]!.high) ?? 127));
+        if (ranged.length) left = ranged;
+        const far = Math.min(...left.map((i) => Math.abs(midiOf(zones[i]!.note)! - midi)));
+        left = left.filter((i) => Math.abs(midiOf(zones[i]!.note)! - midi) === far);
+        // Of two as near, one above and one below, the turn must not swap them: only recordings of one note take turns.
+        left = left.filter((i) => midiOf(zones[i]!.note) === midiOf(zones[left[0]!]!.note));
+    } else left = [left[0]!];
+    return { index: left[turn % left.length]!, matched };
+}
+
+function sampleNote(name: string, instrument: MusicInstrument, index: number, midi: number | null, held: number, rate: number, given: Readonly<Record<string, SampleData>>): Float32Array[] {
+    const zone = instrument.samples![index]!;
     const data = given[zone.file];
     if (!data) throw new Error(`instrument "${name}": the recording ${zone.file} was not found`);
     const frames = data.channels[0]!.length;
-    const step = (midi === null ? 1 : Math.pow(2, (midi - midiOf(zone.note)!) / 12)) * (data.rate / rate);
+    const step = (midi === null ? 1 : Math.pow(2, (midi - midiOf(zone.note)! - (zone.tune ?? 0) / 100) / 12)) * (data.rate / rate);
     const [attack, release] = [instrument.attack ?? 0.003, instrument.release ?? 0.08];
     // Round its steady middle, or the seconds given, with the end of each turn faded into the start of the next.
     let [from, to] = [0, 0];
@@ -297,12 +321,12 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
     const buses = new Map(names.map((name) => [name, [new Float32Array(work), new Float32Array(work)]] as const));
 
     const cache = new Map<string, Float32Array[]>();
-    const noteOf = (name: string, instrument: MusicInstrument, e: MusicEvent, turn: number): Float32Array[] => {
+    const noteOf = (name: string, instrument: MusicInstrument, e: MusicEvent, turn: number, zone: number): Float32Array[] => {
         // The same note is made a few times over and no more: enough that a hat is not one sample struck again.
-        const key = `${name}|${e.midi}|${Math.round(e.seconds * 1000)}|${turn % 3}`;
+        const key = `${name}|${e.midi}|${Math.round(e.seconds * 1000)}|${instrument.samples ? `z${zone}` : turn % 3}`;
         let made = cache.get(key);
         if (!made && instrument.samples) {
-            made = sampleNote(name, instrument, e.midi, e.seconds, rate, given);
+            made = sampleNote(name, instrument, zone, e.midi, e.seconds, rate, given);
             cache.set(key, made);
         }
         if (!made) {
@@ -320,11 +344,20 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
         const instrument = source.instruments[e.instrument]!;
         const turn = turns.get(e.instrument) ?? 0;
         turns.set(e.instrument, turn + 1);
-        const note = noteOf(e.instrument, instrument, e, turn);
+        // Which recording, for an instrument of them: recordings of one note take turns, counted for each note apart.
+        let zone = { index: 0, matched: false };
+        if (instrument.samples) {
+            const of = `${e.instrument}|${e.midi}|${e.mark}`;
+            const again = turns.get(of) ?? 0;
+            turns.set(of, again + 1);
+            zone = sampleZone(instrument, e.midi, e.mark, again);
+        }
+        const note = noteOf(e.instrument, instrument, e, turn, zone.index);
         const [l, r] = [note[0]!, note[1] ?? note[0]!];
         const pan = instrument.pan ?? 0;
-        // Equal power, and full in the middle.
-        const loud = e.loud * (instrument.gain ?? 1) * Math.SQRT2;
+        // Equal power, and full in the middle. A recording made as hard as the note is marked is already that loud:
+        // the mark is not counted twice.
+        const loud = (zone.matched ? e.loud / (e.mark > 0 ? 1.3 : 0.6) : e.loud) * (instrument.gain ?? 1) * Math.SQRT2;
         const [gl, gr] = [Math.cos(((pan + 1) * Math.PI) / 4) * loud, Math.sin(((pan + 1) * Math.PI) / 4) * loud];
         const [left, right] = buses.get(e.instrument)!;
         const from = Math.round(e.at * rate);

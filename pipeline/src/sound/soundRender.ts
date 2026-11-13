@@ -141,8 +141,27 @@ function noiseBody(layer: SoundLayer, count: number, rate: number, seed: number,
     return out;
 }
 
+/** A recording a layer plays: its samples and the rate they were made at. */
+export interface SoundRecording { rate: number; channels: readonly Float32Array[] }
+
+/** @p count samples of a recording, its two sides as one, played at @p speed from @p from seconds in. Past its end is silence. */
+function recordingBody(recording: SoundRecording, count: number, rate: number, speed: number, from: number): Float32Array {
+    const out = new Float32Array(count);
+    const [l, r] = [recording.channels[0]!, recording.channels[1] ?? recording.channels[0]!];
+    const step = (speed * recording.rate) / rate;
+    const start = from * recording.rate;
+    for (let n = 0; n < count; n++) {
+        const p = start + n * step;
+        const i = Math.floor(p);
+        if (i + 1 >= l.length) break;
+        const t = p - i;
+        out[n] = ((l[i]! + r[i]!) * (1 - t) + (l[i + 1]! + r[i + 1]!) * t) / 2;
+    }
+    return out;
+}
+
 /** One striking of a layer: its samples from its own start, at @p pitch times its written pitch. */
-function strike(layer: SoundLayer, seconds: number, rate: number, pitch: number, seed: number): Float32Array {
+function strike(layer: SoundLayer, seconds: number, rate: number, pitch: number, seed: number, recording: SoundRecording | null = null): Float32Array {
     const count = Math.max(1, Math.round(seconds * rate));
     const out = new Float32Array(count);
     const filters = (layer.filters ?? []).map((f) => ({ run: new Biquad(f.type, f.q ?? 0.7, rate, f.gain ?? 0), freq: f.freq }));
@@ -151,7 +170,9 @@ function strike(layer: SoundLayer, seconds: number, rate: number, pitch: number,
     const drive = layer.drive ?? 0;
     const push = 1 + drive * 14;
     const pushed = Math.tanh(push);
-    const noise = layer.source === 'noise' ? noiseBody(layer, count, rate, seed, pitch) : null;
+    // What is made ahead of the loop: a noise, or a recording played at its speed.
+    const noise = layer.source === 'noise' ? noiseBody(layer, count, rate, seed, pitch)
+        : layer.source === 'sample' ? recordingBody(recording!, count, rate, (layer.speed ?? 1) * pitch, layer.from ?? 0) : null;
     // A spike: up in one sample and down over its width, as the air does in front of a bang.
     const spike = layer.source === 'impulse' ? (layer.width ?? 0.0002) * rate : 0;
     let [phase, bend] = [0, 0];
@@ -357,7 +378,7 @@ interface Stray { pitch: number; loud: number; decay: number; late: number; seed
  * @p at is for a sound played as a note: `pitch` times its written pitch, with `seed` for other noise, and `raw`
  * leaving its level as the layers sum to, so that many notes keep their balance against one another.
  */
-export function renderSound(source: SoundSource, variant = 0, at: { pitch?: number; seed?: number; raw?: boolean } = {}): RenderedSound {
+export function renderSound(source: SoundSource, variant = 0, at: { pitch?: number; seed?: number; raw?: boolean; given?: Readonly<Record<string, SoundRecording>> } = {}): RenderedSound {
     const rate = source.rate ?? 44100;
     const count = Math.max(1, Math.round(source.duration * rate));
     // A loop is rendered a little long and its extra folded back over its start, so the end runs into the beginning.
@@ -406,7 +427,11 @@ export function renderSound(source: SoundSource, variant = 0, at: { pitch?: numb
             return { peak, last, heard, strikes: strikes.length };
         }
         const space = total / rate - start;
-        const seconds = Math.min(layer.length ?? space, space);
+        const recording = layer.source === 'sample' ? at.given?.[layer.file!] ?? null : null;
+        if (layer.source === 'sample' && !recording) throw new Error(`${where}: the recording ${layer.file} was not found`);
+        // A recording lasts as long as it lasts, at the speed it is played.
+        const whole = recording ? Math.max(0.001, (recording.channels[0]!.length / recording.rate - (layer.from ?? 0)) / ((layer.speed ?? 1) * place.pitch * stray.pitch)) : space;
+        const seconds = Math.min(layer.length ?? whole, space);
         if (!(seconds > 0)) {
             if (top) notes.push(`${where} starts at the end of the sound and is not heard`);
             return { peak: 0, last: start, heard: 0, strikes: 0 };
@@ -428,7 +453,7 @@ export function renderSound(source: SoundSource, variant = 0, at: { pitch?: numb
             const pitch = s.pitch * place.pitch * stray.pitch;
             const loud = s.loud * place.loud * stray.loud;
             // Each striking has its own noise, as no two footsteps are the same grit.
-            const hit = strike(made, length, rate, pitch, s.seed);
+            const hit = strike(made, length, rate, pitch, s.seed, recording);
             // The other ear's noise is another noise, by as much as the layer is wide.
             const other = wide > 0 ? strike(made, length, rate, pitch, s.seed + 50021) : null;
             // Equal power: a sound sent to one side is as loud as one in the middle.
@@ -542,8 +567,8 @@ export function encodeWav(sound: Pick<RenderedSound, 'rate' | 'channels'>): Uint
 }
 
 /** Every variant a source asks for, the first being the sound as written. */
-export function renderSoundVariants(source: SoundSource): RenderedSound[] {
-    return Array.from({ length: source.variants ?? 1 }, (_, k) => renderSound(source, k));
+export function renderSoundVariants(source: SoundSource, given: Readonly<Record<string, SoundRecording>> = {}): RenderedSound[] {
+    return Array.from({ length: source.variants ?? 1 }, (_, k) => renderSound(source, k, { given }));
 }
 
 /** A recording as this file's sounds are held, so it can be drawn and measured as they are. */

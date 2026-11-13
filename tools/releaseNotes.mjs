@@ -4622,6 +4622,10 @@ export const NOTED = {
     {"note": "An AI can make background music."},
   "feat(music): the reply gives the join of a loop or how long an ending rings, and the tool text says how a loop is written and who fades one":
     {"note": "An AI can make background music."},
+  "feat(music): recordings played soft and loud that take turns, a recording as a layer of a sound, and an instrument out of a SoundFont - samples carry dynamic and tune and share a note in turn, a sound has a sample layer shaped as any other, and an .sf2 is read for its instruments and one lifted out as recordings with their notes, ranges, tuning and loops":
+    {"note": "An AI can make background music."},
+  "feat(music): soundfont_read lists a SoundFont and takes an instrument out of it, and a sound's sample layers read their recordings - the tool text says dynamics, turns and where recordings come from":
+    {"note": "An AI can make background music."},
   "feat(sky): a sky of your own shades the ground under its clouds - defineSkyEffect takes groundShadow and a second function, skyShadow(world, sun), what is left of the light at a world position, and the sky pass multiplies every surface it finds by it, as Sky Atmosphere does with its own clouds":
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":

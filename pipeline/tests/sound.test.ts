@@ -5,7 +5,7 @@
  * is heard, and that the same source is the same samples.
  */
 import { describe, expect, it } from 'vitest';
-import { applySoundEdits, validateSoundSource, type SoundLayer, type SoundSource } from '../src/sound/soundSource';
+import { applySoundEdits, soundSampleFiles, validateSoundSource, type SoundLayer, type SoundSource } from '../src/sound/soundSource';
 import { decodeWav, encodeWav, renderSound, renderSoundVariants } from '../src/sound/soundRender';
 import { comparePicture, soundBands, soundPicture } from '../src/sound/soundPicture';
 
@@ -447,5 +447,60 @@ describe('layers struck together, sounds that differ, and a recording to be like
         expect(lit(90, 384 + 6 + 10 + 2)).toBe(true);
         expect(lit(110, 384 + 6 + 10 + 2)).toBe(false);
         expect(lit(300, 384 + 6 + 10 + 60)).toBe(false);
+    });
+});
+
+describe('a recording as a layer among the made ones', () => {
+    const tone = (hz: number, seconds: number, rate = 44100) => ({ rate, channels: [Float32Array.from({ length: Math.round(seconds * rate) }, (_, n) => 0.5 * Math.sin((2 * Math.PI * hz * n) / rate))] });
+    const given = { 'a.wav': tone(440, 0.3), 'slow.wav': tone(440, 0.3, 22050) };
+    const play = (layers: SoundLayer[], rest: Partial<SoundSource> = {}) => renderSound(validateSoundSource({ duration: 1, normalize: false, layers, ...rest }), 0, { given });
+
+    it('plays the recording where the layer starts, for as long as it lasts', () => {
+        const s = play([{ source: 'sample', file: 'a.wav', start: 0.2 }]).channels[0]!;
+        expect(level(s, 0, 0.19)).toBeLessThan(1e-6);
+        expect(pitchOf(s, 44100, 0.22, 0.48)).toBeCloseTo(440, -1);
+        expect(level(s, 0.22, 0.48)).toBeCloseTo(0.5 / Math.SQRT2, 1);
+        expect(level(s, 0.52, 1)).toBeLessThan(1e-6);
+        // Whatever rate it was recorded at.
+        expect(pitchOf(play([{ source: 'sample', file: 'slow.wav' }]).channels[0]!, 44100, 0.02, 0.28)).toBeCloseTo(440, -1);
+    });
+
+    it('is higher and shorter played faster, and starts from where it is told', () => {
+        const fast = play([{ source: 'sample', file: 'a.wav', speed: 2 }]).channels[0]!;
+        expect(pitchOf(fast, 44100, 0.02, 0.13)).toBeCloseTo(880, -1.3);
+        expect(level(fast, 0.17, 1)).toBeLessThan(1e-6);
+        const late = play([{ source: 'sample', file: 'a.wav', from: 0.2 }]).channels[0]!;
+        expect(level(late, 0.01, 0.09)).toBeGreaterThan(0.2);
+        expect(level(late, 0.12, 1)).toBeLessThan(1e-6);
+    });
+
+    it('is shaped as any layer is: an envelope, a filter, repeats that climb', () => {
+        const s = play([{ source: 'sample', file: 'a.wav', decay: 0.03, filters: [{ type: 'lowpass', freq: 200 }], repeat: { count: 3, every: 0.3, pitch: 2 } }]);
+        const c = s.channels[0]!;
+        // Dying away, and quieter for the filter below its pitch.
+        expect(level(c, 0.15, 0.25)).toBeLessThan(level(c, 0, 0.05) * 0.2);
+        expect(level(c, 0, 0.05)).toBeLessThan(0.2);
+        expect(s.layers[0]).toMatchObject({ source: 'sample', strikes: 3 });
+        const plain = play([{ source: 'sample', file: 'a.wav', repeat: { count: 2, every: 0.4, pitch: 2 } }]).channels[0]!;
+        expect(pitchOf(plain, 44100, 0.42, 0.53)).toBeCloseTo(880, -1.3);
+    });
+
+    it('lies among made layers, in a group, and in variants that differ', () => {
+        const source = validateSoundSource({ duration: 0.6, variants: 3, layers: [{ source: 'group', layers: [{ source: 'sample', file: 'a.wav' }, { source: 'noise', band: [2000, 8000], length: 0.05, decay: 0.01, gain: 0.3 }] }] });
+        expect(soundSampleFiles(source)).toEqual(['a.wav']);
+        const all = renderSoundVariants(source, given);
+        expect(all).toHaveLength(3);
+        expect(Buffer.from(all[1]!.channels[0]!.buffer).equals(Buffer.from(all[0]!.channels[0]!.buffer))).toBe(false);
+        expect(Math.abs(pitchOf(all[1]!.channels[0]!, 44100, 0.1, 0.4) - 440)).toBeLessThan(40);
+    });
+
+    it('refuses what a sample cannot be, and says when its recording is not there', () => {
+        const bad = (layer: unknown) => () => validateSoundSource({ duration: 1, layers: [layer] });
+        expect(bad({ source: 'sample' })).toThrow(/a sample needs file: a project path to a recording/);
+        expect(bad({ source: 'sample', file: 'a.txt' })).toThrow(/a sample needs file/);
+        expect(bad({ source: 'sample', file: 'a.wav', speed: 9 })).toThrow(/speed must be 0\.25\.\.4/);
+        expect(bad({ source: 'sample', file: 'a.wav', freq: 440 })).toThrow(/freq is a tone's pitch; a sample has none/);
+        expect(bad({ source: 'noise', file: 'a.wav' })).toThrow(/file goes with source "sample"/);
+        expect(() => renderSound(validateSoundSource({ duration: 1, layers: [{ id: 'crack', source: 'sample', file: 'b.wav' }] }))).toThrow(/layer 0 "crack": the recording b\.wav was not found/);
     });
 });

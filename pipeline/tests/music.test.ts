@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { applyMusicEdits, midiOf, musicSampleFiles, validateMusicSource, type MusicSource } from '../src/music/musicSource';
-import { compileMusic, noteName, renderMusic, samplePitch, type SampleData } from '../src/music/musicRender';
+import { compileMusic, noteName, renderMusic, samplePitch, sampleZone, type SampleData } from '../src/music/musicRender';
 import { musicPicture } from '../src/music/musicPicture';
 
 const tone = { layers: [{ source: 'sine', freq: 440 }] } as const;
@@ -321,12 +321,12 @@ describe('an instrument made of recordings', () => {
         const bad = (instrument: unknown) => () => validateMusicSource({ tempo: 120, key: 'A', instruments: { keys: instrument }, patterns: { a: { bars: 1, tracks: { keys: one('1') } } }, song: ['a'] });
         expect(bad({})).toThrow(/instrument "keys" needs layers \(a made sound\) or samples \(recordings\), one of the two/);
         expect(bad({ layers: [{ source: 'noise' }], samples: [{ file: 'a.wav', note: 'C4' }] })).toThrow(/one of the two/);
-        expect(bad({ samples: [] })).toThrow(/samples must be 1\.\.64/);
+        expect(bad({ samples: [] })).toThrow(/samples must be 1\.\.256/);
         expect(bad({ samples: [{ file: 'a.txt', note: 'C4' }] })).toThrow(/sample 1: file must be a project path to a recording/);
         expect(bad({ samples: [{ file: 'a.wav', note: 'C' }] })).toThrow(/note must be the note recorded, as "C4"/);
         expect(bad({ samples: [{ file: 'a.wav', note: 'C4', low: 'C5', high: 'C3' }] })).toThrow(/low is above high/);
         expect(bad({ samples: [{ file: 'a.wav', note: 'C4', loop: [0.5, 0.5] }] })).toThrow(/loop must be true, or \[from, to\]/);
-        expect(bad({ samples: [{ file: 'a.wav', note: 'C4', root: 'C4' }] })).toThrow(/unknown "root"; a sample has file, note, low, high, loop/);
+        expect(bad({ samples: [{ file: 'a.wav', note: 'C4', root: 'C4' }] })).toThrow(/unknown "root"; a sample has file, note, low, high, loop, dynamic, tune/);
         expect(bad({ layers: [{ source: 'noise' }], attack: 0.1 })).toThrow(/attack is for samples/);
     });
 });
@@ -386,5 +386,60 @@ describe('how a piece begins, ends and meets itself', () => {
         expect(of([thin, 'a', thin]).notes.join()).not.toMatch(/meets itself/);
         // A piece that ends has no join.
         expect(renderMusic(piece(tracks, { instruments, song: [thin, 'a'] })).join).toBeNull();
+    });
+});
+
+describe('recordings played soft and loud, and taking turns', () => {
+    const recorded = (hz: number, loud = 0.5): SampleData => ({ rate: 44100, channels: [Float32Array.from({ length: 22050 }, (_, n) => loud * Math.sin((2 * Math.PI * hz * n) / 44100))] });
+    // Each recording is of another pitch, so which one played is heard in what comes out.
+    const given = { 'n.wav': recorded(440), 's.wav': recorded(330, 0.2), 'l.wav': recorded(660), 'n2.wav': recorded(550), 'n3.wav': recorded(770), 'sharp.wav': recorded(440 * Math.pow(2, 50 / 1200)) };
+    const play = (samples: unknown[], line: string) => renderMusic(validateMusicSource({
+        tempo: 120, key: 'A', humanize: 0, loop: false, gain: 0.5,
+        instruments: { keys: { samples } }, patterns: { a: { bars: 1, tracks: { keys: line } } }, song: ['a'],
+    }), given);
+    const FOUR = (a: string, b: string, c: string, d: string): string => `${a} - - . ${b} - - . ${c} - - . ${d} - - .`;
+    const heard = (m: ReturnType<typeof play>, beat: number): number => Math.round(pitchOf(m.channels[0]!, 44100, beat * 0.5 + 0.05, beat * 0.5 + 0.3) / 10) * 10;
+
+    it('plays a step marked soft or loud from a recording made that way', () => {
+        const zones = [{ file: 'n.wav', note: 'A4' }, { file: 's.wav', note: 'A4', dynamic: 'soft' }, { file: 'l.wav', note: 'A4', dynamic: 'loud' }];
+        const m = play(zones, FOUR('1', '1?', '1!', '1'));
+        expect([0, 1, 2, 3].map((b) => heard(m, b))).toEqual([440, 330, 660, 440]);
+        expect(sampleZone({ samples: zones } as never, 69, -1, 0)).toEqual({ index: 1, matched: true });
+        expect(sampleZone({ samples: zones } as never, 69, 0, 0)).toEqual({ index: 0, matched: false });
+    });
+
+    it('does not count the mark twice when the recording is already that hard', () => {
+        // The soft recording is 0.2 where the normal one is 0.5: played from it, a soft step is 0.2, not 0.2 times 0.6.
+        const both = play([{ file: 'n.wav', note: 'A4' }, { file: 's.wav', note: 'A4', dynamic: 'soft' }], FOUR('1', '1?', '.', '.')).channels[0]!;
+        expect(level(both, 44100, 0.55, 0.8) / level(both, 44100, 0.05, 0.3)).toBeCloseTo(0.4, 1);
+        // With no soft recording the normal one is turned down.
+        const one = play([{ file: 'n.wav', note: 'A4' }], FOUR('1', '1?', '.', '.')).channels[0]!;
+        expect(level(one, 44100, 0.55, 0.8) / level(one, 44100, 0.05, 0.3)).toBeCloseTo(0.6, 1);
+    });
+
+    it('falls back on the nearest in hardness where there is none as hard', () => {
+        // No loud recording: a loud step takes the normal one, never the soft.
+        const m = play([{ file: 's.wav', note: 'A4', dynamic: 'soft' }, { file: 'n.wav', note: 'A4' }], FOUR('1!', '1?', '1', '.'));
+        expect([0, 1, 2].map((b) => heard(m, b))).toEqual([440, 330, 440]);
+    });
+
+    it('takes turns between recordings of one note, counted for each note apart', () => {
+        const zones = [{ file: 'n.wav', note: 'A4' }, { file: 'n2.wav', note: 'A4' }, { file: 'n3.wav', note: 'A4' }];
+        const m = play(zones, FOUR('1', '1', '1', '1'));
+        expect([0, 1, 2, 3].map((b) => heard(m, b))).toEqual([440, 550, 770, 440]);
+        // Another note between does not use up a turn of this one.
+        const mixed = play(zones, FOUR('1', "1'", '1', '1'));
+        expect([0, 2, 3].map((b) => heard(mixed, b))).toEqual([440, 550, 770]);
+        // Two recordings as near, one below and one above, are not turns of each other.
+        const beside = [{ file: 'n.wav', note: 'G4' }, { file: 'n2.wav', note: 'B4' }];
+        expect([0, 1, 2].map((t) => sampleZone({ samples: beside } as never, 69, 0, t).index)).toEqual([0, 0, 0]);
+    });
+
+    it('takes out how sharp a recording is said to be', () => {
+        // Half a semitone sharp, and said so: it plays in tune. Unsaid, it is heard sharp.
+        const tuned = play([{ file: 'sharp.wav', note: 'A4', tune: 50 }], '1 - - - - - - - . . . . . . . .').channels[0]!;
+        const raw = play([{ file: 'sharp.wav', note: 'A4' }], '1 - - - - - - - . . . . . . . .').channels[0]!;
+        expect(pitchOf(tuned, 44100, 0.05, 0.45)).toBeCloseTo(440, -0.5);
+        expect(pitchOf(raw, 44100, 0.05, 0.45)).toBeGreaterThan(449);
     });
 });

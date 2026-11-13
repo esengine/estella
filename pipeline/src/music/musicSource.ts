@@ -44,7 +44,17 @@ export interface MusicSample {
     high?: string | number;
     /** For a note held longer than the recording: true goes round its steady middle, [from, to] round those seconds of it. A piano dies of itself and has none. */
     loop?: boolean | readonly [number, number];
+    /**
+     * How hard it was played. A step marked `?` is played from a "soft" recording and one marked `!` from a "loud"
+     * one, where the instrument has them: a piano struck hard is brighter, not only louder, and turning a soft
+     * recording up does not make it so. Left out, it is "normal".
+     */
+    dynamic?: (typeof DYNAMICS)[number];
+    /** Hundredths of a semitone the recording is sharp (above 0) or flat of its note, -100..100, which is taken out as it is played. */
+    tune?: number;
 }
+
+export const DYNAMICS = ['soft', 'normal', 'loud'] as const;
 
 export interface MusicInstrument {
     /** The layers of its sound at A above middle C (440 Hz): a sine at 440 is its fundamental, one at 880 the octave over it. A layer with no `length` lasts as long as the note; one with a `length` (the knock at the front of a pluck, a drum) keeps its own. */
@@ -194,17 +204,19 @@ const INSTRUMENT_FIELDS = ['layers', 'samples', 'attack', 'gain', 'pan', 'octave
 const RECORDING = /\.(wav|ogg|mp3|flac|m4a|aac|webm)$/i;
 
 function checkSamples(samples: unknown, where: string): void {
-    if (!Array.isArray(samples) || samples.length === 0 || samples.length > 64) throw new Error(`${where}: samples must be 1..64 of { file, note }`);
+    if (!Array.isArray(samples) || samples.length === 0 || samples.length > 256) throw new Error(`${where}: samples must be 1..256 of { file, note }`);
     samples.forEach((sample: unknown, i) => {
         const at = `${where}, sample ${i + 1}`;
         if (!isObj(sample)) throw new Error(`${at} must be { file, note }`);
-        for (const key of Object.keys(sample)) if (!['file', 'note', 'low', 'high', 'loop'].includes(key)) throw new Error(`${at} has unknown "${key}"; a sample has file, note, low, high, loop`);
+        for (const key of Object.keys(sample)) if (!['file', 'note', 'low', 'high', 'loop', 'dynamic', 'tune'].includes(key)) throw new Error(`${at} has unknown "${key}"; a sample has file, note, low, high, loop, dynamic, tune`);
+        if (sample.dynamic !== undefined && !DYNAMICS.includes(sample.dynamic as never)) throw new Error(`${at}: dynamic must be one of ${DYNAMICS.join(', ')}`);
+        if (sample.tune !== undefined && !between(sample.tune, -100, 100)) throw new Error(`${at}: tune must be hundredths of a semitone, -100..100`);
         if (typeof sample.file !== 'string' || !RECORDING.test(sample.file)) throw new Error(`${at}: file must be a project path to a recording (.wav, .ogg, .mp3, .flac, .m4a)`);
         if (midiOf(sample.note) === null) throw new Error(`${at}: note must be the note recorded, as "C4", "F#3" or "Bb2" (C4 is middle C), or its number 0..127`);
         for (const key of ['low', 'high']) if (sample[key] !== undefined && midiOf(sample[key]) === null) throw new Error(`${at}: ${key} must be a note, as "C4"`);
         if (sample.low !== undefined && sample.high !== undefined && midiOf(sample.low)! > midiOf(sample.high)!) throw new Error(`${at}: low is above high`);
         const loop = sample.loop;
-        if (loop !== undefined && typeof loop !== 'boolean' && !(Array.isArray(loop) && loop.length === 2 && isNum(loop[0]) && isNum(loop[1]) && loop[0] >= 0 && loop[1] > loop[0] + 0.02)) {
+        if (loop !== undefined && typeof loop !== 'boolean' && !(Array.isArray(loop) && loop.length === 2 && isNum(loop[0]) && isNum(loop[1]) && loop[0] >= 0 && loop[1] > loop[0] + 0.0005)) {
             throw new Error(`${at}: loop must be true, or [from, to] in seconds with to past from`);
         }
     });

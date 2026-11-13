@@ -20,7 +20,7 @@ export const SOUND_RATES = [22050, 44100, 48000] as const;
 /** One value for the whole of a layer, or [[seconds, value], ...] from the layer's start: a pitch that falls, a filter that opens. */
 export type SoundCurve = number | readonly (readonly [number, number])[];
 
-export const SOUND_SOURCES = ['sine', 'triangle', 'saw', 'square', 'noise', 'modes', 'impulse', 'group'] as const;
+export const SOUND_SOURCES = ['sine', 'triangle', 'saw', 'square', 'noise', 'modes', 'impulse', 'sample', 'group'] as const;
 export const MAX_SOUND_VARIANTS = 8;
 export type SoundSourceKind = (typeof SOUND_SOURCES)[number];
 export const SOUND_FILTERS = ['lowpass', 'highpass', 'bandpass', 'notch', 'peak'] as const;
@@ -60,6 +60,16 @@ export interface SoundLayer {
     wide?: number;
     /** noise: white is hiss, pink is rain, brown is a rumble. Default white. */
     color?: (typeof NOISE_COLORS)[number];
+    /**
+     * sample: a recording in the project, by its path, played as a layer among the made ones: the real crack of a
+     * branch under made leaves, a voice, the one sound that will not come out of waves and noise. Everything a layer
+     * has shapes it as it shapes the rest: an envelope, filters, a drive, repeats, a scatter.
+     */
+    file?: string;
+    /** sample: how fast it is played, 0.25..4; 2 is an octave up and half as long. Default 1. */
+    speed?: number;
+    /** sample: seconds into the recording that it starts from. Default 0. */
+    from?: number;
     /** modes: each [Hz, loudness, seconds to die away], the tones a struck thing rings with. */
     modes?: readonly (readonly [number, number, number])[];
     seed?: number;
@@ -154,7 +164,7 @@ function curveProblem(v: unknown, lo: number, hi: number, what: string): string 
     return null;
 }
 
-const LAYER_FIELDS = ['id', 'source', 'freq', 'width', 'band', 'wide', 'color', 'modes', 'seed', 'start', 'length', 'gain', 'attack', 'release', 'decay', 'tail', 'vibrato', 'tremolo', 'fm', 'filters', 'drive', 'pan', 'repeat', 'scatter', 'mute'];
+const LAYER_FIELDS = ['id', 'source', 'freq', 'width', 'band', 'wide', 'color', 'modes', 'file', 'speed', 'from', 'seed', 'start', 'length', 'gain', 'attack', 'release', 'decay', 'tail', 'vibrato', 'tremolo', 'fm', 'filters', 'drive', 'pan', 'repeat', 'scatter', 'mute'];
 
 const GROUP_FIELDS = ['id', 'source', 'layers', 'start', 'gain', 'pan', 'repeat', 'scatter', 'mute'];
 
@@ -174,7 +184,12 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>,
         ids.add(l.id as string);
     }
     if (!SOUND_SOURCES.includes(l.source as SoundSourceKind)) fail(`source ${JSON.stringify(l.source)} must be one of ${SOUND_SOURCES.join(', ')}`);
-    const tone = l.source !== 'noise' && l.source !== 'modes' && l.source !== 'impulse' && l.source !== 'group';
+    const tone = l.source !== 'noise' && l.source !== 'modes' && l.source !== 'impulse' && l.source !== 'group' && l.source !== 'sample';
+    if (l.source === 'sample') {
+        if (typeof l.file !== 'string' || !/\.(wav|ogg|mp3|flac|m4a|aac|webm)$/i.test(l.file)) fail('a sample needs file: a project path to a recording (.wav, .ogg, .mp3, .flac, .m4a)');
+        if (l.speed !== undefined && !between(l.speed, 0.25, 4)) fail('speed must be 0.25..4');
+        if (l.from !== undefined && !between(l.from, 0, 600)) fail('from must be seconds into the recording, 0 or more');
+    } else for (const key of ['file', 'speed', 'from']) if (l[key] !== undefined) fail(`${key} goes with source "sample"`);
     if (tone) {
         if (l.freq === undefined) fail(`a ${String(l.source)} needs freq, its pitch in Hz`);
         const bad = curveProblem(l.freq, 10, 20000, 'freq');
@@ -271,6 +286,14 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>,
 }
 
 const SOURCE_FIELDS = ['version', 'duration', 'rate', 'loop', 'variants', 'vary', 'reference', 'layers', 'highpass', 'lowpass', 'echo', 'reverb', 'gain', 'normalize'];
+
+/** The recordings a sound's layers play, each once. */
+export function soundSampleFiles(source: Pick<SoundSource, 'layers'>): string[] {
+    const files = new Set<string>();
+    const walk = (layers: readonly SoundLayer[]): void => { for (const l of layers) { if (l.source === 'sample' && l.file) files.add(l.file); if (l.layers) walk(l.layers); } };
+    walk(source.layers);
+    return [...files];
+}
 
 /** The source if it is well formed; otherwise throws, naming the layer and the field. */
 export function validateSoundSource(raw: unknown): SoundSource {
