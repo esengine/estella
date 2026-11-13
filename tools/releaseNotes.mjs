@@ -4790,4 +4790,6 @@ export const NOTED = {
     {"note": "Walking a frame's meshes costs less, and the profiler says what it costs."},
   "perf(postprocess): an effect chain keeps its uniform buffers from frame to frame - a camera's chain is said again every frame, and each pass made a uniform buffer and deleted it each time, seventeen a frame for one lake scene; a cleared chain's buffers are taken over by the next chain's passes of the same size, and one nothing takes in eight clears is deleted":
     {"note": "An effect chain keeps its uniform buffers from frame to frame."},
+  "feat(playable): a playable opens on a start screen - the page was empty while the engine was inflated and compiled and the first scene warmed, twenty-five seconds of nothing for one lake scene; it carries the web export's start screen now (title, bar, what the boot is doing), taken away just before the loop starts, and a stretch nothing measures (shaders compiling, a world being made) runs a light along the bar and says so, on a web page too":
+    {"note": "A playable opens on a start screen."},
 };

@@ -58,6 +58,13 @@ export function splashCss(background: string): string {
     + `#${ROOT} #${BAR}{height:100%;width:0;border-radius:2px;background:#c7d0e0;`
     + 'transition:width .25s ease;}'
     + `#${ROOT} #${LABEL}{font-size:12px;opacity:.72;min-height:1.5em;}`
+    // A stretch with no measure of its own (shaders compiling, a world being made): a light runs along the track, so a bar
+    // that has stopped moving does not read as a page that has stopped.
+    + `#${ROOT} .es-splash-track{position:relative;}`
+    + `#${ROOT}.es-splash-busy .es-splash-track::after{content:'';position:absolute;top:0;bottom:0;left:-30%;width:30%;`
+    + 'background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);animation:es-splash-run 1.1s linear infinite;}'
+    + '@keyframes es-splash-run{to{left:100%;}}'
+    + `@media (prefers-reduced-motion:reduce){#${ROOT}.es-splash-busy .es-splash-track::after{animation-duration:3s;}}`
     // A start screen that outlives its own boot is worse than none: if the
     // runtime never arrives to fade it, this hides it rather than covering the
     // game forever.
@@ -90,6 +97,8 @@ export interface Splash {
    *  `engine` alone is 40 of the 100, so a bar that only moves on completion
    *  stands still for most of a cold start. */
   within(stage: BootStage, fraction: number): void;
+  /** The boot is in a stretch nothing measures: the track shows it is alive, and the label says `says` if given. */
+  busy(says?: string): void;
   /** Fade out and remove. Safe to call twice. */
   done(): void;
 }
@@ -106,8 +115,8 @@ export const FIRST_FRAME_EVENT = 'esengine:firstframe';
 /**
  * Drive the page's start screen and announce the boot.
  *
- * Always returns: a playable is sized by an SDK container and carries no start
- * screen, but a portal around it still wants the events. A boot must never be a
+ * Always returns: a page with no start screen (a playable exported before it had
+ * one) still has a portal around it that wants the events. A boot must never be a
  * thing the start screen can fail.
  */
 export function attachSplash(doc: Document = document): Splash {
@@ -161,6 +170,11 @@ export function attachSplash(doc: Document = document): Splash {
       const next = BOOT_STAGES[at + 1];
       if (label && next) label.textContent = `${next.says}…`;
       announce(BOOT_PROGRESS_EVENT, { stage, progress });
+    },
+    busy(says) {
+      if (finished || !root) return;
+      root.classList.add('es-splash-busy');
+      if (label && says && label.textContent !== `${says}…`) label.textContent = `${says}…`;
     },
     done() {
       if (finished) return;

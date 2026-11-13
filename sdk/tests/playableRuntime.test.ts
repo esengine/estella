@@ -88,6 +88,16 @@ describe('initPlayableRuntime', () => {
         expect(seen.length).toBeGreaterThan(3);
         expect(seen.at(-1)).toBe('run:');
 
+        // A page's start screen comes down between the two: told once everything is warmed, before the loop starts, and shown how
+        // the warm-up is going. One that throws must not leave the game unstarted.
+        compiling = 2; seen.length = 0;
+        const progress: number[] = [];
+        await initPlayableRuntime({ ...config, prewarmShaders: { timeoutMs: 5000, onProgress: (n) => progress.push(n) },
+            onBeforeRun: () => { seen.push('before-run'); throw new Error('a page that fails'); } });
+        expect(progress[0]).toBeGreaterThan(0);
+        expect(progress.at(-1)).toBe(0);
+        expect(seen.slice(-2)).toEqual(['before-run', 'run:']);
+
         // Not asked: no frame is drawn before the loop starts.
         const plain = createMockConfig();
         (plain.app as any).stepFrames = vi.fn();

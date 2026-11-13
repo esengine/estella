@@ -38,9 +38,28 @@ describe('driving the start screen', () => {
     const splash = attachSplash(document);
     splash.done();
     splash.done();
-    // A playable is sized by an SDK container and carries no screen; the portal
-    // around it still has to be told the game is drawing.
+    // A page exported before it had a screen carries none; the portal around it
+    // still has to be told the game is drawing.
     expect(frames).toBe(1);
+    // And a stretch nothing measures is nothing to a page with no screen.
+    expect(() => splash.busy('Compiling shaders')).not.toThrow();
+  });
+
+  it('shows a stretch nothing measures as alive, and says what it is', () => {
+    const doc = mount();
+    const splash = attachSplash(doc);
+    splash.reach('config');
+    const root = doc.getElementById('es-splash')!;
+    const label = doc.getElementById('es-splash-label')!;
+    const bar = doc.getElementById('es-splash-bar')!.style.width;
+    splash.busy();
+    // Without words it leaves the stage's own label alone.
+    expect(root.classList.contains('es-splash-busy')).toBe(true);
+    expect(label.textContent).toBe(`${BOOT_STAGES[1].says}…`);
+    splash.busy('Compiling shaders');
+    expect(label.textContent).toBe('Compiling shaders…');
+    // It is not progress: the bar stays where the stages put it.
+    expect(doc.getElementById('es-splash-bar')!.style.width).toBe(bar);
   });
 
   it('holds a fast boot on screen for as long as the project asked', async () => {

@@ -982,7 +982,11 @@ async function boot(): Promise<void> {
   // game opens on a complete picture; without this it opens at once and fills in.
   if (cfg.quality?.asyncShaderCompile && cfg.quality.prewarmShaders) {
     try {
-      const warmed = await warmShaders(app, { timeoutMs: cfg.quality.prewarmTimeoutMs });
+      const warmed = await warmShaders(app, {
+        timeoutMs: cfg.quality.prewarmTimeoutMs,
+        // The stage list has no stage for this, and it can be most of a boot: say so rather than sit on "Ready".
+        onProgress: (pending) => splash?.busy(pending > 0 ? 'Compiling shaders' : 'Preparing the scene'),
+      });
       if (warmed.timedOut) console.warn(`[game] ${warmed.pending} shader(s) still compiling after ${Math.round(warmed.ms)} ms; opening anyway`);
     } catch (error) {
       console.warn('[game] shader warm-up failed', error);

@@ -74,7 +74,9 @@ export interface PlayableRuntimeConfig {
      * Draw the first scene out of sight (the canvas hidden) until its shaders have compiled, and show it complete: `quality.prewarmShaders` of a
      * project that also compiles them in the background. The wait is at most `timeoutMs`.
      */
-    prewarmShaders?: { timeoutMs?: number };
+    prewarmShaders?: { timeoutMs?: number; /** Called after each frame drawn out of sight with how many shaders are still compiling. */ onProgress?: (pending: number) => void };
+    /** Called once everything is loaded and warmed, just before the loop starts: where a page takes its start screen away. */
+    onBeforeRun?: () => void;
 }
 
 function decodeDataUrlBinary(dataUrl: string): Uint8Array {
@@ -208,7 +210,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         const shown = style.visibility;
         style.visibility = 'hidden';
         try {
-            const warmed = await warmShaders(app, { timeoutMs: config.prewarmShaders.timeoutMs });
+            const warmed = await warmShaders(app, { timeoutMs: config.prewarmShaders.timeoutMs, onProgress: config.prewarmShaders.onProgress });
             if (warmed.timedOut) log.warn('playable', `${warmed.pending} shader(s) still compiling after ${Math.round(warmed.ms)} ms; opening anyway`);
         } catch (e) {
             log.warn('playable', 'shader warm-up failed', e);
@@ -216,6 +218,8 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
             style.visibility = shown;
         }
     }
+    // A start screen that a throwing callback left up would cover the game for good.
+    try { config.onBeforeRun?.(); } catch (e) { log.warn('playable', 'onBeforeRun failed', e); }
     await app.run();
     bridge?.ready?.();
 }

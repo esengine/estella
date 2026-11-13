@@ -8091,11 +8091,12 @@ depthLayers: number | undefined
 firstScene: string
 manifest: AddressableManifest | null | undefined
 module: ESEngineModule
+onBeforeRun: (() => void) | undefined
 physics3dBackend: Physics3DBackend | undefined
 physics3dWorld: Partial<Physics3DWorldConfig> | undefined
 physicsConfig: Physics2DPluginConfig | undefined
 physicsEnabled: boolean | undefined
-prewarmShaders: { timeoutMs?: number; } | undefined
+prewarmShaders: { timeoutMs?: number; onProgress?: (pending: number) => void; } | undefined
 runtime: RuntimeBuildConfig | undefined
 scenes: { name: string; data: SceneData; }[]
 uiTheme: "dark" | "light" | undefined

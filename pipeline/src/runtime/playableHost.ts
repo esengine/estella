@@ -20,6 +20,7 @@ import type { SceneData, EmbeddedSideModuleRegistry, EmbeddedSideModuleEntry } f
 import type { ESEngineModule as EngineModule } from 'esengine/wasm';
 import type { PackagedRuntimeFields } from '../project/runtimeConfig';
 import { inflateRaw } from './inflate';
+import { attachSplash } from '../export/splash';
 
 type EngineFactory = (opts?: Record<string, unknown>) => Promise<EngineModule>;
 // Inlined by exportPlayable as <script> globals (kept out of the bundle so the
@@ -84,6 +85,12 @@ async function boot(): Promise<void> {
   // An export built before this global simply has no settings to apply.
   const runtimeConfig: PackagedRuntimeFields =
     typeof __GAME_RUNTIME__ !== 'undefined' ? __GAME_RUNTIME__ : {};
+  // The page's start screen (an export from before it had one has none, and this then only announces the boot). Nothing is fetched,
+  // so the stages a web build spends on the network are behind it already.
+  const splash = attachSplash();
+  for (const stage of ['config', 'scripts', 'manifest', 'scene'] as const) splash.reach(stage);
+  // The page has to paint the screen before the engine is inflated and compiled, which holds this thread.
+  await new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   const resize = (): void => {
     const dpr = window.devicePixelRatio || 1;
@@ -110,6 +117,8 @@ async function boot(): Promise<void> {
     },
   });
 
+  splash.reach('engine');
+
   // ?headless=1 is the render-verification harness (see the capture hook below).
   // readPixels after a composite reads an UNDEFINED drawing buffer unless it is
   // preserved, so a working playable captures as pure black — which reads as
@@ -131,6 +140,8 @@ async function boot(): Promise<void> {
   });
   setEditorMode(false);
   setPlayMode(true);
+  splash.reach('app');
+  splash.busy();
 
   // Same capture hook the cooked web host exposes, and for the same reason: a
   // playable is a single inlined file, so the only way to tell one that renders
@@ -146,6 +157,14 @@ async function boot(): Promise<void> {
     };
   }
 
+  // The bar's last stretch follows the shaders: of the most seen compiling at once, how many are done.
+  let most = 0;
+  const warming = (pending: number): void => {
+    most = Math.max(most, pending);
+    if (most > 0) splash.within('assets', 1 - pending / most);
+    // With none left compiling the warm-up is waiting on what is still being made (a ground's pages, a field's cells).
+    splash.busy(pending > 0 ? 'Compiling shaders' : 'Preparing the scene');
+  };
   await initPlayableRuntime({
     app,
     module,
@@ -158,7 +177,8 @@ async function boot(): Promise<void> {
     firstScene: __GAME_FIRST__,
     // The same condition the web host warms on: shaders compiled in the background, and the project asked to open on a complete picture.
     ...(runtimeConfig.quality?.asyncShaderCompile && runtimeConfig.quality.prewarmShaders
-      ? { prewarmShaders: { timeoutMs: runtimeConfig.quality.prewarmTimeoutMs } } : {}),
+      ? { prewarmShaders: { timeoutMs: runtimeConfig.quality.prewarmTimeoutMs, onProgress: warming } } : {}),
+    onBeforeRun: () => { splash.reach('assets'); splash.reach('ready'); splash.done(); },
     // Everything the config APPLIES to a live app: physics, the mixer, the theme.
     ...packagedRuntimeInit(runtimeConfig),
   });
@@ -168,4 +188,6 @@ boot().catch((err) => {
   const message = err instanceof Error ? err.message : String(err);
   if (err === 'unwind' || message.includes('unwind')) return; // emscripten loop took over — success
   console.error('[playable] boot failed', err);
+  // A start screen left over a boot that failed would say it is still loading.
+  document.getElementById('es-splash')?.remove();
 });

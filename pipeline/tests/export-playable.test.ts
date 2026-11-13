@@ -258,6 +258,12 @@ describe('exportGame (playable)', () => {
     });
     // And the host hands it on: the runtime reads nothing it was not given.
     expect(inlinedText(html, '__GAME_BUNDLE__')).toContain('__GAME_MANIFEST__');
+    // The page opens on a start screen (the engine is inflated and compiled before anything can be drawn), in markup that is there
+    // before any script runs, and the host is what takes it away.
+    expect(html).toContain('<div id="es-splash" role="status"');
+    expect(html).toContain('<div class="es-splash-title">Tiled</div>');
+    expect(html.indexOf('id="es-splash"')).toBeLessThan(html.indexOf('<script>'));
+    expect(inlinedText(html, '__GAME_BUNDLE__')).toContain('es-splash-gone');
   }, 60_000);
 
   // A texture recipe is drawn by esengine/image, which the whole entry does not carry: it is imported for the asset that needs

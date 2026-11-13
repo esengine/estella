@@ -44,6 +44,7 @@ import type { Physics3DBackend } from 'esengine';
 import { forcedSideModules, moduleChoices, moduleForAsset } from '../bundle/engineInstalls';
 import { textureImportSettingsFrom, type ParsedTextureImportSettings } from '../../../sdk/src/asset/textureImportSettings';
 import type { ModuleChoice, ProjectFeatures, ProjectPackaging } from '../project/format';
+import { PAGE_BACKGROUND, splashCss, splashHtml } from './splash';
 
 export interface ExportPlayableResult {
   ok: boolean;
@@ -120,6 +121,10 @@ function pack(bytes: Uint8Array | Buffer): PackedBytes {
  * `network` is what the chosen profile contributes: markup for `<head>` and the
  * bridge that gives `playableCta()` somewhere to go. The bridge runs BEFORE the game
  * bundle, so a CTA fired during boot still resolves.
+ *
+ * The start screen is the web export's (title, bar, what the boot is doing), without a logo: the engine is inflated and compiled
+ * and the first scene's shaders warmed before anything can be drawn, which is seconds of an empty page otherwise. It fills whatever
+ * container the page is given, so it asks nothing of the SDK's sizing.
  */
 function indexHtml(
   title: string,
@@ -135,12 +140,14 @@ function indexHtml(
     <title>${title}</title>${network.head ? `\n    ${network.head}` : ''}
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: 100%; height: 100%; overflow: hidden; background: #0e121b; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: ${PAGE_BACKGROUND}; }
       #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+      ${splashCss(PAGE_BACKGROUND)}
     </style>
   </head>
   <body>
-    <canvas id="canvas"></canvas>${network.body ? `\n    ${network.body}` : ''}${network.bridge ? `\n    <script>${inlineSafe(network.bridge)}</script>` : ''}
+    <canvas id="canvas"></canvas>
+    ${splashHtml(title)}${network.body ? `\n    ${network.body}` : ''}${network.bridge ? `\n    <script>${inlineSafe(network.bridge)}</script>` : ''}
     <script>${inlineSafe(globals)}</script>
     <script>${inlineSafe(loader)}</script>
   </body>
