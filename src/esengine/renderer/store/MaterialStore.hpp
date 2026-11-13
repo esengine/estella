@@ -446,7 +446,8 @@ public:
 
     /// Uploads (when dirty) and binds the material's MaterialConstants UBO at binding 1.
     /// No-op for materials whose shader declares no params (uboBytes stays empty).
-    void bindForDraw(u32 materialId);
+    /** Binds the material's block and its textures; a texture only where @p samplerUnits says the bound program reads its unit. */
+    void bindForDraw(u32 materialId, u32 samplerUnits = 0xFFFFFFFFu);
 
     /// Says what a world unit is (the project's units per metre). A param a material left at its default follows the change;
     /// one it set, to anything else, is the material's and stays.

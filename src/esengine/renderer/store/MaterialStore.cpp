@@ -429,7 +429,7 @@ void MaterialStore::setWorldUnitsPerMeter(f32 unitsPerMeter) {
     }
 }
 
-void MaterialStore::bindForDraw(u32 materialId) {
+void MaterialStore::bindForDraw(u32 materialId, u32 samplerUnits) {
     if (!device_) return;
     auto it = materials_.find(materialId);
     if (it == materials_.end()) return;
@@ -461,6 +461,7 @@ void MaterialStore::bindForDraw(u32 materialId) {
     // whatever stale texture is at the unit.
     if (lit != layouts_.end()) {
         for (const auto& slot : lit->second.textures) {
+            if (slot.unit < 32 && !((samplerUnits >> slot.unit) & 1u)) continue;
             TextureHandle gpu = builtinDefault(slot.defaultTexture);
             // What stood behind this draw, where the frame took a copy of it; a material that named a texture there keeps its own.
             if (sceneColor_ != TextureHandle::Invalid && slot.name == "u_sceneColor") gpu = sceneColor_;

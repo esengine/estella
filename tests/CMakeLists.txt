@@ -643,6 +643,14 @@ add_executable(test_buffer_device
 target_include_directories(test_buffer_device PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_buffer_device COMMAND test_buffer_device)
 
+# The device's record tables and its pipeline index: header-only, so it links alone.
+add_executable(test_record_table
+    renderer/test_record_table.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_record_table PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME test_record_table COMMAND test_record_table)
+
 # Device loss: the shared state machine (GfxDevice), driven through MockGfxDevice.
 # Header-only, so nothing but Log.cpp is needed to link.
 add_executable(test_device_loss

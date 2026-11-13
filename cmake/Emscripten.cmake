@@ -57,7 +57,9 @@ set(ES_EMSCRIPTEN_LINK_FLAGS
     --emit-tsd esengine.d.ts        # Auto-generate TypeScript definitions
     -sWASM=1
     -sUSE_WEBGL2=1
-    -sFULL_ES3=1
+    # No FULL_ES3: its client-side array emulation queried ELEMENT_ARRAY_BUFFER_BINDING with getParameter at every
+    # glBindVertexArray, once a draw. Every draw here reads GPU buffers by offset (GLDevice::prepareVertexState).
+    -sMAX_WEBGL_VERSION=2
     -sALLOW_MEMORY_GROWTH=1
     -sNO_EXIT_RUNTIME=1
     -sASSERTIONS=1
@@ -81,7 +83,9 @@ set(ES_EMSCRIPTEN_MAIN_MODULE_FLAGS
     -sMAIN_MODULE=2
     -sWASM=1
     -sUSE_WEBGL2=1
-    -sFULL_ES3=1
+    # No FULL_ES3: its client-side array emulation queried ELEMENT_ARRAY_BUFFER_BINDING with getParameter at every
+    # glBindVertexArray, once a draw. Every draw here reads GPU buffers by offset (GLDevice::prepareVertexState).
+    -sMAX_WEBGL_VERSION=2
     -sALLOW_MEMORY_GROWTH=1
     -sALLOW_TABLE_GROWTH=1
     -sNO_EXIT_RUNTIME=1
@@ -105,7 +109,9 @@ set(ES_EMSCRIPTEN_WXGAME_MAIN_MODULE_FLAGS
     -sMAIN_MODULE=2
     -sWASM=1
     -sUSE_WEBGL2=1
-    -sFULL_ES3=1
+    # No FULL_ES3: its client-side array emulation queried ELEMENT_ARRAY_BUFFER_BINDING with getParameter at every
+    # glBindVertexArray, once a draw. Every draw here reads GPU buffers by offset (GLDevice::prepareVertexState).
+    -sMAX_WEBGL_VERSION=2
     -sALLOW_MEMORY_GROWTH=1
     -sALLOW_TABLE_GROWTH=1
     -sNO_EXIT_RUNTIME=1
@@ -163,7 +169,9 @@ set(ES_EMSCRIPTEN_WXGAME_SDK_FLAGS
     --bind
     -sWASM=1
     -sUSE_WEBGL2=1
-    -sFULL_ES3=1
+    # No FULL_ES3: its client-side array emulation queried ELEMENT_ARRAY_BUFFER_BINDING with getParameter at every
+    # glBindVertexArray, once a draw. Every draw here reads GPU buffers by offset (GLDevice::prepareVertexState).
+    -sMAX_WEBGL_VERSION=2
     -sALLOW_MEMORY_GROWTH=1
     -sNO_EXIT_RUNTIME=1
     -sENVIRONMENT=web
@@ -250,7 +258,9 @@ set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
     # --emit-tsd esengine.d.ts  # Temporarily disabled due to binding mismatch
     -sWASM=1
     -sUSE_WEBGL2=1
-    -sFULL_ES3=1
+    # No FULL_ES3: its client-side array emulation queried ELEMENT_ARRAY_BUFFER_BINDING with getParameter at every
+    # glBindVertexArray, once a draw. Every draw here reads GPU buffers by offset (GLDevice::prepareVertexState).
+    -sMAX_WEBGL_VERSION=2
     -sALLOW_MEMORY_GROWTH=1
     -sALLOW_TABLE_GROWTH=1
     -sNO_EXIT_RUNTIME=1

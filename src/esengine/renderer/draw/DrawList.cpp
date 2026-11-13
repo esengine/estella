@@ -337,7 +337,17 @@ void DrawList::stageBlocks(const PerDrawBlockSet& blocks) {
         // WHERE this draw's instances read their irradiance, not what it is: the
         // coefficients are in the frame's texture, one run per instance, so a
         // merged draw holding objects in many places still says one thing here.
+        // A run no probe lights reads the zero block, which says the same thing, rather than zeroes of its own: staging
+        // them filled and uploaded up to sixteen kilobytes a draw, and gave every draw a range of its own to bind.
+        bool probeLit = false;
         if (blocks.probe) {
+            const u32 runs = std::min(cmd.instance_count > 0 ? cmd.instance_count : 1u, PROBE_MAX_INSTANCES);
+            for (u32 n = 0; n < runs && !probeLit; ++n) {
+                const size_t at = static_cast<size_t>(cmd.probe_base) + n;
+                probeLit = at < probe_slots_.size() && probe_slots_[at] != 0;
+            }
+        }
+        if (blocks.probe && probeLit) {
             // Every instance of this run, in the order it draws them, capped at
             // what the block holds — a longer run carries no irradiance at all,
             // so its tail reads zeroes and takes the environment.
@@ -518,6 +528,8 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
             lastDesc = desc;
         }
         device.setPipeline(lastHandle);
+        // The units this program samples: nothing else is bound for it. A depth program reads none, most of all.
+        const u32 sampled = device.boundSamplerUnits();
 
         if (cmd.skin_count > 0 && blocks.skin) {
             blocks.skin->bind(SKIN_CONSTANTS_BINDING, staged.skin);
@@ -545,6 +557,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         // put there, in any pass, the prepass too (a vertex hook reads textures). The fill is a STABLE white, so unused units cost no rebind.
         if (cmd.texture_count > 0) {
             for (u8 slot = 0; slot < MAX_CMD_TEXTURE_SLOTS; ++slot) {
+                if (!((sampled >> slot) & 1u)) continue;
                 // The top units are the frame's screen-space light masks wherever one
                 // exists — the merge was kept off them, so what a draw holds there is
                 // the mask, or the fill where the pass drew nothing.
@@ -562,7 +575,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         // below the base that its shader never reads from the draw (ShaderParser::materialOverflowUnits): the material's binding is the
         // one this draw samples there.
         if (cmd.material_id != 0) {
-            materials.bindForDraw(cmd.material_id);
+            materials.bindForDraw(cmd.material_id, sampled);
         }
 
         if (cmd.hasPersistentGeometry()) {

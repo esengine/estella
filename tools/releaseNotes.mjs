@@ -4768,4 +4768,6 @@ export const NOTED = {
     {"note": "A sound or a piece of music can ship as its recipe."},
   "fix(playable): a playable samples its textures as their .meta says - the page was handed no manifest, so no texture's wrap, filter, colour space or 9-slice border reached it and each took the defaults: a ground or a wall whose picture repeats drew one copy and smeared its edge over the rest, right in the editor and in a web export and wrong in the playable; the import settings of what is inlined ride in the page and the host hands them to the runtime":
     {"note": "A playable samples its textures as their import settings say."},
+  "perf(render): drawing a frame costs the CPU a third of what it did - a draw no probe lights reads the zero block instead of staging its own, a draw binds only the texture units its program samples, the cull face is cached, vertex arrays are bound without asking the browser for their index buffer (no FULL_ES3), and device objects are found by index":
+    {"note": "Drawing a frame costs the CPU a third of what it did."},
 };

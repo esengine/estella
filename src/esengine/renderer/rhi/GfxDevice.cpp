@@ -371,8 +371,7 @@ const VertexLayoutDesc* GfxDevice::vertexLayoutDesc(VertexLayoutHandle layout) c
 
 PipelineHandle GfxDevice::createPipeline(const PipelineDesc& desc) {
     if (device_status_ == GfxDeviceStatus::Dead) return PipelineHandle::Invalid;
-    if (const u32 existing = registry_.findPipeline(desc)) return PipelineHandle{existing};
-    return PipelineHandle{registry_.pipelines.insert(GfxPipelineRecord{desc})};
+    return PipelineHandle{registry_.internPipeline(desc)};
 }
 
 const PipelineDesc* GfxDevice::pipelineDesc(PipelineHandle handle) const {
@@ -737,6 +736,7 @@ void GfxDevice::setUniformValue(i32 location, const GfxUniformValue& value) {
     auto* record = registry_.programs.find(id);
     if (!record || location < 0 || static_cast<usize>(location) >= record->uniformValues.size()) return;
     record->uniformValues[static_cast<usize>(location)] = value;
+    if (value.type == GfxUniformValue::Type::Int) backendIntUniformSet(id);
     if (!record->realized) return;
     const i32 native = nativeUniformLocation(*record, id, location);
     if (native >= 0) backendSetUniform(native, value);
