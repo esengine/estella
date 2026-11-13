@@ -4580,6 +4580,8 @@ export const NOTED = {
     {"note": "The tonemap has the fitted ACES curve too."},
   "feat(terrain): a cliff's beds can wander - a layer read from the side lies by height, so its beds ran dead straight along a whole wall; Terrain Layers' u_strataWarp moves them up and down by slow noise u_strataSpan wide, and 0, the default, leaves them straight":
     {"note": "A cliff's beds can wander."},
+  "fix(water): a waterfall falls in strands, not in speckle - the stock Waterfall shader's pattern was sixteen times too fine each way, so a sheet was a solid white board peppered with dark flecks; about four strands now lie across half a sheet and one lasts about a second of the fall, and u_strands 60 with u_run 15.4 is the old pattern":
+    {"note": "A waterfall falls in strands, not in speckle."},
   "fix(terrain): a detail the pages cannot hold no longer cracks the ground - a tree that wanted more nodes than the atlas has pages was drawn in part by coarser pages standing in, which do not meet their finer neighbours' edges, and the pages were fought over every frame; the ground is now drawn at the share of its detail's range that fits, and says so once":
     {"note": "A detail the pages cannot hold no longer cracks the ground."},
   "fix(foliage): a far plant grows across the ground, not taller - a mesh plant kept in a far version was grown the same every way to cover the ground of those left out, so a flower that stood for ten stood ten times as high and a far meadow was a field of poles; it now grows across the ground only, and Foliage.farGrowUp gives its height a share of the growth back":

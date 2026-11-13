@@ -102,6 +102,10 @@ describe('the Waterfall component and its shader', () => {
         const source = WATERFALL_SHADER_TEMPLATE.source;
         expect(source).toContain('(v_texCoord.y - u_time.x) * u_run');
         expect(source).toContain('(v.v_texCoord.y - tc.u_time.x) * mc.u_run');
+        // A strand is long: about four lie across half a sheet and one lasts about a second of the fall, not a speckle of sixty by fifteen.
+        expect(source).toContain('#pragma param u_strands float default(3.75)');
+        expect(source).toContain('#pragma param u_run float default(0.97)');
+        expect(source).not.toContain('u_run * 28.0');
         for (const p of ['u_water', 'u_foam', 'u_strands', 'u_run', 'u_veil', 'u_tearBy', 'u_opacity', 'u_roughness']) expect(source).toContain(`#pragma param ${p} `);
     });
 });

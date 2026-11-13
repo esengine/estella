@@ -171,8 +171,8 @@ level at `speed` and pulled down by gravity, and each sheet ends where it meets 
 
 Only the entity's turn about the vertical aims it: keep it upright and unscaled. With no material on the `MeshRenderer` it takes the stock
 **Waterfall** shader: glass at the lip that tears into strands and then veils, its pattern riding down with the water. Its params are the
-water's colour at the lip (`u_water`) and the white it breaks into (`u_foam`), how many strands lie across a sheet (`u_strands`) and how
-fast they run (`u_run`), how much of the sheet is gone at its foot (`u_veil`) and how far down it is torn that much (`u_tearBy`),
+water's colour at the lip (`u_water`) and the white it breaks into (`u_foam`), how many strands lie across half a sheet (`u_strands`) and how
+many times in a second of its fall a strand changes (`u_run`: fewer is longer strands), how much of the sheet is gone at its foot (`u_veil`) and how far down it is torn that much (`u_tearBy`),
 `u_opacity` and `u_roughness`. A material of your own reads what the mesh carries: `uv.x` across the sheet, `uv.y` the seconds the water
 there has been falling, the colour's red the share of the fall done, its green a number of the sheet's own.
 

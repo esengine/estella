@@ -16,11 +16,12 @@ const WATERFALL = `#pragma shader "Waterfall"
 // The water at the lip, before it breaks, and the white it breaks into.
 #pragma param u_water color default(0.30,0.55,0.52,1)
 #pragma param u_foam color default(0.90,0.94,0.98,1)
-// How many strands lie across the sheet, and how fast their pattern runs (1 is with the water).
-#pragma param u_strands float default(60) range(4,400) ui(slider)
-#pragma param u_run float default(0.55) range(0,4) ui(slider)
+// How many strands lie across half the sheet, and how many times in a second of its fall a strand changes: fewer is longer strands.
+// The pattern always rides down with the water.
+#pragma param u_strands float default(3.75) range(0.5,400) ui(slider)
+#pragma param u_run float default(0.97) range(0,40) ui(slider)
 // How much of the sheet is gone at its foot (0 a whole sheet to the bottom, 1 nothing left of it), and how far down it is torn that much.
-#pragma param u_veil float default(0.42) range(0,1) ui(slider)
+#pragma param u_veil float default(0.47) range(0,1) ui(slider)
 #pragma param u_tearBy float default(0.85) range(0.05,1) ui(slider)
 #pragma param u_opacity float default(1) range(0,1) ui(slider)
 #pragma param u_roughness float default(0.6) range(0.02,1) ui(slider)
@@ -63,7 +64,7 @@ void main() {
     if (dot(N, V) < 0.0) N = -N;
     float side = v_texCoord.x * 2.0 - 1.0, k = clamp(v_color.r, 0.0, 1.0), own = v_color.g;
     float across = (side + own) * u_strands;
-    float along = (v_texCoord.y - u_time.x) * u_run * 28.0;
+    float along = (v_texCoord.y - u_time.x) * u_run;
     float strands = fallNoise(vec2(across, along)) * 0.55 + fallNoise(vec2(across * 2.5 + 9.0, along * 2.1)) * 0.45;
     float clumps = fallNoise(vec2(across / 3.0 + 3.0, along * 0.45));
     // A glassy lip that tears into strands, then into veils.
@@ -118,7 +119,7 @@ struct FragOut {
     let side = v.v_texCoord.x * 2.0 - 1.0;
     let k = clamp(v.v_color.r, 0.0, 1.0);
     let across = (side + v.v_color.g) * mc.u_strands;
-    let along = (v.v_texCoord.y - tc.u_time.x) * mc.u_run * 28.0;
+    let along = (v.v_texCoord.y - tc.u_time.x) * mc.u_run;
     let strands = fallNoise(vec2f(across, along)) * 0.55 + fallNoise(vec2f(across * 2.5 + 9.0, along * 2.1)) * 0.45;
     let clumps = fallNoise(vec2f(across / 3.0 + 3.0, along * 0.45));
     let body = mix(1.0, 0.74, smoothstep(0.05, 0.7, k));
