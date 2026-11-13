@@ -18,7 +18,7 @@ import type { NormalBakeReport } from './normalBake';
 import { buildPolyMesh, expandModelSource, validateModelSource, type ModelSource, type StepReport } from './modelSource';
 import {
     boundsOf, collectEdges, cross, dot, faceArea, faceNormal, length, normalize, sub,
-    type PolyMesh, type Vec3,
+    type PolyMesh, type Vec3, compact,
 } from './polyMesh';
 
 const DEFAULT_SMOOTH_ANGLE = 30;
@@ -51,6 +51,8 @@ export interface ModelReport {
     joints?: Record<string, number>;
     /** What a normal map carries, once one has been baked. */
     normalBake?: NormalBakeReport;
+    /** For a fractured model: how many pieces it is in. */
+    pieces?: number;
     /** The findings above that are worth stopping for, as sentences. */
     warnings: string[];
 }
@@ -65,6 +67,13 @@ export interface BakedModel {
     hair?: { maps: HairMaps; chainRoots?: number[] };
     /** Present where a source has shapes: three offsets per surface vertex, for each. */
     shapes?: { names: string[]; deltas: Float32Array[] };
+    /**
+     * Present on a fractured model: each piece as a mesh of its own, about its own middle, with where that middle is
+     * in the model. Put back at their centres they are the model; let go, they are what it breaks into.
+     */
+    shards?: { center: Vec3; size: Vec3; volume: number; data: MeshData }[];
+    /** Present on a fractured model: the pieces in their places as one mesh, each face saying which piece it is of. `poly` is the model before the cut, which is what is drawn; this is what it is cut into, to be looked at. */
+    cut?: { poly: PolyMesh; triangles: { v: [number, number, number]; face: number }[] };
     /** One triangle per entry: its three positions' indices, and the face it came from. */
     triangles: { v: [number, number, number]; face: number }[];
     /** Present where a source has a normalBake: what bakeNormalMap carries, onto a mesh already unwrapped and given tangents for it. */
@@ -332,7 +341,13 @@ export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, ma
 export function bakeModel(raw: unknown): BakedModel {
     // The plain steps: the report counts them, and a step's own fields are read back by its index among them.
     const source = expandModelSource(validateModelSource(raw));
-    const { mesh, steps, high, notes } = buildPolyMesh(source);
+    const built = buildPolyMesh(source);
+    const { steps, high, notes } = built;
+    // A fractured model is two things: its pieces, which the report and the views are of, and the model before the cut,
+    // which is what is drawn until it breaks.
+    const pieces = built.mesh.faces.some((f) => f.piece !== undefined) ? built.mesh : null;
+    if (pieces && !pieces.whole) throw new Error('fracture has to be the last step: what comes after it would change the pieces and not the model they are cut from');
+    const mesh = pieces?.whole ?? built.mesh;
     if (mesh.faces.length === 0) throw new Error('the steps leave no faces; a model starts with a box, cylinder, cone, sphere, plane or prism');
 
     const triangles = mesh.faces.map((f) => triangulateFace(mesh, f));
@@ -434,11 +449,30 @@ export function bakeModel(raw: unknown): BakedModel {
     }
 
     const roundVec = (v: readonly number[]): Vec3 => v.map((x) => Math.round(x * 1e5) / 1e5) as unknown as Vec3;
+
+    // The pieces of a fractured model, each a mesh about its own middle.
+    const cut = pieces ?? mesh;
+    const pieceIds = [...new Set(cut.faces.map((f) => f.piece).filter((k): k is number => k !== undefined))].sort((a, b) => a - b);
+    if (pieceIds.length && (rig || shapes)) throw new Error('a model that is rigged or has shapes moves as one skin and cannot also be in pieces: fracture a model of its own');
+    if (pieceIds.length && cut.faces.some((f) => f.piece === undefined)) warnings.push('some faces are of no piece: they are drawn with the whole and go with none of the pieces when it breaks. Fracture every face, or keep what does not break in a model of its own');
+    const shards = pieceIds.map((k) => {
+        const part = compact({ positions: cut.positions, faces: cut.faces.filter((f) => f.piece === k) });
+        const box = boundsOf(part);
+        const center: Vec3 = [(box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2, (box.min[2] + box.max[2]) / 2];
+        const about: PolyMesh = { positions: part.positions.map((q: Vec3) => sub(q, center)), faces: part.faces };
+        const tris = about.faces.map((f) => triangulateFace(about, f));
+        return {
+            center: roundVec(center), size: roundVec(sub(box.max, box.min)),
+            volume: Math.round(Math.abs(signedVolume(about, about.faces.map((_, i) => i), tris)) * 1e6) / 1e6,
+            data: toMeshData(about, tris, source),
+        };
+    });
     return {
         poly: mesh,
         data: unwrapped,
         ...(rig ? { rig } : {}),
         ...(shapes ? { shapes } : {}),
+        ...(shards.length ? { shards, cut: { poly: cut, triangles: cut.faces.flatMap((f, face) => triangulateFace(cut, f).map((v) => ({ v, face }))) } } : {}),
         ...(cards ? { hair: { maps: hairMaps((source.steps.find((s) => s.op === 'hair')?.seed as number | undefined) ?? 1), ...(swing ? { chainRoots: swing.chainRoots } : {}) } } : {}),
         ...(bake && high ? { detail: { high, size, ...(bake.distance !== undefined ? { distance: bake.distance } : {}), smoothAngle: source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE, ...(lowColors ? { lowColors } : {}), ...(bake.occlusion ? { occlusion: typeof bake.occlusion === 'object' ? bake.occlusion : {} } : {}), ...(bake.surface ? { surface: { roughness: source.material?.roughness ?? 1, metallic: source.material?.metallic ?? 0 } } : {}) } } : {}),
         triangles: triangles.flatMap((tris, face) => tris.map((v) => ({ v, face }))),
@@ -452,7 +486,7 @@ export function bakeModel(raw: unknown): BakedModel {
                 size: roundVec(sub(max, min)),
                 center: roundVec([(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2]),
             },
-            tags, openEdges, nonManifoldEdges, flippedEdges, degenerateFaces, insideOutShells, steps, ...(jointReport ? { joints: jointReport } : {}), warnings,
+            tags, openEdges, nonManifoldEdges, flippedEdges, degenerateFaces, insideOutShells, steps, ...(jointReport ? { joints: jointReport } : {}), ...(shards.length ? { pieces: shards.length } : {}), warnings,
         },
     };
 }

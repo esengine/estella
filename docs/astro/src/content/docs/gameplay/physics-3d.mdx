@@ -633,3 +633,33 @@ Use finite positive placement scales. A rotated box or capsule under non-uniform
 scale needs baked collision geometry; the component rejects that unsupported
 case instead of creating a mismatched shape. Mesh and convex colliders also apply
 the model's composed scale to their source vertices.
+
+## Things that break
+
+Nothing is cut when it breaks. A model is cut beforehand into pieces that fit
+together with no gap (a model's `fracture` step writes them as a prefab, each
+piece a mesh with a body and a convex hull), and a `Breakable` swaps the whole
+for the pieces when its flag is raised.
+
+```typescript
+world.insert(pot, Breakable, { pieces: 'assets/models/pot_pieces.esprefab', burst: 300 });
+// when it is hit:
+world.update(pot, Breakable, (b) => { b.origin = hitPointInItsOwnSpace; b.broken = true; });
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `pieces` | prefab | `''` | The prefab of its pieces. |
+| `broken` | boolean | `false` | Raise to break it; lower to make it whole again. |
+| `burst` | number | `300` | How fast the pieces leave, in world units a second, out from `origin`. 0 lets them fall where they are. |
+| `origin` | vec3 | `0,0,0` | Where it is struck, from its own origin. |
+| `lifetime` | number | `0` | Seconds the pieces last before they are taken away. 0 keeps them. |
+
+The whole is hidden, not removed: its renderer, body and colliders are switched
+off and come back when `broken` is lowered. Without a 3D world the pieces
+appear in place and stay there.
+
+`Physics3D.setLinearVelocity(entity, velocity)` is what throws them, and is
+there for anything else that needs to send a body off: a blast, a kick. It
+answers false for an entity that has no body yet, which is true for the frame an
+entity is spawned in.

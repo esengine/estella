@@ -27,6 +27,7 @@ import { ScreenOverlay, defaultScreenOverlay } from '../ui/core/screen-overlay';
 import { inputPlugin, Input, setInputExecutionHeld } from '../input/input';
 import { assetPlugin } from '../asset';
 import { prefabsPlugin } from '../prefab/prefabServer';
+import { breakablePlugin } from '../breakable/breakable';
 import { setWasmErrorHandler } from '../wasm/wasmError';
 import { corePlugin, DEFAULT_UI_CAMERA_INFO } from './corePlugin';
 import {
@@ -2258,6 +2259,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         app.addPlugin(cameraPlugin(options?.getViewportSize));
         app.addPlugin(assetPlugin);
         app.addPlugin(prefabsPlugin);
+        app.addPlugin(breakablePlugin);
         app.addPlugin(inputPlugin);
         app.addPlugin(sceneManagerPlugin);
         if (options?.plugins) {

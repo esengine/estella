@@ -10,6 +10,7 @@ export {
 } from './modelSource';
 export { organic, ORGANIC_DEFAULT_RESOLUTION, ORGANIC_MAX_RESOLUTION, type OrganicParams, type OrganicPart } from './organic';
 export { needsPreparing, prepareModeling } from './booleans';
+export { piecesPrefabOf, type FractureParams } from './fracture';
 export { bakeModel, HAIR_CUTOFF, modelMaterialDoc, type BakedModel, type ModelReport } from './modelBake';
 export { bakeNormalMap, type NormalBakeReport, type NormalMap } from './normalBake';
 export type { FaceSelector } from './polyMesh';

@@ -77,6 +77,19 @@ export class PrefabServer {
     }
 
     /**
+     * Load a prefab and everything its entities use - meshes, materials,
+     * textures - and hold them, so that an instantiate later finds them loaded
+     * and its entities appear on the frame they are asked for rather than when
+     * their files arrive. Release what it answers when they are no longer
+     * wanted.
+     */
+    async prepare(pathOrAddress: string): Promise<{ release(): void }> {
+        const prepared = await this.getAssets_().preparePrefab(pathOrAddress);
+        let held = true;
+        return { release: () => { if (held) { held = false; prepared.release(); } } };
+    }
+
+    /**
      * The load is asynchronous, so the scene that asked may already be gone by
      * the time the entities exist — adopting into whatever is active now is the
      * only owner that is real, and a switch that already happened takes it.

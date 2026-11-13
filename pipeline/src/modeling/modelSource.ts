@@ -15,6 +15,7 @@
 import * as ops from './modelOps';
 import { organic } from './organic';
 import { booleanOp } from './booleans';
+import { fractureOp } from './fracture';
 import { uvStep } from './modelUv';
 import { lathe, loft } from './surfaces';
 import { subdivide } from './subdivide';
@@ -163,6 +164,7 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     bevel: { params: { edges: 'edges', width: 'number', round: 'integer', tag: 'string' }, required: ['edges', 'width'], run: ops.bevel as OpSpec['run'], says: 'chamfers edges, mitring where they meet; `round` 1..3 rounds them off' },
     slice: { params: { faces: 'faces', axis: 'axis', at: 'number|numbers' }, required: ['axis', 'at'], run: ops.slice as OpSpec['run'], says: 'cuts faces across planes, making the seams a window sits between' },
     boolean: { params: { operation: 'operation', with: 'faces', from: 'faces', keep: 'boolean', tag: 'string', color: 'color' }, required: ['operation', 'with'], run: booleanOp as unknown as OpSpec['run'], says: 'cuts or joins closed solids: subtract `with` from `from` makes a real hole' },
+    fracture: { params: { faces: 'faces', pieces: 'integer', seed: 'integer', at: 'vec3', focus: 'number', tag: 'string', color: 'color' }, required: ['pieces'], run: fractureOp as unknown as OpSpec['run'], says: 'cuts a closed solid into `pieces` (2..64) that fit together with no gap, smaller round `at` by `focus`; the cut faces are tagged `tag` (default "inside"). It is still drawn whole; each piece is also written as a mesh of its own, for a game to let go when the thing breaks' },
     subdivide: { params: { faces: 'faces', levels: 'integer', crease: 'number' }, required: [], run: subdivide as unknown as OpSpec['run'], says: 'rounds whole shells into smooth surfaces, keeping edges sharper than `crease` degrees' },
     displace: { params: { faces: 'faces', near: 'near', pattern: 'pattern', amplitude: 'number', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', count: 'integer', axis: 'axis', mirror: 'axis', detail: 'number', along: 'vec3', long: 'number' }, required: ['pattern', 'amplitude', 'scale'], run: ((mesh: PolyMesh, params: never) => displace(mesh, params)) as OpSpec['run'], says: 'pushes fine detail out of the surface along its normal, splitting faces as far as the pattern needs: bumps, wrinkles, cracks, scales, pores, ribs, weave, scratches, pleats or folds' },
     hair: { params: { faces: 'faces', count: 'integer', length: 'number', guides: 'guides', gather: 'number', width: 'number', segments: 'integer', droop: 'number', comb: 'vec3', spread: 'number', uneven: 'number', wave: 'number', taper: 'number', seed: 'integer', color: 'color', tipColor: 'color', tag: 'string' }, required: ['faces'], run: hair as unknown as OpSpec['run'], says: 'grows cards of hair from these faces, falling around what is there, or along `guides` for a ponytail or a fringe; run it again for another layer, and only the cards are kept' },
@@ -610,13 +612,17 @@ export function buildPolyMesh(written: ModelSource): ModelBuild {
         }
         if (mesh.notes) {
             for (const note of mesh.notes) notes.push(`${stepLabel(step, index)}: ${note}`);
-            mesh = { positions: mesh.positions, faces: mesh.faces };
+            // What a fracture leaves beside its pieces stays with them: it is not a note.
+            mesh = { positions: mesh.positions, faces: mesh.faces, ...(mesh.whole ? { whole: mesh.whole } : {}) };
         }
         steps.push({ index, ...(id ? { id } : {}), op, faces: mesh.faces.length, ...(op === 'decimate' ? { trianglesBefore: before, trianglesAfter: triangleCount(mesh) } : {}) });
         if (index === highAfter) high = compact(mesh);
         if (id && wanted.has(id)) kept.set(id, mesh);
     });
-    return { mesh: hasCards(mesh) ? cardsOnly(mesh) : compact(mesh), steps, notes, ...(high ? { high } : {}) };
+    const done = hasCards(mesh) ? cardsOnly(mesh) : compact(mesh);
+    // Only the last step's: a step after a fracture makes a mesh that has none, and the bake refuses it.
+    if (mesh.whole) done.whole = compact(mesh.whole);
+    return { mesh: done, steps, notes, ...(high ? { high } : {}) };
 }
 
 // ---- Edits: changing a source without restating it ------------------------------

@@ -11,13 +11,13 @@ import { MeshoptSimplifier } from 'meshoptimizer';
 import { triangulateFace } from './triangulate';
 import { collectEdges, compact, selectFaces, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
-interface ManifoldMeshData {
+export interface ManifoldMeshData {
     numProp: number;
     vertProperties: Float32Array;
     triVerts: Uint32Array;
     faceID?: Uint32Array;
 }
-interface ManifoldSolid {
+export interface ManifoldSolid {
     add(other: ManifoldSolid): ManifoldSolid;
     subtract(other: ManifoldSolid): ManifoldSolid;
     intersect(other: ManifoldSolid): ManifoldSolid;
@@ -25,7 +25,7 @@ interface ManifoldSolid {
     isEmpty(): boolean;
     delete(): void;
 }
-interface ManifoldEngine {
+export interface ManifoldEngine {
     setup(): void;
     Mesh: new (data: ManifoldMeshData) => ManifoldMeshData;
     Manifold: new (mesh: ManifoldMeshData) => ManifoldSolid;
@@ -34,7 +34,7 @@ interface ManifoldEngine {
 let engine: ManifoldEngine | null = null;
 
 /** Whether any step of a parsed source needs {@link prepareModeling} first. */
-export const needsPreparing = (steps: readonly { op: string; steps?: unknown }[]): boolean => steps.some((s) => s.op === 'boolean' || s.op === 'decimate'
+export const needsPreparing = (steps: readonly { op: string; steps?: unknown }[]): boolean => steps.some((s) => s.op === 'boolean' || s.op === 'decimate' || s.op === 'fracture'
     // What a repeat holds runs too.
     || (Array.isArray(s.steps) && needsPreparing(s.steps as { op: string }[])));
 
@@ -53,8 +53,14 @@ export async function prepareModeling(wasmUrl?: string): Promise<void> {
     engine = loaded;
 }
 
+/** The engine a cut runs on, for the steps that cut. Throws where a caller built a source without preparing it. */
+export function loadedEngine(): ManifoldEngine {
+    if (!engine) throw new Error('booleans are not loaded: call prepareModeling() before building this source');
+    return engine;
+}
+
 /** Why these faces are not a solid a boolean could cut, or null. */
-function notSolid(mesh: PolyMesh, faces: readonly number[]): string | null {
+export function notSolid(mesh: PolyMesh, faces: readonly number[]): string | null {
     const only: PolyMesh = { positions: mesh.positions, faces: faces.map((f) => mesh.faces[f]!) };
     let open = 0, crowded = 0;
     for (const edge of collectEdges(only).values()) {
@@ -66,7 +72,7 @@ function notSolid(mesh: PolyMesh, faces: readonly number[]): string | null {
     return null;
 }
 
-function toSolid(e: ManifoldEngine, mesh: PolyMesh, faces: readonly number[], triangulate: (face: Face) => [number, number, number][]): ManifoldSolid {
+export function toSolid(e: ManifoldEngine, mesh: PolyMesh, faces: readonly number[], triangulate: (face: Face) => [number, number, number][]): ManifoldSolid {
     const remap = new Map<number, number>();
     const props: number[] = [];
     const tris: number[] = [];

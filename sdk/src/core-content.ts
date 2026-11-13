@@ -433,6 +433,7 @@ export {
 } from './prefab/index';
 
 export { Prefabs, PrefabServer, PrefabsPlugin, prefabsPlugin, type SpawnOverride } from './prefab/prefabServer';
+export { Breakable, BreakablePlugin, breakablePlugin, burstVelocity, setBodyPusher, type BreakableData, type BodyPusher } from './breakable/breakable';
 
 // =============================================================================
 // Runtime Loader

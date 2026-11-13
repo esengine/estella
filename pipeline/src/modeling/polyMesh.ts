@@ -24,6 +24,8 @@ export interface Face {
     metallic?: number;
     /** The hair card this is part of, with `cornerUvs` where its texture lands. */
     card?: number;
+    /** Which of the pieces of a fractured solid this is a face of. */
+    piece?: number;
     /** A texture's place at each corner, in the order of `v`, in place of any projection. */
     cornerUvs?: readonly (readonly [number, number])[];
     /** Part of a continuous skin: shaded smooth with its neighbours whatever the angle, and its edges are not features. */
@@ -52,6 +54,11 @@ export interface PolyMesh {
     faces: Face[];
     /** What the step that just ran wants said in the report. Taken off before the next one runs. */
     notes?: string[];
+    /**
+     * Left by `fracture`: the model as it was before it was cut. It is what is drawn until the thing breaks, since
+     * pieces drawn side by side shade apart along every crack. Any step after the cut makes a new mesh without it.
+     */
+    whole?: PolyMesh;
 }
 
 export const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];

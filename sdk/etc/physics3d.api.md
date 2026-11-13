@@ -315,12 +315,14 @@ static prototype: Physics3DPlugin
 
 ## Physics3DQueries — class @experimental
 ```
+hasBody: (entity: Entity) => boolean
 overlapBox: (centre: { x: number; y: number; z: number; }, halfExtents: { x: number; y: number; z: number; }, layerMask?: number) => Overlap3DHit[]
 overlapSphere: (centre: { x: number; y: number; z: number; }, radius: number, layerMask?: number) => Overlap3DHit[]
 raycast: (origin: { x: number; y: number; z: number; }, direction: { x: number; y: number; z: number; }, layerMask?: number, options?: { characters?: boolean; }) => Cast3DHit | null
+setLinearVelocity: (entity: Entity, velocity: { x: number; y: number; z: number; }) => boolean
 sphereCast: (origin: { x: number; y: number; z: number; }, radius: number, direction: { x: number; y: number; z: number; }, layerMask?: number) => Cast3DHit | null
 teleportCharacter: (entity: Entity, position: { x: number; y: number; z: number; }) => boolean
-static new (module_: Physics3DWasmModule, ppu_: number, characters_?: ReadonlyMap<Entity, number>): Physics3DQueries
+static new (module_: Physics3DWasmModule, ppu_: number, characters_?: ReadonlyMap<Entity, number>, bodies_?: ReadonlyMap<Entity, number>): Physics3DQueries
 static prototype: Physics3DQueries
 ```
 

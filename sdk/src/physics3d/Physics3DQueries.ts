@@ -41,7 +41,26 @@ export interface Overlap3DHit {
 export class Physics3DQueries {
     constructor(private readonly module_: Physics3DWasmModule,
                 private readonly ppu_: number,
-                private readonly characters_: ReadonlyMap<Entity, number> = new Map()) {}
+                private readonly characters_: ReadonlyMap<Entity, number> = new Map(),
+                private readonly bodies_: ReadonlyMap<Entity, number> = new Map()) {}
+
+    /**
+     * Send a body off at a velocity, in world units a second: a blast, a kick, a piece of something that broke. What
+     * the solver does with it after that is the solver's. Answers false for an entity the world has no body for,
+     * which is also true for one frame after a body's entity is spawned: the world makes the body on its next step.
+     */
+    setLinearVelocity(entity: Entity, velocity: { x: number; y: number; z: number }): boolean {
+        const id = this.bodies_.get(entity);
+        if (id === undefined) return false;
+        const p = this.ppu_;
+        this.module_._physics3d_setLinearVelocity(id, velocity.x / p, velocity.y / p, velocity.z / p);
+        return true;
+    }
+
+    /** Whether the world has a body for this entity yet. */
+    hasBody(entity: Entity): boolean {
+        return this.bodies_.has(entity);
+    }
 
     /**
      * Put a character somewhere, rather than moving it there. Its position is an

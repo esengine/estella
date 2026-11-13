@@ -15,6 +15,7 @@ import { App, setAppSurfaceSize } from '../../app/app';
 import { World } from '../world';
 import { inputPlugin } from '../../input/input';
 import { prefabsPlugin } from '../../prefab/prefabServer';
+import { breakablePlugin } from '../../breakable/breakable';
 import { sceneManagerPlugin } from '../../scene/scenePlugin';
 import { headlessBasePlugins } from '../../runtime/webAppFactory';
 import { presentationBasePlugins, inBuildOrder } from '../../app/pluginSets';
@@ -150,6 +151,7 @@ export function createNativeApp(
     installNativeUI(app, scope);
     app.addPlugin(inputPlugin);
     app.addPlugin(prefabsPlugin);
+    app.addPlugin(breakablePlugin);
     app.addPlugin(sceneManagerPlugin);
     app.addPlugins(headlessBasePlugins());
     // The presentation stack — the same list the web factory installs. These used to

@@ -5,6 +5,7 @@ import type { CppRegistry, ESEngineModule } from '../wasm';
 import { log } from '../util/logger';
 import { assetPlugin } from '../asset';
 import { prefabsPlugin } from '../prefab/prefabServer';
+import { breakablePlugin } from '../breakable/breakable';
 import { sceneManagerPlugin } from '../scene/scenePlugin';
 import { seedEngineComponents } from '../ecs/component';
 import { uiPlugins } from '../app/uiPlugins';
@@ -81,6 +82,7 @@ export function createHeadlessApp(module: ESEngineModule, options?: HeadlessAppO
         // material, post-process) that only exist after initRenderer().
         app.addPlugin(assetPlugin);
         app.addPlugin(prefabsPlugin);
+        app.addPlugin(breakablePlugin);
         app.addPlugin(sceneManagerPlugin);
         // A server steps what the client steps: the optional subsystems an entry
         // installed run here too.

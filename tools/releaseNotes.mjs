@@ -4728,4 +4728,8 @@ export const NOTED = {
     {"note": "A detail the pages cannot hold no longer cracks the ground."},
   "fix(foliage): a far plant grows across the ground, not taller - a mesh plant kept in a far version was grown the same every way to cover the ground of those left out, so a flower that stood for ten stood ten times as high and a far meadow was a field of poles; it now grows across the ground only, and Foliage.farGrowUp gives its height a share of the growth back":
     {"note": "A far plant grows across the ground, not taller."},
+  "feat(physics3d): things that break - a model's fracture step cuts it beforehand into pieces that fit with no gap, the editor writes them as a prefab of bodies and hulls, and a Breakable swaps the whole for them when its flag is raised, throws them out from where it was struck and mends when the flag is lowered; its pieces are loaded while it stands, so they appear on the frame it breaks":
+    {"note": "Things that break."},
+  "feat(editor): a model with a fracture step writes its pieces and their prefab, and the reply hands over the Breakable that breaks it":
+    {"note": "Things that break."},
 };

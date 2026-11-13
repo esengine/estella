@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **Things that break.** A model can end with a `fracture` step, `{ op: "fracture", pieces: 12, at, focus }`, which cuts it beforehand into pieces that fit together with no gap, each a closed solid whose cut faces are tagged apart from its skin, smaller round `at` where it will be struck. It is still drawn whole; the editor also writes a mesh for each piece and a prefab of them, each with a dynamic body and a convex hull, and the reply hands over a `Breakable` to put beside the MeshRenderer. Raising `Breakable.broken` hides the whole (its renderer, body and colliders are switched off, not removed), puts the pieces where it stood and throws them out from `origin` at `burst` world units a second; `lifetime` takes them away later, and lowering the flag makes it whole again. Its pieces are loaded while it stands whole, so they appear on the frame it breaks. In the editor a clay pot written by `model_write` and placed on a floor broke into the 12 pieces asked for, then the 5 asked for after an edit, each of which moved, spread apart and came to rest on the floor, and was whole again when the flag was lowered. Nothing breaks it of itself yet: a script, a graph or a collision handler raises the flag. `Physics3D.setLinearVelocity(entity, velocity)` is what throws the pieces and is there for anything else that sends a body off. `Prefabs.prepare(path)` loads a prefab and everything its entities use and holds it, so a later `instantiate` does not wait on files.
+
 ## [0.104.1] - 2026-11-13
 
 ### Added

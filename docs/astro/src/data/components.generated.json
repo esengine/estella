@@ -612,6 +612,56 @@
       ]
     },
     {
+      "name": "Breakable",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "pieces",
+          "type": "Asset<prefab>",
+          "default": "none",
+          "doc": "The prefab of its pieces: a model with a fracture step writes one beside its mesh."
+        },
+        {
+          "key": "broken",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Raise to break it, lower to make it whole again."
+        },
+        {
+          "key": "burst",
+          "type": "number",
+          "default": "300",
+          "doc": "How fast the pieces leave, in world units a second, out from Origin. 0 lets them fall where they are.",
+          "range": "≥ 0, step 10"
+        },
+        {
+          "key": "origin",
+          "type": "Vec3",
+          "default": "(0, 0, 0)",
+          "doc": "Where it is struck, from its own origin: the pieces fly away from here."
+        },
+        {
+          "key": "lifetime",
+          "type": "number",
+          "default": "0",
+          "doc": "Seconds the pieces last before they are taken away. 0 keeps them.",
+          "range": "≥ 0, step 0.5"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "burst",
+        "origin.x",
+        "origin.y",
+        "origin.z",
+        "lifetime"
+      ]
+    },
+    {
       "name": "Camera",
       "source": "cpp",
       "fields": [
