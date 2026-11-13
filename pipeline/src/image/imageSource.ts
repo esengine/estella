@@ -418,7 +418,30 @@ export interface ImageSource {
     version?: number;
     size: number | readonly [number, number];
     background?: string;
+    /**
+     * The picture repeats: laid edge to edge with itself it shows no seam. What is drawn past one edge comes in at the
+     * opposite one, a blur or a shadow goes round with it, and a noise fill repeats with the picture. For a wall, a floor,
+     * a cloth: anything a surface is covered with.
+     */
+    tile?: boolean;
+    /** What the surface is, beside what it looks like: see {@link ImageMaterial}. With it, a normal map and a material are written beside the picture. */
+    material?: ImageMaterial;
     layers: readonly ImageLayer[];
+}
+
+/**
+ * A picture as a surface. Each part is a number for the whole of it, or layers drawn as a grey picture of their own:
+ * light is high, light is rough, light is metal.
+ */
+export interface ImageMaterial {
+    /** How far white stands above black, in pixels of the picture. Default 4. */
+    relief?: number;
+    /** The relief, drawn: light is high. Default: the colour picture's own lightness, dark being low. */
+    height?: readonly ImageLayer[];
+    /** How rough, 0..1 everywhere, or drawn: light is rough. Default 0.8. */
+    roughness?: number | readonly ImageLayer[];
+    /** How much metal, 0..1 everywhere, or drawn: light is metal. Default 0. */
+    metal?: number | readonly ImageLayer[];
 }
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -763,7 +786,8 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>)
 export function validateImageSource(raw: unknown): ImageSource {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new Error('an image source must be { size, layers }');
     const s = raw as Record<string, unknown>;
-    for (const key of Object.keys(s)) if (!['version', 'size', 'background', 'layers'].includes(key)) throw new Error(`unknown field "${key}"; an image has version, size, background, layers`);
+    for (const key of Object.keys(s)) if (!['version', 'size', 'background', 'tile', 'material', 'layers'].includes(key)) throw new Error(`unknown field "${key}"; an image has version, size, background, tile, material, layers`);
+    if (s.tile !== undefined && typeof s.tile !== 'boolean') throw new Error('tile must be true or false');
     if (s.version !== undefined && s.version !== IMAGE_SOURCE_VERSION) throw new Error(`version ${String(s.version)} is not one this editor reads (${IMAGE_SOURCE_VERSION})`);
     const [w, h] = typeof s.size === 'number' ? [s.size, s.size] : isPair(s.size) ? (s.size as number[]) : [NaN, NaN];
     if (!Number.isInteger(w) || !Number.isInteger(h) || w! < 1 || h! < 1 || w! > MAX_IMAGE_SIZE || h! > MAX_IMAGE_SIZE) throw new Error(`size must be a whole number or [width, height], 1..${MAX_IMAGE_SIZE}`);
@@ -771,6 +795,23 @@ export function validateImageSource(raw: unknown): ImageSource {
     if (!Array.isArray(s.layers)) throw new Error('layers must be an array');
     const ids = new Set<string>();
     (s.layers as Record<string, unknown>[]).forEach((l, i) => checkLayer(l, `layer ${i}${l?.id ? ` "${String(l.id)}"` : ''}`, ids));
+    if (s.material !== undefined) {
+        const m = s.material as Record<string, unknown> | null;
+        if (typeof m !== 'object' || m === null || Array.isArray(m)) throw new Error('material must be { relief?, height?, roughness?, metal? }');
+        for (const key of Object.keys(m)) if (!['relief', 'height', 'roughness', 'metal'].includes(key)) throw new Error(`material has unknown "${key}"; it takes relief, height, roughness, metal`);
+        if (m.relief !== undefined && !(isNum(m.relief) && (m.relief as number) >= 0 && (m.relief as number) <= 64)) throw new Error('material.relief must be 0..64, in pixels');
+        const drawn = (key: string, v: unknown): void => {
+            if (!Array.isArray(v) || v.length === 0) throw new Error(`material.${key} must be layers, one or more`);
+            (v as Record<string, unknown>[]).forEach((l, i) => checkLayer(l, `material.${key} layer ${i}${l?.id ? ` "${String(l.id)}"` : ''}`, ids));
+        };
+        if (m.height !== undefined) drawn('height', m.height);
+        for (const key of ['roughness', 'metal']) {
+            const v = m[key];
+            if (v === undefined) continue;
+            if (isNum(v)) { if (v < 0 || v > 1) throw new Error(`material.${key} must be 0..1, or layers`); }
+            else drawn(key, v);
+        }
+    }
     return { version: IMAGE_SOURCE_VERSION, ...(s as unknown as ImageSource) };
 }
 
@@ -789,7 +830,7 @@ export type ImageEdit =
         rect?: readonly { x: number; y: number; w?: number; h?: number; text: string }[];
         palette?: Readonly<Record<string, string | null>>;
     }
-    | { op: 'settings'; fields: { size?: ImageSource['size']; background?: string | null } };
+    | { op: 'settings'; fields: { size?: ImageSource['size']; background?: string | null; tile?: boolean | null; material?: ImageMaterial | null } };
 
 /** Every stroke width a source draws with, and how many layers use each: what drifts first across a set of icons. */
 export function strokeWidths(source: ImageSource): Record<string, number> {
@@ -958,6 +999,11 @@ export function applyImageEdits(source: ImageSource, edits: readonly ImageEdit[]
                 if (edit.fields?.size !== undefined) clone.size = edit.fields.size;
                 if (edit.fields?.background === null) delete clone.background;
                 else if (edit.fields?.background !== undefined) clone.background = edit.fields.background;
+                // The whole of each, or none: a relief is replaced with the layers that draw it.
+                for (const key of ['tile', 'material'] as const) {
+                    if (edit.fields?.[key] === null) delete (clone as Record<string, unknown>)[key];
+                    else if (edit.fields?.[key] !== undefined) (clone as Record<string, unknown>)[key] = edit.fields[key];
+                }
                 break;
             default:
                 throw new Error(`an edit has op ${JSON.stringify((edit as { op?: unknown })?.op)}; there are set, insert, remove, move, paint, wrap, unwrap, pixels, settings`);

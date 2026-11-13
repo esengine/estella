@@ -12,13 +12,15 @@ import { figureLight, flattenFigure, type FlatFigure } from './imageFigure';
 import { IMAGE_BRUSHES, isGuideLayer, MAX_MARK_STROKES } from './imageSource';
 import type { ImageFill, ImageLayer, ImageSource, ImageAlong, ImageBrushSettings, ImageEffect, ImageField, ImageMark, ImageStroke, ImageSweep, ImageTransform } from './imageSource';
 import { type Pt, parsePath } from './imagePath';
-import { type Rgba, blurMask, fractalNoise, gradientNoise, parseColor } from './imageNoise';
+import { type Rgba, blurMask, fractalNoise, gradientNoise, isWrapping, parseColor, setWrapping } from './imageNoise';
 
 export interface RgbaBitmap { width: number; height: number; rgba: Uint8Array }
 type Matrix = readonly [number, number, number, number, number, number];
 
 const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0];
 const SUBSCANS = 8;
+/** The size of the picture being drawn, for what has to repeat with it (see setWrapping). */
+let tileWidth = 0, tileHeight = 0;
 
 const times = (a: Matrix, b: Matrix): Matrix => [
     a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1],
@@ -132,7 +134,40 @@ function outlinesOf(layer: ImageLayer): { runs: { points: Pt[]; closed: boolean 
 // ---- Masks ----------------------------------------------------------------------
 
 /** What each pixel has of a filled outline, non-zero: a span's ends count for what they cover, so an edge has no stairs. */
+/** The nine places a thing drawn in a repeating picture shows: where it is, and one picture away each way. */
+const ROUND: readonly Pt[] = [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+
+/** Whether points moved by (@p dx, @p dy), grown by @p reach, touch the picture at all. */
+function touches(points: Iterable<readonly number[]>, dx: number, dy: number, reach: number, w: number, h: number): boolean {
+    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const p of points) {
+        if (p[0]! < x0) x0 = p[0]!;
+        if (p[0]! > x1) x1 = p[0]!;
+        if (p[1]! < y0) y0 = p[1]!;
+        if (p[1]! > y1) y1 = p[1]!;
+    }
+    return x1 + dx + reach > 0 && x0 + dx - reach < w && y1 + dy + reach > 0 && y0 + dy - reach < h;
+}
+
+/** A mask drawn once, or in a repeating picture once for each place it shows, the most of them kept. */
+function goingRound(points: () => Iterable<readonly number[]>, reach: number, w: number, h: number, draw: (dx: number, dy: number) => Float32Array): Float32Array {
+    if (!isWrapping()) return draw(0, 0);
+    let out: Float32Array | null = null;
+    for (const [ox, oy] of ROUND) {
+        const [dx, dy] = [ox * w, oy * h];
+        if ((ox !== 0 || oy !== 0) && !touches(points(), dx, dy, reach, w, h)) continue;
+        const part = draw(dx, dy);
+        if (!out) { out = part; continue; }
+        for (let i = 0; i < out.length; i++) if (part[i]! > out[i]!) out[i] = part[i]!;
+    }
+    return out ?? new Float32Array(w * h);
+}
+
 function fillMask(runs: readonly (readonly Pt[])[], w: number, h: number): Float32Array {
+    return goingRound(() => runs.flat(), 1, w, h, (dx, dy) => fillMaskOnce(dx === 0 && dy === 0 ? runs : runs.map((run) => run.map(([x, y]) => [x + dx, y + dy] as Pt)), w, h));
+}
+
+function fillMaskOnce(runs: readonly (readonly Pt[])[], w: number, h: number): Float32Array {
     const mask = new Float32Array(w * h);
     const edges: { x0: number; y0: number; x1: number; y1: number; dir: number }[] = [];
     let top = Infinity, bottom = -Infinity;
@@ -184,6 +219,12 @@ const STROKE_SAMPLES = 6;
 
 /** What each pixel has of a stroke. Round joins and ends come from the distance to the line; the others are built of convex pieces, sampled where a pixel crosses an edge: a distance from the edges would trail a faint tail off a sharp point. */
 function strokeMask(runs: readonly { points: readonly Pt[]; closed: boolean }[], width: number, w: number, h: number, join: 'round' | 'miter' | 'bevel' = 'round', cap: 'round' | 'butt' | 'square' = 'round'): Float32Array {
+    // A mitre can reach a good way past its line, so the reach is generous: a copy drawn for nothing costs little.
+    return goingRound(() => runs.flatMap((r) => r.points), width * (join === 'miter' ? MITER_LIMIT : 1) + 2, w, h, (dx, dy) => strokeMaskOnce(
+        dx === 0 && dy === 0 ? runs : runs.map((r) => ({ closed: r.closed, points: r.points.map(([x, y]) => [x + dx, y + dy] as Pt) })), width, w, h, join, cap));
+}
+
+function strokeMaskOnce(runs: readonly { points: readonly Pt[]; closed: boolean }[], width: number, w: number, h: number, join: 'round' | 'miter' | 'bevel' = 'round', cap: 'round' | 'butt' | 'square' = 'round'): Float32Array {
     const mask = new Float32Array(w * h);
     const half = width / 2;
     const capsule = (a: Pt, b: Pt): void => {
@@ -295,6 +336,13 @@ function shifted(src: Float32Array, w: number, h: number, dx: number, dy: number
     const [ix, iy] = [Math.round(dx), Math.round(dy)];
     if (ix === 0 && iy === 0) return src;
     const out = new Float32Array(w * h);
+    if (isWrapping()) {
+        for (let y = 0; y < h; y++) {
+            const fy = (((y - iy) % h) + h) % h;
+            for (let x = 0; x < w; x++) out[y * w + x] = src[fy * w + ((((x - ix) % w) + w) % w)]!;
+        }
+        return out;
+    }
     for (let y = 0; y < h; y++) {
         const fy = y - iy;
         if (fy < 0 || fy >= h) continue;
@@ -438,6 +486,12 @@ function paintOf(fill: ImageFill, m: Matrix, drawn?: Drawn, w = 0): (x: number, 
     }
     if (fill.type === 'noise') {
         const [scale, octaves, seed] = [fill.scale ?? 32, fill.octaves ?? 4, fill.seed ?? 0];
+        if (isWrapping() && tileWidth > 0) {
+            // A whole number of cells across the picture, so the last meets the first; the scale gives a little to make it so.
+            // In the picture's own pixels and not the layer's: a noise turned or scaled with its layer would not come round.
+            const [cx, cy] = [Math.max(1, Math.round(tileWidth / scale)), Math.max(1, Math.round(tileHeight / scale))];
+            return (x, y) => at(fractalNoise(((x - 0.5) / tileWidth) * cx, ((y - 0.5) / tileHeight) * cy, octaves, seed, cx, cy));
+        }
         return (x, y) => {
             const p = apply(inverse, [x - 0.5, y - 0.5]);
             return at(fractalNoise(p[0] / scale, p[1] / scale, octaves, seed));
@@ -1081,6 +1135,18 @@ function paintStrand(c: Canvas, s: ImageStroke, path: readonly PathPoint[], stra
 }
 
 function paintStroke(c: Canvas, given: ImageStroke, m: Matrix, scale: number, n: number, buffer: StrokeBuffer): void {
+    if (!isWrapping()) { paintStrokeOnce(c, given, m, scale, n, buffer); return; }
+    const placed = given.points.map((p) => apply(m, [p[0]!, p[1]!]));
+    const reach = (given.size ?? 24) * scale * 2 + 4;
+    for (const [ox, oy] of ROUND) {
+        const [dx, dy] = [ox * c.w, oy * c.h];
+        if ((ox !== 0 || oy !== 0) && !touches(placed, dx, dy, reach, c.w, c.h)) continue;
+        // The same stroke, the same hairs: its number seeds it, so each copy is the one stroke seen again.
+        paintStrokeOnce(c, given, times([1, 0, 0, 1, dx, dy], m), scale, n, buffer);
+    }
+}
+
+function paintStrokeOnce(c: Canvas, given: ImageStroke, m: Matrix, scale: number, n: number, buffer: StrokeBuffer): void {
     const s: ImageStroke = given.brush ? { ...IMAGE_BRUSHES[given.brush], ...given } : given;
     const path = brushPath(s.points, m);
     const seed = s.seed ?? n + 1;
@@ -1875,7 +1941,7 @@ export function renderImage(source: ImageSource, options: { guides?: boolean; pi
     const canvas = new Canvas(w, h);
     const drawn: Drawn = { masks: new Map(), notes: [], bounds: new Map(), painted: new Map(), figures: new Map(), figureJoints: new Map(), showGuides: options.guides === true, pictures: options.pictures ?? {}, images: new Map(), text: options.text, blocks: new Map() };
     // What every layer so far amounts to, chained: a layer changed leaves the keys before it as they were.
-    let key = textHash(JSON.stringify([w, h, source.background ?? null, options.guides === true, picturesDigest(options.pictures)]));
+    let key = textHash(JSON.stringify([w, h, source.background ?? null, options.guides === true, picturesDigest(options.pictures), source.tile === true]));
     const keys = source.layers.map((layer) => (key = textHash(key + JSON.stringify(layer))));
     let from = 0;
     for (let i = keys.length - 1; i >= 0; i--) {
@@ -1894,13 +1960,20 @@ export function renderImage(source: ImageSource, options: { guides?: boolean; pi
         for (let i = 0; i < w * h; i++) put(canvas, i, r, g, b, a, 'normal');
     }
     let since = Date.now();
-    for (let i = from; i < source.layers.length; i++) {
-        drawLayer(canvas, source.layers[i]!, IDENTITY, drawn);
-        cacheCounters.drawn++;
-        if (i === source.layers.length - 1 || Date.now() - since >= SNAPSHOT_AFTER_MS) {
-            keepSnapshot(keys[i]!, canvas, drawn);
-            since = Date.now();
+    // Set for this draw only, and taken off whatever happens: the next picture drawn may not repeat.
+    setWrapping(source.tile === true);
+    [tileWidth, tileHeight] = [w, h];
+    try {
+        for (let i = from; i < source.layers.length; i++) {
+            drawLayer(canvas, source.layers[i]!, IDENTITY, drawn);
+            cacheCounters.drawn++;
+            if (i === source.layers.length - 1 || Date.now() - since >= SNAPSHOT_AFTER_MS) {
+                keepSnapshot(keys[i]!, canvas, drawn);
+                since = Date.now();
+            }
         }
+    } finally {
+        setWrapping(false);
     }
     const rgba = new Uint8Array(w * h * 4);
     for (let i = 0; i < w * h; i++) {

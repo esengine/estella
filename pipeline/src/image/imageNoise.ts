@@ -10,8 +10,44 @@ export function parseColor(text: string): Rgba {
     return [at(0), at(2), at(4), full.length === 8 ? at(6) : 1];
 }
 
+/**
+ * Whether the picture being drawn repeats: what leaves one edge comes in at the opposite one. Set for the length of one
+ * draw (renderImage), and read by everything that looks past an edge, so a tile's blur, shadow and noise all go round.
+ */
+let wrapping = false;
+export const setWrapping = (on: boolean): void => { wrapping = on; };
+export const isWrapping = (): boolean => wrapping;
+
+function blurRound(src: Float32Array, w: number, h: number, sigma: number): Float32Array {
+    const r = Math.max(1, Math.round(sigma * 1.2));
+    let cur = src;
+    for (let pass = 0; pass < 3; pass++) {
+        const a = new Float32Array(w * h);
+        for (let y = 0; y < h; y++) {
+            let sum = 0;
+            for (let x = -r; x <= r; x++) sum += cur[y * w + (((x % w) + w) % w)]!;
+            for (let x = 0; x < w; x++) {
+                a[y * w + x] = sum / (2 * r + 1);
+                sum += cur[y * w + ((x + r + 1) % w)]! - cur[y * w + ((((x - r) % w) + w) % w)]!;
+            }
+        }
+        const b = new Float32Array(w * h);
+        for (let x = 0; x < w; x++) {
+            let sum = 0;
+            for (let y = -r; y <= r; y++) sum += a[(((y % h) + h) % h) * w + x]!;
+            for (let y = 0; y < h; y++) {
+                b[y * w + x] = sum / (2 * r + 1);
+                sum += a[((y + r + 1) % h) * w + x]! - a[((((y - r) % h) + h) % h) * w + x]!;
+            }
+        }
+        cur = b;
+    }
+    return cur;
+}
+
 export function blurMask(src: Float32Array, w: number, h: number, sigma: number): Float32Array {
     if (sigma <= 0) return src;
+    if (wrapping) return blurRound(src, w, h, sigma);
     const r = Math.max(1, Math.round(sigma * 1.2));
     let cur = src;
     for (let pass = 0; pass < 3; pass++) {
@@ -53,22 +89,26 @@ export function cornerLift(ix: number, iy: number, seed: number, dx: number, dy:
 
 export const fade = (t: number): number => t * t * t * (t * (t * 6 - 15) + 10);
 
-export function gradientNoise(x: number, y: number, seed: number): number {
+/** @p px, @p py: how many lattice cells before the noise repeats each way; 0 for never. */
+export function gradientNoise(x: number, y: number, seed: number, px = 0, py = 0): number {
     const [ix, iy] = [Math.floor(x), Math.floor(y)];
     const [fx, fy] = [x - ix, y - iy];
     const [sx, sy] = [fade(fx), fade(fy)];
-    const top = cornerLift(ix, iy, seed, fx, fy) * (1 - sx) + cornerLift(ix + 1, iy, seed, fx - 1, fy) * sx;
-    const bottom = cornerLift(ix, iy + 1, seed, fx, fy - 1) * (1 - sx) + cornerLift(ix + 1, iy + 1, seed, fx - 1, fy - 1) * sx;
+    const wx = (i: number): number => (px > 0 ? ((i % px) + px) % px : i);
+    const wy = (i: number): number => (py > 0 ? ((i % py) + py) % py : i);
+    const top = cornerLift(wx(ix), wy(iy), seed, fx, fy) * (1 - sx) + cornerLift(wx(ix + 1), wy(iy), seed, fx - 1, fy) * sx;
+    const bottom = cornerLift(wx(ix), wy(iy + 1), seed, fx, fy - 1) * (1 - sx) + cornerLift(wx(ix + 1), wy(iy + 1), seed, fx - 1, fy - 1) * sx;
     return top * (1 - sy) + bottom * sy;
 }
 
 export const NOISE_CONTRAST = [1.15, 1.3, 1.4, 1.45, 1.45, 1.45, 1.45, 1.45];
 
-export function fractalNoise(x: number, y: number, octaves: number, seed: number): number {
+/** @p px, @p py: cells of the first octave before the noise repeats; each finer octave repeats with it. 0 for never. */
+export function fractalNoise(x: number, y: number, octaves: number, seed: number, px = 0, py = 0): number {
     let [sum, weight, amplitude, frequency] = [0, 0, 1, 1];
     for (let i = 0; i < octaves; i++) {
         // Off the lattice, where this noise is always nothing.
-        sum += gradientNoise(x * frequency + 0.37, y * frequency + 0.61, seed + i * 101) * amplitude;
+        sum += gradientNoise(x * frequency + 0.37, y * frequency + 0.61, seed + i * 101, px * frequency, py * frequency) * amplitude;
         weight += amplitude;
         amplitude *= 0.5;
         frequency *= 2;

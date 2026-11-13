@@ -4582,6 +4582,10 @@ export const NOTED = {
     {"note": "A model is written once for all its like parts, and a leaf can be a picture."},
   "fix(repo): put back the modeling commit the last one took out - 'a flower turns to face the eye' was built on the tree as it stood before 641f0da4e landed and committed on top of it, so it reverted that commit's files; they are as that commit left them, with both commits' notes":
     {"internal": "Repairs the repository after one commit reverted another; the feature it restores has its own note."},
+  "feat(image): a picture repeats, and a picture is a surface - tile brings what leaves one edge in at the other (shapes, lines, brush strokes, shadows, blurs, noise), and material draws the relief, roughness and metal as grey pictures of their own, from which a normal map and a surface map are made":
+    {"note": "An AI can draw a surface: a picture that repeats, with what the light does on it."},
+  "feat(image): image_write makes a surface - a repeating picture is shown laid beside itself and under a light, and its normal map, surface map and material are written with it":
+    {"note": "An AI can draw a surface: a picture that repeats, with what the light does on it."},
   "feat(sky): a sky of your own shades the ground under its clouds - defineSkyEffect takes groundShadow and a second function, skyShadow(world, sun), what is left of the light at a world position, and the sky pass multiplies every surface it finds by it, as Sky Atmosphere does with its own clouds":
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":
