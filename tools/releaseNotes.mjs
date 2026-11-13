@@ -4796,4 +4796,6 @@ export const NOTED = {
     {"note": "A playable's start-screen bar moves through the whole boot."},
   "perf(render): a shadow map is drawn again only when what it holds changed - every caster of every light was drawn into the atlas every frame, still or not; the frame keeps its atlas and a hash of what each square would draw, and skips the pass when nothing in it moved":
     {"note": "A shadow map is drawn again only when what it holds changed."},
+  "fix(modeling): a model's report is its steps as written, and names a step that undoes a decimate - the report listed every plain step a repeat came to (a tree of thirteen rows of branches was a hundred and thirty-eight entries) under indexes no edit takes, and said nothing when a patterned stain after a decimate split 1100 triangles into 214,534; a repeat is one entry counted, each step says the triangles it left, and such a step is a warning naming both":
+    {"note": "A model's report is its steps as written, and names a step that undoes a decimate."},
 };

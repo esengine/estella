@@ -15,7 +15,7 @@ import { triangulateFace } from './triangulate';
 import { faceUvs } from './modelUv';
 import { adjustWeights, bindMatrices, computeWeights, computeWornWeights, drapeRig, resolveJoints, shapeDeltas, type ControllerIk, type RigGoal, type RigJoint, type RigSpring, type SkinWeights } from './rig';
 import type { NormalBakeReport } from './normalBake';
-import { buildPolyMesh, expandModelSource, validateModelSource, type ModelSource, type StepReport } from './modelSource';
+import { buildPolyMesh, expandModelSource, validateModelSource, writtenStepReports, type ModelSource, type StepReport } from './modelSource';
 import {
     boundsOf, collectEdges, cross, dot, faceArea, faceNormal, length, normalize, sub,
     type PolyMesh, type Vec3, compact,
@@ -24,6 +24,8 @@ import {
 const DEFAULT_SMOOTH_ANGLE = 30;
 const DEFAULT_NORMAL_SIZE = 1024;
 const HEAVY_TRIANGLES = 300000;
+/** How many times over a step has to multiply the triangles after a decimate before the report says it undid one. */
+const REFINED_PAST_DECIMATE = 2;
 export const HAIR_CUTOFF = 0.35;
 const LIGHTMAP_TRIANGLES = 150000;
 
@@ -340,7 +342,8 @@ export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, ma
 /** Validates, builds and bakes @p raw. Throws a ModelBuildError naming the step that failed; writes nothing, so a failure leaves nothing half made. */
 export function bakeModel(raw: unknown): BakedModel {
     // The plain steps: the report counts them, and a step's own fields are read back by its index among them.
-    const source = expandModelSource(validateModelSource(raw));
+    const asWritten = validateModelSource(raw);
+    const source = expandModelSource(asWritten);
     const built = buildPolyMesh(source);
     const { steps, high, notes } = built;
     // A fractured model is two things: its pieces, which the report and the views are of, and the model before the cut,
@@ -436,14 +439,27 @@ export function bakeModel(raw: unknown): BakedModel {
         if (idle.length) warnings.push(`joint${idle.length > 1 ? 's' : ''} ${idle.join(', ')} move${idle.length > 1 ? '' : 's'} no vertex the most: too near another, or outside the surface`);
     }
 
-    // The engine's delta texture is 2048 square, the most WebGL2 guarantees; past it the mesh draws, but never changes shape.
+    // A decimate is the triangles its author means the model to have. A step after it that splits faces to carry its own detail (a
+    // patterned stain, a displace, a sculpt) takes them back without saying so: a rock decimated to 1100 came out at 214,534, and a
+    // field of them was gigabytes. Said once for each such step, against what the decimate before it left.
+    let decimated: { label: string; triangles: number } | null = null;
+    let was = 0;
+    for (const s of steps) {
+        if (s.op === 'decimate' && source.steps[s.index]!.faces === undefined) decimated = { label: s.label, triangles: s.triangles };
+        else if (decimated && s.triangles > was * REFINED_PAST_DECIMATE && s.triangles > decimated.triangles * REFINED_PAST_DECIMATE) {
+            warnings.push(`${s.label} split the ${was} triangles it was given into ${s.triangles}, after ${decimated.label} had left ${decimated.triangles}: its detail wants finer faces than the decimate kept. Put it before the decimate and let \`normalBake\` carry it to the thinned surface (\`color: true\` for a stain's colours), or give it a \`detail\` no finer than the faces it is given (a larger number)`);
+        }
+        was = s.triangles;
+    }
+
     for (const s of steps) {
         const step = source.steps[s.index]!;
         if (s.op !== 'decimate' || step.faces !== undefined) continue;
         const target = (step.triangles as number | undefined) ?? Math.round(s.trianglesBefore! * (step.ratio as number));
-        if (s.trianglesAfter! > target * 1.1) warnings.push(`step ${s.index} (decimate) stopped at ${s.trianglesAfter} triangles of the ${target} asked: the surface would have moved more than \`error\` allows. Raise it to go further`);
+        if (s.trianglesAfter! > target * 1.1) warnings.push(`${s.label} stopped at ${s.trianglesAfter} triangles of the ${target} asked: the surface would have moved more than \`error\` allows. Raise it to go further`);
     }
 
+    // The engine's delta texture is 2048 square, the most WebGL2 guarantees; past it the mesh draws, but never changes shape.
     if (shapes && shapes.names.length * unwrapped.vertexCount * 2 > 2048 * 2048) {
         warnings.push(`${shapes.names.length} shapes over ${unwrapped.vertexCount} vertices is more than the engine holds (${2048 * 2048} deltas, two each): it would draw but never change shape. Lower the resolution or use fewer shapes`);
     }
@@ -486,7 +502,7 @@ export function bakeModel(raw: unknown): BakedModel {
                 size: roundVec(sub(max, min)),
                 center: roundVec([(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2]),
             },
-            tags, openEdges, nonManifoldEdges, flippedEdges, degenerateFaces, insideOutShells, steps, ...(jointReport ? { joints: jointReport } : {}), ...(shards.length ? { pieces: shards.length } : {}), warnings,
+            tags, openEdges, nonManifoldEdges, flippedEdges, degenerateFaces, insideOutShells, steps: writtenStepReports(steps, asWritten), ...(jointReport ? { joints: jointReport } : {}), ...(shards.length ? { pieces: shards.length } : {}), warnings,
         },
     };
 }

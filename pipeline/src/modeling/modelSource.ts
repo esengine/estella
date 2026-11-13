@@ -496,7 +496,7 @@ function validatePlain(raw: unknown): ModelSource {
                 continue;
             }
             if (key === 'texture') {
-                if (typeof value !== 'string' || !/\.(png|jpg|jpeg|webp)$/i.test(value)) throw new ModelBuildError('material.texture must be a project path to a picture (.png, .jpg, .webp)', null, null, null);
+                if (typeof value !== 'string' || !/.(png|jpg|jpeg|webp)$/i.test(value)) throw new ModelBuildError('material.texture must be a project path to a picture (.png, .jpg, .webp)', null, null, null);
                 continue;
             }
             if (!['roughness', 'metallic', 'cutoff'].includes(key)) throw new ModelBuildError(`material has an unknown field "${key}"; it takes roughness, metallic, alpha, cutoff, emissive, texture`, null, null, null);
@@ -564,20 +564,60 @@ function validatePlain(raw: unknown): ModelSource {
     return { version: MODEL_SOURCE_VERSION, ...(source as unknown as Omit<ModelSource, 'version'>) };
 }
 
+/** What one step of the source as written did: a repeat is one step, however many plain steps its rows came to. */
 export interface StepReport {
+    /** Its place in the source as written, which is what an edit names. */
     index: number;
     id?: string;
     op: string;
+    /** The plain steps it came to, where that is more than one: a repeat's rows times its steps. */
+    made?: number;
     /** Faces in the mesh after it ran. */
     faces: number;
+    /** Triangles in the mesh after it ran: what a step cost is this against the step before. */
+    triangles: number;
     /** A decimate: triangles it was given, and triangles it left. */
     trianglesBefore?: number;
     trianglesAfter?: number;
 }
 
+/** What one plain step did: a step of the source with its names, sums and repeats worked out, by its index among those. */
+export interface PlainStepReport extends Omit<StepReport, 'made'> {
+    /** The step of the source as written that it came from. */
+    written: number;
+    /** How it is named when something is said of it: where it was written, a repeat's row included. */
+    label: string;
+}
+
+/**
+ * The plain steps' reports as the source was written: the steps a repeat made are one entry, counted, with the mesh as its last
+ * left it. A tree of thirteen rows of branches reported a hundred and thirty-eight steps, most of them the same line.
+ */
+export function writtenStepReports(plain: readonly PlainStepReport[], written: ModelSource): StepReport[] {
+    const out: StepReport[] = [];
+    let last = -1, made = 0;
+    for (const s of plain) {
+        const { written: at, label: _label, index: _index, ...rest } = s;
+        if (at === last) {
+            const entry = out[out.length - 1]!;
+            entry.made = ++made;
+            entry.faces = s.faces;
+            entry.triangles = s.triangles;
+            continue;
+        }
+        last = at; made = 1;
+        const step = written.steps[at] as Partial<ModelStep> | undefined;
+        const op = (step?.op as string | undefined) ?? s.op;
+        // A repeat's own entry is the repeat: the op and id of one of the steps inside it would name a step no edit can reach.
+        out.push(op === s.op ? { index: at, ...rest } : { index: at, ...(step?.id ? { id: step.id as string } : {}), op, faces: s.faces, triangles: s.triangles });
+    }
+    return out;
+}
+
 export interface ModelBuild {
     mesh: PolyMesh;
-    steps: StepReport[];
+    /** One for each plain step, in order. */
+    steps: PlainStepReport[];
     /** The surface `normalBake` carries, as the steps stood then. */
     high?: PolyMesh;
     /** What steps wanted said, in their order. */
@@ -588,7 +628,7 @@ export interface ModelBuild {
 export function buildPolyMesh(written: ModelSource): ModelBuild {
     const source = expandModelSource(written);
     let mesh: PolyMesh = { positions: [], faces: [] };
-    const steps: StepReport[] = [];
+    const steps: PlainStepReport[] = [];
     const bake = source.normalBake;
     // After this step, the surface is the one to carry: the one named, or the one before the last decimate.
     const highAfter = !bake ? -2 : bake.from !== undefined ? source.steps.findIndex((s) => s.id === bake.from) : source.steps.map((s) => s.op).lastIndexOf('decimate') - 1;
@@ -615,7 +655,11 @@ export function buildPolyMesh(written: ModelSource): ModelBuild {
             // What a fracture leaves beside its pieces stays with them: it is not a note.
             mesh = { positions: mesh.positions, faces: mesh.faces, ...(mesh.whole ? { whole: mesh.whole } : {}) };
         }
-        steps.push({ index, ...(id ? { id } : {}), op, faces: mesh.faces.length, ...(op === 'decimate' ? { trianglesBefore: before, trianglesAfter: triangleCount(mesh) } : {}) });
+        const triangles = triangleCount(mesh);
+        steps.push({
+            index, written: writtenIndex(step, index), label: stepLabel(step, index), ...(id ? { id } : {}), op, faces: mesh.faces.length, triangles,
+            ...(op === 'decimate' ? { trianglesBefore: before, trianglesAfter: triangles } : {}),
+        });
         if (index === highAfter) high = compact(mesh);
         if (id && wanted.has(id)) kept.set(id, mesh);
     });
