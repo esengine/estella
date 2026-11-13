@@ -92,6 +92,78 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  "A recipe is read wherever an image is":
+    { notCertifiable: "Covered by sdk/tests/texture-recipe.test.ts (a figure, a picture laid in, surface maps, text on a stand-in canvas, a ground's reader) and by an exported game of four such recipes opened twice in a browser by hand; no golden project ships an .esimage, and text follows the fonts of the device, which a golden frame cannot hold." },
+  "A texture recipe is drawn on a worker, once.":
+    { notCertifiable: "Which thread drew a picture and whether it was read from the content cache, neither of which a frame shows. Covered by sdk/tests/texture-recipe.test.ts (kept, read back, drawn again for another source or drawer) and image-raster-revision.test.ts, and counted in a browser opened twice by hand." },
+  "A texture can ship as its recipe.":
+    { notCertifiable: "Covered by sdk/tests/texture-recipe.test.ts and pipeline/tests/engine-installs.test.ts (an export adds the module when a recipe ships); a 512 pixel plate was compared pixel for pixel with its PNG in a headless game by hand. No golden project ships an .esimage yet." },
+  "A scale map.":
+    { notCertifiable: "Covered by sdk/tests/foliage-density.test.ts (plants sized by the map, none at black); no golden project grows a Foliage field, and the look was set by hand against a reference scene." },
+  "The grade has a gain and an offset":
+    { notCertifiable: "Covered by sdk/tests/postprocess.test.ts (the params and their defaults, which are the picture as it was); what a gain or a radius looks like is a judgement of a look, set by hand against a reference, and a golden frame is drawn at the defaults." },
+  "A blade's lean, its turn to the eye":
+    { notCertifiable: "Material and component numbers whose defaults are the picture as it was, so a golden frame cannot tell them from their absence. Set by hand against a reference meadow; no test in the repo names them." },
+  "A flower turns to face the eye.":
+    { notCertifiable: "Covered by sdk/tests/foliage-far-versions.test.ts (the second uv a turning plant carries) and the compiler's tests of the vertex hook; at the defaults nothing turns, and no golden project grows flowers. Looked at by hand." },
+  "A far field of flowers shows its colour.":
+    { notCertifiable: "A number whose default leaves a far plant as it was. Looked at by hand in a meadow a field away; no test in the repo names it." },
+  "A layer with a grain is read without repeat":
+    { notCertifiable: "Covered by sdk/tests/area-map-rows.test.ts (the param reaches the shader's row); the mosaic it removes shows only on a ground with a grained layer under a low light, compared by hand, and no golden project has such a layer." },
+  "Music with an introduction, and a source that fades.":
+    { notCertifiable: "Sound over time, which no golden frame holds. Covered by sdk/tests/audio-source-fade.test.ts and the web, mini-game and native audio backend tests (a loop that comes back to a later point, a fade up, down and turned round)." },
+  "An AI can make background music.":
+    { notCertifiable: "An authoring tool, not something a packaged game carries. Covered by pipeline/tests/music.test.ts and soundfont.test.ts and by the editor check sound-and-music; nobody had judged a piece by ear when it shipped." },
+  "An AI can make a sound effect.":
+    { notCertifiable: "An authoring tool, not something a packaged game carries. Covered by the pipeline's sound tests and by the editor check sound-and-music; what it sounds like is for an ear, and no test listens." },
+  "An AI can draw a surface":
+    { notCertifiable: "An authoring tool. Covered by pipeline/tests/image-material.test.ts (the maps, the join of a picture that repeats) and image-raster.test.ts; three surfaces were tiled in the engine by hand." },
+  "A model is written once for all its like parts":
+    { notCertifiable: "An authoring tool. Covered by the pipeline's modeling tests; the palm's triangle count and frame cost were measured by hand on one desktop GPU." },
+  "An AI can lay leaflets along a stem in one step.":
+    { notCertifiable: "An authoring tool. Covered by pipeline/tests/modeling-scatter.test.ts; the palm built with it was looked at by hand." },
+  "A game calls its own native code by name.":
+    { notCertifiable: "A packaged Android or iOS app's own Java or Objective-C, which no golden frame reaches. Covered by sdk/tests/native-channel.test.ts and run by hand on the desktop host and one Android phone; the iOS side was never compiled." },
+  "Text has letter spacing.":
+    { notCertifiable: "Covered by sdk/tests/ui-text-letter-spacing.test.ts, ui-text-layout.test.ts and measure-text-cache.test.ts; the default, 0, is the text as it was, which is what every golden frame draws." },
+  "A cliff's beds can wander.":
+    { notCertifiable: "Covered by sdk/tests/area-map-rows.test.ts (the param reaches the shader's row); at 0, the default, the beds are straight as before, and no golden project has a cliff. Looked at by hand." },
+  "The tonemap has the fitted ACES curve too.":
+    { notCertifiable: "Covered by sdk/tests/postprocess.test.ts (the param and its default) and compared by hand, region by region, with a picture made for that curve; off, the default, nothing changes." },
+  "An anchor on a waterfall.":
+    { notCertifiable: "Covered by sdk/tests/waterfall.test.ts (where the anchor sits along the path); no example has a waterfall yet (owed in tools/check-corpus-authoring.mjs)." },
+  "A waterfall.":
+    { notCertifiable: "Covered by sdk/tests/waterfall.test.ts (the path, the sheets, where it meets water or ground); no example has one yet (owed in tools/check-corpus-authoring.mjs), and its look was set by hand against a reference." },
+  "A sky of your own shades the ground under its clouds.":
+    { notCertifiable: "Covered by sdk/tests/custom-sky.test.ts (the second function and the pass that applies it); no golden project writes a sky of its own." },
+  "A texture says whether it is a picture or numbers.":
+    { notCertifiable: "An import setting and an editor's list of what is set wrong. Covered by sdk/tests/texture-use.test.ts and the pipeline's data-texture audit; a golden project's textures are already set as they should be." },
+  "An ocean reaches the horizon.":
+    { notCertifiable: "Covered by sdk/tests/water.test.ts (the apron's row of quads); no golden project has a sea seen from a hill. Looked at by hand." },
+  "A sea is eight waves spread about the wind.":
+    { notCertifiable: "Covered by sdk/tests/water.test.ts and water-quality.test.ts (the wave set and how many a level takes) and by the editor check quality-settings; the look is a judgement, and the on-demand water checks are not run by CI." },
+  "A Foliage field has its own material instance":
+    { notCertifiable: "Covered by the SDK's foliage tests for what a field builds; the widening and the palette were looked at by hand, and no test in the repo names farGrow or the palette." },
+  "Foliage thins plant by plant with distance":
+    { notCertifiable: "Covered by sdk/tests/foliage-builder.test.ts and foliage-far-versions.test.ts; the fade at a field's far edge was looked at by hand, and no golden project grows a field." },
+  "A meadow: a density map and a colour map for Foliage.":
+    { notCertifiable: "Covered by sdk/tests/foliage-density.test.ts (where plants grow by the map) and texture-use.test.ts (the map is data); no golden project has a meadow." },
+  "A baked occlusion over the ground.":
+    { notCertifiable: "Covered by sdk/tests/texture-use.test.ts and shader-reflect.test.ts (the map is data and reaches both terrain shaders); it tells only in shade, which was looked at by hand." },
+  "A colour map over the ground.":
+    { notCertifiable: "Covered by sdk/tests/world-units.test.ts and area-map-rows.test.ts (the map's params and area); looked at by hand on a generated island, and no golden project has one." },
+  "Water is a body and a surface.":
+    { notCertifiable: "A look, set by hand against a reference and measured on a phone for cost; the on-demand water checks (water-glass, water-body) are not run by CI, and no test in the repo names u_bodyShading." },
+  "The wind's ripples are a map of many waves.":
+    { notCertifiable: "Covered by sdk/tests/water-ripples.test.ts and by the render criterion device-roundtrip-ripples (the built-in map is drawn again after a device loss); the look was set by hand." },
+  "A shader param's range is where its slider runs.":
+    { notCertifiable: "The editor's material inspector, not a packaged game. Covered by sdk/tests/shader-param-units.test.ts for what a range parses to; the box taking any number was tried by hand." },
+  "One setting says what a unit is, for materials too.":
+    { notCertifiable: "Covered by sdk/tests/world-units.test.ts, shader-param-units.test.ts and effect-world-units.test.ts; a golden project is in the units it always was, so its frame cannot show the change." },
+  "A tilemap layer can be lit.":
+    { notCertifiable: "Covered by the render criterion tilemap-lit and the SDK's tilemap tests; no golden project lights a tilemap, and the engine digest counts the field (compiler tests)." },
+  "2D lighting works out only the lights that reach a pixel.":
+    { notCertifiable: "A frame's cost, which a golden frame does not show; the picture is the same by the lit-sprite render criteria, and the 2.03 ms to 0.58 was measured by hand on one desktop GPU on WebGL2." },
   "Dynamic global illumination that does not leak.":
     { notCertifiable: "Covered by tools/render-lab/gi_oracle.py (six lab rooms held to Blender Cycles, the sealed room held to zero) and the gi-cost gate; no golden project lists the effect, and it needs WebGPU compute, which the golden frames are not drawn with." },
   "A quality level decides what the dynamic GI spends.":

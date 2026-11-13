@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.104.0] - 2026-11-12
+
 ### Added
 
 - **A recipe is read wherever an image is, with its text, its figures and its surface maps.** A texture recipe (an `.esimage` shipped in place of its pixels) was a texture only, and one with text or a `figure` layer was refused on the device. Now what reads an image as numbers reads a recipe too (a ground's layers and splatmap, a field's density and scale maps). A source's normal map and its roughness-and-metal map are each a texture by a recipe of two lines, `{ "mapOf": "assets/wall.esimage", "map": "normal" }`, with import settings of its own. Text is set by the device's 2D canvas (on the worker where it has one), in a font file of the project where the layer names one; a host with no canvas refuses it and says to bake. A figure is posed on the device by the same bones the pipeline poses, which moved from the pipeline into the SDK (`pipeline/src/modeling` reads them from there). A recipe may lay in a PNG or another recipe; what it names ships with it (the cook follows a recipe's references now) and is part of what its kept pixels are kept under. An exported game with four such recipes drew all four on workers on the first visit and none on the second. `esengine/image` is 220 KB of a web package before compression (81 KB gzipped), up from 172. A ground reading a recipe is checked by a test and not yet in a game; nothing was timed on a phone.
@@ -15467,7 +15469,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.103.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.104.0...HEAD
+[0.104.0]: https://github.com/esengine/estella/compare/v0.103.0...v0.104.0
 [0.103.0]: https://github.com/esengine/estella/compare/v0.102.0...v0.103.0
 [0.102.0]: https://github.com/esengine/estella/compare/v0.101.1...v0.102.0
 [0.101.1]: https://github.com/esengine/estella/compare/v0.101.0...v0.101.1
