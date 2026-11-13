@@ -10,7 +10,12 @@
  *        `.wav` files, after which the SoundFont is not needed: the project holds what it uses and no more.
  *
  *        What a SoundFont can say and this does not carry over: its filters and envelopes beyond attack and release,
- *        its modulators, and the second side of a recording made in stereo.
+ *        its modulators, and the second side of a recording made in stereo. Two things it does are undone on the way
+ *        out, and said. Where it plays several recordings at once for one note (a second rank of pipes, a string
+ *        under a hammer) one is kept, since a sample here is one recording to a note. And where it sets an
+ *        instrument whole octaves from its recordings, the recordings come out at the pitch they are: an instrument
+ *        here goes down an octave by its `octave`, and one whose middle C sounded the C below would be out of tune
+ *        with everything written beside it.
  */
 import type { MusicSample } from './musicSource';
 import type { SampleData } from './musicRender';
@@ -28,7 +33,7 @@ export interface SoundFontPreset {
     high: number;
 }
 
-interface Zone { sample: number; keyLow: number; keyHigh: number; velLow: number; velHigh: number; root: number; cents: number; loop: boolean; offsets: [number, number, number, number]; attack: number | null; release: number | null }
+interface Zone { sample: number; keyLow: number; keyHigh: number; velLow: number; velHigh: number; root: number; cents: number; octaves: number; loop: boolean; offsets: [number, number, number, number]; attack: number | null; release: number | null }
 interface SampleHeader { name: string; start: number; end: number; loopStart: number; loopEnd: number; rate: number; pitch: number; correction: number; type: number }
 
 export interface SoundFont {
@@ -122,10 +127,13 @@ export function readSoundFont(bytes: Uint8Array): SoundFont {
                 const [keyLow, keyHigh, velLow, velHigh] = [Math.max(ik[0], pk[0]), Math.min(ik[1], pk[1]), Math.max(iv[0], pv[0]), Math.min(iv[1], pv[1])];
                 if (keyLow > keyHigh || velLow > velHigh) continue;
                 const rootKey = get(GEN.rootKey);
+                const coarse = signed(get(GEN.coarseTune) ?? 0) + add(GEN.coarseTune);
                 mine.push({
                     sample: iz.get(GEN.sampleId)!, keyLow, keyHigh, velLow, velHigh,
                     root: rootKey !== undefined && signed(rootKey) >= 0 ? rootKey : header.pitch <= 127 ? header.pitch : 60,
-                    cents: (signed(get(GEN.coarseTune) ?? 0) + add(GEN.coarseTune)) * 100 + signed(get(GEN.fineTune) ?? 0) + add(GEN.fineTune) + header.correction,
+                    // Whole octaves are kept apart from the rest: they are where the instrument is set, not how the recording is tuned.
+                    octaves: coarse % 12 === 0 ? coarse / 12 : 0,
+                    cents: (coarse % 12 === 0 ? 0 : coarse) * 100 + signed(get(GEN.fineTune) ?? 0) + add(GEN.fineTune) + header.correction,
                     loop: ((get(GEN.sampleModes) ?? 0) & 1) === 1,
                     offsets: [
                         signed(get(GEN.startOffset) ?? 0) + signed(get(GEN.startCoarse) ?? 0) * 32768, signed(get(GEN.endOffset) ?? 0) + signed(get(GEN.endCoarse) ?? 0) * 32768,
@@ -163,8 +171,15 @@ export interface LiftedInstrument {
 export function liftSoundFontPreset(font: SoundFont, index: number, dir: string): LiftedInstrument {
     const preset = font.presets[index];
     if (!preset) throw new Error(`there is no instrument ${index} in this SoundFont; it has ${font.presets.length}, numbered from 0`);
-    const zones = font.zones[index]!;
-    if (zones.length === 0) throw new Error(`"${preset.name}" has no recordings that can be read`);
+    const all = font.zones[index]!;
+    if (all.length === 0) throw new Error(`"${preset.name}" has no recordings that can be read`);
+    // Zones that share a note and a hardness are played together by a SoundFont. One is kept: the one set nearest
+    // the pitch of its recording, and of those the first.
+    const zones: typeof all = [];
+    for (const zone of [...all].sort((a, b) => Math.abs(a.octaves) - Math.abs(b.octaves))) {
+        if (!zones.some((k) => k.keyLow <= zone.keyHigh && zone.keyLow <= k.keyHigh && k.velLow <= zone.velHigh && zone.velLow <= k.velHigh)) zones.push(zone);
+    }
+    zones.sort((a, b) => a.keyLow - b.keyLow || a.velLow - b.velLow);
     if (zones.length > 256) throw new Error(`"${preset.name}" is ${zones.length} recordings, and an instrument takes 256`);
     const notes: string[] = [];
     const files: Record<string, SampleData> = {};
@@ -211,6 +226,9 @@ export function liftSoundFontPreset(font: SoundFont, index: number, dir: string)
     const middle = (list: number[]): number => [...list].sort((a, b) => a - b)[Math.floor(list.length / 2)]!;
     const attack = attacks.length ? Math.min(2, middle(attacks)) : 0;
     const release = releases.length ? Math.max(0.05, Math.min(4, middle(releases))) : 0;
+    if (zones.length < all.length) notes.push(`this SoundFont plays ${all.length - zones.length} of its ${all.length} zones on top of others, several recordings to one note; one is kept for each note, so it is thinner here than there`);
+    const set = zones.filter((z) => z.octaves !== 0);
+    if (set.length) notes.push(`${set.length === zones.length ? 'it is' : `${set.length} of its zones are`} set ${Math.abs(set[0]!.octaves)} octave${Math.abs(set[0]!.octaves) === 1 ? '' : 's'} ${set[0]!.octaves < 0 ? 'down' : 'up'} in the SoundFont; the recordings are taken out at the pitch they are, so give the instrument octave: ${set[0]!.octaves} to have it where the SoundFont had it`);
     if (preset.bank === 128) notes.push(`"${preset.name}" is a drum kit: each key is another drum, so a step plays the drum on that note and not a pitch`);
     return {
         instrument: { samples, ...(attack > 0.01 ? { attack: Math.round(attack * 1000) / 1000 } : {}), ...(release > 0 ? { release: Math.round(release * 1000) / 1000 } : {}) },

@@ -302,6 +302,9 @@ describe('an instrument made of recordings', () => {
         expect(samplePitch(rich(220), 110)).toBeCloseTo(220, -0.5);
         expect(samplePitch(rich(220), 440)).toBeCloseTo(220, -0.5);
         let seed = 12345;
+        // A high note recorded at a low rate: its period is twelve samples and a half, and twice that is not its pitch.
+        const coarse = { rate: 11025, channels: [Float32Array.from({ length: 2874 }, (_, n) => { const t = (2 * Math.PI * 883 * n) / 11025; return 0.4 * Math.sin(t) + 0.1 * Math.sin(3 * t); })] };
+        expect(samplePitch(coarse, 880)).toBeCloseTo(883, -1);
         const noise = { rate: 44100, channels: [Float32Array.from({ length: 44100 }, () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 2147483648 - 1; })] };
         expect(samplePitch(noise, 220)).toBeNull();
 

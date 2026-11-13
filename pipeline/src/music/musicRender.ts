@@ -273,7 +273,30 @@ export function samplePitch(data: SampleData, near: number): number | null {
     if (!(top > 0.6)) return null;
     let at = scores.findIndex((score) => score[1] >= top * 0.92);
     while (at + 1 < scores.length && scores[at + 1]![1] > scores[at]![1]) at++;
-    return data.rate / scores[at]![0];
+    // A high note in a recording made at a low rate has a period of a dozen samples and a half: no whole slide fits
+    // it, and twice the period, which is whole, fits better. So a half and a third of the slide found are tried too,
+    // between the samples, and the shortest that fits nearly as well is the pitch.
+    const fits = (lag: number): number => {
+        let sum = 0, a = 0, b = 0;
+        const whole = Math.floor(lag), part = lag - whole;
+        for (let n = 0; n < size; n += 2) {
+            const x = samples[start + n]!, y = samples[start + n + whole]! * (1 - part) + samples[start + n + whole + 1]! * part;
+            sum += x * y; a += x * x; b += y * y;
+        }
+        return sum / Math.sqrt(a * b + 1e-12);
+    };
+    let lag = scores[at]![0];
+    // Just off the whole number, a little either side, where the fit is best.
+    const best = (centre: number): [number, number] => { let found: [number, number] = [centre, -1]; for (let d = -0.5; d <= 0.5; d += 0.05) { const f = fits(centre + d); if (f > found[1]) found = [centre + d, f]; } return found;
+    };
+    let [fine, fit] = best(lag);
+    for (const part of [3, 2]) {
+        if (lag / part < 4 || data.rate / (lag / part) > near * 4.2) continue;
+        const [shorter, shorterFit] = best(lag / part);
+        if (shorterFit >= fit * 0.9) { [fine, fit] = [shorter, shorterFit]; break; }
+    }
+    lag = fine;
+    return data.rate / lag;
 }
 
 const TAIL_SECONDS = 4;
@@ -426,11 +449,15 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
     for (const name of names) {
         const wrong: { file: string; said: number; is: number }[] = [];
         const zones = source.instruments[name]!.samples ?? [];
+        const heard = new Set<string>();
         for (const zone of zones) {
             const data = given[zone.file];
-            if (!data) continue;
+            // A recording used for several ranges is listened to once.
+            if (!data || heard.has(`${zone.file}|${zone.note}`)) continue;
+            heard.add(`${zone.file}|${zone.note}`);
             const said = midiOf(zone.note)!;
-            const hz = 440 * Math.pow(2, (said - 69) / 12);
+            // Where it is said to be sharp or flat of its note, that is where it is listened for.
+            const hz = 440 * Math.pow(2, (said + (zone.tune ?? 0) / 100 - 69) / 12);
             const found = samplePitch(data, hz);
             const off = found === null ? 0 : 12 * Math.log2(found / hz);
             if (Math.abs(off) >= 0.7) wrong.push({ file: zone.file, said, is: Math.round(said + off) });
@@ -439,8 +466,8 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
         const by = (w: { said: number; is: number }): number => w.is - w.said;
         const semitones = (n: number): string => `${Math.abs(n)} semitone${Math.abs(n) === 1 ? '' : 's'} ${n > 0 ? 'higher' : 'lower'}`;
         // A whole library out by the same amount is one thing to say, and nearly always an octave: it counts its octaves from another C.
-        if (wrong.length === zones.length && wrong.length > 1 && wrong.every((w) => by(w) === by(wrong[0]!))) {
-            notes.push(`"${name}": every one of its ${zones.length} recordings sounds ${semitones(by(wrong[0]!))} than the note it is said to be (${wrong[0]!.file} is said to be ${noteName(wrong[0]!.said)} and sounds as ${noteName(wrong[0]!.is)})${Math.abs(by(wrong[0]!)) === 12 ? ', as a library does that counts its octaves from another C' : ''}: the instrument plays that much out. Move each \`note\` by that much`);
+        if (wrong.length === heard.size && wrong.length > 1 && wrong.every((w) => by(w) === by(wrong[0]!))) {
+            notes.push(`"${name}": every one of its ${heard.size} recordings sounds ${semitones(by(wrong[0]!))} than the note it is said to be (${wrong[0]!.file} is said to be ${noteName(wrong[0]!.said)} and sounds as ${noteName(wrong[0]!.is)})${Math.abs(by(wrong[0]!)) === 12 ? ', as a library does that counts its octaves from another C' : ''}: the instrument plays that much out. Move each \`note\` by that much`);
         } else {
             for (const w of wrong) notes.push(`"${name}": ${w.file} is said to be ${noteName(w.said)} and sounds as ${noteName(w.is)}: every note played from it is ${semitones(by(w))} than written. Set its note to "${noteName(w.is)}"`);
         }

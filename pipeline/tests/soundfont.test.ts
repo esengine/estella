@@ -139,3 +139,34 @@ describe('a SoundFont read for its instruments', () => {
         expect(() => liftSoundFontPreset(readSoundFont(FONT), 7, 'k')).toThrow(/there is no instrument 7 in this SoundFont; it has 2, numbered from 0/);
     });
 });
+
+describe('what a SoundFont does that an instrument of samples does not', () => {
+    const TWO: Recording[] = [{ name: 'Pipe', hz: 220, rate: 44100, frames: 8820, pitch: 57 }, { name: 'Pipe Low', hz: 110, rate: 44100, frames: 8820, pitch: 45 }];
+
+    it('keeps one of the recordings it plays together for a note, the one nearest its own pitch', () => {
+        // Two ranks over the same keys: the second an octave down. And a third zone above them both, on its own.
+        const font = soundFont(TWO, [
+            [[GEN.keyRange, range(0, 80)], [51, -12], [GEN.sampleId, 0]],
+            [[GEN.keyRange, range(0, 80)], [GEN.sampleId, 1]],
+            [[GEN.keyRange, range(81, 127)], [GEN.sampleId, 0]],
+        ], [{ name: 'Two Ranks', bank: 0, program: 19, zone: [[GEN.instrument, 0]] }]);
+        const lifted = liftSoundFontPreset(readSoundFont(font), 0, 'o');
+        expect(lifted.instrument.samples).toEqual([
+            { file: 'o/Pipe_Low.wav', note: 'A2', low: 'C-1', high: 'G#5' },
+            { file: 'o/Pipe.wav', note: 'A3', low: 'A5', high: 'G9' },
+        ]);
+        expect(lifted.notes.join()).toMatch(/plays 1 of its 3 zones on top of others, several recordings to one note; one is kept/);
+        expect(Object.keys(lifted.files)).toEqual(['o/Pipe_Low.wav', 'o/Pipe.wav']);
+    });
+
+    it('takes an instrument set an octave down out at the pitch its recordings are, and says so', () => {
+        const font = soundFont(TWO, [[[51, -12], [GEN.sampleId, 0]]], [{ name: 'Sub', bank: 0, program: 19, zone: [[GEN.instrument, 0]] }]);
+        const lifted = liftSoundFontPreset(readSoundFont(font), 0, 'o');
+        // The recording is of the A below middle C, and that is the note it is given: not the A above, as an octave of tuning would have it.
+        expect(lifted.instrument.samples).toEqual([{ file: 'o/Pipe.wav', note: 'A3' }]);
+        expect(lifted.notes).toEqual(['it is set 1 octave down in the SoundFont; the recordings are taken out at the pitch they are, so give the instrument octave: -1 to have it where the SoundFont had it']);
+        // Tuning that is not whole octaves is the recording being another note, and moves it.
+        const fifth = soundFont(TWO, [[[51, 7], [GEN.sampleId, 0]]], [{ name: 'Up', bank: 0, program: 19, zone: [[GEN.instrument, 0]] }]);
+        expect(liftSoundFontPreset(readSoundFont(fifth), 0, 'o').instrument.samples).toEqual([{ file: 'o/Pipe.wav', note: 'D3' }]);
+    });
+});
