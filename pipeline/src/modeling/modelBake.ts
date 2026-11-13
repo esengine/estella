@@ -15,7 +15,7 @@ import { triangulateFace } from './triangulate';
 import { faceUvs } from './modelUv';
 import { adjustWeights, bindMatrices, computeWeights, computeWornWeights, drapeRig, resolveJoints, shapeDeltas, type ControllerIk, type RigGoal, type RigJoint, type RigSpring, type SkinWeights } from './rig';
 import type { NormalBakeReport } from './normalBake';
-import { buildPolyMesh, validateModelSource, type ModelSource, type StepReport } from './modelSource';
+import { buildPolyMesh, expandModelSource, validateModelSource, type ModelSource, type StepReport } from './modelSource';
 import {
     boundsOf, collectEdges, cross, dot, faceArea, faceNormal, length, normalize, sub,
     type PolyMesh, type Vec3,
@@ -330,7 +330,8 @@ export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, ma
 
 /** Validates, builds and bakes @p raw. Throws a ModelBuildError naming the step that failed; writes nothing, so a failure leaves nothing half made. */
 export function bakeModel(raw: unknown): BakedModel {
-    const source = validateModelSource(raw);
+    // The plain steps: the report counts them, and a step's own fields are read back by its index among them.
+    const source = expandModelSource(validateModelSource(raw));
     const { mesh, steps, high, notes } = buildPolyMesh(source);
     if (mesh.faces.length === 0) throw new Error('the steps leave no faces; a model starts with a box, cylinder, cone, sphere, plane or prism');
 

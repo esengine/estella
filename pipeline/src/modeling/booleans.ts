@@ -34,7 +34,9 @@ interface ManifoldEngine {
 let engine: ManifoldEngine | null = null;
 
 /** Whether any step of a parsed source needs {@link prepareModeling} first. */
-export const needsPreparing = (steps: readonly { op: string }[]): boolean => steps.some((s) => s.op === 'boolean' || s.op === 'decimate');
+export const needsPreparing = (steps: readonly { op: string; steps?: unknown }[]): boolean => steps.some((s) => s.op === 'boolean' || s.op === 'decimate'
+    // What a repeat holds runs too.
+    || (Array.isArray(s.steps) && needsPreparing(s.steps as { op: string }[])));
 
 /**
  * Loads what `boolean` and `decimate` steps run on; once is enough. `wasmUrl` is for a bundled host,
