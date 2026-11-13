@@ -4698,6 +4698,14 @@ export const NOTED = {
     {"note": "A picture made in the editor ships as a recipe."},
   "fix(render): the built-in ripple map is drawn again after a device loss, and no copy of it is kept - every game held 256 KB for a map only water reads; and the checks that went red since: a cost scene with no criterion, TilemapLayer.lit in its defaults, NativeChannel frozen before it earned it, a wav encoder that refused read-only channels, a worker test with five seconds for twenty realms":
     {"note": "A game no longer keeps a copy of the built-in ripple map."},
+  "chore(gates): what the checks asked of this week's work - a disposition for esengine/image in a native script and its namespace there, Waterfall's width and its place in the corpus, the recipe worker's bundle as not a contract, shadeLight2D's inout against its return, and a test that named App as a type":
+    {"internal": "tables the gates read, brought level; a natively packaged script can now import esengine/image, which no native game has run yet"},
+  "feat(image): a picture's source goes where a texture goes, and its maps are recipes too - a texture field takes an .esimage, the image tools write a picture's normal and surface maps as recipes beside it and answer their refs, text is set by the drawer a game sets it with, and the viewport draws a recipe as a game does":
+    {"note": "A picture made in the editor ships as a recipe."},
+  "fix(checks): the quality page's water rows are the levels the engine has, and a template to mirror has its native channel header - Low draws 3 waves and High 8 since the wave set grew, and an iOS template without EstellaNativeChannel.h is incomplete":
+    {"internal": "two checks brought level with what the engine does; nothing a creator sees changed"},
+  "fix(checks): the motion sheet call has the time a slow runner takes - sixty stepped frames passed two minutes on the runner that takes the check twice as long, four times in fourteen builds":
+    {"internal": "a longer wait in an editor check on a slow runner"},
   "fix(terrain): a detail the pages cannot hold no longer cracks the ground - a tree that wanted more nodes than the atlas has pages was drawn in part by coarser pages standing in, which do not meet their finer neighbours' edges, and the pages were fought over every frame; the ground is now drawn at the share of its detail's range that fits, and says so once":
     {"note": "A detail the pages cannot hold no longer cracks the ground."},
   "fix(foliage): a far plant grows across the ground, not taller - a mesh plant kept in a far version was grown the same every way to cover the ground of those left out, so a flower that stood for ten stood ten times as high and a far meadow was a field of poles; it now grows across the ground only, and Foliage.farGrowUp gives its height a share of the growth back":

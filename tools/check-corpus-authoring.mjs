@@ -125,6 +125,8 @@ const DISPOSITION = {
   Planet: ['owed', 'authored by a game today (star-neighbors, a round planet from its own generator); an example that registers a planet provider is owed'],
   MeshInstances: ['derived', 'the foliage and world generation systems write it, one entity a kind and part of a cell; its places are data a system computes, not something a scene authors'],
   ParticleCollider: ['owed', 'no example has a GPU emitter bouncing off a shape yet; the particle-gpu scenes are where the first one goes'],
+  Waterfall: ['owed', 'no example has water falling off a lip yet; the terrain-and-water example, where a river meets a cliff, is where the first one goes'],
+  WaterfallAnchor: ['owed', 'no example fixes a fall to a river yet; it goes with the first Waterfall in the terrain-and-water example'],
   GripProfile: ['owed', 'no example holds an object in its two hands yet; a character with a rifle is where the first one goes'],
   GripHolder: ['owed', 'no example holds an object in its two hands yet; a character with a rifle is where the first one goes'],
   GripPose: ['owed', 'no example holds a tool in a named pose yet; a character with something in its hand is where the first one goes'],

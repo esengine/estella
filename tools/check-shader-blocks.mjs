@@ -101,6 +101,7 @@ const SIGNATURE_GAPS = {
     sampleNormal: 'WGSL takes the texture and its sampler apart; GLSL has one combined type',
     sampleNormalGrad: 'WGSL takes the texture and its sampler apart; GLSL has one combined type',
     shadeLight: 'WGSL returns the light, gloss and extra light it adds (a struct); GLSL accumulates them in three inout arguments',
+    shadeLight2D: 'WGSL returns the light it adds; GLSL accumulates it in an inout argument, as shadeLight does',
 };
 
 /** A field name as the comparison sees it: the `u_` a shader adds is not part of it. */

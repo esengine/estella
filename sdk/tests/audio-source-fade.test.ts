@@ -64,7 +64,7 @@ async function appWith(source: Record<string, unknown>) {
     app.world.insert(e, AudioSource, { clip: 'theme.wav', bus: 'music', ...source });
     return { app, e };
 }
-const frames = async (app: InstanceType<typeof App>, n: number, dt = 0.1): Promise<void> => { for (let i = 0; i < n; i++) await app.tick(dt); };
+const frames = async (app: ReturnType<typeof App.new>, n: number, dt = 0.1): Promise<void> => { for (let i = 0; i < n; i++) await app.tick(dt); };
 
 describe('an AudioSource that fades', () => {
     it('comes up from nothing over fadeIn, and no further than its volume', async () => {

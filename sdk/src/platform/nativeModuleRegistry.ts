@@ -33,6 +33,7 @@ import * as FxAgxModule from '../postprocess/fxAgx';
 import * as FoliageModule from '../foliage';
 import * as WorldGenModule from '../worldgen';
 import * as WaterModule from '../water';
+import * as ImageModule from '../image';
 import * as SplineModule from '../spline';
 import * as VoxelModule from '../voxel';
 import * as Rig2DModule from '../rig2d';
@@ -68,6 +69,7 @@ export const NATIVE_MODULE_NAMESPACES: Readonly<Record<string, unknown>> = {
     'esengine/foliage': FoliageModule,
     'esengine/worldgen': WorldGenModule,
     'esengine/water': WaterModule,
+    'esengine/image': ImageModule,
     'esengine/spline': SplineModule,
     'esengine/voxel': VoxelModule,
     'esengine/rig2d': Rig2DModule,
