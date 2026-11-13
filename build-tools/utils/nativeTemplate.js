@@ -190,6 +190,12 @@ export function templateLayout(platform, options = {}) {
                 from: (ctx) => path.join(ctx.root, 'build/cmake/native-ios', 'Estella.xcframework'),
             },
             { rel: 'App/main.m', from: (ctx) => path.join(ctx.root, 'native', 'ios', 'App', 'main.m') },
+            // What an app target includes to answer the game from its own Objective-C
+            // or Swift; the class is in the xcframework.
+            {
+                rel: 'App/EstellaNativeChannel.h',
+                from: (ctx) => path.join(ctx.root, 'native', 'ios', 'App', 'EstellaNativeChannel.h'),
+            },
             { rel: 'App/Info.plist.in', from: (ctx) => path.join(ctx.root, 'native', 'ios', 'App', 'Info.plist.in') },
             { rel: DEFAULT_ICON, from: (ctx) => path.join(ctx.root, 'native', 'icon.png') },
             // The same first-launch fix the Android template carries: without it the
@@ -683,6 +689,7 @@ export function iosTemplateSources(dir) {
     return {
         xcframework: path.join(dir, 'Estella.xcframework'),
         mainM: path.join(dir, 'App', 'main.m'),
+        channelHeader: path.join(dir, 'App', 'EstellaNativeChannel.h'),
         infoPlistIn: path.join(dir, 'App', 'Info.plist.in'),
         icon: path.join(dir, DEFAULT_ICON),
         bytecode: path.join(dir, 'assets', BYTECODE_FILE),

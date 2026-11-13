@@ -85,6 +85,10 @@ export async function emitIosXcodeProject(contentDir, app, sources, deploymentTa
     await cp(sources.xcframework, frameworkDest, { recursive: true });
     await mkdir(appDir, { recursive: true });
     await cp(sources.mainM, path.join(appDir, 'main.m'));
+    // What the app's own Objective-C or Swift includes to answer the game by name.
+    if (sources.channelHeader && existsSync(sources.channelHeader)) {
+        await cp(sources.channelHeader, path.join(appDir, 'EstellaNativeChannel.h'));
+    }
 
     await writeIconCatalog(contentDir, icon ?? await readFile(sources.icon));
 

@@ -206,6 +206,115 @@ Android 上每个版本是一个单独的库(每个 ABI 0.2 到 1 MB)。导出�
 万一将来某个构建*真的*砍掉了某个子系统,导出会点名它——连同用到它的场景——
 而不是悄悄发出一个缺了半个场景的包。
 
+## 调用你自己的原生代码
+
+打包后的游戏就是一个普通应用，可以链接广告 SDK、商店、登录或统计库。这些是 Java、
+Kotlin、Objective-C 或 Swift，属于项目自己，引擎一个都不链接。脚本通过 `NativeChannel`
+够到它们：原生侧应答一个名字，脚本调用这个名字，值以 JSON 传递。
+
+```typescript title="src/shop.ts"
+import { NativeChannel } from 'esengine';
+
+if (NativeChannel.has('store.buy')) {
+    const receipt = await NativeChannel.call<{ token: string }>('store.buy', { sku: 'gems_100' });
+}
+const off = NativeChannel.on<{ sku: string }>('store.restored', (p) => grant(p.sku));
+```
+
+| 调用 | 作用 |
+| --- | --- |
+| `NativeChannel.available` | 这个平台有没有原生代码可调。Web、小游戏和编辑器里是 `false`。 |
+| `NativeChannel.has(method)` | 调用 `method` 会不会有人应答。提供功能之前先问。 |
+| `NativeChannel.call(method, args?)` | 运行处理器，以它的应答 resolve。没有人应答这个名字时 reject，处理器给了失败原因时带着原因 reject。 |
+| `NativeChannel.on(event, handler)` | 监听原生侧主动发出的事件。返回取消订阅函数。 |
+
+先问 `has` 的游戏在所有平台上不用改：没有原生代码的地方 `has` 是 `false`，什么也不会被调用。
+
+每个原生构建自己应答 `app.info`：Android 和 iOS 上是
+`{ os, osVersion, device, id, version, build }`（包名和版本号，脚本没有别的办法读到），
+桌面上是 `{ device }`。
+
+### Android
+
+导出 **Android Studio 工程**（你的代码要编进应用，一键 APK 带不了）。把类放在
+`app/src/game/java` 下，重新导出不会动这个目录，然后从一个插件里注册它们应答什么：
+
+```java title="app/src/game/java/com/example/game/GamePlugin.java"
+package com.example.game;
+
+import android.app.Activity;
+import com.estella.host.NativeChannel;
+
+public final class GamePlugin implements NativeChannel.Plugin {
+    @Override public void register(Activity activity) {
+        NativeChannel.register("store.buy", (args, reply) -> {
+            // args 是 JSON 文本。调用你的 SDK，然后应答一次，哪个线程都可以:
+            reply.resolve("{\"token\":\"abc\"}");   // 或 reply.reject("cancelled")
+        });
+    }
+}
+```
+
+在 `app/src/game/resources/META-INF/services/com.estella.host.NativeChannel$Plugin`
+里写上插件的类名，一行一个。插件靠这个文件在第一帧之前被找到（Java 的 `ServiceLoader`），
+所以一个库可以自带插件，清单里不用点名。
+
+处理器在 UI 线程上运行，要显示界面的 SDK 必须在那里调用。
+`NativeChannel.emit("store.restored", json)` 可以从任何线程发出事件，
+`NativeChannel.activity()` 是游戏的 Activity，给需要它的 SDK 用。
+
+这个版本之前导出的工程，`app/build.gradle.kts` 里没有 `src/game` 源码集；这个文件归你，
+不会被重写，手动加上：
+
+```kotlin title="app/build.gradle.kts"
+android {
+    sourceSets {
+        getByName("main") {
+            java.srcDir("src/game/java")
+            resources.srcDir("src/game/resources")
+        }
+    }
+}
+```
+
+### iOS
+
+导出的 Xcode 工程里带着 `App/EstellaNativeChannel.h`。把你自己的源文件加进应用 target
+（放在 `App/` 之外，重新导出会重写那个目录），在 `+load` 里注册，它在游戏启动之前运行：
+
+```objc title="GamePlugin.m"
+#import "App/EstellaNativeChannel.h"
+
+@interface GamePlugin : NSObject
+@end
+
+@implementation GamePlugin
++ (void)load {
+    [EstellaNativeChannel registerMethod:@"store.buy"
+                                 handler:^(NSString* args, EstellaNativeReply reply) {
+        // 调用你的 SDK，然后应答一次，哪个线程都可以:
+        reply(@"{\"token\":\"abc\"}", nil);   // 或 reply(nil, @"cancelled")
+    }];
+}
+@end
+```
+
+`[EstellaNativeChannel emitEvent:@"store.restored" json:json]` 发出事件。处理器在主线程上运行。
+
+### 广告
+
+只要你的原生代码应答两个名字，引擎自带的 [`Ads` 服务](/zh-cn/publishing/ads-sharing/#激励视频)
+在真机上就能用，游戏里别的都不用改：`Ads.available` 变成 `true`，`showRewarded`
+像在小游戏里一样，在广告前后暂停游戏、静音、再恢复。
+
+| 方法 | 参数 | 应答 |
+| --- | --- | --- |
+| `ads.show` | `{ kind: "rewarded" \| "interstitial", unitId }` | 广告**关闭**时应答。激励广告在奖励确实获得时应答 `{ "completed": true }`，其他任何应答都不发奖励。没有广告可放时 reject。 |
+| `ads.preload` | 同上 | 可选。广告加载好时应答。 |
+
+用哪家广告 SDK（AdMob、穿山甲、聚合层）由项目决定，体积、隐私条款和账号都是项目自己的，
+所以引擎不替你选。
+
 ## 只在真机上才咬人的那些事
 
 这些是你第一次做真机构建前值得知道的差异。每一条都至少发过一次坏包,

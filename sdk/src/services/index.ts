@@ -10,3 +10,4 @@ export {
 } from './achievements';
 export { Identity, IdentityAPI, type LoginResult } from './identity';
 export { ServicesPlugin, servicesPlugin } from './servicesPlugin';
+export { NativeChannel, type NativeChannelApi } from './nativeChannel';

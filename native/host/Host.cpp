@@ -398,6 +398,7 @@ void frame(long long vsyncNanos) {
     drainFetches(h);
     drainSockets(h);
     drainTextEditor(h);
+    drainNativeChannel(h);
     pumpJs(h);
 
     // app.tick above ran the SDK's render system, which resolved the scene's

@@ -474,6 +474,55 @@ struct AndroidPlatform final : eshost::Platform {
             env->ExceptionClear();
         }
     }
+
+    // -- The app's own Java, by name: com.estella.host.NativeChannel -----------
+    //
+    // An ad SDK, a store, a sign-in library are Java and are the project's. The
+    // class keeps the registry and does its own threading (a handler runs on the
+    // UI thread and answers from wherever its SDK calls back), so these are plain
+    // calls from the frame loop.
+
+    jclass channel = nullptr;          // global ref, set by attachJavaShims
+    jmethodID channelHas = nullptr;
+    jmethodID channelCall = nullptr;
+
+    bool nativeHas(const std::string& method) override {
+        bool known = false;
+        withChannel([&](JNIEnv* env) {
+            jstring name = env->NewStringUTF(method.c_str());
+            known = env->CallStaticBooleanMethod(channel, channelHas, name) != JNI_FALSE;
+            env->DeleteLocalRef(name);
+        });
+        return known;
+    }
+
+    bool nativeCall(int id, const std::string& method, const std::string& args) override {
+        bool started = false;
+        withChannel([&](JNIEnv* env) {
+            jstring name = env->NewStringUTF(method.c_str());
+            // As bytes: a JNI string is modified UTF-8, and JSON is not.
+            jbyteArray json = env->NewByteArray((jsize)args.size());
+            if (json) env->SetByteArrayRegion(json, 0, (jsize)args.size(), reinterpret_cast<const jbyte*>(args.data()));
+            started = env->CallStaticBooleanMethod(channel, channelCall, (jint)id, name, json) != JNI_FALSE;
+            env->DeleteLocalRef(json);
+            env->DeleteLocalRef(name);
+        });
+        return started;
+    }
+
+    template <typename F>
+    void withChannel(F&& body) {
+        if (!channel || !vm) return;
+        JNIEnv* env = nullptr;
+        if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+            if (vm->AttachCurrentThread(&env, nullptr) != JNI_OK || !env) return;
+        }
+        body(env);
+        if (env->ExceptionCheck()) {
+            env->ExceptionDescribe();
+            env->ExceptionClear();
+        }
+    }
 };
 
 AndroidPlatform g_platform;
@@ -581,6 +630,68 @@ void attachGlyphPainter(JNIEnv* env, ANativeActivity* activity) {
     env->DeleteLocalRef(cls);
 }
 
+// -- The channel's answers, on whatever thread the app's SDK called back on ----
+// Queued as POD; the frame loop hands them to JS (see ChannelBindings.cpp).
+
+std::string jniBytes(JNIEnv* env, jbyteArray bytes) {
+    if (!bytes) return {};
+    const jsize size = env->GetArrayLength(bytes);
+    std::string out(static_cast<size_t>(size), ' ');
+    if (size > 0) env->GetByteArrayRegion(bytes, 0, size, reinterpret_cast<jbyte*>(out.data()));
+    return out;
+}
+
+std::string jniName(JNIEnv* env, jstring text) {
+    const char* utf8 = text ? env->GetStringUTFChars(text, nullptr) : nullptr;
+    std::string out = utf8 ? utf8 : "";
+    if (utf8) env->ReleaseStringUTFChars(text, utf8);
+    return out;
+}
+
+void jniChannelReply(JNIEnv* env, jclass, jint id, jboolean ok, jbyteArray payload) {
+    eshost::deliverNativeReply((int)id, ok != JNI_FALSE, jniBytes(env, payload));
+}
+
+void jniChannelEvent(JNIEnv* env, jclass, jstring name, jbyteArray payload) {
+    eshost::deliverNativeEvent(jniName(env, name), jniBytes(env, payload));
+}
+
+/**
+ * Load com.estella.host.NativeChannel, register its natives and let the app's
+ * plugins register what they answer. Before boot, so that a script asking what
+ * it can call during its own start is told the truth.
+ */
+void attachNativeChannel(JNIEnv* env, ANativeActivity* activity) {
+    if (g_platform.channel) return;
+    jclass cls = loadAppClass(env, activity, "com.estella.host.NativeChannel");
+    if (!cls) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG,
+                            "native channel: com.estella.host.NativeChannel not in the APK — the app's Java cannot be called");
+        return;
+    }
+    const JNINativeMethod natives[] = {
+        {"nativeReply", "(IZ[B)V", (void*)jniChannelReply},
+        {"nativeEvent", "(Ljava/lang/String;[B)V", (void*)jniChannelEvent},
+    };
+    const jmethodID attach = env->GetStaticMethodID(cls, "attach", "(Landroid/app/Activity;)V");
+    const jmethodID has = env->GetStaticMethodID(cls, "has", "(Ljava/lang/String;)Z");
+    const jmethodID call = env->GetStaticMethodID(cls, "call", "(ILjava/lang/String;[B)Z");
+    if (!attach || !has || !call || env->RegisterNatives(cls, natives, 2) != JNI_OK) {
+        env->ExceptionClear();
+        env->DeleteLocalRef(cls);
+        return;
+    }
+    env->CallStaticVoidMethod(cls, attach, activity->clazz);
+    if (env->ExceptionCheck()) {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+    }
+    g_platform.channelHas = has;
+    g_platform.channelCall = call;
+    g_platform.channel = (jclass)env->NewGlobalRef(cls);
+    env->DeleteLocalRef(cls);
+}
+
 /** The APK's Java shims, loaded once on the frame-loop thread before boot binds what they answer. */
 void attachJavaShims(ANativeActivity* activity) {
     if (!activity->vm) return;
@@ -588,6 +699,7 @@ void attachJavaShims(ANativeActivity* activity) {
     if (activity->vm->AttachCurrentThread(&env, nullptr) != JNI_OK || !env) return;
     attachTextEditor(env, activity);
     attachGlyphPainter(env, activity);
+    attachNativeChannel(env, activity);
 }
 
 // The decoder's own copies of the MotionEvent constants, held against the NDK's

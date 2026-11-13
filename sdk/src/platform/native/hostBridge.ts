@@ -15,7 +15,7 @@
 import { log } from '../../util/logger';
 import type {
     NativeAudioBridge, NativeBridge, NativeFetchResult, NativeInputListener,
-    NativeTextEditorBridge, NativeTextEditorPush, NativeSocketEvent,
+    NativeTextEditorBridge, NativeTextEditorPush, NativeSocketEvent, NativeChannelBridge,
 } from './bridge';
 import type { PlatformGlyph, PlatformGlyphRequest, PlatformRequestOptions } from '../types';
 import { assertHostEnvironment } from './hostEnvironment';
@@ -136,6 +136,11 @@ export interface NativeHostBindings extends NativeDeviceHost {
     es_textEditor_blur?(): void;
     es_textEditor_write?(value: string, selectionStart: number, selectionEnd: number): void;
 
+    // The app's own native code, by name (see ChannelBindings.cpp). Bound as a
+    // pair; replies and events come back through es_onNativeMessage.
+    es_native_has?(method: string): boolean;
+    es_native_call?(id: number, method: string, args: string): boolean;
+
     es_audioSpectrum?(bins: number): ArrayBuffer | null;
     es_audioLoad?(bytes: ArrayBuffer, stream?: boolean): { id: number; duration: number; bytes: number; streamed?: boolean } | null;
     es_audioUnload?(bufferId: number): void;
@@ -198,6 +203,7 @@ export function createHostBridge(
     const storage = hostStorage(bindings);
     const audio = hostAudio(bindings, scope);
     const textEditor = hostTextEditor(bindings, scope);
+    const channel = hostChannel(bindings, scope);
     const lifecycle = hostLifecycle(scope);
     let device: NativeDevice | null = null;
 
@@ -295,6 +301,7 @@ export function createHostBridge(
             : {}),
         ...(audio ? { audio } : {}),
         ...(textEditor ? { textEditor } : {}),
+        ...(channel ? { channel } : {}),
         ...lifecycle,
     };
 }
@@ -434,6 +441,56 @@ function hostTextEditor(
         blur: () => bindings.es_textEditor_blur!(),
         write: (value, selectionStart, selectionEnd) =>
             bindings.es_textEditor_write!(value, selectionStart, selectionEnd),
+        subscribe: (handler) => {
+            subs.push(handler);
+            return () => { subs = subs.filter((s) => s !== handler); };
+        },
+    };
+}
+
+/** What the host pushes through `es_onNativeMessage`: a call's answer, or an event. */
+type NativeChannelPush =
+    | { kind: 'reply'; id: number; ok: boolean; payload: string }
+    | { kind: 'event'; name: string; payload: string };
+
+/**
+ * The channel to the app's own native code, when the host bound it. A call is
+ * numbered here and answered later through `es_onNativeMessage`; one the host
+ * refuses at the door (nothing answers to the name) rejects at once, so no
+ * promise is left waiting on a reply that cannot come.
+ */
+function hostChannel(
+    bindings: NativeHostBindings,
+    scope: Record<string, unknown>,
+): NativeChannelBridge | undefined {
+    if (!bindings.es_native_has || !bindings.es_native_call) return undefined;
+    const pending = new Map<number, { method: string; resolve: (payload: string) => void; reject: (error: Error) => void }>();
+    let subs: ((name: string, payload: string) => void)[] = [];
+    let nextId = 1;
+    scope.es_onNativeMessage = (push: NativeChannelPush): void => {
+        if (push.kind === 'event') {
+            for (const cb of subs) cb(push.name, push.payload);
+            return;
+        }
+        const call = pending.get(push.id);
+        if (!call) return;   // answered twice, or a reply to a realm that is gone
+        pending.delete(push.id);
+        if (push.ok) call.resolve(push.payload);
+        else call.reject(new Error(`native "${call.method}" failed: ${push.payload || 'no reason given'}`));
+    };
+    return {
+        has: (method) => bindings.es_native_has!(method),
+        call: (method, args) => new Promise<string>((resolve, reject) => {
+            const id = nextId++;
+            pending.set(id, { method, resolve, reject });
+            let started = false;
+            try {
+                started = bindings.es_native_call!(id, method, args);
+            } finally {
+                if (!started) pending.delete(id);
+            }
+            if (!started) reject(new Error(`native "${method}": nothing in this app answers to that name`));
+        }),
         subscribe: (handler) => {
             subs.push(handler);
             return () => { subs = subs.filter((s) => s !== handler); };

@@ -133,6 +133,15 @@ android {
         }
     }
 
+    // Your own Java or Kotlin, and its resources, live under src/game. Exporting
+    // again rewrites src/main (the host's own classes among it) and never this.
+    sourceSets {
+        getByName("main") {
+            java.srcDir("src/game/java")
+            resources.srcDir("src/game/resources")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -182,6 +191,33 @@ one Studio installs, and no Estella toolchain.
 Add the dependency in \`app/build.gradle.kts\` and whatever the SDK asks of the
 manifest. The game itself is native and starts from \`NativeActivity\`; a Java SDK
 that needs an entry point can subclass it and name the subclass in the manifest.
+
+## Calling your Java from the game
+
+The game reaches your code by name through \`com.estella.host.NativeChannel\`.
+Put your classes under \`app/src/game/java\` (a re-export leaves that folder
+alone) and register what they answer from a plugin:
+
+    package com.example.game;
+
+    public final class GamePlugin implements com.estella.host.NativeChannel.Plugin {
+        @Override public void register(android.app.Activity activity) {
+            com.estella.host.NativeChannel.register("ads.show", (args, reply) -> {
+                // show the ad with your SDK, then, when it has closed:
+                reply.resolve("{\\"completed\\":true}");
+            });
+        }
+    }
+
+Name the plugin in \`app/src/game/resources/META-INF/services/com.estella.host.NativeChannel$Plugin\`
+(one class name per line), which is how it is found before the first frame:
+
+    com.example.game.GamePlugin
+
+In the game, \`await NativeChannel.call('ads.show', { kind: 'rewarded', unitId })\`
+runs the handler on the UI thread and resolves with what it answered. Answering
+\`ads.show\` is also what makes the engine's own \`Ads\` service work on a device.
+\`NativeChannel.emit(event, json)\` tells the game something it did not ask for.
 
 ## Re-exporting
 

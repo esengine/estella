@@ -10,7 +10,8 @@
  */
 
 export { NativePlatformAdapter, installNativePlatform } from './adapter';
-export type { NativeBridge, NativeInputListener, NativeFetchResult } from './bridge';
+export type { NativeBridge, NativeInputListener, NativeFetchResult, NativeChannelBridge } from './bridge';
+export { NATIVE_ADS_SHOW, NATIVE_ADS_PRELOAD } from './channel';
 export { createHostBridge } from './hostBridge';
 export { assertHostEnvironment, assertNativeHost } from './hostEnvironment';
 export type { NativeHostBindings } from './hostBridge';

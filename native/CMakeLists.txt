@@ -519,6 +519,7 @@ if(ESTELLA_QUICKJS_DIR)
         host/bindings/DeviceBindings.cpp
         host/net/WsClient.cpp
         host/bindings/TextEditorBindings.cpp
+        host/bindings/ChannelBindings.cpp
         host/bindings/AotBindings.cpp
         # The name table a compiled system is dispatched through — generated
         # from the same reflection the component bindings above come from.

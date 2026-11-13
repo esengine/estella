@@ -602,14 +602,22 @@ export interface PlatformAdapter {
     isHandheld?(): boolean;
 
     /** One rewarded ad unit. Mini-game hosts implement it over their
-     *  RewardedVideoAd; platforms without an ad system (web, native until a
-     *  mediation SDK is wired, playable — networks forbid nested ads) omit the
+     *  RewardedVideoAd; platforms without an ad system (web, a native app whose own
+     *  code answers for none, playable — networks forbid nested ads) omit the
      *  method, and a family adapter whose PARTICULAR host lacks the capability
      *  returns null. Both answers mean the same thing to the services layer:
      *  substitute the mock provider or fail loud with the reason. */
     createRewardedAd?(adUnitId: string): PlatformRewardedAd | null;
     /** One interstitial ad unit — same availability story as rewarded. */
     createInterstitialAd?(adUnitId: string): PlatformInterstitialAd | null;
+    /**
+     * The app's own native code, reached by method name: the Java or Objective-C
+     * a packaged game links beside the engine (an ad SDK, a store, a sign-in).
+     * Present only on a native host; null there when the host binary predates
+     * the channel. The web and mini-games omit it: a page has no native code,
+     * and a mini-game's host API is the vendor's, not the project's.
+     */
+    nativeChannel?(): PlatformNativeChannel | null;
     /** Actively open the host's share sheet. Fire-and-forget: since 2021 no
      *  mini-game host reports whether the player actually shared. */
     share?(options: PlatformShareOptions): void;
@@ -691,6 +699,21 @@ export interface PlatformAdapter {
 // =============================================================================
 // Monetization / share services
 // =============================================================================
+
+/**
+ * The app's own native code, by name. Values cross as JSON, so anything JSON
+ * carries is an argument, a result or an event's data.
+ */
+export interface PlatformNativeChannel {
+    /** Whether anything answers to `method`. Synchronous: it is asked while a
+     *  menu decides what to offer. */
+    has(method: string): boolean;
+    /** Call `method`. Rejects when nothing answers to the name, or with the
+     *  reason the native side gave. */
+    call(method: string, args?: unknown): Promise<unknown>;
+    /** Hear every `event` the native side raises. Returns the unsubscribe. */
+    on(event: string, handler: (data: unknown) => void): () => void;
+}
 
 /** How a rewarded ad ended: `completed` is whether the reward was earned. */
 export interface PlatformRewardedAdResult {

@@ -28,6 +28,7 @@
 #include "platform/apple_common.hpp"   // Core Text + NSURLSession, shared with macOS
 #include "platform/touch_stream.hpp"
 #include "platform/ios_device.hpp"
+#include "../../ios/App/EstellaNativeChannel.h"   // the app-facing half of the channel
 
 using esengine::u32;
 using esengine::u8;
@@ -44,6 +45,12 @@ using esengine::WebGPUDevice;
 - (void)textEditorBlur;
 - (void)textEditorWrite:(NSString*)value selectionStart:(NSInteger)selectionStart
            selectionEnd:(NSInteger)selectionEnd;
+@end
+
+/** The host's own side of the channel: what the platform asks of the registry. */
+@interface EstellaNativeChannel ()
++ (BOOL)answers:(NSString*)method;
++ (BOOL)call:(int)callId method:(NSString*)method args:(NSString*)args;
 @end
 
 namespace {
@@ -177,6 +184,16 @@ struct IOSPlatform final : eshost::Platform {
         return eshost::appleDrawGlyph(family, codepoint, style, pixelSize, supersample, padding, out);
     }
 
+    // The app's own Objective-C or Swift, by name: see EstellaNativeChannel below.
+    bool nativeHas(const std::string& method) override {
+        return [EstellaNativeChannel answers:[NSString stringWithUTF8String:method.c_str()] ?: @""];
+    }
+    bool nativeCall(int id, const std::string& method, const std::string& args) override {
+        return [EstellaNativeChannel call:id
+                                   method:[NSString stringWithUTF8String:method.c_str()] ?: @""
+                                     args:[NSString stringWithUTF8String:args.c_str()] ?: @"null"];
+    }
+
     void startFetch(const eshost::FetchRequest& req) override {
         eshost::appleStartFetch(req);
     }
@@ -185,6 +202,91 @@ struct IOSPlatform final : eshost::Platform {
 IOSPlatform g_platform;
 
 }  // namespace
+
+// -- The app's own native code, by name ----------------------------------------
+//
+// The registry an app's Objective-C or Swift fills (EstellaNativeChannel.h) and
+// the frame loop asks. A handler runs on the main thread, where an SDK that
+// presents anything has to be called, and answers from wherever that SDK calls
+// back; the answer is queued and the script hears it on the next frame.
+
+@implementation EstellaNativeChannel
+
+/** The handlers, created on first use: an app registers from +load, which runs
+ *  before anything of the host's has. Guarded by the dictionary itself. */
++ (NSMutableDictionary<NSString*, EstellaNativeHandler>*)handlers {
+    static NSMutableDictionary<NSString*, EstellaNativeHandler>* handlers;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        handlers = [NSMutableDictionary dictionary];
+        // What the app is, which a script cannot otherwise read: its id and version.
+        handlers[@"app.info"] = [^(NSString* args, EstellaNativeReply reply) {
+            NSBundle* bundle = NSBundle.mainBundle;
+            NSDictionary* info = @{
+                @"os": @"ios",
+                @"osVersion": UIDevice.currentDevice.systemVersion ?: @"",
+                @"device": UIDevice.currentDevice.model ?: @"",
+                @"id": bundle.bundleIdentifier ?: @"",
+                @"version": [bundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"",
+                @"build": [bundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: @"",
+            };
+            NSData* json = [NSJSONSerialization dataWithJSONObject:info options:0 error:nil];
+            if (json) reply([[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding], nil);
+            else reply(nil, @"app.info could not be written as JSON");
+        } copy];
+    });
+    return handlers;
+}
+
++ (void)registerMethod:(NSString*)method handler:(EstellaNativeHandler)handler {
+    if (!method || !handler) return;
+    NSMutableDictionary* handlers = [self handlers];
+    @synchronized (handlers) { handlers[method] = [handler copy]; }
+}
+
++ (void)unregisterMethod:(NSString*)method {
+    if (!method) return;
+    NSMutableDictionary* handlers = [self handlers];
+    @synchronized (handlers) { [handlers removeObjectForKey:method]; }
+}
+
++ (void)emitEvent:(NSString*)event json:(NSString*)json {
+    if (!event) return;
+    eshost::deliverNativeEvent(event.UTF8String ?: "", json.UTF8String ?: "null");
+}
+
++ (BOOL)answers:(NSString*)method {
+    NSMutableDictionary* handlers = [self handlers];
+    @synchronized (handlers) { return handlers[method] != nil; }
+}
+
++ (BOOL)call:(int)callId method:(NSString*)method args:(NSString*)args {
+    EstellaNativeHandler handler = nil;
+    NSMutableDictionary* handlers = [self handlers];
+    @synchronized (handlers) { handler = handlers[method]; }
+    if (!handler) return NO;
+    // One answer reaches the script, however many times the handler gives one.
+    NSObject* once = [NSObject new];
+    __block BOOL answered = NO;
+    EstellaNativeReply reply = ^(NSString* json, NSString* error) {
+        @synchronized (once) {
+            if (answered) return;
+            answered = YES;
+        }
+        if (error) eshost::deliverNativeReply(callId, false, error.UTF8String ?: "");
+        else eshost::deliverNativeReply(callId, true, json.UTF8String ?: "null");
+    };
+    dispatch_async(dispatch_get_main_queue(), ^{
+        @try {
+            handler(args, reply);
+        } @catch (NSException* exception) {
+            reply(nil, exception.reason ?: exception.name);
+        }
+    });
+    return YES;
+}
+
+@end
 
 /// A view whose backing layer is the CAMetalLayer Dawn renders into.
 @interface EstellaMetalView : UIView

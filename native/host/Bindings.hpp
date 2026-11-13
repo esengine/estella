@@ -70,6 +70,11 @@ void registerAotBindings(HostState& h, esjs::Val global);
  *  exactly as it does audio. */
 void registerTextEditorBindings(HostState& h, esjs::Val global);
 
+/** es_native_has / es_native_call: the game's own line to the app's Java or
+ *  Objective-C, by method name. Bound on every platform; a call nobody answers
+ *  is refused at the call. See ChannelBindings.cpp. */
+void registerChannelBindings(HostState& h, esjs::Val global);
+
 /** Run the JS callbacks for HTTP replies that arrived since the last frame. JS
  *  thread only; {@link deliverFetch} queued them from the completion thread. */
 void drainFetches(HostState& h);
@@ -78,5 +83,10 @@ void drainSockets(HostState& h);
 /** Push what the editing surface did since the last frame into JS. JS thread
  *  only; the deliverTextEditor* calls queued it from the platform's UI thread. */
 void drainTextEditor(HostState& h);
+
+/** Hand JS the replies and events native code queued since the last frame. JS
+ *  thread only; deliverNativeReply / deliverNativeEvent queued them from whatever
+ *  thread an SDK called back on. */
+void drainNativeChannel(HostState& h);
 
 }  // namespace eshost

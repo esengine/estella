@@ -4568,6 +4568,10 @@ export const NOTED = {
     {"note": "A tilemap layer can be lit."},
   "feat(text): Text has letter spacing - Text.letterSpacing is extra px after every glyph and a negative value draws them closer; the layout always took one and no path handed it over. Retained labels, the per-frame fallback and inline images read a Text through one derivation, which gives the fallback the underline it never drew":
     {"note": "Text has letter spacing."},
+  "feat(native): a game calls its own Java or Objective-C by name - NativeChannel.call, has and on reach the handlers an app registers (NativeChannel.register on Android, EstellaNativeChannel on iOS) with JSON both ways, and Ads works on a device once that code answers ads.show; the engine links no ad SDK":
+    {"note": "A game calls its own native code by name."},
+  "fix(aot): the engine digest counts TilemapLayer.lit - the field landed without it, so a packaged native game refused its own compiled systems as built against a different engine; the digest and the two conformance files are regenerated":
+    {"internal": "Repairs a field added since the last release: no released build refused its compiled systems."},
   "feat(sky): a sky of your own shades the ground under its clouds - defineSkyEffect takes groundShadow and a second function, skyShadow(world, sun), what is left of the light at a world position, and the sky pass multiplies every surface it finds by it, as Sky Atmosphere does with its own clouds":
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":

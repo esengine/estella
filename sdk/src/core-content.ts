@@ -752,13 +752,14 @@ export {
 } from './audio';
 
 // =============================================================================
-// Platform services (ads, share, achievements)
+// Platform services (ads, share, achievements, the app's own native code)
 // =============================================================================
 
 export {
     Achievements, AchievementsAPI, createLocalAchievements,
     Ads, AdsAPI, createMockAdProvider, createTakeover,
     Identity, IdentityAPI,
+    NativeChannel, type NativeChannelApi,
     ServicesPlugin, servicesPlugin,
     type AchievementProvider,
     type AdProvider, type MockAdProviderOptions, type Takeover, type TakeoverHost,

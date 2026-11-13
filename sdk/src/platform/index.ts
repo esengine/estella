@@ -61,6 +61,7 @@ export {
     platformCanCreateAds,
     platformCreateRewardedAd,
     platformCreateInterstitialAd,
+    platformNativeChannel,
     platformCanShare,
     platformShare,
     platformOnShareRequest,

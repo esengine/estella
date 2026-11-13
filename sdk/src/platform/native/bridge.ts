@@ -167,6 +167,22 @@ export interface NativeAudioBridge {
 }
 
 /**
+ * The host's line to the app's own native code. Text both ways: the host carries
+ * a method name and JSON without knowing what either means (see channel.ts for
+ * the side that does).
+ */
+export interface NativeChannelBridge {
+    /** Whether anything answers to `method`. */
+    has(method: string): boolean;
+    /** Call `method` with JSON `args`. Resolves with the JSON it answered;
+     *  rejects when nothing answers, or with the reason the native side gave. */
+    call(method: string, args: string): Promise<string>;
+    /** The sink for events native code raises on its own (pushed, like touch):
+     *  the event's name and its JSON. Returns an unsubscribe. */
+    subscribe(handler: (name: string, payload: string) => void): () => void;
+}
+
+/**
  * The host functions the native shell injects. Async where the call crosses to
  * the OS (files, network, image decode); sync where the native API is sync
  * (key-value storage). Textures take the pixel-decode path: the host decodes an
@@ -183,6 +199,10 @@ export interface NativeBridge {
     /** Decode an image to top-first RGBA (the Path-2 / createTextureFromPixels
      *  route the play realm and WeChat also use). */
     loadImagePixels(path: string): Promise<ImageLoadResult>;
+
+    /** The app's own Java or Objective-C, by method name. Optional: a host built
+     *  before the channel omits it, and the SDK then reports no native code. */
+    channel?: NativeChannelBridge;
 
     /** Rasterize one glyph — the device's answer to the 2D canvas the browser
      *  path draws text on. Synchronous, because the dynamic glyph atlas fills

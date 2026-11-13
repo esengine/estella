@@ -29,6 +29,9 @@ import type {
     PlatformTextEditor,
     PlatformSocket,
     PlatformSocketOptions,
+    PlatformNativeChannel,
+    PlatformRewardedAd,
+    PlatformInterstitialAd,
 } from '../types';
 import { NativeSocket } from './socket';
 import { unavailableDevice } from '../../device/core';
@@ -39,6 +42,9 @@ import { setPlatform } from '../base';
 import { createPrimaryPointer } from '../primaryPointer';
 import { NativeAudioBackend } from '../../audio/NativeAudioBackend';
 import { createNativeTextEditor } from './textEditor';
+import {
+    createNativeChannel, createNativeInterstitialAd, createNativeRewardedAd, nativeChannelHasAds,
+} from './channel';
 import { browserLanguageTag } from './languageTag';
 import { createSteamAchievements } from './steamAchievements';
 import type { AchievementProvider } from '../../services/achievements';
@@ -65,7 +71,30 @@ export class NativePlatformAdapter implements PlatformAdapter {
             const rasterize = bridge_.rasterizeGlyph.bind(bridge_);
             this.rasterizeGlyph = (request) => rasterize(request);
         }
+        // The app's own native code, and ads over it. The ad factories exist only
+        // when that code answers for ads, so `Ads.available` is the truth about
+        // THIS app rather than about native hosts in general. Asked once, here:
+        // the app's plugins registered before the script started.
+        if (bridge_.channel) {
+            const channel = createNativeChannel(bridge_.channel);
+            this.channel_ = channel;
+            if (nativeChannelHasAds(channel)) {
+                this.createRewardedAd = (adUnitId) => createNativeRewardedAd(channel, adUnitId);
+                this.createInterstitialAd = (adUnitId) => createNativeInterstitialAd(channel, adUnitId);
+            }
+        }
     }
+
+    private channel_: PlatformNativeChannel | null = null;
+
+    /** The app's own native code; null on a host built before the channel. */
+    nativeChannel(): PlatformNativeChannel | null {
+        return this.channel_;
+    }
+
+    /** Assigned in the constructor only when the app's native code answers for ads. */
+    createRewardedAd?: (adUnitId: string) => PlatformRewardedAd | null;
+    createInterstitialAd?: (adUnitId: string) => PlatformInterstitialAd | null;
 
     /** Assigned in the constructor only when the host bound an audio engine. */
     createAudioBackend?: () => PlatformAudioBackend;

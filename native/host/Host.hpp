@@ -29,6 +29,7 @@
 #pragma once
 
 #include <chrono>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -294,6 +295,24 @@ struct Platform {
     virtual void textEditorBlur() {}
     virtual void textEditorWrite(const std::string& /*value*/, int /*selectionStart*/,
                                  int /*selectionEnd*/) {}
+
+    /**
+     * The app's own native code, by name: what a game's Java or Objective-C
+     * registered to answer (an ad SDK, a store, a sign-in). A platform with such
+     * a registry overrides both; the default has none.
+     *
+     * `nativeHas` is asked while the script decides what it can offer (whether
+     * there are ads to show), so it must answer at once and from the frame loop.
+     */
+    virtual bool nativeHas(const std::string& /*method*/) { return false; }
+    /**
+     * Start the call and answer true, or answer false when nobody is registered
+     * under @p method. The answer comes later through {@link deliverNativeReply}
+     * with the same @p id, from any thread. @p args is JSON.
+     */
+    virtual bool nativeCall(int /*id*/, const std::string& /*method*/, const std::string& /*args*/) {
+        return false;
+    }
 };
 
 /** Deliver an HTTP reply for a {@link Platform::startFetch}. Thread-safe: the
@@ -310,6 +329,24 @@ void deliverTextEditorState(std::string value, int selectionStart, int selection
 void deliverTextEditorSubmit();
 /** The keyboard was dismissed without committing (back gesture, done). Thread-safe. */
 void deliverTextEditorCancel();
+
+/** The answer to a {@link Platform::nativeCall}: @p payload is JSON when @p ok,
+ *  otherwise the reason, which the script's promise rejects with. Thread-safe;
+ *  the script hears it on the next frame. */
+void deliverNativeReply(int id, bool ok, std::string payload);
+/** Something native code raises on its own (a purchase finished in the
+ *  background, a push arrived): every script listener of @p name receives the
+ *  JSON @p payload on the next frame. Thread-safe. */
+void deliverNativeEvent(std::string name, std::string payload);
+
+/** How a C++ handler answers; callable once, from any thread. */
+using NativeReply = std::function<void(bool ok, std::string payload)>;
+/** A method answered in C++ rather than by the platform's registry. Runs on the
+ *  frame-loop thread, inside the script's call. */
+using NativeHandler = std::function<void(const std::string& args, NativeReply reply)>;
+/** Answer @p method from C++; an empty handler removes it. The platform's own
+ *  registry is asked first. Thread-safe. */
+void registerNativeHandler(std::string method, NativeHandler handler);
 
 /** @brief Boots Dawn, EstellaContext, the JS engine, the SDK bundle and the packaged
  *         project. Call once, when a window first exists; @p platform must

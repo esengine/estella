@@ -297,6 +297,13 @@ export function platformRemoveStorageItem(key: string): void {
     getPlatform().removeStorageItem(key);
 }
 
+/** The app's own native code, or null where there is none to reach (the web, a
+ *  mini-game, a native host built before the channel, an uninitialized platform). */
+export function platformNativeChannel(): import('./types').PlatformNativeChannel | null {
+    if (!isPlatformInitialized()) return null;
+    return getPlatform().nativeChannel?.() ?? null;
+}
+
 /** Whether this platform can mint ad units at all, without minting one (a
  *  mini-game host materializes a real host object per created unit). */
 export function platformCanCreateAds(): boolean {
@@ -304,7 +311,7 @@ export function platformCanCreateAds(): boolean {
 }
 
 /** One rewarded ad unit from the platform, or null where the platform has no ad
- *  system (web, native, playable, an uninitialized platform in tests). Null is
+ *  system (web, a native app whose own code answers for none, playable, an uninitialized platform in tests). Null is
  *  an answer, not an error: the services layer substitutes its mock provider or
  *  fails loud with the reason, which is a decision this layer cannot make. */
 export function platformCreateRewardedAd(adUnitId: string): import('./types').PlatformRewardedAd | null {
