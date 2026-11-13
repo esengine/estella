@@ -227,15 +227,16 @@ export class WaterField {
         const grounds = new Float64Array(grid.nx * grid.nz).fill(Number.NaN);
         // How much of each texel's water is a river's: the surf takes it for land.
         const rivers = new Float32Array(grid.nx * grid.nz);
+        const rows = rowsAStep(grid.nx, CELLS_A_STEP);
         for (let j = 0; j < grid.nz; j++) {
-            if (j % 32 === 0) yield 0.3 * (j / grid.nz);
+            if (j % rows === 0) yield 0.3 * (j / grid.nz);
             for (let i = 0; i < grid.nx; i++) {
                 const x = grid.minX + (i / Math.max(grid.nx - 1, 1)) * grid.sizeX;
                 const z = grid.minZ + (j / Math.max(grid.nz - 1, 1)) * grid.sizeZ;
                 grounds[j * grid.nx + i] = ground?.(x, z) ?? Number.NaN;
             }
         }
-        const sea = ocean ? openSea(grid, grounds, ocean.level) : null;
+        const sea = ocean ? yield* openSea(grid, grounds, ocean.level, 0.3) : null;
         // How steep the ground is at each texel: a depth over it is how far the shore is across the ground, to first order, so the
         // distance to the shore is one measure (along the ground) everywhere and runs smoothly through zero between texels.
         const stepX = grid.sizeX / Math.max(grid.nx - 1, 1), stepZ = grid.sizeZ / Math.max(grid.nz - 1, 1);
@@ -246,7 +247,7 @@ export class WaterField {
             return Number.isFinite(m) ? Math.max(m, MIN_SLOPE) : MIN_SLOPE;
         };
         for (let j = 0; j < grid.nz; j++) {
-            if (j % 16 === 0) yield 0.3 + 0.5 * (j / grid.nz);
+            if (j % rows === 0) yield 0.3 + 0.5 * (j / grid.nz);
             for (let i = 0; i < grid.nx; i++) {
                 const k = j * grid.nx + i;
                 const x = grid.minX + (i / Math.max(grid.nx - 1, 1)) * grid.sizeX;
@@ -310,9 +311,9 @@ export class WaterField {
         }
         yield* levelShore(field, texel);
         yield* fillDry(field);
-        surfDistance(field, rivers, texel, surfLength);
+        yield* surfDistance(field, rivers, texel, surfLength, 0.95);
         // The water beside a steep shore takes its steepness: a cliff's foot is a texel or two out in the water.
-        blur(field.steep, grid.nx, grid.nz, 2);
+        yield* blur(field.steep, grid.nx, grid.nz, 2, 0.99);
         for (let k = 0; k < field.steep.length; k++) field.steep[k] = Math.min(field.steep[k]! * 2, 1);
         return field;
     }
@@ -457,7 +458,7 @@ function sayOf(body: ZoneLake | ZoneRiver, x: number, z: number, g: number | nul
  * Which texels the open sea reaches: those whose ground is below `level` (or unknown) and joined, through such texels, to the region's
  * edge, past which the sea goes on.
  */
-function openSea(grid: ZoneGrid, grounds: Float64Array, level: number): Uint8Array {
+function* openSea(grid: ZoneGrid, grounds: Float64Array, level: number, at: number): Generator<number, Uint8Array, void> {
     const { nx, nz } = grid;
     const sea = new Uint8Array(nx * nz);
     const low = (k: number): boolean => { const g = grounds[k]!; return Number.isNaN(g) || g < level; };
@@ -466,6 +467,7 @@ function openSea(grid: ZoneGrid, grounds: Float64Array, level: number): Uint8Arr
     for (let i = 0; i < nx; i++) { reach(i); reach((nz - 1) * nx + i); }
     for (let j = 0; j < nz; j++) { reach(j * nx); reach(j * nx + nx - 1); }
     for (let q = 0; q < queue.length; q++) {
+        if (q % SWEPT_A_STEP === SWEPT_A_STEP - 1) yield at;
         const k = queue[q]!, i = k % nx;
         if (i > 0) reach(k - 1);
         if (i < nx - 1) reach(k + 1);
@@ -499,6 +501,15 @@ function boundsOf(body: ZoneLake | ZoneRiver): [number, number, number, number] 
  * texels on either side of an edge keep it, held to a texel, and every other texel is that plus how far it is from the nearest of them
  * (each texel carries its nearest edge texel, two sweeps).
  */
+/**
+ * How much of a bake is one step. A job stepped in a frame is given the frame's spare milliseconds, and takes them a step at a time: a
+ * step is as small as the smallest thing worth waiting for, by cells and not by rows, so a region of 4096 texels a side steps as often
+ * as one of 256. Reading the ground and asking every body is about a microsecond a cell; a sweep is a twentieth of that.
+ */
+const CELLS_A_STEP = 2048;
+const SWEPT_A_STEP = 32768;
+const rowsAStep = (nx: number, cells: number): number => Math.max(1, Math.floor(cells / Math.max(nx, 1)));
+
 function* levelShore(field: WaterField, texel: number): Generator<number, void, void> {
     const { nx, nz, sizeX, sizeZ } = field.grid;
     const n = nx * nz;
@@ -508,14 +519,18 @@ function* levelShore(field: WaterField, texel: number): Generator<number, void, 
     const seed = new Int32Array(n).fill(-1);
     const offset = new Float32Array(n);
     const dist = new Float32Array(n).fill(Infinity);
+    const rows = rowsAStep(nx, SWEPT_A_STEP);
     yield 0.85;
-    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-        const k = j * nx + i, w = wet(k);
-        const edge = (i > 0 && wet(k - 1) !== w) || (i < nx - 1 && wet(k + 1) !== w) || (j > 0 && wet(k - nx) !== w) || (j < nz - 1 && wet(k + nx) !== w);
-        if (!edge) continue;
-        seed[k] = k;
-        offset[k] = Math.min(Math.abs(field.shore[k]!), texel);
-        dist[k] = offset[k]!;
+    for (let j = 0; j < nz; j++) {
+        if (j % rows === 0) yield 0.85;
+        for (let i = 0; i < nx; i++) {
+            const k = j * nx + i, w = wet(k);
+            const edge = (i > 0 && wet(k - 1) !== w) || (i < nx - 1 && wet(k + 1) !== w) || (j > 0 && wet(k - nx) !== w) || (j < nz - 1 && wet(k + nx) !== w);
+            if (!edge) continue;
+            seed[k] = k;
+            offset[k] = Math.min(Math.abs(field.shore[k]!), texel);
+            dist[k] = offset[k]!;
+        }
     }
     const relax = (k: number, from: number): void => {
         const s = seed[from]!;
@@ -525,17 +540,23 @@ function* levelShore(field: WaterField, texel: number): Generator<number, void, 
         if (d < dist[k]!) { dist[k] = d; seed[k] = s; }
     };
     yield 0.85;
-    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-        const k = j * nx + i;
-        if (i > 0) relax(k, k - 1);
-        if (j > 0) { relax(k, k - nx); if (i > 0) relax(k, k - nx - 1); if (i < nx - 1) relax(k, k - nx + 1); }
+    for (let j = 0; j < nz; j++) {
+        if (j % rows === 0) yield 0.85 + 0.035 * (j / nz);
+        for (let i = 0; i < nx; i++) {
+            const k = j * nx + i;
+            if (i > 0) relax(k, k - 1);
+            if (j > 0) { relax(k, k - nx); if (i > 0) relax(k, k - nx - 1); if (i < nx - 1) relax(k, k - nx + 1); }
+        }
+    }
+    for (let j = nz - 1; j >= 0; j--) {
+        if (j % rows === 0) yield 0.92 - 0.035 * (j / nz);
+        for (let i = nx - 1; i >= 0; i--) {
+            const k = j * nx + i;
+            if (i < nx - 1) relax(k, k + 1);
+            if (j < nz - 1) { relax(k, k + nx); if (i < nx - 1) relax(k, k + nx + 1); if (i > 0) relax(k, k + nx - 1); }
+        }
     }
     yield 0.92;
-    for (let j = nz - 1; j >= 0; j--) for (let i = nx - 1; i >= 0; i--) {
-        const k = j * nx + i;
-        if (i < nx - 1) relax(k, k + 1);
-        if (j < nz - 1) { relax(k, k + nx); if (i < nx - 1) relax(k, k + nx + 1); if (i > 0) relax(k, k + nx - 1); }
-    }
     for (let k = 0; k < n; k++) {
         if (!Number.isFinite(dist[k]!)) continue;
         field.shore[k] = wet(k) ? dist[k]! : -dist[k]!;
@@ -557,22 +578,29 @@ function* fillDry(field: WaterField): Generator<number, void, void> {
         dist[k] = dist[from]! + step;
         src[k] = src[from]!;
     };
-    yield 0.85;
-    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-        const k = j * nx + i;
-        if (i > 0) relax(k, k - 1, 1);
-        if (j > 0) relax(k, k - nx, 1);
-        if (i > 0 && j > 0) relax(k, k - nx - 1, Math.SQRT2);
-        if (i < nx - 1 && j > 0) relax(k, k - nx + 1, Math.SQRT2);
-    }
+    const rows = rowsAStep(nx, SWEPT_A_STEP);
     yield 0.92;
-    for (let j = nz - 1; j >= 0; j--) for (let i = nx - 1; i >= 0; i--) {
-        const k = j * nx + i;
-        if (i < nx - 1) relax(k, k + 1, 1);
-        if (j < nz - 1) relax(k, k + nx, 1);
-        if (i < nx - 1 && j < nz - 1) relax(k, k + nx + 1, Math.SQRT2);
-        if (i > 0 && j < nz - 1) relax(k, k + nx - 1, Math.SQRT2);
+    for (let j = 0; j < nz; j++) {
+        if (j % rows === 0) yield 0.92 + 0.015 * (j / nz);
+        for (let i = 0; i < nx; i++) {
+            const k = j * nx + i;
+            if (i > 0) relax(k, k - 1, 1);
+            if (j > 0) relax(k, k - nx, 1);
+            if (i > 0 && j > 0) relax(k, k - nx - 1, Math.SQRT2);
+            if (i < nx - 1 && j > 0) relax(k, k - nx + 1, Math.SQRT2);
+        }
     }
+    for (let j = nz - 1; j >= 0; j--) {
+        if (j % rows === 0) yield 0.95 - 0.015 * (j / nz);
+        for (let i = nx - 1; i >= 0; i--) {
+            const k = j * nx + i;
+            if (i < nx - 1) relax(k, k + 1, 1);
+            if (j < nz - 1) relax(k, k + nx, 1);
+            if (i < nx - 1 && j < nz - 1) relax(k, k + nx + 1, Math.SQRT2);
+            if (i > 0 && j < nz - 1) relax(k, k + nx - 1, Math.SQRT2);
+        }
+    }
+    yield 0.95;
     const fallback = field.ocean ? field.ocean.level : 0;
     for (let k = 0; k < n; k++) {
         if (Number.isFinite(field.height[k]!)) continue;
@@ -586,7 +614,7 @@ function* fillDry(field: WaterField): Generator<number, void, void> {
  * no bay the crests bend into), smoothed over the surf's length. A crest is a line of it: smoothed, the crests come in from the open
  * water as lines and turn to follow the shore only as they near it, instead of tracing every turn of it from far out.
  */
-function surfDistance(field: WaterField, rivers: Float32Array, texel: number, surfLength: number): void {
+function* surfDistance(field: WaterField, rivers: Float32Array, texel: number, surfLength: number, at: number): Generator<number, void, void> {
     const { nx, nz } = field.grid;
     const n = nx * nz;
     // Distances across the texels (8-neighbour chamfer) from the open water's edge: into the water above zero, onto the land (a river's
@@ -594,23 +622,27 @@ function surfDistance(field: WaterField, rivers: Float32Array, texel: number, su
     const wet = new Uint8Array(n);
     for (let k = 0; k < n; k++) wet[k] = field.shore[k]! > 0 && rivers[k]! < 0.5 ? 1 : 0;
     const cap = Math.max(surfLength * 8, texel * 16);
-    const toWater = chamfer(nx, nz, wet, 0), toLand = chamfer(nx, nz, wet, 1);
+    yield at;
+    const toWater = yield* chamfer(nx, nz, wet, 0, at);
+    const toLand = yield* chamfer(nx, nz, wet, 1, at);
     for (let k = 0; k < n; k++) field.surf[k] = Math.min(Math.max((toLand[k]! - toWater[k]!) * texel, -cap), cap);
-    blur(field.surf, nx, nz, Math.round(surfLength / Math.max(texel, 1e-6)));
+    yield* blur(field.surf, nx, nz, Math.round(surfLength / Math.max(texel, 1e-6)), at);
     // A river's current carries no surf, and spreads as it runs out into open water: the surf comes back over half its length.
     for (let k = 0; k < n; k++) field.still[k] = 1 - rivers[k]!;
-    blur(field.still, nx, nz, Math.round((surfLength * 0.5) / Math.max(texel, 1e-6)));
+    yield* blur(field.still, nx, nz, Math.round((surfLength * 0.5) / Math.max(texel, 1e-6)), at);
     // Spread out past the mouth, never in: the river itself, banks and all, keeps none (the land beside it would lend it some).
     for (let k = 0; k < n; k++) field.still[k] = Math.min(field.still[k]!, 1 - rivers[k]!);
 }
 
 /** `values` (a grid nx by nz) blurred in place over `radius` texels: three box passes each way, near enough a Gaussian, at a cost that
  * does not grow with the radius. */
-function blur(values: Float32Array, nx: number, nz: number, radius: number): void {
+function* blur(values: Float32Array, nx: number, nz: number, radius: number, progress: number): Generator<number, void, void> {
     if (radius < 1 || nx < 2 || nz < 2) return;
     const line = new Float32Array(Math.max(nx, nz));
-    const pass = (count: number, length: number, at: (c: number, i: number) => number): void => {
+    function* pass(count: number, length: number, at: (c: number, i: number) => number): Generator<number, void, void> {
+        const lines = rowsAStep(length, SWEPT_A_STEP);
         for (let c = 0; c < count; c++) {
+            if (c % lines === 0) yield progress;
             for (let i = 0; i < length; i++) line[i] = values[at(c, i)]!;
             let sum = 0;
             for (let i = -radius; i <= radius; i++) sum += line[Math.min(Math.max(i, 0), length - 1)]!;
@@ -619,32 +651,39 @@ function blur(values: Float32Array, nx: number, nz: number, radius: number): voi
                 sum += line[Math.min(i + radius + 1, length - 1)]! - line[Math.max(i - radius, 0)]!;
             }
         }
-    };
+    }
     for (let p = 0; p < 3; p++) {
-        pass(nz, nx, (j, i) => j * nx + i);
-        pass(nx, nz, (i, j) => j * nx + i);
+        yield* pass(nz, nx, (j, i) => j * nx + i);
+        yield* pass(nx, nz, (i, j) => j * nx + i);
     }
 }
 
 /** How many texels each texel is from the nearest one whose `wet` is not `from` (half a texel at the edge, 0 on the other side). */
-function chamfer(nx: number, nz: number, wet: Uint8Array, from: number): Float32Array {
+function* chamfer(nx: number, nz: number, wet: Uint8Array, from: number, at: number): Generator<number, Float32Array, void> {
     const n = nx * nz;
     const d = new Float32Array(n);
     for (let k = 0; k < n; k++) d[k] = wet[k] === from ? 1e9 : 0;
     const relax = (k: number, o: number, w: number): void => { if (d[o]! + w < d[k]!) d[k] = d[o]! + w; };
-    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-        const k = j * nx + i;
-        if (i > 0) relax(k, k - 1, 1);
-        if (j > 0) relax(k, k - nx, 1);
-        if (i > 0 && j > 0) relax(k, k - nx - 1, Math.SQRT2);
-        if (i < nx - 1 && j > 0) relax(k, k - nx + 1, Math.SQRT2);
+    const rows = rowsAStep(nx, SWEPT_A_STEP);
+    for (let j = 0; j < nz; j++) {
+        if (j % rows === 0) yield at;
+        for (let i = 0; i < nx; i++) {
+            const k = j * nx + i;
+            if (i > 0) relax(k, k - 1, 1);
+            if (j > 0) relax(k, k - nx, 1);
+            if (i > 0 && j > 0) relax(k, k - nx - 1, Math.SQRT2);
+            if (i < nx - 1 && j > 0) relax(k, k - nx + 1, Math.SQRT2);
+        }
     }
-    for (let j = nz - 1; j >= 0; j--) for (let i = nx - 1; i >= 0; i--) {
-        const k = j * nx + i;
-        if (i < nx - 1) relax(k, k + 1, 1);
-        if (j < nz - 1) relax(k, k + nx, 1);
-        if (i < nx - 1 && j < nz - 1) relax(k, k + nx + 1, Math.SQRT2);
-        if (i > 0 && j < nz - 1) relax(k, k + nx - 1, Math.SQRT2);
+    for (let j = nz - 1; j >= 0; j--) {
+        if (j % rows === 0) yield at;
+        for (let i = nx - 1; i >= 0; i--) {
+            const k = j * nx + i;
+            if (i < nx - 1) relax(k, k + 1, 1);
+            if (j < nz - 1) relax(k, k + nx, 1);
+            if (i < nx - 1 && j < nz - 1) relax(k, k + nx + 1, Math.SQRT2);
+            if (i > 0 && j < nz - 1) relax(k, k + nx - 1, Math.SQRT2);
+        }
     }
     // The edge lies between two texels: half a texel from each.
     for (let k = 0; k < n; k++) if (d[k]! > 0 && d[k]! < 1e9) d[k] = d[k]! - 0.5;
