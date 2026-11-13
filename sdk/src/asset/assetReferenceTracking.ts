@@ -69,6 +69,9 @@ async function resolveAssetFields(
             for (const [key, value] of Object.entries(data)) {
                 const wasPath = typeof authored[key] === 'string';
                 if (wasPath) {
+                    // A path nothing resolved is still a string here, and a string written into a handle field is a path to
+                    // load: writing it back asked for this same load again, without end. It keeps the placeholder.
+                    if (typeof value === 'string') continue;
                     if (now[key] === (defaults[key] ?? 0)) patch[key] = value;
                 } else if (value !== authored[key]) {
                     patch[key] = value;

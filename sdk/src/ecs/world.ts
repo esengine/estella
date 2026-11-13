@@ -834,7 +834,7 @@ export class World {
         if (isBuiltinComponent(component)) {
             const refs = this.takeAssetRefs_(component, data as Record<string, unknown> | undefined);
             const merged = this.insertBuiltin_(entity, component, (refs?.clean ?? data) as Partial<ComponentData<C>>) as ComponentData<C>;
-            if (refs) this.resolveAssetRefs_(entity, component, refs.authored);
+            if (refs?.authored) this.resolveAssetRefs_(entity, component, refs.authored);
             return merged;
         }
         return this.insertScript_(entity, component as ComponentDef<any>, data) as ComponentData<C>;
@@ -854,7 +854,7 @@ export class World {
             const refs = this.takeAssetRefs_(component, data as Record<string, unknown>);
             if (refs) {
                 this.set(entity, component, refs.clean as ComponentData<C>);
-                this.resolveAssetRefs_(entity, component, refs.authored);
+                if (refs.authored) this.resolveAssetRefs_(entity, component, refs.authored);
                 return;
             }
             // `set` is insert-or-replace: adding a builtin the entity LACKS must run
@@ -928,21 +928,31 @@ export class World {
      * back as the path while the engine held 0, and nothing drew. A string in
      * one is a path to load — the same ref a scene file carries — so it leaves
      * the data here (the field takes its default until the load lands) and goes
-     * to the resolver.
+     * to the resolver. An empty string is no path: it names nothing, so it is the
+     * default and nobody is asked to load it (`authored` is null when that is all
+     * there was). Sent to the resolver it came back unresolved, was written again
+     * as a string, and asked for itself for good.
      */
     private takeAssetRefs_(
         component: AnyComponentDef, data: Record<string, unknown> | undefined,
-    ): { clean: Record<string, unknown>; authored: Record<string, unknown> } | null {
+    ): { clean: Record<string, unknown>; authored: Record<string, unknown> | null } | null {
         const fields = (component as { assetFields?: readonly { field: string }[] }).assetFields;
         if (!data || !fields || fields.length === 0) return null;
         let clean: Record<string, unknown> | null = null;
+        let paths = false;
         for (const { field } of fields) {
             const value = data[field];
             if (typeof value !== 'string') continue;
             clean ??= { ...data };
             clean[field] = (component._default as Record<string, unknown>)[field] ?? 0;
+            if (value !== '') paths = true;
         }
-        return clean ? { clean, authored: data } : null;
+        if (!clean) return null;
+        if (!paths) return { clean, authored: null };
+        // The resolver is handed the paths only: an empty one beside a real one is already the default above.
+        const authored: Record<string, unknown> = { ...data };
+        for (const { field } of fields) if (authored[field] === '') authored[field] = clean[field];
+        return { clean, authored };
     }
 
     private resolveAssetRefs_(entity: Entity, component: AnyComponentDef, authored: Record<string, unknown>): void {

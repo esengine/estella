@@ -106,6 +106,27 @@ describe('asset paths in engine-backed components', () => {
         expect(world.get(e, Sprite).texture).toBe(7);
     });
 
+    // An empty string names no asset, and nothing resolves it: it came back from the resolve still a string, was written back
+    // as one, and a string in a handle field is a path to load, so the write asked for the same load again, for good. A field
+    // of plants whose material had been cleared to '' put it on every cell it grew, and the packaged game stopped answering.
+    it('an empty path is no asset, and is asked for by nobody', async () => {
+        const mod = createMockModule();
+        const world = new World();
+        world.connectCpp(mod.getRegistry(), mod);
+        const backend = { fetchBinary: vi.fn(async () => new ArrayBuffer(8)), fetchText: vi.fn(async () => ''),
+            resolveUrl: (path: string) => `http://test/${path}` } as unknown as Backend;
+        const assets = Assets.create({ backend, catalog: Catalog.fromJson(catalogData), module: mockModule });
+        const preload = vi.spyOn(assets, 'preloadSceneAssets');
+        bindAssetReferenceTracking(world, assets, () => assets);
+        const e = world.spawn();
+        world.insert(e, Sprite, { texture: '' as never, size: { x: 3, y: 4 } });
+        world.set(e, Sprite, { ...world.get(e, Sprite), texture: '' as never });
+        await new Promise((r) => setTimeout(r, 120));
+        expect(preload).toHaveBeenCalledTimes(0);
+        expect(world.get(e, Sprite).texture).toBe(0);
+        expect(world.get(e, Sprite).size).toEqual({ x: 3, y: 4 });
+    });
+
     // A headless core (a server, the scale suite's world) has no resource manager
     // and loads nothing. Asking it to failed every path with an Error behind it:
     // 6000 a scene in the scale suite, which then ran its worker out of memory.
