@@ -5914,6 +5914,8 @@ bakedTint: Color
 color: Color
 cookie: number
 cookieSize: Vec2
+diffuseScale: number
+diffuseTint: Color
 drawEnvironment: boolean
 enabled: boolean
 environment: number

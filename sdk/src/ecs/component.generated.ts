@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, Canv
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '08d1bbb8d5e2107c';
+export const ABI_LAYOUT_HASH = '19dcbf4878f79091';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -545,6 +545,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             environmentRotation: 0,
             drawEnvironment: false,
             reflectionScale: 1,
+            diffuseScale: 1,
+            diffuseTint: { r: 1, g: 1, b: 1, a: 1 },
             reflectionSaturation: 1,
             bakedTint: { r: 1, g: 1, b: 1, a: 1 },
             hemisphere: false,
@@ -554,8 +556,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         renderableField: 'enabled',
         assetFields: [{ field: 'cookie', type: 'texture' as AssetFieldType }, { field: 'environment', type: 'environment' as AssetFieldType }],
         entityFields: [],
-        colorFields: ['color', 'bakedTint', 'groundColor'],
-        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerRadius', 'falloff', 'shadowStrength', 'cookieSize.x', 'cookieSize.y', 'innerAngle', 'outerAngle', 'shadowSoftness', 'sourceAngle', 'shadowDistance', 'groundColor.r', 'groundColor.g', 'groundColor.b', 'groundColor.a'],
+        colorFields: ['color', 'diffuseTint', 'bakedTint', 'groundColor'],
+        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerRadius', 'falloff', 'shadowStrength', 'cookieSize.x', 'cookieSize.y', 'innerAngle', 'outerAngle', 'shadowSoftness', 'sourceAngle', 'shadowDistance', 'diffuseScale', 'diffuseTint.r', 'diffuseTint.g', 'diffuseTint.b', 'diffuseTint.a', 'groundColor.r', 'groundColor.g', 'groundColor.b', 'groundColor.a'],
         fields: {
             type: { enum: [{ label: 'Point', value: 0 }, { label: 'Directional', value: 1 }, { label: 'Ambient', value: 2 }, { label: 'Spot', value: 3 }], tooltip: "Point, Directional, Ambient, or Spot." },
             intensity: { min: 0, tooltip: "Brightness multiplier of the light." },
@@ -581,6 +583,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             environmentRotation: { unit: "deg", tooltip: "Turn the environment about the up axis, in degrees.", shownWhen: { field: "type", values: [2] } },
             drawEnvironment: { tooltip: "Draw this environment as the sky behind the scene.", shownWhen: { field: "type", values: [2] } },
             reflectionScale: { min: 0, tooltip: "Scale what baked reflection probes show (1 = as baked).", advanced: true, shownWhen: { field: "type", values: [2] } },
+            diffuseScale: { min: 0, tooltip: "Scale the light the environment gives surfaces, not what they reflect of it (1 = as the sky gives it).", shownWhen: { field: "type", values: [2] } },
+            diffuseTint: { tooltip: "Tint the light the environment gives surfaces, not what they reflect of it (white = as the sky gives it).", shownWhen: { field: "type", values: [2] } },
             reflectionSaturation: { min: 0, max: 1, tooltip: "How much colour baked reflection probes keep (0 = grey).", advanced: true, shownWhen: { field: "type", values: [2] } },
             bakedTint: { tooltip: "Multiply baked indirect light (lightmaps, probe volumes) by this colour (1 = as baked).", advanced: true, shownWhen: { field: "type", values: [2] } },
             hemisphere: { tooltip: "Light from above in Color, from below in Ground Color, blended by which way a surface faces.", shownWhen: { field: "type", values: [2] } },
@@ -1757,6 +1761,8 @@ export interface LightData {
     environmentRotation: number;
     drawEnvironment: boolean;
     reflectionScale: number;
+    diffuseScale: number;
+    diffuseTint: Color;
     reflectionSaturation: number;
     bakedTint: Color;
     hemisphere: boolean;

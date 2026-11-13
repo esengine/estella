@@ -707,6 +707,8 @@ export interface Light {
     environmentRotation: number;
     drawEnvironment: boolean;
     reflectionScale: number;
+    diffuseScale: number;
+    diffuseTint: Vec4;
     reflectionSaturation: number;
     bakedTint: Vec4;
     hemisphere: boolean;

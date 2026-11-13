@@ -3968,6 +3968,19 @@
           "advanced": true
         },
         {
+          "key": "diffuseScale",
+          "type": "number",
+          "default": "1",
+          "doc": "Scale the light the environment gives surfaces, not what they reflect of it (1 = as the sky gives it).",
+          "range": "≥ 0"
+        },
+        {
+          "key": "diffuseTint",
+          "type": "Color",
+          "default": "#ffffff",
+          "doc": "Tint the light the environment gives surfaces, not what they reflect of it (white = as the sky gives it)."
+        },
+        {
           "key": "reflectionSaturation",
           "type": "number",
           "default": "1",
@@ -4017,6 +4030,11 @@
         "shadowSoftness",
         "sourceAngle",
         "shadowDistance",
+        "diffuseScale",
+        "diffuseTint.r",
+        "diffuseTint.g",
+        "diffuseTint.b",
+        "diffuseTint.a",
         "groundColor.r",
         "groundColor.g",
         "groundColor.b",

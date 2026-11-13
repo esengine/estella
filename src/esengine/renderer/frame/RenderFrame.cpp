@@ -2011,7 +2011,15 @@ bool RenderFrame::collectEnvironment(const ecs::Light& light, const glm::vec3& s
     const glm::vec4 params{textureId != 0 ? 1.0f : 0.0f, environment->maxRange,
                            static_cast<f32>(environment->mipCount) - 1.0f,
                            environment->faceSize};
-    const auto& irradiance = withoutSun ? environment->skyIrradiance : environment->irradiance;
+    const auto& baked = withoutSun ? environment->skyIrradiance : environment->irradiance;
+    // The diffuse half on its own: the nine coefficients carry only what a surface is lit by, and the tint the shader
+    // applies (scale) covers what it reflects as well, so this light's diffuse colour goes on the coefficients alone.
+    const glm::vec3 tint = linear_color_ ? srgbToLinearCpu(glm::vec3{light.diffuseTint}) : glm::vec3{light.diffuseTint};
+    const glm::vec3 diffuse = tint * std::max(light.diffuseScale, 0.0f);
+    auto irradiance = baked;
+    if (diffuse != glm::vec3(1.0f)) {
+        for (glm::vec3& c : irradiance) c *= diffuse;
+    }
     if (!context_.lights().setEnvironment(irradiance.data(), params, scale,
                                          glm::radians(light.environmentRotation))) {
         return false;

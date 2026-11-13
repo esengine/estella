@@ -5,7 +5,7 @@ Symbols: 115 public · 166 beta · 2190 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"08d1bbb8d5e2107c"
+"19dcbf4878f79091"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -5912,6 +5912,8 @@ bakedTint: Color
 color: Color
 cookie: number
 cookieSize: Vec2
+diffuseScale: number
+diffuseTint: Color
 drawEnvironment: boolean
 enabled: boolean
 environment: number

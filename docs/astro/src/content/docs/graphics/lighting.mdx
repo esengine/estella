@@ -69,6 +69,8 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `drawEnvironment` | `false` | Ambient only: also draw the environment as the sky behind the scene. |
 | `reflectionScale` | `1` | Ambient only: scale what baked reflection probes show (`1` = as baked). |
 | `reflectionSaturation` | `1` | Ambient only: how much colour baked reflection probes keep (`0` = grey). |
+| `diffuseScale` | `1` | Ambient only: scale the light the environment gives surfaces, not what they reflect of it or the sky drawn behind them (`1` = as the sky gives it). |
+| `diffuseTint` | `{1,1,1,1}` | Ambient only: tint the light the environment gives surfaces, not what they reflect of it (white = as the sky gives it). |
 | `bakedTint` | `{1,1,1,1}` | Ambient only: multiplies baked indirect light (lightmaps, probe volumes) — a day or weather scales the bake here. |
 | `enabled` | `true` | Turn the light off without removing it. |
 

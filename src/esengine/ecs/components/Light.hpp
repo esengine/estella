@@ -234,6 +234,20 @@ struct Light {
                 tooltip="Scale what baked reflection probes show (1 = as baked).")
     f32 reflectionScale{1.0f};
 
+    /** @brief What the light this Ambient light's environment gives a surface (its diffuse half, the sky's
+     *         irradiance) is multiplied by, apart from what a surface reflects of it: a scene can be lit warmer
+     *         or brighter than its sky looks, as Unreal's sky light is through its own colour. 1 = as the sky gives
+     *         it. A flat or Hemisphere ambient light has nothing to reflect apart from its Color, so this is its
+     *         environment's alone. */
+    ES_PROPERTY(min=0, animatable, shown_when=type:Ambient,
+                tooltip="Scale the light the environment gives surfaces, not what they reflect of it (1 = as the sky gives it).")
+    f32 diffuseScale{1.0f};
+
+    /** @brief The colour @ref diffuseScale's light is tinted by, authored as @ref color is. White = as the sky gives it. */
+    ES_PROPERTY(animatable, shown_when=type:Ambient,
+                tooltip="Tint the light the environment gives surfaces, not what they reflect of it (white = as the sky gives it).")
+    glm::vec4 diffuseTint{1.0f, 1.0f, 1.0f, 1.0f};
+
     /** @brief How much colour baked reflections keep: 1 as baked, 0 grey. An overcast
      *         sky drains colour from what it lights, and from what a probe mirrors. */
     ES_PROPERTY(min=0, max=1, shown_when=type:Ambient, advanced,
