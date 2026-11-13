@@ -4598,6 +4598,10 @@ export const NOTED = {
     {"note": "An AI can make a sound effect."},
   "feat(sound): variants write a sound event, a reference is drawn above the sound, and sound_read reads a recording - the model tools say groups, variants and references":
     {"note": "An AI can make a sound effect."},
+  "fix(sound): the tool text makes a footstep as a shoe on a floor - a blow on something that rings briefly, heel then ball of the foot, a scrape, and a place round it, where it taught the tick of a machine":
+    {"note": "An AI can make a sound effect."},
+  "chore(desktop): the sound tool text makes a footstep as a shoe on a floor":
+    {"note": "An AI can make a sound effect."},
   "feat(sky): a sky of your own shades the ground under its clouds - defineSkyEffect takes groundShadow and a second function, skyShadow(world, sun), what is left of the light at a world position, and the sky pass multiplies every surface it finds by it, as Sky Atmosphere does with its own clouds":
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":
