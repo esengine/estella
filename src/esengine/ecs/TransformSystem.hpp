@@ -302,6 +302,8 @@ private:
                         if (changedOut_) changedOut_->push_back(task.entity);
                         transform->cachedMatrix_ = matrix;
                         transform->decomposed_ = false;
+                        // Where it stands in the world changed (its own move or a parent's): a reader of Transform changes sees it.
+                        registry.markChanged<Transform>(task.entity);
                     }
                 } else if (keepStatic) {
                     flatCollapsed = registry.has<FlatGeometryCollapsed>(task.entity);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { onWorldUnitsPerMeter } from '../ecs/worldUnits';
+import { flushEngineStamps } from '../ecs/engineStamps';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import { CoreApiBridge } from '../wasm/CoreApiBridge';
 import { handleWasmError } from '../wasm/wasmError';
@@ -589,6 +590,8 @@ export const Renderer = {
     },
 
     updateTransforms(registry: { _cpp: CppRegistry }): void {
+        // The writes a script made this frame reach the engine's stamps before anything composes or draws from them.
+        flushEngineStamps(registry._cpp);
         backend?.updateTransforms(registry._cpp);
     },
 

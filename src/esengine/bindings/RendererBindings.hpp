@@ -466,6 +466,9 @@ double registry_componentMutationRevision(ecs::Registry& registry, u32 component
 // Output contains entity/flags/component-type rows. Returns -1 when the cursor or capacity
 // cannot cover the retained history; the caller must perform a full refresh.
 int registry_readEntityChanges(ecs::Registry& registry, double after, uintptr_t outputPtr, int capacity);
+// Stamps count components as written now, named by (component type id, entity) u32 pairs at pairsPtr: a script's writes, handed
+// over in one call rather than one call each (see World's engine stamps).
+void registry_markComponentsChanged(ecs::Registry& registry, uintptr_t pairsPtr, int count);
 // Read composed world poses for valid, active entities with a Transform.
 // Output has room for count EntityPose2D rows; returns the number written.
 int registry_readWorldPoses2D(ecs::Registry& registry, uintptr_t entitiesPtr, int count, uintptr_t outputPtr);

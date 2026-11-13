@@ -2505,6 +2505,8 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("isEntityEnabled", optional_override([](Registry& r, u32 entity) { return r.isEntityEnabled(static_cast<Entity>(entity)); }))
         .function("hasInactiveEntities", optional_override([](Registry& r) { return r.hasInactiveEntities(); }))
         .function("activityEpoch", optional_override([](Registry& r) { return r.activityEpoch(); }))
+        .function("markComponentChanged", optional_override([](Registry& r, u32 component, u32 entity) { r.markChangedById(component, static_cast<Entity>(entity)); }))
+        .function("componentChangedSince", optional_override([](Registry& r, u32 component, u32 entity, u32 tick) { return r.changedSinceById(component, static_cast<Entity>(entity), tick); }))
         .function("changeTick", optional_override([](Registry& r) { return r.changeTick(); }))
         .function("beginChangeRead", optional_override([](Registry& r) { return r.beginChangeRead(); }))
         .function("setChangeAudit", optional_override([](Registry& r, bool enabled) { r.setChangeAudit(enabled); }))

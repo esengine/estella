@@ -122,6 +122,10 @@ public:
     // Every component carries the tick of its last write beside it (see Registry::changeTick for what a tick is). Written by
     // whoever writes the component: Registry::patch and markChanged here, the generated setters from script.
 
+    /** @brief The tick of @p entity's last write here, 0 where it has no component: the type-erased changedTick. */
+    virtual u32 changedTickOf(Entity entity) const = 0;
+    /** @brief Stamps @p entity's component as written at @p tick (no-op where it has none): the type-erased markChanged. */
+    virtual void markChanged(Entity entity, u32 tick) = 0;
     /** @brief The tick of the last write to any component of this pool, or of the last add or remove: "anything since?" in O(1). */
     virtual u32 lastChangedTick() const = 0;
     /** @brief Notes an add or a remove at @p tick, which no stamp of a component that is still there records. */
@@ -350,8 +354,10 @@ public:
         return di != INVALID_INDEX && dense_[di] == entity ? changed_[di] : 0;
     }
 
+    u32 changedTickOf(Entity entity) const override { return changedTick(entity); }
+
     /** @brief Stamps @p entity's component with @p tick: it was written. No-op for an entity without one. */
-    void markChanged(Entity entity, u32 tick) {
+    void markChanged(Entity entity, u32 tick) override {
         const u32 di = denseIndexOf(entity);
         if (di == INVALID_INDEX || dense_[di] != entity) return;
         changed_[di] = tick;
@@ -403,7 +409,12 @@ public:
                 if (di == INVALID_INDEX || dense_[di] != entity) continue;  // removed since: the journal says so
                 if (tickAfter(changed_[di], copy.tick)) continue;           // written, and said so
                 bool same = false;
-                if constexpr (kAuditBytes) {
+                if constexpr (requires(const T& now, const T& kept) { { now.auditSame(kept) } -> std::convertible_to<bool>; }) {
+                    // The component says what unchanged is (a cache it fills lazily is no write): see Transform::auditSame.
+                    same = kAuditBytes
+                        ? components_[di].auditSame(*reinterpret_cast<const T*>(copy.bytes.data() + k * sizeof(T)))
+                        : components_[di].auditSame((*values)[k]);
+                } else if constexpr (kAuditBytes) {
                     same = std::memcmp(&components_[di], copy.bytes.data() + k * sizeof(T), sizeof(T)) == 0;
                 } else {
                     same = components_[di] == (*values)[k];

@@ -15,6 +15,11 @@ namespace {
 struct Pos { float x = 1.0f; float y = 2.0f; };
 struct Rank { int value = 0; };
 struct Named { std::string name; };  // neither trivially copyable nor comparable: the audit cannot check it
+struct Cached {                      // a value and a cache filled from it lazily: only the value is a write
+    int value = 0;
+    int cache = 0;
+    bool auditSame(const Cached& kept) const { return value == kept.value; }
+};
 struct Listed {                      // not trivially copyable, but says what equal is: checked by value
     std::vector<int> values;
     bool operator==(const Listed&) const = default;
@@ -134,6 +139,18 @@ int main() {
         r.setChangeAudit(false);
         r.get<Pos>(a).x = 1.0f;
         CHECK(r.auditChanges() == 0, "and nothing is checked while it is off");
+    }
+
+    // --- A component may say what unchanged is: a lazily filled cache is no write ---
+    {
+        Registry r;
+        const Entity a = r.create();
+        r.emplace<Cached>(a);
+        r.setChangeAudit(true);
+        r.get<Cached>(a).cache = 7;
+        CHECK(r.auditChanges() == 0, "a cache filled through get<T>() is not a write when the component says so (auditSame)");
+        r.get<Cached>(a).value = 7;
+        CHECK(r.auditChanges() == 1, "while its value written without a stamp still is");
     }
 
     // --- The audit names a type as the code spells it ---

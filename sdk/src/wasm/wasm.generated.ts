@@ -1165,6 +1165,10 @@ export interface Registry {
     hasInactiveEntities(): boolean;
     /** Bumped by every activity change. */
     activityEpoch(): number;
+    /** Stamps the entity's component of that type id (componentTypeId) as written now: a write made from script. */
+    markComponentChanged(component: number, entity: Entity): void;
+    /** Whether the entity's component of that type id was written after the tick (an answer of beginChangeRead). */
+    componentChangedSince(component: number, entity: Entity, tick: number): boolean;
     /** The tick a component write made now is stamped with. */
     changeTick(): number;
     /** For a reader about to look for changes: the tick it looks at; the clock then moves on. */

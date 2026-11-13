@@ -479,6 +479,12 @@ export function applyPhysics2DTransforms(
             const tPtr = getTransformPtr(entityId);
             if (tPtr) {
                 const fi = tPtr >> 2;
+                // The engine's readers of changes (the renderer) see a body that moved, and only one that did; Changed()
+                // queries stay out of it, as the note at the top of this function says. Compared as the f32s they will be.
+                if (engF32[fi] !== Math.fround(localX) || engF32[fi + 1] !== Math.fround(localY)
+                    || engF32[fi + 5] !== Math.fround(sinH) || engF32[fi + 6] !== Math.fround(cosH)) {
+                    app.world.stampEngineWrite(entityId as Entity, Transform);
+                }
                 // The local INPUT fields and nothing else. Scale (fi+7..9) is the
                 // scene's — clobbering it to 1 shrank a scaled dynamic body — and
                 // the composed world fields (fi+10..19) are TransformSystem's.

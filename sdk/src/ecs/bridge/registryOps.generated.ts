@@ -19,6 +19,8 @@ export const REGISTRY_OPS = {
     isEntityEnabled: 'es_registry_isEntityEnabled',
     hasInactiveEntities: 'es_registry_hasInactiveEntities',
     activityEpoch: 'es_registry_activityEpoch',
+    markComponentChanged: 'es_registry_markComponentChanged',
+    componentChangedSince: 'es_registry_componentChangedSince',
     changeTick: 'es_registry_changeTick',
     beginChangeRead: 'es_registry_beginChangeRead',
     setChangeAudit: 'es_registry_setChangeAudit',

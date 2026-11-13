@@ -19,6 +19,7 @@ import { ChangeTracker } from './ChangeTracker';
 import { QueryCache, type QueryCacheStats } from './QueryCache';
 import { rankByOrder, reorderMapByRank } from './entityOrder';
 import { worldEngineApi } from './bridge/engineApi';
+import { registerEngineStampFlush } from './engineStamps';
 import { withScratch } from '../wasm/wasmScratch';
 import { log } from '../util/logger';
 import { hasOwn } from '../util/ownProperties';
@@ -206,6 +207,9 @@ export class World {
 
     /** @internal */
     disconnectCpp(): void {
+        // What a script wrote is the engine's to know before the engine goes; and the buffer it is handed over in is its heap's.
+        this.flushEngineStamps();
+        this.releaseStampBuffer_();
         this.notifyCoreDisconnect_();
         this.addressOf_.clear();
         this.builtin_.disconnect();
@@ -1485,12 +1489,95 @@ export class World {
     /** @internal The frame runner's clock for change detection. */
     advanceTick(): void {
         this.changes_.advanceTick();
+        this.flushEngineStamps();
         // Once a frame, while the audit is on: the engine compares its components with the copy it kept and counts each one
         // whose bytes changed without a change stamp (Registry::auditChanges).
         if (this.changeAudit_) this.builtin_.getCppRegistry()?.auditChanges?.();
     }
 
     private changeAudit_ = false;
+    /** Engine type id by component, -1 where the engine has none; dropped when the engine's registry is replaced. */
+    private readonly engineTypeIds_ = new Map<AnyComponentDef, number>();
+    private engineTypeIdsFor_: unknown = null;
+
+    /** The engine-heap block stamps are handed over in, its room in pairs, and whose heap it is in. */
+    private stampBuffer_ = 0;
+    private stampBufferPairs_ = 0;
+    private stampBufferApi_: ReturnType<typeof worldEngineApi> = null;
+
+    private releaseStampBuffer_(): void {
+        if (this.stampBuffer_ !== 0) this.stampBufferApi_?._free?.(this.stampBuffer_);
+        this.stampBuffer_ = 0;
+        this.stampBufferPairs_ = 0;
+        this.stampBufferApi_ = null;
+    }
+
+    /** (engine type id, entity) pairs waiting to be stamped in the engine; see flushEngineStamps. */
+    private stampPairs_ = new Uint32Array(2 * 256);
+    private stampCount_ = 0;
+    private static readonly STAMP_BATCH = 8192;
+
+    /**
+     * @internal Stamps an engine component as written, in the engine, without telling this world's Changed() queries: what a
+     * write path deliberately outside them (physics moving bodies) still owes the engine's own readers of changes. Every write
+     * through set/insert/update/markChanged comes here too. Batched, and handed over by flushEngineStamps.
+     */
+    stampEngineWrite(entity: Entity, component: AnyComponentDef): void {
+        if (!isBuiltinComponent(component)) return;
+        const registry = this.builtin_.getCppRegistry();
+        if (!registry?.componentTypeId) return;
+        if (this.engineTypeIdsFor_ !== registry) {
+            this.flushEngineStamps();
+            this.engineTypeIds_.clear();
+            this.engineTypeIdsFor_ = registry;
+            registerEngineStampFlush(registry, () => this.flushEngineStamps());
+        }
+        let id = this.engineTypeIds_.get(component);
+        if (id === undefined) {
+            id = registry.componentTypeId(component._cppName);
+            this.engineTypeIds_.set(component, id);
+        }
+        if (id < 0) return;
+        if (this.stampCount_ * 2 >= this.stampPairs_.length) {
+            const grown = new Uint32Array(this.stampPairs_.length * 2);
+            grown.set(this.stampPairs_);
+            this.stampPairs_ = grown;
+        }
+        this.stampPairs_[this.stampCount_ * 2] = id;
+        this.stampPairs_[this.stampCount_ * 2 + 1] = entity as number;
+        if (++this.stampCount_ >= World.STAMP_BATCH) this.flushEngineStamps();
+    }
+
+    /**
+     * @internal Hands the batched stamps to the engine: one call where it takes a list (registry_markComponentsChanged), one each
+     * where it does not. The render pipeline calls it before the frame's transforms are composed, and the frame's tick before the
+     * audit; anything else in the engine that reads changes has to come after one of the two.
+     */
+    flushEngineStamps(): void {
+        const count = this.stampCount_;
+        if (count === 0) return;
+        this.stampCount_ = 0;
+        const registry = this.builtin_.getCppRegistry();
+        if (!registry || registry !== this.engineTypeIdsFor_) return;
+        const api = worldEngineApi(this);
+        if (api?.registry_markComponentsChanged && api._malloc && api._free && api.HEAPU32) {
+            // One block in the engine's heap, kept and grown: a hand-over a frame allocates nothing.
+            if (this.stampBuffer_ === 0 || this.stampBufferPairs_ < count || this.stampBufferApi_ !== api) {
+                this.releaseStampBuffer_();
+                this.stampBufferPairs_ = Math.max(count, 1024);
+                this.stampBuffer_ = api._malloc(this.stampBufferPairs_ * 8);
+                this.stampBufferApi_ = api;
+            }
+            if (this.stampBuffer_ !== 0) {
+                // The view is asked for after the allocation: a heap that grew detached the one from before.
+                api.HEAPU32.set(this.stampPairs_.subarray(0, count * 2), this.stampBuffer_ >>> 2);
+                api.registry_markComponentsChanged(registry, this.stampBuffer_, count);
+                return;
+            }
+        }
+        if (!registry.markComponentChanged) return;
+        for (let i = 0; i < count; i++) registry.markComponentChanged(this.stampPairs_[i * 2]!, this.stampPairs_[i * 2 + 1]!);
+    }
 
     /**
      * @internal Turns on the engine's change audit, for tests and gates: every frame from here on, a component written without
@@ -1721,6 +1808,9 @@ export class World {
      */
     private recordComponentWrite_(entity: Entity, component: AnyComponentDef): void {
         if (component._id === Disabled._id) this.builtin_.getCppRegistry()?.setEntityEnabled?.(entity, false);
+        // An engine component's write is stamped where the engine keeps it, beside the component: the engine's own readers
+        // (the renderer) ask there what changed, whoever wrote it.
+        if (isBuiltinComponent(component)) this.stampEngineWrite(entity, component);
         if (COMPOSITION_INPUTS.has(component._name)) {
             this.builtin_.invalidateTransformComposition();
         }

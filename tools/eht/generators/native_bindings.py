@@ -238,7 +238,9 @@ class NativeBindingsGenerator:
         """The entity ops as es_registry_<name>, from the table embind reads too."""
         out = []
         for op in REGISTRY_OPS:
-            args = [f'esn_entity(a[{i}])' if k == 'entity' else f'esjs::toBool(a[{i}])'
+            args = [f'esn_entity(a[{i}])' if k == 'entity'
+                    else f'static_cast<u32>(esjs::toNumber(a[{i}]))' if k == 'number'
+                    else f'esjs::toBool(a[{i}])'
                     for i, (_n, k) in enumerate(op.params)]
             call = op.call.replace('r.', 'esn_reg().', 1) if op.call.startswith('r.')                 else op.call.replace('(r,', '(esn_reg(),', 1)
             call = call.format(*args)

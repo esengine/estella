@@ -1381,7 +1381,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
     if (!reg.valid(entity)) return false;
     if (comp == "BitmapText") {
         if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::BitmapText>(entity);
+        auto& c = reg.patch<esengine::ecs::BitmapText>(entity);
         if (field == "color.r") { c.color.r = value; }
         else if (field == "color.g") { c.color.g = value; }
         else if (field == "color.b") { c.color.b = value; }
@@ -1394,7 +1394,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "BoxCollider2D") {
         if (!reg.has<esengine::ecs::BoxCollider2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::BoxCollider2D>(entity);
+        auto& c = reg.patch<esengine::ecs::BoxCollider2D>(entity);
         if (field == "halfExtents.x") { c.halfExtents.x = value; }
         else if (field == "halfExtents.y") { c.halfExtents.y = value; }
         else if (field == "offset.x") { c.offset.x = value; }
@@ -1406,7 +1406,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "BoxCollider3D") {
         if (!reg.has<esengine::ecs::BoxCollider3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::BoxCollider3D>(entity);
+        auto& c = reg.patch<esengine::ecs::BoxCollider3D>(entity);
         if (field == "halfExtents.x") { c.halfExtents.x = value; }
         else if (field == "halfExtents.y") { c.halfExtents.y = value; }
         else if (field == "halfExtents.z") { c.halfExtents.z = value; }
@@ -1419,7 +1419,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "Camera") {
         if (!reg.has<esengine::ecs::Camera>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Camera>(entity);
+        auto& c = reg.patch<esengine::ecs::Camera>(entity);
         if (field == "fov") { c.fov = value; }
         else if (field == "orthoSize") { c.orthoSize = value; }
         else if (field == "nearPlane") { c.nearPlane = value; }
@@ -1433,7 +1433,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "Canvas") {
         if (!reg.has<esengine::ecs::Canvas>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Canvas>(entity);
+        auto& c = reg.patch<esengine::ecs::Canvas>(entity);
         if (field == "pixelsPerUnit") { c.pixelsPerUnit = value; }
         else if (field == "matchWidthOrHeight") { c.matchWidthOrHeight = value; }
         else if (field == "backgroundColor.r") { c.backgroundColor.r = value; }
@@ -1444,7 +1444,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "CapsuleCollider2D") {
         if (!reg.has<esengine::ecs::CapsuleCollider2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::CapsuleCollider2D>(entity);
+        auto& c = reg.patch<esengine::ecs::CapsuleCollider2D>(entity);
         if (field == "radius") { c.radius = value; }
         else if (field == "halfHeight") { c.halfHeight = value; }
         else if (field == "offset.x") { c.offset.x = value; }
@@ -1456,7 +1456,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "CapsuleCollider3D") {
         if (!reg.has<esengine::ecs::CapsuleCollider3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::CapsuleCollider3D>(entity);
+        auto& c = reg.patch<esengine::ecs::CapsuleCollider3D>(entity);
         if (field == "radius") { c.radius = value; }
         else if (field == "halfHeight") { c.halfHeight = value; }
         else if (field == "center.x") { c.center.x = value; }
@@ -1468,7 +1468,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "CharacterController3D") {
         if (!reg.has<esengine::ecs::CharacterController3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::CharacterController3D>(entity);
+        auto& c = reg.patch<esengine::ecs::CharacterController3D>(entity);
         if (field == "velocity.x") { c.velocity.x = value; }
         else if (field == "velocity.y") { c.velocity.y = value; }
         else if (field == "velocity.z") { c.velocity.z = value; }
@@ -1489,7 +1489,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "CircleCollider2D") {
         if (!reg.has<esengine::ecs::CircleCollider2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::CircleCollider2D>(entity);
+        auto& c = reg.patch<esengine::ecs::CircleCollider2D>(entity);
         if (field == "radius") { c.radius = value; }
         else if (field == "offset.x") { c.offset.x = value; }
         else if (field == "offset.y") { c.offset.y = value; }
@@ -1500,7 +1500,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "ContentRect") {
         if (!reg.has<esengine::ecs::ContentRect>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ContentRect>(entity);
+        auto& c = reg.patch<esengine::ecs::ContentRect>(entity);
         if (field == "size.x") { c.size.x = value; }
         else if (field == "size.y") { c.size.y = value; }
         else if (field == "pivot.x") { c.pivot.x = value; }
@@ -1509,14 +1509,14 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "ConvexCollider3D") {
         if (!reg.has<esengine::ecs::ConvexCollider3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ConvexCollider3D>(entity);
+        auto& c = reg.patch<esengine::ecs::ConvexCollider3D>(entity);
         if (field == "friction") { c.friction = value; }
         else if (field == "restitution") { c.restitution = value; }
         else { return false; }
         return true;
     } else if (comp == "Draggable") {
         if (!reg.has<esengine::ecs::Draggable>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Draggable>(entity);
+        auto& c = reg.patch<esengine::ecs::Draggable>(entity);
         if (field == "dragThreshold") { c.dragThreshold = value; }
         else if (field == "constraintMin.x") { c.constraintMin.x = value; }
         else if (field == "constraintMin.y") { c.constraintMin.y = value; }
@@ -1526,7 +1526,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "DragonBonesAnimation") {
         if (!reg.has<esengine::ecs::DragonBonesAnimation>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::DragonBonesAnimation>(entity);
+        auto& c = reg.patch<esengine::ecs::DragonBonesAnimation>(entity);
         if (field == "timeScale") { c.timeScale = value; }
         else if (field == "fadeInTime") { c.fadeInTime = value; }
         else if (field == "color.r") { c.color.r = value; }
@@ -1538,7 +1538,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "FlexContainer") {
         if (!reg.has<esengine::ecs::FlexContainer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::FlexContainer>(entity);
+        auto& c = reg.patch<esengine::ecs::FlexContainer>(entity);
         if (field == "gap.x") { c.gap.x = value; }
         else if (field == "gap.y") { c.gap.y = value; }
         else if (field == "padding.left") { c.padding.left = value; }
@@ -1549,19 +1549,19 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "GroupOpacity") {
         if (!reg.has<esengine::ecs::GroupOpacity>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::GroupOpacity>(entity);
+        auto& c = reg.patch<esengine::ecs::GroupOpacity>(entity);
         if (field == "opacity") { c.opacity = value; }
         else { return false; }
         return true;
     } else if (comp == "Impostor") {
         if (!reg.has<esengine::ecs::Impostor>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Impostor>(entity);
+        auto& c = reg.patch<esengine::ecs::Impostor>(entity);
         if (field == "screenSize") { c.screenSize = value; }
         else { return false; }
         return true;
     } else if (comp == "LODGroup") {
         if (!reg.has<esengine::ecs::LODGroup>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::LODGroup>(entity);
+        auto& c = reg.patch<esengine::ecs::LODGroup>(entity);
         if (field == "lod1Size") { c.lod1Size = value; }
         else if (field == "lod2Size") { c.lod2Size = value; }
         else if (field == "lod3Size") { c.lod3Size = value; }
@@ -1571,7 +1571,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "Light") {
         if (!reg.has<esengine::ecs::Light>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Light>(entity);
+        auto& c = reg.patch<esengine::ecs::Light>(entity);
         if (field == "color.r") { c.color.r = value; }
         else if (field == "color.g") { c.color.g = value; }
         else if (field == "color.b") { c.color.b = value; }
@@ -1609,7 +1609,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "LightProbeVolume") {
         if (!reg.has<esengine::ecs::LightProbeVolume>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::LightProbeVolume>(entity);
+        auto& c = reg.patch<esengine::ecs::LightProbeVolume>(entity);
         if (field == "captureInterval") { c.captureInterval = value; }
         else if (field == "halfExtents.x") { c.halfExtents.x = value; }
         else if (field == "halfExtents.y") { c.halfExtents.y = value; }
@@ -1619,14 +1619,14 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "MeshCollider3D") {
         if (!reg.has<esengine::ecs::MeshCollider3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::MeshCollider3D>(entity);
+        auto& c = reg.patch<esengine::ecs::MeshCollider3D>(entity);
         if (field == "friction") { c.friction = value; }
         else if (field == "restitution") { c.restitution = value; }
         else { return false; }
         return true;
     } else if (comp == "MeshInstances") {
         if (!reg.has<esengine::ecs::MeshInstances>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::MeshInstances>(entity);
+        auto& c = reg.patch<esengine::ecs::MeshInstances>(entity);
         if (field == "lodDistance") { c.lodDistance = value; }
         else if (field == "minDistance") { c.minDistance = value; }
         else if (field == "drawDistance") { c.drawDistance = value; }
@@ -1635,7 +1635,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "MeshLightmap") {
         if (!reg.has<esengine::ecs::MeshLightmap>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::MeshLightmap>(entity);
+        auto& c = reg.patch<esengine::ecs::MeshLightmap>(entity);
         if (field == "scaleOffset.x") { c.scaleOffset.x = value; }
         else if (field == "scaleOffset.y") { c.scaleOffset.y = value; }
         else if (field == "scaleOffset.z") { c.scaleOffset.z = value; }
@@ -1644,7 +1644,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "MeshRenderer") {
         if (!reg.has<esengine::ecs::MeshRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::MeshRenderer>(entity);
+        auto& c = reg.patch<esengine::ecs::MeshRenderer>(entity);
         if (field == "color.r") { c.color.r = value; }
         else if (field == "color.g") { c.color.g = value; }
         else if (field == "color.b") { c.color.b = value; }
@@ -1655,7 +1655,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "Occluder") {
         if (!reg.has<esengine::ecs::Occluder>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Occluder>(entity);
+        auto& c = reg.patch<esengine::ecs::Occluder>(entity);
         if (field == "halfExtents.x") { c.halfExtents.x = value; }
         else if (field == "halfExtents.y") { c.halfExtents.y = value; }
         else if (field == "halfExtents.z") { c.halfExtents.z = value; }
@@ -1663,7 +1663,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "ParticleCollider") {
         if (!reg.has<esengine::ecs::ParticleCollider>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ParticleCollider>(entity);
+        auto& c = reg.patch<esengine::ecs::ParticleCollider>(entity);
         if (field == "radius") { c.radius = value; }
         else if (field == "halfHeight") { c.halfHeight = value; }
         else if (field == "halfExtents.x") { c.halfExtents.x = value; }
@@ -1673,7 +1673,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ParticleEmitter>(entity);
+        auto& c = reg.patch<esengine::ecs::ParticleEmitter>(entity);
         if (field == "rate") { c.rate = value; }
         else if (field == "burstInterval") { c.burstInterval = value; }
         else if (field == "duration") { c.duration = value; }
@@ -1738,7 +1738,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "ParticleForceField") {
         if (!reg.has<esengine::ecs::ParticleForceField>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ParticleForceField>(entity);
+        auto& c = reg.patch<esengine::ecs::ParticleForceField>(entity);
         if (field == "strength") { c.strength = value; }
         else if (field == "radius") { c.radius = value; }
         else if (field == "direction.x") { c.direction.x = value; }
@@ -1748,7 +1748,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "PlanarReflection") {
         if (!reg.has<esengine::ecs::PlanarReflection>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::PlanarReflection>(entity);
+        auto& c = reg.patch<esengine::ecs::PlanarReflection>(entity);
         if (field == "clipOffset") { c.clipOffset = value; }
         else if (field == "resolutionScale") { c.resolutionScale = value; }
         else if (field == "updatesPerSecond") { c.updatesPerSecond = value; }
@@ -1756,7 +1756,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "ReflectionProbe") {
         if (!reg.has<esengine::ecs::ReflectionProbe>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ReflectionProbe>(entity);
+        auto& c = reg.patch<esengine::ecs::ReflectionProbe>(entity);
         if (field == "halfExtents.x") { c.halfExtents.x = value; }
         else if (field == "halfExtents.y") { c.halfExtents.y = value; }
         else if (field == "halfExtents.z") { c.halfExtents.z = value; }
@@ -1764,7 +1764,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "RigidBody2D") {
         if (!reg.has<esengine::ecs::RigidBody2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::RigidBody2D>(entity);
+        auto& c = reg.patch<esengine::ecs::RigidBody2D>(entity);
         if (field == "gravityScale") { c.gravityScale = value; }
         else if (field == "linearDamping") { c.linearDamping = value; }
         else if (field == "angularDamping") { c.angularDamping = value; }
@@ -1772,7 +1772,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "RigidBody3D") {
         if (!reg.has<esengine::ecs::RigidBody3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::RigidBody3D>(entity);
+        auto& c = reg.patch<esengine::ecs::RigidBody3D>(entity);
         if (field == "gravityScale") { c.gravityScale = value; }
         else if (field == "linearDamping") { c.linearDamping = value; }
         else if (field == "angularDamping") { c.angularDamping = value; }
@@ -1781,7 +1781,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "SegmentCollider2D") {
         if (!reg.has<esengine::ecs::SegmentCollider2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SegmentCollider2D>(entity);
+        auto& c = reg.patch<esengine::ecs::SegmentCollider2D>(entity);
         if (field == "point1.x") { c.point1.x = value; }
         else if (field == "point1.y") { c.point1.y = value; }
         else if (field == "point2.x") { c.point2.x = value; }
@@ -1793,14 +1793,14 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "ShadowCaster2D") {
         if (!reg.has<esengine::ecs::ShadowCaster2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ShadowCaster2D>(entity);
+        auto& c = reg.patch<esengine::ecs::ShadowCaster2D>(entity);
         if (field == "size.x") { c.size.x = value; }
         else if (field == "size.y") { c.size.y = value; }
         else { return false; }
         return true;
     } else if (comp == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
+        auto& c = reg.patch<esengine::ecs::ShapeRenderer>(entity);
         if (field == "color.r") { c.color.r = value; }
         else if (field == "color.g") { c.color.g = value; }
         else if (field == "color.b") { c.color.b = value; }
@@ -1814,7 +1814,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "SphereCollider3D") {
         if (!reg.has<esengine::ecs::SphereCollider3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SphereCollider3D>(entity);
+        auto& c = reg.patch<esengine::ecs::SphereCollider3D>(entity);
         if (field == "radius") { c.radius = value; }
         else if (field == "center.x") { c.center.x = value; }
         else if (field == "center.y") { c.center.y = value; }
@@ -1825,7 +1825,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "SpineAnimation") {
         if (!reg.has<esengine::ecs::SpineAnimation>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SpineAnimation>(entity);
+        auto& c = reg.patch<esengine::ecs::SpineAnimation>(entity);
         if (field == "timeScale") { c.timeScale = value; }
         else if (field == "color.r") { c.color.r = value; }
         else if (field == "color.g") { c.color.g = value; }
@@ -1836,7 +1836,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "SpringBone") {
         if (!reg.has<esengine::ecs::SpringBone>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SpringBone>(entity);
+        auto& c = reg.patch<esengine::ecs::SpringBone>(entity);
         if (field == "stiffness") { c.stiffness = value; }
         else if (field == "drag") { c.drag = value; }
         else if (field == "gravity.x") { c.gravity.x = value; }
@@ -1854,7 +1854,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "SpringBoneCollider") {
         if (!reg.has<esengine::ecs::SpringBoneCollider>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SpringBoneCollider>(entity);
+        auto& c = reg.patch<esengine::ecs::SpringBoneCollider>(entity);
         if (field == "radius") { c.radius = value; }
         else if (field == "height") { c.height = value; }
         else if (field == "offset.x") { c.offset.x = value; }
@@ -1864,7 +1864,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "Sprite") {
         if (!reg.has<esengine::ecs::Sprite>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Sprite>(entity);
+        auto& c = reg.patch<esengine::ecs::Sprite>(entity);
         if (field == "color.r") { c.color.r = value; }
         else if (field == "color.g") { c.color.g = value; }
         else if (field == "color.b") { c.color.b = value; }
@@ -1887,13 +1887,13 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "SpriteMask") {
         if (!reg.has<esengine::ecs::SpriteMask>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SpriteMask>(entity);
+        auto& c = reg.patch<esengine::ecs::SpriteMask>(entity);
         if (field == "alphaCutoff") { c.alphaCutoff = value; }
         else { return false; }
         return true;
     } else if (comp == "TilemapLayer") {
         if (!reg.has<esengine::ecs::TilemapLayer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::TilemapLayer>(entity);
+        auto& c = reg.patch<esengine::ecs::TilemapLayer>(entity);
         if (field == "cellSize.x") { c.cellSize.x = value; }
         else if (field == "cellSize.y") { c.cellSize.y = value; }
         else if (field == "hexSideLength") { c.hexSideLength = value; }
@@ -1910,7 +1910,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "TrailRenderer") {
         if (!reg.has<esengine::ecs::TrailRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::TrailRenderer>(entity);
+        auto& c = reg.patch<esengine::ecs::TrailRenderer>(entity);
         if (field == "time") { c.time = value; }
         else if (field == "minVertexDistance") { c.minVertexDistance = value; }
         else if (field == "startWidth") { c.startWidth = value; }
@@ -1927,7 +1927,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "Transform") {
         if (!reg.has<esengine::ecs::Transform>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Transform>(entity);
+        auto& c = reg.patch<esengine::ecs::Transform>(entity);
         if (field == "position.x") { c.position.x = value; }
         else if (field == "position.y") { c.position.y = value; }
         else if (field == "position.z") { c.position.z = value; }
@@ -1954,13 +1954,13 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "UIMask") {
         if (!reg.has<esengine::ecs::UIMask>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIMask>(entity);
+        auto& c = reg.patch<esengine::ecs::UIMask>(entity);
         if (field == "alphaCutoff") { c.alphaCutoff = value; }
         else { return false; }
         return true;
     } else if (comp == "UINode") {
         if (!reg.has<esengine::ecs::UINode>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UINode>(entity);
+        auto& c = reg.patch<esengine::ecs::UINode>(entity);
         if (field == "opacity") { c.opacity = value; }
         else if (field == "width.value") { c.width.value = value; }
         else if (field == "width.unit") { c.width.unit = value; }
@@ -1998,14 +1998,14 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "UIScroll") {
         if (!reg.has<esengine::ecs::UIScroll>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIScroll>(entity);
+        auto& c = reg.patch<esengine::ecs::UIScroll>(entity);
         if (field == "wheelSpeed") { c.wheelSpeed = value; }
         else if (field == "decelerationRate") { c.decelerationRate = value; }
         else { return false; }
         return true;
     } else if (comp == "UIVisual") {
         if (!reg.has<esengine::ecs::UIVisual>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIVisual>(entity);
+        auto& c = reg.patch<esengine::ecs::UIVisual>(entity);
         if (field == "color.r") { c.color.r = value; }
         else if (field == "color.g") { c.color.g = value; }
         else if (field == "color.b") { c.color.b = value; }
@@ -2025,7 +2025,7 @@ bool editor_setFloat(Registry& reg, u32 e, const std::string& comp, const std::s
         return true;
     } else if (comp == "Velocity") {
         if (!reg.has<esengine::ecs::Velocity>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Velocity>(entity);
+        auto& c = reg.patch<esengine::ecs::Velocity>(entity);
         if (field == "linear.x") { c.linear.x = value; }
         else if (field == "linear.y") { c.linear.y = value; }
         else if (field == "linear.z") { c.linear.z = value; }
@@ -2600,13 +2600,13 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
     if (!reg.valid(entity)) return false;
     if (comp == "Billboard") {
         if (!reg.has<esengine::ecs::Billboard>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Billboard>(entity);
+        auto& c = reg.patch<esengine::ecs::Billboard>(entity);
         if (field == "mode") { c.mode = static_cast<i32>(value); }
         else { return false; }
         return true;
     } else if (comp == "BitmapText") {
         if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::BitmapText>(entity);
+        auto& c = reg.patch<esengine::ecs::BitmapText>(entity);
         if (field == "align") { c.align = static_cast<TextAlign>(value); }
         else if (field == "layer") { c.layer = static_cast<i32>(value); }
         else if (field == "font") { c.font = resource::BitmapFontHandle(static_cast<u32>(value)); }
@@ -2614,14 +2614,14 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         return true;
     } else if (comp == "BoxCollider2D") {
         if (!reg.has<esengine::ecs::BoxCollider2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::BoxCollider2D>(entity);
+        auto& c = reg.patch<esengine::ecs::BoxCollider2D>(entity);
         if (field == "categoryBits") { c.categoryBits = static_cast<u32>(value); }
         else if (field == "maskBits") { c.maskBits = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "Camera") {
         if (!reg.has<esengine::ecs::Camera>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Camera>(entity);
+        auto& c = reg.patch<esengine::ecs::Camera>(entity);
         if (field == "projectionType") { c.projectionType = static_cast<ProjectionType>(value); }
         else if (field == "priority") { c.priority = static_cast<i32>(value); }
         else if (field == "clearFlags") { c.clearFlags = static_cast<ClearFlags>(value); }
@@ -2631,47 +2631,47 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         return true;
     } else if (comp == "Canvas") {
         if (!reg.has<esengine::ecs::Canvas>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Canvas>(entity);
+        auto& c = reg.patch<esengine::ecs::Canvas>(entity);
         if (field == "scaleMode") { c.scaleMode = static_cast<CanvasScaleMode>(value); }
         else if (field == "layer") { c.layer = static_cast<i32>(value); }
         else { return false; }
         return true;
     } else if (comp == "CapsuleCollider2D") {
         if (!reg.has<esengine::ecs::CapsuleCollider2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::CapsuleCollider2D>(entity);
+        auto& c = reg.patch<esengine::ecs::CapsuleCollider2D>(entity);
         if (field == "categoryBits") { c.categoryBits = static_cast<u32>(value); }
         else if (field == "maskBits") { c.maskBits = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "CharacterController3D") {
         if (!reg.has<esengine::ecs::CharacterController3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::CharacterController3D>(entity);
+        auto& c = reg.patch<esengine::ecs::CharacterController3D>(entity);
         if (field == "layer") { c.layer = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "CircleCollider2D") {
         if (!reg.has<esengine::ecs::CircleCollider2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::CircleCollider2D>(entity);
+        auto& c = reg.patch<esengine::ecs::CircleCollider2D>(entity);
         if (field == "categoryBits") { c.categoryBits = static_cast<u32>(value); }
         else if (field == "maskBits") { c.maskBits = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "ConvexCollider3D") {
         if (!reg.has<esengine::ecs::ConvexCollider3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ConvexCollider3D>(entity);
+        auto& c = reg.patch<esengine::ecs::ConvexCollider3D>(entity);
         if (field == "mesh") { c.mesh = resource::MeshHandle(static_cast<u32>(value)); }
         else { return false; }
         return true;
     } else if (comp == "DragonBonesAnimation") {
         if (!reg.has<esengine::ecs::DragonBonesAnimation>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::DragonBonesAnimation>(entity);
+        auto& c = reg.patch<esengine::ecs::DragonBonesAnimation>(entity);
         if (field == "layer") { c.layer = static_cast<i32>(value); }
         else if (field == "material") { c.material = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "FlexContainer") {
         if (!reg.has<esengine::ecs::FlexContainer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::FlexContainer>(entity);
+        auto& c = reg.patch<esengine::ecs::FlexContainer>(entity);
         if (field == "direction") { c.direction = static_cast<FlexDirection>(value); }
         else if (field == "wrap") { c.wrap = static_cast<FlexWrap>(value); }
         else if (field == "justifyContent") { c.justifyContent = static_cast<JustifyContent>(value); }
@@ -2681,14 +2681,14 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         return true;
     } else if (comp == "Impostor") {
         if (!reg.has<esengine::ecs::Impostor>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Impostor>(entity);
+        auto& c = reg.patch<esengine::ecs::Impostor>(entity);
         if (field == "frames") { c.frames = static_cast<i32>(value); }
         else if (field == "resolution") { c.resolution = static_cast<i32>(value); }
         else { return false; }
         return true;
     } else if (comp == "LODGroup") {
         if (!reg.has<esengine::ecs::LODGroup>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::LODGroup>(entity);
+        auto& c = reg.patch<esengine::ecs::LODGroup>(entity);
         if (field == "lod1") { c.lod1 = resource::MeshHandle(static_cast<u32>(value)); }
         else if (field == "lod2") { c.lod2 = resource::MeshHandle(static_cast<u32>(value)); }
         else if (field == "lod3") { c.lod3 = resource::MeshHandle(static_cast<u32>(value)); }
@@ -2696,7 +2696,7 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         return true;
     } else if (comp == "Light") {
         if (!reg.has<esengine::ecs::Light>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Light>(entity);
+        auto& c = reg.patch<esengine::ecs::Light>(entity);
         if (field == "type") { c.type = static_cast<i32>(value); }
         else if (field == "layerMin") { c.layerMin = static_cast<i32>(value); }
         else if (field == "layerMax") { c.layerMax = static_cast<i32>(value); }
@@ -2706,32 +2706,32 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         return true;
     } else if (comp == "LightProbeVolume") {
         if (!reg.has<esengine::ecs::LightProbeVolume>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::LightProbeVolume>(entity);
+        auto& c = reg.patch<esengine::ecs::LightProbeVolume>(entity);
         if (field == "probes") { c.probes = resource::ProbeVolumeHandle(static_cast<u32>(value)); }
         else { return false; }
         return true;
     } else if (comp == "MeshCollider3D") {
         if (!reg.has<esengine::ecs::MeshCollider3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::MeshCollider3D>(entity);
+        auto& c = reg.patch<esengine::ecs::MeshCollider3D>(entity);
         if (field == "mesh") { c.mesh = resource::MeshHandle(static_cast<u32>(value)); }
         else if (field == "layer") { c.layer = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "MeshInstances") {
         if (!reg.has<esengine::ecs::MeshInstances>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::MeshInstances>(entity);
+        auto& c = reg.patch<esengine::ecs::MeshInstances>(entity);
         if (field == "lod1Mesh") { c.lod1Mesh = resource::MeshHandle(static_cast<u32>(value)); }
         else { return false; }
         return true;
     } else if (comp == "MeshLightmap") {
         if (!reg.has<esengine::ecs::MeshLightmap>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::MeshLightmap>(entity);
+        auto& c = reg.patch<esengine::ecs::MeshLightmap>(entity);
         if (field == "lightmap") { c.lightmap = resource::TextureHandle(static_cast<u32>(value)); }
         else { return false; }
         return true;
     } else if (comp == "MeshRenderer") {
         if (!reg.has<esengine::ecs::MeshRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::MeshRenderer>(entity);
+        auto& c = reg.patch<esengine::ecs::MeshRenderer>(entity);
         if (field == "texture") { c.texture = resource::TextureHandle(static_cast<u32>(value)); }
         else if (field == "normalMap") { c.normalMap = resource::TextureHandle(static_cast<u32>(value)); }
         else if (field == "layer") { c.layer = static_cast<i32>(value); }
@@ -2745,14 +2745,14 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         return true;
     } else if (comp == "ParticleCollider") {
         if (!reg.has<esengine::ecs::ParticleCollider>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ParticleCollider>(entity);
+        auto& c = reg.patch<esengine::ecs::ParticleCollider>(entity);
         if (field == "shape") { c.shape = static_cast<i32>(value); }
         else if (field == "mask") { c.mask = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ParticleEmitter>(entity);
+        auto& c = reg.patch<esengine::ecs::ParticleEmitter>(entity);
         if (field == "burstCount") { c.burstCount = static_cast<i32>(value); }
         else if (field == "maxParticles") { c.maxParticles = static_cast<i32>(value); }
         else if (field == "shape") { c.shape = static_cast<i32>(value); }
@@ -2779,13 +2779,13 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         return true;
     } else if (comp == "ParticleForceField") {
         if (!reg.has<esengine::ecs::ParticleForceField>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ParticleForceField>(entity);
+        auto& c = reg.patch<esengine::ecs::ParticleForceField>(entity);
         if (field == "type") { c.type = static_cast<i32>(value); }
         else { return false; }
         return true;
     } else if (comp == "PlanarReflection") {
         if (!reg.has<esengine::ecs::PlanarReflection>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::PlanarReflection>(entity);
+        auto& c = reg.patch<esengine::ecs::PlanarReflection>(entity);
         if (field == "axis") { c.axis = static_cast<ReflectionAxis>(value); }
         else if (field == "cullingMask") { c.cullingMask = static_cast<u32>(value); }
         else if (field == "quality") { c.quality = static_cast<ReflectionQuality>(value); }
@@ -2796,61 +2796,61 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         return true;
     } else if (comp == "ReflectionProbe") {
         if (!reg.has<esengine::ecs::ReflectionProbe>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ReflectionProbe>(entity);
+        auto& c = reg.patch<esengine::ecs::ReflectionProbe>(entity);
         if (field == "reflection") { c.reflection = resource::EnvironmentHandle(static_cast<u32>(value)); }
         else if (field == "slot") { c.slot = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "RigidBody2D") {
         if (!reg.has<esengine::ecs::RigidBody2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::RigidBody2D>(entity);
+        auto& c = reg.patch<esengine::ecs::RigidBody2D>(entity);
         if (field == "bodyType") { c.bodyType = static_cast<BodyType>(value); }
         else { return false; }
         return true;
     } else if (comp == "RigidBody3D") {
         if (!reg.has<esengine::ecs::RigidBody3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::RigidBody3D>(entity);
+        auto& c = reg.patch<esengine::ecs::RigidBody3D>(entity);
         if (field == "bodyType") { c.bodyType = static_cast<BodyType>(value); }
         else if (field == "layer") { c.layer = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "SegmentCollider2D") {
         if (!reg.has<esengine::ecs::SegmentCollider2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SegmentCollider2D>(entity);
+        auto& c = reg.patch<esengine::ecs::SegmentCollider2D>(entity);
         if (field == "categoryBits") { c.categoryBits = static_cast<u32>(value); }
         else if (field == "maskBits") { c.maskBits = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
+        auto& c = reg.patch<esengine::ecs::ShapeRenderer>(entity);
         if (field == "shapeType") { c.shapeType = static_cast<u8>(value); }
         else if (field == "layer") { c.layer = static_cast<i32>(value); }
         else { return false; }
         return true;
     } else if (comp == "SortingGroup") {
         if (!reg.has<esengine::ecs::SortingGroup>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SortingGroup>(entity);
+        auto& c = reg.patch<esengine::ecs::SortingGroup>(entity);
         if (field == "layer") { c.layer = static_cast<i32>(value); }
         else if (field == "order") { c.order = static_cast<i32>(value); }
         else { return false; }
         return true;
     } else if (comp == "SpineAnimation") {
         if (!reg.has<esengine::ecs::SpineAnimation>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SpineAnimation>(entity);
+        auto& c = reg.patch<esengine::ecs::SpineAnimation>(entity);
         if (field == "layer") { c.layer = static_cast<i32>(value); }
         else if (field == "material") { c.material = static_cast<u32>(value); }
         else { return false; }
         return true;
     } else if (comp == "SpringBoneCollider") {
         if (!reg.has<esengine::ecs::SpringBoneCollider>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SpringBoneCollider>(entity);
+        auto& c = reg.patch<esengine::ecs::SpringBoneCollider>(entity);
         if (field == "shape") { c.shape = static_cast<SpringBoneShape>(value); }
         else { return false; }
         return true;
     } else if (comp == "Sprite") {
         if (!reg.has<esengine::ecs::Sprite>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Sprite>(entity);
+        auto& c = reg.patch<esengine::ecs::Sprite>(entity);
         if (field == "texture") { c.texture = resource::TextureHandle(static_cast<u32>(value)); }
         else if (field == "layer") { c.layer = static_cast<i32>(value); }
         else if (field == "order") { c.order = static_cast<i32>(value); }
@@ -2861,14 +2861,14 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         return true;
     } else if (comp == "SpriteMask") {
         if (!reg.has<esengine::ecs::SpriteMask>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SpriteMask>(entity);
+        auto& c = reg.patch<esengine::ecs::SpriteMask>(entity);
         if (field == "rangeEndLayer") { c.rangeEndLayer = static_cast<i32>(value); }
         else if (field == "rangeEndOrder") { c.rangeEndOrder = static_cast<i32>(value); }
         else { return false; }
         return true;
     } else if (comp == "TilemapLayer") {
         if (!reg.has<esengine::ecs::TilemapLayer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::TilemapLayer>(entity);
+        auto& c = reg.patch<esengine::ecs::TilemapLayer>(entity);
         if (field == "orientation") { c.orientation = static_cast<u8>(value); }
         else if (field == "staggerAxis") { c.staggerAxis = static_cast<u8>(value); }
         else if (field == "staggerIndex") { c.staggerIndex = static_cast<u8>(value); }
@@ -2879,7 +2879,7 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         return true;
     } else if (comp == "TrailRenderer") {
         if (!reg.has<esengine::ecs::TrailRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::TrailRenderer>(entity);
+        auto& c = reg.patch<esengine::ecs::TrailRenderer>(entity);
         if (field == "texture") { c.texture = resource::TextureHandle(static_cast<u32>(value)); }
         else if (field == "blendMode") { c.blendMode = static_cast<i32>(value); }
         else if (field == "layer") { c.layer = static_cast<i32>(value); }
@@ -2888,13 +2888,13 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         return true;
     } else if (comp == "UIMask") {
         if (!reg.has<esengine::ecs::UIMask>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIMask>(entity);
+        auto& c = reg.patch<esengine::ecs::UIMask>(entity);
         if (field == "mode") { c.mode = static_cast<MaskMode>(value); }
         else { return false; }
         return true;
     } else if (comp == "UINode") {
         if (!reg.has<esengine::ecs::UINode>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UINode>(entity);
+        auto& c = reg.patch<esengine::ecs::UINode>(entity);
         if (field == "position") { c.position = static_cast<UIPositionType>(value); }
         else if (field == "display") { c.display = static_cast<UIDisplay>(value); }
         else if (field == "pointerEvents") { c.pointerEvents = static_cast<UIPointerEvents>(value); }
@@ -2903,14 +2903,14 @@ bool editor_setInt(Registry& reg, u32 e, const std::string& comp, const std::str
         return true;
     } else if (comp == "UIScroll") {
         if (!reg.has<esengine::ecs::UIScroll>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIScroll>(entity);
+        auto& c = reg.patch<esengine::ecs::UIScroll>(entity);
         if (field == "content") { c.content = static_cast<u32>(value); }
         else if (field == "movement") { c.movement = static_cast<ScrollMovement>(value); }
         else { return false; }
         return true;
     } else if (comp == "UIVisual") {
         if (!reg.has<esengine::ecs::UIVisual>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIVisual>(entity);
+        auto& c = reg.patch<esengine::ecs::UIVisual>(entity);
         if (field == "visualType") { c.visualType = static_cast<UIVisualType>(value); }
         else if (field == "texture") { c.texture = resource::TextureHandle(static_cast<u32>(value)); }
         else if (field == "fit") { c.fit = static_cast<UIVisualFit>(value); }
@@ -3182,75 +3182,75 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
     if (!reg.valid(entity)) return false;
     if (comp == "Billboard") {
         if (!reg.has<esengine::ecs::Billboard>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Billboard>(entity);
+        auto& c = reg.patch<esengine::ecs::Billboard>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "BitmapText") {
         if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::BitmapText>(entity);
+        auto& c = reg.patch<esengine::ecs::BitmapText>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "BoxCollider2D") {
         if (!reg.has<esengine::ecs::BoxCollider2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::BoxCollider2D>(entity);
+        auto& c = reg.patch<esengine::ecs::BoxCollider2D>(entity);
         if (field == "isSensor") { c.isSensor = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "BoxCollider3D") {
         if (!reg.has<esengine::ecs::BoxCollider3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::BoxCollider3D>(entity);
+        auto& c = reg.patch<esengine::ecs::BoxCollider3D>(entity);
         if (field == "isSensor") { c.isSensor = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "Camera") {
         if (!reg.has<esengine::ecs::Camera>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Camera>(entity);
+        auto& c = reg.patch<esengine::ecs::Camera>(entity);
         if (field == "isActive") { c.isActive = value; }
         else if (field == "pixelPerfect") { c.pixelPerfect = value; }
         else { return false; }
         return true;
     } else if (comp == "CapsuleCollider2D") {
         if (!reg.has<esengine::ecs::CapsuleCollider2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::CapsuleCollider2D>(entity);
+        auto& c = reg.patch<esengine::ecs::CapsuleCollider2D>(entity);
         if (field == "isSensor") { c.isSensor = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "CapsuleCollider3D") {
         if (!reg.has<esengine::ecs::CapsuleCollider3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::CapsuleCollider3D>(entity);
+        auto& c = reg.patch<esengine::ecs::CapsuleCollider3D>(entity);
         if (field == "isSensor") { c.isSensor = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "CharacterController3D") {
         if (!reg.has<esengine::ecs::CharacterController3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::CharacterController3D>(entity);
+        auto& c = reg.patch<esengine::ecs::CharacterController3D>(entity);
         if (field == "enabled") { c.enabled = value; }
         else if (field == "isOnFloor") { c.isOnFloor = value; }
         else { return false; }
         return true;
     } else if (comp == "CircleCollider2D") {
         if (!reg.has<esengine::ecs::CircleCollider2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::CircleCollider2D>(entity);
+        auto& c = reg.patch<esengine::ecs::CircleCollider2D>(entity);
         if (field == "isSensor") { c.isSensor = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "ConvexCollider3D") {
         if (!reg.has<esengine::ecs::ConvexCollider3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ConvexCollider3D>(entity);
+        auto& c = reg.patch<esengine::ecs::ConvexCollider3D>(entity);
         if (field == "isSensor") { c.isSensor = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "Draggable") {
         if (!reg.has<esengine::ecs::Draggable>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Draggable>(entity);
+        auto& c = reg.patch<esengine::ecs::Draggable>(entity);
         if (field == "enabled") { c.enabled = value; }
         else if (field == "lockX") { c.lockX = value; }
         else if (field == "lockY") { c.lockY = value; }
@@ -3260,7 +3260,7 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         return true;
     } else if (comp == "DragonBonesAnimation") {
         if (!reg.has<esengine::ecs::DragonBonesAnimation>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::DragonBonesAnimation>(entity);
+        auto& c = reg.patch<esengine::ecs::DragonBonesAnimation>(entity);
         if (field == "loop") { c.loop = value; }
         else if (field == "playing") { c.playing = value; }
         else if (field == "flipX") { c.flipX = value; }
@@ -3270,19 +3270,19 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         return true;
     } else if (comp == "GroupOpacity") {
         if (!reg.has<esengine::ecs::GroupOpacity>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::GroupOpacity>(entity);
+        auto& c = reg.patch<esengine::ecs::GroupOpacity>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "Impostor") {
         if (!reg.has<esengine::ecs::Impostor>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Impostor>(entity);
+        auto& c = reg.patch<esengine::ecs::Impostor>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "Interactable") {
         if (!reg.has<esengine::ecs::Interactable>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Interactable>(entity);
+        auto& c = reg.patch<esengine::ecs::Interactable>(entity);
         if (field == "enabled") { c.enabled = value; }
         else if (field == "blockRaycast") { c.blockRaycast = value; }
         else if (field == "raycastTarget") { c.raycastTarget = value; }
@@ -3290,13 +3290,13 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         return true;
     } else if (comp == "LODGroup") {
         if (!reg.has<esengine::ecs::LODGroup>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::LODGroup>(entity);
+        auto& c = reg.patch<esengine::ecs::LODGroup>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "Light") {
         if (!reg.has<esengine::ecs::Light>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Light>(entity);
+        auto& c = reg.patch<esengine::ecs::Light>(entity);
         if (field == "inverseSquare") { c.inverseSquare = value; }
         else if (field == "meshShadows") { c.meshShadows = value; }
         else if (field == "followEnvironmentSun") { c.followEnvironmentSun = value; }
@@ -3308,20 +3308,20 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         return true;
     } else if (comp == "LightProbeVolume") {
         if (!reg.has<esengine::ecs::LightProbeVolume>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::LightProbeVolume>(entity);
+        auto& c = reg.patch<esengine::ecs::LightProbeVolume>(entity);
         if (field == "capture") { c.capture = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "MeshCollider3D") {
         if (!reg.has<esengine::ecs::MeshCollider3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::MeshCollider3D>(entity);
+        auto& c = reg.patch<esengine::ecs::MeshCollider3D>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "MeshRenderer") {
         if (!reg.has<esengine::ecs::MeshRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::MeshRenderer>(entity);
+        auto& c = reg.patch<esengine::ecs::MeshRenderer>(entity);
         if (field == "opaque") { c.opaque = value; }
         else if (field == "cullBackfaces") { c.cullBackfaces = value; }
         else if (field == "lit") { c.lit = value; }
@@ -3331,20 +3331,20 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         return true;
     } else if (comp == "Occluder") {
         if (!reg.has<esengine::ecs::Occluder>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Occluder>(entity);
+        auto& c = reg.patch<esengine::ecs::Occluder>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "ParticleCollider") {
         if (!reg.has<esengine::ecs::ParticleCollider>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ParticleCollider>(entity);
+        auto& c = reg.patch<esengine::ecs::ParticleCollider>(entity);
         if (field == "inverted") { c.inverted = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "ParticleEmitter") {
         if (!reg.has<esengine::ecs::ParticleEmitter>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ParticleEmitter>(entity);
+        auto& c = reg.patch<esengine::ecs::ParticleEmitter>(entity);
         if (field == "looping") { c.looping = value; }
         else if (field == "playOnStart") { c.playOnStart = value; }
         else if (field == "gpuSimulation") { c.gpuSimulation = value; }
@@ -3357,26 +3357,26 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         return true;
     } else if (comp == "ParticleForceField") {
         if (!reg.has<esengine::ecs::ParticleForceField>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ParticleForceField>(entity);
+        auto& c = reg.patch<esengine::ecs::ParticleForceField>(entity);
         if (field == "falloff") { c.falloff = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "PlanarReflection") {
         if (!reg.has<esengine::ecs::PlanarReflection>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::PlanarReflection>(entity);
+        auto& c = reg.patch<esengine::ecs::PlanarReflection>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "ReflectionProbe") {
         if (!reg.has<esengine::ecs::ReflectionProbe>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ReflectionProbe>(entity);
+        auto& c = reg.patch<esengine::ecs::ReflectionProbe>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "RigidBody2D") {
         if (!reg.has<esengine::ecs::RigidBody2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::RigidBody2D>(entity);
+        auto& c = reg.patch<esengine::ecs::RigidBody2D>(entity);
         if (field == "fixedRotation") { c.fixedRotation = value; }
         else if (field == "bullet") { c.bullet = value; }
         else if (field == "enabled") { c.enabled = value; }
@@ -3384,7 +3384,7 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         return true;
     } else if (comp == "RigidBody3D") {
         if (!reg.has<esengine::ecs::RigidBody3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::RigidBody3D>(entity);
+        auto& c = reg.patch<esengine::ecs::RigidBody3D>(entity);
         if (field == "fixedRotation") { c.fixedRotation = value; }
         else if (field == "continuousCollision") { c.continuousCollision = value; }
         else if (field == "enabled") { c.enabled = value; }
@@ -3392,39 +3392,39 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         return true;
     } else if (comp == "SegmentCollider2D") {
         if (!reg.has<esengine::ecs::SegmentCollider2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SegmentCollider2D>(entity);
+        auto& c = reg.patch<esengine::ecs::SegmentCollider2D>(entity);
         if (field == "isSensor") { c.isSensor = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "ShadowCaster2D") {
         if (!reg.has<esengine::ecs::ShadowCaster2D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ShadowCaster2D>(entity);
+        auto& c = reg.patch<esengine::ecs::ShadowCaster2D>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "ShapeRenderer") {
         if (!reg.has<esengine::ecs::ShapeRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::ShapeRenderer>(entity);
+        auto& c = reg.patch<esengine::ecs::ShapeRenderer>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "SortingGroup") {
         if (!reg.has<esengine::ecs::SortingGroup>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SortingGroup>(entity);
+        auto& c = reg.patch<esengine::ecs::SortingGroup>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "SphereCollider3D") {
         if (!reg.has<esengine::ecs::SphereCollider3D>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SphereCollider3D>(entity);
+        auto& c = reg.patch<esengine::ecs::SphereCollider3D>(entity);
         if (field == "isSensor") { c.isSensor = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "SpineAnimation") {
         if (!reg.has<esengine::ecs::SpineAnimation>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SpineAnimation>(entity);
+        auto& c = reg.patch<esengine::ecs::SpineAnimation>(entity);
         if (field == "loop") { c.loop = value; }
         else if (field == "playing") { c.playing = value; }
         else if (field == "flipX") { c.flipX = value; }
@@ -3434,13 +3434,13 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         return true;
     } else if (comp == "SpringBone") {
         if (!reg.has<esengine::ecs::SpringBone>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SpringBone>(entity);
+        auto& c = reg.patch<esengine::ecs::SpringBone>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "Sprite") {
         if (!reg.has<esengine::ecs::Sprite>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::Sprite>(entity);
+        auto& c = reg.patch<esengine::ecs::Sprite>(entity);
         if (field == "lit") { c.lit = value; }
         else if (field == "flipX") { c.flipX = value; }
         else if (field == "flipY") { c.flipY = value; }
@@ -3449,28 +3449,28 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         return true;
     } else if (comp == "SpriteMask") {
         if (!reg.has<esengine::ecs::SpriteMask>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SpriteMask>(entity);
+        auto& c = reg.patch<esengine::ecs::SpriteMask>(entity);
         if (field == "limitRange") { c.limitRange = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "TilemapLayer") {
         if (!reg.has<esengine::ecs::TilemapLayer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::TilemapLayer>(entity);
+        auto& c = reg.patch<esengine::ecs::TilemapLayer>(entity);
         if (field == "visible") { c.visible = value; }
         else if (field == "lit") { c.lit = value; }
         else { return false; }
         return true;
     } else if (comp == "TrailRenderer") {
         if (!reg.has<esengine::ecs::TrailRenderer>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::TrailRenderer>(entity);
+        auto& c = reg.patch<esengine::ecs::TrailRenderer>(entity);
         if (field == "emitting") { c.emitting = value; }
         else if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "UIInteraction") {
         if (!reg.has<esengine::ecs::UIInteraction>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIInteraction>(entity);
+        auto& c = reg.patch<esengine::ecs::UIInteraction>(entity);
         if (field == "hovered") { c.hovered = value; }
         else if (field == "pressed") { c.pressed = value; }
         else if (field == "justPressed") { c.justPressed = value; }
@@ -3479,13 +3479,13 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         return true;
     } else if (comp == "UIMask") {
         if (!reg.has<esengine::ecs::UIMask>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIMask>(entity);
+        auto& c = reg.patch<esengine::ecs::UIMask>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
     } else if (comp == "UIScroll") {
         if (!reg.has<esengine::ecs::UIScroll>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIScroll>(entity);
+        auto& c = reg.patch<esengine::ecs::UIScroll>(entity);
         if (field == "enabled") { c.enabled = value; }
         else if (field == "horizontal") { c.horizontal = value; }
         else if (field == "vertical") { c.vertical = value; }
@@ -3494,7 +3494,7 @@ bool editor_setBool(Registry& reg, u32 e, const std::string& comp, const std::st
         return true;
     } else if (comp == "UIVisual") {
         if (!reg.has<esengine::ecs::UIVisual>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::UIVisual>(entity);
+        auto& c = reg.patch<esengine::ecs::UIVisual>(entity);
         if (field == "enabled") { c.enabled = value; }
         else { return false; }
         return true;
@@ -3750,13 +3750,13 @@ bool editor_setString(Registry& reg, u32 e, const std::string& comp, const std::
     if (!reg.valid(entity)) return false;
     if (comp == "BitmapText") {
         if (!reg.has<esengine::ecs::BitmapText>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::BitmapText>(entity);
+        auto& c = reg.patch<esengine::ecs::BitmapText>(entity);
         if (field == "text") { c.text = value; }
         else { return false; }
         return true;
     } else if (comp == "DragonBonesAnimation") {
         if (!reg.has<esengine::ecs::DragonBonesAnimation>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::DragonBonesAnimation>(entity);
+        auto& c = reg.patch<esengine::ecs::DragonBonesAnimation>(entity);
         if (field == "skeletonPath") { c.skeletonPath = value; }
         else if (field == "atlasPath") { c.atlasPath = value; }
         else if (field == "armature") { c.armature = value; }
@@ -3765,7 +3765,7 @@ bool editor_setString(Registry& reg, u32 e, const std::string& comp, const std::
         return true;
     } else if (comp == "SpineAnimation") {
         if (!reg.has<esengine::ecs::SpineAnimation>(entity)) return false;
-        auto& c = reg.get<esengine::ecs::SpineAnimation>(entity);
+        auto& c = reg.patch<esengine::ecs::SpineAnimation>(entity);
         if (field == "skeletonPath") { c.skeletonPath = value; }
         else if (field == "atlasPath") { c.atlasPath = value; }
         else if (field == "skin") { c.skin = value; }

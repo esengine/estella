@@ -187,11 +187,22 @@ public:
         if (auto* pool = getPool<T>()) pool->markChanged(entity, change_tick_);
     }
 
+    /** @brief markChanged by a component type id (componentTypeId): for a writer that names the type at run time, a script. */
+    void markChangedById(u32 typeId, Entity entity) {
+        if (typeId < pools_.size() && pools_[typeId]) pools_[typeId]->markChanged(entity, change_tick_);
+    }
+
     /** @brief Whether @p entity's T was written, added or replaced after @p tick (an answer of beginChangeRead). */
     template<typename T>
     bool changedSince(Entity entity, u32 tick) const {
         const auto* pool = getPool<T>();
         return pool && tickAfter(pool->changedTick(entity), tick);
+    }
+
+    /** @brief changedSince by a component type id (componentTypeId), for a reader that names the type at run time. */
+    bool changedSinceById(u32 typeId, Entity entity, u32 tick) const {
+        if (typeId >= pools_.size() || !pools_[typeId]) return false;
+        return tickAfter(pools_[typeId]->changedTickOf(entity), tick);
     }
 
     /** @brief Whether any T was written, added or removed after @p tick: the question a frame that may skip its walk asks first. */

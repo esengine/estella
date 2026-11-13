@@ -81,6 +81,9 @@ struct Children {
      * @return Child count
      */
     [[nodiscard]] usize count() const { return entities.size(); }
+
+    /// Compared member by member: what the change audit checks a write of this component against (Registry::auditChanges).
+    bool operator==(const Children&) const = default;
 };
 
 // =============================================================================

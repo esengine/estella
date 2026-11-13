@@ -14167,6 +14167,7 @@ Generator<number, T, void>
 @internal enableIncarnationTracking: (component: AnyComponentDef) => void
 @internal endIteration: () => void
 @internal ensureTransformsComposed: () => void
+@internal flushEngineStamps: () => void
 @internal getChangeSequence: () => number
 @internal getComponentIncarnation: (entity: Entity, component: AnyComponentDef) => number
 @internal getComponentTypesBatch: (entities: readonly Entity[]) => string[][]
@@ -14226,6 +14227,7 @@ Generator<number, T, void>
 @internal setQueryCostEnabled: (enabled: boolean) => void
 @internal setTransformChangeTracking: (on: boolean) => boolean
 @internal speculating: boolean
+@internal stampEngineWrite: (entity: Entity, component: AnyComponentDef) => void
 @internal suspendIteration: () => number
 @internal takeCompositionChanges: () => void
 @internal topologyReaderCount: (component: AnyComponentDef) => number

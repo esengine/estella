@@ -4824,4 +4824,6 @@ export const NOTED = {
     {"note": "An unset texture array reads its default on WebGL."},
   "perf(terrain): ground reads the four layers that weigh most at a pixel, and Planet draws its layers with the same code - the layer blend (weights, hex tiling, far tile, side planes, height blend) is one GLSL and one WGSL text in layerSurfaceShader.ts that Terrain Layers and Planet both call, and one loader binds the arrays for both; a pixel keeps the four heaviest layers (Unreal's landscape caps the layers a component blends) and a layer not painted there costs no noise: the terrain-water lakeside's ground 3.04 -> 2.58 ms, with the plants off 4.24 -> 3.62, the frame unchanged to 0.04% of pixels; a planet's layer masks now darken the sky's light as a flat terrain's do, and its height blend, blend noise and hex tiling default to 0, which draws it as before":
     {"note": "Terrain layers cost less, and a Planet draws its layers as a Terrain does."},
+  "feat(ecs): an engine component is stamped whoever writes it - script writes are handed to the engine in a batch before the frame is composed, physics stamps the bodies that moved, the transform system the world matrices that changed, and tweens and the editor what they set; the change audit finds no unstamped write in 28 examples":
+    {"note": "An engine component is stamped whoever writes it."},
 };

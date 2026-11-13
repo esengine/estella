@@ -19,7 +19,10 @@ void TweenSystem::update(ecs::Registry& registry, f32 deltaTime) {
     pending_remove_.clear();
 
     for (auto entity : ui_flagged_) {
-        if (auto* n = registry.tryGet<ecs::UINode>(entity)) n->anim_override_ = 0;
+        if (auto* n = registry.tryGet<ecs::UINode>(entity)) {
+            n->anim_override_ = 0;
+            registry.markChanged<ecs::UINode>(entity);
+        }
     }
     ui_flagged_.clear();
 
@@ -33,6 +36,8 @@ void TweenSystem::update(ecs::Registry& registry, f32 deltaTime) {
             continue;
         }
         if (!registry.isEntityActive(entity) || !registry.isEntityActive(tween.target_entity)) continue;
+        // A running tween moves its own clock every frame: its record is written whatever it drives.
+        registry.markChanged<TweenData>(entity);
         f32 tweenDelta = deltaTime;
 
         if (tween.delay > 0.0f) {
@@ -110,6 +115,7 @@ void TweenSystem::update(ecs::Registry& registry, f32 deltaTime) {
             if (auto* next = registry.tryGet<TweenData>(tween.sequence_next);
                 next && next->state == TweenState::Paused) {
                 next->state = TweenState::Running;
+                registry.markChanged<TweenData>(tween.sequence_next);
             }
         }
     }
@@ -142,6 +148,7 @@ Entity TweenSystem::createTween(ecs::Registry& registry, Entity targetEntity,
 void TweenSystem::cancelTween(ecs::Registry& registry, Entity tweenEntity) {
     if (auto* tween = registry.tryGet<TweenData>(tweenEntity)) {
         tween->state = TweenState::Cancelled;
+        registry.markChanged<TweenData>(tweenEntity);
     }
 }
 
@@ -150,6 +157,7 @@ void TweenSystem::cancelAllTweens(ecs::Registry& registry, Entity targetEntity) 
         auto& tween = registry.get<TweenData>(entity);
         if (tween.target_entity == targetEntity && tween.state == TweenState::Running) {
             tween.state = TweenState::Cancelled;
+            registry.markChanged<TweenData>(entity);
         }
     }
 }
@@ -158,6 +166,7 @@ void TweenSystem::pauseTween(ecs::Registry& registry, Entity tweenEntity) {
     if (auto* tween = registry.tryGet<TweenData>(tweenEntity)) {
         if (tween->state == TweenState::Running) {
             tween->state = TweenState::Paused;
+            registry.markChanged<TweenData>(tweenEntity);
         }
     }
 }
@@ -166,6 +175,7 @@ void TweenSystem::resumeTween(ecs::Registry& registry, Entity tweenEntity) {
     if (auto* tween = registry.tryGet<TweenData>(tweenEntity)) {
         if (tween->state == TweenState::Paused) {
             tween->state = TweenState::Running;
+            registry.markChanged<TweenData>(tweenEntity);
         }
     }
 }
@@ -182,6 +192,7 @@ static void markUIAnimOverride(ecs::Registry& registry, Entity entity, u8 flag,
     if (auto* n = registry.tryGet<ecs::UINode>(entity)) {
         if (n->anim_override_ == 0) flagged.push_back(entity);
         n->anim_override_ |= flag;
+        registry.markChanged<ecs::UINode>(entity);
     }
 }
 
@@ -246,6 +257,22 @@ static void applyTweenValue(ecs::Registry& registry, Entity entity, TweenTarget 
             break;
         case TweenTarget::CameraOrthoSize:
             if (auto* c = registry.tryGet<ecs::Camera>(entity)) c->orthoSize = value;
+            break;
+        default:
+            break;
+    }
+    // Said once, for the component the target names: a write a reader of changes (the renderer) has to see.
+    switch (target) {
+        case TweenTarget::PositionX: case TweenTarget::PositionY: case TweenTarget::PositionZ:
+        case TweenTarget::ScaleX: case TweenTarget::ScaleY: case TweenTarget::RotationZ:
+            registry.markChanged<ecs::Transform>(entity);
+            break;
+        case TweenTarget::ColorR: case TweenTarget::ColorG: case TweenTarget::ColorB: case TweenTarget::ColorA:
+        case TweenTarget::SizeX: case TweenTarget::SizeY:
+            registry.markChanged<ecs::Sprite>(entity);
+            break;
+        case TweenTarget::CameraOrthoSize:
+            registry.markChanged<ecs::Camera>(entity);
             break;
         default:
             break;

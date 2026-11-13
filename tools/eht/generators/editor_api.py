@@ -375,7 +375,8 @@ class EditorAPIGenerator:
             first_comp = False
             lines.append(f'    {cond} (comp == "{comp.name}") {{')
             lines.append(f'        if (!reg.has<{full}>(entity)) return false;')
-            lines.append(f'        auto& c = reg.get<{full}>(entity);')
+            # patch: an editor's write is stamped, so whatever reads changes (the renderer) sees it.
+            lines.append(f'        auto& c = reg.patch<{full}>(entity);')
 
             idx = 0
             for key, cpp_path in float_fields:
@@ -502,7 +503,8 @@ class EditorAPIGenerator:
                 continue
 
             lines.append(f'        if (!reg.has<{full}>(entity)) return false;')
-            lines.append(f'        auto& c = reg.get<{full}>(entity);')
+            # patch: an editor's write is stamped, so whatever reads changes (the renderer) sees it.
+            lines.append(f'        auto& c = reg.patch<{full}>(entity);')
 
             for i, (key, cpp_path, cpp_type) in enumerate(int_fields):
                 prefix = 'if' if i == 0 else 'else if'
@@ -610,7 +612,8 @@ class EditorAPIGenerator:
             first_comp = False
             lines.append(f'    {cond} (comp == "{comp.name}") {{')
             lines.append(f'        if (!reg.has<{full}>(entity)) return false;')
-            lines.append(f'        auto& c = reg.get<{full}>(entity);')
+            # patch: an editor's write is stamped, so whatever reads changes (the renderer) sees it.
+            lines.append(f'        auto& c = reg.patch<{full}>(entity);')
 
             for i, (key, cpp_path) in enumerate(bool_fields):
                 prefix = 'if' if i == 0 else 'else if'
@@ -704,7 +707,8 @@ class EditorAPIGenerator:
             first_comp = False
             lines.append(f'    {cond} (comp == "{comp.name}") {{')
             lines.append(f'        if (!reg.has<{full}>(entity)) return false;')
-            lines.append(f'        auto& c = reg.get<{full}>(entity);')
+            # patch: an editor's write is stamped, so whatever reads changes (the renderer) sees it.
+            lines.append(f'        auto& c = reg.patch<{full}>(entity);')
 
             for i, (key, cpp_path) in enumerate(string_fields):
                 prefix = 'if' if i == 0 else 'else if'

@@ -1651,10 +1651,21 @@ void registry_batchSyncPhysicsTransforms(ecs::Registry& registry, uintptr_t buff
         float half = angle * 0.5f;
         glm::quat rot(std::cos(half), 0.0f, 0.0f, std::sin(half));
 
+        // Only a body that moved is written, and stamped: a sleeping body rewritten with its own pose every step would read as
+        // changed to every consumer of changes (the renderer), every frame.
+        if (transform.position.x == px && transform.position.y == py && transform.rotation == rot) continue;
         transform.position.x = px;
         transform.position.y = py;
         transform.rotation = rot;
+        registry.markChanged<ecs::Transform>(entity);
     }
+}
+
+void registry_markComponentsChanged(ecs::Registry& registry, uintptr_t pairsPtr, int count) {
+    if (count <= 0 || pairsPtr % alignof(u32)) return;
+    const u32* pairs = boundarySpan<u32>(pairsPtr, static_cast<u64>(count) * 2, "registry_markComponentsChanged");
+    if (!pairs) return;
+    for (int i = 0; i < count; ++i) registry.markChangedById(pairs[i * 2], Entity::fromRaw(pairs[i * 2 + 1]));
 }
 
 void renderer_captureNextFrame() {

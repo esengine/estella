@@ -849,6 +849,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("registry_entityChangeResetEpoch", &esengine::registry_entityChangeResetEpoch);
     emscripten::function("registry_componentMutationRevision", &esengine::registry_componentMutationRevision);
     emscripten::function("registry_readEntityChanges", &esengine::registry_readEntityChanges);
+    emscripten::function("registry_markComponentsChanged", &esengine::registry_markComponentsChanged);
 
     emscripten::function("gl_enableErrorCheck", &esengine::gl_enableErrorCheck);
     emscripten::function("gl_checkErrors", &esengine::gl_checkErrors);
