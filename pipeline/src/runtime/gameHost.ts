@@ -690,6 +690,10 @@ async function boot(): Promise<void> {
         if (!ends[0] || !ends[1]) return null;
         return nav.findWorldPath(ends[0], ends[1]);
       },
+      /** Turns the engine's profiler off again, which render(), gpu() and costs() engage: a frame timed after it costs what a player's does. */
+      quiet(): void {
+        module.engine_setCpuProfiling?.(false);
+      },
       /**
        * What the last frame's renderer counted — the work a picture cannot show.
        * A field of props drawn at three levels and one drawn at one look alike

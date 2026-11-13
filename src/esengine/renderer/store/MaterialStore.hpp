@@ -114,6 +114,36 @@ struct MaterialUniformLayout {
     std::vector<MaterialParamSlot> params;
     std::vector<MaterialTextureSlot> textures;
 
+    /// What the per-draw questions ask of a layout by name, answered once when it is registered (MaterialStore::registerLayout):
+    /// an index into params or textures, -1 for none. Asked by name, each was a string search per mesh per view per frame.
+    struct Named {
+        i32 sceneColor = -1, sceneDepth = -1;              // textures
+        i32 transmission = -1, blendDistance = -1;          // params
+        i32 coverage = -1, tip = -1, hairShadow = -1;       // params
+        bool coverageIsCutoff = false;
+    } named;
+
+    /** Resolves {@link named} from the names; called whenever params, textures or the special names change. */
+    void resolveNamed() {
+        const auto param = [this](const std::string& n) -> i32 {
+            if (n.empty()) return -1;
+            for (usize i = 0; i < params.size(); ++i) if (params[i].name == n) return static_cast<i32>(i);
+            return -1;
+        };
+        const auto texture = [this](const char* n) -> i32 {
+            for (usize i = 0; i < textures.size(); ++i) if (textures[i].name == n) return static_cast<i32>(i);
+            return -1;
+        };
+        named.sceneColor = texture("u_sceneColor");
+        named.sceneDepth = texture("u_sceneDepthMap");
+        named.transmission = param("u_transmission");
+        named.blendDistance = param("u_blendDistance");
+        named.coverage = param(coverageParam);
+        named.tip = param(tipParam);
+        named.hairShadow = param(hairShadowParam);
+        named.coverageIsCutoff = coverageParam == "u_alphaCutoff";
+    }
+
     const MaterialParamSlot* find(const std::string& name) const {
         for (const auto& p : params) {
             if (p.name == name) return &p;
@@ -265,7 +295,7 @@ public:
     bool castsCutoutShadow(u32 materialId) const {
         const MaterialRecord* m = find(materialId);
         const MaterialUniformLayout* layout = m ? layoutFor(m->shaderRef) : nullptr;
-        return layout && layout->coverageParam == "u_alphaCutoff" && alphaIsCoverage(materialId);
+        return layout && layout->named.coverageIsCutoff && alphaIsCoverage(materialId);
     }
 
     /// The program that draws @p materialId's CASTER into a shadow map: the engine's depth shader for
@@ -292,7 +322,9 @@ public:
     /// device loss, a shader reload) changes the id, and a layout filed under the
     /// old one would be unreachable from the material that still names it.
     void registerLayout(resource::ShaderHandle shader, MaterialUniformLayout layout) {
-        if (shader.isValid()) layouts_[shader.id()] = std::move(layout);
+        if (!shader.isValid()) return;
+        layout.resolveNamed();
+        layouts_[shader.id()] = std::move(layout);
     }
 
     /// Pushes a material's resolved render state. Preserves any already-packed constants
@@ -358,8 +390,22 @@ public:
     /// The record for @p materialId, or nullptr if the handle is 0 / unregistered.
     const MaterialRecord* find(u32 materialId) const {
         if (materialId == 0) return nullptr;
+        // Every question about a draw's material asks for it again: the last answer is kept, as layoutFor keeps its own.
+        if (materialId == last_material_id_ && last_material_) return last_material_;
         auto it = materials_.find(materialId);
-        return it != materials_.end() ? &it->second : nullptr;
+        last_material_id_ = materialId;
+        last_material_ = it != materials_.end() ? &it->second : nullptr;
+        return last_material_;
+    }
+
+    /** A float param of @p m by its layout index, or 0 when there is none or it is not packed. */
+    static f32 paramValue(const MaterialRecord& m, const MaterialUniformLayout& layout, i32 index) {
+        if (index < 0) return 0.0f;
+        const MaterialParamSlot& slot = layout.params[static_cast<usize>(index)];
+        if (slot.offset + sizeof(f32) > m.uboBytes.size()) return 0.0f;
+        f32 value = 0.0f;
+        std::memcpy(&value, m.uboBytes.data() + slot.offset, sizeof(f32));
+        return value;
     }
 
     /// Whether @p materialId's shader reads the picture of what is behind it (declares `u_sceneColor`): refraction, a lens, anything
@@ -367,15 +413,11 @@ public:
     bool usesSceneColor(u32 materialId) const {
         const MaterialRecord* m = find(materialId);
         const MaterialUniformLayout* layout = m ? layoutFor(m->shaderRef) : nullptr;
-        if (!layout || layout->findTexture("u_sceneColor") == nullptr) return false;
+        if (!layout || layout->named.sceneColor < 0) return false;
         // A shader that has a `u_transmission` (the Model shader, whose material is mostly opaque) asks for the copy only while
         // the material holds it above zero; one that has none always does.
-        const MaterialParamSlot* slot = layout->find("u_transmission");
-        if (!slot) return true;
-        if (slot->offset + sizeof(f32) > m->uboBytes.size()) return false;
-        f32 value = 0.0f;
-        std::memcpy(&value, m->uboBytes.data() + slot->offset, sizeof(f32));
-        return value > 0.0f;
+        if (layout->named.transmission < 0) return true;
+        return paramValue(*m, *layout, layout->named.transmission) > 0.0f;
     }
     /// The copy of the opaque scene the frame took for the draws above, or invalid when it took none. Bound to a material's
     /// `u_sceneColor` unit unless the material was given a texture of its own there.
@@ -386,14 +428,14 @@ public:
     bool usesSceneDepth(u32 materialId) const {
         const MaterialRecord* m = find(materialId);
         const MaterialUniformLayout* layout = m ? layoutFor(m->shaderRef) : nullptr;
-        return layout && layout->findTexture("u_sceneDepthMap") != nullptr;
+        return layout && layout->named.sceneDepth >= 0;
     }
     /// Whether @p materialId is nothing without that copy: it fades into what is behind it, where water only falls back to a plainer look.
     /// Seeing one is why a frame with no chain of its own takes one.
     bool needsScenePicture(u32 materialId) const {
         const MaterialRecord* m = find(materialId);
         const MaterialUniformLayout* layout = m ? layoutFor(m->shaderRef) : nullptr;
-        return layout && layout->find("u_blendDistance") != nullptr;
+        return layout && layout->named.blendDistance >= 0;
     }
     /// The copy of the opaque scene's distances the frame took, or invalid when it took none. Bound to a material's `u_sceneDepthMap` unit.
     void setSceneDepth(TextureHandle texture) { sceneDepth_ = texture; }
@@ -403,12 +445,8 @@ public:
     bool alphaIsCoverage(u32 materialId) const {
         const MaterialRecord* m = find(materialId);
         const MaterialUniformLayout* layout = m ? layoutFor(m->shaderRef) : nullptr;
-        if (!layout || layout->coverageParam.empty()) return false;
-        const MaterialParamSlot* slot = layout->find(layout->coverageParam);
-        if (!slot || slot->offset + sizeof(f32) > m->uboBytes.size()) return false;
-        f32 value = 0.0f;
-        std::memcpy(&value, m->uboBytes.data() + slot->offset, sizeof(f32));
-        return value > 0.0f;
+        if (!layout) return false;
+        return paramValue(*m, *layout, layout->named.coverage) > 0.0f;
     }
 
     /// Whether @p materialId draws a blended pass over its opaque one: its shader names a tip param and this
@@ -416,23 +454,16 @@ public:
     bool hasTipPass(u32 materialId) const {
         const MaterialRecord* m = find(materialId);
         const MaterialUniformLayout* layout = m ? layoutFor(m->shaderRef) : nullptr;
-        if (!layout || layout->tipParam.empty()) return false;
-        const MaterialParamSlot* slot = layout->find(layout->tipParam);
-        if (!slot || slot->offset + sizeof(f32) > m->uboBytes.size()) return false;
-        f32 value = 0.0f;
-        std::memcpy(&value, m->uboBytes.data() + slot->offset, sizeof(f32));
-        return value > 0.0f;
+        if (!layout) return false;
+        return paramValue(*m, *layout, layout->named.tip) > 0.0f;
     }
 
     /// The hair shadow density @p materialId holds (see ParsedShader::hairShadowParam), 0 when its shader has none or it is off.
     f32 hairShadowDensity(u32 materialId) const {
         const MaterialRecord* m = find(materialId);
         const MaterialUniformLayout* layout = m ? layoutFor(m->shaderRef) : nullptr;
-        if (!layout || layout->hairShadowParam.empty()) return 0.0f;
-        const MaterialParamSlot* slot = layout->find(layout->hairShadowParam);
-        if (!slot || slot->offset + sizeof(f32) > m->uboBytes.size()) return 0.0f;
-        f32 value = 0.0f;
-        std::memcpy(&value, m->uboBytes.data() + slot->offset, sizeof(f32));
+        if (!layout) return 0.0f;
+        const f32 value = paramValue(*m, *layout, layout->named.hairShadow);
         return value > 0.0f ? value : 0.0f;
     }
 
@@ -440,8 +471,14 @@ public:
     /// The post-process pipeline reads it to pack pass params through the same
     /// reflected MaterialConstants block a material would use.
     const MaterialUniformLayout* layoutFor(resource::ShaderHandle shader) const {
-        auto it = layouts_.find(shader.id());
-        return it != layouts_.end() ? &it->second : nullptr;
+        // Asked for the same shader by every mesh on it, several times each: the last answer is kept. Node-based, so an answer
+        // stays where it is while others are added; only an erase moves it, and forgets it (forgetLookups).
+        const u32 id = shader.id();
+        if (id == last_layout_id_ && last_layout_) return last_layout_;
+        auto it = layouts_.find(id);
+        last_layout_id_ = id;
+        last_layout_ = it != layouts_.end() ? &it->second : nullptr;
+        return last_layout_;
     }
 
     /// Uploads (when dirty) and binds the material's MaterialConstants UBO at binding 1.
@@ -482,6 +519,12 @@ private:
 
     std::unordered_map<u32, MaterialRecord> materials_;
     std::unordered_map<u32, MaterialUniformLayout> layouts_;
+    /// The last material and layout asked for (find, layoutFor); forgotten whenever either map erases (forgetLookups).
+    mutable u32 last_material_id_ = 0;
+    mutable const MaterialRecord* last_material_ = nullptr;
+    mutable u32 last_layout_id_ = 0;
+    mutable const MaterialUniformLayout* last_layout_ = nullptr;
+    void forgetLookups() { last_material_ = nullptr; last_material_id_ = 0; last_layout_ = nullptr; last_layout_id_ = 0; }
 
     /// A material shader's authored source + features, filed under its handle for
     /// the same reason the layout is: a rebuilt program changes the id.

@@ -35,6 +35,7 @@ void MaterialStore::setResourceManager(resource::ResourceManager* resources) {
 }
 
 void MaterialStore::forgetShader(resource::ShaderHandle shader) {
+    forgetLookups();
     layouts_.erase(shader.id());
     sources_.erase(shader.id());
     auto found = mesh_programs_.find(shader.id());
@@ -49,6 +50,7 @@ void MaterialStore::undefine(u32 materialId) {
     auto it = materials_.find(materialId);
     if (it == materials_.end()) return;
     if (it->second.ubo != BufferHandle::Invalid && device_) device_->deleteBuffer(it->second.ubo);
+    forgetLookups();
     materials_.erase(it);
 }
 
@@ -58,6 +60,7 @@ void MaterialStore::clear() {
             if (rec.ubo != BufferHandle::Invalid) device_->deleteBuffer(rec.ubo);
         }
     }
+    forgetLookups();
     materials_.clear();
     layouts_.clear();
     sources_.clear();

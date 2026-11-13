@@ -4784,4 +4784,6 @@ export const NOTED = {
     {"note": "A shader warm-up waits for the scene still being made."},
   "perf(render): sprite and particle shaders compile in the background too - the batch shader's variants and the particle shader were linked in place whatever asyncShaderCompile said, a third to half a second of one frame when a lit sprite or the first particle appeared; they are deferred as mesh shaders are, their samplers seeded when the link lands":
     {"note": "Sprite and particle shaders compile in the background too."},
+  "perf(render): walking a frame's meshes asks nothing by name - a material's per-draw questions were string searches, a still child was decomposed again by every view, and the walk's own clock was most of what it reported":
+    {"note": "Walking a frame's meshes costs less, and the profiler says what it costs."},
 };

@@ -40,9 +40,13 @@ const SAMPLES = Number(flag('samples', '5'));
 const W = Number(flag('w', '1920'));
 const H = Number(flag('h', '1080'));
 const TOP = Number(flag('top', '30'));
+/** Function names (substrings, comma separated) whose INCLUSIVE time a profile also reports: every sample with one on its stack. */
+const INCL = flag('incl', '') ? flag('incl', '').split(',') : [];
 const PROFILE = argv.includes('--profile');
 /** Count every WebGL call per frame: the CPU work a frame hands the browser, which no GPU stall can hide. */
 const GLCALLS = argv.includes('--glcalls');
+/** Time frames with the engine's profiler left off: what a frame costs a player, not a profiled one. No scopes are read. */
+const WALL = argv.includes('--wall');
 const NO_EXPORT = argv.includes('--no-export');
 const ONLY = flag('only', '') ? new Set(flag('only', '').split(',')) : null;
 /** A png of the last measured frame, to compare two builds' pictures. */
@@ -150,10 +154,10 @@ async function measure(browser, dir) {
       await cdp.send('Profiler.enable');
       await cdp.send('Profiler.setSamplingInterval', { interval: 100 });
     }
-    const result = await page.evaluate(async ({ frames, samples, profile }) => {
+    const result = await page.evaluate(async ({ frames, samples, profile, wall }) => {
       const c = window.__estellaCooked;
       const sync = () => c.capture().rgba[0];
-      c.render(); c.costs();
+      if (!wall) { c.render(); c.costs(); } else if (!c.quiet) throw new Error('this package cannot turn its profiler off (no quiet()): re-export it'); else c.quiet();
       await c.step(frames, 1 / 60); sync();
       const ms = [];
       const scopes = [];
@@ -163,7 +167,7 @@ async function measure(browser, dir) {
         await c.step(frames, 1 / 60);
         sync();
         ms.push((performance.now() - t0) / frames);
-        scopes.push(c.costs().native);
+        scopes.push(wall ? {} : c.costs().native);
       }
       let gl = null;
       if (window.__glCalls) {
@@ -171,9 +175,9 @@ async function measure(browser, dir) {
         await c.step(frames, 1 / 60);
         gl = Object.fromEntries(Object.entries(window.__glCalls).map(([k, v]) => [k, v / frames]));
       }
-      const costs = c.costs();
-      return { ms, scopes, counters: c.render(), systems: costs.systems, gl };
-    }, { frames: FRAMES, samples: SAMPLES, profile: PROFILE });
+      const costs = wall ? { systems: [] } : c.costs();
+      return { ms, scopes, counters: wall ? {} : c.render(), systems: costs.systems, gl };
+    }, { frames: FRAMES, samples: SAMPLES, profile: PROFILE, wall: WALL });
     let profile = null;
     if (cdp) {
       await cdp.send('Profiler.start');
@@ -203,7 +207,19 @@ function bySelf(profile) {
     self.set(key, (self.get(key) ?? 0) + (dt[i] ?? 0) / 1000);
   }
   const total = [...self.values()].reduce((a, b) => a + b, 0);
-  return { total, rows: [...self.entries()].sort((a, b) => b[1] - a[1]) };
+  const parent = new Map();
+  for (const n of profile.nodes) for (const c of n.children ?? []) parent.set(c, n.id);
+  const inclusive = {};
+  for (const name of INCL) inclusive[name] = 0;
+  for (let i = 0; i < profile.samples.length; i++) {
+    const hit = new Set();
+    for (let id = profile.samples[i]; id !== undefined; id = parent.get(id)) {
+      const fn = byId.get(id).callFrame.functionName;
+      for (const name of INCL) if (fn.includes(name)) hit.add(name);
+    }
+    for (const name of hit) inclusive[name] += (dt[i] ?? 0) / 1000;
+  }
+  return { total, rows: [...self.entries()].sort((a, b) => b[1] - a[1]), inclusive };
 }
 
 const browser = await chromium.launch({
@@ -241,6 +257,7 @@ try {
     if (r.profile) {
       const p = bySelf(r.profile);
       console.log(`         profile: ${p.total.toFixed(0)} ms sampled`);
+      for (const [name, ms] of Object.entries(p.inclusive)) console.log(`         inclusive ${name}: ${ms.toFixed(1)} ms (${(100 * ms / p.total).toFixed(1)}%)`);
       for (const [k, v] of p.rows.slice(0, TOP)) console.log(`           ${v.toFixed(1).padStart(8)} ms  ${(100 * v / p.total).toFixed(1).padStart(5)}%  ${k}`);
       table[spread].profile = p.rows.slice(0, 200);
     }

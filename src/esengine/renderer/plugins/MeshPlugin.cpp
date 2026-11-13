@@ -687,17 +687,24 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     const ShadingMode shading = depthPass ? ShadingMode::Shaded : collect_ctx.shading;
     ecs::MeshRenderer shaded;
 
-    // Accumulated, not scoped per mesh: a ScopeTimer pair per phase per entity
-    // puts its own cost inside the number it reports. One clock read per
-    // boundary, and the end of one phase is the start of the next.
+    // The walk is timed whole: two clock reads a walk. A clock read is a call out to the page (performance.now), and read at
+    // every phase of every mesh it was four of every ten samples of a profiled frame and most of the time it reported - the
+    // collect looked several times dearer than it was. The split by phase is a build option (ES_PROFILE_COLLECT_PHASES) for
+    // whoever needs it and accepts that the clock is then in the number; a profile with function names says more.
     const bool timing = FrameProfiler::get().enabled();
+#ifdef ES_PROFILE_COLLECT_PHASES
+    constexpr bool phases = true;
+#else
+    constexpr bool phases = false;
+#endif
     f64 phase[5] = {0, 0, 0, 0, 0};
-    f64 mark = timing ? es_profile_now_ms() : 0.0;
+    const f64 walkStart = timing ? es_profile_now_ms() : 0.0;
+    f64 mark = timing && phases ? walkStart : 0.0;
     u32 walked = 0, coldDecompose = 0, lodGathers = 0, programAsks = 0, instanceRecords = 0;
     // Where the scene's opaque meshes went in the choice of a depth prepass: taken, left out for a cut-out or a bent vertex, or no program to be had.
     u32 prepassTaken = 0, prepassCutout = 0, prepassBent = 0, prepassNoProgram = 0;
     const auto tick = [&](int slot) {
-        if (!timing) return;
+        if (!phases || !timing) return;
         const f64 now = es_profile_now_ms();
         phase[slot] += now - mark;
         mark = now;
@@ -1275,15 +1282,17 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
 
     if (timing) {
         auto& profiler = FrameProfiler::get();
-        profiler.add("render.collect.mesh.decompose", phase[0]);
-        profiler.add("render.collect.mesh.lod", phase[1]);
-        profiler.add("render.collect.mesh.bounds", phase[2]);
-        profiler.add("render.collect.mesh.program", phase[3]);
-        profiler.add("render.collect.mesh.emit", phase[4]);
+        if (phases) {
+            profiler.add("render.collect.mesh.decompose", phase[0]);
+            profiler.add("render.collect.mesh.lod", phase[1]);
+            profiler.add("render.collect.mesh.bounds", phase[2]);
+            profiler.add("render.collect.mesh.program", phase[3]);
+            profiler.add("render.collect.mesh.emit", phase[4]);
+        }
         // Which pass walked, how many times, and what the walk cost it: the same meshes are visited once per view of the frame, and the
         // total above cannot say which view the time belongs to.
         // The profiler keeps the name pointer, so these are literals, one set per purpose.
-        const f64 spent = phase[0] + phase[1] + phase[2] + phase[3] + phase[4];
+        const f64 spent = es_profile_now_ms() - walkStart;
         switch (ctx.purpose) {
             case RenderPurpose::Scene:
                 profiler.add("render.collect.mesh.scene.walks", 1.0);

@@ -295,12 +295,14 @@ private:
                     flatCollapsed = transform->scale.x == 0 || transform->scale.y == 0
                         || (task.parentFlatCollapsed && transform->rotation.x == 0 && transform->rotation.y == 0);
                     const auto matrix = *task.parentMatrix * math::compose(transform->position, transform->rotation, transform->scale);
-                    if (changedOut_) {
-                        ++visited_;
-                        if (matrix != transform->cachedMatrix_) changedOut_->push_back(task.entity);
+                    if (changedOut_) ++visited_;
+                    // Only a matrix that changed is decomposed again: the same matrix decomposes to the same world fields, and
+                    // a still child of a model (most of a scene's meshes) was decomposed afresh by every view of every frame.
+                    if (matrix != transform->cachedMatrix_) {
+                        if (changedOut_) changedOut_->push_back(task.entity);
+                        transform->cachedMatrix_ = matrix;
+                        transform->decomposed_ = false;
                     }
-                    transform->cachedMatrix_ = matrix;
-                    transform->decomposed_ = false;
                 } else if (keepStatic) {
                     flatCollapsed = registry.has<FlatGeometryCollapsed>(task.entity);
                 }
