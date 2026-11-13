@@ -20,6 +20,7 @@ import {
     uploadBoundTextureImage, applyBoundTextureSampling, handOverNewTexture, findWebGL2Context,
 } from '../glTextureUpload';
 import { createTextureFromPixels, type TextureParams } from '../../runtime/runtimeAssets';
+import { isTextureRecipePath, renderTextureRecipe } from '../textureRecipe';
 
 /**
  * Decode a texture ref to raw RGBA pixels on the current platform. Set by a
@@ -303,6 +304,12 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         copy: boolean,
     ): Promise<TextureResult> {
         this.lastDecision_ = RAW_PAYLOAD_UPLOAD;
+        // A recipe is drawn here, from its source, and is then a texture like any decoded one.
+        if (isTextureRecipePath(buildPath)) {
+            const drawn = await renderTextureRecipe(await ctx.backend.fetchText(buildPath), path);
+            const handle = createTextureFromPixels(this.module_, drawn, TextureContent.Asset, flip, pixelParams(settings));
+            return { handle, width: drawn.width, height: drawn.height };
+        }
         if (isKtx2Path(buildPath)) {
             const buf = await ctx.backend.fetchBinary(buildPath);
             return this.uploadKtx2_(path, new Uint8Array(buf), settings, maxEdge);

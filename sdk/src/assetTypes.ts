@@ -37,6 +37,8 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     // wechatPackInclude: WeChat's fs denies package reads of unlisted custom
     // extensions — KTX2 textures are fs-read (transcoded), not image-decoded.
     { extensions: ['ktx2'], contentType: 'binary', editorType: 'texture', addressableType: 'texture', wechatPackInclude: true, hasTransitiveDeps: false },
+    // A picture's source, drawn into a texture where it is loaded (asset/textureRecipe.ts).
+    { extensions: ['esimage'], contentType: 'json', editorType: 'texture', addressableType: 'texture', wechatPackInclude: true, hasTransitiveDeps: false },
     { extensions: ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'webm'], contentType: 'audio', editorType: 'audio', addressableType: 'audio', wechatPackInclude: false, hasTransitiveDeps: false },
     // Video container, streamed + decoded by the video system (HTMLVideoElement
     // on web). `webm` stays with audio above to avoid the ambiguity; a .webm

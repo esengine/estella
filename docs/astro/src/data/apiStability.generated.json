@@ -406,6 +406,18 @@
       ]
     },
     {
+      "id": "image",
+      "title": "Texture recipes",
+      "titleZh": "贴图配方",
+      "tier": "experimental",
+      "why": "a recipe draws on the device to the very pixels its baked picture has, checked in a headless game, but it is drawn on the main thread at load, is not kept between runs, and has not been timed on a phone",
+      "whyZh": "配方在设备上画出来的像素与烘焙好的图片逐像素一致，已在无头游戏里检查过；但它在加载时于主线程绘制，不跨次运行缓存，也没有在手机上计过时",
+      "entry": [
+        "renderImage",
+        "validateImageSource"
+      ]
+    },
+    {
       "id": "rig2d",
       "title": "2D rigs",
       "titleZh": "2D 骨骼",

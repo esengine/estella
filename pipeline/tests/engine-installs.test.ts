@@ -137,7 +137,7 @@ describe('every subpath the SDK publishes', () => {
         }
         // The two tables engineInstalls keeps for evidence content does not carry
         // as a component — asked through it, so this cannot read a stale copy.
-        for (const ext of ['.esgraph', '.esfsm', '.esbt']) {
+        for (const ext of ['.esgraph', '.esfsm', '.esbt', '.esimage']) {
             for (const s of engineInstalls({ assetPaths: [`x${ext}`] }).subpaths) installable.add(s);
         }
         for (const id of ['physics', 'physics3d', 'dragonbones', 'spine:4.2']) {
@@ -259,7 +259,7 @@ describe('every module a project can refuse', () => {
         );
         // Detection also reads asset extensions, which is how a script graph is
         // found; asked through engineInstalls so this cannot read a stale copy.
-        for (const ext of ['.esgraph', '.esfsm', '.esbt']) {
+        for (const ext of ['.esgraph', '.esfsm', '.esbt', '.esimage']) {
             for (const s of engineInstalls({ assetPaths: [`x${ext}`] }).subpaths) byComponent.add(s);
         }
         // …and a post-process effect group is found by the effects a volume names.

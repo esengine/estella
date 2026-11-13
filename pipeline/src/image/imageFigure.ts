@@ -10,6 +10,9 @@
 import type { HumanoidBuild } from '../modeling/humanoid';
 import { poseFrames, poseJoints, type PoseParams } from '../modeling/pose';
 import type { ImageLayer } from './imageSource';
+import type { FlatFigure, ImageFigureDrawer } from './imageRaster';
+
+export type { FlatFigure } from './imageRaster';
 
 /** The bones' own height: they are built at it, and sized in the picture. */
 const BODY_HEIGHT = 1.6;
@@ -107,19 +110,6 @@ function volumesOf(frames: ReturnType<typeof poseFrames>, build: HumanoidBuild):
     return volumes;
 }
 
-export interface FlatFigure {
-    /** Coverage of the whole body in picture pixels, then of each kind of block as it shows. */
-    mask: Float32Array;
-    parts: Record<string, Float32Array>;
-    /** Which way the surface faces at each pixel, x right, y up, z toward the viewer; zero off the body. */
-    normals: Float32Array;
-    /** Dark where one block passes in front of another. */
-    contour: Float32Array;
-    /** In the picture: where each joint landed, and the bones and the head's cross as lines. */
-    joints: Record<string, readonly [number, number]>;
-    lines: readonly (readonly (readonly [number, number])[])[];
-    light: readonly [number, number, number];
-}
 
 const normalized = (v: readonly number[]): [number, number, number] => {
     const len = Math.hypot(v[0]!, v[1]!, v[2]!) || 1;
@@ -273,3 +263,6 @@ export function flattenFigure(layer: ImageLayer, w: number, h: number, project: 
 }
 
 export const figureLight = normalized;
+
+/** The drawer of figures the pipeline hands every picture it renders. */
+export const FIGURE_DRAWER: ImageFigureDrawer = { flatten: flattenFigure };

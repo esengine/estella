@@ -35,6 +35,7 @@ export default [
             'worldgen/index': 'src/worldgen/entry.ts',
             'water/index': 'src/water/index.ts',
             'spline/index': 'src/spline/index.ts',
+            'image/index': 'src/image/index.ts',
             'voxel/index': 'src/voxel/index.ts',
             'rig2d/index': 'src/rig2d/entry.ts',
             'imported-scene/index': 'src/imported-scene/index.ts',

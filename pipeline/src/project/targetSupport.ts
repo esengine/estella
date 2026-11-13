@@ -28,7 +28,7 @@ import { NATIVE_PLATFORMS, type ExportPlatform } from './platforms';
 /** An engine subsystem a build target may lack. */
 export type Subsystem =
     | 'text' | 'tilemap' | 'terrain' | 'foliage' | 'worldgen' | 'water' | 'spline' | 'voxel' | 'rig2d' | 'importedScene' | 'skeletalAnimation' | 'characterShaders' | 'timeline' | 'fxBasic' | 'fxAtmosphere' | 'fxLighting' | 'fxAgx' | 'particles' | 'postprocess' | 'physics' | 'physics3d'
-    | 'spine' | 'dragonbones' | 'video' | 'ai' | 'logic' | 'replication' | 'gameplay';
+    | 'spine' | 'dragonbones' | 'video' | 'ai' | 'logic' | 'replication' | 'gameplay' | 'textureRecipe';
 
 /**
  * The authored vocabulary that puts a subsystem in use: a scene or prefab
@@ -38,6 +38,8 @@ export type Subsystem =
  */
 export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>> = {
     text: ['Text', 'BitmapText'],
+    // No component: a package reaches it by shipping a texture that is a recipe (an .esimage), which the walk of what ships sees.
+    textureRecipe: [],
     tilemap: ['Tilemap', 'TilemapLayer'],
     terrain: ['Terrain'],
     timeline: ['TimelinePlayer'],
@@ -110,6 +112,7 @@ export const SHADER_SUBSYSTEM: Readonly<Record<string, Subsystem>> = {
 /** Human name, for a message someone packaging a game has to act on. */
 export const SUBSYSTEM_LABEL: Readonly<Record<Subsystem, string>> = {
     text: 'Text',
+    textureRecipe: 'Texture recipes (pictures drawn on the device)',
     tilemap: 'Tilemaps',
     terrain: 'Terrain',
     timeline: 'Timelines',
@@ -147,6 +150,7 @@ export const SUBSYSTEM_LABEL: Readonly<Record<Subsystem, string>> = {
  */
 export const SUBSYSTEM_INSTALL: Readonly<Record<Subsystem, string>> = {
     text: 'base',
+    textureRecipe: 'esengine/image',
     particles: 'base',
     postprocess: 'base',
     tilemap: 'esengine/tilemap',

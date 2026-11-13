@@ -24,6 +24,8 @@ import { ESENGINE_SUBPATHS } from './engineSubpaths';
  *  scene says "script graph", the `.esgraph` it references does. */
 const ASSET_SUBPATH: Readonly<Record<string, string>> = {
     '.esgraph': 'esengine/logic',
+    // A picture's source that ships is a texture drawn on the device (sdk asset/textureRecipe.ts).
+    '.esimage': 'esengine/image',
     '.esanimator': 'esengine/skeletal-animation',
     '.esavatar': 'esengine/skeletal-animation',
     '.estimeline': 'esengine/timeline',

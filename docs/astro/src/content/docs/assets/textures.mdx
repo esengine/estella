@@ -193,6 +193,25 @@ For sheet animation, author a flipbook instead of computing these by hand — se
 [Animation](/docs/animation/overview/). For tile art, see
 [Tilemaps](/docs/world/tilemaps/).
 
+## Texture recipes
+
+A texture can be shipped as how it is drawn and not as its pixels. An **`.esimage`** is a picture's source: layers of shapes, gradients,
+noise and grids, the file the image tools write and draw a `.png` from. Name the `.esimage` itself where a texture goes (a sprite, a
+material) and the package carries the source; the picture is drawn on the device when the texture is first loaded, to the very pixels
+its `.png` has.
+
+```json
+{ "type": "Sprite", "data": { "texture": "assets/tex/plate.esimage", "size": { "x": 512, "y": 512 } } }
+```
+
+A 512 pixel plate of noise, rust, a stripe and rivets is 691 bytes as a recipe and 351 KB as a PNG. What draws recipes is the
+`esengine/image` module, about 86 KB of a web package before compression: an export adds it when a recipe ships, and a script that
+loads one by code imports it where the game starts. A package with no recipe does not carry it.
+
+What a recipe costs is time: it is drawn on the main thread when it loads, every run. Draw large ones behind a loading screen. A
+picture with a `figure` layer or text needs the authoring tools to draw and is baked to its `.png` instead; so is a source's surface
+(its normal and roughness maps).
+
 ## Memory & residency
 
 Textures are the largest thing most 2D games hold, and they are reference-counted and
