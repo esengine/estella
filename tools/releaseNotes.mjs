@@ -4740,4 +4740,8 @@ export const NOTED = {
     {"note": "A thing breaks when it is hit hard enough."},
   "feat(editor): the breakable check drops a 2 kg stone and a 50 g pebble from the same height, and the tool text says how hard a hit is":
     {"note": "A thing breaks when it is hit hard enough."},
+  "feat(physics3d): a script can push a 3D body about - Physics3D applies forces, impulses and torques at a point or the centre of mass, reads and sets linear and angular velocity, reads mass, wakes and sleeps bodies and changes gravity, from Jolt and PhysX alike; explode strikes everything in reach and every Breakable it reaches; Broke is sent when a thing breaks":
+    {"note": "A script can push a 3D body about."},
+  "feat(editor): the breakable check sets off a blast beside the last pot, which breaks it and throws the pebble at its foot":
+    {"note": "A blast."},
 };

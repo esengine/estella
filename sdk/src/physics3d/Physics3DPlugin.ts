@@ -75,7 +75,7 @@ export class Physics3DPlugin implements Plugin {
             runtime.module = module;
             // The character map, not a copy of it: characters are created lazily
             // by the step, so a snapshot taken here would never hold one.
-            const queries = new Physics3DQueries(module, this.config_.pixelsPerUnit, runtime.characters, runtime.bodies);
+            const queries = new Physics3DQueries(module, this.config_.pixelsPerUnit, runtime.characters, runtime.bodies, this.config_);
             // Whatever throws things about without knowing there is a solver asks through this.
             setBodyPusher((entity, velocity) => queries.setLinearVelocity(entity, velocity));
             app.insertResource(Physics3D, queries);

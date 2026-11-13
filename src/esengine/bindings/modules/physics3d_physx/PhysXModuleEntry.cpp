@@ -691,7 +691,53 @@ EMSCRIPTEN_KEEPALIVE
 void physics3d_addForce(uint32_t bodyId, float fx, float fy, float fz, float px, float py, float pz) {
     PxRigidDynamic* dynamic = dynamicOf(bodyId);
     if (!g().isValid() || dynamic == nullptr || isKinematic(dynamic)) return;
-    PxRigidBodyExt::addForceAtPos(*dynamic, PxVec3(fx, fy, fz), PxVec3(px, py, pz), PxForceMode::eFORCE, true);
+    // A point that is not a number is its centre of mass: pushed there, it turns nothing.
+    if (std::isfinite(px) && std::isfinite(py) && std::isfinite(pz)) PxRigidBodyExt::addForceAtPos(*dynamic, PxVec3(fx, fy, fz), PxVec3(px, py, pz), PxForceMode::eFORCE, true);
+    else dynamic->addForce(PxVec3(fx, fy, fz), PxForceMode::eFORCE, true);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_addImpulse(uint32_t bodyId, float ix, float iy, float iz, float px, float py, float pz) {
+    PxRigidDynamic* dynamic = dynamicOf(bodyId);
+    if (!g().isValid() || dynamic == nullptr || isKinematic(dynamic)) return;
+    const PxVec3 impulse(ix, iy, iz);
+    if (!impulse.isFinite()) return;
+    if (std::isfinite(px) && std::isfinite(py) && std::isfinite(pz)) PxRigidBodyExt::addForceAtPos(*dynamic, impulse, PxVec3(px, py, pz), PxForceMode::eIMPULSE, true);
+    else dynamic->addForce(impulse, PxForceMode::eIMPULSE, true);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_addAngularImpulse(uint32_t bodyId, float ix, float iy, float iz) {
+    PxRigidDynamic* dynamic = dynamicOf(bodyId);
+    if (!g().isValid() || dynamic == nullptr || isKinematic(dynamic)) return;
+    dynamic->addTorque(PxVec3(ix, iy, iz), PxForceMode::eIMPULSE, true);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setAngularVelocity(uint32_t bodyId, float wx, float wy, float wz) {
+    PxRigidDynamic* dynamic = dynamicOf(bodyId);
+    if (!g().isValid() || dynamic == nullptr || isKinematic(dynamic)) return;
+    dynamic->setAngularVelocity(PxVec3(wx, wy, wz), true);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setGravity(float gx, float gy, float gz) {
+    if (!g().isValid()) return;
+    g().scene->setGravity(PxVec3(gx, gy, gz));
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setAwake(uint32_t bodyId, int awake) {
+    PxRigidDynamic* dynamic = dynamicOf(bodyId);
+    if (!g().isValid() || dynamic == nullptr || isKinematic(dynamic)) return;
+    if (awake) dynamic->wakeUp(); else dynamic->putToSleep();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics3d_isAwake(uint32_t bodyId) {
+    const PxRigidDynamic* dynamic = dynamicOf(bodyId);
+    if (!g().isValid() || dynamic == nullptr || isKinematic(dynamic)) return 0;
+    return dynamic->isSleeping() ? 0 : 1;
 }
 
 EMSCRIPTEN_KEEPALIVE

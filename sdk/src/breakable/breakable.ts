@@ -23,6 +23,22 @@ import { isEditor, isPlayMode } from '../ecs/env';
 import { Prefabs, type PrefabServer } from '../prefab/prefabServer';
 import { q } from '../math/quat';
 import { log } from '../util/logger';
+import { defineEvent, EventWriter, type EventDef, type EventWriterInstance } from '../ecs/event';
+
+/** Something broke: which, where it was struck in the world, and how hard (0 when its flag was raised by hand). */
+export interface BrokePayload {
+    entity: Entity;
+    x: number;
+    y: number;
+    z: number;
+    impulse: number;
+}
+
+/**
+ * Sent the frame a Breakable breaks, for the sound, the dust and the score: read it with `EventReader(Broke)` in a
+ * system of your own. Not sent when it is made whole again.
+ */
+export const Broke: EventDef<BrokePayload> = defineEvent<BrokePayload>('Broke', { entity: 0 as Entity, x: 0, y: 0, z: 0, impulse: 0 });
 
 export interface BreakableData {
     /** The prefab of its pieces, as a model's `fracture` step writes it. */
@@ -175,7 +191,15 @@ export class BreakablePlugin implements Plugin {
         });
         void offDespawn;
 
-        const shatter = (entity: Entity, data: BreakableData, prefabs: PrefabServer): void => {
+        // The blow that broke a thing, kept until it breaks, for what the event says.
+        const struck = new Map<Entity, { impulse: number; point: Vec3 }>();
+        const shatter = (entity: Entity, data: BreakableData, prefabs: PrefabServer, broke: EventWriterInstance<BrokePayload>): void => {
+            const blow = struck.get(entity);
+            struck.delete(entity);
+            const t = world.get(entity, Transform) as TransformData & { worldPosition?: Vec3; worldRotation?: { x: number; y: number; z: number; w: number }; worldScale?: Vec3 };
+            const [position, rotation, scale] = [t.worldPosition ?? t.position, t.worldRotation ?? t.rotation, t.worldScale ?? t.scale];
+            const from = q.rotate(rotation, { x: data.origin.x * scale.x, y: data.origin.y * scale.y, z: data.origin.z * scale.z });
+            const point = blow?.point ?? { x: position.x + from.x, y: position.y + from.y, z: position.z + from.z };
             const b: Broken = { loading: true, root: null, age: 0, throws: [] };
             state.set(entity, b);
             prefabs.instantiate(data.pieces).then((made) => {
@@ -187,6 +211,8 @@ export class BreakablePlugin implements Plugin {
                 world.update(made.root, Transform, (d: TransformData) => { d.position = { ...position }; d.rotation = { ...rotation }; d.scale = { ...scale }; });
                 show(entity, false);
                 b.loading = false;
+                // Said once the pieces stand in its place: a thing whose pieces could not be loaded did not break.
+                broke.send({ entity, x: point.x, y: point.y, z: point.z, impulse: blow?.impulse ?? 0 });
                 b.root = made.root;
                 if (data.burst > 0) {
                     const from = q.rotate(rotation, { x: data.origin.x * scale.x, y: data.origin.y * scale.y, z: data.origin.z * scale.z });
@@ -209,7 +235,7 @@ export class BreakablePlugin implements Plugin {
             });
         };
 
-        app.addSystemToSchedule(Schedule.Update, defineSystem([Res(Time)], (time: TimeData) => {
+        app.addSystemToSchedule(Schedule.Update, defineSystem([Res(Time), EventWriter(Broke)], (time: TimeData, broke: EventWriterInstance<BrokePayload>) => {
             if (isEditor() && !isPlayMode()) {
                 // Out of play nothing is broken: what a scene saves is the whole.
                 for (const entity of [...state.keys()]) mend(entity);
@@ -231,6 +257,7 @@ export class BreakablePlugin implements Plugin {
                         d.origin = { x: local.x / (scale.x || 1), y: local.y / (scale.y || 1), z: local.z / (scale.z || 1) };
                         d.broken = true;
                     });
+                    struck.set(entity, h);
                 }
             }
             const live = new Set<Entity>();
@@ -240,7 +267,7 @@ export class BreakablePlugin implements Plugin {
                 if (prefabs && data.enabled) keepWarm(entity, data.pieces, prefabs); else cool(entity);
                 const b = state.get(entity);
                 if (!data.enabled || !data.broken) { if (b) mend(entity); continue; }
-                if (!b) { if (data.pieces && prefabs) shatter(entity, data, prefabs); continue; }
+                if (!b) { if (data.pieces && prefabs) shatter(entity, data, prefabs, broke); continue; }
                 if (b.loading) continue;
                 // The world makes a piece's body on its next step; until then there is nothing to throw.
                 if (b.throws.length) {

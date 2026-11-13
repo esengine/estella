@@ -90,6 +90,19 @@ void physics3d_setLinearVelocity(uint32_t bodyId, float vx, float vy, float vz);
 // A moving body's mass, in kilograms, its inertia scaled with it so it turns as its shape says; nothing for a body
 // that does not move, or a mass that is not a positive number.
 void physics3d_setMass(uint32_t bodyId, float mass);
+// A blow of (ix, iy, iz) newton seconds at the world point (px, py, pz) - at its centre of mass where the point is not a
+// number - all at once: its speed changes by impulse /
+// mass, and it turns by as much as the point is off its centre of mass. Wakes it. Nothing for a body that does not move.
+void physics3d_addImpulse(uint32_t bodyId, float ix, float iy, float iz, float px, float py, float pz);
+// A twist of (ix, iy, iz) newton metre seconds, all at once. Wakes it.
+void physics3d_addAngularImpulse(uint32_t bodyId, float ix, float iy, float iz);
+// Its spin, in radians a second about each world axis. Wakes it.
+void physics3d_setAngularVelocity(uint32_t bodyId, float wx, float wy, float wz);
+// The world's gravity, in metres a second squared. A sleeping body stays asleep until something wakes it.
+void physics3d_setGravity(float gx, float gy, float gz);
+// Wake a body (awake != 0) or put it to sleep; and whether it is awake: 1 awake, 0 asleep or not a moving body.
+void physics3d_setAwake(uint32_t bodyId, int awake);
+int physics3d_isAwake(uint32_t bodyId);
 int physics3d_getBodyState(uint32_t bodyId);
 // What a force needs to know of a body: its mass and how it is turning.
 int physics3d_getBodyDynamics(uint32_t bodyId);

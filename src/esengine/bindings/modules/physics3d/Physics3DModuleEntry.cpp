@@ -576,7 +576,55 @@ int physics3d_getBodyDynamics(uint32_t bodyId) {
 EMSCRIPTEN_KEEPALIVE
 void physics3d_addForce(uint32_t bodyId, float fx, float fy, float fz, float px, float py, float pz) {
     if (!g().isValid() || bodyId == 0) return;
-    g().system->GetBodyInterface().AddForce(BodyID(bodyId), Vec3(fx, fy, fz), RVec3(px, py, pz));
+    // A point that is not a number is its centre of mass: pushed there, it turns nothing.
+    if (std::isfinite(px) && std::isfinite(py) && std::isfinite(pz)) g().system->GetBodyInterface().AddForce(BodyID(bodyId), Vec3(fx, fy, fz), RVec3(px, py, pz));
+    else g().system->GetBodyInterface().AddForce(BodyID(bodyId), Vec3(fx, fy, fz));
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_addImpulse(uint32_t bodyId, float ix, float iy, float iz, float px, float py, float pz) {
+    if (!g().isValid() || bodyId == 0) return;
+    BodyInterface& bodies = g().system->GetBodyInterface();
+    if (bodies.GetMotionType(BodyID(bodyId)) != EMotionType::Dynamic) return;
+    if (std::isfinite(px) && std::isfinite(py) && std::isfinite(pz)) bodies.AddImpulse(BodyID(bodyId), Vec3(ix, iy, iz), RVec3(px, py, pz));
+    else bodies.AddImpulse(BodyID(bodyId), Vec3(ix, iy, iz));
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_addAngularImpulse(uint32_t bodyId, float ix, float iy, float iz) {
+    if (!g().isValid() || bodyId == 0) return;
+    BodyInterface& bodies = g().system->GetBodyInterface();
+    if (bodies.GetMotionType(BodyID(bodyId)) != EMotionType::Dynamic) return;
+    bodies.AddAngularImpulse(BodyID(bodyId), Vec3(ix, iy, iz));
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setAngularVelocity(uint32_t bodyId, float wx, float wy, float wz) {
+    if (!g().isValid() || bodyId == 0) return;
+    BodyInterface& bodies = g().system->GetBodyInterface();
+    if (bodies.GetMotionType(BodyID(bodyId)) == EMotionType::Static) return;
+    bodies.SetAngularVelocity(BodyID(bodyId), Vec3(wx, wy, wz));
+    bodies.ActivateBody(BodyID(bodyId));
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setGravity(float gx, float gy, float gz) {
+    if (!g().isValid()) return;
+    g().system->SetGravity(Vec3(gx, gy, gz));
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setAwake(uint32_t bodyId, int awake) {
+    if (!g().isValid() || bodyId == 0) return;
+    BodyInterface& bodies = g().system->GetBodyInterface();
+    if (bodies.GetMotionType(BodyID(bodyId)) == EMotionType::Static) return;
+    if (awake) bodies.ActivateBody(BodyID(bodyId)); else bodies.DeactivateBody(BodyID(bodyId));
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics3d_isAwake(uint32_t bodyId) {
+    if (!g().isValid() || bodyId == 0) return 0;
+    return g().system->GetBodyInterface().IsActive(BodyID(bodyId)) ? 1 : 0;
 }
 
 /// A torque of (tx, ty, tz) newton metres, over the next step.

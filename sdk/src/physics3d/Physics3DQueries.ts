@@ -7,6 +7,7 @@
  *          same contract the step follows — a query answering in the solver's
  *          units would be a second set of numbers for a caller to remember.
  */
+import { reportContact } from '../breakable/breakable';
 import type { Entity } from '../types';
 import type { Physics3DWasmModule } from './Physics3DModule';
 
@@ -42,7 +43,158 @@ export class Physics3DQueries {
     constructor(private readonly module_: Physics3DWasmModule,
                 private readonly ppu_: number,
                 private readonly characters_: ReadonlyMap<Entity, number> = new Map(),
-                private readonly bodies_: ReadonlyMap<Entity, number> = new Map()) {}
+                private readonly bodies_: ReadonlyMap<Entity, number> = new Map(),
+                private readonly world_: { gravity: { x: number; y: number; z: number } } = { gravity: { x: 0, y: -9.81, z: 0 } }) {}
+
+    // ── Pushing bodies ────────────────────────────────────────────────────────
+    // Lengths and speeds are world units, as Transform's; masses kilograms; angles radians. A force is kilograms by
+    // world units a second squared, an impulse kilograms by world units a second, so a 2 kg body given an impulse of
+    // 200 gains 100 world units a second. A body that does not move takes none of it. Each answers false for an
+    // entity the world has no body for yet - which is also true for the frame an entity is spawned in.
+
+    /**
+     * Push a body over the next step. At `at`, a world point, it also turns it; without one it pushes at its centre of
+     * mass. A force lasts one step: a steady push is given again each fixed step (a system in Schedule.FixedUpdate).
+     */
+    applyForce(entity: Entity, force: { x: number; y: number; z: number }, at?: { x: number; y: number; z: number }): boolean {
+        const id = this.bodies_.get(entity);
+        if (id === undefined || !this.module_._physics3d_addForce) return false;
+        const p = this.ppu_;
+        this.module_._physics3d_addForce(id, force.x / p, force.y / p, force.z / p, ...this.pointOf_(at));
+        return true;
+    }
+
+    /** Strike a body, all at once: its velocity changes by impulse / mass. At `at` it also turns it. Wakes it. */
+    applyImpulse(entity: Entity, impulse: { x: number; y: number; z: number }, at?: { x: number; y: number; z: number }): boolean {
+        const id = this.bodies_.get(entity);
+        if (id === undefined || !this.module_._physics3d_addImpulse) return false;
+        const p = this.ppu_;
+        this.module_._physics3d_addImpulse(id, impulse.x / p, impulse.y / p, impulse.z / p, ...this.pointOf_(at));
+        return true;
+    }
+
+    /** Twist a body over the next step, about each world axis: kilograms by world units squared a second squared. */
+    applyTorque(entity: Entity, torque: { x: number; y: number; z: number }): boolean {
+        const id = this.bodies_.get(entity);
+        if (id === undefined || !this.module_._physics3d_addTorque) return false;
+        const p2 = this.ppu_ * this.ppu_;
+        this.module_._physics3d_addTorque(id, torque.x / p2, torque.y / p2, torque.z / p2);
+        return true;
+    }
+
+    /** Twist a body all at once: kilograms by world units squared a second. */
+    applyAngularImpulse(entity: Entity, impulse: { x: number; y: number; z: number }): boolean {
+        const id = this.bodies_.get(entity);
+        if (id === undefined || !this.module_._physics3d_addAngularImpulse) return false;
+        const p2 = this.ppu_ * this.ppu_;
+        this.module_._physics3d_addAngularImpulse(id, impulse.x / p2, impulse.y / p2, impulse.z / p2);
+        return true;
+    }
+
+    /** How fast it is going, in world units a second; null for an entity with no body. */
+    getLinearVelocity(entity: Entity): { x: number; y: number; z: number } | null {
+        const id = this.bodies_.get(entity);
+        if (id === undefined || !this.module_._physics3d_getBodyState(id)) return null;
+        const f32 = this.module_.HEAPF32, o = this.module_._physics3d_queryResult() >> 2, p = this.ppu_;
+        return { x: f32[o + 7]! * p, y: f32[o + 8]! * p, z: f32[o + 9]! * p };
+    }
+
+    /** How fast it turns, in radians a second about each world axis; null for a body that does not move. */
+    getAngularVelocity(entity: Entity): { x: number; y: number; z: number } | null {
+        const id = this.bodies_.get(entity);
+        if (id === undefined || !this.module_._physics3d_getBodyDynamics?.(id)) return null;
+        const f32 = this.module_.HEAPF32, o = this.module_._physics3d_queryResult() >> 2;
+        return { x: f32[o + 1]!, y: f32[o + 2]!, z: f32[o + 3]! };
+    }
+
+    /** Set how fast it turns, in radians a second about each world axis. Wakes it. */
+    setAngularVelocity(entity: Entity, velocity: { x: number; y: number; z: number }): boolean {
+        const id = this.bodies_.get(entity);
+        if (id === undefined || !this.module_._physics3d_setAngularVelocity) return false;
+        this.module_._physics3d_setAngularVelocity(id, velocity.x, velocity.y, velocity.z);
+        return true;
+    }
+
+    /** Its mass in kilograms; null for a body that does not move, which has none. */
+    getMass(entity: Entity): number | null {
+        const id = this.bodies_.get(entity);
+        if (id === undefined || !this.module_._physics3d_getBodyDynamics?.(id)) return null;
+        return this.module_.HEAPF32[this.module_._physics3d_queryResult() >> 2]!;
+    }
+
+    /** Wake a sleeping body, or put one to sleep until something touches it. */
+    setAwake(entity: Entity, awake: boolean): boolean {
+        const id = this.bodies_.get(entity);
+        if (id === undefined || !this.module_._physics3d_setAwake) return false;
+        this.module_._physics3d_setAwake(id, awake ? 1 : 0);
+        return true;
+    }
+
+    /** Whether it is awake: false for one asleep, one that does not move, or an entity with no body. */
+    isAwake(entity: Entity): boolean {
+        const id = this.bodies_.get(entity);
+        return id !== undefined && (this.module_._physics3d_isAwake?.(id) ?? 0) === 1;
+    }
+
+    /**
+     * The world's gravity, in metres a second squared as the project's physics settings give it (y -9.81 is Earth's).
+     * A body asleep when it changes stays where it is until something wakes it.
+     */
+    setGravity(gravity: { x: number; y: number; z: number }): boolean {
+        if (!this.module_._physics3d_setGravity) return false;
+        this.module_._physics3d_setGravity(gravity.x, gravity.y, gravity.z);
+        this.world_.gravity = { ...gravity };
+        return true;
+    }
+
+    getGravity(): { x: number; y: number; z: number } {
+        return { ...this.world_.gravity };
+    }
+
+    /**
+     * A blast at `centre`: every moving body within `radius` is struck away from it with `impulse` at the centre,
+     * less the further it is, to none at the edge; `upward` (0..1) tips the push toward the sky, as a blast on the
+     * ground throws things up. Whatever can break and is caught in it is struck as hard, so a Breakable with a
+     * breakImpulse that the blast reaches at least that hard breaks, standing or not. Answers how many bodies it moved.
+     */
+    explode(centre: { x: number; y: number; z: number }, radius: number, impulse: number,
+            options: { upward?: number; layers?: number } = {}): number {
+        if (!(radius > 0) || !(impulse > 0)) return 0;
+        const upward = Math.max(0, Math.min(1, options.upward ?? 0));
+        const seen = new Set<Entity>();
+        let moved = 0;
+        for (const hit of this.overlapSphere(centre, radius, options.layers ?? 0)) {
+            if (seen.has(hit.entity)) continue;
+            seen.add(hit.entity);
+            const at = this.bodyPosition_(hit.entity) ?? { x: hit.x, y: hit.y, z: hit.z };
+            let [x, y, z] = [at.x - centre.x, at.y - centre.y, at.z - centre.z];
+            const far = Math.hypot(x, y, z);
+            const share = Math.max(0, 1 - far / radius);
+            if (share <= 0) continue;
+            [x, y, z] = far > 1e-6 ? [x / far, y / far, z / far] : [0, 1, 0];
+            y += upward;
+            const long = Math.hypot(x, y, z) || 1;
+            const blow = impulse * share;
+            reportContact(hit.entity, hit.entity, blow, at);
+            if (this.getMass(hit.entity) !== null
+                && this.applyImpulse(hit.entity, { x: (x / long) * blow, y: (y / long) * blow, z: (z / long) * blow })) moved++;
+        }
+        return moved;
+    }
+
+    private bodyPosition_(entity: Entity): { x: number; y: number; z: number } | null {
+        const id = this.bodies_.get(entity);
+        if (id === undefined || !this.module_._physics3d_getBodyState(id)) return null;
+        const f32 = this.module_.HEAPF32, o = this.module_._physics3d_queryResult() >> 2, p = this.ppu_;
+        return { x: f32[o]! * p, y: f32[o + 1]! * p, z: f32[o + 2]! * p };
+    }
+
+    /** A world point in metres, or not-a-number for the centre of mass. */
+    private pointOf_(at?: { x: number; y: number; z: number }): [number, number, number] {
+        if (!at) return [NaN, NaN, NaN];
+        const p = this.ppu_;
+        return [at.x / p, at.y / p, at.z / p];
+    }
 
     /**
      * Send a body off at a velocity, in world units a second: a blast, a kick, a piece of something that broke. What

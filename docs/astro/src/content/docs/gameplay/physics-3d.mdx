@@ -513,6 +513,39 @@ that asks in the first frames should check for it.
   units long.
 </Aside>
 
+## Pushing bodies
+
+The same `Physics3D` resource pushes bodies about: throwing, kicking, knocking
+back, a blast. Lengths and speeds are world units, as `Transform`'s; masses
+kilograms; angles radians. An impulse is kilograms by world units a second, so a
+2 kg body given an impulse of 200 gains 100 world units a second; a force is the
+same per second.
+
+```typescript
+const physics = app.getResource(Physics3D);
+// Kick a ball where the foot meets it: it flies and spins.
+physics.applyImpulse(ball, { x: 0, y: 150, z: -600 }, footPoint);
+// A blast: every moving body within 400 thrown away and a little up,
+// and every Breakable it reaches hard enough broken.
+physics.explode(grenadeAt, 400, 3000, { upward: 0.4 });
+```
+
+| Call | Does |
+|---|---|
+| `applyImpulse(entity, impulse, at?)` | Strikes it all at once: its velocity changes by impulse / mass. At `at`, a world point, it also turns it; without, at its centre of mass. Wakes it. |
+| `applyForce(entity, force, at?)` | Pushes it over the next fixed step only: a steady push is given again each step, from a system in `Schedule.FixedUpdate`. |
+| `applyTorque(entity, torque)` / `applyAngularImpulse(entity, impulse)` | Twists it, over the next step or all at once, about each world axis. Kilograms by world units squared a second squared, and a second. |
+| `setLinearVelocity(entity, v)` / `getLinearVelocity(entity)` | Its speed, in world units a second. |
+| `setAngularVelocity(entity, w)` / `getAngularVelocity(entity)` | Its spin, in radians a second. |
+| `getMass(entity)` | Kilograms; `null` for a body that does not move. Set with `RigidBody3D.mass`. |
+| `setAwake(entity, awake)` / `isAwake(entity)` | Wake a sleeping body, or put one to sleep until something touches it. |
+| `setGravity(g)` / `getGravity()` | The world's gravity, in metres a second squared as the project's physics settings give it. A sleeping body stays put until woken. |
+| `explode(centre, radius, impulse, { upward?, layers? })` | Strikes every moving body within `radius` away from `centre` with `impulse`, less the further it is and none at the edge; `upward` (0..1) tips the push toward the sky. A `Breakable` it reaches is struck as hard, standing or not. Answers how many bodies it moved. |
+
+A body that does not move takes none of it, and each call answers `false` (or
+`null`) for an entity the world has no body for yet, which is true for the
+frame an entity is spawned in.
+
 ## Collision layers
 
 Every body is in one of sixteen layers, and a project says which layers hear from
@@ -677,3 +710,14 @@ they should have with `RigidBody3D.mass`.
 there for anything else that needs to send a body off: a blast, a kick. It
 answers false for an entity that has no body yet, which is true for the frame an
 entity is spawned in.
+
+When it breaks, `Broke` is sent, once the pieces stand in its place, for the
+sound, the dust and the score: `{ entity, x, y, z, impulse }`, where it was
+struck in the world and how hard (0 when its flag was raised by hand).
+
+```typescript
+app.addSystemToSchedule(Schedule.Update, defineSystem([EventReader(Broke), Res(Audio)], (broke, audio) => {
+  // Louder the harder it was struck; a pot broken by hand makes its quietest sound.
+  for (const b of broke) audio.playSFX('assets/shatter.wav', { volume: Math.min(1, 0.3 + b.impulse / 3000) });
+}));
+```

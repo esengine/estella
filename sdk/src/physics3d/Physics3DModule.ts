@@ -149,6 +149,13 @@ export interface Physics3DWasmModule {
     _physics3d_contactEnterMassesBytes?(): number;
     /** Optional for older binaries: a moving body's mass in kilograms. */
     _physics3d_setMass?(bodyId: number, mass: number): void;
+    /** Optional for older binaries: a blow in newton seconds at a world point, or the centre of mass for NaN. */
+    _physics3d_addImpulse?(bodyId: number, ix: number, iy: number, iz: number, px: number, py: number, pz: number): void;
+    _physics3d_addAngularImpulse?(bodyId: number, ix: number, iy: number, iz: number): void;
+    _physics3d_setAngularVelocity?(bodyId: number, wx: number, wy: number, wz: number): void;
+    _physics3d_setGravity?(gx: number, gy: number, gz: number): void;
+    _physics3d_setAwake?(bodyId: number, awake: number): void;
+    _physics3d_isAwake?(bodyId: number): number;
     _physics3d_contactExits(): number;
     _physics3d_contactExitsBytes(): number;
     _physics3d_sensorEnters(): number;

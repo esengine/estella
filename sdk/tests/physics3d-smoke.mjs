@@ -852,6 +852,72 @@ const live = peakAfterImpact(9302, 9002);
 check('with the backend\'s own threshold the same impact bounces', live > 1.0, `peak=${live}`);
 m._physics3d_removeBody(solverFloor);
 
+// ── Pushing bodies by hand ─────────────────────────────────────────────────
+// Spheres of 2 kg, 0.5 m across the middle out, weightless and undamped, far from everything else: what a blow does
+// is then exactly what it should. A solid sphere's inertia is 2/5 m r^2 = 0.2 kg m^2.
+{
+const FLOATING = [DYNAMIC, 0, 0, 0, 0, 0, 0];
+let nextBall = 9400;
+const floatingBall = () => {
+    const id = m._physics3d_addSphere(nextBall, 0.5, 5000 + (nextBall - 9400) * 10, 50, 0, ...IDENTITY, ...FLOATING, 0.5, 0, 0);
+    nextBall++;
+    m._physics3d_setMass(id, 2);
+    return id;
+};
+const velocityOf = (id) => { m._physics3d_getBodyState(id); const o = m._physics3d_queryResult() >> 2; return [m.HEAPF32[o + 7], m.HEAPF32[o + 8], m.HEAPF32[o + 9]]; };
+const spinOf = (id) => { m._physics3d_getBodyDynamics(id); const o = m._physics3d_queryResult() >> 2; return [m.HEAPF32[o + 1], m.HEAPF32[o + 2], m.HEAPF32[o + 3]]; };
+const centreOf = (id) => { m._physics3d_getBodyState(id); const o = m._physics3d_queryResult() >> 2; return [m.HEAPF32[o], m.HEAPF32[o + 1], m.HEAPF32[o + 2]]; };
+const fmt = (v) => v.map((x) => x.toFixed(3)).join(',');
+
+const struck = floatingBall();
+m._physics3d_addImpulse(struck, 4, 0, 0, NaN, NaN, NaN);
+step(1);
+check('an impulse at the centre changes the speed by impulse / mass', near(velocityOf(struck)[0], 2, 1e-3), fmt(velocityOf(struck)));
+check('and turns nothing', spinOf(struck).every((w) => near(w, 0, 1e-4)), fmt(spinOf(struck)));
+
+const clipped = floatingBall();
+const [cx, cy, cz] = centreOf(clipped);
+m._physics3d_addImpulse(clipped, 0, 0, 1, cx, cy + 0.5, cz);
+step(1);
+// r x J = (0, 0.5, 0) x (0, 0, 1) = (0.5, 0, 0); over 0.2 kg m^2 that is 2.5 rad/s about x.
+check('an impulse off the centre turns it as r x J / inertia says', near(spinOf(clipped)[0], 2.5, 0.01) && near(velocityOf(clipped)[2], 0.5, 1e-3),
+      `spin ${fmt(spinOf(clipped))} velocity ${fmt(velocityOf(clipped))}`);
+
+const twisted = floatingBall();
+m._physics3d_addAngularImpulse(twisted, 0, 0.2, 0);
+step(1);
+check('an angular impulse turns it by impulse / inertia', near(spinOf(twisted)[1], 1, 0.01), fmt(spinOf(twisted)));
+
+const spun = floatingBall();
+m._physics3d_setAngularVelocity(spun, 0, 0, 3);
+step(1);
+check('a spin can be set', near(spinOf(spun)[2], 3, 0.01), fmt(spinOf(spun)));
+
+const pushed = floatingBall();
+m._physics3d_addForce(pushed, 120, 0, 0, NaN, NaN, NaN);
+step(1);
+// 120 N on 2 kg for a sixtieth of a second: 1 m/s, and only the one step.
+check('a force at the centre lasts one step', near(velocityOf(pushed)[0], 1, 1e-3) && spinOf(pushed).every((w) => near(w, 0, 1e-4)), fmt(velocityOf(pushed)));
+step(1);
+check('and is gone the step after', near(velocityOf(pushed)[0], 1, 1e-3), fmt(velocityOf(pushed)));
+
+const sleeper = floatingBall();
+m._physics3d_setAwake(sleeper, 0);
+check('a body can be put to sleep', m._physics3d_isAwake(sleeper) === 0);
+m._physics3d_setAwake(sleeper, 1);
+check('and woken', m._physics3d_isAwake(sleeper) === 1);
+const ledge = m._physics3d_addBox(9498, 1, 0.5, 1, 7000, 0, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0);
+check('a body that does not move is never awake', m._physics3d_isAwake(ledge) === 0);
+
+const faller = m._physics3d_addSphere(9499, 0.5, 6000, 50, 0, ...IDENTITY, ...FREE(DYNAMIC), 0.5, 0, 0);
+m._physics3d_setGravity(0, -2, 0);
+step(30);
+const fall = velocityOf(faller)[1];
+m._physics3d_setGravity(0, -9.81, 0);
+check('the world\'s gravity can be changed', near(fall, -1, 0.02), `vy=${fall.toFixed(4)} after half a second at 2 m/s^2`);
+
+}
+
 m._physics3d_shutdown();
 check('the world reports itself gone', m._physics3d_isReady() === 0);
 

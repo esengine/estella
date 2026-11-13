@@ -449,6 +449,36 @@ const occupants = q.overlapSphere(spawnPoint, 50);
   乘上 `pixelsPerUnit` 只会得到一个长度 100 的单位向量。
 </Aside>
 
+## 推动刚体
+
+同一个 `Physics3D` 资源也用来推动刚体：投掷、踢、击退、爆炸。长度和速度用世界单位，与
+`Transform` 一致；质量用千克；角度用弧度。冲量是千克·世界单位每秒，所以给 2 kg 的刚体
+200 的冲量，它的速度增加 100 世界单位每秒；力则是同样的量每秒。
+
+```typescript
+const physics = app.getResource(Physics3D);
+// 在脚碰到球的位置踢它：球会飞出并旋转。
+physics.applyImpulse(ball, { x: 0, y: 150, z: -600 }, footPoint);
+// 爆炸：400 范围内的运动刚体被向外并略向上抛出，
+// 被波及得够重的 Breakable 会碎。
+physics.explode(grenadeAt, 400, 3000, { upward: 0.4 });
+```
+
+| 调用 | 作用 |
+|---|---|
+| `applyImpulse(entity, impulse, at?)` | 一次性撞击：速度变化为冲量除以质量。给了世界坐标 `at` 时还会让它转动；不给时作用在质心。会唤醒刚体。 |
+| `applyForce(entity, force, at?)` | 只在下一个固定步里施力：持续的推力要在 `Schedule.FixedUpdate` 的系统里每步施加一次。 |
+| `applyTorque(entity, torque)` / `applyAngularImpulse(entity, impulse)` | 绕各世界轴扭转，分别作用于下一步或一次性作用。单位是千克·世界单位²每秒²，以及每秒。 |
+| `setLinearVelocity(entity, v)` / `getLinearVelocity(entity)` | 线速度，世界单位每秒。 |
+| `setAngularVelocity(entity, w)` / `getAngularVelocity(entity)` | 角速度，弧度每秒。 |
+| `getMass(entity)` | 千克；不动的刚体返回 `null`。用 `RigidBody3D.mass` 设定。 |
+| `setAwake(entity, awake)` / `isAwake(entity)` | 唤醒休眠的刚体，或让它休眠直到被碰到。 |
+| `setGravity(g)` / `getGravity()` | 世界重力，单位与项目物理设置一致，米每秒²。休眠的刚体在被唤醒前不会动。 |
+| `explode(centre, radius, impulse, { upward?, layers? })` | 把 `radius` 内的每个运动刚体从 `centre` 向外撞开，力度为 `impulse`，越远越小，到边缘为零；`upward`（0..1）让推力偏向上方。被波及的 `Breakable` 以同样力度计算，不论它是否静止。返回推动了多少个刚体。 |
+
+不动的刚体不受这些影响；世界里还没有对应刚体的实体，每个调用都返回 `false`（或 `null`），
+实体刚生成的那一帧就是这样。
+
 ## 碰撞层
 
 每个刚体属于十六层中的一层,由项目声明哪些层之间能互相听见。**两边都得同意**——
@@ -579,3 +609,13 @@ world.update(pot, Breakable, (b) => { b.origin = hitPointInItsOwnSpace; b.broken
 把碎块抛出去用的是 `Physics3D.setLinearVelocity(entity, velocity)`，其他需要把刚体
 送出去的场合（爆炸、踢击）也可以用它。实体还没有刚体时它返回 false，实体刚生成的
 那一帧就是这样。
+
+碎的时候会在碎块放好之后发送 `Broke` 事件，用来播放声音、扬尘和计分：
+`{ entity, x, y, z, impulse }`，即在世界中被击中的位置和力度（手动置标志时为 0）。
+
+```typescript
+app.addSystemToSchedule(Schedule.Update, defineSystem([EventReader(Broke), Res(Audio)], (broke, audio) => {
+  // Louder the harder it was struck; a pot broken by hand makes its quietest sound.
+  for (const b of broke) audio.playSFX('assets/shatter.wav', { volume: Math.min(1, 0.3 + b.impulse / 3000) });
+}));
+```

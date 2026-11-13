@@ -27,7 +27,18 @@ vi.mock('../src/ecs/component', async (importOriginal) => {
 
 const { App } = await import('../src/app/app');
 const { Transform, getComponent } = await import('../src/ecs/component');
-const { Breakable, BreakablePlugin, burstVelocity, reportContact, setBodyPusher } = await import('../src/breakable/breakable');
+const { Breakable, BreakablePlugin, Broke, burstVelocity, reportContact, setBodyPusher } = await import('../src/breakable/breakable');
+const { defineSystem, Schedule } = await import('../src/ecs/system');
+const { EventReader } = await import('../src/ecs/event');
+
+/** Everything said about breaking, as a game's own system would read it. */
+function listen(app: InstanceType<typeof App>) {
+    const heard: { entity: Entity; x: number; y: number; z: number; impulse: number }[] = [];
+    app.addSystemToSchedule(Schedule.Update, defineSystem([EventReader(Broke)], (broke: Iterable<(typeof heard)[number]>) => {
+        for (const e of broke) heard.push({ ...e });
+    }, { name: 'ListenForBreaks' }));
+    return heard;
+}
 const { Prefabs } = await import('../src/prefab/prefabServer');
 const MeshRenderer = getComponent('MeshRenderer')!;
 const Body = getComponent('RigidBody3D')!;
@@ -208,6 +219,36 @@ describe('a thing that breaks', () => {
         reportContact(app.world.spawn('Boulder'), whole, 1e6, { x: 100, y: 50, z: 0 });
         await tick(2);
         expect(prefabs.instantiate).not.toHaveBeenCalled();
+    });
+
+    it('says it broke once the pieces stand, with the blow and where it landed', async () => {
+        const { app, whole, tick } = setup();
+        const heard = listen(app);
+        app.world.update(whole, Breakable, (d) => { d.breakImpulse = 400; });
+        reportContact(app.world.spawn('Stone'), whole, 650, { x: 100, y: 70, z: 10 });
+        await tick(4);
+        expect(heard).toEqual([{ entity: whole, x: 100, y: 70, z: 10, impulse: 650 }]);
+        // Once: lying broken, it says nothing more.
+        await tick(3);
+        expect(heard).toHaveLength(1);
+    });
+
+    it('says it broke when its flag is raised, at its origin and with no blow', async () => {
+        const { app, whole, breakIt, tick } = setup();
+        const heard = listen(app);
+        app.world.update(whole, Breakable, (d) => { d.origin = { x: 0, y: 20, z: 0 }; });
+        breakIt(true);
+        await tick(4);
+        expect(heard).toEqual([{ entity: whole, x: 100, y: 70, z: 0, impulse: 0 }]);
+    });
+
+    it('says nothing when its pieces cannot be loaded, since it did not break', async () => {
+        const { app, breakIt, tick, failNext } = setup();
+        const heard = listen(app);
+        failNext();
+        breakIt(true);
+        await tick(4);
+        expect(heard).toEqual([]);
     });
 
     it('stops hearing hits when its app ends', async () => {

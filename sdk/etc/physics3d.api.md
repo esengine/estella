@@ -318,14 +318,27 @@ static prototype: Physics3DPlugin
 
 ## Physics3DQueries — class @experimental
 ```
+applyAngularImpulse: (entity: Entity, impulse: { x: number; y: number; z: number; }) => boolean
+applyForce: (entity: Entity, force: { x: number; y: number; z: number; }, at?: { x: number; y: number; z: number; }) => boolean
+applyImpulse: (entity: Entity, impulse: { x: number; y: number; z: number; }, at?: { x: number; y: number; z: number; }) => boolean
+applyTorque: (entity: Entity, torque: { x: number; y: number; z: number; }) => boolean
+explode: (centre: { x: number; y: number; z: number; }, radius: number, impulse: number, options?: { upward?: number; layers?: number; }) => number
+getAngularVelocity: (entity: Entity) => { x: number; y: number; z: number; } | null
+getGravity: () => { x: number; y: number; z: number; }
+getLinearVelocity: (entity: Entity) => { x: number; y: number; z: number; } | null
+getMass: (entity: Entity) => number | null
 hasBody: (entity: Entity) => boolean
+isAwake: (entity: Entity) => boolean
 overlapBox: (centre: { x: number; y: number; z: number; }, halfExtents: { x: number; y: number; z: number; }, layerMask?: number) => Overlap3DHit[]
 overlapSphere: (centre: { x: number; y: number; z: number; }, radius: number, layerMask?: number) => Overlap3DHit[]
 raycast: (origin: { x: number; y: number; z: number; }, direction: { x: number; y: number; z: number; }, layerMask?: number, options?: { characters?: boolean; }) => Cast3DHit | null
+setAngularVelocity: (entity: Entity, velocity: { x: number; y: number; z: number; }) => boolean
+setAwake: (entity: Entity, awake: boolean) => boolean
+setGravity: (gravity: { x: number; y: number; z: number; }) => boolean
 setLinearVelocity: (entity: Entity, velocity: { x: number; y: number; z: number; }) => boolean
 sphereCast: (origin: { x: number; y: number; z: number; }, radius: number, direction: { x: number; y: number; z: number; }, layerMask?: number) => Cast3DHit | null
 teleportCharacter: (entity: Entity, position: { x: number; y: number; z: number; }) => boolean
-static new (module_: Physics3DWasmModule, ppu_: number, characters_?: ReadonlyMap<Entity, number>, bodies_?: ReadonlyMap<Entity, number>): Physics3DQueries
+static new (module_: Physics3DWasmModule, ppu_: number, characters_?: ReadonlyMap<Entity, number>, bodies_?: ReadonlyMap<Entity, number>, world_?: { gravity: { x: number; y: number; z: number; }; }): Physics3DQueries
 static prototype: Physics3DQueries
 ```
 
@@ -346,6 +359,7 @@ HEAPF32: Float32Array<ArrayBufferLike>
 HEAPU32: Uint32Array<ArrayBufferLike>
 _free: (ptr: number) => void
 _malloc: (bytes: number) => number
+_physics3d_addAngularImpulse: ((bodyId: number, ix: number, iy: number, iz: number) => void) | undefined
 _physics3d_addBox: (entity: number, hx: number, hy: number, hz: number, px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number, motion: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, layer: number, continuous: number, friction: number, restitution: number, isSensor: number, cx: number, cy: number, cz: number) => number
 _physics3d_addCapsule: (entity: number, radius: number, halfHeight: number, px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number, motion: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, layer: number, continuous: number, friction: number, restitution: number, isSensor: number, cx: number, cy: number, cz: number) => number
 _physics3d_addCharacter: (entity: number, radius: number, halfHeight: number, px: number, py: number, pz: number, maxSlope: number, mass: number, layer: number, pushForce: number) => number
@@ -355,6 +369,7 @@ _physics3d_addDistanceJoint: (entity: number, bodyA: number, bodyB: number, ax: 
 _physics3d_addFixedJoint: (entity: number, bodyA: number, bodyB: number, collideConnected: number) => number
 _physics3d_addForce: ((bodyId: number, fx: number, fy: number, fz: number, px: number, py: number, pz: number) => void) | undefined
 _physics3d_addHingeJoint: (entity: number, bodyA: number, bodyB: number, px: number, py: number, pz: number, ax: number, ay: number, az: number, enableLimit: number, lower: number, upper: number, enableMotor: number, motorSpeed: number, maxTorque: number, collideConnected: number) => number
+_physics3d_addImpulse: ((bodyId: number, ix: number, iy: number, iz: number, px: number, py: number, pz: number) => void) | undefined
 _physics3d_addMeshBody: (entity: number, vertexPtr: number, vertexCount: number, indexPtr: number, indexCount: number, px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number, layer: number, friction: number, restitution: number) => number
 _physics3d_addPointJoint: (entity: number, bodyA: number, bodyB: number, px: number, py: number, pz: number, collideConnected: number) => number
 _physics3d_addSixDOFJoint: (entity: number, bodyA: number, bodyB: number, px: number, py: number, pz: number, ax: number, ay: number, az: number, nx: number, ny: number, nz: number, translationMotion: number, rotationMotion: number, lx: number, ly: number, lz: number, hx: number, hy: number, hz: number, rx: number, ry: number, rz: number, sx: number, sy: number, sz: number, collideConnected: number) => number
@@ -373,6 +388,7 @@ _physics3d_contactExitsBytes: () => number
 _physics3d_getBodyDynamics: ((bodyId: number) => number) | undefined
 _physics3d_getBodyState: (bodyId: number) => number
 _physics3d_init: (gx: number, gy: number, gz: number, maxBodies: number) => void
+_physics3d_isAwake: ((bodyId: number) => number) | undefined
 _physics3d_isReady: () => number
 _physics3d_jointValue: (entity: number) => number
 _physics3d_moveCharacter: (characterId: number, vx: number, vy: number, vz: number, dt: number, stepUp: number, stepDown: number) => void
@@ -391,7 +407,10 @@ _physics3d_sensorEntersBytes: () => number
 _physics3d_sensorExits: () => number
 _physics3d_sensorExitsBytes: () => number
 _physics3d_setAdvancedJointMotor: (entity: number, enable: number, vx: number, vy: number, vz: number, wx: number, wy: number, wz: number, maxForce: number, maxTorque: number) => void
+_physics3d_setAngularVelocity: ((bodyId: number, wx: number, wy: number, wz: number) => void) | undefined
+_physics3d_setAwake: ((bodyId: number, awake: number) => void) | undefined
 _physics3d_setCharacterPosition: (characterId: number, px: number, py: number, pz: number) => void
+_physics3d_setGravity: ((gx: number, gy: number, gz: number) => void) | undefined
 _physics3d_setJointMotor: (entity: number, enable: number, speed: number) => void
 _physics3d_setLayerMask: (layer: number, mask: number) => void
 _physics3d_setLinearVelocity: (bodyId: number, vx: number, vy: number, vz: number) => void
