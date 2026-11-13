@@ -4702,6 +4702,8 @@ export const NOTED = {
     {"note": "A picture made in the editor ships as a recipe."},
   "fix(render): the built-in ripple map is drawn again after a device loss, and no copy of it is kept - every game held 256 KB for a map only water reads; and the checks that went red since: a cost scene with no criterion, TilemapLayer.lit in its defaults, NativeChannel frozen before it earned it, a wav encoder that refused read-only channels, a worker test with five seconds for twenty realms":
     {"note": "A game no longer keeps a copy of the built-in ripple map."},
+  "fix(docs): the manual builds again, and a gate reads what broke it - an apostrophe in Waterfall's summary ended its string and five links were written from the site's root, so 0.104.0 published with the manual not deployed; check-doc-sources parses the data files and reads every page's links without building the site":
+    {"internal": "the manual's own build and a gate over its sources; no page a reader sees changed but the five links that now resolve"},
   "fix(terrain): a ground with more pages wanted than it holds no longer throws every frame - the pages it had chosen to draw were marked in use only after new pages were made, so a new page took the slot of one about to be drawn and its node was placed on nothing":
     {"note": "A large ground no longer throws every frame once its pages run out."},
   "chore(gates): what the checks asked of this week's work - a disposition for esengine/image in a native script and its namespace there, Waterfall's width and its place in the corpus, the recipe worker's bundle as not a contract, shadeLight2D's inout against its return, and a test that named App as a type":

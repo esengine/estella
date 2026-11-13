@@ -52,6 +52,7 @@ export const GATES = [
   { id: 'fixture-scenes', run: 'node tools/check-fixture-scenes.mjs' },
   { id: 'prefab-overrides', run: 'node tools/check-prefab-overrides.mjs' },
   { id: 'doc-imports', run: 'node tools/check-doc-imports.mjs' },
+  { id: 'doc-sources', run: 'node tools/check-doc-sources.mjs' },
   { id: 'architecture-doc', run: 'node tools/check-architecture-doc.mjs' },
   { id: 'native-bindings', run: 'node tools/check-native-bindings.mjs' },
   // The generator's output is checked in, so its authority and its artifact can
