@@ -56,7 +56,7 @@ describe('a model report\'s steps', () => {
         ] as ModelSource['steps'] }).report.warnings;
 
         // A stain by a pattern is as fine as its pattern: it splits the faces the decimate kept.
-        const said = rock([{ id: 'lichen', op: 'stain', faces: 'rock', color: [0.3, 0.4, 0.2], pattern: 'bumps', scale: 0.12 }]);
+        const said = rock([{ id: 'lichen', op: 'stain', faces: 'rock', color: [0.3, 0.4, 0.2], pattern: 'bumps', scale: 0.5 }]);
         const warning = said.find((w) => w.includes('lichen'));
         expect(warning).toBeDefined();
         expect(warning).toMatch(/split the \d+ triangles it was given into \d+/);
@@ -69,7 +69,7 @@ describe('a model report\'s steps', () => {
         // And a pattern before the decimate takes nothing back.
         const before = bakeModel({ version: 1, steps: [
             { id: 'body', op: 'sphere', radius: 1, rings: 16, sides: 24, tag: 'rock' },
-            { id: 'lichen', op: 'stain', faces: 'rock', color: [0.3, 0.4, 0.2], pattern: 'bumps', scale: 0.12 },
+            { id: 'lichen', op: 'stain', faces: 'rock', color: [0.3, 0.4, 0.2], pattern: 'bumps', scale: 0.5 },
             { id: 'thin', op: 'decimate', triangles: 200 },
         ] });
         expect(before.report.warnings.some((w) => w.includes('split'))).toBe(false);
