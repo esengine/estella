@@ -648,6 +648,10 @@ export const Renderer = {
         backend?.setStage(stage);
     },
 
+    /**
+     * A render target: `flags` 1 with a depth buffer, 2 filtered linearly, 4 its texture as drawn (on a device that stores targets
+     * top-down, no copy turned to bottom-up rows is kept, for a target only shaders that know the device's rows read).
+     */
     createRenderTarget(width: number, height: number, flags: number = 1): RenderTargetHandle {
         return engine()?.renderer_createTarget?.(width, height, flags) ?? 0;
     },
@@ -662,6 +666,28 @@ export const Renderer = {
 
     getTargetDepthTexture(handle: RenderTargetHandle): number {
         return engine()?.renderer_getTargetDepthTexture?.(handle) ?? 0;
+    },
+
+    /**
+     * Draws `material` through `shader` (a PostProcess-domain shader, compiled) into the rect `x, y, w, h` of render target `target`,
+     * before the next frame's scene: a surface baked into a texture, as Unreal draws a material to a render target. The shader takes the
+     * material's values by name (params and textures it shares with the material's own shader), and `a` and `b` as its params `u_bakeA`
+     * and `u_bakeB`. Returns a ticket for {@link Renderer.bakeState}, 0 without a renderer that bakes.
+     * @experimental
+     */
+    bakeMaterial(material: number, shader: number, target: RenderTargetHandle, x: number, y: number, w: number, h: number,
+                 a: readonly [number, number, number, number], b: readonly [number, number, number, number]): number {
+        return engine()?.renderer_queueMaterialBake?.(material, shader, target, x, y, w, h, a[0], a[1], a[2], a[3], b[0], b[1], b[2], b[3]) ?? 0;
+    },
+
+    /**
+     * Where a bake stands: 0 waiting (its program may still be compiling), 1 drawn, -1 not drawable (no such target, shader or material,
+     * or no renderer that bakes). A drawn or failed ticket is forgotten once asked.
+     * @experimental
+     */
+    bakeState(ticket: number): number {
+        if (!ticket) return -1;
+        return engine()?.renderer_materialBakeState?.(ticket) ?? -1;
     },
 
     setClearColor(r: number, g: number, b: number, a: number): void {

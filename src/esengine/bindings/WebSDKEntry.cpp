@@ -777,6 +777,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_createTarget", &esengine::renderer_createTarget);
     emscripten::function("renderer_releaseTarget", &esengine::renderer_releaseTarget);
     emscripten::function("renderer_getTargetTexture", &esengine::renderer_getTargetTexture);
+    emscripten::function("renderer_queueMaterialBake", &esengine::renderer_queueMaterialBake);
+    emscripten::function("renderer_materialBakeState", &esengine::renderer_materialBakeState);
     emscripten::function("renderer_getTargetDepthTexture", &esengine::renderer_getTargetDepthTexture);
     emscripten::function("renderer_getDrawCalls", &esengine::renderer_getDrawCalls);
     emscripten::function("renderer_getGpuDrawCalls", &esengine::renderer_getGpuDrawCalls);

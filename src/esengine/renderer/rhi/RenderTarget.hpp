@@ -20,7 +20,10 @@ public:
     RenderTarget(RenderTarget&&) = default;
     RenderTarget& operator=(RenderTarget&&) = default;
 
-    void init(GfxDevice& device, u32 width, u32 height, bool depth = true, bool linearFilter = false);
+    /** @param asDrawn On a device that stores targets top-down, hand out the texture drawn into rather than a copy turned to the
+     *                 bottom-up rows a camera's target is read in: for a target drawn and read by shaders that know the device's rows
+     *                 (a baked surface), which a copy of the whole of it each time it is drawn would only cost. */
+    void init(GfxDevice& device, u32 width, u32 height, bool depth = true, bool linearFilter = false, bool asDrawn = false);
     void shutdown();
 
     void bind();
@@ -58,7 +61,7 @@ public:
     /** @brief Binds the device used to create render targets. Call once at setup. */
     void setDevice(GfxDevice& device) { device_ = &device; }
 
-    Handle create(u32 width, u32 height, bool depth = true, bool linearFilter = false);
+    Handle create(u32 width, u32 height, bool depth = true, bool linearFilter = false, bool asDrawn = false);
     RenderTarget* get(Handle handle);
     void release(Handle handle);
 

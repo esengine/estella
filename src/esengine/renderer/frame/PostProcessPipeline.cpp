@@ -771,6 +771,22 @@ void PostProcessPipeline::drawCloudShadow(const glm::mat4& inverse, const glm::v
     drawing_cloud_shadow_ = false;
 }
 
+bool PostProcessPipeline::drawMaterialThrough(u32 material, u32 shader,
+                                              const std::vector<std::pair<std::string, glm::vec4>>& overrides, u32 scratch) {
+    const resource::ShaderHandle handle(shader);
+    Shader* program = resourceManager_.getShader(handle);
+    if (!program) return false;
+    applyPassPipeline(*program);
+    // Nothing of a scene on the units a fullscreen program declares: a bake reads none, and the last bound may be this frame's target.
+    device_.bindTexture(0, TextureHandle::Invalid);
+    device_.bindTexture(1, TextureHandle::Invalid);
+    device_.bindTexture(kSceneDepthUnit, TextureHandle::Invalid);
+    device_.bindTexture(kGBufferUnit, TextureHandle::Invalid);
+    if (!context_.materials().bindThrough(material, handle, overrides, scratch)) return false;
+    drawScreenQuad();
+    return true;
+}
+
 void PostProcessPipeline::releasePassResources(PostProcessPass& pass) {
     if (pass.paramUbo != BufferHandle::Invalid) {
         device_.deleteBuffer(pass.paramUbo);

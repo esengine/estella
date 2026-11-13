@@ -98,24 +98,30 @@ export const SCENES = [
   ...[
     { id: 'terrain-layer-occlusion', set: [], expect: [[0.3, [242, 242, 242]], [0.7, [121, 121, 121]]] },
     { id: 'terrain-layer-occlusion-sun', set: [{ entity: 1, component: 'Light', key: 'enabled', value: false }, { entity: 3, component: 'Light', key: 'enabled', value: true }], expect: [[0.3, [242, 242, 242]], [0.7, [242, 242, 242]]] },
+    // The same ground drawn from its virtual texture, every node from a baked page: the same light on both layers, and pages were baked
+    // (a page baked right is the picture the layers draw live, so only the count says the bake happened).
+    { id: 'terrain-virtual-texture', set: [{ entity: 2, component: 'Terrain', key: 'virtualTexture', value: true }, { entity: 2, component: 'Terrain', key: 'virtualTextureFrom', value: 0 }],
+      expect: [[0.3, [242, 242, 242]], [0.7, [121, 121, 121]]], steps: '90', min: { 'render.bakes.drawn': 2 } },
   ].map((test) => ({
     id: test.id, tier: 'pr', webgpu: true,
     env: {
       ESTELLA_VERIFY_SCENE: '/scenes/terrain-layer-occlusion.esscene',
-      ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '30', ESTELLA_VERIFY_WARM: '1',
+      ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: test.steps ?? '30', ESTELLA_VERIFY_WARM: '1',
       ...(test.set.length ? { ESTELLA_VERIFY_SET_FIELD: JSON.stringify(test.set) } : {}),
+      ...(test.min ? { ESTELLA_VERIFY_COUNTERS_MIN: JSON.stringify(test.min) } : {}),
       ESTELLA_VERIFY_EXPECT: JSON.stringify(test.expect.map(([x, rgb]) => ({ x, y: 0.5, rgb, tol: 14 }))),
     },
   })),
   // The Planet shader draws its layers with the same code as Terrain Layers (layerSurfaceShader.ts). Two boxes under the sky's light
-  // alone, white paint: on the left the layer colours (grey), on the right one layer of the stock arrays, nothing packed into them. An
-  // unset texture array binds white layers (MaterialStore::builtinDefault): on WebGL it read black before, a black box here.
+  // alone (at half its strength, so neither box saturates), white paint: on the left the layer colours (a half grey), on the right one
+  // layer of the stock arrays, nothing packed into them: twice as bright. An unset texture array binds white layers
+  // (MaterialStore::builtinDefault): on WebGL it read black before, a black box here.
   {
     id: 'planet-layers', tier: 'pr', webgpu: true,
     env: {
       ESTELLA_VERIFY_SCENE: '/scenes/planet-layers.esscene',
       ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '3',
-      ESTELLA_VERIFY_EXPECT: JSON.stringify([{ x: 0.3, y: 0.5, rgb: [129, 129, 129], tol: 10 }, { x: 0.7, y: 0.5, rgb: [242, 242, 242], tol: 10 }]),
+      ESTELLA_VERIFY_EXPECT: JSON.stringify([{ x: 0.3, y: 0.5, rgb: [64, 64, 64], tol: 6 }, { x: 0.7, y: 0.5, rgb: [127, 127, 127], tol: 6 }]),
     },
   },
   {

@@ -505,6 +505,8 @@ snowHeight: number
 splatmap2: number
 splatmap: number
 tiles: string
+virtualTexture: boolean
+virtualTextureFrom: number
 warp: number
 world: string
 ```

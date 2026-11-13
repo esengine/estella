@@ -28,6 +28,8 @@
 #include "../draw/BlendMode.hpp"
 #include "../rhi/GfxEnums.hpp"
 
+#include <glm/vec4.hpp>
+
 #include <algorithm>
 #include <cstring>
 #include <string>
@@ -522,6 +524,18 @@ public:
     /** Binds the material's block and its textures; a texture only where @p samplerUnits says the bound program reads its unit. */
     void bindForDraw(u32 materialId, u32 samplerUnits = 0xFFFFFFFFu);
 
+    /**
+     * @brief Binds a material's values for a draw through another shader: what a pass that draws a material's surface somewhere else
+     *        (a bake into a texture) reads, as Unreal draws a material to a render target.
+     * @details Matched by NAME, so the two need not lay their params out alike: each param of @p shader takes the material's value of
+     *          the param of the same name (else its own default), each texture the material's texture of the same name (else its
+     *          default). @p overrides then replace vec4 params for this draw alone. The block goes into scratch buffer @p scratch, one
+     *          per draw of a frame: on WebGPU a buffer rewritten between draws of one frame holds its last contents for all of them.
+     * @return False when the material or the shader's layout is unknown.
+     */
+    bool bindThrough(u32 materialId, resource::ShaderHandle shader,
+                     const std::vector<std::pair<std::string, glm::vec4>>& overrides, u32 scratch);
+
     /// Says what a world unit is (the project's units per metre). A param a material left at its default follows the change;
     /// one it set, to anything else, is the material's and stays.
     void setWorldUnitsPerMeter(f32 unitsPerMeter);
@@ -555,6 +569,8 @@ private:
 
     std::unordered_map<u32, MaterialRecord> materials_;
     std::unordered_map<u32, MaterialUniformLayout> layouts_;
+    /// The blocks bindThrough writes, one per draw of a frame, and their sizes.
+    std::vector<std::pair<BufferHandle, u32>> through_ubos_;
     /// The last material and layout asked for (find, layoutFor); forgotten whenever either map erases (forgetLookups).
     mutable u32 last_material_id_ = 0;
     mutable const MaterialRecord* last_material_ = nullptr;

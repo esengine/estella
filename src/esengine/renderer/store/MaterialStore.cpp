@@ -61,6 +61,8 @@ void MaterialStore::clear() {
             if (rec.ubo != BufferHandle::Invalid) device_->deleteBuffer(rec.ubo);
         }
     }
+    if (device_) for (const auto& [ubo, bytes] : through_ubos_) if (ubo != BufferHandle::Invalid) device_->deleteBuffer(ubo);
+    through_ubos_.clear();
     forgetLookups();
     materials_.clear();
     layouts_.clear();
@@ -486,6 +488,60 @@ void MaterialStore::bindForDraw(u32 materialId, u32 samplerUnits) {
             if (gpu != TextureHandle::Invalid) device_->bindTexture(slot.unit, gpu);
         }
     }
+}
+
+bool MaterialStore::bindThrough(u32 materialId, resource::ShaderHandle shader,
+                                const std::vector<std::pair<std::string, glm::vec4>>& overrides, u32 scratch) {
+    if (!device_) return false;
+    auto it = materials_.find(materialId);
+    auto through = layouts_.find(shader.id());
+    if (it == materials_.end() || through == layouts_.end()) return false;
+    MaterialRecord& rec = it->second;
+    const MaterialUniformLayout* own = nullptr;
+    if (auto lit = layouts_.find(rec.shaderRef.id()); lit != layouts_.end()) {
+        ensureDefaults(rec, lit->second);
+        own = &lit->second;
+    }
+    const MaterialUniformLayout& layout = through->second;
+    if (layout.blockSize > 0) {
+        std::vector<u8> bytes(layout.blockSize, 0);
+        for (const auto& p : layout.params) {
+            f32 value[4];
+            defaultInUnits(p, world_unit_scale_, value);
+            std::memcpy(bytes.data() + p.offset, value, p.arity * sizeof(f32));
+            const MaterialParamSlot* mine = own ? own->find(p.name) : nullptr;
+            if (mine && mine->arity == p.arity && mine->offset + p.arity * sizeof(f32) <= rec.uboBytes.size()) {
+                std::memcpy(bytes.data() + p.offset, rec.uboBytes.data() + mine->offset, p.arity * sizeof(f32));
+            }
+        }
+        for (const auto& [name, v] : overrides) {
+            if (const MaterialParamSlot* p = layout.find(name)) std::memcpy(bytes.data() + p->offset, &v.x, std::min(p->arity, 4u) * sizeof(f32));
+        }
+        if (through_ubos_.size() <= scratch) through_ubos_.resize(scratch + 1, {BufferHandle::Invalid, 0});
+        auto& [ubo, size] = through_ubos_[scratch];
+        if (ubo == BufferHandle::Invalid || size != layout.blockSize) {
+            if (ubo != BufferHandle::Invalid) device_->deleteBuffer(ubo);
+            ubo = device_->createBuffer({GfxBufferUsage::Uniform, layout.blockSize, /*dynamic=*/true}, GfxContent::transient(), bytes.data());
+            size = layout.blockSize;
+        } else {
+            device_->resizeBuffer(ubo, layout.blockSize, bytes.data());
+        }
+        if (ubo == BufferHandle::Invalid) return false;
+        device_->setUniformBuffer(MATERIAL_CONSTANTS_BINDING, ubo);
+    }
+    for (const auto& slot : layout.textures) {
+        TextureHandle gpu = builtinDefault(slot);
+        const MaterialTextureSlot* mine = own ? own->findTexture(slot.name) : nullptr;
+        if (mine) {
+            for (const auto& b : rec.textures) {
+                if (b.unit != mine->unit) continue;
+                if (resources_) if (Texture* texture = resources_->getTexture(b.texture)) gpu = texture->handle();
+                break;
+            }
+        }
+        if (gpu != TextureHandle::Invalid) device_->bindTexture(slot.unit, gpu);
+    }
+    return true;
 }
 
 TextureHandle MaterialStore::builtinDefault(MaterialDefaultTexture which) const {

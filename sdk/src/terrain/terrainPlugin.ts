@@ -54,6 +54,8 @@ import { collisionGeometryOf } from '../runtime/collisionGeometry';
 import { chunksOf, ProceduralChunksRes } from '../residency/chunks';
 import { movers } from './movers';
 import { imagePixelsAt, loadLayersInto, releaseLayerArrays } from './layerArrays';
+import { SurfaceCache, type SurfaceRequest } from './surfaceCache';
+import { isMiniGame } from '../platform';
 import { createPageAtlases } from './atlases';
 import { parseTerrainTiles, TiledSource } from './tiles';
 import { TiledGroundEdit } from './tiledGroundEdit';
@@ -112,6 +114,14 @@ export interface TerrainData {
     detail: number;
     /** How far ground without end is drawn. */
     drawDistance: number;
+    /**
+     * Whether the ground's surface is baked into pages (a runtime virtual texture): from level {@link virtualTextureFrom} out, each node
+     * of ground is drawn from its page of colour, roughness, normal and occlusion, made once, instead of reading every layer at every
+     * pixel. Ground with layers only; steep ground and ground whose page is not made yet are drawn from the layers.
+     */
+    virtualTexture: boolean;
+    /** The first level of the quadtree drawn from its baked surface: 0 the nearest ground too, 1 (the default) all but it. */
+    virtualTextureFrom: number;
     /** Whether bodies collide with the ground; how far round each thing that moves on it the ground is built for collision; its layer and friction. */
     collision: boolean;
     collisionDistance: number;
@@ -149,7 +159,7 @@ const rgb = (r: number, g: number, b: number): Color => ({ r, g, b, a: 1 });
 export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponent<TerrainData>('Terrain', {
     extent: TerrainExtent.Area, provider: NOISE_PROVIDER, world: '', generatorVersion: 1, heightmap: 0, tiles: '', heightmapFormat: HeightmapFormat.Grey, splatmap: 0, splatmap2: 0, colorMap: 0, colorMapStrength: 1, occlusionMap: 0, occlusionStrength: 1, layers: [] as string[], material: 0,
     // Lengths at the engine's reference of 100 units a metre (ecs/worldUnits.ts): a kilometre of ground 150 m high on 2 m cells in any project.
-    sizeX: 100000, sizeZ: 100000, height: 15000, cellSize: 200, detail: 1, drawDistance: 400000,
+    sizeX: 100000, sizeZ: 100000, height: 15000, cellSize: 200, detail: 1, drawDistance: 400000, virtualTexture: false, virtualTextureFrom: 1,
     collision: true, collisionDistance: 6400, collisionLayer: 0, friction: 0.6,
     seed: 1, frequency: 3, octaves: 5, persistence: 0.5, ridged: 0.35, resolution: 257, warp: 0, erosion: 0,
     rockSlope: 0.35, dirtHeight: 0.62, snowHeight: 0.88,
@@ -179,6 +189,8 @@ export const Terrain: ComponentDef<TerrainData> = /* @__PURE__ */ defineComponen
         cellSize: { min: 0.01, category: 'Detail', tooltip: 'The finest cell of the ground\'s mesh, in world units: what it is drawn at near the eye. Further off the cells double, level by level.' },
         detail: { min: 0.25, max: 8, step: 0.05, category: 'Detail', tooltip: 'Above 1 the finest cells reach further out before the ground coarsens.' },
         drawDistance: { min: 1, category: 'Detail', tooltip: 'How far ground without end is drawn.', shownWhen: { field: 'extent', values: [TerrainExtent.Infinite] } },
+        virtualTexture: { label: 'Virtual Texture', category: 'Detail', tooltip: "Bake the ground's surface into pages, as Unreal's Runtime Virtual Texture does: from Virtual Texture From out, each node is drawn from its page (two texture reads) instead of every layer at every pixel. Ground with layers only; steep ground, and a node whose page is still being made, is drawn from the layers." },
+        virtualTextureFrom: { min: 0, max: 15, step: 1, category: 'Detail', tooltip: "The first level of the ground drawn from its baked surface: 0 the nearest ground too, 1 all but it. The nearest is where the layers' own detail shows most." },
         collision: { category: 'Collision', tooltip: 'Whether 3D bodies and characters collide with the ground: the finest level\'s triangles, wherever the camera is.' },
         collisionDistance: { min: 1, category: 'Collision', tooltip: 'How far round each moving body and character the ground is built for collision, in world units.' },
         collisionLayer: { min: 0, max: 15, step: 1, category: 'Collision', advanced: true, tooltip: 'The collision layer the ground is in (0 to 15).' },
@@ -219,6 +231,13 @@ export type TerrainPager = (x0: number, z0: number, size: number) => Promise<Pag
 
 /** Pages asked at once of a provider that answers later. */
 const PAGES_IN_FLIGHT = 16;
+/** A baked surface page's side in texels (half on a minigame), and how the surface atlas holds its pages: 7 to a row, 9 rows. */
+const SURFACE_TEXELS = 256;
+const SURFACE_PER_ROW = 7;
+const SURFACE_ROWS = 9;
+/** Surface pages drawn a frame: each is two squares of the layers' whole shading, so a ground comes in over some frames, nearest first. */
+const SURFACES_PER_FRAME = 2;
+const NO_SURFACES: ReadonlyMap<string, number> = new Map();
 
 /** What the plugin knows about one terrain it has built. */
 interface Built {
@@ -266,6 +285,13 @@ interface Built {
     washed: boolean;
     /** The same of the occlusion map. */
     shaded: boolean;
+    /** The baked surface (virtualTexture), whether the material reads it, and what makes its pages stale: a serial for each page of
+     *  heights and paint made, by node, and a count bumped whenever the layers are packed again. */
+    baked: SurfaceCache | null;
+    surfaceOn: boolean;
+    pageMade: Map<string, number>;
+    pageSerial: number;
+    surfaceGen: number;
 }
 
 /** Where a terrain's ground stands: still being made, ready, or failed (with why). */
@@ -620,7 +646,7 @@ export const TerrainsRes = /* @__PURE__ */ defineResource<Terrains>(/* @__PURE__
 
 /** What, changed, rebuilds the ground: everything but the colours, the colour map, the detail and the collision, which are read each frame. */
 function signatureOf(data: TerrainData, at: { x: number; z: number }): string {
-    const { layerColor0: _a, layerColor1: _b, layerColor2: _c, layerColor3: _d, detail: _e, drawDistance: _f,
+    const { layerColor0: _a, layerColor1: _b, layerColor2: _c, layerColor3: _d, detail: _e, drawDistance: _f, virtualTexture: _vt, virtualTextureFrom: _vtf,
         collision: _g, collisionDistance: _h, collisionLayer: _i, friction: _j, colorMap: _k, colorMapStrength: _l, occlusionMap: _m, occlusionStrength: _n, layers, ...rest } = data;
     // Which layers are only what the arrays are packed from; whether there are any is which shader the ground is drawn with.
     const shape = { ...rest, layered: (layers?.length ?? 0) > 0 };
@@ -679,6 +705,9 @@ export class TerrainPlugin implements Plugin {
     /** The stock materials a terrain with none of its own is an instance of: without layers, and with. */
     private stock_ = 0;
     private stockLayers_ = 0;
+    /** The Terrain Surface Bake shader (a virtual texture's pages are drawn through it), compiled once, and whether it is being loaded. */
+    private bakeShader_ = 0;
+    private bakeShaderAsked_ = false;
     /** Bumped when an asset is edited and saved, so layers are packed again; and the listener that bumps it. */
     private layerEdits_ = 0;
     private watching_: (() => void) | null = null;
@@ -704,6 +733,7 @@ export class TerrainPlugin implements Plugin {
                         table: new PageTable(ATLAS_SIZE), heights: 0, paint: 0, mesh: 0, instance: 0,
                         nodes: new Map(), spare: [], wanted: new Map(), fit: 1, asked: new Set(), pending: false, failure: null, edits: 0,
                         paint2: 0, arrays: [], packed: '', packing: false, washed: false, shaded: false,
+                        baked: null, surfaceOn: false, pageMade: new Map(), pageSerial: 0, surfaceGen: 0,
                     };
                     terrains.built_.set(entity, built);
                     void this.load(app, entity, built);
@@ -871,6 +901,7 @@ export class TerrainPlugin implements Plugin {
                 }
                 releaseLayerArrays(built.arrays);
                 built.arrays = arrays;
+                built.surfaceGen++;
             } catch (e) {
                 log.error('terrain', 'packing the terrain layers failed', e);
             } finally {
@@ -1057,7 +1088,68 @@ export class TerrainPlugin implements Plugin {
             const d = built.data;
             for (const [i, c] of [d.layerColor0, d.layerColor1, d.layerColor2, d.layerColor3].entries()) set(`u_tint${i}`, { x: c.r, y: c.g, z: c.b, w: c.a });
         }
-        this.place(app, entity, built, drawn);
+        this.place(app, entity, built, drawn, this.surfaces(app, built, drawn, eyeAt, wash, shade));
+    }
+
+    /** The Terrain Surface Bake shader's handle, once it is compiled; 0 until then. */
+    private bakeShader(app: App): number {
+        if (this.bakeShader_ || this.bakeShaderAsked_) return this.bakeShader_;
+        this.bakeShaderAsked_ = true;
+        void app.getResource(Assets).load<MaterialShaderSource>('material-shader', 'builtin:terrain-surface-bake')
+            .then((source) => { this.bakeShader_ = source.compile([]); })
+            .catch((e) => log.warn('terrain', 'the Terrain Surface Bake shader could not be loaded; virtual textures are drawn from their layers', e));
+        return 0;
+    }
+
+    /**
+     * The baked surface (virtualTexture): asks for the pages of the nodes drawn from its first level out, nearest first, and hands back
+     * the slot of each whose page is ready. Ground without layers, or with the setting off, reads none.
+     */
+    private surfaces(app: App, built: Built, drawn: Map<string, TerrainNode>, eye: [number, number, number], wash: number, shade: number): ReadonlyMap<string, number> {
+        const d = built.data;
+        const on = d.virtualTexture && (d.layers?.length ?? 0) > 0 && built.packed !== '' && !built.baked?.failed;
+        const shader = on ? this.bakeShader(app) : 0;
+        if (!on || !shader) {
+            if (!on && built.baked) { bakesOf(app).clear(built.baked); built.baked.release(); built.baked = null; }
+            if (built.surfaceOn) Material.setUniform(built.instance, 'u_surfaceOn', 0);
+            built.surfaceOn = false;
+            return NO_SURFACES;
+        }
+        if (!built.baked) {
+            const texels = isMiniGame() ? SURFACE_TEXELS / 2 : SURFACE_TEXELS;
+            built.baked = new SurfaceCache(texels, SURFACE_PER_ROW, SURFACE_ROWS);
+        }
+        const cache = built.baked;
+        const texture = cache.texture();
+        if (!texture) return NO_SURFACES;
+        if (!built.surfaceOn) {
+            const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { Material.setUniform(built.instance, name, value); };
+            set('u_surfacePages', Material.tex(texture));
+            set('u_surfaceTexels', cache.texels);
+            set('u_surfacePerRow', cache.perRow);
+            set('u_surfaceAtlas', { x: cache.width, y: cache.height, z: (cache.texels + 2) / cache.width, w: 0 });
+            set('u_surfaceOn', 1);
+            built.surfaceOn = true;
+        }
+        const from = Math.max(0, Math.floor(d.virtualTextureFrom));
+        const requests: SurfaceRequest[] = [];
+        // What a page is made from besides its own page of heights and paint: the layers (as packed), and the maps over the whole area.
+        const common = `${built.surfaceGen}:${wash}:${shade}:${d.colorMap}:${d.occlusionMap}`;
+        for (const [key, n] of drawn) {
+            if (n.level < from) continue;
+            const page = built.table.get(key);
+            if (!page) continue;
+            const [pageX, pageY] = built.table.origin(page.slot);
+            requests.push({ key, source: `${common}:${built.pageMade.get(key) ?? 0}`, x0: n.x0, z0: n.z0, size: n.size, level: n.level, pageX, pageY });
+        }
+        const far = (r: SurfaceRequest): number => Math.hypot(r.x0 + r.size / 2 - eye[0], r.z0 + r.size / 2 - eye[2]);
+        requests.sort((a, b) => far(a) - far(b));
+        const ready = cache.update(requests, built.instance, shader, SURFACES_PER_FRAME);
+        // Shown with the rest of the ground's making while pages are being baked: of the nodes there are pages for, how many are drawn
+        // from theirs.
+        const wanted = Math.min(requests.length, cache.perRow * cache.rows);
+        bakesOf(app).mark(cache, "Baking the ground's surface", wanted > 0 && !cache.failed ? ready.size / wanted : 1);
+        return ready;
     }
 
     /** Makes the wanted pages, coarse and near first: asked of the workers where a pager can make them, else made here for as long as the frame can spare. */
@@ -1091,6 +1183,7 @@ export class TerrainPlugin implements Plugin {
                     if (built.epoch !== epoch || built.edits !== edits || !built.heights) return;
                     const page = built.table.claim(key, img.min, img.max);
                     if (!page) return;
+                    built.pageMade.set(key, ++built.pageSerial);
                     const [ox, oy] = built.table.origin(page.slot);
                     updateTextureSubregion(app.wasmModule, built.heights, ox, oy, PAGE_SIDE, PAGE_SIDE, img.heights);
                     updateTextureSubregion(app.wasmModule, built.paint, ox, oy, PAGE_SIDE, PAGE_SIDE, img.paint);
@@ -1115,6 +1208,7 @@ export class TerrainPlugin implements Plugin {
         const store = (key: string, image: PageImage): boolean => {
             const page = built.table.claim(key, image.min, image.max);
             if (!page) return false;
+            built.pageMade.set(key, ++built.pageSerial);
             const [ox, oy] = built.table.origin(page.slot);
             updateTextureSubregion(app.wasmModule, built.heights, ox, oy, PAGE_SIDE, PAGE_SIDE, image.heights);
             updateTextureSubregion(app.wasmModule, built.paint, ox, oy, PAGE_SIDE, PAGE_SIDE, image.paint);
@@ -1172,7 +1266,7 @@ export class TerrainPlugin implements Plugin {
     }
 
     /** Puts a node entity on each node drawn (reusing the ones it had), and takes the rest away. */
-    private place(app: App, entity: Entity, built: Built, drawn: Map<string, TerrainNode>): void {
+    private place(app: App, entity: Entity, built: Built, drawn: Map<string, TerrainNode>, surfaces: ReadonlyMap<string, number>): void {
         const world = app.world;
         for (const [key, e] of built.nodes) {
             if (drawn.has(key)) continue;
@@ -1196,8 +1290,10 @@ export class TerrainPlugin implements Plugin {
                 built.nodes.set(key, e);
             }
             const [ox, oy] = built.table.origin(page.slot);
-            // The tint names the page and the level (see the Terrain shader's hook): every channel above zero, as the hook divides by it.
-            const color = { r: (ox + 0.5) / ATLAS_SIZE, g: (oy + 0.5) / ATLAS_SIZE, b: (n.level + 1) / 64, a: 1 };
+            // The tint names the page and the level (see the Terrain shader's hook), and the baked surface's page (2 + its slot; 1 none): every
+            // channel above zero, as the hook divides by it.
+            const surface = surfaces.get(key);
+            const color = { r: (ox + 0.5) / ATLAS_SIZE, g: (oy + 0.5) / ATLAS_SIZE, b: (n.level + 1) / 64, a: surface === undefined ? 1 : 2 + surface };
             const position = { x: n.x0, y: page.min, z: n.z0 };
             const scale = { x: n.size, y: Math.max(page.max - page.min, 1e-3), z: n.size };
             const t = world.get(e, Transform) as TransformData;
@@ -1205,7 +1301,7 @@ export class TerrainPlugin implements Plugin {
                 world.insert(e, Transform, { ...t, position, scale });
             }
             const mr = world.tryGet(e, MeshRenderer) as MeshRendererData | null;
-            if (!mr || !mr.enabled || mr.color.r !== color.r || mr.color.g !== color.g || mr.color.b !== color.b || mr.material !== built.instance) {
+            if (!mr || !mr.enabled || mr.color.r !== color.r || mr.color.g !== color.g || mr.color.b !== color.b || mr.color.a !== color.a || mr.material !== built.instance) {
                 world.insert(e, MeshRenderer, {
                     ...(mr ?? {}), mesh: built.mesh, material: built.instance, lit: true, opaque: true, cullBackfaces: true, color, enabled: true,
                 } as Partial<MeshRendererData>);
@@ -1233,6 +1329,10 @@ export class TerrainPlugin implements Plugin {
         releaseLayerArrays(built.arrays);
         built.arrays = [];
         built.packed = '';
+        if (built.baked) bakesOf(app).clear(built.baked);
+        built.baked?.release();
+        built.baked = null;
+        built.surfaceOn = false;
         if (built.instance) Material.release(built.instance);
         built.instance = 0;
         if (built.mesh && app.hasResource(Assets)) app.getResource(Assets).releaseBuiltMesh(built.mesh);

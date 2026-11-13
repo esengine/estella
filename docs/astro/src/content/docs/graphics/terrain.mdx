@@ -167,6 +167,26 @@ Making pages and wearing an area by rain are spread over frames rather than done
 they are listed with their progress ("Building the terrain", "Eroding the terrain") in the editor's status bar, and a game can read
 the same list to show a loading screen.
 
+### Virtual texture
+
+Set **Virtual Texture** (`virtualTexture`) on a terrain with layers and its surface is baked into pages, as Unreal's Runtime Virtual
+Texture is: each node of the quadtree from **Virtual Texture From** (`virtualTextureFrom`, level 1 by default) out gets a page of what
+the Terrain Layers shader makes of it before lighting it (its colour, roughness, normal with the layers' maps on it, and occlusion),
+drawn once on the GPU, and is drawn from that page: two texture reads in place of every layer's at every pixel. The page is drawn
+through the ground's own material, so its params (the colour map, the wet band, the strata, the layers' own settings) mean the same
+baked as live. Lighting, shadows and the sky stay live.
+
+A page is 256 texels across (128 on a minigame) for the node it covers, so it holds about as much detail as the node is drawn at: a
+node is the same size on screen at every level. The nearest level is left live by default, where the layers' own detail shows most;
+0 bakes it too. Ground steeper than the Terrain Layers material's `u_surfaceUp` (0.65, about 50 degrees) is drawn live, since a page
+seen from above stretches down a cliff. A node whose page is not made yet is drawn live, so nothing pops in.
+
+Pages are made two a frame, nearest first, listed as "Baking the ground's surface" while they come in, and made again when the node's
+page of heights and paint is (a sculpt, a modifier, a world painting the ground) or the layers are packed again. A script that sets one
+of the material's params at run time calls `repaint()` for the pages to follow. The atlas holds 63 pages (33 MB; 8 MB on a minigame);
+the least recently drawn give theirs up. On the Terrain & Water example (RTX 3060, 1080p, WebGL2) the ground's shading went from
+2.1 to 0.8 ms and the frame from 15.1 to 13.5 ms at the default camera; from 2.6 to 1.8 ms (1.2 from level 0) at the lake.
+
 ## From code
 
 Terrain is an optional module: a package carries it when a scene has a `Terrain`, or when a script imports `esengine/terrain` (as below). A game with neither ships none of it.

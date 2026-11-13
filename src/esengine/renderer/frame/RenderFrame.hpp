@@ -344,6 +344,18 @@ public:
 #endif
     RenderTargetManager& targetManager() { return target_manager_; }
 
+    /**
+     * @brief Draws material @p material through @p shader (a PostProcess-domain shader) into the rect (x, y, w, h) of render target
+     *        @p target, before the next frame's scene: a surface baked into a texture, as Unreal draws a material to a render target.
+     * @details The shader takes the material's values by name (MaterialStore::bindThrough), with @p a and @p b as its params
+     *          `u_bakeA` and `u_bakeB`: what this one draw is of. A bake whose program is still compiling waits for it.
+     * @return A ticket for materialBakeState.
+     */
+    u32 queueMaterialBake(u32 material, u32 shader, u32 target, u32 x, u32 y, u32 w, u32 h, const glm::vec4& a, const glm::vec4& b);
+    /** @brief A bake's state: 0 waiting, 1 drawn, -1 not drawable (no target, shader or material, or no post-processing in this build). A
+     *         drawn or failed ticket is forgotten once asked. */
+    i32 materialBakeState(u32 ticket);
+
     const Stats& stats() const { return stats_; }
     FrameCapture& frameCapture() { return frame_capture_; }
 
@@ -638,6 +650,14 @@ private:
     Unique<GpuParticles> gpu_particles_;
 #endif
     RenderTargetManager target_manager_;
+    struct MaterialBake { u32 ticket; u32 material; u32 shader; u32 target; u32 x, y, w, h; glm::vec4 a, b; };
+    /// Bakes asked for and not yet declared, and each ticket's state (0 waiting, 1 drawn, -1 failed).
+    std::vector<MaterialBake> material_bakes_;
+    std::unordered_map<u32, i32> material_bake_states_;
+    u32 next_material_bake_ = 1;
+    u32 material_bakes_drawn_ = 0;
+    /// The frame the bakes were last declared in: once a frame, by its first view.
+    u64 material_bakes_frame_ = ~0ull;
 
     glm::mat4 view_projection_{1.0f};
     Frustum frustum_;
@@ -884,6 +904,8 @@ private:
      *          for the collect the pass does, and outlives execute().
      */
     void declareShadowPass(ecs::Registry& registry);
+    /// The queued material bakes, as passes before the scene (queueMaterialBake).
+    void declareMaterialBakes();
     /// Collects every planned square's occluders into its list, and answers what they would draw as one number
     /// (shadow_drawn_key_): the squares, their views, the draws, their records and their materials. False when
     /// something in them can change without the number changing (a material that moves its vertices, records a

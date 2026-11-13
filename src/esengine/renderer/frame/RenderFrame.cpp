@@ -677,6 +677,9 @@ void RenderFrame::publishFrameCounters() {
     ES_PROFILE_COUNTER("batch.draws", stats_.draw_calls);
     ES_PROFILE_COUNTER("render.gpu.draws", stats_.gpu_draws);
     ES_PROFILE_COUNTER("batch.merged", frame_merged_);
+    // Every material bake drawn since the renderer started: a check that a baked surface was drawn at all, which no pixel of a correct
+    // one tells from the same surface drawn live.
+    ES_PROFILE_COUNTER("render.bakes.drawn", material_bakes_drawn_);
     // Emitted per reason and only where it happened, so a clean frame publishes
     // nothing rather than a wall of zeroes for a caller to read past.
     for (u32 r = 1; r < static_cast<u32>(BatchBreak::Count); ++r) {
@@ -2611,6 +2614,68 @@ void RenderFrame::declareShadowPass(ecs::Registry& registry) {
 #endif
 }
 
+u32 RenderFrame::queueMaterialBake(u32 material, u32 shader, u32 target, u32 x, u32 y, u32 w, u32 h,
+                                   const glm::vec4& a, const glm::vec4& b) {
+    const u32 ticket = next_material_bake_++;
+    if (next_material_bake_ == 0) next_material_bake_ = 1;
+#ifdef ES_ENABLE_POSTPROCESS
+    material_bakes_.push_back({ticket, material, shader, target, x, y, w, h, a, b});
+    material_bake_states_[ticket] = 0;
+#else
+    material_bake_states_[ticket] = -1;
+#endif
+    return ticket;
+}
+
+i32 RenderFrame::materialBakeState(u32 ticket) {
+    auto it = material_bake_states_.find(ticket);
+    if (it == material_bake_states_.end()) return -1;
+    const i32 state = it->second;
+    if (state != 0) material_bake_states_.erase(it);
+    return state;
+}
+
+void RenderFrame::declareMaterialBakes() {
+#ifdef ES_ENABLE_POSTPROCESS
+    // Once a frame, by the first view that collects: the passes write textures of their own, not any view's picture.
+    if (material_bakes_.empty() || material_bakes_frame_ == planar_frame_ || !post_process_) return;
+    material_bakes_frame_ = planar_frame_;
+    std::vector<MaterialBake> waiting;
+    u32 scratch = 0;
+    for (const MaterialBake& bake : material_bakes_) {
+        RenderTarget* target = target_manager_.get(bake.target);
+        Shader* shader = resource_manager_.getShader(resource::ShaderHandle(bake.shader));
+        if (!target || !shader || bake.w == 0 || bake.h == 0) {
+            material_bake_states_[bake.ticket] = -1;
+            continue;
+        }
+        // A program still compiling draws nothing: the bake waits a frame for it rather than leaving its rect as it was and saying done.
+        if (!device_.programReady(shader->handle())) {
+            waiting.push_back(bake);
+            continue;
+        }
+        rg::PassDesc pass;
+        pass.name = "material-bake";
+        pass.keep = true;
+        pass.write = graph_.importTarget(target->getFramebuffer(), target->getWidth(), target->getHeight(), /*output=*/false,
+                                         target->getColorTexture());
+        pass.viewportX = bake.x;
+        pass.viewportY = bake.y;
+        pass.viewportW = bake.w;
+        pass.viewportH = bake.h;
+        const u32 slot = scratch++;
+        pass.execute = [this, bake, slot](const rg::PassContext&) {
+            const std::vector<std::pair<std::string, glm::vec4>> overrides{{"u_bakeA", bake.a}, {"u_bakeB", bake.b}};
+            const bool drawn = post_process_ && post_process_->drawMaterialThrough(bake.material, bake.shader, overrides, slot);
+            material_bake_states_[bake.ticket] = drawn ? 1 : -1;
+            if (drawn) ++material_bakes_drawn_;
+        };
+        graph_.addPass(std::move(pass));
+    }
+    material_bakes_ = std::move(waiting);
+#endif
+}
+
 void RenderFrame::ensureShadowFrameUbos(u32 count) {
     const u32 bytes = RenderContext::frameConstantsSize();
     while (shadow_frame_ubos_.size() < count) {
@@ -2903,6 +2968,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     // between them, and a pass opened here would swallow them.
     { ES_PROFILE_SCOPE("render.collect.shadowPlan"); buildShadowPlan(registry); }
     { ES_PROFILE_SCOPE("render.collect.shadowDeclare"); declareShadowPass(registry); }
+    declareMaterialBakes();
     { ES_PROFILE_SCOPE("render.collect.shadow2dDeclare"); declareShadow2DPass(); }
     { ES_PROFILE_SCOPE("render.collect.shape2dDeclare"); declareShape2DPass(); }
     { ES_PROFILE_SCOPE("render.collect.planar"); declarePlanarReflection(registry); }

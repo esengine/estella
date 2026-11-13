@@ -1045,7 +1045,9 @@ u32 renderer_createTarget(u32 width, u32 height, i32 flags) {
     if (!g_renderFrame) return 0;
     bool depth = (flags & 1) != 0;
     bool linear = (flags & 2) != 0;
-    return g_renderFrame->targetManager().create(width, height, depth, linear);
+    // 4: the texture as drawn, its rows in the device's own order (RenderTarget::init's asDrawn).
+    bool asDrawn = (flags & 4) != 0;
+    return g_renderFrame->targetManager().create(width, height, depth, linear, asDrawn);
 }
 
 u32 renderer_getTargetDepthTexture(u32 handle) {
@@ -1063,6 +1065,17 @@ u32 renderer_getTargetTexture(u32 handle) {
     if (!g_renderFrame) return 0;
     auto* target = g_renderFrame->targetManager().get(handle);
     return target ? static_cast<u32>(target->getColorTexture()) : 0;
+}
+
+u32 renderer_queueMaterialBake(u32 material, u32 shader, u32 target, u32 x, u32 y, u32 w, u32 h,
+                               f32 a0, f32 a1, f32 a2, f32 a3, f32 b0, f32 b1, f32 b2, f32 b3) {
+    if (!g_renderFrame) return 0;
+    return g_renderFrame->queueMaterialBake(material, shader, target, x, y, w, h, glm::vec4(a0, a1, a2, a3), glm::vec4(b0, b1, b2, b3));
+}
+
+i32 renderer_materialBakeState(u32 ticket) {
+    if (!g_renderFrame) return -1;
+    return g_renderFrame->materialBakeState(ticket);
 }
 
 u32 renderer_getDrawCalls() {

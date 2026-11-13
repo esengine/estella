@@ -59,7 +59,7 @@
        "b": 1,
        "a": 1
       },
-      "intensity": 1,
+      "intensity": 0.5,
       "enabled": true
      }
     }

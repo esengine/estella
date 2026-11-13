@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
-import { TERRAIN_LAYERS_SHADER_TEMPLATE } from '../src/terrain/terrainShader';
+import { TERRAIN_LAYERS_SHADER_TEMPLATE, TERRAIN_SURFACE_BAKE_SHADER_TEMPLATE } from '../src/terrain/terrainShader';
 import { PLANET_SHADER_TEMPLATE } from '../src/terrain/planetShader';
 import { LAYER_SURFACE_GLSL, LAYER_SURFACE_WGSL } from '../src/terrain/layerSurfaceShader';
 
@@ -37,5 +37,20 @@ describe('the ground\'s layers are one piece of shader code', () => {
         expect(layers).toContain('#pragma param u_heightBlend float default(0.8)');
         expect(layers).toContain('#pragma param u_blendNoise float default(0.5)');
         expect(layers).toContain('#pragma param u_antiTile float default(0.6)');
+    });
+
+    it("the virtual texture's bake takes the ground material's params by their names, and never declares the atlas it draws into", () => {
+        const bake = TERRAIN_SURFACE_BAKE_SHADER_TEMPLATE.source;
+        const lit = TERRAIN_LAYERS_SHADER_TEMPLATE.source;
+        expect(bake).toContain('#pragma domain PostProcess');
+        const params = (src: string): string[] => src.split(/\r?\n/).filter((l) => l.startsWith('#pragma param ')).map((l) => l.split(' ')[2]!);
+        const theirs = new Set(params(lit));
+        for (const name of params(bake).filter((n) => !n.startsWith('u_bake'))) expect(theirs.has(name)).toBe(true);
+        // A texture drawn into and bound to be read in one pass is refused on WebGPU.
+        expect(params(bake)).not.toContain('u_surfacePages');
+        expect(params(lit)).toContain('u_surfacePages');
+        // Both languages write the two halves of a page, and Terrain Layers reads them in both.
+        expect(bake).toContain('tnOctEncode(g.N)');
+        expect(lit.split('tnOctDecode(b.xy)').length).toBe(3);
     });
 });
