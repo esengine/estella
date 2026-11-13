@@ -8095,6 +8095,7 @@ physics3dBackend: Physics3DBackend | undefined
 physics3dWorld: Partial<Physics3DWorldConfig> | undefined
 physicsConfig: Physics2DPluginConfig | undefined
 physicsEnabled: boolean | undefined
+prewarmShaders: { timeoutMs?: number; } | undefined
 runtime: RuntimeBuildConfig | undefined
 scenes: { name: string; data: SceneData; }[]
 uiTheme: "light" | "dark" | undefined

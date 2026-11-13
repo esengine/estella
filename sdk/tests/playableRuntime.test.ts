@@ -75,6 +75,26 @@ describe('initPlayableRuntime', () => {
         app.quit(); expect(release).toHaveBeenCalledTimes(1);
     });
 
+    it('draws out of sight until the shaders have compiled, when asked to', async () => {
+        let compiling = 2;
+        const seen: string[] = [];
+        const canvas = { width: 320, height: 480, style: { visibility: '' } } as unknown as HTMLCanvasElement;
+        const config = createMockConfig({ canvas, prewarmShaders: { timeoutMs: 5000 } });
+        (config.app as any).wasmModule = { renderer_getPendingShaders: () => compiling };
+        (config.app as any).stepFrames = vi.fn(async () => { seen.push(`frame:${canvas.style.visibility}`); if (compiling > 0) --compiling; });
+        (config.app as any).run = vi.fn(async () => { seen.push(`run:${canvas.style.visibility}`); });
+        await initPlayableRuntime(config);
+        expect(seen.filter((s) => s.startsWith('frame')).every((s) => s === 'frame:hidden')).toBe(true);
+        expect(seen.length).toBeGreaterThan(3);
+        expect(seen.at(-1)).toBe('run:');
+
+        // Not asked: no frame is drawn before the loop starts.
+        const plain = createMockConfig();
+        (plain.app as any).stepFrames = vi.fn();
+        await initPlayableRuntime(plain);
+        expect((plain.app as any).stepFrames).not.toHaveBeenCalled();
+    });
+
     it('passes scenes array and firstScene to initRuntime', async () => {
         const scenes = [
             { name: 'level1', data: { version: '1', name: 'level1', entities: [] } as any },

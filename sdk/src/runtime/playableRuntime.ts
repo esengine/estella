@@ -16,6 +16,8 @@ import type { ESEngineModule } from '../wasm';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
 import type { RuntimeBuildConfig } from '../defaults';
 import { initRuntime } from './runtimeLoader';
+import { warmShaders } from '../render/shaderWarmup';
+import { log } from '../util/logger';
 import type { ThemeOverrides } from '../ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { EmbeddedBackend } from '../asset/Backend';
@@ -68,6 +70,11 @@ export interface PlayableRuntimeConfig {
     /** Bitmask of render layers (0..31) that resolve by real depth (2.5D). */
     depthLayers?: number;
     manifest?: AddressableManifest | null;
+    /**
+     * Draw the first scene out of sight (the canvas hidden) until its shaders have compiled, and show it complete: `quality.prewarmShaders` of a
+     * project that also compiles them in the background. The wait is at most `timeoutMs`.
+     */
+    prewarmShaders?: { timeoutMs?: number };
 }
 
 function decodeDataUrlBinary(dataUrl: string): Uint8Array {
@@ -194,6 +201,20 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
                 if (app.hasResource(Audio)) setAudioHostSuspended(app.getResource(Audio), owner, false);
             },
         });
+    }
+    if (config.prewarmShaders) {
+        // A playable has no splash to draw behind: the canvas itself is kept out of sight, and the page's background is what shows.
+        const style = config.canvas.style;
+        const shown = style.visibility;
+        style.visibility = 'hidden';
+        try {
+            const warmed = await warmShaders(app, { timeoutMs: config.prewarmShaders.timeoutMs });
+            if (warmed.timedOut) log.warn('playable', `${warmed.pending} shader(s) still compiling after ${Math.round(warmed.ms)} ms; opening anyway`);
+        } catch (e) {
+            log.warn('playable', 'shader warm-up failed', e);
+        } finally {
+            style.visibility = shown;
+        }
     }
     await app.run();
     bridge?.ready?.();

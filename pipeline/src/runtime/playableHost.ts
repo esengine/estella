@@ -156,6 +156,9 @@ async function boot(): Promise<void> {
     manifest: typeof __GAME_MANIFEST__ !== 'undefined' ? __GAME_MANIFEST__ : undefined,
     scenes: __GAME_SCENES__,
     firstScene: __GAME_FIRST__,
+    // The same condition the web host warms on: shaders compiled in the background, and the project asked to open on a complete picture.
+    ...(runtimeConfig.quality?.asyncShaderCompile && runtimeConfig.quality.prewarmShaders
+      ? { prewarmShaders: { timeoutMs: runtimeConfig.quality.prewarmTimeoutMs } } : {}),
     // Everything the config APPLIES to a live app: physics, the mixer, the theme.
     ...packagedRuntimeInit(runtimeConfig),
   });
