@@ -55,6 +55,12 @@ export interface EntityBoxOptions {
      * caller is handed the entity's world position to answer for it.
      */
     iconHalf?: number | ((at: Vec3) => number);
+    /**
+     * The drawn extent of an entity whose size is not in a component the box reads — a skeleton, a
+     * tilemap: a rectangle in the entity's own units, `x`/`y` its lower-left corner from the origin.
+     * Scaled and turned by the world transform like a sprite's.
+     */
+    extentOf?: (entity: Entity) => { x: number; y: number; width: number; height: number } | null;
 }
 
 /** The rotation an entity is drawn with, defaulted for a partial write. */
@@ -100,6 +106,13 @@ export function entityWorldBox(world: ReadableWorld, entity: Entity, opts?: Enti
         w = Math.max(shape.size.x * t.worldScale.x, iconHalf * 2);
         h = Math.max(shape.size.y * t.worldScale.y, iconHalf * 2);
         d = 0;
+    } else if (opts?.extentOf?.(entity)) {
+        const ext = opts.extentOf(entity)!;
+        w = Math.max(ext.width * t.worldScale.x, iconHalf * 2);
+        h = Math.max(ext.height * t.worldScale.y, iconHalf * 2);
+        d = 0;
+        px = 0.5 - ((ext.x + ext.width / 2) * t.worldScale.x) / (w || 1);
+        py = 0.5 - ((ext.y + ext.height / 2) * t.worldScale.y) / (h || 1);
     } else if (iconHalf === 0) {
         return null;
     }

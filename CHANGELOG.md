@@ -40,6 +40,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A Spine skeleton is selected by the character it draws.** A skeleton could be picked only on the small icon at its origin, so clicking the character selected nothing. The editor hands the pick box the skeleton's own bounds through the new `extentOf` option of `entityWorldBox` and `pickEntitiesByRay`, and the selection outline follows the same box.
 - **Nudging a selection moves each selected root once, so a selected child no longer travels twice.** With a parent and its child both selected, an arrow key moved the child by the nudge and again with its parent; each selected root now moves once and what is under it follows.
 - **A click selects a shape by its drawn size, and a bare Canvas no longer takes the click.** A ShapeRenderer could be selected only on the small icon at its origin, and any scene with a Canvas answered every click in the design screen with the Canvas, so the sprites beneath could not be clicked at all. A shape is picked by its size and its own sorting layer, and a UI node that draws nothing is picked only where nothing else is.
 - **An unset texture array reads its default on WebGL.** A `textureArray` param a material left unset was given the plain white texture, which an array sampler cannot read, so on WebGL it read black (WebGPU already drew white). An unset array param now binds layers of its declared default: white, black or a flat normal.

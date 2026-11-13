@@ -16,7 +16,7 @@ import {
     layerOrderOf, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
 import {
-    entityWorldBox, meshWorldBox, entityBoxRayHit, type LayoutWorld,
+    entityWorldBox, meshWorldBox, entityBoxRayHit, type LayoutWorld, type EntityBoxOptions,
 } from './entityBox';
 
 /** Sorting layer for an entity that has none of its own, where a realm draws a
@@ -62,6 +62,8 @@ export interface EntityPickOptions {
      * is a screen size (see {@link EntityBoxOptions.iconHalf}).
      */
     iconHalf?: number | ((at: Vec3) => number);
+    /** See {@link EntityBoxOptions.extentOf}. */
+    extentOf?: EntityBoxOptions['extentOf'];
     /** Entities this realm refuses to select. Everything is selectable by default. */
     pickable?(entity: Entity): boolean;
     /** The project's sorting-layer masks, so hits rank the way the frame stacked them. */
@@ -91,7 +93,7 @@ export function pickEntitiesByRay(
         if (opts.pickable && !opts.pickable(entity)) continue;
         // A mesh's extent is in its vertices, so it is asked for before the icon
         // fallback would answer with the size of a gizmo.
-        const box = meshWorldBox(world, entity) ?? entityWorldBox(world, entity, { iconHalf });
+        const box = meshWorldBox(world, entity) ?? entityWorldBox(world, entity, { iconHalf, extentOf: opts.extentOf });
         if (!box || entityBoxRayHit(box, ray.origin, ray.dir) === null) continue;
 
         const sprite = world.has(entity, Sprite) ? world.get(entity, Sprite)

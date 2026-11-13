@@ -242,3 +242,17 @@ describe('a shape\'s box', () => {
         expect(box).toMatchObject({ hw: 11, hh: 11 });
     });
 });
+
+describe('a drawn extent the caller supplies', () => {
+    it('is scaled by the world scale and centred where the skeleton stands, not on the origin', () => {
+        const world = fakeWorld({ 1: { Transform: T(100, 50, 2, 2) } });
+        const box = entityWorldBox(world, ent(1), { extentOf: () => ({ x: -10, y: 0, width: 40, height: 120 }) });
+        expect(box).toMatchObject({ cx: 100 + 2 * 10, cy: 50 + 2 * 60, hw: 40, hh: 120 });
+    });
+
+    it('leaves an entity with no extent where it was, a box the size of its icon', () => {
+        const world = fakeWorld({ 1: { Transform: T(0, 0) } });
+        expect(entityWorldBox(world, ent(1), { extentOf: () => null })).toBeNull();
+        expect(entityWorldBox(world, ent(1), { iconHalf: 11, extentOf: () => null })).toMatchObject({ hw: 11, hh: 11 });
+    });
+});
