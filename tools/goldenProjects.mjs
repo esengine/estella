@@ -92,6 +92,8 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  "Music plays as its layers.":
+    { notCertifiable: "Sound over time, which no golden frame holds. Covered by sdk/tests/audio-music-layers.test.ts (the stems of a piece begun together, each a layer of its own); nobody had judged it by ear in a packaged game when it shipped." },
   "A recipe is read wherever an image is":
     { notCertifiable: "Covered by sdk/tests/texture-recipe.test.ts (a figure, a picture laid in, surface maps, text on a stand-in canvas, a ground's reader) and by an exported game of four such recipes opened twice in a browser by hand; no golden project ships an .esimage, and text follows the fonts of the device, which a golden frame cannot hold." },
   "A texture recipe is drawn on a worker, once.":
