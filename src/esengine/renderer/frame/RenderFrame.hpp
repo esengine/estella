@@ -884,9 +884,13 @@ private:
      *          for the collect the pass does, and outlives execute().
      */
     void declareShadowPass(ecs::Registry& registry);
-    /// The shadow pass's body: for each planned square, collect the occluders it can
-    /// see and draw them. The graph has bound and cleared the atlas.
-    void executeShadowPass(ecs::Registry& registry);
+    /// Collects every planned square's occluders into its list, and answers what they would draw as one number
+    /// (shadow_drawn_key_): the squares, their views, the draws, their records and their materials. False when
+    /// something in them can change without the number changing (a material that moves its vertices, records a
+    /// compute pass wrote), and the atlas must be drawn whatever the number says.
+    bool collectShadowViews(ecs::Registry& registry, u64& key);
+    /// The shadow pass's body: the lists collectShadowViews made, drawn. The graph has bound and cleared the atlas.
+    void executeShadowPass();
 
     /**
      * @brief Gathers the frame's 2D occluders and hands the casting lights a mask channel.
@@ -1187,6 +1191,22 @@ private:
     /// One per view, kept across frames for the capacity. The whole pass is collected
     /// before any of it is drawn, so a view's commands have to outlive its collect.
     std::vector<DrawList> shadow_view_lists_;
+    /// The atlas, kept from frame to frame so that a frame whose squares would draw what they already hold need not draw them:
+    /// a still sun over a still scene, a lamp in a room. Pooled, it was any target of its size the graph had free that frame.
+    Unique<Framebuffer> shadow_target_;
+    /// What the atlas holds: the key collectShadowViews made the frame it was last drawn, and whether that drawing can be trusted
+    /// to stand. Drawing it again or not is the only thing the key decides.
+    u64 shadow_drawn_key_ = 0;
+    bool shadow_drawn_valid_ = false;
+    /// What this frame's pass will vouch for once it has drawn.
+    u64 shadow_pending_key_ = 0;
+    bool shadow_pending_trusted_ = false;
+    /// The frame's own answer, from collectShadowViews to the pass that draws (or does not).
+    bool shadow_reused_ = false;
+    u32 shadow_casters_culled_ = 0;
+    /// The maps and draws the atlas holds, from the frame that last drew it (render.shadow.heldTiles / heldDraws).
+    u32 shadow_held_tiles_ = 0;
+    u32 shadow_held_draws_ = 0;
     /// One FrameConstants buffer per view, grown to the busiest frame and never shrunk.
     /// A buffer write lands on the queue, not between two draws already recorded into
     /// an open pass — so what tells one view from another is which buffer is BOUND.

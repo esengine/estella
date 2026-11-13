@@ -619,4 +619,39 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
     }
 }
 
+u64 DrawList::contentHash(u64 h) const {
+    const auto mix = [&h](u64 v) {
+        h ^= v + 0x9e3779b97f4a7c15ull + (h << 6) + (h >> 2);
+    };
+    mix(commands_.size());
+    for (const DrawCommand& c : commands_) {
+        mix(c.sort_key);
+        mix((static_cast<u64>(c.index_offset) << 32) | c.index_count);
+        mix((static_cast<u64>(c.vertex_byte_offset) << 32) | c.vertex_count);
+        mix((static_cast<u64>(c.shader_id) << 32) | c.material_id);
+        mix((static_cast<u64>(c.instance_count) << 32) | c.instance_stride);
+        mix((static_cast<u64>(static_cast<u32>(c.vertex_buffer)) << 32) | static_cast<u32>(c.index_buffer));
+        mix((static_cast<u64>(static_cast<u32>(c.vertex_layout)) << 32) | static_cast<u32>(c.instance_buffer));
+        mix((static_cast<u64>(c.skin_offset) << 32) | c.skin_count);
+        mix((static_cast<u64>(c.morph_index) << 32) | static_cast<u32>(c.layout_id));
+        mix((static_cast<u64>(static_cast<u16>(c.depth_bias)) << 32) | (static_cast<u64>(c.cull) << 24)
+            | (static_cast<u64>(c.depth_test) << 16) | (static_cast<u64>(c.depth_write) << 8)
+            | static_cast<u64>(c.blend_mode) | (static_cast<u64>(c.topology) << 40));
+        mix(c.texture_count);
+        for (u32 t = 0; t < c.texture_count && t < MAX_CMD_TEXTURE_SLOTS; ++t) mix(c.texture_ids[t]);
+    }
+    const auto words = [&mix](const void* data, usize bytes) {
+        const auto* p = static_cast<const u8*>(data);
+        usize at = 0;
+        for (; at + 8 <= bytes; at += 8) { u64 w; std::memcpy(&w, p + at, 8); mix(w); }
+        u64 tail = 0;
+        if (at < bytes) { std::memcpy(&tail, p + at, bytes - at); mix(tail); }
+    };
+    mix(skin_matrices_.size());
+    if (!skin_matrices_.empty()) words(skin_matrices_.data(), skin_matrices_.size() * sizeof(glm::mat4));
+    mix(morph_shapes_.size());
+    if (!morph_shapes_.empty()) words(morph_shapes_.data(), morph_shapes_.size() * sizeof(MorphConstants));
+    return h;
+}
+
 }  // namespace esengine

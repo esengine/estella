@@ -306,6 +306,7 @@ void GfxDevice::updateBuffer(BufferHandle buffer, u32 offsetBytes, const void* d
     const u32 id = static_cast<u32>(buffer);
     auto* record = registry_.buffers.find(id);
     if (!record || !data || sizeBytes == 0) return;
+    countGeometryWrite(record->desc);
     const bool whole = offsetBytes == 0 && sizeBytes >= record->desc.size;
     if (!record->bytes.empty() && static_cast<usize>(offsetBytes) + sizeBytes <= record->bytes.size()) {
         std::memcpy(record->bytes.data() + offsetBytes, data, sizeBytes);
@@ -325,6 +326,7 @@ void GfxDevice::resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* dat
     const u32 id = static_cast<u32>(buffer);
     auto* record = registry_.buffers.find(id);
     if (!record) return;
+    countGeometryWrite(record->desc);
     record->desc.size = sizeBytes;
     if (record->content.kind() == GfxContentKind::Retained || (!record->realized && data)) {
         std::vector<u8> bytes(sizeBytes, 0);

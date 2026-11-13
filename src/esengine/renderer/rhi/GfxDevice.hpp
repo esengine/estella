@@ -120,6 +120,15 @@ public:
      */
     u64 deviceGeneration() const { return device_generation_; }
 
+    /**
+     * @brief How many times a static vertex or index buffer has been written or resized since the device was made.
+     *
+     * @details What a picture kept from an earlier frame (a shadow map drawn again only when what it holds changed) asks to
+     *          know that geometry it names by handle is still the geometry it drew: a handle is never reused, but a static
+     *          buffer can still be rewritten in place. Dynamic buffers (a frame's own vertex pool) are not counted.
+     */
+    u64 geometryWrites() const { return geometry_writes_; }
+
     /** @brief The loss report, or null while the device is Live. */
     const GfxDeviceLostInfo* deviceLostInfo() const {
         return device_status_ == GfxDeviceStatus::Live ? nullptr : &device_info_;
@@ -1016,6 +1025,10 @@ private:
     GfxDeviceLostInfo device_info_;
     u64 device_frame_ = 0;
     u64 device_generation_ = 0;
+    u64 geometry_writes_ = 0;
+    void countGeometryWrite(const BufferDesc& desc) {
+        if (!desc.dynamic && (desc.usage == GfxBufferUsage::Vertex || desc.usage == GfxBufferUsage::Index)) ++geometry_writes_;
+    }
     std::function<void(const GfxDeviceLostInfo&)> device_lost_handler_;
 
     GfxResourceRegistry registry_;

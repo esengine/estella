@@ -683,8 +683,11 @@ void RenderFrame::publishFrameCounters() {
         if (frame_breaks_[r] == 0) continue;
         FrameProfiler::get().counter(batchBreakCounter(static_cast<BatchBreak>(r)), frame_breaks_[r]);
     }
-    ES_PROFILE_COUNTER("render.targets", target_pool_.count());
-    ES_PROFILE_COUNTER("render.targets.bytes", target_pool_.bytes());
+    // The shadow atlas is the frame's own and kept, not pooled, and counted with the pool it used to come from: a colour and a
+    // depth texel per atlas texel, four bytes each, as the pool counts its own.
+    const u64 atlasSide = shadow_target_ ? shadow_target_->getWidth() : 0u;
+    ES_PROFILE_COUNTER("render.targets", target_pool_.count() + (shadow_target_ ? 1u : 0u));
+    ES_PROFILE_COUNTER("render.targets.bytes", target_pool_.bytes() + atlasSide * atlasSide * 8u);
     // Memory on the other side: pixels and buffers the device copies so they
     // survive a loss, which no GPU figure counts.
     ES_PROFILE_COUNTER("render.retained.bytes", device_.retainedBytes());
@@ -2511,12 +2514,23 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     if (!anyTile) return;
 
     // The texture must exist before scene collection puts it in receiver sort keys.
-    rg::TargetDesc desc;
-    desc.width = atlasSize;
-    desc.height = atlasSize;
-    desc.depthStencil = true;
-    desc.linearFilter = false;
-    shadow_resource_ = graph_.createExternalTarget(desc);
+    // Owned and kept, not pooled: what was drawn into it last frame is what lets this frame skip drawing it.
+    if (!shadow_target_ || shadow_target_->getWidth() != atlasSize) {
+        FramebufferSpec spec;
+        spec.width = atlasSize;
+        spec.height = atlasSize;
+        spec.depthStencil = true;
+        spec.linearFilter = false;
+        spec.colorFormat = GfxPixelFormat::RGBA8;
+        shadow_target_ = Framebuffer::create(device_, spec);
+        shadow_drawn_valid_ = false;
+    }
+    if (!shadow_target_) {
+        shadow_views_.clear();
+        return;
+    }
+    shadow_resource_ = graph_.importTarget(shadow_target_->handle(), atlasSize, atlasSize, /*output=*/false,
+                                           shadow_target_->getColorAttachment());
     if (shadow_resource_ == rg::kNoResource) {
         shadow_views_.clear();
         return;
@@ -2537,7 +2551,33 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
 }
 
 void RenderFrame::declareShadowPass(ecs::Registry& registry) {
-    if (shadow_resource_ == rg::kNoResource) return;
+    if (shadow_resource_ == rg::kNoResource) {
+        // A frame that plans no map gives the atlas back, as the pool it came from gave back what no frame asked for.
+        shadow_target_.reset();
+        shadow_drawn_valid_ = false;
+        return;
+    }
+
+    // Collected now rather than when the pass runs: whether it runs at all is decided by what it would draw. (Before the camera's
+    // own collect, as the casters' level of detail always assumed: they cast what the camera settled on last frame.)
+    u64 key = 0;
+    const bool trusted = collectShadowViews(registry, key);
+    shadow_reused_ = trusted && shadow_drawn_valid_ && key == shadow_drawn_key_;
+    ES_PROFILE_COUNTER("render.shadow.reused", shadow_reused_ ? 1u : 0u);
+    if (shadow_reused_) {
+        // What this frame drew (nothing) and, apart from it, what the atlas it reads holds: the maps and draws of the frame that drew it.
+        ES_PROFILE_COUNTER("render.shadow.tiles", 0u);
+        ES_PROFILE_COUNTER("render.shadow.draws", 0u);
+        ES_PROFILE_COUNTER("render.shadow.heldTiles", shadow_held_tiles_);
+        ES_PROFILE_COUNTER("render.shadow.heldDraws", shadow_held_draws_);
+        ES_PROFILE_COUNTER("render.shadow.castersCulled", shadow_casters_culled_);
+    } else {
+        // Recorded by the pass when it runs, not here: a pass the graph culls drew nothing, and its key would vouch for an atlas
+        // that never held what it says.
+        shadow_drawn_valid_ = false;
+        shadow_pending_key_ = key;
+        shadow_pending_trusted_ = trusted;
+    }
 
     rg::PassDesc shadow;
     shadow.name = "shadow-atlas";
@@ -2553,8 +2593,9 @@ void RenderFrame::declareShadowPass(ecs::Registry& registry) {
     // collect comes back empty reads as no occluder rather than as a black wall.
     shadow.clearColor[0] = shadow.clearColor[1] = shadow.clearColor[2] = 1.0f;
     shadow.clearColor[3] = 1.0f;
-    shadow.execute = [this, &registry](const rg::PassContext&) { executeShadowPass(registry); };
-    graph_.addPass(std::move(shadow));
+    shadow.execute = [this](const rg::PassContext&) { executeShadowPass(); };
+    // The atlas already holds what this would draw: no pass, and every reader samples last frame's squares, which are this frame's.
+    if (!shadow_reused_) graph_.addPass(std::move(shadow));
 #ifdef ES_ENABLE_POSTPROCESS
     if (cloud_tile_ < 0 || !post_process_) return;
     // The sky draws what of the sun its clouds leave into the sun's tile, before the scene reads it: white above, that in the alpha.
@@ -2587,14 +2628,8 @@ void RenderFrame::releaseShadowFrameUbos() {
     shadow_frame_ubos_.clear();
 }
 
-void RenderFrame::executeShadowPass(ecs::Registry& registry) {
-    // What the pass cost, for a profiler and the gates that pin it: the maps it
-    // actually rendered and the draws they took. Neither shows in a pixel, and a
-    // face that stopped being skipped would look exactly like one that never was.
-    u32 shadowTiles = 0;
-    u32 shadowDraws = 0;
+bool RenderFrame::collectShadowViews(ecs::Registry& registry, u64& key) {
     u32 shadowCastersCulled = 0;
-
     const usize viewCount = shadow_views_.size();
     // Reset once for the pass, NOT once per view: a draw carries an offset rather
     // than the bytes behind it, so six faces reset to zero are six draws reading
@@ -2641,6 +2676,67 @@ void RenderFrame::executeShadowPass(ecs::Registry& registry) {
         shadowCastersCulled += collectCtx.shadowCulled;
         list.finalize(shadow_pool_);
     }
+    shadow_casters_culled_ = shadowCastersCulled;
+
+    // What the squares would draw, as one number. Everything a depth draw reads: where each square is and what it looks through,
+    // the draws, their records in the pool, and the materials of the few that carry one (a cut-out's alpha, a bent caster). Beside
+    // them, what would make the same handles draw something else: a lost device, geometry rewritten in place, another atlas.
+    u64 h = 0xcbf29ce484222325ull;
+    const auto mix = [&h](u64 v) { h ^= v + 0x9e3779b97f4a7c15ull + (h << 6) + (h >> 2); };
+    const auto words = [&mix](const void* data, usize bytes) {
+        const auto* p = static_cast<const u8*>(data);
+        usize at = 0;
+        for (; at + 8 <= bytes; at += 8) { u64 w; std::memcpy(&w, p + at, 8); mix(w); }
+        u64 tail = 0;
+        if (at < bytes) { std::memcpy(&tail, p + at, bytes - at); mix(tail); }
+    };
+    bool trusted = true;
+    mix(device_.deviceGeneration());
+    mix(device_.geometryWrites());
+    mix(static_cast<u64>(shadow_target_ ? static_cast<u32>(shadow_target_->handle()) : 0u));
+    mix(viewCount);
+    const MaterialStore& materials = context_.materials();
+    for (usize vi = 0; vi < viewCount; ++vi) {
+        const ShadowView& view = shadow_views_[vi];
+        words(&view.view_projection, sizeof(glm::mat4));
+        mix((static_cast<u64>(static_cast<u32>(view.x)) << 32) | static_cast<u32>(view.y));
+        mix(view.size);
+        const DrawList& list = shadow_view_lists_[vi];
+        h = list.contentHash(h);
+        for (u32 c = 0; c < list.commandCount(); ++c) {
+            const DrawCommand& cmd = list.command(c);
+            // Records a compute pass wrote are not in the pool to be read.
+            if (cmd.instance_buffer != BufferHandle::Invalid) trusted = false;
+            if (cmd.material_id == 0) continue;
+            // A material that moves its vertices may move them by the clock (wind): the same draw, another shape.
+            if (materials.hasVertexHook(cmd.material_id)) { trusted = false; continue; }
+            if (const MaterialRecord* m = materials.find(cmd.material_id)) {
+                words(m->uboBytes.data(), m->uboBytes.size());
+                for (const auto& binding : m->textures) mix(binding.texture.id());
+            }
+        }
+    }
+    for (u32 layout = 0; layout < LAYOUT_COUNT; ++layout) {
+        const auto id = static_cast<LayoutId>(layout);
+        const u32 used = shadow_pool_.vertexBytesUsed(id);
+        mix(used);
+        if (used > 0) words(shadow_pool_.vertexData(id), used);
+        // Indices built this frame are not read back here; a caster drawn through them is drawn every frame.
+        if (shadow_pool_.indicesUsed(id) > 0) trusted = false;
+    }
+    key = h;
+    return trusted;
+}
+
+void RenderFrame::executeShadowPass() {
+    // What the pass cost, for a profiler and the gates that pin it: the maps it
+    // actually rendered and the draws they took. Neither shows in a pixel, and a
+    // face that stopped being skipped would look exactly like one that never was.
+    u32 shadowTiles = 0;
+    u32 shadowDraws = 0;
+    const usize viewCount = shadow_views_.size();
+    shadow_drawn_key_ = shadow_pending_key_;
+    shadow_drawn_valid_ = shadow_pending_trusted_;
     shadow_pool_.upload();
 
     for (usize vi = 0; vi < viewCount; ++vi) {
@@ -2672,7 +2768,11 @@ void RenderFrame::executeShadowPass(ecs::Registry& registry) {
 
     ES_PROFILE_COUNTER("render.shadow.tiles", shadowTiles);
     ES_PROFILE_COUNTER("render.shadow.draws", shadowDraws);
-    ES_PROFILE_COUNTER("render.shadow.castersCulled", shadowCastersCulled);
+    shadow_held_tiles_ = shadowTiles;
+    shadow_held_draws_ = shadowDraws;
+    ES_PROFILE_COUNTER("render.shadow.heldTiles", shadow_held_tiles_);
+    ES_PROFILE_COUNTER("render.shadow.heldDraws", shadow_held_draws_);
+    ES_PROFILE_COUNTER("render.shadow.castersCulled", shadow_casters_culled_);
     ES_PROFILE_COUNTER("render.shadow.cullViews", [&] { u32 n = 0; for (const ShadowView& v : shadow_views_) n += v.sun ? 1u : 0u; return n; }());
     // The scene draws next, through pipelines nothing here matches.
     device_.invalidatePipelineCache();

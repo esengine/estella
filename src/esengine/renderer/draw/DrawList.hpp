@@ -119,6 +119,15 @@ public:
 
 
     const DrawCommand* commands() const { return commands_.data(); }
+
+    /**
+     * @brief A hash of what the list draws: each command's program, geometry, state and ranges, and the bone matrices and
+     *        shapes it carries. Folded into @p seed.
+     *
+     * @details Not the bytes of the instance records, which live in the pool (hash those beside it), and not what a material
+     *          or a texture holds. Two lists with the same hash over the same pool draw the same pixels; read after finalize().
+     */
+    u64 contentHash(u64 seed) const;
     const DrawCommand& command(u32 index) const { return commands_[index]; }
 
     // Bit i set ⇒ layer i (0..31) sorts by world Y within the layer (top-down

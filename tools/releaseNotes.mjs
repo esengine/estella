@@ -4794,4 +4794,6 @@ export const NOTED = {
     {"note": "A playable opens on a start screen."},
   "fix(playable): a playable's start-screen bar moves through the whole boot - it was weighed as a web page's, whose start is mostly fetching the engine, so a page with everything inlined stood at 82% within a second and crawled for the rest; a playable weighs its own stages, and the scene's is followed through loading, shaders compiled and the world still being made, which a warm-up hold can now count (holdShaderWarmup answers how much is left)":
     {"note": "A playable's start-screen bar moves through the whole boot."},
+  "perf(render): a shadow map is drawn again only when what it holds changed - every caster of every light was drawn into the atlas every frame, still or not; the frame keeps its atlas and a hash of what each square would draw, and skips the pass when nothing in it moved":
+    {"note": "A shadow map is drawn again only when what it holds changed."},
 };
