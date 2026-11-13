@@ -68,6 +68,12 @@ inline u32 scanWGSLBindingMask(const char* source, u32 group) {
  *          stage names, as against what it declares. A name reached and not declared is
  *          an unresolved identifier, which WebGPU reports as an invalid PIPELINE with no
  *          shader named anywhere in it — so the assembler completes the set instead.
+ *
+ *          A name the source makes its own is not a unit: `let s2`, `var t0` in a
+ *          function, a parameter or a field `s1 : f32`. Three colours kept in s0..s3
+ *          once counted as four units read, and a material's eighth texture was told
+ *          there was no unit left for it. A `var` after an attribute's `)` is a
+ *          binding's own declaration, which does name the unit.
  */
 inline void scanWGSLReachedUnits(const char* source, u32& textures, u32& samplers) {
     textures = 0;
@@ -76,6 +82,25 @@ inline void scanWGSLReachedUnits(const char* source, u32& textures, u32& sampler
     const auto isIdent = [](char c) {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
     };
+    const auto isSpace = [](char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; };
+    // Whether the name starting at @p p (ending before @p end) is one the source declares for itself.
+    const auto ownName = [&](const char* p, const char* end) -> bool {
+        const char* b = p;
+        while (b != source && isSpace(b[-1])) --b;
+        const char* after = end;
+        while (isSpace(*after)) ++after;
+        if (b != source && (b[-1] == '(' || b[-1] == ',' || b[-1] == '{') && *after == ':') return true;
+        const char* w = b;
+        while (w != source && isIdent(w[-1])) --w;
+        const usize len = static_cast<usize>(b - w);
+        if (len == 3 && std::strncmp(w, "let", 3) == 0) return true;
+        if (len == 5 && std::strncmp(w, "const", 5) == 0) return true;
+        if (len != 3 || std::strncmp(w, "var", 3) != 0) return false;
+        while (w != source && isSpace(w[-1])) --w;
+        return w == source || w[-1] != ')';
+    };
+    u32 ownTextures = 0;
+    u32 ownSamplers = 0;
     for (const char* p = source; *p; ++p) {
         if (*p != 't' && *p != 's') continue;
         if (p != source && isIdent(p[-1])) continue;
@@ -84,9 +109,12 @@ inline void scanWGSLReachedUnits(const char* source, u32& textures, u32& sampler
         if (end == p + 1 || isIdent(*end)) continue;
         if (unit < WGSL_MAX_TEXTURE_UNITS) {
             (*p == 't' ? textures : samplers) |= (1u << unit);
+            if (ownName(p, end)) (*p == 't' ? ownTextures : ownSamplers) |= (1u << unit);
         }
         p = end - 1;
     }
+    textures &= ~ownTextures;
+    samplers &= ~ownSamplers;
 }
 
 }  // namespace esengine

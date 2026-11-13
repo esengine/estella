@@ -4710,6 +4710,8 @@ export const NOTED = {
     {"internal": "the manual's own build and a gate over its sources; no page a reader sees changed but the five links that now resolve"},
   "fix(terrain): a ground with more pages wanted than it holds no longer throws every frame - the pages it had chosen to draw were marked in use only after new pages were made, so a new page took the slot of one about to be drawn and its node was placed on nothing":
     {"note": "A large ground no longer throws every frame once its pages run out."},
+  "fix(terrain): a ground with no layer files is painted again - its paint is the eighth texture of its shader and found no unit, because three colours the shader keeps in s0..s3 were read as four engine units in use; a name a WGSL source declares for itself is no longer a unit, and a criterion draws a painted ground":
+    {"note": "A ground with no layer files is painted again."},
   "chore(gates): what the checks asked of this week's work - a disposition for esengine/image in a native script and its namespace there, Waterfall's width and its place in the corpus, the recipe worker's bundle as not a contract, shadeLight2D's inout against its return, and a test that named App as a type":
     {"internal": "tables the gates read, brought level; a natively packaged script can now import esengine/image, which no native game has run yet"},
   "feat(image): a picture's source goes where a texture goes, and its maps are recipes too - a texture field takes an .esimage, the image tools write a picture's normal and surface maps as recipes beside it and answer their refs, text is set by the drawer a game sets it with, and the viewport draws a recipe as a game does":

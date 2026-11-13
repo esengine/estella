@@ -1,0 +1,118 @@
+{
+ "version": 4,
+ "name": "A ground painted by its splatmap: two layers, two colours",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 40,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.7071068,
+       "y": 0,
+       "z": 0,
+       "w": 0.7071068
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 1,
+      "orthoSize": 12,
+      "nearPlane": 0.1,
+      "farPlane": 200,
+      "isActive": true,
+      "clearFlags": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Sky",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {}
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 2,
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "intensity": 1,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Ground",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {}
+    },
+    {
+     "type": "Terrain",
+     "data": {
+      "sizeX": 32,
+      "sizeZ": 32,
+      "height": 1,
+      "cellSize": 1,
+      "detail": 1,
+      "heightmap": "/scenes/terrain-paint/height.png",
+      "splatmap": "/scenes/terrain-paint/splat.png",
+      "layerColor0": {
+       "r": 1,
+       "g": 0,
+       "b": 0,
+       "a": 1
+      },
+      "layerColor1": {
+       "r": 0,
+       "g": 0,
+       "b": 1,
+       "a": 1
+      },
+      "layerColor2": {
+       "r": 0,
+       "g": 1,
+       "b": 0,
+       "a": 1
+      },
+      "layerColor3": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

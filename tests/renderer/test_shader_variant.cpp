@@ -300,6 +300,11 @@ static void testMaterialOverflowUnits() {
     // Lit reads the shadow map, reflections, morph, bake and both 2D masks (2..7): only 1 and 0 are left.
     ParsedShader lit = ShaderParser::parse(manyTextures("Lit", 9));
     CHECK(lit.valid && unitOf(lit, "u_m7") == 1 && unitOf(lit, "u_m8") == 0, "a Lit shader overflows into units 1 and 0");
+    // Names the shader makes its own are not units: the stock Terrain kept three colours in s0..s3, and its eighth texture found none.
+    ParsedShader litLocals = ShaderParser::parse(manyTextures("Lit", 9, "", "    var s0 = vec3f(0.0);\n    let s1 = s0;\n    let t0 : f32 = s1.x;\n    c += vec4f(t0);\n"));
+    CHECK(litLocals.valid && unitOf(litLocals, "u_m7") == 1 && unitOf(litLocals, "u_m8") == 0, "locals named s0, s1 and t0 take no unit from a material");
+    ParsedShader litReads = ShaderParser::parse(manyTextures("Lit", 9, "", "    c += textureSample(t1, s1, v.v_texCoord);\n"));
+    CHECK(unitOf(litReads, "u_m7") == 0 && unitOf(litReads, "u_m8") == -1, "a shader that samples t1 keeps unit 1 and has one left");
     ParsedShader litFull = ShaderParser::parse(manyTextures("Lit", 10));
     CHECK(unitOf(litFull, "u_m9") == -1, "a Lit shader's tenth texture finds no unit");
 

@@ -80,6 +80,19 @@ export const SCENES = [
       ]),
     },
   })),
+  // A ground with no layer files reads its paint from the last of its eight textures, the one past the material's seven units:
+  // 0.104.0 shipped with that texture given no unit, and every such ground one colour from edge to edge.
+  {
+    id: 'terrain-paint', tier: 'pr', webgpu: true,
+    env: {
+      ESTELLA_VERIFY_SCENE: '/scenes/terrain-paint.esscene',
+      ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '30', ESTELLA_VERIFY_SETTLE_MS: '2500',
+      ESTELLA_VERIFY_EXPECT: JSON.stringify([
+        { x: 0.3, y: 0.5, rgb: [255, 0, 0], tol: 90 },
+        { x: 0.7, y: 0.5, rgb: [0, 0, 255], tol: 90 },
+      ]),
+    },
+  },
   {
     id: 'shadow-vertex-displacement', tier: 'pr', webgpu: true,
     env: {
