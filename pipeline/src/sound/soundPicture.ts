@@ -20,19 +20,21 @@ export function fft(re: Float64Array, im: Float64Array): void {
         let bit = n >> 1;
         for (; j & bit; bit >>= 1) j ^= bit;
         j ^= bit;
-        if (i < j) { [re[i], re[j]] = [re[j]!, re[i]!]; [im[i], im[j]] = [im[j]!, im[i]!]; }
+        if (i < j) { const r = re[i]!; re[i] = re[j]!; re[j] = r; const m = im[i]!; im[i] = im[j]!; im[j] = m; }
     }
     for (let size = 2; size <= n; size <<= 1) {
         const angle = (-2 * Math.PI) / size;
-        const [wr, wi] = [Math.cos(angle), Math.sin(angle)];
+        const wr = Math.cos(angle), wi = Math.sin(angle), half = size >> 1;
+        // Plain locals throughout: this loop is all the time a long convolution takes.
         for (let start = 0; start < n; start += size) {
-            let [cr, ci] = [1, 0];
-            for (let k = 0; k < size / 2; k++) {
-                const [a, b] = [start + k, start + k + size / 2];
-                const [tr, ti] = [re[b]! * cr - im[b]! * ci, re[b]! * ci + im[b]! * cr];
+            let cr = 1, ci = 0;
+            for (let k = 0; k < half; k++) {
+                const a = start + k, b = a + half;
+                const tr = re[b]! * cr - im[b]! * ci, ti = re[b]! * ci + im[b]! * cr;
                 re[b] = re[a]! - tr; im[b] = im[a]! - ti;
                 re[a] = re[a]! + tr; im[a] = im[a]! + ti;
-                [cr, ci] = [cr * wr - ci * wi, cr * wi + ci * wr];
+                const next = cr * wr - ci * wi;
+                ci = cr * wi + ci * wr; cr = next;
             }
         }
     }

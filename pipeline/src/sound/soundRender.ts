@@ -215,7 +215,7 @@ function strike(layer: SoundLayer, seconds: number, rate: number, pitch: number,
 }
 
 /** @p a and @p b laid over one another at every offset: what a sound becomes in a place whose answer to a click is @p b. */
-function convolve(a: Float32Array, b: Float32Array, keep: number): Float32Array {
+export function convolve(a: Float32Array, b: Float32Array, keep: number): Float32Array {
     let size = 1;
     while (size < a.length + b.length) size <<= 1;
     const [ar, ai, br, bi] = [new Float64Array(size), new Float64Array(size), new Float64Array(size), new Float64Array(size)];
@@ -237,7 +237,7 @@ function convolve(a: Float32Array, b: Float32Array, keep: number): Float32Array 
  * top in half the time of the bottom, coming up over a hundredth of a second, with thirty-odd distinct first echoes
  * ahead of it. Open ground: a few slaps off far walls, each duller than the last, and a long faint tail.
  */
-function placeResponse(rate: number, size: number, kind: 'room' | 'open', side: number): Float32Array {
+export function placeResponse(rate: number, size: number, kind: 'room' | 'open', side: number): Float32Array {
     const random = noiseOf(kind === 'room' ? 6923 + side * 977 : 32324 + side * 977);
     const unit = (): number => random() * 0.5 + 0.5;
     const seconds = kind === 'room' ? 0.35 + size * 2.4 : 0.6 + size * 2.6;
@@ -353,8 +353,11 @@ interface Stray { pitch: number; loud: number; decay: number; late: number; seed
  * The samples a validated source makes. @p variant 0 is the sound as written; another is the same sound a little
  * unlike it, as a second shot from the same gun is: other noise, and each layer's pitch, loudness, decay and timing
  * off by up to the source's `vary`.
+ *
+ * @p at is for a sound played as a note: `pitch` times its written pitch, with `seed` for other noise, and `raw`
+ * leaving its level as the layers sum to, so that many notes keep their balance against one another.
  */
-export function renderSound(source: SoundSource, variant = 0): RenderedSound {
+export function renderSound(source: SoundSource, variant = 0, at: { pitch?: number; seed?: number; raw?: boolean } = {}): RenderedSound {
     const rate = source.rate ?? 44100;
     const count = Math.max(1, Math.round(source.duration * rate));
     // A loop is rendered a little long and its extra folded back over its start, so the end runs into the beginning.
@@ -445,7 +448,7 @@ export function renderSound(source: SoundSource, variant = 0): RenderedSound {
     source.layers.forEach((layer, index) => {
         if (layer.mute) return;
         const where = `layer ${index}${layer.id ? ` "${layer.id}"` : ''}`;
-        const made = play(layer, index, where, { offset: 0, pitch: 1, loud: 1, pan: 0, seed: 0 }, true);
+        const made = play(layer, index, where, { offset: 0, pitch: at.pitch ?? 1, loud: 1, pan: 0, seed: at.seed ?? 0 }, true);
         const start = layer.start ?? 0;
         reports.push({
             ...(layer.id ? { id: layer.id } : {}), source: layer.source, from: Math.round(start * 1000) / 1000, to: Math.round(made.last * 1000) / 1000,
@@ -499,7 +502,9 @@ export function renderSound(source: SoundSource, variant = 0): RenderedSound {
     let peak = 0;
     for (const channel of out) for (const v of channel) if (Math.abs(v) > peak) peak = Math.abs(v);
     const target = source.gain ?? 0.9;
-    if (source.normalize !== false) {
+    if (at.raw) {
+        // Left as it sums: whoever plays it as a note sets the level of the whole.
+    } else if (source.normalize !== false) {
         if (peak > 1e-6) for (const channel of out) for (let n = 0; n < count; n++) channel[n]! *= target / peak;
         else notes.push('the sound is silent: nothing in it reaches a level that can be heard');
         peak = peak > 1e-6 ? target : 0;
