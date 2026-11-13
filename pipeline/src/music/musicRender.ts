@@ -586,7 +586,8 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
     // A recording called a note it is not puts every note played from it out of tune, and nothing in the notes shows it.
     for (const name of names) {
         const wrong: { file: string; said: number; is: number }[] = [];
-        const zones = source.instruments[name]!.samples ?? [];
+        // A drum is struck as it was recorded, at no note: whatever pitch is found in it, it is not out of tune with anything.
+        const zones = compiled.events.some((e) => e.instrument === name && e.midi !== null) ? source.instruments[name]!.samples ?? [] : [];
         const heard = new Set<string>();
         for (const zone of zones) {
             const data = given[zone.file];

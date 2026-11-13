@@ -314,6 +314,8 @@ describe('an instrument made of recordings', () => {
         const files = { 'a.wav': rich(220), 'e.wav': rich(329.63) };
         expect(notes([{ file: 'a.wav', note: 'A3' }, { file: 'e.wav', note: 'E4' }], files)).toEqual([]);
         expect(notes([{ file: 'a.wav', note: 'A3' }, { file: 'e.wav', note: 'D4' }], files)).toEqual(['"keys": e.wav is said to be D4 and sounds as E4: every note played from it is 2 semitones higher than written. Set its note to "E4"']);
+        // An instrument that is only ever struck as a drum has no note to be out of.
+        expect(renderMusic(validateMusicSource({ tempo: 120, key: 'A', humanize: 0, instruments: { keys: { samples: [{ file: 'a.wav', note: 'C2' }] } }, patterns: { a: { bars: 1, tracks: { keys: 'x . . . x . . . . . . . . . . .' } } }, song: ['a'] }), files).notes).toEqual([]);
         // A library that counts its octaves from another C is out everywhere, and that is said once.
         const octave = notes([{ file: 'a.wav', note: 'A2' }, { file: 'e.wav', note: 'E3' }], files);
         expect(octave).toHaveLength(1);
