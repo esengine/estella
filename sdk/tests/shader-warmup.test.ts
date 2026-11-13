@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { App } from '../src/app/app';
 import type { ESEngineModule } from '../src/wasm';
 import { parseQualityConfig } from '../src/render/quality';
-import { pendingShaders, shadersCompiled, warmShaders } from '../src/render/shaderWarmup';
+import { holdShaderWarmup, pendingShaders, shadersCompiled, warmShaders } from '../src/render/shaderWarmup';
 
 /** A module whose compile queue drains by one on every read after `drainAfter` reads. */
 function moduleWithQueue(initial: number, drainEvery = 1): ESEngineModule {
@@ -41,6 +41,23 @@ describe('shader warm-up', () => {
         expect(result.frames).toBe(stepFrames.mock.calls.length);
         expect(seen.slice(-2)).toEqual([0, 0]);
         expect(seen.some((n) => n > 0)).toBe(true);
+    });
+
+    it('waits for what is still being made, though nothing is compiling', async () => {
+        // Content that arrives later asks for shaders nobody has asked for yet: the queue being empty for a few frames is not the scene being ready.
+        const { app, stepFrames } = appOf(moduleWithQueue(0));
+        let making = 6;
+        const release = holdShaderWarmup(app, () => making > 0);
+        stepFrames.mockImplementation(async () => { if (making > 0) --making; });
+        const held = await warmShaders(app, { settleFrames: 2 });
+        expect(held.timedOut).toBe(false);
+        expect(held.frames).toBe(6 + 1);
+
+        // A hold that never lets go is bounded by the timeout, and one taken away holds nothing.
+        making = Infinity;
+        expect((await warmShaders(app, { timeoutMs: 40 })).timedOut).toBe(true);
+        release();
+        expect((await warmShaders(app, { settleFrames: 2, timeoutMs: 400 })).frames).toBe(2);
     });
 
     it('does nothing where there is nothing to wait for', async () => {

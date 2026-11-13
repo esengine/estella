@@ -33,6 +33,30 @@ export interface ShaderWarmupOptions {
     onProgress?: (pending: number) => void;
 }
 
+const holds = new WeakMap<App, Set<() => boolean>>();
+
+/**
+ * Tells {@link warmShaders} that part of the scene is still being made while `busy` answers true: a ground whose pages are being painted, a field
+ * whose cells are being grown. What is made later draws with shaders nothing has asked for yet, and a warm-up that stopped at the first quiet
+ * frames opened on a scene that then filled in. Returns what takes the hold away.
+ * @experimental
+ */
+export function holdShaderWarmup(app: App, busy: () => boolean): () => void {
+    let set = holds.get(app);
+    if (!set) holds.set(app, set = new Set());
+    set.add(busy);
+    return () => { set.delete(busy); };
+}
+
+function held(app: App): boolean {
+    const set = holds.get(app);
+    if (!set) return false;
+    for (const busy of set) {
+        try { if (busy()) return true; } catch { /* a probe that throws holds nothing */ }
+    }
+    return false;
+}
+
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
@@ -63,6 +87,7 @@ export async function shadersCompiled(module: ESEngineModule | null, timeoutMs =
  *
  * The frames advance the world by a tenth of a millisecond each: they exist to make the renderer ask for the shaders the scene needs (a variant is
  * only asked for when something first draws with it), not to play the game. Meant for a loading screen, before the first visible frame.
+ * It also waits for what {@link holdShaderWarmup} says is still being made.
  * @experimental
  */
 export async function warmShaders(app: App, options: ShaderWarmupOptions = {}): Promise<ShaderWarmup> {
@@ -81,7 +106,8 @@ export async function warmShaders(app: App, options: ShaderWarmupOptions = {}): 
         ++frames;
         pending = module.renderer_getPendingShaders?.() ?? 0;
         options.onProgress?.(pending);
-        quiet = pending === 0 ? quiet + 1 : 0;
+        // Quiet is nothing compiling AND nothing still being made that will ask for more.
+        quiet = pending === 0 && !held(app) ? quiet + 1 : 0;
         // The browser compiles between tasks: give it one.
         await sleep(8);
     }

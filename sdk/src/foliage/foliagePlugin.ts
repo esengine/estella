@@ -25,6 +25,7 @@ import { chunksOf, ProceduralChunksRes, type ChunkLayerStatus } from '../residen
 import type { Entity } from '../types';
 import { TerrainsRes } from '../terrain/terrainPlugin';
 import { Material } from '../render/material';
+import { holdShaderWarmup } from '../render/shaderWarmup';
 import { currentWeather, currentWeatherDrive, WeatherDrive } from '../postprocess/weather';
 import { isEditor, isPlayMode } from '../ecs/env';
 import type { Zones } from '../worldgen/zones';
@@ -288,6 +289,8 @@ export class FoliagePlugin implements Plugin {
         const field = new FoliageField();
         field.app_ = app;
         app.insertResource(FoliageRes, field);
+        // Cells still to be grown, or grown and not yet put in the world, draw with shaders nothing has asked for yet.
+        holdShaderWarmup(app, () => app.hasResource(Assets) && (field.pending > 0 || field.landed_.length > 0));
         this.clearContacts_ = installFoliageContacts(app);
 
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {

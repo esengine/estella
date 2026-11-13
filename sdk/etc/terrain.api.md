@@ -652,6 +652,7 @@ loading: boolean
 normalAt: (x: number, z: number) => [number, number, number] | null
 paintAt: (x: number, z: number) => readonly number[] | null
 pending: number
+preparing: boolean
 raycast: (origin: { x: number; y: number; z: number; }, direction: { x: number; y: number; z: number; }, maxDistance: number) => { distance: number; point: { x: number; y: number; z: number; }; normal: { x: number; y: number; z: number; }; entity: Entity; } | null
 repaint: () => void
 setModifier: (modifier: TerrainModifier) => void

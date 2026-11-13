@@ -29,6 +29,7 @@ import { decodeImagePixels } from '../asset/imageDecode';
 import { decodePngData } from '../asset/pngData';
 import { Material, MATERIAL_FORMAT_VERSION } from '../render/material';
 import { BlendMode } from '../render/blend';
+import { holdShaderWarmup } from '../render/shaderWarmup';
 import { createTextureArrayFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
 import { getResourceManager, withdrawTextureContent } from '../wasm/resourceManager';
 import { TextureContent } from '../wasm';
@@ -593,6 +594,15 @@ export class Terrains {
         return false;
     }
 
+    /** A ground is not drawn yet, or its layers are still being packed: what it draws with has not all been asked for. */
+    get preparing(): boolean {
+        for (const b of this.built_.values()) {
+            if (b.failure) continue;
+            if (b.loading || !b.instance || b.packing || b.wanted.size > 0) return true;
+        }
+        return false;
+    }
+
     /** How many pages every terrain still wants made for what is in view. */
     get pending(): number {
         let n = 0;
@@ -673,6 +683,7 @@ export class TerrainPlugin implements Plugin {
         const terrains = new Terrains();
         terrains.app_ = app;
         app.insertResource(TerrainsRes, terrains);
+        holdShaderWarmup(app, () => app.hasResource(Assets) && terrains.preparing);
 
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
             // What the ground IS needs no renderer: a server or a test without one still makes the source and answers from it.

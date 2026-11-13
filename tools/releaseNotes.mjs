@@ -4780,4 +4780,8 @@ export const NOTED = {
     {"note": "A playable waits for its shaders when the project asks it to."},
   "perf(terrain): a ground's layer pictures are read together - each layer's albedo, normal and mask were read one after another, and a picture that is a recipe is drawn when it is read, so a ground of four layers stayed out of sight for as long as twelve drawings took in a row; they are asked for at once and drawn on as many workers as there are":
     {"note": "A ground's layer pictures are read together."},
+  "fix(render): a shader warm-up waits for the scene still being made - it stopped at the first three frames with nothing compiling, and a ground still painting its pages or a field still growing its cells asks for its shaders seconds later: half the runs of one scene opened early and filled in; Terrain and Foliage now hold the warm-up while they prepare (holdShaderWarmup)":
+    {"note": "A shader warm-up waits for the scene still being made."},
+  "perf(render): sprite and particle shaders compile in the background too - the batch shader's variants and the particle shader were linked in place whatever asyncShaderCompile said, a third to half a second of one frame when a lit sprite or the first particle appeared; they are deferred as mesh shaders are, their samplers seeded when the link lands":
+    {"note": "Sprite and particle shaders compile in the background too."},
 };

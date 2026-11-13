@@ -363,7 +363,7 @@ export type {
     QualityReport, QualitySample, FrameVerdict, DeviceQualityInfo, DeviceQualityRule,
 } from './render/quality';
 export { Quality } from './render/qualityRuntime';
-export { warmShaders, shadersCompiled, pendingShaders } from './render/shaderWarmup';
+export { warmShaders, shadersCompiled, pendingShaders, holdShaderWarmup } from './render/shaderWarmup';
 export { RenderDemand } from './render/renderDemand';
 export { buildPathGeometry, mergeGeometry, cubicBezier, quadraticBezier, circlePoints } from './render/vectorPath';
 export type { PathStyle, PathFill, PathStroke, PathColor, LineJoin, LineCap } from './render/vectorPath';
