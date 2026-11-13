@@ -4804,4 +4804,16 @@ export const NOTED = {
     {"note": "Clearing an asset field from automation clears it."},
   "perf(render): meshes of one vertex shape share a vertex buffer, an index buffer and a layout - each mesh had its own, so every draw of a scene switched vertex array and pipeline; replayable meshes take ranges of shared pages (MeshArena) with their indices rebased, and a run of them switches nothing":
     {"note": "Meshes of one vertex shape share their buffers."},
+  "fix(sdk): the worker freshness check names the sound worker, and the planning worker's script is what its source makes now - the sound worker landed without being listed, and the planning worker drew with code that had changed since its script was written":
+    {"internal": "A test list and a regenerated script that matches its unchanged source; nothing a creator runs behaves differently."},
+  "fix(gates): the device boot removes each example's app when it is done - every example installs under its own id, and the nightly emulator ran out of storage two thirds of the way through":
+    {"internal": "The nightly device check's own housekeeping; no package or editor changes."},
+  "fix(gates): the hot-update check expects a browser to cache an update - the web platform has kept a content cache since the texture recipes, and the check still asked for none":
+    {"internal": "A verifier's expectation caught up with the runtime; the runtime is unchanged."},
+  "fix(gates): an API snapshot lists a union of string literals in one order - the checker prints them in the order it first met them, so a snapshot drifted with no change to the source":
+    {"internal": "The API snapshot's printing order; the API itself is unchanged."},
+  "fix(render): the WeChat lite engine builds again - the cloud shadow reached for the post-process pipeline in a build that has none":
+    {"internal": "The lite WeChat engine stopped building after the last release and builds again before the next; no release shipped without it."},
+  "fix(transform): a child whose transform a script wrote moves when its new place is the identity - the write left an identity cache beside the old world fields, and a child whose new matrix was the identity read as unchanged and stayed where it had been":
+    {"internal": "The transform cache this restores was made lazy after the last release; no release kept a child in its old place."},
 };

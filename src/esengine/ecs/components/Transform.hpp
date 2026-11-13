@@ -18,6 +18,8 @@
 #include "../../core/Reflection.hpp"
 #include "../../math/Math.hpp"
 
+#include <limits>
+
 namespace esengine::ecs {
 
 /**
@@ -58,7 +60,7 @@ struct Transform {
     ES_PROPERTY(readonly)
     glm::vec3 worldScale{1.0f, 1.0f, 1.0f};
 
-    glm::mat4 cachedMatrix_{1.0f};
+    glm::mat4 cachedMatrix_{std::numeric_limits<f32>::quiet_NaN()};
     bool decomposed_ = true;
 
     void ensureDecomposed() {
