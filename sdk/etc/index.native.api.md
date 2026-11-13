@@ -4655,6 +4655,7 @@ mesh: number
 minScale: number
 minUp: number
 palette: number
+scaleMap: number
 seed: number
 sizeX: number
 sizeZ: number

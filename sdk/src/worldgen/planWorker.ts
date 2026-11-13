@@ -222,6 +222,7 @@ export interface FoliageSurroundingsSpec {
     water: WaterQueryData | null;
     zones: ZoneDef[];
     density?: DensityMap | null;
+    scale?: DensityMap | null;
 }
 
 /** A cell of a Foliage to grow. */
@@ -250,7 +251,7 @@ export function foliageCell(r: FoliageCellRequest): { result: MeshData[]; transf
         for (const z of r.around.zones) zones.set(z);
         around = {
             ground: r.around.ground ? new GroundQuery(r.around.ground) : null, flatY: r.around.flatY,
-            water: r.around.water ? new WaterQuery(r.around.water) : null, zones, density: r.around.density ?? null,
+            water: r.around.water ? new WaterQuery(r.around.water) : null, zones, density: r.around.density ?? null, scale: r.around.scale ?? null,
         };
         surroundings.set(r.key, around);
         if (surroundings.size > SURROUNDINGS_KEPT) surroundings.delete(surroundings.keys().next().value!);

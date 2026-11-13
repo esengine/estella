@@ -13,7 +13,7 @@
  *          provider). One implementation is also why the two cannot come to disagree about a cell.
  */
 import type { MeshData } from '../asset/meshFormat';
-import { buildBillboardMesh, buildGrassMesh, rankedPlants, buildInstancedMesh, scatterCell, type Ground } from './builder';
+import { buildBillboardMesh, buildGrassMesh, rankedPlants, buildInstancedMesh, scatterCell, type Ground, type Plant } from './builder';
 
 /** The ground a cell's plants stand on, as the terrain answers it. */
 export interface CellGround {
@@ -29,6 +29,8 @@ export interface CellSurroundings {
     water: { depthAt(x: number, z: number, y: number): number | null } | null;
     zones: { excluding(x: number, z: number, radius: number, tags: readonly string[], seed: number): unknown } | null;
     density?: DensityMap | null;
+    /** How large a plant stands by where it is, 0 to 1 of its own size: read as the density map is. */
+    scale?: DensityMap | null;
 }
 
 /** A blade's or a plant's own colours, where no material paints it. */
@@ -117,6 +119,19 @@ export function cellGround(spec: FoliageCellSpec, around: CellSurroundings): Gro
     };
 }
 
+/** A plant under this share of its own size is not there. */
+const LEAST_SIZE = 0.03;
+
+/** The plants at the size the scale map gives each where it stands (their places are from the cell's centre), without those it takes to nothing. */
+export function plantsSized(plants: readonly Plant[], map: DensityMap, centerX: number, centerZ: number): Plant[] {
+    const out: Plant[] = [];
+    for (const p of plants) {
+        const share = densityAt(map, centerX + p.x, centerZ + p.z);
+        if (share >= LEAST_SIZE) out.push(share >= 1 ? p : { ...p, scale: p.scale * share });
+    }
+    return out;
+}
+
 /**
  * The geometry of a cell: its near mesh and its far one, or none where nothing grows in it. `source` is the plant's own mesh for a
  * cell of copies, and not read for grass.
@@ -129,6 +144,8 @@ export function buildFoliageCell(spec: FoliageCellSpec, around: CellSurroundings
     if (plants.length === 0) return [];
     // The cell stands at its centre, on the entity's own base height; the plants carry the ground's height relative to that.
     for (const p of plants) p.y -= spec.baseY;
+    const sized = around.scale ? plantsSized(plants, around.scale, spec.centerX, spec.centerZ) : plants;
+    if (sized.length === 0) return [];
     const levels = Math.min(Math.max(Math.floor(spec.far.levels), 1), 3);
     const share = (level: number): number => Math.pow(Math.min(Math.max(spec.far.keep, 0.01), 1), level);
     // Where each version is a layer of its own the shader widens every blade as its neighbours thin, at any distance; here a far blade is made wider once.
@@ -136,15 +153,15 @@ export function buildFoliageCell(spec: FoliageCellSpec, around: CellSurroundings
     const only = spec.far.only ?? null;
     const band = only === null ? undefined : only;
     const copies = (level: number): MeshData | null => {
-        const kept = level === 0 ? plants : rankedPlants(plants, share(level), spec.far.grow, undefined, spec.far.up ?? 0, spec.far.tilt ?? 0);
+        const kept = level === 0 ? sized : rankedPlants(sized, share(level), spec.far.grow, undefined, spec.far.up ?? 0, spec.far.tilt ?? 0);
         return kept.length === 0 ? null : buildInstancedMesh(source!, kept, spec.paint, band, !!spec.seats);
     };
     // A far blade is one quad, a little taller and as much wider as covers the ground of the ones left out: grass grows broader, not higher.
     const blades = (level: number): MeshData | null => {
         if (spec.look.kind !== 'grass') return null;
         const blade = { height: spec.look.bladeHeight, width: spec.look.bladeWidth, lean: spec.look.bladeLean, paint: spec.paint, band };
-        if (level === 0) return buildGrassMesh(plants, { ...blade, segments: 3, thin: 1 });
-        const kept = rankedPlants(plants, share(level), 1);
+        if (level === 0) return buildGrassMesh(sized, { ...blade, segments: 3, thin: 1 });
+        const kept = rankedPlants(sized, share(level), 1);
         return kept.length === 0 ? null : buildGrassMesh(kept, { ...blade, height: blade.height * 1.1, width: blade.width * wider(level), segments: 1, thin: 1 });
     };
     if (spec.look.kind === 'mesh' && !source) throw new Error('a cell of copies needs the mesh it copies');
@@ -155,7 +172,7 @@ export function buildFoliageCell(spec: FoliageCellSpec, around: CellSurroundings
     }
     if (spec.look.kind === 'mesh' && spec.far.cards) {
         const width = Math.max(source!.aabbMax[0] - source!.aabbMin[0], source!.aabbMax[2] - source!.aabbMin[2]);
-        return [copies(0)!, buildBillboardMesh(plants, width, source!.aabbMax[1] - source!.aabbMin[1], spec.look.card, spec.paint, spec.look.tent)];
+        return [copies(0)!, buildBillboardMesh(sized, width, source!.aabbMax[1] - source!.aabbMin[1], spec.look.card, spec.paint, spec.look.tent)];
     }
     // A far version with no plant left is the end of them: past the last, the cell draws nothing.
     const out: MeshData[] = [];

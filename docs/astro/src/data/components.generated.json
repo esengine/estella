@@ -2424,6 +2424,12 @@
           "doc": "An image over the area whose red says how many of the plants stand where: none at black, all of them at white. Its Use is Data. Empty grows them everywhere."
         },
         {
+          "key": "scaleMap",
+          "type": "Asset<texture>",
+          "default": "none",
+          "doc": "An image over the area whose red says how large the plants stand where: full size at white, smaller toward black, none at black. A sward that shrinks to nothing has a soft edge where one that only thins has a ragged one. Its Use is Data. Empty leaves every plant its own size."
+        },
+        {
           "key": "colorMap",
           "type": "Asset<texture>",
           "default": "none",
@@ -2680,6 +2686,7 @@
         "mesh",
         "material",
         "densityMap",
+        "scaleMap",
         "colorMap",
         "colorMapStrength",
         "colorMapFrom",
