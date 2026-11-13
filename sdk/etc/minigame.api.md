@@ -8388,7 +8388,7 @@ physics3dBackend: Physics3DBackend | undefined
 physics3dWorld: Partial<Physics3DWorldConfig> | undefined
 physicsConfig: Physics2DPluginConfig | undefined
 physicsEnabled: boolean | undefined
-prewarmShaders: { timeoutMs?: number; onProgress?: (pending: number) => void; } | undefined
+prewarmShaders: { timeoutMs?: number; onProgress?: (pending: number, making: number) => void; } | undefined
 runtime: RuntimeBuildConfig | undefined
 scenes: { name: string; data: SceneData; }[]
 uiTheme: "dark" | "light" | undefined
@@ -10399,7 +10399,7 @@ timedOut: boolean
 
 ## ShaderWarmupOptions — interface @experimental
 ```
-onProgress: ((pending: number) => void) | undefined
+onProgress: ((pending: number, making: number) => void) | undefined
 settleFrames: number | undefined
 timeoutMs: number | undefined
 ```
@@ -12097,6 +12097,7 @@ setModifier: (modifier: TerrainModifier) => void
 setPager: (pager: TerrainPager | null) => void
 setPaint: (paint: Repaint | null) => void
 status: (entity: Entity) => TerrainStatus | null
+toPrepare: number
 static new (): Terrains
 static prototype: Terrains
 ```
@@ -16671,7 +16672,7 @@ Plugin
 
 ## holdShaderWarmup — function @experimental
 ```
-(app: App, busy: () => boolean): () => void
+(app: App, busy: () => boolean | number): () => void
 ```
 
 ## imageBitmapOptions — function @experimental

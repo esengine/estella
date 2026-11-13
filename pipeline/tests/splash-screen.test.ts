@@ -45,6 +45,20 @@ describe('driving the start screen', () => {
     expect(() => splash.busy('Compiling shaders')).not.toThrow();
   });
 
+  it('weighs the bar as its host says, for a boot shaped unlike that of a web page', () => {
+    const doc = mount();
+    // Everything inlined: the network's stages are a sliver and the scene's is most of it.
+    const splash = attachSplash(doc, { config: 1, scripts: 1, manifest: 1, scene: 1, engine: 8, app: 6, assets: 80, ready: 2 });
+    const bar = (): string => doc.getElementById('es-splash-bar')!.style.width;
+    for (const stage of ['config', 'scripts', 'manifest', 'scene', 'engine', 'app'] as const) splash.reach(stage);
+    expect(bar()).toBe('18%');
+    splash.within('assets', 0.5);
+    expect(bar()).toBe('58%');
+    splash.reach('assets');
+    splash.reach('ready');
+    expect(bar()).toBe('100%');
+  });
+
   it('shows a stretch nothing measures as alive, and says what it is', () => {
     const doc = mount();
     const splash = attachSplash(doc);

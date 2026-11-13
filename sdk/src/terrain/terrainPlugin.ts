@@ -595,12 +595,16 @@ export class Terrains {
     }
 
     /** A ground is not drawn yet, or its layers are still being packed: what it draws with has not all been asked for. */
-    get preparing(): boolean {
+    get preparing(): boolean { return this.toPrepare > 0; }
+
+    /** How much of that is left: the pages still wanted, and one for each ground not yet drawn or still packing its layers. */
+    get toPrepare(): number {
+        let n = 0;
         for (const b of this.built_.values()) {
             if (b.failure) continue;
-            if (b.loading || !b.instance || b.packing || b.wanted.size > 0) return true;
+            n += b.wanted.size + (b.loading || !b.instance || b.packing ? 1 : 0);
         }
-        return false;
+        return n;
     }
 
     /** How many pages every terrain still wants made for what is in view. */
@@ -683,7 +687,7 @@ export class TerrainPlugin implements Plugin {
         const terrains = new Terrains();
         terrains.app_ = app;
         app.insertResource(TerrainsRes, terrains);
-        holdShaderWarmup(app, () => app.hasResource(Assets) && terrains.preparing);
+        holdShaderWarmup(app, () => (app.hasResource(Assets) ? terrains.toPrepare : 0));
 
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
             // What the ground IS needs no renderer: a server or a test without one still makes the source and answers from it.

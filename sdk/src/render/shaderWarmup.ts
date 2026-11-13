@@ -29,32 +29,38 @@ export interface ShaderWarmupOptions {
     timeoutMs?: number;
     /** Consecutive frames in which nothing was compiling before it counts as done: a frame can ask for a shader the one before did not. Default 3. */
     settleFrames?: number;
-    /** Called after each frame with how many shaders are still compiling. */
-    onProgress?: (pending: number) => void;
+    /** Called after each frame with how many shaders are still compiling, and how much the scene's holds say is still to be made. */
+    onProgress?: (pending: number, making: number) => void;
 }
 
-const holds = new WeakMap<App, Set<() => boolean>>();
+const holds = new WeakMap<App, Set<() => boolean | number>>();
 
 /**
  * Tells {@link warmShaders} that part of the scene is still being made while `busy` answers true: a ground whose pages are being painted, a field
  * whose cells are being grown. What is made later draws with shaders nothing has asked for yet, and a warm-up that stopped at the first quiet
- * frames opened on a scene that then filled in. Returns what takes the hold away.
+ * frames opened on a scene that then filled in. A number is how much is left to make (pages, cells: whatever the maker counts in), which
+ * a loading screen can show going down; true is one thing of no size. Returns what takes the hold away.
  * @experimental
  */
-export function holdShaderWarmup(app: App, busy: () => boolean): () => void {
+export function holdShaderWarmup(app: App, busy: () => boolean | number): () => void {
     let set = holds.get(app);
     if (!set) holds.set(app, set = new Set());
     set.add(busy);
     return () => { set.delete(busy); };
 }
 
-function held(app: App): boolean {
+/** How much the holds say is still being made: 0 when nothing is. */
+function making(app: App): number {
     const set = holds.get(app);
-    if (!set) return false;
+    if (!set) return 0;
+    let left = 0;
     for (const busy of set) {
-        try { if (busy()) return true; } catch { /* a probe that throws holds nothing */ }
+        try {
+            const n = busy();
+            left += n === true ? 1 : typeof n === 'number' && n > 0 ? n : 0;
+        } catch { /* a probe that throws holds nothing */ }
     }
-    return false;
+    return left;
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -105,9 +111,10 @@ export async function warmShaders(app: App, options: ShaderWarmupOptions = {}): 
         await app.stepFrames(1, 1e-4);
         ++frames;
         pending = module.renderer_getPendingShaders?.() ?? 0;
-        options.onProgress?.(pending);
+        const left = making(app);
+        options.onProgress?.(pending, left);
         // Quiet is nothing compiling AND nothing still being made that will ask for more.
-        quiet = pending === 0 && !held(app) ? quiet + 1 : 0;
+        quiet = pending === 0 && left === 0 ? quiet + 1 : 0;
         // The browser compiles between tasks: give it one.
         await sleep(8);
     }

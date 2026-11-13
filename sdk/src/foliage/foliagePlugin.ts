@@ -290,7 +290,7 @@ export class FoliagePlugin implements Plugin {
         field.app_ = app;
         app.insertResource(FoliageRes, field);
         // Cells still to be grown, or grown and not yet put in the world, draw with shaders nothing has asked for yet.
-        holdShaderWarmup(app, () => app.hasResource(Assets) && (field.pending > 0 || field.landed_.length > 0));
+        holdShaderWarmup(app, () => (app.hasResource(Assets) ? field.pending + field.landed_.length : 0));
         this.clearContacts_ = installFoliageContacts(app);
 
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {

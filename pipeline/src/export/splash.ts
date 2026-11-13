@@ -118,8 +118,13 @@ export const FIRST_FRAME_EVENT = 'esengine:firstframe';
  * Always returns: a page with no start screen (a playable exported before it had
  * one) still has a portal around it that wants the events. A boot must never be a
  * thing the start screen can fail.
+ *
+ * `weights` replaces a stage's share of the bar for a host whose boot is shaped differently: the list's own are a web page's,
+ * most of whose start is fetching the engine, and a page with everything inlined spends that time elsewhere.
  */
-export function attachSplash(doc: Document = document): Splash {
+export function attachSplash(doc: Document = document, weights: Partial<Record<BootStage, number>> = {}): Splash {
+  const weightOf = (stage: BootStage): number => weights[stage] ?? BOOT_STAGES.find((s) => s.id === stage)?.weight ?? 0;
+  const total = BOOT_STAGES.reduce((n, s) => n + weightOf(s.id), 0) || BOOT_TOTAL;
   const root = doc.getElementById(ROOT);
   const bar = root && doc.getElementById(BAR);
   const label = root && doc.getElementById(LABEL);
@@ -151,9 +156,8 @@ export function attachSplash(doc: Document = document): Splash {
   return {
     within(stage, fraction) {
       if (seen.has(stage)) return;
-      const weight = BOOT_STAGES.find((s) => s.id === stage)?.weight ?? 0;
-      const partial = Math.max(0, Math.min(1, fraction)) * weight;
-      const progress = Math.min(1, (done + partial) / BOOT_TOTAL);
+      const partial = Math.max(0, Math.min(1, fraction)) * weightOf(stage);
+      const progress = Math.min(1, (done + partial) / total);
       // `partial` marks a stage still running, so a listener can tell "40% of
       // the way through fetching the engine" from "the engine is up".
       if (show(progress)) announce(BOOT_PROGRESS_EVENT, { stage, progress, partial: true });
@@ -163,8 +167,8 @@ export function attachSplash(doc: Document = document): Splash {
       // past what it has actually finished.
       if (seen.has(stage)) return;
       seen.add(stage);
-      done += BOOT_STAGES.find((s) => s.id === stage)?.weight ?? 0;
-      const progress = Math.min(1, done / BOOT_TOTAL);
+      done += weightOf(stage);
+      const progress = Math.min(1, done / total);
       show(progress);
       const at = BOOT_STAGES.findIndex((s) => s.id === stage);
       const next = BOOT_STAGES[at + 1];

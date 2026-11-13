@@ -42,6 +42,13 @@ declare const __GAME_FIRST__: string;
  *  learning a new name for it. Absent fields are their defaults. */
 declare const __GAME_RUNTIME__: PackagedRuntimeFields;
 
+/** A playable's share of the bar per stage: nothing is fetched, so the four a web page spends on the network are a sliver. */
+const PLAYABLE_WEIGHTS = { config: 1, scripts: 1, manifest: 1, scene: 1, engine: 8, app: 6, assets: 80, ready: 2 } as const;
+/** Of the scene's stage: reading and making its assets, then compiling its shaders; what is left is the world being prepared. */
+const LOAD_SHARE = 0.3, COMPILE_SHARE = 0.25;
+/** The time the uncounted loading stretch takes to cover about two thirds of its share. */
+const LOAD_EASE_MS = 5000;
+
 function decodeBase64(b64: string): Uint8Array {
   const raw = atob(b64);
   const bytes = new Uint8Array(raw.length);
@@ -87,7 +94,9 @@ async function boot(): Promise<void> {
     typeof __GAME_RUNTIME__ !== 'undefined' ? __GAME_RUNTIME__ : {};
   // The page's start screen (an export from before it had one has none, and this then only announces the boot). Nothing is fetched,
   // so the stages a web build spends on the network are behind it already.
-  const splash = attachSplash();
+  // The bar is weighed for this page, not a web one: the engine is here already (a quarter of a second to inflate and compile on a
+  // desktop), and nearly all of the wait is the scene's: its assets read and made, its shaders compiled, its world prepared.
+  const splash = attachSplash(document, PLAYABLE_WEIGHTS);
   for (const stage of ['config', 'scripts', 'manifest', 'scene'] as const) splash.reach(stage);
   // The page has to paint the screen before the engine is inflated and compiled, which holds this thread.
   await new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
@@ -157,11 +166,21 @@ async function boot(): Promise<void> {
     };
   }
 
-  // The bar's last stretch follows the shaders: of the most seen compiling at once, how many are done.
-  let most = 0;
-  const warming = (pending: number): void => {
-    most = Math.max(most, pending);
-    if (most > 0) splash.within('assets', 1 - pending / most);
+  // The scene's stage in three stretches. Loading has no count to follow (the runtime reads and makes what the scene names in one
+  // call), so the bar eases toward the end of its share by the clock and never reaches it. The other two are counted: shaders
+  // against the most seen compiling at once, and the world against the most its makers said was left.
+  const loadStarted = performance.now();
+  const loading = setInterval(() => {
+    splash.within('assets', LOAD_SHARE * (1 - Math.exp(-(performance.now() - loadStarted) / LOAD_EASE_MS)));
+  }, 200);
+  let mostCompiling = 0, mostMaking = 0;
+  const warming = (pending: number, making: number): void => {
+    clearInterval(loading);
+    mostCompiling = Math.max(mostCompiling, pending);
+    mostMaking = Math.max(mostMaking, making);
+    const compiled = mostCompiling > 0 ? 1 - pending / mostCompiling : 1;
+    const made = mostMaking > 0 ? 1 - making / mostMaking : 1;
+    splash.within('assets', LOAD_SHARE + COMPILE_SHARE * compiled + (1 - LOAD_SHARE - COMPILE_SHARE) * made);
     // With none left compiling the warm-up is waiting on what is still being made (a ground's pages, a field's cells).
     splash.busy(pending > 0 ? 'Compiling shaders' : 'Preparing the scene');
   };
@@ -178,7 +197,7 @@ async function boot(): Promise<void> {
     // The same condition the web host warms on: shaders compiled in the background, and the project asked to open on a complete picture.
     ...(runtimeConfig.quality?.asyncShaderCompile && runtimeConfig.quality.prewarmShaders
       ? { prewarmShaders: { timeoutMs: runtimeConfig.quality.prewarmTimeoutMs, onProgress: warming } } : {}),
-    onBeforeRun: () => { splash.reach('assets'); splash.reach('ready'); splash.done(); },
+    onBeforeRun: () => { clearInterval(loading); splash.reach('assets'); splash.reach('ready'); splash.done(); },
     // Everything the config APPLIES to a live app: physics, the mixer, the theme.
     ...packagedRuntimeInit(runtimeConfig),
   });

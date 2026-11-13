@@ -74,7 +74,7 @@ export interface PlayableRuntimeConfig {
      * Draw the first scene out of sight (the canvas hidden) until its shaders have compiled, and show it complete: `quality.prewarmShaders` of a
      * project that also compiles them in the background. The wait is at most `timeoutMs`.
      */
-    prewarmShaders?: { timeoutMs?: number; /** Called after each frame drawn out of sight with how many shaders are still compiling. */ onProgress?: (pending: number) => void };
+    prewarmShaders?: { timeoutMs?: number; /** Called after each frame drawn out of sight with how many shaders are still compiling and how much of the scene is still to be made. */ onProgress?: (pending: number, making: number) => void };
     /** Called once everything is loaded and warmed, just before the loop starts: where a page takes its start screen away. */
     onBeforeRun?: () => void;
 }

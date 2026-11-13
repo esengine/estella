@@ -4792,4 +4792,6 @@ export const NOTED = {
     {"note": "An effect chain keeps its uniform buffers from frame to frame."},
   "feat(playable): a playable opens on a start screen - the page was empty while the engine was inflated and compiled and the first scene warmed, twenty-five seconds of nothing for one lake scene; it carries the web export's start screen now (title, bar, what the boot is doing), taken away just before the loop starts, and a stretch nothing measures (shaders compiling, a world being made) runs a light along the bar and says so, on a web page too":
     {"note": "A playable opens on a start screen."},
+  "fix(playable): a playable's start-screen bar moves through the whole boot - it was weighed as a web page's, whose start is mostly fetching the engine, so a page with everything inlined stood at 82% within a second and crawled for the rest; a playable weighs its own stages, and the scene's is followed through loading, shaders compiled and the world still being made, which a warm-up hold can now count (holdShaderWarmup answers how much is left)":
+    {"note": "A playable's start-screen bar moves through the whole boot."},
 };

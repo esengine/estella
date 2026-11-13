@@ -660,6 +660,7 @@ setModifier: (modifier: TerrainModifier) => void
 setPager: (pager: TerrainPager | null) => void
 setPaint: (paint: Repaint | null) => void
 status: (entity: Entity) => TerrainStatus | null
+toPrepare: number
 static new (): Terrains
 static prototype: Terrains
 ```

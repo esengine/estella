@@ -58,6 +58,15 @@ describe('shader warm-up', () => {
         expect((await warmShaders(app, { timeoutMs: 40 })).timedOut).toBe(true);
         release();
         expect((await warmShaders(app, { settleFrames: 2, timeoutMs: 400 })).frames).toBe(2);
+
+        // A hold that counts says how much is left, for a loading screen to show going down; one that only says yes is one thing.
+        let pages = 3;
+        const off = [holdShaderWarmup(app, () => pages), holdShaderWarmup(app, () => pages > 1)];
+        stepFrames.mockImplementation(async () => { if (pages > 0) --pages; });
+        const left: number[] = [];
+        await warmShaders(app, { settleFrames: 1, onProgress: (_pending, making) => left.push(making) });
+        expect(left).toEqual([3, 1, 0]);
+        off.forEach((f) => f());
     });
 
     it('does nothing where there is nothing to wait for', async () => {
