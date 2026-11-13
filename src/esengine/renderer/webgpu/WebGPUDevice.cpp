@@ -130,6 +130,11 @@ void WebGPUDevice::reportUncapturedError(u32 wgpuErrorType, const char* message)
     } else if (type == WGPUErrorType_Internal) {
         markDeviceLost(GfxDeviceLostReason::Internal, message ? message : "",
                        "uncaptured error");
+    } else if (type == WGPUErrorType_Validation && validation_errors_logged_ < 8) {
+        // Said, the first few: otherwise all that reaches the console is the queue refusing an invalid command buffer, which names
+        // nothing that made it invalid.
+        ++validation_errors_logged_;
+        ES_LOG_WARN("WebGPU validation error: {}", message ? message : "(no message)");
     }
 }
 

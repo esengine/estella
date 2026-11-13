@@ -4643,6 +4643,12 @@ u32 ShaderParser::materialOverflowUnits(const ParsedShader& shader) {
               | (1u << LIGHTMAP_TEXTURE_UNIT) | (1u << SHAPE_2D_TEXTURE_UNIT) | (1u << SHADOW_2D_TEXTURE_UNIT);
     } else if (shader.domain == "Unlit") {
         reads = 1u << MORPH_DELTA_TEXTURE_UNIT;
+    } else if (shader.domain == "PostProcess") {
+        // A fullscreen pass is handed its input and the scene on 0 and 1, the shadow atlas and the environment on 2 and 3, and the
+        // surface record and the scene's depth on 6 and 7, which its WGSL declares whether it reads them (PostProcessPipeline::renderPass):
+        // 4 and 5 are left for a pass with more textures than the units above the base hold (a terrain's surface bake reads eight).
+        reads = (1u << 0) | (1u << 1) | (1u << SHADOW_MAP_TEXTURE_UNIT) | (1u << ENV_MAP_TEXTURE_UNIT) | (1u << kGBufferUnit)
+              | (1u << kSceneDepthUnit);
     } else {
         return 0;
     }

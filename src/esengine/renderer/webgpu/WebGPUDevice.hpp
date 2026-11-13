@@ -101,6 +101,8 @@ public:
 
     /** @brief Routes the device's uncaptured-error callback; only fatal kinds become losses. */
     void reportUncapturedError(u32 wgpuErrorType, const char* message);
+    /// Validation errors said so far (reportUncapturedError says the first few).
+    u32 validation_errors_logged_ = 0;
 
     bool pollDeviceLost() override;
 

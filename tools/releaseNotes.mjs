@@ -4838,4 +4838,6 @@ export const NOTED = {
     {"note": "A click selects a shape by its drawn size, and a bare Canvas no longer takes the click."},
   "feat(render): a mesh, a material, a texture and the frame's probes each carry a revision that changes whenever their content does - one counter for all of them (core/Revision.hpp), so what the renderer derives from a resource can be kept until the resource itself changes":
     {"note": "Resources carry a revision that changes with their content."},
+  "fix(render): a post-process shader with more than seven textures has units for them, and WebGPU says what made a frame invalid - material texture params take units 8 to 14, and past them a Lit shader takes a unit below 8 it never reads while a PostProcess one took none: the eighth texture of a fullscreen pass had no unit (on WebGPU no binding); 4 and 5, which no fullscreen pass is handed anything on, are now free for it. A WebGPU validation error was dropped in silence, leaving only the queue refusing an invalid command buffer: the first eight are now logged":
+    {"note": "A post-process shader can read more than seven textures."},
 };
