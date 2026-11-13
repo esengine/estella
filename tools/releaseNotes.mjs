@@ -4628,6 +4628,8 @@ export const NOTED = {
     {"note": "A flower turns to face the eye."},
   "feat(foliage): a blade's lean, its turn to the eye, and what a leaf lets through and mirrors are yours to set - Foliage.bladeLean was a 0.12 written into the builder, the mirror a 0.5 written into the shader, and the light through a leaf could only be the leaf's own colour; u_bladeFaceEye turns a blade's flat to the eye":
     {"note": "A blade's lean, its turn to the eye, and what a leaf lets through and mirrors are yours to set."},
+  "feat(post): the grade has a gain and an offset, and the vignette a radius and a roundness - a grade could lift the blacks and not sink them, so a look whose contrast is a line through 0.5 came out a third as saturated in the dark; and a vignette was always full at the middle of every edge":
+    {"note": "The grade has a gain and an offset, and the vignette a radius and a roundness."},
   "fix(terrain): a detail the pages cannot hold no longer cracks the ground - a tree that wanted more nodes than the atlas has pages was drawn in part by coarser pages standing in, which do not meet their finer neighbours' edges, and the pages were fought over every frame; the ground is now drawn at the share of its detail's range that fits, and says so once":
     {"note": "A detail the pages cannot hold no longer cracks the ground."},
   "fix(foliage): a far plant grows across the ground, not taller - a mesh plant kept in a far version was grown the same every way to cover the ground of those left out, so a flower that stood for ten stood ten times as high and a far meadow was a field of poles; it now grows across the ground only, and Foliage.farGrowUp gives its height a share of the growth back":

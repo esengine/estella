@@ -262,6 +262,10 @@ void main() {
 #pragma domain PostProcess
 #pragma param u_intensity float default(0.6) range(0,1)
 #pragma param u_softness float default(0.5) range(0,1)
+// Where it is full, and over what shape. At roundness 0 the distance is the picture's own (1 at the middle of an edge, so the
+// darkening is an ellipse that fills the frame); at 1 it is a circle and 1 is the corner, whatever the frame's shape.
+#pragma param u_radius float default(1) range(0.05,2)
+#pragma param u_roundness float default(0) range(0,1)
 
 #pragma fragment
 precision highp float;
@@ -273,8 +277,9 @@ out vec4 fragColor;
 void main() {
     vec4 color = texture(u_texture, v_texCoord);
     vec2 uv = v_texCoord * 2.0 - 1.0;
-    float dist = length(uv);
-    float vig = 1.0 - smoothstep(1.0 - u_softness, 1.0, dist);
+    vec2 round = vec2(u_viewport.x / max(u_viewport.y, 1.0), 1.0);
+    float dist = mix(length(uv), length(uv * round) / length(round), u_roundness);
+    float vig = 1.0 - smoothstep(u_radius - u_softness, u_radius, dist);
     fragColor = vec4(color.rgb * mix(1.0, vig, u_intensity), color.a);
 }
 #pragma end
@@ -283,8 +288,9 @@ void main() {
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let color = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
     let uv = v.v_texCoord * 2.0 - 1.0;
-    let dist = length(uv);
-    let vig = 1.0 - smoothstep(1.0 - mc.u_softness, 1.0, dist);
+    let round = vec2f(tc.u_viewport.x / max(tc.u_viewport.y, 1.0), 1.0);
+    let dist = mix(length(uv), length(uv * round) / length(round), mc.u_roundness);
+    let vig = 1.0 - smoothstep(mc.u_radius - mc.u_softness, mc.u_radius, dist);
     return vec4f(color.rgb * mix(1.0, vig, mc.u_intensity), color.a);
 }
 #pragma end
@@ -486,6 +492,8 @@ void main() {
 #pragma param u_toneHigh float default(0.55) range(0,1)
 #pragma param u_curve float default(0) range(0,1)
 #pragma param u_lift color default(0,0,0,1)
+#pragma param u_gain float default(1) range(0,4)
+#pragma param u_offset float default(0) range(-0.5,0.5)
 
 #pragma fragment
 precision highp float;
@@ -518,6 +526,10 @@ void main() {
     vec3 cc = clamp(c, 0.0, 1.0);
     c = mix(c, cc * cc * (3.0 - 2.0 * cc), u_curve);
 
+    // Gain and offset (a grade's slope and offset): every tone times the gain, then the offset added. An offset under zero sinks the
+    // blacks, and what is darker than it is black; a contrast written as a line through 0.5 is a gain and an offset under zero.
+    c = c * u_gain + u_offset;
+
     // Lift: a tinted black level, added to everything (a tenth of the colour, so a small lift is a usable colour).
     c += u_lift.rgb * 0.1;
 
@@ -547,6 +559,8 @@ void main() {
 
     let cc = clamp(c, vec3f(0.0), vec3f(1.0));
     c = mix(c, cc * cc * (3.0 - 2.0 * cc), mc.u_curve);
+
+    c = c * mc.u_gain + vec3f(mc.u_offset);
 
     c += mc.u_lift.rgb * 0.1;
 

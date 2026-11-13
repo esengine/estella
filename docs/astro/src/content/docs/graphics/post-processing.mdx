@@ -20,7 +20,7 @@ several can stack in one frame at no extra target cost beyond the passes.
 | `lutGrade` | Color grading through a lookup-table texture, on scene values in the chain | `u_lut` (texture), `intensity` |
 | `displayLut` | A look read off a lookup table by the picture as the display shows it, in the last pass after the output transform | `u_lut` (texture), `intensity` |
 | `agx` | The AgX view transform Blender uses: scene-linear in, display-linear out, so it goes last and the output transform stays `none`. Brings its own table | `contrast` (the look: 1 is AgX Base, 1.2 is Medium High Contrast) |
-| `vignette` | Darkened screen edges | `intensity`, `softness` |
+| `vignette` | Darkened screen edges: full at `radius`, soft for `softness` inside it. `roundness` 0 follows the frame (1 is the middle of an edge), 1 is a circle whose 1 is the corner | `intensity`, `softness`, `radius`, `roundness` |
 | `chromaticAberration` | RGB fringing | `intensity` |
 | `blur` | Gaussian blur | `intensity` |
 | `fxaa` | Fast anti-aliasing | `intensity` |
@@ -127,6 +127,10 @@ as the display shows it, so put the grade **after Tonemap**: before it, 0 to 1 i
   by default). White is no change; they are multipliers and are not colour-managed, so `(0.80, 1.01, 1.13)` in the shadows and `(1.07, 1.0, 0.90)` in the
   highlights is teal and warm, and may go above 1.
 - **S-Curve** blends in a smoothstep about the picture's range: shadows sink a little, highlights lift. 0 is off.
+- **Gain** and **Offset** are a grade's slope and offset: every tone is multiplied by the gain, then the offset is added. An offset under zero
+  sinks the blacks, and what is darker than it is black, which a contrast through mid-grey does not do in a linear project (there it is a
+  power curve about 0.18 and leaves black where it was). A contrast written elsewhere as a line through 0.5, `(c - 0.5) * k + 0.5`, is a gain
+  of `k` and an offset of `0.5 - 0.5 * k`: 1.04 is `u_gain` 1.04 and `u_offset` -0.02.
 - **Lift** is a tinted black level, added to every tone at a tenth of its colour, so `(0.06, 0.085, 0.11)` lifts the blacks by about `(0.006, 0.0085, 0.011)`
   toward teal and a scene with no black left reads as air rather than as ink.
 

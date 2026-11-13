@@ -225,6 +225,8 @@ registerEffect({
     uniforms: [
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 1, step: 0.01, defaultValue: 0.6 },
         { name: 'u_softness', label: 'Softness', min: 0, max: 1, step: 0.01, defaultValue: 0.5 },
+        { name: 'u_radius', label: 'Radius', min: 0.05, max: 2, step: 0.01, defaultValue: 1 },
+        { name: 'u_roundness', label: 'Roundness', min: 0, max: 1, step: 0.01, defaultValue: 0 },
     ],
 });
 
@@ -252,6 +254,9 @@ registerEffect({
         { name: 'u_toneLow', label: 'Tone Low', min: 0, max: 1, step: 0.01, defaultValue: 0.03 },
         { name: 'u_toneHigh', label: 'Tone High', min: 0, max: 1, step: 0.01, defaultValue: 0.55 },
         { name: 'u_curve', label: 'S-Curve', min: 0, max: 1, step: 0.01, defaultValue: 0, neutralValue: 0 },
+        // A grade's slope and offset, on the picture as the display shows it: every tone times the gain, then the offset added.
+        { name: 'u_gain', label: 'Gain', min: 0, max: 4, step: 0.01, defaultValue: 1, neutralValue: 1 },
+        { name: 'u_offset', label: 'Offset', min: -0.5, max: 0.5, step: 0.001, defaultValue: 0, neutralValue: 0 },
     ],
     colors: [
         // Multipliers, not colour-managed: white leaves a tone as it is, teal in the shadows and warm in the highlights is the cinema look.

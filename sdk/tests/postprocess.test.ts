@@ -384,6 +384,13 @@ describe('PostProcess API', () => {
         it('should create vignette with its params reflected', () => {
             postProcessEffects.createVignette();
             expect(lastSource()).toContain('#pragma param u_softness float');
+            // Full at the radius, soft inside it, over the frame's own ellipse or a circle to the corner; the defaults are the shape it was.
+            expect(lastSource()).toContain('#pragma param u_radius float default(1)');
+            expect(lastSource()).toContain('#pragma param u_roundness float default(0)');
+            expect(lastSource()).toContain('smoothstep(u_radius - u_softness, u_radius, dist)');
+            expect(lastSource()).toContain('smoothstep(mc.u_radius - mc.u_softness, mc.u_radius, dist)');
+            expect(lastSource()).toContain('mix(length(uv), length(uv * round) / length(round), u_roundness)');
+            expect(lastSource()).toContain('mix(length(uv), length(uv * round) / length(round), mc.u_roundness)');
         });
 
         it('should create grayscale with Rec.601 luma weights', () => {
@@ -413,12 +420,23 @@ describe('PostProcess API', () => {
             // Identity: 2^0=1, contrast 1, saturation 1, no white-balance shift, no S-curve; the tints are white and the lift black.
             expect(defaults).toEqual({
                 u_exposure: 0, u_contrast: 1, u_saturation: 1, u_temperature: 0, u_tint: 0,
-                u_toneLow: 0.03, u_toneHigh: 0.55, u_curve: 0,
+                u_toneLow: 0.03, u_toneHigh: 0.55, u_curve: 0, u_gain: 1, u_offset: 0,
             });
             const colours = Object.fromEntries((def?.colors ?? []).map(c => [c.name, c.defaultValue]));
             expect(colours.u_shadowTint).toEqual({ r: 1, g: 1, b: 1, a: 1 });
             expect(colours.u_highlightTint).toEqual({ r: 1, g: 1, b: 1, a: 1 });
             expect(colours.u_lift).toEqual({ r: 0, g: 0, b: 0, a: 1 });
+        });
+
+        it('colorGrade has a gain and an offset, applied before the lift in both languages', () => {
+            postProcessEffects.createColorGrade();
+            const src = lastSource();
+            expect(src).toContain('#pragma param u_gain float default(1)');
+            expect(src).toContain('#pragma param u_offset float default(0) range(-0.5,0.5)');
+            expect(src.indexOf('c = c * u_gain + u_offset;')).toBeGreaterThan(0);
+            expect(src.indexOf('c = c * u_gain + u_offset;')).toBeLessThan(src.indexOf('c += u_lift.rgb * 0.1;'));
+            expect(src.indexOf('c = c * mc.u_gain + vec3f(mc.u_offset);')).toBeLessThan(src.indexOf('c += mc.u_lift.rgb * 0.1;'));
+            expect(src.indexOf('c = c * mc.u_gain + vec3f(mc.u_offset);')).toBeGreaterThan(0);
         });
 
         it('colorGrade takes contrast about the mid-grey of the colour space it runs in', () => {
