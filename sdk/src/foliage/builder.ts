@@ -231,6 +231,25 @@ function reader(mesh: MeshData, semantic: number, components: number): ((v: numb
     };
 }
 
+/** Reads a source mesh's own vertex colour, whichever way it is stored, or null where it has none worth keeping (no channel, or white throughout). */
+function ownColours(mesh: MeshData): ((v: number, out: number[]) => void) | null {
+    const channel = mesh.channels.find((c) => c.semantic === MeshChannel.Color);
+    if (!channel || channel.components < 3) return null;
+    if (channel.type !== MeshChannelType.Float32 && channel.type !== MeshChannelType.UNorm8) return null;
+    const view = new DataView(mesh.vertices.buffer, mesh.vertices.byteOffset, mesh.vertices.byteLength);
+    const float = channel.type === MeshChannelType.Float32;
+    const read = (v: number, out: number[]): void => {
+        const at = v * mesh.vertexStride + channel.offset;
+        for (let k = 0; k < 3; k++) out[k] = float ? view.getFloat32(at + k * 4, true) : view.getUint8(at + k) / 255;
+    };
+    const c = [1, 1, 1];
+    for (let v = 0; v < mesh.vertexCount; v++) {
+        read(v, c);
+        if (c[0]! < 0.995 || c[1]! < 0.995 || c[2]! < 0.995) return read;
+    }
+    return null;
+}
+
 /**
  * Copies of a mesh, one per plant, as one mesh: placed, turned about the vertical and scaled, with the wind's weights painted by how
  * high each vertex stands on its own copy (a tree's trunk hardly moves, its crown does). With `seats` the mesh has a second uv: for a
@@ -246,8 +265,11 @@ export function buildInstancedMesh(source: MeshData, plants: readonly Plant[], p
     const readPosition = reader(source, MeshChannel.Position, 3);
     const readNormal = reader(source, MeshChannel.Normal, 3);
     const readUv = reader(source, MeshChannel.TexCoord0, 2);
+    // A field with no material is painted, and a mesh that has colours of its own is painted in those: a grey rock or a dark spruce
+    // came out the stock green of grass from root to tip, whatever its model said. One with no colours, or all white, has none to keep.
+    const readOwn = paint ? ownColours(source) : null;
     const minY = source.aabbMin[1], span = Math.max(1e-6, source.aabbMax[1] - source.aabbMin[1]);
-    const p3 = [0, 0, 0], n3 = [0, 1, 0], uv2 = [0, 0];
+    const p3 = [0, 0, 0], n3 = [0, 1, 0], uv2 = [0, 0], own = [1, 1, 1];
     for (const plant of plants) {
         const base = b.pos.length / 3;
         const cos = Math.cos(plant.yaw), sin = Math.sin(plant.yaw);
@@ -271,7 +293,10 @@ export function buildInstancedMesh(source: MeshData, plants: readonly Plant[], p
                 y = top + dy * c - z * sn; z = dy * sn + z * c;
                 n3[1] = ny * c - nz * sn; n3[2] = ny * sn + nz * c;
             }
-            const color = paint ? paintColor(paint, t, plant.shade) : [t, plant.phase, plant.shade * (0.6 + 0.4 * t)] as const;
+            let color: readonly [number, number, number];
+            if (!paint) color = [t, plant.phase, plant.shade * (0.6 + 0.4 * t)];
+            else if (readOwn) { readOwn(v, own); color = [own[0]! * plant.shade, own[1]! * plant.shade, own[2]! * plant.shade]; }
+            else color = paintColor(paint, t, plant.shade);
             q[0] = x * cos + z * sin; q[1] = y; q[2] = -x * sin + z * cos;
             m[0] = n3[0]! * cos + n3[2]! * sin; m[1] = n3[1]!; m[2] = -n3[0]! * sin + n3[2]! * cos;
             if (lean) { lean(q); lean(m); }

@@ -107,6 +107,32 @@ describe('instanced meshes and billboards', () => {
         expect(colorOf(mesh, 2)[0]).toBe(255);
     });
 
+    // A field with no material is painted. A mesh with colours of its own was painted the stock green of grass all the same, from
+    // root to tip: a grey rock scattered by a field came out a green one, and a dark spruce a pale one.
+    it('paints a mesh with no material in the mesh\'s own colours, each plant by its shade', () => {
+        const grey = buildGrassMesh([{ x: 0, y: 0, z: 0, yaw: 0, scale: 1, phase: 0, shade: 1 }],
+            { height: 10, width: 2, segments: 1, thin: 1, paint: { base: [0.4, 0.4, 0.4], tip: [0.4, 0.4, 0.4] } });
+        const stock = { base: [0.14, 0.3, 0.08], tip: [0.55, 0.72, 0.25] } as const;
+        const was = colorOf(grey, 2);
+        const mesh = buildInstancedMesh(grey, [{ x: 0, y: 0, z: 0, yaw: 0, scale: 1, phase: 0, shade: 0.5 }], { base: [...stock.base], tip: [...stock.tip] });
+        const now = colorOf(mesh, 2);
+        // Its own grey, half as light for a plant of half the shade: not green.
+        expect(now[0]).toBe(now[1]);
+        expect(now[1]).toBe(now[2]);
+        expect(Math.abs(now[0]! - was[0]! * 0.5)).toBeLessThanOrEqual(1);
+        // And a mesh that has no colours to keep (white throughout) is still painted as a plant is.
+        const white = buildGrassMesh([{ x: 0, y: 0, z: 0, yaw: 0, scale: 1, phase: 0, shade: 1 }],
+            { height: 10, width: 2, segments: 1, thin: 1, paint: { base: [1, 1, 1], tip: [1, 1, 1] } });
+        for (let v = 0; v < white.vertexCount; v++) {
+            const view = new DataView(white.vertices.buffer, white.vertices.byteOffset, white.vertices.byteLength);
+            const at = v * white.vertexStride + white.channels.find((c) => c.semantic === 1)!.offset;
+            for (let k = 0; k < 3; k++) view.setUint8(at + k, 255);
+        }
+        const painted = colorOf(buildInstancedMesh(white, [{ x: 0, y: 0, z: 0, yaw: 0, scale: 1, phase: 0, shade: 1 }], { base: [...stock.base], tip: [...stock.tip] }), 2);
+        expect(painted[1]).toBeGreaterThan(painted[0]!);
+        expect(painted[1]).toBeGreaterThan(painted[2]!);
+    });
+
     it('makes two crossed cards a plant showing the rectangle it is given', () => {
         const mesh = buildBillboardMesh([{ x: 0, y: 0, z: 0, yaw: 0, scale: 1, phase: 0, shade: 1 }], 4, 8, { u0: 0.25, v0: 0, u1: 0.75, v1: 0.5 });
         expect(mesh.vertexCount).toBe(8);

@@ -4770,4 +4770,6 @@ export const NOTED = {
     {"note": "A playable samples its textures as their import settings say."},
   "perf(render): drawing a frame costs the CPU a third of what it did - a draw no probe lights reads the zero block instead of staging its own, a draw binds only the texture units its program samples, the cull face is cached, vertex arrays are bound without asking the browser for their index buffer (no FULL_ES3), and device objects are found by index":
     {"note": "Drawing a frame costs the CPU a third of what it did."},
+  "fix(foliage): a mesh scattered with no material keeps its own colours - a field with no material painted every plant the stock green of grass from root to tip, a mesh's own vertex colours with it, so a grey rock came out a green one and a dark spruce a pale one; a mesh that has colours is painted in them, each plant by its shade, and one with none (or white throughout) is painted as before":
+    {"note": "A mesh scattered with no material keeps its own colours."},
 };
