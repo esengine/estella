@@ -2206,12 +2206,14 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     if (!in_frame_ || !device_.isDeviceUsable()) return;
     // How far the sun's cloud shadow map reaches each way, in world units: 0 where no sky casts one, or there is no sun to dim.
     f32 cloudExtent = 0.0f;
+#ifdef ES_ENABLE_POSTPROCESS
     if (cloud_sun_slot_ >= 0 && post_process_ && post_process_->isEngaged()) {
         f32 km = 0.0f, unitsPerKm = 0.0f;
         if (post_process_->cloudShadowCaster(km, unitsPerKm)) {
             cloudExtent = km * (unitsPerKm > 0.0f ? unitsPerKm : 1000.0f * world_units_per_meter_);
         }
     }
+#endif
     if (shadow_casters_.empty() && cloudExtent <= 0.0f) return;
 
     const glm::mat4 invVP = glm::inverse(view_projection_);
@@ -2553,6 +2555,7 @@ void RenderFrame::declareShadowPass(ecs::Registry& registry) {
     shadow.clearColor[3] = 1.0f;
     shadow.execute = [this, &registry](const rg::PassContext&) { executeShadowPass(registry); };
     graph_.addPass(std::move(shadow));
+#ifdef ES_ENABLE_POSTPROCESS
     if (cloud_tile_ < 0 || !post_process_) return;
     // The sky draws what of the sun its clouds leave into the sun's tile, before the scene reads it: white above, that in the alpha.
     rg::PassDesc cloud;
@@ -2564,6 +2567,7 @@ void RenderFrame::declareShadowPass(ecs::Registry& registry) {
     const glm::mat4 inverse = glm::inverse(cloud_matrix_);
     cloud.execute = [this, rect, inverse](const rg::PassContext& ctx) { post_process_->drawCloudShadow(inverse, rect, ctx); };
     graph_.addPass(std::move(cloud));
+#endif
 }
 
 void RenderFrame::ensureShadowFrameUbos(u32 count) {
