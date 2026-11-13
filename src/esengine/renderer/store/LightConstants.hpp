@@ -110,8 +110,9 @@ struct GpuLight {
     glm::vec4 posDir{0.0f};
     /// rgb = colour, a = intensity.
     glm::vec4 color{0.0f};
-    /// Spot only, zero otherwise: xy = the cone axis in the plane, z = cos(inner half
-    /// angle), w = cos(outer half angle).
+    /// Spot: xy = the cone axis in the plane, z = cos(inner half angle), w = cos(outer half angle).
+    /// Directional: x = the atlas tile its cloud shadow is read from, plus one (0 = none; see
+    /// RenderFrame's cloud shadow tile); the rest zero. Zero for a point light.
     glm::vec4 spot{0.0f};
     /// x = penumbra softness (the source's half-extent in world units; 0 = hard); y = a
     /// directional light's shadow march distance (0 = it casts none); z = a positional

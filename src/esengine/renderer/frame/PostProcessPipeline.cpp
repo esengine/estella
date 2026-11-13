@@ -209,6 +209,7 @@ void PostProcessPipeline::shutdown() {
     for (auto& pass : passes_) releasePassResources(pass);
     for (auto& pass : screenPasses_) releasePassResources(pass);
     releasePassResources(sky_capture_.copy);
+    releasePassResources(cloud_shadow_copy_);
     sky_capture_.target.reset();
     sky_capture_.state = SkyCapture::State::Idle;
     for (auto& [source, program] : compute_cache_) device_.deleteCompute(program);
@@ -723,6 +724,52 @@ void PostProcessPipeline::declareSkyCapture(const PostProcessPass& pass, rg::Res
     graph_->addPass(std::move(node));
 }
 
+const PostProcessPass* PostProcessPipeline::cloudShadowCaster(f32& extentKm, f32& unitsPerKm) const {
+    for (const PostProcessPass& pass : passes_) {
+        if (!pass.enabled) continue;
+        const MaterialUniformLayout* layout = context_.materials().layoutFor(pass.shader);
+        if (!layout || !layout->find("u_cloudShadowPass")) continue;
+        // What the pass was set to, else what its shader declares.
+        const auto value = [&](const char* name, f32 fallback) {
+            if (auto it = pass.floatUniforms.find(name); it != pass.floatUniforms.end()) return it->second;
+            if (const MaterialParamSlot* slot = layout->find(name)) return slot->defaults[0];
+            return fallback;
+        };
+        if (value("u_castCloudShadows", 0.0f) < 0.5f) continue;
+        if (layout->find("u_cloudShadow") && value("u_cloudShadow", 0.0f) <= 0.001f) continue;
+        extentKm = std::max(value("u_cloudShadowExtentKm", 16.0f), 0.1f);
+        unitsPerKm = layout->find("u_unitsPerKm") ? std::max(value("u_unitsPerKm", 0.0f), 0.0f) : 0.0f;
+        return &pass;
+    }
+    return nullptr;
+}
+
+void PostProcessPipeline::drawCloudShadow(const glm::mat4& inverse, const glm::vec4& rect, const rg::PassContext& ctx) {
+    f32 extentKm = 0.0f, unitsPerKm = 0.0f;
+    const PostProcessPass* caster = cloudShadowCaster(extentKm, unitsPerKm);
+    if (!caster) return;
+    // The pass's shader and settings, its own parameter buffer kept, as the sky capture's copy is.
+    const BufferHandle ubo = cloud_shadow_copy_.paramUbo;
+    cloud_shadow_copy_ = *caster;
+    cloud_shadow_copy_.paramUbo = ubo;
+    cloud_shadow_copy_.name = caster->name + "_cloudShadow";
+    cloud_shadow_copy_.temporal = false;
+    cloud_shadow_copy_.feedback = false;
+    cloud_shadow_copy_.earlierInputs.clear();
+    cloud_shadow_copy_.floatUniforms["u_cloudShadowPass"] = 1.0f;
+    for (int c = 0; c < 4; ++c) {
+        cloud_shadow_copy_.vec4Uniforms["u_cloudShadowInv" + std::to_string(c)] = glm::vec4(inverse[c]);
+    }
+    cloud_shadow_copy_.vec4Uniforms["u_cloudShadowRect"] = rect;
+    cloud_shadow_copy_.paramDirty = true;
+    drawing_cloud_shadow_ = true;
+    // Nothing of a scene on the input units either: the pass reads none, and the last bound may be a target of this frame's.
+    device_.bindTexture(0, TextureHandle::Invalid);
+    device_.bindTexture(1, TextureHandle::Invalid);
+    renderPass(cloud_shadow_copy_, ctx);
+    drawing_cloud_shadow_ = false;
+}
+
 void PostProcessPipeline::releasePassResources(PostProcessPass& pass) {
     if (pass.paramUbo != BufferHandle::Invalid) {
         device_.deleteBuffer(pass.paramUbo);
@@ -961,7 +1008,12 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
         // The block the scene was lit with, bound again: the passes between have no claim on its slot, but a
         // chain is not the place to find out. And the atlas on the unit the Lit shaders read it from.
         context_.lights().uploadAndBind();
-        if (shadow_texture_ != 0) device->bindTexture(SHADOW_MAP_TEXTURE_UNIT, TextureHandle{shadow_texture_});
+        // Not while the atlas is the target being drawn: a texture read and written in one pass is no answer on GL and an error on WebGPU.
+        if (drawing_cloud_shadow_) {
+            device->bindTexture(SHADOW_MAP_TEXTURE_UNIT, context_.materials().builtinDefault(MaterialDefaultTexture::White));
+        } else if (shadow_texture_ != 0) {
+            device->bindTexture(SHADOW_MAP_TEXTURE_UNIT, TextureHandle{shadow_texture_});
+        }
     }
     if (layout && layout->find("u_envParams")) {
         const LightConstants& lights = context_.lights().data();
@@ -1031,10 +1083,11 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
 
     // A target with no depth binds nothing, and an effect over a scene that
     // wrote none then finds no edge — the right answer for a flat one.
-    device->bindTexture(kSceneDepthUnit, graph_ ? graph_->depthTextureOf(sceneResource_)
-                                                : TextureHandle::Invalid);
+    // Not while a cloud shadow is drawn before the scene: the id kept from the frame before can name the atlas being drawn into.
+    const bool scene = graph_ && !drawing_cloud_shadow_;
+    device->bindTexture(kSceneDepthUnit, scene ? graph_->depthTextureOf(sceneResource_) : TextureHandle::Invalid);
     // And the surface record, on the unit below it, on the same terms: nothing where the frame drew none.
-    device->bindTexture(kGBufferUnit, graph_ && scene_gbuffer_ ? graph_->gbufferTextureOf(sceneResource_)
+    device->bindTexture(kGBufferUnit, scene && scene_gbuffer_ ? graph_->gbufferTextureOf(sceneResource_)
                                                                : TextureHandle::Invalid);
 
     // Texture params (LUTs, masks) bind at their reflected material units;
@@ -1052,7 +1105,7 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
                 gpu = velocity_fbo_->getColorAttachment();
             }
             // The scene's albedo, beside its surface record: what bounce light an effect adds is coloured by.
-            if (slot.name == "u_sceneAlbedo" && graph_ && scene_gbuffer_) {
+            if (slot.name == "u_sceneAlbedo" && graph_ && scene_gbuffer_ && !drawing_cloud_shadow_) {
                 const TextureHandle albedo = graph_->albedoTextureOf(sceneResource_);
                 if (albedo != TextureHandle::Invalid) gpu = albedo;
             }

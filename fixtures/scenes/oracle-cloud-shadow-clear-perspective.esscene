@@ -71,7 +71,7 @@
        "b": 0.8,
        "a": 1
       },
-      "lit": false,
+      "lit": true,
       "opaque": true,
       "cullBackfaces": true,
       "enabled": true
@@ -81,6 +81,44 @@
   },
   {
    "id": 2,
+   "name": "Sun",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "w": 0.8830222215594891,
+       "x": -0.3213938048432697,
+       "y": 0.3213938048432697,
+       "z": 0.11697777844051097
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "intensity": 1
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
    "name": "Look",
    "parent": null,
    "children": [],

@@ -136,31 +136,33 @@ function skyDome({ id, elevation, azimuth, pitch, yaw, haze = 1, intensity = 0.5
 
 
 /**
- * Cloud shadows on a floor. The shader places the cloud layer by the camera's altitude (`u_altitude`, km) and the floor's drop below
- * the eye, so where the slab stands against the floor is arithmetic: floor altitude = u_altitude - drop / u_unitsPerKm. A slab wholly
- * BELOW the floor casts nothing on it (lit = 1 exactly), and a dense one above it (overcast, so the coverage is all but total) leaves
- * `1 - 0.8` of the light: the shader's strongest shadow. Noise decides where the gaps are, so the shadowed floor is checked loosely.
- * The same two cases run under an orthographic camera and a perspective one: the answer is the floor's, not the projection's.
+ * Cloud shadows on a floor. The slab stands by `u_altitude` (km) and the floor's drop below the eye: floor altitude = u_altitude - drop /
+ * u_unitsPerKm. Below the floor it casts nothing; a dense one above (overcast) leaves a fifth of the SUN's light, loosely (noise makes gaps).
+ * A floor nothing lights (its own colour, as an emissive surface) keeps that colour under it. Each case runs under both kinds of camera.
  */
-function cloudShadow({ id, ortho, altitude, shadowed }) {
-  const HEIGHT = 400, FLOOR_TOP = 5, UNITS_PER_KM = 1000;
+function cloudShadow({ id, ortho, altitude, shadowed, lit = true }) {
+  const HEIGHT = 400, FLOOR_TOP = 5, UNITS_PER_KM = 1000, ALBEDO = 0.8;
+  const aim = sunAim(40, 40);
   const doc = scene(id, () => [
     camera(ortho ? {} : { projectionType: 0, fov: 40, nearPlane: 1, farPlane: 2000 }),
-    mesh('Floor', 'cube', [0, 0, 0], [1.8, 0.1, 1.8], [0.8, 0.8, 0.8], { lit: false }),
+    mesh('Floor', 'cube', [0, 0, 0], [1.8, 0.1, 1.8], [ALBEDO, ALBEDO, ALBEDO], { lit }),
+    ...(lit ? [sun(aim, 1)] : []),
     volume([{ type: 'skyAtmosphere', enabled: true, uniforms: { u_clouds: 1, u_overcast: 1, u_cloudShadow: 1, u_unitsPerKm: UNITS_PER_KM, u_sunElevation: 40, u_sunAzimuth: 40, u_altitude: altitude, u_windSpeed: 0 } }]),
   ]);
   const floorAltitude = altitude - (HEIGHT - FLOOR_TOP) / UNITS_PER_KM;
   const grid = [-60, -20, 20, 60];
-  const half = ortho ? null : (HEIGHT - FLOOR_TOP) * Math.tan((40 * Math.PI) / 360);
+  const open = lit ? ALBEDO * Math.max(0, aim.toLight[1]) : ALBEDO;
   const expect = [];
   for (const x of grid) {
     for (const z of grid) {
       const p = ortho ? probe(x, z) : probeFrom(x, z, HEIGHT - FLOOR_TOP, 40);
-      // Unshadowed: the floor's own colour. Shadowed: 20% of it, give or take the gaps in the clouds.
-      expect.push({ x: p.x, y: p.y, rgb: encodeLinear8(shadowed ? [0.16, 0.16, 0.16] : [0.8, 0.8, 0.8]), tol: shadowed ? 40 : 3 });
+      // Unshadowed, or not lit by the sun: what the floor is with no cloud. Shadowed and sunlit: 20% of that, give or take the gaps.
+      const v = shadowed && lit ? open * 0.2 : open;
+      expect.push({ x: p.x, y: p.y, rgb: encodeLinear8([v, v, v]), tol: shadowed && lit ? 40 : 3 });
     }
   }
-  return { id, doc, colorSpace: 'linear', expect, floorAltitude, about: `Cloud shadow, ${ortho ? 'orthographic' : 'perspective'} camera, slab ${shadowed ? 'above' : 'below'} the floor` };
+  return { id, doc, colorSpace: 'linear', expect, floorAltitude,
+    about: `Cloud shadow on the sun, ${ortho ? 'orthographic' : 'perspective'} camera, slab ${shadowed ? 'above' : 'below'} the floor${lit ? '' : ', a floor the sun does not light'}` };
 }
 
 
@@ -214,6 +216,9 @@ export const SKY_SCENES = [
   cloudShadow({ id: 'oracle-cloud-shadow-clear-perspective', ortho: false, altitude: 5, shadowed: false }),
   cloudShadow({ id: 'oracle-cloud-shadow-under-ortho', ortho: true, altitude: 2.2, shadowed: true }),
   cloudShadow({ id: 'oracle-cloud-shadow-under-perspective', ortho: false, altitude: 2.2, shadowed: true }),
+  // Under the same slab, a floor nothing lights: a cloud dims the sun, not what a surface gives off.
+  cloudShadow({ id: 'oracle-cloud-shadow-unlit-ortho', ortho: true, altitude: 2.2, shadowed: true, lit: false }),
+  cloudShadow({ id: 'oracle-cloud-shadow-unlit-perspective', ortho: false, altitude: 2.2, shadowed: true, lit: false }),
   // The sun is 50 degrees up toward yaw 20; the camera looks 40 up toward it, so the lobe is on screen 10 degrees above the middle.
   customSky({ id: 'oracle-custom-sky-perspective', ortho: false, pitch: 40, yaw: 20, sunPitch: 50, sunYaw: 200 }),
   customSky({ id: 'oracle-custom-sky-ortho', ortho: true, pitch: 40, yaw: 20, sunPitch: 50, sunYaw: 200 }),

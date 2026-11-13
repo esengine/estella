@@ -1673,6 +1673,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     LightStore& lights = context_.lights();
     lights.clear();
     shadow_casters_.clear();
+    cloud_sun_slot_ = -1;
     light_cap_.clear();
     environment_texture_id_ = 0;
     sky_texture_id_ = 0;
@@ -1890,6 +1891,15 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             ShadowCaster caster = collected[slot].caster;
             caster.slot = slot;
             shadow_casters_.push_back(caster);
+        }
+        // The sun a sky's clouds shade is the first directional light, as the sky's own findSun takes it.
+        const glm::vec4& pd = collected[slot].gpu.posDir;
+        if (cloud_sun_slot_ < 0 && pd.z > 0.5f && pd.z < 1.5f) {
+            const glm::vec3 aim(pd.x, pd.y, pd.w);
+            if (glm::length(aim) > 1e-6f) {
+                cloud_sun_slot_ = static_cast<i32>(slot);
+                cloud_sun_aim_ = glm::normalize(aim);
+            }
         }
         lights.addLight(collected[slot].gpu);
     }
@@ -2174,6 +2184,7 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     shadow_texture_id_ = 0;
     shadow_resource_ = rg::kNoResource;
     shadow_views_.clear();
+    cloud_tile_ = -1;
     // Zeroed first, and the atlas given back: a tile that outlived its map would
     // shadow the scene against geometry from a frame that no longer exists.
     shadow_atlas_.reset();
@@ -2184,7 +2195,16 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     ES_PROFILE_COUNTER("render.shadow.atlasBudget", shadow_atlas_size_);
     ES_PROFILE_COUNTER("render.shadow.atlasSize", 0);
     context_.lights().setShadowTiles(nullptr, nullptr, 0, glm::vec4(0.0f));
-    if (!in_frame_ || shadow_casters_.empty() || !device_.isDeviceUsable()) return;
+    if (!in_frame_ || !device_.isDeviceUsable()) return;
+    // How far the sun's cloud shadow map reaches each way, in world units: 0 where no sky casts one, or there is no sun to dim.
+    f32 cloudExtent = 0.0f;
+    if (cloud_sun_slot_ >= 0 && post_process_ && post_process_->isEngaged()) {
+        f32 km = 0.0f, unitsPerKm = 0.0f;
+        if (post_process_->cloudShadowCaster(km, unitsPerKm)) {
+            cloudExtent = km * (unitsPerKm > 0.0f ? unitsPerKm : 1000.0f * world_units_per_meter_);
+        }
+    }
+    if (shadow_casters_.empty() && cloudExtent <= 0.0f) return;
 
     const glm::mat4 invVP = glm::inverse(view_projection_);
     // Clip's z axis back in world: w != 0 is an eye point, w == 0 says the projection
@@ -2262,6 +2282,12 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
         if (at >= 0) plan[i] = {static_cast<u32>(at), grant.granted};
         shadow_plan_.grants.push_back(grant);
     }
+    // The sun's cloud shadow, before its cascades: one tile for the whole of what the camera sees under the clouds, where a cascade
+    // is the nearest stretch of it. With the atlas full a sun then gives up its farthest cascade, as it does for a light that stands somewhere.
+    if (cloudExtent > 0.0f) {
+        AtlasRefusal why = AtlasRefusal::None;
+        cloud_tile_ = shadow_atlas_.allocate(1, 1, why);
+    }
     for (usize i = 0; i < shadow_casters_.size(); ++i) {
         const ShadowCaster& caster = shadow_casters_[i];
         if (caster.shape != ShadowShape::Box) continue;
@@ -2293,6 +2319,32 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     glm::mat4 matrices[MAX_SHADOW_TILES];
     glm::vec4 tiles[MAX_SHADOW_TILES];
     bool anyTile = false;
+    if (cloud_tile_ >= 0) {
+        // Along the sun's rays, round the camera, snapped to the map's own texels so the shadows do not crawl as the camera moves.
+        // Every point on one ray is under the same cloud, so where along it the map stands does not matter: only x and y are read.
+        const ShadowTile& tile = shadow_atlas_.tile(static_cast<u32>(cloud_tile_));
+        const glm::vec3 toLight = -cloud_sun_aim_;
+        const glm::vec3 up = shadowUp(toLight);
+        const glm::mat4 lightRot = glm::lookAt(glm::vec3(0.0f), -toLight, up);
+        const glm::mat4 lightRotInv = glm::inverse(lightRot);
+        const glm::vec3 seen = perspective ? glm::vec3(eye) / eye.w : (corners[0] + corners[7]) * 0.5f;
+        const f32 texel = (cloudExtent * 2.0f) / static_cast<f32>(tile.size);
+        glm::vec3 inLight = glm::vec3(lightRot * glm::vec4(seen, 1.0f));
+        inLight.x = std::floor(inLight.x / texel) * texel;
+        inLight.y = std::floor(inLight.y / texel) * texel;
+        const glm::vec3 centre = glm::vec3(lightRotInv * glm::vec4(inLight, 1.0f));
+        const glm::mat4 lightView = glm::lookAt(centre + toLight * cloudExtent, centre, up);
+        glm::mat4 lightProj(1.0f);
+        lightProj[0][0] = 1.0f / cloudExtent;
+        lightProj[1][1] = 1.0f / cloudExtent;
+        lightProj[2][2] = -0.5f / cloudExtent;
+        lightProj[3][2] = 0.0f;
+        cloud_matrix_ = lightProj * lightView;
+        matrices[cloud_tile_] = cloud_matrix_;
+        tiles[cloud_tile_] = shadow_atlas_.unitRect(static_cast<u32>(cloud_tile_), atlasSize);
+        context_.lights().setLightCloudTile(static_cast<u32>(cloud_sun_slot_), static_cast<u32>(cloud_tile_));
+        anyTile = true;
+    }
 
     for (usize ci = 0; ci < shadow_casters_.size(); ++ci) {
         const ShadowCaster& caster = shadow_casters_[ci];
@@ -2493,6 +2545,17 @@ void RenderFrame::declareShadowPass(ecs::Registry& registry) {
     shadow.clearColor[3] = 1.0f;
     shadow.execute = [this, &registry](const rg::PassContext&) { executeShadowPass(registry); };
     graph_.addPass(std::move(shadow));
+    if (cloud_tile_ < 0 || !post_process_) return;
+    // The sky draws what of the sun its clouds leave into the sun's tile, before the scene reads it: white above, that in the alpha.
+    rg::PassDesc cloud;
+    cloud.name = "cloud-shadow";
+    cloud.write = shadow_resource_;
+    cloud.keep = true;
+    cloud.discardDepth = true;
+    const glm::vec4 rect = shadow_atlas_.unitRect(static_cast<u32>(cloud_tile_), shadow_atlas_.occupiedSize());
+    const glm::mat4 inverse = glm::inverse(cloud_matrix_);
+    cloud.execute = [this, rect, inverse](const rg::PassContext& ctx) { post_process_->drawCloudShadow(inverse, rect, ctx); };
+    graph_.addPass(std::move(cloud));
 }
 
 void RenderFrame::ensureShadowFrameUbos(u32 count) {

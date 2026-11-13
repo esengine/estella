@@ -1014,6 +1014,14 @@ private:
     /// Every light that asked for a map this frame, in UBO slot order. Written by
     /// collectLights, read by buildShadowPlan; empty = nobody asked.
     std::vector<ShadowCaster> shadow_casters_;
+    /// The directional light the sky's clouds shade (the first in slot order, which is the one a sky takes for its sun): its slot
+    /// and the way its rays travel, as collectLights found it; slot -1 when the frame has none.
+    i32 cloud_sun_slot_ = -1;
+    glm::vec3 cloud_sun_aim_{0.0f, -1.0f, 0.0f};
+    /// The atlas tile the sky draws the sun's cloud shadow into this frame, or -1, and the matrix it is drawn and read through:
+    /// along the sun's rays, round the camera, as Unreal's cloud shadow map is.
+    i32 cloud_tile_ = -1;
+    glm::mat4 cloud_matrix_{1.0f};
     /// The frame's render targets, borrowed by shape and given back when the
     /// frame is done with them — shared with the post chains, which is what lets
     /// the atlas be a loan rather than a framebuffer held for the whole run.

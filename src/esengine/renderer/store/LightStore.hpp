@@ -158,6 +158,13 @@ public:
     /// Names the atlas tiles light @p slot casts into. What lets a fragment read the
     /// right map once more than one light has rendered one; a slot nobody names keeps
     /// the zeroed count, which is a light with no map.
+    /** @brief Says the directional light in @p slot reads the sky's cloud shadow from atlas tile @p tile (GpuLight::spot.x). */
+    void setLightCloudTile(u32 slot, u32 tile) {
+        if (slot >= count_) return;
+        data_.lights[slot].spot.x = static_cast<f32>(tile + 1);
+        dirty_ = true;
+    }
+
     void setLightShadowTiles(u32 slot, u32 first, u32 tiles) {
         if (slot >= count_) return;
         // The two the atlas decides, and nothing else: z is the light's own source size,

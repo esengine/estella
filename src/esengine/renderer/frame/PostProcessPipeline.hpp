@@ -615,6 +615,22 @@ public:
     /** @brief The captured pixels, RGBA8, rows bottom-up as every readback lands. Valid after poll answered 1. */
     const std::vector<u8>& skyCapturePixels() const { return sky_capture_.pixels; }
 
+    /**
+     * @brief The sky that casts the sun's cloud shadow this frame, how far its map reaches each way in kilometres, and how many world
+     *        units its kilometre is (its own `u_unitsPerKm` where it says, as Sky Atmosphere does; 0 where it leaves it to the project).
+     * @details A pass whose shader declares `u_cloudShadowPass` (sdk postprocess/cloudShadowParams.ts) and has `u_castCloudShadows`
+     *          on, and, where it has a strength (Sky Atmosphere's `u_cloudShadow`), above nothing. Null when no enabled pass does.
+     */
+    const PostProcessPass* cloudShadowCaster(f32& extentKm, f32& unitsPerKm) const;
+    /**
+     * @brief Draws the caster's cloud shadow into the tile at @p rect of the bound target: what of the sun is left in the alpha, white above.
+     * @details @p rect is the tile as the sun reads it (origin and side, in the target's texture coordinates), and @p inverse takes the
+     *          tile's corners (clip x and y, -1 to 1) back to the world. The pass covers the target and finds the tile by the same
+     *          coordinates the lookup uses, so the two agree on either backend whatever its viewport convention. Called from a graph pass
+     *          that writes the shadow atlas before the scene, so the atlas is not bound for reading while it is drawn.
+     */
+    void drawCloudShadow(const glm::mat4& inverse, const glm::vec4& rect, const rg::PassContext& ctx);
+
 private:
     PostProcessPass* findPass(const std::string& name);
     /// The capture's node: the copy of @p pass drawn into the capture target. Declared in the chain so it runs with the
@@ -764,6 +780,10 @@ private:
         std::vector<u8> pixels;
     };
     SkyCapture sky_capture_;
+    /// The caster's pass as drawCloudShadow draws it: the same shader and settings, with the map's own params and parameter buffer.
+    PostProcessPass cloud_shadow_copy_;
+    /// While drawCloudShadow draws into the atlas: renderPass binds a white texture where it would bind the atlas.
+    bool drawing_cloud_shadow_ = false;
     resource::ShaderHandle rgbmShader_;
     bool cover_active_ = false;
     glm::mat4 cover_matrix_{1.0f};

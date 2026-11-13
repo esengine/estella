@@ -111,12 +111,19 @@ Turn **Keep Background** up and the scene is cleared to the camera's colour agai
 
 ### Cloud shadows
 
-Turn **Cloud Shadows** above 0 and the sun's ray from each surface is marched up through the cloud layer the sky draws, against the
-same density, so the ground is darker and patchier under a cloud and lit where the sky is open. The sun's own light is what is
-kept off; ambient light is not shadowed. Casting shadows also pins the clouds to the world instead of carrying them along with the
-camera, so walking under a cloud and out of it works. The sky is in kilometres and the scene in its own units: **World Units per km**
-says how many of the scene's units make one, and left alone it follows the project's Units per Metre (100 000 in a centimetre project, 1000 in a metre one). At 0 (the default) the effect is exactly as it was. The shadow falls on surfaces only; the
-clouds are still drawn where there is sky.
+Turn **Cloud Shadows** above 0 and the sky draws a cloud shadow map before the scene: for a square round the camera, 16 km each way,
+what of the sun is left after its ray climbs through the cloud layer, against the same density the sky draws. The first directional
+light reads it where each surface is shaded, as Unreal's atmosphere sun reads its clouds' shadow map: the ground is darker and patchier
+under a cloud and lit where the sky is open. Only the sun's light is kept off. The sky's own light (ambient and reflections), other
+lights and what a surface gives off are not dimmed, so a shaded field keeps its sky colour and an unlit or emissive object is as bright
+under a cloud as out of it. Casting shadows also pins the clouds to the world instead of carrying them along with the camera, so
+walking under a cloud and out of it works. The sky is in kilometres and the scene in its own units: **World Units per km** says how many
+of the scene's units make one, and left alone it follows the project's Units per Metre (100 000 in a centimetre project, 1000 in a metre
+one). At 0 (the default) the effect is exactly as it was.
+
+The map is one tile of the sun's shadow atlas. With the atlas full (the High quality level's four cascades fill it) the sun gives up its
+farthest cascade to it. Its value is the light left at the camera's own height on each ray, which is exact under the cloud layer and
+an estimate for a camera inside it. Beyond 16 km, and where no sky casts clouds, the sun is not dimmed.
 
 ### Split toning and lifted blacks
 
@@ -560,9 +567,10 @@ radiance. Params are uniforms (`mc.` in WGSL), the time is `u_time.x`, and `text
 
 A sky with clouds can shade the ground under them. Set `groundShadow: true` and write a second function beside the
 first, `float skyShadow(vec3 world, vec3 sun)` (WGSL `fn skyShadow(world : vec3f, sun : vec3f) -> f32`): what is left
-of the light at a world position, 1 for all of it. Every surface in the frame is multiplied by it, as Sky
-Atmosphere's **Cloud Shadows** does with its own clouds, so it dims the whole of a surface's light and not the
-sun's alone; keep its floor well above 0.
+of the sun's light at a world position, 1 for all of it. The engine draws it into the sun's cloud shadow map before the scene,
+as Sky Atmosphere's **Cloud Shadows** does with its own clouds, and the first directional light is dimmed by it where each
+surface is shaded; the sky's own light and what a surface gives off are not. A floor of 0 is a shadow as dark as the sky's
+light leaves it. `u_cloudShadowExtentKm` (16 km by default) is how far the map reaches round the camera.
 
 | Method | Description |
 |---|---|

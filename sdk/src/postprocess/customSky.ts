@@ -17,13 +17,15 @@
  *          effect's: in GLSL by name, in WGSL as `mc.<name>`; the time is `u_time.x` / `tc.u_time.x`.
  *
  *          A sky with clouds can shade the ground under them, as Sky Atmosphere's do: with `groundShadow` the author writes a
- *          second function, `skyShadow(world, sun)`, how much of the scene's light is left at a world position (1 is all of
- *          it), and every surface the pass finds is multiplied by it.
+ *          second function, `skyShadow(world, sun)`, how much of the sun's light is left at a world position (1 is all of it).
+ *          The engine draws it into the sun's cloud shadow map before the scene (see `CLOUD_SHADOW_PARAMS`), and the sun's light
+ *          is dimmed by it where each surface is shaded: the sky's own light and a surface's emission are not.
  */
 
 import type { ShaderHandle } from '../render/material';
 import { Material } from '../render/material';
 import { registerEffect, type EffectColorDef, type EffectUniformDef } from './effects';
+import { CLOUD_SHADOW_PARAMS } from './cloudShadowParams';
 import type { BuiltinTexture } from './effects';
 
 export interface SkyEffectSource {
@@ -42,7 +44,7 @@ export interface SkyEffectSource {
     wgsl: string;
     /**
      * The sky shades the ground: the sources also hold `float skyShadow(vec3 world, vec3 sun)` and
-     * `fn skyShadow(world : vec3f, sun : vec3f) -> f32`, what is left of a surface's light at a world position, 0 to 1.
+     * `fn skyShadow(world : vec3f, sun : vec3f) -> f32`, what is left of the sun's light at a world position, 0 to 1.
      */
     groundShadow?: boolean;
 }
@@ -75,6 +77,7 @@ export function skyEffectSource(src: SkyEffectSource): string {
         '#pragma param u_intensity float default(1) range(0,8)',
         '#pragma param u_lightScene float default(0) range(0,1)',
         '#pragma param u_skyCapture float default(0) range(0,1)',
+        ...(src.groundShadow ? CLOUD_SHADOW_PARAMS : []),
         // A marker the engine reads (see Sky Atmosphere): the scene is cleared to nothing, so its alpha is its coverage.
         '#pragma param u_sceneCoverage float default(1) range(0,1)',
         ...(src.uniforms ?? []).map(pragmaLine),
@@ -114,7 +117,16 @@ void main() {
     findSun(lightDir, lightColor, tiles);
     vec3 sun = lightDir.w > 0.5 ? lightDir.xyz : vec3(0.0, 1.0, 0.0);
     vec3 sunColor = lightColor.rgb * lightColor.a;
-    if (u_skyCapture > 0.5) {
+${src.groundShadow ? `    if (u_cloudShadowPass > 0.5) {
+        // A texel of the sun's cloud shadow map: a point on the ray through it, back in the world, and what of the sun is left there.
+        // The pass covers the target, and this texel is found in the tile by the coordinates the sun's lookup reads it by.
+        vec2 inTile = (v_texCoord - u_cloudShadowRect.xy) / u_cloudShadowRect.z;
+        if (any(lessThan(inTile, vec2(0.0))) || any(greaterThan(inTile, vec2(1.0)))) discard;
+        vec4 at = mat4(u_cloudShadowInv0, u_cloudShadowInv1, u_cloudShadowInv2, u_cloudShadowInv3) * vec4(inTile * 2.0 - 1.0, 0.5, 1.0);
+        fragColor = vec4(1.0, 1.0, 1.0, clamp(skyShadow(at.xyz / at.w + u_renderOrigin.xyz, sun), 0.0, 1.0));
+        return;
+    }
+` : ''}    if (u_skyCapture > 0.5) {
         vec3 c = clamp(skyRadiance(esSkyPanoramaDir(v_texCoord), sun, sunColor, 1.0) * u_intensity, vec3(0.0), vec3(${CUSTOM_SKY_RANGE.toFixed(1)}));
         float m = clamp(max(max(c.r, c.g), max(c.b, 1e-6)) / ${CUSTOM_SKY_RANGE.toFixed(1)}, 1.0 / 255.0, 1.0);
         m = ceil(m * 255.0) / 255.0;
@@ -124,7 +136,7 @@ void main() {
     vec4 src = texture(u_sceneTexture, v_texCoord);
     ivec2 size = textureSize(u_sceneDepth, 0);
     float depth = texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)), ivec2(0), size - ivec2(1)), 0).r;
-    if (depth < 1.0 && src.a > 0.999) { fragColor = ${src.groundShadow ? 'vec4(src.rgb * clamp(skyShadow(worldFromDepth(v_texCoord, depth) + u_renderOrigin.xyz, sun), 0.0, 1.0), src.a)' : 'src'}; return; }
+    if (depth < 1.0 && src.a > 0.999) { fragColor = src; return; }
     vec3 entry = worldFromDepth(v_texCoord, 0.0);
     vec3 dir = normalize(worldFromDepth(v_texCoord, 1.0) - entry);
     vec3 col = skyRadiance(dir, sun, sunColor, 0.0) * u_intensity;
@@ -147,7 +159,14 @@ fn esSkyPanoramaDir(uv : vec2f) -> vec3f {
     var sun = vec3f(0.0, 1.0, 0.0);
     if (found.dir.w > 0.5) { sun = found.dir.xyz; }
     let sunColor = found.color.rgb * found.color.a;
-    if (mc.u_skyCapture > 0.5) {
+${src.groundShadow ? `    if (mc.u_cloudShadowPass > 0.5) {
+        let inTile = (v.v_texCoord - mc.u_cloudShadowRect.xy) / mc.u_cloudShadowRect.z;
+        if (any(inTile < vec2f(0.0)) || any(inTile > vec2f(1.0))) { discard; }
+        let inv = mat4x4f(mc.u_cloudShadowInv0, mc.u_cloudShadowInv1, mc.u_cloudShadowInv2, mc.u_cloudShadowInv3);
+        let at = inv * vec4f(inTile * 2.0 - 1.0, 0.5, 1.0);
+        return vec4f(1.0, 1.0, 1.0, clamp(skyShadow(at.xyz / at.w + frame.renderOrigin.xyz, sun), 0.0, 1.0));
+    }
+` : ''}    if (mc.u_skyCapture > 0.5) {
         let c = clamp(skyRadiance(esSkyPanoramaDir(v.v_texCoord), sun, sunColor, 1.0) * mc.u_intensity, vec3f(0.0), vec3f(${CUSTOM_SKY_RANGE.toFixed(1)}));
         var m = clamp(max(max(c.r, c.g), max(c.b, 1e-6)) / ${CUSTOM_SKY_RANGE.toFixed(1)}, 1.0 / 255.0, 1.0);
         m = ceil(m * 255.0) / 255.0;
@@ -156,7 +175,7 @@ fn esSkyPanoramaDir(uv : vec2f) -> vec3f {
     let src = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
     let size = vec2i(textureDimensions(t7, 0));
     let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
-    if (depth < 1.0 && src.a > 0.999) { return ${src.groundShadow ? 'vec4f(src.rgb * clamp(skyShadow(worldFromDepth(v.v_texCoord, depth) + frame.renderOrigin.xyz, sun), 0.0, 1.0), src.a)' : 'src'}; }
+    if (depth < 1.0 && src.a > 0.999) { return src; }
     let entry = worldFromDepth(v.v_texCoord, 0.0);
     let dir = normalize(worldFromDepth(v.v_texCoord, 1.0) - entry);
     let col = skyRadiance(dir, sun, sunColor, 0.0) * mc.u_intensity;

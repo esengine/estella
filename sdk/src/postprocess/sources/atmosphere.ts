@@ -7,6 +7,7 @@
 import type { ShaderHandle } from '../../render/material';
 import { Material } from '../../render/material';
 import { registerEffectSources } from '../effectSources';
+import { CLOUD_SHADOW_PARAMS } from '../cloudShadowParams';
 import { rain2dEffects } from './rain2d';
 import { fog2dEffects } from './fog2d';
 import { SSAO_GLSL, SSAO_WGSL, PUDDLE_GLSL, PUDDLE_WGSL, BASIN_GLSL, BASIN_WGSL, GBUFFER_GLSL, GBUFFER_WGSL } from './shared';
@@ -353,6 +354,7 @@ export const atmosphereEffects = {
 #pragma param u_sunElevation float default(35) range(-90,90)
 #pragma param u_cloudShadow float default(0) range(0,1)
 #pragma param u_unitsPerKm float default(1000) range(1,100000)
+${CLOUD_SHADOW_PARAMS.join(String.fromCharCode(10))}
 #pragma param u_cloudMask texture default(black)
 #pragma param u_cloudMaskTile float default(0) range(0,100)
 #pragma param u_cloudMask2 texture default(black)
@@ -517,34 +519,6 @@ bool upsampledClouds(out vec3 L, out float T) {
     return true;
 }
 
-/// The cloud shadow on a surface, read from the half-size pass: the surface texels among the four the pixel falls between, each weighted
-/// by how near its point in the world is to this pixel's, so a texel across a silhouette does not lend its shadow. False when none is near.
-bool upsampledShadow(vec3 P, vec3 entry, out float lit) {
-    ivec2 dsize = textureSize(u_sceneDepth, 0);
-    ivec2 hsize = textureSize(u_texture, 0);
-    vec2 hf = v_texCoord * vec2(hsize) - 0.5;
-    ivec2 base = ivec2(floor(hf));
-    vec2 fr = hf - vec2(base);
-    float tol = max(0.08 * length(P - entry), 1e-4);
-    float sum = 0.0;
-    float wsum = 0.0;
-    for (int j = 0; j < 4; ++j) {
-        ivec2 o = ivec2(j & 1, j >> 1);
-        ivec2 t = clamp(base + o, ivec2(0), hsize - ivec2(1));
-        vec4 h = texelFetch(u_texture, t, 0);
-        if (h.a >= 0.0) continue;
-        vec2 uv = uvOfTexel(t, hsize);
-        vec3 Pj = worldFromDepth(uv, depthAt(screenTexel(uv, dsize), dsize));
-        float bw = (o.x == 1 ? fr.x : 1.0 - fr.x) * (o.y == 1 ? fr.y : 1.0 - fr.y);
-        float w = bw * max(1.0 - length(Pj - P) / tol, 0.0);
-        sum += h.r * w;
-        wsum += w;
-    }
-    if (wsum < UP_MIN_WEIGHT) return false;
-    lit = sum / wsum;
-    return true;
-}
-
 void main() {
     vec4 src = texture(u_sceneTexture, v_texCoord);
     ivec2 size = textureSize(u_sceneDepth, 0);
@@ -553,7 +527,8 @@ void main() {
     // alpha is how much the sky shows through it, and that includes a pixel whose depth says surface because one sample of it is.
     bool covered = u_panorama <= 0.001;
     bool geometry = covered ? (depth < 1.0 && src.a > 0.999) : depth < 1.0;
-    if (geometry && u_cloudShadow <= 0.001) { fragColor = src; return; }
+    // A surface is as the scene drew it: its cloud shadow is on the sun's light, which the sun's map dimmed where it was shaded.
+    if (geometry && u_cloudShadowPass < 0.5) { fragColor = src; return; }
 
     vec3 entry = rayStart(v_texCoord);
     vec3 dir = normalize(worldFromDepth(v_texCoord, 1.0) - entry);
@@ -581,12 +556,14 @@ void main() {
     vec3 entryWorld = entry + u_renderOrigin.xyz;
     vec3 anchor = shadowed ? vec3(entryWorld.x, 0.0, entryWorld.z) / max(u_unitsPerKm, 1e-3) : vec3(0.0);
     vec3 windDrift = vec3(u_cloudDriftX, 0.0, u_cloudDriftZ) + anchor;
-    if (geometry) {
-        float lit;
-        if (!upsampledShadow(worldFromDepth(v_texCoord, depth), entry, lit)) {
-            lit = cloudShadowAt(worldFromDepth(v_texCoord, depth) + u_renderOrigin.xyz, entryWorld, sun, max(u_clouds, overcast * 0.95), overcast, windDrift - anchor);
-        }
-        fragColor = vec4(src.rgb * lit, src.a);
+    if (u_cloudShadowPass > 0.5) {
+        // A texel of the sun's cloud shadow map: a point on the ray through it, back in the world, and what of the sun is left there.
+        // The pass covers the target, and this texel is found in the tile by the coordinates the sun's lookup reads it by.
+        vec2 inTile = (v_texCoord - u_cloudShadowRect.xy) / u_cloudShadowRect.z;
+        if (any(lessThan(inTile, vec2(0.0))) || any(greaterThan(inTile, vec2(1.0)))) discard;
+        vec4 at = mat4(u_cloudShadowInv0, u_cloudShadowInv1, u_cloudShadowInv2, u_cloudShadowInv3) * vec4(inTile * 2.0 - 1.0, 0.5, 1.0);
+        float lit = cloudShadowAt(at.xyz / at.w + u_renderOrigin.xyz, rayStart(vec2(0.5)) + u_renderOrigin.xyz, sun, max(u_clouds, overcast * 0.95), overcast, vec3(u_cloudDriftX, 0.0, u_cloudDriftZ));
+        fragColor = vec4(1.0, 1.0, 1.0, clamp(lit, 0.0, 1.0));
         return;
     }
 
@@ -792,49 +769,13 @@ fn upsampledClouds(uv : vec2f) -> CloudRead {
     return out;
 }
 
-struct ShadowRead { ok : bool, lit : f32 };
-
-/// The cloud shadow on a surface, read from the half-size pass: the surface texels among the four the pixel falls between, each weighted by how
-/// near its point in the world is to this pixel's, so a texel across a silhouette does not lend its shadow. Not ok when none is near.
-fn upsampledShadow(uv : vec2f, P : vec3f, entry : vec3f) -> ShadowRead {
-    var out : ShadowRead;
-    out.ok = false;
-    let dsize = vec2i(textureDimensions(t7, 0));
-    let hsize = vec2i(textureDimensions(t0, 0));
-    let hf = uv * vec2f(hsize) - 0.5;
-    let base = vec2i(floor(hf));
-    let fr = hf - vec2f(base);
-    let tol = max(0.08 * length(P - entry), 1e-4);
-    var sum = 0.0;
-    var wsum = 0.0;
-    for (var j : i32 = 0; j < 4; j = j + 1) {
-        let o = vec2i(j & 1, j >> 1);
-        let t = clamp(base + o, vec2i(0), hsize - vec2i(1));
-        let h = textureLoad(t0, t, 0);
-        if (h.a >= 0.0) { continue; }
-        let tuv = uvOfTexel(t, hsize);
-        let Pj = worldFromDepth(tuv, depthAt(screenTexel(tuv, dsize), dsize));
-        var bx = 1.0 - fr.x;
-        if (o.x == 1) { bx = fr.x; }
-        var by = 1.0 - fr.y;
-        if (o.y == 1) { by = fr.y; }
-        let w = bx * by * max(1.0 - length(Pj - P) / tol, 0.0);
-        sum = sum + h.r * w;
-        wsum = wsum + w;
-    }
-    if (wsum < UP_MIN_WEIGHT) { return out; }
-    out.ok = true;
-    out.lit = sum / wsum;
-    return out;
-}
-
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let src = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
     let size = vec2i(textureDimensions(t7, 0));
     let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
     let covered = mc.u_panorama <= 0.001;
     let geometry = (covered && depth < 1.0 && src.a > 0.999) || (!covered && depth < 1.0);
-    if (geometry && mc.u_cloudShadow <= 0.001) { return src; }
+    if (geometry && mc.u_cloudShadowPass < 0.5) { return src; }
 
     let entry = rayStart(v.v_texCoord);
     var dir = normalize(worldFromDepth(v.v_texCoord, 1.0) - entry);
@@ -859,11 +800,13 @@ fn upsampledShadow(uv : vec2f, P : vec3f, entry : vec3f) -> ShadowRead {
     var anchor = vec3f(0.0);
     if (mc.u_cloudShadow > 0.001) { anchor = vec3f(entryWorld.x, 0.0, entryWorld.z) / max(mc.u_unitsPerKm, 1e-3); }
     let windDrift = vec3f(mc.u_cloudDriftX, 0.0, mc.u_cloudDriftZ) + anchor;
-    if (geometry) {
-        var lit = 1.0;
-        let up = upsampledShadow(v.v_texCoord, worldFromDepth(v.v_texCoord, depth), entry);
-        if (up.ok) { lit = up.lit; } else { lit = cloudShadowAt(worldFromDepth(v.v_texCoord, depth) + frame.renderOrigin.xyz, entryWorld, sun, max(mc.u_clouds, overcast * 0.95), overcast, windDrift - anchor, v.pos.xy); }
-        return vec4f(src.rgb * lit, src.a);
+    if (mc.u_cloudShadowPass > 0.5) {
+        let inTile = (v.v_texCoord - mc.u_cloudShadowRect.xy) / mc.u_cloudShadowRect.z;
+        if (any(inTile < vec2f(0.0)) || any(inTile > vec2f(1.0))) { discard; }
+        let inv = mat4x4f(mc.u_cloudShadowInv0, mc.u_cloudShadowInv1, mc.u_cloudShadowInv2, mc.u_cloudShadowInv3);
+        let at = inv * vec4f(inTile * 2.0 - 1.0, 0.5, 1.0);
+        let lit = cloudShadowAt(at.xyz / at.w + frame.renderOrigin.xyz, rayStart(vec2f(0.5)) + frame.renderOrigin.xyz, sun, max(mc.u_clouds, overcast * 0.95), overcast, vec3f(mc.u_cloudDriftX, 0.0, mc.u_cloudDriftZ), v.pos.xy);
+        return vec4f(1.0, 1.0, 1.0, clamp(lit, 0.0, 1.0));
     }
 
     let sdir = normalize(vec3f(dir.x, max(dir.y, 0.015), dir.z));
@@ -1107,7 +1050,7 @@ void main() {
     bool geometry = covered ? (depth < 1.0 && src.a > 0.999) : depth < 1.0;
     // A texel stands for the pixels under it. A sky texel holds the cloud layer in front of it, colour * T + L, with T (never negative) in
     // the alpha; a surface texel holds the cloud shadow it lies in, its light in the red and minus that in the alpha.
-    if (geometry && u_cloudShadow <= 0.001) { fragColor = vec4(1.0, 0.0, 0.0, -1.0); return; }
+    if (geometry) { fragColor = vec4(1.0, 0.0, 0.0, -1.0); return; }
 
     vec3 entry = rayStart(v_texCoord);
     vec3 dir = normalize(worldFromDepth(v_texCoord, 1.0) - entry);
@@ -1135,11 +1078,6 @@ void main() {
     vec3 entryWorld = entry + u_renderOrigin.xyz;
     vec3 anchor = shadowed ? vec3(entryWorld.x, 0.0, entryWorld.z) / max(u_unitsPerKm, 1e-3) : vec3(0.0);
     vec3 windDrift = vec3(u_cloudDriftX, 0.0, u_cloudDriftZ) + anchor;
-    if (geometry) {
-        float lit = cloudShadowAt(worldFromDepth(v_texCoord, depth) + u_renderOrigin.xyz, entryWorld, sun, max(u_clouds, overcast * 0.95), overcast, windDrift - anchor);
-        fragColor = vec4(lit, 0.0, 0.0, -lit);
-        return;
-    }
 
     // The dome. Below the horizon there is no sky: the ray is flattened onto it so a camera that looks down sees the haze there.
     vec3 sdir = normalize(vec3(dir.x, max(dir.y, 0.015), dir.z));
@@ -1283,10 +1221,6 @@ ${CLOUD_WGSL}
     var anchor = vec3f(0.0);
     if (mc.u_cloudShadow > 0.001) { anchor = vec3f(entryWorld.x, 0.0, entryWorld.z) / max(mc.u_unitsPerKm, 1e-3); }
     let windDrift = vec3f(mc.u_cloudDriftX, 0.0, mc.u_cloudDriftZ) + anchor;
-    if (geometry) {
-        let lit = cloudShadowAt(worldFromDepth(v.v_texCoord, depth) + frame.renderOrigin.xyz, entryWorld, sun, max(mc.u_clouds, overcast * 0.95), overcast, windDrift - anchor, v.pos.xy);
-        return vec4f(lit, 0.0, 0.0, -lit);
-    }
 
     let sdir = normalize(vec3f(dir.x, max(dir.y, 0.015), dir.z));
     let sc = scatter(sdir, sun, mc.u_altitude, haze);

@@ -27,15 +27,23 @@ describe('custom sky', () => {
         expect(src.match(/skyRadiance\(/g)!.length).toBeGreaterThanOrEqual(6);
     });
 
-    it('multiplies the surfaces it finds by the shadow the sky gives, at their world place, only when the sky has one', () => {
+    it('draws the cloud shadow map of the sun from the shadow the sky gives, and leaves the surfaces as the scene lit them', () => {
         const sky = { type: 't', label: 'T', glsl: '', wgsl: '' };
-        expect(skyEffectSource(sky)).not.toContain('skyShadow');
+        const without = skyEffectSource(sky);
+        expect(without).not.toContain('skyShadow');
+        expect(without).not.toContain('u_cloudShadowPass');
         const src = skyEffectSource({ ...sky, groundShadow: true });
-        expect(src).toContain('src.rgb * clamp(skyShadow(worldFromDepth(v_texCoord, depth) + u_renderOrigin.xyz, sun), 0.0, 1.0)');
-        expect(src).toContain('src.rgb * clamp(skyShadow(worldFromDepth(v.v_texCoord, depth) + frame.renderOrigin.xyz, sun), 0.0, 1.0)');
-        // The sun is found before the surface is left, in both languages.
-        expect(src.indexOf('findSun(lightDir')).toBeLessThan(src.indexOf('skyShadow('));
-        expect(src.indexOf('let found = findSun()')).toBeLessThan(src.lastIndexOf('skyShadow('));
+        // Declares what the engine finds a caster by, and draws the map's texel in the alpha, in both languages.
+        for (const param of ['u_castCloudShadows', 'u_cloudShadowExtentKm', 'u_cloudShadowPass', 'u_cloudShadowRect', 'u_cloudShadowInv3']) {
+            expect(src).toContain(`#pragma param ${param} `);
+        }
+        expect(src).toContain('fragColor = vec4(1.0, 1.0, 1.0, clamp(skyShadow(at.xyz / at.w + u_renderOrigin.xyz, sun), 0.0, 1.0));');
+        expect(src).toContain('return vec4f(1.0, 1.0, 1.0, clamp(skyShadow(at.xyz / at.w + frame.renderOrigin.xyz, sun), 0.0, 1.0));');
+        // A surface is not multiplied by it any more: the sun's light was dimmed where the surface was shaded.
+        expect(src).not.toContain('src.rgb * clamp(skyShadow(');
+        // The sun is found before the map is drawn, in both languages.
+        expect(src.indexOf('findSun(lightDir')).toBeLessThan(src.indexOf('skyShadow(at'));
+        expect(src.indexOf('let found = findSun()')).toBeLessThan(src.lastIndexOf('skyShadow(at'));
     });
 
     it('registers an effect that can light the scene', () => {

@@ -1592,6 +1592,27 @@ const kSpiral32 = array<vec2f, 32>(
 // disc grains instead of banding. It bounds
 // the search too — a blocker outside it cannot widen an edge that cannot be drawn wider.
 const kShadowDisc = 24.0;
+// What of the sun a sky's clouds leave at a world point. See the GLSL twin.
+fn cloudShadow3D(worldPos : vec3f, t : i32) -> f32 {
+#ifndef ES_RECEIVE_SHADOW
+    return 1.0;
+#else
+    let uv = (lc.u_shadowMatrix[t] * vec4f(worldPos, 1.0)).xy * 0.5 + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return 1.0; }
+    let rect = lc.u_shadowTile[t];
+    let texel = lc.u_shadowParams.y;
+    let p = (rect.xy + uv * rect.z) / texel - 0.5;
+    let f = fract(p);
+    let at = (floor(p) + 0.5) * texel;
+    let lo = rect.xy + texel * 0.5;
+    let hi = rect.xy + rect.z - texel * 0.5;
+    let a = textureSampleLevel(t2, s2, clamp(at, lo, hi), 0.0).a;
+    let b = textureSampleLevel(t2, s2, clamp(at + vec2f(texel, 0.0), lo, hi), 0.0).a;
+    let c = textureSampleLevel(t2, s2, clamp(at + vec2f(0.0, texel), lo, hi), 0.0).a;
+    let d = textureSampleLevel(t2, s2, clamp(at + vec2f(texel), lo, hi), 0.0).a;
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+#endif
+}
 fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
                   first : i32, count : i32) -> f32 {
 #ifndef ES_RECEIVE_SHADOW
@@ -2349,6 +2370,7 @@ fn shadeLight(pd : vec4f, col : vec4f, sp : vec4f, sh : vec4f, sm : vec4f, fo : 
             if (dot(pd.xy, pd.xy) > 1e-8) { toLight = normalize(-pd.xy); }
             castShadow = sh.y > 0.0 && dot(toLight, toLight) > 0.5;
             aim = worldPos.xy + toLight * sh.y;
+            if (sp.x > 0.5) { atten = atten * cloudShadow3D(worldPos, i32(sp.x) - 1); }
         } else {
             let toL = lightVector(pd, sh, worldPos);
             let dist = lightDistance(toL);
@@ -3177,6 +3199,28 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    vec2(0.8499090, 0.4466874),\n"
             "    vec2(-0.9440344, 0.2488453),\n"
             "    vec2(0.5365950, -0.8345303));\n"
+            // What of the sun a sky's clouds leave at a world point, from the tile the sky drew it into before the scene (RenderFrame's cloud
+            // shadow tile): its alpha, between texels, as the map is coarse and its texels are nearest-sampled. Outside the square, all of it.
+            "highp float cloudShadow3D(in highp vec3 worldPos, in int t) {\n"
+            "#ifndef ES_RECEIVE_SHADOW\n"
+            "    return 1.0;\n"
+            "#else\n"
+            "    highp vec2 uv = (u_shadowMatrix[t] * vec4(worldPos, 1.0)).xy * 0.5 + 0.5;\n"
+            "    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;\n"
+            "    highp vec4 rect = u_shadowTile[t];\n"
+            "    highp float texel = u_shadowParams.y;\n"
+            "    highp vec2 p = (rect.xy + uv * rect.z) / texel - 0.5;\n"
+            "    highp vec2 f = fract(p);\n"
+            "    highp vec2 at = (floor(p) + 0.5) * texel;\n"
+            "    highp vec2 lo = rect.xy + texel * 0.5;\n"
+            "    highp vec2 hi = rect.xy + rect.z - texel * 0.5;\n"
+            "    highp float a = textureLod(u_shadowMap, clamp(at, lo, hi), 0.0).a;\n"
+            "    highp float b = textureLod(u_shadowMap, clamp(at + vec2(texel, 0.0), lo, hi), 0.0).a;\n"
+            "    highp float c = textureLod(u_shadowMap, clamp(at + vec2(0.0, texel), lo, hi), 0.0).a;\n"
+            "    highp float d = textureLod(u_shadowMap, clamp(at + vec2(texel), lo, hi), 0.0).a;\n"
+            "    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);\n"
+            "#endif\n"
+            "}\n"
             // Visibility of a world point from the light that rendered the map. Depth is
             // written and compared through the SAME matrix and expression, so the two
             // backends' clip-z conventions cancel. 2x2 taps: one is a staircase.
@@ -4005,6 +4049,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            highp vec2 toLight = (dot(pd.xy, pd.xy) > 1e-8) ? normalize(-pd.xy) : vec2(0.0);\n"
             "            castShadow = sh.y > 0.0 && dot(toLight, toLight) > 0.5;\n"
             "            target = worldPos.xy + toLight * sh.y;\n"
+            // The sky's cloud shadow on the sun, where a sky casts one: x is its tile plus one (a directional light has no cone).
+            "            if (sp.x > 0.5) atten *= cloudShadow3D(worldPos, int(sp.x) - 1);\n"
             "        } else {\n"
             "            highp vec3 toL = lightVector(pd, sh, worldPos);\n"
             "            highp float dist = lightDistance(toL);\n"
