@@ -15,6 +15,7 @@ import { createTextureArrayFromPixels } from '../runtime/runtimeAssets';
 import { getResourceManager, provideTextureContent, withdrawTextureContent } from '../wasm/resourceManager';
 import { TextureContent } from '../wasm';
 import { log } from '../util/logger';
+import { Material } from '../render/material';
 import { packLayers, type LayerImage, type LayerSource, type PackedLayers, type TerrainLayerDef } from './layers';
 
 /** An image file's pixels exactly as stored (no premultiply, no colour conversion), by its project path or reference. */
@@ -35,13 +36,6 @@ export async function imagePixelsAt(app: App, path: string): Promise<{ width: nu
         log.warn('terrain', `reading ${path} failed`, e);
         return null;
     }
-}
-
-/** What a ground's layers came to: the albedo and normal arrays (engine texture handles) and how many world units a repeat of each layer covers. */
-export interface LayerArrays {
-    albedo: number;
-    normal: number;
-    tiles: number[];
 }
 
 /** Reads the layer files `refs` (at most `most`) and packs them, at half the size on a minigame, whose memory is smaller. */
@@ -98,11 +92,29 @@ export function createLayerArrays(app: App, packed: PackedLayers, kinds: readonl
     return handles;
 }
 
-/** Reads the layer files `refs` and packs them; null if the engine refuses the arrays. At most `most` layers are packed. */
-export async function loadLayerArrays(app: App, refs: readonly string[], most: number): Promise<LayerArrays | null> {
+/**
+ * Reads the layer files `refs` (at most `most`), packs them into the albedo, normal and mask arrays, and hands them to the material
+ * `instance` with what the shared layer code reads of them (layerSurfaceShader.ts: the count, each layer's tile and height blend). The
+ * arrays made, for {@link releaseLayerArrays}; null if the engine refused one. `still` is asked once the packing is done: false, and
+ * nothing is kept (the ground was made again meanwhile).
+ */
+export async function loadLayersInto(app: App, instance: number, refs: readonly string[], most: number, still: () => boolean): Promise<number[] | null> {
     const packed = await readAndPackLayers(app, refs, most);
-    const made = createLayerArrays(app, packed, ['albedo', 'normal'], () => readAndPackLayers(app, refs, most));
-    return made ? { albedo: made[0]!, normal: made[1]!, tiles: packed.tiles } : null;
+    if (!still()) return null;
+    const arrays = createLayerArrays(app, packed, ['albedo', 'normal', 'mask'], () => readAndPackLayers(app, refs, most));
+    if (!arrays) return null;
+    const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { Material.setUniform(instance, name, value); };
+    set('u_albedoLayers', Material.tex(arrays[0]!));
+    set('u_normalLayers', Material.tex(arrays[1]!));
+    set('u_maskLayers', Material.tex(arrays[2]!));
+    set('u_layerCount', packed.tiles.length);
+    const t = (i: number): number => packed.tiles[i] ?? 4;
+    set('u_tiles0', { x: t(0), y: t(1), z: t(2), w: t(3) });
+    set('u_tiles1', { x: t(4), y: t(5), z: t(6), w: t(7) });
+    const hb = (i: number): number => packed.heightBlends[i] ?? -1;
+    set('u_heightBlends0', { x: hb(0), y: hb(1), z: hb(2), w: hb(3) });
+    set('u_heightBlends1', { x: hb(4), y: hb(5), z: hb(6), w: hb(7) });
+    return arrays;
 }
 
 /** Gives the engine back arrays made by {@link createLayerArrays}. */

@@ -1,0 +1,43 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:planet",
+  "blendMode": 9,
+  "depthTest": true,
+  "depthWrite": true,
+  "cull": 0,
+  "properties": {
+    "u_macroVariation": 0,
+    "u_planetCenter": {
+      "x": -1000,
+      "y": 0,
+      "z": 0,
+      "w": 0
+    },
+    "u_tint0": {
+      "r": 0.5,
+      "g": 0.5,
+      "b": 0.5,
+      "a": 1
+    },
+    "u_tint1": {
+      "r": 0.5,
+      "g": 0.5,
+      "b": 0.5,
+      "a": 1
+    },
+    "u_tint2": {
+      "r": 0.5,
+      "g": 0.5,
+      "b": 0.5,
+      "a": 1
+    },
+    "u_tint3": {
+      "r": 0.5,
+      "g": 0.5,
+      "b": 0.5,
+      "a": 1
+    },
+    "u_layerCount": 1
+  }
+}

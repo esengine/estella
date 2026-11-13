@@ -10,6 +10,7 @@
  * on the cube face, pushed out to the radius plus the page's height; it hands the fragment stage the page and the face to find its normal and paint by.
  */
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
+import { layerParams, LAYER_SURFACE_GLSL, LAYER_SURFACE_WGSL } from './layerSurfaceShader';
 
 const PLANET = `#pragma shader "Planet"
 #pragma version 300 es
@@ -22,16 +23,10 @@ const PLANET = `#pragma shader "Planet"
 // The ground's own wander in brightness, in metres a feature, and how strong it is.
 #pragma param u_macroScale float default(90) range(1,100000) ui(slider)
 #pragma param u_macroVariation float default(0.35) range(0,1) ui(slider)
-#pragma param u_sharpness float default(1.6) range(1,8) ui(slider)
-// The layers' textures, when the planet has any (the Planet component packs them: layerArrays.ts): albedo and normal, each layer read on the planes
-// of the world's axes by how much the ground faces them, and how many world units a repeat of each covers. Without any, the layers are their colours.
-#pragma param u_albedoLayers textureArray default(white)
-#pragma param u_normalLayers textureArray default(white) texel(data)
-#pragma param u_layerCount float default(0) range(0,4) ui(slider)
-#pragma param u_tiles vec4 default(4,4,4,4)
-// From the middle distance on, each layer is also read on a tile u_farScale times as wide and mixed in, so its repeat is lost far off.
-#pragma param u_farScale float default(4.3) range(1,32) ui(slider)
-#pragma param u_roughness float default(0.92) range(0,1) ui(slider)
+// The layers' textures, when the planet has any (the Planet component packs them: layerArrays.ts), each read on the planes of the world's
+// axes by how much the ground faces them: the same layer code as the Terrain Layers shader (layerSurfaceShader.ts). Without any, the
+// layers are their colours.
+${layerParams({ sharpness: 1.6, heightBlend: 0, blendNoise: 0, antiTile: 0 })}#pragma param u_roughness float default(0.92) range(0,1) ui(slider)
 // The ground in pages (pages.ts; the Planet component writes these): heights and normals, and the paint, in two atlases; the planet's radius, its centre
 // in the world, how many levels its tree has; level 0 drawn out to u_lodRange0, each level twice as far; u_terrainEye is the eye the nodes were chosen for,
 // in the planet's space, so every pass (a shadow's too) slides the vertices by it and all draw one ground.
@@ -237,17 +232,7 @@ vec3 pnB(int f) {
     if (f == 3) return vec3(0.0, 0.0, 1.0);
     return vec3(0.0, 1.0, 0.0);
 }
-// A layer's albedo, with a wider read of it mixed in far off.
-vec3 pnAlbedo(vec3 at, vec2 gx, vec2 gy, float far) {
-    vec3 c = textureGrad(u_albedoLayers, at, gx, gy).rgb;
-    if (far > 0.01) {
-        float k = 1.0 / u_farScale;
-        c = mix(c, textureGrad(u_albedoLayers, vec3(at.xy * k + 0.21, at.z), gx * k, gy * k).rgb, far);
-    }
-    return c;
-}
-// A texture's axis laid on the ground: the direction along the surface it points.
-vec3 pnBend(vec3 axis, vec3 N) { return normalize(axis - N * dot(N, axis)); }
+${LAYER_SURFACE_GLSL}
 // Value noise in three dimensions: a planet has no plane to lay a flat noise on.
 float pnHash(vec3 p) {
     p = fract(p * vec3(0.1031, 0.1030, 0.0973));
@@ -283,41 +268,16 @@ void main() {
     w /= max(dot(w, vec4(1.0)), 1e-4);
     vec3 albedo = u_tint0.rgb * w.x + u_tint1.rgb * w.y + u_tint2.rgb * w.z + u_tint3.rgb * w.w;
     vec3 rel = P - u_planetCenter.xyz;
+    float open = 1.0;
     if (u_layerCount > 0.5) {
-        // Each layer on the three planes of the world's axes, those the ground faces by how much it does; the normal map's slope is laid back on the ground.
-        vec3 dpx = dFdx(rel), dpy = dFdy(rel);
+        // Each layer on the three planes of the world's axes, those the ground faces by how much it does.
         vec3 axis = pow(abs(N), vec3(6.0));
         axis *= step(0.04 * dot(axis, vec3(1.0)), axis);
         axis /= max(dot(axis, vec3(1.0)), 1e-4);
-        albedo = vec3(0.0);
-        vec3 slope = vec3(0.0);
-        float far = smoothstep(u_tiles.x * 6.0, u_tiles.x * 40.0, length(rel - u_terrainEye.xyz)) * 0.65;
-        for (int i = 0; i < 4; i++) {
-            if (w[i] <= 1e-3) continue;
-            float tile = u_tiles[i];
-            if (axis.y > 0.0) {
-                vec3 at = vec3(rel.xz / tile, float(i));
-                vec2 gx = dpx.xz / tile, gy = dpy.xz / tile;
-                albedo += pnAlbedo(at, gx, gy, far) * (w[i] * axis.y);
-                vec2 s = textureGrad(u_normalLayers, at, gx, gy).rg * 2.0 - 1.0;
-                slope += (s.x * pnBend(vec3(1.0, 0.0, 0.0), N) + s.y * pnBend(vec3(0.0, 0.0, 1.0), N)) * (w[i] * axis.y);
-            }
-            if (axis.x > 0.0) {
-                vec3 at = vec3(rel.zy / tile, float(i));
-                vec2 gx = dpx.zy / tile, gy = dpy.zy / tile;
-                albedo += pnAlbedo(at, gx, gy, far) * (w[i] * axis.x);
-                vec2 s = textureGrad(u_normalLayers, at, gx, gy).rg * 2.0 - 1.0;
-                slope += (s.x * pnBend(vec3(0.0, 0.0, 1.0), N) + s.y * pnBend(vec3(0.0, 1.0, 0.0), N)) * (w[i] * axis.x);
-            }
-            if (axis.z > 0.0) {
-                vec3 at = vec3(rel.xy / tile, float(i));
-                vec2 gx = dpx.xy / tile, gy = dpy.xy / tile;
-                albedo += pnAlbedo(at, gx, gy, far) * (w[i] * axis.z);
-                vec2 s = textureGrad(u_normalLayers, at, gx, gy).rg * 2.0 - 1.0;
-                slope += (s.x * pnBend(vec3(1.0, 0.0, 0.0), N) + s.y * pnBend(vec3(0.0, 1.0, 0.0), N)) * (w[i] * axis.z);
-            }
-        }
-        N = normalize(N + slope);
+        TnSurface layers = tnLayers(paint, vec4(0.0), rel, dFdx(rel), dFdy(rel), N, axis, tnNearFar(length(rel - u_terrainEye.xyz)));
+        albedo = layers.albedo;
+        N = normalize(N + layers.slope);
+        open = layers.mask.r;
     }
     vec3 q = rel / u_macroScale;
     float broad = pnNoise(q) * 0.6 + pnNoise(q * 4.1 + 7.0) * 0.4;
@@ -326,7 +286,7 @@ void main() {
     float roughness = u_roughness;
     SurfaceExt ext = surfaceExtNone(N);
     vec3 viewDir = viewDirection(P);
-    vec3 lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, roughness, 0.5, 1.0, ext);
+    vec3 lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, roughness, 0.5, open, ext);
     fragColor = vec4(lit, 1.0);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(N), roughness, 0.75);
@@ -347,15 +307,7 @@ fn pnB(f : i32) -> vec3f {
     if (f == 3) { return vec3f(0.0, 0.0, 1.0); }
     return vec3f(0.0, 1.0, 0.0);
 }
-fn pnAlbedo(at : vec2f, layer : i32, gx : vec2f, gy : vec2f, far : f32) -> vec3f {
-    var c = textureSampleGrad(u_albedoLayers, u_albedoLayers_s, at, layer, gx, gy).rgb;
-    if (far > 0.01) {
-        let k = 1.0 / mc.u_farScale;
-        c = mix(c, textureSampleGrad(u_albedoLayers, u_albedoLayers_s, at * k + vec2f(0.21), layer, gx * k, gy * k).rgb, far);
-    }
-    return c;
-}
-fn pnBend(axis : vec3f, N : vec3f) -> vec3f { return normalize(axis - N * dot(N, axis)); }
+${LAYER_SURFACE_WGSL}
 fn pnHash(p0 : vec3f) -> f32 {
     var p = fract(p0 * vec3f(0.1031, 0.1030, 0.0973));
     p = p + dot(p, p.yzx + 33.33);
@@ -416,44 +368,17 @@ fn packNormal(n : vec3f) -> vec2f {
     var albedo = mc.u_tint0.rgb * w.x + mc.u_tint1.rgb * w.y + mc.u_tint2.rgb * w.z + mc.u_tint3.rgb * w.w;
     let rel = P - mc.u_planetCenter.xyz;
     var N = N0;
+    var open = 1.0;
     let dpx = dpdx(rel);
     let dpy = dpdy(rel);
     if (mc.u_layerCount > 0.5) {
         var axis = pow(abs(N0), vec3f(6.0));
         axis = axis * step(vec3f(0.04 * dot(axis, vec3f(1.0))), axis);
         axis = axis / max(dot(axis, vec3f(1.0)), 1e-4);
-        albedo = vec3f(0.0);
-        var slope = vec3f(0.0);
-        let far = smoothstep(mc.u_tiles.x * 6.0, mc.u_tiles.x * 40.0, length(rel - mc.u_terrainEye.xyz)) * 0.65;
-        for (var i : i32 = 0; i < 4; i = i + 1) {
-            if (w[i] <= 1e-3) { continue; }
-            let tile = mc.u_tiles[i];
-            if (axis.y > 0.0) {
-                let at = rel.xz / tile;
-                let gx = dpx.xz / tile;
-                let gy = dpy.xz / tile;
-                albedo = albedo + pnAlbedo(at, i, gx, gy, far) * (w[i] * axis.y);
-                let s = textureSampleGrad(u_normalLayers, u_normalLayers_s, at, i, gx, gy).rg * 2.0 - vec2f(1.0);
-                slope = slope + (s.x * pnBend(vec3f(1.0, 0.0, 0.0), N0) + s.y * pnBend(vec3f(0.0, 0.0, 1.0), N0)) * (w[i] * axis.y);
-            }
-            if (axis.x > 0.0) {
-                let at = rel.zy / tile;
-                let gx = dpx.zy / tile;
-                let gy = dpy.zy / tile;
-                albedo = albedo + pnAlbedo(at, i, gx, gy, far) * (w[i] * axis.x);
-                let s = textureSampleGrad(u_normalLayers, u_normalLayers_s, at, i, gx, gy).rg * 2.0 - vec2f(1.0);
-                slope = slope + (s.x * pnBend(vec3f(0.0, 0.0, 1.0), N0) + s.y * pnBend(vec3f(0.0, 1.0, 0.0), N0)) * (w[i] * axis.x);
-            }
-            if (axis.z > 0.0) {
-                let at = rel.xy / tile;
-                let gx = dpx.xy / tile;
-                let gy = dpy.xy / tile;
-                albedo = albedo + pnAlbedo(at, i, gx, gy, far) * (w[i] * axis.z);
-                let s = textureSampleGrad(u_normalLayers, u_normalLayers_s, at, i, gx, gy).rg * 2.0 - vec2f(1.0);
-                slope = slope + (s.x * pnBend(vec3f(1.0, 0.0, 0.0), N0) + s.y * pnBend(vec3f(0.0, 1.0, 0.0), N0)) * (w[i] * axis.z);
-            }
-        }
-        N = normalize(N0 + slope);
+        let layers = tnLayers(paint, vec4f(0.0), rel, dpx, dpy, N0, axis, tnNearFar(length(rel - mc.u_terrainEye.xyz)));
+        albedo = layers.albedo;
+        N = normalize(N0 + layers.slope);
+        open = layers.mask.r;
     }
     let q = rel / mc.u_macroScale;
     let broad = pnNoise(q) * 0.6 + pnNoise(q * 4.1 + vec3f(7.0)) * 0.4;
@@ -462,7 +387,7 @@ fn packNormal(n : vec3f) -> vec2f {
     let roughness = mc.u_roughness;
     let ext = surfaceExtNone(N);
     let viewDir = viewDirection(P);
-    let lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, roughness, 0.5, 1.0, ext);
+    let lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, roughness, 0.5, open, ext);
 #ifdef ES_GBUFFER
     var frag : FragOut;
     frag.color = vec4f(lit, 1.0);

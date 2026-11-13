@@ -7,6 +7,7 @@
  * The shader source lives with the module that installs it, not in the core's list of built-in shaders: a package that does not install the module carries none of it.
  */
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
+import { layerParams, LAYER_SURFACE_GLSL, LAYER_SURFACE_WGSL } from './layerSurfaceShader';
 
 
 // The ground's vertices from its pages (pages.ts), shared by both terrain shaders: a node's patch placed and sized by its instance, its
@@ -521,31 +522,7 @@ export const TERRAIN_SHADER_TEMPLATE = makeBuiltinShaderTemplate('terrain', 'Ter
 const TERRAIN_LAYERS = `#pragma shader "Terrain Layers"
 #pragma version 300 es
 #pragma domain Lit
-#pragma param u_albedoLayers textureArray default(white)
-#pragma param u_normalLayers textureArray default(white) texel(data)
-#pragma param u_maskLayers textureArray default(white) texel(data)
-// How many layers there are, and how many world units one repeat of each covers (layers 1 to 4, then 5 to 8).
-#pragma param u_layerCount float default(0) range(0,8) ui(slider)
-#pragma param u_tiles0 vec4 default(4,4,4,4)
-#pragma param u_tiles1 vec4 default(4,4,4,4)
-// Each layer's own height blend (below zero: the material's u_heightBlend), written by the Terrain from the layer files.
-#pragma param u_heightBlends0 vec4 default(-1,-1,-1,-1)
-#pragma param u_heightBlends1 vec4 default(-1,-1,-1,-1)
-// How much a layer with more weight takes over from the others at the seam: 1 is a plain blend, higher a harder edge.
-#pragma param u_sharpness float default(1.6) range(1,8) ui(slider)
-// How much the seams follow the layers' heights (their masks' blue): rock shows through the gaps in the grass before the grass gives
-// way, and sand fills the low places between stones. 0 is a plain blend of the weights.
-#pragma param u_heightBlend float default(0.8) range(0,1) ui(slider)
-// How much each layer's weight is broken up by slow noise of its own before the strongest wins.
-#pragma param u_blendNoise float default(0.5) range(0,1) ui(slider)
-// From the middle distance on, each layer is also read on a tile u_farScale times as wide and mixed in, so its repeat is lost far off.
-#pragma param u_farScale float default(4.3) range(1,32) ui(slider)
-// How strongly each layer is read without repeat near the eye (hex tiling), so no tile is seen.
-#pragma param u_antiTile float default(0.6) range(0,1) ui(slider)
-// How far round a cell may be turned (1 any way, 0 shifted only): a layer with a grain, sand in ripples or rock in beds, turned cell by
-// cell is lit cell by cell, and shows the hexagons.
-#pragma param u_antiTileTurn float default(1) range(0,1) ui(slider)
-// The wide, slow variation in brightness laid over every layer so a big meadow is not one colour.
+${layerParams({ sharpness: 1.6, heightBlend: 0.8, blendNoise: 0.5, antiTile: 0.6 })}// The wide, slow variation in brightness laid over every layer so a big meadow is not one colour.
 #pragma param u_macroVariation float default(0.25) range(0,1) ui(slider)
 // How steep the ground must be (1 minus its normal's up) before the layers are also projected from the sides.
 #pragma param u_triplanarFrom float default(0.15) range(0,1) ui(slider)
@@ -608,68 +585,7 @@ vec2 packNormal(vec3 n) {
 out vec4 fragColor;
 #endif
 
-float tnHash(vec2 p) {
-    p = fract(p * vec2(0.1031, 0.1030));
-    p += dot(p, p.yx + 33.33);
-    return fract((p.x + p.y) * p.x);
-}
-float tnNoise(vec2 p) {
-    vec2 i = floor(p), f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(tnHash(i), tnHash(i + vec2(1.0, 0.0)), f.x), mix(tnHash(i + vec2(0.0, 1.0)), tnHash(i + vec2(1.0, 1.0)), f.x), f.y);
-}
-vec2 tnHash2(vec2 p) {
-    return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453);
-}
-float tnTile(int i) { return i < 4 ? u_tiles0[i] : u_tiles1[i - 4]; }
-float tnHeightBlend(int i) { float b = i < 4 ? u_heightBlends0[i] : u_heightBlends1[i - 4]; return b < 0.0 ? u_heightBlend : b; }
-
-// One layer read at uv (in repeats) on one plane: its albedo, its tangent normal's slope (x, y) and its mask, from the gradients given.
-struct TnTap { vec3 albedo; vec2 slope; vec3 mask; };
-TnTap tnPlain(vec2 uv, float layer, vec2 gx, vec2 gy) {
-    vec3 at = vec3(uv, layer);
-    TnTap t;
-    t.albedo = textureGrad(u_albedoLayers, at, gx, gy).rgb;
-    t.slope = textureGrad(u_normalLayers, at, gx, gy).rg * 2.0 - 1.0;
-    t.mask = textureGrad(u_maskLayers, at, gx, gy).rgb;
-    return t;
-}
-// The same in one hex cell: shifted and turned by the cell's random numbers; the normal's slope turned back with it.
-TnTap tnHexTap(vec2 uv, float layer, vec2 cell, vec2 gx, vec2 gy) {
-    vec2 r = tnHash2(cell);
-    float a = r.x * 6.2831853 * u_antiTileTurn;
-    mat2 turn = mat2(cos(a), -sin(a), sin(a), cos(a));
-    TnTap t = tnPlain(turn * uv + r, layer, turn * gx, turn * gy);
-    t.slope = t.slope * turn;
-    return t;
-}
-// A layer read without repeat (hex tiling, Mikkelsen 2022): three cells about a point blended by nearness, the higher reading winning.
-TnTap tnHex(vec2 uv, float layer, vec2 gx, vec2 gy, float strength) {
-    vec2 skewed = mat2(1.0, 0.0, -0.57735027, 1.15470054) * (uv * 3.4641016);
-    vec2 base = floor(skewed);
-    vec3 f = vec3(fract(skewed), 0.0);
-    f.z = 1.0 - f.x - f.y;
-    float s = step(0.0, -f.z), s2 = 2.0 * s - 1.0;
-    vec3 w = vec3(-f.z * s2, s - f.y * s2, s - f.x * s2);
-    TnTap c1 = tnHexTap(uv, layer, base + vec2(s, s), gx, gy);
-    TnTap c2 = tnHexTap(uv, layer, base + vec2(s, 1.0 - s), gx, gy);
-    TnTap c3 = tnHexTap(uv, layer, base + vec2(1.0 - s, s), gx, gy);
-    vec3 h = vec3(c1.mask.b, c2.mask.b, c3.mask.b);
-    w = pow(max(w * mix(vec3(1.0), 0.4 + h, strength), vec3(1e-4)), vec3(7.0));
-    w /= dot(w, vec3(1.0));
-    TnTap t;
-    t.albedo = c1.albedo * w.x + c2.albedo * w.y + c3.albedo * w.z;
-    t.slope = c1.slope * w.x + c2.slope * w.y + c3.slope * w.z;
-    t.mask = c1.mask * w.x + c2.mask * w.y + c3.mask * w.z;
-    return t;
-}
-// A tangent normal's slope laid on a plane whose texture runs along T and B, about the surface's normal N.
-vec3 tnBend(vec2 slope, vec3 T, vec3 B, vec3 N) {
-    T = normalize(T - N * dot(N, T));
-    B = normalize(B - N * dot(N, B));
-    return slope.x * T + slope.y * B;
-}
-
+${LAYER_SURFACE_GLSL}
 void main() {
 #ifdef MESH_NORMALS
     highp vec3 P = v_worldXYZ;
@@ -689,85 +605,20 @@ void main() {
         vec2 nxz = texture(u_heightPages, v_color.xy).ba * 2.0 - 1.0;
         N = normalize(vec3(nxz.x, sqrt(max(1.0 - dot(nxz, nxz), 0.0)), nxz.y));
     }
-    int count = int(u_layerCount + 0.5);
-    float w[8];
-    float sum = 0.0;
-    for (int i = 0; i < 8; i++) {
-        float raw = i < 4 ? paintA[i] : paintB[i - 4];
-        // Each layer's say wanders by noise of its own, so where two meet the edge is ragged, not the paint's gradient. Three octaves: the slow one
-        // moves where the edge runs, the two finer break it up at the size of a paint texel and below, where a sharpened bilinear paint
-        // would otherwise follow the texel grid in steps.
-        float tileSize = tnTile(i);
-        float wander = tnNoise(Pw.xz / (tileSize * 2.3) + float(i) * 11.0 + 3.0) * 0.5
-                     + tnNoise(Pw.xz / (tileSize * 0.45) + float(i) * 7.0 + 17.0) * 0.3
-                     + tnNoise(Pw.xz / (tileSize * 0.11) + float(i) * 5.0 + 29.0) * 0.2;
-        w[i] = i < count ? max(raw, 0.0) * mix(1.0, 0.35 + 1.3 * wander, u_blendNoise) : 0.0;
-        sum += w[i];
-    }
-    float sharp = 0.0;
-    for (int i = 0; i < 8; i++) { w[i] = pow(w[i] / max(sum, 1e-4), u_sharpness); sharp += w[i]; }
-    for (int i = 0; i < 8; i++) w[i] /= max(sharp, 1e-4);
-
     // Gradients taken here, where every lane runs. Near the eye a layer is read without repeat, far off a wider tile is mixed in.
     vec3 dpx = dFdx(P), dpy = dFdy(P);
     float eye = u_camera.w > 0.5 ? length(P - u_camera.xyz) : 0.0;
-    float scale = tnTile(0);
-    float near = (1.0 - smoothstep(scale * 20.0, scale * 45.0, eye)) * u_antiTile;
-    float far = smoothstep(scale * 6.0, scale * 40.0, eye) * 0.65;
     // How much of each plane a slope is seen from: the top alone on gentle ground, the sides too from u_triplanarFrom.
     vec3 axis = pow(abs(N), vec3(4.0));
     axis /= dot(axis, vec3(1.0));
     float side = smoothstep(u_triplanarFrom, u_triplanarFrom + 0.15, 1.0 - abs(N.y));
     vec3 planes = mix(vec3(0.0, 1.0, 0.0), axis, side);
+    // A layer seen from the side is read by height: its beds, wandering by u_strataWarp.
     float bedY = Pw.y;
     if (u_strataWarp > 0.0) bedY += (tnNoise(Pw.xz / u_strataSpan + 41.0) * 0.65 + tnNoise(Pw.xz / (u_strataSpan * 0.31) + 7.0) * 0.35 - 0.5) * 2.0 * u_strataWarp;
-
-    vec3 albedo[8];
-    vec3 bend[8];
-    vec3 mask[8];
-    for (int i = 0; i < 8; i++) {
-        albedo[i] = vec3(0.0); bend[i] = vec3(0.0); mask[i] = vec3(1.0, 1.0, 0.0);
-        if (w[i] <= 1e-3) continue;
-        float layer = float(i), tile = tnTile(i);
-        // WebGL takes no ?: between structures.
-        TnTap top;
-        if (near > 0.01) top = tnHex(Pw.xz / tile, layer, dpx.xz / tile, dpy.xz / tile, near);
-        else top = tnPlain(Pw.xz / tile, layer, dpx.xz / tile, dpy.xz / tile);
-        if (far > 0.01) {
-            float big = tile * u_farScale;
-            TnTap wide = tnPlain(Pw.xz / big + 0.21, layer, dpx.xz / big, dpy.xz / big);
-            top.albedo = mix(top.albedo, wide.albedo, far);
-            top.mask = mix(top.mask, wide.mask, far);
-        }
-        albedo[i] = top.albedo * planes.y;
-        mask[i] = top.mask * planes.y;
-        bend[i] = tnBend(top.slope, vec3(1.0, 0.0, 0.0), vec3(0.0, 0.0, 1.0), N) * planes.y;
-        if (planes.x > 0.02) {
-            TnTap x = tnPlain(vec2(Pw.z, bedY) / tile, layer, dpx.zy / tile, dpy.zy / tile);
-            albedo[i] += x.albedo * planes.x; mask[i] += x.mask * planes.x;
-            bend[i] += tnBend(x.slope, vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, 0.0), N) * planes.x;
-        }
-        if (planes.z > 0.02) {
-            TnTap z = tnPlain(vec2(Pw.x, bedY) / tile, layer, dpx.xy / tile, dpy.xy / tile);
-            albedo[i] += z.albedo * planes.z; mask[i] += z.mask * planes.z;
-            bend[i] += tnBend(z.slope, vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), N) * planes.z;
-        }
-    }
-    // Then by height: each layer stands as high as its mask says, and where two meet the higher one shows.
-    float top = -1.0;
-    for (int i = 0; i < 8; i++) if (w[i] > 1e-3) top = max(top, mask[i].b + w[i] * 1.5);
-    float hsum = 0.0;
-    float hw[8];
-    for (int i = 0; i < 8; i++) { hw[i] = w[i] > 1e-3 ? max(mask[i].b + w[i] * 1.5 - (top - 0.35), 0.0) : 0.0; hsum += hw[i]; }
-    // How much height decides here: each layer's own say, weighted by how much of that layer is here, so grass into sand blends by the paint and stones
-    // standing through grass by their heights, with no one number for the whole ground.
-    float byHeight = 0.0;
-    for (int i = 0; i < 8; i++) byHeight += w[i] * tnHeightBlend(i);
-    vec3 colour = vec3(0.0), slope = vec3(0.0), surface = vec3(0.0);
-    for (int i = 0; i < 8; i++) {
-        float k = mix(w[i], hw[i] / max(hsum, 1e-4), byHeight);
-        colour += albedo[i] * k; slope += bend[i] * k; surface += mask[i] * k;
-    }
+    TnSurface layers = tnLayers(paintA, paintB, vec3(Pw.x, bedY, Pw.z), dpx, dpy, N, planes, tnNearFar(eye));
+    vec3 colour = layers.albedo, slope = layers.slope, surface = layers.mask;
+    float scale = tnTile(0);
     float broad = tnNoise(Pw.xz / (scale * 7.3)) * 0.6 + tnNoise(Pw.xz / (scale * 29.0) + 5.0) * 0.4;
     colour *= mix(1.0, 0.7 + 0.6 * broad, u_macroVariation);
     N = normalize(N + slope);
@@ -800,72 +651,7 @@ void main() {
 #pragma end
 
 #pragma fragment wgsl
-fn tnHash(p0 : vec2f) -> f32 {
-    var p = fract(p0 * vec2f(0.1031, 0.1030));
-    p = p + dot(p, p.yx + 33.33);
-    return fract((p.x + p.y) * p.x);
-}
-fn tnNoise(p : vec2f) -> f32 {
-    let i = floor(p);
-    var f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(tnHash(i), tnHash(i + vec2f(1.0, 0.0)), f.x), mix(tnHash(i + vec2f(0.0, 1.0)), tnHash(i + vec2f(1.0, 1.0)), f.x), f.y);
-}
-fn tnHash2(p : vec2f) -> vec2f {
-    return fract(sin(vec2f(dot(p, vec2f(127.1, 311.7)), dot(p, vec2f(269.5, 183.3)))) * 43758.5453);
-}
-fn tnTile(i : i32) -> f32 {
-    if (i < 4) { return mc.u_tiles0[i]; }
-    return mc.u_tiles1[i - 4];
-}
-fn tnHeightBlend(i : i32) -> f32 {
-    var b = 0.0;
-    if (i < 4) { b = mc.u_heightBlends0[i]; } else { b = mc.u_heightBlends1[i - 4]; }
-    if (b < 0.0) { return mc.u_heightBlend; }
-    return b;
-}
-struct TnTap { albedo : vec3f, slope : vec2f, mask : vec3f };
-fn tnPlain(uv : vec2f, layer : i32, gx : vec2f, gy : vec2f) -> TnTap {
-    var t : TnTap;
-    t.albedo = textureSampleGrad(u_albedoLayers, u_albedoLayers_s, uv, layer, gx, gy).rgb;
-    t.slope = textureSampleGrad(u_normalLayers, u_normalLayers_s, uv, layer, gx, gy).rg * 2.0 - vec2f(1.0);
-    t.mask = textureSampleGrad(u_maskLayers, u_maskLayers_s, uv, layer, gx, gy).rgb;
-    return t;
-}
-fn tnHexTap(uv : vec2f, layer : i32, cell : vec2f, gx : vec2f, gy : vec2f) -> TnTap {
-    let r = tnHash2(cell);
-    let a = r.x * 6.2831853 * mc.u_antiTileTurn;
-    let turn = mat2x2f(cos(a), -sin(a), sin(a), cos(a));
-    var t = tnPlain(turn * uv + r, layer, turn * gx, turn * gy);
-    t.slope = t.slope * turn;
-    return t;
-}
-fn tnHex(uv : vec2f, layer : i32, gx : vec2f, gy : vec2f, strength : f32) -> TnTap {
-    let skewed = mat2x2f(1.0, 0.0, -0.57735027, 1.15470054) * (uv * 3.4641016);
-    let base = floor(skewed);
-    let fr = fract(skewed);
-    let fz = 1.0 - fr.x - fr.y;
-    let s = step(0.0, -fz);
-    let s2 = 2.0 * s - 1.0;
-    var w = vec3f(-fz * s2, s - fr.y * s2, s - fr.x * s2);
-    let c1 = tnHexTap(uv, layer, base + vec2f(s, s), gx, gy);
-    let c2 = tnHexTap(uv, layer, base + vec2f(s, 1.0 - s), gx, gy);
-    let c3 = tnHexTap(uv, layer, base + vec2f(1.0 - s, s), gx, gy);
-    let h = vec3f(c1.mask.b, c2.mask.b, c3.mask.b);
-    w = pow(max(w * mix(vec3f(1.0), vec3f(0.4) + h, vec3f(strength)), vec3f(1e-4)), vec3f(7.0));
-    w = w / dot(w, vec3f(1.0));
-    var t : TnTap;
-    t.albedo = c1.albedo * w.x + c2.albedo * w.y + c3.albedo * w.z;
-    t.slope = c1.slope * w.x + c2.slope * w.y + c3.slope * w.z;
-    t.mask = c1.mask * w.x + c2.mask * w.y + c3.mask * w.z;
-    return t;
-}
-fn tnBend(slope : vec2f, T0 : vec3f, B0 : vec3f, N : vec3f) -> vec3f {
-    let T = normalize(T0 - N * dot(N, T0));
-    let B = normalize(B0 - N * dot(N, B0));
-    return slope.x * T + slope.y * B;
-}
-
+${LAYER_SURFACE_WGSL}
 #ifdef ES_GBUFFER
 struct FragOut {
     @location(0) color : vec4f,
@@ -909,94 +695,21 @@ fn packNormal(n : vec3f) -> vec2f {
         paintB = pageB;
         N = normalize(vec3f(pageNormal.x, sqrt(max(1.0 - dot(pageNormal, pageNormal), 0.0)), pageNormal.y));
     }
-    let count = i32(mc.u_layerCount + 0.5);
-    var w : array<f32, 8>;
-    var sum = 0.0;
-    for (var i = 0; i < 8; i = i + 1) {
-        var raw = 0.0;
-        if (i < 4) { raw = paintA[i]; } else { raw = paintB[i - 4]; }
-        // Three octaves: the slow one moves where the edge runs, the two finer break it up at the size of a paint texel and below.
-        let tileSize = tnTile(i);
-        let wander = tnNoise(Pw.xz / (tileSize * 2.3) + vec2f(f32(i) * 11.0 + 3.0)) * 0.5
-                   + tnNoise(Pw.xz / (tileSize * 0.45) + vec2f(f32(i) * 7.0 + 17.0)) * 0.3
-                   + tnNoise(Pw.xz / (tileSize * 0.11) + vec2f(f32(i) * 5.0 + 29.0)) * 0.2;
-        w[i] = 0.0;
-        if (i < count) { w[i] = max(raw, 0.0) * mix(1.0, 0.35 + 1.3 * wander, mc.u_blendNoise); }
-        sum = sum + w[i];
-    }
-    var sharp = 0.0;
-    for (var i = 0; i < 8; i = i + 1) { w[i] = pow(w[i] / max(sum, 1e-4), mc.u_sharpness); sharp = sharp + w[i]; }
-    for (var i = 0; i < 8; i = i + 1) { w[i] = w[i] / max(sharp, 1e-4); }
-
     let dpx = dpdx(P);
     let dpy = dpdy(P);
     var eye = 0.0;
     if (frame.camera.w > 0.5) { eye = length(P - frame.camera.xyz); }
-    let scale = tnTile(0);
-    let near = (1.0 - smoothstep(scale * 20.0, scale * 45.0, eye)) * mc.u_antiTile;
-    let far = smoothstep(scale * 6.0, scale * 40.0, eye) * 0.65;
     var axis = pow(abs(N), vec3f(4.0));
     axis = axis / dot(axis, vec3f(1.0));
     let side = smoothstep(mc.u_triplanarFrom, mc.u_triplanarFrom + 0.15, 1.0 - abs(N.y));
     let planes = mix(vec3f(0.0, 1.0, 0.0), axis, vec3f(side));
     var bedY = Pw.y;
     if (mc.u_strataWarp > 0.0) { bedY = bedY + (tnNoise(Pw.xz / mc.u_strataSpan + vec2f(41.0)) * 0.65 + tnNoise(Pw.xz / (mc.u_strataSpan * 0.31) + vec2f(7.0)) * 0.35 - 0.5) * 2.0 * mc.u_strataWarp; }
-
-    var albedo : array<vec3f, 8>;
-    var bend : array<vec3f, 8>;
-    var mask : array<vec3f, 8>;
-    for (var i = 0; i < 8; i = i + 1) {
-        albedo[i] = vec3f(0.0);
-        bend[i] = vec3f(0.0);
-        mask[i] = vec3f(1.0, 1.0, 0.0);
-        if (w[i] <= 1e-3) { continue; }
-        let tile = tnTile(i);
-        var top : TnTap;
-        if (near > 0.01) { top = tnHex(Pw.xz / tile, i, dpx.xz / tile, dpy.xz / tile, near); }
-        else { top = tnPlain(Pw.xz / tile, i, dpx.xz / tile, dpy.xz / tile); }
-        if (far > 0.01) {
-            let big = tile * mc.u_farScale;
-            let wide = tnPlain(Pw.xz / big + vec2f(0.21), i, dpx.xz / big, dpy.xz / big);
-            top.albedo = mix(top.albedo, wide.albedo, vec3f(far));
-            top.mask = mix(top.mask, wide.mask, vec3f(far));
-        }
-        albedo[i] = top.albedo * planes.y;
-        mask[i] = top.mask * planes.y;
-        bend[i] = tnBend(top.slope, vec3f(1.0, 0.0, 0.0), vec3f(0.0, 0.0, 1.0), N) * planes.y;
-        if (planes.x > 0.02) {
-            let x = tnPlain(vec2f(Pw.z, bedY) / tile, i, dpx.zy / tile, dpy.zy / tile);
-            albedo[i] = albedo[i] + x.albedo * planes.x;
-            mask[i] = mask[i] + x.mask * planes.x;
-            bend[i] = bend[i] + tnBend(x.slope, vec3f(0.0, 0.0, 1.0), vec3f(0.0, 1.0, 0.0), N) * planes.x;
-        }
-        if (planes.z > 0.02) {
-            let z = tnPlain(vec2f(Pw.x, bedY) / tile, i, dpx.xy / tile, dpy.xy / tile);
-            albedo[i] = albedo[i] + z.albedo * planes.z;
-            mask[i] = mask[i] + z.mask * planes.z;
-            bend[i] = bend[i] + tnBend(z.slope, vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), N) * planes.z;
-        }
-    }
-    var top = -1.0;
-    for (var i = 0; i < 8; i = i + 1) { if (w[i] > 1e-3) { top = max(top, mask[i].b + w[i] * 1.5); } }
-    var hsum = 0.0;
-    var hw : array<f32, 8>;
-    for (var i = 0; i < 8; i = i + 1) {
-        hw[i] = 0.0;
-        if (w[i] > 1e-3) { hw[i] = max(mask[i].b + w[i] * 1.5 - (top - 0.35), 0.0); }
-        hsum = hsum + hw[i];
-    }
-    // How much height decides here: each layer's own say, weighted by how much of that layer is here.
-    var byHeight = 0.0;
-    for (var i = 0; i < 8; i = i + 1) { byHeight = byHeight + w[i] * tnHeightBlend(i); }
-    var colour = vec3f(0.0);
-    var slope = vec3f(0.0);
-    var surface = vec3f(0.0);
-    for (var i = 0; i < 8; i = i + 1) {
-        let k = mix(w[i], hw[i] / max(hsum, 1e-4), byHeight);
-        colour = colour + albedo[i] * k;
-        slope = slope + bend[i] * k;
-        surface = surface + mask[i] * k;
-    }
+    let layers = tnLayers(paintA, paintB, vec3f(Pw.x, bedY, Pw.z), dpx, dpy, N, planes, tnNearFar(eye));
+    var colour = layers.albedo;
+    let slope = layers.slope;
+    let surface = layers.mask;
+    let scale = tnTile(0);
     let broad = tnNoise(Pw.xz / (scale * 7.3)) * 0.6 + tnNoise(Pw.xz / (scale * 29.0) + vec2f(5.0)) * 0.4;
     colour = colour * mix(1.0, 0.7 + 0.6 * broad, mc.u_macroVariation);
     N = normalize(N + slope);

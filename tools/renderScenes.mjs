@@ -107,6 +107,17 @@ export const SCENES = [
       ESTELLA_VERIFY_EXPECT: JSON.stringify(test.expect.map(([x, rgb]) => ({ x, y: 0.5, rgb, tol: 14 }))),
     },
   })),
+  // The Planet shader draws its layers with the same code as Terrain Layers (layerSurfaceShader.ts). Two boxes under the sky's light
+  // alone, white paint: on the left the layer colours (grey), on the right one layer of the stock arrays, nothing packed into them. An
+  // unset texture array binds white layers (MaterialStore::builtinDefault): on WebGL it read black before, a black box here.
+  {
+    id: 'planet-layers', tier: 'pr', webgpu: true,
+    env: {
+      ESTELLA_VERIFY_SCENE: '/scenes/planet-layers.esscene',
+      ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '3',
+      ESTELLA_VERIFY_EXPECT: JSON.stringify([{ x: 0.3, y: 0.5, rgb: [129, 129, 129], tol: 10 }, { x: 0.7, y: 0.5, rgb: [242, 242, 242], tol: 10 }]),
+    },
+  },
   {
     id: 'shadow-vertex-displacement', tier: 'pr', webgpu: true,
     env: {

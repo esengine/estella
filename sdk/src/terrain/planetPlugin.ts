@@ -31,7 +31,7 @@ import { bakesOf } from '../runtime/bakes';
 import type { Color, Entity } from '../types';
 import { PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage } from './pages';
 import { buildPatchMesh } from './patch';
-import { loadLayerArrays, releaseLayerArrays } from './layerArrays';
+import { loadLayersInto, releaseLayerArrays } from './layerArrays';
 import { createPageAtlases } from './atlases';
 import { PlanetRegistry, PlanetRegistryRes } from './planetQuery';
 import { buildSphereMesh } from './planetSea';
@@ -456,17 +456,12 @@ export class PlanetPlugin implements Plugin {
         const epoch = built.epoch;
         void (async () => {
             try {
-                const got = await loadLayerArrays(app, refs, MAX_LAYERS);
-                if (built.epoch !== epoch || !built.instance) { if (got) releaseLayerArrays([got.albedo, got.normal]); return; }
+                const still = (): boolean => built.epoch === epoch && !!built.instance;
+                const got = await loadLayersInto(app, built.instance, refs, MAX_LAYERS, still);
+                if (!still()) { if (got) releaseLayerArrays(got); return; }
                 if (!got) { log.warn('planet', 'the engine refused the planet layers\' texture arrays'); return; }
                 releaseLayerArrays(built.arrays);
-                built.arrays = [got.albedo, got.normal];
-                const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { Material.setUniform(built.instance, name, value); };
-                set('u_albedoLayers', Material.tex(got.albedo));
-                set('u_normalLayers', Material.tex(got.normal));
-                set('u_layerCount', got.tiles.length);
-                const t = (i: number): number => got.tiles[i] ?? 4;
-                set('u_tiles', { x: t(0), y: t(1), z: t(2), w: t(3) });
+                built.arrays = got;
             } catch (e) {
                 log.error('planet', 'packing the planet layers failed', e);
             } finally {

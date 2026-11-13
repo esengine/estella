@@ -31,7 +31,9 @@ describe('the rows of an image over an area', () => {
     it('a layer read from the side takes its height through the strata warp, in both languages, and the warp is off by default', () => {
         const source = TERRAIN_LAYERS_SHADER_TEMPLATE.source;
         expect(source).toContain('#pragma param u_strataWarp float default(0)');
-        for (const read of ['tnPlain(vec2(Pw.z, bedY) / tile', 'tnPlain(vec2(Pw.x, bedY) / tile', 'tnPlain(vec2f(Pw.z, bedY) / tile', 'tnPlain(vec2f(Pw.x, bedY) / tile']) {
+        // The ground is handed to the shared layer code with the bed's height in place of its own, and the sides read (z, y) and (x, y) of it.
+        for (const read of ['tnLayers(paintA, paintB, vec3(Pw.x, bedY, Pw.z)', 'tnLayers(paintA, paintB, vec3f(Pw.x, bedY, Pw.z)',
+            'tnPlain(at.zy / tile', 'tnPlain(at.xy / tile']) {
             expect(source).toContain(read);
         }
         expect(source).not.toContain('tnPlain(Pw.zy');

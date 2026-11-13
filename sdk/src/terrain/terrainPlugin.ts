@@ -53,7 +53,7 @@ import { groundHeightAt, groundNormalAt, groundPaintAt, type GroundData } from '
 import { collisionGeometryOf } from '../runtime/collisionGeometry';
 import { chunksOf, ProceduralChunksRes } from '../residency/chunks';
 import { movers } from './movers';
-import { createLayerArrays, imagePixelsAt, readAndPackLayers, releaseLayerArrays } from './layerArrays';
+import { imagePixelsAt, loadLayersInto, releaseLayerArrays } from './layerArrays';
 import { createPageAtlases } from './atlases';
 import { parseTerrainTiles, TiledSource } from './tiles';
 import { TiledGroundEdit } from './tiledGroundEdit';
@@ -862,26 +862,15 @@ export class TerrainPlugin implements Plugin {
         }
         void (async () => {
             try {
-                const packed = await readAndPackLayers(app, refs, MAX_LAYERS);
-                if (built.epoch !== epoch || !built.instance) return;
-                const arrays = createLayerArrays(app, packed, ['albedo', 'normal', 'mask'], () => readAndPackLayers(app, refs, MAX_LAYERS));
+                const still = (): boolean => built.epoch === epoch && !!built.instance;
+                const arrays = await loadLayersInto(app, built.instance, refs, MAX_LAYERS, still);
+                if (!still()) { if (arrays) releaseLayerArrays(arrays); return; }
                 if (!arrays) {
                     log.warn('terrain', 'the engine refused the terrain layers\' texture arrays');
                     return;
                 }
                 releaseLayerArrays(built.arrays);
                 built.arrays = arrays;
-                const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { Material.setUniform(built.instance, name, value); };
-                set('u_albedoLayers', Material.tex(arrays[0]!));
-                set('u_normalLayers', Material.tex(arrays[1]!));
-                set('u_maskLayers', Material.tex(arrays[2]!));
-                set('u_layerCount', packed.tiles.length);
-                const t = (i: number): number => packed.tiles[i] ?? 4;
-                set('u_tiles0', { x: t(0), y: t(1), z: t(2), w: t(3) });
-                set('u_tiles1', { x: t(4), y: t(5), z: t(6), w: t(7) });
-                const hb = (i: number): number => packed.heightBlends[i] ?? -1;
-                set('u_heightBlends0', { x: hb(0), y: hb(1), z: hb(2), w: hb(3) });
-                set('u_heightBlends1', { x: hb(4), y: hb(5), z: hb(6), w: hb(7) });
             } catch (e) {
                 log.error('terrain', 'packing the terrain layers failed', e);
             } finally {

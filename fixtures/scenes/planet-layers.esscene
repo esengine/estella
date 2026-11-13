@@ -1,0 +1,151 @@
+{
+ "version": 4,
+ "name": "planet-layers",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 40,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.7071068,
+       "y": 0,
+       "z": 0,
+       "w": 0.7071068
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 1,
+      "orthoSize": 12,
+      "nearPlane": 0.1,
+      "farPlane": 200,
+      "isActive": true,
+      "clearFlags": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Sky",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {}
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 2,
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "intensity": 1,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Colours",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -4.8,
+       "y": 0,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.08,
+       "y": 0.01,
+       "z": 0.08
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "material": "/scenes/planet-layers/colours.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Layers",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 4.8,
+       "y": 0,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.08,
+       "y": 0.01,
+       "z": 0.08
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "material": "/scenes/planet-layers/layers.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  }
+ ]
+}
