@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { entityWorldBox, entityBoxCorners, entityBoxRayHit, uiNodeWorldBox, meshWorldBox } from '../src/ecs/entityBox';
-import { Transform, Sprite, MeshRenderer } from '../src/ecs/component';
+import { Transform, Sprite, MeshRenderer, ShapeRenderer } from '../src/ecs/component';
 import { UINode } from '../src/ui/core/ui-node';
 import type { Entity } from '../src/types';
 
@@ -226,5 +226,19 @@ describe('a ray against an entity box', () => {
         expect(box.hd).toBe(50);
         // Side-on: nothing a box built from x and y alone could be hit by.
         expect(entityBoxRayHit(box, { x: 500, y: 0, z: 0 }, { x: -1, y: 0, z: 0 })).toBeCloseTo(450, 6);
+    });
+});
+
+describe('a shape\'s box', () => {
+    it('is its size, scaled by the world scale and centred on the entity', () => {
+        const world = fakeWorld({ 1: { Transform: T(10, 20, 2, 1), ShapeRenderer: { size: { x: 80, y: 40 } } } });
+        const box = entityWorldBox(world, ent(1));
+        expect(box).toMatchObject({ cx: 10, cy: 20, hw: 80, hh: 20, hd: 0 });
+    });
+
+    it('is never smaller than the icon a click would have hit anyway', () => {
+        const world = fakeWorld({ 1: { Transform: T(0, 0), ShapeRenderer: { size: { x: 2, y: 2 } } } });
+        const box = entityWorldBox(world, ent(1), { iconHalf: 11 });
+        expect(box).toMatchObject({ hw: 11, hh: 11 });
     });
 });

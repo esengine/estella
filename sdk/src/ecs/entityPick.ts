@@ -11,7 +11,7 @@
 import type { Entity, Vec3 } from '../types';
 import type { World } from './world';
 import type { WorldRay } from '../ui/util/math';
-import { Transform, Sprite, SortingGroup, Parent } from './component';
+import { Transform, Sprite, ShapeRenderer, SortingGroup, Parent } from './component';
 import {
     layerOrderOf, rankPickCandidates, sortingIdentity, type PickCandidate,
 } from '../render/layerOrder';
@@ -94,13 +94,14 @@ export function pickEntitiesByRay(
         const box = meshWorldBox(world, entity) ?? entityWorldBox(world, entity, { iconHalf });
         if (!box || entityBoxRayHit(box, ray.origin, ray.dir) === null) continue;
 
-        const sprite = world.has(entity, Sprite) ? world.get(entity, Sprite) : null;
+        const sprite = world.has(entity, Sprite) ? world.get(entity, Sprite)
+            : world.has(entity, ShapeRenderer) ? world.get(entity, ShapeRenderer) : null;
         // A group owns the layer as well as the order, so the layer's RULE is asked of
         // the group's — the same resolution pushBatchDraw does, for the same reason.
         const identity = sortingIdentity(
             enclosingGroups(world, entity),
             sprite ? sprite.layer : unlayered,
-            sprite?.order ?? 0,
+            (sprite as { order?: number } | null)?.order ?? 0,
         );
         const t = world.get(entity, Transform);
         hits.push({

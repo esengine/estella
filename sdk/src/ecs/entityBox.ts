@@ -11,7 +11,7 @@
  */
 import type { Entity, Quat, Vec3 } from '../types';
 import type { World } from './world';
-import { Transform, Sprite, MeshRenderer } from './component';
+import { Transform, Sprite, MeshRenderer, ShapeRenderer } from './component';
 import { UINode } from '../ui/core/ui-node';
 import { q } from '../math/quat';
 import { worldEngineApi } from './bridge/engineApi';
@@ -95,6 +95,11 @@ export function entityWorldBox(world: ReadableWorld, entity: Entity, opts?: Enti
         d = 0;
         px = sp.pivot?.x ?? 0.5;
         py = sp.pivot?.y ?? 0.5;
+    } else if (world.has(entity, ShapeRenderer)) {
+        const shape = world.get(entity, ShapeRenderer);
+        w = Math.max(shape.size.x * t.worldScale.x, iconHalf * 2);
+        h = Math.max(shape.size.y * t.worldScale.y, iconHalf * 2);
+        d = 0;
     } else if (iconHalf === 0) {
         return null;
     }
