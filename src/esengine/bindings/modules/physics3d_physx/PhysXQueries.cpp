@@ -384,6 +384,51 @@ int physics3d_sphereCast(float px, float py, float pz, float radius,
     return 1;
 }
 
+namespace {
+/// A turn that is not one - zero, or not a number - is no turn.
+static PxQuat turnOf(float qx, float qy, float qz, float qw) {
+    const PxQuat q(qx, qy, qz, qw);
+    const float length = q.magnitude();
+    return std::isfinite(length) && length > 1e-6f ? q * (1.0f / length) : PxQuat(PxIdentity);
+}
+
+/// A geometry swept from a pose: the first body it meets, as sphereCast writes it.
+static int sweepQuery(const PxGeometry& shape, const PxTransform& pose, float dx, float dy, float dz, uint32_t layerMask) {
+    PxVec3 dir(dx, dy, dz);
+    const float length = dir.normalizeSafe();
+    if (!(length > 0.0f)) return 0;
+    PxSweepBuffer hit;
+    LayerFilter filter(layerMask, false);
+    if (!g().scene->sweep(shape, pose, dir, length, hit, PxHitFlag::ePOSITION | PxHitFlag::eNORMAL, queryData(), &filter)
+        || !hit.hasBlock) return 0;
+    const PxSweepHit& b = hit.block;
+    g().queryBuffer = {static_cast<float>(px3::entityOf(b.actor)), b.distance / length,
+                       b.position.x, b.position.y, b.position.z, b.normal.x, b.normal.y, b.normal.z};
+    return 1;
+}
+}  // namespace
+
+EMSCRIPTEN_KEEPALIVE
+int physics3d_boxCast(float px, float py, float pz, float hx, float hy, float hz,
+                      float qx, float qy, float qz, float qw, float dx, float dy, float dz, uint32_t layerMask) {
+    g().queryBuffer.clear();
+    if (!g().isValid() || !(hx > 0.0f) || !(hy > 0.0f) || !(hz > 0.0f)) return 0;
+    return sweepQuery(PxBoxGeometry(hx, hy, hz), PxTransform(PxVec3(px, py, pz), turnOf(qx, qy, qz, qw)), dx, dy, dz, layerMask);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics3d_capsuleCast(float px, float py, float pz, float radius, float halfHeight,
+                          float qx, float qy, float qz, float qw, float dx, float dy, float dz, uint32_t layerMask) {
+    g().queryBuffer.clear();
+    if (!g().isValid() || !(radius > 0.0f) || !(halfHeight >= 0.0f)) return 0;
+    if (halfHeight == 0.0f) return physics3d_sphereCast(px, py, pz, radius, dx, dy, dz, layerMask);
+    // A PhysX capsule lies along its x; turned a quarter about z it stands along y, as the Jolt world's and a
+    // character's do.
+    const PxQuat upright(PxHalfPi, PxVec3(0.0f, 0.0f, 1.0f));
+    return sweepQuery(PxCapsuleGeometry(radius, halfHeight), PxTransform(PxVec3(px, py, pz), turnOf(qx, qy, qz, qw) * upright),
+                      dx, dy, dz, layerMask);
+}
+
 EMSCRIPTEN_KEEPALIVE
 int physics3d_raycast(float ox, float oy, float oz, float dx, float dy, float dz, uint32_t layerMask) {
     return physics3d_raycastWith(ox, oy, oz, dx, dy, dz, layerMask, 0);

@@ -627,6 +627,26 @@ int physics3d_isAwake(uint32_t bodyId) {
     return g().system->GetBodyInterface().IsActive(BodyID(bodyId)) ? 1 : 0;
 }
 
+EMSCRIPTEN_KEEPALIVE
+int physics3d_getBodyMassData(uint32_t bodyId) {
+    if (!g().isValid() || bodyId == 0) return 0;
+    const BodyLockRead lock(g().system->GetBodyLockInterface(), BodyID(bodyId));
+    if (!lock.Succeeded() || !lock.GetBody().IsDynamic()) return 0;
+    const Body& body = lock.GetBody();
+    const MotionProperties* motion = body.GetMotionProperties();
+    const float inverseMass = motion->GetInverseMass();
+    if (!(inverseMass > 0.0f)) return 0;
+    const RVec3 centre = body.GetCenterOfMassPosition();
+    // About the body's own axes, not Jolt's principal ones, which it orders as it likes: a twist about an axis alone
+    // turns it by inverse-inertia along that axis, and the moment is its inverse.
+    const Mat44 inverse = motion->GetLocalSpaceInverseInertia();
+    const auto moment = [](float i) { return i > 0.0f ? 1.0f / i : std::numeric_limits<float>::infinity(); };
+    g().queryBuffer = { 1.0f / inverseMass,
+                        static_cast<float>(centre.GetX()), static_cast<float>(centre.GetY()), static_cast<float>(centre.GetZ()),
+                        moment(inverse(0, 0)), moment(inverse(1, 1)), moment(inverse(2, 2)) };
+    return 1;
+}
+
 /// A torque of (tx, ty, tz) newton metres, over the next step.
 EMSCRIPTEN_KEEPALIVE
 void physics3d_addTorque(uint32_t bodyId, float tx, float ty, float tz) {
@@ -864,14 +884,48 @@ int physics3d_overlapBox(float px, float py, float pz, float hx, float hy, float
  *          the very gaps a moving body would not fit. Writes
  *          (entity, fraction, px,py,pz, nx,ny,nz); returns 0 for a clear path.
  */
+static int castShapeQuery(const Shape& shape, RMat44Arg start, Vec3Arg direction, uint32_t layerMask);
+
 EMSCRIPTEN_KEEPALIVE
 int physics3d_sphereCast(float px, float py, float pz, float radius,
                          float dx, float dy, float dz, uint32_t layerMask) {
     g().queryBuffer.clear();
     if (!g().isValid() || radius <= 0.0f) return 0;
     const SphereShape shape(radius);
-    const RShapeCast cast(&shape, Vec3::sReplicate(1.0f),
-                          RMat44::sTranslation(RVec3(px, py, pz)), Vec3(dx, dy, dz));
+    return castShapeQuery(shape, RMat44::sTranslation(RVec3(px, py, pz)), Vec3(dx, dy, dz), layerMask);
+}
+
+/// A turn that is not one - zero, or not a number - is no turn.
+static Quat turnOf(float qx, float qy, float qz, float qw) {
+    const Quat q(qx, qy, qz, qw);
+    const float length = q.Length();
+    return std::isfinite(length) && length > 1e-6f ? q / length : Quat::sIdentity();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics3d_boxCast(float px, float py, float pz, float hx, float hy, float hz,
+                      float qx, float qy, float qz, float qw, float dx, float dy, float dz, uint32_t layerMask) {
+    g().queryBuffer.clear();
+    if (!g().isValid() || !(hx > 0.0f) || !(hy > 0.0f) || !(hz > 0.0f)) return 0;
+    // Rounded no more than its thinnest side allows: a box a centimetre thick is still a box.
+    const BoxShape shape(Vec3(hx, hy, hz), std::min({0.05f, hx, hy, hz}));
+    return castShapeQuery(shape, RMat44::sRotationTranslation(turnOf(qx, qy, qz, qw), RVec3(px, py, pz)), Vec3(dx, dy, dz), layerMask);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int physics3d_capsuleCast(float px, float py, float pz, float radius, float halfHeight,
+                          float qx, float qy, float qz, float qw, float dx, float dy, float dz, uint32_t layerMask) {
+    g().queryBuffer.clear();
+    if (!g().isValid() || !(radius > 0.0f) || !(halfHeight >= 0.0f)) return 0;
+    if (halfHeight == 0.0f) return physics3d_sphereCast(px, py, pz, radius, dx, dy, dz, layerMask);
+    const CapsuleShape shape(halfHeight, radius);
+    return castShapeQuery(shape, RMat44::sRotationTranslation(turnOf(qx, qy, qz, qw), RVec3(px, py, pz)), Vec3(dx, dy, dz), layerMask);
+}
+
+/// The first body a shape swept from `start` along `direction` meets, written to the query buffer as
+/// (entity, fraction, px,py,pz, nx,ny,nz); 1 for a hit.
+static int castShapeQuery(const Shape& shape, RMat44Arg start, Vec3Arg direction, uint32_t layerMask) {
+    const RShapeCast cast(&shape, Vec3::sReplicate(1.0f), start, direction);
     ClosestHitCollisionCollector<CastShapeCollector> collector;
     const ShapeCastSettings settings;
     const MaskLayerFilter filter(layerMask);

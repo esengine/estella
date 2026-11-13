@@ -194,6 +194,9 @@ export interface Joint3DRecord {
     motorSpeed: number;
     settings?: string;
     motorSettings?: string;
+    /** A hinge's or slider's range and motor limit, or a distance joint's lengths and spring, as the world last had
+     *  them: a change in play reaches the joint without making it again. */
+    shape?: string;
 }
 
 export type Joint3DMap = Map<Entity, Joint3DRecord>;
@@ -373,7 +376,7 @@ export function syncJoints3D(app: App, module: Physics3DWasmModule,
                 const motor = motorOf(app, entity, joint.def, ppu);
                 joints.set(entity, {
                     bodyA, bodyB, type: joint.def._name,
-                    motorOn: motor.on, motorSpeed: motor.speed,
+                    motorOn: motor.on, motorSpeed: motor.speed, shape: shapeOf(app, entity, joint.def, ppu)?.join(','),
                     settings: joint.def === SwingTwistJoint3D || joint.def === SixDOFJoint3D
                         ? advancedJointSettings(joint.data as SwingTwistJoint3DData | SixDOFJoint3DData) : undefined,
                 });
@@ -382,6 +385,41 @@ export function syncJoints3D(app: App, module: Physics3DWasmModule,
     }
 
     driveJoints3D(app, module, joints, ppu);
+}
+
+/**
+ * What a joint's range, motor limit or lengths are now, in the module's units: [enable, lower, upper, limit] for a
+ * hinge or slider, [min, max, frequency, damping] for a distance joint; null for a joint that has none.
+ */
+function shapeOf(app: App, entity: Entity, def: Joint3DDef, ppu: number): number[] | null {
+    if (def === HingeJoint3D) {
+        const d = app.world.get(entity, HingeJoint3D) as HingeJoint3DData;
+        return [d.enableLimit ? 1 : 0, d.lowerAngle, d.upperAngle, d.maxMotorTorque];
+    }
+    if (def === SliderJoint3D) {
+        const d = app.world.get(entity, SliderJoint3D) as SliderJoint3DData;
+        return [d.enableLimit ? 1 : 0, d.lowerTranslation / ppu, d.upperTranslation / ppu, d.maxMotorForce];
+    }
+    if (def === DistanceJoint3D) {
+        const d = app.world.get(entity, DistanceJoint3D) as DistanceJoint3DData;
+        return [d.minLength / ppu, d.maxLength / ppu, d.frequency, d.damping];
+    }
+    return null;
+}
+
+/** Carry a joint's range, motor limit or lengths into the world when gameplay changed them. */
+function reshape(app: App, module: Physics3DWasmModule, entity: Entity, held: Joint3DRecord, def: Joint3DDef, ppu: number): void {
+    const now = shapeOf(app, entity, def, ppu);
+    if (!now) return;
+    const signature = now.join(',');
+    if (signature === held.shape) return;
+    if (def === DistanceJoint3D) {
+        module._physics3d_setDistanceJoint?.(entity as number, now[0]!, now[1]!, now[2]!, now[3]!);
+    } else {
+        module._physics3d_setJointLimits?.(entity as number, now[0]!, now[1]!, now[2]!);
+        module._physics3d_setJointMotorLimit?.(entity as number, now[3]!);
+    }
+    held.shape = signature;
 }
 
 /** The motor a driven joint is asking for right now, in the module's units. */
@@ -420,7 +458,10 @@ function driveJoints3D(app: App, module: Physics3DWasmModule, joints: Joint3DMap
                 module._physics3d_setAdvancedJointMotor(entity as number, ...args);
                 held.motorSettings = signature;
             }
+        } else if (held.type === DistanceJoint3D._name) {
+            reshape(app, module, entity, held, DistanceJoint3D, ppu);
         } else if (held.type === HingeJoint3D._name) {
+            reshape(app, module, entity, held, HingeJoint3D, ppu);
             const d = app.world.get(entity, HingeJoint3D) as HingeJoint3DData;
             const on = d.enableMotor === true;
             if (on !== held.motorOn || d.motorSpeed !== held.motorSpeed) {
@@ -431,6 +472,7 @@ function driveJoints3D(app: App, module: Physics3DWasmModule, joints: Joint3DMap
             d.angle = module._physics3d_jointValue(entity as number);
             app.world.set(entity, HingeJoint3D, d);
         } else if (held.type === SliderJoint3D._name) {
+            reshape(app, module, entity, held, SliderJoint3D, ppu);
             const d = app.world.get(entity, SliderJoint3D) as SliderJoint3DData;
             const on = d.enableMotor === true;
             const speed = d.motorSpeed / ppu;

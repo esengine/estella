@@ -160,6 +160,12 @@ void applyMotor(MotorSettings& motor, float maxForceOrTorque) {
     motor.SetTorqueLimit(maxForceOrTorque);
 }
 
+/// A hinge's limits as Jolt can hold them: within a half turn either way and never excluding the pose it was made in.
+static void hingeRange(float lower, float upper, float& outMin, float& outMax) {
+    outMin = std::clamp(std::min(lower, 0.0f), -JPH_PI, 0.0f);
+    outMax = std::clamp(std::max(upper, 0.0f), 0.0f, JPH_PI);
+}
+
 bool finiteVector(Vec3Arg v) {
     return std::isfinite(v.GetX()) && std::isfinite(v.GetY()) && std::isfinite(v.GetZ());
 }
@@ -302,11 +308,9 @@ uint32_t physics3d_addHingeJoint(uint32_t entity, uint32_t bodyA, uint32_t bodyB
     settings.mPoint1 = settings.mPoint2 = RVec3(px, py, pz);
     settings.mHingeAxis1 = settings.mHingeAxis2 = axis;
     settings.mNormalAxis1 = settings.mNormalAxis2 = normal;
-    if (enableLimit != 0) {
-        settings.mLimitsMin = lowerAngle;
-        settings.mLimitsMax = upperAngle;
-    }
-    if (enableMotor != 0) applyMotor(settings.mMotorSettings, maxTorque);
+    if (enableLimit != 0) hingeRange(lowerAngle, upperAngle, settings.mLimitsMin, settings.mLimitsMax);
+    // Always: a motor turned on later is held to the same torque as one that started on.
+    applyMotor(settings.mMotorSettings, maxTorque);
     TwoBodyConstraint* constraint =
         g().system->GetBodyInterface().CreateConstraint(&settings, BodyID(bodyA), BodyID(bodyB));
     if (constraint != nullptr && enableMotor != 0) {
@@ -334,10 +338,10 @@ uint32_t physics3d_addSliderJoint(uint32_t entity, uint32_t bodyA, uint32_t body
     settings.mSliderAxis1 = settings.mSliderAxis2 = axis;
     settings.mNormalAxis1 = settings.mNormalAxis2 = normal;
     if (enableLimit != 0) {
-        settings.mLimitsMin = lower;
-        settings.mLimitsMax = upper;
+        settings.mLimitsMin = std::min(lower, 0.0f);
+        settings.mLimitsMax = std::max(upper, 0.0f);
     }
-    if (enableMotor != 0) applyMotor(settings.mMotorSettings, maxForce);
+    applyMotor(settings.mMotorSettings, maxForce);
     TwoBodyConstraint* constraint =
         g().system->GetBodyInterface().CreateConstraint(&settings, BodyID(bodyA), BodyID(bodyB));
     if (constraint != nullptr && enableMotor != 0) {
@@ -402,6 +406,15 @@ void physics3d_removeJoint(uint32_t entity, uint32_t bodyA, uint32_t bodyB) {
     bodies.ActivateBody(BodyID(bodyB));
 }
 
+/// A joint changed under two sleeping bodies does nothing until they wake: they are woken.
+static void wakeEnds(Constraint* constraint) {
+    if (constraint->GetType() != EConstraintType::TwoBodyConstraint) return;
+    auto* two = static_cast<TwoBodyConstraint*>(constraint);
+    BodyInterface& bodies = g().system->GetBodyInterface();
+    bodies.ActivateBody(two->GetBody1()->GetID());
+    bodies.ActivateBody(two->GetBody2()->GetID());
+}
+
 /// Drive an existing hinge or slider from gameplay, without rebuilding the joint.
 EMSCRIPTEN_KEEPALIVE
 void physics3d_setJointMotor(uint32_t entity, int enable, float speed) {
@@ -425,6 +438,54 @@ void physics3d_setJointMotor(uint32_t entity, int enable, float speed) {
         }
         default: break;
     }
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setJointLimits(uint32_t entity, int enable, float lower, float upper) {
+    const auto it = g().constraints.find(entity);
+    if (it == g().constraints.end() || !std::isfinite(lower) || !std::isfinite(upper)) return;
+    Constraint* constraint = it->second;
+    switch (constraint->GetSubType()) {
+        case EConstraintSubType::Hinge: {
+            float lo = -JPH_PI, hi = JPH_PI;
+            if (enable != 0) hingeRange(lower, upper, lo, hi);
+            static_cast<HingeConstraint*>(constraint)->SetLimits(lo, hi);
+            break;
+        }
+        case EConstraintSubType::Slider:
+            if (enable != 0) static_cast<SliderConstraint*>(constraint)->SetLimits(std::min(lower, 0.0f), std::max(upper, 0.0f));
+            else static_cast<SliderConstraint*>(constraint)->SetLimits(-FLT_MAX, FLT_MAX);
+            break;
+        default: return;
+    }
+    wakeEnds(constraint);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setJointMotorLimit(uint32_t entity, float limit) {
+    const auto it = g().constraints.find(entity);
+    if (it == g().constraints.end() || !std::isfinite(limit) || limit < 0.0f) return;
+    Constraint* constraint = it->second;
+    switch (constraint->GetSubType()) {
+        case EConstraintSubType::Hinge: applyMotor(static_cast<HingeConstraint*>(constraint)->GetMotorSettings(), limit); break;
+        case EConstraintSubType::Slider: applyMotor(static_cast<SliderConstraint*>(constraint)->GetMotorSettings(), limit); break;
+        default: return;
+    }
+    wakeEnds(constraint);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setDistanceJoint(uint32_t entity, float minLength, float maxLength, float frequency, float damping) {
+    const auto it = g().constraints.find(entity);
+    if (it == g().constraints.end() || it->second->GetSubType() != EConstraintSubType::Distance) return;
+    if (!std::isfinite(minLength) || !std::isfinite(maxLength) || !std::isfinite(frequency) || !std::isfinite(damping)) return;
+    auto* distance = static_cast<DistanceConstraint*>(it->second.GetPtr());
+    const float lo = std::max(minLength, 0.0f);
+    distance->SetDistance(lo, std::max(maxLength, lo));
+    SpringSettings& spring = distance->GetLimitsSpringSettings();
+    spring.mFrequency = std::max(frequency, 0.0f);
+    spring.mDamping = std::max(damping, 0.0f);
+    wakeEnds(it->second.GetPtr());
 }
 
 /// What the joint is at right now — a hinge's angle, a slider's travel — so a

@@ -137,6 +137,10 @@ export interface Physics3DWasmModule {
                              collideConnected: number): number;
     _physics3d_removeJoint(entity: number, bodyA: number, bodyB: number): void;
     _physics3d_setJointMotor(entity: number, enable: number, speed: number): void;
+    /** Optional for older binaries: a live hinge's or slider's range, its motor's limit, a distance joint's shape. */
+    _physics3d_setJointLimits?(entity: number, enable: number, lower: number, upper: number): void;
+    _physics3d_setJointMotorLimit?(entity: number, limit: number): void;
+    _physics3d_setDistanceJoint?(entity: number, minLength: number, maxLength: number, frequency: number, damping: number): void;
     _physics3d_jointValue(entity: number): number;
 
     _physics3d_contactEnters(): number;
@@ -156,6 +160,13 @@ export interface Physics3DWasmModule {
     _physics3d_setGravity?(gx: number, gy: number, gz: number): void;
     _physics3d_setAwake?(bodyId: number, awake: number): void;
     _physics3d_isAwake?(bodyId: number): number;
+    /** Optional for older binaries: (mass, centre x/y/z in metres, moments about its own axes in kg m^2) to the query buffer. */
+    _physics3d_getBodyMassData?(bodyId: number): number;
+    /** Optional for older binaries: a turned box or an upright capsule swept, written as a sphere cast is. */
+    _physics3d_boxCast?(px: number, py: number, pz: number, hx: number, hy: number, hz: number,
+                        qx: number, qy: number, qz: number, qw: number, dx: number, dy: number, dz: number, layerMask: number): number;
+    _physics3d_capsuleCast?(px: number, py: number, pz: number, radius: number, halfHeight: number,
+                            qx: number, qy: number, qz: number, qw: number, dx: number, dy: number, dz: number, layerMask: number): number;
     _physics3d_contactExits(): number;
     _physics3d_contactExitsBytes(): number;
     _physics3d_sensorEnters(): number;

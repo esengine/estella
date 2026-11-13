@@ -918,6 +918,72 @@ check('the world\'s gravity can be changed', near(fall, -1, 0.02), `vy=${fall.to
 
 }
 
+
+// ── Swept boxes and capsules, and what a body weighs ───────────────────────
+{
+    // A slab whose top is at y 0.5, far from everything; shapes are swept down onto it from y 5, ten metres.
+    m._physics3d_addBox(9600, 1, 0.5, 1, 8000, 0, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0);
+    m._physics3d_optimize();
+    const castHit = () => { const o = m._physics3d_queryResult() >> 2; return { entity: m.HEAPF32[o], fraction: m.HEAPF32[o + 1], y: m.HEAPF32[o + 3] }; };
+    const S = Math.SQRT1_2;
+    const box = m._physics3d_boxCast(8000, 5, 0, 0.5, 0.5, 0.5, ...IDENTITY, 0, -10, 0, 0) ? castHit() : null;
+    // A box half a metre each way lands with its centre at 1.0: four metres of ten.
+    check('a box swept down lands on what is under it', box && box.entity === 9600 && near(box.fraction, 0.4, 0.006), JSON.stringify(box));
+    const turned = m._physics3d_boxCast(8000, 5, 0, 0.5, 0.5, 0.5, 0, 0, Math.sin(Math.PI / 8), Math.cos(Math.PI / 8), 0, -10, 0, 0) ? castHit() : null;
+    // Turned an eighth of a turn about z it stands on an edge, its centre 0.707 above the slab.
+    check('and a turned box lands on its edge', turned && near(turned.fraction, (5 - 0.5 - S) / 10, 0.006), JSON.stringify(turned));
+    const upright = m._physics3d_capsuleCast(8000, 5, 0, 0.25, 0.5, ...IDENTITY, 0, -10, 0, 0) ? castHit() : null;
+    // Standing, its foot is 0.75 below its centre; lying (a quarter turn about z), 0.25.
+    check('an upright capsule swept down lands on its foot', upright && near(upright.fraction, (5 - 0.5 - 0.75) / 10, 0.006), JSON.stringify(upright));
+    const lying = m._physics3d_capsuleCast(8000, 5, 0, 0.25, 0.5, 0, 0, S, S, 0, -10, 0, 0) ? castHit() : null;
+    check('and a lying one on its side', lying && near(lying.fraction, (5 - 0.5 - 0.25) / 10, 0.006), JSON.stringify(lying));
+    check('a cast that meets nothing says so', m._physics3d_boxCast(8000, 5, 0, 0.5, 0.5, 0.5, ...IDENTITY, 0, 10, 0, 0) === 0);
+
+    // A 2 m x 1 m x 0.5 m block at the density of water: 1000 kg, and a block's moments m/12 (b^2 + c^2).
+    const block = m._physics3d_addBox(9601, 1, 0.5, 0.25, 8100, 50, 0, ...IDENTITY, ...FREE(DYNAMIC), 0.5, 0, 0);
+    const data = m._physics3d_getBodyMassData(block) ? Array.from(m.HEAPF32.subarray(m._physics3d_queryResult() >> 2, (m._physics3d_queryResult() >> 2) + 7)) : null;
+    const want = [1000, 8100, 50, 0, 1000 / 12 * (1 + 0.25), 1000 / 12 * (4 + 0.25), 1000 / 12 * (4 + 1)];
+    check('a body says its mass, its centre and its moments of inertia', data && data.every((v, i) => Math.abs(v - want[i]) <= Math.max(0.01 * Math.abs(want[i]), 1e-3)),
+          `${data?.map((v) => v.toFixed(2)).join(',')} want ${want.map((v) => v.toFixed(2)).join(',')}`);
+    check('and a body that does not move has none to say', m._physics3d_getBodyMassData(m._physics3d_addBox(9602, 1, 1, 1, 8200, 0, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0)) === 0);
+}
+
+// ── A joint changed while it runs ───────────────────────────────────────────
+{
+    // A door on a vertical hinge, weightless, made with its motor off and a motor limit of nothing.
+    const post = m._physics3d_addBox(9700, 0.1, 1, 0.1, 8300, 50, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0);
+    const door = m._physics3d_addBox(9701, 0.5, 1, 0.05, 8300.6, 50, 0, ...IDENTITY, ...[DYNAMIC, 0, 0, 0, 0, 0, 0], 0.5, 0, 0);
+    m._physics3d_addHingeJoint(9702, post, door, 8300, 50, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
+    m._physics3d_setJointMotor(9702, 1, 2);
+    step(30);
+    // A motor allowed no torque turns nothing - in both worlds, where Jolt's used to push without bound when it was
+    // switched on after the joint was made.
+    check('a motor turned on later keeps the limit it was given', near(m._physics3d_jointValue(9702), 0, 0.01), `angle=${m._physics3d_jointValue(9702).toFixed(4)}`);
+    m._physics3d_setJointMotorLimit(9702, 1000);
+    step(30);
+    const swung = m._physics3d_jointValue(9702);
+    check('and turns once it is allowed to', Math.abs(swung) > 0.5, `angle=${swung.toFixed(4)} after half a second at 2 rad/s`);
+    m._physics3d_setJointLimits(9702, 1, -0.3, 0.3);
+    step(60);
+    const held = m._physics3d_jointValue(9702);
+    check('a range set while it runs stops it at the end', Math.abs(Math.abs(held) - 0.3) < 0.05, `angle=${held.toFixed(4)}`);
+    m._physics3d_setJointLimits(9702, 0, 0, 0);
+    step(30);
+    check('and taken away lets it go on', Math.abs(m._physics3d_jointValue(9702)) > 0.6, `angle=${m._physics3d_jointValue(9702).toFixed(4)}`);
+
+    // A ball on a three-metre rope, which is shortened to one while it hangs.
+    const hook = m._physics3d_addBox(9710, 0.1, 0.1, 0.1, 8400, 50, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0);
+    const bob = m._physics3d_addSphere(9711, 0.3, 8400, 49, 0, ...IDENTITY, ...FREE(DYNAMIC), 0.5, 0, 0);
+    m._physics3d_addDistanceJoint(9712, hook, bob, 8400, 50, 0, 8400, 49, 0, 0, 3, 0, 0, 0);
+    step(120);
+    const centre = () => { m._physics3d_getBodyState(bob); const o = m._physics3d_queryResult() >> 2; return Math.hypot(m.HEAPF32[o] - 8400, m.HEAPF32[o + 1] - 50, m.HEAPF32[o + 2]); };
+    const long = centre();
+    m._physics3d_setDistanceJoint(9712, 0, 1, 0, 0);
+    step(120);
+    const short = centre();
+    check('a rope shortened while it hangs pulls up what hangs on it', near(long, 3, 0.05) && near(short, 1, 0.05), `${long.toFixed(3)} then ${short.toFixed(3)}`);
+}
+
 m._physics3d_shutdown();
 check('the world reports itself gone', m._physics3d_isReady() === 0);
 

@@ -4744,4 +4744,6 @@ export const NOTED = {
     {"note": "A script can push a 3D body about."},
   "feat(editor): the breakable check sets off a blast beside the last pot, which breaks it and throws the pebble at its foot":
     {"note": "A blast."},
+  "feat(physics3d): a turned box and an upright capsule can be swept, a body's mass data read, and a joint's range, motor limit, lengths and spring changed while it runs, from Jolt and PhysX alike; a Jolt motor switched on in play keeps its torque limit":
+    {"note": "A joint changed while it runs."},
 };

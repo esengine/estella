@@ -266,6 +266,53 @@ export class Physics3DQueries {
         return hit ? this.readCast_() : null;
     }
 
+    /**
+     * The first body a box would meet, swept from `origin` along `direction` (which carries the distance), turned by
+     * `rotation` or not at all: whether a crate fits through a door, what a sliding block would strike.
+     */
+    boxCast(origin: { x: number; y: number; z: number }, halfExtents: { x: number; y: number; z: number },
+            direction: { x: number; y: number; z: number }, layerMask = 0,
+            rotation: { x: number; y: number; z: number; w: number } = { x: 0, y: 0, z: 0, w: 1 }): Cast3DHit | null {
+        if (!this.module_._physics3d_boxCast) return null;
+        const p = this.ppu_;
+        const hit = this.module_._physics3d_boxCast(origin.x / p, origin.y / p, origin.z / p,
+            halfExtents.x / p, halfExtents.y / p, halfExtents.z / p, rotation.x, rotation.y, rotation.z, rotation.w,
+            direction.x / p, direction.y / p, direction.z / p, layerMask);
+        return hit ? this.readCast_() : null;
+    }
+
+    /**
+     * The first body an upright capsule would meet - `halfHeight` is half the straight part between its round ends,
+     * along its own y as a character stands - swept from `origin` along `direction`: where a body that walks could
+     * go, before it goes.
+     */
+    capsuleCast(origin: { x: number; y: number; z: number }, radius: number, halfHeight: number,
+                direction: { x: number; y: number; z: number }, layerMask = 0,
+                rotation: { x: number; y: number; z: number; w: number } = { x: 0, y: 0, z: 0, w: 1 }): Cast3DHit | null {
+        if (!this.module_._physics3d_capsuleCast) return null;
+        const p = this.ppu_;
+        const hit = this.module_._physics3d_capsuleCast(origin.x / p, origin.y / p, origin.z / p, radius / p, halfHeight / p,
+            rotation.x, rotation.y, rotation.z, rotation.w, direction.x / p, direction.y / p, direction.z / p, layerMask);
+        return hit ? this.readCast_() : null;
+    }
+
+    /**
+     * What it weighs and how it turns: mass in kilograms, its centre of mass in the world, and how hard it is to turn
+     * about each of its own axes, in kilograms by world units squared - its moments of inertia where those are its
+     * principal axes, as a box's or a ball's are; Infinity about an axis it may not turn on. null for a body that does
+     * not move.
+     */
+    getMassData(entity: Entity): { mass: number; centre: { x: number; y: number; z: number }; inertia: { x: number; y: number; z: number } } | null {
+        const id = this.bodies_.get(entity);
+        if (id === undefined || !this.module_._physics3d_getBodyMassData?.(id)) return null;
+        const f32 = this.module_.HEAPF32, o = this.module_._physics3d_queryResult() >> 2, p = this.ppu_, p2 = p * p;
+        return {
+            mass: f32[o]!,
+            centre: { x: f32[o + 1]! * p, y: f32[o + 2]! * p, z: f32[o + 3]! * p },
+            inertia: { x: f32[o + 4]! * p2, y: f32[o + 5]! * p2, z: f32[o + 6]! * p2 },
+        };
+    }
+
     /** Every body overlapping a sphere — what a spawn point asks before it spawns. */
     overlapSphere(centre: { x: number; y: number; z: number }, radius: number,
                   layerMask = 0): Overlap3DHit[] {

@@ -688,6 +688,33 @@ int physics3d_getBodyDynamics(uint32_t bodyId) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+int physics3d_getBodyMassData(uint32_t bodyId) {
+    PxRigidDynamic* dynamic = dynamicOf(bodyId);
+    if (!g().isValid() || dynamic == nullptr || isKinematic(dynamic)) return 0;
+    const float mass = dynamic->getMass();
+    if (!(mass > 0.0f)) return 0;
+    const PxVec3 centre = (dynamic->getGlobalPose() * dynamic->getCMassLocalPose()).p;
+    // About the body's own axes, as the Jolt world answers: the mass frame may be turned from them, so each axis is
+    // taken into it, its inverse moments weighed along it, and the moment is the inverse of that.
+    const PxVec3 inertia = dynamic->getMassSpaceInertiaTensor();
+    const PxQuat frame = dynamic->getCMassLocalPose().q;
+    const PxRigidDynamicLockFlags locked = dynamic->getRigidDynamicLockFlags();
+    const float inf = std::numeric_limits<float>::infinity();
+    const auto moment = [&](const PxVec3& axis, bool isLocked) {
+        if (isLocked) return inf;
+        const PxVec3 a = frame.rotateInv(axis);
+        const auto inv = [](float i) { return i > 0.0f ? 1.0f / i : 0.0f; };
+        const float weighed = a.x * a.x * inv(inertia.x) + a.y * a.y * inv(inertia.y) + a.z * a.z * inv(inertia.z);
+        return weighed > 0.0f ? 1.0f / weighed : inf;
+    };
+    g().queryBuffer = {mass, centre.x, centre.y, centre.z,
+                       moment(PxVec3(1, 0, 0), static_cast<bool>(locked & PxRigidDynamicLockFlag::eLOCK_ANGULAR_X)),
+                       moment(PxVec3(0, 1, 0), static_cast<bool>(locked & PxRigidDynamicLockFlag::eLOCK_ANGULAR_Y)),
+                       moment(PxVec3(0, 0, 1), static_cast<bool>(locked & PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z))};
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE
 void physics3d_addForce(uint32_t bodyId, float fx, float fy, float fz, float px, float py, float pz) {
     PxRigidDynamic* dynamic = dynamicOf(bodyId);
     if (!g().isValid() || dynamic == nullptr || isKinematic(dynamic)) return;

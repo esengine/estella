@@ -458,7 +458,13 @@ pose is also the **zero** of every limit: a door placed closed has `angle` 0 and
 opens to `upperAngle`.
 
 Set `motorSpeed` from gameplay at any time — the world is re-driven when it
-changes. In the other direction, `HingeJoint3D.angle` and
+changes. So are a hinge's or slider's `enableLimit`, `lowerAngle`/`upperAngle`
+or `lowerTranslation`/`upperTranslation` and `maxMotorTorque`/`maxMotorForce`,
+and a distance joint's `minLength`, `maxLength`, `frequency` and `damping`: a
+door locked by narrowing its range stops, a rope shortened while something hangs
+on it pulls it up. A range always holds the pose the joint was made in: one that
+does not reach 0 (`lowerAngle: 0.2`) is widened to 0, and a hinge's goes no
+further than half a turn either way, in both solvers. In the other direction, `HingeJoint3D.angle` and
 `SliderJoint3D.translation` are written back each step, so a game can ask how far
 the door swung without integrating the swing a second time.
 
@@ -500,6 +506,8 @@ const occupants = q.overlapSphere(spawnPoint, 50);
 |---|---|
 | `raycast(origin, direction, layerMask?)` | The nearest body on a line, as `{ entity, fraction, x, y, z, normalX, normalY, normalZ }`, or `null`. `direction` carries the ray's length. |
 | `sphereCast(origin, radius, direction, layerMask?)` | The first body a moving sphere would meet, same shape, or `null`. |
+| `boxCast(origin, halfExtents, direction, layerMask?, rotation?)` | The same for a box, turned by `rotation` or not at all: whether a crate fits through a door. |
+| `capsuleCast(origin, radius, halfHeight, direction, layerMask?, rotation?)` | The same for a capsule standing along its own y, as a character does; `halfHeight` is half its straight part. |
 | `overlapSphere(centre, radius, layerMask?)` / `overlapBox(centre, halfExtents, layerMask?)` | Every body already inside a volume, as `{ entity, x, y, z }[]`. |
 
 `Physics3D` holds `null` until the physics module has finished loading, so a system
@@ -538,6 +546,7 @@ physics.explode(grenadeAt, 400, 3000, { upward: 0.4 });
 | `setLinearVelocity(entity, v)` / `getLinearVelocity(entity)` | Its speed, in world units a second. |
 | `setAngularVelocity(entity, w)` / `getAngularVelocity(entity)` | Its spin, in radians a second. |
 | `getMass(entity)` | Kilograms; `null` for a body that does not move. Set with `RigidBody3D.mass`. |
+| `getMassData(entity)` | `{ mass, centre, inertia }`: kilograms, its centre of mass in the world, and how hard it is to turn about each of its own axes (kg by world units squared; its moments of inertia where those are its principal axes, as a box's are; `Infinity` about an axis it may not turn on). |
 | `setAwake(entity, awake)` / `isAwake(entity)` | Wake a sleeping body, or put one to sleep until something touches it. |
 | `setGravity(g)` / `getGravity()` | The world's gravity, in metres a second squared as the project's physics settings give it. A sleeping body stays put until woken. |
 | `explode(centre, radius, impulse, { upward?, layers? })` | Strikes every moving body within `radius` away from `centre` with `impulse`, less the further it is and none at the edge; `upward` (0..1) tips the push toward the sky. A `Breakable` it reaches is struck as hard, standing or not. Answers how many bodies it moved. |

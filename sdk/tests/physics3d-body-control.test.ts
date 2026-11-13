@@ -48,6 +48,13 @@ function fakeWorld(at: Record<number, [number, number, number]>, overlaps: numbe
             heap.set([2, 0.1, 0.2, 0.3], 0);
             return 1;
         },
+        _physics3d_boxCast: (...args: number[]) => { calls.push({ name: 'boxCast', args }); heap.set([30, 0.25, 1, 2, 3, 0, 1, 0], 0); return 1; },
+        _physics3d_capsuleCast: (...args: number[]) => { calls.push({ name: 'capsuleCast', args }); return 0; },
+        _physics3d_getBodyMassData: (id: number) => {
+            if (!moving.has(id)) return 0;
+            heap.set([2, 1, 0.5, 0, 0.2, Infinity, 0.3], 0);
+            return 1;
+        },
         _physics3d_overlapSphere: () => {
             // Read out before anything else uses the buffer, as the real one is.
             // Entities, as the real one names them: body n is entity 10 n here.
@@ -96,6 +103,25 @@ describe('pushing a 3D body from a script', () => {
         // A body that does not move has neither spin nor mass to tell.
         expect(physics.getMass(30 as Entity)).toBeNull();
         expect(physics.getAngularVelocity(30 as Entity)).toBeNull();
+    });
+
+    it('sweeps a turned box and an upright capsule in metres, and reads the hit back in world units', () => {
+        const turn = { x: 0, y: 0.3826834, z: 0, w: 0.9238795 };
+        const hit = physics.boxCast({ x: 100, y: 500, z: 0 }, { x: 50, y: 25, z: 50 }, { x: 0, y: -1000, z: 0 }, 4, turn);
+        expect(last('boxCast')).toEqual([1, 5, 0, 0.5, 0.25, 0.5, turn.x, turn.y, turn.z, turn.w, 0, -10, 0, 4]);
+        expect(hit).toMatchObject({ entity: 30, fraction: 0.25, x: 100, y: 200, z: 300, normalY: 1 });
+        // Unturned when no turn is given, and none hit is null.
+        expect(physics.capsuleCast({ x: 0, y: 0, z: 0 }, 30, 60, { x: 0, y: 0, z: 500 })).toBeNull();
+        expect(last('capsuleCast')).toEqual([0, 0, 0, 0.3, 0.6, 0, 0, 0, 1, 0, 0, 5, 0]);
+    });
+
+    it('reads mass data back: kilograms, the centre in world units, moments in kg by world units squared', () => {
+        const data = physics.getMassData(10 as Entity)!;
+        expect(data.mass).toBe(2);
+        expect(data.centre).toEqual({ x: 100, y: 50, z: 0 });
+        expect(data.inertia.x).toBeCloseTo(2000, 3);
+        expect(data.inertia.y).toBe(Infinity);
+        expect(physics.getMassData(30 as Entity)).toBeNull();
     });
 
     it('answers false and null for an entity the world has no body for', () => {

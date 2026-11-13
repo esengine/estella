@@ -103,6 +103,46 @@ uint32_t adopt(uint32_t entity, PxJoint* joint, JointKind kind, int collideConne
     return 1;
 }
 
+/// The rule the Jolt world keeps, kept here so a scene behaves the same in both: a hinge within a half turn either way
+/// and never excluding the pose it was made in; a slider's travel the same without the half turn.
+static void hingeRange(float lower, float upper, float& outMin, float& outMax) {
+    outMin = std::clamp(std::min(lower, 0.0f), -PxPi, 0.0f);
+    outMax = std::clamp(std::max(upper, 0.0f), 0.0f, PxPi);
+}
+
+/// A distance joint's lengths and spring; the spring speaks frequency and damping ratio as the Jolt world does.
+static void shapeDistance(PxDistanceJoint* joint, float minLength, float maxLength, float frequency, float damping) {
+    const float lo = std::max(minLength, 0.0f);
+    joint->setMinDistance(lo);
+    joint->setMaxDistance(std::max(maxLength, lo));
+    PxDistanceJointFlags flags = PxDistanceJointFlag::eMAX_DISTANCE_ENABLED;
+    if (lo > 0.0f) flags |= PxDistanceJointFlag::eMIN_DISTANCE_ENABLED;
+    if (frequency > 0.0f) {
+        // PhysX speaks in a stiffness and a damping, which need the mass the spring moves.
+        PxRigidActor* a = nullptr;
+        PxRigidActor* b = nullptr;
+        joint->getActors(a, b);
+        float massA = 0.0f, massB = 0.0f;
+        if (a) if (PxRigidDynamic* d = a->is<PxRigidDynamic>()) massA = d->getMass();
+        if (b) if (PxRigidDynamic* d = b->is<PxRigidDynamic>()) massB = d->getMass();
+        const float mass = massA > 0.0f && massB > 0.0f ? massA * massB / (massA + massB) : std::max(massA, massB);
+        const float omega = 2.0f * PxPi * frequency;
+        joint->setStiffness(mass * omega * omega);
+        joint->setDamping(2.0f * mass * std::max(damping, 0.0f) * omega);
+        flags |= PxDistanceJointFlag::eSPRING_ENABLED;
+    }
+    joint->setDistanceJointFlags(flags);
+}
+
+/// A joint changed under two sleeping bodies does nothing until they wake: they are woken.
+static void wakeEnds(PxJoint* joint) {
+    PxRigidActor* a = nullptr;
+    PxRigidActor* b = nullptr;
+    joint->getActors(a, b);
+    wake(a);
+    wake(b);
+}
+
 PxD6JointDrive motor(bool on, float limit) {
     return on ? PxD6JointDrive(0.0f, MOTOR_DAMPING, limit) : PxD6JointDrive();
 }
@@ -249,8 +289,10 @@ uint32_t physics3d_addHingeJoint(uint32_t entity, uint32_t bodyA, uint32_t bodyB
     PxRigidActor* b = actorOf(bodyB);
     PxRevoluteJoint* joint = PxRevoluteJointCreate(px3::physics(), a, localFrame(a, frame), b, localFrame(b, frame));
     if (joint == nullptr) return 0;
-    if (enableLimit != 0 && lowerAngle < upperAngle) {
-        joint->setLimit(PxJointAngularLimitPair(lowerAngle, upperAngle));
+    if (enableLimit != 0) {
+        float lo = 0.0f, hi = 0.0f;
+        hingeRange(lowerAngle, upperAngle, lo, hi);
+        joint->setLimit(PxJointAngularLimitPair(lo, hi));
         joint->setRevoluteJointFlag(PxRevoluteJointFlag::eLIMIT_ENABLED, true);
     }
     joint->setDriveForceLimit(maxTorque);
@@ -272,9 +314,9 @@ uint32_t physics3d_addSliderJoint(uint32_t entity, uint32_t bodyA, uint32_t body
     if (axis.normalizeSafe() <= 0.0f) axis = PxVec3(0.0f, 1.0f, 0.0f);
     PxD6Joint* joint = d6(bodyA, bodyB, worldFrame(PxVec3(px, py, pz), axis, perpendicularTo(axis)));
     if (joint == nullptr) return 0;
-    const bool limited = enableLimit != 0 && lower < upper;
+    const bool limited = enableLimit != 0;
     joint->setMotion(PxD6Axis::eX, limited ? PxD6Motion::eLIMITED : PxD6Motion::eFREE);
-    if (limited) joint->setLinearLimit(PxD6Axis::eX, PxJointLinearLimitPair(lower, upper, PxSpring(0.0f, 0.0f)));
+    if (limited) joint->setLinearLimit(PxD6Axis::eX, PxJointLinearLimitPair(std::min(lower, 0.0f), std::max(upper, 0.0f), PxSpring(0.0f, 0.0f)));
     if (enableMotor != 0) {
         joint->setDrive(PxD6Drive::eX, motor(true, maxForce));
         joint->setDriveVelocity(PxVec3(motorSpeed, 0.0f, 0.0f), PxVec3(0.0f), true);
@@ -293,26 +335,7 @@ uint32_t physics3d_addDistanceJoint(uint32_t entity, uint32_t bodyA, uint32_t bo
     PxDistanceJoint* joint = PxDistanceJointCreate(px3::physics(),
         a, localFrame(a, PxTransform(PxVec3(ax, ay, az))), b, localFrame(b, PxTransform(PxVec3(bx, by, bz))));
     if (joint == nullptr) return 0;
-    const float maxDistance = std::max(maxLength, minLength);
-    joint->setMaxDistance(maxDistance);
-    joint->setMinDistance(std::max(minLength, 0.0f));
-    PxDistanceJointFlags flags = PxDistanceJointFlag::eMAX_DISTANCE_ENABLED;
-    if (minLength > 0.0f) flags |= PxDistanceJointFlag::eMIN_DISTANCE_ENABLED;
-    if (frequency > 0.0f) {
-        // Jolt speaks in a frequency and a damping ratio; PhysX in a stiffness
-        // and a damping, which need the mass the spring moves.
-        float mass = 0.0f;
-        float massA = 0.0f, massB = 0.0f;
-        if (PxRigidDynamic* d = a->is<PxRigidDynamic>()) massA = d->getMass();
-        if (PxRigidDynamic* d = b->is<PxRigidDynamic>()) massB = d->getMass();
-        if (massA > 0.0f && massB > 0.0f) mass = massA * massB / (massA + massB);
-        else mass = std::max(massA, massB);
-        const float omega = 2.0f * PxPi * frequency;
-        joint->setStiffness(mass * omega * omega);
-        joint->setDamping(2.0f * mass * std::max(damping, 0.0f) * omega);
-        flags |= PxDistanceJointFlag::eSPRING_ENABLED;
-    }
-    joint->setDistanceJointFlags(flags);
+    shapeDistance(joint, minLength, maxLength, frequency, damping);
     return adopt(entity, joint, JointKind::Distance, collideConnected);
 }
 
@@ -349,6 +372,52 @@ void physics3d_setJointMotor(uint32_t entity, int enable, float speed) {
         slider->setDrive(PxD6Drive::eX, motor(enable != 0, found->second.maxForce));
         slider->setDriveVelocity(PxVec3(speed, 0.0f, 0.0f), PxVec3(0.0f), true);
     }
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setJointLimits(uint32_t entity, int enable, float lower, float upper) {
+    auto found = g().joints.find(entity);
+    if (found == g().joints.end() || !std::isfinite(lower) || !std::isfinite(upper)) return;
+    if (found->second.kind == JointKind::Hinge) {
+        auto* hinge = static_cast<PxRevoluteJoint*>(found->second.joint);
+        float lo = 0.0f, hi = 0.0f;
+        hingeRange(lower, upper, lo, hi);
+        hinge->setLimit(PxJointAngularLimitPair(lo, hi));
+        hinge->setRevoluteJointFlag(PxRevoluteJointFlag::eLIMIT_ENABLED, enable != 0);
+    } else if (found->second.kind == JointKind::Slider) {
+        auto* slider = static_cast<PxD6Joint*>(found->second.joint);
+        slider->setMotion(PxD6Axis::eX, enable != 0 ? PxD6Motion::eLIMITED : PxD6Motion::eFREE);
+        if (enable != 0) slider->setLinearLimit(PxD6Axis::eX, PxJointLinearLimitPair(std::min(lower, 0.0f), std::max(upper, 0.0f), PxSpring(0.0f, 0.0f)));
+    } else {
+        return;
+    }
+    wakeEnds(found->second.joint);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setJointMotorLimit(uint32_t entity, float limit) {
+    auto found = g().joints.find(entity);
+    if (found == g().joints.end() || !std::isfinite(limit) || limit < 0.0f) return;
+    found->second.maxForce = limit;
+    if (found->second.kind == JointKind::Hinge) {
+        static_cast<PxRevoluteJoint*>(found->second.joint)->setDriveForceLimit(limit);
+    } else if (found->second.kind == JointKind::Slider) {
+        auto* slider = static_cast<PxD6Joint*>(found->second.joint);
+        // A drive that is on has damping; one that is off has none, and stays off.
+        if (slider->getDrive(PxD6Drive::eX).damping > 0.0f) slider->setDrive(PxD6Drive::eX, motor(true, limit));
+    } else {
+        return;
+    }
+    wakeEnds(found->second.joint);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setDistanceJoint(uint32_t entity, float minLength, float maxLength, float frequency, float damping) {
+    auto found = g().joints.find(entity);
+    if (found == g().joints.end() || found->second.kind != JointKind::Distance) return;
+    if (!std::isfinite(minLength) || !std::isfinite(maxLength) || !std::isfinite(frequency) || !std::isfinite(damping)) return;
+    shapeDistance(static_cast<PxDistanceJoint*>(found->second.joint), minLength, maxLength, frequency, damping);
+    wakeEnds(found->second.joint);
 }
 
 EMSCRIPTEN_KEEPALIVE

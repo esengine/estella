@@ -400,7 +400,11 @@ cmds.spawn()
 在关节建立的那一刻按它的变换解算成世界量。那个姿态同时也是所有限位的**零点**:
 一扇摆成关闭状态的门,`angle` 就是 0,开到 `upperAngle`。
 
-`motorSpeed` 随时可以由游戏逻辑改写——变了就会重新驱动世界。反方向上,
+`motorSpeed` 随时可以由游戏逻辑改写——变了就会重新驱动世界。铰链和滑轨的 `enableLimit`、
+`lowerAngle`/`upperAngle` 或 `lowerTranslation`/`upperTranslation`、`maxMotorTorque`/`maxMotorForce`,
+以及距离关节的 `minLength`、`maxLength`、`frequency`、`damping` 也一样:收窄门的范围就能把门锁住,
+运行中缩短绳子会把挂着的东西拉上来。范围总是包含关节建立时的姿态:不含 0 的范围(如 `lowerAngle: 0.2`)
+会扩展到 0,铰链的范围在两个求解器里都不超过正反各半圈。反方向上,
 `HingeJoint3D.angle` 与 `SliderJoint3D.translation` 每步写回,
 所以游戏可以直接问「门开了多少」,不必自己再积分一遍。
 
@@ -439,6 +443,8 @@ const occupants = q.overlapSphere(spawnPoint, 50);
 |---|---|
 | `raycast(origin, direction, layerMask?)` | 一条线上最近的刚体,形如 `{ entity, fraction, x, y, z, normalX, normalY, normalZ }`,没有则为 `null`。`direction` 自带射线长度。 |
 | `sphereCast(origin, radius, direction, layerMask?)` | 一个运动的球最先撞上的刚体,形状同上,没有则为 `null`。 |
+| `boxCast(origin, halfExtents, direction, layerMask?, rotation?)` | 盒子的同样查询,可用 `rotation` 旋转:箱子能不能穿过门。 |
+| `capsuleCast(origin, radius, halfHeight, direction, layerMask?, rotation?)` | 胶囊的同样查询,胶囊沿自身 y 轴竖立,和角色一样;`halfHeight` 是中间直段的一半。 |
 | `overlapSphere(centre, radius, layerMask?)` / `overlapBox(centre, halfExtents, layerMask?)` | 已经在某个体积里的所有刚体,形如 `{ entity, x, y, z }[]`。 |
 
 物理模块加载完成之前 `Physics3D` 是 `null`,所以在最初几帧里询问的系统要先判断。
@@ -472,6 +478,7 @@ physics.explode(grenadeAt, 400, 3000, { upward: 0.4 });
 | `setLinearVelocity(entity, v)` / `getLinearVelocity(entity)` | 线速度，世界单位每秒。 |
 | `setAngularVelocity(entity, w)` / `getAngularVelocity(entity)` | 角速度，弧度每秒。 |
 | `getMass(entity)` | 千克；不动的刚体返回 `null`。用 `RigidBody3D.mass` 设定。 |
+| `getMassData(entity)` | `{ mass, centre, inertia }`:质量(千克)、世界中的质心、绕自身三个轴转动的难度(千克·世界单位²;当这三个轴就是主轴时即为转动惯量,长方体就是如此;不允许转动的轴为 `Infinity`)。 |
 | `setAwake(entity, awake)` / `isAwake(entity)` | 唤醒休眠的刚体，或让它休眠直到被碰到。 |
 | `setGravity(g)` / `getGravity()` | 世界重力，单位与项目物理设置一致，米每秒²。休眠的刚体在被唤醒前不会动。 |
 | `explode(centre, radius, impulse, { upward?, layers? })` | 把 `radius` 内的每个运动刚体从 `centre` 向外撞开，力度为 `impulse`，越远越小，到边缘为零；`upward`（0..1）让推力偏向上方。被波及的 `Breakable` 以同样力度计算，不论它是否静止。返回推动了多少个刚体。 |

@@ -21,7 +21,7 @@ import {
 } from '../src/asset/meshCollision';
 import { stepPhysics3D, DEFAULT_PHYSICS3D_CONFIG } from '../src/physics3d/Physics3DSystem';
 import {
-    PointJoint3D, HingeJoint3D, SliderJoint3D, FixedJoint3D, SwingTwistJoint3D, SixDOFJoint3D,
+    PointJoint3D, HingeJoint3D, SliderJoint3D, FixedJoint3D, SwingTwistJoint3D, SixDOFJoint3D, DistanceJoint3D,
     type Joint3DMap, type HingeJoint3DData, type SliderJoint3DData, type SixDOFJoint3DData, type SwingTwistJoint3DData,
 } from '../src/physics3d/Physics3DJoints';
 import { drainPhysics3DEvents, type Physics3DEventsData, type Physics3DWasmModule } from '../src/physics3d/Physics3DModule';
@@ -98,6 +98,9 @@ function fakeModule(): Physics3DWasmModule & {
         _physics3d_setAdvancedJointMotor: record('setAdvancedJointMotor'),
         _physics3d_removeJoint: record('removeJoint'),
         _physics3d_setJointMotor: record('setJointMotor'),
+        _physics3d_setJointLimits: record('setJointLimits'),
+        _physics3d_setJointMotorLimit: record('setJointMotorLimit'),
+        _physics3d_setDistanceJoint: record('setDistanceJoint'),
         _physics3d_setMass: record('setMass'),
         _physics3d_jointValue: (entity: number) => { calls.push({ name: 'jointValue', args: [entity] }); return 0.25; },
         // Distinct allocations, as a real heap gives: one address for everything
@@ -720,6 +723,44 @@ describe('the 3D world and the ECS', () => {
             // ...and only when it changes: a call every step would fight the solver.
             stepJoints();
             expect(called('setJointMotor')).toHaveLength(1);
+        });
+
+        it('carries a new range and motor limit into a hinge or slider that already exists', () => {
+            // Built once; without this, a door locked from a script by narrowing its range would swing on.
+            const [a, b] = pair();
+            const hinge = world.insert<HingeJoint3DData>(a, HingeJoint3D, { connectedEntity: b, maxMotorTorque: 10 });
+            stepJoints();
+            expect(called('setJointLimits')).toHaveLength(0);
+            hinge.enableLimit = true;
+            hinge.lowerAngle = -0.2;
+            hinge.upperAngle = 0.4;
+            hinge.maxMotorTorque = 50;
+            stepJoints();
+            expect(called('setJointLimits').map((c) => c.args)).toEqual([[a as number, 1, -0.2, 0.4]]);
+            expect(called('setJointMotorLimit').map((c) => c.args)).toEqual([[a as number, 50]]);
+            stepJoints();
+            expect(called('setJointLimits')).toHaveLength(1);
+
+            // A slider's travel is a length, and reaches the world in metres; its force does not.
+            const [c, d] = pair({ x: 500, y: 0, z: 0 }, { x: 600, y: 0, z: 0 });
+            const slider = world.insert<SliderJoint3DData>(c, SliderJoint3D, { connectedEntity: d });
+            stepJoints();
+            slider.enableLimit = true;
+            slider.lowerTranslation = -50;
+            slider.upperTranslation = 150;
+            stepJoints();
+            expect(called('setJointLimits').at(-1)!.args).toEqual([c as number, 1, -0.5, 1.5]);
+        });
+
+        it('carries a new length and spring into a distance joint that already exists', () => {
+            const [a, b] = pair();
+            const rope = world.insert<{ maxLength: number; minLength: number; frequency: number; damping: number }>(a, DistanceJoint3D, { connectedEntity: b, maxLength: 300 });
+            stepJoints();
+            expect(called('setDistanceJoint')).toHaveLength(0);
+            rope.maxLength = 100;
+            rope.frequency = 2;
+            stepJoints();
+            expect(called('setDistanceJoint').map((c) => c.args)).toEqual([[a as number, 0, 1, 2, 0.5]]);
         });
 
         it('writes the joint state back where gameplay can read it', () => {

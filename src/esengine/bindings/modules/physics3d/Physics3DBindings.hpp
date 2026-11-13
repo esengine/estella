@@ -103,6 +103,11 @@ void physics3d_setGravity(float gx, float gy, float gz);
 // Wake a body (awake != 0) or put it to sleep; and whether it is awake: 1 awake, 0 asleep or not a moving body.
 void physics3d_setAwake(uint32_t bodyId, int awake);
 int physics3d_isAwake(uint32_t bodyId);
+// Writes (mass, cx, cy, cz, ix, iy, iz): kilograms, its centre of mass in the world in metres, and how hard it is to
+// turn about each of its own axes in kg m^2 - the moment that answers a twist about that axis alone, its moment of
+// inertia there where the axis is a principal one, as a box's are; infinite about an axis it may not turn on.
+// 0 for a body that does not move.
+int physics3d_getBodyMassData(uint32_t bodyId);
 int physics3d_getBodyState(uint32_t bodyId);
 // What a force needs to know of a body: its mass and how it is turning.
 int physics3d_getBodyDynamics(uint32_t bodyId);
@@ -154,11 +159,25 @@ uint32_t physics3d_addFixedJoint(uint32_t entity, uint32_t bodyA, uint32_t bodyB
                                  int collideConnected);
 void physics3d_removeJoint(uint32_t entity, uint32_t bodyA, uint32_t bodyB);
 void physics3d_setJointMotor(uint32_t entity, int enable, float speed);
+// A hinge's angles (radians) or a slider's travel (metres) it may move between, or none (enable 0). A range is
+// measured from the pose the joint was made in and always holds it: one that does not reach 0 is widened to 0.
+void physics3d_setJointLimits(uint32_t entity, int enable, float lower, float upper);
+// The most a hinge's motor may twist (newton metres) or a slider's push (newtons).
+void physics3d_setJointMotorLimit(uint32_t entity, float limit);
+// A distance joint's shortest and longest (metres), and its spring (frequency 0 is rigid).
+void physics3d_setDistanceJoint(uint32_t entity, float minLength, float maxLength, float frequency, float damping);
 float physics3d_jointValue(uint32_t entity);
 
 // Queries. Each answers a hit count and leaves the hits in the query buffer.
 int physics3d_raycast(float ox, float oy, float oz, float dx, float dy, float dz,
                       uint32_t layerMask);
+// A box of half-extents (hx, hy, hz), turned by (qx, qy, qz, qw), swept from (px, py, pz) along (dx, dy, dz): the
+// first body it would meet, written as sphereCast writes it.
+int physics3d_boxCast(float px, float py, float pz, float hx, float hy, float hz,
+                      float qx, float qy, float qz, float qw, float dx, float dy, float dz, uint32_t layerMask);
+// An upright capsule (its length along its own y, as a character stands), turned by (qx, qy, qz, qw), swept the same way.
+int physics3d_capsuleCast(float px, float py, float pz, float radius, float halfHeight,
+                          float qx, float qy, float qz, float qw, float dx, float dy, float dz, uint32_t layerMask);
 int physics3d_sphereCast(float px, float py, float pz, float radius,
                          float dx, float dy, float dz, uint32_t layerMask);
 int physics3d_overlapSphere(float px, float py, float pz, float radius, uint32_t layerMask);
