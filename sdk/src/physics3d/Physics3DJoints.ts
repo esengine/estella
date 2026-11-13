@@ -18,7 +18,7 @@ import type { TransformData } from '../ecs/component.generated';
 import type { App } from '../app/app';
 import type { World } from '../ecs/world';
 import type { Entity, Vec3 } from '../types';
-import type { Physics3DWasmModule } from './Physics3DModule';
+import type { JointBreak3DEvent, Physics3DWasmModule } from './Physics3DModule';
 import { rotateVec3ByQuat } from './ColliderShape3D';
 import { SwingTwistJoint3D, SixDOFJoint3D, joint3DSettingsError, advancedJointSettings, jointMotionBits,
     type SwingTwistJoint3DData, type SixDOFJoint3DData } from './AdvancedJoint3D';
@@ -30,6 +30,10 @@ export interface PointJoint3DData {
     anchor: Vec3;
     collideConnected: boolean;
     enabled: boolean;
+    /** The force it gives way at, in newtons: past it the joint is taken out of the world and `enabled` lowered. 0 never. */
+    breakForce: number;
+    /** The twist it gives way at, in newton metres. 0 never. */
+    breakTorque: number;
 }
 
 /**
@@ -42,6 +46,8 @@ export const PointJoint3D = defineComponent<PointJoint3DData>('PointJoint3D', {
     anchor: { x: 0, y: 0, z: 0 },
     collideConnected: false,
     enabled: true,
+    breakForce: 0,
+    breakTorque: 0,
 }, {
     entityFields: ['connectedEntity'],
     fields: { anchor: { tooltip: 'Where the joint attaches, in THIS entity\'s frame (world units).' } },
@@ -59,6 +65,10 @@ export interface HingeJoint3DData {
     maxMotorTorque: number;
     collideConnected: boolean;
     enabled: boolean;
+    /** The force it gives way at, in newtons: past it the joint is taken out of the world and `enabled` lowered. 0 never. */
+    breakForce: number;
+    /** The twist it gives way at, in newton metres. 0 never. */
+    breakTorque: number;
     /** Where the hinge is now, in radians. Written by the world each step. */
     angle: number;
 }
@@ -81,6 +91,8 @@ export const HingeJoint3D = defineComponent<HingeJoint3DData>('HingeJoint3D', {
     maxMotorTorque: 0,
     collideConnected: false,
     enabled: true,
+    breakForce: 0,
+    breakTorque: 0,
     angle: 0,
 }, {
     entityFields: ['connectedEntity'],
@@ -99,6 +111,10 @@ export interface SliderJoint3DData {
     maxMotorForce: number;
     collideConnected: boolean;
     enabled: boolean;
+    /** The force it gives way at, in newtons: past it the joint is taken out of the world and `enabled` lowered. 0 never. */
+    breakForce: number;
+    /** The twist it gives way at, in newton metres. 0 never. */
+    breakTorque: number;
     /** How far along the axis it has travelled, in world units. Written by the
      *  world each step. */
     translation: number;
@@ -122,6 +138,8 @@ export const SliderJoint3D = defineComponent<SliderJoint3DData>('SliderJoint3D',
     maxMotorForce: 0,
     collideConnected: false,
     enabled: true,
+    breakForce: 0,
+    breakTorque: 0,
     translation: 0,
 }, {
     entityFields: ['connectedEntity'],
@@ -138,6 +156,10 @@ export interface DistanceJoint3DData {
     damping: number;
     collideConnected: boolean;
     enabled: boolean;
+    /** The force it gives way at, in newtons: past it the joint is taken out of the world and `enabled` lowered. 0 never. */
+    breakForce: number;
+    /** The twist it gives way at, in newton metres. 0 never. */
+    breakTorque: number;
 }
 
 /**
@@ -156,12 +178,18 @@ export const DistanceJoint3D = defineComponent<DistanceJoint3DData>('DistanceJoi
     damping: 0.5,
     collideConnected: false,
     enabled: true,
+    breakForce: 0,
+    breakTorque: 0,
 }, { entityFields: ['connectedEntity'] });
 
 export interface FixedJoint3DData {
     connectedEntity: number;
     collideConnected: boolean;
     enabled: boolean;
+    /** The force it gives way at, in newtons: past it the joint is taken out of the world and `enabled` lowered. 0 never. */
+    breakForce: number;
+    /** The twist it gives way at, in newton metres. 0 never. */
+    breakTorque: number;
 }
 
 /**
@@ -174,6 +202,8 @@ export const FixedJoint3D = defineComponent<FixedJoint3DData>('FixedJoint3D', {
     connectedEntity: -1,
     collideConnected: false,
     enabled: true,
+    breakForce: 0,
+    breakTorque: 0,
 }, { entityFields: ['connectedEntity'] });
 
 /** The joint components, in the order the system offers an entity's to the world. */
@@ -420,6 +450,30 @@ function reshape(app: App, module: Physics3DWasmModule, entity: Entity, held: Jo
         module._physics3d_setJointMotorLimit?.(entity as number, now[3]!);
     }
     held.shape = signature;
+}
+
+/**
+ * Take out of the world every joint that held with more than its breakForce or breakTorque over the step just run, lower its
+ * `enabled` so it is not made again, and say so. A joint raised again is made afresh between the bodies where they are then.
+ */
+export function breakJoints3D(app: App, module: Physics3DWasmModule, joints: Joint3DMap, broken?: JointBreak3DEvent[]): void {
+    if (!module._physics3d_jointForce) return;
+    for (const [entity, held] of [...joints]) {
+        const def = JOINT3D_TYPES.find((d) => d._name === held.type);
+        if (!def || !app.world.valid(entity) || !app.world.has(entity, def)) continue;
+        const d = app.world.get(entity, def) as unknown as { breakForce?: number; breakTorque?: number; enabled: boolean };
+        const maxForce = d.breakForce ?? 0, maxTorque = d.breakTorque ?? 0;
+        if (!(maxForce > 0) && !(maxTorque > 0)) continue;
+        if (!module._physics3d_jointForce(entity as number)) continue;
+        const f32 = module.HEAPF32, o = module._physics3d_queryResult() >> 2;
+        const force = f32[o]!, torque = f32[o + 1]!;
+        if (!((maxForce > 0 && force > maxForce) || (maxTorque > 0 && torque > maxTorque))) continue;
+        module._physics3d_removeJoint(entity as number, held.bodyA, held.bodyB);
+        joints.delete(entity);
+        d.enabled = false;
+        app.world.set(entity, def, d as never);
+        broken?.push({ entity, force, torque });
+    }
 }
 
 /** The motor a driven joint is asking for right now, in the module's units. */

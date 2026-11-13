@@ -36,7 +36,9 @@
 #include <Jolt/RegisterTypes.h>
 
 #include <cstddef>
+#include <algorithm>
 #include <cmath>
+#include <vector>
 
 using namespace JPH;
 using esengine::physics3d::Context;
@@ -297,6 +299,9 @@ void physics3d_setSolver(int velocityIterations, int positionIterations, int all
 EMSCRIPTEN_KEEPALIVE
 void physics3d_step(float dt, int collisionSteps) {
     if (!g().isValid() || dt <= 0.0f) return;
+    // No character moved this step: what the last one met has been read, and is not told again.
+    if (g().characterHitsStale) g().characterHitBuffer.clear();
+    g().solverStep = dt / static_cast<float>(std::max(collisionSteps, 1));
     // Cleared before the step, not after: the listener fires DURING Update, and a
     // buffer emptied afterwards would publish nothing.
     g().contactEnterBuffer.clear();
@@ -328,6 +333,7 @@ void physics3d_step(float dt, int collisionSteps) {
         out.push_back(rotation.GetZ());
         out.push_back(rotation.GetW());
     }
+    g().characterHitsStale = true;
 }
 
 /// Rebuild the broad-phase tree. Worth calling once after the static geometry of a
@@ -695,6 +701,7 @@ void physics3d_removeCharacter(uint32_t characterId) {
     if (found != g().characters.end()) g().characterVsCharacter.Remove(found->second.get());
     g().characters.erase(characterId);
     g().characterLayers.erase(characterId);
+    g().characterTouching.erase(characterId);
     g().entityOf.erase(characterId | CHARACTER_ID_TAG);
 }
 
@@ -705,6 +712,40 @@ void physics3d_removeCharacter(uint32_t characterId) {
  *          launches off the top of every slope it walks down.
  *          Writes (px,py,pz, groundState, nx,ny,nz, vx,vy,vz) to the query buffer.
  */
+/// What a character ran into on this move that it was not already touching: told once, with how fast it closed and the
+/// mass it met with, as a contact between bodies is.
+static void noteCharacterMeetings(uint32_t characterId, const CharacterVirtual& character, Vec3Arg velocity) {
+    if (g().characterHitsStale) { g().characterHitBuffer.clear(); g().characterHitsStale = false; }
+    std::vector<uint32_t>& touching = g().characterTouching[characterId];
+    std::vector<uint32_t> now;
+    const auto self = g().entityOf.find(characterId | CHARACTER_ID_TAG);
+    const float own = character.GetMass() > 0.0f ? 1.0f / character.GetMass() : 0.0f;
+    for (const auto& contact : character.GetActiveContacts()) {
+        if (!contact.mHadCollision || contact.mWasDiscarded || contact.mBodyB.IsInvalid()) continue;
+        const uint32_t key = contact.mBodyB.GetIndexAndSequenceNumber();
+        if (std::find(now.begin(), now.end(), key) != now.end()) continue;
+        now.push_back(key);
+        if (std::find(touching.begin(), touching.end(), key) != touching.end()) continue;
+        float other = 0.0f;
+        {
+            const BodyLockRead lock(g().system->GetBodyLockInterface(), contact.mBodyB);
+            if (lock.Succeeded() && lock.GetBody().IsDynamic()) other = lock.GetBody().GetMotionProperties()->GetInverseMass();
+        }
+        const float both = own + other;
+        const auto owner = g().entityOf.find(key);
+        // The normal points toward the character: closing on what it met is moving against it.
+        const float closing = -(velocity - contact.mLinearVelocity).Dot(contact.mContactNormal);
+        g().characterHitBuffer.insert(g().characterHitBuffer.end(), {
+            self == g().entityOf.end() ? 0.0f : static_cast<float>(self->second),
+            owner == g().entityOf.end() ? 0.0f : static_cast<float>(owner->second),
+            static_cast<float>(contact.mPosition.GetX()), static_cast<float>(contact.mPosition.GetY()), static_cast<float>(contact.mPosition.GetZ()),
+            contact.mContactNormal.GetX(), contact.mContactNormal.GetY(), contact.mContactNormal.GetZ(),
+            std::max(closing, 0.0f), both > 0.0f ? 1.0f / both : std::numeric_limits<float>::infinity(),
+        });
+    }
+    touching.swap(now);
+}
+
 EMSCRIPTEN_KEEPALIVE
 void physics3d_moveCharacter(uint32_t characterId, float vx, float vy, float vz,
                              float dt, float stepUp, float stepDown) {
@@ -738,6 +779,8 @@ void physics3d_moveCharacter(uint32_t characterId, float vx, float vy, float vz,
                              g().system->GetDefaultBroadPhaseLayerFilter(objectLayer),
                              g().system->GetDefaultLayerFilter(objectLayer),
                              {}, {}, *g().temp);
+
+    noteCharacterMeetings(characterId, character, Vec3(vx, vertical, vz));
 
     const RVec3 position = character.GetPosition();
     const Vec3 normal = character.GetGroundNormal();
@@ -976,6 +1019,48 @@ int physics3d_raycast(float ox, float oy, float oz, float dx, float dy, float dz
     return 1;
 }
 
+EMSCRIPTEN_KEEPALIVE
+int physics3d_raycastAll(float ox, float oy, float oz, float dx, float dy, float dz, uint32_t layerMask, uint32_t maxHits) {
+    g().queryBuffer.clear();
+    if (!g().isValid() || maxHits == 0) return 0;
+    const Vec3 direction(dx, dy, dz);
+    if (!(direction.LengthSq() > 0.0f)) return 0;
+    const MaskLayerFilter filter(layerMask);
+    const RayCastSettings settings;
+    // Where the line goes into each body, from its start; and where it comes out, by going in from its end.
+    AllHitCollisionCollector<CastRayCollector> forward, backward;
+    g().system->GetNarrowPhaseQuery().CastRay(RRayCast{RVec3(ox, oy, oz), direction}, settings, forward, {}, filter);
+    g().system->GetNarrowPhaseQuery().CastRay(RRayCast{RVec3(ox, oy, oz) + direction, -direction}, settings, backward, {}, filter);
+    struct Crossing { BodyID body; SubShapeID part; float entry; float exit; };
+    std::vector<Crossing> crossings;
+    for (const RayCastResult& hit : forward.mHits) {
+        auto same = std::find_if(crossings.begin(), crossings.end(), [&](const Crossing& c) { return c.body == hit.mBodyID; });
+        if (same == crossings.end()) crossings.push_back({hit.mBodyID, hit.mSubShapeID2, hit.mFraction, 1.0f});
+        else if (hit.mFraction < same->entry) { same->entry = hit.mFraction; same->part = hit.mSubShapeID2; }
+    }
+    for (Crossing& c : crossings) {
+        float exit = 1.0f;
+        for (const RayCastResult& hit : backward.mHits) if (hit.mBodyID == c.body) exit = std::min(exit, 1.0f - hit.mFraction);
+        // A body the line ends inside is met by the backward line at once: it comes out nowhere short of the end.
+        c.exit = std::max(exit, c.entry);
+    }
+    std::sort(crossings.begin(), crossings.end(), [](const Crossing& a, const Crossing& b) { return a.entry < b.entry; });
+    if (crossings.size() > maxHits) crossings.resize(maxHits);
+    for (const Crossing& c : crossings) {
+        const RVec3 point = RVec3(ox, oy, oz) + Vec3(direction * c.entry);
+        Vec3 normal = Vec3::sZero();
+        const BodyLockRead lock(g().system->GetBodyLockInterface(), c.body);
+        if (lock.Succeeded()) normal = lock.GetBody().GetWorldSpaceSurfaceNormal(c.part, point);
+        auto owner = g().entityOf.find(c.body.GetIndexAndSequenceNumber());
+        g().queryBuffer.insert(g().queryBuffer.end(), {
+            owner == g().entityOf.end() ? 0.0f : static_cast<float>(owner->second), c.entry, c.exit,
+            static_cast<float>(point.GetX()), static_cast<float>(point.GetY()), static_cast<float>(point.GetZ()),
+            normal.GetX(), normal.GetY(), normal.GetZ(),
+        });
+    }
+    return static_cast<int>(crossings.size());
+}
+
 /**
  * @brief The world's nearest hit, or a character's when one is nearer and `flags` bit 0 asks for them.
  * @details A CharacterVirtual is not a body, so the narrow phase cannot meet it; each capsule is cast against in its
@@ -1028,6 +1113,16 @@ uintptr_t physics3d_transforms() {
 EMSCRIPTEN_KEEPALIVE
 size_t physics3d_transformsBytes() {
     return g().transformBuffer.size() * sizeof(float);
+}
+
+EMSCRIPTEN_KEEPALIVE
+uintptr_t physics3d_characterHits() {
+    return reinterpret_cast<uintptr_t>(g().characterHitBuffer.data());
+}
+
+EMSCRIPTEN_KEEPALIVE
+size_t physics3d_characterHitsBytes() {
+    return g().characterHitBuffer.size() * sizeof(float);
 }
 
 EMSCRIPTEN_KEEPALIVE

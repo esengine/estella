@@ -421,6 +421,17 @@ void physics3d_setDistanceJoint(uint32_t entity, float minLength, float maxLengt
 }
 
 EMSCRIPTEN_KEEPALIVE
+int physics3d_jointForce(uint32_t entity) {
+    g().queryBuffer.clear();
+    auto found = g().joints.find(entity);
+    if (found == g().joints.end()) return 0;
+    PxVec3 linear(0.0f), angular(0.0f);
+    found->second.joint->getConstraint()->getForce(linear, angular);
+    g().queryBuffer = {linear.magnitude(), angular.magnitude()};
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE
 float physics3d_jointValue(uint32_t entity) {
     auto found = g().joints.find(entity);
     if (found == g().joints.end()) return 0.0f;

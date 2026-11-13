@@ -25,6 +25,23 @@ export interface Cast3DHit {
 }
 
 /** One body an overlap test found, and a point where it touches. */
+/** One body on a line: where the line goes into it and comes out, as fractions of the line, and how far that is. */
+export interface RaycastAll3DHit {
+    entity: Entity;
+    /** Where the line goes in, 0 at its start and 1 at its end. */
+    fraction: number;
+    /** Where it comes out; 1 where the line ends inside it. */
+    exitFraction: number;
+    /** How much of it the line crosses, in world units: what a shot through it has to go through. */
+    thickness: number;
+    x: number;
+    y: number;
+    z: number;
+    normalX: number;
+    normalY: number;
+    normalZ: number;
+}
+
 export interface Overlap3DHit {
     entity: Entity;
     x: number;
@@ -264,6 +281,32 @@ export class Physics3DQueries {
             origin.x / p, origin.y / p, origin.z / p, radius / p,
             direction.x / p, direction.y / p, direction.z / p, layerMask);
         return hit ? this.readCast_() : null;
+    }
+
+    /**
+     * Every body on a line, nearest first, at most `maxHits`: each with where the line goes in and comes out and how much
+     * of it the line crosses. A shot that passes through thin cover asks this, and spends its strength on each in turn.
+     * Characters are not met, as `raycast` does not meet them; a character with `Hitboxes` is met by its bones.
+     */
+    raycastAll(origin: { x: number; y: number; z: number }, direction: { x: number; y: number; z: number },
+               layerMask = 0, maxHits = 16): RaycastAll3DHit[] {
+        if (!this.module_._physics3d_raycastAll) return [];
+        const p = this.ppu_;
+        const count = this.module_._physics3d_raycastAll(origin.x / p, origin.y / p, origin.z / p,
+            direction.x / p, direction.y / p, direction.z / p, layerMask, Math.max(0, Math.floor(maxHits)));
+        const f32 = this.module_.HEAPF32, base = this.module_._physics3d_queryResult() >> 2;
+        const length = Math.hypot(direction.x, direction.y, direction.z);
+        const out: RaycastAll3DHit[] = [];
+        for (let i = 0; i < count; i++) {
+            const o = base + i * 9;
+            out.push({
+                entity: f32[o] as Entity, fraction: f32[o + 1]!, exitFraction: f32[o + 2]!,
+                thickness: (f32[o + 2]! - f32[o + 1]!) * length,
+                x: f32[o + 3]! * p, y: f32[o + 4]! * p, z: f32[o + 5]! * p,
+                normalX: f32[o + 6]!, normalY: f32[o + 7]!, normalZ: f32[o + 8]!,
+            });
+        }
+        return out;
     }
 
     /**

@@ -416,7 +416,7 @@ export function ragdollPlan(world: World, entity: Entity, data: RagdollData): Ra
                 const h = limb.hinge;
                 return { limb, joint: { kind: 'sixDOF' as const, data: {
                     connectedEntity: limb.connected, anchor: none, axis: h.axis, normalAxis: h.normalAxis,
-                    enableMotor: false, angularVelocity: none, maxMotorTorque: 10, collideConnected: false, enabled: true,
+                    enableMotor: false, angularVelocity: none, maxMotorTorque: 10, collideConnected: false, enabled: true, breakForce: 0, breakTorque: 0,
                     translationMotion: none, rotationMotion: { x: JointMotion3D.Limited, y: JointMotion3D.Locked, z: JointMotion3D.Locked },
                     translationLower: none, translationUpper: none,
                     rotationLower: { x: -h.upper, y: 0, z: 0 }, rotationUpper: { x: -h.lower, y: 0, z: 0 },
@@ -426,7 +426,7 @@ export function ragdollPlan(world: World, entity: Entity, data: RagdollData): Ra
             const swing = rad(limb.swingDeg ?? data.swing * limb.swing), twist = rad(limb.twistDeg ?? data.twist * limb.twist);
             return { limb, joint: { kind: 'swingTwist' as const, data: {
                 connectedEntity: limb.connected, anchor: none, axis: limb.axis, normalAxis: limb.normalAxis,
-                enableMotor: false, angularVelocity: none, maxMotorTorque: 10, collideConnected: false, enabled: true,
+                enableMotor: false, angularVelocity: none, maxMotorTorque: 10, collideConnected: false, enabled: true, breakForce: 0, breakTorque: 0,
                 normalHalfConeAngle: swing, planeHalfConeAngle: swing, twistMinAngle: -twist, twistMaxAngle: twist,
             } } };
         }),

@@ -17,6 +17,7 @@
 #include "../physics3d/Physics3DBindings.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <cmath>
 
 using namespace physx;
@@ -97,7 +98,14 @@ public:
     float bestUp = -2.0f;
     PxVec3 bestNormal{0.0f};
 
+    /** What this move ran into, the first touch of each: the actor, where, and its normal toward the character. */
+    struct Met { const PxRigidActor* actor; PxVec3 at; PxVec3 normal; };
+    std::vector<Met> met;
+
     void onShapeHit(const PxControllerShapeHit& hit) override {
+        if (hit.actor != nullptr && std::none_of(met.begin(), met.end(), [&](const Met& m) { return m.actor == hit.actor; })) {
+            met.push_back({hit.actor, PxVec3(static_cast<float>(hit.worldPos.x), static_cast<float>(hit.worldPos.y), static_cast<float>(hit.worldPos.z)), hit.worldNormal});
+        }
         const float up = hit.worldNormal.y;
         if (up > bestUp) { bestUp = up; bestNormal = hit.worldNormal; }
         if (moving == nullptr || !(moving->pushForce > 0.0f) || hit.actor == nullptr) return;
@@ -124,6 +132,31 @@ public:
 };
 
 HitReport& hitReport() { static HitReport r; return r; }
+
+/// What a character ran into on this move that it was not already touching: told once, with how fast it closed and the
+/// mass it met with, as a contact between bodies is - and as the Jolt world tells it.
+void noteCharacterMeetings(Character& c, const std::vector<HitReport::Met>& met, const PxVec3& velocity) {
+    if (g().characterHitsStale) { g().characterHitBuffer.clear(); g().characterHitsStale = false; }
+    std::vector<const PxRigidActor*> now;
+    const float own = c.mass > 0.0f ? 1.0f / c.mass : 0.0f;
+    for (const HitReport::Met& m : met) {
+        now.push_back(m.actor);
+        if (std::find(c.touching.begin(), c.touching.end(), m.actor) != c.touching.end()) continue;
+        float other = 0.0f;
+        PxVec3 moving(0.0f);
+        if (const PxRigidDynamic* d = m.actor->is<PxRigidDynamic>()) {
+            if (!(d->getRigidBodyFlags() & PxRigidBodyFlag::eKINEMATIC)) { other = d->getInvMass(); moving = d->getLinearVelocity(); }
+        }
+        const float both = own + other;
+        const float closing = -(velocity - moving).dot(m.normal);
+        g().characterHitBuffer.insert(g().characterHitBuffer.end(), {
+            static_cast<float>(c.entity), static_cast<float>(px3::entityOf(m.actor)),
+            m.at.x, m.at.y, m.at.z, m.normal.x, m.normal.y, m.normal.z,
+            std::max(closing, 0.0f), both > 0.0f ? 1.0f / both : std::numeric_limits<float>::infinity(),
+        });
+    }
+    c.touching.swap(now);
+}
 
 /// Only bodies that move, in the character's layers, and never itself.
 class MovableFilter final : public PxQueryFilterCallback {
@@ -228,7 +261,6 @@ EMSCRIPTEN_KEEPALIVE
 uint32_t physics3d_addCharacter(uint32_t entity, float radius, float halfHeight,
                                 float px, float py, float pz, float maxSlope, float mass,
                                 uint32_t layer, float pushForce) {
-    (void)mass;
     if (!g().isValid() || g().controllers == nullptr || !(radius > 0.0f)) return 0;
     PxCapsuleControllerDesc desc;
     desc.radius = radius;
@@ -252,6 +284,7 @@ uint32_t physics3d_addCharacter(uint32_t entity, float radius, float halfHeight,
     character->entity = entity;
     character->layer = layer;
     character->pushForce = pushForce;
+    character->mass = mass > 0.0f ? mass : 70.0f;
     character->body = std::make_unique<Body>();
     character->body->entity = entity;
     character->body->layer = layer;
@@ -305,6 +338,7 @@ void physics3d_moveCharacter(uint32_t characterId, float vx, float vy, float vz,
     report.dt = dt;
     report.bestUp = -2.0f;
     report.bestNormal = PxVec3(0.0f);
+    report.met.clear();
 
     const PxVec3 startedAt = toVec(controller.getPosition());
     PxControllerCollisionFlags flags = controller.move(PxVec3(vx, vertical, vz) * dt, 1.0e-4f, dt, filters);
@@ -321,6 +355,7 @@ void physics3d_moveCharacter(uint32_t characterId, float vx, float vy, float vz,
     // A ceiling ends a jump, as it does for Unity's CharacterController.
     if ((flags & PxControllerCollisionFlag::eCOLLISION_UP) && vertical > 0.0f) vertical = 0.0f;
     report.moving = nullptr;
+    noteCharacterMeetings(c, report.met, PxVec3(vx, vertical, vz));
 
     c.grounded = grounded;
     c.verticalSpeed = vertical;
@@ -407,6 +442,50 @@ static int sweepQuery(const PxGeometry& shape, const PxTransform& pose, float dx
     return 1;
 }
 }  // namespace
+
+EMSCRIPTEN_KEEPALIVE
+int physics3d_raycastAll(float ox, float oy, float oz, float dx, float dy, float dz, uint32_t layerMask, uint32_t maxHits) {
+    g().queryBuffer.clear();
+    if (!g().isValid() || maxHits == 0) return 0;
+    PxVec3 dir(dx, dy, dz);
+    const float length = dir.normalizeSafe();
+    if (!(length > 0.0f)) return 0;
+    const PxVec3 origin(ox, oy, oz);
+    // Where the line goes into each actor, from its start; and where it comes out, by going in from its end.
+    PxRaycastHit forwardHits[64], backwardHits[64];
+    PxRaycastBuffer forward(forwardHits, 64), backward(backwardHits, 64);
+    LayerFilter filter(layerMask, false, nullptr, true);
+    const PxHitFlags wanted = PxHitFlag::ePOSITION | PxHitFlag::eNORMAL;
+    g().scene->raycast(origin, dir, length, forward, wanted, queryData(true), &filter);
+    g().scene->raycast(origin + dir * length, -dir, length, backward, wanted, queryData(true), &filter);
+    struct Crossing { const PxRigidActor* actor; float entry; float exit; PxVec3 normal; };
+    std::vector<Crossing> crossings;
+    for (PxU32 i = 0; i < forward.getNbTouches(); ++i) {
+        const PxRaycastHit& hit = forward.getTouch(i);
+        const float f = hit.distance / length;
+        auto same = std::find_if(crossings.begin(), crossings.end(), [&](const Crossing& c) { return c.actor == hit.actor; });
+        if (same == crossings.end()) crossings.push_back({hit.actor, f, 1.0f, hit.normal});
+        else if (f < same->entry) { same->entry = f; same->normal = hit.normal; }
+    }
+    for (Crossing& c : crossings) {
+        float exit = 1.0f;
+        for (PxU32 i = 0; i < backward.getNbTouches(); ++i) {
+            const PxRaycastHit& hit = backward.getTouch(i);
+            if (hit.actor == c.actor) exit = std::min(exit, 1.0f - hit.distance / length);
+        }
+        c.exit = std::max(exit, c.entry);
+    }
+    std::sort(crossings.begin(), crossings.end(), [](const Crossing& a, const Crossing& b) { return a.entry < b.entry; });
+    if (crossings.size() > maxHits) crossings.resize(maxHits);
+    for (const Crossing& c : crossings) {
+        const PxVec3 point = origin + dir * (c.entry * length);
+        g().queryBuffer.insert(g().queryBuffer.end(), {
+            static_cast<float>(px3::entityOf(c.actor)), c.entry, c.exit, point.x, point.y, point.z,
+            c.normal.x, c.normal.y, c.normal.z,
+        });
+    }
+    return static_cast<int>(crossings.size());
+}
 
 EMSCRIPTEN_KEEPALIVE
 int physics3d_boxCast(float px, float py, float pz, float hx, float hy, float hz,

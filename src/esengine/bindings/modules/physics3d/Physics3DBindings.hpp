@@ -36,6 +36,11 @@ int physics3d_isReady();
 void physics3d_step(float dt, int collisionSteps);
 void physics3d_optimize();
 void physics3d_setLayerMask(uint32_t layer, uint32_t mask);
+/// Every body on a line, nearest first, at most maxHits of them: writes (entity, entry, exit, px,py,pz, nx,ny,nz) for
+/// each into the query buffer, where entry and exit are fractions of the line at which it goes into the body and out of
+/// it (1 where the line ends inside it), the point and normal where it goes in. Returns how many. What a shot that
+/// passes through thin cover needs: the second body, and how much of the first it crossed to get there.
+int physics3d_raycastAll(float ox, float oy, float oz, float dx, float dy, float dz, uint32_t layerMask, uint32_t maxHits);
 /// physics3d_raycast with flags: bit 0 also meets characters (a shot, which must hit an enemy that walks).
 /// Plain physics3d_raycast stays blind to them: line of sight and a camera's boom ask about the world.
 int physics3d_raycastWith(float ox, float oy, float oz, float dx, float dy, float dz,
@@ -159,6 +164,9 @@ uint32_t physics3d_addFixedJoint(uint32_t entity, uint32_t bodyA, uint32_t bodyB
                                  int collideConnected);
 void physics3d_removeJoint(uint32_t entity, uint32_t bodyA, uint32_t bodyB);
 void physics3d_setJointMotor(uint32_t entity, int enable, float speed);
+// What the joint held its two bodies together with over the last step: writes (force in newtons, torque in newton
+// metres) into the query buffer, its limits' share included and its motor's not. 1 for a joint, 0 for none.
+int physics3d_jointForce(uint32_t entity);
 // A hinge's angles (radians) or a slider's travel (metres) it may move between, or none (enable 0). A range is
 // measured from the pose the joint was made in and always holds it: one that does not reach 0 is widened to 0.
 void physics3d_setJointLimits(uint32_t entity, int enable, float lower, float upper);
@@ -205,6 +213,12 @@ size_t physics3d_contactEnterSpeedsBytes();
 // @heapreturn physics3d_contactEnterMassesBytes()
 uintptr_t physics3d_contactEnterMasses();
 size_t physics3d_contactEnterMassesBytes();
+// What characters ran into this step, each meeting once until they part: (character entity, other entity, px,py,pz,
+// nx,ny,nz with the normal toward the character, closing speed, meeting mass in kilograms) for each, the speed and mass
+// as a contact between bodies gives them. Read after the step; the next step's first move starts it again.
+// @heapreturn physics3d_characterHitsBytes()
+uintptr_t physics3d_characterHits();
+size_t physics3d_characterHitsBytes();
 // @heapreturn physics3d_contactExitsBytes()
 uintptr_t physics3d_contactExits();
 size_t physics3d_contactExitsBytes();

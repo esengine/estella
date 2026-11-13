@@ -123,6 +123,9 @@ struct Context {
     std::vector<float> transformBuffer;
     /// The last query's hits, in the shape its getter documents.
     std::vector<float> queryBuffer;
+    /** The length of the last solver step - a step's own, over its collision steps - which a constraint's impulse is
+     *  divided by to give the force it held with. */
+    float solverStep = 1.0f / 60.0f;
 
     /// Refilled every step by the contact listener. Enter carries the geometry
     /// (entityA, entityB, nx,ny,nz, px,py,pz); exit only the pair, because at
@@ -132,6 +135,9 @@ struct Context {
     std::vector<float> contactEnterSpeedBuffer;
     /** One meeting mass, in kilograms, for each contact in contactEnterBuffer. */
     std::vector<float> contactEnterMassBuffer;
+    /** What characters ran into, ten floats a meeting; read after the step, emptied by the next step's first move. */
+    std::vector<float> characterHitBuffer;
+    bool characterHitsStale = false;
     std::vector<float> contactExitBuffer;
     std::vector<float> sensorEnterBuffer;
     std::vector<float> sensorExitBuffer;
@@ -160,6 +166,8 @@ struct Context {
     std::unordered_map<uint32_t, std::unique_ptr<JPH::CharacterVirtual>> characters;
     /// A character is not a body, so its layer is not stored in one.
     std::unordered_map<uint32_t, uint32_t> characterLayers;
+    /** The bodies each character touched after its last move, so a meeting is told once, not every move it lasts. */
+    std::unordered_map<uint32_t, std::vector<uint32_t>> characterTouching;
     uint32_t nextCharacterId = 1;
     /// Characters are swept against the WORLD, and the world does not contain
     /// them: without this they walk through each other, which is the one pair of

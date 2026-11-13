@@ -74,6 +74,9 @@ struct Character {
     bool grounded = false;
     physx::PxVec3 groundNormal{0.0f, 1.0f, 0.0f};
     float pushForce = 0.0f;
+    float mass = 70.0f;
+    /** The actors it touched after its last move, so a meeting is told once, not every move it lasts. */
+    std::vector<const physx::PxRigidActor*> touching;
     std::unique_ptr<Body> body;  // the kinematic actor's record, so hits name the entity
 };
 
@@ -112,6 +115,9 @@ struct World {
     std::vector<float> contactEnterSpeedBuffer;
     /** One meeting mass, in kilograms, for each contact in contactEnterBuffer. */
     std::vector<float> contactEnterMassBuffer;
+    /** What characters ran into, ten floats a meeting; read after the step, emptied by the next step's first move. */
+    std::vector<float> characterHitBuffer;
+    bool characterHitsStale = false;
     std::vector<float> contactExitBuffer;
     std::vector<float> sensorEnterBuffer;
     std::vector<float> sensorExitBuffer;

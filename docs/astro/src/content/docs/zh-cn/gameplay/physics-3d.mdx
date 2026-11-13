@@ -369,6 +369,31 @@ const hitSparks = defineSystem(
   玩法的规则，跟着这一刀走——地板也是碰撞体，而一个实体能不能被打，是 `Health` 说了算。
 </Aside>
 
+## 分辨角色的部位
+
+角色的胶囊是一个整体，射中它时分不出打中的是头还是靴子。给角色加上 `Hitboxes`，每根足够长的
+骨骼都会得到一个沿骨骼的盒子，大小与布娃娃给它的一致：它是一个运动学刚体，世界会把它移到动画
+把骨骼放到的位置；它也是传感器，任何东西都不会撞上它或被它推开，包括它自己的角色。射线命中的就是
+那根骨骼，`hitPartOf` 会告诉你它属于谁、是哪一根。
+
+```typescript
+world.insert(soldier, Hitboxes, { layer: HITBOXES });
+// 射击时：
+const hit = physics.raycast(muzzle, aim, WORLD | HITBOXES_MASK);
+const part = hit && hitPartOf(world, hit.entity);   // { character, bone: 'head' }
+const damage = part?.bone.toLowerCase().includes('head') ? 100 : 34;
+```
+
+| 属性 | 默认 | 说明 |
+|---|---|---|
+| `skin` | `0` | 要挂盒子的蒙皮网格；0 表示在本实体或其下找第一个。 |
+| `thickness` | `0.25` | 盒子的粗细，占骨骼长度的比例。 |
+| `minBoneLength` | `5` | 短于此长度（世界单位）的骨骼不单独挂盒子，挂在它下面的归父骨骼。 |
+| `layer` | `0` | 盒子所在的碰撞层，射击时可以专门查它们，视线检测时可以排除它们。 |
+
+角色的 `Ragdoll` 瘫软时，骨骼会变成各自独立的刚体，射线一样能命中；这时盒子让位，角色站起来后
+再装回去。打中头和打中手各值多少伤害由游戏决定，引擎只负责告诉你打中的是哪个部位。
+
 ## 关节
 
 门、绳桥、升降台、布娃娃:它们都不是「一个刚体加一个形状」,
@@ -403,7 +428,9 @@ cmds.spawn()
 `motorSpeed` 随时可以由游戏逻辑改写——变了就会重新驱动世界。铰链和滑轨的 `enableLimit`、
 `lowerAngle`/`upperAngle` 或 `lowerTranslation`/`upperTranslation`、`maxMotorTorque`/`maxMotorForce`,
 以及距离关节的 `minLength`、`maxLength`、`frequency`、`damping` 也一样:收窄门的范围就能把门锁住,
-运行中缩短绳子会把挂着的东西拉上来。范围总是包含关节建立时的姿态:不含 0 的范围(如 `lowerAngle: 0.2`)
+运行中缩短绳子会把挂着的东西拉上来。每种关节还有 `breakForce`(N)和 `breakTorque`(N·m):某一步承受的力或扭矩超过它,
+关节就会从世界中移除,`enabled` 置为 false,并在 `Physics3DEvents.jointBreaks` 里报告。用带 `breakForce` 的
+`FixedJoint3D` 挂起的吊灯,被子弹或爆炸拉得超过挂点承受力时就会掉下来;重新打开 `enabled`,两者会在当时的位置重新连上。范围总是包含关节建立时的姿态:不含 0 的范围(如 `lowerAngle: 0.2`)
 会扩展到 0,铰链的范围在两个求解器里都不超过正反各半圈。反方向上,
 `HingeJoint3D.angle` 与 `SliderJoint3D.translation` 每步写回,
 所以游戏可以直接问「门开了多少」,不必自己再积分一遍。
@@ -442,6 +469,7 @@ const occupants = q.overlapSphere(spawnPoint, 50);
 | 查询 | 回答 |
 |---|---|
 | `raycast(origin, direction, layerMask?)` | 一条线上最近的刚体,形如 `{ entity, fraction, x, y, z, normalX, normalY, normalZ }`,没有则为 `null`。`direction` 自带射线长度。 |
+| `raycastAll(origin, direction, layerMask?, maxHits?)` | 射线上的每个刚体,由近到远,每个带 `fraction` 和 `exitFraction`(射入与射出的位置)以及 `thickness`(射线穿过它的长度,世界单位):穿透薄掩体的子弹依次在每个上消耗威力。 |
 | `sphereCast(origin, radius, direction, layerMask?)` | 一个运动的球最先撞上的刚体,形状同上,没有则为 `null`。 |
 | `boxCast(origin, halfExtents, direction, layerMask?, rotation?)` | 盒子的同样查询,可用 `rotation` 旋转:箱子能不能穿过门。 |
 | `capsuleCast(origin, radius, halfHeight, direction, layerMask?, rotation?)` | 胶囊的同样查询,胶囊沿自身 y 轴竖立,和角色一样;`halfHeight` 是中间直段的一半。 |
@@ -528,6 +556,8 @@ for (const { sensorEntity, visitorEntity } of events.sensorEnters) {
 |---|---|
 | `contactEnters` | 两个实体、接触法线和接触点,接触点与 `Transform` 同单位;以及 `speed`:接触时第一个物体沿法线靠近第二个物体的速度,同单位每秒,在求解器处理之前读取(从一米高落下的球约以 4.4 m/s 着地);`mass`:两者相撞时的有效质量(千克),1 / (1/a + 1/b),不动的物体视为逆质量为 0,所以石头落在地上时就是石头自己的质量;`impulse`:`speed` 乘 `mass`,即撞击力度。 |
 | `contactExits` | 只有这一对——原因见下。 |
+| `characterHits` | 角色撞上的、之前没在接触的东西,每次相遇报一次:`character`、`other`、接触点、指向角色的法线、`speed`、`mass`(对不动的物体就是角色自身质量)和 `impulse`,与刚体接触的含义相同。角色撞上的 `Breakable` 会以这个冲量受击,所以扑窗会撞碎玻璃,靠在玻璃上不会。 |
+| `jointBreaks` | 这一步断开的关节:`entity`、`force`(N)和 `torque`(N·m)。 |
 | `sensorEnters` / `sensorExits` | **传感器在前**,然后是访客。 |
 
 <Aside>

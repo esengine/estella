@@ -984,6 +984,63 @@ check('the world\'s gravity can be changed', near(fall, -1, 0.02), `vy=${fall.to
     check('a rope shortened while it hangs pulls up what hangs on it', near(long, 3, 0.05) && near(short, 1, 0.05), `${long.toFixed(3)} then ${short.toFixed(3)}`);
 }
 
+// ── A shot through cover, a rope that gives way, a character that runs into things ──
+{
+    const rows = (count, stride) => Array.from({ length: count }, (_, i) => Array.from(m.HEAPF32.subarray((m._physics3d_queryResult() >> 2) + i * stride, (m._physics3d_queryResult() >> 2) + (i + 1) * stride)));
+    // Along y 100: a wall 0.2 m thick at x 10, a 1 m box at x 12, and a bone-sized sensor at x 15 that nothing collides with.
+    m._physics3d_addBox(9800, 0.1, 1, 1, 10, 100, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0);
+    m._physics3d_addBox(9801, 0.5, 0.5, 0.5, 12, 100, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0);
+    m._physics3d_addBox(9802, 0.25, 0.25, 0.25, 15, 100, 0, ...IDENTITY, ...FREE(KINEMATIC), 0.5, 0, 1);
+    m._physics3d_optimize();
+    const crossed = rows(m._physics3d_raycastAll(0, 100, 0, 20, 0, 0, 0, 16), 9);
+    const want = [[9800, 9.9 / 20, 10.1 / 20], [9801, 11.5 / 20, 12.5 / 20], [9802, 14.75 / 20, 15.25 / 20]];
+    check('a line names every body it crosses, nearest first, with where it goes in and out',
+          crossed.length === 3 && crossed.every((h, i) => h[0] === want[i][0] && near(h[1], want[i][1], 2e-4) && near(h[2], want[i][2], 2e-4)),
+          JSON.stringify(crossed.map((h) => h.slice(0, 3).map((v) => +v.toFixed(4)))));
+    check('so a shot knows the wall it went through was 0.2 m', crossed[0] && near((crossed[0][2] - crossed[0][1]) * 20, 0.2, 0.005), `${crossed[0] && ((crossed[0][2] - crossed[0][1]) * 20).toFixed(4)} m`);
+    const ending = rows(m._physics3d_raycastAll(0, 100, 0, 12, 0, 0, 0, 16), 9);
+    check('a line that ends inside a body comes out of it at its end', ending.length === 2 && near(ending[1][2], 1, 1e-4), JSON.stringify(ending.map((h) => h.slice(0, 3))));
+    check('and the nearest is kept to as many as asked', m._physics3d_raycastAll(0, 100, 0, 20, 0, 0, 0, 1) === 1);
+    const sensed = m._physics3d_raycast(14, 100, 0, 2, 0, 0, 0) ? m.HEAPF32[m._physics3d_queryResult() >> 2] : null;
+    check('a ray meets a sensor, as a shot must meet a bone', sensed === 9802, `entity=${sensed}`);
+
+    // A 2 kg ball hanging still on a rope: the rope holds it with its weight.
+    const hook = m._physics3d_addBox(9810, 0.1, 0.1, 0.1, 9100, 50, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0);
+    const weight = m._physics3d_addSphere(9811, 0.2, 9100, 49, 0, ...IDENTITY, ...FREE(DYNAMIC), 0.5, 0, 0);
+    m._physics3d_setMass(weight, 2);
+    m._physics3d_addDistanceJoint(9812, hook, weight, 9100, 50, 0, 9100, 49, 0, 0, 1, 0, 0, 0);
+    step(240);
+    const held = m._physics3d_jointForce(9812) ? rows(1, 2)[0] : null;
+    check('a joint says the force it holds with', held && near(held[0], 2 * 9.81, 0.4) && near(held[1], 0, 0.05), `${held?.map((v) => v.toFixed(3))} want 19.62 N, 0`);
+    check('and a joint that is not there says nothing', m._physics3d_jointForce(99999) === 0);
+
+    // A character dropped onto a floor, then walked into a 30 kg crate.
+    m._physics3d_addBox(9820, 5, 0.5, 5, 9200, -0.5, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0);
+    const crate = m._physics3d_addBox(9821, 0.4, 0.4, 0.4, 9202, 0.4, 0, ...IDENTITY, ...FREE(DYNAMIC), 0.5, 0, 0);
+    m._physics3d_setMass(crate, 30);
+    m._physics3d_optimize();
+    const runner = m._physics3d_addCharacter(9822, 0.3, 0.6, 9200, 3, 0, 0.87, 70, 0, 0);
+    const met = [];
+    const frame = (vx) => {
+        m._physics3d_moveCharacter(runner, vx, 0, 0, 1 / 60, 0.3, 0.3);
+        step(1);
+        const base = m._physics3d_characterHits() >> 2;
+        for (let i = 0; i < m._physics3d_characterHitsBytes() / 4; i += 10) met.push(Array.from(m.HEAPF32.subarray(base + i, base + i + 10)));
+    };
+    for (let i = 0; i < 90; i++) frame(0);
+    const landed = met.filter((h) => h[0] === 9822 && h[1] === 9820);
+    // From 3 m with its foot 0.9 below its middle: a 2.1 m fall, sqrt(2 g h) = 6.42 m/s, met with its own 70 kg.
+    check('a character landing says so once, how fast and with its own mass', landed.length === 1 && near(landed[0][8], Math.sqrt(2 * 9.81 * 2.1), 0.35) && near(landed[0][9], 70, 1e-3),
+          JSON.stringify(landed.map((h) => [h[8].toFixed(3), h[9]])));
+    check('and its normal points up at it', landed[0] && near(landed[0][6], 1, 0.05));
+    for (let i = 0; i < 60; i++) frame(3);
+    const shoved = met.filter((h) => h[0] === 9822 && h[1] === 9821);
+    // 70 kg against 30: 1 / (1/70 + 1/30) = 21 kg, at the 3 m/s it walked.
+    check('a character walking into a crate meets it with both their masses', shoved.length >= 1 && near(shoved[0][9], 21, 0.01) && near(shoved[0][8], 3, 0.3),
+          JSON.stringify(shoved.map((h) => [h[8].toFixed(3), h[9].toFixed(3)])));
+    m._physics3d_removeCharacter(runner);
+}
+
 m._physics3d_shutdown();
 check('the world reports itself gone', m._physics3d_isReady() === 0);
 

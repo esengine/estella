@@ -1711,6 +1711,16 @@
           "key": "enabled",
           "type": "boolean",
           "default": "true"
+        },
+        {
+          "key": "breakForce",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "breakTorque",
+          "type": "number",
+          "default": "0"
         }
       ],
       "animatable": [
@@ -1724,7 +1734,9 @@
         "minLength",
         "maxLength",
         "frequency",
-        "damping"
+        "damping",
+        "breakForce",
+        "breakTorque"
       ]
     },
     {
@@ -2286,10 +2298,22 @@
           "key": "enabled",
           "type": "boolean",
           "default": "true"
+        },
+        {
+          "key": "breakForce",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "breakTorque",
+          "type": "number",
+          "default": "0"
         }
       ],
       "animatable": [
-        "connectedEntity"
+        "connectedEntity",
+        "breakForce",
+        "breakTorque"
       ]
     },
     {
@@ -3464,6 +3488,16 @@
           "default": "true"
         },
         {
+          "key": "breakForce",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "breakTorque",
+          "type": "number",
+          "default": "0"
+        },
+        {
           "key": "angle",
           "type": "number",
           "default": "0"
@@ -3481,7 +3515,52 @@
         "upperAngle",
         "motorSpeed",
         "maxMotorTorque",
+        "breakForce",
+        "breakTorque",
         "angle"
+      ]
+    },
+    {
+      "name": "Hitboxes",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "skin",
+          "type": "Entity",
+          "default": "none"
+        },
+        {
+          "key": "thickness",
+          "type": "number",
+          "default": "0.25",
+          "doc": "A box's thickness as a fraction of its bone's length.",
+          "range": "0.01–2"
+        },
+        {
+          "key": "minBoneLength",
+          "type": "number",
+          "default": "5",
+          "doc": "A bone shorter than this gets no box of its own, in world units.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "layer",
+          "type": "number",
+          "default": "0",
+          "doc": "The collision layer the boxes are in, for a shot to ask for.",
+          "range": "0–15, step 1"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "skin",
+        "thickness",
+        "minBoneLength",
+        "layer"
       ]
     },
     {
@@ -6051,13 +6130,25 @@
           "key": "enabled",
           "type": "boolean",
           "default": "true"
+        },
+        {
+          "key": "breakForce",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "breakTorque",
+          "type": "number",
+          "default": "0"
         }
       ],
       "animatable": [
         "connectedEntity",
         "anchor.x",
         "anchor.y",
-        "anchor.z"
+        "anchor.z",
+        "breakForce",
+        "breakTorque"
       ]
     },
     {
@@ -6998,6 +7089,20 @@
           "default": "true"
         },
         {
+          "key": "breakForce",
+          "type": "number",
+          "default": "0",
+          "doc": "Newtons it gives way at; 0 never.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "breakTorque",
+          "type": "number",
+          "default": "0",
+          "doc": "Newton metres of twist it gives way at; 0 never.",
+          "range": "≥ 0"
+        },
+        {
           "key": "translationMotion",
           "type": "Vec3",
           "default": "(0, 0, 0)",
@@ -7058,6 +7163,8 @@
         "angularVelocity.y",
         "angularVelocity.z",
         "maxMotorTorque",
+        "breakForce",
+        "breakTorque",
         "translationMotion.x",
         "translationMotion.y",
         "translationMotion.z",
@@ -7242,6 +7349,16 @@
           "default": "true"
         },
         {
+          "key": "breakForce",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "breakTorque",
+          "type": "number",
+          "default": "0"
+        },
+        {
           "key": "translation",
           "type": "number",
           "default": "0"
@@ -7259,6 +7376,8 @@
         "upperTranslation",
         "motorSpeed",
         "maxMotorForce",
+        "breakForce",
+        "breakTorque",
         "translation"
       ]
     },
@@ -8000,6 +8119,20 @@
           "default": "true"
         },
         {
+          "key": "breakForce",
+          "type": "number",
+          "default": "0",
+          "doc": "Newtons it gives way at; 0 never.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "breakTorque",
+          "type": "number",
+          "default": "0",
+          "doc": "Newton metres of twist it gives way at; 0 never.",
+          "range": "≥ 0"
+        },
+        {
           "key": "normalHalfConeAngle",
           "type": "number",
           "default": "0.7854",
@@ -8039,6 +8172,8 @@
         "angularVelocity.y",
         "angularVelocity.z",
         "maxMotorTorque",
+        "breakForce",
+        "breakTorque",
         "normalHalfConeAngle",
         "planeHalfConeAngle",
         "twistMinAngle",

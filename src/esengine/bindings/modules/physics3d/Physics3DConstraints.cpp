@@ -488,6 +488,61 @@ void physics3d_setDistanceJoint(uint32_t entity, float minLength, float maxLengt
     wakeEnds(it->second.GetPtr());
 }
 
+EMSCRIPTEN_KEEPALIVE
+int physics3d_jointForce(uint32_t entity) {
+    g().queryBuffer.clear();
+    const auto it = g().constraints.find(entity);
+    if (it == g().constraints.end()) return 0;
+    Constraint* constraint = it->second.GetPtr();
+    // Jolt keeps what each part of a constraint applied over the step as an impulse; over the step's length it is the
+    // force the part held with.
+    float linear = 0.0f, angular = 0.0f;
+    switch (constraint->GetSubType()) {
+        case EConstraintSubType::Point:
+            linear = static_cast<PointConstraint*>(constraint)->GetTotalLambdaPosition().Length();
+            break;
+        case EConstraintSubType::Hinge: {
+            auto* c = static_cast<HingeConstraint*>(constraint);
+            const Vector<2> r = c->GetTotalLambdaRotation();
+            linear = c->GetTotalLambdaPosition().Length();
+            angular = std::sqrt(r[0] * r[0] + r[1] * r[1]) + std::abs(c->GetTotalLambdaRotationLimits());
+            break;
+        }
+        case EConstraintSubType::Slider: {
+            auto* c = static_cast<SliderConstraint*>(constraint);
+            const Vector<2> p = c->GetTotalLambdaPosition();
+            linear = std::sqrt(p[0] * p[0] + p[1] * p[1]) + std::abs(c->GetTotalLambdaPositionLimits());
+            angular = c->GetTotalLambdaRotation().Length();
+            break;
+        }
+        case EConstraintSubType::Distance:
+            linear = std::abs(static_cast<DistanceConstraint*>(constraint)->GetTotalLambdaPosition());
+            break;
+        case EConstraintSubType::Fixed: {
+            auto* c = static_cast<FixedConstraint*>(constraint);
+            linear = c->GetTotalLambdaPosition().Length();
+            angular = c->GetTotalLambdaRotation().Length();
+            break;
+        }
+        case EConstraintSubType::SwingTwist: {
+            auto* c = static_cast<SwingTwistConstraint*>(constraint);
+            linear = c->GetTotalLambdaPosition().Length();
+            angular = Vec3(c->GetTotalLambdaTwist(), c->GetTotalLambdaSwingY(), c->GetTotalLambdaSwingZ()).Length();
+            break;
+        }
+        case EConstraintSubType::SixDOF: {
+            auto* c = static_cast<SixDOFConstraint*>(constraint);
+            linear = c->GetTotalLambdaPosition().Length();
+            angular = c->GetTotalLambdaRotation().Length();
+            break;
+        }
+        default: break;
+    }
+    const float step = g().solverStep > 0.0f ? g().solverStep : 1.0f / 60.0f;
+    g().queryBuffer = {linear / step, angular / step};
+    return 1;
+}
+
 /// What the joint is at right now — a hinge's angle, a slider's travel — so a
 /// game can watch a door swing without integrating it a second time.
 EMSCRIPTEN_KEEPALIVE

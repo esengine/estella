@@ -137,6 +137,13 @@ export interface Physics3DWasmModule {
                              collideConnected: number): number;
     _physics3d_removeJoint(entity: number, bodyA: number, bodyB: number): void;
     _physics3d_setJointMotor(entity: number, enable: number, speed: number): void;
+    /** Optional for older binaries: (force N, torque N m) the joint held with over the last step, to the query buffer. */
+    _physics3d_jointForce?(entity: number): number;
+    /** Optional for older binaries: every body on a line, (entity, entry, exit, point, normal) each, nearest first. */
+    _physics3d_raycastAll?(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, layerMask: number, maxHits: number): number;
+    /** Optional for older binaries: what characters ran into this step, ten floats a meeting. */
+    _physics3d_characterHits?(): number;
+    _physics3d_characterHitsBytes?(): number;
     /** Optional for older binaries: a live hinge's or slider's range, its motor's limit, a distance joint's shape. */
     _physics3d_setJointLimits?(entity: number, enable: number, lower: number, upper: number): void;
     _physics3d_setJointMotorLimit?(entity: number, limit: number): void;
@@ -255,6 +262,34 @@ export interface Contact3DEvent {
     impulse?: number;
 }
 
+/** A character ran into something it was not already touching, as a contact between bodies would say it. */
+export interface CharacterHit3DEvent {
+    character: Entity;
+    other: Entity;
+    pointX: number;
+    pointY: number;
+    pointZ: number;
+    /** Toward the character. */
+    normalX: number;
+    normalY: number;
+    normalZ: number;
+    /** How fast it closed on what it met, world units a second. */
+    speed: number;
+    /** The mass they met with, kilograms: the character's own against something that does not move. */
+    mass: number;
+    /** `speed` times `mass`, as a contact's: what a Breakable it ran into is struck with. */
+    impulse: number;
+}
+
+/** A joint gave way: which, and what it was holding when it did. */
+export interface JointBreak3DEvent {
+    entity: Entity;
+    /** Newtons. */
+    force: number;
+    /** Newton metres. */
+    torque: number;
+}
+
 /** A sensor was entered or left. The SENSOR is always named first. */
 export interface Sensor3DEvent {
     sensorEntity: Entity;
@@ -268,6 +303,10 @@ export interface Physics3DEventsData {
     contactExits: Array<{ entityA: Entity; entityB: Entity }>;
     sensorEnters: Sensor3DEvent[];
     sensorExits: Sensor3DEvent[];
+    /** What characters ran into this step; empty from a binary too old to say. */
+    characterHits?: CharacterHit3DEvent[];
+    /** Joints that gave way this step. */
+    jointBreaks?: JointBreak3DEvent[];
 }
 
 /**
@@ -322,6 +361,18 @@ export function drainPhysics3DEvents(module: Physics3DWasmModule,
             });
         }
     }
+    if (module._physics3d_characterHits && module._physics3d_characterHitsBytes) {
+        events.characterHits = read(module._physics3d_characterHits(), module._physics3d_characterHitsBytes(), 10, (o) => {
+            const speed = f32[o + 8]! * pixelsPerUnit, mass = f32[o + 9]!;
+            return {
+                character: f32[o] as Entity, other: f32[o + 1] as Entity,
+                pointX: f32[o + 2]! * pixelsPerUnit, pointY: f32[o + 3]! * pixelsPerUnit, pointZ: f32[o + 4]! * pixelsPerUnit,
+                normalX: f32[o + 5]!, normalY: f32[o + 6]!, normalZ: f32[o + 7]!,
+                speed, mass, impulse: speed > 0 ? speed * mass : 0,
+            };
+        });
+    }
+    events.jointBreaks = [];
     events.contactExits = read(
         module._physics3d_contactExits(), module._physics3d_contactExitsBytes(), 2,
         (o) => ({ entityA: f32[o] as Entity, entityB: f32[o + 1] as Entity }));

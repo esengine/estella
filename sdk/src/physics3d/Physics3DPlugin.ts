@@ -7,6 +7,7 @@
 import { reportContact, setBodyPusher } from '../breakable/breakable';
 import { AnimatorController } from '../animation/Animator';
 import { installPlanetGravity } from './planetGravity';
+import { installHitboxes } from './hitboxes';
 import { installRagdolls } from './ragdoll';
 import { Physics3DRuntime } from './physics3dRuntime';
 import type { App, Plugin } from '../app/app';
@@ -58,6 +59,8 @@ export class Physics3DPlugin implements Plugin {
         installPlanetGravity(app);
         // A character with a Ragdoll component can go limp; with none, the systems find nothing.
         installRagdolls(app);
+        // A character a shot can tell the parts of has a box on each bone; with none, the system finds nothing.
+        installHitboxes(app);
         app.subsystems?.transition?.('physics3d', 'initializing');
 
         const initPromise = loadPhysics3DModule(this.wasmUrl_, this.factory_).then((module) => {
@@ -92,6 +95,8 @@ export class Physics3DPlugin implements Plugin {
                               app.hasResource(CollisionGeometryRes) ? app.getResource(CollisionGeometryRes) : null);
                 // What met what, and how hard: told to whatever breaks, which knows nothing of the solver.
                 for (const c of events.contactEnters) if (c.impulse !== undefined) reportContact(c.entityA, c.entityB, c.impulse, { x: c.pointX, y: c.pointY, z: c.pointZ });
+                // A character that runs into a window strikes it as a body would: a dive through it, not a lean on it.
+                for (const h of events.characterHits ?? []) reportContact(h.character, h.other, h.impulse, { x: h.pointX, y: h.pointY, z: h.pointZ });
             }, { name: 'Physics3DStepSystem' }), { profileDomain: 'physics3d' });
             // Installed with the world, drawn only once a game turns the resource
             // on — a scene that never asks for it pays a resource and nothing else.

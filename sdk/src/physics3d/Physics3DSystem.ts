@@ -27,7 +27,7 @@ import {
 import { getMeshCollision } from '../asset/meshCollision';
 import { isImplicitStatic } from './implicitStatic';
 import { CompoundCollider3D, encodeCompoundParts } from './CompoundCollider3D';
-import { syncJoints3D, type Joint3DMap } from './Physics3DJoints';
+import { breakJoints3D, syncJoints3D, type Joint3DMap } from './Physics3DJoints';
 import type { Entity } from '../types';
 import type { Physics3DWasmModule, Physics3DEventsData } from './Physics3DModule';
 import { PHYSICS3D_TRANSFORM_STRIDE, drainPhysics3DEvents } from './Physics3DModule';
@@ -482,6 +482,8 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
     // Drained immediately after the step that produced them: the module's buffers
     // hold one step's worth and the next step clears them.
     if (events) drainPhysics3DEvents(module, events, ppu);
+    // What gave way under this step: read now, while the step's force is the one the joint is reporting.
+    breakJoints3D(app, module, joints, events?.jointBreaks);
 
     // Only bodies the solver moved are in the buffer, so this is the frame's
     // moving population rather than every body in the world.

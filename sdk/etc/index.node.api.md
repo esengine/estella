@@ -3693,6 +3693,8 @@ ComponentDef<DistanceJoint3DData>
 ## DistanceJoint3DData — interface @experimental
 ```
 anchor: Vec3
+breakForce: number
+breakTorque: number
 collideConnected: boolean
 connectedAnchor: Vec3
 connectedEntity: number
@@ -4525,6 +4527,8 @@ ComponentDef<FixedJoint3DData>
 
 ## FixedJoint3DData — interface @experimental
 ```
+breakForce: number
+breakTorque: number
 collideConnected: boolean
 connectedEntity: number
 enabled: boolean
@@ -5357,6 +5361,8 @@ ComponentDef<HingeJoint3DData>
 anchor: Vec3
 angle: number
 axis: Vec3
+breakForce: number
+breakTorque: number
 collideConnected: boolean
 connectedEntity: number
 enableLimit: boolean
@@ -8163,6 +8169,8 @@ ComponentDef<PointJoint3DData>
 ## PointJoint3DData — interface @experimental
 ```
 anchor: Vec3
+breakForce: number
+breakTorque: number
 collideConnected: boolean
 connectedEntity: number
 enabled: boolean
@@ -10243,6 +10251,8 @@ ComponentDef<SixDOFJoint3DData>
 anchor: Vec3
 angularVelocity: Vec3
 axis: Vec3
+breakForce: number
+breakTorque: number
 collideConnected: boolean
 connectedEntity: number
 enableMotor: boolean
@@ -10367,6 +10377,8 @@ ComponentDef<SliderJoint3DData>
 ```
 anchor: Vec3
 axis: Vec3
+breakForce: number
+breakTorque: number
 collideConnected: boolean
 connectedEntity: number
 enableLimit: boolean
@@ -11332,6 +11344,8 @@ ComponentDef<SwingTwistJoint3DData>
 anchor: Vec3
 angularVelocity: Vec3
 axis: Vec3
+breakForce: number
+breakTorque: number
 collideConnected: boolean
 connectedEntity: number
 enableMotor: boolean

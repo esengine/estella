@@ -32,6 +32,7 @@ export {
     Physics3DQueries,
     type Cast3DHit,
     type Overlap3DHit,
+    type RaycastAll3DHit,
 } from './Physics3DQueries';
 
 export {
@@ -70,6 +71,7 @@ export {
     type CharacterController3DData,
 } from './Physics3DComponents';
 export { CompoundCollider3D, type CompoundCollider3DData, type CompoundColliderPart3D } from './CompoundCollider3D';
+export { Hitboxes, hitPartOf, type HitboxesData } from './hitboxes';
 
 export {
     PointJoint3D,

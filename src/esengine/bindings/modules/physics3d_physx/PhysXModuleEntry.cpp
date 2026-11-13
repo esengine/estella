@@ -416,6 +416,8 @@ void physics3d_setSolver(int velocityIterations, int positionIterations, int all
 EMSCRIPTEN_KEEPALIVE
 void physics3d_step(float dt, int collisionSteps) {
     if (!g().isValid() || dt <= 0.0f) return;
+    // No character moved this step: what the last one met has been read, and is not told again.
+    if (g().characterHitsStale) g().characterHitBuffer.clear();
     g().contactEnterBuffer.clear();
     g().contactEnterSpeedBuffer.clear();
     g().contactEnterMassBuffer.clear();
@@ -446,6 +448,7 @@ void physics3d_step(float dt, int collisionSteps) {
             pose.q.x, pose.q.y, pose.q.z, pose.q.w,
         });
     }
+    g().characterHitsStale = true;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -780,6 +783,10 @@ EMSCRIPTEN_KEEPALIVE
 uintptr_t physics3d_transforms() { return reinterpret_cast<uintptr_t>(g().transformBuffer.data()); }
 EMSCRIPTEN_KEEPALIVE
 size_t physics3d_transformsBytes() { return g().transformBuffer.size() * sizeof(float); }
+EMSCRIPTEN_KEEPALIVE
+uintptr_t physics3d_characterHits() { return reinterpret_cast<uintptr_t>(g().characterHitBuffer.data()); }
+EMSCRIPTEN_KEEPALIVE
+size_t physics3d_characterHitsBytes() { return g().characterHitBuffer.size() * sizeof(float); }
 EMSCRIPTEN_KEEPALIVE
 uintptr_t physics3d_contactEnterMasses() { return reinterpret_cast<uintptr_t>(g().contactEnterMassBuffer.data()); }
 EMSCRIPTEN_KEEPALIVE

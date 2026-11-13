@@ -4746,4 +4746,8 @@ export const NOTED = {
     {"note": "A blast."},
   "feat(physics3d): a turned box and an upright capsule can be swept, a body's mass data read, and a joint's range, motor limit, lengths and spring changed while it runs, from Jolt and PhysX alike; a Jolt motor switched on in play keeps its torque limit":
     {"note": "A joint changed while it runs."},
+  "feat(physics3d): what a shooter asks of the 3D world - raycastAll names every body on a line with how thick it was, joints give way past a breakForce or breakTorque, a character's meetings are told and strike what can break, and Hitboxes put a box on each bone that follows the animation, from Jolt and PhysX alike":
+    {"note": "A shot through cover."},
+  "feat(editor): the shooting-physics check aims at an animated character's bones, shoots through a wall and hangs two weights on ropes rated either side of their load":
+    {"note": "Telling the parts of a character apart."},
 };

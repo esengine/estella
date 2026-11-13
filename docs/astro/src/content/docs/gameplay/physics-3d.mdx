@@ -425,6 +425,35 @@ next.
   a collider too, and it is `Health` that says an entity can be hurt at all.
 </Aside>
 
+## Telling the parts of a character apart
+
+A character's capsule is one shape, so a shot that meets it cannot say whether
+it met a head or a boot. Give the character a `Hitboxes` and each bone long
+enough gets a box along it, the size its ragdoll would give it: a kinematic
+body the world moves to wherever the animation has put the bone, and a sensor,
+so nothing walks into it or is pushed by it, its own character included. A ray
+meets the bone, and `hitPartOf` says whose it is and which.
+
+```typescript
+world.insert(soldier, Hitboxes, { layer: HITBOXES });
+// a shot:
+const hit = physics.raycast(muzzle, aim, WORLD | HITBOXES_MASK);
+const part = hit && hitPartOf(world, hit.entity);   // { character, bone: 'head' }
+const damage = part?.bone.toLowerCase().includes('head') ? 100 : 34;
+```
+
+| Property | Default | Description |
+|---|---|---|
+| `skin` | `0` | The skinned mesh whose bones get boxes; 0 finds the first on the entity or below it. |
+| `thickness` | `0.25` | A box's thickness as a fraction of its bone's length. |
+| `minBoneLength` | `5` | A bone shorter than this (world units) gets no box; what hangs from it is its parent's. |
+| `layer` | `0` | The collision layer the boxes are in, so a shot can ask for them and a sight line leave them out. |
+
+While the character's `Ragdoll` is limp its bones are bodies of their own,
+which a ray meets just as well; the boxes give way to them and come back when it
+stands up. How much a head is worth against a hand is the game's: the engine
+says which part was met.
+
 ## Joints
 
 A door, a rope bridge, a lift, a ragdoll: none of them are one body and a shape.
@@ -462,7 +491,12 @@ changes. So are a hinge's or slider's `enableLimit`, `lowerAngle`/`upperAngle`
 or `lowerTranslation`/`upperTranslation` and `maxMotorTorque`/`maxMotorForce`,
 and a distance joint's `minLength`, `maxLength`, `frequency` and `damping`: a
 door locked by narrowing its range stops, a rope shortened while something hangs
-on it pulls it up. A range always holds the pose the joint was made in: one that
+on it pulls it up. Every joint also takes a `breakForce` (N) and `breakTorque` (N m):
+held with more than either over a step, it is taken out of the world, its
+`enabled` lowered, and the break told in `Physics3DEvents.jointBreaks`. A
+chandelier on a `FixedJoint3D` with a `breakForce` comes down when a shot or a
+blast pulls harder than its mount holds; raising `enabled` again joins the two
+where they are then. A range always holds the pose the joint was made in: one that
 does not reach 0 (`lowerAngle: 0.2`) is widened to 0, and a hinge's goes no
 further than half a turn either way, in both solvers. In the other direction, `HingeJoint3D.angle` and
 `SliderJoint3D.translation` are written back each step, so a game can ask how far
@@ -505,6 +539,7 @@ const occupants = q.overlapSphere(spawnPoint, 50);
 | Query | Answers |
 |---|---|
 | `raycast(origin, direction, layerMask?)` | The nearest body on a line, as `{ entity, fraction, x, y, z, normalX, normalY, normalZ }`, or `null`. `direction` carries the ray's length. |
+| `raycastAll(origin, direction, layerMask?, maxHits?)` | Every body on the line, nearest first, each with `fraction` and `exitFraction` where the line goes in and out and `thickness`, how much of it the line crosses in world units: a shot through thin cover spends its strength on each in turn. |
 | `sphereCast(origin, radius, direction, layerMask?)` | The first body a moving sphere would meet, same shape, or `null`. |
 | `boxCast(origin, halfExtents, direction, layerMask?, rotation?)` | The same for a box, turned by `rotation` or not at all: whether a crate fits through a door. |
 | `capsuleCast(origin, radius, halfHeight, direction, layerMask?, rotation?)` | The same for a capsule standing along its own y, as a character does; `halfHeight` is half its straight part. |
@@ -600,6 +635,8 @@ for (const { sensorEntity, visitorEntity } of events.sensorEnters) {
 |---|---|
 | `contactEnters` | Both entities, the contact normal and the point, in the same units as `Transform`, and `speed`: how fast the first was closing on the second where they met, along the normal, in those units a second, read before the solver answered (a ball dropped a metre lands at about 4.4 m/s); `mass`, the kilograms they met with, 1 / (1/a + 1/b) with a body that does not move counting as no inverse mass, so a stone landing on a floor meets it with its own; and `impulse`, `speed` times `mass`, how hard. |
 | `contactExits` | Only the pair — see below. |
+| `characterHits` | What a character ran into that it was not already touching, once a meeting: `character`, `other`, the point, the normal toward the character, `speed`, `mass` (its own against something that does not move) and `impulse`, as a contact's. A `Breakable` a character runs into is struck with it, so a dive through a window breaks it and a lean on it does not. |
+| `jointBreaks` | Joints that gave way this step: `entity`, `force` (N) and `torque` (N m). |
 | `sensorEnters` / `sensorExits` | The **sensor first**, then the visitor. |
 
 <Aside>

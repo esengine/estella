@@ -18,6 +18,10 @@ interface JointFrame3D {
     maxMotorTorque: number;
     collideConnected: boolean;
     enabled: boolean;
+    /** The force it gives way at, in newtons: past it the joint is taken out of the world and `enabled` lowered. 0 never. */
+    breakForce: number;
+    /** The twist it gives way at, in newton metres. 0 never. */
+    breakTorque: number;
 }
 
 /** Shoulder/hip rotation about a twist axis with an elliptical swing cone. @experimental */
@@ -46,7 +50,7 @@ const frame = {
     connectedEntity: -1, anchor: { x: 0, y: 0, z: 0 },
     axis: { x: 1, y: 0, z: 0 }, normalAxis: { x: 0, y: 1, z: 0 },
     enableMotor: false, angularVelocity: { x: 0, y: 0, z: 0 },
-    maxMotorTorque: 10, collideConnected: false, enabled: true,
+    maxMotorTorque: 10, collideConnected: false, enabled: true, breakForce: 0, breakTorque: 0,
 };
 const fields: Record<string, FieldMeta> = {
     anchor: { tooltip: 'Attachment in this entity’s local frame, in world units.' },
@@ -56,6 +60,8 @@ const fields: Record<string, FieldMeta> = {
     angularVelocity: { category: 'Motor', tooltip: 'Body B relative to A, in constraint axes (rad/s).' },
     maxMotorTorque: { category: 'Motor', min: 0, tooltip: 'Maximum torque per motor axis (N m).' },
     collideConnected: { category: 'Collision' },
+    breakForce: { category: 'Breaking', min: 0, tooltip: 'Newtons it gives way at; 0 never.' },
+    breakTorque: { category: 'Breaking', min: 0, tooltip: 'Newton metres of twist it gives way at; 0 never.' },
 };
 
 /** A limited ball joint with separate twist limits. Angles are radians. @experimental */
