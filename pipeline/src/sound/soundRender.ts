@@ -343,8 +343,18 @@ function strikesOf(layer: SoundLayer, start: number, seed: number): Strike[] {
     return out;
 }
 
-/** The samples a validated source makes. */
-export function renderSound(source: SoundSource): RenderedSound {
+/** Where and how an event is struck: what a group hands down to the layers in it. */
+interface Placement { offset: number; pitch: number; loud: number; pan: number; seed: number }
+
+/** How a variant of a layer strays from the layer as written. */
+interface Stray { pitch: number; loud: number; decay: number; late: number; seed: number }
+
+/**
+ * The samples a validated source makes. @p variant 0 is the sound as written; another is the same sound a little
+ * unlike it, as a second shot from the same gun is: other noise, and each layer's pitch, loudness, decay and timing
+ * off by up to the source's `vary`.
+ */
+export function renderSound(source: SoundSource, variant = 0): RenderedSound {
     const rate = source.rate ?? 44100;
     const count = Math.max(1, Math.round(source.duration * rate));
     // A loop is rendered a little long and its extra folded back over its start, so the end runs into the beginning.
@@ -355,43 +365,94 @@ export function renderSound(source: SoundSource): RenderedSound {
     const reports: RenderedSound['layers'] = [];
     let stereo = source.reverb !== undefined;
 
-    source.layers.forEach((layer, index) => {
-        if (layer.mute) return;
-        const start = layer.start ?? 0;
+    const vary = variant > 0 ? source.vary ?? 0.06 : 0;
+    const strayRandom = noiseOf(variant * 7717 + 13);
+    const strays = new Map<SoundLayer, Stray>();
+    const strayOf = (layer: SoundLayer): Stray => {
+        let s = strays.get(layer);
+        if (!s) {
+            s = vary > 0
+                ? { pitch: 1 + vary * strayRandom(), loud: 1 + vary * 2 * strayRandom(), decay: 1 + vary * 1.5 * strayRandom(), late: 1 + vary * strayRandom(), seed: variant * 1009 }
+                : { pitch: 1, loud: 1, decay: 1, late: 1, seed: 0 };
+            strays.set(layer, s);
+        }
+        return s;
+    };
+
+    /** One layer, or a group of them, struck where @p place says. Answers how loud it was and when it ended. */
+    const play = (layer: SoundLayer, index: number, where: string, place: Placement, top: boolean): { peak: number; last: number; heard: number; strikes: number } => {
+        const stray = strayOf(layer);
+        // A layer that comes after the start of its event comes a little sooner or later in another variant.
+        const start = place.offset + (layer.start ?? 0) * stray.late;
+        const seed = (layer.seed ?? index + 1) + place.seed + stray.seed;
+        if (layer.source === 'group') {
+            const strikes = strikesOf(layer, start, seed);
+            const loud = (typeof layer.gain === 'number' ? layer.gain : 1) * stray.loud;
+            let [peak, last, heard] = [0, start, 0];
+            for (const s of strikes) {
+                if (s.at * rate >= total) continue;
+                heard++;
+                layer.layers!.forEach((child, j) => {
+                    if (child.mute) return;
+                    const made = play(child, j, `${where} > layer ${j}${child.id ? ` "${child.id}"` : ''}`,
+                        { offset: s.at, pitch: place.pitch * s.pitch, loud: place.loud * s.loud * loud, pan: Math.max(-1, Math.min(1, place.pan + s.pan)), seed: s.seed + j * 977 }, false);
+                    peak = Math.max(peak, made.peak);
+                    last = Math.max(last, made.last);
+                });
+            }
+            return { peak, last, heard, strikes: strikes.length };
+        }
         const space = total / rate - start;
         const seconds = Math.min(layer.length ?? space, space);
-        const where = `layer ${index}${layer.id ? ` "${layer.id}"` : ''}`;
-        if (!(seconds > 0)) { notes.push(`${where} starts at the end of the sound and is not heard`); return; }
-        if (layer.length !== undefined && layer.length > space + 1e-6 && !layer.repeat && !layer.scatter) notes.push(`${where} is cut short: it runs ${layer.length} s from ${start} s in a sound of ${source.duration} s`);
+        if (!(seconds > 0)) {
+            if (top) notes.push(`${where} starts at the end of the sound and is not heard`);
+            return { peak: 0, last: start, heard: 0, strikes: 0 };
+        }
+        if (top && layer.length !== undefined && layer.length > space + 1e-6 && !layer.repeat && !layer.scatter) notes.push(`${where} is cut short: it runs ${layer.length} s from ${Math.round(start * 1000) / 1000} s in a sound of ${source.duration} s`);
         const wide = layer.source === 'noise' ? layer.wide ?? 0 : 0;
-        const strikes = strikesOf(layer, start, layer.seed ?? index + 1);
-        if (wide > 0 || strikes.some((s) => s.pan !== 0)) stereo = true;
+        // The variant's own layer: the same in everything but how long it rings.
+        const made = stray.decay !== 1 && layer.decay
+            ? { ...layer, decay: layer.decay * stray.decay, ...(layer.tail ? { tail: { ...layer.tail, decay: layer.tail.decay * stray.decay } } : {}) }
+            : layer;
+        const strikes = strikesOf(layer, start, seed);
+        if (wide > 0 || place.pan !== 0 || strikes.some((s) => s.pan !== 0)) stereo = true;
         let [peak, last, heard] = [0, start, 0];
         for (const s of strikes) {
             const from = Math.round(Math.max(0, s.at) * rate);
             if (from >= total) continue;
             heard++;
             const length = Math.min(seconds, (total - from) / rate);
+            const pitch = s.pitch * place.pitch * stray.pitch;
+            const loud = s.loud * place.loud * stray.loud;
             // Each striking has its own noise, as no two footsteps are the same grit.
-            const hit = strike(layer, length, rate, s.pitch, s.seed);
+            const hit = strike(made, length, rate, pitch, s.seed);
             // The other ear's noise is another noise, by as much as the layer is wide.
-            const other = wide > 0 ? strike(layer, length, rate, s.pitch, s.seed + 50021) : null;
+            const other = wide > 0 ? strike(made, length, rate, pitch, s.seed + 50021) : null;
             // Equal power: a sound sent to one side is as loud as one in the middle.
-            const [gl, gr] = [Math.cos(((s.pan + 1) * Math.PI) / 4), Math.sin(((s.pan + 1) * Math.PI) / 4)];
+            const pan = Math.max(-1, Math.min(1, s.pan + place.pan));
+            const [gl, gr] = [Math.cos(((pan + 1) * Math.PI) / 4), Math.sin(((pan + 1) * Math.PI) / 4)];
             for (let n = 0; n < hit.length && from + n < total; n++) {
-                const v = hit[n]! * s.loud;
+                const v = hit[n]! * loud;
                 left[from + n]! += v * gl;
-                right[from + n]! += (other ? v * (1 - wide) + other[n]! * s.loud * wide : v) * gr;
+                right[from + n]! += (other ? v * (1 - wide) + other[n]! * loud * wide : v) * gr;
                 if (Math.abs(v) > peak) peak = Math.abs(v);
             }
             last = Math.max(last, Math.min(total / rate, s.at + hit.length / rate));
         }
+        return { peak, last, heard, strikes: strikes.length };
+    };
+
+    source.layers.forEach((layer, index) => {
+        if (layer.mute) return;
+        const where = `layer ${index}${layer.id ? ` "${layer.id}"` : ''}`;
+        const made = play(layer, index, where, { offset: 0, pitch: 1, loud: 1, pan: 0, seed: 0 }, true);
+        const start = layer.start ?? 0;
         reports.push({
-            ...(layer.id ? { id: layer.id } : {}), source: layer.source, from: Math.round(start * 1000) / 1000, to: Math.round(last * 1000) / 1000,
-            peak: Math.round(peak * 1000) / 1000, ...(strikes.length > 1 ? { strikes: heard } : {}),
+            ...(layer.id ? { id: layer.id } : {}), source: layer.source, from: Math.round(start * 1000) / 1000, to: Math.round(made.last * 1000) / 1000,
+            peak: Math.round(made.peak * 1000) / 1000, ...(made.strikes > 1 ? { strikes: made.heard } : {}),
         });
-        if (heard < strikes.length) notes.push(`${where}: ${strikes.length - heard} of its ${strikes.length} strikes fall past the end of the sound and are not heard`);
-        if (peak < 1e-4) notes.push(`${where} makes no sound: its level is nothing throughout`);
+        if (made.heard < made.strikes) notes.push(`${where}: ${made.strikes - made.heard} of its ${made.strikes} strikes fall past the end of the sound and are not heard`);
+        if (made.strikes > 0 && made.peak < 1e-4) notes.push(`${where} makes no sound: its level is nothing throughout`);
     });
 
     const channels = stereo ? [left, right] : [left.map((v, i) => (v + right[i]!) * Math.SQRT1_2)];
@@ -473,4 +534,55 @@ export function encodeWav(sound: Pick<RenderedSound, 'rate' | 'channels'>): Uint
         }
     }
     return bytes;
+}
+
+/** Every variant a source asks for, the first being the sound as written. */
+export function renderSoundVariants(source: SoundSource): RenderedSound[] {
+    return Array.from({ length: source.variants ?? 1 }, (_, k) => renderSound(source, k));
+}
+
+/** A recording as this file's sounds are held, so it can be drawn and measured as they are. */
+export function soundFromSamples(rate: number, channels: readonly Float32Array[]): RenderedSound {
+    const kept = channels.slice(0, 2).map((c) => Float32Array.from(c));
+    let [peak, squares] = [0, 0];
+    for (const channel of kept) for (const v of channel) { if (Math.abs(v) > peak) peak = Math.abs(v); squares += v * v; }
+    const frames = kept[0]?.length ?? 0;
+    return { rate, channels: kept, seconds: frames / rate, peak, rms: Math.sqrt(squares / Math.max(1, frames * kept.length)), layers: [], notes: [] };
+}
+
+/** A `.wav` read: PCM of 8, 16, 24 or 32 bits, or 32-bit floats. Throws on anything else, saying what it found. */
+export function decodeWav(bytes: Uint8Array): RenderedSound {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const tag = (at: number): string => String.fromCharCode(bytes[at]!, bytes[at + 1]!, bytes[at + 2]!, bytes[at + 3]!);
+    if (bytes.length < 44 || tag(0) !== 'RIFF' || tag(8) !== 'WAVE') throw new Error('not a .wav: it does not begin RIFF....WAVE');
+    let [format, channels, rate, bits] = [0, 0, 0, 0];
+    let data: { at: number; size: number } | null = null;
+    for (let at = 12; at + 8 <= bytes.length;) {
+        const size = view.getUint32(at + 4, true);
+        if (tag(at) === 'fmt ') {
+            format = view.getUint16(at + 8, true);
+            channels = view.getUint16(at + 10, true);
+            rate = view.getUint32(at + 12, true);
+            bits = view.getUint16(at + 22, true);
+            // An extensible header says its real format further in.
+            if (format === 0xfffe && size >= 26) format = view.getUint16(at + 32, true);
+        } else if (tag(at) === 'data') data = { at: at + 8, size: Math.min(size, bytes.length - at - 8) };
+        at += 8 + size + (size & 1);
+    }
+    if (!data || !channels || !rate) throw new Error('a .wav with no format or no samples in it');
+    if (!((format === 1 && [8, 16, 24, 32].includes(bits)) || (format === 3 && bits === 32))) throw new Error(`a .wav of a kind not read here (format ${format}, ${bits} bits); PCM of 8 to 32 bits and 32-bit floats are`);
+    const step = bits / 8;
+    const frames = Math.floor(data.size / (step * channels));
+    const out = Array.from({ length: channels }, () => new Float32Array(frames));
+    for (let n = 0; n < frames; n++) {
+        for (let c = 0; c < channels; c++) {
+            const at = data.at + (n * channels + c) * step;
+            out[c]![n] = format === 3 ? view.getFloat32(at, true)
+                : bits === 8 ? (bytes[at]! - 128) / 128
+                : bits === 16 ? view.getInt16(at, true) / 32768
+                : bits === 24 ? ((bytes[at]! | (bytes[at + 1]! << 8) | (view.getInt8(at + 2) << 16))) / 8388608
+                : view.getInt32(at, true) / 2147483648;
+        }
+    }
+    return soundFromSamples(rate, out);
 }

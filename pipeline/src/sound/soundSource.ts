@@ -20,7 +20,8 @@ export const SOUND_RATES = [22050, 44100, 48000] as const;
 /** One value for the whole of a layer, or [[seconds, value], ...] from the layer's start: a pitch that falls, a filter that opens. */
 export type SoundCurve = number | readonly (readonly [number, number])[];
 
-export const SOUND_SOURCES = ['sine', 'triangle', 'saw', 'square', 'noise', 'modes', 'impulse'] as const;
+export const SOUND_SOURCES = ['sine', 'triangle', 'saw', 'square', 'noise', 'modes', 'impulse', 'group'] as const;
+export const MAX_SOUND_VARIANTS = 8;
 export type SoundSourceKind = (typeof SOUND_SOURCES)[number];
 export const SOUND_FILTERS = ['lowpass', 'highpass', 'bandpass', 'notch', 'peak'] as const;
 export const REVERB_KINDS = ['room', 'open'] as const;
@@ -39,6 +40,13 @@ export interface SoundFilter {
 export interface SoundLayer {
     id?: string;
     source: SoundSourceKind;
+    /**
+     * group: the layers that make one event, struck together. A footstep is a thud, a scrape and two clicks, and four
+     * footsteps are that one group with `repeat`, each striking with its own grit, in place of the layers written out
+     * four times. The group's `start`, `gain`, `pan`, `repeat` and `scatter` are the event's; each layer in it keeps its
+     * own start, counted from the event's.
+     */
+    layers?: readonly SoundLayer[];
     /** A tone's pitch in Hz; a curve glides between its points as the ear hears pitch. */
     freq?: SoundCurve;
     /** square: the share of each cycle it is high, 0.05..0.95. Default 0.5. impulse: seconds its one spike lasts, 0.00002..0.02; a shot's is 0.0002. */
@@ -101,6 +109,16 @@ export interface SoundSource {
     rate?: number;
     /** Its end runs into its start with no click, for an engine, a wind, a hum. */
     loop?: boolean;
+    /**
+     * How many of it to make, 1..8, each a little unlike the others: other noise, and pitch, loudness, decay and timing
+     * off by up to `vary`. A game that plays the same file for every shot or step is heard as a machine however good the
+     * file; with variants a sound event is written beside them that plays one after another without repeating.
+     */
+    variants?: number;
+    /** How far a variant strays, 0..0.3. Default 0.06. */
+    vary?: number;
+    /** A recording to make it like, by project path. It is shown above the sound in every reply, drawn the same way to the same scale, and measured the same way. Nothing is taken from it. */
+    reference?: string;
     layers: readonly SoundLayer[];
     /** Over the whole sound, after the layers are summed: */
     highpass?: number;
@@ -138,17 +156,25 @@ function curveProblem(v: unknown, lo: number, hi: number, what: string): string 
 
 const LAYER_FIELDS = ['id', 'source', 'freq', 'width', 'band', 'wide', 'color', 'modes', 'seed', 'start', 'length', 'gain', 'attack', 'release', 'decay', 'tail', 'vibrato', 'tremolo', 'fm', 'filters', 'drive', 'pan', 'repeat', 'scatter', 'mute'];
 
-function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>, duration: number): void {
+const GROUP_FIELDS = ['id', 'source', 'layers', 'start', 'gain', 'pan', 'repeat', 'scatter', 'mute'];
+
+function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>, duration: number, depth = 0): void {
     const fail = (what: string): never => { throw new Error(`${where}: ${what}`); };
     if (typeof l !== 'object' || l === null || Array.isArray(l)) fail('must be an object');
-    for (const key of Object.keys(l)) if (!LAYER_FIELDS.includes(key)) fail(`unknown field "${key}"; a layer takes ${LAYER_FIELDS.join(', ')}`);
+    if (l.source === 'group') {
+        for (const key of Object.keys(l)) if (!GROUP_FIELDS.includes(key)) fail(`a group takes ${GROUP_FIELDS.join(', ')}; "${key}" belongs on the layers in it`);
+        if (depth >= 3) fail('groups go three deep and no further');
+        if (!Array.isArray(l.layers) || l.layers.length === 0) fail('a group needs `layers`: one or more');
+        if (l.gain !== undefined && !between(l.gain, 0, 4)) fail('a group\'s gain is one number, 0..4');
+    } else if (l.layers !== undefined) fail('`layers` goes with source "group"');
+    if (l.source !== 'group') for (const key of Object.keys(l)) if (!LAYER_FIELDS.includes(key)) fail(`unknown field "${key}"; a layer takes ${LAYER_FIELDS.join(', ')}`);
     if (l.id !== undefined) {
         if (typeof l.id !== 'string' || !l.id) fail('id must be a name');
         if (ids.has(l.id as string)) fail(`the id "${String(l.id)}" is already used`);
         ids.add(l.id as string);
     }
     if (!SOUND_SOURCES.includes(l.source as SoundSourceKind)) fail(`source ${JSON.stringify(l.source)} must be one of ${SOUND_SOURCES.join(', ')}`);
-    const tone = l.source !== 'noise' && l.source !== 'modes' && l.source !== 'impulse';
+    const tone = l.source !== 'noise' && l.source !== 'modes' && l.source !== 'impulse' && l.source !== 'group';
     if (tone) {
         if (l.freq === undefined) fail(`a ${String(l.source)} needs freq, its pitch in Hz`);
         const bad = curveProblem(l.freq, 10, 20000, 'freq');
@@ -181,7 +207,7 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>,
     if (l.seed !== undefined && !Number.isInteger(l.seed)) fail('seed must be a whole number');
     if (l.start !== undefined && !between(l.start, 0, duration)) fail(`start must be 0..${duration}, inside the sound`);
     if (l.length !== undefined && !(isNum(l.length) && l.length > 0)) fail('length must be above 0');
-    if (l.gain !== undefined) { const bad = curveProblem(l.gain, 0, 4, 'gain'); if (bad) fail(bad); }
+    if (l.gain !== undefined && l.source !== 'group') { const bad = curveProblem(l.gain, 0, 4, 'gain'); if (bad) fail(bad); }
     for (const key of ['attack', 'release']) if (l[key] !== undefined && !between(l[key], 0, MAX_SOUND_SECONDS)) fail(`${key} must be seconds, 0 or more`);
     if (l.decay !== undefined && !(isNum(l.decay) && l.decay > 0)) fail('decay must be seconds above 0');
     const wobble = (key: string, deepest: number): void => {
@@ -241,9 +267,10 @@ function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>,
         for (const key of ['pan', 'fade']) if (c![key] !== undefined && !between(c![key], 0, 1)) fail(`scatter.${key} must be 0..1`);
     }
     if (l.mute !== undefined && typeof l.mute !== 'boolean') fail('mute must be true or false');
+    if (l.source === 'group') (l.layers as Record<string, unknown>[]).forEach((c, i) => checkLayer(c, `${where} > layer ${i}${c?.id ? ` "${String(c.id)}"` : ''}`, ids, duration, depth + 1));
 }
 
-const SOURCE_FIELDS = ['version', 'duration', 'rate', 'loop', 'layers', 'highpass', 'lowpass', 'echo', 'reverb', 'gain', 'normalize'];
+const SOURCE_FIELDS = ['version', 'duration', 'rate', 'loop', 'variants', 'vary', 'reference', 'layers', 'highpass', 'lowpass', 'echo', 'reverb', 'gain', 'normalize'];
 
 /** The source if it is well formed; otherwise throws, naming the layer and the field. */
 export function validateSoundSource(raw: unknown): SoundSource {
@@ -254,6 +281,9 @@ export function validateSoundSource(raw: unknown): SoundSource {
     if (!(isNum(s.duration) && s.duration > 0 && s.duration <= MAX_SOUND_SECONDS)) throw new Error(`duration must be seconds, above 0 and up to ${MAX_SOUND_SECONDS}`);
     if (s.rate !== undefined && !SOUND_RATES.includes(s.rate as never)) throw new Error(`rate must be one of ${SOUND_RATES.join(', ')}`);
     if (s.loop !== undefined && typeof s.loop !== 'boolean') throw new Error('loop must be true or false');
+    if (s.variants !== undefined && !(Number.isInteger(s.variants) && (s.variants as number) >= 1 && (s.variants as number) <= MAX_SOUND_VARIANTS)) throw new Error(`variants must be a whole number, 1..${MAX_SOUND_VARIANTS}`);
+    if (s.vary !== undefined && !between(s.vary, 0, 0.3)) throw new Error('vary must be 0..0.3');
+    if (s.reference !== undefined && !(typeof s.reference === 'string' && /\.(wav|ogg|mp3|flac|m4a|aac|webm)$/i.test(s.reference))) throw new Error('reference must be a project path to a recording (.wav, .ogg, .mp3, .flac, .m4a)');
     if (s.normalize !== undefined && typeof s.normalize !== 'boolean') throw new Error('normalize must be true or false');
     if (s.gain !== undefined && !between(s.gain, 0, 1)) throw new Error('gain must be 0..1');
     for (const key of ['highpass', 'lowpass']) if (s[key] !== undefined && !between(s[key], 20, 20000)) throw new Error(`${key} must be Hz, 20..20000`);
@@ -280,24 +310,35 @@ export function validateSoundSource(raw: unknown): SoundSource {
 
 export type SoundEdit =
     | { op: 'set'; layer: string | number; fields: Record<string, unknown> }
-    | { op: 'insert'; layer: SoundLayer; before?: string | number; after?: string | number }
+    | { op: 'insert'; layer: SoundLayer; before?: string | number; after?: string | number; into?: string }
     | { op: 'remove'; layer: string | number }
     | { op: 'settings'; fields: Partial<Omit<SoundSource, 'layers' | 'version'>> };
 
 /** The source with @p edits applied, in order. A `null` field removes it. Refuses without changing anything. */
 export function applySoundEdits(source: SoundSource, edits: readonly SoundEdit[]): SoundSource {
     const next = JSON.parse(JSON.stringify(source)) as SoundSource & { layers: (SoundLayer & Record<string, unknown>)[] };
-    const find = (ref: string | number): number => {
-        const i = typeof ref === 'number' ? ref : next.layers.findIndex((l) => l.id === ref);
-        if (!Number.isInteger(i) || i < 0 || i >= next.layers.length) {
-            throw new Error(`no layer ${JSON.stringify(ref)}; ${next.layers.length} layers, ids: ${next.layers.map((l) => l.id).filter(Boolean).join(', ') || '(none)'}`);
-        }
-        return i;
+    type Row = SoundLayer & Record<string, unknown>;
+    const allIds = (list: readonly Row[]): string[] => list.flatMap((l) => [...(l.id ? [l.id] : []), ...allIds((l.layers ?? []) as Row[])]);
+    /** The list a layer is in and its place there: by index among the top layers, or by id anywhere, in a group too. */
+    const locate = (ref: string | number): { list: Row[]; index: number } => {
+        const within = (list: Row[]): { list: Row[]; index: number } | null => {
+            for (let i = 0; i < list.length; i++) {
+                if (list[i]!.id === ref) return { list, index: i };
+                const hit = list[i]!.layers ? within(list[i]!.layers as Row[]) : null;
+                if (hit) return hit;
+            }
+            return null;
+        };
+        const top = next.layers as Row[];
+        const hit = typeof ref === 'number' ? (Number.isInteger(ref) && ref >= 0 && ref < top.length ? { list: top, index: ref } : null) : within(top);
+        if (!hit) throw new Error(`no layer ${JSON.stringify(ref)}; ${top.length} layers, ids: ${allIds(top).join(', ') || '(none)'}`);
+        return hit;
     };
     for (const edit of edits) {
         switch (edit?.op) {
             case 'set': {
-                const layer = next.layers[find(edit.layer)]!;
+                const at = locate(edit.layer);
+                const layer = at.list[at.index]!;
                 for (const [key, value] of Object.entries(edit.fields ?? {})) {
                     if (value === null) delete layer[key];
                     else layer[key] = value;
@@ -305,13 +346,23 @@ export function applySoundEdits(source: SoundSource, edits: readonly SoundEdit[]
                 break;
             }
             case 'insert': {
-                const at = edit.before !== undefined ? find(edit.before) : edit.after !== undefined ? find(edit.after) + 1 : next.layers.length;
-                next.layers.splice(at, 0, edit.layer as never);
+                // Beside the layer named, in whichever list that is; or, with `into`, at the end of a group.
+                if (edit.into !== undefined) {
+                    const group = locate(edit.into);
+                    const row = group.list[group.index]!;
+                    if (row.source !== 'group') throw new Error(`${JSON.stringify(edit.into)} is not a group`);
+                    (row.layers as Row[]).push(edit.layer as Row);
+                } else if (edit.before !== undefined || edit.after !== undefined) {
+                    const at = locate((edit.before ?? edit.after)!);
+                    at.list.splice(at.index + (edit.before !== undefined ? 0 : 1), 0, edit.layer as Row);
+                } else (next.layers as Row[]).push(edit.layer as Row);
                 break;
             }
-            case 'remove':
-                next.layers.splice(find(edit.layer), 1);
+            case 'remove': {
+                const at = locate(edit.layer);
+                at.list.splice(at.index, 1);
                 break;
+            }
             case 'settings':
                 for (const [key, value] of Object.entries(edit.fields ?? {})) {
                     if (key === 'layers' || key === 'version') throw new Error(`settings does not take ${key}; use set, insert and remove for layers`);

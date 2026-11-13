@@ -6,8 +6,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { applySoundEdits, validateSoundSource, type SoundLayer, type SoundSource } from '../src/sound/soundSource';
-import { encodeWav, renderSound } from '../src/sound/soundRender';
-import { soundBands, soundPicture } from '../src/sound/soundPicture';
+import { decodeWav, encodeWav, renderSound, renderSoundVariants } from '../src/sound/soundRender';
+import { comparePicture, soundBands, soundPicture } from '../src/sound/soundPicture';
 
 const make = (layers: SoundLayer[], rest: Partial<SoundSource> = {}) => renderSound(validateSoundSource({ duration: 0.5, layers, ...rest }));
 /** Times a second the wave crosses nothing going up, between two shares of the sound: its pitch, for a plain tone. */
@@ -312,5 +312,140 @@ describe('what makes a made sound pass for a real one', () => {
         expect(bad({ source: 'noise', scatter: { count: 5, over: 1, pitch: [3, 1] } })).toThrow(/scatter\.pitch must be \[low, high\]/);
         expect(bad({ source: 'noise', repeat: { count: 3, every: 0.1, faster: 2 } })).toThrow(/repeat\.faster/);
         expect(bad({ source: 'noise' }, { reverb: { kind: 'cave' } })).toThrow(/reverb\.kind must be one of room, open/);
+    });
+});
+
+describe('layers struck together, sounds that differ, and a recording to be like', () => {
+    const raw = (layers: SoundLayer[], rest: Partial<SoundSource> = {}) => make(layers, { normalize: false, ...rest });
+    // A knock: a spike, and a ring that starts a hundredth of a second after it.
+    const knock: SoundLayer[] = [
+        { source: 'impulse', width: 0.0002, length: 0.002 },
+        { source: 'sine', freq: 1000, start: 0.01, length: 0.03, decay: 0.01 },
+    ];
+
+    it('is the same sound as its layers written out, when a group is struck once', () => {
+        const flat = raw(knock.map((l) => ({ ...l, start: (l.start ?? 0) + 0.1 }))).channels[0]!;
+        const grouped = raw([{ source: 'group', start: 0.1, layers: knock }]).channels[0]!;
+        let worst = 0;
+        for (let n = 0; n < flat.length; n++) worst = Math.max(worst, Math.abs(flat[n]! - grouped[n]!));
+        expect(worst).toBeLessThan(1e-6);
+    });
+
+    it('strikes the whole group again, each of its layers keeping its place in the event', () => {
+        const s = raw([{ id: 'knocks', source: 'group', layers: knock, repeat: { count: 3, every: 0.15, gain: 0.5 } }]);
+        const ring = (k: number): number => level(s.channels[0]!, (k * 0.15 + 0.012) / 0.5, (k * 0.15 + 0.03) / 0.5);
+        expect(ring(0)).toBeGreaterThan(0.05);
+        expect(ring(1)).toBeCloseTo(ring(0) * 0.5, 1);
+        expect(ring(2)).toBeCloseTo(ring(0) * 0.25, 1);
+        // Between one knock and the next there is nothing.
+        expect(level(s.channels[0]!, 0.1 / 0.5, 0.14 / 0.5)).toBeLessThan(1e-3);
+        expect(s.layers).toEqual([{ id: 'knocks', source: 'group', from: 0, to: expect.any(Number), peak: 1, strikes: 3 }]);
+    });
+
+    it('gives each striking of a group its own noise', () => {
+        const s = raw([{ source: 'group', layers: [{ source: 'noise', length: 0.05 }], repeat: { count: 2, every: 0.2 } }]).channels[0]!;
+        const [first, second] = [s.subarray(0, 2000), s.subarray(8820, 10820)];
+        let same = 0;
+        for (let n = 100; n < 1900; n++) if (Math.abs(first[n]! - second[n]!) < 1e-6) same++;
+        expect(same).toBeLessThan(20);
+    });
+
+    it('scatters a group, and hands its pitch, loudness and side down to its layers', () => {
+        const s = raw([{ source: 'group', gain: 0.5, pan: -1, layers: [{ source: 'sine', freq: 500, length: 0.02 }], scatter: { count: 12, over: 0.4, pitch: [2, 2] } }]);
+        expect(s.channels).toHaveLength(2);
+        expect(level(s.channels[1]!)).toBeLessThan(1e-6);
+        expect(s.layers[0]!.strikes).toBe(12);
+        expect(s.layers[0]!.peak).toBeLessThanOrEqual(0.5);
+        expect(soundBands(s).mid).toBeGreaterThan(0.9);
+    });
+
+    it('finds a layer inside a group by its id, to change it, add beside it or put one in', () => {
+        const source = validateSoundSource({ duration: 1, layers: [{ id: 'step', source: 'group', layers: [{ id: 'heel', source: 'noise', length: 0.01 }] }] });
+        const edited = applySoundEdits(source, [
+            { op: 'set', layer: 'heel', fields: { band: [3800, 16000] } },
+            { op: 'insert', layer: { id: 'toe', source: 'noise', length: 0.01, start: 0.008 }, after: 'heel' },
+            { op: 'insert', layer: { id: 'thud', source: 'noise', color: 'brown', length: 0.05 }, into: 'step' },
+        ]);
+        expect(edited.layers[0]!.layers!.map((l) => l.id)).toEqual(['heel', 'toe', 'thud']);
+        expect(edited.layers[0]!.layers![0]!.band).toEqual([3800, 16000]);
+        expect(applySoundEdits(edited, [{ op: 'remove', layer: 'toe' }]).layers[0]!.layers).toHaveLength(2);
+        expect(() => applySoundEdits(source, [{ op: 'insert', layer: { source: 'noise' }, into: 'heel' }])).toThrow(/"heel" is not a group/);
+        expect(() => applySoundEdits(source, [{ op: 'set', layer: 'ankle', fields: {} }])).toThrow(/no layer "ankle"; 1 layers, ids: step, heel/);
+    });
+
+    it('refuses what a group cannot be', () => {
+        const bad = (layer: unknown) => () => validateSoundSource({ duration: 1, layers: [layer] });
+        expect(bad({ source: 'group' })).toThrow(/a group needs `layers`/);
+        expect(bad({ source: 'group', layers: [{ source: 'noise' }], decay: 0.1 })).toThrow(/"decay" belongs on the layers in it/);
+        expect(bad({ source: 'noise', layers: [] })).toThrow(/`layers` goes with source "group"/);
+        expect(bad({ source: 'group', layers: [{ source: 'sine' }] })).toThrow(/layer 0 > layer 0: a sine needs freq/);
+        expect(bad({ source: 'group', id: 'a', layers: [{ id: 'a', source: 'noise' }] })).toThrow(/the id "a" is already used/);
+    });
+
+    it('makes variants that are the same sound and not the same samples', () => {
+        const source = validateSoundSource({
+            duration: 0.5, variants: 4,
+            layers: [{ source: 'noise', band: [800, 2500], decay: 0.03 }, { source: 'sine', freq: 400, decay: 0.05 }, { source: 'sine', freq: 1200, start: 0.2, length: 0.05 }],
+        });
+        const all = renderSoundVariants(source);
+        expect(all).toHaveLength(4);
+        // The first is the sound as written, the same as asking for no variants at all.
+        expect(Buffer.from(all[0]!.channels[0]!.buffer).equals(Buffer.from(renderSound({ ...source, variants: 1 }).channels[0]!.buffer))).toBe(true);
+        for (let k = 1; k < 4; k++) {
+            expect(Buffer.from(all[k]!.channels[0]!.buffer).equals(Buffer.from(all[0]!.channels[0]!.buffer))).toBe(false);
+            // Alike in what can be measured: as long, as loud at its loudest, its energy in the same place.
+            expect(all[k]!.seconds).toBe(all[0]!.seconds);
+            expect(all[k]!.peak).toBeCloseTo(all[0]!.peak, 5);
+            expect(Math.abs(soundBands(all[k]!).mid - soundBands(all[0]!).mid)).toBeLessThan(0.2);
+        }
+        expect(Buffer.from(all[2]!.channels[0]!.buffer).equals(Buffer.from(renderSoundVariants(source)[2]!.channels[0]!.buffer))).toBe(true);
+        expect(Buffer.from(all[1]!.channels[0]!.buffer).equals(Buffer.from(all[2]!.channels[0]!.buffer))).toBe(false);
+    });
+
+    it('strays no further than `vary` says', () => {
+        const pitches = (vary: number): number[] => renderSoundVariants(validateSoundSource({ duration: 0.5, variants: 6, vary, layers: [{ source: 'sine', freq: 1000 }] }))
+            .map((s) => pitchOf(s.channels[0]!, s.rate, 0.1, 0.9));
+        const spread = (v: number[]): number => Math.max(...v) - Math.min(...v);
+        expect(spread(pitches(0))).toBeLessThan(3);
+        expect(spread(pitches(0.2))).toBeGreaterThan(spread(pitches(0.03)) * 2);
+        for (const p of pitches(0.03)) expect(Math.abs(p - 1000)).toBeLessThan(35);
+        expect(() => validateSoundSource({ duration: 1, variants: 9, layers: [{ source: 'noise' }] })).toThrow(/variants must be a whole number, 1\.\.8/);
+        expect(() => validateSoundSource({ duration: 1, vary: 0.5, layers: [{ source: 'noise' }] })).toThrow(/vary must be 0\.\.0\.3/);
+    });
+
+    it('reads back the file it writes, and other kinds of .wav', () => {
+        const s = make([{ source: 'sine', freq: 300, pan: 0.5 }], { rate: 22050 });
+        const back = decodeWav(encodeWav(s));
+        expect(back.rate).toBe(22050);
+        expect(back.channels).toHaveLength(2);
+        expect(back.seconds).toBeCloseTo(0.5, 3);
+        let worst = 0;
+        for (let n = 0; n < s.channels[0]!.length; n++) worst = Math.max(worst, Math.abs(back.channels[0]![n]! - s.channels[0]![n]!));
+        expect(worst).toBeLessThan(1 / 16000);
+        // Floats, with a chunk before the format that a reader has to step over.
+        const floats = new Uint8Array(12 + 12 + 24 + 8 + 16);
+        const view = new DataView(floats.buffer);
+        const text = (at: number, t: string): void => { for (let i = 0; i < t.length; i++) floats[at + i] = t.charCodeAt(i); };
+        text(0, 'RIFF'); view.setUint32(4, floats.length - 8, true); text(8, 'WAVE');
+        text(12, 'LIST'); view.setUint32(16, 4, true);
+        text(24, 'fmt '); view.setUint32(28, 16, true); view.setUint16(32, 3, true); view.setUint16(34, 1, true); view.setUint32(36, 48000, true); view.setUint16(46, 32, true);
+        text(48, 'data'); view.setUint32(52, 16, true);
+        [0.25, -0.5, 1, 0].forEach((v, i) => view.setFloat32(56 + i * 4, v, true));
+        expect([...decodeWav(floats).channels[0]!]).toEqual([0.25, -0.5, 1, 0]);
+        expect(() => decodeWav(new Uint8Array(64))).toThrow(/not a \.wav/);
+    });
+
+    it('draws a recording over the made sound, a second as wide in the one as in the other', () => {
+        const long = make([{ source: 'sine', freq: 300 }], { duration: 1 });
+        const short = make([{ source: 'sine', freq: 3000 }], { duration: 0.25 });
+        const p = comparePicture(long, short, 400);
+        expect(p.width).toBe(400);
+        expect(p.height).toBe(384 * 2 + 22);
+        const lit = (x: number, y: number): boolean => p.rgba[(y * p.width + x) * 4]! + p.rgba[(y * p.width + x) * 4 + 1]! + p.rgba[(y * p.width + x) * 4 + 2]! > 60;
+        // The pale bar runs the whole width over the long one; the blue bar a quarter of it over the short one.
+        expect(lit(390, 2)).toBe(true);
+        expect(lit(90, 384 + 6 + 10 + 2)).toBe(true);
+        expect(lit(110, 384 + 6 + 10 + 2)).toBe(false);
+        expect(lit(300, 384 + 6 + 10 + 60)).toBe(false);
     });
 });

@@ -135,3 +135,25 @@ export function soundPicture(sound: RenderedSound, width = 768): SoundPicture {
     for (let x = 0; x < width; x++) put(x, waveH, 90, 96, 110);
     return { width, height, rgba };
 }
+
+/**
+ * A recording over the sound made to be like it, drawn the same way and to one scale of time: a second is as wide in
+ * the one as in the other, so a front that is too slow, a tail that is too short and a band that is missing all show
+ * as differences in shape. The recording is on top, under a pale bar; the made sound is below, under a blue one.
+ */
+export function comparePicture(reference: RenderedSound, made: RenderedSound, width = 768): SoundPicture {
+    const longest = Math.max(reference.seconds, made.seconds, 1e-6);
+    const drawn = [reference, made].map((s) => soundPicture(s, Math.max(48, Math.round((width * s.seconds) / longest))));
+    const [bar, gap] = [6, 10];
+    const height = drawn[0]!.height + drawn[1]!.height + bar * 2 + gap;
+    const rgba = new Uint8Array(width * height * 4);
+    for (let i = 0; i < width * height; i++) rgba.set([8, 8, 14, 255], i * 4);
+    let top = 0;
+    drawn.forEach((p, k) => {
+        const [r, g, b] = k === 0 ? [236, 226, 196] : [120, 214, 255];
+        for (let y = 0; y < bar; y++) for (let x = 0; x < p.width; x++) rgba.set([r, g, b, 255], ((top + y) * width + x) * 4);
+        for (let y = 0; y < p.height; y++) rgba.set(p.rgba.subarray(y * p.width * 4, (y + 1) * p.width * 4), ((top + bar + y) * width) * 4);
+        top += bar + p.height + gap;
+    });
+    return { width, height, rgba };
+}
