@@ -75,6 +75,9 @@ public:
     void drawElements(u32 indexCount, GfxDataType indexType, u32 byteOffset) override;
     void drawArrays(u32 first, u32 vertexCount) override;
     void drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 byteOffset, u32 instanceCount) override;
+    bool supportsMultiDraw() const override { return multi_draw_; }
+    void drawElementsInstancedMulti(GfxDataType indexType, const u32* counts, const u32* byteOffsets,
+                                    const u32* instanceCounts, u32 drawCount) override;
 
     void beginRenderPass(const RenderPassDesc& desc) override;
     void endRenderPass() override;
@@ -331,6 +334,10 @@ private:
     u32 pending_vbo_offset_[MAX_VERTEX_BUFFER_SLOTS] = {};
     u32 pending_ibo_ = 0;
     u32 bound_vao_ = 0;
+    /// WEBGL_multi_draw is enabled: a run of mesh draws is one call, and mesh programs read their entry by gl_DrawID.
+    bool multi_draw_ = false;
+    std::vector<i32> multi_counts_, multi_instances_;
+    std::vector<const void*> multi_offsets_;
 
     // Where a multisampled framebuffer resolves to, and how big, by framebuffer id.
     // The blit runs whenever the target is left, which is the only reason anything

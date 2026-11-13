@@ -41,4 +41,25 @@ struct InstanceConstants {
 static_assert(sizeof(InstanceConstants) == 16,
               "InstanceConstants must be one vec4 to match std140");
 
+/**
+ * @brief The most draws one call may carry where the device draws runs (WEBGL_multi_draw).
+ *
+ * @details There the block is an array, one entry per draw of the run, which the vertex stage indexes by gl_DrawID: x is where
+ *          that draw's records start, y where its instances start in the run's probe block. A draw on its own is a run of one,
+ *          and gl_DrawID is 0 for it.
+ */
+inline constexpr u32 MULTI_DRAW_MAX = 64;
+
+/**
+ * @brief Whether this process's GLSL mesh programs read their draw's entry by gl_DrawID.
+ *
+ * @details Set by the GL device when it enables WEBGL_multi_draw, before any program is assembled, and read by the shader
+ *          assembly and by the block pool, which must agree: a program that declares the array is refused a binding the size
+ *          of one entry.
+ */
+inline bool& glslMultiDraw() {
+    static bool on = false;
+    return on;
+}
+
 }  // namespace esengine

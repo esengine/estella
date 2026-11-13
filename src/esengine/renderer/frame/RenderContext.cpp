@@ -185,7 +185,10 @@ void RenderContext::initFrameUbo() {
     // A run per instance, not one for the draw: the block is what a merged draw
     // says about every object in it, and GL wants the whole declared block bound.
     probeBlocks_.init(device_, PROBE_BLOCK_BYTES);
-    instanceBlocks_.init(device_, static_cast<u32>(sizeof(InstanceConstants)));
+    // An entry per draw of a run where the device draws runs: GL wants the whole declared block bound, and the programs declare
+    // the array exactly when the device enabled them (glslMultiDraw).
+    instanceBlocks_.init(device_, static_cast<u32>(sizeof(InstanceConstants))
+                                      * (device_.supportsMultiDraw() && glslMultiDraw() ? MULTI_DRAW_MAX : 1u));
     planarBlocks_.init(device_, static_cast<u32>(sizeof(PlanarConstants)));
     // What a draw with no shapes and no volume reads. A pose has no zero: geometry
     // without one is drawn by a shader that does not declare the block.

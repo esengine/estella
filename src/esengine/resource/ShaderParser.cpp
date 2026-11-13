@@ -133,10 +133,39 @@ std::string instanceRecordWGSL() {
  *          them for every program sharing the layout.
  */
 std::string instanceRecordGLSLDecls() {
+    // Where the device draws runs (glslMultiDraw), the block is an entry per draw of the run, read by gl_DrawID: x the draw's first
+    // record, y its first instance in the run's probe block, which is what the probe slot (ES_INSTANCE_ID) then counts from. Not
+    // under VULKAN, where the twin generator compiles this and gl_DrawID is not GLSL's.
+    if (glslMultiDraw()) {
+        return
+            "#ifndef VULKAN\n"
+            "layout(std140) uniform InstanceConstants {\n"
+            "    highp uvec4 u_drawEntry[" + std::to_string(MULTI_DRAW_MAX) + "];\n"
+            "};\n"
+            "#define ES_DRAW_RECORD int(u_drawEntry[gl_DrawID].x)\n"
+            "#undef ES_INSTANCE_ID\n"
+            "#define ES_INSTANCE_ID (gl_InstanceID + int(u_drawEntry[gl_DrawID].y))\n"
+            "#define ES_RECORD_ID gl_InstanceID\n"
+            "#else\n"
+            "layout(std140) uniform InstanceConstants {\n"
+            "    highp uvec4 u_instanceBase;\n"
+            "};\n"
+            "#define ES_DRAW_RECORD int(u_instanceBase.x)\n"
+            "#define ES_RECORD_ID ES_INSTANCE_ID\n"
+            "#endif\n"
+            "uniform highp sampler2D u_instanceData;\n"
+            "highp vec4 esInstanceTexel(int texel);\n"
+            "highp mat4 esInstanceModel();\n"
+            "highp mat3 esInstanceNormalMatrix();\n"
+            "highp vec4 esInstanceTint();\n"
+            "highp vec4 esInstanceLightmapRect();\n";
+    }
     return
         "layout(std140) uniform InstanceConstants {\n"
         "    highp uvec4 u_instanceBase;\n"
         "};\n"
+        "#define ES_DRAW_RECORD int(u_instanceBase.x)\n"
+        "#define ES_RECORD_ID ES_INSTANCE_ID\n"
         "uniform highp sampler2D u_instanceData;\n"
         "highp vec4 esInstanceTexel(int texel);\n"
         "highp mat4 esInstanceModel();\n"
@@ -150,7 +179,7 @@ std::string instanceRecordGLSLBodies() {
     const std::string width = std::to_string(MESH_INSTANCE_TEXTURE_WIDTH);
     return
         "highp vec4 esInstanceTexel(int texel) {\n"
-        "    int at = (int(u_instanceBase.x) + ES_INSTANCE_ID) * " + texels + " + texel;\n"
+        "    int at = (ES_DRAW_RECORD + ES_RECORD_ID) * " + texels + " + texel;\n"
         "    return texelFetch(u_instanceData, ivec2(at % " + width + ", at / " + width + "), 0);\n"
         "}\n"
         "highp mat4 esInstanceModel() {\n"
@@ -2891,6 +2920,14 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     if (!parsed.version.empty()) {
         assembled << "#version " << parsed.version << "\n";
         ++headerLines;
+    }
+    // gl_DrawID, for a vertex stage that reads a record (see instanceRecordGLSLDecls).
+    if (glslMultiDraw() && stage == ShaderStage::Vertex) {
+        const auto named = parsed.stages.find(stage);
+        if (named != parsed.stages.end() && named->second.find("esInstance") != std::string::npos) {
+            assembled << "#ifndef VULKAN\n#extension GL_ANGLE_multi_draw : require\n#endif\n";
+            headerLines += 3;
+        }
     }
 
     // Feature #defines go right after #version (GLSL requires #version first), so the

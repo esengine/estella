@@ -308,11 +308,90 @@ std::span<const Entity> DrawList::runEntities(u32 index) const {
     return {run_entities_.data() + first, end - first};
 }
 
-void DrawList::stageBlocks(const PerDrawBlockSet& blocks) {
+bool DrawList::joinsRun(const DrawCommand& p, const DrawCommand& c) {
+    // A mesh drawn through its records, with nothing of its own that lives in a block but its records and its light: a pose, shapes
+    // and a mirror each are a block per draw. In one call the draws are still drawn in order, so blended ones may share one too.
+    const auto runnable = [](const DrawCommand& d) {
+        return d.hasPersistentGeometry() && d.instance_count != 0 && d.instance_buffer == BufferHandle::Invalid
+            && d.layout_id == LayoutId::MeshInstance && d.skin_count == 0 && d.morph_index == 0 && d.planar_index == 0;
+    };
+    if (!runnable(p) || !runnable(c)) return false;
+    // Everything the draw binds or sets, the same: the pipeline's every input, its textures, its material, its dynamic state.
+    return p.vertex_buffer == c.vertex_buffer && p.index_buffer == c.index_buffer && p.vertex_layout == c.vertex_layout
+        && p.shader_id == c.shader_id && p.depth_shader_id == c.depth_shader_id && p.material_id == c.material_id
+        && p.blend_mode == c.blend_mode && p.depth_test == c.depth_test && p.depth_write == c.depth_write && p.cull == c.cull
+        && p.depth_bias == c.depth_bias && p.topology == c.topology && p.stage == c.stage && p.state_flags == c.state_flags
+        && (!(p.state_flags & CMD_STATE_SCISSOR) || p.scissor == c.scissor) && p.stencil_ref == c.stencil_ref
+        && p.texture_count == c.texture_count && std::equal(p.texture_ids, p.texture_ids + p.texture_count, c.texture_ids);
+}
+
+void DrawList::stageBlocks(const PerDrawBlockSet& blocks, bool runs) {
     staged_.assign(merged_draw_calls_, StagedBlocks{});
+    run_length_.assign(merged_draw_calls_, 1u);
+    const auto probeLitAt = [&](const DrawCommand& cmd) {
+        const u32 n = std::min(cmd.instance_count > 0 ? cmd.instance_count : 1u, PROBE_MAX_INSTANCES);
+        for (u32 k = 0; k < n; ++k) {
+            const size_t at = static_cast<size_t>(cmd.probe_base) + k;
+            if (at < probe_slots_.size() && probe_slots_[at] != 0) return true;
+        }
+        return false;
+    };
+    // The runs: draws that differ only by their geometry's range and their records, drawn by one call where the device can. Their
+    // instances share the run's probe block, so a run that carries light holds no more instances than the block does.
+    if (runs && blocks.instance && blocks.probe) {
+        u32 head = 0, instances = 0;
+        bool lit = false;
+        for (u32 i = 0; i < merged_draw_calls_; ++i) {
+            const DrawCommand& cmd = commands_[i];
+            const bool cmdLit = probeLitAt(cmd);
+            if (i > 0 && run_length_[head] < MULTI_DRAW_MAX && joinsRun(commands_[i - 1], cmd)
+                && !((lit || cmdLit) && instances + cmd.instance_count > PROBE_MAX_INSTANCES)) {
+                ++run_length_[head];
+                run_length_[i] = 0;
+                instances += cmd.instance_count;
+                lit = lit || cmdLit;
+                continue;
+            }
+            head = i;
+            instances = cmd.instance_count;
+            lit = cmdLit;
+        }
+    }
     for (u32 i = 0; i < merged_draw_calls_; ++i) {
         const auto& cmd = commands_[i];
         StagedBlocks& staged = staged_[i];
+        const u32 length = run_length_[i];
+        if (length == 0) continue;  // inside a run: its head staged for it
+        if (length > 1) {
+            // One probe block for the run, its draws' instances one after another, and an entry per draw saying where its records
+            // and its instances begin.
+            run_entries_.assign(length, InstanceConstants{});
+            bool anyLit = false;
+            u32 instances = 0;
+            for (u32 k = 0; k < length; ++k) {
+                const DrawCommand& member = commands_[i + k];
+                run_entries_[k].base = member.vertex_byte_offset / MESH_INSTANCE_STRIDE;
+                run_entries_[k].pad[0] = instances;
+                instances += member.instance_count;
+                anyLit = anyLit || probeLitAt(member);
+            }
+            if (anyLit) {
+                probe_run_.assign(static_cast<size_t>(instances) * PROBE_TEXELS, glm::vec4(0.0f));
+                u32 at = 0;
+                for (u32 k = 0; k < length; ++k) {
+                    const DrawCommand& member = commands_[i + k];
+                    for (u32 n = 0; n < member.instance_count; ++n, ++at) {
+                        const size_t slot = static_cast<size_t>(member.probe_base) + n;
+                        const u32 index = slot < probe_slots_.size() ? probe_slots_[slot] : 0u;
+                        if (index == 0) continue;
+                        std::memcpy(&probe_run_[static_cast<size_t>(at) * PROBE_TEXELS], &probes_[index - 1], sizeof(ProbeConstants));
+                    }
+                }
+                staged.probe = blocks.probe->stage(probe_run_.data(), static_cast<u32>(probe_run_.size() * sizeof(glm::vec4)));
+            }
+            staged.instance = blocks.instance->stage(run_entries_.data(), static_cast<u32>(length * sizeof(InstanceConstants)));
+            continue;
+        }
 
         if (blocks.planar && cmd.planar_index > 0) {
             staged.planar = blocks.planar->stage(&planar_[cmd.planar_index - 1], sizeof(PlanarConstants));
@@ -444,10 +523,17 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         device.bindTexture(MESH_INSTANCE_TEXTURE_UNIT, buffers.instanceTexture());
     }
 
-    // The colour pass after a prepass is the same list the prepass staged the per-draw blocks for.
-    if (!afterPrepass) stageBlocks(blocks);
+    // The colour pass after a prepass is the same list the prepass staged the per-draw blocks for. Runs where the device draws them
+    // as one call, and not while a capture records or replays draw by draw.
+    const bool capturing = capture && (capture->isCapturing() || capture->isReplaying());
+    if (!afterPrepass) stageBlocks(blocks, device.supportsMultiDraw() && !capturing);
+    if (run_length_.size() != merged_draw_calls_) run_length_.assign(merged_draw_calls_, 1u);
+    u32 runCalls = 0;
 
-    for (u32 i = 0; i < merged_draw_calls_; ++i) {
+    for (u32 i = 0, next = 0; i < merged_draw_calls_; i = next) {
+        // A run is taken or passed over whole: its draws agree on everything a pass or a phase asks of them.
+        next = i + std::max(run_length_[i], 1u);
+        const u32 runLength = std::max(run_length_[i], 1u);
         const auto& cmd = commands_[i];
         const StagedBlocks& staged = staged_[i];
         if (prepass && !takesPartInPrepass(cmd)) continue;
@@ -587,7 +673,20 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
             device.setVertexBuffer(0, cmd.vertex_buffer, 0);
             device.setIndexBuffer(cmd.index_buffer);
             const u32 firstIndexByte = static_cast<u32>(static_cast<uintptr_t>(cmd.index_offset) * sizeof(u32));
-            if (cmd.instance_count != 0) {
+            if (runLength > 1) {
+                run_counts_.resize(runLength);
+                run_offsets_.resize(runLength);
+                run_instances_.resize(runLength);
+                for (u32 k = 0; k < runLength; ++k) {
+                    const DrawCommand& member = commands_[i + k];
+                    run_counts_[k] = member.index_count;
+                    run_offsets_[k] = static_cast<u32>(static_cast<uintptr_t>(member.index_offset) * sizeof(u32));
+                    run_instances_[k] = member.instance_count;
+                }
+                device.drawElementsInstancedMulti(GfxDataType::UnsignedInt, run_counts_.data(), run_offsets_.data(),
+                                                  run_instances_.data(), runLength);
+                ++runCalls;
+            } else if (cmd.instance_count != 0) {
                 device.drawElementsInstanced(cmd.index_count, GfxDataType::UnsignedInt, firstIndexByte, cmd.instance_count);
             } else {
                 device.drawElements(cmd.index_count, GfxDataType::UnsignedInt, firstIndexByte);
@@ -613,10 +712,11 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
             if (capture->isReplaying()) {
                 if (capture->stepReplay()) break;
             } else if (capture->isCapturing()) {
-                capture->record(cmd, runEntities(i));
+                for (u32 k = 0; k < runLength; ++k) capture->record(commands_[i + k], runEntities(i + k));
             }
         }
     }
+    if (runCalls > 0) FrameProfiler::get().counter("render.multiDraw.calls", runCalls);
 }
 
 u64 DrawList::contentHash(u64 h) const {

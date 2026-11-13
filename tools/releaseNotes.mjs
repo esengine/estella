@@ -4816,4 +4816,6 @@ export const NOTED = {
     {"internal": "The lite WeChat engine stopped building after the last release and builds again before the next; no release shipped without it."},
   "fix(transform): a child whose transform a script wrote moves when its new place is the identity - the write left an identity cache beside the old world fields, and a child whose new matrix was the identity read as unchanged and stayed where it had been":
     {"internal": "The transform cache this restores was made lazy after the last release; no release kept a child in its old place."},
+  "perf(render): a run of mesh draws that differ only by their geometry and records is one call - with WEBGL_multi_draw, each draw reads its record base and probe offset by gl_DrawID from one block staged for the run, so a run binds its blocks once and draws once":
+    {"note": "A run of mesh draws is one call on WebGL2."},
 };

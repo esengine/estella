@@ -14,9 +14,11 @@
 #include "./GLDevice.hpp"
 #include "./OpenGLHeaders.hpp"
 #include "../../core/Log.hpp"
+#include "../store/InstanceConstants.hpp"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>
+#include <webgl/webgl1_ext.h>
 #endif
 
 #include <chrono>
@@ -322,6 +324,15 @@ void GLDevice::init() {
     // Depth test and blend were just turned on, but a new context knows nothing the old one was told: nothing is assumed held.
     resetDrawStateCaches();
     captureDeviceIdentity();
+#ifdef __EMSCRIPTEN__
+    // Runs of mesh draws as one call: a scene's draws mostly differ by nothing but their geometry's range and their records,
+    // and each was a call of its own with a block bound for it. Before any program is assembled, which reads the same answer.
+    {
+        const EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
+        multi_draw_ = ctx != 0 && emscripten_webgl_enable_WEBGL_multi_draw(ctx);
+        glslMultiDraw() = multi_draw_;
+    }
+#endif
     ES_LOG_DEBUG("GLDevice initialized");
 }
 
@@ -415,6 +426,7 @@ bool GLDevice::recreateDevice() {
         }
         free(names);
     }
+    if (multi_draw_) multi_draw_ = emscripten_webgl_enable_WEBGL_multi_draw(ctx);
 #endif
     // Every name belonged to the old context. The registry rebuilds each object
     // behind its id; nothing here survives but the maps' shape.
@@ -1398,6 +1410,32 @@ void GLDevice::drawArrays(u32 first, u32 vertexCount) {
     prepareVertexState();
     countDraw();
     glDrawArrays(primitiveMode(), static_cast<GLint>(first), static_cast<GLsizei>(vertexCount));
+}
+
+void GLDevice::drawElementsInstancedMulti(GfxDataType indexType, const u32* counts, const u32* byteOffsets,
+                                          const u32* instanceCounts, u32 drawCount) {
+#ifdef __EMSCRIPTEN__
+    if (!multi_draw_) {
+        GfxDevice::drawElementsInstancedMulti(indexType, counts, byteOffsets, instanceCounts, drawCount);
+        return;
+    }
+    if (!isDeviceUsable() || drawCount == 0) return;
+    prepareVertexState();
+    multi_counts_.resize(drawCount);
+    multi_instances_.resize(drawCount);
+    multi_offsets_.resize(drawCount);
+    for (u32 k = 0; k < drawCount; ++k) {
+        multi_counts_[k] = static_cast<i32>(counts[k]);
+        multi_instances_[k] = static_cast<i32>(instanceCounts[k]);
+        multi_offsets_[k] = reinterpret_cast<const void*>(static_cast<uintptr_t>(byteOffsets[k]));
+        // Counted as the draws they are: a draw count that halved because they shared a call would read as work saved on the GPU.
+        countDraw();
+    }
+    glMultiDrawElementsInstancedWEBGL(primitiveMode(), multi_counts_.data(), toGLDataType(indexType), multi_offsets_.data(),
+                                      multi_instances_.data(), static_cast<GLsizei>(drawCount));
+#else
+    GfxDevice::drawElementsInstancedMulti(indexType, counts, byteOffsets, instanceCounts, drawCount);
+#endif
 }
 
 void GLDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 byteOffset, u32 instanceCount) {

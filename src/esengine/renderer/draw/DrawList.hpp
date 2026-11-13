@@ -9,6 +9,7 @@
 #include "../frame/FrameCapture.hpp"
 #include "../store/MorphConstants.hpp"
 #include "../store/ProbeConstants.hpp"
+#include "../store/InstanceConstants.hpp"
 #include "../rhi/PerDrawBlocks.hpp"
 #include "../../math/Math.hpp"
 
@@ -281,7 +282,13 @@ private:
         PerDrawBlocks::Range skin, morph, probe, instance, planar;
     };
     std::vector<StagedBlocks> staged_;
-    void stageBlocks(const PerDrawBlockSet& blocks);
+    /// Per merged draw: how many draws the run it heads holds (drawn as one call, see stageBlocks), 0 for a draw inside a run.
+    std::vector<u32> run_length_;
+    std::vector<u32> run_counts_, run_offsets_, run_instances_;
+    std::vector<InstanceConstants> run_entries_;
+    /** Whether @p next can be drawn in the same call as @p prev: everything but its geometry's range and its records the same. */
+    static bool joinsRun(const DrawCommand& prev, const DrawCommand& next);
+    void stageBlocks(const PerDrawBlockSet& blocks, bool runs);
     /// The sorted order of the last finalize and the keys, in emit order, it was sorted from. The order is a function of the keys alone (ties break on
     /// emit index), and in 2D the key holds no position, so a frame of moving sprites has the keys of the frame before it.
     std::vector<SortEntry> sort_entries_;

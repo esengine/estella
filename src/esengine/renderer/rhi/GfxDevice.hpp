@@ -703,6 +703,20 @@ public:
     /** @brief Draws indexed triangles with instancing */
     virtual void drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 byteOffset, u32 instanceCount) = 0;
 
+    /** @brief Whether drawElementsInstancedMulti is one call here, its draws told apart by gl_DrawID (WEBGL_multi_draw). */
+    virtual bool supportsMultiDraw() const { return false; }
+
+    /**
+     * @brief @p drawCount indexed instanced draws through the bound pipeline and buffers, as one call where supportsMultiDraw().
+     * @details Draw k reads counts[k] indices from byteOffsets[k], instanceCounts[k] times, and its vertex stage sees gl_DrawID
+     *          = k. Elsewhere it is the draws one after another, which is the same picture only for a program that does not read
+     *          gl_DrawID; the draw list asks for runs only where the device has said it draws them.
+     */
+    virtual void drawElementsInstancedMulti(GfxDataType indexType, const u32* counts, const u32* byteOffsets,
+                                            const u32* instanceCounts, u32 drawCount) {
+        for (u32 k = 0; k < drawCount; ++k) drawElementsInstanced(counts[k], indexType, byteOffsets[k], instanceCounts[k]);
+    }
+
     // =========================================================================
     // Framebuffers
     // =========================================================================
