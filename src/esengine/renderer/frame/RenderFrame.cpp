@@ -3031,18 +3031,21 @@ resource::ShaderHandle RenderFrame::compileBatchVariant(const std::vector<std::s
         resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features, target),
         resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features, target),
         {{0, "a_position"}, {1, "a_color"}, {2, "a_texCoord"}},
-        resource_manager_.preferredShaderLanguage());
+        resource_manager_.preferredShaderLanguage(), resource_manager_.deferLinks());
 
     Shader* shader = resource_manager_.getShader(handle);
     if (shader && shader->isValid()) {
-        shader->bind();
-        // Bind the 8 multi-texture samplers to units 0..7 (per-program, set once).
-        for (i32 i = 0; i < 8; ++i) {
-            i32 loc = device_.getUniformLocation(shader->handle(),
-                                                 ("u_textures[" + std::to_string(i) + "]").c_str());
-            if (loc >= 0) device_.setUniform1i(loc, i);
-        }
-        shader->unbind();
+        // After it links: at once, or (where shaders are not waited for) when a draw first needs it.
+        // Sampler seeding is a GLSL concept; on WGSL the textures ride the bind group.
+        if (shader->language() == GfxShaderLanguage::GLSL_ES300) shader->whenLinked([](Shader& s) {
+            s.bind();
+            // Bind the 8 multi-texture samplers to units 0..7 (per-program, set once).
+            for (i32 i = 0; i < 8; ++i) {
+                const std::string name = "u_textures[" + std::to_string(i) + "]";
+                s.setUniform(name, i);
+            }
+            s.unbind();
+        });
         return handle;
     }
 

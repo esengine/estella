@@ -59,18 +59,20 @@ void ParticlePlugin::init(RenderFrameContext& ctx) {
     handle = ctx.resources.createShaderWithBindings(
         resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "", features, target),
         resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "", features, target),
-        {}, ctx.resources.preferredShaderLanguage());
+        {}, ctx.resources.preferredShaderLanguage(), ctx.resources.deferLinks());
     Shader* shader = ctx.resources.getShader(handle);
     if (shader && shader->isValid()) {
         particle_shader_id_ = shader->getProgramId();
         if (shader->language() == GfxShaderLanguage::GLSL_ES300) {
             // Sampler seeding is a GLSL concept; on WGSL the texture rides the
-            // bind group.
-            shader->bind();
-            for (i32 unit = 0; unit < 8; ++unit) {
-                shader->setUniform("u_textures[" + std::to_string(unit) + "]", unit);
-            }
-            shader->unbind();
+            // bind group. After it links: at once, or when a draw first needs it.
+            shader->whenLinked([](Shader& s) {
+                s.bind();
+                for (i32 unit = 0; unit < 8; ++unit) {
+                    s.setUniform("u_textures[" + std::to_string(unit) + "]", unit);
+                }
+                s.unbind();
+            });
         }
     }
 }
