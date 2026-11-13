@@ -14,7 +14,10 @@
 import { fft } from '../sound/soundPicture';
 import { placeResponse, renderSound } from '../sound/soundRender';
 import type { SoundLayer } from '../sound/soundSource';
-import { musicSeconds, parseTrack, SCALES, tonicOf, type MusicInstrument, type MusicSource } from './musicSource';
+import { midiOf, musicSeconds, parseTrack, SCALES, tonicOf, type MusicInstrument, type MusicSource } from './musicSource';
+
+/** A recording as samples: what an instrument made of recordings plays from. */
+export interface SampleData { rate: number; channels: readonly Float32Array[] }
 
 export interface MusicEvent {
     instrument: string;
@@ -168,6 +171,58 @@ function forNote(layer: SoundLayer, held: number, release: number): SoundLayer {
     return { ...layer, length: Math.max(0.01, held + release - (layer.start ?? 0)), release: layer.release ?? release };
 }
 
+/**
+ * One note of an instrument made of recordings: the recording nearest the note, played faster to be higher or slower
+ * to be lower, let go over the release. A recording an octave from its note is another instrument, which is why there
+ * are several; within three semitones the ear takes it for the same one.
+ */
+function sampleNote(name: string, instrument: MusicInstrument, midi: number | null, held: number, rate: number, given: Readonly<Record<string, SampleData>>): Float32Array[] {
+    const zones = instrument.samples!;
+    let zone = zones[0]!;
+    if (midi !== null) {
+        const ranged = zones.find((z) => (z.low !== undefined || z.high !== undefined) && midi >= (midiOf(z.low) ?? 0) && midi <= (midiOf(z.high) ?? 127));
+        zone = ranged ?? zones.reduce((best, z) => (Math.abs(midiOf(z.note)! - midi) < Math.abs(midiOf(best.note)! - midi) ? z : best));
+    }
+    const data = given[zone.file];
+    if (!data) throw new Error(`instrument "${name}": the recording ${zone.file} was not found`);
+    const frames = data.channels[0]!.length;
+    const step = (midi === null ? 1 : Math.pow(2, (midi - midiOf(zone.note)!) / 12)) * (data.rate / rate);
+    const [attack, release] = [instrument.attack ?? 0.003, instrument.release ?? 0.08];
+    // Round its steady middle, or the seconds given, with the end of each turn faded into the start of the next.
+    let [from, to] = [0, 0];
+    if (zone.loop) {
+        [from, to] = zone.loop === true ? [frames * 0.4, frames * 0.85] : [zone.loop[0] * data.rate, Math.min(frames - 2, zone.loop[1] * data.rate)];
+    }
+    const round = to - from;
+    const fade = round > 0 ? Math.min(0.12 * data.rate, round / 3, from) : 0;
+    const count = Math.max(1, Math.round(Math.min(held + release, round > 0 ? 30 : (frames - 2) / step / rate) * rate));
+    const at = (channel: Float32Array, p: number): number => {
+        // Through four points, so a note played slower is not a staircase.
+        const i = Math.floor(p), t = p - i;
+        const [a, b, c, d] = [channel[i - 1] ?? channel[i]!, channel[i]!, channel[i + 1] ?? 0, channel[i + 2] ?? 0];
+        return b + 0.5 * t * (c - a + t * (2 * a - 5 * b + 4 * c - d + t * (3 * (b - c) + d - a)));
+    };
+    const out = data.channels.slice(0, 2).map(() => new Float32Array(count));
+    const letGo = Math.round(held * rate);
+    const ending = Math.min(count, Math.round(0.005 * rate));
+    for (let n = 0; n < count; n++) {
+        let p = n * step;
+        let blend = 0;
+        if (round > 0 && p >= to - fade) {
+            p = from + ((p - from) % round);
+            if (fade > 0 && p >= to - fade) blend = (p - (to - fade)) / fade;
+        }
+        let level = n < attack * rate ? n / (attack * rate) : 1;
+        if (n > letGo) level *= Math.max(0, 1 - (n - letGo) / Math.max(1, release * rate));
+        if (count - n < ending) level *= (count - n) / ending;
+        for (let c = 0; c < out.length; c++) {
+            const channel = data.channels[c]!;
+            out[c]![n] = (blend > 0 ? at(channel, p) * (1 - blend) + at(channel, p - round) * blend : at(channel, p)) * level;
+        }
+    }
+    return out;
+}
+
 const TAIL_SECONDS = 4;
 
 /**
@@ -203,8 +258,8 @@ function inPlace(response: Float32Array): (signal: Float32Array) => Float32Array
     };
 }
 
-/** The samples a validated source makes. */
-export function renderMusic(source: MusicSource): RenderedMusic {
+/** The samples a validated source makes. @p given holds the recordings its instruments play, by the path each is named by. */
+export function renderMusic(source: MusicSource, given: Readonly<Record<string, SampleData>> = {}): RenderedMusic {
     const compiled = compileMusic(source);
     const rate = source.rate ?? 44100;
     const count = Math.max(1, Math.round(compiled.seconds * rate));
@@ -217,9 +272,13 @@ export function renderMusic(source: MusicSource): RenderedMusic {
         // The same note is made a few times over and no more: enough that a hat is not one sample struck again.
         const key = `${name}|${e.midi}|${Math.round(e.seconds * 1000)}|${turn % 3}`;
         let made = cache.get(key);
+        if (!made && instrument.samples) {
+            made = sampleNote(name, instrument, e.midi, e.seconds, rate, given);
+            cache.set(key, made);
+        }
         if (!made) {
             const release = instrument.release ?? 0.08;
-            const layers = instrument.layers.map((l) => forNote(l, e.seconds, release));
+            const layers = instrument.layers!.map((l) => forNote(l, e.seconds, release));
             const duration = Math.min(8, Math.max(0.02, ...layers.map((l) => reach(l, e.seconds + release))));
             made = renderSound({ duration, rate, layers, normalize: false }, 0, { pitch: e.midi === null ? 1 : Math.pow(2, (e.midi - 69) / 12), seed: (turn % 3) * 7919, raw: true }).channels;
             cache.set(key, made);

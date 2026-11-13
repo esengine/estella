@@ -9,6 +9,9 @@
  *        steps. A step is a degree of the key and not a pitch in Hz, so a line written without accidentals cannot
  *        leave the key, and a track that follows the bar's chord cannot leave the chord's scale either. What is saved
  *        is this description; the `.wav` a game plays is made from it.
+ *
+ *        Layers make sounds that are plainly made. An instrument that has to pass for a real one is recordings of it:
+ *        a few notes of a piano or a section of strings, each played back faster or slower for the notes round it.
  */
 import { validateSoundSource, type SoundLayer } from '../sound/soundSource';
 
@@ -30,9 +33,26 @@ export type ScaleName = keyof typeof SCALES;
 
 const TONICS: Record<string, number> = { C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11 };
 
+/** One recording of an instrument playing one note. */
+export interface MusicSample {
+    /** A project path to the recording. */
+    file: string;
+    /** The note it is a recording of: "C4" is middle C, "F#3", "Bb2"; or its number, 60 being middle C. */
+    note: string | number;
+    /** The notes it plays, lowest to highest. Left out, each note is played by the recording nearest it. */
+    low?: string | number;
+    high?: string | number;
+    /** For a note held longer than the recording: true goes round its steady middle, [from, to] round those seconds of it. A piano dies of itself and has none. */
+    loop?: boolean | readonly [number, number];
+}
+
 export interface MusicInstrument {
     /** The layers of its sound at A above middle C (440 Hz): a sine at 440 is its fundamental, one at 880 the octave over it. A layer with no `length` lasts as long as the note; one with a `length` (the knock at the front of a pluck, a drum) keeps its own. */
-    layers: readonly SoundLayer[];
+    layers?: readonly SoundLayer[];
+    /** In place of layers: recordings of the instrument, each played faster or slower for the notes round it. The further a note is from its recording the less it is the instrument, so a recording every three or four semitones. */
+    samples?: readonly MusicSample[];
+    /** Samples: seconds a note takes to come in. Default 0.003. */
+    attack?: number;
     /** Loudness against the other instruments. Default 1. */
     gain?: number;
     /** -1 is left, 1 is right. Default 0. */
@@ -109,6 +129,20 @@ const NAME = /^[A-Za-z][A-Za-z0-9_-]{0,31}$/;
 
 export const tonicOf = (key: string): number => TONICS[key]!;
 
+/** "C4" as its number, 60; a number as itself. Null for what is neither. */
+export function midiOf(note: unknown): number | null {
+    if (typeof note === 'number') return Number.isInteger(note) && note >= 0 && note <= 127 ? note : null;
+    const m = typeof note === 'string' ? /^([A-G](?:#|b)?)(-?\d)$/.exec(note) : null;
+    if (!m || TONICS[m[1]!] === undefined) return null;
+    const midi = TONICS[m[1]!]! + 12 * (Number(m[2]) + 1);
+    return midi >= 0 && midi <= 127 ? midi : null;
+}
+
+/** The recordings a source plays, each once. */
+export function musicSampleFiles(source: MusicSource): string[] {
+    return [...new Set(Object.values(source.instruments).flatMap((i) => (i.samples ?? []).map((s) => s.file)))];
+}
+
 const loudOf = (mark: string): number => (mark === '!' ? 1.3 : mark === '?' ? 0.6 : 1);
 
 function noteOf(text: string): StepNote | null {
@@ -149,7 +183,25 @@ export function parseTrack(text: string, bars: number, stepsToBar: number, where
 }
 
 const SOURCE_FIELDS = ['version', 'tempo', 'beats', 'key', 'scale', 'swing', 'humanize', 'seed', 'instruments', 'patterns', 'song', 'loop', 'stems', 'reverb', 'gain', 'rate'];
-const INSTRUMENT_FIELDS = ['layers', 'gain', 'pan', 'octave', 'follow', 'release', 'reverb'];
+const INSTRUMENT_FIELDS = ['layers', 'samples', 'attack', 'gain', 'pan', 'octave', 'follow', 'release', 'reverb'];
+const RECORDING = /\.(wav|ogg|mp3|flac|m4a|aac|webm)$/i;
+
+function checkSamples(samples: unknown, where: string): void {
+    if (!Array.isArray(samples) || samples.length === 0 || samples.length > 64) throw new Error(`${where}: samples must be 1..64 of { file, note }`);
+    samples.forEach((sample: unknown, i) => {
+        const at = `${where}, sample ${i + 1}`;
+        if (!isObj(sample)) throw new Error(`${at} must be { file, note }`);
+        for (const key of Object.keys(sample)) if (!['file', 'note', 'low', 'high', 'loop'].includes(key)) throw new Error(`${at} has unknown "${key}"; a sample has file, note, low, high, loop`);
+        if (typeof sample.file !== 'string' || !RECORDING.test(sample.file)) throw new Error(`${at}: file must be a project path to a recording (.wav, .ogg, .mp3, .flac, .m4a)`);
+        if (midiOf(sample.note) === null) throw new Error(`${at}: note must be the note recorded, as "C4", "F#3" or "Bb2" (C4 is middle C), or its number 0..127`);
+        for (const key of ['low', 'high']) if (sample[key] !== undefined && midiOf(sample[key]) === null) throw new Error(`${at}: ${key} must be a note, as "C4"`);
+        if (sample.low !== undefined && sample.high !== undefined && midiOf(sample.low)! > midiOf(sample.high)!) throw new Error(`${at}: low is above high`);
+        const loop = sample.loop;
+        if (loop !== undefined && typeof loop !== 'boolean' && !(Array.isArray(loop) && loop.length === 2 && isNum(loop[0]) && isNum(loop[1]) && loop[0] >= 0 && loop[1] > loop[0] + 0.02)) {
+            throw new Error(`${at}: loop must be true, or [from, to] in seconds with to past from`);
+        }
+    });
+}
 const PATTERN_FIELDS = ['bars', 'div', 'chords', 'tracks'];
 
 /** Seconds the song lasts, before anything that rings past its end. */
@@ -188,12 +240,17 @@ export function validateMusicSource(raw: unknown): MusicSource {
         if (!NAME.test(name)) throw new Error(`${where}: a name is a letter, then letters, digits, _ or -`);
         if (!isObj(value)) throw new Error(`${where} must be { layers: [...] }`);
         for (const key of Object.keys(value)) if (!INSTRUMENT_FIELDS.includes(key)) throw new Error(`${where} has unknown "${key}"; an instrument has ${INSTRUMENT_FIELDS.join(', ')}`);
-        try {
-            // Its layers are a sound's layers, and are wrong in the same ways.
-            validateSoundSource({ duration: 8, layers: value.layers });
-        } catch (e) {
-            throw new Error(`${where}: ${(e as Error).message}`);
+        if ((value.layers === undefined) === (value.samples === undefined)) throw new Error(`${where} needs layers (a made sound) or samples (recordings), one of the two`);
+        if (value.samples !== undefined) checkSamples(value.samples, where);
+        else {
+            try {
+                // Its layers are a sound's layers, and are wrong in the same ways.
+                validateSoundSource({ duration: 8, layers: value.layers });
+            } catch (e) {
+                throw new Error(`${where}: ${(e as Error).message}`);
+            }
         }
+        if (value.attack !== undefined && !(value.samples !== undefined && between(value.attack, 0, 2))) throw new Error(`${where}: attack is for samples, seconds 0..2; layers have their own`);
         if (value.gain !== undefined && !between(value.gain, 0, 4)) throw new Error(`${where}: gain must be 0..4`);
         if (value.pan !== undefined && !between(value.pan, -1, 1)) throw new Error(`${where}: pan must be -1..1`);
         if (value.octave !== undefined && !(Number.isInteger(value.octave) && between(value.octave, -4, 4))) throw new Error(`${where}: octave must be a whole number, -4..4`);

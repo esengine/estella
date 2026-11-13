@@ -5,8 +5,8 @@
  * what pitch comes out, that a loop runs into itself and that the instruments written apart add up to the whole.
  */
 import { describe, expect, it } from 'vitest';
-import { applyMusicEdits, validateMusicSource, type MusicSource } from '../src/music/musicSource';
-import { compileMusic, noteName, renderMusic } from '../src/music/musicRender';
+import { applyMusicEdits, midiOf, musicSampleFiles, validateMusicSource, type MusicSource } from '../src/music/musicSource';
+import { compileMusic, noteName, renderMusic, type SampleData } from '../src/music/musicRender';
 import { musicPicture } from '../src/music/musicPicture';
 
 const tone = { layers: [{ source: 'sine', freq: 440 }] } as const;
@@ -200,5 +200,108 @@ describe('music from instruments and patterns', () => {
         // The drum on its own row at the bottom, in its own colour.
         const drum = at(1, p.height - 6);
         expect(drum[0]! > 150 && drum[0]! > drum[2]! + 40).toBe(true);
+    });
+});
+
+describe('an instrument made of recordings', () => {
+    /** A recording of a plain tone: @p hz for @p seconds, as loud at its end as at its start. */
+    const recorded = (hz: number, seconds: number, rate = 44100): SampleData => ({ rate, channels: [Float32Array.from({ length: Math.round(seconds * rate) }, (_, n) => 0.5 * Math.sin((2 * Math.PI * hz * n) / rate))] });
+    const given = { 'a4.wav': recorded(440, 1), 'a2.wav': recorded(110, 1), 'half.wav': recorded(440, 1, 22050) };
+    const played = (samples: unknown[], line: string, rest: Record<string, unknown> = {}, more: Record<string, unknown> = {}) => renderMusic(validateMusicSource({
+        tempo: 120, key: 'A', humanize: 0, loop: false, gain: 0.5,
+        instruments: { keys: { samples, ...more } }, patterns: { a: { bars: 1, tracks: { keys: line } } }, song: ['a'], ...rest,
+    }), given);
+    const HELD = '- - - - - - -';
+    const one = (note: string): string => `${note} ${HELD} . . . . . . . .`;
+
+    it('plays a recording faster to be higher and slower to be lower', () => {
+        const zone = [{ file: 'a4.wav', note: 'A4' }];
+        expect(pitchOf(played(zone, one('1')).channels[0]!, 44100, 0.1, 0.9)).toBeCloseTo(440, -1);
+        expect(pitchOf(played(zone, one("1'")).channels[0]!, 44100, 0.1, 0.4)).toBeCloseTo(880, -1.3);
+        expect(pitchOf(played(zone, one('1,')).channels[0]!, 44100, 0.1, 0.9)).toBeCloseTo(220, -1);
+        // A fifth up is half as much again.
+        expect(pitchOf(played(zone, one('5')).channels[0]!, 44100, 0.1, 0.6)).toBeCloseTo(659.3, -1);
+    });
+
+    it('is the same pitch whatever rate the recording was made at', () => {
+        expect(pitchOf(played([{ file: 'half.wav', note: 'A4' }], one('1')).channels[0]!, 44100, 0.1, 0.9)).toBeCloseTo(440, -1);
+        expect(pitchOf(played([{ file: 'a4.wav', note: 'A4' }], one('1'), { rate: 22050 }).channels[0]!, 22050, 0.1, 0.9)).toBeCloseTo(440, -1);
+    });
+
+    it('takes each note from the recording nearest it, or from the one whose range holds it', () => {
+        // The recordings are two octaves apart and each plays the notes round it.
+        const near = [{ file: 'a4.wav', note: 'A4' }, { file: 'a2.wav', note: 'A2' }];
+        expect(pitchOf(played(near, one('1')).channels[0]!, 44100, 0.1, 0.9)).toBeCloseTo(440, -1);
+        expect(pitchOf(played(near, one('1,,')).channels[0]!, 44100, 0.1, 0.9)).toBeCloseTo(110, -1);
+        expect(pitchOf(played(near, one('4,')).channels[0]!, 44100, 0.1, 0.6)).toBeCloseTo(293.7, -1);
+        expect(pitchOf(played(near, one('4,,')).channels[0]!, 44100, 0.1, 0.6)).toBeCloseTo(146.8, -1);
+        // Which one played is heard when one of them is called a note it is not: told it is A3 and given every note
+        // up to C5, the recording of A4 plays an A4 an octave high.
+        const moved = [{ file: 'a2.wav', note: 'A2' }, { file: 'a4.wav', note: 'A3', low: 'C1', high: 'C5' }];
+        expect(pitchOf(played(moved, one('1')).channels[0]!, 44100, 0.1, 0.4)).toBeCloseTo(880, -1.3);
+        // And without the range the nearer recording has it: A2, three octaves up from where it is said to be.
+        const unranged = [{ file: 'a2.wav', note: 'A4' }, { file: 'a4.wav', note: 'A1' }];
+        expect(pitchOf(played(unranged, one('1')).channels[0]!, 44100, 0.1, 0.9)).toBeCloseTo(110, -1);
+    });
+
+    it('stops where the recording ends, unless it goes round', () => {
+        const short = { 'a4.wav': recorded(440, 0.3) };
+        const line = `1 ${HELD} ${HELD} -`;
+        const render = (loop?: unknown) => renderMusic(validateMusicSource({
+            tempo: 120, key: 'A', humanize: 0, loop: false, gain: 0.5,
+            instruments: { keys: { samples: [{ file: 'a4.wav', note: 'A4', ...(loop !== undefined ? { loop } : {}) }] } }, patterns: { a: { bars: 1, tracks: { keys: line } } }, song: ['a'],
+        }), short);
+        const once = render().channels[0]!;
+        expect(level(once, 44100, 0.05, 0.25)).toBeGreaterThan(0.1);
+        expect(level(once, 44100, 0.4, 1.9)).toBeLessThan(1e-4);
+        for (const loop of [true, [0.1, 0.25]]) {
+            const round = render(loop).channels[0]!;
+            expect(level(round, 44100, 1.5, 1.9)).toBeGreaterThan(0.1);
+            expect(pitchOf(round, 44100, 0.5, 1.9)).toBeCloseTo(440, -1);
+            // Going round does not step: no sample leaps from the one before by more than the tone itself does.
+            let leap = 0;
+            for (let n = 1; n < round.length; n++) leap = Math.max(leap, Math.abs(round[n]! - round[n - 1]!));
+            expect(leap).toBeLessThan(0.06);
+        }
+    });
+
+    it('comes in over the attack and is let go over the release', () => {
+        const m = played([{ file: 'a4.wav', note: 'A4' }], '1 - - - . . . . . . . . . . . .', {}, { attack: 0.2, release: 0.25 }).channels[0]!;
+        expect(level(m, 44100, 0, 0.05)).toBeLessThan(level(m, 44100, 0.3, 0.45) * 0.3);
+        expect(level(m, 44100, 0.55, 0.7)).toBeGreaterThan(1e-3);
+        expect(level(m, 44100, 0.8, 1.9)).toBeLessThan(1e-4);
+    });
+
+    it('keeps both sides of a recording made in stereo, and plays a drum as it was recorded', () => {
+        const stereo = { 'two.wav': { rate: 44100, channels: [recorded(440, 0.5).channels[0]!, new Float32Array(22050)] } };
+        const m = renderMusic(validateMusicSource({
+            tempo: 120, key: 'C', scale: 'major', humanize: 0, loop: false,
+            instruments: { hit: { samples: [{ file: 'two.wav', note: 'C4' }] } }, patterns: { a: { bars: 1, tracks: { hit: 'x . . . . . . . . . . . . . . .' } } }, song: ['a'],
+        }), stereo);
+        expect(pitchOf(m.channels[0]!, 44100, 0.02, 0.1)).toBeCloseTo(440, -1);
+        expect(level(m.channels[1]!, 44100, 0, 0.5)).toBeLessThan(1e-6);
+    });
+
+    it('names its recordings, and says which is missing', () => {
+        const source = validateMusicSource({
+            tempo: 120, key: 'A', instruments: { keys: { samples: [{ file: 'a.wav', note: 60 }, { file: 'b.ogg', note: 'F#3' }] }, more: { samples: [{ file: 'a.wav', note: 'Bb2' }] }, tone },
+            patterns: { a: { bars: 1, tracks: { keys: one('1') } } }, song: ['a'],
+        });
+        expect(musicSampleFiles(source)).toEqual(['a.wav', 'b.ogg']);
+        expect(() => renderMusic(source, {})).toThrow(/instrument "keys": the recording (a\.wav|b\.ogg) was not found/);
+        expect([midiOf('C4'), midiOf('A4'), midiOf('F#3'), midiOf('Bb2'), midiOf('C-1'), midiOf('H2'), midiOf(128)]).toEqual([60, 69, 54, 46, 0, null, null]);
+    });
+
+    it('refuses samples that are not well formed', () => {
+        const bad = (instrument: unknown) => () => validateMusicSource({ tempo: 120, key: 'A', instruments: { keys: instrument }, patterns: { a: { bars: 1, tracks: { keys: one('1') } } }, song: ['a'] });
+        expect(bad({})).toThrow(/instrument "keys" needs layers \(a made sound\) or samples \(recordings\), one of the two/);
+        expect(bad({ layers: [{ source: 'noise' }], samples: [{ file: 'a.wav', note: 'C4' }] })).toThrow(/one of the two/);
+        expect(bad({ samples: [] })).toThrow(/samples must be 1\.\.64/);
+        expect(bad({ samples: [{ file: 'a.txt', note: 'C4' }] })).toThrow(/sample 1: file must be a project path to a recording/);
+        expect(bad({ samples: [{ file: 'a.wav', note: 'C' }] })).toThrow(/note must be the note recorded, as "C4"/);
+        expect(bad({ samples: [{ file: 'a.wav', note: 'C4', low: 'C5', high: 'C3' }] })).toThrow(/low is above high/);
+        expect(bad({ samples: [{ file: 'a.wav', note: 'C4', loop: [0.5, 0.5] }] })).toThrow(/loop must be true, or \[from, to\]/);
+        expect(bad({ samples: [{ file: 'a.wav', note: 'C4', root: 'C4' }] })).toThrow(/unknown "root"; a sample has file, note, low, high, loop/);
+        expect(bad({ layers: [{ source: 'noise' }], attack: 0.1 })).toThrow(/attack is for samples/);
     });
 });
