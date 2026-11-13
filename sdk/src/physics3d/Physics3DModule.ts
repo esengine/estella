@@ -144,6 +144,11 @@ export interface Physics3DWasmModule {
     /** Optional for older binaries: one closing speed for each contact begun. */
     _physics3d_contactEnterSpeeds?(): number;
     _physics3d_contactEnterSpeedsBytes?(): number;
+    /** Optional for older binaries: the mass, in kilograms, each contact begun met with. */
+    _physics3d_contactEnterMasses?(): number;
+    _physics3d_contactEnterMassesBytes?(): number;
+    /** Optional for older binaries: a moving body's mass in kilograms. */
+    _physics3d_setMass?(bodyId: number, mass: number): void;
     _physics3d_contactExits(): number;
     _physics3d_contactExitsBytes(): number;
     _physics3d_sensorEnters(): number;
@@ -220,6 +225,16 @@ export interface Contact3DEvent {
      * answered: a ball dropped on a floor from a metre lands at about 4.4 m/s. Undefined from a binary too old to say.
      */
     speed?: number;
+    /**
+     * The mass they met with, in kilograms: 1 / (1/a + 1/b), where a body that does not move counts as having no
+     * inverse mass, so a stone landing on a floor meets it with the stone's own. Infinity where neither moves of itself.
+     */
+    mass?: number;
+    /**
+     * How hard: `speed` times `mass`, in kilograms by world units a second, the push it takes to stop the two coming
+     * together. A 1 kg stone landing at 10 m/s in a scene of 100 units to the metre is 1000.
+     */
+    impulse?: number;
 }
 
 /** A sensor was entered or left. The SENSOR is always named first. */
@@ -278,6 +293,16 @@ export function drainPhysics3DEvents(module: Physics3DWasmModule,
         const speeds = read(module._physics3d_contactEnterSpeeds(), module._physics3d_contactEnterSpeedsBytes(), 1, (o) => f32[o]!);
         // One for each contact, in its order; a count that does not match is a binary that writes something else.
         if (speeds.length === events.contactEnters.length) events.contactEnters.forEach((c, i) => { c.speed = speeds[i]! * pixelsPerUnit; });
+    }
+    if (module._physics3d_contactEnterMasses && module._physics3d_contactEnterMassesBytes) {
+        const masses = read(module._physics3d_contactEnterMasses(), module._physics3d_contactEnterMassesBytes(), 1, (o) => f32[o]!);
+        if (masses.length === events.contactEnters.length) {
+            events.contactEnters.forEach((c, i) => {
+                c.mass = masses[i]!;
+                // Nothing pushes at no speed, however heavy: an unmoving pair is no blow.
+                if (c.speed !== undefined) c.impulse = c.speed > 0 ? c.speed * c.mass : 0;
+            });
+        }
     }
     events.contactExits = read(
         module._physics3d_contactExits(), module._physics3d_contactExitsBytes(), 2,

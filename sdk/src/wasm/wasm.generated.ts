@@ -909,6 +909,7 @@ export interface RigidBody3D {
     gravityScale: number;
     linearDamping: number;
     angularDamping: number;
+    mass: number;
     fixedRotation: boolean;
     layer: number;
     continuousCollision: boolean;

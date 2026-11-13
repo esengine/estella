@@ -87,6 +87,7 @@ cmds.spawn()
 |---|---|
 | `bodyType` | `Static` never moves, `Kinematic` is moved by hand, `Dynamic` is solved. |
 | `gravityScale` | This body's share of world gravity. `0` is weightlessness, not slow falling. |
+| `mass` | Kilograms. `0` (the default) takes it from the shape at the density of water: a ball of 10 cm radius is 4.2 kg. Set it to make a hollow crate light or a small anvil heavy; it reaches a body already in play when it changes. A static or kinematic body has none. |
 | `linearDamping` / `angularDamping` | How quickly motion bleeds off (both default `0.05`; 2D bodies default to `0`). |
 | `fixedRotation` | Freezes the orientation the body was given — what keeps a character from toppling. It does not right a body that starts tilted. |
 | `layer` | Which of the sixteen [collision layers](#collision-layers) the body is in. |
@@ -555,7 +556,7 @@ for (const { sensorEntity, visitorEntity } of events.sensorEnters) {
 
 | Channel | What it carries |
 |---|---|
-| `contactEnters` | Both entities, the contact normal and the point, in the same units as `Transform`, and `speed`: how fast the first was closing on the second where they met, along the normal, in those units a second, read before the solver answered. A ball dropped a metre lands at about 4.4 m/s. |
+| `contactEnters` | Both entities, the contact normal and the point, in the same units as `Transform`, and `speed`: how fast the first was closing on the second where they met, along the normal, in those units a second, read before the solver answered (a ball dropped a metre lands at about 4.4 m/s); `mass`, the kilograms they met with, 1 / (1/a + 1/b) with a body that does not move counting as no inverse mass, so a stone landing on a floor meets it with its own; and `impulse`, `speed` times `mass`, how hard. |
 | `contactExits` | Only the pair — see below. |
 | `sensorEnters` / `sensorExits` | The **sensor first**, then the visitor. |
 
@@ -654,21 +655,23 @@ world.update(pot, Breakable, (b) => { b.origin = hitPointInItsOwnSpace; b.broken
 | `burst` | number | `300` | How fast the pieces leave, in world units a second, out from `origin`. 0 lets them fall where they are. |
 | `origin` | vec3 | `0,0,0` | Where it is struck, from its own origin. |
 | `lifetime` | number | `0` | Seconds the pieces last before they are taken away. 0 keeps them. |
-| `breakSpeed` | number | `0` | A hit at least this fast breaks it, in world units a second. 0 breaks it only when `broken` is raised. |
+| `breakImpulse` | number | `0` | A hit at least this hard breaks it: speed times mass, kg by world units a second. 0 breaks it only when `broken` is raised. |
 
 The whole is hidden, not removed: its renderer, body and colliders are switched
 off and come back when `broken` is lowered. Without a 3D world the pieces
 appear in place and stay there.
 
-To have it break when something hits it, give it a `breakSpeed` and a collider
-of its own (the editor's reply to a fractured model hands over a
-`ConvexCollider3D` of its shape as `hull`). A contact at least that fast, by
-the speed at which the two came together, breaks it, and the pieces leave from
-where it was hit; the hardest hit wins when there are several in a step. With
-the collider alone it stands still; with a dynamic `RigidBody3D` as well it can
-be knocked over, and breaks where it lands if it lands hard enough. In a scene
-of 100 units to the metre, a fall of one metre arrives at about 440 and a thrown
-stone at 1000 or more.
+To have it break when something hits it, give it a `breakImpulse` and a
+collider of its own (the editor's reply to a fractured model hands over a
+`ConvexCollider3D` of its shape as `hull`). A contact at least that hard
+breaks it, and the pieces leave from where it was hit; the hardest hit wins
+when there are several in a step. How hard is the speed at which the two came
+together times the mass they met with, so in a scene of 100 units to the metre a
+1 kg stone landing at 10 m/s is 1000 and a 50 g pebble at the same speed is 50.
+With the collider alone it stands still and a stone meets it with the stone's
+own mass; with a dynamic `RigidBody3D` as well it can be knocked over, and when
+it falls it meets the floor with its own. Give the stones and the pot the masses
+they should have with `RigidBody3D.mass`.
 
 `Physics3D.setLinearVelocity(entity, velocity)` is what throws them, and is
 there for anything else that needs to send a body off: a blast, a kick. It

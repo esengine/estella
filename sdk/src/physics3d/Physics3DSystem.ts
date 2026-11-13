@@ -383,8 +383,10 @@ const IMPLICIT_STATIC_COLLIDERS = [MeshCollider3D, BoxCollider3D, SphereCollider
 const implicitBodies = new WeakMap<BodyMap, Set<Entity>>();
 const IMPLICIT_STATIC: RigidBody3DData = {
     bodyType: 0, layer: 0, gravityScale: 0, linearDamping: 0, angularDamping: 0,
-    fixedRotation: false, continuousCollision: false, enabled: true,
+    fixedRotation: false, continuousCollision: false, enabled: true, mass: 0,
 };
+/** Per body map: the mass last given to each body that was given one, so a change in play reaches the world. */
+const givenMasses = new WeakMap<BodyMap, Map<Entity, number>>();
 
 /** Bring the world's population in line with the ECS, then step and read back. */
 export function stepPhysics3D(app: App, module: Physics3DWasmModule,
@@ -420,6 +422,8 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
     }
     const implicit = implicitBodies.get(bodies) ?? new Set<Entity>();
     implicitBodies.set(bodies, implicit);
+    const given = givenMasses.get(bodies) ?? new Map<Entity, number>();
+    givenMasses.set(bodies, given);
     for (const [entity, body] of bodied) {
         if (!body.enabled || live.has(entity)) continue;
         live.add(entity);
@@ -435,6 +439,14 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
         if (created) {
             const id = createBody(app, module, entity, body, ppu);
             if (id !== 0) bodies.set(entity, id);
+            given.delete(entity);
+        }
+        // Its own mass where it says one; 0 leaves the one its shape gives. Read each step, as gravityScale is not:
+        // what a thing weighs is something a game changes while it runs (a crate emptied, a barrel filled).
+        const mass = body.mass ?? 0;
+        if (bodies.has(entity) && body.bodyType === MOTION.Dynamic && mass > 0 && given.get(entity) !== mass) {
+            module._physics3d_setMass?.(bodies.get(entity)!, mass);
+            given.set(entity, mass);
         }
         if (body.bodyType !== MOTION.Dynamic && bodies.has(entity) && app.world.has(entity, Transform)) {
             const t = app.world.get(entity, Transform), p = t.worldPosition, r = t.worldRotation;
@@ -457,6 +469,7 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
         module._physics3d_removeBody(bodies.get(entity)!);
         bodies.delete(entity);
         poses.delete(entity);
+        given.delete(entity);
     }
 
     syncPieces(app, module, geometry, pieces, bodies, ppu);

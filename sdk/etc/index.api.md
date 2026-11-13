@@ -5,7 +5,7 @@ Symbols: 115 public · 166 beta · 2188 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"cb0184ba3431d6f9"
+"08d1bbb8d5e2107c"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -1940,7 +1940,7 @@ ComponentDef<BreakableData>
 
 ## BreakableData — interface @experimental
 ```
-breakSpeed: number
+breakImpulse: number
 broken: boolean
 burst: number
 enabled: boolean
@@ -9326,6 +9326,7 @@ fixedRotation: boolean
 gravityScale: number
 layer: number
 linearDamping: number
+mass: number
 ```
 
 ## Rng — interface @experimental

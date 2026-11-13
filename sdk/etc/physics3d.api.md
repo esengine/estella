@@ -134,6 +134,8 @@ rotation: Quat
 ```
 entityA: number
 entityB: number
+impulse: number | undefined
+mass: number | undefined
 normalX: number
 normalY: number
 normalZ: number
@@ -360,6 +362,8 @@ _physics3d_addSliderJoint: (entity: number, bodyA: number, bodyB: number, px: nu
 _physics3d_addSphere: (entity: number, radius: number, px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number, motion: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, layer: number, continuous: number, friction: number, restitution: number, isSensor: number, cx: number, cy: number, cz: number) => number
 _physics3d_addSwingTwistJoint: (entity: number, bodyA: number, bodyB: number, px: number, py: number, pz: number, ax: number, ay: number, az: number, nx: number, ny: number, nz: number, normalHalf: number, planeHalf: number, twistMin: number, twistMax: number, collideConnected: number) => number
 _physics3d_addTorque: ((bodyId: number, tx: number, ty: number, tz: number) => void) | undefined
+_physics3d_contactEnterMasses: (() => number) | undefined
+_physics3d_contactEnterMassesBytes: (() => number) | undefined
 _physics3d_contactEnterSpeeds: (() => number) | undefined
 _physics3d_contactEnterSpeedsBytes: (() => number) | undefined
 _physics3d_contactEnters: () => number
@@ -391,6 +395,7 @@ _physics3d_setCharacterPosition: (characterId: number, px: number, py: number, p
 _physics3d_setJointMotor: (entity: number, enable: number, speed: number) => void
 _physics3d_setLayerMask: (layer: number, mask: number) => void
 _physics3d_setLinearVelocity: (bodyId: number, vx: number, vy: number, vz: number) => void
+_physics3d_setMass: ((bodyId: number, mass: number) => void) | undefined
 _physics3d_setSolver: (velocityIterations: number, positionIterations: number, allowSleep: number, bounceThreshold: number) => void
 _physics3d_setTransform: (bodyId: number, px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number) => void
 _physics3d_shutdown: () => void
@@ -505,6 +510,7 @@ fixedRotation: boolean
 gravityScale: number
 layer: number
 linearDamping: number
+mass: number
 ```
 
 ## Sensor3DEvent — interface @experimental

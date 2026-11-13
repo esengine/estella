@@ -1935,7 +1935,7 @@ ComponentDef<BreakableData>
 
 ## BreakableData — interface @experimental
 ```
-breakSpeed: number
+breakImpulse: number
 broken: boolean
 burst: number
 enabled: boolean
@@ -9618,6 +9618,7 @@ fixedRotation: boolean
 gravityScale: number
 layer: number
 linearDamping: number
+mass: number
 ```
 
 ## Rng — interface @experimental

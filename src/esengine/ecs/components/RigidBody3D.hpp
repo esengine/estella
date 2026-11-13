@@ -48,6 +48,12 @@ struct RigidBody3D {
     ES_PROPERTY(min=0)
     f32 angularDamping{0.05f};
 
+    /** @brief Its mass in kilograms. 0 = as heavy as its shape at the density of water,
+     *         a ball of 10 cm radius 4.2 kg; set it to make a hollow thing light or a small thing
+     *         heavy. A static or kinematic body has none: nothing moves it. */
+    ES_PROPERTY(min=0, tooltip="Kilograms. 0 = from its shape at the density of water (a ball of 10 cm radius is 4.2 kg).")
+    f32 mass{0.0f};
+
     /** @brief Keeps the body upright: the solver may move it, never turn it. What a
      *         character on legs wants, and what a crate does not. */
     ES_PROPERTY()

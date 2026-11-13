@@ -1332,6 +1332,7 @@ struct RigidBody3DJS {
     f32 gravityScale;
     f32 linearDamping;
     f32 angularDamping;
+    f32 mass;
     bool fixedRotation;
     u32 layer;
     bool continuousCollision;
@@ -1343,6 +1344,7 @@ void rigidbody3dApplyJS(esengine::ecs::RigidBody3D& c, const RigidBody3DJS& js) 
     c.gravityScale = js.gravityScale;
     c.linearDamping = js.linearDamping;
     c.angularDamping = js.angularDamping;
+    c.mass = js.mass;
     c.fixedRotation = js.fixedRotation;
     c.layer = js.layer;
     c.continuousCollision = js.continuousCollision;
@@ -1361,6 +1363,7 @@ RigidBody3DJS rigidbody3dToJS(const esengine::ecs::RigidBody3D& c) {
     js.gravityScale = c.gravityScale;
     js.linearDamping = c.linearDamping;
     js.angularDamping = c.angularDamping;
+    js.mass = c.mass;
     js.fixedRotation = c.fixedRotation;
     js.layer = c.layer;
     js.continuousCollision = c.continuousCollision;
@@ -2265,6 +2268,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("gravityScale", &RigidBody3DJS::gravityScale)
         .field("linearDamping", &RigidBody3DJS::linearDamping)
         .field("angularDamping", &RigidBody3DJS::angularDamping)
+        .field("mass", &RigidBody3DJS::mass)
         .field("fixedRotation", &RigidBody3DJS::fixedRotation)
         .field("layer", &RigidBody3DJS::layer)
         .field("continuousCollision", &RigidBody3DJS::continuousCollision)
@@ -4273,10 +4277,11 @@ static_assert(offsetof(esengine::ecs::RigidBody3D, bodyType) == 0, "ABI offset d
 static_assert(offsetof(esengine::ecs::RigidBody3D, gravityScale) == 4, "ABI offset drift: esengine::ecs::RigidBody3D.gravityScale (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::RigidBody3D, linearDamping) == 8, "ABI offset drift: esengine::ecs::RigidBody3D.linearDamping (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::RigidBody3D, angularDamping) == 12, "ABI offset drift: esengine::ecs::RigidBody3D.angularDamping (EHT expected 12)");
-static_assert(offsetof(esengine::ecs::RigidBody3D, fixedRotation) == 16, "ABI offset drift: esengine::ecs::RigidBody3D.fixedRotation (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::RigidBody3D, layer) == 20, "ABI offset drift: esengine::ecs::RigidBody3D.layer (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::RigidBody3D, continuousCollision) == 24, "ABI offset drift: esengine::ecs::RigidBody3D.continuousCollision (EHT expected 24)");
-static_assert(offsetof(esengine::ecs::RigidBody3D, enabled) == 25, "ABI offset drift: esengine::ecs::RigidBody3D.enabled (EHT expected 25)");
+static_assert(offsetof(esengine::ecs::RigidBody3D, mass) == 16, "ABI offset drift: esengine::ecs::RigidBody3D.mass (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::RigidBody3D, fixedRotation) == 20, "ABI offset drift: esengine::ecs::RigidBody3D.fixedRotation (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::RigidBody3D, layer) == 24, "ABI offset drift: esengine::ecs::RigidBody3D.layer (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::RigidBody3D, continuousCollision) == 28, "ABI offset drift: esengine::ecs::RigidBody3D.continuousCollision (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::RigidBody3D, enabled) == 29, "ABI offset drift: esengine::ecs::RigidBody3D.enabled (EHT expected 29)");
 static_assert(offsetof(esengine::ecs::SegmentCollider2D, point1) == 0, "ABI offset drift: esengine::ecs::SegmentCollider2D.point1 (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::SegmentCollider2D, point2) == 8, "ABI offset drift: esengine::ecs::SegmentCollider2D.point2 (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::SegmentCollider2D, density) == 16, "ABI offset drift: esengine::ecs::SegmentCollider2D.density (EHT expected 16)");
@@ -4441,7 +4446,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "cb0184ba3431d6f9";
+static const char* kEsAbiLayoutHash = "08d1bbb8d5e2107c";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

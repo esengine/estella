@@ -4736,4 +4736,8 @@ export const NOTED = {
     {"note": "A thing breaks when it is hit hard enough."},
   "feat(editor): a fractured model's reply hands over a hull of its shape, and the breakable check drops a stone on one pot and a pebble on another":
     {"note": "A thing breaks when it is hit hard enough."},
+  "feat(physics3d): a hit is judged by its impulse - every 3D contact carries the mass the two met with and the impulse, speed by mass, and a Breakable breaks on a hit at least as hard as its breakImpulse; RigidBody3D.mass gives a moving body a mass of its own in kilograms, 0 keeping the one its shape gives":
+    {"note": "A thing breaks when it is hit hard enough."},
+  "feat(editor): the breakable check drops a 2 kg stone and a 50 g pebble from the same height, and the tool text says how hard a hit is":
+    {"note": "A thing breaks when it is hit hard enough."},
 };

@@ -36,11 +36,12 @@ export interface BreakableData {
     /** Seconds the pieces last before they are taken away. 0 keeps them. */
     lifetime: number;
     /**
-     * A hit at least this fast breaks it, in world units a second at which the two came together where they met:
-     * something thrown at it, or it falling on something. 0 breaks it only when `broken` is raised. It needs a
-     * collider of its own to be hit at all.
+     * A hit at least this hard breaks it: the speed at which the two came together times the mass they met with, in
+     * kilograms by world units a second. A 1 kg stone landing at 10 m/s, in a scene of 100 units to the metre, is
+     * 1000; a pebble of 50 g at the same speed is 50. A thing that falls meets the floor with its own mass. 0 breaks it
+     * only when `broken` is raised. It needs a collider of its own to be hit at all.
      */
-    breakSpeed: number;
+    breakImpulse: number;
     enabled: boolean;
 }
 
@@ -50,7 +51,7 @@ export const Breakable = defineComponent<BreakableData>('Breakable', {
     burst: 300,
     origin: { x: 0, y: 0, z: 0 },
     lifetime: 0,
-    breakSpeed: 0,
+    breakImpulse: 0,
     enabled: true,
 }, {
     assetFields: [{ field: 'pieces', type: 'prefab' }],
@@ -60,7 +61,7 @@ export const Breakable = defineComponent<BreakableData>('Breakable', {
         burst: { min: 0, step: 10, tooltip: 'How fast the pieces leave, in world units a second, out from Origin. 0 lets them fall where they are.' },
         origin: { tooltip: 'Where it is struck, from its own origin: the pieces fly away from here.' },
         lifetime: { min: 0, step: 0.5, tooltip: 'Seconds the pieces last before they are taken away. 0 keeps them.' },
-        breakSpeed: { min: 0, step: 10, tooltip: 'A hit at least this fast breaks it, in world units a second; it needs a collider to be hit. 0 breaks it only when Broken is raised.' },
+        breakImpulse: { min: 0, step: 50, tooltip: 'A hit at least this hard breaks it: speed times mass, kg by world units a second (1 kg at 10 m/s is 1000 at 100 units to the metre). It needs a collider to be hit. 0 breaks it only when Broken is raised.' },
     },
 });
 
@@ -73,15 +74,15 @@ export function setBodyPusher(push: BodyPusher | null): void {
     pusher = push;
 }
 
-type ContactSink = (a: Entity, b: Entity, speed: number, point: Vec3) => void;
+type ContactSink = (a: Entity, b: Entity, impulse: number, point: Vec3) => void;
 const sinks = new Set<ContactSink>();
 
 /**
- * Two bodies met, closing at `speed` world units a second at `point`: what a 3D world says after each of its steps,
- * so that a thing struck hard enough breaks without the world knowing anything breaks.
+ * Two bodies met at `point` with `impulse`, kilograms by world units a second: what a 3D world says after each of its
+ * steps, so that a thing struck hard enough breaks without the world knowing anything breaks.
  */
-export function reportContact(a: Entity, b: Entity, speed: number, point: Vec3): void {
-    for (const sink of sinks) sink(a, b, speed, point);
+export function reportContact(a: Entity, b: Entity, impulse: number, point: Vec3): void {
+    for (const sink of sinks) sink(a, b, impulse, point);
 }
 
 interface Broken {
@@ -155,12 +156,12 @@ export class BreakablePlugin implements Plugin {
             }, () => { /* breaking says why it cannot, when it is asked to */ });
         };
         // Hits are noted as the world steps and acted on in the update after: the step is no place to spawn pieces.
-        const hits: { entity: Entity; speed: number; point: Vec3 }[] = [];
-        const sink: ContactSink = (a, b, speed, point) => {
+        const hits: { entity: Entity; impulse: number; point: Vec3 }[] = [];
+        const sink: ContactSink = (a, b, impulse, point) => {
             for (const entity of [a, b]) {
                 if (!world.valid(entity) || !world.has(entity, Breakable)) continue;
                 const data = world.get(entity, Breakable) as BreakableData;
-                if (data.enabled && !data.broken && data.breakSpeed > 0 && speed >= data.breakSpeed) hits.push({ entity, speed, point });
+                if (data.enabled && !data.broken && data.breakImpulse > 0 && impulse >= data.breakImpulse) hits.push({ entity, impulse, point });
             }
         };
         sinks.add(sink);
@@ -218,8 +219,8 @@ export class BreakablePlugin implements Plugin {
             const prefabs = app.hasResource(Prefabs) ? app.getResource(Prefabs) : null;
             // Struck hard enough: it breaks from where it was hit, the hardest hit if there were several.
             if (hits.length) {
-                const hardest = new Map<Entity, { speed: number; point: Vec3 }>();
-                for (const h of hits) if ((hardest.get(h.entity)?.speed ?? -1) < h.speed) hardest.set(h.entity, h);
+                const hardest = new Map<Entity, { impulse: number; point: Vec3 }>();
+                for (const h of hits) if ((hardest.get(h.entity)?.impulse ?? -1) < h.impulse) hardest.set(h.entity, h);
                 hits.length = 0;
                 for (const [entity, h] of hardest) {
                     if (!world.valid(entity) || !world.has(entity, Breakable)) continue;

@@ -87,6 +87,9 @@ void physics3d_removeBody(uint32_t bodyId);
 void physics3d_setTransform(uint32_t bodyId, float px, float py, float pz,
                             float qx, float qy, float qz, float qw);
 void physics3d_setLinearVelocity(uint32_t bodyId, float vx, float vy, float vz);
+// A moving body's mass, in kilograms, its inertia scaled with it so it turns as its shape says; nothing for a body
+// that does not move, or a mass that is not a positive number.
+void physics3d_setMass(uint32_t bodyId, float mass);
 int physics3d_getBodyState(uint32_t bodyId);
 // What a force needs to know of a body: its mass and how it is turning.
 int physics3d_getBodyDynamics(uint32_t bodyId);
@@ -164,6 +167,12 @@ size_t physics3d_contactEntersBytes();
 // @heapreturn physics3d_contactEnterSpeedsBytes()
 uintptr_t physics3d_contactEnterSpeeds();
 size_t physics3d_contactEnterSpeedsBytes();
+// The mass the two met with at each contact begun this step, in kilograms: 1 / (1/a + 1/b), a body that does not move
+// counting as one of no inverse mass, so a stone on a floor meets it with the stone's own mass. Infinite where neither
+// moves of itself (a kinematic body into a static one). One float for each entry of physics3d_contactEnters.
+// @heapreturn physics3d_contactEnterMassesBytes()
+uintptr_t physics3d_contactEnterMasses();
+size_t physics3d_contactEnterMassesBytes();
 // @heapreturn physics3d_contactExitsBytes()
 uintptr_t physics3d_contactExits();
 size_t physics3d_contactExitsBytes();

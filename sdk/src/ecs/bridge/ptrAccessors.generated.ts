@@ -1878,6 +1878,7 @@ export interface RigidBody3DPtrData {
     gravityScale: number;
     linearDamping: number;
     angularDamping: number;
+    mass: number;
     fixedRotation: boolean;
     layer: number;
     continuousCollision: boolean;
@@ -1892,10 +1893,11 @@ export function fillRigidBody3D(
     out.gravityScale = f32[(ptr + 4) >> 2];
     out.linearDamping = f32[(ptr + 8) >> 2];
     out.angularDamping = f32[(ptr + 12) >> 2];
-    out.fixedRotation = u8[ptr + 16] !== 0;
-    out.layer = u32[(ptr + 20) >> 2];
-    out.continuousCollision = u8[ptr + 24] !== 0;
-    out.enabled = u8[ptr + 25] !== 0;
+    out.mass = f32[(ptr + 16) >> 2];
+    out.fixedRotation = u8[ptr + 20] !== 0;
+    out.layer = u32[(ptr + 24) >> 2];
+    out.continuousCollision = u8[ptr + 28] !== 0;
+    out.enabled = u8[ptr + 29] !== 0;
 }
 
 export function writeRigidBody3D(
@@ -1906,10 +1908,11 @@ export function writeRigidBody3D(
     f32[(ptr + 4) >> 2] = data.gravityScale;
     f32[(ptr + 8) >> 2] = data.linearDamping;
     f32[(ptr + 12) >> 2] = data.angularDamping;
-    u8[ptr + 16] = data.fixedRotation ? 1 : 0;
-    u32[(ptr + 20) >> 2] = data.layer;
-    u8[ptr + 24] = data.continuousCollision ? 1 : 0;
-    u8[ptr + 25] = data.enabled ? 1 : 0;
+    f32[(ptr + 16) >> 2] = data.mass;
+    u8[ptr + 20] = data.fixedRotation ? 1 : 0;
+    u32[(ptr + 24) >> 2] = data.layer;
+    u8[ptr + 28] = data.continuousCollision ? 1 : 0;
+    u8[ptr + 29] = data.enabled ? 1 : 0;
 }
 
 export function createRigidBody3DData(): RigidBody3DPtrData {
@@ -1918,6 +1921,7 @@ export function createRigidBody3DData(): RigidBody3DPtrData {
         gravityScale: 0,
         linearDamping: 0,
         angularDamping: 0,
+        mass: 0,
         fixedRotation: false,
         layer: 0,
         continuousCollision: false,

@@ -180,9 +180,9 @@ describe('a thing that breaks', () => {
         expect(app.world.valid(made[1]!.root)).toBe(true);
     });
 
-    it('breaks when struck at least as fast as its breakSpeed, from where it was struck', async () => {
+    it('breaks when struck at least as hard as its breakImpulse, from where it was struck', async () => {
         const { app, whole, prefabs, tick } = setup();
-        app.world.update(whole, Breakable, (d) => { d.breakSpeed = 400; });
+        app.world.update(whole, Breakable, (d) => { d.breakImpulse = 400; });
         const other = app.world.spawn('Ball');
         // Too soft: a ball rolled into it.
         reportContact(other, whole, 120, { x: 110, y: 50, z: 0 });
@@ -203,7 +203,7 @@ describe('a thing that breaks', () => {
         expect(prefabs.instantiate).toHaveBeenCalledTimes(1);
     });
 
-    it('is not broken by a hit when it has no breakSpeed, however hard', async () => {
+    it('is not broken by a hit when it has no breakImpulse, however hard', async () => {
         const { app, whole, prefabs, tick } = setup();
         reportContact(app.world.spawn('Boulder'), whole, 1e6, { x: 100, y: 50, z: 0 });
         await tick(2);

@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 
 using namespace physx;
 using esengine::physics3d_physx::Body;
@@ -115,6 +116,16 @@ PxVec3 pointVelocity(const PxContactPairHeader& header, int side, const PxContac
     return velocity;
 }
 
+/** What one side gives the meeting: 0 for a static or kinematic actor, or one that has been removed. */
+float inverseMass(const PxContactPairHeader& header, int side) {
+    const PxContactPairHeaderFlag::Enum removed = side == 0 ? PxContactPairHeaderFlag::eREMOVED_ACTOR_0 : PxContactPairHeaderFlag::eREMOVED_ACTOR_1;
+    const PxActor* actor = header.actors[side];
+    if ((header.flags & removed) || !actor) return 0.0f;
+    const PxRigidDynamic* body = actor->is<PxRigidDynamic>();
+    if (!body || (body->getRigidBodyFlags() & PxRigidBodyFlag::eKINEMATIC)) return 0.0f;
+    return body->getInvMass();
+}
+
 /** Records what touched what, in the layouts the Jolt module writes. */
 class ContactRecorder final : public PxSimulationEventCallback {
 public:
@@ -154,6 +165,8 @@ public:
                     closing = (at[0] - at[1]).dot(normal);
                 }
                 g().contactEnterSpeedBuffer.push_back(closing);
+                const float both = inverseMass(header, 0) + inverseMass(header, 1);
+                g().contactEnterMassBuffer.push_back(both > 0.0f ? 1.0f / both : std::numeric_limits<float>::infinity());
             }
             if (pair.events & PxPairFlag::eNOTIFY_TOUCH_LOST) {
                 g().contactExitBuffer.push_back(static_cast<float>(a));
@@ -377,6 +390,7 @@ void physics3d_shutdown() {
     g().queryBuffer.clear();
     g().contactEnterBuffer.clear();
     g().contactEnterSpeedBuffer.clear();
+    g().contactEnterMassBuffer.clear();
     g().contactExitBuffer.clear();
     g().sensorEnterBuffer.clear();
     g().sensorExitBuffer.clear();
@@ -404,6 +418,7 @@ void physics3d_step(float dt, int collisionSteps) {
     if (!g().isValid() || dt <= 0.0f) return;
     g().contactEnterBuffer.clear();
     g().contactEnterSpeedBuffer.clear();
+    g().contactEnterMassBuffer.clear();
     g().contactExitBuffer.clear();
     g().sensorEnterBuffer.clear();
     g().sensorExitBuffer.clear();
@@ -624,6 +639,15 @@ void physics3d_setTransform(uint32_t bodyId, float px, float py, float pz,
 }
 
 EMSCRIPTEN_KEEPALIVE
+void physics3d_setMass(uint32_t bodyId, float mass) {
+    Body* body = g().body(bodyId);
+    if (!g().isValid() || body == nullptr || !(mass > 0.0f) || !std::isfinite(mass)) return;
+    PxRigidDynamic* dynamic = body->actor->is<PxRigidDynamic>();
+    if (dynamic == nullptr || isKinematic(dynamic)) return;
+    PxRigidBodyExt::setMassAndUpdateInertia(*dynamic, mass);
+}
+
+EMSCRIPTEN_KEEPALIVE
 void physics3d_setLinearVelocity(uint32_t bodyId, float vx, float vy, float vz) {
     Body* body = g().body(bodyId);
     if (!g().isValid() || body == nullptr) return;
@@ -683,6 +707,10 @@ EMSCRIPTEN_KEEPALIVE
 uintptr_t physics3d_transforms() { return reinterpret_cast<uintptr_t>(g().transformBuffer.data()); }
 EMSCRIPTEN_KEEPALIVE
 size_t physics3d_transformsBytes() { return g().transformBuffer.size() * sizeof(float); }
+EMSCRIPTEN_KEEPALIVE
+uintptr_t physics3d_contactEnterMasses() { return reinterpret_cast<uintptr_t>(g().contactEnterMassBuffer.data()); }
+EMSCRIPTEN_KEEPALIVE
+size_t physics3d_contactEnterMassesBytes() { return g().contactEnterMassBuffer.size() * sizeof(float); }
 EMSCRIPTEN_KEEPALIVE
 uintptr_t physics3d_contactEnterSpeeds() { return reinterpret_cast<uintptr_t>(g().contactEnterSpeedBuffer.data()); }
 EMSCRIPTEN_KEEPALIVE

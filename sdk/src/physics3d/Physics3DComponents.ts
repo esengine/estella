@@ -27,8 +27,10 @@ export const RigidBody3D = defineBuiltin<RigidBody3DData>('RigidBody3D', {
     fixedRotation: false,
     continuousCollision: false,
     enabled: true,
+    mass: 0,
 }, {
     fields: {
+        mass: { min: 0, tooltip: 'Kilograms. 0 = from its shape at the density of water (a ball of 10 cm radius is 4.2 kg).' },
         linearDamping: { min: 0, advanced: true },
         angularDamping: { min: 0, advanced: true },
         fixedRotation: { advanced: true },

@@ -110,6 +110,8 @@ struct World {
     std::vector<float> contactEnterBuffer;
     /** One closing speed for each contact in contactEnterBuffer. */
     std::vector<float> contactEnterSpeedBuffer;
+    /** One meeting mass, in kilograms, for each contact in contactEnterBuffer. */
+    std::vector<float> contactEnterMassBuffer;
     std::vector<float> contactExitBuffer;
     std::vector<float> sensorEnterBuffer;
     std::vector<float> sensorExitBuffer;

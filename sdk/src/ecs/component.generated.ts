@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, Canv
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'cb0184ba3431d6f9';
+export const ABI_LAYOUT_HASH = '08d1bbb8d5e2107c';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -1019,6 +1019,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             gravityScale: 1,
             linearDamping: 0.05,
             angularDamping: 0.05,
+            mass: 0,
             fixedRotation: false,
             layer: 0,
             continuousCollision: false,
@@ -1033,6 +1034,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             gravityScale: { min: 0 },
             linearDamping: { min: 0 },
             angularDamping: { min: 0 },
+            mass: { min: 0, tooltip: "Kilograms. 0 = from its shape at the density of water (a ball of 10 cm radius is 4.2 kg)." },
             layer: { min: 0, max: 15, advanced: true },
             continuousCollision: { advanced: true },
         },
@@ -1993,6 +1995,7 @@ export interface RigidBody3DData {
     gravityScale: number;
     linearDamping: number;
     angularDamping: number;
+    mass: number;
     fixedRotation: boolean;
     layer: number;
     continuousCollision: boolean;

@@ -309,12 +309,14 @@ const dropId = m._physics3d_addSphere(DROP, 0.5, 20, 2, 0, ...IDENTITY,
 m._physics3d_optimize();
 let landing = null;
 let landingSpeed = null;
+let landingMass = null;
 for (let i = 0; i < 180 && !landing; i++) {
     step(1);
     const enters = contactEnters();
     const at = enters.findIndex((e) => e[1] === DROP || e[0] === DROP);
     landing = at >= 0 ? enters[at] : null;
     if (landing) landingSpeed = pairs('_physics3d_contactEnterSpeeds', '_physics3d_contactEnterSpeedsBytes', 1)[at]?.[0] ?? null;
+    if (landing) landingMass = pairs('_physics3d_contactEnterMasses', '_physics3d_contactEnterMassesBytes', 1)[at]?.[0] ?? null;
 }
 check('a contact names both entities', landing != null
       && (landing[0] === PAD || landing[1] === PAD), JSON.stringify(landing));
@@ -325,6 +327,21 @@ check('and where they met', landing != null && near(landing[6], 0.0, 0.15),
 check('a contact says how fast the two came together', landingSpeed != null && near(Math.abs(landingSpeed), Math.sqrt(2 * 9.81 * 1.5), 0.35) && landingSpeed > 0,
       `speed=${landingSpeed?.toFixed(3)} want +${Math.sqrt(2 * 9.81 * 1.5).toFixed(3)}`);
 check('one speed for each contact', m._physics3d_contactEnterSpeedsBytes() / 4 === m._physics3d_contactEntersBytes() / 32);
+// And with what mass: a 0.5 m sphere at the density of water is 523.6 kg, and the pad does not move, so the two meet
+// with the sphere's own.
+check('a contact says the mass the two met with', landingMass != null && near(landingMass, 4 / 3 * Math.PI * 0.125 * 1000, 2),
+      `mass=${landingMass?.toFixed(2)} want ${(4 / 3 * Math.PI * 0.125 * 1000).toFixed(2)}`);
+check('one mass for each contact', m._physics3d_contactEnterMassesBytes() / 4 === m._physics3d_contactEntersBytes() / 32);
+// A body given a mass of its own has it.
+const LIGHT = 22;
+const lightId = m._physics3d_addSphere(LIGHT, 0.5, 30, 2, 0, ...IDENTITY, ...FREE(DYNAMIC), 0.5, 0, 0);
+m._physics3d_setMass(lightId, 2);
+const lightMass = m._physics3d_getBodyDynamics(lightId) ? m.HEAPF32[m._physics3d_queryResult() >> 2] : null;
+check('a body can be given its own mass', lightMass != null && near(lightMass, 2, 1e-3), `mass=${lightMass}`);
+m._physics3d_setMass(lightId, -1);
+const keptMass = m._physics3d_getBodyDynamics(lightId) ? m.HEAPF32[m._physics3d_queryResult() >> 2] : null;
+check('and a mass that is no mass is refused', keptMass != null && near(keptMass, 2, 1e-3), `mass=${keptMass}`);
+m._physics3d_removeBody(lightId);
 // A buffer holds ONE step's events, so they are collected as the steps run —
 // reading after a run of steps catches only the last one's.
 const collect = (read, steps) => {

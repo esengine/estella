@@ -24,7 +24,7 @@ import {
     PointJoint3D, HingeJoint3D, SliderJoint3D, FixedJoint3D, SwingTwistJoint3D, SixDOFJoint3D,
     type Joint3DMap, type HingeJoint3DData, type SliderJoint3DData, type SixDOFJoint3DData, type SwingTwistJoint3DData,
 } from '../src/physics3d/Physics3DJoints';
-import type { Physics3DWasmModule } from '../src/physics3d/Physics3DModule';
+import { drainPhysics3DEvents, type Physics3DEventsData, type Physics3DWasmModule } from '../src/physics3d/Physics3DModule';
 import type { App } from '../src/app/app';
 import type { Entity } from '../src/types';
 import { sceneUses3DPhysics, sceneUsesPhysics } from '../src/runtime/runtimeLoader';
@@ -98,6 +98,7 @@ function fakeModule(): Physics3DWasmModule & {
         _physics3d_setAdvancedJointMotor: record('setAdvancedJointMotor'),
         _physics3d_removeJoint: record('removeJoint'),
         _physics3d_setJointMotor: record('setJointMotor'),
+        _physics3d_setMass: record('setMass'),
         _physics3d_jointValue: (entity: number) => { calls.push({ name: 'jointValue', args: [entity] }); return 0.25; },
         // Distinct allocations, as a real heap gives: one address for everything
         // let the index write land on top of the vertex write.
@@ -231,6 +232,44 @@ describe('the 3D world and the ECS', () => {
         expect(called('addSphere')).toHaveLength(1);
         expect(called('addCapsule')).toHaveLength(1);
         expect(bodies.size).toBe(3);
+    });
+
+    it('gives a moving body the mass it says, and a new one when it changes in play', () => {
+        const light = spawn();
+        world.insert(light, SphereCollider3D);
+        world.insert(light, RigidBody3D, { bodyType: 2, mass: 0.05 });
+        const plain = spawn();
+        world.insert(plain, SphereCollider3D);
+        const wall = spawn();
+        world.insert(wall, BoxCollider3D);
+        world.insert(wall, RigidBody3D, { bodyType: 0, mass: 900 });
+
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
+        // Once, and only to the body that moves and says a mass; the others keep what their shape gives.
+        expect(called('setMass').map((c) => c.args)).toEqual([[bodies.get(light)!, 0.05]]);
+
+        world.update(light, RigidBody3D, (b: { mass: number }) => { b.mass = 3; });
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
+        expect(called('setMass').map((c) => c.args)).toEqual([[bodies.get(light)!, 0.05], [bodies.get(light)!, 3]]);
+    });
+
+    it('reads how hard two bodies met: speed by the mass they met with', () => {
+        const a = spawn(), b = spawn();
+        module.publishContacts([a, b, 0, 1, 0, 0, 0, 0]);
+        const speeds = new Float32Array([4]);
+        const masses = new Float32Array([2.5]);
+        const speedAt = 3000 * 4, massAt = 3008 * 4;
+        module.HEAPF32.set(speeds, speedAt / 4);
+        module.HEAPF32.set(masses, massAt / 4);
+        Object.assign(module, {
+            _physics3d_contactEnterSpeeds: () => speedAt, _physics3d_contactEnterSpeedsBytes: () => 4,
+            _physics3d_contactEnterMasses: () => massAt, _physics3d_contactEnterMassesBytes: () => 4,
+        });
+        const events = { contactEnters: [], contactExits: [], sensorEnters: [], sensorExits: [] } as Physics3DEventsData;
+        drainPhysics3DEvents(module, events, 100);
+        // In world units a second, at 100 to the metre; the mass is kilograms whatever the units.
+        expect(events.contactEnters[0]).toMatchObject({ speed: 400, mass: 2.5, impulse: 1000 });
     });
 
     it('registers nothing for a body with no shape', () => {

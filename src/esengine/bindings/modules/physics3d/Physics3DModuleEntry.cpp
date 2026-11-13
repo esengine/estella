@@ -31,6 +31,7 @@
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
 #include <Jolt/Physics/Collision/CollisionDispatch.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
+#include <limits>
 #include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/RegisterTypes.h>
 
@@ -131,6 +132,10 @@ public:
         // the first into the second, so the first closing on the second is a positive speed.
         const Vec3 closing = body1.GetPointVelocity(point) - body2.GetPointVelocity(point);
         g().contactEnterSpeedBuffer.push_back(closing.Dot(normal));
+        // A static or kinematic body is pushed by nothing: it gives no inverse mass to the meeting.
+        const auto inverse = [](const Body& body) { return body.IsDynamic() ? body.GetMotionProperties()->GetInverseMass() : 0.0f; };
+        const float both = inverse(body1) + inverse(body2);
+        g().contactEnterMassBuffer.push_back(both > 0.0f ? 1.0f / both : std::numeric_limits<float>::infinity());
     }
 
     void OnContactRemoved(const SubShapeIDPair& pair) override {
@@ -246,6 +251,7 @@ void physics3d_shutdown() {
     g().sensorBodies.clear();
     g().contactEnterBuffer.clear();
     g().contactEnterSpeedBuffer.clear();
+    g().contactEnterMassBuffer.clear();
     g().contactExitBuffer.clear();
     g().sensorEnterBuffer.clear();
     g().sensorExitBuffer.clear();
@@ -295,6 +301,7 @@ void physics3d_step(float dt, int collisionSteps) {
     // buffer emptied afterwards would publish nothing.
     g().contactEnterBuffer.clear();
     g().contactEnterSpeedBuffer.clear();
+    g().contactEnterMassBuffer.clear();
     g().contactExitBuffer.clear();
     g().sensorEnterBuffer.clear();
     g().sensorExitBuffer.clear();
@@ -514,6 +521,19 @@ EMSCRIPTEN_KEEPALIVE
 void physics3d_setLinearVelocity(uint32_t bodyId, float vx, float vy, float vz) {
     if (!g().isValid() || bodyId == 0) return;
     g().system->GetBodyInterface().SetLinearVelocity(BodyID(bodyId), Vec3(vx, vy, vz));
+}
+
+EMSCRIPTEN_KEEPALIVE
+void physics3d_setMass(uint32_t bodyId, float mass) {
+    if (!g().isValid() || bodyId == 0 || !(mass > 0.0f) || !std::isfinite(mass)) return;
+    const BodyLockWrite lock(g().system->GetBodyLockInterface(), BodyID(bodyId));
+    if (!lock.Succeeded() || !lock.GetBody().IsDynamic()) return;
+    Body& body = lock.GetBody();
+    // The shape's own mass properties, as the density gave them, brought to the mass asked: its inertia comes along.
+    MassProperties props = body.GetShape()->GetMassProperties();
+    props.ScaleToMass(mass);
+    MotionProperties* motion = body.GetMotionProperties();
+    motion->SetMassProperties(motion->GetAllowedDOFs(), props);
 }
 
 /// Writes (px,py,pz, qx,qy,qz,qw, vx,vy,vz) into the query buffer; 0 when the body
@@ -906,6 +926,16 @@ uintptr_t physics3d_transforms() {
 EMSCRIPTEN_KEEPALIVE
 size_t physics3d_transformsBytes() {
     return g().transformBuffer.size() * sizeof(float);
+}
+
+EMSCRIPTEN_KEEPALIVE
+uintptr_t physics3d_contactEnterMasses() {
+    return reinterpret_cast<uintptr_t>(g().contactEnterMassBuffer.data());
+}
+
+EMSCRIPTEN_KEEPALIVE
+size_t physics3d_contactEnterMassesBytes() {
+    return g().contactEnterMassBuffer.size() * sizeof(float);
 }
 
 EMSCRIPTEN_KEEPALIVE
