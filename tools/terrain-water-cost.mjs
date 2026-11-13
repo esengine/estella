@@ -23,6 +23,7 @@ import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { deflateSync } from 'node:zlib';
 import { serveHost } from './lib/staticServer.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -83,6 +84,13 @@ const VARIANTS = [
   { id: 'water-norings-msaa-1', label: 'no water surface, no multisampling', scene: (d) => { for (const z of comp(d, 'WaterZone')) z.data.rings = 0; }, config: quality('high', { msaaSamples: 1 }) },
   { id: 'no-plants', label: 'no plants (world generation)', scene: dropEntities(...PLANTS) },
   { id: 'no-terrain', label: 'no terrain (and no plants on it)', scene: dropEntities('Ground', ...PLANTS) },
+  // The ground drawn from its virtual texture (baked surface pages): from level 1 (the default), from level 0, and with no plants over it.
+  { id: 'vt', label: 'terrain virtual texture on', scene: (d) => { for (const t of comp(d, 'Terrain')) t.data.virtualTexture = true; } },
+  { id: 'vt-from0', label: 'terrain virtual texture on, the nearest level too', scene: (d) => { for (const t of comp(d, 'Terrain')) Object.assign(t.data, { virtualTexture: true, virtualTextureFrom: 0 }); } },
+  // The scene written back unchanged: what a variant that edits the scene costs before its edit does anything.
+  { id: 'rewritten', label: 'the scene parsed and written back, nothing changed', scene: () => {} },
+  { id: 'vt-none', label: 'terrain virtual texture on, no level drawn from it (what having it costs)', scene: (d) => { for (const t of comp(d, 'Terrain')) Object.assign(t.data, { virtualTexture: true, virtualTextureFrom: 15 }); } },
+  { id: 'vt-no-plants', label: 'terrain virtual texture on, no plants', scene: (d) => { dropEntities(...PLANTS)(d); for (const t of comp(d, 'Terrain')) t.data.virtualTexture = true; } },
   { id: 'no-shadows', label: 'the sun casts no shadow', scene: (d) => { for (const l of comp(d, 'Light')) l.data.meshShadows = false; } },
   // One effect at a time
   { id: 'sky-off', label: 'sky atmosphere off', scene: dropEffects('skyAtmosphere') },
@@ -164,6 +172,25 @@ const VARIANTS = [
   { id: 'base-again', label: 'the scene again, to see the machine drift' },
 ];
 
+/** An RGBA picture as a PNG, its rows turned over: readPixels gives the bottom row first. */
+function png(width, height, rgba) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc = (buf) => { let c = 0xffffffff; for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (type, data) => {
+    const out = Buffer.alloc(12 + data.length);
+    out.writeUInt32BE(data.length, 0);
+    out.write(type, 4, 'latin1');
+    data.copy(out, 8);
+    out.writeUInt32BE(crc(out.subarray(4, 8 + data.length)), 8 + data.length);
+    return out;
+  };
+  const raw = Buffer.alloc((width * 4 + 1) * height);
+  for (let y = 0; y < height; y++) rgba.copy(raw, y * (width * 4 + 1) + 1, (height - 1 - y) * width * 4, (height - y) * width * 4);
+  const head = Buffer.alloc(13);
+  head.writeUInt32BE(width, 0); head.writeUInt32BE(height, 4); head[8] = 8; head[9] = 6;
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', head), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+
 const median = (xs) => { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
 
 async function measure(server, original, variant, browser) {
@@ -213,12 +240,15 @@ async function measure(server, original, variant, browser) {
       await c.step(frames, 1 / 60); sync();
       const ms = [];
       const gpuRuns = [];
+      // Material bakes drawn while the frames are timed: a virtual texture still filling is work no steady frame does.
+      const bakesBefore = c.render()['render.bakes.drawn'] ?? 0;
       for (let s = 0; s < samples; s++) {
         const t0 = performance.now();
         await c.step(frames, 1 / 60);
         sync();
         ms.push((performance.now() - t0) / frames);
       }
+      const bakesTimed = (c.render()['render.bakes.drawn'] ?? 0) - bakesBefore;
       // After the wall-clock samples, so the pauses do not touch them: the browser delivers a timer query's answer
       // between tasks, not inside the burst that asked.
       for (let s = 0; s < passSamples; s++) {
@@ -229,10 +259,20 @@ async function measure(server, original, variant, browser) {
       }
       const costs = c.costs();
       const cpu = costs.systems.reduce((a, x) => a + x.ms, 0);
-      return { ms, gpuRuns, counters: c.render(), cpu, systems: costs.systems, native: costs.native, size: [document.querySelector('canvas').width, document.querySelector('canvas').height], gl: !!gl };
+      return { ms, gpuRuns, bakesTimed, counters: c.render(), cpu, systems: costs.systems, native: costs.native, size: [document.querySelector('canvas').width, document.querySelector('canvas').height], gl: !!gl };
     }, { frames: FRAMES, samples: SAMPLES, passSamples: PASSES ? SAMPLES : 0, detail: argv.includes('--detail') });
-    if (SHOTS) { await mkdir(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, `${variant.id}-view${VIEW}.png`) }); }
-    return { ms: median(result.ms), gpu: gpuMedians(result.gpuRuns), cpu: result.cpu, systems: result.systems, native: result.native, min: Math.min(...result.ms), max: Math.max(...result.ms), settled, counters: result.counters, size: result.size, errors };
+    // The engine's own frame, read back from the canvas: a page screenshot is the DOM, and a stepped game keeps its start screen over it.
+    if (SHOTS) {
+      await mkdir(SHOTS, { recursive: true });
+      const shot = await page.evaluate(() => {
+        const r = window.__estellaCooked.capture();
+        let s = '';
+        for (let i = 0; i < r.rgba.length; i += 0x8000) s += String.fromCharCode(...r.rgba.subarray(i, i + 0x8000));
+        return { width: r.width, height: r.height, rgba: btoa(s) };
+      });
+      await writeFile(path.join(SHOTS, `${variant.id}-view${VIEW}.png`), png(shot.width, shot.height, Buffer.from(shot.rgba, 'base64')));
+    }
+    return { ms: median(result.ms), gpu: gpuMedians(result.gpuRuns), bakesTimed: result.bakesTimed, cpu: result.cpu, systems: result.systems, native: result.native, min: Math.min(...result.ms), max: Math.max(...result.ms), settled, counters: result.counters, size: result.size, errors };
   } finally {
     await context.close();
   }
@@ -262,10 +302,13 @@ const original = {
 const worldFile = (await readdir(path.join(DIR, 'assets'))).filter((f) => f.endsWith('.esworld')).map((f) => path.join(DIR, 'assets', f))[0];
 original.world = await readFile(worldFile, 'utf8');
 const server = await serveHost(DIR);
-const browser = await chromium.launch({
+// A browser of its own for every variant: one that has already played a variant ran the next about 6 ms a frame slower at 1080p
+// (measured 2026-11-13: the same scene, written back unchanged, 18.6 ms first and 24.9 ms second), so whatever ran second read dearer.
+const launch = () => chromium.launch({
   headless: true,
   args: ['--use-angle=d3d11', '--enable-webgl', '--ignore-gpu-blocklist', '--disable-gpu-vsync', '--disable-frame-rate-limit', '--enable-unsafe-swiftshader'],
 });
+const browser = await launch();
 const table = {};
 let adapter = '';
 try {
@@ -282,7 +325,9 @@ try {
     // A page can die under a variant (the GPU process, memory); say so and carry on with the rest, once retried.
     let r;
     for (let attempt = 0; attempt < 2 && !r; attempt++) {
-      try { r = await measure(server, original, v, browser); } catch (e) { console.log(`${v.id.padEnd(17)} failed (${String(e.message).split(String.fromCharCode(10))[0]})${attempt === 0 ? ', retrying' : ''}`); }
+      const fresh = await launch();
+      try { r = await measure(server, original, v, fresh); } catch (e) { console.log(`${v.id.padEnd(17)} failed (${String(e.message).split(String.fromCharCode(10))[0]})${attempt === 0 ? ', retrying' : ''}`); }
+      await fresh.close();
     }
     if (!r) { table[v.id] = { label: v.label, failed: true }; continue; }
     table[v.id] = { label: v.label, ...r };
@@ -295,7 +340,7 @@ try {
       console.log(`  gpu per pass (${v.id}): graph ${(r.gpu.graph ?? -1).toFixed(2)} ms, passes sum ${sum.toFixed(2)} ms, ${rows.length} passes`);
       for (const [k, x] of rows.slice(0, PASSES_TOP)) console.log(`    ${k.slice(5).padEnd(34)} ${x.toFixed(2).padStart(7)} ms  ${(100 * x / Math.max(sum, 1e-9)).toFixed(1).padStart(5)}%`);
     }
-    console.log(`${v.id.padEnd(17)} ${r.ms.toFixed(2).padStart(7)} ms   [${r.min.toFixed(2)}..${r.max.toFixed(2)}]   cpu ${r.cpu.toFixed(2)}   draws ${r.counters['batch.draws'] ?? '?'}  shadow ${r.counters['render.shadow.draws'] ?? '?'}  tris ${((r.counters['render.triangles'] ?? 0) / 1e6).toFixed(2)}M  prepass ${r.counters['render.prepass.draws'] ?? '?'} (meshes taken ${r.counters['render.prepass.taken'] ?? '?'}, cut-out ${r.counters['render.prepass.cutout'] ?? '?'}, bent ${r.counters['render.prepass.bent'] ?? '?'}, none ${r.counters['render.prepass.noProgram'] ?? '?'})   ${r.errors.length ? 'ERRORS ' + r.errors[0] : ''}`);
+    console.log(`${v.id.padEnd(17)} ${r.ms.toFixed(2).padStart(7)} ms   [${r.min.toFixed(2)}..${r.max.toFixed(2)}]   cpu ${r.cpu.toFixed(2)}   draws ${r.counters['batch.draws'] ?? '?'}  shadow ${r.counters['render.shadow.draws'] ?? '?'}  tris ${((r.counters['render.triangles'] ?? 0) / 1e6).toFixed(2)}M  bakes timed ${r.bakesTimed ?? '?'}  prepass ${r.counters['render.prepass.draws'] ?? '?'} (meshes taken ${r.counters['render.prepass.taken'] ?? '?'}, cut-out ${r.counters['render.prepass.cutout'] ?? '?'}, bent ${r.counters['render.prepass.bent'] ?? '?'}, none ${r.counters['render.prepass.noProgram'] ?? '?'})   ${r.errors.length ? 'ERRORS ' + r.errors[0] : ''}`);
   }
 } finally {
   await writeFile(path.join(DIR, 'assets/scenes/main.esscene'), original.scene);

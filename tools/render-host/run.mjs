@@ -36,6 +36,7 @@
  *   ESTELLA_VERIFY_SKIN_WEIGHTS  colour a skinned entity by joint weights (JSON {id, joints}; see the block)
  *   ESTELLA_VERIFY_COUNTERS  engine counters the drawn frame must report (JSON)
  *   ESTELLA_VERIFY_COUNTERS_MAX  counters the frame must stay UNDER — a budget (JSON)
+ *   ESTELLA_VERIFY_COUNTERS_MIN  counters the frame must reach at least — that something happened at all (JSON)
  *   ESTELLA_VERIFY_GPU_PASSES  print|require — the GPU time of each render-graph pass on this backend (local; needs a timer)
  *   ESTELLA_VERIFY_FRAME_DEBUG  capture the frame and replay it (the frame debugger)
  *   ESTELLA_VERIFY_UNIFORM   the frame is one colour on purpose; ESTELLA_VERIFY_COUNT says which
@@ -277,6 +278,8 @@ app.whenReady().then(async () => {
       if (GL_TRACE && msg.startsWith('GLTRACE ')) { appendFileSync(GL_TRACE, msg.slice(8) + '\n'); return; }
       // `webgpu` spelled out: "webgl" does not match it, so the second backend's
       // boot — including which adapter served it — was the one thing never shown.
+      // ESTELLA_VERIFY_CONSOLE=all: every line, whole. A WebGPU validation message names the call and the texture and none of the words below.
+      if (process.env.ESTELLA_VERIFY_CONSOLE === 'all') { console.log('[renderer]', msg); return; }
       if (/error|fail|unwind|exception|webgl|webgpu|adapter|recovery|placeholder/i.test(msg)) console.log('[renderer]', msg.slice(0, 240));
     });
     await win.loadURL(url);
@@ -311,7 +314,7 @@ app.whenReady().then(async () => {
     }
     // The engine's per-frame counters are only recorded while profiling is on, and
     // it goes on BEFORE the steps: what is read afterwards is the last frame's.
-    if (process.env.ESTELLA_VERIFY_COUNTERS || process.env.ESTELLA_VERIFY_COUNTERS_MAX || process.env.ESTELLA_VERIFY_FRAME_DEBUG || PREPASS) {
+    if (process.env.ESTELLA_VERIFY_COUNTERS || process.env.ESTELLA_VERIFY_COUNTERS_MAX || process.env.ESTELLA_VERIFY_COUNTERS_MIN || process.env.ESTELLA_VERIFY_FRAME_DEBUG || PREPASS) {
       await exec('window.__estellaHeadless.api.setCpuProfiling(true)');
     }
     // Project render config stand-in: ESTELLA_VERIFY_YSORT = layer bitmask
@@ -734,11 +737,13 @@ app.whenReady().then(async () => {
     // value; a name the frame never set reports null, which fails rather than reading 0.
     // ESTELLA_VERIFY_COUNTERS_MAX is the same object read as a CEILING, a different claim:
     // exact pins a scene small enough to enumerate, a ceiling asks whether cost stayed
-    // bounded where nobody can. Both fail on a counter the frame never set.
+    // bounded where nobody can. ESTELLA_VERIFY_COUNTERS_MIN is a FLOOR: that a thing happened
+    // at all, where how often is the engine's business. All fail on a counter the frame never set.
     let counters = null;
-    if (process.env.ESTELLA_VERIFY_COUNTERS || process.env.ESTELLA_VERIFY_COUNTERS_MAX || PREPASS) {
+    if (process.env.ESTELLA_VERIFY_COUNTERS || process.env.ESTELLA_VERIFY_COUNTERS_MAX || process.env.ESTELLA_VERIFY_COUNTERS_MIN || PREPASS) {
       const want = JSON.parse(process.env.ESTELLA_VERIFY_COUNTERS ?? '{}');
       const ceiling = JSON.parse(process.env.ESTELLA_VERIFY_COUNTERS_MAX ?? '{}');
+      const floor = JSON.parse(process.env.ESTELLA_VERIFY_COUNTERS_MIN ?? '{}');
       const got = await exec('window.__estellaHeadless.api.getCounters()');
       const points = [
         ...Object.entries(want).map(([name, value]) => ({
@@ -747,6 +752,10 @@ app.whenReady().then(async () => {
         ...Object.entries(ceiling).map(([name, value]) => ({
           name, max: value, got: got?.[name] ?? null,
           ok: typeof got?.[name] === 'number' && got[name] <= value,
+        })),
+        ...Object.entries(floor).map(([name, value]) => ({
+          name, min: value, got: got?.[name] ?? null,
+          ok: typeof got?.[name] === 'number' && got[name] >= value,
         })),
         // A prepass twin of a scene that never had a prepass proves nothing about it: the draw it took part in is counted.
         ...(PREPASS ? [{ name: 'render.prepass.draws', min: 1, got: got?.['render.prepass.draws'] ?? null,
@@ -777,7 +786,7 @@ app.whenReady().then(async () => {
       await exec('window.__estellaHeadless.api.setCpuProfiling(true)');
       const scoped = await settle('window.__estellaHeadless.api.getGpuScopes()', (s) => Object.keys(s).some((k) => k.startsWith('pass/')));
       // Left as the run had it: a gate below that reads the last frame's counters needs the profiler it turned on.
-      if (!(process.env.ESTELLA_VERIFY_COUNTERS || process.env.ESTELLA_VERIFY_COUNTERS_MAX || process.env.ESTELLA_VERIFY_FRAME_DEBUG || PREPASS)) {
+      if (!(process.env.ESTELLA_VERIFY_COUNTERS || process.env.ESTELLA_VERIFY_COUNTERS_MAX || process.env.ESTELLA_VERIFY_COUNTERS_MIN || process.env.ESTELLA_VERIFY_FRAME_DEBUG || PREPASS)) {
         await exec('window.__estellaHeadless.api.setCpuProfiling(false)');
       }
       const sums = scoped.map((s) => Object.entries(s).filter(([k]) => k.startsWith('pass/')).reduce((a, [, v]) => a + v, 0));
