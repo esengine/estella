@@ -4800,4 +4800,6 @@ export const NOTED = {
     {"note": "A model's report is its steps as written, and names a step that undoes a decimate."},
   "fix(modeling): a model's picture can be a recipe - material.texture took a .png, .jpg or .webp and refused the .esimage the picture was drawn from, so a model named pixels where the scene beside it named layers; a recipe is accepted, and whether a path names one is asked in one place (textureRecipePath) by the runtime, the packager and the model source":
     {"note": "A model's picture can be a recipe."},
+  "fix(mcp): clearing an asset field from automation clears it - set_field turned 0 and null into the paths \"0\" and \"null\", which the scene kept and an export then could not find; nothing (null, 0, false, the empty string, or the words for it from a text transport) is what the inspector's clear button stores, by one function both ask, and a number that names nothing is refused":
+    {"note": "Clearing an asset field from automation clears it."},
 };
