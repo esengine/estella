@@ -97,6 +97,12 @@ export interface TextData {
     wordWrap: boolean;
     overflow: TextOverflow;
     lineHeight: number;
+    /**
+     * Extra space after every glyph, in the same px as `fontSize`; negative draws them closer. It is CSS's
+     * `letter-spacing` and a Cocos Label's `spacingX`. Wrapping, alignment, `Ellipsis` and `Shrink` all measure
+     * with it, and `Shrink` scales it with the size. Absent is 0.
+     */
+    letterSpacing?: number;
     bold: boolean;
     italic: boolean;
     strokeColor: Color;
@@ -161,6 +167,7 @@ export const Text = defineComponent<TextData>('Text', {
     wordWrap: true,
     overflow: TextOverflow.Visible,
     lineHeight: 1.2,
+    letterSpacing: 0,
     bold: false,
     italic: false,
     strokeColor: { r: 0, g: 0, b: 0, a: 1 },
@@ -196,6 +203,7 @@ export const Text = defineComponent<TextData>('Text', {
             enum: enumOptions(TextOverflow),
             tooltip: 'What text too big for its box does. Needs a layout box: Clip and Ellipsis drop the lines past its height and trim a line past its width; Shrink sets the text smaller until it fits both.',
         },
+        letterSpacing: { tooltip: 'Extra space after every glyph, in the same px as Font Size. Negative draws the glyphs closer. Wrapping, alignment and overflow measure with it.' },
         underline: { tooltip: 'Draw a line under each line of text, using the underscore of the font.' },
         renderMode: { enum: enumOptions(TextRenderMode) },
         boxWidth: { tooltip: 'Layout box width for a text with no UINode (0 = no box: the origin is the box). Alignment, wrapping and overflow work inside it. A UINode, if present, decides the box instead.' },

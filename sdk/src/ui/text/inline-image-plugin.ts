@@ -26,7 +26,8 @@ import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
 import { UIVisual, UIVisualType, type UIVisualData } from '../core/ui-visual';
 import { SdfTextRenderer } from './text-renderer';
 import { layoutText, type LaidImage } from './layout';
-import { rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
+import { rectTextBox } from './text-transform';
+import { textLetterSpacingPx, textLineHeightPx, textStyleBits } from './text-params';
 import { spawnUIEntity } from '../core/compose';
 import { px } from '../core/dimension';
 import { getUINodeWidth, getUINodeHeight } from '../util/helpers';
@@ -114,16 +115,16 @@ export class InlineImagePlugin implements Plugin {
                 if (w <= 0 || h <= 0) continue; // inline images need a laid-out box
 
                 const box = rectTextBox(0.5, 0.5, w, h, t.fontSize);
-                const style = (t.bold ? UI_TEXT_BOLD : 0) | (t.italic ? UI_TEXT_ITALIC : 0);
                 const layout = layoutText(t.content, atlas(), resolveTextFamily(t.font, t.fontFamily), {
                     fontSizePx: t.fontSize,
-                    lineHeight: t.lineHeight > 0 ? t.lineHeight * t.fontSize : undefined,
+                    lineHeight: textLineHeightPx(t),
+                    letterSpacing: textLetterSpacingPx(t),
                     align: t.align,
                     rich: true,
                     color: [1, 1, 1, 1],
                     maxWidth: t.wordWrap ? box.maxWidth : undefined,
                     boxWidth: box.maxWidth,
-                }, style);
+                }, textStyleBits(t));
 
                 const images = layout.images ?? [];
                 if (images.length === 0) { reap(e); continue; }
@@ -133,7 +134,7 @@ export class InlineImagePlugin implements Plugin {
                 // same shift `drawTextWith` applies to the glyphs (mirror it so the
                 // images track the text).
                 const slack = h - layout.lineHeight;
-                const perLine = t.lineHeight > 0 ? t.lineHeight * t.fontSize : t.fontSize * 1.2;
+                const perLine = textLineHeightPx(t) ?? t.fontSize * 1.2;
                 // …including the half-leading it charges above the first baseline,
                 // or an image floats where the glyph beside it no longer is.
                 const halfLeading = Math.max(0, (perLine - t.fontSize) / 2);

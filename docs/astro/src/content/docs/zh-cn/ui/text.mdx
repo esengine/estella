@@ -84,6 +84,7 @@ const pulseBanner = defineSystem([Query(Mut(Transform), Text), Res(Time)], (q, t
 | `boxWidth` / `boxHeight` | number | `0` | **没有** `UINode` 的 `Text` 的排版盒,单位 px。`0` 表示没有盒(实体原点就是盒)。有盒时对齐、换行、溢出都在盒内工作,而文本仍是世界内容,按 `layer` 排序。存在 `UINode` 时由它决定盒。 |
 | `boxPivot` | Vec2 | `(0.5, 0.5)` | 实体原点在这个盒里的位置,按距盒左边、下边的比例:`(0.5, 0.5)` 是中心,`(0, 1)` 是左上角。相当于 Cocos / Unity 矩形变换的锚点。 |
 | `lineHeight` | number | `1.2` | 行距,为 **`fontSize` 的比率**(基线间距 = `lineHeight × fontSize`)。 |
+| `letterSpacing` | number | `0` | 字间距:每个字形后面多出的间隔,单位与 `fontSize` 相同(px);负值让字靠得更近。换行、对齐和溢出都按加了间距的宽度计算。相当于 CSS 的 `letter-spacing`、Cocos Label 的 `spacingX`。 |
 | `bold` / `italic` | boolean | `false` | 基础字体样式(富文本 `<b>`/`<i>` 在其上叠加)。 |
 | `strokeColor` | Color | `{0,0,0,1}` | 描边颜色。 |
 | `strokeWidth` | number | `0` | 描边宽度(px);`0` 关闭。SDF 字形把自己的边缘向外推,位图字形则把字形长大,所以任意宽度下描出来的仍是这个字的形状([见下文](#描边))。 |

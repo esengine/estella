@@ -11967,6 +11967,7 @@ fontSize: number
 i18nKey: string
 italic: boolean
 layer: number
+letterSpacing: number | undefined
 lineHeight: number
 overflow: TextOverflow
 renderMode: TextRenderMode
@@ -11998,6 +11999,7 @@ fontSize: number | undefined
 i18nKey: string | undefined
 italic: boolean | undefined
 layer: number | undefined
+letterSpacing: number | undefined
 lineHeight: number | undefined
 overflow: TextOverflow | undefined
 renderMode: TextRenderMode | undefined

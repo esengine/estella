@@ -8395,6 +8395,12 @@
           "default": "1.2"
         },
         {
+          "key": "letterSpacing",
+          "type": "number",
+          "default": "0",
+          "doc": "Extra space after every glyph, in the same px as Font Size. Negative draws the glyphs closer. Wrapping, alignment and overflow measure with it."
+        },
+        {
           "key": "bold",
           "type": "boolean",
           "default": "false"
@@ -8496,6 +8502,7 @@
         "verticalAlign",
         "overflow",
         "lineHeight",
+        "letterSpacing",
         "strokeColor.r",
         "strokeColor.g",
         "strokeColor.b",

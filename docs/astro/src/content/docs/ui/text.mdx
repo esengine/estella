@@ -93,6 +93,7 @@ Defaults below are the component defaults (what the inspector shows).
 | `boxWidth` / `boxHeight` | number | `0` | The layout box of a `Text` with **no** `UINode`, in px. `0` means no box (the entity origin is the box). With a box, alignment, wrapping and overflow work inside it while the text stays world content, sorted by `layer`. A `UINode`, when present, decides the box instead. |
 | `boxPivot` | Vec2 | `(0.5, 0.5)` | Where the entity origin sits in that box, as a fraction from its left and bottom edges: `(0.5, 0.5)` is the centre, `(0, 1)` the top-left corner. It is the anchor point of a Cocos or Unity rect transform. |
 | `lineHeight` | number | `1.2` | Line spacing as a **ratio of `fontSize`** (baseline-to-baseline = `lineHeight × fontSize`). |
+| `letterSpacing` | number | `0` | Extra space after every glyph, in the same px as `fontSize`; negative draws the glyphs closer. Wrapping, alignment and overflow measure with it. It is CSS's `letter-spacing` and a Cocos Label's `spacingX`. |
 | `bold` / `italic` | boolean | `false` | Base font style (rich-text `<b>`/`<i>` layer on top). |
 | `strokeColor` | Color | `{0,0,0,1}` | Outline color. |
 | `strokeWidth` | number | `0` | Outline width in px; `0` disables. An SDF glyph's own edge is pushed outward and a bitmap glyph is grown, so it stays the glyph's shape at any width (see [below](#outlines)). |

@@ -10,7 +10,7 @@ import { GlyphAtlas } from '../src/ui/text/glyph-atlas';
 import { SdfTextRenderer, drawTextWith, type DrawTextParams } from '../src/ui/text/text-renderer';
 import { resolveTextRenderMode, sameSnapshot, snapshotOf } from '../src/ui/text/plugin';
 import { rectTextBox } from '../src/ui/text/text-transform';
-import type { TextData } from '../src/ui/core/text';
+import { Text, type TextData } from '../src/ui/core/text';
 import type { EngineApi } from '../src/ecs/bridge/engineApi';
 import { TEXT_VERTEX_FLOATS } from '../src/ui/text/submit';
 
@@ -19,14 +19,9 @@ vi.mock('../src/platform', () => ({
     platformCreateCanvas: (width: number, height: number) => ({ width, height, getContext: () => null }),
 }));
 
+// From the component itself, so a field Text gains is a key here without anyone remembering to add it.
 function freshText(): TextData {
-    return {
-        content: 'hello', i18nKey: '', font: 0, fontFamily: 'Arial', fontSize: 24, color: { r: 1, g: 1, b: 1, a: 1 },
-        align: 0, verticalAlign: 0, wordWrap: true, overflow: 0, lineHeight: 1.2, bold: false, italic: false,
-        strokeColor: { r: 0, g: 0, b: 0, a: 1 }, strokeWidth: 0, shadowColor: { r: 0, g: 0, b: 0, a: 1 }, shadowBlur: 0,
-        shadowOffsetX: 0, shadowOffsetY: 0, richText: false, renderMode: 0, layer: 0, enabled: true,
-        boxWidth: 0, boxHeight: 0, boxPivot: { x: 0.5, y: 0.5 },
-    } as TextData;
+    return { ...structuredClone(Text._default), content: 'hello', fontFamily: 'Arial' };
 }
 
 describe('which Text fields make a retained label laid out again', () => {
@@ -42,6 +37,8 @@ describe('which Text fields make a retained label laid out again', () => {
         ['wordWrap', t => { t.wordWrap = false; }],
         ['overflow', t => { t.overflow = 1; }],
         ['lineHeight', t => { t.lineHeight = 1.5; }],
+        ['letterSpacing', t => { t.letterSpacing = 2; }],
+        ['underline', t => { t.underline = true; }],
         ['bold', t => { t.bold = true; }],
         ['italic', t => { t.italic = true; }],
         ['strokeColor', t => { t.strokeColor = { r: 1, g: 0, b: 0, a: 1 }; }],

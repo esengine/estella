@@ -17,11 +17,11 @@ import type { ESEngineModule, CppRegistry } from '../../wasm';
 import type { Entity } from '../../types';
 import type { World } from '../../ecs/world';
 import { SdfTextRenderer } from './text-renderer';
-import type { RGBA } from './layout';
-import { composeTRS, DEFAULT_ASCENT, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
+import { composeTRS } from './text-transform';
+import { textDrawParams, textStyleBits } from './text-params';
 import { Text, TextOverflow, TextRenderMode, type TextData } from '../core/text';
 import { ContentRect } from '../core/content-rect';
-import { bitmapFontOf, fontAscent } from './bitmap-font';
+import { bitmapFontOf } from './bitmap-font';
 import { UINode } from '../core/ui-node';
 import { Localization } from '../../i18n/Localization';
 import { applyTextLocalization, type TextWorldView } from './localize';
@@ -143,7 +143,7 @@ export function textFrame(world: World, entity: Entity, t: TextData): TextFrame 
 /** The Text fields a retained label's geometry was laid out from; a label is rebuilt when any of them differs, and not otherwise. */
 export interface TextSnapshot {
     content: string; family: string; fontSize: number; bold: boolean; italic: boolean; richText: boolean; renderMode: number;
-    align: number; verticalAlign: number; wordWrap: boolean; overflow: number; lineHeight: number; layer: number; underline: boolean;
+    align: number; verticalAlign: number; wordWrap: boolean; overflow: number; lineHeight: number; letterSpacing: number; layer: number; underline: boolean;
     boxW: number; boxH: number; boxPx: number; boxPy: number;
     cr: number; cg: number; cb: number; ca: number;
     strokeWidth: number; sr: number; sg: number; sb: number; sa: number;
@@ -162,7 +162,7 @@ interface RetainedLabel {
 export function snapshotOf(t: TextData, family: string): TextSnapshot {
     return {
         content: t.content, family, fontSize: t.fontSize, bold: !!t.bold, italic: !!t.italic, richText: !!t.richText, renderMode: t.renderMode,
-        align: t.align, verticalAlign: t.verticalAlign, wordWrap: !!t.wordWrap, overflow: t.overflow, lineHeight: t.lineHeight, layer: t.layer | 0, underline: !!t.underline,
+        align: t.align, verticalAlign: t.verticalAlign, wordWrap: !!t.wordWrap, overflow: t.overflow, lineHeight: t.lineHeight, letterSpacing: t.letterSpacing || 0, layer: t.layer | 0, underline: !!t.underline,
         boxW: t.boxWidth || 0, boxH: t.boxHeight || 0, boxPx: t.boxPivot?.x ?? 0.5, boxPy: t.boxPivot?.y ?? 0.5,
         cr: t.color.r, cg: t.color.g, cb: t.color.b, ca: t.color.a,
         strokeWidth: t.strokeWidth, sr: t.strokeColor.r, sg: t.strokeColor.g, sb: t.strokeColor.b, sa: t.strokeColor.a,
@@ -175,7 +175,7 @@ export function sameSnapshot(s: TextSnapshot, t: TextData, family: string): bool
     return s.content === t.content && s.family === family && s.fontSize === t.fontSize
         && s.bold === !!t.bold && s.italic === !!t.italic && s.richText === !!t.richText && s.renderMode === t.renderMode
         && s.align === t.align && s.verticalAlign === t.verticalAlign && s.wordWrap === !!t.wordWrap
-        && s.overflow === t.overflow && s.lineHeight === t.lineHeight && s.layer === (t.layer | 0) && s.underline === !!t.underline
+        && s.overflow === t.overflow && s.lineHeight === t.lineHeight && s.letterSpacing === (t.letterSpacing || 0) && s.layer === (t.layer | 0) && s.underline === !!t.underline
         && s.boxW === (t.boxWidth || 0) && s.boxH === (t.boxHeight || 0) && s.boxPx === (t.boxPivot?.x ?? 0.5) && s.boxPy === (t.boxPivot?.y ?? 0.5)
         && s.cr === t.color.r && s.cg === t.color.g && s.cb === t.color.b && s.ca === t.color.a
         && s.strokeWidth === t.strokeWidth
@@ -457,62 +457,12 @@ export class TextPlugin implements Plugin {
         const previous = appState.retained.get(entity as number);
         if (previous && previous.renderer !== renderer) previous.renderer.forget(entity as number);
 
-        const style = (t.bold ? UI_TEXT_BOLD : 0) | (t.italic ? UI_TEXT_ITALIC : 0);
-        // Text.lineHeight is a ratio of fontSize (legacy convention).
-        const lineHeightPx = t.lineHeight > 0 ? t.lineHeight * t.fontSize : undefined;
-        let originX: number | undefined;
-        let originY: number | undefined;
-        let maxWidth: number | undefined;
-        let boxWidth: number | undefined;
-        let boxHeight: number | undefined;
         const frame = textFrame(world, entity, t);
         const w = frame.w, h = frame.h;
         const hasBox = w > 0 || h > 0;
-        if (hasBox) {
-            const box = rectTextBox(frame.px, frame.py, w, h, t.fontSize, fontAscent(family, DEFAULT_ASCENT));
-            originX = box.originX;
-            originY = box.originY;
-            boxWidth = box.maxWidth; // align within the box regardless of word-wrap
-            boxHeight = box.boxHeight;
-            if (t.wordWrap) maxWidth = box.maxWidth; // wrap only when enabled
-        }
-        const shadow = t.shadowColor.a > 0
-            && (t.shadowOffsetX !== 0 || t.shadowOffsetY !== 0 || t.shadowBlur > 0)
-            ? {
-                color: [t.shadowColor.r, t.shadowColor.g, t.shadowColor.b, t.shadowColor.a] as RGBA,
-                dx: t.shadowOffsetX,
-                dy: t.shadowOffsetY,
-                blur: t.shadowBlur,
-            }
-            : undefined;
-        const outline = t.strokeWidth > 0 && t.strokeColor.a > 0
-            ? {
-                color: [t.strokeColor.r, t.strokeColor.g, t.strokeColor.b, t.strokeColor.a] as RGBA,
-                width: t.strokeWidth,
-            }
-            : undefined;
         const blockHeight = renderer.retain(
             api,
-            {
-                text: t.content,
-                fontFamily: family,
-                fontSizePx: t.fontSize,
-                color: [t.color.r, t.color.g, t.color.b, t.color.a],
-                style,
-                richText: t.richText,
-                align: t.align,
-                verticalAlign: t.verticalAlign,
-                lineHeight: lineHeightPx,
-                maxWidth,
-                boxWidth,
-                boxHeight,
-                overflow: t.overflow,
-                underline: !!t.underline,
-                originX,
-                originY,
-                shadow,
-                outline,
-            },
+            textDrawParams(t, family, frame),
             // The engine orders a boxed label by the UI tree and re-lays it out when the node's size changes; a box
             // that is the Text's own is neither, so it is reported as no box (its size reaches layout above).
             entity as number, screen, hasBox && frame.ui, t.layer | 0, frame.ui ? w : 0, frame.ui ? h : 0,
@@ -559,85 +509,30 @@ export class TextPlugin implements Plugin {
             seen.add(entity as number);
 
             const tr = world.get(entity, Transform) as TransformData;
+            const family = resolveTextFamily(t.font, t.fontFamily);
             const renderer = this.rendererFor(
                 app, state,
-                glyphKind(t, tr, resolveTextFamily(t.font, t.fontFamily), view, dpr),
+                glyphKind(t, tr, family, view, dpr),
                 view.contentScale,
                 dpr,
             );
             if (!readMatrix) composeTRS(appState.matrix, tr.worldPosition, tr.worldRotation, tr.worldScale);
 
-            const style = (t.bold ? UI_TEXT_BOLD : 0) | (t.italic ? UI_TEXT_ITALIC : 0);
-            // Text.lineHeight is a ratio of fontSize (legacy convention).
-            const lineHeightPx = t.lineHeight > 0 ? t.lineHeight * t.fontSize : undefined;
-
             // The layout box: a UINode (CSS box, pivot-centered), which places,
             // aligns and wraps the text and sorts it by UI render order. No box ⇒
             // a world label at the entity origin, sorted by Text.layer.
-            let originX: number | undefined;
-            let originY: number | undefined;
-            let maxWidth: number | undefined;
-            let boxWidth: number | undefined;
-            let boxHeight: number | undefined;
             let layer = t.layer | 0;
             const frame = textFrame(world, entity, t);
-            const hasBox = frame.w > 0 || frame.h > 0;
-            if (hasBox) {
-                const box = rectTextBox(frame.px, frame.py, frame.w, frame.h, t.fontSize, fontAscent(resolveTextFamily(t.font, t.fontFamily), DEFAULT_ASCENT));
-                originX = box.originX;
-                originY = box.originY;
-                boxWidth = box.maxWidth; // align within the box regardless of word-wrap
-                boxHeight = box.boxHeight;
-                if (t.wordWrap) maxWidth = box.maxWidth; // wrap only when enabled
-
-                if (frame.ui) {
-                    const order = api?.ui_getRenderOrder?.(registry, entity as number) ?? -1;
-                    layer = order >= 0 ? UI_BASE_LAYER + order : UI_BASE_LAYER;
-                }
+            if ((frame.w > 0 || frame.h > 0) && frame.ui) {
+                const order = api?.ui_getRenderOrder?.(registry, entity as number) ?? -1;
+                layer = order >= 0 ? UI_BASE_LAYER + order : UI_BASE_LAYER;
             }
 
-            // A blur with no offset is still a shadow — a halo centred on the
-            // glyphs — so it counts as one for the "is there a shadow" test.
-            const shadow = t.shadowColor.a > 0
-                && (t.shadowOffsetX !== 0 || t.shadowOffsetY !== 0 || t.shadowBlur > 0)
-                ? {
-                    color: [t.shadowColor.r, t.shadowColor.g, t.shadowColor.b, t.shadowColor.a] as RGBA,
-                    dx: t.shadowOffsetX,
-                    dy: t.shadowOffsetY,
-                    blur: t.shadowBlur,
-                }
-                : undefined;
-            const outline = t.strokeWidth > 0 && t.strokeColor.a > 0
-                ? {
-                    color: [t.strokeColor.r, t.strokeColor.g, t.strokeColor.b, t.strokeColor.a] as RGBA,
-                    width: t.strokeWidth,
-                }
-                : undefined;
-
             renderer.drawText(
-                {
-                    text: t.content,
-                    fontFamily: resolveTextFamily(t.font, t.fontFamily),
-                    fontSizePx: t.fontSize,
-                    // Subtree opacity (UINode.opacity) is resolved in C++ by the
-                    // layout pass; text is drawn here, so it multiplies the same
-                    // inherited alpha in and fades with its panel like visuals do.
-                    color: [t.color.r, t.color.g, t.color.b, t.color.a],
-                    opacity: groupAlpha,
-                    style,
-                    richText: t.richText,
-                    align: t.align,
-                    verticalAlign: t.verticalAlign,
-                    lineHeight: lineHeightPx,
-                    maxWidth,
-                    boxWidth,
-                    boxHeight,
-                    overflow: t.overflow,
-                    originX,
-                    originY,
-                    shadow,
-                    outline,
-                },
+                // Subtree opacity (UINode.opacity) is resolved in C++ by the
+                // layout pass; text is drawn here, so it multiplies the same
+                // inherited alpha in and fades with its panel like visuals do.
+                { ...textDrawParams(t, family, frame), opacity: groupAlpha },
                 appState.matrix,
                 entity as number,
                 layer,
@@ -705,7 +600,7 @@ export class TextPlugin implements Plugin {
         const appState = this.stateFor(app);
         const renderer = this.rendererFor(app, screen ? appState.screen : appState.world, glyphKind(t, tr, family, view, dpr), view.contentScale, dpr);
         run.renderer = renderer;
-        const style = (t.bold ? UI_TEXT_BOLD : 0) | (t.italic ? UI_TEXT_ITALIC : 0);
+        const style = textStyleBits(t);
         run.job.step((codepoint) => renderer.preloadGlyph(run, codepoint, family, style, t.fontSize), platformNow);
     }
 
