@@ -312,14 +312,14 @@ jobs:
   # second or so of real work on one that has it, so on every push they were most of the editor shards' time and, timing out, a red that said
   # nothing about the commit. They are answered here, once a day and against a release tag, with the budget they need.
   editor-heavy:
-    name: Editor checks too heavy for a push (${{ matrix.shard }}/2)
+    name: Editor checks too heavy for a push (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     needs: build-emscripten
     if: always() && needs.build-emscripten.result == 'success'
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     env:
       ESTELLA_WIN_W: '1480'
       ESTELLA_WIN_H: '920'
@@ -356,7 +356,7 @@ jobs:
         ELECTRON_DISABLE_SANDBOX: '1'
       run: |
         mkdir -p "$OUT"
-        xvfb-run -a --server-args="-screen 0 1920x1080x24" node scripts/editor-checks/run.mjs --nightly --shard ${{ matrix.shard }}/2 || [ $? -eq 2 ]
+        xvfb-run -a --server-args="-screen 0 1920x1080x24" node scripts/editor-checks/run.mjs --nightly --shard ${{ matrix.shard }}/3 || [ $? -eq 2 ]
 
     - name: Keep the captures
       if: always()

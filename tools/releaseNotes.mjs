@@ -4826,4 +4826,14 @@ export const NOTED = {
     {"note": "Terrain layers cost less, and a Planet draws its layers as a Terrain does."},
   "feat(ecs): an engine component is stamped whoever writes it - script writes are handed to the engine in a batch before the frame is composed, physics stamps the bodies that moved, the transform system the world matrices that changed, and tweens and the editor what they set; the change audit finds no unstamped write in 28 examples":
     {"note": "An engine component is stamped whoever writes it."},
+  "feat(terrain): a terrain layer's sky occlusion is edited beside its normal strength":
+    {"note": "A terrain layer and a field of plants each say how much of the sky reaches them."},
+  "fix(checks): the nightly editor checks say what they take on the runner, terrain-open authors its heightmaps as the editor does and counts an import once it has landed, and an idle wait the overlay holds says why - model-detail took 4200 s against the 1500 it declared and took its shard's budget with it; a heightmap written into a scene file was a picture where one assigned in the inspector is Data, and the tiles were counted while the ground still streamed":
+    {"internal": "The nightly editor checks' own budgets, fixtures and diagnosis; nothing a creator runs changes."},
+  "fix(editor): a click lands on what is drawn - a Canvas or bare layout container no longer takes the click from the sprites beneath it, and is picked only where nothing else is":
+    {"note": "A click selects a shape by its drawn size, and a bare Canvas no longer takes the click."},
+  "fix(editor): nudging a selection moves each selected root once, so a selected child no longer travels twice; the clipboard and selection edits are checked end to end":
+    {"note": "Nudging a selection moves each selected root once, so a selected child no longer travels twice."},
+  "fix(pick): a shape is selected by its drawn size and layer, so a click inside it lands":
+    {"note": "A click selects a shape by its drawn size, and a bare Canvas no longer takes the click."},
 };
