@@ -41,7 +41,7 @@ import { checkPlayable, type PlayableCheckReport } from './playableCheck';
 import { makeZip } from '../../../build-tools/utils/zip.js';
 import { planSideModules, spineRefusalMessage, sideModuleFiles } from '../bundle/sideModuleScan';
 import type { Physics3DBackend } from 'esengine';
-import { forcedSideModules, moduleChoices } from '../bundle/engineInstalls';
+import { forcedSideModules, moduleChoices, moduleForAsset } from '../bundle/engineInstalls';
 import type { ModuleChoice, ProjectFeatures, ProjectPackaging } from '../project/format';
 
 export interface ExportPlayableResult {
@@ -311,7 +311,11 @@ export async function exportPlayable(opts: {
   // 4. Host + esengine + project scripts → ONE IIFE (esengine INLINED; no import map).
   progress({ phase: 'Bundling game' });
   const scriptsAbs = opts.scriptsEntry ? path.join(opts.root, opts.scriptsEntry) : null;
+  // The whole entry installs every subsystem a scene can name, and not what only a file asks for: a texture recipe is drawn by
+  // esengine/image, which nothing imports unless an asset is one. Without it a playable shipped its recipes and drew none of them.
+  const assetModules = [...new Set(cook.includedPaths.map(moduleForAsset).filter((m): m is string => m !== null))].sort();
   const entrySrc =
+    assetModules.map((m) => `import ${JSON.stringify(m)};\n`).join('') +
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
     `import ${JSON.stringify(runtimeHostEntry(opts.hostsDir, 'playableHost'))};\n`;
   let bundle = '';

@@ -230,6 +230,30 @@ describe('exportGame (playable)', () => {
     expect(html).not.toContain('screen.orientation');
   }, 60_000);
 
+  // A texture recipe is drawn by esengine/image, which the whole entry does not carry: it is imported for the asset that needs
+  // it. A playable shipped six recipes and drew its ground and its walls with no texture, with nothing in the build saying so.
+  it('imports the module an asset needs and the entry does not carry', async () => {
+    const RECIPE = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    writeFileSync(path.join(root, 'assets', 'plate.esimage'), JSON.stringify({ size: 8, layers: [] }));
+    writeFileSync(path.join(root, 'assets', 'plate.esimage.meta'), meta(RECIPE, 'imageSource'));
+    writeFileSync(path.join(root, 'scenes', 'recipe.esscene'),
+      JSON.stringify({ version: '1.0', name: 'Recipe', entities: [{ id: 0, components: [{ type: 'Sprite', data: { texture: `@uuid:${RECIPE}` } }] }] }));
+    writeFileSync(path.join(root, 'scenes', 'recipe.esscene.meta'), meta('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'scene'));
+    mkdirSync(path.join(root, '_sdk', 'image'), { recursive: true });
+    writeFileSync(path.join(root, '_sdk', 'image', 'index.js'), `globalThis.__estellaRecipes = 'RECIPE_DRAWER_INSTALLED';\n`);
+    const exportOf = (entryScene: string, outDir: string) => exportGame({
+      root, entryScene, hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES, scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir, title: 'Recipes', platform: 'playable', minify: false,
+    });
+    const withRecipe = path.join(root, 'dist-recipe');
+    expect((await exportOf('scenes/recipe.esscene', withRecipe)).ok).toBe(true);
+    expect(inlinedText(readFileSync(path.join(withRecipe, 'index.html'), 'utf8'), '__GAME_BUNDLE__')).toContain('RECIPE_DRAWER_INSTALLED');
+    // And only then: a playable with no recipe does not pay for the drawer.
+    const without = path.join(root, 'dist-no-recipe');
+    expect((await exportOf('scenes/main.esscene', without)).ok).toBe(true);
+    expect(inlinedText(readFileSync(path.join(without, 'index.html'), 'utf8'), '__GAME_BUNDLE__')).not.toContain('RECIPE_DRAWER_INSTALLED');
+  }, 60_000);
+
   // The editor never bundles the hosts from their sources: a packaged app ships
   // none, so it exports from the tree it prebuilt. Every other test here reads the
   // sources, where a host the prebuild never emitted is still right beside them.
