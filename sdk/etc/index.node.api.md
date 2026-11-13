@@ -220,7 +220,7 @@ world: World
 label: string | undefined
 name: string
 tooltip: string | undefined
-type: "string" | "number" | "bool" | "entity"
+type: "bool" | "entity" | "number" | "string"
 ```
 
 ## AiOutputs — type @experimental
@@ -238,7 +238,7 @@ options: readonly { label: string; value: string; }[] | undefined
 optionsSource: string | undefined
 step: number | undefined
 tooltip: string | undefined
-type: "string" | "number" | "bool" | "enum"
+type: "bool" | "enum" | "number" | "string"
 ```
 
 ## AiParamValue — type @experimental
@@ -896,7 +896,7 @@ type: AssetFieldType
 ```
 alwaysInclude: boolean | undefined
 folder: string
-mode: "local" | "subpackage" | "remote"
+mode: "local" | "remote" | "subpackage"
 ```
 
 ## AssetGroupMode — type @experimental
@@ -1154,7 +1154,7 @@ ResourceDef<AudioAPI>
 
 ## AudioAPI — class @experimental
 ```
-@internal getVoiceState: (handle: AudioHandle) => "playing" | "paused" | "ended" | "stopped" | "untracked"
+@internal getVoiceState: (handle: AudioHandle) => "ended" | "paused" | "playing" | "stopped" | "untracked"
 @internal onPlaybackStop: (callback: (generation: number) => void) => () => void
 @internal playbackGeneration: number
 baseUrl: string
@@ -2672,7 +2672,7 @@ loadRadius: number
 make: (cx: number, cz: number, signal: AbortSignal) => T | null | Promise<T | null>
 originX: number
 originZ: number
-plane: "xz" | "xy" | undefined
+plane: "xy" | "xz" | undefined
 publish: (cx: number, cz: number, value: T) => void
 release: (cx: number, cz: number, value: T) => void
 sizeX: number
@@ -3157,7 +3157,7 @@ ComponentDef<{}>
 background: UIVisualInit | undefined
 data: DataSource<T> | readonly T[]
 decelerationRate: number | undefined
-direction: "vertical" | "horizontal" | "both" | undefined
+direction: "both" | "horizontal" | "vertical" | undefined
 dragScroll: boolean | undefined
 host: ListViewHost
 item: ListItemTemplate<T> | Record<string, ListItemTemplate<T>>
@@ -4466,7 +4466,7 @@ paint: (x: number, z: number, h: number, ny: number) => LayerWeights
 splats: () => { a: Splat | null; b: Splat | null; }
 toData: () => FieldSourceData
 static fromData: (d: FieldSourceData) => FieldSource
-static new (field: Heightfield, data: Pick<TerrainData, "sizeX" | "sizeZ" | "height" | "rockSlope" | "dirtHeight" | "snowHeight">, splat: Splat | null, flow: Float32Array | null, range?: readonly [number, number], splat2?: Splat | null): FieldSource
+static new (field: Heightfield, data: Pick<TerrainData, "dirtHeight" | "height" | "rockSlope" | "sizeX" | "sizeZ" | "snowHeight">, splat: Splat | null, flow: Float32Array | null, range?: readonly [number, number], splat2?: Splat | null): FieldSource
 static prototype: FieldSource
 ```
 
@@ -4489,7 +4489,7 @@ Top = 3
 
 ## FilterEffectDef — interface @experimental
 ```
-filter: "lowpass" | "highpass" | "bandpass" | "lowshelf" | "highshelf" | "peaking" | "notch"
+filter: "bandpass" | "highpass" | "highshelf" | "lowpass" | "lowshelf" | "notch" | "peaking"
 frequency: number
 gainDb: number | undefined
 q: number | undefined
@@ -5956,7 +5956,7 @@ spacing: number
 accepted: boolean
 environmentSunAim: [number, number, number] | null
 limit: number
-refusal: "none" | "capacity" | "no-environment-sun"
+refusal: "capacity" | "no-environment-sun" | "none"
 refusedCount: number
 requested: number
 ```
@@ -6090,7 +6090,7 @@ sceneName: string | undefined
 source: RuntimeAssetSource
 spineManager: SpineManager | null | undefined
 spineModule: SpineWasmModule | null | undefined
-uiTheme: "light" | "dark" | undefined
+uiTheme: "dark" | "light" | undefined
 uiThemeOverrides: ThemeOverrides | undefined
 ```
 
@@ -6748,7 +6748,7 @@ send: (data: string | ArrayBuffer) => void
 ## NodeParamSpec — interface @beta
 ```
 key: string
-kind: "texture" | "text" | "bool" | "float" | "color" | "channel"
+kind: "bool" | "channel" | "color" | "float" | "text" | "texture"
 label: string
 ```
 
@@ -6894,7 +6894,7 @@ entryScene: string
 hotUpdate: { remoteRoot?: string; persistUpdateKey?: string; } | undefined
 leaderboardEncryptionKey: string | undefined
 msaaSamples: number | undefined
-outputTransform: "none" | "aces" | "neutral" | undefined
+outputTransform: "aces" | "neutral" | "none" | undefined
 physics3dBackend: Physics3DBackend | undefined
 physics3dWorld: Partial<Physics3DWorldConfig> | undefined
 physicsConfig: Physics2DPluginConfig | undefined
@@ -6909,7 +6909,7 @@ sideModules: { id: string; file: string; globalName?: string; }[] | undefined
 steamAppId: number | undefined
 uiTheme: "light" | undefined
 uiThemeColors: Record<string, string> | undefined
-webChannel: "poki" | "crazygames" | "youtube" | undefined
+webChannel: "crazygames" | "poki" | "youtube" | undefined
 worlds: { scene: string; manifest: string; }[] | undefined
 ySortLayers: number | undefined
 ```
@@ -6936,7 +6936,7 @@ used: number
 ## PageDef — interface @experimental
 ```
 mount: number | (() => Entity) | undefined
-onClose: "keep" | "destroy" | undefined
+onClose: "destroy" | "keep" | undefined
 overrides: PrefabOverride[] | undefined
 parent: number | (() => Entity) | undefined
 prefab: string
@@ -7002,7 +7002,7 @@ filter: "linear" | "nearest" | undefined
 mipmaps: boolean | undefined
 sliceBorder: { left: number; right: number; top: number; bottom: number; } | undefined
 srgb: boolean | undefined
-wrap: "repeat" | "clamp" | "mirror" | undefined
+wrap: "clamp" | "mirror" | "repeat" | undefined
 ```
 
 ## Particle — const @experimental
@@ -7580,7 +7580,7 @@ kind: string
 
 ## Placement — interface @experimental
 ```
-attach: "upright" | "align"
+attach: "align" | "upright"
 biome: string
 canopy: number
 far: { u0: number; v0: number; u1: number; v1: number; tent?: boolean; } | null | undefined
@@ -7675,7 +7675,7 @@ bytes: number | undefined
 draws: number | undefined
 height: number | undefined
 rejected: number | undefined
-state: "unavailable" | "inactive" | "budget-excluded" | "ready"
+state: "budget-excluded" | "inactive" | "ready" | "unavailable"
 updated: boolean | undefined
 width: number | undefined
 ```
@@ -7745,7 +7745,7 @@ world: string
 ## PlanetStatus — interface @experimental
 ```
 reason: string | undefined
-state: "failed" | "ready" | "loading"
+state: "failed" | "loading" | "ready"
 ```
 
 ## Planets — class @experimental
@@ -7917,8 +7917,8 @@ title: string | undefined
 ```
 body: string | ArrayBuffer | undefined
 headers: Record<string, string> | undefined
-method: "GET" | "POST" | "PUT" | "DELETE" | "HEAD" | "OPTIONS" | undefined
-responseType: "json" | "text" | "arraybuffer" | undefined
+method: "DELETE" | "GET" | "HEAD" | "OPTIONS" | "POST" | "PUT" | undefined
+responseType: "arraybuffer" | "json" | "text" | undefined
 timeout: number | undefined
 ```
 
@@ -8061,7 +8061,7 @@ physicsEnabled: boolean | undefined
 remoteRoot: string | undefined
 runtime: RuntimeBuildConfig | undefined
 sceneData: SceneData
-uiTheme: "light" | "dark" | undefined
+uiTheme: "dark" | "light" | undefined
 uiThemeOverrides: ThemeOverrides | undefined
 wasmBaseUrl: string | undefined
 ```
@@ -8093,7 +8093,7 @@ physicsEnabled: boolean | undefined
 prewarmShaders: { timeoutMs?: number; } | undefined
 runtime: RuntimeBuildConfig | undefined
 scenes: { name: string; data: SceneData; }[]
-uiTheme: "light" | "dark" | undefined
+uiTheme: "dark" | "light" | undefined
 uiThemeOverrides: ThemeOverrides | undefined
 ySortLayers: number | undefined
 ```
@@ -8298,7 +8298,7 @@ weight: number
 ```
 ceiling: PowerLevel | null
 fps: number
-reason: "none" | "battery" | "thermal" | "critical"
+reason: "battery" | "critical" | "none" | "thermal"
 saving: boolean
 ```
 
@@ -8313,14 +8313,14 @@ ceiling: PowerLevel | undefined
 fps: number | undefined
 lowBattery: number | undefined
 severe: "critical" | "never" | undefined
-thermal: "critical" | "serious" | "never" | undefined
+thermal: "critical" | "never" | "serious" | undefined
 ```
 
 ## PowerState — interface @experimental
 ```
 charging: boolean | null
 level: number | null
-thermal: "critical" | "serious" | "nominal" | "fair" | null
+thermal: "critical" | "fair" | "nominal" | "serious" | null
 ```
 
 ## PreSceneDrawCallback — type @experimental
@@ -8403,7 +8403,7 @@ componentType: string | undefined
 metadataKey: string | undefined
 prefabEntityId: string
 propertyName: string | undefined
-type: "property" | "component_added" | "component_replaced" | "component_removed" | "name" | "visibility" | "parent" | "metadata_set" | "metadata_removed"
+type: "component_added" | "component_removed" | "component_replaced" | "metadata_removed" | "metadata_set" | "name" | "parent" | "property" | "visibility"
 value: unknown
 ```
 
@@ -8696,7 +8696,7 @@ depthPrepass: boolean
 detailScale: number
 drawCallBudget: number
 dynamicGIReduced: boolean
-lighting: "full" | "direct"
+lighting: "direct" | "full"
 minRenderScale: number
 msaaSamples: 2 | 1 | 4 | 8
 particleLimit: number
@@ -8942,7 +8942,7 @@ version: number
 ## RecipeMember — interface @experimental
 ```
 arc: readonly [number, number] | undefined
-attach: "upright" | "align" | undefined
+attach: "align" | "upright" | undefined
 canopy: number | undefined
 chance: number | undefined
 count: readonly [number, number] | undefined
@@ -9443,7 +9443,7 @@ source: RuntimeAssetSource
 spineManager: SpineManager | null | undefined
 spineModule: SpineWasmModule | null | undefined
 steamAppId: number | undefined
-uiTheme: "light" | "dark" | undefined
+uiTheme: "dark" | "light" | undefined
 uiThemeOverrides: ThemeOverrides | undefined
 worlds: WorldManifest[] | undefined
 ```
@@ -9992,7 +9992,7 @@ setContentSize: (size: Vec2) => void
 background: UIVisualInit | undefined
 contentSize: Vec2
 decelerationRate: number | undefined
-direction: "vertical" | "horizontal" | "both" | undefined
+direction: "both" | "horizontal" | "vertical" | undefined
 dragScroll: boolean | undefined
 host: ListViewHost
 node: UINodeInit | undefined
@@ -10123,7 +10123,7 @@ size: Vec2
 deniedCasters: number
 granted: number
 reducedCasters: number
-refusal: "none" | "tile-budget" | "tile-too-large" | "atlas-full"
+refusal: "atlas-full" | "none" | "tile-budget" | "tile-too-large"
 requested: number
 ```
 
@@ -11005,7 +11005,7 @@ VisibleOutside = 2
 nestedAt: string | undefined
 override: PrefabOverride
 reason: string
-site: "variant" | "nested" | "instance"
+site: "instance" | "nested" | "variant"
 ```
 
 ## StaticBatch — const @experimental
@@ -11728,7 +11728,7 @@ region: ((x0: number, z0: number, spacing: number, count: number) => TerrainRegi
 ## TerrainStatus — interface @experimental
 ```
 reason: string | undefined
-state: "failed" | "ready" | "loading"
+state: "failed" | "loading" | "ready"
 ```
 
 ## TerrainTileEntry — interface @experimental
@@ -11963,7 +11963,7 @@ static prototype: TextInputPlugin
 ```
 horizontalOverflow: boolean
 metrics: TextMetrics | null
-unsupported: "rich-text" | "custom-font" | "complex-script" | "invalid-box" | null
+unsupported: "complex-script" | "custom-font" | "invalid-box" | "rich-text" | null
 verticalOverflow: boolean
 ```
 
@@ -12582,7 +12582,7 @@ duration: number | undefined
 keepPersistent: boolean | undefined
 onComplete: (() => void) | undefined
 onStart: (() => void) | undefined
-transition: "none" | "fade" | undefined
+transition: "fade" | "none" | undefined
 ```
 
 ## TreeDataSource — interface @beta
@@ -12597,7 +12597,7 @@ subscribe: ((listener: () => void) => Unsubscribe) | undefined
 
 ## TreeDropRequest — interface @beta
 ```
-position: "before" | "inside" | "after"
+position: "after" | "before" | "inside"
 source: TreeRow<T>
 target: TreeRow<T>
 ```
@@ -13388,7 +13388,7 @@ type: DataType
 
 ## VibrationOptions — interface @experimental
 ```
-duration: "short" | "long" | undefined
+duration: "long" | "short" | undefined
 intensity: VibrationIntensity | undefined
 ```
 
@@ -14131,7 +14131,7 @@ Generator<number, T, void>
 ```
 @internal addressOfComponent: (component: AnyComponentDef, entity: Entity) => number | undefined
 @internal addressResolver: (component: AnyComponentDef) => (entity: Entity) => number | undefined
-@internal advanceMutationCursor: (component: AnyComponentDef, kind: "write" | "topology", reader: number, through: number) => void
+@internal advanceMutationCursor: (component: AnyComponentDef, kind: "topology" | "write", reader: number, through: number) => void
 @internal advanceRemovedCursorReader: (component: AnyComponentDef, readerId: number, through: number) => void
 @internal advanceRemovedReader: (component: AnyComponentDef, readerId: number, lastRunTick: number) => void
 @internal advanceTick: () => void
@@ -14150,7 +14150,7 @@ Generator<number, T, void>
 @internal compositionChanges: () => CompositionDelta | null
 @internal connectCpp: (cppRegistry: CppRegistry, module?: ESEngineModule, options?: BridgeConnectOptions) => void
 @internal disconnectCpp: () => void
-@internal disposeMutationCursor: (component: AnyComponentDef, kind: "write" | "topology", reader: number) => void
+@internal disposeMutationCursor: (component: AnyComponentDef, kind: "topology" | "write", reader: number) => void
 @internal disposeRemovedReader: (component: AnyComponentDef, readerId: number) => void
 @internal disposeTopologyReader: (component: AnyComponentDef, readerId: number) => void
 @internal disposeWriteReader: (component: AnyComponentDef, readerId: number) => void
@@ -14185,16 +14185,16 @@ Generator<number, T, void>
 @internal isIterating: () => boolean
 @internal layoutEpoch: () => number | null
 @internal markChanged: (entity: Entity, component: AnyComponentDef) => void
-@internal mutationRevision: (component: AnyComponentDef, kind: "write" | "topology") => number
-@internal mutationSequence: (kind: "write" | "topology") => number
-@internal mutationsForCursor: (component: AnyComponentDef, kind: "write" | "topology", reader: number) => Entity[]
+@internal mutationRevision: (component: AnyComponentDef, kind: "topology" | "write") => number
+@internal mutationSequence: (kind: "topology" | "write") => number
+@internal mutationsForCursor: (component: AnyComponentDef, kind: "topology" | "write", reader: number) => Entity[]
 @internal onCoreDisconnect: (dispose: () => void) => () => void
 @internal openSpeculation: (log: { record(world: World, entity: Entity, component: AnyComponentDef): void; }) => void
 @internal queries_: QueryCache
 @internal queryCostEnabled: boolean
 @internal queryEntities: (components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[], precomputedKey?: string, filter?: QueryFilter, precomputedDepIds?: symbol[]) => readonly Entity[]
 @internal refreshBuiltinMembership: (entity: Entity, component: AnyComponentDef) => void
-@internal registerMutationCursor: (component: AnyComponentDef, kind: "write" | "topology") => number
+@internal registerMutationCursor: (component: AnyComponentDef, kind: "topology" | "write") => number
 @internal registerRemovedCursorReader: (component: AnyComponentDef) => number
 @internal registerRemovedReader: (component: AnyComponentDef) => number
 @internal registerRemovedReaderFrom: (component: AnyComponentDef, retainFromTick: number) => number
@@ -14302,7 +14302,7 @@ ResourceDef<WorldGens>
 ```
 layers: Record<string, ChunkLayerStatus>
 reason: string | undefined
-state: "failed" | "ready" | "loading"
+state: "failed" | "loading" | "ready"
 ```
 
 ## WorldGens — class @experimental
@@ -14326,7 +14326,7 @@ static prototype: WorldGens
 cellSize: number
 cells: WorldCell[]
 persistentRefs: number[]
-plane: "xz" | "xy" | undefined
+plane: "xy" | "xz" | undefined
 scene: string
 version: number
 ```
@@ -14338,7 +14338,7 @@ cells: PartitionedCell[]
 errors: string[]
 persistent: SceneData
 persistentRefs: number[]
-plane: "xz" | "xy"
+plane: "xy" | "xz"
 warnings: string[]
 ```
 
@@ -14401,7 +14401,7 @@ loadCount: number
 loadingCells: string[]
 persistentEntities: number
 persistentHandles: number[]
-plane: "xz" | "xy"
+plane: "xy" | "xz"
 prefetchCells: string[]
 prefetchHits: number
 prefetchMisses: number
@@ -16522,7 +16522,7 @@ InputRouter
 
 ## isDialogOpen — function @experimental
 ```
-(world: Pick<World, "has" | "get">, root: Entity): boolean
+(world: Pick<World, "get" | "has">, root: Entity): boolean
 ```
 
 ## isDropdownOpen — function @experimental
@@ -16572,7 +16572,7 @@ InputRouter
 
 ## isPointerBlockedInTree — function @experimental
 ```
-(world: Pick<World, "has" | "get" | "valid">, entity: Entity): boolean
+(world: Pick<World, "get" | "has" | "valid">, entity: Entity): boolean
 ```
 
 ## isPrefabEntry — function @experimental
@@ -16742,7 +16742,7 @@ Logger
 
 ## manifestPlane — function @experimental
 ```
-(manifest: { plane?: "xz" | "xy"; } | null): "xz" | "xy"
+(manifest: { plane?: "xy" | "xz"; } | null): "xy" | "xz"
 ```
 
 ## markThemed — function @experimental
@@ -16967,17 +16967,17 @@ NodePlatformAdapter
 
 ## packagedAppOptions — function @experimental
 ```
-(config: Pick<PackagedGameConfig, "ySortLayers" | "depthLayers" | "colorSpace" | "outputTransform" | "screenFit" | "msaaSamples" | "quality">): { ySortLayers?: number; depthLayers?: number; colorSpace?: "gamma" | "linear"; outputTransform?: "none" | "aces" | "neutral"; msaaSamples?: number; quality?: QualityConfig; renderBackend?: "webgl2" | "webgpu"; screenFit?: PackagedGameConfig["screenFit"]; }
+(config: Pick<PackagedGameConfig, "colorSpace" | "depthLayers" | "msaaSamples" | "outputTransform" | "quality" | "screenFit" | "ySortLayers">): { ySortLayers?: number; depthLayers?: number; colorSpace?: "gamma" | "linear"; outputTransform?: "aces" | "neutral" | "none"; msaaSamples?: number; quality?: QualityConfig; renderBackend?: "webgl2" | "webgpu"; screenFit?: PackagedGameConfig["screenFit"]; }
 ```
 
 ## packagedRuntimeInit — function @experimental
 ```
-(config: Pick<PackagedGameConfig, "physicsEnabled" | "physicsConfig" | "physics3dBackend" | "physics3dWorld" | "audioConfig" | "uiTheme" | "uiThemeColors" | "achievements" | "steamAppId" | "screenFit" | "aot" | "debugChannel" | "runtime">): { physicsEnabled?: boolean; physicsConfig?: Physics2DPluginConfig; physics3dBackend?: Physics3DBackend; physics3dWorld?: Partial<Physics3DWorldConfig>; audioConfig?: AudioProjectConfig; runtime?: RuntimeBuildConfig; uiTheme?: "light"; uiThemeOverrides?: ThemeOverrides; achievements?: string[]; steamAppId?: number; screenFit?: PackagedGameConfig["screenFit"]; aot?: PackagedGameConfig["aot"]; debugChannel?: DebugChannelConfig; }
+(config: Pick<PackagedGameConfig, "achievements" | "aot" | "audioConfig" | "debugChannel" | "physics3dBackend" | "physics3dWorld" | "physicsConfig" | "physicsEnabled" | "runtime" | "screenFit" | "steamAppId" | "uiTheme" | "uiThemeColors">): { physicsEnabled?: boolean; physicsConfig?: Physics2DPluginConfig; physics3dBackend?: Physics3DBackend; physics3dWorld?: Partial<Physics3DWorldConfig>; audioConfig?: AudioProjectConfig; runtime?: RuntimeBuildConfig; uiTheme?: "light"; uiThemeOverrides?: ThemeOverrides; achievements?: string[]; steamAppId?: number; screenFit?: PackagedGameConfig["screenFit"]; aot?: PackagedGameConfig["aot"]; debugChannel?: DebugChannelConfig; }
 ```
 
 ## paintWeights — function @experimental
 ```
-(h: number, ny: number, t: Pick<TerrainData, "rockSlope" | "dirtHeight" | "snowHeight">): [number, number, number, number]
+(h: number, ny: number, t: Pick<TerrainData, "dirtHeight" | "rockSlope" | "snowHeight">): [number, number, number, number]
 ```
 
 ## panoramaDirection — function @experimental
@@ -17172,7 +17172,7 @@ ParticlePlugin
 
 ## planeSecond — function @experimental
 ```
-(position: { y: number; z?: number; }, plane: "xz" | "xy"): number
+(position: { y: number; z?: number; }, plane: "xy" | "xz"): number
 ```
 
 ## planetPlugin — const @experimental
@@ -17392,7 +17392,7 @@ PrefabsPlugin
 
 ## q — const @experimental
 ```
-{ create(w?: number, x?: number, y?: number, z?: number): Quat; clone(a: Quat): Quat; mul(a: Quat, b: Quat): Quat; axis(axis: "x" | "y" | "z", rad: number): Quat; normalize(a: Quat): Quat; dot(a: Quat, b: Quat): number; neg(a: Quat): Quat; conjugate(a: Quat): Quat; rotate(a: Quat, v: Vec3): Vec3; toEuler(a: Quat): [number, number, number]; fromEuler(deg: readonly number[]): Quat; rotationTo(from: Vec3, to: Vec3): Quat; setAngleZ(a: Quat | undefined, deg: number): Quat; angleZ(a: Pick<Quat, "z" | "w">): number; scaled(a: Quat, t: number): Quat; }
+{ create(w?: number, x?: number, y?: number, z?: number): Quat; clone(a: Quat): Quat; mul(a: Quat, b: Quat): Quat; axis(axis: "x" | "y" | "z", rad: number): Quat; normalize(a: Quat): Quat; dot(a: Quat, b: Quat): number; neg(a: Quat): Quat; conjugate(a: Quat): Quat; rotate(a: Quat, v: Vec3): Vec3; toEuler(a: Quat): [number, number, number]; fromEuler(deg: readonly number[]): Quat; rotationTo(from: Vec3, to: Vec3): Quat; setAngleZ(a: Quat | undefined, deg: number): Quat; angleZ(a: Pick<Quat, "w" | "z">): number; scaled(a: Quat, t: number): Quat; }
 ```
 
 ## quadraticBezier — function @experimental
@@ -18087,7 +18087,7 @@ ServicesPlugin
 
 ## setTreeViewData — function @beta
 ```
-<T>(world: World, entity: Entity, data: TreeDataSource<T>, options?: Pick<TreeViewOptions<T>, "item" | "dragHandle" | "canDrop" | "onDrop">): () => void
+<T>(world: World, entity: Entity, data: TreeDataSource<T>, options?: Pick<TreeViewOptions<T>, "canDrop" | "dragHandle" | "item" | "onDrop">): () => void
 ```
 
 ## setUIVisible — function @experimental
@@ -18612,7 +18612,7 @@ UIVisibilityPlugin
 
 ## updateAnimatorLayer — function @experimental
 ```
-(def: AnimatorControllerDef, index: number, patch: Pick<Partial<AnimatorLayer>, "name" | "weight" | "blend" | "mask">): AnimatorControllerDef
+(def: AnimatorControllerDef, index: number, patch: Pick<Partial<AnimatorLayer>, "blend" | "mask" | "name" | "weight">): AnimatorControllerDef
 ```
 
 ## updateAnimatorParam — function @experimental

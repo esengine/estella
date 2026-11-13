@@ -63,7 +63,7 @@ ResourceDef<StateMachines>
 label: string | undefined
 name: string
 tooltip: string | undefined
-type: "string" | "number" | "bool" | "entity"
+type: "bool" | "entity" | "number" | "string"
 ```
 
 ## AiOutputs — type @experimental
@@ -81,7 +81,7 @@ options: readonly { label: string; value: string; }[] | undefined
 optionsSource: string | undefined
 step: number | undefined
 tooltip: string | undefined
-type: "string" | "number" | "bool" | "enum"
+type: "bool" | "enum" | "number" | "string"
 ```
 
 ## AiParamValue — type @experimental
@@ -544,8 +544,8 @@ halfExtents: Vec3
 ## NavPathResult — interface @experimental
 ```
 path: Vec3[] | null
-reason: "none" | "no-surface" | "building" | "start-unavailable" | "target-unavailable" | "disconnected" | "insufficient-clearance" | "radius-mismatch" | "diagnostics-unavailable"
-status: "unknown" | "unavailable" | "complete" | "partial"
+reason: "building" | "diagnostics-unavailable" | "disconnected" | "insufficient-clearance" | "no-surface" | "none" | "radius-mismatch" | "start-unavailable" | "target-unavailable"
+status: "complete" | "partial" | "unavailable" | "unknown"
 ```
 
 ## NavPlugin — class @experimental
@@ -1086,7 +1086,7 @@ PerceptionPlugin
 
 ## setStateHook — function @experimental
 ```
-(def: FsmDefinition, name: string, hook: "onEnter" | "onUpdate" | "onExit", action: string, arg?: string, params?: Record<string, AiParamValue>): FsmDefinition
+(def: FsmDefinition, name: string, hook: "onEnter" | "onExit" | "onUpdate", action: string, arg?: string, params?: Record<string, AiParamValue>): FsmDefinition
 ```
 
 ## stepBehaviorTrees — function @experimental

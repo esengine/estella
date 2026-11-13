@@ -71,7 +71,7 @@ minY: number
 ```
 blockedBy: readonly SpineDeferralBlocker[]
 entities: number
-envelope: "unknown" | "certified" | "observed"
+envelope: "certified" | "observed" | "unknown"
 era: string
 mayDefer: boolean
 pair: SpinePair

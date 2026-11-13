@@ -360,7 +360,7 @@ authenticate: (credentials: unknown, connection: AcceptedConnection) => Ctx | Pr
 heartbeat: false | { intervalMs: number; timeoutMs: number; } | undefined
 helloTimeoutMs: number | undefined
 idempotency: IdempotencyStore | undefined
-limits: Pick<NetLimitOptions, "maxFrameBytes" | "messagesPerSecond" | "burst"> | undefined
+limits: Pick<NetLimitOptions, "burst" | "maxFrameBytes" | "messagesPerSecond"> | undefined
 maxSessions: number | undefined
 maxViolationsPerMinute: number | undefined
 requestTimeoutMs: number | undefined

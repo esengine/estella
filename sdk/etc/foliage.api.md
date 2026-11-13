@@ -207,7 +207,7 @@ z: number
 ## PlantEvent — interface @experimental
 ```
 plant: PlantRef
-type: "removed" | "activated" | "deactivated" | "damaged" | "felled" | "landed" | "harvested" | "regrown"
+type: "activated" | "damaged" | "deactivated" | "felled" | "harvested" | "landed" | "regrown" | "removed"
 ```
 
 ## PlantGrowth — class @experimental

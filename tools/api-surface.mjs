@@ -162,7 +162,8 @@ const FMT = ts.TypeFormatFlags.NoTruncation | ts.TypeFormatFlags.UseAliasDefined
 function normalizeType(text) {
     return text
         .split(SDK.replace(/\\/g, '/')).join('~')
-        .replace(/import\((['"]).*?\1\)\./g, '');
+        .replace(/import\((['"]).*?\1\)\./g, '')
+        .replace(/"[^"\\]*"(?: \| "[^"\\]*")+/g, (run) => run.split(' | ').sort().join(' | '));
 }
 
 const fileTagCache = new Map();

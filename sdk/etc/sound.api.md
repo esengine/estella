@@ -81,7 +81,7 @@ pedal: boolean | undefined
 release: number | undefined
 reverb: number | undefined
 samples: readonly MusicSample[] | undefined
-scale: "pentatonic" | "pentatonicMinor" | "gong" | "shang" | "jue" | "zhi" | "yu" | "major" | "minor" | "dorian" | "phrygian" | "lydian" | "mixolydian" | "harmonic" | undefined
+scale: "dorian" | "gong" | "harmonic" | "jue" | "lydian" | "major" | "minor" | "mixolydian" | "pentatonic" | "pentatonicMinor" | "phrygian" | "shang" | "yu" | "zhi" | undefined
 ```
 
 ## MusicPattern — interface @experimental
@@ -96,7 +96,7 @@ tracks: Readonly<Record<string, string>>
 ## MusicSample — interface @experimental
 ```
 cutoff: number | undefined
-dynamic: "normal" | "soft" | "loud" | undefined
+dynamic: "loud" | "normal" | "soft" | undefined
 file: string
 gain: number | undefined
 high: string | number | undefined
@@ -122,7 +122,7 @@ patterns: Readonly<Record<string, MusicPattern>>
 rate: number | undefined
 reverb: { size?: number; mix?: number; } | undefined
 rubato: number | undefined
-scale: "pentatonic" | "pentatonicMinor" | "gong" | "shang" | "jue" | "zhi" | "yu" | "major" | "minor" | "dorian" | "phrygian" | "lydian" | "mixolydian" | "harmonic" | undefined
+scale: "dorian" | "gong" | "harmonic" | "jue" | "lydian" | "major" | "minor" | "mixolydian" | "pentatonic" | "pentatonicMinor" | "phrygian" | "shang" | "yu" | "zhi" | undefined
 seed: number | undefined
 song: readonly SongPart[]
 stems: boolean | undefined
@@ -239,7 +239,7 @@ number | readonly (readonly [number, number])[]
 freq: SoundCurve
 gain: number | undefined
 q: number | undefined
-type: "lowpass" | "highpass" | "bandpass" | "notch" | "peak"
+type: "bandpass" | "highpass" | "lowpass" | "notch" | "peak"
 ```
 
 ## SoundJob — interface @experimental
@@ -253,7 +253,7 @@ source: string
 ```
 attack: number | undefined
 band: readonly [number, number] | undefined
-color: "white" | "pink" | "brown" | undefined
+color: "brown" | "pink" | "white" | undefined
 decay: number | undefined
 drive: number | undefined
 file: string | undefined
@@ -272,7 +272,7 @@ release: number | undefined
 repeat: { count: number; every: number; gain?: number; pitch?: number; jitter?: number; faster?: number; } | undefined
 scatter: { count: number; over: number; early?: number; pitch?: readonly [number, number]; gain?: readonly [number, number]; pan?: number; fade?: number; } | undefined
 seed: number | undefined
-source: "noise" | "square" | "group" | "sine" | "triangle" | "saw" | "modes" | "impulse" | "sample"
+source: "group" | "impulse" | "modes" | "noise" | "sample" | "saw" | "sine" | "square" | "triangle"
 speed: number | undefined
 start: number | undefined
 tail: { decay: number; mix: number; } | undefined
@@ -398,7 +398,7 @@ octave: number
 
 ## placeResponse — function @experimental
 ```
-(rate: number, size: number, kind: "room" | "open", side: number): Float32Array
+(rate: number, size: number, kind: "open" | "room", side: number): Float32Array
 ```
 
 ## renderMusic — function @experimental

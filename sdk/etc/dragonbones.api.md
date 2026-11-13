@@ -52,7 +52,7 @@ removeEntity: (entity: Entity) => void
 setAtlasTexture: (skeletonHandle: number, textureId: number) => void
 setColor: (entity: Entity, r: number, g: number, b: number, a: number) => void
 setEnabled: (entity: Entity, enabled: boolean) => void
-setEntityProps: (entity: Entity, props: Partial<Pick<EntityInfo, "skeletonScale" | "flipX" | "flipY" | "layer" | "playing">> & { timeScale?: number; color?: { r: number; g: number; b: number; a: number; }; }) => void
+setEntityProps: (entity: Entity, props: Partial<Pick<EntityInfo, "flipX" | "flipY" | "layer" | "playing" | "skeletonScale">> & { timeScale?: number; color?: { r: number; g: number; b: number; a: number; }; }) => void
 setTimeScale: (entity: Entity, scale: number) => void
 stop: (entity: Entity, animation?: string) => void
 submitMeshes: (core: SkeletalSubmitCore, registry: unknown, materialOf?: SkeletalMaterialOf, isActive?: (entity: Entity) => boolean) => void

@@ -88,7 +88,7 @@ y: number
 ## GroundingOptions — interface @experimental
 ```
 maxRelief: number | undefined
-mode: "highest" | "lowest" | "mean" | "center" | undefined
+mode: "center" | "highest" | "lowest" | "mean" | undefined
 offset: number | undefined
 samples: number | undefined
 size: readonly [number, number]
@@ -125,7 +125,7 @@ kind: string
 
 ## Placement — interface @experimental
 ```
-attach: "upright" | "align"
+attach: "align" | "upright"
 biome: string
 canopy: number
 far: { u0: number; v0: number; u1: number; v1: number; tent?: boolean; } | null | undefined
@@ -252,7 +252,7 @@ version: number
 ## RecipeMember — interface @experimental
 ```
 arc: readonly [number, number] | undefined
-attach: "upright" | "align" | undefined
+attach: "align" | "upright" | undefined
 canopy: number | undefined
 chance: number | undefined
 count: readonly [number, number] | undefined
@@ -362,7 +362,7 @@ ResourceDef<WorldGens>
 ```
 layers: Record<string, ChunkLayerStatus>
 reason: string | undefined
-state: "failed" | "ready" | "loading"
+state: "failed" | "loading" | "ready"
 ```
 
 ## WorldGens — class @experimental

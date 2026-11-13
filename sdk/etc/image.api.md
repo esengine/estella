@@ -32,9 +32,9 @@ parts: Record<string, Float32Array<ArrayBufferLike>>
 ## ImageLayer — interface @experimental
 ```
 adjust: ImageAdjust | undefined
-align: "right" | "left" | "center" | undefined
+align: "center" | "left" | "right" | undefined
 at: readonly [number, number] | undefined
-blend: "color" | "normal" | "multiply" | "add" | "hue" | "subtract" | "screen" | "overlay" | "softLight" | "hardLight" | "vividLight" | "linearLight" | "pinLight" | "colorDodge" | "colorBurn" | "linearBurn" | "darken" | "lighten" | "difference" | "exclusion" | "divide" | "saturation" | "luminosity" | undefined
+blend: "add" | "color" | "colorBurn" | "colorDodge" | "darken" | "difference" | "divide" | "exclusion" | "hardLight" | "hue" | "lighten" | "linearBurn" | "linearLight" | "luminosity" | "multiply" | "normal" | "overlay" | "pinLight" | "saturation" | "screen" | "softLight" | "subtract" | "vividLight" | undefined
 blendIf: readonly number[] | undefined
 blur: number | undefined
 build: { head?: number; shoulders?: number; chest?: number; waist?: number; hips?: number; limbs?: number; } | undefined
@@ -54,7 +54,7 @@ face: string | undefined
 faces: readonly ImageFill[] | undefined
 feather: number | undefined
 fill: ImageFill | undefined
-filter: "texture" | "motion" | "lens" | "rays" | "noise" | "gaussian" | "spin" | "zoom" | "sharpen" | "highPass" | "median" | "emboss" | "ripple" | "displace" | "twirl" | "pixelate" | "chromatic" | "vignette" | "fog" | "flare" | undefined
+filter: "chromatic" | "displace" | "emboss" | "flare" | "fog" | "gaussian" | "highPass" | "lens" | "median" | "motion" | "noise" | "pixelate" | "rays" | "ripple" | "sharpen" | "spin" | "texture" | "twirl" | "vignette" | "zoom" | undefined
 font: string | undefined
 fontSize: number | undefined
 from: "below" | undefined
@@ -86,7 +86,7 @@ size: readonly [number, number] | undefined
 smear: number | undefined
 src: string | undefined
 strength: number | undefined
-stroke: { color: ImageFill; width: number; align?: "center" | "inside" | "outside"; join?: "round" | "miter" | "bevel"; cap?: "round" | "butt" | "square"; } | undefined
+stroke: { color: ImageFill; width: number; align?: "center" | "inside" | "outside"; join?: "bevel" | "miter" | "round"; cap?: "butt" | "round" | "square"; } | undefined
 strokes: readonly ImageMark[] | undefined
 text: string | undefined
 thin: number | undefined

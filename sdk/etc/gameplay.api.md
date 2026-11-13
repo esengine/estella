@@ -203,7 +203,7 @@ y: number
 ```
 filter: ((entity: Entity, data: D) => boolean) | undefined
 limit: number | undefined
-plane: "xz" | "xy" | undefined
+plane: "xy" | "xz" | undefined
 radius: number | undefined
 ```
 

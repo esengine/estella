@@ -124,7 +124,7 @@ restitution: number
 ```
 halfExtents: Vec3 | undefined
 halfHeight: number | undefined
-kind: "box" | "sphere" | "capsule"
+kind: "box" | "capsule" | "sphere"
 position: Vec3
 radius: number | undefined
 rotation: Quat

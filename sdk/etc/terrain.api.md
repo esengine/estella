@@ -53,13 +53,13 @@ paint: (x: number, z: number, h: number, ny: number) => LayerWeights
 splats: () => { a: Splat | null; b: Splat | null; }
 toData: () => FieldSourceData
 static fromData: (d: FieldSourceData) => FieldSource
-static new (field: Heightfield, data: Pick<TerrainData, "sizeX" | "sizeZ" | "height" | "rockSlope" | "dirtHeight" | "snowHeight">, splat: Splat | null, flow: Float32Array | null, range?: readonly [number, number], splat2?: Splat | null): FieldSource
+static new (field: Heightfield, data: Pick<TerrainData, "dirtHeight" | "height" | "rockSlope" | "sizeX" | "sizeZ" | "snowHeight">, splat: Splat | null, flow: Float32Array | null, range?: readonly [number, number], splat2?: Splat | null): FieldSource
 static prototype: FieldSource
 ```
 
 ## GroundEdit — class @experimental
 ```
-apply: (patch: GroundPatch, side: "before" | "after") => void
+apply: (patch: GroundPatch, side: "after" | "before") => void
 area: { sizeX: number; sizeZ: number; }
 begin: () => void
 end: () => GroundPatch | null
@@ -351,7 +351,7 @@ paint: Float32Array<ArrayBufferLike> | undefined
 ## PlanetStatus — interface @experimental
 ```
 reason: string | undefined
-state: "failed" | "ready" | "loading"
+state: "failed" | "loading" | "ready"
 ```
 
 ## Planets — class @experimental
@@ -420,7 +420,7 @@ step: number | undefined
 cells: number
 length: number
 path: { x: number; y: number; z: number; }[]
-state: "noGround" | "reached" | "unreachable" | "exhausted"
+state: "exhausted" | "noGround" | "reached" | "unreachable"
 ```
 
 ## SculptDab — interface @experimental
@@ -620,7 +620,7 @@ region: ((x0: number, z0: number, spacing: number, count: number) => TerrainRegi
 ## TerrainStatus — interface @experimental
 ```
 reason: string | undefined
-state: "failed" | "ready" | "loading"
+state: "failed" | "loading" | "ready"
 ```
 
 ## TerrainUnavailable — class @experimental
@@ -671,7 +671,7 @@ ResourceDef<Terrains>
 
 ## TiledGroundEdit — class @experimental
 ```
-apply: (patch: TiledGroundPatch, side: "before" | "after") => void
+apply: (patch: TiledGroundPatch, side: "after" | "before") => void
 area: { sizeX: number; sizeZ: number; }
 begin: () => void
 end: () => TiledGroundPatch | null
@@ -840,7 +840,7 @@ tiles: Map<string, Arrays>
 
 ## paintWeights — function @experimental
 ```
-(h: number, ny: number, t: Pick<TerrainData, "rockSlope" | "dirtHeight" | "snowHeight">): [number, number, number, number]
+(h: number, ny: number, t: Pick<TerrainData, "dirtHeight" | "rockSlope" | "snowHeight">): [number, number, number, number]
 ```
 
 ## parentOf — function @experimental

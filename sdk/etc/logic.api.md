@@ -107,7 +107,7 @@ static prototype: ScriptGraphPlugin
 default: ScriptValue | undefined
 label: string | undefined
 name: string
-type: "string" | "number" | "bool" | "entity" | "any"
+type: "any" | "bool" | "entity" | "number" | "string"
 ```
 
 ## ScriptGraphSignature — interface @experimental
@@ -120,7 +120,7 @@ outputs: readonly ScriptGraphPort[]
 ```
 default: ScriptValue | undefined
 name: string
-type: "string" | "number" | "bool" | "entity"
+type: "bool" | "entity" | "number" | "string"
 ```
 
 ## ScriptGraphWorldView — interface @experimental

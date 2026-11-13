@@ -8,7 +8,7 @@ Symbols: 0 public · 0 beta · 4 experimental · 0 deprecated
 WebAssembly: { instantiateFromFile?(path: string, imports: WebAssembly.Imports): Promise<WasmInstantiateResult>; }
 WebSocket: { new (url: string | URL, protocols?: string | string[]): WebSocket; prototype: WebSocket; readonly CONNECTING: 0; readonly OPEN: 1; readonly CLOSING: 2; readonly CLOSED: 3; }
 XMLHttpRequest: { new (): XMLHttpRequest; prototype: XMLHttpRequest; readonly UNSENT: 0; readonly OPENED: 1; readonly HEADERS_RECEIVED: 2; readonly LOADING: 3; readonly DONE: 4; }
-localStorage: Pick<Storage, "length" | "getItem" | "setItem" | "removeItem" | "key">
+localStorage: Pick<Storage, "getItem" | "key" | "length" | "removeItem" | "setItem">
 sud: OpenPaaSHost
 ```
 

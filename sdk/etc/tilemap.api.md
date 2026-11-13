@@ -998,7 +998,7 @@ tileTerrain: Map<number, number>
 
 ## tiledCollisionMods — function @experimental
 ```
-(props: Array<Record<string, unknown>> | undefined): Partial<Pick<ResolvedTileCollision, "oneWay" | "sensor" | "density" | "friction" | "restitution">>
+(props: Array<Record<string, unknown>> | undefined): Partial<Pick<ResolvedTileCollision, "density" | "friction" | "oneWay" | "restitution" | "sensor">>
 ```
 
 ## tiledObjectgroupShape — function @experimental
