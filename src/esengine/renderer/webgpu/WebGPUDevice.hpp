@@ -634,9 +634,15 @@ private:
         WGPUBindGroupLayout layout;
         std::vector<u64> ids;   ///< WGPU resource pointers (buffers, or view+sampler), binding order.
         WGPUBindGroup bg;
+        u64 used;               ///< The frame that last bound it.
     };
-    static constexpr u32 kBindGroupCacheCap = 256;
-    std::vector<BindGroupCacheEntry> bind_group_cache_;
+    /// How many groups are kept before those no frame has bound lately are let go. A group bound this frame or the last is never
+    /// let go for room: a view with more than this many is kept whole, since making them again every frame exhausts the device.
+    static constexpr u32 kBindGroupCacheCap = 4096;
+    /// By a hash of the layout and the ids; a bucket holds the few that share one.
+    std::unordered_map<u64, std::vector<BindGroupCacheEntry>> bind_group_cache_;
+    u32 bind_group_count_ = 0;
+    u64 bind_group_frame_ = 0;
     /// Reuse a cached group with these exact contents, else create + insert one.
     WGPUBindGroup cachedBindGroup(const u64* ids, u32 idCount,
                                   const WGPUBindGroupDescriptor& desc);

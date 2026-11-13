@@ -187,8 +187,9 @@ void WebGPUDevice::releaseDeviceObjects() {
     span_passes_ = 0;
 
     // bind_group_/texture_group_ point INTO the cache — release the cache, not them.
-    for (auto& e : bind_group_cache_) if (e.bg) wgpuBindGroupRelease(e.bg);
+    for (auto& bucket : bind_group_cache_) for (auto& e : bucket.second) if (e.bg) wgpuBindGroupRelease(e.bg);
     bind_group_cache_.clear();
+    bind_group_count_ = 0;
     bind_group_ = nullptr;
     texture_group_ = nullptr;
     bind_group_dirty_ = true;
@@ -787,18 +788,23 @@ void WebGPUDevice::backendDeleteBuffer(u32 id) {
 }
 
 void WebGPUDevice::evictBindGroups(u64 id) {
-    for (usize i = bind_group_cache_.size(); i-- > 0;) {
-        auto& e = bind_group_cache_[i];
-        bool hit = false;
-        for (u64 v : e.ids) {
-            if (v == id) { hit = true; break; }
+    for (auto it = bind_group_cache_.begin(); it != bind_group_cache_.end();) {
+        auto& bucket = it->second;
+        for (usize i = bucket.size(); i-- > 0;) {
+            auto& e = bucket[i];
+            bool hit = false;
+            for (u64 v : e.ids) {
+                if (v == id) { hit = true; break; }
+            }
+            if (!hit) continue;
+            if (e.bg == bind_group_) bind_group_ = nullptr;
+            if (e.bg == texture_group_) texture_group_ = nullptr;
+            if (e.bg) wgpuBindGroupRelease(e.bg);
+            bucket.erase(bucket.begin() + static_cast<std::ptrdiff_t>(i));
+            --bind_group_count_;
+            bind_group_dirty_ = true;
         }
-        if (!hit) continue;
-        if (e.bg == bind_group_) bind_group_ = nullptr;
-        if (e.bg == texture_group_) texture_group_ = nullptr;
-        if (e.bg) wgpuBindGroupRelease(e.bg);
-        bind_group_cache_.erase(bind_group_cache_.begin() + static_cast<std::ptrdiff_t>(i));
-        bind_group_dirty_ = true;
+        it = bucket.empty() ? bind_group_cache_.erase(it) : std::next(it);
     }
 }
 
@@ -2133,23 +2139,38 @@ void WebGPUDevice::ensureDummies() {
 
 WGPUBindGroup WebGPUDevice::cachedBindGroup(const u64* ids, u32 idCount,
                                             const WGPUBindGroupDescriptor& desc) {
-    for (auto& e : bind_group_cache_) {
-        if (e.layout != desc.layout || e.ids.size() != idCount) continue;
-        bool same = true;
-        for (u32 i = 0; i < idCount; ++i) {
-            if (e.ids[i] != ids[i]) { same = false; break; }
+    u64 hash = 1469598103934665603ull ^ reinterpret_cast<uintptr_t>(desc.layout);
+    for (u32 i = 0; i < idCount; ++i) hash = (hash ^ ids[i]) * 1099511628211ull;
+    auto found = bind_group_cache_.find(hash);
+    if (found != bind_group_cache_.end()) {
+        for (auto& e : found->second) {
+            if (e.layout != desc.layout || e.ids.size() != idCount) continue;
+            bool same = true;
+            for (u32 i = 0; i < idCount; ++i) {
+                if (e.ids[i] != ids[i]) { same = false; break; }
+            }
+            if (same) { e.used = bind_group_frame_; return e.bg; }  // hit — reuse, no wgpuDeviceCreateBindGroup
         }
-        if (same) return e.bg;  // hit — reuse, no wgpuDeviceCreateBindGroup
     }
-    // Miss. A stable scene never fills the cache; clearing when full is a simple,
-    // safe eviction — a group bound this frame stays alive via the pass encoder's
-    // own reference until submit, so releasing our handle now is fine.
-    if (bind_group_cache_.size() >= kBindGroupCacheCap) {
-        for (auto& e : bind_group_cache_) if (e.bg) wgpuBindGroupRelease(e.bg);
-        bind_group_cache_.clear();
+    // Miss. When full, only what neither this frame nor the last bound goes: emptying the cache made a view of more groups than
+    // it holds create every one of them again each frame, and the device ran out of descriptors within some hundreds of frames.
+    if (bind_group_count_ >= kBindGroupCacheCap) {
+        for (auto it = bind_group_cache_.begin(); it != bind_group_cache_.end();) {
+            auto& bucket = it->second;
+            for (usize i = bucket.size(); i-- > 0;) {
+                if (bucket[i].used + 1 >= bind_group_frame_) continue;
+                if (bucket[i].bg) wgpuBindGroupRelease(bucket[i].bg);
+                bucket.erase(bucket.begin() + static_cast<std::ptrdiff_t>(i));
+                --bind_group_count_;
+            }
+            it = bucket.empty() ? bind_group_cache_.erase(it) : std::next(it);
+        }
     }
     WGPUBindGroup bg = wgpuDeviceCreateBindGroup(device_, &desc);
-    if (bg) bind_group_cache_.push_back({desc.layout, std::vector<u64>(ids, ids + idCount), bg});
+    if (bg) {
+        bind_group_cache_[hash].push_back({desc.layout, std::vector<u64>(ids, ids + idCount), bg, bind_group_frame_});
+        ++bind_group_count_;
+    }
     return bg;
 }
 
@@ -2602,6 +2623,7 @@ void WebGPUDevice::endRenderPass() {
 /** Give the swapchain texture back: the frame is over (see GfxDevice::endFrame).
  *  A frame may have opened several passes on it, so no single pass may do this. */
 void WebGPUDevice::endFrame() {
+    ++bind_group_frame_;
     // A capture is served HERE and nowhere else: this is the last instant at which
     // the frame is both finished and still ours. Asking from outside cannot work —
     // whoever could ask runs after the renderer has already given the image back.
