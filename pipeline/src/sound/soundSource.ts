@@ -1,0 +1,269 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file  soundSource.ts — `.essound`: a sound as the layers that make it, what a model writes and edits, and what is wrong with one.
+ *
+ *        A picture is layers of shapes and a model is steps; a sound effect is layers too. A gunshot is a crack of
+ *        noise, a thump under it and a tail; a footstep is a thud and a scrape; a glass is a handful of ringing tones.
+ *        Each layer is one source (a tone, a noise, or a struck body's ringing), shaped in time by an envelope and in
+ *        colour by filters, and the layers are summed. What is saved is this description, and the `.wav` a game plays is
+ *        made from it, so a sound is changed by changing a number and never by recording again.
+ *
+ *        Nothing here is random that is not seeded: the same source is the same samples on every machine.
+ */
+
+export const SOUND_SOURCE_EXT = '.essound';
+export const SOUND_SOURCE_VERSION = 1;
+export const MAX_SOUND_SECONDS = 30;
+export const SOUND_RATES = [22050, 44100, 48000] as const;
+
+/** One value for the whole of a layer, or [[seconds, value], ...] from the layer's start: a pitch that falls, a filter that opens. */
+export type SoundCurve = number | readonly (readonly [number, number])[];
+
+export const SOUND_SOURCES = ['sine', 'triangle', 'saw', 'square', 'noise', 'modes'] as const;
+export type SoundSourceKind = (typeof SOUND_SOURCES)[number];
+export const SOUND_FILTERS = ['lowpass', 'highpass', 'bandpass', 'notch'] as const;
+export const NOISE_COLORS = ['white', 'pink', 'brown'] as const;
+
+export interface SoundFilter {
+    type: (typeof SOUND_FILTERS)[number];
+    /** Hz, 20..20000. */
+    freq: SoundCurve;
+    /** How narrow: 0.7 is plain, 5 rings, 20 whistles. Default 0.7. */
+    q?: number;
+}
+
+export interface SoundLayer {
+    id?: string;
+    source: SoundSourceKind;
+    /** A tone's pitch in Hz; a curve glides between its points as the ear hears pitch. */
+    freq?: SoundCurve;
+    /** square: the share of each cycle it is high, 0.05..0.95. Default 0.5. */
+    width?: number;
+    /** noise: white is hiss, pink is rain, brown is a rumble. Default white. */
+    color?: (typeof NOISE_COLORS)[number];
+    /** modes: each [Hz, loudness, seconds to die away], the tones a struck thing rings with. */
+    modes?: readonly (readonly [number, number, number])[];
+    seed?: number;
+    /** Seconds into the sound that it begins. Default 0. */
+    start?: number;
+    /** Seconds it lasts. Default: to the end of the sound. */
+    length?: number;
+    /** Loudness, 1 being full; a curve shapes it over the layer. Default 1. */
+    gain?: SoundCurve;
+    /** Seconds to rise from nothing, and to fall to nothing at its end. Defaults 0.002 and 0.01, which only stop a click. */
+    attack?: number;
+    release?: number;
+    /** Dies away of itself: seconds to fall to about a third. A hit, a pluck, a drop. */
+    decay?: number;
+    /** Wavers in pitch: `rate` times a second, `depth` semitones each way. */
+    vibrato?: { rate: number; depth: number };
+    /** Wavers in loudness: `rate` times a second, by `depth` 0..1. */
+    tremolo?: { rate: number; depth: number };
+    /** A second tone bending this one: at `ratio` times its pitch, by `index` (0 is none, 2 is brassy, 8 is a clang). Metal, bells, lasers. */
+    fm?: { ratio: number; index: SoundCurve };
+    /** In order, each working on what the one before left. */
+    filters?: readonly SoundFilter[];
+    /** Pushed into distortion, 0..1: grit, fuzz, a speaker torn. */
+    drive?: number;
+    /** -1 is left, 1 is right. Default 0. */
+    pan?: number;
+    /** The layer struck again: `count` times in all, `every` seconds apart, each `gain` times as loud and `pitch` times as high as the last, off the beat by up to `jitter` seconds. */
+    repeat?: { count: number; every: number; gain?: number; pitch?: number; jitter?: number };
+    /** Left out of the sound, kept in the source. */
+    mute?: boolean;
+}
+
+export interface SoundSource {
+    version?: number;
+    /** Seconds. */
+    duration: number;
+    /** Samples a second. Default 44100. */
+    rate?: number;
+    /** Its end runs into its start with no click, for an engine, a wind, a hum. */
+    loop?: boolean;
+    layers: readonly SoundLayer[];
+    /** Over the whole sound, after the layers are summed: */
+    highpass?: number;
+    lowpass?: number;
+    /** A repeat of the whole: `time` seconds later, `feedback` 0..0.95 of each into the next, `mix` 0..1 of it in the sound. */
+    echo?: { time: number; feedback?: number; mix?: number };
+    /** A room round it: `size` 0..1 from a closet to a hall, `mix` 0..1 of it in the sound. */
+    reverb?: { size?: number; mix?: number };
+    /** Loudness of the whole. With `normalize` it is how loud the loudest moment is, 1 being full. Default 0.9. */
+    gain?: number;
+    /** false leaves the levels as the layers sum to. Default true: the loudest moment is brought to `gain`. */
+    normalize?: boolean;
+}
+
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const between = (v: unknown, lo: number, hi: number): boolean => isNum(v) && v >= lo && v <= hi;
+
+function curveProblem(v: unknown, lo: number, hi: number, what: string): string | null {
+    if (isNum(v)) return v >= lo && v <= hi ? null : `${what} must be ${lo}..${hi}`;
+    if (!Array.isArray(v) || v.length < 2) return `${what} must be a number, or two or more [seconds, value]`;
+    let last = -Infinity;
+    for (const p of v) {
+        if (!Array.isArray(p) || p.length !== 2 || !isNum(p[0]) || !isNum(p[1])) return `${what} must be [seconds, value] pairs`;
+        if (p[0] < 0) return `${what}: a time is seconds from the layer's start, none below 0`;
+        if (p[0] <= last) return `${what}: its times must rise`;
+        if (p[1] < lo || p[1] > hi) return `${what}: each value must be ${lo}..${hi}`;
+        last = p[0];
+    }
+    return null;
+}
+
+const LAYER_FIELDS = ['id', 'source', 'freq', 'width', 'color', 'modes', 'seed', 'start', 'length', 'gain', 'attack', 'release', 'decay', 'vibrato', 'tremolo', 'fm', 'filters', 'drive', 'pan', 'repeat', 'mute'];
+
+function checkLayer(l: Record<string, unknown>, where: string, ids: Set<string>, duration: number): void {
+    const fail = (what: string): never => { throw new Error(`${where}: ${what}`); };
+    if (typeof l !== 'object' || l === null || Array.isArray(l)) fail('must be an object');
+    for (const key of Object.keys(l)) if (!LAYER_FIELDS.includes(key)) fail(`unknown field "${key}"; a layer takes ${LAYER_FIELDS.join(', ')}`);
+    if (l.id !== undefined) {
+        if (typeof l.id !== 'string' || !l.id) fail('id must be a name');
+        if (ids.has(l.id as string)) fail(`the id "${String(l.id)}" is already used`);
+        ids.add(l.id as string);
+    }
+    if (!SOUND_SOURCES.includes(l.source as SoundSourceKind)) fail(`source ${JSON.stringify(l.source)} must be one of ${SOUND_SOURCES.join(', ')}`);
+    const tone = l.source !== 'noise' && l.source !== 'modes';
+    if (tone) {
+        if (l.freq === undefined) fail(`a ${String(l.source)} needs freq, its pitch in Hz`);
+        const bad = curveProblem(l.freq, 10, 20000, 'freq');
+        if (bad) fail(bad);
+    } else if (l.freq !== undefined) fail(`freq is a tone's pitch; a ${String(l.source)} has none (give noise its colour with filters, and modes their own Hz)`);
+    if (l.width !== undefined && !(l.source === 'square' && between(l.width, 0.05, 0.95))) fail('width is a square\'s, 0.05..0.95');
+    if (l.color !== undefined && !(l.source === 'noise' && NOISE_COLORS.includes(l.color as never))) fail(`color is a noise's: ${NOISE_COLORS.join(', ')}`);
+    if (l.source === 'modes') {
+        const modes = l.modes;
+        if (!Array.isArray(modes) || modes.length === 0 || modes.length > 64) fail('modes needs `modes`: 1 to 64 of [Hz, loudness, seconds to die away]');
+        for (const m of modes as unknown[]) {
+            if (!Array.isArray(m) || m.length !== 3 || !between(m[0], 10, 20000) || !between(m[1], 0, 4) || !between(m[2], 0.001, MAX_SOUND_SECONDS)) fail('each mode must be [Hz 10..20000, loudness 0..4, seconds above 0]');
+        }
+    } else if (l.modes !== undefined) fail('`modes` goes with source "modes"');
+    if (l.seed !== undefined && !Number.isInteger(l.seed)) fail('seed must be a whole number');
+    if (l.start !== undefined && !between(l.start, 0, duration)) fail(`start must be 0..${duration}, inside the sound`);
+    if (l.length !== undefined && !(isNum(l.length) && l.length > 0)) fail('length must be above 0');
+    if (l.gain !== undefined) { const bad = curveProblem(l.gain, 0, 4, 'gain'); if (bad) fail(bad); }
+    for (const key of ['attack', 'release']) if (l[key] !== undefined && !between(l[key], 0, MAX_SOUND_SECONDS)) fail(`${key} must be seconds, 0 or more`);
+    if (l.decay !== undefined && !(isNum(l.decay) && l.decay > 0)) fail('decay must be seconds above 0');
+    const wobble = (key: string, deepest: number): void => {
+        const w = l[key] as Record<string, unknown> | undefined;
+        if (w === undefined) return;
+        if (typeof w !== 'object' || w === null || !between(w.rate, 0.01, 2000) || !between(w.depth, 0, deepest) || Object.keys(w).length !== 2) fail(`${key} must be { rate: times a second, depth: 0..${deepest} }`);
+    };
+    wobble('vibrato', 24);
+    wobble('tremolo', 1);
+    if (l.fm !== undefined) {
+        const fm = l.fm as Record<string, unknown> | null;
+        if (!tone) fail('fm bends a tone; noise and modes have no pitch to bend');
+        if (typeof fm !== 'object' || fm === null || !between(fm.ratio, 0.01, 64) || Object.keys(fm).some((k) => k !== 'ratio' && k !== 'index')) fail('fm must be { ratio: 0.01..64, index }');
+        const bad = curveProblem(fm!.index, 0, 64, 'fm.index');
+        if (bad) fail(bad);
+    }
+    if (l.filters !== undefined) {
+        if (!Array.isArray(l.filters) || l.filters.length > 8) fail('filters must be a list of up to 8');
+        (l.filters as Record<string, unknown>[]).forEach((f, i) => {
+            if (typeof f !== 'object' || f === null) fail(`filter ${i} must be { type, freq, q? }`);
+            for (const key of Object.keys(f)) if (!['type', 'freq', 'q'].includes(key)) fail(`filter ${i} has unknown "${key}"; it takes type, freq, q`);
+            if (!SOUND_FILTERS.includes(f.type as never)) fail(`filter ${i}: type must be one of ${SOUND_FILTERS.join(', ')}`);
+            const bad = curveProblem(f.freq, 20, 20000, `filter ${i}: freq`);
+            if (bad) fail(bad);
+            if (f.q !== undefined && !between(f.q, 0.1, 40)) fail(`filter ${i}: q must be 0.1..40`);
+        });
+    }
+    if (l.drive !== undefined && !between(l.drive, 0, 1)) fail('drive must be 0..1');
+    if (l.pan !== undefined && !between(l.pan, -1, 1)) fail('pan must be -1..1');
+    if (l.repeat !== undefined) {
+        const r = l.repeat as Record<string, unknown> | null;
+        if (typeof r !== 'object' || r === null) fail('repeat must be { count, every, gain?, pitch?, jitter? }');
+        for (const key of Object.keys(r!)) if (!['count', 'every', 'gain', 'pitch', 'jitter'].includes(key)) fail(`repeat has unknown "${key}"; it takes count, every, gain, pitch, jitter`);
+        if (!Number.isInteger(r!.count) || (r!.count as number) < 2 || (r!.count as number) > 200) fail('repeat.count must be a whole number, 2..200');
+        if (!(isNum(r!.every) && (r!.every as number) > 0)) fail('repeat.every must be seconds above 0');
+        if (r!.gain !== undefined && !between(r!.gain, 0, 2)) fail('repeat.gain must be 0..2');
+        if (r!.pitch !== undefined && !between(r!.pitch, 0.25, 4)) fail('repeat.pitch must be 0.25..4');
+        if (r!.jitter !== undefined && !between(r!.jitter, 0, 1)) fail('repeat.jitter must be 0..1 seconds');
+    }
+    if (l.mute !== undefined && typeof l.mute !== 'boolean') fail('mute must be true or false');
+}
+
+const SOURCE_FIELDS = ['version', 'duration', 'rate', 'loop', 'layers', 'highpass', 'lowpass', 'echo', 'reverb', 'gain', 'normalize'];
+
+/** The source if it is well formed; otherwise throws, naming the layer and the field. */
+export function validateSoundSource(raw: unknown): SoundSource {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new Error('a sound source must be { duration, layers }');
+    const s = raw as Record<string, unknown>;
+    for (const key of Object.keys(s)) if (!SOURCE_FIELDS.includes(key)) throw new Error(`unknown field "${key}"; a sound has ${SOURCE_FIELDS.join(', ')}`);
+    if (s.version !== undefined && s.version !== SOUND_SOURCE_VERSION) throw new Error(`version ${String(s.version)} is not one this editor reads (${SOUND_SOURCE_VERSION})`);
+    if (!(isNum(s.duration) && s.duration > 0 && s.duration <= MAX_SOUND_SECONDS)) throw new Error(`duration must be seconds, above 0 and up to ${MAX_SOUND_SECONDS}`);
+    if (s.rate !== undefined && !SOUND_RATES.includes(s.rate as never)) throw new Error(`rate must be one of ${SOUND_RATES.join(', ')}`);
+    if (s.loop !== undefined && typeof s.loop !== 'boolean') throw new Error('loop must be true or false');
+    if (s.normalize !== undefined && typeof s.normalize !== 'boolean') throw new Error('normalize must be true or false');
+    if (s.gain !== undefined && !between(s.gain, 0, 1)) throw new Error('gain must be 0..1');
+    for (const key of ['highpass', 'lowpass']) if (s[key] !== undefined && !between(s[key], 20, 20000)) throw new Error(`${key} must be Hz, 20..20000`);
+    if (s.echo !== undefined) {
+        const e = s.echo as Record<string, unknown> | null;
+        if (typeof e !== 'object' || e === null || !between(e.time, 0.01, 2)) throw new Error('echo must be { time: 0.01..2 seconds, feedback?, mix? }');
+        for (const key of Object.keys(e)) if (!['time', 'feedback', 'mix'].includes(key)) throw new Error(`echo has unknown "${key}"; it takes time, feedback, mix`);
+        if (e.feedback !== undefined && !between(e.feedback, 0, 0.95)) throw new Error('echo.feedback must be 0..0.95');
+        if (e.mix !== undefined && !between(e.mix, 0, 1)) throw new Error('echo.mix must be 0..1');
+    }
+    if (s.reverb !== undefined) {
+        const r = s.reverb as Record<string, unknown> | null;
+        if (typeof r !== 'object' || r === null) throw new Error('reverb must be { size?, mix? }');
+        for (const key of Object.keys(r)) if (!['size', 'mix'].includes(key)) throw new Error(`reverb has unknown "${key}"; it takes size, mix`);
+        for (const key of ['size', 'mix']) if (r[key] !== undefined && !between(r[key], 0, 1)) throw new Error(`reverb.${key} must be 0..1`);
+    }
+    if (!Array.isArray(s.layers) || s.layers.length === 0) throw new Error('layers must be a list of one or more');
+    if (s.layers.length > 64) throw new Error('a sound has up to 64 layers');
+    const ids = new Set<string>();
+    (s.layers as Record<string, unknown>[]).forEach((l, i) => checkLayer(l, `layer ${i}${l?.id ? ` "${String(l.id)}"` : ''}`, ids, s.duration as number));
+    return { version: SOUND_SOURCE_VERSION, ...(s as unknown as SoundSource) };
+}
+
+export type SoundEdit =
+    | { op: 'set'; layer: string | number; fields: Record<string, unknown> }
+    | { op: 'insert'; layer: SoundLayer; before?: string | number; after?: string | number }
+    | { op: 'remove'; layer: string | number }
+    | { op: 'settings'; fields: Partial<Omit<SoundSource, 'layers' | 'version'>> };
+
+/** The source with @p edits applied, in order. A `null` field removes it. Refuses without changing anything. */
+export function applySoundEdits(source: SoundSource, edits: readonly SoundEdit[]): SoundSource {
+    const next = JSON.parse(JSON.stringify(source)) as SoundSource & { layers: (SoundLayer & Record<string, unknown>)[] };
+    const find = (ref: string | number): number => {
+        const i = typeof ref === 'number' ? ref : next.layers.findIndex((l) => l.id === ref);
+        if (!Number.isInteger(i) || i < 0 || i >= next.layers.length) {
+            throw new Error(`no layer ${JSON.stringify(ref)}; ${next.layers.length} layers, ids: ${next.layers.map((l) => l.id).filter(Boolean).join(', ') || '(none)'}`);
+        }
+        return i;
+    };
+    for (const edit of edits) {
+        switch (edit?.op) {
+            case 'set': {
+                const layer = next.layers[find(edit.layer)]!;
+                for (const [key, value] of Object.entries(edit.fields ?? {})) {
+                    if (value === null) delete layer[key];
+                    else layer[key] = value;
+                }
+                break;
+            }
+            case 'insert': {
+                const at = edit.before !== undefined ? find(edit.before) : edit.after !== undefined ? find(edit.after) + 1 : next.layers.length;
+                next.layers.splice(at, 0, edit.layer as never);
+                break;
+            }
+            case 'remove':
+                next.layers.splice(find(edit.layer), 1);
+                break;
+            case 'settings':
+                for (const [key, value] of Object.entries(edit.fields ?? {})) {
+                    if (key === 'layers' || key === 'version') throw new Error(`settings does not take ${key}; use set, insert and remove for layers`);
+                    if (value === null) delete (next as unknown as Record<string, unknown>)[key];
+                    else (next as unknown as Record<string, unknown>)[key] = value;
+                }
+                break;
+            default:
+                throw new Error(`an edit has op ${JSON.stringify((edit as { op?: unknown })?.op)}; there are set, insert, remove, settings`);
+        }
+    }
+    return validateSoundSource(next);
+}

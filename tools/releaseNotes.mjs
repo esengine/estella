@@ -4586,6 +4586,10 @@ export const NOTED = {
     {"note": "An AI can draw a surface: a picture that repeats, with what the light does on it."},
   "feat(image): image_write makes a surface - a repeating picture is shown laid beside itself and under a light, and its normal map, surface map and material are written with it":
     {"note": "An AI can draw a surface: a picture that repeats, with what the light does on it."},
+  "feat(sound): a sound effect is the layers that make it - an .essound of tones, noise and the ringing of struck things, each shaped by an envelope, filters, a bend, a drive and repeats, with an echo and a room over the whole, makes the .wav a game plays; and a picture of the sound, its wave over its pitches, for whoever cannot hear it":
+    {"note": "An AI can make a sound effect."},
+  "feat(sound): sound_write, sound_edit and sound_read - an AI makes a sound effect from layers and is answered with the picture of it, its level and where its energy lies":
+    {"note": "An AI can make a sound effect."},
   "feat(sky): a sky of your own shades the ground under its clouds - defineSkyEffect takes groundShadow and a second function, skyShadow(world, sun), what is left of the light at a world position, and the sky pass multiplies every surface it finds by it, as Sky Atmosphere does with its own clouds":
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":
