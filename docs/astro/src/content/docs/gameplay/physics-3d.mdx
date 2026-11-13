@@ -555,7 +555,7 @@ for (const { sensorEntity, visitorEntity } of events.sensorEnters) {
 
 | Channel | What it carries |
 |---|---|
-| `contactEnters` | Both entities, the contact normal and the point, in the same units as `Transform`. |
+| `contactEnters` | Both entities, the contact normal and the point, in the same units as `Transform`, and `speed`: how fast the first was closing on the second where they met, along the normal, in those units a second, read before the solver answered. A ball dropped a metre lands at about 4.4 m/s. |
 | `contactExits` | Only the pair — see below. |
 | `sensorEnters` / `sensorExits` | The **sensor first**, then the visitor. |
 
@@ -654,10 +654,21 @@ world.update(pot, Breakable, (b) => { b.origin = hitPointInItsOwnSpace; b.broken
 | `burst` | number | `300` | How fast the pieces leave, in world units a second, out from `origin`. 0 lets them fall where they are. |
 | `origin` | vec3 | `0,0,0` | Where it is struck, from its own origin. |
 | `lifetime` | number | `0` | Seconds the pieces last before they are taken away. 0 keeps them. |
+| `breakSpeed` | number | `0` | A hit at least this fast breaks it, in world units a second. 0 breaks it only when `broken` is raised. |
 
 The whole is hidden, not removed: its renderer, body and colliders are switched
 off and come back when `broken` is lowered. Without a 3D world the pieces
 appear in place and stay there.
+
+To have it break when something hits it, give it a `breakSpeed` and a collider
+of its own (the editor's reply to a fractured model hands over a
+`ConvexCollider3D` of its shape as `hull`). A contact at least that fast, by
+the speed at which the two came together, breaks it, and the pieces leave from
+where it was hit; the hardest hit wins when there are several in a step. With
+the collider alone it stands still; with a dynamic `RigidBody3D` as well it can
+be knocked over, and breaks where it lands if it lands hard enough. In a scene
+of 100 units to the metre, a fall of one metre arrives at about 440 and a thrown
+stone at 1000 or more.
 
 `Physics3D.setLinearVelocity(entity, velocity)` is what throws them, and is
 there for anything else that needs to send a body off: a blast, a kick. It

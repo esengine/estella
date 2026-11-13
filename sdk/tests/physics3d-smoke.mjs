@@ -308,14 +308,23 @@ const dropId = m._physics3d_addSphere(DROP, 0.5, 20, 2, 0, ...IDENTITY,
                                       ...FREE(DYNAMIC), 0.5, 0, 0);
 m._physics3d_optimize();
 let landing = null;
+let landingSpeed = null;
 for (let i = 0; i < 180 && !landing; i++) {
     step(1);
-    landing = contactEnters().find((e) => e[1] === DROP || e[0] === DROP) ?? null;
+    const enters = contactEnters();
+    const at = enters.findIndex((e) => e[1] === DROP || e[0] === DROP);
+    landing = at >= 0 ? enters[at] : null;
+    if (landing) landingSpeed = pairs('_physics3d_contactEnterSpeeds', '_physics3d_contactEnterSpeedsBytes', 1)[at]?.[0] ?? null;
 }
 check('a contact names both entities', landing != null
       && (landing[0] === PAD || landing[1] === PAD), JSON.stringify(landing));
 check('and where they met', landing != null && near(landing[6], 0.0, 0.15),
       `contact y=${landing?.[6]?.toFixed(4)} want the pad's top at 0`);
+// How hard: the sphere fell 1.5 m onto the pad, so it arrives at sqrt(2 g h) = 5.42 m/s, give or take the step it
+// was found in (g/60 = 0.16). Closing speed is A on B along A-to-B, so it is the same whichever side the sphere is.
+check('a contact says how fast the two came together', landingSpeed != null && near(Math.abs(landingSpeed), Math.sqrt(2 * 9.81 * 1.5), 0.35) && landingSpeed > 0,
+      `speed=${landingSpeed?.toFixed(3)} want +${Math.sqrt(2 * 9.81 * 1.5).toFixed(3)}`);
+check('one speed for each contact', m._physics3d_contactEnterSpeedsBytes() / 4 === m._physics3d_contactEntersBytes() / 32);
 // A buffer holds ONE step's events, so they are collected as the steps run —
 // reading after a run of steps catches only the last one's.
 const collect = (read, steps) => {

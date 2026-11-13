@@ -488,7 +488,7 @@ for (const { sensorEntity, visitorEntity } of events.sensorEnters) {
 
 | 通道 | 带着什么 |
 |---|---|
-| `contactEnters` | 两个实体、接触法线和接触点,接触点与 `Transform` 同单位。 |
+| `contactEnters` | 两个实体、接触法线和接触点,接触点与 `Transform` 同单位;以及 `speed`:接触时第一个物体沿法线靠近第二个物体的速度,同单位每秒,在求解器处理之前读取。从一米高落下的球约以 4.4 m/s 着地。 |
 | `contactExits` | 只有这一对——原因见下。 |
 | `sensorEnters` / `sensorExits` | **传感器在前**,然后是访客。 |
 
@@ -563,9 +563,16 @@ world.update(pot, Breakable, (b) => { b.origin = hitPointInItsOwnSpace; b.broken
 | `burst` | number | `300` | 碎块从 `origin` 向外飞出的速度，世界单位每秒。0 表示原地落下。 |
 | `origin` | vec3 | `0,0,0` | 受击的位置，相对它自己的原点。 |
 | `lifetime` | number | `0` | 碎块保留的秒数，之后被移除。0 表示一直保留。 |
+| `breakSpeed` | number | `0` | 撞击速度达到它就碎，世界单位每秒。0 表示只在 `broken` 置真时碎。 |
 
 整体只是隐藏，不是删除：它的渲染器、刚体和碰撞体被关掉，`broken` 置假时恢复。
 没有 3D 物理世界时，碎块会原地出现并留在那里。
+
+要让它被撞碎，给它设 `breakSpeed`，并给它一个自己的碰撞体（编辑器对碎裂模型的回复里会以
+`hull` 给出一个同形状的 `ConvexCollider3D`）。两者相撞的接近速度达到这个值就会碎，碎块从
+被击中的位置飞出；同一步里有多次撞击时取最重的一次。只有碰撞体时它是静止的；再加一个动态
+`RigidBody3D`，它就能被撞倒，落地够重时在落地处碎掉。在 100 单位一米的场景里，一米高落下约
+为 440，扔出的石头在 1000 以上。
 
 把碎块抛出去用的是 `Physics3D.setLinearVelocity(entity, velocity)`，其他需要把刚体
 送出去的场合（爆炸、踢击）也可以用它。实体还没有刚体时它返回 false，实体刚生成的

@@ -159,6 +159,11 @@ size_t physics3d_transformsBytes();
 // @heapreturn physics3d_contactEntersBytes()
 uintptr_t physics3d_contactEnters();
 size_t physics3d_contactEntersBytes();
+// How fast the two came together at each contact begun this step, along its normal, in the world's own units a
+// second: one float for each entry of physics3d_contactEnters, in its order.
+// @heapreturn physics3d_contactEnterSpeedsBytes()
+uintptr_t physics3d_contactEnterSpeeds();
+size_t physics3d_contactEnterSpeedsBytes();
 // @heapreturn physics3d_contactExitsBytes()
 uintptr_t physics3d_contactExits();
 size_t physics3d_contactExitsBytes();

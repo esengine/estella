@@ -96,9 +96,23 @@ PxFilterFlags filterShader(PxFilterObjectAttributes a0, PxFilterData d0,
     flags = PxPairFlag::eCONTACT_DEFAULT | PxPairFlag::eDETECT_CCD_CONTACT;
     if (((d0.word1 | d1.word1) & px3::KIND_CHARACTER) == 0) {
         flags |= PxPairFlag::eNOTIFY_TOUCH_FOUND | PxPairFlag::eNOTIFY_TOUCH_LOST
-               | PxPairFlag::eNOTIFY_CONTACT_POINTS;
+               | PxPairFlag::eNOTIFY_CONTACT_POINTS | PxPairFlag::ePRE_SOLVER_VELOCITY;
     }
     return PxFilterFlag::eDEFAULT;
+}
+
+/** An actor's velocity at a world point before the solver, from the pair's own record of it; still things are 0. */
+PxVec3 pointVelocity(const PxContactPairHeader& header, int side, const PxContactPairVelocity& v, const PxVec3& at) {
+    const PxContactPairHeaderFlag::Enum removed = side == 0 ? PxContactPairHeaderFlag::eREMOVED_ACTOR_0 : PxContactPairHeaderFlag::eREMOVED_ACTOR_1;
+    PxVec3 velocity = v.linearVelocity[side];
+    const PxActor* actor = header.actors[side];
+    if (!(header.flags & removed) && actor) {
+        if (const PxRigidBody* body = actor->is<PxRigidBody>()) {
+            const PxVec3 centre = (body->getGlobalPose() * body->getCMassLocalPose()).p;
+            velocity += v.angularVelocity[side].cross(at - centre);
+        }
+    }
+    return velocity;
 }
 
 /** Records what touched what, in the layouts the Jolt module writes. */
@@ -111,6 +125,13 @@ public:
         const uint32_t b = (header.flags & PxContactPairHeaderFlag::eREMOVED_ACTOR_1)
             ? 0u : px3::entityOf(header.actors[1]);
         if (a == 0 && b == 0) return;
+        // This callback comes after the solver: the velocities the two had as they met are in the extra data, one set
+        // for each pair, asked for with ePRE_SOLVER_VELOCITY.
+        const PxContactPairVelocity* before[16] = {};
+        PxContactPairExtraDataIterator extra(header.extraDataStream, header.extraDataStreamSize);
+        while (extra.nextItemSet()) {
+            if (extra.preSolverVelocity && extra.contactPairIndex < 16) before[extra.contactPairIndex] = extra.preSolverVelocity;
+        }
         for (PxU32 i = 0; i < count; ++i) {
             const PxContactPair& pair = pairs[i];
             if (pair.events & PxPairFlag::eNOTIFY_TOUCH_FOUND) {
@@ -126,6 +147,13 @@ public:
                     static_cast<float>(a), static_cast<float>(b),
                     normal.x, normal.y, normal.z, position.x, position.y, position.z,
                 });
+                // How fast A closed on B at the point, along the normal from A to B; 0 where PhysX gave no velocities.
+                float closing = 0.0f;
+                if (i < 16 && before[i]) {
+                    const PxVec3 at[2] = { pointVelocity(header, 0, *before[i], position), pointVelocity(header, 1, *before[i], position) };
+                    closing = (at[0] - at[1]).dot(normal);
+                }
+                g().contactEnterSpeedBuffer.push_back(closing);
             }
             if (pair.events & PxPairFlag::eNOTIFY_TOUCH_LOST) {
                 g().contactExitBuffer.push_back(static_cast<float>(a));
@@ -348,6 +376,7 @@ void physics3d_shutdown() {
     g().transformBuffer.clear();
     g().queryBuffer.clear();
     g().contactEnterBuffer.clear();
+    g().contactEnterSpeedBuffer.clear();
     g().contactExitBuffer.clear();
     g().sensorEnterBuffer.clear();
     g().sensorExitBuffer.clear();
@@ -374,6 +403,7 @@ EMSCRIPTEN_KEEPALIVE
 void physics3d_step(float dt, int collisionSteps) {
     if (!g().isValid() || dt <= 0.0f) return;
     g().contactEnterBuffer.clear();
+    g().contactEnterSpeedBuffer.clear();
     g().contactExitBuffer.clear();
     g().sensorEnterBuffer.clear();
     g().sensorExitBuffer.clear();
@@ -653,6 +683,10 @@ EMSCRIPTEN_KEEPALIVE
 uintptr_t physics3d_transforms() { return reinterpret_cast<uintptr_t>(g().transformBuffer.data()); }
 EMSCRIPTEN_KEEPALIVE
 size_t physics3d_transformsBytes() { return g().transformBuffer.size() * sizeof(float); }
+EMSCRIPTEN_KEEPALIVE
+uintptr_t physics3d_contactEnterSpeeds() { return reinterpret_cast<uintptr_t>(g().contactEnterSpeedBuffer.data()); }
+EMSCRIPTEN_KEEPALIVE
+size_t physics3d_contactEnterSpeedsBytes() { return g().contactEnterSpeedBuffer.size() * sizeof(float); }
 EMSCRIPTEN_KEEPALIVE
 uintptr_t physics3d_contactEnters() { return reinterpret_cast<uintptr_t>(g().contactEnterBuffer.data()); }
 EMSCRIPTEN_KEEPALIVE

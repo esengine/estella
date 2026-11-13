@@ -108,6 +108,8 @@ struct World {
     std::vector<float> transformBuffer;
     std::vector<float> queryBuffer;
     std::vector<float> contactEnterBuffer;
+    /** One closing speed for each contact in contactEnterBuffer. */
+    std::vector<float> contactEnterSpeedBuffer;
     std::vector<float> contactExitBuffer;
     std::vector<float> sensorEnterBuffer;
     std::vector<float> sensorExitBuffer;

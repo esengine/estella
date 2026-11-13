@@ -27,7 +27,7 @@ vi.mock('../src/ecs/component', async (importOriginal) => {
 
 const { App } = await import('../src/app/app');
 const { Transform, getComponent } = await import('../src/ecs/component');
-const { Breakable, BreakablePlugin, burstVelocity, setBodyPusher } = await import('../src/breakable/breakable');
+const { Breakable, BreakablePlugin, burstVelocity, reportContact, setBodyPusher } = await import('../src/breakable/breakable');
 const { Prefabs } = await import('../src/prefab/prefabServer');
 const MeshRenderer = getComponent('MeshRenderer')!;
 const Body = getComponent('RigidBody3D')!;
@@ -178,6 +178,49 @@ describe('a thing that breaks', () => {
         await tick(2);
         expect(prefabs.instantiate).toHaveBeenCalledTimes(2);
         expect(app.world.valid(made[1]!.root)).toBe(true);
+    });
+
+    it('breaks when struck at least as fast as its breakSpeed, from where it was struck', async () => {
+        const { app, whole, prefabs, tick } = setup();
+        app.world.update(whole, Breakable, (d) => { d.breakSpeed = 400; });
+        const other = app.world.spawn('Ball');
+        // Too soft: a ball rolled into it.
+        reportContact(other, whole, 120, { x: 110, y: 50, z: 0 });
+        await tick(2);
+        expect(prefabs.instantiate).not.toHaveBeenCalled();
+        // Hard: thrown at it, it named second or first.
+        reportContact(whole, other, 380, { x: 90, y: 50, z: 0 });
+        reportContact(other, whole, 650, { x: 100, y: 70, z: 10 });
+        await tick(2);
+        expect(prefabs.instantiate).toHaveBeenCalledTimes(1);
+        const data = app.world.get(whole, Breakable);
+        expect(data.broken).toBe(true);
+        // The hardest hit, in its own space: it stands at (100, 50, 0).
+        expect(data.origin).toEqual({ x: 0, y: 20, z: 10 });
+        // Broken things are not broken again by what lands on them.
+        reportContact(other, whole, 900, { x: 100, y: 50, z: 0 });
+        await tick(2);
+        expect(prefabs.instantiate).toHaveBeenCalledTimes(1);
+    });
+
+    it('is not broken by a hit when it has no breakSpeed, however hard', async () => {
+        const { app, whole, prefabs, tick } = setup();
+        reportContact(app.world.spawn('Boulder'), whole, 1e6, { x: 100, y: 50, z: 0 });
+        await tick(2);
+        expect(prefabs.instantiate).not.toHaveBeenCalled();
+    });
+
+    it('stops hearing hits when its app ends', async () => {
+        const { app, whole } = setup();
+        const ball = app.world.spawn('Ball');
+        const asked = vi.spyOn(app.world, 'has');
+        reportContact(ball, whole, 500, { x: 100, y: 50, z: 0 });
+        expect(asked).toHaveBeenCalled();
+        app.quit();
+        asked.mockClear();
+        // An app that has ended holds its world no longer through a hit it was told of.
+        reportContact(ball, whole, 500, { x: 100, y: 50, z: 0 });
+        expect(asked).not.toHaveBeenCalled();
     });
 
     it('takes its pieces with it when it is removed', async () => {

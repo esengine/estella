@@ -4,7 +4,7 @@
  * @file    Physics3DPlugin.ts
  * @brief   Loads the 3D physics module and drives one world from the ECS.
  */
-import { setBodyPusher } from '../breakable/breakable';
+import { reportContact, setBodyPusher } from '../breakable/breakable';
 import { AnimatorController } from '../animation/Animator';
 import { installPlanetGravity } from './planetGravity';
 import { installRagdolls } from './ragdoll';
@@ -90,6 +90,8 @@ export class Physics3DPlugin implements Plugin {
                 stepPhysics3D(app, module, runtime.bodies, this.config_,
                               runtime.characters, events, runtime.joints, runtime.pieces,
                               app.hasResource(CollisionGeometryRes) ? app.getResource(CollisionGeometryRes) : null);
+                // What met what, and how hard: told to whatever breaks, which knows nothing of the solver.
+                for (const c of events.contactEnters) if (c.speed !== undefined) reportContact(c.entityA, c.entityB, c.speed, { x: c.pointX, y: c.pointY, z: c.pointZ });
             }, { name: 'Physics3DStepSystem' }), { profileDomain: 'physics3d' });
             // Installed with the world, drawn only once a game turns the resource
             // on — a scene that never asks for it pays a resource and nothing else.

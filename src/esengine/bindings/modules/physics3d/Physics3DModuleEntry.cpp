@@ -127,6 +127,10 @@ public:
             static_cast<float>(point.GetX()), static_cast<float>(point.GetY()),
             static_cast<float>(point.GetZ()),
         });
+        // Read before the solver has answered the contact: what the two were doing as they met. The normal points from
+        // the first into the second, so the first closing on the second is a positive speed.
+        const Vec3 closing = body1.GetPointVelocity(point) - body2.GetPointVelocity(point);
+        g().contactEnterSpeedBuffer.push_back(closing.Dot(normal));
     }
 
     void OnContactRemoved(const SubShapeIDPair& pair) override {
@@ -241,6 +245,7 @@ void physics3d_shutdown() {
     g().characters.clear();
     g().sensorBodies.clear();
     g().contactEnterBuffer.clear();
+    g().contactEnterSpeedBuffer.clear();
     g().contactExitBuffer.clear();
     g().sensorEnterBuffer.clear();
     g().sensorExitBuffer.clear();
@@ -289,6 +294,7 @@ void physics3d_step(float dt, int collisionSteps) {
     // Cleared before the step, not after: the listener fires DURING Update, and a
     // buffer emptied afterwards would publish nothing.
     g().contactEnterBuffer.clear();
+    g().contactEnterSpeedBuffer.clear();
     g().contactExitBuffer.clear();
     g().sensorEnterBuffer.clear();
     g().sensorExitBuffer.clear();
@@ -900,6 +906,16 @@ uintptr_t physics3d_transforms() {
 EMSCRIPTEN_KEEPALIVE
 size_t physics3d_transformsBytes() {
     return g().transformBuffer.size() * sizeof(float);
+}
+
+EMSCRIPTEN_KEEPALIVE
+uintptr_t physics3d_contactEnterSpeeds() {
+    return reinterpret_cast<uintptr_t>(g().contactEnterSpeedBuffer.data());
+}
+
+EMSCRIPTEN_KEEPALIVE
+size_t physics3d_contactEnterSpeedsBytes() {
+    return g().contactEnterSpeedBuffer.size() * sizeof(float);
 }
 
 EMSCRIPTEN_KEEPALIVE

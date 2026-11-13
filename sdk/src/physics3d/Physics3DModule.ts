@@ -141,6 +141,9 @@ export interface Physics3DWasmModule {
 
     _physics3d_contactEnters(): number;
     _physics3d_contactEntersBytes(): number;
+    /** Optional for older binaries: one closing speed for each contact begun. */
+    _physics3d_contactEnterSpeeds?(): number;
+    _physics3d_contactEnterSpeedsBytes?(): number;
     _physics3d_contactExits(): number;
     _physics3d_contactExitsBytes(): number;
     _physics3d_sensorEnters(): number;
@@ -212,6 +215,11 @@ export interface Contact3DEvent {
     pointX: number;
     pointY: number;
     pointZ: number;
+    /**
+     * How fast A was closing on B where they met, along the normal, in world units a second, read before the solver
+     * answered: a ball dropped on a floor from a metre lands at about 4.4 m/s. Undefined from a binary too old to say.
+     */
+    speed?: number;
 }
 
 /** A sensor was entered or left. The SENSOR is always named first. */
@@ -266,6 +274,11 @@ export function drainPhysics3DEvents(module: Physics3DWasmModule,
             normalX: f32[o + 2]!, normalY: f32[o + 3]!, normalZ: f32[o + 4]!,
             pointX: f32[o + 5]! * pixelsPerUnit, pointY: f32[o + 6]! * pixelsPerUnit, pointZ: f32[o + 7]! * pixelsPerUnit,
         }));
+    if (module._physics3d_contactEnterSpeeds && module._physics3d_contactEnterSpeedsBytes) {
+        const speeds = read(module._physics3d_contactEnterSpeeds(), module._physics3d_contactEnterSpeedsBytes(), 1, (o) => f32[o]!);
+        // One for each contact, in its order; a count that does not match is a binary that writes something else.
+        if (speeds.length === events.contactEnters.length) events.contactEnters.forEach((c, i) => { c.speed = speeds[i]! * pixelsPerUnit; });
+    }
     events.contactExits = read(
         module._physics3d_contactExits(), module._physics3d_contactExitsBytes(), 2,
         (o) => ({ entityA: f32[o] as Entity, entityB: f32[o + 1] as Entity }));

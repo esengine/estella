@@ -1935,6 +1935,7 @@ ComponentDef<BreakableData>
 
 ## BreakableData — interface @experimental
 ```
+breakSpeed: number
 broken: boolean
 burst: number
 enabled: boolean
@@ -1946,6 +1947,7 @@ pieces: string
 ## BreakablePlugin — class @experimental
 ```
 build: (app: App) => void
+cleanup: (app?: App) => void
 name: string
 static new (): BreakablePlugin
 static prototype: BreakablePlugin

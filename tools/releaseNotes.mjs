@@ -4732,4 +4732,8 @@ export const NOTED = {
     {"note": "Things that break."},
   "feat(editor): a model with a fracture step writes its pieces and their prefab, and the reply hands over the Breakable that breaks it":
     {"note": "Things that break."},
+  "feat(physics3d): a thing breaks when it is hit hard enough - every 3D contact carries the speed at which the two came together, read before the solver from Jolt and PhysX alike, and a Breakable with a breakSpeed breaks on a hit at least that fast, from where it was hit":
+    {"note": "A thing breaks when it is hit hard enough."},
+  "feat(editor): a fractured model's reply hands over a hull of its shape, and the breakable check drops a stone on one pot and a pebble on another":
+    {"note": "A thing breaks when it is hit hard enough."},
 };

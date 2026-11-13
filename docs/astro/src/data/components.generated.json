@@ -648,6 +648,13 @@
           "range": "≥ 0, step 0.5"
         },
         {
+          "key": "breakSpeed",
+          "type": "number",
+          "default": "0",
+          "doc": "A hit at least this fast breaks it, in world units a second; it needs a collider to be hit. 0 breaks it only when Broken is raised.",
+          "range": "≥ 0, step 10"
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"
@@ -658,7 +665,8 @@
         "origin.x",
         "origin.y",
         "origin.z",
-        "lifetime"
+        "lifetime",
+        "breakSpeed"
       ]
     },
     {

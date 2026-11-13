@@ -128,6 +128,8 @@ struct Context {
     /// (entityA, entityB, nx,ny,nz, px,py,pz); exit only the pair, because at
     /// that moment Jolt has both bodies locked and one of them may already be gone.
     std::vector<float> contactEnterBuffer;
+    /** One closing speed for each contact in contactEnterBuffer. */
+    std::vector<float> contactEnterSpeedBuffer;
     std::vector<float> contactExitBuffer;
     std::vector<float> sensorEnterBuffer;
     std::vector<float> sensorExitBuffer;

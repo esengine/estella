@@ -35,6 +35,12 @@ export interface BreakableData {
     origin: Vec3;
     /** Seconds the pieces last before they are taken away. 0 keeps them. */
     lifetime: number;
+    /**
+     * A hit at least this fast breaks it, in world units a second at which the two came together where they met:
+     * something thrown at it, or it falling on something. 0 breaks it only when `broken` is raised. It needs a
+     * collider of its own to be hit at all.
+     */
+    breakSpeed: number;
     enabled: boolean;
 }
 
@@ -44,6 +50,7 @@ export const Breakable = defineComponent<BreakableData>('Breakable', {
     burst: 300,
     origin: { x: 0, y: 0, z: 0 },
     lifetime: 0,
+    breakSpeed: 0,
     enabled: true,
 }, {
     assetFields: [{ field: 'pieces', type: 'prefab' }],
@@ -53,6 +60,7 @@ export const Breakable = defineComponent<BreakableData>('Breakable', {
         burst: { min: 0, step: 10, tooltip: 'How fast the pieces leave, in world units a second, out from Origin. 0 lets them fall where they are.' },
         origin: { tooltip: 'Where it is struck, from its own origin: the pieces fly away from here.' },
         lifetime: { min: 0, step: 0.5, tooltip: 'Seconds the pieces last before they are taken away. 0 keeps them.' },
+        breakSpeed: { min: 0, step: 10, tooltip: 'A hit at least this fast breaks it, in world units a second; it needs a collider to be hit. 0 breaks it only when Broken is raised.' },
     },
 });
 
@@ -63,6 +71,17 @@ let pusher: BodyPusher | null = null;
 /** The 3D world says how a body is pushed, when it has loaded; null when it has gone. */
 export function setBodyPusher(push: BodyPusher | null): void {
     pusher = push;
+}
+
+type ContactSink = (a: Entity, b: Entity, speed: number, point: Vec3) => void;
+const sinks = new Set<ContactSink>();
+
+/**
+ * Two bodies met, closing at `speed` world units a second at `point`: what a 3D world says after each of its steps,
+ * so that a thing struck hard enough breaks without the world knowing anything breaks.
+ */
+export function reportContact(a: Entity, b: Entity, speed: number, point: Vec3): void {
+    for (const sink of sinks) sink(a, b, speed, point);
 }
 
 interface Broken {
@@ -87,6 +106,16 @@ export function burstVelocity(piece: Vec3, origin: Vec3, speed: number): Vec3 {
 
 export class BreakablePlugin implements Plugin {
     name = 'breakable';
+    /** Each app this was built into hears hits through its own sink, taken away when that app ends. */
+    private readonly sinks_ = new Map<App, ContactSink>();
+
+    cleanup(app?: App): void {
+        for (const [owner, sink] of [...this.sinks_]) {
+            if (app && owner !== app) continue;
+            sinks.delete(sink);
+            this.sinks_.delete(owner);
+        }
+    }
 
     build(app: App): void {
         const state = new Map<Entity, Broken>();
@@ -125,6 +154,17 @@ export class BreakablePlugin implements Plugin {
                 if (w.dropped) held.release(); else w.release = () => held.release();
             }, () => { /* breaking says why it cannot, when it is asked to */ });
         };
+        // Hits are noted as the world steps and acted on in the update after: the step is no place to spawn pieces.
+        const hits: { entity: Entity; speed: number; point: Vec3 }[] = [];
+        const sink: ContactSink = (a, b, speed, point) => {
+            for (const entity of [a, b]) {
+                if (!world.valid(entity) || !world.has(entity, Breakable)) continue;
+                const data = world.get(entity, Breakable) as BreakableData;
+                if (data.enabled && !data.broken && data.breakSpeed > 0 && speed >= data.breakSpeed) hits.push({ entity, speed, point });
+            }
+        };
+        sinks.add(sink);
+        this.sinks_.set(app, sink);
         const offDespawn = world.onDespawn((entity: Entity) => {
             cool(entity);
             const b = state.get(entity);
@@ -176,6 +216,22 @@ export class BreakablePlugin implements Plugin {
                 return;
             }
             const prefabs = app.hasResource(Prefabs) ? app.getResource(Prefabs) : null;
+            // Struck hard enough: it breaks from where it was hit, the hardest hit if there were several.
+            if (hits.length) {
+                const hardest = new Map<Entity, { speed: number; point: Vec3 }>();
+                for (const h of hits) if ((hardest.get(h.entity)?.speed ?? -1) < h.speed) hardest.set(h.entity, h);
+                hits.length = 0;
+                for (const [entity, h] of hardest) {
+                    if (!world.valid(entity) || !world.has(entity, Breakable)) continue;
+                    const t = world.get(entity, Transform) as TransformData & { worldPosition?: Vec3; worldRotation?: { x: number; y: number; z: number; w: number }; worldScale?: Vec3 };
+                    const [position, rotation, scale] = [t.worldPosition ?? t.position, t.worldRotation ?? t.rotation, t.worldScale ?? t.scale];
+                    const local = q.rotate(q.conjugate(rotation), { x: h.point.x - position.x, y: h.point.y - position.y, z: h.point.z - position.z });
+                    world.update(entity, Breakable, (d: BreakableData) => {
+                        d.origin = { x: local.x / (scale.x || 1), y: local.y / (scale.y || 1), z: local.z / (scale.z || 1) };
+                        d.broken = true;
+                    });
+                }
+            }
             const live = new Set<Entity>();
             for (const entity of world.getEntitiesWithComponents([Breakable])) {
                 const data = world.get(entity, Breakable) as BreakableData;
