@@ -357,6 +357,16 @@ export const SUBSYSTEMS = [
         entry: ['renderImage', 'validateImageSource'],
     },
     {
+        id: 'sound',
+        title: 'Audio recipes',
+        titleZh: '音频配方',
+        source: ['sound'],
+        tier: 'experimental',
+        why: 'a clip named by its source is made on the device by the code the editor bakes it with, on a worker, and read from the content cache after; checked in a headless game for a sound and a piece of music, and heard by nobody yet on a phone or in a mini-game',
+        whyZh: '以源文件命名的音频片段在设备上用编辑器烘焙时的同一份代码生成，在工作线程上完成，之后从内容缓存读取；已在无头游戏里对一个音效和一段音乐做过检查，还没有人在手机或小游戏里听过',
+        entry: ['renderSound', 'renderMusic'],
+    },
+    {
         id: 'rig2d',
         title: '2D rigs',
         titleZh: '2D 骨骼',

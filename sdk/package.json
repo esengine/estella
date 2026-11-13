@@ -29,6 +29,8 @@
     "./dist/spline/index.js",
     "./dist/image/index.js",
     "./dist/shared/image.js",
+    "./dist/sound/index.js",
+    "./dist/shared/sound.js",
     "./dist/voxel/index.js",
     "./dist/rig2d/index.js",
     "./dist/imported-scene/index.js",
@@ -133,6 +135,10 @@
     "./image": {
       "import": "./dist/image/index.js",
       "types": "./dist/image/index.d.ts"
+    },
+    "./sound": {
+      "import": "./dist/sound/index.js",
+      "types": "./dist/sound/index.d.ts"
     },
     "./voxel": {
       "import": "./dist/voxel/index.js",

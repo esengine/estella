@@ -39,6 +39,8 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['ktx2'], contentType: 'binary', editorType: 'texture', addressableType: 'texture', wechatPackInclude: true, hasTransitiveDeps: false },
     // A picture's source, drawn into a texture where it is loaded (asset/textureRecipe.ts).
     { extensions: ['esimage'], contentType: 'json', editorType: 'texture', addressableType: 'texture', wechatPackInclude: true, hasTransitiveDeps: false },
+    // A sound's or a piece of music's source, named where a clip goes: a clip to whatever loads it (see asset/audioRecipe.ts).
+    { extensions: ['essound', 'esmusic'], contentType: 'json', editorType: 'audio', addressableType: 'audio', wechatPackInclude: true, hasTransitiveDeps: false },
     { extensions: ['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'webm'], contentType: 'audio', editorType: 'audio', addressableType: 'audio', wechatPackInclude: false, hasTransitiveDeps: false },
     // Video container, streamed + decoded by the video system (HTMLVideoElement
     // on web). `webm` stays with audio above to avoid the ambiguity; a .webm

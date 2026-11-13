@@ -4750,4 +4750,14 @@ export const NOTED = {
     {"note": "A shot through cover."},
   "feat(editor): the shooting-physics check aims at an animated character's bones, shoots through a wall and hangs two weights on ropes rated either side of their load":
     {"note": "Telling the parts of a character apart."},
+  "fix(assets): an empty asset path is no asset, and is asked for by nobody - an empty string in a handle field went to the resolver, came back still a string, was written back as one and asked for the same load again without end; a field of plants whose material had been cleared put it on every cell it grew and the packaged game stopped answering; a path nothing resolves keeps its placeholder":
+    {"note": "A cleared asset field no longer stops a game."},
+  "fix(image): a package that ships texture recipes can draw them - esengine/image installs its drawer with a call that the build puts in a chunk the native entry shares, the chunk was not listed as having side effects, and a bundler dropped the whole of it: an export drew its ground and its walls with no texture; the chunk is listed, and the boot check bundles a consumer that imports the subpath and looks for the drawer":
+    {"note": "A package that ships texture recipes draws them."},
+  "fix(playable): a playable imports the module an asset needs and its entry does not carry - the whole entry installs what a scene can name and not esengine/image, which only a texture recipe asks for, so a playable shipped its recipes and drew none of them; the modules its cooked assets name are imported before the host, and one with no recipe carries no drawer":
+    {"note": "A package that ships texture recipes draws them."},
+  "feat(image): a picture made in the editor is named by its recipe - image_write answers the .esimage as ref and as the texture of meshRenderer, and the material it writes names its maps as recipes, so a game ships layers and not pixels (a project of six textures packaged 2.4 MB lighter); the .png is pngRef. The Play realm imports esengine/image, as the edit realm does: a scene naming a recipe played with no texture":
+    {"note": "A picture made in the editor is named by its recipe."},
+  "feat(audio): a sound or a piece of music can ship as its recipe - an .essound or .esmusic named where a clip goes is carried as its source and made on the device when it loads, by the synthesis the editor bakes it with, on a worker and kept in the content cache; a game of five clips packaged 1.7 MB lighter":
+    {"note": "A sound or a piece of music can ship as its recipe."},
 };

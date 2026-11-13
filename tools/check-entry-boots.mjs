@@ -156,6 +156,9 @@ const RECIPE_DRAWER = 'has no canvas to draw text on';
 for (const c of [
     { name: 'lean', imports: [], installed: false },
     { name: 'lean+image', imports: ['esengine/image'], installed: true },
+    // The same for a clip made from its source: esengine/sound, whose words these are.
+    { name: 'lean+sound', imports: ['esengine/sound'], installed: true, words: 'a recipe plays .wav recordings only', what: 'maker of audio recipes' },
+    { name: 'lean without sound', imports: [], installed: false, words: 'a recipe plays .wav recordings only', what: 'maker of audio recipes' },
 ]) {
     const src = path.join(work, `recipes-${c.name.replace(/\W+/g, '-')}.mjs`);
     const out = `${src}.bundle.mjs`;
@@ -164,11 +167,11 @@ for (const c of [
         entryPoints: [src], outfile: out, bundle: true, format: 'esm', platform: 'node', logLevel: 'silent',
         alias: { 'esengine/lean': path.join(SDK, 'dist/index.lean.js') },
     });
-    const carried = readFileSync(out, 'utf8').includes(RECIPE_DRAWER);
+    const carried = readFileSync(out, 'utf8').includes(c.words ?? RECIPE_DRAWER);
     if (carried !== c.installed) {
-        fail(`${c.name}: the drawer of texture recipes ${c.installed ? 'should be installed' : 'should be absent'}, `
+        fail(`${c.name}: the ${c.what ?? 'drawer of texture recipes'} ${c.installed ? 'should be installed' : 'should be absent'}, `
             + `but the bundle ${carried ? 'carries' : 'lacks'} it.`
-            + '\n\nesengine/image installs it with a call at the end of image/index.ts, which the build puts in a shared chunk:'
+            + '\n\nThe subpath installs it with a call at the end of its index.ts, which the build puts in a shared chunk:'
             + ' list that chunk in sdk/package.json "sideEffects".');
     }
     results.push(`${c.name} recipes → ${c.installed ? 'installed' : 'absent'}`);

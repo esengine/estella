@@ -7,6 +7,8 @@ import { defineResource } from '../ecs/resource';
 import { RuntimeConfig } from '../defaults';
 import { log } from '../util/logger';
 import { disposeAll } from '../util/disposeAll';
+import { isAudioRecipePath, renderAudioRecipe } from '../asset/audioRecipe';
+import { getPlatform } from '../platform/base';
 
 /** `./a//b.mp3` and `a/b.mp3` are one clip. */
 function normalizeClipPath(path: string): string {
@@ -172,6 +174,13 @@ interface LayerGroup {
     layered: boolean;
     inStep: boolean;
 }
+
+/**
+ * How a clip made from a recipe is loaded: decoded whole. What was made is a plain .wav under a path that names no recording, so the
+ * length rule that plays a long file from a media element would hand it bytes with no type to go by; and a loop that is decoded
+ * comes round on the sample, which a piece of music made to loop is for.
+ */
+const RECIPE_LOAD: AudioLoadOptions = { loadType: 'decompress' };
 
 export class AudioAPI {
     private readonly voiceStates_ = new WeakMap<AudioHandle, SoftVoice>();
@@ -528,8 +537,26 @@ export class AudioAPI {
         await promise;
     }
 
+    /**
+     * The `.wav` of a clip that is a recipe (an `.essound`, an `.esmusic`): its source read as any clip is, by the resolver that
+     * holds a package's inlined files or from where the path resolves to, and made by `esengine/sound` (see asset/audioRecipe.ts).
+     */
+    private recipeClip_(url: string, resolved: string, given?: ArrayBuffer): Promise<ArrayBuffer> {
+        return renderAudioRecipe(url, async (path) => {
+            if (path === url && given) return given;
+            const held = this.assetResolver_?.(path);
+            if (held) return held;
+            return getPlatform().readFile(path === url ? resolved : this.resolveUrl_(path));
+        });
+    }
+
     async preload(url: string): Promise<void> {
         if (this.disposed_ || this.bufferCache_.has(url)) return;
+        if (isAudioRecipePath(url)) {
+            // Made, then handed to the backend as the bytes of a file, which every backend that decodes already reads.
+            await this.ensureBuffer_(url, async source => this.backend_.loadBufferFromData(source, await this.recipeClip_(url, source), RECIPE_LOAD));
+            return;
+        }
         if (this.assetResolver_) {
             const data = this.assetResolver_(url);
             if (data) {
@@ -574,6 +601,11 @@ export class AudioAPI {
      * for a `url`-delivery backend is the only thing it plays.
      */
     async preloadFromData(url: string, data: ArrayBuffer): Promise<void> {
+        if (isAudioRecipePath(url)) {
+            // The bytes of a recipe are its source, not a recording: handed to a decoder they are refused, and the clip was silent.
+            await this.ensureBuffer_(url, async source => this.backend_.loadBufferFromData(source, await this.recipeClip_(url, source, data), RECIPE_LOAD));
+            return;
+        }
         const options = this.loadOptions_(url);
         await this.ensureBuffer_(url, source => (options
             ? this.backend_.loadBufferFromData(source, data, options) : this.backend_.loadBufferFromData(source, data)));

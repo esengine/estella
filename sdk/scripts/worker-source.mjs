@@ -11,6 +11,8 @@ const WORKERS = [
     doc: "The planning worker's script: what a pool of planning workers is started from." },
   { entry: 'src/image/recipeWorker.ts', out: 'src/image/recipeWorkerBundle.generated.ts', name: 'RECIPE_WORKER_SOURCE',
     doc: "The recipe worker's script: what the workers that draw texture recipes are started from." },
+  { entry: 'src/sound/soundWorker.ts', out: 'src/sound/soundWorkerBundle.generated.ts', name: 'SOUND_WORKER_SOURCE',
+    doc: "The sound worker's script: what the worker that makes audio recipes is started from." },
 ];
 
 async function build(worker) {

@@ -23,6 +23,7 @@ export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
   'esengine/water': 'water/index.js',
   'esengine/spline': 'spline/index.js',
   'esengine/image': 'image/index.js',
+  'esengine/sound': 'sound/index.js',
   'esengine/voxel': 'voxel/index.js',
   'esengine/rig2d': 'rig2d/index.js',
   'esengine/imported-scene': 'imported-scene/index.js',

@@ -70,6 +70,7 @@ export const ENTRIES = {
     'water': 'src/water/index.ts',
     'spline': 'src/spline/index.ts',
     'image': 'src/image/index.ts',
+    'sound': 'src/sound/index.ts',
     'voxel': 'src/voxel/index.ts',
     'rig2d': 'src/rig2d/entry.ts',
     'imported-scene': 'src/imported-scene/index.ts',

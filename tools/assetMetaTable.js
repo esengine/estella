@@ -35,6 +35,8 @@ export const EXT_TO_TYPE = Object.freeze({
     '.ktx2': 'texture',
     // A picture's source, drawn into a texture where it is loaded (sdk asset/textureRecipe.ts).
     '.esimage': 'imageSource',
+    '.essound': 'soundSource',
+    '.esmusic': 'musicSource',
     // Audio
     '.wav': 'audio',
     '.mp3': 'audio',

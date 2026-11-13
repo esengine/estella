@@ -26,6 +26,9 @@ const ASSET_SUBPATH: Readonly<Record<string, string>> = {
     '.esgraph': 'esengine/logic',
     // A picture's source that ships is a texture drawn on the device (sdk asset/textureRecipe.ts).
     '.esimage': 'esengine/image',
+    // A clip named by its source is made where it loads, as a texture named by its recipe is drawn.
+    '.essound': 'esengine/sound',
+    '.esmusic': 'esengine/sound',
     '.esanimator': 'esengine/skeletal-animation',
     '.esavatar': 'esengine/skeletal-animation',
     '.estimeline': 'esengine/timeline',

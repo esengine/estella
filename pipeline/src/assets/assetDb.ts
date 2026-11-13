@@ -240,6 +240,8 @@ const JSON_REF_TYPES = new Set([
 ]);
 
 const isTextureRecipe = (e: { type: string; path: string }): boolean => e.type === 'imageSource' && e.path.toLowerCase().endsWith('.esimage');
+/** A clip that is a recipe names the recordings it plays (a sampled instrument's notes, a sample layer's file). */
+const isAudioRecipe = (e: { type: string }): boolean => e.type === 'soundSource' || e.type === 'musicSource';
 
 /**
  * Collect every asset reference in a JSON document:
@@ -378,7 +380,7 @@ async function computeDeps(
   const uuids = new Set(entries.map((e) => e.uuid));
   const refEntries = (targets ?? entries).filter(
     // A texture that is a recipe names what it is drawn from: the pictures it lays in, its font files, the picture it is a map of.
-    (e) => JSON_REF_TYPES.has(e.type) || e.type === BITMAP_FONT || e.type === 'mesh' || isTextureRecipe(e)
+    (e) => JSON_REF_TYPES.has(e.type) || e.type === BITMAP_FONT || e.type === 'mesh' || isTextureRecipe(e) || isAudioRecipe(e)
       || SKELETAL_ATLAS_TYPES.has(getEditorType(e.path)),
   );
   type DepResult = { uuid: string; refs: string[] } | { warning: string };
