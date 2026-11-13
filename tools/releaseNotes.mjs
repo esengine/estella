@@ -4572,6 +4572,8 @@ export const NOTED = {
     {"note": "A game calls its own native code by name."},
   "fix(aot): the engine digest counts TilemapLayer.lit - the field landed without it, so a packaged native game refused its own compiled systems as built against a different engine; the digest and the two conformance files are regenerated":
     {"internal": "Repairs a field added since the last release: no released build refused its compiled systems."},
+  "feat(modeling): scatter stands copies off a path in rows - rows 1 or 2 with sweep, lift and up lays the leaflets of a frond or the barbs of a feather in one step where each was a step of its own, and sizes shapes them along the path; a palm of 386 steps is 40":
+    {"note": "An AI can lay leaflets along a stem in one step."},
   "feat(sky): a sky of your own shades the ground under its clouds - defineSkyEffect takes groundShadow and a second function, skyShadow(world, sun), what is left of the light at a world position, and the sky pass multiplies every surface it finds by it, as Sky Atmosphere does with its own clouds":
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":
