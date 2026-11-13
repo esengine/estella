@@ -118,6 +118,13 @@ export interface MusicSource {
      * with an end: its last notes and the room ring out after the last bar, and the file is that much longer.
      */
     loop?: boolean;
+    /**
+     * How many of the song's first parts are an introduction: heard once, after which the rest goes round. The file
+     * is still one file; what rings past its end comes in where the introduction ends, and the reply gives that place
+     * as `loopStart`, which the game hands to playBGM or sets on the AudioSource. This is where a build belongs
+     * that a loop cannot hold: two instruments growing to all of them, once.
+     */
+    intro?: number;
     /** Seconds over which it comes up from nothing at its start. A loop comes round to its start again and again, so only a piece that ends has one; a game fades a loop in as it starts it. */
     fadeIn?: number;
     /** Seconds before the end of the last bar over which it goes down to nothing, for a piece that ends and has no ending written. */
@@ -199,7 +206,7 @@ export function parseTrack(text: string, bars: number, stepsToBar: number, where
     return out;
 }
 
-const SOURCE_FIELDS = ['version', 'tempo', 'beats', 'key', 'scale', 'swing', 'humanize', 'seed', 'instruments', 'patterns', 'song', 'loop', 'fadeIn', 'fadeOut', 'stems', 'reverb', 'gain', 'rate'];
+const SOURCE_FIELDS = ['version', 'tempo', 'beats', 'key', 'scale', 'swing', 'humanize', 'seed', 'instruments', 'patterns', 'song', 'loop', 'intro', 'fadeIn', 'fadeOut', 'stems', 'reverb', 'gain', 'rate'];
 const INSTRUMENT_FIELDS = ['layers', 'samples', 'attack', 'gain', 'pan', 'octave', 'follow', 'release', 'reverb'];
 const RECORDING = /\.(wav|ogg|mp3|flac|m4a|aac|webm)$/i;
 
@@ -316,6 +323,10 @@ export function validateMusicSource(raw: unknown): MusicSource {
     });
     const source = s as unknown as MusicSource;
     const seconds = musicSeconds(source);
+    if (s.intro !== undefined) {
+        if (s.loop === false) throw new Error('intro is the part of a loop that is heard once; a piece with loop false is heard once whole and has none');
+        if (!(Number.isInteger(s.intro) && (s.intro as number) >= 1 && (s.intro as number) < s.song.length)) throw new Error(`intro must be how many of the song's first parts are heard once: a whole number from 1, leaving at least one part to go round (the song has ${s.song.length})`);
+    }
     for (const key of ['fadeIn', 'fadeOut'] as const) {
         if (s[key] === undefined) continue;
         if (s.loop !== false) throw new Error(`${key} is for a piece that ends (loop: false). A loop comes round to its start with no gap, and a fade written into it would be heard every time round: the game fades it, playBGM(url, { fadeIn }) to start it and stopBGM(seconds) to end it`);

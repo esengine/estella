@@ -561,10 +561,17 @@ export class AudioAPI {
         return this.playVoice_(buffer, playConfig);
     }
 
+    /**
+     * Background music: one piece at a time, round and round. `fadeIn` brings it up over that many seconds and
+     * `crossFade` brings it up as the piece before goes down. `loopStart` is for a piece with an introduction:
+     * the file plays from its top once, and each time it reaches its end it comes back to that many seconds in,
+     * so the introduction is heard once and what follows it goes round.
+     */
     playBGM(url: string, config?: {
         volume?: number;
         fadeIn?: number;
         crossFade?: number;
+        loopStart?: number;
     }): void {
         const request = ++this.bgmRequest_;
         const play = (buffer: AudioBufferHandle) => {
@@ -586,6 +593,7 @@ export class AudioAPI {
                 bus: 'music',
                 volume: targetVolume,
                 loop: true,
+                ...(config?.loopStart && config.loopStart > 0 ? { loopStart: config.loopStart } : {}),
             });
 
             if (fadeInDuration) {

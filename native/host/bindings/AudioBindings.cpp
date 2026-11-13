@@ -55,7 +55,8 @@ esjs::Val js_audioUnload(const esjs::Args& a) {
     return esjs::undefined();
 }
 
-// es_audioPlay(bufferId, volume, pan, loop, rate) -> voiceId (-1 if unknown).
+// es_audioPlay(bufferId, volume, pan, loop, rate, loopStart?) -> voiceId (-1 if unknown).
+// loopStart is seconds a looping voice comes back to in place of its start.
 esjs::Val js_audioPlay(const esjs::Args& a) {
     int32_t buf = esjs::toInt32(a[0]);
     double vol = 1, pan = 0, rate = 1;
@@ -63,7 +64,9 @@ esjs::Val js_audioPlay(const esjs::Args& a) {
     if (a.size() > 2) pan = esjs::toNumber(a[2]);
     const bool loop = a.size() > 3 && esjs::toBool(a[3]);
     if (a.size() > 4) rate = esjs::toNumber(a[4]);
-    return esjs::int32(host().audio.play(buf, (f32)vol, (f32)pan, loop, (f32)rate));
+    double loopStart = 0;
+    if (a.size() > 5) loopStart = esjs::toNumber(a[5]);
+    return esjs::int32(host().audio.play(buf, (f32)vol, (f32)pan, loop, (f32)rate, (f32)loopStart));
 }
 
 // The voice-scoped commands all take the voice id as a[0].
@@ -132,7 +135,7 @@ void registerAudioBindings(HostState& h, esjs::Val global) {
     if (!h.audio.ready()) return;
     bindGlobal(global, "es_audioLoad", js_audioLoad, 2);
     bindGlobal(global, "es_audioUnload", js_audioUnload, 1);
-    bindGlobal(global, "es_audioPlay", js_audioPlay, 5);
+    bindGlobal(global, "es_audioPlay", js_audioPlay, 6);
     bindGlobal(global, "es_audioStop", js_audioStop, 1);
     bindGlobal(global, "es_audioPause", js_audioPause, 1);
     bindGlobal(global, "es_audioResume", js_audioResume, 1);

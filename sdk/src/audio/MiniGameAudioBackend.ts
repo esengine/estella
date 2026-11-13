@@ -59,9 +59,26 @@ class MiniGameAudioHandle implements AudioHandle {
         this.dispose_(true);
     }
 
+    /** Where a loop comes back to when it is not the start; the host's own loop only knows the start. */
+    private loopFrom_ = 0;
+    private looping_ = false;
+
+    /** @internal A loop that comes back to @p seconds: the context is not left to loop, and is sent back when it ends. */
+    loopFrom(seconds: number): void {
+        this.loopFrom_ = seconds;
+        this.looping_ = true;
+        this.ctx_.loop = false;
+    }
+
     /** @internal The context ended on its own — dispose without a redundant stop(). */
     onNaturalEnd(): void {
         if (!this.isLive_() || this.ctx_.loop) return;
+        if (this.looping_) {
+            // A context that has ended starts from its startTime when it is played again.
+            this.ctx_.startTime = this.loopFrom_;
+            this.resume();
+            return;
+        }
         this.dispose_(false);
         this.onEnd?.();
     }
@@ -97,7 +114,8 @@ class MiniGameAudioHandle implements AudioHandle {
 
     setLoop(loop: boolean): void {
         if (!this.isLive_()) return;
-        this.ctx_.loop = loop;
+        if (this.loopFrom_ > 0) this.looping_ = loop;
+        else this.ctx_.loop = loop;
     }
 
     setPlaybackRate(rate: number): void {
@@ -184,6 +202,7 @@ export class MiniGameAudioBackend implements PlatformAudioBackend {
         this.contexts_.set(handleId, ctx);
 
         const handle = new MiniGameAudioHandle(handleId, ctx, this.contexts_, this.device_);
+        if (config.loop && config.loopStart && config.loopStart > 0) handle.loopFrom(config.loopStart);
         ctx.onEnded(() => handle.onNaturalEnd());
         ctx.onError((res) => {
             log.error('audio', `Playback error for "${url}"`, res.errMsg);

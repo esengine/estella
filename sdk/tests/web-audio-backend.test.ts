@@ -490,6 +490,28 @@ describe('WebAudioBackend', () => {
             expect(handle.currentTime).toBeCloseTo(.875);
         });
 
+        it('a loop with a loop start goes round from there, and a pause knows where in the round it is', async () => {
+            const { bufferHandle, mockCtx } = await initAndLoadBuffer(backend);
+            const handle = backend.play(bufferHandle, { loop: true, loopStart: .4 });
+            const source = mockCtx.createBufferSource.mock.results.at(-1).value;
+            expect([source.loop, source.loopStart, source.loopEnd]).toEqual([true, .4, 1]);
+            // 2.3 s in: once through the second it lasts, then round its last 0.6 s twice and a tenth more.
+            mockCtx.currentTime = 2.3; handle.pause();
+            expect(handle.currentTime).toBeCloseTo(.5);
+            handle.resume();
+            const next = mockCtx.createBufferSource.mock.results.at(-1).value;
+            expect(next.start).toHaveBeenCalledWith(0, expect.closeTo(.5, 5));
+            expect([next.loop, next.loopStart, next.loopEnd]).toEqual([true, .4, 1]);
+        });
+
+        it('a loop start means nothing without a loop, or past the end of the clip', async () => {
+            const { bufferHandle, mockCtx } = await initAndLoadBuffer(backend);
+            for (const config of [{ loopStart: .4 }, { loop: true, loopStart: 3 }, { loop: true }]) {
+                backend.play(bufferHandle, config);
+                expect(mockCtx.createBufferSource.mock.results.at(-1).value.loopStart).toBeUndefined();
+            }
+        });
+
         it('looping pause wraps the accumulated position after a rate change', async () => {
             const { bufferHandle, mockCtx } = await initAndLoadBuffer(backend);
             const handle = backend.play(bufferHandle, { loop: true });

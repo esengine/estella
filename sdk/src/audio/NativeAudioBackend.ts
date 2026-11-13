@@ -122,6 +122,7 @@ export class NativeAudioBackend implements PlatformAudioBackend {
             scalar.clamp(config.pan ?? 0, -1, 1),
             config.loop ?? false,
             config.playbackRate ?? 1,
+            config.loop && config.loopStart && config.loopStart > 0 ? config.loopStart : 0,
         );
         const handle = new NativeAudioHandle(
             voiceId, this.audio_, buffer.duration, () => this.voices_.delete(voiceId),

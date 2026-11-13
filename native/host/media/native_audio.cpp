@@ -310,7 +310,7 @@ void AudioEngine::unload(int bufferId) {
     }
 }
 
-int AudioEngine::play(int bufferId, float volume, float pan, bool loop, float rate) {
+int AudioEngine::play(int bufferId, float volume, float pan, bool loop, float rate, float loopStart) {
     if (!ready()) return -1;
     auto bit = impl_->buffers.find(bufferId);
     if (bit == impl_->buffers.end() || bit->second.unloaded) return -1;
@@ -338,6 +338,16 @@ int AudioEngine::play(int bufferId, float volume, float pan, bool loop, float ra
     ma_sound_set_pan(&voice.sound, pan);
     ma_sound_set_pitch(&voice.sound, rate > 0 ? rate : 1.0f);
     ma_sound_set_looping(&voice.sound, loop ? MA_TRUE : MA_FALSE);
+    if (loop && loopStart > 0.0f) {
+        // Round from here and not from the top. The point is in the clip's own frames, which is what the data
+        // source counts in; its end is left where the clip ends.
+        ma_uint32 sampleRate = 0;
+        ma_data_source* source = ma_sound_get_data_source(&voice.sound);
+        if (source && ma_sound_get_data_format(&voice.sound, nullptr, nullptr, &sampleRate, nullptr, 0) == MA_SUCCESS && sampleRate > 0) {
+            ma_data_source_set_loop_point_in_pcm_frames(
+                source, static_cast<ma_uint64>(static_cast<double>(loopStart) * sampleRate), ~static_cast<ma_uint64>(0));
+        }
+    }
     ma_sound_start(&voice.sound);
     bit->second.refs++;
     return id;

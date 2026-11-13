@@ -41,6 +41,10 @@ interface ActiveVoice {
     pitch: number;
     loop: boolean;
     spatial: boolean;
+    /** How far up it is, 0..1: below 1 while it comes in or goes out. What the voice is given is the source's volume times this. */
+    fade: number;
+    /** Its source lowered `playing` and it is going down over the source's fadeOut; it stops at nothing. */
+    leaving: boolean;
 }
 
 interface AudioPluginState {
@@ -234,10 +238,14 @@ export class AudioPlugin implements Plugin {
                                     loop: source.loop,
                                     spatial: source.spatial,
                                     completedNaturally: false,
+                                    // Up from nothing where the source asks to come in over a time.
+                                    fade: source.fadeIn > 0 ? 0 : 1,
+                                    leaving: false,
                                     handle: audioAPI.playBuffer(buffer, {
                                         bus: source.bus,
-                                        volume: source.volume,
+                                        volume: source.fadeIn > 0 ? 0 : source.volume,
                                         loop: source.loop,
+                                        ...(source.loop && source.loopStart > 0 ? { loopStart: source.loopStart } : {}),
                                         playbackRate: source.pitch,
                                         priority: source.priority,
                                     }),
@@ -269,7 +277,9 @@ export class AudioPlugin implements Plugin {
                                 }
                             }
                         } else if (!playing && voice) {
-                            stopVoice(id);
+                            // Lowered: it goes at once, or down over the time the source gives and then goes.
+                            if (source.fadeOut > 0 && voice.handle.isPlaying && voice.fade > 0) voice.leaving = true;
+                            else stopVoice(id);
                         } else if (playing && voice && !voice.handle.isPlaying) {
                             // The voice is no longer active. Lowering the flag here is
                             // what makes it readable as "is this sounding" rather
@@ -281,12 +291,25 @@ export class AudioPlugin implements Plugin {
                             });
                         }
 
-                        const sounding = activeSourceHandles.get(id);
+                        let sounding = activeSourceHandles.get(id);
+                        let faded = false;
+                        if (sounding) {
+                            // Raised again while it was going out: it turns round from where it is.
+                            if (playing && sounding.leaving) sounding.leaving = false;
+                            const before = sounding.fade;
+                            if (sounding.leaving) sounding.fade = Math.max(0, sounding.fade - time.delta / source.fadeOut);
+                            else if (sounding.fade < 1) sounding.fade = source.fadeIn > 0 ? Math.min(1, sounding.fade + time.delta / source.fadeIn) : 1;
+                            faded = sounding.fade !== before;
+                            if (sounding.leaving && sounding.fade <= 0) {
+                                stopVoice(id);
+                                sounding = undefined;
+                            }
+                        }
                         if (sounding) {
                             if (sounding.pitch !== source.pitch) sounding.handle.setPlaybackRate(source.pitch);
                             if (sounding.loop !== source.loop) sounding.handle.setLoop(source.loop);
                             if (!source.spatial) {
-                                if (sounding.volume !== source.volume || sounding.spatial) sounding.handle.setVolume(source.volume);
+                                if (sounding.volume !== source.volume || sounding.spatial || faded) sounding.handle.setVolume(source.volume * sounding.fade);
                                 if (sounding.spatial) sounding.handle.setPan(0);
                             }
                             sounding.volume = source.volume;
@@ -314,7 +337,7 @@ export class AudioPlugin implements Plugin {
                             const attenuation = calculateAttenuation(distance, spatialConfig);
                             const pan = calculatePanning(sourceAt, listenerAt, listenerRight, source.maxDistance);
 
-                            sounding.handle.setVolume(source.volume * attenuation);
+                            sounding.handle.setVolume(source.volume * attenuation * sounding.fade);
                             sounding.handle.setPan(pan);
                         }
                     }

@@ -58,6 +58,13 @@ export interface PlayConfig {
     bus?: string;
     priority?: number;
     startOffset?: number;
+    /**
+     * With `loop`: seconds into the clip that it comes back to when it reaches its end, in place of its start. A
+     * piece with an introduction is one file, played from the top once and round from here ever after. Exact to the
+     * sample where the clip is decoded; where it is played from its compressed file (a long clip on the web, a
+     * mini-game) the player is sent back when it ends, which can be heard as a breath.
+     */
+    loopStart?: number;
 }
 
 export interface AudioBackendInitOptions {

@@ -9,6 +9,12 @@ export interface AudioSourceData {
     volume: number;
     pitch: number;
     loop: boolean;
+    /** With `loop`: seconds into the clip that it comes back to at its end, so an introduction is heard once. 0 is the start. */
+    loopStart: number;
+    /** Seconds it takes to come up to its volume when `playing` is raised. 0 is at once. */
+    fadeIn: number;
+    /** Seconds it takes to go down to nothing when `playing` is lowered, after which it stops. 0 is at once. */
+    fadeOut: number;
     /**
      * Raise it and the clip sounds; lower it and the voice stops. The engine
      * lowers it again when a non-looping clip ends, so it reads as "is this
@@ -36,6 +42,9 @@ export const AudioSource = defineComponent<AudioSourceData>('AudioSource', {
     volume: 1.0,
     pitch: 1.0,
     loop: false,
+    loopStart: 0,
+    fadeIn: 0,
+    fadeOut: 0,
     playing: false,
     finished: false,
     playOnAwake: false,
@@ -49,6 +58,9 @@ export const AudioSource = defineComponent<AudioSourceData>('AudioSource', {
 }, {
     assetFields: [{ field: 'clip', type: 'audio' }],
     fields: {
+        loopStart: { min: 0, step: 0.1, tooltip: 'With Loop: seconds into the clip that it comes back to at its end, so an introduction plays once. 0 is the start.' },
+        fadeIn: { min: 0, step: 0.1, tooltip: 'Seconds to come up to Volume when Playing is raised. 0 is at once.' },
+        fadeOut: { min: 0, step: 0.1, tooltip: 'Seconds to go down to nothing when Playing is lowered; it stops after. 0 is at once.' },
         playing: { tooltip: 'Raise to play, lower to stop. The engine lowers it when a non-looping clip ends.' },
         finished: { advanced: true, tooltip: 'Clip completed (runtime, read-only). Raise Playing to play it again.' },
     },

@@ -1182,7 +1182,7 @@ invalidateBuffer: (url: string) => boolean
 isBusMuted: (busName: string) => boolean
 maxVoices: number
 muteBus: (busName: string, muted: boolean) => void
-playBGM: (url: string, config?: { volume?: number; fadeIn?: number; crossFade?: number; }) => void
+playBGM: (url: string, config?: { volume?: number; fadeIn?: number; crossFade?: number; loopStart?: number; }) => void
 playBuffer: (buffer: AudioBufferHandle, config?: PlayConfig) => AudioHandle
 playSFX: (url: string, config?: { volume?: number; pitch?: number; pan?: number; priority?: number; }) => AudioHandle
 playTrack: (url: string, config?: PlayConfig) => Promise<AudioHandle | null>
@@ -1381,8 +1381,11 @@ attenuationModel: number
 bus: string
 clip: string
 enabled: boolean
+fadeIn: number
+fadeOut: number
 finished: boolean
 loop: boolean
+loopStart: number
 maxDistance: number
 minDistance: number
 pitch: number
@@ -6757,7 +6760,7 @@ width: number
 ```
 es_audioLoad: ((bytes: ArrayBuffer, stream?: boolean) => { id: number; duration: number; bytes: number; streamed?: boolean; } | null) | undefined
 es_audioPause: ((voiceId: number) => void) | undefined
-es_audioPlay: ((bufferId: number, volume: number, pan: number, loop: boolean, rate: number) => number) | undefined
+es_audioPlay: ((bufferId: number, volume: number, pan: number, loop: boolean, rate: number, loopStart?: number) => number) | undefined
 es_audioResume: ((voiceId: number) => void) | undefined
 es_audioResumeAll: (() => void) | undefined
 es_audioSetLoop: ((voiceId: number, loop: boolean) => void) | undefined
@@ -8188,6 +8191,7 @@ readKeyboard: boolean
 ```
 bus: string | undefined
 loop: boolean | undefined
+loopStart: number | undefined
 pan: number | undefined
 playbackRate: number | undefined
 priority: number | undefined

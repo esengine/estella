@@ -49,6 +49,8 @@ export interface RenderedMusic extends CompiledMusic {
     channels: Float32Array[];
     peak: number;
     rms: number;
+    /** For a loop with an introduction: seconds into the file that it comes back to. 0 where the whole of it goes round. */
+    loopStart: number;
     /** For a piece that ends: seconds it rings on after its last bar, which the file is longer by. */
     tailSeconds: number;
     /** For a loop: what sounds in its last bar and in its first, and how loud each is, in decibels beside the whole. Null for a piece that ends. */
@@ -415,6 +417,9 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
     }
 
     const loop = source.loop !== false;
+    // Where the round begins: the start, or the end of an introduction that is heard once.
+    const loopStart = loop && source.intro ? compiled.parts[source.intro]!.at : 0;
+    const roundFrom = Math.round(loopStart * rate);
     // A piece that ends rings out: the file runs on past its last bar until what is left cannot be heard. One that fades
     // out is at nothing by the end of the bar, and has nothing to ring.
     let total = count;
@@ -425,7 +430,8 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
     }
     const finish = (channel: Float32Array): Float32Array => {
         const out = channel.slice(0, total);
-        if (loop) for (let n = count; n < work; n++) out[(n - count) % count]! += channel[n]!;
+        // What rings past the end is heard as the round begins again, which is where it is put.
+        if (loop) for (let n = count; n < work; n++) out[roundFrom + ((n - count) % (count - roundFrom))]! += channel[n]!;
         else {
             if (source.fadeIn) { const rise = Math.round(source.fadeIn * rate); for (let n = 0; n < rise && n < total; n++) out[n]! *= (n / rise) ** 2; }
             // Let down over the seconds asked, or over the last fiftieth of one so that it does not stop on a step.
@@ -491,12 +497,13 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
         };
         const db = (level: number): number => (level > 0 && rms > 0 ? Math.round(20 * Math.log10(level / rms) * 10) / 10 : -120);
         join = {
-            ends: sounding(compiled.seconds - compiled.barSeconds, compiled.seconds), begins: sounding(0, compiled.barSeconds),
-            endDb: db(rmsOf(channels, count - bar, count)), startDb: db(rmsOf(channels, 0, bar)),
+            // The first bar of the round, which with an introduction is not the first bar of the file.
+            ends: sounding(compiled.seconds - compiled.barSeconds, compiled.seconds), begins: sounding(loopStart, loopStart + compiled.barSeconds),
+            endDb: db(rmsOf(channels, count - bar, count)), startDb: db(rmsOf(channels, roundFrom, Math.min(count, roundFrom + bar))),
         };
         const [gone, come] = [join.ends.filter((n) => !join!.begins.includes(n)), join.begins.filter((n) => !join!.ends.includes(n))];
-        if (count > bar * 2 && (Math.abs(join.endDb - join.startDb) > 6 || gone.length + come.length > Math.max(1, names.length / 3))) {
-            notes.push(`where the loop meets itself the music changes at once: its last bar has ${join.ends.join(', ') || 'nothing'} at ${join.endDb} dB and its first has ${join.begins.join(', ') || 'nothing'} at ${join.startDb} dB${gone.length ? `, so ${gone.join(', ')} stop${gone.length === 1 ? 's' : ''} dead` : ''}. A loop is heard as one piece when its end is as full as its start: end on a part like the first (thin the last part with \`without\`, or begin as full as it ends), and put a build that happens once in a piece of its own with loop false`);
+        if (count - roundFrom > bar * 2 && (Math.abs(join.endDb - join.startDb) > 6 || gone.length + come.length > Math.max(1, names.length / 3))) {
+            notes.push(`where the loop meets itself the music changes at once: its last bar has ${join.ends.join(', ') || 'nothing'} at ${join.endDb} dB and its first has ${join.begins.join(', ') || 'nothing'} at ${join.startDb} dB${gone.length ? `, so ${gone.join(', ')} stop${gone.length === 1 ? 's' : ''} dead` : ''}. A loop is heard as one piece when its end is as full as its start: end on a part like the one it comes back to (thin the last part with \`without\`, or begin as full as it ends), and put a build that happens once in an introduction with \`intro\``);
         }
     }
 
@@ -511,5 +518,5 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
             levelDb: level > 0 && rms > 0 ? Math.round(20 * Math.log10(level / rms) * 10) / 10 : -120,
         };
     }
-    return { ...compiled, notes, rate, channels, peak: peak > 1e-6 ? target : 0, rms, tailSeconds: (total - count) / rate, join, stems: source.stems ? stems : null, instruments };
+    return { ...compiled, notes, rate, channels, peak: peak > 1e-6 ? target : 0, rms, loopStart, tailSeconds: (total - count) / rate, join, stems: source.stems ? stems : null, instruments };
 }

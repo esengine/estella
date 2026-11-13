@@ -123,6 +123,27 @@
           "default": "false"
         },
         {
+          "key": "loopStart",
+          "type": "number",
+          "default": "0",
+          "doc": "With Loop: seconds into the clip that it comes back to at its end, so an introduction plays once. 0 is the start.",
+          "range": "≥ 0, step 0.1"
+        },
+        {
+          "key": "fadeIn",
+          "type": "number",
+          "default": "0",
+          "doc": "Seconds to come up to Volume when Playing is raised. 0 is at once.",
+          "range": "≥ 0, step 0.1"
+        },
+        {
+          "key": "fadeOut",
+          "type": "number",
+          "default": "0",
+          "doc": "Seconds to go down to nothing when Playing is lowered; it stops after. 0 is at once.",
+          "range": "≥ 0, step 0.1"
+        },
+        {
           "key": "playing",
           "type": "boolean",
           "default": "false",
@@ -179,6 +200,9 @@
       "animatable": [
         "volume",
         "pitch",
+        "loopStart",
+        "fadeIn",
+        "fadeOut",
         "minDistance",
         "maxDistance",
         "attenuationModel",

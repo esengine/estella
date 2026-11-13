@@ -446,3 +446,44 @@ describe('recordings played soft and loud, and taking turns', () => {
         expect(pitchOf(raw, 44100, 0.05, 0.45)).toBeGreaterThan(449);
     });
 });
+
+describe('an introduction heard once before the round', () => {
+    const FULL = '1 - - - 1 - - - 1 - - - 1 - - -';
+    const instruments = { tone, click, low: tone, pad: tone, bass: tone };
+    const tracks = { tone: FULL, pad: FULL.replace(/1/g, '3'), bass: FULL.replace(/1/g, '5,'), click: steps('x', '.', 'x') };
+    const thin = { pattern: 'a', only: ['tone'] };
+
+    it('says where the round begins, and meets itself there and not at the top of the file', () => {
+        const m = renderMusic(piece(tracks, { loop: true, instruments, song: [thin, 'a', 'a', 'a'], intro: 1 }));
+        // One bar of two seconds is the introduction.
+        expect(m.loopStart).toBe(2);
+        expect(m.seconds).toBe(8);
+        // The round is full at both ends, and nothing is said of the thin bar before it.
+        expect(m.join).toMatchObject({ begins: ['tone', 'click', 'pad', 'bass'], ends: ['tone', 'click', 'pad', 'bass'] });
+        expect(m.notes.join()).not.toMatch(/meets itself/);
+        // Without the introduction marked, the same song drops at the join and is told so.
+        expect(renderMusic(piece(tracks, { loop: true, instruments, song: [thin, 'a', 'a', 'a'] })).notes.join()).toMatch(/meets itself/);
+    });
+
+    it('brings what rings past the end in where the round begins, and leaves the introduction as it was', () => {
+        const long = { layers: [{ source: 'sine', freq: 440, length: 0.8, decay: 0.3 }] };
+        const last = `${REST.slice(0, -1)}1`;
+        // Three bars: silence, silence, and one long note on the last step of the last.
+        const source = (intro?: number) => piece({ tone: REST }, {
+            loop: true, instruments: { tone: long, click, low: tone },
+            patterns: { a: { bars: 1, tracks: { click: REST } }, b: { bars: 1, tracks: { tone: last } } }, song: ['a', 'a', 'b'], ...(intro ? { intro } : {}),
+        });
+        const whole = renderMusic(source()).channels[0]!;
+        const after = renderMusic(source(1)).channels[0]!;
+        // With no introduction the tail is at the top of the file; with one it is at two seconds, and the top is silent.
+        expect(level(whole, 44100, 0.05, 0.4)).toBeGreaterThan(0.05);
+        expect(level(after, 44100, 0.05, 0.4)).toBeLessThan(1e-4);
+        expect(level(after, 44100, 2.05, 2.4)).toBeGreaterThan(0.05);
+        expect(after.length).toBe(whole.length);
+    });
+
+    it('refuses an introduction that leaves nothing to go round, or a piece that ends', () => {
+        expect(() => piece(tracks, { loop: true, instruments, song: ['a', 'a'], intro: 2 })).toThrow(/intro must be how many of the song's first parts are heard once.*\(the song has 2\)/);
+        expect(() => piece(tracks, { instruments, song: ['a', 'a'], intro: 1 })).toThrow(/intro is the part of a loop that is heard once/);
+    });
+});

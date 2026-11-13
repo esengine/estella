@@ -24,6 +24,8 @@ class WebAudioHandle implements AudioHandle {
     private startOffset_: number;
     private playbackRate_: number;
     private loop_: boolean;
+    /** Where a loop comes back to, in seconds; 0 is the start. */
+    private readonly loopStart_: number;
     private readonly duration_: number;
 
     constructor(
@@ -34,6 +36,7 @@ class WebAudioHandle implements AudioHandle {
         pool: AudioPool,
         context: AudioContext,
         startOffset: number,
+        loopStart = 0,
     ) {
         this.id = id;
         this.source_ = source;
@@ -46,6 +49,7 @@ class WebAudioHandle implements AudioHandle {
         this.startedAt_ = context.currentTime;
         this.playbackRate_ = source.playbackRate.value;
         this.loop_ = source.loop;
+        this.loopStart_ = loopStart;
 
         this.bindOnEnded_(source);
     }
@@ -81,12 +85,18 @@ class WebAudioHandle implements AudioHandle {
         this.playing_ = false;
         const elapsed = (this.context_!.currentTime - this.startedAt_) * this.playbackRate_;
         this.pausedAt_ = this.startOffset_ + elapsed;
-        if (this.loop_ && this.buffer_!.duration > 0) {
-            this.pausedAt_ = this.pausedAt_ % this.buffer_!.duration;
-        }
+        if (this.loop_ && this.buffer_!.duration > 0) this.pausedAt_ = this.wrapped_(this.pausedAt_);
         this.source_!.onended = null;
         try { this.source_!.stop(); } catch (_) { /* already stopped */ }
         this.source_!.disconnect();
+    }
+
+    /** A place in the clip for a time since it began: past the end, it has been round from the loop's start. */
+    private wrapped_(position: number): number {
+        const end = this.buffer_!.duration;
+        if (position < end) return position;
+        const round = end - this.loopStart_;
+        return round > 0 ? this.loopStart_ + ((position - this.loopStart_) % round) : position % end;
     }
 
     resume(): void {
@@ -97,6 +107,7 @@ class WebAudioHandle implements AudioHandle {
         try {
             source.buffer = this.buffer_;
             source.loop = this.loop_;
+            if (this.loopStart_ > 0) { source.loopStart = this.loopStart_; source.loopEnd = this.buffer_!.duration; }
             source.playbackRate.value = this.playbackRate_;
             source.connect(this.poolNode_!.gain);
             this.bindOnEnded_(source);
@@ -179,10 +190,14 @@ class WebStreamHandle implements AudioHandle {
     private readonly duration_: number;
     private readonly onRelease_: (handle: WebStreamHandle) => void;
     private readonly ensureResumed_: () => Promise<void>;
+    /** A loop that comes back to somewhere other than the start: the element cannot, so it is sent back when it ends. */
+    private loopFrom_ = 0;
+    private looping_ = false;
 
     constructor(
         id: number, element: HTMLAudioElement, node: MediaElementAudioSourceNode, poolNode: PooledAudioNode,
         pool: AudioPool, duration: number, onRelease: (handle: WebStreamHandle) => void, ensureResumed: () => Promise<void>,
+        loopStart = 0,
     ) {
         this.id = id;
         this.element_ = element;
@@ -193,8 +208,14 @@ class WebStreamHandle implements AudioHandle {
         this.onRelease_ = onRelease;
         this.ensureResumed_ = ensureResumed;
         poolNode.source = node;
+        if (loopStart > 0 && element.loop) {
+            this.loopFrom_ = loopStart;
+            this.looping_ = true;
+            element.loop = false;
+        }
         element.onended = () => {
             if (this.stopped_ || element.loop) return;
+            if (this.looping_ && this.playing_) { this.begin(this.loopFrom_); return; }
             this.release_();
             this.onEnd?.();
         };
@@ -275,7 +296,8 @@ class WebStreamHandle implements AudioHandle {
 
     setLoop(loop: boolean): void {
         if (this.stopped_ || !this.element_) return;
-        this.element_.loop = loop;
+        if (this.loopFrom_ > 0) this.looping_ = loop;
+        else this.element_.loop = loop;
     }
 
     setPlaybackRate(rate: number): void {
@@ -606,6 +628,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
         const handle = new WebStreamHandle(
             ++this.nextHandleId_, element, node, poolNode, pool, stream.duration,
             (h) => this.releaseStream_(h), () => this.ensureResumed(),
+            config.loop && config.loopStart && config.loopStart < stream.duration ? config.loopStart : 0,
         );
         this.streams_.set(bufferId, handle);
         handle.begin(config.startOffset ?? 0);
@@ -646,6 +669,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
         }
 
         const startOffset = config.startOffset ?? 0;
+        const loopStart = config.loop && config.loopStart && config.loopStart > 0 && config.loopStart < audioBuffer.duration ? config.loopStart : 0;
         const poolNode = this.pool_.acquire();
         let source: AudioBufferSourceNode;
         try {
@@ -653,6 +677,8 @@ export class WebAudioBackend implements PlatformAudioBackend {
             poolNode.source = source;
             source.buffer = audioBuffer;
             source.loop = config.loop ?? false;
+            // Round from here, not from the top: the node does it between two samples.
+            if (loopStart > 0) { source.loopStart = loopStart; source.loopEnd = audioBuffer.duration; }
             source.playbackRate.value = config.playbackRate ?? 1.0;
             source.connect(poolNode.gain);
 
@@ -670,7 +696,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
 
         const handleId = ++this.nextHandleId_;
         const handle = new WebAudioHandle(
-            handleId, source, audioBuffer, poolNode, this.pool_, this.context_, startOffset
+            handleId, source, audioBuffer, poolNode, this.pool_, this.context_, startOffset, loopStart
         );
 
         return handle;

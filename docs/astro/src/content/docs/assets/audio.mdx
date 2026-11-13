@@ -46,6 +46,21 @@ const play = defineSystem([Res(Audio)], (audio) => {
 current track, optionally cross-fading. Both auto-preload an uncached clip and play
 it once ready.
 
+### An introduction, then the loop
+
+A piece with an introduction is one file: it plays from the top once, and each
+time it reaches its end it comes back to `loopStart` seconds in.
+
+```typescript
+audio.playBGM('assets/theme.ogg', { loopStart: 12.5, fadeIn: 1 });
+```
+
+The join is exact to the sample where the clip is decoded (the web's decoded
+clips, and the native host). Where a clip is played from its compressed file (a
+long clip streamed on the web, a mini-game) the player is sent back when it
+ends, which can be heard as a short breath: decode a piece whose join matters
+(`loadType: 'decompress'`).
+
 ## Sound event definitions (beta)
 
 A `.esaudioevent` is a versioned JSON asset containing `clips` with audio references
@@ -215,6 +230,9 @@ the audio system starts it automatically.
 | `volume` | number | `1` | Volume, 0..1. |
 | `pitch` | number | `1` | Playback speed / pitch. |
 | `loop` | boolean | `false` | Loop the clip. |
+| `loopStart` | number | `0` | With `loop`: seconds into the clip that it comes back to at its end, so an introduction plays once. |
+| `fadeIn` | number | `0` | Seconds to come up to `volume` when `playing` is raised. |
+| `fadeOut` | number | `0` | Seconds to go down to nothing when `playing` is lowered; the voice stops after. Raising `playing` again on the way out turns it round. |
 | `playing` | boolean | `false` | The play flag: raise to play, lower to stop. The engine lowers it when a non-looping clip ends. |
 | `finished` | boolean | `false` | Runtime, read-only: the clip completed; raising `playing` plays it again. |
 | `playOnAwake` | boolean | `false` | Start automatically when the entity is enabled. |

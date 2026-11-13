@@ -59,7 +59,8 @@ public:
     bool spectrum(uint8_t* out, size_t bins);
 
     /** Start a voice on a loaded buffer. Returns its id, or -1 if unknown. */
-    int play(int bufferId, float volume, float pan, bool loop, float rate);
+    /// @p loopStart: seconds a looping voice comes back to at its end, so what is before it is heard once. 0 is its start.
+    int play(int bufferId, float volume, float pan, bool loop, float rate, float loopStart = 0.0f);
     void stop(int voiceId);
     void pause(int voiceId);
     void resume(int voiceId);

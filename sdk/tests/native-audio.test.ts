@@ -35,10 +35,11 @@ function installAudioHost(scope: Record<string, unknown>) {
 
     scope.es_audioLoad = (bytes: ArrayBuffer) => ({ id: nextBuffer++, duration: 2, bytes: bytes.byteLength * 4 });
     scope.es_audioUnload = () => {};
-    scope.es_audioPlay = (buf: number, vol: number, pan: number, loop: boolean, rate: number) => {
+    scope.es_audioPlay = (buf: number, vol: number, pan: number, loop: boolean, rate: number, loopStart?: number) => {
         const id = nextVoice++;
         voices.set(id, { playing: true, time: 0, loop });
-        calls.play.push([buf, vol, pan, loop, rate]);
+        // The sixth is where a loop comes back to; it is recorded only when it is somewhere.
+        calls.play.push(loopStart ? [buf, vol, pan, loop, rate, loopStart] : [buf, vol, pan, loop, rate]);
         return id;
     };
     scope.es_audioStop = (v: number) => { voices.delete(v); calls.stop.push(v); };
@@ -137,6 +138,17 @@ describe('NativeAudioBackend', () => {
         (scope.es_onNativeAudioEnded as (id: number) => void)(handle.id);
         expect(handle.onEnd).toHaveBeenCalledOnce(); main.dispose();
     });
+    it('hands the host where a loop comes back to, and nothing for a voice that does not loop', async () => {
+        const scope = audioScope();
+        const host = installAudioHost(scope);
+        const backend = new NativeAudioBackend(createHostBridge(scope).audio!);
+        const buffer = await backend.loadBufferFromData('music', new ArrayBuffer(16));
+        backend.play(buffer, { loop: true, loopStart: 8 });
+        backend.play(buffer, { loopStart: 8 });
+        backend.play(buffer, { loop: true });
+        expect(host.calls.play).toEqual([[buffer.id, 1, 0, true, 1, 8], [buffer.id, 1, 0, false, 1], [buffer.id, 1, 0, true, 1]]);
+    });
+
     it('loads, plays and reports state through the bridge', async () => {
         const scope = audioScope();
         const host = installAudioHost(scope);   // capture the same closure the bridge will use

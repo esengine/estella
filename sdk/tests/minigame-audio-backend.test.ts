@@ -86,6 +86,21 @@ describe('MiniGameAudioBackend', () => {
             expect(handle.isPlaying).toBe(false); expect(handle.currentTime).toBe(0);
             expect(ctx.destroy).toHaveBeenCalledOnce();
         });
+        it('a loop with a loop start is sent back there when it ends, and is not left to the host to loop', async () => {
+            const buffer = await backend.loadBuffer('a.mp3'), handle = backend.play(buffer, { loop: true, loopStart: 12 });
+            const ctx = (globalThis as any).wx.createInnerAudioContext.mock.results.at(-1).value;
+            // The host's own loop only knows the start of the file.
+            expect(ctx.loop).toBe(false);
+            handle.onEnd = vi.fn();
+            const plays = ctx.play.mock.calls.length;
+            ctx.onEnded.mock.calls[0][0]();
+            expect(ctx.startTime).toBe(12);
+            expect(ctx.play.mock.calls.length).toBe(plays + 1);
+            expect(handle.onEnd).not.toHaveBeenCalled(); expect(ctx.destroy).not.toHaveBeenCalled();
+            // Told to stop looping, its next end is its last.
+            handle.setLoop(false); ctx.onEnded.mock.calls[0][0]();
+            expect(handle.onEnd).toHaveBeenCalledOnce(); expect(ctx.destroy).toHaveBeenCalledOnce();
+        });
         it('natural completion is terminal before callbacks run and is delivered only once', async () => {
             const buffer = await backend.loadBuffer('a.mp3'), handle = backend.play(buffer, {});
             const ctx = (globalThis as any).wx.createInnerAudioContext.mock.results.at(-1).value;

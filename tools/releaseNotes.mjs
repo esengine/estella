@@ -4630,6 +4630,10 @@ export const NOTED = {
     {"note": "An AI can make background music."},
   "docs(music): soundfont_read says what a SoundFont does that is undone on the way out":
     {"note": "An AI can make background music."},
+  "feat(audio): music with an introduction, and a source that fades - a looping voice comes back to loopStart and not to its start, on the web, a mini-game and the native host, from playBGM or an AudioSource; an AudioSource comes up over fadeIn and goes down over fadeOut before it stops; and a piece of music marks its first parts as an intro and says where the round begins":
+    {"note": "Music with an introduction, and a source that fades."},
+  "feat(music): the reply gives where the round begins for a piece with an introduction, and the tool text says how a game plays one and how a source fades":
+    {"note": "An AI can make background music."},
   "feat(sky): a sky of your own shades the ground under its clouds - defineSkyEffect takes groundShadow and a second function, skyShadow(world, sun), what is left of the light at a world position, and the sky pass multiplies every surface it finds by it, as Sky Atmosphere does with its own clouds":
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":

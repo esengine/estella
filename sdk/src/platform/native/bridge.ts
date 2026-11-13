@@ -147,7 +147,8 @@ export interface NativeAudioBridge {
     unload(bufferId: number): void;
     /** Start a voice on a loaded buffer. Returns its voice id, or -1 if the buffer
      *  is unknown. */
-    play(bufferId: number, volume: number, pan: number, loop: boolean, rate: number): number;
+    /** @param loopStart seconds a looping voice comes back to; 0 is its start. A host older than this takes five arguments and loops from the start. */
+    play(bufferId: number, volume: number, pan: number, loop: boolean, rate: number, loopStart?: number): number;
     stop(voiceId: number): void;
     pause(voiceId: number): void;
     resume(voiceId: number): void;

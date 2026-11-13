@@ -40,6 +40,19 @@ const play = defineSystem([Res(Audio)], (audio) => {
 `playSFX` 触发一次性播放并返回一个句柄;`playBGM` 循环并替换当前曲目,可选交叉淡入。两者都会
 自动预加载未缓存的片段并在就绪后播放。
 
+### 前奏放一次，然后循环
+
+带前奏的曲子是一个文件：从头放一遍，之后每次放到结尾都回到 `loopStart` 秒处，
+前奏只听到一次。
+
+```typescript
+audio.playBGM('assets/theme.ogg', { loopStart: 12.5, fadeIn: 1 });
+```
+
+解码后播放的片段（Web 上解码的片段、原生宿主）衔接精确到采样。从压缩文件直接
+播放的片段（Web 上流式播放的长片段、小游戏）是在放完时把播放器送回去，可能听到
+一个很短的停顿：衔接要紧的曲子请解码播放（`loadType: 'decompress'`）。
+
 ## 音效事件定义（beta）
 
 `.esaudioevent` 是带有 `version: 1` 的 JSON 资源，`clips` 保存音频引用和相对 `weight`。
@@ -188,6 +201,9 @@ shot.onEnd = () => { /* the sound finished */ };
 | `volume` | number | `1` | 音量,0..1。 |
 | `pitch` | number | `1` | 播放速度 / 音调。 |
 | `loop` | boolean | `false` | 循环片段。 |
+| `loopStart` | number | `0` | 配合 `loop`：放到结尾时回到片段的第几秒，前奏因此只放一次。 |
+| `fadeIn` | number | `0` | `playing` 置为真时，音量升到 `volume` 所用的秒数。 |
+| `fadeOut` | number | `0` | `playing` 置为假时，音量降到零所用的秒数，之后才停止；淡出途中再次置真会原地回升。 |
 | `playing` | boolean | `false` | 播放标志:升起即播放,放下即停止。非循环片段播完时引擎会把它放下。 |
 | `finished` | boolean | `false` | 运行时只读:片段已播完;再次升起 `playing` 会重新播放。 |
 | `playOnAwake` | boolean | `false` | 实体启用时自动开始。 |
