@@ -146,5 +146,33 @@ for (const c of [
     results.push(`${c.name} channel → ${c.installed ? 'installed' : 'absent'}`);
 }
 
+// A texture recipe is drawn by esengine/image, which installs its drawer by being
+// imported and exports nothing a package's host uses. Its entry is a re-export of
+// a chunk the native entry shares, so the install is a statement in that chunk:
+// unlisted, the bundler dropped the whole of it, and an export that shipped
+// recipes drew its ground and its walls with no texture ("nothing here draws
+// recipes"). The words are the drawer's own, so they are in a bundle only when it is.
+const RECIPE_DRAWER = 'has no canvas to draw text on';
+for (const c of [
+    { name: 'lean', imports: [], installed: false },
+    { name: 'lean+image', imports: ['esengine/image'], installed: true },
+]) {
+    const src = path.join(work, `recipes-${c.name.replace(/\W+/g, '-')}.mjs`);
+    const out = `${src}.bundle.mjs`;
+    writeFileSync(src, c.imports.map((m) => `import ${JSON.stringify(m)};\n`).join('') + `import 'esengine/lean';\n`);
+    await build({
+        entryPoints: [src], outfile: out, bundle: true, format: 'esm', platform: 'node', logLevel: 'silent',
+        alias: { 'esengine/lean': path.join(SDK, 'dist/index.lean.js') },
+    });
+    const carried = readFileSync(out, 'utf8').includes(RECIPE_DRAWER);
+    if (carried !== c.installed) {
+        fail(`${c.name}: the drawer of texture recipes ${c.installed ? 'should be installed' : 'should be absent'}, `
+            + `but the bundle ${carried ? 'carries' : 'lacks'} it.`
+            + '\n\nesengine/image installs it with a call at the end of image/index.ts, which the build puts in a shared chunk:'
+            + ' list that chunk in sdk/package.json "sideEffects".');
+    }
+    results.push(`${c.name} recipes → ${c.installed ? 'installed' : 'absent'}`);
+}
+
 rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 console.log(`check-entry-boots: ${results.length} case(s) bundled and run — ${results.join(', ')}.`);

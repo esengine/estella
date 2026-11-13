@@ -28,6 +28,7 @@
     "./dist/water/index.js",
     "./dist/spline/index.js",
     "./dist/image/index.js",
+    "./dist/shared/image.js",
     "./dist/voxel/index.js",
     "./dist/rig2d/index.js",
     "./dist/imported-scene/index.js",
