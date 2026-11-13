@@ -32,6 +32,7 @@ import { resolveRelativePath } from '../../../sdk/src/asset/documentRef';
 // so the dep scan discovers an atlas's texture pages the same way they will be requested.
 import { parseSpineAtlasPages } from '../../../sdk/src/spine/atlasPages';
 import { getEditorType } from '../../../sdk/src/assetTypes';
+import { isTextureRecipePath } from '../../../sdk/src/asset/textureRecipePath';
 
 /** Local, gitignored cache inside the project (next to workspace.json). */
 const CACHE_DIR = '.esengine/cache';
@@ -239,7 +240,7 @@ const JSON_REF_TYPES = new Set([
   'json', 'sound-event', 'world-rules', 'terrain-layer', 'terrain-tiles',
 ]);
 
-const isTextureRecipe = (e: { type: string; path: string }): boolean => e.type === 'imageSource' && e.path.toLowerCase().endsWith('.esimage');
+const isTextureRecipe = (e: { type: string; path: string }): boolean => e.type === 'imageSource' && isTextureRecipePath(e.path);
 /** A clip that is a recipe names the recordings it plays (a sampled instrument's notes, a sample layer's file). */
 const isAudioRecipe = (e: { type: string }): boolean => e.type === 'soundSource' || e.type === 'musicSource';
 

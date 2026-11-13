@@ -4798,4 +4798,6 @@ export const NOTED = {
     {"note": "A shadow map is drawn again only when what it holds changed."},
   "fix(modeling): a model's report is its steps as written, and names a step that undoes a decimate - the report listed every plain step a repeat came to (a tree of thirteen rows of branches was a hundred and thirty-eight entries) under indexes no edit takes, and said nothing when a patterned stain after a decimate split 1100 triangles into 214,534; a repeat is one entry counted, each step says the triangles it left, and such a step is a warning naming both":
     {"note": "A model's report is its steps as written, and names a step that undoes a decimate."},
+  "fix(modeling): a model's picture can be a recipe - material.texture took a .png, .jpg or .webp and refused the .esimage the picture was drawn from, so a model named pixels where the scene beside it named layers; a recipe is accepted, and whether a path names one is asked in one place (textureRecipePath) by the runtime, the packager and the model source":
+    {"note": "A model's picture can be a recipe."},
 };

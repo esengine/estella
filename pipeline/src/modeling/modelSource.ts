@@ -33,6 +33,7 @@ import { strip } from './strip';
 import { expandSteps, ModelExpandError, needsExpanding } from './modelExpand';
 import { checkAnimations, checkController, checkRig, checkShapes, resolveJoints, type AnimationSource, type ControllerSource, type RigSource, type ShapeSource } from './rig';
 import { compact, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
+import { isTextureRecipePath } from '../../../sdk/src/asset/textureRecipePath';
 
 export const MODEL_SOURCE_VERSION = 1;
 export const MODEL_SOURCE_EXT = '.esmodel';
@@ -496,7 +497,11 @@ function validatePlain(raw: unknown): ModelSource {
                 continue;
             }
             if (key === 'texture') {
-                if (typeof value !== 'string' || !/.(png|jpg|jpeg|webp)$/i.test(value)) throw new ModelBuildError('material.texture must be a project path to a picture (.png, .jpg, .webp)', null, null, null);
+                // A picture, or the recipe one is drawn from: a recipe is read wherever an image is, and a model that could only name
+                // the .png shipped pixels where its scene shipped layers.
+                if (typeof value !== 'string' || !(/\.(png|jpg|jpeg|webp)$/i.test(value) || isTextureRecipePath(value))) {
+                    throw new ModelBuildError('material.texture must be a project path to a picture (.png, .jpg, .webp) or to the recipe of one (.esimage)', null, null, null);
+                }
                 continue;
             }
             if (!['roughness', 'metallic', 'cutoff'].includes(key)) throw new ModelBuildError(`material has an unknown field "${key}"; it takes roughness, metallic, alpha, cutoff, emissive, texture`, null, null, null);

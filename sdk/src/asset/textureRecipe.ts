@@ -16,6 +16,7 @@
 import { contentHashHex } from './contentHash';
 import { platformReadCacheFile, platformWriteCacheFile } from '../platform';
 import { decodeUtf8, encodeUtf8 } from '../util/utf8';
+import { isTextureRecipePath } from './textureRecipePath';
 
 /** The pixels a recipe draws: top row first, RGBA, as a decoded image is. */
 export interface RecipePixels { width: number; height: number; pixels: Uint8Array }
@@ -42,17 +43,12 @@ export interface TextureRecipeStats {
     reused: number;
 }
 
-const RECIPE_EXTENSION = '.esimage';
 /** A kept picture's bytes: two sizes, then its pixels. */
 const KEPT_HEADER = 8;
 let drawer: TextureRecipeDrawer | null = null;
 const stats: TextureRecipeStats = { drawn: 0, drawMs: 0, reused: 0 };
 
-/** Whether a texture's path names a recipe and not an image. */
-export function isTextureRecipePath(path: string): boolean {
-    const end = path.indexOf('?');
-    return (end < 0 ? path : path.slice(0, end)).toLowerCase().endsWith(RECIPE_EXTENSION);
-}
+export { isTextureRecipePath } from './textureRecipePath';
 
 /** Installs what draws recipes (null takes it out again). `esengine/image` does this on import. */
 export function setTextureRecipeDrawer(next: TextureRecipeDrawer | null): void {
