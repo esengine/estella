@@ -4642,6 +4642,10 @@ export const NOTED = {
     {"note": "An AI can make background music."},
   "feat(music): the tool text says how to mix a piece, when time should give, and how a part is written against another - a bass that moves, a second line, chords laid out by hand":
     {"note": "An AI can make background music."},
+  "fix(music): the tool text puts leaving a part alone before adding to it - a walking bass and a second line made a quiet piece worse when they were heard, so a held bass under a slow tune is said to be right and movement is for where a piece is bare":
+    {"note": "An AI can make background music."},
+  "chore(desktop): the music tool text puts leaving a part alone before adding to it":
+    {"note": "An AI can make background music."},
   "feat(sky): a sky of your own shades the ground under its clouds - defineSkyEffect takes groundShadow and a second function, skyShadow(world, sun), what is left of the light at a world position, and the sky pass multiplies every surface it finds by it, as Sky Atmosphere does with its own clouds":
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":
