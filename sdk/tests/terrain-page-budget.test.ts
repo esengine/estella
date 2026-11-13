@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, expect, it } from 'vitest';
-import { makePage, makePageJob, PAGE_SIDE, type PageImage } from '../src/terrain/pages';
+import { makePage, makePageJob, PageTable, PAGE_SIDE, type PageImage } from '../src/terrain/pages';
 import { noiseProvider, ProviderSource } from '../src/terrain/provider';
 import type { TerrainSource } from '../src/terrain/source';
 
@@ -48,5 +48,21 @@ describe('incremental terrain pages', () => {
         job.return(undefined as never);
         expect(job.next().done).toBe(true);
         expect(calls).toBe(before);
+    });
+});
+
+describe('a full page table', () => {
+    // The ground chooses what it draws, then makes pages, then places its nodes. A page chosen and not yet marked is the least
+    // recently drawn there is, so the page made next took its slot and the node placed after had no page (a throw every frame).
+    it('gives up the least recently drawn page, and never one marked as drawn this frame', () => {
+        const table = new PageTable(PAGE_SIDE * 2);
+        for (const key of ['a', 'b', 'c', 'd']) expect(table.claim(key, 0, 1)).not.toBeNull();
+        table.tick();
+        for (const key of ['a', 'b', 'c']) table.touch(key);
+        expect(table.claim('e', 0, 1)).not.toBeNull();
+        expect(['a', 'b', 'c', 'd'].map((key) => table.get(key) !== undefined)).toEqual([true, true, true, false]);
+        // With every page drawn this frame there is no slot to give, and the page waits a frame.
+        table.touch('e');
+        expect(table.claim('f', 0, 1)).toBeNull();
     });
 });

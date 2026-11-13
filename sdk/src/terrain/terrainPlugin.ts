@@ -1025,6 +1025,9 @@ export class TerrainPlugin implements Plugin {
                 if (covered.has(nodeKey(up.level, up.ix, up.iz))) { drawn.delete(key); break; }
             }
         }
+        // What is drawn this frame is in use before any page is made: a page made now takes the slot of the least recently drawn,
+        // and a page chosen above and not yet marked was that one, gone by the time its node was placed.
+        for (const key of drawn.keys()) table.touch(key);
         this.makePages(app, built, source, eyeAt, t.worldPosition);
 
         const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { Material.setUniform(built.instance, name, value); };

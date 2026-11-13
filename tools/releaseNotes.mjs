@@ -4698,6 +4698,8 @@ export const NOTED = {
     {"note": "A picture made in the editor ships as a recipe."},
   "fix(render): the built-in ripple map is drawn again after a device loss, and no copy of it is kept - every game held 256 KB for a map only water reads; and the checks that went red since: a cost scene with no criterion, TilemapLayer.lit in its defaults, NativeChannel frozen before it earned it, a wav encoder that refused read-only channels, a worker test with five seconds for twenty realms":
     {"note": "A game no longer keeps a copy of the built-in ripple map."},
+  "fix(terrain): a ground with more pages wanted than it holds no longer throws every frame - the pages it had chosen to draw were marked in use only after new pages were made, so a new page took the slot of one about to be drawn and its node was placed on nothing":
+    {"note": "A large ground no longer throws every frame once its pages run out."},
   "chore(gates): what the checks asked of this week's work - a disposition for esengine/image in a native script and its namespace there, Waterfall's width and its place in the corpus, the recipe worker's bundle as not a contract, shadeLight2D's inout against its return, and a test that named App as a type":
     {"internal": "tables the gates read, brought level; a natively packaged script can now import esengine/image, which no native game has run yet"},
   "feat(image): a picture's source goes where a texture goes, and its maps are recipes too - a texture field takes an .esimage, the image tools write a picture's normal and surface maps as recipes beside it and answer their refs, text is set by the drawer a game sets it with, and the viewport draws a recipe as a game does":
