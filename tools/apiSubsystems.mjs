@@ -307,6 +307,16 @@ export const SUBSYSTEMS = [
         entry: ['RigidBody3D', 'Physics3D', 'Physics3DPlugin', 'CharacterController3D'],
     },
     {
+        id: 'breakable',
+        title: 'Breakable objects',
+        titleZh: '可破坏物体',
+        source: ['breakable'],
+        tier: 'experimental',
+        why: 'a struck thing swaps for its pre-cut pieces in a unit test and an editor check, and no example or golden project breaks anything yet',
+        whyZh: '被击中的物体换成预先切好的碎块，这件事有单元测试和编辑器检查在验，但还没有任何示例或 golden 项目真的打碎过东西',
+        entry: ['Breakable', 'Broke', 'BreakablePlugin'],
+    },
+    {
         id: 'mesh',
         title: '3D models & skinning',
         titleZh: '3D 模型与蒙皮',
