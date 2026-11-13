@@ -28,6 +28,7 @@
 #include "../renderer/rhi/Texture.hpp"
 #include "../renderer/rhi/Buffer.hpp"
 #include "Mesh.hpp"
+#include "MeshArena.hpp"
 #include "Environment.hpp"
 #include "ProbeVolume.hpp"
 #include "../text/BitmapFont.hpp"
@@ -736,6 +737,18 @@ private:
     ResourcePool<IndexBuffer> indexBuffers_;
     bool meshEdges_ = false;
     ResourcePool<Mesh> meshes_;
+    /// The pages meshes of one vertex shape share (see MeshArena).
+    MeshArena meshArena_;
+    /** Gives back what a mesh's geometry holds, its own buffers and layout or its place in a page; the edges are apart. */
+    void releaseMeshGeometry(VertexBufferHandle vertices, IndexBufferHandle indices, VertexLayoutHandle layout,
+                             u32 arenaPage, u32 arenaFirstVertex, u32 vertexCount, u32 firstIndex, u32 indexCount);
+
+public:
+    /** The shared mesh pages standing and the bytes they hold, for a profiler. */
+    u32 meshPageCount() const { return meshArena_.pageCount(); }
+    u64 meshPageBytes() const { return meshArena_.pageBytes(); }
+
+private:
     ResourcePool<Environment> environments_;
     ResourcePool<ProbeVolume> probeVolumes_;
     ResourcePool<text::BitmapFont> fonts_;

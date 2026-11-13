@@ -39,6 +39,7 @@ env:
     test_touch_stream
     test_frame_lifecycle
     test_particle_stretch test_particle_speed_limit test_particle_bursts
+    test_record_table
 
 jobs:
   playable-runtime:

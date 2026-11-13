@@ -55,39 +55,68 @@ bool rematerialize(resource::ResourceManager& rm, resource::MeshHandle h, f32 ex
         sizeof(Vertex), glm::vec3(0.0f), glm::vec3(extent));
 }
 
+// The same triangle with a third channel: a vertex of another shape, which no page of the first shape can hold.
+bool rematerializeWide(resource::ResourceManager& rm, resource::MeshHandle h) {
+    const f32 verts[3 * 8] = {0, 0, 0, 0, 0, 0, 0, 1,  1, 0, 0, 1, 0, 0, 0, 1,  0, 1, 0, 0, 1, 0, 0, 1};
+    const u32 indices[3] = {0, 1, 2};
+    const GfxVertexAttribute wide[3] = {
+        {0, 3, GfxDataType::Float, false, 0, 0},
+        {1, 2, GfxDataType::Float, false, 12, 0},
+        {2, 3, GfxDataType::Float, false, 20, 0},
+    };
+    return rm.rematerializeMesh(
+        h, ConstSpan<u8>(reinterpret_cast<const u8*>(verts), sizeof(verts)),
+        ConstSpan<u32>(indices, 3), ConstSpan<GfxVertexAttribute>(wide, 3),
+        8 * sizeof(f32), glm::vec3(0.0f), glm::vec3(1.0f));
+}
+
 }  // namespace
 
 int main() {
-    // Layout ownership follows the mesh through replacement, failure and shutdown.
+    // Replayable meshes of one vertex shape share a page: its layout and both its buffers, each mesh at its own range. A mesh
+    // of buffers of its own owns its layout. A page goes with its last mesh.
     {
         MockGfxDevice d;
         resource::ResourceManager rm;
         rm.init(d);
         const auto first = makeMesh(rm, MeshRecovery::SourceReplayable);
-        const auto second = makeMesh(rm, MeshRecovery::HostOnly);
-        const auto oldLayout = rm.getMesh(first)->layout;
-        const auto secondLayout = rm.getMesh(second)->layout;
-        CHECK(oldLayout != secondLayout, "identical mesh descriptions own distinct layouts");
-        CHECK(rematerialize(rm, first, 2.0f), "a mesh can replace its realization");
-        CHECK(d.vertexLayoutDesc(oldLayout) == nullptr,
-              "replacement releases the previous vertex layout");
-        const auto liveLayout = rm.getMesh(first)->layout;
-        const int deletedBeforeFailure = d.deleteVertexLayoutCalls;
-        d.createBufferSucceeds = false;
-        CHECK(!rematerialize(rm, first, 3.0f), "allocation failure refuses a replacement");
-        CHECK(d.deleteVertexLayoutCalls == deletedBeforeFailure + 1 &&
-                  d.vertexLayoutDesc(liveLayout) != nullptr,
-              "failed allocation releases its new layout and preserves the live one");
-        d.createBufferSucceeds = true;
+        const auto second = makeMesh(rm, MeshRecovery::SourceReplayable);
+        const auto own = makeMesh(rm, MeshRecovery::HostOnly);
+        const Mesh* a = rm.getMesh(first);
+        const Mesh* b = rm.getMesh(second);
+        const Mesh* o = rm.getMesh(own);
+        CHECK(a->arenaPage != 0 && a->arenaPage == b->arenaPage, "two replayable meshes of one vertex shape share a page");
+        CHECK(a->layout == b->layout && a->vertexBuffer == b->vertexBuffer && a->indexBuffer == b->indexBuffer,
+              "its layout and both its buffers");
+        CHECK(a->firstIndex != b->firstIndex && a->arenaFirstVertex != b->arenaFirstVertex,
+              "each at its own range of the indices and of the vertices");
+        CHECK(rm.meshPageCount() == 1, "one page holds them");
+        CHECK(o->arenaPage == 0 && o->layout != a->layout, "a host-only mesh owns its buffers and its layout");
+        const auto pageLayout = a->layout;
+        const auto ownLayout = o->layout;
+        CHECK(rematerialize(rm, first, 2.0f), "a shared mesh can replace its realization");
+        CHECK(rm.getMesh(first)->layout == pageLayout && d.vertexLayoutDesc(pageLayout) != nullptr,
+              "in the page it shares, whose layout stands");
         rm.releaseMesh(first);
-        CHECK(d.vertexLayoutDesc(liveLayout) == nullptr && d.vertexLayoutDesc(secondLayout) != nullptr,
-              "releasing one mesh releases only its layout");
+        CHECK(d.vertexLayoutDesc(pageLayout) != nullptr, "releasing one mesh of a page keeps the page");
+        rm.releaseMesh(second);
+        CHECK(d.vertexLayoutDesc(pageLayout) == nullptr && rm.meshPageCount() == 0, "and the page goes with its last mesh");
         rm.shutdown();
-        CHECK(d.vertexLayoutDesc(secondLayout) == nullptr && rm.getMesh(second) == nullptr,
+        CHECK(d.vertexLayoutDesc(ownLayout) == nullptr && rm.getMesh(own) == nullptr,
               "shutdown releases remaining meshes and their layouts");
         const int deleted = d.deleteVertexLayoutCalls;
         rm.shutdown();
         CHECK(d.deleteVertexLayoutCalls == deleted, "resource shutdown is idempotent");
+    }
+    // A mint the device refuses releases the layout it made.
+    {
+        MockGfxDevice d;
+        resource::ResourceManager rm;
+        rm.init(d);
+        const int before = d.deleteVertexLayoutCalls;
+        d.createBufferSucceeds = false;
+        CHECK(!makeMesh(rm, MeshRecovery::HostOnly).isValid(), "a host-only mesh the device refuses is not minted");
+        CHECK(d.deleteVertexLayoutCalls == before + 1, "and the layout made for it is released");
     }
     // --- The identity and its buffers survive; replayable geometry is owed ---
     {
@@ -173,6 +202,7 @@ int main() {
         CHECK(rematerialize(rm, h, 2.0f), "a replayed source rematerializes");
         CHECK(rm.getMesh(h) == record, "into the SAME record — no second handle was minted");
         CHECK(record->isDrawable(), "which is drawable");
+        CHECK(record->arenaPage != 0, "in a page of the new device: the page it left was owed whole");
         CHECK(record->localMax == glm::vec3(2.0f), "carrying the geometry that was replayed");
         CHECK(rm.meshesAwaitingRematerialization().empty(), "and the debt is paid");
         CHECK(d.deviceStatus() == GfxDeviceStatus::Live, "so the device is whole again");
@@ -216,13 +246,16 @@ int main() {
         CHECK(record->hasRealization(), "and the mesh keeps what it had");
 
         // The other way it fails, and the one the promise is actually about: the
-        // geometry is fine and the GPU cannot allocate for it.
+        // geometry is fine and the GPU cannot allocate for it. A vertex of another shape, so
+        // the page the mesh is in cannot take it and a new one has to be made.
+        const u32 firstIndex = record->firstIndex;
         d.createBufferSucceeds = false;
-        CHECK(!rematerialize(rm, h, 1.0f), "a rebuild the GPU cannot allocate for fails");
+        CHECK(!rematerializeWide(rm, h), "a rebuild the GPU cannot allocate for fails");
         CHECK(record->hasRealization(),
               "and the mesh KEEPS the realization it had — a rebuild that cannot finish must"
               " not take away the geometry that was already drawing");
-        CHECK(record->vertexBuffer == vbo && record->indexBuffer == ebo, "the same buffers");
+        CHECK(record->vertexBuffer == vbo && record->indexBuffer == ebo && record->firstIndex == firstIndex,
+              "the same buffers, at the same range");
     }
 
     // --- Host-only geometry cannot be rematerialized into ---

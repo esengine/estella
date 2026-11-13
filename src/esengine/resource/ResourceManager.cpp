@@ -54,6 +54,7 @@ void ResourceManager::init(GfxDevice& device) {
     }
 
     device_ = &device;
+    meshArena_.init(device);
 
     stats_ = {};
     initialized_ = true;
@@ -78,6 +79,7 @@ void ResourceManager::shutdown() {
     std::vector<MeshHandle> retiredMeshes;
     meshes_.forEachAlive([&](MeshHandle handle, const Mesh&) { retiredMeshes.push_back(handle); });
     for (MeshHandle handle : retiredMeshes) releaseMesh(handle);
+    meshArena_.shutdown();
     vertexBuffers_.clear();
     indexBuffers_.clear();
 
@@ -618,26 +620,49 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     const VertexBufferHandle previousVertices = mesh.vertices;
     const IndexBufferHandle previousIndices = mesh.indices;
     const IndexBufferHandle previousEdges = mesh.edges;
+    const VertexLayoutHandle previousLayout = mesh.layout;
+    const u32 previousPage = mesh.arenaPage, previousFirstVertex = mesh.arenaFirstVertex, previousVertexCount = mesh.vertexCount;
+    const u32 previousFirstIndex = mesh.firstIndex, previousIndexCount = mesh.indexCount;
 
     // A replayable mesh is refilled by its source; one built in this process has
     // no other copy, so the device keeps it.
     const GfxContent content = mesh.recovery == MeshRecovery::SourceReplayable
         ? toGfxContent(ResourceContent::Mesh)
         : GfxContent::retained();
-    const VertexBufferHandle vertices = createVertexBuffer(content, vertexBytes);
-    const IndexBufferHandle indices_handle = createIndexBuffer(content, indices);
-    const VertexBuffer* vb = getVertexBuffer(vertices);
-    const IndexBuffer* ib = getIndexBuffer(indices_handle);
-    const VertexLayoutHandle layoutHandle = device_->createVertexLayout(layout);
-    // A pool record is not a GPU object. An allocation the device refused still
-    // lands in the pool, so its handle reads as valid while naming nothing — the
-    // shape in which a failure becomes a mesh that silently draws no triangles.
-    if (!vb || !ib || vb->handle() == BufferHandle::Invalid
-        || ib->handle() == BufferHandle::Invalid || layoutHandle == VertexLayoutHandle::Invalid) {
-        releaseVertexBuffer(vertices);
-        releaseIndexBuffer(indices_handle);
-        device_->deleteVertexLayout(layoutHandle);
-        return false;
+
+    // A page shared with the meshes of its vertex shape, where it can have one: drawn one after another, they switch no vertex
+    // array, buffer or pipeline. Not a mesh that reads its own vertex number (morph deltas are found by gl_VertexID, which a
+    // page's numbering would shift), and not one the device has to keep the bytes of (a page is written in parts, and kept
+    // whole would keep every mesh in it twice).
+    const bool morphs = morph.targetCount > 0 && !morph.deltas.empty();
+    MeshArena::Slot slot;
+    MeshArena::Binding shared;
+    const bool placed = mesh.recovery == MeshRecovery::SourceReplayable && !morphs
+        && meshArena_.place(layout, content, vertexBytes, vertexStride, indices, slot, shared);
+
+    VertexBufferHandle vertices;
+    IndexBufferHandle indices_handle;
+    BufferHandle vertexBufferId = shared.vertexBuffer;
+    BufferHandle indexBufferId = shared.indexBuffer;
+    VertexLayoutHandle layoutHandle = shared.layout;
+    if (!placed) {
+        vertices = createVertexBuffer(content, vertexBytes);
+        indices_handle = createIndexBuffer(content, indices);
+        const VertexBuffer* vb = getVertexBuffer(vertices);
+        const IndexBuffer* ib = getIndexBuffer(indices_handle);
+        layoutHandle = device_->createVertexLayout(layout);
+        // A pool record is not a GPU object. An allocation the device refused still
+        // lands in the pool, so its handle reads as valid while naming nothing — the
+        // shape in which a failure becomes a mesh that silently draws no triangles.
+        if (!vb || !ib || vb->handle() == BufferHandle::Invalid
+            || ib->handle() == BufferHandle::Invalid || layoutHandle == VertexLayoutHandle::Invalid) {
+            releaseVertexBuffer(vertices);
+            releaseIndexBuffer(indices_handle);
+            device_->deleteVertexLayout(layoutHandle);
+            return false;
+        }
+        vertexBufferId = vb->handle();
+        indexBufferId = ib->handle();
     }
 
     // The edges follow the triangles' own content policy, and a failure to make them
@@ -645,7 +670,9 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     IndexBufferHandle edgeHandle;
     u32 edgeCount = 0;
     if (meshEdges_) {
-        const std::vector<u32> lines = distinctMeshEdges(indices);
+        std::vector<u32> lines = distinctMeshEdges(indices);
+        // The edges index the same vertices as the triangles, so they are rebased onto a page's as the triangles were.
+        if (placed) for (u32& index : lines) index += slot.firstVertex;
         edgeHandle = createIndexBuffer(content, ConstSpan<u32>(lines));
         const IndexBuffer* eb = getIndexBuffer(edgeHandle);
         if (eb && eb->handle() != BufferHandle::Invalid) {
@@ -656,20 +683,22 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
         }
     }
 
-    releaseVertexBuffer(previousVertices);
-    releaseIndexBuffer(previousIndices);
+    releaseMeshGeometry(previousVertices, previousIndices, previousLayout, previousPage, previousFirstVertex,
+                        previousVertexCount, previousFirstIndex, previousIndexCount);
     releaseIndexBuffer(previousEdges);
-    device_->deleteVertexLayout(mesh.layout);
 
     mesh.edges = edgeHandle;
     mesh.edgeIndexBuffer = edgeCount > 0 ? getIndexBuffer(edgeHandle)->handle() : BufferHandle::Invalid;
     mesh.edgeIndexCount = edgeCount;
     mesh.vertices = vertices;
     mesh.indices = indices_handle;
-    mesh.vertexBuffer = vb->handle();
-    mesh.indexBuffer = ib->handle();
+    mesh.vertexBuffer = vertexBufferId;
+    mesh.indexBuffer = indexBufferId;
     mesh.layout = layoutHandle;
     mesh.indexCount = static_cast<u32>(indices.size());
+    mesh.firstIndex = placed ? slot.firstIndex : 0;
+    mesh.arenaPage = placed ? slot.page : 0;
+    mesh.arenaFirstVertex = placed ? slot.firstVertex : 0;
     mesh.hasNormals = hasNormals;
     mesh.hasLightmapUV = lightmapped;
     // A tangent frame is a frame OF the normal: one without a normal to square it to is not read.
@@ -834,13 +863,25 @@ std::vector<MeshHandle> ResourceManager::meshesAwaitingRematerialization() const
     return out;
 }
 
+void ResourceManager::releaseMeshGeometry(VertexBufferHandle vertices, IndexBufferHandle indices, VertexLayoutHandle layout,
+                                          u32 arenaPage, u32 arenaFirstVertex, u32 vertexCount, u32 firstIndex,
+                                          u32 indexCount) {
+    if (arenaPage != 0) {
+        // The page's buffers and layout are the page's: the mesh gives back its ranges, and the last one out deletes the page.
+        meshArena_.free({arenaPage, arenaFirstVertex, vertexCount, firstIndex, indexCount});
+        return;
+    }
+    // The RHI creates a distinct layout for each realization, owned by this mesh.
+    if (device_) device_->deleteVertexLayout(layout);
+    releaseVertexBuffer(vertices);
+    releaseIndexBuffer(indices);
+}
+
 void ResourceManager::releaseMesh(MeshHandle handle) {
     Mesh* mesh = meshes_.get(handle);
     if (!mesh) return;
-    // The RHI creates a distinct layout for each realization, owned by this mesh.
-    if (device_) device_->deleteVertexLayout(mesh->layout);
-    releaseVertexBuffer(mesh->vertices);
-    releaseIndexBuffer(mesh->indices);
+    releaseMeshGeometry(mesh->vertices, mesh->indices, mesh->layout, mesh->arenaPage, mesh->arenaFirstVertex,
+                        mesh->vertexCount, mesh->firstIndex, mesh->indexCount);
     releaseIndexBuffer(mesh->edges);
     // The delta texture IS the mesh's own — nothing shares it, unlike the layout.
     if (mesh->morphTexture != esengine::TextureHandle::Invalid && device_) {

@@ -428,6 +428,7 @@ bool GLDevice::recreateDevice() {
     query_names_.clear();
     framebuffer_resolve_.clear();
     vaos_.clear();
+    last_vao_ = nullptr;
     readbacks_.clear();
     max_samples_ = 0;
     // A timer query in flight was begun on the old context, so the timings are
@@ -1153,6 +1154,7 @@ void GLDevice::backendDeleteVertexLayout(u32 id) {
             }
             glDeleteVertexArrays(1, &it->second.vao);
         }
+        last_vao_ = nullptr;
         it = vaos_.erase(it);
     }
 }
@@ -1173,6 +1175,7 @@ void GLDevice::releaseVaosUsing(u32 bufferName) {
             }
             glDeleteVertexArrays(1, &it->second.vao);
         }
+        last_vao_ = nullptr;
         it = vaos_.erase(it);
     }
 }
@@ -1197,7 +1200,11 @@ void GLDevice::prepareVertexState() {
         const u32 slot = desc->attributes[a].bufferSlot;
         if (slot < MAX_VERTEX_BUFFER_SLOTS) key.vbo[slot] = pending_vbo_[slot];
     }
-    VaoCache& rec = vaos_[key];
+    if (!last_vao_ || !(key == last_vao_key_)) {
+        last_vao_ = &vaos_[key];
+        last_vao_key_ = key;
+    }
+    VaoCache& rec = *last_vao_;
 
     if (rec.vao == 0) {
         glGenVertexArrays(1, &rec.vao);

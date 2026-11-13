@@ -1201,7 +1201,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     drawn.vertexBuffer = geo.vertexBuffer;
                     drawn.indexBuffer = geo.indexBuffer;
                     drawn.vertexLayout = geo.layout;
-                    pushBatchDraw(draw_list, clips, offset, 0, 0, geo.indexCount, drawn);
+                    pushBatchDraw(draw_list, clips, offset, 0, geo.firstIndex, geo.indexCount, drawn);
                     if (!depthPass && !wire && key.materialId != 0 && ctx.materials && ctx.materials->hasTipPass(key.materialId)) {
                         const u32 tipProgram = ctx.materials->meshProgram(key.materialId, ctx.resources, geo.hasNormals, skinned,
                                                                           key.envTextureId != 0, geo.hasLightmapUV, false,
@@ -1212,7 +1212,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                             tips.stage = RenderStage::Transparent;
                             tips.blend = BlendMode::Normal;
                             tips.depthWrite = false;
-                            pushBatchDraw(draw_list, clips, offset, 0, 0, geo.indexCount, tips);
+                            pushBatchDraw(draw_list, clips, offset, 0, geo.firstIndex, geo.indexCount, tips);
                         }
                     }
                 };

@@ -62,6 +62,16 @@ public:
     u32 indexCount = 0;
 
     /**
+     * Where this mesh's first index sits in indexBuffer: past zero when the mesh shares a page with others of its vertex shape
+     * (MeshArena), whose buffers and layout it then draws through. Its indices are rebased onto the page's vertices, so a draw
+     * reads indexCount of them from here and needs nothing else to find its own.
+     */
+    u32 firstIndex = 0;
+    /** The page and first vertex of that place, to give it back: page 0 is buffers of the mesh's own. */
+    u32 arenaPage = 0;
+    u32 arenaFirstVertex = 0;
+
+    /**
      * The mesh's own edges as line-list indices into the same vertices, one pair per
      * distinct edge. Derived from `indices` when the mesh is realized, and only while
      * the manager is asked for diagnostic geometry (an editor's wireframe view): a

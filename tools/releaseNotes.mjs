@@ -4802,4 +4802,6 @@ export const NOTED = {
     {"note": "A model's picture can be a recipe."},
   "fix(mcp): clearing an asset field from automation clears it - set_field turned 0 and null into the paths \"0\" and \"null\", which the scene kept and an export then could not find; nothing (null, 0, false, the empty string, or the words for it from a text transport) is what the inspector's clear button stores, by one function both ask, and a number that names nothing is refused":
     {"note": "Clearing an asset field from automation clears it."},
+  "perf(render): meshes of one vertex shape share a vertex buffer, an index buffer and a layout - each mesh had its own, so every draw of a scene switched vertex array and pipeline; replayable meshes take ranges of shared pages (MeshArena) with their indices rebased, and a run of them switches nothing":
+    {"note": "Meshes of one vertex shape share their buffers."},
 };

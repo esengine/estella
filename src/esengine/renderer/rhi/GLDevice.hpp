@@ -320,6 +320,10 @@ private:
         }
     };
     std::unordered_map<VaoKey, VaoCache, VaoKeyHash> vaos_;
+    /// The last VAO looked up, and by what: draws one after another through the same buffers (meshes sharing a page) ask for
+    /// the same one, and are answered without a hash. Forgotten whenever vaos_ erases.
+    VaoKey last_vao_key_{};
+    VaoCache* last_vao_ = nullptr;
     /// Deletes every VAO that reads from a GL buffer name, before the name is deleted and reused.
     void releaseVaosUsing(u32 bufferName);
     u32 current_layout_ = 0;
