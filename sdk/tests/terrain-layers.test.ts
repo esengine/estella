@@ -100,3 +100,23 @@ describe('eight layers of paint', () => {
         expect(page.paint2.every((v) => v === 0)).toBe(true);
     });
 });
+
+describe('a splatmap read by the ground', () => {
+    it('is read between its pixels, so a page finer than the paint is a ramp and not a row of squares', () => {
+        const field = { width: 2, height: 2, data: new Float32Array(4) };
+        const data = { sizeX: 100, sizeZ: 100, height: 10, rockSlope: 0.35, dirtHeight: 0.62, snowHeight: 0.88 };
+        // Two pixels across: all of layer 1 on the west, all of layer 2 on the east.
+        const pixels = new Uint8Array([255, 0, 0, 0, 0, 255, 0, 0, 255, 0, 0, 0, 0, 255, 0, 0]);
+        const source = new FieldSource(field, data, { width: 2, height: 2, pixels }, null, [0, 10]);
+        expect(source.paint(-50, 0, 0, 1).slice(0, 2)).toEqual([1, 0]);
+        expect(source.paint(50, 0, 0, 1).slice(0, 2)).toEqual([0, 1]);
+        const mid = source.paint(0, 0, 0, 1), quarter = source.paint(-25, 0, 0, 1);
+        expect(mid[0]).toBeCloseTo(0.5, 5);
+        expect(mid[1]).toBeCloseTo(0.5, 5);
+        expect(quarter[0]).toBeCloseTo(0.75, 5);
+        expect(quarter[1]).toBeCloseTo(0.25, 5);
+        // Every step across is a little more of the second: nowhere two samples the same and then a jump.
+        let last = -1;
+        for (let x = -50; x <= 50; x += 5) { const w = source.paint(x, 0, 0, 1)[1]!; expect(w).toBeGreaterThanOrEqual(last); expect(w - Math.max(last, 0)).toBeLessThan(0.06); last = w; }
+    });
+});

@@ -140,11 +140,20 @@ export class FieldSource implements TerrainSource {
         const u = Math.min(Math.max(x / this.data.sizeX + 0.5, 0), 1), v = Math.min(Math.max(z / this.data.sizeZ + 0.5, 0), 1);
         let w: number[] = [...paintWeights((h - this.minHeight) / this.span, ny, this.data)];
         // The splatmaps, where they say anything, say all of it: layers 1 to 4 from the first, 5 to 8 from the second.
+        // Read between its pixels: a page near the eye samples the ground finer than the splatmap is, and the nearest pixel alone drew
+        // every pixel of it as a flat square with an edge.
         const read = (splat: Splat | null): number[] => {
             if (!splat) return [0, 0, 0, 0];
-            const sx = Math.round(u * (splat.width - 1)), sy = Math.round(v * (splat.height - 1));
-            const at = (sy * splat.width + sx) * 4;
-            return [splat.pixels[at]! / 255, splat.pixels[at + 1]! / 255, splat.pixels[at + 2]! / 255, splat.pixels[at + 3]! / 255];
+            const fx = u * (splat.width - 1), fy = v * (splat.height - 1);
+            const x0 = Math.floor(fx), y0 = Math.floor(fy), x1 = Math.min(x0 + 1, splat.width - 1), y1 = Math.min(y0 + 1, splat.height - 1);
+            const tx = fx - x0, ty = fy - y0, px = splat.pixels, row0 = y0 * splat.width, row1 = y1 * splat.width;
+            const out = [0, 0, 0, 0];
+            for (let c = 0; c < 4; c++) {
+                const top = px[(row0 + x0) * 4 + c]! * (1 - tx) + px[(row0 + x1) * 4 + c]! * tx;
+                const bottom = px[(row1 + x0) * 4 + c]! * (1 - tx) + px[(row1 + x1) * 4 + c]! * tx;
+                out[c] = (top * (1 - ty) + bottom * ty) / 255;
+            }
+            return out;
         };
         if (this.splat || this.splat2) {
             const s = [...read(this.splat), ...(this.splat2 ? read(this.splat2) : [])];

@@ -4652,6 +4652,8 @@ export const NOTED = {
     {"note": "The grade has a gain and an offset, and the vignette a radius and a roundness."},
   "feat(foliage): a scale map - Foliage.scaleMap says how large the plants stand where, as the density map says how many, so a sward gets shorter as it runs out and its edge is soft where thinning alone left tufts at full height":
     {"note": "A scale map."},
+  "fix(terrain): a splatmap is read between its pixels - the ground took the nearest pixel of its splatmap, and a page near the eye samples finer than the paint, so every pixel of a splatmap was a flat square on the ground and a soft edge between two layers was a staircase":
+    {"note": "A splatmap is read between its pixels."},
   "fix(terrain): a detail the pages cannot hold no longer cracks the ground - a tree that wanted more nodes than the atlas has pages was drawn in part by coarser pages standing in, which do not meet their finer neighbours' edges, and the pages were fought over every frame; the ground is now drawn at the share of its detail's range that fits, and says so once":
     {"note": "A detail the pages cannot hold no longer cracks the ground."},
   "fix(foliage): a far plant grows across the ground, not taller - a mesh plant kept in a far version was grown the same every way to cover the ground of those left out, so a flower that stood for ten stood ten times as high and a far meadow was a field of poles; it now grows across the ground only, and Foliage.farGrowUp gives its height a share of the growth back":
