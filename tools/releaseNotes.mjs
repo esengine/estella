@@ -4580,6 +4580,8 @@ export const NOTED = {
     {"note": "A model is written once for all its like parts, and a leaf can be a picture."},
   "feat(modeling): the model tools say names, sums and repeats, strip, and a material's picture - and a model whose picture is not in the project is refused before anything is written":
     {"note": "A model is written once for all its like parts, and a leaf can be a picture."},
+  "fix(repo): put back the modeling commit the last one took out - 'a flower turns to face the eye' was built on the tree as it stood before 641f0da4e landed and committed on top of it, so it reverted that commit's files; they are as that commit left them, with both commits' notes":
+    {"internal": "Repairs the repository after one commit reverted another; the feature it restores has its own note."},
   "feat(sky): a sky of your own shades the ground under its clouds - defineSkyEffect takes groundShadow and a second function, skyShadow(world, sun), what is left of the light at a world position, and the sky pass multiplies every surface it finds by it, as Sky Atmosphere does with its own clouds":
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":
