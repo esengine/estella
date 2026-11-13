@@ -61,7 +61,7 @@ export interface FoliageCellSpec {
      * grown by, and whether a mesh's far version is cards (a tree) or the plant itself, fewer and larger. With `only`, the cell is that one
      * version alone (0 the near one), marked with its band: each version is then a layer of cells of its own, grown only as far out as it is drawn.
      */
-    far: { levels: number; keep: number; grow: number; cards: boolean; only?: number | null; up?: number };
+    far: { levels: number; keep: number; grow: number; cards: boolean; only?: number | null; up?: number; tilt?: number };
     /** Grass, as blades of this size; or copies of a mesh, with the card its far version is drawn as. */
     look: { kind: 'grass'; bladeHeight: number; bladeWidth: number }
         | { kind: 'mesh'; card: { u0: number; v0: number; u1: number; v1: number }; tent: boolean };
@@ -134,7 +134,7 @@ export function buildFoliageCell(spec: FoliageCellSpec, around: CellSurroundings
     const only = spec.far.only ?? null;
     const band = only === null ? undefined : only;
     const copies = (level: number): MeshData | null => {
-        const kept = level === 0 ? plants : rankedPlants(plants, share(level), spec.far.grow, undefined, spec.far.up ?? 0);
+        const kept = level === 0 ? plants : rankedPlants(plants, share(level), spec.far.grow, undefined, spec.far.up ?? 0, spec.far.tilt ?? 0);
         return kept.length === 0 ? null : buildInstancedMesh(source!, kept, spec.paint, band);
     };
     // A far blade is one quad, a little taller and as much wider as covers the ground of the ones left out: grass grows broader, not higher.

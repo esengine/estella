@@ -31,6 +31,23 @@ const STALK: MeshData = (() => {
     });
     return { channels, vertexStride, vertexCount: 3, vertices, indices: new Uint32Array([0, 1, 2]), aabbMin: [0, 0, 0], aabbMax: [0.1, 1, 0.2] };
 })();
+/** A mesh of these points and normals, one triangle fan over them. */
+const mesh = (points: number[][], normals: number[][]): MeshData => {
+    const { channels, vertexStride } = packChannels([
+        { semantic: MeshChannel.Position, components: 3, type: MeshChannelType.Float32 },
+        { semantic: MeshChannel.Normal, components: 3, type: MeshChannelType.Float32 },
+        { semantic: MeshChannel.TexCoord0, components: 2, type: MeshChannelType.Float32 },
+    ]);
+    const vertices = new Uint8Array(points.length * vertexStride), view = new DataView(vertices.buffer);
+    const at = channels.find((c) => c.semantic === MeshChannel.Position)!.offset, normal = channels.find((c) => c.semantic === MeshChannel.Normal)!.offset;
+    points.forEach((p, i) => p.forEach((v, k) => {
+        view.setFloat32(i * vertexStride + at + k * 4, v, true);
+        view.setFloat32(i * vertexStride + normal + k * 4, normals[i]![k]!, true);
+    }));
+    const min = [0, 1, 2].map((k) => Math.min(...points.map((q) => q[k]!))) as [number, number, number];
+    const max = [0, 1, 2].map((k) => Math.max(...points.map((q) => q[k]!))) as [number, number, number];
+    return { channels, vertexStride, vertexCount: points.length, vertices, indices: new Uint32Array([0, 1, 2]), aabbMin: min, aabbMax: max };
+};
 const alphaOf = (mesh: MeshData): number => mesh.vertices[mesh.channels.find((c) => c.semantic === MeshChannel.Color)!.offset + 3]!;
 
 describe('the plants a far version keeps', () => {
@@ -115,5 +132,34 @@ describe('a cell of grass', () => {
         expect(meshes.length).toBeLessThan(4);
         expect(buildFoliageCell({ ...few, far: { ...few.far, only: 3 } }, around, null)).toEqual([]);
         expect(buildFoliageCell({ ...few, heightMin: 5 }, around, null)).toEqual([]);
+    });
+});
+
+describe('a far plant with its top tipped', () => {
+    it('keeps its stem where it stood and turns its flower over about its highest point, normal and all', () => {
+        // A stem to 1 with a flat square on it, facing up.
+        const flower = mesh([[0, 0, 0], [0, 1, 0], [-0.2, 1, -0.2], [0.2, 1, -0.2], [0.2, 1, 0.2], [-0.2, 1, 0.2]], [[0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 1, 0]]);
+        const plant = { x: 0, y: 0, z: 0, yaw: 0, scale: 1, phase: 0, shade: 1 };
+        const flat = buildInstancedMesh(flower, [plant]);
+        const tipped = buildInstancedMesh(flower, [{ ...plant, tilt: Math.PI / 2 }]);
+        const at = (m: MeshData, v: number, semantic: number): number[] => {
+            const c = m.channels.find((ch) => ch.semantic === semantic)!;
+            const view = new DataView(m.vertices.buffer, m.vertices.byteOffset);
+            return [0, 1, 2].map((k) => view.getFloat32(v * m.vertexStride + c.offset + k * 4, true));
+        };
+        // the root and the stem's top have not moved
+        for (const v of [0, 1]) for (let k = 0; k < 3; k++) expect(at(tipped, v, MeshChannel.Position)[k]).toBeCloseTo(at(flat, v, MeshChannel.Position)[k]!, 6);
+        // a corner 0.2 out along z is 0.2 down now, and the face looks along z
+        const corner = at(tipped, 4, MeshChannel.Position);
+        expect(corner[1]).toBeCloseTo(1 - 0.2, 5);
+        expect(corner[2]).toBeCloseTo(0, 5);
+        expect(at(tipped, 4, MeshChannel.Normal).map((n) => +n.toFixed(5))).toEqual([0, 0, 1]);
+    });
+
+    it('is what a far version asks of the plants it keeps, and the near one never', () => {
+        const plants = Array.from({ length: 40 }, (_, i) => ({ x: i, y: 0, z: 0, yaw: 0, scale: 1, phase: i / 40, shade: 1 }));
+        for (const p of rankedPlants(plants, 0.25, 4, undefined, 0, 0.7)) expect(p.tilt).toBe(0.7);
+        for (const p of rankedPlants(plants, 0.25, 4)) expect(p.tilt).toBeUndefined();
+        expect(rankedPlants(plants, 1, 4, undefined, 0, 0.7)).toBe(plants);
     });
 });

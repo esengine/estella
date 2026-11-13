@@ -2485,6 +2485,13 @@
           "range": "0–1, step 0.01"
         },
         {
+          "key": "farTilt",
+          "type": "number",
+          "default": "0",
+          "doc": "How far the top of a mesh plant is tipped over in its far versions, each plant its own way round. A flat flower is edge on to a low eye a field away; tipped, half the field shows its face.",
+          "range": "0–90, step 1"
+        },
+        {
           "key": "farCards",
           "type": "boolean",
           "default": "true",
@@ -2661,6 +2668,7 @@
         "farStep",
         "farGrow",
         "farGrowUp",
+        "farTilt",
         "sizeX",
         "sizeZ",
         "cellSize",

@@ -27,6 +27,8 @@ export interface Plant {
     scale: number;
     /** How many times wider it is than its scale makes it, across the ground only: a far version's plant, standing for those left out. 1 when absent. */
     spread?: number;
+    /** How far its top (the last tenth of its height) is tipped over, in radians, toward the way it is turned: a far version's flower. 0 when absent. */
+    tilt?: number;
     /** 0 to 1: its own phase in the wind, and how dark its roots are. */
     phase: number;
     shade: number;
@@ -225,6 +227,9 @@ function reader(mesh: MeshData, semantic: number, components: number): ((v: numb
  * Copies of a mesh, one per plant, as one mesh: placed, turned about the vertical and scaled, with the wind's weights painted by how
  * high each vertex stands on its own copy (a tree's trunk hardly moves, its crown does).
  */
+/** The share of a plant's height where its top begins to tip, and where it is tipped whole. */
+const TIP_FROM = 0.9, TIP_WHOLE = 0.95;
+
 export function buildInstancedMesh(source: MeshData, plants: readonly Plant[], paint?: BladeParams['paint'], band?: number): MeshData {
     const b = newBuilder(bandAlpha(band));
     const readPosition = reader(source, MeshChannel.Position, 3);
@@ -237,15 +242,24 @@ export function buildInstancedMesh(source: MeshData, plants: readonly Plant[], p
         const cos = Math.cos(plant.yaw), sin = Math.sin(plant.yaw);
         const lean = plant.up ? leanTo(plant.up) : null;
         const q = [0, 0, 0], m = [0, 0, 0];
+        const tilt = plant.tilt ?? 0, top = source.aabbMax[1] * plant.scale;
         for (let v = 0; v < source.vertexCount; v++) {
             readPosition(v, p3);
             if (!readNormal(v, n3)) { n3[0] = 0; n3[1] = 1; n3[2] = 0; }
             if (!readUv(v, uv2)) { uv2[0] = 0; uv2[1] = 0; }
             const t = Math.min(Math.max((p3[1]! - minY) / span, 0), 1);
             const wide = plant.spread ?? 1;
-            const x = p3[0]! * plant.scale * wide, y = p3[1]! * plant.scale, z = p3[2]! * plant.scale * wide;
+            const x = p3[0]! * plant.scale * wide;
+            let y = p3[1]! * plant.scale, z = p3[2]! * plant.scale * wide;
             // A normal turns the other way from what stretches its surface.
             if (wide !== 1) { n3[0] = n3[0]! / wide; n3[2] = n3[2]! / wide; const l = Math.hypot(n3[0]!, n3[1]!, n3[2]!) || 1; n3[0] /= l; n3[1] = n3[1]! / l; n3[2] /= l; }
+            // The top is tipped about the plant's own highest point, and what is under it stays: a stem does not lean, its flower does.
+            if (tilt !== 0 && t > TIP_FROM) {
+                const a = tilt * Math.min((t - TIP_FROM) / (TIP_WHOLE - TIP_FROM), 1), c = Math.cos(a), sn = Math.sin(a);
+                const dy = y - top, ny = n3[1]!, nz = n3[2]!;
+                y = top + dy * c - z * sn; z = dy * sn + z * c;
+                n3[1] = ny * c - nz * sn; n3[2] = ny * sn + nz * c;
+            }
             const color = paint ? paintColor(paint, t, plant.shade) : [t, plant.phase, plant.shade * (0.6 + 0.4 * t)] as const;
             q[0] = x * cos + z * sin; q[1] = y; q[2] = -x * sin + z * cos;
             m[0] = n3[0]! * cos + n3[2]! * sin; m[1] = n3[1]!; m[2] = -n3[0]! * sin + n3[2]! * cos;
@@ -375,13 +389,13 @@ export function softenNormals(source: MeshData, amount: number): MeshData {
  * the ground of those left out, `most` times at most. `up` is the share of that growth its height takes: at 0 it grows across the ground
  * only (a clump of flowers is no taller than a flower), at 1 the same every way.
  */
-export function rankedPlants(plants: readonly Plant[], keep: number, most: number, slack = 1.25, up = 0): readonly Plant[] {
+export function rankedPlants(plants: readonly Plant[], keep: number, most: number, slack = 1.25, up = 0, tilt = 0): readonly Plant[] {
     const share = Math.min(Math.max(keep, 1e-3), 1);
     if (share >= 1) return plants;
     const grow = Math.min(Math.sqrt(1 / share), Math.max(most, 1));
     const out: Plant[] = [];
     const tall = 1 + (grow - 1) * Math.min(Math.max(up, 0), 1);
-    for (const p of plants) if (p.phase < share * slack) out.push({ ...p, scale: p.scale * tall, spread: (p.spread ?? 1) * (grow / tall) });
+    for (const p of plants) if (p.phase < share * slack) out.push({ ...p, scale: p.scale * tall, spread: (p.spread ?? 1) * (grow / tall), ...(tilt ? { tilt } : null) });
     return out;
 }
 

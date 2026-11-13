@@ -69,6 +69,8 @@ export interface FoliageData {
     farGrow: number;
     /** The share of that growth a mesh plant's height takes, 0 to 1: at 0 it grows across the ground only, at 1 the same every way. Grass grows broader, never higher. */
     farGrowUp: number;
+    /** How far the top of a mesh plant is tipped over in its far versions, in degrees, each plant its own way round. */
+    farTilt: number;
     /** A mesh's far version is crossed cards of its texture (a tree). Off, it is the plant itself, fewer and larger (a flower). */
     farCards: boolean;
     /** How far up a plant the colour map begins: 0 colours it whole, 0.6 only its top (a flower's head, on a mesh whose red rises to it). */
@@ -119,7 +121,7 @@ export interface FoliageData {
  */
 export const Foliage: ComponentDef<FoliageData> = defineComponent<FoliageData>('Foliage', {
     mesh: 0, material: 0, densityMap: 0, colorMap: 0, colorMapStrength: 1, colorMapFrom: 0, palette: 0,
-    farLevels: 1, farKeep: 0.34, farStep: 2, farGrow: 2, farGrowUp: 0, farCards: true,
+    farLevels: 1, farKeep: 0.34, farStep: 2, farGrow: 2, farGrowUp: 0, farTilt: 0, farCards: true,
     sizeX: 400, sizeZ: 400, cellSize: 40, count: 500, seed: 1,
     minScale: 0.8, maxScale: 1.25, minUp: 0.7, heightMin: -100000, heightMax: 100000, waterDepth: 0,
     bladeHeight: 14, bladeWidth: 1.6, lodDistance: 140, drawDistance: 420, castShadows: true,
@@ -153,6 +155,7 @@ export const Foliage: ComponentDef<FoliageData> = defineComponent<FoliageData>('
         farStep: { min: 1.2, max: 4, step: 0.05, category: 'Distance', tooltip: 'How many times further out each far version takes over than the one before. The first takes over at the LOD distance.' },
         farGrow: { min: 1, max: 6, step: 0.1, category: 'Distance', tooltip: 'The most a plant kept in a far version is grown by, to cover the ground the ones left out did.' },
         farGrowUp: { min: 0, max: 1, step: 0.01, slider: true, category: 'Distance', tooltip: 'The share of that growth the height of a mesh plant takes: at 0 it grows across the ground only (a clump of flowers is no taller than a flower), at 1 the same every way.' },
+        farTilt: { min: 0, max: 90, step: 1, slider: true, category: 'Distance', tooltip: 'How far the top of a mesh plant is tipped over in its far versions, each plant its own way round. A flat flower is edge on to a low eye a field away; tipped, half the field shows its face.' },
         farCards: { category: 'Far version', tooltip: 'A mesh\'s far version is crossed cards of its texture (a tree). Off, it is the plant itself, fewer and larger (a flower).' },
         lodDistance: { min: 1, category: 'Distance', tooltip: 'Past this a cell is drawn as its far version: fewer, broader blades, or a tree as crossed cards.' },
         drawDistance: { min: 1, category: 'Distance', tooltip: 'Past this a cell is not drawn.' },
@@ -543,7 +546,7 @@ export class FoliagePlugin implements Plugin {
             tags: ['foliage', data.mesh ? 'tree' : 'grass', ...(data.zoneTags ?? '').split(',').map((s) => s.trim()).filter(Boolean)],
             baseY: groundY,
             paint: data.material ? null : { base: [0.14, 0.3, 0.08], tip: [0.55, 0.72, 0.25] },
-            far: { levels: data.farLevels, keep: data.farKeep, grow: data.farGrow, cards: data.farCards, only, up: data.farGrowUp },
+            far: { levels: data.farLevels, keep: data.farKeep, grow: data.farGrow, cards: data.farCards, only, up: data.farGrowUp, tilt: (data.farTilt ?? 0) * Math.PI / 180 },
             look: built.source
                 ? { kind: 'mesh', card: { u0: data.cardU0, v0: data.cardV0, u1: data.cardU1, v1: data.cardV1 }, tent: data.cardTent === 1 }
                 : { kind: 'grass', bladeHeight: data.bladeHeight, bladeWidth: data.bladeWidth },

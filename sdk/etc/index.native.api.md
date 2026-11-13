@@ -4641,6 +4641,7 @@ farGrowUp: number
 farKeep: number
 farLevels: number
 farStep: number
+farTilt: number
 heightMax: number
 heightMin: number
 lodDistance: number
@@ -7918,6 +7919,7 @@ scale: number
 shade: number
 shear: readonly [number, number] | undefined
 spread: number | undefined
+tilt: number | undefined
 up: readonly [number, number, number] | undefined
 x: number
 y: number

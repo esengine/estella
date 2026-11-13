@@ -4600,6 +4600,8 @@ export const NOTED = {
     {"note": "A layer with a grain is read without repeat and without hexagons."},
   "fix(foliage): grass on a hill is not thinned under your feet - a cell stood at the Foliage entity's height while its plants stood on the ground, and how far a cell is was measured from the cell, so on ground 16 m up the grass at the eye was thinned as grass 19 m off and on a mountain all of it was; a cell stands on the ground under its centre":
     {"note": "Grass on a hill is not thinned under your feet."},
+  "feat(foliage): a far field of flowers shows its colour - a far mesh plant grows across the ground, so a flat flower was a disc facing the sky, edge on to a low eye, and a meadow lost its colour a field away; Foliage.farTilt tips the top of each far plant over, its own way round, and its stem stays upright":
+    {"note": "A far field of flowers shows its colour."},
   "fix(terrain): a detail the pages cannot hold no longer cracks the ground - a tree that wanted more nodes than the atlas has pages was drawn in part by coarser pages standing in, which do not meet their finer neighbours' edges, and the pages were fought over every frame; the ground is now drawn at the share of its detail's range that fits, and says so once":
     {"note": "A detail the pages cannot hold no longer cracks the ground."},
   "fix(foliage): a far plant grows across the ground, not taller - a mesh plant kept in a far version was grown the same every way to cover the ground of those left out, so a flower that stood for ten stood ten times as high and a far meadow was a field of poles; it now grows across the ground only, and Foliage.farGrowUp gives its height a share of the growth back":
