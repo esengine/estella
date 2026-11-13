@@ -32,6 +32,8 @@ declare const __ENGINE_WASM__: PackedBytes;
 declare const __SIDE_MODULES__: Record<string, { glue: PackedBytes; wasm: PackedBytes }>;
 declare const __GAME_ASSETS__: Record<string, string>;
 declare const __GAME_PATHMAP__: Record<string, string>;
+/** The texture import settings of what is inlined, in the manifest's own shape; absent from a page with none and from older exports. */
+declare const __GAME_MANIFEST__: Parameters<typeof initPlayableRuntime>[0]['manifest'];
 declare const __GAME_SCENES__: Array<{ name: string; data: SceneData }>;
 declare const __GAME_FIRST__: string;
 /** The project's settings, in the same shape game.config.json carries them —
@@ -151,6 +153,7 @@ async function boot(): Promise<void> {
     assets: __GAME_ASSETS__,
     // Older exports predate the path map; the runtime treats it as optional.
     assetPathMap: typeof __GAME_PATHMAP__ !== 'undefined' ? __GAME_PATHMAP__ : undefined,
+    manifest: typeof __GAME_MANIFEST__ !== 'undefined' ? __GAME_MANIFEST__ : undefined,
     scenes: __GAME_SCENES__,
     firstScene: __GAME_FIRST__,
     // Everything the config APPLIES to a live app: physics, the mixer, the theme.

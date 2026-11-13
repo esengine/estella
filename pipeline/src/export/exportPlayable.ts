@@ -42,6 +42,7 @@ import { makeZip } from '../../../build-tools/utils/zip.js';
 import { planSideModules, spineRefusalMessage, sideModuleFiles } from '../bundle/sideModuleScan';
 import type { Physics3DBackend } from 'esengine';
 import { forcedSideModules, moduleChoices, moduleForAsset } from '../bundle/engineInstalls';
+import { textureImportSettingsFrom, type ParsedTextureImportSettings } from '../../../sdk/src/asset/textureImportSettings';
 import type { ModuleChoice, ProjectFeatures, ProjectPackaging } from '../project/format';
 
 export interface ExportPlayableResult {
@@ -277,6 +278,9 @@ export async function exportPlayable(opts: {
   const pathMap: Record<string, string> = {};
   const optimizationAssets: PlayableOptimizationAsset[] = [];
   let manifestEntries: CookManifest['entries'] = [];
+  // How each texture is sampled and sliced, as its .meta says: the one thing of the manifest a single file needs. Without it every
+  // texture of a playable took the defaults, so a ground whose layers repeat drew one copy of each and smeared its edge over the rest.
+  const textureImports: Record<string, { path: string; type: 'texture'; size: number; labels: string[]; textureImport: ParsedTextureImportSettings }> = {};
   try {
     const manifest = JSON.parse(await readFile(path.join(cookDir, 'assets.manifest.json'), 'utf8')) as CookManifest;
     manifestEntries = manifest.entries;
@@ -288,6 +292,8 @@ export async function exportPlayable(opts: {
     for (const e of manifest.entries) {
       const buf = await readFile(path.join(cookDir, e.path));
       const key = `@uuid:${e.uuid}`;
+      const textureImport = textureImportSettingsFrom((e as { importer?: Record<string, unknown> }).importer);
+      if (textureImport) textureImports[e.uuid.toLowerCase()] = { path: e.sourcePath ?? e.path, type: 'texture', size: 0, labels: [], textureImport };
       const dataUrl = `data:${mimeOf(e.path)};base64,${buf.toString('base64')}`;
       pathMap[e.sourcePath ?? e.path] = key;
       // The data URL, not the file: base64 is what the asset costs the package.
@@ -399,6 +405,9 @@ export async function exportPlayable(opts: {
     span('wasm/side-modules', `window.__SIDE_MODULES__=${JSON.stringify(sideModules)};`);
   const afterAssets =
     `window.__GAME_PATHMAP__=${JSON.stringify(pathMap)};` +
+    (Object.keys(textureImports).length > 0
+      ? `window.__GAME_MANIFEST__=${JSON.stringify({ version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets: textureImports } } })};`
+      : '') +
     span(`scenes/${sceneName}.json`, `window.__GAME_SCENES__=${JSON.stringify(scenes)};`) +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};` +
     `window.__GAME_RUNTIME__=${JSON.stringify(playableRuntimeFields(withAudioLoadTypes(opts.runtime ?? DEFAULT_RUNTIME_CONFIG, cook.audioLoadTypes, cook.audioEncoded)))};` +

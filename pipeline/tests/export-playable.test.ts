@@ -230,6 +230,36 @@ describe('exportGame (playable)', () => {
     expect(html).not.toContain('screen.orientation');
   }, 60_000);
 
+  // How a texture is sampled is in its .meta, and the manifest is the only way that reaches a package. A playable was handed none:
+  // every texture took the defaults, so a wall or a ground whose picture repeats drew one copy and smeared its edge over the rest,
+  // while the same scene was right in the editor and in a web export.
+  it("carries each texture's import settings to the page", async () => {
+    const TILED = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    writeFileSync(path.join(root, 'assets', 'tiled.png'), solidPng(8, 8, [90, 90, 90, 255]));
+    writeFileSync(path.join(root, 'assets', 'tiled.png.meta'),
+      JSON.stringify({ uuid: TILED, version: '2.0', type: 'texture', importer: { wrapMode: 'repeat', filterMode: 'nearest', sRGB: false } }));
+    writeFileSync(path.join(root, 'scenes', 'tiled.esscene'),
+      JSON.stringify({ version: '1.0', name: 'Tiled', entities: [{ id: 0, components: [{ type: 'Sprite', data: { texture: `@uuid:${TILED}` } }] }] }));
+    writeFileSync(path.join(root, 'scenes', 'tiled.esscene.meta'), meta('ffffffff-ffff-4fff-8fff-ffffffffffff', 'scene'));
+    const outDir = path.join(root, 'dist-tiled');
+    const res = await exportGame({
+      root, entryScene: 'scenes/tiled.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES, scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir, title: 'Tiled', platform: 'playable', minify: false,
+    });
+    expect(res.ok).toBe(true);
+    const html = readFileSync(path.join(outDir, 'index.html'), 'utf8');
+    const at = html.indexOf('window.__GAME_MANIFEST__=');
+    expect(at).toBeGreaterThan(0);
+    const json = html.slice(at + 'window.__GAME_MANIFEST__='.length);
+    const manifest = JSON.parse(json.slice(0, json.indexOf(';window.'))) as { groups: { main: { assets: Record<string, { path: string; textureImport: unknown }> } } };
+    expect(manifest.groups.main.assets[TILED]).toEqual({
+      path: 'assets/tiled.png', type: 'texture', size: 0, labels: [],
+      textureImport: { filter: 'nearest', wrap: 'repeat', srgb: false },
+    });
+    // And the host hands it on: the runtime reads nothing it was not given.
+    expect(inlinedText(html, '__GAME_BUNDLE__')).toContain('__GAME_MANIFEST__');
+  }, 60_000);
+
   // A texture recipe is drawn by esengine/image, which the whole entry does not carry: it is imported for the asset that needs
   // it. A playable shipped six recipes and drew its ground and its walls with no texture, with nothing in the build saying so.
   it('imports the module an asset needs and the entry does not carry', async () => {

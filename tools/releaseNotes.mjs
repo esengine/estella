@@ -4766,4 +4766,6 @@ export const NOTED = {
     {"note": "A sound or a piece of music can ship as its recipe."},
   "perf(audio): a piece of music is made in less than half the time - a note's sample loop asked for an exponential and a sine again every sample and read each pitch, loudness and filter corner through a curve; what does not change is worked out before the loop, a decay is a product kept up sample by sample and a ringing mode a point carried round a circle: a minute of music in 2.4 s where it took 5.3, two samples in five million off by one step of sixteen bits":
     {"note": "A sound or a piece of music can ship as its recipe."},
+  "fix(playable): a playable samples its textures as their .meta says - the page was handed no manifest, so no texture's wrap, filter, colour space or 9-slice border reached it and each took the defaults: a ground or a wall whose picture repeats drew one copy and smeared its edge over the rest, right in the editor and in a web export and wrong in the playable; the import settings of what is inlined ride in the page and the host hands them to the runtime":
+    {"note": "A playable samples its textures as their import settings say."},
 };
