@@ -714,3 +714,56 @@ describe('the whole, mixed and breathing', () => {
         expect(bad({}, { highcut: 100 })).toThrow(/highcut must be Hz, 500\.\.20000/);
     });
 });
+
+describe('scales of five notes', () => {
+    const five = (scale: string, line: string, more: Record<string, unknown> = {}, pattern: Record<string, unknown> = {}) => compileMusic(validateMusicSource({
+        tempo: 120, key: 'A', scale, humanize: 0, instruments: { tone, low: { ...tone, follow: true } }, patterns: { a: { bars: 1, tracks: { tone: line }, ...pattern } }, song: ['a'], ...more,
+    })).events.map((e) => noteName(e.midi!));
+    const run = "1 2 3 4 5 1' 2' 5, . . . . . . . .";
+
+    it('count their degrees to five, and begin the next octave again at 1', () => {
+        // La do re mi sol: the five notes of the minor that a wuxia tune is made of.
+        expect(five('yu', run)).toEqual(['A4', 'C5', 'D5', 'E5', 'G5', 'A5', 'C6', 'G4']);
+        expect(five('pentatonicMinor', run)).toEqual(five('yu', run));
+        // Do re mi sol la.
+        expect(five('gong', run, { key: 'C' })).toEqual(['C4', 'D4', 'E4', 'G4', 'A4', 'C5', 'D5', 'A3']);
+        expect(five('pentatonic', run, { key: 'C' })).toEqual(five('gong', run, { key: 'C' }));
+        // The other three modes are the same five notes begun from re, mi and sol.
+        expect(five('shang', '1 2 3 4 5 . . . . . . . . . . .', { key: 'D' })).toEqual(['D4', 'E4', 'G4', 'A4', 'C5']);
+        expect(five('jue', '1 2 3 4 5 . . . . . . . . . . .', { key: 'E' })).toEqual(['E4', 'G4', 'A4', 'C5', 'D5']);
+        expect(five('zhi', '1 2 3 4 5 . . . . . . . . . . .', { key: 'G' })).toEqual(['G4', 'A4', 'C5', 'D5', 'E5']);
+    });
+
+    it('cannot be written out of: a sixth degree is refused, and says why', () => {
+        expect(() => five('yu', '1 2 6 . . . . . . . . . . . . .')).toThrow(/pattern "a", track "tone", bar 1: degree 6 is not in this scale, which has 5 notes: its degrees are 1\.\.5, and the next octave begins again at 1'/);
+        expect(() => five('yu', '[1 3 7] . . . . . . . . . . . . . . .')).toThrow(/degree 7 is not in this scale/);
+        // The same line is fine in a scale of seven.
+        expect(five('minor', '1 2 6 . . . . . . . . . . . . .')).toEqual(['A4', 'B4', 'F5']);
+        expect(() => five('yu', run, {}, { chords: [6] })).toThrow(/chords must be the degree of each bar's root, 1\.\.5/);
+    });
+
+    it('lets one instrument write in five notes over a piece that has seven', () => {
+        const source = (tune: string) => validateMusicSource({
+            tempo: 120, key: 'A', scale: 'minor', humanize: 0, instruments: { flute: { ...tone, scale: 'yu' }, low: { ...tone, follow: true } },
+            patterns: { a: { bars: 1, chords: [6], tracks: { flute: tune, low: '[1 3 5] . . . . . . . . . . . . . . .' } } }, song: ['a'],
+        });
+        const e = compileMusic(source("1 2 3 4 5 1' . . . . . . . . . ."));
+        // The flute counts five; the chord under it is F, which the flute could not play.
+        expect(e.events.filter((x) => x.instrument === 'flute').map((x) => noteName(x.midi!))).toEqual(['A4', 'C5', 'D5', 'E5', 'G5', 'A5']);
+        expect(e.events.filter((x) => x.instrument === 'low').map((x) => noteName(x.midi!))).toEqual(['F4', 'A4', 'C5']);
+        expect(() => source('6 . . . . . . . . . . . . . . .')).toThrow(/track "flute", bar 1: degree 6 is not in this scale, which has 5 notes/);
+        expect(() => validateMusicSource({ tempo: 120, key: 'A', instruments: { low: { ...tone, follow: true, scale: 'yu' } }, patterns: { a: { bars: 1, tracks: { low: REST } } }, song: ['a'] })).toThrow(/a scale of its own is for a line that does not follow/);
+    });
+
+    it('builds what follows a chord from the five notes, with roots on 4 and 5 below the tonic', () => {
+        const follow = (chord: number): string[] => compileMusic(validateMusicSource({
+            tempo: 120, key: 'A', scale: 'yu', humanize: 0, instruments: { low: { ...tone, follow: true } },
+            patterns: { a: { bars: 1, chords: [chord], tracks: { low: '[1 3 5] . . . . . . . . . . . . . . .' } } }, song: ['a'],
+        })).events.map((e) => noteName(e.midi!));
+        // Every other note of the five from the root: fourths and fifths, the open sound of the style.
+        expect(follow(1)).toEqual(['A4', 'D5', 'G5']);
+        expect(follow(3)).toEqual(['D5', 'G5', 'C6']);
+        expect(follow(4)).toEqual(['E4', 'A4', 'D5']);
+        expect(follow(5)).toEqual(['G4', 'C5', 'E5']);
+    });
+});

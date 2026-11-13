@@ -19,8 +19,20 @@ export const MUSIC_SOURCE_EXT = '.esmusic';
 export const MUSIC_SOURCE_VERSION = 1;
 export const MAX_MUSIC_SECONDS = 240;
 
-/** Semitones above the tonic of each of a scale's seven degrees. */
+/**
+ * Semitones above the tonic of each of a scale's degrees. Most have seven. The five-note scales have five, and a line
+ * written in one of them cannot touch the two notes it leaves out, which is the whole of their sound: `pentatonic`
+ * and `pentatonicMinor` by their Western names, and the five Chinese modes, each the same five notes begun from
+ * another of them, gong (do), shang (re), jue (mi), zhi (sol) and yu (la).
+ */
 export const SCALES = {
+    pentatonic: [0, 2, 4, 7, 9],
+    pentatonicMinor: [0, 3, 5, 7, 10],
+    gong: [0, 2, 4, 7, 9],
+    shang: [0, 2, 5, 7, 10],
+    jue: [0, 3, 5, 8, 10],
+    zhi: [0, 2, 5, 7, 9],
+    yu: [0, 3, 5, 7, 10],
     major: [0, 2, 4, 5, 7, 9, 11],
     minor: [0, 2, 3, 5, 7, 8, 10],
     dorian: [0, 2, 3, 5, 7, 9, 10],
@@ -75,6 +87,13 @@ export interface MusicInstrument {
     octave?: number;
     /** Its degrees count from the root of the bar's chord: 1 is the root, 3 the third, 5 the fifth, whatever the chord. A bass or a pad that follows is written once and moves with the chords. */
     follow?: boolean;
+    /**
+     * A scale of its own, on the piece's tonic, that its line is written in: a tune in the five notes of `yu` over a
+     * piece in `minor`, whose chords and bass have all seven. That is how the style is made, a tune that cannot
+     * touch the two notes the harmony under it is free to use. Not for an instrument that follows the chords, whose
+     * degrees are counted from them.
+     */
+    scale?: ScaleName;
     /** Seconds a held note takes to die after it is let go. Default 0.08. */
     release?: number;
     /**
@@ -223,7 +242,7 @@ function noteOf(text: string): StepNote | null {
 }
 
 /** A track's line as steps, bar by bar. Throws saying which bar is wrong and why. */
-export function parseTrack(text: string, bars: number, stepsToBar: number, where: string): Step[] {
+export function parseTrack(text: string, bars: number, stepsToBar: number, where: string, degrees = 7): Step[] {
     const out: Step[] = [];
     const written = text.split('|').map((b) => b.trim());
     if (written.at(-1) === '') written.pop();
@@ -244,6 +263,8 @@ export function parseTrack(text: string, bars: number, stepsToBar: number, where
                 if (notes.length === 0 || notes.length > 6 || notes.some((n) => n === null)) {
                     throw new Error(`${where}, bar ${b + 1}: "${token.replace(/\+/g, ' ')}" is not a step. A step is . (silence), - (hold), x (a drum), a degree 1..7 with ' or , for octaves and # or b before it, or [1 3 5] for up to six at once`);
                 }
+                const past = (notes as StepNote[]).find((n) => n.degree > degrees);
+                if (past) throw new Error(`${where}, bar ${b + 1}: degree ${past.degree} is not in this scale, which has ${degrees} notes: its degrees are 1..${degrees}, and the next octave begins again at 1'`);
                 out.push({ kind: 'notes', loud: loudOf(mark), notes: notes as StepNote[] });
             }
         }
@@ -252,7 +273,7 @@ export function parseTrack(text: string, bars: number, stepsToBar: number, where
 }
 
 const SOURCE_FIELDS = ['version', 'tempo', 'beats', 'key', 'scale', 'swing', 'humanize', 'seed', 'instruments', 'patterns', 'song', 'loop', 'intro', 'fadeIn', 'fadeOut', 'stems', 'reverb', 'rubato', 'master', 'gain', 'rate'];
-const INSTRUMENT_FIELDS = ['layers', 'samples', 'attack', 'gain', 'pan', 'octave', 'follow', 'release', 'reverb', 'legato', 'pedal', 'lowcut', 'highcut'];
+const INSTRUMENT_FIELDS = ['layers', 'samples', 'attack', 'gain', 'pan', 'octave', 'follow', 'release', 'reverb', 'legato', 'pedal', 'lowcut', 'highcut', 'scale'];
 const RECORDING = /\.(wav|ogg|mp3|flac|m4a|aac|webm)$/i;
 
 function checkSamples(samples: unknown, where: string): void {
@@ -339,11 +360,16 @@ export function validateMusicSource(raw: unknown): MusicSource {
         if (value.reverb !== undefined && !between(value.reverb, 0, 1)) throw new Error(`${where}: reverb must be 0..1`);
         if (value.legato !== undefined && typeof value.legato !== 'boolean' && !between(value.legato, 0.01, 0.5)) throw new Error(`${where}: legato must be true, or the seconds one note takes to come in under the last, 0.01..0.5`);
         if (value.pedal !== undefined && typeof value.pedal !== 'boolean') throw new Error(`${where}: pedal must be true or false`);
+        if (value.scale !== undefined) {
+            if (!(typeof value.scale === 'string' && value.scale in SCALES)) throw new Error(`${where}: scale must be one of ${Object.keys(SCALES).join(', ')}`);
+            if (value.follow) throw new Error(`${where}: an instrument that follows the chords counts its degrees from them, in the piece's scale; a scale of its own is for a line that does not follow`);
+        }
         if (value.lowcut !== undefined && !between(value.lowcut, 20, 2000)) throw new Error(`${where}: lowcut must be Hz, 20..2000`);
         if (value.highcut !== undefined && !between(value.highcut, 500, 20000)) throw new Error(`${where}: highcut must be Hz, 500..20000`);
     }
 
     const beats = (s.beats as number | undefined) ?? 4;
+    const degrees = SCALES[(s.scale as ScaleName | undefined) ?? 'minor'].length;
     if (!isObj(s.patterns) || Object.keys(s.patterns).length === 0) throw new Error('patterns must be { name: { bars, tracks: { instrument: "steps" } } }, at least one');
     for (const [name, value] of Object.entries(s.patterns)) {
         const where = `pattern "${name}"`;
@@ -353,8 +379,8 @@ export function validateMusicSource(raw: unknown): MusicSource {
         if (!(Number.isInteger(value.bars) && between(value.bars, 1, 32))) throw new Error(`${where}: bars must be a whole number, 1..32`);
         if (value.div !== undefined && !(Number.isInteger(value.div) && between(value.div, 1, 8))) throw new Error(`${where}: div must be whole steps to a beat, 1..8`);
         if (value.chords !== undefined) {
-            if (!Array.isArray(value.chords) || value.chords.length === 0 || value.chords.length > (value.bars as number) || value.chords.some((c) => !(Number.isInteger(c) && c >= 1 && c <= 7))) {
-                throw new Error(`${where}: chords must be the degree of each bar's root, 1..7, no more of them than bars`);
+            if (!Array.isArray(value.chords) || value.chords.length === 0 || value.chords.length > (value.bars as number) || value.chords.some((c) => !(Number.isInteger(c) && c >= 1 && c <= degrees))) {
+                throw new Error(`${where}: chords must be the degree of each bar's root, 1..${degrees}, no more of them than bars`);
             }
         }
         if (value.dynamics !== undefined) {
@@ -370,7 +396,7 @@ export function validateMusicSource(raw: unknown): MusicSource {
         for (const [track, line] of Object.entries(value.tracks)) {
             if (!(track in s.instruments)) throw new Error(`${where} has a track for "${track}", which is not an instrument; the instruments are ${Object.keys(s.instruments).join(', ')}`);
             if (typeof line !== 'string') throw new Error(`${where}, track "${track}" must be a line of steps`);
-            parseTrack(line, value.bars as number, beats * ((value.div as number | undefined) ?? 4), `${where}, track "${track}"`);
+            parseTrack(line, value.bars as number, beats * ((value.div as number | undefined) ?? 4), `${where}, track "${track}"`, SCALES[((s.instruments as Record<string, MusicInstrument>)[track]!.scale ?? (s.scale as ScaleName | undefined) ?? 'minor')].length);
         }
     }
 

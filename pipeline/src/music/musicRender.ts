@@ -113,7 +113,7 @@ export function compileMusic(source: MusicSource): CompiledMusic {
             if (typeof part !== 'string' && (part.without?.includes(track) || (part.only && !part.only.includes(track)))) continue;
             const instrument = source.instruments[track]!;
             if (instrument.follow && !pattern.chords) say(`"${track}" follows the chords, and pattern "${name}" has none: it plays every bar on chord 1`);
-            const steps = parseTrack(line, pattern.bars, stepsToBar, `pattern "${name}", track "${track}"`);
+            const steps = parseTrack(line, pattern.bars, stepsToBar, `pattern "${name}", track "${track}"`, SCALES[instrument.scale ?? source.scale ?? 'minor'].length);
             // Time that gives: late at the start of the phrase, made up through its middle, late again toward its end,
             // and back where it was on the last bar line, so the pattern is as long as it was written.
             const phrase = pattern.bars * barSeconds;
@@ -155,11 +155,15 @@ export function compileMusic(source: MusicSource): CompiledMusic {
                 const slurred = !!instrument.legato && s.notes.length === 1 && before !== null && before.end === i && s.loud <= 1;
                 if (slurred) before!.event.tied = true;
                 const chord = instrument.follow && pattern.chords ? pattern.chords[Math.floor(i / stepsToBar) % pattern.chords.length]! : 1;
-                // A root on 5, 6 or 7 is taken below the tonic, so the chords lie round it and a bass does not climb away.
-                const drop = chord >= 5 ? -7 : 0;
+                // A root in the upper part of the scale (5, 6 or 7 of seven; 4 or 5 of five) is taken below the tonic, so the
+                // chords lie round it and a bass does not climb away.
+                // The instrument's own scale where it has one: the same tonic, other notes.
+                const own = instrument.scale ? SCALES[instrument.scale] : scale;
+                const size = own.length;
+                const drop = chord > size / 2 + 1 ? -size : 0;
                 for (const n of s.notes) {
-                    const index = n.degree - 1 + chord - 1 + drop + 7;
-                    const midi = 60 + tonic + scale[index % 7]! + 12 * (Math.floor(index / 7) - 1 + n.octave + (instrument.octave ?? 0)) + n.alter;
+                    const index = n.degree - 1 + chord - 1 + drop + size;
+                    const midi = 60 + tonic + own[index % size]! + 12 * (Math.floor(index / size) - 1 + n.octave + (instrument.octave ?? 0)) + n.alter;
                     events.push({ instrument: track, at: when, seconds: written, midi, loud, part: p, outside: n.alter !== 0, mark, hard, ...sounds, ...(slurred ? { slur: true } : {}) });
                 }
                 before = s.notes.length === 1 ? { end: i + held, event: events.at(-1)! } : null;

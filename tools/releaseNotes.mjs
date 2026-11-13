@@ -4648,6 +4648,10 @@ export const NOTED = {
     {"note": "An AI can make background music."},
   "fix(music): an instrument only struck as a drum is not told its recording is the wrong note - the pitch found in a drum is not a note it can be out of":
     {"note": "An AI can make background music."},
+  "feat(music): scales of five notes, for a piece or for one instrument in it - pentatonic and the five Chinese modes count their degrees to five, so a line cannot touch the two notes they leave out, and an instrument's own scale writes a five-note tune over chords that have all seven":
+    {"note": "An AI can make background music."},
+  "feat(music): the tool text says the five-note scales and how a tune in one sits over a piece in seven":
+    {"note": "An AI can make background music."},
   "feat(sky): a sky of your own shades the ground under its clouds - defineSkyEffect takes groundShadow and a second function, skyShadow(world, sun), what is left of the light at a world position, and the sky pass multiplies every surface it finds by it, as Sky Atmosphere does with its own clouds":
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":
