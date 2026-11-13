@@ -7,6 +7,7 @@ Symbols: 0 public · 0 beta · 44 experimental · 0 deprecated
 ```
 band: number | undefined
 height: number
+lean: number | undefined
 paint: { base: [number, number, number]; tip: [number, number, number]; } | null | undefined
 segments: number
 thin: number
@@ -42,6 +43,7 @@ strength: number
 ## FoliageData — interface @experimental
 ```
 bladeHeight: number
+bladeLean: number
 bladeWidth: number
 cardTent: number
 cardU0: number

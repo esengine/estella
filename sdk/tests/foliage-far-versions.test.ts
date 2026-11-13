@@ -5,7 +5,7 @@
  *        over at a distance holds exactly the plants the shader still draws there.
  */
 import { describe, expect, it } from 'vitest';
-import { buildInstancedMesh, rankedPlants, type Plant } from '../src/foliage/builder';
+import { buildGrassMesh, buildInstancedMesh, rankedPlants, type Plant } from '../src/foliage/builder';
 import { buildFoliageCell, type CellSurroundings, type FoliageCellSpec } from '../src/foliage/cellBuild';
 import { MeshChannel, MeshChannelType, packChannels } from '../src/asset/meshFormat';
 import type { MeshData } from '../src/asset/meshFormat';
@@ -200,5 +200,35 @@ describe('the head of a mesh plant that turns to the eye', () => {
         expect(source).toContain('mix(u_faceEyeNear, u_faceEye, smoothstep(0.0, u_faceEyeBy, length(toEye)))');
         expect(source).toContain('mix(mc.u_faceEyeNear, mc.u_faceEye, smoothstep(0.0, mc.u_faceEyeBy, length(toEye)))');
         expect(source.match(/dot\(es_vertexUv1, es_vertexUv1\) > 0\.0/g)).toHaveLength(2);
+    });
+});
+
+describe('what a blade of grass and a leaf are given to be shaped and lit by', () => {
+    it('throws a blade over by the lean asked, and by 0.12 of its height when none is', () => {
+        const plant = [{ x: 0, y: 0, z: 0, yaw: 0, scale: 1, phase: 0, shade: 1 }];
+        const tipZ = (lean?: number): number => {
+            const m = buildGrassMesh(plant, { height: 1, width: 0.1, segments: 3, thin: 1, lean });
+            const at = m.channels.find((c) => c.semantic === MeshChannel.Position)!.offset;
+            const view = new DataView(m.vertices.buffer, m.vertices.byteOffset);
+            let best = 0;
+            for (let v = 0; v < m.vertexCount; v++) if (view.getFloat32(v * m.vertexStride + at + 4, true) > 0.999) best = view.getFloat32(v * m.vertexStride + at + 8, true);
+            return best;
+        };
+        expect(tipZ()).toBeCloseTo(0.12, 5);
+        expect(tipZ(0.5)).toBeCloseTo(0.5, 5);
+        expect(tipZ(0)).toBeCloseTo(0, 5);
+    });
+
+    it('has a colour for the light through a leaf, an amount of mirror and a turn of the blade to the eye, each off or as before by default', async () => {
+        const { FOLIAGE_SHADER_TEMPLATE } = await import('../src/foliage/foliageShader');
+        const source = FOLIAGE_SHADER_TEMPLATE.source;
+        expect(source).toContain('#pragma param u_translucencyColor color default(1,1,1,1)');
+        expect(source).toContain('#pragma param u_specular float default(0.5)');
+        expect(source).toContain('#pragma param u_bladeFaceEye float default(0)');
+        expect(source).toContain('albedo * 1.3 * u_translucencyColor.rgb');
+        expect(source).toContain('albedo * 1.3 * mc.u_translucencyColor.rgb');
+        expect(source).not.toMatch(/u_roughness, 0\.5, 1\.0, ext/);
+        expect(source).toContain('mix(flat2, dot(across, flat2) < 0.0 ? -across : across, u_bladeFaceEye)');
+        expect(source).toContain('mix(flat2, across, vec2f(mc.u_bladeFaceEye))');
     });
 });

@@ -65,7 +65,7 @@ export interface FoliageCellSpec {
      */
     far: { levels: number; keep: number; grow: number; cards: boolean; only?: number | null; up?: number; tilt?: number };
     /** Grass, as blades of this size; or copies of a mesh, with the card its far version is drawn as. */
-    look: { kind: 'grass'; bladeHeight: number; bladeWidth: number }
+    look: { kind: 'grass'; bladeHeight: number; bladeWidth: number; bladeLean?: number }
         | { kind: 'mesh'; card: { u0: number; v0: number; u1: number; v1: number }; tent: boolean };
 }
 
@@ -142,7 +142,7 @@ export function buildFoliageCell(spec: FoliageCellSpec, around: CellSurroundings
     // A far blade is one quad, a little taller and as much wider as covers the ground of the ones left out: grass grows broader, not higher.
     const blades = (level: number): MeshData | null => {
         if (spec.look.kind !== 'grass') return null;
-        const blade = { height: spec.look.bladeHeight, width: spec.look.bladeWidth, paint: spec.paint, band };
+        const blade = { height: spec.look.bladeHeight, width: spec.look.bladeWidth, lean: spec.look.bladeLean, paint: spec.paint, band };
         if (level === 0) return buildGrassMesh(plants, { ...blade, segments: 3, thin: 1 });
         const kept = rankedPlants(plants, share(level), 1);
         return kept.length === 0 ? null : buildGrassMesh(kept, { ...blade, height: blade.height * 1.1, width: blade.width * wider(level), segments: 1, thin: 1 });

@@ -27,6 +27,7 @@ replaces it. Nothing is baked.
 | `minUp`, `heightMin`, `heightMax` | Where plants grow: the least a place may face up (lower lets them onto slopes), and a band of world heights. |
 | `waterDepth` | How deep under water a plant may stand: `0` (the default) keeps them on dry ground, reeds stand in the shallows. |
 | `bladeHeight`, `bladeWidth` | Grass only: the size of a blade at scale 1. |
+| `bladeLean` | Grass only: how far a blade's tip is thrown over, as a share of its height, the way the blade faces (0.12). Upright blades are needles with the ground between them; blades that lie over cover more of it. |
 | `lodDistance`, `drawDistance` | Past the first a cell is drawn as its first far version; past the second it is not drawn, and its plants have thinned to none by then, one by one, so the field has no edge. |
 | `palette` | A strip of colours each plant takes the colour of its top from, by a number of its own: as wide a share of the strip, as many of the plants. One flower mesh and one material are pink, pale pink and white in the shares the strip gives. The top begins at the material's `u_tipFrom`. |
 | `farLevels`, `farKeep`, `farStep`, `farGrow` | The far versions: how many (1 to 3), the share of its plants each keeps of the one before (0.34), how many times further out each takes over than the last (2), and the most a kept plant is grown by to cover the ground of those left out (2). Every plant has a number of its own; they thin by it with distance, and a far version holds exactly the plants still drawn where it takes over, so nothing jumps at the switch. With a material each version is a layer of cells of its own, grown only as far out as it is drawn: the full meadow exists near the eye and a tenth of it far off. |
@@ -60,7 +61,9 @@ frame-rate benchmark. For large forests, `WorldRules.plants` and `PlacedFoliage`
 The **Foliage** shader (`builtin:foliage`) bends each vertex by a weight painted in its colour (red is how far up the plant it is, so the root
 stays and the tip moves; green is a phase of the plant's own, so a meadow does not sway as one), with a gust that travels across the world and
 a flutter on top. Its parameters are in the material: `u_windStrength`, `u_windSpeed`, `u_windDirection` (degrees), `u_gustScale` (the lower, the
-longer a gust) and `u_flutter`. Plants are two-sided and let light through them (`u_translucency`); a leaf texture with an alpha channel
+longer a gust) and `u_flutter`. Plants are two-sided and let light through them (`u_translucency`, and `u_translucencyColor` for what colour comes through: a leaf glows yellower
+from behind than it looks from the front); `u_specular` is how much they mirror the sun and the sky, and `u_bladeFaceEye` how far a blade
+of grass turns its flat to the eye, so a blade is not a line when seen edge on. A leaf texture with an alpha channel
 (`u_albedo`, `u_useTexture`, `u_alphaCutoff`) cuts the outline of a leaf out of a card.
 
 A shader of your own can read the same weights: a vertex hook (`#pragma vertexoffset`) sees the vertex colour as `es_vertexColor` and the mesh's second uv as `es_vertexUv1` (zero on a mesh with none): where a head's vertex sits from its plant's axis, when `faceEye` asks for it.

@@ -37,6 +37,11 @@ const FOLIAGE = `#pragma shader "Foliage"
 #pragma param u_roughness float default(0.8) range(0,1) ui(slider)
 // Light that comes through a leaf from behind, and how thick the leaf is.
 #pragma param u_translucency float default(0.5) range(0,1) ui(slider)
+// The colour of the light that comes through a leaf, times its own: a leaf takes the blue and the red out of what passes it, so it glows
+// yellower from behind than it looks from the front. White leaves it the leaf's own colour.
+#pragma param u_translucencyColor color default(1,1,1,1)
+// How much it mirrors, 0 to 1: the sun's glint and the sky. A field of blades each mirroring a blue sky is greyer than its green.
+#pragma param u_specular float default(0.5) range(0,1) ui(slider)
 #pragma param u_thickness float default(0.3) range(0,1) ui(slider)
 // The wind: how hard it blows, how fast it moves, where it comes from (degrees), how long a gust is (the lower, the longer), and how much flutter rides on it.
 #pragma param u_windStrength float default(2) range(0,20) ui(slider)
@@ -63,6 +68,9 @@ const FOLIAGE = `#pragma shader "Foliage"
 // they were, along its own width, so the ground the field covers is the same at every distance.
 #pragma param u_bladeWidth float default(0) range(0,100000) ui(slider)
 #pragma param u_thinGrow float default(2) range(1,16) ui(slider)
+// How far a blade of grass turns the flat of itself to the eye, 0 to 1: a blade seen edge on is a line, and a field of blades turned
+// every way shows the ground between them from wherever it is seen. 0 leaves each as it was planted.
+#pragma param u_bladeFaceEye float default(0) range(0,1) ui(slider)
 // How far plants part from what touches them, as a share of its reach. The four contacts are written each frame (a FoliageContact): where each is, and how far it reaches now.
 #pragma param u_contactBend float default(0.7) range(0,2) ui(slider)
 #pragma param u_contact0 vec4 default(0,0,0,0)
@@ -96,6 +104,19 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
         if (c > -0.999) seat = seat * c + cross(axis, seat) + axis * (dot(axis, seat) / (1.0 + c));
         local = pivot + seat;
         localNormal = want;
+    }
+    if (u_bladeWidth > 0.0 && u_bladeFaceEye > 0.0 && u_camera.w > 0.5) {
+        // About the blade's own middle line: its uv says which edge this is and how far up, its normal which way its flat lies.
+        vec2 flat2 = normalize(vec2(localNormal.z, -localNormal.x) + vec2(1e-6, 0.0));
+        float out2 = (uv.x * 2.0 - 1.0) * u_bladeWidth * 0.5 * (1.0 - uv.y * 0.85);
+        mat4 placed = esInstanceModel();
+        vec3 mid = local - vec3(flat2.x, 0.0, flat2.y) * out2;
+        vec3 eyeAt = (u_camera.xyz - (placed * vec4(mid, 1.0)).xyz) * mat3(placed);
+        vec2 across = normalize(vec2(eyeAt.z, -eyeAt.x) + vec2(1e-6, 0.0));
+        vec2 turned = normalize(mix(flat2, dot(across, flat2) < 0.0 ? -across : across, u_bladeFaceEye));
+        local = mid + vec3(turned.x, 0.0, turned.y) * out2;
+        float level = length(localNormal.xz);
+        localNormal.xz = vec2(-turned.y, turned.x) * level;
     }
     float weight = es_vertexColor.r;
     float phase = es_vertexColor.g * 6.2831853;
@@ -170,6 +191,20 @@ fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, ve
         if (c > -0.999) { seat = seat * c + cross(axis, seat) + axis * (dot(axis, seat) / (1.0 + c)); }
         *local = pivot + seat;
         *localNormal = want;
+    }
+    if (mc.u_bladeWidth > 0.0 && mc.u_bladeFaceEye > 0.0 && frame.camera.w > 0.5) {
+        let flat2 = normalize(vec2f((*localNormal).z, -(*localNormal).x) + vec2f(1e-6, 0.0));
+        let out2 = (uv.x * 2.0 - 1.0) * mc.u_bladeWidth * 0.5 * (1.0 - uv.y * 0.85);
+        let placed = esInstanceModel();
+        let mid = *local - vec3f(flat2.x, 0.0, flat2.y) * out2;
+        let eyeAt = (frame.camera.xyz - (placed * vec4f(mid, 1.0)).xyz) * mat3x3f(placed[0].xyz, placed[1].xyz, placed[2].xyz);
+        var across = normalize(vec2f(eyeAt.z, -eyeAt.x) + vec2f(1e-6, 0.0));
+        if (dot(across, flat2) < 0.0) { across = -across; }
+        let turned = normalize(mix(flat2, across, vec2f(mc.u_bladeFaceEye)));
+        *local = mid + vec3f(turned.x, 0.0, turned.y) * out2;
+        let level = length((*localNormal).xz);
+        (*localNormal).x = -turned.y * level;
+        (*localNormal).z = turned.x * level;
     }
     let weight = es_vertexColor.r;
     let phase = es_vertexColor.g * 6.2831853;
@@ -285,11 +320,11 @@ void main() {
     albedo *= light;
     SurfaceExt ext = surfaceExtNone(N);
     if (u_translucency > 0.0) {
-        ext.scatter = vec4(albedo * 1.3, u_translucency * 0.5);
+        ext.scatter = vec4(albedo * 1.3 * u_translucencyColor.rgb, u_translucency * 0.5);
         ext.trans = vec4(u_translucency, u_thickness, 0.0, 0.0);
     }
     vec3 viewDir = viewDirection(P);
-    vec3 lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, u_roughness, 0.5, 1.0, ext);
+    vec3 lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, u_roughness, u_specular, 1.0, ext);
     fragColor = vec4(lit, alpha);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(N), u_roughness, 0.75);
@@ -362,11 +397,11 @@ fn packNormal(n : vec3f) -> vec2f {
     albedo = albedo * light;
     var ext = surfaceExtNone(N);
     if (mc.u_translucency > 0.0) {
-        ext.scatter = vec4f(albedo * 1.3, mc.u_translucency * 0.5);
+        ext.scatter = vec4f(albedo * 1.3 * mc.u_translucencyColor.rgb, mc.u_translucency * 0.5);
         ext.trans = vec4f(mc.u_translucency, mc.u_thickness, 0.0, 0.0);
     }
     let viewDir = viewDirection(P);
-    let lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, mc.u_roughness, 0.5, 1.0, ext);
+    let lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, mc.u_roughness, mc.u_specular, 1.0, ext);
 #ifdef ES_GBUFFER
     var frag : FragOut;
     frag.color = vec4f(lit, alpha);

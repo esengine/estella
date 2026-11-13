@@ -97,6 +97,8 @@ export interface FoliageData {
     /** Grass: how tall and how wide a blade is, at scale 1. */
     bladeHeight: number;
     bladeWidth: number;
+    /** How far a blade's tip is thrown over, as a share of its height. */
+    bladeLean: number;
     /** Distance past which a cell is drawn as its far version, and past which it is not drawn. */
     lodDistance: number;
     drawDistance: number;
@@ -127,7 +129,7 @@ export const Foliage: ComponentDef<FoliageData> = defineComponent<FoliageData>('
     farLevels: 1, farKeep: 0.34, farStep: 2, farGrow: 2, farGrowUp: 0, farTilt: 0, faceEyeNear: 0, faceEye: 0, farCards: true,
     sizeX: 400, sizeZ: 400, cellSize: 40, count: 500, seed: 1,
     minScale: 0.8, maxScale: 1.25, minUp: 0.7, heightMin: -100000, heightMax: 100000, waterDepth: 0,
-    bladeHeight: 14, bladeWidth: 1.6, lodDistance: 140, drawDistance: 420, castShadows: true,
+    bladeHeight: 14, bladeWidth: 1.6, bladeLean: 0.12, lodDistance: 140, drawDistance: 420, castShadows: true,
     zoneWorld: '', zoneTags: '', zonePadding: 0,
     cardU0: 0, cardV0: 0, cardU1: 1, cardV1: 1, cardTent: 0,
 }, {
@@ -153,6 +155,7 @@ export const Foliage: ComponentDef<FoliageData> = defineComponent<FoliageData>('
         waterDepth: { min: 0, category: 'Placement', tooltip: 'How deep under water a plant may stand. 0 keeps them on dry ground; reeds stand in the shallows.' },
         bladeHeight: { min: 0.1, category: 'Grass', tooltip: 'Height of a blade at scale 1.' },
         bladeWidth: { min: 0.01, category: 'Grass', tooltip: 'Width of a blade at its base, at scale 1.' },
+        bladeLean: { min: 0, max: 2, step: 0.01, slider: true, category: 'Grass', tooltip: 'How far a blade’s tip is thrown over, as a share of its height, each blade its own way. Upright blades are needles with the ground between them; blades that lie over cover it.' },
         farLevels: { min: 1, max: 3, step: 1, category: 'Distance', tooltip: 'How many far versions a cell has: each is the same plants, fewer and larger, and takes over further out than the last.' },
         farKeep: { min: 0.1, max: 1, step: 0.01, slider: true, category: 'Distance', tooltip: 'The share of its plants each far version keeps of the one before. They thin to it plant by plant before it takes over.' },
         farStep: { min: 1.2, max: 4, step: 0.05, category: 'Distance', tooltip: 'How many times further out each far version takes over than the one before. The first takes over at the LOD distance.' },
@@ -558,7 +561,7 @@ export class FoliagePlugin implements Plugin {
             far: { levels: data.farLevels, keep: data.farKeep, grow: data.farGrow, cards: data.farCards, only, up: data.farGrowUp, tilt: (data.farTilt ?? 0) * Math.PI / 180 },
             look: built.source
                 ? { kind: 'mesh', card: { u0: data.cardU0, v0: data.cardV0, u1: data.cardU1, v1: data.cardV1 }, tent: data.cardTent === 1 }
-                : { kind: 'grass', bladeHeight: data.bladeHeight, bladeWidth: data.bladeWidth },
+                : { kind: 'grass', bladeHeight: data.bladeHeight, bladeWidth: data.bladeWidth, bladeLean: data.bladeLean ?? 0.12 },
         };
         const here = (): MeshData[] => {
             const around: CellSurroundings = {

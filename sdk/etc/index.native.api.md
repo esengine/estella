@@ -1797,6 +1797,7 @@ value: string | number | boolean | undefined
 ```
 band: number | undefined
 height: number
+lean: number | undefined
 paint: { base: [number, number, number]; tip: [number, number, number]; } | null | undefined
 segments: number
 thin: number
@@ -4621,6 +4622,7 @@ ComponentDef<FoliageData>
 ## FoliageData — interface @experimental
 ```
 bladeHeight: number
+bladeLean: number
 bladeWidth: number
 cardTent: number
 cardU0: number

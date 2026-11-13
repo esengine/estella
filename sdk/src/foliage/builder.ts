@@ -158,6 +158,8 @@ export interface BladeParams {
     width: number;
     /** Segments up a blade; the more, the smoother its bend. */
     segments: number;
+    /** How far the tip is thrown over, as a share of the blade's height, the way the blade faces. 0.12 when absent. */
+    lean?: number;
     /** Every n-th plant only, drawn broader to make up for the ones left out. */
     thin: number;
     /** Paint a colour the plain material shows, instead of the wind's weights. */
@@ -175,6 +177,7 @@ export function buildGrassMesh(plants: readonly Plant[], blade: BladeParams): Me
     const segments = Math.max(1, Math.floor(blade.segments));
     const thin = Math.max(1, Math.floor(blade.thin));
     const widen = Math.sqrt(thin);
+    const over = blade.lean ?? 0.12;
     for (let i = 0; i < plants.length; i += thin) {
         const p = plants[i]!;
         const h = blade.height * p.scale * (widen > 1 ? 1.1 : 1);
@@ -187,7 +190,7 @@ export function buildGrassMesh(plants: readonly Plant[], blade: BladeParams): Me
         for (let s = 0; s <= segments; s++) {
             const t = s / segments;
             const half = s === segments ? 0 : w * (1 - t * 0.85);
-            const lean = t * t * h * 0.12;
+            const lean = t * t * h * over;
             const y = p.y + t * h;
             const cx = p.x + fx * lean, cz = p.z + fz * lean;
             const color = blade.paint ? paintColor(blade.paint, t, p.shade) : [t, p.phase, p.shade * (0.55 + 0.45 * t)] as const;

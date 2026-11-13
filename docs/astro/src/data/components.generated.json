@@ -2599,6 +2599,13 @@
           "range": "≥ 0.01"
         },
         {
+          "key": "bladeLean",
+          "type": "number",
+          "default": "0.12",
+          "doc": "How far a blade’s tip is thrown over, as a share of its height, each blade its own way. Upright blades are needles with the ground between them; blades that lie over cover it.",
+          "range": "0–2, step 0.01"
+        },
+        {
           "key": "lodDistance",
           "type": "number",
           "default": "140",
@@ -2698,6 +2705,7 @@
         "waterDepth",
         "bladeHeight",
         "bladeWidth",
+        "bladeLean",
         "lodDistance",
         "drawDistance",
         "zonePadding",
