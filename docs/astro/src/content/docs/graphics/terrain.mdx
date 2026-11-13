@@ -83,6 +83,7 @@ paint all eight.
 | `roughness` | The roughness where there is no mask. |
 | `normalStrength` | How strongly the normal map bends the light: 1 as drawn, 0 flat. |
 | `heightBlend` | Optional. How much this layer's own height decides where it meets another: 0 blends by the paint alone (grass into sand), 1 by the layers' heights (stones standing through grass). Where several layers meet, each counts by how much of it is there. Absent, it is the material's `u_heightBlend`. |
+| `occlusion` | Optional, 0 to 1. How much of the sky's light reaches this layer, times its mask's occlusion (red): a ground the plants on it shade from the sky takes less of it than the bare rock beside it, as a material's ambient occlusion does. The sun and other lights are not dimmed. Absent, it is 1: the mask alone. |
 
 The ground is drawn by the **Terrain Layers** shader (`builtin:terrain-layers`). Every layer is read by world position without repeat
 near the eye, with a wider tile mixed in far off; where layers meet, the one whose mask stands higher shows (stones through grass, sand

@@ -36,6 +36,12 @@ export interface TerrainLayerDef {
      * 1 by the layers' heights (stones standing through grass). Absent, it is the material's `u_heightBlend`.
      */
     heightBlend?: number;
+    /**
+     * How much of the sky's light reaches the layer, times its mask's occlusion (red), 0 to 1: a ground that the plants on it shade from
+     * the sky takes less of it than the bare rock beside it, as a material's ambient occlusion does. The sun and other lights are not
+     * dimmed. Absent, it is 1: the mask alone.
+     */
+    occlusion?: number;
 }
 
 /** A layer file that names no tile repeats every 4 m: 400 units at the engine's reference, in the project's own (ecs/worldUnits.ts). */
@@ -68,6 +74,7 @@ export function parseTerrainLayer(json: unknown, file = 'terrain layer'): Terrai
         roughness: num('roughness', DEFAULTS.roughness, 0, 1),
         normalStrength: num('normalStrength', DEFAULTS.normalStrength, 0, 4),
         ...(o.heightBlend === undefined ? {} : { heightBlend: num('heightBlend', 0, 0, 1) }),
+        ...(o.occlusion === undefined ? {} : { occlusion: num('occlusion', 1, 0, 1) }),
     };
 }
 
@@ -145,14 +152,17 @@ export function packLayers(layers: readonly LayerSource[], maxSize = 1024): Pack
             bend[k * 4 + 3] = 255;
         }
         normal.push(bend);
+        const open = def.occlusion ?? 1;
         if (m) {
-            mask.push(new Uint8Array(resample(m, size)));
+            const read = new Uint8Array(resample(m, size));
+            if (open !== 1) for (let k = 0; k < n; k++) read[k * 4] = Math.round(read[k * 4]! * open);
+            mask.push(read);
         } else {
             // Without a mask the layer stands as high as its colour is bright, as a ground of stones between sand does.
             const made = new Uint8Array(n * 4);
             const rough = Math.round(def.roughness * 255);
             for (let k = 0; k < n; k++) {
-                made[k * 4] = 255;
+                made[k * 4] = Math.round(255 * open);
                 made[k * 4 + 1] = rough;
                 made[k * 4 + 2] = a ? Math.round(colour[k * 4]! * 0.299 + colour[k * 4 + 1]! * 0.587 + colour[k * 4 + 2]! * 0.114) : 128;
                 made[k * 4 + 3] = 255;

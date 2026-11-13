@@ -42,6 +42,9 @@ const FOLIAGE = `#pragma shader "Foliage"
 #pragma param u_translucencyColor color default(1,1,1,1)
 // How much it mirrors, 0 to 1: the sun's glint and the sky. A field of blades each mirroring a blue sky is greyer than its green.
 #pragma param u_specular float default(0.5) range(0,1) ui(slider)
+// How much of the sky's light reaches a plant's root, rising to all of it at the tip: the blades round it hide the sky from below, as a
+// material's ambient occlusion does. Only the environment's light: the sun and other lights are not dimmed. 1 dims nothing.
+#pragma param u_rootOcclusion float default(1) range(0,1) ui(slider)
 #pragma param u_thickness float default(0.3) range(0,1) ui(slider)
 // The wind: how hard it blows, how fast it moves, where it comes from (degrees), how long a gust is (the lower, the longer), and how much flutter rides on it.
 #pragma param u_windStrength float default(2) range(0,20) ui(slider)
@@ -324,7 +327,7 @@ void main() {
         ext.trans = vec4(u_translucency, u_thickness, 0.0, 0.0);
     }
     vec3 viewDir = viewDirection(P);
-    vec3 lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, u_roughness, u_specular, 1.0, ext);
+    vec3 lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, u_roughness, u_specular, mix(u_rootOcclusion, 1.0, height), ext);
     fragColor = vec4(lit, alpha);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(N), u_roughness, 0.75);
@@ -401,7 +404,7 @@ fn packNormal(n : vec3f) -> vec2f {
         ext.trans = vec4f(mc.u_translucency, mc.u_thickness, 0.0, 0.0);
     }
     let viewDir = viewDirection(P);
-    let lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, mc.u_roughness, mc.u_specular, 1.0, ext);
+    let lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, mc.u_roughness, mc.u_specular, mix(mc.u_rootOcclusion, 1.0, height), ext);
 #ifdef ES_GBUFFER
     var frag : FragOut;
     frag.color = vec4f(lit, alpha);

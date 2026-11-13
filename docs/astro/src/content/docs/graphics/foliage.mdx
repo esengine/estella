@@ -65,7 +65,10 @@ a flutter on top. Its parameters are in the material: `u_windStrength`, `u_windS
 longer a gust) and `u_flutter`. Plants are two-sided and let light through them (`u_translucency`, and `u_translucencyColor` for what colour comes through: a leaf glows yellower
 from behind than it looks from the front); `u_specular` is how much they mirror the sun and the sky, and `u_bladeFaceEye` how far a blade
 of grass turns its flat to the eye, so a blade is not a line when seen edge on. A leaf texture with an alpha channel
-(`u_albedo`, `u_useTexture`, `u_alphaCutoff`) cuts the outline of a leaf out of a card.
+(`u_albedo`, `u_useTexture`, `u_alphaCutoff`) cuts the outline of a leaf out of a card. `u_rootOcclusion` is how much of the sky's
+light reaches a plant's root, rising to all of it at the tip: the blades round a root hide the sky from it, as a material's ambient
+occlusion does in Unreal. It dims only the environment's light (the ambient light and its sky); the sun and other lights reach the root
+as before. At 1 (the default) nothing is dimmed.
 
 A shader of your own can read the same weights: a vertex hook (`#pragma vertexoffset`) sees the vertex colour as `es_vertexColor` and the mesh's second uv as `es_vertexUv1` (zero on a mesh with none): where a head's vertex sits from its plant's axis, when `faceEye` asks for it.
 

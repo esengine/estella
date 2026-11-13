@@ -1,0 +1,10 @@
+{
+  "tile": 4,
+  "tint": [
+    1,
+    1,
+    1
+  ],
+  "roughness": 1,
+  "normalStrength": 0
+}

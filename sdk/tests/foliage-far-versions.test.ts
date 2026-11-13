@@ -231,4 +231,14 @@ describe('what a blade of grass and a leaf are given to be shaped and lit by', (
         expect(source).toContain('mix(flat2, dot(across, flat2) < 0.0 ? -across : across, u_bladeFaceEye)');
         expect(source).toContain('mix(flat2, across, vec2f(mc.u_bladeFaceEye))');
     });
+
+    it('hides the sky from a root by its root occlusion, up to none at the tip, and dims nothing by default', async () => {
+        const { FOLIAGE_SHADER_TEMPLATE } = await import('../src/foliage/foliageShader');
+        const source = FOLIAGE_SHADER_TEMPLATE.source;
+        expect(source).toContain('#pragma param u_rootOcclusion float default(1) range(0,1)');
+        // As the occlusion the lighting model takes, which dims the environment's light and not the lights' (terrain-layer-occlusion and
+        // terrain-layer-occlusion-sun in tools/renderScenes.mjs draw that), in both languages.
+        expect(source).toContain('u_specular, mix(u_rootOcclusion, 1.0, height), ext)');
+        expect(source).toContain('mc.u_specular, mix(mc.u_rootOcclusion, 1.0, height), ext)');
+    });
 });

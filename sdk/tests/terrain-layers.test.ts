@@ -34,6 +34,12 @@ describe('a terrain layer file', () => {
         expect(() => parseTerrainLayer({ heightBlend: 2 }, 'g.esterrainlayer')).toThrow(/g\.esterrainlayer\.heightBlend/);
     });
 
+    it('keeps a sky occlusion of its own only when it names one', () => {
+        expect(parseTerrainLayer({}).occlusion).toBeUndefined();
+        expect(parseTerrainLayer({ occlusion: 0.6 }).occlusion).toBe(0.6);
+        expect(() => parseTerrainLayer({ occlusion: 1.5 }, 'g.esterrainlayer')).toThrow(/g\.esterrainlayer\.occlusion/);
+    });
+
     it('says which field it cannot take', () => {
         expect(() => parseTerrainLayer({ tile: -1 }, 'g.esterrainlayer')).toThrow(/g\.esterrainlayer\.tile/);
         expect(() => parseTerrainLayer({ tint: [1, 1] })).toThrow(/tint/);
@@ -75,6 +81,20 @@ describe('packing layers', () => {
         expect(packed.mask[1]![0]).toBe(255);
         expect(packed.mask[1]![1]).toBe(Math.round(0.4 * 255));
         expect(packed.mask[1]![2]).toBe(128);
+    });
+
+    it('scales the occlusion its mask holds by its sky occlusion, and leaves roughness and height alone', () => {
+        const shaded = parseTerrainLayer({ occlusion: 0.5 });
+        const packed = packLayers([
+            { def: shaded, albedo: null, normal: null, mask: solid(16, [200, 90, 60, 255]) },
+            { def: shaded, albedo: null, normal: null, mask: null },
+            { def: grass, albedo: null, normal: null, mask: solid(16, [200, 90, 60, 255]) },
+        ]);
+        expect(Array.from(packed.mask[0]!.slice(0, 3))).toEqual([100, 90, 60]);
+        // No mask: no occlusion of its own, so the sky occlusion alone.
+        expect(packed.mask[1]![0]).toBe(128);
+        // Without one, the mask as it is.
+        expect(Array.from(packed.mask[2]!.slice(0, 3))).toEqual([200, 90, 60]);
     });
 });
 

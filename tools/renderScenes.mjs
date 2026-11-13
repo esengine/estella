@@ -93,6 +93,21 @@ export const SCENES = [
       ]),
     },
   },
+  // A terrain layer's sky occlusion dims the sky's light on it and nothing else: two white layers, the right one at 0.5, are half as
+  // bright under the ambient light alone and the same under a sun alone.
+  ...[
+    { id: 'terrain-layer-occlusion', set: [], expect: [[0.3, [242, 242, 242]], [0.7, [121, 121, 121]]] },
+    { id: 'terrain-layer-occlusion-sun', set: [{ entity: 1, component: 'Light', key: 'enabled', value: false }, { entity: 3, component: 'Light', key: 'enabled', value: true }], expect: [[0.3, [242, 242, 242]], [0.7, [242, 242, 242]]] },
+  ].map((test) => ({
+    id: test.id, tier: 'pr', webgpu: true,
+    env: {
+      ESTELLA_VERIFY_SCENE: '/scenes/terrain-layer-occlusion.esscene',
+      // Layers are packed and their shader compiled before the ground draws at all: a cold WebGL2 start took more than 2.5 s.
+      ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '30', ESTELLA_VERIFY_SETTLE_MS: '8000',
+      ...(test.set.length ? { ESTELLA_VERIFY_SET_FIELD: JSON.stringify(test.set) } : {}),
+      ESTELLA_VERIFY_EXPECT: JSON.stringify(test.expect.map(([x, rgb]) => ({ x, y: 0.5, rgb, tol: 14 }))),
+    },
+  })),
   {
     id: 'shadow-vertex-displacement', tier: 'pr', webgpu: true,
     env: {

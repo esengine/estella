@@ -51,7 +51,7 @@ MCP 的 `audit_vegetation` 会给出配置上限和当前绘制统计。先用 `
 
 ## 风
 
-**Foliage** 着色器(`builtin:foliage`)按顶点颜色里画好的权重弯曲每个顶点(红色是它在植物上多高,所以根不动、尖端动;绿色是植物自己的相位,所以一片草地不会整体一起摆),再加一阵在世界上传播的阵风和叠在上面的颤动。参数在材质里:`u_windStrength`、`u_windSpeed`、`u_windDirection`(度)、`u_gustScale`(越小阵风越长)和 `u_flutter`。植物是双面的,并且让光透过(`u_translucency`,透过来的光是什么颜色用 `u_translucencyColor`:叶子从背后看比从正面看更黄);`u_specular` 是它们反射太阳和天空的多少,`u_bladeFaceEye` 是草叶把宽面转向视点多少,这样侧对着看时它不会只剩一条线;带 alpha 通道的叶子纹理(`u_albedo`、`u_useTexture`、`u_alphaCutoff`)能从一张卡片里抠出叶子的轮廓。
+**Foliage** 着色器(`builtin:foliage`)按顶点颜色里画好的权重弯曲每个顶点(红色是它在植物上多高,所以根不动、尖端动;绿色是植物自己的相位,所以一片草地不会整体一起摆),再加一阵在世界上传播的阵风和叠在上面的颤动。参数在材质里:`u_windStrength`、`u_windSpeed`、`u_windDirection`(度)、`u_gustScale`(越小阵风越长)和 `u_flutter`。植物是双面的,并且让光透过(`u_translucency`,透过来的光是什么颜色用 `u_translucencyColor`:叶子从背后看比从正面看更黄);`u_specular` 是它们反射太阳和天空的多少,`u_bladeFaceEye` 是草叶把宽面转向视点多少,这样侧对着看时它不会只剩一条线;带 alpha 通道的叶子纹理(`u_albedo`、`u_useTexture`、`u_alphaCutoff`)能从一张卡片里抠出叶子的轮廓。`u_rootOcclusion` 是植物根部能接收多少天空光,沿植物向上增加,到尖端为全部:根周围的草叶挡住了天空,和 Unreal 里材质的环境遮蔽一样。它只压暗环境光(环境光灯和它的天空),太阳和其他灯光照到根部时不变。为 1(默认值)时不压暗。
 
 你自己的着色器也能读到同样的权重:顶点钩子(`#pragma vertexoffset`)里,顶点颜色是 `es_vertexColor`,网格的第二套 UV 是 `es_vertexUv1`(网格没有时为零):设了 `faceEye` 时,它是头部顶点相对植物轴线的位置。
 

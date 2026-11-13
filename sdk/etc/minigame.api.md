@@ -11944,6 +11944,7 @@ heightBlend: number | undefined
 mask: string | undefined
 normal: string | undefined
 normalStrength: number
+occlusion: number | undefined
 roughness: number
 tile: number
 tint: [number, number, number]
