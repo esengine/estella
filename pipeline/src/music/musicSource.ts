@@ -52,6 +52,10 @@ export interface MusicSample {
     dynamic?: (typeof DYNAMICS)[number];
     /** Hundredths of a semitone the recording is sharp (above 0) or flat of its note, -100..100, which is taken out as it is played. */
     tune?: number;
+    /** How loud this recording is played beside the instrument's others, 1 being as it is: what evens one recording against the next. */
+    gain?: number;
+    /** Nothing of it above this many Hz: a bright recording played mellow, which is how one recording serves soft notes and loud. */
+    cutoff?: number;
 }
 
 export const DYNAMICS = ['soft', 'normal', 'loud'] as const;
@@ -73,6 +77,14 @@ export interface MusicInstrument {
     follow?: boolean;
     /** Seconds a held note takes to die after it is let go. Default 0.08. */
     release?: number;
+    /**
+     * Nothing of it below this many Hz. Every instrument but the bass and the kick has a bottom it does not need,
+     * the thump of a piano's frame, the rumble under a string section, and all of them together are the mud a mix
+     * drowns in: 120 to 200 for what plays in the middle, 300 and up for what plays high.
+     */
+    lowcut?: number;
+    /** Nothing of it above this many Hz: what should sit behind the rest is duller than what is in front. */
+    highcut?: number;
     /**
      * A line played in one breath. Where one note of its line runs straight into the next, with no silence between
      * and the next not marked `!`, the next is not struck afresh: it comes in under the one before over this many
@@ -154,6 +166,18 @@ export interface MusicSource {
     stems?: boolean;
     /** The room it is all in: `size` 0..1, `mix` 0..1. */
     reverb?: { size?: number; mix?: number };
+    /**
+     * Time that gives: each pattern is a phrase that begins a little held back, moves on through its middle and
+     * eases off to its end, by up to this share of 8% of the tempo, 0..1. Every instrument moves together and a
+     * pattern is as long as it was. 0.3 is a player breathing; 1 is a romantic one. Not for what is danced to.
+     */
+    rubato?: number;
+    /**
+     * What is done to the whole once it is summed. `compress` 0..1 holds the loud moments down so the quiet ones
+     * come up and the instruments are heard as one thing and not several (0.3 to 0.5 for most pieces); `low` and
+     * `high` are decibels more or less below 110 Hz and above 7 kHz, -12..12.
+     */
+    master?: { compress?: number; low?: number; high?: number };
     /** How loud the loudest moment is, 1 being full. Default 0.9. */
     gain?: number;
     rate?: number;
@@ -227,8 +251,8 @@ export function parseTrack(text: string, bars: number, stepsToBar: number, where
     return out;
 }
 
-const SOURCE_FIELDS = ['version', 'tempo', 'beats', 'key', 'scale', 'swing', 'humanize', 'seed', 'instruments', 'patterns', 'song', 'loop', 'intro', 'fadeIn', 'fadeOut', 'stems', 'reverb', 'gain', 'rate'];
-const INSTRUMENT_FIELDS = ['layers', 'samples', 'attack', 'gain', 'pan', 'octave', 'follow', 'release', 'reverb', 'legato', 'pedal'];
+const SOURCE_FIELDS = ['version', 'tempo', 'beats', 'key', 'scale', 'swing', 'humanize', 'seed', 'instruments', 'patterns', 'song', 'loop', 'intro', 'fadeIn', 'fadeOut', 'stems', 'reverb', 'rubato', 'master', 'gain', 'rate'];
+const INSTRUMENT_FIELDS = ['layers', 'samples', 'attack', 'gain', 'pan', 'octave', 'follow', 'release', 'reverb', 'legato', 'pedal', 'lowcut', 'highcut'];
 const RECORDING = /\.(wav|ogg|mp3|flac|m4a|aac|webm)$/i;
 
 function checkSamples(samples: unknown, where: string): void {
@@ -236,7 +260,9 @@ function checkSamples(samples: unknown, where: string): void {
     samples.forEach((sample: unknown, i) => {
         const at = `${where}, sample ${i + 1}`;
         if (!isObj(sample)) throw new Error(`${at} must be { file, note }`);
-        for (const key of Object.keys(sample)) if (!['file', 'note', 'low', 'high', 'loop', 'dynamic', 'tune'].includes(key)) throw new Error(`${at} has unknown "${key}"; a sample has file, note, low, high, loop, dynamic, tune`);
+        for (const key of Object.keys(sample)) if (!['file', 'note', 'low', 'high', 'loop', 'dynamic', 'tune', 'gain', 'cutoff'].includes(key)) throw new Error(`${at} has unknown "${key}"; a sample has file, note, low, high, loop, dynamic, tune, gain, cutoff`);
+        if (sample.gain !== undefined && !between(sample.gain, 0.01, 4)) throw new Error(`${at}: gain must be 0.01..4, 1 being the recording as it is`);
+        if (sample.cutoff !== undefined && !between(sample.cutoff, 200, 20000)) throw new Error(`${at}: cutoff must be Hz, 200..20000`);
         if (sample.dynamic !== undefined && !DYNAMICS.includes(sample.dynamic as never)) throw new Error(`${at}: dynamic must be one of ${DYNAMICS.join(', ')}`);
         if (sample.tune !== undefined && !between(sample.tune, -100, 100)) throw new Error(`${at}: tune must be hundredths of a semitone, -100..100`);
         if (typeof sample.file !== 'string' || !RECORDING.test(sample.file)) throw new Error(`${at}: file must be a project path to a recording (.wav, .ogg, .mp3, .flac, .m4a)`);
@@ -280,6 +306,13 @@ export function validateMusicSource(raw: unknown): MusicSource {
         if (s.reverb.mix !== undefined && !between(s.reverb.mix, 0, 1)) throw new Error('reverb.mix must be 0..1');
     }
 
+    if (s.rubato !== undefined && !between(s.rubato, 0, 1)) throw new Error('rubato must be 0..1');
+    if (s.master !== undefined) {
+        if (!isObj(s.master)) throw new Error('master must be { compress?, low?, high? }');
+        for (const key of Object.keys(s.master)) if (!['compress', 'low', 'high'].includes(key)) throw new Error(`master has unknown "${key}"; it takes compress, low, high`);
+        if (s.master.compress !== undefined && !between(s.master.compress, 0, 1)) throw new Error('master.compress must be 0..1');
+        for (const key of ['low', 'high']) if (s.master[key] !== undefined && !between(s.master[key], -12, 12)) throw new Error(`master.${key} must be decibels, -12..12`);
+    }
     if (!isObj(s.instruments) || Object.keys(s.instruments).length === 0) throw new Error('instruments must be { name: { layers: [...] } }, at least one');
     if (Object.keys(s.instruments).length > 16) throw new Error('at most 16 instruments');
     for (const [name, value] of Object.entries(s.instruments)) {
@@ -306,6 +339,8 @@ export function validateMusicSource(raw: unknown): MusicSource {
         if (value.reverb !== undefined && !between(value.reverb, 0, 1)) throw new Error(`${where}: reverb must be 0..1`);
         if (value.legato !== undefined && typeof value.legato !== 'boolean' && !between(value.legato, 0.01, 0.5)) throw new Error(`${where}: legato must be true, or the seconds one note takes to come in under the last, 0.01..0.5`);
         if (value.pedal !== undefined && typeof value.pedal !== 'boolean') throw new Error(`${where}: pedal must be true or false`);
+        if (value.lowcut !== undefined && !between(value.lowcut, 20, 2000)) throw new Error(`${where}: lowcut must be Hz, 20..2000`);
+        if (value.highcut !== undefined && !between(value.highcut, 500, 20000)) throw new Error(`${where}: highcut must be Hz, 500..20000`);
     }
 
     const beats = (s.beats as number | undefined) ?? 4;

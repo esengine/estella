@@ -114,6 +114,11 @@ export function compileMusic(source: MusicSource): CompiledMusic {
             const instrument = source.instruments[track]!;
             if (instrument.follow && !pattern.chords) say(`"${track}" follows the chords, and pattern "${name}" has none: it plays every bar on chord 1`);
             const steps = parseTrack(line, pattern.bars, stepsToBar, `pattern "${name}", track "${track}"`);
+            // Time that gives: late at the start of the phrase, made up through its middle, late again toward its end,
+            // and back where it was on the last bar line, so the pattern is as long as it was written.
+            const phrase = pattern.bars * barSeconds;
+            const give = ((source.rubato ?? 0) * 0.08 * phrase) / (2 * Math.PI);
+            const timed = (t: number): number => t + give * Math.sin((2 * Math.PI * t) / phrase);
             // How loud the line is at each step: between the number its bar begins on and the next bar's.
             const levels = pattern.dynamics?.[track] ?? pattern.dynamics?.all;
             const levelAt = (i: number): number => {
@@ -132,16 +137,17 @@ export function compileMusic(source: MusicSource): CompiledMusic {
                 while (i + held < steps.length && steps[i + held]!.kind === 'hold') held++;
                 // Every second step late, which is what makes a line swing.
                 const late = div % 2 === 0 && i % 2 === 1 ? (source.swing ?? 0) * step : 0;
-                const when = Math.max(0, at + i * step + late + human * 0.012 * random());
+                const when = Math.max(0, at + timed(i * step + late) + human * 0.012 * random());
+                const written = timed((i + held) * step) - timed(i * step);
                 const hard = s.loud * levelAt(i);
                 const loud = hard * (1 + human * 0.25 * random());
                 const mark = hard > 1.15 ? 1 : hard < 0.8 ? -1 : 0;
                 // The pedal is down to the end of the bar: the note rings on to there.
-                const toBarEnd = (Math.floor(i / stepsToBar) + 1) * stepsToBar * step - i * step;
-                const sounds = instrument.pedal && toBarEnd > held * step ? { sounds: toBarEnd } : {};
+                const toBarEnd = timed((Math.floor(i / stepsToBar) + 1) * stepsToBar * step) - timed(i * step);
+                const sounds = instrument.pedal && toBarEnd > written + 1e-9 ? { sounds: toBarEnd } : {};
                 played.add(track);
                 if (s.kind === 'hit') {
-                    events.push({ instrument: track, at: when, seconds: held * step, midi: null, loud, part: p, outside: false, mark, hard, ...sounds });
+                    events.push({ instrument: track, at: when, seconds: written, midi: null, loud, part: p, outside: false, mark, hard, ...sounds });
                     before = null;
                     continue;
                 }
@@ -154,7 +160,7 @@ export function compileMusic(source: MusicSource): CompiledMusic {
                 for (const n of s.notes) {
                     const index = n.degree - 1 + chord - 1 + drop + 7;
                     const midi = 60 + tonic + scale[index % 7]! + 12 * (Math.floor(index / 7) - 1 + n.octave + (instrument.octave ?? 0)) + n.alter;
-                    events.push({ instrument: track, at: when, seconds: held * step, midi, loud, part: p, outside: n.alter !== 0, mark, hard, ...sounds, ...(slurred ? { slur: true } : {}) });
+                    events.push({ instrument: track, at: when, seconds: written, midi, loud, part: p, outside: n.alter !== 0, mark, hard, ...sounds, ...(slurred ? { slur: true } : {}) });
                 }
                 before = s.notes.length === 1 ? { end: i + held, event: events.at(-1)! } : null;
             }
@@ -278,9 +284,11 @@ function sampleNote(name: string, instrument: MusicInstrument, index: number, mi
         if (count - n < ending) level *= (count - n) / ending;
         for (let c = 0; c < out.length; c++) {
             const channel = data.channels[c]!;
-            out[c]![n] = (blend > 0 ? at(channel, p) * (1 - blend) + at(channel, p - round) * blend : at(channel, p)) * level;
+            out[c]![n] = (blend > 0 ? at(channel, p) * (1 - blend) + at(channel, p - round) * blend : at(channel, p)) * level * (zone.gain ?? 1);
         }
     }
+    // Duller than it was recorded, where the sample says so: at a fixed place, whatever the note.
+    if (zone.cutoff && zone.cutoff < rate * 0.45) for (const channel of out) filtered(channel, 'lowpass', zone.cutoff, rate);
     return out;
 }
 
@@ -330,6 +338,72 @@ export function samplePitch(data: SampleData, near: number): number | null {
     }
     lag = fine;
     return data.rate / lag;
+}
+
+type Shape = 'lowpass' | 'highpass' | 'lowshelf' | 'highshelf';
+
+/** A two-pole filter run over @p channel where it lies: a cut above or below @p hz, or a shelf of @p db there. */
+function filtered(channel: Float32Array, shape: Shape, hz: number, rate: number, db = 0): void {
+    const w = (2 * Math.PI * Math.min(hz, rate * 0.45)) / rate;
+    const [cos, sin] = [Math.cos(w), Math.sin(w)];
+    let b0: number, b1: number, b2: number, a0: number, a1: number, a2: number;
+    if (shape === 'lowpass' || shape === 'highpass') {
+        const alpha = sin / (2 * Math.SQRT1_2);
+        [b0, b1, b2] = shape === 'lowpass' ? [(1 - cos) / 2, 1 - cos, (1 - cos) / 2] : [(1 + cos) / 2, -(1 + cos), (1 + cos) / 2];
+        [a0, a1, a2] = [1 + alpha, -2 * cos, 1 - alpha];
+    } else {
+        const A = Math.pow(10, db / 40);
+        const beta = 2 * Math.sqrt(A) * (sin / 2) * Math.SQRT2;
+        const sign = shape === 'lowshelf' ? 1 : -1;
+        b0 = A * (A + 1 - sign * (A - 1) * cos + beta);
+        b1 = sign * 2 * A * (A - 1 - sign * (A + 1) * cos);
+        b2 = A * (A + 1 - sign * (A - 1) * cos - beta);
+        a0 = A + 1 + sign * (A - 1) * cos + beta;
+        a1 = -sign * 2 * (A - 1 + sign * (A + 1) * cos);
+        a2 = A + 1 + sign * (A - 1) * cos - beta;
+    }
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    for (let n = 0; n < channel.length; n++) {
+        const x = channel[n]!;
+        const y = (b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0;
+        x2 = x1; x1 = x; y2 = y1; y1 = y;
+        channel[n] = y;
+    }
+}
+
+/**
+ * How much each moment of a mix is to be held down: 1 where it is quiet, less where it is loud. The loudness is
+ * followed quickly up and slowly down, as an ear follows it, and what is over the line is let through at a share of
+ * what it is over by. Worked out from the whole and laid on every instrument alike, so they still add up to it.
+ */
+function compression(channels: readonly Float32Array[], rate: number, amount: number, round: boolean): Float32Array {
+    const frames = channels[0]!.length;
+    let peak = 0;
+    for (const c of channels) for (const v of c) if (Math.abs(v) > peak) peak = Math.abs(v);
+    const gains = new Float32Array(frames).fill(1);
+    if (!(peak > 1e-6) || amount <= 0) return gains;
+    const line = peak * Math.pow(10, -(6 + 14 * amount) / 20);
+    const ratio = 1.5 + 2.5 * amount;
+    const [up, down] = [Math.exp(-1 / (0.005 * rate)), Math.exp(-1 / (0.14 * rate))];
+    let follow = 0;
+    const step = (n: number): void => {
+        let loud = 0;
+        for (const c of channels) loud = Math.max(loud, Math.abs(c[n]!));
+        follow = loud > follow ? loud + (follow - loud) * up : loud + (follow - loud) * down;
+    };
+    // A piece that goes round arrives at its start from its end, so the following starts from there.
+    if (round) for (let n = Math.max(0, frames - rate); n < frames; n++) step(n);
+    for (let n = 0; n < frames; n++) {
+        step(n);
+        if (follow > line) gains[n] = (line * Math.pow(follow / line, 1 / ratio)) / follow;
+    }
+    // The following is always a little behind the sound, so the front of every loud note would get through whole and
+    // the peak of the piece would be where it was. So the holding down begins before the note: going backward, the
+    // gain may rise only so fast, which is a hand already on the fader as the note arrives.
+    const rise = 1 / (0.006 * rate);
+    for (let n = frames - 2; n >= 0; n--) gains[n] = Math.min(gains[n]!, gains[n + 1]! + rise);
+    if (round) gains[frames - 1] = Math.min(gains[frames - 1]!, gains[0]! + rise);
+    return gains;
 }
 
 const TAIL_SECONDS = 4;
@@ -428,6 +502,15 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
         }
     }
 
+    // What each instrument has no need of, taken off before the room hears it.
+    for (const name of names) {
+        const instrument = source.instruments[name]!;
+        for (const channel of buses.get(name)!) {
+            if (instrument.lowcut) filtered(channel, 'highpass', instrument.lowcut, rate);
+            if (instrument.highcut) filtered(channel, 'lowpass', instrument.highcut, rate);
+        }
+    }
+
     // The room. One for everything; or, when the instruments are to be written apart, one each, so they still add up.
     const room = [new Float32Array(work), new Float32Array(work)];
     if (source.reverb) {
@@ -483,6 +566,19 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
         for (const name of names) { const stem = stems[name]![c]!; for (let n = 0; n < total; n++) sum[n]! += stem[n]!; }
         return sum;
     });
+
+    // The whole, once summed: held together, and tilted. Done to the sum and to each instrument alike.
+    if (source.master) {
+        const every = [channels, ...Object.values(stems)];
+        if (source.master.compress) {
+            const gains = compression(channels, rate, source.master.compress, loop);
+            for (const list of every) for (const channel of list) for (let n = 0; n < total; n++) channel[n]! *= gains[n]!;
+        }
+        for (const list of every) for (const channel of list) {
+            if (source.master.low) filtered(channel, 'lowshelf', 110, rate, source.master.low);
+            if (source.master.high) filtered(channel, 'highshelf', 7000, rate, source.master.high);
+        }
+    }
 
     let peak = 0;
     for (const channel of channels) for (const v of channel) if (Math.abs(v) > peak) peak = Math.abs(v);

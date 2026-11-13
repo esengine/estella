@@ -24,7 +24,7 @@ const chunk = (id: string, data: Uint8Array | number[]): Uint8Array => bytesOf([
 const list = (type: string, ...chunks: Uint8Array[]): Uint8Array => chunk('LIST', bytesOf([...type].map((c) => c.charCodeAt(0)), ...chunks));
 const range = (low: number, high: number): number => low | (high << 8);
 
-interface Recording { name: string; hz: number; rate: number; frames: number; pitch: number; correction?: number; type?: number; loop?: [number, number] }
+interface Recording { name: string; hz: number; rate: number; frames: number; pitch: number; correction?: number; type?: number; link?: number; loop?: [number, number] }
 type Zone = [number, number][];
 
 /** A SoundFont of @p recordings, one instrument of @p zones (the first is what the others start from), and @p presets each a zone on that instrument. */
@@ -36,7 +36,7 @@ function soundFont(recordings: Recording[], zones: Zone[], presets: { name: stri
         for (let n = 0; n < r.frames; n++) samples.push(...u16(Math.round(16000 * Math.sin((2 * Math.PI * r.hz * n) / r.rate)) & 0xffff));
         // The format asks for nothing after each recording.
         for (let n = 0; n < 46; n++) samples.push(0, 0);
-        headers.push(...name20(r.name), ...u32(start), ...u32(start + r.frames), ...u32(start + (r.loop?.[0] ?? 0)), ...u32(start + (r.loop?.[1] ?? 0)), ...u32(r.rate), r.pitch, (r.correction ?? 0) & 255, ...u16(0), ...u16(r.type ?? 1));
+        headers.push(...name20(r.name), ...u32(start), ...u32(start + r.frames), ...u32(start + (r.loop?.[0] ?? 0)), ...u32(start + (r.loop?.[1] ?? 0)), ...u32(r.rate), r.pitch, (r.correction ?? 0) & 255, ...u16(r.link ?? 0), ...u16(r.type ?? 1));
     }
     headers.push(...name20('EOS'), ...Array(26).fill(0));
     const bags = (all: Zone[]): [number[], number[]] => {
@@ -168,5 +168,43 @@ describe('what a SoundFont does that an instrument of samples does not', () => {
         // Tuning that is not whole octaves is the recording being another note, and moves it.
         const fifth = soundFont(TWO, [[[51, 7], [GEN.sampleId, 0]]], [{ name: 'Up', bank: 0, program: 19, zone: [[GEN.instrument, 0]] }]);
         expect(liftSoundFontPreset(readSoundFont(fifth), 0, 'o').instrument.samples).toEqual([{ file: 'o/Pipe.wav', note: 'D3' }]);
+    });
+});
+
+describe('what comes over with a recording', () => {
+    it('takes both sides of a recording made in stereo as one file of two', () => {
+        // The left side links to the right, which is as long; the right is a zone of its own in the SoundFont and is not taken twice.
+        const pair: Recording[] = [{ name: 'Wide L', hz: 220, rate: 44100, frames: 4410, pitch: 57, type: 4, link: 1 }, { name: 'Wide R', hz: 330, rate: 44100, frames: 4410, pitch: 57, type: 2, link: 0 }];
+        const font = soundFont(pair, [[[GEN.sampleId, 0]], [[GEN.sampleId, 1]]], [{ name: 'Wide', bank: 0, program: 0, zone: [[GEN.instrument, 0]] }]);
+        const lifted = liftSoundFontPreset(readSoundFont(font), 0, 'w');
+        expect(lifted.instrument.samples).toEqual([{ file: 'w/Wide_L.wav', note: 'A3' }]);
+        const data = lifted.files['w/Wide_L.wav']!;
+        expect(data.channels).toHaveLength(2);
+        // Each side is its own recording: 220 on the left, 330 on the right.
+        expect(data.channels[0]![50]).toBeCloseTo((16000 / 32768) * Math.sin((2 * Math.PI * 220 * 50) / 44100), 3);
+        expect(data.channels[1]![50]).toBeCloseTo((16000 / 32768) * Math.sin((2 * Math.PI * 330 * 50) / 44100), 3);
+        // A left side whose other side is not as long is taken alone.
+        const odd = soundFont([pair[0]!, { ...pair[1]!, frames: 100 }], [[[GEN.sampleId, 0]]], [{ name: 'Odd', bank: 0, program: 0, zone: [[GEN.instrument, 0]] }]);
+        expect(liftSoundFontPreset(readSoundFont(odd), 0, 'w').files['w/Wide_L.wav']!.channels).toHaveLength(1);
+    });
+
+    it('carries how far a zone turns its recording down and how dull it leaves it, without a file for each', () => {
+        const one: Recording[] = [{ name: 'Key', hz: 220, rate: 44100, frames: 4410, pitch: 57 }];
+        // 8 is the filter, in hundredths of a semitone above 8.176 Hz: 9600 is 2093 Hz. 48 is tenths of a decibel down. 11 opens the filter as the note sounds.
+        const font = soundFont(one, [
+            [[GEN.keyRange, range(0, 59)], [GEN.velRange, range(0, 63)], [8, 9600], [48, 100], [GEN.sampleId, 0]],
+            [[GEN.keyRange, range(0, 59)], [GEN.velRange, range(64, 127)], [GEN.sampleId, 0]],
+            [[GEN.keyRange, range(60, 127)], [8, 9600], [11, 2400], [GEN.sampleId, 0]],
+        ], [{ name: 'Keys', bank: 0, program: 0, zone: [[GEN.instrument, 0]] }]);
+        const lifted = liftSoundFontPreset(readSoundFont(font), 0, 'k');
+        expect(lifted.instrument.samples).toEqual([
+            // Ten decibels down, of which four are taken: 0.63. And dull, at 2090 Hz.
+            { file: 'k/Key.wav', note: 'A3', low: 'C-1', high: 'B3', dynamic: 'soft', gain: 0.63, cutoff: 2090 },
+            { file: 'k/Key.wav', note: 'A3', low: 'C-1', high: 'B3' },
+            // A filter that opens two octaves is taken an octave open.
+            { file: 'k/Key.wav', note: 'A3', low: 'C4', high: 'G9', cutoff: 4190 },
+        ]);
+        expect(Object.keys(lifted.files)).toEqual(['k/Key.wav']);
+        expect(() => validateMusicSource({ tempo: 120, key: 'A', instruments: { keys: lifted.instrument }, patterns: { a: { bars: 1, tracks: { keys: '1 . . . . . . . . . . . . . . .' } } }, song: ['a'] })).not.toThrow();
     });
 });

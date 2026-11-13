@@ -329,7 +329,7 @@ describe('an instrument made of recordings', () => {
         expect(bad({ samples: [{ file: 'a.wav', note: 'C' }] })).toThrow(/note must be the note recorded, as "C4"/);
         expect(bad({ samples: [{ file: 'a.wav', note: 'C4', low: 'C5', high: 'C3' }] })).toThrow(/low is above high/);
         expect(bad({ samples: [{ file: 'a.wav', note: 'C4', loop: [0.5, 0.5] }] })).toThrow(/loop must be true, or \[from, to\]/);
-        expect(bad({ samples: [{ file: 'a.wav', note: 'C4', root: 'C4' }] })).toThrow(/unknown "root"; a sample has file, note, low, high, loop, dynamic, tune/);
+        expect(bad({ samples: [{ file: 'a.wav', note: 'C4', root: 'C4' }] })).toThrow(/unknown "root"; a sample has file, note, low, high, loop, dynamic, tune, gain, cutoff/);
         expect(bad({ layers: [{ source: 'noise' }], attack: 0.1 })).toThrow(/attack is for samples/);
     });
 });
@@ -596,5 +596,119 @@ describe('a line that is played and not only sounded', () => {
         expect(bad({ tone: [1, 1, 1, 1] })).toThrow(/one for each of its 2 bars and at most one more/);
         expect(bad({ tone: [1, 5] })).toThrow(/0\.1\.\.2 with 1 as written/);
         expect(bad({ all: [] })).toThrow(/how loud each bar begins/);
+    });
+});
+
+describe('the whole, mixed and breathing', () => {
+    const EIGHT = '1 - - - 1 - - - 1 - - - 1 - - -';
+    /** How much of it lies at these pitches, from a quarter of a second in: the overtones of the note played, named one by one. */
+    const energy = (c: Float32Array, rate: number, ...pitches: number[]): number => {
+        let sum = 0;
+        const [from, size] = [Math.round(rate * 0.25), 16384];
+        for (const hz of pitches) {
+            let [re, im] = [0, 0];
+            for (let n = 0; n < size; n++) {
+                const v = c[from + n]! * (0.5 - 0.5 * Math.cos((2 * Math.PI * n) / size));
+                re += v * Math.cos((2 * Math.PI * hz * n) / rate); im += v * Math.sin((2 * Math.PI * hz * n) / rate);
+            }
+            sum += re * re + im * im;
+        }
+        return sum;
+    };
+
+    it('holds the loud moments down, so a quiet line comes up beside a loud one', () => {
+        // One loud note, then quiet ones: what a compressor is for.
+        const source = (compress?: number) => validateMusicSource({
+            tempo: 120, key: 'A', humanize: 0, loop: false, stems: true, instruments: { tone, other: tone },
+            patterns: { a: { bars: 2, dynamics: { tone: [1.6, 0.2, 0.2] }, tracks: { tone: `${EIGHT} | ${EIGHT}`, other: `1' - - - . . . . . . . . . . . . | ${REST}` } } },
+            song: ['a'], ...(compress ? { master: { compress } } : {}),
+        });
+        const [plain, held] = [renderMusic(source()), renderMusic(source(0.8))];
+        const quiet = (m: ReturnType<typeof renderMusic>): number => level(m.channels[0]!, m.rate, 3.1, 3.4) / m.peak;
+        // By a third and more: 0.108 of full without it, 0.157 with.
+        expect(quiet(held)).toBeGreaterThan(quiet(plain) * 1.3);
+        // And the instruments written apart still add up to it.
+        let worst = 0;
+        for (let n = 0; n < held.channels[0]!.length; n += 5) worst = Math.max(worst, Math.abs(Object.values(held.stems!).reduce((s, stem) => s + stem[0]![n]!, 0) - held.channels[0]![n]!));
+        expect(worst).toBeLessThan(1e-4);
+    });
+
+    it('takes the bottom off an instrument that has no need of it, and the top off one that sits behind', () => {
+        const rich = { layers: [{ source: 'saw', freq: 110 }] };
+        const play = (more: Record<string, unknown>) => renderMusic(validateMusicSource({
+            tempo: 120, key: 'A', humanize: 0, loop: false, gain: 0.5, instruments: { tone: { ...rich, ...more } }, patterns: { a: { bars: 1, tracks: { tone: EIGHT } } }, song: ['a'],
+        })).channels[0]!;
+        const [plain, thin, dull] = [play({}), play({ lowcut: 800 }), play({ highcut: 800 })];
+        // After the peak of each is brought to the same place, where the energy lies is what differs.
+        // The note is the A of 110 Hz: its first three overtones against four of those round 3 kHz.
+        const bottom = (c: Float32Array): number => energy(c, 44100, 110, 220, 330) / energy(c, 44100, 2200, 2750, 3300, 3850);
+        expect(bottom(thin)).toBeLessThan(bottom(plain) * 0.02);
+        expect(bottom(dull)).toBeGreaterThan(bottom(plain) * 20);
+    });
+
+    it('tilts the whole with the two shelves', () => {
+        const rich = { layers: [{ source: 'saw', freq: 55 }] };
+        const play = (master?: unknown) => renderMusic(validateMusicSource({
+            tempo: 120, key: 'A', humanize: 0, loop: false, instruments: { tone: rich }, patterns: { a: { bars: 1, tracks: { tone: EIGHT } } }, song: ['a'], ...(master ? { master } : {}),
+        })).channels[0]!;
+        // The note is the A of 55 Hz: its fundamental against four of its overtones round 10 kHz. Nine decibels is eight times the energy.
+        const tilt = (c: Float32Array): number => energy(c, 44100, 9900, 10450, 11000, 11550) / energy(c, 44100, 55);
+        const plain = tilt(play());
+        expect(tilt(play({ high: 9 })) / plain).toBeGreaterThan(5);
+        expect(tilt(play({ high: 9 })) / plain).toBeLessThan(10);
+        expect(plain / tilt(play({ low: 9 }))).toBeGreaterThan(4);
+        // Both down together leave the top where it was beside the bottom, near enough.
+        expect(tilt(play({ low: -9, high: -9 })) / plain).toBeGreaterThan(0.5);
+        expect(tilt(play({ low: -9, high: -9 })) / plain).toBeLessThan(2.5);
+        // And the middle is not touched by either.
+        const middle = (c: Float32Array): number => energy(c, 44100, 880, 990) / energy(c, 44100, 1100, 1210);
+        expect(middle(play({ low: 9, high: 9 })) / middle(play())).toBeCloseTo(1, 1);
+    });
+
+    it('gives and takes back time across a pattern, every instrument together, and ends where it was', () => {
+        const source = (rubato: number) => validateMusicSource({
+            tempo: 120, key: 'A', humanize: 0, rubato, instruments: { tone, other: tone },
+            patterns: { a: { bars: 4, tracks: { tone: Array(4).fill(EIGHT).join(' | '), other: Array(4).fill(EIGHT).join(' | ') } } }, song: ['a', 'a'],
+        });
+        const [strict, free] = [compileMusic(source(0)), compileMusic(source(1))];
+        const of = (m: ReturnType<typeof compileMusic>, name: string): number[] => m.events.filter((e) => e.instrument === name).map((e) => e.at);
+        const [a, b] = [of(strict, 'tone'), of(free, 'tone')];
+        // Held back as the phrase begins, made up by its middle, held back again toward its end.
+        expect(b[1]! - a[1]!).toBeGreaterThan(0.02);
+        expect(Math.abs(b[8]! - a[8]!)).toBeLessThan(1e-9);
+        expect(b[13]! - a[13]!).toBeLessThan(-0.02);
+        // Never so far that the notes change order, and by no more than a twelfth of the tempo.
+        for (let n = 1; n < b.length; n++) expect(b[n]! - b[n - 1]!).toBeGreaterThan(0.5 * 0.9);
+        // The second time through begins on the bar line, where it would have without it.
+        expect(b[16]).toBeCloseTo(8, 9);
+        expect(free.seconds).toBe(strict.seconds);
+        // The two instruments are together at every note.
+        expect(of(free, 'other')).toEqual(b);
+        // And the notes still fill the time between them.
+        const first = free.events.filter((e) => e.instrument === 'tone')[0]!;
+        expect(first.seconds).toBeCloseTo(b[1]! - b[0]!, 9);
+    });
+
+    it('plays a sample as loud and as dull as it says', () => {
+        const bright: SampleData = { rate: 44100, channels: [Float32Array.from({ length: 22050 }, (_, n) => { const t = (2 * Math.PI * 440 * n) / 44100; return 0.3 * Math.sin(t) + 0.3 * Math.sin(8 * t); })] };
+        const play = (more: Record<string, unknown>) => renderMusic(validateMusicSource({
+            tempo: 120, key: 'A', humanize: 0, loop: false, gain: 0.5, instruments: { keys: { samples: [{ file: 'a.wav', note: 'A4', ...more }] }, tone },
+            patterns: { a: { bars: 1, tracks: { keys: '1 - - - . . . . . . . . . . . .', tone: '. . . . . . . . 1 - - - . . . .' } } }, song: ['a'],
+        }), { 'a.wav': bright }).channels[0]!;
+        // Beside a tone that is the same in both, half the gain is half as loud.
+        const beside = (c: Float32Array): number => level(c, 44100, 0.1, 0.4) / level(c, 44100, 1.1, 1.4);
+        expect(beside(play({ gain: 0.5 })) / beside(play({}))).toBeCloseTo(0.5, 1);
+        const top = (c: Float32Array): number => energy(c, 44100, 3000, 4000) / energy(c, 44100, 400, 480);
+        expect(top(play({ cutoff: 900 }))).toBeLessThan(top(play({})) * 0.05);
+    });
+
+    it('refuses a mix that is not one', () => {
+        const bad = (more: Record<string, unknown>, instrument: Record<string, unknown> = {}) => () => validateMusicSource({ tempo: 120, key: 'A', instruments: { tone: { ...tone, ...instrument } }, patterns: { a: { bars: 1, tracks: { tone: EIGHT } } }, song: ['a'], ...more });
+        expect(bad({ master: { compress: 2 } })).toThrow(/master\.compress must be 0\.\.1/);
+        expect(bad({ master: { low: 20 } })).toThrow(/master\.low must be decibels, -12\.\.12/);
+        expect(bad({ master: { limit: true } })).toThrow(/master has unknown "limit"; it takes compress, low, high/);
+        expect(bad({ rubato: 3 })).toThrow(/rubato must be 0\.\.1/);
+        expect(bad({}, { lowcut: 5 })).toThrow(/lowcut must be Hz, 20\.\.2000/);
+        expect(bad({}, { highcut: 100 })).toThrow(/highcut must be Hz, 500\.\.20000/);
     });
 });

@@ -9,9 +9,12 @@
  *        out as the `samples` a music source takes (musicSource.ts) and the recordings as samples to be written as
  *        `.wav` files, after which the SoundFont is not needed: the project holds what it uses and no more.
  *
- *        What a SoundFont can say and this does not carry over: its filters and envelopes beyond attack and release,
- *        its modulators, and the second side of a recording made in stereo. Two things it does are undone on the way
- *        out, and said. Where it plays several recordings at once for one note (a second rank of pipes, a string
+ *        What comes over with a recording: both sides of one made in stereo, as one file of two; the filter its
+ *        zone sets over it, as the sample's `cutoff`, since a SoundFont makes a mellow instrument by dulling a
+ *        bright recording; and how far the zone turns it down, as its `gain`, which is what balances one recording
+ *        against the next. A piano's hundred and eighty zones are seventeen recordings each used many ways, and
+ *        they stay seventeen files. What does not come over: envelopes beyond attack and
+ *        release, filters that move, and modulators. Two things a SoundFont does are undone on the way out, and said. Where it plays several recordings at once for one note (a second rank of pipes, a string
  *        under a hammer) one is kept, since a sample here is one recording to a note. And where it sets an
  *        instrument whole octaves from its recordings, the recordings come out at the pitch they are: an instrument
  *        here goes down an octave by its `octave`, and one whose middle C sounded the C below would be out of tune
@@ -33,8 +36,8 @@ export interface SoundFontPreset {
     high: number;
 }
 
-interface Zone { sample: number; keyLow: number; keyHigh: number; velLow: number; velHigh: number; root: number; cents: number; octaves: number; loop: boolean; offsets: [number, number, number, number]; attack: number | null; release: number | null }
-interface SampleHeader { name: string; start: number; end: number; loopStart: number; loopEnd: number; rate: number; pitch: number; correction: number; type: number }
+interface Zone { cutoff: number; quieter: number; sample: number; keyLow: number; keyHigh: number; velLow: number; velHigh: number; root: number; cents: number; octaves: number; loop: boolean; offsets: [number, number, number, number]; attack: number | null; release: number | null }
+interface SampleHeader { name: string; start: number; end: number; loopStart: number; loopEnd: number; rate: number; pitch: number; correction: number; type: number; link: number }
 
 export interface SoundFont {
     name: string;
@@ -45,7 +48,7 @@ export interface SoundFont {
 }
 
 // The generators read here, by their numbers in the format.
-const GEN = { startOffset: 0, endOffset: 1, loopStartOffset: 2, loopEndOffset: 3, startCoarse: 4, endCoarse: 12, attack: 34, release: 38, instrument: 41, keyRange: 43, velRange: 44, loopStartCoarse: 45, loopEndCoarse: 50, coarseTune: 51, fineTune: 52, sampleId: 53, sampleModes: 54, rootKey: 58 } as const;
+const GEN = { filterCutoff: 8, filterOpens: 11, attenuation: 48, startOffset: 0, endOffset: 1, loopStartOffset: 2, loopEndOffset: 3, startCoarse: 4, endCoarse: 12, attack: 34, release: 38, instrument: 41, keyRange: 43, velRange: 44, loopStartCoarse: 45, loopEndCoarse: 50, coarseTune: 51, fineTune: 52, sampleId: 53, sampleModes: 54, rootKey: 58 } as const;
 
 type Generators = Map<number, number>;
 const signed = (v: number): number => (v > 32767 ? v - 65536 : v);
@@ -83,7 +86,7 @@ export function readSoundFont(bytes: Uint8Array): SoundFont {
     for (let at = of('shdr').at; at + 46 <= of('shdr').at + of('shdr').size - 46; at += 46) {
         headers.push({
             name: text(at, 20), start: view.getUint32(at + 20, true), end: view.getUint32(at + 24, true), loopStart: view.getUint32(at + 28, true), loopEnd: view.getUint32(at + 32, true),
-            rate: view.getUint32(at + 36, true), pitch: bytes[at + 40]!, correction: view.getInt8(at + 41), type: view.getUint16(at + 44, true),
+            rate: view.getUint32(at + 36, true), pitch: bytes[at + 40]!, correction: view.getInt8(at + 41), link: view.getUint16(at + 42, true), type: view.getUint16(at + 44, true),
         });
     }
 
@@ -128,7 +131,14 @@ export function readSoundFont(bytes: Uint8Array): SoundFont {
                 if (keyLow > keyHigh || velLow > velHigh) continue;
                 const rootKey = get(GEN.rootKey);
                 const coarse = signed(get(GEN.coarseTune) ?? 0) + add(GEN.coarseTune);
+                // The filter over it, in Hz: written as hundredths of a semitone above 8.176 Hz, and open where it is not written.
+                // An envelope that opens the filter as the note sounds is taken at half its way: a filter that stood where it
+                // starts would leave a trumpet as dull as its first hundredth of a second.
+                const cents = signed(get(GEN.filterCutoff) ?? 13500) + add(GEN.filterCutoff) + 0.5 * Math.max(0, signed(get(GEN.filterOpens) ?? 0) + add(GEN.filterOpens));
                 mine.push({
+                    cutoff: 8.176 * Math.pow(2, Math.max(1500, Math.min(13500, cents)) / 1200),
+                    // Tenths of a decibel it is turned down, of which players by custom take four parts in ten.
+                    quieter: Math.max(0, signed(get(GEN.attenuation) ?? 0) + add(GEN.attenuation)),
                     sample: iz.get(GEN.sampleId)!, keyLow, keyHigh, velLow, velHigh,
                     root: rootKey !== undefined && signed(rootKey) >= 0 ? rootKey : header.pitch <= 127 ? header.pitch : 60,
                     // Whole octaves are kept apart from the rest: they are where the instrument is set, not how the recording is tuned.
@@ -193,6 +203,7 @@ export function liftSoundFontPreset(font: SoundFont, index: number, dir: string)
     const samples = zones.map((zone): MusicSample => {
         const header = font.headers[zone.sample]!;
         const [from, to] = [Math.max(0, header.start + zone.offsets[0]), Math.min(font.data.length, header.end + zone.offsets[1])];
+        const dull = zone.cutoff < Math.min(16000, (header.rate || 44100) * 0.45);
         const key = `${zone.sample}|${from}|${to}`;
         let file = named.get(key);
         if (!file) {
@@ -202,9 +213,15 @@ export function liftSoundFontPreset(font: SoundFont, index: number, dir: string)
             taken.add(leaf.toLowerCase());
             file = `${folder}/${leaf}.wav`;
             named.set(key, file);
-            const channel = new Float32Array(Math.max(1, to - from));
-            for (let n = 0; n < channel.length; n++) channel[n] = font.data[from + n]! / 32768;
-            files[file] = { rate: header.rate || 44100, channels: [channel] };
+            const side = (start: number): Float32Array => {
+                const channel = new Float32Array(Math.max(1, to - from));
+                for (let n = 0; n < channel.length; n++) channel[n] = (font.data[start + n] ?? 0) / 32768;
+                return channel;
+            };
+            // Made in stereo, its other side is the recording it is linked to, as long as it is: the two are one file.
+            const other = header.type === 4 ? font.headers[header.link] : undefined;
+            const paired = other && other.type === 2 && other.end - other.start === header.end - header.start;
+            files[file] = { rate: header.rate || 44100, channels: paired ? [side(from), side(other.start + zone.offsets[0])] : [side(from)] };
         }
         // Played `cents` higher than its root says: the same as a recording of a note that much lower.
         const exact = zone.root - zone.cents / 100;
@@ -212,6 +229,8 @@ export function liftSoundFontPreset(font: SoundFont, index: number, dir: string)
         const tune = Math.round((exact - note) * 100);
         const [loopFrom, loopTo] = [(header.loopStart + zone.offsets[2] - from) / (header.rate || 44100), (header.loopEnd + zone.offsets[3] - from) / (header.rate || 44100)];
         const mid = (zone.velLow + zone.velHigh) / 2;
+        // Tenths of a decibel it is turned down, of which players by custom take four parts in ten.
+        const gain = Math.round(Math.pow(10, (-0.4 * zone.quieter) / 200) * 100) / 100;
         return {
             file, note: noteName(note),
             ...(ranged ? { low: noteName(zone.keyLow), high: noteName(zone.keyHigh) } : {}),
@@ -219,6 +238,8 @@ export function liftSoundFontPreset(font: SoundFont, index: number, dir: string)
             // Often a single turn of the wave, a few thousandths of a second: that is how a SoundFont holds a tone.
             ...(zone.loop && loopFrom >= 0 && loopTo > loopFrom + 0.0005 ? { loop: [Math.round(loopFrom * 1e5) / 1e5, Math.round(loopTo * 1e5) / 1e5] as const } : {}),
             ...(layered && mid < 56 ? { dynamic: 'soft' as const } : layered && mid > 104 ? { dynamic: 'loud' as const } : {}),
+            ...(gain < 0.995 ? { gain: Math.max(0.01, gain) } : {}),
+            ...(dull ? { cutoff: Math.max(200, Math.round(zone.cutoff / 10) * 10) } : {}),
         };
     });
 
