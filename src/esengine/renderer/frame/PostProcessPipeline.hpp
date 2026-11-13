@@ -108,6 +108,8 @@ struct PostProcessPass {
     /// Rebuilt from float/vec4Uniforms over the layout defaults when dirty.
     std::vector<u8> paramBytes;
     BufferHandle paramUbo = BufferHandle::Invalid;
+    /** @brief The size paramUbo was made with: what lets the next chain's pass of the same size take it over. */
+    u32 paramUboBytes = 0;
     bool paramDirty = true;
 };
 
@@ -677,6 +679,18 @@ private:
     resource::ShaderHandle compileBlit(const std::vector<std::string>& features);
     /// Frees a pass's GPU-side param UBO (clearPasses/shutdown).
     void releasePassResources(PostProcessPass& pass);
+    /**
+     * @brief A params block of `bytes` holding `data`: one a cleared chain left behind, if any is that size, or a new one.
+     *
+     * A camera's chain is said again every frame (clearPasses, then its passes), and each pass made and deleted a uniform buffer
+     * of its own each time: seventeen a frame for a lake scene's effects. The buffers of a cleared chain are kept for a few
+     * clears (a frame clears once per camera, and a camera with no effects sits between two frames of one with them), and one
+     * nothing took over in that time is deleted.
+     */
+    BufferHandle takeParamUbo(u32 bytes, const void* data);
+    void dropSpareParamUbos();
+    struct SpareParamUbo { BufferHandle handle; u32 bytes; u32 clears; };
+    std::vector<SpareParamUbo> spare_param_ubos_;
 
     GfxDevice& device_;
     RenderContext& context_;

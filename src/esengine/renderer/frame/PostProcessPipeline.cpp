@@ -210,6 +210,7 @@ void PostProcessPipeline::shutdown() {
     for (auto& pass : screenPasses_) releasePassResources(pass);
     releasePassResources(sky_capture_.copy);
     releasePassResources(cloud_shadow_copy_);
+    dropSpareParamUbos();
     sky_capture_.target.reset();
     sky_capture_.state = SkyCapture::State::Idle;
     for (auto& [source, program] : compute_cache_) device_.deleteCompute(program);
@@ -774,7 +775,25 @@ void PostProcessPipeline::releasePassResources(PostProcessPass& pass) {
     if (pass.paramUbo != BufferHandle::Invalid) {
         device_.deleteBuffer(pass.paramUbo);
         pass.paramUbo = BufferHandle::Invalid;
+        pass.paramUboBytes = 0;
     }
+}
+
+BufferHandle PostProcessPipeline::takeParamUbo(u32 bytes, const void* data) {
+    for (usize i = 0; i < spare_param_ubos_.size(); ++i) {
+        if (spare_param_ubos_[i].bytes != bytes) continue;
+        const BufferHandle handle = spare_param_ubos_[i].handle;
+        spare_param_ubos_[i] = spare_param_ubos_.back();
+        spare_param_ubos_.pop_back();
+        device_.updateBuffer(handle, 0, data, bytes);
+        return handle;
+    }
+    return device_.createBuffer({GfxBufferUsage::Uniform, bytes, /*dynamic=*/true}, GfxContent::retained(), data);
+}
+
+void PostProcessPipeline::dropSpareParamUbos() {
+    for (const SpareParamUbo& spare : spare_param_ubos_) device_.deleteBuffer(spare.handle);
+    spare_param_ubos_.clear();
 }
 
 void PostProcessPipeline::setPassUniformFloat(const std::string& passName,
@@ -1065,9 +1084,8 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
                 }
                 pass.paramDirty = false;
                 if (pass.paramUbo == BufferHandle::Invalid) {
-                    pass.paramUbo = device->createBuffer(
-                        {GfxBufferUsage::Uniform, layout->blockSize, /*dynamic=*/true},
-                        GfxContent::retained(), pass.paramBytes.data());
+                    pass.paramUbo = takeParamUbo(layout->blockSize, pass.paramBytes.data());
+                    pass.paramUboBytes = layout->blockSize;
                 } else {
                     device->updateBuffer(pass.paramUbo, 0, pass.paramBytes.data(),
                                          static_cast<u32>(pass.paramBytes.size()));
@@ -1169,8 +1187,8 @@ void PostProcessPipeline::computePass(PostProcessPass& pass, const rg::PassConte
     }
     const u32 paramBytes = static_cast<u32>(values.size() * sizeof(f32));
     if (pass.paramUbo == BufferHandle::Invalid) {
-        pass.paramUbo = device_.createBuffer({GfxBufferUsage::Uniform, paramBytes, /*dynamic=*/true},
-                                             GfxContent::retained(), values.data());
+        pass.paramUbo = takeParamUbo(paramBytes, values.data());
+        pass.paramUboBytes = paramBytes;
     } else {
         device_.updateBuffer(pass.paramUbo, 0, values.data(), paramBytes);
     }
@@ -1202,7 +1220,21 @@ void PostProcessPipeline::computePass(PostProcessPass& pass, const rg::PassConte
 }
 
 void PostProcessPipeline::clearPasses() {
-    for (auto& pass : passes_) releasePassResources(pass);
+    // What no chain took over in the last few clears is nobody's; what this chain holds is a later one's to take.
+    constexpr u32 kSpareClears = 8;
+    for (usize i = 0; i < spare_param_ubos_.size();) {
+        if (++spare_param_ubos_[i].clears <= kSpareClears) { ++i; continue; }
+        device_.deleteBuffer(spare_param_ubos_[i].handle);
+        spare_param_ubos_[i] = spare_param_ubos_.back();
+        spare_param_ubos_.pop_back();
+    }
+    for (auto& pass : passes_) {
+        if (pass.paramUbo == BufferHandle::Invalid) continue;
+        if (pass.paramUboBytes > 0) spare_param_ubos_.push_back({pass.paramUbo, pass.paramUboBytes, 0});
+        else device_.deleteBuffer(pass.paramUbo);
+        pass.paramUbo = BufferHandle::Invalid;
+        pass.paramUboBytes = 0;
+    }
     passes_.clear();
     // The display look is the chain's, like its passes: the next camera says its own.
     display_lut_texture_ = 0;

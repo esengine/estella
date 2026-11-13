@@ -4788,4 +4788,6 @@ export const NOTED = {
     {"note": "Sprite and particle shaders compile in the background too."},
   "perf(render): walking a frame's meshes asks nothing by name - a material's per-draw questions were string searches, a still child was decomposed again by every view, and the walk's own clock was most of what it reported":
     {"note": "Walking a frame's meshes costs less, and the profiler says what it costs."},
+  "perf(postprocess): an effect chain keeps its uniform buffers from frame to frame - a camera's chain is said again every frame, and each pass made a uniform buffer and deleted it each time, seventeen a frame for one lake scene; a cleared chain's buffers are taken over by the next chain's passes of the same size, and one nothing takes in eight clears is deleted":
+    {"note": "An effect chain keeps its uniform buffers from frame to frame."},
 };
