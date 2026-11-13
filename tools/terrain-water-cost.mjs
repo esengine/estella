@@ -229,10 +229,10 @@ async function measure(server, original, variant, browser) {
       }
       const costs = c.costs();
       const cpu = costs.systems.reduce((a, x) => a + x.ms, 0);
-      return { ms, gpuRuns, counters: c.render(), cpu, native: costs.native, size: [document.querySelector('canvas').width, document.querySelector('canvas').height], gl: !!gl };
+      return { ms, gpuRuns, counters: c.render(), cpu, systems: costs.systems, native: costs.native, size: [document.querySelector('canvas').width, document.querySelector('canvas').height], gl: !!gl };
     }, { frames: FRAMES, samples: SAMPLES, passSamples: PASSES ? SAMPLES : 0, detail: argv.includes('--detail') });
     if (SHOTS) { await mkdir(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, `${variant.id}-view${VIEW}.png`) }); }
-    return { ms: median(result.ms), gpu: gpuMedians(result.gpuRuns), cpu: result.cpu, native: result.native, min: Math.min(...result.ms), max: Math.max(...result.ms), settled, counters: result.counters, size: result.size, errors };
+    return { ms: median(result.ms), gpu: gpuMedians(result.gpuRuns), cpu: result.cpu, systems: result.systems, native: result.native, min: Math.min(...result.ms), max: Math.max(...result.ms), settled, counters: result.counters, size: result.size, errors };
   } finally {
     await context.close();
   }
@@ -286,6 +286,8 @@ try {
     }
     if (!r) { table[v.id] = { label: v.label, failed: true }; continue; }
     table[v.id] = { label: v.label, ...r };
+    // The CPU systems that cost the most, per frame (`--systems`): what a part costs before the GPU sees it.
+    if (argv.includes('--systems')) for (const s of [...(r.systems ?? [])].sort((a, b) => b.ms - a.ms).slice(0, 10)) console.log(`    ${String(s.name).padEnd(34)} ${s.ms.toFixed(3).padStart(7)} ms`);
     if (argv.includes('--probe')) console.log('  ' + Object.entries(r.counters).filter(([k]) => k.startsWith('probe.')).map(([k, x]) => `${k.replace('probe.', '')}=${x}`).join('  '));
     if (PASSES) {
       const rows = Object.entries(r.gpu).filter(([k]) => k.startsWith('pass/')).sort((a, b) => b[1] - a[1]);
