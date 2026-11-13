@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { applyMusicEdits, midiOf, musicSampleFiles, validateMusicSource, type MusicSource } from '../src/music/musicSource';
-import { compileMusic, noteName, renderMusic, type SampleData } from '../src/music/musicRender';
+import { compileMusic, noteName, renderMusic, samplePitch, type SampleData } from '../src/music/musicRender';
 import { musicPicture } from '../src/music/musicPicture';
 
 const tone = { layers: [{ source: 'sine', freq: 440 }] } as const;
@@ -290,6 +290,29 @@ describe('an instrument made of recordings', () => {
         expect(musicSampleFiles(source)).toEqual(['a.wav', 'b.ogg']);
         expect(() => renderMusic(source, {})).toThrow(/instrument "keys": the recording (a\.wav|b\.ogg) was not found/);
         expect([midiOf('C4'), midiOf('A4'), midiOf('F#3'), midiOf('Bb2'), midiOf('C-1'), midiOf('H2'), midiOf(128)]).toEqual([60, 69, 54, 46, 0, null, null]);
+    });
+
+    it('hears the pitch of a recording, and says when it is not the note it is called', () => {
+        // A tone with overtones, as an instrument has: the pitch is the lowest of them, not the loudest.
+        const rich = (hz: number): SampleData => ({ rate: 44100, channels: [Float32Array.from({ length: 44100 }, (_, n) => { const t = (2 * Math.PI * hz * n) / 44100; return 0.2 * Math.sin(t) + 0.3 * Math.sin(2 * t) + 0.15 * Math.sin(3 * t); })] });
+        expect(samplePitch(rich(220), 220)).toBeCloseTo(220, -0.5);
+        // Told it is an octave lower or higher than it is, it still finds what it is.
+        expect(samplePitch(rich(220), 110)).toBeCloseTo(220, -0.5);
+        expect(samplePitch(rich(220), 440)).toBeCloseTo(220, -0.5);
+        let seed = 12345;
+        const noise = { rate: 44100, channels: [Float32Array.from({ length: 44100 }, () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 2147483648 - 1; })] };
+        expect(samplePitch(noise, 220)).toBeNull();
+
+        const notes = (samples: unknown[], files: Record<string, SampleData>): string[] => renderMusic(validateMusicSource({
+            tempo: 120, key: 'A', humanize: 0, instruments: { keys: { samples } }, patterns: { a: { bars: 1, tracks: { keys: one('1') } } }, song: ['a'],
+        }), files).notes;
+        const files = { 'a.wav': rich(220), 'e.wav': rich(329.63) };
+        expect(notes([{ file: 'a.wav', note: 'A3' }, { file: 'e.wav', note: 'E4' }], files)).toEqual([]);
+        expect(notes([{ file: 'a.wav', note: 'A3' }, { file: 'e.wav', note: 'D4' }], files)).toEqual(['"keys": e.wav is said to be D4 and sounds as E4: every note played from it is 2 semitones higher than written. Set its note to "E4"']);
+        // A library that counts its octaves from another C is out everywhere, and that is said once.
+        const octave = notes([{ file: 'a.wav', note: 'A2' }, { file: 'e.wav', note: 'E3' }], files);
+        expect(octave).toHaveLength(1);
+        expect(octave[0]).toMatch(/every one of its 2 recordings sounds 12 semitones higher than the note it is said to be \(a\.wav is said to be A2 and sounds as A3\), as a library does that counts its octaves from another C/);
     });
 
     it('refuses samples that are not well formed', () => {

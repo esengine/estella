@@ -223,6 +223,31 @@ function sampleNote(name: string, instrument: MusicInstrument, midi: number | nu
     return out;
 }
 
+/**
+ * The pitch heard in a recording, in Hz, looked for within two octaves of @p near; null where it has none that can be
+ * told (a drum, a noise). It is found by how far the wave has to be slid to lie on itself again. A wave lies on itself
+ * at twice its period too, so the shortest slide that fits nearly as well as the best is taken: that is what tells a
+ * recording named an octave from what it is, which libraries that count octaves from another C are throughout.
+ */
+export function samplePitch(data: SampleData, near: number): number | null {
+    const samples = data.channels[0]!;
+    const longest = Math.ceil(data.rate / (near / 2.1));
+    const start = Math.floor(samples.length * 0.25);
+    const size = Math.min(16384, samples.length - start - longest);
+    if (size < longest * 2) return null;
+    const scores: [number, number][] = [];
+    for (let lag = Math.max(8, Math.floor(data.rate / (near * 4.2))); lag <= longest; lag++) {
+        let sum = 0, a = 0, b = 0;
+        for (let n = 0; n < size; n += 2) { const x = samples[start + n]!, y = samples[start + n + lag]!; sum += x * y; a += x * x; b += y * y; }
+        scores.push([lag, sum / Math.sqrt(a * b + 1e-12)]);
+    }
+    const top = Math.max(...scores.map((score) => score[1]));
+    if (!(top > 0.6)) return null;
+    let at = scores.findIndex((score) => score[1] >= top * 0.92);
+    while (at + 1 < scores.length && scores[at + 1]![1] > scores[at]![1]) at++;
+    return data.rate / scores[at]![0];
+}
+
 const TAIL_SECONDS = 4;
 
 /**
@@ -347,6 +372,29 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
     let peak = 0;
     for (const channel of channels) for (const v of channel) if (Math.abs(v) > peak) peak = Math.abs(v);
     const notes = [...compiled.notes];
+    // A recording called a note it is not puts every note played from it out of tune, and nothing in the notes shows it.
+    for (const name of names) {
+        const wrong: { file: string; said: number; is: number }[] = [];
+        const zones = source.instruments[name]!.samples ?? [];
+        for (const zone of zones) {
+            const data = given[zone.file];
+            if (!data) continue;
+            const said = midiOf(zone.note)!;
+            const hz = 440 * Math.pow(2, (said - 69) / 12);
+            const found = samplePitch(data, hz);
+            const off = found === null ? 0 : 12 * Math.log2(found / hz);
+            if (Math.abs(off) >= 0.7) wrong.push({ file: zone.file, said, is: Math.round(said + off) });
+        }
+        if (wrong.length === 0) continue;
+        const by = (w: { said: number; is: number }): number => w.is - w.said;
+        const semitones = (n: number): string => `${Math.abs(n)} semitone${Math.abs(n) === 1 ? '' : 's'} ${n > 0 ? 'higher' : 'lower'}`;
+        // A whole library out by the same amount is one thing to say, and nearly always an octave: it counts its octaves from another C.
+        if (wrong.length === zones.length && wrong.length > 1 && wrong.every((w) => by(w) === by(wrong[0]!))) {
+            notes.push(`"${name}": every one of its ${zones.length} recordings sounds ${semitones(by(wrong[0]!))} than the note it is said to be (${wrong[0]!.file} is said to be ${noteName(wrong[0]!.said)} and sounds as ${noteName(wrong[0]!.is)})${Math.abs(by(wrong[0]!)) === 12 ? ', as a library does that counts its octaves from another C' : ''}: the instrument plays that much out. Move each \`note\` by that much`);
+        } else {
+            for (const w of wrong) notes.push(`"${name}": ${w.file} is said to be ${noteName(w.said)} and sounds as ${noteName(w.is)}: every note played from it is ${semitones(by(w))} than written. Set its note to "${noteName(w.is)}"`);
+        }
+    }
     const target = source.gain ?? 0.9;
     const scale = peak > 1e-6 ? target / peak : 1;
     if (peak <= 1e-6) notes.push('the piece is silent: nothing in it reaches a level that can be heard');
