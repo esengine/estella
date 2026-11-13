@@ -91,6 +91,8 @@ occlusion and roughness light it. Its material sets how: `u_sharpness`, `u_heigh
 `u_macroVariation`, `u_triplanarFrom` (how steep before the sides are read) and `u_wetLevel`/`u_wetBand`, as the Terrain shader's below.
 A layer seen from the side is read by height, so a cliff texture's beds lie level, and dead straight along the whole wall:
 `u_strataWarp` is how far they wander up and down, by slow noise `u_strataSpan` wide (0, the default, leaves them straight).
+`u_antiTileTurn` is how far round a cell of the no-repeat reading may be turned: a layer with a grain (sand in ripples) turned cell by
+cell is lit cell by cell and shows the hexagons, and 0 shifts the cells without turning them.
 
 What an artist delivers, per layer: the three textures, square, a power of two (1024 is plenty; they are packed at the largest
 layer's size, at most 1024, 512 on a minigame), tiling seamlessly, the normal and mask saved as data (not colour-managed). A layer's

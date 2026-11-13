@@ -123,6 +123,9 @@ const TERRAIN = `#pragma shader "Terrain"
 #pragma param u_farScale float default(4.3) range(1,32) ui(slider)
 // How strongly each layer is read without repeat near the eye (hex tiling: every hexagonal cell shifted and turned at random), so no tile is seen.
 #pragma param u_antiTile float default(0.6) range(0,1) ui(slider)
+// How far round a cell may be turned (1 any way, 0 shifted only): a layer with a grain, sand in ripples or rock in beds, turned cell by
+// cell is lit cell by cell, and shows the hexagons.
+#pragma param u_antiTileTurn float default(1) range(0,1) ui(slider)
 // The wide, slow variation in brightness laid over every layer so a big meadow is not one colour.
 #pragma param u_macroVariation float default(0.35) range(0,1) ui(slider)
 // How deep, in world units, the layers' relief is drawn into the light (their brightness taken as height); 0 leaves the ground smooth.
@@ -204,7 +207,7 @@ vec2 tnHash2(vec2 p) {
 // One reading of a layer in a hex cell: shifted and turned by the cell's own random numbers (the gradients turn with it).
 vec3 tnHexTap(sampler2D layer, vec2 uv, vec2 cell, vec2 gx, vec2 gy) {
     vec2 r = tnHash2(cell);
-    float a = r.x * 6.2831853;
+    float a = r.x * 6.2831853 * u_antiTileTurn;
     mat2 turn = mat2(cos(a), -sin(a), sin(a), cos(a));
     return textureGrad(layer, turn * uv + r, turn * gx, turn * gy).rgb;
 }
@@ -353,7 +356,7 @@ fn tnHash2(p : vec2f) -> vec2f {
 }
 fn tnHexTap(layer : texture_2d<f32>, smp : sampler, uv : vec2f, cell : vec2f, gx : vec2f, gy : vec2f) -> vec3f {
     let r = tnHash2(cell);
-    let a = r.x * 6.2831853;
+    let a = r.x * 6.2831853 * mc.u_antiTileTurn;
     let turn = mat2x2f(cos(a), -sin(a), sin(a), cos(a));
     return textureSampleGrad(layer, smp, turn * uv + r, turn * gx, turn * gy).rgb;
 }
@@ -539,6 +542,9 @@ const TERRAIN_LAYERS = `#pragma shader "Terrain Layers"
 #pragma param u_farScale float default(4.3) range(1,32) ui(slider)
 // How strongly each layer is read without repeat near the eye (hex tiling), so no tile is seen.
 #pragma param u_antiTile float default(0.6) range(0,1) ui(slider)
+// How far round a cell may be turned (1 any way, 0 shifted only): a layer with a grain, sand in ripples or rock in beds, turned cell by
+// cell is lit cell by cell, and shows the hexagons.
+#pragma param u_antiTileTurn float default(1) range(0,1) ui(slider)
 // The wide, slow variation in brightness laid over every layer so a big meadow is not one colour.
 #pragma param u_macroVariation float default(0.25) range(0,1) ui(slider)
 // How steep the ground must be (1 minus its normal's up) before the layers are also projected from the sides.
@@ -631,7 +637,7 @@ TnTap tnPlain(vec2 uv, float layer, vec2 gx, vec2 gy) {
 // The same in one hex cell: shifted and turned by the cell's random numbers; the normal's slope turned back with it.
 TnTap tnHexTap(vec2 uv, float layer, vec2 cell, vec2 gx, vec2 gy) {
     vec2 r = tnHash2(cell);
-    float a = r.x * 6.2831853;
+    float a = r.x * 6.2831853 * u_antiTileTurn;
     mat2 turn = mat2(cos(a), -sin(a), sin(a), cos(a));
     TnTap t = tnPlain(turn * uv + r, layer, turn * gx, turn * gy);
     t.slope = t.slope * turn;
@@ -828,7 +834,7 @@ fn tnPlain(uv : vec2f, layer : i32, gx : vec2f, gy : vec2f) -> TnTap {
 }
 fn tnHexTap(uv : vec2f, layer : i32, cell : vec2f, gx : vec2f, gy : vec2f) -> TnTap {
     let r = tnHash2(cell);
-    let a = r.x * 6.2831853;
+    let a = r.x * 6.2831853 * mc.u_antiTileTurn;
     let turn = mat2x2f(cos(a), -sin(a), sin(a), cos(a));
     var t = tnPlain(turn * uv + r, layer, turn * gx, turn * gy);
     t.slope = t.slope * turn;

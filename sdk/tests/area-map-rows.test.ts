@@ -39,4 +39,13 @@ describe('the rows of an image over an area', () => {
         expect(source).toContain('if (u_strataWarp > 0.0) bedY +=');
         expect(source).toContain('if (mc.u_strataWarp > 0.0) { bedY = bedY +');
     });
+
+    it('a hex cell is turned by no more than the material says, in both shaders and both languages', () => {
+        for (const source of [TERRAIN_SHADER_TEMPLATE.source, TERRAIN_LAYERS_SHADER_TEMPLATE.source]) {
+            expect(source).toContain('#pragma param u_antiTileTurn float default(1)');
+            expect(source).toContain('float a = r.x * 6.2831853 * u_antiTileTurn;');
+            expect(source).toContain('let a = r.x * 6.2831853 * mc.u_antiTileTurn;');
+            expect(source).not.toContain('r.x * 6.2831853;');
+        }
+    });
 });
