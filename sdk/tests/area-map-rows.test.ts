@@ -27,4 +27,16 @@ describe('the rows of an image over an area', () => {
             }
         }
     });
+
+    it('a layer read from the side takes its height through the strata warp, in both languages, and the warp is off by default', () => {
+        const source = TERRAIN_LAYERS_SHADER_TEMPLATE.source;
+        expect(source).toContain('#pragma param u_strataWarp float default(0)');
+        for (const read of ['tnPlain(vec2(Pw.z, bedY) / tile', 'tnPlain(vec2(Pw.x, bedY) / tile', 'tnPlain(vec2f(Pw.z, bedY) / tile', 'tnPlain(vec2f(Pw.x, bedY) / tile']) {
+            expect(source).toContain(read);
+        }
+        expect(source).not.toContain('tnPlain(Pw.zy');
+        expect(source).not.toContain('tnPlain(Pw.xy');
+        expect(source).toContain('if (u_strataWarp > 0.0) bedY +=');
+        expect(source).toContain('if (mc.u_strataWarp > 0.0) { bedY = bedY +');
+    });
 });

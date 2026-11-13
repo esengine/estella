@@ -66,7 +66,7 @@ description: 一个 Terrain 组件,用高度图或噪声生成地面,可以是�
 | `normalStrength` | 法线贴图的强度:1 为原样,0 为平坦。 |
 | `heightBlend` | 可选。这一层自己的高度在与别的层相交处起多大作用:0 只按涂色混合(草到沙),1 按各层高度混合(石头从草里露出)。多层相遇时,每层按它在此处所占的比例计入。缺省则用材质的 `u_heightBlend`。 |
 
-地面由 **Terrain Layers** 着色器(`builtin:terrain-layers`)绘制。每一层按世界位置铺设,近处去除重复,远处混入更大的平铺;层与层交界处遮罩高度更高的一层显露(草间露出石头、石缝里填着沙);坡面上同时从侧面投影,悬崖不会被拉伸。法线贴图和遮罩的遮蔽、粗糙度参与光照。材质控制效果:`u_sharpness`、`u_heightBlend`、`u_blendNoise`、`u_antiTile`、`u_farScale`、`u_macroVariation`、`u_triplanarFrom`(多陡开始读侧面)和 `u_wetLevel`/`u_wetBand`,含义同下文 Terrain 着色器。
+地面由 **Terrain Layers** 着色器(`builtin:terrain-layers`)绘制。每一层按世界位置铺设,近处去除重复,远处混入更大的平铺;层与层交界处遮罩高度更高的一层显露(草间露出石头、石缝里填着沙);坡面上同时从侧面投影,悬崖不会被拉伸。法线贴图和遮罩的遮蔽、粗糙度参与光照。材质控制效果:`u_sharpness`、`u_heightBlend`、`u_blendNoise`、`u_antiTile`、`u_farScale`、`u_macroVariation`、`u_triplanarFrom`(多陡开始读侧面)和 `u_wetLevel`/`u_wetBand`,含义同下文 Terrain 着色器。从侧面读的层按高度取样,所以崖壁贴图的岩层是水平的,而且沿整面墙笔直:`u_strataWarp` 是岩层上下起伏的幅度,由宽度为 `u_strataSpan` 的缓慢噪声决定(默认 0,保持笔直)。
 
 美术每层交付:三张贴图,正方形,边长为 2 的幂(1024 足够;打包时取最大一层的尺寸,最大 1024,小游戏上 512),四方连续,法线和遮罩按数据保存(不做色彩管理)。地形构建时各层贴图会打包成纹理数组,地形层文件或其贴图保存后会重新打包。
 

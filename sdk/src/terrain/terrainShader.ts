@@ -543,6 +543,10 @@ const TERRAIN_LAYERS = `#pragma shader "Terrain Layers"
 #pragma param u_macroVariation float default(0.25) range(0,1) ui(slider)
 // How steep the ground must be (1 minus its normal's up) before the layers are also projected from the sides.
 #pragma param u_triplanarFrom float default(0.15) range(0,1) ui(slider)
+// A layer seen from the side is read by height, so its beds lie level and dead straight. u_strataWarp is how far they wander up and
+// down along a wall, by slow noise u_strataSpan wide; 0 leaves them straight.
+#pragma param u_strataWarp float default(0) range(0,100000) ui(slider) unit(length)
+#pragma param u_strataSpan float default(4000) range(1,10000000) ui(slider) unit(length)
 // Ground at the water: below u_wetLevel + u_wetBand (world heights) it darkens and shines, most at the waterline. A band of 0 draws none.
 #pragma param u_wetLevel float default(0) range(-100000,100000) ui(slider) unit(length)
 #pragma param u_wetBand float default(0) range(0,100000) ui(slider) unit(length)
@@ -709,6 +713,8 @@ void main() {
     axis /= dot(axis, vec3(1.0));
     float side = smoothstep(u_triplanarFrom, u_triplanarFrom + 0.15, 1.0 - abs(N.y));
     vec3 planes = mix(vec3(0.0, 1.0, 0.0), axis, side);
+    float bedY = Pw.y;
+    if (u_strataWarp > 0.0) bedY += (tnNoise(Pw.xz / u_strataSpan + 41.0) * 0.65 + tnNoise(Pw.xz / (u_strataSpan * 0.31) + 7.0) * 0.35 - 0.5) * 2.0 * u_strataWarp;
 
     vec3 albedo[8];
     vec3 bend[8];
@@ -731,12 +737,12 @@ void main() {
         mask[i] = top.mask * planes.y;
         bend[i] = tnBend(top.slope, vec3(1.0, 0.0, 0.0), vec3(0.0, 0.0, 1.0), N) * planes.y;
         if (planes.x > 0.02) {
-            TnTap x = tnPlain(Pw.zy / tile, layer, dpx.zy / tile, dpy.zy / tile);
+            TnTap x = tnPlain(vec2(Pw.z, bedY) / tile, layer, dpx.zy / tile, dpy.zy / tile);
             albedo[i] += x.albedo * planes.x; mask[i] += x.mask * planes.x;
             bend[i] += tnBend(x.slope, vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, 0.0), N) * planes.x;
         }
         if (planes.z > 0.02) {
-            TnTap z = tnPlain(Pw.xy / tile, layer, dpx.xy / tile, dpy.xy / tile);
+            TnTap z = tnPlain(vec2(Pw.x, bedY) / tile, layer, dpx.xy / tile, dpy.xy / tile);
             albedo[i] += z.albedo * planes.z; mask[i] += z.mask * planes.z;
             bend[i] += tnBend(z.slope, vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), N) * planes.z;
         }
@@ -927,6 +933,8 @@ fn packNormal(n : vec3f) -> vec2f {
     axis = axis / dot(axis, vec3f(1.0));
     let side = smoothstep(mc.u_triplanarFrom, mc.u_triplanarFrom + 0.15, 1.0 - abs(N.y));
     let planes = mix(vec3f(0.0, 1.0, 0.0), axis, vec3f(side));
+    var bedY = Pw.y;
+    if (mc.u_strataWarp > 0.0) { bedY = bedY + (tnNoise(Pw.xz / mc.u_strataSpan + vec2f(41.0)) * 0.65 + tnNoise(Pw.xz / (mc.u_strataSpan * 0.31) + vec2f(7.0)) * 0.35 - 0.5) * 2.0 * mc.u_strataWarp; }
 
     var albedo : array<vec3f, 8>;
     var bend : array<vec3f, 8>;
@@ -950,13 +958,13 @@ fn packNormal(n : vec3f) -> vec2f {
         mask[i] = top.mask * planes.y;
         bend[i] = tnBend(top.slope, vec3f(1.0, 0.0, 0.0), vec3f(0.0, 0.0, 1.0), N) * planes.y;
         if (planes.x > 0.02) {
-            let x = tnPlain(Pw.zy / tile, i, dpx.zy / tile, dpy.zy / tile);
+            let x = tnPlain(vec2f(Pw.z, bedY) / tile, i, dpx.zy / tile, dpy.zy / tile);
             albedo[i] = albedo[i] + x.albedo * planes.x;
             mask[i] = mask[i] + x.mask * planes.x;
             bend[i] = bend[i] + tnBend(x.slope, vec3f(0.0, 0.0, 1.0), vec3f(0.0, 1.0, 0.0), N) * planes.x;
         }
         if (planes.z > 0.02) {
-            let z = tnPlain(Pw.xy / tile, i, dpx.xy / tile, dpy.xy / tile);
+            let z = tnPlain(vec2f(Pw.x, bedY) / tile, i, dpx.xy / tile, dpy.xy / tile);
             albedo[i] = albedo[i] + z.albedo * planes.z;
             mask[i] = mask[i] + z.mask * planes.z;
             bend[i] = bend[i] + tnBend(z.slope, vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), N) * planes.z;
