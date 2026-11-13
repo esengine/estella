@@ -239,7 +239,7 @@ const JSON_REF_TYPES = new Set([
   'json', 'sound-event', 'world-rules', 'terrain-layer', 'terrain-tiles',
 ]);
 
-const isTextureRecipe = (e: { type: string; path: string }): boolean => e.type === 'texture' && e.path.toLowerCase().endsWith('.esimage');
+const isTextureRecipe = (e: { type: string; path: string }): boolean => e.type === 'imageSource' && e.path.toLowerCase().endsWith('.esimage');
 
 /**
  * Collect every asset reference in a JSON document:

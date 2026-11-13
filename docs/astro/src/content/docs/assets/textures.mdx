@@ -227,7 +227,8 @@ file of its own, two lines that name the picture:
 
 `map` is `normal` or `surface` (roughness in green, metal in blue; one pixel where both are one value everywhere). Save it as an
 `.esimage`, give it the import settings a map has (Use: Data or Normal map), and name it where the map goes. The picture it is a map
-of ships with it, named anywhere else or not.
+of ships with it, named anywhere else or not. The editor's image tools write both files beside a picture that has a `material`
+(`wall_normal.esimage`, `wall_surface.esimage`), set as data, and a texture field takes a picture's source as it takes an image.
 
 **What a recipe may name.** A picture it lays in (an `image` layer's `src`: a PNG, or another recipe), and a font file its text is
 set in. They ship with the recipe, and a change in any of them draws it again.

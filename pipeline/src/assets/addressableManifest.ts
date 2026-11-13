@@ -37,7 +37,8 @@ interface FlatManifest {
 // Editor asset type → AddressableAssetType (sdk/src/assetTypes.ts). Feeds the
 // runtime Catalog; an unmapped type degrading to 'binary' is harmless.
 const ADDRESSABLE_TYPE: Record<string, string> = {
-  texture: 'texture', material: 'material', audio: 'audio', 'bitmap-font': 'bitmap-font',
+  // A picture's source ships as a texture that is drawn where it loads (a recipe): an image to whatever loads it, never one to the cook.
+  texture: 'texture', imageSource: 'texture', material: 'material', audio: 'audio', 'bitmap-font': 'bitmap-font',
   prefab: 'prefab', spine: 'spine',
   scene: 'json', 'anim-clip': 'json', tilemap: 'json', timeline: 'json', json: 'json', 'sound-event': 'json', 'world-rules': 'json', 'terrain-layer': 'json', 'terrain-tiles': 'json', shader: 'text',
 };

@@ -304,6 +304,8 @@ export const IMPORTER_SCHEMAS: Record<string, ImporterFieldSpec[]> = {
   panorama: PANORAMA,
   texture: TEXTURE,
   sprite: TEXTURE,
+  // A picture's source named where a texture goes is sampled as one: its filter, its wrap and whether it is colour are a texture's.
+  imageSource: TEXTURE,
   spine: SPINE,
   dragonbones: DRAGONBONES,
   audio: AUDIO,
