@@ -218,3 +218,99 @@ describe('a sound source', () => {
         expect(source.layers[0]!.freq).toBe(300);
     });
 });
+
+describe('what makes a made sound pass for a real one', () => {
+    const raw = (layers: SoundLayer[], rest: Partial<SoundSource> = {}) => make(layers, { normalize: false, ...rest });
+
+    it('cuts noise to a band and brings it back to the level of the whole', () => {
+        const whole = level(raw([{ source: 'noise' }]).channels[0]!, 0.1, 0.9);
+        for (const band of [[250, 800], [2500, 6000]] as const) {
+            const s = raw([{ source: 'noise', band }]);
+            expect(level(s.channels[0]!, 0.1, 0.9)).toBeCloseTo(whole, 1);
+        }
+        expect(soundBands(raw([{ source: 'noise', band: [2500, 6000] }])).high).toBeGreaterThan(0.95);
+        expect(soundBands(raw([{ source: 'noise', band: [40, 150] }])).low).toBeGreaterThan(0.8);
+    });
+
+    it('lets a share of a decay linger as a tail', () => {
+        const plain = raw([{ source: 'noise', decay: 0.01 }]).channels[0]!;
+        const tailed = raw([{ source: 'noise', decay: 0.01, tail: { decay: 0.2, mix: 0.3 } }]).channels[0]!;
+        expect(level(plain, 0.3, 0.5)).toBeLessThan(1e-6);
+        expect(level(tailed, 0.3, 0.5)).toBeGreaterThan(0.02);
+        // The start is the same sound: the tail takes its share, it does not add to it.
+        expect(level(tailed, 0, 0.005)).toBeCloseTo(level(plain, 0, 0.005), 1);
+    });
+
+    it('makes a spike that is up at once and gone in its width', () => {
+        const s = raw([{ source: 'impulse', width: 0.0002 }]).channels[0]!;
+        expect(s[0]).toBeCloseTo(1, 5);
+        expect(Math.abs(s[30]!)).toBeLessThan(0.1);
+        expect(level(s, 0.01, 1)).toBe(0);
+    });
+
+    it('lifts what lies round a peak', () => {
+        const share = (gain: number) => soundBands(raw([{ source: 'noise', filters: [{ type: 'peak', freq: 600, q: 1.5, gain }] }])).mid;
+        expect(share(12)).toBeGreaterThan(share(0) * 1.5);
+        expect(share(-12)).toBeLessThan(share(0));
+    });
+
+    it('scatters strikes in time and pitch, the same way each time, crowded early when told', () => {
+        const scattered = (early: number) => raw([{ source: 'sine', freq: 2000, length: 0.01, decay: 0.002, scatter: { count: 200, over: 0.45, early, pitch: [1, 4], pan: 1 } }]);
+        const even = scattered(1), crowded = scattered(3);
+        expect(even.layers[0]!.strikes).toBe(200);
+        expect(even.channels).toHaveLength(2);
+        const mono = (s: typeof even): Float32Array => s.channels[0]!.map((v, i) => v + s.channels[1]![i]!);
+        expect(level(mono(even), 0.5, 0.9)).toBeGreaterThan(level(mono(even), 0, 0.4) * 0.75);
+        expect(level(mono(crowded), 0.5, 0.9)).toBeLessThan(level(mono(crowded), 0, 0.4) * 0.65);
+        expect(Buffer.from(scattered(1).channels[0]!.buffer).equals(Buffer.from(even.channels[0]!.buffer))).toBe(true);
+        // Pitches between one and four times 2 kHz: all of it above 2 kHz, none of it a single line.
+        expect(soundBands(even).high).toBeGreaterThan(0.95);
+    });
+
+    it('bounces: each gap shorter than the last', () => {
+        const s = raw([{ source: 'impulse', width: 0.0002, length: 0.002, repeat: { count: 4, every: 0.2, faster: 0.5 } }]).channels[0]!;
+        const hits: number[] = [];
+        for (let n = 0; n < s.length; n++) if (s[n]! > 0.9) hits.push(n / 44100);
+        expect(hits).toHaveLength(4);
+        expect(hits[1]! - hits[0]!).toBeCloseTo(0.2, 2);
+        expect(hits[2]! - hits[1]!).toBeCloseTo(0.1, 2);
+        expect(hits[3]! - hits[2]!).toBeCloseTo(0.05, 2);
+    });
+
+    it('gives a wide noise two sides that differ, and a narrow one two that do not', () => {
+        const differ = (wide: number): number => {
+            const s = raw([{ source: 'noise', wide, pan: 0 }]);
+            if (s.channels.length === 1) return 0;
+            return level(s.channels[0]!.map((v, i) => v - s.channels[1]![i]!));
+        };
+        expect(differ(0)).toBe(0);
+        expect(differ(0.8)).toBeGreaterThan(differ(0.2) * 2);
+    });
+
+    it('puts a sound in a place: a room whose top dies before its bottom, open ground with its slaps', () => {
+        const click: SoundLayer = { source: 'impulse', width: 0.0002, length: 0.01 };
+        const room = raw([click], { duration: 1.5, reverb: { kind: 'room', size: 0.7, mix: 0.5 } });
+        expect(room.channels).toHaveLength(2);
+        const part = (from: number, to: number) => soundBands({ ...room, channels: [room.channels[0]!.subarray(Math.floor(from * 44100), Math.floor(to * 44100))] });
+        expect(level(room.channels[0]!, 0.3, 0.6)).toBeGreaterThan(1e-4);
+        expect(part(0.7, 1.2).high).toBeLessThan(part(0.02, 0.2).high * 0.5);
+        const open = raw([click], { duration: 1.5, reverb: { kind: 'open', size: 0.5, mix: 0.5 } }).channels[0]!;
+        // Nothing comes back from far walls before the first slap, where a room answers at once.
+        expect(level(open, 0.012, 0.05)).toBeLessThan(level(room.channels[0]!, 0.012, 0.05) * 0.5);
+        expect(level(open, 0.06, 0.2)).toBeGreaterThan(1e-4);
+    });
+
+    it('says what is wrong with the new fields', () => {
+        const bad = (layer: unknown, rest: object = {}) => () => validateSoundSource({ duration: 1, layers: [layer], ...rest });
+        expect(bad({ source: 'sine', freq: 300, band: [100, 200] })).toThrow(/band is a noise's/);
+        expect(bad({ source: 'noise', band: [800, 200] })).toThrow(/band must be \[low Hz, high Hz\]/);
+        expect(bad({ source: 'noise', tail: { decay: 0.1, mix: 0.2 } })).toThrow(/tail is the slow part of a decay: give decay too/);
+        expect(bad({ source: 'impulse', width: 0.5 })).toThrow(/an impulse's width is seconds/);
+        expect(bad({ source: 'noise', filters: [{ type: 'peak', freq: 500 }] })).toThrow(/gain is a peak's, in dB/);
+        expect(bad({ source: 'noise', filters: [{ type: 'lowpass', freq: 500, gain: 3 }] })).toThrow(/gain is a peak's, in dB/);
+        expect(bad({ source: 'noise', scatter: { count: 5, over: 1 }, repeat: { count: 2, every: 0.1 } })).toThrow(/by repeat or by scatter, not both/);
+        expect(bad({ source: 'noise', scatter: { count: 5, over: 1, pitch: [3, 1] } })).toThrow(/scatter\.pitch must be \[low, high\]/);
+        expect(bad({ source: 'noise', repeat: { count: 3, every: 0.1, faster: 2 } })).toThrow(/repeat\.faster/);
+        expect(bad({ source: 'noise' }, { reverb: { kind: 'cave' } })).toThrow(/reverb\.kind must be one of room, open/);
+    });
+});

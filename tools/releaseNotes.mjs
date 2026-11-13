@@ -4590,6 +4590,10 @@ export const NOTED = {
     {"note": "An AI can make a sound effect."},
   "feat(sound): sound_write, sound_edit and sound_read - an AI makes a sound effect from layers and is answered with the picture of it, its level and where its energy lies":
     {"note": "An AI can make a sound effect."},
+  "feat(sound): a made sound is built as a real one is - noise in bands that each die at their own rate, a tail to a decay, an impulse for the front of a bang, strikes scattered in time and pitch, a bounce, a peak filter, and a place made by convolution with first echoes and a top that dies before its bottom":
+    {"note": "An AI can make a sound effect."},
+  "feat(sound): sound_write teaches the method - bands of noise behind an impulse, strikes scattered by the hundred, two clicks to a step, and what a real bang looks like in the picture":
+    {"note": "An AI can make a sound effect."},
   "feat(sky): a sky of your own shades the ground under its clouds - defineSkyEffect takes groundShadow and a second function, skyShadow(world, sun), what is left of the light at a world position, and the sky pass multiplies every surface it finds by it, as Sky Atmosphere does with its own clouds":
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":

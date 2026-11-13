@@ -14,7 +14,7 @@ import type { RenderedSound } from './soundRender';
 export interface SoundPicture { width: number; height: number; rgba: Uint8Array }
 
 /** In place: the transform of @p re + i @p im, their length a power of two. */
-function fft(re: Float64Array, im: Float64Array): void {
+export function fft(re: Float64Array, im: Float64Array): void {
     const n = re.length;
     for (let i = 1, j = 0; i < n; i++) {
         let bit = n >> 1;

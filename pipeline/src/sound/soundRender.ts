@@ -4,9 +4,16 @@
  * @file  soundRender.ts — a sound source worked out into samples, and the samples as a `.wav`.
  *
  *        Every layer is rendered on its own, placed in time, and summed; then what the source says of the whole (a
- *        filter, an echo, a room, a level) is applied to the sum. Nothing depends on the machine: no random number is
+ *        filter, an echo, a place, a level) is applied to the sum. Nothing depends on the machine: no random number is
  *        drawn that is not seeded, and the arithmetic is plain doubles.
+ *
+ *        What makes a made sound pass for a real one is mostly here, and it is not more kinds of wave. A bang is several
+ *        bands of noise that die at different rates, the high ones first, behind a spike a fifth of a millisecond wide;
+ *        a breaking thing is hundreds of small rings scattered in time and pitch; a place is a wash whose top dies before
+ *        its bottom, after a handful of distinct first echoes. A layer of noise through one filter with one decay has
+ *        none of that and is heard at once as a machine.
  */
+import { fft } from './soundPicture';
 import type { SoundCurve, SoundFilter, SoundLayer, SoundSource } from './soundSource';
 
 export interface RenderedSound {
@@ -19,11 +26,13 @@ export interface RenderedSound {
     /** The level over the whole, as the square root of the mean square. */
     rms: number;
     /** Where each layer sounds and how loud it is on its own, before the sum. */
-    layers: { id?: string; source: string; from: number; to: number; peak: number }[];
+    layers: { id?: string; source: string; from: number; to: number; peak: number; strikes?: number }[];
     notes: string[];
 }
 
 const TAU = Math.PI * 2;
+/** The level white noise has here, which a band of it is brought back to. */
+const NOISE_LEVEL = 1 / Math.sqrt(3);
 
 /** A curve read at @p t seconds: straight between its points, or along the ratio between them for a pitch. */
 function curveAt(curve: SoundCurve | undefined, t: number, fallback: number, ratio: boolean): number {
@@ -65,7 +74,7 @@ class Biquad {
     private x1 = 0; private x2 = 0; private y1 = 0; private y2 = 0;
     private b0 = 1; private b1 = 0; private b2 = 0; private a1 = 0; private a2 = 0;
     private last = -1;
-    constructor(private readonly type: SoundFilter['type'], private readonly q: number, private readonly rate: number) {}
+    constructor(private readonly type: SoundFilter['type'], private readonly q: number, private readonly rate: number, private readonly gainDb = 0) {}
 
     tune(freq: number): void {
         const f = Math.max(20, Math.min(this.rate * 0.45, freq));
@@ -73,15 +82,21 @@ class Biquad {
         this.last = f;
         const w = (TAU * f) / this.rate;
         const [cos, alpha] = [Math.cos(w), Math.sin(w) / (2 * this.q)];
-        const a0 = 1 + alpha;
+        let a0 = 1 + alpha, a1 = -2 * cos, a2 = 1 - alpha;
         let b0: number, b1: number, b2: number;
         switch (this.type) {
             case 'lowpass': [b0, b1, b2] = [(1 - cos) / 2, 1 - cos, (1 - cos) / 2]; break;
             case 'highpass': [b0, b1, b2] = [(1 + cos) / 2, -(1 + cos), (1 + cos) / 2]; break;
             case 'bandpass': [b0, b1, b2] = [alpha, 0, -alpha]; break;
+            case 'peak': {
+                const lift = Math.pow(10, this.gainDb / 40);
+                [b0, b1, b2] = [1 + alpha * lift, -2 * cos, 1 - alpha * lift];
+                [a0, a1, a2] = [1 + alpha / lift, -2 * cos, 1 - alpha / lift];
+                break;
+            }
             default: [b0, b1, b2] = [1, -2 * cos, 1];
         }
-        [this.b0, this.b1, this.b2, this.a1, this.a2] = [b0 / a0, b1 / a0, b2 / a0, (-2 * cos) / a0, (1 - alpha) / a0];
+        [this.b0, this.b1, this.b2, this.a1, this.a2] = [b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0];
     }
 
     run(x: number): number {
@@ -91,34 +106,63 @@ class Biquad {
     }
 }
 
+const rmsOf = (a: Float32Array): number => { let s = 0; for (const v of a) s += v * v; return Math.sqrt(s / Math.max(1, a.length)); };
+
+/** @p count samples of a noise layer's own sound, before its loudness is shaped: its colour, and its band at the level of the whole. */
+function noiseBody(layer: SoundLayer, count: number, rate: number, seed: number, pitch: number): Float32Array {
+    const random = noiseOf(seed);
+    const out = new Float32Array(count);
+    // Pink and brown are white put through a few poles; these are their memories.
+    let [p0, p1, p2, brown] = [0, 0, 0, 0];
+    for (let n = 0; n < count; n++) {
+        const white = random();
+        if (layer.color === 'pink') {
+            p0 = 0.99765 * p0 + white * 0.099046;
+            p1 = 0.963 * p1 + white * 0.2965164;
+            p2 = 0.57 * p2 + white * 1.0526913;
+            out[n] = (p0 + p1 + p2 + white * 0.1848) * 0.25;
+        } else if (layer.color === 'brown') {
+            brown = (brown + white * 0.02) / 1.02;
+            out[n] = brown * 3.5;
+        } else out[n] = white;
+    }
+    if (layer.band) {
+        // Cut to the band, then brought back up: what is left of noise after two filters is faint, and a band that
+        // had to be turned up by guess would never balance against the others.
+        const [high, low] = [new Biquad('highpass', 0.7, rate), new Biquad('lowpass', 0.7, rate)];
+        high.tune(layer.band[0] * pitch);
+        low.tune(layer.band[1] * pitch);
+        // Run in a little first, so the filters are not still starting when the sound is.
+        for (let n = 0; n < 64; n++) low.run(high.run(random()));
+        for (let n = 0; n < count; n++) out[n] = low.run(high.run(out[n]!));
+        const level = rmsOf(out);
+        if (level > 1e-9) for (let n = 0; n < count; n++) out[n]! *= NOISE_LEVEL / level;
+    }
+    return out;
+}
+
 /** One striking of a layer: its samples from its own start, at @p pitch times its written pitch. */
 function strike(layer: SoundLayer, seconds: number, rate: number, pitch: number, seed: number): Float32Array {
     const count = Math.max(1, Math.round(seconds * rate));
     const out = new Float32Array(count);
-    const random = noiseOf(seed);
-    const filters = (layer.filters ?? []).map((f) => ({ run: new Biquad(f.type, f.q ?? 0.7, rate), freq: f.freq }));
-    const [attack, release] = [layer.attack ?? 0.002, layer.release ?? 0.01];
+    const filters = (layer.filters ?? []).map((f) => ({ run: new Biquad(f.type, f.q ?? 0.7, rate, f.gain ?? 0), freq: f.freq }));
+    // The fades that only stop a click are never most of a short layer: a strike two milliseconds long keeps its front.
+    const [attack, release] = [layer.attack ?? (layer.source === 'impulse' ? 0 : Math.min(0.002, seconds * 0.1)), layer.release ?? Math.min(0.01, seconds * 0.25)];
     const drive = layer.drive ?? 0;
     const push = 1 + drive * 14;
     const pushed = Math.tanh(push);
+    const noise = layer.source === 'noise' ? noiseBody(layer, count, rate, seed, pitch) : null;
+    // A spike: up in one sample and down over its width, as the air does in front of a bang.
+    const spike = layer.source === 'impulse' ? (layer.width ?? 0.0002) * rate : 0;
     let [phase, bend] = [0, 0];
-    // Pink and brown are white put through a few poles; these are their memories.
-    let [p0, p1, p2, brown] = [0, 0, 0, 0];
 
     for (let n = 0; n < count; n++) {
         const t = n / rate;
         let v: number;
-        if (layer.source === 'noise') {
-            const white = random();
-            if (layer.color === 'pink') {
-                p0 = 0.99765 * p0 + white * 0.099046;
-                p1 = 0.963 * p1 + white * 0.2965164;
-                p2 = 0.57 * p2 + white * 1.0526913;
-                v = (p0 + p1 + p2 + white * 0.1848) * 0.25;
-            } else if (layer.color === 'brown') {
-                brown = (brown + white * 0.02) / 1.02;
-                v = brown * 3.5;
-            } else v = white;
+        if (noise) v = noise[n]!;
+        else if (layer.source === 'impulse') {
+            const b = n / spike;
+            v = b < 10 ? (1 - b) * Math.exp(-b) : 0;
         } else if (layer.source === 'modes') {
             v = 0;
             for (const [hz, loud, dies] of layer.modes!) {
@@ -150,13 +194,17 @@ function strike(layer: SoundLayer, seconds: number, rate: number, pitch: number,
             }
         }
         for (const f of filters) {
-            // The corner is read every 16 samples: often enough for a sweep, seldom enough to cost little.
-            if ((n & 15) === 0) f.run.tune(curveAt(f.freq, t, 1000, true));
+            // The corner is read every 16 samples: often enough for a sweep, seldom enough to cost little. A noise struck
+            // at another pitch has no pitch of its own to move, so its filters move instead.
+            if ((n & 15) === 0) f.run.tune(curveAt(f.freq, t, 1000, true) * (noise ? pitch : 1));
             v = f.run.run(v);
         }
         if (drive > 0) v = Math.tanh(v * push) / pushed;
         let level = curveAt(layer.gain, t, 1, false);
-        if (layer.decay) level *= Math.exp(-t / layer.decay);
+        if (layer.decay) {
+            const fast = Math.exp(-t / layer.decay);
+            level *= layer.tail ? fast * (1 - layer.tail.mix) + Math.exp(-t / layer.tail.decay) * layer.tail.mix : fast;
+        }
         if (layer.tremolo) level *= 1 - layer.tremolo.depth * (0.5 + 0.5 * Math.sin(TAU * layer.tremolo.rate * t));
         if (attack > 0 && t < attack) level *= t / attack;
         const left = seconds - t;
@@ -166,30 +214,131 @@ function strike(layer: SoundLayer, seconds: number, rate: number, pitch: number,
     return out;
 }
 
-/** Eight delays and four all-pass loops, as rooms have been faked since the seventies: dense enough to pass for one, cheap enough to run on a sum. */
-function room(input: Float32Array, rate: number, size: number, spread: number): Float32Array {
-    const scale = rate / 44100;
-    const combs = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617].map((d) => ({ buf: new Float32Array(Math.round((d + spread) * scale)), at: 0, damp: 0 }));
-    const passes = [556, 441, 341, 225].map((d) => ({ buf: new Float32Array(Math.round((d + spread) * scale)), at: 0 }));
-    const feedback = 0.7 + size * 0.28;
-    const out = new Float32Array(input.length);
-    for (let n = 0; n < input.length; n++) {
-        const x = input[n]! * 0.015;
-        let sum = 0;
-        for (const c of combs) {
-            const y = c.buf[c.at]!;
-            c.damp = y * 0.8 + c.damp * 0.2;
-            c.buf[c.at] = x + c.damp * feedback;
-            c.at = (c.at + 1) % c.buf.length;
-            sum += y;
+/** @p a and @p b laid over one another at every offset: what a sound becomes in a place whose answer to a click is @p b. */
+function convolve(a: Float32Array, b: Float32Array, keep: number): Float32Array {
+    let size = 1;
+    while (size < a.length + b.length) size <<= 1;
+    const [ar, ai, br, bi] = [new Float64Array(size), new Float64Array(size), new Float64Array(size), new Float64Array(size)];
+    ar.set(a); br.set(b);
+    fft(ar, ai); fft(br, bi);
+    for (let k = 0; k < size; k++) {
+        const [re, im] = [ar[k]! * br[k]! - ai[k]! * bi[k]!, ar[k]! * bi[k]! + ai[k]! * br[k]!];
+        // Back the same way: the transform of the conjugate, conjugated and shared out.
+        ar[k] = re; ai[k] = -im;
+    }
+    fft(ar, ai);
+    const out = new Float32Array(keep);
+    for (let n = 0; n < keep; n++) out[n] = ar[n]! / size;
+    return out;
+}
+
+/**
+ * What a place answers to one click, for one ear. A room: noise in three bands that each die at their own rate, the
+ * top in half the time of the bottom, coming up over a hundredth of a second, with thirty-odd distinct first echoes
+ * ahead of it. Open ground: a few slaps off far walls, each duller than the last, and a long faint tail.
+ */
+function placeResponse(rate: number, size: number, kind: 'room' | 'open', side: number): Float32Array {
+    const random = noiseOf(kind === 'room' ? 6923 + side * 977 : 32324 + side * 977);
+    const unit = (): number => random() * 0.5 + 0.5;
+    const seconds = kind === 'room' ? 0.35 + size * 2.4 : 0.6 + size * 2.6;
+    const count = Math.floor(rate * seconds);
+    const out = new Float32Array(count);
+    const banded = (low: number | null, high: number | null): Float32Array => {
+        const buf = new Float32Array(count);
+        const [hp, lp] = [low ? new Biquad('highpass', 0.6, rate) : null, high ? new Biquad('lowpass', 0.6, rate) : null];
+        hp?.tune(low!); lp?.tune(high!);
+        for (let n = 0; n < count; n++) { let v = random(); if (hp) v = hp.run(v); if (lp) v = lp.run(v); buf[n] = v; }
+        const level = rmsOf(buf) || 1;
+        for (let n = 0; n < count; n++) buf[n]! /= level;
+        return buf;
+    };
+    if (kind === 'room') {
+        // Seconds for each band to fall by sixty decibels.
+        const long = 0.25 + size * 1.5;
+        const bands: [Float32Array, number, number][] = [[banded(null, 420), 0.45, long], [banded(420, 3000), 1, long * 0.8], [banded(3000, null), 1.6, long * 0.4]];
+        for (let n = 0; n < count; n++) {
+            const t = n / rate;
+            const rise = 1 - Math.exp(-t / 0.014);
+            let v = 0;
+            for (const [buf, loud, falls] of bands) v += buf[n]! * loud * Math.pow(10, (-3 * t) / falls);
+            out[n] = v * rise;
         }
-        for (const p of passes) {
-            const y = p.buf[p.at]!;
-            p.buf[p.at] = sum + y * 0.5;
-            p.at = (p.at + 1) % p.buf.length;
-            sum = y - sum;
+        const wash = rmsOf(out) * Math.sqrt(count);
+        const first = new Float32Array(count);
+        for (let e = 0; e < 34; e++) {
+            const t = (0.0048 + 0.088 * Math.pow((e + unit()) / 34, 1.5)) * (0.45 + size) * (side ? 1.07 : 1);
+            const at = Math.floor(t * rate);
+            const loud = (random() < 0 ? -1 : 1) * Math.exp(-t / 0.034) * (0.55 + 0.45 * unit());
+            // Later echoes have travelled further and are smeared wider.
+            const width = 1 + Math.floor(t * 60);
+            for (let n = 0; n < width && at + n < count; n++) first[at + n]! += (loud * (1 - n / width)) / Math.sqrt(width);
         }
-        out[n] = sum;
+        const firstLevel = rmsOf(first) * Math.sqrt(count) || 1;
+        for (let n = 0; n < count; n++) out[n]! += first[n]! * ((0.78 * wash) / firstLevel);
+    } else {
+        for (const [t, loud, milliseconds, top] of [[0.094, 0.5, 5, 5200], [0.151, 0.4, 8, 3800], [0.212, 0.31, 12, 2700], [0.289, 0.24, 16, 2000]] as const) {
+            const length = Math.floor((rate * milliseconds * 4) / 1000);
+            const [lp, hp] = [new Biquad('lowpass', 0.6, rate), new Biquad('highpass', 0.6, rate)];
+            lp.tune(top); hp.tune(180);
+            const slap = new Float32Array(length);
+            for (let n = 0; n < length; n++) slap[n] = hp.run(lp.run(random())) * Math.exp(-n / ((rate * milliseconds) / 1000)) * (1 - Math.exp(-n / (rate * 0.0006)));
+            const level = rmsOf(slap) * Math.sqrt(length) || 1;
+            const at = Math.floor(rate * t * (0.5 + size) * (1 + 0.1 * random() * 0.5));
+            const share = (loud * (0.45 + 0.55 * (side ? 1 - unit() : unit()))) / level;
+            for (let n = 0; n < length && at + n < count; n++) out[at + n]! += slap[n]! * share;
+        }
+        const slaps = rmsOf(out) * Math.sqrt(count) || 1;
+        const tail = banded(320, 2300);
+        const falls = 1 + size * 2;
+        let tailSquares = 0;
+        for (let n = 0; n < count; n++) {
+            const t = n / rate;
+            tail[n] = tail[n]! * Math.pow(10, (-3 * t) / falls) * (1 - Math.exp(-t / 0.11));
+            tailSquares += tail[n]! * tail[n]!;
+        }
+        const tailLevel = Math.sqrt(tailSquares) || 1;
+        for (let n = 0; n < count; n++) out[n]! += tail[n]! * ((0.5 * slaps) / tailLevel);
+    }
+    // Let down at its end, and of one energy whatever its size: `mix` then means the same in a closet and a hall.
+    const fade = Math.floor(count * 0.08);
+    for (let n = 0; n < fade; n++) out[count - 1 - n]! *= n / fade;
+    const energy = rmsOf(out) * Math.sqrt(count) || 1;
+    for (let n = 0; n < count; n++) out[n]! /= energy;
+    return out;
+}
+
+interface Strike { at: number; pitch: number; loud: number; pan: number; seed: number }
+
+/** When a layer is struck, and how: once, again by `repeat`, or many times at random by `scatter`. */
+function strikesOf(layer: SoundLayer, start: number, seed: number): Strike[] {
+    const pan = layer.pan ?? 0;
+    if (layer.scatter) {
+        const c = layer.scatter;
+        const random = noiseOf(seed + 4409);
+        const unit = (): number => random() * 0.5 + 0.5;
+        const [p0, p1] = c.pitch ?? [1, 1];
+        const [g0, g1] = c.gain ?? [1, 1];
+        return Array.from({ length: c.count }, (_, k) => {
+            const when = Math.pow(unit(), c.early ?? 1);
+            return {
+                at: start + c.over * when,
+                // Between two pitches by ratio, so there are as many strikes in each octave of the range.
+                pitch: p0 * Math.pow(p1 / p0, unit()),
+                loud: (g0 + (g1 - g0) * unit()) * (1 - (c.fade ?? 0) * when),
+                pan: Math.max(-1, Math.min(1, pan + (c.pan ?? 0) * random())),
+                seed: seed + k * 131,
+            };
+        }).sort((a, b) => a.at - b.at);
+    }
+    const r = layer.repeat;
+    const jitter = noiseOf(seed + 7919);
+    const out: Strike[] = [];
+    let [at, gap] = [start, r?.every ?? 0];
+    for (let k = 0; k < (r?.count ?? 1); k++) {
+        out.push({ at: at + (k > 0 && r?.jitter ? jitter() * r.jitter : 0), pitch: Math.pow(r?.pitch ?? 1, k), loud: Math.pow(r?.gain ?? 1, k), pan, seed: seed + k * 131 });
+        at += gap;
+        // A thing bouncing to rest: each gap shorter than the last.
+        gap *= r?.faster ?? 1;
     }
     return out;
 }
@@ -209,35 +358,39 @@ export function renderSound(source: SoundSource): RenderedSound {
     source.layers.forEach((layer, index) => {
         if (layer.mute) return;
         const start = layer.start ?? 0;
-        const room = total / rate - start;
-        const seconds = Math.min(layer.length ?? room, room);
+        const space = total / rate - start;
+        const seconds = Math.min(layer.length ?? space, space);
         const where = `layer ${index}${layer.id ? ` "${layer.id}"` : ''}`;
         if (!(seconds > 0)) { notes.push(`${where} starts at the end of the sound and is not heard`); return; }
-        if (layer.length !== undefined && layer.length > room + 1e-6 && !layer.repeat) notes.push(`${where} is cut short: it runs ${layer.length} s from ${start} s in a sound of ${source.duration} s`);
-        const pan = layer.pan ?? 0;
-        if (pan !== 0) stereo = true;
-        // Equal power: a sound sent to one side is as loud as one in the middle.
-        const [gl, gr] = [Math.cos(((pan + 1) * Math.PI) / 4), Math.sin(((pan + 1) * Math.PI) / 4)];
-        const seed = layer.seed ?? index + 1;
-        const jitter = noiseOf(seed + 7919);
-        const times = layer.repeat?.count ?? 1;
-        let [peak, last] = [0, start];
-        for (let k = 0; k < times; k++) {
-            const at = start + k * (layer.repeat?.every ?? 0) + (k > 0 && layer.repeat?.jitter ? jitter() * layer.repeat.jitter : 0);
-            const from = Math.round(Math.max(0, at) * rate);
-            if (from >= total) break;
+        if (layer.length !== undefined && layer.length > space + 1e-6 && !layer.repeat && !layer.scatter) notes.push(`${where} is cut short: it runs ${layer.length} s from ${start} s in a sound of ${source.duration} s`);
+        const wide = layer.source === 'noise' ? layer.wide ?? 0 : 0;
+        const strikes = strikesOf(layer, start, layer.seed ?? index + 1);
+        if (wide > 0 || strikes.some((s) => s.pan !== 0)) stereo = true;
+        let [peak, last, heard] = [0, start, 0];
+        for (const s of strikes) {
+            const from = Math.round(Math.max(0, s.at) * rate);
+            if (from >= total) continue;
+            heard++;
+            const length = Math.min(seconds, (total - from) / rate);
             // Each striking has its own noise, as no two footsteps are the same grit.
-            const hit = strike(layer, Math.min(seconds, (total - from) / rate), rate, Math.pow(layer.repeat?.pitch ?? 1, k), seed + k * 131);
-            const loud = Math.pow(layer.repeat?.gain ?? 1, k);
+            const hit = strike(layer, length, rate, s.pitch, s.seed);
+            // The other ear's noise is another noise, by as much as the layer is wide.
+            const other = wide > 0 ? strike(layer, length, rate, s.pitch, s.seed + 50021) : null;
+            // Equal power: a sound sent to one side is as loud as one in the middle.
+            const [gl, gr] = [Math.cos(((s.pan + 1) * Math.PI) / 4), Math.sin(((s.pan + 1) * Math.PI) / 4)];
             for (let n = 0; n < hit.length && from + n < total; n++) {
-                const v = hit[n]! * loud;
+                const v = hit[n]! * s.loud;
                 left[from + n]! += v * gl;
-                right[from + n]! += v * gr;
+                right[from + n]! += (other ? v * (1 - wide) + other[n]! * s.loud * wide : v) * gr;
                 if (Math.abs(v) > peak) peak = Math.abs(v);
             }
-            last = Math.min(total / rate, at + hit.length / rate);
+            last = Math.max(last, Math.min(total / rate, s.at + hit.length / rate));
         }
-        reports.push({ ...(layer.id ? { id: layer.id } : {}), source: layer.source, from: Math.round(start * 1000) / 1000, to: Math.round(last * 1000) / 1000, peak: Math.round(peak * 1000) / 1000 });
+        reports.push({
+            ...(layer.id ? { id: layer.id } : {}), source: layer.source, from: Math.round(start * 1000) / 1000, to: Math.round(last * 1000) / 1000,
+            peak: Math.round(peak * 1000) / 1000, ...(strikes.length > 1 ? { strikes: heard } : {}),
+        });
+        if (heard < strikes.length) notes.push(`${where}: ${strikes.length - heard} of its ${strikes.length} strikes fall past the end of the sound and are not heard`);
         if (peak < 1e-4) notes.push(`${where} makes no sound: its level is nothing throughout`);
     });
 
@@ -260,10 +413,10 @@ export function renderSound(source: SoundSource): RenderedSound {
             }
         }
         if (source.reverb) {
+            // The two ears are answered a little differently, which is what makes a place wide.
+            const wet = convolve(channel, placeResponse(rate, source.reverb.size ?? 0.5, source.reverb.kind ?? 'room', c), total);
             const mix = source.reverb.mix ?? 0.25;
-            // The two sides are rooms a little different, which is what makes it wide.
-            const wet = room(channel, rate, source.reverb.size ?? 0.5, c * 23);
-            for (let n = 0; n < total; n++) channel[n] = channel[n]! * (1 - mix * 0.5) + wet[n]! * mix;
+            for (let n = 0; n < total; n++) channel[n] = channel[n]! + wet[n]! * mix * 3;
         }
     }
 
