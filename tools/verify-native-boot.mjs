@@ -271,6 +271,9 @@ function androidDriver(opts) {
         stop() {
             trySh(adb, ['shell', 'am', 'force-stop', APP_ID]);
         },
+        uninstall() {
+            trySh(adb, ['uninstall', APP_ID]);
+        },
         // Counting colors on a SCREEN, not on the game: an emulator that pops
         // "Pixel Launcher isn't responding" over a black app hands the check a
         // dialog full of colors and it calls that a rendered frame.
@@ -528,6 +531,10 @@ function iosDriver(opts) {
         },
         stop() {
             trySh('xcrun', ['simctl', 'terminate', udid, APP_ID]);
+        },
+        uninstall() {
+            trySh('xcrun', ['simctl', 'terminate', udid, APP_ID]);
+            trySh('xcrun', ['simctl', 'uninstall', udid, APP_ID]);
         },
         prepare() {},
         foreground() {
@@ -893,6 +900,8 @@ for (const name of examples) {
         rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     } catch (err) {
         r = { ok: false, why: err.message, log: '', colors: 0, frames: 0, unjudged: null, size: '-' };
+    } finally {
+        driver.uninstall();
     }
     results.push({ name, ...r });
     const frameNote = frameNotJudged(name) ? ' (frame not judged)'
