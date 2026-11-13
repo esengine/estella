@@ -4760,4 +4760,6 @@ export const NOTED = {
     {"note": "A picture made in the editor is named by its recipe."},
   "feat(audio): a sound or a piece of music can ship as its recipe - an .essound or .esmusic named where a clip goes is carried as its source and made on the device when it loads, by the synthesis the editor bakes it with, on a worker and kept in the content cache; a game of five clips packaged 1.7 MB lighter":
     {"note": "A sound or a piece of music can ship as its recipe."},
+  "feat(audio): a sound made in the editor is named by its source - sound_write answers the .essound as ref (the .wav is wavRef) and music_write adds recipeRef beside the .wav, with what each costs; the edit realm and the Play realm import esengine/sound, so a clip named by its source plays in the editor as it does in a package":
+    {"note": "A sound or a piece of music can ship as its recipe."},
 };
