@@ -4656,6 +4656,10 @@ export const NOTED = {
     {"note": "A loop is seamless in a packaged game."},
   "feat(music): a piece that goes round is set to be decoded when a game loads it - played from its compressed file it could not loop between two samples, and the reply says what it costs in memory":
     {"note": "An AI can make background music."},
+  "feat(audio): music plays as its layers - playLayers begins every stem of a piece on the same sample, each with a level of its own that is brought up and down while it plays, and plays the whole piece in their place where layers cannot be kept in step":
+    {"note": "Music plays as its layers."},
+  "feat(music): the reply and the tool text say how a game plays a piece's stems as layers":
+    {"note": "An AI can make background music."},
   "feat(sky): a sky of your own shades the ground under its clouds - defineSkyEffect takes groundShadow and a second function, skyShadow(world, sun), what is left of the light at a world position, and the sky pass multiplies every surface it finds by it, as Sky Atmosphere does with its own clouds":
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":

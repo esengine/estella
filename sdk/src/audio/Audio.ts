@@ -121,6 +121,58 @@ interface Fade {
     stopAtEnd: boolean;
 }
 
+/**
+ * A piece of music playing as its layers: each a clip of the same length, begun on the same sample and going round
+ * together, each with a level of its own that can be brought up or down while it plays. The drums come in when the
+ * fight starts and the melody goes when the player is hiding, and it is one piece of music throughout.
+ */
+export interface MusicLayers {
+    readonly names: readonly string[];
+    /**
+     * False where the layers could not be kept in step and the whole piece is playing in their place (a mini-game, a
+     * clip played from its compressed file): {@link setLayer} then changes nothing that is heard.
+     */
+    readonly layered: boolean;
+    /** The layers began on one sample and stay together. False where they were started one after another for want of a way to do better. */
+    readonly inStep: boolean;
+    /** Bring one layer to @p level, 0..1, over @p seconds (default 1; 0 is at once). */
+    setLayer(name: string, level: number, seconds?: number): void;
+    /** Where a layer is now, on its way or arrived. */
+    layerLevel(name: string): number;
+    stop(fadeOut?: number): void;
+    readonly isPlaying: boolean;
+}
+
+export interface MusicLayersConfig {
+    /**
+     * The whole piece as one clip, played where the layers cannot be kept in step. Layers that drift are worse than no
+     * layers: a mini-game plays each clip through a player of its own, and so does a clip played from its compressed
+     * file. Without it the layers are started one after another there, and a warning says so.
+     */
+    mix?: string;
+    volume?: number;
+    /** Where each layer starts, 0..1. A layer not named starts at 1. */
+    levels?: Readonly<Record<string, number>>;
+    fadeIn?: number;
+    crossFade?: number;
+    /** As for playBGM: seconds every layer comes back to at its end, for a piece with an introduction. */
+    loopStart?: number;
+}
+
+/** The layers of the music that is playing. */
+interface LayerGroup {
+    names: string[];
+    voices: Map<string, AudioHandle>;
+    levels: Map<string, number>;
+    targets: Map<string, number>;
+    /** Level a second each layer moves at toward its target. */
+    rates: Map<string, number>;
+    volume: number;
+    stopped: boolean;
+    layered: boolean;
+    inStep: boolean;
+}
+
 export class AudioAPI {
     private readonly voiceStates_ = new WeakMap<AudioHandle, SoftVoice>();
     private readonly playbackStops_ = new Set<(generation: number) => void>();
@@ -141,6 +193,9 @@ export class AudioAPI {
     private loadTypes_ = new Map<string, AudioLoadType>();
     private encoded_ = new Map<string, AudioClipTrim>();
     private bgmHandle_: AudioHandle | null = null;
+    /** The music that is playing, where it is playing as layers. One or the other, never both. */
+    private bgmGroup_: LayerGroup | null = null;
+    private layersWarned_ = false;
     private bgmRequest_ = 0;
     private playbackEpoch_ = 0;
     private bgmVolume_ = 1.0;
@@ -593,11 +648,7 @@ export class AudioAPI {
             const oldVolume = this.bgmVolume_;
             this.bgmVolume_ = targetVolume;
 
-            if (this.bgmHandle_ && config?.crossFade) {
-                this.fadeOut_(this.bgmHandle_, config.crossFade, oldVolume);
-            } else if (this.bgmHandle_) {
-                this.bgmHandle_.stop();
-            }
+            this.retireMusic_(config?.crossFade, oldVolume);
             const fadeInDuration = config?.fadeIn ?? config?.crossFade;
 
             this.bgmHandle_ = this.playVoice_(buffer, {
@@ -620,12 +671,135 @@ export class AudioAPI {
         }
     }
 
+    /** What was playing as music goes: at once, or down over @p fade seconds. Its layers go with it. */
+    private retireMusic_(fade: number | undefined, volume: number): void {
+        const out = (handle: AudioHandle, from: number): void => {
+            if (fade && fade > 0) this.fadeOut_(handle, fade, from);
+            else handle.stop();
+        };
+        if (this.bgmHandle_) out(this.bgmHandle_, volume);
+        this.bgmHandle_ = null;
+        const group = this.bgmGroup_;
+        this.bgmGroup_ = null;
+        if (group) {
+            group.stopped = true;
+            for (const [name, handle] of group.voices) out(handle, group.volume * (group.levels.get(name) ?? 1));
+        }
+    }
+
+    /**
+     * Background music as layers: every clip begun on the same sample and looping together, each with a level of its
+     * own. `layers` names them, `{ drums: 'a_drums.wav', melody: 'a_melody.wav' }`, and they must be as long as one
+     * another, which the stems of one piece are. It takes the place of whatever music was playing, as playBGM does,
+     * and stopBGM ends it.
+     *
+     * Layers are only music while they are in step. Where the backend decodes its clips they are, to the sample; where
+     * it cannot promise it and `mix` names the whole piece as one clip, that plays instead.
+     */
+    playLayers(layers: Readonly<Record<string, string>>, config: MusicLayersConfig = {}): MusicLayers {
+        const request = ++this.bgmRequest_;
+        const names = Object.keys(layers);
+        const level = (v: number | undefined): number => Math.max(0, Math.min(1, v ?? 1));
+        const group: LayerGroup = {
+            names, voices: new Map(), rates: new Map(), volume: config.volume ?? 1, stopped: false, layered: true, inStep: true,
+            levels: new Map(names.map((n) => [n, level(config.levels?.[n])])),
+            targets: new Map(names.map((n) => [n, level(config.levels?.[n])])),
+        };
+        const api = this;
+
+        const start = (): void => {
+            if (this.disposed_ || request !== this.bgmRequest_ || group.stopped) return;
+            const buffers = names.map((n) => this.lookupBuffer_(layers[n]!));
+            if (buffers.some((b) => !b)) {
+                log.warn('audio', `music layers did not play: ${names.filter((_, i) => !buffers[i]).join(', ')} loaded, but gone from the audio cache before they could start`);
+                return;
+            }
+            // In step where each clip is decoded and the backend starts voices on a clock; not where each is a player of its own.
+            const inStep = this.backend_.delivery === 'bytes' && buffers.every((b) => !b!.streamed);
+            if (!inStep && config.mix) {
+                group.layered = false;
+                group.inStep = false;
+                this.playBGM(config.mix, { volume: group.volume, fadeIn: config.fadeIn, crossFade: config.crossFade, loopStart: config.loopStart });
+                return;
+            }
+            if (!inStep && !this.layersWarned_) {
+                this.layersWarned_ = true;
+                log.warn('audio', 'music layers cannot be kept in step here (clips are played from their files); they are started one after another and may drift. Give playLayers a `mix` to play the whole piece instead');
+            }
+            this.cancelFades_();
+            const oldVolume = this.bgmVolume_;
+            this.bgmVolume_ = group.volume;
+            this.retireMusic_(config.crossFade, oldVolume);
+            // What was asked of a layer before it began is where it begins.
+            for (const n of names) group.levels.set(n, group.targets.get(n)!);
+            const together = {};
+            const fadeIn = config.fadeIn ?? config.crossFade;
+            names.forEach((name, i) => {
+                const volume = group.volume * group.levels.get(name)!;
+                const handle = this.playVoice_(buffers[i]!, {
+                    bus: 'music', volume, loop: true, together,
+                    ...(config.loopStart && config.loopStart > 0 ? { loopStart: config.loopStart } : {}),
+                });
+                group.voices.set(name, handle);
+                if (fadeIn) this.fadeIn_(handle, fadeIn, volume);
+            });
+            group.inStep = inStep;
+            this.bgmGroup_ = group;
+        };
+
+        const missing = names.filter((n) => !this.lookupBuffer_(layers[n]!));
+        if (missing.length === 0) start();
+        else {
+            void Promise.all(missing.map((n) => this.preload(layers[n]!)))
+                .then(start, (err) => log.warn('audio', `Failed to preload music layers: ${missing.map((n) => layers[n]).join(', ')}`, err));
+        }
+
+        return {
+            names,
+            get layered() { return group.layered; },
+            get inStep() { return group.inStep; },
+            setLayer(name, to, seconds = 1) {
+                if (!group.targets.has(name)) return;
+                const target = level(to);
+                group.targets.set(name, target);
+                const from = group.levels.get(name)!;
+                if (!(seconds > 0) || group.voices.size === 0) {
+                    group.levels.set(name, target);
+                    group.rates.delete(name);
+                    api.applyLayer_(group, name);
+                } else group.rates.set(name, Math.abs(target - from) / seconds);
+            },
+            layerLevel(name) { return group.levels.get(name) ?? 0; },
+            stop(fadeOut) {
+                group.stopped = true;
+                // Only if it is still the music: a piece that has since been replaced is not stopped a second time.
+                if (api.bgmGroup_ === group || (!group.layered && request + 1 === api.bgmRequest_)) api.stopBGM(fadeOut);
+            },
+            get isPlaying() {
+                if (!group.layered) return api.bgmHandle_?.isPlaying ?? false;
+                for (const handle of group.voices.values()) if (handle.isPlaying) return true;
+                return false;
+            },
+        };
+    }
+
+    /** A layer's level written to its voice: the piece's volume times the layer's own. */
+    private applyLayer_(group: LayerGroup, name: string): void {
+        const handle = group.voices.get(name);
+        const voice = handle && this.voiceStates_.get(handle);
+        if (!voice) return;
+        voice.base = group.volume * group.levels.get(name)!;
+        if (voice.paused || voice.handle.isPlaying) this.applyVoice_(voice);
+    }
+
     stopAll(): void {
         this.bgmRequest_++;
         const generation = ++this.playbackEpoch_;
         const voices = this.softVoices_;
         this.softVoices_ = [];
         this.bgmHandle_ = null;
+        if (this.bgmGroup_) this.bgmGroup_.stopped = true;
+        this.bgmGroup_ = null;
         this.fades_.length = 0;
         this.fadingOut_.clear();
         const stopped = new Set<AudioHandle>();
@@ -660,19 +834,12 @@ export class AudioAPI {
 
     stopBGM(fadeOut?: number): void {
         this.bgmRequest_++;
-        if (!this.bgmHandle_) {
+        if (!this.bgmHandle_ && !this.bgmGroup_) {
             if (!(fadeOut && fadeOut > 0)) this.cancelFades_();
             return;
         }
         this.cancelFades_();
-        if (fadeOut && fadeOut > 0) {
-            const handle = this.bgmHandle_;
-            this.bgmHandle_ = null;
-            this.fadeOut_(handle, fadeOut, this.bgmVolume_);
-        } else {
-            this.bgmHandle_.stop();
-            this.bgmHandle_ = null;
-        }
+        this.retireMusic_(fadeOut, this.bgmVolume_);
     }
 
     /**
@@ -990,7 +1157,19 @@ export class AudioAPI {
      * browser's: it pauses when the game does, and it exists on a device.
      */
     updateFades(dt: number): void {
-        if (this.suspended_ || this.fades_.length === 0 || !(dt > 0)) return;
+        if (this.suspended_ || !(dt > 0)) return;
+        // The layers of the music, each on its way to where it was last told to be.
+        const group = this.bgmGroup_;
+        if (group && group.rates.size > 0) {
+            for (const [name, rate] of group.rates) {
+                const [now, target] = [group.levels.get(name)!, group.targets.get(name)!];
+                const next = now < target ? Math.min(target, now + rate * dt) : Math.max(target, now - rate * dt);
+                group.levels.set(name, next);
+                if (next === target) group.rates.delete(name);
+                this.applyLayer_(group, name);
+            }
+        }
+        if (this.fades_.length === 0) return;
         for (let i = this.fades_.length - 1; i >= 0; i--) {
             const fade = this.fades_[i];
             if (fade.voice.paused) continue;

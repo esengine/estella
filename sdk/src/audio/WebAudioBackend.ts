@@ -43,6 +43,7 @@ class WebAudioHandle implements AudioHandle {
         loopStart = 0,
         lead = 0,
         end = buffer.duration,
+        startedAt = context.currentTime,
     ) {
         this.id = id;
         this.source_ = source;
@@ -54,7 +55,7 @@ class WebAudioHandle implements AudioHandle {
         this.pool_ = pool;
         this.context_ = context;
         this.startOffset_ = startOffset;
-        this.startedAt_ = context.currentTime;
+        this.startedAt_ = startedAt;
         this.playbackRate_ = source.playbackRate.value;
         this.loop_ = source.loop;
         this.loopStart_ = loopStart;
@@ -604,6 +605,9 @@ export class WebAudioBackend implements PlatformAudioBackend {
         return this.handleOf_(id, this.buffers_.get(id)!);
     }
 
+    /** The moment each token's voices begin at, for as long as the token is held. */
+    private readonly together_ = new WeakMap<object, number>();
+
     private releaseStream_(handle: WebStreamHandle): void {
         for (const [id, voice] of this.streams_) if (voice === handle) this.streams_.delete(id);
         this.heldStreams_ = this.heldStreams_.filter((h) => h !== handle);
@@ -688,6 +692,13 @@ export class WebAudioBackend implements PlatformAudioBackend {
         const loopStart = lead + (config.loop && config.loopStart && config.loopStart > 0 && lead + config.loopStart < end ? config.loopStart : 0);
         // Round a part of the buffer and not the whole of it: from a loop start, or within a clip that has silence round it.
         const region = !!config.loop && (loopStart > 0 || end < audioBuffer.duration);
+        // Voices of one token are told the same moment a little way off, so each begins on the same sample however
+        // long it takes to set the next one up; a voice on its own begins as soon as it can.
+        let when = 0;
+        if (config.together) {
+            when = this.together_.get(config.together) ?? this.context_.currentTime + 0.03;
+            this.together_.set(config.together, when);
+        }
         const poolNode = this.pool_.acquire();
         let source: AudioBufferSourceNode;
         try {
@@ -707,8 +718,8 @@ export class WebAudioBackend implements PlatformAudioBackend {
             const bus = this.mixer_.getBus(busName) ?? this.mixer_.sfx;
             poolNode.panner.connect(bus.input);
             // A clip with silence after it is stopped where it ends, so its end is told on time.
-            if (record!.span && !config.loop) source.start(0, startOffset, Math.max(0, end - startOffset));
-            else source.start(0, startOffset);
+            if (record!.span && !config.loop) source.start(when, startOffset, Math.max(0, end - startOffset));
+            else source.start(when, startOffset);
         } catch (error) {
             this.pool_.release(poolNode);
             throw error;
@@ -716,7 +727,8 @@ export class WebAudioBackend implements PlatformAudioBackend {
 
         const handleId = ++this.nextHandleId_;
         const handle = new WebAudioHandle(
-            handleId, source, audioBuffer, poolNode, this.pool_, this.context_, startOffset, loopStart, lead, end
+            handleId, source, audioBuffer, poolNode, this.pool_, this.context_, startOffset, loopStart, lead, end,
+            when || this.context_.currentTime,
         );
 
         return handle;

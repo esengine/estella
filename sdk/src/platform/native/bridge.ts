@@ -149,7 +149,10 @@ export interface NativeAudioBridge {
      *  is unknown. */
     /** @param loopStart seconds a looping voice comes back to; 0 is its start. A host older than this takes five arguments and loops from the start. */
     /** @param start, end seconds in the decoded clip that it begins from and is over at (0 for end is its natural end): a clip the exporter re-encoded has silence before and after it. */
-    play(bufferId: number, volume: number, pan: number, loop: boolean, rate: number, loopStart?: number, start?: number, end?: number): number;
+    /** @param at a moment of the host's clock, as {@link time} gives it, that the voice begins on; 0 is now. Voices given the same one begin on the same sample. */
+    play(bufferId: number, volume: number, pan: number, loop: boolean, rate: number, loopStart?: number, start?: number, end?: number, at?: number): number;
+    /** The host's audio clock, in seconds. Absent on a host older than this, where voices begin as they are asked for. */
+    time?(): number;
     stop(voiceId: number): void;
     pause(voiceId: number): void;
     resume(voiceId: number): void;

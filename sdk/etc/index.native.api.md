@@ -1184,6 +1184,7 @@ maxVoices: number
 muteBus: (busName: string, muted: boolean) => void
 playBGM: (url: string, config?: { volume?: number; fadeIn?: number; crossFade?: number; loopStart?: number; }) => void
 playBuffer: (buffer: AudioBufferHandle, config?: PlayConfig) => AudioHandle
+playLayers: (layers: Readonly<Record<string, string>>, config?: MusicLayersConfig) => MusicLayers
 playSFX: (url: string, config?: { volume?: number; pitch?: number; pan?: number; priority?: number; }) => AudioHandle
 playTrack: (url: string, config?: PlayConfig) => Promise<AudioHandle | null>
 preload: (url: string) => Promise<void>
@@ -6762,7 +6763,7 @@ width: number
 ```
 es_audioLoad: ((bytes: ArrayBuffer, stream?: boolean) => { id: number; duration: number; bytes: number; streamed?: boolean; } | null) | undefined
 es_audioPause: ((voiceId: number) => void) | undefined
-es_audioPlay: ((bufferId: number, volume: number, pan: number, loop: boolean, rate: number, loopStart?: number, start?: number, end?: number) => number) | undefined
+es_audioPlay: ((bufferId: number, volume: number, pan: number, loop: boolean, rate: number, loopStart?: number, start?: number, end?: number, at?: number) => number) | undefined
 es_audioResume: ((voiceId: number) => void) | undefined
 es_audioResumeAll: (() => void) | undefined
 es_audioSetLoop: ((voiceId: number, loop: boolean) => void) | undefined
@@ -6772,6 +6773,7 @@ es_audioSetVolume: ((voiceId: number, volume: number) => void) | undefined
 es_audioSpectrum: ((bins: number) => ArrayBuffer | null) | undefined
 es_audioStop: ((voiceId: number) => void) | undefined
 es_audioSuspendAll: (() => void) | undefined
+es_audioTime: (() => number) | undefined
 es_audioUnload: ((bufferId: number) => void) | undefined
 es_audioVoiceState: ((voiceId: number) => { playing: boolean; currentTime: number; } | null) | undefined
 es_deviceCapabilities: (() => number) | undefined
@@ -8198,6 +8200,7 @@ pan: number | undefined
 playbackRate: number | undefined
 priority: number | undefined
 startOffset: number | undefined
+together: object | undefined
 volume: number | undefined
 ```
 

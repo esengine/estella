@@ -1179,6 +1179,7 @@ maxVoices: number
 muteBus: (busName: string, muted: boolean) => void
 playBGM: (url: string, config?: { volume?: number; fadeIn?: number; crossFade?: number; loopStart?: number; }) => void
 playBuffer: (buffer: AudioBufferHandle, config?: PlayConfig) => AudioHandle
+playLayers: (layers: Readonly<Record<string, string>>, config?: MusicLayersConfig) => MusicLayers
 playSFX: (url: string, config?: { volume?: number; pitch?: number; pan?: number; priority?: number; }) => AudioHandle
 playTrack: (url: string, config?: PlayConfig) => Promise<AudioHandle | null>
 preload: (url: string) => Promise<void>
@@ -7987,6 +7988,7 @@ pan: number | undefined
 playbackRate: number | undefined
 priority: number | undefined
 startOffset: number | undefined
+together: object | undefined
 volume: number | undefined
 ```
 

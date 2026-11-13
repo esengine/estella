@@ -62,7 +62,11 @@ public:
     /// @p loopStart: seconds a looping voice comes back to at its end, so what is before it is heard once. 0 is its start.
     /// @p start, @p end: where the clip begins and is over in what was decoded, in seconds (end 0 is its natural end):
     /// a clip the exporter re-encoded has silence before it and after it, and is played without either.
-    int play(int bufferId, float volume, float pan, bool loop, float rate, float loopStart = 0.0f, float start = 0.0f, float end = 0.0f);
+    /// @p at: a moment of time() that the voice begins on, 0 for now. Voices given the same moment begin on the same
+    /// frame, which calls arriving one after another cannot otherwise promise.
+    int play(int bufferId, float volume, float pan, bool loop, float rate, float loopStart = 0.0f, float start = 0.0f, float end = 0.0f, double at = 0.0);
+    /// The engine's clock, in seconds since it started.
+    double time() const;
     void stop(int voiceId);
     void pause(int voiceId);
     void resume(int voiceId);

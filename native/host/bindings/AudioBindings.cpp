@@ -55,7 +55,13 @@ esjs::Val js_audioUnload(const esjs::Args& a) {
     return esjs::undefined();
 }
 
-// es_audioPlay(bufferId, volume, pan, loop, rate, loopStart?, start?, end?) -> voiceId (-1 if unknown).
+// es_audioTime() -> the audio engine's clock, in seconds.
+esjs::Val js_audioTime(const esjs::Args&) {
+    return esjs::number(host().audio.time());
+}
+
+// es_audioPlay(bufferId, volume, pan, loop, rate, loopStart?, start?, end?, at?) -> voiceId (-1 if unknown).
+// at is a moment of es_audioTime that the voice begins on (0 is now): voices given the same one begin together.
 // loopStart is seconds a looping voice comes back to in place of its start; start and end are where
 // the clip begins and is over in what was decoded (end 0 is its natural end).
 esjs::Val js_audioPlay(const esjs::Args& a) {
@@ -65,11 +71,12 @@ esjs::Val js_audioPlay(const esjs::Args& a) {
     if (a.size() > 2) pan = esjs::toNumber(a[2]);
     const bool loop = a.size() > 3 && esjs::toBool(a[3]);
     if (a.size() > 4) rate = esjs::toNumber(a[4]);
-    double loopStart = 0, start = 0, end = 0;
+    double loopStart = 0, start = 0, end = 0, at = 0;
     if (a.size() > 5) loopStart = esjs::toNumber(a[5]);
     if (a.size() > 6) start = esjs::toNumber(a[6]);
     if (a.size() > 7) end = esjs::toNumber(a[7]);
-    return esjs::int32(host().audio.play(buf, (f32)vol, (f32)pan, loop, (f32)rate, (f32)loopStart, (f32)start, (f32)end));
+    if (a.size() > 8) at = esjs::toNumber(a[8]);
+    return esjs::int32(host().audio.play(buf, (f32)vol, (f32)pan, loop, (f32)rate, (f32)loopStart, (f32)start, (f32)end, at));
 }
 
 // The voice-scoped commands all take the voice id as a[0].
@@ -138,7 +145,8 @@ void registerAudioBindings(HostState& h, esjs::Val global) {
     if (!h.audio.ready()) return;
     bindGlobal(global, "es_audioLoad", js_audioLoad, 2);
     bindGlobal(global, "es_audioUnload", js_audioUnload, 1);
-    bindGlobal(global, "es_audioPlay", js_audioPlay, 8);
+    bindGlobal(global, "es_audioPlay", js_audioPlay, 9);
+    bindGlobal(global, "es_audioTime", js_audioTime, 0);
     bindGlobal(global, "es_audioStop", js_audioStop, 1);
     bindGlobal(global, "es_audioPause", js_audioPause, 1);
     bindGlobal(global, "es_audioResume", js_audioResume, 1);

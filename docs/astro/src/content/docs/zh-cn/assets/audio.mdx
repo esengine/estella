@@ -40,6 +40,26 @@ const play = defineSystem([Res(Audio)], (audio) => {
 `playSFX` 触发一次性播放并返回一个句柄;`playBGM` 循环并替换当前曲目,可选交叉淡入。两者都会
 自动预加载未缓存的片段并在就绪后播放。
 
+### 分层音乐
+
+按分轨导出的曲子（每件乐器一个等长的片段）可以分层播放：所有分轨在同一个采样上
+起音并一起循环，每条有自己的音量。
+
+```typescript
+const music = audio.playLayers(
+  { drums: 'assets/music/theme_drums.wav', bass: 'assets/music/theme_bass.wav', lead: 'assets/music/theme_lead.wav' },
+  { mix: 'assets/music/theme.wav', levels: { lead: 0 }, fadeIn: 1 },
+);
+music.setLayer('lead', 1, 2);   // 两秒内升起
+music.setLayer('drums', 0, 4);  // 鼓慢慢退掉
+```
+
+它就是背景音乐：会替换 `playBGM` 正在播放的曲子，`stopBGM` 会结束它。分层只有在
+各层同步时才是音乐，这需要解码后播放的片段（`loadType: 'decompress'`），在 Web 或
+原生宿主上。每个片段各用一个播放器的平台（小游戏、从压缩文件直接播放的片段）会改播
+`mix` 指定的整首，此时 `music.layered` 为 false；没有给 `mix` 时各层只能先后启动，
+可能逐渐错开。
+
 ### 打包对音频做了什么
 
 `.wav` 在导出游戏时会被重新编码，而解码器还原出来的片段开头会多出约四十分之一秒

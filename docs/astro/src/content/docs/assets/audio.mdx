@@ -46,6 +46,28 @@ const play = defineSystem([Res(Audio)], (audio) => {
 current track, optionally cross-fading. Both auto-preload an uncached clip and play
 it once ready.
 
+### Music in layers
+
+A piece exported as stems (one clip for each instrument, all the same length)
+plays as layers: every stem begins on the same sample and they loop together,
+and each has a level of its own.
+
+```typescript
+const music = audio.playLayers(
+  { drums: 'assets/music/theme_drums.wav', bass: 'assets/music/theme_bass.wav', lead: 'assets/music/theme_lead.wav' },
+  { mix: 'assets/music/theme.wav', levels: { lead: 0 }, fadeIn: 1 },
+);
+music.setLayer('lead', 1, 2);   // up over two seconds
+music.setLayer('drums', 0, 4);  // and the drums away
+```
+
+It is the background music: it takes the place of what `playBGM` was playing,
+and `stopBGM` ends it. Layers are only music while they are in step, which
+needs decoded clips (`loadType: 'decompress'`) on the web or the native host.
+Where each clip is a player of its own (a mini-game, a clip played from its
+compressed file) the `mix` plays instead and `music.layered` is false; with
+no `mix` the layers are started one after another and may drift.
+
 ### What packaging does to a clip
 
 A `.wav` is re-encoded when a game is exported, and a decoder gives an encoded

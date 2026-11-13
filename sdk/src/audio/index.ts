@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-export { Audio, AudioAPI, type AudioBufferStats } from './Audio';
+export { Audio, AudioAPI, type AudioBufferStats, type MusicLayers, type MusicLayersConfig } from './Audio';
 export { SoundEvents, SoundEventPlayback, type SoundEventEmitter, type SoundEventHandle,
     type SoundEventStatus, type SoundEventRejection, type SoundEventStats } from './SoundEventPlayback';
 export { parseSoundEvent, SoundEventSelector, type SoundEventAsset, type SoundEventClip,

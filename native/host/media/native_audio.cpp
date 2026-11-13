@@ -310,7 +310,13 @@ void AudioEngine::unload(int bufferId) {
     }
 }
 
-int AudioEngine::play(int bufferId, float volume, float pan, bool loop, float rate, float loopStart, float start, float end) {
+double AudioEngine::time() const {
+    if (!ready()) return 0.0;
+    const ma_uint32 rate = ma_engine_get_sample_rate(&impl_->engine);
+    return rate > 0 ? static_cast<double>(ma_engine_get_time_in_pcm_frames(&impl_->engine)) / rate : 0.0;
+}
+
+int AudioEngine::play(int bufferId, float volume, float pan, bool loop, float rate, float loopStart, float start, float end, double at) {
     if (!ready()) return -1;
     auto bit = impl_->buffers.find(bufferId);
     if (bit == impl_->buffers.end() || bit->second.unloaded) return -1;
@@ -351,6 +357,11 @@ int AudioEngine::play(int bufferId, float volume, float pan, bool loop, float ra
             // Begun past the silence encoding put before it.
             if (start > 0.0f) ma_sound_seek_to_pcm_frame(&voice.sound, frame(start));
         }
+    }
+    // Held until a moment of the engine's clock, where one is given: started now, it is silent until then.
+    if (at > 0.0) {
+        ma_sound_set_start_time_in_pcm_frames(
+            &voice.sound, static_cast<ma_uint64>(at * ma_engine_get_sample_rate(&impl_->engine)));
     }
     ma_sound_start(&voice.sound);
     bit->second.refs++;

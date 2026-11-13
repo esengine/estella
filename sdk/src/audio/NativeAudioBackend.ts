@@ -74,6 +74,7 @@ export class NativeAudioBackend implements PlatformAudioBackend {
     private readonly voices_ = new Map<number, NativeAudioHandle>();
     /** Where a clip the exporter re-encoded really lies in what the host decoded, by buffer. */
     private readonly spans_ = new Map<number, { lead: number; end: number }>();
+    private readonly together_ = new WeakMap<object, number>();
     /** Reused across frames: a visualizer asks every frame, and a fresh view per
      *  ask would be garbage the interpreter has to collect at 60 Hz. */
     private spectrumView_: Uint8Array | null = null;
@@ -123,6 +124,13 @@ export class NativeAudioBackend implements PlatformAudioBackend {
 
     play(buffer: AudioBufferHandle, config: PlayConfig): AudioHandle {
         const span = this.spans_.get(buffer.id);
+        // Voices of one token begin at one moment of the host's own clock, a twentieth of a second off: the calls that
+        // start them arrive one after another, and the device may run between two of them.
+        let at = 0;
+        if (config.together && this.audio_.time) {
+            at = this.together_.get(config.together) ?? this.audio_.time() + 0.05;
+            this.together_.set(config.together, at);
+        }
         const voiceId = this.audio_.play(
             buffer.id,
             config.volume ?? 1,
@@ -133,6 +141,7 @@ export class NativeAudioBackend implements PlatformAudioBackend {
             config.loop && config.loopStart && config.loopStart > 0 ? (span?.lead ?? 0) + config.loopStart : span?.lead ?? 0,
             span?.lead ?? 0,
             span?.end ?? 0,
+            at,
         );
         const handle = new NativeAudioHandle(
             voiceId, this.audio_, buffer.duration, () => this.voices_.delete(voiceId),

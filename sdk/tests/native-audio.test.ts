@@ -28,16 +28,18 @@ function hostGlobals(): Record<string, unknown> {
 
 /** A fake native audio engine, installed as the host's es_audio* primitives. */
 function installAudioHost(scope: Record<string, unknown>) {
-    const calls = { play: [] as unknown[][], stop: [] as number[], setVolume: [] as unknown[][], suspend: 0, resume: 0 };
+    const calls = { play: [] as unknown[][], at: [] as number[], stop: [] as number[], setVolume: [] as unknown[][], suspend: 0, resume: 0 };
     let nextBuffer = 1;
     let nextVoice = 100;
     const voices = new Map<number, { playing: boolean; time: number; loop: boolean }>();
 
     scope.es_audioLoad = (bytes: ArrayBuffer) => ({ id: nextBuffer++, duration: 2, bytes: bytes.byteLength * 4 });
     scope.es_audioUnload = () => {};
-    scope.es_audioPlay = (buf: number, vol: number, pan: number, loop: boolean, rate: number, loopStart?: number, start?: number, end?: number) => {
+    scope.es_audioPlay = (buf: number, vol: number, pan: number, loop: boolean, rate: number, loopStart?: number, start?: number, end?: number, at?: number) => {
         const id = nextVoice++;
         voices.set(id, { playing: true, time: 0, loop });
+        // The ninth is the moment of the host's clock a voice begins on, kept apart so the others read as they did.
+        if (at) calls.at.push(at);
         // The sixth is where a loop comes back to, the seventh and eighth where the clip begins and ends; recorded only when they are somewhere.
         calls.play.push(start || end ? [buf, vol, pan, loop, rate, loopStart, start, end] : loopStart ? [buf, vol, pan, loop, rate, loopStart] : [buf, vol, pan, loop, rate]);
         return id;
@@ -169,6 +171,28 @@ describe('NativeAudioBackend', () => {
         const exact = await backend.loadBufferFromData('music2', new ArrayBuffer(16), { trim: { seconds: 2, lead: 0.025 } });
         backend.play(exact, { loop: true });
         expect(host.calls.play.at(-1)).toEqual([exact.id, 1, 0, true, 1, 0, 0, close(2)]);
+    });
+
+    it('begins voices of one token at one moment of the host clock, and asks nothing of a host that has no clock', async () => {
+        const scope = audioScope();
+        const host = installAudioHost(scope);
+        let now = 10;
+        scope.es_audioTime = () => now;
+        const backend = new NativeAudioBackend(createHostBridge(scope).audio!);
+        const buffer = await backend.loadBufferFromData('stem', new ArrayBuffer(16));
+        const together = {};
+        backend.play(buffer, { loop: true, together });
+        now = 10.02;
+        backend.play(buffer, { loop: true, together });
+        backend.play(buffer, { loop: true });
+        // Both at a twentieth of a second past when the first was asked for; the third, with no token, now.
+        expect(host.calls.at).toEqual([expect.closeTo(10.05, 9), expect.closeTo(10.05, 9)]);
+
+        const old = audioScope();
+        const oldHost = installAudioHost(old);
+        const plain = new NativeAudioBackend(createHostBridge(old).audio!);
+        plain.play(await plain.loadBufferFromData('stem', new ArrayBuffer(16)), { loop: true, together: {} });
+        expect(oldHost.calls.at).toEqual([]);
     });
 
     it('loads, plays and reports state through the bridge', async () => {

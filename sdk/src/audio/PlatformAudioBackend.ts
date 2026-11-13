@@ -83,6 +83,13 @@ export interface PlayConfig {
      * mini-game) the player is sent back when it ends, which can be heard as a breath.
      */
     loopStart?: number;
+    /**
+     * Voices played with the same token begin on the same sample: the layers of one piece of music, which are only
+     * that piece while they are in step. The token is any object, held for as long as voices are still being added
+     * under it. A backend that plays each clip through a player of its own (a mini-game, a streamed clip) cannot
+     * promise it and starts them one after another.
+     */
+    together?: object;
 }
 
 export interface AudioBackendInitOptions {

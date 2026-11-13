@@ -490,6 +490,27 @@ describe('WebAudioBackend', () => {
             expect(handle.currentTime).toBeCloseTo(.875);
         });
 
+        it('begins voices of one token at one moment, however long apart they were asked for', async () => {
+            const { bufferHandle, mockCtx } = await initAndLoadBuffer(backend);
+            const together = {};
+            mockCtx.currentTime = 5;
+            const first = backend.play(bufferHandle, { loop: true, together });
+            // The clock has moved on by the time the second is set up: it is told the same moment all the same.
+            mockCtx.currentTime = 5.02;
+            backend.play(bufferHandle, { loop: true, together });
+            const sources = mockCtx.createBufferSource.mock.results.slice(-2).map((r: any) => r.value);
+            expect(sources[0].start).toHaveBeenCalledWith(expect.closeTo(5.03, 9), 0);
+            expect(sources[1].start).toHaveBeenCalledWith(expect.closeTo(5.03, 9), 0);
+            // Time is counted from that moment, not from when it was asked for.
+            mockCtx.currentTime = 5.53;
+            expect(first.currentTime).toBeCloseTo(0.5, 9);
+            // Another token is another moment, and a voice with none begins as soon as it can.
+            backend.play(bufferHandle, { together: {} });
+            expect(mockCtx.createBufferSource.mock.results.at(-1).value.start).toHaveBeenCalledWith(expect.closeTo(5.56, 9), 0);
+            backend.play(bufferHandle, {});
+            expect(mockCtx.createBufferSource.mock.results.at(-1).value.start).toHaveBeenCalledWith(0, 0);
+        });
+
         describe('a clip the exporter re-encoded', () => {
             // Two seconds of sound that came back from the decoder with a fortieth of a second of silence before it and some after.
             const trim = { seconds: 2, lead: 0.025 };
