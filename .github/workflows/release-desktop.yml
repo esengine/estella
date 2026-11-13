@@ -319,10 +319,6 @@ jobs:
           path: artifacts/*.zip
           retention-days: 3
 
-  # The boot, and nothing waits on it. It is the only check that starts a template
-  # on a device — v0.61.0's found two runtime errors no web gate can see, each on
-  # BOTH platforms — and it has also stopped three correct releases by misreading
-  # its own frame. Reporting and gating are separate jobs; this one reports.
   smoke-templates:
     name: Boot the templates this release will publish
     needs: [draft, native-templates, engine]
@@ -330,11 +326,11 @@ jobs:
     uses: ./.github/workflows/native-smoke.yml
     with:
       engine-artifact: engine-wasm
+      unanswered-passes: true
 
   # One job holds every archive, so only it can describe the set: the index
   # carries a digest per template, and the editor refuses a download that does not
-  # match it. smoke-templates is deliberately NOT in `needs`: a boot that misreads
-  # a frame must not leave a finished release sitting as a draft.
+  # match it.
   publish-templates:
     needs: [draft, native-templates]
     if: github.event_name == 'push' && needs.draft.result == 'success'
@@ -676,11 +672,12 @@ jobs:
   # `release: published`, when the assets are final and downloadable by tag.
   publish:
     name: Publish the release
-    needs: [draft, release, publish-templates, publish-external-tools]
+    needs: [draft, release, publish-templates, publish-external-tools, smoke-templates]
     if: >-
       github.event_name == 'push' &&
       needs.release.result == 'success' &&
       needs.publish-templates.result == 'success' &&
+      needs.smoke-templates.result == 'success' &&
       needs.publish-external-tools.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10

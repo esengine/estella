@@ -59,6 +59,10 @@ on:
         required: false
         default: ''
         type: string
+      unanswered-passes:
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -235,6 +239,7 @@ jobs:
             --shard ${{ matrix.shard }}/3
             ${{ steps.src.outputs.tag == '' && '--recreate' || '' }}
             ${{ inputs.examples && format('--only {0}', inputs.examples) || '' }}
+            ${{ inputs.unanswered-passes && '--unanswered-passes' || '' }}
 
       - name: Keep the frames and the records
         if: always()
@@ -303,6 +308,7 @@ jobs:
           node tools/verify-native-boot.mjs --platform ios --examples all
           --device "$IOS_DEVICE" --shard ${{ matrix.shard }}/3
           ${{ inputs.examples && format('--only {0}', inputs.examples) || '' }}
+          ${{ inputs.unanswered-passes && '--unanswered-passes' || '' }}
 
       - name: Keep the frames and the records
         if: always()

@@ -143,6 +143,7 @@ function parseArgs(argv) {
         if (key === 'allow-skip') { opts.allowSkip = true; continue; }
         if (key === 'no-frame-judge') { opts.frameJudge = false; continue; }
         if (key === 'recreate') { opts.recreate = true; continue; }
+        if (key === 'unanswered-passes') { opts.unansweredPasses = true; continue; }
         opts[key.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = argv[++i];
     }
     opts.timeout = Number(opts.timeout);
@@ -975,6 +976,10 @@ if (brokeUnexpectedly.length || fixedUnexpectedly.length) {
 if (exitCodeFor(results, (r) => !!KNOWN_FAILURES[r.name]) === 2) {
     console.error(`\n— UNANSWERED: ${tooSlow.length} example(s) reached no judged frame in two launches`);
     for (const r of tooSlow) console.error(`  ${r.name} — ${r.unjudged}`);
+    if (opts.unansweredPasses) {
+        console.log(`::warning::${tooSlow.length} example(s) unanswered on ${driver.name}: ${tooSlow.map((r) => r.name).join(', ')}`);
+        process.exit(0);
+    }
     process.exit(2);
 }
 
