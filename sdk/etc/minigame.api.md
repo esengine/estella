@@ -1192,6 +1192,7 @@ setBufferBudget: (bytes: number | null) => void
 setBusDucking: (target: string, rule: BusDuckRule | null) => boolean
 setBusEffects: (busName: string, effects: BusEffectDef[]) => boolean
 setBusVolume: (busName: string, volume: number) => void
+setEncodedClips: (clips: Readonly<Record<string, AudioClipTrim>> | null) => void
 setLoadTypes: (types: Readonly<Record<string, AudioLoadType>> | null) => void
 setMasterVolume: (volume: number) => void
 setMaxVoices: (max: number) => void
@@ -1361,6 +1362,7 @@ static prototype: AudioPool
 ## AudioProjectConfig — interface @experimental
 ```
 buses: AudioBusDecl[] | undefined
+encoded: Record<string, { seconds: number; lead: number; }> | undefined
 loadTypes: Record<string, "decompress" | "streaming"> | undefined
 maxVoices: number | undefined
 ```
@@ -6490,8 +6492,8 @@ dispose: () => void
 ensureResumed: () => Promise<void>
 initialize: (_options?: AudioBackendInitOptions) => Promise<void>
 isReady: boolean
-loadBuffer: (src: string) => Promise<AudioBufferHandle>
-loadBufferFromData: (src: string, _data: ArrayBuffer) => Promise<AudioBufferHandle>
+loadBuffer: (src: string, options?: AudioLoadOptions) => Promise<AudioBufferHandle>
+loadBufferFromData: (src: string, _data: ArrayBuffer, options?: AudioLoadOptions) => Promise<AudioBufferHandle>
 mixer: AudioMixer | null
 name: string
 play: (buffer: AudioBufferHandle, config: PlayConfig) => AudioHandle

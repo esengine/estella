@@ -22,6 +22,7 @@ import type {
 } from './PlatformAudioBackend';
 import type { NativeAudioBridge } from '../platform/native/bridge';
 import type { AudioLoadOptions } from './PlatformAudioBackend';
+import { clipSpan } from './PlatformAudioBackend';
 import { decodedPcmBytes, shouldStream } from './audioStreaming';
 import { platformReadFile } from '../platform/base';
 import { scalar } from '../math/scalar';
@@ -71,6 +72,8 @@ export class NativeAudioBackend implements PlatformAudioBackend {
     readonly isReady = true;
 
     private readonly voices_ = new Map<number, NativeAudioHandle>();
+    /** Where a clip the exporter re-encoded really lies in what the host decoded, by buffer. */
+    private readonly spans_ = new Map<number, { lead: number; end: number }>();
     /** Reused across frames: a visualizer asks every frame, and a fresh view per
      *  ask would be garbage the interpreter has to collect at 60 Hz. */
     private spectrumView_: Uint8Array | null = null;
@@ -102,6 +105,8 @@ export class NativeAudioBackend implements PlatformAudioBackend {
     private loadFromBytes_(bytes: ArrayBuffer, options?: AudioLoadOptions): AudioBufferHandle {
         const loaded = this.audio_.load(bytes, shouldStream(options?.loadType, bytes));
         if (!loaded) throw new Error('[native] audio decode failed');
+        const span = clipSpan(options?.trim, loaded.duration);
+        if (span) { this.spans_.set(loaded.id, span); loaded.duration = span.end - span.lead; }
         // What the host DID, not what was asked: one that could not stream the file decoded it, and its PCM
         // is then what counts against the budget.
         if (!loaded.streamed) return { id: loaded.id, duration: loaded.duration, bytes: loaded.bytes };
@@ -112,17 +117,22 @@ export class NativeAudioBackend implements PlatformAudioBackend {
     }
 
     unloadBuffer(handle: AudioBufferHandle): void {
+        this.spans_.delete(handle.id);
         this.audio_.unload(handle.id);
     }
 
     play(buffer: AudioBufferHandle, config: PlayConfig): AudioHandle {
+        const span = this.spans_.get(buffer.id);
         const voiceId = this.audio_.play(
             buffer.id,
             config.volume ?? 1,
             scalar.clamp(config.pan ?? 0, -1, 1),
             config.loop ?? false,
             config.playbackRate ?? 1,
-            config.loop && config.loopStart && config.loopStart > 0 ? config.loopStart : 0,
+            // Places in what the host decoded: the loop start, where the clip begins, and where it ends (0 is its natural end).
+            config.loop && config.loopStart && config.loopStart > 0 ? (span?.lead ?? 0) + config.loopStart : span?.lead ?? 0,
+            span?.lead ?? 0,
+            span?.end ?? 0,
         );
         const handle = new NativeAudioHandle(
             voiceId, this.audio_, buffer.duration, () => this.voices_.delete(voiceId),

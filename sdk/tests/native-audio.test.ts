@@ -35,11 +35,11 @@ function installAudioHost(scope: Record<string, unknown>) {
 
     scope.es_audioLoad = (bytes: ArrayBuffer) => ({ id: nextBuffer++, duration: 2, bytes: bytes.byteLength * 4 });
     scope.es_audioUnload = () => {};
-    scope.es_audioPlay = (buf: number, vol: number, pan: number, loop: boolean, rate: number, loopStart?: number) => {
+    scope.es_audioPlay = (buf: number, vol: number, pan: number, loop: boolean, rate: number, loopStart?: number, start?: number, end?: number) => {
         const id = nextVoice++;
         voices.set(id, { playing: true, time: 0, loop });
-        // The sixth is where a loop comes back to; it is recorded only when it is somewhere.
-        calls.play.push(loopStart ? [buf, vol, pan, loop, rate, loopStart] : [buf, vol, pan, loop, rate]);
+        // The sixth is where a loop comes back to, the seventh and eighth where the clip begins and ends; recorded only when they are somewhere.
+        calls.play.push(start || end ? [buf, vol, pan, loop, rate, loopStart, start, end] : loopStart ? [buf, vol, pan, loop, rate, loopStart] : [buf, vol, pan, loop, rate]);
         return id;
     };
     scope.es_audioStop = (v: number) => { voices.delete(v); calls.stop.push(v); };
@@ -147,6 +147,28 @@ describe('NativeAudioBackend', () => {
         backend.play(buffer, { loopStart: 8 });
         backend.play(buffer, { loop: true });
         expect(host.calls.play).toEqual([[buffer.id, 1, 0, true, 1, 8], [buffer.id, 1, 0, false, 1], [buffer.id, 1, 0, true, 1]]);
+    });
+
+    it('plays a clip the exporter re-encoded from past its silence to its real end', async () => {
+        const scope = audioScope();
+        const host = installAudioHost(scope);
+        const backend = new NativeAudioBackend(createHostBridge(scope).audio!);
+        // The fake host says every clip decodes to two seconds: 1.95 of sound, with 0.025 before it and as much after.
+        const buffer = await backend.loadBufferFromData('music', new ArrayBuffer(16), { trim: { seconds: 1.95, lead: 0.025 } });
+        expect(buffer.duration).toBeCloseTo(1.95, 9);
+        backend.play(buffer, {});
+        backend.play(buffer, { loop: true });
+        backend.play(buffer, { loop: true, loopStart: 0.5 });
+        const close = (v: number) => expect.closeTo(v, 9);
+        expect(host.calls.play).toEqual([
+            [buffer.id, 1, 0, false, 1, close(0.025), close(0.025), close(1.975)],
+            [buffer.id, 1, 0, true, 1, close(0.025), close(0.025), close(1.975)],
+            [buffer.id, 1, 0, true, 1, close(0.525), close(0.025), close(1.975)],
+        ]);
+        // A host that took the silence off itself says the clip is as long as it should be, and is asked for nothing.
+        const exact = await backend.loadBufferFromData('music2', new ArrayBuffer(16), { trim: { seconds: 2, lead: 0.025 } });
+        backend.play(exact, { loop: true });
+        expect(host.calls.play.at(-1)).toEqual([exact.id, 1, 0, true, 1, 0, 0, close(2)]);
     });
 
     it('loads, plays and reports state through the bridge', async () => {

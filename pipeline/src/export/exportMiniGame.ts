@@ -506,7 +506,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // a WebGPU request cannot be honoured here — carrying it would be a config
   // field the runtime is guaranteed to ignore.
   const { renderBackend: _webgpuNotHere, ...packaged } =
-    packagedRuntimeFields(withAudioLoadTypes(opts.runtime ?? DEFAULT_RUNTIME_CONFIG, cook.audioLoadTypes));
+    packagedRuntimeFields(withAudioLoadTypes(opts.runtime ?? DEFAULT_RUNTIME_CONFIG, cook.audioLoadTypes, cook.audioEncoded));
   const themeColors = packaged.uiThemeColors;
   const runtimeArgs = Object.entries(packaged)
     .map(([k, v]) => (k === 'uiThemeColors'

@@ -443,6 +443,12 @@ export interface CookResult {
   includedPaths: string[];
   /** The shipped audio clips whose import settings choose how they load (not `auto`), by logical path. */
   audioLoadTypes: Record<string, 'streaming' | 'decompress'>;
+  /**
+   * The shipped clips that were re-encoded, by logical path: how long each really is and the silence the encoding
+   * put before it, in seconds. The runtime plays a clip from past that silence and loops it at its real end;
+   * without this a loop that was seamless as a WAV has a gap every time round once it is packaged.
+   */
+  audioEncoded: Record<string, { seconds: number; lead: number }>;
   /** uuids present in the project but unreachable — culled from the build. */
   unused: string[];
   /**
@@ -661,6 +667,7 @@ export async function cookAssets(
   }
   // WAV → MP3 (LAME wasm) rides the same lazy pattern; per-asset importer
   // settings can opt a clip out (seamless loops) or pick a bitrate.
+  const encodedByUuid = new Map<string, { seconds: number; lead: number }>();
   let audioEnc: typeof import('./audioCook') | null = null;
   if (compressAudio) {
     audioEnc = await import('./audioCook');
@@ -872,6 +879,8 @@ export async function cookAssets(
         if (settings.compress) {
           const mp3 = await audioEnc.encodeWavToMp3(data, settings.bitrateKbps);
           if (mp3 && mp3.byteLength < data.byteLength) {
+            const trim = audioEnc.encodedClipTrim(data);
+            if (trim) encodedByUuid.set(entry.uuid, trim);
             data = mp3;
             ext = '.mp3';
           } else if (!mp3) {
@@ -1107,9 +1116,15 @@ export async function cookAssets(
     const type = e?.type === 'audio' ? audioLoadTypeOf(e.importer) : null;
     if (e && type) audioLoadTypes[e.path] = type;
   }
+  const audioEncoded: Record<string, { seconds: number; lead: number }> = {};
+  for (const [uuid, trim] of encodedByUuid) {
+    const e = byUuid.get(uuid);
+    // To a hundred-thousandth of a second, which is finer than a sample and keeps the config short.
+    if (e && reachable.has(uuid)) audioEncoded[e.path] = { seconds: Math.round(trim.seconds * 1e5) / 1e5, lead: Math.round(trim.lead * 1e5) / 1e5 };
+  }
   return {
     ok: failed.length === 0,
-    outDir: absOut, manifestPath, included: [...reachable], includedPaths, audioLoadTypes, unused, warnings, failed,
+    outDir: absOut, manifestPath, included: [...reachable], includedPaths, audioLoadTypes, audioEncoded, unused, warnings, failed,
     inclusion,
   };
 }

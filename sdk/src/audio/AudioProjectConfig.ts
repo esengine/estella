@@ -35,6 +35,11 @@ export interface AudioProjectConfig {
      * editor and the exporter from the assets' import settings, never by hand in the project file.
      */
     loadTypes?: Record<string, Exclude<AudioLoadType, 'auto'>>;
+    /**
+     * Clips the exporter re-encoded, by project-relative path: how long each really is and the silence the encoding
+     * put before it, in seconds. Written by the exporter only; a project played from its own files has none.
+     */
+    encoded?: Record<string, { seconds: number; lead: number }>;
 }
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -77,6 +82,15 @@ export function parseAudioProjectConfig(raw: unknown): AudioProjectConfig {
         }
         if (Object.keys(loadTypes).length > 0) config.loadTypes = loadTypes;
     }
+    const rawEncoded = (raw as { encoded?: unknown } | undefined)?.encoded;
+    if (rawEncoded && typeof rawEncoded === 'object') {
+        const encoded: Record<string, { seconds: number; lead: number }> = {};
+        for (const [path, value] of Object.entries(rawEncoded)) {
+            const v = value as { seconds?: unknown; lead?: unknown } | null;
+            if (path && v && typeof v.seconds === 'number' && v.seconds > 0 && typeof v.lead === 'number' && v.lead >= 0 && v.lead < 1) encoded[path] = { seconds: v.seconds, lead: v.lead };
+        }
+        if (Object.keys(encoded).length > 0) config.encoded = encoded;
+    }
     return config;
 }
 
@@ -90,6 +104,7 @@ export function applyAudioProjectConfig(audio: AudioAPI, config: AudioProjectCon
     // while the loop below returns early where there is no mixer graph.
     if (config?.maxVoices !== undefined) audio.setMaxVoices(config.maxVoices);
     if (config?.loadTypes !== undefined) audio.setLoadTypes(config.loadTypes);
+    if (config?.encoded !== undefined) audio.setEncodedClips(config.encoded);
     for (const bus of config?.buses ?? []) {
         if (!audio.ensureBus(bus.name, bus.parent)) return; // no mixer: nothing applies
         if (bus.volume !== undefined) audio.setBusVolume(bus.name, bus.volume);

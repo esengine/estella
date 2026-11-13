@@ -46,6 +46,21 @@ const play = defineSystem([Res(Audio)], (audio) => {
 current track, optionally cross-fading. Both auto-preload an uncached clip and play
 it once ready.
 
+### What packaging does to a clip
+
+A `.wav` is re-encoded when a game is exported, and a decoder gives an encoded
+clip back with a fortieth of a second of silence before its sound and some after
+it. The exporter records how long each clip really is and the runtime plays it
+from past that silence to its real end, so a loop that was seamless as a `.wav`
+is seamless in the build and an effect is not late. Nothing is asked of you.
+
+Only a clip that is **decoded** can go round between two samples. A long clip
+(over 30 seconds under `auto`) is played from its compressed file instead, by a
+player that is sent back to the start when it ends: a looping piece of music
+wants `loadType: 'decompress'` in its import settings, which costs its decoded
+size in memory while it is loaded. The editor's music tool sets it for pieces up
+to two minutes.
+
 ### An introduction, then the loop
 
 A piece with an introduction is one file: it plays from the top once, and each

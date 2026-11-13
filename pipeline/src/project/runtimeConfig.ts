@@ -185,9 +185,12 @@ export function runtimeConfigOf(
  */
 export function withAudioLoadTypes(
   rc: RuntimeProjectConfig, loadTypes: Readonly<Record<string, 'streaming' | 'decompress'>> | undefined,
+  encoded?: Readonly<Record<string, { seconds: number; lead: number }>>,
 ): RuntimeProjectConfig {
-  if (!loadTypes || Object.keys(loadTypes).length === 0) return rc;
-  return { ...rc, audioConfig: { ...rc.audioConfig, loadTypes: { ...loadTypes } } };
+  const [types, trims] = [Object.keys(loadTypes ?? {}).length > 0, Object.keys(encoded ?? {}).length > 0];
+  if (!types && !trims) return rc;
+  // What the cook did to each clip it re-encoded rides beside how each is loaded: both are the cook's to know.
+  return { ...rc, audioConfig: { ...rc.audioConfig, ...(types ? { loadTypes: { ...loadTypes } } : {}), ...(trims ? { encoded: { ...encoded } } : {}) } };
 }
 
 /** The settings a shipped build carries, as `game.config.json` spells them. */
@@ -235,7 +238,7 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     ...(rc.physics3dBackend === 'physx' ? { physics3dBackend: rc.physics3dBackend } : {}),
     ...(isDefaultPhysics3dWorld(rc.physics3dWorld) ? {} : { physics3dWorld: rc.physics3dWorld }),
     ...(rc.audioConfig.buses?.length || rc.audioConfig.maxVoices !== undefined
-      || Object.keys(rc.audioConfig.loadTypes ?? {}).length > 0
+      || Object.keys(rc.audioConfig.loadTypes ?? {}).length > 0 || Object.keys(rc.audioConfig.encoded ?? {}).length > 0
       ? { audioConfig: rc.audioConfig } : {}),
     ...(Object.keys(rc.runtime).length > 0 ? { runtime: rc.runtime } : {}),
     ...(rc.achievements.length ? { achievements: rc.achievements } : {}),

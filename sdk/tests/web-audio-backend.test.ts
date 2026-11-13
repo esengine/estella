@@ -490,6 +490,64 @@ describe('WebAudioBackend', () => {
             expect(handle.currentTime).toBeCloseTo(.875);
         });
 
+        describe('a clip the exporter re-encoded', () => {
+            // Two seconds of sound that came back from the decoder with a fortieth of a second of silence before it and some after.
+            const trim = { seconds: 2, lead: 0.025 };
+            const loaded = async (decoded: number) => {
+                await backend.initialize();
+                const mockCtx = (globalThis as any).__mockAudioContext;
+                mockCtx.decodeAudioData.mockResolvedValue({ duration: decoded });
+                return { mockCtx, handle: await backend.loadBuffer('theme.mp3', { trim }) };
+            };
+
+            it('is as long as it was made, not as long as the decoder left it', async () => {
+                expect((await loaded(2.06)).handle.duration).toBeCloseTo(2, 9);
+            });
+
+            it('is begun past the silence before it, and stopped where it ends', async () => {
+                const { mockCtx, handle } = await loaded(2.06);
+                const voice = backend.play(handle, {});
+                const source = mockCtx.createBufferSource.mock.results.at(-1).value;
+                expect(source.start).toHaveBeenCalledWith(0, expect.closeTo(0.025, 9), expect.closeTo(2, 9));
+                expect(source.loopStart).toBeUndefined();
+                // Time is counted from where the clip begins.
+                mockCtx.currentTime = 0.5;
+                expect(voice.currentTime).toBeCloseTo(0.5, 9);
+                expect(voice.duration).toBeCloseTo(2, 9);
+                backend.play(handle, { startOffset: 0.5 });
+                expect(mockCtx.createBufferSource.mock.results.at(-1).value.start).toHaveBeenCalledWith(0, expect.closeTo(0.525, 9), expect.closeTo(1.5, 9));
+            });
+
+            it('goes round between its real start and its real end, so a loop made seamless stays so', async () => {
+                const { mockCtx, handle } = await loaded(2.06);
+                const voice = backend.play(handle, { loop: true });
+                const source = mockCtx.createBufferSource.mock.results.at(-1).value;
+                expect([source.loop, source.loopStart, source.loopEnd]).toEqual([true, expect.closeTo(0.025, 9), expect.closeTo(2.025, 9)]);
+                expect(source.start).toHaveBeenCalledWith(0, expect.closeTo(0.025, 9));
+                // Five seconds in it has been round twice and is one second into the third time.
+                mockCtx.currentTime = 5; voice.pause();
+                expect(voice.currentTime).toBeCloseTo(1, 6);
+                voice.resume();
+                const next = mockCtx.createBufferSource.mock.results.at(-1).value;
+                expect(next.start).toHaveBeenCalledWith(0, expect.closeTo(1.025, 6));
+                expect([next.loopStart, next.loopEnd]).toEqual([expect.closeTo(0.025, 9), expect.closeTo(2.025, 9)]);
+                // With an introduction, the loop start is counted from the clip's own beginning.
+                backend.play(handle, { loop: true, loopStart: 0.8 });
+                const led = mockCtx.createBufferSource.mock.results.at(-1).value;
+                expect([led.loopStart, led.loopEnd]).toEqual([expect.closeTo(0.825, 9), expect.closeTo(2.025, 9)]);
+            });
+
+            it('is not trimmed twice where the decoder took the silence off itself', async () => {
+                const { mockCtx, handle } = await loaded(2.0);
+                backend.play(handle, { loop: true });
+                const source = mockCtx.createBufferSource.mock.results.at(-1).value;
+                expect(source.start).toHaveBeenCalledWith(0, 0);
+                // The whole buffer is the clip: there is no part of it to go round.
+                expect(source.loopStart).toBeUndefined();
+                expect(handle.duration).toBeCloseTo(2, 9);
+            });
+        });
+
         it('a loop with a loop start goes round from there, and a pause knows where in the round it is', async () => {
             const { bufferHandle, mockCtx } = await initAndLoadBuffer(backend);
             const handle = backend.play(bufferHandle, { loop: true, loopStart: .4 });

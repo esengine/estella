@@ -397,7 +397,7 @@ export async function exportPlayable(opts: {
     `window.__GAME_PATHMAP__=${JSON.stringify(pathMap)};` +
     span(`scenes/${sceneName}.json`, `window.__GAME_SCENES__=${JSON.stringify(scenes)};`) +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};` +
-    `window.__GAME_RUNTIME__=${JSON.stringify(playableRuntimeFields(withAudioLoadTypes(opts.runtime ?? DEFAULT_RUNTIME_CONFIG, cook.audioLoadTypes)))};` +
+    `window.__GAME_RUNTIME__=${JSON.stringify(playableRuntimeFields(withAudioLoadTypes(opts.runtime ?? DEFAULT_RUNTIME_CONFIG, cook.audioLoadTypes, cook.audioEncoded)))};` +
     span('game-bundle.js', `window.__GAME_BUNDLE__=${JSON.stringify(pack(Buffer.from(bundle, 'utf8')))};`);
   const adProfile = opts.adProfile ?? genericPlayableProfile;
   const network = playableAdInjection(adProfile, { title, orientation });

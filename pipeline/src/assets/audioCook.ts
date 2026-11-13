@@ -85,6 +85,20 @@ export function parseWav(bytes: Uint8Array): ParsedWav | null {
   return { channels, sampleRate };
 }
 
+/**
+ * Samples of silence an MP3 has before its sound once it is decoded: what the encoder holds back and what a decoder
+ * holds back, 576 and 529. It is the same at every rate and bitrate, and no player takes it off a file with no tag
+ * to say so, which these have not: a clip encoded here begins a fortieth of a second late and is longer than it was.
+ */
+export const MP3_LEAD_SAMPLES = 1105;
+
+/** How long a clip was before it was encoded, and the silence the encoding puts in front of it, in seconds; null if it is not a WAV. */
+export function encodedClipTrim(wav: Uint8Array): { seconds: number; lead: number } | null {
+  const parsed = parseWav(wav);
+  if (!parsed || !parsed.channels[0]?.length) return null;
+  return { seconds: parsed.channels[0].length / parsed.sampleRate, lead: MP3_LEAD_SAMPLES / parsed.sampleRate };
+}
+
 type Mp3Encoder = {
   configure(opts: { sampleRate: number; channels: 1 | 2; bitrate: number }): void;
   encode(channels: Float32Array[]): Uint8Array;

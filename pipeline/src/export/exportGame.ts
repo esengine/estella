@@ -1318,7 +1318,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     ...(platform === 'web' && opts.webChannel === 'crazygames' && opts.leaderboardEncryptionKey
       ? { leaderboardEncryptionKey: opts.leaderboardEncryptionKey } : {}),
     ...(scriptsFile ? { scripts: scriptsFile } : {}),
-    ...packagedRuntimeFields(withAudioLoadTypes(runtime, cook.audioLoadTypes)),
+    ...packagedRuntimeFields(withAudioLoadTypes(runtime, cook.audioLoadTypes, cook.audioEncoded)),
     ...(hotUpdate ? { hotUpdate } : {}),
     ...(sideModuleDeclarations(projectModules, platform).length > 0
       ? { sideModules: sideModuleDeclarations(projectModules, platform) } : {}),

@@ -4652,6 +4652,10 @@ export const NOTED = {
     {"note": "An AI can make background music."},
   "feat(music): the tool text says the five-note scales and how a tune in one sits over a piece in seven":
     {"note": "An AI can make background music."},
+  "fix(audio): a loop is seamless in a packaged game, and an effect is on time - an exported .wav became an MP3 that decodes with 1105 samples of silence before it and more after, so every loop had a gap each time round and every sound began a fortieth of a second late; the exporter now records how long each clip really is and the web, mini-game and native backends play it from past the silence to its real end":
+    {"note": "A loop is seamless in a packaged game."},
+  "feat(music): a piece that goes round is set to be decoded when a game loads it - played from its compressed file it could not loop between two samples, and the reply says what it costs in memory":
+    {"note": "An AI can make background music."},
   "feat(sky): a sky of your own shades the ground under its clouds - defineSkyEffect takes groundShadow and a second function, skyShadow(world, sun), what is left of the light at a world position, and the sky pass multiplies every surface it finds by it, as Sky Atmosphere does with its own clouds":
     {"note": "A sky of your own shades the ground under its clouds."},
   "fix(terrain): a colour map and an occlusion map lie the way the heightmap does - Terrain.colorMap, Terrain.occlusionMap and Foliage.colorMap were sampled with their rows turned over, so a picture painted to match a heightmap, a splatmap or a density map came out mirrored north to south under them; an image over an area now has its first row along the least z whoever reads it":

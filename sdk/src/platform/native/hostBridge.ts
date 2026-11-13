@@ -144,7 +144,7 @@ export interface NativeHostBindings extends NativeDeviceHost {
     es_audioSpectrum?(bins: number): ArrayBuffer | null;
     es_audioLoad?(bytes: ArrayBuffer, stream?: boolean): { id: number; duration: number; bytes: number; streamed?: boolean } | null;
     es_audioUnload?(bufferId: number): void;
-    es_audioPlay?(bufferId: number, volume: number, pan: number, loop: boolean, rate: number, loopStart?: number): number;
+    es_audioPlay?(bufferId: number, volume: number, pan: number, loop: boolean, rate: number, loopStart?: number, start?: number, end?: number): number;
     es_audioStop?(voiceId: number): void;
     es_audioPause?(voiceId: number): void;
     es_audioResume?(voiceId: number): void;
@@ -388,7 +388,7 @@ function hostAudio(
     return {
         load: (bytes, stream) => bindings.es_audioLoad!(bytes, stream === true),
         unload: (id) => bindings.es_audioUnload!(id),
-        play: (buf, vol, pan, loop, rate, loopStart) => bindings.es_audioPlay!(buf, vol, pan, loop, rate, loopStart ?? 0),
+        play: (buf, vol, pan, loop, rate, loopStart, start, end) => bindings.es_audioPlay!(buf, vol, pan, loop, rate, loopStart ?? 0, start ?? 0, end ?? 0),
         stop: (v) => bindings.es_audioStop!(v),
         pause: (v) => bindings.es_audioPause!(v),
         resume: (v) => bindings.es_audioResume!(v),

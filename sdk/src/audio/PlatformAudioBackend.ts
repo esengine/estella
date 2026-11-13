@@ -26,8 +26,26 @@ export interface AudioHandle {
  */
 export type AudioLoadType = 'auto' | 'decompress' | 'streaming';
 
+/**
+ * What re-encoding did to a clip: `seconds` is how long it really is, `lead` the silence the encoding put in front
+ * of it. A backend plays it from past the lead and ends or loops it at lead + seconds, so a clip is in a packaged
+ * game what it was as a WAV: on time, and seamless where it was made to loop.
+ */
+export interface AudioClipTrim { seconds: number; lead: number }
+
+/**
+ * Where a clip really lies in what a decoder made of it, in seconds: from `lead` to `end`. A decoder that took the
+ * lead off itself is seen by how long its result is, and is not asked to take it off twice.
+ */
+export function clipSpan(trim: AudioClipTrim | undefined, decodedSeconds: number): { lead: number; end: number } | null {
+    if (!trim) return null;
+    const lead = decodedSeconds > trim.seconds + trim.lead * 0.5 ? trim.lead : 0;
+    return { lead, end: Math.min(decodedSeconds, lead + trim.seconds) };
+}
+
 export interface AudioLoadOptions {
     loadType?: AudioLoadType;
+    trim?: AudioClipTrim;
 }
 
 export interface AudioBufferHandle {

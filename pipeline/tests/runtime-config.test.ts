@@ -183,6 +183,12 @@ describe('how an audio clip loads', () => {
   it('rides the packaged audio config only when a clip asked for something', () => {
     expect(packagedRuntimeFields(DEFAULT_RUNTIME_CONFIG).audioConfig).toBeUndefined();
     expect(packagedRuntimeFields(withAudioLoadTypes(DEFAULT_RUNTIME_CONFIG, {})).audioConfig).toBeUndefined();
+    // What the cook's encoding did to a clip rides in the same place, with or without a load type beside it.
+    const encoded = { 'assets/theme.wav': { seconds: 53.3, lead: 0.02506 } };
+    expect(packagedRuntimeFields(withAudioLoadTypes(DEFAULT_RUNTIME_CONFIG, {}, encoded)).audioConfig).toEqual({ encoded });
+    expect(packagedRuntimeFields(withAudioLoadTypes(DEFAULT_RUNTIME_CONFIG, { 'assets/bgm.mp3': 'streaming' }, encoded)).audioConfig)
+      .toEqual({ loadTypes: { 'assets/bgm.mp3': 'streaming' }, encoded });
+    expect(packagedRuntimeFields(withAudioLoadTypes(DEFAULT_RUNTIME_CONFIG, {}, {})).audioConfig).toBeUndefined();
     const rc = withAudioLoadTypes(DEFAULT_RUNTIME_CONFIG, { 'assets/bgm.mp3': 'streaming' });
     expect(packagedRuntimeFields(rc).audioConfig).toEqual({ loadTypes: { 'assets/bgm.mp3': 'streaming' } });
     expect(DEFAULT_RUNTIME_CONFIG.audioConfig.loadTypes).toBeUndefined();

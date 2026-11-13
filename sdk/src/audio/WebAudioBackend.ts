@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, AudioBackendInitOptions, AudioLoadOptions } from './PlatformAudioBackend';
+import { clipSpan } from './PlatformAudioBackend';
 import { decodedPcmBytes, estimateAudioSeconds, shouldStream } from './audioStreaming';
 import { AudioMixer } from './AudioMixer';
 import { AudioPool, type PooledAudioNode } from './AudioPool';
@@ -24,8 +25,11 @@ class WebAudioHandle implements AudioHandle {
     private startOffset_: number;
     private playbackRate_: number;
     private loop_: boolean;
-    /** Where a loop comes back to, in seconds; 0 is the start. */
+    /** Where a loop comes back to, as a place in the buffer; the clip's own start where no loop start was given. */
     private readonly loopStart_: number;
+    /** Where the clip begins and ends in the buffer. Times given out are counted from its beginning. */
+    private readonly lead_: number;
+    private readonly end_: number;
     private readonly duration_: number;
 
     constructor(
@@ -37,11 +41,15 @@ class WebAudioHandle implements AudioHandle {
         context: AudioContext,
         startOffset: number,
         loopStart = 0,
+        lead = 0,
+        end = buffer.duration,
     ) {
         this.id = id;
         this.source_ = source;
         this.buffer_ = buffer;
-        this.duration_ = buffer.duration;
+        this.lead_ = lead;
+        this.end_ = end;
+        this.duration_ = end - lead;
         this.poolNode_ = poolNode;
         this.pool_ = pool;
         this.context_ = context;
@@ -93,7 +101,7 @@ class WebAudioHandle implements AudioHandle {
 
     /** A place in the clip for a time since it began: past the end, it has been round from the loop's start. */
     private wrapped_(position: number): number {
-        const end = this.buffer_!.duration;
+        const end = this.end_;
         if (position < end) return position;
         const round = end - this.loopStart_;
         return round > 0 ? this.loopStart_ + ((position - this.loopStart_) % round) : position % end;
@@ -107,7 +115,7 @@ class WebAudioHandle implements AudioHandle {
         try {
             source.buffer = this.buffer_;
             source.loop = this.loop_;
-            if (this.loopStart_ > 0) { source.loopStart = this.loopStart_; source.loopEnd = this.buffer_!.duration; }
+            if (this.loop_ && (this.loopStart_ > 0 || this.end_ < this.buffer_!.duration)) { source.loopStart = this.loopStart_; source.loopEnd = this.end_; }
             source.playbackRate.value = this.playbackRate_;
             source.connect(this.poolNode_!.gain);
             this.bindOnEnded_(source);
@@ -162,9 +170,9 @@ class WebAudioHandle implements AudioHandle {
 
     get currentTime(): number {
         if (this.stopped_) return 0;
-        if (!this.playing_) return this.pausedAt_;
+        if (!this.playing_) return this.pausedAt_ - this.lead_;
         const elapsed = (this.context_!.currentTime - this.startedAt_) * this.playbackRate_;
-        return this.startOffset_ + elapsed;
+        return this.startOffset_ + elapsed - this.lead_;
     }
 
     get duration(): number {
@@ -329,8 +337,10 @@ function decodedBytes(buf: AudioBuffer): number {
 interface BufferRecord {
     buffer: AudioBuffer | null;
     url: string;
+    /** Where the clip really lies in the decoded buffer, for one the exporter re-encoded: from `lead` to `end`, in seconds. */
+    span?: { lead: number; end: number };
     /** A streamed clip: the object URL its media element plays, and its length. */
-    stream?: { objectUrl: string; duration: number };
+    stream?: { objectUrl: string; duration: number; lead?: number };
 }
 
 interface SourceRecord {
@@ -508,7 +518,8 @@ export class WebAudioBackend implements PlatformAudioBackend {
             const duration = record.stream.duration;
             return { id, duration, bytes: 0, streamed: true, savedBytes: decodedPcmBytes(duration) };
         }
-        return { id, duration: record.buffer!.duration, bytes: decodedBytes(record.buffer!) };
+        // As long as the clip is, not as long as the decoder made it.
+        return { id, duration: record.span ? record.span.end - record.span.lead : record.buffer!.duration, bytes: decodedBytes(record.buffer!) };
     }
 
     private async loadSource_(url: string, read: () => Promise<ArrayBuffer>, options?: AudioLoadOptions): Promise<AudioBufferHandle> {
@@ -552,7 +563,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
             if (cached) return cached;
         }
         if (shouldStream(options?.loadType, data)) {
-            return this.streamBuffer_(url, data, source, context, generation);
+            return this.streamBuffer_(url, data, source, context, generation, options);
         }
 
         let audioBuffer: AudioBuffer;
@@ -565,10 +576,11 @@ export class WebAudioBackend implements PlatformAudioBackend {
         this.assertLoadContext_(context, generation);
 
         const id = ++this.nextBufferId_;
-        this.buffers_.set(id, { buffer: audioBuffer, url });
+        const span = clipSpan(options?.trim, audioBuffer.duration);
+        this.buffers_.set(id, { buffer: audioBuffer, url, ...(span ? { span } : {}) });
         if (this.sources_.get(url) === source) source.bufferId = id;
 
-        return { id, duration: audioBuffer.duration, bytes: decodedBytes(audioBuffer) };
+        return this.handleOf_(id, this.buffers_.get(id)!);
     }
 
     /**
@@ -577,7 +589,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
      * clip does not take.
      */
     private async streamBuffer_(
-        url: string, data: ArrayBuffer, source: SourceRecord, context: AudioContext, generation: number,
+        url: string, data: ArrayBuffer, source: SourceRecord, context: AudioContext, generation: number, options?: AudioLoadOptions,
     ): Promise<AudioBufferHandle> {
         const objectUrl = URL.createObjectURL(new Blob([data], { type: mimeOf(url) }));
         const duration = await probeDuration(objectUrl, estimateAudioSeconds(data));
@@ -586,7 +598,8 @@ export class WebAudioBackend implements PlatformAudioBackend {
             throw new Error('AudioContext changed while loading audio');
         }
         const id = ++this.nextBufferId_;
-        this.buffers_.set(id, { buffer: null, url, stream: { objectUrl, duration } });
+        const span = clipSpan(options?.trim, duration);
+        this.buffers_.set(id, { buffer: null, url, stream: { objectUrl, duration: span ? span.end - span.lead : duration, ...(span?.lead ? { lead: span.lead } : {}) } });
         if (this.sources_.get(url) === source) source.bufferId = id;
         return this.handleOf_(id, this.buffers_.get(id)!);
     }
@@ -601,7 +614,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
         }
     }
 
-    private playStream_(bufferId: number, stream: { objectUrl: string; duration: number }, config: PlayConfig): AudioHandle {
+    private playStream_(bufferId: number, stream: { objectUrl: string; duration: number; lead?: number }, config: PlayConfig): AudioHandle {
         const context = this.context_!;
         const pool = this.pool_!;
         const mixer = this.mixer_!;
@@ -628,10 +641,11 @@ export class WebAudioBackend implements PlatformAudioBackend {
         const handle = new WebStreamHandle(
             ++this.nextHandleId_, element, node, poolNode, pool, stream.duration,
             (h) => this.releaseStream_(h), () => this.ensureResumed(),
-            config.loop && config.loopStart && config.loopStart < stream.duration ? config.loopStart : 0,
+            // Past the silence encoding put before it, each time round as well as the first.
+            config.loop && ((config.loopStart && config.loopStart < stream.duration) || stream.lead) ? (stream.lead ?? 0) + (config.loopStart ?? 0) : 0,
         );
         this.streams_.set(bufferId, handle);
-        handle.begin(config.startOffset ?? 0);
+        handle.begin((stream.lead ?? 0) + (config.startOffset ?? 0));
         return handle;
     }
 
@@ -668,8 +682,12 @@ export class WebAudioBackend implements PlatformAudioBackend {
             throw new Error(`Buffer ${buffer.id} not found`);
         }
 
-        const startOffset = config.startOffset ?? 0;
-        const loopStart = config.loop && config.loopStart && config.loopStart > 0 && config.loopStart < audioBuffer.duration ? config.loopStart : 0;
+        // Everything below is a place in the decoded buffer: the clip begins at `lead` and is over at `end`.
+        const [lead, end] = [record!.span?.lead ?? 0, record!.span?.end ?? audioBuffer.duration];
+        const startOffset = lead + (config.startOffset ?? 0);
+        const loopStart = lead + (config.loop && config.loopStart && config.loopStart > 0 && lead + config.loopStart < end ? config.loopStart : 0);
+        // Round a part of the buffer and not the whole of it: from a loop start, or within a clip that has silence round it.
+        const region = !!config.loop && (loopStart > 0 || end < audioBuffer.duration);
         const poolNode = this.pool_.acquire();
         let source: AudioBufferSourceNode;
         try {
@@ -678,7 +696,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
             source.buffer = audioBuffer;
             source.loop = config.loop ?? false;
             // Round from here, not from the top: the node does it between two samples.
-            if (loopStart > 0) { source.loopStart = loopStart; source.loopEnd = audioBuffer.duration; }
+            if (region) { source.loopStart = loopStart; source.loopEnd = end; }
             source.playbackRate.value = config.playbackRate ?? 1.0;
             source.connect(poolNode.gain);
 
@@ -688,7 +706,9 @@ export class WebAudioBackend implements PlatformAudioBackend {
             const busName = config.bus ?? 'sfx';
             const bus = this.mixer_.getBus(busName) ?? this.mixer_.sfx;
             poolNode.panner.connect(bus.input);
-            source.start(0, startOffset);
+            // A clip with silence after it is stopped where it ends, so its end is told on time.
+            if (record!.span && !config.loop) source.start(0, startOffset, Math.max(0, end - startOffset));
+            else source.start(0, startOffset);
         } catch (error) {
             this.pool_.release(poolNode);
             throw error;
@@ -696,7 +716,7 @@ export class WebAudioBackend implements PlatformAudioBackend {
 
         const handleId = ++this.nextHandleId_;
         const handle = new WebAudioHandle(
-            handleId, source, audioBuffer, poolNode, this.pool_, this.context_, startOffset, loopStart
+            handleId, source, audioBuffer, poolNode, this.pool_, this.context_, startOffset, loopStart, lead, end
         );
 
         return handle;

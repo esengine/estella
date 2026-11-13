@@ -86,6 +86,25 @@ describe('MiniGameAudioBackend', () => {
             expect(handle.isPlaying).toBe(false); expect(handle.currentTime).toBe(0);
             expect(ctx.destroy).toHaveBeenCalledOnce();
         });
+        it('starts a clip the exporter re-encoded past the silence before it, the first time and every time round', async () => {
+            const trim = { seconds: 2, lead: 0.025 };
+            const buffer = await backend.loadBuffer('theme.mp3', { trim });
+            expect(buffer.duration).toBe(2);
+            backend.play(buffer, {});
+            let ctx = (globalThis as any).wx.createInnerAudioContext.mock.results.at(-1).value;
+            expect([ctx.startTime, ctx.loop]).toEqual([0.025, false]);
+            backend.play(buffer, { loop: true });
+            ctx = (globalThis as any).wx.createInnerAudioContext.mock.results.at(-1).value;
+            // Left to loop by itself the host would play the silence again each time.
+            expect(ctx.loop).toBe(false);
+            ctx.startTime = 9; ctx.onEnded.mock.calls[0][0]();
+            expect(ctx.startTime).toBe(0.025);
+            // A clip that was not re-encoded is left to the host as before.
+            const plain = await backend.loadBuffer('plain.mp3');
+            backend.play(plain, { loop: true });
+            ctx = (globalThis as any).wx.createInnerAudioContext.mock.results.at(-1).value;
+            expect([ctx.startTime, ctx.loop]).toEqual([0, true]);
+        });
         it('a loop with a loop start is sent back there when it ends, and is not left to the host to loop', async () => {
             const buffer = await backend.loadBuffer('a.mp3'), handle = backend.play(buffer, { loop: true, loopStart: 12 });
             const ctx = (globalThis as any).wx.createInnerAudioContext.mock.results.at(-1).value;

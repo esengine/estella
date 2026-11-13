@@ -5,7 +5,7 @@
  * chunks) and the WAV→MP3 transcode through the real LAME wasm encoder.
  */
 import { describe, it, expect } from 'vitest';
-import { parseWav, encodeWavToMp3, audioImportSettings } from '../src/assets/audioCook';
+import { parseWav, encodeWavToMp3, audioImportSettings, encodedClipTrim, MP3_LEAD_SAMPLES } from '../src/assets/audioCook';
 
 /** Build a minimal RIFF/WAVE file. */
 function makeWav(opts: {
@@ -104,6 +104,35 @@ describe('encodeWavToMp3', () => {
 
   it('returns null for unparseable input', async () => {
     expect(await encodeWavToMp3(new Uint8Array(64), 128)).toBeNull();
+  });
+});
+
+describe('what encoding does to a clip', () => {
+  it('says how long the clip really is, and the silence an MP3 has before its sound', () => {
+    expect(encodedClipTrim(makeWav({ sampleRate: 44100, frames: 88200 }))).toEqual({ seconds: 2, lead: 1105 / 44100 });
+    expect(encodedClipTrim(makeWav({ sampleRate: 22050, channels: 2, frames: 11025 }))).toEqual({ seconds: 0.5, lead: 1105 / 22050 });
+    expect(encodedClipTrim(new Uint8Array(64))).toBeNull();
+    expect(MP3_LEAD_SAMPLES).toBe(1105);
+  });
+
+  it('is what the encoder here does: the file it makes is longer than the clip by more than the lead', async () => {
+    // The number is the encoder's and a decoder's together, and is only true of this encoder: were it swapped for one
+    // that writes its own tag or holds back another amount, what the runtime is told would be wrong and this says so.
+    const wav = makeWav({ sampleRate: 44100, frames: 44100, sample: (n) => 0.3 * Math.sin((2 * Math.PI * 440 * n) / 44100) });
+    const mp3 = (await encodeWavToMp3(wav, 128))!;
+    // Frames of 1152 samples: enough of them to hold the clip and the lead, and no tag frame in front that a decoder would read the lead from.
+    let frames = 0;
+    for (let at = 0; at + 4 <= mp3.length;) {
+      if (mp3[at] !== 0xff || (mp3[at + 1]! & 0xe0) !== 0xe0) { at++; continue; }
+      const [bitrate, rate, padding] = [[0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320][mp3[at + 2]! >> 4]!, [44100, 48000, 32000][(mp3[at + 2]! >> 2) & 3]!, (mp3[at + 2]! >> 1) & 1];
+      if (!bitrate || !rate) { at++; continue; }
+      frames++;
+      at += Math.floor((144000 * bitrate) / rate) + padding;
+    }
+    expect(frames * 1152).toBeGreaterThanOrEqual(44100 + MP3_LEAD_SAMPLES - 529);
+    expect(frames * 1152).toBeLessThan(44100 + MP3_LEAD_SAMPLES + 1152 * 2);
+    const head = Buffer.from(mp3.subarray(0, 600)).toString('latin1');
+    expect(head.includes('Xing') || head.includes('Info')).toBe(false);
   });
 });
 

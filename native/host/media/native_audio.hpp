@@ -60,7 +60,9 @@ public:
 
     /** Start a voice on a loaded buffer. Returns its id, or -1 if unknown. */
     /// @p loopStart: seconds a looping voice comes back to at its end, so what is before it is heard once. 0 is its start.
-    int play(int bufferId, float volume, float pan, bool loop, float rate, float loopStart = 0.0f);
+    /// @p start, @p end: where the clip begins and is over in what was decoded, in seconds (end 0 is its natural end):
+    /// a clip the exporter re-encoded has silence before it and after it, and is played without either.
+    int play(int bufferId, float volume, float pan, bool loop, float rate, float loopStart = 0.0f, float start = 0.0f, float end = 0.0f);
     void stop(int voiceId);
     void pause(int voiceId);
     void resume(int voiceId);

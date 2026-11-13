@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { PlatformAudioBackend, AudioBufferHandle, AudioHandle, PlayConfig, AudioDelivery, AudioLoadOptions, AudioLoadType } from './PlatformAudioBackend';
+import type { PlatformAudioBackend, AudioBufferHandle, AudioHandle, PlayConfig, AudioDelivery, AudioLoadOptions, AudioLoadType, AudioClipTrim } from './PlatformAudioBackend';
 import type { AudioMixer, BusDuckRule } from './AudioMixer';
 import type { BusEffectDef } from './BusEffects';
 import { defineResource } from '../ecs/resource';
@@ -139,6 +139,7 @@ export class AudioAPI {
     private bufferBudgetOverride_: number | null = null;
     /** Importer choices by authored path; a clip with none is `auto`. */
     private loadTypes_ = new Map<string, AudioLoadType>();
+    private encoded_ = new Map<string, AudioClipTrim>();
     private bgmHandle_: AudioHandle | null = null;
     private bgmRequest_ = 0;
     private playbackEpoch_ = 0;
@@ -284,9 +285,19 @@ export class AudioAPI {
         this.loadTypes_ = new Map(Object.entries(types ?? {}).map(([path, type]) => [normalizeClipPath(path), type]));
     }
 
+    /**
+     * What the exporter's encoding did to each clip, keyed as {@link setLoadTypes} is. A clip named here is played
+     * from past the silence encoding put before it and ended or looped at its real length. A clip already loaded
+     * keeps how it was loaded.
+     */
+    setEncodedClips(clips: Readonly<Record<string, AudioClipTrim>> | null): void {
+        this.encoded_ = new Map(Object.entries(clips ?? {}).map(([path, trim]) => [normalizeClipPath(path), trim]));
+    }
+
     private loadOptions_(url: string): AudioLoadOptions | undefined {
-        const loadType = this.loadTypes_.get(normalizeClipPath(url));
-        return loadType ? { loadType } : undefined;
+        const key = normalizeClipPath(url);
+        const [loadType, trim] = [this.loadTypes_.get(key), this.encoded_.get(key)];
+        return loadType || trim ? { ...(loadType ? { loadType } : {}), ...(trim ? { trim } : {}) } : undefined;
     }
 
     /** Buffer residency counters — the observability side of the budget. */

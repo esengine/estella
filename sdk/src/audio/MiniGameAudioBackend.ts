@@ -11,7 +11,7 @@
  *          players, not a DSP graph, so routing labels are honored by the engine
  *          and the graph itself is absent (`mixer` is null by contract).
  */
-import type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, AudioBackendInitOptions } from './PlatformAudioBackend';
+import type { AudioHandle, AudioBufferHandle, PlayConfig, PlatformAudioBackend, AudioBackendInitOptions, AudioLoadOptions } from './PlatformAudioBackend';
 import type { AudioMixer } from './AudioMixer';
 import type { MiniGameGlobal, MiniGameInnerAudioContext } from '../platform/minigame/api';
 import { scalar } from '../math/scalar';
@@ -146,6 +146,8 @@ export class MiniGameAudioBackend implements PlatformAudioBackend {
     private contexts_ = new Map<number, MiniGameInnerAudioContext>();
     private readonly device_: MiniGameAudioDeviceState = { suspended: false, pending: new Map() };
     private urlCache_ = new Map<number, string>();
+    /** The silence encoding put before a clip the exporter re-encoded, by buffer: a player is started past it. */
+    private leads_ = new Map<number, number>();
     private nextId_ = 0;
 
     constructor(global: MiniGameGlobal, label = 'MiniGame') {
@@ -169,19 +171,22 @@ export class MiniGameAudioBackend implements PlatformAudioBackend {
         // Mini-game hosts do not gate playback on a user gesture
     }
 
-    async loadBuffer(src: string): Promise<AudioBufferHandle> {
+    async loadBuffer(src: string, options?: AudioLoadOptions): Promise<AudioBufferHandle> {
         const id = ++this.nextId_;
         this.urlCache_.set(id, src);
-        return { id, duration: 0 };
+        // The player decodes the file itself and its length is not known here, so the lead the exporter measured is taken as it is.
+        if (options?.trim && options.trim.lead > 0) this.leads_.set(id, options.trim.lead);
+        return { id, duration: options?.trim?.seconds ?? 0 };
     }
 
     /** No decoder here — the player streams from `src`, and the bytes are dropped.
      *  Callers avoid the wasted fetch by reading {@link delivery} first. */
-    async loadBufferFromData(src: string, _data: ArrayBuffer): Promise<AudioBufferHandle> {
-        return this.loadBuffer(src);
+    async loadBufferFromData(src: string, _data: ArrayBuffer, options?: AudioLoadOptions): Promise<AudioBufferHandle> {
+        return this.loadBuffer(src, options);
     }
 
     unloadBuffer(handle: AudioBufferHandle): void {
+        this.leads_.delete(handle.id);
         this.urlCache_.delete(handle.id);
     }
 
@@ -195,14 +200,16 @@ export class MiniGameAudioBackend implements PlatformAudioBackend {
         ctx.loop = config.loop ?? false;
         ctx.volume = scalar.clamp01(config.volume ?? 1.0);
         ctx.playbackRate = config.playbackRate ?? 1.0;
-        ctx.startTime = config.startOffset ?? 0;
+        const lead = this.leads_.get(buffer.id) ?? 0;
+        ctx.startTime = lead + (config.startOffset ?? 0);
         ctx.obeyMuteSwitch = false;
 
         const handleId = ++this.nextId_;
         this.contexts_.set(handleId, ctx);
 
         const handle = new MiniGameAudioHandle(handleId, ctx, this.contexts_, this.device_);
-        if (config.loop && config.loopStart && config.loopStart > 0) handle.loopFrom(config.loopStart);
+        // Sent back past the lead each time round as well, where the host's own loop would play it again.
+        if (config.loop && ((config.loopStart && config.loopStart > 0) || lead > 0)) handle.loopFrom(lead + (config.loopStart ?? 0));
         ctx.onEnded(() => handle.onNaturalEnd());
         ctx.onError((res) => {
             log.error('audio', `Playback error for "${url}"`, res.errMsg);
