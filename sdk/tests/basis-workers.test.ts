@@ -148,7 +148,9 @@ describe.skipIf(!hasSideModule('basis'))('KTX2 transcoding on workers', () => {
             host.dispose!();
         }
         expect(StandInWorker.live).toBe(before);
-    });
+        // Twenty realms, each loading the transcoder: two seconds here and past the default five on a loaded runner, where the
+        // timeout left four workers alive for the next test to count.
+    }, 30_000);
 
     it('goes back to the main thread, once and for good, when the workers fail', async () => {
         const warn = vi.spyOn(log, 'warn');

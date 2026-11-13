@@ -1,0 +1,20 @@
+{
+  "version": 4,
+  "name": "The built-in ripple map, as a shader that asks for it reads it",
+  "entities": [
+    {
+      "id": 0, "name": "Camera", "parent": null, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 3 } } },
+        { "type": "Camera", "data": { "projectionType": 1, "orthoSize": 1, "fov": 45, "nearPlane": 0.1, "farPlane": 100, "isActive": true, "clearFlags": 3 } }
+      ]
+    },
+    {
+      "id": 1, "name": "Ripple Map", "parent": null, "children": [], "visible": true,
+      "components": [
+        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 0 } } },
+        { "type": "Sprite", "data": { "size": { "x": 2, "y": 2 }, "material": "/scenes/mat-ripples/ripples.esmaterial" } }
+      ]
+    }
+  ]
+}

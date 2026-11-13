@@ -339,7 +339,10 @@ bool provideReplacementDevice() {
  */
 bool recoverDevice() {
     GfxDevice* device = activeGfxDevice();
-    return device && device->recoverDevice();
+    if (!device || !device->recoverDevice()) return false;
+    // What the render context built from code it builds again; everything else owed has a provider on the other side.
+    if (auto* context = g_renderContext) context->restoreBuiltinContent();
+    return true;
 }
 
 /**

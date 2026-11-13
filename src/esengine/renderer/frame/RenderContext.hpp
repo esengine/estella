@@ -85,6 +85,11 @@ public:
     void shutdown();
 
     /**
+     * @brief Builds again what this context made from code alone and the device lost: call once the device is back.
+     */
+    void restoreBuiltinContent();
+
+    /**
      * @brief Checks if the context is initialized
      * @return True if init() has been called successfully
      */

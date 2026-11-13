@@ -548,7 +548,7 @@ export function renderSound(source: SoundSource, variant = 0, at: { pitch?: numb
 }
 
 /** The samples as a 16-bit PCM `.wav`, which every platform the engine runs on plays. */
-export function encodeWav(sound: Pick<RenderedSound, 'rate' | 'channels'>): Uint8Array {
+export function encodeWav(sound: { rate: number; channels: readonly Float32Array[] }): Uint8Array {
     const [channels, frames] = [sound.channels.length, sound.channels[0]!.length];
     const bytes = new Uint8Array(44 + frames * channels * 2);
     const view = new DataView(bytes.buffer);

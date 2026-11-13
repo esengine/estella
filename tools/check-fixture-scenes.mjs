@@ -33,6 +33,9 @@ const UNDRIVEN = {
     // Pixel-perfect snapping moves a solid-colour sprite by less than a fifth of
     // a pixel here: the fixture has no texture whose sampling would show it.
     'pixel-perfect.esscene': 'a camera at a fractional position snapped to whole pixels',
+    // A scene to measure and not to judge: it is handed to the render host by name when the cost of lit sprites is read
+    // (docs/GPU_PERFORMANCE_OPTIONS.md), and a cost is a number for a machine, which no criterion here can hold.
+    'sprite-lit-cost.esscene': 'what 32 layers of lit sprites cost a frame on each backend',
 };
 
 const drivers = [];

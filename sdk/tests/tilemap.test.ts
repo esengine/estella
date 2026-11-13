@@ -83,6 +83,7 @@ describe('Tilemap Components', () => {
                 opacity: 1,
                 parallaxFactor: { x: 1, y: 1 },
                 visible: true,
+                lit: false,
             });
         });
     });

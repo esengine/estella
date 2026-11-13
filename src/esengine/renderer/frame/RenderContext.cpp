@@ -105,6 +105,12 @@ TextureHandle RenderContext::make1x1Texture(u32 rgba) {
     return device_.createTexture(desc, GfxContent::retained(), &rgba);
 }
 
+namespace {
+/// Content this context builds from nothing but code, and builds again after a loss: the device keeps no copy of it.
+constexpr u32 BUILTIN_CONTENT_PROVIDER = 0x4255494C;
+constexpr u32 BUILTIN_RIPPLES = 1;
+}  // namespace
+
 TextureHandle RenderContext::makeRipplesTexture() {
     TextureDesc desc;
     desc.width = RIPPLE_NORMALS_SIZE;
@@ -113,9 +119,23 @@ TextureHandle RenderContext::makeRipplesTexture() {
     desc.wrapT = TextureWrap::Repeat;
     desc.mipmaps = true;
     const std::vector<u8> pixels = buildRippleNormals();
-    const TextureHandle texture = device_.createTexture(desc, GfxContent::retained(), pixels.data());
+    const TextureHandle texture =
+        device_.createTexture(desc, GfxContent::sourced(BUILTIN_CONTENT_PROVIDER, BUILTIN_RIPPLES), pixels.data());
     if (texture != TextureHandle::Invalid) device_.generateMipmaps(texture);
     return texture;
+}
+
+void RenderContext::restoreBuiltinContent() {
+    for (const GfxOwedContent& owed : device_.owedContent()) {
+        if (owed.kind != GfxOwedContent::Kind::Texture || owed.provider != BUILTIN_CONTENT_PROVIDER) continue;
+        if (owed.key != BUILTIN_RIPPLES || ripplesTexture_ == TextureHandle::Invalid) {
+            device_.forgoContent(owed);
+            continue;
+        }
+        const std::vector<u8> pixels = buildRippleNormals();
+        device_.updateTexture(ripplesTexture_, 0, 0, RIPPLE_NORMALS_SIZE, RIPPLE_NORMALS_SIZE, pixels.data(), false);
+        device_.restoreContent(owed);
+    }
 }
 
 void RenderContext::initDefaultTextures() {

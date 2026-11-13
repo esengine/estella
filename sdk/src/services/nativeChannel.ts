@@ -26,7 +26,7 @@
  */
 import { platformNativeChannel } from '../platform';
 
-/** @public */
+/** What a script can ask of the app's native code. */
 export interface NativeChannelApi {
     /** Whether this platform has native code to reach at all. */
     readonly available: boolean;
@@ -42,7 +42,7 @@ export interface NativeChannelApi {
     on<T = unknown>(event: string, handler: (data: T) => void): () => void;
 }
 
-/** @public */
+/** The app's native code, by name: see the file's own note for what each platform answers. */
 export const NativeChannel: NativeChannelApi = {
     get available(): boolean {
         return platformNativeChannel() !== null;
