@@ -4594,6 +4594,8 @@ export const NOTED = {
     {"note": "A view of many materials no longer loses the WebGPU device."},
   "feat(terrain): a layer with a grain is read without repeat and without hexagons - near the eye every hex cell took its layer turned any way round, so sand in ripples or rock in beds was lit cell by cell and showed the cells; u_antiTileTurn is how far a cell may be turned, and 0 shifts it only":
     {"note": "A layer with a grain is read without repeat and without hexagons."},
+  "fix(foliage): grass on a hill is not thinned under your feet - a cell stood at the Foliage entity's height while its plants stood on the ground, and how far a cell is was measured from the cell, so on ground 16 m up the grass at the eye was thinned as grass 19 m off and on a mountain all of it was; a cell stands on the ground under its centre":
+    {"note": "Grass on a hill is not thinned under your feet."},
   "fix(terrain): a detail the pages cannot hold no longer cracks the ground - a tree that wanted more nodes than the atlas has pages was drawn in part by coarser pages standing in, which do not meet their finer neighbours' edges, and the pages were fought over every frame; the ground is now drawn at the share of its detail's range that fits, and says so once":
     {"note": "A detail the pages cannot hold no longer cracks the ground."},
   "fix(foliage): a far plant grows across the ground, not taller - a mesh plant kept in a far version was grown the same every way to cover the ground of those left out, so a flower that stood for ten stood ten times as high and a far meadow was a field of poles; it now grows across the ground only, and Foliage.farGrowUp gives its height a share of the growth back":

@@ -520,6 +520,10 @@ export class FoliagePlugin implements Plugin {
         const sx = t.worldScale.x || 1, sz = t.worldScale.z || 1;
         const worldX = t.worldPosition.x + localX * sx, worldZ = t.worldPosition.z + localZ * sz;
         const hasTerrain = !!terrains && terrains.built_.size > 0;
+        // The cell stands on the ground under its centre, not at the entity's height: how far a cell is (what thins its plants) is
+        // measured from where they are. On a hill a cell at the entity's height was a hill's height away with the eye in the grass.
+        const groundY = (hasTerrain ? terrains!.heightAt(worldX, worldZ) : null) ?? t.worldPosition.y;
+        const lift = (groundY - t.worldPosition.y) / (t.worldScale.y || 1);
         // Plants thin, each by its own number, to what the next far version keeps before it takes over, and to none at the draw distance.
         if (built.instance) {
             const thins = !built.source || !data.farCards;
@@ -537,7 +541,7 @@ export class FoliagePlugin implements Plugin {
             heightMin: data.heightMin, heightMax: data.heightMax,
             waterDepth: data.waterDepth, zonePadding: data.zonePadding ?? 0,
             tags: ['foliage', data.mesh ? 'tree' : 'grass', ...(data.zoneTags ?? '').split(',').map((s) => s.trim()).filter(Boolean)],
-            baseY: t.worldPosition.y,
+            baseY: groundY,
             paint: data.material ? null : { base: [0.14, 0.3, 0.08], tip: [0.55, 0.72, 0.25] },
             far: { levels: data.farLevels, keep: data.farKeep, grow: data.farGrow, cards: data.farCards, only, up: data.farGrowUp },
             look: built.source
@@ -563,15 +567,15 @@ export class FoliagePlugin implements Plugin {
                 // Put in the world on a later frame, within its budget; not at all if the field has moved on while it was being made.
                 field.landed_.push(() => {
                     if (signal?.aborted || built.generation !== generation || !app.world.valid(parent)) { resolve(null); return; }
-                    try { resolve(this.land(app, built, cx, cz, localX, localZ, meshes ?? here(), only !== null)); } catch (e) { reject(e); }
+                    try { resolve(this.land(app, built, cx, cz, localX, lift, localZ, meshes ?? here(), only !== null)); } catch (e) { reject(e); }
                 });
             }));
         }
-        return this.land(app, built, cx, cz, localX, localZ, here(), only !== null);
+        return this.land(app, built, cx, cz, localX, lift, localZ, here(), only !== null);
     }
 
     /** Puts a cell's geometry in the world: its meshes on the GPU and the entity that draws them (its parent is set on publishing). */
-    private land(app: App, built: BuiltFoliage, cx: number, cz: number, localX: number, localZ: number, meshes: MeshData[], banded = false): GrownCell {
+    private land(app: App, built: BuiltFoliage, cx: number, cz: number, localX: number, lift: number, localZ: number, meshes: MeshData[], banded = false): GrownCell {
         if (meshes.length === 0) return { entity: null, handles: [] };
         const world = app.world, data = built.data;
         const assets = app.getResource(Assets);
@@ -587,7 +591,7 @@ export class FoliagePlugin implements Plugin {
         }
 
         const cell = world.spawn(`FoliageCell ${cx},${cz}`);
-        world.insert(cell, Transform, { position: { x: localX, y: 0, z: localZ } });
+        world.insert(cell, Transform, { position: { x: localX, y: lift, z: localZ } });
         world.insert(cell, MeshRenderer, {
             mesh: handles[0]!, material: built.instance || data.material, lit: true, opaque: true, cullBackfaces: false,
             castShadows: data.castShadows !== false,

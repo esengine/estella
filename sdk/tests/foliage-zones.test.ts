@@ -11,6 +11,8 @@ import { Foliage, FoliagePlugin } from '../src/foliage/foliagePlugin';
 import { WorldGens, WorldGenRes } from '../src/worldgen/worldgenPlugin';
 import { WorldStreamingSource } from '../src/residency/components';
 import { createMockModule } from './mocks/wasm';
+import { TerrainsRes } from '../src/terrain/terrainPlugin';
+import type { MeshData } from '../src/asset/meshFormat';
 
 const tick = async (app: App) => { for (let i = 0; i < 16; i++) { app.tick(1 / 60); await new Promise((r) => setTimeout(r, 0)); } };
 const boot = () => {
@@ -55,5 +57,25 @@ describe('grass reservations and shadows', () => {
         zones.set({ ...building, excludes: ['grass'] }); await tick(app); expect(cells(app)).toHaveLength(0);
         zones.delete('house'); await tick(app); expect(cells(app)).toHaveLength(4);
         zones.set({ ...building, excludes: ['*'] }); await tick(app); expect(cells(app)).toHaveLength(0);
+    });
+});
+
+describe('a cell of a Foliage area over a ground', () => {
+    it('stands on the ground under its centre, with its plants about its own height: how far it is is measured from where they are', async () => {
+        const { app } = boot();
+        const made: MeshData[] = [];
+        app.insertResource(Assets, { createMesh: (m: MeshData) => { made.push(m); return made.length; }, releaseBuiltMesh: () => {} } as any);
+        // A hillside 200 up that rises a little to the east.
+        const heightAt = (x: number, _z: number): number => 200 + x * 0.1;
+        app.insertResource(TerrainsRes, { built_: new Map([[1, 1]]), heightAt, normalAt: () => ({ x: 0, y: 1, z: 0 }), loading: false, revision_: 1 } as any);
+        await tick(app);
+        const grown = cells(app);
+        expect(grown.length).toBeGreaterThan(0);
+        for (const e of grown) {
+            const at = app.world.get(e, Transform).position;
+            expect(at.y).toBeCloseTo(heightAt(at.x, at.z), 3);
+        }
+        // No plant stands a hill's height over its cell: with the cell at the entity's height the lowest was 198 up.
+        for (const mesh of made) expect(Math.abs(mesh.aabbMin[1])).toBeLessThan(3);
     });
 });
