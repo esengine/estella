@@ -23,7 +23,7 @@ export { makeSound, soundNeeds, type SoundJob } from './soundWorker';
  * How the synthesis sounds, as a name. Bump it whenever the same source would come out as other samples: a clip made by an earlier
  * run is kept under it, and an old one would otherwise be played for the new.
  */
-export const SOUND_RENDER_REVISION = '1';
+export const SOUND_RENDER_REVISION = '2';
 
 let pool: JobPool | null | undefined;
 /** A piece of music is seconds of work and a sound a fraction of one: each has a worker, so a step is never made behind a theme. */

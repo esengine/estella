@@ -166,69 +166,125 @@ function recordingBody(recording: SoundRecording, count: number, rate: number, s
 function strike(layer: SoundLayer, seconds: number, rate: number, pitch: number, seed: number, recording: SoundRecording | null = null): Float32Array {
     const count = Math.max(1, Math.round(seconds * rate));
     const out = new Float32Array(count);
-    const filters = (layer.filters ?? []).map((f) => ({ run: new Biquad(f.type, f.q ?? 0.7, rate, f.gain ?? 0), freq: f.freq }));
+    const kind = layer.source;
     // The fades that only stop a click are never most of a short layer: a strike two milliseconds long keeps its front.
-    const [attack, release] = [layer.attack ?? (layer.source === 'impulse' ? 0 : Math.min(0.002, seconds * 0.1)), layer.release ?? Math.min(0.01, seconds * 0.25)];
+    const [attack, release] = [layer.attack ?? (kind === 'impulse' ? 0 : Math.min(0.002, seconds * 0.1)), layer.release ?? Math.min(0.01, seconds * 0.25)];
     const drive = layer.drive ?? 0;
     const push = 1 + drive * 14;
     const pushed = Math.tanh(push);
     // What is made ahead of the loop: a noise, or a recording played at its speed.
-    const noise = layer.source === 'noise' ? noiseBody(layer, count, rate, seed, pitch)
-        : layer.source === 'sample' ? recordingBody(recording!, count, rate, (layer.speed ?? 1) * pitch, layer.from ?? 0) : null;
+    const noise = kind === 'noise' ? noiseBody(layer, count, rate, seed, pitch)
+        : kind === 'sample' ? recordingBody(recording!, count, rate, (layer.speed ?? 1) * pitch, layer.from ?? 0) : null;
     // A spike: up in one sample and down over its width, as the air does in front of a bang.
-    const spike = layer.source === 'impulse' ? (layer.width ?? 0.0002) * rate : 0;
-    let [phase, bend] = [0, 0];
+    const spike = kind === 'impulse' ? (layer.width ?? 0.0002) * rate : 0;
 
+    // This loop is all the time a piece of music takes to make: a note is one pass of it for each layer of its instrument. So what
+    // does not change from one sample to the next is worked out before it. A pitch, a loudness or a corner written as one number
+    // is one number; a decay is a product kept up sample by sample, and a ringing mode a point carried round a circle, where each
+    // was an exponential and a sine asked for again every sample.
+    const freq = layer.freq, gain = layer.gain;
+    const freqMoves = typeof freq === 'object', gainMoves = typeof gain === 'object';
+    const hzStill = (freqMoves ? 440 : freq ?? 440) * pitch;
+    const levelStill = gainMoves ? 1 : gain ?? 1;
+    const vibrato = layer.vibrato, tremolo = layer.tremolo, fm = layer.fm, tail = layer.tail;
+    const stepStill = Math.min(0.49, hzStill / rate);
+    const fmIndex = fm?.index;
+    const fmMoves = typeof fmIndex === 'object';
+    const fmStill = fmMoves ? 0 : fmIndex ?? 0;
+    const width = layer.width ?? 0.5;
+
+    const filters = layer.filters ?? [];
+    const corners = filters.length;
+    const runs: Biquad[] = [];
+    const moving: boolean[] = [];
+    for (const f of filters) {
+        const run = new Biquad(f.type, f.q ?? 0.7, rate, f.gain ?? 0);
+        const moves = typeof f.freq === 'object';
+        // A noise struck at another pitch has no pitch of its own to move, so its filters move instead.
+        if (!moves) run.tune((f.freq as number | undefined ?? 1000) * (noise ? pitch : 1));
+        runs.push(run);
+        moving.push(moves);
+    }
+
+    // exp(-t / decay) at this sample, and what takes it to the next.
+    const decays = !!layer.decay;
+    const fastBy = decays ? Math.exp(-1 / (layer.decay! * rate)) : 1;
+    const slowBy = decays && tail ? Math.exp(-1 / (tail.decay * rate)) : 1;
+    let fast = 1, slow = 1;
+
+    // A mode: how loud it is now, the point on the circle its sine is read from, and the turn and the fading a sample makes.
+    let modes = 0;
+    let modeLoud: Float64Array | null = null, modeFade: Float64Array | null = null;
+    let modeCos: Float64Array | null = null, modeSin: Float64Array | null = null, turnCos: Float64Array | null = null, turnSin: Float64Array | null = null;
+    if (kind === 'modes') {
+        const heard = layer.modes!.filter(([hz]) => hz * pitch < rate * 0.48);
+        modes = heard.length;
+        modeLoud = new Float64Array(modes); modeFade = new Float64Array(modes);
+        modeCos = new Float64Array(modes); modeSin = new Float64Array(modes);
+        turnCos = new Float64Array(modes); turnSin = new Float64Array(modes);
+        heard.forEach(([hz, loud, dies], i) => {
+            const turn = (TAU * hz * pitch) / rate;
+            modeLoud![i] = loud; modeFade![i] = Math.exp(-1 / (dies * rate));
+            modeCos![i] = 1; modeSin![i] = 0;
+            turnCos![i] = Math.cos(turn); turnSin![i] = Math.sin(turn);
+        });
+    }
+
+    let [phase, bend] = [0, 0];
     for (let n = 0; n < count; n++) {
         const t = n / rate;
         let v: number;
         if (noise) v = noise[n]!;
-        else if (layer.source === 'impulse') {
+        else if (kind === 'impulse') {
             const b = n / spike;
             v = b < 10 ? (1 - b) * Math.exp(-b) : 0;
-        } else if (layer.source === 'modes') {
+        } else if (kind === 'modes') {
             v = 0;
-            for (const [hz, loud, dies] of layer.modes!) {
-                const f = hz * pitch;
-                if (f < rate * 0.48) v += loud * Math.exp(-t / dies) * Math.sin(TAU * f * t);
+            for (let i = 0; i < modes; i++) {
+                const c = modeCos![i]!, s = modeSin![i]!;
+                v += modeLoud![i]! * s;
+                modeLoud![i] = modeLoud![i]! * modeFade![i]!;
+                modeCos![i] = c * turnCos![i]! - s * turnSin![i]!;
+                modeSin![i] = s * turnCos![i]! + c * turnSin![i]!;
             }
         } else {
-            let hz = curveAt(layer.freq, t, 440, true) * pitch;
-            if (layer.vibrato) hz *= Math.pow(2, (layer.vibrato.depth * Math.sin(TAU * layer.vibrato.rate * t)) / 12);
-            const step = Math.min(0.49, hz / rate);
+            let step = stepStill;
+            if (freqMoves || vibrato) {
+                let hz = freqMoves ? curveAt(freq, t, 440, true) * pitch : hzStill;
+                if (vibrato) hz *= Math.pow(2, (vibrato.depth * Math.sin(TAU * vibrato.rate * t)) / 12);
+                step = Math.min(0.49, hz / rate);
+            }
             phase += step;
             if (phase >= 1) phase -= Math.floor(phase);
             let at = phase;
-            if (layer.fm) {
-                bend += step * layer.fm.ratio;
+            if (fm) {
+                bend += step * fm.ratio;
                 if (bend >= 1) bend -= Math.floor(bend);
-                at = phase + (curveAt(layer.fm.index, t, 0, false) * Math.sin(TAU * bend)) / TAU;
+                at = phase + ((fmMoves ? curveAt(fmIndex, t, 0, false) : fmStill) * Math.sin(TAU * bend)) / TAU;
                 at -= Math.floor(at);
             }
-            switch (layer.source) {
-                case 'sine': v = Math.sin(TAU * at); break;
-                case 'triangle': v = 1 - 4 * Math.abs(at - 0.5); break;
-                case 'saw': v = 2 * at - 1 - (layer.fm ? 0 : polyBlep(at, step)); break;
-                default: {
-                    const width = layer.width ?? 0.5;
-                    v = at < width ? 1 : -1;
-                    if (!layer.fm) v += polyBlep(at, step) - polyBlep((at - width + 1) % 1, step);
-                }
+            if (kind === 'sine') v = Math.sin(TAU * at);
+            else if (kind === 'triangle') v = 1 - 4 * Math.abs(at - 0.5);
+            else if (kind === 'saw') v = 2 * at - 1 - (fm ? 0 : polyBlep(at, step));
+            else {
+                v = at < width ? 1 : -1;
+                if (!fm) v += polyBlep(at, step) - polyBlep((at - width + 1) % 1, step);
             }
         }
-        for (const f of filters) {
-            // The corner is read every 16 samples: often enough for a sweep, seldom enough to cost little. A noise struck
-            // at another pitch has no pitch of its own to move, so its filters move instead.
-            if ((n & 15) === 0) f.run.tune(curveAt(f.freq, t, 1000, true) * (noise ? pitch : 1));
-            v = f.run.run(v);
+        for (let i = 0; i < corners; i++) {
+            const run = runs[i]!;
+            // A corner that moves is read every 16 samples: often enough for a sweep, seldom enough to cost little.
+            if (moving[i] && (n & 15) === 0) run.tune(curveAt(filters[i]!.freq, t, 1000, true) * (noise ? pitch : 1));
+            v = run.run(v);
         }
         if (drive > 0) v = Math.tanh(v * push) / pushed;
-        let level = curveAt(layer.gain, t, 1, false);
-        if (layer.decay) {
-            const fast = Math.exp(-t / layer.decay);
-            level *= layer.tail ? fast * (1 - layer.tail.mix) + Math.exp(-t / layer.tail.decay) * layer.tail.mix : fast;
+        let level = gainMoves ? curveAt(gain, t, 1, false) : levelStill;
+        if (decays) {
+            level *= tail ? fast * (1 - tail.mix) + slow * tail.mix : fast;
+            fast *= fastBy;
+            slow *= slowBy;
         }
-        if (layer.tremolo) level *= 1 - layer.tremolo.depth * (0.5 + 0.5 * Math.sin(TAU * layer.tremolo.rate * t));
+        if (tremolo) level *= 1 - tremolo.depth * (0.5 + 0.5 * Math.sin(TAU * tremolo.rate * t));
         if (attack > 0 && t < attack) level *= t / attack;
         const left = seconds - t;
         if (release > 0 && left < release) level *= Math.max(0, left / release);
