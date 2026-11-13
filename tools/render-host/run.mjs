@@ -347,6 +347,10 @@ app.whenReady().then(async () => {
         await api.step(cfg.steps ?? 2, 1 / 60);
       })()`);
     }
+    if (process.env.ESTELLA_VERIFY_WARM) {
+      const warmed = await exec(`window.__estellaHeadless.api.warm(${Number(process.env.ESTELLA_VERIFY_WARM) > 1 ? Number(process.env.ESTELLA_VERIFY_WARM) : 60000})`);
+      if (warmed.timedOut) throw new Error(`warm: the scene was still being made after ${Math.round(warmed.ms)} ms (${warmed.pending} shader(s) compiling)`);
+    }
     if (process.env.ESTELLA_VERIFY_TRAIL) {
       const trail = JSON.parse(process.env.ESTELLA_VERIFY_TRAIL);
       await exec(`(async () => {

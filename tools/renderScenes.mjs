@@ -102,8 +102,7 @@ export const SCENES = [
     id: test.id, tier: 'pr', webgpu: true,
     env: {
       ESTELLA_VERIFY_SCENE: '/scenes/terrain-layer-occlusion.esscene',
-      // Layers are packed and their shader compiled before the ground draws at all: a cold WebGL2 start took more than 2.5 s.
-      ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '30', ESTELLA_VERIFY_SETTLE_MS: '8000',
+      ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: '30', ESTELLA_VERIFY_WARM: '1',
       ...(test.set.length ? { ESTELLA_VERIFY_SET_FIELD: JSON.stringify(test.set) } : {}),
       ESTELLA_VERIFY_EXPECT: JSON.stringify(test.expect.map(([x, rgb]) => ({ x, y: 0.5, rgb, tol: 14 }))),
     },

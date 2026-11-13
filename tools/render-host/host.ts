@@ -28,7 +28,7 @@ import {
     planarReflectionStatus,
     EditorViewLighting, EditorViewShading, EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
     ProfileRecorder, AnimatorController, Timeline, onDeviceRestored, Schedule, defineSystem,
-    textureImportSettingsFrom, shadersCompiled, defineSkyEffect,
+    textureImportSettingsFrom, shadersCompiled, warmShaders, defineSkyEffect,
 } from 'esengine';
 import type { App, SceneData, SceneEntityData, PrefabData, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -533,6 +533,11 @@ const api = {
 
     /** Waits for submitted shader variants without advancing the simulation clock. */
     waitForShaders: () => shadersCompiled(module),
+
+    async warm(timeoutMs = 60000): Promise<{ frames: number; ms: number; pending: number; timedOut: boolean }> {
+        if (!app) throw new Error('warm: no scene loaded');
+        return warmShaders(app, { timeoutMs });
+    },
 
     /** Uploads the native row-major placement records used by foliage and composite batches. */
     setMeshPlacements(id: number, values: number[]): void {
