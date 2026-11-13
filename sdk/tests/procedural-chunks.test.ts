@@ -202,3 +202,59 @@ describe('the frame\'s one budget', () => {
         expect(bakes.hasTime()).toBe(true);
     });
 });
+
+describe('a layer whose sources stand still', () => {
+    // The walk of every cell in reach was made again each frame: 19 ms a frame for a meadow with the camera standing.
+    it('is asked for nothing more, follows a source out of its cell at once, and lets go what it leaves behind', () => {
+        const { layer, live, log } = recording();
+        const at: ChunkSource = { x: 5, z: 5 };
+        const chunks = new ProceduralChunks();
+        chunks.sources_ = () => [at];
+        chunks.set('l', layer);
+        chunks.step(always);
+        const first = log.made.length;
+        expect(first).toBeGreaterThan(20);
+        // A step smaller than a sixteenth of a cell, a hundred frames of it: nothing is made and nothing is let go.
+        for (let i = 0; i < 100; i++) { at.x = 5 + 0.3 * Math.sin(i); chunks.step(always); }
+        expect([log.made.length, log.released.length]).toEqual([first, 0]);
+        // Into the next cell: the cells that came into reach are made in that very step.
+        at.x = 25;
+        chunks.step(always);
+        expect(log.made.length).toBeGreaterThan(first);
+        expect(live.has('5,0')).toBe(true);
+        // And far away: what was round the first place is gone.
+        at.x = 500;
+        chunks.step(always);
+        expect(live.has('0,0')).toBe(false);
+        expect(live.has('50,0')).toBe(true);
+    });
+
+    it('makes again what is made out of date by hand, and what a new generation asks for, without a source moving', () => {
+        const { layer, log } = recording();
+        const chunks = new ProceduralChunks();
+        chunks.sources_ = () => [{ x: 5, z: 5 }];
+        chunks.set('l', layer);
+        chunks.step(always);
+        chunks.step(always);
+        const first = log.made.length;
+        chunks.invalidate('l', 0, 0, 9, 9);
+        chunks.step(always);
+        expect(log.made.length).toBe(first + 1);
+        layer.generation = 2;
+        chunks.step(always);
+        expect(log.made.length).toBe(first + 1 + first);
+    });
+
+    it('is walked again when the layer changes how far it reaches', () => {
+        const { layer, live } = recording();
+        const chunks = new ProceduralChunks();
+        chunks.sources_ = () => [{ x: 5, z: 5 }];
+        chunks.set('l', layer);
+        chunks.step(always);
+        expect(live.has('6,0')).toBe(false);
+        layer.loadRadius = 65;
+        layer.unloadRadius = 80;
+        chunks.step(always);
+        expect(live.has('6,0')).toBe(true);
+    });
+});

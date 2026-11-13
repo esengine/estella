@@ -100,7 +100,17 @@ interface Layer<T> {
     chunks: Map<string, Chunk<T>>;
     /** The chunks within the load radius of a source, as of the last frame. */
     wanted: Set<string>;
+    /** The last walk of the cells round the sources, kept while they stand where they stood: see {@link WALK_SLACK}. */
+    walk?: { from: string; at: readonly ChunkSource[]; near: Map<string, number>; keep: Set<string>; settledFor?: number | string };
 }
+
+/**
+ * How far a source may move, as a share of a cell, before the cells round it are walked again. The walk is every cell within the
+ * larger radius, each with a key and a distance, and then every one of them asked whether it is made: 9 ms a frame for six fields
+ * of 8 m cells reaching 260 m, with the camera standing still and nothing left to make. A source that has not left its cell and
+ * has moved less than this is where it was; and a layer with every chunk it wants made, for the generation it is at, is not asked.
+ */
+const WALK_SLACK = 1 / 16;
 
 /** At most this many chunks of a layer are answered later at once. */
 const MAX_IN_FLIGHT = 16;
@@ -176,6 +186,8 @@ export class ProceduralChunks {
         const d = layer.def;
         const cx0 = Math.floor((x0 - d.originX) / d.sizeX), cx1 = Math.floor((x1 - d.originX) / d.sizeX);
         const cz0 = Math.floor((z0 - d.originZ) / d.sizeZ), cz1 = Math.floor((z1 - d.originZ) / d.sizeZ);
+        // What was settled is not any more: the layer is asked again from the next step.
+        if (layer.walk) layer.walk.settledFor = undefined;
         for (const c of layer.chunks.values()) {
             if (c.cx < cx0 || c.cx > cx1 || c.cz < cz0 || c.cz > cz1) continue;
             if (c.value !== null) c.publishedFor = OUTDATED;
@@ -200,9 +212,21 @@ export class ProceduralChunks {
         for (const layer of this.layers_.values()) {
             const d = layer.def;
             const sources = d.sources ? [...d.sources()] : d.plane === 'xy' ? world.map((s) => ({ x: s.x, z: s.y ?? 0 })) : world;
-            const near = new Map<string, number>();
-            const keep = new Set<string>();
-            for (const s of sources) {
+            // What decides the walk beside the sources: a layer that changes its reach or its cells is walked again.
+            const from = `${d.loadRadius},${d.unloadRadius},${d.sizeX},${d.sizeZ},${d.originX},${d.originZ},${d.extent ? d.extent.join(',') : ''}`;
+            const slack = Math.min(d.sizeX, d.sizeZ) * WALK_SLACK;
+            const was = layer.walk;
+            const stood = was !== undefined && was.from === from && was.at.length === sources.length && sources.every((s, i) => {
+                const o = was.at[i]!;
+                return Math.abs(s.x - o.x) <= slack && Math.abs(s.z - o.z) <= slack
+                    && Math.floor((s.x - d.originX) / d.sizeX) === Math.floor((o.x - d.originX) / d.sizeX)
+                    && Math.floor((s.z - d.originZ) / d.sizeZ) === Math.floor((o.z - d.originZ) / d.sizeZ);
+            });
+            const near = stood ? was.near : new Map<string, number>();
+            const keep = stood ? was.keep : new Set<string>();
+            if (stood && was.settledFor === d.generation) continue;
+            if (!stood) layer.walk = { from, at: sources.map((s) => ({ x: s.x, z: s.z })), near, keep };
+            for (const s of stood ? [] : sources) {
                 const reach = Math.max(d.loadRadius, d.unloadRadius);
                 const x0 = Math.floor((s.x - reach - d.originX) / d.sizeX), x1 = Math.floor((s.x + reach - d.originX) / d.sizeX);
                 const z0 = Math.floor((s.z - reach - d.originZ) / d.sizeZ), z1 = Math.floor((s.z + reach - d.originZ) / d.sizeZ);
@@ -223,14 +247,19 @@ export class ProceduralChunks {
                 this.drop(layer, c);
                 layer.chunks.delete(key);
             }
-            layer.wanted = new Set(near.keys());
+            if (!stood) layer.wanted = new Set(near.keys());
+            let unsettled = false;
             for (const [key, dist] of near) {
                 const c = layer.chunks.get(key);
                 const state = c ? stateOf(c, d.generation) : null;
+                if (c?.making) unsettled = true;
                 if (state === 'ready' || state === 'failed' || c?.making) continue;
                 const [cx, cz] = key.split(',').map(Number) as [number, number];
                 wanted.push({ layer, cx, cz, dist });
+                unsettled = true;
             }
+            // Nothing to make and nothing on its way: until its sources move or its generation does, this layer has nothing to say.
+            layer.walk!.settledFor = unsettled ? undefined : d.generation;
         }
         wanted.sort((a, b) => a.dist - b.dist);
         const inFlight = new Map<Layer<unknown>, number>();

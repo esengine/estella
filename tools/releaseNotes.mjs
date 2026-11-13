@@ -4714,6 +4714,8 @@ export const NOTED = {
     {"note": "A ground with no layer files is painted again."},
   "fix(water): baking a water region no longer holds the frame - its steps were a fixed count of rows and whole sweeps of the grid, 70 to 400 ms each at 2048 texels a side; a step is a count of cells now, 20 ms at the most":
     {"note": "Baking a water region no longer holds the frame."},
+  "perf(streaming): a layer of chunks with nothing left to make is not walked - every cell in reach was keyed, measured and asked each frame, 9 ms for six fields of plants with the camera standing; the walk is kept while its sources stand and skipped once every chunk is made":
+    {"note": "A meadow at rest no longer costs the frame 9 ms."},
   "chore(gates): what the checks asked of this week's work - a disposition for esengine/image in a native script and its namespace there, Waterfall's width and its place in the corpus, the recipe worker's bundle as not a contract, shadeLight2D's inout against its return, and a test that named App as a type":
     {"internal": "tables the gates read, brought level; a natively packaged script can now import esengine/image, which no native game has run yet"},
   "feat(image): a picture's source goes where a texture goes, and its maps are recipes too - a texture field takes an .esimage, the image tools write a picture's normal and surface maps as recipes beside it and answer their refs, text is set by the drawer a game sets it with, and the viewport draws a recipe as a game does":
