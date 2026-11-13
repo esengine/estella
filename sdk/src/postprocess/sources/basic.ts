@@ -596,13 +596,13 @@ void main() {
         return Material.compileShader(source);
     },
     createTonemap(): ShaderHandle {
-        // The manual tonemap: the same acesFilmic() every fragment stage is given,
-        // at a point of the stack's choosing and with an exposure. Carry this OR
-        // PostProcess.setOutputTransform — the curve is not idempotent.
+        // The manual tonemap: acesFilmic(), as every fragment stage has it, with an exposure. Carry this OR setOutputTransform: the
+        // curve is not idempotent. u_curve 1 is Hill's fit of the RRT and ODT (three.js's ACES Filmic): channels mixed first, a deeper toe.
         const source = `#pragma shader "PP Tonemap"
 #pragma version 300 es
 #pragma domain PostProcess
 #pragma param u_exposure float default(0) range(-3,3)
+#pragma param u_curve float default(0) range(0,1)
 
 #pragma fragment
 precision highp float;
@@ -611,17 +611,34 @@ in vec2 v_texCoord;
 uniform sampler2D u_texture;
 out vec4 fragColor;
 
+vec3 acesFitted(vec3 x) {
+    const mat3 toCurve = mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777);
+    const mat3 fromCurve = mat3(1.60475, -0.10208, -0.00327, -0.53108, 1.10813, -0.07276, -0.07367, -0.00605, 1.07602);
+    vec3 v = toCurve * x;
+    v = (v * (v + 0.0245786) - 0.000090537) / (v * (0.983729 * v + 0.4329510) + 0.238081);
+    return clamp(fromCurve * v, 0.0, 1.0);
+}
+
 void main() {
     vec4 src = texture(u_texture, v_texCoord);
     vec3 c = src.rgb * exp2(u_exposure);
-    fragColor = vec4(acesFilmic(c), src.a);
+    fragColor = vec4(u_curve > 0.5 ? acesFitted(c) : acesFilmic(c), src.a);
 }
 #pragma end
 
 #pragma fragment wgsl
+fn acesFitted(x : vec3f) -> vec3f {
+    let toCurve = mat3x3f(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777);
+    let fromCurve = mat3x3f(1.60475, -0.10208, -0.00327, -0.53108, 1.10813, -0.07276, -0.07367, -0.00605, 1.07602);
+    var v = toCurve * x;
+    v = (v * (v + 0.0245786) - 0.000090537) / (v * (0.983729 * v + 0.4329510) + 0.238081);
+    return clamp(fromCurve * v, vec3f(0.0), vec3f(1.0));
+}
+
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
     let c = src.rgb * exp2(mc.u_exposure);
+    if (mc.u_curve > 0.5) { return vec4f(acesFitted(c), src.a); }
     return vec4f(acesFilmic(c), src.a);
 }
 #pragma end

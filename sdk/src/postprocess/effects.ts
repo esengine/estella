@@ -277,6 +277,7 @@ registerEffect({
     factory: () => postProcessEffects.createTonemap(),
     uniforms: [
         { name: 'u_exposure', label: 'Exposure', min: -3, max: 3, step: 0.05, defaultValue: 0 },
+        { name: 'u_curve', label: 'Fitted ACES', min: 0, max: 1, step: 1, defaultValue: 0, neutralValue: 0 },
     ],
 });
 

@@ -497,8 +497,12 @@ describe('PostProcess API', () => {
             expect(src).toContain('#pragma param u_exposure float');
             // The curve is pinned where it is defined (test_shader_variant.cpp);
             // what this layer owns is that the effect REACHES it, in both dialects.
-            expect(src).toContain('vec4(acesFilmic(c), src.a)');
+            expect(src).toContain('acesFilmic(c), src.a)');
             expect(src).toContain('vec4f(acesFilmic(c), src.a)');
+            // The other fit is the effect's own, behind u_curve, in both dialects; off, the engine's curve is what runs.
+            expect(src).toContain('#pragma param u_curve float default(0)');
+            expect(src).toContain('u_curve > 0.5 ? acesFitted(c) : acesFilmic(c)');
+            expect(src).toContain('if (mc.u_curve > 0.5) { return vec4f(acesFitted(c), src.a); }');
             expect(handle).toBe(42);
         });
 
@@ -547,7 +551,7 @@ describe('PostProcess API', () => {
             const def = (t: string) =>
                 Object.fromEntries((getEffectDef(t)?.uniforms ?? []).map(u => [u.name, u.defaultValue]));
             // Tonemap: 2^0 = 1 exposure (the ACES curve itself always applies).
-            expect(def('tonemap')).toEqual({ u_exposure: 0 });
+            expect(def('tonemap')).toEqual({ u_exposure: 0, u_curve: 0 });
             // Lens distortion: strength 0 + zoom 1 == sample uv unchanged (no-op).
             expect(def('lensDistortion')).toEqual({ u_strength: 0, u_zoom: 1 });
             // FXAA full strength by default; pixelate visibly chunky so it reads as on.

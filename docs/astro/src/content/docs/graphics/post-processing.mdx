@@ -15,7 +15,7 @@ several can stack in one frame at no extra target cost beyond the passes.
 | Effect | What it does | Key uniforms |
 |---|---|---|
 | `bloom` | Glow on bright areas | `threshold`, `intensity`, `radius` |
-| `tonemap` | ACES filmic tonemapping | `exposure` |
+| `tonemap` | ACES filmic tonemapping | `exposure`, `curve` |
 | `colorGrade` | Exposure / contrast / saturation / white balance, split toning, S-curve and a tinted black level | `exposure`, `contrast`, `saturation`, `temperature`, `tint`, `shadowTint`, `highlightTint`, `toneLow`, `toneHigh`, `curve`, `lift` |
 | `lutGrade` | Color grading through a lookup-table texture, on scene values in the chain | `u_lut` (texture), `intensity` |
 | `displayLut` | A look read off a lookup table by the picture as the display shows it, in the last pass after the output transform | `u_lut` (texture), `intensity` |
@@ -436,7 +436,10 @@ clamping at the 8-bit store:
   widens all of it. Keep a bright sky under `threshold`, or every dark edge against it
   takes the sky's glow.
 - **`tonemap`** receives true HDR input, so the ACES curve rolls off highlights
-  instead of shaping already-clamped values.
+  instead of shaping already-clamped values. **Fitted ACES** (`u_curve` 1) swaps the engine's curve for the other ACES fit in wide
+  use, the one three.js calls ACES Filmic: it mixes the channels before the curve, so a bright colour goes to white where the
+  engine's keeps its hue, and its shadows are deeper. A picture made for that curve wants it; three.js also multiplies the
+  exposure by 1/0.6 first, which is `u_exposure` 0.74 here.
 - Without a tonemap pass, over-range values simply clip at the final
   linear→sRGB encode — fine for subtle glow, harsh for large over-exposure.
 

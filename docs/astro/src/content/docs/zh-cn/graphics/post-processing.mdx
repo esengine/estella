@@ -14,7 +14,7 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 | 效果 | 作用 | 关键 uniform |
 |---|---|---|
 | `bloom` | 亮部辉光 | `threshold`、`intensity`、`radius` |
-| `tonemap` | ACES filmic 色调映射 | `exposure` |
+| `tonemap` | ACES filmic 色调映射 | `exposure`、`curve` |
 | `colorGrade` | 曝光 / 对比度 / 饱和度 / 白平衡,分离色调、S 曲线和带色相的黑位 | `exposure`、`contrast`、`saturation`、`temperature`、`tint`、`shadowTint`、`highlightTint`、`toneLow`、`toneHigh`、`curve`、`lift` |
 | `lutGrade` | 通过查找表纹理(LUT)调色,作用在效果链里的场景值上 | `u_lut`(纹理)、`intensity` |
 | `displayLut` | 在最后一个通道里、输出变换之后,按画面在显示器上的样子从查找表取出的调色 | `u_lut`(纹理)、`intensity` |
@@ -325,7 +325,9 @@ registerEffect({
   这就是经典的"自发光辉光"配方:拉高灯的 `intensity`,把 `threshold` 设在约 1.2–1.5。
   辉光建在从 1/2 到 1/64 尺寸的图像金字塔上(和 Unreal、使命召唤的做法一样):衰减圆润柔和,
   带一条很淡的长尾,`radius` 让整体变宽。亮天空要压在 `threshold` 以下,否则每条贴着天空的暗边都会被天空的辉光冲淡。
-- **`tonemap`** 收到真正的 HDR 输入,ACES 曲线得以收卷高光,而不是对已压平的值做整形。
+- **`tonemap`** 收到真正的 HDR 输入,ACES 曲线得以收卷高光,而不是对已压平的值做整形。**Fitted ACES**(`u_curve` 为 1)把引擎的曲线换成另一条
+  常用的 ACES 拟合,也就是 three.js 所说的 ACES Filmic:它在过曲线之前先混合通道,所以亮的颜色会走向白色(引擎的曲线保持色相),暗部也压得更深。
+  按那条曲线做出来的画面要用它;three.js 还会先把曝光乘以 1/0.6,在这里就是 `u_exposure` 0.74。
 - 不加 tonemap 时,超范围值在最终的线性→sRGB 编码处直接截断——轻微辉光没问题,大面积过曝会显得生硬。
 
 伽马模式(或无浮点目标能力)下效果链仍是 LDR,行为与从前一致;此时 `threshold` 超过约 0.75
