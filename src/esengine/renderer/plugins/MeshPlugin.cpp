@@ -391,6 +391,7 @@ void MeshPlugin::init(RenderFrameContext& ctx) {
     proxies_.clear();
     proxy_slot_.clear();
     ++proxy_epoch_;
+    ++cast_serial_;
     // The base variant now, so a broken shader is a boot-time failure rather than
     // one that waits for the first mesh; the rest compile when a draw asks.
     meshProgram(ctx, 0);
@@ -417,6 +418,7 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, u32 variant) {
     // that needs a variant pays for it. WHICH one is the other half — a readiness
     // that missed a requirement is named by the key that had to be built late.
     ++compiled_this_frame_;
+    ++programs_built_;
     last_compiled_variant_ = variant;
 
     std::vector<std::string> features;
@@ -590,6 +592,65 @@ void MeshPlugin::trackPose(Pose& pose, const RenderFrameContext& ctx, const glm:
     else pose.bonesCurrent.clear();
     pose.frame = ctx.motion_frame;
     pose.origin = renderOrigin();
+}
+
+bool MeshPlugin::castInputs(RenderFrameContext& ctx, ecs::Registry& registry, u64& key) {
+    const u32 now = registry.beginChangeRead();
+    // Why the casters changed, one bit a reason (render.mesh.castChanged): what a frame that could not keep its shadow map reads.
+    u32 why = 0;
+    if (registry.identity() != cast_registry_) why |= 1u;
+    if (registry.activityEpoch() != cast_activity_) why |= 2u;
+    if (why == 0) {
+        const u32 since = cast_tick_;
+        // A write to anything a caster is described by, or one added or removed: these are rare enough to take whole.
+        if (registry.anyChangedSince<ecs::MeshRenderer>(since)) why |= 4u;
+        if (registry.anyChangedSince<ecs::MeshSkin>(since) || registry.anyChangedSince<ecs::MeshMorph>(since)) why |= 8u;
+        if (registry.anyChangedSince<ecs::MeshInstances>(since) || registry.anyChangedSince<ecs::LODGroup>(since)
+            || registry.anyChangedSince<ecs::Billboard>(since) || registry.anyChangedSince<ecs::Impostor>(since)
+            || registry.anyChangedSince<ecs::MeshLightmap>(since)) {
+            why |= 16u;
+        }
+        // Transforms move all the time, most of them not a caster's (a camera, a sprite). A removal is not visited, but takes a
+        // mesh's Transform only with its entity, whose MeshRenderer goes too. A skin is placed by its joints, which are anyone.
+        if (why == 0 && registry.countOf<ecs::MeshSkin>() > 0) {
+            if (registry.anyChangedSince<ecs::Transform>(since)) why |= 32u;
+        } else if (why == 0) {
+            if (registry.anyChangedSinceWhere<ecs::Transform>(since, [&](Entity e) { return registry.has<ecs::MeshRenderer>(e); })) {
+                why |= 64u;
+            }
+        }
+    }
+    if (registry.countOf<ecs::LODGroup>() > 0) why |= 128u;
+    ES_PROFILE_COUNTER("render.mesh.castChanged", why);
+    if (why & 127u) ++cast_serial_;
+    cast_registry_ = registry.identity();
+    cast_activity_ = registry.activityEpoch();
+    cast_tick_ = now;
+    // A group casts the level the camera settled on in its last frames, which moves with no write at all.
+    if (registry.countOf<ecs::LODGroup>() > 0) return false;
+
+    u64 h = 0xcbf29ce484222325ull;
+    const auto mix = [&h](u64 v) { h ^= v + 0x9e3779b97f4a7c15ull + (h << 6) + (h >> 2); };
+    mix(cast_serial_);
+    mix(registry.identity());
+    mix(ctx.materials ? ctx.materials->revision() : 0);
+    mix(ctx.materials ? ctx.materials->builtVariantCount() : 0);
+    mix(ctx.resources.meshesRevision());
+    mix(programs_built_);
+    mix(ctx.render_context.programEpoch());
+    mix(ctx.environment_texture_id != 0 ? 1u : 0u);
+    mix(ctx.batch_shader_id);
+    mix(ctx.white_texture_id);
+    const glm::dvec3 origin = renderOrigin();
+    u64 bits[3];
+    std::memcpy(bits, &origin, sizeof(bits));
+    mix(bits[0]); mix(bits[1]); mix(bits[2]);
+    // Distance-limited placements measure from the scene camera, in a shadow map too.
+    u32 eye[3];
+    std::memcpy(eye, &ctx.view_eye, sizeof(eye));
+    mix(ctx.has_view_eye ? (static_cast<u64>(eye[0]) << 32 | eye[1]) ^ (static_cast<u64>(eye[2]) << 16) : 0u);
+    key = h;
+    return true;
 }
 
 void MeshPlugin::deriveProxy(RenderCollectContext& collect, MeshProxy& proxy, Entity entity, const ecs::MeshRenderer& mesh,

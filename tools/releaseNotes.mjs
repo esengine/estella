@@ -4856,4 +4856,6 @@ export const NOTED = {
     {"note": "A terrain's surface can be baked into a runtime virtual texture."},
   "perf(render): a mesh's draw keeps what no view changes between frames - where it stands, its world box, its model and normal matrices, its material's say over culling and its program facts are derived once and kept until its Transform or MeshRenderer is written, its mesh realized again, its material changed or the render origin moves; a static mesh that did not move is passed over by the motion pass before its cull, and the change audit checks every kept draw against a fresh one":
     {"note": "A mesh's draw keeps what no view changes."},
+  "perf(render): a frame whose shadow casters, lights and camera are those of the frame that drew the shadow map does not collect the map again - before the shadow collect, each casting plugin gives one number for what it would read (the mesh plugin: whether any caster's Transform, MeshRenderer or the components beside it changed since it last looked, found from the stamps alone, and the material, mesh and program revisions), and with the views and the camera they decide whether the collect would come back with the key the atlas holds; with the change audit on the collect is made anyway and a different key is counted":
+    {"note": "A still shadow map is not collected again."},
 };

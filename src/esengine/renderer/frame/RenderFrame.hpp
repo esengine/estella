@@ -1225,6 +1225,17 @@ private:
     bool shadow_pending_trusted_ = false;
     /// The frame's own answer, from collectShadowViews to the pass that draws (or does not).
     bool shadow_reused_ = false;
+    /// What the collect that made shadow_drawn_key_ read (shadowInputs), when every caster vouched for it: a frame whose inputs
+    /// match need not collect at all, since the collect would come back with the key the atlas already holds.
+    u64 shadow_drawn_inputs_ = 0;
+    bool shadow_drawn_inputs_valid_ = false;
+    u64 shadow_pending_inputs_ = 0;
+    bool shadow_pending_inputs_valid_ = false;
+    /// Frames the change audit found the inputs matching while the collect did not (render.shadow.inputsStale): a bug.
+    u32 shadow_inputs_stale_ = 0;
+    bool warned_shadow_inputs_ = false;
+    /** @brief One number for what the shadow collect reads, or false when a caster cannot say. */
+    bool shadowInputs(ecs::Registry& registry, u64& key);
     u32 shadow_casters_culled_ = 0;
     /// The maps and draws the atlas holds, from the frame that last drew it (render.shadow.heldTiles / heldDraws).
     u32 shadow_held_tiles_ = 0;

@@ -37,6 +37,7 @@ public:
     /// renderable's shadow is ShadowCaster2D's to cast, not the map's.
     bool castsShadows() const override { return true; }
     bool drawsMotion() const override { return true; }
+    bool castInputs(RenderFrameContext& ctx, ecs::Registry& registry, u64& key) override;
     void collect(RenderCollectContext& ctx) override;
     RenderPrewarmResult prewarm(RenderFrameContext& ctx, ecs::Registry& registry,
                                 const Entity* entities, u32 count, bool shadowPasses) override;
@@ -157,6 +158,13 @@ private:
                             ecs::Transform& transform, u32 now, u32 rulesChangedAt);
     void deriveProxy(RenderCollectContext& collect, MeshProxy& proxy, Entity entity, const ecs::MeshRenderer& mesh,
                      ecs::Transform& transform, u8 present, u32 now);
+    /// castInputs: the registry and tick it last looked at, and a count it moves whenever what a caster is changed since.
+    u64 cast_registry_ = 0;
+    u32 cast_tick_ = 0;
+    u32 cast_activity_ = 0;
+    u64 cast_serial_ = 0;
+    /// Programs this plugin has built: a caster asked for one not built before is drawn by another program than last time.
+    u32 programs_built_ = 0;
     bool warned_material_ = false;  ///< A material on resident geometry is said once.
     bool warned_bones_ = false;     ///< A skin over the pose budget is said once.
     bool warned_lod_ = false;       ///< A group that cannot be honoured is said once.

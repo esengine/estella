@@ -2562,9 +2562,44 @@ void RenderFrame::declareShadowPass(ecs::Registry& registry) {
 
     // Collected now rather than when the pass runs: whether it runs at all is decided by what it would draw. (Before the camera's
     // own collect, as the casters' level of detail always assumed: they cast what the camera settled on last frame.)
-    u64 key = 0;
-    const bool trusted = collectShadowViews(registry, key);
-    shadow_reused_ = trusted && shadow_drawn_valid_ && key == shadow_drawn_key_;
+    // First what the collect would read. The same as what the collect that drew the atlas read, it would come back with the key
+    // the atlas holds, and is not made. With the change audit on it is made all the same, and a different key is a bug: something
+    // the collect reads that the inputs do not say.
+    u64 inputs = 0;
+    const bool vouched = shadowInputs(registry, inputs);
+    const bool inputsMatch = vouched && shadow_drawn_valid_ && shadow_drawn_inputs_valid_ && inputs == shadow_drawn_inputs_;
+    const bool skipped = inputsMatch && !registry.changeAuditEnabled();
+    if (skipped) {
+        shadow_reused_ = true;
+    } else {
+        u64 key = 0;
+        const bool trusted = collectShadowViews(registry, key);
+        shadow_reused_ = trusted && shadow_drawn_valid_ && key == shadow_drawn_key_;
+        if (inputsMatch && !shadow_reused_) {
+            ++shadow_inputs_stale_;
+            if (!warned_shadow_inputs_) {
+                warned_shadow_inputs_ = true;
+                ES_LOG_WARN("change audit: the shadow collect's inputs were those of the frame that drew the atlas, but it drew"
+                            " something else - it reads something its inputs do not say");
+            }
+        }
+        if (shadow_reused_) {
+            // The atlas stands, and now also for these inputs.
+            shadow_drawn_inputs_ = inputs;
+            shadow_drawn_inputs_valid_ = vouched;
+        } else {
+            shadow_pending_key_ = key;
+            shadow_pending_trusted_ = trusted;
+            shadow_pending_inputs_ = inputs;
+            shadow_pending_inputs_valid_ = vouched;
+        }
+    }
+    ES_PROFILE_COUNTER("render.shadow.collectSkipped", skipped ? 1u : 0u);
+    // Why a frame could not skip it: 1 a caster could not vouch, 2 the atlas cannot be trusted to stand (a compute-written record, a
+    // material that moves its vertices), 4 the inputs moved (the plugin says which of its own did: render.mesh.castChanged).
+    ES_PROFILE_COUNTER("render.shadow.collectWhy", skipped ? 0u : (!vouched ? 1u : 0u) | (!shadow_drawn_valid_ ? 2u : 0u)
+                                                    | (vouched && shadow_drawn_inputs_valid_ && inputs != shadow_drawn_inputs_ ? 4u : 0u));
+    ES_PROFILE_COUNTER("render.shadow.inputsStale", shadow_inputs_stale_);
     ES_PROFILE_COUNTER("render.shadow.reused", shadow_reused_ ? 1u : 0u);
     if (shadow_reused_) {
         // What this frame drew (nothing) and, apart from it, what the atlas it reads holds: the maps and draws of the frame that drew it.
@@ -2577,8 +2612,6 @@ void RenderFrame::declareShadowPass(ecs::Registry& registry) {
         // Recorded by the pass when it runs, not here: a pass the graph culls drew nothing, and its key would vouch for an atlas
         // that never held what it says.
         shadow_drawn_valid_ = false;
-        shadow_pending_key_ = key;
-        shadow_pending_trusted_ = trusted;
     }
 
     rg::PassDesc shadow;
@@ -2692,6 +2725,48 @@ void RenderFrame::releaseShadowFrameUbos() {
     shadow_frame_ubos_.clear();
 }
 
+bool RenderFrame::shadowInputs(ecs::Registry& registry, u64& key) {
+    u64 h = 0xcbf29ce484222325ull;
+    const auto mix = [&h](u64 v) { h ^= v + 0x9e3779b97f4a7c15ull + (h << 6) + (h >> 2); };
+    const auto words = [&mix](const void* data, usize bytes) {
+        const auto* p = static_cast<const u8*>(data);
+        usize at = 0;
+        for (; at + 8 <= bytes; at += 8) { u64 w; std::memcpy(&w, p + at, 8); mix(w); }
+        u64 tail = 0;
+        if (at < bytes) { std::memcpy(&tail, p + at, bytes - at); mix(tail); }
+    };
+    // Every caster is asked, whether or not an earlier one vouched: each keeps its own look at what changed.
+    bool vouched = true;
+    auto ctx = makeContext();
+    ctx.purpose = RenderPurpose::ShadowDepth;
+    for (auto& plugin : plugins_) {
+        if (!plugin->castsShadows()) continue;
+        u64 part = 0;
+        if (!plugin->castInputs(ctx, registry, part)) vouched = false;
+        mix(part);
+    }
+    // What the collect reads besides the casters: where each square is and what it looks through, the camera (a sun's casters are
+    // culled to what can shade what it sees), and what makes the same handles draw something else.
+    mix(device_.deviceGeneration());
+    mix(device_.geometryWrites());
+    mix(static_cast<u64>(shadow_target_ ? static_cast<u32>(shadow_target_->handle()) : 0u));
+    mix(shadow_views_.size());
+    for (const ShadowView& view : shadow_views_) {
+        words(&view.view_projection, sizeof(glm::mat4));
+        mix((static_cast<u64>(view.x) << 32) | view.y);
+        mix(view.size);
+        mix(view.sun ? 1u : 0u);
+        words(&view.ray, sizeof(view.ray));
+        words(&view.floorY, sizeof(view.floorY));
+        words(&view.reachCap, sizeof(view.reachCap));
+    }
+    words(&view_projection_, sizeof(glm::mat4));
+    mix(shadow_receiver_cull_ ? 1u : 0u);
+    mix(view_id_);
+    key = h;
+    return vouched;
+}
+
 bool RenderFrame::collectShadowViews(ecs::Registry& registry, u64& key) {
     u32 shadowCastersCulled = 0;
     const usize viewCount = shadow_views_.size();
@@ -2801,6 +2876,8 @@ void RenderFrame::executeShadowPass() {
     const usize viewCount = shadow_views_.size();
     shadow_drawn_key_ = shadow_pending_key_;
     shadow_drawn_valid_ = shadow_pending_trusted_;
+    shadow_drawn_inputs_ = shadow_pending_inputs_;
+    shadow_drawn_inputs_valid_ = shadow_pending_inputs_valid_;
     shadow_pool_.upload();
 
     for (usize vi = 0; vi < viewCount; ++vi) {

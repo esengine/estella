@@ -220,6 +220,31 @@ public:
         return pool && tickAfter(pool->lastChangedTick(), tick);
     }
 
+    /**
+     * @brief Calls @p visit(entity) for each T written or added after @p tick, until it returns true; returns whether one did.
+     * @details A pass over the stamps alone, which sit in one array beside the components: the answer to "did any of the many
+     *          that changed matter to me" without a lookup per component. A removal leaves nothing to visit (anyChangedSince
+     *          sees it).
+     */
+    template<typename T, typename Visit>
+    bool anyChangedSinceWhere(u32 tick, Visit&& visit) const {
+        const auto* pool = getPool<T>();
+        if (!pool || !tickAfter(pool->lastChangedTick(), tick)) return false;
+        const u32* stamps = pool->changeTicks();
+        const auto& entities = pool->entities();
+        for (usize i = 0, n = entities.size(); i < n; ++i) {
+            if (tickAfter(stamps[i], tick) && visit(entities[i])) return true;
+        }
+        return false;
+    }
+
+    /** @brief How many entities have a T. */
+    template<typename T>
+    usize countOf() const {
+        const auto* pool = getPool<T>();
+        return pool ? pool->size() : 0;
+    }
+
     /** @brief The tick of the latest write, addition or removal of any T; 0 when there has been none. */
     template<typename T>
     u32 lastChangedTick() const {

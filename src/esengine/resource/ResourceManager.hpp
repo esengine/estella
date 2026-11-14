@@ -543,6 +543,12 @@ public:
     void releaseMesh(MeshHandle handle);
 
     /**
+     * @brief Changes whenever any mesh is realized (each takes a new Mesh::revision) or released: while it holds, every mesh a
+     *        reader looked at is the one it was.
+     */
+    u64 meshesRevision() const { return meshes_revision_; }
+
+    /**
      * @brief Replayable meshes whose geometry the device is still waiting for.
      * @details Read off the device's ledger, so the list empties exactly when a
      *          rematerialization has put the geometry back.
@@ -739,6 +745,8 @@ private:
     ResourcePool<Mesh> meshes_;
     /// The pages meshes of one vertex shape share (see MeshArena).
     MeshArena meshArena_;
+    /// See meshesRevision().
+    u64 meshes_revision_ = 0;
     /** Gives back what a mesh's geometry holds, its own buffers and layout or its place in a page; the edges are apart. */
     void releaseMeshGeometry(VertexBufferHandle vertices, IndexBufferHandle indices, VertexLayoutHandle layout,
                              u32 arenaPage, u32 arenaFirstVertex, u32 vertexCount, u32 firstIndex, u32 indexCount);

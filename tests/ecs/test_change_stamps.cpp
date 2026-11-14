@@ -72,6 +72,26 @@ int main() {
         other = Registry{};
         CHECK(other.identity() != kept && other.identity() != r.identity(), "and one assigned over another brings its own");
 
+        // Which of the many that changed: visited by stamp, stopped at the first the visitor wants.
+        {
+            Registry w;
+            const Entity p = w.create(), q = w.create(), s = w.create();
+            w.emplace<Pos>(p); w.emplace<Pos>(q); w.emplace<Pos>(s);
+            w.emplace<Rank>(q);
+            CHECK(w.countOf<Pos>() == 3 && w.countOf<Rank>() == 1 && w.countOf<Listed>() == 0, "countOf counts a pool");
+            const u32 look = w.beginChangeRead();
+            int visited = 0;
+            CHECK(!w.anyChangedSinceWhere<Pos>(look, [&](Entity) { ++visited; return true; }) && visited == 0,
+                  "nothing written since, nothing visited");
+            w.patch<Pos>(p);
+            w.patch<Pos>(s);
+            visited = 0;
+            CHECK(!w.anyChangedSinceWhere<Pos>(look, [&](Entity e) { ++visited; return w.has<Rank>(e); }) && visited == 2,
+                  "each written one is visited, and none of them is what the visitor wants");
+            w.patch<Pos>(q);
+            CHECK(w.anyChangedSinceWhere<Pos>(look, [&](Entity e) { return w.has<Rank>(e); }), "until one is");
+        }
+
         const u32 later = r.beginChangeRead();
         r.emplaceOrReplace<Pos>(a);
         r.emplaceOrReplace<Pos>(a);

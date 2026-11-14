@@ -507,6 +507,14 @@ public:
      *          depth — so the default is no, and a plugin that casts says so.
      */
     virtual bool castsShadows() const { return false; }
+    /**
+     * @brief For a plugin that casts: one number for everything its depth collect reads apart from the shadow views and the
+     *        frame's camera, so a frame whose number, views and camera match those of the frame that drew the shadow map
+     *        need not collect it again.
+     * @return False when it cannot vouch for what it would read (the frame then collects). Asked once a frame, before the
+     *         shadow collect; a plugin may keep what it needs between calls.
+     */
+    virtual bool castInputs(RenderFrameContext& /*ctx*/, ecs::Registry& /*registry*/, u64& /*key*/) { return false; }
     /// Whether the Motion collect asks this plugin: what it draws can move by itself, and the picture
     /// after it needs to know by how much.
     virtual bool drawsMotion() const { return false; }

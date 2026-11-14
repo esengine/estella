@@ -725,6 +725,7 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     }
     mesh.vertexCount = vertexStride > 0 ? static_cast<u32>(vertexBytes.size()) / vertexStride : 0;
     mesh.revision = nextRevision();
+    meshes_revision_ = mesh.revision;
 
     // The shapes, last: geometry that draws is worth having even when the deltas
     // behind it are refused, and the refusal leaves a mesh in its authored shape
@@ -882,6 +883,7 @@ void ResourceManager::releaseMeshGeometry(VertexBufferHandle vertices, IndexBuff
 void ResourceManager::releaseMesh(MeshHandle handle) {
     Mesh* mesh = meshes_.get(handle);
     if (!mesh) return;
+    meshes_revision_ = nextRevision();
     releaseMeshGeometry(mesh->vertices, mesh->indices, mesh->layout, mesh->arenaPage, mesh->arenaFirstVertex,
                         mesh->vertexCount, mesh->firstIndex, mesh->indexCount);
     releaseIndexBuffer(mesh->edges);

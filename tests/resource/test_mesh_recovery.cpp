@@ -285,6 +285,16 @@ int main() {
         rematerializeWide(rm, a);
         d.createBufferSucceeds = true;
         CHECK(rm.getMesh(a)->revision == standing, "a rebuild that failed leaves it as it was");
+
+        // The store's own: the latest realization, or a release.
+        CHECK(rm.meshesRevision() == standing, "the meshes' revision is the last one realized");
+        rm.getMesh(b);
+        CHECK(rm.meshesRevision() == standing, "a look at one changes nothing");
+        rm.releaseMesh(b);
+        CHECK(rm.meshesRevision() != standing, "a release moves it");
+        const u64 released = rm.meshesRevision();
+        rm.releaseMesh(b);
+        CHECK(rm.meshesRevision() == released, "a mesh already gone does not");
     }
 
     // --- A texture's revision moves when the device is given new content or sampling for it ---
