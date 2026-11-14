@@ -42,6 +42,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Rain rings only on standing water.** The Rain effect drew a ring where every drop landed, a dry or merely wet street included, at 0.4 of a puddle's strength. Rings are now drawn only where a puddle stands; elsewhere a drop splashes — a point where it lands and droplets thrown out from it, gone within a fifth of a second.
 - **Icons stay drawn and clickable with "selected entities only".** The setting hid the icons of lights, cameras, markers and the like that were not selected, so they could not be clicked; it now limits only the wireframes and handles, as its description says.
 - **A large image reaches the editor's viewport on a busy machine.** The editor served project files without their length, and on a machine whose processor was busy (software rendering) a 10 MB image took 30 s to load and a 4097 heightmap missed its load deadline, leaving the terrain as noise; the same images now load in 8 s and 21 s there, and on a real GPU in well under a second as before.
 - **A post-process shader can read more than seven textures.** A fullscreen shader's eighth texture parameter found no texture unit and was not bound; units 4 and 5 now take the eighth and ninth. On WebGPU the first validation errors of a run are logged, where before only a refused command buffer reached the console.

@@ -2125,6 +2125,25 @@ float shelteredAt(vec3 W) {
     return stored < here - u_shelterBias / (4.0 * u_shelterRange) ? 1.0 : 0.0;
 }
 
+/// A drop landing on ground that is not water, in cells of the grid @p g: a point where it hits and five droplets thrown
+/// out from it, seen for the first fifth of the cell's cycle. Dots, not a ring: a ring is what water does.
+float rainSplash(vec2 g, float T) {
+    vec2 id = floor(g);
+    if (hash21(id + 2.0) > 0.6) return 0.0;
+    float life = fract(T * 1.7 + hash21(id + 29.0)) / 0.2;
+    if (life >= 1.0) return 0.0;
+    vec2 f = fract(g) - 0.5;
+    vec2 hit = (vec2(hash21(id + 5.0), hash21(id + 11.0)) - 0.5) * 0.5;
+    float fade = (1.0 - life) * (1.0 - life);
+    float v = (1.0 - smoothstep(0.0, 0.08, length(f - hit))) * (1.0 - smoothstep(0.0, 0.35, life));
+    for (int k = 0; k < 5; k++) {
+        float a = 6.2831853 * (float(k) / 5.0 + 0.3 * hash21(id + float(k) * 3.7));
+        float reach = (0.1 + 0.12 * hash21(id + float(k) + 17.0)) * sqrt(life);
+        v += 1.0 - smoothstep(0.0, 0.05, length(f - hit - vec2(cos(a), sin(a)) * reach));
+    }
+    return v * fade;
+}
+
 void main() {
     vec4 src = texture(u_texture, v_texCoord);
     vec2 sz = vec2(textureSize(u_texture, 0));
@@ -2177,7 +2196,8 @@ void main() {
         // Drops landing need drops falling: wet ground under no rain is still.
         float falling = clamp(u_intensity, 0.0, 1.0) * (1.0 - shelter);
         float near = 1.0 - smoothstep(1200.0, 3500.0, dist);
-        // Rings where drops land, on a grid in the world; they are denser and clearer on standing water.
+        // Rings only where water stands: a drop opens a ring on a puddle, never on a street that is merely wet.
+        float pool = smoothstep(0.15, 0.6, puddle);
         vec2 g = P.xz / u_rippleScale;
         vec2 id = floor(g);
         vec2 f = fract(g) - 0.5;
@@ -2185,17 +2205,10 @@ void main() {
         vec2 centre = (vec2(hash21(id + 7.0), hash21(id + 13.0)) - 0.5) * 0.5;
         float phase = fract(T * 0.9 + h);
         float ring = (1.0 - smoothstep(0.0, 0.035, abs(length(f - centre) - phase * 0.5)))
-                   * (1.0 - phase) * (1.0 - phase) * step(hash21(id + 3.0), mix(0.55, 0.9, puddle));
-        col += tint * ring * mix(0.4, 0.9, puddle) * u_wetness * up * near * falling;
-        // Splashes: the small, quick crown of a drop that lands on ground that is not water.
-        vec2 g2 = P.xz / (u_rippleScale * 0.3);
-        vec2 id2 = floor(g2);
-        vec2 f2 = fract(g2) - 0.5;
-        float ph2 = fract(T * 2.4 + hash21(id2 + 29.0));
-        vec2 c2 = (vec2(hash21(id2 + 5.0), hash21(id2 + 11.0)) - 0.5) * 0.4;
-        float splash = (1.0 - smoothstep(0.0, 0.06, abs(length(f2 - c2) - ph2 * 0.3)))
-                     * (1.0 - ph2) * (1.0 - ph2) * (1.0 - ph2) * step(hash21(id2 + 2.0), 0.5);
-        col += tint * splash * 0.55 * u_wetness * up * near * falling * (1.0 - puddle);
+                   * (1.0 - phase) * (1.0 - phase) * step(hash21(id + 3.0), 0.9);
+        col += tint * ring * 0.9 * pool * u_wetness * up * near * falling;
+        // Off the water a drop splashes: a bright point where it lands and droplets thrown out from it, gone in a moment.
+        col += tint * rainSplash(P.xz / (u_rippleScale * 0.8), T) * 1.2 * u_wetness * up * near * falling * (1.0 - pool);
     }
 
     // Three layers, nearest last: a layer is drawn only over what is farther than it.
@@ -2231,6 +2244,24 @@ fn shelteredAt(W : vec3f) -> f32 {
                      vec3f(1.0, 1.0 / 255.0, 1.0 / 65025.0));
     let here = clamp(c.z / c.w * 0.5 + 0.5, 0.0, 1.0);
     return select(0.0, 1.0, stored < here - mc.u_shelterBias / (4.0 * mc.u_shelterRange));
+}
+
+/// See the GLSL twin: a point where a drop hits and five droplets thrown out from it.
+fn rainSplash(g : vec2f, T : f32) -> f32 {
+    let id = floor(g);
+    if (hash21(id + 2.0) > 0.6) { return 0.0; }
+    let life = fract(T * 1.7 + hash21(id + 29.0)) / 0.2;
+    if (life >= 1.0) { return 0.0; }
+    let f = fract(g) - 0.5;
+    let hit = (vec2f(hash21(id + 5.0), hash21(id + 11.0)) - 0.5) * 0.5;
+    let fade = (1.0 - life) * (1.0 - life);
+    var acc = (1.0 - smoothstep(0.0, 0.08, length(f - hit))) * (1.0 - smoothstep(0.0, 0.35, life));
+    for (var k = 0; k < 5; k = k + 1) {
+        let a = 6.2831853 * (f32(k) / 5.0 + 0.3 * hash21(id + f32(k) * 3.7));
+        let reach = (0.1 + 0.12 * hash21(id + f32(k) + 17.0)) * sqrt(life);
+        acc = acc + 1.0 - smoothstep(0.0, 0.05, length(f - hit - vec2f(cos(a), sin(a)) * reach));
+    }
+    return acc * fade;
 }
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
@@ -2279,6 +2310,8 @@ fn shelteredAt(W : vec3f) -> f32 {
         col = col * (1.0 - 0.35 * puddle);
         let falling = clamp(mc.u_intensity, 0.0, 1.0) * (1.0 - shelter);
         let near = 1.0 - smoothstep(1200.0, 3500.0, dist);
+        // See the GLSL: rings only on standing water, splashes everywhere else.
+        let pool = smoothstep(0.15, 0.6, puddle);
         let g = P.xz / mc.u_rippleScale;
         let id = floor(g);
         let f = fract(g) - 0.5;
@@ -2287,17 +2320,9 @@ fn shelteredAt(W : vec3f) -> f32 {
         let phase = fract(T * 0.9 + h);
         var ring = (1.0 - smoothstep(0.0, 0.035, abs(length(f - centre) - phase * 0.5)))
                  * (1.0 - phase) * (1.0 - phase);
-        if (hash21(id + 3.0) > mix(0.55, 0.9, puddle)) { ring = 0.0; }
-        col = col + tint * ring * mix(0.4, 0.9, puddle) * mc.u_wetness * up * near * falling;
-        let g2 = P.xz / (mc.u_rippleScale * 0.3);
-        let id2 = floor(g2);
-        let f2 = fract(g2) - 0.5;
-        let ph2 = fract(T * 2.4 + hash21(id2 + 29.0));
-        let c2 = (vec2f(hash21(id2 + 5.0), hash21(id2 + 11.0)) - 0.5) * 0.4;
-        var splash = (1.0 - smoothstep(0.0, 0.06, abs(length(f2 - c2) - ph2 * 0.3)))
-                   * (1.0 - ph2) * (1.0 - ph2) * (1.0 - ph2);
-        if (hash21(id2 + 2.0) > 0.5) { splash = 0.0; }
-        col = col + tint * splash * 0.55 * mc.u_wetness * up * near * falling * (1.0 - puddle);
+        if (hash21(id + 3.0) > 0.9) { ring = 0.0; }
+        col = col + tint * ring * 0.9 * pool * mc.u_wetness * up * near * falling;
+        col = col + tint * rainSplash(P.xz / (mc.u_rippleScale * 0.8), T) * 1.2 * mc.u_wetness * up * near * falling * (1.0 - pool);
     }
 
     var dd1 = d;
