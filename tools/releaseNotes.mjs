@@ -4922,4 +4922,6 @@ export const NOTED = {
     {"internal": "The sky dome verification scenes compare against a reference that now carries the glow the shader added; only the checks read it."},
   "fix(notes): the sky oracle entry is a key, not a list item":
     {"internal": "Fixes the shape of an entry in this file; nothing a creator runs changes."},
+  "fix(terrain): a fall's mist is soft and does not paint the fall out - its emitters named no picture, so the mist was squares, and blended over water in sunlight an unlit white (1, where the lit water is several times that) painted the lower half of a tall fall out: terrain_apply now writes a puff (<land>_mist.png) and the mist is added to the picture. The round-ground guide says to round the brows of the walls over the rivers: a hard brow on a grid is a saw that streaks a fall's bowl":
+    {"note": "An agent can shape ground as steps."},
 };
