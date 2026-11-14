@@ -1,0 +1,23 @@
+# Generated API-surface snapshots are written with LF by tools/api-surface.mjs.
+# Pin the line ending so a CRLF checkout on Windows can't masquerade as API drift
+# and fail the CI api-surface guard on a Linux runner.
+sdk/etc/*.api.md text eol=lf
+
+# The built-in UI widget prefabs and the data module beside them are rewritten
+# with LF by tests/ui-widget-prefabs.gen.test.ts every time the suite runs. Left
+# unpinned they check out as CRLF, so the index's cached size never matches what
+# the generator just wrote and git reports ten modified files with no diff in
+# them — for as long as anyone runs the tests.
+sdk/src/ui/widgets/prefabs/* text eol=lf
+
+# tests/worker-bundle-fresh.test.ts compares this byte for byte with what the build
+# writes, which is LF; a CRLF checkout fails it with the right content in the file.
+sdk/src/runtime/planWorkerBundle.generated.ts text eol=lf
+
+# A generated WGSL twin stores a hash of the GLSL above it, taken over the bytes
+# on disk. A CRLF checkout changes those bytes, so every twin reads as stale and
+# regenerating writes a hash no Linux runner can reproduce.
+*.esshader text eol=lf
+
+# Git runs the hooks with sh, which reads a CRLF line as a command ending in a carriage return: pin them to LF on every checkout.
+.githooks/* text eol=lf

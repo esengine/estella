@@ -1,0 +1,52 @@
+name: Editor host from this run's engine
+description: Stage the wasm this run built into the editor host, with the SDK and the renderer bundle built against it.
+
+# For the gates whose subject IS the editor. The engine's own host is a sibling
+# action; a job that measures the renderer should take that one, so an editor
+# checkout is never on the path of an engine verdict.
+runs:
+  using: composite
+  steps:
+    - name: Download web wasm artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-web
+        path: build/wasm/web/
+
+    # The editor packages for every platform it offers, and wechat's runtime is a
+    # separate build target with its own output tree.
+    - name: Download wechat wasm artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-wechat
+        path: build/wasm/wechat/
+
+    - name: Download lite wechat wasm artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-wechat-lite
+        path: build/wasm/wechat-lite/
+
+    - name: Download wechat GLX wasm artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-wechat-glx
+        path: build/wasm/wechat-glx/
+
+    - name: Build SDK
+      shell: bash
+      run: pnpm --filter ./sdk build
+
+    - name: Stage wasm for the editor host
+      shell: bash
+      run: |
+        mkdir -p desktop/public/wasm desktop/public/wasm-wechat desktop/public/wasm-wechat-glx desktop/public/wasm-wechat-lite
+        cp build/wasm/web/* desktop/public/wasm/
+        cp build/wasm/wechat/* desktop/public/wasm-wechat/
+        cp build/wasm/wechat-glx/* desktop/public/wasm-wechat-glx/
+        cp build/wasm/wechat-lite/* desktop/public/wasm-wechat-lite/
+
+    - name: Build editor renderer bundle
+      shell: bash
+      working-directory: desktop
+      run: pnpm exec vite build

@@ -1,0 +1,168 @@
+name: Warm the native dependency cache
+
+# Dawn is ~16 minutes per ABI and the pins move a few times a year, so it should
+# be built about as often as the pins move. It was in fact being built on every
+# single release, and on every branch that needed it, because of where the cache
+# was being written from.
+#
+# A GitHub cache is readable from the ref that created it, that ref's descendants,
+# and the default branch. The release pipeline runs on a TAG — so the 937 MB
+# android and 401 MB ios caches it saved (v0.36.0's and v0.37.0's, both still
+# there) are readable by nothing at all. Not by a branch, not by a PR, and not by
+# the next release either, since every new tag is a new scope. Each release paid
+# for a cold Dawn build and then wrote its result somewhere it could never be read
+# from again.
+#
+# Writing it from the default branch instead is the whole fix: a default-branch
+# cache is in scope for every run in the repository.
+#
+# This is restore-first and builds only on a miss, which is what makes the weekly
+# trigger cheap. GitHub evicts a cache untouched for 7 days, and a restore counts
+# as touching it — so on the normal week this job downloads the cache, finds it
+# complete, and stops. It rebuilds only when the pins actually moved.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      # The only thing that invalidates the cache is the pins themselves.
+      - 'toolchain.manifest.json'
+      # And this file, so that merging it warms the cache once instead of leaving
+      # it cold until the pins next move or the weekly trigger comes round. A
+      # workflow_dispatch cannot stand in for that: dispatch only resolves against
+      # the default branch, so there is no way to run this before it is merged.
+      - '.github/workflows/native-deps-cache.yml'
+  schedule:
+    # Weekly, purely to keep the 7-day eviction clock from running out.
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      force-rebuild:
+        description: 'Build even if the cache already has this pin (for a corrupt entry).'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+# Every step here is written in shell, and the windows runner's default is
+# PowerShell: `>> "$GITHUB_OUTPUT"` there appends to a file named by an undefined
+# variable, so the pin step reported nothing and the cache restore failed asking
+# for a key it was never given.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  warm:
+    name: Dawn for ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: android
+            os: ubuntu-latest
+          - target: ios
+            os: macos-latest
+          - target: macos
+            os: macos-latest
+          - target: windows
+            os: windows-latest
+          - target: linux
+            os: ubuntu-latest
+    steps:
+      # No submodules: Dawn and QuickJS are fetched into build/native-deps by
+      # --fetch-deps, and third_party is the HOST's dependency, which this never
+      # builds.
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      # ONE cache key, computed where the pins are read: SDL is a desktop-only
+      # dependency, so keying every target on it would cold-build Dawn for Android
+      # and iOS — 16 minutes each — every time SDL moves.
+      - name: Read the native dependency pins
+        id: pins
+        run: node build-tools/cli.js native --deps-cache-key ${{ matrix.target }} >> "$GITHUB_OUTPUT"
+
+      # restore, not the combined action: a hit must end this job rather than
+      # trigger a save of what it just downloaded.
+      - name: Is this pin already built
+        id: restore
+        if: ${{ !inputs.force-rebuild }}
+        uses: actions/cache/restore@v4
+        with:
+          path: build/native-deps
+          key: ${{ steps.pins.outputs.key }}
+
+      - name: Report what the restore found
+        run: |
+          if [ '${{ steps.restore.outputs.cache-hit }}' = 'true' ]; then
+            echo "cache is warm for these pins — the restore refreshed its eviction clock, nothing to build"
+          else
+            echo "no cache for these pins — building Dawn"
+          fi
+
+      - name: Set up the Android NDK
+        if: matrix.target == 'android' && steps.restore.outputs.cache-hit != 'true'
+        uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r28
+
+      # Dawn builds with Ninja and a macOS runner has neither it nor CMake; the
+      # Android SDK carries its own pair.
+      - name: Set up CMake + Ninja
+        if: startsWith(matrix.os, 'macos') && steps.restore.outputs.cache-hit != 'true'
+        run: brew install cmake ninja
+
+      # Vulkan headers for Dawn, and the display-server + font + HTTP libraries the
+      # host links. Named here rather than assumed: an ubuntu runner carries none
+      # of them, and the failure is a configure that cannot find a package.
+      - name: Set up the Linux desktop dependencies
+        if: matrix.target == 'linux' && steps.restore.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libvulkan-dev \
+            libx11-dev libx11-xcb-dev libxcb1-dev libxext-dev libxfixes-dev libxrandr-dev \
+            libxi-dev libxcursor-dev libxinerama-dev libxss-dev libxtst-dev \
+            libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev \
+            libdbus-1-dev libibus-1.0-dev libudev-dev libdrm-dev libgbm-dev \
+            libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libasound2-dev libpulse-dev libfontconfig1-dev libcurl4-openssl-dev
+
+      - name: Set up Ninja (Windows)
+        if: matrix.target == 'windows' && steps.restore.outputs.cache-hit != 'true'
+        uses: seanmiddleditch/gha-setup-ninja@v6
+
+      # Ninja invokes the compiler directly, so cl.exe and the Windows SDK have to
+      # be on PATH — a Developer Command Prompt's environment, without the prompt.
+      - name: Set up MSVC
+        if: matrix.target == 'windows' && steps.restore.outputs.cache-hit != 'true'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Fetch Dawn + QuickJS at their pinned commits
+        if: steps.restore.outputs.cache-hit != 'true'
+        run: node build-tools/cli.js native --fetch-deps
+
+      # Every ABI (android) and every sysroot slice (ios) the consumers ask for.
+      # Warming one and leaving the other cold would look like a hit and behave
+      # like a miss.
+      - name: Build Dawn
+        if: steps.restore.outputs.cache-hit != 'true'
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          # See build.yml's desktop-linux job: Dawn's C++20 module target needs a
+          # compiler CMake can scan, and gcc is not one.
+          CC: ${{ matrix.target == 'linux' && 'clang' || '' }}
+          CXX: ${{ matrix.target == 'linux' && 'clang++' || '' }}
+        run: node build-tools/cli.js native --target ${{ matrix.target }} --build-deps
+
+      - name: Save it for every ref in the repository
+        if: steps.restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/native-deps
+          key: ${{ steps.pins.outputs.key }}

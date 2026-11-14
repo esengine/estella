@@ -1,0 +1,38 @@
+name: CI status
+
+# What the README's badge reads. The Build workflow's own badge shows its latest run, and on a
+# master that is pushed to all day the latest run is usually one a newer push cancelled, which
+# the badge draws as a failure. This runs when a Build run ends and reports the newest run
+# that actually finished: red if that one failed, green if it passed. It takes no concurrency
+# group, because a run another one supersedes would be cancelled and bring the same problem back.
+
+on:
+  workflow_run:
+    workflows: [Build]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+
+jobs:
+  status:
+    name: Newest finished Build on master
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report it
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          row=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs?branch=master&event=push&status=completed&per_page=30" \
+            --jq '[.workflow_runs[] | select(.conclusion != "cancelled" and .conclusion != "skipped")][0] | [.id, .conclusion, .head_sha[0:9], .html_url] | @tsv')
+          if [ -z "$row" ] || [ "$row" = "null" ]; then
+            echo "::notice::no finished Build run in the latest 30"
+            exit 0
+          fi
+          IFS=$'\t' read -r id conclusion sha url <<< "$row"
+          echo "newest finished Build on master: $conclusion at $sha — $url"
+          echo "### Newest finished Build on master: \`$conclusion\` at \`$sha\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
+          [ "$conclusion" = "success" ]

@@ -1,0 +1,16 @@
+#!/bin/sh
+# Strip AI co-authorship / attribution trailers from every commit message.
+# This repo's standing rule: commits must never carry Claude/Anthropic attribution.
+# Runs regardless of who/what authored the message, so a forgotten trailer can't slip through.
+msg_file="$1"
+tmp="$msg_file.stripped"
+
+# Drop any Co-Authored-By line naming Claude/Anthropic, and "Generated with Claude" / robot lines.
+grep -ivE '^[[:space:]]*Co-Authored-By:.*(claude|anthropic)' "$msg_file" \
+  | grep -ivE 'Generated with .*Claude' \
+  | grep -ivE 'noreply@anthropic\.com' \
+  | grep -ivE '🤖 Generated with' > "$tmp"
+
+# Collapse any trailing blank lines left behind.
+awk 'BEGIN{blank=0} {if($0 ~ /^[[:space:]]*$/){blank++} else {while(blank-->0)print ""; blank=0; print}}' "$tmp" > "$msg_file"
+rm -f "$tmp"

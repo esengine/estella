@@ -1,0 +1,23 @@
+name: Check out the engine's submodules
+description: Initialise every submodule except the private editor.
+
+# `submodules: recursive` on checkout tries to clone ALL of them, and the editor
+# is private — so a job that only wants third_party's vendored sources fails at
+# checkout with "repository not found". These jobs do not want the editor at all.
+#
+# The list comes from the INDEX (gitlink entries, mode 160000), not .gitmodules:
+# that file still declares four submodules this repo no longer tracks, and naming
+# them is an immediate `pathspec did not match` rather than a no-op. The index is
+# what `git submodule update` acts on, so it is also what can be asked for.
+
+runs:
+  using: composite
+  steps:
+    - name: Init the engine submodules
+      shell: bash
+      run: |
+        set -euo pipefail
+        paths=$(git ls-files --stage | awk '$1 == "160000" {print $4}' | grep -vx 'desktop')
+        echo "initialising: $(echo "$paths" | tr '\n' ' ')"
+        # shellcheck disable=SC2086
+        git submodule update --init --recursive $paths

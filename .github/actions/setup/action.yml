@@ -1,0 +1,36 @@
+name: Setup toolchain
+description: pnpm + Node (with pnpm cache) and a frozen install — the one place the toolchain versions live.
+
+inputs:
+  node-version:
+    description: Node.js major version.
+    default: '24'
+  install:
+    description: Run `pnpm install --frozen-lockfile` after the toolchain is set up.
+    default: 'true'
+  working-directory:
+    description: >
+      Where the workspace is. The editor's own CI checks the engine out into a
+      subdirectory and mounts itself under it, so the install runs there — and
+      the toolchain versions stay defined in this one file for both repositories.
+    default: '.'
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v6
+      with:
+        version: 10
+
+    - uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm
+        cache-dependency-path: ${{ inputs.working-directory }}/pnpm-lock.yaml
+
+    # Frozen so a stale lockfile fails the run instead of being silently
+    # rewritten — reproducible installs across every job.
+    - if: inputs.install == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: pnpm install --frozen-lockfile

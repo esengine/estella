@@ -1,0 +1,92 @@
+name: Focused editor acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      engine_run:
+        description: Engine Build run carrying the wasm-web artifact
+        required: true
+        type: string
+      checks:
+        description: Space-separated editor authoring check names
+        required: true
+        default: design-frame
+        type: string
+      gizmo_hover:
+        description: Also verify trusted transform-handle hover at all sizes
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    env:
+      XVFB_SCREEN: ${{ contains(inputs.checks, 'docs-hero') && '1920x1080x24' || '1920x1080x24' }}
+      ESTELLA_WIN_W: ${{ contains(inputs.checks, 'docs-hero') && '1900' || '1480' }}
+      ESTELLA_WIN_H: ${{ contains(inputs.checks, 'docs-hero') && '1060' || '920' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/editor-checkout
+        with:
+          ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
+      - uses: ./.github/actions/setup
+      - name: Download the engine to exercise
+        uses: actions/download-artifact@v8
+        with:
+          name: wasm-web
+          path: build/wasm/web/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.engine_run }}
+      - name: Build the SDK and editor
+        id: build_editor
+        shell: bash
+        run: |
+          pnpm --filter ./sdk build
+          mkdir -p desktop/public/wasm output/editor-acceptance
+          cp build/wasm/web/* desktop/public/wasm/
+          pnpm --filter @estella/editor exec vite build
+      # The runner has no CJK font, so a Chinese editor draws its labels as empty boxes. The manual's
+      # Chinese pictures are taken here, so the font goes in first.
+      - name: Fonts for the Chinese pictures
+        if: contains(inputs.checks, 'docs-shots')
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-cjk
+          fc-cache -f
+      - name: Run selected acceptance checks
+        working-directory: desktop
+        shell: bash
+        env:
+          CHECK_NAMES: ${{ inputs.checks }}
+          OUT: ${{ github.workspace }}/output/editor-acceptance
+          ESTELLA_MCP_EDITOR_VISIBLE: '1'
+          # electron-preconditions: job-wide — the editor's check scripts live in the private submodule and cannot import electronRun
+          ELECTRON_DISABLE_SANDBOX: '1'
+          # The runner has no keychain; this lets the agent pictures keep a stand-in key anyway.
+          ESTELLA_SECRETS_PLAINTEXT: '1'
+        run: |
+          read -r -a names <<< "$CHECK_NAMES"
+          xvfb-run -a --server-args="-screen 0 ${XVFB_SCREEN}" node scripts/editor-checks/run.mjs "${names[@]}"
+      - name: Keep the actual frames
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: editor-acceptance-frames
+          path: output/editor-acceptance/
+          retention-days: 7
+      - name: Verify trusted transform-handle hover
+        if: always() && inputs.gizmo_hover && steps.build_editor.conclusion == 'success'
+        env:
+          ESTELLA_MCP_EDITOR_VISIBLE: '1'
+        run: node tools/verify-gizmo-hover.mjs
+      - name: Keep trusted hover evidence
+        if: always() && inputs.gizmo_hover
+        uses: actions/upload-artifact@v7
+        with:
+          name: gizmo-hover-editor-checks
+          path: output/gizmo-hover-ci/
+          retention-days: 7

@@ -1,0 +1,796 @@
+name: Release Desktop App
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # Dry run: exercises the full pipeline (engine build + both platform
+  # packagers) but never touches a GitHub release — installers upload as
+  # workflow artifacts instead. Use to validate workflow changes without
+  # burning a tag.
+  workflow_dispatch:
+
+# Signing the macOS build is optional, and everything degrades when it is absent:
+# five secrets — MAC_CSC_LINK (base64 of the Developer ID Application .p12),
+# MAC_CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID.
+# Unset, electron-builder logs that it skipped signing and notarization and still
+# produces installers, and the editor keeps handing macOS users a download link
+# instead of updating in place (electron/autoUpdate.ts settles that by reading the
+# running bundle's own signature). Windows needs no certificate to auto-update; one
+# would buy a quiet SmartScreen, not the capability.
+#
+# Those secrets are macOS's alone, and the packager step scopes them to that leg on
+# purpose. `CSC_LINK` is electron-builder's PLATFORM-NEUTRAL certificate variable:
+# exported to the Windows leg it signs the installer with the Apple certificate,
+# which Windows cannot chain to a trusted root — and electron-updater refuses to
+# install any update whose signature is not Valid. v0.36.0 shipped that way, so every
+# Windows install from it is stuck on the download link until it is reinstalled once.
+
+# Read by default; the two jobs that touch the release raise it to contents:write.
+permissions:
+  contents: read
+
+jobs:
+  # The single writer that creates the draft release. electron-builder's GitHub
+  # publisher creates a draft lazily when none exists, so parallel platform
+  # jobs used to race and produce duplicate drafts with the artifacts split
+  # between them (it even recurred under max-parallel: 1). With the draft
+  # pre-created here, every platform finds it and uploads into it — safe to
+  # run in parallel.
+  draft:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # The release body is the tag's own section of CHANGELOG.md (the release
+      # commit lands the section before the tag, so it is always present here).
+      #
+      # Existing is not the same as correct, and asking only "does it exist"
+      # is how 0.52.0 published with an EMPTY body: its release had been created
+      # by electron-builder (which names it after package.json's version and
+      # writes no notes) after this job's own draft was deleted mid-run, so the
+      # short-circuit saw a release and left the notes it never wrote. Writing
+      # title and body unconditionally makes this job the author of both no
+      # matter who created the row. `edit` deliberately does not touch --draft:
+      # re-running against an already-published tag must not unpublish it.
+      - name: Create or correct the release with this version's changelog section
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v ver="$v" 'index($0, "## [" ver "]") == 1 {f=1; next} /^## \[/ {if (f) exit} f' CHANGELOG.md > /tmp/notes.md
+          grep -q '[^[:space:]]' /tmp/notes.md || echo "See CHANGELOG.md for this release's notes." > /tmp/notes.md
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --title "$GITHUB_REF_NAME" \
+              --notes-file /tmp/notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --draft --title "$GITHUB_REF_NAME" \
+              --notes-file /tmp/notes.md
+          fi
+
+  # The engine wasm is platform-independent, so it is compiled ONCE here and
+  # shared with the platform packagers as an artifact. This is what the
+  # installers ship — both platforms package byte-identical engine binaries.
+  # Linux gets ccache (same key as build.yml, so every master push keeps this
+  # cache warm); the old per-platform scheme compiled the engine cold on
+  # Windows every release (~10 min of the ~19 min job).
+  engine:
+    name: Build engine (wasm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/engine-submodules
+      - uses: ./.github/actions/setup
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: 5.0.0
+          actions-cache-folder: .emsdk-ci
+          cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
+
+      # Shares the key build.yml fills, so it has to agree on the ceiling —
+      # whichever workflow names the smallest one trims the cache back to it.
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2.23
+        with:
+          key: ${{ runner.os }}-emscripten
+          max-size: 2G
+
+      # `-t all` builds the WeChat GLX engine with WeChat's library and emsdk 4.0.10
+      # (build-tools/toolchain/glx.js); both are pinned, so they are fetched once.
+      - name: Cache the GLX toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            tools/emsdk-glx
+            build/glx
+          key: glx-emsdk-4.0.10-lib-0.1.11-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Build engine and sync to desktop
+        run: node build-tools/cli.js build -t all
+
+      - name: Upload engine artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: engine-wasm
+          path: |
+            desktop/public/wasm
+            desktop/public/wasm-wechat
+            desktop/public/wasm-wechat-glx
+            desktop/public/wasm-wechat-lite
+            desktop/public/wasm-quickgame
+          retention-days: 3
+
+      - name: Install the virtual display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libasound2t64 libgtk-3-0t64 libgbm1
+
+      - name: Capture the shipped example for the website
+        run: node tools/capture-release-frame.mjs out/release-site-frame
+
+      - name: Keep compositor and game-canvas capture diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-capture-diagnostics
+          path: |
+            out/release-site-frame/*.png
+            out/release-site-frame/capture.log
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Upload the real game frame and provenance
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-site-frame
+          path: |
+            out/release-site-frame/celestial-heights-frame.png
+            out/release-site-frame/hero-provenance.json
+          retention-days: 3
+
+  # The native app's compiled half — the engine, Dawn, QuickJS, the linked-in
+  # runtimes — carries no project data, so it is built ONCE per release and
+  # published as a runtime template the editor installs. This is what frees a
+  # developer from cloning the engine and building Dawn to ship to a phone.
+  #
+  # Dawn is the expensive part (gigabytes to fetch, minutes to build, three
+  # targets), and it is pinned in toolchain.manifest.json — so the fetch AND the
+  # build cache on that commit, and a release that does not move the pin pays for
+  # neither.
+  native-templates:
+    name: Build runtime template (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ios
+            os: macos-latest
+          - name: android
+            os: ubuntu-latest
+          - name: macos
+            os: macos-latest
+          - name: windows
+            os: windows-latest
+          - name: linux
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      # With submodules: the host links box2d, spine and glm from third_party, and
+      # a checkout without them fails at configure with a directory that has no
+      # CMakeLists.txt — which is exactly how this job failed the first time it ran.
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/engine-submodules
+      - uses: ./.github/actions/setup
+
+      # The SDK bundle is compiled INTO the host binary, which is why a template
+      # is matched exactly against the editor version that ships with it.
+      - name: Build SDK
+        run: pnpm --filter ./sdk build
+
+      # Android builds through its own action, which does these three itself.
+      - name: Read the native dependency pins
+        if: matrix.name != 'android'
+        id: pins
+        shell: bash
+        run: node build-tools/cli.js native --deps-cache-key ${{ matrix.name }} >> "$GITHUB_OUTPUT"
+
+      # Keyed on the pins and the target: the checkout and the Dawn builds are
+      # reproducible for a given commit, so this is warm on every release that
+      # does not move it.
+      - name: Cache the pinned checkouts + Dawn builds
+        if: matrix.name != 'android'
+        uses: actions/cache@v4
+        with:
+          path: build/native-deps
+          key: ${{ steps.pins.outputs.key }}
+
+      # Dawn and the host both build with Ninja; neither tool is guaranteed on a
+      # macOS runner (the Android SDK carries its own pair).
+      - name: Set up CMake + Ninja
+        if: startsWith(matrix.os, 'macos')
+        run: brew install cmake ninja
+
+      # Vulkan for Dawn, X11/Wayland for the window, fontconfig and libcurl for the
+      # per-OS seam — plus the software Vulkan driver, which is what makes a
+      # runner with no GPU able to answer the pixel question below.
+      - name: Set up the Linux desktop dependencies
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libvulkan-dev mesa-vulkan-drivers xvfb \
+            libx11-dev libx11-xcb-dev libxcb1-dev libxext-dev libxfixes-dev libxrandr-dev \
+            libxi-dev libxcursor-dev libxinerama-dev libxss-dev libxtst-dev \
+            libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev \
+            libdbus-1-dev libibus-1.0-dev libudev-dev libdrm-dev libgbm-dev \
+            libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libasound2-dev libpulse-dev libfontconfig1-dev libcurl4-openssl-dev
+
+      - name: Set up Ninja (Windows)
+        if: matrix.name == 'windows'
+        uses: seanmiddleditch/gha-setup-ninja@v6
+
+      # Ninja invokes the compiler directly, so cl.exe and the Windows SDK have to
+      # be on PATH — a Developer Command Prompt's environment, without the prompt.
+      - name: Set up MSVC
+        if: matrix.name == 'windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # A build leaves two cores free so a desktop stays usable; a runner has nothing
+      # else to do, and macOS has three, so iOS compiled on one thread, twice.
+      - name: Compile on every core
+        shell: bash
+        run: echo "ESTELLA_BUILD_JOBS=${NUMBER_OF_PROCESSORS:-$(getconf _NPROCESSORS_ONLN)}" >> "$GITHUB_ENV"
+
+      - name: Fetch Dawn + QuickJS at their pinned commits
+        if: matrix.name != 'android'
+        run: node build-tools/cli.js native --fetch-deps
+
+      # `native` builds Dawn for the target if the cache did not carry it, then
+      # the host, then emits the template — the same command a contributor runs.
+      - name: Build the iOS template (device + simulator)
+        if: matrix.name == 'ios'
+        run: |
+          node build-tools/cli.js native --target ios --simulator --no-template
+          node build-tools/cli.js native --target ios --template-out artifacts
+
+      - name: Build the Android template (arm64 + x86_64)
+        if: matrix.name == 'android'
+        uses: ./.github/actions/android-template
+        with:
+          out: artifacts
+
+      # One executable per OS, and no Steamworks SDK on it: the redistributable is
+      # licensed to partners, so it reaches a package from the developer's own SDK
+      # (Project Settings -> Packaging -> Steamworks SDK), never from here.
+      - name: Build the desktop template
+        if: matrix.name == 'macos' || matrix.name == 'windows'
+        run: node build-tools/cli.js native --target ${{ matrix.name }} --template-out artifacts
+
+      # Its own step for one reason: clang. Dawn ships a C++20 module target and
+      # CMake will not generate for a compiler whose import graph it cannot scan,
+      # which the runner's default gcc is.
+      - name: Build the desktop template (Linux)
+        if: matrix.name == 'linux'
+        env:
+          CC: clang
+          CXX: clang++
+        run: node build-tools/cli.js native --target linux --template-out artifacts
+
+      # The claim a template archive cannot make: that a game packaged from it
+      # DRAWS. These two runners are the platforms themselves, so the pixel judge
+      # the web target has always had finally reaches the native runtime — no
+      # simulator, no device (docs/REARCH_STEAM.md 6.2).
+      # The corpus comes from the golden registry, so "desktop is covered" names the
+      # same games the web and mini-game launchers carry. Pinned to the PR tier
+      # until a nightly has shown the heavier ones (spine, multiplayer) package and
+      # run on these platforms — a release gate is the wrong place to find out.
+      - name: A game packaged from it renders
+        if: matrix.name == 'macos' || matrix.name == 'windows'
+        run: node tools/verify-desktop-render.mjs --tier pr
+
+      # Under a virtual display, on a software Vulkan driver: an ubuntu runner has
+      # neither a screen nor a GPU, and the judge reads PIXELS — so give it the two
+      # things it needs rather than weakening what it asks.
+      - name: A game packaged from it renders (Linux)
+        if: matrix.name == 'linux'
+        run: |
+          # What the loader can actually see, printed rather than assumed: naming
+          # an ICD file by hand is how a driver stops being found at all, and the
+          # symptom is Vulkan reporting no surface extension.
+          ls -l /usr/share/vulkan/icd.d/ || true
+          xvfb-run -a --server-args="-screen 0 1280x720x24" node tools/verify-desktop-render.mjs --tier pr
+
+      - name: Upload template artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-template-${{ matrix.name }}
+          path: artifacts/*.zip
+          retention-days: 3
+
+  smoke-templates:
+    name: Boot the templates this release will publish
+    needs: [draft, native-templates, engine]
+    if: github.event_name == 'push' && needs.draft.result == 'success'
+    uses: ./.github/workflows/native-smoke.yml
+    with:
+      engine-artifact: engine-wasm
+      unanswered-passes: true
+
+  # One job holds every archive, so only it can describe the set: the index
+  # carries a digest per template, and the editor refuses a download that does not
+  # match it.
+  publish-templates:
+    needs: [draft, native-templates]
+    if: github.event_name == 'push' && needs.draft.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # The index is written by the repo's own tooling, which needs the repo's own
+      # dependencies — this job ran `cli.js` without them and got as far as
+      # "Cannot find package 'commander'".
+      - uses: ./.github/actions/setup
+
+      - name: Download every template archive
+        uses: actions/download-artifact@v8
+        with:
+          pattern: native-template-*
+          merge-multiple: true
+          path: artifacts
+
+      - name: Write native-templates.json
+        run: node build-tools/cli.js native --template-index artifacts
+
+      - name: Upload the templates to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" artifacts/* --repo "$GITHUB_REPOSITORY" --clobber
+
+  # The third-party tools a project can switch on (Luban and the .NET runtime it runs on), pinned in
+  # tools/external-tools.manifest.json. Each vendor file is checked against its pin, repackaged as a .zip and
+  # attached to the release with an index, so a release carries exactly the tool versions it was built
+  # against and mirror-release.yml copies them to dl.estella.games with everything else. The editor
+  # refuses a file that does not match the index, and an index built from another vendor file than the
+  # engine pins. A vendor file that no longer matches its pin stops this job rather than being published.
+  publish-external-tools:
+    needs: [draft]
+    if: github.event_name == 'push' && needs.draft.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - name: Build the tool archives and their index
+        run: |
+          command -v 7z >/dev/null || sudo apt-get install -y p7zip-full
+          node tools/sync-external-tools.mjs --out tool-files
+
+      - name: Upload them to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" tool-files/* --repo "$GITHUB_REPOSITORY" --clobber
+
+  release:
+    # Platform jobs only package: SDK + renderer builds are quick TS/JS work,
+    # and electron-builder needs the native OS. No emsdk, no C++ here.
+    needs: [draft, engine]
+    # Run on dry runs too, where draft is skipped by design.
+    if: >-
+      always() && needs.engine.result == 'success' &&
+      (github.event_name != 'push' || needs.draft.result == 'success')
+    strategy:
+      fail-fast: false
+      # Windows + macOS only — the Linux AppImage is dropped from releases
+      # until there is real demand for it.
+      matrix:
+        platform:
+          - macos-latest
+          - windows-latest
+
+    runs-on: ${{ matrix.platform }}
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # The editor is private. Without its key this job fails here rather than
+      # publishing an installer built from whatever was left behind.
+      - uses: ./.github/actions/editor-checkout
+        with:
+          ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
+
+      - uses: ./.github/actions/setup
+
+      - name: Download engine artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: engine-wasm
+          path: desktop/public
+
+      - name: Build SDK
+        run: pnpm --filter ./sdk build
+
+      - name: Build desktop renderer + main
+        run: pnpm --filter ./desktop build
+
+      # electron-builder makes its own keychain and unlocks it with a password it
+      # generated. On the runner provisioner that landed 2026-08-28 that unlock
+      # fails — `set-key-partition-list` calls the passphrase wrong before anything
+      # is signed — while the same secrets signed fine on 20260707.563. So the
+      # keychain is stood up here, where its password is known, and handed over.
+      # BOTH legs: the dry run's own comment calls itself "signed and notarized like
+      # the real thing", and gating this to a tag push made it the one leg that
+      # signed by another mechanism — and the one nobody had ever run.
+      - name: Stand up the signing keychain
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        env:
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/estella-signing.keychain-db"
+          PASSWORD="$(openssl rand -base64 24)"
+          security create-keychain -p "$PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
+          printf '%s' "$MAC_CSC_LINK" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$MAC_CSC_KEY_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          # An identity that is not there signs nothing and says nothing: without
+          # this the build would ship UNSIGNED, which reads as a success.
+          security find-identity -v -p codesigning "$KEYCHAIN" | grep -q 'Developer ID Application' \
+            || { echo '::error::the signing keychain holds no Developer ID Application identity'; exit 1; }
+          echo "CSC_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
+      - name: Package and publish desktop app
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # CSC_LINK is declared on NEITHER leg. Empty is not absent: 26.15.3
+          # resolves "" as a path and dies with "<projectDir> not a file". macOS
+          # signs out of the CSC_KEYCHAIN stood up above, and Windows must never
+          # see a certificate here — CSC_LINK is electron-builder's PLATFORM-NEUTRAL
+          # variable, so that leg would sign its NSIS installer with the Apple
+          # Developer ID .p12, stamp the identity into app-update.yml as
+          # `publisherName`, and electron-updater would refuse every update whose
+          # Authenticode status is not Valid. v0.36.0 shipped exactly that way.
+          # An app-specific password, NOT the Apple ID's own.
+          APPLE_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
+        # electron-builder's GitHub publisher dedups assets on re-upload, so the
+        # whole command is idempotent — retry it to ride out GitHub API 5xx
+        # blips (a 503 on GET /releases has failed an otherwise-finished build
+        # mid-upload). Backs off 30s, 60s between attempts.
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm --filter ./desktop exec electron-builder --publish always; then
+              exit 0
+            fi
+            echo "::warning::electron-builder publish attempt $attempt failed"
+            [ "$attempt" -lt 3 ] && sleep "$((attempt * 30))"
+          done
+          echo "::error::electron-builder publish failed after 3 attempts"
+          exit 1
+
+      # Signed and notarized like the real thing, because a dry run that skips the
+      # half most likely to break is not a rehearsal. Signing is where a release
+      # fails for reasons no earlier job can see — an expired certificate, a
+      # revoked app-specific password, a .p12 exported without its private key —
+      # and finding that out on a tag means finding it out in front of everyone.
+      - name: Package desktop app (dry run, no publish)
+        if: github.event_name != 'push'
+        env:
+          # CSC_LINK is declared on NEITHER leg, for the reasons the publish step
+          # gives: macOS signs out of the CSC_KEYCHAIN above, and this leg handing
+          # electron-builder the .p12 instead failed on set-key-partition-list —
+          # a rehearsal of a mechanism the release does not use.
+          APPLE_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.platform == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
+        run: pnpm --filter ./desktop exec electron-builder --publish never
+
+      # The invariant an update depends on, checked where it is cheap to check.
+      # electron-updater installs a Windows update only when Get-AuthenticodeSignature
+      # reports Valid, so an installer carrying a signature Windows will not accept is
+      # strictly worse than an unsigned one: it poisons `publisherName` in
+      # app-update.yml and every future update from that install is refused. Unsigned
+      # is fine (nothing to verify) and properly signed is fine; the state between
+      # them is the one that has already shipped once, so fail the release on it.
+      #
+      # It runs after publish rather than before because electron-builder packages and
+      # uploads in one command — which is enough, since releases are created as DRAFTS
+      # and a maintainer publishes them: a red job is seen before anyone can download.
+      - name: Windows installer must be unsigned or validly signed
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bad = @()
+          foreach ($exe in Get-ChildItem desktop/release/*.exe) {
+            $sig = Get-AuthenticodeSignature -LiteralPath $exe.FullName
+            Write-Host "$($exe.Name): $($sig.Status)"
+            if ($sig.Status -ne 'NotSigned' -and $sig.Status -ne 'Valid') {
+              $bad += "$($exe.Name) is signed but Windows reports '$($sig.Status)' ($($sig.StatusMessage)); signer: $($sig.SignerCertificate.Subject)"
+            }
+          }
+          if ($bad) {
+            Write-Error ("Windows auto-update would be refused by every installed editor:`n" + ($bad -join "`n"))
+            exit 1
+          }
+
+      - name: Upload installer artifact (dry run)
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@v7
+        with:
+          name: installer-${{ matrix.platform }}
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.dmg
+            desktop/release/*.zip
+          retention-days: 3
+
+      - name: Install the previous Windows release and upgrade the saved project
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $previous = [regex]::Matches((Get-Content CHANGELOG.md -Raw), '^## \[(\d+\.\d+\.\d+)\]', 'Multiline') | ForEach-Object { $_.Groups[1].Value } | Where-Object { $_ -ne $version } | Select-Object -First 1
+          if (!$previous) { throw 'No previous release declared in CHANGELOG' }
+          $downloads = Join-Path $env:RUNNER_TEMP 'estella-upgrade-downloads'
+          $installed = Join-Path $env:RUNNER_TEMP 'estella-upgrade-installed'
+          $project = Join-Path $env:RUNNER_TEMP 'estella-upgrade-project'
+          $evidence = Join-Path $env:GITHUB_WORKSPACE 'out/installer-acceptance'
+          New-Item -ItemType Directory -Force $downloads | Out-Null
+          gh release download "v$previous" --repo $env:GITHUB_REPOSITORY --pattern "Estella-Editor-Setup-$previous.exe" --dir $downloads
+          if ($LASTEXITCODE -ne 0) { throw 'Previous installer download failed' }
+          $oldInstaller = Join-Path $downloads "Estella-Editor-Setup-$previous.exe"
+          $install = Start-Process -FilePath $oldInstaller -ArgumentList '/S', "/D=$installed" -WindowStyle Hidden -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Previous installer exit $($install.ExitCode)" }
+          $exe = Join-Path $installed 'estella-editor.exe'
+          $front = Join-Path $installed 'resources/app.asar.unpacked/dist-electron/mcp/editor-mcp.mjs'
+          if ((Get-Item $exe).VersionInfo.FileVersion -ne $previous) { throw 'Previous installed version mismatch' }
+          node tools/exercise-installed-upgrade.mjs seed $front $exe $project $evidence (Join-Path $installed 'resources/examples/platformer')
+          if ($LASTEXITCODE -ne 0) { throw 'Previous installed project save failed' }
+          $candidate = Join-Path $env:GITHUB_WORKSPACE "desktop/release/Estella-Editor-Setup-$version.exe"
+          $upgrade = Start-Process -FilePath $candidate -ArgumentList '/S', "/D=$installed" -WindowStyle Hidden -Wait -PassThru
+          if ($upgrade.ExitCode -ne 0) { throw "Candidate installer exit $($upgrade.ExitCode)" }
+          if ((Get-Item $exe).VersionInfo.FileVersion -ne $version) { throw 'Upgraded installed version mismatch' }
+          node tools/exercise-installed-upgrade.mjs verify $front $exe $project $evidence
+          if ($LASTEXITCODE -ne 0) { throw 'Installed project upgrade failed' }
+          $env:ESTELLA_E2E_FRONT = $front
+          $env:ESTELLA_MCP_EDITOR_ARGS = '--mcp-hidden --force-device-scale-factor=1'
+          $env:ESTELLA_E2E_EXPORT = '1'
+          Push-Location desktop
+          node scripts/editor-mcp-editor-e2e.mjs
+          Pop-Location
+          if ($LASTEXITCODE -ne 0) { throw 'Installed editor end-to-end check failed' }
+
+      - name: Install the previous macOS release and upgrade the saved project
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          previous=$(node --input-type=module -e "import fs from 'node:fs';const v=JSON.parse(fs.readFileSync('package.json')).version;console.log([...fs.readFileSync('CHANGELOG.md','utf8').matchAll(/^## \\[(\\d+\\.\\d+\\.\\d+)\\]/gm)].map(m=>m[1]).find(x=>x!==v)??'')")
+          test -n "$previous"
+          downloads="$RUNNER_TEMP/estella-upgrade-downloads"
+          installed="$RUNNER_TEMP/estella-upgrade-installed"
+          project="$RUNNER_TEMP/estella-upgrade-project"
+          evidence="$GITHUB_WORKSPACE/out/installer-acceptance"
+          mount="$RUNNER_TEMP/estella-upgrade-volume"
+          mkdir -p "$downloads" "$installed" "$mount"
+          gh release download "v$previous" --repo "$GITHUB_REPOSITORY" --pattern "Estella-Editor-$previous-arm64.dmg" --dir "$downloads"
+          trap 'hdiutil detach "$mount" >/dev/null 2>&1 || true' EXIT
+          hdiutil attach -quiet -nobrowse -readonly "$downloads/Estella-Editor-$previous-arm64.dmg" -mountpoint "$mount"
+          app="$installed/estella-editor.app"
+          ditto "$mount/estella-editor.app" "$app"
+          hdiutil detach "$mount"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$previous"
+          front="$app/Contents/Resources/app.asar.unpacked/dist-electron/mcp/editor-mcp.mjs"
+          exe="$app/Contents/MacOS/estella-editor"
+          node tools/exercise-installed-upgrade.mjs seed "$front" "$exe" "$project" "$evidence" "$app/Contents/Resources/examples/platformer"
+          # Keep the old installation intact as evidence; install the new DMG at
+          # the same application path, as replacing a bundle in Finder does.
+          mv "$app" "$RUNNER_TEMP/estella-previous-installed.app"
+          hdiutil attach -quiet -nobrowse -readonly "desktop/release/Estella-Editor-$version-arm64.dmg" -mountpoint "$mount"
+          ditto "$mount/estella-editor.app" "$app"
+          hdiutil detach "$mount"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$version"
+          codesign --verify --deep --strict "$app"
+          node tools/exercise-installed-upgrade.mjs verify "$front" "$exe" "$project" "$evidence"
+          export ESTELLA_E2E_FRONT="$front"
+          export ESTELLA_MCP_EDITOR_ARGS='--mcp-hidden --force-device-scale-factor=1'
+          export ESTELLA_E2E_EXPORT=1
+          (cd desktop && node scripts/editor-mcp-editor-e2e.mjs)
+
+      # When the installed editor dies, the front only knows that it stopped. The editor's
+      # own record of why (main-errors.log: uncaught exceptions, renderer and GPU process
+      # losses) and its crash dumps live in its profile, which the runner throws away.
+      - name: Keep the installed editor's logs and crash dumps
+        if: failure()
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            Windows) profile="$APPDATA/@estella/editor" ;;
+            macOS) profile="$HOME/Library/Application Support/@estella/editor" ;;
+            *) profile="$HOME/.config/@estella/editor" ;;
+          esac
+          out="$GITHUB_WORKSPACE/out/installer-acceptance/editor-profile"
+          mkdir -p "$out"
+          for d in logs Crashpad; do
+            [ -d "$profile/$d" ] && cp -R "$profile/$d" "$out/" || echo "no $d under $profile"
+          done
+          ls -R "$out" | head -50
+
+      - name: Keep installed upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: installed-upgrade-${{ matrix.platform }}
+          path: out/installer-acceptance
+          if-no-files-found: warn
+          retention-days: 3
+
+  # Publishing is the last step, and the one that has to be sure. A release missing
+  # a runtime template is a Download button that 404s — which is what 0.33.0
+  # shipped, because the templates were not built yet and nothing checked. So the
+  # draft is only flipped public once it carries everything this pipeline produces,
+  # and the check names what is missing rather than failing blank.
+  #
+  # Publishing is also what starts the mirror: mirror-release.yml runs on
+  # `release: published`, when the assets are final and downloadable by tag.
+  publish:
+    name: Publish the release
+    needs: [draft, release, publish-templates, publish-external-tools, smoke-templates]
+    if: >-
+      github.event_name == 'push' &&
+      needs.release.result == 'success' &&
+      needs.publish-templates.result == 'success' &&
+      needs.smoke-templates.result == 'success' &&
+      needs.publish-external-tools.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
+
+      - name: Check the release carries everything
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # One row per tag, checked FIRST because every question below is asked
+          # of "the" release and `gh release view` picks arbitrarily between a
+          # pair. electron-builder creates a release of its own whenever it finds
+          # no draft for the tag, and its concurrent uploads can create two — 0.52.0
+          # ended up with a second, half-filled row that way. Publishing one of a
+          # pair strands the other's assets silently, so stop and let a human pick.
+          rows=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq "[.[] | select(.tag_name == \"$GITHUB_REF_NAME\")] | length")
+          if [ "$rows" -ne 1 ]; then
+            echo "::error::$rows releases carry the tag $GITHUB_REF_NAME — exactly one must"
+            exit 1
+          fi
+
+          assets=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name')
+          echo "$assets"
+          missing=""
+          for want in 'Estella-Editor-Setup-.*[.]exe' 'Estella-Editor-.*[.]dmg' 'latest[.]yml' 'latest-mac[.]yml' 'native-templates[.]json' 'estella-native-android-.*[.]zip' 'estella-native-ios-.*[.]zip'; do
+            printf '%s\n' "$assets" | grep -qE "^$want$" || missing="$missing $want"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::the draft is missing:$missing"
+            exit 1
+          fi
+
+          # Structural above: did we remember to list it. Referential here: does
+          # what we published hold together. The macOS zip is what Squirrel.Mac
+          # installs from and it was on no list, so a release without it passed
+          # while every macOS auto-update failed fetching the file latest-mac.yml
+          # names. A fixed list cannot survive electron-builder renaming an
+          # artifact; the manifests always name what the updater will fetch.
+          rm -rf .release-manifests && mkdir -p .release-manifests
+          echo "$assets" > .release-manifests/assets.txt
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --pattern 'latest*.yml' --dir .release-manifests --clobber
+          node tools/check-release-manifest-refs.mjs \
+            --assets .release-manifests/assets.txt --manifests .release-manifests
+
+          # The notes are what a reader of the release actually gets, and they are
+          # the one thing here no later job would notice missing: 0.52.0 published
+          # with an empty body and every asset present. The draft job writes it
+          # from CHANGELOG.md, so empty means that job never reached this row.
+          body=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json body -q '.body')
+          if ! printf '%s' "$body" | grep -q '[^[:space:]]'; then
+            echo "::error::the release has no notes — CHANGELOG.md section for $GITHUB_REF_NAME never reached it"
+            exit 1
+          fi
+
+      # Names on a release say nothing about what is inside the archives, and the
+      # thing that goes wrong is inside: v0.36.0 published an Android template with
+      # no precompiled bytecode, so every game packaged from it opened on a black
+      # screen the first time and nothing here noticed. Check the contents against
+      # the same table the emitter writes from, under release strictness.
+      - name: Check the templates carry everything
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            -p 'estella-native-*.zip' -D templates
+          node build-tools/cli.js verify-template templates/*.zip
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          echo "### Published $GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
+
+  # The mirror runs from here, after the publish above, because the assets it
+  # copies live in a draft until then and a draft cannot be downloaded by tag.
+  #
+  # It used to follow the `release: published` event instead, which worked for
+  # exactly as long as a human clicked Publish: an event raised by a job holding
+  # GITHUB_TOKEN starts no workflow, so the moment publishing became automatic
+  # the mirror stopped following releases and nothing said so. v0.34.1 published
+  # with no mirrored copy at all. Calling the workflow is not an event, so this
+  # cannot go quiet the same way; mirror-release.yml keeps its `release` trigger
+  # for a release published by hand, and its dispatch for re-mirroring old tags.
+  mirror:
+    needs: publish
+    uses: ./.github/workflows/mirror-release.yml
+    secrets: inherit
+    with:
+      tag: ${{ github.ref_name }}
+
+  # The site alongside the binaries, for the same reason the mirror is here: both
+  # describe the release that just went out, and a release is the moment they stop
+  # being true. The landing page bakes in desktop/package.json's version and links
+  # the mirror's `latest/` names, so a deploy that lags a release advertises the
+  # previous one — and every guide written for what just shipped sits in the repo,
+  # published nowhere. After `publish`, not beside it: a draft that never became a
+  # release should not move the documentation.
+  #
+  # Deploying Pages needs the ref to be allowed by the `github-pages`
+  # ENVIRONMENT's deployment branch policy, which lives in repository settings
+  # and not in any file here. It listed `master` and `docs-v*` — the two refs
+  # that used to deploy — so the first release to reach this job was rejected
+  # before its first step ran, which reads as a job that failed for no reason
+  # (an empty step list is the tell). `v*` is allowed now; a fork or a fresh
+  # clone has to add it once, under Settings → Environments → github-pages.
+  docs:
+    needs: [publish, mirror]
+    uses: ./.github/workflows/docs.yml
+    with:
+      engine-artifact-run: ${{ github.run_id }}
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write

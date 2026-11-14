@@ -1,0 +1,84 @@
+name: Publish the downloadable examples
+
+# The large sample projects are not in the editor's installer: the launcher fetches one
+# when it is picked (pipeline/src/project/remoteExamples.ts). This packs them and puts
+# them on Cloudflare R2 under examples/, beside the release mirror.
+#
+# Archives are named by a prefix of their own digest, so an editor that has read an
+# older index keeps finding the file it was told about, and re-running changes nothing
+# when the files did not. The index is written last: an editor must never read a list
+# whose archives are still uploading. Without the R2 secrets every step skips.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'examples/bistro/**'
+      - 'examples/dusk-fort/**'
+      - 'examples/terrain-water/**'
+      - 'examples/cyber-rooftop/**'
+      - 'build-tools/utils/remoteExamples.js'
+      - 'build-tools/utils/zip.js'
+      - 'tools/pack-examples.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-examples
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Pack and upload the examples
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for a configured bucket
+        id: cfg
+        env:
+          KEY: ${{ secrets.R2_ACCESS_KEY_ID }}
+        run: echo "configured=${{ env.KEY != '' }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        if: steps.cfg.outputs.configured == 'true'
+
+      - uses: ./.github/actions/setup
+        if: steps.cfg.outputs.configured == 'true'
+
+      - name: Pack
+        if: steps.cfg.outputs.configured == 'true'
+        run: node tools/pack-examples.mjs --out build/examples
+
+      - name: Upload the archives, then the index
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          aws s3 sync build/examples "s3://$BUCKET/examples/" --endpoint-url "$ENDPOINT" --no-progress \
+            --exclude index.json --cache-control "public, max-age=31536000, immutable"
+          aws s3 cp build/examples/index.json "s3://$BUCKET/examples/index.json" --endpoint-url "$ENDPOINT" \
+            --cache-control "max-age=300" --content-type application/json
+
+      - name: Prove every archive the index names is served as published
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
+        run: |
+          base="${PUBLIC_BASE%/}/examples"
+          while IFS=$'\t' read -r file bytes; do
+            got=$(curl -sS -I "$base/$file" | tr -d '\r' | awk -F': *' 'tolower($1) == "content-length" { v = $2 } END { print v }')
+            if [ "$got" != "$bytes" ]; then
+              echo "::error::$base/$file serves ${got:-nothing}, expected $bytes bytes"
+              exit 1
+            fi
+          done < <(jq -r '.examples[] | [.file, (.bytes | tostring)] | @tsv' build/examples/index.json)
+          echo "every archive in the index is served at its published size"
+
+      - name: Say why nothing happened
+        if: steps.cfg.outputs.configured != 'true'
+        run: echo "::notice::No R2 secrets configured — the examples are not published."

@@ -1,0 +1,1333 @@
+name: Build
+
+# Every push to develop, every pull request into master and every merge to master must keep the
+# architecture invariants green: boundary guards, full-component ABI static_asserts (compiled by the
+# web build), the C++ doctest harnesses, and both TS suites. Work lands on develop and reaches master
+# only through a pull request, which `Build passed` gates. workflow_dispatch stays for re-runs.
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  # master queues: a push there must finish its run (a Packages job alone is 35 minutes), or a
+  # busy day leaves master with no result at all. Branches and PRs still cancel what they supersede.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+# Least privilege: this workflow only reads the repo and moves artifacts (the
+# artifact API runs on its own runtime token, not contents). Nothing here writes
+# to the repo, so the default read-all token is narrowed to contents:read.
+permissions:
+  contents: read
+
+# Single source of truth for the C++ doctest harnesses: every job's build-target
+# list and run loop derives from it, so a new harness can no longer be compiled-
+# but-never-run (the hand-kept lists had drifted).
+env:
+  CPP_TESTS: >-
+    test_ecs test_events test_particle test_tilemap test_tilemap_context test_sparse_set
+    test_resource_pool test_shader_variant test_log_format test_registry_safety
+    test_registry_ondestroy test_view_api_matrix
+    test_hierarchy_links test_entity_activity test_transform_traversal test_ui_tree test_tween_activity test_springbone
+    test_shader_device test_draw_params test_per_draw_blocks test_texture_fb test_buffer_device
+    test_frame_pacer test_audio_watchdog test_packaged_config test_mapped_file test_sdf_generator
+    test_compressed_format test_batch_builder test_skeletal_batch_color test_boundary_span test_webgpu_device
+    test_clip_depth test_planar_reflection test_sort_key test_retained_text test_sprite_mask_range test_sprite_draw_mode test_shadow_atlas test_particle_shapes test_lod_selection test_placement_bounds test_billboard_facing test_impostor_frames test_view_shading test_mesh_edges test_hdr_format test_probe_store test_occlusion_view test_reflection_store test_tiled_lights test_light_layers test_shadow_channels
+    test_text_edit test_render_graph test_device_loss test_physics_interpolation
+    test_bitmap_font test_texture_cache test_material_shader_lifetime test_mesh_recovery test_aot_host test_aot_conformance
+    test_touch_stream
+    test_frame_lifecycle
+    test_particle_stretch test_particle_speed_limit test_particle_bursts
+    test_record_table test_change_stamps
+
+jobs:
+  playable-runtime:
+    name: Playable headless checks
+    runs-on: ubuntu-latest
+    needs: build-emscripten
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ./.github/actions/setup
+    - name: Download this commit's Web runtime
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-web
+        path: build/wasm/web/
+    - name: Download this commit's WeChat runtime
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-wechat
+        path: build/wasm/wechat/
+    - name: Download this commit's lite WeChat runtime
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-wechat-lite
+        path: build/wasm/wechat-lite/
+    - name: Download this commit's compatibility mini-game runtime
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-quickgame
+        path: build/wasm/quickgame/
+    - name: Build the shipping SDK
+      run: pnpm --filter ./sdk build
+    - name: Install headless Chromium
+      run: pnpm exec playwright install --with-deps chromium
+    - name: Check the verifier's failure paths
+      run: node --test tools/tests/verify-playable.e2e.mjs
+    - name: Export and check the real playable in eight local network mocks
+      shell: bash
+      run: |
+        for playable_network in mintegral unity applovin mraid tiktok pangle google meta; do
+          node pipeline/bin/estella.mjs export examples/playable-ad --profile "$playable_network" --wasm build/wasm/web --out "output/playable-ci-export-$playable_network" --json "output/playable-ci-export-$playable_network.json" || exit 1
+          node tools/verify-playable.mjs "output/playable-ci-export-$playable_network/index.html" --report "output/playable-ci-export-$playable_network.json" --scenario examples/playable-ad/playable-check.json --out "output/playable-ci-check-$playable_network" --store-url https://example.com/store || exit 1
+        done
+    - name: Export and check the complete playable starter in eight local network mocks
+      shell: bash
+      run: |
+        for playable_network in mintegral unity applovin mraid tiktok pangle google meta; do
+          node pipeline/bin/estella.mjs export templates/playable-ad --profile "$playable_network" --wasm build/wasm/web --out "output/playable-template-ci-export-$playable_network" --json "output/playable-template-ci-export-$playable_network.json" || exit 1
+          node tools/verify-playable.mjs "output/playable-template-ci-export-$playable_network/index.html" --report "output/playable-template-ci-export-$playable_network.json" --scenario templates/playable-ad/playable-check.json --out "output/playable-template-ci-check-$playable_network" --store-url https://example.com/store || exit 1
+        done
+    - name: Check WeChat starter gameplay and host outcomes in a contract host
+      run: |
+        node pipeline/bin/estella.mjs export templates/wechat-minigame --profile wechat --wasm build/wasm/wechat --out output/wechat-starter-ci-production --json output/wechat-starter-ci-production.json
+        node tools/tests/export-wechat-starter-fixture.mjs --wasm build/wasm/wechat --out output/wechat-starter-ci-fixture
+        node tools/tests/wechat-starter.e2e.mjs --dir output/wechat-starter-ci-fixture --out output/wechat-starter-ci-check
+    - name: Check OpenPaaS 2D and 3D exports in a headless contract host
+      run: node tools/tests/openpaas-runtime.e2e.mjs --wasm build/wasm/quickgame --out output/openpaas-ci-check
+    - name: Check dynamic planar reflections with genuine headless Chromium
+      run: |
+        node tools/render-host/build.mjs
+        node tools/tests/planar-reflection.e2e.mjs --webgl-only
+        node tools/tests/planar-reflection.e2e.mjs --webgl-only --prepass
+    - name: Check paused and scaled render clocks with genuine headless Chromium
+      run: node tools/tests/render-clock.e2e.mjs --webgl-only
+    - name: Check native placement bounds with genuine headless Chromium
+      run: node tools/tests/placement-bounds.e2e.mjs --webgl-only
+    - name: Check instance and deformed shadow coverage with genuine headless Chromium
+      run: node tools/tests/placement-shadows.e2e.mjs --webgl-only
+    - name: Check composite lifecycle and mixed shadow policies with genuine headless Chromium
+      run: node tools/tests/composite-batch.e2e.mjs --webgl-only
+    - name: Check 2D and 3D world residency teardown with genuine headless Chromium
+      run: node tools/tests/world-residency.e2e.mjs --webgl-only
+    - name: Check baked static proxy geometry and materials
+      run: node tools/tests/static-proxy.e2e.mjs --webgl-only
+    - name: Upload static proxy observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: static-proxy-webgl2
+        path: |
+          output/static-proxy/*.png
+          output/static-proxy/report.json
+        retention-days: 3
+    - name: Upload world residency observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: world-residency-webgl2
+        path: output/world-residency/
+        retention-days: 3
+    - name: Upload composite batching observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: composite-batch-webgl2
+        path: output/composite-batch/
+        retention-days: 3
+    - name: Upload native placement shadow observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: placement-shadow-runtime
+        path: output/placement-shadows/
+        retention-days: 3
+    - name: Upload native placement observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: placement-bounds-runtime
+        path: output/placement-bounds/
+        retention-days: 3
+    - name: Upload render clock runtime observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: render-clock-runtime
+        path: output/render-clock/
+        retention-days: 3
+    - name: Upload planar reflection runtime observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: planar-reflection-runtime
+        path: |
+          output/rm044-runtime/
+          output/rm044-runtime-prepass/
+        retention-days: 3
+    - name: Upload OpenPaaS contract observations and frames
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: openpaas-contract-checks
+        path: output/openpaas-ci-check/
+        retention-days: 3
+    - name: Check authored Poki gameplay and the standalone example in SDK mocks
+      run: |
+        node pipeline/bin/estella.mjs export examples/mobile-controls --profile poki --wasm build/wasm/web --out output/poki-training-ci-export --json output/poki-training-ci-export.json
+        node pipeline/bin/estella.mjs export examples/mobile-controls --platform web --wasm build/wasm/web --out output/poki-training-ci-standalone --json output/poki-training-ci-standalone.json
+        node tools/tests/poki-training.e2e.mjs --dir output/poki-training-ci-export --standalone output/poki-training-ci-standalone --out output/poki-training-ci-check
+    - name: Check CrazyGames gameplay, storage and host mute in SDK mocks
+      # These scripts reach into the page for the SDK itself (`import('esengine')`: Scores, Storage, Time), which only the package with the SDK
+      # copied beside it can answer; the bundled package, which is what an export makes by default, is the Poki step's above.
+      env:
+        ESTELLA_WEB_BUNDLE_ENGINE: '0'
+      run: |
+        node pipeline/bin/estella.mjs export examples/mobile-controls --profile crazygames --wasm build/wasm/web --out output/crazygames-training-ci-export --json output/crazygames-training-ci-export.json
+        node tools/tests/crazygames-training.e2e.mjs --dir output/crazygames-training-ci-export --out output/crazygames-training-ci-check
+        node tools/tests/export-crazygames-score-fixture.mjs --wasm build/wasm/web --out output/crazygames-training-ci-score-export
+        node tools/tests/crazygames-training.e2e.mjs --dir output/crazygames-training-ci-score-export --expect-scores --out output/crazygames-training-ci-score-check
+    - name: Check execution holds in an authored game and real browser media
+      # These scripts reach into the page for the SDK itself (`import('esengine')`: Scores, Storage, Time), which only the package with the SDK
+      # copied beside it can answer; the bundled package, which is what an export makes by default, is the Poki step's above.
+      env:
+        ESTELLA_WEB_BUNDLE_ENGINE: '0'
+      run: |
+        node tools/tests/export-execution-hold-fixture.mjs --wasm build/wasm/web --out output/execution-hold-ci-export
+        node tools/tests/execution-hold.e2e.mjs --dir output/execution-hold-ci-export --out output/execution-hold-ci-check
+    - name: Check YouTube readiness, SDK pause and cloud saves in SDK mocks
+      # These scripts reach into the page for the SDK itself (`import('esengine')`: Scores, Storage, Time), which only the package with the SDK
+      # copied beside it can answer; the bundled package, which is what an export makes by default, is the Poki step's above.
+      env:
+        ESTELLA_WEB_BUNDLE_ENGINE: '0'
+      run: |
+        node pipeline/bin/estella.mjs export examples/mobile-controls --profile youtube --wasm build/wasm/web --out output/youtube-training-ci-export
+        node tools/tests/youtube-training.e2e.mjs --dir output/youtube-training-ci-export --out output/youtube-training-ci-check
+    - name: Upload hash-bound local observations and screenshots
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: playable-local-mock-checks
+        path: output/playable-ci-*
+        retention-days: 3
+    - name: Upload Poki training local observations and screenshots
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: poki-training-local-mock-checks
+        path: output/poki-training-ci-*
+        retention-days: 3
+    - name: Upload CrazyGames training local observations and screenshots
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: crazygames-training-local-mock-checks
+        path: output/crazygames-training-ci-*
+        retention-days: 3
+    - name: Upload execution hold observations and screenshot
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: execution-hold-headless-checks
+        path: output/execution-hold-ci-*
+        retention-days: 3
+    - name: Upload YouTube training local mock observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: youtube-training-local-mock-checks
+        path: output/youtube-training-ci-*
+        retention-days: 3
+    - name: Upload complete playable starter local mock observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: playable-template-local-mock-checks
+        path: output/playable-template-ci-*
+        retention-days: 3
+    - name: Upload WeChat starter contract-host observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: wechat-starter-contract-checks
+        path: output/wechat-starter-ci-*
+        retention-days: 3
+
+  # The engine binaries, and nothing else: every gate below waits on this job, so
+  # a step here that no downstream job reads is a delay on all of them.
+  build-emscripten:
+    name: Web (Emscripten)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/engine-submodules
+    - uses: ./.github/actions/setup
+
+    - name: Setup Emscripten
+      # actions-cache-folder puts emsdk at a FIXED path under the workspace. Without
+      # it the toolchain lands in $RUNNER_TEMP/<fresh uuid>/ every run, so ccache hashed
+      # a different compiler and different sysroot headers each time and never hit.
+      uses: mymindstorm/setup-emsdk@v16
+      with:
+        version: 5.0.0
+        actions-cache-folder: .emsdk-ci
+        cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
+
+    # 500M could not hold ONE generation of this job's objects: 1157 compile
+    # calls, 76 cleanups inside the single job, 11% hits. Sized to the measurement.
+    # Every workflow sharing this key must agree, or the smallest one trims it back.
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2.23
+      with:
+        key: ${{ runner.os }}-emscripten
+        max-size: 2G
+
+    # `-t all` builds the WeChat GLX engine with WeChat's library and emsdk 4.0.10
+    # (build-tools/toolchain/glx.js); both are pinned, so they are fetched once.
+    - name: Cache the GLX toolchain
+      uses: actions/cache@v4
+      with:
+        path: |
+          tools/emsdk-glx
+          build/glx
+        key: glx-emsdk-4.0.10-lib-0.1.11-${{ runner.os }}-${{ runner.arch }}
+
+    - name: Build Web target
+      run: node build-tools/cli.js build -t web --no-sync
+
+    - name: Build WeChat target
+      run: node build-tools/cli.js build -t wechat --no-sync
+
+    - name: Verify build outputs
+      run: |
+        test -f build/wasm/web/esengine.js && echo "✓ Web JS"
+        test -f build/wasm/web/esengine.wasm && echo "✓ Web WASM"
+        test -f build/wasm/wechat/esengine.wxgame.js && echo "✓ WeChat JS"
+        test -f build/wasm/wechat/esengine.wxgame.wasm && echo "✓ WeChat WASM"
+
+    # No --continue-on-error: a side-module compile break must FAIL the gate.
+    # It used to be swallowed here, so a physics-module error lived on master
+    # for days and only surfaced when a release ran `build -t all` for real.
+    - name: Build remaining targets (spine, physics)
+      run: node build-tools/cli.js build -t all --no-sync
+
+    - name: Upload web wasm artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: wasm-web
+        path: build/wasm/web/
+        retention-days: 3
+
+    # `-t all` builds this and nothing carried it, so every wechat package after
+    # it said "wechat engine runtime not found" — a whole platform's packaging
+    # answered by an artifact that was built and dropped.
+    - name: Upload wechat wasm artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: wasm-wechat
+        path: build/wasm/wechat/
+        retention-days: 3
+
+    # The engine without particles, post-processing and tilemaps, which a package whose content uses none of them ships
+    # (pipeline/src/export/liteEngine.ts). Without it the size gate judges the full engine against the 4 MB limit.
+    - name: Upload lite wechat wasm artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: wasm-wechat-lite
+        path: build/wasm/wechat-lite/
+        retention-days: 3
+
+    - name: Upload compatibility mini-game wasm artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: wasm-quickgame
+        path: build/wasm/quickgame/
+        if-no-files-found: error
+        retention-days: 3
+
+    - name: Upload wechat GLX wasm artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: wasm-wechat-glx
+        path: build/wasm/wechat-glx/
+        retention-days: 3
+
+  # The C++ harnesses as the release build compiles them, on a runner of their own
+  # so the jobs waiting on the engine binaries are not also waiting on these.
+  cpp-tests:
+    name: C++ tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/engine-submodules
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v16
+      with:
+        version: 5.0.0
+        actions-cache-folder: .emsdk-ci
+        cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
+
+    # A key of its own: two jobs saving under one key overwrite each other, and
+    # each run restores the other job's objects and misses on its own.
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2.23
+      with:
+        key: emscripten-tests
+        max-size: 1G
+
+    - name: Build C++ test harnesses
+      run: |
+        emcmake cmake -S . -B build/wasm/web-tests -DCMAKE_BUILD_TYPE=Release -DES_BUILD_WEB=ON -DES_BUILD_TESTS=ON -DES_ENABLE_BOX2D=ON
+        # webgpu_engine_bringup is compiled (a link-time smoke) but not run below.
+        cmake --build build/wasm/web-tests -j "$(nproc)" --target $CPP_TESTS webgpu_engine_bringup
+
+    # The root package.json is ESM, so the emscripten-emitted .js must run as .cjs.
+    - name: Run C++ test harnesses
+      run: |
+        for t in $CPP_TESTS; do
+          cp "build/wasm/web-tests/bin/$t.js" "build/wasm/web-tests/bin/$t.cjs"
+          echo "=== $t"
+          node "build/wasm/web-tests/bin/$t.cjs"
+        done
+
+  # The same harnesses, instrumented. An out-of-bounds read that lands in
+  # allocation slack (or in the next allocation) is silent in the plain build and
+  # is exactly what these gates cannot otherwise see. Findings are fatal —
+  # ES_SANITIZE passes -fno-sanitize-recover, or UBSan would print and continue.
+  sanitizers:
+    name: C++ tests (ASan + UBSan)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/engine-submodules
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v16
+      with:
+        version: 5.0.0
+        actions-cache-folder: .emsdk-ci
+        cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
+
+    # No size here meant the action's 500M default, and Debug+ASan objects run
+    # about 2.6 MB each — 193 of them filled it to 100% with 53 cleanups. One
+    # generation is ~500 MB, so this holds two; the budget is shared, not free.
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2.23
+      with:
+        key: emscripten-asan
+        max-size: 1G
+
+    - name: Configure (ASan + UBSan)
+      run: |
+        emcmake cmake -S . -B build/wasm/asan -DCMAKE_BUILD_TYPE=Debug \
+          -DES_BUILD_WEB=ON -DES_BUILD_TESTS=ON -DES_SANITIZE=ON -DES_ENABLE_BOX2D=ON
+
+    - name: Build C++ test harnesses
+      run: cmake --build build/wasm/asan -j "$(nproc)" --target $CPP_TESTS
+
+    - name: Run C++ test harnesses
+      run: |
+        for t in $CPP_TESTS; do
+          cp "build/wasm/asan/bin/$t.js" "build/wasm/asan/bin/$t.cjs"
+          echo "=== $t"
+          node "build/wasm/asan/bin/$t.cjs"
+        done
+
+  test:
+    name: Tests (engine + SDK)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        # The release-notes ledger reads every commit since a release tag, in both
+        # repositories; one commit of each reads as thirty entries naming nothing.
+        fetch-depth: 0
+
+    # Eighteen gates in the list need the editor. Without its checkout the runner
+    # named them and ran none, on every push — the release-notes ledger went red
+    # only at night, and the editor's own type check not at all.
+    - uses: ./.github/actions/editor-checkout
+      with:
+        ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
+        history: full
+
+    - name: Init the Spine runtimes whose exported skeletons the pipeline tests read
+      run: git submodule update --init --depth 1 third_party/spine-runtimes-3.8 third_party/spine-runtimes-4.2
+
+    - uses: ./.github/actions/setup
+
+    # Every static gate, from the one list in tools/gates.mjs. CI and the
+    # pre-push hook used to enumerate their own — seventeen gates ran only on a
+    # machine with the hook installed, and five only here.
+    # This job is the FAST feedback and deliberately does not wait for
+    # Emscripten, so it cannot cover the engine boundary. It says so: without the
+    # declaration the SDK suite now refuses to run rather than reporting 300
+    # unreachable tests as skipped. `test-engine` covers them where the wasm is.
+    - name: Static gates (incl. the SDK, editor, plugin and compiler suites)
+      env:
+        SDK_TEST_MODE: no-wasm
+        # This lane installs no emsdk on purpose, so the suites that build a real
+        # module cannot run here. Declared rather than discovered: the gate runner
+        # counts it as a hole this machine could not answer, and `test-engine`
+        # covers those where the wasm is.
+        ESTELLA_NO_EMCC: '1'
+      run: node tools/run-gates.mjs --scope ci
+
+    # The Android packaging tests check what we write against implementations that
+    # are not ours. androguard decodes the binary manifest; bundletool is the App
+    # Bundle format's own authority, and the runner has the JVM it needs — the
+    # tests fall back to structural checks where either is absent, so this is the
+
+  # The engine-coupled half of both suites. 25 test files load the built wasm and
+  # `skipIf` themselves out when it is absent — which, in a job that never built
+  # or downloaded one, meant they had never run in CI at all. They reported as
+  # skipped, the run reported success, and a scene-order regression could only be
+  # noticed by whoever happened to have a stale local build.
+  #
+  # Separate from `test` on purpose: type-checks and the pure-TS suites are the
+  # fast feedback on a push, and making them wait for Emscripten would trade a
+  # real gap for a slower one. ESTELLA_REQUIRE_WASM makes the skip an error here,
+  # so if the artifact ever stops arriving this fails instead of going quiet again.
+  test-engine:
+    name: Tests (engine-coupled)
+    runs-on: ubuntu-latest
+    needs: build-emscripten
+    # Room for the benchmark sweep at the end: ~3 min on a fast laptop, and this
+    # runner has two cores.
+
+    steps:
+    - uses: actions/checkout@v7
+
+    # Half of what this job runs is the EDITOR's engine-coupled suites, and
+    # `pnpm --filter` exits 0 when it matches nothing — without a checkout the
+    # job reported success having run none of them.
+    - uses: ./.github/actions/editor-checkout
+      with:
+        ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
+
+    # The Spine WASM tests load the pinned runtime repositories' sample data.
+    # Downloading engine binaries does not bring those source fixtures along.
+    - uses: ./.github/actions/engine-submodules
+
+    - uses: ./.github/actions/setup
+
+    - name: Download web wasm artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-web
+        path: build/wasm/web/
+
+    - name: Build SDK
+      run: pnpm --filter ./sdk build
+
+    - name: Run SDK tests (engine-coupled)
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+        # This job downloads the wasm rather than building it, so it has no
+        # emsdk either — the AOT suites that compile a module cannot run here.
+        ESTELLA_NO_EMCC: '1'
+      run: pnpm --filter ./sdk exec vitest run
+
+    - name: Install headless Chromium for device preview checks
+      run: pnpm exec playwright install --with-deps chromium
+
+    - name: Run Desktop tests (engine-coupled)
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+      run: pnpm --filter @estella/editor exec vitest run
+
+    # The performance counterpart of the API-surface snapshot, and it belongs in
+    # this job for the same reason the job exists: it needs the built wasm, and
+    # its own failure mode is a benchmark that quietly stops measuring. Asserts
+    # ratios between benchmarks in one run, so the runner's speed cancels out.
+    # The 3D physics module, run where its binary actually is: the gate skips a
+    # machine that has not built it, and this is the machine that has.
+    - name: Check the 3D physics module
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+      run: node tools/check-physics3d.mjs
+
+    - name: Check the PhysX 3D physics module
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+      run: node tools/check-physics3d-physx.mjs
+
+    - name: Check the 2D physics module
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+      run: node tools/check-physics2d.mjs
+
+    # The multiplayer authority, run where the engine binary actually is. The
+    # fast lane cannot: it builds no wasm, and this gate needs a real engine to
+    # start a real server over a real socket.
+    - name: Check the arena server
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+      run: node tools/check-arena-server.mjs
+
+    - name: Check the Online 3D template's server
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+      run: node tools/check-arena-server.mjs --project templates/online-3d --bound 1450 --speed 340
+
+    # Booting a packaged game needs the same real engine, and for the same
+    # reason it belongs here rather than in the fast lane.
+    - name: Check a packaged game's script failure
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+      # Exit 2 is the convention for "this machine cannot answer". This runner's
+      # software rasteriser sometimes loses its context at frame 0, and a boot
+      # that never got a GPU says nothing about whether the package boots clean.
+      # Exit 1 — a package that really did fail — still fails the job.
+      run: node tools/check-script-failure.mjs || [ $? -eq 2 ]
+
+    - name: Check performance snapshot
+      env:
+        ESENGINE_WASM_DIR: ${{ github.workspace }}/build/wasm/web
+        # The benchmarks are the SDK suite's own globalSetup, so this step proves
+        # emcc exactly like the test step above and needs the same declaration.
+        # Without it the run died before collecting, and the guard reported the
+        # silence as 234 benchmarks that had stopped measuring.
+        ESTELLA_NO_EMCC: '1'
+      run: node tools/perf-guard.mjs --check
+
+  # The other half of the performance contract: ceilings on whole operations at a
+  # size no example reaches. Its own job because it generates a 50,000-asset
+  # project first, and because a measurement sharing a runner with a test suite is
+  # measuring the test suite. See bench/scale/README.md.
+  scale:
+    name: Scale budgets (50k assets)
+    runs-on: ubuntu-latest
+    needs: build-emscripten
+
+    steps:
+    - uses: actions/checkout@v7
+
+    # The scale suite lives in the editor and imports its sources — the budgets
+    # are about what the EDITOR costs at 50k assets.
+    - uses: ./.github/actions/editor-checkout
+      with:
+        ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
+
+    - uses: ./.github/actions/setup
+
+    - name: Download web wasm artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-web
+        path: build/wasm/web/
+
+    # The scale suite loads the SHIPPED bundle (`esengine/node`), not src — a
+    # probe tree-shaking drops from dist is one the users' engine does not have.
+    - name: Build SDK
+      run: pnpm --filter ./sdk build
+
+    - name: Generate the corpus and check the budgets
+      env:
+        ESENGINE_WASM_DIR: ${{ github.workspace }}/build/wasm/web
+      run: node tools/perf-budget.mjs
+
+    # Every run's numbers, kept whether it passed or failed: a budget says what is
+    # allowed, and the report is the only record of where a cost actually sits.
+    - name: Upload the scale report
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: scale-report
+        path: build/scale-report.json
+        if-no-files-found: warn
+
+  # Headless pixel verification: real scenes rendered by the editor's electron
+  # host under xvfb (SwiftShader WebGL), asserted pixel-by-pixel.
+  # Three jobs, not three steps of one. They need the same host and nothing of
+  # each other, and run serially they were 27 minutes of critical path for 2
+  # minutes of scenes — the same trade verify-render-webgpu below was split out
+  # for. A shallow checkout everywhere except the released-projects job, which
+  # reads examples out of release tags.
+  verify-render:
+    name: Render verify (headless)
+    runs-on: ubuntu-latest
+    needs: build-emscripten
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/setup
+
+    - uses: ./.github/actions/render-host
+
+    # Twin coverage guard: every fixture AND example .esshader must have a WGSL twin
+    # (hand-written, or derived from its GLSL when read) — one that cannot be translated
+    # is WebGPU-dead, and one that COMMITS a generated twin brings back the churn of every
+    # engine header edit touching dozens of files; --derived exits 1 on either. Covers
+    # examples/ too so a shipped shader can never regress to WebGL-only.
+    - name: Check shader twins
+      run: node tools/gen-shader-twins.mjs --check --derived fixtures/scenes examples
+
+    # Pipeline smoke: strip a fixture's twins into a temp copy and require the
+    # vendored converters (glslang wasm + naga WASI wasm) to produce one —
+    # exercises the whole GLSL→SPIR-V→WGSL chain on every CI run.
+    - name: Shader-twin pipeline smoke
+      run: |
+        tmp=$(mktemp -d)
+        sed '/#pragma vertex wgsl/,$d' fixtures/scenes/mat-tint/tint.esshader > "$tmp/smoke.esshader"
+        if node tools/gen-shader-twins.mjs --check "$tmp/smoke.esshader"; then
+          echo "expected would-generate (exit 1) for a twin-less shader"; exit 1
+        fi
+
+    - name: Run headless verify scenes
+      # The list lives in tools/renderScenes.mjs, not here: CI and a developer
+      # ran two lists that had drifted both ways — thirty-two declared gates
+      # nothing ran, five CI scenes with no name to reproduce them by.
+      # --no-build: the host is already built two steps up. --host engine takes
+      # the scenes that need no editor; verify-editor runs the rest.
+      # --budget: on a runner whose GPU keeps dropping command buffers, the retry
+      # policy correctly retries each outage and the tier outgrows the job's
+      # minutes — which GitHub answers by killing it, so the run says nothing at
+      # all. A budget makes it report what it measured and name what it did not.
+      run: node tools/verify-render.mjs --tier pr --host engine --no-build --budget 25
+
+    # The EDITOR's authoring surface, driven for real. The engine has had a pixel
+    # gate for years; the editor had none, which is how depth layers shipped
+    # reaching the play realm and neither the viewport nor a build. Each check
+    # opens the app over MCP and asks a question only the running editor can
+    # answer (does the project setting reach the viewport, does a click select
+    # what is drawn on top, does the grid cover a perspective frame).
+  # The EDITOR's authoring surface, driven for real. The engine has had a pixel
+  # gate for years; the editor had none, which is how depth layers shipped
+  # reaching the play realm and neither the viewport nor a build. Each check
+  # opens the app over MCP and asks a question only the running editor can
+  # answer (does the project setting reach the viewport, does a click select
+  # what is drawn on top, does the grid cover a perspective frame).
+  verify-editor:
+    name: Editor authoring checks
+    runs-on: ubuntu-latest
+    needs: build-emscripten
+    # Seventy checks at forty-odd seconds each is fifty minutes in a row, and the
+    # cap below is forty-five: the list was CUT OFF rather than finished, and the
+    # four steps after it had therefore never run at all. Split by position, four
+    # ways. `fail-fast: false` because one shard's failure must not take the
+    # others' answers with it — the whole point is to see the whole list.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    # The window the editor opens is what its viewport measures, and several of
+    # these checks measure the viewport. Pinned here rather than left to the
+    # runner: main.ts wants 1480x920, and on a screen narrower than that the
+    # window arrives some other width — design-frame reads the design screen's
+    # projected shape and answered 4.3% to a bar of 8%, where every width this
+    # was reproduced at locally reads 8.9% to 15.8%. The screens below are sized
+    # so this window is never the thing that gets clamped.
+    env:
+      ESTELLA_WIN_W: '1480'
+      ESTELLA_WIN_H: '920'
+
+    steps:
+    - uses: actions/checkout@v7
+
+    # This job carries two checkouts, two node_modules, electron, the wasm and
+    # forty-two editors' worth of imports, and it ran the runner out of disk. A
+    # runner with no disk cannot write its own log either, so that failure
+    # arrived with nothing to read — hence the df. None of these toolchains is
+    # on any path this job takes.
+    - name: Make room, and say how much of it there is
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/share/swift /opt/ghc /usr/local/.ghcup \
+          /opt/hostedtoolcache/CodeQL || true
+        # Four more trees and the image cache, kept for being free rather than for
+        # working: the run after this measured the whole job at ~1GB, ending with
+        # 104G of 145G still free, so block exhaustion on / is NOT what killed the
+        # three that died of ENOSPC. Android stays for the packaging steps below.
+        sudo rm -rf /usr/share/miniconda /usr/local/share/powershell /opt/az || true
+        sudo rm -rf /usr/local/share/boost || true
+        sudo docker image prune -af || true
+        df -h / && df -i /
+
+    # Measured: this job uses ~1GB and inodes never pass 5%, and yet / went from
+    # 104G free to ZERO at 07:01:23 and back at 07:01:33 — inside the pixel gates,
+    # ten seconds before that step ended, which is where all three ENOSPC deaths
+    # happened. So the sampler also catches the spike in the act: the first time
+        # free space falls under 10G it writes one snapshot and never again.
+        #
+        # The space comes back the SECOND the step ends, which no delete explains
+        # and an unlinked file a live process still holds does exactly: du and find
+        # cannot see one, df can, and the kernel reclaims it at exit. Hence lsof and
+        # the /proc fd sweep — the two readings that name a file with no name left.
+    #
+    # The trigger is a DROP from where the job started, not a floor: measured, the
+    # fill is gradual — 104G to 78G over two minutes at ~220MB/s, still falling
+    # into the step after — so a run whose pixel gates take 35s never reaches a
+    # floor at all, and only the slow ones ever hit zero. Fifteen gigabytes gone
+    # is the same event either way, and it fires while the writer is still alive.
+    #
+    # Twice, at fifteen gigabytes gone and at sixty: the first catch fired with only
+    # 15G spent and found no file over 1GB, because at that depth there is not one
+    # yet. It DID find eleven electron processes alive at once, aged 657s to 1792s,
+    # two of them `. --mcp` mains — so the authoring checks leak their editors, and
+    # the pixel gates start on a machine already carrying them. Measured since:
+    # SEVENTY-SIX of them at once, 39 still alive when the job ends.
+    #
+    # And at 109G used, du over /home/runner, /tmp and /var finds 4G, find finds no
+    # file over 1GB and lsof no deleted one — 105G unaccounted. Every probe so far
+    # named a directory; none has looked at / itself, where a swap file would sit,
+    # and 76 electrons on a 16GB runner is the memory pressure that grows one.
+    - name: Watch the disk, since a spike between readings is invisible
+      run: |
+        base=$(df -B1G / | awk "NR==2{print \$4}")
+        BASE=$base nohup bash -c 'while :; do
+          a=$(df -B1G / | awk "NR==2{print \$4}")
+          i=$(df -i / | awk "NR==2{print \$5}")
+          echo "$(date -u +%H:%M:%S) availG=$a inodes=$i" >> /tmp/disk-watch.log
+          if [ "${a:-999}" -lt "$((BASE-15))" ] && [ ! -f /tmp/disk-culprit.log ]; then
+            { echo "caught at $(date -u +%H:%M:%S) with availG=$a"
+              df -B1G /
+              ls -l /var/lib/systemd/coredump /var/crash /cores 2>/dev/null
+              find /home/runner /tmp /var -xdev -size +1G 2>/dev/null \
+                | head -10 | xargs -r ls -lh
+              lsof +L1 2>/dev/null | head -20
+              ls -l /proc/[0-9]*/fd/ 2>/dev/null | grep -i deleted | head -20
+              ps -eo pid,etimes,rss,args --sort=-rss 2>/dev/null | head -15
+            } > /tmp/disk-culprit.log 2>&1
+          fi
+          if [ "${a:-999}" -lt "$((BASE-60))" ] && [ ! -f /tmp/disk-deep.log ]; then
+            { echo "deep at $(date -u +%H:%M:%S) with availG=$a"
+              df -B1G /
+              find /home/runner /tmp /var -xdev -size +1G 2>/dev/null \
+                | head -10 | xargs -r ls -lh
+              lsof +L1 2>/dev/null | awk "\$7 > 1000000000" | head -10
+              du -x -B1G -d 1 / 2>/dev/null | sort -rn | head -12
+              swapon --show 2>/dev/null; free -g 2>/dev/null
+              echo "electron processes: $(pgrep -c electron 2>/dev/null || echo 0)"
+            } > /tmp/disk-deep.log 2>&1
+          fi
+          sleep 5
+        done' >/dev/null 2>&1 &
+        echo started
+
+    # The editor is private; without its key this job fails here rather than
+    # reporting green about a checkout it never had.
+    - uses: ./.github/actions/editor-checkout
+      with:
+        ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
+
+    - uses: ./.github/actions/setup
+
+    - uses: ./.github/actions/editor-host
+
+    - name: Fetch the commit the hand checks take their rigged character from
+      run: git fetch --depth=1 origin 73ebaae9d2eb8ced17cd106ef01dd716bec3d6b6
+
+    # Exit 2 is "this machine cannot answer", as in the script-failure step above:
+    # a check whose play realm never said hello measured nothing about the editor,
+    # and this runner takes longer than the 90s boot deadline under load while the
+    # same shard runs 20/20 in seconds locally. Exit 1 still fails the job.
+    - name: Run editor authoring checks
+      working-directory: desktop
+      # OS focus and first-paint acceptance use this runner's virtual desktop.
+      # Local checks default to hidden windows so they do not interrupt a user.
+      env:
+        ESTELLA_MCP_EDITOR_VISIBLE: '1'
+        OUT: '${{ github.workspace }}/output/editor-authoring-${{ matrix.shard }}'
+        ELECTRON_DISABLE_SANDBOX: '1'
+      run: |
+        mkdir -p "$OUT"
+        xvfb-run -a --server-args="-screen 0 1920x1080x24" node scripts/editor-checks/run.mjs --shard ${{ matrix.shard }}/4 || [ $? -eq 2 ]
+
+    - name: Keep editor authoring captures
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: editor-authoring-${{ matrix.shard }}
+        path: output/editor-authoring-${{ matrix.shard }}/
+        if-no-files-found: warn
+        retention-days: 3
+
+    - name: Check trusted transform-handle hover and unchanged scene
+      if: matrix.shard == 1
+      run: node tools/verify-gizmo-hover.mjs
+    - name: Upload transform-handle hover evidence
+      if: always() && matrix.shard == 1
+      uses: actions/upload-artifact@v7
+      with:
+        name: gizmo-hover-editor-checks
+        path: output/gizmo-hover-ci/
+        retention-days: 3
+
+    - name: Check Individual Origins gestures and transaction recovery
+      if: matrix.shard == 1
+      run: node tools/verify-gizmo-origins.mjs
+    - name: Upload Individual Origins acceptance evidence
+      if: always() && matrix.shard == 1
+      uses: actions/upload-artifact@v7
+      with:
+        name: gizmo-origins-editor-checks
+        path: output/gizmo-origins-ci/
+        retention-days: 3
+
+    - name: Check spatial transform planes and center handles
+      if: matrix.shard == 1
+      run: node tools/verify-gizmo-planes.mjs
+    - name: Upload spatial transform acceptance evidence
+      if: always() && matrix.shard == 1
+      uses: actions/upload-artifact@v7
+      with:
+        name: gizmo-planes-editor-checks
+        path: output/gizmo-planes-ci/
+        retention-days: 3
+
+    # Between the two heavy steps, so the disk each one costs is attributable.
+    # The report at the bottom cannot do that, and it is the report that dies
+    # with the runner: a full disk takes the log that would name what filled it,
+    # which is why three failures here have said nothing. This lands on a PASSING
+    # run too, so the next run answers it either way.
+    - name: How much is left, after the authoring checks
+      if: always()
+      run: |
+        df -h / && df -i /
+        # HERE, not only at the end: the count after the gates is a different
+        # number (they kill their own), and comparing the two across runs is how
+        # a watchdog that made the leak WORSE read as an improvement.
+        echo "electron after the checks: $(pgrep -c electron 2>/dev/null || echo 0)"
+
+    # Measured by the step above: 76 editors alive at once, 39 still there when the
+    # job ends. The gates below then start on a machine already carrying them, and
+    # three ENOSPC deaths have landed inside them.
+    #
+    # BETWEEN the steps, not during: the watchdog that reaped an editor while a
+    # check was still driving it cost two checks and was reverted (57f25d08e).
+    # Here the checks are over, so every editor left is one nobody is reading.
+    - name: Reap the editors the authoring checks left behind
+      if: always()
+      run: |
+        left=$(pgrep -c electron 2>/dev/null || echo 0)
+        pkill -f electron 2>/dev/null || true
+        sleep 3
+        pkill -9 -f electron 2>/dev/null || true
+        sleep 1
+        echo "reaped $left electron process(es); $(pgrep -c electron 2>/dev/null || echo 0) still up"
+        df -h / | tail -1
+
+    # The pixel gates whose subject is an editor door — the reference grid, hit
+    # testing, the editor eye, preview renders. They cannot run on the engine's
+    # host, which deliberately has none of those.
+    # --budget for the reason the engine's tier has one: eight scenes cost two
+    # minutes, but six retries apiece at a 45s watchdog cost over an hour, and a
+    # step with no ceiling spent the job's whole 30 minutes and was killed with
+    # nothing written. A budget reports what it measured and names what it did not.
+    - name: Run the editor's pixel gates
+      # Work, not reporting: one shard does it for the matrix.
+      if: matrix.shard == 1
+      run: node tools/verify-render.mjs --tier pr --host editor --no-build --budget 10
+
+    # A run that dies of ENOSPC uploads NO log — this job's last failure lost every
+    # line of it, including the snapshot that would have said what filled the disk.
+    # An artifact leaves over the network from files already written, so it is the
+    # one channel that does not need the disk it is reporting on.
+    - name: Keep the disk snapshots even if the runner dies
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: editor-disk-watch
+        path: |
+          /tmp/disk-watch.log
+          /tmp/disk-culprit.log
+          /tmp/disk-deep.log
+        if-no-files-found: ignore
+        retention-days: 3
+
+    # The job has died here twice with "No space left on device", and a runner with
+    # no disk cannot write the log that would say what filled it. The `df` at the
+    # top proves the job STARTS with ~100GB; this one is where it is gone by, and
+    # the biggest directories under it are the only thing that names the culprit.
+    - name: Say what is left, and what took it
+      if: always()
+      run: |
+        df -h / && df -i /
+        du -x -h -d 2 /home/runner 2>/dev/null | sort -rh | head -25 || true
+        du -x -h -d 1 /tmp 2>/dev/null | sort -rh | head -10 || true
+        # The low-water mark the sampler saw, which is the only reading that can
+        # catch what a step gives back before it ends.
+        awk '{gsub(/availG=/,"",$2); if (min=="" || $2+0 < min+0) {min=$2; at=$0}} END{print "lowest free seen: " (at=="" ? "no samples" : at)}' /tmp/disk-watch.log 2>/dev/null || true
+        awk 'NR%12==1' /tmp/disk-watch.log 2>/dev/null | tail -40 || true
+        tail -3 /tmp/disk-watch.log 2>/dev/null || true
+        cat /tmp/disk-culprit.log 2>/dev/null || echo 'no spike caught'
+        cat /tmp/disk-deep.log 2>/dev/null || echo 'never got deep'
+        echo "core_pattern: $(cat /proc/sys/kernel/core_pattern 2>/dev/null)"
+        echo "electron still alive: $(pgrep -c electron 2>/dev/null || echo 0)"
+        echo "samples: $(wc -l < /tmp/disk-watch.log 2>/dev/null || echo 0)"
+
+    # Both are DEEPER oracles the Android tests skip when absent, so fetching them
+    # must not be able to cost more than they are worth. Unbounded, this step hung
+    # for 38 minutes and took the job's whole budget with it — and a job killed at
+    # its ceiling writes no log. Each failure now says which assertions it costs.
+    - name: Set up the Android packaging oracles
+      # Work, not reporting: one shard does it for the matrix.
+      if: matrix.shard == 1
+      run: |
+        pip install --quiet --timeout 30 --retries 2 androguard \
+          || echo "::warning::androguard unavailable — the Android manifest tests run structural-only"
+        if curl -fsSL --connect-timeout 20 --max-time 180 --retry 2 \
+             -o "$RUNNER_TEMP/bundletool.jar" \
+             https://github.com/google/bundletool/releases/download/1.15.6/bundletool-all-1.15.6.jar; then
+          echo "BUNDLETOOL_JAR=$RUNNER_TEMP/bundletool.jar" >> "$GITHUB_ENV"
+        else
+          echo "::warning::bundletool unavailable — the .aab tests run structural-only"
+        fi
+
+    # The authoring checks above spent months failing at random with
+    # `timeout tools/call open_project`. The cause was never the call: a main
+    # process exception put up a modal dialog, and a dialog waits for a click
+    # that an unattended run never makes, so every later call queued behind a
+    # frozen event loop while the renderer kept drawing frames.
+    - name: The crash handler must not stop the editor
+      # Work, not reporting: one shard does it for the matrix.
+      if: matrix.shard == 1
+      working-directory: desktop
+      env:
+        ELECTRON_DISABLE_SANDBOX: '1'
+      run: xvfb-run -a --server-args="-screen 0 1920x1080x24" node scripts/resilience-liveness.test.mjs
+
+    - name: Run MCP end-to-end
+      # Work, not reporting: one shard does it for the matrix.
+      if: matrix.shard == 1
+      working-directory: desktop
+      env:
+        ELECTRON_DISABLE_SANDBOX: '1'
+      run: |
+        xvfb-run -a --server-args="-screen 0 1920x1080x24" node scripts/editor-mcp-e2e.mjs
+        xvfb-run -a --server-args="-screen 0 1920x1080x24" node scripts/editor-mcp-editor-e2e.mjs
+
+  # The golden corpus, packaged and opened the way a player opens it: every
+  # project exports, boots, draws what its points say, and answers the input it
+  # declares. Exporting was checked and the engine was checked; the package never
+  # was — and "it launched" is not the claim, since a build that boots to its
+  # rotate-to-portrait gate launches fine.
+  #
+  # Not held against the editor's frame here. That comparison opens a whole editor
+  # per project on a software rasteriser: it was most of this job's time and every
+  # one of its retries, and it answers drift between two runtimes rather than a
+  # package that broke. The nightly exit criteria make it, with the streamed world,
+  # the released projects and the compiled-versus-interpreted frames.
+  #
+  # A runner per shard, split by the script by what each project asks for;
+  # `fail-fast: false` so every shard answers.
+  verify-golden:
+    name: Golden packages
+    runs-on: ubuntu-latest
+    needs: build-emscripten
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+
+    steps:
+    - uses: actions/checkout@v7
+
+    # The package takes the engine the editor host stages.
+    - uses: ./.github/actions/editor-checkout
+      with:
+        ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
+
+    - uses: ./.github/actions/setup
+
+    - uses: ./.github/actions/editor-host
+
+    # A golden project marks a system @compiled, so packaging one now runs the
+    # AOT step — and a promise the build cannot keep fails the export rather
+    # than falling back. This job packages, so this job needs the toolchain.
+    - name: Setup Emscripten
+      id: toolchain
+      uses: mymindstorm/setup-emsdk@v16
+      with:
+        version: 5.0.0
+        actions-cache-folder: .emsdk-ci
+        cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
+
+    - name: Launch the golden packages (PR tier)
+      run: node tools/verify-golden.mjs --tier pr --no-parity --shard ${{ matrix.shard }}/3
+
+    # Does a real exported WEB package DISPATCH to its compiled systems — the
+    # claim verify-aot-native makes for the desktop road, which the web road had
+    # nobody making. A twin that loads and is never called changes no pixel and
+    # raises no error. Work, not reporting: one shard does it for the matrix.
+    - name: Check an exported web game runs its systems compiled
+      if: ${{ !cancelled() && matrix.shard == 1 && steps.toolchain.outcome == 'success' }}
+      run: pnpm run verify:aot
+
+    # And the exact half: one fixture packaged both ways, stepped by a fixed dt
+    # rather than by elapsed time, and the two displacements compared. This is
+    # the check a twin reading the wrong offset cannot survive.
+    - name: Check a cooked build's compiled systems against the interpreter
+      if: ${{ !cancelled() && matrix.shard == 1 && steps.toolchain.outcome == 'success' }}
+      run: pnpm run verify:cooked
+
+    # Most hosts a GLX package reaches offer no GLX context; there it must draw
+    # through WebGL2 like any other. The stand-in host is one of them.
+    - name: Check a WeChat package built with EmscriptenGLX draws without it
+      if: ${{ !cancelled() && matrix.shard == 2 }}
+      run: pnpm run verify:glx
+
+    # A development build dials the editor, and the frame debugger captures and
+    # replays its frame over that socket — the web road and a mini-game's.
+    - name: Check a development build can be frame-debugged from the editor
+      if: ${{ !cancelled() && matrix.shard == 1 }}
+      run: pnpm run verify:remote-capture
+
+    - name: Check protected cache versions survive cleanup and offline restart
+      if: ${{ !cancelled() && matrix.shard == 3 }}
+      run: pnpm run verify:cache-budget
+
+    - name: Check interrupted cache and manifest commits survive a new process
+      if: ${{ !cancelled() && matrix.shard == 3 }}
+      run: node tools/cache-budget-demo.mjs
+
+    - name: Keep cache cleanup and offline restart evidence
+      if: ${{ !cancelled() && matrix.shard == 3 }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: cache-budget-evidence
+        path: |
+          output/cache-budget/render/verification.json
+          output/cache-budget/render/*.png
+        if-no-files-found: error
+        retention-days: 7
+
+    # A package whose points missed is a claim about a PICTURE, and the picture
+    # has to leave the runner, or nobody can tell a real regression from a frame
+    # the software rasteriser had not finished.
+    - name: Keep the frames a failure was judged on
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: golden-frames-${{ matrix.shard }}
+        path: |
+          .golden/*.png
+          .golden/*.log
+        include-hidden-files: true
+        if-no-files-found: warn
+        retention-days: 7
+
+  # The same scenes on the second backend, on a runner of its own.
+  #
+  # Its own runner is about COST: sixty-four scenes on a software Vulkan cost more
+  # than half an hour, and spending that inside the gate job spends the budget the
+  # gates need — the editor, golden and released-project checks are what stopped
+  # running for it. Answering in parallel keeps the report from being a runner
+  # killed at the ceiling.
+  #
+  # Its verdict BLOCKS, since 065e9a60c. It was informational, and for months it
+  # was the only job running the WGSL path at all: six shadow scenes stayed red
+  # under a green run, because a queue write does not land between draws inside an
+  # open pass and nothing else sampled that. Every failure it ever reported was
+  # that same deterministic bug — six for six, identical scene lists, 124-228s and
+  # a full verdict each time, no GPU death on this runner. A run that genuinely
+  # never gets a GPU is told from a wrong pixel by tools/lib/deadGpu.mjs, not by
+  # this flag; making the flag carry it would go on hiding real ones.
+  verify-render-webgpu:
+    name: Render verify (second backend)
+    # macOS, for the GPU. The Linux runner ships no graphics driver, and every run
+    # this job ever had died the same way: the GPU process exiting during init and
+    # requestDevice answering "a valid external Instance reference no longer
+    # exists", with lavapipe installed making no difference. A macOS runner has
+    # Metal, so what this measures is a REAL second implementation rather than a
+    # software one — which is the portability question it was created to ask.
+    runs-on: macos-latest
+    needs: build-emscripten
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/setup
+
+    - uses: ./.github/actions/render-host
+
+    - name: Install headless Chromium
+      run: pnpm exec playwright install --with-deps chromium
+
+    # The adapter Dawn picks for itself, which here is Metal. `swiftshader` is the
+    # bundled software one, kept as an explicit opt-in for a machine with no GPU.
+    - name: Second backend, PR tier
+      env:
+        ESTELLA_VERIFY_WEBGPU_ADAPTER: ''
+      run: node tools/verify-render.mjs --tier pr --backend webgpu --host engine --no-build --budget 45
+    - name: Check composite lifecycle and mixed shadow policies on the second backend
+      run: node tools/tests/composite-batch.e2e.mjs --webgpu-only
+    - name: Check 2D and 3D world residency teardown on the second backend
+      run: node tools/tests/world-residency.e2e.mjs --webgpu-only
+    - name: Check baked static proxy geometry and materials on the second backend
+      run: node tools/tests/static-proxy.e2e.mjs --webgpu-only
+    - name: Upload second-backend static proxy observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: static-proxy-webgpu
+        path: |
+          output/static-proxy/*.png
+          output/static-proxy/report.json
+        retention-days: 3
+    - name: Upload second-backend world residency observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: world-residency-webgpu
+        path: output/world-residency/
+        retention-days: 3
+    - name: Upload second-backend composite batching observations
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: composite-batch-webgpu
+        path: output/composite-batch/
+        retention-days: 3
+
+  # The native runtime, judged by pixels on a machine with no GPU.
+  #
+  # Until the desktop host existed the native runtime could only be checked on a
+  # simulator or a phone — where an OS dialog over the frame once made a dead app
+  # look healthy. A Linux runner IS one of the platforms it ships to, so it
+  # packages a real project the way the Package dialog does, runs the assembled
+  # app under a virtual display on a software Vulkan driver, and reads the frame.
+  desktop-linux:
+    name: Desktop host (Linux) + pixels
+    runs-on: ubuntu-latest
+    # clang, not the runner's default gcc: Dawn ships a C++20 module target, and
+    # CMake refuses to generate for a compiler it cannot scan the import graph
+    # with. It is also what the other two desktops compile with.
+    env:
+      CC: clang
+      CXX: clang++
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/engine-submodules
+      - uses: ./.github/actions/setup
+
+      # The SDK bundle is compiled into the host binary.
+      - name: Build SDK
+        run: pnpm --filter ./sdk build
+
+      - name: Read the native dependency pins
+        id: pins
+        run: node build-tools/cli.js native --deps-cache-key linux >> "$GITHUB_OUTPUT"
+
+      - name: Cache the pinned checkouts + Dawn build
+        uses: actions/cache@v4
+        with:
+          path: build/native-deps
+          key: ${{ steps.pins.outputs.key }}
+
+      # Vulkan for Dawn, X11/Wayland for the window, fontconfig and libcurl for the
+      # per-OS seam, and the software driver + virtual display that let a runner
+      # with neither a GPU nor a screen answer a question about pixels.
+      - name: Set up the Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libvulkan-dev mesa-vulkan-drivers xvfb \
+            libx11-dev libx11-xcb-dev libxcb1-dev libxext-dev libxfixes-dev libxrandr-dev \
+            libxi-dev libxcursor-dev libxinerama-dev libxss-dev libxtst-dev \
+            libxkbcommon-dev libwayland-dev wayland-protocols libdecor-0-dev \
+            libdbus-1-dev libibus-1.0-dev libudev-dev libdrm-dev libgbm-dev \
+            libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libasound2-dev libpulse-dev libfontconfig1-dev libcurl4-openssl-dev
+
+      - name: Fetch Dawn + QuickJS + SDL at their pinned commits
+        run: node build-tools/cli.js native --fetch-deps
+
+      - name: Build the Linux host and its runtime template
+        run: node build-tools/cli.js native --target linux
+
+      - name: Run native renderer regressions
+        run: |
+          cmake --build build/cmake/native-linux --target test_native_renderer --parallel 4
+          build/cmake/native-linux/test_native_renderer
+
+      - name: A game packaged from it renders
+        run: |
+          ls -l /usr/share/vulkan/icd.d/ || true
+          xvfb-run -a --server-args="-screen 0 1280x720x24" node tools/verify-desktop-render.mjs --tier pr
+
+  # The same question on Windows, and it is not redundant. Until this job existed
+  # NOTHING compiled the native host for MSVC except the release workflow, which
+  # runs on a tag: v0.59.0 found two bugs that way, one per 25-minute release --
+  # windows.h's min/max macros breaking `numeric_limits<u32>::max()` in a header
+  # everything includes, and `-fPIC` handed to a clang on the MSVC ABI, which
+  # rejects it where a GNU-ABI one shrugs. Both are compile errors a push could
+  # have shown. The render step earns its place separately: the second bug was
+  # not in the host at all but in the AOT compile an EXPORT runs, which nothing
+  # short of packaging a game reaches.
+  desktop-windows:
+    name: Desktop host (Windows) + pixels
+    runs-on: windows-latest
+    # Cold on a new pin because Dawn is built, a host compile after that. The
+    # cache key is the release workflow's, so whichever ran last warms the other.
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/engine-submodules
+      - uses: ./.github/actions/setup
+
+      # The SDK bundle is compiled into the host binary.
+      - name: Build SDK
+        run: pnpm --filter ./sdk build
+
+      - name: Read the native dependency pins
+        id: pins
+        shell: bash
+        run: node build-tools/cli.js native --deps-cache-key windows >> "$GITHUB_OUTPUT"
+
+      - name: Cache the pinned checkouts + Dawn build
+        uses: actions/cache@v4
+        with:
+          path: build/native-deps
+          key: ${{ steps.pins.outputs.key }}
+
+      - name: Set up Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v6
+
+      # Ninja invokes the compiler directly, so cl.exe and the Windows SDK have to
+      # be on PATH — a Developer Command Prompt's environment, without the prompt.
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Fetch Dawn + QuickJS + SDL at their pinned commits
+        run: node build-tools/cli.js native --fetch-deps
+
+      - name: Build the Windows host and its runtime template
+        run: node build-tools/cli.js native --target windows
+
+      - name: Run native renderer regressions
+        shell: bash
+        run: |
+          cmake --build build/cmake/native-windows --target test_native_renderer --parallel 4
+          ./build/cmake/native-windows/test_native_renderer.exe
+
+      # No xvfb and no software driver: a Windows runner has a desktop and a
+      # D3D12 device of its own, which is what the release job relies on too.
+      - name: A game packaged from it renders
+        run: node tools/verify-desktop-render.mjs --tier pr
+
+  # The one check master's branch protection requires: every job above, so a job added or renamed
+  # needs no change to the protection. A skipped job is not a failure; a cancelled one is.
+  build-passed:
+    name: Build passed
+    if: always()
+    needs: [playable-runtime, build-emscripten, cpp-tests, sanitizers, test, test-engine, scale, verify-render,
+            verify-editor, verify-golden, verify-render-webgpu, desktop-linux, desktop-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed or was skipped
+        run: |
+          echo '${{ toJSON(needs) }}' | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          ! echo '${{ toJSON(needs) }}' | jq -e 'any(.[]; .result == "failure" or .result == "cancelled")' > /dev/null

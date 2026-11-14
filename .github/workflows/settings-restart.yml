@@ -1,0 +1,62 @@
+name: Settings restart acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact-run:
+        description: Build run with a successful Web artifact from identical runtime sources
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  settings:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - name: Require matching sources and a successful Web build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_RUN: ${{ inputs.artifact-run }}
+        run: |
+          [[ "$ARTIFACT_RUN" =~ ^[0-9]+$ ]]
+          source=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ARTIFACT_RUN" --jq .head_sha)
+          git diff --exit-code "$source" HEAD -- src sdk native include CMakeLists.txt package.json toolchain.manifest.json build-tools pipeline
+          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$ARTIFACT_RUN/jobs?per_page=100" --jq '[.jobs[] | select(.name == "Web (Emscripten)" and .conclusion == "success")] | length')
+          test "$passed" -eq 1
+          gh run download "$ARTIFACT_RUN" --repo "$GITHUB_REPOSITORY" --name wasm-web --dir build/wasm/web
+      - name: Install virtual display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libasound2t64 libgtk-3-0t64 libgbm1
+      - name: Build the SDK and export the audio settings scene
+        run: |
+          pnpm --filter ./sdk build
+          node pipeline/bin/estella.mjs export examples/audio-demo --platform web --wasm build/wasm/web --out output/settings-web
+      - name: Verify settings across independent processes
+        run: |
+          node --input-type=module <<'JS'
+          import { spawnSync } from 'node:child_process';
+          import { GOLDEN } from './tools/goldenProjects.mjs';
+          const spec = GOLDEN.find(project => project.id === 'audio-demo').settings;
+          const run = spawnSync(process.execPath, ['tools/verify-settings.mjs',
+            '--dir', 'output/settings-web', '--spec', JSON.stringify(spec),
+            '--present',
+            '--log', 'output/settings-restart/process.log'], { stdio: 'inherit' });
+          if (run.error) throw run.error;
+          process.exit(run.status ?? 1);
+          JS
+      - name: Keep restart evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: settings-restart-evidence
+          path: output/settings-restart
+          if-no-files-found: warn
+          retention-days: 7

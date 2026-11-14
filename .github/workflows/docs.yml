@@ -1,0 +1,153 @@
+name: Deploy Documentation
+
+# The `docs-v*` tag is for a docs-only deploy — a typo fix, a new guide, anything
+# that does not wait for an engine release. A RELEASE deploys them too, by calling
+# this: the site states the version it was built from and links the mirror's
+# `latest/` names, so a release that publishes without redeploying leaves the
+# download section naming the version before it, and every guide written for what
+# just shipped unpublished. That happened with v0.41.0, whose agent guide was
+# committed and then simply not on the site.
+on:
+  push:
+    tags:
+      - 'docs-v*'
+  workflow_call:
+    inputs:
+      engine-artifact-run:
+        type: string
+        required: false
+        default: ''
+  workflow_dispatch:
+    inputs:
+      engine-artifact-run:
+        description: 'Candidate release run containing release-site-frame; blank retains the published game frame.'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # TypeDoc (starlight-typedoc) compiles sdk/src against sdk/tsconfig.json,
+      # which resolves ambient types (@types/node, minigame-api-typings) from
+      # the sdk workspace's node_modules — the composite's frozen install stages
+      # the workspace first.
+      - uses: ./.github/actions/setup
+
+      - name: Install Doxygen
+        run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
+
+      - name: Build Doxygen API Docs
+        working-directory: docs
+        run: |
+          export ESTELLA_VERSION=$(node -p "require('../package.json').version")
+          doxygen Doxyfile
+
+      - name: Install Astro Dependencies
+        working-directory: docs/astro
+        run: npm install
+
+      - name: Verify doc API imports match the SDK exports
+        working-directory: docs/astro
+        run: npm run verify:imports
+
+      # Reads source, so it runs before the build: a page in no sidebar group, or
+      # one that exists in only one language, fails here rather than shipping.
+      - name: Verify the sidebar, the filesystem and both locales agree
+        working-directory: docs/astro
+        run: npm run verify:structure
+
+      - name: Build Astro Site
+        working-directory: docs/astro
+        run: npm run build
+
+      # After the build, because it resolves links against the pages that were
+      # actually emitted — a guide pointing at a renamed page, or an old URL
+      # whose redirect entry went missing, fails here instead of deploying a 404.
+      - name: Verify internal doc links resolve
+        working-directory: docs/astro
+        run: npm run verify:links
+
+      - name: Merge Documentation
+        run: |
+          mkdir -p docs/dist/docs/api
+          cp -r docs/astro/dist/* docs/dist/docs/
+          cp -r docs/api/html docs/dist/docs/api/
+          # The whole landing directory, not a list of its files: it carries the
+          # page's fonts and mark now, and a copy step that has to be edited when
+          # the page grows an asset is a broken page waiting to be deployed.
+          cp -r docs/landing/. docs/dist/
+
+          # The page states the version it was built from, so the download
+          # section is labelled with no JavaScript and no cross-origin request.
+          # The links themselves are the mirror's stable `latest/` names, which
+          # stay correct for releases published after this deploy.
+          sed -i "s/__ESTELLA_VERSION__/$(node -p "require('./package.json').version")/g" docs/dist/index.html
+          echo 'estellaengine.com' > docs/dist/CNAME
+          touch docs/dist/.nojekyll
+
+      - name: Stage release metadata on the website origin
+        run: |
+          curl --fail --location --retry 3 https://dl.estella.games/latest.json --output docs/dist/latest.json
+          node --input-type=module <<'JS'
+          import {readFileSync} from 'node:fs';
+          const info=JSON.parse(readFileSync('docs/dist/latest.json','utf8'));
+          const expected=JSON.parse(readFileSync('package.json','utf8')).version;
+          if(info.version!==expected)throw Error(`Release metadata version ${info.version} does not match site version ${expected}`);
+          if(!/^\d+\.\d+\.\d+$/.test(info.version))throw Error('Invalid release version');
+          for(const platform of ['win','mac-arm64']){
+            const file=info.downloads?.[platform];
+            if(!file || new URL(file.url).origin!=='https://dl.estella.games' || !Number.isSafeInteger(file.size) || file.size<=0 || !file.name.includes(info.version))throw Error('Invalid release download: '+platform);
+          }
+          JS
+
+      - name: Stage a verified frame of the shipped game
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FRAME_RUN: ${{ inputs.engine-artifact-run }}
+          FRAME_SHA: ${{ github.sha }}
+        run: |
+          if [ -n "$FRAME_RUN" ]; then
+            gh run download "$FRAME_RUN" --repo "$GITHUB_REPOSITORY" --name release-site-frame --dir docs/dist
+          else
+            curl --fail --location https://estellaengine.com/celestial-heights-frame.png --output docs/dist/celestial-heights-frame.png
+            curl --fail --location https://estellaengine.com/hero-provenance.json --output docs/dist/hero-provenance.json
+          fi
+          node --input-type=module <<'JS'
+          import {readFileSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          const info=JSON.parse(readFileSync('docs/dist/hero-provenance.json','utf8'));
+          const image=readFileSync('docs/dist/celestial-heights-frame.png');
+          if(info.project!=='examples/celestial-heights'||!info.gitSha||createHash('sha256').update(image).digest('hex')!==info.sha256)throw Error('Game frame provenance mismatch');
+          if(process.env.FRAME_RUN && info.gitSha!==process.env.FRAME_SHA)throw Error('Game frame was captured from another commit');
+          JS
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs/dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

@@ -1,0 +1,44 @@
+name: Navigation CPU evidence
+on:
+  workflow_dispatch:
+    inputs:
+      search-reference:
+        description: Commit supplying the reference grid search; current obstacle clearance is used on both sides
+        type: string
+        required: true
+        default: 48631844c53113825a15493afeb8e6e2b972900c
+permissions:
+  contents: read
+jobs:
+  navigation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Check navigation contracts
+        shell: bash
+        env:
+          SDK_TEST_MODE: no-wasm
+          ESTELLA_NO_EMCC: '1'
+        run: |
+          mkdir -p output/navigation-cpu-ci
+          pnpm --filter ./sdk exec vitest run nav --maxWorkers=4 --minWorkers=1 --reporter=json --outputFile=../output/navigation-cpu-ci/tests.json 2>&1 | tee output/navigation-cpu-ci/tests.log
+          node -e "const r=require('./output/navigation-cpu-ci/tests.json'); if(!r.success || !r.numTotalTests || r.numPendingTests || r.numPassedTests!==r.numTotalTests) process.exit(1); console.log(r.numPassedTests+' navigation tests passed');"
+      - name: Measure identical building maps with reference and current searches
+        env:
+          SEARCH_REFERENCE: ${{ inputs.search-reference }}
+        run: |
+          node tools/navigation-rebuild-benchmark.mjs output/navigation-cpu-ci/reference.json --search-reference="$SEARCH_REFERENCE"
+          node tools/navigation-rebuild-benchmark.mjs output/navigation-cpu-ci/current.json
+      - name: Measure agent planning budgets on the same building maps
+        run: node tools/navigation-planning-benchmark.mjs output/navigation-cpu-ci/planning.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: navigation-cpu-evidence
+          path: output/navigation-cpu-ci
+          if-no-files-found: error
+          retention-days: 7
