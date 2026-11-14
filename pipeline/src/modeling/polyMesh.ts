@@ -28,6 +28,8 @@ export interface Face {
     piece?: number;
     /** A texture's place at each corner, in the order of `v`, in place of any projection. */
     cornerUvs?: readonly (readonly [number, number])[];
+    /** The way each corner is lit from, in the order of `v`, in place of the face's own: a leaf card shaded as part of its crown. */
+    cornerNormals?: readonly (readonly [number, number, number])[];
     /** Part of a continuous skin: shaded smooth with its neighbours whatever the angle, and its edges are not features. */
     smooth?: boolean;
     /** How this face takes its texture, from a `uv` step; absent, a box projection at the source's uvScale. */

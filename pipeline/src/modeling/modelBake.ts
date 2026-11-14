@@ -127,7 +127,8 @@ export function cornerNormals(mesh: PolyMesh, smoothAngle: number): Vec3[][] {
         }
     });
     const areas = mesh.faces.map((f) => faceArea(mesh, f));
-    return mesh.faces.map((face, f) => face.v.map((v) => {
+    return mesh.faces.map((face, f) => face.v.map((v, corner) => {
+        if (face.cornerNormals) return face.cornerNormals[corner] as Vec3;
         if (smoothAngle <= 0 && !face.smooth) return normals[f]!;
         let sum: Vec3 = [0, 0, 0];
         for (const g of around.get(v)!) {

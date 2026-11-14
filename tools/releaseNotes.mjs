@@ -4996,4 +4996,6 @@ export const NOTED = {
     {"note": "A tree is grown in one step."},
   "feat(modeling): the tree step grows a whole tree - a trunk that tapers and bends, limbs, twigs and a crown of leaf cards cut out by a sprig's picture, in five shapes and at three levels of detail from the same numbers; a land plant with lods is placed one by one where its map lets it stand, a grove the bake counts":
     {"note": "A tree is grown in one step."},
+  "fix(modeling): a tree's leaves are lit as its crown - each card takes its light from the way out of its clump and of the whole crown, where its own flat face lit every card a different way and a crown read as patchwork; the sprig has more and smaller leaves, a clump more cards, the greens of neighbouring cards stand closer, and no card reaches the picture's solid corners":
+    {"note": "A tree is grown in one step."},
 };

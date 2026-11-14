@@ -189,7 +189,11 @@ export function tree(mesh: PolyMesh, p: TreeParams): PolyMesh {
     out = { ...out, faces: out.faces.map((f) => (f.tag === 'bark' ? { ...f, cornerUvs: f.v.map(() => [LEAF_CORNER, LEAF_CORNER] as const) } : f)) };
     // The leaves: sprigs set over each clump, facing mostly out of it, lighter toward its top and deeper under it and inside.
     const r = dice((p.seed ?? 1) * 7 + 3), off = p.at ?? [0, 0, 0];
-    const perClump = detail === 2 ? 15 : 7;
+    const perClump = detail === 2 ? 22 : 10;
+    // A card is lit as the crown it is part of, not as the flat thing it is: from the way out of its clump and out of the whole crown.
+    const sum = [0, 0, 0];
+    for (const clump of grown.clumps) for (let k = 0; k < 3; k++) sum[k]! += (off[k]! + clump.at[k]!) / (grown.clumps.length || 1);
+    const heart: Vec3 = [sum[0]!, sum[1]!, sum[2]!];
     for (const clump of grown.clumps) {
         const size = Math.max(clump.radii[0], clump.radii[2]) * (detail === 2 ? 0.95 : 1.3);
         for (let c = 0; c < perClump; c++) {
@@ -211,14 +215,21 @@ export function tree(mesh: PolyMesh, p: TreeParams): PolyMesh {
             const U: Vec3 = [u[0] * cu + w[0] * su, u[1] * cu + w[1] * su, u[2] * cu + w[2] * su];
             const V: Vec3 = [w[0] * cu - u[0] * su, w[1] * cu - u[1] * su, w[2] * cu - u[2] * su];
             const s = size * (0.75 + 0.5 * r()) / 2;
+            const out3 = (q: Vec3): Vec3 => {
+                const a2: Vec3 = [q[0] - off[0]! - clump.at[0], q[1] - off[1]! - clump.at[1], q[2] - off[2]! - clump.at[2]], b2: Vec3 = [q[0] - heart[0], q[1] - heart[1], q[2] - heart[2]];
+                const la = Math.hypot(a2[0], a2[1], a2[2]) || 1, lb = Math.hypot(b2[0], b2[1], b2[2]) || 1;
+                const s2: Vec3 = [a2[0] / la + b2[0] / lb, a2[1] / la + b2[1] / lb + 0.25, a2[2] / la + b2[2] / lb], ls = Math.hypot(s2[0], s2[1], s2[2]) || 1;
+                return [s2[0] / ls, s2[1] / ls, s2[2] / ls];
+            };
             const corner = (a1: number, b1: number): Vec3 => [mid[0] + U[0] * a1 * s + V[0] * b1 * s, mid[1] + U[1] * a1 * s + V[1] * b1 * s, mid[2] + U[2] * a1 * s + V[2] * b1 * s];
-            const up = inside > 0.5 ? d[1] : d[1] * 0.3 - 0.35, tone = up >= 0 ? lit : deep, by = Math.min(Math.abs(up) * 0.85, 0.85), vary = 0.9 + 0.2 * r();
+            const up = inside > 0.5 ? d[1] : d[1] * 0.3 - 0.35, tone = up >= 0 ? lit : deep, by = Math.min(Math.abs(up) * 0.5, 0.5), vary = 0.94 + 0.12 * r();
             const color = [0, 1, 2].map((k) => Math.min((leaf[k]! + (tone[k]! - leaf[k]!) * by) * vary, 1));
             const before = out.faces.length;
-            out = append(out, [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)], [[0, 1, 2, 3]], { tag: 'leaf', color });
+            const quad = [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)], lit4 = quad.map(out3);
+            out = append(out, quad, [[0, 1, 2, 3]], { tag: 'leaf', color });
             const flip = r() < 0.5;
             const uv: [number, number][] = [[LEAF_EDGE, LEAF_EDGE], [1 - LEAF_EDGE, LEAF_EDGE], [1 - LEAF_EDGE, 1 - LEAF_EDGE], [LEAF_EDGE, 1 - LEAF_EDGE]];
-            out = { ...out, faces: out.faces.map((f, i) => (i === before ? { ...f, cornerUvs: flip ? [uv[1]!, uv[0]!, uv[3]!, uv[2]!] : uv } : f)) };
+            out = { ...out, faces: out.faces.map((f, i) => (i === before ? { ...f, cornerUvs: flip ? [uv[1]!, uv[0]!, uv[3]!, uv[2]!] : uv, cornerNormals: lit4 } : f)) };
         }
     }
     return out;
@@ -240,7 +251,7 @@ export function treeLeafPicture(size = 256): Uint8Array {
         const t = Math.round(tone * 255);
         rgba[k] = t; rgba[k + 1] = t; rgba[k + 2] = t; rgba[k + 3] = a;
     };
-    // Leaves round a middle, each a pointed oval lying along its own way out, in three rings so the sprig has no bare heart.
+    // Leaves round a middle, each a pointed oval lying along its own way out, in four rings so the sprig has no bare heart.
     const lo = size * LEAF_EDGE, span = size - lo * 2, cx = lo + span / 2, cy = lo + span / 2;
     const leafAt = (ox: number, oy: number, turn: number, long: number, wide: number): void => {
         const ca = Math.cos(turn), sa = Math.sin(turn), reach = Math.ceil(long);
@@ -255,10 +266,10 @@ export function treeLeafPicture(size = 256): Uint8Array {
             put(x, y, (0.78 + 0.22 * Math.min(inside * 3, 1)) * rib, Math.min(inside * wide * 0.5, 1));
         }
     };
-    for (const [count, out, long] of [[7, 0.33, 0.17], [6, 0.19, 0.15], [3, 0.06, 0.13]] as const) {
+    for (const [count, out, long] of [[17, 0.38, 0.1], [13, 0.27, 0.095], [9, 0.16, 0.09], [4, 0.05, 0.085]] as const) {
         for (let i = 0; i < count; i++) {
             const a = (i / count) * Math.PI * 2 + r() * 0.5, d = span * out * (0.85 + 0.3 * r());
-            leafAt(cx + Math.cos(a) * d, cy + Math.sin(a) * d, a + (r() - 0.5) * 0.7, span * long * (0.85 + 0.3 * r()), span * 0.075 * (0.85 + 0.3 * r()));
+            leafAt(cx + Math.cos(a) * d, cy + Math.sin(a) * d, a + (r() - 0.5) * 0.7, span * long * (0.85 + 0.3 * r()), span * 0.042 * (0.85 + 0.3 * r()));
         }
     }
     // The corners the wood reads, whichever way up the picture is taken: solid white.

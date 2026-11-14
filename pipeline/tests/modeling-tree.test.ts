@@ -49,12 +49,12 @@ describe('the tree step', () => {
     });
 
     it('draws a sprig with clear between its leaves and solid corners for the wood', () => {
-        const size = 64, p = treeLeafPicture(size), alpha = (x: number, y: number) => p[(y * size + x) * 4 + 3]!;
+        const size = 256, p = treeLeafPicture(size), alpha = (x: number, y: number) => p[(y * size + x) * 4 + 3]!;
         expect(alpha(1, 1)).toBe(255);
         expect(alpha(size - 2, size - 2)).toBe(255);
         let clear = 0, solid = 0;
-        for (let y = 8; y < size - 8; y++) for (let x = 8; x < size - 8; x++) { if (alpha(x, y) === 0) clear++; else if (alpha(x, y) > 200) solid++; }
-        expect(clear).toBeGreaterThan(300);
-        expect(solid).toBeGreaterThan(300);
+        for (let y = 32; y < size - 32; y++) for (let x = 32; x < size - 32; x++) { if (alpha(x, y) === 0) clear++; else if (alpha(x, y) > 200) solid++; }
+        expect(clear).toBeGreaterThan(192 * 192 * 0.3);
+        expect(solid).toBeGreaterThan(192 * 192 * 0.2);
     });
 });
