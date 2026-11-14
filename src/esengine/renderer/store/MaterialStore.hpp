@@ -360,6 +360,13 @@ public:
         return m ? m->revision : 0;
     }
 
+    /**
+     * @brief Changes whenever any material does (revisionOf), or one is added or removed.
+     * @details A reader that kept what it derived from many materials, or a pointer to a record, asks this once rather than
+     *          revisionOf each: while it holds, every record kept is the one it was.
+     */
+    u64 revision() const { return store_revision_; }
+
     /// Pushes a material's resolved render state. Preserves any already-packed constants
     /// (an edit such as setBlendMode re-pushes state without clobbering uniforms); a shader
     /// change invalidates the old constants since the layout differs.
@@ -369,7 +376,7 @@ public:
         if (it == materials_.end()) {
             MaterialRecord& added = materials_[materialId];
             added = record;
-            added.revision = nextRevision();
+            added.revision = revise();
             return;
         }
         MaterialRecord& rec = it->second;
@@ -387,7 +394,7 @@ public:
             rec.textures = std::move(texs);
         }
         rec.uboDirty = true; // re-upload on next bind
-        rec.revision = nextRevision();
+        rec.revision = revise();
     }
 
     /// Writes a named param's float components into the material's std140 buffer at the
@@ -404,7 +411,7 @@ public:
         const u32 n = std::min(arity, slot->arity);
         std::memcpy(rec.uboBytes.data() + slot->offset, values, n * sizeof(f32));
         rec.uboDirty = true;
-        rec.revision = nextRevision();
+        rec.revision = revise();
     }
 
     /// Binds a texture to a named texture param's sampler unit. No-op if the material,
@@ -416,7 +423,7 @@ public:
         if (lit == layouts_.end()) return;
         const MaterialTextureSlot* slot = lit->second.findTexture(name);
         if (!slot) return;
-        it->second.revision = nextRevision();
+        it->second.revision = revise();
         for (auto& b : it->second.textures) {
             if (b.unit == slot->unit) { b.texture = texture; return; }
         }
@@ -576,10 +583,17 @@ private:
     mutable const MaterialRecord* last_material_ = nullptr;
     mutable u32 last_layout_id_ = 0;
     mutable const MaterialUniformLayout* last_layout_ = nullptr;
-    void forgetLookups() { last_material_ = nullptr; last_material_id_ = 0; last_layout_ = nullptr; last_layout_id_ = 0; }
+    void forgetLookups() {
+        last_material_ = nullptr; last_material_id_ = 0; last_layout_ = nullptr; last_layout_id_ = 0;
+        // A record went: a pointer anyone kept to one may be to it.
+        store_revision_ = nextRevision();
+    }
+    /// The revision a changed material takes, which the store as a whole takes too.
+    u64 revise() { return store_revision_ = nextRevision(); }
+    u64 store_revision_ = nextRevision();
     /** Every material on @p shader takes a new revision: its layout changed or went. */
     void reviseMaterialsOf(resource::ShaderHandle shader) {
-        for (auto& [id, rec] : materials_) if (rec.shaderRef == shader) rec.revision = nextRevision();
+        for (auto& [id, rec] : materials_) if (rec.shaderRef == shader) rec.revision = revise();
     }
 
     /// A material shader's authored source + features, filed under its handle for

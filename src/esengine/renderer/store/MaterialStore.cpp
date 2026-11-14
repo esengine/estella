@@ -431,7 +431,7 @@ void MaterialStore::setWorldUnitsPerMeter(f32 unitsPerMeter) {
             defaultInUnits(p, scale, now);
             std::memcpy(rec.uboBytes.data() + p.offset, now, p.arity * sizeof(f32));
             rec.uboDirty = true;
-                rec.revision = nextRevision();
+                rec.revision = revise();
         }
     }
 }

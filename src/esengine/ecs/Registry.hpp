@@ -21,6 +21,7 @@
 
 // Project includes
 #include "../core/Log.hpp"
+#include "../core/Revision.hpp"
 #include "../core/Types.hpp"
 #include "ComponentMask.hpp"
 #include "Entity.hpp"
@@ -156,6 +157,13 @@ public:
     u32 changeTick() const { return change_tick_; }
 
     /**
+     * @brief Which registry this is, never shared with another made in this process (a registry assigned over this one brings
+     *        its own). Ticks and entities are each registry's own, so a reader that keeps what it derived from one asks this
+     *        before trusting a tick or an entity it kept.
+     */
+    u64 identity() const { return identity_; }
+
+    /**
      * @brief For a reader about to look: the tick it is looking at, after which the clock moves on.
      * @details Keep the answer; next time, changedSince(it) is what was written since this look. Stamps older than half the
      *          counter's range are lifted on the way, so an untouched component never reads as newer once the tick wraps.
@@ -210,6 +218,13 @@ public:
     bool anyChangedSince(u32 tick) const {
         const auto* pool = getPool<T>();
         return pool && tickAfter(pool->lastChangedTick(), tick);
+    }
+
+    /** @brief The tick of the latest write, addition or removal of any T; 0 when there has been none. */
+    template<typename T>
+    u32 lastChangedTick() const {
+        const auto* pool = getPool<T>();
+        return pool ? pool->lastChangedTick() : 0;
     }
 
     /**
@@ -1004,6 +1019,8 @@ private:
 
     /// The tick a write is stamped with (see beginChangeRead). Starts at 1: 0 is "never written".
     u32 change_tick_ = 1;
+    /// See identity(): drawn from the counter every revision comes from, so no two registries share one.
+    u64 identity_ = nextRevision();
     bool change_audit_ = false;
     std::vector<SparseSetBase::AuditCopy> audit_copies_;
     std::vector<u8> audit_reported_;

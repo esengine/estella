@@ -63,6 +63,14 @@ int main() {
         r.remove<Pos>(a);
         CHECK(r.anyChangedSince<Pos>(before), "a remove reads as a change of the pool");
         CHECK(!r.changedSince<Pos>(a, before), "while the entity has no stamp left to ask");
+        CHECK(tickAfter(r.lastChangedTick<Pos>(), before), "the pool's last change is the remove's, after the look before it");
+        CHECK(r.lastChangedTick<Rank>() == 0, "a type never stored has none");
+
+        Registry other;
+        CHECK(other.identity() != 0 && other.identity() != r.identity(), "each registry is its own");
+        const auto kept = other.identity();
+        other = Registry{};
+        CHECK(other.identity() != kept && other.identity() != r.identity(), "and one assigned over another brings its own");
 
         const u32 later = r.beginChangeRead();
         r.emplaceOrReplace<Pos>(a);

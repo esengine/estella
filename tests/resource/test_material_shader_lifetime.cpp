@@ -59,7 +59,28 @@ int main() {
         store.registerLayout(shader, layout);
         CHECK(store.revisionOf(1) != redefined, "its shader's layout replaced moves it");
         CHECK(store.revisionOf(2) == otherBefore, "and leaves a material on another shader alone");
-        store.clear(); rm.releaseShader(shader); rm.releaseShader(other); rm.shutdown();
+
+        // The store's own revision: whatever any material does, or a material added or removed, and not a read.
+        const u64 whole = store.revision();
+        CHECK(whole != 0, "the store has a revision");
+        store.find(2); store.revisionOf(1);
+        CHECK(store.revision() == whole, "reading it changes nothing");
+        store.setUniform(1, "u_tint", tint, 4);
+        CHECK(store.revision() != whole && store.revision() == store.revisionOf(1), "a material's change moves it, to that revision");
+        const u64 changed = store.revision();
+        store.setUniform(1, "u_missing", tint, 4);
+        CHECK(store.revision() == changed, "a write that changes nothing does not");
+        MaterialRecord third; third.shaderRef = other; store.define(3, third);
+        CHECK(store.revision() != changed, "a material added moves it");
+        const u64 added = store.revision();
+        store.undefine(3);
+        CHECK(store.revision() != added, "and one removed");
+        const u64 removed = store.revision();
+        store.undefine(3);
+        CHECK(store.revision() == removed, "removing one it does not have does not");
+        store.clear();
+        CHECK(store.revision() != removed, "and so does clearing it");
+        rm.releaseShader(shader); rm.releaseShader(other); rm.shutdown();
     }
     {
         MockGfxDevice device; resource::ResourceManager rm; rm.init(device);

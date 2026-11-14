@@ -323,15 +323,51 @@ MeshProgramFacts meshFactsFromEntity(RenderFrameContext& ctx, ecs::Registry& reg
     return facts;
 }
 
-MeshDrawKeys meshDrawFor(RenderFrameContext& ctx, ecs::Registry& registry, Entity entity,
-                         const ecs::MeshRenderer& mesh, const Mesh* resident, bool shadowDepth,
-                         bool& warnedBones, bool weightHeat = false) {
-    const MeshProgramFacts facts =
-        meshFactsFromEntity(ctx, registry, entity, mesh, resident, warnedBones);
+/** @brief The program a draw with these facts is asked for in this frame and pass: the frame's half of meshDrawFor. */
+MeshDrawKeys meshDrawFrom(RenderFrameContext& ctx, Entity entity, const MeshProgramFacts& facts, bool shadowDepth,
+                          bool weightHeat = false) {
     return { meshVariantFrom(facts, ctx.environment_texture_id != 0
                 || (!shadowDepth && ctx.frame && ctx.frame->planarTextureFor(entity) != 0), shadowDepth, ctx.lighting_direct, weightHeat,
                 ctx.gbuffer && !shadowDepth),
              facts.normalTextureId };
+}
+
+MeshDrawKeys meshDrawFor(RenderFrameContext& ctx, ecs::Registry& registry, Entity entity,
+                         const ecs::MeshRenderer& mesh, const Mesh* resident, bool shadowDepth,
+                         bool& warnedBones, bool weightHeat = false) {
+    return meshDrawFrom(ctx, entity, meshFactsFromEntity(ctx, registry, entity, mesh, resident, warnedBones), shadowDepth,
+                        weightHeat);
+}
+
+/** @brief The normal map's id as this frame has it, for facts kept without one: a texture's id is not kept. */
+u32 normalTextureOf(RenderFrameContext& ctx, const ecs::MeshRenderer& mesh, const MeshProgramFacts& facts) {
+    if (!mesh.normalMap.isValid() || !facts.lit || !facts.hasNormals) return 0;
+    Texture* tex = ctx.resources.getTexture(mesh.normalMap);
+    return tex ? tex->getId() : 0;
+}
+
+/**
+ * @brief The components whose presence keeps a draw from being kept (MeshPlugin::MeshProxy), one bit each: each turns, picks
+ *        or poses the mesh per view or per frame. Read where the walk reads them.
+ */
+u8 ruledOut(ecs::Registry& registry, Entity entity) {
+    return (registry.has<ecs::Billboard>(entity) ? 1u : 0u)
+         | (registry.has<ecs::MeshInstances>(entity) ? 2u : 0u)
+         | (registry.has<ecs::LODGroup>(entity) ? 4u : 0u)
+         | (registry.has<ecs::Impostor>(entity) ? 8u : 0u)
+         | (registry.has<ecs::MeshSkin>(entity) ? 16u : 0u)
+         | (registry.has<ecs::MeshMorph>(entity) ? 32u : 0u);
+}
+
+/** @brief The latest tick any of ruledOut's components was written, added or removed at. */
+u32 ruledOutChangedAt(const ecs::Registry& registry) {
+    u32 latest = 0;
+    for (const u32 t : {registry.lastChangedTick<ecs::Billboard>(), registry.lastChangedTick<ecs::MeshInstances>(),
+                        registry.lastChangedTick<ecs::LODGroup>(), registry.lastChangedTick<ecs::Impostor>(),
+                        registry.lastChangedTick<ecs::MeshSkin>(), registry.lastChangedTick<ecs::MeshMorph>()}) {
+        if (latest == 0 || (t != 0 && ecs::tickAfter(t, latest))) latest = t;
+    }
+    return latest;
 }
 }  // namespace
 
@@ -351,6 +387,10 @@ void MeshPlugin::init(RenderFrameContext& ctx) {
     }
     mesh_compiled_.fill(false);
     mesh_programs_.fill(0);
+    // A renderer rebuilt has resources rebuilt under it: nothing derived before is kept.
+    proxies_.clear();
+    proxy_slot_.clear();
+    ++proxy_epoch_;
     // The base variant now, so a broken shader is a boot-time failure rather than
     // one that waits for the first mesh; the rest compile when a draw asks.
     meshProgram(ctx, 0);
@@ -512,9 +552,26 @@ RenderPrewarmResult MeshPlugin::prewarm(RenderFrameContext& ctx, ecs::Registry& 
                         anyResident);
 }
 
-void MeshPlugin::trackPose(const RenderFrameContext& ctx, Entity entity, const glm::mat4& model,
+MeshPlugin::Pose* MeshPlugin::poseOf(const RenderFrameContext& ctx, Entity entity, MeshProxy* kept, bool make) {
+    const u64 key = poseKey(ctx, entity);
+    if (kept && kept->pose && kept->poseKey == key && kept->poseGeneration == pose_generation_) return kept->pose;
+    Pose* pose = nullptr;
+    if (make) {
+        pose = &poses_[key];
+    } else {
+        const auto found = poses_.find(key);
+        if (found != poses_.end()) pose = &found->second;
+    }
+    if (kept && pose) {
+        kept->pose = pose;
+        kept->poseKey = key;
+        kept->poseGeneration = pose_generation_;
+    }
+    return pose;
+}
+
+void MeshPlugin::trackPose(Pose& pose, const RenderFrameContext& ctx, const glm::mat4& model,
                            const std::vector<glm::mat4>* bones) {
-    Pose& pose = poses_[poseKey(ctx, entity)];
     // Last frame's, when the view drew this mesh last frame; otherwise it has no past worth following, and
     // standing where it stands says "did not move".
     const bool continued = pose.frame != 0 && pose.frame + 1 == ctx.motion_frame;
@@ -533,6 +590,109 @@ void MeshPlugin::trackPose(const RenderFrameContext& ctx, Entity entity, const g
     else pose.bonesCurrent.clear();
     pose.frame = ctx.motion_frame;
     pose.origin = renderOrigin();
+}
+
+void MeshPlugin::deriveProxy(RenderCollectContext& collect, MeshProxy& proxy, Entity entity, const ecs::MeshRenderer& mesh,
+                             ecs::Transform& transform, u8 present, u32 now) {
+    auto& ctx = collect.frame_context;
+    proxy = MeshProxy{};
+    proxy.entity = entity;
+    proxy.builtAt = now;
+    proxy.presentAt = now;
+    proxy.epoch = proxy_epoch_;
+    proxy.present = present;
+    proxy.resident = mesh.mesh.isValid() ? ctx.resources.getMesh(mesh.mesh) : nullptr;
+    proxy.meshRevision = proxy.resident ? proxy.resident->revision : 0;
+    proxy.materialStore = ctx.materials ? ctx.materials->revision() : 0;
+    proxy.material = mesh.material != 0 && ctx.materials ? ctx.materials->find(mesh.material) : nullptr;
+    proxy.materialRevision = proxy.material ? proxy.material->revision : 0;
+    // A parallax shifts the mesh toward the camera's centre, which is the view's to say.
+    proxy.kept = present == 0 && proxy.resident != nullptr && mesh.parallax == glm::vec2(1.0f);
+    if (!proxy.kept) return;
+    // What collect() derives for such a draw, the same way: anything else and a kept draw stands somewhere a fresh one would not.
+    transform.ensureDecomposed();
+    proxy.position = rebased(transform.worldPosition);
+    proxy.rotation = transform.worldRotation;
+    proxy.scale = transform.worldScale;
+    proxy.bend = proxy.material ? ctx.materials->vertexBounds(mesh.material) : 0.0f;
+    proxy.depthTested = mesh.opaque || (proxy.material && proxy.material->depthTest);
+    const glm::vec3 padding(proxy.bend);
+    orientedWorldAabb(proxy.position, proxy.rotation, proxy.scale, proxy.resident->localMin - padding,
+                      proxy.resident->localMax + padding, proxy.boxCentre, proxy.boxHalf);
+    proxy.model = glm::translate(glm::mat4(1.0f), proxy.position) * glm::mat4_cast(proxy.rotation)
+                * glm::scale(glm::mat4(1.0f), proxy.scale);
+    proxy.normalRows = glm::transpose(glm::inverse(glm::mat3(proxy.model)));
+    proxy.facts = meshFactsFromEntity(ctx, collect.registry, entity, mesh, proxy.resident, warned_bones_);
+    proxy.facts.normalTextureId = 0;
+}
+
+MeshPlugin::MeshProxy* MeshPlugin::retain(RenderCollectContext& collect, Entity entity, const ecs::MeshRenderer& mesh,
+                                                 ecs::Transform& transform, u32 now, u32 rulesChangedAt) {
+    auto& registry = collect.registry;
+    auto& ctx = collect.frame_context;
+    const u32 index = entity.index();
+    if (index >= proxy_slot_.size()) proxy_slot_.resize(static_cast<usize>(index) + 1, ~0u);
+    u32& slot = proxy_slot_[index];
+    if (slot == ~0u) {
+        slot = static_cast<u32>(proxies_.size());
+        proxies_.emplace_back();
+    }
+    MeshProxy& proxy = proxies_[slot];
+
+    const Mesh* resident = mesh.mesh.isValid() ? ctx.resources.getMesh(mesh.mesh) : nullptr;
+    bool stale = proxy.entity != entity || proxy.epoch != proxy_epoch_
+              || resident != proxy.resident || (resident && resident->revision != proxy.meshRevision)
+              || registry.changedSince<ecs::Transform>(entity, proxy.builtAt)
+              || registry.changedSince<ecs::MeshRenderer>(entity, proxy.builtAt);
+    // The store moved: whether THIS draw's material is the record it was, at the revision it was, is one lookup.
+    const u64 store = ctx.materials ? ctx.materials->revision() : 0;
+    if (!stale && store != proxy.materialStore) {
+        const MaterialRecord* material = mesh.material != 0 && ctx.materials ? ctx.materials->find(mesh.material) : nullptr;
+        stale = material != proxy.material || (material && material->revision != proxy.materialRevision);
+        if (!stale) proxy.materialStore = store;
+    }
+    // A component that rules keeping out was added or removed somewhere since this one looked: is it this entity's?
+    u8 present = proxy.present;
+    bool looked = false;
+    if (!stale && rulesChangedAt != 0 && ecs::tickAfter(rulesChangedAt, proxy.presentAt)) {
+        present = ruledOut(registry, entity);
+        looked = true;
+        stale = present != proxy.present;
+        proxy.presentAt = now;
+    }
+    if (stale) {
+        deriveProxy(collect, proxy, entity, mesh, transform, looked ? present : ruledOut(registry, entity), now);
+        ++proxies_built_;
+    } else if (proxy.kept) {
+        ++proxies_kept_;
+        // With the change audit on, what is kept is checked against what the components derive now: a difference is a write
+        // that nothing stamped, and a draw that stands where the entity no longer does.
+        if (registry.changeAuditEnabled()) {
+            MeshProxy fresh;
+            deriveProxy(collect, fresh, entity, mesh, transform, ruledOut(registry, entity), now);
+            // By bits: a mesh scaled to nothing has a normal matrix of NaN, which equals nothing, itself included, though
+            // the same inputs give the same bits.
+            const auto bits = [](const auto& a, const auto& b) { return std::memcmp(&a, &b, sizeof(a)) == 0; };
+            const bool same = fresh.kept && fresh.resident == proxy.resident && fresh.material == proxy.material
+                && bits(fresh.position, proxy.position) && bits(fresh.rotation, proxy.rotation) && bits(fresh.scale, proxy.scale)
+                && bits(fresh.boxCentre, proxy.boxCentre) && bits(fresh.boxHalf, proxy.boxHalf) && bits(fresh.model, proxy.model)
+                && bits(fresh.normalRows, proxy.normalRows) && bits(fresh.bend, proxy.bend) && fresh.depthTested == proxy.depthTested
+                && fresh.facts.hasNormals == proxy.facts.hasNormals && fresh.facts.lit == proxy.facts.lit
+                && fresh.facts.skinned == proxy.facts.skinned && fresh.facts.lightmapped == proxy.facts.lightmapped
+                && fresh.facts.tangents == proxy.facts.tangents && fresh.facts.opaque == proxy.facts.opaque
+                && fresh.facts.materialId == proxy.facts.materialId;
+            if (!same) {
+                ++proxies_stale_total_;
+                if (!warned_stale_) {
+                    warned_stale_ = true;
+                    ES_LOG_WARN("change audit: a kept mesh draw (entity {}) is not what its components derive now - something it"
+                                " is derived from changed without a stamp or a revision", entity.index());
+                }
+                proxy = fresh;
+            }
+        }
+    }
+    return proxy.kept ? &proxy : nullptr;
 }
 
 namespace {
@@ -678,7 +838,12 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     const bool depthPass = shadowDepth || motion;
     if (!motion && ctx.track_motion && ctx.motion_frame % 256 == 0) {
         for (auto it = poses_.begin(); it != poses_.end();) {
-            it = it->second.frame + 8 < ctx.motion_frame ? poses_.erase(it) : std::next(it);
+            if (it->second.frame + 8 < ctx.motion_frame) {
+                it = poses_.erase(it);
+                ++pose_generation_;
+            } else {
+                ++it;
+            }
         }
     }
 
@@ -686,6 +851,22 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     // The mesh as this view's mode describes it; one object reused across the walk.
     const ShadingMode shading = depthPass ? ShadingMode::Shaded : collect_ctx.shading;
     ecs::MeshRenderer shaded;
+
+    // What is kept between walks is the look as authored, which every view of it agrees on; a view that overrides it derives
+    // afresh. The tick is this walk's look at the change stamps: a proxy derived now has seen every write stamped up to it.
+    const bool keeping = shading == ShadingMode::Shaded;
+    u32 now = 0, rulesChangedAt = 0;
+    proxies_kept_ = proxies_built_ = 0;
+    if (keeping) {
+        if (renderOrigin() != proxy_origin_ || ctx.materials != proxy_materials_ || registry.identity() != proxy_registry_) {
+            ++proxy_epoch_;
+            proxy_origin_ = renderOrigin();
+            proxy_materials_ = ctx.materials;
+            proxy_registry_ = registry.identity();
+        }
+        now = registry.beginChangeRead();
+        rulesChangedAt = ruledOutChangedAt(registry);
+    }
 
     // The walk is timed whole: two clock reads a walk. A clock read is a call out to the page (performance.now), and read at
     // every phase of every mesh it was four of every ten samples of a profiled frame and most of the time it reported - the
@@ -732,33 +913,49 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         if (!mesh.enabled || (mesh.indices.empty() && !mesh.mesh.isValid())) continue;
 
         auto& transform = meshView.get<ecs::Transform>(entity);
-        if (!transform.decomposed_) ++coldDecompose;
-        // Parallax is a CAMERA trick — a renderable shifted toward the view centre to
-        // scroll slower. A shadow pass looks from a light, whose centre means nothing to
-        // it, and its map is fitted to unshifted bounds: a caster stands where it is.
-        transform.ensureDecomposed();
-        const glm::vec3 position = shadowDepth
-            ? rebased(transform.worldPosition)
-            : parallaxedWorldPosition(transform, mesh.parallax, collect_ctx.camera);
-        // A card turns to THIS view, whichever it is: the Transform keeps what was authored. Placements are each turned by their own
-        // record, so a set of them is left as it stands.
-        const ecs::Billboard* card = registry.tryGet<ecs::Billboard>(entity);
-        const glm::quat rotation = card && card->enabled && !registry.tryGet<ecs::MeshInstances>(entity)
-            ? billboard::facing(card->mode, ctx.view_projection, collect_ctx.camera.eye, position)
-            : transform.worldRotation;
-        const auto& scale = transform.worldScale;
+        // Kept from an earlier walk when nothing it was derived from has changed (MeshProxy); null derives it here.
+        MeshProxy* kept = keeping && !heated ? retain(collect_ctx, entity, mesh, transform, now, rulesChangedAt) : nullptr;
+        glm::vec3 position, scale;
+        glm::quat rotation;
+        if (kept) {
+            // The motion pass draws what moved since the view's last frame, and only what is opaque. A kept draw that did not
+            // is passed over here rather than after its cull, which is all the work the walk would have done to reach the same answer.
+            if (motion) {
+                const Pose* pose = poseOf(ctx, entity, kept, false);
+                if (!mesh.opaque || !pose || pose->frame != ctx.motion_frame || pose->previous == pose->current) continue;
+            }
+            position = kept->position;
+            rotation = kept->rotation;
+            scale = kept->scale;
+        } else {
+            if (!transform.decomposed_) ++coldDecompose;
+            // Parallax is a CAMERA trick — a renderable shifted toward the view centre to
+            // scroll slower. A shadow pass looks from a light, whose centre means nothing to
+            // it, and its map is fitted to unshifted bounds: a caster stands where it is.
+            transform.ensureDecomposed();
+            position = shadowDepth
+                ? rebased(transform.worldPosition)
+                : parallaxedWorldPosition(transform, mesh.parallax, collect_ctx.camera);
+            // A card turns to THIS view, whichever it is: the Transform keeps what was authored. Placements are each turned by their own
+            // record, so a set of them is left as it stands.
+            const ecs::Billboard* card = registry.tryGet<ecs::Billboard>(entity);
+            rotation = card && card->enabled && !registry.tryGet<ecs::MeshInstances>(entity)
+                ? billboard::facing(card->mode, ctx.view_projection, collect_ctx.camera.eye, position)
+                : transform.worldRotation;
+            scale = transform.worldScale;
+        }
         tick(0);
 
         // Bounds come from whichever geometry this is: a resident mesh keeps its
         // own, and the inline payload's are recomputed on upload. Reading the
         // component's for a resident mesh would cull it against an empty box.
-        const Mesh* resident = mesh.mesh.isValid() ? ctx.resources.getMesh(mesh.mesh) : nullptr;
+        const Mesh* resident = kept ? kept->resident : mesh.mesh.isValid() ? ctx.resources.getMesh(mesh.mesh) : nullptr;
         // Only GPU-resident geometry casts: the inline payload takes the CPU path
         // below, which bakes world space into vertices for the BATCH shader — a
         // shader that writes colour, not the depth this pass is here to collect.
         if (depthPass && !resident) continue;
         // Many placements of one mesh, drawn as instances of it. What is placed does not move on its own, so the motion pass has nothing to say.
-        const ecs::MeshInstances* placements = resident ? registry.tryGet<ecs::MeshInstances>(entity) : nullptr;
+        const ecs::MeshInstances* placements = resident && !kept ? registry.tryGet<ecs::MeshInstances>(entity) : nullptr;
         if (placements && (placements->transforms.empty() || motion)) continue;
         // What light passes through (water) stands in no light's way. Rain's way is another matter: a see-through surface
         // set to cast no shadow (glass) still keeps rain off what is under it, so the rain's cover map takes it. What is
@@ -773,7 +970,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // make the answer the entity's rather than each view's.
         LodLevels levels;
         const ecs::LODGroup* group = nullptr;
-        if (collect_ctx.lod.state && resident && !placements) {
+        if (collect_ctx.lod.state && resident && !placements && !kept) {
             const auto* declared = registry.tryGet<ecs::LODGroup>(entity);
             if (declared && declared->enabled) {
                 ++lodGathers;
@@ -786,7 +983,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         tick(1);
         // Small enough, and an impostor with its pictures taken: a card facing this view stands in for the mesh. Only the scene's own
         // views draw one: a card casts no shadow, and a picture has no motion to write.
-        if (ctx.purpose == RenderPurpose::Scene && resident && !placements && ctx.frame) {
+        if (ctx.purpose == RenderPurpose::Scene && resident && !placements && !kept && ctx.frame) {
             const auto* stand = registry.tryGet<ecs::Impostor>(entity);
             const RenderFrame::ImpostorAtlas* atlas = stand && stand->enabled ? ctx.frame->impostorAtlas(entity) : nullptr;
             if (atlas) {
@@ -804,12 +1001,12 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // BEFORE the cull, because whether this draw depth-tests decides if an
         // occluder may refuse it, and the material is where that is finally said.
         // Reused by the draw key below: two lookups is how the two come to differ.
-        const MaterialRecord* material = (mesh.material != 0 && ctx.materials)
-            ? ctx.materials->find(mesh.material) : nullptr;
+        const MaterialRecord* material = kept ? kept->material
+            : (mesh.material != 0 && ctx.materials) ? ctx.materials->find(mesh.material) : nullptr;
         // A material that bends its vertices can put them outside the mesh's own box; culling the
         // box would drop a bent mesh that is still on screen, so it grows by what the material says.
-        const f32 bend = material ? ctx.materials->vertexBounds(mesh.material) : 0.0f;
-        const bool depthTested = mesh.opaque || (material && material->depthTest);
+        const f32 bend = kept ? kept->bend : material ? ctx.materials->vertexBounds(mesh.material) : 0.0f;
+        const bool depthTested = kept ? kept->depthTested : mesh.opaque || (material && material->depthTest);
 
         const Mesh* placementCoarse = placements ? placementCoarseMesh(ctx.resources, *resident, *placements) : nullptr;
         f32 placementRadius = 0.0f;
@@ -832,9 +1029,14 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         const glm::vec3 padding(placements ? 0.0f : bend);
 
         glm::vec3 aabbCenter(0.0f), halfExtents(0.0f);
-        orientedWorldAabb(position, rotation, scale, localMin - padding, localMax + padding,
-                          aabbCenter, halfExtents);
-        if (resident && !placements && !group) {
+        if (kept) {
+            aabbCenter = kept->boxCentre;
+            halfExtents = kept->boxHalf;
+        } else {
+            orientedWorldAabb(position, rotation, scale, localMin - padding, localMax + padding,
+                              aabbCenter, halfExtents);
+        }
+        if (resident && !placements && !group && !kept) {
             skinnedWorldBounds(registry, entity, *resident, warned_bones_, aabbCenter, halfExtents);
         }
         // The collect's own predicate, not a frustum test of this plugin's: it
@@ -915,17 +1117,20 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         if (motion) {
             // What was drawn last frame and what is drawn now, for THIS view. Nothing known, or nothing changed,
             // means the camera's own motion says it all and the temporal pass already has that.
-            const auto pose = poses_.find(poseKey(ctx, entity));
-            if (pose == poses_.end() || pose->second.frame != ctx.motion_frame
-                || (pose->second.previous == pose->second.current
-                    && pose->second.bonesPrevious == pose->second.bonesCurrent)) {
+            const Pose* pose = poseOf(ctx, entity, kept, false);
+            if (!pose || pose->frame != ctx.motion_frame
+                || (pose->previous == pose->current && pose->bonesPrevious == pose->bonesCurrent)) {
                 continue;
             }
             const MeshProgramFacts facts =
-                meshFactsFromEntity(ctx, registry, entity, mesh, resident, warned_bones_);
+                kept ? kept->facts : meshFactsFromEntity(ctx, registry, entity, mesh, resident, warned_bones_);
             // A palette of a different size than last frame's has no joint-for-joint past to follow.
-            if (facts.skinned && pose->second.bonesPrevious.size() != pose->second.bonesCurrent.size()) continue;
+            if (facts.skinned && pose->bonesPrevious.size() != pose->bonesCurrent.size()) continue;
             keys = { meshVariant(facts.hasNormals, false, false, facts.skinned, false, false, false, false, false, true, facts.tangents), 0 };
+        } else if (kept) {
+            MeshProgramFacts facts = kept->facts;
+            facts.normalTextureId = normalTextureOf(ctx, mesh, facts);
+            keys = meshDrawFrom(ctx, entity, facts, shadowDepth);
         } else {
             keys = meshDrawFor(ctx, registry, entity, mesh, resident, shadowDepth, warned_bones_, heated);
         }
@@ -1008,7 +1213,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             // The pose, when this entity says what moves it. The bones are
             // world-space, so the entity's own transform is not read — which is
             // what glTF requires of a skinned mesh.
-            const u32 poseSize = skinPose(registry, entity, *resident, pose_scratch_, warned_bones_);
+            const u32 poseSize = kept ? 0u : skinPose(registry, entity, *resident, pose_scratch_, warned_bones_);
             const bool skinned = poseSize > 0;
 
             // `lit` is the draw's own word and is honoured either way: geometry
@@ -1037,7 +1242,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 // same vertices, and a morph target is what the mesh is BEFORE a
                 // pose is applied to it.
                 MorphConstants shapes{};
-                if (morphShapes(registry, entity, *resident, shapes)) {
+                if (!kept && morphShapes(registry, entity, *resident, shapes)) {
                     key.morphIndex = draw_list.addMorphShapes(shapes);
                     key.morphTextureId = static_cast<u32>(resident->morphTexture);
                 }
@@ -1046,9 +1251,10 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     key.skinOffset = draw_list.addSkinMatrices(pose_scratch_.data(), poseSize);
                     key.skinCount = poseSize;
                 } else {
-                glm::mat4 model = glm::translate(glm::mat4(1.0f), position)
-                                * glm::mat4_cast(rotation)
-                                * glm::scale(glm::mat4(1.0f), scale);
+                const glm::mat4 model = kept ? kept->model
+                                      : glm::translate(glm::mat4(1.0f), position)
+                                      * glm::mat4_cast(rotation)
+                                      * glm::scale(glm::mat4(1.0f), scale);
                 // Three rows, not four columns: the row the shader rebuilds is
                 // the one an affine transform never varies.
                 for (u32 row = 0; row < 3; ++row) {
@@ -1058,7 +1264,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 if (resident->hasNormals) {
                     // Written per object rather than derived per vertex: this is
                     // the transform a normal takes under a non-uniform scale.
-                    const glm::mat3 nrm = glm::transpose(glm::inverse(glm::mat3(model)));
+                    const glm::mat3 nrm = kept ? kept->normalRows : glm::transpose(glm::inverse(glm::mat3(model)));
                     for (u32 row = 0; row < 3; ++row) {
                         std::memcpy(dst + (MESH_INSTANCE_TEXEL_NORMAL + row) * 16, &nrm[row][0], 12);
                     }
@@ -1081,7 +1287,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     // This record is the motion pass's own, so the texels a lit draw keeps its tint, normal
                     // matrix and bake in are free: last frame's shift in the tint's, and last frame's
                     // view-projection times last frame's model — as rows, so the shader dots them with the local position.
-                    const Pose& pose = poses_.find(poseKey(ctx, entity))->second;
+                    const Pose& pose = *poseOf(ctx, entity, kept, false);
                     const glm::vec4 jitter{ctx.motion_prev_jitter, 0.0f, 0.0f};
                     std::memcpy(dst + MESH_INSTANCE_TEXEL_TINT * 16, &jitter, 16);
                     // A rigid mesh's last place is its last model, so the matrix is the two together; a skinned
@@ -1102,8 +1308,9 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                         }
                     }
                 } else if (ctx.track_motion && !shadowDepth) {
-                    trackPose(ctx, entity,
+                    trackPose(*poseOf(ctx, entity, kept, true), ctx,
                               skinned ? glm::mat4(1.0f)
+                              : kept  ? kept->model
                                       : glm::translate(glm::mat4(1.0f), position)
                                             * glm::mat4_cast(rotation)
                                             * glm::scale(glm::mat4(1.0f), scale),
@@ -1181,7 +1388,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                                                                               resident->hasTangents);
                             if (key.depthShaderId != 0) ++prepassTaken; else ++prepassBent;
                         } else {
-                            const u32 depthVariant = meshDrawFor(ctx, registry, entity, mesh, resident, true, warned_bones_).variant;
+                            const u32 depthVariant = kept ? meshDrawFrom(ctx, entity, kept->facts, true).variant
+                                                          : meshDrawFor(ctx, registry, entity, mesh, resident, true, warned_bones_).variant;
                             key.depthShaderId = meshProgram(ctx, depthVariant);
                             if (key.depthShaderId != 0) ++prepassTaken; else ++prepassNoProgram;
                         }
@@ -1326,6 +1534,11 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     ES_PROFILE_COUNTER("render.mesh.programAsks", programAsks);
     // The scene's own collect says it; a shadow map's, which comes after, would overwrite it with zeroes.
     if (ctx.purpose == RenderPurpose::Scene) {
+        // Draws whose view-independent half was kept from an earlier walk, and those derived again because something changed.
+        ES_PROFILE_COUNTER("render.mesh.proxy.kept", proxies_kept_);
+        ES_PROFILE_COUNTER("render.mesh.proxy.built", proxies_built_);
+        // Kept draws the change audit found differing from a fresh derivation, since the plugin started: anything but 0 is a bug.
+        ES_PROFILE_COUNTER("render.mesh.proxy.stale", proxies_stale_total_);
         ES_PROFILE_COUNTER("render.prepass.taken", prepassTaken);
         ES_PROFILE_COUNTER("render.prepass.cutout", prepassCutout);
         ES_PROFILE_COUNTER("render.prepass.bent", prepassBent);
