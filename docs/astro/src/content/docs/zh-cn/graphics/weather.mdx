@@ -77,3 +77,20 @@ const sandstorm = registerWeatherPreset('sandstorm', {
 ```ts
 world.insert(weatherEntity, Weather, { target: WEATHER_RAIN, progress: 0, duration: 10 });
 ```
+
+## 某一时刻，而不是逐帧累加
+
+天气处在什么状态，由它这一轮从哪里开始、已经运行了多久决定：也就是场景时钟，即游戏自己的运行秒数（游戏暂停时它停，减速时它变慢）。
+任何时刻都可以直接算出来，不必从头播到那里；同样的 `t` 在任何机器上都是同样的天气；过场动画或回放可以把时钟拨到任意位置。
+
+```ts
+import { seekSceneClock, sceneClock, weatherAt, hourAt } from 'esengine';
+
+seekSceneClock(240);   // 从下一帧起，天气、钟点和云都是第四分钟时的样子
+sceneClock();          // 场景时钟已经走了多少秒
+
+// 也可以只查询、不改变任何东西：以 `start` 开始的天气在 90 秒后处于什么状态。
+weatherAt({ preset: WEATHER_CLEAR, target: WEATHER_NONE, progress: 0, duration: 10, sequence: 'clear,mist,rain', hold: 8 }, 90);
+```
+
+像上面那样手动写入组件，会以写入的值重新开始一轮，所以脚本的转变和时钟是一致的。云会移到天空的风（按天气强度的变化累计）应该把它们带到的位置。

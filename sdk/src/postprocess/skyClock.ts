@@ -27,6 +27,8 @@ export interface SkyClockState {
 const state: SkyClockState = { driftX: 0, driftZ: 0, upperDriftX: 0, upperDriftZ: 0, evolve: 0 };
 /** Kilometres a second each way, and the change a second, as the sky last said. */
 const velocity = { x: 0, z: 0, upperX: 0, upperZ: 0, evolve: 0 };
+/** The same with the weather's wind at 1: what a run's summed wind multiplies when the clock is moved to a moment. */
+const still = { x: 0, z: 0, upperX: 0, upperZ: 0 };
 
 function value(effect: BlendedEffect, name: string): number {
     const set = effect.uniforms.get(name);
@@ -53,12 +55,17 @@ export function applySkyClock(effects: Map<string, BlendedEffect>, wind: number)
         return;
     }
     const angle = value(sky, 'u_windDirection') * Math.PI / 180;
-    const speed = value(sky, 'u_windSpeed') * wind;
+    const base = value(sky, 'u_windSpeed');
+    const speed = base * wind;
     velocity.x = Math.sin(angle) * speed;
     velocity.z = Math.cos(angle) * speed;
     const upper = speed * value(sky, 'u_cloud2Wind');
     velocity.upperX = Math.sin(angle) * upper;
     velocity.upperZ = Math.cos(angle) * upper;
+    still.x = Math.sin(angle) * base;
+    still.z = Math.cos(angle) * base;
+    still.upperX = still.x * value(sky, 'u_cloud2Wind');
+    still.upperZ = still.z * value(sky, 'u_cloud2Wind');
     velocity.evolve = value(sky, 'u_cloudChange');
     sky.uniforms.set('u_cloudDriftX', state.driftX);
     sky.uniforms.set('u_cloudDriftZ', state.driftZ);
@@ -79,4 +86,18 @@ export function setSkyClockState(next: Partial<SkyClockState> | null): void {
     state.upperDriftX = next?.upperDriftX ?? 0;
     state.upperDriftZ = next?.upperDriftZ ?? 0;
     state.evolve = next?.evolve ?? 0;
+}
+
+/**
+ * Puts the clouds where `seconds` of the game's clock would have taken them, `windSeconds` of it at the weather's own wind (its strength
+ * summed over the run): the sky's wind as it last said, the change of shape by time alone. What moving the scene clock to a moment does.
+ *
+ * @experimental
+ */
+export function seekSkyClock(seconds: number, windSeconds: number): void {
+    state.driftX = still.x * windSeconds;
+    state.driftZ = still.z * windSeconds;
+    state.upperDriftX = still.upperX * windSeconds;
+    state.upperDriftZ = still.upperZ * windSeconds;
+    state.evolve = velocity.evolve * seconds;
 }

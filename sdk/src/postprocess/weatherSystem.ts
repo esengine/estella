@@ -22,11 +22,10 @@ import { AudioSource, type AudioSourceData } from '../audio/AudioComponents';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { isEditor, isPlayMode } from '../ecs/env';
-import {
-    blendWeather, setCurrentWeather, weatherPresetId, WEATHER_NONE, WeatherDrive, type WeatherState,
-} from './weather';
+import { blendWeather, setCurrentWeather, WeatherDrive, type WeatherState } from './weather';
+import { hourAt, weatherAt, windSecondsAt, type WeatherMoment, type WeatherStart } from './weatherClock';
 import { Material } from '../render/material';
-import { advanceSkyClock, setSkyClockState } from './skyClock';
+import { advanceSkyClock, seekSkyClock, setSkyClockState } from './skyClock';
 import { timeOfDayAt, setCurrentTimeOfDay, TimeDrive, type TimeOfDayState } from './timeOfDay';
 
 /** What a light was authored with, kept so a weather scales the author's number and never its own last answer. */
@@ -61,8 +60,32 @@ function blowSprites(wind: number): void {
     }
 }
 
-/** Where each Weather is in its sequence, and how long it has held. Not in the component: a scene file need not carry it. */
-const cycles = new Map<Entity, { index: number; held: number }>();
+/** Seconds of play the weather and the clock have run: the game's own time, so a paused game stands and a slowed one slows. */
+let sceneTime = 0;
+/** A moment the clock is to be moved to before the next frame is worked out. */
+let seekTo: number | null = null;
+/**
+ * Where each Weather's run began (its fields then, the clock then) and what this system last wrote to it: a field that differs from that
+ * was set by something else (a script's weatherTo, a hand in the inspector), and a run begins again from it.
+ */
+const runs = new Map<Entity, { start: WeatherStart; t0: number; wrote: WeatherMoment }>();
+/** The same for each TimeOfDay: the hour it began at, how long its day is, the clock then and the hour last written. */
+const days = new Map<Entity, { hour: number; daySeconds: number; t0: number; wrote: number }>();
+
+/**
+ * Moves the scene clock to `t` seconds of play: from the next frame the weather, the hour and the clouds are where that moment has them,
+ * worked out from the start of their runs rather than played up to.
+ *
+ * @experimental
+ */
+export function seekSceneClock(t: number): void {
+    seekTo = Math.max(t, 0);
+}
+
+/** Seconds of play the scene clock has run. @experimental */
+export function sceneClock(): number {
+    return sceneTime;
+}
 
 /** The volume a rain track was authored at, so the weather scales the author's number and not its own last answer. */
 const soundBases = new Map<Entity, number>();
@@ -237,49 +260,39 @@ function applySound(world: World, source: number, state: WeatherState): void {
     world.set(entity, AudioSource, { ...data, volume, playing, loop: true });
 }
 
-/** The preset a name or an id in a sequence stands for. */
-function presetOf(token: string): number | undefined {
-    const trimmed = token.trim();
-    if (trimmed === '') return undefined;
-    const named = weatherPresetId(trimmed.toLowerCase());
-    if (named !== undefined) return named;
-    const n = Number(trimmed);
-    return Number.isFinite(n) ? n : undefined;
+/** Puts a Weather where its run has it now, beginning a run from its fields when they were set by something else. */
+function runWeather(entity: Entity, data: WeatherData): void {
+    let run = runs.get(entity);
+    if (!run || run.wrote.preset !== data.preset || run.wrote.target !== data.target || Math.abs(run.wrote.progress - data.progress) > 1e-9
+        || run.start.duration !== data.duration || run.start.sequence !== data.sequence || run.start.hold !== data.hold) {
+        run = {
+            start: { preset: data.preset, target: data.target, progress: data.progress, duration: data.duration, sequence: data.sequence, hold: data.hold },
+            t0: sceneTime, wrote: { preset: data.preset, target: data.target, progress: data.progress },
+        };
+        runs.set(entity, run);
+    }
+    const now = weatherAt(run.start, sceneTime - run.t0);
+    data.preset = now.preset;
+    data.target = now.target;
+    data.progress = now.progress;
+    run.wrote = now;
 }
 
-function advance(entity: Entity, data: WeatherData, dt: number): void {
-    if (data.target !== WEATHER_NONE) {
-        data.progress += dt / Math.max(data.duration, 0.01);
-        if (data.progress >= 1) {
-            data.preset = data.target;
-            data.target = WEATHER_NONE;
-            data.progress = 0;
-        }
-        return;
+/** Puts a TimeOfDay at the hour its run has now, beginning a run when its hour or its day was set by something else. */
+function runDay(entity: Entity, data: TimeOfDayData): void {
+    let day = days.get(entity);
+    if (!day || Math.abs(day.wrote - data.hour) > 1e-9 || day.daySeconds !== data.daySeconds) {
+        day = { hour: data.hour, daySeconds: data.daySeconds, t0: sceneTime, wrote: data.hour };
+        days.set(entity, day);
     }
-    if (!data.sequence) return;
-    const list = data.sequence.split(',').map(presetOf).filter((v): v is number => v !== undefined);
-    if (list.length < 2) return;
-    let cycle = cycles.get(entity);
-    if (!cycle) {
-        // Joins the sequence where the scene is: the first entry that is the weather now, else the start.
-        const at = list.indexOf(data.preset);
-        cycle = { index: at < 0 ? 0 : at, held: 0 };
-        cycles.set(entity, cycle);
-    }
-    cycle.held += dt;
-    if (cycle.held < data.hold) return;
-    cycle.held = 0;
-    cycle.index = (cycle.index + 1) % list.length;
-    data.target = list[cycle.index];
-    data.progress = 0;
+    data.hour = hourAt(day.hour, day.daySeconds, sceneTime - day.t0);
+    day.wrote = data.hour;
 }
 
 // system-access: the weather reads and writes the lights, the sound sources and the post-process volumes it drives, which no query names.
 export const weatherSystem = defineSystem(
     [Query(Mut(Weather)), Query(Mut(TimeOfDay)), Res(Time), GetWorld()],
     (weathers: Iterable<[Entity, WeatherData]>, times: Iterable<[Entity, TimeOfDayData]>, time: TimeData, world: World) => {
-        advanceSkyClock(time.delta);
         let found: [Entity, WeatherData] | null = null;
         for (const entry of weathers) { found = entry; break; }
         let clock: [Entity, TimeOfDayData] | null = null;
@@ -288,18 +301,33 @@ export const weatherSystem = defineSystem(
             blowSprites(1);
             if (bases.size > 0) restoreLights(world);
             if (soundBases.size > 0) restoreSound(world);
-            cycles.clear();
+            runs.clear();
+            days.clear();
             setCurrentWeather(null);
             setCurrentTimeOfDay(null);
+            advanceSkyClock(time.delta);
             return;
         }
         const playing = !isEditor() || isPlayMode();
+        let sought = false;
+        if (!playing) {
+            // A run begins at play: the editor shows the fields as authored, and the next play starts from them.
+            sceneTime = 0;
+            runs.clear();
+            days.clear();
+        } else if (seekTo !== null) {
+            sceneTime = seekTo;
+            seekTo = null;
+            sought = true;
+        } else {
+            sceneTime += time.delta;
+        }
 
         let weatherState: WeatherState | null = null;
         let weatherDrive = 0;
         if (found) {
             const [entity, data] = found;
-            if (playing) advance(entity, data, time.delta);
+            if (playing) runWeather(entity, data);
             weatherState = blendWeather(data.preset, data.target, data.progress);
             weatherDrive = data.drive;
             setCurrentWeather(weatherState, data.drive);
@@ -311,12 +339,19 @@ export const weatherSystem = defineSystem(
         let timeDrive = 0;
         if (clock) {
             const data = clock[1];
-            if (playing && data.daySeconds > 0) data.hour = (data.hour + time.delta * 24 / data.daySeconds) % 24;
+            if (playing) runDay(clock[0], data);
             timeState = timeOfDayAt(data.hour, data.latitude, data.declination, data.north);
             timeDrive = data.drive;
             setCurrentTimeOfDay(timeState, data.drive, (playing && (data.drive & TimeDrive.Lights) !== 0) || (!playing && keyLightAgrees(world, timeState)));
         } else {
             setCurrentTimeOfDay(null);
+        }
+
+        if (sought) {
+            const run = found ? runs.get(found[0]) : undefined;
+            seekSkyClock(sceneTime, run ? run.t0 + windSecondsAt(run.start, sceneTime - run.t0) : sceneTime);
+        } else {
+            advanceSkyClock(time.delta);
         }
 
         blowSprites(weatherState && playing && (weatherDrive & WeatherDrive.Wind) ? weatherState.wind : 1);
@@ -337,7 +372,10 @@ export function resetWeatherSystem(): void {
     bases.clear();
     soundBases.clear();
     blown.clear();
-    cycles.clear();
+    runs.clear();
+    days.clear();
+    sceneTime = 0;
+    seekTo = null;
     setCurrentWeather(null);
     setCurrentTimeOfDay(null);
     setSkyClockState(null);

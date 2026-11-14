@@ -51,5 +51,7 @@ export {
     type WeatherState,
     type WeatherPreset,
 } from './weather';
-export { skyClockState, setSkyClockState, type SkyClockState } from './skyClock';
+export { skyClockState, setSkyClockState, seekSkyClock, type SkyClockState } from './skyClock';
+export { weatherAt, hourAt, type WeatherStart, type WeatherMoment } from './weatherClock';
+export { seekSceneClock, sceneClock } from './weatherSystem';
 export { timeOfDayAt, sunPosition, currentTimeOfDay, TimeDrive, type TimeOfDayState } from './timeOfDay';

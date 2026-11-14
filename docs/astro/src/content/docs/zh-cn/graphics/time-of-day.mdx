@@ -62,6 +62,9 @@ evening.daylight;      // 夜里 0,白天 1
 world.insert(clockEntity, TimeOfDay, { hour: 6, daySeconds: 600 });
 ```
 
+钟点和天气一样由场景时钟决定：`hourAt(hour, daySeconds, t)` 是从 `hour` 开始、`t` 秒后的钟点，`seekSceneClock(t)` 把场景时钟拨到那里
+（见[天气](/docs/zh-cn/graphics/weather/#某一时刻而不是逐帧累加)）。
+
 ## 局限
 
 烘焙光照和烘焙反射探针只对应某一个时刻:烘焙的是白天的天空,所以**不来自灯**的那部分光照(光照贴图、探针体)不会随太阳移动。

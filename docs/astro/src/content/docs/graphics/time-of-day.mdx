@@ -72,6 +72,9 @@ evening.daylight;      // 0 at night, 1 by day
 world.insert(clockEntity, TimeOfDay, { hour: 6, daySeconds: 600 });
 ```
 
+The hour comes from the scene clock as the weather does: `hourAt(hour, daySeconds, t)` is the hour of a clock that began at `hour`, `t` seconds
+later, and `seekSceneClock(t)` puts the scene's clock there (see [Weather](/docs/graphics/weather/#a-moment-not-a-sum-of-frames)).
+
 ## Limits
 
 The baked lighting and the baked reflection probes are one moment's: the bake is of a daytime sky, so the lighting that is

@@ -89,3 +89,22 @@ The component is data: write `target` and `progress: 0` and the system does the 
 ```ts
 world.insert(weatherEntity, Weather, { target: WEATHER_RAIN, progress: 0, duration: 10 });
 ```
+
+## A moment, not a sum of frames
+
+Where a Weather is comes from where its run began and how long it has run: the scene clock, the game's own seconds of play (a paused
+game stands, a slowed one slows). Any moment can be worked out without playing up to it, the same `t` is the same weather on every machine,
+and a cutscene or a replay can move the clock where it likes.
+
+```ts
+import { seekSceneClock, sceneClock, weatherAt, hourAt } from 'esengine';
+
+seekSceneClock(240);   // the weather, the hour and the clouds as four minutes in, from the next frame
+sceneClock();          // seconds of play the clock has run
+
+// Or ask without moving anything: where a Weather that began as `start` is 90 s later.
+weatherAt({ preset: WEATHER_CLEAR, target: WEATHER_NONE, progress: 0, duration: 10, sequence: 'clear,mist,rain', hold: 8 }, 90);
+```
+
+Writing the component by hand (as above) begins a new run from what was written, so a script's turn and the clock agree. The clouds go to where
+the sky's wind, summed over the weather's changes of strength, would have carried them.

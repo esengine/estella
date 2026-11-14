@@ -4944,4 +4944,6 @@ export const NOTED = {
     {"note": "An agent can shape ground as steps."},
   "feat(terrain): the pillars op is described with its shoulders, splinters and canted tops - the op text terrain_write lists is the kernel's own, which now carries ledges, cluster and tilt and says to stand a stone forest after any smoothing of the whole land":
     {"note": "An agent can shape ground as steps."},
+  "feat(render): the weather and the clock are where a moment has them, not a sum of frames - a Weather's sequence and a TimeOfDay's hour are worked out from where their run began and the scene clock (the game's own seconds of play) by weatherAt and hourAt, so any moment is reached without playing up to it; seekSceneClock moves the clock, the clouds go where the sky's wind summed over the weather's changes would have carried them, and a field a script or a hand writes begins a new run from it":
+    {"note": "The weather and the clock can be put at any moment."},
 };
