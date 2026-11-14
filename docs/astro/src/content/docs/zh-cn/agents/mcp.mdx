@@ -124,6 +124,8 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 
 常用的工具(约五十个:场景、Play、打开和保存、截图、日志)一开始就列出;其余分在若干组里,代理需要时用 `enable_tools` 打开:`assets`、`prefab`、`authoring`、`view`、`play`、`render`、`project`、`code` 和 `device`。第一次调用之前就把全部工具交过去,每个会话都要多花几千 token,也更难挑出合适的那个;不管列没列出,任何工具都可以直接按名字调用。客户端跟不上工具列表变化的,加 `--all-tools`。下表列出的工具来自所有组。
 
+工具的说明都控制在客户端能完整交给模型的长度以内:有的客户端会把过长的说明截断,截掉的部分模型就再也看不到。要教的东西最多的几个工具(`model_write`、`image_write`、`music_write`)把其余内容分成主题,在说明末尾列出每个主题的名字和用途,代理在做到相应内容之前用 `tool_guide` 读取需要的主题。它直接由工具目录回答,不会启动编辑器。
+
 | 领域 | 工具（节选） |
 | --- | --- |
 | 观察 | `get_scene_tree`、`get_inspector`、`get_stats`、`get_diagnostics`、`capture_viewport`（PNG）、`screenshot`（整窗截图，含 Play 画面）、`world_component`（活 World 探针）、`capture_frame` / `frame_draws` / `replay_draw`（帧调试器：每个 draw call、断批原因、画了哪些实体） |

@@ -145,6 +145,11 @@ groups the agent turns on with `enable_tools` when it needs them: `assets`, `pre
 makes the right tool harder to find; any tool can still be called by name without being listed. Add `--all-tools` for a client
 that cannot follow a change of the tool list. The table below names tools from every group.
 
+A tool's description is kept short enough that a client hands it over whole: some clients cut a long one, and what was past the
+cut never reached the model. The tools with the most to teach (`model_write`, `image_write`, `music_write`) keep the rest in
+topics, named at the end of their descriptions with what each is for, and the agent reads the ones it needs with `tool_guide`
+before doing what they cover. It is answered from the catalog and starts no editor.
+
 | Area | Tools (excerpt) |
 | --- | --- |
 | Observe | `get_scene_tree`, `get_inspector`, `get_stats`, `get_diagnostics`, `capture_viewport` (PNG), `screenshot` (whole window, includes play), `world_component` (live-World probe), `capture_frame` / `frame_draws` / `replay_draw` (the frame debugger: each draw call, why it started, the entities it drew) |

@@ -62,7 +62,7 @@ function scripts(dir, out = []) {
 const problems = [];
 let checked = 0;
 /** What the MCP front answers itself, ahead of the catalog. */
-const FRONT_TOOLS = new Set(['enable_tools', 'list_editors', 'select_editor']);
+const FRONT_TOOLS = new Set(['enable_tools', 'tool_guide', 'list_editors', 'select_editor']);
 
 for (const file of SCANNED.flatMap((d) => scripts(d))) {
   const source = readFileSync(file, 'utf8');
