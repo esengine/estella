@@ -4,74 +4,126 @@
 
 # Estella
 
-**A fast 2D and 3D game engine powered by WebAssembly and ECS**
+**A 2D and 3D game engine whose editor is an MCP server.**<br/>
+Your AI agent builds the game with the same 167 tools the editor's own UI uses —
+then ships it to the web, mini-game platforms, playable ads, desktop and native mobile.
 
 [![CI](https://github.com/esengine/estella/actions/workflows/build.yml/badge.svg)](https://github.com/esengine/estella/actions/workflows/build.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/esengine/estella)](https://github.com/esengine/estella/releases)
-[![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://isocpp.org/)
-[![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20Desktop%20%7C%20WeChat%20%7C%20Android%20%7C%20iOS-green.svg)]()
+[![MCP](https://img.shields.io/badge/MCP-167_tools-8A2BE2.svg)](https://estellaengine.com/docs/agents/mcp/)
+[![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20Mini--games%20%7C%20Playable%20ads%20%7C%20Desktop%20%7C%20Android%20%7C%20iOS-green.svg)](https://estellaengine.com/docs/publishing/overview/)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/esengine/estella)
 
-[Website](https://estellaengine.com) • [Getting Started](#getting-started) • [Documentation](#documentation) • [Discord](https://discord.gg/sAX6PXZ9) • [QQ群: 481923584](https://qm.qq.com/q/BONa5LXQ0U)
+[Website](https://estellaengine.com) • [Your agent drives the editor](#your-agent-drives-the-editor) • [Why Estella](#why-estella-when-unity-and-unreal-have-mcp-too) • [Getting Started](#getting-started) • [Documentation](https://estellaengine.com/docs) • [Discord](https://discord.gg/sAX6PXZ9) • [QQ群: 481923584](https://qm.qq.com/q/BONa5LXQ0U)
+
+<br/>
+
+<img src="docs/assets/agent-e58817d7.webp" alt="An AI agent driving the Estella editor over MCP: it opens the Bistro project, finds the Weather entity and turns it to snow, sets the time of day to 9 pm, presses Play, steps the game and takes a screenshot of the snowy night it made" width="900" />
+
+<sub><i>Every frame is one MCP tool call into the editor, captured as it happened — no mouse involved.</i></sub>
 
 </div>
 
----
+## Your agent drives the editor
 
-## What is Estella?
+The Estella editor speaks the **Model Context Protocol**. Connect Claude Code, Cursor,
+Codex or any MCP client, and the agent works inside the real editor rather than
+around it:
 
-Estella is a **2D and 3D game engine** — sprites, tilemaps and UI as much as lit, shadowed, physically simulated 3D worlds — with a TypeScript SDK driven by a high-performance **C++** core — as WebAssembly on the web, and compiled ahead of time on native platforms. It outputs games that run in **web browsers**, on the **desktop**, in **WeChat MiniGames**, as single-file **playable ads**, and as native **Android / iOS** apps. A visual editor is available as a separate, free download.
+- **It builds** — creates projects, spawns entities from the editor's own Create catalog,
+  writes component fields, makes prefabs, paints tilemaps, writes and type-checks scripts.
+- **It looks** — takes screenshots of the viewport and the running game, replays a frame
+  draw by draw, compares the game with reference images, and audits what a scene's look lacks.
+- **It plays** — enters Play mode, steps time deterministically, sends input and clicks
+  UI by name, runs scripted playtests, then reads the running world back.
+- **It makes assets** — images, sound effects, music and 3D models, each answered with
+  a picture of what it made.
+- **It ships** — reads project health, exports the game, and drives a build running on a
+  connected phone.
+
+Every call goes through the editor's command surface: each one is **one undo step**,
+you watch it happen in the window, and you can take the mouse back at any time. The
+editor starts **read-only**; an agent edits only after you allow it in
+*Window → Connect AI Tools…*, which also writes the client's MCP config for you.
+
+| Group | What the agent gets |
+|---|---|
+| core | scene tree, entities, components, play / step / input, screenshots, logs, undo |
+| `assets` · `prefab` · `authoring` | asset documents and import settings, tilemaps, prefabs and variants, physics bodies, UI events |
+| `look` · `render` | reference images beside the game, light and field sweeps, frame capture and replay, shadows, LOD, bakes |
+| `code` · `project` | scripts, symbol search, type-check, project settings, health, export |
+| `image` · `sound` · `modeling` | draw sprites and textures, compose sound and music, build 3D models from steps |
+| `play` · `view` · `device` | gamepads, time scale, scripted playtests, editor view, and a game running on a connected phone |
+
+→ [Connecting an agent](https://estellaengine.com/docs/agents/mcp/)
+
+## Why Estella, when Unity and Unreal have MCP too?
+
+An MCP server can be bolted onto any editor. What an agent can actually get done
+depends on what sits behind it.
+
+- **The protocol is the editor, not a plugin on it.** The 167 tools call the pipelines the
+  editor's own menus, inspector and toolbar run, so an agent's edit is the edit a person
+  would have made, and undoes the same way. Calls are schema-checked and permission-gated
+  by the editor itself.
+- **The agent can check its own work.** It steps a paused game frame by frame, so
+  "play three seconds, then look" is the same frame every run. It sees the game, not just the
+  log: screenshots, a frame replayed draw call by draw call, the game set beside a reference
+  image, scripted playtests that read the running world back.
+- **The agent can make what the game needs.** Sprites, textures, sound effects, music and
+  3D models come from tools inside the editor, so a prototype does not stop at grey boxes
+  while someone opens five other programs.
+- **Everything is text.** Scenes, prefabs and materials are JSON; gameplay is TypeScript.
+  An agent reads and writes the project directly, and every change is a reviewable diff.
+- **It ships where heavier engines struggle.** A WebAssembly runtime that loads on a phone
+  browser, seven Chinese mini-game platforms, single-file playable ads for the major ad
+  networks, and native Android / iOS apps — from one project.
+- **It is open.** The runtime, SDK, pipeline and CLI are Apache-2.0: no royalties, no seats,
+  no runtime fees. The editor is a free download.
+
+## Rendered in real time
 
 <div align="center">
-  <img src="docs/assets/day-411efe8a.webp" alt="A Paris street corner rendered in real time by the Estella engine, through a whole day: morning mist, sun, rain with puddles, and a night of lamps" width="900" />
+  <img src="docs/assets/day-f8330bd2.webp" alt="The Bistro street corner rendered in real time by Estella from morning to night: a low sun, mist, rain that leaves puddles with rings on the water and splashes on the street, then snow settling on the awnings and falling past the lit street lamps" width="900" />
   <br/>
-  <sub><i>Amazon Lumberyard Bistro, rendered in real time by Estella (a sun that follows the sky, baked bounce light and reflections, the Neutral output transform). Scene © Amazon Lumberyard, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, modified.</i></sub>
+  <sub><i>One day on the Amazon Lumberyard Bistro, recorded frame by frame from the running game: a sun that follows the clock, weather that turns from clear to mist, rain and snow, baked bounce light, reflections and volumetric haze. Scene © Amazon Lumberyard, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, modified.</i></sub>
 </div>
 
-## Why Estella?
+## What's inside
 
-- **2D and 3D, one engine** — Sprites, tilemaps, UI and Spine alongside PBR-lit models, shadows, baked lighting and 3D physics, in the same scene, editor and export pipeline
-- **Fast** — C++ rendering pipeline compiled to WebAssembly, not interpreted JS
-- **Type-safe** — First-class TypeScript SDK with `defineSystem`, `defineComponent`, and `Query`
-- **Data-oriented** — Entity-Component-System architecture for scalable game logic
-- **Visual editor** — Scene hierarchy, inspector, asset browser — no JSON editing
-- **Cross-platform** — One codebase, deploy to web, desktop, WeChat MiniGames, playable ads, and native mobile
-- **Animation & Physics** — Built-in Spine animation, skeletal animation, and 2D and 3D physics
-- **Agent-native** — The editor is an MCP server and ships an agent of its own; both drive the same tools its UI does
+Estella is a C++ engine with a TypeScript SDK. The core runs as WebAssembly on the web
+and natively on desktop and mobile; game logic is written as ECS systems in TypeScript.
 
-## Features
+**2D** — sprites and sprite animation, tilemaps (with LDtk import), Spine 2.1 – 4.3 and
+DragonBones, 2D lights and shadows, UI with layout, rich and bitmap text, particles,
+Box2D physics, native 2D rigs.
 
-| Feature | Description |
-|---------|-------------|
-| **Visual Editor** | Scene editor with hierarchy, inspector, and asset management |
-| **ECS Architecture** | Compose entities from reusable components, drive behavior with systems |
-| **2D** | Sprites, tilemaps, UI, text, Spine and DragonBones animation, 2D physics, particles, lighting |
-| **3D** | glTF / FBX import, PBR materials, directional / point / spot lights with shadows, HDRI environments, baked lightmaps and light probes, reflection probes, decals, 3D physics, skeletal animation, navigation, post-processing, streamed large worlds |
-| **WebGL / WebGPU Rendering** | One renderer for 2D and 3D, custom shaders — all in WebAssembly |
-| **TypeScript SDK** | Type-safe API: `defineSystem`, `defineComponent`, `Query`, `Commands` |
-| **Cross-Platform** | One project → web, desktop, WeChat MiniGames, playable ads, and native Android / iOS |
-| **Native mobile** | A real arm64 app rendering through an embedded Dawn (Metal / Vulkan) — not a WebView |
-| **AI agents** | The editor is an MCP server with 130+ tools: connect Claude Code, Cursor or your own agent |
+**3D** — glTF / FBX import, PBR materials, directional / point / spot lights with
+shadows, sky atmosphere with time of day and weather, baked lightmaps, light and
+reflection probes, SSR, SSGI, height fog, terrain, water, foliage, skeletal animation
+with spring bones, navigation, Jolt or PhysX physics, streamed large worlds.
+
+**Everywhere** — one renderer for 2D and 3D on WebGL 2 and WebGPU, and one project
+exports to:
+
+| Target | What you get |
+|---|---|
+| Web | a static, self-contained build |
+| Mini-games | WeChat, Douyin, Kuaishou, Bilibili, Alipay, Huawei and quick games |
+| Playable ads | one inlined `index.html` for Meta, Google, Unity, AppLovin, Mintegral, TikTok / Pangle and MRAID networks |
+| Desktop | a native app on Windows, macOS and Linux — no Chromium |
+| Android / iOS | a native arm64 app on Vulkan / Metal — not a WebView |
 
 ## Getting Started
 
-### Install
+**Install.** Download the editor for Windows or macOS from
+[estellaengine.com](https://estellaengine.com/#download) — always the newest release.
+Every build is also on the [releases page](https://github.com/esengine/estella/releases).
 
-Download the editor for Windows or macOS from [estellaengine.com](https://estellaengine.com/#download)
-— served from the project's mirror, always the newest release. Every build is also on the
-[releases page](https://github.com/esengine/estella/releases).
+**Create a project.** Open the editor, click **New Project**, pick a template.
 
-### Create a Project
-
-1. Open the editor and click **New Project**
-2. Enter a project name, select a location, and click **Create**
-
-The editor creates a project with a default scene containing a Camera entity.
-
-### Write Game Logic
-
-Add entities and components in the scene editor, then write systems in TypeScript:
+**Write a system.**
 
 ```typescript
 import {
@@ -91,34 +143,19 @@ addSystem(defineSystem(
 ));
 ```
 
-Press **F5** in the editor to preview.
-
-## Let an agent build it
-
-The editor speaks the **Model Context Protocol**. Point Claude Code, Cursor, or any
-MCP-capable tool at it and the agent drives the real editor — opens projects, spawns
-entities from the same Create menu you use, edits component fields, enters play mode,
-takes a screenshot to *see* what it built, and exports the finished game. Sixty-five
-tools, all of them the pipelines the UI itself calls.
-
-Every call goes through the editor's command surface, so creates are undoable and you
-can take the mouse back at any time. Tools a plugin adds are listed beside the editor's own.
-
-- [Connecting an Agent (MCP)](https://estellaengine.com/docs/agents/mcp/) — connect Claude Code, Cursor, or your own
+Press **F5** to play — or connect your agent and ask it to do all three.
 
 ## Documentation
 
-Full documentation: [estellaengine.com/docs](https://estellaengine.com/docs)
-
-- [Introduction](https://estellaengine.com/docs/getting-started/introduction/)
-- [Installation](https://estellaengine.com/docs/getting-started/installation/)
-- [Quick Start](https://estellaengine.com/docs/getting-started/quick-start/)
-- [ECS Architecture](https://estellaengine.com/docs/core-concepts/ecs/)
-- [Components](https://estellaengine.com/docs/core-concepts/components/)
-- [Systems](https://estellaengine.com/docs/core-concepts/systems/)
-- [Building & Exporting](https://estellaengine.com/docs/publishing/overview/)
-- [Android & iOS](https://estellaengine.com/docs/publishing/android-ios/)
-- [AI Agents](https://estellaengine.com/docs/agents/mcp/)
+[estellaengine.com/docs](https://estellaengine.com/docs) —
+[Quick Start](https://estellaengine.com/docs/getting-started/quick-start/) ·
+[ECS](https://estellaengine.com/docs/core-concepts/ecs/) ·
+[AI Agents](https://estellaengine.com/docs/agents/mcp/) ·
+[Time of Day](https://estellaengine.com/docs/graphics/time-of-day/) ·
+[Weather](https://estellaengine.com/docs/graphics/weather/) ·
+[Exporting](https://estellaengine.com/docs/publishing/overview/) ·
+[Mini-game platforms](https://estellaengine.com/docs/publishing/minigame-platforms/) ·
+[Android & iOS](https://estellaengine.com/docs/publishing/android-ios/)
 
 ## Feedback
 
@@ -130,30 +167,15 @@ Maintainers: see the [release procedure](RELEASING.md) for candidate builds, acc
 
 ## License
 
-This repository — the engine runtime, the SDK, the asset pipeline, the CLI, the
-project templates and the editor plugin API — is licensed under the
-[Apache License, Version 2.0](LICENSE).
+The engine runtime, SDK, asset pipeline, CLI, project templates and editor plugin API
+in this repository are licensed under the [Apache License, Version 2.0](LICENSE) — free
+for any purpose, commercial use included. We follow [Semantic Versioning](VERSIONING.md)
+and keep a [CHANGELOG](CHANGELOG.md).
 
-You may use, modify, and distribute it **for any purpose, including commercial use**,
-free of charge. There is no separate commercial license and no noncommercial
-restriction. We follow [Semantic Versioning](VERSIONING.md) and keep a
-[CHANGELOG](CHANGELOG.md).
-
-Three things to keep in mind:
-
-- **The visual editor is a separate product** and is not open source. It is free to
-  download and use, and it is built on this engine — but its source lives in a
-  private repository rather than here. Everything needed to build, run and ship a
-  game is in this repository: see [BUSINESS_MODEL.md](BUSINESS_MODEL.md) for what
-  that boundary is and what changed.
-
-- **Trademarks.** Apache-2.0 grants rights to the code, not to the "Estella" /
-  "ESEngine" names or logos. You may state that your project uses Estella, but
-  please don't imply endorsement or ship a fork under the Estella name.
-- **Spine is separate.** The bundled [Spine Runtimes](third_party) are **not** open
-  source. If you ship a game that uses Estella's Spine integration, you need a valid
-  Spine license from Esoteric Software — independent of Estella's Apache-2.0 license.
-  See [NOTICE](NOTICE).
-
-How the project sustains itself (sponsorship, optional hosted/pro add-ons,
-marketplace, and support) is described openly in [BUSINESS_MODEL.md](BUSINESS_MODEL.md).
+- **The visual editor** is a separate, free product built on this engine; its source is
+  not public. Everything needed to build, run and ship a game is here — see
+  [BUSINESS_MODEL.md](BUSINESS_MODEL.md).
+- **Trademarks.** The license covers the code, not the "Estella" / "ESEngine" names or
+  logos: say your project uses Estella, but don't ship a fork under that name.
+- **Spine.** The bundled [Spine Runtimes](third_party) are not open source; a game that
+  uses Estella's Spine integration needs its own Spine license. See [NOTICE](NOTICE).
