@@ -16,6 +16,7 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A meadow melts into the ground at the end of its draw distance.** A Foliage field thinned over the last 15% of its range with every blade whole, which across a valley read as a line; it now fades over the last third and the grass sinks as it goes.
 - **The editor can start in safe mode.** `--safe-mode` or `ESTELLA_SAFE_MODE=1` starts it with GPU acceleration off, drawing with WebGL2 and without restoring the last workspace; the window-crashed dialog offers it as Restart in Safe Mode.
 - **An install of mixed versions says so instead of crashing.** An update that could not replace the editor's program left its new data files beside the old program, and every start crashed the window; the editor now finds the mismatch, says so and quits.
 - **An agent can shape ground as steps.** A `.esland` source writes a land as the things it is made of — ranges, plateaus, lakes, rivers with the heights their water runs at, streams that find their own way, roads held to a grade, coast, terraces, erosion and brush strokes — and bakes it to a heightmap, layer weights and plant maps. The editor's `terrain_write` and `terrain_edit` tools answer with relief, slope and an oblique view, and report how much of the ground is walkable, steep or cliff and each road's steepest stretch. `.esland` is an editor asset and never ships.
@@ -47,6 +48,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The sea reaches the horizon, and the horizon is not olive.** In a world drawn in centimetres, water further than about 655 m read no depth and the sea past that ring was black under the fog; the sky's march also put its first sample behind most of the blue, so the noon horizon came out olive.
 - **TAA no longer shakes the picture.** Temporal anti-aliasing read the current frame where the jittered camera drew it, so wherever the history was clipped (sharp edges, anything that moved) the output moved with the jitter, up to half a pixel each frame. The current frame is now read back without the jitter; on Bistro a still view went from 0.3–0.5 pixel of frame-to-frame shift to none measurable.
 - **Ground no packed layer has a say in is drawn, not black.** While a layered ground's pictures are still being drawn, paint that named only the other layers (a path, a cliff) summed to no weight and shaded black; it is now drawn as the first layer.
 - **What stands on ground still being made waits for it.** A character or a body on a terrain whose heights and collision were still being made fell through and never came back; the 3D physics world now leaves a character unswept and keeps a body asleep there until the ground exists.
