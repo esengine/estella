@@ -4976,4 +4976,6 @@ export const NOTED = {
     {"note": "The editor draws a river wherever its eye is."},
   "feat(mcp): view_from draws the open scene from a place - an eye and what it looks at, drawn by the engine in the editor with the scene's own ground, water, plants and light and no game running: the view's eye is put there (its turning point far along the line, so it sees as far as asked), the scene is given frames and the water its bake, gizmos are left out, and the view is put back. The terrain guide sends a land's author to it":
     {"note": "An agent can look at a scene from a place."},
+  "chore(examples): Bistro, Chat and Wilds map the SDK's subpath modules and Bistro's piece list keeps one uuid - the tsconfig the editor writes on open names esengine/spine, esengine/terrain and the rest, as the other examples already commit, and pieces.json's meta was made on open and never committed":
+    {"internal": "What the editor writes when it opens these examples, committed; nothing a creator runs changes."},
 };
