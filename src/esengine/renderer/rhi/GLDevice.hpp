@@ -85,6 +85,9 @@ public:
     void endRenderPass() override;
 
     ReadbackHandle requestReadback(FramebufferHandle target, u32 w, u32 h) override;
+    /// What is on the canvas now, read at once: a capture asks for the frame it is looking at and waits for it anyway, and a fence
+    /// polled across tasks took a headless CPU rasterizer half as long again per capture as the read it replaced.
+    ReadbackHandle captureNextFrame(u32 w, u32 h) override;
     GfxReadbackStatus pollReadback(ReadbackHandle handle) override;
     bool takeReadback(ReadbackHandle handle, void* dest, usize destSize) override;
     void discardReadback(ReadbackHandle handle) override;

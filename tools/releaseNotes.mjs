@@ -5016,4 +5016,6 @@ export const NOTED = {
     {"internal": "Which checks CI runs; nothing a creator runs changes."},
   "ci: no editor checks - the editor authoring shards, the nightly heavy editor checks, the three hand-run editor acceptance workflows, the release's installed-editor upgrade test and the legacy 2D gizmo verifier are gone; the navigation workshop's web check is a package script, and the readback backstop's comment fits the comment rule":
     {"internal": "Which checks CI runs; nothing a creator runs changes."},
+  "fix(render): a frame capture on WebGL2 reads the canvas at once again - the fenced read cost CI's headless CPU rasterizer about 60% more per scene, so the pr render tier ran out of its 25 minutes with 98 scenes unrun and grass-fade, which captures several times, passed its 45 s; render targets (the camera preview) and the engine's own reads keep the fence":
+    {"note": "Opening a 3D scene no longer freezes the editor."},
 };
