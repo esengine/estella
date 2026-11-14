@@ -4938,4 +4938,6 @@ export const NOTED = {
     {"note": "Particles can be lit by the scene."},
   "feat(foliage): a blade narrower than a pixel and a fifth is drawn that wide and fades instead of breaking into dashes - the Foliage vertex widens a grass blade to u_strandMinPx on screen (1.2 by default; 0 leaves it) along its own width, after the thinning has widened it for the neighbours it stands for, and the fragment cuts its alpha to the share of that width the blade really has, from the distance alone, so alpha-to-coverage fades a far blade the samples would miss":
     {"note": "A far blade of grass fades instead of breaking into dashes."},
+  "perf(render): a lit 3D pixel facing away from a light, or out of its reach, works out nothing of it - no shadow lookup and no lobe, where a soft shadow searched twenty-one texels first; the picture is the same bit for bit over 101 lit scenes":
+    {"note": "A light is not worked out where it gives nothing."},
 };

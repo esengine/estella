@@ -2429,6 +2429,9 @@ fn shadeLight(pd : vec4f, col : vec4f, sp : vec4f, sh : vec4f, sm : vec4f, fo : 
             L = towardLight(toL, N);
             atten *= spotCone(sp, sh, toL, dist);
         }
+        // Facing away, with nothing that takes light from behind: nothing from this light, and no shadow to look up (see the GLSL twin).
+        if (atten <= 0.0 || (dot(N, L) <= 0.0 && ext.misc.y <= 0.0 && ext.coat.x <= 0.0 && ext.scatter.a <= 0.0
+            && dot(ext.sheen.rgb, vec3f(1.0)) <= 0.0)) { return LightTerm(lit, gloss, extra); }
 #ifndef ES_LIGHT_DIRECT
         if (col.a > 0.0 && atten > 0.0) {
             atten *= shapeFactor2D(fo.w, worldPos.xy);
@@ -4134,6 +4137,13 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            L = towardLight(toL, N);\n"
             "            atten *= spotCone(sp, sh, toL, dist);\n"
             "        }\n"
+            // A surface facing away from the light, with nothing that takes light from behind (a coat, sheen, scattering, hair),
+            // gets nothing from it: diffuse and highlight are both its radiance, which is NdotL times the rest. So its shadow is not
+            // looked up, which is most of what a shadowed light costs a pixel (a soft one searches twenty-one texels before it knows
+            // anything), and a lamp lights the far side of half of what stands round it.
+            // Nor does one that does not reach it (past its radius, outside its cone): every term below is times atten.
+            "        if (atten <= 0.0 || (dot(N, L) <= 0.0 && ext.misc.y <= 0.0 && ext.coat.x <= 0.0 && ext.scatter.a <= 0.0\n"
+            "            && dot(ext.sheen.rgb, vec3(1.0)) <= 0.0)) return;\n"
             // Only pay for the mask read when the light actually reaches this fragment (skips
             // the zeroed/inactive slots and unlit fragments).
             "#ifndef ES_LIGHT_DIRECT\n"
