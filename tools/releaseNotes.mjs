@@ -5026,4 +5026,8 @@ export const NOTED = {
     {"internal": "Which checks CI runs; nothing a creator runs changes."},
   "docs(agents): work goes on a short-lived branch and reaches master by pull request - no standing develop branch; a merge deletes the branch it came from":
     {"internal": "How the repository takes changes; nothing a creator runs changes."},
+  "feat(modeling): a tree's picture is drawn with its bark - the picture written beside a tree model holds the bark its wood reads, in the style its tree step names, and model_write says what barkStyle is":
+    {"note": "A tree has bark."},
+  "feat(modeling): a tree has bark - the picture a tree is given holds its bark along the top, furrowed, banded or smooth by barkStyle, and the wood reads it along each limb and round it, so the grain runs up a trunk and out along a branch; the leaf square stands clear of every edge of the picture, and thinning keeps each corner's own place in a picture and its own light":
+    {"note": "A tree has bark."},
 };

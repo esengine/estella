@@ -18,6 +18,8 @@ import type { PolyMesh, Vec3 } from './polyMesh';
 
 export const TREE_SHAPES = ['round', 'tall', 'flat', 'bush', 'cone'] as const;
 export type TreeShape = typeof TREE_SHAPES[number];
+export const TREE_BARKS = ['furrowed', 'banded', 'smooth'] as const;
+export type TreeBark = typeof TREE_BARKS[number];
 
 export interface TreeParams {
     /** From the ground to the top of the crown, in the model's units. */
@@ -42,6 +44,8 @@ export interface TreeParams {
      */
     leaves?: 'cards' | 'solid';
     seed?: number;
+    /** What the bark is: furrowed (default; an oak, a pine), banded (a birch, a cherry: pale, with dark marks round it) or smooth. */
+    barkStyle?: TreeBark;
     /** Linear colours. */
     bark?: readonly number[];
     leaf?: readonly number[];
@@ -153,6 +157,7 @@ export function tree(mesh: PolyMesh, p: TreeParams): PolyMesh {
     if (p.shape !== undefined && !TREE_SHAPES.includes(p.shape)) throw new Error(`shape ${JSON.stringify(p.shape)} must be one of ${TREE_SHAPES.join(', ')}`);
     const detail = p.detail ?? 2;
     if (![0, 1, 2].includes(detail)) throw new Error('detail is 2 (the tree), 1 (coarser, no twigs) or 0 (a stem and the outline of its crown, for far off)');
+    if (p.barkStyle !== undefined && !TREE_BARKS.includes(p.barkStyle)) throw new Error(`barkStyle ${JSON.stringify(p.barkStyle)} must be one of ${TREE_BARKS.join(', ')}`);
     if (p.leaves !== undefined && p.leaves !== 'cards' && p.leaves !== 'solid') throw new Error('leaves is cards (flat sprigs cut out by a picture) or solid (one smooth body)');
     for (const key of ['trunk', 'spread', 'crown'] as const) if (p[key] !== undefined && !(p[key]! > 0)) throw new Error(`${key} ${p[key]} must be above 0`);
     const h = p.height, bark = p.bark ?? BARK, leaf = p.leaf ?? LEAF;
@@ -182,11 +187,11 @@ export function tree(mesh: PolyMesh, p: TreeParams): PolyMesh {
         out = stain(out, { faces: 'leaf', color: lit, facing: [0, 1, 0], threshold: 0.2, softness: 0.6, amount: 0.75 });
         out = stain(out, { faces: 'leaf', color: deep, facing: [0, -1, 0], threshold: 0.1, softness: 0.5, amount: 0.7 });
         if (detail > 0) out = stain(out, { faces: 'leaf', color: deep, where: 'cavity', amount: 0.4 });
-        // Every face reads the solid corner of a leaf picture, should it be drawn with one: a far tree shares its material with the near ones.
-        return { ...out, faces: out.faces.map((f) => ({ ...f, cornerUvs: f.v.map(() => [LEAF_CORNER, LEAF_CORNER] as const) })) };
+        // A solid crown reads the white of a tree's picture, should it be drawn with one: a far tree shares its material with the near ones.
+        out = { ...out, faces: out.faces.map((f) => (f.tag === 'bark' ? f : { ...f, cornerUvs: f.v.map(() => SOLID_AT) })) };
+        return barked(out, held, p.at ?? [0, 0, 0], h);
     }
-    // The wood reads the leaf picture too (a model has one): at its corner, which is solid white, so bark is its own colour.
-    out = { ...out, faces: out.faces.map((f) => (f.tag === 'bark' ? { ...f, cornerUvs: f.v.map(() => [LEAF_CORNER, LEAF_CORNER] as const) } : f)) };
+    out = barked(out, held, p.at ?? [0, 0, 0], h);
     // The leaves: a few large tufts over each clump, facing out of it and overlapping, lighter toward its top and deeper under it
     // and inside. A crown painted this way is masses with a leafy edge, as it is seen from where a game stands, and not a count of leaves.
     const r = dice((p.seed ?? 1) * 7 + 3), off = p.at ?? [0, 0, 0];
@@ -230,21 +235,75 @@ export function tree(mesh: PolyMesh, p: TreeParams): PolyMesh {
             const quad = [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)], lit4 = quad.map(out3);
             out = append(out, quad, [[0, 1, 2, 3]], { tag: 'leaf', color });
             const flip = r() < 0.5;
-            const uv: [number, number][] = [[LEAF_EDGE, LEAF_EDGE], [1 - LEAF_EDGE, LEAF_EDGE], [1 - LEAF_EDGE, 1 - LEAF_EDGE], [LEAF_EDGE, 1 - LEAF_EDGE]];
+            const uv = [reads(TUFT[0], TUFT[1]), reads(TUFT[0] + TUFT[2], TUFT[1]), reads(TUFT[0] + TUFT[2], TUFT[1] + TUFT[2]), reads(TUFT[0], TUFT[1] + TUFT[2])];
             out = { ...out, faces: out.faces.map((f, i) => (i === before ? { ...f, cornerUvs: flip ? [uv[1]!, uv[0]!, uv[3]!, uv[2]!] : uv, cornerNormals: lit4 } : f)) };
         }
     }
     return out;
 }
 
-/** Where in the leaf picture the wood reads (a solid white corner), and how far in from every edge the tuft a card shows lies. */
-const LEAF_CORNER = 0.03, LEAF_EDGE = 0.1;
+/**
+ * Where things lie in a tree's picture, as shares of its side: the bark [x, y, wide, high] and a block of solid white along its top,
+ * and under them the square [x, y, side] a leaf card shows, the tuft in it, clear of every edge: a picture is read round its edges.
+ */
+const BARK_AT = [0, 0, 0.68, 0.14] as const, SOLID = [0.72, 0, 0.28, 0.14] as const, TUFT = [0.14, 0.22, 0.72] as const;
+/** A place in the picture, x from its left and y from its top as it is drawn, as the UV that reads it: a mesh's v runs up from the picture's foot. */
+const reads = (x: number, y: number): readonly [number, number] => [x, 1 - y];
+const SOLID_AT = reads(SOLID[0] + SOLID[2] / 2, SOLID[1] + SOLID[3] / 2);
+
+/** Up and back between 0 and 1, once a unit: a picture laid this way meets itself at every turn, whatever its edges are. */
+const fold = (x: number): number => 1 - Math.abs(2 * (x - Math.floor(x)) - 1);
+
+/**
+ * Lays the bark over the wood: each place on it reads the picture by how far along its limb it is and how far round it, so the grain
+ * runs up a trunk and out along a branch. @p wood is the chains the skin was drawn from, @p off where the tree stands.
+ */
+function barked(mesh: PolyMesh, wood: readonly OrganicPart[], off: readonly number[], h: number): PolyMesh {
+    const limbs: { a: Vec3; b: Vec3; from: number; side: Vec3; over: Vec3 }[] = [];
+    for (const part of wood) {
+        let run = 0;
+        const pts = part.points ?? [];
+        for (let i = 0; i + 1 < pts.length; i++) {
+            const a: Vec3 = [pts[i]![0]! + off[0]!, pts[i]![1]! + off[1]!, pts[i]![2]! + off[2]!], b: Vec3 = [pts[i + 1]![0]! + off[0]!, pts[i + 1]![1]! + off[1]!, pts[i + 1]![2]! + off[2]!];
+            const d: Vec3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], len = Math.hypot(d[0], d[1], d[2]);
+            if (len < 1e-6) continue;
+            const ax: Vec3 = [d[0] / len, d[1] / len, d[2] / len], pick: Vec3 = Math.abs(ax[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+            const s: Vec3 = [ax[1] * pick[2] - ax[2] * pick[1], ax[2] * pick[0] - ax[0] * pick[2], ax[0] * pick[1] - ax[1] * pick[0]], sl = Math.hypot(s[0], s[1], s[2]);
+            const side: Vec3 = [s[0] / sl, s[1] / sl, s[2] / sl];
+            limbs.push({ a, b, from: run, side, over: [ax[1] * side[2] - ax[2] * side[1], ax[2] * side[0] - ax[0] * side[2], ax[0] * side[1] - ax[1] * side[0]] });
+            run += len;
+        }
+    }
+    if (limbs.length === 0) return mesh;
+    // One turn of the picture to a sixth of the tree's height along a limb, and four times round it: bark about as wide as it is long.
+    const along = h * 0.16, inset = 0.012;
+    const at = new Map<number, readonly [number, number]>();
+    const place = (v: number): readonly [number, number] => {
+        const known = at.get(v);
+        if (known) return known;
+        const q = mesh.positions[v]!;
+        let best = Infinity, run = 0, turn = 0;
+        for (const limb of limbs) {
+            const d: Vec3 = [limb.b[0] - limb.a[0], limb.b[1] - limb.a[1], limb.b[2] - limb.a[2]], len2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+            const s = Math.min(Math.max(((q[0] - limb.a[0]) * d[0] + (q[1] - limb.a[1]) * d[1] + (q[2] - limb.a[2]) * d[2]) / len2, 0), 1);
+            const o: Vec3 = [q[0] - limb.a[0] - d[0] * s, q[1] - limb.a[1] - d[1] * s, q[2] - limb.a[2] - d[2] * s], far = o[0] * o[0] + o[1] * o[1] + o[2] * o[2];
+            if (far >= best) continue;
+            best = far;
+            run = limb.from + Math.sqrt(len2) * s;
+            turn = Math.atan2(o[0] * limb.over[0] + o[1] * limb.over[1] + o[2] * limb.over[2], o[0] * limb.side[0] + o[1] * limb.side[1] + o[2] * limb.side[2]) / (Math.PI * 2);
+        }
+        const uv = reads(BARK_AT[0] + inset + fold(run / along) * (BARK_AT[2] - inset * 2), BARK_AT[1] + inset + fold(turn * 2) * (BARK_AT[3] - inset * 2));
+        at.set(v, uv);
+        return uv;
+    };
+    return { ...mesh, faces: mesh.faces.map((f) => (f.tag === 'bark' ? { ...f, cornerUvs: f.v.map(place) } : f)) };
+}
 
 /**
  * The picture a tree's leaf cards are cut out by: a tuft of leaves, solid at its heart and leaves at its rim, white (a card's own colour is the leaf's), clear round
  * it, with a solid corner the wood reads. `size` pixels a side, RGBA.
  */
-export function treeLeafPicture(size = 256): Uint8Array {
+export function treeLeafPicture(size = 256, bark: TreeBark = 'furrowed'): Uint8Array {
     const rgba = new Uint8Array(size * size * 4), r = dice(91);
     const put = (x: number, y: number, tone: number, alpha: number): void => {
         if (x < 0 || y < 0 || x >= size || y >= size) return;
@@ -254,7 +313,7 @@ export function treeLeafPicture(size = 256): Uint8Array {
         rgba[k] = t; rgba[k + 1] = t; rgba[k + 2] = t; rgba[k + 3] = a;
     };
     // A leaf is a pointed oval lying along its own way, lighter toward its edge than along its rib.
-    const lo = size * LEAF_EDGE, span = size - lo * 2, cx = lo + span / 2, cy = lo + span / 2;
+    const span = size * TUFT[2], cx = size * TUFT[0] + span / 2, cy = size * TUFT[1] + span / 2;
     const leafAt = (ox: number, oy: number, turn: number, long: number, wide: number, shade: number): void => {
         const ca = Math.cos(turn), sa = Math.sin(turn), reach = Math.ceil(long);
         for (let y = Math.floor(oy - reach); y <= oy + reach; y++) for (let x = Math.floor(ox - reach); x <= ox + reach; x++) {
@@ -276,10 +335,34 @@ export function treeLeafPicture(size = 256): Uint8Array {
             leafAt(cx + Math.cos(a) * d, cy + Math.sin(a) * d, a + (r() - 0.5) * 0.8, span * long * (0.9 + 0.25 * r()), span * 0.05 * (0.9 + 0.25 * r()), (0.74 + 0.6 * out) * (0.9 + 0.1 * r()));
         }
     }
-    // The corners the wood reads, whichever way up the picture is taken: solid white.
-    const block = Math.ceil(size * LEAF_CORNER * 2.2);
-    for (const [bx, by] of [[0, 0], [size - block, 0], [0, size - block], [size - block, size - block]] as const) {
-        for (let y = by; y < by + block; y++) for (let x = bx; x < bx + block; x++) { const k = (y * size + x) * 4; rgba[k] = 255; rgba[k + 1] = 255; rgba[k + 2] = 255; rgba[k + 3] = 255; }
-    }
+    // The white a solid crown reads, and the bark: grey, as the wood's own colour is what it tints.
+    const fill = (box: readonly number[], tone: (u: number, v: number) => number): void => {
+        const x0 = Math.round(box[0]! * size), y0 = Math.round(box[1]! * size), w = Math.round(box[2]! * size), hgt = Math.round(box[3]! * size);
+        for (let y = 0; y < hgt; y++) for (let x = 0; x < w; x++) {
+            const k = ((y0 + y) * size + x0 + x) * 4, g = Math.round(Math.min(Math.max(tone((x + 0.5) / w, (y + 0.5) / hgt), 0), 1) * 255);
+            rgba[k] = g; rgba[k + 1] = g; rgba[k + 2] = g; rgba[k + 3] = 255;
+        }
+    };
+    fill(SOLID, () => 1);
+    const wob = (x: number, y: number): number => Math.sin(x * 12.9898 + y * 78.233) * 0.5 + Math.sin(x * 39.3 - y * 17.7) * 0.3 + Math.sin(x * 7.1 + y * 5.3) * 0.2;
+    fill(BARK_AT, bark === 'smooth' ? () => 0.96 : bark === 'banded'
+        // Pale bark with dark marks lying round the stem, each a short dash, and a faint grain along it.
+        ? (u, v) => {
+            let tone = 0.95 + 0.04 * Math.sin(v * 40 + wob(u * 3, v * 2) * 3);
+            for (let i = 0; i < 26; i++) {
+                const mu = (i * 0.618034) % 1, mv = (i * 0.381966 + 0.13) % 1, long = 0.1 + 0.16 * ((i * 0.7548) % 1), thick = 0.006 + 0.007 * ((i * 0.5698) % 1);
+                const du = Math.abs(u - mu) / thick, dv = Math.abs(v - mv) / long;
+                if (du < 1 && dv < 1) tone = Math.min(tone, 0.3 + 0.65 * Math.max(du, dv * dv));
+            }
+            return tone;
+        }
+        // Ridges that run along the stem, wander, part and meet, with deep cracks between them.
+        : (u, v) => {
+            const lane = v * 4 + 0.32 * Math.sin(u * 9.4 + v * 4) + 0.16 * Math.sin(u * 27 + 1.7) + 0.05 * wob(u * 4, v * 3);
+            const crack = Math.min(Math.abs(Math.sin(lane * Math.PI)) / 0.38, 1), ridge = crack * crack * (3 - 2 * crack);
+            // A ridge is broken across here and there, each at its own places, and is a little lighter along its crown.
+            const which = Math.floor(lane), notch = Math.abs(Math.sin(u * 21 + which * 2.4 + 0.6 * Math.sin(u * 7 + which)));
+            return (0.36 + 0.6 * ridge) * (notch < 0.1 ? 0.72 + 2.8 * notch : 1) * (0.95 + 0.05 * Math.sin(u * 60 + which));
+        });
     return rgba;
 }

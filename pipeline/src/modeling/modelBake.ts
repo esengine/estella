@@ -16,6 +16,7 @@ import { faceUvs } from './modelUv';
 import { adjustWeights, bindMatrices, computeWeights, computeWornWeights, drapeRig, resolveJoints, shapeDeltas, type ControllerIk, type RigGoal, type RigJoint, type RigSpring, type SkinWeights } from './rig';
 import type { NormalBakeReport } from './normalBake';
 import { buildPolyMesh, expandModelSource, validateModelSource, writtenStepReports, type ModelSource, type StepReport } from './modelSource';
+import type { TreeBark } from './tree';
 import {
     boundsOf, collectEdges, cross, dot, faceArea, faceNormal, length, normalize, sub,
     type PolyMesh, type Vec3, compact,
@@ -78,6 +79,8 @@ export interface BakedModel {
     cut?: { poly: PolyMesh; triangles: { v: [number, number, number]; face: number }[] };
     /** True where the model has leaf cards (the tree step): its faces read a sprig's picture, cut out by its alpha, which the caller writes beside it. */
     leaves?: boolean;
+    /** What the bark of a tree with leaf cards is, for whoever draws its picture. */
+    bark?: TreeBark;
     /** One triangle per entry: its three positions' indices, and the face it came from. */
     triangles: { v: [number, number, number]; face: number }[];
     /** Present where a source has a normalBake: what bakeNormalMap carries, onto a mesh already unwrapped and given tangents for it. */
@@ -493,7 +496,7 @@ export function bakeModel(raw: unknown): BakedModel {
         data: unwrapped,
         ...(rig ? { rig } : {}),
         ...(shapes ? { shapes } : {}),
-        ...(source.steps.some((s) => s.op === 'tree') && mesh.faces.some((f) => f.tag === 'leaf' && f.cornerUvs?.some((uv) => uv[0] > 0.05)) ? { leaves: true } : {}),
+        ...(source.steps.some((s) => s.op === 'tree') && mesh.faces.some((f) => f.tag === 'leaf' && f.cornerNormals) ? { leaves: true, bark: (source.steps.find((s) => s.op === 'tree') as { barkStyle?: TreeBark }).barkStyle ?? 'furrowed' } : {}),
         ...(shards.length ? { shards, cut: { poly: cut, triangles: cut.faces.flatMap((f, face) => triangulateFace(cut, f).map((v) => ({ v, face }))) } } : {}),
         ...(cards ? { hair: { maps: hairMaps((source.steps.find((s) => s.op === 'hair')?.seed as number | undefined) ?? 1), ...(swing ? { chainRoots: swing.chainRoots } : {}) } } : {}),
         ...(bake && high ? { detail: { high, size, ...(bake.distance !== undefined ? { distance: bake.distance } : {}), smoothAngle: source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE, ...(lowColors ? { lowColors } : {}), ...(bake.occlusion ? { occlusion: typeof bake.occlusion === 'object' ? bake.occlusion : {} } : {}), ...(bake.surface ? { surface: { roughness: source.material?.roughness ?? 1, metallic: source.material?.metallic ?? 0 } } : {}) } } : {}),
