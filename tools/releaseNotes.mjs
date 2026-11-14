@@ -4964,4 +4964,8 @@ export const NOTED = {
     {"note": "A Model material lays a repeating detail over what is large."},
   "chore(ui): the built-in widget prefabs carry letterSpacing and underline - regenerated after buildText began to fill every Text field (#127); the generator test rewrites them and does not fail on drift, so they had stayed as before":
     {"note": "`spawnUIEntity` keeps every Text field it is given."},
+  "feat(terrain): a land source says its unit - a scene of 100 units to the metre had its land written in hundreds of thousands, or in metres through a script that multiplied every number but the fields it knew by name, and a field of the same name with another meaning (a noise's scale is a distance, a model's scale is not) turned a land into cliffs. unit: 100 lets the source be written in metres: the kernel, which is what knows which field of which op is a length, multiplies those and nothing else, in steps, where masks, layers, maps, tints and stands. The bake works from world units; reports and probes stay in them":
+    {"note": "A land stands models where ground cannot be the shape."},
+  "feat(terrain): the terrain tool says a land can be written in metres - a source's unit multiplies its lengths and nothing else, so a project of 100 units to the metre writes a kilometre as 1000":
+    {"note": "A land stands models where ground cannot be the shape."},
 };

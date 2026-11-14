@@ -127,6 +127,13 @@ export interface LandStand {
 
 export interface LandSource {
     version: 1;
+    /**
+     * How many world units one unit of this source's lengths is. A scene of 100 units to the metre is written in metres with `unit: 100`:
+     * every length in the source (sizes, places, heights, widths, radii, the lengths inside a `where`) is multiplied by it, and nothing
+     * that is not a length (a slope, a share, a count, an angle, a seed, a model's scale) is. Default 1: the source is in world units.
+     * What the tools answer and ask for besides the source (a report's heights, a probe's points) is always world units.
+     */
+    unit?: number;
     /** The land's size along x and z, and where its middle is. */
     size: readonly [number, number];
     center?: Point2;
@@ -174,6 +181,102 @@ export function describeLandOps(): string {
 
 const RESOLUTIONS = [129, 257, 513, 1025, 2049, 4097];
 
+/**
+ * Which fields of each op are lengths: the whole of what `unit` multiplies in a step. A field not named here is a slope, a share, a count,
+ * an angle or a name, and is left as written; a new field of an op is a length only once it is listed. Kept beside the ops because only
+ * the kernel knows which of two fields called `scale` is a distance.
+ */
+const STEP_LENGTHS: Readonly<Record<LandOp, readonly string[]>> = {
+    fill: ['height'],
+    noise: ['amplitude', 'scale'],
+    hill: ['at', 'radius', 'height', 'flat'],
+    ridge: ['path', 'height', 'width'],
+    plateau: ['at', 'radius', 'outline', 'height', 'edge', 'ragged'],
+    lake: ['at', 'radius', 'level', 'depth', 'shore', 'ragged'],
+    river: ['path', 'width', 'depth', 'bank', 'plain'],
+    road: ['path', 'width'],
+    flatten: ['at', 'radius', 'height', 'falloff'],
+    terrace: ['step'],
+    pillars: ['at', 'radius', 'spacing', 'height', 'width'],
+    coast: ['at', 'radius', 'outline', 'ragged', 'beach', 'cliffs', 'shelf', 'floor'],
+    smooth: ['radius'],
+    erode: [],
+    valley: ['path', 'width', 'depth', 'floor'],
+    crater: ['at', 'radius', 'depth', 'rim'],
+    dunes: ['height', 'length'],
+    talus: [],
+    sculpt: [],
+    stream: ['from', 'width', 'depth'],
+    image: ['low', 'high', 'at', 'size'],
+    clamp: ['min', 'max'],
+};
+
+/** A number, or numbers however nested (a point, a path of points), times `k`. */
+function scaled<T>(value: T, k: number): T {
+    if (typeof value === 'number') return +(value * k).toFixed(6) as unknown as T;
+    if (Array.isArray(value)) return value.map((v) => scaled(v, k)) as unknown as T;
+    return value;
+}
+
+function whereInWorld(where: Where | undefined, k: number): Where | undefined {
+    if (!where) return where;
+    const w = { ...where } as Record<string, unknown>;
+    for (const key of ['above', 'below', 'feather', 'outline', 'outlineFeather']) if (w[key] !== undefined) w[key] = scaled(w[key], k);
+    if (where.within) w.within = { ...where.within, at: scaled(where.within.at, k), radius: scaled(where.within.radius, k), ...(where.within.feather !== undefined ? { feather: scaled(where.within.feather, k) } : {}) };
+    if (where.noise) w.noise = { ...where.noise, scale: scaled(where.noise.scale, k) };
+    for (const key of ['near', 'far'] as const) {
+        const by = where[key];
+        if (by) w[key] = { ...by, within: scaled(by.within, k), ...(by.fade !== undefined ? { fade: scaled(by.fade, k) } : {}) };
+    }
+    return w as Where;
+}
+
+/**
+ * The source with every length in world units and no `unit` left: what the bake works from. The source as it was written is what is
+ * saved and edited; this is worked out from it each time.
+ */
+export function landInWorldUnits(source: LandSource): LandSource {
+    const k = source.unit ?? 1;
+    if (k === 1) return source;
+    const { unit: _unit, ...rest } = source;
+    const steps = source.steps.map((step) => {
+        const out = { ...step } as Record<string, unknown>;
+        for (const key of STEP_LENGTHS[step.op] ?? []) if (out[key] !== undefined) out[key] = scaled(out[key], k);
+        if (step.op === 'sculpt') {
+            out.strokes = step.strokes.map((stroke) => ({
+                ...stroke, points: scaled(stroke.points, k), radius: scaled(stroke.radius, k),
+                // How far a raise, a lower or a roughen moves the ground is a length; how much of the way a smooth or a flatten goes is a share.
+                ...(stroke.by !== undefined && (stroke.brush === 'raise' || stroke.brush === 'lower' || stroke.brush === 'roughen') ? { by: scaled(stroke.by, k) } : {}),
+                ...(stroke.height !== undefined ? { height: scaled(stroke.height, k) } : {}),
+            }));
+        }
+        const where = (step as { where?: Where }).where;
+        if (where) out.where = whereInWorld(where, k);
+        return out as unknown as LandStep;
+    });
+    return {
+        ...rest,
+        size: scaled(source.size, k),
+        ...(source.center ? { center: scaled(source.center, k) } : {}),
+        ...(source.sea !== undefined ? { sea: scaled(source.sea, k) } : {}),
+        steps,
+        ...(source.layers ? { layers: source.layers.map((layer) => ({ ...layer, ...(layer.where ? { where: whereInWorld(layer.where, k) } : {}) })) } : {}),
+        ...(source.maps ? { maps: source.maps.map((map) => ({ ...map, ...(map.where ? { where: whereInWorld(map.where, k) } : {}) })) } : {}),
+        ...(source.tints ? { tints: source.tints.map((tint) => ({ ...tint, ...(tint.where ? { where: whereInWorld(tint.where, k) } : {}) })) } : {}),
+        ...(source.stands ? {
+            stands: source.stands.map((stand) => ({
+                ...stand,
+                ...(stand.where ? { where: whereInWorld(stand.where, k) } : {}),
+                ...(stand.spacing !== undefined ? { spacing: scaled(stand.spacing, k) } : {}),
+                ...(stand.sink !== undefined ? { sink: scaled(stand.sink, k) } : {}),
+                ...(stand.foot !== undefined ? { foot: scaled(stand.foot, k) } : {}),
+                // A place is [x, z, scale?, turn?]: where it is is a length, how large and how turned are not.
+                ...(stand.at ? { at: stand.at.map((p) => [scaled(p[0]!, k), scaled(p[1]!, k), ...p.slice(2)]) } : {}),
+            })),
+        } : {}),
+    };
+}
+
 /** A source that cannot be built: which step, and what is wrong with it. */
 export class LandBuildError extends Error {
     constructor(message: string, readonly stepIndex: number | null = null, readonly stepId: string | null = null, readonly op: string | null = null) {
@@ -188,6 +291,7 @@ export function validateLandSource(raw: unknown): LandSource {
     if (!raw || typeof raw !== 'object') throw new LandBuildError('a land source is an object: { version: 1, size, resolution, steps }');
     const s = raw as Partial<LandSource>;
     if (s.version !== 1) throw new LandBuildError('version must be 1');
+    if (s.unit !== undefined && !(typeof s.unit === 'number' && Number.isFinite(s.unit) && s.unit > 0)) throw new LandBuildError('unit is how many world units one unit of the source is: a number above 0 (100 for metres in a scene of 100 to the metre)');
     if (!isPoint(s.size) || !(s.size![0] > 0) || !(s.size![1] > 0)) throw new LandBuildError('size is [along x, along z] in world units, both above 0');
     if (s.center !== undefined && !isPoint(s.center)) throw new LandBuildError('center is [x, z]');
     if (!RESOLUTIONS.includes(s.resolution as number)) throw new LandBuildError(`resolution ${String(s.resolution)} must be one of ${RESOLUTIONS.join(', ')}`);
@@ -227,7 +331,7 @@ export type LandEdit =
     | { op: 'set'; step: number | string; fields: Record<string, unknown> }
     | { op: 'insert'; step: LandStep; before?: number | string; after?: number | string }
     | { op: 'remove'; step: number | string }
-    | { op: 'settings'; fields: Partial<Pick<LandSource, 'size' | 'center' | 'resolution' | 'sea' | 'layers' | 'maps' | 'tints' | 'stands'>> };
+    | { op: 'settings'; fields: Partial<Pick<LandSource, 'size' | 'center' | 'resolution' | 'sea' | 'unit' | 'layers' | 'maps' | 'tints' | 'stands'>> };
 
 /** A source with edits applied, in order: what land_edit does. A step is named by its id or its index. */
 export function applyLandEdits(source: LandSource, edits: readonly LandEdit[]): LandSource {

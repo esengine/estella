@@ -9,7 +9,7 @@
  * laid by. Nothing here knows an engine: it is arithmetic, so a test or a tool can run it anywhere.
  */
 import { erodeHeightfield } from '../../../sdk/src/terrain/heightfield';
-import { LandBuildError, validateLandSource, type LandLayer, type LandMap, type LandStand, type LandSource, type LandStep, type LinePoint, type Point2, type Where } from './landSource';
+import { LandBuildError, landInWorldUnits, validateLandSource, type LandLayer, type LandMap, type LandStand, type LandSource, type LandStep, type LinePoint, type Point2, type Where } from './landSource';
 
 export interface BakedRiver {
     name: string;
@@ -899,7 +899,8 @@ export function landPictures(source: LandSource): string[] {
 
 /** Runs a source. Throws {@link LandBuildError}, naming the step, when one cannot run. `inputs` are the pictures its `image` steps name. */
 export function bakeLand(raw: unknown, inputs?: Readonly<Record<string, LandPicture>>): BakedLand {
-    const source = validateLandSource(raw);
+    // Worked from in world units, whatever unit it was written in.
+    const source = landInWorldUnits(validateLandSource(raw));
     const n = source.resolution, center = source.center ?? [0, 0];
     const g = new Grid(n, source.size[0], source.size[1], center[0], center[1]);
     const out: StepOut = { rivers: [], roads: [], lakes: [], warnings: [], ...(inputs ? { inputs } : {}) };

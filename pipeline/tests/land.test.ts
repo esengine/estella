@@ -60,6 +60,33 @@ describe('shaping ground', () => {
         expect(land([flat], { stands: [{ name: 'none', models: [{ mesh: 'a.esmesh' }], spacing: 100, where: { above: 1000 } }] }).report.warnings.join(' ')).toMatch(/stands nowhere/);
     });
 
+    it('takes a source written in another unit: every length is multiplied, and nothing that is not a length', () => {
+        const steps: LandStep[] = [
+            { op: 'fill', height: 0.1 }, { op: 'noise', amplitude: 0.2, scale: 3, octaves: 2, seed: 4 },
+            { op: 'plateau', at: [1, 1], radius: 2, height: 0.9, edge: 0.4, tilt: [0.1, 0], where: { within: { at: [0, 0], radius: 4, feather: 1 }, noise: { scale: 2, cover: 0.9 }, gentler: 80 } },
+            { op: 'road', name: 'way', path: [[-3, 0], [3, 0]], width: 0.2, grade: 0.2 },
+        ];
+        const stands = [{ name: 'rocks', models: [{ mesh: 'a.esmesh' }], spacing: 1, scale: [0.5, 2] as const, sink: 0.03, foot: 0.2, lean: 10, at: [[4, 4, 2, 90]], seed: 2 }];
+        const metres = land(steps, { unit: 100, size: [10, 10], center: [1, -1], sea: 0.05, stands, layers: [{ name: 'rock', where: { steeper: 30, above: 0.5 } }] });
+        const scaleStep = (s: LandStep): LandStep => {
+            if (s.op === 'fill') return { ...s, height: 10 };
+            if (s.op === 'noise') return { ...s, amplitude: 20, scale: 300 };
+            if (s.op === 'plateau') return { ...s, at: [100, 100], radius: 200, height: 90, edge: 40, where: { within: { at: [0, 0], radius: 400, feather: 100 }, noise: { scale: 200, cover: 0.9 }, gentler: 80 } };
+            return { ...s, path: [[-300, 0], [300, 0]], width: 20 } as LandStep;
+        };
+        const world = land(steps.map(scaleStep), { size: [1000, 1000], center: [100, -100], sea: 5, layers: [{ name: 'rock', where: { steeper: 30, above: 50 } }],
+            stands: [{ ...stands[0]!, spacing: 100, sink: 3, foot: 20, at: [[400, 400, 2, 90]] }] });
+        // The same land, sample for sample, and the same things standing on it.
+        expect(metres.size).toEqual([1000, 1000]);
+        expect(Array.from(metres.heights.subarray(0, 4000))).toEqual(Array.from(world.heights.subarray(0, 4000)));
+        expect(metres.report.max).toBe(world.report.max);
+        expect(metres.stands).toEqual(world.stands);
+        expect(metres.report.roads[0]!.steepest.grade).toBe(world.report.roads[0]!.steepest.grade);
+        // What it works from is in world units; a unit that is no number above 0 is refused.
+        expect(metres.source.unit).toBeUndefined();
+        expect(() => land([flat], { unit: 0 })).toThrow(/unit/);
+    });
+
     it('sets a plateau level, with a cliff of the width asked round it', () => {
         const l = land([flat, { op: 'plateau', at: [0, 0], radius: 200, height: 90, edge: 40 }]);
         expect(landHeightAt(l, 0, 0)).toBeCloseTo(90, 3);

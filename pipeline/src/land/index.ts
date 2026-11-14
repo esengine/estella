@@ -4,7 +4,7 @@
  * @file  The land kernel: a piece of country written as steps, baked to heights, layer weights and maps, and looked at.
  */
 export {
-    applyLandEdits, describeLandOps, LAND_OPS, LAND_SOURCE_EXT, LandBuildError, validateLandSource,
+    applyLandEdits, describeLandOps, LAND_OPS, LAND_SOURCE_EXT, LandBuildError, landInWorldUnits, validateLandSource,
     type LandEdit, type LandLayer, type LandMap, type LandOp, type LandStand, type LandSource, type LandStep, type LinePoint, type Point2, type SculptStroke, type Where,
 } from './landSource';
 export {
