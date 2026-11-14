@@ -5018,4 +5018,6 @@ export const NOTED = {
     {"internal": "Which checks CI runs; nothing a creator runs changes."},
   "fix(render): a frame capture on WebGL2 reads the canvas at once again - the fenced read cost CI's headless CPU rasterizer about 60% more per scene, so the pr render tier ran out of its 25 minutes with 98 scenes unrun and grass-fade, which captures several times, passed its 45 s; render targets (the camera preview) and the engine's own reads keep the fence":
     {"note": "Opening a 3D scene no longer freezes the editor."},
+  "ci: the render verify runs in two shards, and grass-fade is not drawn on a software rasteriser - the pr tier on CI's SwiftShader had grown half as slow again per scene since the far-blade and wind-field foliage changes and ran out of its 25 minutes with 98 scenes unrun; verify-render takes --shard i/n, and grass-fade, whose GPU process died before it drew on every CI launch, says softwareGpu: false as terrain-virtual-texture and gi-room-voxel do":
+    {"internal": "How CI runs its render checks; nothing a creator runs changes."},
 };

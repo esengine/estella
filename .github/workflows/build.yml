@@ -653,9 +653,13 @@ jobs:
   # for. A shallow checkout everywhere except the released-projects job, which
   # reads examples out of release tags.
   verify-render:
-    name: Render verify (headless)
+    name: Render verify (headless) (${{ matrix.shard }})
     runs-on: ubuntu-latest
     needs: build-emscripten
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
 
     steps:
     - uses: actions/checkout@v7
@@ -670,12 +674,14 @@ jobs:
     # engine header edit touching dozens of files; --derived exits 1 on either. Covers
     # examples/ too so a shipped shader can never regress to WebGL-only.
     - name: Check shader twins
+      if: matrix.shard == 1
       run: node tools/gen-shader-twins.mjs --check --derived fixtures/scenes examples
 
     # Pipeline smoke: strip a fixture's twins into a temp copy and require the
     # vendored converters (glslang wasm + naga WASI wasm) to produce one —
     # exercises the whole GLSL→SPIR-V→WGSL chain on every CI run.
     - name: Shader-twin pipeline smoke
+      if: matrix.shard == 1
       run: |
         tmp=$(mktemp -d)
         sed '/#pragma vertex wgsl/,$d' fixtures/scenes/mat-tint/tint.esshader > "$tmp/smoke.esshader"
@@ -693,7 +699,7 @@ jobs:
       # policy correctly retries each outage and the tier outgrows the job's
       # minutes — which GitHub answers by killing it, so the run says nothing at
       # all. A budget makes it report what it measured and name what it did not.
-      run: node tools/verify-render.mjs --tier pr --host engine --no-build --budget 25
+      run: node tools/verify-render.mjs --tier pr --host engine --no-build --budget 25 --shard ${{ matrix.shard }}/2
 
   # The golden corpus, packaged and opened the way a player opens it: every
   # project exports, boots, draws what its points say, and answers the input it
