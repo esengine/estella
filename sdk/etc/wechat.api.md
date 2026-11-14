@@ -4187,6 +4187,7 @@ rot: Quat
 
 ## EntityBoxOptions — interface @experimental
 ```
+extentOf: ((entity: Entity) => { x: number; y: number; width: number; height: number; } | null) | undefined
 iconHalf: number | ((at: Vec3) => number) | undefined
 ```
 
@@ -4253,6 +4254,7 @@ ResourceDef<EntityEventQueue>
 ## EntityPickOptions — interface @experimental
 ```
 depthLayers: number | undefined
+extentOf: ((entity: Entity) => { x: number; y: number; width: number; height: number; } | null) | undefined
 iconHalf: number | ((at: Vec3) => number) | undefined
 pickable: ((entity: Entity) => boolean) | undefined
 ySortLayers: number | undefined

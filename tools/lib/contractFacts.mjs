@@ -361,6 +361,8 @@ export const NOT_CONTRACT = {
         'a measured baseline, not a derivation — accepted with `perf-guard --update`.',
     'sdk/src/runtime/planWorkerBundle.generated.ts':
         'the compiled text of src/worldgen/planWorker.ts, built by sdk/scripts/build-worker.mjs — one source file bundled, not a projection of a fact two places must agree on.',
+    'sdk/src/sound/soundWorkerBundle.generated.ts':
+        'the compiled text of the sound worker, built by sdk/scripts/build-worker.mjs — one source file bundled, as the planning worker is.',
     'sdk/src/image/recipeWorkerBundle.generated.ts':
         'the compiled text of src/image/recipeWorker.ts, built by sdk/scripts/build-worker.mjs — one source file bundled, as the planning worker is.',
     'native/spine/SpineCRename21.hpp':

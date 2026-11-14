@@ -239,7 +239,7 @@ class NativeBindingsGenerator:
         out = []
         for op in REGISTRY_OPS:
             args = [f'esn_entity(a[{i}])' if k == 'entity'
-                    else f'static_cast<u32>(esjs::toNumber(a[{i}]))' if k == 'number'
+                    else f'static_cast<esengine::u32>(esjs::toNumber(a[{i}]))' if k == 'number'
                     else f'esjs::toBool(a[{i}])'
                     for i, (_n, k) in enumerate(op.params)]
             call = op.call.replace('r.', 'esn_reg().', 1) if op.call.startswith('r.')                 else op.call.replace('(r,', '(esn_reg(),', 1)

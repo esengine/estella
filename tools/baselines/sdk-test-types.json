@@ -98,9 +98,6 @@
     "TS2345|Argument of type '{ verts: Float32Array<ArrayBuffer>; polys: Int32Array<ArrayBuffer>; neis: Int32Array<ArrayBuffer>; ... 4 more ...; verticalReach: number; }' is not assignable to parameter of type 'NavMeshData'.": 1,
     "TS2741|Property 'showLinks' is missing in type '{ enabled: true; showFaces: true; showBorders: true; }' but required in type 'NavDebugDrawConfig'.": 1
   },
-  "tests/physics3d-ecs.test.ts": {
-    "TS2339|Property 'publishContacts' does not exist on type 'Physics3DWasmModule & { calls: { name: string; args: number[]; }[]; publish(records: number[]): void; publishQuery(records: number[]): void; }'.": 1
-  },
   "tests/playableRuntime.test.ts": {
     "TS2554|Expected 1 arguments, but got 0.": 1
   },

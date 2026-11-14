@@ -26,6 +26,13 @@ export function installRegistryOpDefaults(scope: Record<string, unknown>, alive?
         hasInactiveEntities: () => [...enabled.values()].some((v) => !v),
         activityEpoch: () => epoch,
         setParent: () => true,
+        markComponentChanged: () => undefined,
+        componentChangedSince: () => false,
+        changeTick: () => 1,
+        beginChangeRead: () => 1,
+        setChangeAudit: () => undefined,
+        auditChanges: () => 0,
+        changeAuditTotal: () => 0,
     };
     for (const [op, binding] of Object.entries(REGISTRY_OPS) as [keyof typeof REGISTRY_OPS, string][]) {
         if (typeof scope[binding] !== 'function') scope[binding] = defaults[op];

@@ -197,7 +197,7 @@ for (const rel of cpp) {
     const bound = [];
     lines.forEach((line, i) => {
         while (bound.length && bound[bound.length - 1].depth > depth[i]) bound.pop();
-        const b = /\b(\w+)\s*=\s*[^;]*\b(?:get|tryGet|emplace|emplaceOrReplace)<(?:[\w:]*::)?Transform>/.exec(line)
+        const b = /\b(\w+)\s*=\s*[^;]*\b(?:get|tryGet|patch|emplace|emplaceOrReplace)<(?:[\w:]*::)?Transform>/.exec(line)
             ?? /(?:[\w:]*::)?Transform&\s+(\w+)\s*[=)]/.exec(line)
             ?? /(?:[\w:]*::)?Transform\*\s+(\w+)\s*=/.exec(line);
         if (b) bound.push({ name: b[1], depth: depth[i] });

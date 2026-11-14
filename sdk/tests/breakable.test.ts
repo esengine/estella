@@ -32,7 +32,7 @@ const { defineSystem, Schedule } = await import('../src/ecs/system');
 const { EventReader } = await import('../src/ecs/event');
 
 /** Everything said about breaking, as a game's own system would read it. */
-function listen(app: InstanceType<typeof App>) {
+function listen(app: ReturnType<typeof App.new>) {
     const heard: { entity: Entity; x: number; y: number; z: number; impulse: number }[] = [];
     app.addSystemToSchedule(Schedule.Update, defineSystem([EventReader(Broke)], (broke: Iterable<(typeof heard)[number]>) => {
         for (const e of broke) heard.push({ ...e });

@@ -271,10 +271,9 @@ export class BreakablePlugin implements Plugin {
                 if (b.loading) continue;
                 // The world makes a piece's body on its next step; until then there is nothing to throw.
                 if (b.throws.length) {
-                    b.throws = b.throws.filter((t) => {
-                        if (!world.valid(t.entity)) return false;
-                        if (pusher?.(t.entity, t.velocity)) return false;
-                        return ++t.tries < 30;
+                    b.throws = b.throws.flatMap((t) => {
+                        if (!world.valid(t.entity) || pusher?.(t.entity, t.velocity)) return [];
+                        return t.tries + 1 < 30 ? [{ ...t, tries: t.tries + 1 }] : [];
                     });
                 }
                 b.age += time.delta;

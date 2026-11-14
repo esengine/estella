@@ -2301,8 +2301,7 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     // The sun's cloud shadow, before its cascades: one tile for the whole of what the camera sees under the clouds, where a cascade
     // is the nearest stretch of it. With the atlas full a sun then gives up its farthest cascade, as it does for a light that stands somewhere.
     if (cloudExtent > 0.0f) {
-        AtlasRefusal why = AtlasRefusal::None;
-        cloud_tile_ = shadow_atlas_.allocate(1, 1, why);
+        claimTiles(shadow_atlas_, INVALID_ENTITY, 1, 1, cloud_tile_);
     }
     for (usize i = 0; i < shadow_casters_.size(); ++i) {
         const ShadowCaster& caster = shadow_casters_[i];

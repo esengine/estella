@@ -326,7 +326,9 @@ static void testMaterialOverflowUnits() {
 
     // A fullscreen pass reaches its low units through its own conventions.
     ParsedShader post = ShaderParser::parse(manyTextures("PostProcess", 8));
-    CHECK(unitOf(post, "u_m6") == 14 && unitOf(post, "u_m7") == -1, "a PostProcess shader stays at seven");
+    CHECK(unitOf(post, "u_m6") == 14 && unitOf(post, "u_m7") == 5, "a PostProcess shader's eighth texture takes unit 5");
+    ParsedShader postTen = ShaderParser::parse(manyTextures("PostProcess", 10));
+    CHECK(unitOf(postTen, "u_m8") == 4 && unitOf(postTen, "u_m9") == -1, "its ninth takes unit 4 and its tenth finds none");
 }
 
 static void testWGSLEmission() {

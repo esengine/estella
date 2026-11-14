@@ -8346,6 +8346,19 @@
           "range": "≥ 1"
         },
         {
+          "key": "virtualTexture",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Bake the ground's surface into pages, as Unreal's Runtime Virtual Texture does: from Virtual Texture From out, each node is drawn from its page (two texture reads) instead of every layer at every pixel. Ground with layers only; steep ground, and a node whose page is still being made, is drawn from the layers."
+        },
+        {
+          "key": "virtualTextureFrom",
+          "type": "number",
+          "default": "1",
+          "doc": "The first level of the ground drawn from its baked surface: 0 the nearest ground too, 1 all but it. The nearest is where the layers' own detail shows most.",
+          "range": "0–15, step 1"
+        },
+        {
           "key": "collision",
           "type": "boolean",
           "default": "true",
@@ -8490,6 +8503,7 @@
         "cellSize",
         "detail",
         "drawDistance",
+        "virtualTextureFrom",
         "collisionDistance",
         "collisionLayer",
         "friction",

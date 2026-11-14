@@ -37,6 +37,7 @@ function fakeModule(): Physics3DWasmModule & {
     calls: { name: string; args: number[] }[];
     publish(records: number[]): void;
     publishQuery(records: number[]): void;
+    publishContacts(records: number[]): void;
 } {
     const calls: { name: string; args: number[] }[] = [];
     // One heap the module's two pointers index into, as wasm has.
@@ -754,7 +755,7 @@ describe('the 3D world and the ECS', () => {
 
         it('carries a new length and spring into a distance joint that already exists', () => {
             const [a, b] = pair();
-            const rope = world.insert<{ maxLength: number; minLength: number; frequency: number; damping: number }>(a, DistanceJoint3D, { connectedEntity: b, maxLength: 300 });
+            const rope = world.insert<{ connectedEntity: Entity; maxLength: number; minLength: number; frequency: number; damping: number }>(a, DistanceJoint3D, { connectedEntity: b, maxLength: 300 });
             stepJoints();
             expect(called('setDistanceJoint')).toHaveLength(0);
             rope.maxLength = 100;

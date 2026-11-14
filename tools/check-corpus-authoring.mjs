@@ -126,6 +126,8 @@ const DISPOSITION = {
   MeshInstances: ['derived', 'the foliage and world generation systems write it, one entity a kind and part of a cell; its places are data a system computes, not something a scene authors'],
   ParticleCollider: ['owed', 'no example has a GPU emitter bouncing off a shape yet; the particle-gpu scenes are where the first one goes'],
   Waterfall: ['owed', 'no example has water falling off a lip yet; the terrain-and-water example, where a river meets a cliff, is where the first one goes'],
+  Breakable: ['owed', 'no example scene breaks an object yet; a breakable crate in the physics-3d example is where the first one goes'],
+  Hitboxes: ['owed', 'no example scene authors a hitbox set yet; the first one goes in an example with melee combat'],
   WaterfallAnchor: ['owed', 'no example fixes a fall to a river yet; it goes with the first Waterfall in the terrain-and-water example'],
   GripProfile: ['owed', 'no example holds an object in its two hands yet; a character with a rifle is where the first one goes'],
   GripHolder: ['owed', 'no example holds an object in its two hands yet; a character with a rifle is where the first one goes'],

@@ -63,7 +63,7 @@ const meta = (file, type) => writeFile(`${file}.meta`, JSON.stringify({ uuid: ra
 
 /** The synthetic project: a camera over a grid of static meshes, a sun and a sky, in one material spread. */
 async function writeSynthetic(dir, spread) {
-  await rm(dir, { recursive: true, force: true });
+  await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   await mkdir(path.join(dir, 'assets/scenes'), { recursive: true });
   await mkdir(path.join(dir, 'assets/materials'), { recursive: true });
   await writeFile(path.join(dir, 'project.esproject'), JSON.stringify({ name: 'RenderSubmitCost', version: '1.0', defaultScene: 'assets/scenes/main.esscene' }));
