@@ -56,3 +56,6 @@ If you ship without Spine, this obligation does not apply to you.
 
 Where a bundled component does not carry a top-level license file, its license
 header appears in the component's source files.
+
+Icons. The icons in docs/assets/icons are from Lucide (https://lucide.dev), used under
+the ISC license; its notice is docs/assets/icons/LICENSE.
