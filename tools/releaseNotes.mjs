@@ -4908,4 +4908,8 @@ export const NOTED = {
     {"note": "An install of mixed versions says so instead of crashing."},
   "feat(editor): the editor can start in safe mode - with --safe-mode or ESTELLA_SAFE_MODE=1 it runs with GPU acceleration off, draws with WebGL2 and does not restore the last workspace, and the window-crashed dialog offers it as Restart in Safe Mode":
     {"note": "The editor can start in safe mode."},
+  "feat(terrain): a cliff is not one tile repeated, and a land carries a wash of colour - a wall's sides are read plain (hex tiling would turn a rock's beds), so a face a hundred tiles tall stood in rows and columns; they are now read a second time on the wider tile and mixed by u_wallBreak (0.4, or more with distance), in GLSL and WGSL. A land source takes tints, colours laid in order under the same masks as layers, baked to one RGBA picture whose alpha is how much is laid; the editor writes it as the Terrain's Color Map and gives each fall its mist":
+    {"note": "An agent can shape ground as steps."},
+  "feat(terrain): a land's falls come with their mist and its ground with a wash of colour - terrain_apply gives every Waterfall two emitters that ride it (WaterfallAnchor: one at the foot, one off the sheet), sized by the fall's width, and mist: false leaves them out; a land source's tints are baked to one picture the Terrain mixes into its layers (its Color Map) and the reply names it, so a Foliage can take the colour of the ground it stands on":
+    {"note": "An agent can shape ground as steps."},
 };
