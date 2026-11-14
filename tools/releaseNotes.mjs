@@ -4988,4 +4988,6 @@ export const NOTED = {
     {"note": "A land grows its grass, flowers and trees."},
   "feat(terrain): a land grows plants - terrain_apply makes a Foliage for each of a land source's plants, over the whole land, as thick as the map it names and tinted by the land's wash: grass from a blade, anything else from a model's mesh, with a Foliage material written for a mesh whose colours are in a picture. The scene guide says how to plant a land, and that one with nothing growing is not ready to be judged":
     {"note": "A land grows its grass, flowers and trees."},
+  "chore(release): the land's plants are classified for 0.105.0 - its Added headline joined the 0.105.0 section after the release commit, and check-golden wants every shipped headline to say what certifies it":
+    {"internal": "A release classification; nothing a creator runs changes."},
 };

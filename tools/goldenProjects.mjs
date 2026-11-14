@@ -1380,6 +1380,8 @@ export const SHIPPED = {
     { notCertifiable: "What an editor tool answers, not what a game carries. Checked by hand in the editor; no test in the repo names pngRef." },
   "Viewport keys for moving things quickly.":
     { notCertifiable: "Editor input, not a game. Tried by hand in the editor; no test in the repo presses these keys." },
+  "A land grows its grass, flowers and trees.":
+    { notCertifiable: "An authoring tool's output (a .esland source). Covered by pipeline/tests/land.test.ts; no golden project is made from a land source." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */
