@@ -4900,4 +4900,12 @@ export const NOTED = {
     {"note": "An agent can shape ground as steps."},
   "fix(render): GPU pass times keep coming when the device answers later than frames are drawn - the pass timer was opened and closed for every render graph, so a frame of several cameras and chains went through its four slots before the device answered for any, every timed frame was dropped, and the times read were the first frame's for as long as the game ran; a frame is now timed once across all its graphs, a frame that finds every slot still waiting is not timed instead of dropping the oldest, and render.gpuTimer.read / skipped / dropped / disjoint say how the timer is doing. The submit-cost harness takes --gpu and --gpu-detail":
     {"note": "GPU pass times keep coming in a heavy scene."},
+  "fix(terrain): the rock round a plunge stands sheer - under a fall the lower reach cut its bowl at its own valley's slope, so a 138 m fall had a 37 degree headwall and its water landed half way down; a reach that is not the nearest now cuts far steeper than its valley's sides":
+    {"note": "An agent can shape ground as steps."},
+  "fix(mcp): a fall terrain_apply stands is thrown clear of its headwall - a Waterfall left the lip at a speed set by the river's width, and a tall one landed on the rock under it a third of the way down; its speed now grows with its drop":
+    {"note": "An agent can shape ground as steps."},
+  "feat(editor): an install whose program and data files carry different V8 versions says so and quits - an update that could not replace estella-editor.exe left a new snapshot beside an old program, and every start crashed the window at once":
+    {"note": "An install of mixed versions says so instead of crashing."},
+  "feat(editor): the editor can start in safe mode - with --safe-mode or ESTELLA_SAFE_MODE=1 it runs with GPU acceleration off, draws with WebGL2 and does not restore the last workspace, and the window-crashed dialog offers it as Restart in Safe Mode":
+    {"note": "The editor can start in safe mode."},
 };
