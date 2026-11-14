@@ -14078,6 +14078,7 @@ shadowStrength: number
 sky: number
 skyFog: number
 snow: number
+snowfall: number
 sound: number
 ssr: number
 sun: number
