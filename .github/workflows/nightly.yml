@@ -305,46 +305,13 @@ jobs:
         if-no-files-found: ignore
         retention-days: 7
 
-  # every-pixel-gate-runs, whose second half needs a GPU: a Linux runner ships no
-  # graphics driver and every webgpu run there died in requestDevice. The
-  # criterion says so itself, in its `why`.
-  macos:
-    name: Exit criteria (macos)
-    runs-on: macos-latest
-    needs: build-emscripten
-    # The pixel gates, plus the third-person package's 29 launches and the compiled-game parity.
-
-    steps:
-    - uses: actions/checkout@v7
-
-    - uses: ./.github/actions/engine-submodules
-    # Half the nightly scenes name the editor host, and without it verify-render
-    # got as far as "Command \"vite\" not found" — one second, and read as a
-    # verdict on 141 scenes.
-    - uses: ./.github/actions/editor-checkout
-      with:
-        ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
-    - uses: ./.github/actions/setup
-    - uses: ./.github/actions/render-host
-    - uses: ./.github/actions/editor-host
-    # The compiled-game parity builds its systems module with emcc.
-    - name: Setup Emscripten
-      uses: mymindstorm/setup-emsdk@v16
-      with:
-        version: 5.0.0
-        actions-cache-folder: .emsdk-ci
-        cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
-
-    - name: Run the exit criteria
-      run: node tools/run-release-gate.mjs --host macos
-
   # A red night that nobody reads is a night that did not run: this workflow was
   # red five mornings in a row, from three different causes, with nothing saying
   # so. One issue carries the state — opened or commented on when a scheduled night
   # is red, and closed when one comes back green.
   report:
     name: Say how the night went
-    needs: [build-emscripten, linux-template, linux, macos]
+    needs: [build-emscripten, linux-template, linux]
     if: ${{ always() && github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     permissions:

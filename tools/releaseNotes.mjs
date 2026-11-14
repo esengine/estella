@@ -5022,4 +5022,6 @@ export const NOTED = {
     {"internal": "How CI runs its render checks; nothing a creator runs changes."},
   "chore(ci): grass-fade's software-rasteriser note is the commit's, not a comment that outgrew the rule":
     {"internal": "A comment; nothing a creator runs changes."},
+  "ci: the nightly runs no macOS exit criteria - the job that ran the macos host's release criteria on a macOS runner is gone, and the night's report no longer waits on it":
+    {"internal": "Which checks CI runs; nothing a creator runs changes."},
 };
