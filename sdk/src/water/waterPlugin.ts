@@ -14,6 +14,7 @@
  *          The waves are the ones the Water shader draws: `waves.ts` is the same formula, and {@link Waters.sample} answers from the same field, so
  *          a floating object, a camera under the surface and a splash all read the surface that is on the screen.
  */
+import { EditorView, editorViewpoint } from '../camera/EditorView';
 import type { WaterQueryData } from './waterQuery';
 import { riverBedModifiers } from './riverBed';
 import type { App, Plugin } from '../app/app';
@@ -474,8 +475,16 @@ export class WaterPlugin implements Plugin {
         this.stock_ = 0;
     }
 
-    /** The world position of the active camera, or null where there is none (the editor's scene view has no entity). */
+    /**
+     * Where the water is looked at from: the editor's own eye while a scene is being edited, the active camera otherwise, or null where
+     * there is neither. The surface's fine cells are round this place: left on a scene's camera while the editor looked from somewhere
+     * else, a river a kilometre off was drawn by cells wider than it is, and was not there.
+     */
     private eye(app: App): [number, number, number] | null {
+        if (app.hasResource(EditorView)) {
+            const e = editorViewpoint(app.getResource(EditorView));
+            if (e) return [e.x, e.y, e.z];
+        }
         for (const entity of app.world.getEntitiesWithComponents([Camera, Transform])) {
             const camera = app.world.get(entity, Camera) as CameraData;
             if (!camera.isActive) continue;
