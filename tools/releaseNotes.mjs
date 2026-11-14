@@ -4828,6 +4828,16 @@ export const NOTED = {
     {"note": "An engine component is stamped whoever writes it."},
   "feat(terrain): a terrain layer's sky occlusion is edited beside its normal strength":
     {"note": "A terrain layer and a field of plants each say how much of the sky reaches them."},
+  "fix(editor): a project file is served with its length - without it a large file crossed the estella:// scheme a chunk per renderer task, and on a starved machine (software GL on the CI runner) a 10 MB heightmap took 30 s as an image and 170 s as a fetch, so the 4097 terrain's heightmap hit the 30 s asset deadline and its ground came up as noise; with the length the same image loads in 8 s and the 4097 one in 21 s, on a real GPU both stay under 0.3 s":
+    {"note": "A large image reaches the editor's viewport on a busy machine."},
+  "fix(editor): a Spine skeleton is selected by a click on the character it draws, and its outline follows it":
+    {"note": "A Spine skeleton is selected by the character it draws."},
+  "fix(editor): a light, camera, marker or other icon is drawn and clickable whether or not it is selected - 'selected entities only' limits the wireframes and handles, as its description says":
+    {"note": "Icons stay drawn and clickable with \"selected entities only\"."},
+  "feat(editor): UE-style viewport defaults and keys - grid snapping starts on, a Space tap cycles Move/Rotate/Scale while Space held still pans, Ctrl/Cmd+backtick switches World and Local, End drops a selection onto the floor":
+    {"note": "Viewport keys for moving things quickly."},
+  "fix(editor): project files reach the viewport with their length, and the editor's viewport keys, icon and Spine pick fixes are noted - moves the editor to d83f603e":
+    {"note": "A large image reaches the editor's viewport on a busy machine."},
   "fix(checks): the nightly editor checks say what they take on the runner, terrain-open authors its heightmaps as the editor does and counts an import once it has landed, and an idle wait the overlay holds says why - model-detail took 4200 s against the 1500 it declared and took its shard's budget with it; a heightmap written into a scene file was a picture where one assigned in the inspector is Data, and the tiles were counted while the ground still streamed":
     {"internal": "The nightly editor checks' own budgets, fixtures and diagnosis; nothing a creator runs changes."},
   "fix(editor): a click lands on what is drawn - a Canvas or bare layout container no longer takes the click from the sprites beneath it, and is picked only where nothing else is":
