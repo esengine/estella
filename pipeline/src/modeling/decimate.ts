@@ -110,7 +110,14 @@ export function decimate(mesh: PolyMesh, p: DecimateParams): PolyMesh {
             const score = corners + dot(faceNormal(mesh, face), normal);
             if (score > best) { best = score; from = face; }
         }
-        made.push({ ...from!, v: [a, b, c] });
+        // A face's own corners (a place in a picture, a way it is lit) belong to its vertices, and a triangle that is kept has three of
+        // those: each takes what any old face held for it there.
+        const corner = <K extends 'cornerUvs' | 'cornerNormals'>(key: K): Pick<Face, K> | Record<string, never> => {
+            if (!from![key]) return {};
+            const held = [a, b, c].map((v) => { for (const face of around.get(v)!) { const i = face.v.indexOf(v); if (face[key]?.[i]) return face[key]![i]!; } return from![key]![0]!; });
+            return { [key]: held } as unknown as Pick<Face, K>;
+        };
+        made.push({ ...from!, v: [a, b, c], ...corner('cornerUvs'), ...corner('cornerNormals') });
     }
     return compact({ positions: mesh.positions, faces: [...mesh.faces.filter((_, f) => !chosen.has(f)), ...made] });
 }

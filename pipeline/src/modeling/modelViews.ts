@@ -103,7 +103,7 @@ export function renderModelSheet(model: BakedModel, views: readonly ModelViewNam
     });
     for (let i = 0; i < vertexNormals.length; i++) if (vertexNormals[i]) vertexNormals[i] = normalize(vertexNormals[i]!);
     // A tree's leaves are cards cut out by a picture: drawn whole they are a pile of squares, and nothing of the crown can be judged.
-    const LEAVES = 128, leaves = model.leaves ? treeLeafPicture(LEAVES) : null;
+    const LEAVES = 128, leaves = model.leaves ? treeLeafPicture(LEAVES, model.bark) : null;
     const depth = new Float32Array(panel * panel);
     // The edges a shape actually has. Every polygon edge on a curved surface or a cut's triangles is a net over what is being judged, so that is on request.
     const FEATURE = Math.cos((30 * Math.PI) / 180);
@@ -151,7 +151,7 @@ export function renderModelSheet(model: BakedModel, views: readonly ModelViewNam
                     const w2 = 1 - w0 - w1;
                     if (w0 < 0 || w1 < 0 || w2 < 0) continue;
                     if (ua && ub && uc) {
-                        const tx = Math.min(Math.max(Math.floor((w0 * ua[0] + w1 * ub[0] + w2 * uc[0]) * LEAVES), 0), LEAVES - 1), ty = Math.min(Math.max(Math.floor((w0 * ua[1] + w1 * ub[1] + w2 * uc[1]) * LEAVES), 0), LEAVES - 1);
+                        const tx = Math.min(Math.max(Math.floor((w0 * ua[0] + w1 * ub[0] + w2 * uc[0]) * LEAVES), 0), LEAVES - 1), ty = Math.min(Math.max(Math.floor((1 - (w0 * ua[1] + w1 * ub[1] + w2 * uc[1])) * LEAVES), 0), LEAVES - 1);
                         if (leaves![(ty * LEAVES + tx) * 4 + 3]! < 90) continue;
                     }
                     put(ox + x, panel + 1 + y, SILHOUETTE);

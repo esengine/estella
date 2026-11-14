@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **A tree has bark.** The picture a `tree` step's model is given holds bark along its top, and the wood reads it along each limb and round it, so the grain runs up a trunk and out along a branch: `barkStyle` is furrowed (the default), banded (a birch) or smooth, tinted by `bark`. The leaf square stands clear of every edge of the picture, and `decimate` keeps each corner's own place in a picture and its own light.
+
 ## [0.105.0] - 2026-11-14
 
 ### Added
