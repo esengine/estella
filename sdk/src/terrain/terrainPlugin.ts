@@ -749,7 +749,7 @@ export class TerrainPlugin implements Plugin {
                     }
                 }
                 this.collide(app, entity, built);
-                if (built.loading || !built.source || !rendering) continue;
+                if (built.failure || built.loading || !built.source || !rendering) continue;
                 if (!built.instance) {
                     if (!built.pending) void this.prepare(app, built);
                     continue;
@@ -924,7 +924,8 @@ export class TerrainPlugin implements Plugin {
             [built.heights = 0, built.paint = 0, built.paint2 = 0] = createPageAtlases(app, layered ? 3 : 2, ATLAS_SIZE, () => built.table.clear());
             built.instance = Material.createInstance(material);
             if (!built.mesh || !built.heights || !built.paint || !built.instance) {
-                log.warn('terrain', 'the engine refused the terrain\'s mesh, atlases or material');
+                built.failure = 'the engine refused the terrain\'s mesh, atlases or material';
+                log.warn('terrain', built.failure);
                 return;
             }
             const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { Material.setUniform(built.instance, name, value); };
@@ -946,6 +947,9 @@ export class TerrainPlugin implements Plugin {
             set('u_pageTexels', PAGE_TEXELS);
             set('u_patchCells', PATCH_CELLS);
         } catch (e) {
+            // What it is drawn with could not be made (a shader that does not compile, a material that does not load): the same
+            // ground asks again only when it changes, and says why until then.
+            if (built.epoch === epoch) built.failure = e instanceof Error ? e.message : String(e);
             log.error('terrain', 'preparing the terrain failed', e);
         } finally {
             built.pending = false;

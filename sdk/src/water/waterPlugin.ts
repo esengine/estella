@@ -388,6 +388,8 @@ interface Surface {
     rippleBytes: Uint8Array | null;
     epoch: number;
     pending: boolean;
+    /** Why the surface could not be made, once it could not: it is asked for again only when its mesh or material changes. */
+    failure: string | null;
 }
 
 export class WaterPlugin implements Plugin {
@@ -595,10 +597,10 @@ export class WaterPlugin implements Plugin {
         let s = this.surface_;
         if (s && (s.meshKey !== meshKey || s.material !== zone.material)) { this.dropSurface(app); s = null; }
         if (!s) {
-            s = { entity: 0 as Entity, mesh: 0, meshKey, instance: 0, material: zone.material, heights: 0, field: 0, exposure: 0, baked: null, ripple: 0, rippleBytes: null, epoch: ++this.epoch_, pending: false };
+            s = { entity: 0 as Entity, mesh: 0, meshKey, instance: 0, material: zone.material, heights: 0, field: 0, exposure: 0, baked: null, ripple: 0, rippleBytes: null, epoch: ++this.epoch_, pending: false, failure: null };
             this.surface_ = s;
         }
-        if (!s.entity && !s.pending) void this.build_(app, s, zone);
+        if (!s.entity && !s.pending && !s.failure) void this.build_(app, s, zone);
         return s;
     }
 
@@ -612,9 +614,9 @@ export class WaterPlugin implements Plugin {
             // The rings are where the waves are; past them a flat apron carries the sea to the horizon (80 km, further than a camera a
             // kilometre up can see), so an ocean does not end in a straight line where its mesh does.
             const mesh = assets.createMesh(buildOceanMesh(zone.cells, zone.rings, zone.cellSize, 80000 * worldUnitsPerMeter()));
-            if (mesh === 0) { log.warn('water', 'the engine refused the water geometry'); return; }
+            if (mesh === 0) { s.failure = 'the engine refused the water geometry'; log.warn('water', s.failure); return; }
             const instance = Material.createInstance(source);
-            if (instance === 0) { assets.releaseBuiltMesh(mesh); log.warn('water', 'the water material could not be instanced'); return; }
+            if (instance === 0) { assets.releaseBuiltMesh(mesh); s.failure = 'the water material could not be instanced'; log.warn('water', s.failure); return; }
             s.mesh = mesh;
             s.instance = instance;
             this.waters_.instance_ = instance;
@@ -626,6 +628,7 @@ export class WaterPlugin implements Plugin {
             } as Partial<MeshRendererData>);
             s.entity = entity;
         } catch (e) {
+            if (s.epoch === epoch) s.failure = e instanceof Error ? e.message : String(e);
             log.error('water', 'building the water failed', e);
         } finally {
             s.pending = false;
