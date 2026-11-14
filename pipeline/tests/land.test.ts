@@ -33,6 +33,33 @@ describe('shaping ground', () => {
         expect(bare.report.max).toBeGreaterThan(80);
     });
 
+    it('stands models where the land says: one to a cell where the mask allows, sunk under the lowest ground at their foot', () => {
+        const slope: LandStep[] = [flat, { op: 'hill', at: [0, 0], radius: 300, height: 100 }];
+        const l = land(slope, { stands: [
+            { name: 'rocks', models: [{ mesh: 'a.esmesh' }, { mesh: 'b.esmesh', material: 'b.esmaterial' }], spacing: 100, where: { within: { at: [0, 0], radius: 200 } }, scale: [0.5, 2], sink: 3, foot: 20, lean: 10, seed: 4 },
+            { name: 'gate', models: [{ mesh: 'arch.esmesh' }], at: [[400, 400, 2, 90]], collide: false },
+        ] });
+        const rocks = l.stands[0]!, gate = l.stands[1]!;
+        expect(l.report.stands).toEqual([{ name: 'rocks', count: rocks.places.length }, { name: 'gate', count: 1 }]);
+        // About one to a cell inside the circle (pi * 200^2 / 100^2 is 12.6), none far outside it, and both models used.
+        expect(rocks.places.length).toBeGreaterThan(6);
+        expect(rocks.places.length).toBeLessThan(24);
+        for (const p of rocks.places) {
+            expect(Math.hypot(p.x, p.z)).toBeLessThan(330);
+            expect(p.scale).toBeGreaterThanOrEqual(0.5); expect(p.scale).toBeLessThanOrEqual(2);
+            expect(p.lean).toBeLessThanOrEqual(10);
+            // In the ground: under the ground at its own place by its sink at the least, since the foot looks for lower ground round it.
+            expect(p.y).toBeLessThanOrEqual(landHeightAt(l, p.x, p.z) - 3 * p.scale + 0.01);
+        }
+        expect(new Set(rocks.places.map((p) => p.model)).size).toBe(2);
+        expect(rocks.collide).toBe(true);
+        expect(gate).toMatchObject({ collide: false, places: [{ model: 0, x: 400, z: 400, scale: 2, turn: 90 }] });
+        // The same source stands the same things.
+        expect(land(slope, { stands: l.source.stands }).stands).toEqual(l.stands);
+        expect(() => land([flat], { stands: [{ name: 'x', models: [], spacing: 10 }] })).toThrow(/models/);
+        expect(land([flat], { stands: [{ name: 'none', models: [{ mesh: 'a.esmesh' }], spacing: 100, where: { above: 1000 } }] }).report.warnings.join(' ')).toMatch(/stands nowhere/);
+    });
+
     it('sets a plateau level, with a cliff of the width asked round it', () => {
         const l = land([flat, { op: 'plateau', at: [0, 0], radius: 200, height: 90, edge: 40 }]);
         expect(landHeightAt(l, 0, 0)).toBeCloseTo(90, 3);

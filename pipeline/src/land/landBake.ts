@@ -9,7 +9,7 @@
  * laid by. Nothing here knows an engine: it is arithmetic, so a test or a tool can run it anywhere.
  */
 import { erodeHeightfield } from '../../../sdk/src/terrain/heightfield';
-import { LandBuildError, validateLandSource, type LandLayer, type LandMap, type LandSource, type LandStep, type LinePoint, type Point2, type Where } from './landSource';
+import { LandBuildError, validateLandSource, type LandLayer, type LandMap, type LandStand, type LandSource, type LandStep, type LinePoint, type Point2, type Where } from './landSource';
 
 export interface BakedRiver {
     name: string;
@@ -50,8 +50,13 @@ export interface LandReport {
     roads: BakedRoad[];
     lakes: BakedLake[];
     layers: { name: string; cover: number }[];
+    /** How many of each stand there are. */
+    stands: { name: string; count: number }[];
     warnings: string[];
 }
+
+export interface StandPlace { model: number; x: number; y: number; z: number; scale: number; turn: number; lean: number; leanToward: number }
+export interface BakedStand { name: string; models: { mesh: string; material?: string; texture?: string }[]; collide: boolean; places: StandPlace[] }
 
 export interface BakedLand {
     source: LandSource;
@@ -68,6 +73,8 @@ export interface BakedLand {
     maps: { name: string; values: Uint8Array }[];
     /** The wash of colour, m * m RGBA bytes (sRGB, its alpha how much of it is laid), where the source has tints. */
     tint: Uint8Array | null;
+    /** What stands on the land, each place in the world: where its foot is, which model, how large, turned (degrees about upright) and leant (a unit axis in the ground and degrees about it). */
+    stands: BakedStand[];
     /** How far each sample (n * n) is from the nearest water's edge, road's edge, lake's shore and coast (inland positive), where there is one. */
     fields: { river: Float32Array | null; road: Float32Array | null; lake: Float32Array | null; coast: Float32Array | null };
     report: LandReport;
@@ -947,6 +954,49 @@ export function bakeLand(raw: unknown, inputs?: Readonly<Record<string, LandPict
         for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) w[j * n + i] = mask(i, j) * amount;
         return { name: map.name, values: pack(w) };
     });
+    // What stands on it: a place in every cell the mask lets one stand in, and the places written by hand.
+    const stands: BakedStand[] = (source.stands ?? []).map((stand: LandStand) => {
+        const seed = Math.round(stand.seed ?? 1) * 7919 + 13, clear = clamp(stand.clearings ?? 0, 0, 1);
+        const [lo, hi] = stand.scale ?? [1, 1], sink = stand.sink ?? 0, lean = clamp(stand.lean ?? 0, 0, 45);
+        const foot = Math.max(stand.foot ?? 0, 0);
+        const mask = maskOf(g, stand.where, max - min, laidLayers.weights);
+        const index = (x: number, z: number): [number, number] => [
+            clamp(Math.round((x - g.cx) / g.sx * (n - 1) + (n - 1) / 2), 0, n - 1), clamp(Math.round((z - g.cz) / g.sz * (n - 1) + (n - 1) / 2), 0, n - 1)];
+        // The lowest ground under its foot: it stands in a slope, not on the high corner of one.
+        const ground = (x: number, z: number, reach: number): number => {
+            let low = g.at(x, z);
+            if (reach > 0) for (let a = 0; a < 8; a++) low = Math.min(low, g.at(x + Math.cos(a * Math.PI / 4) * reach, z + Math.sin(a * Math.PI / 4) * reach));
+            return low;
+        };
+        const places: StandPlace[] = [];
+        const put = (x: number, z: number, key: number, scale?: number, turn?: number): void => {
+            if (Math.abs(x - g.cx) > g.sx / 2 || Math.abs(z - g.cz) > g.sz / 2) return;
+            const size = scale ?? mix(lo, hi, hash(key, 3, seed));
+            places.push({
+                model: Math.min(stand.models.length - 1, Math.floor(hash(key, 4, seed) * stand.models.length)),
+                x: +x.toFixed(2), y: +(ground(x, z, foot * size) - sink * size).toFixed(2), z: +z.toFixed(2), scale: +size.toFixed(3),
+                turn: +(turn ?? hash(key, 5, seed) * 360).toFixed(1), lean: +(lean * hash(key, 6, seed)).toFixed(1), leanToward: +(hash(key, 7, seed) * 360).toFixed(1),
+            });
+        };
+        if (Number(stand.spacing) > 0) {
+            const cell = stand.spacing!, x0 = g.cx - g.sx / 2, z0 = g.cz - g.sz / 2;
+            const nx = Math.ceil(g.sx / cell), nz = Math.ceil(g.sz / cell);
+            if (nx * nz > 4_000_000) throw new LandBuildError(`stand "${stand.name}" has a spacing of ${cell} on a land ${g.sx} wide: that is ${nx * nz} cells; a stand is counted in hundreds, plants are a Foliage's`);
+            for (let cz = 0; cz < nz; cz++) for (let cx = 0; cx < nx; cx++) {
+                if (hash(cx, cz, seed) < clear) continue;
+                const x = x0 + (cx + 0.15 + 0.7 * hash(cx, cz, seed + 1)) * cell, z = z0 + (cz + 0.15 + 0.7 * hash(cx, cz, seed + 2)) * cell;
+                const [i, j] = index(x, z);
+                if (hash(cx, cz, seed + 8) >= mask(i, j)) continue;
+                put(x, z, cx * 131 + cz * 7919);
+            }
+        }
+        (stand.at ?? []).forEach((p, at) => { if (p.length >= 2) put(p[0]!, p[1]!, 100000 + at, p[2], p[3]); });
+        return { name: stand.name, models: stand.models.map((m) => ({ mesh: m.mesh, ...(m.material ? { material: m.material } : {}), ...(m.texture ? { texture: m.texture } : {}) })), collide: stand.collide !== false, places };
+    });
+    for (const stand of stands) {
+        if (stand.places.length === 0) out.warnings.push(`stand "${stand.name}" stands nowhere: its \`where\` matches no ground, or its \`clearings\` leave none`);
+        if (stand.places.length > 4000) out.warnings.push(`stand "${stand.name}" is ${stand.places.length} models, each an entity of its own: past a few thousand, scatter them as a Foliage or a PlacedFoliage instead`);
+    }
     // The wash: each tint over those before it, its colour kept linear until it is written.
     let tint: Uint8Array | null = null;
     if (source.tints?.length) {
@@ -978,13 +1028,13 @@ export function bakeLand(raw: unknown, inputs?: Readonly<Record<string, LandPict
         }
     }
     return {
-        source, n, size: [source.size[0], source.size[1]], center: [center[0], center[1]], heights: g.h, m, weights, maps, tint,
+        source, n, size: [source.size[0], source.size[1]], center: [center[0], center[1]], heights: g.h, m, weights, maps, tint, stands,
         fields: { river: g.riverD, road: g.roadD, lake: g.lakeD, coast: g.coastD },
         report: {
             resolution: n, cell: +g.cellX.toFixed(3), min: +min.toFixed(2), max: +max.toFixed(2), sea: source.sea ?? null,
             slopes: { walkable: +(walk / dry).toFixed(3), steep: +(steep / dry).toFixed(3), cliff: +(cliff / dry).toFixed(3) },
             creased: +(creases / dry).toFixed(3),
-            steps, rivers: out.rivers, roads: out.roads, lakes: out.lakes, layers: cover, warnings: out.warnings,
+            steps, rivers: out.rivers, roads: out.roads, lakes: out.lakes, layers: cover, stands: stands.map((stand) => ({ name: stand.name, count: stand.places.length })), warnings: out.warnings,
         },
     };
 }

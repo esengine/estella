@@ -101,6 +101,30 @@ export interface LandTint { color: readonly [number, number, number]; where?: Wh
 /** A map of numbers over the land (how many plants stand where): written as a grey picture, its Use Data. */
 export interface LandMap { name: string; where?: Where; amount?: number }
 
+/**
+ * Things that stand on the land and are not ground: rock pillars, boulders, arches, ruins. A heightfield is one height at every place, so
+ * it cannot hold an overhang, and on its grid a sheer face a few samples wide is a saw; what is sheer, thin or undercut is a model, and the
+ * land says where each one stands. One to a cell of `spacing`, moved about in it, where `where` allows (its weight is the chance), a share
+ * of `clearings` left empty; `at` adds places by hand, [x, z, scale?, turn?]. Each takes one of `models` (a mesh, with its material and colour texture if it
+ * has one), a size from `scale`, a turn about upright, a lean of up to `lean` degrees, and is sunk `sink` world units (times its scale)
+ * below the lowest ground within `foot` of it, so it stands in a slope and never on a corner of one.
+ */
+export interface LandStand {
+    name: string;
+    models: { mesh: string; material?: string; texture?: string }[];
+    where?: Where;
+    spacing?: number;
+    at?: readonly (readonly number[])[];
+    clearings?: number;
+    scale?: readonly [number, number];
+    sink?: number;
+    foot?: number;
+    lean?: number;
+    /** Whether a body can stand on it and is stopped by it (a mesh collider each). Default true. */
+    collide?: boolean;
+    seed?: number;
+}
+
 export interface LandSource {
     version: 1;
     /** The land's size along x and z, and where its middle is. */
@@ -114,6 +138,7 @@ export interface LandSource {
     layers?: LandLayer[];
     maps?: LandMap[];
     tints?: LandTint[];
+    stands?: LandStand[];
 }
 
 /** What each op does, in the words the tool's description gives. */
@@ -185,6 +210,16 @@ export function validateLandSource(raw: unknown): LandSource {
     for (const map of s.maps ?? []) {
         if (!map || typeof map.name !== 'string' || !/^[a-z][a-z0-9-]*$/.test(map.name)) throw new LandBuildError('every map has a name of lower-case letters, digits and dashes: it names a file');
     }
+    const stood = new Set<string>();
+    for (const stand of s.stands ?? []) {
+        if (!stand || typeof stand.name !== 'string' || !stand.name) throw new LandBuildError('every stand has a name');
+        if (stood.has(stand.name)) throw new LandBuildError(`two stands are named "${stand.name}"`);
+        stood.add(stand.name);
+        if (!Array.isArray(stand.models) || stand.models.length === 0 || stand.models.some((m) => !m || typeof m.mesh !== 'string' || !m.mesh)) {
+            throw new LandBuildError(`stand "${stand.name}" wants \`models\`: [{ mesh, material?, texture? }], the meshes it stands (a model_write answers mesh, material and colorMap: the last is its texture)`);
+        }
+        if (!(Number(stand.spacing) > 0) && !(Array.isArray(stand.at) && stand.at.length > 0)) throw new LandBuildError(`stand "${stand.name}" wants a \`spacing\` (one to a cell that wide) or places \`at\`: [[x, z], ...]`);
+    }
     return s as LandSource;
 }
 
@@ -192,7 +227,7 @@ export type LandEdit =
     | { op: 'set'; step: number | string; fields: Record<string, unknown> }
     | { op: 'insert'; step: LandStep; before?: number | string; after?: number | string }
     | { op: 'remove'; step: number | string }
-    | { op: 'settings'; fields: Partial<Pick<LandSource, 'size' | 'center' | 'resolution' | 'sea' | 'layers' | 'maps' | 'tints'>> };
+    | { op: 'settings'; fields: Partial<Pick<LandSource, 'size' | 'center' | 'resolution' | 'sea' | 'layers' | 'maps' | 'tints' | 'stands'>> };
 
 /** A source with edits applied, in order: what land_edit does. A step is named by its id or its index. */
 export function applyLandEdits(source: LandSource, edits: readonly LandEdit[]): LandSource {
