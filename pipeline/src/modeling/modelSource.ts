@@ -88,6 +88,8 @@ export interface ModelMaterial {
     alpha?: 'cutout' | 'blend';
     /** Below this a `cutout` is a hole. Default 0.5. */
     cutoff?: number;
+    /** How much light comes through from behind, 0..1: a leaf, a petal, paper, a tent. What is thin glows where the sun is beyond it. Default 0. */
+    translucency?: number;
     /** Light it gives off, linear [r, g, b], past 1 for what glows and blooms: fire, a lit window. With a colour bake, multiplied by the paint. */
     emissive?: readonly number[];
     /**
@@ -494,7 +496,7 @@ function validatePlain(raw: unknown): ModelSource {
     if (!Array.isArray(source.steps)) throw new ModelBuildError('`steps` must be an array', null, null, null);
     if (source.material !== undefined) {
         const m = source.material as Record<string, unknown> | null;
-        if (typeof m !== 'object' || m === null || Array.isArray(m)) throw new ModelBuildError('material must be { roughness?, metallic?, alpha?, cutoff?, emissive?, texture?, detail? }', null, null, null);
+        if (typeof m !== 'object' || m === null || Array.isArray(m)) throw new ModelBuildError('material must be { roughness?, metallic?, alpha?, cutoff?, translucency?, emissive?, texture?, detail? }', null, null, null);
         for (const [key, value] of Object.entries(m)) {
             if (key === 'alpha') {
                 if (value !== 'cutout' && value !== 'blend') throw new ModelBuildError('material.alpha must be cutout or blend', null, null, null);
@@ -520,7 +522,7 @@ function validatePlain(raw: unknown): ModelSource {
                 }
                 continue;
             }
-            if (!['roughness', 'metallic', 'cutoff'].includes(key)) throw new ModelBuildError(`material has an unknown field "${key}"; it takes roughness, metallic, alpha, cutoff, emissive, texture, detail`, null, null, null);
+            if (!['roughness', 'metallic', 'cutoff', 'translucency'].includes(key)) throw new ModelBuildError(`material has an unknown field "${key}"; it takes roughness, metallic, alpha, cutoff, translucency, emissive, texture, detail`, null, null, null);
             if (!(isNum(value) && value >= 0 && value <= 1)) throw new ModelBuildError(`material.${key} must be 0..1`, null, null, null);
         }
     }

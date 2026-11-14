@@ -54,6 +54,11 @@ describe('the tree step', () => {
         expect(alpha(size - 2, size - 2)).toBe(255);
         let clear = 0, solid = 0;
         for (let y = 32; y < size - 32; y++) for (let x = 32; x < size - 32; x++) { if (alpha(x, y) === 0) clear++; else if (alpha(x, y) > 200) solid++; }
+        // A card shows the picture a tenth in from every edge: a leaf past that is a leaf cut by a straight line.
+        const edge = Math.floor(size * 0.1) - 1, corner = Math.ceil(size * 0.07);
+        for (let i = corner; i < size - corner; i++) for (let k = 0; k < edge; k++) {
+            expect(alpha(i, k) + alpha(i, size - 1 - k) + alpha(k, i) + alpha(size - 1 - k, i)).toBe(0);
+        }
         expect(clear).toBeGreaterThan(192 * 192 * 0.3);
         expect(solid).toBeGreaterThan(192 * 192 * 0.2);
     });

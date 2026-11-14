@@ -202,18 +202,20 @@ export function tree(mesh: PolyMesh, p: TreeParams): PolyMesh {
             const d: Vec3 = [Math.cos(a) * flat, y, Math.sin(a) * flat];
             const inside = c % 5 === 4 ? 0.35 : 0.8;
             const mid: Vec3 = [off[0]! + clump.at[0] + d[0] * clump.radii[0] * inside, off[1]! + clump.at[1] + d[1] * clump.radii[1] * inside, off[2]! + clump.at[2] + d[2] * clump.radii[2] * inside];
-            // The card faces out of the clump, tipped off that way by a third: sprigs that all face the same way are a ball again.
-            const tip: Vec3 = [d[0] + (r() - 0.5) * 0.9, d[1] + (r() - 0.5) * 0.9, d[2] + (r() - 0.5) * 0.9];
-            const tl = Math.hypot(tip[0], tip[1], tip[2]) || 1;
-            const n: Vec3 = [tip[0] / tl, tip[1] / tl, tip[2] / tl];
-            const pick: Vec3 = Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
-            const side: Vec3 = [n[1] * pick[2] - n[2] * pick[1], n[2] * pick[0] - n[0] * pick[2], n[0] * pick[1] - n[1] * pick[0]];
-            const sl = Math.hypot(side[0], side[1], side[2]) || 1, roll = r() * Math.PI * 2;
-            const u: Vec3 = [side[0] / sl, side[1] / sl, side[2] / sl];
-            const w: Vec3 = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
-            const cu = Math.cos(roll), su = Math.sin(roll);
-            const U: Vec3 = [u[0] * cu + w[0] * su, u[1] * cu + w[1] * su, u[2] * cu + w[2] * su];
-            const V: Vec3 = [w[0] * cu - u[0] * su, w[1] * cu - u[1] * su, w[2] * cu - u[2] * su];
+            // A sprig grows out of its clump and across it, its foot inside and its tip out and a little down, as a twig carries its
+            // own weight: straight out, every sprig would be edge on to whoever looks at the crown.
+            const grow: Vec3 = [d[0] * 0.55 + (r() - 0.5) * 1.5, d[1] * 0.55 - 0.25 + (r() - 0.5) * 1.5, d[2] * 0.55 + (r() - 0.5) * 1.5];
+            const gl = Math.hypot(grow[0], grow[1], grow[2]) || 1;
+            const T: Vec3 = [grow[0] / gl, grow[1] / gl, grow[2] / gl];
+            // Its leaves face out of the clump as nearly as a card holding its twig can, each tipped its own way.
+            const face: Vec3 = [d[0] + (r() - 0.5) * 0.7, d[1] + 0.15 + (r() - 0.5) * 0.7, d[2] + (r() - 0.5) * 0.7], along = face[0] * T[0] + face[1] * T[1] + face[2] * T[2];
+            let n: Vec3 = [face[0] - T[0] * along, face[1] - T[1] * along, face[2] - T[2] * along];
+            if (Math.hypot(n[0], n[1], n[2]) < 0.05) n = Math.abs(T[1]) < 0.9 ? [-T[2], 0, T[0]] : [1, 0, 0];
+            const nlen = Math.hypot(n[0], n[1], n[2]) || 1;
+            n = [n[0] / nlen, n[1] / nlen, n[2] / nlen];
+            // The picture's twig runs from its foot at the bottom to its tip at the top: down the picture is back along the twig.
+            const U: Vec3 = [n[1] * T[2] - n[2] * T[1], n[2] * T[0] - n[0] * T[2], n[0] * T[1] - n[1] * T[0]];
+            const V: Vec3 = [-T[0], -T[1], -T[2]];
             const s = size * (0.75 + 0.5 * r()) / 2;
             const out3 = (q: Vec3): Vec3 => {
                 const a2: Vec3 = [q[0] - off[0]! - clump.at[0], q[1] - off[1]! - clump.at[1], q[2] - off[2]! - clump.at[2]], b2: Vec3 = [q[0] - heart[0], q[1] - heart[1], q[2] - heart[2]];
@@ -251,8 +253,8 @@ export function treeLeafPicture(size = 256): Uint8Array {
         const t = Math.round(tone * 255);
         rgba[k] = t; rgba[k + 1] = t; rgba[k + 2] = t; rgba[k + 3] = a;
     };
-    // Leaves round a middle, each a pointed oval lying along its own way out, in four rings so the sprig has no bare heart.
-    const lo = size * LEAF_EDGE, span = size - lo * 2, cx = lo + span / 2, cy = lo + span / 2;
+    // A leaf is a pointed oval lying along its own way, with a rib down it.
+    const lo = size * LEAF_EDGE, span = size - lo * 2, cx = lo + span / 2;
     const leafAt = (ox: number, oy: number, turn: number, long: number, wide: number): void => {
         const ca = Math.cos(turn), sa = Math.sin(turn), reach = Math.ceil(long);
         for (let y = Math.floor(oy - reach); y <= oy + reach; y++) for (let x = Math.floor(ox - reach); x <= ox + reach; x++) {
@@ -266,12 +268,31 @@ export function treeLeafPicture(size = 256): Uint8Array {
             put(x, y, (0.78 + 0.22 * Math.min(inside * 3, 1)) * rib, Math.min(inside * wide * 0.5, 1));
         }
     };
-    for (const [count, out, long] of [[17, 0.38, 0.1], [13, 0.27, 0.095], [9, 0.16, 0.09], [4, 0.05, 0.085]] as const) {
-        for (let i = 0; i < count; i++) {
-            const a = (i / count) * Math.PI * 2 + r() * 0.5, d = span * out * (0.85 + 0.3 * r());
-            leafAt(cx + Math.cos(a) * d, cy + Math.sin(a) * d, a + (r() - 0.5) * 0.7, span * long * (0.85 + 0.3 * r()), span * 0.042 * (0.85 + 0.3 * r()));
+    // A twig: a stem that bends, leaves off it by turns to either side, wide of it at its foot and along it toward its tip, one at the tip.
+    const twig = (bx: number, by: number, turn: number, long: number, pairs: number, bend: number): void => {
+        const at = (s: number): [number, number, number] => {
+            const way = turn + bend * s * s;
+            return [bx + Math.cos(turn + bend * s * s * 0.5) * long * s, by + Math.sin(turn + bend * s * s * 0.5) * long * s, way];
+        };
+        for (let k = 0; k <= 160; k++) {
+            const [x, y] = at(k / 160), wide = Math.max(span * 0.009 * (1 - k / 200), 0.8);
+            for (let dy = -Math.ceil(wide); dy <= Math.ceil(wide); dy++) for (let dx = -Math.ceil(wide); dx <= Math.ceil(wide); dx++) {
+                if (dx * dx + dy * dy <= wide * wide) put(Math.round(x + dx), Math.round(y + dy), 0.62, 1);
+            }
         }
-    }
+        for (let i = 0; i < pairs * 2; i++) {
+            const s = 0.16 + 0.8 * (i / (pairs * 2 - 1)), [x, y, way] = at(s), side = i % 2 ? 1 : -1;
+            const off = side * (1.15 - 0.6 * s) * (0.85 + 0.3 * r()), half = long * (0.21 - 0.07 * s) * (0.85 + 0.3 * r()), a2 = way + off;
+            leafAt(x + Math.cos(a2) * half, y + Math.sin(a2) * half, a2, half, half * 0.42);
+        }
+        const [tx, ty, tway] = at(1), tip = long * 0.14;
+        leafAt(tx + Math.cos(tway) * tip, ty + Math.sin(tway) * tip, tway, tip, tip * 0.42);
+    };
+    // Three twigs from one foot at the middle of the lower edge, fanned: a card is square, and one twig alone leaves it half sky.
+    const foot = size - lo - span * 0.03, up = -Math.PI / 2;
+    twig(cx, foot, up + (r() - 0.5) * 0.1, span * 0.66, 6, (r() - 0.5) * 0.4);
+    twig(cx - span * 0.02, foot - span * 0.06, up - 0.6, span * 0.5, 5, -0.3);
+    twig(cx + span * 0.02, foot - span * 0.1, up + 0.58, span * 0.5, 5, 0.35);
     // The corners the wood reads, whichever way up the picture is taken: solid white.
     const block = Math.ceil(size * LEAF_CORNER * 2.2);
     for (const [bx, by] of [[0, 0], [size - block, 0], [0, size - block], [size - block, size - block]] as const) {
