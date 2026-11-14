@@ -4920,4 +4920,6 @@ export const NOTED = {
     {"note": "The sea reaches the horizon, and the horizon is not olive."},
   "fix(oracle): the sky dome's reference carries the glow the shader now adds - the converged integral gained the same SKY_GLOW term and the mid-step optical depth, so the noon, afternoon, low-sun and hazy scenes compare the shader's 16 steps with the same model (worst probe off by 10 of 255 against a tolerance of 18)":
     {"internal": "The sky dome verification scenes compare against a reference that now carries the glow the shader added; only the checks read it."},
+  "fix(notes): the sky oracle entry is a key, not a list item":
+    {"internal": "Fixes the shape of an entry in this file; nothing a creator runs changes."},
 };
