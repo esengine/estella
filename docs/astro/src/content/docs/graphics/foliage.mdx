@@ -158,6 +158,27 @@ A felled plant comes down as an entity with its own meshes, a kinematic body tur
 **What became of a plant lasts.** It is kept against the plant's key, not its cell, so a felled tree is felled when its chunk is let go and grown again. `plants.saveState()` is all of it as plain data, the clock of what is regrowing included, and `plants.loadState(state)` puts it back, before or after the cells are grown.
 A world's plants are known by their places in its plan. A `PlacedFoliage`'s are known by their index in `records` under its `stateKey` (or its entity's name), so a save outlives everything but reordering the records; give two fields different names.
 
+## Wakes and blasts
+
+A contact parts plants while it is beside them. Something fast does more: it shoves the air, and a plant it passed is pushed over, springs back
+past upright and rings down after it has gone; a blast reaches a plant only when its front has travelled that far. Both are a shove at a known
+moment, so the plant's answer is a damped spring worked out where the plant is drawn, from the time since the shove alone: over in about a
+quarter of a second, back past upright by a third of that, still within two seconds.
+
+| Component | Field | What it does |
+|---|---|---|
+| **`WindWake`** | `radius` | How far to each side of its path the body shoves the air, in world units. |
+| | `strength` | How hard, as a share of its own speed: 1 shoves the air as fast as the body moves. |
+| **`WindBurst`** | `strength` | How hard the front shoves, in world units a second. |
+| | `speed` | How fast the front travels outward. |
+| | `reach` | How far it travels before it is spent. |
+
+A `WindWake` leaves a pass every half radius it travels; a `WindBurst` fires once, when its entity gains it. From code,
+`emitWindBurst(app, position, { strength, speed, reach })` starts a front without an entity. The newest eight passes and four fronts are told
+to every material that reads them: the **Foliage** shader leans plants on the ground by `u_wakeBend` (world units of lean per world unit a
+second of the air's push) up to `u_wakeMax`, and the 2D **Sway** template (`sprite-sway`) leans a sprite's tip along x by its own
+`u_wakeBend`. `windLean` is the same arithmetic on the CPU, for anything a game leans itself.
+
 ## In a package
 
 Foliage is an optional module, like terrain: a package carries it when a scene has a `Foliage` or `PlacedFoliage` component or a script imports `esengine/foliage`. It stands on a `Terrain` when the scene has one and needs no terrain module to stand on a flat floor.

@@ -7,6 +7,7 @@
  * The shader source lives with the module that installs it, not in the core's list of built-in shaders: a package that does not install the module carries none of it.
  */
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
+import { WIND_FIELD_GLSL, WIND_FIELD_PARAMS, WIND_FIELD_WGSL } from '../render/windFieldShader';
 
 
 // Plants that sway: the vertex hook bends by the weights the Foliage component paints in the vertex colour (red the height up the plant,
@@ -89,8 +90,15 @@ const FOLIAGE = `#pragma shader "Foliage"
 #pragma param u_contact1 vec4 default(0,0,0,0)
 #pragma param u_contact2 vec4 default(0,0,0,0)
 #pragma param u_contact3 vec4 default(0,0,0,0)
+// How far plants lean in the wake a WindWake body leaves and the front a WindBurst sends out, per world unit a second of the air's push:
+// pushed over, back past upright and still within two seconds. The passes and fronts are written each frame (windField.ts).
+#pragma param u_wakeBend float default(0.05) range(0,1) ui(slider)
+// The most a plant's tip is moved by it, in world units, however hard the air pushes.
+#pragma param u_wakeMax float default(24) range(0,100000) ui(slider)
+${WIND_FIELD_PARAMS}
 #pragma vertexbounds 30
 #pragma vertexoffset
+${WIND_FIELD_GLSL}
 // How far one contact parts a vertex: away from it on the ground, most near it and nothing at its reach or far above or below it.
 vec2 foliageContactPush(vec4 contact, vec3 at) {
     if (contact.w <= 0.0) return vec2(0.0);
@@ -143,6 +151,15 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
         local.xz += parted;
         local.y -= length(parted) * 0.6 * weight;
     }
+    vec2 wake = esWindFieldXZ(anchor) * u_wakeBend;
+    float wakeLen = length(wake);
+    if (wakeLen > 0.0) {
+        // In the world, then into the plant's own space: a placed plant is turned and scaled, and a world unit of lean is not one of its own.
+        wake *= min(wakeLen, u_wakeMax) / wakeLen * weight * weight;
+        mat4 placedBy = esInstanceModel();
+        vec3 moved = vec3(wake.x, -length(wake) * 0.35 * weight, wake.y);
+        local += (moved * mat3(placedBy)) / max(dot(placedBy[0].xyz, placedBy[0].xyz), 1e-8);
+    }
     float angle = radians(u_windDirection);
     vec2 dir = vec2(sin(angle), cos(angle));
     float t = u_time.x * u_windSpeed;
@@ -180,6 +197,7 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
 #pragma end
 
 #pragma vertexoffset wgsl
+${WIND_FIELD_WGSL}
 fn foliageContactPush(contact : vec4f, at : vec3f) -> vec2f {
     if (contact.w <= 0.0) { return vec2f(0.0); }
     let away = at.xz - contact.xz;
@@ -231,6 +249,16 @@ fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, ve
         (*local).x = (*local).x + parted.x;
         (*local).z = (*local).z + parted.y;
         (*local).y = (*local).y - length(parted) * 0.6 * weight;
+    }
+    var wake = esWindFieldXZ(anchor) * mc.u_wakeBend;
+    let wakeLen = length(wake);
+    if (wakeLen > 0.0) {
+        // See the GLSL: the lean is a world one, taken into the plant's own space.
+        wake = wake * min(wakeLen, mc.u_wakeMax) / wakeLen * weight * weight;
+        let placedBy = esInstanceModel();
+        let moved = vec3f(wake.x, -length(wake) * 0.35 * weight, wake.y);
+        let rot = mat3x3f(placedBy[0].xyz, placedBy[1].xyz, placedBy[2].xyz);
+        *local = *local + (moved * rot) / max(dot(placedBy[0].xyz, placedBy[0].xyz), 1e-8);
     }
     let angle = radians(mc.u_windDirection);
     let dir = vec2f(sin(angle), cos(angle));

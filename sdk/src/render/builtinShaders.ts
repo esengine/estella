@@ -13,6 +13,7 @@
 
 import { deriveGroundBlend } from './groundBlendShader';
 import { paramDefaultValue, reflectEsshader } from './shaderReflect';
+import { WIND_FIELD_GLSL, WIND_FIELD_PARAMS, WIND_FIELD_WGSL } from './windFieldShader';
 
 export interface BuiltinShaderTemplate {
     id: string;
@@ -142,6 +143,102 @@ void main() {
 #pragma end
 `;
 
+// Mist, smoke, dust, spray: particles the scene's light falls on. The stock particle is its picture times its colour and nothing else, so
+// its white is 1 whatever the hour: beside sunlit water (several times that) a cloud of it is grey, and laid over the water it paints it out;
+// at night it glows. This one is lit as a thing in the world, where it is (PARTICLE_WORLD gives a particle its world position; its quad
+// faces the eye), by the sun, the sky and the lamps, shadows and all. A puff has no side to be lit from: u_translucency is how much of the
+// light goes through it, 1 a mist lit alike from behind and in front, 0 a card facing the eye. In a flat scene it is lit by its layer.
+const PARTICLE_LIT = `#pragma shader "Lit Particle"
+#pragma version 300 es
+#pragma domain Lit
+#pragma feature PARTICLE_WORLD
+#pragma param u_tint color default(1,1,1,1)
+#pragma param u_translucency float default(1) range(0,1) ui(slider)
+
+#pragma fragment
+precision highp float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+in highp vec2 v_worldPos;
+flat in highp float v_lightLayer;
+#ifdef MESH_NORMALS
+in highp vec3 v_worldNormal;
+in highp vec3 v_worldXYZ;
+#endif
+
+uniform sampler2D u_textures[8];
+
+#ifdef ES_GBUFFER
+layout(location = 0) out vec4 fragColor;
+layout(location = 1) out vec4 fragSurface;
+layout(location = 2) out vec4 fragAlbedo;
+#else
+out vec4 fragColor;
+#endif
+
+void main() {
+    vec4 base = texture(u_textures[0], v_texCoord) * v_color * u_tint;
+#ifdef MESH_NORMALS
+    highp vec3 P = v_worldXYZ;
+    highp vec3 N = normalize(v_worldNormal);
+    highp vec3 V = viewDirection(P);
+    SurfaceExt ext = surfaceExtNone(N);
+    if (u_translucency > 0.0) {
+        ext.scatter = vec4(base.rgb, u_translucency * 0.5);
+        ext.trans = vec4(u_translucency, 0.0, 0.0, 0.0);
+    }
+    vec3 lit = applyLightingSurface(base.rgb, N, P, V, 0.0, 1.0, 0.0, 1.0, ext);
+#else
+    vec3 lit = applyLighting2DLayer(base.rgb, vec3(0.0, 0.0, 1.0), v_worldPos, v_lightLayer);
+#endif
+    fragColor = vec4(lit, base.a);
+#ifdef ES_GBUFFER
+    fragSurface = vec4(0.5, 0.5, 1.0, 0.0);
+    fragAlbedo = vec4(base.rgb, 1.0);
+#endif
+}
+#pragma end
+
+#pragma fragment wgsl
+#ifdef ES_GBUFFER
+struct FragOut {
+    @location(0) color : vec4f,
+    @location(1) surface : vec4f,
+    @location(2) albedo : vec4f,
+};
+@fragment fn fs_main(v : VSOut) -> FragOut {
+#else
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+#endif
+    g_probeSlot = v.v_probeSlot;
+    let base = textureSampleGrad(t0, s0, v.v_texCoord, dpdx(v.v_texCoord), dpdy(v.v_texCoord)) * v.v_color * mc.u_tint;
+#ifdef MESH_NORMALS
+    let P = v.v_worldXYZ;
+    let N = normalize(v.v_worldNormal);
+    let V = viewDirection(P);
+    var ext = surfaceExtNone(N);
+    if (mc.u_translucency > 0.0) {
+        ext.scatter = vec4f(base.rgb, mc.u_translucency * 0.5);
+        ext.trans = vec4f(mc.u_translucency, 0.0, 0.0, 0.0);
+    }
+    let lit = applyLightingSurface(base.rgb, N, P, V, 0.0, 1.0, 0.0, 1.0, ext);
+#else
+    let lit = applyLighting2DLayer(base.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos, v.v_lightLayer);
+#endif
+#ifdef ES_GBUFFER
+    var frag : FragOut;
+    frag.color = vec4f(lit, base.a);
+    frag.surface = vec4f(0.5, 0.5, 1.0, 0.0);
+    frag.albedo = vec4f(base.rgb, 1.0);
+    return frag;
+#else
+    return vec4f(lit, base.a);
+#endif
+}
+#pragma end
+`;
+
 // Grass, reeds, hanging cloth: the sprite's top leans and returns, its foot stays. A sprite shader is a fragment shader, so the lean is a shift of where
 // the texture is read, growing from nothing at the bottom edge to u_swayStrength (a share of the sprite's width) at the top; the sprite's picture should
 // leave a margin at the sides for it to lean into. u_swayWind is the weather's wind, written by the engine each frame (1 with none).
@@ -155,6 +252,9 @@ const SPRITE_SWAY = `#pragma shader "Sway"
 #pragma param u_swayScale float default(260) range(20,2000)
 #pragma param u_swayWind float default(1) range(0,4)
 #pragma param u_swayPushStrength float default(0.5) range(0,1) ui(slider)
+// How far the tip leans in the wake a WindWake body leaves and the front a WindBurst sends out, per world unit a second of the air's push.
+#pragma param u_wakeBend float default(0.002) range(0,0.05) ui(slider)
+${WIND_FIELD_PARAMS}
 // The bodies the plant leans away from, written each frame by the sway-push system (a SwayPusher): x, y where it stands, z how far it reaches, w how hard.
 #pragma param u_swayPush0 vec4 default(0,0,0,0)
 #pragma param u_swayPush1 vec4 default(0,0,0,0)
@@ -177,6 +277,7 @@ uniform sampler2D u_textures[8];
 
 out vec4 fragColor;
 
+${WIND_FIELD_GLSL}
 // How far one body pushes the plant at a point: away from it, fading smoothly to nothing at its reach.
 vec2 swayPush(vec4 body, vec2 at) {
     vec2 d = at - body.xy;
@@ -201,7 +302,8 @@ void main() {
     push += swayPush(u_swayPush5, v_worldPos);
     push += swayPush(u_swayPush6, v_worldPos);
     push += swayPush(u_swayPush7, v_worldPos);
-    vec2 uv = vec2(v_texCoord.x - gust * u_swayStrength * u_swayWind * tip - push.x * u_swayPushStrength * tip, v_texCoord.y);
+    float wake = esWindFieldXY(v_worldPos).x * u_wakeBend;
+    vec2 uv = vec2(v_texCoord.x - gust * u_swayStrength * u_swayWind * tip - push.x * u_swayPushStrength * tip - wake * tip, v_texCoord.y);
     vec4 base = texture(u_textures[0], uv) * v_color * u_tint;
     if (uv.x < 0.0 || uv.x > 1.0) base.a = 0.0;
     vec3 N = sampleNormal(u_normalMap, uv);
@@ -210,6 +312,7 @@ void main() {
 #pragma end
 
 #pragma fragment wgsl
+${WIND_FIELD_WGSL}
 fn swayPush(body : vec4f, at : vec2f) -> vec2f {
     let d = at - body.xy;
     let len = length(d);
@@ -236,7 +339,8 @@ fn swayPush(body : vec4f, at : vec2f) -> vec2f {
     push = push + swayPush(mc.u_swayPush5, v.v_worldPos);
     push = push + swayPush(mc.u_swayPush6, v.v_worldPos);
     push = push + swayPush(mc.u_swayPush7, v.v_worldPos);
-    let uv = vec2f(v.v_texCoord.x - gust * mc.u_swayStrength * mc.u_swayWind * tip - push.x * mc.u_swayPushStrength * tip, v.v_texCoord.y);
+    let wake = esWindFieldXY(v.v_worldPos).x * mc.u_wakeBend;
+    let uv = vec2f(v.v_texCoord.x - gust * mc.u_swayStrength * mc.u_swayWind * tip - push.x * mc.u_swayPushStrength * tip - wake * tip, v.v_texCoord.y);
     var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;
     if (uv.x < 0.0 || uv.x > 1.0) { base.a = 0.0; }
     let N = sampleNormalGrad(u_normalMap, u_normalMap_s, uv, duvx, duvy);
@@ -1245,6 +1349,8 @@ fn packNormal(n : vec3f) -> vec2f {
 export const BUILTIN_SHADER_TEMPLATES: readonly BuiltinShaderTemplate[] = [
     template('sprite-unlit', 'Unlit', 'Texture × vertex color × tint, no lighting.', SPRITE_UNLIT),
     template('sprite-lit', 'Lit', 'Lit by the scene\'s 2D lights; optional normal map.', SPRITE_LIT),
+    template('particle-lit', 'Lit Particle',
+        'Particles the scene\'s light falls on (mist, smoke, dust): lit where they are by sun, sky and lamps, as much from behind as u_translucency says.', PARTICLE_LIT),
     template('sprite-sway', 'Sway',
         'Leans in the wind, foot fixed and tip free: grass, reeds, hanging cloth. Takes the weather wind.', SPRITE_SWAY),
     template('sprite-hit-flash', 'Hit Flash',

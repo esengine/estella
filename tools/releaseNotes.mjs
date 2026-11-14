@@ -4930,4 +4930,6 @@ export const NOTED = {
     {"note": "Opening a 3D scene no longer freezes the editor."},
   "feat(launcher): the large sample projects are downloaded when picked instead of riding in every installer - Bistro, Dusk Fort, Terrain Water and Cyber Rooftop are packed to R2 under examples/ by their own digest, the installer keeps only their manifests, and creating a project from one fetches, verifies and keeps the files":
     {"note": "The installer is about 220 MB smaller: the large samples download when picked."},
+  "feat(render): plants answer a wake and a blast - a WindWake body leaves a pass every half radius it travels and a WindBurst (or emitWindBurst) sends a pressure front out at a finite speed; the Foliage shader and the 2D Sway template lean a plant by a damped spring's answer to each shove, from the time since it alone, so a plant is pushed over, springs back past upright and rings down with nothing kept between frames, and windLean is the same arithmetic on the CPU":
+    {"note": "Plants answer a wake and a blast."},
 };

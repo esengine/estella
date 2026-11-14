@@ -372,6 +372,10 @@ export { RainShelter, RainUpright, uprightOf, uprightRects, drynessOf, maskRects
 export { Footsteps, StepSurface, StepKind, surfaceAt, footAt, stampLook, type FootstepsData, type StepSurfaceData } from './render/footsteps';
 export { decidePower, type PowerPolicy, type PowerDecision, type PowerLevel } from './render/power';
 export { SwayPusher, nearestPushers, SWAY_PUSHERS, type SwayPusherData, type PushValue } from './render/swayPush';
+export {
+    WindWake, WindBurst, emitWindBurst, windLean, springAt, WIND_PASSES, WIND_FRONTS, WIND_RING,
+    type WindWakeData, type WindBurstData, type WindPass, type WindFront,
+} from './render/windField';
 export { FogOfWar, ExploredGrid, fanDistances, exploredToString, exploredFromString, type FogOfWarData } from './render/fogOfWar';
 export { SightViewer, SightTarget, segmentBlocked, seesPoint, sightRingOf, ringContains, currentSightRings, type SightViewerData, type SightTargetData, type SightRing, type SightPoint } from './render/sight';
 export { CoverFade, CoverFadeTarget, coveredGround, coversPoint, stepFade, type CoverFadeData } from './render/coverFade';

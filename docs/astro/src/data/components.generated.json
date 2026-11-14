@@ -11250,6 +11250,67 @@
       ]
     },
     {
+      "name": "WindBurst",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "strength",
+          "type": "number",
+          "default": "20",
+          "doc": "How hard the front shoves, in world units a second.",
+          "range": "≥ 0, step 0.5"
+        },
+        {
+          "key": "speed",
+          "type": "number",
+          "default": "40",
+          "doc": "How fast the front travels outward.",
+          "range": "≥ 0.01, step 1"
+        },
+        {
+          "key": "reach",
+          "type": "number",
+          "default": "30",
+          "doc": "How far it travels before it is spent.",
+          "range": "≥ 0.01"
+        }
+      ],
+      "animatable": [
+        "strength",
+        "speed",
+        "reach"
+      ]
+    },
+    {
+      "name": "WindWake",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "2",
+          "doc": "How far to each side of its path the body shoves the air.",
+          "range": "≥ 0.01"
+        },
+        {
+          "key": "strength",
+          "type": "number",
+          "default": "1",
+          "doc": "How hard, as a share of its own speed: 1 shoves the air as fast as the body moves.",
+          "range": "0–4, step 0.01"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "radius",
+        "strength"
+      ]
+    },
+    {
       "name": "WorldGen",
       "source": "ts",
       "fields": [
