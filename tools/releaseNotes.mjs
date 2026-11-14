@@ -5010,4 +5010,6 @@ export const NOTED = {
     {"note": "Opening a 3D scene no longer freezes the editor."},
   "ci: the Android matrix wraps a template built from the PR when the PR changes the engine - the host carries src/esengine, so a released template refused every game's AOT module built against the PR's engine and the report showed every API as failing to boot; src/esengine also starts the matrix now":
     {"internal": "Which binary a CI matrix tests; nothing a creator runs changes."},
+  "ci: a pull request runs the core and a merge runs the rest - the web build, C++ tests, static gates with the suites, engine-coupled tests and render verify gate a pull request (about 45 minutes against 90); editor authoring checks, the second backend, the desktop hosts, playables, golden packages, sanitizers and scale run on master once it merges; develop pushes no longer run Build twice for one commit, and the Android matrix runs by hand":
+    {"internal": "How the repository takes changes; nothing a creator runs changes."},
 };

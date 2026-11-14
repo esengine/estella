@@ -29,16 +29,8 @@ name: Android compatibility
 # so on every run rather than trusting anyone to remember it.
 
 on:
-  pull_request:
-    paths:
-      - 'native/**'
-      - 'src/esengine/**'
-      - 'build-tools/**'
-      - 'sdk/**'
-      - 'toolchain.manifest.json'
-      - '.github/workflows/android-compat.yml'
-      - 'tools/verify-native-boot.mjs'
-      - 'tools/android-compat-report.mjs'
+  # Run by hand (Actions > Android compat > Run workflow, or `gh workflow run`): a pull request into master
+  # waited on it, and the matrix answers a question a merge does not ask every time.
   workflow_dispatch:
     inputs:
       examples:
