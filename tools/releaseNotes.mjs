@@ -5038,4 +5038,6 @@ export const NOTED = {
     { note: "Particles glow in HDR, fade into the scene and wear away." },
   "feat(examples): a VFX showcase - an energy core charges over a rune circle, detonates and burns out":
     { note: "A VFX showcase example." },
+  "fix(particles): a particle's new inputs stay within its eight vertex slots, and the snapshots that record the emitter's shape follow it":
+    { note: "Particles glow in HDR, fade into the scene and wear away." },
 };

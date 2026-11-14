@@ -5163,6 +5163,13 @@
           "range": "≥ 0"
         },
         {
+          "key": "intensity",
+          "type": "number",
+          "default": "1",
+          "doc": "Multiplies the particle's colour (not its alpha) as it is drawn, past 1 where the picture is HDR: what makes a spark bright enough to bloom. A material's fragment receives the colour already multiplied. The CPU simulation's per-particle trail is drawn without it.",
+          "range": "≥ 0"
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"
@@ -5316,6 +5323,9 @@
           "type": "array",
           "default": "empty"
         }
+      ],
+      "animatable": [
+        "intensity"
       ]
     },
     {

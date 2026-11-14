@@ -1018,6 +1018,11 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     "gravity": {
       "category": "Velocity",
     },
+    "intensity": {
+      "category": "Rendering",
+      "min": 0,
+      "tooltip": "Multiplies the particle's colour (not its alpha) as it is drawn, past 1 where the picture is HDR: what makes a spark bright enough to bloom. A material's fragment receives the colour already multiplied. The CPU simulation's per-particle trail is drawn without it.",
+    },
     "layer": {
       "category": "Rendering",
       "enumSource": "sortingLayers",
