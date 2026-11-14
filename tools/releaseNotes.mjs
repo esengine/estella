@@ -4984,4 +4984,8 @@ export const NOTED = {
     {"internal": "Gates and a split literal; the shader the engine assembles is the same and nothing a creator runs changes."},
   "ci: work lands on develop and reaches master through a pull request - Build runs on develop pushes and on pull requests into master, and its Build passed job, which needs every other, is the one check master's protection requires; AGENTS.md says so for every agent":
     {"internal": "How the repository takes changes; nothing a creator runs changes."},
+  "feat(terrain): a land source says what grows on it - plants: each kind a field as thick as one of the land's maps, grass from a blade or a model's mesh with the picture its colours were baked to, a count to a cell, how far it is drawn whole and at all, and how much of the land's tints it takes. Its lengths follow the source's unit; a plant with no such map, no shape or no count is refused by name":
+    {"note": "A land grows its grass, flowers and trees."},
+  "feat(terrain): a land grows plants - terrain_apply makes a Foliage for each of a land source's plants, over the whole land, as thick as the map it names and tinted by the land's wash: grass from a blade, anything else from a model's mesh, with a Foliage material written for a mesh whose colours are in a picture. The scene guide says how to plant a land, and that one with nothing growing is not ready to be judged":
+    {"note": "A land grows its grass, flowers and trees."},
 };

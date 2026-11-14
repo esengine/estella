@@ -87,6 +87,20 @@ describe('shaping ground', () => {
         expect(() => land([flat], { unit: 0 })).toThrow(/unit/);
     });
 
+    it('keeps what grows: a plant by one of its maps, its lengths in the unit of the source, and refuses one with no map or no shape', () => {
+        const maps = [{ name: 'meadow' }];
+        const l = land([flat], { unit: 100, size: [10, 10], maps, plants: [
+            { name: 'grass', map: 'meadow', blade: [0.3, 0.1, 0.6], count: 5000, cell: 16, near: 40, reach: 240, scale: [0.7, 1.3] },
+            { name: 'oaks', map: 'meadow', mesh: 'oak.esmesh', texture: 'oak_color.png', count: 6, cell: 40 },
+        ] });
+        // Heights, widths and distances are lengths; a lean, a count and a scale are not.
+        expect(l.source.plants![0]).toMatchObject({ blade: [30, 10, 0.6], count: 5000, cell: 1600, near: 4000, reach: 24000, scale: [0.7, 1.3] });
+        expect(l.source.plants![1]).toMatchObject({ mesh: 'oak.esmesh', count: 6, cell: 4000 });
+        expect(() => land([flat], { maps, plants: [{ name: 'x', map: 'forest', mesh: 'a.esmesh', count: 1 }] })).toThrow(/forest/);
+        expect(() => land([flat], { maps, plants: [{ name: 'x', map: 'meadow', count: 1 }] })).toThrow(/mesh|blade/);
+        expect(() => land([flat], { maps, plants: [{ name: 'x', map: 'meadow', mesh: 'a.esmesh', count: 0 }] })).toThrow(/count/);
+    });
+
     it('sets a plateau level, with a cliff of the width asked round it', () => {
         const l = land([flat, { op: 'plateau', at: [0, 0], radius: 200, height: 90, edge: 40 }]);
         expect(landHeightAt(l, 0, 0)).toBeCloseTo(90, 3);
