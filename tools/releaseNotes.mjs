@@ -5014,4 +5014,6 @@ export const NOTED = {
     {"internal": "How the repository takes changes; nothing a creator runs changes."},
   "ci: no Android or iOS checks - the emulator matrix, the device farm, the template boot smoke (native-smoke, which also held a release's publish) and the nightly Android criteria are gone; the Android and iOS templates are still built and published with each release":
     {"internal": "Which checks CI runs; nothing a creator runs changes."},
+  "ci: no editor checks - the editor authoring shards, the nightly heavy editor checks, the three hand-run editor acceptance workflows, the release's installed-editor upgrade test and the legacy 2D gizmo verifier are gone; the navigation workshop's web check is a package script, and the readback backstop's comment fits the comment rule":
+    {"internal": "Which checks CI runs; nothing a creator runs changes."},
 };

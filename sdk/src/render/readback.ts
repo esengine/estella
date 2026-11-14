@@ -21,10 +21,8 @@ export const READBACK_FAILED = 2;
  * Awaits an engine readback poll until it reports ready (1) or failed (2),
  * yielding a macrotask between pending polls. Returns the terminal status.
  *
- * @param timeoutMs A backstop, not a schedule: the copy is already submitted, so
- *   what keeps it from landing is a device that died — which the poll reports as
- *   failed on its own — or a queue that has not drained. A WebGL2 read waits behind every frame queued before it, as a
- *   blocking glReadPixels did with no limit: a CPU rasterizer with a heavy scene's frames behind it took past 15 s.
+ * @param timeoutMs A backstop for a queue that never drains (a lost device fails the poll itself). A WebGL2 read
+ *   waits behind every frame queued before it, as a blocking glReadPixels did: on a CPU rasterizer that passed 15 s.
  */
 export async function awaitReadback(
     poll: () => number,
