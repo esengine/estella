@@ -1,11 +1,13 @@
 name: Build
 
-# Push-gated CI: every master push must keep the architecture invariants green —
-# boundary guards, full-component ABI static_asserts (compiled by the web build),
-# the C++ doctest harnesses, and both TS suites. workflow_dispatch stays for
-# re-runs and branch experiments.
+# Every push to develop, every pull request into master and every merge to master must keep the
+# architecture invariants green: boundary guards, full-component ABI static_asserts (compiled by the
+# web build), the C++ doctest harnesses, and both TS suites. Work lands on develop and reaches master
+# only through a pull request, which `Build passed` gates. workflow_dispatch stays for re-runs.
 on:
   push:
+    branches: [master, develop]
+  pull_request:
     branches: [master]
   workflow_dispatch:
 
@@ -1315,3 +1317,17 @@ jobs:
       # D3D12 device of its own, which is what the release job relies on too.
       - name: A game packaged from it renders
         run: node tools/verify-desktop-render.mjs --tier pr
+
+  # The one check master's branch protection requires: every job above, so a job added or renamed
+  # needs no change to the protection. A skipped job is not a failure; a cancelled one is.
+  build-passed:
+    name: Build passed
+    if: always()
+    needs: [playable-runtime, build-emscripten, cpp-tests, sanitizers, test, test-engine, scale, verify-render,
+            verify-editor, verify-golden, verify-render-webgpu, desktop-linux, desktop-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed or was skipped
+        run: |
+          echo '${{ toJSON(needs) }}' | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          ! echo '${{ toJSON(needs) }}' | jq -e 'any(.[]; .result == "failure" or .result == "cancelled")' > /dev/null
