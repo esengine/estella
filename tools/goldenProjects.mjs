@@ -1304,6 +1304,82 @@ export const SHIPPED = {
     { notCertifiable: "An editor authoring tool, covered by modeling.test.ts and the modeling editor check; a packaged game reads the model it wrote, not the steps." },
   "A model of many parts that moves: `CompositeBatch`.":
     { notCertifiable: "A draw-cost feature covered by composite-batch.test.ts and the composite-batch editor check; a golden frame looks the same with it or without." },
+  "An agent can look at a scene from a place.":
+    { notCertifiable: "An editor tool for an agent, not something a packaged game carries. Tried by hand in the editor on a valley and a cliff; no test in the repo names view_from." },
+  "A Model material lays a repeating detail":
+    { notCertifiable: "Covered by sdk/tests/shader-reflect.test.ts (the detail params reach the Model shader) and a render scene in tools/renderScenes.mjs; no golden project uses a detail map." },
+  "A sky can bake its clouds for a phone.":
+    { notCertifiable: "Covered by sdk/tests/cloud-bake.test.ts and shader-twins.test.ts and a render scene in tools/renderScenes.mjs; a golden frame does not carry a baked sky, and its cost was measured by hand on Wilds." },
+  "A land stands models where ground cannot be the shape.":
+    { notCertifiable: "An authoring tool's output (a .esland source). Covered by pipeline/tests/land.test.ts; no golden project is made from a land source." },
+  "The weather and the clock can be put at any moment.":
+    { notCertifiable: "Covered by sdk/tests/weather-clock.test.ts; no golden project has a weather clock." },
+  "A far blade of grass fades instead of breaking into dashes.":
+    { notCertifiable: "A number whose effect shows only on far grass under multisampling. Looked at by hand in a meadow; no test in the repo names u_strandMinPx." },
+  "The installer is about 220 MB smaller":
+    { notCertifiable: "How the editor installs, not what a game carries. Covered by pipeline/tests/remote-examples.test.ts and desktop/tests/remote-examples-config.test.ts." },
+  "Particles can be lit by the scene.":
+    { notCertifiable: "Covered by the pr-tier render scene particle-lit in tools/renderScenes.mjs on both backends; no golden project has lit particles." },
+  "Plants answer a wake and a blast.":
+    { notCertifiable: "Covered by sdk/tests/wind-field.test.ts; the motion is judged by eye, and no golden project carries a wind field." },
+  "A meadow melts into the ground at the end of its draw distance.":
+    { notCertifiable: "Covered by a render scene in tools/renderScenes.mjs (grass near the eye and past its draw distance); no golden project grows a Foliage field." },
+  "The editor can start in safe mode.":
+    { notCertifiable: "The editor's start, not a game. Covered by desktop/tests/safe-mode.test.ts." },
+  "An install of mixed versions says so instead of crashing.":
+    { notCertifiable: "The editor's install, not a game. Covered by desktop/tests/install-check.test.ts." },
+  "An agent can shape ground as steps.":
+    { notCertifiable: "An authoring tool, not something a packaged game carries. Covered by pipeline/tests/land.test.ts and desktop/tests/terrain-tools.test.ts and tool-guide.test.ts." },
+  "A field of plants can be lit as the ground it stands on.":
+    { notCertifiable: "A material param whose default is the picture as it was. Covered by sdk/tests/foliage-far-versions.test.ts; set by hand against a reference meadow." },
+  "Snow falls.":
+    { notCertifiable: "Weather over time, judged by eye in the editor. No test in the repo names snowfall and no golden project has weather." },
+  "A terrain's surface can be baked into a runtime virtual texture.":
+    { notCertifiable: "Off by default. Covered by sdk/tests/terrain-layer-surface.test.ts and terrain-surface-cache.test.ts and a render scene; its cost was measured by hand on the terrain-water example." },
+  "Terrain layers cost less, and a Planet draws its layers":
+    { notCertifiable: "Covered by sdk/tests/area-map-rows.test.ts and terrain-layer-surface.test.ts and render scenes in tools/renderScenes.mjs; the saving is a cost, which a golden frame does not hold." },
+  "Resources carry a revision that changes with their content.":
+    { notCertifiable: "Engine bookkeeping no frame shows. Covered by the C++ tests test_probe_store, test_reflection_store, test_material_shader_lifetime and test_mesh_recovery." },
+  "An engine component is stamped whoever writes it.":
+    { notCertifiable: "Engine bookkeeping no frame shows. Covered by sdk/tests/engine-stamps-wasm.test.ts and the C++ test test_change_stamps." },
+  "Components carry the tick of their last write.":
+    { notCertifiable: "Engine bookkeeping no frame shows. Covered by the C++ test test_change_stamps." },
+  "A playable opens on a start screen.":
+    { notCertifiable: "A single-file playable's start, which no golden project exports. Covered by pipeline/tests/export-playable.test.ts and splash-screen.test.ts and sdk/tests/playableRuntime.test.ts." },
+  "A terrain layer and a field of plants each say how much of the sky reaches them.":
+    { notCertifiable: "A param whose default is the picture as it was. Covered by sdk/tests/terrain-layers.test.ts and foliage-far-versions.test.ts and a render scene." },
+  "An ambient light's diffuse has its own scale and tint.":
+    { notCertifiable: "Fields whose defaults are the picture as it was. Covered by the component field-meta golden snapshot and a render scene in tools/renderScenes.mjs." },
+  "Things that break.":
+    { notCertifiable: "Covered by sdk/tests/breakable.test.ts and pipeline/tests/modeling-fracture.test.ts; no golden project carries a Breakable." },
+  "A thing breaks when it is hit hard enough.":
+    { notCertifiable: "Covered by sdk/tests/breakable.test.ts and physics3d-ecs.test.ts and the physics3d smoke; no golden project carries a Breakable." },
+  "A 3D body has a mass of its own.":
+    { notCertifiable: "Covered by sdk/tests/physics3d-body-control.test.ts (mass read back in kilograms) and checked by hand in both 3D worlds; no golden project sets a mass." },
+  "A script can push a 3D body about.":
+    { notCertifiable: "Covered by sdk/tests/physics3d-body-control.test.ts and breakable.test.ts and the physics3d smoke; no golden project pushes a body from a script." },
+  "A blast.":
+    { notCertifiable: "Covered by sdk/tests/physics3d-body-control.test.ts (a blast strikes what it reaches less the further it is) and checked by hand in the editor; no golden project explodes." },
+  "A thing that breaks says so.":
+    { notCertifiable: "An event, which no frame holds. Covered by sdk/tests/breakable.test.ts." },
+  "Box and capsule sweeps, and what a 3D body weighs.":
+    { notCertifiable: "Queries, which no frame holds. Covered by sdk/tests/physics3d-body-control.test.ts and the physics3d smoke, in both 3D worlds." },
+  "A joint changed while it runs.":
+    { notCertifiable: "Covered by sdk/tests/physics3d-body-control.test.ts and physics3d-ecs.test.ts and the physics3d smoke; no golden project changes a joint." },
+  "A shot through cover.":
+    { notCertifiable: "A query, which no frame holds. Covered by sdk/tests/physics3d-shooting.test.ts and the physics3d smoke and the editor check shooting-physics." },
+  "A joint that gives way.":
+    { notCertifiable: "Covered by sdk/tests/physics3d-shooting.test.ts (breakForce, jointBreaks) and the editor check shooting-physics (a rope rated below its load gives way)." },
+  "A character that runs into something says so.":
+    { notCertifiable: "An event, which no frame holds. Covered by sdk/tests/physics3d-shooting.test.ts and the physics3d smoke, in both 3D worlds." },
+  "Telling the parts of a character apart.":
+    { notCertifiable: "Covered by the editor check shooting-physics (a skinned character's Hitboxes are met by rays bone by bone as it animates); no golden project shoots." },
+  "A sound or a piece of music can ship as its recipe.":
+    { notCertifiable: "Sound, which no golden frame holds. Covered by sdk/tests/audio-recipe.test.ts and pipeline/tests/engine-installs.test.ts." },
+  "A picture made in the editor is named by its recipe.":
+    { notCertifiable: "What an editor tool answers, not what a game carries. Checked by hand in the editor; no test in the repo names pngRef." },
+  "Viewport keys for moving things quickly.":
+    { notCertifiable: "Editor input, not a game. Tried by hand in the editor; no test in the repo presses these keys." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */

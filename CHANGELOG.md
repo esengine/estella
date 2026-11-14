@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.105.0] - 2026-11-14
+
 ### Added
 
 - **An agent can look at a scene from a place.** `view_from` takes an eye and what it looks at and answers the picture the engine draws there in the editor, with the scene's own ground, water, plants and light and no game running: a valley from its floor, a cliff from the far bank, in a few seconds.
@@ -15575,7 +15577,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.104.1...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.105.0...HEAD
+[0.105.0]: https://github.com/esengine/estella/compare/v0.104.1...v0.105.0
 [0.104.1]: https://github.com/esengine/estella/compare/v0.104.0...v0.104.1
 [0.104.0]: https://github.com/esengine/estella/compare/v0.103.0...v0.104.0
 [0.103.0]: https://github.com/esengine/estella/compare/v0.102.0...v0.103.0
