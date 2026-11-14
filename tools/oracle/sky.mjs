@@ -16,7 +16,7 @@ import { volume } from './scene.mjs';
 import { axisAngle, rotate, norm, dot, encodeLinear8, clamp01, smoothstep, srgbDecode, sunAim } from './formulas.mjs';
 
 const R_E = 6360, R_A = 6420;
-const BETA_R = [0.0058, 0.0135, 0.0331], BETA_M = 0.021, H_R = 8, H_M = 1.2, SUN_I = 22, G = 0.76;
+const BETA_R = [0.0058, 0.0135, 0.0331], BETA_M = 0.021, H_R = 8, H_M = 1.2, SUN_I = 22, G = 0.76, SKY_GLOW = 0.03;
 
 const sphereFar = (o, d, r) => {
   const b = dot(o, d), disc = b * b - (dot(o, o) - r * r);
@@ -41,25 +41,29 @@ function lightDepth(p, d, steps) {
   return [r, m];
 }
 
-/** Single-scattered sky radiance along `dir` (unit, y up) for a sun direction, camera altitude (km) and haze. */
 export function scatterRef(dir, sun, alt, haze, N = 480, M = 96) {
   const o = [0, R_E + alt, 0], len = sphereFar(o, dir, R_A), ds = len / N, mu = dot(dir, sun);
   const phaseR = (3 / (16 * Math.PI)) * (1 + mu * mu);
   const phaseM = (3 / (8 * Math.PI)) * (((1 - G * G) * (1 + mu * mu)) / ((2 + G * G) * Math.pow(1 + G * G - 2 * G * mu, 1.5)));
   let odR = 0, odM = 0;
-  const sumR = [0, 0, 0], sumM = [0, 0, 0];
+  const sumR = [0, 0, 0], sumM = [0, 0, 0], sumG = [0, 0, 0];
   for (let i = 0; i < N; i++) {
     const p = along(o, dir, ds * (i + 0.5)), h = height(p);
     const dR = Math.exp(-h / H_R) * ds, dM = Math.exp(-h / H_M) * ds;
+    const midR = odR + dR * 0.5, midM = odM + dM * 0.5;
     odR += dR; odM += dM;
     const ol = lightDepth(p, sun, M);
     if (!ol) continue;
+    const fromSun = BETA_R.map((b) => Math.exp(-(b * ol[0] + BETA_M * haze * 1.1 * ol[1])));
+    const grey = (fromSun[0] + fromSun[1] + fromSun[2]) / 3;
     for (let k = 0; k < 3; k++) {
-      const attn = Math.exp(-(BETA_R[k] * (odR + ol[0]) + BETA_M * haze * 1.1 * (odM + ol[1])));
+      const toEye = Math.exp(-(BETA_R[k] * midR + BETA_M * haze * 1.1 * midM));
+      const attn = toEye * fromSun[k];
       sumR[k] += attn * dR; sumM[k] += attn * dM;
+      sumG[k] += toEye * (fromSun[k] + grey) * 0.5 * (BETA_R[k] * dR + BETA_M * haze * dM);
     }
   }
-  return sumR.map((r, k) => (r * BETA_R[k] * phaseR + sumM[k] * BETA_M * haze * phaseM) * SUN_I);
+  return sumR.map((r, k) => (r * BETA_R[k] * phaseR + sumM[k] * BETA_M * haze * phaseM + sumG[k] * SKY_GLOW) * SUN_I);
 }
 
 /** What the composite shows of that radiance: x 0.55 x brightness, dimmed below the horizon (a cloud-free day, so no night glow). */
