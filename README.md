@@ -13,7 +13,7 @@ then ships it to the web, mini-game platforms, playable ads, desktop and native 
 [![Release](https://img.shields.io/github/v/release/esengine/estella)](https://github.com/esengine/estella/releases)
 [![MCP](https://img.shields.io/badge/MCP-167_tools-8A2BE2.svg)](https://estellaengine.com/docs/agents/mcp/)
 [![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20Mini--games%20%7C%20Playable%20ads%20%7C%20Desktop%20%7C%20Android%20%7C%20iOS-green.svg)](https://estellaengine.com/docs/publishing/overview/)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/esengine/estella)
+[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-1f6feb.svg)](https://deepwiki.com/esengine/estella)
 
 [Website](https://estellaengine.com) • [Your agent drives the editor](#your-agent-drives-the-editor) • [Why Estella](#why-estella-when-unity-and-unreal-have-mcp-too) • [Getting Started](#getting-started) • [Documentation](https://estellaengine.com/docs) • [Discord](https://discord.gg/sAX6PXZ9) • [QQ群: 481923584](https://qm.qq.com/q/BONa5LXQ0U)
 
