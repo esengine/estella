@@ -4990,4 +4990,6 @@ export const NOTED = {
     {"note": "A land grows its grass, flowers and trees."},
   "chore(release): the land's plants are classified for 0.105.0 - its Added headline joined the 0.105.0 section after the release commit, and check-golden wants every shipped headline to say what certifies it":
     {"internal": "A release classification; nothing a creator runs changes."},
+  "ci: no pre-push hook - the release-note check it ran is the changelog-covers gate every pull request into master runs, so a push to develop no longer waits on it":
+    {"internal": "How the repository takes changes; nothing a creator runs changes."},
 };
