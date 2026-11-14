@@ -5020,4 +5020,6 @@ export const NOTED = {
     {"note": "Opening a 3D scene no longer freezes the editor."},
   "ci: the render verify runs in two shards, and grass-fade is not drawn on a software rasteriser - the pr tier on CI's SwiftShader had grown half as slow again per scene since the far-blade and wind-field foliage changes and ran out of its 25 minutes with 98 scenes unrun; verify-render takes --shard i/n, and grass-fade, whose GPU process died before it drew on every CI launch, says softwareGpu: false as terrain-virtual-texture and gi-room-voxel do":
     {"internal": "How CI runs its render checks; nothing a creator runs changes."},
+  "chore(ci): grass-fade's software-rasteriser note is the commit's, not a comment that outgrew the rule":
+    {"internal": "A comment; nothing a creator runs changes."},
 };
