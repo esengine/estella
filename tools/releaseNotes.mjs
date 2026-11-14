@@ -4978,4 +4978,6 @@ export const NOTED = {
     {"note": "An agent can look at a scene from a place."},
   "chore(examples): Bistro, Chat and Wilds map the SDK's subpath modules and Bistro's piece list keeps one uuid - the tsconfig the editor writes on open names esengine/spine, esengine/terrain and the rest, as the other examples already commit, and pieces.json's meta was made on open and never committed":
     {"internal": "What the editor writes when it opens these examples, committed; nothing a creator runs changes."},
+  "feat(mcp): view_from stands the eye a height above the ground - a guessed y put the eye inside a hill as often as not: above (and toAbove) take the ground under the place, waited for where a scene has just opened, so from may be [x, z]; the answer says the ground under the eye, warns when the eye is under it, and says when seeing far has cut the foreground away":
+    {"note": "An agent can look at a scene from a place."},
 };
