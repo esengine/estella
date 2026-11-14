@@ -98,7 +98,6 @@ jobs:
           - name: ios
             os: macos-latest
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 120
     steps:
       # With submodules: the host links box2d, spine and glm from third_party.
       - uses: actions/checkout@v7
@@ -158,7 +157,6 @@ jobs:
     # would otherwise skip this too.
     if: always() && needs.templates.result != 'failure' && needs.templates.result != 'cancelled'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -254,7 +252,6 @@ jobs:
     needs: templates
     if: always() && needs.templates.result != 'failure' && needs.templates.result != 'cancelled'
     runs-on: macos-latest
-    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:

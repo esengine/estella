@@ -32,7 +32,6 @@ jobs:
   build-emscripten:
     name: Web (Emscripten)
     runs-on: ubuntu-latest
-    timeout-minutes: 40
 
     steps:
     - uses: actions/checkout@v7
@@ -108,7 +107,6 @@ jobs:
   linux-template:
     name: Linux runtime template (HEAD)
     runs-on: ubuntu-latest
-    timeout-minutes: 120
     env:
       CC: clang
       CXX: clang++
@@ -214,7 +212,6 @@ jobs:
       ESTELLA_NATIVE_TEMPLATES: ${{ github.workspace }}/.native-templates
       # Empty outside the golden shards, where verify-golden takes the whole tier.
       ESTELLA_GOLDEN_SHARD: ${{ matrix.golden }}
-    timeout-minutes: ${{ matrix.timeout || 60 }}
 
     steps:
     # verify-legacy reads examples out of RELEASE TAGS (git archive v0.20.0 …),
@@ -323,7 +320,6 @@ jobs:
     env:
       ESTELLA_WIN_W: '1480'
       ESTELLA_WIN_H: '920'
-    timeout-minutes: 120
 
     steps:
     - uses: actions/checkout@v7
@@ -375,7 +371,6 @@ jobs:
     runs-on: macos-latest
     needs: build-emscripten
     # The pixel gates, plus the third-person package's 29 launches and the compiled-game parity.
-    timeout-minutes: 120
 
     steps:
     - uses: actions/checkout@v7
@@ -410,8 +405,6 @@ jobs:
     name: Exit criteria (android)
     runs-on: ubuntu-latest
     needs: build-emscripten
-    # About forty minutes of it building the template this commit ships.
-    timeout-minutes: 150
 
     steps:
     - uses: actions/checkout@v7

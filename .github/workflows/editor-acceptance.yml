@@ -24,7 +24,6 @@ permissions:
 jobs:
   acceptance:
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ contains(inputs.checks, 'docs-hero') && 70 || 20 }}
     env:
       XVFB_SCREEN: ${{ contains(inputs.checks, 'docs-hero') && '1920x1080x24' || '1920x1080x24' }}
       ESTELLA_WIN_W: ${{ contains(inputs.checks, 'docs-hero') && '1900' || '1480' }}

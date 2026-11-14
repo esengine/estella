@@ -27,7 +27,6 @@ permissions:
 jobs:
   prune:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     steps:
       - name: Keep the newest snapshot of each ccache key
         env:

@@ -40,7 +40,6 @@ jobs:
   draft:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     permissions:
       contents: write
     steps:
@@ -83,7 +82,6 @@ jobs:
   engine:
     name: Build engine (wasm)
     runs-on: ubuntu-latest
-    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
 
@@ -184,7 +182,6 @@ jobs:
           - name: linux
             os: ubuntu-latest
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 120
     steps:
       # With submodules: the host links box2d, spine and glm from third_party, and
       # a checkout without them fails at configure with a directory that has no
@@ -335,7 +332,6 @@ jobs:
     needs: [draft, native-templates]
     if: github.event_name == 'push' && needs.draft.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     permissions:
       contents: write
     steps:
@@ -371,7 +367,6 @@ jobs:
     needs: [draft]
     if: github.event_name == 'push' && needs.draft.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     permissions:
       contents: write
     steps:
@@ -407,7 +402,6 @@ jobs:
           - windows-latest
 
     runs-on: ${{ matrix.platform }}
-    timeout-minutes: 50
     permissions:
       contents: write
 
@@ -680,7 +674,6 @@ jobs:
       needs.smoke-templates.result == 'success' &&
       needs.publish-external-tools.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     permissions:
       contents: write
     steps:

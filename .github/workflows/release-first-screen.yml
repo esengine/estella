@@ -12,7 +12,6 @@ permissions:
 jobs:
   first-screen:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup

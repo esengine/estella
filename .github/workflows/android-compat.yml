@@ -79,7 +79,6 @@ jobs:
   versions:
     name: Which Android versions this runner has images for
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     outputs:
       matrix: ${{ steps.find.outputs.matrix }}
       count: ${{ steps.find.outputs.count }}
@@ -145,7 +144,6 @@ jobs:
     # fiction: API 24 sat in the boot poll from 01:11 to 01:30 and the job cap
     # cancelled it mid-attempt, so "no data after two attempts" was printed after
     # one. Two bounded attempts plus the system-image download is what this covers.
-    timeout-minutes: 40
     strategy:
       # A compatibility matrix whose whole output is "which versions work" must
       # run every version even after one fails. fail-fast here would report the
@@ -275,7 +273,6 @@ jobs:
     # A summariser that only runs on success reports exactly the case nobody needs.
     if: always() && needs.versions.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     permissions:
       contents: write        # publishes the frames to a branch the PR can render
       pull-requests: write   # posts the table

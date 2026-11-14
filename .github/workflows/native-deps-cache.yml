@@ -58,7 +58,6 @@ jobs:
   warm:
     name: Dawn for ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:

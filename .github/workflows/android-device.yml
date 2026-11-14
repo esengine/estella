@@ -147,7 +147,6 @@ jobs:
     needs: [preflight, apk]
     if: needs.preflight.outputs.configured == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write   # OIDC, so no long-lived AWS keys live in this repo

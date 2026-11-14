@@ -36,7 +36,6 @@ jobs:
   apk:
     name: Package the canary example(s)
     runs-on: ubuntu-latest
-    timeout-minutes: 120
     permissions:
       contents: read
       pull-requests: read   # to see which files the PR touches
