@@ -1,6 +1,6 @@
 name: Build
 
-# Work lands on develop and reaches master only through a pull request, which `Build passed` gates.
+# Work reaches master only through a pull request from a short-lived branch, which `Build passed` gates.
 # A pull request runs the core: the web build, the C++ tests, the static gates with the SDK and editor
 # suites, the engine-coupled tests and the render verify, about 45 minutes. The heavy jobs (editor
 # authoring checks, the second backend, the desktop hosts, playables, golden packages, sanitizers,

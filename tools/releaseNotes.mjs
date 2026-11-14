@@ -5024,4 +5024,6 @@ export const NOTED = {
     {"internal": "A comment; nothing a creator runs changes."},
   "ci: the nightly runs no macOS exit criteria - the job that ran the macos host's release criteria on a macOS runner is gone, and the night's report no longer waits on it":
     {"internal": "Which checks CI runs; nothing a creator runs changes."},
+  "docs(agents): work goes on a short-lived branch and reaches master by pull request - no standing develop branch; a merge deletes the branch it came from":
+    {"internal": "How the repository takes changes; nothing a creator runs changes."},
 };
