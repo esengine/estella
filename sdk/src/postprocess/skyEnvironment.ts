@@ -47,6 +47,7 @@ const BETA_M = 0.021;
 const H_R = 8;
 const H_M = 1.2;
 const SUN_I = 22;
+const SKY_GLOW = 0.03;
 
 const fract = (x: number): number => x - Math.floor(x);
 const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
@@ -106,32 +107,39 @@ function lightDepth(px: number, py: number, pz: number, dx: number, dy: number, 
     return [r, m];
 }
 
-/** The sky's radiance along dir by single scattering (the effect's `scatter`), and the sun's light where the eye is. */
+/** The sky's radiance along dir, single scattering and the even glow of the rest (the effect's `scatter`, SKY_GLOW and all), and the sun's light where the eye is. */
 function scatter(dir: readonly number[], sun: readonly number[], alt: number, haze: number,
                  out: Float64Array, sunTrans: Float64Array): void {
     const oy = R_E + alt;
     const len = sphereExit(oy, dir[1]!, R_A);
     const N = 16;
-    const ds = len / N;
     const mu = dir[0]! * sun[0]! + dir[1]! * sun[1]! + dir[2]! * sun[2]!;
     const g = 0.76;
     const phaseR = 3 / (16 * Math.PI) * (1 + mu * mu);
     const phaseM = 3 / (8 * Math.PI) * ((1 - g * g) * (1 + mu * mu)) / ((2 + g * g) * (1 + g * g - 2 * g * mu) ** 1.5);
     let odR = 0, odM = 0;
-    let rR = 0, rG = 0, rB = 0, mR = 0, mG = 0, mB = 0;
+    let rR = 0, rG = 0, rB = 0, mR = 0, mG = 0, mB = 0, gR = 0, gG = 0, gB = 0;
     const kM = BETA_M * haze * 1.1;
     for (let i = 0; i < N; i++) {
-        const t = ds * (i + 0.5);
+        // Steps that lengthen with the square of the way out, and the air to a step's middle: the effect's own march.
+        const a = i / N, b = (i + 1) / N;
+        const ds = len * (b * b - a * a), t = len * (a * a + b * b) * 0.5;
         const px = dir[0]! * t, py = oy + dir[1]! * t, pz = dir[2]! * t;
         const h = Math.hypot(px, py, pz) - R_E;
         const dR = Math.exp(-h / H_R) * ds, dM = Math.exp(-h / H_M) * ds;
+        const midR = odR + dR * 0.5, midM = odM + dM * 0.5;
         odR += dR; odM += dM;
         const ol = lightDepth(px, py, pz, sun[0]!, sun[1]!, sun[2]!);
         if (!ol) continue;
-        const tr = odR + ol[0], tm = odM + ol[1];
+        const tr = midR + ol[0], tm = midM + ol[1];
         const ar = Math.exp(-(BETA_R[0] * tr + kM * tm));
         const ag = Math.exp(-(BETA_R[1] * tr + kM * tm));
         const ab = Math.exp(-(BETA_R[2] * tr + kM * tm));
+        const sr = Math.exp(-(BETA_R[0] * ol[0] + kM * ol[1])), sg = Math.exp(-(BETA_R[1] * ol[0] + kM * ol[1])), sb = Math.exp(-(BETA_R[2] * ol[0] + kM * ol[1]));
+        const grey = (sr + sg + sb) / 3, hazeHere = BETA_M * haze * dM;
+        gR += Math.exp(-(BETA_R[0] * midR + kM * midM)) * (sr + grey) * 0.5 * (BETA_R[0] * dR + hazeHere);
+        gG += Math.exp(-(BETA_R[1] * midR + kM * midM)) * (sg + grey) * 0.5 * (BETA_R[1] * dR + hazeHere);
+        gB += Math.exp(-(BETA_R[2] * midR + kM * midM)) * (sb + grey) * 0.5 * (BETA_R[2] * dR + hazeHere);
         rR += ar * dR; rG += ag * dR; rB += ab * dR;
         mR += ar * dM; mG += ag * dM; mB += ab * dM;
     }
@@ -140,9 +148,9 @@ function scatter(dir: readonly number[], sun: readonly number[], alt: number, ha
         sunTrans[c] = st ? Math.exp(-(BETA_R[c]! * st[0] + kM * st[1])) : 0;
     }
     const kMs = BETA_M * haze * phaseM;
-    out[0] = (rR * BETA_R[0] * phaseR + mR * kMs) * SUN_I;
-    out[1] = (rG * BETA_R[1] * phaseR + mG * kMs) * SUN_I;
-    out[2] = (rB * BETA_R[2] * phaseR + mB * kMs) * SUN_I;
+    out[0] = (rR * BETA_R[0] * phaseR + mR * kMs + gR * SKY_GLOW) * SUN_I;
+    out[1] = (rG * BETA_R[1] * phaseR + mG * kMs + gG * SKY_GLOW) * SUN_I;
+    out[2] = (rB * BETA_R[2] * phaseR + mB * kMs + gB * SKY_GLOW) * SUN_I;
 }
 
 interface CloudParams {

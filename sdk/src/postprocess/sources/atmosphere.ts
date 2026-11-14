@@ -391,6 +391,7 @@ const float BETA_M = 0.021;
 const float H_R = 8.0;
 const float H_M = 1.2;
 const float SUN_I = 22.0;
+const float SKY_GLOW = 0.03;
 /// Where a view ray starts: the near plane of a perspective eye. An orthographic eye's depth range runs from far BEHIND the camera to far ahead of it
 /// (the projection is built with near = -far), so depth 0 is that far-behind plane, kilometres above a camera that stands on the ground: the plane
 /// the camera stands in is mid-depth. The cloud layer is placed by this height, so a start behind the camera moves the clouds and their shadows.
@@ -454,12 +455,14 @@ vec3 lightDepth(vec3 p, vec3 d) {
     return vec3(od, 1.0);
 }
 
-/// The sky's radiance along dir, by single scattering; @p sunTrans is the sun's light by the time it reaches the viewer.
+/// The sky's radiance along dir: single scattering, and the light scattered more than once as one even glow. Once alone leaves the
+/// horizon the colour of the sun's light after the long way through the air and nothing else (a dull olive under a noon sun); the air is lit by
+/// the rest of the sky too, which is what whitens a real horizon. That glow is taken as SKY_GLOW of the sun's light where it is scattered, half
+/// its colour and half its grey, sent every way alike; @p sunTrans is the sun's light by the time it reaches the viewer.
 vec3 scatter(vec3 dir, vec3 sun, float alt, float haze, out vec3 sunTrans) {
     vec3 o = vec3(0.0, R_E + alt, 0.0);
     float len = sphereHit(o, dir, R_A).y;
     const int N = 16;
-    float ds = len / float(N);
     float mu = dot(dir, sun);
     float g = 0.76;
     float phaseR = 3.0 / (16.0 * 3.14159265) * (1.0 + mu * mu);
@@ -467,20 +470,30 @@ vec3 scatter(vec3 dir, vec3 sun, float alt, float haze, out vec3 sunTrans) {
     vec2 od = vec2(0.0);
     vec3 sumR = vec3(0.0);
     vec3 sumM = vec3(0.0);
+    vec3 sumG = vec3(0.0);
     for (int i = 0; i < N; ++i) {
-        vec3 p = o + dir * (ds * (float(i) + 0.5));
+        // Steps that lengthen with the square of the way out: toward the horizon the ray is 900 km long and the air that colours it is in
+        // the first few, where even steps of 55 km put the first sample behind most of the blue and left the horizon olive. The air
+        // between the eye and a step is taken to the step's middle, not its far end, for the same reason.
+        float a = float(i) / float(N), b = float(i + 1) / float(N);
+        float ds = len * (b * b - a * a);
+        vec3 p = o + dir * (len * (a * a + b * b) * 0.5);
         vec2 dens = exp(-(length(p) - R_E) / vec2(H_R, H_M)) * ds;
+        vec2 mid = od + dens * 0.5;
         od += dens;
         vec3 ol = lightDepth(p, sun);
         if (ol.z > 0.5) {
-            vec3 attn = exp(-(BETA_R * (od.x + ol.x) + BETA_M * haze * 1.1 * (od.y + ol.y)));
+            vec3 toEye = exp(-(BETA_R * mid.x + BETA_M * haze * 1.1 * mid.y));
+            vec3 fromSun = exp(-(BETA_R * ol.x + BETA_M * haze * 1.1 * ol.y));
+            vec3 attn = toEye * fromSun;
             sumR += attn * dens.x;
             sumM += attn * dens.y;
+            sumG += toEye * mix(fromSun, vec3(dot(fromSun, vec3(1.0 / 3.0))), 0.5) * (BETA_R * dens.x + BETA_M * haze * dens.y);
         }
     }
     vec3 st = lightDepth(o, sun);
     sunTrans = st.z > 0.5 ? exp(-(BETA_R * st.x + BETA_M * haze * 1.1 * st.y)) : vec3(0.0);
-    return (sumR * BETA_R * phaseR + sumM * BETA_M * haze * phaseM) * SUN_I;
+    return (sumR * BETA_R * phaseR + sumM * BETA_M * haze * phaseM + sumG * SKY_GLOW) * SUN_I;
 }
 
 ${CLOUD_GLSL}${SSAO_GLSL}
@@ -642,6 +655,7 @@ const BETA_M : f32 = 0.021;
 const H_R : f32 = 8.0;
 const H_M : f32 = 1.2;
 const SUN_I : f32 = 22.0;
+const SKY_GLOW : f32 = 0.03;
 /// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
 fn rayStart(uv : vec2f) -> vec3f { return worldFromDepth(uv, select(0.5, 0.0, frame.camera.w > 0.5)); }
 
@@ -699,7 +713,6 @@ fn scatter(dir : vec3f, sun : vec3f, alt : f32, haze : f32) -> Scatter {
     let o = vec3f(0.0, R_E + alt, 0.0);
     let len = sphereHit(o, dir, R_A).y;
     let N = 16;
-    let ds = len / f32(N);
     let mu = dot(dir, sun);
     let g = 0.76;
     let phaseR = 3.0 / (16.0 * 3.14159265) * (1.0 + mu * mu);
@@ -707,22 +720,31 @@ fn scatter(dir : vec3f, sun : vec3f, alt : f32, haze : f32) -> Scatter {
     var od = vec2f(0.0);
     var sumR = vec3f(0.0);
     var sumM = vec3f(0.0);
+    var sumG = vec3f(0.0);
     for (var i : i32 = 0; i < N; i = i + 1) {
-        let p = o + dir * (ds * (f32(i) + 0.5));
+        // Steps that lengthen with the square of the way out, and the air to a step's middle (see the GLSL twin).
+        let a = f32(i) / f32(N);
+        let b = f32(i + 1) / f32(N);
+        let ds = len * (b * b - a * a);
+        let p = o + dir * (len * (a * a + b * b) * 0.5);
         let dens = exp(-(length(p) - R_E) / vec2f(H_R, H_M)) * ds;
+        let mid = od + dens * 0.5;
         od = od + dens;
         let ol = lightDepth(p, sun);
         if (ol.z > 0.5) {
-            let attn = exp(-(BETA_R * (od.x + ol.x) + BETA_M * haze * 1.1 * (od.y + ol.y)));
+            let toEye = exp(-(BETA_R * mid.x + BETA_M * haze * 1.1 * mid.y));
+            let fromSun = exp(-(BETA_R * ol.x + BETA_M * haze * 1.1 * ol.y));
+            let attn = toEye * fromSun;
             sumR = sumR + attn * dens.x;
             sumM = sumM + attn * dens.y;
+            sumG = sumG + toEye * mix(fromSun, vec3f(dot(fromSun, vec3f(1.0 / 3.0))), vec3f(0.5)) * (BETA_R * dens.x + BETA_M * haze * dens.y);
         }
     }
     let st = lightDepth(o, sun);
     var trans = vec3f(0.0);
     if (st.z > 0.5) { trans = exp(-(BETA_R * st.x + BETA_M * haze * 1.1 * st.y)); }
     var out : Scatter;
-    out.radiance = (sumR * BETA_R * phaseR + sumM * BETA_M * haze * phaseM) * SUN_I;
+    out.radiance = (sumR * BETA_R * phaseR + sumM * BETA_M * haze * phaseM + sumG * SKY_GLOW) * SUN_I;
     out.sunTrans = trans;
     return out;
 }
@@ -947,6 +969,7 @@ const float BETA_M = 0.021;
 const float H_R = 8.0;
 const float H_M = 1.2;
 const float SUN_I = 22.0;
+const float SKY_GLOW = 0.03;
 /// Where a view ray starts: the near plane of a perspective eye. An orthographic eye's depth range runs from far BEHIND the camera to far ahead of it
 /// (the projection is built with near = -far), so depth 0 is that far-behind plane, kilometres above a camera that stands on the ground: the plane
 /// the camera stands in is mid-depth. The cloud layer is placed by this height, so a start behind the camera moves the clouds and their shadows.
@@ -1010,12 +1033,14 @@ vec3 lightDepth(vec3 p, vec3 d) {
     return vec3(od, 1.0);
 }
 
-/// The sky's radiance along dir, by single scattering; @p sunTrans is the sun's light by the time it reaches the viewer.
+/// The sky's radiance along dir: single scattering, and the light scattered more than once as one even glow. Once alone leaves the
+/// horizon the colour of the sun's light after the long way through the air and nothing else (a dull olive under a noon sun); the air is lit by
+/// the rest of the sky too, which is what whitens a real horizon. That glow is taken as SKY_GLOW of the sun's light where it is scattered, half
+/// its colour and half its grey, sent every way alike; @p sunTrans is the sun's light by the time it reaches the viewer.
 vec3 scatter(vec3 dir, vec3 sun, float alt, float haze, out vec3 sunTrans) {
     vec3 o = vec3(0.0, R_E + alt, 0.0);
     float len = sphereHit(o, dir, R_A).y;
     const int N = 16;
-    float ds = len / float(N);
     float mu = dot(dir, sun);
     float g = 0.76;
     float phaseR = 3.0 / (16.0 * 3.14159265) * (1.0 + mu * mu);
@@ -1023,20 +1048,30 @@ vec3 scatter(vec3 dir, vec3 sun, float alt, float haze, out vec3 sunTrans) {
     vec2 od = vec2(0.0);
     vec3 sumR = vec3(0.0);
     vec3 sumM = vec3(0.0);
+    vec3 sumG = vec3(0.0);
     for (int i = 0; i < N; ++i) {
-        vec3 p = o + dir * (ds * (float(i) + 0.5));
+        // Steps that lengthen with the square of the way out: toward the horizon the ray is 900 km long and the air that colours it is in
+        // the first few, where even steps of 55 km put the first sample behind most of the blue and left the horizon olive. The air
+        // between the eye and a step is taken to the step's middle, not its far end, for the same reason.
+        float a = float(i) / float(N), b = float(i + 1) / float(N);
+        float ds = len * (b * b - a * a);
+        vec3 p = o + dir * (len * (a * a + b * b) * 0.5);
         vec2 dens = exp(-(length(p) - R_E) / vec2(H_R, H_M)) * ds;
+        vec2 mid = od + dens * 0.5;
         od += dens;
         vec3 ol = lightDepth(p, sun);
         if (ol.z > 0.5) {
-            vec3 attn = exp(-(BETA_R * (od.x + ol.x) + BETA_M * haze * 1.1 * (od.y + ol.y)));
+            vec3 toEye = exp(-(BETA_R * mid.x + BETA_M * haze * 1.1 * mid.y));
+            vec3 fromSun = exp(-(BETA_R * ol.x + BETA_M * haze * 1.1 * ol.y));
+            vec3 attn = toEye * fromSun;
             sumR += attn * dens.x;
             sumM += attn * dens.y;
+            sumG += toEye * mix(fromSun, vec3(dot(fromSun, vec3(1.0 / 3.0))), 0.5) * (BETA_R * dens.x + BETA_M * haze * dens.y);
         }
     }
     vec3 st = lightDepth(o, sun);
     sunTrans = st.z > 0.5 ? exp(-(BETA_R * st.x + BETA_M * haze * 1.1 * st.y)) : vec3(0.0);
-    return (sumR * BETA_R * phaseR + sumM * BETA_M * haze * phaseM) * SUN_I;
+    return (sumR * BETA_R * phaseR + sumM * BETA_M * haze * phaseM + sumG * SKY_GLOW) * SUN_I;
 }
 
 ${CLOUD_GLSL}
@@ -1104,6 +1139,7 @@ const BETA_M : f32 = 0.021;
 const H_R : f32 = 8.0;
 const H_M : f32 = 1.2;
 const SUN_I : f32 = 22.0;
+const SKY_GLOW : f32 = 0.03;
 /// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
 fn rayStart(uv : vec2f) -> vec3f { return worldFromDepth(uv, select(0.5, 0.0, frame.camera.w > 0.5)); }
 
@@ -1161,7 +1197,6 @@ fn scatter(dir : vec3f, sun : vec3f, alt : f32, haze : f32) -> Scatter {
     let o = vec3f(0.0, R_E + alt, 0.0);
     let len = sphereHit(o, dir, R_A).y;
     let N = 16;
-    let ds = len / f32(N);
     let mu = dot(dir, sun);
     let g = 0.76;
     let phaseR = 3.0 / (16.0 * 3.14159265) * (1.0 + mu * mu);
@@ -1169,22 +1204,31 @@ fn scatter(dir : vec3f, sun : vec3f, alt : f32, haze : f32) -> Scatter {
     var od = vec2f(0.0);
     var sumR = vec3f(0.0);
     var sumM = vec3f(0.0);
+    var sumG = vec3f(0.0);
     for (var i : i32 = 0; i < N; i = i + 1) {
-        let p = o + dir * (ds * (f32(i) + 0.5));
+        // Steps that lengthen with the square of the way out, and the air to a step's middle (see the GLSL twin).
+        let a = f32(i) / f32(N);
+        let b = f32(i + 1) / f32(N);
+        let ds = len * (b * b - a * a);
+        let p = o + dir * (len * (a * a + b * b) * 0.5);
         let dens = exp(-(length(p) - R_E) / vec2f(H_R, H_M)) * ds;
+        let mid = od + dens * 0.5;
         od = od + dens;
         let ol = lightDepth(p, sun);
         if (ol.z > 0.5) {
-            let attn = exp(-(BETA_R * (od.x + ol.x) + BETA_M * haze * 1.1 * (od.y + ol.y)));
+            let toEye = exp(-(BETA_R * mid.x + BETA_M * haze * 1.1 * mid.y));
+            let fromSun = exp(-(BETA_R * ol.x + BETA_M * haze * 1.1 * ol.y));
+            let attn = toEye * fromSun;
             sumR = sumR + attn * dens.x;
             sumM = sumM + attn * dens.y;
+            sumG = sumG + toEye * mix(fromSun, vec3f(dot(fromSun, vec3f(1.0 / 3.0))), vec3f(0.5)) * (BETA_R * dens.x + BETA_M * haze * dens.y);
         }
     }
     let st = lightDepth(o, sun);
     var trans = vec3f(0.0);
     if (st.z > 0.5) { trans = exp(-(BETA_R * st.x + BETA_M * haze * 1.1 * st.y)); }
     var out : Scatter;
-    out.radiance = (sumR * BETA_R * phaseR + sumM * BETA_M * haze * phaseM) * SUN_I;
+    out.radiance = (sumR * BETA_R * phaseR + sumM * BETA_M * haze * phaseM + sumG * SKY_GLOW) * SUN_I;
     out.sunTrans = trans;
     return out;
 }

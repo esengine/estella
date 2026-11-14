@@ -420,6 +420,9 @@ float waterHash(vec2 p) {
     p += dot(p, p.yx + 33.33);
     return fract((p.x + p.y) * p.x);
 }
+/// How far the opaque scene is at a texel of the frame's copy of it: r while a 16-bit float holds the distance, b (the same in units of 1024) past that.
+float sceneFar(vec4 t) { return t.r < 65000.0 ? t.r : t.b * 1024.0; }
+
 float waterNoise(vec2 p) {
     vec2 i = floor(p);
     vec2 f = fract(p);
@@ -620,8 +623,8 @@ vec4 waterReflect(vec3 p, vec3 r, float eyeDist) {
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) break;
         float qDist = u_camera.w > 0.5 ? length(q - u_camera.xyz) : -dot(q, u_camera.xyz);
         // r how far the picture is, g whether it holds nothing there (the sky, painted after this copy was taken): nothing to meet, and the sky the lighting gave stays.
-        vec2 scene = textureLod(u_sceneDepthMap, uv, 0.0).rg;
-        float sceneDist = scene.r;
+        vec4 scene = textureLod(u_sceneDepthMap, uv, 0.0);
+        float sceneDist = sceneFar(scene);
         // The ray has gone behind something the picture holds: that is what it met, if it did not skip clean through a thin one.
         // Fading toward the picture's edge: a reflection that runs off screen thins away instead of stopping on a line.
         vec2 edge = min(uv, 1.0 - uv);
@@ -765,7 +768,7 @@ void main() {
     bool haveDepth = haveColor && texture(u_sceneDepthMap, vec2(0.5)).a < 0.75;
     vec4 clip0 = u_projection * vec4(P, 1.0);
     vec2 uv0 = clip0.xy / max(clip0.w, 1e-4) * 0.5 + 0.5;
-    float behindDist = haveDepth ? texture(u_sceneDepthMap, clamp(uv0, vec2(0.001), vec2(0.999))).r : waterDist + u_fallbackDepth;
+    float behindDist = haveDepth ? sceneFar(texture(u_sceneDepthMap, clamp(uv0, vec2(0.001), vec2(0.999)))) : waterDist + u_fallbackDepth;
     float column0 = max(behindDist - waterDist, 0.0);
     // Past the shore only the surf's film is water: over ground no lower than the water, within its height of the rest level (further off
     // it is the mesh stretched between two waters' heights); the depth test cuts it where the ground rises above it. Asked here, before the
@@ -789,7 +792,7 @@ void main() {
     float column = column0;
     if (haveColor) {
         uv1 = clamp(uv1, vec2(0.001), vec2(0.999));
-        float dist1 = haveDepth ? texture(u_sceneDepthMap, uv1).r : behindDist;
+        float dist1 = haveDepth ? sceneFar(texture(u_sceneDepthMap, uv1)) : behindDist;
         // Something standing in front of the water cannot be what is seen through it: keep the straight-through lookup.
         if (dist1 < waterDist) { uv1 = clamp(uv0, vec2(0.001), vec2(0.999)); dist1 = behindDist; }
         behind = texture(u_sceneColor, uv1).rgb;
@@ -948,6 +951,8 @@ fn waterHash(p0 : vec2f) -> f32 {
     p = p + dot(p, p.yx + 33.33);
     return fract((p.x + p.y) * p.x);
 }
+fn sceneFar(t : vec4f) -> f32 { return select(t.b * 1024.0, t.r, t.r < 65000.0); }
+
 fn waterNoise(p : vec2f) -> f32 {
     let i = floor(p);
     var f = fract(p);
@@ -1144,8 +1149,8 @@ fn waterReflect(p : vec3f, r : vec3f, eyeDist : f32) -> vec4f {
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { break; }
         var qDist = -dot(q, frame.camera.xyz);
         if (frame.camera.w > 0.5) { qDist = length(q - frame.camera.xyz); }
-        let scene = textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, uv, 0.0).rg;
-        let sceneDist = scene.r;
+        let scene = textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, uv, 0.0);
+        let sceneDist = sceneFar(scene);
         let edge = min(uv, vec2f(1.0) - uv);
         if (scene.g < 0.5 && sceneDist < qDist && qDist - sceneDist < stride * 2.0 + qDist * 0.002) { return vec4f(textureSampleLevel(u_sceneColor, u_sceneColor_s, uv, 0.0).rgb, smoothstep(0.0, 0.08, min(edge.x, edge.y))); }
         stride = stride * 1.25;
@@ -1293,7 +1298,7 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, px : vec4f, amp : f32, calm :
     // This device's rows run down the texture, so clip y is flipped on the way to a uv.
     let uv0 = vec2f(clip0.x / w0 * 0.5 + 0.5, 0.5 - clip0.y / w0 * 0.5);
     var behindDist = waterDist + mc.u_fallbackDepth;
-    if (haveDepth) { behindDist = textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, clamp(uv0, vec2f(0.001), vec2f(0.999)), 0.0).r; }
+    if (haveDepth) { behindDist = sceneFar(textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, clamp(uv0, vec2f(0.001), vec2f(0.999)), 0.0)); }
     let column0 = max(behindDist - waterDist, 0.0);
 
     var ratio = 1.0 / 1.333;
@@ -1310,7 +1315,7 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, px : vec4f, amp : f32, calm :
     if (haveColor) {
         uv1 = clamp(uv1, vec2f(0.001), vec2f(0.999));
         var dist1 = behindDist;
-        if (haveDepth) { dist1 = textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, uv1, 0.0).r; }
+        if (haveDepth) { dist1 = sceneFar(textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, uv1, 0.0)); }
         if (dist1 < waterDist) { uv1 = clamp(uv0, vec2f(0.001), vec2f(0.999)); dist1 = behindDist; }
         behind = textureSampleLevel(u_sceneColor, u_sceneColor_s, uv1, 0.0).rgb;
         column = max(dist1 - waterDist, 0.0);

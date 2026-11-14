@@ -64,7 +64,9 @@ const GLSL_SURFACE = `    float groundFade = 1.0;
         vec4 onScreen = u_projection * vec4(W, 1.0);
         vec2 groundUv = clamp(onScreen.xy / max(onScreen.w, 1e-4) * 0.5 + 0.5, vec2(0.001), vec2(0.999));
         highp float own = u_camera.w > 0.5 ? length(W - u_camera.xyz) : -dot(W, u_camera.xyz);
-        highp float along = texture(u_sceneDepthMap, groundUv).r - own;
+        // r while a 16-bit float holds the distance, b (the same in units of 1024) past that.
+        highp vec4 behindAt = texture(u_sceneDepthMap, groundUv);
+        highp float along = (behindAt.r < 65000.0 ? behindAt.r : behindAt.b * 1024.0) - own;
         // Height above what is behind, which is the ray's fall: it does not change as the camera tilts. Past a dozen times the
         // band along the ray, what is behind is some other surface beyond, however level with this one it happens to be.
         highp float above = abs(viewDirection(W).y) * max(along, 0.0);
@@ -111,7 +113,8 @@ const WGSL_SURFACE = `#ifdef MESH_NORMALS
         let groundUv = clamp(vec2f(onScreen.x / screenW * 0.5 + 0.5, 0.5 - onScreen.y / screenW * 0.5), vec2f(0.001), vec2f(0.999));
         var own = -dot(W, frame.camera.xyz);
         if (frame.camera.w > 0.5) { own = length(W - frame.camera.xyz); }
-        let along = textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, groundUv, 0.0).r - own;
+        let behindAt = textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, groundUv, 0.0);
+        let along = select(behindAt.b * 1024.0, behindAt.r, behindAt.r < 65000.0) - own;
         let above = abs(viewDirection(W).y) * max(along, 0.0);
         let reach = max(mc.u_blendDistance, mc.u_layerReach);
         let near = 1.0 - smoothstep(8.0, 12.0, along / max(reach, 1e-3));

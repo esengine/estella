@@ -339,11 +339,14 @@ void main() {
 
 
 
+
+
     ivec2 depthSize = textureSize(u_sceneDepth, 0);
     float rawDepth = texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(depthSize)), ivec2(0), depthSize - ivec2(1)), 0).r;
     vec3 scenePoint = worldFromDepth(v_texCoord, rawDepth);
     float eyeDistance = u_camera.w > 0.5 ? length(scenePoint - u_camera.xyz) : -dot(scenePoint, u_camera.xyz);
-    fragColor = vec4(rawDepth >= 1.0 ? 65504.0 : eyeDistance, rawDepth >= 1.0 ? 1.0 : 0.0, 0.0, 0.5);
+    bool sky = rawDepth >= 1.0;
+    fragColor = vec4(sky ? 65504.0 : min(eyeDistance, 65504.0), sky ? 1.0 : 0.0, sky ? 65504.0 : min(eyeDistance / 1024.0, 65504.0), 0.5);
     return;
 #endif
 #ifdef ES_UPSCALE
@@ -454,7 +457,8 @@ fn displayLookup(c : vec3f) -> vec3f {
     let scenePoint = worldFromDepth(v.v_texCoord, rawDepth);
     var eyeDistance = -dot(scenePoint, frame.camera.xyz);
     if (frame.camera.w > 0.5) { eyeDistance = length(scenePoint - frame.camera.xyz); }
-    return vec4f(select(eyeDistance, 65504.0, rawDepth >= 1.0), select(0.0, 1.0, rawDepth >= 1.0), 0.0, 0.5);
+    let sky = rawDepth >= 1.0;
+    return vec4f(select(min(eyeDistance, 65504.0), 65504.0, sky), select(0.0, 1.0, sky), select(min(eyeDistance / 1024.0, 65504.0), 65504.0, sky), 0.5);
 #endif
 #ifdef ES_UPSCALE
     var c = upscale(v.v_texCoord);
