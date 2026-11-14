@@ -51,6 +51,14 @@ const WALL = argv.includes('--wall');
 // without a change stamp (World.setChangeAudit) - the census of what a consumer of changes would not see.
 const AUDIT = argv.includes('--audit');
 const NO_EXPORT = argv.includes('--no-export');
+/**
+ * --gpu: the GPU time of each render-graph pass, the mean over 30 frames the device answered for. The loop is paused and frames
+ * stepped one at a time; the engine's timer reads back the frames it can (render.gpuTimer.read). A pass a frame did not run (a
+ * shadow map it kept) cost that frame nothing, so the mean is over every frame read.
+ */
+const GPU = argv.includes('--gpu') || argv.includes('--gpu-detail');
+/** --gpu-detail: the scene pass split by shader as well (pass/scene/<shader>), which costs a query per shader change. */
+const GPU_DETAIL = argv.includes('--gpu-detail');
 const ONLY = flag('only', '') ? new Set(flag('only', '').split(',')) : null;
 /** A png of the last measured frame, to compare two builds' pictures. */
 const SHOT = flag('shot', '');
@@ -195,6 +203,30 @@ async function measure(browser, dir) {
       const costs = wall ? { systems: [] } : c.costs();
       return { ms, scopes, counters: wall ? {} : c.render(), systems: costs.systems, gl };
     }, { frames: FRAMES, samples: SAMPLES, profile: PROFILE, wall: WALL });
+    let gpu = null;
+    if (GPU) {
+      const frames = await page.evaluate(async (detail) => {
+        const c = window.__estellaCooked;
+        if (!c.gpu) throw new Error('this package cannot read GPU times (no gpu()): re-export it');
+        c.setPaused?.(true);
+        c.gpu();
+        const out = [];
+        let read = -1;
+        for (let i = 0; i < 1500 && out.length < 30; i++) {
+          await c.step(1, 1 / 60);
+          await new Promise((r) => setTimeout(r, 30));
+          const times = c.gpu(detail);
+          const now = c.render()['render.gpuTimer.read'] ?? 0;
+          // A frame the device has answered for since the last look; the first answers carry the warm-up and are passed over.
+          if (now !== read && now > 3 && Object.keys(times).some((k) => k.startsWith('pass/'))) out.push(times);
+          read = now;
+        }
+        c.setPaused?.(false);
+        return out;
+      }, GPU_DETAIL);
+      const names = [...new Set(frames.flatMap((f) => Object.keys(f)))];
+      gpu = { frames: frames.length, mean: Object.fromEntries(names.map((k) => [k, frames.reduce((s, f) => s + (f[k] ?? 0), 0) / Math.max(frames.length, 1)])) };
+    }
     let profile = null;
     if (cdp) {
       await cdp.send('Profiler.start');
@@ -206,7 +238,7 @@ async function measure(browser, dir) {
     const native = {};
     for (const k of keys) native[k] = median(result.scopes.map((s) => s?.[k] ?? 0));
     return { ms: median(result.ms), native, counters: result.counters, systems: result.systems, settled, errors, profile, gl: result.gl,
-             audit: AUDIT ? { total: auditTotal, lines: audit } : null };
+             audit: AUDIT ? { total: auditTotal, lines: audit } : null, gpu };
   } finally {
     await context.close();
     await new Promise((r) => server.close(r));
@@ -261,7 +293,11 @@ try {
     const r = await measure(browser, dir);
     const n = r.native, c = r.counters;
     const renderCpu = (n['render.collect'] ?? 0) + (n['render.finalize'] ?? 0) + (n['render.submit'] ?? 0) + (n['render.graph'] ?? 0);
-    table[spread] = { ms: r.ms, renderCpu, native: n, counters: c, settled: r.settled, errors: r.errors, gl: r.gl, audit: r.audit };
+    table[spread] = { ms: r.ms, renderCpu, native: n, counters: c, settled: r.settled, errors: r.errors, gl: r.gl, audit: r.audit, gpu: r.gpu };
+    if (r.gpu) {
+      console.log(`         gpu over ${r.gpu.frames} frames (mean ms; a pass a frame did not run counts 0):`);
+      for (const [k, v] of Object.entries(r.gpu.mean).sort((a, b) => b[1] - a[1])) if (v >= 0.05) console.log(`           ${k.padEnd(36)} ${v.toFixed(2)}`);
+    }
     console.log(`${spread.padEnd(8)} frame ${r.ms.toFixed(2)} ms   collect ${(n['render.collect'] ?? 0).toFixed(2)}  finalize ${(n['render.finalize'] ?? 0).toFixed(2)}  submit ${(n['render.submit'] ?? 0).toFixed(2)}  graph ${(n['render.graph'] ?? 0).toFixed(2)}  -> render CPU ${renderCpu.toFixed(2)} ms   draws ${c['batch.draws'] ?? '?'} (gpu ${c['render.gpu.draws'] ?? '?'}, merged ${c['batch.merged'] ?? '?'}, shadow ${c['render.shadow.draws'] ?? '?'})  tris ${((c['render.triangles'] ?? 0) / 1e6).toFixed(2)}M  settled ${r.settled}${r.errors.length ? '  ERRORS ' + r.errors[0] : ''}`);
     const breaks = Object.entries(c).filter(([k]) => k.startsWith('batch.break.')).map(([k, v]) => `${k.slice(12)}=${v}`).join(' ');
     if (breaks) console.log(`         merge breaks: ${breaks}`);

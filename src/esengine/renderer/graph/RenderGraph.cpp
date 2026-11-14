@@ -62,12 +62,14 @@ void PassTimer::beginFrame() {
     if (state_ != 1) return;
     if (device_.timerDisjoint()) {
         // Timing was disturbed: what is in flight is meaningless.
+        ++framesDisjoint_;
         for (Frame& f : frames_) f.inflight = false;
     }
     for (u32 i = 0; i < kFrames; ++i) {
         Frame& f = frames_[i];
         if (!f.inflight || !poll(f)) continue;
         f.inflight = false;
+        ++framesRead_;
         if (frameNo_[i] <= lastNo_) continue;  // an older frame finishing after a newer one: skip
         lastNo_ = frameNo_[i];
         last_.clear();
@@ -81,20 +83,33 @@ void PassTimer::beginFrame() {
             if (!merged) last_.push_back({slot.name, slot.ms});
         }
     }
-    cur_ = (cur_ + 1) % kFrames;
+    ++counter_;
+    // Every slot still waiting on the device: this frame is not timed, and the device answers for the ones it has. Overwriting
+    // the oldest instead, a renderer that hands the device frames faster than it finishes them (a GPU-bound game, a page with no
+    // frame cap) dropped every frame before its answer came, and read the first frame's times for as long as it ran. A slot the
+    // device has not answered in a long while is given up on, so a lost query does not stop the timer.
+    const u32 next = (cur_ + 1) % kFrames;
+    if (frames_[next].inflight && counter_ - frameNo_[next] < kGiveUpFrames) {
+        timing_ = false;
+        ++framesSkipped_;
+        return;
+    }
+    if (frames_[next].inflight) ++framesDropped_;
+    cur_ = next;
     frames_[cur_].slots.clear();
-    frames_[cur_].inflight = false;  // a frame the GPU never answered is dropped, not waited for
-    frameNo_[cur_] = ++counter_;
+    frames_[cur_].inflight = false;
+    frameNo_[cur_] = counter_;
+    timing_ = true;
 }
 
 void PassTimer::endFrame() {
-    if (state_ != 1) return;
+    if (state_ != 1 || !timing_) return;
     end();
     frames_[cur_].inflight = !frames_[cur_].slots.empty();
 }
 
 void PassTimer::segment(const std::string& name) {
-    if (state_ != 1 || arming_ || !open_) return;
+    if (state_ != 1 || !timing_ || arming_ || !open_) return;
     const std::string label = pass_ + "/" + name;
     end();
     Frame& f = frames_[cur_];
@@ -110,7 +125,7 @@ void PassTimer::segment(const std::string& name) {
 }
 
 void PassTimer::begin(const std::string& name) {
-    if (state_ != 1) return;
+    if (state_ != 1 || !timing_) return;
     end();
     pass_ = name;
     Frame& f = frames_[cur_];

@@ -220,10 +220,27 @@ struct MockGfxDevice final : GfxDevice {
     }
     void discardReadback(ReadbackHandle) override { ++discardReadbackCalls; }
 
-    void beginTimerQuery(u32) override {}
-    void endTimerQuery() override {}
+    /// Timer queries, off unless a test turns them on: each span answers `timerLatency` frames (timerFrame) after it ended,
+    /// with timerNs.
+    bool timersWork = false;
+    u32 timerFrame = 0;
+    u32 timerLatency = 0;
+    u64 timerNs = 1'000'000;
+    std::vector<u32> timerEndedAt;
+    u32 timerOpen = 0;
+    void beginTimerQuery(u32 query) override { timerOpen = query; }
+    void endTimerQuery() override {
+        if (timerEndedAt.size() <= timerOpen) timerEndedAt.resize(timerOpen + 1, ~0u);
+        timerEndedAt[timerOpen] = timerFrame;
+    }
     bool timerDisjoint() override { return false; }
-    bool getTimerQueryNs(u32, u64*) override { return false; }
+    bool getTimerQueryNs(u32 query, u64* ns) override {
+        if (query >= timerEndedAt.size() || timerEndedAt[query] == ~0u || timerFrame < timerEndedAt[query] + timerLatency) {
+            return false;
+        }
+        if (ns) *ns = timerNs;
+        return true;
+    }
 
     void setWireframe(bool) override {}
     u32 getError() override { return 0; }
@@ -334,7 +351,7 @@ protected:
     void backendDeleteFramebuffer(u32) override { ++deleteFramebufferCalls; }
 
     // No GPU timing, like a bare backend.
-    bool backendCreateTimerQuery(u32) override { return false; }
+    bool backendCreateTimerQuery(u32) override { return timersWork; }
     u32 backendReadbackCount() const override { return 0; }
 };
 

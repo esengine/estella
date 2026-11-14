@@ -654,6 +654,34 @@ void RenderFrame::flush() {
 }
 
 void RenderFrame::endFrame() {
+    // The frame's GPU timing, closed over every graph it ran, before the device closes the frame.
+    if (gpu_frame_open_) {
+        gpu_frame_open_ = false;
+        if (gpu_frame_passes_ && pass_timer_) {
+            rg::PassTimer& passTimer = *pass_timer_;
+            passTimer.endFrame();
+            // Since the timer was made: frames read back, dropped before the device answered, and disturbed. A pass time that does
+            // not move while frames are drawn is explained by these.
+            ES_PROFILE_COUNTER("render.gpuTimer.read", passTimer.framesRead());
+            ES_PROFILE_COUNTER("render.gpuTimer.dropped", passTimer.framesDropped());
+            ES_PROFILE_COUNTER("render.gpuTimer.disjoint", passTimer.framesDisjoint());
+            ES_PROFILE_COUNTER("render.gpuTimer.skipped", passTimer.framesSkipped());
+            // The scope names are the passes' own, under pass/ so they cannot meet a scope of another kind; passes that share a
+            // name, in one graph or several, are one scope (PassTimer sums them).
+            for (const auto& e : passTimer.last()) {
+                pass_scope_names_.try_emplace(e.name, std::string("pass/") + e.name);
+                FrameProfiler::get().gpuScope(pass_scope_names_[e.name].c_str(), e.ms);
+            }
+            if (passTimer.lastTotalMs() >= 0.0f) {
+                pass_graph_ms_ = passTimer.lastTotalMs();
+                FrameProfiler::get().gpuScope("graph", pass_graph_ms_);
+            }
+        } else if (!gpu_frame_passes_) {
+            gpu_timer_.end(device_);
+            pass_graph_ms_ = -1.0f;
+            FrameProfiler::get().gpuScope("graph", gpu_timer_.lastMs());
+        }
+    }
     frame_capture_.endFrame();
     device_.endFrame();
     stats_.gpu_draws = device_.takeDraws();
@@ -949,30 +977,27 @@ void RenderFrame::end() {
             if (!pass_timer_) pass_timer_ = makeUnique<rg::PassTimer>(device_);
             if (pass_timer_->available()) passTimer = pass_timer_.get();
         }
-        if (passTimer) {
-            passTimer->beginFrame();
+        // A frame runs a graph per camera and per chain, and is timed as one: opened by its first graph and closed in endFrame().
+        // Timed a graph at a time, a frame of eight graphs went through a timer that keeps four in flight before the device had
+        // answered for any, every one was dropped, and the times read were the first frame's for as long as the game ran.
+        if (!gpu_frame_open_) {
+            gpu_frame_open_ = true;
+            gpu_frame_passes_ = passTimer != nullptr;
+            if (passTimer) {
+                passTimer->beginFrame();
+            } else {
+                gpu_timer_.poll(device_);
+                gpu_timer_.begin(device_);
+            }
+        }
+        if (gpu_frame_passes_ && passTimer) {
             graph_.setPassTimer(passTimer);
             running_pass_timer_ = passTimer;
             graph_.execute();
             running_pass_timer_ = nullptr;
             graph_.setPassTimer(nullptr);
-            passTimer->endFrame();
-            // The scope names are the passes' own, under pass/ so they cannot meet a scope of another kind.
-            for (const auto& e : passTimer->last()) {
-                pass_scope_names_.try_emplace(e.name, std::string("pass/") + e.name);
-                FrameProfiler::get().gpuScope(pass_scope_names_[e.name].c_str(), e.ms);
-            }
-            if (passTimer->lastTotalMs() >= 0.0f) {
-                pass_graph_ms_ = passTimer->lastTotalMs();
-                FrameProfiler::get().gpuScope("graph", pass_graph_ms_);
-            }
         } else {
-            gpu_timer_.poll(device_);
-            gpu_timer_.begin(device_);
             graph_.execute();
-            gpu_timer_.end(device_);
-            pass_graph_ms_ = -1.0f;
-            FrameProfiler::get().gpuScope("graph", gpu_timer_.lastMs());
         }
     }
 #ifdef ES_ENABLE_GPU_PARTICLES

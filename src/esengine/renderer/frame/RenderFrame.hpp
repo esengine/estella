@@ -693,6 +693,9 @@ private:
     /// The profiler keeps a scope's name by pointer: "pass/<name>" per pass name, made once. Keyed by the timer's interned name.
     std::unordered_map<const char*, std::string> pass_scope_names_;
     f32 pass_graph_ms_ = -1.0f;
+    /// The frame's GPU timing is open (its first graph opened it; endFrame closes it), and whether by pass or as one span.
+    bool gpu_frame_open_ = false;
+    bool gpu_frame_passes_ = false;
     /// The graph's timer while it runs, so the scene's draws can be told to it a shader at a time (see drawScene).
     rg::PassTimer* running_pass_timer_ = nullptr;
     bool gpuDetailWanted() const;

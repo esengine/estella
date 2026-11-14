@@ -4898,4 +4898,6 @@ export const NOTED = {
     {"note": "An agent can shape ground as steps."},
   "fix(mcp): a river bends, a fall has a bowl, and a road with no material draws no band - used on a real land, the terrain tools cut a river as its points joined by straight runs (a valley with corners), ended a fall's headwall on a ruled line across the valley, and terrain_apply laid a RoadDecal with no material: a white band over the path the layers had painted. The ops text follows the kernel; a road's surface is built only when roadMaterial is given, and the reply says the roads are the ground's own otherwise":
     {"note": "An agent can shape ground as steps."},
+  "fix(render): GPU pass times keep coming when the device answers later than frames are drawn - the pass timer was opened and closed for every render graph, so a frame of several cameras and chains went through its four slots before the device answered for any, every timed frame was dropped, and the times read were the first frame's for as long as the game ran; a frame is now timed once across all its graphs, a frame that finds every slot still waiting is not timed instead of dropping the oldest, and render.gpuTimer.read / skipped / dropped / disjoint say how the timer is doing. The submit-cost harness takes --gpu and --gpu-detail":
+    {"note": "GPU pass times keep coming in a heavy scene."},
 };

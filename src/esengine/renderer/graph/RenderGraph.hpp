@@ -189,6 +189,14 @@ public:
     const std::vector<Entry>& last() const { return last_; }
     f32 lastTotalMs() const { return lastTotal_; }
 
+    /// Why last() is as old as it is: frames read back, frames dropped unanswered, and frames the device said were disturbed,
+    /// since the timer was made (render.gpuTimer.*).
+    u32 framesRead() const { return framesRead_; }
+    u32 framesDropped() const { return framesDropped_; }
+    u32 framesDisjoint() const { return framesDisjoint_; }
+    /// Frames not timed because every slot was still waiting on the device.
+    u32 framesSkipped() const { return framesSkipped_; }
+
 private:
     static constexpr u32 kFrames = 4;
     struct Slot {
@@ -203,6 +211,7 @@ private:
     };
 
     static constexpr u32 kMaxPasses = 512;
+    u32 framesRead_ = 0, framesDropped_ = 0, framesDisjoint_ = 0, framesSkipped_ = 0;
     u32 queryFor(u32 frame, u32 index);
     bool poll(Frame& frame);
 
@@ -218,6 +227,9 @@ private:
     u32 counter_ = 0;
     u32 frameNo_[kFrames] = {0, 0, 0, 0};
     u32 lastNo_ = 0;
+    /// Whether this frame is timed (see beginFrame), and how long a slot may wait on the device before it is given up on.
+    bool timing_ = false;
+    static constexpr u32 kGiveUpFrames = 120;
     std::vector<Entry> last_;
     f32 lastTotal_ = -1.0f;
 };

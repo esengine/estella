@@ -543,6 +543,60 @@ int main() {
         CHECK((ran == std::vector<std::string>{"draw"}), "a compute pass whose output nothing reaches is dropped");
     }
 
+    // A pass that clears only its viewport hands the device that rect as the clear's region; one that does not, the whole target.
+    {
+        MockGfxDevice d;
+        rg::RenderGraph graph(d);
+        graph.begin(256, 256);
+        const auto atlas = graph.importTarget(FramebufferHandle{9}, 256, 256);
+        rg::PassDesc square = fullscreen("square", {}, atlas);
+        square.clear = square.clearDepth = true;
+        square.clearViewportOnly = true;
+        square.viewportX = 128;
+        square.viewportY = 64;
+        square.viewportW = 32;
+        square.viewportH = 32;
+        square.execute = [](const rg::PassContext&) {};
+        graph.addPass(std::move(square));
+        rg::PassDesc whole = fullscreen("whole", {}, atlas);
+        whole.clear = true;
+        whole.viewportW = 64;
+        whole.viewportH = 64;
+        whole.execute = [](const rg::PassContext&) {};
+        graph.addPass(std::move(whole));
+        graph.execute();
+        CHECK(d.passLog.size() == 2, "two passes");
+        CHECK(d.passLog.size() == 2 && d.passLog[0].clearX == 128 && d.passLog[0].clearY == 64 && d.passLog[0].clearW == 32
+                  && d.passLog[0].clearH == 32 && d.passLog[0].clearColor && d.passLog[0].clearDepth,
+              "a viewport-only clear is scoped to the viewport");
+        CHECK(d.passLog.size() == 2 && d.passLog[1].clearW == 0, "any other clear is the whole target's");
+    }
+
+    // A device that answers later than the timer has slots for still gets frames read: the frames between are not timed, rather
+    // than the oldest unanswered being overwritten (which, with answers always late, read nothing after the first frames).
+    {
+        MockGfxDevice d;
+        d.timersWork = true;
+        d.timerLatency = 6;
+        d.timerNs = 2'000'000;
+        rg::PassTimer timer(d);
+        CHECK(timer.available(), "a device that makes queries can time");
+        for (u32 f = 0; f < 60; ++f) {
+            d.timerFrame = f;
+            timer.beginFrame();
+            // Two graphs in one frame, as a frame of two cameras runs: both inside the one timed frame.
+            timer.begin("scene");
+            timer.begin("shadow");
+            timer.end();
+            timer.endFrame();
+        }
+        CHECK(timer.framesRead() >= 5, "frames are read back though every answer comes six frames late");
+        CHECK(timer.framesSkipped() > 0, "and the frames the slots could not hold are not timed");
+        CHECK(timer.framesDropped() == 0, "and none is dropped for want of a slot");
+        CHECK(timer.last().size() == 2 && timer.lastTotalMs() > 3.9f && timer.lastTotalMs() < 4.1f,
+              "the last frame read is both passes, two milliseconds each");
+    }
+
     std::printf(g_failures == 0 ? "\nALL PASS\n" : "\n%d FAILURE(S)\n", g_failures);
     return g_failures == 0 ? 0 : 1;
 }
