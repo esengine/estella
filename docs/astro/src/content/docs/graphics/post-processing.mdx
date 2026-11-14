@@ -101,6 +101,19 @@ Turn **Keep Background** up and the scene is cleared to the camera's colour agai
 
 **Clouds keep to the game's clock.** Where they are is what the wind has done so far, added up frame by frame, so a stronger wind or one that swings round carries them on from where they are, and a [Weather](/docs/graphics/weather/) can speed them up in the middle of a transition with nothing jumping. A paused game has a still sky, and the same steps make the same one. The fog's shafts read the same place. To bring a sky back from a save, store `skyClockState()` and hand it to `setSkyClockState()`.
 
+### Baked clouds
+
+**Baked Clouds** (`u_bakedClouds: 1`) is the low tier, for a phone or a mini-game. The clouds are marched for a 512 x 512 panorama of the
+dome instead of for every pixel, a sixteenth of it a frame, and each sky pixel reads its direction from it: the dome is new every sixteen
+frames, which drifting clouds kilometres up do not show. Until the panorama is full, and for a sky on a planet, the clouds are marched as usual.
+On Wilds at 3840 x 2160 the cloud pass took 5.96 ms marched and 3.5 ms baked, plus 0.07 ms for the strip; on either backend the two skies
+come out alike (the `sky-clouds-marched` and `sky-clouds-baked` render checks). The panorama is eight bits a channel and is read through a
+small blur, so the clouds are a little softer than marched.
+
+```ts
+world.insert(volume, PostProcessVolume, { effects: [{ type: 'skyAtmosphere', enabled: true, uniforms: { u_bakedClouds: 1 } }] });
+```
+
 ### Limits of the clouds
 
 - **Clouds are seen from below.** A camera above the cloud layer sees none of it, so a flight over the clouds has no cloud tops to show.

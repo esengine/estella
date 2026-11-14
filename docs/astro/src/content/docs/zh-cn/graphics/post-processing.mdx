@@ -89,6 +89,18 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 
 **云遵循游戏时钟。** 云的位置是风到目前为止累积的结果，逐帧相加，所以风变强或转向时，云从当前位置继续走；[天气](/docs/zh-cn/graphics/weather/)在过渡途中给云加速也不会跳变。游戏暂停时天空静止，相同的步进得到相同的天空。雾的光柱读取同一个位置。要从存档恢复天空，保存 `skyClockState()`，再传给 `setSkyClockState()`。
 
+### 烘焙云
+
+**Baked Clouds**（`u_bakedClouds: 1`）是低档位，面向手机和小游戏。云不再为每个像素步进，而是步进到一张 512 x 512 的天穹全景图里，
+每帧只画其中的十六分之一，天空像素按自己的方向去这张图里查：整片天穹每十六帧更新一遍，几公里高处缓慢漂移的云看不出这点延迟。
+全景图填满之前，以及天空在星球上时，云照常逐像素步进。在 Wilds 3840 x 2160 下，云这一趟逐像素步进 5.96 ms，烘焙后 3.5 ms，
+外加每帧画一条 0.07 ms；两个后端上两种天空的结果一致（渲染检查 `sky-clouds-marched` 和 `sky-clouds-baked`）。全景图每通道 8 位，
+读取时带一点模糊，所以云会比逐像素步进时稍软一些。
+
+```ts
+world.insert(volume, PostProcessVolume, { effects: [{ type: 'skyAtmosphere', enabled: true, uniforms: { u_bakedClouds: 1 } }] });
+```
+
 ### 云的限制
 
 - **云只能从下方看。** 相机在云层之上时看不到云，所以飞越云海时没有云顶可看。

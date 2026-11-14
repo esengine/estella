@@ -18,6 +18,7 @@ import { Material } from '../render/material';
 import { applyWeatherToEffects, currentWeather, currentWeatherDrive, WeatherDrive } from './weather';
 import { applyCloudsToFog } from './cloudShafts';
 import { applySkyClock } from './skyClock';
+import { applyCloudBake } from './cloudBake';
 import { applyRainSheltersToRain } from '../render/rainShelter';
 import { applyFogOfWarToFog } from '../render/fogOfWar';
 import { runtimeTextureHandle } from './runtimeTextures';
@@ -339,6 +340,7 @@ export function effectsAt(volumes: { data: PostProcessVolumeData; tx: VolumeTran
     const clock = currentTimeOfDay();
     if (clock) applyTimeToEffects(blended, clock, currentTimeDrive(), timeLightsApplied());
     applySkyClock(blended, weather && (currentWeatherDrive() & WeatherDrive.Wind) ? weather.wind : 1);
+    applyCloudBake(blended, { x, z }, volumeTextureResolver);
     applyCloudsToFog(blended);
     // A 2D rain is told where the ground under a roof is dry, by a mask drawn this frame.
     applyRainSheltersToRain(blended);

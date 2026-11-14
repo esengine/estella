@@ -521,10 +521,16 @@ registerEffect({
         { name: 'u_cloud2DriftX', label: 'Upper Layer Drift X', min: -1e8, max: 1e8, step: 0.01, defaultValue: 0, internal: true },
         { name: 'u_cloud2DriftZ', label: 'Upper Layer Drift Z', min: -1e8, max: 1e8, step: 0.01, defaultValue: 0, internal: true },
         { name: 'u_cloudEvolve', label: 'Cloud Evolve', min: 0, max: 1e8, step: 0.01, defaultValue: 0, internal: true },
+        // 1: the clouds are drawn into a panorama of the dome a sixteenth a frame and each sky pixel looks itself up in it, instead of every
+        // pixel marching the layer, for a phone or a mini-game: the dome is new every sixteen frames (cloudBake.ts, which has the cost measured).
+        { name: 'u_bakedClouds', label: 'Baked Clouds', min: 0, max: 1, step: 1, defaultValue: 0, neutralValue: 0 },
+        // Set each frame by cloudBake.ts: 1 once the panorama has been filled.
+        { name: 'u_cloudPanoramaOn', label: 'Cloud Panorama Ready', min: 0, max: 1, step: 1, defaultValue: 0, internal: true },
     ],
     textures: [
         { name: 'u_cloudMask', label: 'Cloud Mask (tileable coverage, linear, repeat)' },
         { name: 'u_cloudMask2', label: 'Cloud Mask 2 (a softer, higher layer)' },
+        { name: 'u_cloudPanorama', label: 'Baked Cloud Panorama', internal: true },
     ],
 });
 
