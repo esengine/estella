@@ -16,6 +16,7 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The installer is about 220 MB smaller: the large samples download when picked.** Bistro, Dusk Fort, Terrain Water and Cyber Rooftop were packed into every editor download; their entries now list from a few kilobytes, and creating a project from one fetches its files from the download mirror, checks their size and digest, and keeps them for next time. The other samples are still bundled.
 - **A meadow melts into the ground at the end of its draw distance.** A Foliage field thinned over the last 15% of its range with every blade whole, which across a valley read as a line; it now fades over the last third and the grass sinks as it goes.
 - **The editor can start in safe mode.** `--safe-mode` or `ESTELLA_SAFE_MODE=1` starts it with GPU acceleration off, drawing with WebGL2 and without restoring the last workspace; the window-crashed dialog offers it as Restart in Safe Mode.
 - **An install of mixed versions says so instead of crashing.** An update that could not replace the editor's program left its new data files beside the old program, and every start crashed the window; the editor now finds the mismatch, says so and quits.

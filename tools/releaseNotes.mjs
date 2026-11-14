@@ -4928,4 +4928,6 @@ export const NOTED = {
     {"note": "Opening a 3D scene no longer freezes the editor."},
   "perf(editor): the viewport compiles shaders in the background, so opening a 3D scene no longer holds the whole editor - the edit host turns on the engine's background compile (a draw whose program is still compiling is left out until it is ready) whatever the project's quality.asyncShaderCompile says, which is a shipped game's delivery choice and on desktop never reached the editor at all; every capture and automation wait now waits for the compiles through a 'shader compiles' work probe. Opening examples/bistro on Windows (ANGLE/D3D11): the page held 27.5 s in all, the longest single freeze 25.6 s waiting in glGetProgramiv; 2.2 s and 0.7 s with the engine's post-process and texture-decode changes beside it":
     {"note": "Opening a 3D scene no longer freezes the editor."},
+  "feat(launcher): the large sample projects are downloaded when picked instead of riding in every installer - Bistro, Dusk Fort, Terrain Water and Cyber Rooftop are packed to R2 under examples/ by their own digest, the installer keeps only their manifests, and creating a project from one fetches, verifies and keeps the files":
+    {"note": "The installer is about 220 MB smaller: the large samples download when picked."},
 };

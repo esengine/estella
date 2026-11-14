@@ -604,6 +604,9 @@ export interface TemplateEntry {
   description?: string;
   tag?: string;
   thumbnail?: string;
+  /** Present on a sample whose files are downloaded when it is picked: only its
+   *  manifest is on this machine. `bytes` is the archive's size when known. */
+  remote?: { name: string; bytes?: number };
 }
 
 // Per-machine / derived state that must never travel when a project directory
