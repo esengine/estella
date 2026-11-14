@@ -13,7 +13,7 @@ import {
 
 let store: string;
 beforeEach(() => { store = mkdtempSync(path.join(tmpdir(), 'es-ex-')); });
-afterEach(() => { rmSync(store, { recursive: true, force: true }); });
+afterEach(() => { rmSync(store, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
 
 const zip = makeZip([
   { name: 'project.esproject', data: Buffer.from('{"name":"bistro"}') },

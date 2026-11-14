@@ -5,11 +5,11 @@
  */
 export {
     applyLandEdits, describeLandOps, LAND_OPS, LAND_SOURCE_EXT, LandBuildError, landInWorldUnits, validateLandSource,
-    type LandEdit, type LandLayer, type LandMap, type LandOp, type LandStand, type LandSource, type LandStep, type LinePoint, type Point2, type SculptStroke, type Where,
+    type LandEdit, type LandLayer, type LandMap, type LandOp, type LandPlant, type LandStand, type LandSource, type LandStep, type LinePoint, type Point2, type SculptStroke, type Where,
 } from './landSource';
 export {
     bakeLand, landHeightAt, landNoise, landPictures,
-    type BakedLake, type BakedLand, type BakedRiver, type BakedRoad, type BakedStand, type StandPlace, type LandPicture, type LandReport,
+    type BakedLake, type BakedLand, type BakedRiver, type BakedGrove, type BakedRoad, type BakedStand, type StandPlace, type LandPicture, type LandReport,
 } from './landBake';
 export {
     gridStepFor, LAND_VIEWS, landProfile, probeLand, renderLandProfile, renderLandSheet,

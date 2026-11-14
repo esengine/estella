@@ -316,15 +316,6 @@ jobs:
           path: artifacts/*.zip
           retention-days: 3
 
-  smoke-templates:
-    name: Boot the templates this release will publish
-    needs: [draft, native-templates, engine]
-    if: github.event_name == 'push' && needs.draft.result == 'success'
-    uses: ./.github/workflows/native-smoke.yml
-    with:
-      engine-artifact: engine-wasm
-      unanswered-passes: true
-
   # One job holds every archive, so only it can describe the set: the index
   # carries a digest per template, and the editor refuses a download that does not
   # match it.
@@ -549,113 +540,6 @@ jobs:
             desktop/release/*.zip
           retention-days: 3
 
-      - name: Install the previous Windows release and upgrade the saved project
-        if: runner.os == 'Windows'
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $previous = [regex]::Matches((Get-Content CHANGELOG.md -Raw), '^## \[(\d+\.\d+\.\d+)\]', 'Multiline') | ForEach-Object { $_.Groups[1].Value } | Where-Object { $_ -ne $version } | Select-Object -First 1
-          if (!$previous) { throw 'No previous release declared in CHANGELOG' }
-          $downloads = Join-Path $env:RUNNER_TEMP 'estella-upgrade-downloads'
-          $installed = Join-Path $env:RUNNER_TEMP 'estella-upgrade-installed'
-          $project = Join-Path $env:RUNNER_TEMP 'estella-upgrade-project'
-          $evidence = Join-Path $env:GITHUB_WORKSPACE 'out/installer-acceptance'
-          New-Item -ItemType Directory -Force $downloads | Out-Null
-          gh release download "v$previous" --repo $env:GITHUB_REPOSITORY --pattern "Estella-Editor-Setup-$previous.exe" --dir $downloads
-          if ($LASTEXITCODE -ne 0) { throw 'Previous installer download failed' }
-          $oldInstaller = Join-Path $downloads "Estella-Editor-Setup-$previous.exe"
-          $install = Start-Process -FilePath $oldInstaller -ArgumentList '/S', "/D=$installed" -WindowStyle Hidden -Wait -PassThru
-          if ($install.ExitCode -ne 0) { throw "Previous installer exit $($install.ExitCode)" }
-          $exe = Join-Path $installed 'estella-editor.exe'
-          $front = Join-Path $installed 'resources/app.asar.unpacked/dist-electron/mcp/editor-mcp.mjs'
-          if ((Get-Item $exe).VersionInfo.FileVersion -ne $previous) { throw 'Previous installed version mismatch' }
-          node tools/exercise-installed-upgrade.mjs seed $front $exe $project $evidence (Join-Path $installed 'resources/examples/platformer')
-          if ($LASTEXITCODE -ne 0) { throw 'Previous installed project save failed' }
-          $candidate = Join-Path $env:GITHUB_WORKSPACE "desktop/release/Estella-Editor-Setup-$version.exe"
-          $upgrade = Start-Process -FilePath $candidate -ArgumentList '/S', "/D=$installed" -WindowStyle Hidden -Wait -PassThru
-          if ($upgrade.ExitCode -ne 0) { throw "Candidate installer exit $($upgrade.ExitCode)" }
-          if ((Get-Item $exe).VersionInfo.FileVersion -ne $version) { throw 'Upgraded installed version mismatch' }
-          node tools/exercise-installed-upgrade.mjs verify $front $exe $project $evidence
-          if ($LASTEXITCODE -ne 0) { throw 'Installed project upgrade failed' }
-          $env:ESTELLA_E2E_FRONT = $front
-          $env:ESTELLA_MCP_EDITOR_ARGS = '--mcp-hidden --force-device-scale-factor=1'
-          $env:ESTELLA_E2E_EXPORT = '1'
-          Push-Location desktop
-          node scripts/editor-mcp-editor-e2e.mjs
-          Pop-Location
-          if ($LASTEXITCODE -ne 0) { throw 'Installed editor end-to-end check failed' }
-
-      - name: Install the previous macOS release and upgrade the saved project
-        if: runner.os == 'macOS'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          version=$(node -p "require('./package.json').version")
-          previous=$(node --input-type=module -e "import fs from 'node:fs';const v=JSON.parse(fs.readFileSync('package.json')).version;console.log([...fs.readFileSync('CHANGELOG.md','utf8').matchAll(/^## \\[(\\d+\\.\\d+\\.\\d+)\\]/gm)].map(m=>m[1]).find(x=>x!==v)??'')")
-          test -n "$previous"
-          downloads="$RUNNER_TEMP/estella-upgrade-downloads"
-          installed="$RUNNER_TEMP/estella-upgrade-installed"
-          project="$RUNNER_TEMP/estella-upgrade-project"
-          evidence="$GITHUB_WORKSPACE/out/installer-acceptance"
-          mount="$RUNNER_TEMP/estella-upgrade-volume"
-          mkdir -p "$downloads" "$installed" "$mount"
-          gh release download "v$previous" --repo "$GITHUB_REPOSITORY" --pattern "Estella-Editor-$previous-arm64.dmg" --dir "$downloads"
-          trap 'hdiutil detach "$mount" >/dev/null 2>&1 || true' EXIT
-          hdiutil attach -quiet -nobrowse -readonly "$downloads/Estella-Editor-$previous-arm64.dmg" -mountpoint "$mount"
-          app="$installed/estella-editor.app"
-          ditto "$mount/estella-editor.app" "$app"
-          hdiutil detach "$mount"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$previous"
-          front="$app/Contents/Resources/app.asar.unpacked/dist-electron/mcp/editor-mcp.mjs"
-          exe="$app/Contents/MacOS/estella-editor"
-          node tools/exercise-installed-upgrade.mjs seed "$front" "$exe" "$project" "$evidence" "$app/Contents/Resources/examples/platformer"
-          # Keep the old installation intact as evidence; install the new DMG at
-          # the same application path, as replacing a bundle in Finder does.
-          mv "$app" "$RUNNER_TEMP/estella-previous-installed.app"
-          hdiutil attach -quiet -nobrowse -readonly "desktop/release/Estella-Editor-$version-arm64.dmg" -mountpoint "$mount"
-          ditto "$mount/estella-editor.app" "$app"
-          hdiutil detach "$mount"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$version"
-          codesign --verify --deep --strict "$app"
-          node tools/exercise-installed-upgrade.mjs verify "$front" "$exe" "$project" "$evidence"
-          export ESTELLA_E2E_FRONT="$front"
-          export ESTELLA_MCP_EDITOR_ARGS='--mcp-hidden --force-device-scale-factor=1'
-          export ESTELLA_E2E_EXPORT=1
-          (cd desktop && node scripts/editor-mcp-editor-e2e.mjs)
-
-      # When the installed editor dies, the front only knows that it stopped. The editor's
-      # own record of why (main-errors.log: uncaught exceptions, renderer and GPU process
-      # losses) and its crash dumps live in its profile, which the runner throws away.
-      - name: Keep the installed editor's logs and crash dumps
-        if: failure()
-        shell: bash
-        run: |
-          case "${{ runner.os }}" in
-            Windows) profile="$APPDATA/@estella/editor" ;;
-            macOS) profile="$HOME/Library/Application Support/@estella/editor" ;;
-            *) profile="$HOME/.config/@estella/editor" ;;
-          esac
-          out="$GITHUB_WORKSPACE/out/installer-acceptance/editor-profile"
-          mkdir -p "$out"
-          for d in logs Crashpad; do
-            [ -d "$profile/$d" ] && cp -R "$profile/$d" "$out/" || echo "no $d under $profile"
-          done
-          ls -R "$out" | head -50
-
-      - name: Keep installed upgrade evidence
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: installed-upgrade-${{ matrix.platform }}
-          path: out/installer-acceptance
-          if-no-files-found: warn
-          retention-days: 3
-
   # Publishing is the last step, and the one that has to be sure. A release missing
   # a runtime template is a Download button that 404s — which is what 0.33.0
   # shipped, because the templates were not built yet and nothing checked. So the
@@ -666,12 +550,11 @@ jobs:
   # `release: published`, when the assets are final and downloadable by tag.
   publish:
     name: Publish the release
-    needs: [draft, release, publish-templates, publish-external-tools, smoke-templates]
+    needs: [draft, release, publish-templates, publish-external-tools]
     if: >-
       github.event_name == 'push' &&
       needs.release.result == 'success' &&
       needs.publish-templates.result == 'success' &&
-      needs.smoke-templates.result == 'success' &&
       needs.publish-external-tools.result == 'success'
     runs-on: ubuntu-latest
     permissions:

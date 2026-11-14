@@ -1958,6 +1958,20 @@ u32 GLDevice::maxSamples() {
 // Readback (async seam; GL resolves at request time)
 // =============================================================================
 
+ReadbackHandle GLDevice::captureNextFrame(u32 w, u32 h) {
+    if (!isDeviceUsable()) return ReadbackHandle::Invalid;
+    if (w == 0 || h == 0) return ReadbackHandle::Invalid;
+    Readback readback;
+    readback.size = static_cast<usize>(w) * h * 4;
+    readback.pixels.resize(readback.size);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    auto gl = toGLPixelFormat(GfxPixelFormat::RGBA8);
+    glReadPixels(0, 0, static_cast<GLsizei>(w), static_cast<GLsizei>(h), gl.format, gl.type, readback.pixels.data());
+    const u32 id = next_readback_id_++;
+    readbacks_[id] = std::move(readback);
+    return static_cast<ReadbackHandle>(id);
+}
+
 ReadbackHandle GLDevice::requestReadback(FramebufferHandle target, u32 w, u32 h) {
     if (!isDeviceUsable()) return ReadbackHandle::Invalid;
     if (w == 0 || h == 0) return ReadbackHandle::Invalid;

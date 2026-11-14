@@ -4980,4 +4980,46 @@ export const NOTED = {
     {"internal": "What the editor writes when it opens these examples, committed; nothing a creator runs changes."},
   "feat(mcp): view_from stands the eye a height above the ground - a guessed y put the eye inside a hill as often as not: above (and toAbove) take the ground under the place, waited for where a scene has just opened, so from may be [x, z]; the answer says the ground under the eye, warns when the eye is under it, and says when seeing far has cut the foreground away":
     {"note": "An agent can look at a scene from a place."},
+  "fix(ci): the five gates the stale generated file hid are green - a WGSL literal past MSVC's 16380-byte cap is split where a function ends (the source joined is the same), WindWake.radius and the two wind components say what they are to the gizmo and corpus checks, a test's temp directory is removed with retries, and the published API inventory names the render-target capture":
+    {"internal": "Gates and a split literal; the shader the engine assembles is the same and nothing a creator runs changes."},
+  "ci: work lands on develop and reaches master through a pull request - Build runs on develop pushes and on pull requests into master, and its Build passed job, which needs every other, is the one check master's protection requires; AGENTS.md says so for every agent":
+    {"internal": "How the repository takes changes; nothing a creator runs changes."},
+  "feat(terrain): a land source says what grows on it - plants: each kind a field as thick as one of the land's maps, grass from a blade or a model's mesh with the picture its colours were baked to, a count to a cell, how far it is drawn whole and at all, and how much of the land's tints it takes. Its lengths follow the source's unit; a plant with no such map, no shape or no count is refused by name":
+    {"note": "A land grows its grass, flowers and trees."},
+  "feat(terrain): a land grows plants - terrain_apply makes a Foliage for each of a land source's plants, over the whole land, as thick as the map it names and tinted by the land's wash: grass from a blade, anything else from a model's mesh, with a Foliage material written for a mesh whose colours are in a picture. The scene guide says how to plant a land, and that one with nothing growing is not ready to be judged":
+    {"note": "A land grows its grass, flowers and trees."},
+  "chore(release): the land's plants are classified for 0.105.0 - its Added headline joined the 0.105.0 section after the release commit, and check-golden wants every shipped headline to say what certifies it":
+    {"internal": "A release classification; nothing a creator runs changes."},
+  "ci: no pre-push hook - the release-note check it ran is the changelog-covers gate every pull request into master runs, so a push to develop no longer waits on it":
+    {"internal": "How the repository takes changes; nothing a creator runs changes."},
+  "feat(modeling): a tree is written with its leaves, and a land places its trees one by one - a model with leaf cards gets <name>_leaves.png beside it and a cut-out material; a land plant with lods becomes a kind of one PlacedFoliage, each tree choosing its detail by how far off it is; model_write and terrain_write say how a tree is grown and planted":
+    {"note": "A tree is grown in one step."},
+  "feat(modeling): the tree step grows a whole tree - a trunk that tapers and bends, limbs, twigs and a crown of leaf cards cut out by a sprig's picture, in five shapes and at three levels of detail from the same numbers; a land plant with lods is placed one by one where its map lets it stand, a grove the bake counts":
+    {"note": "A tree is grown in one step."},
+  "fix(modeling): a tree's leaves are lit as its crown - each card takes its light from the way out of its clump and of the whole crown, where its own flat face lit every card a different way and a crown read as patchwork; the sprig has more and smaller leaves, a clump more cards, the greens of neighbouring cards stand closer, and no card reaches the picture's solid corners":
+    {"note": "A tree is grown in one step."},
+  "feat(modeling): a tree's leaves let light through - a model with leaf cards is written with a material translucency of 0.6 unless its source gives one, and model_write says what `material.translucency` is for":
+    {"note": "A tree is grown in one step."},
+  "feat(modeling): a sprig is twigs with leaves along them, and a model material lets light through - the picture a tree's cards are cut out by is three twigs from one foot, leaves off each by turns and one at its tip, where a ring of leaves read as a pinwheel, and a card runs its twig out of its clump and across it with its leaves facing outward, no leaf past what the card shows; `material.translucency` (0..1) writes the Model shader's back light for what is thin":
+    {"note": "A tree is grown in one step."},
+  "docs(mcp): a tree's crown is tufts, and model_views shows it cut out - the tree guide says what the crown is made of and what to look for in the silhouette row":
+    {"note": "A tree is grown in one step."},
+  "feat(modeling): a tree's crown is tufts of leaves - each clump carries a few large cards spread evenly round it, facing out of it and overlapping, cut out by a tuft that is solid at its heart and leaves at its rim, where sprigs thrown about a clump read as litter; the model sheet cuts leaf cards out by their picture and lights them as the crown, so a tree can be judged before it is planted":
+    {"note": "A tree is grown in one step."},
+  "fix(render): a readback waits for the GPU as long as a blocking read did - WebGL2 reads now land behind a fence, which on CI's CPU rasterizer passed after the 15 s backstop on the heaviest scenes (mesh shadows, terrain occlusion, GPU particles, grass fade), so their captures came back empty; the backstop is 120 s, there only for a queue that never drains, since a lost device fails the poll itself":
+    {"note": "Opening a 3D scene no longer freezes the editor."},
+  "ci: the Android matrix wraps a template built from the PR when the PR changes the engine - the host carries src/esengine, so a released template refused every game's AOT module built against the PR's engine and the report showed every API as failing to boot; src/esengine also starts the matrix now":
+    {"internal": "Which binary a CI matrix tests; nothing a creator runs changes."},
+  "ci: a pull request runs the core and a merge runs the rest - the web build, C++ tests, static gates with the suites, engine-coupled tests and render verify gate a pull request (about 45 minutes against 90); editor authoring checks, the second backend, the desktop hosts, playables, golden packages, sanitizers and scale run on master once it merges; develop pushes no longer run Build twice for one commit, and the Android matrix runs by hand":
+    {"internal": "How the repository takes changes; nothing a creator runs changes."},
+  "ci: no Android or iOS checks - the emulator matrix, the device farm, the template boot smoke (native-smoke, which also held a release's publish) and the nightly Android criteria are gone; the Android and iOS templates are still built and published with each release":
+    {"internal": "Which checks CI runs; nothing a creator runs changes."},
+  "ci: no editor checks - the editor authoring shards, the nightly heavy editor checks, the three hand-run editor acceptance workflows, the release's installed-editor upgrade test and the legacy 2D gizmo verifier are gone; the navigation workshop's web check is a package script, and the readback backstop's comment fits the comment rule":
+    {"internal": "Which checks CI runs; nothing a creator runs changes."},
+  "fix(render): a frame capture on WebGL2 reads the canvas at once again - the fenced read cost CI's headless CPU rasterizer about 60% more per scene, so the pr render tier ran out of its 25 minutes with 98 scenes unrun and grass-fade, which captures several times, passed its 45 s; render targets (the camera preview) and the engine's own reads keep the fence":
+    {"note": "Opening a 3D scene no longer freezes the editor."},
+  "ci: the render verify runs in two shards, and grass-fade is not drawn on a software rasteriser - the pr tier on CI's SwiftShader had grown half as slow again per scene since the far-blade and wind-field foliage changes and ran out of its 25 minutes with 98 scenes unrun; verify-render takes --shard i/n, and grass-fade, whose GPU process died before it drew on every CI launch, says softwareGpu: false as terrain-virtual-texture and gi-room-voxel do":
+    {"internal": "How CI runs its render checks; nothing a creator runs changes."},
+  "chore(ci): grass-fade's software-rasteriser note is the commit's, not a comment that outgrew the rule":
+    {"internal": "A comment; nothing a creator runs changes."},
 };

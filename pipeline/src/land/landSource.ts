@@ -125,6 +125,41 @@ export interface LandStand {
     seed?: number;
 }
 
+/**
+ * What grows on the land, a kind at a time (grass, flowers, bushes, trees): a field as thick as one of the land's `maps` says, drawn a
+ * cell at a time (a Foliage). With a `mesh` it is that plant; without one it is grass of `blade` [height, width, lean?]. `count` stands in a
+ * `cell` where the map is white; `near` is how far it is drawn whole, `reach` how far at all; `wash` (0..1) how much of the land's tints it takes.
+ */
+export interface LandPlant {
+    name: string;
+    /** The name of one of the land's maps: where it grows, and how thick. */
+    map: string;
+    mesh?: string;
+    /**
+     * The same plant in fewer triangles, nearest first (one or two): what stands in for it past `near`, and what a wood a kilometre off
+     * is drawn from. With these the plants are placed one by one where the map lets them stand (a PlacedFoliage, each choosing its own
+     * detail by how far off it is) and keep their own vertex colours; without, a mesh is drawn in whole cells by a Foliage.
+     */
+    lods?: string[];
+    /** How far it is sunk in the ground, so it stands in a slope. */
+    sink?: number;
+    /** The picture a mesh's colours are in (a model's colour map). */
+    texture?: string;
+    /** A Foliage material of its own; without one a mesh with a texture gets one made for it. */
+    material?: string;
+    count: number;
+    cell?: number;
+    scale?: readonly [number, number];
+    blade?: readonly number[];
+    near?: number;
+    reach?: number;
+    wash?: number;
+    /** The least a place may face up (0..1) and still grow one: lower lets plants onto slopes. */
+    minUp?: number;
+    shadows?: boolean;
+    seed?: number;
+}
+
 export interface LandSource {
     version: 1;
     /**
@@ -146,6 +181,7 @@ export interface LandSource {
     maps?: LandMap[];
     tints?: LandTint[];
     stands?: LandStand[];
+    plants?: LandPlant[];
 }
 
 /** What each op does, in the words the tool's description gives. */
@@ -263,6 +299,17 @@ export function landInWorldUnits(source: LandSource): LandSource {
         ...(source.layers ? { layers: source.layers.map((layer) => ({ ...layer, ...(layer.where ? { where: whereInWorld(layer.where, k) } : {}) })) } : {}),
         ...(source.maps ? { maps: source.maps.map((map) => ({ ...map, ...(map.where ? { where: whereInWorld(map.where, k) } : {}) })) } : {}),
         ...(source.tints ? { tints: source.tints.map((tint) => ({ ...tint, ...(tint.where ? { where: whereInWorld(tint.where, k) } : {}) })) } : {}),
+        ...(source.plants ? {
+            plants: source.plants.map((plant) => ({
+                ...plant,
+                ...(plant.cell !== undefined ? { cell: scaled(plant.cell, k) } : {}),
+                ...(plant.near !== undefined ? { near: scaled(plant.near, k) } : {}),
+                ...(plant.reach !== undefined ? { reach: scaled(plant.reach, k) } : {}),
+                ...(plant.sink !== undefined ? { sink: scaled(plant.sink, k) } : {}),
+                // A blade is [height, width, lean]: its height and width are lengths, its lean a share of its height.
+                ...(plant.blade ? { blade: [scaled(plant.blade[0]!, k), scaled(plant.blade[1]!, k), ...plant.blade.slice(2)] } : {}),
+            })),
+        } : {}),
         ...(source.stands ? {
             stands: source.stands.map((stand) => ({
                 ...stand,
@@ -314,6 +361,15 @@ export function validateLandSource(raw: unknown): LandSource {
     for (const map of s.maps ?? []) {
         if (!map || typeof map.name !== 'string' || !/^[a-z][a-z0-9-]*$/.test(map.name)) throw new LandBuildError('every map has a name of lower-case letters, digits and dashes: it names a file');
     }
+    const grown = new Set<string>(), mapped = new Set((s.maps ?? []).map((m) => m.name));
+    for (const plant of s.plants ?? []) {
+        if (!plant || typeof plant.name !== 'string' || !/^[a-z][a-z0-9-]*$/.test(plant.name)) throw new LandBuildError('every plant has a name of lower-case letters, digits and dashes');
+        if (grown.has(plant.name)) throw new LandBuildError(`two plants are named "${plant.name}"`);
+        grown.add(plant.name);
+        if (typeof plant.map !== 'string' || !mapped.has(plant.map)) throw new LandBuildError(`plant "${plant.name}" grows by the map "${String(plant.map)}", which the land does not have: \`maps\` names ${[...mapped].join(', ') || 'none'}`);
+        if (!(Number(plant.count) > 0)) throw new LandBuildError(`plant "${plant.name}" wants a \`count\`: how many stand in a cell where its map is white`);
+        if (plant.mesh === undefined && !(Array.isArray(plant.blade) && plant.blade.length >= 2)) throw new LandBuildError(`plant "${plant.name}" is a \`mesh\` (a model), or grass of \`blade\`: [height, width, lean?]`);
+    }
     const stood = new Set<string>();
     for (const stand of s.stands ?? []) {
         if (!stand || typeof stand.name !== 'string' || !stand.name) throw new LandBuildError('every stand has a name');
@@ -331,7 +387,7 @@ export type LandEdit =
     | { op: 'set'; step: number | string; fields: Record<string, unknown> }
     | { op: 'insert'; step: LandStep; before?: number | string; after?: number | string }
     | { op: 'remove'; step: number | string }
-    | { op: 'settings'; fields: Partial<Pick<LandSource, 'size' | 'center' | 'resolution' | 'sea' | 'unit' | 'layers' | 'maps' | 'tints' | 'stands'>> };
+    | { op: 'settings'; fields: Partial<Pick<LandSource, 'size' | 'center' | 'resolution' | 'sea' | 'unit' | 'layers' | 'maps' | 'tints' | 'stands' | 'plants'>> };
 
 /** A source with edits applied, in order: what land_edit does. A step is named by its id or its index. */
 export function applyLandEdits(source: LandSource, edits: readonly LandEdit[]): LandSource {

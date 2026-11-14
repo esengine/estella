@@ -2384,7 +2384,9 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
                     roughness : f32, specular : f32, ao : f32) -> vec3f {
     return applyLightingSurface(albedo, N, worldPos, V, metallic, roughness, specular, ao, surfaceExtNone(N));
 }
-struct LightTerm { lit : vec3f, gloss : vec3f, extra : vec3f };
+)"
+// Split for MSVC's cap on one string literal, as above: the surface layers, then the lighting that reads them.
+R"(struct LightTerm { lit : vec3f, gloss : vec3f, extra : vec3f };
 // The layer of the sprite being lit, as its vertex wrote it (the layer plus 129; 0 when the surface has none to test), and whether a light's
 // range of layers, which rides in shadowMap.y above the tile count, takes it in. See packLightLayerRange.
 var<private> g_surfaceLayer : f32 = 0.0;

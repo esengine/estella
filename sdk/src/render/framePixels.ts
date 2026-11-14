@@ -8,10 +8,10 @@
  *        managed on a wide-gamut machine, so a frame painting rgb(0,255,0) reads
  *        back as rgb(58,254,32) with nothing rendered wrong.
  *
- *        GL reads what is on the canvas now, into a buffer the GPU fills in its own
- *        time. WebGPU books the copy for the end of its own frame, so the caller has
- *        to let a frame happen: that is what `advance` is for. Either way the pixels
- *        arrive on a later event-loop turn, which the poll waits for.
+ *        GL reads what is on the canvas now, at once. WebGPU books the copy for the
+ *        end of its own frame, so the caller has to let a frame happen: that is what
+ *        `advance` is for, and it is the whole difference between the backends. A
+ *        render target's read ({@link captureTargetPixels}) lands later on both.
  */
 import { awaitReadback, READBACK_READY } from './readback';
 import { withScratch } from '../wasm/wasmScratch';

@@ -118,6 +118,7 @@ const DISPOSITION = {
 
   // The component's own drawing is the picture; an outline round it would trace
   // what is already on screen.
+  'WindWake.radius': ['no-place', 'how far to each side of its path a moving body shoves the air: a band along where it has been, not a region round where it stands'],
   'MeshInstances.lodDistance': ['no-place', 'a distance from the eye, not a region of the entity'],
   'MeshInstances.minDistance': ['no-place', 'a distance from the eye, not a region of the entity'],
   'MeshInstances.drawDistance': ['no-place', 'a distance from the eye, not a region of the entity'],

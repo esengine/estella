@@ -87,6 +87,41 @@ describe('shaping ground', () => {
         expect(() => land([flat], { unit: 0 })).toThrow(/unit/);
     });
 
+    it('keeps what grows: a plant by one of its maps, its lengths in the unit of the source, and refuses one with no map or no shape', () => {
+        const maps = [{ name: 'meadow' }];
+        const l = land([flat], { unit: 100, size: [10, 10], maps, plants: [
+            { name: 'grass', map: 'meadow', blade: [0.3, 0.1, 0.6], count: 5000, cell: 16, near: 40, reach: 240, scale: [0.7, 1.3] },
+            { name: 'oaks', map: 'meadow', mesh: 'oak.esmesh', texture: 'oak_color.png', count: 6, cell: 40 },
+        ] });
+        // Heights, widths and distances are lengths; a lean, a count and a scale are not.
+        expect(l.source.plants![0]).toMatchObject({ blade: [30, 10, 0.6], count: 5000, cell: 1600, near: 4000, reach: 24000, scale: [0.7, 1.3] });
+        expect(l.source.plants![1]).toMatchObject({ mesh: 'oak.esmesh', count: 6, cell: 4000 });
+        expect(() => land([flat], { maps, plants: [{ name: 'x', map: 'forest', mesh: 'a.esmesh', count: 1 }] })).toThrow(/forest/);
+        expect(() => land([flat], { maps, plants: [{ name: 'x', map: 'meadow', count: 1 }] })).toThrow(/mesh|blade/);
+        expect(() => land([flat], { maps, plants: [{ name: 'x', map: 'meadow', mesh: 'a.esmesh', count: 0 }] })).toThrow(/count/);
+    });
+
+    it('places a plant with lods one by one: where its map is white, on the ground, the same every time', () => {
+        const maps = [{ name: 'wood' }];
+        const oaks = { name: 'oaks', map: 'wood', mesh: 'oak.esmesh', lods: ['oak1.esmesh', 'oak0.esmesh'], count: 2, cell: 100, scale: [0.8, 1.2] as const, sink: 5 };
+        const l = land([flat], { maps, plants: [oaks, { name: 'grass', map: 'wood', blade: [30, 10], count: 100 }] });
+        // Only the plant with lods is a grove; grass stays a field.
+        expect(l.groves.map((g) => g.plant)).toEqual(['oaks']);
+        const places = l.groves[0]!.places, count = places.length / 5;
+        expect(l.report.groves).toEqual([{ plant: 'oaks', count }]);
+        expect(count).toBeGreaterThan(40);
+        expect(count).toBeLessThanOrEqual(200);
+        for (let i = 0; i < places.length; i += 5) {
+            // Each is x, y, z, a turn and a size: inside the land, sunk by its size under the ground.
+            expect(Math.abs(places[i]!)).toBeLessThanOrEqual(500);
+            expect(places[i + 4]!).toBeGreaterThanOrEqual(0.8);
+            expect(places[i + 4]!).toBeLessThanOrEqual(1.2);
+            expect(places[i + 1]!).toBeCloseTo(10 - 5 * places[i + 4]!, 0);
+        }
+        expect(land([flat], { maps, plants: [oaks] }).groves[0]!.places).toEqual(places);
+        expect(land([flat], { maps, plants: [{ ...oaks, seed: 9 }] }).groves[0]!.places).not.toEqual(places);
+    });
+
     it('sets a plateau level, with a cliff of the width asked round it', () => {
         const l = land([flat, { op: 'plateau', at: [0, 0], radius: 200, height: 90, edge: 40 }]);
         expect(landHeightAt(l, 0, 0)).toBeCloseTo(90, 3);

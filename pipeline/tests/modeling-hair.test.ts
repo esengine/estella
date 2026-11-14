@@ -246,6 +246,11 @@ describe('see-through', () => {
     it('writes a cutout unblended, with its cutoff, both sides drawn', () => {
         const doc = modelMaterialDoc(validateModelSource({ steps: [plane], material: { alpha: 'cutout', cutoff: 0.3 } }), true, {})!;
         expect((doc.properties as Record<string, unknown>).u_alphaCutoff).toBe(0.3);
+        // Light through a thin thing is the material's to say, and nothing is written for one that says nothing.
+        expect((doc.properties as Record<string, unknown>).u_translucency).toBeUndefined();
+        const leaf = modelMaterialDoc(validateModelSource({ steps: [plane], material: { alpha: 'cutout', translucency: 0.6 } }), true, {})!;
+        expect((leaf.properties as Record<string, unknown>).u_translucency).toBe(0.6);
+        expect(() => validateModelSource({ steps: [plane], material: { translucency: 2 } })).toThrow(/translucency must be 0..1/);
         expect(doc.depthWrite).toBe(true);
         expect(doc.cull).toBe(modelMaterialDoc(validateModelSource({ steps: [plane], material: {} }), false, {})!.cull);
     });

@@ -16,9 +16,14 @@
 - Local verification must not launch the editor, Electron windows, or other visible
   apps. Use genuine headless browser and CLI checks; run editor acceptance in CI.
 
-- After completing appropriate verification, commit and push changes directly to
-  the main branch (currently master). Do not create pull requests unless the user
-  explicitly requests one.
+- After completing appropriate verification, commit and push changes to the
+  `develop` branch, in this repository and in the editor (`desktop/`, its own
+  repository) alike. Never commit or push to `master`: it is protected, and changes
+  reach it only through a pull request from `develop` that is merged once its
+  `Build passed` check is green. Merge with a merge commit, not a squash, so the
+  editor commits the submodule pointer names stay reachable.
+
+- Releases are tagged on `master` after the release commit has been merged there.
 
 - Routine roadmap work must not bump versions, create tags, or publish releases.
   Release actions require an explicit user request.

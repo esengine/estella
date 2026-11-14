@@ -37,6 +37,8 @@ const HOST_FILTER = flag('host', '');
 const ONLY = flag('only', '');
 const BACKEND = flag('backend', 'webgl2');
 const BUDGET = flag('budget', '');
+// One of n runners' share of the tier, every n-th scene from the i-th: `--shard 2/3`.
+const SHARD = flag('shard', '');
 const NO_BUILD = argv.includes('--no-build');
 if (argv.includes('--no-xvfb')) process.env.ESTELLA_NO_XVFB = '1';
 
@@ -60,6 +62,11 @@ if (HOST_FILTER && !['engine', 'editor'].includes(HOST_FILTER)) {
 }
 if (!['webgl2', 'webgpu'].includes(BACKEND)) {
   console.error(`verify-render: unknown backend "${BACKEND}" (have: webgl2, webgpu)`);
+  process.exit(2);
+}
+const shardMatch = /^(\d+)\/(\d+)$/.exec(SHARD);
+if (SHARD && !(shardMatch && Number(shardMatch[1]) >= 1 && Number(shardMatch[1]) <= Number(shardMatch[2]))) {
+  console.error(`verify-render: --shard takes i/n with 1 <= i <= n, not "${SHARD}"`);
   process.exit(2);
 }
 if (BUDGET && !(Number(BUDGET) > 0)) {
@@ -86,9 +93,13 @@ const LAUNCH_MARGIN_MS = 30_000;
 const softwareGpu = process.platform === 'linux' && Boolean(process.env.CI);
 const tierScenes = scenesAtTier(TIER);
 const needsGpu = BACKEND === 'webgl2' && softwareGpu ? tierScenes.filter((s) => s.softwareGpu === false) : [];
-const selected = only
+const shardOf = (list) => (shardMatch && !only
+  ? list.filter((_, i) => i % Number(shardMatch[2]) === Number(shardMatch[1]) - 1)
+  : list);
+const selected = shardOf(only
   ? SCENES.filter((s) => only.has(s.id))
-  : tierScenes.filter((s) => (BACKEND === 'webgpu' ? Boolean(s.webgpu) : !needsGpu.includes(s)));
+  : tierScenes.filter((s) => (BACKEND === 'webgpu' ? Boolean(s.webgpu) : !needsGpu.includes(s))));
+if (shardMatch && !only) console.log(`shard ${SHARD}: ${selected.length} scene(s)`);
 if (!only && needsGpu.length > 0) {
   console.log(`not run on this machine's software rasteriser: ${needsGpu.map((s) => s.id).join(', ')}`);
 }

@@ -52,8 +52,13 @@ export interface LandReport {
     layers: { name: string; cover: number }[];
     /** How many of each stand there are. */
     stands: { name: string; count: number }[];
+    /** How many of each plant that is placed one by one stand. */
+    groves: { plant: string; count: number }[];
     warnings: string[];
 }
+
+/** A kind of plant placed one by one: where each stands, five numbers a plant (x, y, z in the world, its turn in radians, its size). */
+export interface BakedGrove { plant: string; places: number[] }
 
 export interface StandPlace { model: number; x: number; y: number; z: number; scale: number; turn: number; lean: number; leanToward: number }
 export interface BakedStand { name: string; models: { mesh: string; material?: string; texture?: string }[]; collide: boolean; places: StandPlace[] }
@@ -75,6 +80,8 @@ export interface BakedLand {
     tint: Uint8Array | null;
     /** What stands on the land, each place in the world: where its foot is, which model, how large, turned (degrees about upright) and leant (a unit axis in the ground and degrees about it). */
     stands: BakedStand[];
+    /** The plants that are placed one by one (those with `lods`), a grove for each. */
+    groves: BakedGrove[];
     /** How far each sample (n * n) is from the nearest water's edge, road's edge, lake's shore and coast (inland positive), where there is one. */
     fields: { river: Float32Array | null; road: Float32Array | null; lake: Float32Array | null; coast: Float32Array | null };
     report: LandReport;
@@ -994,6 +1001,35 @@ export function bakeLand(raw: unknown, inputs?: Readonly<Record<string, LandPict
         (stand.at ?? []).forEach((p, at) => { if (p.length >= 2) put(p[0]!, p[1]!, 100000 + at, p[2], p[3]); });
         return { name: stand.name, models: stand.models.map((m) => ({ mesh: m.mesh, ...(m.material ? { material: m.material } : {}), ...(m.texture ? { texture: m.texture } : {}) })), collide: stand.collide !== false, places };
     });
+    // The plants placed one by one: `count` tries to a cell, each kept as often as its map is white there, on ground level enough to grow it.
+    const groves: BakedGrove[] = (source.plants ?? []).filter((plant) => plant.mesh && plant.lods?.length).map((plant) => {
+        const values = maps.find((map) => map.name === plant.map)?.values;
+        const places: number[] = [];
+        if (!values) return { plant: plant.name, places };
+        const seed = Math.round(plant.seed ?? 1) * 104729 + 71, cell = plant.cell ?? Math.max(g.sx, g.sz) / 256;
+        const [lo, hi] = plant.scale ?? [0.8, 1.25], sink = plant.sink ?? 0, leastUp = plant.minUp ?? 0.8;
+        const x0 = g.cx - g.sx / 2, z0 = g.cz - g.sz / 2, nx = Math.ceil(g.sx / cell), nz = Math.ceil(g.sz / cell);
+        const whole = Math.floor(plant.count), part = plant.count - whole;
+        for (let cz = 0; cz < nz; cz++) for (let cx = 0; cx < nx; cx++) {
+            const tries = whole + (hash(cx, cz, seed + 9) < part ? 1 : 0);
+            for (let t = 0; t < tries; t++) {
+                const key = (cz * nx + cx) * 31 + t;
+                const x = x0 + (cx + hash(key, 1, seed)) * cell, z = z0 + (cz + hash(key, 2, seed)) * cell;
+                if (x > g.cx + g.sx / 2 || z > g.cz + g.sz / 2) continue;
+                const i = clamp(Math.round((x - x0) / g.sx * (n - 1)), 0, n - 1), j = clamp(Math.round((z - z0) / g.sz * (n - 1)), 0, n - 1);
+                const weight = values[Math.min(j, m - 1) * m + Math.min(i, m - 1)]! / 255;
+                if (hash(key, 3, seed) >= weight) continue;
+                if (Math.cos(g.slope(i, j) * Math.PI / 180) < leastUp) continue;
+                const size = mix(lo, hi, hash(key, 4, seed));
+                places.push(+x.toFixed(1), +(g.at(x, z) - sink * size).toFixed(1), +z.toFixed(1), +(hash(key, 5, seed) * Math.PI * 2).toFixed(3), +size.toFixed(3));
+            }
+        }
+        return { plant: plant.name, places };
+    });
+    for (const grove of groves) {
+        if (grove.places.length === 0) out.warnings.push(`plant "${grove.plant}" stands nowhere: its map is black wherever the ground is level enough for it`);
+        if (grove.places.length / 5 > 120000) out.warnings.push(`plant "${grove.plant}" is ${grove.places.length / 5} plants placed one by one: past a hundred thousand, lower its \`count\` or widen its \`cell\``);
+    }
     for (const stand of stands) {
         if (stand.places.length === 0) out.warnings.push(`stand "${stand.name}" stands nowhere: its \`where\` matches no ground, or its \`clearings\` leave none`);
         if (stand.places.length > 4000) out.warnings.push(`stand "${stand.name}" is ${stand.places.length} models, each an entity of its own: past a few thousand, scatter them as a Foliage or a PlacedFoliage instead`);
@@ -1029,13 +1065,13 @@ export function bakeLand(raw: unknown, inputs?: Readonly<Record<string, LandPict
         }
     }
     return {
-        source, n, size: [source.size[0], source.size[1]], center: [center[0], center[1]], heights: g.h, m, weights, maps, tint, stands,
+        source, n, size: [source.size[0], source.size[1]], center: [center[0], center[1]], heights: g.h, m, weights, maps, tint, stands, groves,
         fields: { river: g.riverD, road: g.roadD, lake: g.lakeD, coast: g.coastD },
         report: {
             resolution: n, cell: +g.cellX.toFixed(3), min: +min.toFixed(2), max: +max.toFixed(2), sea: source.sea ?? null,
             slopes: { walkable: +(walk / dry).toFixed(3), steep: +(steep / dry).toFixed(3), cliff: +(cliff / dry).toFixed(3) },
             creased: +(creases / dry).toFixed(3),
-            steps, rivers: out.rivers, roads: out.roads, lakes: out.lakes, layers: cover, stands: stands.map((stand) => ({ name: stand.name, count: stand.places.length })), warnings: out.warnings,
+            steps, rivers: out.rivers, roads: out.roads, lakes: out.lakes, layers: cover, stands: stands.map((stand) => ({ name: stand.name, count: stand.places.length })), groves: groves.map((grove) => ({ plant: grove.plant, count: grove.places.length / 5 })), warnings: out.warnings,
         },
     };
 }

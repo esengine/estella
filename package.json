@@ -35,6 +35,7 @@
     "census:transform-writers": "node tools/census-transform-writers.mjs",
     "verify:transform-writers": "node tools/census-transform-writers.mjs --gate",
     "verify:render": "node tools/verify-render.mjs",
+    "verify:navigation-workshop": "node tools/verify-navigation-workshop.mjs",
     "test": "vitest run --config vitest.engine.config.ts",
     "verify:aot": "rm -rf .aot-verify && node pipeline/bin/estella.mjs export examples/ecs-basics --out .aot-verify && node tools/run-electron.mjs tools/launchers/headless-aot-verify.mjs .aot-verify",
     "verify:cooked": "node tools/with-env.mjs ESTELLA_COOK_FIXTURE=1 -- pnpm --filter @estella/pipeline exec vitest run tests/cooked-verify-fixture.test.ts && node tools/run-electron.mjs tools/launchers/headless-cooked-verify.mjs",

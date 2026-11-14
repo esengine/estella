@@ -127,6 +127,8 @@ const DISPOSITION = {
   ParticleCollider: ['owed', 'no example has a GPU emitter bouncing off a shape yet; the particle-gpu scenes are where the first one goes'],
   Waterfall: ['owed', 'no example has water falling off a lip yet; the terrain-and-water example, where a river meets a cliff, is where the first one goes'],
   Breakable: ['owed', 'no example scene breaks an object yet; a breakable crate in the physics-3d example is where the first one goes'],
+  WindWake: ['owed', 'no example scene moves a body through grass yet; the wilds meadow, with its character walking through it, is where the first one goes'],
+  WindBurst: ['owed', 'no example scene sets off a blast in a field of plants yet; the wilds meadow is where the first one goes'],
   Hitboxes: ['owed', 'no example scene authors a hitbox set yet; the first one goes in an example with melee combat'],
   WaterfallAnchor: ['owed', 'no example fixes a fall to a river yet; it goes with the first Waterfall in the terrain-and-water example'],
   GripProfile: ['owed', 'no example holds an object in its two hands yet; a character with a rifle is where the first one goes'],

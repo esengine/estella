@@ -76,6 +76,8 @@ export interface BakedModel {
     shards?: { center: Vec3; size: Vec3; volume: number; data: MeshData }[];
     /** Present on a fractured model: the pieces in their places as one mesh, each face saying which piece it is of. `poly` is the model before the cut, which is what is drawn; this is what it is cut into, to be looked at. */
     cut?: { poly: PolyMesh; triangles: { v: [number, number, number]; face: number }[] };
+    /** True where the model has leaf cards (the tree step): its faces read a sprig's picture, cut out by its alpha, which the caller writes beside it. */
+    leaves?: boolean;
     /** One triangle per entry: its three positions' indices, and the face it came from. */
     triangles: { v: [number, number, number]; face: number }[];
     /** Present where a source has a normalBake: what bakeNormalMap carries, onto a mesh already unwrapped and given tangents for it. */
@@ -125,7 +127,8 @@ export function cornerNormals(mesh: PolyMesh, smoothAngle: number): Vec3[][] {
         }
     });
     const areas = mesh.faces.map((f) => faceArea(mesh, f));
-    return mesh.faces.map((face, f) => face.v.map((v) => {
+    return mesh.faces.map((face, f) => face.v.map((v, corner) => {
+        if (face.cornerNormals) return face.cornerNormals[corner] as Vec3;
         if (smoothAngle <= 0 && !face.smooth) return normals[f]!;
         let sum: Vec3 = [0, 0, 0];
         for (const g of around.get(v)!) {
@@ -322,6 +325,7 @@ export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, ma
         cull: cullBackfaces && !material?.alpha ? CullMode.Back : CullMode.None,
         properties: {
             ...(material?.alpha === 'cutout' ? { u_alphaCutoff: material.cutoff ?? 0.5 } : {}),
+            ...(material?.translucency ? { u_translucency: material.translucency } : {}),
             ...(material?.emissive ? {
                 u_emissive: { r: material.emissive[0]!, g: material.emissive[1]!, b: material.emissive[2]!, a: 1 },
                 ...(maps.color ? { u_emissiveMap: maps.color } : {}),
@@ -489,6 +493,7 @@ export function bakeModel(raw: unknown): BakedModel {
         data: unwrapped,
         ...(rig ? { rig } : {}),
         ...(shapes ? { shapes } : {}),
+        ...(source.steps.some((s) => s.op === 'tree') && mesh.faces.some((f) => f.tag === 'leaf' && f.cornerUvs?.some((uv) => uv[0] > 0.05)) ? { leaves: true } : {}),
         ...(shards.length ? { shards, cut: { poly: cut, triangles: cut.faces.flatMap((f, face) => triangulateFace(cut, f).map((v) => ({ v, face }))) } } : {}),
         ...(cards ? { hair: { maps: hairMaps((source.steps.find((s) => s.op === 'hair')?.seed as number | undefined) ?? 1), ...(swing ? { chainRoots: swing.chainRoots } : {}) } } : {}),
         ...(bake && high ? { detail: { high, size, ...(bake.distance !== undefined ? { distance: bake.distance } : {}), smoothAngle: source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE, ...(lowColors ? { lowColors } : {}), ...(bake.occlusion ? { occlusion: typeof bake.occlusion === 'object' ? bake.occlusion : {} } : {}), ...(bake.surface ? { surface: { roughness: source.material?.roughness ?? 1, metallic: source.material?.metallic ?? 0 } } : {}) } } : {}),
