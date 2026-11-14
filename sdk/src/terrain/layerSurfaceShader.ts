@@ -148,6 +148,9 @@ TnSurface tnLayers(vec4 paintA, vec4 paintB, vec3 at, vec3 dpx, vec3 dpy, vec3 N
             else { wt.w = v; id.w = i; }
         }
     }
+    // Ground no layer here has a say in (paint that names only layers that are not packed yet, or none at all) is the first
+    // layer's: it is drawn as ground, where with no weight at all it was black.
+    if (sum <= 0.0) { wt = vec4(1.0, 0.0, 0.0, 0.0); id = ivec4(0); sum = 1.0; }
     wt = pow(wt / max(sum, 1e-4), vec4(u_sharpness));
     wt /= max(dot(wt, vec4(1.0)), 1e-4);
 
@@ -304,6 +307,8 @@ fn tnLayers(paintA : vec4f, paintB : vec4f, at : vec3f, dpx : vec3f, dpy : vec3f
             else { wt.w = v; id.w = i; }
         }
     }
+    // See the GLSL twin: ground no layer has a say in is the first layer's.
+    if (sum <= 0.0) { wt = vec4f(1.0, 0.0, 0.0, 0.0); id = vec4i(0); sum = 1.0; }
     wt = pow(wt / max(sum, 1e-4), vec4f(mc.u_sharpness));
     wt = wt / max(dot(wt, vec4f(1.0)), 1e-4);
 

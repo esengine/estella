@@ -21,3 +21,8 @@ export const DATA_TEXTURE_FIELDS: Readonly<Record<string, readonly string[]>> = 
 export function readsTextureAsNumbers(component: string, field: string): boolean {
     return DATA_TEXTURE_FIELDS[component]?.includes(field) ?? false;
 }
+
+/** Whether a texture's import settings (its `.meta` importer block) say it is numbers: `use: 'data'`. Anything else is a picture. */
+export function importedAsData(importer: Readonly<Record<string, unknown>> | undefined): boolean {
+    return importer?.use === 'data';
+}
