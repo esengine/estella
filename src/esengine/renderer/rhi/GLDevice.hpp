@@ -21,6 +21,8 @@
 
 #include "./GfxDevice.hpp"
 
+#include <initializer_list>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -165,6 +167,14 @@ private:
     }
     /** A multisampled texture is a renderbuffer in WebGL2, in its own GL namespace. */
     bool isRenderbuffer(u32 textureId) const;
+    /**
+     * Whether the bound framebuffer is complete, asked of the driver once per make (@p attachments in attach-point order, Invalid
+     * for none): completeness follows formats, samples, renderbuffer or texture and sizes, not which textures. Asking waits for the
+     * GPU process to drain its queue (every background compile, every undrawn frame): a pool remaking targets waited seconds each time.
+     */
+    bool boundFramebufferComplete(std::initializer_list<TextureHandle> attachments);
+    /// boundFramebufferComplete's answers, by make. Kept for the context: a new one asks again.
+    std::unordered_map<std::string, bool> framebuffer_complete_;
 
     // Clear machinery: backend-internal since RenderPassDesc became the only way
     // to request clears (it carries the values; beginRenderPass applies them).
@@ -359,9 +369,18 @@ private:
     /// 0 = unprobed; otherwise GL_MAX_SAMPLES, floored at 1.
     u32 max_samples_ = 0;
 
-    // Completed readbacks parked until taken: GL reads synchronously at request
-    // time, so the async contract resolves on the caller's first poll.
-    std::unordered_map<u32, std::vector<u8>> readbacks_;
+    // A readback until it is taken. On WebGL2 the read goes into a pixel-pack buffer behind a fence, so asking for it does not wait for
+    // the GPU to finish the frame (glReadPixels into memory waited for the whole scene: seconds a camera preview on a heavy one) and it
+    // is Ready once the fence has passed; elsewhere the pixels are read at once and Ready at the first poll.
+    struct Readback {
+        std::vector<u8> pixels;
+        u32 buffer = 0;
+        void* fence = nullptr;  // GLsync
+        usize size = 0;
+    };
+    std::unordered_map<u32, Readback> readbacks_;
+    /// The GL objects a readback holds, given back (a lost context's are already gone: @p live false only forgets them).
+    void releaseReadback(Readback& readback, bool live);
     u32 next_readback_id_ = 1;
 
     // 0 = unprobed, 1 = timer queries available, 2 = unavailable.

@@ -3073,17 +3073,20 @@ void RenderFrame::collectSky(RenderCollectContext& ctx) {
                                                   features, target),
             resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "",
                                                   features, target),
-            {}, resource_manager_.preferredShaderLanguage());
+            {}, resource_manager_.preferredShaderLanguage(), resource_manager_.deferLinks());
         if (auto* shader = resource_manager_.getShader(handle)) {
             program = shader->getProgramId();
-            if (panorama && shader->language() == GfxShaderLanguage::GLSL_ES300) {
-                shader->bind();
-                shader->setUniform("u_texture", 0);
-                shader->unbind();
-            }
+            // After it links: at once, or (where shaders are not waited for) when it first draws.
+            if (panorama && shader->language() == GfxShaderLanguage::GLSL_ES300) shader->whenLinked([](Shader& s) {
+                s.bind();
+                s.setUniform("u_texture", 0);
+                s.unbind();
+            });
         }
     }
     if (program == 0) return;
+    // Still compiling in the background: the sky is drawn from the frame its program is ready, as any draw is.
+    if (device_.skipPendingPrograms() && !device_.programReady(ShaderHandle{program})) return;
 
     // The rays through the screen's corners, at a depth inside both backends'
     // ranges: a quad at clip z = 1 rounds past the far plane at some view angles and

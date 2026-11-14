@@ -5,10 +5,11 @@
  * @brief   Polling loop for the engine's async GPU readback seam.
  *
  * The engine exposes readbacks as a poll contract (0 = pending, 1 = ready,
- * 2 = none/failed): GL completes at request time so the first poll reports 1,
- * while WebGPU resolves its staging-buffer map on a later event-loop turn —
- * the loop below yields a macrotask between polls so that turn can happen.
- * One awaited loop serves both backends.
+ * 2 = none/failed). Neither backend waits for the GPU when asked: WebGL2 reads
+ * into a buffer behind a fence that passes once the frame is drawn, and WebGPU
+ * maps a staging buffer — both answer on a later event-loop turn, so the loop
+ * below yields a macrotask between polls. (A native GL host reads at once and
+ * reports 1 on the first poll.) One awaited loop serves every backend.
  */
 
 /** Poll result: the readback landed and the engine buffers serve the pixels. */

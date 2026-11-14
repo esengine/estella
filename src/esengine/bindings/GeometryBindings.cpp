@@ -197,6 +197,8 @@ bool draw_meshWithMaterial(u32 geometryHandle, u32 materialId) {
     // DrawList::execute); positioning comes from FrameConstants + params in the
     // shader — no per-draw loose uniforms, so the draw is backend-neutral.
     GfxDevice& device = *g_device;
+    // A program still compiling in the background draws nothing yet, as in the draw list: waiting for it here held the page.
+    if (device.skipPendingPrograms() && !device.programReady(ShaderHandle{rec->shader})) return true;
     PipelineDesc desc{};
     desc.program = ShaderHandle{rec->shader};
     desc.vertexLayout = geom->layoutHandle();

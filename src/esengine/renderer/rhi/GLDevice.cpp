@@ -19,6 +19,7 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten/html5.h>
 #include <webgl/webgl1_ext.h>
+#include <webgl/webgl2.h>  // glGetBufferSubData: a readback's bytes out of its pixel-pack buffer
 #endif
 
 #include <chrono>
@@ -315,6 +316,7 @@ void GLDevice::setCap(Cap cap, u32 glCap, bool enabled) {
 
 void GLDevice::init() {
     float_targets_ = -1;
+    framebuffer_complete_.clear();
     glEnable(GL_DEPTH_TEST);
     // GL's own default, stated because the second backend states it too: a rule
     // one backend declares and the other inherits can drift with neither saying so.
@@ -486,6 +488,7 @@ void GLDevice::shutdown() {
         query = 0;
     }
     query_names_.clear();
+    for (auto& entry : readbacks_) releaseReadback(entry.second, true);
     readbacks_.clear();
     ES_LOG_INFO("GLDevice shutdown");
 }
@@ -1650,6 +1653,30 @@ void GLDevice::backendGenerateMipmaps(u32 id) {
 // Framebuffer
 // =============================================================================
 
+bool GLDevice::boundFramebufferComplete(std::initializer_list<TextureHandle> attachments) {
+    std::string make;
+    u32 width = 0, height = 0;
+    bool sized = true;
+    for (const TextureHandle texture : attachments) {
+        const TextureDesc* d = texture != TextureHandle::Invalid ? textureDesc(texture) : nullptr;
+        if (!d) {
+            make += '-';
+            continue;
+        }
+        if (width == 0) { width = d->width; height = d->height; }
+        sized = sized && d->width == width && d->height == height;
+        make += static_cast<char>('A' + static_cast<int>(d->format));
+        make += isRenderbuffer(static_cast<u32>(texture)) ? 'r' : 't';
+        make += std::to_string(d->samples);
+        make += ',';
+    }
+    make += sized ? '=' : '~';
+    if (const auto it = framebuffer_complete_.find(make); it != framebuffer_complete_.end()) return it->second;
+    const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    framebuffer_complete_.emplace(std::move(make), complete);
+    return complete;
+}
+
 bool GLDevice::backendCreateFramebuffer(u32 id, const FramebufferDesc& desc) {
     GLuint fbo = 0;
     glGenFramebuffers(1, &fbo);
@@ -1678,7 +1705,7 @@ bool GLDevice::backendCreateFramebuffer(u32 id, const FramebufferDesc& desc) {
         attach(depthPoint(desc.depthStencil), desc.depthStencil);
     }
 
-    const bool complete = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    const bool complete = boundFramebufferComplete({desc.color0, desc.color1, desc.color2, desc.depthStencil});
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     if (!complete) {
         glDeleteFramebuffers(1, &fbo);
@@ -1699,7 +1726,7 @@ bool GLDevice::backendCreateFramebuffer(u32 id, const FramebufferDesc& desc) {
         if (desc.resolveDepthStencil != TextureHandle::Invalid) {
             attach(depthPoint(desc.resolveDepthStencil), desc.resolveDepthStencil);
         }
-        const bool ok = glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+        const bool ok = boundFramebufferComplete({desc.resolveColor0, desc.resolveColor1, desc.resolveColor2, desc.resolveDepthStencil});
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         if (ok) {
             framebuffer_resolve_[id] = {dst, desc.width, desc.height,
@@ -1934,33 +1961,81 @@ u32 GLDevice::maxSamples() {
 ReadbackHandle GLDevice::requestReadback(FramebufferHandle target, u32 w, u32 h) {
     if (!isDeviceUsable()) return ReadbackHandle::Invalid;
     if (w == 0 || h == 0) return ReadbackHandle::Invalid;
-    std::vector<u8> pixels(static_cast<usize>(w) * h * 4);
+    Readback readback;
+    readback.size = static_cast<usize>(w) * h * 4;
     // Called outside a pass (framebuffer 0 bound); bind the source, read, restore.
     glBindFramebuffer(GL_FRAMEBUFFER, nameOf(framebuffer_names_, static_cast<u32>(target)));
     auto gl = toGLPixelFormat(GfxPixelFormat::RGBA8);
+#ifdef __EMSCRIPTEN__
+    // Into a buffer, in the GPU's own time: nothing here waits for the frame to be drawn.
+    GLuint buffer = 0;
+    glGenBuffers(1, &buffer);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, buffer);
+    glBufferData(GL_PIXEL_PACK_BUFFER, static_cast<GLsizeiptr>(readback.size), nullptr, GL_STREAM_READ);
+    glReadPixels(0, 0, static_cast<GLsizei>(w), static_cast<GLsizei>(h), gl.format, gl.type, nullptr);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+    readback.buffer = buffer;
+    readback.fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    // The fence only passes once the GPU has been handed what is before it.
+    glFlush();
+#else
+    readback.pixels.resize(readback.size);
     glReadPixels(0, 0, static_cast<GLsizei>(w), static_cast<GLsizei>(h), gl.format, gl.type,
-                 pixels.data());
+                 readback.pixels.data());
+#endif
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     const u32 id = next_readback_id_++;
-    readbacks_[id] = std::move(pixels);
+    readbacks_[id] = std::move(readback);
     return static_cast<ReadbackHandle>(id);
 }
 
 GfxReadbackStatus GLDevice::pollReadback(ReadbackHandle handle) {
-    return readbacks_.count(static_cast<u32>(handle)) ? GfxReadbackStatus::Ready
-                                                      : GfxReadbackStatus::Failed;
+    auto it = readbacks_.find(static_cast<u32>(handle));
+    if (it == readbacks_.end()) return GfxReadbackStatus::Failed;
+    Readback& readback = it->second;
+    if (!readback.fence) return readback.buffer || !readback.pixels.empty() ? GfxReadbackStatus::Ready : GfxReadbackStatus::Failed;
+    if (!isDeviceUsable()) return GfxReadbackStatus::Failed;
+    // A timeout of 0 asks without waiting (WebGL allows no other); the answer moves on between tasks, so a caller polls across them.
+    const GLenum state = glClientWaitSync(static_cast<GLsync>(readback.fence), 0, 0);
+    if (state == GL_WAIT_FAILED) return GfxReadbackStatus::Failed;
+    if (state != GL_ALREADY_SIGNALED && state != GL_CONDITION_SATISFIED) return GfxReadbackStatus::Pending;
+    glDeleteSync(static_cast<GLsync>(readback.fence));
+    readback.fence = nullptr;
+    return GfxReadbackStatus::Ready;
 }
 
 bool GLDevice::takeReadback(ReadbackHandle handle, void* dest, usize destSize) {
     auto it = readbacks_.find(static_cast<u32>(handle));
-    if (it == readbacks_.end() || destSize < it->second.size()) return false;
-    std::memcpy(dest, it->second.data(), it->second.size());
+    if (it == readbacks_.end() || destSize < it->second.size) return false;
+    // A Pending readback stays alive: only a passed fence lets the bytes be read without waiting for them.
+    if (it->second.fence && pollReadback(handle) != GfxReadbackStatus::Ready) return false;
+    Readback& readback = it->second;
+    if (readback.buffer) {
+#ifdef __EMSCRIPTEN__
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, readback.buffer);
+        glGetBufferSubData(GL_PIXEL_PACK_BUFFER, 0, static_cast<GLsizeiptr>(readback.size), dest);
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+#endif
+    } else {
+        std::memcpy(dest, readback.pixels.data(), readback.size);
+    }
+    releaseReadback(readback, isDeviceUsable());
     readbacks_.erase(it);
     return true;
 }
 
 void GLDevice::discardReadback(ReadbackHandle handle) {
-    readbacks_.erase(static_cast<u32>(handle));
+    auto it = readbacks_.find(static_cast<u32>(handle));
+    if (it == readbacks_.end()) return;
+    releaseReadback(it->second, isDeviceUsable());
+    readbacks_.erase(it);
+}
+
+void GLDevice::releaseReadback(Readback& readback, bool live) {
+    if (live && readback.fence) glDeleteSync(static_cast<GLsync>(readback.fence));
+    if (live && readback.buffer) glDeleteBuffers(1, &readback.buffer);
+    readback.fence = nullptr;
+    readback.buffer = 0;
 }
 
 // =============================================================================
