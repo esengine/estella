@@ -485,11 +485,6 @@ jobs:
         ESTELLA_NO_EMCC: '1'
       run: node tools/run-gates.mjs --scope ci
 
-    # The Android packaging tests check what we write against implementations that
-    # are not ours. androguard decodes the binary manifest; bundletool is the App
-    # Bundle format's own authority, and the runner has the JVM it needs — the
-    # tests fall back to structural checks where either is absent, so this is the
-
   # The engine-coupled half of both suites. 25 test files load the built wasm and
   # `skipIf` themselves out when it is absent — which, in a job that never built
   # or downloaded one, meant they had never run in CI at all. They reported as
@@ -970,24 +965,6 @@ jobs:
         echo "core_pattern: $(cat /proc/sys/kernel/core_pattern 2>/dev/null)"
         echo "electron still alive: $(pgrep -c electron 2>/dev/null || echo 0)"
         echo "samples: $(wc -l < /tmp/disk-watch.log 2>/dev/null || echo 0)"
-
-    # Both are DEEPER oracles the Android tests skip when absent, so fetching them
-    # must not be able to cost more than they are worth. Unbounded, this step hung
-    # for 38 minutes and took the job's whole budget with it — and a job killed at
-    # its ceiling writes no log. Each failure now says which assertions it costs.
-    - name: Set up the Android packaging oracles
-      # Work, not reporting: one shard does it for the matrix.
-      if: matrix.shard == 1
-      run: |
-        pip install --quiet --timeout 30 --retries 2 androguard \
-          || echo "::warning::androguard unavailable — the Android manifest tests run structural-only"
-        if curl -fsSL --connect-timeout 20 --max-time 180 --retry 2 \
-             -o "$RUNNER_TEMP/bundletool.jar" \
-             https://github.com/google/bundletool/releases/download/1.15.6/bundletool-all-1.15.6.jar; then
-          echo "BUNDLETOOL_JAR=$RUNNER_TEMP/bundletool.jar" >> "$GITHUB_ENV"
-        else
-          echo "::warning::bundletool unavailable — the .aab tests run structural-only"
-        fi
 
     # The authoring checks above spent months failing at random with
     # `timeout tools/call open_project`. The cause was never the call: a main

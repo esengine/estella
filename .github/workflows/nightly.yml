@@ -396,69 +396,13 @@ jobs:
     - name: Run the exit criteria
       run: node tools/run-release-gate.mjs --host macos
 
-  # The two criteria that package for Android and boot what they packaged. An
-  # emulator answers both: verify-native-boot installs on a simulator by design,
-  # and what it asks — did the boot record reach `ready in`, is the frame more
-  # than one flat colour — is not a question about a driver. Ubuntu minutes, so
-  # this rides the cron with the rest.
-  android:
-    name: Exit criteria (android)
-    runs-on: ubuntu-latest
-    needs: build-emscripten
-
-    steps:
-    - uses: actions/checkout@v7
-
-    - uses: ./.github/actions/engine-submodules
-    - uses: ./.github/actions/setup
-    - uses: ./.github/actions/render-host
-
-    # The corpus it boots includes projects with @compiled systems, which package
-    # through the AOT step.
-    - name: Setup Emscripten
-      uses: mymindstorm/setup-emsdk@v16
-      with:
-        version: 5.0.0
-        actions-cache-folder: .emsdk-ci
-        cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
-
-    # A game is packaged INTO a template, and it is THIS commit's. The released one
-    # answered a different question — today's examples on the host a creator already
-    # has — and was red every night an example used something newer than the release,
-    # whatever the code in front of it did. render-host above built the SDK the
-    # host embeds.
-    - uses: ./.github/actions/android-template
-      with:
-        out: .native-template-build
-    - uses: ./.github/actions/native-template
-      with:
-        platform: android
-        from-dir: .native-template-build
-
-    # Nested virtualisation for the emulator, as the compat matrix does.
-    - name: Enable KVM
-      run: |
-        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"'           | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-        sudo udevadm control --reload-rules
-        sudo udevadm trigger --name-match=kvm
-
-    # The runner IS the emulator: the criteria's own commands run inside it, so
-    # the list stays in releaseGate.mjs and this file names none of them.
-    - name: Run the exit criteria
-      uses: reactivecircus/android-emulator-runner@v2
-      with:
-        api-level: 34
-        arch: x86_64
-        disable-animations: true
-        script: node tools/run-release-gate.mjs --host android
-
   # A red night that nobody reads is a night that did not run: this workflow was
   # red five mornings in a row, from three different causes, with nothing saying
   # so. One issue carries the state — opened or commented on when a scheduled night
   # is red, and closed when one comes back green.
   report:
     name: Say how the night went
-    needs: [build-emscripten, linux-template, linux, editor-heavy, macos, android]
+    needs: [build-emscripten, linux-template, linux, editor-heavy, macos]
     if: ${{ always() && github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     permissions:

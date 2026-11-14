@@ -5012,4 +5012,6 @@ export const NOTED = {
     {"internal": "Which binary a CI matrix tests; nothing a creator runs changes."},
   "ci: a pull request runs the core and a merge runs the rest - the web build, C++ tests, static gates with the suites, engine-coupled tests and render verify gate a pull request (about 45 minutes against 90); editor authoring checks, the second backend, the desktop hosts, playables, golden packages, sanitizers and scale run on master once it merges; develop pushes no longer run Build twice for one commit, and the Android matrix runs by hand":
     {"internal": "How the repository takes changes; nothing a creator runs changes."},
+  "ci: no Android or iOS checks - the emulator matrix, the device farm, the template boot smoke (native-smoke, which also held a release's publish) and the nightly Android criteria are gone; the Android and iOS templates are still built and published with each release":
+    {"internal": "Which checks CI runs; nothing a creator runs changes."},
 };
