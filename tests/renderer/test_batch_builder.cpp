@@ -7,6 +7,7 @@
 // texture-slot rules, instanced command assembly, sort/merge behavior, clip stamping,
 // and execute() dispatch — the invariants the per-plugin hand-rolled paths used to own.
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include <cmath>
 #include <doctest.h>
 
 #include "MockGfxDevice.hpp"
@@ -1238,6 +1239,7 @@ TEST_CASE("text transform bridge: full parent basis and childless root TRS reach
     const auto parent = registry.create(), child = registry.create();
     registry.emplace<ecs::Parent>(child).entity = parent;
     auto& transform = registry.emplace<ecs::Transform>(child);
+    transform.cachedMatrix_ = glm::mat4(1);
     transform.cachedMatrix_[0] = {2, 1, 0, 0};
     transform.cachedMatrix_[1] = {3, 4, 0, 0};
     transform.cachedMatrix_[3] = {13, 17, 0, 1};
@@ -1257,7 +1259,7 @@ TEST_CASE("text transform bridge: full parent basis and childless root TRS reach
     rootTransform.worldRotation = glm::angleAxis(.7f, glm::vec3(0, 1, 0));
     CHECK(ecs::copyFlatRenderMatrix(registry, root, output));
     CHECK(output == math::compose(rootTransform.worldPosition, rootTransform.worldRotation, rootTransform.worldScale));
-    CHECK(rootTransform.cachedMatrix_ == glm::mat4(1));
+    CHECK(std::isnan(rootTransform.cachedMatrix_[0][0]));
 }
 
 TEST_CASE("sprites: tile budget applies before integer conversion") {
@@ -1509,7 +1511,7 @@ TEST_CASE("UI stencil traversal keeps nested and sibling references in authored 
     const Entity root = child(INVALID_ENTITY, true), a = child(root, false), nested = child(root, true);
     const Entity b = child(nested, false), deep = child(nested, true), c = child(deep, false);
     const Entity group = child(root, false), d = child(group, false), e = child(root, false);
-    registry.emplace<ecs::Transform>(deep);
+    registry.emplace<ecs::Transform>(deep).cachedMatrix_ = glm::mat4(1);
     auto& nestedBox = registry.emplace<ecs::UINode>(deep);
     nestedBox.computed_size_ = {20, 20};
     const glm::mat4 transform(1);
