@@ -8,7 +8,7 @@
 Your AI agent builds the game with the same 167 tools the editor's own UI uses —
 then ships it to the web, mini-game platforms, playable ads, desktop and native mobile.
 
-[![CI](https://github.com/esengine/estella/actions/workflows/build.yml/badge.svg)](https://github.com/esengine/estella/actions/workflows/build.yml)
+[![CI](https://github.com/esengine/estella/actions/workflows/build.yml/badge.svg?event=schedule)](https://github.com/esengine/estella/actions/workflows/build.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/esengine/estella)](https://github.com/esengine/estella/releases)
 [![MCP](https://img.shields.io/badge/MCP-167_tools-8A2BE2.svg)](https://estellaengine.com/docs/agents/mcp/)
