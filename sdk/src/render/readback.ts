@@ -23,12 +23,12 @@ export const READBACK_FAILED = 2;
  *
  * @param timeoutMs A backstop, not a schedule: the copy is already submitted, so
  *   what keeps it from landing is a device that died — which the poll reports as
- *   failed on its own — or a queue that has not drained. A CPU rasterizer with a
- *   few dozen shadow-casting frames behind it takes seconds to hand one over.
+ *   failed on its own — or a queue that has not drained. A WebGL2 read waits behind every frame queued before it, as a
+ *   blocking glReadPixels did with no limit: a CPU rasterizer with a heavy scene's frames behind it took past 15 s.
  */
 export async function awaitReadback(
     poll: () => number,
-    timeoutMs = 15_000,
+    timeoutMs = 120_000,
 ): Promise<number> {
     const deadline = Date.now() + timeoutMs;
     for (;;) {

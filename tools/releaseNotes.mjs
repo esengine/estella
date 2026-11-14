@@ -5006,4 +5006,6 @@ export const NOTED = {
     {"note": "A tree is grown in one step."},
   "feat(modeling): a tree's crown is tufts of leaves - each clump carries a few large cards spread evenly round it, facing out of it and overlapping, cut out by a tuft that is solid at its heart and leaves at its rim, where sprigs thrown about a clump read as litter; the model sheet cuts leaf cards out by their picture and lights them as the crown, so a tree can be judged before it is planted":
     {"note": "A tree is grown in one step."},
+  "fix(render): a readback waits for the GPU as long as a blocking read did - WebGL2 reads now land behind a fence, which on CI's CPU rasterizer passed after the 15 s backstop on the heaviest scenes (mesh shadows, terrain occlusion, GPU particles, grass fade), so their captures came back empty; the backstop is 120 s, there only for a queue that never drains, since a lost device fails the poll itself":
+    {"note": "Opening a 3D scene no longer freezes the editor."},
 };
