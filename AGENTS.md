@@ -14,14 +14,15 @@
 # Delivery workflow
 
 - Local verification must not launch the editor, Electron windows, or other visible
-  apps. Use genuine headless browser and CLI checks; run editor acceptance in CI.
+  apps. Use genuine headless browser and CLI checks.
 
-- After completing appropriate verification, commit and push changes to the
-  `develop` branch, in this repository and in the editor (`desktop/`, its own
-  repository) alike. Never commit or push to `master`: it is protected, and changes
-  reach it only through a pull request from `develop` that is merged once its
-  `Build passed` check is green. Merge with a merge commit, not a squash, so the
-  editor commits the submodule pointer names stay reachable.
+- Never commit or push to `master`, in this repository or in the editor
+  (`desktop/`, its own repository): it is protected. Work on a short-lived branch
+  cut from the latest `master`, push it, and open a pull request into `master`; it
+  merges once its `Build passed` check is green, and GitHub deletes the branch
+  after the merge. Merge with a merge commit, not a squash, so the editor commits
+  the submodule pointer names stay reachable. Push an editor change on its branch
+  before the pull request that moves the pointer to it.
 
 - Releases are tagged on `master` after the release commit has been merged there.
 
