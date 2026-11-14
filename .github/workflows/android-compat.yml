@@ -32,6 +32,7 @@ on:
   pull_request:
     paths:
       - 'native/**'
+      - 'src/esengine/**'
       - 'build-tools/**'
       - 'sdk/**'
       - 'toolchain.manifest.json'

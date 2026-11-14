@@ -5008,4 +5008,6 @@ export const NOTED = {
     {"note": "A tree is grown in one step."},
   "fix(render): a readback waits for the GPU as long as a blocking read did - WebGL2 reads now land behind a fence, which on CI's CPU rasterizer passed after the 15 s backstop on the heaviest scenes (mesh shadows, terrain occlusion, GPU particles, grass fade), so their captures came back empty; the backstop is 120 s, there only for a queue that never drains, since a lost device fails the poll itself":
     {"note": "Opening a 3D scene no longer freezes the editor."},
+  "ci: the Android matrix wraps a template built from the PR when the PR changes the engine - the host carries src/esengine, so a released template refused every game's AOT module built against the PR's engine and the report showed every API as failing to boot; src/esengine also starts the matrix now":
+    {"internal": "Which binary a CI matrix tests; nothing a creator runs changes."},
 };

@@ -81,8 +81,10 @@ jobs:
               # DEFAULT in build-tools, not a value in native/. The change that fixed
               # the Android 10 crash touched nothing under native/, so a rule that
               # watched only native/ would have tested the old released binary and
-              # reported the fix as not working.
-              if echo "$CHANGED" | grep -qE '^(native/|build-tools/|toolchain\.manifest\.json)'; then
+              # reported the fix as not working. src/esengine/ counts too: the host carries the engine, and a game's
+              # AOT module built against the PR's engine is refused by a released one (every API failed to boot on
+              # PR #128, "built for engine X, this is Y"), which reads as a broken device rather than a wrong binary.
+              if echo "$CHANGED" | grep -qE '^(native/|build-tools/|src/esengine/|toolchain\.manifest\.json)'; then
                 WANT=head
                 echo "this PR touches the native host — the template must be built from it"
               else
