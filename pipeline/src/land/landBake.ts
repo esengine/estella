@@ -110,6 +110,32 @@ function lineOf(points: readonly (readonly number[])[]): Line {
     }
     return { xs, zs, at, length: at[points.length - 1]! };
 }
+/**
+ * A line's points with more put between them, on a curve that passes through every one (Catmull-Rom): a river or a road written as
+ * six points bends as water and feet do, where the six joined by straight runs cut a valley with corners. A stretch shorter than
+ * `keep` is left straight, so two points set close together to make a fall stay a fall. Every value a point carries beside its
+ * place (its height, its width) is carried along evenly between the points it lay between; `undefined` stays undefined.
+ */
+function rounded<T extends readonly (number | undefined)[]>(points: readonly T[], keep: number, stride: number): (number | undefined)[][] {
+    if (points.length < 3) return points.map((p) => [...p]);
+    const out: (number | undefined)[][] = [];
+    for (let i = 0; i + 1 < points.length; i++) {
+        const a = points[Math.max(i - 1, 0)]!, b = points[i]!, c = points[i + 1]!, d = points[Math.min(i + 2, points.length - 1)]!;
+        const run = Math.hypot(c[0]! - b[0]!, c[1]! - b[1]!);
+        const parts = run <= keep ? 1 : Math.min(16, Math.max(1, Math.ceil(run / stride)));
+        for (let s = 0; s < parts; s++) {
+            const t = s / parts;
+            if (s === 0) { out.push([...b]); continue; }
+            const t2 = t * t, t3 = t2 * t;
+            const at = (k: number): number => 0.5 * ((2 * b[k]!) + (-a[k]! + c[k]!) * t + (2 * a[k]! - 5 * b[k]! + 4 * c[k]! - d[k]!) * t2 + (-a[k]! + 3 * b[k]! - 3 * c[k]! + d[k]!) * t3);
+            const extra = b.slice(2).map((v, k) => (v === undefined || c[k + 2] === undefined ? undefined : (v as number) + ((c[k + 2] as number) - (v as number)) * t));
+            out.push([at(0), at(1), ...extra]);
+        }
+    }
+    out.push([...points[points.length - 1]!]);
+    return out;
+}
+
 /** The nearest place on a line: how far it is, how far along the line, and the segment and share of it. */
 function nearest(line: Line, x: number, z: number): { d: number; along: number; seg: number; t: number } {
     let d = Infinity, along = 0, seg = 0, share = 0;
@@ -284,7 +310,7 @@ function runStep(g: Grid, step: LandStep, index: number, source: LandSource, out
             return;
         }
         case 'ridge': {
-            const line = lineOf(step.path), peaks = clamp(step.peaks ?? 0.6, 0, 1), spurs = clamp(step.spurs ?? 0.5, 0, 1), reach = step.width * 1.5;
+            const line = lineOf(step.straight ? step.path : (rounded(step.path.map((p) => [p[0], p[1]] as const), step.width * 0.5, step.width * 0.5) as number[][])), peaks = clamp(step.peaks ?? 0.6, 0, 1), spurs = clamp(step.spurs ?? 0.5, 0, 1), reach = step.width * 1.5;
             let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
             for (let i = 0; i < line.xs.length; i++) { x0 = Math.min(x0, line.xs[i]!); x1 = Math.max(x1, line.xs[i]!); z0 = Math.min(z0, line.zs[i]!); z1 = Math.max(z1, line.zs[i]!); }
             each(g.box(x0 - reach, z0 - reach, x1 + reach, z1 + reach), (i, j, k, x, z) => {
@@ -343,8 +369,24 @@ function runStep(g: Grid, step: LandStep, index: number, source: LandSource, out
             return;
         }
         case 'river': {
-            const line = lineOf(step.path);
-            const said = saidHeights(step.path);
+            // Heights and widths are settled on the points as written; then the line is rounded through them.
+            const written = lineOf(step.path);
+            const given = saidHeights(step.path);
+            if (given[0] === undefined) given[0] = g.at(written.xs[0]!, written.zs[0]!);
+            const end = given.length - 1;
+            if (given[end] === undefined) {
+                const before = given.slice(0, end).reverse().find((v) => v !== undefined)!;
+                given[end] = Math.min(g.at(written.xs[end]!, written.zs[end]!), before, source.sea ?? Infinity);
+            }
+            const settled = fillBetween(given, written);
+            // Said of the points as the author wrote them: the ones the curve adds are not theirs to mend.
+            for (let i = 1; i < settled.length; i++) {
+                if (settled[i]! > settled[i - 1]! + 1e-6) throw new LandBuildError(`the river rises from ${settled[i - 1]!.toFixed(1)} to ${settled[i]!.toFixed(1)} at point ${i}: water runs down, so give heights that never rise`);
+            }
+            const pathWide = step.path.map((p, i) => [p[0], p[1], settled[i]!, p.length >= 4 ? (p as readonly number[])[3]! : step.width] as const);
+            const path = (step.straight ? pathWide.map((p) => [...p]) : rounded(pathWide, step.width * 3, step.width * 1.5)) as number[][];
+            const line = lineOf(path);
+            const said: (number | undefined)[] = path.map((p) => p[2]);
             if (said[0] === undefined) said[0] = g.at(line.xs[0]!, line.zs[0]!);
             const last = said.length - 1;
             if (said[last] === undefined) {
@@ -355,7 +397,7 @@ function runStep(g: Grid, step: LandStep, index: number, source: LandSource, out
             for (let i = 1; i < ys.length; i++) {
                 if (ys[i]! > ys[i - 1]! + 1e-6) throw new LandBuildError(`the river rises from ${ys[i - 1]!.toFixed(1)} to ${ys[i]!.toFixed(1)} at point ${i}: water runs down, so give heights that never rise`);
             }
-            const widths = step.path.map((p) => (p.length >= 4 ? (p as readonly number[])[3]! : step.width));
+            const widths = path.map((p) => p[3]!);
             const depth = step.depth ?? Math.max(step.width * 0.1, g.cellX * 0.5), bank = Math.max(step.bank ?? step.width * 0.25, g.cellX * 1.5);
             const plain = step.plain ?? step.width * 0.8, valley = Math.max(step.valley ?? 0.9, 0.05);
             const riverD = g.field('riverD');
@@ -378,7 +420,23 @@ function runStep(g: Grid, step: LandStep, index: number, source: LandSource, out
                 else if (edge <= bank) cut = mix(bed, Math.min(Math.max(h[k]!, alt + depth * 0.25), alt + depth * 0.9), smooth(0, bank, edge));
                 else {
                     const beyond = Math.max(0, edge - bank - plain);
-                    const wall = alt + depth * 0.9 + valley * beyond * (0.75 + 0.5 * landNoise(x / (width * 4), z / (width * 4), seed + 9, 2));
+                    const rough = 0.75 + 0.5 * landNoise(x / (width * 4), z / (width * 4), seed + 9, 2);
+                    let wall = alt + depth * 0.9 + valley * beyond * rough;
+                    // Away from its own bank the wall is as low as ANY reach of the river allows, not only the nearest: under a fall the
+                    // lower reach's valley opens round the foot of it, so the headwall is a bowl about the plunge and not a ruled line
+                    // across the valley where the nearest reach changes.
+                    const open = smooth(bank + plain, bank + plain + width * 3, edge);
+                    if (open > 0) {
+                        let lowest = wall;
+                        for (let q = 0; q + 1 < line.xs.length; q++) {
+                            const ax = line.xs[q]!, az = line.zs[q]!, ex = line.xs[q + 1]! - ax, ez = line.zs[q + 1]! - az, len2 = ex * ex + ez * ez;
+                            const t = len2 > 0 ? clamp(((x - ax) * ex + (z - az) * ez) / len2, 0, 1) : 0;
+                            const far = Math.hypot(x - ax - ex * t, z - az - ez * t) - mix(widths[q]!, widths[q + 1]!, t) / 2 - bank - plain;
+                            const other = mix(ys[q]!, ys[q + 1]!, t) + depth * 0.9 + valley * Math.max(0, far) * rough;
+                            if (other < lowest) lowest = other;
+                        }
+                        wall = mix(wall, lowest, open);
+                    }
                     // Ground that lay under the water's height is banked up to carry it, the bank fading out over the plain.
                     const floor = mix(alt + depth * 0.7, h[k]!, smooth(bank, bank + plain + width, edge));
                     cut = Math.max(Math.min(h[k]!, wall), Math.min(floor, alt + depth * 0.9));
@@ -386,7 +444,7 @@ function runStep(g: Grid, step: LandStep, index: number, source: LandSource, out
                 h[k] = mix(h[k]!, cut, m);
             });
             const river: BakedRiver = { name: step.name ?? `river${out.rivers.length + 1}`, points: [], length: line.length, falls: [] };
-            for (let i = 0; i < ys.length; i++) river.points.push({ x: line.xs[i]!, y: ys[i]!, z: line.zs[i]!, width: widths[i]! });
+            for (let i = 0; i < ys.length; i++) river.points.push({ x: +line.xs[i]!.toFixed(2), y: +ys[i]!.toFixed(3), z: +line.zs[i]!.toFixed(2), width: +widths[i]!.toFixed(2) });
             for (let i = 0; i + 1 < ys.length; i++) {
                 const run = line.at[i + 1]! - line.at[i]!, drop = ys[i]! - ys[i + 1]!;
                 if (drop > depth * 3 && drop / Math.max(run, 1e-6) > 1.2) river.falls.push({ at: [line.xs[i]!, ys[i]!, line.zs[i]!], drop });
@@ -395,8 +453,9 @@ function runStep(g: Grid, step: LandStep, index: number, source: LandSource, out
             return;
         }
         case 'road': {
-            const coarse = lineOf(step.path);
-            const saidAt = saidHeights(step.path);
+            const bent = step.straight ? step.path.map((p) => [...p] as (number | undefined)[]) : rounded(step.path.map((p) => [p[0], p[1], p.length >= 3 ? p[2] : undefined] as const), step.width * 2, step.width * 2);
+            const coarse = lineOf(bent as number[][]);
+            const saidAt: (number | undefined)[] = bent.map((p) => p[2]);
             const ds = Math.max(g.cellX, step.width / 2);
             // The way, a sample every `ds` along it, with the heights its points pin.
             const count = Math.max(2, Math.ceil(coarse.length / ds) + 1);
@@ -410,10 +469,12 @@ function runStep(g: Grid, step: LandStep, index: number, source: LandSource, out
                 px[s] = mix(coarse.xs[seg]!, coarse.xs[seg + 1]!, t); pz[s] = mix(coarse.zs[seg]!, coarse.zs[seg + 1]!, t);
                 ground[s] = g.at(px[s]!, pz[s]!);
             }
-            for (let p = 0; p < step.path.length; p++) {
+            // Only a height the author wrote pins the way (those between were carried along the curve, and are not theirs), and its ends.
+            const wrote = new Set<string>(step.path.filter((p) => p.length >= 3).map((p) => `${p[0]},${p[1]}`));
+            for (let p = 0; p < bent.length; p++) {
                 const s = Math.round(coarse.at[p]! / coarse.length * (count - 1));
-                if (saidAt[p] !== undefined) { y[s] = saidAt[p]!; pinned[s] = 1; }
-                else if (p === 0 || p === step.path.length - 1) { y[s] = ground[s]!; pinned[s] = 1; }
+                if (wrote.has(`${bent[p]![0]},${bent[p]![1]}`)) { y[s] = saidAt[p]!; pinned[s] = 1; }
+                else if (p === 0 || p === bent.length - 1) { y[s] = ground[s]!; pinned[s] = 1; }
             }
             const step1 = coarse.length / (count - 1), grade = Math.max(step.grade ?? 0.18, 0.005);
             // Between each two pinned heights the way follows the ground eased along it, held to what the grade allows: no further from
@@ -582,8 +643,9 @@ function runStep(g: Grid, step: LandStep, index: number, source: LandSource, out
             return;
         }
         case 'valley': {
-            const line = lineOf(step.path);
-            const said = saidHeights(step.path);
+            const bent = step.straight ? step.path.map((p) => [...p] as (number | undefined)[]) : rounded(step.path.map((p) => [p[0], p[1], p.length >= 3 ? p[2] : undefined] as const), step.width, step.width);
+            const line = lineOf(bent as number[][]);
+            const said: (number | undefined)[] = bent.map((p) => p[2]);
             const depth = step.depth ?? step.width * 0.5;
             // Where no height is said the floor lies `depth` under the ground as it was.
             const ys: number[] = [];

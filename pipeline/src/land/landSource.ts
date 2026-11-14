@@ -51,18 +51,18 @@ export type LandStep = StepBase & (
     | { op: 'fill'; height: number }
     | { op: 'noise'; amplitude: number; scale: number; octaves?: number; seed?: number; ridged?: number; warp?: number }
     | { op: 'hill'; at: Point2; radius: number; height: number; flat?: number }
-    | { op: 'ridge'; path: readonly Point2[]; height: number; width: number; peaks?: number; spurs?: number; seed?: number }
+    | { op: 'ridge'; path: readonly Point2[]; height: number; width: number; peaks?: number; spurs?: number; straight?: boolean; seed?: number }
     | { op: 'plateau'; at?: Point2; radius?: number; outline?: readonly Point2[]; height: number; edge: number; ragged?: number; ledges?: number; tilt?: readonly [number, number]; seed?: number }
     | { op: 'lake'; name?: string; at: Point2; radius: number; level: number; depth: number; shore?: number; ragged?: number; seed?: number }
-    | { op: 'river'; name?: string; path: readonly LinePoint[]; width: number; depth?: number; bank?: number; plain?: number; valley?: number; seed?: number }
-    | { op: 'road'; name?: string; path: readonly LinePoint[]; width: number; grade?: number; side?: number }
+    | { op: 'river'; name?: string; path: readonly LinePoint[]; width: number; depth?: number; bank?: number; plain?: number; valley?: number; straight?: boolean; seed?: number }
+    | { op: 'road'; name?: string; path: readonly LinePoint[]; width: number; grade?: number; side?: number; straight?: boolean }
     | { op: 'flatten'; at: Point2; radius: number; height?: number; falloff?: number }
     | { op: 'terrace'; step: number; sharp?: number; phase?: number; drift?: number; seed?: number }
     | { op: 'pillars'; at: Point2; radius: number; spacing: number; height: readonly [number, number]; width: readonly [number, number]; clearings?: number; seed?: number }
     | { op: 'coast'; at?: Point2; radius?: number; outline?: readonly Point2[]; ragged?: number; beach: number; cliffs?: number; shelf?: readonly [number, number]; floor: number; seed?: number }
     | { op: 'smooth'; radius?: number; passes?: number }
     | { op: 'erode'; amount: number; seed?: number }
-    | { op: 'valley'; path: readonly LinePoint[]; width: number; depth?: number; floor?: number; walls?: number; seed?: number }
+    | { op: 'valley'; path: readonly LinePoint[]; width: number; depth?: number; floor?: number; walls?: number; straight?: boolean; seed?: number }
     | { op: 'crater'; at: Point2; radius: number; depth: number; rim?: number }
     | { op: 'dunes'; height: number; length: number; heading?: number; seed?: number }
     | { op: 'talus'; angle: number; passes?: number }
@@ -116,7 +116,7 @@ export const LAND_OPS: Readonly<Record<LandOp, { fields: string; does: string }>
     ridge: { fields: 'path, height, width, peaks?, spurs?, seed?', does: 'raises a range along a line, `width` to each side, its crest broken into peaks (`peaks` 0..1) and its flanks into side ridges (`spurs` 0..1)' },
     plateau: { fields: 'at + radius | outline, height, edge, ragged?, ledges?, tilt?, seed?', does: 'sets a level top at `height` with a cliff `edge` wide round it; `ragged` world units bends the rim, `ledges` cuts the face into that many steps, `tilt` [per x, per z] slopes the top' },
     lake: { fields: 'name?, at, radius, level, depth, shore?, ragged?, seed?', does: 'cuts a bowl whose water stands at `level`, `depth` deep, with a rim raised to hold it' },
-    river: { fields: 'name?, path, width, depth?, bank?, plain?, valley?, seed?', does: 'cuts a river along [x, z, y?, width?] points, y the height its water runs at (given at least at its ends, and never rising); a bed, banks, a flood plain `plain` wide, then walls rising `valley` per unit out, so high ground becomes a valley or a gorge. Two points close together with a drop between them are a fall' },
+    river: { fields: 'name?, path, width, depth?, bank?, plain?, valley?, seed?', does: 'cuts a river along [x, z, y?, width?] points, y the height its water runs at (given at least at its ends, and never rising); a bed, banks, a flood plain `plain` wide, then walls rising `valley` per unit out, so high ground becomes a valley or a gorge. Its line is rounded through its points, as water bends (`straight: true` keeps the corners; so for a road, a valley and a ridge). Two points close together with a drop between them are a fall, and the valley below opens round its foot' },
     road: { fields: 'name?, path, width, grade?, side?', does: 'lays a way along [x, z] points no steeper than `grade` (rise over run, default 0.18, about 10 degrees), cutting and filling the ground to it with sides of slope `side`; the reply says how steep it came out and where' },
     flatten: { fields: 'at, radius, height?, falloff?', does: 'levels a round site, at the ground\'s own height there unless one is given, easing out over `falloff`' },
     terrace: { fields: 'step, sharp?, phase?, drift?, seed?', does: 'cuts slopes into ledges `step` high with faces as sheer as `sharp` (0..1); `drift` lets a ledge\'s height wander so one runs into the next' },
