@@ -4894,4 +4894,8 @@ export const NOTED = {
     {"internal": "Retunes one example scene's exposure bias and sky haze; no engine or editor behaviour changes."},
   "fix(render): TAA no longer shakes the picture - temporal anti-aliasing read the current frame where the jittered camera drew it, so wherever the history was clipped the output moved with the jitter, up to half a pixel a frame; the engine now hands the pass this frame's jitter (u_jitter) and the frame and its neighbourhood are read back without it":
     {"note": "TAA no longer shakes the picture."},
+  "fix(terrain): a land's lines are rounded through their points, and a valley opens round the foot of a fall - a river, road, valley or ridge written as a few points is carried on a curve through them (straight: true keeps the corners; a stretch short enough to be a fall stays one), and beyond its own bank a river's wall is as low as any of its reaches allows, so the reach under a fall cuts a bowl about the plunge where the nearest reach alone left a ruled cliff. A river that rises is still said of the points as written":
+    {"note": "An agent can shape ground as steps."},
+  "fix(mcp): a river bends, a fall has a bowl, and a road with no material draws no band - used on a real land, the terrain tools cut a river as its points joined by straight runs (a valley with corners), ended a fall's headwall on a ruled line across the valley, and terrain_apply laid a RoadDecal with no material: a white band over the path the layers had painted. The ops text follows the kernel; a road's surface is built only when roadMaterial is given, and the reply says the roads are the ground's own otherwise":
+    {"note": "An agent can shape ground as steps."},
 };
