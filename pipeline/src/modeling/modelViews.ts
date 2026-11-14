@@ -15,6 +15,7 @@
  *        What the model looks like in the game is what `screenshot` is for.
  */
 import type { BakedModel } from './modelBake';
+import { treeLeafPicture } from './tree';
 import { boneLines, jointColor, morphedPositions, posedPositions, shapeWeightsAt, type AnimationSource, type PoseSolve, type PreviewGround } from './rig';
 import { add, boundsOf, collectEdges, cross, dot, faceNormal, normalize, selectFaces, sub, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
@@ -101,11 +102,13 @@ export function renderModelSheet(model: BakedModel, views: readonly ModelViewNam
         for (const v of f.v) vertexNormals[v] = add(vertexNormals[v] ?? [0, 0, 0], normals[i]!);
     });
     for (let i = 0; i < vertexNormals.length; i++) if (vertexNormals[i]) vertexNormals[i] = normalize(vertexNormals[i]!);
+    // A tree's leaves are cards cut out by a picture: drawn whole they are a pile of squares, and nothing of the crown can be judged.
+    const LEAVES = 128, leaves = model.leaves ? treeLeafPicture(LEAVES) : null;
     const depth = new Float32Array(panel * panel);
     // The edges a shape actually has. Every polygon edge on a curved surface or a cut's triangles is a net over what is being judged, so that is on request.
     const FEATURE = Math.cos((30 * Math.PI) / 180);
     const lines = [...collectEdges(poly).values()].filter((e) => {
-        if (e.faces.every((f) => poly.faces[f]!.smooth)) return false;
+        if (e.faces.every((f) => poly.faces[f]!.smooth || poly.faces[f]!.cornerNormals)) return false;
         return wire || e.faces.length !== 2 || dot(normals[e.faces[0]!]!, normals[e.faces[1]!]!) < FEATURE;
     });
 
@@ -127,7 +130,9 @@ export function renderModelSheet(model: BakedModel, views: readonly ModelViewNam
             if (Math.abs(area) < 1e-9) continue;
             const flat = normals[face]!;
             const skin = poly.faces[face]!.smooth;
-            const [na, nb, nc] = skin ? [vertexNormals[v[0]]!, vertexNormals[v[1]]!, vertexNormals[v[2]]!] : [flat, flat, flat];
+            const lit = poly.faces[face]!.cornerNormals, uvs = leaves && lit ? poly.faces[face]!.cornerUvs : undefined, at = poly.faces[face]!.v;
+            const [na, nb, nc] = lit ? [lit[at.indexOf(v[0])]!, lit[at.indexOf(v[1])]!, lit[at.indexOf(v[2])]!] : skin ? [vertexNormals[v[0]]!, vertexNormals[v[1]]!, vertexNormals[v[2]]!] : [flat, flat, flat];
+            const [ua, ub, uc] = uvs ? [uvs[at.indexOf(v[0])]!, uvs[at.indexOf(v[1])]!, uvs[at.indexOf(v[2])]!] : [];
             const facing = dot(flat, basis.toward);
             // A key from over the viewer's shoulder, so that facing faces still differ.
             const keyDir = normalize([basis.toward[0] + basis.up[0] * 0.5 + basis.right[0] * 0.4,
@@ -145,6 +150,10 @@ export function renderModelSheet(model: BakedModel, views: readonly ModelViewNam
                     const w1 = ((c[0] - px) * (a[1] - py) - (a[0] - px) * (c[1] - py)) / area;
                     const w2 = 1 - w0 - w1;
                     if (w0 < 0 || w1 < 0 || w2 < 0) continue;
+                    if (ua && ub && uc) {
+                        const tx = Math.min(Math.max(Math.floor((w0 * ua[0] + w1 * ub[0] + w2 * uc[0]) * LEAVES), 0), LEAVES - 1), ty = Math.min(Math.max(Math.floor((w0 * ua[1] + w1 * ub[1] + w2 * uc[1]) * LEAVES), 0), LEAVES - 1);
+                        if (leaves![(ty * LEAVES + tx) * 4 + 3]! < 90) continue;
+                    }
                     put(ox + x, panel + 1 + y, SILHOUETTE);
                     const z = w0 * a[2] + w1 * b[2] + w2 * c[2];
                     if (z <= depth[y * panel + x]!) continue;
@@ -152,7 +161,8 @@ export function renderModelSheet(model: BakedModel, views: readonly ModelViewNam
                     const nx = w0 * na[0] + w1 * nb[0] + w2 * nc[0], ny = w0 * na[1] + w1 * nb[1] + w2 * nc[1], nz = w0 * na[2] + w1 * nb[2] + w2 * nc[2];
                     const len = Math.hypot(nx, ny, nz) || 1;
                     const key = (nx * keyDir[0] + ny * keyDir[1] + nz * keyDir[2]) / len;
-                    const light = facing > 0 ? 0.3 + 0.7 * Math.max(0, key) : 0.12; // a face seen from behind reads dark
+                    // A face seen from behind reads dark; a leaf card has no behind, and is lit as its crown is.
+                    const light = lit ? 0.35 + 0.65 * Math.max(0, key) : facing > 0 ? 0.3 + 0.7 * Math.max(0, key) : 0.12;
                     put(ox + x, y, [tint[0]! * light * 255, tint[1]! * light * 255, tint[2]! * light * 255]);
                 }
             }

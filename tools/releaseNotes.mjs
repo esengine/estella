@@ -5002,4 +5002,8 @@ export const NOTED = {
     {"note": "A tree is grown in one step."},
   "feat(modeling): a sprig is twigs with leaves along them, and a model material lets light through - the picture a tree's cards are cut out by is three twigs from one foot, leaves off each by turns and one at its tip, where a ring of leaves read as a pinwheel, and a card runs its twig out of its clump and across it with its leaves facing outward, no leaf past what the card shows; `material.translucency` (0..1) writes the Model shader's back light for what is thin":
     {"note": "A tree is grown in one step."},
+  "docs(mcp): a tree's crown is tufts, and model_views shows it cut out - the tree guide says what the crown is made of and what to look for in the silhouette row":
+    {"note": "A tree is grown in one step."},
+  "feat(modeling): a tree's crown is tufts of leaves - each clump carries a few large cards spread evenly round it, facing out of it and overlapping, cut out by a tuft that is solid at its heart and leaves at its rim, where sprigs thrown about a clump read as litter; the model sheet cuts leaf cards out by their picture and lights them as the crown, so a tree can be judged before it is planted":
+    {"note": "A tree is grown in one step."},
 };
