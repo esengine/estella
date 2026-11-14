@@ -557,6 +557,7 @@ export class FoliagePlugin implements Plugin {
             const thins = !built.source || !data.farCards;
             Material.setUniform(built.instance, 'u_thinLevels', farLevelsOf(data, !!built.source));
             Material.setUniform(built.instance, 'u_bladeWidth', built.source ? 0 : data.bladeWidth);
+            Material.setUniform(built.instance, 'u_bladeHeight', built.source ? 0 : data.bladeHeight);
             Material.setUniform(built.instance, 'u_thinGrow', Math.max(data.farGrow, 1));
             Material.setUniform(built.instance, 'u_thinDistance', thins ? data.lodDistance : 0);
             Material.setUniform(built.instance, 'u_thinKeep', Math.min(Math.max(data.farKeep, 0.01), 1));

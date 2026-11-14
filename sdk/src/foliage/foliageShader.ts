@@ -63,6 +63,11 @@ const FOLIAGE = `#pragma shader "Foliage"
 #pragma param u_thinKeep float default(0.34) range(0.01,1) ui(slider)
 #pragma param u_thinStep float default(2) range(1.01,8) ui(slider)
 #pragma param u_thinEnd float default(0) range(0,1000000) ui(slider)
+// The share of the way to u_thinEnd over which the field melts into the ground: its plants are left out one by one, and grass sinks as it
+// goes (u_bladeHeight, a blade's height at scale 1, which the Foliage component writes), so a meadow ends in shorter and shorter grass and
+// not on a line where the last blades stand whole. Seen across a valley the last 15% of the way is a line; a third of it is a fade.
+#pragma param u_thinFade float default(0.35) range(0.02,1) ui(slider)
+#pragma param u_bladeHeight float default(0) range(0,100000) ui(slider)
 // How many far versions are layers of their own (0: none are, and a mesh is drawn at any distance): a mesh says which it is in its
 // colour's alpha, in thirds, and is drawn from where it takes over to where the next does.
 #pragma param u_thinLevels float default(0) range(0,3) ui(slider)
@@ -153,7 +158,9 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
         vec3 cell = (esInstanceModel() * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
         float away = max(length(cell - u_camera.xyz), 1e-3);
         float keep = min(pow(u_thinDistance / (u_thinStep * away), log(1.0 / u_thinKeep) / log(u_thinStep)), 1.0);
-        if (u_thinEnd > 0.0) keep *= 1.0 - smoothstep(u_thinEnd * 0.85, u_thinEnd, away);
+        float melt = u_thinEnd > 0.0 ? smoothstep(u_thinEnd * (1.0 - u_thinFade), u_thinEnd, away) : 0.0;
+        keep *= 1.0 - melt;
+        if (u_bladeWidth > 0.0) local.y -= melt * uv.y * u_bladeHeight * 0.8;
         if (u_thinLevels > 0.5) {
             float level = floor(es_vertexColor.a * 3.0 + 0.5);
             float nearEdge = level < 0.5 ? 0.0 : u_thinDistance * pow(u_thinStep, level - 1.0);
@@ -239,7 +246,10 @@ fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, ve
         let cell = (esInstanceModel() * vec4f(0.0, 0.0, 0.0, 1.0)).xyz;
         let away = max(length(cell - frame.camera.xyz), 1e-3);
         var keep = min(pow(mc.u_thinDistance / (mc.u_thinStep * away), log(1.0 / mc.u_thinKeep) / log(mc.u_thinStep)), 1.0);
-        if (mc.u_thinEnd > 0.0) { keep = keep * (1.0 - smoothstep(mc.u_thinEnd * 0.85, mc.u_thinEnd, away)); }
+        var melt = 0.0;
+        if (mc.u_thinEnd > 0.0) { melt = smoothstep(mc.u_thinEnd * (1.0 - mc.u_thinFade), mc.u_thinEnd, away); }
+        keep = keep * (1.0 - melt);
+        if (mc.u_bladeWidth > 0.0) { (*local).y = (*local).y - melt * uv.y * mc.u_bladeHeight * 0.8; }
         if (mc.u_thinLevels > 0.5) {
             let level = floor(es_vertexColor.a * 3.0 + 0.5);
             var nearEdge = 0.0;
