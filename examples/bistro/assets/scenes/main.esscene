@@ -114,7 +114,7 @@
                   "u_inscatter": 0.5,
                   "u_sunAzimuth": 40,
                   "u_sunElevation": 35,
-                  "u_skyFog": 0.6,
+                  "u_skyFog": 0.15,
                   "u_volumetric": 0.5,
                   "u_volumeRange": 6000
                 }
@@ -130,7 +130,7 @@
                 "type": "autoExposure",
                 "enabled": true,
                 "uniforms": {
-                  "u_bias": 0.15,
+                  "u_bias": -0.35,
                   "u_minEV": -2,
                   "u_maxEV": 2
                 }
