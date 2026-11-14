@@ -10,6 +10,26 @@ import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
 import { WIND_FIELD_GLSL, WIND_FIELD_PARAMS, WIND_FIELD_WGSL } from '../render/windFieldShader';
 
 
+// A blade narrower on screen than u_strandMinPx pixels is drawn that wide and its coverage cut to the width it has (the thinning's
+// widening counted), so a far blade fades instead of breaking into dashes the samples miss.
+const STRAND_GLSL = `
+highp float esWorldPerPixel(highp float dist) {
+    highp float sy = length(vec3(u_projection[0][1], u_projection[1][1], u_projection[2][1]));
+    highp float px = 2.0 / max(sy * u_viewport.y, 1e-6);
+    return u_camera.w > 0.5 ? px * dist : px;
+}
+float foliageHalfWidth(float v, float wider) { return u_bladeWidth * 0.5 * (1.0 - v * 0.85) * (1.0 + wider); }
+`;
+const STRAND_WGSL = `
+fn esWorldPerPixel(dist : f32) -> f32 {
+    let sy = length(vec3f(frame.projection[0][1], frame.projection[1][1], frame.projection[2][1]));
+    let px = 2.0 / max(sy * tc.u_viewport.y, 1e-6);
+    if (frame.camera.w > 0.5) { return px * dist; }
+    return px;
+}
+fn foliageHalfWidth(v : f32, wider : f32) -> f32 { return mc.u_bladeWidth * 0.5 * (1.0 - v * 0.85) * (1.0 + wider); }
+`;
+
 // Plants that sway: the vertex hook bends by the weights the Foliage component paints in the vertex colour (red the height up the plant,
 // green its own phase, blue how much light reaches it), with a travelling gust and a flutter. Two-sided and translucent.
 const FOLIAGE = `#pragma shader "Foliage"
@@ -81,6 +101,9 @@ const FOLIAGE = `#pragma shader "Foliage"
 // they were, along its own width, so the ground the field covers is the same at every distance.
 #pragma param u_bladeWidth float default(0) range(0,100000) ui(slider)
 #pragma param u_thinGrow float default(2) range(1,16) ui(slider)
+// The narrowest a blade is drawn on screen, in pixels: narrower, it is drawn this wide with its coverage cut to match, so a far meadow
+// fades rather than breaking into dashes. 0 leaves blades as wide as they are.
+#pragma param u_strandMinPx float default(1.2) range(0,4) ui(slider)
 // How far a blade of grass turns the flat of itself to the eye, 0 to 1: a blade seen edge on is a line, and a field of blades turned
 // every way shows the ground between them from wherever it is seen. 0 leaves each as it was planted.
 #pragma param u_bladeFaceEye float default(0) range(0,1) ui(slider)
@@ -107,6 +130,15 @@ vec2 foliageContactPush(vec4 contact, vec3 at) {
     float near = clamp(1.0 - len / contact.w, 0.0, 1.0);
     float level = 1.0 - smoothstep(contact.w * 1.2, contact.w * 2.0, abs(at.y - contact.y));
     return len > 1e-4 ? away / len * near * near * (3.0 - 2.0 * near) * level * contact.w : vec2(0.0);
+}
+${STRAND_GLSL}
+void foliageStrandWiden(inout vec3 local, vec3 localNormal, vec2 uv, float wider) {
+    if (u_bladeWidth <= 0.0 || u_strandMinPx <= 0.0) return;
+    float need = u_strandMinPx * 0.5 * esWorldPerPixel(length((esInstanceModel() * vec4(local, 1.0)).xyz - u_camera.xyz));
+    float have = foliageHalfWidth(uv.y, wider);
+    if (have >= need) return;
+    vec2 side = normalize(vec2(localNormal.z, -localNormal.x) + vec2(1e-6, 0.0));
+    local.xz += side * ((uv.x * 2.0 - 1.0) * (need - have));
 }
 void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
     if (dot(es_vertexUv1, es_vertexUv1) > 0.0 && u_camera.w > 0.5) {
@@ -185,13 +217,17 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
             if (away < nearEdge || away >= farEdge) keep = -1.0;
         }
         // Every vertex of a blade left out goes to one point: its triangles have no area and draw nothing.
+        float wider = 0.0;
         if (u_bladeWidth > 0.0 && keep > 0.0) {
             // The blade's width runs square to its normal on the ground: its uv says which edge this is and how far up.
             vec2 side = normalize(vec2(localNormal.z, -localNormal.x) + vec2(1e-6, 0.0));
-            float wider = min(1.0 / keep, u_thinGrow) - 1.0;
+            wider = min(1.0 / keep, u_thinGrow) - 1.0;
             local.xz += side * ((uv.x * 2.0 - 1.0) * u_bladeWidth * 0.5 * (1.0 - uv.y * 0.85) * wider);
         }
+        foliageStrandWiden(local, localNormal, uv, wider);
         if (es_vertexColor.g > keep) local = vec3(0.0);
+    } else {
+        foliageStrandWiden(local, localNormal, uv, 0.0);
     }
 }
 #pragma end
@@ -206,6 +242,17 @@ fn foliageContactPush(contact : vec4f, at : vec3f) -> vec2f {
     let level = 1.0 - smoothstep(contact.w * 1.2, contact.w * 2.0, abs(at.y - contact.y));
     if (len <= 1e-4) { return vec2f(0.0); }
     return away / len * near * near * (3.0 - 2.0 * near) * level * contact.w;
+}
+${STRAND_WGSL}
+fn foliageStrandWiden(local : ptr<function, vec3f>, localNormal : vec3f, uv : vec2f, wider : f32) {
+    if (mc.u_bladeWidth <= 0.0 || mc.u_strandMinPx <= 0.0) { return; }
+    let need = mc.u_strandMinPx * 0.5 * esWorldPerPixel(length((esInstanceModel() * vec4f(*local, 1.0)).xyz - frame.camera.xyz));
+    let have = foliageHalfWidth(uv.y, wider);
+    if (have >= need) { return; }
+    let side = normalize(vec2f(localNormal.z, -localNormal.x) + vec2f(1e-6, 0.0));
+    let wide = side * ((uv.x * 2.0 - 1.0) * (need - have));
+    (*local).x = (*local).x + wide.x;
+    (*local).z = (*local).z + wide.y;
 }
 fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, vec3f>, uv : vec2f) {
     if (dot(es_vertexUv1, es_vertexUv1) > 0.0 && frame.camera.w > 0.5) {
@@ -286,14 +333,18 @@ fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, ve
             if (level < mc.u_thinLevels - 0.5) { farEdge = mc.u_thinDistance * pow(mc.u_thinStep, level); }
             if (away < nearEdge || away >= farEdge) { keep = -1.0; }
         }
+        var wider = 0.0;
         if (mc.u_bladeWidth > 0.0 && keep > 0.0) {
             let side = normalize(vec2f((*localNormal).z, -(*localNormal).x) + vec2f(1e-6, 0.0));
-            let wider = min(1.0 / keep, mc.u_thinGrow) - 1.0;
+            wider = min(1.0 / keep, mc.u_thinGrow) - 1.0;
             let wide = side * ((uv.x * 2.0 - 1.0) * mc.u_bladeWidth * 0.5 * (1.0 - uv.y * 0.85) * wider);
             (*local).x = (*local).x + wide.x;
             (*local).z = (*local).z + wide.y;
         }
+        foliageStrandWiden(local, *localNormal, uv, wider);
         if (es_vertexColor.g > keep) { *local = vec3f(0.0); }
+    } else {
+        foliageStrandWiden(local, *localNormal, uv, 0.0);
     }
 }
 #pragma end
@@ -324,6 +375,19 @@ vec2 packNormal(vec3 n) {
 #else
 out vec4 fragColor;
 #endif
+${STRAND_GLSL}
+// The share of a blade's drawn width it really has: below one, the vertex widened it to u_strandMinPx and alpha-to-coverage fades it.
+float foliageStrandCoverage(highp vec3 P, float v) {
+    if (u_bladeWidth <= 0.0 || u_strandMinPx <= 0.0) return 1.0;
+    highp float dist = max(length(P - u_camera.xyz), 1e-3);
+    float wider = 0.0;
+    if (u_thinDistance > 0.0 && u_camera.w > 0.5) {
+        float keep = min(pow(u_thinDistance / (u_thinStep * dist), log(1.0 / u_thinKeep) / log(u_thinStep)), 1.0);
+        keep *= 1.0 - (u_thinEnd > 0.0 ? smoothstep(u_thinEnd * (1.0 - u_thinFade), u_thinEnd, dist) : 0.0);
+        if (keep > 0.0) wider = min(1.0 / keep, u_thinGrow) - 1.0;
+    }
+    return clamp(foliageHalfWidth(v, wider) / (u_strandMinPx * 0.5 * esWorldPerPixel(dist)), 0.0, 1.0);
+}
 
 void main() {
 #ifdef MESH_NORMALS
@@ -356,6 +420,9 @@ void main() {
         alpha = min(alpha, 1.0);
     }
 #ifdef MESH_NORMALS
+    alpha *= foliageStrandCoverage(P, v_texCoord.y);
+#endif
+#ifdef MESH_NORMALS
     if (u_colorMapStrength > 0.0) {
         vec2 over = (P.xz + u_renderOrigin.xz - u_colorMapArea.xy) / max(u_colorMapArea.zw, vec2(1e-4));
         vec4 wash = textureLod(u_colorMap, vec2(over.x, 1.0 - over.y), 0.0);
@@ -380,6 +447,21 @@ void main() {
 #pragma end
 
 #pragma fragment wgsl
+${STRAND_WGSL}
+// See the GLSL: the share of a blade's drawn width it really has.
+fn foliageStrandCoverage(P : vec3f, v : f32) -> f32 {
+    if (mc.u_bladeWidth <= 0.0 || mc.u_strandMinPx <= 0.0) { return 1.0; }
+    let dist = max(length(P - frame.camera.xyz), 1e-3);
+    var wider = 0.0;
+    if (mc.u_thinDistance > 0.0 && frame.camera.w > 0.5) {
+        var keep = min(pow(mc.u_thinDistance / (mc.u_thinStep * dist), log(1.0 / mc.u_thinKeep) / log(mc.u_thinStep)), 1.0);
+        var melt = 0.0;
+        if (mc.u_thinEnd > 0.0) { melt = smoothstep(mc.u_thinEnd * (1.0 - mc.u_thinFade), mc.u_thinEnd, dist); }
+        keep = keep * (1.0 - melt);
+        if (keep > 0.0) { wider = min(1.0 / keep, mc.u_thinGrow) - 1.0; }
+    }
+    return clamp(foliageHalfWidth(v, wider) / (mc.u_strandMinPx * 0.5 * esWorldPerPixel(dist)), 0.0, 1.0);
+}
 #ifdef ES_GBUFFER
 struct FragOut {
     @location(0) color : vec4f,
@@ -432,6 +514,9 @@ fn packNormal(n : vec3f) -> vec2f {
         if (alpha <= 0.0) { discard; }
         alpha = min(alpha, 1.0);
     }
+#ifdef MESH_NORMALS
+    alpha = alpha * foliageStrandCoverage(P, v.v_texCoord.y);
+#endif
 #ifdef MESH_NORMALS
     if (mc.u_colorMapStrength > 0.0) {
         let over = (P.xz + frame.renderOrigin.xz - mc.u_colorMapArea.xy) / max(mc.u_colorMapArea.zw, vec2f(1e-4));

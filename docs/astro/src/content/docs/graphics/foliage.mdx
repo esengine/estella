@@ -78,6 +78,10 @@ Each cell is built twice. Near, grass is a bent, tapered blade for every plant; 
 copied in full near, and far is two crossed cards a plant. The engine's own [level of detail](/docs/performance/level-of-detail/) picks between
 them by how much of the screen the cell covers, and drops the cell past `drawDistance`.
 
+A blade far enough away is narrower than a pixel, and a picture's samples land on some of it and miss the rest, so a far meadow breaks into
+dashes. The **Foliage** shader draws a blade at least `u_strandMinPx` pixels wide (1.2 by default) and cuts its coverage to the share of that
+width it really has, so with multisampling on a far blade fades instead. 0 leaves blades as wide as they are.
+
 ## Placed plants
 
 `Foliage` scatters plants by rule. A scene an artist composed has every plant where the artist put it, tens of thousands of them, and as entities that is a
