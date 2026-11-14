@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "scorch.esshader",
+  "blendMode": 4,
+  "depthTest": true,
+  "depthWrite": false,
+  "cull": 0,
+  "properties": {
+    "u_heat": 0.0,
+    "u_soot": 0.0
+  }
+}
