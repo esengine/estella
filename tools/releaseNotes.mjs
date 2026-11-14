@@ -4980,4 +4980,8 @@ export const NOTED = {
     {"internal": "What the editor writes when it opens these examples, committed; nothing a creator runs changes."},
   "feat(mcp): view_from stands the eye a height above the ground - a guessed y put the eye inside a hill as often as not: above (and toAbove) take the ground under the place, waited for where a scene has just opened, so from may be [x, z]; the answer says the ground under the eye, warns when the eye is under it, and says when seeing far has cut the foreground away":
     {"note": "An agent can look at a scene from a place."},
+  "fix(ci): the five gates the stale generated file hid are green - a WGSL literal past MSVC's 16380-byte cap is split where a function ends (the source joined is the same), WindWake.radius and the two wind components say what they are to the gizmo and corpus checks, a test's temp directory is removed with retries, and the published API inventory names the render-target capture":
+    {"internal": "Gates and a split literal; the shader the engine assembles is the same and nothing a creator runs changes."},
+  "ci: work lands on develop and reaches master through a pull request - Build runs on develop pushes and on pull requests into master, and its Build passed job, which needs every other, is the one check master's protection requires; AGENTS.md says so for every agent":
+    {"internal": "How the repository takes changes; nothing a creator runs changes."},
 };
