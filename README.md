@@ -120,9 +120,11 @@ Full documentation: [estellaengine.com/docs](https://estellaengine.com/docs)
 - [Android & iOS](https://estellaengine.com/docs/publishing/android-ios/)
 - [AI Agents](https://estellaengine.com/docs/agents/mcp/)
 
-## Contributing
+## Feedback
 
-We welcome contributions! Please read the [Contributing Guide](CONTRIBUTING.md) before submitting a Pull Request.
+Estella does not accept pull requests. Bug reports and feature requests are welcome as
+[issues](https://github.com/esengine/estella/issues) — see [CONTRIBUTING.md](CONTRIBUTING.md)
+for what to include, and for building the engine from source.
 
 Maintainers: see the [release procedure](RELEASING.md) for candidate builds, acceptance evidence and publishing.
 

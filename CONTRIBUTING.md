@@ -1,6 +1,9 @@
 # Contributing to Estella
 
-Thank you for your interest in contributing to Estella! This guide will help you get started.
+Estella does not accept pull requests. Bug reports and feature requests are welcome as
+[issues](https://github.com/esengine/estella/issues) — see [Reporting Issues](#reporting-issues).
+The rest of this guide covers building the engine from source and the conventions the
+maintainers follow.
 
 ## Development Environment
 
@@ -81,16 +84,6 @@ environment variable in PowerShell before building:
 $env:BINARYEN_CORES = '1'
 ```
 
-### Branch Naming
-
-Create a branch from `master` with a descriptive name:
-
-```
-feat/prefab-system
-fix/transform-calculation
-docs/update-readme
-```
-
 ### Commit Convention
 
 We follow a strict commit message format:
@@ -135,28 +128,14 @@ We follow a strict commit message format:
   with `--all` to see the tree's existing debt, which is reported but not gated — the
   convention is applied to the file you touch, not in one sweep.
 
-## Pull Request Process
+### Checking a Change Locally
 
-1. Fork the repository and create your branch from `master`
-2. Make your changes, following the code style guidelines
-3. Test your changes locally (build, run the gates with `pnpm run verify`, preview)
-4. Check bundle sizes if you modified C++ or SDK code:
+1. Build, then run the gates with `pnpm run verify`
+2. If C++ or SDK code changed, check bundle sizes against the tracked baselines:
    ```bash
    node build-tools/cli.js build -t all --manifest
    node build-tools/track-bundle-size.js check
    ```
-5. Push your branch and open a Pull Request
-6. Fill in the PR template with a clear description
-7. CI will automatically post a bundle size report on your PR
-8. Wait for review — maintainers may request changes
-
-### Bundle Size Guidelines
-
-CI tracks WASM and SDK bundle sizes. If your PR exceeds thresholds:
-
-- **Explain why**: Add justification in PR description (new feature, dependencies, etc.)
-- **Optimize if possible**: Consider lazy loading, code splitting, or removing unused code
-- **Update baselines**: Maintainers will update baselines if the size increase is acceptable
 
 ## Reporting Issues
 
