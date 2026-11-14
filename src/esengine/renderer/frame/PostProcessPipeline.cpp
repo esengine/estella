@@ -503,7 +503,8 @@ glm::vec2 PostProcessPipeline::beginTemporalView(const glm::mat4& viewProjection
     const f32 jy = halton(phase, 3) - 0.5f;
     const f32 w = static_cast<f32>(std::max(width_, 1u));
     const f32 h = static_cast<f32>(std::max(height_, 1u));
-    return {jx * 2.0f / w, jy * 2.0f / h};
+    state.jitter = {jx * 2.0f / w, jy * 2.0f / h};
+    return state.jitter;
 }
 
 PostProcessPipeline::TemporalView PostProcessPipeline::peekTemporalView(const glm::mat4& viewProjection,
@@ -1065,6 +1066,7 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
                 glm::vec4(temporal->previous[c]);
         }
         pass.floatUniforms["u_historyValid"] = temporal->valid ? 1.0f : 0.0f;
+        pass.vec4Uniforms["u_jitter"] = glm::vec4(temporal->jitter, 0.0f, 0.0f);
         pass.paramDirty = true;
     } else if (temporal) {
         pass.floatUniforms["u_historyValid"] = temporal->valid ? 1.0f : 0.0f;

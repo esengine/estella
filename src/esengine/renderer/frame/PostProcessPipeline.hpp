@@ -760,6 +760,8 @@ private:
         glm::mat4 previous{1.0f};
         /// The render origin `current` was made for: the next frame's `previous` is it, taken to the origin then.
         glm::dvec3 origin{0.0};
+        /// The sub-pixel shift (NDC) the scene was drawn with this frame; a temporal pass reads the frame back without it.
+        glm::vec2 jitter{0.0f};
         u32 frame = 0;
         /// The frame whose chain last wrote the history; a gap means the history
         /// is of a picture this one no longer follows.

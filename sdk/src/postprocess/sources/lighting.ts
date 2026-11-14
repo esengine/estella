@@ -43,6 +43,7 @@ fn expand(c : vec3f) -> vec3f { return c / max(1.0 - max(max(c.r, c.g), c.b), 1e
 #pragma param u_blend float default(0.1) range(0.02,1)
 #pragma param u_objectMotion float default(1) range(0,1)
 #pragma param u_historyValid float default(0) range(0,1)
+#pragma param u_jitter color default(0,0,0,0)
 #pragma param u_prevViewProjection0 color default(1,0,0,0)
 #pragma param u_prevViewProjection1 color default(0,1,0,0)
 #pragma param u_prevViewProjection2 color default(0,0,1,0)
@@ -89,7 +90,10 @@ vec3 historyBicubic(vec2 uv) {
 void main() {
     ivec2 size = textureSize(u_texture, 0);
     vec2 texel = 1.0 / vec2(size);
-    vec4 cur = texture(u_texture, v_texCoord);
+    // The frame was drawn shifted by this frame's jitter: read it back where the unshifted picture is, or the
+    // output, which is mostly this frame wherever the history is clipped, moves with the jitter.
+    vec2 uvNow = v_texCoord + u_jitter.xy * 0.5;
+    vec4 cur = texture(u_texture, uvNow);
 
     // The neighbourhood the history has to look like: its mean and spread, in a
     // space where colour and brightness are apart.
@@ -97,7 +101,7 @@ void main() {
     vec3 m2 = vec3(0.0);
     for (int y = -1; y <= 1; ++y) {
         for (int x = -1; x <= 1; ++x) {
-            vec3 s = toYCoCg(compress(texture(u_texture, v_texCoord + vec2(float(x), float(y)) * texel).rgb));
+            vec3 s = toYCoCg(compress(texture(u_texture, uvNow + vec2(float(x), float(y)) * texel).rgb));
             m1 += s;
             m2 += s * s;
         }
@@ -106,9 +110,11 @@ void main() {
     vec3 sigma = sqrt(max(m2 / 9.0 - mean * mean, vec3(0.0)));
     vec3 curY = toYCoCg(compress(cur.rgb));
 
+    // The surface this output pixel shows is the one drawn at uvNow: its depth and its point are read there too, so a
+    // still point projects back to v_texCoord and the history is read where the unshifted picture has it.
     ivec2 dsize = textureSize(u_sceneDepth, 0);
-    float d = depthAt(screenTexel(v_texCoord, dsize), dsize);
-    vec3 world = worldFromDepth(v_texCoord, d);
+    float d = depthAt(screenTexel(uvNow, dsize), dsize);
+    vec3 world = worldFromDepth(uvNow, d);
     vec4 prev = mat4(u_prevViewProjection0, u_prevViewProjection1,
                      u_prevViewProjection2, u_prevViewProjection3) * vec4(world, 1.0);
     vec2 puv = prev.xy / max(prev.w, 1e-6) * 0.5 + 0.5;
@@ -117,7 +123,7 @@ void main() {
     // drew is the surface the scene shows here (its depth agrees), that displacement says where this pixel was
     // — the camera's does not know about it. Anywhere else the camera's answer stands.
     ivec2 vsize = textureSize(u_velocity, 0);
-    vec4 vel = texelFetch(u_velocity, screenTexel(v_texCoord, vsize), 0);
+    vec4 vel = texelFetch(u_velocity, screenTexel(uvNow, vsize), 0);
     if (u_objectMotion > 0.5 && vel.a > 0.5 && abs(vel.b - d) <= 2e-5 + (1.0 - d) * 0.02) {
         puv = v_texCoord + vel.xy;
         inFront = true;
@@ -173,13 +179,15 @@ fn historyBicubic(uv : vec2f) -> vec3f {
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let size = vec2i(textureDimensions(t0, 0));
     let texel = 1.0 / vec2f(size);
-    let cur = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    // See the GLSL: read the frame back without this frame's jitter. This device's uv runs down the rows, so y flips.
+    let uvNow = v.v_texCoord + vec2f(mc.u_jitter.x, -mc.u_jitter.y) * 0.5;
+    let cur = textureSampleLevel(t0, s0, uvNow, 0.0);
 
     var m1 = vec3f(0.0);
     var m2 = vec3f(0.0);
     for (var y : i32 = -1; y <= 1; y = y + 1) {
         for (var x : i32 = -1; x <= 1; x = x + 1) {
-            let s = toYCoCg(compress(textureSampleLevel(t0, s0, v.v_texCoord + vec2f(f32(x), f32(y)) * texel, 0.0).rgb));
+            let s = toYCoCg(compress(textureSampleLevel(t0, s0, uvNow + vec2f(f32(x), f32(y)) * texel, 0.0).rgb));
             m1 = m1 + s;
             m2 = m2 + s * s;
         }
@@ -189,8 +197,9 @@ fn historyBicubic(uv : vec2f) -> vec3f {
     let curY = toYCoCg(compress(cur.rgb));
 
     let dsize = vec2i(textureDimensions(t7, 0));
-    let d = depthAt(screenTexel(v.v_texCoord, dsize), dsize);
-    let world = worldFromDepth(v.v_texCoord, d);
+    // See the GLSL: the depth and the point are read where this pixel's surface was drawn.
+    let d = depthAt(screenTexel(uvNow, dsize), dsize);
+    let world = worldFromDepth(uvNow, d);
     let vp = mat4x4f(mc.u_prevViewProjection0, mc.u_prevViewProjection1,
                      mc.u_prevViewProjection2, mc.u_prevViewProjection3);
     let prev = vp * vec4f(world, 1.0);
@@ -201,7 +210,7 @@ fn historyBicubic(uv : vec2f) -> vec3f {
     // See the GLSL twin: a surface that moved by itself, from the frame's motion pass. This device's uv
     // runs down the rows, so the displacement's y is flipped on the way in.
     let vsize = vec2i(textureDimensions(u_velocity, 0));
-    let vel = textureLoad(u_velocity, screenTexel(v.v_texCoord, vsize), 0);
+    let vel = textureLoad(u_velocity, screenTexel(uvNow, vsize), 0);
     if (mc.u_objectMotion > 0.5 && vel.a > 0.5 && abs(vel.b - d) <= 2e-5 + (1.0 - d) * 0.02) {
         puv = v.v_texCoord + vec2f(vel.x, -vel.y);
         inFront = true;
