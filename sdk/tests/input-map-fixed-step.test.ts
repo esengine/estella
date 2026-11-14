@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
 import { AppContext, setDefaultContext } from '../src/ecs/context';
 import { Schedule, defineSystem } from '../src/ecs/system';
@@ -8,7 +8,11 @@ import { Input, InputState, inputEventCallbacks } from '../src/input/input';
 import { Button, Key, MouseButton, Axis1D, Virtual, defineInputMap } from '../src/input/inputMap';
 
 let context: AppContext;
-beforeEach(() => { context = new AppContext(); setDefaultContext(context); });
+beforeEach(() => {
+    context = new AppContext(); setDefaultContext(context);
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+});
+afterEach(() => { vi.restoreAllMocks(); });
 
 function harness() {
     const map = defineInputMap({ Jump: Button(Key('Space'), MouseButton(0)), Move: Axis1D(Virtual('move')) });
