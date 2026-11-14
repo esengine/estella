@@ -101,6 +101,27 @@ describe('shaping ground', () => {
         expect(() => land([flat], { maps, plants: [{ name: 'x', map: 'meadow', mesh: 'a.esmesh', count: 0 }] })).toThrow(/count/);
     });
 
+    it('places a plant with lods one by one: where its map is white, on the ground, the same every time', () => {
+        const maps = [{ name: 'wood' }];
+        const oaks = { name: 'oaks', map: 'wood', mesh: 'oak.esmesh', lods: ['oak1.esmesh', 'oak0.esmesh'], count: 2, cell: 100, scale: [0.8, 1.2] as const, sink: 5 };
+        const l = land([flat], { maps, plants: [oaks, { name: 'grass', map: 'wood', blade: [30, 10], count: 100 }] });
+        // Only the plant with lods is a grove; grass stays a field.
+        expect(l.groves.map((g) => g.plant)).toEqual(['oaks']);
+        const places = l.groves[0]!.places, count = places.length / 5;
+        expect(l.report.groves).toEqual([{ plant: 'oaks', count }]);
+        expect(count).toBeGreaterThan(40);
+        expect(count).toBeLessThanOrEqual(200);
+        for (let i = 0; i < places.length; i += 5) {
+            // Each is x, y, z, a turn and a size: inside the land, sunk by its size under the ground.
+            expect(Math.abs(places[i]!)).toBeLessThanOrEqual(500);
+            expect(places[i + 4]!).toBeGreaterThanOrEqual(0.8);
+            expect(places[i + 4]!).toBeLessThanOrEqual(1.2);
+            expect(places[i + 1]!).toBeCloseTo(10 - 5 * places[i + 4]!, 0);
+        }
+        expect(land([flat], { maps, plants: [oaks] }).groves[0]!.places).toEqual(places);
+        expect(land([flat], { maps, plants: [{ ...oaks, seed: 9 }] }).groves[0]!.places).not.toEqual(places);
+    });
+
     it('sets a plateau level, with a cliff of the width asked round it', () => {
         const l = land([flat, { op: 'plateau', at: [0, 0], radius: 200, height: 90, edge: 40 }]);
         expect(landHeightAt(l, 0, 0)).toBeCloseTo(90, 3);

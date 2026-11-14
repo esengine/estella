@@ -126,18 +126,23 @@ export interface LandStand {
 }
 
 /**
- * What grows on the land, a kind at a time: grass, flowers, bushes, trees. Each is a field of plants as thick as one of the land's
- * `maps` says where it says, drawn by the engine a cell at a time (a Foliage): tens of thousands of blades or thousands of trees,
- * which no scene holds as things of their own. With a `mesh` it is that plant (a model, and the picture its colours were baked to);
- * without one it is grass, of blades `blade` [height, width, lean?]. `count` is how many stand in a `cell` where the map is white.
- * `near` is how far out a plant is drawn whole, `reach` how far it is drawn at all; `wash` (0..1) is how much of the land's tints
- * its plants take, so grass is the colour of the ground under it and a tree keeps most of its own.
+ * What grows on the land, a kind at a time (grass, flowers, bushes, trees): a field as thick as one of the land's `maps` says, drawn a
+ * cell at a time (a Foliage). With a `mesh` it is that plant; without one it is grass of `blade` [height, width, lean?]. `count` stands in a
+ * `cell` where the map is white; `near` is how far it is drawn whole, `reach` how far at all; `wash` (0..1) how much of the land's tints it takes.
  */
 export interface LandPlant {
     name: string;
     /** The name of one of the land's maps: where it grows, and how thick. */
     map: string;
     mesh?: string;
+    /**
+     * The same plant in fewer triangles, nearest first (one or two): what stands in for it past `near`, and what a wood a kilometre off
+     * is drawn from. With these the plants are placed one by one where the map lets them stand (a PlacedFoliage, each choosing its own
+     * detail by how far off it is) and keep their own vertex colours; without, a mesh is drawn in whole cells by a Foliage.
+     */
+    lods?: string[];
+    /** How far it is sunk in the ground, so it stands in a slope. */
+    sink?: number;
     /** The picture a mesh's colours are in (a model's colour map). */
     texture?: string;
     /** A Foliage material of its own; without one a mesh with a texture gets one made for it. */
@@ -300,6 +305,7 @@ export function landInWorldUnits(source: LandSource): LandSource {
                 ...(plant.cell !== undefined ? { cell: scaled(plant.cell, k) } : {}),
                 ...(plant.near !== undefined ? { near: scaled(plant.near, k) } : {}),
                 ...(plant.reach !== undefined ? { reach: scaled(plant.reach, k) } : {}),
+                ...(plant.sink !== undefined ? { sink: scaled(plant.sink, k) } : {}),
                 // A blade is [height, width, lean]: its height and width are lengths, its lean a share of its height.
                 ...(plant.blade ? { blade: [scaled(plant.blade[0]!, k), scaled(plant.blade[1]!, k), ...plant.blade.slice(2)] } : {}),
             })),

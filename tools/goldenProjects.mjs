@@ -1382,6 +1382,8 @@ export const SHIPPED = {
     { notCertifiable: "Editor input, not a game. Tried by hand in the editor; no test in the repo presses these keys." },
   "A land grows its grass, flowers and trees.":
     { notCertifiable: "An authoring tool's output (a .esland source). Covered by pipeline/tests/land.test.ts; no golden project is made from a land source." },
+  "A tree is grown in one step.":
+    { notCertifiable: "An authoring tool's output (a .esmodel step). Covered by pipeline/tests/modeling-tree.test.ts and pipeline/tests/land.test.ts; no golden project grows a tree." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */

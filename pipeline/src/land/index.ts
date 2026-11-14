@@ -9,7 +9,7 @@ export {
 } from './landSource';
 export {
     bakeLand, landHeightAt, landNoise, landPictures,
-    type BakedLake, type BakedLand, type BakedRiver, type BakedRoad, type BakedStand, type StandPlace, type LandPicture, type LandReport,
+    type BakedLake, type BakedLand, type BakedRiver, type BakedGrove, type BakedRoad, type BakedStand, type StandPlace, type LandPicture, type LandReport,
 } from './landBake';
 export {
     gridStepFor, LAND_VIEWS, landProfile, probeLand, renderLandProfile, renderLandSheet,

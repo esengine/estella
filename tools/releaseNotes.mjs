@@ -4992,4 +4992,8 @@ export const NOTED = {
     {"internal": "A release classification; nothing a creator runs changes."},
   "ci: no pre-push hook - the release-note check it ran is the changelog-covers gate every pull request into master runs, so a push to develop no longer waits on it":
     {"internal": "How the repository takes changes; nothing a creator runs changes."},
+  "feat(modeling): a tree is written with its leaves, and a land places its trees one by one - a model with leaf cards gets <name>_leaves.png beside it and a cut-out material; a land plant with lods becomes a kind of one PlacedFoliage, each tree choosing its detail by how far off it is; model_write and terrain_write say how a tree is grown and planted":
+    {"note": "A tree is grown in one step."},
+  "feat(modeling): the tree step grows a whole tree - a trunk that tapers and bends, limbs, twigs and a crown of leaf cards cut out by a sprig's picture, in five shapes and at three levels of detail from the same numbers; a land plant with lods is placed one by one where its map lets it stand, a grove the bake counts":
+    {"note": "A tree is grown in one step."},
 };
