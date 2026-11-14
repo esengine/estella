@@ -204,7 +204,8 @@ int main() {
         for (const auto& mask : marked.tileMask) {
             lampTiles += mask.w & 1u;
             sunEverywhere &= (mask.w & 2u) != 0;
-            othersUntouched &= mask.x == 0u && mask.y == 0u && mask.z == 0u && (mask.w >> 2) == 0u;
+            othersUntouched &= mask.x == 0u && mask.y == 0u && mask.z == 0u && ((mask.w & 0xFFFFu) >> 2) == 0u
+                            && (mask.w >> 18) == 0u;
         }
         CHECK(lampTiles > 0 && lampTiles <= 4, "a lamp a quarter of a unit wide is in the few tiles round it");
         CHECK(sunEverywhere, "a directional light is marked in every tile");
@@ -223,6 +224,51 @@ int main() {
         bool all = true;
         for (const auto& mask : store.data().tileMask) all &= (mask.w & 3u) == 3u;
         CHECK(all && store.loopTileBits() == 2 * kTiles, "through a perspective camera every light is marked everywhere: nothing is skipped");
+
+        // The upper half is the same question for a 3D surface, which measures a light in space: a perspective view is as good as
+        // any, and the view it was marked through goes with the masks.
+        {
+            const glm::mat4 eye = glm::perspective(glm::radians(60.0f), 1.0f, 0.1f, 100.0f)
+                                * glm::lookAt(glm::vec3(0.0f, 0.0f, 20.0f), glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            LightStore room;
+            room.clear();
+            GpuLight near = lamp;  // a lamp of radius one, down and left of what the eye looks at
+            near.posDir = {-6.0f, -6.0f, 0.0f, 1.0f};
+            near.shadow.z = 0.0f;
+            GpuLight behind = lamp;  // one behind the eye: where it lands on the picture is not known
+            behind.posDir = {0.0f, 0.0f, 0.0f, 1.0f};
+            behind.shadow.z = 30.0f;
+            GpuLight dark = lamp;  // a slot that lights nothing
+            dark.color.a = 0.0f;
+            room.addLight(near);
+            room.addLight(sun);
+            room.addLight(behind);
+            room.addLight(dark);
+            room.markLoopLights(eye);
+            const LightConstants& d = room.data();
+            CHECK(d.tileView == eye, "the masks carry the view they were marked through");
+            u32 nearTiles = 0;
+            bool sunAll = true, behindAll = true, darkNone = true, flatAll = true;
+            for (const auto& mask : d.tileMask) {
+                nearTiles += (mask.w >> 16) & 1u;
+                sunAll &= ((mask.w >> 17) & 1u) != 0;
+                behindAll &= ((mask.w >> 18) & 1u) != 0;
+                darkNone &= ((mask.w >> 19) & 1u) == 0;
+                flatAll &= (mask.w & 0xFu) == 0xFu;
+            }
+            CHECK(nearTiles > 0 && nearTiles < kTiles / 8, "a lamp in space is marked on the few tiles its sphere covers");
+            const glm::vec4 clip = eye * glm::vec4(-6.0f, -6.0f, 0.0f, 1.0f);
+            const glm::vec2 ndc = glm::vec2(clip) / clip.w;
+            const u32 tx = static_cast<u32>(std::floor((ndc.x * 0.5f + 0.5f) * TILE_COLUMNS));
+            const u32 ty = static_cast<u32>(std::floor((ndc.y * 0.5f + 0.5f) * TILE_ROWS));
+            CHECK(((d.tileMask[ty * TILE_COLUMNS + tx].w >> 16) & 1u) != 0, "including the tile its centre lands in");
+            CHECK(((d.tileMask[(TILE_ROWS - 1) * TILE_COLUMNS + TILE_COLUMNS - 1].w >> 16) & 1u) == 0, "and not the far corner");
+            CHECK(sunAll, "a directional light reaches every tile in space too");
+            CHECK(behindAll, "a lamp behind the eye is marked everywhere, since where it lands is not known");
+            CHECK(darkNone, "a dark slot is marked nowhere");
+            CHECK(flatAll, "while a flat surface, through this view, still skips nothing");
+            CHECK(room.loopTileBits3D() == nearTiles + 2 * kTiles, "and the count of the 3D pairs set is what a gate reads");
+        }
 
         store.clear();
         CHECK(store.data().tileInfo.w == 0.0f && store.loopTileBits() == 0, "a new frame starts unmarked");

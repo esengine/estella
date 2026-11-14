@@ -455,6 +455,10 @@ export const SCENES = [
   // plane's convention reads 255 and 200.
   { id: "mesh-flat-point-3d", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-flat-point-3d.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.7,\"y\":0.5,\"rgb\":[149,149,149],\"tol\":20},{\"x\":0.7,\"y\":0.6,\"rgb\":[139,139,139],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":10}]" } },
   { id: "mesh-point-3d", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-point-3d.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[224,224,224],\"tol\":20},{\"x\":0.833,\"y\":0.5,\"rgb\":[102,102,102],\"tol\":20}]" } },
+  // Two small lamps in a perspective view, either side of a panel: each lights the panel round it and neither reaches the middle.
+  // A lit 3D pixel works out only the lamps whose sphere covers its screen tile (LightStore::markLoopLights, the masks' upper half);
+  // the counter says few tiles were marked, the picture that the lamps the tiles skip were the ones that could not reach.
+  { id: "mesh-lamps-apart", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-lamps-apart.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS_MAX: "{\"render.lights3d.tileBits\":128}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.167,\"y\":0.5,\"rgb\":[127,127,127],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":10},{\"x\":0.833,\"y\":0.5,\"rgb\":[127,127,127],\"tol\":20}]" } },
   // Geometry with no file under it. Sun 22.5° off the view axis: the cube's two faces
   // read 255·cos22.5 and 255·cos67.5, swapped if the winding is inside out; the sphere
   // reads 155 at -25 against 236 at its middle, which a flat quad could not.

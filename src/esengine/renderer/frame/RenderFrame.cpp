@@ -735,6 +735,7 @@ void RenderFrame::publishFrameCounters() {
     ES_PROFILE_COUNTER("render.lights2d.spared", stats_.lightsSpared);
     // The same for what has no quads of its own to say it (a tilemap's strips): how many (screen tile, loop light) pairs are left set.
     ES_PROFILE_COUNTER("render.lights2d.tileBits", context_.lights().loopTileBits());
+    ES_PROFILE_COUNTER("render.lights3d.tileBits", context_.lights().loopTileBits3D());
     // The 3D path had no counter at all, and its cost is the one a pixel hides
     // best: identical geometry drawn N times merges into ONE instanced call, so
     // batch.draws does not move when a cull stops working. These two do.

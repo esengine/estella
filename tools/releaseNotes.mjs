@@ -4912,4 +4912,6 @@ export const NOTED = {
     {"note": "An agent can shape ground as steps."},
   "feat(terrain): a land's falls come with their mist and its ground with a wash of colour - terrain_apply gives every Waterfall two emitters that ride it (WaterfallAnchor: one at the foot, one off the sheet), sized by the fall's width, and mist: false leaves them out; a land source's tints are baked to one picture the Terrain mixes into its layers (its Color Map) and the reply names it, so a Foliage can take the colour of the ground it stands on":
     {"note": "An agent can shape ground as steps."},
+  "perf(render): a lit 3D pixel works out only the lights that can reach it - the loop's sixteen lights are marked on the screen tiles their spheres cover (the tile masks' upper half), through a view that goes with the masks, and a 3D surface skips a light whose bit is clear in its tile, whichever camera draws it (a reflection, a probe face); every light was worked out for every lit pixel before":
+    {"note": "A lit 3D pixel works out only the lights that can reach it."},
 };

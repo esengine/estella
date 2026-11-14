@@ -176,14 +176,23 @@ struct LightConstants {
     glm::vec4 bakedTint{1.0f};
     /// The lights past the loop's sixteen (point and spot, no shadow map), read through the tile masks below; see TiledLights.hpp.
     GpuLight tiledLights[MAX_TILED_LIGHTS];
-    /// Per screen tile, which of those lights can reach it: bit i of word i / 32.
+    /// Per screen tile, which of those lights can reach it: bit i of word i / 32. The fourth word is the loop's sixteen
+    /// (LightStore::markLoopLights): bits 0-15 for a flat lit surface, measured in the plane; bits 16-31 for a 3D one, measured
+    /// in space through tileView.
     glm::uvec4 tileMask[TILE_COLUMNS * TILE_ROWS]{};
-    /// x = how many tiled lights there are (0 = the loop does not run), y = tile columns, z = tile rows, w unused.
+    /// x = how many tiled lights there are (0 = the loop does not run), y = tile columns, z = tile rows, w = 1 when the
+    /// fourth word is marked.
     glm::vec4 tileInfo{0.0f};
     /// rgb = what the ambient term moves by between a surface facing up and one facing down: ground minus
     /// sky, so zero (no hemisphere light) leaves `ambient` as the flat term, pixel for pixel. Last, because a
     /// block that does not read it is free not to declare it.
     glm::vec4 ambientGround{0.0f};
+    /// The view the tile masks were marked through (LightStore::markLoopLights). A lit 3D surface finds its tile through THIS,
+    /// not through the camera drawing it: a point a light reaches lands inside that light's tiles under the view that marked
+    /// them, whichever camera draws it, so a reflection or a probe face skips only lights that cannot reach. A point outside
+    /// that view finds no tile and skips nothing. Last, after a member a block may leave off, so a block that does not read it
+    /// need not declare it.
+    glm::mat4 tileView{1.0f};
 };
 
 /**
@@ -234,7 +243,7 @@ static_assert(sizeof(LightConstants) == 16 + 96 * MAX_LIGHTS + 16
                                         + 64 * MAX_SHADOW_TILES + 16 * MAX_SHADOW_TILES
                                         + 16 + 16 * 9 + 16 + 16
                                         + 16 + 32 * MAX_REFLECTION_PROBES + 16
-                                        + 96 * MAX_TILED_LIGHTS + 16 * TILE_COLUMNS * TILE_ROWS + 16 + 16,
+                                        + 96 * MAX_TILED_LIGHTS + 16 * TILE_COLUMNS * TILE_ROWS + 16 + 16 + 64,
               "LightConstants must match the std140 GLSL block layout");
 
 }  // namespace esengine

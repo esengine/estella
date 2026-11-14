@@ -1,0 +1,141 @@
+{
+  "version": 4,
+  "name": "MeshLampsApart",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 520
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 60,
+            "nearPlane": 1,
+            "farPlane": 3000,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Panel",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 600,
+              "y": 600,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "/scenes/shadow-quad.esmesh",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "opaque": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "LampLeft",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -200,
+              "y": 0,
+              "z": 60
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "intensity": 1,
+            "radius": 120
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "LampRight",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 200,
+              "y": 0,
+              "z": 60
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "intensity": 1,
+            "radius": 120
+          }
+        }
+      ]
+    }
+  ]
+}

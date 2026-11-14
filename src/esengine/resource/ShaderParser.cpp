@@ -1480,6 +1480,7 @@ struct LightConstants {
     tileMask : array<vec4u, 192>,
     tileInfo : vec4f,
     u_ambientGround : vec4f,
+    u_tileView : mat4x4f,
 };
 @group(0) @binding(2) var<uniform> lc : LightConstants;
 struct ProbeConstants { u_probeIrradiance : array<vec4f, 1000>, u_probeTail : vec4f };
@@ -2271,7 +2272,21 @@ fn applyLightingSurfaceBRDF(diffuse : vec3f, F0 : vec3f, N : vec3f, worldPos : v
     var extra = vec3f(0.0);
     // As many as are lit: read for a slot nobody uses, a light's six vectors cost more on a phone than the one light shaded.
     let lightCount = i32(lc.u_ambient.a);
+    // Which of them can reach this point: see the GLSL twin.
+    var reach3D = 0xFFFFu;
+#ifdef ES_SURFACE_3D
+    if (lc.tileInfo.w > 0.5) {
+        let tileView = lc.u_tileView * vec4f(worldPos, 1.0);
+        let viewNdc = tileView.xy / max(tileView.w, 1e-4);
+        if (tileView.w > 1e-4 && abs(viewNdc.x) <= 1.0 && abs(viewNdc.y) <= 1.0) {
+            let viewTiles = vec2i(i32(lc.tileInfo.y), i32(lc.tileInfo.z));
+            let viewTile = clamp(vec2i(floor((viewNdc * 0.5 + 0.5) * vec2f(viewTiles))), vec2i(0), viewTiles - vec2i(1));
+            reach3D = lc.tileMask[viewTile.y * viewTiles.x + viewTile.x].w >> 16u;
+        }
+    }
+#endif
     for (var i = 0; i < lightCount; i++) {
+        if ((reach3D & (1u << u32(i))) == 0u) { continue; }
         let term = shadeLight(lc.u_lights[i].posDir, lc.u_lights[i].color, lc.u_lights[i].spot, lc.u_lights[i].shadow,
                               lc.u_lights[i].shadowMap, lc.u_lights[i].falloff, N, V, worldPos, a, F0, NdotV, specular, roughness, ext, true);
         lit += term.lit;
@@ -3088,6 +3103,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp uvec4 u_tileMask[192];\n"
             "    highp vec4 u_tileInfo;\n"
             "    highp vec4 u_ambientGround;\n"
+            "    highp mat4 u_tileView;\n"       // the view the tile masks were marked through
             "};\n"
             // One run of nine per INSTANCE, not one for the draw: a merged draw
             // holds objects standing in many places. The flag in w tells "no
@@ -3974,7 +3990,23 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // point light's height is its radius. Normal and view are the 3D part.
             // As many as are lit: read for a slot nobody uses, a light's six vectors cost more on a phone than the one light shaded.
             "    int lightCount = int(u_ambient.a);\n"
+            // Which of them can reach this point at all, from the screen tile it falls in through the view the masks were marked
+            // through (LightStore::markLoopLights, the masks' upper half): a lamp across the street is not worked out here. A point
+            // that view does not see finds no tile, and every light is worked out.
+            "    highp uint reach3D = 0xFFFFu;\n"
+            "#ifdef ES_SURFACE_3D\n"
+            "    if (u_tileInfo.w > 0.5) {\n"
+            "        highp vec4 tileClip = u_tileView * vec4(worldPos, 1.0);\n"
+            "        highp vec2 tileNdc = tileClip.xy / max(tileClip.w, 1e-4);\n"
+            "        if (tileClip.w > 1e-4 && abs(tileNdc.x) <= 1.0 && abs(tileNdc.y) <= 1.0) {\n"
+            "            ivec2 tileCount = ivec2(int(u_tileInfo.y), int(u_tileInfo.z));\n"
+            "            ivec2 tile = clamp(ivec2(floor((tileNdc * 0.5 + 0.5) * vec2(tileCount))), ivec2(0), tileCount - ivec2(1));\n"
+            "            reach3D = u_tileMask[tile.y * tileCount.x + tile.x].w >> 16u;\n"
+            "        }\n"
+            "    }\n"
+            "#endif\n"
             "    for (int i = 0; i < lightCount; ++i) {\n"
+            "        if ((reach3D & (1u << uint(i))) == 0u) continue;\n"
             "        shadeLight(u_lights[i].posDir, u_lights[i].color, u_lights[i].spot, u_lights[i].shadow,\n"
             "                   u_lights[i].shadowMap, u_lights[i].falloff, N, V, worldPos, a, F0, NdotV,\n"
             "                   specular, roughness, ext, lit, gloss, extra, true);\n"

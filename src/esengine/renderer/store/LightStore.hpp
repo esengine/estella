@@ -46,6 +46,7 @@ public:
         tiledCount_ = 0;
         loopMarked_ = false;
         loopTileBits_ = 0;
+        loopTileBits3D_ = 0;
         hasEnvironment_ = false;
         dirty_ = true;
     }
@@ -109,6 +110,11 @@ public:
      *          A flat surface measures a light in the plane's XY alone, whatever its depth, so a tile is only a sound answer where
      *          the view keeps depth out of the picture's x and y: an orthographic camera looking down the plane's normal. Through
      *          any other the word is all ones and nothing is skipped. A directional light reaches every tile.
+     *
+     *          The word's upper half is the same question for a 3D surface (bits 16-31), which measures a light in space: a light's
+     *          sphere (its radius, past which its ramp is zero) is marked on the tiles it covers through @p viewProjection, any view,
+     *          and that view goes with the masks (tileView) for the surface to find its tile through. Every light of the
+     *          loop is worked out for every lit 3D pixel without it; a city at night has a dozen lamps, and most reach little of it.
      */
     void markLoopLights(const glm::mat4& viewProjection) {
         auto* masks = reinterpret_cast<u32(*)[4]>(data_.tileMask);
@@ -118,6 +124,13 @@ public:
         for (u32 i = 0; i < count_; ++i) {
             const GpuLight& light = data_.lights[i];
             const bool directional = light.posDir.z >= 0.5f && light.posDir.z < 1.5f;
+            // In space, first: a directional light reaches every tile, a dark slot none, a point or a spot its sphere.
+            if (directional) {
+                for (u32 t = 0; t < TILE_COLUMNS * TILE_ROWS; ++t) masks[t][3] |= 1u << (16u + i);
+            } else if (light.color.a != 0.0f) {
+                const f32 radius = std::max(light.posDir.w, 0.0001f) * 1.001f + 0.001f;
+                markLightTiles(viewProjection, glm::vec3(light.posDir.x, light.posDir.y, light.shadow.z), radius, 96u + 16u + i, masks);
+            }
             if (!flatView || directional) {
                 for (u32 t = 0; t < TILE_COLUMNS * TILE_ROWS; ++t) masks[t][3] |= 1u << i;
                 continue;
@@ -127,11 +140,16 @@ public:
             const f32 reach = std::max(light.posDir.w, 0.0001f) * 1.001f + 0.001f;
             markLightTiles(viewProjection, glm::vec3(light.posDir.x, light.posDir.y, 0.0f), reach, 96u + i, masks);
         }
+        data_.tileView = viewProjection;
         data_.tileInfo.y = static_cast<f32>(TILE_COLUMNS);
         data_.tileInfo.z = static_cast<f32>(TILE_ROWS);
         data_.tileInfo.w = 1.0f;
         loopTileBits_ = 0;
-        for (u32 t = 0; t < TILE_COLUMNS * TILE_ROWS; ++t) loopTileBits_ += static_cast<u32>(std::popcount(masks[t][3]));
+        loopTileBits3D_ = 0;
+        for (u32 t = 0; t < TILE_COLUMNS * TILE_ROWS; ++t) {
+            loopTileBits_ += static_cast<u32>(std::popcount(masks[t][3] & 0xFFFFu));
+            loopTileBits3D_ += static_cast<u32>(std::popcount(masks[t][3] >> 16));
+        }
         loopMarked_ = true;
         dirty_ = true;
     }
@@ -141,6 +159,8 @@ public:
     /// How many (screen tile, loop light) pairs the last markLoopLights left set: 192 tiles times the lights when nothing could be
     /// told apart, far fewer under local lights. No pixel shows a light that is skipped, so this is what a gate reads.
     u32 loopTileBits() const { return loopTileBits_; }
+    /// The tiles the loop's lights reach a 3D surface on, summed over lights (the masks' upper half).
+    u32 loopTileBits3D() const { return loopTileBits3D_; }
 
     /// Hands over the shadow tiles a frame rendered: per tile a world -> clip matrix
     /// and the atlas rect it was drawn into (bias in w), plus the params whose x is
@@ -301,6 +321,7 @@ private:
     u32 tiledCount_ = 0;
     bool loopMarked_ = false;
     u32 loopTileBits_ = 0;
+    u32 loopTileBits3D_ = 0;
     bool hasEnvironment_ = false;
     BufferHandle ubo_ = BufferHandle::Invalid;
     bool dirty_ = true;
