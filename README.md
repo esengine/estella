@@ -85,7 +85,7 @@ depends on what sits behind it.
 ## Rendered in real time
 
 <div align="center">
-  <img src="docs/assets/day-f8330bd2.webp" alt="The Bistro street corner rendered in real time by Estella from morning to night: a low sun, mist, rain that leaves puddles with rings on the water and splashes on the street, then snow settling on the awnings and falling past the lit street lamps" width="900" />
+  <img src="docs/assets/day-1ea1637f.webp" alt="The Bistro street corner rendered in real time by Estella from morning to night: a low sun, mist, rain that leaves puddles with rings on the water and splashes on the street, then snow settling on the awnings and falling past the lit street lamps" width="900" />
   <br/>
   <sub><i>One day on the Amazon Lumberyard Bistro, recorded frame by frame from the running game: a sun that follows the clock, weather that turns from clear to mist, rain and snow, baked bounce light, reflections and volumetric haze. Scene © Amazon Lumberyard, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, modified.</i></sub>
 </div>
