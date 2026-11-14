@@ -18,3 +18,6 @@ sdk/src/runtime/planWorkerBundle.generated.ts text eol=lf
 # on disk. A CRLF checkout changes those bytes, so every twin reads as stale and
 # regenerating writes a hash no Linux runner can reproduce.
 *.esshader text eol=lf
+
+# Git runs the hooks with sh, which reads a CRLF line as a command ending in a carriage return: pin them to LF on every checkout.
+.githooks/* text eol=lf
