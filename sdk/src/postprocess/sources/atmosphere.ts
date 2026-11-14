@@ -2045,6 +2045,18 @@ float streaks(vec2 uv, float aspect, float cols, float speed, float seed, float 
     float across = 1.0 - smoothstep(0.0, 0.06, dx);
     float along = (1.0 - fy / u_streakLength) * step(fy, u_streakLength);
     return across * along;
+}
+
+/// One layer of falling snow: soft round flakes on a grid of @p cols columns that drifts down at @p speed and sways.
+float flakes(vec2 uv, float aspect, float cols, float speed, float seed, float T) {
+    vec2 q = vec2(uv.x * aspect, uv.y) * cols;
+    q.y += T * speed * cols * 0.25;
+    q.x += sin(T * 0.8 + q.y * 0.45 + seed) * 0.35 - u_wind * q.y * 0.5;
+    vec2 id = floor(q);
+    if (hash21(id + seed) > u_snowfall * 0.35) return 0.0;
+    vec2 at = (vec2(hash21(id + seed + 3.0), hash21(id + seed + 7.0)) - 0.5) * 0.6;
+    float r = mix(0.07, 0.16, hash21(id + seed + 11.0));
+    return 1.0 - smoothstep(r * 0.35, r, length(fract(q) - 0.5 - at));
 }`;
         const WGSL = `
 fn hash11(n : f32) -> f32 { return fract(sin(n * 127.1) * 43758.5453); }
@@ -2068,6 +2080,18 @@ fn streaks(uv : vec2f, aspect : f32, cols : f32, speed : f32, seed : f32, T : f3
     var along = 0.0;
     if (fy <= mc.u_streakLength) { along = 1.0 - fy / mc.u_streakLength; }
     return across * along;
+}
+
+/// See the GLSL twin: one layer of soft round flakes that drifts down and sways. q runs up the screen, as in GL.
+fn flakes(uv : vec2f, aspect : f32, cols : f32, speed : f32, seed : f32, T : f32) -> f32 {
+    var q = vec2f(uv.x * aspect, 1.0 - uv.y) * cols;
+    q.y = q.y + T * speed * cols * 0.25;
+    q.x = q.x + sin(T * 0.8 + q.y * 0.45 + seed) * 0.35 - mc.u_wind * q.y * 0.5;
+    let id = floor(q);
+    if (hash21(id + seed) > mc.u_snowfall * 0.35) { return 0.0; }
+    let at = (vec2f(hash21(id + seed + 3.0), hash21(id + seed + 7.0)) - 0.5) * 0.6;
+    let r = mix(0.07, 0.16, hash21(id + seed + 11.0));
+    return 1.0 - smoothstep(r * 0.35, r, length(fract(q) - 0.5 - at));
 }`;
         const source = `#pragma shader "PP Rain"
 #pragma version 300 es
@@ -2080,6 +2104,7 @@ fn streaks(uv : vec2f, aspect : f32, cols : f32, speed : f32, seed : f32, T : f3
 #pragma param u_rippleScale float default(60) range(5,400)
 #pragma param u_puddles float default(0.3) range(0,1)
 #pragma param u_puddleScale float default(350) range(40,2000)
+#pragma param u_snowfall float default(0) range(0,2)
 #pragma param u_streakColor color default(0.78,0.82,0.9,1)
 #pragma param u_timeScale float default(1) range(0,1)
 #pragma param u_phase float default(0) range(0,100000)
@@ -2219,6 +2244,14 @@ void main() {
     if (dist > 450.0)  rain += streaks(v_texCoord, aspect, 130.0, u_speed * 1.4, 2.0, T) * 0.28 * (1.0 - shelteredAt(entry + along * 450.0));
     if (dist > 1400.0) rain += streaks(v_texCoord, aspect, 230.0, u_speed * 1.9, 3.0, T) * 0.22 * (1.0 - shelteredAt(entry + along * 1400.0));
     col += tint * rain * u_intensity;
+    // Snow falls in the same three layers, and as little under a roof.
+    if (u_snowfall > 0.0) {
+        float snow = 0.0;
+        if (dist > 120.0)  snow += flakes(v_texCoord, aspect, 9.0,  0.5,  1.0, T) * 0.9  * (1.0 - shelteredAt(entry + along * 120.0));
+        if (dist > 450.0)  snow += flakes(v_texCoord, aspect, 18.0, 0.4,  2.0, T) * 0.65 * (1.0 - shelteredAt(entry + along * 450.0));
+        if (dist > 1400.0) snow += flakes(v_texCoord, aspect, 34.0, 0.3,  3.0, T) * 0.45 * (1.0 - shelteredAt(entry + along * 1400.0));
+        col += tint * 1.2 * snow;
+    }
     fragColor = vec4(col, src.a);
 }
 #pragma end
@@ -2333,6 +2366,13 @@ fn rainSplash(g : vec2f, T : f32) -> f32 {
     if (dist > 450.0)  { rain = rain + streaks(v.v_texCoord, aspect, 130.0, mc.u_speed * 1.4, 2.0, T) * 0.28 * (1.0 - shelteredAt(entry + along * 450.0)); }
     if (dist > 1400.0) { rain = rain + streaks(v.v_texCoord, aspect, 230.0, mc.u_speed * 1.9, 3.0, T) * 0.22 * (1.0 - shelteredAt(entry + along * 1400.0)); }
     col = col + tint * rain * mc.u_intensity;
+    if (mc.u_snowfall > 0.0) {
+        var snow = 0.0;
+        if (dist > 120.0)  { snow = snow + flakes(v.v_texCoord, aspect, 9.0,  0.5, 1.0, T) * 0.9  * (1.0 - shelteredAt(entry + along * 120.0)); }
+        if (dist > 450.0)  { snow = snow + flakes(v.v_texCoord, aspect, 18.0, 0.4, 2.0, T) * 0.65 * (1.0 - shelteredAt(entry + along * 450.0)); }
+        if (dist > 1400.0) { snow = snow + flakes(v.v_texCoord, aspect, 34.0, 0.3, 3.0, T) * 0.45 * (1.0 - shelteredAt(entry + along * 1400.0)); }
+        col = col + tint * 1.2 * snow;
+    }
     return vec4f(col, src.a);
 }
 #pragma end

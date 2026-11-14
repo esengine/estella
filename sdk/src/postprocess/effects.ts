@@ -822,6 +822,8 @@ registerEffect({
         // The reflections effect draws the same pools when it is given the same two numbers.
         { name: 'u_puddles', label: 'Puddles', min: 0, max: 1, step: 0.01, defaultValue: 0.3, neutralValue: 0 },
         { name: 'u_puddleScale', label: 'Puddle Size', min: 40, max: 2000, step: 10, defaultValue: 350, worldUnits: 1 },
+        // How much snow falls, in the same three layers as the rain; 0 is none. Snow neither wets the ground nor rings it.
+        { name: 'u_snowfall', label: 'Snowfall', min: 0, max: 2, step: 0.01, defaultValue: 0, neutralValue: 0 },
     ],
     colors: [
         { name: 'u_streakColor', label: 'Streak Colour', defaultValue: { r: 0.78, g: 0.82, b: 0.9, a: 1 } },

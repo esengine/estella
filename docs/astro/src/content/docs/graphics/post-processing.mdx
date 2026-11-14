@@ -40,7 +40,7 @@ several can stack in one frame at no extra target cost beyond the passes.
 | `ssgi` | One bounce of diffuse light between the surfaces the camera sees | `intensity`, `radius`, `thickness`, `maxBounce` |
 | `autoExposure` | Eye adaptation: exposure follows how bright the picture is | `bias`, `speedUp`, `speedDown`, `minEV`, `maxEV` |
 | `depthOfField` | Blur by distance from a focus | `focusDistance`, `focusRange`, `aperture`, `maxBlur` |
-| `rain` | Falling rain, wet ground, puddles, ripples and splashes | `intensity`, `wetness`, `wind`, `speed`, `puddles`, `puddleScale` |
+| `rain` | Falling rain or snow, wet ground, puddles, ripples on the puddles and splashes elsewhere | `intensity`, `wetness`, `wind`, `speed`, `puddles`, `puddleScale`, `snowfall` |
 | `ssr` | Screen-space reflections: props mirrored in the floor they stand on | `intensity`, `maxDistance`, `thickness`, `floorBias`, `skyReflection` |
 | `taa` | Temporal anti-aliasing: edges smoothed over several frames, moving meshes followed by their own motion | `blend`, `objectMotion` |
 | `lensDistortion` | Barrel / pincushion warp | `strength`, `zoom` |
@@ -152,12 +152,14 @@ darkened by `wetness` because water in the pores takes the light a dry surface s
 ground that faces the sky and a little less (down to 0.6 of it) where a surface faces away, taken from the surface's own
 normal where the G-buffer has one (a leaf's) and from the depth buffer elsewhere, so a hillside and a plant in a storm
 darken with the flat ground beside them instead of standing out pale. What needs **flat ground** — a surface that faces
-up, flat enough to hold water — is the standing water and the drops that land on it, which leave **ripples** (rings that spread and fade) and
-**splashes** (the small quick crown of a drop on ground that is not water), laid out on a grid in the world so they
+up, flat enough to hold water — is the standing water and the drops that land on it, which leave **ripples** (rings that spread and fade) where water stands and
+**splashes** (a bright point and a few droplets thrown out, gone in a moment) on ground that is not water, laid out on a grid in the world so they
 stay on the ground when the camera moves. Ripples need drops: with `intensity` at 0 the ground is wet and still.
 
 **Puddles** are standing water: `puddles` is how much of the flat ground is under it and `puddleScale` how big the
-pools are, a world length. A pool is darker still, takes denser and clearer ripples, and no splashes. Where a puddle
+pools are, a world length. A pool is darker still and is the only place a drop leaves a ring; it takes no splashes.
+
+**Snowfall** draws soft flakes in the same three layers as the rain, drifting and swaying, none under a roof; it neither wets nor rings the ground. The Snow weather sets it, and lays snow with [Snow Cover](/docs/graphics/terrain/#blending-what-stands-on-the-ground). Where a puddle
 lies is a function of the world position and of the ground around it: the noise places the pools, and the depth buffer
 says which places are low — a point lower than the ground within a pool's reach holds more water, one on a rise holds
 less, and flat ground keeps the coverage it was given. Pools therefore gather against a kerb, in a dip and at the foot

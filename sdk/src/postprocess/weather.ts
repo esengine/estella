@@ -48,6 +48,8 @@ export interface WeatherState {
     puddles: number;
     /** How much snow lies, 0..1. Absolute. */
     snow: number;
+    /** How much snow falls, 0..2: the rain effect's flakes. Absolute. */
+    snowfall: number;
     /** × Screen Space Reflections' strength. */
     ssr: number;
     /** × what baked reflection probes show, and × their colour (1 keeps it, 0 is grey): a probe was baked under
@@ -70,7 +72,7 @@ const NEUTRAL: WeatherState = {
     sun: 1, sky: 1, sunTint: [1, 1, 1], shadowSoftness: 1, shadowStrength: 1,
     fogDensity: 1, fogTint: [0.7, 0.72, 0.76], fogTintAmount: 0, fogGlow: 1, skyFog: 1,
     saturation: 1, contrast: 1, exposure: 0,
-    rain: 0, wetness: 0, puddles: 0, snow: 0, ssr: 1,
+    rain: 0, wetness: 0, puddles: 0, snow: 0, snowfall: 0, ssr: 1,
     reflection: 1, reflectionSaturation: 1, overcast: 0, sound: 0, wind: 1, waves: 1,
 };
 
@@ -119,7 +121,7 @@ define(WEATHER_RAIN, 'rain', {
 });
 define(WEATHER_SNOW, 'snow', {
     sun: 0.7, sky: 1.05, sunTint: [0.92, 0.95, 1], shadowSoftness: 2, shadowStrength: 0.7, fogDensity: 1.8, fogTint: [0.82, 0.85, 0.9], fogTintAmount: 0.5,
-    skyFog: 1.3, saturation: 0.85, contrast: 0.96, exposure: 0.1, snow: 0.85, overcast: 0.75, wind: 0.8,
+    skyFog: 1.3, saturation: 0.85, contrast: 0.96, exposure: 0.1, snow: 0.85, snowfall: 1, overcast: 0.75, wind: 0.8,
 });
 define(WEATHER_STORM, 'storm', {
     sun: 0.02, sky: 0.5, sunTint: [0.7, 0.78, 1], shadowSoftness: 10, shadowStrength: 0.2, fogDensity: 8, fogTint: [0.4, 0.44, 0.5], fogTintAmount: 0.9,
@@ -272,17 +274,19 @@ export function applyWeatherToEffects(effects: Map<string, BlendedEffect>, state
         if (sky && sky.enabled) sky.uniforms.set('u_overcast', Math.max(value(sky, 'skyAtmosphere', 'u_overcast'), state.overcast));
     }
     if (drive & WeatherDrive.Rain) {
-        if (state.rain > 0.001 || state.wetness > 0.001) {
+        const flat = effects.get('rain2d');
+        const type = flat && flat.enabled ? 'rain2d' : 'rain';
+        const snowing = type === 'rain' && state.snowfall > 0.001;
+        if (state.rain > 0.001 || state.wetness > 0.001 || snowing) {
             // A rain the scene authored is a floor the weather rises above; one the weather brings is exactly its own.
             // A 2D scene's rain is the one that reads no depth; the weather raises it, and brings no second rain beside it.
-            const flat = effects.get('rain2d');
-            const type = flat && flat.enabled ? 'rain2d' : 'rain';
             const authored = effects.has(type);
             const rain = entry(effects, type);
             const pick = (name: string, level: number): number => authored ? Math.max(value(rain, type, name), level) : level;
             rain.uniforms.set('u_intensity', pick('u_intensity', state.rain));
             rain.uniforms.set('u_wetness', pick('u_wetness', state.wetness));
             rain.uniforms.set('u_puddles', pick('u_puddles', state.puddles));
+            if (type === 'rain') rain.uniforms.set('u_snowfall', pick('u_snowfall', state.snowfall));
         }
         const ssr = effects.get('ssr');
         if (ssr && ssr.enabled) {
