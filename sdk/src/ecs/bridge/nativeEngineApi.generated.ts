@@ -161,6 +161,7 @@ export interface NativeEngineApi {
     renderer_beginScreenOverlay?(projectionPtr: number, vpX: number, vpY: number, vpW: number, vpH: number): void;
     renderer_captureFrame?(w: number, h: number): number;
     renderer_captureNextFrame?(): void;
+    renderer_captureTarget?(target: number, w: number, h: number): number;
     renderer_copyCapturedEntities?(dest: number, destSize: number): boolean;
     renderer_copyCapturedRecords?(dest: number, destSize: number): boolean;
     renderer_copyCapturedTextures?(dest: number, destSize: number): boolean;
@@ -267,6 +268,7 @@ export interface NativeEngineApi {
     renderer_submitTextBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, glyphMode: number, cullBit: number): void;
     renderer_takeFrameCapture?(handle: number, dest: number, destSize: number): boolean;
     renderer_takeProbeCapture?(dst: number, bytes: number): boolean;
+    renderer_takeTargetCapture?(handle: number, dest: number, destSize: number): boolean;
     renderer_takeTextureWants?(): string;
     renderer_updateTransforms?(registry: unknown): void;
     rm_acquireTextureByPath?(rm: unknown, path: string): number;
@@ -521,6 +523,7 @@ export function createNativeEngineApi(
     bind('renderer_beginScreenOverlay', 'es_renderer_beginScreenOverlay', false);
     bind('renderer_captureFrame', 'es_renderer_captureFrame', false);
     bind('renderer_captureNextFrame', 'es_renderer_captureNextFrame', false);
+    bind('renderer_captureTarget', 'es_renderer_captureTarget', false);
     bind('renderer_copyCapturedEntities', 'es_renderer_copyCapturedEntities', false);
     bind('renderer_copyCapturedRecords', 'es_renderer_copyCapturedRecords', false);
     bind('renderer_copyCapturedTextures', 'es_renderer_copyCapturedTextures', false);
@@ -627,6 +630,7 @@ export function createNativeEngineApi(
     bind('renderer_submitTextBatch', 'es_renderer_submitTextBatch', false);
     bind('renderer_takeFrameCapture', 'es_renderer_takeFrameCapture', false);
     bind('renderer_takeProbeCapture', 'es_renderer_takeProbeCapture', false);
+    bind('renderer_takeTargetCapture', 'es_renderer_takeTargetCapture', false);
     bind('renderer_takeTextureWants', 'es_renderer_takeTextureWants', false);
     bind('renderer_updateTransforms', 'es_renderer_updateTransforms', true);
     bind('rm_acquireTextureByPath', 'es_rm_acquireTextureByPath', true);

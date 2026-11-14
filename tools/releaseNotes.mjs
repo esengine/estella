@@ -4968,4 +4968,6 @@ export const NOTED = {
     {"note": "A land stands models where ground cannot be the shape."},
   "feat(terrain): the terrain tool says a land can be written in metres - a source's unit multiplies its lengths and nothing else, so a project of 100 units to the metre writes a kilometre as 1000":
     {"note": "A land stands models where ground cannot be the shape."},
+  "fix(build): the native engine surface names the render-target capture - nativeEngineApi.generated.ts is refreshed only by a native build, and renderer_captureTarget / renderer_takeTargetCapture were added without one, so CI's generated-fresh gate found it stale":
+    {"internal": "A committed generated file brought up to date; nothing a creator runs changes."},
 };
