@@ -91,6 +91,13 @@ export type LandOp = LandStep['op'];
 /** One of the ground's layers: where it lies. The first is everywhere, and each later one is laid over those before it. */
 export interface LandLayer { name: string; file?: string; where?: Where; amount?: number }
 
+/**
+ * A wash of colour over the ground, laid in order, each over those before it: sunlit yellow-green on the swells and a cooler green
+ * in the hollows, a greyer turf up high. Written as one picture the Terrain mixes into its layers' colour (its Color Map), and a
+ * Foliage can read too, so grass takes the colour of the ground it stands on. `color` is linear [r, g, b], 0 to 1.
+ */
+export interface LandTint { color: readonly [number, number, number]; where?: Where; amount?: number }
+
 /** A map of numbers over the land (how many plants stand where): written as a grey picture, its Use Data. */
 export interface LandMap { name: string; where?: Where; amount?: number }
 
@@ -106,6 +113,7 @@ export interface LandSource {
     steps: LandStep[];
     layers?: LandLayer[];
     maps?: LandMap[];
+    tints?: LandTint[];
 }
 
 /** What each op does, in the words the tool's description gives. */
@@ -184,7 +192,7 @@ export type LandEdit =
     | { op: 'set'; step: number | string; fields: Record<string, unknown> }
     | { op: 'insert'; step: LandStep; before?: number | string; after?: number | string }
     | { op: 'remove'; step: number | string }
-    | { op: 'settings'; fields: Partial<Pick<LandSource, 'size' | 'center' | 'resolution' | 'sea' | 'layers' | 'maps'>> };
+    | { op: 'settings'; fields: Partial<Pick<LandSource, 'size' | 'center' | 'resolution' | 'sea' | 'layers' | 'maps' | 'tints'>> };
 
 /** A source with edits applied, in order: what land_edit does. A step is named by its id or its index. */
 export function applyLandEdits(source: LandSource, edits: readonly LandEdit[]): LandSource {

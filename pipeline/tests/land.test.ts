@@ -172,6 +172,17 @@ describe('layers, maps and edits', () => {
         expect(l.maps[0]!.name).toBe('grass');
     });
 
+    it('lays a wash of colour, each tint over those before it, its alpha how much is laid', () => {
+        const l = bakeLand({ ...source, tints: [{ color: [0.2, 0.5, 0.1], where: { layer: 'grass' } }, { color: [1, 1, 1], where: { above: 100, feather: 1 } }] });
+        expect(l.tint).not.toBeNull();
+        const at = (x: number, z: number): number[] => { const i = Math.round((x / 1000 + 0.5) * (l.m - 1)), j = Math.round((z / 1000 + 0.5) * (l.m - 1)), o = (j * l.m + i) * 4; return [...l.tint!.subarray(o, o + 4)]; };
+        // Meadow: the first tint, written as sRGB, laid whole.
+        expect(at(-400, -400)).toEqual([124, 188, 89, 255]);
+        // The plateau's top: white over it.
+        expect(at(0, 0)).toEqual([255, 255, 255, 255]);
+        expect(bakeLand(source).tint).toBeNull();
+    });
+
     it('edits a step by its id, and refuses one that is not there', () => {
         const edited = applyLandEdits(source, [{ op: 'set', step: 'rock', fields: { height: 60 } }, { op: 'insert', step: { op: 'smooth', radius: 20 }, after: 'rock' }]);
         expect(edited.steps.map((s) => s.op)).toEqual(['fill', 'plateau', 'smooth', 'road']);

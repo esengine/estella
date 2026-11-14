@@ -66,6 +66,8 @@ export interface BakedLand {
     /** One byte a sample for each layer, in the layers' order. */
     weights: { name: string; file?: string; values: Uint8Array }[];
     maps: { name: string; values: Uint8Array }[];
+    /** The wash of colour, m * m RGBA bytes (sRGB, its alpha how much of it is laid), where the source has tints. */
+    tint: Uint8Array | null;
     /** How far each sample (n * n) is from the nearest water's edge, road's edge, lake's shore and coast (inland positive), where there is one. */
     fields: { river: Float32Array | null; road: Float32Array | null; lake: Float32Array | null; coast: Float32Array | null };
     report: LandReport;
@@ -896,20 +898,42 @@ export function bakeLand(raw: unknown, inputs?: Readonly<Record<string, LandPict
     }
     const dry = Math.max(walk + steep + cliff, 1);
     const layers = source.layers ?? [];
-    const laid = layWeights(g, layers, max - min);
+    const laidLayers = layWeights(g, layers, max - min);
     const m = n - 1;
     const pack = (w: Float32Array): Uint8Array => {
         const bytes = new Uint8Array(m * m);
         for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) bytes[j * m + i] = Math.round(clamp(w[j * n + i]!, 0, 1) * 255);
         return bytes;
     };
-    const weights = layers.map((layer) => ({ name: layer.name, ...(layer.file ? { file: layer.file } : {}), values: pack(laid.weights.get(layer.name)!) }));
+    const weights = layers.map((layer) => ({ name: layer.name, ...(layer.file ? { file: layer.file } : {}), values: pack(laidLayers.weights.get(layer.name)!) }));
     const maps = (source.maps ?? []).map((map: LandMap) => {
-        const mask = maskOf(g, map.where, max - min, laid.weights), amount = clamp(map.amount ?? 1, 0, 1);
+        const mask = maskOf(g, map.where, max - min, laidLayers.weights), amount = clamp(map.amount ?? 1, 0, 1);
         const w = new Float32Array(n * n);
         for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) w[j * n + i] = mask(i, j) * amount;
         return { name: map.name, values: pack(w) };
     });
+    // The wash: each tint over those before it, its colour kept linear until it is written.
+    let tint: Uint8Array | null = null;
+    if (source.tints?.length) {
+        const rgb = new Float32Array(n * n * 3), laid = new Float32Array(n * n);
+        for (const t of source.tints) {
+            const mask = maskOf(g, t.where, max - min, laidLayers.weights), amount = clamp(t.amount ?? 1, 0, 1);
+            for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+                const k = j * n + i, a = mask(i, j) * amount;
+                if (a <= 0) continue;
+                // The first colour laid on a place is that colour whole: there is nothing under it to mix with.
+                const under = laid[k]! > 0 ? 1 : 0;
+                for (let c = 0; c < 3; c++) rgb[k * 3 + c] = mix(under ? rgb[k * 3 + c]! : t.color[c]!, t.color[c]!, a);
+                laid[k] = laid[k]! + a * (1 - laid[k]!);
+            }
+        }
+        const toSrgb = (v: number): number => Math.round(255 * clamp(v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055, 0, 1));
+        tint = new Uint8Array(m * m * 4);
+        for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) {
+            const k = j * n + i, o = (j * m + i) * 4;
+            tint[o] = toSrgb(rgb[k * 3]!); tint[o + 1] = toSrgb(rgb[k * 3 + 1]!); tint[o + 2] = toSrgb(rgb[k * 3 + 2]!); tint[o + 3] = Math.round(clamp(laid[k]!, 0, 1) * 255);
+        }
+    }
     const cover = weights.map((w) => { let sum = 0; for (const v of w.values) sum += v; return { name: w.name, cover: +(sum / 255 / (m * m)).toFixed(3) }; });
     for (const c of cover) if (c.cover === 0) out.warnings.push(`layer "${c.name}" lies nowhere: its \`where\` matches no ground`);
     for (const river of out.rivers) {
@@ -919,7 +943,7 @@ export function bakeLand(raw: unknown, inputs?: Readonly<Record<string, LandPict
         }
     }
     return {
-        source, n, size: [source.size[0], source.size[1]], center: [center[0], center[1]], heights: g.h, m, weights, maps,
+        source, n, size: [source.size[0], source.size[1]], center: [center[0], center[1]], heights: g.h, m, weights, maps, tint,
         fields: { river: g.riverD, road: g.roadD, lake: g.lakeD, coast: g.coastD },
         report: {
             resolution: n, cell: +g.cellX.toFixed(3), min: +min.toFixed(2), max: +max.toFixed(2), sea: source.sea ?? null,

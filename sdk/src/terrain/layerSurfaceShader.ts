@@ -47,6 +47,10 @@ export function layerParams(d: LayerParamDefaults): string {
 // How far round a cell may be turned (1 any way, 0 shifted only): a layer with a grain, sand in ripples or rock in beds, turned cell by
 // cell is lit cell by cell, and shows the hexagons.
 #pragma param u_antiTileTurn float default(1) range(0,1) ui(slider)
+// How much of a wall is read on the wider tile even close to. The ground at your feet is seen a few tiles at a time; a cliff is seen
+// whole, a hundred tiles of it at once, and its sides are read plain (no hex tiling, which would turn a rock's beds), so the same tile
+// stands in rows and columns up a face unless a second, wider reading breaks it. 0 leaves a wall one tile repeated.
+#pragma param u_wallBreak float default(0.4) range(0,1) ui(slider)
 `;
 }
 
@@ -179,13 +183,26 @@ TnSurface tnLayers(vec4 paintA, vec4 paintB, vec3 at, vec3 dpx, vec3 dpy, vec3 N
         } else {
             mask[k] = vec3(0.0);
         }
+        // A wall's second reading: the wider tile, by as much as the distance asks for or u_wallBreak, whichever is more.
+        float wallWide = max(nearFar.y, u_wallBreak);
+        float wallTile = tile * u_farScale;
         if (planes.x > 0.02) {
             TnTap x = tnPlain(at.zy / tile, layer, dpx.zy / tile, dpy.zy / tile);
+            if (wallWide > 0.01) {
+                TnTap wide = tnPlain(at.zy / wallTile + 0.37, layer, dpx.zy / wallTile, dpy.zy / wallTile);
+                x.albedo = mix(x.albedo, wide.albedo, wallWide);
+                x.mask = mix(x.mask, wide.mask, wallWide);
+            }
             albedo[k] += x.albedo * planes.x; mask[k] += x.mask * planes.x;
             bend[k] += tnBend(x.slope, vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, 0.0), N) * planes.x;
         }
         if (planes.z > 0.02) {
             TnTap z = tnPlain(at.xy / tile, layer, dpx.xy / tile, dpy.xy / tile);
+            if (wallWide > 0.01) {
+                TnTap wide = tnPlain(at.xy / wallTile + 0.61, layer, dpx.xy / wallTile, dpy.xy / wallTile);
+                z.albedo = mix(z.albedo, wide.albedo, wallWide);
+                z.mask = mix(z.mask, wide.mask, wallWide);
+            }
             albedo[k] += z.albedo * planes.z; mask[k] += z.mask * planes.z;
             bend[k] += tnBend(z.slope, vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), N) * planes.z;
         }
@@ -338,14 +355,26 @@ fn tnLayers(paintA : vec4f, paintB : vec4f, at : vec3f, dpx : vec3f, dpy : vec3f
         } else {
             mask[k] = vec3f(0.0);
         }
+        let wallWide = max(nearFar.y, mc.u_wallBreak);
+        let wallTile = tile * mc.u_farScale;
         if (planes.x > 0.02) {
-            let x = tnPlain(at.zy / tile, i, dpx.zy / tile, dpy.zy / tile);
+            var x = tnPlain(at.zy / tile, i, dpx.zy / tile, dpy.zy / tile);
+            if (wallWide > 0.01) {
+                let wide = tnPlain(at.zy / wallTile + vec2f(0.37), i, dpx.zy / wallTile, dpy.zy / wallTile);
+                x.albedo = mix(x.albedo, wide.albedo, vec3f(wallWide));
+                x.mask = mix(x.mask, wide.mask, vec3f(wallWide));
+            }
             albedo[k] = albedo[k] + x.albedo * planes.x;
             mask[k] = mask[k] + x.mask * planes.x;
             bend[k] = bend[k] + tnBend(x.slope, vec3f(0.0, 0.0, 1.0), vec3f(0.0, 1.0, 0.0), N) * planes.x;
         }
         if (planes.z > 0.02) {
-            let z = tnPlain(at.xy / tile, i, dpx.xy / tile, dpy.xy / tile);
+            var z = tnPlain(at.xy / tile, i, dpx.xy / tile, dpy.xy / tile);
+            if (wallWide > 0.01) {
+                let wide = tnPlain(at.xy / wallTile + vec2f(0.61), i, dpx.xy / wallTile, dpy.xy / wallTile);
+                z.albedo = mix(z.albedo, wide.albedo, vec3f(wallWide));
+                z.mask = mix(z.mask, wide.mask, vec3f(wallWide));
+            }
             albedo[k] = albedo[k] + z.albedo * planes.z;
             mask[k] = mask[k] + z.mask * planes.z;
             bend[k] = bend[k] + tnBend(z.slope, vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), N) * planes.z;
