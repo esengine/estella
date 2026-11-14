@@ -555,23 +555,58 @@ function runStep(g: Grid, step: LandStep, index: number, source: LandSource, out
         }
         case 'pillars': {
             const cell = step.spacing, clear = clamp(step.clearings ?? 0.25, 0, 0.95);
+            const ledges = Math.round(clamp(step.ledges ?? 0, 0, 4)), cluster = clamp(step.cluster ?? 0, 0, 1), tilt = clamp(step.tilt ?? 0, 0, 1);
             const reach = step.radius;
             each(g.box(step.at[0] - reach, step.at[1] - reach, step.at[0] + reach, step.at[1] + reach), (i, j, k, x, z) => {
                 const m = mask(i, j) * smooth(step.radius, step.radius * 0.7, Math.hypot(x - step.at[0], z - step.at[1]));
                 if (m <= 0) return;
                 const cx = Math.floor(x / cell), cz = Math.floor(z / cell);
                 let top = 0;
+                // One pillar's height here: a sheer shaft with a top that is level (or canted), shoulders stepping out below it, a foot of fallen rock.
+                // Where two shapes meet (a shoulder and its shaft, a pillar and its splinter) the higher wins, and the inside corner between
+                // them is filled a little: a crease there, on a grid, is a row of teeth.
+                const fill = 3 * g.cellX;
+                const join = (a: number, b: number, k: number): number => Math.max(a, b) + (k > 1e-9 ? Math.max(k - Math.abs(a - b), 0) ** 2 / (4 * k) : 0);
+                const stand = (px: number, pz: number, radius: number, tall: number, key: number): number => {
+                    // An outline that is not round and a face that is not ruled.
+                    const bend = 1 + 0.35 * (landNoise(x / (radius * 0.9) + key, z / (radius * 0.9) - key, seed + 5, 2) - 0.5);
+                    const squash = 0.8 + 0.4 * hash(key, 7, seed + 6);
+                    const u = Math.hypot(x - px, (z - pz) * squash) * bend / radius;
+                    if (u > 4.2) return 0;
+                    const lean = hash(key, 11, seed + 8) * Math.PI * 2;
+                    const cant = 1 + tilt * 0.22 * clamp(((x - px) * Math.cos(lean) + (z - pz) * Math.sin(lean)) / radius, -1, 1);
+                    // A face is as sheer as the grid can carry: three samples from its brow to its foot at the least, or it is a saw.
+                    const band = Math.max(0.2, 3 * g.cellX / radius);
+                    let shape = smooth(1 + band * 0.6, 1 - band * 0.4, u) * (0.95 + 0.05 * smooth(1, 0, u)) * cant;
+                    let out = 1;
+                    for (let n = 1; n <= ledges; n++) {
+                        // A shoulder: further out and lower than the last, and not the same height all the way round.
+                        out += Math.max(0.3 + 0.35 * hash(key, n, seed + 9), band * 1.6);
+                        const round = landNoise(x / (radius * 1.6) + key * 3 + n * 17, z / (radius * 1.6) - n * 5, seed + 10, 2);
+                        const high = Math.pow(1 - n / (ledges + 1), 1.15) * (0.72 + 0.5 * round);
+                        shape = join(shape, Math.min(high, 0.92) * smooth(out + band * 0.6, out - band * 0.4, u), fill / Math.max(tall, 1e-6));
+                    }
+                    const foot = 0.08 * smooth(out * 2.1, out * 1.05, u);
+                    return tall * Math.max(shape, foot);
+                };
                 for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) {
                     const gx = cx + a, gz = cz + b;
                     if (hash(gx, gz, seed) < clear) continue;
                     const px = (gx + 0.2 + 0.6 * hash(gx, gz, seed + 1)) * cell, pz = (gz + 0.2 + 0.6 * hash(gx, gz, seed + 2)) * cell;
                     const radius = mix(step.width[0], step.width[1], hash(gx, gz, seed + 3) ** 1.6) / 2;
                     const tall = mix(step.height[0], step.height[1], hash(gx, gz, seed + 4) ** 1.3);
-                    // An outline that is not round, a face that is not ruled, a foot of fallen rock.
-                    const bend = 1 + 0.35 * (landNoise(x / (radius * 0.9) + gx, z / (radius * 0.9) + gz, seed + 5, 2) - 0.5);
-                    const d = Math.hypot(x - px, (z - pz) * (0.8 + 0.4 * hash(gx, gz, seed + 6))) * bend;
-                    const shaft = smooth(radius * 1.25, radius * 0.9, d), foot = 0.1 * smooth(radius * 2.4, radius * 1.1, d);
-                    top = Math.max(top, tall * Math.max(shaft, foot) * (0.94 + 0.06 * smooth(radius, 0, d)));
+                    const key = gx * 131 + gz * 7919;
+                    { const v = stand(px, pz, radius, tall, key); top = v > 0 && top > 0 ? join(top, v, fill) : Math.max(top, v); }
+                    // Its splinters: lower, thinner, standing against it.
+                    if (cluster > 0 && hash(gx, gz, seed + 12) < cluster) {
+                        const count = 1 + Math.floor(hash(gx, gz, seed + 13) * 2.99);
+                        for (let s = 0; s < count; s++) {
+                            const turn = hash(gx + s * 3, gz - s, seed + 14) * Math.PI * 2, away = radius * (1.25 + 0.75 * hash(gx - s, gz + s * 5, seed + 15));
+                            const small = radius * (0.32 + 0.3 * hash(gx + s, gz + s, seed + 16));
+                            const v = stand(px + Math.cos(turn) * away, pz + Math.sin(turn) * away, small, tall * (0.4 + 0.45 * hash(gx + s * 7, gz, seed + 17)), key + 1000 + s);
+                            top = v > 0 && top > 0 ? join(top, v, fill) : Math.max(top, v);
+                        }
+                    }
                 }
                 h[k] = h[k]! + top * m;
             });

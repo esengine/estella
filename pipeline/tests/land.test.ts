@@ -22,6 +22,17 @@ describe('shaping ground', () => {
         expect(l.report.steps.map((s) => [s.op, s.raised, s.lowered])).toEqual([['fill', 10, 0], ['hill', 50, 0]]);
     });
 
+    it('stands pillars with shoulders and splinters when asked, and as bare shafts when not', () => {
+        const forest = (more: object) => land([flat, { op: 'pillars', at: [0, 0], radius: 400, spacing: 120, height: [80, 80], width: [50, 50], clearings: 0, seed: 5, ...more } as LandStep]);
+        const bare = forest({}), stepped = forest({ ledges: 2 }), split = forest({ cluster: 1 });
+        // How much rock stands: shoulders and splinters are rock the bare shafts do not have, and the tops are no higher for them.
+        const rock = (l: ReturnType<typeof land>) => { let sum = 0; for (let z = -300; z <= 300; z += 10) for (let x = -300; x <= 300; x += 10) sum += landHeightAt(l, x, z) - 10; return sum; };
+        expect(rock(stepped)).toBeGreaterThan(rock(bare) * 1.3);
+        expect(rock(split)).toBeGreaterThan(rock(bare) * 1.05);
+        expect(stepped.report.max).toBeLessThan(bare.report.max + 8);
+        expect(bare.report.max).toBeGreaterThan(80);
+    });
+
     it('sets a plateau level, with a cliff of the width asked round it', () => {
         const l = land([flat, { op: 'plateau', at: [0, 0], radius: 200, height: 90, edge: 40 }]);
         expect(landHeightAt(l, 0, 0)).toBeCloseTo(90, 3);

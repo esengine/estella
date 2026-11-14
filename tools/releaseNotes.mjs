@@ -4940,4 +4940,8 @@ export const NOTED = {
     {"note": "A far blade of grass fades instead of breaking into dashes."},
   "perf(render): a lit 3D pixel facing away from a light, or out of its reach, works out nothing of it - no shadow lookup and no lobe, where a soft shadow searched twenty-one texels first; the picture is the same bit for bit over 101 lit scenes":
     {"note": "A light is not worked out where it gives nothing."},
+  "feat(terrain): a stone forest's pillars have shoulders, splinters and canted tops - a pillar was one sheer tube with a level top: `ledges` gives each up to four shoulders stepping out to its foot, broken round it, `cluster` stands lower, thinner pillars against a share of them, and `tilt` cants the tops, each its own way. A face is no steeper than three samples of the grid can carry, and the inside corner where two shapes meet is filled, since a crease on a grid is a row of teeth":
+    {"note": "An agent can shape ground as steps."},
+  "feat(terrain): the pillars op is described with its shoulders, splinters and canted tops - the op text terrain_write lists is the kernel's own, which now carries ledges, cluster and tilt and says to stand a stone forest after any smoothing of the whole land":
+    {"note": "An agent can shape ground as steps."},
 };
