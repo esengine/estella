@@ -134,6 +134,8 @@ function shapeSignature(effects: ResolvedEffects): string {
         for (const [k, ref] of data.textures) sig += k + '=' + ref + ';';
         sig += '|';
         for (const k of data.colors.keys()) sig += k + ',';
+        // Which shader each pass draws with is part of the shape: a pass that turns to its alternate is built again.
+        for (const pass of getEffectDef(type)?.multiPass ?? []) if (pass.alternate) sig += pass.alternate.when(data.uniforms) ? '+' : '-';
         sig += '#';
     }
     return sig;
@@ -276,7 +278,8 @@ function applyBlendedEffects(
 
         if (def.multiPass) {
             for (const [index, subPass] of def.multiPass.entries()) {
-                const shader = getOrCreateShader(api, subPass.name, subPass.factory);
+                const alt = subPass.alternate?.when(effectData.uniforms) ? subPass.alternate : null;
+                const shader = alt ? getOrCreateShader(api, alt.key, alt.factory) : getOrCreateShader(api, subPass.name, subPass.factory);
                 stack.addPass(subPass.name, shader, subPass.scale ?? 1, index > 0);
                 for (const [uniformName, uniformValue] of effectData.uniforms) {
                     stack.setUniform(subPass.name, uniformName, uniformValue);

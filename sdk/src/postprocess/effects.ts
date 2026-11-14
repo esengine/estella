@@ -94,6 +94,11 @@ export interface EffectSubPass {
     scale?: number;
     /** Uniforms this pass always carries, whatever the volume says: constants of its design (the voxel atlas's size). */
     uniforms?: Record<string, number>;
+    /**
+     * A cheaper shader the pass draws with while `when` holds of the effect's values (the sky's clouds once their panorama is baked). A change
+     * of choice builds the stack again, so `when` should turn seldom; `key` names the shader in the cache.
+     */
+    alternate?: { key: string; factory: () => ShaderHandle; when: (uniforms: ReadonlyMap<string, number>) => boolean };
 }
 
 /**
@@ -450,7 +455,14 @@ registerEffect({
     // Not smaller: at a quarter the march's per-pixel jitter grain is four pixels coarse, a checkerboard in the cloud and vertical streaks
     // near the horizon, which a mean pixel difference against half size (0.04 of 255) did not show and the picture does.
     multiPass: [
-        { name: 'sky_clouds', factory: () => postProcessEffects.createSkyClouds(), scale: 0.5 },
+        {
+            name: 'sky_clouds', factory: () => postProcessEffects.createSkyClouds(), scale: 0.5,
+            // Baked Clouds with its panorama filled (cloudBake.ts): the pass is the read alone, not the march with a branch round it.
+            alternate: {
+                key: 'sky_clouds_read', factory: () => postProcessEffects.createSkyCloudsRead(),
+                when: (u) => (u.get('u_cloudPanoramaOn') ?? 0) > 0.5 && (u.get('u_planetRadius') ?? 0) <= 0,
+            },
+        },
         { name: 'sky_composite', factory: () => postProcessEffects.createSkyAtmosphere() },
     ],
     uniforms: [

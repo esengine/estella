@@ -106,7 +106,8 @@ Turn **Keep Background** up and the scene is cleared to the camera's colour agai
 **Baked Clouds** (`u_bakedClouds: 1`) is the low tier, for a phone or a mini-game. The clouds are marched for a 512 x 512 panorama of the
 dome instead of for every pixel, a sixteenth of it a frame, and each sky pixel reads its direction from it: the dome is new every sixteen
 frames, which drifting clouds kilometres up do not show. Until the panorama is full, and for a sky on a planet, the clouds are marched as usual.
-On Wilds at 3840 x 2160 the cloud pass took 5.96 ms marched and 3.5 ms baked, plus 0.07 ms for the strip; on either backend the two skies
+While the panorama is whole the cloud pass is a shader that only reads it. On Wilds at 3840 x 2160 the cloud pass took 3.9-4.4 ms marched
+and 1.2-2.1 ms baked, plus 0.07 ms for the strip; on either backend the two skies
 come out alike (the `sky-clouds-marched` and `sky-clouds-baked` render checks). The panorama is eight bits a channel and is read through a
 small blur, so the clouds are a little softer than marched.
 

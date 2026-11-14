@@ -9,8 +9,8 @@
  *          `dir.xz / (1 + dir.y)`), one sixteenth of it a frame, and the cloud pass looks each sky pixel up in it: some sixteen thousand rays
  *          a frame, the whole dome new every sixteen. Clouds drift a few metres a second kilometres away, which a refresh of a quarter of a
  *          second does not show. The panorama is eight bits a channel: light as L / (1 + L), the clouds' transmittance in the alpha.
- *          Measured on Wilds at 3840 x 2160: the cloud pass 5.96 ms marched, 3.5 ms baked and 0.07 ms for the strip; what is left of the
- *          pass is the pass itself (a large shader that every pixel enters), not the march.
+ *          While the panorama is whole the cloud pass draws with a shader that only reads it (effects.ts, the pass's alternate). Measured on
+ *          Wilds at 3840 x 2160, ABBA: the cloud pass 3.9-4.4 ms marched, 1.2-2.1 ms baked, and 0.07 ms for the strip.
  *
  *          Until a panorama has been filled the clouds are marched as before, and a sky on a planet always is (its up is the camera's).
  */

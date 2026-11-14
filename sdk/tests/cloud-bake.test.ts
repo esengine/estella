@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
 import { cloudPanoramaDir, cloudPanoramaUv } from '../src/postprocess/cloudBake';
+import { getEffectDef } from '../src/postprocess/effects';
 
 describe('the baked cloud panorama', () => {
     it('reads a direction back from the texel that was baked for it', () => {
@@ -25,5 +26,14 @@ describe('the baked cloud panorama', () => {
         const corner = cloudPanoramaDir(1, 1);
         expect(corner[1]).toBeCloseTo(0, 12);
         expect(Math.hypot(...corner)).toBeCloseTo(1, 12);
+    });
+
+    it('draws the cloud pass with the read alone once the panorama is whole, and never for a sky on a planet', () => {
+        const pass = getEffectDef('skyAtmosphere')?.multiPass?.find((p) => p.name === 'sky_clouds');
+        const when = pass?.alternate?.when;
+        expect(pass?.alternate?.key).toBe('sky_clouds_read');
+        expect(when?.(new Map([['u_bakedClouds', 1]]))).toBe(false);
+        expect(when?.(new Map([['u_cloudPanoramaOn', 1]]))).toBe(true);
+        expect(when?.(new Map([['u_cloudPanoramaOn', 1], ['u_planetRadius', 6360000]]))).toBe(false);
     });
 });

@@ -312,7 +312,74 @@ fn cloudLayer(dir : vec3f, sun : vec3f, dome : vec3f, sunTrans : vec3f, night : 
 }
 `;
 
-/** The cloud pass's source: the march, and the panorama read when Baked Clouds has filled one. */
+/**
+ * The cloud pass while Baked Clouds has a panorama (cloudBake.ts): what the marched pass writes, a sky texel's cloud light and transmittance or
+ * a surface's mark, read from the panorama by direction. A shader of its own, not a branch of the march, so a pixel pays for no more than it runs.
+ */
+function skyCloudsReadSource(): string {
+    return `#pragma shader "PP Sky Clouds Read"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_panorama float default(0) range(0,1)
+#pragma param u_sceneCoverage float default(1) range(0,1)
+#pragma param u_cloudPanorama texture default(black)
+#pragma highprecision
+
+#pragma fragment
+precision highp float;
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+uniform highp sampler2D u_sceneDepth;
+out vec4 fragColor;
+
+vec3 rayStart(vec2 uv) { return worldFromDepth(uv, u_camera.w > 0.5 ? 0.0 : 0.5); }
+
+void main() {
+    vec4 src = texture(u_texture, v_texCoord);
+    ivec2 size = textureSize(u_sceneDepth, 0);
+    float depth = texelFetch(u_sceneDepth, clamp(ivec2(v_texCoord * vec2(size)), ivec2(0), size - ivec2(1)), 0).r;
+    bool covered = u_panorama <= 0.001;
+    bool geometry = covered ? (depth < 1.0 && src.a > 0.999) : depth < 1.0;
+    if (geometry) { fragColor = vec4(1.0, 0.0, 0.0, -1.0); return; }
+    vec3 entry = rayStart(v_texCoord);
+    vec3 dir = normalize(worldFromDepth(v_texCoord, 1.0) - entry);
+    if (dir.y <= 0.01) { fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+    // Four bilinear reads a texel off each way: the march's jitter is baked into the panorama, and near the horizon one texel is drawn
+    // over more pixels than the composite's own filter covers.
+    vec2 at = dir.xz / (1.0 + dir.y) * 0.5 + 0.5;
+    vec2 px = vec2(1.0 / 512.0);
+    vec4 baked = (texture(u_cloudPanorama, at - px) + texture(u_cloudPanorama, at + vec2(px.x, -px.y))
+        + texture(u_cloudPanorama, at + vec2(-px.x, px.y)) + texture(u_cloudPanorama, at + px)) * 0.25;
+    fragColor = vec4(baked.rgb / max(1.0 - baked.rgb, vec3(1.0 / 255.0)), baked.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+fn rayStart(uv : vec2f) -> vec3f { return worldFromDepth(uv, select(0.5, 0.0, frame.camera.w > 0.5)); }
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    let size = vec2i(textureDimensions(t7, 0));
+    let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
+    let covered = mc.u_panorama <= 0.001;
+    let geometry = (covered && depth < 1.0 && src.a > 0.999) || (!covered && depth < 1.0);
+    if (geometry) { return vec4f(1.0, 0.0, 0.0, -1.0); }
+    let entry = rayStart(v.v_texCoord);
+    let dir = normalize(worldFromDepth(v.v_texCoord, 1.0) - entry);
+    if (dir.y <= 0.01) { return vec4f(0.0, 0.0, 0.0, 1.0); }
+    let at = dir.xz / (1.0 + dir.y) * 0.5 + 0.5;
+    let px = vec2f(1.0 / 512.0);
+    let baked = (textureSampleLevel(u_cloudPanorama, u_cloudPanorama_s, at - px, 0.0)
+        + textureSampleLevel(u_cloudPanorama, u_cloudPanorama_s, at + vec2f(px.x, -px.y), 0.0)
+        + textureSampleLevel(u_cloudPanorama, u_cloudPanorama_s, at + vec2f(-px.x, px.y), 0.0)
+        + textureSampleLevel(u_cloudPanorama, u_cloudPanorama_s, at + px, 0.0)) * 0.25;
+    return vec4f(baked.rgb / max(vec3f(1.0) - baked.rgb, vec3f(1.0 / 255.0)), baked.a);
+}
+#pragma end
+`;
+}
+
+/** The cloud pass's source: the march (a baked sky's pass is skyCloudsReadSource). */
 function skyCloudsSource(): string {
     return `#pragma shader "PP Sky Clouds"
 #pragma version 300 es
@@ -362,9 +429,6 @@ function skyCloudsSource(): string {
 #pragma param u_cloud2DriftX float default(0) range(-100000000,100000000)
 #pragma param u_cloud2DriftZ float default(0) range(-100000000,100000000)
 #pragma param u_cloudEvolve float default(0) range(0,100000000)
-#pragma param u_bakedClouds float default(0) range(0,1)
-#pragma param u_cloudPanoramaOn float default(0) range(0,1)
-#pragma param u_cloudPanorama texture default(black)
 #pragma lights
 #pragma highprecision
 
@@ -502,18 +566,6 @@ void main() {
 
     vec3 entry = rayStart(v_texCoord);
     vec3 dir = normalize(worldFromDepth(v_texCoord, 1.0) - entry);
-    // Clouds baked into a panorama a strip a frame (cloudBake.ts): a sky texel is read from it by direction, not marched.
-    if (u_cloudPanoramaOn > 0.5 && u_planetRadius <= 0.0) {
-        if (dir.y <= 0.01) { fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
-        // Four bilinear reads a texel off each way: the march's jitter is baked into the panorama, and near the horizon one texel is drawn
-        // over many pixels, more than the composite's own filter covers.
-        vec2 at = dir.xz / (1.0 + dir.y) * 0.5 + 0.5;
-        vec2 px = vec2(1.0 / 512.0);
-        vec4 baked = (texture(u_cloudPanorama, at + vec2(-px.x, -px.y)) + texture(u_cloudPanorama, at + vec2(px.x, -px.y))
-            + texture(u_cloudPanorama, at + vec2(-px.x, px.y)) + texture(u_cloudPanorama, at + px)) * 0.25;
-        fragColor = vec4(baked.rgb / max(1.0 - baked.rgb, vec3(1.0 / 255.0)), baked.a);
-        return;
-    }
 
     vec4 lightDir, lightColor;
     ivec2 tiles;
@@ -665,20 +717,10 @@ ${CLOUD_WGSL}
     let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
     let covered = mc.u_panorama <= 0.001;
     let geometry = (covered && depth < 1.0 && src.a > 0.999) || (!covered && depth < 1.0);
-    if (geometry && mc.u_cloudShadow <= 0.001) { return vec4f(1.0, 0.0, 0.0, -1.0); }
+    if (geometry) { return vec4f(1.0, 0.0, 0.0, -1.0); }
 
     let entry = rayStart(v.v_texCoord);
     var dir = normalize(worldFromDepth(v.v_texCoord, 1.0) - entry);
-    if (mc.u_cloudPanoramaOn > 0.5 && mc.u_planetRadius <= 0.0 && !geometry) {
-        if (dir.y <= 0.01) { return vec4f(0.0, 0.0, 0.0, 1.0); }
-        let at = dir.xz / (1.0 + dir.y) * 0.5 + 0.5;
-        let px = vec2f(1.0 / 512.0);
-        let baked = (textureSampleLevel(u_cloudPanorama, u_cloudPanorama_s, at - px, 0.0)
-            + textureSampleLevel(u_cloudPanorama, u_cloudPanorama_s, at + vec2f(px.x, -px.y), 0.0)
-            + textureSampleLevel(u_cloudPanorama, u_cloudPanorama_s, at + vec2f(-px.x, px.y), 0.0)
-            + textureSampleLevel(u_cloudPanorama, u_cloudPanorama_s, at + px, 0.0)) * 0.25;
-        return vec4f(baked.rgb / max(vec3f(1.0) - baked.rgb, vec3f(1.0 / 255.0)), baked.a);
-    }
 
     let found = findSun();
     let follow = mc.u_followSun > 0.5 && found.dir.w > 0.5;
@@ -1638,6 +1680,10 @@ fn upsampledClouds(uv : vec2f) -> CloudRead {
      */
     createSkyCloudsBake(): ShaderHandle {
         return Material.compileShader(skyCloudsBakeSource());
+    },
+    /** The cloud pass once Baked Clouds has a panorama: the read alone (skyCloudsReadSource). */
+    createSkyCloudsRead(): ShaderHandle {
+        return Material.compileShader(skyCloudsReadSource());
     },
     /**
      * Exponential height fog with the atmosphere's two tells: the sun's glow in the haze and a
