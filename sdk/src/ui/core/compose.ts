@@ -11,6 +11,7 @@
  */
 import {
     Transform,
+    mergeIntoDefaults,
     type TransformData,
 } from '../../ecs/component';
 import type { Entity, Vec2 } from '../../types';
@@ -19,7 +20,7 @@ import type { World } from '../../ecs/world';
 import { UINode, UIPositionType, UIDisplay, UIPointerEvents, type UINodeData } from './ui-node';
 import { px, auto, type Dimension } from './dimension';
 import { UIVisual, UIVisualType, UIVisualFit, FillMethod, FillOrigin, type UIVisualData } from './ui-visual';
-import { Text, TextAlign, TextVerticalAlign, TextRenderMode, type TextData } from './text';
+import { Text, TextAlign, TextVerticalAlign, type TextData } from './text';
 
 /** Identity Transform. Fresh object per call — safe to insert into ECS. */
 export function identityTransform(): TransformData {
@@ -141,35 +142,26 @@ export const FILL_AXIS: Record<LinearFillDirection, readonly [FillMethod, FillOr
 
 export interface TextInit extends Partial<TextData> {}
 
+/**
+ * Where a composed label differs from a bare `Text`: a widget's caption sits
+ * centred in its box on one line at 14px, while an authored `Text` starts as a
+ * top-left paragraph. Everything else is the component's own default.
+ */
+const COMPOSED_TEXT_DEFAULTS: Partial<TextData> = {
+    fontSize: 14,
+    align: TextAlign.Center,
+    verticalAlign: TextVerticalAlign.Middle,
+    wordWrap: false,
+};
+
+/**
+ * Build a full `Text` from a sparse init. It goes through the component's own
+ * `create`, so every field of `TextData` - one added later included - is taken
+ * from the init when given and from the component's defaults when not; nested
+ * records (colours, the box pivot) are fresh copies, never the caller's object.
+ */
 export function buildText(init: TextInit = {}): TextData {
-    return {
-        content: init.content ?? '',
-        i18nKey: init.i18nKey ?? '',
-        font: init.font ?? 0,
-        fontFamily: init.fontFamily ?? '',
-        fontSize: init.fontSize ?? 14,
-        color: init.color ?? { r: 1, g: 1, b: 1, a: 1 },
-        align: init.align ?? TextAlign.Center,
-        verticalAlign: init.verticalAlign ?? TextVerticalAlign.Middle,
-        wordWrap: init.wordWrap ?? false,
-        overflow: init.overflow ?? 0,
-        lineHeight: init.lineHeight ?? 1.2,
-        bold: init.bold ?? false,
-        italic: init.italic ?? false,
-        strokeColor: init.strokeColor ?? { r: 0, g: 0, b: 0, a: 1 },
-        strokeWidth: init.strokeWidth ?? 0,
-        shadowColor: init.shadowColor ?? { r: 0, g: 0, b: 0, a: 1 },
-        shadowBlur: init.shadowBlur ?? 0,
-        shadowOffsetX: init.shadowOffsetX ?? 0,
-        shadowOffsetY: init.shadowOffsetY ?? 0,
-        richText: init.richText ?? false,
-        renderMode: init.renderMode ?? TextRenderMode.Auto,
-        layer: init.layer ?? 0,
-        boxWidth: init.boxWidth ?? 0,
-        boxHeight: init.boxHeight ?? 0,
-        boxPivot: init.boxPivot ?? { x: 0.5, y: 0.5 },
-        enabled: init.enabled ?? true,
-    };
+    return Text.create(mergeIntoDefaults(COMPOSED_TEXT_DEFAULTS, init));
 }
 
 export interface UIEntityInit {
