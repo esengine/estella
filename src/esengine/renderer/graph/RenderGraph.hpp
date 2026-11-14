@@ -120,6 +120,9 @@ struct PassDesc {
     /// should be tested against; a fullscreen pass has neither and ignores this.
     bool clearDepth = false;
     f32 clearColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    /// The clears reach only the viewport rect below and leave the rest of the target as it was: a pass that redraws one part
+    /// of a target kept from frame to frame (one square of the shadow atlas).
+    bool clearViewportOnly = false;
     /**
      * @brief The rect of its target this pass draws into. Zero width = all of it.
      *

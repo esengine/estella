@@ -348,6 +348,12 @@ void RenderGraph::execute() {
         if (pass.clear) {
             for (u32 c = 0; c < 4; ++c) rp.clearColorValue[c] = pass.clearColor[c];
         }
+        if (pass.clearViewportOnly && pass.viewportW > 0 && pass.viewportH > 0) {
+            rp.clearX = static_cast<i32>(pass.viewportX);
+            rp.clearY = static_cast<i32>(pass.viewportY);
+            rp.clearW = pass.viewportW;
+            rp.clearH = pass.viewportH;
+        }
         device_.beginRenderPass(rp);
         if (pass.viewportW > 0 && pass.viewportH > 0) {
             device_.setViewport(pass.viewportX, pass.viewportY, pass.viewportW, pass.viewportH);

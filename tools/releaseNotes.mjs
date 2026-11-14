@@ -4858,4 +4858,6 @@ export const NOTED = {
     {"note": "A mesh's draw keeps what no view changes."},
   "perf(render): a frame whose shadow casters, lights and camera are those of the frame that drew the shadow map does not collect the map again - before the shadow collect, each casting plugin gives one number for what it would read (the mesh plugin: whether any caster's Transform, MeshRenderer or the components beside it changed since it last looked, found from the stamps alone, and the material, mesh and program revisions), and with the views and the camera they decide whether the collect would come back with the key the atlas holds; with the change audit on the collect is made anyway and a different key is counted":
     {"note": "A still shadow map is not collected again."},
+  "perf(render): the shadow atlas is kept square by square - each view's square (a lamp's face, a cascade) has a key of its own, from its view, its draws and the records they read wherever they lie in the pool, and a frame whose squares sit where they did draws only the squares whose key moved, each in a pass that clears its own square; one moving caster no longer redraws every light's map":
+    {"note": "One moving caster redraws only the shadow squares that see it."},
 };

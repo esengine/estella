@@ -2526,6 +2526,7 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
         spec.colorFormat = GfxPixelFormat::RGBA8;
         shadow_target_ = Framebuffer::create(device_, spec);
         shadow_drawn_valid_ = false;
+        shadow_tiles_known_ = false;
     }
     if (!shadow_target_) {
         shadow_views_.clear();
@@ -2614,23 +2615,75 @@ void RenderFrame::declareShadowPass(ecs::Registry& registry) {
         shadow_drawn_valid_ = false;
     }
 
-    rg::PassDesc shadow;
-    shadow.name = "shadow-atlas";
-    shadow.write = shadow_resource_;
-    // The map is the packed depth in its colour; the depth buffer beside it only orders the casters while they are drawn.
-    shadow.discardDepth = true;
-    // One pass for every map the frame renders, because they share an attachment:
-    // a point light's six faces are six viewports inside this pass rather than six
-    // passes the device has to transition the atlas between.
-    shadow.clear = true;
-    shadow.clearDepth = true;
-    // White is depth 1 unpacked: nothing here. A square the plan kept but whose
-    // collect comes back empty reads as no occluder rather than as a black wall.
-    shadow.clearColor[0] = shadow.clearColor[1] = shadow.clearColor[2] = 1.0f;
-    shadow.clearColor[3] = 1.0f;
-    shadow.execute = [this](const rg::PassContext&) { executeShadowPass(); };
+    shadow_frame_tiles_ = shadow_frame_draws_ = 0;
+    shadow_pool_uploaded_ = false;
+    shadow_tile_passes_left_ = 0;
     // The atlas already holds what this would draw: no pass, and every reader samples last frame's squares, which are this frame's.
-    if (!shadow_reused_) graph_.addPass(std::move(shadow));
+    // Otherwise, square by square: under the layout the squares were drawn in, one whose key is what it holds stands, and only
+    // the others are drawn, each in a pass that clears its own square. When every square changed, or the layout did, one pass
+    // clears the atlas and draws them all.
+    u32 kept = 0;
+    if (!shadow_reused_) {
+        const usize viewCount = shadow_views_.size();
+        shadow_view_redraw_.assign(viewCount, 1);
+        const bool bySquare = shadow_tiles_known_ && shadow_tile_layout_ == shadow_layout_ && shadow_tile_keys_.size() == viewCount;
+        if (bySquare) {
+            for (usize vi = 0; vi < viewCount; ++vi) {
+                if (shadow_tile_held_[vi] && shadow_tile_keys_[vi] == shadow_view_keys_[vi]) {
+                    shadow_view_redraw_[vi] = 0;
+                    ++kept;
+                }
+            }
+        }
+        // White is depth 1 unpacked: nothing here. A square the plan kept but whose collect comes back empty reads as no occluder
+        // rather than as a black wall. The map is the packed depth in its colour; the depth buffer beside it only orders the casters
+        // while they are drawn.
+        const auto square = [](rg::PassDesc& pass) {
+            pass.discardDepth = true;
+            pass.clear = true;
+            pass.clearDepth = true;
+            pass.clearColor[0] = pass.clearColor[1] = pass.clearColor[2] = pass.clearColor[3] = 1.0f;
+        };
+        if (kept == 0) {
+            // One pass for every map, because they share an attachment: a point light's six faces are six viewports inside it
+            // rather than six passes the device has to transition the atlas between.
+            rg::PassDesc shadow;
+            shadow.name = "shadow-atlas";
+            shadow.write = shadow_resource_;
+            square(shadow);
+            shadow.execute = [this](const rg::PassContext&) { executeShadowPass(); };
+            graph_.addPass(std::move(shadow));
+        } else if (kept == viewCount) {
+            // Every square holds what it would draw (the atlas as a whole differed only in what its key mixes beside them).
+            recordShadowTiles(false);
+        } else {
+            shadow_tile_passes_left_ = static_cast<u32>(viewCount - kept);
+            for (usize vi = 0; vi < viewCount; ++vi) {
+                if (!shadow_view_redraw_[vi]) continue;
+                const ShadowView& view = shadow_views_[vi];
+                rg::PassDesc tile;
+                tile.name = "shadow-square";
+                tile.write = shadow_resource_;
+                square(tile);
+                tile.clearViewportOnly = true;
+                tile.viewportX = view.x;
+                tile.viewportY = view.y;
+                tile.viewportW = view.size;
+                tile.viewportH = view.size;
+                tile.execute = [this, vi](const rg::PassContext&) { executeShadowTile(vi); };
+                graph_.addPass(std::move(tile));
+            }
+        }
+    }
+    // Squares a frame that drew did not have to draw, because they hold what they would; and since the renderer started, those
+    // and the squares drawn on their own beside them (a gate reads a frame after the one that did it).
+    ES_PROFILE_COUNTER("render.shadow.tilesKept", kept);
+    if (shadow_tile_passes_left_ > 0) {
+        shadow_squares_kept_total_ += kept;
+        shadow_squares_drawn_total_ += shadow_tile_passes_left_;
+    }
+    ES_PROFILE_COUNTER("render.shadow.squaresKeptTotal", shadow_squares_kept_total_);
+    ES_PROFILE_COUNTER("render.shadow.squaresDrawnTotal", shadow_squares_drawn_total_);
 #ifdef ES_ENABLE_POSTPROCESS
     if (cloud_tile_ < 0 || !post_process_) return;
     // The sky draws what of the sun its clouds leave into the sun's tile, before the scene reads it: white above, that in the alpha.
@@ -2829,92 +2882,142 @@ bool RenderFrame::collectShadowViews(ecs::Registry& registry, u64& key) {
         u64 tail = 0;
         if (at < bytes) { std::memcpy(&tail, p + at, bytes - at); mix(tail); }
     };
-    bool trusted = true;
+    // Square by square, so a frame can redraw the squares that changed and keep the rest. Each view's key starts from what makes
+    // the same handles draw something else, then where its square is, what it looks through, its draws and the records they read
+    // (wherever in the pool they lie), and its materials.
     mix(device_.deviceGeneration());
     mix(device_.geometryWrites());
     mix(static_cast<u64>(shadow_target_ ? static_cast<u32>(shadow_target_->handle()) : 0u));
+    const u64 base = h;
+    // Where every square is, and the clouds' square beside them: two frames with one layout put each view where it was.
     mix(viewCount);
+    for (const ShadowView& view : shadow_views_) {
+        mix((static_cast<u64>(view.x) << 32) | view.y);
+        mix(view.size);
+    }
+    mix(static_cast<u64>(static_cast<i64>(cloud_tile_)));
+    mix(shadow_target_ ? shadow_target_->getWidth() : 0u);
+    shadow_layout_ = h;
+
+    // Indices built this frame are not read back here; a caster drawn through them is drawn every frame.
+    bool poolTrusted = true;
+    for (u32 layout = 0; layout < LAYOUT_COUNT; ++layout) {
+        if (shadow_pool_.indicesUsed(static_cast<LayoutId>(layout)) > 0) poolTrusted = false;
+    }
+    bool trusted = poolTrusted;
+    shadow_view_keys_.assign(viewCount, 0);
+    shadow_view_trusted_.assign(viewCount, 0);
     const MaterialStore& materials = context_.materials();
     for (usize vi = 0; vi < viewCount; ++vi) {
+        u64 v = base;
+        const auto vmix = [&v](u64 x) { v ^= x + 0x9e3779b97f4a7c15ull + (v << 6) + (v >> 2); };
+        const auto vwords = [&vmix](const void* data, usize bytes) {
+            const auto* p = static_cast<const u8*>(data);
+            usize at = 0;
+            for (; at + 8 <= bytes; at += 8) { u64 w; std::memcpy(&w, p + at, 8); vmix(w); }
+            u64 tail = 0;
+            if (at < bytes) { std::memcpy(&tail, p + at, bytes - at); vmix(tail); }
+        };
         const ShadowView& view = shadow_views_[vi];
-        words(&view.view_projection, sizeof(glm::mat4));
-        mix((static_cast<u64>(static_cast<u32>(view.x)) << 32) | static_cast<u32>(view.y));
-        mix(view.size);
+        vwords(&view.view_projection, sizeof(glm::mat4));
+        vmix((static_cast<u64>(view.x) << 32) | view.y);
+        vmix(view.size);
         const DrawList& list = shadow_view_lists_[vi];
-        h = list.contentHash(h);
+        // Records a compute pass wrote are not in the pool to be read: the list says so.
+        bool viewTrusted = poolTrusted;
+        v = list.contentHashOfRecords(v, shadow_pool_, viewTrusted);
         for (u32 c = 0; c < list.commandCount(); ++c) {
             const DrawCommand& cmd = list.command(c);
-            // Records a compute pass wrote are not in the pool to be read.
-            if (cmd.instance_buffer != BufferHandle::Invalid) trusted = false;
             if (cmd.material_id == 0) continue;
             // A material that moves its vertices may move them by the clock (wind): the same draw, another shape.
-            if (materials.hasVertexHook(cmd.material_id)) { trusted = false; continue; }
+            if (materials.hasVertexHook(cmd.material_id)) { viewTrusted = false; continue; }
             if (const MaterialRecord* m = materials.find(cmd.material_id)) {
-                words(m->uboBytes.data(), m->uboBytes.size());
-                for (const auto& binding : m->textures) mix(binding.texture.id());
+                vwords(m->uboBytes.data(), m->uboBytes.size());
+                for (const auto& binding : m->textures) vmix(binding.texture.id());
             }
         }
+        shadow_view_keys_[vi] = v;
+        shadow_view_trusted_[vi] = viewTrusted ? 1 : 0;
+        trusted = trusted && viewTrusted;
+        mix(v);
     }
-    for (u32 layout = 0; layout < LAYOUT_COUNT; ++layout) {
-        const auto id = static_cast<LayoutId>(layout);
-        const u32 used = shadow_pool_.vertexBytesUsed(id);
-        mix(used);
-        if (used > 0) words(shadow_pool_.vertexData(id), used);
-        // Indices built this frame are not read back here; a caster drawn through them is drawn every frame.
-        if (shadow_pool_.indicesUsed(id) > 0) trusted = false;
-    }
+    (void)words;
     key = h;
     return trusted;
 }
 
-void RenderFrame::executeShadowPass() {
-    // What the pass cost, for a profiler and the gates that pin it: the maps it
-    // actually rendered and the draws they took. Neither shows in a pixel, and a
-    // face that stopped being skipped would look exactly like one that never was.
-    u32 shadowTiles = 0;
-    u32 shadowDraws = 0;
+void RenderFrame::drawShadowView(usize vi) {
+    const ShadowView& view = shadow_views_[vi];
+    DrawList& list = shadow_view_lists_[vi];
+    // A cube face pointing away from every mesh collects nothing, and a point light has six chances at that. The square already
+    // holds what it was cleared to — depth 1, nothing here — so drawing it would agree at cost.
+    if (list.commandCount() == 0) return;
+    if (!shadow_pool_uploaded_) {
+        shadow_pool_.upload();
+        shadow_pool_uploaded_ = true;
+    }
+    device_.setViewport(view.x, view.y, view.size, view.size);
+    // Not a camera's: this projection spans exactly the occluders it draws, so it sits inside either clip volume as built, and the
+    // depths it writes are compared against the copy of it the receiving shader holds.
+    //
+    // One buffer per view, not one written per view: the write reaches the GPU on the queue, never between draws already recorded
+    // into this open pass. Binding IS an encoder command, so that is what tells the faces apart.
+    context_.useFrameConstants(shadow_frame_ubos_[vi], view.view_projection);
+    // The depth variant is still a Lit shader and still declares the light block, and a draw whose declared UBO is unbound is
+    // undefined behaviour that draws nothing — the whole pass came back empty for exactly this.
+    context_.lights().uploadAndBind();
+    list.execute(device_, shadow_pool_, context_.materials(), context_.getWhiteTextureId(), nullptr, context_.perDrawBlocks());
+    ++shadow_frame_tiles_;
+    shadow_frame_draws_ += list.mergedDrawCallCount();
+}
+
+void RenderFrame::recordShadowTiles(bool all) {
     const usize viewCount = shadow_views_.size();
+    if (all || !shadow_tiles_known_ || shadow_tile_keys_.size() != viewCount) {
+        shadow_tile_keys_.assign(viewCount, 0);
+        shadow_tile_held_.assign(viewCount, 0);
+        shadow_tile_draws_.assign(viewCount, 0);
+    }
+    for (usize vi = 0; vi < viewCount; ++vi) {
+        if (!all && !shadow_view_redraw_[vi]) continue;
+        shadow_tile_keys_[vi] = shadow_view_keys_[vi];
+        shadow_tile_held_[vi] = shadow_view_trusted_[vi];
+        shadow_tile_draws_[vi] = shadow_view_lists_[vi].commandCount() > 0 ? shadow_view_lists_[vi].mergedDrawCallCount() : 0;
+    }
+    shadow_tile_layout_ = shadow_layout_;
+    shadow_tiles_known_ = true;
+    // The atlas as a whole now holds this frame: the key (and the inputs) a frame with nothing changed compares with.
     shadow_drawn_key_ = shadow_pending_key_;
     shadow_drawn_valid_ = shadow_pending_trusted_;
     shadow_drawn_inputs_ = shadow_pending_inputs_;
     shadow_drawn_inputs_valid_ = shadow_pending_inputs_valid_;
-    shadow_pool_.upload();
-
+    u32 heldTiles = 0, heldDraws = 0;
     for (usize vi = 0; vi < viewCount; ++vi) {
-        const ShadowView& view = shadow_views_[vi];
-        DrawList& list = shadow_view_lists_[vi];
-        // A cube face pointing away from every mesh collects nothing, and a point
-        // light has six chances at that. The square already holds what the atlas was
-        // cleared to — depth 1, nothing here — so drawing it would agree at cost.
-        if (list.commandCount() == 0) continue;
-
-        device_.setViewport(view.x, view.y, view.size, view.size);
-        // Not a camera's: this projection spans exactly the occluders it draws, so
-        // it sits inside either clip volume as built, and the depths it writes are
-        // compared against the copy of it the receiving shader holds.
-        //
-        // One buffer per view, not one written per view: the write reaches the GPU
-        // on the queue, never between draws already recorded into this open pass.
-        // Binding IS an encoder command, so that is what tells the faces apart.
-        context_.useFrameConstants(shadow_frame_ubos_[vi], view.view_projection);
-        // The depth variant is still a Lit shader and still declares the light block,
-        // and a draw whose declared UBO is unbound is undefined behaviour that draws
-        // nothing — the whole pass came back empty for exactly this.
-        context_.lights().uploadAndBind();
-        list.execute(device_, shadow_pool_, context_.materials(),
-                     context_.getWhiteTextureId(), nullptr, context_.perDrawBlocks());
-        ++shadowTiles;
-        shadowDraws += list.mergedDrawCallCount();
+        heldTiles += shadow_tile_draws_[vi] > 0 ? 1u : 0u;
+        heldDraws += shadow_tile_draws_[vi];
     }
-
-    ES_PROFILE_COUNTER("render.shadow.tiles", shadowTiles);
-    ES_PROFILE_COUNTER("render.shadow.draws", shadowDraws);
-    shadow_held_tiles_ = shadowTiles;
-    shadow_held_draws_ = shadowDraws;
+    shadow_held_tiles_ = heldTiles;
+    shadow_held_draws_ = heldDraws;
+    ES_PROFILE_COUNTER("render.shadow.tiles", shadow_frame_tiles_);
+    ES_PROFILE_COUNTER("render.shadow.draws", shadow_frame_draws_);
     ES_PROFILE_COUNTER("render.shadow.heldTiles", shadow_held_tiles_);
     ES_PROFILE_COUNTER("render.shadow.heldDraws", shadow_held_draws_);
     ES_PROFILE_COUNTER("render.shadow.castersCulled", shadow_casters_culled_);
     ES_PROFILE_COUNTER("render.shadow.cullViews", [&] { u32 n = 0; for (const ShadowView& v : shadow_views_) n += v.sun ? 1u : 0u; return n; }());
+}
+
+void RenderFrame::executeShadowTile(usize vi) {
+    drawShadowView(vi);
+    // The last square of the frame: the others stood, so the atlas now holds this frame whole.
+    if (shadow_tile_passes_left_ > 0 && --shadow_tile_passes_left_ == 0) recordShadowTiles(false);
+    device_.invalidatePipelineCache();
+}
+
+void RenderFrame::executeShadowPass() {
+    // What the pass cost, for a profiler and the gates that pin it: the maps it actually rendered and the draws they took. Neither
+    // shows in a pixel, and a face that stopped being skipped would look exactly like one that never was.
+    for (usize vi = 0; vi < shadow_views_.size(); ++vi) drawShadowView(vi);
+    recordShadowTiles(true);
     // The scene draws next, through pipelines nothing here matches.
     device_.invalidatePipelineCache();
 }

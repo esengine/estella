@@ -1240,6 +1240,31 @@ private:
     /// The maps and draws the atlas holds, from the frame that last drew it (render.shadow.heldTiles / heldDraws).
     u32 shadow_held_tiles_ = 0;
     u32 shadow_held_draws_ = 0;
+
+    /// Square by square: what each view's square of the atlas holds (its key, from collectShadowViews: where it is, what it looks
+    /// through, the draws and the records they read) and whether it can be trusted to stand, under the layout every square had when
+    /// they were drawn (shadowLayout). A frame with that layout redraws only the squares whose key moved: one lamp's map, one face.
+    std::vector<u64> shadow_tile_keys_;
+    std::vector<u8> shadow_tile_held_;
+    std::vector<u32> shadow_tile_draws_;
+    u64 shadow_tile_layout_ = 0;
+    bool shadow_tiles_known_ = false;
+    /// This frame's: every view's key and trust, the layout, and which views draw.
+    std::vector<u64> shadow_view_keys_;
+    std::vector<u8> shadow_view_trusted_;
+    std::vector<u8> shadow_view_redraw_;
+    u64 shadow_layout_ = 0;
+    /// Square passes still to run this frame, and whether the pool has been uploaded for them.
+    u32 shadow_tile_passes_left_ = 0;
+    bool shadow_pool_uploaded_ = false;
+    u32 shadow_frame_tiles_ = 0, shadow_frame_draws_ = 0;
+    u32 shadow_squares_kept_total_ = 0, shadow_squares_drawn_total_ = 0;
+    /** @brief Draws one view's square into the open pass; counts it. */
+    void drawShadowView(usize vi);
+    /** @brief The squares a frame drew are now what the atlas holds (each pass that draws ends here). */
+    void recordShadowTiles(bool all);
+    /** @brief One square's own pass, when the others stand. */
+    void executeShadowTile(usize vi);
     /// One FrameConstants buffer per view, grown to the busiest frame and never shrunk.
     /// A buffer write lands on the queue, not between two draws already recorded into
     /// an open pass — so what tells one view from another is which buffer is BOUND.

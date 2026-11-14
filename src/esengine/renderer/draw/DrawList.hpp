@@ -129,6 +129,15 @@ public:
      *          or a texture holds. Two lists with the same hash over the same pool draw the same pixels; read after finalize().
      */
     u64 contentHash(u64 seed) const;
+
+    /**
+     * @brief contentHash with the instance records each command reads from @p pool in place of where they lie in it: two lists
+     *        that draw the same records hash the same wherever another list's records pushed them. For one list among several
+     *        filling a pool.
+     * @param trusted Cleared when a command reads what this cannot hash: records a compute pass wrote, or vertices with no
+     *        stride to measure them by.
+     */
+    u64 contentHashOfRecords(u64 seed, TransientBufferPool& pool, bool& trusted) const;
     const DrawCommand& command(u32 index) const { return commands_[index]; }
 
     // Bit i set ⇒ layer i (0..31) sorts by world Y within the layer (top-down

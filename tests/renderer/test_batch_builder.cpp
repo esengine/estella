@@ -553,6 +553,49 @@ TEST_CASE("pushBatchDraw: instanced key assembles an instanced command over stat
     CHECK(cmd.texture_ids[0] == 42);
 }
 
+TEST_CASE("contentHashOfRecords: the records a list reads, wherever in the pool they lie") {
+    Harness h;
+    const auto fill = [&](u32 offset, f32 value) {
+        auto* p = reinterpret_cast<f32*>(h.pool.vertexData(LayoutId::ParticleInstance) + offset);
+        for (u32 i = 0; i < 3 * 10; ++i) p[i] = value + static_cast<f32>(i);
+    };
+    // Another list's records first, so the two copies below lie at different offsets.
+    const u32 other = h.pool.allocVertices(LayoutId::ParticleInstance, 2 * 40);
+    fill(other, 100.0f);
+    const u32 first = h.pool.allocVertices(LayoutId::ParticleInstance, 3 * 40);
+    const u32 second = h.pool.allocVertices(LayoutId::ParticleInstance, 3 * 40);
+    fill(first, 1.0f);
+    fill(second, 1.0f);
+    BatchDrawKey key = quadKey(42);
+    key.layoutId = LayoutId::ParticleInstance;
+    key.instanceCount = 3;
+    key.instanceStride = 40;
+    DrawList a, b;
+    pushBatchDraw(a, h.clips, first, 0, 0, 6, key);
+    pushBatchDraw(b, h.clips, second, 0, 0, 6, key);
+    a.finalize(h.pool);
+    b.finalize(h.pool);
+    bool trustA = true, trustB = true;
+    const u64 ha = a.contentHashOfRecords(7, h.pool, trustA);
+    CHECK(trustA);
+    CHECK(ha == b.contentHashOfRecords(7, h.pool, trustB));
+    CHECK(trustB);
+    CHECK(a.contentHash(7) != b.contentHash(7));  // the plain hash says where they lie
+
+    fill(second, 2.0f);  // the same draw reading other records
+    bool trust = true;
+    CHECK(ha != b.contentHashOfRecords(7, h.pool, trust));
+
+    DrawList unmeasured;
+    BatchDrawKey noStride = key;
+    noStride.instanceStride = 0;
+    pushBatchDraw(unmeasured, h.clips, first, 0, 0, 6, noStride);
+    unmeasured.finalize(h.pool);
+    bool measured = true;
+    unmeasured.contentHashOfRecords(7, h.pool, measured);
+    CHECK(!measured);  // records with no stride cannot be read, and are not vouched for
+}
+
 TEST_CASE("finalize: adjacent same-key Batch draws with different textures merge multi-texture") {
     Harness h;
     BatchVertex quad[4] = {
