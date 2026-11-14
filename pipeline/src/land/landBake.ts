@@ -432,7 +432,9 @@ function runStep(g: Grid, step: LandStep, index: number, source: LandSource, out
                             const ax = line.xs[q]!, az = line.zs[q]!, ex = line.xs[q + 1]! - ax, ez = line.zs[q + 1]! - az, len2 = ex * ex + ez * ez;
                             const t = len2 > 0 ? clamp(((x - ax) * ex + (z - az) * ez) / len2, 0, 1) : 0;
                             const far = Math.hypot(x - ax - ex * t, z - az - ez * t) - mix(widths[q]!, widths[q + 1]!, t) / 2 - bank - plain;
-                            const other = mix(ys[q]!, ys[q + 1]!, t) + depth * 0.9 + valley * Math.max(0, far) * rough;
+                            // Round a plunge the rock stands sheer: a reach that is not the nearest cuts its bowl far steeper than its own
+                            // valley's sides, or a fall would land on a slope half way down.
+                            const other = mix(ys[q]!, ys[q + 1]!, t) + depth * 0.9 + Math.max(valley, 6) * Math.max(0, far) * rough;
                             if (other < lowest) lowest = other;
                         }
                         wall = mix(wall, lowest, open);
