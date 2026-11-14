@@ -490,6 +490,7 @@ renderer_beginFrame: (elapsedSec: number) => void
 renderer_beginScreenOverlay: ((projectionPtr: number, vpX: number, vpY: number, vpW: number, vpH: number) => void) | undefined
 renderer_captureFrame: ((w: number, h: number) => number) | undefined
 renderer_captureNextFrame: () => void
+renderer_captureTarget: ((target: number, w: number, h: number) => number) | undefined
 renderer_createSkeletalPreview: (w: number, h: number) => number
 renderer_createTarget: (width: number, height: number, flags: number) => number
 renderer_destroySkeletalPreview: (preview: number) => void
@@ -599,6 +600,7 @@ renderer_submitSkeletalPreviewBatchEx: (preview: number, verticesPtr: number, ve
 renderer_submitTextBatch: ((verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, glyphMode: number, cullBit: number) => void) | undefined
 renderer_takeFrameCapture: ((handle: number, dest: number, destSize: number) => boolean) | undefined
 renderer_takeProbeCapture: ((dst: number, bytes: number) => boolean) | undefined
+renderer_takeTargetCapture: ((handle: number, dest: number, destSize: number) => boolean) | undefined
 renderer_takeTextureWants: (() => string) | undefined
 renderer_updateTransforms: (registry: CppRegistry) => void
 sdfFromAlpha: ((alphaPtr: number, outPtr: number, width: number, height: number, spread: number) => void) | undefined

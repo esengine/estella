@@ -397,6 +397,10 @@ void renderer_captureNextFrame();
 
 /** Books the next completed frame for readback; poll + take it. */
 u32 renderer_captureFrame(u32 w, u32 h);
+/** Books a readback of a render target's colour (w*h, bottom-up RGBA): poll it with renderer_pollFrameCapture. 0 when there is none. */
+u32 renderer_captureTarget(u32 target, u32 w, u32 h);
+/** Copies a ready target capture into @p dest (w*h*4 bytes, bottom-up RGBA) and releases it. */
+bool renderer_takeTargetCapture(u32 handle, uintptr_t dest, u32 destSize);
 i32 renderer_pollFrameCapture(u32 handle);
 bool renderer_takeFrameCapture(u32 handle, uintptr_t dest, u32 destSize);
 u32 renderer_getCapturedFrameSize();

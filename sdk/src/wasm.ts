@@ -794,6 +794,8 @@ export interface ESEngineModule {
     renderer_captureNextFrame(): void;
     /** Books the next completed frame for readback; poll + take it (frameCapture.ts). */
     renderer_captureFrame?(w: number, h: number): number;
+    renderer_captureTarget?(target: number, w: number, h: number): number;
+    renderer_takeTargetCapture?(handle: number, dest: number, destSize: number): boolean;
     renderer_pollFrameCapture?(handle: number): number;
     renderer_takeFrameCapture?(handle: number, dest: number, destSize: number): boolean;
     renderer_getCapturedFrameSize(): number;

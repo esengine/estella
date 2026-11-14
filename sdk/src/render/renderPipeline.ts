@@ -175,6 +175,12 @@ export class RenderPipeline {
         Renderer.endScreenOverlay(target);
     }
 
+    /** Whether a screen-level effect stack is on: it draws the whole screen, so a frame meant for a render target cannot hold it. */
+    get screenEffectsActive(): boolean {
+        const pp = this.postProcess_;
+        return !!(pp && pp.screenStack && pp.screenStack.enabledPassCount > 0);
+    }
+
     beginScreenCapture(): void {
         const pp = this.postProcess_;
         if (pp && pp.screenStack && pp.screenStack.enabledPassCount > 0) {

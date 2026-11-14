@@ -63,7 +63,7 @@ export { CameraBounds } from './camera/CameraBounds';
 export type { CameraBoundsData } from './camera/CameraBounds';
 export type { CameraDirectorState, TimelineShot } from './camera/CameraDirector';
 export type { CameraPOV } from './camera/CameraPlugin';
-export { cameraFrustumCorners, renderCameraFrame } from './camera/CameraPlugin';
+export { cameraFrustumCorners, renderCameraFrame, syncScreenCameras } from './camera/CameraPlugin';
 export type { CameraFields, CameraTransformFields } from './camera/CameraPlugin';
 export { computeEffectiveOrthoSize, uiLayoutRect, EDITOR_VIEW_ENTITY, EDITOR_UI_ANCHOR } from './camera/uiLayoutRect';
 export type { CameraExtents, CanvasScale, WorldRect } from './camera/uiLayoutRect';
@@ -279,6 +279,8 @@ export {
 export {
     captureFramePixels,
     canCaptureFramePixels,
+    captureTargetPixels,
+    canCaptureTargetPixels,
     type FramePixels,
 } from './render/framePixels';
 

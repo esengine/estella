@@ -1808,6 +1808,21 @@ u32 renderer_captureFrame(u32 w, u32 h) {
     return static_cast<u32>(device->captureNextFrame(w, h));
 }
 
+u32 renderer_captureTarget(u32 target, u32 w, u32 h) {
+    auto* device = g_device;
+    if (!device || !g_renderFrame || w == 0 || h == 0) return 0;
+    auto* rt = g_renderFrame->targetManager().get(target);
+    if (!rt) return 0;
+    return static_cast<u32>(device->requestReadback(rt->getFramebuffer(), w, h));
+}
+
+bool renderer_takeTargetCapture(u32 handle, uintptr_t dest, u32 destSize) {
+    auto* device = g_device;
+    if (!device || !handle || !dest) return false;
+    // A target is the engine's own RGBA, never a surface's BGRA: no swap, unlike a frame capture.
+    return device->takeReadback(static_cast<ReadbackHandle>(handle), reinterpret_cast<void*>(dest), static_cast<usize>(destSize));
+}
+
 /** 0 = pending (step a frame, poll again), 1 = ready, 2 = failed/unknown. */
 i32 renderer_pollFrameCapture(u32 handle) {
     auto* device = g_device;

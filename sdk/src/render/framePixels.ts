@@ -28,6 +28,8 @@ type CaptureModule = ESEngineModule & {
     renderer_captureFrame?(w: number, h: number): number;
     renderer_pollFrameCapture?(handle: number): number;
     renderer_takeFrameCapture?(handle: number, dest: number, destSize: number): boolean;
+    renderer_captureTarget?(target: number, w: number, h: number): number;
+    renderer_takeTargetCapture?(handle: number, dest: number, destSize: number): boolean;
 };
 
 /** Whether this build can return its own pixels — an older wasm cannot. */
@@ -60,14 +62,50 @@ export async function captureFramePixels(
     if (!handle) return null;
 
     if (advance) await advance();
-    if (await awaitReadback(() => m.renderer_pollFrameCapture!(handle)) !== READBACK_READY) return null;
+    return landPixels(m, handle, width, height, m.renderer_takeFrameCapture!);
+}
 
+/** Whether this build can read a render target back — an older wasm cannot. */
+export function canCaptureTargetPixels(module: ESEngineModule): boolean {
+    const m = module as CaptureModule;
+    return typeof m.renderer_captureTarget === 'function'
+        && typeof m.renderer_pollFrameCapture === 'function'
+        && typeof m.renderer_takeTargetCapture === 'function';
+}
+
+/**
+ * What a render target holds, read from the engine once the GPU has drawn it (rows bottom-up, as a frame).
+ *
+ * The draw happened before this is called; nothing here waits for it on the page's thread. Null when the build cannot
+ * capture a target, the target is gone, or the readback never lands.
+ *
+ * @beta
+ */
+export async function captureTargetPixels(
+    module: ESEngineModule,
+    target: number,
+    width: number,
+    height: number,
+): Promise<FramePixels | null> {
+    const m = module as CaptureModule;
+    if (!canCaptureTargetPixels(module) || width <= 0 || height <= 0) return null;
+    const handle = m.renderer_captureTarget!(target, width, height);
+    if (!handle) return null;
+    return landPixels(m, handle, width, height, m.renderer_takeTargetCapture!);
+}
+
+/** Waits for a booked readback and copies it out of the engine. */
+async function landPixels(
+    m: CaptureModule, handle: number, width: number, height: number,
+    take: (handle: number, dest: number, destSize: number) => boolean,
+): Promise<FramePixels | null> {
+    if (await awaitReadback(() => m.renderer_pollFrameCapture!(handle)) !== READBACK_READY) return null;
     const size = width * height * 4;
     const rgba = new Uint8Array(size);
     const ok = withScratch(m, (alloc) => {
         const ptr = alloc(size);
         if (!ptr) return false;
-        if (!m.renderer_takeFrameCapture!(handle, ptr, size)) return false;
+        if (!take(handle, ptr, size)) return false;
         rgba.set(m.HEAPU8.subarray(ptr, ptr + size));
         return true;
     });

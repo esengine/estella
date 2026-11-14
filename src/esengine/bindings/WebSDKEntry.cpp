@@ -859,6 +859,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
 
     emscripten::function("renderer_captureNextFrame", &esengine::renderer_captureNextFrame);
     emscripten::function("renderer_captureFrame", &esengine::renderer_captureFrame);
+    emscripten::function("renderer_captureTarget", &esengine::renderer_captureTarget);
+    emscripten::function("renderer_takeTargetCapture", &esengine::renderer_takeTargetCapture);
     emscripten::function("renderer_pollFrameCapture", &esengine::renderer_pollFrameCapture);
     emscripten::function("renderer_takeFrameCapture", &esengine::renderer_takeFrameCapture);
     emscripten::function("renderer_getCapturedFrameSize", &esengine::renderer_getCapturedFrameSize);
