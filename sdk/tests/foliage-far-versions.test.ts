@@ -241,4 +241,13 @@ describe('what a blade of grass and a leaf are given to be shaped and lit by', (
         expect(source).toContain('u_specular, mix(u_rootOcclusion, 1.0, height), ext)');
         expect(source).toContain('mc.u_specular, mix(mc.u_rootOcclusion, 1.0, height), ext)');
     });
+
+    it('lights a plant as the ground it stands on by its ground normal, and as itself by default', async () => {
+        const { FOLIAGE_SHADER_TEMPLATE } = await import('../src/foliage/foliageShader');
+        const source = FOLIAGE_SHADER_TEMPLATE.source;
+        expect(source).toContain('#pragma param u_groundNormal float default(0) range(0,1)');
+        // After the back face is turned, so both sides of a blade end at the same up; in both languages.
+        expect(source).toContain('N = normalize(mix(N, vec3(0.0, 1.0, 0.0), u_groundNormal));');
+        expect(source).toContain('N = normalize(mix(N, vec3f(0.0, 1.0, 0.0), vec3f(mc.u_groundNormal)));');
+    });
 });

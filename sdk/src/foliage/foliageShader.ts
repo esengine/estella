@@ -46,6 +46,10 @@ const FOLIAGE = `#pragma shader "Foliage"
 // material's ambient occlusion does. Only the environment's light: the sun and other lights are not dimmed. 1 dims nothing.
 #pragma param u_rootOcclusion float default(1) range(0,1) ui(slider)
 #pragma param u_thickness float default(0.3) range(0,1) ui(slider)
+// How far a plant is lit as the ground it stands on and not as itself: its normal turned toward straight up. Blades lit each by its own
+// flat are a thousand facets, half of them turned from the sun and dark over a bright ground; at 1 a meadow takes the light as one
+// surface, which is how a painted or stylised field reads. 0 leaves each plant its own shape, as a tree or a bush wants.
+#pragma param u_groundNormal float default(0) range(0,1) ui(slider)
 // The wind: how hard it blows, how fast it moves, where it comes from (degrees), how long a gust is (the lower, the longer), and how much flutter rides on it.
 #pragma param u_windStrength float default(2) range(0,20) ui(slider)
 #pragma param u_windSpeed float default(1.2) range(0,6) ui(slider)
@@ -288,6 +292,7 @@ void main() {
     highp vec3 P = v_worldXYZ;
     highp vec3 N = normalize(v_worldNormal);
     if (!gl_FrontFacing) N = -N;
+    N = normalize(mix(N, vec3(0.0, 1.0, 0.0), u_groundNormal));
 #else
     highp vec3 P = vec3(v_worldPos, 0.0);
     highp vec3 N = vec3(0.0, 0.0, 1.0);
@@ -369,6 +374,7 @@ fn packNormal(n : vec3f) -> vec2f {
     let P = v.v_worldXYZ;
     var N = normalize(v.v_worldNormal);
     if (!front) { N = -N; }
+    N = normalize(mix(N, vec3f(0.0, 1.0, 0.0), vec3f(mc.u_groundNormal)));
 #else
     let P = vec3f(v.v_worldPos.x, 0.0, v.v_worldPos.y);
     let N = vec3f(0.0, 0.0, 1.0);
