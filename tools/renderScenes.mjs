@@ -1093,6 +1093,9 @@ export const SCENES = [
   // its back is what is seen and what the light reaches, so it must be lit. Once
   // through a material (the path an imported model takes) and once without one.
   { id: "mesh-backface-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/backface-quad.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-backface.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-backface.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,255,255],\"tol\":40}]" } },
+  // The same quad with a detail map on its Model material: a black picture laid every 40 units at full strength. The detail multiplies the
+  // colour by twice its red, so the white quad reads black; a twin that does not run the detail, or reads the wrong unit, leaves it white.
+  { id: "model-detail", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/detail-quad.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-backface.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-backface.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":30}]" } },
   { id: "mesh-backface-plain", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/backface-quad-plain.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-backface.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-backface.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,255,255],\"tol\":40}]" } },
   // Grayscale, then bloom: the red and green quads must come out grey. A multi-pass
   // effect composites over its own input, and one handed the untouched scene

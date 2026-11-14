@@ -94,6 +94,12 @@ export interface ModelMaterial {
      * the leaf's outline under `alpha: "cutout"`. A `strip` lays it from root to tip; other faces take it by their `uv`.
      */
     texture?: string;
+    /**
+     * Grain that repeats, for what is large: a grey picture of a surface by project path, laid over the model again every `size` units of
+     * the scene from the three sides of the world. A model has one picture of its own, and on a rock the size of a house that is a blur
+     * from beside it. `strength` (0..1, default 0.5) is how much it varies the colour, `bump` (0..2, default 0.5) how much it tilts the light.
+     */
+    detail?: { texture: string; size: number; strength?: number; bump?: number };
 }
 
 export interface ModelAttachment {
@@ -486,7 +492,7 @@ function validatePlain(raw: unknown): ModelSource {
     if (!Array.isArray(source.steps)) throw new ModelBuildError('`steps` must be an array', null, null, null);
     if (source.material !== undefined) {
         const m = source.material as Record<string, unknown> | null;
-        if (typeof m !== 'object' || m === null || Array.isArray(m)) throw new ModelBuildError('material must be { roughness?, metallic?, alpha?, cutoff?, emissive?, texture? }', null, null, null);
+        if (typeof m !== 'object' || m === null || Array.isArray(m)) throw new ModelBuildError('material must be { roughness?, metallic?, alpha?, cutoff?, emissive?, texture?, detail? }', null, null, null);
         for (const [key, value] of Object.entries(m)) {
             if (key === 'alpha') {
                 if (value !== 'cutout' && value !== 'blend') throw new ModelBuildError('material.alpha must be cutout or blend', null, null, null);
@@ -504,7 +510,15 @@ function validatePlain(raw: unknown): ModelSource {
                 }
                 continue;
             }
-            if (!['roughness', 'metallic', 'cutoff'].includes(key)) throw new ModelBuildError(`material has an unknown field "${key}"; it takes roughness, metallic, alpha, cutoff, emissive, texture`, null, null, null);
+            if (key === 'detail') {
+                const d = value as { texture?: unknown; size?: unknown; strength?: unknown; bump?: unknown } | null;
+                if (!d || typeof d !== 'object' || typeof d.texture !== 'string' || !(/\.(png|jpg|jpeg|webp)$/i.test(d.texture) || isTextureRecipePath(d.texture)) || !(isNum(d.size) && d.size > 0)
+                    || (d.strength !== undefined && !(isNum(d.strength) && d.strength >= 0 && d.strength <= 1)) || (d.bump !== undefined && !(isNum(d.bump) && d.bump >= 0 && d.bump <= 2))) {
+                    throw new ModelBuildError('material.detail must be { texture: a project path to a grey picture or its recipe, size: scene units one repeat covers, strength?: 0..1, bump?: 0..2 }', null, null, null);
+                }
+                continue;
+            }
+            if (!['roughness', 'metallic', 'cutoff'].includes(key)) throw new ModelBuildError(`material has an unknown field "${key}"; it takes roughness, metallic, alpha, cutoff, emissive, texture, detail`, null, null, null);
             if (!(isNum(value) && value >= 0 && value <= 1)) throw new ModelBuildError(`material.${key} must be 0..1`, null, null, null);
         }
     }

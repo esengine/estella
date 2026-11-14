@@ -327,6 +327,7 @@ export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, ma
                 ...(maps.color ? { u_emissiveMap: maps.color } : {}),
             } : {}),
             ...(maps.normal ? { u_normalMap: maps.normal } : {}),
+            ...(material?.detail ? { u_detailMap: material.detail.texture, u_detailSize: material.detail.size, u_detailStrength: material.detail.strength ?? 0.5, u_detailBump: material.detail.bump ?? 0.5 } : {}),
             ...(maps.occlusion ? {
                 u_occlusionMap: maps.occlusion,
                 u_occlusionStrength: typeof source.normalBake?.occlusion === 'object' ? source.normalBake.occlusion.strength ?? 1 : 1,

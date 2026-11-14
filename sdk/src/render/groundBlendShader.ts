@@ -13,6 +13,7 @@
  *          Derived from Model, so a material moved onto it keeps every map and param it had. Such a material is drawn after a copy
  *          of the opaque scene is taken, which is the whole of its cost.
  */
+import { modelWithoutDetail } from './modelDetail';
 
 /** The fade and the second layer, added to Model's params. */
 const PARAMS = `// How high above what stands behind it the surface has fully arrived, in world units. 0 leaves a hard edge.
@@ -152,7 +153,7 @@ function swap(source: string, from: string, to: string): string {
 
 /** Ground Blend from the Model shader's source. A refraction reads the same picture, and the two would fight over it, so it is taken out. */
 export function deriveGroundBlend(model: string): string {
-    let s = swap(model, '#pragma shader "Model"', '#pragma shader "Ground Blend"');
+    let s = swap(modelWithoutDetail(model), '#pragma shader "Model"', '#pragma shader "Ground Blend"');
     s = swap(s, '#pragma param u_transmission float default(0) range(0,1) ui(slider)\n', '');
     // With no such param the engine knows this always wants the copy (MaterialStore::usesSceneColor), and the branch below is never taken.
     s = s.replace(/mc\.u_transmission/g, '0.0').replace(/u_transmission/g, '0.0');

@@ -624,6 +624,18 @@ export const MODEL = `#pragma shader "Model"
 #pragma param u_wetSize vec2 default(0,0)
 #pragma param u_wetDarken float default(0.4) range(0,1) ui(slider)
 #pragma param u_wetRoughness float default(0.3) range(0,1) ui(slider)
+// <detail>
+// Detail that repeats: a rock the size of a house has one picture of its own, a few centimetres to the texel, and seen from beside it
+// that is a blur. u_detailMap is a grey picture of a surface (its red: 0.5 changes nothing, lighter and darker are the grain) laid over
+// the model again and again, every u_detailSize world units, from the three sides of the world so nothing stretches and no uv is
+// needed. It varies the colour by u_detailStrength and, read as a height, tilts the light by u_detailBump. It fades out where a tile
+// is smaller than a few pixels, so at a distance the model's own picture is all there is and nothing shimmers. Size 0 is off and costs
+// one comparison. It is laid by where the surface is in the world: for what stands still.
+#pragma param u_detailMap texture default(flatnormal) texel(data)
+#pragma param u_detailSize float default(0) range(0,100000) unit(length)
+#pragma param u_detailStrength float default(0.5) range(0,1) ui(slider)
+#pragma param u_detailBump float default(0.5) range(0,2) ui(slider)
+// </detail>
 
 #pragma fragment
 precision mediump float;
@@ -684,6 +696,8 @@ void main() {
     // Before any branch: a derivative needs every fragment of its quad.
     highp vec3 dndx = dFdx(v_worldNormal);
     highp vec3 dndy = dFdy(v_worldNormal);
+    highp vec3 dpdx = dFdx(v_worldXYZ); // <detail/>
+    highp vec3 dpdy = dFdy(v_worldXYZ); // <detail/>
 #endif
     highp vec2 uv = v_texCoord * u_uvTiling;
     if (u_uvRotation != 0.0) {
@@ -692,6 +706,29 @@ void main() {
     }
     uv += u_uvOffset;
     vec4 base = texture(u_textures[0], uv) * v_color * u_tint;
+// <detail>
+#ifdef MESH_NORMALS
+    // The repeating detail: read from the three sides of the world, weighed by which way the surface faces.
+    highp vec3 detailTilt = vec3(0.0);
+    if (u_detailSize > 0.0) {
+        highp vec3 at = (v_worldXYZ + u_renderOrigin.xyz) / u_detailSize;
+        highp vec3 ax = dpdx / u_detailSize, ay = dpdy / u_detailSize;
+        highp vec3 facing = normalize(v_worldNormal);
+        vec3 sides = pow(abs(facing), vec3(4.0));
+        sides /= sides.x + sides.y + sides.z;
+        float grain = textureGrad(u_detailMap, at.zy, ax.zy, ay.zy).r * sides.x + textureGrad(u_detailMap, at.xz, ax.xz, ay.xz).r * sides.y
+                    + textureGrad(u_detailMap, at.xy, ax.xy, ay.xy).r * sides.z;
+        // Gone where a tile is a few pixels: the model's own picture carries the distance.
+        float closeBy = 1.0 - smoothstep(0.04, 0.25, max(length(ax), length(ay)));
+        grain = mix(0.5, grain, closeBy);
+        base.rgb *= mix(1.0, grain * 2.0, u_detailStrength);
+        // As a height: its slope across the screen is a slope of the surface.
+        highp vec3 r1 = cross(dpdy, facing), r2 = cross(facing, dpdx);
+        highp float det = dot(dpdx, r1);
+        detailTilt = sign(det) * (dFdx(grain) * r1 + dFdy(grain) * r2) * (u_detailBump * u_detailSize * 0.03 / max(abs(det), 1e-9));
+    }
+#endif
+// </detail>
     // A cutout is glTF's MASK (cutoutCoverage): cut at the cutoff, sharpened to a pixel so alpha-to-coverage feathers the edge.
     float alpha = base.a;
     if (u_alphaCutoff > 0.0) {
@@ -703,6 +740,7 @@ void main() {
     highp vec3 Ng = normalize(v_worldNormal);
     highp vec3 N = perturbNormal(Ng, v_worldXYZ, uv,
                                  scaleNormal(sampleNormal(u_normalMap, uv), u_normalScale));
+    N = normalize(N - detailTilt); // <detail/>
     // A double-sided surface is lit from the side it is seen from (glTF's rule).
     if (!gl_FrontFacing) { N = -N; Ng = -Ng; }
 #else
@@ -865,6 +903,8 @@ fn packNormal(n : vec3f) -> vec2f {
 #ifdef MESH_NORMALS
     let dndx = dpdx(v.v_worldNormal);
     let dndy = dpdy(v.v_worldNormal);
+    let placeDx = dpdx(v.v_worldXYZ); // <detail/>
+    let placeDy = dpdy(v.v_worldXYZ); // <detail/>
 #endif
     // WGSL has no module varying: the entry point hands the injected header the
     // run its GLSL twin reads straight off one. Without this every material-shaded
@@ -877,6 +917,30 @@ fn packNormal(n : vec3f) -> vec2f {
     g_worldTangent = v.v_worldTangent;
 #endif
     var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;
+// <detail>
+#ifdef MESH_NORMALS
+    // The repeating detail (see the GLSL twin).
+    var detailTilt = vec3f(0.0);
+    if (mc.u_detailSize > 0.0) {
+        let at = (v.v_worldXYZ + frame.renderOrigin.xyz) / mc.u_detailSize;
+        let ax = placeDx / mc.u_detailSize;
+        let ay = placeDy / mc.u_detailSize;
+        let facing = normalize(v.v_worldNormal);
+        var sides = pow(abs(facing), vec3f(4.0));
+        sides = sides / (sides.x + sides.y + sides.z);
+        var grain = textureSampleGrad(u_detailMap, u_detailMap_s, at.zy, ax.zy, ay.zy).r * sides.x
+                  + textureSampleGrad(u_detailMap, u_detailMap_s, at.xz, ax.xz, ay.xz).r * sides.y
+                  + textureSampleGrad(u_detailMap, u_detailMap_s, at.xy, ax.xy, ay.xy).r * sides.z;
+        let closeBy = 1.0 - smoothstep(0.04, 0.25, max(length(ax), length(ay)));
+        grain = mix(0.5, grain, closeBy);
+        base = vec4f(base.rgb * mix(1.0, grain * 2.0, mc.u_detailStrength), base.a);
+        let r1 = cross(placeDy, facing);
+        let r2 = cross(facing, placeDx);
+        let det = dot(placeDx, r1);
+        detailTilt = sign(det) * (dpdx(grain) * r1 + dpdy(grain) * r2) * (mc.u_detailBump * mc.u_detailSize * 0.03 / max(abs(det), 1e-9));
+    }
+#endif
+// </detail>
     // Before any discard: a derivative needs every fragment of its quad.
     let edge = max(fwidth(base.a), 1e-4);
     var alpha = base.a;
@@ -889,6 +953,7 @@ fn packNormal(n : vec3f) -> vec2f {
     var Ng = normalize(v.v_worldNormal);
     var N = perturbNormal(Ng, v.v_worldXYZ, uv,
                           scaleNormal(sampleNormalGrad(u_normalMap, u_normalMap_s, uv, duvx, duvy), mc.u_normalScale));
+    N = normalize(N - detailTilt); // <detail/>
     if (!front) { N = -N; Ng = -Ng; }
 #else
     let N = scaleNormal(sampleNormalGrad(u_normalMap, u_normalMap_s, uv, duvx, duvy), mc.u_normalScale);

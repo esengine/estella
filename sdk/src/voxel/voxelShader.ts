@@ -8,6 +8,7 @@
  *          whichever axis the surface faces. The vertex colour is how much of each material a vertex is. Being derived from Model it is lit,
  *          shadowed and fogged as anything else in the scene is, and a material moved onto it keeps every param it had.
  */
+import { modelWithoutDetail } from '../render/modelDetail';
 
 /** Material 0 is the shader's main texture, so the others cost three more. The emissive map gives its unit up: this skin has no uv to read one by. */
 const PARAMS = `// The colour of each material, multiplied into its picture.
@@ -81,7 +82,7 @@ function swap(source: string, from: string, to: string): string {
 
 /** Voxel Ground from the Model shader's source. */
 export function deriveVoxelGround(model: string): string {
-    let s = swap(model, '#pragma shader "Model"', '#pragma shader "Voxel Ground"');
+    let s = swap(modelWithoutDetail(model), '#pragma shader "Model"', '#pragma shader "Voxel Ground"');
     s = swap(s, '#pragma param u_iridescence float', `${PARAMS}#pragma param u_iridescence float`);
     s = swap(s, '#pragma param u_emissiveMap texture default(white)\n', '');
     s = swap(s, 'texture(u_emissiveMap, uv).rgb', 'vec3(1.0)');

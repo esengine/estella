@@ -142,6 +142,8 @@ describe('which texture params a shader reads as numbers', () => {
             u_sceneColor: 'colour',
             // Wet ground's map holds amounts, not a picture.
             u_wetMask: 'data',
+            // The repeating grain is a grey height, read as a number.
+            u_detailMap: 'data',
         });
     });
 });
