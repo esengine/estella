@@ -103,7 +103,7 @@ export const SCENES = [
     { id: 'terrain-virtual-texture', set: [{ entity: 2, component: 'Terrain', key: 'virtualTexture', value: true }, { entity: 2, component: 'Terrain', key: 'virtualTextureFrom', value: 0 }],
       expect: [[0.3, [242, 242, 242]], [0.7, [121, 121, 121]]], steps: '90', min: { 'render.bakes.drawn': 2 } },
   ].map((test) => ({
-    id: test.id, tier: 'pr', webgpu: true,
+    id: test.id, tier: 'pr', webgpu: true, ...(test.id === 'terrain-virtual-texture' ? { softwareGpu: false } : {}),
     env: {
       ESTELLA_VERIFY_SCENE: '/scenes/terrain-layer-occlusion.esscene',
       ESTELLA_VERIFY_W: '256', ESTELLA_VERIFY_H: '256', ESTELLA_VERIFY_STEPS: test.steps ?? '30', ESTELLA_VERIFY_WARM: '1',
