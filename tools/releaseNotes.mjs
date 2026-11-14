@@ -4962,4 +4962,6 @@ export const NOTED = {
     {"note": "A Model material lays a repeating detail over what is large."},
   "feat(modeling): the model tool says how something large keeps its grain up close - a model's material takes detail: { texture, size, strength?, bump? }, a grey picture laid again every size units from three sides":
     {"note": "A Model material lays a repeating detail over what is large."},
+  "chore(ui): the built-in widget prefabs carry letterSpacing and underline - regenerated after buildText began to fill every Text field (#127); the generator test rewrites them and does not fail on drift, so they had stayed as before":
+    {"note": "`spawnUIEntity` keeps every Text field it is given."},
 };

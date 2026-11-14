@@ -751,6 +751,7 @@
             "wordWrap": false,
             "overflow": 0,
             "lineHeight": 1.2,
+            "letterSpacing": 0,
             "bold": false,
             "italic": false,
             "strokeColor": {
@@ -769,6 +770,7 @@
             "shadowBlur": 0,
             "shadowOffsetX": 0,
             "shadowOffsetY": 0,
+            "underline": false,
             "richText": false,
             "renderMode": 0,
             "layer": 0,
@@ -1457,6 +1459,7 @@
             "wordWrap": false,
             "overflow": 0,
             "lineHeight": 1.2,
+            "letterSpacing": 0,
             "bold": false,
             "italic": false,
             "strokeColor": {
@@ -1475,6 +1478,7 @@
             "shadowBlur": 0,
             "shadowOffsetX": 0,
             "shadowOffsetY": 0,
+            "underline": false,
             "richText": false,
             "renderMode": 0,
             "layer": 0,
@@ -2163,6 +2167,7 @@
             "wordWrap": false,
             "overflow": 0,
             "lineHeight": 1.2,
+            "letterSpacing": 0,
             "bold": false,
             "italic": false,
             "strokeColor": {
@@ -2181,6 +2186,7 @@
             "shadowBlur": 0,
             "shadowOffsetX": 0,
             "shadowOffsetY": 0,
+            "underline": false,
             "richText": false,
             "renderMode": 0,
             "layer": 0,
