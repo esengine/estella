@@ -4,7 +4,7 @@ import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
 import { linearColorSpace, samplesAsSrgb } from '../../ecs/env';
 import { platformCreateImage } from '../../platform/base';
 import type { PlatformImage } from '../../platform/types';
-import { decodeImageBitmap, readImagePixels, shrinkBitmap } from '../imageDecode';
+import { decodeImageBitmap, fetchImageBitmap, readImagePixels, shrinkBitmap } from '../imageDecode';
 import { requireResourceManager } from '../../wasm/resourceManager';
 import { TextureContent, type ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasm/wasmScratch';
@@ -467,7 +467,20 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      * on it uploads every texture upside-down. The raw `<img>` fallback keeps the
      * flag (it works for element/pixel sources) — see {@link createTextureFromImage}.
      */
-    private loadImage(src: string, flip: boolean, maxEdge = 0, revision?: number, full?: { width: number; height: number }): Promise<PlatformImage | ImageBitmap> {
+    private async loadImage(src: string, flip: boolean, maxEdge = 0, revision?: number, full?: { width: number; height: number }): Promise<PlatformImage | ImageBitmap> {
+        // A revision is asked for by URL so that an edited file is read again, not served from the cache.
+        let url = src;
+        if (revision && typeof document !== 'undefined' && !src.startsWith('data:') && !src.startsWith('blob:')) {
+            const revised = new URL(src, document.baseURI);
+            revised.searchParams.set('_esTextureRevision', String(revision));
+            url = revised.href;
+        }
+        // From the bytes first: decoded off the page's thread.
+        const fetched = await fetchImageBitmap(url, flip);
+        if (fetched) {
+            if (full) { full.width = fetched.width; full.height = fetched.height; }
+            return shrinkBitmap(fetched, maxEdge);
+        }
         return new Promise((resolve, reject) => {
             const img = platformCreateImage();
             img.crossOrigin = 'anonymous';
@@ -484,14 +497,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
                 resolve(img);
             };
             img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
-            if (revision && typeof HTMLImageElement !== 'undefined' && img instanceof HTMLImageElement
-                && !src.startsWith('data:') && !src.startsWith('blob:')) {
-                const url = new URL(src, document.baseURI);
-                url.searchParams.set('_esTextureRevision', String(revision));
-                img.src = url.href;
-            } else {
-                img.src = src;
-            }
+            img.src = typeof HTMLImageElement !== 'undefined' && img instanceof HTMLImageElement ? url : src;
         });
     }
 

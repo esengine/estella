@@ -320,6 +320,12 @@ bool PostProcessPipeline::runnable(const PostProcessPass& pass) const {
     return pass.enabled && (!pass.isCompute || (device_.supportsCompute() && pass.compute != ComputeHandle::Invalid));
 }
 
+bool PostProcessPipeline::programPending(const PostProcessPass& pass) const {
+    if (!device_.skipPendingPrograms() || !pass.nativeKind.empty() || pass.isCompute) return false;
+    const Shader* shader = resourceManager_.getShader(pass.shader);
+    return shader && !device_.programReady(shader->handle());
+}
+
 u32 PostProcessPipeline::addNativePass(const std::string& name, const std::string& kind) {
     PostProcessPass pass;
     pass.name = name;
@@ -728,7 +734,8 @@ void PostProcessPipeline::declareSkyCapture(const PostProcessPass& pass, rg::Res
 
 const PostProcessPass* PostProcessPipeline::cloudShadowCaster(f32& extentKm, f32& unitsPerKm) const {
     for (const PostProcessPass& pass : passes_) {
-        if (!pass.enabled) continue;
+        // A caster whose program is still compiling casts nothing yet, as its effect draws nothing yet.
+        if (!pass.enabled || programPending(pass)) continue;
         const MaterialUniformLayout* layout = context_.materials().layoutFor(pass.shader);
         if (!layout || !layout->find("u_cloudShadowPass")) continue;
         // What the pass was set to, else what its shader declares.
@@ -1372,10 +1379,25 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
     const rg::TargetDesc desc = chainTarget(/*withDepth=*/false);
     const rg::TargetDesc blitDesc = blitSourceTarget(/*withDepth=*/false);
 
+    // What runs this frame. With background compiles on, an effect whose program the browser is still compiling sits the frame out, the
+    // way a draw does - every pass of the effect together, since a later one reads the earlier ones' pictures by name.
+    std::vector<char> live(passes.size());
+    for (usize i = 0; i < passes.size(); ++i) live[i] = runnable(passes[i]) ? 1 : 0;
+    if (device_.skipPendingPrograms()) {
+        for (usize begin = 0; begin < passes.size();) {
+            usize end = begin + 1;
+            while (end < passes.size() && passes[end].continuesEffect) ++end;
+            bool ready = true;
+            for (usize k = begin; k < end && ready; ++k) ready = !live[k] || !programPending(passes[k]);
+            if (!ready) std::fill(live.begin() + static_cast<std::ptrdiff_t>(begin), live.begin() + static_cast<std::ptrdiff_t>(end), 0);
+            begin = end;
+        }
+    }
+
     // Which enabled pass is last decides which target the blit will sample.
     usize lastEnabled = passes.size();
     for (usize i = passes.size(); i-- > 0;) {
-        if (runnable(passes[i])) { lastEnabled = i; break; }
+        if (live[i]) { lastEnabled = i; break; }
     }
 
     rg::ResourceId input = scene;
@@ -1384,7 +1406,7 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
     std::vector<std::pair<std::string, rg::ResourceId>> effectOutputs;
     for (usize i = 0; i < passes.size(); ++i) {
         auto& pass = passes[i];
-        if (!runnable(pass)) continue;
+        if (!live[i]) continue;
         if (!pass.continuesEffect) {
             effectInput = input;
             effectOutputs.clear();

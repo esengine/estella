@@ -657,6 +657,9 @@ private:
     void computePass(PostProcessPass& pass, const rg::PassContext& ctx);
     /// Whether a pass has anything to run on this device: a drawn pass always, a compute one only where there is compute.
     bool runnable(const PostProcessPass& pass) const;
+    /// Whether a drawn pass is waiting on its program: compiles run in the background (the device skips pending programs) and the
+    /// browser has not finished this one. Such a pass draws nothing that frame - its whole effect, and anything that borrows its shader.
+    bool programPending(const PostProcessPass& pass) const;
     /// Compute programs by source, kept while the pipeline lives: the passes are pushed again every camera, and a
     /// program is a compiled pipeline, not something to build per frame.
     std::unordered_map<std::string, ComputeHandle> compute_cache_;
