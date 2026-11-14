@@ -4932,4 +4932,8 @@ export const NOTED = {
     {"note": "The installer is about 220 MB smaller: the large samples download when picked."},
   "feat(render): plants answer a wake and a blast - a WindWake body leaves a pass every half radius it travels and a WindBurst (or emitWindBurst) sends a pressure front out at a finite speed; the Foliage shader and the 2D Sway template lean a plant by a damped spring's answer to each shove, from the time since it alone, so a plant is pushed over, springs back past upright and rings down with nothing kept between frames, and windLean is the same arithmetic on the CPU":
     {"note": "Plants answer a wake and a blast."},
+  "feat(particles): particles can be lit by the scene - the stock particle is its picture times its colour, so its white is 1 at noon and at midnight: beside sunlit water it is grey, and a cloud of it laid over a fall painted the fall out. A particle shader that declares PARTICLE_WORLD gets, in its particle variant, a world position and a normal (the way to the eye), and the Lit Particle shader (builtin:particle-lit) lights with them as any surface is lit, as much from behind as u_translucency says; in a flat scene it is lit by its layer. A particle with a material takes its depth test and write from it, as a sprite and a trail do, where it tested nothing and showed through hills":
+    {"note": "Particles can be lit by the scene."},
+  "feat(terrain): a fall's mist is lit by the scene - terrain_apply writes a material of the Lit Particle shader beside the puff (<land>_mist.esmaterial) and the mist draws with it, laid over the picture again and not added to it: white under the sun, grey in shade, dark at night, and hidden by the hill in front of it":
+    {"note": "Particles can be lit by the scene."},
 };

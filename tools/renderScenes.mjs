@@ -722,6 +722,10 @@ export const SCENES = [
   // A quad fixed in the x/y plane is edge-on from there and covers nothing; a
   // billboard faces the viewer wherever it stands, which is the whole claim.
   { id: "particles-billboard", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/particle-billboard.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/particle-billboard.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "20", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":90}]" } },
+  // The same particle with a material of the Lit Particle shader, white, under one red sun shining along the eye's line and nothing else:
+  // lit as a thing in the world it is red. The stock particle is its colour whatever the light, white; a particle variant with no world
+  // position (PARTICLE_WORLD not honoured) is lit as a flat sprite by a 2D layer that has no light, black.
+  { id: "particle-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/particle-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/particle-billboard.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "20", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":60}]" } },
   // A particle drawn by an AUTHORED material: the fixture's shader ignores the
   // particle's own green and paints the material's red, so the two are told
   // apart by the pixel rather than by both being plausible.

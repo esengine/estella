@@ -221,6 +221,9 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
         u32 shaderId = particle_shader_id_;
         u32 materialId = 0;
         BlendMode blend = blendMode;
+        // A material says how its particles meet the depth of the scene, as it does for a sprite or a trail: without one they are the
+        // flat quads a 2D scene draws, which test nothing.
+        bool materialDepth = false, depthTest = false, depthWrite = false;
         if (emitter.material != 0 && ctx.materials) {
             if (const MaterialRecord* m = ctx.materials->find(emitter.material)) {
                 const u32 program = ctx.materials->particleProgram(emitter.material, ctx.resources);
@@ -228,6 +231,9 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
                     shaderId = program;
                     materialId = emitter.material;
                     blend = m->blend;
+                    materialDepth = true;
+                    depthTest = m->depthTest;
+                    depthWrite = m->depthWrite;
                 }
             }
         }
@@ -251,6 +257,10 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             .instanceCount = particleCount,
             .instanceBuffer = gpuInstances,
         };
+        if (materialDepth) {
+            key.depthTest = depthTest;
+            key.depthWrite = depthWrite;
+        }
         // The stream's static unit-quad indices (offset 0) drawn once per particle,
         // with the instance slice based at instByteOffset.
         pushBatchDraw(draw_list, clips, instByteOffset, 0, 0, 6, key);

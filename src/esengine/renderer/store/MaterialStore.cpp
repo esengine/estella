@@ -289,6 +289,14 @@ u32 MaterialStore::variantProgram(u32 materialId, resource::ResourceManager& res
     // what makes this one material rather than two that must be kept in step.
     resource::ParsedShader parsed = resource::ShaderParser::parse(src->second.source);
     std::vector<std::string> features = resource::ShaderParser::splitFeatures(src->second.features);
+    // A particle shader that declares PARTICLE_WORLD is lit as a thing in the world: its particle variant carries a world position and
+    // a normal (the way to the eye), which is what the lit path of a fragment stage reads under MESH_NORMALS. One that does not is the
+    // flat quad a 2D scene lights by its layer, as it always was.
+    const bool particle = std::find(extraFeatures.begin(), extraFeatures.end(), "PARTICLE") != extraFeatures.end();
+    if (particle && std::find(parsed.features.begin(), parsed.features.end(), "PARTICLE_WORLD") != parsed.features.end()
+        && std::find(features.begin(), features.end(), "MESH_NORMALS") == features.end()) {
+        features.push_back("MESH_NORMALS");
+    }
     for (auto& f : extraFeatures) features.push_back(std::move(f));
     const auto target = resources.preferredShaderTarget();
     const std::string vert = resource::ShaderParser::assembleStage(

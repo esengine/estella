@@ -451,7 +451,10 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
         "    out.v_texCoord = v.a_texCoord;\n"
         "#endif\n"
         "#ifdef MESH_NORMALS\n"
-        "#ifdef SKINNED\n"
+        // A particle in the world (a shader that declares PARTICLE_WORLD): its quad faces the eye, so that is its normal.
+        "#if defined(PARTICLE)\n"
+        "    out.v_worldNormal = fwd;\n"
+        "#elif defined(SKINNED)\n"
         "    out.v_worldNormal = mat3x3f(pose[0].xyz, pose[1].xyz, pose[2].xyz) * localNormal;\n"
         "#else\n"
         "    out.v_worldNormal = esInstanceNormalMatrix() * localNormal;\n"
@@ -481,7 +484,8 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
         src += "#if !defined(MESH) && !defined(SKINNED) && !defined(PARTICLE)\n    out.v_lightLayer = v.a_lightLayer;\n#else\n    out.v_lightLayer = 0.0;\n#endif\n";
         // Declared by wgslVSOut under the same condition, so filled here —
         // a slot left at zero makes every instance read the first probe.
-        src += "    out.v_probeSlot = f32(instanceId);\n";
+        // A particle's instances are particles, not objects with a run of their own: all of them read the first.
+        src += "#ifdef PARTICLE\n    out.v_probeSlot = 0.0;\n#else\n    out.v_probeSlot = f32(instanceId);\n#endif\n";
     }
     src +=
         "    return out;\n"
@@ -697,7 +701,10 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "    v_texCoord = a_texCoord;\n"
         "#endif\n"
         "#ifdef MESH_NORMALS\n"
-        "#ifdef SKINNED\n"
+        // A particle in the world (a shader that declares PARTICLE_WORLD): its quad faces the eye, so that is its normal.
+        "#if defined(PARTICLE)\n"
+        "    v_worldNormal = fwd;\n"
+        "#elif defined(SKINNED)\n"
         "    v_worldNormal = mat3(skin) * localNormal;\n"
         "#else\n"
         "    v_worldNormal = esInstanceNormalMatrix() * localNormal;\n"
@@ -727,7 +734,7 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         src += "#if !defined(MESH) && !defined(SKINNED) && !defined(PARTICLE)\n    v_lightLayer = a_lightLayer;\n#else\n    v_lightLayer = 0.0;\n#endif\n";
         // The instance's own run of probe coefficients — declared by the Lit
         // vertex header, so filled under the same condition.
-        src += "    v_probeSlot = float(ES_INSTANCE_ID);\n";
+        src += "#ifdef PARTICLE\n    v_probeSlot = 0.0;\n#else\n    v_probeSlot = float(ES_INSTANCE_ID);\n#endif\n";
     }
     src += "}\n";
     fillHook(src, "@@GLSL_MESH_COLOR@@", hook.empty() ? std::string("a_color") : std::string("es_vertexColor"));
