@@ -71,6 +71,20 @@ describe('procedural chunks', () => {
         expect(chunks.status('l')!.pending).toBeGreaterThan(0);
     });
 
+    it('ask nothing of a layer that says it is waiting, keep its chunks wanted, and make them when it stops waiting', () => {
+        const chunks = new ProceduralChunks();
+        chunks.sources_ = () => [{ x: 5, z: 5 }];
+        const { layer, log } = recording({ waiting: true });
+        chunks.set('l', layer);
+        for (let i = 0; i < 5; i++) chunks.step(always);
+        expect(log.made).toEqual([]);
+        expect(chunks.status('l')!.pending).toBeGreaterThan(0);
+        chunks.set('l', { ...layer, waiting: false });
+        chunks.step(always);
+        expect(log.made.length).toBeGreaterThan(0);
+        expect(chunks.status('l')!.pending).toBe(0);
+    });
+
     it('keep a chunk\'s old version in the world until its new one replaces it', () => {
         const chunks = new ProceduralChunks();
         chunks.sources_ = () => [{ x: 5, z: 5 }];

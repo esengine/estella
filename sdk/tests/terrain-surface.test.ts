@@ -150,6 +150,32 @@ describe('collision tiles', () => {
     };
     const pieces = (app: App) => [...app.getResource(CollisionGeometryRes).entries()];
 
+    it('are owed where a mover stands until they are published, inside the area only, and no longer once the terrain goes', async () => {
+        const app = boot();
+        // An area whose heights take a while (eroded): its ground is owed from the frame after it is declared, while they are made.
+        const terrain = spawn(app, { extent: TerrainExtent.Area, sizeX: 512, sizeZ: 512, resolution: 65 }, { x: 0, y: 0, z: 0 });
+        mover(app, 100, -40);
+        await tick(app, 2);
+        const terrains = app.getResource(TerrainsRes);
+        const geometry = app.getResource(CollisionGeometryRes);
+        // Frames with no turn between them: nothing that answers later has answered, and the tiles are not there.
+        app.tick(1 / 60);
+        app.tick(1 / 60);
+        if (!terrains.collisionReadyAt(100, -40)) {
+            expect(geometry.owedAt(100, 50, -40)).toBe(true);
+            // Beyond the area there is no ground to wait for.
+            expect(geometry.owedAt(4000, 50, -40)).toBe(false);
+        }
+        await tick(app, 12);
+        expect(terrains.collisionReadyAt(100, -40)).toBe(true);
+        expect(geometry.owing).toBe(true);
+        expect(geometry.owedAt(100, 50, -40)).toBe(false);
+        expect(geometry.owedAt(4000, 50, -40)).toBe(false);
+        app.world.despawn(terrain);
+        await tick(app, 2);
+        expect(geometry.owing).toBe(false);
+    });
+
     it('are built round what moves, agree with heightAt everywhere on them, and go when it does', async () => {
         const app = boot();
         const terrain = spawn(app, {}, { x: 10, y: -5, z: 3 });

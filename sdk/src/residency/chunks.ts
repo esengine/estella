@@ -56,6 +56,11 @@ export interface ChunkLayer<T> {
     generation: number | string;
     /** Where the layer is wanted round; absent, the world's streaming sources (or the eye, where there are none). */
     sources?(): Iterable<ChunkSource>;
+    /**
+     * True while nothing of the layer can be made (what it stands on is still being made): its chunks stay wanted and none is
+     * asked for, where asking each one every frame to hear "not yet" is a thousand calls a frame for a field of grass.
+     */
+    waiting?: boolean;
     /** True when `make` answers later, off the main thread: the layer is then asked for every chunk it wants, at once, and is not held to the frame's time. */
     async?: boolean;
     /** Makes a chunk. Null is "not yet" (what it stands on is not ready) and is asked again later; a promise answers later. */
@@ -254,9 +259,10 @@ export class ProceduralChunks {
                 const state = c ? stateOf(c, d.generation) : null;
                 if (c?.making) unsettled = true;
                 if (state === 'ready' || state === 'failed' || c?.making) continue;
+                unsettled = true;
+                if (d.waiting) continue;
                 const [cx, cz] = key.split(',').map(Number) as [number, number];
                 wanted.push({ layer, cx, cz, dist });
-                unsettled = true;
             }
             // Nothing to make and nothing on its way: until its sources move or its generation does, this layer has nothing to say.
             layer.walk!.settledFor = unsettled ? undefined : d.generation;

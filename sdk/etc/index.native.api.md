@@ -2684,6 +2684,7 @@ sizeX: number
 sizeZ: number
 sources: (() => Iterable<ChunkSource>) | undefined
 unloadRadius: number
+waiting: boolean | undefined
 ```
 
 ## ChunkLayerStatus — interface @experimental
@@ -2807,8 +2808,12 @@ delete: (key: string) => void
 deleteAll: (prefix: string) => void
 entries: () => IterableIterator<[string, CollisionPiece]>
 get: (key: string) => CollisionPiece | undefined
+owe: (key: string, at: OwedAt) => void
+owedAt: (x: number, y: number, z: number) => boolean
+owing: boolean
 revision: number
 set: (key: string, piece: CollisionPiece) => void
+settle: (key: string) => void
 size: number
 static new (): CollisionGeometry
 static prototype: CollisionGeometry

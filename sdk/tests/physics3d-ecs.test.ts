@@ -20,6 +20,7 @@ import {
     registerMeshCollision, releaseMeshCollision, extractPositions,
 } from '../src/asset/meshCollision';
 import { stepPhysics3D, DEFAULT_PHYSICS3D_CONFIG } from '../src/physics3d/Physics3DSystem';
+import { CollisionGeometry } from '../src/runtime/collisionGeometry';
 import {
     PointJoint3D, HingeJoint3D, SliderJoint3D, FixedJoint3D, SwingTwistJoint3D, SixDOFJoint3D, DistanceJoint3D,
     type Joint3DMap, type HingeJoint3DData, type SliderJoint3DData, type SixDOFJoint3DData, type SwingTwistJoint3DData,
@@ -362,6 +363,47 @@ describe('the 3D world and the ECS', () => {
         stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
         expect(called('addSphere')).toHaveLength(0);
         expect(bodies.size).toBe(1);
+    });
+
+    it('holds a character still over ground that is still being made, and moves it once the ground has come', () => {
+        const e = world.spawn();
+        world.insert<TransformData>(e, Transform, { worldPosition: { x: 40, y: 500, z: -20 }, worldScale: { x: 1, y: 1, z: 1 } });
+        world.insert(e, CharacterController3D, { radius: 30, halfHeight: 50, velocity: { x: 0, y: -980, z: 0 } });
+        const characters = new Map<Entity, number>();
+        const geometry = new CollisionGeometry();
+        let made = false;
+        geometry.owe('ground', (x, _y, z) => !made && x === 40 && z === -20);
+
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG, characters, undefined, new Map(), new Map(), geometry);
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG, characters, undefined, new Map(), new Map(), geometry);
+        // It exists in the solver, so what is made meets it, and it has not been swept.
+        expect(called('addCharacter')).toHaveLength(1);
+        expect(called('moveCharacter')).toHaveLength(0);
+
+        made = true;
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG, characters, undefined, new Map(), new Map(), geometry);
+        expect(called('moveCharacter')).toHaveLength(1);
+    });
+
+    it('keeps a dynamic body asleep over owed ground and wakes it when the ground has come, leaving the others alone', () => {
+        const awake: Array<[number, number]> = [];
+        (module as unknown as { _physics3d_setAwake: (id: number, on: number) => void })._physics3d_setAwake = (id, on) => { awake.push([id, on]); };
+        const over = spawn(); world.insert(over, BoxCollider3D);
+        const aside = world.spawn();
+        world.insert<TransformData>(aside, Transform, { worldPosition: { x: 900, y: 0, z: 0 }, worldScale: { x: 1, y: 1, z: 1 } });
+        world.insert(aside, RigidBody3D); world.insert(aside, BoxCollider3D);
+        const fixed = spawn(); world.insert(fixed, BoxCollider3D); world.insert(fixed, RigidBody3D, { bodyType: 0 });
+        const geometry = new CollisionGeometry();
+        let made = false;
+        geometry.owe('ground', (x) => !made && x < 100);
+
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG, new Map(), undefined, new Map(), new Map(), geometry);
+        const id = bodies.get(over)!;
+        expect(awake).toEqual([[id, 0]]);
+        made = true;
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG, new Map(), undefined, new Map(), new Map(), geometry);
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG, new Map(), undefined, new Map(), new Map(), geometry);
+        expect(awake).toEqual([[id, 0], [id, 1]]);
     });
 
     it('sweeps a character in metres and reads its ground state back', () => {

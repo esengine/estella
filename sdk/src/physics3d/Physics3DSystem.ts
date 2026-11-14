@@ -85,7 +85,7 @@ const ON_GROUND = 0;
  * a character from being pushed by the very body it just displaced.
  */
 function moveCharacters(app: App, module: Physics3DWasmModule, characters: BodyMap,
-                        config: Physics3DConfig): void {
+                        config: Physics3DConfig, geometry: CollisionGeometry | null = null): void {
     const ppu = config.pixelsPerUnit;
     const live = new Set<Entity>();
     for (const entity of app.world.queryEntities([CharacterController3D])) {
@@ -103,6 +103,13 @@ function moveCharacters(app: App, module: Physics3DWasmModule, characters: BodyM
                 character.layer, character.pushForce);
             if (id === 0) continue;
             characters.set(entity, id);
+        }
+
+        // The ground here is still being made (see CollisionGeometry.owe): the character waits where it stands, as it was
+        // left, and is moved again from there once the ground has come. Swept now it would fall through what is about to exist.
+        if (geometry?.owing) {
+            const p = (app.world.get(entity, Transform) as TransformData | undefined)?.worldPosition;
+            if (p && geometry.owedAt(p.x, p.y, p.z)) continue;
         }
 
         module._physics3d_moveCharacter(
@@ -389,6 +396,34 @@ const IMPLICIT_STATIC: RigidBody3DData = {
 const givenMasses = new WeakMap<BodyMap, Map<Entity, number>>();
 
 /** Bring the world's population in line with the ECS, then step and read back. */
+/** The dynamic bodies held asleep over ground still being made, by world: woken when it has come. */
+const heldBodies = new WeakMap<BodyMap, Set<Entity>>();
+
+/**
+ * Keeps a dynamic body asleep while the ground under it is owed (see CollisionGeometry.owe), and wakes it when the ground has
+ * come: a crate set down on a terrain falls onto it, not through the moment before its tiles exist. A body that is asleep is
+ * not integrated, so it keeps where it is; what it was doing is not kept, as nothing is moving on ground that is not there yet.
+ */
+function holdOverOwedGround(app: App, module: Physics3DWasmModule, geometry: CollisionGeometry | null, bodies: BodyMap): void {
+    const held = heldBodies.get(bodies) ?? new Set<Entity>();
+    heldBodies.set(bodies, held);
+    if (!module._physics3d_setAwake || (!geometry?.owing && held.size === 0)) return;
+    for (const [entity, id] of bodies) {
+        if (!app.world.valid(entity) || !app.world.has(entity, RigidBody3D)) continue;
+        if ((app.world.get(entity, RigidBody3D) as RigidBody3DData).bodyType !== MOTION.Dynamic) continue;
+        const p = (app.world.get(entity, Transform) as TransformData | undefined)?.worldPosition;
+        const owed = !!geometry && !!p && geometry.owedAt(p.x, p.y, p.z);
+        if (owed) {
+            module._physics3d_setLinearVelocity(id, 0, 0, 0);
+            module._physics3d_setAwake(id, 0);
+            held.add(entity);
+        } else if (held.delete(entity)) {
+            module._physics3d_setAwake(id, 1);
+        }
+    }
+    for (const entity of held) if (!bodies.has(entity)) held.delete(entity);
+}
+
 export function stepPhysics3D(app: App, module: Physics3DWasmModule,
                               bodies: BodyMap, config: Physics3DConfig,
                               characters: BodyMap = new Map(),
@@ -401,7 +436,7 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
     // created at, and the local pose its answer is turned back into — so the
     // composition is made current first. O(1) when nothing moved.
     app.world.ensureTransformsComposed();
-    moveCharacters(app, module, characters, config);
+    moveCharacters(app, module, characters, config, geometry);
 
     const poses = authoredPoses.get(bodies) ?? new Map<Entity, number[]>();
     authoredPoses.set(bodies, poses);
@@ -473,6 +508,7 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
     }
 
     syncPieces(app, module, geometry, pieces, bodies, ppu);
+    holdOverOwedGround(app, module, geometry, bodies);
 
     // Characters have just written local poses of their own, and a body may be
     // parented to one.

@@ -50,7 +50,7 @@ import { noiseProvider, ProviderSource, terrainProvider, terrainProvidersRevisio
 import { buildPatchMesh } from './patch';
 import { TerrainSurface, TILE_CELLS, type SurfaceTile } from './surface';
 import { groundHeightAt, groundNormalAt, groundPaintAt, type GroundData } from './groundQuery';
-import { collisionGeometryOf } from '../runtime/collisionGeometry';
+import { CollisionGeometryRes, collisionGeometryOf } from '../runtime/collisionGeometry';
 import { chunksOf, ProceduralChunksRes } from '../residency/chunks';
 import { movers } from './movers';
 import { imagePixelsAt, loadLayersInto, releaseLayerArrays } from './layerArrays';
@@ -765,6 +765,7 @@ export class TerrainPlugin implements Plugin {
         const terrains = app.getResource(TerrainsRes);
         for (const [entity, built] of terrains.built_) {
             if (app.hasResource(ProceduralChunksRes)) app.getResource(ProceduralChunksRes).remove(collisionLayerOf(entity));
+            if (app.hasResource(CollisionGeometryRes)) app.getResource(CollisionGeometryRes).settle(collisionLayerOf(entity));
             this.destroy(app, built);
         }
         terrains.built_.clear();
@@ -965,6 +966,7 @@ export class TerrainPlugin implements Plugin {
         const d = built.data;
         if (!d.collision || built.failure) {
             if (app.hasResource(ProceduralChunksRes)) app.getResource(ProceduralChunksRes).remove(id);
+            if (app.hasResource(CollisionGeometryRes)) app.getResource(CollisionGeometryRes).settle(id);
             return;
         }
         const chunks = chunksOf(app);
@@ -972,6 +974,15 @@ export class TerrainPlugin implements Plugin {
         const cell = Math.max(d.cellSize, 1e-3), span = TILE_CELLS * cell;
         const bounds = built.source?.bounds ?? (d.extent === TerrainExtent.Area ? [-d.sizeX / 2, -d.sizeZ / 2, d.sizeX / 2, d.sizeZ / 2] : null);
         const geometry = collisionGeometryOf(app);
+        // Until a tile is published the ground under it is owed: from the first frame, while the heights are still being read,
+        // so what stands on a terrain at the start of a game is held and does not fall through ground that is about to exist.
+        // A tile that failed is owed no longer: nothing more is coming, and holding a body for ever would hide that.
+        geometry.owe(id, (x, _y, z) => {
+            const lx = x - at.x, lz = z - at.z;
+            if (bounds && (lx < bounds[0] || lz < bounds[1] || lx >= bounds[2] || lz >= bounds[3])) return false;
+            const state = chunks.stateAt(id, x, z);
+            return state !== 'ready' && state !== 'stale' && state !== 'failed';
+        });
         chunks.set<{ key: string; tile: SurfaceTile }>(id, {
             label: 'Building the ground\'s collision',
             originX: at.x, originZ: at.z, sizeX: span, sizeZ: span,
@@ -1349,6 +1360,7 @@ export class TerrainPlugin implements Plugin {
         for (const [entity, built] of terrains.built_) {
             if (app.world.valid(entity) && app.world.has(entity, Terrain)) continue;
             chunksOf(app).remove(collisionLayerOf(entity));
+            if (app.hasResource(CollisionGeometryRes)) app.getResource(CollisionGeometryRes).settle(collisionLayerOf(entity));
             this.destroy(app, built);
             terrains.built_.delete(entity);
             terrains.revision_++;

@@ -430,6 +430,7 @@ export class FoliagePlugin implements Plugin {
                 label: 'Growing the plants',
                 // Made on the workers where they can be: the layer then takes none of the frame's budget to make, only to land.
                 async: away !== null,
+                waiting: waiting || built.loading,
                 originX: t.worldPosition.x - data.sizeX / 2 * sx, originZ: t.worldPosition.z - data.sizeZ / 2 * sz,
                 sizeX: data.sizeX / cells.x * sx, sizeZ: data.sizeZ / cells.z * sz,
                 extent: [0, 0, cells.x, cells.z],
