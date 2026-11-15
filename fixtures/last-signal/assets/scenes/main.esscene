@@ -31,7 +31,7 @@
             "projectionType": 0,
             "fov": 50,
             "nearPlane": 10,
-            "farPlane": 60000,
+            "farPlane": 90000,
             "isActive": true,
             "priority": 0
           }
@@ -49,8 +49,17 @@
                 "uniforms": {
                   "u_intensity": 1,
                   "u_lightScene": 1,
-                  "u_clouds": 0.2,
+                  "u_clouds": 0.25,
+                  "u_haze": 1.8,
                   "u_unitsPerKm": 100000
+                }
+              },
+              {
+                "type": "gtao",
+                "enabled": true,
+                "uniforms": {
+                  "u_radius": 180,
+                  "u_intensity": 0.9
                 }
               },
               {
@@ -60,6 +69,31 @@
                   "u_bias": 0,
                   "u_minEV": -2,
                   "u_maxEV": 2
+                }
+              },
+              {
+                "type": "colorGrade",
+                "enabled": true,
+                "uniforms": {
+                  "u_contrast": 1.08,
+                  "u_saturation": 1.18,
+                  "u_temperature": 0.06
+                }
+              },
+              {
+                "type": "bloom",
+                "enabled": true,
+                "uniforms": {
+                  "u_threshold": 1,
+                  "u_intensity": 0.45,
+                  "u_radius": 1
+                }
+              },
+              {
+                "type": "fxaa",
+                "enabled": true,
+                "uniforms": {
+                  "u_intensity": 1
                 }
               }
             ]
@@ -141,14 +175,14 @@
             "type": 1,
             "color": {
               "r": 1,
-              "g": 1,
-              "b": 1,
+              "g": 0.95,
+              "b": 0.86,
               "a": 1
             },
-            "intensity": 3,
+            "intensity": 3.2,
             "enabled": true,
             "meshShadows": true,
-            "shadowExtent": 8000,
+            "shadowExtent": 6000,
             "shadowStrength": 1,
             "sourceAngle": 0.5
           }
@@ -176,7 +210,7 @@
               "b": 1,
               "a": 1
             },
-            "intensity": 0.6,
+            "intensity": 0.85,
             "enabled": true
           }
         }
@@ -198,9 +232,9 @@
               "z": 0
             },
             "scale": {
-              "x": 128,
+              "x": 520,
               "y": 0.2,
-              "z": 128
+              "z": 520
             }
           }
         },
@@ -214,9 +248,9 @@
             "castShadows": false,
             "enabled": true,
             "color": {
-              "r": 0.42,
-              "g": 0.38,
-              "b": 0.33,
+              "r": 0.7,
+              "g": 0.5,
+              "b": 0.34,
               "a": 1
             }
           }

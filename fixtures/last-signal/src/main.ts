@@ -9,12 +9,12 @@ import {
     GRID_WIDTH, GRID_HEIGHT, CELL_SIZE, SAVE_VERSION, DAY_HOURS,
     REPAIR_COST, COSTS, createState, restore, snapshot, place, demolish, isWalkable, inBounds, buildingAt, droneCell, whyNotBuild,
     targetOf, nearestDock, settleArrival, worldOfCell, cellOfWorld, whyNotRepair, repairTower, migrateFromV1, migrateFromV2,
-    stepPower, powerReport, setMineOn, isRunning,
+    stepPower, powerReport, setMineOn, isRunning, sunlight,
     type GameState, type Building, type BuildingKind, type PlaceableKind, type Cell, type Snapshot,
 } from './state';
 import { Journal } from './journal';
 import { Gestures, type Point } from './touch';
-import { PALETTE, mineParts, storeParts, droneParts, ringParts, towerParts, solarParts, batteryParts, type Part, type Role, type Colour, type Shape } from './models';
+import { PALETTE, mineParts, storeParts, droneParts, ringParts, towerParts, solarParts, batteryParts, gridParts, landParts, type Part, type Role, type Colour, type Shape } from './models';
 
 interface Anchor { left?: number; right?: number; top?: number; bottom?: number; center?: number; middle?: number }
 
@@ -71,6 +71,13 @@ const boxAt = (a: Anchor, width: number, height: number) => ({
     ...(a.middle !== undefined ? { insetTop: percent(50), marginTop: px(a.middle - height / 2) } : {}),
 });
 
+interface Quat { x: number; y: number; z: number; w: number }
+const spin = (a: Quat, b: Quat): Quat => ({
+    x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+    y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+    z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+    w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+});
 const livePieces = new Set<Entity>();
 const SHAPES: readonly Shape[] = ['cube', 'cylinder', 'sphere', 'cone'];
 const meshes = new Map<Shape, number>();
@@ -82,6 +89,7 @@ class Model {
     private z = 0;
     private lift = 0;
     private yaw = 0;
+    private grow = 1;
     private readonly shifts = new Map<Role, { rise: number; stretch: number }>();
 
     constructor(world: World, name: string, parts: readonly Part[], tint: Colour | null = null) {
@@ -105,6 +113,12 @@ class Model {
         const root = world.get(this.root, Transform);
         root.position = { x: x * UNITS, y: lift * UNITS, z: z * UNITS };
         world.insert(this.root, Transform, root);
+        for (const piece of this.pieces) this.put(world, piece, 0);
+    }
+
+    scale(world: World, grow: number): void {
+        if (grow === this.grow) return;
+        this.grow = grow;
         for (const piece of this.pieces) this.put(world, piece, 0);
     }
 
@@ -143,17 +157,23 @@ class Model {
         const half = (this.yaw + extra) / 2;
         const shift = this.shifts.get(piece.part.role);
         const rise = shift ? shift.rise : 0, stretch = shift ? shift.stretch : 1;
+        const g = this.grow;
         const transform = world.get(piece.entity, Transform);
         transform.position = {
-            x: (this.x + ax * cos + az * sin) * UNITS, y: (this.lift + ay + rise) * UNITS, z: (this.z - ax * sin + az * cos) * UNITS,
+            x: (this.x + (ax * cos + az * sin) * g) * UNITS, y: (this.lift + (ay + rise) * g) * UNITS, z: (this.z + (-ax * sin + az * cos) * g) * UNITS,
         };
-        transform.rotation = { x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) };
-        transform.scale = { x: piece.part.size[0], y: piece.part.size[1] * stretch, z: piece.part.size[2] };
+        let q = { x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) };
+        if (piece.part.tilt) {
+            const [tx, tz] = piece.part.tilt;
+            q = spin(spin(q, { x: Math.sin(tx / 2), y: 0, z: 0, w: Math.cos(tx / 2) }), { x: 0, y: 0, z: Math.sin(tz / 2), w: Math.cos(tz / 2) });
+        }
+        transform.rotation = q;
+        transform.scale = { x: piece.part.size[0] * g, y: piece.part.size[1] * stretch * g, z: piece.part.size[2] * g };
         world.insert(piece.entity, Transform, transform);
     }
 }
 
-interface Site { building: Building; model: Model; mark: Entity; look: string }
+interface Site { building: Building; model: Model; mark: Entity; look: string; born: number; lamp: Entity | null; pose: string }
 interface Tile { entity: Entity; text: Entity }
 
 addPlugin({ name: 'last-signal', build(app) {
@@ -200,6 +220,9 @@ addPlugin({ name: 'last-signal', build(app) {
     let ghost: Model | null = null;
     let ghostKind: PlaceableKind | null = null;
     let ghostLegal = true;
+    let gridLines: Model | null = null;
+    let gridShown = true;
+    let lampGlow = -1;
     let cursorRing: Model | null = null;
     let cursorRed = false;
     let selectRing: Model | null = null;
@@ -209,7 +232,7 @@ addPlugin({ name: 'last-signal', build(app) {
     let camera: Entity | null = null;
     const sites = new Map<number, Site>();
     const gestures = new Gestures();
-    const rig = { x: -7, z: -4, distance: 26, pitch: 0.9 };
+    const rig = { x: -7, z: -3, distance: 24, pitch: 0.82 };
     let rigKey = '';
     let lowView = false;
     let touchSeen = false;
@@ -263,6 +286,8 @@ addPlugin({ name: 'last-signal', build(app) {
     const groundPoint = (x: number, z: number): { x: number; y: number; z: number } => ({ x: x * UNITS, y: 0, z: z * UNITS });
     const glowColour = (kind: BuildingKind): Colour => kind === 'mine' ? PALETTE.mineGlow : kind === 'store' ? PALETTE.storeGlow : kind === 'solar' ? PALETTE.solarGlow
         : kind === 'battery' ? PALETTE.batteryGlow : state.signal === 'online' ? PALETTE.online : PALETTE.offline;
+
+    const lampColour = (kind: BuildingKind): Colour => mixed(glowColour(kind), { r: 1, g: 0.86, b: 0.66, a: 1 }, 0.55);
 
     const rect = (world: World, name: string, parent: Entity, anchor: Anchor, width: number, height: number, colour: Colour): Entity => {
         const entity = spawnUIEntity({ world, parent, node: { ...boxAt(anchor, width, height), pointerEvents: 1 }, visual: { color: colour } });
@@ -326,20 +351,28 @@ addPlugin({ name: 'last-signal', build(app) {
         moveTo(world, entity, cell.x * MAP.cell + (MAP.cell - size) / 2, cell.y * MAP.cell + (MAP.cell - size) / 2);
     };
 
-    const showSite = (world: World, building: Building): void => {
+    const showSite = (world: World, building: Building, fresh = false): void => {
         const at = worldOfCell(building);
         const model = new Model(world, `Building ${building.id}`, partsOf(building.kind));
         model.pose(world, at.x, at.z, 0);
         if (building.kind === 'tower') { model.show(world, 'beam', false); towerLook = ''; }
         const mark = rect(world, `MapBuilding ${building.id}`, mapPanel!, { left: 0, top: 0 }, 4, 4, shade(glowColour(building.kind), 0.6));
         markAt(world, mark, building, 4);
-        sites.set(building.id, { building, model, mark, look: '' });
+        let lamp: Entity | null = null;
+        if (sites.size < 12) {
+            lamp = world.spawn(`Lamp ${building.id}`);
+            world.insert(lamp, Transform, { position: { x: at.x * UNITS, y: 2.4 * UNITS, z: (at.z + 0.6) * UNITS } });
+            world.insert(lamp, Light, { type: 0, color: lampColour(building.kind), intensity: 0, radius: 6 * UNITS, enabled: true });
+            lampGlow = -1;
+        }
+        sites.set(building.id, { building, model, mark, look: '', born: fresh ? elapsed : -10, lamp, pose: '' });
     };
 
     const hideSite = (world: World, id: number): void => {
         const site = sites.get(id);
         if (site === undefined) return;
         site.model.despawn(world);
+        if (site.lamp !== null) world.despawn(site.lamp);
         world.despawn(site.mark);
         sites.delete(id);
         if (selected === id) selected = 0;
@@ -415,7 +448,7 @@ addPlugin({ name: 'last-signal', build(app) {
             return;
         }
         grid!.setWalkable(cell.x, cell.y, false);
-        showSite(world, result.building);
+        showSite(world, result.building, true);
         facts.blockedCells = countBlocked();
         journal.act('build', { kind, cost: COSTS[kind], oreLeft: state.ore, x: cell.x, y: cell.y });
         pending = null;
@@ -499,17 +532,9 @@ addPlugin({ name: 'last-signal', build(app) {
         camera = world.findEntityByName('Camera');
         if (canvas === null || clock === null) throw new Error('the scene is missing its Canvas or its Clock');
 
-        const span = GRID_WIDTH * CELL_SIZE;
-        const lines: Part[] = [];
-        for (let i = 0; i <= GRID_WIDTH; i += 1) {
-            const offset = (i - GRID_WIDTH / 2) * CELL_SIZE;
-            const strong = i % 8 === 0;
-            const colour = strong ? { r: 0.56, g: 0.52, b: 0.46, a: 1 } : { r: 0.47, g: 0.43, b: 0.38, a: 1 };
-            const width = strong ? 0.08 : 0.04;
-            lines.push({ shape: 'cube', at: [offset, 0.005, 0], size: [width, 0.01, span], colour, lit: true, role: 'body' });
-            lines.push({ shape: 'cube', at: [0, 0.005, offset], size: [span, 0.01, width], colour, lit: true, role: 'body' });
-        }
-        new Model(world, 'GroundGrid', lines).pose(world, 0, 0, 0);
+        new Model(world, 'Land', landParts(GRID_WIDTH * CELL_SIZE / 2)).pose(world, 0, 0, 0);
+        gridLines = new Model(world, 'GroundGrid', gridParts(GRID_WIDTH, CELL_SIZE));
+        gridLines.pose(world, 0, 0, 0);
 
         body = world.spawn('DroneBody');
         world.insert(body, Transform, { position: groundPoint(state.drone.x, state.drone.z) });
@@ -784,7 +809,7 @@ addPlugin({ name: 'last-signal', build(app) {
                 const look = `${warm.toFixed(2)},${pulse}`;
                 if (look !== towerLook) {
                     towerLook = look;
-                    const colour = shade(mixed(PALETTE.offline, PALETTE.online, warm), pulse);
+                    const colour = shade(mixed(PALETTE.offline, PALETTE.online, warm), pulse * 2.2);
                     site.model.colour(world, 'beacon', colour);
                     site.model.colour(world, 'emitter', colour);
                     paint(world, site.mark, colour);
@@ -805,6 +830,28 @@ addPlugin({ name: 'last-signal', build(app) {
             const b = site.building;
             const active = b.id === activeId;
             const running = isRunning(state, b);
+            const age = (elapsed - site.born) / 0.4;
+            if (age < 1.2) {
+                const k = Math.min(1, age) - 1;
+                site.model.scale(world, age >= 1 ? 1 : Math.max(0.05, 1 + 2.4 * k * k * k + 1.4 * k * k));
+            }
+            if (b.kind === 'solar') {
+                const yaw = Math.max(-1, Math.min(1, (state.hour - 12) / 6)) * 1.1;
+                const pose = yaw.toFixed(2);
+                if (pose !== site.pose) { site.pose = pose; const at = worldOfCell(b); site.model.pose(world, at.x, at.z, 0, yaw); }
+            } else if (b.kind === 'battery') {
+                const level = Math.round(20 * report.energy / report.capacity) / 20;
+                const pose = level.toFixed(2);
+                if (pose !== site.pose) {
+                    site.pose = pose;
+                    site.model.adjust('gauge', -(1 - level) * 0.52, Math.max(level, 0.04));
+                    site.model.turn(world, 'gauge', 0);
+                    site.model.colour(world, 'gauge', shade(state.blackout ? PALETTE.offline : level < 0.25 ? PALETTE.mineGlow : PALETTE.batteryGlow, 2));
+                }
+            } else if (b.kind === 'mine') {
+                site.model.show(world, 'gauge', b.stock >= 1);
+                if (running) { site.model.adjust('pump', Math.sin(elapsed * 5) * 0.1, 1); site.model.turn(world, 'pump', 0); }
+            }
             const mode = b.kind === 'mine' ? (!b.on ? 'off' : state.blackout ? 'dark' : active && blink ? 'call' : 'run')
                 : b.kind === 'solar' ? `sun${report.generation > 0 ? 2 : 0}`
                     : b.kind === 'battery' ? `charge${Math.round(4 * report.energy / report.capacity)}`
@@ -815,13 +862,26 @@ addPlugin({ name: 'last-signal', build(app) {
                 const beacon = mode === 'off' ? PALETTE.idle : mode === 'dark' ? shade(PALETTE.offline, 0.8) : mode === 'call' ? glow
                     : mode === 'sun0' ? shade(glow, 0.2) : mode.startsWith('charge') ? shade(glow, 0.15 + 0.85 * report.energy / report.capacity)
                         : mode === 'idle' ? shade(glow, 0.35) : shade(glow, 0.7);
-                site.model.colour(world, 'beacon', beacon);
+                site.model.colour(world, 'beacon', shade(beacon, mode === 'call' || mode === 'run' || mode === 'sun2' ? 2.2 : 1.2));
                 paint(world, site.mark, mode === 'off' ? PALETTE.idle : mode === 'dark' ? PALETTE.offline : mode === 'sun0' ? shade(glow, 0.35)
                     : mode === 'idle' || mode === 'wait' ? shade(glow, 0.6) : glow);
             }
             if (running) site.model.turn(world, 'spinner', elapsed * 3);
         }
 
+        const glow = Math.round(20 * (1 - Math.min(1, sunlight(state.hour) * 2.5))) / 20;
+        if (glow !== lampGlow) {
+            lampGlow = glow;
+            for (const site of sites.values()) {
+                if (site.lamp === null) continue;
+                const lamp = world.get(site.lamp, Light);
+                world.insert(site.lamp, Light, { ...lamp, color: lampColour(site.building.kind), intensity: glow * 0.45 });
+            }
+        }
+        if ((tool !== null) !== gridShown) {
+            gridShown = tool !== null;
+            gridLines!.pose(world, 0, 0, gridShown ? 0 : HIDDEN);
+        }
         const legal = tool === null || pending === null || whyNotBuild(state, tool, pending) === null;
         if (tool !== ghostKind) {
             ghost?.despawn(world);
