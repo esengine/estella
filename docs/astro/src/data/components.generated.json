@@ -854,6 +854,21 @@
       ]
     },
     {
+      "name": "CanvasEffect",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "material",
+          "type": "Asset<material>",
+          "default": "none",
+          "doc": "A material with a PostProcess shader. The screen UI on this Canvas's sorting layer is drawn into a picture of its own, and this material lays that picture (u_texture, colour weighted by its alpha) on the frame."
+        }
+      ],
+      "animatable": [
+        "material"
+      ]
+    },
+    {
       "name": "CapsuleCollider2D",
       "source": "cpp",
       "fields": [
@@ -10353,6 +10368,13 @@
           "advanced": true
         },
         {
+          "key": "edgeInsets",
+          "type": "Padding",
+          "default": "{\"left\":0,\"top\":0,\"right\":0,\"bottom\":0}",
+          "doc": "More room kept clear on each side, over Edge Margin: where the HUD keeps its own panels, so a clamped marker stays off them.",
+          "advanced": true
+        },
+        {
           "key": "hideWhenBehind",
           "type": "boolean",
           "default": "true",
@@ -10373,6 +10395,13 @@
           "advanced": true
         },
         {
+          "key": "clamped",
+          "type": "boolean",
+          "default": "false",
+          "readonly": true,
+          "advanced": true
+        },
+        {
           "key": "distance",
           "type": "number",
           "default": "0",
@@ -10387,6 +10416,10 @@
         "offset.z",
         "camera",
         "edgeMargin",
+        "edgeInsets.left",
+        "edgeInsets.top",
+        "edgeInsets.right",
+        "edgeInsets.bottom",
         "distance"
       ]
     },
