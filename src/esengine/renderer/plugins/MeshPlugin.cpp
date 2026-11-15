@@ -27,6 +27,7 @@
 #include "../../resource/ShaderParser.hpp"
 #include "../../core/Log.hpp"
 #include "../../core/FrameProfiler.hpp"
+#include "../../core/Hash.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
@@ -629,8 +630,8 @@ bool MeshPlugin::castInputs(RenderFrameContext& ctx, ecs::Registry& registry, u6
     // A group casts the level the camera settled on in its last frames, which moves with no write at all.
     if (registry.countOf<ecs::LODGroup>() > 0) return false;
 
-    u64 h = 0xcbf29ce484222325ull;
-    const auto mix = [&h](u64 v) { h ^= v + 0x9e3779b97f4a7c15ull + (h << 6) + (h >> 2); };
+    u64 h = hash::kFnv64Offset;
+    const auto mix = [&h](u64 v) { h = hash::combine(h, v); };
     mix(cast_serial_);
     mix(registry.identity());
     mix(ctx.materials ? ctx.materials->revision() : 0);

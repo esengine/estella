@@ -20,6 +20,7 @@
 #include "../../core/Half.hpp"
 #include "../../core/Revision.hpp"
 #include "../../core/Types.hpp"
+#include "../../core/Hash.hpp"
 #include "../../resource/ProbeVolume.hpp"
 #include "./ProbeConstants.hpp"
 
@@ -61,11 +62,8 @@ public:
      *        collect, it moves only when this frame's set differs from the one it last answered for.
      */
     u64 revision() const {
-        u64 h = 0xcbf29ce484222325ull;
-        const auto mix = [&h](const void* data, usize bytes) {
-            const auto* p = static_cast<const u8*>(data);
-            for (usize i = 0; i < bytes; ++i) { h ^= p[i]; h *= 0x100000001b3ull; }
-        };
+        u64 h = hash::kFnv64Offset;
+        const auto mix = [&h](const void* data, usize bytes) { h = hash::fnv1aBytes(h, data, bytes); };
         for (const Volume& v : volumes_) {
             mix(&v.min, sizeof(v.min));
             mix(&v.max, sizeof(v.max));

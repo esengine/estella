@@ -24,7 +24,7 @@ import { marshallingCore } from '../asset/loaders/engineCore';
 import { nativeEngineApi } from '../ecs/bridge/engineApi';
 import { Material } from '../render/material';
 import { PostProcess } from '../postprocess/PostProcessAPI';
-import { analyticBox, instanceBounds, packGPUScene, type GIInstance, type GILight, type GPUScene } from './gpuScene';
+import { instanceBounds, packGPUScene, type GIInstance, type GILight, type GPUScene } from './gpuScene';
 import { GlobalSdf } from './globalSdf';
 import { buildInstances, instanceKey, type GIEntry, type GISidecars } from './giInstances';
 import type { PointLight } from './surfaceCache';

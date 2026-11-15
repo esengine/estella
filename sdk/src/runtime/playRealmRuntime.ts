@@ -18,8 +18,6 @@
 import type { ParsedTextureImportSettings } from '../asset/textureImportSettings';
 import type { App } from '../app/app';
 import type { ESEngineModule } from '../wasm';
-import { Audio } from '../audio/Audio';
-import { VideoPlayer } from '../video/VideoAPI';
 import { initRuntime } from './runtimeLoader';
 import { cutWorld, resolvePrefabRoots, type CutWorld } from '../residency/cutWorld';
 import { registryEntityFields } from '../residency/componentRefs';

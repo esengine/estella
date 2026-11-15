@@ -118,7 +118,7 @@ const chan = (m: MeshData, s: number): MeshChannelDesc | undefined =>
 /** Every surface's triangles in world space, plus what a ray hit has to know. Occluders come last, with no
  *  place in the atlas: a ray that meets one finds something there, unlit. */
 function collect(lit: readonly BakeSurface[], litPatches: readonly SurfacePatch[],
-                 size: number, texelsPerUnit: number,
+                 texelsPerUnit: number,
                  occluders: readonly BakeSurface[] = []): { soup: TriangleSoup; lookup: HitLookup } {
     const surfaces = occluders.length ? [...lit, ...occluders] : lit;
     const patches: readonly SurfacePatch[] = occluders.length
@@ -338,7 +338,7 @@ export function* bakeLightmapSteps(surfaces: readonly BakeSurface[], lights: rea
     const patches = layoutAtlas(surfaces, size, opts.texelsPerUnit);
     if (!patches) throw new Error(refusal(surfaces, size, opts.texelsPerUnit));
     const lumels = rasterizeLumels(surfaces, patches, size);
-    const { soup, lookup } = collect(surfaces, patches, size, opts.texelsPerUnit, options.occluders ?? []);
+    const { soup, lookup } = collect(surfaces, patches, opts.texelsPerUnit, options.occluders ?? []);
     const skyOf = options.sky ?? { kind: 'flat', rgb: opts.ambient };
     const scene: BakeScene = { lumels, tris: soup, lookup, lights, sky: skyOf,
                                atlasSize: size, samples: opts.samples };

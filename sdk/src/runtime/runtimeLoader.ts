@@ -349,7 +349,7 @@ export interface PreparedRuntimeScene {
 export async function prepareRuntimeScene(
     options: LoadRuntimeSceneOptions,
 ): Promise<PreparedRuntimeScene> {
-    const { app, module, source, physicsConfig, physicsEnabled, uiTheme, uiThemeOverrides, sceneName } = options;
+    const { app, module, source, physicsConfig, physicsEnabled, sceneName } = options;
     const onPhase = options.onPhase;
     const timed = async <T>(phase: string, run: () => Promise<T> | T): Promise<T> => {
         if (!onPhase) return run();

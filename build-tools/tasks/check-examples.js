@@ -7,8 +7,7 @@
 
 import { existsSync, readdirSync, statSync, mkdirSync, symlinkSync, rmSync, lstatSync, unlinkSync } from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
-import { fileURLToPath } from 'url';
+import { execFileSync } from 'child_process';
 import * as logger from '../utils/logger.js';
 import { exampleFailureLines } from '../utils/exampleDiagnostics.js';
 
@@ -40,7 +39,6 @@ const LINK_TYPE = process.platform === 'win32' ? 'junction' : 'dir';
 
 function setupTypeLinks(exampleDir, rootDir) {
     const sdkDist = path.join(rootDir, 'sdk', 'dist');
-    const editorDist = path.join(rootDir, 'editor', 'dist');
 
     if (!existsSync(sdkDist)) {
         throw new Error(`SDK dist not found at ${sdkDist}. Run "pnpm --filter ./sdk build" first.`);
@@ -48,7 +46,6 @@ function setupTypeLinks(exampleDir, rootDir) {
 
     const esengineDir = path.join(exampleDir, '.esengine');
     const sdkLink = path.join(esengineDir, 'sdk');
-    const editorLink = path.join(esengineDir, 'editor');
     const packagesLink = path.join(esengineDir, 'packages');
 
     mkdirSync(esengineDir, { recursive: true });
@@ -65,11 +62,6 @@ function setupTypeLinks(exampleDir, rootDir) {
     // tsconfig maps as `estella-plugin-*` → ./.esengine/packages/*.
     rmSync(packagesLink, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     symlinkSync(path.join(rootDir, 'plugins'), packagesLink, LINK_TYPE);
-
-    if (existsSync(editorDist)) {
-        rmSync(editorLink, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
-        symlinkSync(editorDist, editorLink, LINK_TYPE);
-    }
 }
 
 function isSymlinkOrExists(p) {
@@ -78,12 +70,10 @@ function isSymlinkOrExists(p) {
 
 function cleanTypeLinks(exampleDir) {
     const sdkLink = path.join(exampleDir, '.esengine', 'sdk');
-    const editorLink = path.join(exampleDir, '.esengine', 'editor');
     const packagesLink = path.join(exampleDir, '.esengine', 'packages');
 
     try { if (isSymlinkOrExists(sdkLink)) unlinkSync(sdkLink); } catch {}
     try { if (isSymlinkOrExists(packagesLink)) unlinkSync(packagesLink); } catch {}
-    try { if (isSymlinkOrExists(editorLink)) unlinkSync(editorLink); } catch {}
 }
 
 export async function checkExamples(rootDir) {
@@ -91,8 +81,9 @@ export async function checkExamples(rootDir) {
 
     const examples = discoverExamples(rootDir);
     if (examples.length === 0) {
-        logger.warn('No example projects found');
-        return { passed: 0, failed: 0, errors: [] };
+        logger.error(`No example projects found under ${PROJECT_ROOTS.join(', ')}`);
+        process.exitCode = 1;
+        return { passed: 0, failed: 1, errors: [{ name: '(none)', errors: ['no example projects found'] }] };
     }
 
     const sdkDist = path.join(rootDir, 'sdk', 'dist');
@@ -104,7 +95,6 @@ export async function checkExamples(rootDir) {
     const tscCandidates = [
         path.join(rootDir, 'node_modules', 'typescript', 'bin', 'tsc'),
         path.join(rootDir, 'sdk', 'node_modules', 'typescript', 'bin', 'tsc'),
-        path.join(rootDir, 'editor', 'node_modules', 'typescript', 'bin', 'tsc'),
     ];
     const tscBin = tscCandidates.find(p => existsSync(p));
     if (!tscBin) {
@@ -117,7 +107,7 @@ export async function checkExamples(rootDir) {
     for (const example of examples) {
         try {
             setupTypeLinks(example.dir, rootDir);
-            execSync(`node ${tscBin} --noEmit`, {
+            execFileSync(process.execPath, [tscBin, '--noEmit'], {
                 cwd: example.dir,
                 stdio: 'pipe',
                 timeout: 30000,

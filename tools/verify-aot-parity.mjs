@@ -28,16 +28,13 @@ import { frameDistance } from './frameCompare.mjs';
 import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict } from './lib/deadGpu.mjs';
 import { runElectron } from './lib/electronRun.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
+import { toolArgs } from './lib/toolArgs.mjs';
 
-const argv = process.argv.slice(2);
-const flag = (n, d) => {
-  const i = argv.indexOf(`--${n}`);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d;
-};
+const ARGS = toolArgs({ only: '', shots: '', work: null, 'allow-stale-engine': false });
 
-const ONLY = flag('only', '');
-const SHOTS = flag('shots', '');
-const WORK = flag('work', path.join(ROOT, '.golden'));
+const ONLY = ARGS.only;
+const SHOTS = ARGS.shots;
+const WORK = ARGS.work ?? path.join(ROOT, '.golden');
 const LAUNCHER = path.join(ROOT, 'tools', 'launchers', 'launch-export.mjs');
 const ENGINE = { dir: path.join(ROOT, 'desktop', 'public', 'wasm'), variant: 'web' };
 /** The surface both runs open at. One number, so a difference is the game's. */

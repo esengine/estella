@@ -642,7 +642,6 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
 export class InputPlugin implements Plugin {
     name = 'input';
     private target_: unknown;
-    private unbind_: (() => void) | null = null;
     private readonly executionCleanup_ = new WeakMap<App, () => void>();
 
     constructor(target?: unknown) {

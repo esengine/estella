@@ -5,7 +5,13 @@
  * @brief   WASM module type definitions
  */
 
-import { Entity } from './types';
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+* @file    wasm.ts
+* @brief   WASM module type definitions
+*/
+import type { Entity } from './types';
 import type { Registry as GeneratedRegistry } from './wasm/wasm.generated';
 
 // =============================================================================

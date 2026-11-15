@@ -5036,6 +5036,12 @@ export const NOTED = {
     {"note": "A tree has bark."},
   "chore(examples): seven examples' tsconfig name the SDK's sub-entries the editor writes for them":
     {"internal": "Type-check paths of seven examples; nothing a game or the editor does changes."},
+  "fix(engine): one UTF-8 decoder and one hash header - bitmap text measured with a decoder that turned a bad byte into U+FFFD and drew with one that kept the byte, so malformed text was laid out at a width it was not measured at; both, and the label atlas's third copy, now read text/Utf8.hpp, which also rejects a lead without its continuation, overlong forms and surrogates. The FNV-1a and combine steps copied across the renderer, the UI tree and RandomSource come from core/Hash.hpp, and the four in-process digests that started from an offset basis one digit short start from the real one. The native host's bundle digest keeps its value: it keys bytecode caches on disk and three build tools write it":
+    {"note": "Bitmap text with a broken byte is drawn at the width it is measured at."},
+  "fix(native): the debug channel refuses a frame it could not hold and honours a close asked for while connecting - the reader allocated whatever the 64-bit length field said and let fragments pile up without end; a message past 64 MiB, in one frame or summed over fragments, now ends the connection with 1009 before a byte is allocated, and a control frame that is fragmented or over 125 bytes ends it with 1002. wsClose during the dial found no socket and was dropped, so the connection opened anyway: the request is kept and the connection closes with 1006 instead of opening":
+    {"note": "A development build's line to the editor refuses a message it cannot hold."},
+  "refactor(engine): module entries are checked against their own declarations, and walking a particle pool costs no std::function - the video, 2D physics and 3D physics sources defined their exported functions without including the header that declares them, and C linkage does not compare the two; each now includes it, so a signature that drifts is a compile error. ParticlePool::forEachAlive and ParticleSystem::forEachParticle take the callable as a template parameter, as ResourcePool does":
+    {"internal": "Which headers the module sources include and how a particle walk takes its callback; nothing a creator runs changes."},
   "feat(particles): particles glow in HDR, fade into the scene behind them and wear away, and a material can bend the frame drawn so far":
     { note: "Particles glow in HDR, fade into the scene and wear away." },
   "feat(examples): a VFX showcase - an energy core charges over a rune circle, detonates and burns out":
@@ -5052,4 +5058,10 @@ export const NOTED = {
     {"note": "A popped-out panel hears its own keys and drags."},
   "feat(nav): a NavGrid can lie on the ground - plane 'xz' lays its rows along world z at the height of its origin, so an agent in a 3D scene is steered on a grid; obstacles and area costs mark cells by that plane, and a step is checked along all three axes":
     { note: "A navigation grid can lie on the ground of a 3D scene." },
+  "fix(ecs): a spawn or frame-end callback that unsubscribes itself no longer makes the next one miss that call - world.onSpawn and app.onFrameEnd spliced the list being walked, so the callback after one that unsubscribed inside its own call was skipped; both now copy on subscription change as world.onDespawn already did. A static batch that fails while shrinking is logged instead of rejecting unhandled":
+    {"note": "A spawn or frame-end callback that unsubscribes itself no longer makes the next one miss that call."},
+  "chore(sdk): the engine package is checked for unused code and type-only imports like the other packages - tsconfig gains noUnusedLocals, noUnusedParameters, isolatedModules and verbatimModuleSyntax, and the 126 unused imports, locals, parameters, fields and functions it found are gone (54 of them heap-view parameters the pointer-accessor generator now names only where a body reads them). 13 UI constants nothing read are removed. The emitted chunks import the same modules as before":
+    {"internal": "Compiler checks and unused code inside the engine package; the emitted modules import what they did."},
+  "fix(export): the script compile step runs from a path with a space or an ampersand on Windows - emcc is a batch file there and was started through a shell with its arguments unquoted, as were the emsdk setup, the GLX toolchain, the engine build commands and with-env; they all start through runTool now, and check-tool-spawn refuses a shell passed by hand":
+    {"note": "A project in a folder with a space or `&` in its name exports its compiled scripts on Windows."},
 };

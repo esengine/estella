@@ -28,6 +28,7 @@
 #include "../../resource/ShaderParser.hpp"
 #include "../../core/Log.hpp"
 #include "../../core/FrameProfiler.hpp"
+#include "../../core/Hash.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -2868,15 +2869,9 @@ void RenderFrame::releaseShadowFrameUbos() {
 }
 
 bool RenderFrame::shadowInputs(ecs::Registry& registry, u64& key) {
-    u64 h = 0xcbf29ce484222325ull;
-    const auto mix = [&h](u64 v) { h ^= v + 0x9e3779b97f4a7c15ull + (h << 6) + (h >> 2); };
-    const auto words = [&mix](const void* data, usize bytes) {
-        const auto* p = static_cast<const u8*>(data);
-        usize at = 0;
-        for (; at + 8 <= bytes; at += 8) { u64 w; std::memcpy(&w, p + at, 8); mix(w); }
-        u64 tail = 0;
-        if (at < bytes) { std::memcpy(&tail, p + at, bytes - at); mix(tail); }
-    };
+    u64 h = hash::kFnv64Offset;
+    const auto mix = [&h](u64 v) { h = hash::combine(h, v); };
+    const auto words = [&h](const void* data, usize bytes) { h = hash::combineWords(h, data, bytes); };
     // Every caster is asked, whether or not an earlier one vouched: each keeps its own look at what changed.
     bool vouched = true;
     auto ctx = makeContext();
@@ -2962,15 +2957,9 @@ bool RenderFrame::collectShadowViews(ecs::Registry& registry, u64& key) {
     // What the squares would draw, as one number. Everything a depth draw reads: where each square is and what it looks through,
     // the draws, their records in the pool, and the materials of the few that carry one (a cut-out's alpha, a bent caster). Beside
     // them, what would make the same handles draw something else: a lost device, geometry rewritten in place, another atlas.
-    u64 h = 0xcbf29ce484222325ull;
-    const auto mix = [&h](u64 v) { h ^= v + 0x9e3779b97f4a7c15ull + (h << 6) + (h >> 2); };
-    const auto words = [&mix](const void* data, usize bytes) {
-        const auto* p = static_cast<const u8*>(data);
-        usize at = 0;
-        for (; at + 8 <= bytes; at += 8) { u64 w; std::memcpy(&w, p + at, 8); mix(w); }
-        u64 tail = 0;
-        if (at < bytes) { std::memcpy(&tail, p + at, bytes - at); mix(tail); }
-    };
+    u64 h = hash::kFnv64Offset;
+    const auto mix = [&h](u64 v) { h = hash::combine(h, v); };
+    const auto words = [&h](const void* data, usize bytes) { h = hash::combineWords(h, data, bytes); };
     // Square by square, so a frame can redraw the squares that changed and keep the rest. Each view's key starts from what makes
     // the same handles draw something else, then where its square is, what it looks through, its draws and the records they read
     // (wherever in the pool they lie), and its materials.
@@ -2999,14 +2988,8 @@ bool RenderFrame::collectShadowViews(ecs::Registry& registry, u64& key) {
     const MaterialStore& materials = context_.materials();
     for (usize vi = 0; vi < viewCount; ++vi) {
         u64 v = base;
-        const auto vmix = [&v](u64 x) { v ^= x + 0x9e3779b97f4a7c15ull + (v << 6) + (v >> 2); };
-        const auto vwords = [&vmix](const void* data, usize bytes) {
-            const auto* p = static_cast<const u8*>(data);
-            usize at = 0;
-            for (; at + 8 <= bytes; at += 8) { u64 w; std::memcpy(&w, p + at, 8); vmix(w); }
-            u64 tail = 0;
-            if (at < bytes) { std::memcpy(&tail, p + at, bytes - at); vmix(tail); }
-        };
+        const auto vmix = [&v](u64 x) { v = hash::combine(v, x); };
+        const auto vwords = [&v](const void* data, usize bytes) { v = hash::combineWords(v, data, bytes); };
         const ShadowView& view = shadow_views_[vi];
         vwords(&view.view_projection, sizeof(glm::mat4));
         vmix((static_cast<u64>(view.x) << 32) | view.y);

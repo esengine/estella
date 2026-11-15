@@ -5,8 +5,14 @@
  * @brief   Component query system with mutable component support
  */
 
-import { Entity } from '../types';
-import { AnyComponentDef, ComponentData, isBuiltinComponent } from './component';
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+* @file    query.ts
+* @brief   Component query system with mutable component support
+*/
+import type { Entity } from '../types';
+import { type AnyComponentDef, type ComponentData, isBuiltinComponent } from './component';
 import type { World, QueryFilter } from './world';
 import { computeQueryCacheKey, queryDepIds } from './world';
 
@@ -45,8 +51,6 @@ export function Mut<T extends AnyComponentDef>(component: T): MutWrapper<T> {
 export function isMutWrapper(value: unknown): value is MutWrapper<AnyComponentDef> {
     return typeof value === 'object' && value !== null && '_type' in value && value._type === 'mut';
 }
-
-type UnwrapMut<T> = T extends MutWrapper<infer C> ? C : T;
 
 // =============================================================================
 // Change Detection Wrappers

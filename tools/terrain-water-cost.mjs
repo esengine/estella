@@ -25,26 +25,23 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
 import { serveHost } from './lib/staticServer.mjs';
+import { toolArgs } from './lib/toolArgs.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const argv = process.argv.slice(2);
-const flag = (n, d) => {
-  const i = argv.indexOf(`--${n}`);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d;
-};
-const DIR = path.resolve(flag('dir', path.join(ROOT, 'output', 'tw-export')));
-const W = Number(flag('w', '1920'));
-const H = Number(flag('h', '1080'));
-const FRAMES = Number(flag('frames', '12'));
-const SAMPLES = Number(flag('samples', '7'));
-const VIEW = Number(flag('view', '0'));
-const ONLY = flag('only', '') ? new Set(flag('only', '').split(',')) : null;
-const OUT = flag('out', path.join(ROOT, 'output', 'perf', 'terrain-water-cost.json'));
-const NO_EXPORT = argv.includes('--no-export');
-const PASSES = argv.includes('--passes') || argv.includes('--detail');
-const PASSES_TOP = Number(flag('passes-top', '24'));
+const ARGS = toolArgs({ dir: null, w: '1920', h: '1080', frames: '12', samples: '7', view: '0', only: '', out: null, 'passes-top': '24', shots: '', 'no-export': false, passes: false, detail: false, logs: false, systems: false, probe: false });
+const DIR = path.resolve(ARGS.dir ?? path.join(ROOT, 'output', 'tw-export'));
+const W = Number(ARGS.w);
+const H = Number(ARGS.h);
+const FRAMES = Number(ARGS.frames);
+const SAMPLES = Number(ARGS.samples);
+const VIEW = Number(ARGS.view);
+const ONLY = ARGS.only ? new Set(ARGS.only.split(',')) : null;
+const OUT = ARGS.out ?? path.join(ROOT, 'output', 'perf', 'terrain-water-cost.json');
+const NO_EXPORT = ARGS['no-export'];
+const PASSES = ARGS.passes || ARGS.detail;
+const PASSES_TOP = Number(ARGS['passes-top']);
 /** A folder to write each variant's last frame to, as `<id>-view<n>.png`. */
-const SHOTS = flag('shots', '');
+const SHOTS = ARGS.shots;
 
 /** Where the example's other viewpoints are (the same poses as src/main.ts); null leaves the scene's camera. */
 const VIEWS = [
@@ -214,7 +211,7 @@ async function measure(server, original, variant, browser) {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e).slice(0, 200)));
-  if (argv.includes('--logs')) page.on('console', (m) => { if (['warning', 'error'].includes(m.type())) console.log(`  [${m.type()}] ${m.text().slice(0, 200)}`); });
+  if (ARGS.logs) page.on('console', (m) => { if (['warning', 'error'].includes(m.type())) console.log(`  [${m.type()}] ${m.text().slice(0, 200)}`); });
   try {
     await page.goto(`http://127.0.0.1:${server.address().port}/?headless`, { waitUntil: 'load', timeout: 120000 });
     await page.waitForFunction(() => window.__estellaCooked?.facts && window.__estellaCooked.bakes, null, { timeout: 120000 });
@@ -260,7 +257,7 @@ async function measure(server, original, variant, browser) {
       const costs = c.costs();
       const cpu = costs.systems.reduce((a, x) => a + x.ms, 0);
       return { ms, gpuRuns, bakesTimed, counters: c.render(), cpu, systems: costs.systems, native: costs.native, size: [document.querySelector('canvas').width, document.querySelector('canvas').height], gl: !!gl };
-    }, { frames: FRAMES, samples: SAMPLES, passSamples: PASSES ? SAMPLES : 0, detail: argv.includes('--detail') });
+    }, { frames: FRAMES, samples: SAMPLES, passSamples: PASSES ? SAMPLES : 0, detail: ARGS.detail });
     // The engine's own frame, read back from the canvas: a page screenshot is the DOM, and a stepped game keeps its start screen over it.
     if (SHOTS) {
       await mkdir(SHOTS, { recursive: true });
@@ -332,8 +329,8 @@ try {
     if (!r) { table[v.id] = { label: v.label, failed: true }; continue; }
     table[v.id] = { label: v.label, ...r };
     // The CPU systems that cost the most, per frame (`--systems`): what a part costs before the GPU sees it.
-    if (argv.includes('--systems')) for (const s of [...(r.systems ?? [])].sort((a, b) => b.ms - a.ms).slice(0, 10)) console.log(`    ${String(s.name).padEnd(34)} ${s.ms.toFixed(3).padStart(7)} ms`);
-    if (argv.includes('--probe')) console.log('  ' + Object.entries(r.counters).filter(([k]) => k.startsWith('probe.')).map(([k, x]) => `${k.replace('probe.', '')}=${x}`).join('  '));
+    if (ARGS.systems) for (const s of [...(r.systems ?? [])].sort((a, b) => b.ms - a.ms).slice(0, 10)) console.log(`    ${String(s.name).padEnd(34)} ${s.ms.toFixed(3).padStart(7)} ms`);
+    if (ARGS.probe) console.log('  ' + Object.entries(r.counters).filter(([k]) => k.startsWith('probe.')).map(([k, x]) => `${k.replace('probe.', '')}=${x}`).join('  '));
     if (PASSES) {
       const rows = Object.entries(r.gpu).filter(([k]) => k.startsWith('pass/')).sort((a, b) => b[1] - a[1]);
       const sum = rows.reduce((t, [, x]) => t + x, 0);

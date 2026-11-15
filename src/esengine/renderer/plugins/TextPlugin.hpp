@@ -37,7 +37,6 @@ private:
         u8 align = 0;
     };
 
-    static u32 decodeUtf8(const char* data, usize length, usize& pos);
     void rebuildLayout(const text::BitmapFont& font, const ecs::BitmapText& bt,
                        f32 texW, f32 texH, TextLayoutCache& cache);
 

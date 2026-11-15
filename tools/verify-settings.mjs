@@ -7,11 +7,12 @@ import os from 'node:os';
 import { NEEDS_XVFB, runElectron, runWithElectronDisplay } from './lib/electronRun.mjs';
 import { gpuFailed, retryOnDeadGpu } from './lib/deadGpu.mjs';
 import { fileURLToPath } from 'node:url';
+import { toolArgs } from './lib/toolArgs.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
-const flag = name => { const i = args.indexOf('--' + name); return i < 0 ? undefined : args[i + 1]; };
-const dir = flag('dir'), specArg = flag('spec');
+const ARGS = toolArgs({ dir: null, spec: null, log: null, present: false });
+const dir = ARGS.dir, specArg = ARGS.spec;
 if (!dir || !specArg) throw new Error('verify-settings requires --dir and --spec');
 const spec = JSON.parse(specArg);
 if (NEEDS_XVFB) {
@@ -19,8 +20,8 @@ if (NEEDS_XVFB) {
   if (run.error) throw run.error;
   process.exit(run.status ?? 1);
 }
-const present = args.includes('--present');
-const log = flag('log');
+const present = ARGS.present;
+const log = ARGS.log;
 const record = value => {
   if (!log) return;
   mkdirSync(path.dirname(path.resolve(log)), {recursive: true});

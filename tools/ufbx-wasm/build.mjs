@@ -7,7 +7,7 @@
  *
  *          node tools/ufbx-wasm/build.mjs
  */
-import { execFileSync } from 'node:child_process';
+import { mustRunTool } from '../lib/runTool.mjs';
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,7 +28,7 @@ const EXPORTS = [
   '_es_fbx_error', '_es_fbx_release', '_malloc', '_free',
 ];
 
-execFileSync('emcc', [
+mustRunTool('emcc', [
   path.join(UFBX, 'ufbx.c'),
   path.join(ROOT, 'tools', 'ufbx-wasm', 'bridge.c'),
   '-I', UFBX,
@@ -45,7 +45,7 @@ execFileSync('emcc', [
   `-sEXPORTED_FUNCTIONS=${EXPORTS.join(',')}`,
   '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,HEAPU8,UTF8ToString,stringToNewUTF8',
   '-o', OUT,
-], { stdio: 'inherit', shell: process.platform === 'win32' });
+]);
 
 const wasm = OUT.replace(/\.mjs$/, '.wasm');
 console.log(`OK -> ${OUT} (${(statSync(wasm).size / 1024 / 1024).toFixed(2)} MB wasm)`);

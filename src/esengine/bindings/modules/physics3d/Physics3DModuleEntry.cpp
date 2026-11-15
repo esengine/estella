@@ -14,6 +14,7 @@
  * @copyright Copyright (c) 2026 ESEngine Team
  *            Licensed under the Apache License, Version 2.0.
  */
+#include "./Physics3DBindings.hpp"
 #include "./Physics3DContext.hpp"
 
 #include <Jolt/Physics/Body/BodyCreationSettings.h>

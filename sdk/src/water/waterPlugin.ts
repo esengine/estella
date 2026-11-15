@@ -206,6 +206,7 @@ export class Waters {
      * Does nothing where there is no water or where the zone keeps no ripples.
      */
     disturb(x: number, y: number, z: number, radius: number, strength: number): boolean {
+        void y;
         if (!this.ripples_ || !this.field_?.sample(x, z)) return false;
         this.ripples_.disturb(x, z, radius, strength);
         return true;
