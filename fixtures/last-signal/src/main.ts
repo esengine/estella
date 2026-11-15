@@ -1,21 +1,22 @@
 import {
     addPlugin, defineSystem, Schedule, Res, GetWorld, Input, CameraView, Playthrough, SaveManager, Storage, UIEvents, Time,
-    Transform, MeshRenderer, TimeOfDay, PostProcessVolume, Light, Text, Name, UINode, UIVisual, Assets,
-    spawnUIEntity, createButton, UIPositionType, px, rayPlaneHit,
-    type World, type Entity, type UIEventQueue,
+    Transform, MeshRenderer, TimeOfDay, PostProcessVolume, Light, Text, Name, UINode, UIVisual, Assets, SafeArea,
+    spawnUIEntity, createButton, UIPositionType, UIDisplay, px, percent, rayPlaneHit,
+    type World, type Entity, type UIEventQueue, type TextAlign, type TextVerticalAlign,
 } from 'esengine';
 import { Nav, NavAgent, NavGrid, setNavDestination, stopNavAgent, type Navigation } from 'esengine/ai';
 import {
     GRID_WIDTH, GRID_HEIGHT, CELL_SIZE, SAVE_VERSION, DAY_HOURS,
     REPAIR_COST, COSTS, createState, restore, snapshot, place, demolish, isWalkable, inBounds, buildingAt, droneCell, whyNotBuild,
     targetOf, nearestDock, settleArrival, worldOfCell, cellOfWorld, whyNotRepair, repairTower, migrateFromV1, migrateFromV2,
-    stepPower, powerReport, setMineOn, isRunning, isDocked,
+    stepPower, powerReport, setMineOn, isRunning,
     type GameState, type Building, type BuildingKind, type PlaceableKind, type Cell, type Snapshot,
 } from './state';
 import { Journal } from './journal';
+import { Gestures, type Point } from './touch';
 import { PALETTE, mineParts, storeParts, droneParts, ringParts, towerParts, solarParts, batteryParts, type Part, type Role, type Colour, type Shape } from './models';
 
-type Tool = PlaceableKind | 'select' | 'remove';
+interface Anchor { left?: number; right?: number; top?: number; bottom?: number; center?: number; middle?: number }
 
 const UNITS = 100;
 const SLOT = 'gate0';
@@ -23,29 +24,23 @@ const JOURNAL_KEY = 'last-signal:journals';
 const JOURNAL_KEEP = 6;
 const ACTIVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyZ', 'KeyX', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
 const CHEAPEST = Math.min(...Object.values(COSTS));
-const MAP = { left: 16, top: 16, cell: 4 };
-const DAY_SECONDS = { normal: 240, fast: 24 };
-const VIEW = { width: 1280, height: 720 };
+const MAP = { size: 128, cell: 2 };
+const DAY_SECONDS = 240;
+const SPEEDS = [1, 2, 4];
 const DRONE_LIFT = 2.4;
 const HIDDEN = -400;
+const EDGE = 16;
 const UI = {
-    panel: { r: 0.05, g: 0.07, b: 0.09, a: 0.85 },
-    line: { r: 0.2, g: 0.25, b: 0.3, a: 1 },
-    text: { r: 0.9, g: 0.92, b: 0.95, a: 1 },
-    dim: { r: 0.62, g: 0.68, b: 0.74, a: 1 },
-    button: { r: 0.12, g: 0.16, b: 0.2, a: 0.95 },
-    accent: { r: 0.6, g: 0.95, b: 1, a: 1 },
+    panel: { r: 0.06, g: 0.09, b: 0.13, a: 0.78 },
+    card: { r: 0.1, g: 0.15, b: 0.21, a: 0.92 },
+    line: { r: 0.24, g: 0.31, b: 0.38, a: 1 },
+    text: { r: 0.94, g: 0.96, b: 0.98, a: 1 },
+    dim: { r: 0.55, g: 0.6, b: 0.66, a: 1 },
+    accent: { r: 0.45, g: 0.9, b: 1, a: 1 },
+    go: { r: 0.1, g: 0.5, b: 0.36, a: 0.96 },
+    warn: { r: 0.55, g: 0.14, b: 0.12, a: 0.96 },
 };
-const TOOLS: { tool: Tool; label: string; name: string }[] = [
-    { tool: 'mine', label: `1 采矿站 ${COSTS.mine}`, name: 'ToolMine' },
-    { tool: 'store', label: `2 仓库 ${COSTS.store}`, name: 'ToolStore' },
-    { tool: 'solar', label: `3 太阳能 ${COSTS.solar}`, name: 'ToolSolar' },
-    { tool: 'battery', label: `4 电池 ${COSTS.battery}`, name: 'ToolBattery' },
-    { tool: 'select', label: '5 查看', name: 'ToolSelect' },
-    { tool: 'remove', label: '6 拆除', name: 'ToolRemove' },
-];
-const TOOLBAR = { top: 664, width: 124, gap: 8, left: (VIEW.width - 6 * 124 - 5 * 8) / 2 + 60 };
-const POWER_NAMES = { blackout: '停电', charging: '充电中', draining: '放电中', steady: '稳定' } as const;
+const KINDS: readonly PlaceableKind[] = ['mine', 'store', 'solar', 'battery'];
 const reasonText = (reason: string): string => {
     const cost = /^it costs (\d+) ore and the storehouse holds (\d+)$/.exec(reason);
     if (cost) return `需要 ${cost[1]} 矿石，仓库只有 ${cost[2]}`;
@@ -66,6 +61,15 @@ const saves = new SaveManager({ version: SAVE_VERSION, migrations: { 1: migrateF
 const mixed = (a: Colour, b: Colour, k: number): Colour => ({ r: a.r + (b.r - a.r) * k, g: a.g + (b.g - a.g) * k, b: a.b + (b.b - a.b) * k, a: a.a + (b.a - a.a) * k });
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 const shade = (c: Colour, k: number, a = c.a): Colour => ({ r: c.r * k, g: c.g * k, b: c.b * k, a });
+const boxAt = (a: Anchor, width: number, height: number) => ({
+    position: UIPositionType.Absolute, width: px(width), height: px(height),
+    ...(a.left !== undefined ? { insetLeft: px(a.left) } : {}),
+    ...(a.right !== undefined ? { insetRight: px(a.right) } : {}),
+    ...(a.top !== undefined ? { insetTop: px(a.top) } : {}),
+    ...(a.bottom !== undefined ? { insetBottom: px(a.bottom) } : {}),
+    ...(a.center !== undefined ? { insetLeft: percent(50), marginLeft: px(a.center - width / 2) } : {}),
+    ...(a.middle !== undefined ? { insetTop: percent(50), marginTop: px(a.middle - height / 2) } : {}),
+});
 
 const livePieces = new Set<Entity>();
 const SHAPES: readonly Shape[] = ['cube', 'cylinder', 'sphere', 'cone'];
@@ -150,18 +154,20 @@ class Model {
 }
 
 interface Site { building: Building; model: Model; mark: Entity; look: string }
+interface Tile { entity: Entity; text: Entity }
 
-addPlugin({ name: 'last-signal-gate0', build(app) {
+addPlugin({ name: 'last-signal', build(app) {
     const facts: Record<string, string | number | boolean> = {
         ready: false, restored: false, buildings: 0, blockedCells: 0, ore: 0, trips: 0, cargo: 0, leg: 'toMine',
-        droneX: 0, droneY: 0, hour: 0, hoursElapsed: 0, fast: false, plans: 0, route: 'none', everInsideBuilding: false,
-        cursorX: 0, cursorY: 0, cursorWalkable: true, tool: 'mine', saves: 0, loads: 0, notice: '', layout: '',
-        autoExposure: true, held: false, lowView: false, ambient: 0, sun: 0, selected: 0, ghostLegal: true, active: 0, signal: 'offline', canRepair: false, victory: false, repairs: 0, uplink: 0,
+        droneX: 0, droneY: 0, hour: 0, hoursElapsed: 0, speed: 1, held: false, plans: 0, route: 'none', everInsideBuilding: false,
+        cursorX: -1, cursorY: -1, tool: 'none', saves: 0, loads: 0, notice: '', layout: '',
+        autoExposure: true, lowView: false, selected: 0, ghostLegal: true, active: 0,
+        signal: 'offline', canRepair: false, victory: false, repairs: 0, uplink: 0,
         energy: 0, capacity: 0, generation: 0, demand: 0, blackout: false, power: 'steady', mines: 0, minesRunning: 0, blackouts: 0,
+        touches: 0, taps: 0, drags: 0, pinches: 0,
     };
     app.insertResource(Playthrough, { facts });
     const bootAt = performance.now();
-    let counted = false;
 
     let state: GameState = createState();
     let journal = new Journal(Date.now().toString(36));
@@ -178,7 +184,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         keepJournal(true);
         const text = JSON.stringify(Storage.getJSON(JOURNAL_KEY, []), null, 1);
         console.log(`[last-signal] play journals\n${text}`);
-        const page = (globalThis as { document?: { createElement(tag: string): { href: string; download: string; click(): void }; } }).document;
+        const page = (globalThis as { document?: { createElement(tag: string): { href: string; download: string; click(): void } } }).document;
         const blobs = globalThis as { Blob?: new (parts: string[], init: { type: string }) => object; URL?: { createObjectURL(blob: object): string } };
         if (page && blobs.Blob && blobs.URL) {
             const link = page.createElement('a');
@@ -187,43 +193,28 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
             link.click();
         }
     };
+
     let grid: NavGrid | null = null;
     let body: Entity | null = null;
     let drone: Model | null = null;
     let ghost: Model | null = null;
     let ghostKind: PlaceableKind | null = null;
-    let uplink = -1;
-    let acknowledged = false;
-    let towerLook = '';
-    let objectiveTitle: Entity | null = null;
-    let objective: Entity | null = null;
-    let objectiveHint: Entity | null = null;
-    let objectiveCount: Entity | null = null;
-    let objectiveFill: Entity | null = null;
-    let victory: Entity[] = [];
-    let victoryShown = false;
-    let repairEntity: Entity | null = null;
-    let repairTop = 0;
     let ghostLegal = true;
     let cursorRing: Model | null = null;
     let cursorRed = false;
     let selectRing: Model | null = null;
-    let droneMark: Entity | null = null;
-    let ghostMark: Entity | null = null;
-    let selectMarks: Entity[] = [];
-    let toolMark: Entity | null = null;
-    let hud: Entity | null = null;
-    let info: Entity | null = null;
-    let noticeText: Entity | null = null;
     let canvas: Entity | null = null;
+    let hud: Entity | null = null;
     let clock: Entity | null = null;
     let camera: Entity | null = null;
-    let lowView = false;
-    const rig = { x: -8, z: -1, distance: 44, pitch: 0.9 };
-    let rigKey = '';
     const sites = new Map<number, Site>();
-    let cursor: Cell = { x: 32, y: 30 };
-    let tool: Tool = 'mine';
+    const gestures = new Gestures();
+    const rig = { x: -7, z: -4, distance: 26, pitch: 0.9 };
+    let rigKey = '';
+    let lowView = false;
+    let touchSeen = false;
+    let tool: PlaceableKind | null = null;
+    let pending: Cell | null = null;
     let selected = 0;
     let dock: Cell | null = null;
     let dockFor = -1;
@@ -232,40 +223,88 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
     let lastDrone = { x: state.drone.x, z: state.drone.z };
     let heading = 0;
     let elapsed = 0;
-    let notice = '在下方选一种建筑，然后点击地面放置。';
+    let speedIndex = 0;
+    let uplink = -1;
+    let acknowledged = false;
+    let towerLook = '';
+    let wasBlackout = false;
+    let toast = '点下面的建筑，再点地面放置。拖动可移动视角。';
+    let toastLeft = 8;
+    let started = false;
 
-    const say = (text: string): void => { notice = text; };
-    const kindName = (kind: BuildingKind): string => NAMES[kind];
-    let powerTitle: Entity | null = null;
+    let oreText: Entity | null = null;
     let powerText: Entity | null = null;
     let powerFill: Entity | null = null;
-    let toggleEntity: Entity | null = null;
-    let wasBlackout = false;
-    const groundPoint = (x: number, z: number): { x: number; y: number; z: number } => ({ x: x * UNITS, y: 0, z: z * UNITS });
+    let clockText: Entity | null = null;
+    let goal: Tile | null = null;
+    let goalFill: Entity | null = null;
+    let speedTile: Tile | null = null;
+    let mapPanel: Entity | null = null;
+    let droneMark: Entity | null = null;
+    let ghostMark: Entity | null = null;
+    let selectMark: Entity | null = null;
+    let toastPanel: Entity | null = null;
+    let toastText: Entity | null = null;
+    const cards = new Map<PlaceableKind, { tile: Tile; pick: Entity; dim: boolean }>();
+    let confirmTile: Tile | null = null;
+    let cancelTile: Tile | null = null;
+    let detail: Entity | null = null;
+    let detailTitle: Entity | null = null;
+    let detailText: Entity | null = null;
+    let removeTile: Tile | null = null;
+    let switchTile: Tile | null = null;
+    let fixTile: Tile | null = null;
+    let victory: Entity[] = [];
+    let victoryText: Entity | null = null;
+    let victoryShown = false;
 
-    const rect = (world: World, name: string, left: number, top: number, width: number, height: number, colour: Colour): Entity => {
+    const say = (text: string): void => { toast = text; toastLeft = 3.5; };
+    const kindName = (kind: BuildingKind): string => NAMES[kind];
+    const groundPoint = (x: number, z: number): { x: number; y: number; z: number } => ({ x: x * UNITS, y: 0, z: z * UNITS });
+    const glowColour = (kind: BuildingKind): Colour => kind === 'mine' ? PALETTE.mineGlow : kind === 'store' ? PALETTE.storeGlow : kind === 'solar' ? PALETTE.solarGlow
+        : kind === 'battery' ? PALETTE.batteryGlow : state.signal === 'online' ? PALETTE.online : PALETTE.offline;
+
+    const rect = (world: World, name: string, parent: Entity, anchor: Anchor, width: number, height: number, colour: Colour): Entity => {
+        const entity = spawnUIEntity({ world, parent, node: { ...boxAt(anchor, width, height), pointerEvents: 1 }, visual: { color: colour } });
+        world.insert(entity, Name, { value: name });
+        return entity;
+    };
+
+    const label = (world: World, name: string, parent: Entity, anchor: Anchor, width: number, height: number, size: number, colour: Colour, align = 0): Entity => {
         const entity = spawnUIEntity({
-            world, parent: canvas!,
-            node: { position: UIPositionType.Absolute, insetLeft: px(left), insetTop: px(top), width: px(width), height: px(height) },
-            visual: { color: colour },
+            world, parent, node: { ...boxAt(anchor, width, height), pointerEvents: 1 },
+            text: { content: '', fontSize: size, color: colour, align: align as unknown as TextAlign, verticalAlign: 1 as unknown as TextVerticalAlign },
         });
         world.insert(entity, Name, { value: name });
         return entity;
     };
 
-    const label = (world: World, name: string, left: number, top: number, width: number, height: number, size: number, colour: Colour): Entity => {
-        const entity = spawnUIEntity({
-            world, parent: canvas!,
-            node: { position: UIPositionType.Absolute, insetLeft: px(left), insetTop: px(top), width: px(width), height: px(height), pointerEvents: 1 },
-            text: { content: '', fontSize: size, color: colour, align: 0 },
-        });
-        world.insert(entity, Name, { value: name });
-        return entity;
+    const tile = (world: World, events: UIEventQueue, name: string, parent: Entity, anchor: Anchor, width: number, height: number, colour: Colour, size: number, onClick: () => void): Tile => {
+        const button = createButton({ world, events, parent, node: boxAt(anchor, width, height), background: { color: colour }, onClick });
+        world.insert(button.entity, Name, { value: name });
+        return { entity: button.entity, text: label(world, `${name}Text`, button.entity, { left: 0, top: 0 }, width, height, size, UI.text, 1) };
     };
 
     const write = (world: World, entity: Entity, content: string): void => {
         const text = world.get(entity, Text);
         if (text.content !== content) world.insert(entity, Text, { ...text, content });
+    };
+
+    const ink = (world: World, entity: Entity, colour: Colour): void => {
+        const text = world.get(entity, Text);
+        if (text.color.r !== colour.r || text.color.g !== colour.g || text.color.b !== colour.b) world.insert(entity, Text, { ...text, color: colour });
+    };
+
+    const paint = (world: World, entity: Entity, colour: Colour): void => {
+        const visual = world.get(entity, UIVisual);
+        if (visual.color.r === colour.r && visual.color.g === colour.g && visual.color.b === colour.b && visual.color.a === colour.a) return;
+        world.insert(entity, UIVisual, { ...visual, color: colour });
+    };
+
+    const show = (world: World, entity: Entity, visible: boolean): void => {
+        const node = world.get(entity, UINode);
+        const display = visible ? UIDisplay.Flex : UIDisplay.None;
+        if (node.display !== display) world.insert(entity, UINode, { ...node, display });
     };
 
     const moveTo = (world: World, entity: Entity, left: number, top: number): void => {
@@ -276,17 +315,6 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         world.insert(entity, UINode, node);
     };
 
-    const moveMark = (world: World, entity: Entity, cellX: number, cellY: number, size: number): void => {
-        moveTo(world, entity, MAP.left + cellX * MAP.cell + (MAP.cell - size) / 2, MAP.top + cellY * MAP.cell + (MAP.cell - size) / 2);
-    };
-
-    const paint = (world: World, entity: Entity, colour: Colour): void => {
-        const visual = world.get(entity, UIVisual);
-        world.insert(entity, UIVisual, { ...visual, color: colour });
-    };
-
-    const glowColour = (kind: BuildingKind): Colour => kind === 'mine' ? PALETTE.mineGlow : kind === 'store' ? PALETTE.storeGlow : kind === 'solar' ? PALETTE.solarGlow
-        : kind === 'battery' ? PALETTE.batteryGlow : state.signal === 'online' ? PALETTE.online : PALETTE.offline;
     const sizeTo = (world: World, entity: Entity, width: number): void => {
         const node = world.get(entity, UINode);
         if (node.width.value === width) return;
@@ -294,13 +322,17 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         world.insert(entity, UINode, node);
     };
 
+    const markAt = (world: World, entity: Entity, cell: Cell, size: number): void => {
+        moveTo(world, entity, cell.x * MAP.cell + (MAP.cell - size) / 2, cell.y * MAP.cell + (MAP.cell - size) / 2);
+    };
+
     const showSite = (world: World, building: Building): void => {
         const at = worldOfCell(building);
         const model = new Model(world, `Building ${building.id}`, partsOf(building.kind));
         model.pose(world, at.x, at.z, 0);
         if (building.kind === 'tower') { model.show(world, 'beam', false); towerLook = ''; }
-        const mark = rect(world, `MapBuilding ${building.id}`, 0, 0, MAP.cell, MAP.cell, shade(glowColour(building.kind), 0.6));
-        moveMark(world, mark, building.x, building.y, MAP.cell);
+        const mark = rect(world, `MapBuilding ${building.id}`, mapPanel!, { left: 0, top: 0 }, 4, 4, shade(glowColour(building.kind), 0.6));
+        markAt(world, mark, building, 4);
         sites.set(building.id, { building, model, mark, look: '' });
     };
 
@@ -324,6 +356,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         for (let y = 0; y < GRID_HEIGHT; y++) for (let x = 0; x < GRID_WIDTH; x++) grid!.setWalkable(x, y, true);
         state = next;
         selected = 0;
+        pending = null;
         for (const building of state.buildings) {
             grid!.setWalkable(building.x, building.y, false);
             showSite(world, building);
@@ -339,55 +372,79 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         lastHour = state.hour;
         uplink = state.signal === 'online' ? 999 : -1;
         acknowledged = state.signal === 'online';
+        wasBlackout = state.blackout;
         facts.blockedCells = countBlocked();
     };
 
-    const build = (world: World, kind: PlaceableKind): void => {
-        const result = place(state, kind, cursor);
-        if (!result.ok) { journal.note('build', { kind, ok: false, reason: result.reason, ore: state.ore }); say(`这里不能建：${reasonText(result.reason)}。`); return; }
-        grid!.setWalkable(cursor.x, cursor.y, false);
+    const save = (quiet = true): void => {
+        saves.save<Snapshot>(SLOT, snapshot(state));
+        facts.saves = (facts.saves as number) + 1;
+        if (!quiet) say('已存档。');
+    };
+
+    const load = (world: World): boolean => {
+        if (!saves.has(SLOT)) return false;
+        try {
+            adopt(world, restore(saves.load<Snapshot>(SLOT)));
+        } catch (error) {
+            console.error('[last-signal] the save could not be restored:', error);
+            say('存档无法恢复，已开始新的一局。');
+            return false;
+        }
+        facts.loads = (facts.loads as number) + 1;
+        return true;
+    };
+
+    const fresh = (world: World): void => {
+        saves.remove(SLOT);
+        keepJournal(true);
+        journal = new Journal(Date.now().toString(36));
+        journalWritten = 0;
+        adopt(world, createState());
+        tool = null;
+        say('新的一局。通信塔沉默着，等你把它修好。');
+    };
+
+    const build = (world: World): void => {
+        if (tool === null || pending === null) return;
+        const kind = tool, cell = pending;
+        const result = place(state, kind, cell);
+        if (!result.ok) {
+            journal.note('build', { kind, ok: false, reason: result.reason, ore: state.ore });
+            say(`这里不能建：${reasonText(result.reason)}。`);
+            return;
+        }
+        grid!.setWalkable(cell.x, cell.y, false);
         showSite(world, result.building);
         facts.blockedCells = countBlocked();
-        journal.act('build', { kind, cost: COSTS[kind], oreLeft: state.ore, x: cursor.x, y: cursor.y });
+        journal.act('build', { kind, cost: COSTS[kind], oreLeft: state.ore, x: cell.x, y: cell.y });
+        pending = null;
+        save();
         say(`${kindName(kind)}已建成，花费 ${COSTS[kind]} 矿石。`);
     };
 
-    const remove = (world: World): void => {
-        if (buildingAt(state, cursor)?.kind === 'tower') { say('通信塔不能拆除。'); return; }
-        const gone = demolish(state, cursor);
-        if (gone === null) { say('这里没有可拆的建筑。'); return; }
-        grid!.setWalkable(cursor.x, cursor.y, true);
+    const removeSelected = (world: World): void => {
+        const site = sites.get(selected);
+        if (site === undefined) return;
+        if (site.building.kind === 'tower') { say('通信塔不能拆除。'); return; }
+        const cell = { x: site.building.x, y: site.building.y };
+        const gone = demolish(state, cell);
+        if (gone === null) return;
+        grid!.setWalkable(cell.x, cell.y, true);
         hideSite(world, gone.id);
         facts.blockedCells = countBlocked();
         journal.act('remove', { kind: gone.kind, refund: Math.floor(COSTS[gone.kind as PlaceableKind] / 2), oreLeft: state.ore });
-        say(`${kindName(gone.kind)}已拆除，退回一半矿石。`);
-    };
-
-    const pick = (): void => {
-        const at = buildingAt(state, cursor);
-        selected = at === null ? 0 : at.id;
-        journal.look();
-        say(at === null ? '没有选中任何建筑。' : `已选中 ${at.id} 号${kindName(at.kind)}。`);
-    };
-
-    const primary = (world: World): void => {
-        if (tool === 'remove') { remove(world); return; }
-        if (tool === 'select') { pick(); return; }
-        build(world, tool);
-    };
-
-    const choose = (next: Tool): void => {
-        tool = next;
-        journal.look();
-        say(next === 'select' ? '点击一座建筑查看它的状态。' : next === 'remove' ? '点击一座建筑把它拆掉。' : `点击地面放置${kindName(next)}，需要 ${COSTS[next]} 矿石。`);
+        save();
+        say(`${kindName(gone.kind)}已拆除，退回 ${Math.floor(COSTS[gone.kind as PlaceableKind] / 2)} 矿石。`);
     };
 
     const toggle = (): void => {
         const mine = state.buildings.find((b) => b.id === selected && b.kind === 'mine');
-        if (mine === undefined) { say('先选中一座采矿站，才能开关它。'); return; }
+        if (mine === undefined) return;
         setMineOn(state, mine.id, !mine.on);
         journal.act('mine_toggle', { id: mine.id, on: mine.on, blackout: state.blackout });
-        say(mine.on ? `${mine.id} 号采矿站已开启，重新开始耗电。` : `${mine.id} 号采矿站已关闭，不耗电也不产矿。`);
+        save();
+        say(mine.on ? '采矿站已开启，重新开始耗电。' : '采矿站已关闭，不耗电也不产矿。');
     };
 
     const repair = (): void => {
@@ -398,38 +455,36 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         uplink = 0;
         acknowledged = false;
         facts.repairs = (facts.repairs as number) + 1;
+        save();
         say(`通信塔已修复，花费 ${REPAIR_COST} 矿石。发射器正在启动。`);
     };
 
-    const save = (): void => {
-        saves.save<Snapshot>(SLOT, snapshot(state));
-        facts.saves = (facts.saves as number) + 1;
-        say('已存档。');
+    const choose = (next: PlaceableKind | null): void => {
+        tool = tool === next ? null : next;
+        pending = null;
+        if (tool !== null) selected = 0;
+        journal.look();
+        if (tool !== null) say(`点地面选位置，再点“建造”。需要 ${COSTS[tool]} 矿石。`);
     };
 
-    const load = (world: World): boolean => {
-        if (!saves.has(SLOT)) { say('没有可读取的存档。'); return false; }
-        try {
-            adopt(world, restore(saves.load<Snapshot>(SLOT)));
-        } catch (error) {
-            console.error('[last-signal] the save could not be restored:', error);
-            say('存档无法恢复。');
-            return false;
+    const tapCell = (world: World, cell: Cell): void => {
+        facts.taps = (facts.taps as number) + 1;
+        if (tool !== null) {
+            if (pending !== null && pending.x === cell.x && pending.y === cell.y) build(world);
+            else pending = cell;
+            return;
         }
-        facts.loads = (facts.loads as number) + 1;
-        say('已读档。');
-        return true;
+        const at = buildingAt(state, cell);
+        selected = at === null ? 0 : at.id;
+        journal.look();
     };
 
-    const speed = (world: World): void => {
-        const data = world.get(clock!, TimeOfDay);
-        const fast = data.daySeconds !== DAY_SECONDS.fast;
-        world.insert(clock!, TimeOfDay, { ...data, daySeconds: fast ? DAY_SECONDS.fast : DAY_SECONDS.normal });
-        facts.fast = fast;
-        facts.held = false;
+    const cycleSpeed = (): void => {
+        speedIndex = (speedIndex + 1) % SPEEDS.length;
+        app.getResource(Time).scale = SPEEDS[speedIndex]!;
+        facts.speed = SPEEDS[speedIndex]!;
     };
 
-    let started = false;
     app.addSystemToSchedule(Schedule.Startup, defineSystem([Res(Assets)], (assets) => {
         void Promise.all(SHAPES.map((shape) => assets.acquireTyped<{ handle: number }>('mesh', `builtin:${shape}`).then((lease) => { meshes.set(shape, lease.value.handle); })))
             .catch((error: unknown) => { console.error('[last-signal] a built-in mesh could not be loaded:', error); });
@@ -459,104 +514,79 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         body = world.spawn('DroneBody');
         world.insert(body, Transform, { position: groundPoint(state.drone.x, state.drone.z) });
         world.insert(body, NavAgent, NavAgent.create({ speed: 6 * UNITS, radius: 0.3 * UNITS, arriveRadius: 0.1 * UNITS, repathInterval: 0.5 }));
-
         drone = new Model(world, 'Drone', droneParts());
         cursorRing = new Model(world, 'Cursor', ringParts(PALETTE.cursor, 0.96, 0.04));
         selectRing = new Model(world, 'Selection', ringParts(PALETTE.select, 1.08, 0.1));
+        cursorRing.pose(world, 0, 0, HIDDEN);
         selectRing.pose(world, 0, 0, HIDDEN);
 
-        rect(world, 'MapPanel', MAP.left, MAP.top, GRID_WIDTH * MAP.cell, GRID_HEIGHT * MAP.cell, UI.panel);
-        for (let i = 8; i < GRID_WIDTH; i += 8) {
-            rect(world, `MapLineV${i}`, MAP.left + i * MAP.cell, MAP.top, 1, GRID_HEIGHT * MAP.cell, UI.line);
-            rect(world, `MapLineH${i}`, MAP.left, MAP.top + i * MAP.cell, GRID_WIDTH * MAP.cell, 1, UI.line);
-        }
-        ghostMark = rect(world, 'MapGhost', -20, -20, MAP.cell, MAP.cell, PALETTE.ok);
-        selectMarks = [
-            rect(world, 'MapSelectTop', -20, -20, 10, 1, UI.accent), rect(world, 'MapSelectBottom', -20, -20, 10, 1, UI.accent),
-            rect(world, 'MapSelectLeft', -20, -20, 1, 10, UI.accent), rect(world, 'MapSelectRight', -20, -20, 1, 10, UI.accent),
-        ];
+        hud = spawnUIEntity({ world, parent: canvas, node: { fill: true } });
+        world.insert(hud, Name, { value: 'Hud' });
+        world.insert(hud, SafeArea, { applyTop: true, applyBottom: true, applyLeft: true, applyRight: true, avoidHostMenu: false });
 
-        const left = MAP.left, column = GRID_WIDTH * MAP.cell, below = MAP.top + GRID_HEIGHT * MAP.cell + 10;
-        rect(world, 'ObjectivePanel', left, below, column, 148, UI.panel);
-        objectiveTitle = label(world, 'ObjectiveTitle', left + 10, below + 8, column - 20, 18, 12, UI.accent);
-        objective = label(world, 'Objective', left + 10, below + 28, column - 20, 22, 15, UI.text);
-        rect(world, 'ObjectiveBar', left + 10, below + 58, 150, 8, UI.line);
-        objectiveFill = rect(world, 'ObjectiveFill', left + 10, below + 58, 1, 8, PALETTE.offline);
-        objectiveCount = label(world, 'ObjectiveCount', left + 168, below + 51, 90, 20, 13, UI.text);
-        objectiveHint = label(world, 'ObjectiveHint', left + 10, below + 74, column - 20, 30, 11, UI.dim);
-        const repairButton = createButton({
-            world, events, parent: canvas!,
-            node: { position: UIPositionType.Absolute, insetLeft: px(left + 10), insetTop: px(below + 106), width: px(column - 20), height: px(34) },
-            text: { content: 'R  修复通信塔', fontSize: 13, color: UI.text }, background: { color: UI.button }, onClick: repair,
-        });
-        repairEntity = repairButton.entity;
-        repairTop = below + 106;
-        rect(world, 'PowerPanel', left, below + 220, column, 84, UI.panel);
-        powerTitle = label(world, 'PowerTitle', left + 10, below + 228, column - 20, 18, 12, UI.accent);
-        powerText = label(world, 'PowerText', left + 10, below + 248, column - 20, 20, 13, UI.text);
-        rect(world, 'PowerBar', left + 10, below + 278, 150, 8, UI.line);
-        powerFill = rect(world, 'PowerFill', left + 10, below + 278, 1, 8, PALETTE.batteryGlow);
-        label(world, 'PowerHint', left + 168, below + 271, 90, 20, 11, UI.dim);
-        rect(world, 'HudPanel', left, below + 158, column, 56, UI.panel);
-        hud = label(world, 'Hud', left + 10, below + 164, column - 20, 46, 13, UI.text);
-        world.insert(repairButton.entity, Name, { value: 'RepairButton' });
-        rect(world, 'InfoPanel', VIEW.width - 316, 96, 300, 170, UI.panel);
-        info = label(world, 'Info', VIEW.width - 304, 106, 280, 150, 15, UI.text);
-        const toggleButton = createButton({
-            world, events, parent: canvas!,
-            node: { position: UIPositionType.Absolute, insetLeft: px(VIEW.width - 304), insetTop: px(-2000), width: px(276), height: px(32) },
-            text: { content: 'O  开启 / 关闭', fontSize: 13, color: UI.text }, background: { color: UI.button }, onClick: toggle,
-        });
-        world.insert(toggleButton.entity, Name, { value: 'ToggleButton' });
-        toggleEntity = toggleButton.entity;
-        rect(world, 'NoticePanel', TOOLBAR.left, TOOLBAR.top - 40, 4 * TOOLBAR.width + 3 * TOOLBAR.gap, 30, UI.panel);
-        noticeText = label(world, 'Notice', TOOLBAR.left + 12, TOOLBAR.top - 35, 4 * TOOLBAR.width + 3 * TOOLBAR.gap - 24, 24, 15, UI.text);
+        const oreChip = rect(world, 'OreChip', hud, { left: EDGE, top: EDGE }, 170, 64, UI.panel);
+        rect(world, 'OreSwatch', oreChip, { left: 14, top: 20 }, 24, 24, PALETTE.ore);
+        oreText = label(world, 'OreText', oreChip, { left: 50, top: 0 }, 116, 64, 32, UI.text);
+        const clockChip = rect(world, 'ClockChip', hud, { left: EDGE + 178, top: EDGE }, 122, 64, UI.panel);
+        clockText = label(world, 'ClockText', clockChip, { left: 0, top: 0 }, 122, 64, 28, UI.text, 1);
+        const powerChip = rect(world, 'PowerChip', hud, { left: EDGE, top: EDGE + 72 }, 300, 64, UI.panel);
+        powerText = label(world, 'PowerText', powerChip, { left: 14, top: 2 }, 280, 42, 24, UI.text);
+        rect(world, 'PowerBar', powerChip, { left: 14, top: 48 }, 272, 8, UI.line);
+        powerFill = rect(world, 'PowerFill', powerChip, { left: 14, top: 48 }, 1, 8, PALETTE.batteryGlow);
 
-        TOOLS.forEach((entry, i) => {
-            const button = createButton({
-                world, events, parent: canvas!,
-                node: { position: UIPositionType.Absolute, insetLeft: px(TOOLBAR.left + i * (TOOLBAR.width + TOOLBAR.gap)), insetTop: px(TOOLBAR.top), width: px(TOOLBAR.width), height: px(38) },
-                text: { content: entry.label, fontSize: 14, color: UI.text }, background: { color: UI.button },
-                onClick: () => choose(entry.tool),
-            });
-            world.insert(button.entity, Name, { value: entry.name });
+        goal = tile(world, events, 'Goal', hud, { center: 0, top: EDGE }, 500, 84, UI.card, 28, repair);
+        rect(world, 'GoalBar', goal.entity, { left: 20, top: 68 }, 460, 8, UI.line);
+        goalFill = rect(world, 'GoalFill', goal.entity, { left: 20, top: 68 }, 1, 8, PALETTE.offline);
+
+        speedTile = tile(world, events, 'Speed', hud, { right: EDGE, top: EDGE }, 150, 64, UI.card, 26, cycleSpeed);
+        mapPanel = rect(world, 'MapPanel', hud, { right: EDGE, top: EDGE + 72 }, MAP.size, MAP.size, UI.panel);
+        ghostMark = rect(world, 'MapGhost', mapPanel, { left: 0, top: 0 }, 4, 4, PALETTE.ok);
+        selectMark = rect(world, 'MapSelect', mapPanel, { left: 0, top: 0 }, 8, 8, UI.accent);
+        droneMark = rect(world, 'MapDrone', mapPanel, { left: 0, top: 0 }, 5, 5, PALETTE.drone);
+
+        toastPanel = rect(world, 'Toast', hud, { center: 0, top: EDGE + 96 }, 640, 52, UI.panel);
+        toastText = label(world, 'ToastText', toastPanel, { left: 0, top: 0 }, 640, 52, 22, UI.text, 1);
+
+        const cardWidth = 170, cardHeight = 110, cardGap = 8;
+        const barWidth = KINDS.length * cardWidth + (KINDS.length - 1) * cardGap;
+        KINDS.forEach((kind, i) => {
+            const offset = -barWidth / 2 + cardWidth / 2 + i * (cardWidth + cardGap);
+            const card = tile(world, events, `Card${kind}`, hud!, { center: offset, bottom: EDGE }, cardWidth, cardHeight, UI.card, 26, () => choose(kind));
+            rect(world, `CardSwatch${kind}`, card.entity, { left: 0, top: 0 }, cardWidth, 8, glowColour(kind));
+            const pick = rect(world, `CardPick${kind}`, card.entity, { left: 0, top: cardHeight - 8 }, cardWidth, 8, UI.accent);
+            write(world, card.text, `${kindName(kind)}\n${COSTS[kind]} 矿石`);
+            cards.set(kind, { tile: card, pick, dim: false });
         });
-        toolMark = rect(world, 'ToolActive', TOOLBAR.left, TOOLBAR.top + 40, TOOLBAR.width, 4, UI.accent);
-        const side: [string, string, () => void][] = [['SpeedButton', 'T 加速', () => speed(world)], ['SaveButton', 'K 存档', save], ['LoadButton', 'L 读档', () => { load(world); }]];
-        side.forEach(([name, text, onClick], i) => {
-            const button = createButton({
-                world, events, parent: canvas!,
-                node: { position: UIPositionType.Absolute, insetLeft: px(VIEW.width - 316 + i * 102), insetTop: px(MAP.top), width: px(96), height: px(34) },
-                text: { content: text, fontSize: 13, color: UI.text }, background: { color: UI.button }, onClick,
-            });
-            world.insert(button.entity, Name, { value: name });
-        });
-        droneMark = rect(world, 'MapDrone', 0, 0, 6, 6, PALETTE.drone);
-        const curtain = rect(world, 'VictoryCurtain', 0, -2000, VIEW.width, VIEW.height, { r: 0.01, g: 0.03, b: 0.06, a: 0.72 });
-        const headline = label(world, 'VictoryTitle', 0, -2000, VIEW.width, 60, 48, PALETTE.online);
-        const tagline = label(world, 'VictoryText', 0, -2000, VIEW.width, 30, 18, UI.text);
-        for (const entity of [headline, tagline]) world.insert(entity, Text, { ...world.get(entity, Text), align: 1 });
+        confirmTile = tile(world, events, 'Confirm', hud, { right: EDGE, bottom: EDGE }, 190, cardHeight, UI.go, 34, () => build(world));
+        write(world, confirmTile.text, '建造');
+        cancelTile = tile(world, events, 'Cancel', hud, { right: EDGE, bottom: EDGE + cardHeight + 8 }, 190, 64, UI.card, 26, () => choose(null));
+        write(world, cancelTile.text, '取消');
+
+        const detailTile = createButton({ world, events, parent: hud, node: boxAt({ left: EDGE, bottom: EDGE + cardHeight + 8 }, 400, 196), background: { color: UI.card } });
+        detail = detailTile.entity;
+        world.insert(detail, Name, { value: 'Detail' });
+        detailTitle = label(world, 'DetailTitle', detail, { left: 18, top: 8 }, 364, 42, 32, UI.text);
+        detailText = label(world, 'DetailText', detail, { left: 18, top: 52 }, 364, 66, 22, UI.dim);
+        removeTile = tile(world, events, 'Remove', detail, { left: 18, top: 126 }, 176, 58, UI.warn, 26, () => removeSelected(world));
+        switchTile = tile(world, events, 'Switch', detail, { left: 206, top: 126 }, 176, 58, UI.panel, 26, toggle);
+        fixTile = tile(world, events, 'Fix', detail, { left: 18, top: 126 }, 364, 58, UI.go, 26, repair);
+
+        const curtain = createButton({ world, events, parent: canvas, node: { fill: true }, background: { color: { r: 0.01, g: 0.03, b: 0.06, a: 0.74 } } });
+        world.insert(curtain.entity, Name, { value: 'VictoryCurtain' });
+        const headline = label(world, 'VictoryTitle', curtain.entity, { center: 0, middle: -70 }, 900, 70, 54, PALETTE.online, 1);
         write(world, headline, '信号已发出');
-        const again = createButton({
-            world, events, parent: canvas!,
-            node: { position: UIPositionType.Absolute, insetLeft: px(VIEW.width / 2 - 170), insetTop: px(-2000), width: px(160), height: px(44) },
-            text: { content: '继续经营', fontSize: 15, color: UI.text }, background: { color: UI.button },
-            onClick: () => { acknowledged = true; say('信号已经发出。基地仍由你继续经营。'); },
-        });
-        world.insert(again.entity, Name, { value: 'ContinueButton' });
-        const fresh = createButton({
-            world, events, parent: canvas!,
-            node: { position: UIPositionType.Absolute, insetLeft: px(VIEW.width / 2 + 10), insetTop: px(-2000), width: px(160), height: px(44) },
-            text: { content: '重新开始', fontSize: 15, color: UI.text }, background: { color: UI.button },
-            onClick: () => { saves.remove(SLOT); keepJournal(true); journal = new Journal(Date.now().toString(36)); journalWritten = 0; adopt(world, createState()); say('新的一局。通信塔又沉默了。'); },
-        });
-        world.insert(fresh.entity, Name, { value: 'NewGameButton' });
-        victory = [curtain, headline, tagline, again.entity, fresh.entity];
+        victoryText = label(world, 'VictoryText', curtain.entity, { center: 0, middle: -6 }, 1000, 34, 20, UI.text, 1);
+        const again = tile(world, events, 'Continue', curtain.entity, { center: -106, middle: 70 }, 200, 64, UI.card, 22, () => { acknowledged = true; });
+        write(world, again.text, '继续经营');
+        const anew = tile(world, events, 'NewGame', curtain.entity, { center: 106, middle: 70 }, 200, 64, UI.go, 22, () => fresh(world));
+        write(world, anew.text, '重新开始');
+        victory = [curtain.entity];
+        show(world, curtain.entity, false);
 
         adopt(world, state);
-        facts.restored = saves.has(SLOT) && load(world);
-        if (facts.restored) say('欢迎回来。基地已从上次存档恢复。');
-        world.insert(clock, TimeOfDay, { ...world.get(clock, TimeOfDay), daySeconds: DAY_SECONDS.normal });
+        facts.restored = load(world);
+        if (facts.restored) say('欢迎回来，基地已恢复到上次离开时的样子。');
+        world.insert(clock, TimeOfDay, { ...world.get(clock, TimeOfDay), daySeconds: DAY_SECONDS });
         facts.readyMs = Math.round(performance.now() - bootAt);
         facts.pieces = livePieces.size;
         facts.ready = true;
@@ -569,67 +599,84 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
             setup(nav, events, world);
         }
         if (grid === null || body === null) return;
-        elapsed += time.delta;
-        if (facts.meshesReadyMs === undefined && facts.ready === true) {
-            let pending = false;
-            for (const entity of livePieces) if (!(world.get(entity, MeshRenderer).mesh > 0)) { pending = true; break; }
-            if (!pending) facts.meshesReadyMs = Math.round(performance.now() - bootAt);
-        }
-        if (!counted && elapsed > 3) {
-            counted = true;
-            const handles = new Set<number>();
-            for (const entity of livePieces) handles.add(world.get(entity, MeshRenderer).mesh);
-            facts.meshHandles = handles.size;
-            facts.pieces = livePieces.size;
-        }
+        const real = time.unscaledDelta;
+        elapsed += real;
 
-        const step = input.isKeyDown('ShiftLeft') || input.isKeyDown('ShiftRight') ? 8 : 1;
-        const moved = { x: cursor.x, y: cursor.y };
-        if (input.isKeyPressed('ArrowLeft')) moved.x -= step;
-        if (input.isKeyPressed('ArrowRight')) moved.x += step;
-        if (input.isKeyPressed('ArrowUp')) moved.y -= step;
-        if (input.isKeyPressed('ArrowDown')) moved.y += step;
         const overUi = input.isPointerOverUI();
+        const touches = input.getTouches();
+        if (touches.length > 0) touchSeen = true;
+        const points: Point[] = touches.length > 0 ? touches.map((t) => ({ id: t.id, x: t.x, y: t.y }))
+            : !touchSeen && input.isMouseButtonDown(0) ? [{ id: -1, x: input.mouseX, y: input.mouseY }] : [];
+        facts.touches = touches.length;
+        const cellAt = (x: number, y: number): Cell | null => {
+            const ray = view.pointerRay(x, y);
+            const hit = ray === null ? null : rayPlaneHit(ray, { x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
+            if (hit === null) return null;
+            const cell = cellOfWorld(hit.x / UNITS, hit.z / UNITS);
+            return inBounds(cell) ? cell : null;
+        };
+        const groundAt = (x: number, y: number): { x: number; z: number } | null => {
+            const ray = view.pointerRay(x, y);
+            const hit = ray === null ? null : rayPlaneHit(ray, { x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
+            return hit === null ? null : { x: hit.x / UNITS, z: hit.z / UNITS };
+        };
+        const gesture = gestures.feed(points, real, overUi);
+        let moving = points.length > 0;
+        if (gesture.drag !== null && !lowView) {
+            const from = groundAt(gesture.drag.fromX, gesture.drag.fromY), to = groundAt(gesture.drag.toX, gesture.drag.toY);
+            if (from !== null && to !== null) { rig.x += from.x - to.x; rig.z += from.z - to.z; }
+            facts.drags = (facts.drags as number) + 1;
+        }
+        if (gesture.pinch !== null) {
+            rig.distance *= gesture.pinch.factor;
+            facts.pinches = (facts.pinches as number) + 1;
+        }
+        if (gesture.tap !== null) {
+            const cell = cellAt(gesture.tap.x, gesture.tap.y);
+            if (cell !== null) tapCell(world, cell);
+        }
         const mouseMoved = input.mouseX !== lastMouse.x || input.mouseY !== lastMouse.y;
         if (mouseMoved) {
             lastMouse = { x: input.mouseX, y: input.mouseY };
-            const ray = overUi ? null : view.pointerRay(input.mouseX, input.mouseY);
-            const hit = ray === null ? null : rayPlaneHit(ray, { x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
-            if (hit !== null) {
-                const cell = cellOfWorld(hit.x / UNITS, hit.z / UNITS);
-                if (inBounds(cell)) { moved.x = cell.x; moved.y = cell.y; }
-            }
+            moving = true;
+            if (!touchSeen && tool !== null && !overUi && points.length === 0) pending = cellAt(input.mouseX, input.mouseY) ?? pending;
         }
-        cursor = { x: Math.min(GRID_WIDTH - 1, Math.max(0, moved.x)), y: Math.min(GRID_HEIGHT - 1, Math.max(0, moved.y)) };
 
-        if (input.isKeyPressed('Digit1')) choose('mine');
-        if (input.isKeyPressed('Digit2')) choose('store');
-        if (input.isKeyPressed('Digit3')) choose('solar');
-        if (input.isKeyPressed('Digit4')) choose('battery');
-        if (input.isKeyPressed('Digit5') || input.isKeyPressed('Escape')) choose('select');
-        if (input.isKeyPressed('Digit6')) choose('remove');
-        if (input.isKeyPressed('KeyO')) toggle();
-        if (input.isKeyPressed('Enter') || (!overUi && input.isMouseButtonPressed(0))) primary(world);
-        if (input.isKeyPressed('Backspace') || (!overUi && input.isMouseButtonPressed(2))) remove(world);
-        if (input.isKeyPressed('KeyR')) repair();
-        if (input.isKeyPressed('KeyK')) save();
-        if (input.isKeyPressed('KeyL')) load(world);
-        if (input.isKeyPressed('KeyN')) { saves.remove(SLOT); keepJournal(true); journal = new Journal(Date.now().toString(36)); journalWritten = 0; adopt(world, createState()); say('新的一局。'); }
-        if (input.isKeyPressed('KeyJ')) { exportJournals(); say('试玩记录已导出。'); }
-        if (input.isKeyPressed('KeyC')) {
-            lowView = !lowView;
-            facts.lowView = lowView;
+        const step = input.isKeyDown('ShiftLeft') || input.isKeyDown('ShiftRight') ? 8 : 1;
+        const nudged = (input.isKeyPressed('ArrowRight') ? step : 0) - (input.isKeyPressed('ArrowLeft') ? step : 0);
+        const nudgedY = (input.isKeyPressed('ArrowDown') ? step : 0) - (input.isKeyPressed('ArrowUp') ? step : 0);
+        if (nudged !== 0 || nudgedY !== 0) {
+            const from = pending ?? { x: 32, y: 30 };
+            pending = { x: Math.min(GRID_WIDTH - 1, Math.max(0, from.x + nudged)), y: Math.min(GRID_HEIGHT - 1, Math.max(0, from.y + nudgedY)) };
         }
-        const pan = 0.9 * rig.distance * time.delta;
+        KINDS.forEach((kind, i) => { if (input.isKeyPressed(`Digit${i + 1}`)) { tool = null; choose(kind); } });
+        if (input.isKeyPressed('Escape')) choose(null);
+        if (input.isKeyPressed('Enter')) {
+            if (tool !== null) build(world);
+            else if (pending !== null) { const at = buildingAt(state, pending); selected = at === null ? 0 : at.id; }
+        }
+        if (input.isKeyPressed('Backspace')) removeSelected(world);
+        if (input.isKeyPressed('KeyO')) toggle();
+        if (input.isKeyPressed('KeyR')) repair();
+        if (input.isKeyPressed('KeyK')) save(false);
+        if (input.isKeyPressed('KeyL')) { if (load(world)) say('已读档。'); }
+        if (input.isKeyPressed('KeyN')) fresh(world);
+        if (input.isKeyPressed('KeyJ')) { exportJournals(); say('试玩记录已导出。'); }
+        if (input.isKeyPressed('KeyT')) cycleSpeed();
+        if (input.isKeyPressed('KeyP')) throw new Error('last-signal probe: a script error raised on purpose');
+        if (input.isKeyPressed('KeyC')) { lowView = !lowView; facts.lowView = lowView; }
+
+        const pan = 0.9 * rig.distance * real;
         if (input.isKeyDown('KeyW')) rig.z -= pan;
         if (input.isKeyDown('KeyS')) rig.z += pan;
         if (input.isKeyDown('KeyA')) rig.x -= pan;
         if (input.isKeyDown('KeyD')) rig.x += pan;
         const zoom = (input.isKeyDown('KeyX') ? 1 : 0) - (input.isKeyDown('KeyZ') ? 1 : 0) + input.getScrollDelta().y * 0.02;
-        rig.distance = Math.min(70, Math.max(8, rig.distance * (1 + zoom * 1.2 * time.delta)));
-        const span = GRID_WIDTH * CELL_SIZE / 2;
-        rig.x = Math.min(span, Math.max(-span, rig.x));
-        rig.z = Math.min(span, Math.max(-span, rig.z));
+        rig.distance = Math.min(60, Math.max(10, rig.distance * (1 + zoom * 1.2 * real)));
+        const half = GRID_WIDTH * CELL_SIZE / 2;
+        rig.x = Math.min(half, Math.max(-half, rig.x));
+        rig.z = Math.min(half, Math.max(-half, rig.z));
+        if (ACTIVE_KEYS.some((code) => input.isKeyDown(code)) || input.getScrollDelta().y !== 0) moving = true;
         const key = lowView ? 'low' : `${rig.x.toFixed(3)},${rig.z.toFixed(3)},${rig.distance.toFixed(3)}`;
         if (camera !== null && key !== rigKey) {
             rigKey = key;
@@ -653,15 +700,12 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         const sunLight = world.findEntityByName('Sun');
         if (skyLight !== null) facts.ambient = world.get(skyLight, Light).intensity;
         if (sunLight !== null) facts.sun = world.get(sunLight, Light).intensity;
-        if (input.isKeyPressed('KeyP')) throw new Error('last-signal probe: a script error raised on purpose');
 
-        if (input.isKeyPressed('KeyT')) speed(world);
         if (input.isKeyPressed('KeyH')) {
             const data = world.get(clock!, TimeOfDay);
             const held = data.daySeconds !== 0;
-            world.insert(clock!, TimeOfDay, { ...data, daySeconds: held ? 0 : DAY_SECONDS.normal });
+            world.insert(clock!, TimeOfDay, { ...data, daySeconds: held ? 0 : DAY_SECONDS });
             facts.held = held;
-            facts.fast = false;
         }
         const nudge = (input.isKeyPressed('BracketRight') ? 0.5 : 0) - (input.isKeyPressed('BracketLeft') ? 0.5 : 0);
         if (nudge !== 0) {
@@ -672,8 +716,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         const passed = ((state.hour - lastHour) % DAY_HOURS + DAY_HOURS) % DAY_HOURS;
         facts.hoursElapsed = (facts.hoursElapsed as number) + passed;
         if (passed > 0) stepPower(state, lastHour, passed);
-        const moving = mouseMoved || ACTIVE_KEYS.some((code) => input.isKeyDown(code)) || input.getScrollDelta().y !== 0;
-        journal.tick(time.delta, passed, { canAct: state.signal === 'offline' && state.ore >= CHEAPEST, input: moving });
+        journal.tick(real, passed, { canAct: state.signal === 'offline' && state.ore >= CHEAPEST, input: moving });
         journal.outage(state.blackout);
         lastHour = state.hour;
         if (state.blackout !== wasBlackout) {
@@ -688,12 +731,10 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         const agent = world.get(body, NavAgent);
         const carried = state.drone.cargo;
         if ((agent.arrived || !agent.hasTarget) && settleArrival(state)) {
-            if (state.drone.leg === 'toMine') journal.note('delivery', { ore: carried, stored: state.ore });
-            say(state.drone.leg === 'toStore' ? '无人机在采矿站装好了矿石。' : `矿石已送达，仓库现有 ${state.ore}。`);
+            if (state.drone.leg === 'toMine') { journal.note('delivery', { ore: carried, stored: state.ore }); save(); }
             dock = null;
             dockFor = -1;
         }
-
         const target = targetOf(state);
         if (target === null) {
             if (agent.hasTarget) stopNavAgent(world, body);
@@ -721,14 +762,13 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
 
         const standing = droneCell(state);
         if (buildingAt(state, standing) !== null) facts.everInsideBuilding = true;
-
         const dx = state.drone.x - lastDrone.x, dz = state.drone.z - lastDrone.z;
         if (Math.hypot(dx, dz) > 0.001) heading = Math.atan2(dx, dz);
         lastDrone = { x: state.drone.x, z: state.drone.z };
         drone!.pose(world, state.drone.x, state.drone.z, DRONE_LIFT + Math.sin(elapsed * 2.2) * 0.06, heading);
         drone!.turn(world, 'rotor', elapsed * 40);
         drone!.show(world, 'cargo', state.drone.cargo > 0);
-        moveMark(world, droneMark!, standing.x, standing.y, 6);
+        markAt(world, droneMark!, standing, 5);
 
         const activeId = target === null ? 0 : target.id;
         const blink = Math.floor(elapsed * 2.5) % 2 === 0;
@@ -766,7 +806,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
             const active = b.id === activeId;
             const running = isRunning(state, b);
             const mode = b.kind === 'mine' ? (!b.on ? 'off' : state.blackout ? 'dark' : active && blink ? 'call' : 'run')
-                : b.kind === 'solar' ? `sun${Math.round(report.generation > 0 ? 2 : 0)}`
+                : b.kind === 'solar' ? `sun${report.generation > 0 ? 2 : 0}`
                     : b.kind === 'battery' ? `charge${Math.round(4 * report.energy / report.capacity)}`
                         : active ? (blink ? 'call' : 'wait') : 'idle';
             if (mode !== site.look) {
@@ -782,49 +822,101 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
             if (running) site.model.turn(world, 'spinner', elapsed * 3);
         }
 
-        const building = tool === 'select' || tool === 'remove' ? null : tool;
-        const occupied = buildingAt(state, cursor);
-        const showGhost = building !== null;
-        const legal = building === null || whyNotBuild(state, building, cursor) === null;
-        if (building !== ghostKind) {
+        const legal = tool === null || pending === null || whyNotBuild(state, tool, pending) === null;
+        if (tool !== ghostKind) {
             ghost?.despawn(world);
-            ghost = building === null ? null : new Model(world, 'Ghost', partsOf(building), legal ? PALETTE.ok : PALETTE.blocked);
-            ghostKind = building;
+            ghost = tool === null ? null : new Model(world, 'Ghost', partsOf(tool), legal ? PALETTE.ok : PALETTE.blocked);
+            ghostKind = tool;
             ghostLegal = legal;
         }
         if (ghost !== null && legal !== ghostLegal) {
             ghost.colour(world, null, legal ? PALETTE.ok : PALETTE.blocked);
             ghostLegal = legal;
         }
-        const cursorAt = worldOfCell(cursor);
-        if (ghost !== null) ghost.pose(world, cursorAt.x, cursorAt.z, showGhost ? 0 : HIDDEN);
-        cursorRing!.pose(world, cursorAt.x, cursorAt.z, 0);
-        const red = tool === 'remove' ? occupied !== null : building !== null && !legal;
-        if (red !== cursorRed) {
-            cursorRing!.colour(world, null, red ? PALETTE.blocked : PALETTE.cursor);
-            cursorRed = red;
-        }
-        if (showGhost) {
-            moveMark(world, ghostMark!, cursor.x, cursor.y, MAP.cell);
+        if (tool !== null && pending !== null) {
+            const at = worldOfCell(pending);
+            ghost!.pose(world, at.x, at.z, 0);
+            cursorRing!.pose(world, at.x, at.z, 0);
+            if (!legal !== cursorRed) { cursorRing!.colour(world, null, legal ? PALETTE.cursor : PALETTE.blocked); cursorRed = !legal; }
+            markAt(world, ghostMark!, pending, 4);
             paint(world, ghostMark!, legal ? PALETTE.ok : PALETTE.blocked);
         } else {
-            moveTo(world, ghostMark!, -20, -20);
+            ghost?.pose(world, 0, 0, HIDDEN);
+            cursorRing!.pose(world, 0, 0, HIDDEN);
         }
+        show(world, ghostMark!, tool !== null && pending !== null);
 
         const chosen = selected === 0 ? undefined : sites.get(selected);
         if (chosen === undefined) {
             selectRing!.pose(world, 0, 0, HIDDEN);
-            for (const mark of selectMarks) moveTo(world, mark, -20, -20);
         } else {
             const at = worldOfCell(chosen.building);
             selectRing!.pose(world, at.x, at.z, 0.02 + (Math.sin(elapsed * 4) + 1) * 0.03);
-            const left = MAP.left + chosen.building.x * MAP.cell - 3, top = MAP.top + chosen.building.y * MAP.cell - 3;
-            moveTo(world, selectMarks[0]!, left, top);
-            moveTo(world, selectMarks[1]!, left, top + 9);
-            moveTo(world, selectMarks[2]!, left, top);
-            moveTo(world, selectMarks[3]!, left + 9, top);
+            markAt(world, selectMark!, chosen.building, 8);
         }
-        moveTo(world, toolMark!, TOOLBAR.left + TOOLS.findIndex((entry) => entry.tool === tool) * (TOOLBAR.width + TOOLBAR.gap), TOOLBAR.top + 40);
+        show(world, selectMark!, chosen !== undefined);
+
+        const online = state.signal === 'online';
+        const hours = Math.floor(state.hour);
+        const minutes = Math.floor((state.hour - hours) * 60);
+        write(world, oreText!, `${state.ore}`);
+        write(world, clockText!, `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`);
+        write(world, powerText!, state.blackout ? '停电！储电耗尽' : `储电 ${report.energy.toFixed(1)} / ${report.capacity}   ${report.generation >= report.demand ? '+' : '−'}${Math.abs(report.generation - report.demand).toFixed(1)}`);
+        ink(world, powerText!, state.blackout ? PALETTE.offline : report.status === 'draining' ? PALETTE.mineGlow : UI.text);
+        sizeTo(world, powerFill!, Math.max(1, 272 * report.energy / report.capacity));
+        paint(world, powerFill!, state.blackout ? PALETTE.offline : report.status === 'draining' ? PALETTE.mineGlow : PALETTE.batteryGlow);
+
+        const ready = !online && state.ore >= REPAIR_COST;
+        write(world, goal!.text, online ? '信号已发出' : ready ? '点这里修复通信塔' : `修复通信塔   ${Math.min(state.ore, REPAIR_COST)} / ${REPAIR_COST} 矿石`);
+        sizeTo(world, goalFill!, online ? 460 : Math.max(1, 460 * Math.min(state.ore, REPAIR_COST) / REPAIR_COST));
+        paint(world, goalFill!, online || ready ? PALETTE.online : PALETTE.offline);
+        paint(world, goal!.entity, ready && blink ? UI.go : UI.card);
+        write(world, speedTile!.text, `速度 ×${SPEEDS[speedIndex]}`);
+
+        for (const [kind, card] of cards) {
+            const dim = state.ore < COSTS[kind];
+            if (dim !== card.dim) { card.dim = dim; ink(world, card.tile.text, dim ? UI.dim : UI.text); }
+            show(world, card.pick, tool === kind);
+        }
+        show(world, cancelTile!.entity, tool !== null);
+        show(world, confirmTile!.entity, tool !== null && pending !== null);
+        paint(world, confirmTile!.entity, legal ? UI.go : UI.warn);
+        write(world, confirmTile!.text, legal ? '建造' : '不能建');
+
+        show(world, detail!, chosen !== undefined && tool === null);
+        if (chosen !== undefined) {
+            const b = chosen.building;
+            const status = b.kind === 'tower' ? (online ? '正在发射信号' : '沉默着，发射器已损坏')
+                : b.kind === 'mine' ? (!b.on ? '已关闭' : state.blackout ? '停工：没有电' : `运转中，待运 ${Math.floor(b.stock)} / 10`)
+                    : b.kind === 'store' ? `已收货 ${b.served} 次`
+                        : b.kind === 'solar' ? (report.generation > 0 ? '正在发电' : '没有阳光，不发电') : '多存 12 度电';
+            const about = b.kind === 'tower' ? (online ? '' : `修复需要 ${REPAIR_COST} 矿石`)
+                : b.kind === 'mine' ? '通电时每小时产 2 矿石，耗电 1.5' : b.kind === 'store' ? '无人机在这里卸货' : b.kind === 'solar' ? '正午最多发 4，夜里不发电' : '让采矿站撑过夜晚';
+            write(world, detailTitle!, kindName(b.kind));
+            write(world, detailText!, `${status}\n${about}`);
+            show(world, removeTile!.entity, b.kind !== 'tower');
+            show(world, switchTile!.entity, b.kind === 'mine');
+            show(world, fixTile!.entity, b.kind === 'tower' && !online);
+            write(world, removeTile!.text, b.kind === 'tower' ? '' : `拆除 +${Math.floor(COSTS[b.kind as PlaceableKind] / 2)}`);
+            write(world, switchTile!.text, b.on ? '关闭' : '开启');
+            write(world, fixTile!.text, ready ? '修复通信塔' : `还差 ${REPAIR_COST - state.ore} 矿石`);
+        }
+
+        toastLeft -= real;
+        show(world, toastPanel!, toastLeft > 0);
+        write(world, toastText!, toast);
+
+        const showVictory = online && uplink >= 5 && !acknowledged;
+        if (showVictory !== victoryShown) {
+            victoryShown = showVictory;
+            show(world, victory[0]!, showVictory);
+            if (showVictory) {
+                const sum = journal.summary();
+                journal.note('victory', { seconds: sum.seconds, gameHours: sum.gameHours, buildings: state.buildings.length, builds: sum.builds, outages: sum.outages, outageHours: sum.outageHours, trips: state.trips });
+                const mins = Math.floor(sum.seconds / 60);
+                write(world, victoryText!, `用时 ${mins} 分 ${Math.round(sum.seconds - mins * 60)} 秒，运输 ${state.trips} 趟，建造 ${sum.builds} 座，停电 ${sum.outageHours} 小时`);
+            }
+        }
 
         facts.buildings = state.buildings.length;
         facts.layout = state.buildings.map((b) => `${b.id}:${b.kind}:${b.x}:${b.y}`).join(';');
@@ -836,17 +928,17 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         facts.droneY = standing.y;
         facts.hour = state.hour;
         facts.plans = (facts.plans as number) + nav.planningStats.completed;
-        facts.cursorX = cursor.x;
-        facts.cursorY = cursor.y;
-        facts.cursorWalkable = grid.isWalkable(cursor.x, cursor.y);
-        facts.tool = tool;
-        facts.notice = notice;
+        facts.cursorX = pending === null ? -1 : pending.x;
+        facts.cursorY = pending === null ? -1 : pending.y;
+        facts.tool = tool ?? 'none';
+        facts.notice = toast;
         facts.selected = selected;
         facts.ghostLegal = legal;
         facts.active = activeId;
-        facts.journalEntries = journal.entries.length;
-        journalAge += time.delta;
-        keepJournal(journalAge > 10);
+        facts.signal = state.signal;
+        facts.canRepair = whyNotRepair(state) === null;
+        facts.uplink = uplink;
+        facts.victory = showVictory;
         facts.energy = report.energy;
         facts.capacity = report.capacity;
         facts.generation = report.generation;
@@ -855,77 +947,9 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         facts.power = report.status;
         facts.mines = report.wanted;
         facts.minesRunning = report.running;
-        write(world, powerTitle!, `电力   /   ${POWER_NAMES[report.status]}`);
-        write(world, powerText!, `发电 ${report.generation.toFixed(1)}   耗电 ${report.demand.toFixed(1)} 千瓦   开工 ${report.running}/${report.wanted}`);
-        sizeTo(world, powerFill!, Math.max(1, 150 * report.energy / report.capacity));
-        const powerHint = world.findEntityByName('PowerHint');
-        if (powerHint !== null) write(world, powerHint, `储电 ${report.energy.toFixed(1)} / ${report.capacity}`);
-        const stored = state.blackout ? PALETTE.offline : report.status === 'draining' ? PALETTE.mineGlow : PALETTE.batteryGlow;
-        if (facts.storedColour !== stored.g) { paint(world, powerFill!, stored); facts.storedColour = stored.g; }
-        facts.signal = state.signal;
-        facts.canRepair = whyNotRepair(state) === null;
-        facts.uplink = uplink;
-
-        const online = state.signal === 'online';
-        const showVictory = online && uplink >= 5 && !acknowledged;
-        if (showVictory !== victoryShown) {
-            victoryShown = showVictory;
-            const tops = showVictory ? [0, 250, 322, 384, 384] : [-2000, -2000, -2000, -2000, -2000];
-            victory.forEach((entity, i) => {
-                const node = world.get(entity, UINode);
-                node.insetTop = px(tops[i]!);
-                world.insert(entity, UINode, node);
-            });
-            if (showVictory) {
-                const sum = journal.summary();
-                journal.note('victory', { seconds: sum.seconds, gameHours: sum.gameHours, buildings: state.buildings.length, builds: sum.builds, outages: sum.outages, outageHours: sum.outageHours, trips: state.trips });
-                const minutes = Math.floor(sum.seconds / 60);
-                write(world, victory[2]!, `用时 ${minutes} 分 ${Math.round(sum.seconds - minutes * 60)} 秒，运输 ${state.trips} 趟，建造 ${sum.builds} 座，停电 ${sum.outageHours} 小时。按 J 保存试玩记录。`);
-            }
-        }
-        facts.victory = showVictory;
-        const held = Math.min(state.ore, REPAIR_COST);
-        const toggleNode = world.get(toggleEntity!, UINode);
-        const toggleTop = chosen !== undefined && chosen.building.kind === 'mine' ? 226 : -2000;
-        if (toggleNode.insetTop.value !== toggleTop) { toggleNode.insetTop = px(toggleTop); world.insert(toggleEntity!, UINode, toggleNode); }
-        const button = world.get(repairEntity!, UINode);
-        const buttonTop = online ? -2000 : repairTop;
-        if (button.insetTop.value !== buttonTop) { button.insetTop = px(buttonTop); world.insert(repairEntity!, UINode, button); }
-        write(world, objectiveTitle!, online ? 'LAST SIGNAL   /   信号在线' : 'LAST SIGNAL   /   信号离线');
-        write(world, objective!, online ? '信号已经发出' : '修复通信塔');
-        write(world, objectiveCount!, online ? '发射中' : `${held} / ${REPAIR_COST} 矿石`);
-        write(world, objectiveHint!, online ? '基地仍由你继续经营。'
-            : state.ore >= REPAIR_COST ? '矿石够了，按“修复通信塔”。' : '让无人机把矿石运进仓库，\n攒够了就能恢复信号。');
-        sizeTo(world, objectiveFill!, online ? 150 : Math.max(1, 150 * held / REPAIR_COST));
-        const fill = online || state.ore >= REPAIR_COST ? PALETTE.online : PALETTE.offline;
-        if (facts.fillColour !== fill.r) { paint(world, objectiveFill!, fill); facts.fillColour = fill.r; }
-
-        const hours = Math.floor(state.hour);
-        const minutes = Math.floor((state.hour - hours) * 60);
-        write(world, hud!, `矿石 ${state.ore}    已运 ${state.trips} 趟    ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}${facts.fast ? '  >>' : facts.held ? '  ||' : ''}\n`
-            + `无人机：${state.drone.cargo > 0 ? `正把 ${state.drone.cargo} 矿石运往仓库` : target !== null && !agent.hasTarget && isDocked(state, target) ? '在采矿站等矿石' : '飞往采矿站'}${facts.route === 'complete' ? '' : '（路被挡住了）'}`);
-        write(world, noticeText!, notice);
-        if (chosen !== undefined) {
-            const b = chosen.building;
-            const status = b.kind === 'tower' ? (online ? '正在发射信号。' : '沉默着，发射器已损坏。')
-                : b.kind === 'mine' ? (!b.on ? '已关闭。' : state.blackout ? '停工：没有电。' : b.id === activeId ? '运转中，无人机正赶来。' : '运转中。')
-                    : b.kind === 'store' ? (b.id === activeId ? '无人机正赶来卸货。' : '空闲。')
-                        : b.kind === 'solar' ? (report.generation > 0 ? '正在发电。' : '没有阳光，不发电。') : '正在储电。';
-            const detail = b.kind === 'tower' ? (online ? '信号已经发出。' : `修复需要 ${REPAIR_COST} 矿石，仓库现有 ${state.ore}。\n按 R 或“修复通信塔”。`)
-                : b.kind === 'mine' ? `待运矿石 ${Math.floor(b.stock)} / 10    耗电 1.5 千瓦\n已交给无人机 ${b.served} 次`
-                    : b.kind === 'store' ? `已收货 ${b.served} 次`
-                        : b.kind === 'solar' ? '正午最多发 4 千瓦，夜里不发电。' : '增加 12 度储电容量。';
-            write(world, info!, `${b.id} 号${kindName(b.kind)}\n${status}\n${detail}`);
-        } else {
-            const about: Record<PlaceableKind, string> = {
-                mine: '通电时每小时产 2 矿石。\n昼夜都耗电 1.5 千瓦。',
-                store: '无人机在这里卸货。\n离采矿站近一些，每趟都更快。',
-                solar: '白天最多发 4 千瓦。\n黄昏到黎明不发电。',
-                battery: '多存 12 度电，\n让采矿站撑过夜晚。',
-            };
-            write(world, info!, tool === 'select' ? '查看\n点击建筑看它在做什么。\n选中的采矿站可以关掉（O 键）。'
-                : tool === 'remove' ? '拆除\n点击建筑把它拆掉，\n退回一半矿石。'
-                    : `${kindName(tool)}   ${COSTS[tool]} 矿石\n${about[tool]}\n\n绿色可以建，红色被占或矿石不够。\nWASD 移动视角，滚轮缩放。`);
-        }
+        facts.camera = `${rig.x.toFixed(1)},${rig.z.toFixed(1)},${rig.distance.toFixed(1)}`;
+        facts.journalEntries = journal.entries.length;
+        journalAge += real;
+        keepJournal(journalAge > 10);
     }, { name: 'LastSignalPlay', runAfter: ['NavAgentSystem'] }));
 } });

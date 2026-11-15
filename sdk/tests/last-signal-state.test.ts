@@ -87,8 +87,8 @@ describe('last signal: hauling', () => {
         expect(state.drone).toMatchObject({ cargo: DRONE_CAPACITY, leg: 'toStore' });
         expect(mine.stock).toBe(0);
         expect(settleArrival(state)).toBe(false);
-        expect(nearestDock(state, storeOf(state))).toEqual({ x: 43, y: 32 });
-        standAt(state, 43, 32);
+        expect(nearestDock(state, storeOf(state))).toEqual({ x: 35, y: 32 });
+        standAt(state, 35, 32);
         expect(settleArrival(state)).toBe(true);
         expect(state).toMatchObject({ ore: START_ORE + DRONE_CAPACITY, trips: 1 });
         expect([mine.served, storeOf(state).served]).toEqual([1, 1]);
@@ -122,7 +122,7 @@ describe('last signal: hauling', () => {
     it('has nowhere to dock at a building walled in on every side', () => {
         const state = createState();
         state.ore = 100;
-        for (const cell of [{ x: 45, y: 32 }, { x: 43, y: 32 }, { x: 44, y: 31 }, { x: 44, y: 33 }]) place(state, 'store', cell);
+        for (const cell of [{ x: 37, y: 32 }, { x: 35, y: 32 }, { x: 36, y: 31 }, { x: 36, y: 33 }]) place(state, 'store', cell);
         expect(dockCells(state, storeOf(state))).toEqual([]);
         expect(nearestDock(state, storeOf(state))).toBeNull();
     });

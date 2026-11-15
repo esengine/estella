@@ -6,7 +6,7 @@ export interface Cell { x: number; y: number }
 export const SAVE_VERSION = 3;
 export const REPAIR_COST = 150;
 export const START_ORE = 15;
-export const TOWER_CELL: Cell = { x: 32, y: 24 };
+export const TOWER_CELL: Cell = { x: 28, y: 27 };
 export const DRONE_CAPACITY = 5;
 export const DAY_HOURS = 24;
 
@@ -81,7 +81,7 @@ export function createState(): GameState {
     return {
         buildings: [
             raise(1, 'mine', 20, 32, DRONE_CAPACITY),
-            raise(2, 'store', 44, 32),
+            raise(2, 'store', 36, 32),
             raise(3, 'tower', TOWER_CELL.x, TOWER_CELL.y),
             raise(4, 'solar', 18, 29),
         ],
