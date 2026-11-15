@@ -5102,4 +5102,6 @@ export const NOTED = {
     { note: "A texture larger than 4096 by 2048 can be compressed." },
   "feat(examples): the space frigate's hull answers the light - its paint takes a thin clear coat over a lower, wider spread of roughness, each plate is cut into smaller ones, turrets, masts and cowls are gunmetal and the nozzles heat-tinted steel, reflections of the sky are raised apart from the sky itself, and each plume is a wide dim sheath round a thin bright core with shock knots; its maps are the 4096 they were baked at":
     { note: "A space frigate example, built from a recipe." },
+  "perf(modeling): bake-model probes and paints on every core, and keeps what it probed - a normalBake's plan, its probes (the shape round each texel that a stain's where reads, and occlusion's rays) and its finish are separate steps; bake-model runs the probes and the stains' painting on worker threads over shared memory (--jobs) and keeps the probes under the project's .esengine/cache/model-bake by a hash of the surface and of the code that probes it, casting only what a wider stain adds (--no-cache casts all of it); the maps are the bytes one thread writes. The frigate's 4096 maps: eleven minutes to three, and thirty seconds once kept":
+    { note: "A model bakes on every core, and keeps what it measured." },
 };

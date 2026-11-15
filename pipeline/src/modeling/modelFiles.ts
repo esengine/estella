@@ -3,7 +3,10 @@
 import { createRequire } from 'node:module';
 import { encodeMesh } from 'esengine';
 import { encodeRgbaPng } from '../assets/png';
-import { bakeModel, bakeNormalMap, modelMaterialDoc, needsPreparing, prepareModeling, renderModelSheet, validateModelSource, type ModelReport } from './index';
+import { bakeModel, modelMaterialDoc, needsPreparing, prepareModeling, renderModelSheet, validateModelSource, type ModelReport } from './index';
+import { planNormalBake, type NormalMap } from './normalBake';
+import { openProbeCache } from './probeCache';
+import { probeCount, runBakeAcross } from './probeWorkers';
 
 export interface ModelFile {
     name: string;
@@ -16,18 +19,35 @@ export interface ModelFiles {
     files: ModelFile[];
     renderer: Record<string, unknown>;
     sheet?: Uint8Array;
+    probes?: { computed: number; reused: number; jobs: number };
+}
+
+export interface ModelFileOptions {
+    sheet?: boolean;
+    jobs?: number;
+    cacheDir?: string;
 }
 
 const dataMap = (size: number): Record<string, unknown> => ({ sRGB: false, maxSize: size });
 
-export async function bakeModelFiles(raw: unknown, stem: string, options: { sheet?: boolean } = {}): Promise<ModelFiles> {
+export async function bakeModelFiles(raw: unknown, stem: string, options: ModelFileOptions = {}): Promise<ModelFiles> {
     const source = validateModelSource(raw);
     if (needsPreparing(source.steps)) await prepareModeling(createRequire(import.meta.url).resolve('manifold-3d/manifold.wasm'));
     const baked = bakeModel(source);
     for (const [what, has] of [['a rig', baked.rig], ['shapes', baked.shapes], ['hair cards', baked.hair], ['fractured pieces', baked.shards], ['leaf cards', baked.leaves]] as const) {
         if (has) throw new Error(`bake-model writes a still model's mesh, maps and material; this one has ${what}, which the editor writes`);
     }
-    const normal = baked.detail ? bakeNormalMap(baked) : null;
+    let normal: NormalMap | null = null;
+    let probes: ModelFiles['probes'];
+    if (baked.detail) {
+        const plan = planNormalBake(baked);
+        const cache = options.cacheDir ? openProbeCache(options.cacheDir, stem, baked.detail.size, plan.probes) : null;
+        const computed = probeCount(plan.probes);
+        const jobs = await runBakeAcross(plan, options.jobs ?? 1);
+        cache?.save();
+        probes = { computed, reused: cache?.reused ?? 0, jobs };
+        normal = plan.finish();
+    }
     if (normal) {
         baked.report.normalBake = normal.report;
         baked.report.warnings.push(...normal.warnings);
@@ -59,7 +79,7 @@ export async function bakeModelFiles(raw: unknown, stem: string, options: { shee
         opaque: !blended,
         cullBackfaces: closed && !source.material?.alpha,
     };
-    if (!options.sheet) return { report: baked.report, files, renderer };
+    if (!options.sheet) return { report: baked.report, files, renderer, ...(probes ? { probes } : {}) };
     const sheet = renderModelSheet(baked, ['front', 'right', 'top', 'iso'], 512);
-    return { report: baked.report, files, renderer, sheet: encodeRgbaPng(sheet.width, sheet.height, sheet.rgba) };
+    return { report: baked.report, files, renderer, sheet: encodeRgbaPng(sheet.width, sheet.height, sheet.rgba), ...(probes ? { probes } : {}) };
 }
