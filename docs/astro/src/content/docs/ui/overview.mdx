@@ -365,7 +365,7 @@ world.insert(hudCanvas, CanvasEffect, { material: lens.handle });
 
 - **It is by layer.** Every screen Canvas on the same sorting layer goes through the material of the first one
   that has a `CanvasEffect`. Layers without one are drawn first, straight onto the frame; then each layer with
-  one, over them. So what must not bend, such as markers that stand on things in the world
+  one, over them, from the lowest layer number up. So what must not bend, such as markers that stand on things in the world
   (`UIWorldAnchor`), goes on a Canvas of another layer.
 - **It moves pixels, not the pointer.** A click lands where an element was laid out. Keep what is clicked on a
   layer without an effect, or keep the bend small.

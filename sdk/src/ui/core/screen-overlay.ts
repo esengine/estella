@@ -74,7 +74,7 @@ export function screenOverlayPasses(layerMask: number, effects: readonly ScreenO
     for (const effect of effects) through |= 1 << effect.layer;
     through = (through & layerMask) >>> 0;
     const passes: ScreenOverlayPass[] = [{ layers: (layerMask & ~through) >>> 0, effect: 0 }];
-    for (const effect of effects) {
+    for (const effect of [...effects].sort((a, b) => a.layer - b.layer)) {
         const bit = (1 << effect.layer) >>> 0;
         if ((through & bit) !== 0) passes.push({ layers: bit, effect: effect.material });
     }
