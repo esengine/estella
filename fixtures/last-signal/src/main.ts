@@ -44,6 +44,8 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
     let hud: Entity | null = null;
     let canvas: Entity | null = null;
     let clock: Entity | null = null;
+    let camera: Entity | null = null;
+    let lowView = false;
     const buildingViews = new Map<number, Entity>();
     const buildingMarks = new Map<number, Entity>();
     let cursor: Cell = { x: 32, y: 30 };
@@ -182,6 +184,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         nav.setSurface(grid);
         canvas = world.findEntityByName('Canvas');
         clock = world.findEntityByName('Clock');
+        camera = world.findEntityByName('Camera');
         if (canvas === null || clock === null) throw new Error('the scene is missing its Canvas or its Clock');
 
         logic = world.spawn('DroneBody');
@@ -204,7 +207,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         droneMark = mark(world, 'MapDrone', COLOURS.drone, 6);
         hud = spawnUIEntity({
             world, parent: canvas,
-            node: { position: UIPositionType.Absolute, insetLeft: px(MAP.left), insetTop: px(MAP.top + GRID_HEIGHT * MAP.cell + 12), width: px(720), height: px(120) },
+            node: { position: UIPositionType.Absolute, insetLeft: px(MAP.left), insetTop: px(604), width: px(720), height: px(100) },
             text: { content: '', fontSize: 16, color: COLOURS.text, align: 0 },
         });
         world.insert(hud, Name, { value: 'Hud' });
@@ -243,6 +246,13 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         if (input.isKeyPressed('KeyK')) save();
         if (input.isKeyPressed('KeyL')) load(world);
         if (input.isKeyPressed('KeyN')) { saves.remove(SLOT); adopt(world, createState()); say('New game.'); }
+        if (input.isKeyPressed('KeyC') && camera !== null) {
+            lowView = !lowView;
+            const pose = world.get(camera, Transform);
+            pose.position = lowView ? { x: 0, y: 400, z: 5200 } : { x: 0, y: 2800, z: 3400 };
+            pose.rotation = lowView ? { x: -0.0262, y: 0, z: 0, w: 0.9997 } : { x: -0.3375, y: 0, z: 0, w: 0.9413 };
+            world.insert(camera, Transform, pose);
+        }
         if (input.isKeyPressed('KeyP')) throw new Error('last-signal probe: a script error raised on purpose');
 
         const clockData = world.get(clock!, TimeOfDay);
@@ -314,7 +324,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         const minutes = Math.floor((state.hour - hours) * 60);
         const content = `ORE ${state.ore}   TRIPS ${state.trips}   CARGO ${state.drone.cargo}   ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}${facts.fast ? '  (fast)' : ''}\n`
             + `TOOL ${tool === 'mine' ? '1 MINE' : '2 STOREHOUSE'}   CURSOR ${cursor.x}, ${cursor.y}   ROUTE ${String(facts.route)}\n`
-            + `${notice}\n1/2 tool   Enter build   Backspace remove   T time   K save   L load   N new`;
+            + `${notice}\n1/2 tool   Enter build   Backspace remove   T time   C view   K save   L load   N new`;
         const text = world.get(hud!, Text);
         if (text.content !== content) world.insert(hud!, Text, { ...text, content });
     }, { name: 'LastSignalPlay', runAfter: ['NavAgentSystem'] }));

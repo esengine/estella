@@ -4,6 +4,29 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serveHost } from './lib/staticServer.mjs';
+import zlib from 'node:zlib';
+
+function encodePng(width, height, rgba) {
+    const stride = width * 4;
+    const raw = Buffer.alloc((stride + 1) * height);
+    for (let y = 0; y < height; y++) rgba.copy(raw, y * (stride + 1) + 1, (height - 1 - y) * stride, (height - y) * stride);
+    const table = new Int32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c; });
+    const chunk = (type, data) => {
+        const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+        let crc = -1;
+        for (const byte of body) crc = table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+        const out = Buffer.alloc(body.length + 8);
+        out.writeUInt32BE(data.length, 0);
+        body.copy(out, 4);
+        out.writeUInt32BE((crc ^ -1) >>> 0, body.length + 4);
+        return out;
+    };
+    const header = Buffer.alloc(13);
+    header.writeUInt32BE(width, 0);
+    header.writeUInt32BE(height, 4);
+    header.set([8, 6, 0, 0, 0], 8);
+    return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
 
 const flag = (name) => { const at = process.argv.indexOf(name); return at < 0 ? undefined : process.argv[at + 1]; };
 const dir = path.resolve(flag('--dir') ?? 'output/last-signal-web');
@@ -62,7 +85,15 @@ try {
         }
         assert.fail(`the cursor never reached ${x}, ${y}`);
     };
-    const shot = async (name) => { await page.screenshot({ path: path.join(out, `${name}.png`) }); };
+    const shot = async (name) => {
+        const frame = await page.evaluate(() => {
+            const { width, height, rgba } = window.__estellaCooked.capture();
+            let text = '';
+            for (let i = 0; i < rgba.length; i += 32768) text += String.fromCharCode(...rgba.subarray(i, i + 32768));
+            return { width, height, data: btoa(text) };
+        });
+        fs.writeFileSync(path.join(out, `${name}.png`), encodePng(frame.width, frame.height, Buffer.from(frame.data, 'base64')));
+    };
     const luminance = () => page.evaluate(() => {
         const { width, height, rgba } = window.__estellaCooked.capture();
         let sum = 0, count = 0;
