@@ -1,0 +1,237 @@
+{
+  "version": "2",
+  "name": "extractor",
+  "rootEntityId": "n0",
+  "entities": [
+    {
+      "prefabEntityId": "n0",
+      "name": "Extractor",
+      "parent": null,
+      "children": [
+        "n0_p0",
+        "n0_p1",
+        "n0_p2",
+        "n0_p3",
+        "n0_p4",
+        "n0_p5",
+        "n0_p6"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "scale": {
+              "x": 100,
+              "y": 100,
+              "z": 100
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n0_p0",
+      "name": "extractor_0_0",
+      "parent": "n0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/extractor_0_0.esmesh",
+            "lit": true,
+            "material": "assets/models/extractor_m0.esmaterial",
+            "color": {
+              "r": 0.07000000029802322,
+              "g": 0.07999999821186066,
+              "b": 0.09000000357627869,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n0_p1",
+      "name": "extractor_0_1",
+      "parent": "n0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/extractor_0_1.esmesh",
+            "lit": true,
+            "material": "assets/models/extractor_m1.esmaterial",
+            "color": {
+              "r": 0.550000011920929,
+              "g": 0.5699999928474426,
+              "b": 0.6000000238418579,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n0_p2",
+      "name": "extractor_0_2",
+      "parent": "n0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/extractor_0_2.esmesh",
+            "lit": true,
+            "material": "assets/models/extractor_m2.esmaterial",
+            "color": {
+              "r": 0.019999999552965164,
+              "g": 0.019999999552965164,
+              "b": 0.019999999552965164,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n0_p3",
+      "name": "extractor_0_3",
+      "parent": "n0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/extractor_0_3.esmesh",
+            "lit": true,
+            "material": "assets/models/extractor_m3.esmaterial",
+            "color": {
+              "r": 0.8999999761581421,
+              "g": 0.6200000047683716,
+              "b": 0.029999999329447746,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n0_p4",
+      "name": "extractor_0_4",
+      "parent": "n0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/extractor_0_4.esmesh",
+            "lit": true,
+            "material": "assets/models/extractor_m4.esmaterial",
+            "color": {
+              "r": 0.800000011920929,
+              "g": 0.27000001072883606,
+              "b": 0.03999999910593033,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n0_p5",
+      "name": "extractor_0_5",
+      "parent": "n0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/extractor_0_5.esmesh",
+            "lit": true,
+            "material": "assets/models/extractor_m5.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 0.5,
+              "b": 0.10000000149011612,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n0_p6",
+      "name": "extractor_0_6",
+      "parent": "n0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/extractor_0_6.esmesh",
+            "lit": true,
+            "material": "assets/models/extractor_m6.esmaterial",
+            "color": {
+              "r": 0.8999999761581421,
+              "g": 0.3799999952316284,
+              "b": 0.05999999865889549,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

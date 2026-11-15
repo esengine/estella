@@ -1,0 +1,22 @@
+{
+  "formatVersion": "1",
+  "name": "Last Signal",
+  "description": "Third-person survival and base building on a storm-worn colony world.",
+  "tag": "Fixture",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 1920,
+    "height": 1080
+  },
+  "spineVersion": "none",
+  "features": {
+    "rendering": {
+      "colorSpace": "linear",
+      "outputTransform": "aces",
+      "quality": {
+        "mode": "high"
+      }
+    }
+  }
+}

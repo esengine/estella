@@ -1,0 +1,230 @@
+{
+  "version": 4,
+  "name": "Showcase",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 400,
+              "z": 1000
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 42,
+            "nearPlane": 10,
+            "farPlane": 90000,
+            "isActive": true,
+            "priority": 0
+          }
+        },
+        {
+          "type": "PostProcessVolume",
+          "data": {
+            "isGlobal": true,
+            "priority": 0,
+            "weight": 1,
+            "effects": [
+              {
+                "type": "skyAtmosphere",
+                "enabled": true,
+                "uniforms": {
+                  "u_intensity": 1,
+                  "u_lightScene": 1,
+                  "u_clouds": 0.3,
+                  "u_haze": 1.4,
+                  "u_unitsPerKm": 100000
+                }
+              },
+              {
+                "type": "gtao",
+                "enabled": true,
+                "uniforms": {
+                  "u_radius": 120,
+                  "u_intensity": 1
+                }
+              },
+              {
+                "type": "autoExposure",
+                "enabled": true,
+                "uniforms": {
+                  "u_bias": 0,
+                  "u_minEV": -2,
+                  "u_maxEV": 2
+                }
+              },
+              {
+                "type": "colorGrade",
+                "enabled": true,
+                "uniforms": {
+                  "u_contrast": 1.08,
+                  "u_saturation": 1.1,
+                  "u_temperature": 0.04
+                }
+              },
+              {
+                "type": "bloom",
+                "enabled": true,
+                "uniforms": {
+                  "u_threshold": 1,
+                  "u_intensity": 0.4,
+                  "u_radius": 1
+                }
+              },
+              {
+                "type": "fxaa",
+                "enabled": true,
+                "uniforms": {
+                  "u_intensity": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Clock",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "TimeOfDay",
+          "data": {
+            "hour": 16.6,
+            "daySeconds": 0,
+            "latitude": 35,
+            "declination": 10,
+            "north": 200,
+            "drive": 31
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Sun",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 1,
+            "color": {
+              "r": 1,
+              "g": 0.95,
+              "b": 0.86,
+              "a": 1
+            },
+            "intensity": 3.4,
+            "enabled": true,
+            "meshShadows": true,
+            "shadowExtent": 2400,
+            "shadowStrength": 1,
+            "sourceAngle": 0.6
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Sky",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 2,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "intensity": 0.9,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Ground",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": -10,
+              "z": 0
+            },
+            "scale": {
+              "x": 600,
+              "y": 0.2,
+              "z": 600
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "castShadows": false,
+            "enabled": true,
+            "color": {
+              "r": 0.62,
+              "g": 0.44,
+              "b": 0.3,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "parent": null,
+      "prefab": "assets/models/extractor.esprefab",
+      "overrides": [],
+      "added": [],
+      "removed": []
+    }
+  ]
+}
