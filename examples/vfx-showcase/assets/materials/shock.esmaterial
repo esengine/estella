@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:distortion",
+  "blendMode": 0,
+  "depthTest": true,
+  "depthWrite": false,
+  "cull": 0,
+  "properties": {
+    "u_strength": 0.05,
+    "u_radial": 1.0,
+    "u_noiseScale": 6.0,
+    "u_scroll": {
+      "x": 0,
+      "y": 0
+    },
+    "u_dispersion": 0.08
+  }
+}

@@ -123,7 +123,7 @@ struct MaterialUniformLayout {
     /// What the per-draw questions ask of a layout by name, answered once when it is registered (MaterialStore::registerLayout):
     /// an index into params or textures, -1 for none. Asked by name, each was a string search per mesh per view per frame.
     struct Named {
-        i32 sceneColor = -1, sceneDepth = -1;              // textures
+        i32 sceneColor = -1, sceneDepth = -1, screenColor = -1;
         i32 transmission = -1, blendDistance = -1;          // params
         i32 coverage = -1, tip = -1, hairShadow = -1;       // params
         bool coverageIsCutoff = false;
@@ -142,6 +142,7 @@ struct MaterialUniformLayout {
         };
         named.sceneColor = texture("u_sceneColor");
         named.sceneDepth = texture("u_sceneDepthMap");
+        named.screenColor = texture("u_screenColor");
         named.transmission = param("u_transmission");
         named.blendDistance = param("u_blendDistance");
         named.coverage = param(coverageParam);
@@ -468,6 +469,13 @@ public:
     /// `u_sceneColor` unit unless the material was given a texture of its own there.
     void setSceneColor(TextureHandle texture) { sceneColor_ = texture; }
 
+    bool usesScreenColor(u32 materialId) const {
+        const MaterialRecord* m = find(materialId);
+        const MaterialUniformLayout* layout = m ? layoutFor(m->shaderRef) : nullptr;
+        return layout && layout->named.screenColor >= 0;
+    }
+    void setScreenColor(TextureHandle texture) { screenColor_ = texture; }
+
     /// Whether @p materialId's shader reads how far the opaque scene behind it is (declares `u_sceneDepthMap`): water measuring its
     /// own depth, a fade where a surface meets what it lies on. Such a draw is also made after the scene's copy.
     bool usesSceneDepth(u32 materialId) const {
@@ -624,6 +632,7 @@ private:
     /// Of those, the ones that write `fragAlbedo` too (see programWritesAlbedo).
     mutable std::unordered_set<u32> albedo_programs_;
     TextureHandle sceneColor_ = TextureHandle::Invalid;
+    TextureHandle screenColor_ = TextureHandle::Invalid;
     TextureHandle sceneDepth_ = TextureHandle::Invalid;
 
 public:

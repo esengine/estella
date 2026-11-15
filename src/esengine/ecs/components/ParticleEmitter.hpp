@@ -258,6 +258,9 @@ struct ParticleEmitter {
     ES_PROPERTY(min=0, category=Rendering, shown_when=renderMode:Stretched, tooltip="Stretched: the quad's own length is its size times this.")
     f32 lengthScale{1.0f};
 
+    ES_PROPERTY(animatable, min=0, category=Rendering, tooltip="Multiplies the particle's colour (not its alpha) as it is drawn, past 1 where the picture is HDR: what makes a spark bright enough to bloom. A material's fragment receives the colour already multiplied. The CPU simulation's per-particle trail is drawn without it.")
+    f32 intensity{1.0f};
+
     // State
     ES_PROPERTY()
     bool enabled{true};

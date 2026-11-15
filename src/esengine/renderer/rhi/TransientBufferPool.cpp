@@ -337,7 +337,7 @@ void TransientBufferPool::setupStream(LayoutId layout) {
         VertexLayoutDesc desc;
         desc.attributeCount = 8;
         desc.strides[0] = 16;
-        desc.strides[1] = 44;
+        desc.strides[1] = PARTICLE_INSTANCE_STRIDE;
         desc.instanceStep[1] = true;
         desc.attributes[0] = {0, 2, GfxDataType::Float, false, 0, 0};
         desc.attributes[1] = {1, 2, GfxDataType::Float, false, 8, 0};
@@ -347,8 +347,8 @@ void TransientBufferPool::setupStream(LayoutId layout) {
         desc.attributes[3] = {3, 2, GfxDataType::Float, false, 12, 1};
         desc.attributes[4] = {4, 1, GfxDataType::Float, false, 20, 1};
         desc.attributes[5] = {5, 4, GfxDataType::UnsignedByte, true, 24, 1};
-        desc.attributes[6] = {6, 2, GfxDataType::Float, false, 28, 1};
-        desc.attributes[7] = {7, 2, GfxDataType::Float, false, 36, 1};
+        desc.attributes[6] = {6, 4, GfxDataType::Float, false, 28, 1};
+        desc.attributes[7] = {7, 4, GfxDataType::Float, false, 44, 1};
         s.vertex_stride = desc.strides[1];
         s.layout = device_.createVertexLayout(desc);
         return;

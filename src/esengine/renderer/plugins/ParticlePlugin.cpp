@@ -25,18 +25,16 @@
 namespace esengine {
 
 namespace {
-// One record per live particle, matching the PARTICLE_INSTANCE vertex attributes
-// (locations 2-7). The GPU expands the 4-vertex quad; the CPU only fills these 44 bytes
-// per particle (vs. the old 4 verts + 6 indices), which is the whole point of RC7-1.
 struct ParticleInstanceData {
-    f32 px, py, pz;      // a_inst_position (world)
-    f32 sx, sy;          // a_inst_size
-    f32 rotation;        // a_inst_rotation
-    u32 color;           // a_inst_color (RGBA8)
+    f32 px, py, pz;
+    f32 sx, sy;
+    f32 rotation;
+    u32 color;
     f32 uvOffsetX, uvOffsetY;
     f32 uvScaleX, uvScaleY;
+    f32 age, random, intensity, lifetime;
 };
-static_assert(sizeof(ParticleInstanceData) == 44, "instance stride must match the VAO layout");
+static_assert(sizeof(ParticleInstanceData) == PARTICLE_INSTANCE_STRIDE, "instance stride must match the VAO layout");
 }  // namespace
 
 void ParticlePlugin::init(RenderFrameContext& ctx) {
@@ -163,6 +161,7 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
         const bool stretched = emitter.renderMode == static_cast<i32>(ecs::ParticleRenderMode::Stretched);
         const f32 lengthScale = emitter.lengthScale;
         const f32 velocityScale = emitter.velocityScale;
+        const f32 intensity = std::max(emitter.intensity, 0.0f);
 
         u32 i = 0;
         if (!state->gpu) state->pool.forEachAlive([&](const particle::Particle& p) {
@@ -213,6 +212,10 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
             d.uvOffsetX = u0;        d.uvOffsetY = v0;
             d.uvScaleX = sheet ? uvScaleX : 1.0f;
             d.uvScaleY = sheet ? uvScaleY : 1.0f;
+            d.age = p.lifetime > 0.0f ? std::min(p.age / p.lifetime, 1.0f) : 1.0f;
+            d.random = particle::unitHash(p.generation);
+            d.intensity = intensity;
+            d.lifetime = p.lifetime;
         });
 
         // A material owns shading fully: its program is this one compiled for the
