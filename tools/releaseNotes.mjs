@@ -5048,6 +5048,8 @@ export const NOTED = {
     { note: "A VFX showcase example." },
   "chore(notes): the showcase's gallery text reaches the note of the example it names":
     {"internal": "A line in the notes file; nothing a creator runs changes."},
+  "fix(panels): a popped-out panel listens on the window it lives in - the flipbook lane's scrub and resize drags, the input map's key capture, the locale table's focused-cell check, the listbox's arrow keys and the log's copied selection all read the main window's globals, so in a popped-out panel they heard nothing; the four main-window dialogs take their window the same way":
+    {"note": "A popped-out panel hears its own keys and drags."},
   "fix(export): the script compile step runs from a path with a space or an ampersand on Windows - emcc is a batch file there and was started through a shell with its arguments unquoted, as were the emsdk setup, the GLX toolchain, the engine build commands and with-env; they all start through runTool now, and check-tool-spawn refuses a shell passed by hand":
     {"note": "A project in a folder with a space or `&` in its name exports its compiled scripts on Windows."},
 };

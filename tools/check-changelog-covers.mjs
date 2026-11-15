@@ -17,12 +17,11 @@ const CHANGELOG = path.join(ROOT, 'CHANGELOG.md');
 /** Types whose commits change what a creator can do, so a note is owed. */
 const USER_FACING = /^(feat|fix|refactor|perf)(\([^)]*\))?!?:/;
 
-const GIT_ENV = { ...process.env };
-for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR']) delete GIT_ENV[name];
+const { GIT_DIR: _dir, GIT_WORK_TREE: _tree, GIT_INDEX_FILE: _index, ...HERE } = process.env;
 
 const git = (args, cwd = ROOT) => {
   try {
-    return execFileSync('git', args, { cwd, encoding: 'utf8', env: GIT_ENV });
+    return execFileSync('git', args, { cwd, encoding: 'utf8', env: HERE });
   } catch {
     return '';
   }
