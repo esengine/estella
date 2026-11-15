@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { spawn } from 'child_process';
+import { spawnTool } from '../../tools/lib/runTool.mjs';
 import fs, { existsSync } from 'fs';
 import os from 'os';
 import path from 'path';
@@ -253,22 +253,11 @@ export function runCommand(command, args, options = {}) {
 
         logger.debug(`Running: ${command} ${args.join(' ')}`);
 
-        // Windows runs these through cmd, which re-splits the whole line on spaces:
-        // an unquoted `C:\Program Files\...` (where the Android SDK and a bundled
-        // JDK normally live) would arrive as two arguments. Quote what needs it —
-        // only under the shell, since a direct spawn passes argv through intact.
-        const shell = process.platform === 'win32';
-        const quoted = (s) => (shell && /\s/.test(s) && !/^".*"$/.test(s) ? `"${s}"` : s);
-
-        // Keep CMake's MSVC prefix probe and Ninja's /showIncludes parser on
-        // the same console encoding, including installations with only a
-        // localized compiler language pack. English VSLANG cannot fix those.
-        const executable = shell ? `chcp 65001>nul && ${quoted(command)}` : command;
-        const proc = spawn(executable, args.map(quoted), {
+        const proc = spawnTool(command, args, {
             cwd,
             env: withBinaryenWorkers({ ...process.env, ...env }),
             stdio: silent ? 'pipe' : 'inherit',
-            shell,
+            shellPrefix: 'chcp 65001>nul && ',
         });
 
         let stdout = '';

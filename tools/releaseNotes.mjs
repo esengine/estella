@@ -5054,12 +5054,16 @@ export const NOTED = {
     { note: "A VFX showcase example." },
   "chore(notes): the showcase's gallery text reaches the note of the example it names":
     {"internal": "A line in the notes file; nothing a creator runs changes."},
+  "fix(native): a second save on Windows reaches the disk - the desktop host moved its temp file over the save with rename(), which Windows refuses when the target exists, so every save after the first was dropped without a word; the host replaces the file (MoveFileExW) and opens its paths as UTF-8, the SDK reports a write the host refused, and the packaged-game check launches a game three times and reads the count it kept":
+    { note: "On Windows a packaged game keeps every save, not only its first." },
   "fix(panels): a popped-out panel listens on the window it lives in - the flipbook lane's scrub and resize drags, the input map's key capture, the locale table's focused-cell check, the listbox's arrow keys and the log's copied selection all read the main window's globals, so in a popped-out panel they heard nothing; the four main-window dialogs take their window the same way":
     {"note": "A popped-out panel hears its own keys and drags."},
   "fix(ecs): a spawn or frame-end callback that unsubscribes itself no longer makes the next one miss that call - world.onSpawn and app.onFrameEnd spliced the list being walked, so the callback after one that unsubscribed inside its own call was skipped; both now copy on subscription change as world.onDespawn already did. A static batch that fails while shrinking is logged instead of rejecting unhandled":
     {"note": "A spawn or frame-end callback that unsubscribes itself no longer makes the next one miss that call."},
   "chore(sdk): the engine package is checked for unused code and type-only imports like the other packages - tsconfig gains noUnusedLocals, noUnusedParameters, isolatedModules and verbatimModuleSyntax, and the 126 unused imports, locals, parameters, fields and functions it found are gone (54 of them heap-view parameters the pointer-accessor generator now names only where a body reads them). 13 UI constants nothing read are removed. The emitted chunks import the same modules as before":
     {"internal": "Compiler checks and unused code inside the engine package; the emitted modules import what they did."},
+  "fix(export): the script compile step runs from a path with a space or an ampersand on Windows - emcc is a batch file there and was started through a shell with its arguments unquoted, as were the emsdk setup, the GLX toolchain, the engine build commands and with-env; they all start through runTool now, and check-tool-spawn refuses a shell passed by hand":
+    {"note": "A project in a folder with a space or `&` in its name exports its compiled scripts on Windows."},
   "feat(outliner): double-clicking an entity row frames it in the viewport":
     { note: "Double-clicking an entity in the Outliner frames it." },
   "feat(outliner): double-clicking an entity row frames it in the viewport - the same as F, as the common editors do; renaming an entity stays on F2 and the context menu, and a folder row, having nothing to frame, still renames on double-click. The twist, lock and eye do not frame when clicked twice quickly":

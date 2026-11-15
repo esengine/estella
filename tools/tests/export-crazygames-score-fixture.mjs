@@ -4,8 +4,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-const args=process.argv.slice(2), flag=name=>args[args.indexOf(name)+1];
-if(!args.includes('--wasm')||!args.includes('--out'))throw Error('Expected --wasm <runtime> --out <export>');
+import { toolArgs } from '../lib/toolArgs.mjs';
+const ARGS=toolArgs({wasm:null,out:null});
+if(!ARGS.wasm||!ARGS.out)throw Error('Expected --wasm <runtime> --out <export>');
 const workspace=process.cwd(), output=path.resolve(workspace,'output');
 fs.mkdirSync(output,{recursive:true});
 const temporary=fs.mkdtempSync(path.join(output,'crazygames-score-source-'));
@@ -15,7 +16,7 @@ try {
     const manifestPath=path.join(project,'project.esproject'), manifest=JSON.parse(fs.readFileSync(manifestPath,'utf8'));
     manifest.packaging.profiles.crazygames.platforms.web.leaderboardEncryptionKey=Buffer.alloc(32,7).toString('base64');
     fs.writeFileSync(manifestPath,JSON.stringify(manifest,null,2));
-    execFileSync(process.execPath,['pipeline/bin/estella.mjs','export',project,'--profile','crazygames','--wasm',path.resolve(flag('--wasm')),'--out',path.resolve(flag('--out'))],{cwd:workspace,stdio:'inherit',windowsHide:true});
+    execFileSync(process.execPath,['pipeline/bin/estella.mjs','export',project,'--profile','crazygames','--wasm',path.resolve(ARGS.wasm),'--out',path.resolve(ARGS.out)],{cwd:workspace,stdio:'inherit',windowsHide:true});
 } finally {
     const resolved=path.resolve(temporary);
     if(path.dirname(resolved)!==output||!path.basename(resolved).startsWith('crazygames-score-source-'))throw Error('Unsafe temporary source path');

@@ -25,25 +25,23 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync, rmSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { atTier, sharesOf, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, subpackageFor, firstScreenFor, packagePixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
+import { atTier, sharesOf, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, subpackageFor, firstScreenFor, packagePixels, launchTimeoutFor, ROOT, TIERS } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 import { suspendDrive } from './lib/suspendDrive.mjs';
 import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict, failureLines } from './lib/deadGpu.mjs';
 import { NEEDS_XVFB, runWithElectronDisplay, runElectron, ensureElectronBinary } from './lib/electronRun.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
+import { toolArgs } from './lib/toolArgs.mjs';
 
 const argv = process.argv.slice(2);
-const flag = (n, d) => {
-  const i = argv.indexOf(`--${n}`);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d;
-};
+const ARGS = toolArgs({ tier: TIERS, only: '', shots: '', work: null, shard: null, jobs: '1', 'no-parity': false, worker: false, 'allow-stale-engine': false });
 
-const TIER = flag('tier', 'pr');
-const ONLY = flag('only', '');
-const shotsArg = flag('shots', '');
+const TIER = ARGS.tier;
+const ONLY = ARGS.only;
+const shotsArg = ARGS.shots;
 const SHOTS = shotsArg ? path.resolve(shotsArg) : '';
-const WORK = path.resolve(flag('work', path.join(ROOT, '.golden')));
-const NO_PARITY = argv.includes('--no-parity');
+const WORK = path.resolve(ARGS.work ?? path.join(ROOT, '.golden'));
+const NO_PARITY = ARGS['no-parity'];
 /** Targets this runner owns; the rest belong to the native/desktop verifiers.
  *  A mini-game needs its vendor's globals, so it goes through its own launcher. */
 const OWNED = new Set(['web', 'playable', 'wechat', 'douyin']);
@@ -96,7 +94,7 @@ function exporterReason(out) {
 
 const only = ONLY ? new Set(ONLY.split(',').map((s) => s.trim())) : null;
 const tiered = atTier(TIER).filter((g) => !only || only.has(g.id));
-const shardArg = flag('shard', argv.includes('--worker') ? '' : (process.env.ESTELLA_GOLDEN_SHARD ?? ''));
+const shardArg = ARGS.shard ?? (ARGS.worker ? '' : (process.env.ESTELLA_GOLDEN_SHARD ?? ''));
 const shard = /^\d+\/\d+$/.test(shardArg)
   ? { index: Number(shardArg.split('/')[0]) - 1, of: Number(shardArg.split('/')[1]) }
   : null;
@@ -125,10 +123,10 @@ console.log(`golden ${TIER}: ${projects.length} project(s), ${pairs.length} pair
  * `--jobs N`: the projects, N at a time, each worker this script over its share.
  * The release tier's seventeen took 33 minutes in a row with three cores idle.
  */
-const JOBS = shard ? 1 : Math.max(1, Number(flag('jobs', '1')) || 1);
+const JOBS = shard ? 1 : Math.max(1, Number(ARGS.jobs) || 1);
 /** How many launches share this runner's rasterizer: a worker's, or one. */
-const SHARE = argv.includes('--worker') ? JOBS : 1;
-if (JOBS > 1 && !argv.includes('--worker') && projects.length > 1) {
+const SHARE = ARGS.worker ? JOBS : 1;
+if (JOBS > 1 && !ARGS.worker && projects.length > 1) {
   ensureElectronBinary();
   const bins = sharesOf(projects, Math.min(JOBS, projects.length), OWNED).map((share) => ({ ids: share.map((g) => g.id) }));
   // `--jobs` goes through: a worker does not fork again (`--worker`), and it

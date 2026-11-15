@@ -17,7 +17,7 @@
 import { existsSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { spawnSync } from 'child_process';
+import { runTool } from '../../tools/lib/runTool.mjs';
 
 const EMSCRIPTEN_VERSION = '5.0.0';
 
@@ -30,12 +30,7 @@ function log(msg) {
 
 function run(emsdkCmd, args) {
     log(`emsdk ${args.join(' ')}`);
-    const result = spawnSync(emsdkCmd, args, {
-        cwd: EMSDK_DIR,
-        stdio: 'inherit',
-        // emsdk on Windows is a .bat/.ps1; let the shell resolve it.
-        shell: process.platform === 'win32',
-    });
+    const result = runTool(emsdkCmd, args, { cwd: EMSDK_DIR, stdio: 'inherit' });
     if (result.status !== 0) {
         log(`Command failed (exit ${result.status ?? 'signal'}).`);
         process.exit(result.status || 1);
@@ -49,12 +44,7 @@ function main() {
         process.exit(1);
     }
 
-    // The path is spelled out on both platforms: cmd searches the working
-    // directory for a bare name only where NoDefaultCurrentDirectoryInExePath is
-    // unset. Quoted because a .bat needs a shell, which concatenates its args.
-    const emsdkCmd = process.platform === 'win32'
-        ? `"${path.join(EMSDK_DIR, 'emsdk.bat')}"`
-        : path.join(EMSDK_DIR, 'emsdk');
+    const emsdkCmd = path.join(EMSDK_DIR, process.platform === 'win32' ? 'emsdk.bat' : 'emsdk');
 
     run(emsdkCmd, ['install', EMSCRIPTEN_VERSION]);
     run(emsdkCmd, ['activate', EMSCRIPTEN_VERSION]);

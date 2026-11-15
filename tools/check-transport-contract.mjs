@@ -57,7 +57,7 @@ function check(name, source) {
       target: 'ES2022', module: 'ESNext', moduleResolution: 'bundler',
       strict: true, skipLibCheck: true, noEmit: true, types: [],
       lib: ['ES2022', 'DOM'],
-      baseUrl: '.', paths: { esengine: [posix(DTS)], 'esengine/replication': [posix(REPL_DTS)] },
+      paths: { esengine: [posix(DTS)], 'esengine/replication': [posix(REPL_DTS)] },
     },
     include: [posix(file)],
   }));

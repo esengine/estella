@@ -24,8 +24,11 @@ import { mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync, readdirSync }
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { legacyAtTier, ROOT } from './goldenProjects.mjs';
+import { legacyAtTier, ROOT, TIERS } from './goldenProjects.mjs';
 import { runElectron } from './lib/electronRun.mjs';
+import { toolArgs } from './lib/toolArgs.mjs';
+
+const ARGS = toolArgs({ tier: TIERS, tag: '', id: '' });
 
 // The migration's own tables, not a copy: a renamed component is not a lost one
 // and a retired one is deliberately dropped, so comparing released spellings
@@ -35,16 +38,11 @@ import { runElectron } from './lib/electronRun.mjs';
 const { RENAMED_COMPONENT_TYPES, RETIRED_COMPONENT_TYPES } =
   await import(pathToFileURL(path.join(ROOT, 'sdk', 'dist', 'index.js')).href);
 
-const argv = process.argv.slice(2);
-const flag = (n, d) => {
-  const i = argv.indexOf(`--${n}`);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d;
-};
-const TIER = flag('tier', 'pr');
+const TIER = ARGS.tier;
 const DESKTOP = path.join(ROOT, 'desktop');
 
-const cases = flag('tag', '') && flag('id', '')
-  ? [{ tag: flag('tag', ''), id: flag('id', ''), tier: TIER }]
+const cases = ARGS.tag && ARGS.id
+  ? [{ tag: ARGS.tag, id: ARGS.id, tier: TIER }]
   : legacyAtTier(TIER);
 
 /** Check out one example directory as it was at `tag`. */

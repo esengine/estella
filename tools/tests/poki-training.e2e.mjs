@@ -7,13 +7,13 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { toolArgs } from '../lib/toolArgs.mjs';
 
-const args = process.argv.slice(2);
-const flag = name => { const at = args.indexOf(name); return at >= 0 ? args[at + 1] : undefined; };
-if (!flag('--dir') || !flag('--standalone')) throw new Error('Expected --dir <Poki export> --standalone <ordinary Web export>');
-const out = path.resolve(flag('--out') ?? 'output/poki-training-check');
+const ARGS = toolArgs({ dir: null, standalone: null, out: null });
+if (!ARGS.dir || !ARGS.standalone) throw new Error('Expected --dir <Poki export> --standalone <ordinary Web export>');
+const out = path.resolve(ARGS.out ?? 'output/poki-training-check');
 fs.mkdirSync(out, { recursive: true });
-const roots = { poki: fs.realpathSync(flag('--dir')), standalone: fs.realpathSync(flag('--standalone')) };
+const roots = { poki: fs.realpathSync(ARGS.dir), standalone: fs.realpathSync(ARGS.standalone) };
 const sha = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const filesOf = (root, under = '') => fs.readdirSync(path.join(root, under), { withFileTypes: true }).flatMap(entry => {
     const file = under ? `${under}/${entry.name}` : entry.name;
