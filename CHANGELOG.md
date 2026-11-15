@@ -26,6 +26,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A popped-out panel hears its own keys and drags.** A panel popped out into its own window lives in that window, and five places listened on the main one instead: scrubbing or resizing a frame on the Flipbook lane stopped following the pointer, the Input Map's "press a key" capture never saw the key, the arrow keys in a dropdown always jumped to the first or last option, a locale table cell being typed in could be overwritten by a refresh, and the Output Log's **Copy** had nothing to copy. Each now reads the window its panel is in.
 - **A terrain's heightmap and splatmaps, and a foliage field's density and scale maps, are read from their files and never uploaded.** They are read on the CPU as numbers, yet the scene also loaded each as a texture: a 4097 heightmap held 64 MiB of video memory for nothing, and on a busy machine its upload missed the load deadline and the terrain came up as noise. These fields now hold the image's project path at run time (they are `image` fields, where they were `texture`), no texture is made of them, and the inspector picks them as before. A terrain or foliage field is grown again when one of its images changes on disk or in an update. A script that read `Terrain.heightmap`, `splatmap`, `splatmap2` or `Foliage.densityMap`, `scaleMap` as a handle now reads a path.
 
 ## [0.105.0] - 2026-11-14
