@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../core/Types.hpp"
+#include "../core/Hash.hpp"
 #include "./RenderOrigin.hpp"
 #include "./frame/RenderStage.hpp"
 #include "./frame/Frustum.hpp"
@@ -221,13 +222,8 @@ struct RenderPrewarmResult {
     u64 requirementDigest() const {
         std::vector<u64> sorted(materialKeys);
         std::sort(sorted.begin(), sorted.end());
-        u64 h = 1469598103934665603ull;  // FNV-1a offset basis
-        auto mix = [&h](u64 v) {
-            for (u32 b = 0; b < 8; ++b) {
-                h ^= (v >> (b * 8)) & 0xFFull;
-                h *= 1099511628211ull;
-            }
-        };
+        u64 h = hash::kFnv64Offset;
+        auto mix = [&h](u64 v) { h = hash::fnv1aBytes(h, &v, sizeof(v)); };
         for (u64 word : keys) mix(word);
         for (u64 k : sorted) mix(k);
         return h;

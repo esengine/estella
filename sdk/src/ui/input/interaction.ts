@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { App, Plugin } from '../../app/app';
-import { registerComponent, Transform } from '../../ecs/component';
+import { registerComponent } from '../../ecs/component';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { Res } from '../../ecs/resource';
 import { Input } from '../../input/input';
@@ -22,8 +22,6 @@ import { pointerToScreen } from '../util/math';
 import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
 import { platformDevicePixelRatio } from '../../platform';
 import { ensureComponent, walkParentChain } from '../util/helpers';
-import type { CppRegistry } from '../../wasm';
-import { engineApi } from '../../ecs/bridge/engineApi';
 import { UILayoutGeneration } from '../layout/ui-layout-generation';
 import { UiPointerBook, UiPointerHitCache, uiPointersOf, MOUSE_POINTER, type UiPointerSample } from './pointerBook';
 import { fireGestureClick, expireGestureFired } from './gestureClick';
@@ -72,8 +70,6 @@ export class UIInteractionPlugin implements Plugin {
         registerComponent('UIInteraction', UIInteraction);
 
         const world = app.world;
-        const engine = engineApi(app);
-        const registry = world.getCppRegistry() as CppRegistry;
         // The app's one entity-event queue (created on first ask, despawn cleanup
         // included) — shared with every other producer, not owned by the UI.
         const events = ensureEntityEvents(app);

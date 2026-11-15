@@ -6,8 +6,8 @@
  */
 
 import { WasmModuleAborted } from '../wasm/moduleHealth';
-import { Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } from '../types';
-import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, mergeIntoDefaults, builtinComponentRegistry, extraBuiltinComponentRegistry, getUserComponents, getComponent, Disabled, Name, Parent, Children, type ParentData, type ChildrenData } from './component';
+import { type Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } from '../types';
+import { type AnyComponentDef, type ComponentDef, type ComponentData, type BuiltinComponentDef, isBuiltinComponent, mergeIntoDefaults, builtinComponentRegistry, extraBuiltinComponentRegistry, getUserComponents, getComponent, Disabled, Name, Parent, Children, type ParentData, type ChildrenData } from './component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { handleWasmError } from '../wasm/wasmError';
 import { BuiltinBridge, builtinFromWasm, numberListFieldsOf, convertForWasm, type BridgeConnectOptions,
@@ -472,10 +472,10 @@ export class World {
      * stop the others or the spawn itself.
      */
     onSpawn(callback: (entity: Entity) => void): () => void {
-        this.spawnCallbacks_.push(callback);
+        this.spawnCallbacks_ = [...this.spawnCallbacks_, callback];
         return () => {
             const idx = this.spawnCallbacks_.indexOf(callback);
-            if (idx !== -1) this.spawnCallbacks_.splice(idx, 1);
+            if (idx !== -1) this.spawnCallbacks_ = this.spawnCallbacks_.filter((_, i) => i !== idx);
         };
     }
 

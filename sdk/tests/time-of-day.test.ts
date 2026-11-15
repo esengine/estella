@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { timeOfDayAt, sunPosition, applyTimeToEffects, TimeDrive } from '../src/postprocess/timeOfDay';
+import { timeOfDayAt, sunPosition, applyTimeToEffects, TimeDrive, timeScaleOfLight } from '../src/postprocess/timeOfDay';
 import { blendWeather, WEATHER_RAIN, WEATHER_CLEAR } from '../src/postprocess/weather';
 import type { BlendedEffect } from '../src/postprocess/volumeBlending';
 import '../src/postprocess/effects';
@@ -70,6 +70,21 @@ describe('timeOfDayAt', () => {
     it('wraps the hour', () => {
         expect(timeOfDayAt(25).sunDir[1]).toBeCloseTo(timeOfDayAt(1).sunDir[1], 6);
         expect(timeOfDayAt(-1).sunDir[1]).toBeCloseTo(timeOfDayAt(23).sunDir[1], 6);
+    });
+});
+
+describe('timeScaleOfLight', () => {
+    it('dims an ambient light of its own colour by the hour, and leaves one the sky lights to the sky', () => {
+        const dusk = timeOfDayAt(18.4, 35, 10, 180);
+        expect(dusk.sky).toBeLessThan(0.5);
+        expect(timeScaleOfLight(dusk, false, false)).toEqual({ scale: dusk.sky, tint: dusk.skyTint });
+        expect(timeScaleOfLight(dusk, false, true)).toEqual({ scale: 1, tint: [1, 1, 1] });
+    });
+
+    it('scales the sun by the hour whatever lights the scene', () => {
+        const dusk = timeOfDayAt(18.4, 35, 10, 180);
+        expect(timeScaleOfLight(dusk, true, true)).toEqual({ scale: dusk.light, tint: dusk.lightTint });
+        expect(timeScaleOfLight(dusk, true, false)).toEqual({ scale: dusk.light, tint: dusk.lightTint });
     });
 });
 

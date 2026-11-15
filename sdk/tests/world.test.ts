@@ -564,6 +564,15 @@ describe('World', () => {
             w.onSpawn(() => { throw new Error('boom'); });
             expect(() => w.spawn()).not.toThrow();
         });
+
+        it('a spawn callback that unsubscribes itself does not skip the next one', () => {
+            const w = new World();
+            const seen: string[] = [];
+            const unsub = w.onSpawn(() => { seen.push('first'); unsub(); });
+            w.onSpawn(() => seen.push('second'));
+            w.spawn();
+            expect(seen).toEqual(['first', 'second']);
+        });
     });
 
     // =========================================================================

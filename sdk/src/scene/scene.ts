@@ -6,7 +6,7 @@
  */
 
 import { World } from '../ecs/world';
-import { Entity, INVALID_ENTITY } from '../types';
+import { type Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
 import { isPrefabEntry, type SceneEntry } from './sceneEntry';
 import { canDefer, cutToRoot, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord, VARIANT_KEY } from '../prefab/deferred';
@@ -14,7 +14,6 @@ import { expandVirtualRequested, registerDeferredInstances } from './deferredIns
 import { validateScene } from './validateScene';
 import { getComponent, Name, Camera, RuntimeOnly } from '../ecs/component';
 import { deepClone } from '../util/deepClone';
-import { discoverSceneAssets } from '../asset/discoverAssets';
 import { AssetScope } from '../asset/AssetLease';
 import type { PrefabResult } from '../asset/AssetLoader';
 import { requireResourceManager } from '../wasm/resourceManager';
@@ -27,7 +26,6 @@ import {
     preloadNestedPrefabs,
     migratePrefabData,
     type PrefabData,
-    type PrefabInstanceEntry,
     type ProcessedEntity,
 } from '../prefab/index';
 

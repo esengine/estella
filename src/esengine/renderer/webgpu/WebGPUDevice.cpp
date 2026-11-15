@@ -11,6 +11,7 @@
 #include "WebGPUMappings.hpp"
 #include "../rhi/PixelUpload.hpp"
 #include "../../core/Log.hpp"
+#include "../../core/Hash.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -2144,8 +2145,8 @@ void WebGPUDevice::ensureDummies() {
 
 WGPUBindGroup WebGPUDevice::cachedBindGroup(const u64* ids, u32 idCount,
                                             const WGPUBindGroupDescriptor& desc) {
-    u64 hash = 1469598103934665603ull ^ reinterpret_cast<uintptr_t>(desc.layout);
-    for (u32 i = 0; i < idCount; ++i) hash = (hash ^ ids[i]) * 1099511628211ull;
+    u64 hash = esengine::hash::kFnv64Offset ^ reinterpret_cast<uintptr_t>(desc.layout);
+    for (u32 i = 0; i < idCount; ++i) hash = esengine::hash::fnv1aWord(hash, ids[i]);
     auto found = bind_group_cache_.find(hash);
     if (found != bind_group_cache_.end()) {
         for (auto& e : found->second) {

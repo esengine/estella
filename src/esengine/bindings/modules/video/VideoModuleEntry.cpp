@@ -20,6 +20,8 @@
 #include <cstring>
 #include <algorithm>
 
+#include "./VideoBindings.hpp"
+
 #define PL_MPEG_IMPLEMENTATION
 #include "pl_mpeg.h"
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { App, Plugin } from '../../app/app';
+import type { Plugin } from '../../app/app';
 import { registerComponent } from '../../ecs/component';
 import { UIMask } from '../core/ui-mask';
 import { PluginName } from '../../ecs/systemLabels';
@@ -8,7 +8,7 @@ import { PluginName } from '../../ecs/systemLabels';
 export class UIMaskPlugin implements Plugin {
     name = PluginName.UIMask;
 
-    build(app: App): void {
+    build(): void {
         registerComponent('UIMask', UIMask);
     }
 }

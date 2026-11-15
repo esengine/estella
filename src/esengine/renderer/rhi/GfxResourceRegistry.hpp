@@ -14,6 +14,7 @@
 
 #include "./GfxContent.hpp"
 #include "../../core/Revision.hpp"
+#include "../../core/Hash.hpp"
 #include "./GfxEnums.hpp"
 #include "./PipelineState.hpp"
 
@@ -183,8 +184,8 @@ private:
 /** A pipeline description's hash: every field, as the equality compares them. */
 struct PipelineDescHash {
     size_t operator()(const PipelineDesc& d) const noexcept {
-        u64 h = 1469598103934665603ull;
-        const auto mix = [&h](u64 v) { h = (h ^ v) * 1099511628211ull; };
+        u64 h = hash::kFnv64Offset;
+        const auto mix = [&h](u64 v) { h = hash::fnv1aWord(h, v); };
         mix(static_cast<u32>(d.program));
         mix(static_cast<u32>(d.vertexLayout));
         mix(static_cast<u32>(d.blend));
