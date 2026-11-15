@@ -13,8 +13,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { ROOT as root } from '../lib/repo.mjs';
 
-const root = path.resolve(import.meta.dirname, '../..');
 const seconds = Number(process.argv[2] ?? 12), cell = Number(process.env.CELL ?? 2.5);
 const work = mkdtempSync(path.join(tmpdir(), 'gi-move-'));
 const project = path.join(work, 'project'), web = path.join(work, 'web');

@@ -19,9 +19,9 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PROJECT = path.join(ROOT, 'examples', 'celestial-heights');
 const SRC = path.join(PROJECT, 'src');
 const LEDGER = path.join(PROJECT, 'engine-gaps.mjs');

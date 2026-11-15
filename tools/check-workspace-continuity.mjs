@@ -11,12 +11,9 @@
  *
  *   node tools/check-workspace-continuity.mjs
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
+import { ROOT, read } from './lib/repo.mjs';
 
 const FORMAT = 'pipeline/src/project/format.ts';
 const CAPTURE = 'desktop/src/project/workspaceContinuity.ts';

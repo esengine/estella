@@ -23,9 +23,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { resolvePython } = await import('../build-tools/utils/emscripten.js');
 const { ENGINE_BINDING_HEADERS } = await import('../build-tools/tasks/native.js');
 

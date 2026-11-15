@@ -4,8 +4,8 @@
 import { build } from 'esbuild';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { pathToFileURL } from 'node:url';
+import { ROOT as root } from './lib/repo.mjs';
 const [mode, file, out, original] = process.argv.slice(2);
 if (!['prepare', 'measure'].includes(mode) || !file || !out) {
   throw Error('usage: node tools/lightmap-bistro.mjs prepare <BistroExterior.fbx> <directory> | measure <input.json> <report-directory> [original-kernel.mjs]');

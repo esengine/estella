@@ -12,9 +12,8 @@
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ETC = path.join(ROOT, 'sdk', 'etc');
 const DOCS = path.join(ROOT, 'docs', 'astro', 'src', 'content', 'docs');
 

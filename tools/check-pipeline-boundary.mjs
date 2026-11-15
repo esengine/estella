@@ -15,11 +15,10 @@
  *
  *   node tools/check-pipeline-boundary.mjs
  */
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, walkFiles } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PIPELINE = path.join(ROOT, 'pipeline');
 const SOURCE = /\.(ts|mts|js|mjs)$/;
 
@@ -52,17 +51,7 @@ function problem(spec, file) {
   return null;
 }
 
-function walk(dir, out = []) {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) walk(full, out);
-    else if (SOURCE.test(entry.name)) out.push(full);
-  }
-  return out;
-}
-
-const files = walk(PIPELINE);
+const files = walkFiles(PIPELINE, { match: SOURCE, hidden: false });
 const findings = [];
 for (const file of files) {
   const lines = readFileSync(file, 'utf8').split('\n');

@@ -9,10 +9,9 @@
  */
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { encodeMesh, packChannels, MeshChannel, MeshChannelType } from '../sdk/dist/index.node.js';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'fixtures', 'scenes', 'morph-quad.esmesh');
 
 /** Centred on (-50, 0) so the authored shape sits in the frame's left half. */

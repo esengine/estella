@@ -17,10 +17,8 @@
  */
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { CRITERIA } from './releaseGate.mjs';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT } from './lib/repo.mjs';
 
 /** What a checker says when it is about to report on work it did not do. */
 const ANNOUNCES_A_SKIP = /(did NOT run|SKIP\b|— skipped|nothing was checked|was not scanned|could not configure here)/;

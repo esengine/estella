@@ -25,9 +25,7 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT } from './lib/repo.mjs';
 
 /** Where a variable may be DEFINED, and where one may be USED. */
 const DEFINES = ['desktop/src', 'plugins'];

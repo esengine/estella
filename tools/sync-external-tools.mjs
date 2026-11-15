@@ -25,8 +25,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeZip, readZip, zipTree } from '../build-tools/utils/zip.js';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MANIFEST = path.join(ROOT, 'tools', 'external-tools.manifest.json');
 export const PLATFORMS = ['win-x64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64', 'any'];
 const SHA = /^[0-9a-f]{64}$/;

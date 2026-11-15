@@ -21,9 +21,8 @@
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FILE = 'pipeline/src/export/miniGameExportProfile.ts';
 
 /** The fields whose wrong answer is a package that builds clean and then fails. */

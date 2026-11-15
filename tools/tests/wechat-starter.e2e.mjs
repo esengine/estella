@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import crypto from 'node:crypto';import assert from 'node:assert/strict';import {chromium} from 'playwright';import {HOST_PAGE} from '../launchers/minigameHost.mjs';
 import { toolArgs } from '../lib/toolArgs.mjs';
+import { MIME as mime } from '../lib/staticServer.mjs';
 const ARGS=toolArgs({dir:null,out:null});if(!ARGS.dir)throw Error('Expected --dir');
 const root=fs.realpathSync(ARGS.dir),out=path.resolve(ARGS.out??'output/wechat-starter-check');fs.mkdirSync(out,{recursive:true});
 const sha=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -18,7 +19,6 @@ html=html.replace(marker,`  globalThis.__calls={login:0,share:0,reward:0};
     onClose:cb=>close.add(cb),offClose:cb=>close.delete(cb),destroy:()=>close.clear()}};
 `+marker);
 report.hostSha256=crypto.createHash('sha256').update(html).digest('hex');
-const mime={'.js':'text/javascript','.json':'application/json','.png':'image/png','.wasm':'application/wasm'};
 const server=http.createServer((req,res)=>{try{const name=decodeURIComponent(new URL(req.url,'http://localhost').pathname).slice(1);if(!name){res.setHeader('Content-Type','text/html');res.end(html);return;}
  const file=fs.realpathSync(path.resolve(root,name));if(!file.startsWith(root+path.sep)||!fs.statSync(file).isFile())throw Error('Outside export');
  res.setHeader('Content-Type',mime[path.extname(file)]??'application/octet-stream');if(file.endsWith('.br'))res.setHeader('Content-Encoding','br');res.end(fs.readFileSync(file));}catch{res.writeHead(404);res.end();}});

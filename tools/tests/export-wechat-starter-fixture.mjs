@@ -2,7 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import fs from 'node:fs/promises';import path from 'node:path';import {fileURLToPath} from 'node:url';import {runTool} from '../lib/runTool.mjs';
 import { toolArgs } from '../lib/toolArgs.mjs';
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..'),ARGS=toolArgs({wasm:null,out:null});
+import { ROOT as root } from '../lib/repo.mjs';
+const ARGS=toolArgs({wasm:null,out:null});
 if(!ARGS.wasm||!ARGS.out)throw Error('Expected --wasm and --out');
 const temp=await fs.mkdtemp(path.join(root,'output','wechat-fixture-'));
 try{

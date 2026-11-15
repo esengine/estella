@@ -2,9 +2,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT as root } from './lib/repo.mjs';
 const project = path.join(root, 'examples/navigation-workshop');
 const textures = path.join(project, 'assets/textures');
 fs.mkdirSync(textures, { recursive: true });

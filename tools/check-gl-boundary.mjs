@@ -16,8 +16,8 @@
  * Run: node tools/check-gl-boundary.mjs   (exit 1 on violation)
  */
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { walkFiles } from './lib/repo.mjs';
 
 const ROOT = 'src/esengine';
 
@@ -40,17 +40,8 @@ for (const allowed of ALLOWED) {
 const GL_CALL = /\bgl[A-Z]\w*\s*\(/;
 const SOURCE_EXT = /\.(cpp|cc|cxx|hpp|hxx|h)$/;
 
-function walk(dir, out = [], ext = SOURCE_EXT) {
-    for (const entry of readdirSync(dir)) {
-        const p = join(dir, entry);
-        if (statSync(p).isDirectory()) walk(p, out, ext);
-        else if (ext.test(entry)) out.push(p);
-    }
-    return out;
-}
-
 const violations = [];
-for (const file of walk(ROOT)) {
+for (const file of walkFiles(ROOT, { match: SOURCE_EXT })) {
     const rel = file.replace(/\\/g, '/');
     if (ALLOWED.has(rel)) continue;
     const lines = readFileSync(file, 'utf8').split('\n');
@@ -88,7 +79,7 @@ if (!existsSync(BRIDGE)) {
 }
 
 const sdkViolations = [];
-for (const file of walk(SDK_ROOT, [], SDK_EXT)) {
+for (const file of walkFiles(SDK_ROOT, { match: SDK_EXT })) {
     const rel = file.replace(/\\/g, '/');
     if (SDK_EXEMPT.has(rel) || rel.endsWith('.generated.ts')) continue;
     const lines = readFileSync(file, 'utf8').split('\n');

@@ -21,17 +21,11 @@
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { listTrackedSources } from './lib/sourceRoots.mjs';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT, stripComments } from './lib/repo.mjs';
 
 /** Source with block and line comments removed. Strings are left as they are —
  *  none of the patterns below can appear in one without also being a call. */
-function stripComments(text) {
-    return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-}
-
 /**
  * Where the device may be told the frame is over. ONE place: closing it
  * anywhere else costs a host that does honour the pairing its booked capture,

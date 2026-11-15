@@ -20,10 +20,9 @@
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { MODULES, NATIVE_MODULE_REGISTRY, nativeSubpaths } from './nativeScriptModules.js';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = path.join(ROOT, '.golden', 'native-subpaths');
 const SOURCE = path.join(ROOT, 'examples', 'hello-world');
 const BUNDLE = path.join(ROOT, 'sdk', 'dist', 'index.native.bundled.js');

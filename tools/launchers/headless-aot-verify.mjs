@@ -17,10 +17,10 @@
  *          pnpm exec electron tools/launchers/headless-aot-verify.mjs <packageDir>
  */
 import { app, BrowserWindow } from 'electron';
-import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { serveDir } from '../lib/staticServer.mjs';
 
 const PACKAGE = path.resolve(process.argv[process.argv.length - 1]);
 const W = 256, H = 256;
@@ -34,27 +34,8 @@ app.commandLine.appendSwitch('disable-gpu-sandbox');
 if (process.platform === 'linux') app.commandLine.appendSwitch('in-process-gpu');
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 
-const MIME = {
-  '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.css': 'text/css', '.json': 'application/json', '.esscene': 'application/json',
-  '.wasm': 'application/wasm', '.png': 'image/png', '.ktx2': 'application/octet-stream',
-};
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function serve(dir) {
-  const server = http.createServer(async (req, res) => {
-    try {
-      const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '') || 'index.html';
-      const abs = path.join(dir, rel);
-      if (!abs.startsWith(dir)) { res.writeHead(403).end(); return; }
-      const bytes = await readFile(abs);
-      res.writeHead(200, { 'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream' });
-      res.end(bytes);
-    } catch { res.writeHead(404).end('not found'); }
-  });
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
-}
 
 app.whenReady().then(async () => {
   let server;
@@ -72,7 +53,7 @@ app.whenReady().then(async () => {
       throw new Error(`the config names ${config.aot.module}, which the package does not carry`);
     }
 
-    server = await serve(PACKAGE);
+    server = await serveDir(PACKAGE);
     const url = `http://127.0.0.1:${server.address().port}/index.html?headless=1`;
     const win = new BrowserWindow({ show: false, width: W, height: H });
     win.webContents.on('console-message', (_e, _l, m) => {

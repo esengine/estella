@@ -5,8 +5,8 @@ import { build } from 'esbuild';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { pathToFileURL } from 'node:url';
+import { ROOT as root } from './lib/repo.mjs';
 const scratch = await mkdtemp(path.join(tmpdir(), 'estella-cache-scale-'));
 try {
     const bundle = path.join(scratch, 'scale.mjs');

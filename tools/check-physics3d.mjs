@@ -18,10 +18,9 @@
  */
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { requireCurrentModule } from './moduleBinary.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SMOKE = path.join(ROOT, 'sdk', 'tests', 'physics3d-smoke.mjs');
 const WASM = path.join(ROOT, 'build', 'wasm', 'web', 'physics3d.wasm');
 

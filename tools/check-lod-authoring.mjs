@@ -25,9 +25,8 @@
  */
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const EDITOR = path.join(ROOT, 'desktop', 'src');
 const SNAPSHOT = path.join(ROOT, 'docs', 'astro', 'src', 'data', 'components.generated.json');
 const TOOLS = path.join(ROOT, 'desktop', 'shared', 'toolCatalog.mjs');

@@ -10,11 +10,10 @@
 import { writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { encodeMesh, packChannels, encodeLightmap, lightmapImage, MeshChannel, MeshChannelType }
   from '../sdk/dist/index.node.js';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MESH = path.join(ROOT, 'fixtures', 'scenes', 'lightmap-quad.esmesh');
 const MESH_LIT = path.join(ROOT, 'fixtures', 'scenes', 'lightmap-quad-lit.esmesh');
 const ATLAS = path.join(ROOT, 'fixtures', 'scenes', 'lightmap-atlas.png');

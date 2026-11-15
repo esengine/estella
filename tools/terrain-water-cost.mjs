@@ -22,12 +22,11 @@ import { spawnSync } from 'node:child_process';
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
 import { serveHost } from './lib/staticServer.mjs';
 import { toolArgs } from './lib/toolArgs.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ARGS = toolArgs({ dir: null, w: '1920', h: '1080', frames: '12', samples: '7', view: '0', only: '', out: null, 'passes-top': '24', shots: '', 'no-export': false, passes: false, detail: false, logs: false, systems: false, probe: false });
 const DIR = path.resolve(ARGS.dir ?? path.join(ROOT, 'output', 'tw-export'));
 const W = Number(ARGS.w);

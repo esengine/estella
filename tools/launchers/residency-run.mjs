@@ -26,12 +26,12 @@
  * Each read prints one JSON line.
  */
 import { app, BrowserWindow } from 'electron';
-import http from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
 import { toolArgs } from '../lib/toolArgs.mjs';
+import { serveDir } from '../lib/staticServer.mjs';
 
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 // The GPU process keeps a sandbox of its own, which ELECTRON_DISABLE_SANDBOX
@@ -56,29 +56,6 @@ const logRe = LOG ? new RegExp(LOG, 'i') : null;
 /** Everything a read asks the game about, in one round trip. */
 const NAMES = ['Player', 'Enemy', 'RockA', 'Wall', 'Arch', 'ArchTop', 'Beacon', 'Canary', 'Scout', 'Bobber', 'RefProbe', 'Sparks'];
 
-const MIME = {
-  '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.json': 'application/json', '.wasm': 'application/wasm', '.png': 'image/png',
-  '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ktx2': 'image/ktx2',
-  '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.css': 'text/css',
-};
-
-function serve(root) {
-  const server = http.createServer(async (req, res) => {
-    try {
-      let rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '');
-      if (rel === '') rel = 'index.html';
-      const abs = path.join(root, rel);
-      if (!abs.startsWith(root)) { res.writeHead(403).end(); return; }
-      const bytes = await readFile(abs);
-      res.writeHead(200, { 'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream' })
-        .end(bytes);
-    } catch {
-      res.writeHead(404).end();
-    }
-  });
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
-}
 
 /** Hold keys for `frames` engine frames of fixed dt, then release. */
 const holdScript = (keys, frames) => `
@@ -127,7 +104,7 @@ async function main() {
   if (!DIR || !existsSync(path.join(DIR, 'index.html'))) return fail(`no index.html under ${DIR || '(--dir)'}`, 2);
   if (!SCRIPT || !existsSync(SCRIPT)) return fail(`no script at ${SCRIPT || '(--script)'}`, 2);
   const steps = JSON.parse(await readFile(SCRIPT, 'utf8'));
-  const server = await serve(DIR);
+  const server = await serveDir(DIR);
   const win = new BrowserWindow({
     width: W, height: H, useContentSize: true, show: false,
     webPreferences: { offscreen: false, backgroundThrottling: false },

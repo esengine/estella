@@ -17,9 +17,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { listTrackedSources } from './lib/sourceRoots.mjs';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT } from './lib/repo.mjs';
 
 /**
  * Fields with no reader because the feature behind them is not built. Each one is

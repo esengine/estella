@@ -26,9 +26,9 @@
  */
 
 import { existsSync, readFileSync, rmSync, appendFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { runTool } from './lib/runTool.mjs';
+import { ROOT } from './lib/repo.mjs';
 
 // The editor is an optional submodule and this verifier drives it. Saying so
 // beats the failure a missing checkout produces on its own ("Command vitest not
@@ -43,7 +43,6 @@ function requireEditor(what) {
 
 import { generateStressProject, countAssets } from './stress-project.mjs';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPORT = join(ROOT, 'build', 'scale-report.json');
 
 const argv = process.argv.slice(2);

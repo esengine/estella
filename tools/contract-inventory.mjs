@@ -32,29 +32,18 @@
  *
  *   node tools/contract-inventory.mjs [--json]
  */
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { FACTS, NOT_CONTRACT, RE_EXPORTS } from './lib/contractFacts.mjs';
+import { ROOT, read, walkFiles, repoRelative } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const JSON_OUT = process.argv.includes('--json');
 const findings = [];
 const notes = [];
 
-const read = (p) => readFileSync(path.join(ROOT, p), 'utf8');
 
 /** Every file under a directory, so a directory author can be probed. */
-function walk(dir, out = []) {
-    for (const name of readdirSync(path.join(ROOT, dir))) {
-        const child = `${dir}/${name}`;
-        if (statSync(path.join(ROOT, child)).isDirectory()) walk(child, out);
-        else out.push(child);
-    }
-    return out;
-}
-
 /**
  * Does the fact still live where the entry says? A citation is only worth
  * having if it fails when the thing it points at moves.
@@ -63,7 +52,7 @@ function probeHolds(cite) {
     const at = path.join(ROOT, cite.path);
     if (!existsSync(at)) return 'no such path';
     if (cite.dir) {
-        const files = walk(cite.path);
+        const files = walkFiles(path.join(ROOT, cite.path)).map(repoRelative);
         if (!files.length) return 'directory is empty';
         for (const f of files) {
             try {

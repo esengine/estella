@@ -27,10 +27,8 @@
  * with a person present. This checks the one file where neither is true.
  */
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join, resolve, relative } from 'node:path';
-
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+import { join, relative } from 'node:path';
+import { ROOT, stripComments } from './lib/repo.mjs';
 
 /** The automation surface: what MCP agents drive the editor through. */
 const SURFACE = join(ROOT, 'desktop', 'src', 'main.tsx');
@@ -47,8 +45,6 @@ for (const f of [SURFACE, REGISTRY, GUARD]) {
     process.exit(1);
   }
 }
-
-const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
 
 // The aggregate must still BE an aggregate: a registry that stopped reading the
 // scene would make every guard below it pass while seeing nothing.

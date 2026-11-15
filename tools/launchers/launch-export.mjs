@@ -57,8 +57,7 @@
  *                        one costs a probe planted in the game)
  */
 import { app, BrowserWindow } from 'electron';
-import http from 'node:http';
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -68,6 +67,7 @@ import { inputScript } from './inputScript.mjs';
 import { frameClockScript } from './frameClock.mjs';
 import { packageFramesScript } from './packageFrames.mjs';
 import { networkProfile } from './networkProfiles.mjs';
+import { serveDir } from '../lib/staticServer.mjs';
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 // Without it Chromium refuses the context outright and the package boots to
@@ -152,60 +152,28 @@ const BOOT_RECORDER = `(() => {
   };
 })();`;
 
-const MIME = {
-  '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.json': 'application/json', '.wasm': 'application/wasm', '.png': 'image/png',
-  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ktx2': 'image/ktx2',
-  '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.m4a': 'audio/mp4',
-  '.mp4': 'video/mp4', '.esv': 'video/mp4', '.css': 'text/css', '.svg': 'image/svg+xml',
-  '.atlas': 'text/plain', '.skel': 'application/octet-stream', '.txt': 'text/plain',
-};
-
-/** Serve the export directory. Range requests are not implemented: a build that
- *  needs them (video seek) would read as a broken asset here, not a broken server. */
-
 function serve(root, safeArea, frameMs, compress, port = 0) {
-  const server = http.createServer(async (req, res) => {
-    try {
-      let rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '');
-      if (rel === '') rel = 'index.html';
-      const abs = path.join(root, rel);
-      if (!abs.startsWith(root)) { res.writeHead(403).end(); return; }
-      let bytes = await readFile(abs);
-      // Insets have to exist before the first script runs: the engine reads
-      // them once when its UI plugins build, and a variable set from the
-      // outside after that is a variable nobody ever asks about again.
+  return serveDir(root, {
+    port,
+    shape({ rel, type, bytes, req }) {
+      let body = bytes;
       if ((safeArea || frameMs) && rel === 'index.html') {
         const [t = 0, r = 0, b = 0, l = 0] = safeArea.split(',').map(Number);
         const head = frameClockScript(frameMs)
           + (safeArea ? `<style>:root{--sat:${t}px;--sar:${r}px;--sab:${b}px;--sal:${l}px}</style>` : '');
-        const html = String(bytes);
+        const html = String(body);
         const injected = html.replace('<head>', `<head>${head}`);
         if (injected === html) console.log('  no <head> to inject the safe area or clock into');
-        bytes = Buffer.from(injected);
+        body = Buffer.from(injected);
       }
-      // A modelled network is also a modelled host, and hosts compress: served
-      // raw, the link carries three times what a player downloads, and a
-      // compressed Content-Length (which a download bar must survive) never occurs.
-      const type = MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream';
       const encode = compress && /gzip/.test(String(req.headers['accept-encoding'] ?? ''))
         && /javascript|json|wasm|html|css/.test(type);
-      if (encode) bytes = gzipSync(bytes);
-      // Content-Length, which node omits unless told (it chunks instead): every
-      // real server sends it, and a loader that reports download progress has
-      // nothing to divide by without it.
-      res.writeHead(200, {
-        'content-type': type,
-        'content-length': bytes.length,
-        ...(encode ? { 'content-encoding': 'gzip' } : {}),
-      }).end(bytes);
-    } catch {
-      res.writeHead(404).end();
-    }
-  });
-  return new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(port, '127.0.0.1', () => resolve(server));
+      if (encode) body = gzipSync(body);
+      return {
+        bytes: body,
+        headers: { 'content-length': body.length, ...(encode ? { 'content-encoding': 'gzip' } : {}) },
+      };
+    },
   });
 }
 

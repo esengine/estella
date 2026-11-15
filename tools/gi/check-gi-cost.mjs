@@ -26,8 +26,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-
-const root = path.resolve(import.meta.dirname, '../..');
+import { ROOT as root } from '../lib/repo.mjs';
 
 // Measured 2026-11-11 on the lab room (10 boxes, ~3.7k card pixels), default settings (cards over 4 frames, one probe ray in 2).
 const BUDGET = {

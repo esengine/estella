@@ -17,10 +17,9 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { RELEASE, CRITERIA } from './releaseGate.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const problems = [];
 const fail = (m) => problems.push(m);
 const HAS_EDITOR = existsSync(path.join(ROOT, 'desktop', 'package.json'));

@@ -3,9 +3,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SDK = path.join(ROOT, 'sdk');
 const pkg = JSON.parse(readFileSync(path.join(SDK, 'package.json'), 'utf8'));
 const declared = new Set((pkg.sideEffects ?? []).map((p) => path.resolve(SDK, p)));

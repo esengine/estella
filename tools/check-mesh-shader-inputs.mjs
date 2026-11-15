@@ -20,9 +20,8 @@
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ENUMS = path.join('src', 'esengine', 'renderer', 'rhi', 'GfxEnums.hpp');
 const SHADERS = path.join('src', 'esengine', 'renderer', 'rhi', 'ShaderEmbeds.generated.hpp');
 

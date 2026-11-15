@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { toolArgs } from '../lib/toolArgs.mjs';
+import { MIME as mime } from '../lib/staticServer.mjs';
 
 const ARGS = toolArgs({ dir: null, standalone: null, out: null });
 if (!ARGS.dir || !ARGS.standalone) throw new Error('Expected --dir <Poki export> --standalone <ordinary Web export>');
@@ -24,7 +25,6 @@ const filesOf = (root, under = '') => fs.readdirSync(path.join(root, under), { w
 const identities = Object.fromEntries(Object.entries(roots).map(([name, root]) => [name,
     Object.fromEntries(filesOf(root).map(file => [file, sha(path.join(root, file))])),
 ]));
-const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.png': 'image/png', '.webp': 'image/webp' };
 const server = http.createServer((req, res) => {
     try {
         const parts = decodeURIComponent(new URL(req.url, 'http://localhost').pathname).split('/');

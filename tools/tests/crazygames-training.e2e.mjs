@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { toolArgs } from '../lib/toolArgs.mjs';
+import { MIME as mime } from '../lib/staticServer.mjs';
 
 const ARGS = toolArgs({ dir: null, out: null, 'expect-scores': false });
 if (!ARGS.dir) throw new Error('Expected --dir <CrazyGames Web export>');
@@ -25,7 +26,6 @@ const config=JSON.parse(fs.readFileSync(path.join(root,'game.config.json'),'utf8
 const expectsScores=ARGS['expect-scores'];
 assert.equal(Boolean(config.leaderboardEncryptionKey),expectsScores,'Export must match the score test mode');
 if(expectsScores)assert.equal(config.leaderboardEncryptionKey,Buffer.alloc(32,7).toString('base64'),'Use the mock fixture client key');
-const mime={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.json':'application/json','.wasm':'application/wasm','.png':'image/png'};
 const server=http.createServer((req,res)=>{
     try {
         const name=decodeURIComponent(new URL(req.url,'http://localhost').pathname).slice(1) || 'index.html';

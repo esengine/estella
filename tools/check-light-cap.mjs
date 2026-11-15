@@ -14,16 +14,14 @@
  * Two readers is how a panel starts guessing and fails nothing — the behavioural
  * check drives the tool, and would never touch the other one.
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, read } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRAME = 'src/esengine/renderer/frame/RenderFrame.cpp';
 const SURFACE = 'desktop/src/engine/EditorControlSurface.ts';
 const DECORATORS = 'desktop/src/panels/inspector/componentDecorators.tsx';
 
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 const problems = [];
 const frame = read(FRAME);
 

@@ -21,10 +21,8 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, read } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 const RUNTIME = 'sdk/src/spine/SpineRuntime.ts';
 const MANAGER = 'sdk/src/spine/SpineManager.ts';
 const BATCHES = 'src/esengine/bindings/modules/spine/SkeletalModule.hpp';

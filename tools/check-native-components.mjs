@@ -14,12 +14,7 @@
  * `// skip joints … needs a bespoke binding` into code nobody reads. Every rigged
  * glTF was unshippable to a phone and the web build said nothing.
  */
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
+import { read } from './lib/repo.mjs';
 
 const meta = read('sdk/src/ecs/component.generated.ts');
 const components = [...new Set(

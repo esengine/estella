@@ -21,10 +21,9 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { DESKTOP_BUILD_DIR } from '../build-tools/tasks/native.js';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOST = { darwin: 'macos', linux: 'linux', win32: 'windows' }[process.platform];
 
 /** 2, not 0: the file header already says a machine that has never built native

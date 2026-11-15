@@ -13,28 +13,17 @@
  */
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, walkFiles } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PROJECT_DIRS = ['examples', 'templates'].flatMap((d) =>
   readdirSync(path.join(ROOT, d)).map((p) => path.join(ROOT, d, p)).filter((p) => existsSync(path.join(p, 'project.esproject'))));
-
-const walk = (dir, out = []) => {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
-    const full = path.join(dir, e.name);
-    if (e.isDirectory()) walk(full, out);
-    else out.push(full);
-  }
-  return out;
-};
 
 const problems = [];
 let instances = 0;
 let overrides = 0;
 
 for (const project of PROJECT_DIRS) {
-  const files = walk(project);
+  const files = walkFiles(project, { hidden: false });
   const byUuid = new Map();
   for (const f of files.filter((f) => f.endsWith('.meta'))) {
     try { byUuid.set(JSON.parse(readFileSync(f, 'utf8')).uuid, f.slice(0, -'.meta'.length)); } catch { /* not ours */ }

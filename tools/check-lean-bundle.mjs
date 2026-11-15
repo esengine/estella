@@ -18,9 +18,8 @@ import { build } from 'esbuild';
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 
 /** The most each directory may leave in a blank package, in bytes of the minified bundle. Water keeps what the post-process underwater state needs; timeline, its component definition. */

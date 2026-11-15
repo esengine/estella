@@ -25,9 +25,8 @@
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const COMPONENTS_DIR = path.join(ROOT, 'src', 'esengine', 'ecs', 'components');
 const GENERATED = path.join(ROOT, 'src', 'esengine', 'bindings', 'EditorAPI.generated.cpp');
 const DATA_PY = path.join(ROOT, 'tools', 'eht', 'data.py');

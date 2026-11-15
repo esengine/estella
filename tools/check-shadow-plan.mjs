@@ -13,15 +13,13 @@
  * and a denial still reaches a reader. Each is a line somebody could delete
  * without a pixel moving.
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, read } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FRAME = 'src/esengine/renderer/frame/RenderFrame.cpp';
 const PLAN = 'src/esengine/renderer/store/ShadowPlan.hpp';
 
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 const problems = [];
 const frame = read(FRAME);
 const plan = read(PLAN);

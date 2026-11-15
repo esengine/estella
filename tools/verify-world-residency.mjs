@@ -19,10 +19,9 @@
 import { spawnSync } from 'node:child_process';
 import { rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { runElectron } from './lib/electronRun.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORK = path.join(ROOT, '.golden', 'world-residency');
 const PROJECT = path.join(ROOT, 'examples', 'world-streaming-3d');
 const LAUNCHER = path.join(ROOT, 'tools', 'launchers', 'residency-run.mjs');

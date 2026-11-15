@@ -25,9 +25,8 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TSC = path.join(ROOT, 'sdk', 'node_modules', 'typescript', 'bin', 'tsc');
 const DTS = path.join(ROOT, 'sdk', 'dist', 'index.d.ts');
 const REPL_DTS = path.join(ROOT, 'sdk', 'dist', 'net', 'replication', 'index.d.ts');

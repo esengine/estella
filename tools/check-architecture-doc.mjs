@@ -22,11 +22,10 @@
  */
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { listTrackedSources } from './lib/sourceRoots.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DOC = path.join(ROOT, 'docs', 'ARCHITECTURE.md');
 
 /** Where a name is allowed to live. A symbol anywhere in these is alive. */

@@ -4,6 +4,7 @@
 import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import crypto from 'node:crypto';
 import assert from 'node:assert/strict';import {chromium} from 'playwright';
 import { toolArgs } from '../lib/toolArgs.mjs';
+import { MIME as mime } from '../lib/staticServer.mjs';
 const ARGS=toolArgs({dir:null,out:null});if(!ARGS.dir)throw Error('Expected --dir <YouTube export>');
 const root=fs.realpathSync(ARGS.dir),out=path.resolve(ARGS.out??'output/youtube-training-check');fs.mkdirSync(out,{recursive:true});
 const sha=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -15,7 +16,6 @@ const report={headless:true,mode:'local-mock',status:'failed',identities,verifie
 // https://developers.google.com/youtube/gaming/playables/reference/test_suite_guide
 const youtubeCsp="default-src 'none'; script-src 'report-sample' 'self' 'unsafe-eval' 'unsafe-inline' blob: https://www.youtube.com/game_api/v0 https://www.youtube.com/game_api/v0/ https://www.youtube.com/game_api/v1 https://www.youtube.com/game_api/v1/; object-src 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' blob: data:; media-src 'self' blob:; font-src 'self' data: https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' blob: data:; sandbox allow-pointer-lock allow-same-origin allow-scripts; base-uri 'self'; manifest-src 'self'; worker-src 'self' blob:";
 report.responseContentSecurityPolicy=youtubeCsp;
-const mime={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.json':'application/json','.wasm':'application/wasm','.png':'image/png'};
 const server=http.createServer((req,res)=>{try{const name=decodeURIComponent(new URL(req.url,'http://localhost').pathname).slice(1)||'index.html',file=fs.realpathSync(path.resolve(root,name));
     if(!file.startsWith(root+path.sep)||!fs.statSync(file).isFile())throw Error('Outside export');res.setHeader('Content-Type',mime[path.extname(file)]??'application/octet-stream');
     if(path.extname(file)==='.html')res.setHeader('Content-Security-Policy',youtubeCsp);

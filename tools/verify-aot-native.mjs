@@ -21,12 +21,11 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { installedTemplateDir } from '../build-tools/utils/nativeTemplate.js';
 import { desktopExecutableIn } from '../build-tools/utils/desktopApp.js';
 import { requireNativeHostSuccess } from './lib/nativeHostResult.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** The example whose system carries the marker. */
 const PROJECT = path.join(ROOT, 'examples', 'ecs-basics');
 /**

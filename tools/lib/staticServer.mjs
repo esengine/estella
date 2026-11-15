@@ -16,10 +16,9 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { withDerivedTwin } from './derivedTwin.mjs';
+import { ROOT } from './repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const FIXTURES = path.join(ROOT, 'fixtures');
 /** Published assets tools/corpora.mjs fetched and imported, addressed `/corpora/<id>/…`. */
 const CORPORA_ROOT = process.env.ESTELLA_CACHE_DIR || path.join(ROOT, '.cache');
@@ -27,10 +26,15 @@ const CORPORA_ROOT = process.env.ESTELLA_CACHE_DIR || path.join(ROOT, '.cache');
 const MIME = {
     '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
     '.css': 'text/css', '.json': 'application/json', '.esscene': 'application/json',
-    '.wasm': 'application/wasm', '.png': 'image/png', '.jpg': 'image/jpeg',
-    '.webp': 'image/webp', '.woff': 'font/woff', '.woff2': 'font/woff2', '.svg': 'image/svg+xml',
-    '.mp4': 'video/mp4', '.webm': 'video/webm',
+    '.wasm': 'application/wasm', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp', '.ktx2': 'image/ktx2', '.svg': 'image/svg+xml',
+    '.woff': 'font/woff', '.woff2': 'font/woff2',
+    '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.m4a': 'audio/mp4',
+    '.mp4': 'video/mp4', '.esv': 'video/mp4', '.webm': 'video/webm',
+    '.atlas': 'text/plain', '.txt': 'text/plain', '.skel': 'application/octet-stream',
 };
+
+export const mimeOf = (file) => MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream';
 
 /** Reads `rel` under `root`, or null when it is absent or would escape the root. */
 async function readUnder(root, rel) {
@@ -55,10 +59,42 @@ export function serveHost(dist) {
         if (!bytes) return void res.writeHead(404).end('not found');
         // A shader the fixtures keep as GLSL only gets its WGSL twin here, derived when asked for, not read from a committed copy.
         if (rel.endsWith('.esshader')) bytes = Buffer.from(await withDerivedTwin(bytes.toString('utf8')), 'utf8');
-        res.writeHead(200, { 'content-type': MIME[path.extname(rel).toLowerCase()] ?? 'application/octet-stream' });
+        res.writeHead(200, { 'content-type': mimeOf(rel) });
         res.end(bytes);
     });
     return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
+}
+
+export function serveDir(root, { port = 0, route = null, shape = null } = {}) {
+    const server = http.createServer(async (req, res) => {
+        try {
+            let rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '');
+            let dir = root;
+            const routed = route ? await route(rel, req) : null;
+            if (routed?.body !== undefined) {
+                res.writeHead(200, { 'content-type': routed.type ?? 'text/html' }).end(routed.body);
+                return;
+            }
+            if (routed?.root) ({ root: dir, rel } = routed);
+            if (rel === '') rel = 'index.html';
+            const abs = path.join(dir, rel);
+            if (!abs.startsWith(dir)) {
+                res.writeHead(403).end();
+                return;
+            }
+            const read = await readFile(abs);
+            const type = mimeOf(abs);
+            const shaped = shape ? await shape({ rel, abs, type, bytes: read, req }) : null;
+            res.writeHead(200, { 'content-type': type, ...shaped?.headers }).end(shaped?.bytes ?? read);
+        } catch {
+            if (!res.headersSent) res.writeHead(404);
+            res.end();
+        }
+    });
+    return new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(port, '127.0.0.1', () => resolve(server));
+    });
 }
 
 export { FIXTURES, MIME };

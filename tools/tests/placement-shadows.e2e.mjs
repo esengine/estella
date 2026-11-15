@@ -7,14 +7,13 @@
 import { chromium } from 'playwright';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { serveHost } from '../lib/staticServer.mjs';
 import { requireCurrentEngine } from '../lib/engineBuild.mjs';
+import { ROOT as root } from '../lib/repo.mjs';
 
 const { PNG } = createRequire(new URL('../../pipeline/package.json', import.meta.url))('pngjs');
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const host = path.join(root, 'build/render-host');
 const out = path.join(root, 'output/placement-shadows');
 requireCurrentEngine(root, path.join(host, 'wasm'));

@@ -4,13 +4,12 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { makeZip, zipTree } from '../build-tools/utils/zip.js';
 import {
     REMOTE_EXAMPLES, EXAMPLE_INDEX_KIND, EXAMPLE_INDEX_FORMAT, EXAMPLES_INDEX, exampleArchiveName, exampleArchiveKept,
 } from '../build-tools/utils/remoteExamples.js';
+import { ROOT as root } from './lib/repo.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outIdx = process.argv.indexOf('--out');
 const out = path.resolve(outIdx >= 0 ? process.argv[outIdx + 1] : 'build/examples');
 mkdirSync(out, { recursive: true });

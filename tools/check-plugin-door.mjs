@@ -27,11 +27,10 @@
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { ETC, ENTRIES, ts } from './lib/sdkProgram.mjs';
 import { parseSnapshot } from './lib/apiSnapshot.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'sdk', 'src');
 
 const rel = (p) => path.relative(ROOT, p);

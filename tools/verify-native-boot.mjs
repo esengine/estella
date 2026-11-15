@@ -44,13 +44,12 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { decodePng, distinctColors } from '../build-tools/utils/png.js';
 import { GOLDEN, launchTimeoutFor } from './goldenProjects.mjs';
 import { worthAnotherLaunch, exitCodeFor, unjudgedReason } from './lib/smokeRetry.mjs';
 import { retainFirstLaunch } from './lib/smokeEvidence.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** A prebuilt app's bundle id, unless `--app-id` names another; a packaged
  *  example's is whatever its export reports. */
 const DEFAULT_APP_ID = 'com.estella.game';

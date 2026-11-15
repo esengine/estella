@@ -22,12 +22,7 @@
  *
  * Run: node tools/check-mesh-instance-record.mjs
  */
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
+import { read } from './lib/repo.mjs';
 
 const SHADER = 'src/esengine/data/shaders/mesh.esshader';
 const PARSER = 'src/esengine/resource/ShaderParser.cpp';

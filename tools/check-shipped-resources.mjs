@@ -15,9 +15,8 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { listTrackedSources } from './lib/sourceRoots.mjs';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BUILDER = path.join('desktop', 'electron-builder.yml');
 
 /** Trees whose code is bundled into the editor's main process. */

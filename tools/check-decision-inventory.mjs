@@ -19,13 +19,11 @@
  */
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { DECISIONS } from './lib/runtimeDecisions.mjs';
+import { ROOT, read } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SURFACES = ['runtime', 'editor', 'agent'];
 
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 
 /** Every file under a directory, so a directory citation can be probed. */
 function filesUnder(dir, out = []) {
