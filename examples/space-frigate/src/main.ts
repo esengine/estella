@@ -1,6 +1,8 @@
 import { addPlugin, defineSystem, GetWorld, Res, Time, Input, Transform, MeshRenderer, Light, Material, Playthrough } from 'esengine';
 import type { Entity, World } from 'esengine';
 import { SHOTS, SHOT_SECONDS, clamp, eyeOf, lookRotation, tourOrbit, type Orbit } from './flight';
+import { installHud } from './hud';
+import { ship, TOP_SPEED } from './shipState';
 
 const PLUMES = [
     { name: 'PlumeL', width: 4.0, length: 2.3 },
@@ -16,6 +18,7 @@ addPlugin({
     build(app) {
         const facts = { ready: false, frame: 0, time: 0, throttle: 0, tour: true, shot: 0, eyeX: 0, eyeY: 0, eyeZ: 0 };
         app.insertResource(Playthrough, { facts });
+        installHud(app);
         const ids = new Map<string, Entity>();
         let clock = 0;
         let wanted = 0.65;
@@ -95,6 +98,13 @@ addPlugin({
             hull.rotation = { x: Math.sin(nod / 2), y: 0, z: Math.sin(roll / 2), w: Math.cos(nod / 2) * Math.cos(roll / 2) };
             hull.position = { x: 0, y: Math.sin(clock * 0.19) * 0.35, z: 0 };
             world.insert(ship, Transform, hull);
+
+            ship.time = clock;
+            ship.throttle = throttle;
+            ship.wanted = wanted;
+            ship.speed += (throttle * TOP_SPEED - ship.speed) * Math.min(1, dt * 0.8);
+            ship.tour = tour;
+            ship.shot = Math.floor(clock / SHOT_SECONDS) % SHOTS.length;
 
             facts.ready = true;
             facts.frame++;
