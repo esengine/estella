@@ -5092,4 +5092,6 @@ export const NOTED = {
     { note: "Parts of a model can glow." },
   "feat(modeling): the modeling tool offers plating, texel stains and glow, and the gallery names the space frigate - model_write's list of steps is the build's again (panels, and texel, fray and glow on stain and paint), and the new-project gallery has the Space Frigate example's Chinese text":
     { note: "Plating for hard surfaces." },
+  "fix(assets): a texture's bytes in memory are decoded as they stand, not fetched back through a blob: URL - uploadImageBytes_ wrapped the PNG a compressed source answers with in an object URL and gave it to loadImage, which since 4231ef7a4 fetches the URL first; the editor's connect-src does not allow blob:, so each such texture logged a policy violation and was decoded through an <img> on the page's thread. The bytes now go to createImageBitmap as a Blob (decodeBlobBitmap, which fetchImageBitmap also calls), and to an element only where that cannot decode them":
+    { note: "Textures the editor shows as a build ships them are decoded off the main thread." },
 };
