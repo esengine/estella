@@ -3,7 +3,7 @@ import type { App, Entity, World } from 'esengine';
 import { helm, turnBy, type Vec } from './helm';
 import { mining } from './hudMining';
 import { ship } from './shipState';
-import { BEAM_REACH, ENGINE_AT, ENGINE_REACH, MUSIC, MUSIC_VOLUME, SOUNDS, beamVoice, cuesBetween, engineVoice, type ShipSound, type Voice } from './soundMix';
+import { AUDIO_CACHE_BYTES, BEAM_REACH, ENGINE_AT, ENGINE_REACH, MUSIC, MUSIC_VOLUME, SOUNDS, beamVoice, cuesBetween, engineVoice, type ShipSound, type Voice } from './soundMix';
 
 const BINS = 64;
 const SPLIT = 8;
@@ -13,7 +13,7 @@ export function installAudio(app: App): void {
     Object.assign(facts, {
         soundEngine: false, soundEngineVolume: 0, soundEnginePitch: 0, soundEngineDistance: 0, soundEngineHeard: 0,
         soundBeam: false, soundBeamVolume: 0, soundBeamPitch: 0,
-        soundMusic: false, soundCues: 0, soundLastCue: '', soundMeasured: false, soundLow: 0, soundHigh: 0,
+        soundMusic: false, soundMusicReady: false, soundCues: 0, soundLastCue: '', soundMeasured: false, soundLow: 0, soundHigh: 0,
     });
     let engine: Entity | null = null;
     let beam: Entity | null = null;
@@ -49,6 +49,7 @@ export function installAudio(app: App): void {
         const key = input.isKeyDown('KeyM');
         const wanted = music === null ? true : key && !toggling ? !music : music;
         toggling = key;
+        if (music === null) audio.setBufferBudget(AUDIO_CACHE_BYTES);
         if (wanted !== music) {
             if (wanted) audio.playBGM(MUSIC, { volume: MUSIC_VOLUME, fadeIn: 3 });
             else audio.stopBGM(0.6);
@@ -83,6 +84,7 @@ export function installAudio(app: App): void {
         facts.soundBeamVolume = cut.volume;
         facts.soundBeamPitch = cut.pitch;
         facts.soundMusic = music;
+        facts.soundMusicReady = audio.getBufferHandle(MUSIC) !== undefined;
         const measured = audio.getSpectrum(spectrum);
         let low = 0, high = 0;
         if (measured) for (let i = 0; i < BINS; i++) { if (i < SPLIT) low += spectrum[i]!; else high += spectrum[i]!; }

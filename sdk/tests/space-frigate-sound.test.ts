@@ -3,8 +3,9 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { RuntimeConfig } from '../src/defaults';
 import { decodeWav, fft, renderMusic, renderSound, validateMusicSource, validateSoundSource, type RenderedSound, type SoundSource } from '../src/sound';
-import { BEAM_REACH, ENGINE_AT, ENGINE_REACH, MUSIC, MUSIC_VOLUME, SOUNDS, beamVoice, cuesBetween, engineVoice, type ShipSound } from '../../examples/space-frigate/src/soundMix';
+import { AUDIO_CACHE_BYTES, BEAM_REACH, ENGINE_AT, ENGINE_REACH, MUSIC, MUSIC_VOLUME, SOUNDS, beamVoice, cuesBetween, engineVoice, type ShipSound } from '../../examples/space-frigate/src/soundMix';
 
 const PROJECT = path.resolve(__dirname, '../../examples/space-frigate');
 const AUDIO = path.join(PROJECT, 'assets/audio');
@@ -128,6 +129,14 @@ describe('the space frigate\'s music, as a recipe', () => {
         }
         expect(readdirSync(path.join(AUDIO, 'piano')).filter((name) => name.endsWith('.wav')).map((name) => `assets/audio/piano/${name}`).sort()).toEqual([...recordings].sort());
         expect(readFileSync(path.join(AUDIO, 'piano/LICENSE.txt'), 'utf8')).toMatch(/CC0 1\.0/);
+    });
+
+    it('is held decoded with every sound in the cache the game asks for, at the rate a device plays at', () => {
+        const decodedAt = (sound: Pick<RenderedSound, 'channels' | 'seconds'>): number => sound.seconds * 48000 * sound.channels.length * 4;
+        const held = decodedAt(piece) + FILES.reduce((sum, file) => sum + decodedAt(render(file)), 0);
+        expect(decodedAt(piece)).toBeGreaterThan(RuntimeConfig.audioCacheBudget);
+        expect(AUDIO_CACHE_BYTES).toBeGreaterThan(RuntimeConfig.audioCacheBudget);
+        expect(held).toBeLessThan(AUDIO_CACHE_BYTES * 0.75);
     });
 
     it('is a loop of a minute or so, whole and never clipped', () => {

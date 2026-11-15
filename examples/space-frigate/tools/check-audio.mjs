@@ -15,7 +15,7 @@ const expect = (what, ok, detail) => { findings.push({ what, ok, detail }); if (
 try {
     const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
     page.on('pageerror', (e) => problems.push(String(e)));
-    page.on('console', (m) => { if (m.type() === 'error') problems.push(m.text().slice(0, 400)); });
+    page.on('console', (m) => { if (m.type() === 'error' || (m.type() === 'warning' && /audio/i.test(m.text()))) problems.push(m.text().slice(0, 400)); });
     await page.goto(`http://127.0.0.1:${server.address().port}/?headless`, { waitUntil: 'load', timeout: 120000 });
     await page.waitForFunction(() => window.__estellaCooked?.facts().ready, null, { timeout: 120000 });
     await page.waitForFunction(() => window.__spaceHud?.ready || window.__spaceHud?.error, null, { timeout: 120000 }).catch(() => {});
@@ -50,7 +50,9 @@ try {
     const tap = async (key) => { await page.keyboard.down(key); await page.waitForTimeout(150); await page.keyboard.up(key); await page.waitForTimeout(150); };
     await tap('Digit1');
     expect('1 holds the camera at one distance', (await facts()).tour === false, await facts());
-    await page.waitForTimeout(4000);
+    const began = Date.now();
+    expect('the music is made and ready to play', await when(() => window.__estellaCooked.facts().soundMusicReady === true, null, 120000), { waitedMs: Date.now() - began });
+    await page.waitForTimeout(5000);
     const first = await hear(), second = await hear();
     const playing = { low: (first.low + second.low) / 2, high: (first.high + second.high) / 2 };
     await tap('KeyM');

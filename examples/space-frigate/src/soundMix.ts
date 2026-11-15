@@ -10,6 +10,7 @@ export const SOUNDS = {
 
 export const MUSIC = 'assets/audio/drift.esmusic';
 export const MUSIC_VOLUME = 0.4;
+export const AUDIO_CACHE_BYTES = 64 * 1024 * 1024;
 
 export const ENGINE_AT = { x: 0, y: 0, z: -47 };
 export const ENGINE_REACH = { near: 35, far: 600 };
