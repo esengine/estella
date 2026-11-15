@@ -16,7 +16,7 @@
 import { contentHashHex } from './contentHash';
 import { platformReadCacheFile, platformWriteCacheFile } from '../platform';
 import { decodeUtf8, encodeUtf8 } from '../util/utf8';
-import { isTextureRecipePath } from './textureRecipePath';
+import { gatherRecipeFiles } from './textureRecipePath';
 
 /** The pixels a recipe draws: top row first, RGBA, as a decoded image is. */
 export interface RecipePixels { width: number; height: number; pixels: Uint8Array }
@@ -90,24 +90,13 @@ function pack(drawn: RecipePixels): ArrayBuffer {
     return bytes;
 }
 
-/** Reads what `source` needs into `files`, and what the recipes among those need, each file once. */
-async function gather(by: TextureRecipeDrawer, source: string, read: RecipeFileReader, files: Map<string, ArrayBuffer>, root: string): Promise<void> {
-    for (const need of by.needs(source)) {
-        if (need === root) throw new Error(`recipe "${root}" needs itself`);
-        if (files.has(need)) continue;
-        const bytes = await read(need);
-        files.set(need, bytes);
-        if (isTextureRecipePath(need)) await gather(by, decodeUtf8(new Uint8Array(bytes)), read, files, root);
-    }
-}
-
 /** The pixels of the recipe at `path`: read back where an earlier run drew them, drawn and kept otherwise. */
 export async function renderTextureRecipe(path: string, read: RecipeFileReader): Promise<RecipePixels> {
     const by = drawer;
     if (!by) throw new Error(`texture "${path}" is a recipe, and nothing here draws recipes: import 'esengine/image' where the game starts`);
     const source = decodeUtf8(new Uint8Array(await read(path)));
     const files = new Map<string, ArrayBuffer>();
-    await gather(by, source, read, files, path);
+    await gatherRecipeFiles((text) => by.needs(text), source, read, files, path);
     const key = textureRecipeCacheKey(source, files, by.revision);
     const kept = await platformReadCacheFile(key);
     const got = kept ? unpack(kept) : null;

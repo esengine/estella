@@ -26,6 +26,8 @@ const USAGE = `usage: node pipeline/bin/estella.mjs create <template> <dir> [--n
        node pipeline/bin/estella.mjs import-hdr <file.hdr> [outDir] [--face-size <n>] [--sky-width <n>]
        node pipeline/bin/estella.mjs bake-scene <scene.esscene> [--check]
        node pipeline/bin/estella.mjs bake-model <file.esmodel> [--sheet <file.png>]
+       node pipeline/bin/estella.mjs draw-image <file.esimage> <out.png> [--project <dir>]
+                                     [--on <#colour>] [--zoom <x,y,w,h>]
        node pipeline/bin/estella.mjs package-openpaas <exportDir> --config <local.json> --out <game.sp>
 
   --platform <id>     a built-in (web, desktop, wechat, douyin, kuaishou, bilibili, playable, android, ios)
@@ -134,6 +136,19 @@ function parseArgs(argv) {
     }
     const sheet = rest.indexOf('--sheet');
     return { command, source: path.resolve(projectDir), sheet: sheet >= 0 && rest[sheet + 1] ? path.resolve(rest[sheet + 1]) : null };
+  }
+  if (command === 'draw-image') {
+    const option = (name) => { const at = rest.indexOf(name); return at >= 0 ? rest[at + 1] : undefined; };
+    const zoom = option('--zoom')?.split(',').map(Number);
+    if (!projectDir || !rest[0] || rest[0].startsWith('--') || (zoom && !(zoom.length === 4 && zoom.every(Number.isFinite)))) {
+      console.error('draw-image requires a picture source and where to write it: node pipeline/bin/estella.mjs draw-image <file.esimage> <out.png> [--project <dir>] [--on <#colour>] [--zoom <x,y,w,h>]');
+      process.exit(2);
+    }
+    const project = option('--project');
+    return {
+      command, source: path.resolve(projectDir), out: path.resolve(rest[0]), project: project ? path.resolve(project) : null, on: option('--on'),
+      zoom: zoom ? { x: zoom[0], y: zoom[1], w: zoom[2], h: zoom[3] } : undefined,
+    };
   }
   if (command === 'package-openpaas') {
     const config = rest.indexOf('--config'), out = rest.indexOf('--out');
@@ -936,6 +951,36 @@ if (opts.command === 'import-model' || opts.command === 'import-gltf') {
     cleanupMeta();
   }
   process.exit(imported > 0 ? 0 : 1);
+}
+
+if (opts.command === 'draw-image') {
+  const { mod: files, cleanup } = await loadPipeline(
+    path.join(PIPELINE, 'src', 'image', 'imageFiles.ts'), 'imageFiles.mjs');
+  let ok = false;
+  try {
+    let root = opts.project;
+    for (let dir = path.dirname(opts.source); !root; dir = path.dirname(dir)) {
+      if (readdirSync(dir).some((name) => name.endsWith('.esproject'))) root = dir;
+      else if (path.dirname(dir) === dir) root = path.dirname(opts.source);
+    }
+    const started = Date.now();
+    const drawn = await files.drawImageFile(
+      path.relative(root, opts.source).split(path.sep).join('/'),
+      async (file) => new Uint8Array(readFileSync(path.join(root, file))),
+      { on: opts.on, zoom: opts.zoom });
+    writeFileSync(opts.out, drawn.png);
+    for (const note of drawn.notes) console.warn(`  ! ${note}`);
+    console.log(JSON.stringify({
+      out: path.relative(process.cwd(), opts.out), seconds: (Date.now() - started) / 1000,
+      width: drawn.width, height: drawn.height, bounds: drawn.bounds, covers: drawn.covers, layers: drawn.layerBounds,
+    }, null, 2));
+    ok = true;
+  } catch (err) {
+    console.error(`draw-image: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    cleanup();
+  }
+  process.exit(ok ? 0 : 1);
 }
 
 if (opts.command === 'bake-model') {
