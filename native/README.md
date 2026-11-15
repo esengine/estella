@@ -371,6 +371,13 @@ System bindings landing incrementally through the real SDK surfaces:
   differs per platform. Replies cross back thread-safely (`deliverFetch`) and run on the JS
   thread in the frame loop. This is what remote asset groups and hot-update need. Simulator-
   verified (an HTTPS GET returns bytes and a 200); the Android path needs a device retest.
+- **Sockets** — `createSocket` reaches the host's WebSocket client (`es_wsOpen`,
+  `host/net/WsClient.cpp`). The framing is the host's own on every platform; under it is plain
+  TCP for `ws://` and the operating system's TLS for `wss://` (`host/net/Tls*`:
+  Network.framework on macOS and iOS, Schannel on Windows, libcurl on Linux, the platform
+  `SSLSocket` on Android), which checks the certificate chain and the host name against the
+  system's trust store. `tools/verify-native-wss.mjs` judges a built `test_native_wss` against
+  local servers; the two desktop CI jobs run it with the test authority trusted.
 - **Text** (Stage C) — the same `Text` component, glyph atlas, layout and batching the web
   build runs. Only the two ends cross the seam: the device has no 2D canvas to rasterize a
   glyph on, so the host does it (`es_rasterizeGlyph` → `glyph_raster.cpp`: the OS names the

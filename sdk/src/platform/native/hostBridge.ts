@@ -118,7 +118,6 @@ export interface NativeHostBindings extends NativeDeviceHost {
     /** The device language, raw from the OS ('zh-Hans-CN'); empty when unknown. */
     es_language?(): string;
 
-    /** The host's `ws://` client: events arrive on the JS thread, `close` last. */
     es_wsOpen?(url: string, onEvent: (event: NativeSocketEvent) => void): number;
     es_wsSend?(id: number, data: string | ArrayBuffer): boolean;
     es_wsClose?(id: number, code?: number, reason?: string): void;

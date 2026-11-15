@@ -34,6 +34,7 @@
 #include "media/glyph_raster.hpp"   // GLYPH_BOLD / GLYPH_ITALIC, for the font match
 #include "platform/touch_stream.hpp"
 #include "platform/android_device.hpp"
+#include "net/TlsAndroid.hpp"
 
 #define LOG_TAG "EstellaSDK"
 
@@ -1179,7 +1180,8 @@ void android_main(android_app* app) {
     forwardStdioToLog();
     g_platform.device.activity = app->activity;
     g_platform.assets = app->activity->assetManager;   // APK assets/ (the exported project)
-    g_platform.vm = app->activity->vm;                  // for JNI HttpURLConnection (es_fetch)
+    g_platform.vm = app->activity->vm;
+    eshost::androidTlsInit(app->activity->vm);
     // Before boot: whether there is an editing surface decides whether the
     // es_textEditor_* entry points are bound at all.
     attachJavaShims(app->activity);

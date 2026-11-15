@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "media/glyph_raster.hpp"   // GLYPH_BOLD / GLYPH_ITALIC
+#include "net/CurlInit.hpp"
 
 namespace eshost {
 namespace {
@@ -124,10 +125,7 @@ size_t appendHeader(char* data, size_t size, size_t count, void* user) {
 }  // namespace
 
 void linuxStartFetch(const FetchRequest& req) {
-    // curl_global_init is not thread-safe and must run before the first easy
-    // handle; doing it here, once, keeps every caller from having to know that.
-    static std::once_flag once;
-    std::call_once(once, [] { curl_global_init(CURL_GLOBAL_DEFAULT); });
+    curlInitOnce();
 
     // A detached thread per request, as the other two platforms do: libcurl's
     // easy API is synchronous, and deliverFetch is thread-safe by contract.

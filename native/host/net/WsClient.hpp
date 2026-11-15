@@ -1,14 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-/**
- * @file    WsClient.hpp
- * @brief   A plain `ws://` WebSocket client over the OS's TCP sockets, one thread
- *          per connection, for a development build's line back to the editor.
- * @details Portable rather than per-platform like es_fetch: the editor is on the
- *          LAN and speaks `ws://`, so there is no TLS stack to borrow from the OS
- *          and one implementation serves every host. Events are handed out through
- *          a sink that may run on the connection's thread.
- */
 #pragma once
 
 #include <cstdint>

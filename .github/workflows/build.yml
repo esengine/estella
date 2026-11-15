@@ -949,6 +949,11 @@ jobs:
           cmake --build build/cmake/native-linux --target test_native_renderer --parallel 4
           build/cmake/native-linux/test_native_renderer
 
+      - name: The native socket speaks wss and refuses a certificate it cannot trust
+        run: |
+          cmake --build build/cmake/native-linux --target test_native_wss --parallel 4
+          node tools/verify-native-wss.mjs --probe build/cmake/native-linux/test_native_wss --trust machine
+
       - name: A game packaged from it renders
         run: |
           ls -l /usr/share/vulkan/icd.d/ || true
@@ -1010,6 +1015,12 @@ jobs:
         run: |
           cmake --build build/cmake/native-windows --target test_native_renderer --parallel 4
           ./build/cmake/native-windows/test_native_renderer.exe
+
+      - name: The native socket speaks wss and refuses a certificate it cannot trust
+        shell: bash
+        run: |
+          cmake --build build/cmake/native-windows --target test_native_wss --parallel 4
+          node tools/verify-native-wss.mjs --probe build/cmake/native-windows/test_native_wss.exe --trust machine
 
       # No xvfb and no software driver: a Windows runner has a desktop and a
       # D3D12 device of its own, which is what the release job relies on too.

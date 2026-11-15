@@ -534,7 +534,7 @@ if(ESTELLA_QUICKJS_DIR)
         # Static: the thin Xcode app (native/ios) links this plus the libraries
         # below. -ObjC on the app keeps the Obj-C classes in platform/ios.mm alive.
         add_library(estella_js_host STATIC ${HOST_SOURCES} host/platform/ios.mm host/platform/ios_device.mm
-            host/platform/apple_common.mm)
+            host/platform/apple_common.mm host/net/TlsApple.mm)
         # miniaudio's CoreAudio backend uses AVAudioSession (Obj-C), so its TU must
         # be Objective-C++ on Apple; it also forces MA_NO_RUNTIME_LINKING there, so
         # the audio frameworks are linked at build time (the app links the merged
@@ -548,7 +548,7 @@ if(ESTELLA_QUICKJS_DIR)
             "-framework UIKit" "-framework QuartzCore" "-framework Foundation"
             "-framework CoreMotion" "-framework CoreHaptics"
             "-framework AVFoundation" "-framework CoreAudio" "-framework AudioToolbox"
-            "-framework CoreText" "-framework CoreGraphics")
+            "-framework CoreText" "-framework CoreGraphics" "-framework Network")
         target_sources(estella_js_host PRIVATE ${ESTELLA_SPINE_FN_BINDINGS})
         set(_spine_archives "")
         foreach(_t IN LISTS ESTELLA_SPINE_TARGETS ESTELLA_SPINE_RUNTIMES)
@@ -574,11 +574,14 @@ if(ESTELLA_QUICKJS_DIR)
         # One glue TU (desktop.cpp) plus the per-OS half SDL does not cover: the
         # font match and the HTTP request.
         if(ESTELLA_WINDOWS)
-            set(DESKTOP_OS_SOURCES host/platform/windows_common.cpp)
+            set(DESKTOP_TLS_SOURCE host/net/TlsWindows.cpp)
+            set(DESKTOP_OS_SOURCES host/platform/windows_common.cpp ${DESKTOP_TLS_SOURCE})
         elseif(ESTELLA_LINUX)
-            set(DESKTOP_OS_SOURCES host/platform/linux_common.cpp)
+            set(DESKTOP_TLS_SOURCE host/net/TlsLinux.cpp)
+            set(DESKTOP_OS_SOURCES host/platform/linux_common.cpp ${DESKTOP_TLS_SOURCE})
         else()
-            set(DESKTOP_OS_SOURCES host/platform/apple_common.mm)
+            set(DESKTOP_TLS_SOURCE host/net/TlsApple.mm)
+            set(DESKTOP_OS_SOURCES host/platform/apple_common.mm ${DESKTOP_TLS_SOURCE})
         endif()
         add_executable(estella_js_host ${HOST_SOURCES} host/platform/desktop.cpp
             ${DESKTOP_OS_SOURCES})
@@ -616,7 +619,7 @@ if(ESTELLA_QUICKJS_DIR)
             # onecore for CompareObjectHandles, which Dawn's D3D shared fences call:
             # it lives in kernelbase, kernel32 does not re-export it, and the SDK
             # ships no kernelbase.lib — onecore is the umbrella that has it.
-            target_link_libraries(estella_js_host d3d12 dxgi dxguid dwrite winhttp onecore ws2_32)
+            target_link_libraries(estella_js_host d3d12 dxgi dxguid dwrite winhttp onecore ws2_32 secur32)
         elseif(ESTELLA_LINUX)
             # fontconfig for the font match; libcurl for the fetch, because Linux
             # is the one desktop with no OS-provided HTTP stack and no trust store
@@ -635,12 +638,22 @@ if(ESTELLA_QUICKJS_DIR)
                 PROPERTIES COMPILE_OPTIONS "-x;objective-c++")
             target_link_libraries(estella_js_host
                 "-framework AVFoundation" "-framework CoreAudio" "-framework AudioToolbox"
-                "-framework CoreText" "-framework CoreGraphics" "-framework Foundation")
+                "-framework CoreText" "-framework CoreGraphics" "-framework Foundation" "-framework Network")
+        endif()
+        add_executable(test_native_wss EXCLUDE_FROM_ALL "${REPO}/tests/net/ws_probe.cpp" host/net/WsClient.cpp ${DESKTOP_TLS_SOURCE})
+        target_include_directories(test_native_wss PRIVATE host)
+        if(ESTELLA_WINDOWS)
+            target_link_libraries(test_native_wss PRIVATE ws2_32 secur32)
+        elseif(ESTELLA_LINUX)
+            target_link_libraries(test_native_wss PRIVATE PkgConfig::LIBCURL pthread)
+        else()
+            target_link_libraries(test_native_wss PRIVATE "-framework Network" "-framework CoreFoundation")
         endif()
     else()
         # Android: plain C++; miniaudio dlopens AAudio/OpenSL at runtime (no extra
         # link libs). native_audio.cpp's Obj-C paths are __APPLE__-guarded out.
-        add_library(estella_js_host SHARED ${HOST_SOURCES} host/platform/android.cpp host/platform/android_device.cpp)
+        add_library(estella_js_host SHARED ${HOST_SOURCES} host/platform/android.cpp host/platform/android_device.cpp
+            host/net/TlsAndroid.cpp)
         target_link_libraries(estella_js_host esengine estella_physics estella_physics3d
             estella_video estella_dragonbones esjs_engine native_app_glue android log)
         # Each Spine release a library of its own, as PhysX is below: a package
