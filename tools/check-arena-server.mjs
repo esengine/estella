@@ -103,7 +103,6 @@ writeFileSync(tsconfig, JSON.stringify({
     target: 'ES2022', module: 'ESNext', moduleResolution: 'bundler',
     strict: true, skipLibCheck: true, noEmit: true, esModuleInterop: true, allowImportingTsExtensions: true,
     types: ['node'], typeRoots: [posix(SDK_TYPES)],
-    baseUrl: '.',
     paths: {
       esengine: [posix(path.join(ROOT, 'sdk', 'dist', 'index.d.ts'))],
       'esengine/node': [posix(path.join(ROOT, 'sdk', 'dist', 'index.node.d.ts'))],
