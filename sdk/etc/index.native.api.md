@@ -5,7 +5,7 @@ Symbols: 115 public · 172 beta · 2232 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"19dcbf4878f79091"
+"34fd70a1b6a3abc0"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -7388,6 +7388,7 @@ endSizeMax: number
 endSizeMin: number
 gpuSimulation: boolean
 gravity: Vec3
+intensity: number
 layer: number
 lengthScale: number
 lifetimeMax: number

@@ -1,0 +1,74 @@
+#pragma shader "Rune Circle"
+#pragma version 300 es
+#pragma domain Unlit
+#pragma param u_color color default(0.3,0.75,1,1)
+#pragma param u_intensity float default(3) range(0,40)
+#pragma param u_spin float default(0)
+#pragma param u_reveal float default(1) range(0,1) ui(slider)
+
+#pragma fragment
+precision highp float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+const float TAU = 6.28318530718;
+
+float runeHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+float stroke(float d, float w) { return 1.0 - smoothstep(w * 0.5, w, abs(d)); }
+float ring(float r, float at, float w) { return stroke(r - at, w); }
+float star(vec2 p, float radius, float turn, float w) {
+    float a = atan(p.y, p.x) + turn;
+    float sector = TAU / 3.0;
+    float local = mod(a, sector) - sector * 0.5;
+    return stroke(length(p) * cos(local) - radius * 0.5, w);
+}
+float glyph(vec2 cell, float seed) {
+    vec2 q = cell - 0.5;
+    float ink = 0.0;
+    if (seed > 0.15) ink = max(ink, stroke(q.x + (seed - 0.5) * 0.3, 0.07) * step(abs(q.y), 0.34));
+    if (fract(seed * 7.0) > 0.4) ink = max(ink, stroke(q.y - (fract(seed * 3.0) - 0.5) * 0.5, 0.07) * step(abs(q.x), 0.3));
+    if (fract(seed * 13.0) > 0.55) ink = max(ink, stroke(q.x - q.y * (fract(seed * 5.0) > 0.5 ? 1.0 : -1.0), 0.08) * step(length(q), 0.36));
+    if (fract(seed * 29.0) > 0.7) ink = max(ink, stroke(length(q - vec2(0.0, 0.12)) - 0.14, 0.06));
+    return ink;
+}
+
+void main() {
+    vec2 p = (v_texCoord - 0.5) * 2.0;
+    float r = length(p);
+    float a = atan(p.y, p.x);
+    float ink = 0.0;
+    ink = max(ink, ring(r, 0.95, 0.012));
+    ink = max(ink, ring(r, 0.9, 0.006));
+    ink = max(ink, ring(r, 0.7, 0.008));
+    ink = max(ink, ring(r, 0.42, 0.01));
+    ink = max(ink, ring(r, 0.38, 0.005));
+
+    float ticks = step(0.5, fract((a + u_spin) / TAU * 96.0));
+    ink = max(ink, ticks * step(0.905, r) * step(r, 0.945) * 0.8);
+
+    float sectors = 28.0;
+    float turn = (a - u_spin * 0.6) / TAU * sectors;
+    vec2 cell = vec2(fract(turn), (r - 0.72) / 0.16);
+    if (cell.y > 0.0 && cell.y < 1.0) ink = max(ink, glyph(cell, runeHash(vec2(floor(turn), 3.0))));
+
+    float inner = (a + u_spin * 1.4) / TAU * 12.0;
+    vec2 innerCell = vec2(fract(inner), (r - 0.44) / 0.24);
+    if (innerCell.y > 0.0 && innerCell.y < 1.0) ink = max(ink, 0.9 * glyph(innerCell, runeHash(vec2(floor(inner), 9.0))));
+
+    float knot = max(star(p, 0.38, u_spin * 0.8, 0.012), star(p, 0.38, u_spin * 0.8 + TAU / 6.0, 0.012));
+    ink = max(ink, knot * step(r, 0.385));
+    ink = max(ink, ring(r, 0.1, 0.01));
+
+    float wipe = smoothstep(1.0 - u_reveal - 0.08, 1.0 - u_reveal, r);
+    float pulse = exp(-pow((r - (1.0 - fract(u_time.x * 0.55))) / 0.06, 2.0));
+    float haze = exp(-r * 2.6) * 0.12 * u_reveal;
+    float light = ink * wipe * (1.0 + pulse * 2.5) + haze;
+    float edge = 1.0 - smoothstep(0.96, 1.0, r);
+    fragColor = vec4(u_color.rgb * u_intensity * clamp(light, 0.0, 4.0) * v_color.rgb, edge * v_color.a);
+}
+#pragma end

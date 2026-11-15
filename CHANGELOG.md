@@ -14,6 +14,12 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **Particles glow in HDR, fade into the scene and wear away.** A `ParticleEmitter` gains `intensity`, a multiplier on its particles' colour that goes past 1 in linear colour space, so a spark is bright enough to bloom. A particle material's fragment now receives `v_particle` (normalized age, a random number the particle keeps, its lifetime), and the new **Particle** shader (`builtin:particle`) uses them: `u_softness` fades a particle as it nears the opaque scene behind it, so smoke no longer cuts a hard line into the ground, and `u_erosion` wears its texture away with age. A draw whose material reads `u_sceneDepthMap` is now handed the scene's distances whether or not anything refracts; before, only a frame with water in it took that copy. `distanceToEye`, `sceneUv` and `sceneDistance` are available to every shader for reading it.
+- **A material can bend the picture behind it.** The new **Distortion** shader (`builtin:distortion`) draws what the frame has already drawn, displaced: heat haze over embers, a shockwave, a lens, on a mesh or as particles. It reads `u_screenColor`, a new input any shader can declare: the whole frame as drawn so far, particles and other blended draws included, where `u_sceneColor` is only the opaque scene behind a surface. Such a draw is made after every other.
+- **A VFX showcase example.** `examples/vfx-showcase` loops one effect built from those pieces: an energy core charges over a rune circle while sparks spiral in, detonates into a shockwave that bends the air and the ground's picture, and leaves bouncing sparks, drifting embers, a fireball turning to smoke that fades into the floor, heat haze and a cooling scorch.
+
 ### Changed
 
 - **A tree has bark.** The picture a `tree` step's model is given holds bark along its top, and the wood reads it along each limb and round it, so the grain runs up a trunk and out along a branch: `barkStyle` is furrowed (the default), banded (a birch) or smooth, tinted by `bark`. The leaf square stands clear of every edge of the picture, and `decimate` keeps each corner's own place in a picture and its own light.

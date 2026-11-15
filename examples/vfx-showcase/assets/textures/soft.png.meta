@@ -1,0 +1,18 @@
+{
+  "uuid": "ad10c91d-f258-5b10-ab78-085351f696eb",
+  "version": "2.0",
+  "type": "texture",
+  "importer": {
+    "sRGB": true,
+    "maxSize": 2048,
+    "filterMode": "linear",
+    "wrapMode": "clamp",
+    "premultiplyAlpha": false,
+    "sliceBorder": {
+      "left": 0,
+      "right": 0,
+      "top": 0,
+      "bottom": 0
+    }
+  }
+}

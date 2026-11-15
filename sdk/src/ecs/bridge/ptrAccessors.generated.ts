@@ -1424,6 +1424,7 @@ export interface ParticleEmitterPtrData {
     renderMode: number;
     velocityScale: number;
     lengthScale: number;
+    intensity: number;
     enabled: boolean;
     subEmitterTrigger: number;
     subEmitterChance: number;
@@ -1506,28 +1507,29 @@ export function fillParticleEmitter(
     out.renderMode = u32[(ptr + 256) >> 2] | 0;
     out.velocityScale = f32[(ptr + 260) >> 2];
     out.lengthScale = f32[(ptr + 264) >> 2];
-    out.enabled = u8[ptr + 268] !== 0;
-    out.subEmitterTrigger = u32[(ptr + 272) >> 2] | 0;
-    out.subEmitterChance = f32[(ptr + 276) >> 2];
-    out.subEmitterInheritVelocity = f32[(ptr + 280) >> 2];
-    out.subEmitter = u32[(ptr + 284) >> 2];
-    out.trailEnabled = u8[ptr + 288] !== 0;
-    out.trailWidth = f32[(ptr + 292) >> 2];
-    out.trailPoints = u32[(ptr + 296) >> 2] | 0;
-    out.trailMinDistance = f32[(ptr + 300) >> 2];
-    out.collisionEnabled = u8[ptr + 304] !== 0;
-    out.collisionFloor = f32[(ptr + 308) >> 2];
-    out.collisionMode = u32[(ptr + 312) >> 2] | 0;
-    out.collisionMask = u32[(ptr + 316) >> 2];
-    out.collisionQueryBudget = u32[(ptr + 320) >> 2] | 0;
-    out.collisionMaxDistance = f32[(ptr + 324) >> 2];
-    out.collisionFallback = u32[(ptr + 328) >> 2] | 0;
-    out.collisionEvents = u8[ptr + 332] !== 0;
-    out.collisionEventBudget = u32[(ptr + 336) >> 2] | 0;
-    out.collisionThickness = f32[(ptr + 340) >> 2];
-    out.collisionBounce = f32[(ptr + 344) >> 2];
-    out.collisionFriction = f32[(ptr + 348) >> 2];
-    out.collisionLifetimeLoss = f32[(ptr + 352) >> 2];
+    out.intensity = f32[(ptr + 268) >> 2];
+    out.enabled = u8[ptr + 272] !== 0;
+    out.subEmitterTrigger = u32[(ptr + 276) >> 2] | 0;
+    out.subEmitterChance = f32[(ptr + 280) >> 2];
+    out.subEmitterInheritVelocity = f32[(ptr + 284) >> 2];
+    out.subEmitter = u32[(ptr + 288) >> 2];
+    out.trailEnabled = u8[ptr + 292] !== 0;
+    out.trailWidth = f32[(ptr + 296) >> 2];
+    out.trailPoints = u32[(ptr + 300) >> 2] | 0;
+    out.trailMinDistance = f32[(ptr + 304) >> 2];
+    out.collisionEnabled = u8[ptr + 308] !== 0;
+    out.collisionFloor = f32[(ptr + 312) >> 2];
+    out.collisionMode = u32[(ptr + 316) >> 2] | 0;
+    out.collisionMask = u32[(ptr + 320) >> 2];
+    out.collisionQueryBudget = u32[(ptr + 324) >> 2] | 0;
+    out.collisionMaxDistance = f32[(ptr + 328) >> 2];
+    out.collisionFallback = u32[(ptr + 332) >> 2] | 0;
+    out.collisionEvents = u8[ptr + 336] !== 0;
+    out.collisionEventBudget = u32[(ptr + 340) >> 2] | 0;
+    out.collisionThickness = f32[(ptr + 344) >> 2];
+    out.collisionBounce = f32[(ptr + 348) >> 2];
+    out.collisionFriction = f32[(ptr + 352) >> 2];
+    out.collisionLifetimeLoss = f32[(ptr + 356) >> 2];
 }
 
 export function writeParticleEmitter(
@@ -1588,28 +1590,29 @@ export function writeParticleEmitter(
     u32[(ptr + 256) >> 2] = data.renderMode | 0;
     f32[(ptr + 260) >> 2] = data.velocityScale;
     f32[(ptr + 264) >> 2] = data.lengthScale;
-    u8[ptr + 268] = data.enabled ? 1 : 0;
-    u32[(ptr + 272) >> 2] = data.subEmitterTrigger | 0;
-    f32[(ptr + 276) >> 2] = data.subEmitterChance;
-    f32[(ptr + 280) >> 2] = data.subEmitterInheritVelocity;
-    u32[(ptr + 284) >> 2] = data.subEmitter;
-    u8[ptr + 288] = data.trailEnabled ? 1 : 0;
-    f32[(ptr + 292) >> 2] = data.trailWidth;
-    u32[(ptr + 296) >> 2] = data.trailPoints | 0;
-    f32[(ptr + 300) >> 2] = data.trailMinDistance;
-    u8[ptr + 304] = data.collisionEnabled ? 1 : 0;
-    f32[(ptr + 308) >> 2] = data.collisionFloor;
-    u32[(ptr + 312) >> 2] = data.collisionMode | 0;
-    u32[(ptr + 316) >> 2] = data.collisionMask;
-    u32[(ptr + 320) >> 2] = data.collisionQueryBudget | 0;
-    f32[(ptr + 324) >> 2] = data.collisionMaxDistance;
-    u32[(ptr + 328) >> 2] = data.collisionFallback | 0;
-    u8[ptr + 332] = data.collisionEvents ? 1 : 0;
-    u32[(ptr + 336) >> 2] = data.collisionEventBudget | 0;
-    f32[(ptr + 340) >> 2] = data.collisionThickness;
-    f32[(ptr + 344) >> 2] = data.collisionBounce;
-    f32[(ptr + 348) >> 2] = data.collisionFriction;
-    f32[(ptr + 352) >> 2] = data.collisionLifetimeLoss;
+    f32[(ptr + 268) >> 2] = data.intensity;
+    u8[ptr + 272] = data.enabled ? 1 : 0;
+    u32[(ptr + 276) >> 2] = data.subEmitterTrigger | 0;
+    f32[(ptr + 280) >> 2] = data.subEmitterChance;
+    f32[(ptr + 284) >> 2] = data.subEmitterInheritVelocity;
+    u32[(ptr + 288) >> 2] = data.subEmitter;
+    u8[ptr + 292] = data.trailEnabled ? 1 : 0;
+    f32[(ptr + 296) >> 2] = data.trailWidth;
+    u32[(ptr + 300) >> 2] = data.trailPoints | 0;
+    f32[(ptr + 304) >> 2] = data.trailMinDistance;
+    u8[ptr + 308] = data.collisionEnabled ? 1 : 0;
+    f32[(ptr + 312) >> 2] = data.collisionFloor;
+    u32[(ptr + 316) >> 2] = data.collisionMode | 0;
+    u32[(ptr + 320) >> 2] = data.collisionMask;
+    u32[(ptr + 324) >> 2] = data.collisionQueryBudget | 0;
+    f32[(ptr + 328) >> 2] = data.collisionMaxDistance;
+    u32[(ptr + 332) >> 2] = data.collisionFallback | 0;
+    u8[ptr + 336] = data.collisionEvents ? 1 : 0;
+    u32[(ptr + 340) >> 2] = data.collisionEventBudget | 0;
+    f32[(ptr + 344) >> 2] = data.collisionThickness;
+    f32[(ptr + 348) >> 2] = data.collisionBounce;
+    f32[(ptr + 352) >> 2] = data.collisionFriction;
+    f32[(ptr + 356) >> 2] = data.collisionLifetimeLoss;
 }
 
 export function createParticleEmitterData(): ParticleEmitterPtrData {
@@ -1668,6 +1671,7 @@ export function createParticleEmitterData(): ParticleEmitterPtrData {
         renderMode: 0,
         velocityScale: 0,
         lengthScale: 0,
+        intensity: 0,
         enabled: false,
         subEmitterTrigger: 0,
         subEmitterChance: 0,

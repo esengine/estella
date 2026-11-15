@@ -7169,6 +7169,7 @@ endSizeMax: number
 endSizeMin: number
 gpuSimulation: boolean
 gravity: Vec3
+intensity: number
 layer: number
 lengthScale: number
 lifetimeMax: number
