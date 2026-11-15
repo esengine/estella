@@ -15,12 +15,12 @@
  * this engine pins, is refused. A wrong or stale mirror therefore costs a failed download, never a
  * different tool.
  */
-import { createHash, randomUUID } from 'node:crypto';
-import { chmodSync, createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { once } from 'node:events';
+import { randomUUID } from 'node:crypto';
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { estellaDataDir, releaseAssetBases } from '../../../build-tools/utils/nativeTemplate.js';
 import { extractZip } from '../../../build-tools/utils/zip.js';
+import { saveVerified } from '../fs/verifiedDownload';
 import manifestJson from '../../../tools/external-tools.manifest.json';
 
 export type ToolPlatform = 'win-x64' | 'linux-x64' | 'linux-arm64' | 'osx-x64' | 'osx-arm64' | 'any';
@@ -278,19 +278,11 @@ async function installFrom(base: string, item: PlanItem, manifest: ToolsManifest
         if (!fileRead.ok) return `download failed (${fileRead.error})`;
         mkdirSync(staging, { recursive: true });
         const archive = path.join(staging, entry.file);
-        const digest = createHash('sha256');
-        let received = 0;
-        const sink = createWriteStream(archive);
-        for await (const chunk of fileRead.stream) {
-            digest.update(chunk);
-            received += chunk.byteLength;
-            onProgress?.({ tool: item.id, received, total: entry.bytes });
-            if (!sink.write(chunk)) await once(sink, 'drain');
-        }
-        await new Promise<void>((resolve, reject) => sink.end((err?: Error) => (err ? reject(err) : resolve())));
-        if (received !== entry.bytes) return `download is ${received} bytes, the index says ${entry.bytes}`;
-        const got = digest.digest('hex');
-        if (got !== entry.sha256) return `checksum mismatch — got ${got.slice(0, 16)}…, expected ${entry.sha256.slice(0, 16)}…`;
+        const refused = await saveVerified(
+            fileRead.stream, archive, entry,
+            (received) => onProgress?.({ tool: item.id, received, total: entry.bytes }),
+        );
+        if (refused) return refused;
 
         const unpacked = path.join(staging, 'files');
         mkdirSync(unpacked, { recursive: true });
@@ -300,7 +292,7 @@ async function installFrom(base: string, item: PlanItem, manifest: ToolsManifest
         const missing = required.filter((f) => !existsSync(path.join(unpacked, f)));
         if (missing.length) return `incomplete archive — missing ${missing.join(', ')}`;
         if (process.platform !== 'win32') for (const exe of executables) chmodSync(path.join(unpacked, exe), 0o755);
-        const marker: Marker = { tool: item.id, version: tool.version, platform: item.platform, upstreamSha256: pin.sha256, sha256: got };
+        const marker: Marker = { tool: item.id, version: tool.version, platform: item.platform, upstreamSha256: pin.sha256, sha256: entry.sha256 };
         writeFileSync(path.join(unpacked, MARKER), JSON.stringify(marker, null, 2));
 
         const dest = path.join(store, item.id, tool.version, item.platform);

@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import path from 'node:path';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, createWriteStream } from 'node:fs';
-import { once } from 'node:events';
-import { randomUUID, createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import {
     EXAMPLES_INDEX, exampleBases, exampleStoreDir, installedExampleDir, isRemoteExample, parseExampleIndex,
     type ExampleIndexEntry,
 } from '../../../build-tools/utils/remoteExamples.js';
 import { releaseMirrors } from '../../../build-tools/utils/nativeTemplate.js';
 import { extractZip } from '../../../build-tools/utils/zip.js';
+import { saveVerified } from '../fs/verifiedDownload';
 import { PROJECT_MANIFEST_FILE } from './format';
 
 export interface ExampleDownloadProgress {
@@ -88,19 +88,11 @@ async function downloadFrom(
 
         mkdirSync(staging, { recursive: true });
         const file = path.join(staging, entry.file);
-        const digest = createHash('sha256');
-        let received = 0;
-        const sink = createWriteStream(file);
-        for await (const chunk of res.body as AsyncIterable<Uint8Array>) {
-            digest.update(chunk);
-            received += chunk.byteLength;
-            onProgress?.({ received, total: entry.bytes });
-            if (!sink.write(chunk)) await once(sink, 'drain');
-        }
-        await new Promise<void>((resolve, reject) => sink.end((err?: Error) => (err ? reject(err) : resolve())));
-
-        if (received !== entry.bytes) return { ok: false, error: `download is ${received} bytes, the index says ${entry.bytes}` };
-        if (digest.digest('hex') !== entry.sha256) return { ok: false, error: 'checksum mismatch' };
+        const refused = await saveVerified(
+            res.body as AsyncIterable<Uint8Array>, file, entry,
+            (received) => onProgress?.({ received, total: entry.bytes }),
+        );
+        if (refused) return { ok: false, error: refused };
 
         const unpacked = path.join(staging, 'project');
         mkdirSync(unpacked);

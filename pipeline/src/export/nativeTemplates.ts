@@ -16,9 +16,8 @@
  */
 
 import path from 'node:path';
-import { existsSync, readFileSync, rmSync, renameSync, mkdirSync, readdirSync, createWriteStream } from 'node:fs';
-import { once } from 'node:events';
-import { randomUUID, createHash } from 'node:crypto';
+import { existsSync, readFileSync, rmSync, renameSync, mkdirSync, readdirSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import {
     findTemplate, readTemplateManifest, missingTemplateFiles, installedTemplateDir,
     templateStoreDir, iosTemplateSources, releaseAssetBases, parseTemplateIndex,
@@ -26,6 +25,7 @@ import {
     type TemplatePlatform, type NativeTemplateManifest,
 } from '../../../build-tools/utils/nativeTemplate.js';
 import { extractZip } from '../../../build-tools/utils/zip.js';
+import { saveVerified } from '../fs/verifiedDownload';
 
 export type { NativeTemplateManifest };
 
@@ -240,24 +240,11 @@ async function downloadFrom(
 
         mkdirSync(staging, { recursive: true });
         const file = path.join(staging, entry.file);
-        const digest = createHash('sha256');
-        let received = 0;
-        const sink = createWriteStream(file);
-        for await (const chunk of res.body as AsyncIterable<Uint8Array>) {
-            digest.update(chunk);
-            received += chunk.byteLength;
-            onProgress?.({ received, total: entry.bytes });
-            if (!sink.write(chunk)) await once(sink, 'drain');
-        }
-        await new Promise<void>((resolve, reject) => sink.end((err?: Error) => (err ? reject(err) : resolve())));
-
-        if (received !== entry.bytes) {
-            return { ok: false, error: `download is ${received} bytes, the index says ${entry.bytes}` };
-        }
-        const got = digest.digest('hex');
-        if (got !== entry.sha256) {
-            return { ok: false, error: `checksum mismatch — got ${got.slice(0, 16)}…, expected ${entry.sha256.slice(0, 16)}…` };
-        }
+        const refused = await saveVerified(
+            res.body as AsyncIterable<Uint8Array>, file, entry,
+            (received) => onProgress?.({ received, total: entry.bytes }),
+        );
+        if (refused) return { ok: false, error: refused };
         return installNativeTemplate(file, engineVersion);
     } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
