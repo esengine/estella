@@ -62,6 +62,7 @@ export interface Frame {
     across: number;
     lens: Lens | null;
     pointer: { left: number; top: number };
+    click: { left: number; top: number } | null;
     held: (key: string) => boolean;
     pressing: boolean;
 }

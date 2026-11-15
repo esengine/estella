@@ -21,7 +21,7 @@ export const ROCK_CLASSES = [
 export const rockClass = (index: number): (typeof ROCK_CLASSES)[number] => ROCK_CLASSES[[0, 1, 0, 2, 1, 0, 1, 2, 0, 1][index % 10]!]!;
 
 export const mining = {
-    ready: false, firing: false, overheated: false, capacitor: 1, heat: 0, hold: 0, delivered: 0, broken: 0, target: -1, reason: '',
+    ready: false, armed: false, firing: false, overheated: false, capacitor: 1, heat: 0, hold: 0, delivered: 0, broken: 0, target: -1, reason: '',
     integrity: [] as number[],
 };
 
@@ -42,7 +42,7 @@ export function installMining(app: App, world: World, rocks: readonly Rock[], pr
     }, (err: unknown) => console.error(`space-frigate mining effect did not load: ${err instanceof Error ? err.message : String(err)}`));
 
     const shipRoot = world.findEntityByName('Ship');
-    let said = '', respawns = 0;
+    let said = '', respawns = 0, pressed = false;
     const note = (text: string, tone?: number): void => { if (said !== text) { said = text; if (text) log.say(text, tone); } };
     const rate = (e: Entity, perSecond: number): void => {
         const emitter = world.get(e, ParticleEmitter);
@@ -56,7 +56,11 @@ export function installMining(app: App, world: World, rocks: readonly Rock[], pr
         const rock = index >= 0 ? rocks[index]! : null;
         const there = rock ? world.get(rock.entity, Transform).position : null;
         const range = there ? Math.hypot(there.x, there.y, there.z) : Infinity;
-        const wants = frame.held('KeyF') && rock !== null && probe.locked;
+        const key = frame.held('KeyF');
+        if (key && !pressed) mining.armed = !mining.armed;
+        pressed = key;
+        if (rock === null) mining.armed = false;
+        const wants = mining.armed && rock !== null && probe.locked;
         if (mining.overheated && mining.heat < 0.45) mining.overheated = false;
         let reason = '';
         if (wants) {
@@ -133,6 +137,7 @@ export function installMining(app: App, world: World, rocks: readonly Rock[], pr
                     t.scale = { x: sizes[index]!, y: sizes[index]!, z: sizes[index]! };
                 });
                 probe.release = true;
+                mining.armed = false;
             }
         } else {
             const beam = world.get(fx.beam, MeshRenderer);

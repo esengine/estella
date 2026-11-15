@@ -7,6 +7,11 @@ export const METRES = 1 / FIELD_DRIFT;
 const TURN = 0.24;
 const BANK = 0.5;
 const GATES = ['KESTREL GATE', 'TARN RELAY', 'OSSA ANCHORAGE'] as const;
+const REPEAT = 0.32;
+
+export const ENGINE_ORDERS = [0, 0.25, 0.5, 0.75, 1] as const;
+export const RUDDER_ORDERS = [-1, -2 / 3, -1 / 3, 0, 1 / 3, 2 / 3, 1] as const;
+export const ELEVATION_ORDERS = [-30, -15, 0, 15, 30] as const;
 const GATE_REACH = 260;
 
 export const mulQuat = (a: Quat, b: Quat): Quat => ({
@@ -33,6 +38,10 @@ export const helm = {
     yaw: 0, pitch: 0, roll: 0, yawRate: 0, pitchRate: 0,
     viewYaw: 0, viewPitch: 0,
     mode: 'manual' as HelmMode,
+    order: 0.75,
+    rudder: 0,
+    elevation: 0,
+    helmAngle: 0,
     attitude: facing(0, 0),
     level: facing(0, 0),
     frame: facing(0, 0),
@@ -45,29 +54,61 @@ export const helm = {
     aim: null as Vec | null,
 };
 
-export interface HelmKeys { left: boolean; right: boolean; up: boolean; down: boolean; approach: boolean; align: boolean }
+export interface HelmKeys { ahead: boolean; astern: boolean; port: boolean; starboard: boolean; climb: boolean; dive: boolean; steady: boolean; approach: boolean; align: boolean }
 
-let was = { approach: false, align: false };
+const held: Record<string, number> = {};
+
+function tapped(name: string, down: boolean, dt: number, repeats = false): boolean {
+    if (!down) { delete held[name]; return false; }
+    const before = held[name];
+    held[name] = (before ?? 0) + dt;
+    if (before === undefined) return true;
+    if (!repeats || held[name]! < REPEAT) return false;
+    held[name] = 0.0001;
+    return true;
+}
+
+const stepped = (ladder: readonly number[], now: number, by: number): number => {
+    const next = by > 0 ? ladder.find((v) => v > now + 1e-6) : [...ladder].reverse().find((v) => v < now - 1e-6);
+    return next ?? now;
+};
+
+export function setEngine(order: number): void { helm.order = Math.max(0, Math.min(1, order)); }
+export function setRudder(order: number): void { helm.rudder = Math.max(-1, Math.min(1, order)); helm.mode = 'manual'; }
+export function setElevation(degrees: number): void { helm.elevation = Math.max(-30, Math.min(30, degrees)); helm.mode = 'manual'; }
+export function steady(): void { helm.rudder = 0; helm.elevation = Math.max(-30, Math.min(30, Math.round((helm.pitch * 180) / Math.PI / 15) * 15)); helm.mode = 'manual'; }
+export function engage(mode: HelmMode): void {
+    if (mode === 'approach' && !helm.aim) return;
+    helm.mode = helm.mode === mode ? 'manual' : mode;
+    if (helm.mode === 'manual') steady();
+}
 
 export function stepHelm(keys: HelmKeys, dt: number): Vec {
-    const steer = { yaw: Number(keys.left) - Number(keys.right), pitch: Number(keys.up) - Number(keys.down) };
-    if (steer.yaw !== 0 || steer.pitch !== 0) helm.mode = 'manual';
-    if (keys.approach && !was.approach && helm.aim) helm.mode = 'approach';
-    if (keys.align && !was.align) helm.mode = 'align';
-    was = { approach: keys.approach, align: keys.align };
-    if (helm.mode === 'approach' && !helm.aim) helm.mode = 'manual';
+    if (tapped('ahead', keys.ahead, dt, true)) setEngine(stepped(ENGINE_ORDERS, helm.order, 1));
+    if (tapped('astern', keys.astern, dt, true)) setEngine(stepped(ENGINE_ORDERS, helm.order, -1));
+    if (tapped('port', keys.port, dt, true)) setRudder(stepped(RUDDER_ORDERS, helm.rudder, -1));
+    if (tapped('starboard', keys.starboard, dt, true)) setRudder(stepped(RUDDER_ORDERS, helm.rudder, 1));
+    if (tapped('climb', keys.climb, dt, true)) setElevation(stepped(ELEVATION_ORDERS, helm.elevation, 1));
+    if (tapped('dive', keys.dive, dt, true)) setElevation(stepped(ELEVATION_ORDERS, helm.elevation, -1));
+    if (tapped('steady', keys.steady, dt)) steady();
+    if (tapped('approach', keys.approach, dt)) engage('approach');
+    if (tapped('align', keys.align, dt)) engage('align');
+    if (helm.mode === 'approach' && !helm.aim) steady();
 
-    let want = { yaw: steer.yaw * TURN, pitch: steer.pitch * TURN * 0.8 };
+    let want = { yaw: -helm.rudder * TURN, pitch: Math.max(-TURN * 0.8, Math.min(TURN * 0.8, ((helm.elevation * Math.PI) / 180 - helm.pitch) * 1.4)) };
     const to = helm.mode === 'approach' ? helm.aim : helm.mode === 'align' ? helm.gate : null;
     if (to) {
         const flat = Math.hypot(to.x, to.z);
         const off = { yaw: wrapped(Math.atan2(to.x, to.z) - helm.yaw), pitch: Math.atan2(to.y, flat || 1e-6) - helm.pitch };
         want = { yaw: Math.max(-TURN, Math.min(TURN, off.yaw * 1.4)), pitch: Math.max(-TURN * 0.8, Math.min(TURN * 0.8, off.pitch * 1.4)) };
+        helm.rudder = -want.yaw / TURN;
+        helm.elevation = Math.max(-60, Math.min(60, ((helm.pitch + off.pitch) * 180) / Math.PI));
     }
     helm.yawRate += (want.yaw - helm.yawRate) * Math.min(1, dt * 2.4);
     helm.pitchRate += (want.pitch - helm.pitchRate) * Math.min(1, dt * 2.4);
     helm.yaw = wrapped(helm.yaw + helm.yawRate * dt);
     helm.pitch = Math.max(-1.2, Math.min(1.2, helm.pitch + helm.pitchRate * dt));
+    helm.helmAngle = -helm.yawRate / TURN;
     helm.roll += ((-helm.yawRate / TURN) * BANK - helm.roll) * Math.min(1, dt * 1.8);
     helm.viewYaw += wrapped(helm.yaw - helm.viewYaw) * Math.min(1, dt * 1.6);
     helm.viewPitch += (helm.pitch - helm.viewPitch) * Math.min(1, dt * 1.2);
@@ -88,7 +129,7 @@ export function stepHelm(keys: HelmKeys, dt: number): Vec {
         helm.gateName = GATES[helm.arrivals % GATES.length]!;
         const bearing = helm.yaw + 1.9 + helm.arrivals * 0.7, far = 5200;
         helm.gate = { x: Math.sin(bearing) * far, y: ((helm.arrivals * 37) % 9 - 4) * 90, z: Math.cos(bearing) * far };
-        if (helm.mode === 'align') helm.mode = 'manual';
+        if (helm.mode === 'align') steady();
     }
     return moved;
 }

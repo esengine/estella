@@ -43,8 +43,7 @@ addPlugin({
             const dt = Math.min(time.delta, 0.05);
             clock += dt;
 
-            const push = Number(input.isKeyDown('KeyW')) - Number(input.isKeyDown('KeyS'));
-            wanted = clamp(wanted + push * dt * 0.7, 0, 1);
+            wanted = helm.order;
             throttle += (wanted - throttle) * Math.min(1, dt * 2.2);
 
             for (const plume of PLUMES) {

@@ -1,6 +1,6 @@
 import {
-    Assets, Camera, FillMethod, FillOrigin, Input, Name, ScreenOverlay, TextAlign, Transform, UIPointerEvents, UIPositionType, UIVisual, UIVisualType,
-    defineSystem, GetWorld, Res, Time, percent, px, spawnUIEntity,
+    Assets, Camera, FillMethod, FillOrigin, Input, ScreenOverlay, TextAlign, Transform, UIVisual, UIVisualType,
+    defineSystem, GetWorld, Res, Time,
 } from 'esengine';
 import type { App, Entity, World } from 'esengine';
 import { SHOTS, SHOT_SECONDS, clamp } from './flight';
@@ -10,6 +10,7 @@ import {
     type Frame, type Log, type Rgba, type Rock, type Textures,
 } from './hudKit';
 import { MINING, installMining, mining } from './hudMining';
+import { buildHelm } from './hudHelm';
 import { buildScope } from './hudScope';
 import { buildTargets } from './hudTargets';
 import { ship } from './shipState';
@@ -23,7 +24,7 @@ const BOOT_SECONDS = 2.6;
 
 type Loaded = { textures: Textures; fonts: { regular: number; strong: number } };
 
-const state = { ready: false, loadMs: 0, error: '', waypointClamped: true, selected: -1, current: -1, locked: false, booted: false, mining: mining, helm: helm, picks: [] as { index: number; x: number; y: number }[] };
+const state = { ready: false, loadMs: 0, error: '', waypointClamped: true, selected: -1, current: -1, locked: false, booted: false, mining: mining, helm: helm, picks: [] as { index: number; x: number; y: number }[], spots: {} as Record<string, { x: number; y: number }> };
 
 export function installHud(app: App): void {
     let loading: Promise<Loaded> | null = null;
@@ -34,8 +35,8 @@ export function installHud(app: App): void {
     app.addSystem(defineSystem([GetWorld(), Res(Time), Res(Input)], (world, time, input) => {
         if (world.findEntityByName('Camera') === null) return;
         const moved = stepHelm({
-            left: input.isKeyDown('ArrowLeft'), right: input.isKeyDown('ArrowRight'), up: input.isKeyDown('ArrowUp'), down: input.isKeyDown('ArrowDown'),
-            approach: input.isKeyDown('KeyV'), align: input.isKeyDown('KeyB'),
+            ahead: input.isKeyDown('KeyW'), astern: input.isKeyDown('KeyS'), port: input.isKeyDown('ArrowLeft'), starboard: input.isKeyDown('ArrowRight'),
+            climb: input.isKeyDown('ArrowUp'), dive: input.isKeyDown('ArrowDown'), steady: input.isKeyDown('KeyX'), approach: input.isKeyDown('KeyV'), align: input.isKeyDown('KeyB'),
         }, Math.min(time.delta, 0.05));
         if (majors.length === 0) {
             for (let i = MAJOR_FROM; i < ROCKS; i++) { const e = world.findEntityByName(`Rock${i}`); if (e !== null) majors.push(e); }
@@ -161,22 +162,6 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     const commandLabel = label(tag, 'CommandLabel', { left: 76, top: 9, width: 56, height: 14 }, { size: 10, color: rgb(AMBER), spacing: 2.4, content: 'SET', align: TextAlign.Right });
     const commandValue = label(tag, 'CommandValue', { left: 76, top: 30, width: 56, height: 20 }, { size: 15, color: rgb(AMBER), align: TextAlign.Right, spacing: 0.5 });
 
-    const hints = node(root, 'Hints', { left: 0, right: 0, bottom: 12, height: 24 });
-    const HINTS: readonly (readonly [string, number, string])[] = [['W', 24, ''], ['S', 24, 'THRUST'], ['ARROWS', 64, 'STEER'], ['DRAG', 50, 'ORBIT'], ['T', 24, 'LOCK'], ['F', 24, 'MINE'], ['V', 24, 'CLOSE'], ['B', 24, 'GATE'], ['SPACE', 58, 'TOUR']];
-    const wide = HINTS.reduce((sum, [, cap, text]) => sum + cap + (text ? 14 + text.length * 8.6 + 26 : 5), -26);
-    const row = spawnUIEntity({ world, parent: hints, node: { ...{ position: UIPositionType.Absolute, pointerEvents: UIPointerEvents.None }, insetLeft: percent(50), insetTop: px(0), width: px(wide), height: px(24), marginLeft: px(-wide / 2), opacity: 0.78 } });
-    world.insert(row, Name, { value: 'HintRow' });
-    let cursor = 0;
-    for (const [key, cap, text] of HINTS) {
-        sliced(row, `Key${key}`, { left: cursor, top: 0, width: cap, height: 24 }, textures.keycap, 9);
-        label(row, `KeyText${key}`, { left: cursor, top: 0, width: cap, height: 22 }, { size: 10, color: rgb(ICE), align: TextAlign.Center, spacing: 0.8, content: key });
-        cursor += cap;
-        if (!text) { cursor += 5; continue; }
-        label(row, `KeyHint${key}`, { left: cursor + 9, top: 0, width: text.length * 8.6 + 8, height: 24 }, { size: 10, color: rgb(HAZE), spacing: 2, content: text, strong: false });
-        cursor += 14 + text.length * 8.6 + 26;
-    }
-
-
     const logLines = Array.from({ length: LOG_LINES }, (_, i) => label(identityAt, `Log${i}`, { left: -194, top: 28 + i * 17, width: 420, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 1.6, strong: false }));
     const entries: { text: string; tone: number; at: number }[] = [];
     const log: Log = {
@@ -196,8 +181,10 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     const targets = buildTargets(kit, rocks, world.findEntityByName('Planet'), log);
     const mine = installMining(app, world, rocks, targets.probe, log);
     const scope = buildScope(kit, rocks, targets.probe);
-    const groups: readonly (readonly [Entity, number, number])[] = [[identity, 0, 1], [view, 0.15, 1], [systems, 0.35, 1], [gauge, 0.5, 1], [row, 1.2, 0.78]];
-    const leans: readonly (readonly [Entity, number, number])[] = [[identityAt, 0.1, 0.26], [viewAt, 0.1, -0.26], [systemsAt, -0.12, 0.3], [gaugeAt, -0.12, -0.3], [row, -0.42, 0]];
+    const desk = buildHelm(kit, targets.probe);
+    const press = { down: false, at: 0, left: 0, top: 0, travel: 0 };
+    const groups: readonly (readonly [Entity, number, number])[] = [[identity, 0, 1], [view, 0.15, 1], [systems, 0.35, 1], [gauge, 0.5, 1], [desk.root, 0.9, 1]];
+    const leans: readonly (readonly [Entity, number, number])[] = [[identityAt, 0.1, 0.26], [viewAt, 0.1, -0.26], [systemsAt, -0.12, 0.3], [gaugeAt, -0.12, -0.3]];
     const sway = { x: 0, y: 0, yaw: 0, pitch: 0, primed: false };
 
     const model = { reactor: 0.18, primed: false };
@@ -221,12 +208,19 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         }
         const surge = clamp((ship.wanted - ship.throttle) * 0.12, -0.05, 0.05);
         for (const [group, x, y] of leans) tilt(group, x + sway.x + surge, y + sway.y);
+        const pointer = { left: screen.pointerX + across / 2, top: DESIGN.height / 2 - screen.pointerY };
+        const pressing = input.isMouseButtonDown(0);
+        let click: Frame['click'] = null;
+        if (pressing && !press.down) { press.at = ship.time; press.left = pointer.left; press.top = pointer.top; press.travel = 0; }
+        if (pressing) press.travel = Math.max(press.travel, Math.hypot(pointer.left - press.left, pointer.top - press.top));
+        if (!pressing && press.down && press.travel < 6 && ship.time - press.at < 0.4) click = { left: press.left, top: press.top };
+        press.down = pressing;
         const frame: Frame = {
             dt, sway: { x: sway.x + surge, y: sway.y }, time: ship.time, across,
             lens: eye && glass ? { position: eye.worldPosition, rotation: eye.worldRotation, perspective: true, fov: glass.fov, orthoSize: glass.orthoSize, near: glass.nearPlane } : null,
-            pointer: { left: screen.pointerX + across / 2, top: DESIGN.height / 2 - screen.pointerY },
+            pointer, click,
             held: (key) => input.isKeyDown(key),
-            pressing: input.isMouseButtonDown(0),
+            pressing,
         };
         const age = ship.time - began;
         const boot = clamp(age / BOOT_SECONDS, 0, 1);
@@ -314,6 +308,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         if (fast && !hot) log.say('VELOCITY PAST 400 M/S', AMBER);
         hot = fast;
 
+        desk.update(frame);
         targets.update(frame);
         mine(frame);
         scope(frame);
@@ -336,5 +331,6 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         state.current = targets.probe.current;
         state.locked = targets.probe.locked;
         state.picks = targets.probe.picks.map((pick) => ({ index: pick.index, x: pick.left * scale, y: pick.top * scale }));
+        for (const name in desk.spots) state.spots[name] = { x: desk.spots[name]!.left * scale, y: desk.spots[name]!.top * scale };
     };
 }

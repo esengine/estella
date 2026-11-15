@@ -18,6 +18,7 @@ export interface TargetProbe {
     locked: boolean;
     waypointClamped: boolean;
     release: boolean;
+    next: boolean;
     picks: { index: number; left: number; top: number }[];
 }
 
@@ -67,12 +68,12 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
     image(card, 'TargetWholeTrack', { left: 14, top: 82, width: 184, height: 6 }, textures.barTrack, rgb(ICE));
     const cardWhole = node(card, 'TargetWhole', { left: 14, top: 82, width: 184, height: 6 }, { visualType: UIVisualType.Filled, texture: textures.barFill, color: rgb(ICE), fillMethod: FillMethod.Horizontal, fillOrigin: FillOrigin.Left, fillAmount: 1 });
 
-    const probe: TargetProbe = { selected: -1, current: -1, locked: false, waypointClamped: true, release: false, picks: [] };
+    const probe: TargetProbe = { selected: -1, current: -1, locked: false, waypointClamped: true, release: false, next: false, picks: [] };
     const seen = rocks.map(() => ({ range: Infinity, left: 0, top: 0, visible: false, free: false }));
     const near = new Set<number>();
     let selected = -1, tracked = -1, shownFor = -1, lockAt = 0, announced = false, rate = 0, before = 0;
     let primed = false;
-    let keyT = false, keyR = false, down = false, downAt = 0, downLeft = 0, downTop = 0, moved = 0;
+    let keyT = false, keyR = false;
 
     const choose = (index: number, time: number): void => {
         selected = index;
@@ -109,7 +110,8 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
         primed = true;
 
         const t = frame.held('KeyT'), r = frame.held('KeyR');
-        if (t && !keyT) {
+        if ((t && !keyT) || probe.next) {
+            probe.next = false;
             const inView = byRange.filter((i) => seen[i]!.visible);
             const pool = inView.length > 0 ? inView : byRange;
             choose(pool[(pool.indexOf(selected) + 1) % pool.length] ?? -1, frame.time);
@@ -117,18 +119,15 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
         if (r && !keyR && selected >= 0) { log.say(`ROCK ${pad(selected + 1, 2)}  RELEASED`); selected = -1; }
         if (probe.release) { probe.release = false; selected = -1; }
         keyT = t; keyR = r;
-        if (frame.pressing && !down) { downAt = frame.time; downLeft = frame.pointer.left; downTop = frame.pointer.top; moved = 0; }
-        if (frame.pressing) moved = Math.max(moved, Math.hypot(frame.pointer.left - downLeft, frame.pointer.top - downTop));
-        if (!frame.pressing && down && moved < 6 && frame.time - downAt < 0.4) {
+        if (frame.click) {
             let best = PICK_REACH, hit = -1;
             byRange.forEach((i) => {
-                const s = seen[i]!;
-                const off = Math.hypot(s.left - frame.pointer.left, s.top - frame.pointer.top);
-                if (s.visible && off < best) { best = off; hit = i; }
+                const seenAt = seen[i]!;
+                const off = Math.hypot(seenAt.left - frame.click!.left, seenAt.top - frame.click!.top);
+                if (seenAt.visible && off < best) { best = off; hit = i; }
             });
             if (hit >= 0 && hit !== selected) choose(hit, frame.time);
         }
-        down = frame.pressing;
 
         if (selected < 0 && (tracked < 0 || !seen[tracked]!.free)) tracked = byRange.find((i) => seen[i]!.free) ?? -1;
         const current = selected >= 0 ? selected : tracked;
