@@ -2525,13 +2525,13 @@
         },
         {
           "key": "densityMap",
-          "type": "Asset<texture>",
+          "type": "Asset<image>",
           "default": "none",
           "doc": "An image over the area whose red says how many of the plants stand where: none at black, all of them at white. Its Use is Data. Empty grows them everywhere."
         },
         {
           "key": "scaleMap",
-          "type": "Asset<texture>",
+          "type": "Asset<image>",
           "default": "none",
           "doc": "An image over the area whose red says how large the plants stand where: full size at white, smaller toward black, none at black. A sward that shrinks to nothing has a soft edge where one that only thins has a ragged one. Its Use is Data. Empty leaves every plant its own size."
         },
@@ -2791,8 +2791,6 @@
       "animatable": [
         "mesh",
         "material",
-        "densityMap",
-        "scaleMap",
         "colorMap",
         "colorMapStrength",
         "colorMapFrom",
@@ -8233,7 +8231,7 @@
         },
         {
           "key": "heightmap",
-          "type": "Asset<texture>",
+          "type": "Asset<image>",
           "default": "none",
           "doc": "A heightmap image, read as data (shipped as the PNG it is). Empty makes the ground from noise; a heightmap that cannot be read fails the terrain instead."
         },
@@ -8255,13 +8253,13 @@
         },
         {
           "key": "splatmap",
-          "type": "Asset<texture>",
+          "type": "Asset<image>",
           "default": "none",
           "doc": "An image whose red, green, blue and alpha are the weights of grass, dirt, snow and rock."
         },
         {
           "key": "splatmap2",
-          "type": "Asset<texture>",
+          "type": "Asset<image>",
           "default": "none",
           "doc": "An image whose red, green, blue and alpha are the weights of layers 5 to 8."
         },
@@ -8488,10 +8486,7 @@
       "animatable": [
         "extent",
         "generatorVersion",
-        "heightmap",
         "heightmapFormat",
-        "splatmap",
-        "splatmap2",
         "colorMap",
         "colorMapStrength",
         "occlusionMap",

@@ -482,7 +482,7 @@ frequency: number
 friction: number
 generatorVersion: number
 height: number
-heightmap: number
+heightmap: string
 heightmapFormat: number
 layerColor0: Color
 layerColor1: Color
@@ -502,8 +502,8 @@ seed: number
 sizeX: number
 sizeZ: number
 snowHeight: number
-splatmap2: number
-splatmap: number
+splatmap2: string
+splatmap: string
 tiles: string
 virtualTexture: boolean
 virtualTextureFrom: number

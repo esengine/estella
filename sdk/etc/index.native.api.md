@@ -894,7 +894,7 @@ type: AssetFieldType
 
 ## AssetFieldType — type @public
 ```
-'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'sound-event' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'scriptgraph' | 'animatorcontroller' | 'avatar' | 'mesh' | 'environment' | 'probeVolume' | 'prefab'
+'image' | 'texture' | 'material' | 'font' | 'anim-clip' | 'audio' | 'sound-event' | 'video' | 'tilemap' | 'tileset' | 'timeline' | 'statemachine' | 'behaviortree' | 'scriptgraph' | 'animatorcontroller' | 'avatar' | 'mesh' | 'environment' | 'probeVolume' | 'prefab'
 ```
 
 ## AssetGroupDef — interface @experimental
@@ -1066,6 +1066,7 @@ loadTimeline: (ref: string) => Promise<TimelineResult>
 meshRealizations: () => { handle: number; realized: boolean; }[]
 meshesAwaitingRematerialization: () => number[]
 onInvalidate: (listener: InvalidateListener) => () => void
+onSourceChanged: (listener: (path: string) => void) => () => void
 pathForHandle: (kind: string, handle: number) => string | null
 pathForRenderedTexture: (renderId: number) => string | null
 preload: (refs: ReadonlyArray<string>, onProgress?: (loaded: number, total: number) => void, options?: { readonly maxConcurrent?: number; }) => Promise<{ failed: MissingAsset[]; }>
@@ -1101,6 +1102,7 @@ setRefCounter: (counter: AssetRefCounter) => void
 setRemoteRoot: (url: string | undefined) => void
 setTextureImportSettingsResolver: (resolver: TextureImportSettingsResolver | null) => void
 setTextureStreamingStart: (edge: number | (() => number)) => void
+sourceIdentity: (ref: string) => string
 textureFormatReport: () => TextureFormatReport
 textureFullSize: (handle: number) => { width: number; height: number; } | null
 textureResizable: (handle: number) => boolean
@@ -4696,7 +4698,7 @@ colorMap: number
 colorMapFrom: number
 colorMapStrength: number
 count: number
-densityMap: number
+densityMap: string
 drawDistance: number
 faceEye: number
 faceEyeNear: number
@@ -4716,7 +4718,7 @@ mesh: number
 minScale: number
 minUp: number
 palette: number
-scaleMap: number
+scaleMap: string
 seed: number
 sizeX: number
 sizeZ: number
@@ -11833,7 +11835,7 @@ frequency: number
 friction: number
 generatorVersion: number
 height: number
-heightmap: number
+heightmap: string
 heightmapFormat: number
 layerColor0: Color
 layerColor1: Color
@@ -11853,8 +11855,8 @@ seed: number
 sizeX: number
 sizeZ: number
 snowHeight: number
-splatmap2: number
-splatmap: number
+splatmap2: string
+splatmap: string
 tiles: string
 virtualTexture: boolean
 virtualTextureFrom: number
