@@ -347,7 +347,7 @@ export function samplePitch(data: SampleData, near: number): number | null {
 type Shape = 'lowpass' | 'highpass' | 'lowshelf' | 'highshelf';
 
 /** A two-pole filter run over @p channel where it lies: a cut above or below @p hz, or a shelf of @p db there. */
-function filtered(channel: Float32Array, shape: Shape, hz: number, rate: number, db = 0): void {
+function filtered(channel: Float32Array, shape: Shape, hz: number, rate: number, db = 0, roundFrom = -1): void {
     const w = (2 * Math.PI * Math.min(hz, rate * 0.45)) / rate;
     const [cos, sin] = [Math.cos(w), Math.sin(w)];
     let b0: number, b1: number, b2: number, a0: number, a1: number, a2: number;
@@ -367,12 +367,20 @@ function filtered(channel: Float32Array, shape: Shape, hz: number, rate: number,
         a2 = A + 1 + sign * (A - 1) * cos - beta;
     }
     let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-    for (let n = 0; n < channel.length; n++) {
-        const x = channel[n]!;
-        const y = (b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0;
-        x2 = x1; x1 = x; y2 = y1; y1 = y;
-        channel[n] = y;
-    }
+    const pass = (from: number, to: number, write: boolean): void => {
+        for (let n = from; n < to; n++) {
+            const x = channel[n]!;
+            const y = (b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0;
+            x2 = x1; x1 = x; y2 = y1; y1 = y;
+            if (write) channel[n] = y;
+        }
+    };
+    const end = channel.length;
+    if (roundFrom < 0 || roundFrom >= end) { pass(0, end, true); return; }
+    pass(0, roundFrom, true);
+    x1 = 0; x2 = 0; y1 = 0; y2 = 0;
+    pass(Math.max(roundFrom, end - rate), end, false);
+    pass(roundFrom, end, true);
 }
 
 /**
@@ -579,8 +587,8 @@ export function renderMusic(source: MusicSource, given: Readonly<Record<string, 
             for (const list of every) for (const channel of list) for (let n = 0; n < total; n++) channel[n]! *= gains[n]!;
         }
         for (const list of every) for (const channel of list) {
-            if (source.master.low) filtered(channel, 'lowshelf', 110, rate, source.master.low);
-            if (source.master.high) filtered(channel, 'highshelf', 7000, rate, source.master.high);
+            if (source.master.low) filtered(channel, 'lowshelf', 110, rate, source.master.low, loop ? roundFrom : -1);
+            if (source.master.high) filtered(channel, 'highshelf', 7000, rate, source.master.high, loop ? roundFrom : -1);
         }
     }
 
