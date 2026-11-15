@@ -58,7 +58,7 @@ function getImporterDefaults(type) {
     switch (type) {
         case 'texture':
             return {
-                maxSize: 2048,
+                maxSize: 0,
                 filterMode: 'linear',
                 wrapMode: 'repeat',
                 premultiplyAlpha: false,

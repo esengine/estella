@@ -176,71 +176,202 @@ function reliefAt(tree: TriangleTree, corners: Float64Array, px: number, py: num
     return Math.max(-1, Math.min(1, sum / count / (reach * 0.5)));
 }
 
-function layStains(
-    high: PolyMesh, stains: readonly StainParams[], tree: TriangleTree, corners: Float64Array, normals: Float64Array, faceOf: Int32Array,
-    hitTriangle: Int32Array, hitPlace: Float32Array, size: number, diagonal: number, fallback: { roughness: number; metallic: number },
-    colorRgba: Uint8Array | undefined, surfaceRgba: Uint8Array | undefined, glow: Uint8Array | undefined,
-): void {
+export interface ReliefProbe {
+    reach: number;
+    values: Float64Array;
+    todo: Int32Array;
+}
+
+export interface OcclusionProbe {
+    reach: number;
+    samples: number;
+    bias: number;
+    texels: Int32Array;
+    triangles: Int32Array;
+    places: Float64Array;
+    values: Float32Array;
+    todo: Int32Array;
+}
+
+export interface BakeProbes {
+    corners: Float64Array;
+    normals: Float64Array;
+    triangles: Int32Array;
+    places: Float32Array;
+    reliefs: ReliefProbe[];
+    occlusion?: OcclusionProbe;
+}
+
+export interface StainWork {
+    stains: StainParams[];
+    chosen: Uint8Array[];
+    reliefOf: number[];
+    faceOf: Int32Array;
+    slots: Int32Array;
+    fallback: { roughness: number; metallic: number };
+    colorRgba?: Uint8Array;
+    surfaceRgba?: Uint8Array;
+    glow?: Uint8Array;
+    painted: boolean;
+}
+
+export interface NormalBakePlan {
+    probes: BakeProbes;
+    stains: StainWork | null;
+    tree: TriangleTree;
+    finish(): NormalMap;
+}
+
+function stainLayers(high: PolyMesh, stains: readonly StainParams[], diagonal: number): { chosen: Uint8Array[]; reliefOf: number[]; reaches: number[] } {
     const reaches: number[] = [];
-    const layers = stains.map((p) => {
-        const chosen = new Uint8Array(high.faces.length);
-        for (const f of selectFaces(high, p.faces ?? 'all')) chosen[f] = 1;
-        const reach = p.where ? p.reach ?? diagonal * DEFAULT_RELIEF_REACH : 0;
-        if (p.where && !reaches.includes(reach)) reaches.push(reach);
-        return { p, chosen, weigh: texelStain(p), relief: p.where ? reaches.indexOf(reach) : -1 };
+    const chosen = stains.map((p) => {
+        const mask = new Uint8Array(high.faces.length);
+        for (const f of selectFaces(high, p.faces ?? 'all')) mask[f] = 1;
+        return mask;
     });
-    const reliefs = new Float64Array(reaches.length);
+    const reliefOf = stains.map((p) => {
+        if (!p.where) return -1;
+        const reach = p.reach ?? diagonal * DEFAULT_RELIEF_REACH;
+        if (!reaches.includes(reach)) reaches.push(reach);
+        return reaches.indexOf(reach);
+    });
+    return { chosen, reliefOf, reaches };
+}
+
+function reliefProbes(chosen: readonly Uint8Array[], reliefOf: readonly number[], reaches: readonly number[], faceOf: Int32Array, triangles: Int32Array): ReliefProbe[] {
+    return reaches.map((reach, index) => {
+        const wanted = chosen.filter((_, layer) => reliefOf[layer] === index);
+        const todo: number[] = [];
+        for (let slot = 0; slot < triangles.length; slot++) {
+            const face = faceOf[triangles[slot]!]!;
+            if (wanted.some((mask) => mask[face])) todo.push(slot);
+        }
+        return { reach, values: new Float64Array(triangles.length).fill(NaN), todo: Int32Array.from(todo) };
+    });
+}
+
+export function probeRelief(probes: BakeProbes, tree: TriangleTree, index: number, from: number, to: number): void {
+    const { corners, normals, triangles, places } = probes;
+    const { reach, values, todo } = probes.reliefs[index]!;
     const place = new Float64Array(2);
     const at: [number, number, number] = [0, 0, 0], n: [number, number, number] = [0, 0, 0];
-    for (let texel = 0; texel < size * size; texel++) {
-        const hit = hitTriangle[texel]!;
-        if (hit < 0) continue;
-        const face = faceOf[hit]!;
-        const hv = hitPlace[texel * 2]!, hw = hitPlace[texel * 2 + 1]!, hu = 1 - hv - hw, c = hit * 9;
+    for (let i = from; i < to; i++) {
+        const slot = todo[i]!;
+        const hv = places[slot * 2]!, hw = places[slot * 2 + 1]!, hu = 1 - hv - hw, c = triangles[slot]! * 9;
         for (let k = 0; k < 3; k++) {
             at[k] = hu * corners[c + k]! + hv * corners[c + 3 + k]! + hw * corners[c + 6 + k]!;
             n[k] = hu * normals[c + k]! + hv * normals[c + 3 + k]! + hw * normals[c + 6 + k]!;
         }
         const nl = Math.hypot(n[0], n[1], n[2]) || 1;
-        n[0] /= nl; n[1] /= nl; n[2] /= nl;
-        reliefs.fill(NaN);
-        let red = 0, green = 0, blue = 0, alpha = 0, rough = fallback.roughness, metal = fallback.metallic;
-        if (colorRgba) { red = colorRgba[texel * 4]! / 255; green = colorRgba[texel * 4 + 1]! / 255; blue = colorRgba[texel * 4 + 2]! / 255; alpha = colorRgba[texel * 4 + 3]! / 255; }
-        if (surfaceRgba) { rough = surfaceRgba[texel * 4 + 1]! / 255; metal = surfaceRgba[texel * 4 + 2]! / 255; }
-        let lit = glow ? glow[texel]! / 255 : 0;
-        let touched = false;
-        for (const layer of layers) {
-            if (!layer.chosen[face]) continue;
-            let relief = 0;
-            if (layer.relief >= 0) {
-                if (Number.isNaN(reliefs[layer.relief]!)) reliefs[layer.relief] = reliefAt(tree, corners, at[0], at[1], at[2], n[0], n[1], n[2], reaches[layer.relief]!, place);
-                relief = reliefs[layer.relief]!;
-            }
-            const m = layer.weigh(at as unknown as Vec3, n as unknown as Vec3, relief);
-            if (m <= 0) continue;
-            touched = true;
-            const { p } = layer;
-            if (p.color) { red += (p.color[0]! - red) * m; green += (p.color[1]! - green) * m; blue += (p.color[2]! - blue) * m; }
-            if (p.alpha !== undefined) alpha += (p.alpha - alpha) * m;
-            if (p.roughness !== undefined) rough += (p.roughness - rough) * m;
-            if (p.metallic !== undefined) metal += (p.metallic - metal) * m;
-            if (p.glow !== undefined) lit += (p.glow - lit) * m;
-        }
-        if (!touched) continue;
-        const byte = (v: number): number => Math.round(Math.max(0, Math.min(1, v)) * 255);
-        if (colorRgba) { colorRgba[texel * 4] = byte(red); colorRgba[texel * 4 + 1] = byte(green); colorRgba[texel * 4 + 2] = byte(blue); colorRgba[texel * 4 + 3] = byte(alpha); }
-        if (surfaceRgba) { surfaceRgba[texel * 4 + 1] = byte(rough); surfaceRgba[texel * 4 + 2] = byte(metal); }
-        if (glow) glow[texel] = byte(lit);
+        values[slot] = reliefAt(tree, corners, at[0], at[1], at[2], n[0] / nl, n[1] / nl, n[2] / nl, reach, place);
     }
 }
 
-/** Bakes @p model's `normalBake`. Throws if it has none. */
+export function probeOcclusion(probes: BakeProbes, tree: TriangleTree, from: number, to: number): void {
+    const { corners, normals } = probes;
+    const { reach, samples, bias, texels, triangles, places, values, todo } = probes.occlusion!;
+    const side = Math.ceil(Math.sqrt(samples));
+    for (let step = from; step < to; step++) {
+        const i = todo[step]!;
+        const hv = places[i * 2]!, hw = places[i * 2 + 1]!;
+        const hu = 1 - hv - hw;
+        const at = triangles[i]! * 9;
+        const px = hu * corners[at]! + hv * corners[at + 3]! + hw * corners[at + 6]!;
+        const py = hu * corners[at + 1]! + hv * corners[at + 4]! + hw * corners[at + 7]!;
+        const pz = hu * corners[at + 2]! + hv * corners[at + 5]! + hw * corners[at + 8]!;
+        let sx = hu * normals[at]! + hv * normals[at + 3]! + hw * normals[at + 6]!;
+        let sy = hu * normals[at + 1]! + hv * normals[at + 4]! + hw * normals[at + 7]!;
+        let sz = hu * normals[at + 2]! + hv * normals[at + 5]! + hw * normals[at + 8]!;
+        const sl = Math.hypot(sx, sy, sz) || 1;
+        sx /= sl; sy /= sl; sz /= sl;
+        let ux = Math.abs(sx) < 0.9 ? 0 : -sz, uy = Math.abs(sx) < 0.9 ? -sz : 0, uz = Math.abs(sx) < 0.9 ? sy : sx;
+        const ul = Math.hypot(ux, uy, uz) || 1;
+        ux /= ul; uy /= ul; uz /= ul;
+        const vx = sy * uz - sz * uy, vy = sz * ux - sx * uz, vz = sx * uy - sy * ux;
+        const turn = (texels[i]! * 0.61803398875) % 1;
+        const [ox, oy, oz] = [px + sx * bias, py + sy * bias, pz + sz * bias];
+        let open = 0, total = 0;
+        for (let a = 0; a < side; a++) {
+            for (let b = 0; b < side; b++) {
+                const r = Math.sqrt((a + 0.5) / side);
+                const phi = ((b + 0.5) / side + turn) * 2 * Math.PI;
+                const [du, dv] = [r * Math.cos(phi), r * Math.sin(phi)];
+                const dn = Math.sqrt(Math.max(0, 1 - r * r));
+                total++;
+                if (!tree.blocked(ox, oy, oz, ux * du + vx * dv + sx * dn, uy * du + vy * dv + sy * dn, uz * du + vz * dv + sz * dn, reach)) open++;
+            }
+        }
+        values[i] = open / total;
+    }
+}
+
+export function runProbes(probes: BakeProbes, tree: TriangleTree): void {
+    probes.reliefs.forEach((relief, index) => probeRelief(probes, tree, index, 0, relief.todo.length));
+    if (probes.occlusion) probeOcclusion(probes, tree, 0, probes.occlusion.todo.length);
+}
+
+export function probeIdentity(): string {
+    return [RELIEF_RINGS, RELIEF_FLAT, reliefAt, probeRelief, probeOcclusion, TriangleTree.prototype.nearest, TriangleTree.prototype.blocked].map((part) => typeof part === 'function' ? String(part) : JSON.stringify(part)).join('\n');
+}
+
+export function stainPainter(work: StainWork, probes: BakeProbes): (from: number, to: number) => void {
+    const { corners, normals, triangles, places, reliefs } = probes;
+    const { slots, faceOf, fallback, colorRgba, surfaceRgba, glow } = work;
+    const layers = work.stains.map((p, layer) => ({ p, chosen: work.chosen[layer]!, weigh: texelStain(p), relief: work.reliefOf[layer]! }));
+    const at: [number, number, number] = [0, 0, 0], n: [number, number, number] = [0, 0, 0];
+    return (from, to) => {
+        for (let slot = from; slot < to; slot++) {
+            const texel = slots[slot]!;
+            const hit = triangles[slot]!;
+            const face = faceOf[hit]!;
+            const hv = places[slot * 2]!, hw = places[slot * 2 + 1]!, hu = 1 - hv - hw, c = hit * 9;
+            for (let k = 0; k < 3; k++) {
+                at[k] = hu * corners[c + k]! + hv * corners[c + 3 + k]! + hw * corners[c + 6 + k]!;
+                n[k] = hu * normals[c + k]! + hv * normals[c + 3 + k]! + hw * normals[c + 6 + k]!;
+            }
+            const nl = Math.hypot(n[0], n[1], n[2]) || 1;
+            n[0] /= nl; n[1] /= nl; n[2] /= nl;
+            let red = 0, green = 0, blue = 0, alpha = 0, rough = fallback.roughness, metal = fallback.metallic;
+            if (colorRgba) { red = colorRgba[texel * 4]! / 255; green = colorRgba[texel * 4 + 1]! / 255; blue = colorRgba[texel * 4 + 2]! / 255; alpha = colorRgba[texel * 4 + 3]! / 255; }
+            if (surfaceRgba) { rough = surfaceRgba[texel * 4 + 1]! / 255; metal = surfaceRgba[texel * 4 + 2]! / 255; }
+            let lit = glow ? glow[texel]! / 255 : 0;
+            let touched = false;
+            for (const layer of layers) {
+                if (!layer.chosen[face]) continue;
+                const relief = layer.relief >= 0 ? reliefs[layer.relief]!.values[slot]! : 0;
+                if (Number.isNaN(relief)) throw new Error(`the relief at texel ${texel} was never probed`);
+                const m = layer.weigh(at as unknown as Vec3, n as unknown as Vec3, relief);
+                if (m <= 0) continue;
+                touched = true;
+                const { p } = layer;
+                if (p.color) { red += (p.color[0]! - red) * m; green += (p.color[1]! - green) * m; blue += (p.color[2]! - blue) * m; }
+                if (p.alpha !== undefined) alpha += (p.alpha - alpha) * m;
+                if (p.roughness !== undefined) rough += (p.roughness - rough) * m;
+                if (p.metallic !== undefined) metal += (p.metallic - metal) * m;
+                if (p.glow !== undefined) lit += (p.glow - lit) * m;
+            }
+            if (!touched) continue;
+            const byte = (v: number): number => Math.round(Math.max(0, Math.min(1, v)) * 255);
+            if (colorRgba) { colorRgba[texel * 4] = byte(red); colorRgba[texel * 4 + 1] = byte(green); colorRgba[texel * 4 + 2] = byte(blue); colorRgba[texel * 4 + 3] = byte(alpha); }
+            if (surfaceRgba) { surfaceRgba[texel * 4 + 1] = byte(rough); surfaceRgba[texel * 4 + 2] = byte(metal); }
+            if (glow) glow[texel] = byte(lit);
+        }
+    };
+}
+
 export function bakeNormalMap(model: BakedModel): NormalMap {
+    const plan = planNormalBake(model);
+    runProbes(plan.probes, plan.tree);
+    return plan.finish();
+}
+
+export function planNormalBake(model: BakedModel): NormalBakePlan {
     const detail = model.detail;
     if (!detail) throw new Error('this model has no normalBake');
     const { size, high, smoothAngle } = detail;
     const { min, max } = boundsOf(high);
-    const distance = detail.distance ?? Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) * DEFAULT_DISTANCE;
+    const diagonal = Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]);
+    const distance = detail.distance ?? diagonal * DEFAULT_DISTANCE;
     const fallback = detail.surface ?? { roughness: 1, metallic: 0 };
     const { corners, normals, colors, surfaces, faceOf, glows } = denseSurface(high, smoothAngle, fallback);
     const tree = new TriangleTree(corners);
@@ -271,8 +402,8 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
     const place = new Float64Array(2);
     let hits = 0, missed = 0, bend = 0;
     const stains = detail.stains ?? [];
-    const hitTriangle = stains.length ? new Int32Array(size * size).fill(-1) : null;
-    const hitPlace = stains.length ? new Float32Array(size * size * 2) : null;
+    let hitTriangle = stains.length ? new Int32Array(size * size).fill(-1) : null;
+    let hitPlace = stains.length ? new Float32Array(size * size * 2) : null;
 
     rasterTexels(mesh.indices, UV, size, (texel, a, b, c, w0, w1, w2) => {
             if (covered[texel]) return;
@@ -329,57 +460,83 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
             rgba[texel * 4 + 1] = Math.round((v * 0.5 + 0.5) * 255);
             rgba[texel * 4 + 2] = Math.round((Math.max(w, 0) * 0.5 + 0.5) * 255);
     });
+    let count = 0;
+    if (hitTriangle) for (let texel = 0; texel < size * size; texel++) if (hitTriangle[texel]! >= 0) count++;
+    const slots = new Int32Array(count), triangles = new Int32Array(count), places = new Float32Array(count * 2);
     if (hitTriangle && hitPlace) {
-        layStains(high, stains, tree, corners, normals, faceOf, hitTriangle, hitPlace, size, Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]), fallback, colorRgba, surfaceRgba, glow);
-    }
-    const occlusion = detail.occlusion ? bakeOcclusion(tree, corners, normals, mesh.indices, P, N, UV, size, distance, detail.occlusion, Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2])) : undefined;
-    const inside = hits + missed;
-    let emissiveRgba: Uint8Array | undefined;
-    if (glow && colorRgba) {
-        emissiveRgba = new Uint8Array(size * size * 4);
-        for (let i = 0; i < size * size; i++) {
-            for (let k = 0; k < 3; k++) emissiveRgba[i * 4 + k] = Math.round(colorRgba[i * 4 + k]! * glow[i]! / 255);
-            emissiveRgba[i * 4 + 3] = 255;
+        for (let texel = 0, slot = 0; texel < size * size; texel++) {
+            if (hitTriangle[texel]! < 0) continue;
+            slots[slot] = texel;
+            triangles[slot] = hitTriangle[texel]!;
+            places[slot * 2] = hitPlace[texel * 2]!;
+            places[slot * 2 + 1] = hitPlace[texel * 2 + 1]!;
+            slot++;
         }
     }
-    dilate([rgba, ...(colorRgba ? [colorRgba] : []), ...(surfaceRgba ? [surfaceRgba] : []), ...(emissiveRgba ? [emissiveRgba] : [])], covered, size);
+    const { chosen, reliefOf, reaches } = stainLayers(high, stains, diagonal);
+    const shade = detail.occlusion ? planOcclusion(tree, mesh.indices, P, N, UV, size, distance, detail.occlusion, diagonal) : null;
+    const probes: BakeProbes = { corners, normals, triangles, places, reliefs: reliefProbes(chosen, reliefOf, reaches, faceOf, triangles), ...(shade ? { occlusion: shade.probe } : {}) };
+    const work: StainWork | null = stains.length
+        ? { stains: [...stains], chosen, reliefOf, faceOf, slots, fallback, ...(colorRgba ? { colorRgba } : {}), ...(surfaceRgba ? { surfaceRgba } : {}), ...(glow ? { glow } : {}), painted: false }
+        : null;
+    hitTriangle = null;
+    hitPlace = null;
+    const finish = (): NormalMap => {
+        if (work && !work.painted) {
+            stainPainter(work, probes)(0, slots.length);
+            work.painted = true;
+        }
+        const occlusion = shade ? finishOcclusion(shade) : undefined;
+        const inside = hits + missed;
+        let emissiveRgba: Uint8Array | undefined;
+        if (glow && colorRgba) {
+            emissiveRgba = new Uint8Array(size * size * 4);
+            for (let i = 0; i < size * size; i++) {
+                for (let k = 0; k < 3; k++) emissiveRgba[i * 4 + k] = Math.round(colorRgba[i * 4 + k]! * glow[i]! / 255);
+                emissiveRgba[i * 4 + 3] = 255;
+            }
+        }
+        dilate([rgba, ...(colorRgba ? [colorRgba] : []), ...(surfaceRgba ? [surfaceRgba] : []), ...(emissiveRgba ? [emissiveRgba] : [])], covered, size);
 
-    const from = corners.length / 9, to = mesh.indices.length / 3;
-    const warnings: string[] = [];
-    const missedShare = inside ? missed / inside : 1;
-    if (missedShare > MISSED_WARNING) warnings.push(`${Math.round(missedShare * 100)}% of the normal map found no surface within ${distance.toPrecision(3)} and is flat: raise normalBake.distance, or decimate less`);
-    if (hits && (bend / hits) * 180 / Math.PI > STEEP_BEND) warnings.push(`the map bends light by ${Math.round((bend / hits) * 180 / Math.PI)} degrees on average, steeper than a normal map draws well: dark bands and lost shape. Lower the amplitude of a displace against its scale`);
-    if (inside / (size * size) < SPARSE_COVERAGE) warnings.push(`the surface broke into so many pieces that they fill only ${Math.round((inside / (size * size)) * 100)}% of the map, so most of its resolution is lost: lower the amplitude before the decimate, or keep more triangles`);
-    if (from <= to) warnings.push(`the surface baked from has ${from} triangles and this one ${to}: there is no detail to carry. normalBake.from should name a step before the decimate`);
-    return {
-        size, rgba, warnings, ...(colorRgba ? { colorRgba } : {}), ...(surfaceRgba ? { surfaceRgba } : {}), ...(emissiveRgba ? { emissiveRgba } : {}), ...(occlusion ? { occlusion } : {}),
-        report: {
-            size, from, to,
-            coverage: Math.round((inside / (size * size)) * 1000) / 1000,
-            missed: Math.round(missedShare * 1000) / 1000,
-            distance: Number(distance.toPrecision(4)),
-            meanBend: hits ? Math.round(((bend / hits) * 180 / Math.PI) * 100) / 100 : 0,
-        },
+        const from = corners.length / 9, to = mesh.indices.length / 3;
+        const warnings: string[] = [];
+        const missedShare = inside ? missed / inside : 1;
+        if (missedShare > MISSED_WARNING) warnings.push(`${Math.round(missedShare * 100)}% of the normal map found no surface within ${distance.toPrecision(3)} and is flat: raise normalBake.distance, or decimate less`);
+        if (hits && (bend / hits) * 180 / Math.PI > STEEP_BEND) warnings.push(`the map bends light by ${Math.round((bend / hits) * 180 / Math.PI)} degrees on average, steeper than a normal map draws well: dark bands and lost shape. Lower the amplitude of a displace against its scale`);
+        if (inside / (size * size) < SPARSE_COVERAGE) warnings.push(`the surface broke into so many pieces that they fill only ${Math.round((inside / (size * size)) * 100)}% of the map, so most of its resolution is lost: lower the amplitude before the decimate, or keep more triangles`);
+        if (from <= to) warnings.push(`the surface baked from has ${from} triangles and this one ${to}: there is no detail to carry. normalBake.from should name a step before the decimate`);
+        return {
+            size, rgba, warnings, ...(colorRgba ? { colorRgba } : {}), ...(surfaceRgba ? { surfaceRgba } : {}), ...(emissiveRgba ? { emissiveRgba } : {}), ...(occlusion ? { occlusion } : {}),
+            report: {
+                size, from, to,
+                coverage: Math.round((inside / (size * size)) * 1000) / 1000,
+                missed: Math.round(missedShare * 1000) / 1000,
+                distance: Number(distance.toPrecision(4)),
+                meanBend: hits ? Math.round(((bend / hits) * 180 / Math.PI) * 100) / 100 : 0,
+            },
+        };
     };
+    return { probes, stains: work, tree, finish };
 }
 
-/**
- * Cosine-weighted rays from the dense surface, not the thin one: the thin one has no creases to be shaded by. A short reach
- * keeps it to contact and crevices, which is what a sky's light misses; a long one is what a light does already.
- */
-function bakeOcclusion(
-    tree: TriangleTree, corners: Float64Array, normals: Float64Array, indices: ArrayLike<number>,
+interface OcclusionPlan {
+    size: number;
+    values: Float32Array;
+    probe: OcclusionProbe;
+}
+
+function planOcclusion(
+    tree: TriangleTree, indices: ArrayLike<number>,
     P: Float32Array, N: Float32Array, UV: Float32Array, mainSize: number, distance: number,
     options: { size?: number; reach?: number; samples?: number }, diagonal: number,
-): { size: number; rgba: Uint8Array } {
+): OcclusionPlan {
     const size = options.size ?? Math.max(MIN_OCCLUSION_SIZE, Math.min(MAX_OCCLUSION_SIZE, mainSize >> 2));
     const reach = options.reach ?? diagonal * DEFAULT_OCCLUSION_REACH;
     const samples = options.samples ?? DEFAULT_OCCLUSION_SAMPLES;
     const bias = diagonal * 2e-4;
     const values = new Float32Array(size * size).fill(-1);
     const place = new Float64Array(2);
-    // One set of directions, turned per texel: a pattern the blur below can take out, and a bake that comes out the same every time.
-    const side = Math.ceil(Math.sqrt(samples));
+    const texels: number[] = [], triangles: number[] = [], places: number[] = [];
     rasterTexels(indices, UV, size, (texel, a, b, c, w0, w1, w2) => {
         if (values[texel]! >= 0) return;
         const nx0 = w0 * N[a * 3]! + w1 * N[b * 3]! + w2 * N[c * 3]!;
@@ -392,38 +549,21 @@ function bakeOcclusion(
             w0 * P[a * 3 + 2]! + w1 * P[b * 3 + 2]! + w2 * P[c * 3 + 2]!,
             nx0 / nl, ny0 / nl, nz0 / nl, distance, place,
         );
-        if (hit < 0) { values[texel] = 1; return; }
-        const [hv, hw] = [place[0]!, place[1]!];
-        const hu = 1 - hv - hw;
-        const at = hit * 9;
-        const px = hu * corners[at]! + hv * corners[at + 3]! + hw * corners[at + 6]!;
-        const py = hu * corners[at + 1]! + hv * corners[at + 4]! + hw * corners[at + 7]!;
-        const pz = hu * corners[at + 2]! + hv * corners[at + 5]! + hw * corners[at + 8]!;
-        let sx = hu * normals[at]! + hv * normals[at + 3]! + hw * normals[at + 6]!;
-        let sy = hu * normals[at + 1]! + hv * normals[at + 4]! + hw * normals[at + 7]!;
-        let sz = hu * normals[at + 2]! + hv * normals[at + 5]! + hw * normals[at + 8]!;
-        const sl = Math.hypot(sx, sy, sz) || 1;
-        sx /= sl; sy /= sl; sz /= sl;
-        // Two axes square to the normal.
-        let ux = Math.abs(sx) < 0.9 ? 0 : -sz, uy = Math.abs(sx) < 0.9 ? -sz : 0, uz = Math.abs(sx) < 0.9 ? sy : sx;
-        const ul = Math.hypot(ux, uy, uz) || 1;
-        ux /= ul; uy /= ul; uz /= ul;
-        const vx = sy * uz - sz * uy, vy = sz * ux - sx * uz, vz = sx * uy - sy * ux;
-        const turn = (texel * 0.61803398875) % 1;
-        const [ox, oy, oz] = [px + sx * bias, py + sy * bias, pz + sz * bias];
-        let open = 0, total = 0;
-        for (let i = 0; i < side; i++) {
-            for (let j = 0; j < side; j++) {
-                const r = Math.sqrt((i + 0.5) / side);
-                const phi = ((j + 0.5) / side + turn) * 2 * Math.PI;
-                const [du, dv] = [r * Math.cos(phi), r * Math.sin(phi)];
-                const dn = Math.sqrt(Math.max(0, 1 - r * r));
-                total++;
-                if (!tree.blocked(ox, oy, oz, ux * du + vx * dv + sx * dn, uy * du + vy * dv + sy * dn, uz * du + vz * dv + sz * dn, reach)) open++;
-            }
-        }
-        values[texel] = open / total;
+        values[texel] = 1;
+        if (hit < 0) return;
+        texels.push(texel);
+        triangles.push(hit);
+        places.push(place[0]!, place[1]!);
     });
+    return { size, values, probe: { reach, samples, bias, texels: Int32Array.from(texels), triangles: Int32Array.from(triangles), places: Float64Array.from(places), values: new Float32Array(texels.length).fill(NaN), todo: Int32Array.from(texels, (_, i) => i) } };
+}
+
+function finishOcclusion(plan: OcclusionPlan): { size: number; rgba: Uint8Array } {
+    const { size, values, probe } = plan;
+    for (let i = 0; i < probe.texels.length; i++) {
+        if (Number.isNaN(probe.values[i]!)) throw new Error(`the occlusion at texel ${probe.texels[i]} was never probed`);
+        values[probe.texels[i]!] = probe.values[i]!;
+    }
     // A little blur, among texels on a surface: it takes out the turned pattern, and what this map holds has no edges to lose.
     const blurred = new Float32Array(size * size).fill(-1);
     const covered = new Uint8Array(size * size);

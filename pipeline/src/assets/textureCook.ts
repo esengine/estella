@@ -17,7 +17,7 @@ import {
   type TextureCookDecision,
 } from './textureCookDecision';
 import { bleedCutoutColor } from './modelImages';
-import { halveRgba, joinMipLevels, alphaCoverage, preserveAlphaCoverage } from './ktx2Mips';
+import { halveRgba, joinMipLevels, stackStrips, alphaCoverage, preserveAlphaCoverage } from './ktx2Mips';
 import { cookCachedAt, cookCacheFile, cookCacheHitAt, encoderIdentity } from './cookCache';
 
 /** Targets the KTX2 the cook emits can transcode to at runtime (UASTC + ETC1S). */
@@ -41,6 +41,34 @@ export interface BasisEncoderModule {
   ENCODER_PARALLELISM: number;
 }
 
+export const ENCODER_MAX_TEXELS = 12 * 1024 * 1024;
+
+type Rgba = { rgba: Uint8Array; width: number; height: number };
+
+async function encodeUastcLevel(enc: BasisEncoderModule, img: Rgba, srgb: boolean, supercompress: boolean, limit: number): Promise<Uint8Array> {
+  const one = (rgba: Uint8Array, height: number): Promise<Uint8Array> =>
+    enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: rgba, width: img.width, height }, { mode: 'uastc', srgb, mipmaps: false, supercompress });
+  if (img.width * img.height <= limit) return one(img.rgba, img.height);
+  const rows = Math.max(4, Math.floor(limit / img.width / 4) * 4);
+  const strips: Uint8Array[] = [];
+  for (let end = img.height; end > 0; end -= rows) {
+    const start = Math.max(0, end - rows);
+    strips.push(await one(img.rgba.subarray(start * img.width * 4, end * img.width * 4), end - start));
+  }
+  return stackStrips(strips);
+}
+
+export async function encodeOversizeUastc(enc: BasisEncoderModule, img: Rgba, opts: { srgb: boolean; supercompress: boolean; mipmaps: boolean },
+                                          limit = ENCODER_MAX_TEXELS): Promise<Uint8Array> {
+  const top = await encodeUastcLevel(enc, img, opts.srgb, opts.supercompress, limit);
+  if (!opts.mipmaps || (img.width === 1 && img.height === 1)) return top;
+  const half = halveRgba(img.rgba, img.width, img.height, opts.srgb);
+  const below = half.width * half.height <= limit
+    ? await enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: half.rgba, width: half.width, height: half.height }, { mode: 'uastc', srgb: opts.srgb, supercompress: opts.supercompress })
+    : await encodeOversizeUastc(enc, half, opts, limit);
+  return joinMipLevels([top, below]);
+}
+
 /**
  * A cutout's UASTC chain, each level halved here from the one above with its alpha rescaled to the full image's coverage at @p cutoff:
  * the shaders cut every level at the cutoff (glTF's MASK), and plain averaging thins a sparse cutout, such as a railing, until nothing
@@ -52,8 +80,7 @@ async function encodeCoverageChain(enc: BasisEncoderModule, img: { rgba: Uint8Ar
   const parts: Uint8Array[] = [];
   let level = img;
   for (;;) {
-    parts.push(await enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: level.rgba, width: level.width, height: level.height },
-      { mode: 'uastc', srgb, mipmaps: false, supercompress: true }));
+    parts.push(await encodeUastcLevel(enc, level, srgb, true, ENCODER_MAX_TEXELS));
     if (level.width === 1 && level.height === 1) break;
     const half = halveRgba(level.rgba, level.width, level.height, srgb);
     preserveAlphaCoverage(half.rgba, cutoff, coverage);
@@ -309,8 +336,13 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
     const key = [source, JSON.stringify({ mode, srgb: tex.srgb, maxSize: tex.maxSize, scaled: scaled ? [size!.width, size!.height] : null,
       // `chain: 3` marks the rescaled chain that replaced the share-of-coverage one (chain 2): an entry cooked before it is re-encoded.
       ...(coverage ? { mipCoverage: coverage, chain: 3 } : {}), ...bleedKey, ...(supercompress ? { supercompress } : {}), ...mips }), input.encoder!.id];
+    const oversize = !!size && size.width * size.height > ENCODER_MAX_TEXELS;
+    if (oversize && mode !== 'uastc') {
+      throw new Error(`${size!.width} by ${size!.height} is more than the ETC1S encoder takes (${ENCODER_MAX_TEXELS} texels): set its Compress Format to uastc, or give it a Max Size`);
+    }
     const produce = (): Promise<Uint8Array> => {
       const image = scaled ? bled(scaledImage()) : cutout || clearBleed ? bled(decodePngImage(path, source)) : null;
+      if (oversize && !coverage) return encodeOversizeUastc(enc, image ?? decodePngImage(path, source), { srgb: tex.srgb, supercompress, mipmaps: tex.mipmaps });
       return coverage
         ? encodeCoverageChain(enc, image ?? decodePngImage(path, source), tex.srgb, coverage)
         : image

@@ -2,8 +2,10 @@
  "version": 1,
  "smoothAngle": 28,
  "material": {
-  "roughness": 0.5,
+  "roughness": 0.42,
   "metallic": 0,
+  "coat": 0.22,
+  "coatRoughness": 0.24,
   "emissive": [
    16,
    16,
@@ -3465,20 +3467,39 @@
     "tag": [
      "nacelle",
      "pylon",
-     "keel",
+     "keel"
+    ]
+   },
+   "roughness": 0.46,
+   "metallic": 0.2
+  },
+  {
+   "op": "paint",
+   "faces": {
+    "tag": [
      "mast",
      "turret",
      "barrel",
      "cowl"
     ]
    },
-   "roughness": 0.42,
-   "metallic": 0.7
+   "color": [
+    0.3,
+    0.31,
+    0.34
+   ],
+   "roughness": 0.32,
+   "metallic": 0.9
   },
   {
    "op": "paint",
    "faces": "nozzle",
-   "roughness": 0.34,
+   "color": [
+    0.44,
+    0.42,
+    0.4
+   ],
+   "roughness": 0.26,
    "metallic": 1
   },
   {
@@ -3565,6 +3586,40 @@
    ],
    "seed": 14,
    "tag": "trim"
+  },
+  {
+   "op": "panels",
+   "faces": {
+    "tag": "plate",
+    "within": {
+     "min": [
+      null,
+      null,
+      -46
+     ],
+     "max": [
+      null,
+      null,
+      46
+     ]
+    }
+   },
+   "size": 1.25,
+   "uneven": 0.75,
+   "gap": 0.04,
+   "height": [
+    0.006,
+    0.022
+   ],
+   "bevel": 0.008,
+   "tones": 0.07,
+   "along": [
+    0,
+    0,
+    1
+   ],
+   "seed": 31,
+   "tag": "plate"
   },
   {
    "op": "paint",
@@ -6352,7 +6407,7 @@
    "octaves": 5,
    "threshold": 0.5,
    "softness": 0.4,
-   "roughness": 0.68,
+   "roughness": 0.6,
    "amount": 0.75,
    "seed": 21
   },
@@ -6372,8 +6427,8 @@
    "octaves": 4,
    "threshold": 0.5,
    "softness": 0.45,
-   "roughness": 0.34,
-   "amount": 0.5,
+   "roughness": 0.26,
+   "amount": 0.55,
    "seed": 27
   },
   {
@@ -6397,7 +6452,7 @@
     0.097,
     0.092
    ],
-   "roughness": 0.78,
+   "roughness": 0.7,
    "amount": 0.5,
    "seed": 9
   },
@@ -6615,7 +6670,9 @@
       "thrust",
       "lamp",
       "window",
-      "port"
+      "port",
+      "nozzle",
+      "cowl"
      ]
     }
    },
@@ -6640,6 +6697,62 @@
    "roughness": 0.86,
    "amount": 0.82,
    "seed": 30
+  },
+  {
+   "op": "stain",
+   "texel": true,
+   "faces": {
+    "tag": [
+     "nozzle",
+     "cowl"
+    ]
+   },
+   "near": {
+    "at": [
+     4.5,
+     0,
+     -45.8
+    ],
+    "radius": 5.2
+   },
+   "pattern": "bumps",
+   "scale": 1.4,
+   "octaves": 3,
+   "threshold": 0.2,
+   "softness": 0.4,
+   "color": [
+    0.5,
+    0.3,
+    0.16
+   ],
+   "roughness": 0.3,
+   "amount": 0.75,
+   "seed": 51
+  },
+  {
+   "op": "stain",
+   "texel": true,
+   "faces": {
+    "tag": [
+     "nozzle",
+     "cowl"
+    ]
+   },
+   "near": {
+    "at": [
+     4.5,
+     0,
+     -46.8
+    ],
+    "radius": 3.2
+   },
+   "color": [
+    0.2,
+    0.24,
+    0.5
+   ],
+   "roughness": 0.24,
+   "amount": 0.8
   },
   {
    "op": "stain",
@@ -6670,7 +6783,9 @@
       "thrust",
       "lamp",
       "window",
-      "port"
+      "port",
+      "nozzle",
+      "cowl"
      ]
     }
    },
@@ -6695,6 +6810,62 @@
    "roughness": 0.86,
    "amount": 0.82,
    "seed": 30
+  },
+  {
+   "op": "stain",
+   "texel": true,
+   "faces": {
+    "tag": [
+     "nozzle",
+     "cowl"
+    ]
+   },
+   "near": {
+    "at": [
+     -4.5,
+     0,
+     -45.8
+    ],
+    "radius": 5.2
+   },
+   "pattern": "bumps",
+   "scale": 1.4,
+   "octaves": 3,
+   "threshold": 0.2,
+   "softness": 0.4,
+   "color": [
+    0.5,
+    0.3,
+    0.16
+   ],
+   "roughness": 0.3,
+   "amount": 0.75,
+   "seed": 51
+  },
+  {
+   "op": "stain",
+   "texel": true,
+   "faces": {
+    "tag": [
+     "nozzle",
+     "cowl"
+    ]
+   },
+   "near": {
+    "at": [
+     -4.5,
+     0,
+     -46.8
+    ],
+    "radius": 3.2
+   },
+   "color": [
+    0.2,
+    0.24,
+    0.5
+   ],
+   "roughness": 0.24,
+   "amount": 0.8
   },
   {
    "op": "stain",
@@ -6725,7 +6896,9 @@
       "thrust",
       "lamp",
       "window",
-      "port"
+      "port",
+      "nozzle",
+      "cowl"
      ]
     }
    },
@@ -6750,6 +6923,62 @@
    "roughness": 0.86,
    "amount": 0.82,
    "seed": 30
+  },
+  {
+   "op": "stain",
+   "texel": true,
+   "faces": {
+    "tag": [
+     "nozzle",
+     "cowl"
+    ]
+   },
+   "near": {
+    "at": [
+     17,
+     -1,
+     -47.8
+    ],
+    "radius": 5.2
+   },
+   "pattern": "bumps",
+   "scale": 1.4,
+   "octaves": 3,
+   "threshold": 0.2,
+   "softness": 0.4,
+   "color": [
+    0.5,
+    0.3,
+    0.16
+   ],
+   "roughness": 0.3,
+   "amount": 0.75,
+   "seed": 51
+  },
+  {
+   "op": "stain",
+   "texel": true,
+   "faces": {
+    "tag": [
+     "nozzle",
+     "cowl"
+    ]
+   },
+   "near": {
+    "at": [
+     17,
+     -1,
+     -48.8
+    ],
+    "radius": 3.2
+   },
+   "color": [
+    0.2,
+    0.24,
+    0.5
+   ],
+   "roughness": 0.24,
+   "amount": 0.8
   },
   {
    "op": "stain",
@@ -6780,7 +7009,9 @@
       "thrust",
       "lamp",
       "window",
-      "port"
+      "port",
+      "nozzle",
+      "cowl"
      ]
     }
    },
@@ -6805,6 +7036,62 @@
    "roughness": 0.86,
    "amount": 0.82,
    "seed": 30
+  },
+  {
+   "op": "stain",
+   "texel": true,
+   "faces": {
+    "tag": [
+     "nozzle",
+     "cowl"
+    ]
+   },
+   "near": {
+    "at": [
+     -17,
+     -1,
+     -47.8
+    ],
+    "radius": 5.2
+   },
+   "pattern": "bumps",
+   "scale": 1.4,
+   "octaves": 3,
+   "threshold": 0.2,
+   "softness": 0.4,
+   "color": [
+    0.5,
+    0.3,
+    0.16
+   ],
+   "roughness": 0.3,
+   "amount": 0.75,
+   "seed": 51
+  },
+  {
+   "op": "stain",
+   "texel": true,
+   "faces": {
+    "tag": [
+     "nozzle",
+     "cowl"
+    ]
+   },
+   "near": {
+    "at": [
+     -17,
+     -1,
+     -48.8
+    ],
+    "radius": 3.2
+   },
+   "color": [
+    0.2,
+    0.24,
+    0.5
+   ],
+   "roughness": 0.24,
+   "amount": 0.8
   },
   {
    "op": "stain",
