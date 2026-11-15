@@ -7,13 +7,13 @@ import {
 import { Nav, NavAgent, NavGrid, setNavDestination, stopNavAgent } from 'esengine/ai';
 import {
     GRID_WIDTH, GRID_HEIGHT, CELL_SIZE, SAVE_VERSION, DAY_HOURS,
-    createState, restore, snapshot, place, demolish, isWalkable, inBounds, buildingAt, droneCell, whyNotPlace,
-    targetOf, nearestDock, settleArrival, worldOfCell, cellOfWorld,
-    type GameState, type Building, type BuildingKind, type Cell, type Snapshot,
+    REPAIR_COST, createState, restore, snapshot, place, demolish, isWalkable, inBounds, buildingAt, droneCell, whyNotPlace,
+    targetOf, nearestDock, settleArrival, worldOfCell, cellOfWorld, towerOf, whyNotRepair, repairTower, migrateFromV1,
+    type GameState, type Building, type BuildingKind, type PlaceableKind, type Cell, type Snapshot,
 } from './state';
-import { PALETTE, mineParts, storeParts, droneParts, ringParts, type Part, type Role, type Colour } from './models';
+import { PALETTE, mineParts, storeParts, droneParts, ringParts, towerParts, type Part, type Role, type Colour } from './models';
 
-type Tool = BuildingKind | 'select' | 'remove';
+type Tool = PlaceableKind | 'select' | 'remove';
 
 const UNITS = 100;
 const SLOT = 'gate0';
@@ -38,7 +38,9 @@ const TOOLS: { tool: Tool; label: string; name: string }[] = [
 ];
 const TOOLBAR = { top: 664, width: 150, gap: 12, left: (VIEW.width - 4 * 150 - 3 * 12) / 2 };
 
-const saves = new SaveManager({ version: SAVE_VERSION, keyPrefix: 'last-signal:' });
+const saves = new SaveManager({ version: SAVE_VERSION, migrations: { 1: migrateFromV1 }, keyPrefix: 'last-signal:' });
+const mixed = (a: Colour, b: Colour, k: number): Colour => ({ r: a.r + (b.r - a.r) * k, g: a.g + (b.g - a.g) * k, b: a.b + (b.b - a.b) * k, a: a.a + (b.a - a.a) * k });
+const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 const shade = (c: Colour, k: number, a = c.a): Colour => ({ r: c.r * k, g: c.g * k, b: c.b * k, a });
 
 class Model {
@@ -48,6 +50,7 @@ class Model {
     private z = 0;
     private lift = 0;
     private yaw = 0;
+    private readonly shifts = new Map<Role, { rise: number; stretch: number }>();
 
     constructor(world: World, name: string, parts: readonly Part[], tint: Colour | null = null) {
         this.root = world.spawn(name);
@@ -70,6 +73,10 @@ class Model {
         root.position = { x: x * UNITS, y: lift * UNITS, z: z * UNITS };
         world.insert(this.root, Transform, root);
         for (const piece of this.pieces) this.put(world, piece, 0);
+    }
+
+    adjust(role: Role, rise: number, stretch: number): void {
+        this.shifts.set(role, { rise, stretch });
     }
 
     turn(world: World, role: Role, angle: number): void {
@@ -101,12 +108,14 @@ class Model {
         const [ax, ay, az] = piece.part.at;
         const cos = Math.cos(this.yaw), sin = Math.sin(this.yaw);
         const half = (this.yaw + extra) / 2;
+        const shift = this.shifts.get(piece.part.role);
+        const rise = shift ? shift.rise : 0, stretch = shift ? shift.stretch : 1;
         const transform = world.get(piece.entity, Transform);
         transform.position = {
-            x: (this.x + ax * cos + az * sin) * UNITS, y: (this.lift + ay) * UNITS, z: (this.z - ax * sin + az * cos) * UNITS,
+            x: (this.x + ax * cos + az * sin) * UNITS, y: (this.lift + ay + rise) * UNITS, z: (this.z - ax * sin + az * cos) * UNITS,
         };
         transform.rotation = { x: 0, y: Math.sin(half), z: 0, w: Math.cos(half) };
-        transform.scale = { x: piece.part.size[0], y: piece.part.size[1], z: piece.part.size[2] };
+        transform.scale = { x: piece.part.size[0], y: piece.part.size[1] * stretch, z: piece.part.size[2] };
         world.insert(piece.entity, Transform, transform);
     }
 }
@@ -118,7 +127,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         ready: false, restored: false, buildings: 0, blockedCells: 0, ore: 0, trips: 0, cargo: 0, leg: 'toMine',
         droneX: 0, droneY: 0, hour: 0, hoursElapsed: 0, fast: false, plans: 0, route: 'none', everInsideBuilding: false,
         cursorX: 0, cursorY: 0, cursorWalkable: true, tool: 'mine', saves: 0, loads: 0, notice: '', layout: '',
-        autoExposure: true, held: false, lowView: false, ambient: 0, sun: 0, selected: 0, ghostLegal: true, active: 0,
+        autoExposure: true, held: false, lowView: false, ambient: 0, sun: 0, selected: 0, ghostLegal: true, active: 0, signal: 'offline', canRepair: false, victory: false, repairs: 0, uplink: 0,
     };
     app.insertResource(Playthrough, { facts });
 
@@ -127,7 +136,19 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
     let body: Entity | null = null;
     let drone: Model | null = null;
     let ghost: Model | null = null;
-    let ghostKind: BuildingKind | null = null;
+    let ghostKind: PlaceableKind | null = null;
+    let uplink = -1;
+    let acknowledged = false;
+    let towerLook = '';
+    let objectiveTitle: Entity | null = null;
+    let objective: Entity | null = null;
+    let objectiveHint: Entity | null = null;
+    let objectiveCount: Entity | null = null;
+    let objectiveFill: Entity | null = null;
+    let victory: Entity[] = [];
+    let victoryShown = false;
+    let repairEntity: Entity | null = null;
+    let repairTop = 0;
     let ghostLegal = true;
     let cursorRing: Model | null = null;
     let cursorRed = false;
@@ -143,7 +164,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
     let clock: Entity | null = null;
     let camera: Entity | null = null;
     let lowView = false;
-    const rig = { x: 1, z: 1, distance: 36, pitch: 0.9 };
+    const rig = { x: -4, z: -1, distance: 44, pitch: 0.9 };
     let rigKey = '';
     const sites = new Map<number, Site>();
     let cursor: Cell = { x: 32, y: 30 };
@@ -159,7 +180,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
     let notice = 'Pick a building below and click the ground to place it.';
 
     const say = (text: string): void => { notice = text; };
-    const kindName = (kind: BuildingKind): string => kind === 'mine' ? 'Mine' : 'Storehouse';
+    const kindName = (kind: BuildingKind): string => kind === 'mine' ? 'Mine' : kind === 'store' ? 'Storehouse' : 'Signal tower';
     const groundPoint = (x: number, z: number): { x: number; y: number; z: number } => ({ x: x * UNITS, y: 0, z: z * UNITS });
 
     const rect = (world: World, name: string, left: number, top: number, width: number, height: number, colour: Colour): Entity => {
@@ -204,14 +225,19 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         world.insert(entity, UIVisual, { ...visual, color: colour });
     };
 
-    const kindColour = (kind: BuildingKind): Colour => kind === 'mine' ? PALETTE.mine : PALETTE.store;
-    const glowColour = (kind: BuildingKind): Colour => kind === 'mine' ? PALETTE.mineGlow : PALETTE.storeGlow;
+    const glowColour = (kind: BuildingKind): Colour => kind === 'mine' ? PALETTE.mineGlow : kind === 'store' ? PALETTE.storeGlow : state.signal === 'online' ? PALETTE.online : PALETTE.offline;
+    const sizeTo = (world: World, entity: Entity, width: number): void => {
+        const node = world.get(entity, UINode);
+        if (node.width.value === width) return;
+        node.width = px(width);
+        world.insert(entity, UINode, node);
+    };
 
     const showSite = (world: World, building: Building): void => {
         const at = worldOfCell(building);
-        const model = new Model(world, `Building ${building.id}`, building.kind === 'mine' ? mineParts() : storeParts());
+        const model = new Model(world, `Building ${building.id}`, building.kind === 'mine' ? mineParts() : building.kind === 'store' ? storeParts() : towerParts());
         model.pose(world, at.x, at.z, 0);
-        model.colour(world, 'beacon', shade(glowColour(building.kind), 0.35));
+        if (building.kind === 'tower') { model.show(world, 'beam', false); towerLook = ''; } else model.colour(world, 'beacon', shade(glowColour(building.kind), 0.35));
         const mark = rect(world, `MapBuilding ${building.id}`, 0, 0, MAP.cell, MAP.cell, shade(glowColour(building.kind), 0.6));
         moveMark(world, mark, building.x, building.y, MAP.cell);
         sites.set(building.id, { building, model, mark, active: false, lit: false });
@@ -250,10 +276,12 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         lastDrone = { x: state.drone.x, z: state.drone.z };
         if (clock !== null) world.insert(clock, TimeOfDay, { ...world.get(clock, TimeOfDay), hour: state.hour });
         lastHour = state.hour;
+        uplink = state.signal === 'online' ? 999 : -1;
+        acknowledged = state.signal === 'online';
         facts.blockedCells = countBlocked();
     };
 
-    const build = (world: World, kind: BuildingKind): void => {
+    const build = (world: World, kind: PlaceableKind): void => {
         const result = place(state, kind, cursor);
         if (!result.ok) { say(`Cannot build here: ${result.reason}.`); return; }
         grid!.setWalkable(cursor.x, cursor.y, false);
@@ -263,6 +291,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
     };
 
     const remove = (world: World): void => {
+        if (buildingAt(state, cursor)?.kind === 'tower') { say('The signal tower cannot be removed.'); return; }
         const gone = demolish(state, cursor);
         if (gone === null) { say('Nothing to remove here.'); return; }
         grid!.setWalkable(cursor.x, cursor.y, true);
@@ -286,6 +315,16 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
     const choose = (next: Tool): void => {
         tool = next;
         say(next === 'select' ? 'Click a building to inspect it.' : next === 'remove' ? 'Click a building to remove it.' : `Click the ground to place a ${kindName(next).toLowerCase()}.`);
+    };
+
+    const repair = (): void => {
+        const reason = whyNotRepair(state);
+        if (reason !== null) { say(`Cannot repair the tower: ${reason}.`); return; }
+        repairTower(state);
+        uplink = 0;
+        acknowledged = false;
+        facts.repairs = (facts.repairs as number) + 1;
+        say(`Tower repaired for ${REPAIR_COST} ore. The uplink is powering up.`);
     };
 
     const save = (): void => {
@@ -357,8 +396,24 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
             rect(world, 'MapSelectLeft', -20, -20, 1, 10, UI.accent), rect(world, 'MapSelectRight', -20, -20, 1, 10, UI.accent),
         ];
 
-        rect(world, 'HudPanel', MAP.left + GRID_WIDTH * MAP.cell + 8, MAP.top, 560, 62, UI.panel);
-        hud = label(world, 'Hud', MAP.left + GRID_WIDTH * MAP.cell + 20, MAP.top + 6, 540, 54, 20, UI.text);
+        const left = MAP.left, column = GRID_WIDTH * MAP.cell, below = MAP.top + GRID_HEIGHT * MAP.cell + 10;
+        rect(world, 'ObjectivePanel', left, below, column, 148, UI.panel);
+        objectiveTitle = label(world, 'ObjectiveTitle', left + 10, below + 8, column - 20, 18, 12, UI.accent);
+        objective = label(world, 'Objective', left + 10, below + 28, column - 20, 22, 15, UI.text);
+        rect(world, 'ObjectiveBar', left + 10, below + 58, 150, 8, UI.line);
+        objectiveFill = rect(world, 'ObjectiveFill', left + 10, below + 58, 1, 8, PALETTE.offline);
+        objectiveCount = label(world, 'ObjectiveCount', left + 168, below + 51, 90, 20, 13, UI.text);
+        objectiveHint = label(world, 'ObjectiveHint', left + 10, below + 74, column - 20, 30, 11, UI.dim);
+        const repairButton = createButton({
+            world, events, parent: canvas!,
+            node: { position: UIPositionType.Absolute, insetLeft: px(left + 10), insetTop: px(below + 106), width: px(column - 20), height: px(34) },
+            text: { content: 'R  REPAIR TOWER', fontSize: 13, color: UI.text }, background: { color: UI.button }, onClick: repair,
+        });
+        repairEntity = repairButton.entity;
+        repairTop = below + 106;
+        rect(world, 'HudPanel', left, below + 158, column, 56, UI.panel);
+        hud = label(world, 'Hud', left + 10, below + 164, column - 20, 46, 13, UI.text);
+        world.insert(repairButton.entity, Name, { value: 'RepairButton' });
         rect(world, 'InfoPanel', VIEW.width - 316, 96, 300, 170, UI.panel);
         info = label(world, 'Info', VIEW.width - 304, 106, 280, 150, 15, UI.text);
         rect(world, 'NoticePanel', TOOLBAR.left, TOOLBAR.top - 40, 4 * TOOLBAR.width + 3 * TOOLBAR.gap, 30, UI.panel);
@@ -384,6 +439,26 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
             world.insert(button.entity, Name, { value: name });
         });
         droneMark = rect(world, 'MapDrone', 0, 0, 6, 6, PALETTE.drone);
+        const curtain = rect(world, 'VictoryCurtain', 0, -2000, VIEW.width, VIEW.height, { r: 0.01, g: 0.03, b: 0.06, a: 0.72 });
+        const headline = label(world, 'VictoryTitle', 0, -2000, VIEW.width, 60, 48, PALETTE.online);
+        const tagline = label(world, 'VictoryText', 0, -2000, VIEW.width, 30, 18, UI.text);
+        for (const entity of [headline, tagline]) world.insert(entity, Text, { ...world.get(entity, Text), align: 1 });
+        write(world, headline, 'SIGNAL TRANSMITTED');
+        const again = createButton({
+            world, events, parent: canvas!,
+            node: { position: UIPositionType.Absolute, insetLeft: px(VIEW.width / 2 - 170), insetTop: px(-2000), width: px(160), height: px(44) },
+            text: { content: 'CONTINUE', fontSize: 15, color: UI.text }, background: { color: UI.button },
+            onClick: () => { acknowledged = true; say('The signal is out. The base is still yours to run.'); },
+        });
+        world.insert(again.entity, Name, { value: 'ContinueButton' });
+        const fresh = createButton({
+            world, events, parent: canvas!,
+            node: { position: UIPositionType.Absolute, insetLeft: px(VIEW.width / 2 + 10), insetTop: px(-2000), width: px(160), height: px(44) },
+            text: { content: 'NEW GAME', fontSize: 15, color: UI.text }, background: { color: UI.button },
+            onClick: () => { saves.remove(SLOT); adopt(world, createState()); say('New game. The tower is silent again.'); },
+        });
+        world.insert(fresh.entity, Name, { value: 'NewGameButton' });
+        victory = [curtain, headline, tagline, again.entity, fresh.entity];
 
         adopt(world, state);
         facts.restored = saves.has(SLOT) && load(world);
@@ -420,6 +495,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         if (input.isKeyPressed('Digit4')) choose('remove');
         if (input.isKeyPressed('Enter') || (!overUi && input.isMouseButtonPressed(0))) primary(world);
         if (input.isKeyPressed('Backspace') || (!overUi && input.isMouseButtonPressed(2))) remove(world);
+        if (input.isKeyPressed('KeyR')) repair();
         if (input.isKeyPressed('KeyK')) save();
         if (input.isKeyPressed('KeyL')) load(world);
         if (input.isKeyPressed('KeyN')) { saves.remove(SLOT); adopt(world, createState()); say('New game.'); }
@@ -527,7 +603,35 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
 
         const activeId = target === null ? 0 : target.id;
         const blink = Math.floor(elapsed * 2.5) % 2 === 0;
+        if (uplink >= 0 && uplink < 900) uplink += time.delta;
         for (const site of sites.values()) {
+            if (site.building.kind === 'tower') {
+                const online = state.signal === 'online';
+                const warm = online ? clamp01(uplink) : 0;
+                const raised = online ? clamp01((uplink - 1) / 2) : 0;
+                const beam = online ? clamp01((uplink - 3) / 1.5) : 0;
+                const pulse = online ? 1 : Math.floor(elapsed * 1.2) % 2 === 0 ? 1 : 0.3;
+                const look = `${warm.toFixed(2)},${pulse}`;
+                if (look !== towerLook) {
+                    towerLook = look;
+                    const colour = shade(mixed(PALETTE.offline, PALETTE.online, warm), pulse);
+                    site.model.colour(world, 'beacon', colour);
+                    site.model.colour(world, 'emitter', colour);
+                    paint(world, site.mark, colour);
+                }
+                const lift = raised * raised * (3 - 2 * raised) * 1.1;
+                site.model.adjust('antenna', lift, 1);
+                site.model.adjust('emitter', lift, 1);
+                site.model.turn(world, 'antenna', online ? uplink * 1.4 : 0);
+                site.model.turn(world, 'emitter', 0);
+                site.model.show(world, 'beam', beam > 0);
+                if (beam > 0) {
+                    const height = 2 + beam * 320;
+                    site.model.adjust('beam', lift + height / 2, height);
+                    site.model.turn(world, 'beam', 0);
+                }
+                continue;
+            }
             const active = site.building.id === activeId;
             if (active !== site.active) {
                 site.active = active;
@@ -603,18 +707,48 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         facts.selected = selected;
         facts.ghostLegal = legal;
         facts.active = activeId;
+        facts.signal = state.signal;
+        facts.canRepair = whyNotRepair(state) === null;
+        facts.uplink = uplink;
+
+        const online = state.signal === 'online';
+        const showVictory = online && uplink >= 5 && !acknowledged;
+        if (showVictory !== victoryShown) {
+            victoryShown = showVictory;
+            const tops = showVictory ? [0, 250, 322, 384, 384] : [-2000, -2000, -2000, -2000, -2000];
+            victory.forEach((entity, i) => {
+                const node = world.get(entity, UINode);
+                node.insetTop = px(tops[i]!);
+                world.insert(entity, UINode, node);
+            });
+            if (showVictory) write(world, victory[2]!, `The tower is repaired and the signal is out. ${state.trips} trips, ${state.ore} ore left in store.`);
+        }
+        facts.victory = showVictory;
+        const held = Math.min(state.ore, REPAIR_COST);
+        const button = world.get(repairEntity!, UINode);
+        const buttonTop = online ? -2000 : repairTop;
+        if (button.insetTop.value !== buttonTop) { button.insetTop = px(buttonTop); world.insert(repairEntity!, UINode, button); }
+        write(world, objectiveTitle!, online ? 'LAST SIGNAL   /   SIGNAL ONLINE' : 'LAST SIGNAL   /   SIGNAL OFFLINE');
+        write(world, objective!, online ? 'THE SIGNAL IS OUT' : 'REPAIR THE COMMUNICATION TOWER');
+        write(world, objectiveCount!, online ? 'TRANSMITTING' : `${held} / ${REPAIR_COST} ORE`);
+        write(world, objectiveHint!, online ? 'The base is yours to keep running.'
+            : state.ore >= REPAIR_COST ? 'Enough ore in store. Press REPAIR TOWER.' : 'Deliver ore to the storehouse\nto restore the signal.');
+        sizeTo(world, objectiveFill!, online ? 150 : Math.max(1, 150 * held / REPAIR_COST));
+        const fill = online || state.ore >= REPAIR_COST ? PALETTE.online : PALETTE.offline;
+        if (facts.fillColour !== fill.r) { paint(world, objectiveFill!, fill); facts.fillColour = fill.r; }
 
         const hours = Math.floor(state.hour);
         const minutes = Math.floor((state.hour - hours) * 60);
-        write(world, hud!, `ORE ${state.ore}     TRIPS ${state.trips}     ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}${facts.fast ? '  >>' : facts.held ? '  ||' : ''}\n`
-            + `DRONE ${state.drone.cargo > 0 ? `carrying ${state.drone.cargo} ore to the storehouse` : 'flying to the mine'}${facts.route === 'complete' ? '' : `  (route ${String(facts.route)})`}`);
+        write(world, hud!, `ORE ${state.ore}    TRIPS ${state.trips}    ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}${facts.fast ? '  >>' : facts.held ? '  ||' : ''}\n`
+            + `DRONE ${state.drone.cargo > 0 ? `hauling ${state.drone.cargo} ore to store` : 'flying to the mine'}${facts.route === 'complete' ? '' : `  (route ${String(facts.route)})`}`);
         write(world, noticeText!, notice);
         if (chosen !== undefined) {
             const b = chosen.building;
-            const status = b.id === activeId ? (b.kind === 'mine' ? 'The drone is on its way to load.' : 'The drone is on its way to unload.') : 'Idle.';
-            write(world, info!, `${kindName(b.kind).toUpperCase()}  #${b.id}\nCell ${b.x}, ${b.y}\n${status}\n`
-                + (b.kind === 'mine' ? `Loads handed to the drone: ${b.served}` : `Deliveries received: ${b.served}`)
-                + '\n\nBackspace removes it.');
+            const status = b.kind === 'tower' ? (online ? 'Transmitting.' : 'Silent. Its uplink is damaged.')
+                : b.id === activeId ? (b.kind === 'mine' ? 'The drone is on its way to load.' : 'The drone is on its way to unload.') : 'Idle.';
+            const detail = b.kind === 'tower' ? (online ? 'The signal is out.' : `Repair: ${REPAIR_COST} ore. In store: ${state.ore}.\n\nPress R or REPAIR TOWER.`)
+                : (b.kind === 'mine' ? `Loads handed to the drone: ${b.served}` : `Deliveries received: ${b.served}`) + '\n\nBackspace removes it.';
+            write(world, info!, `${kindName(b.kind).toUpperCase()}  #${b.id}\nCell ${b.x}, ${b.y}\n${status}\n${detail}`);
         } else {
             write(world, info!, tool === 'select' ? 'SELECT\nClick a building to see what it is doing.'
                 : tool === 'remove' ? 'REMOVE\nClick a building to take it down.\nThe drone re-plans around what is left.'

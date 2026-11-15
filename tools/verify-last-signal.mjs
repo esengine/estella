@@ -121,8 +121,9 @@ try {
 
     const start = await record('start');
     assert.equal(start.restored, false, 'a fresh profile started from a save');
-    assert.equal(start.buildings, 2);
-    assert.equal(start.blockedCells, 2);
+    assert.equal(start.buildings, 3);
+    assert.equal(start.blockedCells, 3);
+    assert.equal(start.signal, 'offline');
     await shot('01-start');
     await viewsAgree('start');
 
@@ -206,7 +207,8 @@ try {
     assert(stored, 'no save was written to storage');
     const envelope = JSON.parse(stored.value);
     const data = envelope.data;
-    assert.equal(envelope.version, 1);
+    assert.equal(envelope.version, 2);
+    assert.equal(data.signal, f.signal);
     assert.equal(data.buildings.length, f.buildings);
     assert.equal(data.buildings.map((b) => `${b.id}:${b.kind}:${b.x}:${b.y}`).join(';'), f.layout);
     assert.equal(data.ore, f.ore);

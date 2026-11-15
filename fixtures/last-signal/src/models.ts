@@ -1,5 +1,5 @@
 export type Shape = 'cube' | 'cylinder' | 'sphere' | 'cone';
-export type Role = 'body' | 'beacon' | 'spinner' | 'rotor' | 'cargo';
+export type Role = 'body' | 'beacon' | 'spinner' | 'rotor' | 'cargo' | 'antenna' | 'emitter' | 'beam';
 export interface Colour { r: number; g: number; b: number; a: number }
 
 export interface Part {
@@ -25,6 +25,9 @@ export const PALETTE = {
     ore: rgb(0.95, 0.55, 0.15),
     ok: { r: 0.3, g: 1, b: 0.5, a: 0.45 },
     blocked: { r: 1, g: 0.25, b: 0.25, a: 0.45 },
+    offline: rgb(1, 0.22, 0.16),
+    online: rgb(0.35, 0.85, 1),
+    beam: { r: 0.45, g: 0.9, b: 1, a: 0.55 },
     select: rgb(0.6, 0.95, 1),
     cursor: rgb(1, 1, 1),
 };
@@ -84,5 +87,30 @@ export function ringParts(colour: Colour, half: number, lift: number): Part[] {
         part('cube', [0, lift, -half], [half * 2 + t, t, t], colour, 'body', false),
         part('cube', [half, lift, 0], [t, t, half * 2 + t], colour, 'body', false),
         part('cube', [-half, lift, 0], [t, t, half * 2 + t], colour, 'body', false),
+    ];
+}
+
+export function towerParts(): Part[] {
+    const legs: Part[] = [];
+    for (const [x, z] of [[0.5, 0.5], [-0.5, 0.5], [0.5, -0.5], [-0.5, -0.5]] as const) {
+        legs.push(part('cube', [x, 1.9, z], [0.12, 2.4, 0.12], PALETTE.steel));
+        legs.push(part('sphere', [x, 3.16, z], [0.16, 0.16, 0.16], PALETTE.offline, 'beacon', false));
+    }
+    return [
+        part('cube', [0, 0.12, 0], [1.9, 0.24, 1.9], PALETTE.steel),
+        part('cube', [0, 0.5, 0], [1.3, 0.52, 1.3], PALETTE.plate),
+        part('cube', [0, 0.5, 0.66], [0.7, 0.1, 0.04], PALETTE.offline, 'beacon', false),
+        ...legs,
+        part('cube', [0, 1.6, 0], [1.14, 0.08, 1.14], PALETTE.plate),
+        part('cube', [0, 3.06, 0], [1.14, 0.1, 1.14], PALETTE.plate),
+        part('cylinder', [0, 2.3, 0], [0.26, 3.2, 0.26], PALETTE.steel),
+        part('sphere', [0, 2.5, 0.42], [0.9, 0.9, 0.22], PALETTE.drone),
+        part('cone', [0, 2.5, 0.6], [0.16, 0.3, 0.16], PALETTE.steel),
+        part('cylinder', [0, 4.2, 0], [0.1, 1.9, 0.1], PALETTE.plate, 'antenna'),
+        part('cube', [0, 4.3, 0], [1.0, 0.06, 0.06], PALETTE.plate, 'antenna'),
+        part('cube', [0, 4.65, 0], [0.06, 0.06, 0.7], PALETTE.plate, 'antenna'),
+        part('cube', [0, 4.95, 0], [0.45, 0.06, 0.06], PALETTE.plate, 'antenna'),
+        part('sphere', [0, 5.25, 0], [0.34, 0.34, 0.34], PALETTE.offline, 'emitter', false),
+        part('cylinder', [0, 5.3, 0], [0.3, 1, 0.3], PALETTE.beam, 'beam', false),
     ];
 }
