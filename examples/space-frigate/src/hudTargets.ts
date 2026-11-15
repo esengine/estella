@@ -23,9 +23,9 @@ export interface TargetProbe {
 }
 
 export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | null, log: Log): { update(frame: Frame): void; probe: TargetProbe } {
-    const { world, root, textures, node, image, sliced, solid, label, centred, say, ink, fill, fade, place, size, turn } = kit;
+    const { world, marks, textures, node, image, sliced, solid, label, centred, say, ink, fill, fade, place, size, turn } = kit;
 
-    const body = centred(node(root, 'Body', { left: 0, top: 0, width: 24, height: 24 }), 24, 68);
+    const body = centred(node(marks, 'Body', { left: 0, top: 0, width: 24, height: 24 }), 24, 68);
     const globe = planet === null ? null : world.get(planet, Transform);
     const altitude = globe ? Math.hypot(globe.position.x, globe.position.y, globe.position.z) - globe.scale.x : 0;
     world.insert(body, UIWorldAnchor, { clampToEdges: false });
@@ -35,13 +35,13 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
     label(body, 'BodyRange', { left: 62, top: 14, width: 220, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 2, strong: false, content: `ALTITUDE ${spaced(altitude)} KM` });
 
     const minors = Array.from({ length: MINOR }, (_, i) => {
-        const e = centred(node(root, `Contact${i}`, { left: 0, top: 0, width: 22, height: 22 }), 22, 22);
+        const e = centred(node(marks, `Contact${i}`, { left: 0, top: 0, width: 22, height: 22 }), 22, 22);
         world.insert(e, UIWorldAnchor, { clampToEdges: false });
         image(e, `ContactTick${i}`, { left: 0, top: 0, width: 22, height: 22 }, textures.bracket, rgb(ICE, 0.75));
         return { node: e, index: -1 };
     });
 
-    const marker = centred(node(root, 'Waypoint', { left: 0, top: 0, width: 72, height: 72 }), 72, 72);
+    const marker = centred(node(marks, 'Waypoint', { left: 0, top: 0, width: 72, height: 72 }), 72, 72);
     world.insert(marker, UIWorldAnchor, { offset: { ...WAYPOINT }, clampToEdges: true, edgeMargin: 64, edgeInsets: { ...KEPT_CLEAR } });
     const bracket = sliced(marker, 'WaypointBracket', { left: -6, top: -6, width: 84, height: 84 }, textures.bracket, 34);
     const diamond = image(marker, 'WaypointDiamond', { left: 20, top: 20, width: 32, height: 32 }, textures.diamond);
@@ -51,7 +51,7 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
     const waypointRange = label(callout, 'WaypointRange', { left: 14, top: 24, width: 190, height: 24 }, { size: 19, color: rgb(ICE), spacing: 0.6 });
     const waypointEta = label(callout, 'WaypointEta', { left: 14, top: 47, width: 190, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 2, strong: false });
 
-    const primary = centred(node(root, 'Target', { left: 0, top: 0, width: 60, height: 60 }), 60, 60);
+    const primary = centred(node(marks, 'Target', { left: 0, top: 0, width: 60, height: 60 }), 60, 60);
     world.insert(primary, UIWorldAnchor, { clampToEdges: false, edgeMargin: 112, edgeInsets: { ...KEPT_CLEAR } });
     const reticle = image(primary, 'TargetBracket', { left: 8, top: 8, width: 44, height: 44 }, textures.bracket, rgb(ICE, 0.9));
     const arrow = image(primary, 'TargetArrow', { left: 8, top: 8, width: 44, height: 44 }, textures.chevron, rgb(ICE));
