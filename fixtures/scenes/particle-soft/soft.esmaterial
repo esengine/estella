@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:particle",
+  "blendMode": 0,
+  "depthTest": true,
+  "depthWrite": false,
+  "properties": {
+    "u_softness": 100,
+    "u_erosion": 0,
+    "u_erosionEdge": 0.2
+  }
+}
