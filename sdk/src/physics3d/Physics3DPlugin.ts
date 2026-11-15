@@ -13,18 +13,16 @@ import { Physics3DRuntime } from './physics3dRuntime';
 import type { App, Plugin } from '../app/app';
 import { Schedule, defineSystem } from '../ecs/system';
 import { defineResource } from '../ecs/resource';
-import type { Entity } from '../types';
 import {
     loadPhysics3DModule, Physics3DEvents, type Physics3DModuleFactory,
     type Physics3DWasmModule, type Physics3DEventsData,
 } from './Physics3DModule';
 import {
-    stepPhysics3D, DEFAULT_PHYSICS3D_CONFIG, type Physics3DConfig, type PieceMap,
+    stepPhysics3D, DEFAULT_PHYSICS3D_CONFIG, type Physics3DConfig,
 } from './Physics3DSystem';
 import { Physics3DQueries } from './Physics3DQueries';
 import { CollisionGeometryRes } from '../runtime/collisionGeometry';
 import { setupPhysics3DDebugDraw } from './Physics3DDebugDraw';
-import type { Joint3DMap } from './Physics3DJoints';
 
 /** Ask the 3D world what is where. Present once the module has loaded. */
 export const Physics3D = defineResource<Physics3DQueries | null>(null, 'Physics3D');

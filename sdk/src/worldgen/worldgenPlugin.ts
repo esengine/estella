@@ -37,7 +37,6 @@ import { plantGrowthOf, prepareKinds, type GrownCell, type ReadyKinds } from '..
 import { plantInteractionOf } from '../foliage/plantInteraction';
 import { PlanetRegistryRes, type PlanetFacts } from '../terrain/planetQuery';
 import { faceOf } from '../terrain/sphere';
-import { Environment } from './fields';
 import { farRulesOf, makeFacePlan } from './facePlan';
 import { makePlanePlan } from './planePlan';
 import type { WaterQueryData } from '../water/waterQuery';
@@ -484,7 +483,7 @@ export class WorldGenPlugin implements Plugin {
     /** Makes a WorldGen's plan from its rules, and what keeps it current. */
     private plan(app: App, gens: WorldGens, entity: Entity, built: BuiltWorld, rules: WorldRules): void {
         const data = built.data;
-        if (data.surface === WorldSurface.Planet) { this.planPlanet(app, gens, entity, built, rules); return; }
+        if (data.surface === WorldSurface.Planet) { this.planPlanet(app, entity, built, rules); return; }
         const terrains = app.hasResource(TerrainsRes) ? app.getResource(TerrainsRes) : null;
         const zones = gens.zones(data.world);
         const t0 = app.world.tryGet(entity, Transform) as TransformData | null;
@@ -541,7 +540,7 @@ export class WorldGenPlugin implements Plugin {
      * planet's ground by direction and from noise in three dimensions, so a field wanders over an edge between two faces without a seam; a direction is
      * planned by the face it falls on, and the faces' plans paint the planet's ground by the same biomes that place what stands on it.
      */
-    private planPlanet(app: App, gens: WorldGens, entity: Entity, built: BuiltWorld, rules: WorldRules): void {
+    private planPlanet(app: App, entity: Entity, built: BuiltWorld, rules: WorldRules): void {
         const data = built.data;
         if (!app.hasResource(PlanetRegistryRes)) { built.failure = 'a world on a planet needs the Planet plugin'; log.error('worldgen', built.failure); return; }
         const registry = app.getResource(PlanetRegistryRes);

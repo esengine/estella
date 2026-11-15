@@ -5,7 +5,13 @@
  * @brief   C++ Registry integration layer for builtin components
  */
 
-import { Entity } from '../../types';
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+* @file    BuiltinBridge.ts
+* @brief   C++ Registry integration layer for builtin components
+*/
+import type { Entity } from '../../types';
 import { mergeIntoDefaults } from '../component';
 import type { BuiltinComponentDef } from '../component';
 import type { CppRegistry, ESEngineModule } from '../../wasm';

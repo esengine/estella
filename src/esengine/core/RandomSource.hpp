@@ -22,6 +22,7 @@
 #include <string_view>
 
 #include "Types.hpp"
+#include "Hash.hpp"
 
 namespace esengine {
 
@@ -39,14 +40,7 @@ public:
 
     /** An independent generator for `name`, the same one every time for a root. */
     std::mt19937 stream(std::string_view name) const {
-        // FNV-1a over the name, mixed with the root: cheap, stable across builds,
-        // and it does not care what order the streams are asked for.
-        u32 h = 2166136261u;
-        for (const char c : name) {
-            h ^= static_cast<u8>(c);
-            h *= 16777619u;
-        }
-        return std::mt19937(h ^ root_);
+        return std::mt19937(hash::fnv1a32(name) ^ root_);
     }
 
 private:

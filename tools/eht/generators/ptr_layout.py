@@ -1,3 +1,4 @@
+import re
 from typing import Dict, List, Optional, Set
 from ..data import Component, Enum, Property
 from ..type_system import TypeSystem
@@ -274,6 +275,12 @@ class PtrLayoutGenerator:
     def _struct_ts_type(field: Dict) -> str:
         return '{ ' + ' '.join(f'{m["name"]}: number;' for m in field['members']) + ' }'
 
+    @staticmethod
+    def _heap_params(body):
+        text = '\n'.join(body)
+        names = [n if re.search(rf'\b{n}\[', text) else f'_{n}' for n in ('f32', 'u32', 'u8')]
+        return f'    {names[0]}: Float32Array, {names[1]}: Uint32Array, {names[2]}: Uint8Array,'
+
     def _member_expr(self, m: Dict, field_offset: int) -> tuple:
         """(index expression, byte expression) for a struct member's slot."""
         off = field_offset + m['offset']
@@ -318,7 +325,7 @@ class PtrLayoutGenerator:
 
             # Generate fill function (mutates pre-allocated object)
             lines.append(f'export function fill{name}(')
-            lines.append(f'    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,')
+            heap_params_at = len(lines)
             lines.append(f'    ptr: number, out: {name}PtrData,')
             lines.append(f'): void {{')
             for f in fields:
@@ -356,12 +363,13 @@ class PtrLayoutGenerator:
                         else:
                             reads.append(f'{fn}_.{m["name"]} = u32[{m_idx}];')
                     lines.append(f'    const {fn}_ = out.{fn}; ' + ' '.join(reads))
+            lines.insert(heap_params_at, self._heap_params(lines[heap_params_at:]))
             lines.append('}')
             lines.append('')
 
             # Generate write function
             lines.append(f'export function write{name}(')
-            lines.append(f'    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,')
+            heap_params_at = len(lines)
             lines.append(f'    ptr: number, data: {name}PtrData,')
             lines.append(f'): void {{')
             for f in fields:
@@ -399,6 +407,7 @@ class PtrLayoutGenerator:
                         else:
                             writes.append(f'u32[{m_idx}] = data.{fn}.{m["name"]};')
                     lines.append('    ' + ' '.join(writes))
+            lines.insert(heap_params_at, self._heap_params(lines[heap_params_at:]))
             lines.append('}')
             lines.append('')
 

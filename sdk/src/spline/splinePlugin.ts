@@ -13,7 +13,7 @@ import { defineSystem, Schedule } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../ecs/env';
 import { defineComponent, Transform, type ComponentDef, type TransformData } from '../ecs/component';
-import { SplineCurve, type SplinePoint } from './curve';
+import { SplineCurve } from './curve';
 import { installTerrainBands } from './terrainBand2D';
 import { installRoadDecals } from './roadDecal';
 import { Spline, type SplineData } from './splineComponent';

@@ -4,8 +4,7 @@
  * @file    Types.hpp
  * @brief   Core type definitions and utilities for ESEngine
  * @details Provides standardized type aliases, smart pointer helpers,
- *          entity types, type ID generation, and a Result type for
- *          error handling.
+ *          entity types and type ID generation.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -216,9 +215,7 @@ namespace detail {
  *        sequence. Use the typed helpers below rather than the raw domain id.
  */
 struct ComponentDomain {};
-struct EventDomain {};
 struct ServiceDomain {};
-struct ResourceDomain {};
 
 /**
  * @brief Dense 0-based runtime id for a component type (ECS pool index + mask bit).
@@ -232,91 +229,13 @@ struct ResourceDomain {};
 template<typename T>
 inline TypeId componentTypeId() { return detail::domainTypeId<ComponentDomain, T>(); }
 
-/** @brief Dense 0-based runtime id for an event type (Dispatcher signal key). */
-template<typename T>
-inline TypeId eventTypeId() { return detail::domainTypeId<EventDomain, T>(); }
-
 /** @brief Dense 0-based runtime id for a service type (ServiceRegistry key). */
 template<typename T>
 inline TypeId serviceTypeId() { return detail::domainTypeId<ServiceDomain, T>(); }
 
-/** @brief Dense 0-based runtime id for a resource type (LoaderRegistry key). */
-template<typename T>
-inline TypeId resourceTypeId() { return detail::domainTypeId<ResourceDomain, T>(); }
-
-// =============================================================================
-// Result Type
-// =============================================================================
-
-/**
- * @brief Result type for operations that can fail
- *
- * @tparam T The success value type
- * @tparam E The error type (defaults to std::string)
- *
- * @details Provides a type-safe way to return either a success value
- *          or an error without using exceptions.
- *
- * @code
- * Result<int> divide(int a, int b) {
- *     if (b == 0) return Result<int>::err("Division by zero");
- *     return Result<int>::ok(a / b);
- * }
- *
- * auto result = divide(10, 2);
- * if (result.isOk()) {
- *     std::cout << result.value() << std::endl;
- * }
- * @endcode
- */
-template<typename T, typename E = std::string>
-class Result {
-public:
-    /**
-     * @brief Creates a successful result
-     * @param value The success value
-     * @return Result containing the value
-     */
-    static Result ok(T value) { return Result(std::move(value), {}, true); }
-
-    /**
-     * @brief Creates an error result
-     * @param error The error value
-     * @return Result containing the error
-     */
-    static Result err(E error) { return Result({}, std::move(error), false); }
-
-    /** @brief Returns true if the result is successful */
-    bool isOk() const { return success_; }
-
-    /** @brief Returns true if the result is an error */
-    bool isErr() const { return !success_; }
-
-    /** @brief Gets the success value (undefined if isErr()) */
-    T& value() { return value_; }
-    /** @brief Gets the success value (undefined if isErr()) */
-    const T& value() const { return value_; }
-
-    /** @brief Gets the error value (undefined if isOk()) */
-    E& error() { return error_; }
-    /** @brief Gets the error value (undefined if isOk()) */
-    const E& error() const { return error_; }
-
-private:
-    Result(T value, E error, bool success)
-        : value_(std::move(value)), error_(std::move(error)), success_(success) {}
-
-    T value_;
-    E error_;
-    bool success_;
-};
-
 // =============================================================================
 // Span Types
 // =============================================================================
-
-template<typename T>
-using Span = std::span<T>;
 
 template<typename T>
 using ConstSpan = std::span<const T>;

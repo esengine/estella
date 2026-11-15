@@ -5,8 +5,14 @@
  * @brief   Tracks per-component add/change/remove ticks for change detection queries
  */
 
-import { Entity } from '../types';
-import { AnyComponentDef } from './component';
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+* @file    ChangeTracker.ts
+* @brief   Tracks per-component add/change/remove ticks for change detection queries
+*/
+import type { Entity } from '../types';
+import type { AnyComponentDef } from './component';
 
 /**
  * Per-component history with per-component retention: rows exist only while a

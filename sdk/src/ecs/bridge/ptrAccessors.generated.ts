@@ -15,7 +15,7 @@ export interface BillboardPtrData {
 }
 
 export function fillBillboard(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    _f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: BillboardPtrData,
 ): void {
     out.mode = u32[ptr >> 2] | 0;
@@ -23,7 +23,7 @@ export function fillBillboard(
 }
 
 export function writeBillboard(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    _f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: BillboardPtrData,
 ): void {
     u32[ptr >> 2] = data.mode | 0;
@@ -155,7 +155,7 @@ export interface BoxCollider3DPtrData {
 }
 
 export function fillBoxCollider3D(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: BoxCollider3DPtrData,
 ): void {
     const halfExtents_ = out.halfExtents; halfExtents_.x = f32[ptr >> 2]; halfExtents_.y = f32[(ptr >> 2) + 1]; halfExtents_.z = f32[(ptr >> 2) + 2];
@@ -167,7 +167,7 @@ export function fillBoxCollider3D(
 }
 
 export function writeBoxCollider3D(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: BoxCollider3DPtrData,
 ): void {
     f32[ptr >> 2] = data.halfExtents.x; f32[(ptr >> 2) + 1] = data.halfExtents.y; f32[(ptr >> 2) + 2] = data.halfExtents.z;
@@ -376,7 +376,7 @@ export interface CapsuleCollider3DPtrData {
 }
 
 export function fillCapsuleCollider3D(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: CapsuleCollider3DPtrData,
 ): void {
     out.radius = f32[ptr >> 2];
@@ -389,7 +389,7 @@ export function fillCapsuleCollider3D(
 }
 
 export function writeCapsuleCollider3D(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: CapsuleCollider3DPtrData,
 ): void {
     f32[ptr >> 2] = data.radius;
@@ -547,7 +547,7 @@ export interface ContentRectPtrData {
 }
 
 export function fillContentRect(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, _u8: Uint8Array,
     ptr: number, out: ContentRectPtrData,
 ): void {
     const size_ = out.size; size_.x = f32[ptr >> 2]; size_.y = f32[(ptr >> 2) + 1];
@@ -555,7 +555,7 @@ export function fillContentRect(
 }
 
 export function writeContentRect(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, _u8: Uint8Array,
     ptr: number, data: ContentRectPtrData,
 ): void {
     f32[ptr >> 2] = data.size.x; f32[(ptr >> 2) + 1] = data.size.y;
@@ -621,7 +621,7 @@ export interface DraggablePtrData {
 }
 
 export function fillDraggable(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: DraggablePtrData,
 ): void {
     out.enabled = u8[ptr] !== 0;
@@ -635,7 +635,7 @@ export function fillDraggable(
 }
 
 export function writeDraggable(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: DraggablePtrData,
 ): void {
     u8[ptr] = data.enabled ? 1 : 0;
@@ -736,7 +736,7 @@ export interface FlexContainerPtrData {
 }
 
 export function fillFlexContainer(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: FlexContainerPtrData,
 ): void {
     out.direction = u8[ptr];
@@ -749,7 +749,7 @@ export function fillFlexContainer(
 }
 
 export function writeFlexContainer(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: FlexContainerPtrData,
 ): void {
     u8[ptr] = data.direction;
@@ -779,7 +779,7 @@ export interface GroupOpacityPtrData {
 }
 
 export function fillGroupOpacity(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: GroupOpacityPtrData,
 ): void {
     out.opacity = f32[ptr >> 2];
@@ -787,7 +787,7 @@ export function fillGroupOpacity(
 }
 
 export function writeGroupOpacity(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: GroupOpacityPtrData,
 ): void {
     f32[ptr >> 2] = data.opacity;
@@ -844,7 +844,7 @@ export interface InteractablePtrData {
 }
 
 export function fillInteractable(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    _f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: InteractablePtrData,
 ): void {
     out.enabled = u8[ptr] !== 0;
@@ -853,7 +853,7 @@ export function fillInteractable(
 }
 
 export function writeInteractable(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    _f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: InteractablePtrData,
 ): void {
     u8[ptr] = data.enabled ? 1 : 0;
@@ -1166,7 +1166,7 @@ export interface MeshInstancesPtrData {
 }
 
 export function fillMeshInstances(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, u32: Uint32Array, _u8: Uint8Array,
     ptr: number, out: MeshInstancesPtrData,
 ): void {
     out.lod1Mesh = u32[ptr >> 2];
@@ -1177,7 +1177,7 @@ export function fillMeshInstances(
 }
 
 export function writeMeshInstances(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, u32: Uint32Array, _u8: Uint8Array,
     ptr: number, data: MeshInstancesPtrData,
 ): void {
     u32[ptr >> 2] = data.lod1Mesh;
@@ -1203,7 +1203,7 @@ export interface MeshLightmapPtrData {
 }
 
 export function fillMeshLightmap(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, u32: Uint32Array, _u8: Uint8Array,
     ptr: number, out: MeshLightmapPtrData,
 ): void {
     out.lightmap = u32[ptr >> 2];
@@ -1211,7 +1211,7 @@ export function fillMeshLightmap(
 }
 
 export function writeMeshLightmap(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, u32: Uint32Array, _u8: Uint8Array,
     ptr: number, data: MeshLightmapPtrData,
 ): void {
     u32[ptr >> 2] = data.lightmap;
@@ -1299,7 +1299,7 @@ export interface OccluderPtrData {
 }
 
 export function fillOccluder(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: OccluderPtrData,
 ): void {
     const halfExtents_ = out.halfExtents; halfExtents_.x = f32[ptr >> 2]; halfExtents_.y = f32[(ptr >> 2) + 1]; halfExtents_.z = f32[(ptr >> 2) + 2];
@@ -1307,7 +1307,7 @@ export function fillOccluder(
 }
 
 export function writeOccluder(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: OccluderPtrData,
 ): void {
     f32[ptr >> 2] = data.halfExtents.x; f32[(ptr >> 2) + 1] = data.halfExtents.y; f32[(ptr >> 2) + 2] = data.halfExtents.z;
@@ -1848,7 +1848,7 @@ export interface RigidBody2DPtrData {
 }
 
 export function fillRigidBody2D(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: RigidBody2DPtrData,
 ): void {
     out.bodyType = u8[ptr];
@@ -1861,7 +1861,7 @@ export function fillRigidBody2D(
 }
 
 export function writeRigidBody2D(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: RigidBody2DPtrData,
 ): void {
     u8[ptr] = data.bodyType;
@@ -2003,7 +2003,7 @@ export interface ShadowCaster2DPtrData {
 }
 
 export function fillShadowCaster2D(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: ShadowCaster2DPtrData,
 ): void {
     const size_ = out.size; size_.x = f32[ptr >> 2]; size_.y = f32[(ptr >> 2) + 1];
@@ -2011,7 +2011,7 @@ export function fillShadowCaster2D(
 }
 
 export function writeShadowCaster2D(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: ShadowCaster2DPtrData,
 ): void {
     f32[ptr >> 2] = data.size.x; f32[(ptr >> 2) + 1] = data.size.y;
@@ -2080,7 +2080,7 @@ export interface SortingGroupPtrData {
 }
 
 export function fillSortingGroup(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    _f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: SortingGroupPtrData,
 ): void {
     out.layer = u32[ptr >> 2] | 0;
@@ -2089,7 +2089,7 @@ export function fillSortingGroup(
 }
 
 export function writeSortingGroup(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    _f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: SortingGroupPtrData,
 ): void {
     u32[ptr >> 2] = data.layer | 0;
@@ -2115,7 +2115,7 @@ export interface SphereCollider3DPtrData {
 }
 
 export function fillSphereCollider3D(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: SphereCollider3DPtrData,
 ): void {
     out.radius = f32[ptr >> 2];
@@ -2127,7 +2127,7 @@ export function fillSphereCollider3D(
 }
 
 export function writeSphereCollider3D(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: SphereCollider3DPtrData,
 ): void {
     f32[ptr >> 2] = data.radius;
@@ -2223,7 +2223,7 @@ export interface SpringBonePtrData {
 }
 
 export function fillSpringBone(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: SpringBonePtrData,
 ): void {
     out.enabled = u8[ptr] !== 0;
@@ -2239,7 +2239,7 @@ export function fillSpringBone(
 }
 
 export function writeSpringBone(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: SpringBonePtrData,
 ): void {
     u8[ptr] = data.enabled ? 1 : 0;
@@ -2277,7 +2277,7 @@ export interface SpringBoneColliderPtrData {
 }
 
 export function fillSpringBoneCollider(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: SpringBoneColliderPtrData,
 ): void {
     out.shape = u8[ptr];
@@ -2287,7 +2287,7 @@ export function fillSpringBoneCollider(
 }
 
 export function writeSpringBoneCollider(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: SpringBoneColliderPtrData,
 ): void {
     u8[ptr] = data.shape;
@@ -2591,7 +2591,7 @@ export interface TransformPtrData {
 }
 
 export function fillTransform(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, _u8: Uint8Array,
     ptr: number, out: TransformPtrData,
 ): void {
     const position_ = out.position; position_.x = f32[ptr >> 2]; position_.y = f32[(ptr >> 2) + 1]; position_.z = f32[(ptr >> 2) + 2];
@@ -2603,7 +2603,7 @@ export function fillTransform(
 }
 
 export function writeTransform(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, _u8: Uint8Array,
     ptr: number, data: TransformPtrData,
 ): void {
     f32[ptr >> 2] = data.position.x; f32[(ptr >> 2) + 1] = data.position.y; f32[(ptr >> 2) + 2] = data.position.z;
@@ -2633,7 +2633,7 @@ export interface UIInteractionPtrData {
 }
 
 export function fillUIInteraction(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    _f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: UIInteractionPtrData,
 ): void {
     out.hovered = u8[ptr] !== 0;
@@ -2643,7 +2643,7 @@ export function fillUIInteraction(
 }
 
 export function writeUIInteraction(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    _f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: UIInteractionPtrData,
 ): void {
     u8[ptr] = data.hovered ? 1 : 0;
@@ -2668,7 +2668,7 @@ export interface UIMaskPtrData {
 }
 
 export function fillUIMask(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: UIMaskPtrData,
 ): void {
     out.enabled = u8[ptr] !== 0;
@@ -2677,7 +2677,7 @@ export function fillUIMask(
 }
 
 export function writeUIMask(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: UIMaskPtrData,
 ): void {
     u8[ptr] = data.enabled ? 1 : 0;
@@ -2719,7 +2719,7 @@ export interface UINodePtrData {
 }
 
 export function fillUINode(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: UINodePtrData,
 ): void {
     out.position = u8[ptr];
@@ -2747,7 +2747,7 @@ export function fillUINode(
 }
 
 export function writeUINode(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: UINodePtrData,
 ): void {
     u8[ptr] = data.position;
@@ -2931,7 +2931,7 @@ export interface VelocityPtrData {
 }
 
 export function fillVelocity(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, _u8: Uint8Array,
     ptr: number, out: VelocityPtrData,
 ): void {
     const linear_ = out.linear; linear_.x = f32[ptr >> 2]; linear_.y = f32[(ptr >> 2) + 1]; linear_.z = f32[(ptr >> 2) + 2];
@@ -2939,7 +2939,7 @@ export function fillVelocity(
 }
 
 export function writeVelocity(
-    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    f32: Float32Array, _u32: Uint32Array, _u8: Uint8Array,
     ptr: number, data: VelocityPtrData,
 ): void {
     f32[ptr >> 2] = data.linear.x; f32[(ptr >> 2) + 1] = data.linear.y; f32[(ptr >> 2) + 2] = data.linear.z;

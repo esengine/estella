@@ -417,14 +417,6 @@ u32 ParticleSystem::totalAliveParticles() const {
     return total;
 }
 
-void ParticleSystem::forEachParticle(Entity entity,
-                                      const std::function<void(const Particle&)>& fn) const {
-    auto it = states_.find(entity);
-    if (it != states_.end()) {
-        it->second.pool.forEachAlive(fn);
-    }
-}
-
 EmitterState* ParticleSystem::getState(Entity entity) {
     auto it = states_.find(entity);
     return it != states_.end() ? &it->second : nullptr;

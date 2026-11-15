@@ -75,9 +75,8 @@ contact events; the components reach the main entry either way.
 
 - **Types.hpp** — base types (`u32`, `f32`, `Entity`), and the **domain-scoped
   TypeId** system. Instead of one global `getTypeId<T>()` counter shared across
-  unrelated concerns, each domain (`ComponentDomain`, `EventDomain`,
-  `ServiceDomain`, `ResourceDomain`) has its own dense, 0-based sequence
-  (`Types.hpp:189-219`). Component ids stay dense, so they index the `pools_`
+  unrelated concerns, each domain (`ComponentDomain`, `ServiceDomain`) has its own dense, 0-based
+  sequence. Component ids stay dense, so they index the `pools_`
   vector and the per-entity component bitmask without waste or overflow (RC4).
 - **Log.hpp** — leveled logging. Note: `ES_ASSERT` compiles out in release;
   boundary validation that must always run does **not** rely on it (RC3).
