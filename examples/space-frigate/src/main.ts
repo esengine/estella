@@ -1,6 +1,8 @@
 import { addPlugin, defineSystem, GetWorld, Res, Time, Input, Transform, MeshRenderer, Light, Material, Playthrough } from 'esengine';
 import type { Entity, World } from 'esengine';
 import { SHOTS, SHOT_SECONDS, clamp, eyeOf, lookRotation, tourOrbit, type Orbit } from './flight';
+import { installHud } from './hud';
+import { ship, TOP_SPEED, DRIFTING_ROCKS, FIELD_HALF_LENGTH, FIELD_DRIFT } from './shipState';
 
 const PLUMES = [
     { name: 'PlumeL', width: 4.0, length: 2.3 },
@@ -16,6 +18,7 @@ addPlugin({
     build(app) {
         const facts = { ready: false, frame: 0, time: 0, throttle: 0, tour: true, shot: 0, eyeX: 0, eyeY: 0, eyeZ: 0 };
         app.insertResource(Playthrough, { facts });
+        installHud(app);
         const ids = new Map<string, Entity>();
         let clock = 0;
         let wanted = 0.65;
@@ -50,7 +53,8 @@ addPlugin({
                 t.scale = { x: wide, y: wide, z: plume.length * (0.22 + 1.05 * throttle) };
                 world.insert(e, Transform, t);
             }
-            Material.setUniform(world.get(get(world, 'PlumeL'), MeshRenderer).material, 'u_strength', 0.5 + 4 * throttle * throttle);
+            Material.setUniform(world.get(get(world, 'PlumeL'), MeshRenderer).material, 'u_strength', 0.25 + 1.5 * throttle * throttle);
+            Material.setUniform(world.get(get(world, 'PlumeLCore'), MeshRenderer).material, 'u_strength', 0.6 + 7 * throttle * throttle);
             for (const name of GLOWS) {
                 const e = get(world, name);
                 world.insert(e, Light, { ...world.get(e, Light), intensity: 0.1 + 0.7 * throttle * throttle });
@@ -89,12 +93,29 @@ addPlugin({
             cam.rotation = lookRotation(eye, target);
             world.insert(camera, Transform, cam);
 
-            const ship = get(world, 'Ship');
-            const hull = world.get(ship, Transform);
+            const root = get(world, 'Ship');
+            const hull = world.get(root, Transform);
             const roll = Math.sin(clock * 0.31) * 0.012, nod = Math.sin(clock * 0.23 + 1.3) * 0.006;
             hull.rotation = { x: Math.sin(nod / 2), y: 0, z: Math.sin(roll / 2), w: Math.cos(nod / 2) * Math.cos(roll / 2) };
             hull.position = { x: 0, y: Math.sin(clock * 0.19) * 0.35, z: 0 };
-            world.insert(ship, Transform, hull);
+            world.insert(root, Transform, hull);
+
+            ship.time = clock;
+            ship.throttle = throttle;
+            ship.wanted = wanted;
+            ship.speed += (throttle * TOP_SPEED - ship.speed) * Math.min(1, dt * 0.8);
+            ship.tour = tour;
+            ship.shot = Math.floor(clock / SHOT_SECONDS) % SHOTS.length;
+
+            const drift = ship.speed * FIELD_DRIFT * dt;
+            for (let i = 0; i < DRIFTING_ROCKS; i++) {
+                const e = get(world, `Rock${i}`);
+                const t = world.get(e, Transform);
+                let z = t.position.z - drift;
+                if (z < -FIELD_HALF_LENGTH) z += FIELD_HALF_LENGTH * 2;
+                t.position = { x: t.position.x, y: t.position.y, z };
+                world.insert(e, Transform, t);
+            }
 
             facts.ready = true;
             facts.frame++;

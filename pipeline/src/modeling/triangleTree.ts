@@ -17,17 +17,27 @@ export function trianglesOf(mesh: PolyMesh): Float64Array {
     return Float64Array.from(out);
 }
 
-/** A bounding-volume hierarchy over triangles, in flat arrays: a dense model is several hundred thousand of them. */
+export interface TriangleTreeParts {
+    order: Int32Array;
+    boxes: Float64Array;
+    links: Int32Array;
+}
+
 export class TriangleTree {
     private readonly order: Int32Array;
     private readonly boxes: Float64Array;
-    /** Per node: a leaf's first triangle in `order` and its count, or the right child and 0. */
     private readonly links: Int32Array;
     private nodes = 0;
     private readonly stack = new Int32Array(128);
 
-    constructor(private readonly corners: Float64Array) {
+    constructor(private readonly corners: Float64Array, built?: TriangleTreeParts) {
         const count = corners.length / 9;
+        if (built) {
+            this.order = built.order;
+            this.boxes = built.boxes;
+            this.links = built.links;
+            return;
+        }
         this.order = Int32Array.from({ length: count }, (_, i) => i);
         this.boxes = new Float64Array(count * 2 * 6 + 6);
         this.links = new Int32Array(count * 2 * 2 + 2);
@@ -36,6 +46,10 @@ export class TriangleTree {
             for (let k = 0; k < 3; k++) centers[t * 3 + k] = (corners[t * 9 + k]! + corners[t * 9 + 3 + k]! + corners[t * 9 + 6 + k]!) / 3;
         }
         this.build(0, count, centers);
+    }
+
+    parts(): TriangleTreeParts {
+        return { order: this.order, boxes: this.boxes, links: this.links };
     }
 
     private build(first: number, count: number, centers: Float64Array): number {
@@ -136,6 +150,27 @@ export class TriangleTree {
             }
         }
         return found;
+    }
+
+    gather(lox: number, loy: number, loz: number, hix: number, hiy: number, hiz: number, out: Int32Array): number {
+        const [boxes, links, order, stack] = [this.boxes, this.links, this.order, this.stack];
+        let top = 0, held = 0;
+        stack[top++] = 0;
+        while (top > 0) {
+            const node = stack[--top]!;
+            const at = node * 6;
+            if (boxes[at]! > hix || boxes[at + 3]! < lox || boxes[at + 1]! > hiy || boxes[at + 4]! < loy || boxes[at + 2]! > hiz || boxes[at + 5]! < loz) continue;
+            const count = links[node * 2 + 1]!;
+            if (count === 0) {
+                stack[top++] = links[node * 2]!;
+                stack[top++] = node + 1;
+                continue;
+            }
+            if (held + count > out.length) return -1;
+            const first = links[node * 2]!;
+            for (let i = first; i < first + count; i++) out[held++] = order[i]!;
+        }
+        return held;
     }
 
     /** Whether anything lies on the ray from @p o along @p d within @p reach, whichever way it faces. */

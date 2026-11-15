@@ -330,6 +330,7 @@ export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, ma
         properties: {
             ...(material?.alpha === 'cutout' ? { u_alphaCutoff: material.cutoff ?? 0.5 } : {}),
             ...(material?.translucency ? { u_translucency: material.translucency } : {}),
+            ...(material?.coat ? { u_clearcoat: material.coat, u_clearcoatRoughness: material.coatRoughness ?? 0.1 } : {}),
             ...(maps.emissive ? {
                 u_emissive: { r: material?.emissive?.[0] ?? 1, g: material?.emissive?.[1] ?? 1, b: material?.emissive?.[2] ?? 1, a: 1 },
                 u_emissiveMap: maps.emissive,
