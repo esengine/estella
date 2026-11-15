@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../ecs/Registry.hpp"
+#include "../core/Hash.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/UINode.hpp"
 #include "../ecs/components/Canvas.hpp"
@@ -46,10 +47,10 @@ struct UITree {
             buildDFS(reg, entity, INVALID_ENTITY, 0);
         }
 
-        u64 h = 1469598103934665603ULL;  // FNV-1a offset basis
+        u64 h = hash::kFnv64Offset;
         for (const auto& n : nodes_) {
-            h = (h ^ n.entity.id()) * 1099511628211ULL;
-            h = (h ^ n.parent.id()) * 1099511628211ULL;
+            h = hash::fnv1aWord(h, n.entity.id());
+            h = hash::fnv1aWord(h, n.parent.id());
         }
         structure_sig_ = h;
     }

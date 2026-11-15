@@ -73,7 +73,6 @@ To update to a new version:
 4. Monitor for any compatibility issues with:
    - WASM output sizes
    - WebGL bindings
-   - Dynamic linking (MAIN_MODULE/SIDE_MODULE)
 
 ### Version History
 
