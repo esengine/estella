@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "",
+  "instanceOf": "lens.esmaterial",
+  "properties": {
+    "u_curve": 0,
+    "u_fringe": 0,
+    "u_scan": 0.1,
+    "u_glow": 0.16
+  }
+}

@@ -251,7 +251,7 @@ world.insert(hudCanvas, CanvasEffect, { material: lens.handle });
 ```
 
 - **按层生效。** 同一排序层上的所有屏幕 Canvas，都走该层第一个带 `CanvasEffect` 的 Canvas 的材质。没有效果的
-  层先直接画到画面上，带效果的层再依次盖在上面。所以不该被弯曲的东西——比如立在世界物体上的标记
+  层先直接画到画面上，带效果的层再按层号从小到大依次盖在上面。所以不该被弯曲的东西——比如立在世界物体上的标记
   （`UIWorldAnchor`）——放到另一层的 Canvas 上。
 - **移动的是像素，不是指针。** 点击落在元素布局的位置。要点的东西放在没有效果的层上，或者把弯曲控制得很小。
 - 只加光的绘制（`BlendMode.Additive`）经过这一层后仍然只加光。会压暗下方的绘制（`Multiply`、`Darken`）在这一层里
