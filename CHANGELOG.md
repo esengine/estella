@@ -27,6 +27,7 @@ published separately; it ships inside the editor.
 ### Fixed
 
 - **A terrain's heightmap and splatmaps, and a foliage field's density and scale maps, are read from their files and never uploaded.** They are read on the CPU as numbers, yet the scene also loaded each as a texture: a 4097 heightmap held 64 MiB of video memory for nothing, and on a busy machine its upload missed the load deadline and the terrain came up as noise. These fields now hold the image's project path at run time (they are `image` fields, where they were `texture`), no texture is made of them, and the inspector picks them as before. A terrain or foliage field is grown again when one of its images changes on disk or in an update. A script that read `Terrain.heightmap`, `splatmap`, `splatmap2` or `Foliage.densityMap`, `scaleMap` as a handle now reads a path.
+- **On Windows a packaged game keeps every save, not only its first.** The desktop host writes a save to a temporary file and moves it over the old one, and on Windows that move was refused whenever a save already existed: a game's first save landed and every later one was dropped, with nothing said, so the next launch opened on the first. The host now replaces the file, and reads and writes its save paths as UTF-8 so a profile folder with non-ASCII characters is reachable. When a host does refuse a write, the SDK logs it once instead of carrying on as if it had landed.
 
 ## [0.105.0] - 2026-11-14
 

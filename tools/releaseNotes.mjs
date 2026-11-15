@@ -5048,4 +5048,6 @@ export const NOTED = {
     { note: "A VFX showcase example." },
   "chore(notes): the showcase's gallery text reaches the note of the example it names":
     {"internal": "A line in the notes file; nothing a creator runs changes."},
+  "fix(native): a second save on Windows reaches the disk - the desktop host moved its temp file over the save with rename(), which Windows refuses when the target exists, so every save after the first was dropped without a word; the host replaces the file (MoveFileExW) and opens its paths as UTF-8, the SDK reports a write the host refused, and the packaged-game check launches a game three times and reads the count it kept":
+    { note: "On Windows a packaged game keeps every save, not only its first." },
 };
