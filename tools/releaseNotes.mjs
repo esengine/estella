@@ -5062,4 +5062,6 @@ export const NOTED = {
     {"internal": "Compiler checks and unused code inside the engine package; the emitted modules import what they did."},
   "fix(sky): the hour does not dim an ambient light the sky already lights - with Light the Scene on, the sky a TimeOfDay moves is the environment of every Ambient light that names none, and it darkens as the sun sets; the clock scaled and tinted that light by the hour as well (0.17 of its strength just after sunset), so at dusk the ground under a bright sky was black; such a light is left as authored, and an Ambient light with a colour or an environment of its own is scaled as before":
     { note: "Dusk is not black under a sky that lights the scene." },
+  "fix(export): the script compile step runs from a path with a space or an ampersand on Windows - emcc is a batch file there and was started through a shell with its arguments unquoted, as were the emsdk setup, the GLX toolchain, the engine build commands and with-env; they all start through runTool now, and check-tool-spawn refuses a shell passed by hand":
+    {"note": "A project in a folder with a space or `&` in its name exports its compiled scripts on Windows."},
 };

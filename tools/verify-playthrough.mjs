@@ -23,20 +23,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runElectron } from './lib/electronRun.mjs';
 import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict } from './lib/deadGpu.mjs';
+import { toolArgs } from './lib/toolArgs.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = path.join(ROOT, 'desktop');
 const WORK = path.join(ROOT, '.playthrough');
 
-const argv = process.argv.slice(2);
-const flag = (name, fallback) => {
-  const i = argv.indexOf(`--${name}`);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : fallback;
-};
+const ARGS = toolArgs({ project: 'celestial-heights', route: null, keep: false });
 
-const PROJECT = flag('project', 'celestial-heights');
+const PROJECT = ARGS.project;
 const projectDir = path.join(ROOT, 'examples', PROJECT);
-const ROUTE = path.resolve(flag('route', path.join(projectDir, 'playthrough.json')));
+const ROUTE = path.resolve(ARGS.route ?? path.join(projectDir, 'playthrough.json'));
 
 if (!existsSync(path.join(projectDir, 'project.esproject'))) {
   console.error(`verify-playthrough: no project at ${projectDir}`);
@@ -76,7 +73,7 @@ const played = retryOnDeadGpu(() => {
 }, (died) => console.log(`↻ ${PROJECT} — ${died
   ? 'the GPU went away under the walk' : 'no frame after a GPU death'}; walking again`));
 for (const line of (played.stdout || '').split('\n')) if (line.trim()) console.log(line);
-if (!argv.includes('--keep')) rmSync(WORK, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+if (!ARGS.keep) rmSync(WORK, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 if (!played.ok) {
   console.error(played.launchFailed ? `✗ ${launchNeverHappenedVerdict('the walk')}`
     : played.gpuDied ? `✗ ${deadGpuVerdict('the route')}`
