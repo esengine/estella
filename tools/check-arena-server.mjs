@@ -32,10 +32,10 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { pathToFileURL, fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { toolArgs } from './lib/toolArgs.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ARGS = toolArgs({ project: null, bound: '420', speed: '260', 'no-wall': false });
 const PROJECT = path.resolve(ROOT, ARGS.project ?? path.join('examples', 'multiplayer-arena'));
 const SDK = path.join(ROOT, 'sdk', 'dist', 'index.node.js');

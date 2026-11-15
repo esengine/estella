@@ -20,13 +20,11 @@
  */
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, read } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REGISTRY = 'sdk/src/sideModules/registry.ts';
 const EDITOR = path.join(ROOT, 'desktop', 'src');
 
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 
 if (!existsSync(EDITOR)) {
   console.log('check-version-authority: no editor checkout — nothing was judged.');

@@ -17,9 +17,9 @@
  */
 import { readdirSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+export { ROOT };
 const EXAMPLES = path.join(ROOT, 'examples');
 
 /** Cheapest tier a project runs at; each tier also runs everything cheaper. */

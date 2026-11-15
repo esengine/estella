@@ -24,9 +24,8 @@
  */
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, stripComments } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIR = path.join(ROOT, 'sdk/src/tilemap');
 const LOADERS = [
   'sdk/src/asset/loaders/TilemapAssetLoader.ts',
@@ -41,11 +40,6 @@ if (missing.length) {
 }
 
 /** Comments out, line numbers intact. */
-const stripComments = (text) =>
-  text
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
-    .replace(/\/\/[^\n]*/g, '');
-
 const findings = [];
 const at = (code, index) => code.slice(0, index).split('\n').length;
 

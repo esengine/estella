@@ -17,10 +17,9 @@
 import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { requireCurrentModule } from './moduleBinary.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TESTS = path.join(ROOT, 'sdk', 'tests');
 const WASM = path.join(ROOT, 'build', 'wasm', 'web', 'physics.wasm');
 

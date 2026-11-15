@@ -16,9 +16,8 @@
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT as root } from './lib/repo.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = readFileSync(path.join(root, 'native/host/platform/desktop_keymap.hpp'), 'utf8');
 
 /**

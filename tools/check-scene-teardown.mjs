@@ -24,9 +24,8 @@
  */
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, stripComments } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FILE = 'sdk/src/scene/sceneManager.ts';
 
 if (!existsSync(path.join(ROOT, FILE))) {
@@ -35,11 +34,6 @@ if (!existsSync(path.join(ROOT, FILE))) {
 }
 
 /** Comments out, line numbers intact. */
-const stripComments = (text) =>
-  text
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
-    .replace(/\/\/[^\n]*/g, '');
-
 const raw = readFileSync(path.join(ROOT, FILE), 'utf8');
 const src = stripComments(raw);
 

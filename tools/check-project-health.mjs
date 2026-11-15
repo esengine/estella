@@ -9,12 +9,10 @@
  *
  *   node tools/check-project-health.mjs
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, read } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 const has = (rel) => existsSync(path.join(ROOT, rel));
 
 const CHECKS = 'desktop/src/project/projectHealth.ts';

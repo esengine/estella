@@ -26,9 +26,8 @@
  */
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'sdk', 'src');
 const BASELINE = path.join(ROOT, 'tools', 'baselines', 'core-carries-options.json');
 

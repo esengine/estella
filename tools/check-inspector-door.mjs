@@ -31,11 +31,9 @@
  * component cannot be known to one check and invisible to the other.
  */
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join, resolve, relative } from 'node:path';
+import { join, relative } from 'node:path';
 import { componentNamesFromSource } from './lib/componentNames.mjs';
-
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT, stripComments } from './lib/repo.mjs';
 
 /** The inspector's render path: what draws an entity's components. */
 const GUARDED = [
@@ -57,8 +55,6 @@ for (const f of [...GUARDED, EXEMPT]) {
     process.exit(1);
   }
 }
-
-const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
 
 const names = componentNamesFromSource();
 if (names.length < 20) {

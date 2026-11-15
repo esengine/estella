@@ -10,12 +10,12 @@ import { createRequire } from 'node:module';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID, createHash } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
 import { HOST_PAGE } from './minigameHost.mjs';
 import { createDebugChannelServer } from '../../desktop/shared/debugChannelServer.mjs';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
+import { ROOT } from '../lib/repo.mjs';
+import { MIME } from '../lib/staticServer.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'output/cache-budget/render');
 const STORE = path.join(OUT, `cache-${randomUUID()}`);
 // Other headless verifiers use Electron too. Sharing its default user-data
@@ -60,8 +60,6 @@ const marker = '  globalThis.wx = wx;';
 const originalPage = HOST_PAGE('game.js');
 if (!originalPage.includes(marker)) throw Error('mini-game host injection point changed');
 const page = originalPage.replace(marker, `  (${installCacheHost.toString()})(wx, fs);\n${marker}`);
-const MIME = { '.js': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm',
-    '.png': 'image/png', '.jpg': 'image/jpeg', '.css': 'text/css', '.html': 'text/html' };
 
 app.whenReady().then(async () => {
     let channel, server, win;

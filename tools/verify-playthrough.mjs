@@ -20,12 +20,11 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { runElectron } from './lib/electronRun.mjs';
 import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict } from './lib/deadGpu.mjs';
 import { toolArgs } from './lib/toolArgs.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = path.join(ROOT, 'desktop');
 const WORK = path.join(ROOT, '.playthrough');
 

@@ -8,13 +8,12 @@
  *
  *   node tools/glslang-wasm/build.mjs
  */
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { ensureEmscriptenEnv } from '../../build-tools/utils/emscripten.js';
 import { mustRunTool } from '../lib/runTool.mjs';
+import { ROOT, walkFiles } from '../lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const GLSLANG = path.join(ROOT, 'third_party', 'glslang');
 const BUILD = path.join(ROOT, 'build', 'wasm', 'glslang');
 const OUT_DIR = path.join(ROOT, 'build-tools', 'shader-twins');
@@ -45,14 +44,7 @@ run('cmake', ['--build', BUILD]);
 // OSDependent / default-resource-limits) — link them all, twice, so ordering
 // never bites.
 const libs = [];
-const walk = (dir) => {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) walk(p);
-    else if (e.name.endsWith('.a')) libs.push(p);
-  }
-};
-walk(BUILD);
+walkFiles(BUILD, { match: /\.a$/ }, libs);
 if (libs.length === 0) throw new Error('no static libs found under ' + BUILD);
 console.log('linking libs:', libs.map((l) => path.basename(l)).join(', '));
 

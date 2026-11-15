@@ -13,10 +13,9 @@
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { listTrackedSources } from './lib/sourceRoots.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCENES = 'fixtures/scenes';
 
 /**

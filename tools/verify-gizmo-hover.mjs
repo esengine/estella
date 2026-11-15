@@ -2,9 +2,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import fs from 'node:fs';import path from 'node:path';import {fileURLToPath} from 'node:url';import assert from 'node:assert/strict';import {runElectron} from './lib/electronRun.mjs';
 import {build} from 'esbuild';
+import { ROOT as root } from './lib/repo.mjs';
 const planOnly=process.argv.includes('--plan');
 if(!process.env.CI&&!planOnly)throw Error('This editor acceptance check runs only in CI; local verification must not launch the editor.');
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),out=path.join(root,'output/gizmo-hover-ci');fs.mkdirSync(out,{recursive:true});
+const out=path.join(root,'output/gizmo-hover-ci');fs.mkdirSync(out,{recursive:true});
 const compiled=await build({entryPoints:[path.join(root,'desktop/src/tools/gizmo.ts')],bundle:true,write:false,platform:'node',format:'esm',alias:{'@':path.join(root,'desktop/src')}});
 const {GIZMO}=await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);
 const cases=[{mode:'move',x:GIZMO.axisLen*0.65,y:0,id:'move.x',cursor:'move'},{mode:'scale',x:GIZMO.axisLen,y:0,id:'scale.x',cursor:'ew-resize'},{mode:'rotate',x:GIZMO.ringRadius,y:0,id:'rotate.z',cursor:'grab'},

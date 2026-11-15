@@ -27,9 +27,9 @@
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = path.join(ROOT, 'desktop');
 /** Where the repo drives the editor through its own tool catalog. */
 const SCANNED = [path.join(DESKTOP, 'scripts')];

@@ -15,11 +15,11 @@
  *        leaves the player where they were.
  */
 import { app, BrowserWindow } from 'electron';
-import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
+import { serveDir } from '../lib/staticServer.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'pipeline', '.hotupdate-verify');
 const BUILD = path.join(ROOT, 'build');
@@ -34,12 +34,6 @@ app.commandLine.appendSwitch('disable-gpu-sandbox');
 // the service that answers for WebGL2, and in-process SwiftShader draws the same.
 if (process.platform === 'linux') app.commandLine.appendSwitch('in-process-gpu');
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
-
-const MIME = {
-  '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.css': 'text/css', '.json': 'application/json', '.esscene': 'application/json',
-  '.wasm': 'application/wasm', '.ktx2': 'application/octet-stream', '.png': 'image/png',
-};
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -73,29 +67,17 @@ function brokenManifests(buildManifestJson) {
 /** One origin: `/cdn/...` serves the update build, `/tampered/` and `/gone/` the
  *  ship build under a manifest that lies, everything else the ship build. */
 function serve(buildDir, cdnDir, broken) {
-  const server = http.createServer(async (req, res) => {
-    try {
-      let rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '');
-      let dir = buildDir;
+  return serveDir(buildDir, {
+    route(rel) {
       for (const [name, root] of [['cdn', cdnDir], ['tampered', buildDir], ['gone', buildDir]]) {
         if (rel !== name && !rel.startsWith(`${name}/`)) continue;
-        dir = root;
-        rel = rel.slice(name.length + 1);
-        if (broken[name] && rel === 'asset-manifest.json') {
-          res.writeHead(200, { 'content-type': 'application/json' }).end(broken[name]);
-          return;
-        }
-        break;
+        const inner = rel.slice(name.length + 1);
+        if (broken[name] && inner === 'asset-manifest.json') return { body: broken[name], type: 'application/json' };
+        return { root, rel: inner };
       }
-      rel = rel || 'index.html';
-      const abs = path.join(dir, rel);
-      if (!abs.startsWith(dir)) { res.writeHead(403).end(); return; }
-      const bytes = await readFile(abs);
-      res.writeHead(200, { 'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream' });
-      res.end(bytes);
-    } catch { res.writeHead(404).end('not found'); }
+      return null;
+    },
   });
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
 app.whenReady().then(async () => {

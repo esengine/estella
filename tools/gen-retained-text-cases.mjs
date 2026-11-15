@@ -16,9 +16,9 @@ import { build } from 'esbuild';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'tests', 'renderer', 'data', 'retained_text_cases.txt');
 
 const dir = await mkdtemp(path.join(tmpdir(), 'retained-text-'));

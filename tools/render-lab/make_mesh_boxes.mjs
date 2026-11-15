@@ -10,8 +10,8 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
+import { ROOT as root } from '../lib/repo.mjs';
 
-const root = path.resolve(import.meta.dirname, '../..');
 const [project, boxesFile] = process.argv.slice(2);
 const boxes = JSON.parse(readFileSync(boxesFile, 'utf8'));
 

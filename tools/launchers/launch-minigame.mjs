@@ -20,8 +20,7 @@
  *     --fail-subpackage <name>  the host refuses that 分包, to see what it does
  */
 import { app, BrowserWindow } from 'electron';
-import http from 'node:http';
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,6 +28,7 @@ import { onRendererConsole } from '../lib/rendererConsole.mjs';
 import { HOST_PAGE } from './minigameHost.mjs';
 import { inputScript } from './inputScript.mjs';
 import { frameClockScript } from './frameClock.mjs';
+import { mimeOf, serveDir } from '../lib/staticServer.mjs';
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
@@ -66,38 +66,13 @@ const INPUT = flag('input', '');
  */
 const FAIL_SUBPACKAGE = flag('fail-subpackage', '');
 
-const MIME = {
-  '.js': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.ktx2': 'image/ktx2',
-  '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.m4a': 'audio/mp4',
-  '.atlas': 'text/plain', '.skel': 'application/octet-stream', '.txt': 'text/plain',
-};
-
 function serve(root, page) {
-  const server = http.createServer(async (req, res) => {
-    try {
-      let rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '');
-      if (rel === '' || rel === 'index.html') {
-        res.writeHead(200, { 'content-type': 'text/html' }).end(page);
-        return;
-      }
-      const abs = path.join(root, rel);
-      if (!abs.startsWith(root)) { res.writeHead(403).end(); return; }
-      // The vendor's loader takes a `.wasm.br` path and decompresses inside
-      // itself; nothing in a page can (Chromium's DecompressionStream has no
-      // brotli), so the transport does — the stand-in host sees raw wasm either way.
-      const brotli = abs.endsWith('.br');
-      const ext = path.extname(brotli ? abs.slice(0, -3) : abs).toLowerCase();
-      const body = await readFile(abs);
-      res.writeHead(200, {
-        'content-type': MIME[ext] ?? 'application/octet-stream',
-        ...(brotli ? { 'content-encoding': 'br' } : {}),
-      }).end(body);
-    } catch {
-      res.writeHead(404).end();
-    }
+  return serveDir(root, {
+    route: (rel) => (rel === '' || rel === 'index.html' ? { body: page } : null),
+    shape: ({ abs }) => (abs.endsWith('.br')
+      ? { headers: { 'content-type': mimeOf(abs.slice(0, -3)), 'content-encoding': 'br' } }
+      : null),
   });
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
 }
 
 function frameIsLive(image) {

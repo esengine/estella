@@ -17,9 +17,8 @@
  */
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RESOLVE = 'pipeline/src/bundle/engineSubpaths.ts';
 
 const src = readFileSync(path.join(ROOT, RESOLVE), 'utf8');

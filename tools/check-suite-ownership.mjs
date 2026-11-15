@@ -20,10 +20,9 @@
  */
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { GATES, owedSuites } from './gates.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HAS_EDITOR = existsSync(path.join(ROOT, 'desktop', 'package.json'));
 
 const findings = [];

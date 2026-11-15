@@ -4,9 +4,8 @@
 import { createServer } from 'node:http';
 import { readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT as root } from './lib/repo.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const host = path.join(root, 'build/render-host');
 await stat(path.join(host, 'host.js'));
 const port = Number(process.env.PORT ?? 5192);

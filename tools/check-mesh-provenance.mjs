@@ -30,10 +30,9 @@
  */
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { MESH_PRODUCERS, CLASSES, MINT } from './meshProducers.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** The engine sources. This gate never reads tools/, so the table below and the
  *  gate's own prose cannot answer it. */
 const ROOTS = ['src', 'native'];

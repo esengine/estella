@@ -31,11 +31,10 @@
  */
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { listTrackedSources, hasEditor } from './lib/sourceRoots.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ts = createRequire(path.join(ROOT, 'sdk', '/'))('typescript');
 const JSON_OUT = process.argv.includes('--json');
 const SELF_TEST = process.argv.includes('--self-test');

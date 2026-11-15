@@ -13,15 +13,14 @@
  */
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { TIERS, SCENES, scenesAtTier, sceneWatchdogMs } from './renderScenes.mjs';
 import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict, resultMeasured } from './lib/deadGpu.mjs';
 import { runTool } from './lib/runTool.mjs';
 import { runElectron } from './lib/electronRun.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
 import { toolArgs } from './lib/toolArgs.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = path.join(ROOT, 'desktop');
 
 const ARGS = toolArgs({ tier: 'pr', host: '', only: '', backend: 'webgl2', budget: '', shard: '', 'no-build': false, 'no-xvfb': false, 'allow-stale-engine': false });

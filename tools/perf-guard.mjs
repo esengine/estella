@@ -48,12 +48,11 @@
 // =============================================================================
 
 import { readFileSync, writeFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { resolve, dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { runTool } from './lib/runTool.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SDK = join(ROOT, 'sdk');
 const SNAPSHOT = join(SDK, 'etc', 'perf.snapshot.json');
 

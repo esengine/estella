@@ -24,11 +24,10 @@ import { spawnSync } from 'node:child_process';
 import { writeFile, mkdir, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { serveHost } from './lib/staticServer.mjs';
 import { toolArgs } from './lib/toolArgs.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ARGS = toolArgs({ scene: 'synthetic', count: '4096', frames: '30', samples: '5', w: '1920', h: '1080', top: '30', incl: '', only: '', shot: '', out: null, wait: '180000', dir: null, profile: false, glcalls: false, wall: false, audit: false, 'no-export': false, gpu: false, 'gpu-detail': false, logs: false });
 const SCENE = ARGS.scene;
 const COUNT = Number(ARGS.count);

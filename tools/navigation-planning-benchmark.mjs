@@ -4,10 +4,9 @@ import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT as root } from './lib/repo.mjs';
 const source = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', windowsHide: true }).trim();
 const bundle = await build({ entryPoints: [path.join(root, 'tools/fixtures/navigation-planning-corpus.ts')],
     bundle: true, platform: 'browser', format: 'iife', globalName: 'NavPlanningCorpus', write: false });

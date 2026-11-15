@@ -2,8 +2,9 @@
 // Browser-only staging of the real Play host. Never launches Electron.
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { pathToFileURL } from 'node:url';
+import { ROOT as root } from './lib/repo.mjs';
+import { MIME as mime } from './lib/staticServer.mjs';
 const stage = path.join(root, 'output/ui-events-play-browser');
 fs.mkdirSync(stage, { recursive: true });
 const { build } = await import(pathToFileURL(path.join(root, 'desktop/node_modules/esbuild/lib/main.js')).href);
@@ -16,7 +17,6 @@ const staged = await buildPlayRealm({ root: stage, playHostArtifact: path.join(r
 if (!staged.ok) throw Error(staged.errors.join('\n'));
 const scripts = path.join(stage, '.esengine/cache/scripts.mjs');
 await build({ entryPoints: [path.join(root, 'tools/ui-events-play-project.ts')], outfile: scripts, bundle: true, format: 'esm', platform: 'browser', external: ['esengine', 'esengine/*'] });
-const mime = { '.html': 'text/html', '.js': 'application/javascript', '.mjs': 'application/javascript', '.wasm': 'application/wasm', '.json': 'application/json' };
 const server = await createServer({ configFile: false, root: path.join(root, 'desktop'),
  resolve: { alias: [{find:'@',replacement:path.join(root,'desktop/src')},{find:/^esengine$/,replacement:path.join(root,'sdk/dist/index.js')}] },
  server: { host:'127.0.0.1', port:5195, strictPort:true, fs:{allow:[root]} },

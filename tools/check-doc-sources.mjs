@@ -10,28 +10,19 @@
  *
  * Run: node tools/check-doc-sources.mjs   (exit 1 on a finding)
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { ROOT, walkFiles } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = path.join(ROOT, 'docs', 'astro');
 const ts = createRequire(path.join(ROOT, 'sdk', 'package.json'))('typescript');
 const problems = [];
 
-const walk = (dir, test, out = []) => {
-    for (const e of readdirSync(dir)) {
-        const full = path.join(dir, e);
-        if (statSync(full).isDirectory()) walk(full, test, out);
-        else if (test(e)) out.push(full);
-    }
-    return out;
-};
 const rel = (file) => path.relative(ROOT, file).split(path.sep).join('/');
 
 // The data the pages are built from: hand-written tables a typo in a string takes down whole.
-const data = walk(path.join(SITE, 'src', 'data'), (name) => /\.(ts|mjs|js)$/.test(name));
+const data = walkFiles(path.join(SITE, 'src', 'data'), { match: /\.(ts|mjs|js)$/ });
 for (const file of data) {
     const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, false);
     for (const d of source.parseDiagnostics ?? []) {
@@ -41,7 +32,7 @@ for (const file of data) {
 }
 
 // Every page is served under /docs: a link written from the root names a page that is not there.
-const pages = walk(path.join(SITE, 'src', 'content', 'docs'), (name) => /\.mdx?$/.test(name));
+const pages = walkFiles(path.join(SITE, 'src', 'content', 'docs'), { match: /\.mdx?$/ });
 for (const file of pages) {
     readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
         for (const m of line.matchAll(/\]\((\/(?!docs\/|\/)[^)\s]*)\)/g)) problems.push(`${rel(file)}:${i + 1} links to ${m[1]}, and every page is under /docs`);

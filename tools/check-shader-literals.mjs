@@ -15,9 +15,8 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** MSVC's own number. A literal AT the cap is already truncated, so this is `>=`. */
 const MSVC_LIMIT = 16380;
 /** Headroom to report on, so a twin lands here before it lands on a compiler. */

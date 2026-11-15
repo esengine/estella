@@ -22,9 +22,8 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SDK = path.join(ROOT, 'sdk');
 const TSC = path.join(SDK, 'node_modules', 'typescript', 'bin', 'tsc');
 const CONFIG = path.join(SDK, 'tsconfig.tests.json');

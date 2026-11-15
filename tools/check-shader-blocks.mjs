@@ -20,9 +20,8 @@
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PARSER = path.join('src', 'esengine', 'resource', 'ShaderParser.cpp');
 
 /** Blocks that exist in all three languages, and the C++ header that owns each. */

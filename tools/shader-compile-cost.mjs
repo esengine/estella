@@ -11,12 +11,11 @@
  *   node tools/shader-compile-cost.mjs [--dir output/tw-export] [--frames 30] [--w 1280] [--h 720]
  */
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { serveHost } from './lib/staticServer.mjs';
 import { toolArgs } from './lib/toolArgs.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ARGS = toolArgs({ dir: null, w: '1280', h: '720', frames: '30', async: false });
 const DIR = path.resolve(ARGS.dir ?? path.join(ROOT, 'output', 'tw-export'));
 const W = Number(ARGS.w);

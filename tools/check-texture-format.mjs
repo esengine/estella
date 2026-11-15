@@ -14,11 +14,10 @@
  * dialog when the fix was the image's dimensions, and to the image when the fix
  * was the device they were testing on.
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, read } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DECIDE = 'pipeline/src/assets/textureCookDecision.ts';
 const COOK = 'pipeline/src/assets/cookAssets.ts';
 const TEXTURE_COOK = 'pipeline/src/assets/textureCook.ts';
@@ -31,7 +30,6 @@ const SETTINGS = 'desktop/src/settings/projectSettings.ts';
 const SURFACE = 'desktop/src/engine/EditorControlSurface.ts';
 const CATALOG = 'desktop/shared/toolCatalog.mjs';
 
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 const problems = [];
 
 // ---------------------------------------------------------------- cook (build)

@@ -3,8 +3,8 @@
 import { build } from 'esbuild';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { pathToFileURL } from 'node:url';
+import { ROOT as root } from './lib/repo.mjs';
 const out = path.resolve(process.argv[2] ?? path.join(root, 'output/cache-budget/render'));
 const channel = process.argv[3];
 if (!channel) throw Error('usage: node tools/cache-budget-render-fixture.mjs <output> <debug-channel-url>');

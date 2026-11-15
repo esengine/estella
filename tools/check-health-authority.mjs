@@ -16,18 +16,13 @@
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { listTrackedSources } from './lib/sourceRoots.mjs';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT, stripComments } from './lib/repo.mjs';
 
 /** The seam itself, which is where the writes are supposed to be. */
 const SEAM = 'sdk/src/gameplay/Health.ts';
 
 /** Source with comments gone: a `//` must not be able to satisfy or trip this. */
-const stripComments = (text) =>
-    text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-
 /**
  * Assignment to a health `current`. Deliberately shaped around the NAME rather
  * than the type: a checker that resolved types would need the compiler, and the

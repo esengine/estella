@@ -11,8 +11,8 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { ROOT as root } from '../lib/repo.mjs';
 
-const root = path.resolve(import.meta.dirname, '../..');
 const source = readFileSync(path.join(root, 'sdk/src/gi/globalSdf.ts'), 'utf8');
 const wgsl = source.match(/GLOBAL_SDF_WGSL = \/\* wgsl \*\/ `([\s\S]*?)`;/)?.[1];
 if (!wgsl) throw new Error('GLOBAL_SDF_WGSL not found');

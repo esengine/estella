@@ -14,9 +14,8 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { listTrackedSources } from './lib/sourceRoots.mjs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOME = 'pipeline/src/fs/pathSandbox.ts';
 const SCOPE = /^(desktop\/(electron|src)|pipeline\/src)\/.*\.tsx?$/;
 

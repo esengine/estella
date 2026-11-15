@@ -21,11 +21,9 @@
  *   node tools/check-plugin-api-contract.mjs
  */
 import { readFileSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
 import { importsAnotherModule } from './lib/moduleImports.mjs';
-
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT } from './lib/repo.mjs';
 
 /**
  * Where the verdict has to hold, who reads each one, and the passage it has to

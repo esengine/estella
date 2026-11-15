@@ -10,10 +10,9 @@
 import { mustRunTool } from '../lib/runTool.mjs';
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { ensureEmscriptenEnv } from '../../build-tools/utils/emscripten.js';
+import { ROOT } from '../lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const UFBX = path.join(ROOT, 'third_party', 'ufbx');
 const OUT = path.join(ROOT, 'build-tools', 'ufbx', 'ufbx-load.mjs');
 

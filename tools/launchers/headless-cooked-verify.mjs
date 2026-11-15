@@ -10,13 +10,11 @@
  *        and resolves content-addressed asset paths.
  */
 import { app, BrowserWindow } from 'electron';
-import http from 'node:http';
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
+import { ROOT } from '../lib/repo.mjs';
+import { serveDir } from '../lib/staticServer.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const COOKED = path.join(ROOT, 'pipeline', '.cooked-verify');
 /** The same fixture packaged without its compiled systems. */
 const INTERP = path.join(ROOT, 'pipeline', '.cooked-verify-interp');
@@ -31,27 +29,8 @@ app.commandLine.appendSwitch('disable-gpu-sandbox');
 if (process.platform === 'linux') app.commandLine.appendSwitch('in-process-gpu');
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 
-const MIME = {
-  '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.css': 'text/css', '.json': 'application/json', '.esscene': 'application/json',
-  '.wasm': 'application/wasm', '.ktx2': 'application/octet-stream', '.png': 'image/png',
-};
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function serve(dir) {
-  const server = http.createServer(async (req, res) => {
-    try {
-      const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '') || 'index.html';
-      const abs = path.join(dir, rel);
-      if (!abs.startsWith(dir)) { res.writeHead(403).end(); return; }
-      const bytes = await readFile(abs);
-      res.writeHead(200, { 'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream' });
-      res.end(bytes);
-    } catch { res.writeHead(404).end('not found'); }
-  });
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
-}
 
 /** Wait for the boot hook, or give up. Boot is async: wasm, then the scene. */
 async function waitForHook(exec) {
@@ -90,7 +69,7 @@ async function driftOf(dir, diag) {
   let server;
   let win;
   try {
-    server = await serve(dir);
+    server = await serveDir(dir);
     win = new BrowserWindow({ show: false, width: W, height: H, webPreferences: { offscreen: false } });
     await win.loadURL(`http://127.0.0.1:${server.address().port}/index.html?headless=1`);
     const exec = (code) => win.webContents.executeJavaScript(code, true);
@@ -116,7 +95,7 @@ app.whenReady().then(async () => {
   // with WebGL noise, and the report then says nothing about why it returned null.
   const twinDiag = [];
   try {
-    server = await serve(COOKED);
+    server = await serveDir(COOKED);
     const url = `http://127.0.0.1:${server.address().port}/index.html?headless=1`;
     const win = new BrowserWindow({ show: false, width: W, height: H, webPreferences: { offscreen: false } });
     onRendererConsole(win.webContents, (m) => {

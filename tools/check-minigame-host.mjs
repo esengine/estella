@@ -14,11 +14,10 @@
  * out. Optional members (`name?()`) may be skipped; required ones may not.
  */
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { SHIM_MEMBERS } from './launchers/minigameHost.mjs';
 import { ts, createSdkProgram } from './lib/sdkProgram.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const API = 'sdk/src/platform/minigame/api.ts';
 
 const { program, checker } = createSdkProgram([API.slice('sdk/'.length)]);

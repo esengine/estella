@@ -150,6 +150,17 @@ describe('createHostBridge', () => {
         expect(cache.size).toBe(0);
     });
 
+    it('says so once when the host could not write the save', () => {
+        const said = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const { scope } = twoStoreScope();
+        const bridge = createHostBridge({ ...scope, es_writeDataFile: () => false });
+        bridge.setStorageItem('save', '{"level":3}');
+        bridge.setStorageItem('save', '{"level":4}');
+        const reports = said.mock.calls.filter((call) => call.join(' ').includes('could not be written'));
+        said.mockRestore();
+        expect(reports).toHaveLength(1);
+    });
+
     it('survives a cache the platform reclaimed', () => {
         const { scope, cache } = twoStoreScope();
         createHostBridge(scope).setStorageItem('save', '{"level":3}');

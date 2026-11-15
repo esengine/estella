@@ -22,9 +22,7 @@
 import madge from 'madge';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT } from './lib/repo.mjs';
 
 // Lower these as cycles are broken; never raise them.
 //

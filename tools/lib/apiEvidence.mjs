@@ -12,24 +12,14 @@
  * and `check-tier-bar` about the entry a subsystem publishes its verdict on. Two
  * copies would be two bars called by one name.
  */
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { SDK, ts, ENTRIES, createSdkProgram, leadingDoc, docProseLines } from './sdkProgram.mjs';
 import { GOLDEN, projectDir } from '../goldenProjects.mjs';
+import { walkFiles } from './repo.mjs';
 
 /** Snapshot kinds a game calls at runtime; the rest are shapes. */
 export const VALUE_KINDS = new Set(['class', 'enum', 'function', 'const', 'value', 'namespace']);
-
-function walk(dir, onFile, skip) {
-    let entries;
-    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (const e of entries) {
-        const p = join(dir, e.name);
-        if (skip(p, e.name)) continue;
-        if (e.isDirectory()) walk(p, onFile, skip);
-        else onFile(p);
-    }
-}
 
 /** A leading doc block carrying at least one line that is not a tag. */
 export function hasDocProse(decl) {
@@ -49,11 +39,10 @@ const TITLE = /\b(?:describe|it|test|bench)(?:\.\w+)*\s*\(\s*(['"`])(?:[^\\]|\\.
  */
 export function testedIdentifiers() {
     const seen = new Set();
-    const skip = (p, name) => name === 'node_modules' || name === 'dist';
-    walk(join(SDK, 'src'), collect, skip);
-    walk(join(SDK, 'tests'), collect, skip);
+    for (const dir of ['src', 'tests']) {
+        walkFiles(join(SDK, dir), { match: /\.test\.ts$/, skip: (name) => name === 'dist', missing: true }).forEach(collect);
+    }
     function collect(p) {
-        if (!/\.test\.ts$/.test(p)) return;
         const code = readFileSync(p, 'utf8')
             .replace(/\/\*[\s\S]*?\*\//g, ' ')
             .split('\n').map((l) => l.replace(/(^|[^:'"`\\\w])\/\/.*$/, '$1')).join('\n')
@@ -73,8 +62,7 @@ export function exercisedByGolden() {
     for (const g of GOLDEN) {
         const dir = projectDir(g.id);
         if (!existsSync(dir)) continue;
-        walk(dir, (p) => {
-            if (!/\.ts$/.test(p) || /\.d\.ts$/.test(p)) return;
+        for (const p of walkFiles(dir, { match: (name) => /\.ts$/.test(name) && !/\.d\.ts$/.test(name), skip: (name) => name === '.esengine' || name === 'dist' })) {
             const src = readFileSync(p, 'utf8');
             for (const m of src.matchAll(ESENGINE_IMPORT)) {
                 for (const raw of m[1].split(',')) {
@@ -84,7 +72,7 @@ export function exercisedByGolden() {
                     out.get(name).add(g.id);
                 }
             }
-        }, (p, name) => name === '.esengine' || name === 'node_modules' || name === 'dist');
+        }
     }
     return out;
 }

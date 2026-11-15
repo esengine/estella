@@ -3,8 +3,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { pathToFileURL } from 'node:url';
+import { ROOT as root } from './lib/repo.mjs';
 const wasmDir = path.join(root, 'desktop/public/wasm');
 const wasm = fs.readFileSync(path.join(wasmDir, 'esengine.wasm'));
 const metadata = { wasmSha256: createHash('sha256').update(wasm).digest('hex'), wasmBytes: wasm.length };

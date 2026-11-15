@@ -24,11 +24,10 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { SCOPES, GATES, gatesFor, owedSuites, relatedRun } from './gates.mjs';
 import { toolArgs } from './lib/toolArgs.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ARGS = toolArgs({ scope: 'local', suites: 'all', jobs: '1', matrix: null, only: null, where: null, 'no-suites': false, complete: false, 'keep-going': false, plan: false });
 
 const SCOPE = ARGS.scope;

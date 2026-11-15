@@ -19,12 +19,10 @@
  *   node tools/run-release-gate.mjs --except flagship,golden     # the rest
  */
 import { spawnSync } from 'node:child_process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { RELEASE, CRITERIA } from './releaseGate.mjs';
 import { toolArgs } from './lib/toolArgs.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ARGS = toolArgs({ only: null, except: null, host: null, plan: false });
 const ONLY = ARGS.only?.split(',').map((s) => s.trim()).filter(Boolean) ?? null;
 // The complement, for the shard that takes everything the named ones did not:

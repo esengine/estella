@@ -8,13 +8,13 @@ import { chromium } from 'playwright';
 import { build } from 'esbuild';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { serveHost } from '../lib/staticServer.mjs';
 import { requireCurrentEngine } from '../lib/engineBuild.mjs';
+import { ROOT as root } from '../lib/repo.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const out = path.join(root, 'output/static-proxy');
 const { PNG } = createRequire(new URL('../../pipeline/package.json', import.meta.url))('pngjs');
 requireCurrentEngine(root, path.join(root, 'build/render-host/wasm'));

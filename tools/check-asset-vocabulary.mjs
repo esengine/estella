@@ -18,9 +18,8 @@
  */
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const COOK = path.join(ROOT, 'pipeline', 'src', 'assets', 'assetDb.ts');
 const EDITOR_TYPES = path.join(ROOT, 'desktop', 'src', 'types.ts');
 

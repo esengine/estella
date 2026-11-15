@@ -4,14 +4,13 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { serveHost } from './lib/staticServer.mjs';
 import { toolArgs } from './lib/toolArgs.mjs';
+import { ROOT as root } from './lib/repo.mjs';
 const ARGS = toolArgs({ dir: null, out: null });
 const dir = path.resolve(ARGS.dir ?? 'output/navigation-workshop-web');
 const out = path.resolve(ARGS.out ?? 'output/navigation-workshop-check');
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const files = (under, prefix='') => fs.readdirSync(under,{withFileTypes:true}).flatMap(e=>e.isDirectory()
     ? files(path.join(under,e.name),prefix+e.name+'/') : [prefix+e.name]);
 const identity={source:execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8',windowsHide:true}).trim(),

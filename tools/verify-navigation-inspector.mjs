@@ -2,10 +2,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
 import { runElectron } from './lib/electronRun.mjs';
+import { ROOT as root } from './lib/repo.mjs';
 if (!process.env.CI) throw Error('Editor acceptance runs only in CI. Do not launch the local editor.');
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = path.join(root, 'output/navigation-inspector-ci');
 fs.mkdirSync(out, { recursive: true });
 const records = [];

@@ -9,9 +9,8 @@
  */
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'fixtures', 'scenes');
 
 /** The shader's basis at order zero and at the +X lobe — ShaderParser's numbers. */
