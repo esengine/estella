@@ -1,6 +1,7 @@
 import { addPlugin, defineSystem, GetWorld, Res, Time, Input, Transform, MeshRenderer, Light, Material, Playthrough } from 'esengine';
 import type { Entity, World } from 'esengine';
 import { SHOTS, SHOT_SECONDS, clamp, eyeOf, lookRotation, tourOrbit, type Orbit } from './flight';
+import { helm, mulQuat, turnBy } from './helm';
 import { installHud } from './hud';
 import { ship, TOP_SPEED, DRIFTING_ROCKS, FIELD_HALF_LENGTH, FIELD_DRIFT } from './shipState';
 
@@ -42,8 +43,7 @@ addPlugin({
             const dt = Math.min(time.delta, 0.05);
             clock += dt;
 
-            const push = Number(input.isKeyDown('KeyW') || input.isKeyDown('ArrowUp')) - Number(input.isKeyDown('KeyS') || input.isKeyDown('ArrowDown'));
-            wanted = clamp(wanted + push * dt * 0.7, 0, 1);
+            wanted = helm.order;
             throttle += (wanted - throttle) * Math.min(1, dt * 2.2);
 
             for (const plume of PLUMES) {
@@ -65,7 +65,7 @@ addPlugin({
             const drag = held && grabbed ? { x: pointer.x - last.x, y: pointer.y - last.y } : { x: 0, y: 0 };
             grabbed = held;
             last = { x: pointer.x, y: pointer.y };
-            const turn = Number(input.isKeyDown('KeyD') || input.isKeyDown('ArrowRight')) - Number(input.isKeyDown('KeyA') || input.isKeyDown('ArrowLeft'));
+            const turn = Number(input.isKeyDown('KeyD')) - Number(input.isKeyDown('KeyA'));
             const tilt = Number(input.isKeyDown('KeyE')) - Number(input.isKeyDown('KeyQ'));
             const wheel = input.getScrollDelta().y;
             const live = tour ? tourOrbit(clock) : hand;
@@ -89,14 +89,14 @@ addPlugin({
             const { eye, target } = eyeOf(orbit);
             const camera = get(world, 'Camera');
             const cam = world.get(camera, Transform);
-            cam.position = { x: eye[0], y: eye[1], z: eye[2] };
-            cam.rotation = lookRotation(eye, target);
+            cam.position = turnBy(helm.frame, { x: eye[0], y: eye[1], z: eye[2] });
+            cam.rotation = mulQuat(helm.frame, lookRotation(eye, target));
             world.insert(camera, Transform, cam);
 
             const root = get(world, 'Ship');
             const hull = world.get(root, Transform);
             const roll = Math.sin(clock * 0.31) * 0.012, nod = Math.sin(clock * 0.23 + 1.3) * 0.006;
-            hull.rotation = { x: Math.sin(nod / 2), y: 0, z: Math.sin(roll / 2), w: Math.cos(nod / 2) * Math.cos(roll / 2) };
+            hull.rotation = mulQuat(helm.attitude, { x: Math.sin(nod / 2), y: 0, z: Math.sin(roll / 2), w: Math.cos(nod / 2) * Math.cos(roll / 2) });
             hull.position = { x: 0, y: Math.sin(clock * 0.19) * 0.35, z: 0 };
             world.insert(root, Transform, hull);
 
@@ -111,9 +111,12 @@ addPlugin({
             for (let i = 0; i < DRIFTING_ROCKS; i++) {
                 const e = get(world, `Rock${i}`);
                 const t = world.get(e, Transform);
-                let z = t.position.z - drift;
-                if (z < -FIELD_HALF_LENGTH) z += FIELD_HALF_LENGTH * 2;
-                t.position = { x: t.position.x, y: t.position.y, z };
+                const round = (v: number, half: number): number => (v < -half ? v + half * 2 : v > half ? v - half * 2 : v);
+                t.position = {
+                    x: round(t.position.x - helm.forward.x * drift, FIELD_HALF_LENGTH * 1.2),
+                    y: round(t.position.y - helm.forward.y * drift, FIELD_HALF_LENGTH * 0.7),
+                    z: round(t.position.z - helm.forward.z * drift, FIELD_HALF_LENGTH),
+                };
                 world.insert(e, Transform, t);
             }
 

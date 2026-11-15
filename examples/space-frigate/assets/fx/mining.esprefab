@@ -1,0 +1,469 @@
+{
+  "version": "2",
+  "name": "MiningFx",
+  "rootEntityId": "0",
+  "entities": [
+    {
+      "prefabEntityId": "0",
+      "name": "MiningFx",
+      "parent": null,
+      "children": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "1",
+      "name": "MiningBeam",
+      "parent": "0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/plume.esmesh",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": false,
+            "lit": false,
+            "opaque": false,
+            "cullBackfaces": false,
+            "castShadows": false,
+            "material": "assets/fx/beam.esmaterial"
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "2",
+      "name": "MiningMuzzle",
+      "parent": "0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 1,
+              "g": 0.62,
+              "b": 0.25,
+              "a": 1
+            },
+            "intensity": 0,
+            "radius": 16,
+            "enabled": true,
+            "meshShadows": false
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "3",
+      "name": "MiningImpact",
+      "parent": "0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 1,
+              "g": 0.55,
+              "b": 0.2,
+              "a": 1
+            },
+            "intensity": 0,
+            "radius": 90,
+            "enabled": true,
+            "meshShadows": false
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "4",
+      "name": "MiningGlow",
+      "parent": "0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "enabled": true,
+            "looping": true,
+            "playOnStart": true,
+            "simulationSpace": 0,
+            "rate": 0,
+            "burstCount": 0,
+            "duration": 1000,
+            "shape": 4,
+            "shapeRadius": 0.6,
+            "speedMin": 0,
+            "speedMax": 3,
+            "gravity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "damping": 0.6,
+            "rotationMin": 0,
+            "rotationMax": 0,
+            "angularVelocityMin": 0,
+            "angularVelocityMax": 0,
+            "startColor": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "endColor": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 0
+            },
+            "blendMode": 1,
+            "texture": "assets/fx/spark.esimage",
+            "lifetimeMin": 0.12,
+            "lifetimeMax": 0.3,
+            "maxParticles": 120,
+            "startSizeMin": 9,
+            "startSizeMax": 16,
+            "endSizeMin": 3,
+            "endSizeMax": 6,
+            "renderMode": 0,
+            "intensity": 9,
+            "collisionEnabled": false,
+            "colorGradient": {
+              "stops": [
+                {
+                  "t": 0,
+                  "color": {
+                    "r": 1,
+                    "g": 0.95,
+                    "b": 0.8,
+                    "a": 1
+                  }
+                },
+                {
+                  "t": 0.3,
+                  "color": {
+                    "r": 1,
+                    "g": 0.6,
+                    "b": 0.18,
+                    "a": 1
+                  }
+                },
+                {
+                  "t": 0.75,
+                  "color": {
+                    "r": 1,
+                    "g": 0.25,
+                    "b": 0.05,
+                    "a": 0.8
+                  }
+                },
+                {
+                  "t": 1,
+                  "color": {
+                    "r": 0.5,
+                    "g": 0.06,
+                    "b": 0,
+                    "a": 0
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "5",
+      "name": "MiningSparks",
+      "parent": "0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "enabled": true,
+            "looping": true,
+            "playOnStart": true,
+            "simulationSpace": 0,
+            "rate": 0,
+            "burstCount": 0,
+            "duration": 1000,
+            "shape": 4,
+            "shapeRadius": 1.5,
+            "speedMin": 18,
+            "speedMax": 70,
+            "gravity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "damping": 0.6,
+            "rotationMin": 0,
+            "rotationMax": 0,
+            "angularVelocityMin": 0,
+            "angularVelocityMax": 0,
+            "startColor": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "endColor": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 0
+            },
+            "blendMode": 1,
+            "texture": "assets/fx/spark.esimage",
+            "lifetimeMin": 0.5,
+            "lifetimeMax": 1.4,
+            "maxParticles": 500,
+            "startSizeMin": 0.9,
+            "startSizeMax": 2.2,
+            "endSizeMin": 0.2,
+            "endSizeMax": 0.5,
+            "renderMode": 1,
+            "intensity": 7,
+            "collisionEnabled": false,
+            "velocityScale": 0.05,
+            "lengthScale": 2.4,
+            "colorGradient": {
+              "stops": [
+                {
+                  "t": 0,
+                  "color": {
+                    "r": 1,
+                    "g": 0.95,
+                    "b": 0.8,
+                    "a": 1
+                  }
+                },
+                {
+                  "t": 0.3,
+                  "color": {
+                    "r": 1,
+                    "g": 0.6,
+                    "b": 0.18,
+                    "a": 1
+                  }
+                },
+                {
+                  "t": 0.75,
+                  "color": {
+                    "r": 1,
+                    "g": 0.25,
+                    "b": 0.05,
+                    "a": 0.8
+                  }
+                },
+                {
+                  "t": 1,
+                  "color": {
+                    "r": 0.5,
+                    "g": 0.06,
+                    "b": 0,
+                    "a": 0
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "6",
+      "name": "MiningDebris",
+      "parent": "0",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ParticleEmitter",
+          "data": {
+            "enabled": true,
+            "looping": true,
+            "playOnStart": true,
+            "simulationSpace": 0,
+            "rate": 0,
+            "burstCount": 0,
+            "duration": 1000,
+            "shape": 4,
+            "shapeRadius": 5,
+            "speedMin": 12,
+            "speedMax": 60,
+            "gravity": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "damping": 0.25,
+            "rotationMin": 0,
+            "rotationMax": 0,
+            "angularVelocityMin": 0,
+            "angularVelocityMax": 0,
+            "startColor": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "endColor": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 0
+            },
+            "blendMode": 1,
+            "texture": "assets/fx/spark.esimage",
+            "lifetimeMin": 1.2,
+            "lifetimeMax": 3.2,
+            "maxParticles": 600,
+            "startSizeMin": 1.5,
+            "startSizeMax": 5,
+            "endSizeMin": 0.4,
+            "endSizeMax": 1.2,
+            "renderMode": 0,
+            "intensity": 5,
+            "collisionEnabled": false,
+            "colorGradient": {
+              "stops": [
+                {
+                  "t": 0,
+                  "color": {
+                    "r": 1,
+                    "g": 0.95,
+                    "b": 0.8,
+                    "a": 1
+                  }
+                },
+                {
+                  "t": 0.3,
+                  "color": {
+                    "r": 1,
+                    "g": 0.6,
+                    "b": 0.18,
+                    "a": 1
+                  }
+                },
+                {
+                  "t": 0.75,
+                  "color": {
+                    "r": 1,
+                    "g": 0.25,
+                    "b": 0.05,
+                    "a": 0.8
+                  }
+                },
+                {
+                  "t": 1,
+                  "color": {
+                    "r": 0.5,
+                    "g": 0.06,
+                    "b": 0,
+                    "a": 0
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

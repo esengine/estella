@@ -43,18 +43,21 @@ export function decodeImageBitmap(
     return createImageBitmap(src as ImageBitmapSource, imageBitmapOptions(flip));
 }
 
-/**
- * Fetch an image and decode it into a GL-oriented `ImageBitmap` (as {@link decodeImageBitmap}) from its bytes. A bitmap made from a
- * `Blob` is decoded off the page's thread; one made from an `<img>` is decoded on it, which held the editor for a second and more on a
- * scene's 4K textures. Null where the host has no fetch / Blob / createImageBitmap, or when the bytes cannot be read or decoded that way
- * (the caller then decodes through an element, as before).
- */
+export async function decodeBlobBitmap(blob: Blob, flip: boolean): Promise<ImageBitmap | null> {
+    if (typeof createImageBitmap !== 'function') return null;
+    try {
+        return await createImageBitmap(blob, imageBitmapOptions(flip));
+    } catch {
+        return null;
+    }
+}
+
 export async function fetchImageBitmap(url: string, flip: boolean): Promise<ImageBitmap | null> {
     if (typeof fetch !== 'function' || typeof Blob === 'undefined' || typeof createImageBitmap !== 'function') return null;
     try {
         const response = await fetch(url);
         if (!response.ok) return null;
-        return await createImageBitmap(await response.blob(), imageBitmapOptions(flip));
+        return await decodeBlobBitmap(await response.blob(), flip);
     } catch {
         return null;
     }

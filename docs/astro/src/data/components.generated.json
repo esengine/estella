@@ -10353,6 +10353,13 @@
           "advanced": true
         },
         {
+          "key": "edgeInsets",
+          "type": "Padding",
+          "default": "{\"left\":0,\"top\":0,\"right\":0,\"bottom\":0}",
+          "doc": "More room kept clear on each side, over Edge Margin: where the HUD keeps its own panels, so a clamped marker stays off them.",
+          "advanced": true
+        },
+        {
           "key": "hideWhenBehind",
           "type": "boolean",
           "default": "true",
@@ -10373,6 +10380,13 @@
           "advanced": true
         },
         {
+          "key": "clamped",
+          "type": "boolean",
+          "default": "false",
+          "readonly": true,
+          "advanced": true
+        },
+        {
           "key": "distance",
           "type": "number",
           "default": "0",
@@ -10387,6 +10401,10 @@
         "offset.z",
         "camera",
         "edgeMargin",
+        "edgeInsets.left",
+        "edgeInsets.top",
+        "edgeInsets.right",
+        "edgeInsets.bottom",
         "distance"
       ]
     },

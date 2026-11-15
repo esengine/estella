@@ -8,7 +8,7 @@
  *          planning worker is. A job is `{ id, ...RecipeJob }`; its answer is `{ id, result: { width, height, pixels } }` with the
  *          pixels' own buffer handed over, or `{ id, error }`. The same drawRecipe runs on the main thread where there is no worker.
  */
-import { renderImage, type ImageTextDrawer, type RgbaBitmap } from './imageRaster';
+import { renderImage, type ImageTextDrawer, type RenderedImage, type RgbaBitmap } from './imageRaster';
 import { renderMaterialMaps } from './imageMaterial';
 import type { ImageSource } from './imageSource';
 import { canvasTextDrawer, type TextCanvas } from './imageText';
@@ -49,7 +49,7 @@ function fileOf(job: RecipeJob, path: string): ArrayBuffer {
 }
 
 /** A picture source drawn, and the options it was drawn with (its surface maps are drawn with the same). */
-async function drawPicture(source: ImageSource, job: RecipeJob, host: RecipeHost, depth: number): Promise<{ picture: RgbaBitmap; options: { pictures: Record<string, RgbaBitmap>; text?: ImageTextDrawer } }> {
+export async function drawPicture(source: ImageSource, job: RecipeJob, host: RecipeHost, depth: number): Promise<{ picture: RenderedImage; options: { pictures: Record<string, RgbaBitmap>; text?: ImageTextDrawer } }> {
     const needs = pictureNeeds(source);
     const pictures: Record<string, RgbaBitmap> = {};
     for (const src of needs.pictures) {

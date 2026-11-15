@@ -93,6 +93,8 @@ const NOT_INSTANCE_FORMATS = {
   '.ktx2': 'a compressed texture',
   '.hdr': 'an environment map',
   '.fnt': 'a bitmap font\'s metrics; the page beside it is a texture and what USES it is authored elsewhere',
+  '.ttf': 'a font file; the Text that is set in it belongs to a scene or to the script that spawns it',
+  '.esimage': 'a picture recipe: layers drawn into a texture; what shows the texture is authored elsewhere',
   '.gltf': 'an imported model',
   '.glb': 'an imported model, binary',
   '.txt': 'prose or a licence beside the project, not the project',

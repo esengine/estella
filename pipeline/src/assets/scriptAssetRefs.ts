@@ -93,3 +93,11 @@ export function matchScriptAssetRefs(
     }
     return [...out.values()];
 }
+
+export function unregisteredScriptRefs(
+    refs: ScriptAssetRefs,
+    registered: ReadonlySet<string>,
+    isAssetFile: (projectPath: string) => boolean,
+): string[] {
+    return [...refs.literals].filter((lit) => !UUID_REF.test(lit) && !registered.has(lit) && isAssetFile(lit)).sort();
+}

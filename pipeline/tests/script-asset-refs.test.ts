@@ -64,4 +64,21 @@ describe('assets the scripts name', () => {
     expect(res.unused).toContain(UNUSED);
     expect(res.warnings.some((w) => w.includes('assets/sfx/') && w.includes('2 asset'))).toBe(true);
   });
+
+  it('says which file a script names that the project has never registered', async () => {
+    mkdirSync(path.join(root, 'assets', 'ui'), { recursive: true });
+    writeFileSync(path.join(root, 'assets', 'ui', 'gauge.esimage'), '{}');
+    writeFileSync(path.join(root, 'src', 'game', 'gauge.ts'), `export const gauge = 'assets/ui/gauge.esimage';\nexport const gone = 'assets/ui/nowhere.png';\nexport const note = 'src/main.ts';\n`);
+    try {
+      const res = await cookAssets(root, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build' });
+      const said = res.warnings.filter((w) => w.includes('has no .meta'));
+      expect(said).toHaveLength(1);
+      expect(said[0]).toMatch(/^assets\/ui\/gauge\.esimage: a script names it/);
+      expect(said[0]).toMatch(/estella adopt/);
+      expect(res.warnings.some((w) => w.includes('coin.png') && w.includes('.meta'))).toBe(false);
+    } finally {
+      rmSync(path.join(root, 'assets', 'ui', 'gauge.esimage'));
+      rmSync(path.join(root, 'src', 'game', 'gauge.ts'));
+    }
+  });
 });

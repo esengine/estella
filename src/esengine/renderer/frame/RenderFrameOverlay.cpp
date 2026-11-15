@@ -17,6 +17,7 @@
 #include "../../core/FrameProfiler.hpp"
 
 #include <algorithm>
+#include <unordered_map>
 
 namespace esengine {
 
@@ -95,6 +96,15 @@ void RenderFrame::endScreenOverlay(RenderTargetManager::Handle target) {
     // a pass that would write no pixel is one the graph would run anyway.
     if (draw_list_.commandCount() == 0) return;
     frame_capture_.beginPass(CapturePass::Overlay);
+
+    if (linear_color_) {
+        std::unordered_map<u32, u32> shown;
+        draw_list_.remapPrograms([&](u32 program) {
+            auto it = shown.find(program);
+            if (it == shown.end()) it = shown.emplace(program, displayProgram(program)).first;
+            return it->second;
+        });
+    }
 
     {
         ES_PROFILE_SCOPE("render.overlay.finalize");
