@@ -5034,4 +5034,6 @@ export const NOTED = {
     {"note": "A tree has bark."},
   "feat(modeling): a tree has bark - the picture a tree is given holds its bark along the top, furrowed, banded or smooth by barkStyle, and the wood reads it along each limb and round it, so the grain runs up a trunk and out along a branch; the leaf square stands clear of every edge of the picture, and thinning keeps each corner's own place in a picture and its own light":
     {"note": "A tree has bark."},
+  "chore(examples): seven examples' tsconfig name the SDK's sub-entries the editor writes for them":
+    {"internal": "Type-check paths of seven examples; nothing a game or the editor does changes."},
 };
