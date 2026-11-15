@@ -53,13 +53,7 @@
     "ora": "^8.0.0"
   },
   "engines": {
-    "node": ">=18.0.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "ffmpeg-static"
-    ]
+    "node": ">=22.12.0"
   },
   "devDependencies": {
     "electron": "^42.11.18",
