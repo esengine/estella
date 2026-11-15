@@ -5162,4 +5162,6 @@ export const NOTED = {
     { note: "The space frigate carries a hull number and a name." },
   "feat(examples): the space frigate's waypoint is a gate it flies through - a ring a hundred and seventy units in radius with six emitter nodes, a control tower and a field across it, built as one more model source in generate.py and plated and worn as the hull is; main.ts stands it where the helm says the waypoint is, and on arrival leaves it to fall astern with the ship's speed while the next appears. The field is a square and a shader. capture.mjs waits for the HUD and steps in two-second runs, since pictures now load after the scene":
     { note: "The space frigate's waypoint is a gate." },
+  "feat(examples): the space frigate has debris streaming past it, lights that blink, and a flash as it goes through the gate - a hundred and fifty pebbles of the three rock models drift aft with the ship's speed in a box round it and keep clear of the hull; the masthead and keel strobes and the bow lights flash to their own beats and the red and green navigation lights burn steady, each a small sphere through a flare shader with a point light; crossing the gate's plane inside its ring pulses the field and a wide light, counted in the playthrough facts":
+    { note: "The space frigate has debris, blinking lights and a flash at the gate." },
 };

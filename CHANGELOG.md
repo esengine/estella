@@ -16,6 +16,7 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The space frigate has debris, blinking lights and a flash at the gate.** A hundred and fifty pebbles stream past the hull with its speed, which is what makes the speed felt up close; the masthead, keel and bow lights flash to their own beats beside steady red and green navigation lights; and going through a gate pulses its field and lights the ship for a moment.
 - **The space frigate's waypoint is a gate.** The navigation gate the HUD points at is now there to see: a ring with six emitter nodes, a control tower and a field of light across it, built from a model source like the ship, at the waypoint. On arrival it stays where it is and the frigate flies through it while the next gate appears at the next waypoint.
 
 ### Changed
