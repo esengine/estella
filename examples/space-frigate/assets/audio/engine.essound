@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "duration": 6,
+  "loop": true,
+  "gain": 0.7,
+  "lowpass": 1400,
+  "layers": [
+    {
+      "id": "sub",
+      "source": "sine",
+      "freq": 46,
+      "gain": 0.7
+    },
+    {
+      "id": "body",
+      "source": "sine",
+      "freq": 92,
+      "gain": 0.28,
+      "vibrato": {
+        "rate": 0.33,
+        "depth": 0.12
+      }
+    },
+    {
+      "id": "third",
+      "source": "triangle",
+      "freq": 138,
+      "gain": 0.12,
+      "vibrato": {
+        "rate": 0.5,
+        "depth": 0.1
+      },
+      "filters": [
+        {
+          "type": "lowpass",
+          "freq": 500
+        }
+      ]
+    },
+    {
+      "id": "fourth",
+      "source": "sine",
+      "freq": 184,
+      "gain": 0.1,
+      "vibrato": {
+        "rate": 0.25,
+        "depth": 0.1
+      }
+    },
+    {
+      "id": "air",
+      "source": "noise",
+      "color": "pink",
+      "band": [
+        120,
+        900
+      ],
+      "wide": 0.5,
+      "seed": 11,
+      "gain": 0.14
+    }
+  ]
+}

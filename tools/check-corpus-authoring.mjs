@@ -95,6 +95,8 @@ const NOT_INSTANCE_FORMATS = {
   '.fnt': 'a bitmap font\'s metrics; the page beside it is a texture and what USES it is authored elsewhere',
   '.ttf': 'a font file; the Text that is set in it belongs to a scene or to the script that spawns it',
   '.esimage': 'a picture recipe: layers drawn into a texture; what shows the texture is authored elsewhere',
+  '.essound': 'a sound recipe: layers made into a clip; the AudioSource or the script that plays it is authored elsewhere',
+  '.esmusic': 'a music recipe: instruments and patterns made into a clip; what plays it is authored elsewhere',
   '.gltf': 'an imported model',
   '.glb': 'an imported model, binary',
   '.txt': 'prose or a licence beside the project, not the project',

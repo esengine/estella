@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "duration": 3,
+  "loop": true,
+  "gain": 0.7,
+  "lowpass": 5500,
+  "layers": [
+    {
+      "id": "body",
+      "source": "sine",
+      "freq": 110,
+      "gain": 0.1
+    },
+    {
+      "id": "core",
+      "source": "saw",
+      "freq": 330,
+      "gain": 0.6,
+      "tremolo": {
+        "rate": 13,
+        "depth": 0.12
+      },
+      "filters": [
+        {
+          "type": "bandpass",
+          "freq": 1100,
+          "q": 2.2
+        }
+      ]
+    },
+    {
+      "id": "beat",
+      "source": "saw",
+      "freq": 332.2,
+      "gain": 0.5,
+      "filters": [
+        {
+          "type": "bandpass",
+          "freq": 1100,
+          "q": 2.2
+        }
+      ]
+    },
+    {
+      "id": "ring",
+      "source": "sine",
+      "freq": 660,
+      "gain": 0.12,
+      "vibrato": {
+        "rate": 7,
+        "depth": 0.2
+      }
+    },
+    {
+      "id": "crackle",
+      "source": "noise",
+      "band": [
+        2000,
+        5000
+      ],
+      "seed": 21,
+      "length": 0.012,
+      "decay": 0.006,
+      "gain": 0.35,
+      "scatter": {
+        "count": 40,
+        "over": 2.9,
+        "early": 1,
+        "gain": [
+          0.2,
+          0.7
+        ],
+        "pan": 0.5
+      }
+    }
+  ]
+}
