@@ -277,6 +277,7 @@ export const GATES = [
   // variables are the editor, the plugins and the docs, and only the first is
   // check-theme's subject.
   { id: 'css-vars', run: 'node tools/check-css-vars.mjs', needs: 'editor' },
+  { id: 'panel-event-targets', run: 'node tools/check-panel-event-targets.mjs', needs: 'editor' },
   // The specifiers a game writes against the SDK, held to what the package
   // publishes: a map entry that resolves to nothing fails at load, not at build.
   { id: 'import-map', run: 'node tools/check-import-map.mjs' },

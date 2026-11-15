@@ -435,8 +435,9 @@ static void testWGSLEmission() {
     ParsedShader pp = ShaderParser::parse(FRAG_ONLY_POSTPROCESS);
     CHECK(pp.valid && pp.wgslVertexIsCanonical, "fragment-only PP twin gets the canonical WGSL vertex");
     const std::string ppVs = wgsl(pp, ShaderStage::Vertex);
-    CHECK(ppVs.find("out.pos = vec4f(v.a_position, 0.0, 1.0);") != std::string::npos &&
-          ppVs.find("frame.projection") == std::string::npos,
+    const std::string ppVsMain = ppVs.substr(std::min(ppVs.find("fn vs_main"), ppVs.size()));
+    CHECK(ppVsMain.find("out.pos = vec4f(v.a_position, 0.0, 1.0);") != std::string::npos &&
+          ppVsMain.find("frame.projection") == std::string::npos,
           "PP canonical WGSL vertex is the clip-space pass-through");
     const std::string ppFs = wgsl(pp, ShaderStage::Fragment);
     CHECK(ppFs.find("@location(0) v_texCoord : vec2f,") != std::string::npos &&
@@ -533,8 +534,9 @@ static void testFragmentOnly() {
     ParsedShader pp = ShaderParser::parse(FRAG_ONLY_POSTPROCESS);
     CHECK(pp.valid, "fragment-only PostProcess shader parses");
     const std::string ppv = ShaderParser::assembleStage(pp, ShaderStage::Vertex);
-    CHECK(ppv.find("gl_Position = vec4(a_position, 0.0, 1.0);") != std::string::npos &&
-          ppv.find("u_projection *") == std::string::npos,
+    const std::string ppvMain = ppv.substr(std::min(ppv.find("void main()"), ppv.size()));
+    CHECK(ppvMain.find("gl_Position = vec4(a_position, 0.0, 1.0);") != std::string::npos &&
+          ppvMain.find("u_projection *") == std::string::npos,
           "PostProcess canonical vertex is the clip-space pass-through (no projection)");
 
     // The tone curve has ONE definition, injected here, so this is the only

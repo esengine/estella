@@ -129,7 +129,6 @@ struct TestShapeVertex {
 };
 static_assert(sizeof(TestShapeVertex) == 48, "shape record must match the Shape stream stride");
 
-// The per-instance slot the ParticleInstance stream is laid out for (mirrors ParticlePlugin's).
 struct TestParticleInstance {
     f32 px, py, pz;
     f32 sx, sy;
@@ -137,8 +136,9 @@ struct TestParticleInstance {
     u32 color;
     f32 uvOffsetX, uvOffsetY;
     f32 uvScaleX, uvScaleY;
+    f32 age, random, intensity, lifetime;
 };
-static_assert(sizeof(TestParticleInstance) == 44,
+static_assert(sizeof(TestParticleInstance) == PARTICLE_INSTANCE_STRIDE,
               "instance record must match the ParticleInstance stream stride");
 
 }  // namespace
@@ -3224,8 +3224,8 @@ TEST_CASE("storage: idle streams allocate nothing and used streams survive recov
     pool.upload();
     CHECK(device.createBufferCalls == 2);
     CHECK(pool.vertexBuffer(LayoutId::Batch) == batch);
-    std::vector<u8> particle(44);
-    pool.appendVertices(LayoutId::ParticleInstance, particle.data(), 44);
+    std::vector<u8> particle(PARTICLE_INSTANCE_STRIDE);
+    pool.appendVertices(LayoutId::ParticleInstance, particle.data(), PARTICLE_INSTANCE_STRIDE);
     pool.upload();
     CHECK(device.createBufferCalls == 5);
     CHECK(device.estimatedGpuBytes() == 8192 + 4096 + 64 + 24);
