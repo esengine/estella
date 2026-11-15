@@ -70,29 +70,36 @@ export interface NormalMap {
     warnings: string[];
 }
 
-/** Every texel centre inside a triangle of the mesh, with the triangle's corners and how much of each it is. */
+function texelWeights(UV: Float32Array, size: number, a: number, b: number, c: number, texel: number, out: Float64Array): boolean {
+    const ax = UV[a * 2]! * size, ay = (1 - UV[a * 2 + 1]!) * size;
+    const bx = UV[b * 2]! * size, by = (1 - UV[b * 2 + 1]!) * size;
+    const cx = UV[c * 2]! * size, cy = (1 - UV[c * 2 + 1]!) * size;
+    const area = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay);
+    if (Math.abs(area) < 1e-12) return false;
+    const px = texel % size + 0.5, py = Math.floor(texel / size) + 0.5;
+    const w0 = ((bx - px) * (cy - py) - (cx - px) * (by - py)) / area;
+    const w1 = ((cx - px) * (ay - py) - (ax - px) * (cy - py)) / area;
+    const w2 = 1 - w0 - w1;
+    if (w0 < 0 || w1 < 0 || w2 < 0) return false;
+    out[0] = w0; out[1] = w1; out[2] = w2;
+    return true;
+}
+
 function rasterTexels(
     indices: ArrayLike<number>, UV: Float32Array, size: number,
-    visit: (texel: number, a: number, b: number, c: number, w0: number, w1: number, w2: number) => void,
+    visit: (texel: number, a: number, b: number, c: number, w0: number, w1: number, w2: number, t: number) => void,
 ): void {
+    const w = new Float64Array(3);
     for (let t = 0; t + 2 < indices.length; t += 3) {
         const [a, b, c] = [indices[t]!, indices[t + 1]!, indices[t + 2]!];
-        // A texture's rows run down from the top and the engine's v runs up from the bottom.
         const ax = UV[a * 2]! * size, ay = (1 - UV[a * 2 + 1]!) * size;
         const bx = UV[b * 2]! * size, by = (1 - UV[b * 2 + 1]!) * size;
         const cx = UV[c * 2]! * size, cy = (1 - UV[c * 2 + 1]!) * size;
-        const area = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay);
-        if (Math.abs(area) < 1e-12) continue;
         const x0 = Math.max(0, Math.floor(Math.min(ax, bx, cx))), x1 = Math.min(size - 1, Math.ceil(Math.max(ax, bx, cx)));
         const y0 = Math.max(0, Math.floor(Math.min(ay, by, cy))), y1 = Math.min(size - 1, Math.ceil(Math.max(ay, by, cy)));
         for (let y = y0; y <= y1; y++) {
             for (let x = x0; x <= x1; x++) {
-                const px = x + 0.5, py = y + 0.5;
-                const w0 = ((bx - px) * (cy - py) - (cx - px) * (by - py)) / area;
-                const w1 = ((cx - px) * (ay - py) - (ax - px) * (cy - py)) / area;
-                const w2 = 1 - w0 - w1;
-                if (w0 < 0 || w1 < 0 || w2 < 0) continue;
-                visit(y * size + x, a, b, c, w0, w1, w2);
+                if (texelWeights(UV, size, a, b, c, y * size + x, w)) visit(y * size + x, a, b, c, w[0]!, w[1]!, w[2]!, t);
             }
         }
     }
@@ -449,7 +456,113 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
     return plan.finish();
 }
 
+export const SHADE_CHUNK = 16384;
+
+export interface ShadeWork {
+    size: number;
+    distance: number;
+    indices: Uint32Array;
+    P: Float32Array;
+    N: Float32Array;
+    T: Float32Array;
+    UV: Float32Array;
+    cover: Int32Array;
+    corners: Float64Array;
+    normals: Float64Array;
+    colors: Uint8Array;
+    surfaces: Uint8Array;
+    glows: Uint8Array | null;
+    lowColors?: Uint8Array;
+    rgba: Uint8Array;
+    colorRgba?: Uint8Array;
+    surfaceRgba?: Uint8Array;
+    glow?: Uint8Array;
+    hitTriangle: Int32Array | null;
+    hitPlace: Float32Array | null;
+    stats: Float64Array;
+}
+
+export interface NormalBakeStart {
+    shading: ShadeWork;
+    tree: TriangleTree;
+    plan(): NormalBakePlan;
+}
+
+export function shadeTexels(work: ShadeWork, tree: TriangleTree, from: number, to: number): void {
+    const { size, distance, indices, P, N, T, UV, cover, normals, colors, surfaces, glows, lowColors, rgba, colorRgba, surfaceRgba, glow, hitTriangle, hitPlace, stats } = work;
+    const place = new Float64Array(2), weights = new Float64Array(3);
+    for (let chunk = from; chunk < to; chunk++) {
+        let hits = 0, missed = 0, bend = 0;
+        const end = Math.min(size * size, (chunk + 1) * SHADE_CHUNK);
+        for (let texel = chunk * SHADE_CHUNK; texel < end; texel++) {
+            const t = cover[texel]!;
+            if (t < 0) continue;
+            const [a, b, c] = [indices[t]!, indices[t + 1]!, indices[t + 2]!];
+            if (!texelWeights(UV, size, a, b, c, texel, weights)) throw new Error(`texel ${texel} is not in the triangle that covers it`);
+            const w0 = weights[0]!, w1 = weights[1]!, w2 = weights[2]!;
+
+            let nx = w0 * N[a * 3]! + w1 * N[b * 3]! + w2 * N[c * 3]!;
+            let ny = w0 * N[a * 3 + 1]! + w1 * N[b * 3 + 1]! + w2 * N[c * 3 + 1]!;
+            let nz = w0 * N[a * 3 + 2]! + w1 * N[b * 3 + 2]! + w2 * N[c * 3 + 2]!;
+            const nl = Math.hypot(nx, ny, nz) || 1;
+            nx /= nl; ny /= nl; nz /= nl;
+            const hit = tree.nearest(
+                w0 * P[a * 3]! + w1 * P[b * 3]! + w2 * P[c * 3]!,
+                w0 * P[a * 3 + 1]! + w1 * P[b * 3 + 1]! + w2 * P[c * 3 + 1]!,
+                w0 * P[a * 3 + 2]! + w1 * P[b * 3 + 2]! + w2 * P[c * 3 + 2]!,
+                nx, ny, nz, distance, place,
+            );
+            if (hit < 0) {
+                missed++;
+                if (colorRgba) for (let k = 0; k < 4; k++) colorRgba[texel * 4 + k] = Math.round(w0 * lowColors![a * 4 + k]! + w1 * lowColors![b * 4 + k]! + w2 * lowColors![c * 4 + k]!);
+                continue;
+            }
+            hits++;
+            if (colorRgba) colorRgba.set(colors.subarray(hit * 4, hit * 4 + 4), texel * 4);
+            if (glow && glows) glow[texel] = glows[hit]!;
+            if (surfaceRgba) { surfaceRgba[texel * 4 + 1] = surfaces[hit * 2]!; surfaceRgba[texel * 4 + 2] = surfaces[hit * 2 + 1]!; }
+
+            const [hv, hw] = [place[0]!, place[1]!];
+            if (hitTriangle && hitPlace) { hitTriangle[texel] = hit; hitPlace[texel * 2] = hv; hitPlace[texel * 2 + 1] = hw; }
+            const hu = 1 - hv - hw;
+            const at = hit * 9;
+            let sx = hu * normals[at]! + hv * normals[at + 3]! + hw * normals[at + 6]!;
+            let sy = hu * normals[at + 1]! + hv * normals[at + 4]! + hw * normals[at + 7]!;
+            let sz = hu * normals[at + 2]! + hv * normals[at + 5]! + hw * normals[at + 8]!;
+            const sl = Math.hypot(sx, sy, sz) || 1;
+            sx /= sl; sy /= sl; sz /= sl;
+
+            const tx = w0 * T[a * 4]! + w1 * T[b * 4]! + w2 * T[c * 4]!;
+            const ty = w0 * T[a * 4 + 1]! + w1 * T[b * 4 + 1]! + w2 * T[c * 4 + 1]!;
+            const tz = w0 * T[a * 4 + 2]! + w1 * T[b * 4 + 2]! + w2 * T[c * 4 + 2]!;
+            const handed = w0 * T[a * 4 + 3]! + w1 * T[b * 4 + 3]! + w2 * T[c * 4 + 3]!;
+            const lean = tx * nx + ty * ny + tz * nz;
+            let gx = tx - nx * lean, gy = ty - ny * lean, gz = tz - nz * lean;
+            const gl = Math.hypot(gx, gy, gz) || 1;
+            gx /= gl; gy /= gl; gz /= gl;
+            const ex = (ny * gz - nz * gy) * handed, ey = (nz * gx - nx * gz) * handed, ez = (nx * gy - ny * gx) * handed;
+
+            const u = sx * gx + sy * gy + sz * gz;
+            const v = sx * ex + sy * ey + sz * ez;
+            const w = sx * nx + sy * ny + sz * nz;
+            bend += Math.acos(Math.max(-1, Math.min(1, w)));
+            rgba[texel * 4] = Math.round((u * 0.5 + 0.5) * 255);
+            rgba[texel * 4 + 1] = Math.round((v * 0.5 + 0.5) * 255);
+            rgba[texel * 4 + 2] = Math.round((Math.max(w, 0) * 0.5 + 0.5) * 255);
+        }
+        stats[chunk * 3] = hits;
+        stats[chunk * 3 + 1] = missed;
+        stats[chunk * 3 + 2] = bend;
+    }
+}
+
 export function planNormalBake(model: BakedModel): NormalBakePlan {
+    const start = startNormalBake(model);
+    shadeTexels(start.shading, start.tree, 0, start.shading.stats.length / 3);
+    return start.plan();
+}
+
+export function startNormalBake(model: BakedModel): NormalBakeStart {
     const detail = model.detail;
     if (!detail) throw new Error('this model has no normalBake');
     const { size, high, smoothAngle } = detail;
@@ -474,7 +587,6 @@ export function planNormalBake(model: BakedModel): NormalBakePlan {
     const glowing = colorRgba && (glows || (detail.stains ?? []).some((stain) => stain.glow !== undefined));
     const glow = glowing ? new Uint8Array(size * size) : undefined;
     if (surfaceRgba) {
-        // What the source says everything is, wherever no chart lands or no surface is found.
         for (let i = 0; i < size * size; i++) {
             surfaceRgba[i * 4] = 255;
             surfaceRgba[i * 4 + 1] = Math.round(fallback.roughness * 255);
@@ -483,124 +595,90 @@ export function planNormalBake(model: BakedModel): NormalBakePlan {
         }
     }
     const covered = new Uint8Array(size * size);
-    const place = new Float64Array(2);
-    let hits = 0, missed = 0, bend = 0;
-    const stains = detail.stains ?? [];
-    let hitTriangle = stains.length ? new Int32Array(size * size).fill(-1) : null;
-    let hitPlace = stains.length ? new Float32Array(size * size * 2) : null;
-
-    rasterTexels(mesh.indices, UV, size, (texel, a, b, c, w0, w1, w2) => {
-            if (covered[texel]) return;
-            covered[texel] = 1;
-
-            let nx = w0 * N[a * 3]! + w1 * N[b * 3]! + w2 * N[c * 3]!;
-            let ny = w0 * N[a * 3 + 1]! + w1 * N[b * 3 + 1]! + w2 * N[c * 3 + 1]!;
-            let nz = w0 * N[a * 3 + 2]! + w1 * N[b * 3 + 2]! + w2 * N[c * 3 + 2]!;
-            const nl = Math.hypot(nx, ny, nz) || 1;
-            nx /= nl; ny /= nl; nz /= nl;
-            const hit = tree.nearest(
-                w0 * P[a * 3]! + w1 * P[b * 3]! + w2 * P[c * 3]!,
-                w0 * P[a * 3 + 1]! + w1 * P[b * 3 + 1]! + w2 * P[c * 3 + 1]!,
-                w0 * P[a * 3 + 2]! + w1 * P[b * 3 + 2]! + w2 * P[c * 3 + 2]!,
-                nx, ny, nz, distance, place,
-            );
-            if (hit < 0) {
-                missed++;
-                // No surface to read: what the thin mesh was painted itself.
-                if (colorRgba) for (let k = 0; k < 4; k++) colorRgba[texel * 4 + k] = Math.round(w0 * lowColors![a * 4 + k]! + w1 * lowColors![b * 4 + k]! + w2 * lowColors![c * 4 + k]!);
-                return;
-            }
-            hits++;
-            if (colorRgba) colorRgba.set(colors.subarray(hit * 4, hit * 4 + 4), texel * 4);
-            if (glow && glows) glow[texel] = glows[hit]!;
-            if (surfaceRgba) { surfaceRgba[texel * 4 + 1] = surfaces[hit * 2]!; surfaceRgba[texel * 4 + 2] = surfaces[hit * 2 + 1]!; }
-
-            const [hv, hw] = [place[0]!, place[1]!];
-            if (hitTriangle && hitPlace) { hitTriangle[texel] = hit; hitPlace[texel * 2] = hv; hitPlace[texel * 2 + 1] = hw; }
-            const hu = 1 - hv - hw;
-            const at = hit * 9;
-            let sx = hu * normals[at]! + hv * normals[at + 3]! + hw * normals[at + 6]!;
-            let sy = hu * normals[at + 1]! + hv * normals[at + 4]! + hw * normals[at + 7]!;
-            let sz = hu * normals[at + 2]! + hv * normals[at + 5]! + hw * normals[at + 8]!;
-            const sl = Math.hypot(sx, sy, sz) || 1;
-            sx /= sl; sy /= sl; sz /= sl;
-
-            // The frame the shader builds, in the order it builds it.
-            const tx = w0 * T[a * 4]! + w1 * T[b * 4]! + w2 * T[c * 4]!;
-            const ty = w0 * T[a * 4 + 1]! + w1 * T[b * 4 + 1]! + w2 * T[c * 4 + 1]!;
-            const tz = w0 * T[a * 4 + 2]! + w1 * T[b * 4 + 2]! + w2 * T[c * 4 + 2]!;
-            const handed = w0 * T[a * 4 + 3]! + w1 * T[b * 4 + 3]! + w2 * T[c * 4 + 3]!;
-            const lean = tx * nx + ty * ny + tz * nz;
-            let gx = tx - nx * lean, gy = ty - ny * lean, gz = tz - nz * lean;
-            const gl = Math.hypot(gx, gy, gz) || 1;
-            gx /= gl; gy /= gl; gz /= gl;
-            const ex = (ny * gz - nz * gy) * handed, ey = (nz * gx - nx * gz) * handed, ez = (nx * gy - ny * gx) * handed;
-
-            const u = sx * gx + sy * gy + sz * gz;
-            const v = sx * ex + sy * ey + sz * ez;
-            const w = sx * nx + sy * ny + sz * nz;
-            bend += Math.acos(Math.max(-1, Math.min(1, w)));
-            rgba[texel * 4] = Math.round((u * 0.5 + 0.5) * 255);
-            rgba[texel * 4 + 1] = Math.round((v * 0.5 + 0.5) * 255);
-            rgba[texel * 4 + 2] = Math.round((Math.max(w, 0) * 0.5 + 0.5) * 255);
+    const cover = new Int32Array(size * size).fill(-1);
+    rasterTexels(mesh.indices, UV, size, (texel, _a, _b, _c, _w0, _w1, _w2, t) => {
+        if (covered[texel]) return;
+        covered[texel] = 1;
+        cover[texel] = t;
     });
-    let count = 0;
-    if (hitTriangle) for (let texel = 0; texel < size * size; texel++) if (hitTriangle[texel]! >= 0) count++;
-    const slots = new Int32Array(count), triangles = new Int32Array(count), places = new Float32Array(count * 2);
-    if (hitTriangle && hitPlace) {
-        for (let texel = 0, slot = 0; texel < size * size; texel++) {
-            if (hitTriangle[texel]! < 0) continue;
-            slots[slot] = texel;
-            triangles[slot] = hitTriangle[texel]!;
-            places[slot * 2] = hitPlace[texel * 2]!;
-            places[slot * 2 + 1] = hitPlace[texel * 2 + 1]!;
-            slot++;
+    const stains = detail.stains ?? [];
+    const shading: ShadeWork = {
+        size, distance, indices: mesh.indices, P, N, T, UV, cover, corners, normals, colors, surfaces, glows, rgba,
+        ...(lowColors ? { lowColors } : {}), ...(colorRgba ? { colorRgba } : {}), ...(surfaceRgba ? { surfaceRgba } : {}), ...(glow ? { glow } : {}),
+        hitTriangle: stains.length ? new Int32Array(size * size).fill(-1) : null,
+        hitPlace: stains.length ? new Float32Array(size * size * 2) : null,
+        stats: new Float64Array(Math.ceil(size * size / SHADE_CHUNK) * 3).fill(NaN),
+    };
+    const plan = (): NormalBakePlan => {
+        let hits = 0, missed = 0, bend = 0;
+        for (let chunk = 0; chunk * 3 < shading.stats.length; chunk++) {
+            if (Number.isNaN(shading.stats[chunk * 3]!)) throw new Error(`the texels from ${chunk * SHADE_CHUNK} on were never shaded`);
+            hits += shading.stats[chunk * 3]!;
+            missed += shading.stats[chunk * 3 + 1]!;
+            bend += shading.stats[chunk * 3 + 2]!;
         }
-    }
-    const { chosen, reliefOf, reaches } = stainLayers(high, stains, diagonal);
-    const shade = detail.occlusion ? planOcclusion(tree, mesh.indices, P, N, UV, size, distance, detail.occlusion, diagonal) : null;
-    const probes: BakeProbes = { corners, normals, triangles, places, reliefs: reliefProbes(chosen, reliefOf, reaches, faceOf, triangles), ...(shade ? { occlusion: shade.probe } : {}) };
-    const work: StainWork | null = stains.length
-        ? { stains: [...stains], chosen, reliefOf, faceOf, slots, fallback, ...(colorRgba ? { colorRgba } : {}), ...(surfaceRgba ? { surfaceRgba } : {}), ...(glow ? { glow } : {}), painted: false }
-        : null;
-    hitTriangle = null;
-    hitPlace = null;
-    const finish = (): NormalMap => {
-        if (work && !work.painted) {
-            stainPainter(work, probes)(0, slots.length);
-            work.painted = true;
-        }
-        const occlusion = shade ? finishOcclusion(shade) : undefined;
-        const inside = hits + missed;
-        let emissiveRgba: Uint8Array | undefined;
-        if (glow && colorRgba) {
-            emissiveRgba = new Uint8Array(size * size * 4);
-            for (let i = 0; i < size * size; i++) {
-                for (let k = 0; k < 3; k++) emissiveRgba[i * 4 + k] = Math.round(colorRgba[i * 4 + k]! * glow[i]! / 255);
-                emissiveRgba[i * 4 + 3] = 255;
+        let { hitTriangle, hitPlace } = shading;
+        let count = 0;
+        if (hitTriangle) for (let texel = 0; texel < size * size; texel++) if (hitTriangle[texel]! >= 0) count++;
+        const slots = new Int32Array(count), triangles = new Int32Array(count), places = new Float32Array(count * 2);
+        if (hitTriangle && hitPlace) {
+            for (let texel = 0, slot = 0; texel < size * size; texel++) {
+                if (hitTriangle[texel]! < 0) continue;
+                slots[slot] = texel;
+                triangles[slot] = hitTriangle[texel]!;
+                places[slot * 2] = hitPlace[texel * 2]!;
+                places[slot * 2 + 1] = hitPlace[texel * 2 + 1]!;
+                slot++;
             }
         }
-        dilate([rgba, ...(colorRgba ? [colorRgba] : []), ...(surfaceRgba ? [surfaceRgba] : []), ...(emissiveRgba ? [emissiveRgba] : [])], covered, size);
+        const { chosen, reliefOf, reaches } = stainLayers(high, stains, diagonal);
+        const shade = detail.occlusion ? planOcclusion(tree, mesh.indices, P, N, UV, size, distance, detail.occlusion, diagonal) : null;
+        const probes: BakeProbes = { corners, normals, triangles, places, reliefs: reliefProbes(chosen, reliefOf, reaches, faceOf, triangles), ...(shade ? { occlusion: shade.probe } : {}) };
+        const work: StainWork | null = stains.length
+            ? { stains: [...stains], chosen, reliefOf, faceOf, slots, fallback, ...(colorRgba ? { colorRgba } : {}), ...(surfaceRgba ? { surfaceRgba } : {}), ...(glow ? { glow } : {}), painted: false }
+            : null;
+        hitTriangle = null;
+        hitPlace = null;
+        shading.hitTriangle = null;
+        shading.hitPlace = null;
+        const finish = (): NormalMap => {
+            if (work && !work.painted) {
+                stainPainter(work, probes)(0, slots.length);
+                work.painted = true;
+            }
+            const occlusion = shade ? finishOcclusion(shade) : undefined;
+            const inside = hits + missed;
+            let emissiveRgba: Uint8Array | undefined;
+            if (glow && colorRgba) {
+                emissiveRgba = new Uint8Array(size * size * 4);
+                for (let i = 0; i < size * size; i++) {
+                    for (let k = 0; k < 3; k++) emissiveRgba[i * 4 + k] = Math.round(colorRgba[i * 4 + k]! * glow[i]! / 255);
+                    emissiveRgba[i * 4 + 3] = 255;
+                }
+            }
+            dilate([rgba, ...(colorRgba ? [colorRgba] : []), ...(surfaceRgba ? [surfaceRgba] : []), ...(emissiveRgba ? [emissiveRgba] : [])], covered, size);
 
-        const from = corners.length / 9, to = mesh.indices.length / 3;
-        const warnings: string[] = [];
-        const missedShare = inside ? missed / inside : 1;
-        if (missedShare > MISSED_WARNING) warnings.push(`${Math.round(missedShare * 100)}% of the normal map found no surface within ${distance.toPrecision(3)} and is flat: raise normalBake.distance, or decimate less`);
-        if (hits && (bend / hits) * 180 / Math.PI > STEEP_BEND) warnings.push(`the map bends light by ${Math.round((bend / hits) * 180 / Math.PI)} degrees on average, steeper than a normal map draws well: dark bands and lost shape. Lower the amplitude of a displace against its scale`);
-        if (inside / (size * size) < SPARSE_COVERAGE) warnings.push(`the surface broke into so many pieces that they fill only ${Math.round((inside / (size * size)) * 100)}% of the map, so most of its resolution is lost: lower the amplitude before the decimate, or keep more triangles`);
-        if (from <= to) warnings.push(`the surface baked from has ${from} triangles and this one ${to}: there is no detail to carry. normalBake.from should name a step before the decimate`);
-        return {
-            size, rgba, warnings, ...(colorRgba ? { colorRgba } : {}), ...(surfaceRgba ? { surfaceRgba } : {}), ...(emissiveRgba ? { emissiveRgba } : {}), ...(occlusion ? { occlusion } : {}),
-            report: {
-                size, from, to,
-                coverage: Math.round((inside / (size * size)) * 1000) / 1000,
-                missed: Math.round(missedShare * 1000) / 1000,
-                distance: Number(distance.toPrecision(4)),
-                meanBend: hits ? Math.round(((bend / hits) * 180 / Math.PI) * 100) / 100 : 0,
-            },
+            const from = corners.length / 9, to = mesh.indices.length / 3;
+            const warnings: string[] = [];
+            const missedShare = inside ? missed / inside : 1;
+            if (missedShare > MISSED_WARNING) warnings.push(`${Math.round(missedShare * 100)}% of the normal map found no surface within ${distance.toPrecision(3)} and is flat: raise normalBake.distance, or decimate less`);
+            if (hits && (bend / hits) * 180 / Math.PI > STEEP_BEND) warnings.push(`the map bends light by ${Math.round((bend / hits) * 180 / Math.PI)} degrees on average, steeper than a normal map draws well: dark bands and lost shape. Lower the amplitude of a displace against its scale`);
+            if (inside / (size * size) < SPARSE_COVERAGE) warnings.push(`the surface broke into so many pieces that they fill only ${Math.round((inside / (size * size)) * 100)}% of the map, so most of its resolution is lost: lower the amplitude before the decimate, or keep more triangles`);
+            if (from <= to) warnings.push(`the surface baked from has ${from} triangles and this one ${to}: there is no detail to carry. normalBake.from should name a step before the decimate`);
+            return {
+                size, rgba, warnings, ...(colorRgba ? { colorRgba } : {}), ...(surfaceRgba ? { surfaceRgba } : {}), ...(emissiveRgba ? { emissiveRgba } : {}), ...(occlusion ? { occlusion } : {}),
+                report: {
+                    size, from, to,
+                    coverage: Math.round((inside / (size * size)) * 1000) / 1000,
+                    missed: Math.round(missedShare * 1000) / 1000,
+                    distance: Number(distance.toPrecision(4)),
+                    meanBend: hits ? Math.round(((bend / hits) * 180 / Math.PI) * 100) / 100 : 0,
+                },
+            };
         };
+        return { probes, stains: work, tree, finish };
     };
-    return { probes, stains: work, tree, finish };
+    return { shading, tree, plan };
 }
 
 interface OcclusionPlan {

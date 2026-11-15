@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { bakeModel, bakeNormalMap, planNormalBake, prepareModeling, runProbes, type ModelStep, type NormalMap } from '../src/modeling';
-import { probeOcclusion, probeRelief, reliefAt, reliefScratch } from '../src/modeling/normalBake';
+import { bakeModel, bakeNormalMap, planNormalBake, prepareModeling, runProbes, startNormalBake, type ModelStep, type NormalMap } from '../src/modeling';
+import { probeOcclusion, probeRelief, reliefAt, reliefScratch, shadeTexels } from '../src/modeling/normalBake';
 import { openProbeCache } from '../src/modeling/probeCache';
 import { probeCount } from '../src/modeling/probeWorkers';
 
@@ -26,11 +26,32 @@ function source(stains: ModelStep[], size = 128): Record<string, unknown> {
     return { version: 1, normalBake: { from: 'dense', size, color: true, surface: true, occlusion: { size: 64, samples: 9 } }, steps: [slab, plates, ...stains, thin] };
 }
 
-const model = (stains: ModelStep[]) => bakeModel(source(stains) as never);
+const model = (stains: ModelStep[], size?: number) => bakeModel(source(stains, size) as never);
 
 function maps(map: NormalMap): Uint8Array[] {
     return [map.rgba, map.colorRgba!, map.surfaceRgba!, map.occlusion!.rgba, ...(map.emissiveRgba ? [map.emissiveRgba] : [])];
 }
+
+describe('the texels a bake shades', () => {
+    it('come out the same block by block, in any order, as all at once', () => {
+        const whole = bakeNormalMap(model([wear('plate'), dirt], 256));
+        const start = startNormalBake(model([wear('plate'), dirt], 256));
+        const blocks = start.shading.stats.length / 3;
+        expect(blocks).toBe(4);
+        for (const block of [2, 0, 3, 1]) shadeTexels(start.shading, start.tree, block, block + 1);
+        const plan = start.plan();
+        runProbes(plan.probes, plan.tree);
+        const pieced = plan.finish();
+        expect(maps(pieced)).toEqual(maps(whole));
+        expect(pieced.report).toEqual(whole.report);
+    });
+
+    it('refuse to go on over a block that was never shaded', () => {
+        const start = startNormalBake(model([wear('plate')], 256));
+        shadeTexels(start.shading, start.tree, 0, 3);
+        expect(() => start.plan()).toThrow(/never shaded/);
+    });
+});
 
 describe('the probes a bake runs', () => {
     it('come out the same in pieces, in any order, as all at once', () => {
@@ -150,7 +171,7 @@ describe('bake-model across threads', () => {
     const cli = fileURLToPath(new URL('../bin/estella.mjs', import.meta.url));
     const run = (dir: string, ...flags: string[]): { files: Record<string, Buffer>; probes: { computed: number; reused: number; jobs: number } } => {
         mkdirSync(dir, { recursive: true });
-        writeFileSync(path.join(dir, 'slab.esmodel'), JSON.stringify(source([wear('plate'), dirt], 256)));
+        writeFileSync(path.join(dir, 'slab.esmodel'), JSON.stringify(source([wear('plate'), dirt], 512)));
         const out = execFileSync(process.execPath, [cli, 'bake-model', path.join(dir, 'slab.esmodel'), ...flags], { encoding: 'utf8' });
         const files = Object.fromEntries(readdirSync(dir).filter((name) => /\.(png|esmesh|esmaterial)$/.test(name)).sort().map((name) => [name, readFileSync(path.join(dir, name))]));
         return { files, probes: JSON.parse(out.slice(out.indexOf('{\n'))).probes };
