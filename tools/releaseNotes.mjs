@@ -5036,4 +5036,6 @@ export const NOTED = {
     {"note": "A tree has bark."},
   "chore(examples): seven examples' tsconfig name the SDK's sub-entries the editor writes for them":
     {"internal": "Type-check paths of seven examples; nothing a game or the editor does changes."},
+  "fix(export): the script compile step runs from a path with a space or an ampersand on Windows - emcc is a batch file there and was started through a shell with its arguments unquoted, as were the emsdk setup, the GLX toolchain, the engine build commands and with-env; they all start through runTool now, and check-tool-spawn refuses a shell passed by hand":
+    {"note": "A project in a folder with a space or `&` in its name exports its compiled scripts on Windows."},
 };

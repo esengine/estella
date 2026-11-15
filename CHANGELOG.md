@@ -20,6 +20,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A project in a folder with a space or `&` in its name exports its compiled scripts on Windows.** The compiler that turns scripts into WebAssembly is a batch file on Windows and was started through a shell with its arguments unquoted, so a project under `C:\My Games` stopped at that step with a path cut in two. Setting up the bundled Emscripten and building the engine from a checkout in such a folder failed the same way and are fixed with it.
 - **A terrain's heightmap and splatmaps, and a foliage field's density and scale maps, are read from their files and never uploaded.** They are read on the CPU as numbers, yet the scene also loaded each as a texture: a 4097 heightmap held 64 MiB of video memory for nothing, and on a busy machine its upload missed the load deadline and the terrain came up as noise. These fields now hold the image's project path at run time (they are `image` fields, where they were `texture`), no texture is made of them, and the inspector picks them as before. A terrain or foliage field is grown again when one of its images changes on disk or in an update. A script that read `Terrain.heightmap`, `splatmap`, `splatmap2` or `Foliage.densityMap`, `scaleMap` as a handle now reads a path.
 
 ## [0.105.0] - 2026-11-14

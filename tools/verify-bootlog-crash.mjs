@@ -9,6 +9,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { mustRunTool } from './lib/runTool.mjs';
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -100,15 +101,12 @@ if (!clang) unavailable(abi ? `no Android NDK for ${abi}` : 'no Android NDK foun
 mkdirSync(OUT, { recursive: true });
 const bin = path.join(OUT, 'bootlog_crash_test');
 console.log(`building the record + handler for ${abi}…`);
-// `shell: true` because the NDK's Windows driver is a .cmd, which node refuses
-// to spawn directly (EINVAL) — the same reason every Windows toolchain wrapper
-// has to be invoked through a shell.
-execFileSync(clang, [
+mustRunTool(clang, [
     '-std=c++17', '-O1', '-g0', '-static-libstdc++',
     '-o', bin,
     path.join(ROOT, 'native', 'tools', 'bootlog_crash_test.cpp'),
     path.join(ROOT, 'native', 'host', 'BootLog.cpp'),
-], { stdio: 'inherit', shell: process.platform === 'win32' });
+]);
 
 const sh = (cmd) => execFileSync(adb, ['shell', cmd], { encoding: 'utf8' });
 sh(`rm -rf ${DEVICE_DIR}; mkdir -p ${DEVICE_DIR}`);

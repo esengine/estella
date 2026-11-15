@@ -192,7 +192,7 @@ function main() {
         const tmpLink = path.join(path.dirname(emsdkPath), archiveName);
         try {
             if (fs.existsSync(tmpLink)) fs.rmSync(tmpLink, { recursive: true, maxRetries: 10, retryDelay: 50 });
-            execSync(`mklink /J "${tmpLink}" "${emsdkPath}"`, { shell: 'cmd', stdio: 'pipe' });
+            execSync(`mklink /J "${tmpLink}" "${emsdkPath}"`, { stdio: 'pipe' });
         } catch {
             // Fallback: just use the directory name
             log('Warning: mklink failed, using xcopy fallback');
@@ -207,7 +207,7 @@ function main() {
         );
 
         if (fs.existsSync(tmpLink) && tmpLink !== emsdkPath) {
-            execSync(`rmdir "${tmpLink}"`, { shell: 'cmd', stdio: 'pipe' });
+            execSync(`rmdir "${tmpLink}"`, { stdio: 'pipe' });
         }
 
         log(`Done: ${outFile}`);
