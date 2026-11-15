@@ -92,12 +92,12 @@ addPlugin({
             cam.rotation = lookRotation(eye, target);
             world.insert(camera, Transform, cam);
 
-            const ship = get(world, 'Ship');
-            const hull = world.get(ship, Transform);
+            const root = get(world, 'Ship');
+            const hull = world.get(root, Transform);
             const roll = Math.sin(clock * 0.31) * 0.012, nod = Math.sin(clock * 0.23 + 1.3) * 0.006;
             hull.rotation = { x: Math.sin(nod / 2), y: 0, z: Math.sin(roll / 2), w: Math.cos(nod / 2) * Math.cos(roll / 2) };
             hull.position = { x: 0, y: Math.sin(clock * 0.19) * 0.35, z: 0 };
-            world.insert(ship, Transform, hull);
+            world.insert(root, Transform, hull);
 
             ship.time = clock;
             ship.throttle = throttle;
