@@ -18,7 +18,7 @@ export interface ModelFiles {
     sheet?: Uint8Array;
 }
 
-const DATA_MAP = { sRGB: false };
+const dataMap = (size: number): Record<string, unknown> => ({ sRGB: false, maxSize: size });
 
 export async function bakeModelFiles(raw: unknown, stem: string, options: { sheet?: boolean } = {}): Promise<ModelFiles> {
     const source = validateModelSource(raw);
@@ -44,11 +44,11 @@ export async function bakeModelFiles(raw: unknown, stem: string, options: { shee
     const closed = baked.report.openEdges === 0;
     const material = modelMaterialDoc(source, closed, names);
     const files: ModelFile[] = [{ name: names.mesh, bytes: encodeMesh(baked.data) }];
-    if (normal && names.normal) files.push({ name: names.normal, bytes: encodeRgbaPng(normal.size, normal.size, normal.rgba), importer: DATA_MAP });
-    if (normal?.colorRgba && names.color) files.push({ name: names.color, bytes: encodeRgbaPng(normal.size, normal.size, normal.colorRgba), importer: DATA_MAP });
-    if (normal?.surfaceRgba && names.surface) files.push({ name: names.surface, bytes: encodeRgbaPng(normal.size, normal.size, normal.surfaceRgba), importer: DATA_MAP });
-    if (normal?.emissiveRgba && names.emissive) files.push({ name: names.emissive, bytes: encodeRgbaPng(normal.size, normal.size, normal.emissiveRgba), importer: DATA_MAP });
-    if (normal?.occlusion && names.occlusion) files.push({ name: names.occlusion, bytes: encodeRgbaPng(normal.occlusion.size, normal.occlusion.size, normal.occlusion.rgba), importer: DATA_MAP });
+    if (normal && names.normal) files.push({ name: names.normal, bytes: encodeRgbaPng(normal.size, normal.size, normal.rgba), importer: dataMap(normal.size) });
+    if (normal?.colorRgba && names.color) files.push({ name: names.color, bytes: encodeRgbaPng(normal.size, normal.size, normal.colorRgba), importer: dataMap(normal.size) });
+    if (normal?.surfaceRgba && names.surface) files.push({ name: names.surface, bytes: encodeRgbaPng(normal.size, normal.size, normal.surfaceRgba), importer: dataMap(normal.size) });
+    if (normal?.emissiveRgba && names.emissive) files.push({ name: names.emissive, bytes: encodeRgbaPng(normal.size, normal.size, normal.emissiveRgba), importer: dataMap(normal.size) });
+    if (normal?.occlusion && names.occlusion) files.push({ name: names.occlusion, bytes: encodeRgbaPng(normal.occlusion.size, normal.occlusion.size, normal.occlusion.rgba), importer: dataMap(normal.occlusion.size) });
     if (material) files.push({ name: names.material, bytes: new TextEncoder().encode(`${JSON.stringify(material, null, 2)}\n`) });
     const blended = source.material?.alpha === 'blend';
     const renderer = {

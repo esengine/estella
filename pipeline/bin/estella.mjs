@@ -952,7 +952,14 @@ if (opts.command === 'bake-model') {
     for (const file of baked.files) {
       const out = path.join(dir, file.name);
       writeFileSync(out, file.bytes);
-      await meta.adoptOrphan(out, file.importer);
+      if ((await meta.adoptOrphan(out, file.importer)) === 'has-meta' && file.importer?.maxSize) {
+        const sidecar = `${out}.meta`;
+        const kept = JSON.parse(readFileSync(sidecar, 'utf8'));
+        if (kept.importer && kept.importer.maxSize > 0 && kept.importer.maxSize < file.importer.maxSize) {
+          kept.importer.maxSize = file.importer.maxSize;
+          writeFileSync(sidecar, `${JSON.stringify(kept, null, 2)}\n`);
+        }
+      }
       console.log(`${path.relative(process.cwd(), out)}: ${file.bytes.length} bytes`);
     }
     await meta.adoptOrphan(opts.source);
