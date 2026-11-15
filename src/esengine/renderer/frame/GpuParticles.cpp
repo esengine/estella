@@ -16,8 +16,7 @@ namespace esengine {
 
 namespace {
 
-// One record per live particle, exactly what the particle draw's instance attributes read (44 bytes).
-constexpr u32 kInstanceBytes = 44;
+constexpr u32 kInstanceBytes = PARTICLE_INSTANCE_STRIDE;
 // Position + age, velocity + lifetime, then start size, end size, rotation, angular velocity.
 constexpr u32 kStateBytes = 48;
 
@@ -80,7 +79,7 @@ struct ParamsBlock {
     u32 p12[4];     // frame, eventCapacity, subBurst, colliderCount
     f32 p13[4];     // eventChance, inheritVelocity, thickness, depthValid
     u32 p14[4];     // trailPoints, collisionMask, depthGridW, depthGridH
-    f32 p15[4];     // trailWidth, trailMinDistance, 0, 0
+    f32 p15[4];
     f32 camera[4];  // the eye (w 1) or the way to the viewer (w 0), as the draw's vertex stage has it
     f32 depthClip[4][4], depthWorld[4][4];  // the view the depth was left by, and its inverse
     f32 depthOrigin[4];                     // the render origin it was seen from
@@ -93,7 +92,7 @@ constexpr u32 kMaxJobs = 64;
 // In pieces: MSVC refuses one string literal past 16 KB, and takes adjacent ones to 64.
 const char* const kKernel = R"WGSL(
 struct State { pa: vec4<f32>, vl: vec4<f32>, ms: vec4<f32> };
-struct Inst { px: f32, py: f32, pz: f32, sx: f32, sy: f32, rot: f32, color: u32, u0: f32, v0: f32, us: f32, vs: f32 };
+struct Inst { px: f32, py: f32, pz: f32, sx: f32, sy: f32, rot: f32, color: u32, u0: f32, v0: f32, us: f32, vs: f32, age: f32, random: f32, intensity: f32, life: f32 };
 struct Params {
     p0: vec4<u32>, p1: vec4<u32>,
     p2: vec4<f32>, p3: vec4<f32>, p4: vec4<f32>, p5: vec4<f32>, p6: vec4<f32>, p7: vec4<f32>,
@@ -270,11 +269,11 @@ fn applyField(k: u32, pos: vec3<f32>, vel: vec3<f32>, dt: f32) -> vec3<f32> {
 }
 
 fn hide(i: u32) {
-    insts[i] = Inst(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0u, 0.0, 0.0, 1.0, 1.0);
+    insts[i] = Inst(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0u, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
     if ((P.p1.y & 8192u) != 0u) {
         let n = P.p14.x - 1u;
         for (var j = 0u; j < n; j = j + 1u) {
-            segments[i * n + j] = Inst(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0u, 0.0, 0.0, 1.0, 1.0);
+            segments[i * n + j] = Inst(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0u, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
         }
     }
 }
@@ -391,7 +390,7 @@ fn sdfHit(point: vec3<f32>, vel: vec3<f32>) -> bool {
 }
 
 // --- trails: each piece of the path as a quad the particle draw already knows, turned to lie along it as seen ---
-fn segmentBetween(a: vec3<f32>, b: vec3<f32>, width: f32, color: vec4<f32>) -> Inst {
+fn segmentBetween(a: vec3<f32>, b: vec3<f32>, width: f32, color: vec4<f32>, extra: vec4<f32>) -> Inst {
     let mid = (a + b) * 0.5 - P.shift.xyz;
     var fwd = P.camera.xyz;
     if (P.camera.w > 0.5) { fwd = normalize(P.camera.xyz - mid); }
@@ -402,9 +401,9 @@ fn segmentBetween(a: vec3<f32>, b: vec3<f32>, width: f32, color: vec4<f32>) -> I
     let d = b - a;
     let x = dot(d, right);
     let y = dot(d, up);
-    return Inst(mid.x, mid.y, mid.z, sqrt(x * x + y * y), width, atan2(y, x), pack4x8unorm(color), 0.0, 0.0, 1.0, 1.0);
+    return Inst(mid.x, mid.y, mid.z, sqrt(x * x + y * y), width, atan2(y, x), pack4x8unorm(color), 0.0, 0.0, 1.0, 1.0, extra.x, extra.y, extra.z, extra.w);
 }
-fn stepTrail(i: u32, head: vec3<f32>, born: bool, color: vec4<f32>) {
+fn stepTrail(i: u32, head: vec3<f32>, born: bool, color: vec4<f32>, extra: vec4<f32>) {
     let points = P.p14.x;
     let n = points - 1u;
     let base = i * points;
@@ -423,12 +422,12 @@ fn stepTrail(i: u32, head: vec3<f32>, born: bool, color: vec4<f32>) {
     var prev = head;
     for (var j = 0u; j < n; j = j + 1u) {
         if (j >= count) {
-            segments[i * n + j] = Inst(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0u, 0.0, 0.0, 1.0, 1.0);
+            segments[i * n + j] = Inst(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0u, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0);
             continue;
         }
         let next = trail[base + j].xyz;
         let fadeOut = 1.0 - (f32(j) + 0.5) / f32(n);
-        segments[i * n + j] = segmentBetween(prev, next, P.p15.x * fadeOut, vec4<f32>(color.rgb, color.a * fadeOut));
+        segments[i * n + j] = segmentBetween(prev, next, P.p15.x * fadeOut, vec4<f32>(color.rgb, color.a * fadeOut), extra);
         prev = next;
     }
 }
@@ -648,9 +647,10 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         worldPos = P.origin.xyz + vec3<f32>(rel3.x * P.local.x - rel3.y * P.local.y, rel3.x * P.local.y + rel3.y * P.local.x, rel3.z);
         worldSize = worldSize * vec2<f32>(P.local.z, P.local.w);
     }
-    if ((flags & 8192u) != 0u) { stepTrail(i, worldPos, born, color); }
+    let extra = vec4<f32>(clamp(age / life, 0.0, 1.0), f32(pcg(i) >> 8u) / 16777216.0, P.p15.z, life);
+    if ((flags & 8192u) != 0u) { stepTrail(i, worldPos, born, color, extra); }
     worldPos = worldPos - P.shift.xyz;
-    insts[i] = Inst(worldPos.x, worldPos.y, worldPos.z, worldSize.x, worldSize.y, rotation, pack4x8unorm(color), u0, v0, us, vs);
+    insts[i] = Inst(worldPos.x, worldPos.y, worldPos.z, worldSize.x, worldSize.y, rotation, pack4x8unorm(color), u0, v0, us, vs, extra.x, extra.y, extra.z, extra.w);
 }
 )WGSL";
 
@@ -1007,7 +1007,7 @@ bool GpuParticles::submit(Entity entity, const ecs::ParticleEmitter& emitter, co
     set4(b.p13, report > 0 || !hasChild ? 1.0f : std::clamp(finite(emitter.subEmitterChance, 1.0f), 0.0f, 1.0f), 0.0f,
          std::max(finite(emitter.collisionThickness), 0.0f), 0.0f);
     set4(b.p14, points, emitter.collisionMask & 0xffffu, depthW_, depthH_);
-    set4(b.p15, finite(emitter.trailWidth), std::max(finite(emitter.trailMinDistance), 0.0f), 0.0f, 0.0f);
+    set4(b.p15, finite(emitter.trailWidth), std::max(finite(emitter.trailMinDistance), 0.0f), std::max(finite(emitter.intensity), 0.0f), 0.0f);
     set4(b.camera, eye.x, eye.y, eye.z, eye.w);
     job.subEmitter = emitter.subEmitter;
     job.inheritVelocity = std::clamp(finite(emitter.subEmitterInheritVelocity), 0.0f, 1.0f);

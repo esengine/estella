@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "VFX Showcase",
+  "description": "One looping 3D effect built from the engine's VFX pieces: an energy core charges over a rune circle, detonates into a shockwave that bends the picture, and leaves sparks, embers, smoke and a cooling scorch.",
+  "tag": "3D",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": { "width": 1600, "height": 900 },
+  "spineVersion": "none",
+  "scripts": { "main": "src/main.ts" },
+  "assetExclude": ["tools"],
+  "features": { "rendering": { "colorSpace": "linear", "outputTransform": "aces", "quality": { "mode": "high" } } }
+}

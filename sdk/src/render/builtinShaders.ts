@@ -12,6 +12,7 @@
  */
 
 import { deriveGroundBlend } from './groundBlendShader';
+import { DISTORTION, PARTICLE } from './vfxShaders';
 import { paramDefaultValue, reflectEsshader } from './shaderReflect';
 import { WIND_FIELD_GLSL, WIND_FIELD_PARAMS, WIND_FIELD_WGSL } from './windFieldShader';
 
@@ -1439,6 +1440,12 @@ export const BUILTIN_SHADER_TEMPLATES: readonly BuiltinShaderTemplate[] = [
     template('matcap', 'Matcap',
         'What a picture of a lit sphere shows, looked up by which way the surface faces the camera. No lamps, one texture read.',
         MATCAP),
+    template('particle', 'Particle',
+        'For a ParticleEmitter: fades where a particle meets the scene behind it, and wears its texture away as the particle ages.',
+        PARTICLE),
+    template('distortion', 'Distortion',
+        'Bends the picture behind it: heat haze, a shockwave, a lens. The texture\'s alpha says where and how much.',
+        DISTORTION),
 ];
 
 /** Where the templates that are not the core's sit in a list, so a menu reads the same whichever order the modules were installed in. */

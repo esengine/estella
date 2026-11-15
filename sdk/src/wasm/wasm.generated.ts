@@ -843,6 +843,7 @@ export interface ParticleEmitter {
     renderMode: number;
     velocityScale: number;
     lengthScale: number;
+    intensity: number;
     enabled: boolean;
     subEmitterTrigger: number;
     subEmitterChance: number;

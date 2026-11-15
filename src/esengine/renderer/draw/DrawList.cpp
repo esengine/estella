@@ -470,6 +470,13 @@ bool DrawList::anyUsesSceneColor(const MaterialStore& materials) const {
     return false;
 }
 
+bool DrawList::anyUsesScreenColor(const MaterialStore& materials) const {
+    for (u32 i = 0; i < merged_draw_calls_; ++i) {
+        if (commands_[i].material_id != 0 && materials.usesScreenColor(commands_[i].material_id)) return true;
+    }
+    return false;
+}
+
 /// Whether a draw is in a stage sorted back to front and drawn over what is there, as against the opaque scene: what a blend mode on an opaque draw (a lit material whose
 /// alpha is 1) cannot say, and what decides which side of the water a draw is drawn on.
 static bool isBlendedStage(RenderStage stage) {
@@ -537,7 +544,11 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         const auto& cmd = commands_[i];
         const StagedBlocks& staged = staged_[i];
         if (prepass && !takesPartInPrepass(cmd)) continue;
-        if (phase != Phase::All) {
+        if (defer_screen_color_ || phase == Phase::ScreenColorOnly) {
+            const bool screen = cmd.material_id != 0 && materials.usesScreenColor(cmd.material_id);
+            if (screen != (phase == Phase::ScreenColorOnly)) continue;
+        }
+        if (phase != Phase::All && phase != Phase::ScreenColorOnly) {
             const bool refracts = cmd.material_id != 0 && materials.usesSceneColor(cmd.material_id);
             const bool blended = isBlendedStage(cmd.stage);
             bool drawn = false;
@@ -547,6 +558,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
                 case Phase::OpaqueOnly: drawn = !refracts && !blended; break;
                 case Phase::BlendedOnly: drawn = !refracts && blended; break;
                 case Phase::All: drawn = true; break;
+                case Phase::ScreenColorOnly: drawn = true; break;
             }
             if (!drawn) continue;
         }

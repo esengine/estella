@@ -5036,4 +5036,16 @@ export const NOTED = {
     {"note": "A tree has bark."},
   "chore(examples): seven examples' tsconfig name the SDK's sub-entries the editor writes for them":
     {"internal": "Type-check paths of seven examples; nothing a game or the editor does changes."},
+  "feat(particles): particles glow in HDR, fade into the scene behind them and wear away, and a material can bend the frame drawn so far":
+    { note: "Particles glow in HDR, fade into the scene and wear away." },
+  "feat(examples): a VFX showcase - an energy core charges over a rune circle, detonates and burns out":
+    { note: "A VFX showcase example." },
+  "fix(particles): a particle's new inputs stay within its eight vertex slots, and the snapshots that record the emitter's shape follow it":
+    { note: "Particles glow in HDR, fade into the scene and wear away." },
+  "chore(editor): the submodule moves to the gallery text of the VFX showcase":
+    { note: "A VFX showcase example." },
+  "feat(launcher): the VFX showcase example reads in Chinese in the new-project gallery":
+    { note: "A VFX showcase example." },
+  "chore(notes): the showcase's gallery text reaches the note of the example it names":
+    {"internal": "A line in the notes file; nothing a creator runs changes."},
 };
