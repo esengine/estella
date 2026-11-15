@@ -1,62 +1,85 @@
 {
   "version": 1,
-  "duration": 3.2,
-  "gain": 0.75,
+  "duration": 3.4,
+  "gain": 0.6,
+  "lowpass": 3000,
   "reverb": {
-    "size": 0.45,
-    "mix": 0.25,
+    "size": 0.6,
+    "mix": 0.35,
     "kind": "open"
   },
   "layers": [
     {
-      "id": "first",
-      "source": "modes",
-      "modes": [
+      "id": "root",
+      "source": "sine",
+      "freq": 220,
+      "attack": 0.25,
+      "release": 1.4,
+      "length": 2.2,
+      "gain": [
         [
-          523.25,
-          1,
-          0.5
+          0,
+          0.7
         ],
         [
-          1046.5,
-          0.3,
-          0.25
+          0.8,
+          0.7
+        ],
+        [
+          2.2,
+          0
         ]
       ]
     },
     {
-      "id": "second",
-      "source": "modes",
-      "start": 0.18,
-      "modes": [
+      "id": "fifth",
+      "source": "sine",
+      "freq": 330,
+      "start": 0.12,
+      "attack": 0.3,
+      "release": 1.4,
+      "length": 2.0,
+      "gain": [
         [
-          659.25,
-          1,
-          0.5
+          0,
+          0.45
         ],
         [
-          1318.5,
-          0.3,
-          0.25
+          0.8,
+          0.45
+        ],
+        [
+          2.0,
+          0
         ]
       ]
     },
     {
-      "id": "third",
-      "source": "modes",
-      "start": 0.36,
-      "modes": [
+      "id": "octave",
+      "source": "triangle",
+      "freq": 440,
+      "start": 0.24,
+      "attack": 0.35,
+      "release": 1.2,
+      "length": 1.8,
+      "gain": [
         [
-          783.99,
-          1,
-          0.5
+          0,
+          0.25
         ],
         [
-          1567.98,
-          0.3,
+          0.6,
           0.25
+        ],
+        [
+          1.8,
+          0
         ]
-      ]
+      ],
+      "vibrato": {
+        "rate": 4.5,
+        "depth": 0.08
+      }
     }
   ]
 }

@@ -46,8 +46,15 @@ try {
     const raised = await when(() => window.__estellaCooked.facts().soundEngine === true, null, 20000);
     expect('the engine voice is raised when the scene is up', raised, await facts());
     expect('this browser lets the mixer be measured', (await facts()).soundMeasured === true, await facts());
+    expect('the music starts with the scene', await when(() => window.__estellaCooked.facts().soundMusic === true && window.__estellaCooked.facts().soundLow > 0.02, null, 60000), await facts());
+    const tap = async (key) => { await page.keyboard.down(key); await page.waitForTimeout(150); await page.keyboard.up(key); await page.waitForTimeout(150); };
+    await tap('KeyM');
+    expect('M stops the music', await when(() => window.__estellaCooked.facts().soundMusic === false, null, 5000), await facts());
+    await page.waitForTimeout(1500);
+    await tap('Digit1');
+    expect('1 holds the camera at one distance', (await facts()).tour === false, await facts());
     const heard = await when(() => window.__estellaCooked.facts().soundLow > 0.02, null, 30000);
-    expect('the engine is heard at the mixer output', heard, await facts());
+    expect('the engine is heard at the mixer output with the music off', heard, await facts());
 
     const cuesAtStart = (await facts()).soundCues;
     expect('S brings the engine order down to stop', await holdUntil('KeyS', () => window.__estellaCooked.facts().throttle < 0.08), (await facts()).throttle);
@@ -58,10 +65,20 @@ try {
         fullFacts.soundEngineVolume > idleFacts.soundEngineVolume && fullFacts.soundEnginePitch > idleFacts.soundEnginePitch,
         { idle: [idleFacts.soundEngineVolume, idleFacts.soundEnginePitch], full: [fullFacts.soundEngineVolume, fullFacts.soundEnginePitch] });
     expect('and the mixer output is louder at full than at stop', full.low > idle.low + 0.01, { idle, full });
+    await tap('Digit5');
+    await page.waitForTimeout(600);
+    const nearFacts = await facts(), near = await hear();
+    await tap('Digit3');
+    await page.waitForTimeout(600);
+    const farFacts = await facts(), far = await hear();
+    expect('the far shot is further from the engines and is given less of them',
+        farFacts.soundEngineDistance > nearFacts.soundEngineDistance + 40 && farFacts.soundEngineHeard < nearFacts.soundEngineHeard * 0.6,
+        { near: [nearFacts.soundEngineDistance, nearFacts.soundEngineHeard], far: [farFacts.soundEngineDistance, farFacts.soundEngineHeard] });
+    expect('and the mixer output is quieter from far than from near', near.low > far.low + 0.01, { near, far });
     expect('each engine order ticked', fullFacts.soundCues >= cuesAtStart + 2 && fullFacts.soundLastCue === 'helmOrder', { cuesAtStart, cues: fullFacts.soundCues, last: fullFacts.soundLastCue });
 
     expect('S brings it back to stop before mining', await holdUntil('KeyS', () => window.__estellaCooked.facts().throttle < 0.08), (await facts()).throttle);
-    const press = async (key) => { await page.keyboard.down(key); await page.waitForTimeout(150); await page.keyboard.up(key); await page.waitForTimeout(150); };
+    const press = tap;
     const quiet = await hear();
     const refused = [];
     let firing = false;

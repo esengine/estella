@@ -1,35 +1,37 @@
 {
   "version": 1,
-  "duration": 0.25,
-  "gain": 0.7,
+  "duration": 0.16,
+  "gain": 0.6,
+  "lowpass": 3500,
   "layers": [
     {
-      "id": "click",
-      "source": "impulse",
-      "width": 0.0004,
-      "gain": 0.5,
-      "filters": [
-        {
-          "type": "highpass",
-          "freq": 1200
-        }
-      ]
-    },
-    {
-      "id": "ring",
-      "source": "modes",
-      "modes": [
+      "id": "thock",
+      "source": "sine",
+      "freq": [
         [
-          1320,
-          1,
-          0.03
+          0,
+          320
         ],
         [
-          1980,
-          0.4,
-          0.018
+          0.05,
+          170
         ]
-      ]
+      ],
+      "attack": 0.002,
+      "decay": 0.022,
+      "gain": 1
+    },
+    {
+      "id": "edge",
+      "source": "noise",
+      "band": [
+        1500,
+        3500
+      ],
+      "seed": 41,
+      "attack": 0.001,
+      "decay": 0.006,
+      "gain": 0.25
     }
   ]
 }

@@ -1,26 +1,33 @@
 {
   "version": 1,
-  "duration": 0.9,
-  "gain": 0.6,
+  "duration": 1.1,
+  "gain": 0.5,
+  "lowpass": 2200,
   "layers": [
     {
-      "id": "beep",
-      "source": "square",
-      "freq": 880,
-      "width": 0.5,
-      "length": 0.14,
-      "attack": 0.004,
-      "release": 0.02,
+      "id": "high",
+      "source": "triangle",
+      "freq": 440,
+      "length": 0.16,
+      "attack": 0.01,
+      "release": 0.04,
       "repeat": {
-        "count": 3,
-        "every": 0.24
-      },
-      "filters": [
-        {
-          "type": "lowpass",
-          "freq": 3200
-        }
-      ]
+        "count": 2,
+        "every": 0.46
+      }
+    },
+    {
+      "id": "low",
+      "source": "triangle",
+      "freq": 330,
+      "start": 0.2,
+      "length": 0.16,
+      "attack": 0.01,
+      "release": 0.04,
+      "repeat": {
+        "count": 2,
+        "every": 0.46
+      }
     }
   ]
 }

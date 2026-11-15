@@ -1,7 +1,8 @@
 {
   "version": 1,
   "duration": 0.6,
-  "gain": 0.7,
+  "gain": 0.5,
+  "lowpass": 3500,
   "reverb": {
     "size": 0.2,
     "mix": 0.15,
@@ -11,18 +12,20 @@
     {
       "id": "low",
       "source": "sine",
-      "freq": 660,
-      "decay": 0.12,
-      "length": 0.3,
+      "freq": 392,
+      "attack": 0.004,
+      "decay": 0.07,
+      "length": 0.25,
       "gain": 0.8
     },
     {
       "id": "high",
       "source": "sine",
-      "freq": 990,
-      "start": 0.11,
-      "decay": 0.16,
-      "length": 0.4,
+      "freq": 523.25,
+      "start": 0.09,
+      "attack": 0.004,
+      "decay": 0.09,
+      "length": 0.35,
       "gain": 0.8
     }
   ]

@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "tempo": 54,
+  "beats": 4,
+  "key": "D",
+  "scale": "dorian",
+  "humanize": 0.25,
+  "rubato": 0.3,
+  "seed": 7,
+  "loop": true,
+  "gain": 0.8,
+  "reverb": {
+    "size": 0.9,
+    "mix": 0.45
+  },
+  "master": {
+    "compress": 0.3
+  },
+  "instruments": {
+    "pad": {
+      "follow": true,
+      "octave": -1,
+      "release": 2.5,
+      "reverb": 0.7,
+      "gain": 0.9,
+      "lowcut": 110,
+      "highcut": 3000,
+      "layers": [
+        {
+          "source": "sine",
+          "freq": 440,
+          "gain": 0.6,
+          "attack": 1.4
+        },
+        {
+          "source": "triangle",
+          "freq": 440,
+          "gain": 0.18,
+          "attack": 1.8,
+          "vibrato": {
+            "rate": 0.4,
+            "depth": 0.07
+          },
+          "filters": [
+            {
+              "type": "lowpass",
+              "freq": 1200
+            }
+          ]
+        },
+        {
+          "source": "sine",
+          "freq": 880,
+          "gain": 0.08,
+          "attack": 2.2
+        }
+      ]
+    },
+    "bass": {
+      "follow": true,
+      "octave": -2,
+      "release": 2.0,
+      "reverb": 0.05,
+      "gain": 0.6,
+      "highcut": 500,
+      "layers": [
+        {
+          "source": "sine",
+          "freq": 440,
+          "gain": 0.9,
+          "attack": 0.8
+        },
+        {
+          "source": "sine",
+          "freq": 880,
+          "gain": 0.1,
+          "attack": 1.0
+        }
+      ]
+    },
+    "bell": {
+      "scale": "pentatonicMinor",
+      "octave": 1,
+      "release": 1.5,
+      "reverb": 0.8,
+      "gain": 0.32,
+      "pan": 0.25,
+      "lowcut": 300,
+      "layers": [
+        {
+          "source": "sine",
+          "freq": 440,
+          "attack": 0.006,
+          "decay": 1.1,
+          "gain": 0.7
+        },
+        {
+          "source": "sine",
+          "freq": 881.5,
+          "decay": 0.8,
+          "gain": 0.15
+        },
+        {
+          "source": "sine",
+          "freq": 1320,
+          "decay": 0.35,
+          "gain": 0.1
+        }
+      ]
+    }
+  },
+  "patterns": {
+    "a": {
+      "bars": 4,
+      "div": 2,
+      "chords": [
+        1,
+        4,
+        1,
+        4
+      ],
+      "tracks": {
+        "pad": "[1 5 3'] - - - - - - - | [1 3 5] - - - - - - - | [1 5 2'] - - - - - - - | [1 3 5] - - - - - - -",
+        "bass": "1 - - - - - - - | 1 - - - - - - - | 1 - - - - - - - | 1 - - - - - - -",
+        "bell": ". . . . 5 . . . | . . 1' . . . . . | . . . . . . 4 . | . . 2' . . . 1' ."
+      }
+    },
+    "b": {
+      "bars": 4,
+      "div": 2,
+      "chords": [
+        3,
+        7,
+        4,
+        1
+      ],
+      "tracks": {
+        "pad": "[1 3 5] - - - - - - - | [1 3 5] - - - - - - - | [1 5 3'] - - - - - - - | [1 5 2'] - - - - - - -",
+        "bass": "1 - - - - - - - | 1 - - - - - - - | 1 - - - - - - - | 1 - - - - - - -",
+        "bell": ". . 3' . . . . . | . . . . 2' . . . | 1' . . . . . 5 . | . . . . . . . ."
+      }
+    },
+    "c": {
+      "bars": 4,
+      "div": 2,
+      "chords": [
+        1,
+        7,
+        4,
+        4
+      ],
+      "tracks": {
+        "pad": "[1 5 2'] - - - - - - - | [1 3 5] - - - - - - - | [1 3 5] - - - - - - - | [1 5 3'] - - - - - . .",
+        "bass": "1 - - - - - - - | 1 - - - - - - - | 1 - - - - - - - | 1 - - - - - . .",
+        "bell": ". . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . ."
+      }
+    }
+  },
+  "song": [
+    "a",
+    "b",
+    "a",
+    {
+      "pattern": "c",
+      "without": [
+        "bell"
+      ]
+    }
+  ]
+}

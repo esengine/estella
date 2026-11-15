@@ -3,8 +3,8 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { fft, renderSound, validateSoundSource, type RenderedSound, type SoundSource } from '../src/sound';
-import { SOUNDS, beamVoice, cuesBetween, engineVoice, type ShipSound } from '../../examples/space-frigate/src/soundMix';
+import { fft, renderMusic, renderSound, validateMusicSource, validateSoundSource, type RenderedSound, type SoundSource } from '../src/sound';
+import { BEAM_REACH, ENGINE_AT, ENGINE_REACH, MUSIC, MUSIC_VOLUME, SOUNDS, beamVoice, cuesBetween, engineVoice, type ShipSound } from '../../examples/space-frigate/src/soundMix';
 
 const PROJECT = path.resolve(__dirname, '../../examples/space-frigate');
 const AUDIO = path.join(PROJECT, 'assets/audio');
@@ -15,7 +15,7 @@ const render = (file: string): RenderedSound => {
     if (!made.has(file)) made.set(file, renderSound(source(file)));
     return made.get(file)!;
 };
-const mono = (sound: RenderedSound): Float32Array => {
+const mono = (sound: Pick<RenderedSound, 'channels'>): Float32Array => {
     const [left, right] = sound.channels;
     if (!right) return left!;
     return left!.map((v, i) => (v + right[i]!) / 2);
@@ -26,7 +26,18 @@ const level = (samples: Float32Array, from = 0, to = samples.length): number => 
     return Math.sqrt(sum / Math.max(1, to - from));
 };
 
-function shareAbove(sound: RenderedSound, hz: number): number {
+const bend = (a: number, b: number, c: number): number => Math.abs(c - 2 * b + a);
+const seamBend = (samples: Float32Array): number => {
+    const n = samples.length;
+    return Math.max(bend(samples[n - 2]!, samples[n - 1]!, samples[0]!), bend(samples[n - 1]!, samples[0]!, samples[1]!));
+};
+const sharpestBend = (samples: Float32Array): number => {
+    let sharpest = 0;
+    for (let i = 2; i < samples.length; i++) sharpest = Math.max(sharpest, bend(samples[i - 2]!, samples[i - 1]!, samples[i]!));
+    return sharpest;
+};
+
+function shareAbove(sound: Pick<RenderedSound, 'channels' | 'rate'>, hz: number): number {
     const samples = mono(sound);
     const size = 1 << Math.floor(Math.log2(samples.length));
     const re = new Float64Array(size), im = new Float64Array(size);
@@ -69,25 +80,61 @@ describe('the space frigate\'s sounds, as recipes', () => {
     it.each(LOOPS)('%s goes round without a step at its seam or a swell along it', (file) => {
         expect(source(file).loop).toBe(true);
         const samples = mono(render(file));
-        let widest = 0;
-        for (let i = 1; i < samples.length; i++) widest = Math.max(widest, Math.abs(samples[i]! - samples[i - 1]!));
-        expect(Math.abs(samples[0]! - samples[samples.length - 1]!)).toBeLessThanOrEqual(widest);
+        expect(seamBend(samples)).toBeLessThanOrEqual(sharpestBend(samples));
         const quarter = Math.floor(samples.length / 4);
         const quarters = [0, 1, 2, 3].map((q) => level(samples, q * quarter, (q + 1) * quarter));
         expect(Math.min(...quarters) / Math.max(...quarters)).toBeGreaterThan(0.7);
     });
 
-    it.each(SHOTS)('%s speaks at once and is silent by its end', (file) => {
+    it.each(SHOTS)('%s speaks within a fifth of a second and is silent by its end', (file) => {
         const sound = render(file), samples = mono(sound);
-        const opening = Math.round(0.06 * sound.rate), closing = Math.round(0.02 * sound.rate);
-        expect(level(samples, 0, opening)).toBeGreaterThan(0.02);
+        const opening = Math.min(samples.length, Math.round(0.2 * sound.rate)), closing = Math.round(0.02 * sound.rate);
+        expect(level(samples, 0, opening)).toBeGreaterThan(0.01);
         expect(level(samples, samples.length - closing)).toBeLessThan(0.02);
     });
 
-    it('keeps the engine low and puts the beam above it, which is what the measured bands tell apart', () => {
-        expect(shareAbove(render(SOUNDS.engine), 400)).toBeLessThan(0.2);
-        expect(shareAbove(render(SOUNDS.engine), 3000)).toBeLessThan(0.02);
-        expect(shareAbove(render(SOUNDS.beam), 3000)).toBeGreaterThan(0.05);
+    it('keeps the engine a low drone and puts the beam above it, which is what the measured bands tell apart', () => {
+        expect(shareAbove(render(SOUNDS.engine), 400)).toBeLessThan(0.05);
+        expect(shareAbove(render(SOUNDS.engine), 3000)).toBeLessThan(0.0005);
+        expect(shareAbove(render(SOUNDS.beam), 3000)).toBeGreaterThan(shareAbove(render(SOUNDS.engine), 3000) * 20);
+    });
+
+    it('lets nothing through that would be harsh: no sound has much above three kilohertz', () => {
+        for (const file of FILES) expect(shareAbove(render(file), 3000), file).toBeLessThan(0.05);
+    });
+});
+
+describe('the space frigate\'s music, as a recipe', () => {
+    const written = validateMusicSource(JSON.parse(readFileSync(path.join(PROJECT, MUSIC), 'utf8')));
+    const piece = renderMusic(written);
+    const samples = mono(piece);
+
+    it('is the file the script names, registered as a music source, and played under the sounds', () => {
+        expect(JSON.parse(readFileSync(path.join(PROJECT, `${MUSIC}.meta`), 'utf8')).type).toBe('musicSource');
+        expect(MUSIC_VOLUME).toBeGreaterThan(0.1);
+        expect(MUSIC_VOLUME).toBeLessThan(0.6);
+    });
+
+    it('is a loop of a minute or so, whole and never clipped', () => {
+        expect(written.loop).not.toBe(false);
+        expect(piece.seconds).toBeGreaterThan(45);
+        expect(piece.seconds).toBeLessThan(180);
+        for (const channel of piece.channels) expect(channel.every(Number.isFinite)).toBe(true);
+        expect(piece.peak).toBeGreaterThan(0.3);
+        expect(piece.peak).toBeLessThanOrEqual(1);
+    });
+
+    it('is calm: little above two kilohertz, and no stretch of it silent or far louder than the rest', () => {
+        expect(shareAbove(piece, 2000)).toBeLessThan(0.05);
+        const span = Math.round(5 * piece.rate);
+        const levels: number[] = [];
+        for (let from = 0; from + span <= samples.length; from += span) levels.push(level(samples, from, from + span));
+        expect(Math.min(...levels)).toBeGreaterThan(0.03);
+        expect(Math.min(...levels) / Math.max(...levels)).toBeGreaterThan(0.4);
+    });
+
+    it('goes round without a step at its seam', () => {
+        expect(seamBend(samples)).toBeLessThanOrEqual(sharpestBend(samples));
     });
 });
 
@@ -106,6 +153,13 @@ describe('what the space frigate sounds like, from its state', () => {
         expect(full.pitch).toBeGreaterThan(half.pitch);
         expect(engineVoice(-3)).toEqual(idle);
         expect(engineVoice(7)).toEqual(full);
+    });
+
+    it('the engine and the beam are placed on the ship and fall away with distance', () => {
+        expect(ENGINE_AT.z).toBeLessThan(0);
+        expect(ENGINE_REACH.near).toBeGreaterThan(0);
+        expect(ENGINE_REACH.far).toBeGreaterThan(ENGINE_REACH.near);
+        expect(BEAM_REACH.far).toBeGreaterThan(BEAM_REACH.near);
     });
 
     it('the beam sounds only while it fires, higher as the emitter heats', () => {

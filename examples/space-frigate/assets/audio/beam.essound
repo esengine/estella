@@ -1,49 +1,45 @@
 {
   "version": 1,
-  "duration": 2,
+  "duration": 3,
   "loop": true,
-  "gain": 0.8,
+  "gain": 0.7,
+  "lowpass": 6000,
   "layers": [
     {
-      "id": "body",
+      "id": "hum",
       "source": "sine",
-      "freq": 98,
-      "gain": 0.35
+      "freq": 220,
+      "gain": 0.5
     },
     {
-      "id": "buzz",
-      "source": "saw",
-      "freq": 196,
-      "gain": 0.5,
-      "fm": {
-        "ratio": 2.01,
-        "index": 2.5
-      },
-      "tremolo": {
-        "rate": 31,
+      "id": "beat",
+      "source": "sine",
+      "freq": 221.5,
+      "gain": 0.4
+    },
+    {
+      "id": "ray",
+      "source": "triangle",
+      "freq": 660,
+      "gain": 0.22,
+      "vibrato": {
+        "rate": 6,
         "depth": 0.25
-      },
-      "filters": [
-        {
-          "type": "bandpass",
-          "freq": 900,
-          "q": 1.5
-        }
-      ]
+      }
     },
     {
-      "id": "sizzle",
+      "id": "shimmer",
       "source": "noise",
       "band": [
-        2500,
-        9000
+        3000,
+        6500
       ],
-      "wide": 0.7,
+      "wide": 0.6,
       "seed": 21,
-      "gain": 0.25,
+      "gain": 0.1,
       "tremolo": {
-        "rate": 23,
-        "depth": 0.4
+        "rate": 9,
+        "depth": 0.3
       }
     }
   ]
