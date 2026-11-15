@@ -48,11 +48,16 @@ try {
     expect('this browser lets the mixer be measured', (await facts()).soundMeasured === true, await facts());
     expect('the music starts with the scene', await when(() => window.__estellaCooked.facts().soundMusic === true && window.__estellaCooked.facts().soundLow > 0.02, null, 60000), await facts());
     const tap = async (key) => { await page.keyboard.down(key); await page.waitForTimeout(150); await page.keyboard.up(key); await page.waitForTimeout(150); };
-    await tap('KeyM');
-    expect('M stops the music', await when(() => window.__estellaCooked.facts().soundMusic === false, null, 5000), await facts());
-    await page.waitForTimeout(1500);
     await tap('Digit1');
     expect('1 holds the camera at one distance', (await facts()).tour === false, await facts());
+    await page.waitForTimeout(4000);
+    const first = await hear(), second = await hear();
+    const playing = { low: (first.low + second.low) / 2, high: (first.high + second.high) / 2 };
+    await tap('KeyM');
+    expect('M stops the music', await when(() => window.__estellaCooked.facts().soundMusic === false, null, 5000), await facts());
+    await page.waitForTimeout(6000);
+    const silenced = await hear();
+    expect('the music is heard at the mixer output, and gone once it is stopped', playing.low + playing.high > silenced.low + silenced.high + 0.01, { playing, silenced });
     const heard = await when(() => window.__estellaCooked.facts().soundLow > 0.02, null, 30000);
     expect('the engine is heard at the mixer output with the music off', heard, await facts());
 

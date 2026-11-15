@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { fft, renderMusic, renderSound, validateMusicSource, validateSoundSource, type RenderedSound, type SoundSource } from '../src/sound';
+import { decodeWav, fft, renderMusic, renderSound, validateMusicSource, validateSoundSource, type RenderedSound, type SoundSource } from '../src/sound';
 import { BEAM_REACH, ENGINE_AT, ENGINE_REACH, MUSIC, MUSIC_VOLUME, SOUNDS, beamVoice, cuesBetween, engineVoice, type ShipSound } from '../../examples/space-frigate/src/soundMix';
 
 const PROJECT = path.resolve(__dirname, '../../examples/space-frigate');
@@ -106,13 +106,28 @@ describe('the space frigate\'s sounds, as recipes', () => {
 
 describe('the space frigate\'s music, as a recipe', () => {
     const written = validateMusicSource(JSON.parse(readFileSync(path.join(PROJECT, MUSIC), 'utf8')));
-    const piece = renderMusic(written);
+    const recordings = [...new Set(Object.values(written.instruments).flatMap((instrument) => (instrument.samples ?? []).map((sample) => sample.file)))];
+    const given = Object.fromEntries(recordings.map((file) => {
+        const wav = decodeWav(new Uint8Array(readFileSync(path.join(PROJECT, file))));
+        return [file, { rate: wav.rate, channels: wav.channels }];
+    }));
+    const piece = renderMusic(written, given);
     const samples = mono(piece);
 
     it('is the file the script names, registered as a music source, and played under the sounds', () => {
         expect(JSON.parse(readFileSync(path.join(PROJECT, `${MUSIC}.meta`), 'utf8')).type).toBe('musicSource');
         expect(MUSIC_VOLUME).toBeGreaterThan(0.1);
         expect(MUSIC_VOLUME).toBeLessThan(0.6);
+    });
+
+    it('plays a piano that is recordings in the project, each registered, with the licence they came under beside them', () => {
+        expect(recordings.length).toBeGreaterThan(4);
+        for (const file of recordings) {
+            expect(file).toMatch(/^assets\/audio\/piano\/.+\.wav$/);
+            expect(JSON.parse(readFileSync(path.join(PROJECT, `${file}.meta`), 'utf8')).type).toBe('audio');
+        }
+        expect(readdirSync(path.join(AUDIO, 'piano')).filter((name) => name.endsWith('.wav')).map((name) => `assets/audio/piano/${name}`).sort()).toEqual([...recordings].sort());
+        expect(readFileSync(path.join(AUDIO, 'piano/LICENSE.txt'), 'utf8')).toMatch(/CC0 1\.0/);
     });
 
     it('is a loop of a minute or so, whole and never clipped', () => {
