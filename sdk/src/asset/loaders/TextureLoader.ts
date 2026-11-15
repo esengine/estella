@@ -4,7 +4,7 @@ import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
 import { linearColorSpace, samplesAsSrgb } from '../../ecs/env';
 import { platformCreateImage } from '../../platform/base';
 import type { PlatformImage } from '../../platform/types';
-import { decodeImageBitmap, fetchImageBitmap, readImagePixels, shrinkBitmap } from '../imageDecode';
+import { decodeBlobBitmap, decodeImageBitmap, fetchImageBitmap, readImagePixels, shrinkBitmap } from '../imageDecode';
 import { requireResourceManager } from '../../wasm/resourceManager';
 import { TextureContent, type ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasm/wasmScratch';
@@ -346,19 +346,30 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         return full.width > made.width || full.height > made.height ? { ...made, fullWidth: full.width, fullHeight: full.height } : made;
     }
 
-    /** An encoded image in memory, through the same image path a URL takes. */
     private async uploadImageBytes_(
         bytes: Uint8Array, flip: boolean, settings?: TextureImportSettings, maxEdge = 0,
     ): Promise<TextureResult> {
-        const url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'image/png' }));
+        const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'image/png' });
+        const full = { width: 0, height: 0 };
+        const img = await this.decodeBlob_(blob, flip, maxEdge, full);
+        const made = this.createTextureFromImage(img, flip, settings);
+        return full.width > made.width || full.height > made.height ? { ...made, fullWidth: full.width, fullHeight: full.height } : made;
+    }
+
+    private async decodeBlob_(blob: Blob, flip: boolean, maxEdge: number, full: { width: number; height: number }): Promise<PlatformImage | ImageBitmap> {
+        const decoded = await decodeBlobBitmap(blob, flip);
+        if (decoded) return this.sizedBitmap_(decoded, maxEdge, full);
+        const url = URL.createObjectURL(blob);
         try {
-            const full = { width: 0, height: 0 };
-            const img = await this.loadImage(url, flip, maxEdge, undefined, full);
-            const made = this.createTextureFromImage(img, flip, settings);
-            return full.width > made.width || full.height > made.height ? { ...made, fullWidth: full.width, fullHeight: full.height } : made;
+            return await this.loadImageElement_(url, url, flip, maxEdge, full);
         } finally {
             URL.revokeObjectURL(url);
         }
+    }
+
+    private sizedBitmap_(bitmap: ImageBitmap, maxEdge: number, full?: { width: number; height: number }): Promise<ImageBitmap> {
+        if (full) { full.width = bitmap.width; full.height = bitmap.height; }
+        return shrinkBitmap(bitmap, maxEdge);
     }
 
     /**
@@ -475,12 +486,12 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             revised.searchParams.set('_esTextureRevision', String(revision));
             url = revised.href;
         }
-        // From the bytes first: decoded off the page's thread.
         const fetched = await fetchImageBitmap(url, flip);
-        if (fetched) {
-            if (full) { full.width = fetched.width; full.height = fetched.height; }
-            return shrinkBitmap(fetched, maxEdge);
-        }
+        if (fetched) return this.sizedBitmap_(fetched, maxEdge, full);
+        return this.loadImageElement_(src, url, flip, maxEdge, full);
+    }
+
+    private loadImageElement_(src: string, url: string, flip: boolean, maxEdge: number, full?: { width: number; height: number }): Promise<PlatformImage | ImageBitmap> {
         return new Promise((resolve, reject) => {
             const img = platformCreateImage();
             img.crossOrigin = 'anonymous';

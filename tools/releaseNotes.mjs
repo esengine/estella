@@ -5148,4 +5148,6 @@ export const NOTED = {
     { note: "A model bakes on every core, and keeps what it measured." },
   "perf(modeling): bake-model shades its texels on every core too - reading the dense surface at each texel of the map was one thread's twelve seconds of a 4096 bake; the raster now only records which triangle covers each texel, and the reading runs in blocks of 16384 texels on the bake's workers, each block's counts added in order so the report is the same on any number of threads. One function weighs a texel in its triangle for both. The frigate's 4096 maps: 55 seconds, 21 once the probes are kept":
     { note: "A model bakes on every core, and keeps what it measured." },
+  "fix(assets): a texture's bytes in memory are decoded as they stand, not fetched back through a blob: URL - uploadImageBytes_ wrapped the PNG a compressed source answers with in an object URL and gave it to loadImage, which since 4231ef7a4 fetches the URL first; the editor's connect-src does not allow blob:, so each such texture logged a policy violation and was decoded through an <img> on the page's thread. The bytes now go to createImageBitmap as a Blob (decodeBlobBitmap, which fetchImageBitmap also calls), and to an element only where that cannot decode them":
+    { note: "Textures the editor shows as a build ships them are decoded off the main thread." },
 };
