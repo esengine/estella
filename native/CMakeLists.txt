@@ -640,7 +640,7 @@ if(ESTELLA_QUICKJS_DIR)
                 "-framework AVFoundation" "-framework CoreAudio" "-framework AudioToolbox"
                 "-framework CoreText" "-framework CoreGraphics" "-framework Foundation" "-framework Network")
         endif()
-        add_executable(test_native_wss EXCLUDE_FROM_ALL "${REPO}/tests/net/ws_probe.cpp" host/net/WsClient.cpp ${DESKTOP_TLS_SOURCE})
+        add_executable(test_native_wss EXCLUDE_FROM_ALL tools/ws_probe.cpp host/net/WsClient.cpp ${DESKTOP_TLS_SOURCE})
         target_include_directories(test_native_wss PRIVATE host)
         if(ESTELLA_WINDOWS)
             target_link_libraries(test_native_wss PRIVATE ws2_32 secur32)
