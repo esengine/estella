@@ -5086,4 +5086,6 @@ export const NOTED = {
     { note: "Stars that stay points." },
   "feat(examples): a space frigate built from a recipe - a frigate patrols off a gas giant with no hand-painted texture and no imported model: one model source builds its hull, plating, worn paint, windows, lights and engines and bakes them to a thin mesh and five maps, the nebula and the planet are generated, the stars are the Starfield effect, and two small shaders draw the planet's air and the engine plumes; a camera tours six shots and the keyboard and mouse take it over and work the throttle, with scripts to regenerate the assets, capture frames and check the controls headlessly. The post-processing page lists Starfield":
     { note: "A space frigate example, built from a recipe." },
+  "fix(render): textures uploaded by the SDK stay sharp at a slant - a compressed or decoded image handed to WebGL2 from script set its filters and mipmaps and never its anisotropy, which only textures the engine made itself were given, so every material map of an exported web game blurred along a surface seen edge-on; it now takes up to sixteen samples where it is mipmapped and linear, asked of the device once a context. The corpus check knows what a model source is":
+    { note: "Textures in a web build stay sharp on a surface seen at a slant." },
 };

@@ -66,6 +66,20 @@ export function uploadBoundTextureImage(
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
 }
 
+const MAX_ANISOTROPY = 16;
+const anisotropyByContext = new WeakMap<object, { name: number; most: number } | null>();
+
+function anisotropyOf(gl: WebGL2RenderingContext): { name: number; most: number } | null {
+    let known = anisotropyByContext.get(gl);
+    if (known === undefined) {
+        const ext = typeof gl.getExtension === 'function' ? gl.getExtension('EXT_texture_filter_anisotropic') : null;
+        const most = ext ? Math.min(MAX_ANISOTROPY, Number(gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT)) || 1) : 1;
+        known = ext && most > 1 ? { name: ext.TEXTURE_MAX_ANISOTROPY_EXT, most } : null;
+        anisotropyByContext.set(gl, known);
+    }
+    return known;
+}
+
 /**
  * Give the bound texture its sampler state, generating mipmaps when it is to
  * have them — one call, because "has mipmaps" and "uses a mipmap min-filter"
@@ -86,6 +100,8 @@ export function applyBoundTextureSampling(gl: WebGL2RenderingContext, sampling?:
     // A chain that stops before 1x1 is complete only when told where it ends.
     if (uploaded > 1) gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAX_LEVEL, uploaded - 1);
     else if (useMipmaps) gl.generateMipmap(gl.TEXTURE_2D);
+    const slant = anisotropyOf(gl);
+    if (slant) gl.texParameterf(gl.TEXTURE_2D, slant.name, useMipmaps && filter !== 'nearest' ? slant.most : 1);
 }
 
 // =============================================================================

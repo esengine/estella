@@ -77,6 +77,7 @@ const NOT_INSTANCE_FORMATS = {
   '.esfsm': 'a state machine',
   '.esgraph': 'a script graph: events, an exec wire, and data wires between named verbs',
   '.esmesh': 'an import result, regenerated from the model beside it',
+  '.esmodel': 'a model source: the steps that build a mesh and bake its maps; the MeshRenderer that draws the result belongs to a scene',
   '.inputmap': 'input actions and their bindings',
   '.tmj': 'a Tiled map; the engine derives RuntimeOnly entities from it',
   '.json': 'tsconfig / package metadata / user component schemas',
