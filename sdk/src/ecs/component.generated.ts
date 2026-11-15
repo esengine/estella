@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, Canv
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '19dcbf4878f79091';
+export const ABI_LAYOUT_HASH = '34fd70a1b6a3abc0';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -825,6 +825,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             renderMode: 0,
             velocityScale: 0,
             lengthScale: 1,
+            intensity: 1,
             enabled: true,
             subEmitterTrigger: 0,
             subEmitterChance: 1,
@@ -852,7 +853,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         assetFields: [{ field: 'texture', type: 'texture' as AssetFieldType }, { field: 'material', type: 'material' as AssetFieldType }],
         entityFields: ['subEmitter'],
         colorFields: ['startColor', 'endColor'],
-        animatableFields: [],
+        animatableFields: ['intensity'],
         fields: {
             rate: { min: 0, category: "Emission" },
             burstCount: { min: 0, step: 1, category: "Emission" },
@@ -908,6 +909,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             renderMode: { enum: [{ label: 'Billboard', value: 0 }, { label: 'Stretched', value: 1 }], tooltip: "Billboard faces the view. Stretched lays the quad's long axis (its Y) along the particle's velocity and lengthens it with speed. Drawn by the CPU simulation; a GPU-simulated emitter draws as Billboard.", category: "Rendering" },
             velocityScale: { min: 0, tooltip: "Stretched: how much of the particle's speed is added to the quad's length, in world units per unit of speed.", category: "Rendering", shownWhen: { field: "renderMode", values: [1] } },
             lengthScale: { min: 0, tooltip: "Stretched: the quad's own length is its size times this.", category: "Rendering", shownWhen: { field: "renderMode", values: [1] } },
+            intensity: { min: 0, tooltip: "Multiplies the particle's colour (not its alpha) as it is drawn, past 1 where the picture is HDR: what makes a spark bright enough to bloom. A material's fragment receives the colour already multiplied. The CPU simulation's per-particle trail is drawn without it.", category: "Rendering" },
             subEmitterTrigger: { enum: [{ label: 'Death', value: 0 }, { label: 'Birth', value: 1 }, { label: 'Collision', value: 2 }], category: "SubEmitter" },
             subEmitterChance: { min: 0, max: 1, category: "SubEmitter" },
             subEmitterInheritVelocity: { min: 0, max: 1, category: "SubEmitter" },
@@ -1921,6 +1923,7 @@ export interface ParticleEmitterData {
     renderMode: ParticleRenderMode;
     velocityScale: number;
     lengthScale: number;
+    intensity: number;
     enabled: boolean;
     subEmitterTrigger: SubEmitterTrigger;
     subEmitterChance: number;

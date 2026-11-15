@@ -29,6 +29,13 @@ struct Particle {
     u32 subEmitterDepth = 0;
 };
 
+inline f32 unitHash(u32 v) {
+    const u32 s = v * 747796405u + 2891336453u;
+    u32 w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+    w = (w >> 22u) ^ w;
+    return static_cast<f32>(w >> 8u) * (1.0f / 16777216.0f);
+}
+
 class ParticlePool {
 public:
     explicit ParticlePool(u32 capacity);

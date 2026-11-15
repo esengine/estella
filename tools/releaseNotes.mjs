@@ -5042,4 +5042,16 @@ export const NOTED = {
     {"note": "A development build's line to the editor refuses a message it cannot hold."},
   "refactor(engine): module entries are checked against their own declarations, and walking a particle pool costs no std::function - the video, 2D physics and 3D physics sources defined their exported functions without including the header that declares them, and C linkage does not compare the two; each now includes it, so a signature that drifts is a compile error. ParticlePool::forEachAlive and ParticleSystem::forEachParticle take the callable as a template parameter, as ResourcePool does":
     {"internal": "Which headers the module sources include and how a particle walk takes its callback; nothing a creator runs changes."},
+  "feat(particles): particles glow in HDR, fade into the scene behind them and wear away, and a material can bend the frame drawn so far":
+    { note: "Particles glow in HDR, fade into the scene and wear away." },
+  "feat(examples): a VFX showcase - an energy core charges over a rune circle, detonates and burns out":
+    { note: "A VFX showcase example." },
+  "fix(particles): a particle's new inputs stay within its eight vertex slots, and the snapshots that record the emitter's shape follow it":
+    { note: "Particles glow in HDR, fade into the scene and wear away." },
+  "chore(editor): the submodule moves to the gallery text of the VFX showcase":
+    { note: "A VFX showcase example." },
+  "feat(launcher): the VFX showcase example reads in Chinese in the new-project gallery":
+    { note: "A VFX showcase example." },
+  "chore(notes): the showcase's gallery text reaches the note of the example it names":
+    {"internal": "A line in the notes file; nothing a creator runs changes."},
 };

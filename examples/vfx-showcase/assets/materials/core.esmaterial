@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "energy-core.esshader",
+  "blendMode": 1,
+  "depthTest": true,
+  "depthWrite": false,
+  "cull": 0,
+  "properties": {
+    "u_inner": {
+      "r": 0.2,
+      "g": 0.7,
+      "b": 1.0,
+      "a": 1.0
+    },
+    "u_rim": {
+      "r": 0.45,
+      "g": 0.16,
+      "b": 1.0,
+      "a": 1.0
+    },
+    "u_intensity": 0.0,
+    "u_flow": 1.0,
+    "u_instability": 0.0
+  }
+}

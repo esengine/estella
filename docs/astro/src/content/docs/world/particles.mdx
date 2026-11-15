@@ -196,6 +196,7 @@ See [Noise & turbulence](#noise--turbulence-1) below.
 | `renderMode` | `ParticleRenderMode` | `Billboard` | `Billboard` faces the view; `Stretched` lays the quad along the particle's velocity (see [Stretched particles](#stretched-particles)). |
 | `velocityScale` | number | `0` | `Stretched`: length added per unit of speed. |
 | `lengthScale` | number | `1` | `Stretched`: the quad's own length is its size times this. |
+| `intensity` | number | `1` | Multiplies the particle's colour (not its alpha) as it is drawn. In linear colour space the picture is HDR, so a value past 1 makes a spark bright enough to bloom. A timeline can drive it. The CPU simulation's per-particle trail is drawn without it. |
 | `enabled` | boolean | `true` | Disable to freeze and hide without removing the component. |
 
 ### Sub-emitter
@@ -510,6 +511,30 @@ With `renderMode: Stretched` each particle's quad turns so its Y axis runs along
 `size × lengthScale + speed × velocityScale` while its width stays the particle's own. Use a texture drawn pointing up: a spark,
 a raindrop, a streak. A particle that is not moving keeps the rotation it was born with. Stretching is done where the CPU
 simulation draws; an emitter simulated on the GPU draws as `Billboard`.
+
+## Particle materials
+
+Give an emitter a `material` and its fragment stage owns the particle's shading. Beside `v_color` (already multiplied by
+`intensity`) and `v_texCoord`, the particle variant hands the fragment one more input:
+
+| Input | When | What |
+|---|---|---|
+| `v_particle` | `#ifdef PARTICLE` | `x` normalized age (0 at birth, 1 at death), `y` a 0..1 random number the particle keeps for life, `z` its lifetime in seconds, `w` the emitter's `intensity`. |
+| `v_worldXYZ`, `v_worldNormal` | the shader declares `#pragma feature PARTICLE_WORLD`, under `#ifdef MESH_NORMALS` | The particle's world position, and a normal facing the camera. |
+
+Two built-in templates use them:
+
+- **Particle** (`builtin:particle`): texture × colour, plus two things. `u_softness` is a distance in world units over which
+  a particle fades as it nears the opaque scene behind it, so smoke and mist no longer cut a hard line into the ground or a wall;
+  `u_erosion` (0..1) wears the texture away with age, the low-alpha parts first, and `u_erosionEdge` is how soft that edge is.
+- **Distortion** (`builtin:distortion`): draws the picture already behind it, bent — heat haze, a shockwave, a lens. The
+  texture's alpha (times the particle's or mesh's colour alpha) says where and how much; `u_strength` is the offset as a
+  fraction of the screen, `u_radial` chooses between a noise wobble (0) and a push outward from the quad's centre (1), and
+  `u_dispersion` splits red from blue. It works on a `MeshRenderer` too.
+
+Both the depth fade and the distortion read what the frame has already drawn, which needs the picture to go through the
+post-processing chain (linear colour space, an output transform, or any effect). Without one a particle draws unfaded and a
+distortion draws nothing.
 
 ## Blend modes
 

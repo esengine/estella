@@ -187,6 +187,7 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 | `renderMode` | `ParticleRenderMode` | `Billboard` | `Billboard` 朝向视图;`Stretched` 让四边形沿粒子速度方向拉伸(见[拉伸粒子](#拉伸粒子))。 |
 | `velocityScale` | number | `0` | `Stretched`:每单位速度增加的长度。 |
 | `lengthScale` | number | `1` | `Stretched`:四边形自身长度是 size 乘以它。 |
+| `intensity` | number | `1` | 绘制时乘到粒子颜色(不含 alpha)上的倍数。线性色彩空间下画面是 HDR,大于 1 的值让火花亮到能触发泛光。可被时间线驱动。CPU 模拟的逐粒子拖尾不受它影响。 |
 | `enabled` | boolean | `true` | 关掉即冻结并隐藏,而不移除组件。 |
 
 ### 子发射器 (Sub-emitter)
@@ -469,6 +470,28 @@ cmds.spawn()
 `renderMode` 设为 `Stretched` 后，每个粒子的四边形会转到 Y 轴沿着粒子速度的方向，长度是
 `size × lengthScale + speed × velocityScale`，宽度仍是粒子自己的大小。贴图应画成朝上的形状：火花、雨滴、拖光。
 静止的粒子保持出生时的旋转。拉伸发生在 CPU 模拟的绘制处，用 GPU 模拟的发射器按 `Billboard` 绘制。
+
+## 粒子材质
+
+给发射器的 `material` 指定一个材质,粒子的着色就完全由它的片元决定。除了 `v_color`(已乘过 `intensity`)和 `v_texCoord`,
+粒子变体还多给片元一个输入:
+
+| 输入 | 条件 | 内容 |
+|---|---|---|
+| `v_particle` | `#ifdef PARTICLE` | `x` 归一化年龄(0 出生,1 死亡),`y` 每个粒子固定的 0..1 随机数,`z` 寿命(秒),`w` 发射器的 `intensity`。 |
+| `v_worldXYZ`、`v_worldNormal` | 着色器声明 `#pragma feature PARTICLE_WORLD`,在 `#ifdef MESH_NORMALS` 下 | 粒子的世界坐标,以及朝向相机的法线。 |
+
+两个内置模板直接可用:
+
+- **Particle**(`builtin:particle`):贴图 × 颜色,外加两件事。`u_softness` 是世界单位的距离,粒子在离它背后的不透明场景
+  这么近以内逐渐淡出,烟和雾不再在地面、墙上切出一条硬边;`u_erosion`(0..1)让贴图随年龄被侵蚀,alpha 低的地方先消失,
+  `u_erosionEdge` 是侵蚀边缘的软硬。
+- **Distortion**(`builtin:distortion`):把它背后已经画好的画面弯折后画出来,用于热浪、冲击波、透镜。贴图的 alpha(乘粒子或
+  网格的颜色 alpha)决定哪里弯、弯多少;`u_strength` 是屏幕比例的偏移量,`u_radial` 在噪声抖动(0)和从四边形中心向外推(1)
+  之间选,`u_dispersion` 把红蓝通道分开。它也能挂在 `MeshRenderer` 上。
+
+深度淡出和扭曲都要读这一帧已画好的内容,需要画面经过后处理链(线性色彩空间、有输出变换或任一后处理效果时即是);
+没有链时粒子照常画、不淡出,扭曲不画。
 
 ## 混合模式
 

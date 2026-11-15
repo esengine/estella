@@ -311,7 +311,7 @@ void RenderFrame::drawScene(DrawList::Phase phase) {
 #ifdef ES_ENABLE_POSTPROCESS
     // The atlas the meshes reflect, for an effect that adds a reflection of its own where the scene's ray found none.
     if (post_process_) post_process_->setEnvironmentTexture(environment_texture_id_);
-    if (phase == DrawList::Phase::SceneColorOnly || phase == DrawList::Phase::BlendedOnly) {
+    if (phase == DrawList::Phase::SceneColorOnly || phase == DrawList::Phase::BlendedOnly || phase == DrawList::Phase::ScreenColorOnly) {
         // The second half of a scene drawn in two: the same camera, shifted the same way, and a frame that must not step the
         // temporal view a second time.
         jitter = scene_jitter_;
@@ -821,11 +821,36 @@ void RenderFrame::end() {
 #ifdef ES_ENABLE_POSTPROCESS
         layered = glass && draw_list_.anyBlendedWithoutSceneColor(context_.materials());
 #endif
+        bool screen = false;
+#ifdef ES_ENABLE_POSTPROCESS
+        screen = usePostProcess && draw_list_.anyUsesScreenColor(context_.materials());
+#endif
+        draw_list_.setDeferScreenColor(screen);
+        rg::PassDesc screenPass;
+        if (screen) screenPass = scene;
+        bool depthFade = false;
+#ifdef ES_ENABLE_POSTPROCESS
+        depthFade = usePostProcess && !glass && draw_list_.anyUsesSceneDepth(context_.materials()) && post_process_->canGrabDepth();
+#endif
         rg::PassDesc glassPass;
         rg::PassDesc blendedPass, overPass;
         rg::ResourceId grabOpaque = rg::kNoResource;
         rg::ResourceId grab = rg::kNoResource;
         rg::ResourceId grabDepth = rg::kNoResource;
+        if (depthFade) {
+#ifdef ES_ENABLE_POSTPROCESS
+            grabDepth = graph_.createTarget(post_process_->grabDepthTarget());
+            blendedPass = scene;
+            blendedPass.name = "scene-blended";
+            blendedPass.dependencies.push_back(grabDepth);
+            blendedPass.execute = [this, grabDepth, screen](const rg::PassContext&) {
+                context_.materials().setSceneDepth(graph_.textureOf(grabDepth));
+                drawScene(DrawList::Phase::BlendedOnly);
+                context_.materials().setSceneDepth(TextureHandle::Invalid);
+                if (!screen && presented_overlay_draw_) presented_overlay_draw_->flushDeferred();
+            };
+#endif
+        }
         if (glass) {
 #ifdef ES_ENABLE_POSTPROCESS
             grab = graph_.createTarget(post_process_->grabTarget());
@@ -844,22 +869,29 @@ void RenderFrame::end() {
                 blendedPass.name = "scene-blended";
                 blendedPass.dependencies.push_back(grabOpaque);
                 if (grabDepth != rg::kNoResource) blendedPass.dependencies.push_back(grabDepth);
-                blendedPass.execute = [this](const rg::PassContext&) { drawScene(DrawList::Phase::BlendedOnly); };
+                blendedPass.execute = [this, grabDepth](const rg::PassContext&) {
+                    if (grabDepth != rg::kNoResource) context_.materials().setSceneDepth(graph_.textureOf(grabDepth));
+                    drawScene(DrawList::Phase::BlendedOnly);
+                    context_.materials().setSceneDepth(TextureHandle::Invalid);
+                };
                 overPass = scene;
                 overPass.name = "scene-blended-over";
                 overPass.dependencies.push_back(grab);
-                overPass.execute = [this](const rg::PassContext&) {
+                if (grabDepth != rg::kNoResource) overPass.dependencies.push_back(grabDepth);
+                overPass.execute = [this, grabDepth, screen](const rg::PassContext&) {
+                    if (grabDepth != rg::kNoResource) context_.materials().setSceneDepth(graph_.textureOf(grabDepth));
                     drawScene(DrawList::Phase::BlendedOnly);
-                    if (presented_overlay_draw_) presented_overlay_draw_->flushDeferred();
+                    context_.materials().setSceneDepth(TextureHandle::Invalid);
+                    if (!screen && presented_overlay_draw_) presented_overlay_draw_->flushDeferred();
                 };
             }
-            glassPass.execute = [this, grab, grabDepth, layered](const rg::PassContext&) {
+            glassPass.execute = [this, grab, grabDepth, layered, screen](const rg::PassContext&) {
                 context_.materials().setSceneColor(graph_.textureOf(grab));
                 if (grabDepth != rg::kNoResource) context_.materials().setSceneDepth(graph_.textureOf(grabDepth));
                 drawScene(DrawList::Phase::SceneColorOnly);
                 context_.materials().setSceneColor(TextureHandle::Invalid);
                 context_.materials().setSceneDepth(TextureHandle::Invalid);
-                if (!layered && presented_overlay_draw_) presented_overlay_draw_->flushDeferred();
+                if (!layered && !screen && presented_overlay_draw_) presented_overlay_draw_->flushDeferred();
             };
 #endif
         }
@@ -869,15 +901,15 @@ void RenderFrame::end() {
         // writes depth, then the blended draws, depth-tested against it. Those in front of the surface land on it, those under it are hidden.
         const bool ordered = !glass && draw_list_.anyUsesSceneColor(context_.materials())
                      && draw_list_.anyBlendedWithoutSceneColor(context_.materials());
-        scene.execute = [this, glass, layered, ordered](const rg::PassContext&) {
+        scene.execute = [this, glass, layered, ordered, depthFade, screen](const rg::PassContext&) {
             if (ordered) {
                 drawScene(DrawList::Phase::OpaqueOnly);
                 drawScene(DrawList::Phase::SceneColorOnly);
                 drawScene(DrawList::Phase::BlendedOnly);
             } else {
-                drawScene(layered ? DrawList::Phase::OpaqueOnly : glass ? DrawList::Phase::WithoutSceneColor : DrawList::Phase::All);
+                drawScene(layered || depthFade ? DrawList::Phase::OpaqueOnly : glass ? DrawList::Phase::WithoutSceneColor : DrawList::Phase::All);
             }
-            if (!glass && presented_overlay_draw_) presented_overlay_draw_->flushDeferred();
+            if (!glass && !depthFade && !screen && presented_overlay_draw_) presented_overlay_draw_->flushDeferred();
         };
         graph_.addPass(std::move(scene));
 #ifdef ES_ENABLE_GPU_PARTICLES
@@ -923,6 +955,37 @@ void RenderFrame::end() {
 #endif
             graph_.addPass(std::move(glassPass));
             if (layered) graph_.addPass(std::move(overPass));
+        }
+        if (depthFade) {
+#ifdef ES_ENABLE_POSTPROCESS
+            rg::PassDesc copyDepth;
+            copyDepth.name = "scene-grab-depth";
+            copyDepth.reads = {scene_resource_};
+            copyDepth.write = grabDepth;
+            copyDepth.execute = [this](const rg::PassContext&) { post_process_->grabDepth(); };
+            graph_.addPass(std::move(copyDepth));
+            graph_.addPass(std::move(blendedPass));
+#endif
+        }
+        if (screen) {
+#ifdef ES_ENABLE_POSTPROCESS
+            const rg::ResourceId grabScreen = graph_.createTarget(post_process_->grabTarget());
+            rg::PassDesc copyScreen;
+            copyScreen.name = "screen-grab";
+            copyScreen.reads = {scene_resource_};
+            copyScreen.write = grabScreen;
+            copyScreen.execute = [this](const rg::PassContext&) { post_process_->grabScene(); };
+            graph_.addPass(std::move(copyScreen));
+            screenPass.name = "scene-screen";
+            screenPass.dependencies.push_back(grabScreen);
+            screenPass.execute = [this, grabScreen](const rg::PassContext&) {
+                context_.materials().setScreenColor(graph_.textureOf(grabScreen));
+                drawScene(DrawList::Phase::ScreenColorOnly);
+                context_.materials().setScreenColor(TextureHandle::Invalid);
+                if (presented_overlay_draw_) presented_overlay_draw_->flushDeferred();
+            };
+            graph_.addPass(std::move(screenPass));
+#endif
         }
     }
 
