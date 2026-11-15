@@ -15,11 +15,29 @@ const PLUMES = [
 
 const GLOWS = ['EngineGlowL', 'EngineGlowR', 'EngineGlowNL', 'EngineGlowNR'] as const;
 const GATES = ['GateA', 'GateB'] as const;
+const GATE_RADIUS = 170;
+const MOTE_FIELD = { x: 170, y: 100, z: 240 };
+const MOTE_CLEAR = 34;
+const STROBES = [
+    { name: 'StrobeMast', size: 0.55, every: 1.7, flashes: 2 },
+    { name: 'StrobeKeel', size: 0.5, every: 1.3, flashes: 1 },
+    { name: 'BowPort', size: 0.34, every: 2.3, flashes: 1 },
+    { name: 'BowStarboard', size: 0.34, every: 2.3, flashes: 1 },
+    { name: 'GateAStrobe', size: 2.6, every: 2.9, flashes: 3 },
+    { name: 'GateBStrobe', size: 2.6, every: 2.9, flashes: 3 },
+] as const;
+const STEADY = ['NavPort', 'NavStarboard'] as const;
+
+function strobe(time: number, every: number, flashes: number): number {
+    const phase = (time % every) / 0.16;
+    const lit = phase < flashes * 2 - 1 && Math.floor(phase) % 2 === 0;
+    return lit ? 1 : 0;
+}
 
 addPlugin({
     name: 'space-frigate',
     build(app) {
-        const facts = { ready: false, frame: 0, time: 0, throttle: 0, tour: true, shot: 0, eyeX: 0, eyeY: 0, eyeZ: 0, gate: 0, gatePassed: 0 };
+        const facts = { ready: false, frame: 0, time: 0, throttle: 0, tour: true, shot: 0, eyeX: 0, eyeY: 0, eyeZ: 0, gate: 0, gatePassed: 0, transits: 0, flash: 0, motes: 0, strobe: 0 };
         app.insertResource(Playthrough, { facts });
         installHud(app);
         installAudio(app);
@@ -34,6 +52,10 @@ addPlugin({
         let ahead = 1;
         let arrivals = -1;
         let gateFacing: Quat = { x: 0, y: 0, z: 0, w: 1 };
+        let passedFacing: Quat = { x: 0, y: 0, z: 0, w: 1 };
+        let passedSide = 0;
+        let flash = 0;
+        let motes = -1;
 
         const get = (world: World, name: string): Entity => {
             const known = ids.get(name);
@@ -129,6 +151,8 @@ addPlugin({
             if (helm.arrivals !== arrivals) {
                 arrivals = helm.arrivals;
                 ahead = 1 - ahead;
+                passedFacing = gateFacing;
+                passedSide = 0;
                 const yaw = Math.atan2(helm.gate.x, helm.gate.z);
                 const pitch = Math.atan2(helm.gate.y, Math.hypot(helm.gate.x, helm.gate.z) || 1e-6);
                 gateFacing = mulQuat({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }, { x: -Math.sin(pitch / 2), y: 0, z: 0, w: Math.cos(pitch / 2) });
@@ -144,6 +168,58 @@ addPlugin({
             world.insert(behind, Transform, left);
             facts.gate = Math.hypot(helm.gate.x, helm.gate.y, helm.gate.z);
             facts.gatePassed = Math.hypot(left.position.x, left.position.y, left.position.z);
+
+            const axis = turnBy(passedFacing, { x: 0, y: 0, z: 1 });
+            const along = left.position.x * axis.x + left.position.y * axis.y + left.position.z * axis.z;
+            const side = Math.sign(along);
+            if (passedSide !== 0 && side !== 0 && side !== passedSide && facts.gatePassed < GATE_RADIUS) {
+                flash = 1;
+                facts.transits++;
+            }
+            if (side !== 0) passedSide = side;
+            flash *= Math.exp(-dt * 2.2);
+            const burst = get(world, 'GateFlash');
+            world.insert(burst, Light, { ...world.get(burst, Light), intensity: 4 * flash });
+            Material.setUniform(world.get(get(world, 'GateAField'), MeshRenderer).material, 'u_strength', 0.45 + 3 * flash);
+            facts.flash = flash;
+
+            if (motes < 0) {
+                motes = 0;
+                while (world.findEntityByName(`Mote${motes}`) !== null) motes++;
+            }
+            for (let i = 0; i < motes; i++) {
+                const e = get(world, `Mote${i}`);
+                const t = world.get(e, Transform);
+                const wrap = (v: number, half: number): number => (v < -half ? v + half * 2 : v > half ? v - half * 2 : v);
+                let x = wrap(t.position.x - helm.forward.x * drift, MOTE_FIELD.x);
+                let y = wrap(t.position.y - helm.forward.y * drift, MOTE_FIELD.y);
+                const z = wrap(t.position.z - helm.forward.z * drift, MOTE_FIELD.z);
+                const off = Math.hypot(x, y);
+                if (off < MOTE_CLEAR && Math.abs(z) < 80) {
+                    const out = MOTE_CLEAR / (off || 1);
+                    x = off ? x * out : MOTE_CLEAR;
+                    y *= out;
+                }
+                t.position = { x, y, z };
+                world.insert(e, Transform, t);
+            }
+            facts.motes = motes;
+
+            for (const lamp of STROBES) {
+                const lit = strobe(clock, lamp.every, lamp.flashes);
+                const e = get(world, lamp.name);
+                const t = world.get(e, Transform);
+                const size = lamp.size * (0.04 + 0.96 * lit);
+                t.scale = { x: size, y: size, z: size };
+                world.insert(e, Transform, t);
+                const glow = world.findEntityByName(`${lamp.name}Light`);
+                if (glow !== null) world.insert(glow, Light, { ...world.get(glow, Light), intensity: 0.9 * lit });
+            }
+            for (const name of STEADY) {
+                const glow = get(world, `${name}Light`);
+                world.insert(glow, Light, { ...world.get(glow, Light), intensity: 0.32 + 0.06 * Math.sin(clock * 2.1) });
+            }
+            facts.strobe = strobe(clock, STROBES[0].every, STROBES[0].flashes);
 
             facts.ready = true;
             facts.frame++;

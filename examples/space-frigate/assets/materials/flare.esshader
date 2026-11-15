@@ -1,0 +1,27 @@
+#pragma shader "Space Flare"
+#pragma version 300 es
+#pragma domain Unlit
+#pragma param u_tint color default(1,1,1,1)
+#pragma param u_strength float default(4) range(0,80)
+#pragma param u_falloff float default(2.5) range(0.5,8)
+
+#pragma fragment
+precision highp float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+#ifdef MESH_NORMALS
+in highp vec3 v_worldNormal;
+in highp vec3 v_worldXYZ;
+#endif
+
+out vec4 fragColor;
+
+void main() {
+    float facing = 1.0;
+#ifdef MESH_NORMALS
+    facing = abs(dot(normalize(v_worldNormal), viewDirection(v_worldXYZ)));
+#endif
+    fragColor = vec4(u_tint.rgb * (pow(facing, u_falloff) * u_strength), 1.0);
+}
+#pragma end

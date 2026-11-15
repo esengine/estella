@@ -371,6 +371,10 @@ def ship_source():
 
 
 GATE_RADIUS = 170.0
+FLARES = {'white': (1.0, 1.0, 1.0), 'red': (1.0, 0.08, 0.04), 'green': (0.08, 1.0, 0.25)}
+STROBES = [('StrobeMast', (0, 23.1, -24.3), 'white', 0.55), ('StrobeKeel', (0, -10.95, -12), 'red', 0.5), ('NavPort', (17, 3.05, -20), 'red', 0.42), ('NavStarboard', (-17, 3.05, -20), 'green', 0.42),
+           ('BowPort', (3.3, -0.1, 59.1), 'white', 0.34), ('BowStarboard', (-3.3, -0.1, 59.1), 'white', 0.34)]
+MOTES = 150
 
 def gate_source():
     S=[]
@@ -443,6 +447,7 @@ def gate_source():
 
 
 SMALL = {
+    'flare': {'version': 1, 'smoothAngle': 80, 'steps': [{'op': 'sphere', 'radius': 1, 'rings': 8, 'sides': 12, 'tag': 'flare', 'color': [1, 1, 1]}]},
     'gate-field': {'version': 1, 'smoothAngle': 80, 'steps': [{'op': 'plane', 'size': 2, 'tag': 'field', 'color': [1, 1, 1]}, {'op': 'transform', 'rotate': [90, 0, 0]}]},
     'planet': {'version': 1, 'smoothAngle': 80, 'material': {'roughness': 0.92, 'metallic': 0, 'texture': 'assets/textures/giant.png'},
                'steps': [{'op': 'sphere', 'radius': 1, 'rings': 64, 'sides': 128, 'tag': 'planet', 'color': [1, 1, 1]}, {'op': 'uv', 'mode': 'sphere'}]},
@@ -492,12 +497,15 @@ def make_materials():
                                       'u_falloff': 1.3, 'u_fade': 2.4, 'u_diamonds': 5, 'u_knots': 1.4, 'u_flicker': 0.14}},
         'gatefield': {'version': '1.0', 'type': 'material', 'shader': 'gatefield.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 0,
                       'properties': {'u_core': {'r': 0.7, 'g': 0.9, 'b': 1.0, 'a': 1}, 'u_edge': {'r': 0.08, 'g': 0.3, 'b': 1.0, 'a': 1}, 'u_strength': 0.45, 'u_swirl': 1}},
+        **{f'flare-{name}': {'version': '1.0', 'type': 'material', 'shader': 'flare.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 1,
+                             'properties': {'u_tint': {'r': tint[0], 'g': tint[1], 'b': tint[2], 'a': 1}, 'u_strength': 9, 'u_falloff': 2.2}}
+           for name, tint in FLARES.items()},
     }
     for name, doc in docs.items():
         path = MAT / f'{name}.esmaterial'
         path.write_text(json.dumps(doc, indent=2) + '\n')
         stamp(path, 'material')
-    for name in ('atmosphere', 'plume', 'gatefield'):
+    for name in ('atmosphere', 'plume', 'gatefield', 'flare'):
         stamp(MAT / f'{name}.esshader', 'shader')
     hull = MODELS / 'frigate.esmaterial'
     if hull.exists():
@@ -590,6 +598,21 @@ def make_scene():
         add(name + 'Core', [transform((0, 0, 0.15), None, (0.42, 0.42, 0.78)), mesh('plume', 'assets/materials/plume-core.esmaterial', None, False, False, False, False)], sheath)
     for name, at in [('EngineGlowL', (4.5, 0, -52)), ('EngineGlowR', (-4.5, 0, -52)), ('EngineGlowNL', (17, -1, -52)), ('EngineGlowNR', (-17, -1, -52))]:
         add(name, [transform(at), {'type': 'Light', 'data': {'type': 0, 'color': {'r': 0.6, 'g': 0.75, 'b': 1.0, 'a': 1}, 'intensity': 0.4, 'radius': 14, 'enabled': True, 'meshShadows': False}}], ship)
+    for name, at, tint, size in STROBES:
+        lamp = add(name, [transform(at, None, (size,) * 3), mesh('flare', f'assets/materials/flare-{tint}.esmaterial', None, False, False, True, False)], ship)
+        add(name + 'Light', [transform(), {'type': 'Light', 'data': {'type': 0, 'color': dict(zip('rgb', FLARES[tint]), a=1), 'intensity': 0.5, 'radius': 9, 'enabled': True, 'meshShadows': False}}], lamp)
+    add('GateFlash', [transform(), {'type': 'Light', 'data': {'type': 0, 'color': {'r': 0.55, 'g': 0.78, 'b': 1.0, 'a': 1}, 'intensity': 0, 'radius': 320, 'enabled': True, 'meshShadows': False}}])
+    dust = random.Random(71)
+    for i in range(MOTES):
+        at = (0, 0, 0)
+        while math.hypot(at[0], at[1]) < 34:
+            at = (dust.uniform(-170, 170), dust.uniform(-100, 100), dust.uniform(-240, 240))
+        spin = [dust.gauss(0, 1) for _ in range(4)]
+        norm = math.sqrt(sum(q * q for q in spin))
+        kind = 'rock-' + 'abc'[i % 3]
+        size = dust.uniform(0.12, 0.5) * (1 + 2.5 * dust.random() ** 5)
+        add(f'Mote{i}', [transform(at, {'x': spin[0] / norm, 'y': spin[1] / norm, 'z': spin[2] / norm, 'w': spin[3] / norm}, (size,) * 3),
+                         mesh(kind, f'assets/models/{kind}.esmaterial', f'assets/models/{kind}_color.png', True, True, True, False)])
     rocks = random.Random(47)
     for placed in range(46):
         far = placed >= 40
@@ -607,6 +630,7 @@ def make_scene():
                               mesh(kind, f'assets/models/{kind}.esmaterial', f'assets/models/{kind}_color.png', True, True, True, False)])
     for name, at in [('GateA', (0, 14, 2600)), ('GateB', (0, -60000, 0))]:
         gate = add(name, [transform(at), mesh('gate', 'assets/models/gate.esmaterial', 'assets/models/gate_color.png', True, True, True, False)])
+        add(name + 'Strobe', [transform((0, GATE_RADIUS + 96.5, 0), None, (2.6,) * 3), mesh('flare', 'assets/materials/flare-white.esmaterial', None, False, False, True, False)], gate)
         add(name + 'Field', [transform((0, 0, 0), None, (GATE_RADIUS - 13,) * 3), mesh('gate-field', 'assets/materials/gatefield.esmaterial', None, False, False, False, False)], gate)
     add('Planet', [transform(PLANET_AT, None, (PLANET_RADIUS,) * 3), mesh('planet', 'assets/models/planet.esmaterial', 'assets/textures/giant.png', True, True, True, False)])
     add('Atmosphere', [transform(PLANET_AT, None, (PLANET_RADIUS * 1.022,) * 3), mesh('shell', 'assets/materials/atmosphere.esmaterial', None, False, False, True, False)])
