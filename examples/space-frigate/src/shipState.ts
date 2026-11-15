@@ -8,3 +8,7 @@ export const ship = {
 };
 
 export const TOP_SPEED = 420;
+
+export const DRIFTING_ROCKS = 40;
+export const FIELD_HALF_LENGTH = 1600;
+export const FIELD_DRIFT = 0.12;

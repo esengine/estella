@@ -650,6 +650,2260 @@
   },
   {
    "id": 15,
+   "name": "Rock0",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -399.424270820542,
+       "y": -135.00405009311845,
+       "z": 600.0654362644729
+      },
+      "rotation": {
+       "x": -0.6219418082732401,
+       "y": 0.49881235720459144,
+       "z": -0.5262653312361992,
+       "w": 0.295667753670678
+      },
+      "scale": {
+       "x": 7.126936471546873,
+       "y": 7.126936471546873,
+       "z": 7.126936471546873
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 16,
+   "name": "Rock1",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -1101.7807813396767,
+       "y": -158.45171540813703,
+       "z": 128.27942595466706
+      },
+      "rotation": {
+       "x": 0.8226449752213166,
+       "y": -0.46988780037315353,
+       "z": -0.29167899721674745,
+       "w": -0.13184863437378297
+      },
+      "scale": {
+       "x": 4.78573148176791,
+       "y": 4.78573148176791,
+       "z": 4.78573148176791
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 17,
+   "name": "Rock2",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 1084.3541912678122,
+       "y": -300.24368862034584,
+       "z": 229.99371881402922
+      },
+      "rotation": {
+       "x": -0.2387163063948158,
+       "y": -0.5773517940727969,
+       "z": -0.7299082581248122,
+       "w": -0.27733259033756097
+      },
+      "scale": {
+       "x": 8.045085505987203,
+       "y": 8.045085505987203,
+       "z": 8.045085505987203
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 18,
+   "name": "Rock3",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 1093.1870377020668,
+       "y": -337.5913001462234,
+       "z": 246.36861722121913
+      },
+      "rotation": {
+       "x": -0.5143218645826433,
+       "y": 0.599605486998163,
+       "z": -0.5937583570311641,
+       "w": -0.15296173714227299
+      },
+      "scale": {
+       "x": 14.164815093021053,
+       "y": 14.164815093021053,
+       "z": 14.164815093021053
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 19,
+   "name": "Rock4",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 669.5732966749489,
+       "y": -462.48664511217106,
+       "z": -976.9646495639557
+      },
+      "rotation": {
+       "x": -0.02758250111659858,
+       "y": -0.7538085826043464,
+       "z": -0.5196191387837507,
+       "w": -0.40125774389264135
+      },
+      "scale": {
+       "x": 23.986639552611596,
+       "y": 23.986639552611596,
+       "z": 23.986639552611596
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 20,
+   "name": "Rock5",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -539.7720344289519,
+       "y": -224.92730529343714,
+       "z": -195.34971336570655
+      },
+      "rotation": {
+       "x": -0.15891708101114901,
+       "y": -0.03310220192789424,
+       "z": -0.37592689072707525,
+       "w": 0.9123204362605797
+      },
+      "scale": {
+       "x": 12.43336110254564,
+       "y": 12.43336110254564,
+       "z": 12.43336110254564
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 21,
+   "name": "Rock6",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -812.8679468340414,
+       "y": -90.02249811179888,
+       "z": -641.5992261986912
+      },
+      "rotation": {
+       "x": 0.09819791985634514,
+       "y": 0.3553196117791605,
+       "z": 0.903674649851208,
+       "w": -0.21789279299070455
+      },
+      "scale": {
+       "x": 10.787231131152673,
+       "y": 10.787231131152673,
+       "z": 10.787231131152673
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 22,
+   "name": "Rock7",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -1110.4749989415095,
+       "y": 52.025976793131306,
+       "z": -337.75535257594044
+      },
+      "rotation": {
+       "x": 0.4597578368190797,
+       "y": 0.2632985592226394,
+       "z": 0.325328252785798,
+       "w": -0.7832356785374774
+      },
+      "scale": {
+       "x": 8.827136359314899,
+       "y": 8.827136359314899,
+       "z": 8.827136359314899
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 23,
+   "name": "Rock8",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 1052.4392043533255,
+       "y": -383.62702846031544,
+       "z": 222.65466657476756
+      },
+      "rotation": {
+       "x": -0.44990556363887924,
+       "y": -0.5747155732689666,
+       "z": -0.3137407789861081,
+       "w": -0.6073332835026379
+      },
+      "scale": {
+       "x": 10.500034278917857,
+       "y": 10.500034278917857,
+       "z": 10.500034278917857
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 24,
+   "name": "Rock9",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 685.9013649168548,
+       "y": -273.40649982251034,
+       "z": 96.44621377819351
+      },
+      "rotation": {
+       "x": -0.5109984218572793,
+       "y": 0.7421976526508842,
+       "z": 0.41871057159521274,
+       "w": -0.11271519193656851
+      },
+      "scale": {
+       "x": 19.880396654404354,
+       "y": 19.880396654404354,
+       "z": 19.880396654404354
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 25,
+   "name": "Rock10",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -538.1575587345893,
+       "y": -259.41246588434177,
+       "z": 431.91970489250946
+      },
+      "rotation": {
+       "x": 0.9283091960567827,
+       "y": 0.002635806985156505,
+       "z": 0.33918130763299814,
+       "w": 0.152286340787072
+      },
+      "scale": {
+       "x": 16.53872495057526,
+       "y": 16.53872495057526,
+       "z": 16.53872495057526
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 26,
+   "name": "Rock11",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -745.3580057506053,
+       "y": 7.710166380977583,
+       "z": 42.272651441503115
+      },
+      "rotation": {
+       "x": 0.37547378847717866,
+       "y": -0.9196936175183127,
+       "z": -0.10576987144780631,
+       "w": -0.04467458289216328
+      },
+      "scale": {
+       "x": 4.305810654785129,
+       "y": 4.305810654785129,
+       "z": 4.305810654785129
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 27,
+   "name": "Rock12",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -594.9182551659388,
+       "y": 101.05040827125049,
+       "z": 959.3800308107453
+      },
+      "rotation": {
+       "x": 0.5881045586782383,
+       "y": -0.5696257526218108,
+       "z": 0.5321839641312941,
+       "w": 0.2154988592392347
+      },
+      "scale": {
+       "x": 11.128671180700394,
+       "y": 11.128671180700394,
+       "z": 11.128671180700394
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 28,
+   "name": "Rock13",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -731.0608413829332,
+       "y": -2.350001107313645,
+       "z": -237.17179906238772
+      },
+      "rotation": {
+       "x": -0.6844475113696278,
+       "y": -0.6345920273847344,
+       "z": 0.31375819804879934,
+       "w": 0.1742996159399844
+      },
+      "scale": {
+       "x": 4.620238037920244,
+       "y": 4.620238037920244,
+       "z": 4.620238037920244
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 29,
+   "name": "Rock14",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -511.518443406508,
+       "y": -284.2674981967158,
+       "z": 670.3138032315908
+      },
+      "rotation": {
+       "x": 0.22316634827985105,
+       "y": -0.33154366366666094,
+       "z": 0.5858472001466668,
+       "w": 0.705023856446174
+      },
+      "scale": {
+       "x": 27.453088563895857,
+       "y": 27.453088563895857,
+       "z": 27.453088563895857
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 30,
+   "name": "Rock15",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 429.38729632483825,
+       "y": -222.05814524252528,
+       "z": -860.4858984765996
+      },
+      "rotation": {
+       "x": -0.6381639722473226,
+       "y": -0.27107822518331315,
+       "z": 0.6591723112873394,
+       "w": 0.29112747103131753
+      },
+      "scale": {
+       "x": 5.473981618672588,
+       "y": 5.473981618672588,
+       "z": 5.473981618672588
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 31,
+   "name": "Rock16",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 480.387277163223,
+       "y": -262.1471973661226,
+       "z": 68.6588746402902
+      },
+      "rotation": {
+       "x": -0.6415211359119286,
+       "y": 0.16699318582552242,
+       "z": -0.12541876765359508,
+       "w": 0.738128742690843
+      },
+      "scale": {
+       "x": 11.12950880280393,
+       "y": 11.12950880280393,
+       "z": 11.12950880280393
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 32,
+   "name": "Rock17",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -902.7905281754256,
+       "y": -166.29535081658307,
+       "z": -646.5766811179514
+      },
+      "rotation": {
+       "x": 0.1660834254586807,
+       "y": -0.6338325442076532,
+       "z": -0.6431043845886125,
+       "w": 0.39634499140782176
+      },
+      "scale": {
+       "x": 27.817426478609466,
+       "y": 27.817426478609466,
+       "z": 27.817426478609466
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 33,
+   "name": "Rock18",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 501.9872134411024,
+       "y": -111.31936241465357,
+       "z": -201.66177751306515
+      },
+      "rotation": {
+       "x": -0.3164479898541142,
+       "y": 0.8790141511860251,
+       "z": -0.34599416268431127,
+       "w": -0.08650335901214876
+      },
+      "scale": {
+       "x": 19.167090394998965,
+       "y": 19.167090394998965,
+       "z": 19.167090394998965
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 34,
+   "name": "Rock19",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 470.14567131047096,
+       "y": 79.36085977679706,
+       "z": -532.2886536405442
+      },
+      "rotation": {
+       "x": -0.5032973303697067,
+       "y": -0.5632546734296267,
+       "z": 0.1605325653956937,
+       "w": 0.6353465712112469
+      },
+      "scale": {
+       "x": 15.591605542623956,
+       "y": 15.591605542623956,
+       "z": 15.591605542623956
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 35,
+   "name": "Rock20",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -1200.450343463721,
+       "y": 34.690639048426746,
+       "z": 430.1012804170793
+      },
+      "rotation": {
+       "x": -0.32694631974119914,
+       "y": 0.7246874389600172,
+       "z": 0.3400736519289629,
+       "w": 0.5022789375286958
+      },
+      "scale": {
+       "x": 23.527356493854217,
+       "y": 23.527356493854217,
+       "z": 23.527356493854217
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 36,
+   "name": "Rock21",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -612.1316406399814,
+       "y": 57.16588922347755,
+       "z": -533.2692737295156
+      },
+      "rotation": {
+       "x": -0.17168206063379207,
+       "y": 0.6056535427726,
+       "z": 0.7099405764364484,
+       "w": -0.3157426707187623
+      },
+      "scale": {
+       "x": 11.27260057697432,
+       "y": 11.27260057697432,
+       "z": 11.27260057697432
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 37,
+   "name": "Rock22",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -900.0770863610522,
+       "y": -294.49238507636653,
+       "z": -75.02254308745049
+      },
+      "rotation": {
+       "x": 0.5653795943836623,
+       "y": 0.08252306730142528,
+       "z": 0.5744504739232652,
+       "w": -0.5861249957364607
+      },
+      "scale": {
+       "x": 26.186999692210126,
+       "y": 26.186999692210126,
+       "z": 26.186999692210126
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 38,
+   "name": "Rock23",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -633.7125612824032,
+       "y": -190.58610705718533,
+       "z": -625.872118828288
+      },
+      "rotation": {
+       "x": -0.9163227463925623,
+       "y": -0.3516127170518183,
+       "z": -0.13720520671430272,
+       "w": 0.13377538227011587
+      },
+      "scale": {
+       "x": 14.160576723221602,
+       "y": 14.160576723221602,
+       "z": 14.160576723221602
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 39,
+   "name": "Rock24",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -349.61660275890654,
+       "y": -185.1505005827465,
+       "z": 218.74517644911361
+      },
+      "rotation": {
+       "x": 0.41599641985699926,
+       "y": 0.8281186991310749,
+       "z": 0.3755733780990159,
+       "w": 0.010537384823053629
+      },
+      "scale": {
+       "x": 8.317868894800593,
+       "y": 8.317868894800593,
+       "z": 8.317868894800593
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 40,
+   "name": "Rock25",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -842.6542743920282,
+       "y": -423.8355326213374,
+       "z": -59.65047415745027
+      },
+      "rotation": {
+       "x": 0.22355064356467294,
+       "y": -0.8821928130484427,
+       "z": 0.3195222892916706,
+       "w": -0.26394404144307976
+      },
+      "scale": {
+       "x": 4.81963966048347,
+       "y": 4.81963966048347,
+       "z": 4.81963966048347
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 41,
+   "name": "Rock26",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -853.0371426152974,
+       "y": 49.09924411411812,
+       "z": 342.416122609895
+      },
+      "rotation": {
+       "x": -0.37453627489651287,
+       "y": 0.2886276789694104,
+       "z": -0.8032577539727708,
+       "w": 0.3622066018200031
+      },
+      "scale": {
+       "x": 24.961285454055133,
+       "y": 24.961285454055133,
+       "z": 24.961285454055133
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 42,
+   "name": "Rock27",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 752.5477830412024,
+       "y": -184.28750385698933,
+       "z": 582.548292372195
+      },
+      "rotation": {
+       "x": 0.5503001128467755,
+       "y": -0.08899332219345679,
+       "z": 0.8157652252789424,
+       "w": 0.15419815702982392
+      },
+      "scale": {
+       "x": 15.844829369419628,
+       "y": 15.844829369419628,
+       "z": 15.844829369419628
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 43,
+   "name": "Rock28",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -855.5835241214096,
+       "y": -28.39004329009638,
+       "z": -41.952397214962865
+      },
+      "rotation": {
+       "x": 0.03139694333478992,
+       "y": -0.35948683600834785,
+       "z": -0.7349326755488741,
+       "w": -0.5741580001153973
+      },
+      "scale": {
+       "x": 4.60391816144886,
+       "y": 4.60391816144886,
+       "z": 4.60391816144886
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 44,
+   "name": "Rock29",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -819.4666230515548,
+       "y": 26.960340381667933,
+       "z": -291.43069310221574
+      },
+      "rotation": {
+       "x": 0.34661033997981994,
+       "y": 0.27489111999276766,
+       "z": -0.7575749600280217,
+       "w": -0.47997533718591906
+      },
+      "scale": {
+       "x": 8.00718590054023,
+       "y": 8.00718590054023,
+       "z": 8.00718590054023
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 45,
+   "name": "Rock30",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -141.21433671922858,
+       "y": -385.00939361568805,
+       "z": -710.6771098290964
+      },
+      "rotation": {
+       "x": 0.25628153667138825,
+       "y": 0.25935949012773196,
+       "z": -0.5393020255216527,
+       "w": 0.7590821787595051
+      },
+      "scale": {
+       "x": 10.059387567697456,
+       "y": 10.059387567697456,
+       "z": 10.059387567697456
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 46,
+   "name": "Rock31",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -480.0111557526184,
+       "y": -430.0849016138169,
+       "z": 688.3368785340506
+      },
+      "rotation": {
+       "x": -0.17552401908360193,
+       "y": 0.4115930111869692,
+       "z": 0.33472640533434456,
+       "w": -0.829301359843773
+      },
+      "scale": {
+       "x": 9.126547974286494,
+       "y": 9.126547974286494,
+       "z": 9.126547974286494
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 47,
+   "name": "Rock32",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -1134.701727261299,
+       "y": -174.99639604004886,
+       "z": 542.9720708239956
+      },
+      "rotation": {
+       "x": 0.014213299766960357,
+       "y": -0.77920238882012,
+       "z": -0.3751362495614838,
+       "w": 0.5019107626179151
+      },
+      "scale": {
+       "x": 23.231235631297547,
+       "y": 23.231235631297547,
+       "z": 23.231235631297547
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 48,
+   "name": "Rock33",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -112.24281371978637,
+       "y": -463.5379330144419,
+       "z": -798.4437211358273
+      },
+      "rotation": {
+       "x": 0.14303030067968686,
+       "y": -0.028534664217372042,
+       "z": 0.9160554297810536,
+       "w": -0.3735914286946761
+      },
+      "scale": {
+       "x": 7.756936299628653,
+       "y": 7.756936299628653,
+       "z": 7.756936299628653
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 49,
+   "name": "Rock34",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 427.3342093012036,
+       "y": -21.248412810561877,
+       "z": -66.64888644366818
+      },
+      "rotation": {
+       "x": 0.4773697580843582,
+       "y": -0.2867392145962108,
+       "z": -0.8146964308458211,
+       "w": 0.1617666913994031
+      },
+      "scale": {
+       "x": 9.521871841959376,
+       "y": 9.521871841959376,
+       "z": 9.521871841959376
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 50,
+   "name": "Rock35",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 423.36903671075345,
+       "y": -218.81170046008208,
+       "z": -224.9241947336222
+      },
+      "rotation": {
+       "x": 0.6054539489824168,
+       "y": 0.10128417760323505,
+       "z": 0.6921659854849185,
+       "w": -0.37956986124628633
+      },
+      "scale": {
+       "x": 12.894696039200111,
+       "y": 12.894696039200111,
+       "z": 12.894696039200111
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 51,
+   "name": "Rock36",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 778.6032985699542,
+       "y": -316.047532980243,
+       "z": -531.0178646888793
+      },
+      "rotation": {
+       "x": -0.5684336250721805,
+       "y": -0.7043499592423976,
+       "z": 0.4248423807881275,
+       "w": 0.01683152663332197
+      },
+      "scale": {
+       "x": 9.41949877847353,
+       "y": 9.41949877847353,
+       "z": 9.41949877847353
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 52,
+   "name": "Rock37",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 701.1838835133096,
+       "y": 166.63246827054115,
+       "z": 781.4701706741887
+      },
+      "rotation": {
+       "x": -0.6730831676235662,
+       "y": -0.602448365103679,
+       "z": 0.1676136599136005,
+       "w": -0.39486792457237946
+      },
+      "scale": {
+       "x": 5.37987835121755,
+       "y": 5.37987835121755,
+       "z": 5.37987835121755
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 53,
+   "name": "Rock38",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -629.8193153245348,
+       "y": -7.526527736624324,
+       "z": 354.9958645368341
+      },
+      "rotation": {
+       "x": 0.19027636419486718,
+       "y": -0.04477302559566718,
+       "z": -0.900178828353254,
+       "w": -0.38918936058473486
+      },
+      "scale": {
+       "x": 9.51136751572988,
+       "y": 9.51136751572988,
+       "z": 9.51136751572988
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 54,
+   "name": "Rock39",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 383.3951067422376,
+       "y": -187.14964074868425,
+       "z": 58.25969597039923
+      },
+      "rotation": {
+       "x": -0.3639433952042312,
+       "y": 0.20817997570157032,
+       "z": -0.5110045528215957,
+       "w": 0.7503870000204637
+      },
+      "scale": {
+       "x": 7.55511299640533,
+       "y": 7.55511299640533,
+       "z": 7.55511299640533
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 55,
+   "name": "Rock40",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -1777.70648907814,
+       "y": -511.27234158694733,
+       "z": -1836.5999002264539
+      },
+      "rotation": {
+       "x": 0.48608170048659477,
+       "y": -0.8058531428830895,
+       "z": 0.309926284713942,
+       "w": 0.13517022823432642
+      },
+      "scale": {
+       "x": 220.10751935612006,
+       "y": 220.10751935612006,
+       "z": 220.10751935612006
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 56,
+   "name": "Rock41",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -627.400313767794,
+       "y": -1002.6728142349177,
+       "z": 2075.836241970934
+      },
+      "rotation": {
+       "x": -0.11429782119333809,
+       "y": -0.0489634724075888,
+       "z": -0.9704673069494278,
+       "w": -0.20671669642912743
+      },
+      "scale": {
+       "x": 99.65350157832516,
+       "y": 99.65350157832516,
+       "z": 99.65350157832516
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 57,
+   "name": "Rock42",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -1251.6504227320524,
+       "y": 358.0201262989361,
+       "z": 2196.8326555051467
+      },
+      "rotation": {
+       "x": -0.273760348546458,
+       "y": -0.5210710103084194,
+       "z": -0.3690509398135124,
+       "w": 0.7192646784061122
+      },
+      "scale": {
+       "x": 160.6515523602704,
+       "y": 160.6515523602704,
+       "z": 160.6515523602704
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 58,
+   "name": "Rock43",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 1848.7384138983145,
+       "y": -717.3268703931046,
+       "z": 1515.5264513883956
+      },
+      "rotation": {
+       "x": 0.4762648326592846,
+       "y": 0.1500916214643745,
+       "z": 0.37477848650288664,
+       "w": -0.7811436490126668
+      },
+      "scale": {
+       "x": 170.64000421545444,
+       "y": 170.64000421545444,
+       "z": 170.64000421545444
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-b.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-b.esmaterial",
+      "texture": "assets/models/rock-b_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 59,
+   "name": "Rock44",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -1295.0755838565346,
+       "y": -729.2157031234794,
+       "z": -463.0890505355164
+      },
+      "rotation": {
+       "x": 0.634679622381721,
+       "y": -0.5047898671027491,
+       "z": 0.4944821001478518,
+       "w": 0.31282010746938027
+      },
+      "scale": {
+       "x": 181.78702980655515,
+       "y": 181.78702980655515,
+       "z": 181.78702980655515
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-c.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-c.esmaterial",
+      "texture": "assets/models/rock-c_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 60,
+   "name": "Rock45",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -1687.5603395240773,
+       "y": -583.156479769299,
+       "z": 1301.723413769679
+      },
+      "rotation": {
+       "x": 0.7066902330446829,
+       "y": -0.6100089469100948,
+       "z": -0.0796983850340023,
+       "w": -0.34946554426990506
+      },
+      "scale": {
+       "x": 191.26742601062216,
+       "y": 191.26742601062216,
+       "z": 191.26742601062216
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/rock-a.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/rock-a.esmaterial",
+      "texture": "assets/models/rock-a_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 61,
    "name": "Planet",
    "parent": null,
    "children": [],
@@ -692,7 +2946,7 @@
    ]
   },
   {
-   "id": 16,
+   "id": 62,
    "name": "Atmosphere",
    "parent": null,
    "children": [],

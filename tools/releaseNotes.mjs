@@ -5092,4 +5092,6 @@ export const NOTED = {
     { note: "Parts of a model can glow." },
   "feat(modeling): the modeling tool offers plating, texel stains and glow, and the gallery names the space frigate - model_write's list of steps is the build's again (panels, and texel, fray and glow on stain and paint), and the new-project gallery has the Space Frigate example's Chinese text":
     { note: "Plating for hard surfaces." },
+  "feat(examples): the space frigate flies through an asteroid field, with turrets that have a shape - three rocks are model sources of their own (a sphere displaced three ways, stained texel by texel, thinned to 2,400 triangles) and forty-six of them are placed round the ship, the near forty drifting aft with its speed so their parallax shows it; the hull's plates take a bevel wide enough to catch the light, and each turret has a housing, a mantlet and muzzle brakes. generate.py bakes only the models --models names":
+    { note: "A space frigate example, built from a recipe." },
 };

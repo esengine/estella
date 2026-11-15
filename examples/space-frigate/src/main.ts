@@ -2,7 +2,7 @@ import { addPlugin, defineSystem, GetWorld, Res, Time, Input, Transform, MeshRen
 import type { Entity, World } from 'esengine';
 import { SHOTS, SHOT_SECONDS, clamp, eyeOf, lookRotation, tourOrbit, type Orbit } from './flight';
 import { installHud } from './hud';
-import { ship, TOP_SPEED } from './shipState';
+import { ship, TOP_SPEED, DRIFTING_ROCKS, FIELD_HALF_LENGTH, FIELD_DRIFT } from './shipState';
 
 const PLUMES = [
     { name: 'PlumeL', width: 4.0, length: 2.3 },
@@ -105,6 +105,16 @@ addPlugin({
             ship.speed += (throttle * TOP_SPEED - ship.speed) * Math.min(1, dt * 0.8);
             ship.tour = tour;
             ship.shot = Math.floor(clock / SHOT_SECONDS) % SHOTS.length;
+
+            const drift = ship.speed * FIELD_DRIFT * dt;
+            for (let i = 0; i < DRIFTING_ROCKS; i++) {
+                const e = get(world, `Rock${i}`);
+                const t = world.get(e, Transform);
+                let z = t.position.z - drift;
+                if (z < -FIELD_HALF_LENGTH) z += FIELD_HALF_LENGTH * 2;
+                t.position = { x: t.position.x, y: t.position.y, z };
+                world.insert(e, Transform, t);
+            }
 
             facts.ready = true;
             facts.frame++;
