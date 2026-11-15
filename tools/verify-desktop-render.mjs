@@ -160,6 +160,49 @@ function linearColourReachesTheScreen(templateDir, work) {
         + (Math.abs(grey - 51) <= 6 ? ': that is the value with no encode, so the host ignored the colour space of the project' : '');
 }
 
+function aSaveSurvivesARelaunch(templateDir, work) {
+    const project = path.join(work, 'save-survives-project');
+    mkdirSync(path.join(project, 'assets', 'scenes'), { recursive: true });
+    mkdirSync(path.join(project, 'src'), { recursive: true });
+    writeFileSync(path.join(project, 'project.esproject'), JSON.stringify({
+        formatVersion: '1', name: 'SaveSurvives', version: '1.0.0', tag: '3D', defaultScene: 'assets/scenes/main.esscene',
+        designResolution: { width: 640, height: 360 }, spineVersion: 'none',
+    }));
+    writeFileSync(path.join(project, 'assets', 'scenes', 'main.esscene'), JSON.stringify({
+        version: 4, name: 'Main', entities: [
+            { id: 0, name: 'Camera', parent: null, children: [], visible: true, components: [
+                { type: 'Transform', data: { position: { x: 0, y: 0, z: 500 } } },
+                { type: 'Camera', data: { projectionType: 0, fov: 60, nearPlane: 1, farPlane: 2000, isActive: true, priority: 0, clearFlags: 3 } },
+            ] },
+            { id: 1, name: 'Block', parent: null, children: [], visible: true, components: [
+                { type: 'Transform', data: { scale: { x: 4, y: 4, z: 1 } } },
+                { type: 'MeshRenderer', data: { mesh: 'builtin:cube', lit: false, opaque: true, color: { r: 0.9, g: 0.4, b: 0.1, a: 1 } } },
+            ] },
+        ],
+    }));
+    writeFileSync(path.join(project, 'src', 'main.ts'), [
+        "import { addStartupSystem, defineSystem, Storage } from 'esengine';",
+        'addStartupSystem(defineSystem([], () => {',
+        "    const launches = (Storage.getNumber('launches', 0) ?? 0) + 1;",
+        "    Storage.setNumber('launches', launches);",
+        "    Storage.setNumber('written-after', launches);",
+        '    console.log(`save-survives launches=${launches}`);',
+        "}, { name: 'SaveSurvivesProbe' }));",
+        '',
+    ].join('\n'));
+    execFileSync(process.execPath, [path.join(ROOT, 'tools', 'asset-meta.js'), path.join(project, 'assets')], { stdio: 'pipe' });
+    const counts = [];
+    for (let launch = 0; launch < 3; launch += 1) {
+        const { output } = packageAndRun(project, templateDir, work);
+        const said = /save-survives launches=(\d+)/.exec(output);
+        if (!said) return `launch ${launch + 1} never reported its count, so the script did not run`;
+        counts.push(Number(said[1]));
+    }
+    return counts[1] === counts[0] + 1 && counts[2] === counts[0] + 2 ? null
+        : `three launches counted ${counts.join(', ')}: each has to read what the one before it saved`
+            + (counts[2] === counts[1] ? ', and the save stopped changing after one launch, so a write over an existing save is failing' : '');
+}
+
 const opts = parseArgs(process.argv.slice(2));
 const templateDir = opts.template ?? installedTemplateDir(
     JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version, HOST_OS);
@@ -246,6 +289,18 @@ try {
         failed += 1;
     } else {
         console.log('✓ linear colour: a linear project is encoded on the way to the screen');
+    }
+    let lost;
+    try {
+        lost = aSaveSurvivesARelaunch(templateDir, work);
+    } catch (err) {
+        lost = err.message;
+    }
+    if (lost) {
+        console.error(`✗ save survives: ${lost}`);
+        failed += 1;
+    } else {
+        console.log('✓ save survives: three launches each read what the one before saved');
     }
 } finally {
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
