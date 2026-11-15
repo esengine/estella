@@ -26,7 +26,9 @@ import { blendWeather, setCurrentWeather, WeatherDrive, type WeatherState } from
 import { hourAt, weatherAt, windSecondsAt, type WeatherMoment, type WeatherStart } from './weatherClock';
 import { Material } from '../render/material';
 import { advanceSkyClock, seekSkyClock, setSkyClockState } from './skyClock';
-import { timeOfDayAt, setCurrentTimeOfDay, TimeDrive, type TimeOfDayState } from './timeOfDay';
+import { timeOfDayAt, setCurrentTimeOfDay, timeScaleOfLight, TimeDrive, type TimeOfDayState } from './timeOfDay';
+import { PostProcess, type PostProcessAPI } from './PostProcessAPI';
+import { resolvedLightingSky } from './volumeSystem';
 
 /** What a light was authored with, kept so a weather scales the author's number and never its own last answer. */
 interface LightBase {
@@ -144,14 +146,15 @@ function keyLightAgrees(world: World, time: TimeOfDayState): boolean {
 }
 
 /** What is scaling the lights this frame: a weather, a time of day, either, both. */
-interface Rig {
+export interface LightRig {
     weather: WeatherState | null;
     weatherDrive: number;
     time: TimeOfDayState | null;
     timeDrive: number;
+    skyLightsScene: boolean;
 }
 
-function applyLights(world: World, rig: Rig): void {
+export function applyLights(world: World, rig: LightRig): void {
     const { weather, time } = rig;
     const lightsByWeather = !!weather && (rig.weatherDrive & WeatherDrive.Lights) !== 0;
     const reflectionsByWeather = !!weather && (rig.weatherDrive & WeatherDrive.Reflections) !== 0;
@@ -187,9 +190,10 @@ function applyLights(world: World, rig: Rig): void {
         }
         const sun = data.type === LIGHT_DIRECTIONAL;
         const wScale = lightsByWeather ? (sun ? weather!.sun : weather!.sky) : 1;
-        const tScale = lightsByTime ? (sun ? time!.light : time!.sky) : 1;
+        const byTime = lightsByTime ? timeScaleOfLight(time!, sun, rig.skyLightsScene && !data.environment) : null;
+        const tScale = byTime ? byTime.scale : 1;
         const wTint: [number, number, number] = lightsByWeather && sun ? weather!.sunTint : [1, 1, 1];
-        const tTint: [number, number, number] = lightsByTime ? (sun ? time!.lightTint : time!.skyTint) : [1, 1, 1];
+        const tTint: [number, number, number] = byTime ? byTime.tint : [1, 1, 1];
         const reflections = !sun && (reflectionsByWeather || reflectionsByTime);
         const refl = (reflectionsByWeather ? weather!.reflection : 1) * (reflectionsByTime ? time!.reflection : 1);
         const reflSat = (reflectionsByWeather ? weather!.reflectionSaturation : 1) * (reflectionsByTime ? time!.reflectionSaturation : 1);
@@ -291,8 +295,8 @@ function runDay(entity: Entity, data: TimeOfDayData): void {
 
 // system-access: the weather reads and writes the lights, the sound sources and the post-process volumes it drives, which no query names.
 export const weatherSystem = defineSystem(
-    [Query(Mut(Weather)), Query(Mut(TimeOfDay)), Res(Time), GetWorld()],
-    (weathers: Iterable<[Entity, WeatherData]>, times: Iterable<[Entity, TimeOfDayData]>, time: TimeData, world: World) => {
+    [Query(Mut(Weather)), Query(Mut(TimeOfDay)), Res(Time), Res(PostProcess), GetWorld()],
+    (weathers: Iterable<[Entity, WeatherData]>, times: Iterable<[Entity, TimeOfDayData]>, time: TimeData, postProcess: PostProcessAPI, world: World) => {
         let found: [Entity, WeatherData] | null = null;
         for (const entry of weathers) { found = entry; break; }
         let clock: [Entity, TimeOfDayData] | null = null;
@@ -358,7 +362,7 @@ export const weatherSystem = defineSystem(
 
         const lightWork = (weatherState !== null && (weatherDrive & (WeatherDrive.Lights | WeatherDrive.Reflections)) !== 0)
             || (timeState !== null && (timeDrive & (TimeDrive.Lights | TimeDrive.Reflections)) !== 0);
-        if (playing && lightWork) applyLights(world, { weather: weatherState, weatherDrive, time: timeState, timeDrive });
+        if (playing && lightWork) applyLights(world, { weather: weatherState, weatherDrive, time: timeState, timeDrive, skyLightsScene: resolvedLightingSky(postProcess, false) !== null });
         else if (bases.size > 0) restoreLights(world);
 
         if (found && playing && (found[1].drive & WeatherDrive.Sound) && found[1].soundSource) applySound(world, found[1].soundSource, weatherState!);
