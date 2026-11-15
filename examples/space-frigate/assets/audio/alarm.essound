@@ -1,33 +1,64 @@
 {
   "version": 1,
-  "duration": 1.1,
+  "duration": 1.2,
   "gain": 0.5,
-  "lowpass": 2200,
+  "lowpass": 2400,
   "layers": [
     {
-      "id": "high",
-      "source": "triangle",
-      "freq": 440,
-      "length": 0.16,
+      "id": "fall",
+      "source": "saw",
+      "freq": [
+        [
+          0,
+          420
+        ],
+        [
+          0.7,
+          110
+        ]
+      ],
+      "length": 0.8,
       "attack": 0.01,
-      "release": 0.04,
-      "repeat": {
-        "count": 2,
-        "every": 0.46
-      }
+      "release": 0.08,
+      "gain": [
+        [
+          0,
+          0.7
+        ],
+        [
+          0.55,
+          0.5
+        ],
+        [
+          0.8,
+          0
+        ]
+      ],
+      "filters": [
+        {
+          "type": "lowpass",
+          "freq": [
+            [
+              0,
+              1800
+            ],
+            [
+              0.7,
+              400
+            ]
+          ]
+        }
+      ]
     },
     {
-      "id": "low",
+      "id": "note",
       "source": "triangle",
-      "freq": 330,
-      "start": 0.2,
-      "length": 0.16,
+      "freq": 220,
+      "start": 0.85,
+      "length": 0.18,
       "attack": 0.01,
-      "release": 0.04,
-      "repeat": {
-        "count": 2,
-        "every": 0.46
-      }
+      "release": 0.06,
+      "gain": 0.6
     }
   ]
 }

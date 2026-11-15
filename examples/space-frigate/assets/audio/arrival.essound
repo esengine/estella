@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "duration": 3.4,
+  "duration": 3.8,
   "gain": 0.6,
-  "lowpass": 3000,
+  "lowpass": 4000,
   "reverb": {
     "size": 0.6,
     "mix": 0.35,
@@ -12,18 +12,41 @@
     {
       "id": "root",
       "source": "sine",
-      "freq": 220,
-      "attack": 0.25,
+      "freq": 293.66,
+      "attack": 0.3,
+      "release": 1.4,
+      "length": 2.4,
+      "gain": [
+        [
+          0,
+          0.6
+        ],
+        [
+          1,
+          0.6
+        ],
+        [
+          2.4,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "fifth",
+      "source": "sine",
+      "freq": 440,
+      "start": 0.1,
+      "attack": 0.3,
       "release": 1.4,
       "length": 2.2,
       "gain": [
         [
           0,
-          0.7
+          0.4
         ],
         [
-          0.8,
-          0.7
+          1,
+          0.4
         ],
         [
           2.2,
@@ -32,54 +55,58 @@
       ]
     },
     {
-      "id": "fifth",
-      "source": "sine",
-      "freq": 330,
-      "start": 0.12,
-      "attack": 0.3,
-      "release": 1.4,
-      "length": 2.0,
-      "gain": [
+      "id": "first",
+      "source": "modes",
+      "start": 0.3,
+      "gain": 0.5,
+      "modes": [
         [
-          0,
-          0.45
+          587.33,
+          1,
+          0.7
         ],
         [
-          0.8,
-          0.45
-        ],
-        [
-          2.0,
-          0
+          1174.66,
+          0.2,
+          0.3
         ]
       ]
     },
     {
-      "id": "octave",
-      "source": "triangle",
-      "freq": 440,
-      "start": 0.24,
-      "attack": 0.35,
-      "release": 1.2,
-      "length": 1.8,
-      "gain": [
+      "id": "second",
+      "source": "modes",
+      "start": 0.52,
+      "gain": 0.5,
+      "modes": [
         [
-          0,
-          0.25
+          739.99,
+          1,
+          0.7
         ],
         [
-          0.6,
-          0.25
-        ],
-        [
-          1.8,
-          0
+          1479.98,
+          0.2,
+          0.3
         ]
-      ],
-      "vibrato": {
-        "rate": 4.5,
-        "depth": 0.08
-      }
+      ]
+    },
+    {
+      "id": "third",
+      "source": "modes",
+      "start": 0.74,
+      "gain": 0.5,
+      "modes": [
+        [
+          880,
+          1,
+          0.9
+        ],
+        [
+          1760,
+          0.2,
+          0.4
+        ]
+      ]
     }
   ]
 }

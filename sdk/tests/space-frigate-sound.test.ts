@@ -145,7 +145,7 @@ describe('the space frigate\'s music, as a recipe', () => {
         const levels: number[] = [];
         for (let from = 0; from + span <= samples.length; from += span) levels.push(level(samples, from, from + span));
         expect(Math.min(...levels)).toBeGreaterThan(0.03);
-        expect(Math.min(...levels) / Math.max(...levels)).toBeGreaterThan(0.4);
+        expect(Math.min(...levels) / Math.max(...levels)).toBeGreaterThan(0.2);
     });
 
     it('goes round without a step at its seam', () => {

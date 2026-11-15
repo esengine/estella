@@ -5158,4 +5158,6 @@ export const NOTED = {
     { note: "The space frigate is heard, from recipes." },
   "feat(examples): the space frigate's music is a piano - drift.esmusic is a minute and a half of slow broken chords and a sparse tune in D major over a quiet pad, played by a sampled instrument: eleven notes of the FreePats Upright Piano KW (CC0), taken out of its SoundFont with the engine's own reader and halved to 22 kHz, with their licence beside them. They ship uncompressed, since a recipe plays .wav recordings. check-audio.mjs holds the music to being heard at the mixer and gone once M stops it":
     { note: "The space frigate is heard, from recipes." },
+  "feat(examples): the space frigate's music has a theme and more than a piano - the piano carries a four-bar tune over its own broken chords, with a slow pad, a plucked figure that comes in on the second time through, high notes over the tune and a breath of noise, built up over six sections and let down before it comes round; a twelfth piano note for the top of the tune. The mining beam is two beating saws through a band with a crackle on it, a broken rock ends on two notes of ore, an overheat falls away, and an arrival rises through the chord of the music's key":
+    { note: "The space frigate is heard, from recipes." },
 };

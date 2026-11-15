@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "duration": 1.8,
+  "duration": 2.2,
   "gain": 0.8,
-  "lowpass": 2200,
+  "lowpass": 4500,
   "reverb": {
-    "size": 0.3,
-    "mix": 0.15,
+    "size": 0.35,
+    "mix": 0.2,
     "kind": "room"
   },
   "layers": [
@@ -35,7 +35,13 @@
       ],
       "seed": 31,
       "decay": 0.12,
-      "gain": 0.8
+      "gain": 0.8,
+      "filters": [
+        {
+          "type": "lowpass",
+          "freq": 1800
+        }
+      ]
     },
     {
       "id": "rumble",
@@ -73,6 +79,42 @@
         "pan": 0.6,
         "fade": 0.7
       }
+    },
+    {
+      "id": "ore-low",
+      "source": "modes",
+      "start": 0.3,
+      "gain": 0.3,
+      "modes": [
+        [
+          880,
+          1,
+          0.35
+        ],
+        [
+          1760,
+          0.2,
+          0.15
+        ]
+      ]
+    },
+    {
+      "id": "ore-high",
+      "source": "modes",
+      "start": 0.42,
+      "gain": 0.3,
+      "modes": [
+        [
+          1174.66,
+          1,
+          0.45
+        ],
+        [
+          2349.32,
+          0.2,
+          0.2
+        ]
+      ]
     }
   ]
 }
