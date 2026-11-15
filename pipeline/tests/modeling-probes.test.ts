@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bakeModel, bakeNormalMap, planNormalBake, prepareModeling, runProbes, type ModelStep, type NormalMap } from '../src/modeling';
-import { probeOcclusion, probeRelief } from '../src/modeling/normalBake';
+import { probeOcclusion, probeRelief, reliefAt, reliefScratch } from '../src/modeling/normalBake';
 import { openProbeCache } from '../src/modeling/probeCache';
 import { probeCount } from '../src/modeling/probeWorkers';
 
@@ -112,6 +112,37 @@ describe('the probes a bake runs', () => {
         expect(kept.reused).toBe(cut.probes.occlusion!.values.length);
         expect(probeCount(cut.probes)).toBe(cut.probes.reliefs[0]!.todo.length);
         expect(cut.probes.reliefs[0]!.todo.length).toBeGreaterThan(0);
+    });
+});
+
+describe('the shape round a point', () => {
+    it('is the same read from the triangles near it at once as from one ray after another', () => {
+        const rough: ModelStep[] = [
+            { id: 'ball', op: 'sphere', radius: 2, rings: 64, sides: 96, color: [0, 0, 1], tag: 'slab' },
+            { id: 'dense', op: 'displace', pattern: 'bumps', scale: 0.4, amplitude: 0.12 },
+            { op: 'decimate', from: 'ball', ratio: 0.2 },
+        ];
+        const plan = planNormalBake(bakeModel({ version: 1, normalBake: { from: 'dense', size: 64, color: true }, steps: [...rough.slice(0, 2), wear('all'), rough[2]!] } as never));
+        const { corners, normals, triangles, places } = plan.probes;
+        expect(corners.length / 9).toBeGreaterThan(5000);
+        const [byRays, atOnce, both] = [reliefScratch(0), reliefScratch(100_000), reliefScratch()];
+        let values = 0, bent = 0, mixed = 0;
+        for (const reach of [0.05, 0.3, 1.5]) {
+            for (let slot = 0; slot < triangles.length; slot += 3) {
+                const hv = places[slot * 2]!, hw = places[slot * 2 + 1]!, hu = 1 - hv - hw, c = triangles[slot]! * 9;
+                const at = [0, 1, 2].map((k) => hu * corners[c + k]! + hv * corners[c + 3 + k]! + hw * corners[c + 6 + k]!);
+                const n = [0, 1, 2].map((k) => hu * normals[c + k]! + hv * normals[c + 3 + k]! + hw * normals[c + 6 + k]!);
+                const nl = Math.hypot(n[0]!, n[1]!, n[2]!);
+                const read = (scratch: ReturnType<typeof reliefScratch>): number => reliefAt(plan.tree, corners, at[0]!, at[1]!, at[2]!, n[0]! / nl, n[1]! / nl, n[2]! / nl, reach, scratch);
+                const slow = read(byRays);
+                if (!Object.is(read(atOnce), slow) || !Object.is(read(both), slow)) mixed++;
+                values++;
+                if (slow !== 0) bent++;
+            }
+        }
+        expect(mixed).toBe(0);
+        expect(values).toBeGreaterThan(400);
+        expect(bent / values).toBeGreaterThan(0.5);
     });
 });
 

@@ -152,6 +152,27 @@ export class TriangleTree {
         return found;
     }
 
+    gather(lox: number, loy: number, loz: number, hix: number, hiy: number, hiz: number, out: Int32Array): number {
+        const [boxes, links, order, stack] = [this.boxes, this.links, this.order, this.stack];
+        let top = 0, held = 0;
+        stack[top++] = 0;
+        while (top > 0) {
+            const node = stack[--top]!;
+            const at = node * 6;
+            if (boxes[at]! > hix || boxes[at + 3]! < lox || boxes[at + 1]! > hiy || boxes[at + 4]! < loy || boxes[at + 2]! > hiz || boxes[at + 5]! < loz) continue;
+            const count = links[node * 2 + 1]!;
+            if (count === 0) {
+                stack[top++] = links[node * 2]!;
+                stack[top++] = node + 1;
+                continue;
+            }
+            if (held + count > out.length) return -1;
+            const first = links[node * 2]!;
+            for (let i = first; i < first + count; i++) out[held++] = order[i]!;
+        }
+        return held;
+    }
+
     /** Whether anything lies on the ray from @p o along @p d within @p reach, whichever way it faces. */
     blocked(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, reach: number): boolean {
         const [boxes, links, order, c, stack] = [this.boxes, this.links, this.order, this.corners, this.stack];

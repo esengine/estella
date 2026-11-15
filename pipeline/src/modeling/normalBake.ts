@@ -144,26 +144,110 @@ const RELIEF_RINGS = [[1, 16], [0.6, 10], [0.3, 6]] as const;
 const DEFAULT_RELIEF_REACH = 0.01;
 const RELIEF_FLAT = 0.02;
 
-function reliefAt(tree: TriangleTree, corners: Float64Array, px: number, py: number, pz: number, nx: number, ny: number, nz: number, reach: number, place: Float64Array): number {
+const RELIEF_SPOKES = RELIEF_RINGS.flatMap(([share, spokes]) => Array.from({ length: spokes }, (_, j) => {
+    const phi = ((j + 0.5) / spokes) * 2 * Math.PI;
+    return { share, cos: Math.cos(phi), sin: Math.sin(phi) };
+}));
+const RELIEF_NEIGHBOURS = 768;
+const RELIEF_CELLS = 8;
+const RELIEF_MARGIN = 1e-6;
+const SPOKES_BY_CELL = Array.from({ length: RELIEF_CELLS * RELIEF_CELLS }, (_, cell) => {
+    const [column, row] = [cell % RELIEF_CELLS, Math.floor(cell / RELIEF_CELLS)];
+    const inside = (at: number, i: number): boolean => Math.min(RELIEF_CELLS - 1, Math.floor((at + 1) * RELIEF_CELLS / 2)) === i;
+    return RELIEF_SPOKES.flatMap((spoke, j) => (inside(spoke.share * spoke.cos, column) && inside(spoke.share * spoke.sin, row) ? [j] : []));
+});
+
+export interface ReliefScratch {
+    near: Int32Array;
+    hit: Float64Array;
+    origin: Float64Array;
+    spoke: Float64Array;
+    best: Float64Array;
+    found: Int32Array;
+    place: Float64Array;
+}
+
+export function reliefScratch(neighbours = RELIEF_NEIGHBOURS): ReliefScratch {
+    const count = RELIEF_SPOKES.length;
+    return { near: new Int32Array(neighbours), hit: new Float64Array(2), origin: new Float64Array(count * 3), spoke: new Float64Array(count * 3), best: new Float64Array(count), found: new Int32Array(count), place: new Float64Array(count * 2) };
+}
+
+export function reliefAt(tree: TriangleTree, corners: Float64Array, px: number, py: number, pz: number, nx: number, ny: number, nz: number, reach: number, scratch: ReliefScratch): number {
     let ux = Math.abs(nx) < 0.9 ? 0 : -nz, uy = Math.abs(nx) < 0.9 ? -nz : 0, uz = Math.abs(nx) < 0.9 ? ny : nx;
     const ul = Math.hypot(ux, uy, uz) || 1;
     ux /= ul; uy /= ul; uz /= ul;
     const vx = ny * uz - nz * uy, vy = nz * ux - nx * uz, vz = nx * uy - ny * ux;
     const bias = reach * 0.02;
-    let sum = 0, count = 0, flat = true;
+    const { near, hit: where, origin, spoke, best, found, place } = scratch;
+    for (let j = 0; j < RELIEF_SPOKES.length; j++) {
+        const { share, cos, sin } = RELIEF_SPOKES[j]!;
+        const radius = reach * share;
+        const dx = ux * cos + vx * sin, dy = uy * cos + vy * sin, dz = uz * cos + vz * sin;
+        spoke[j * 3] = dx; spoke[j * 3 + 1] = dy; spoke[j * 3 + 2] = dz;
+        origin[j * 3] = px + dx * radius; origin[j * 3 + 1] = py + dy * radius; origin[j * 3 + 2] = pz + dz * radius;
+    }
+    const wide = reach * 1.001;
+    const ex = wide * (Math.sqrt(Math.max(0, 1 - nx * nx)) + Math.abs(nx)), ey = wide * (Math.sqrt(Math.max(0, 1 - ny * ny)) + Math.abs(ny)), ez = wide * (Math.sqrt(Math.max(0, 1 - nz * nz)) + Math.abs(nz));
+    const count = tree.gather(px - ex, py - ey, pz - ez, px + ex, py + ey, pz + ez, near);
+    if (count < 0) {
+        for (let j = 0; j < RELIEF_SPOKES.length; j++) {
+            found[j] = tree.nearest(origin[j * 3]!, origin[j * 3 + 1]!, origin[j * 3 + 2]!, nx, ny, nz, reach, where);
+            place[j * 2] = where[0]!;
+            place[j * 2 + 1] = where[1]!;
+        }
+    } else {
+        best.fill(reach);
+        found.fill(-1);
+        const toCell = RELIEF_CELLS / 2 / reach;
+        for (let i = 0; i < count; i++) {
+            const t = near[i]!, p = t * 9;
+            const ax = corners[p]!, ay = corners[p + 1]!, az = corners[p + 2]!;
+            const bx = corners[p + 3]!, by = corners[p + 4]!, bz = corners[p + 5]!;
+            const cx = corners[p + 6]!, cy = corners[p + 7]!, cz = corners[p + 8]!;
+            const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+            const e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+            const qx = ny * e2z - nz * e2y, qy = nz * e2x - nx * e2z, qz = nx * e2y - ny * e2x;
+            const det = e1x * qx + e1y * qy + e1z * qz;
+            if (det > -1e-14) continue;
+            const a0 = (ax - px) * ux + (ay - py) * uy + (az - pz) * uz, a1 = (bx - px) * ux + (by - py) * uy + (bz - pz) * uz, a2 = (cx - px) * ux + (cy - py) * uy + (cz - pz) * uz;
+            const b0 = (ax - px) * vx + (ay - py) * vy + (az - pz) * vz, b1 = (bx - px) * vx + (by - py) * vy + (bz - pz) * vz, b2 = (cx - px) * vx + (cy - py) * vy + (cz - pz) * vz;
+            const column0 = Math.max(0, Math.floor((Math.min(a0, a1, a2) + reach) * toCell - RELIEF_MARGIN)), column1 = Math.min(RELIEF_CELLS - 1, Math.floor((Math.max(a0, a1, a2) + reach) * toCell + RELIEF_MARGIN));
+            const row0 = Math.max(0, Math.floor((Math.min(b0, b1, b2) + reach) * toCell - RELIEF_MARGIN)), row1 = Math.min(RELIEF_CELLS - 1, Math.floor((Math.max(b0, b1, b2) + reach) * toCell + RELIEF_MARGIN));
+            if (column0 > column1 || row0 > row1) continue;
+            const inv = 1 / det;
+            for (let row = row0; row <= row1; row++) {
+                for (let column = column0; column <= column1; column++) {
+                    for (const j of SPOKES_BY_CELL[row * RELIEF_CELLS + column]!) {
+                        const sx = origin[j * 3]! - ax, sy = origin[j * 3 + 1]! - ay, sz = origin[j * 3 + 2]! - az;
+                        const u = (sx * qx + sy * qy + sz * qz) * inv;
+                        if (u < 0 || u > 1) continue;
+                        const rx = sy * e1z - sz * e1y, ry = sz * e1x - sx * e1z, rz = sx * e1y - sy * e1x;
+                        const v = (nx * rx + ny * ry + nz * rz) * inv;
+                        if (v < 0 || u + v > 1) continue;
+                        const along = (e2x * rx + e2y * ry + e2z * rz) * inv;
+                        if (Math.abs(along) < best[j]!) {
+                            best[j] = Math.abs(along);
+                            found[j] = t;
+                            place[j * 2] = u;
+                            place[j * 2 + 1] = v;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let sum = 0, tried = 0, flat = true, j = 0;
     for (const [share, spokes] of RELIEF_RINGS) {
         const radius = reach * share;
-        for (let j = 0; j < spokes; j++) {
-            const phi = ((j + 0.5) / spokes) * 2 * Math.PI;
-            const dx = ux * Math.cos(phi) + vx * Math.sin(phi), dy = uy * Math.cos(phi) + vy * Math.sin(phi), dz = uz * Math.cos(phi) + vz * Math.sin(phi);
-            const ox = px + dx * radius, oy = py + dy * radius, oz = pz + dz * radius;
-            const hit = tree.nearest(ox, oy, oz, nx, ny, nz, reach, place);
-            count++;
+        for (let k = 0; k < spokes; k++, j++) {
+            const hit = found[j]!;
+            const ox = origin[j * 3]!, oy = origin[j * 3 + 1]!, oz = origin[j * 3 + 2]!;
+            tried++;
             let h: number;
             if (hit < 0) {
-                h = tree.blocked(px + nx * bias, py + ny * bias, pz + nz * bias, dx, dy, dz, radius) ? reach : -reach;
+                h = tree.blocked(px + nx * bias, py + ny * bias, pz + nz * bias, spoke[j * 3]!, spoke[j * 3 + 1]!, spoke[j * 3 + 2]!, radius) ? reach : -reach;
             } else {
-                const hv = place[0]!, hw = place[1]!, hu = 1 - hv - hw, at = hit * 9;
+                const hv = place[j * 2]!, hw = place[j * 2 + 1]!, hu = 1 - hv - hw, at = hit * 9;
                 h = (hu * corners[at]! + hv * corners[at + 3]! + hw * corners[at + 6]! - ox) * nx
                     + (hu * corners[at + 1]! + hv * corners[at + 4]! + hw * corners[at + 7]! - oy) * ny
                     + (hu * corners[at + 2]! + hv * corners[at + 5]! + hw * corners[at + 8]! - oz) * nz;
@@ -173,7 +257,7 @@ function reliefAt(tree: TriangleTree, corners: Float64Array, px: number, py: num
         }
         if (flat) return 0;
     }
-    return Math.max(-1, Math.min(1, sum / count / (reach * 0.5)));
+    return Math.max(-1, Math.min(1, sum / tried / (reach * 0.5)));
 }
 
 export interface ReliefProbe {
@@ -253,7 +337,7 @@ function reliefProbes(chosen: readonly Uint8Array[], reliefOf: readonly number[]
 export function probeRelief(probes: BakeProbes, tree: TriangleTree, index: number, from: number, to: number): void {
     const { corners, normals, triangles, places } = probes;
     const { reach, values, todo } = probes.reliefs[index]!;
-    const place = new Float64Array(2);
+    const scratch = reliefScratch();
     const at: [number, number, number] = [0, 0, 0], n: [number, number, number] = [0, 0, 0];
     for (let i = from; i < to; i++) {
         const slot = todo[i]!;
@@ -263,7 +347,7 @@ export function probeRelief(probes: BakeProbes, tree: TriangleTree, index: numbe
             n[k] = hu * normals[c + k]! + hv * normals[c + 3 + k]! + hw * normals[c + 6 + k]!;
         }
         const nl = Math.hypot(n[0], n[1], n[2]) || 1;
-        values[slot] = reliefAt(tree, corners, at[0], at[1], at[2], n[0] / nl, n[1] / nl, n[2] / nl, reach, place);
+        values[slot] = reliefAt(tree, corners, at[0], at[1], at[2], n[0] / nl, n[1] / nl, n[2] / nl, reach, scratch);
     }
 }
 
@@ -311,7 +395,7 @@ export function runProbes(probes: BakeProbes, tree: TriangleTree): void {
 }
 
 export function probeIdentity(): string {
-    return [RELIEF_RINGS, RELIEF_FLAT, reliefAt, probeRelief, probeOcclusion, TriangleTree.prototype.nearest, TriangleTree.prototype.blocked].map((part) => typeof part === 'function' ? String(part) : JSON.stringify(part)).join('\n');
+    return [RELIEF_RINGS, RELIEF_FLAT, RELIEF_NEIGHBOURS, RELIEF_CELLS, RELIEF_MARGIN, reliefAt, TriangleTree.prototype.gather, probeRelief, probeOcclusion, TriangleTree.prototype.nearest, TriangleTree.prototype.blocked].map((part) => typeof part === 'function' ? String(part) : JSON.stringify(part)).join('\n');
 }
 
 export function stainPainter(work: StainWork, probes: BakeProbes): (from: number, to: number) => void {

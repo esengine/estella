@@ -86,7 +86,7 @@ export async function runBakeAcross(plan: NormalBakePlan, jobs: number): Promise
         cursors: new Int32Array(new SharedArrayBuffer(4 * (probes.reliefs.length + 2))),
     };
     const file = fileURLToPath(import.meta.url);
-    const workers = Array.from({ length: count }, () => new Worker(file, { workerData: shift }));
+    const workers = Array.from({ length: count }, () => new Worker(file, { workerData: shift, execArgv: [] }));
     let probed = 0;
     try {
         await Promise.all(workers.map((worker) => new Promise<void>((resolve, reject) => {
