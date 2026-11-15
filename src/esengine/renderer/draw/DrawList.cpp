@@ -6,6 +6,7 @@
 #include "../store/InstanceConstants.hpp"
 #include "../store/SkinConstants.hpp"
 #include "../../core/FrameProfiler.hpp"
+#include "../../core/Hash.hpp"
 
 #include <glm/glm.hpp>
 #include <algorithm>
@@ -720,16 +721,8 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
 }
 
 u64 DrawList::contentHashOfRecords(u64 h, TransientBufferPool& pool, bool& trusted) const {
-    const auto mix = [&h](u64 v) {
-        h ^= v + 0x9e3779b97f4a7c15ull + (h << 6) + (h >> 2);
-    };
-    const auto words = [&mix](const void* data, usize bytes) {
-        const auto* p = static_cast<const u8*>(data);
-        usize at = 0;
-        for (; at + 8 <= bytes; at += 8) { u64 w; std::memcpy(&w, p + at, 8); mix(w); }
-        u64 tail = 0;
-        if (at < bytes) { std::memcpy(&tail, p + at, bytes - at); mix(tail); }
-    };
+    const auto mix = [&h](u64 v) { h = hash::combine(h, v); };
+    const auto words = [&h](const void* data, usize bytes) { h = hash::combineWords(h, data, bytes); };
     mix(commands_.size());
     for (const DrawCommand& c : commands_) {
         // What contentHash mixes, less where the records lie (the offset, and the sort key, which says no more than the state
@@ -767,9 +760,7 @@ u64 DrawList::contentHashOfRecords(u64 h, TransientBufferPool& pool, bool& trust
 }
 
 u64 DrawList::contentHash(u64 h) const {
-    const auto mix = [&h](u64 v) {
-        h ^= v + 0x9e3779b97f4a7c15ull + (h << 6) + (h >> 2);
-    };
+    const auto mix = [&h](u64 v) { h = hash::combine(h, v); };
     mix(commands_.size());
     for (const DrawCommand& c : commands_) {
         mix(c.sort_key);
@@ -787,13 +778,7 @@ u64 DrawList::contentHash(u64 h) const {
         mix(c.texture_count);
         for (u32 t = 0; t < c.texture_count && t < MAX_CMD_TEXTURE_SLOTS; ++t) mix(c.texture_ids[t]);
     }
-    const auto words = [&mix](const void* data, usize bytes) {
-        const auto* p = static_cast<const u8*>(data);
-        usize at = 0;
-        for (; at + 8 <= bytes; at += 8) { u64 w; std::memcpy(&w, p + at, 8); mix(w); }
-        u64 tail = 0;
-        if (at < bytes) { std::memcpy(&tail, p + at, bytes - at); mix(tail); }
-    };
+    const auto words = [&h](const void* data, usize bytes) { h = hash::combineWords(h, data, bytes); };
     mix(skin_matrices_.size());
     if (!skin_matrices_.empty()) words(skin_matrices_.data(), skin_matrices_.size() * sizeof(glm::mat4));
     mix(morph_shapes_.size());

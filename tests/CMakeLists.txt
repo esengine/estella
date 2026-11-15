@@ -136,6 +136,12 @@ add_executable(test_sdf_generator
 target_link_libraries(test_sdf_generator PRIVATE esengine)
 add_test(NAME test_sdf_generator COMMAND test_sdf_generator)
 
+add_executable(test_utf8
+    text/test_utf8.cpp
+)
+target_include_directories(test_utf8 PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME test_utf8 COMMAND test_utf8)
+
 # Tilemap system tests
 add_executable(test_tilemap
     tilemap/test_tilemap.cpp
