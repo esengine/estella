@@ -5088,4 +5088,8 @@ export const NOTED = {
     { note: "A space frigate example, built from a recipe." },
   "fix(render): textures uploaded by the SDK stay sharp at a slant - a compressed or decoded image handed to WebGL2 from script set its filters and mipmaps and never its anisotropy, which only textures the engine made itself were given, so every material map of an exported web game blurred along a surface seen edge-on; it now takes up to sixteen samples where it is mipmapped and linear, asked of the device once a context. The corpus check knows what a model source is":
     { note: "Textures in a web build stay sharp on a surface seen at a slant." },
+  "feat(modeling): a model's bake writes its emissive map - where a paint or stain gives faces a glow, the bake's emissive map is written beside the other maps as <model>_emissive.png, read as data, named by the material and removed with the bake that made it":
+    { note: "Parts of a model can glow." },
+  "feat(modeling): the modeling tool offers plating, texel stains and glow, and the gallery names the space frigate - model_write's list of steps is the build's again (panels, and texel, fray and glow on stain and paint), and the new-project gallery has the Space Frigate example's Chinese text":
+    { note: "Plating for hard surfaces." },
 };
