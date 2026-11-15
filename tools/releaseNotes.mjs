@@ -5094,6 +5094,8 @@ export const NOTED = {
     { note: "Assets register without the editor." },
   "feat(ui): a world anchor keeps its marker off the HUD's own panels - UIWorldAnchor takes edgeInsets, room kept clear on each side over edgeMargin, which a clamped marker is moved out of by the shortest way, and reads back clamped: whether the node stands where the clamp put it and not over the point, for drawing an arrow in place of a bracket":
     { note: "A world marker stays off the HUD's own panels." },
+  "feat(assets): what texture recipes cost can be read - textureRecipeStats is exported (how many pictures were drawn on the device, how long the drawing took, how many came back from the content cache), and a cooked game's headless handle answers recipes() with it":
+    { note: "What texture recipes cost can be read." },
   "fix(render): textures uploaded by the SDK stay sharp at a slant - a compressed or decoded image handed to WebGL2 from script set its filters and mipmaps and never its anisotropy, which only textures the engine made itself were given, so every material map of an exported web game blurred along a surface seen edge-on; it now takes up to sixteen samples where it is mipmapped and linear, asked of the device once a context. The corpus check knows what a model source is":
     { note: "Textures in a web build stay sharp on a surface seen at a slant." },
   "feat(modeling): a model's bake writes its emissive map - where a paint or stain gives faces a glow, the bake's emissive map is written beside the other maps as <model>_emissive.png, read as data, named by the material and removed with the bake that made it":
