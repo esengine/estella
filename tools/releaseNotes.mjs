@@ -5094,4 +5094,8 @@ export const NOTED = {
     { note: "Plating for hard surfaces." },
   "feat(examples): the space frigate flies through an asteroid field, with turrets that have a shape - three rocks are model sources of their own (a sphere displaced three ways, stained texel by texel, thinned to 2,400 triangles) and forty-six of them are placed round the ship, the near forty drifting aft with its speed so their parallax shows it; the hull's plates take a bevel wide enough to catch the light, and each turret has a housing, a mantlet and muzzle brakes. generate.py bakes only the models --models names":
     { note: "A space frigate example, built from a recipe." },
+  "feat(modeling): a model's material can carry a clear coat, and its maps are imported at the size they were baked - material takes coat and coatRoughness, written as the model shader's clear coat; bake-model gives each map a Max Size of the size it was baked at and raises a smaller one an earlier bake left, so a 4096 bake is not shipped at 2048; the command has tests of its own":
+    { note: "A model's paint can have a clear coat." },
+  "feat(assets): a texture ships at the size it was made unless told otherwise - Max Size starts at Source size for every texture where a picture's started at 2048, in the import settings table, in what a .meta that does not say resolves to and in the meta tool; a .meta that states a size keeps it":
+    { note: "A texture ships at the size it was made." },
 };

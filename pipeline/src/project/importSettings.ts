@@ -63,11 +63,11 @@ const TEXTURE: ImporterFieldSpec[] = [
       + 'Max Size says so.',
   },
   {
-    key: 'maxSize', label: 'Max Size', type: 'enum', default: 2048, category: 'Texture',
+    key: 'maxSize', label: 'Max Size', type: 'enum', default: 0, category: 'Texture',
     options: [{ label: 'Source size', value: 0 }, ...powerOfTwo.map((n) => ({ label: String(n), value: n }))],
     tooltip: 'Downscale cap applied at cook (power of two). A source larger than this on '
-      + 'its longest side is box-filtered down; smaller sources are untouched. Source size never shrinks it, which is what a '
-      + 'Data texture starts at: half the samples of a heightmap is other ground.',
+      + 'its longest side is box-filtered down; smaller sources are untouched. Source size, which every texture starts at, '
+      + 'never shrinks it: a build ships an image at the size it was made unless this, or a platform override, says smaller.',
   },
   {
     key: 'compress', label: 'Compression', type: 'enum', default: 'auto', category: 'Texture',
@@ -399,8 +399,7 @@ export function readTextureCookSettings(importer: Record<string, unknown> | unde
     // Numbers are never encoded, decoded as colour or averaged into a coverage: whatever the other rows say, Data says these.
     compress: data ? 'off' as TextureCompression : textureCompression(compress),
     format: (format === 'etc1s' ? 'etc1s' : 'uastc') as 'uastc' | 'etc1s',
-    // 0 is the source's own size, stated. Unstated, a picture is capped at 2048 and numbers are not capped.
-    maxSize: typeof maxSize === 'number' && maxSize >= 0 ? maxSize : data ? 0 : 2048,
+    maxSize: typeof maxSize === 'number' && maxSize >= 0 ? maxSize : 0,
     srgb: data ? false : typeof srgb === 'boolean' ? srgb : true,
     mipCoverage: !data && typeof mipCoverage === 'number' && mipCoverage > 0 && mipCoverage < 1 ? mipCoverage : 0,
     mipmaps: importer?.mipmaps !== false,
