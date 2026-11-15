@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "../materials/plume.esshader",
+  "blendMode": 5,
+  "depthTest": true,
+  "depthWrite": false,
+  "cull": 0,
+  "properties": {
+    "u_core": {
+      "r": 1,
+      "g": 0.96,
+      "b": 0.82,
+      "a": 1
+    },
+    "u_edge": {
+      "r": 1,
+      "g": 0.42,
+      "b": 0.08,
+      "a": 1
+    },
+    "u_strength": 9,
+    "u_length": 60,
+    "u_flicker": 0.3
+  }
+}

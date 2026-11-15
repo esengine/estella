@@ -191,6 +191,28 @@ export function createKit(world: World, textures: Textures, fonts: { regular: nu
     return { world, root, textures, node, image, sliced, solid, label, centred, pivot, tilt, lift, glow, say, ink, fill, fade, place, size, turn };
 }
 
+const HULL_BOXES: readonly (readonly number[])[] = [
+    [-10.5, -6, -46, 10.5, 5.6, 6], [-7, -4.8, 6, 7, 3.6, 34], [-4, -3.6, 34, 4, 1.6, 56],
+    [-5, 5.6, -36, 5, 9.4, 5], [-3.2, 9.4, -28, 3.2, 14.2, -18],
+    [-21, -4.6, -46, -13, 2.6, -8], [13, -4.6, -46, 21, 2.6, -8],
+];
+
+export function hullBlocks(from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }): boolean {
+    const origin = [from.x, from.y, from.z], along = [to.x - from.x, to.y - from.y, to.z - from.z];
+    return HULL_BOXES.some((box) => {
+        let enter = 0, leave = 1;
+        for (let axis = 0; axis < 3; axis++) {
+            const lo = box[axis]!, hi = box[axis + 3]!, o = origin[axis]!, d = along[axis]!;
+            if (Math.abs(d) < 1e-9) { if (o < lo || o > hi) return false; continue; }
+            const a = (lo - o) / d, b = (hi - o) / d;
+            enter = Math.max(enter, Math.min(a, b));
+            leave = Math.min(leave, Math.max(a, b));
+            if (enter > leave) return false;
+        }
+        return true;
+    });
+}
+
 export function towardOnScreen(lens: Lens, point: { x: number; y: number; z: number }): number {
     const q = lens.rotation, from = lens.position;
     const v = { x: point.x - from.x, y: point.y - from.y, z: point.z - from.z };

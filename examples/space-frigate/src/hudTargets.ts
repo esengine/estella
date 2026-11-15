@@ -1,7 +1,8 @@
-import { TextAlign, Transform, UINode, UIWorldAnchor, placeOnScreen } from 'esengine';
+import { FillMethod, FillOrigin, TextAlign, Transform, UINode, UIVisual, UIVisualType, UIWorldAnchor, placeOnScreen } from 'esengine';
 import type { Entity } from 'esengine';
 import { clamp } from './flight';
-import { AMBER, DESIGN, HAZE, ICE, KEPT_CLEAR, ease, keptClear, pad, sameRoom, rgb, spaced, stamp, towardOnScreen, type Frame, type Kit, type Log, type Rock } from './hudKit';
+import { AMBER, DESIGN, HAZE, ICE, KEPT_CLEAR, ease, hullBlocks, keptClear, pad, sameRoom, rgb, spaced, stamp, towardOnScreen, type Frame, type Kit, type Log, type Rock } from './hudKit';
+import { MINING, mining, rockClass } from './hudMining';
 import { ship } from './shipState';
 
 const WAYPOINT = { x: 0, y: 14, z: 2600 };
@@ -12,38 +13,17 @@ const PICK_REACH = 38;
 const NEAR = 450;
 const LOCK_SECONDS = 0.9;
 
-const HULL_BOXES: readonly (readonly [number, number, number, number, number, number])[] = [
-    [-13, -9, -50, 13, 11, 52],
-    [-26, -7, -50, 26, 5, -5],
-    [-8, 11, -32, 8, 24, 2],
-];
-
-function blocked(from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }): boolean {
-    const origin = [from.x, from.y, from.z], along = [to.x - from.x, to.y - from.y, to.z - from.z];
-    return HULL_BOXES.some((box) => {
-        let enter = 0, leave = 1;
-        for (let axis = 0; axis < 3; axis++) {
-            const lo = box[axis]!, hi = box[axis + 3]!, o = origin[axis]!, d = along[axis]!;
-            if (Math.abs(d) < 1e-9) { if (o < lo || o > hi) return false; continue; }
-            const a = (lo - o) / d, b = (hi - o) / d;
-            enter = Math.max(enter, Math.min(a, b));
-            leave = Math.min(leave, Math.max(a, b));
-            if (enter > leave) return false;
-        }
-        return true;
-    });
-}
-
 export interface TargetProbe {
     selected: number;
     current: number;
     locked: boolean;
     waypointClamped: boolean;
+    release: boolean;
     picks: { index: number; left: number; top: number }[];
 }
 
 export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | null, log: Log): { update(frame: Frame): void; probe: TargetProbe } {
-    const { world, root, textures, node, image, sliced, solid, label, centred, say, ink, fade, place, size, turn } = kit;
+    const { world, root, textures, node, image, sliced, solid, label, centred, say, ink, fill, fade, place, size, turn } = kit;
 
     const body = centred(node(root, 'Body', { left: 0, top: 0, width: 24, height: 24 }), 24, 68);
     const globe = planet === null ? null : world.get(planet, Transform);
@@ -78,14 +58,17 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
     const brief = node(primary, 'TargetBrief', { left: 58, top: 16, width: 170, height: 30 });
     const briefName = label(brief, 'TargetBriefName', { left: 0, top: 0, width: 170, height: 13 }, { size: 10, color: rgb(ICE), spacing: 2.4 });
     const briefRange = label(brief, 'TargetBriefRange', { left: 0, top: 15, width: 170, height: 13 }, { size: 10, color: rgb(HAZE), spacing: 1.6, strong: false });
-    const card = sliced(primary, 'TargetCard', { left: 74, top: -12, width: 214, height: 84 }, textures.plate, 26);
+    const card = sliced(primary, 'TargetCard', { left: 74, top: -18, width: 214, height: 100 }, textures.plate, 26);
     const cardState = label(card, 'TargetState', { left: 14, top: 9, width: 120, height: 14 }, { size: 10, color: rgb(AMBER), spacing: 2.6 });
     const cardName = label(card, 'TargetName', { left: 84, top: 9, width: 100, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 2.2, align: TextAlign.Right });
     const cardRange = label(card, 'TargetRange', { left: 14, top: 26, width: 180, height: 24 }, { size: 19, color: rgb(ICE), spacing: 0.6 });
     const cardRate = label(card, 'TargetRate', { left: 14, top: 49, width: 180, height: 13 }, { size: 10, color: rgb(HAZE), spacing: 1.8, strong: false });
     const cardSize = label(card, 'TargetSize', { left: 14, top: 63, width: 180, height: 13 }, { size: 10, color: rgb(HAZE), spacing: 1.8, strong: false });
+    const cardReach = label(card, 'TargetReach', { left: 94, top: 30, width: 104, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 1.8, align: TextAlign.Right, strong: false });
+    image(card, 'TargetWholeTrack', { left: 14, top: 82, width: 184, height: 6 }, textures.barTrack, rgb(ICE));
+    const cardWhole = node(card, 'TargetWhole', { left: 14, top: 82, width: 184, height: 6 }, { visualType: UIVisualType.Filled, texture: textures.barFill, color: rgb(ICE), fillMethod: FillMethod.Horizontal, fillOrigin: FillOrigin.Left, fillAmount: 1 });
 
-    const probe: TargetProbe = { selected: -1, current: -1, locked: false, waypointClamped: true, picks: [] };
+    const probe: TargetProbe = { selected: -1, current: -1, locked: false, waypointClamped: true, release: false, picks: [] };
     const model = { leg: 3, range: LEG_KM };
     const seen = rocks.map(() => ({ range: Infinity, left: 0, top: 0, visible: false, free: false }));
     const near = new Set<number>();
@@ -117,7 +100,7 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
             const s = seen[i]!;
             s.range = Math.hypot(at.x, at.y, at.z);
             const on = frame.lens ? placeOnScreen(at, frame.lens, box, false, 0) : null;
-            s.visible = on !== null && on.onScreen && !blocked(frame.lens!.position, at);
+            s.visible = on !== null && on.onScreen && !hullBlocks(frame.lens!.position, at);
             s.left = on ? on.left : 0;
             s.top = on ? on.top : 0;
             s.free = s.visible && s.left > 90 && s.left < box.width - 300 && s.top > 112 && s.top < box.height - 340 && !(s.left < 470 && s.top < 204);
@@ -134,6 +117,7 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
             choose(pool[(pool.indexOf(selected) + 1) % pool.length] ?? -1, frame.time);
         }
         if (r && !keyR && selected >= 0) { log.say(`ROCK ${pad(selected + 1, 2)}  RELEASED`); selected = -1; }
+        if (probe.release) { probe.release = false; selected = -1; }
         keyT = t; keyR = r;
         if (frame.pressing && !down) { downAt = frame.time; downLeft = frame.pointer.left; downTop = frame.pointer.top; moved = 0; }
         if (frame.pressing) moved = Math.max(moved, Math.hypot(frame.pointer.left - downLeft, frame.pointer.top - downTop));
@@ -186,13 +170,21 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
             if (selected >= 0) {
                 const done = lock >= 1;
                 if (done && !announced) { announced = true; log.say(`${name}  LOCKED  ${spaced(s.range)} M`); }
-                place(card, aside ? -228 : 74, -12);
-                say(cardState, done ? 'LOCKED' : 'ACQUIRING');
-                fade(cardState, done ? 1 : 0.55 + 0.45 * Math.sin(frame.time * 14));
+                place(card, aside ? -228 : 74, -18);
+                const working = mining.firing && mining.target === selected;
+                say(cardState, working ? 'MINING' : done ? 'LOCKED' : 'ACQUIRING');
+                fade(cardState, done && !working ? 1 : 0.55 + 0.45 * Math.sin(frame.time * 14));
                 say(cardName, name);
                 say(cardRange, `${spaced(s.range)} M`);
                 say(cardRate, Math.abs(rate) < 0.5 ? 'HOLDING RANGE' : `${rate > 0 ? 'CLOSING' : 'OPENING'}  ${spaced(Math.abs(rate))} M/S`);
-                say(cardSize, `${rocks[current]!.big ? 'MAJOR BODY' : 'DRIFTING'}  ${spaced(world.get(rocks[current]!.entity, Transform).scale.x * 2)} M ACROSS`);
+                const kind = rockClass(current);
+                say(cardSize, rocks[current]!.big ? 'MAJOR BODY  TOO LARGE TO MINE' : `${kind.code}-TYPE  ${kind.name}`);
+                const near = s.range <= MINING.range;
+                say(cardReach, rocks[current]!.big ? '' : near ? 'IN RANGE' : 'OUT OF RANGE');
+                ink(cardReach, near ? rgb(HAZE) : rgb(AMBER));
+                const whole = clamp(mining.integrity[current] ?? 1, 0, 1);
+                fill(cardWhole, Math.round(whole * 24) / 24);
+                ink(cardWhole, working ? rgb(AMBER) : rgb(ICE), UIVisual);
             }
         }
 
@@ -258,7 +250,7 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
         probe.current = current;
         probe.locked = selected >= 0 && announced;
         probe.waypointClamped = anchor.clamped;
-        probe.picks = byRange.filter((i) => i !== current && seen[i]!.free)
+        probe.picks = byRange.filter((i) => i !== current && seen[i]!.free && !rocks[i]!.big && seen[i]!.range < MINING.range - 150)
             .sort((a, b) => Math.hypot(seen[a]!.left - box.width / 2, seen[a]!.top - 360) - Math.hypot(seen[b]!.left - box.width / 2, seen[b]!.top - 360))
             .slice(0, 3).map((i) => ({ index: i, left: seen[i]!.left, top: seen[i]!.top }));
     };

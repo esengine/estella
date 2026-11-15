@@ -8,6 +8,7 @@ import {
     ALERT, AMBER, DESIGN, EDGE, FONTS, HAZE, ICE, TEXTURES, createKit, ease, pad, rgb, stamp,
     type Frame, type Log, type Rgba, type Rock, type Textures,
 } from './hudKit';
+import { MINING, installMining, mining } from './hudMining';
 import { buildScope } from './hudScope';
 import { buildTargets } from './hudTargets';
 import { ship } from './shipState';
@@ -21,7 +22,7 @@ const BOOT_SECONDS = 2.6;
 
 type Loaded = { textures: Textures; fonts: { regular: number; strong: number } };
 
-const state = { ready: false, loadMs: 0, error: '', waypointClamped: true, selected: -1, current: -1, locked: false, booted: false, picks: [] as { index: number; x: number; y: number }[] };
+const state = { ready: false, loadMs: 0, error: '', waypointClamped: true, selected: -1, current: -1, locked: false, booted: false, mining: mining, picks: [] as { index: number; x: number; y: number }[] };
 
 export function installHud(app: App): void {
     let loading: Promise<Loaded> | null = null;
@@ -84,6 +85,11 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     for (let i = 0; i < SHOTS.length; i++) {
         pips.push(node(view, `ViewPip${i + 1}`, { right: (SHOTS.length - 1 - i) * 23 + 4, top: 33, width: 20, height: 6 }, { visualType: UIVisualType.Image, texture: textures.pip, color: rgb(ICE, 0.2) }));
     }
+    label(view, 'HoldTitle', { right: 0, top: 84, width: 300, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 2.6, align: TextAlign.Right, content: 'ORE HOLD' });
+    const holdValue = label(view, 'HoldValue', { right: 0, top: 100, width: 300, height: 22 }, { size: 17, color: rgb(ICE), spacing: 0.8, align: TextAlign.Right });
+    image(view, 'HoldTrack', { right: 0, top: 128, width: 168, height: 6 }, textures.barTrack, rgb(ICE));
+    const holdBar = node(view, 'HoldBar', { right: 0, top: 128, width: 168, height: 6 }, { visualType: UIVisualType.Filled, texture: textures.barFill, color: rgb(ICE), fillMethod: FillMethod.Horizontal, fillOrigin: FillOrigin.Left, fillAmount: 0 });
+    const holdNote = label(view, 'HoldNote', { right: 0, top: 140, width: 300, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 1.8, align: TextAlign.Right, strong: false });
     const viewMode = label(view, 'ViewMode', { right: 0, top: 48, width: 300, height: 16 }, { size: 11, color: rgb(HAZE, 0.9), spacing: 1.8, align: TextAlign.Right, strong: false });
 
     const systemsAt = pivot(root, 'SystemsPivot', { left: EDGE + 184, bottom: EDGE + 102 });
@@ -92,7 +98,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     const systemsState = label(systems, 'SystemsState', { right: 34, top: 14, width: 160, height: 16 }, { size: 11, color: rgb(HAZE), spacing: 1.8, align: TextAlign.Right });
     node(systems, 'SystemsScan', { left: 3, top: 3, width: 342, height: 184 }, { visualType: UIVisualType.Tiled, texture: textures.scan, tileSize: { x: 4, y: 3 }, color: rgb(ICE) });
     solid(systems, 'SystemsRule', { left: 20, right: 20, top: 38, height: 1 }, rgb(ICE, 0.16));
-    const ROWS = ['DRIVE', 'REACTOR', 'CAPACITOR', 'NOZZLE'] as const;
+    const ROWS = ['DRIVE', 'REACTOR', 'CAPACITOR', 'EMITTER'] as const;
     const rows = ROWS.map((title, i) => {
         const top = 52 + i * 32;
         label(systems, `${title}Label`, { left: 20, top, width: 100, height: 18 }, { size: 11, color: rgb(HAZE), spacing: 1.8, content: title, strong: false });
@@ -142,7 +148,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     const commandValue = label(tag, 'CommandValue', { left: 76, top: 30, width: 56, height: 20 }, { size: 15, color: rgb(AMBER), align: TextAlign.Right, spacing: 0.5 });
 
     const hints = node(root, 'Hints', { left: 0, right: 0, bottom: 12, height: 24 });
-    const HINTS: readonly (readonly [string, number, string])[] = [['W', 24, ''], ['S', 24, 'THRUST'], ['DRAG', 50, 'ORBIT'], ['1 – 6', 50, 'VIEWS'], ['SPACE', 58, 'TOUR'], ['T', 24, 'TARGET'], ['CLICK', 54, 'LOCK'], ['R', 24, 'RELEASE']];
+    const HINTS: readonly (readonly [string, number, string])[] = [['W', 24, ''], ['S', 24, 'THRUST'], ['DRAG', 50, 'ORBIT'], ['1 – 6', 50, 'VIEWS'], ['SPACE', 58, 'TOUR'], ['T', 24, 'TARGET'], ['CLICK', 54, 'LOCK'], ['R', 24, 'RELEASE'], ['F', 24, 'MINE']];
     const wide = HINTS.reduce((sum, [, cap, text]) => sum + cap + (text ? 14 + text.length * 8.6 + 26 : 5), -26);
     const row = spawnUIEntity({ world, parent: hints, node: { ...{ position: UIPositionType.Absolute, pointerEvents: UIPointerEvents.None }, insetLeft: percent(50), insetTop: px(0), width: px(wide), height: px(24), marginLeft: px(-wide / 2), opacity: 0.78 } });
     world.insert(row, Name, { value: 'HintRow' });
@@ -174,12 +180,13 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     }
     const camera = world.findEntityByName('Camera');
     const targets = buildTargets(kit, rocks, world.findEntityByName('Planet'), log);
+    const mine = installMining(app, world, rocks, targets.probe, log);
     const scope = buildScope(kit, rocks, targets.probe);
     const groups: readonly (readonly [Entity, number, number])[] = [[identity, 0, 1], [view, 0.15, 1], [systems, 0.35, 1], [gauge, 0.5, 1], [row, 1.2, 0.78]];
     const leans: readonly (readonly [Entity, number, number])[] = [[identityAt, 0.1, 0.26], [viewAt, 0.1, -0.26], [systemsAt, -0.12, 0.3], [gaugeAt, -0.12, -0.3], [row, -0.42, 0]];
     const sway = { x: 0, y: 0, yaw: 0, pitch: 0, primed: false };
 
-    const model = { reactor: 0.18, capacitor: 1, heat: 0, primed: false };
+    const model = { reactor: 0.18, primed: false };
     const began = ship.time;
     let full = false, hot = false;
 
@@ -217,12 +224,9 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         const test = clamp((age - 0.6) / 1.6, 0, 1), sweep = Math.sin(Math.PI * test), settle = test * test * (3 - 2 * test);
         const shown = (actual: number): number => sweep * (1 - settle) + actual * settle;
 
-        const load = 0.18 + 0.74 * ship.throttle * ship.throttle;
-        const reserve = 1 - 0.52 * ship.throttle * ship.throttle;
-        if (!model.primed) { model.reactor = load; model.capacitor = reserve; model.heat = ship.throttle * ship.throttle; model.primed = true; }
+        const load = 0.18 + 0.62 * ship.throttle * ship.throttle + (mining.firing ? 0.2 : 0);
+        if (!model.primed) { model.reactor = load; model.primed = true; }
         model.reactor += (load - model.reactor) * Math.min(1, dt * 1.6);
-        model.capacitor += (reserve - model.capacitor) * Math.min(1, dt * 0.35);
-        model.heat += (ship.throttle * ship.throttle - model.heat) * Math.min(1, dt * 0.45);
 
         say(clock, `OUTER PATROL   T+ ${stamp(ship.time)}`);
 
@@ -241,15 +245,14 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
             ink(pip, here ? rgb(ICE, 0.55 + 0.45 * (1 - within)) : rgb(ICE, ship.tour ? 0.2 : 0.1), UIVisual);
         });
 
-        const kelvin = 380 + 1460 * model.heat;
         const strained = model.reactor > 0.82;
-        say(systemsState, strained ? 'HIGH LOAD' : 'NOMINAL');
-        ink(systemsState, strained ? rgb(AMBER) : rgb(HAZE));
+        say(systemsState, mining.firing ? 'MINING' : strained ? 'HIGH LOAD' : 'NOMINAL');
+        ink(systemsState, mining.firing || strained ? rgb(AMBER) : rgb(HAZE));
         const readings: readonly (readonly [number, string, Rgba])[] = [
             [ship.throttle, `${Math.round(ship.throttle * 100)} %`, rgb(ICE)],
             [model.reactor, `${Math.round(model.reactor * 100)} %`, strained ? rgb(AMBER) : rgb(ICE)],
-            [model.capacitor, `${Math.round(model.capacitor * 100)} %`, model.capacitor < 0.55 ? rgb(AMBER) : rgb(ICE)],
-            [model.heat, `${Math.round(kelvin)} K`, model.heat > 0.85 ? rgb(ALERT) : model.heat > 0.6 ? rgb(AMBER) : rgb(ICE)],
+            [mining.capacitor, `${Math.round(mining.capacitor * 100)} %`, mining.capacitor < 0.2 ? rgb(ALERT) : mining.capacitor < 0.45 ? rgb(AMBER) : rgb(ICE)],
+            [mining.heat, `${Math.round(mining.heat * 100)} %`, mining.overheated ? rgb(ALERT) : mining.heat > 0.6 ? rgb(AMBER) : rgb(ICE)],
         ];
         readings.forEach(([amount, text, color], i) => {
             fill(rows[i]!.bar, Math.round(amount * BAR_CELLS) / BAR_CELLS);
@@ -290,7 +293,14 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         hot = fast;
 
         targets.update(frame);
+        mine(frame);
         scope(frame);
+        const laden = mining.hold >= MINING.capacity;
+        say(holdValue, `${mining.hold.toFixed(1)} / ${MINING.capacity.toFixed(0)} T`);
+        fill(holdBar, Math.round((mining.hold / MINING.capacity) * 24) / 24);
+        ink(holdBar, laden ? rgb(AMBER) : rgb(ICE), UIVisual);
+        say(holdNote, laden ? 'HOLD FULL  RETURN TO KESTREL GATE' : mining.reason ? mining.reason : `${mining.broken} ROCK${mining.broken === 1 ? '' : 'S'} BROKEN`);
+        ink(holdNote, laden || mining.reason ? rgb(AMBER) : rgb(HAZE));
         entries.forEach((entry, i) => {
             const line = logLines[i]!, old = ship.time - entry.at;
             say(line, `${stamp(entry.at)}   ${entry.text}`);
