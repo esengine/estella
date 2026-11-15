@@ -21,7 +21,7 @@ import {
   AnimatorRootMotion, Playthrough, Name,
   worldResidencyReport, PostProcess, Renderer, Audio, Camera,
   getComponentRegistry, BakesRes,
-  startDebugChannel, glContextAttributes, warmShaders, getResourceStats,
+  startDebugChannel, glContextAttributes, warmShaders, getResourceStats, textureRecipeStats,
 } from 'esengine';
 import { installDevicePreview } from './devicePreviewClient';
 declare const __ESTELLA_LAN_PREVIEW__: boolean;
@@ -937,6 +937,7 @@ async function boot(): Promise<void> {
       bakes(): readonly { label: string; progress: number }[] {
         return app.hasResource(BakesRes) ? app.getResource(BakesRes).active : [];
       },
+      recipes: () => textureRecipeStats(),
     };
     // Each behind its OWN export. They are different ABIs now: readying a
     // prepared cell ships, and deriving the same from live entities is the

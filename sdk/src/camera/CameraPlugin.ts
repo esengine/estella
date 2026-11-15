@@ -776,7 +776,7 @@ function publishScreenOverlay(
         overlay.active = false;
         return;
     }
-    screenProjection(screen, overlay.projection);
+    screenProjection(screen, overlay.projection, overlay.perspective);
     overlay.vpX = 0;
     overlay.vpY = 0;
     overlay.vpW = width;

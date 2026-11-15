@@ -1,0 +1,1 @@
+{"version":1,"size":64,"layers":[{"shape":"circle","at":[32,32],"radius":30,"fill":{"type":"radial","at":[32,32],"radius":30,"stops":[[0,"#ffffffff"],[0.18,"#ffffffd0"],[0.5,"#ffffff38"],[1,"#ffffff00"]]}}]}

@@ -19,7 +19,7 @@
  */
 import { ENV_IMAGE_FIELDS } from './environmentFormat';
 import { writeFile, mkdir, readFile, open } from 'node:fs/promises';
-import { statSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { isInsideRoot } from '../fs/pathSandbox';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -53,7 +53,9 @@ import { cookCached } from './cookCache';
 import { cookTexture, loadTextureEncoder, pngDimensions, fillClearTexels, fillsClearTexels, COMPRESSED_TARGETS, type BasisEncoderModule } from './textureCook';
 import { meshTextureRoles } from './textureUsage';
 import { makeStreamTail, type StreamTail } from './streamTail';
-import { matchScriptAssetRefs, scanScriptAssetRefs } from './scriptAssetRefs';
+import { matchScriptAssetRefs, scanScriptAssetRefs, unregisteredScriptRefs } from './scriptAssetRefs';
+import { metaTypeFor } from './assetMeta';
+import { META_EXT } from './contentPolicy';
 import { readManifest } from '../project/readProject';
 import { resolveScripts } from '../project/format';
 
@@ -606,7 +608,15 @@ export async function cookAssets(
   // and culling it is a build that works in the editor and 404s on a device.
   const scriptDirs = opts.scriptDirs ?? await projectScriptDirs(root);
   if (scriptDirs.length > 0) {
-    const named = matchScriptAssetRefs(await scanScriptAssetRefs(root, scriptDirs), shippable);
+    const scriptRefs = await scanScriptAssetRefs(root, scriptDirs);
+    const named = matchScriptAssetRefs(scriptRefs, shippable);
+    const registered = new Set(index.entries.map((e) => e.path));
+    const onDisk = (rel: string): boolean => metaTypeFor(rel) !== null && isInsideRoot(root, path.join(root, rel))
+      && existsSync(path.join(root, rel)) && !existsSync(path.join(root, rel) + META_EXT);
+    for (const rel of unregisteredScriptRefs(scriptRefs, registered, onDisk)) {
+      warnings.push(`${rel}: a script names it and it has no .meta, so the project does not know it and it is not shipped; `
+        + 'open the project in the editor once, or run `estella adopt <projectDir>`');
+    }
     const byFolder = new Map<string, number>();
     for (const { uuid, via } of named) {
       if (reachable.has(uuid)) continue;

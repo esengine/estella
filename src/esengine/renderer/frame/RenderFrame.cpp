@@ -3438,6 +3438,28 @@ u32 RenderFrame::batchProgram(const std::vector<std::string>& features) {
     return shader ? shader->getProgramId() : 0;
 }
 
+u32 RenderFrame::displayProgram(u32 program) {
+    static const std::string kDisplay = "DISPLAY_OUTPUT";
+    std::vector<std::string> features;
+    bool found = false;
+    for (const auto& [key, handle] : batch_variants_) {
+        Shader* shader = resource_manager_.getShader(handle);
+        if (!shader || shader->getProgramId() != program) continue;
+        size_t from = 0;
+        while (from < key.size()) {
+            const size_t bar = key.find('|', from);
+            const size_t to = bar == std::string::npos ? key.size() : bar;
+            features.push_back(key.substr(from, to - from));
+            from = to + 1;
+        }
+        found = true;
+        break;
+    }
+    if (!found || std::find(features.begin(), features.end(), kDisplay) != features.end()) return program;
+    features.push_back(kDisplay);
+    return batchProgram(features);
+}
+
 resource::ShaderHandle RenderFrame::compileBatchVariant(const std::vector<std::string>& features) {
     // The batch shader is authored as a single .esshader with its WGSL twin,
     // embedded for the web build. Parse it and assemble the two stages for the
