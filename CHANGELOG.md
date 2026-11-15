@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **The space frigate is heard, from recipes.** `examples/space-frigate` was silent. It now has seven sounds and a piece of music, each a `.essound` or `.esmusic` source under `assets/audio`, a few hundred bytes of layers or a page of patterns, made into a clip on the device as the example's pictures are drawn there. The engines are a low drone placed at the stern, louder and a little higher the further the throttle is open, and the mining beam hums from the hull and climbs as its emitter heats; both are spatial sources with the camera as the listener, so they fall away as the camera pulls back. An engine, rudder or elevation order knocks (not while the helm steers itself), taking or leaving a helm mode is two soft notes, and a rock breaking, the emitter overheating and an arrival at a gate each have their sound, pitched in the key of the music. Under them plays a minute and a half of music, going round: a piano carries a theme over its own broken chords, and round it are a slow pad, a plucked figure that comes in on the second time through, a few high notes and a breath of noise; `M` turns it off and on. The piano is twelve notes of a public-domain upright taken out of its SoundFont into `assets/audio/piano`, which the music's source plays as it would a made instrument. `src/soundMix.ts` says what should sound for a given state and `src/audio.ts` plays it; `tools/check-audio.mjs` checks an exported build by what its mixer puts out.
+
 ## [0.106.0] - 2026-11-15
 
 ### Added

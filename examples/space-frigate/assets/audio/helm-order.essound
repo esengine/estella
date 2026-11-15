@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "duration": 0.16,
+  "gain": 0.6,
+  "lowpass": 3500,
+  "layers": [
+    {
+      "id": "thock",
+      "source": "sine",
+      "freq": [
+        [
+          0,
+          320
+        ],
+        [
+          0.05,
+          170
+        ]
+      ],
+      "attack": 0.002,
+      "decay": 0.022,
+      "gain": 1
+    },
+    {
+      "id": "edge",
+      "source": "noise",
+      "band": [
+        1500,
+        3500
+      ],
+      "seed": 41,
+      "attack": 0.001,
+      "decay": 0.006,
+      "gain": 0.25
+    }
+  ]
+}
