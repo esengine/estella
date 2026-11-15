@@ -1,0 +1,737 @@
+{
+ "version": 4,
+ "name": "SpaceFrigate",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 70,
+       "y": 14,
+       "z": 80
+      },
+      "rotation": {
+       "x": -0.054949017027051635,
+       "y": 0.3344208947555437,
+       "z": 0.01953620473134584,
+       "w": 0.9406176733313899
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 34,
+      "nearPlane": 1,
+      "farPlane": 30000,
+      "isActive": true,
+      "priority": 0,
+      "clearFlags": 3
+     }
+    },
+    {
+     "type": "PostProcessVolume",
+     "data": {
+      "isGlobal": true,
+      "weight": 1,
+      "priority": 0,
+      "effects": [
+       {
+        "type": "starfield",
+        "enabled": true,
+        "uniforms": {
+         "u_intensity": 1.0,
+         "u_density": 0.7,
+         "u_size": 1.0,
+         "u_band": 0.6,
+         "u_bandTilt": 25,
+         "u_bandTurn": 40,
+         "u_sunSize": 1.3,
+         "u_sunGlow": 1.0
+        }
+       },
+       {
+        "type": "ssao",
+        "enabled": true,
+        "uniforms": {
+         "u_radius": 4,
+         "u_intensity": 1.2,
+         "u_bias": 0.05,
+         "u_power": 1.6
+        }
+       },
+       {
+        "type": "bloom",
+        "enabled": true,
+        "uniforms": {
+         "u_threshold": 1.0,
+         "u_intensity": 0.8,
+         "u_radius": 1
+        }
+       },
+       {
+        "type": "colorGrade",
+        "enabled": true,
+        "uniforms": {
+         "u_exposure": -0.15,
+         "u_contrast": 1.1,
+         "u_saturation": 1.08
+        }
+       },
+       {
+        "type": "sharpen",
+        "enabled": true,
+        "uniforms": {
+         "u_intensity": 0.3,
+         "u_limit": 0.25
+        }
+       },
+       {
+        "type": "filmGrain",
+        "enabled": true,
+        "uniforms": {
+         "u_intensity": 0.06,
+         "u_size": 1.4,
+         "u_response": 0.8
+        }
+       },
+       {
+        "type": "vignette",
+        "enabled": true,
+        "uniforms": {
+         "u_intensity": 0.4,
+         "u_softness": 0.6
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Sun",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.23901995667528173,
+       "y": -0.376863258710456,
+       "z": -0.1013082942118169,
+       "w": 0.8891457552443099
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 1,
+       "g": 0.94,
+       "b": 0.86,
+       "a": 1
+      },
+      "intensity": 1.5,
+      "enabled": true,
+      "meshShadows": true,
+      "shadowDistance": 260,
+      "sourceAngle": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Sky",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 2,
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "intensity": 1.5,
+      "enabled": true,
+      "environment": "assets/env/nebula.esenv",
+      "drawEnvironment": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "PlanetShine",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.1689838291726904,
+       "y": 0.8157068687663273,
+       "z": -0.2942070988427657,
+       "w": -0.4685178253984494
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 1,
+       "g": 0.72,
+       "b": 0.45,
+       "a": 1
+      },
+      "intensity": 0.4,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "name": "Rim",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.030079319147323404,
+       "y": 0.9500746562264926,
+       "z": -0.09684580370772755,
+       "w": -0.2950835008263757
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 0.62,
+       "g": 0.74,
+       "b": 1.0,
+       "a": 1
+      },
+      "intensity": 0.26,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "name": "Ship",
+   "parent": null,
+   "children": [
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "name": "Hull",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/frigate.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": true,
+      "material": "assets/models/frigate.esmaterial",
+      "texture": "assets/models/frigate_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "name": "PlumeL",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 4.5,
+       "y": 0,
+       "z": -47.6
+      },
+      "scale": {
+       "x": 4.0,
+       "y": 4.0,
+       "z": 2.3
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "name": "PlumeR",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -4.5,
+       "y": 0,
+       "z": -47.6
+      },
+      "scale": {
+       "x": 4.0,
+       "y": 4.0,
+       "z": 2.3
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 9,
+   "name": "PlumeNL",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 17,
+       "y": -1,
+       "z": -48.7
+      },
+      "scale": {
+       "x": 3.0,
+       "y": 3.0,
+       "z": 1.7
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 10,
+   "name": "PlumeNR",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -17,
+       "y": -1,
+       "z": -48.7
+      },
+      "scale": {
+       "x": 3.0,
+       "y": 3.0,
+       "z": 1.7
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "name": "EngineGlowL",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 4.5,
+       "y": 0,
+       "z": -52
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 0.6,
+       "g": 0.75,
+       "b": 1.0,
+       "a": 1
+      },
+      "intensity": 0.4,
+      "radius": 14,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 12,
+   "name": "EngineGlowR",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -4.5,
+       "y": 0,
+       "z": -52
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 0.6,
+       "g": 0.75,
+       "b": 1.0,
+       "a": 1
+      },
+      "intensity": 0.4,
+      "radius": 14,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 13,
+   "name": "EngineGlowNL",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 17,
+       "y": -1,
+       "z": -52
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 0.6,
+       "g": 0.75,
+       "b": 1.0,
+       "a": 1
+      },
+      "intensity": 0.4,
+      "radius": 14,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 14,
+   "name": "EngineGlowNR",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -17,
+       "y": -1,
+       "z": -52
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 0.6,
+       "g": 0.75,
+       "b": 1.0,
+       "a": 1
+      },
+      "intensity": 0.4,
+      "radius": 14,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 15,
+   "name": "Planet",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -6000,
+       "y": -5760,
+       "z": -3500
+      },
+      "scale": {
+       "x": 4300,
+       "y": 4300,
+       "z": 4300
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/planet.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/planet.esmaterial",
+      "texture": "assets/textures/giant.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 16,
+   "name": "Atmosphere",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -6000,
+       "y": -5760,
+       "z": -3500
+      },
+      "scale": {
+       "x": 4394.6,
+       "y": 4394.6,
+       "z": 4394.6
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/shell.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/atmosphere.esmaterial"
+     }
+    }
+   ]
+  }
+ ]
+}

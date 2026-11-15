@@ -30,6 +30,7 @@ several can stack in one frame at no extra target cost beyond the passes.
 | `distanceFog` | Linear fog by distance from the camera | `near`, `far`, `intensity`, colour |
 | `heightFog` | Exponential height fog with the sun's glow and a hazy horizon | `density`, `heightFalloff`, `baseHeight`, `sunAzimuth`, `sunElevation`, `skyFog`, colours |
 | `skyAtmosphere` | An atmosphere that scatters the sun's light, with sun, moon, stars and volumetric clouds, drawn where there is no surface | `intensity`, `haze`, `altitude`, `clouds`, `cloudBase`, `cloudThickness`, `windSpeed`, `overcast`, `sunAzimuth`, `sunElevation` |
+| `starfield` | Stars drawn a pixel or two across at any resolution, in three layers of brightness, added over whatever sky is already there (an environment's panorama); with `sunSize` above 0, also the first directional light as a disc with a glow | `intensity`, `density`, `size`, `band`, `bandTilt`, `bandTurn`, `sunSize`, `sunGlow` |
 | `voxelGI` | Diffuse global illumination from a world-space voxel cache the camera remembers (WebGPU compute; fragment passes on WebGL2) | `intensity`, `rays`, `voxelSize`, `range`, `maxBounce`, `decay`, `blend`, `divisor` |
 | `sharpen` | Sharpening that cannot make a halo (a compute pass on WebGPU, a fragment pass of the same arithmetic on WebGL2) | `intensity`, `limit` |
 | `lightShafts` | Sun rays through whatever stands in front of it | `intensity`, `sunAzimuth`, `sunElevation`, `decay`, `reach` |

@@ -32,6 +32,7 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 | `distanceFog` | 按到相机的距离做线性雾 | `near`、`far`、`intensity`、颜色 |
 | `heightFog` | 指数高度雾,带太阳辉光和朦胧的地平线 | `density`、`heightFalloff`、`baseHeight`、`sunAzimuth`、`sunElevation`、`skyFog`、颜色 |
 | `skyAtmosphere` | 散射太阳光的大气,带太阳、月亮、星星和体积云,画在没有表面的地方 | `intensity`、`haze`、`altitude`、`clouds`、`cloudBase`、`cloudThickness`、`windSpeed`、`overcast`、`sunAzimuth`、`sunElevation` |
+| `starfield` | 任何分辨率下都只有一两个像素大的星点,分三层亮度,叠加在已经画出的天空(环境的全景图)之上;`sunSize` 大于 0 时还把第一个平行光画成带光晕的圆盘 | `intensity`、`density`、`size`、`band`、`bandTilt`、`bandTurn`、`sunSize`、`sunGlow` |
 | `voxelGI` | 基于相机记住的世界空间体素缓存的漫反射全局光照(WebGPU 用计算 pass,WebGL2 用片元 pass) | `intensity`、`rays`、`voxelSize`、`range`、`maxBounce`、`decay`、`blend`、`divisor` |
 | `sharpen` | 不会出光晕的锐化(WebGPU 上是计算 pass,WebGL2 上是同样算术的片元 pass) | `intensity`、`limit` |
 | `lightShafts` | 太阳光穿过前方遮挡物形成的光束 | `intensity`、`sunAzimuth`、`sunElevation`、`decay`、`reach` |
