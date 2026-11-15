@@ -627,6 +627,7 @@ public:
      * as the default, so quads of any variant share the batch vertex format.
      */
     u32 batchProgram(const std::vector<std::string>& features);
+    u32 displayProgram(u32 program);
     u32 premultipliedBatchProgram();
 
     static constexpr u32 STAGE_COUNT = 4;

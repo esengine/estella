@@ -35,6 +35,11 @@ public:
     // (hence the pool, whose staging it rewrites; call before upload()).
     void finalize(TransientBufferPool& pool);
 
+    template <typename Remap>
+    void remapPrograms(Remap&& remap) {
+        for (auto& command : commands_) command.shader_id = remap(command.shader_id);
+    }
+
     /// How many of the frame's TOP texture units are screen-space light masks: one for
     /// the shadow mask, two when a light also carries a shape. Set BEFORE finalize (the
     /// merge spends slots) and reserved top-down, so a sampler's unit never moves.

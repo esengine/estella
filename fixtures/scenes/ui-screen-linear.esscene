@@ -1,0 +1,133 @@
+{
+  "version": 4,
+  "name": "A Canvas over a linear frame: a mid-grey picture and a mid-grey tint must both reach the screen as the grey they were authored, as they do in a gamma frame.",
+  "entities": [
+    {
+      "id": 1,
+      "name": "Canvas",
+      "parent": null,
+      "children": [
+        2,
+        3
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 1920,
+              "y": 1080
+            },
+            "scaleMode": 1
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Picture",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 50,
+              "unit": 1
+            },
+            "height": {
+              "value": 60,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 2,
+            "texture": "@uuid:5d6b1a2e-90c4-4f7a-8b3d-2f81c0a4e5f6",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Tint",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 50,
+              "unit": 1
+            },
+            "height": {
+              "value": 60,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.502,
+              "g": 0.502,
+              "b": 0.502,
+              "a": 1
+            },
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}
