@@ -1,1 +1,1 @@
-{"version":1,"size":48,"layers":[{"shape":"polygon","points":[[24,11],[37,24],[24,37],[11,24]],"stroke":{"color":"#ffa348","width":3,"join":"miter"},"effects":[{"type":"glow","color":"#ffa348","blur":8,"opacity":0.6}]},{"shape":"circle","at":[24,24],"radius":2.5,"fill":"#ffa348"}]}
+{"version":1,"size":64,"layers":[{"shape":"polygon","points":[[32,19],[45,32],[32,45],[19,32]],"stroke":{"color":"#ffa348","width":3,"join":"miter"},"effects":[{"type":"glow","color":"#ffa348","blur":5,"opacity":0.6}]},{"shape":"circle","at":[32,32],"radius":2.5,"fill":"#ffa348"}]}

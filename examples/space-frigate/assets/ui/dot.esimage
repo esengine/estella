@@ -1,1 +1,1 @@
-{"version":1,"size":48,"layers":[{"shape":"circle","at":[24,24],"radius":7,"fill":"#ffffff","effects":[{"type":"glow","color":"#ffffff","blur":12,"opacity":0.8}]}]}
+{"version":1,"size":48,"layers":[{"shape":"circle","at":[24,24],"radius":7,"fill":"#ffffff","effects":[{"type":"glow","color":"#ffffff","blur":5,"opacity":0.7}]}]}

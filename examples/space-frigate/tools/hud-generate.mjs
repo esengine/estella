@@ -43,7 +43,7 @@ function gaugeDial() {
     layers.push({ shape: 'polygon', points: sector(c, s1 - 1.5, s1, 0, 1), fill: alpha(ICE, 0.34) });
     layers.push({ shape: 'polygon', points: sector(c, s0, s0 + 1.5, 0, 1), fill: alpha(ICE, 0.2) });
     const red = GAUGE.redline / GAUGE.fullScale;
-    layers.push({ id: 'redline', shape: 'polygon', points: sector(c, s1 + 5, s1 + 10, red, 1), fill: alpha(AMBER, 0.9), effects: [{ type: 'glow', color: AMBER, blur: 10, opacity: 0.45 }] });
+    layers.push({ id: 'redline', shape: 'polygon', points: sector(c, s1 + 5, s1 + 10, red, 1), fill: alpha(AMBER, 0.9), effects: [{ type: 'glow', color: AMBER, blur: 4, opacity: 0.45 }] });
     layers.push({ shape: 'polygon', points: tick(c, s0 - 4, s1 + 12, 0, 3), fill: alpha(ICE, 0.75) });
     layers.push({ shape: 'polygon', points: tick(c, s0 - 4, s1 + 12, 1, 3), fill: alpha(AMBER, 0.9) });
     const [k0, k1] = GAUGE.comb;
@@ -90,7 +90,7 @@ function plate() {
     return {
         version: 1, size,
         layers: [
-            { id: 'body', shape: 'polygon', points: outline, fill: { type: 'linear', from: [0, 0], to: [0, size], stops: [[0, alpha('#0b1d28', 0.74)], [0.5, alpha(PLATE, 0.66)], [1, alpha('#040c12', 0.78)]] }, effects: [{ type: 'shadow', color: '#000000', x: 0, y: 6, blur: 18, opacity: 0.5 }, { type: 'bevel', size: 2, angle: 115, depth: 0.5, shade: '#00000066' }] },
+            { id: 'body', shape: 'polygon', points: outline, fill: { type: 'linear', from: [0, 0], to: [0, size], stops: [[0, alpha('#0b1d28', 0.74)], [0.5, alpha(PLATE, 0.66)], [1, alpha('#040c12', 0.78)]] }, effects: [{ type: 'bevel', size: 2, angle: 115, depth: 0.5, shade: '#00000066' }] },
             { shape: 'polygon', points: outline, stroke: { color: alpha(ICE, 0.22), width: 1.5, align: 'inside', join: 'miter' } },
             { shape: 'line', points: [[1, 1.5], [size - cut, 1.5]], stroke: { color: alpha(ICE, 0.5), width: 1.5, cap: 'butt' } },
             { shape: 'line', points: [[size - cut, 1.5], [size - 1.5, cut]], stroke: { color: alpha(AMBER, 0.95), width: 2.5, cap: 'butt' }, effects: [{ type: 'glow', color: AMBER, blur: 6, opacity: 0.5 }] },
@@ -110,24 +110,24 @@ function bar(lit) {
 }
 
 function bracket() {
-    const size = 96, arm = 22, w = 3, inset = 6;
+    const size = 96, arm = 18, w = 3, inset = 14;
     const corner = (x, y, dx, dy) => ({ shape: 'line', points: [[x + dx * arm, y], [x, y], [x, y + dy * arm]], stroke: { color: ICE, width: w, join: 'miter', cap: 'butt' } });
     const far = size - inset;
     return {
         version: 1, size,
         layers: [{
-            shape: 'group', effects: [{ type: 'glow', color: DRIVE, blur: 8, opacity: 0.55 }],
+            shape: 'group', effects: [{ type: 'glow', color: DRIVE, blur: 4, opacity: 0.5 }],
             layers: [corner(inset, inset, 1, 1), corner(far, inset, -1, 1), corner(far, far, -1, -1), corner(inset, far, 1, -1)],
         }],
     };
 }
 
 function diamond() {
-    const size = 48, c = size / 2, r = 13;
+    const size = 64, c = size / 2, r = 13;
     return {
         version: 1, size,
         layers: [
-            { shape: 'polygon', points: [[c, c - r], [c + r, c], [c, c + r], [c - r, c]], stroke: { color: AMBER, width: 3, join: 'miter' }, effects: [{ type: 'glow', color: AMBER, blur: 8, opacity: 0.6 }] },
+            { shape: 'polygon', points: [[c, c - r], [c + r, c], [c, c + r], [c - r, c]], stroke: { color: AMBER, width: 3, join: 'miter' }, effects: [{ type: 'glow', color: AMBER, blur: 5, opacity: 0.6 }] },
             { shape: 'circle', at: [c, c], radius: 2.5, fill: AMBER },
         ],
     };
@@ -143,11 +143,11 @@ function chevron() {
 }
 
 function body() {
-    const size = 48, c = size / 2;
+    const size = 64, c = size / 2;
     return {
         version: 1, size,
         layers: [
-            { shape: 'ring', at: [c, c], radius: 15, inner: 12.5, fill: ICE, effects: [{ type: 'glow', color: DRIVE, blur: 6, opacity: 0.5 }] },
+            { shape: 'ring', at: [c, c], radius: 15, inner: 12.5, fill: ICE, effects: [{ type: 'glow', color: DRIVE, blur: 4, opacity: 0.5 }] },
             { shape: 'circle', at: [c, c], radius: 3, fill: ICE },
         ],
     };
@@ -157,7 +157,7 @@ function dot() {
     const size = 48, c = size / 2;
     return {
         version: 1, size,
-        layers: [{ shape: 'circle', at: [c, c], radius: 7, fill: '#ffffff', effects: [{ type: 'glow', color: '#ffffff', blur: 12, opacity: 0.8 }] }],
+        layers: [{ shape: 'circle', at: [c, c], radius: 7, fill: '#ffffff', effects: [{ type: 'glow', color: '#ffffff', blur: 5, opacity: 0.7 }] }],
     };
 }
 

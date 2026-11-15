@@ -9,7 +9,7 @@ import { ship } from './shipState';
 type Rgba = { r: number; g: number; b: number; a: number };
 
 const rgb = (hex: number, a = 1): Rgba => ({ r: ((hex >> 16) & 255) / 255, g: ((hex >> 8) & 255) / 255, b: (hex & 255) / 255, a });
-const ICE = 0xe6f2f7, HAZE = 0xa6bdc9, DRIVE = 0x7cd3ff, AMBER = 0xffa348, ALERT = 0xff5a3d;
+const ICE = 0xe6f2f7, HAZE = 0xa6bdc9, AMBER = 0xffa348, ALERT = 0xff5a3d;
 
 const DESIGN = { width: 1600, height: 900 };
 const EDGE = 40;
@@ -190,8 +190,8 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (world: Wor
     const rows = ROWS.map((title, i) => {
         const top = 52 + i * 32;
         label(systems, `${title}Label`, { left: 20, top, width: 100, height: 18 }, { size: 11, color: rgb(HAZE), spacing: 1.8, content: title, strong: false });
-        image(systems, `${title}Track`, { left: 112, top: top + 5, width: 168, height: 8 }, textures.barTrack, rgb(ICE));
-        const bar = node(systems, `${title}Bar`, { left: 112, top: top + 5, width: 168, height: 8 }, {
+        image(systems, `${title}Track`, { left: 122, top: top + 5, width: 160, height: 8 }, textures.barTrack, rgb(ICE));
+        const bar = node(systems, `${title}Bar`, { left: 122, top: top + 5, width: 160, height: 8 }, {
             visualType: UIVisualType.Filled, texture: textures.barFill, color: rgb(ICE), fillMethod: FillMethod.Horizontal, fillOrigin: FillOrigin.Left, fillAmount: 0,
         });
         const value = label(systems, `${title}Value`, { right: 18, top, width: 60, height: 18 }, { size: 13, color: rgb(ICE), align: TextAlign.Right, spacing: 0.4 });
@@ -252,7 +252,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (world: Wor
     const globe = planet === null ? null : world.get(planet, Transform);
     const altitude = globe ? Math.hypot(globe.position.x, globe.position.y, globe.position.z) - globe.scale.x : 0;
     world.insert(body, UIWorldAnchor, { clampToEdges: false });
-    image(body, 'BodyMark', { left: 0, top: 0, width: 24, height: 24 }, textures.body);
+    image(body, 'BodyMark', { left: -4, top: -4, width: 32, height: 32 }, textures.body);
     solid(body, 'BodyLeader', { left: 26, top: 12, width: 28, height: 1 }, rgb(ICE, 0.45));
     label(body, 'BodyName', { left: 62, top: -3, width: 220, height: 14 }, { size: 11, color: rgb(ICE), spacing: 3, content: 'KARIS IV' });
     const bodyRange = label(body, 'BodyRange', { left: 62, top: 14, width: 220, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 2, strong: false });
@@ -260,8 +260,8 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (world: Wor
     const marker = node(root, 'Waypoint', { left: 0, top: 0, width: 72, height: 72 });
     world.update(marker, UINode, (n) => { n.marginLeft = px(-36); n.marginTop = px(-36); });
     world.insert(marker, UIWorldAnchor, { offset: { ...WAYPOINT }, clampToEdges: true, edgeMargin: 64, edgeInsets: { left: 12, top: 76, right: 12, bottom: 340 } });
-    const bracket = sliced(marker, 'WaypointBracket', { left: 0, top: 0, width: 72, height: 72 }, textures.bracket, 34);
-    const diamond = image(marker, 'WaypointDiamond', { left: 24, top: 24, width: 24, height: 24 }, textures.diamond);
+    const bracket = sliced(marker, 'WaypointBracket', { left: -6, top: -6, width: 84, height: 84 }, textures.bracket, 34);
+    const diamond = image(marker, 'WaypointDiamond', { left: 20, top: 20, width: 32, height: 32 }, textures.diamond);
     const chevron = image(marker, 'WaypointChevron', { left: 12, top: 12, width: 48, height: 48 }, textures.chevron);
     const callout = sliced(marker, 'WaypointCallout', { left: 86, top: 2, width: 232, height: 68 }, textures.plate, 26);
     const waypointName = label(callout, 'WaypointName', { left: 14, top: 9, width: 190, height: 14 }, { size: 10, color: rgb(AMBER), spacing: 2.6 });
