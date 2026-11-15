@@ -50,6 +50,7 @@ describe('last signal gate 0: world state', () => {
         standAt(state, dock.x, dock.y);
         expect(settleArrival(state)).toBe(true);
         expect(state).toMatchObject({ ore: DRONE_CAPACITY, trips: 1 });
+        expect(state.buildings.map((b) => b.served)).toEqual([1, 1]);
         expect(state.drone).toMatchObject({ cargo: 0, leg: 'toMine' });
     });
 
@@ -87,10 +88,13 @@ describe('last signal gate 0: world state', () => {
     it('refuses a save that would put the world in a state the game cannot reach', () => {
         const good = snapshot(createState());
         expect(() => restore(null)).toThrow(/not an object/);
-        expect(() => restore({ ...good, buildings: [...good.buildings, { id: 9, kind: 'mine', x: 20, y: 32 }] })).toThrow(/shares its cell/);
+        expect(() => restore({ ...good, buildings: [...good.buildings, { id: 9, kind: 'mine', x: 20, y: 32, served: 0 }] })).toThrow(/shares its cell/);
         expect(() => restore({ ...good, buildings: [{ id: 1, kind: 'tower', x: 1, y: 1 }] })).toThrow(/unknown kind/);
         expect(() => restore({ ...good, drone: { ...good.drone, x: worldOfCell({ x: 20, y: 32 }).x } })).toThrow(/inside a building/);
         expect(() => restore({ ...good, nextId: 2 })).toThrow(/already taken/);
         expect(() => restore({ ...good, ore: -1 })).toThrow(/totals/);
+        expect(() => restore({ ...good, buildings: [{ ...good.buildings[0]!, served: -2 }, good.buildings[1]!] })).toThrow(/served/);
+        const old = { ...good, buildings: good.buildings.map(({ served: _served, ...rest }) => rest) };
+        expect(restore(old).buildings.every((b) => b.served === 0)).toBe(true);
     });
 });

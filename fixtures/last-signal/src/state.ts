@@ -9,7 +9,7 @@ export type BuildingKind = 'mine' | 'store';
 export type Leg = 'toMine' | 'toStore';
 
 export interface Cell { x: number; y: number }
-export interface Building extends Cell { id: number; kind: BuildingKind }
+export interface Building extends Cell { id: number; kind: BuildingKind; served: number }
 export interface DroneState { x: number; z: number; cargo: number; leg: Leg }
 
 export interface GameState {
@@ -46,8 +46,8 @@ export function createState(): GameState {
     const start = worldOfCell({ x: 21, y: 32 });
     return {
         buildings: [
-            { id: 1, kind: 'mine', x: 20, y: 32 },
-            { id: 2, kind: 'store', x: 44, y: 32 },
+            { id: 1, kind: 'mine', x: 20, y: 32, served: 0 },
+            { id: 2, kind: 'store', x: 44, y: 32, served: 0 },
         ],
         nextId: 3,
         ore: 0,
@@ -80,7 +80,7 @@ export function whyNotPlace(state: GameState, cell: Cell): string | null {
 export function place(state: GameState, kind: BuildingKind, cell: Cell): PlaceResult {
     const reason = whyNotPlace(state, cell);
     if (reason !== null) return { ok: false, reason };
-    const building: Building = { id: state.nextId, kind, x: cell.x, y: cell.y };
+    const building: Building = { id: state.nextId, kind, x: cell.x, y: cell.y, served: 0 };
     state.nextId += 1;
     state.buildings.push(building);
     return { ok: true, building };
@@ -131,6 +131,7 @@ export function isDocked(state: GameState, building: Building): boolean {
 export function settleArrival(state: GameState): boolean {
     const target = targetOf(state);
     if (target === null || !isDocked(state, target)) return false;
+    target.served += 1;
     if (state.drone.leg === 'toMine') {
         state.drone.cargo = DRONE_CAPACITY;
         state.drone.leg = 'toStore';
@@ -158,7 +159,7 @@ export interface Snapshot {
 
 export function snapshot(state: GameState): Snapshot {
     return {
-        buildings: state.buildings.map((b) => ({ id: b.id, kind: b.kind, x: b.x, y: b.y })),
+        buildings: state.buildings.map((b) => ({ id: b.id, kind: b.kind, x: b.x, y: b.y, served: b.served })),
         nextId: state.nextId,
         ore: state.ore,
         trips: state.trips,
@@ -186,7 +187,9 @@ export function restore(raw: unknown): GameState {
         if (taken.has(key)) throw new Error(`saved building ${b.id} shares its cell with another`);
         taken.add(key);
         ids.add(b.id);
-        buildings.push({ id: b.id, kind: b.kind, x: b.x, y: b.y });
+        const served = b.served ?? 0;
+        if (!count(served)) throw new Error(`saved building ${b.id} has served a count that is not one`);
+        buildings.push({ id: b.id, kind: b.kind, x: b.x, y: b.y, served });
     }
     const drone = data.drone;
     if (drone === undefined || drone === null || !finite(drone.x) || !finite(drone.z) || !count(drone.cargo)
