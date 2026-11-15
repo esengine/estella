@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { bakeModel, bakeNormalMap, planNormalBake, prepareModeling, runProbes, type ModelStep, type NormalMap } from '../src/modeling';
-import { probeOcclusion, probeRelief } from '../src/modeling/normalBake';
+import { bakeModel, bakeNormalMap, planNormalBake, prepareModeling, runProbes, startNormalBake, type ModelStep, type NormalMap } from '../src/modeling';
+import { probeOcclusion, probeRelief, reliefAt, reliefScratch, shadeTexels } from '../src/modeling/normalBake';
 import { openProbeCache } from '../src/modeling/probeCache';
 import { probeCount } from '../src/modeling/probeWorkers';
 
@@ -26,11 +26,32 @@ function source(stains: ModelStep[], size = 128): Record<string, unknown> {
     return { version: 1, normalBake: { from: 'dense', size, color: true, surface: true, occlusion: { size: 64, samples: 9 } }, steps: [slab, plates, ...stains, thin] };
 }
 
-const model = (stains: ModelStep[]) => bakeModel(source(stains) as never);
+const model = (stains: ModelStep[], size?: number) => bakeModel(source(stains, size) as never);
 
 function maps(map: NormalMap): Uint8Array[] {
     return [map.rgba, map.colorRgba!, map.surfaceRgba!, map.occlusion!.rgba, ...(map.emissiveRgba ? [map.emissiveRgba] : [])];
 }
+
+describe('the texels a bake shades', () => {
+    it('come out the same block by block, in any order, as all at once', () => {
+        const whole = bakeNormalMap(model([wear('plate'), dirt], 256));
+        const start = startNormalBake(model([wear('plate'), dirt], 256));
+        const blocks = start.shading.stats.length / 3;
+        expect(blocks).toBe(4);
+        for (const block of [2, 0, 3, 1]) shadeTexels(start.shading, start.tree, block, block + 1);
+        const plan = start.plan();
+        runProbes(plan.probes, plan.tree);
+        const pieced = plan.finish();
+        expect(maps(pieced)).toEqual(maps(whole));
+        expect(pieced.report).toEqual(whole.report);
+    });
+
+    it('refuse to go on over a block that was never shaded', () => {
+        const start = startNormalBake(model([wear('plate')], 256));
+        shadeTexels(start.shading, start.tree, 0, 3);
+        expect(() => start.plan()).toThrow(/never shaded/);
+    });
+});
 
 describe('the probes a bake runs', () => {
     it('come out the same in pieces, in any order, as all at once', () => {
@@ -115,11 +136,42 @@ describe('the probes a bake runs', () => {
     });
 });
 
+describe('the shape round a point', () => {
+    it('is the same read from the triangles near it at once as from one ray after another', () => {
+        const rough: ModelStep[] = [
+            { id: 'ball', op: 'sphere', radius: 2, rings: 64, sides: 96, color: [0, 0, 1], tag: 'slab' },
+            { id: 'dense', op: 'displace', pattern: 'bumps', scale: 0.4, amplitude: 0.12 },
+            { op: 'decimate', from: 'ball', ratio: 0.2 },
+        ];
+        const plan = planNormalBake(bakeModel({ version: 1, normalBake: { from: 'dense', size: 64, color: true }, steps: [...rough.slice(0, 2), wear('all'), rough[2]!] } as never));
+        const { corners, normals, triangles, places } = plan.probes;
+        expect(corners.length / 9).toBeGreaterThan(5000);
+        const [byRays, atOnce, both] = [reliefScratch(0), reliefScratch(100_000), reliefScratch()];
+        let values = 0, bent = 0, mixed = 0;
+        for (const reach of [0.05, 0.3, 1.5]) {
+            for (let slot = 0; slot < triangles.length; slot += 3) {
+                const hv = places[slot * 2]!, hw = places[slot * 2 + 1]!, hu = 1 - hv - hw, c = triangles[slot]! * 9;
+                const at = [0, 1, 2].map((k) => hu * corners[c + k]! + hv * corners[c + 3 + k]! + hw * corners[c + 6 + k]!);
+                const n = [0, 1, 2].map((k) => hu * normals[c + k]! + hv * normals[c + 3 + k]! + hw * normals[c + 6 + k]!);
+                const nl = Math.hypot(n[0]!, n[1]!, n[2]!);
+                const read = (scratch: ReturnType<typeof reliefScratch>): number => reliefAt(plan.tree, corners, at[0]!, at[1]!, at[2]!, n[0]! / nl, n[1]! / nl, n[2]! / nl, reach, scratch);
+                const slow = read(byRays);
+                if (!Object.is(read(atOnce), slow) || !Object.is(read(both), slow)) mixed++;
+                values++;
+                if (slow !== 0) bent++;
+            }
+        }
+        expect(mixed).toBe(0);
+        expect(values).toBeGreaterThan(400);
+        expect(bent / values).toBeGreaterThan(0.5);
+    });
+});
+
 describe('bake-model across threads', () => {
     const cli = fileURLToPath(new URL('../bin/estella.mjs', import.meta.url));
     const run = (dir: string, ...flags: string[]): { files: Record<string, Buffer>; probes: { computed: number; reused: number; jobs: number } } => {
         mkdirSync(dir, { recursive: true });
-        writeFileSync(path.join(dir, 'slab.esmodel'), JSON.stringify(source([wear('plate'), dirt], 256)));
+        writeFileSync(path.join(dir, 'slab.esmodel'), JSON.stringify(source([wear('plate'), dirt], 512)));
         const out = execFileSync(process.execPath, [cli, 'bake-model', path.join(dir, 'slab.esmodel'), ...flags], { encoding: 'utf8' });
         const files = Object.fromEntries(readdirSync(dir).filter((name) => /\.(png|esmesh|esmaterial)$/.test(name)).sort().map((name) => [name, readFileSync(path.join(dir, name))]));
         return { files, probes: JSON.parse(out.slice(out.indexOf('{\n'))).probes };
