@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "duration": 0.9,
+  "gain": 0.6,
+  "layers": [
+    {
+      "id": "beep",
+      "source": "square",
+      "freq": 880,
+      "width": 0.5,
+      "length": 0.14,
+      "attack": 0.004,
+      "release": 0.02,
+      "repeat": {
+        "count": 3,
+        "every": 0.24
+      },
+      "filters": [
+        {
+          "type": "lowpass",
+          "freq": 3200
+        }
+      ]
+    }
+  ]
+}

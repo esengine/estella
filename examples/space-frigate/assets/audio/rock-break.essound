@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "duration": 1.9,
+  "gain": 0.9,
+  "reverb": {
+    "size": 0.6,
+    "mix": 0.22,
+    "kind": "open"
+  },
+  "layers": [
+    {
+      "id": "crack",
+      "source": "noise",
+      "band": [
+        900,
+        7000
+      ],
+      "wide": 0.8,
+      "seed": 31,
+      "decay": 0.08,
+      "gain": 1
+    },
+    {
+      "id": "thump",
+      "source": "sine",
+      "freq": [
+        [
+          0,
+          120
+        ],
+        [
+          0.25,
+          45
+        ]
+      ],
+      "decay": 0.22,
+      "gain": 0.9
+    },
+    {
+      "id": "rumble",
+      "source": "noise",
+      "color": "brown",
+      "seed": 32,
+      "decay": 0.55,
+      "gain": 0.7,
+      "filters": [
+        {
+          "type": "lowpass",
+          "freq": 220
+        }
+      ]
+    },
+    {
+      "id": "debris",
+      "source": "modes",
+      "seed": 33,
+      "gain": 0.5,
+      "modes": [
+        [
+          1400,
+          1,
+          0.06
+        ],
+        [
+          2300,
+          0.6,
+          0.04
+        ],
+        [
+          3100,
+          0.4,
+          0.03
+        ]
+      ],
+      "scatter": {
+        "count": 60,
+        "over": 1.2,
+        "early": 2.2,
+        "pitch": [
+          0.6,
+          1.6
+        ],
+        "gain": [
+          0.2,
+          0.8
+        ],
+        "pan": 0.8,
+        "fade": 0.6
+      }
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "duration": 2,
+  "loop": true,
+  "gain": 0.8,
+  "layers": [
+    {
+      "id": "body",
+      "source": "sine",
+      "freq": 98,
+      "gain": 0.35
+    },
+    {
+      "id": "buzz",
+      "source": "saw",
+      "freq": 196,
+      "gain": 0.5,
+      "fm": {
+        "ratio": 2.01,
+        "index": 2.5
+      },
+      "tremolo": {
+        "rate": 31,
+        "depth": 0.25
+      },
+      "filters": [
+        {
+          "type": "bandpass",
+          "freq": 900,
+          "q": 1.5
+        }
+      ]
+    },
+    {
+      "id": "sizzle",
+      "source": "noise",
+      "band": [
+        2500,
+        9000
+      ],
+      "wide": 0.7,
+      "seed": 21,
+      "gain": 0.25,
+      "tremolo": {
+        "rate": 23,
+        "depth": 0.4
+      }
+    }
+  ]
+}

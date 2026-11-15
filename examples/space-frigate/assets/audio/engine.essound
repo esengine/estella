@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "duration": 4,
+  "loop": true,
+  "gain": 0.85,
+  "layers": [
+    {
+      "id": "rumble",
+      "source": "noise",
+      "color": "brown",
+      "wide": 0.5,
+      "seed": 11,
+      "gain": 0.9,
+      "filters": [
+        {
+          "type": "lowpass",
+          "freq": 170
+        }
+      ]
+    },
+    {
+      "id": "core",
+      "source": "saw",
+      "freq": 55,
+      "gain": 0.5,
+      "tremolo": {
+        "rate": 5.5,
+        "depth": 0.12
+      },
+      "filters": [
+        {
+          "type": "lowpass",
+          "freq": 240,
+          "q": 1.2
+        }
+      ]
+    },
+    {
+      "id": "fifth",
+      "source": "sine",
+      "freq": 82.5,
+      "gain": 0.32,
+      "vibrato": {
+        "rate": 0.5,
+        "depth": 0.15
+      }
+    },
+    {
+      "id": "whine",
+      "source": "triangle",
+      "freq": 330,
+      "gain": 0.07,
+      "vibrato": {
+        "rate": 0.75,
+        "depth": 0.2
+      },
+      "filters": [
+        {
+          "type": "bandpass",
+          "freq": 330,
+          "q": 4
+        }
+      ]
+    },
+    {
+      "id": "hiss",
+      "source": "noise",
+      "color": "pink",
+      "band": [
+        1800,
+        5200
+      ],
+      "wide": 0.8,
+      "seed": 12,
+      "gain": 0.05
+    }
+  ]
+}
