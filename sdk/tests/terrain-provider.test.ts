@@ -186,7 +186,7 @@ describe('a Terrain with no renderer (a server)', () => {
         const app = boot();
         const e = app.world.spawn();
         app.world.insert(e, Transform, {});
-        app.world.insert(e, Terrain, { ...Terrain._default, heightmap: 42 });
+        app.world.insert(e, Terrain, { ...Terrain._default, heightmap: 'assets/missing.png' });
         await settle(app);
         const terrains = app.getResource(TerrainsRes);
         expect(terrains.status(e)!.state).toBe('failed');

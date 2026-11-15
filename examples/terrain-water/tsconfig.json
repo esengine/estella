@@ -14,6 +14,8 @@
       "esengine": [
         "./.esengine/sdk/index.d.ts"
       ],
+      "esengine/session": ["./.esengine/sdk/net/session/index.d.ts"],
+      "esengine/cocos": ["./.esengine/sdk/cocos/index.d.ts"],
       "esengine/worldgen": ["./.esengine/sdk/worldgen/index.d.ts"],
       "esengine/spine": ["./.esengine/sdk/spine/index.d.ts"],
       "esengine/tilemap": ["./.esengine/sdk/tilemap/index.d.ts"],

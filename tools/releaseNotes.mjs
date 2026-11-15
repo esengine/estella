@@ -4836,6 +4836,10 @@ export const NOTED = {
     {"note": "Icons stay drawn and clickable with \"selected entities only\"."},
   "feat(editor): UE-style viewport defaults and keys - grid snapping starts on, a Space tap cycles Move/Rotate/Scale while Space held still pans, Ctrl/Cmd+backtick switches World and Local, End drops a selection onto the floor":
     {"note": "Viewport keys for moving things quickly."},
+  "fix(editor): an image field holds the path of its file in the World, and picking one loads no texture - a Terrain's heightmap and splatmaps and a Foliage's density and scale maps are read from their files as numbers, so the Reconciler projects them as paths, the picker offers images for them and stores the ref without uploading it, and their empty value is ''":
+    {"note": "A terrain's heightmap and splatmaps, and a foliage field's density and scale maps, are read from their files and never uploaded."},
+  "fix(terrain): a heightmap, splatmaps and foliage density and scale maps are read from their files and never uploaded - they are image fields, which hold the project path at run time; the scene loaded each as a texture too, 64 MiB of video memory for a 4097 heightmap whose upload missed the load deadline on a busy runner and left the terrain as noise; a terrain or foliage field grows again when one of its images changes (Assets.onSourceChanged)":
+    {"note": "A terrain's heightmap and splatmaps, and a foliage field's density and scale maps, are read from their files and never uploaded."},
   "fix(editor): project files reach the viewport with their length, and the editor's viewport keys, icon and Spine pick fixes are noted - moves the editor to d83f603e":
     {"note": "A large image reaches the editor's viewport on a busy machine."},
   "fix(checks): the nightly editor checks say what they take on the runner, terrain-open authors its heightmaps as the editor does and counts an import once it has landed, and an idle wait the overlay holds says why - model-detail took 4200 s against the 1500 it declared and took its shard's budget with it; a heightmap written into a scene file was a picture where one assigned in the inspector is Data, and the tiles were counted while the ground still streamed":
@@ -5030,4 +5034,12 @@ export const NOTED = {
     {"note": "A tree has bark."},
   "feat(modeling): a tree has bark - the picture a tree is given holds its bark along the top, furrowed, banded or smooth by barkStyle, and the wood reads it along each limb and round it, so the grain runs up a trunk and out along a branch; the leaf square stands clear of every edge of the picture, and thinning keeps each corner's own place in a picture and its own light":
     {"note": "A tree has bark."},
+  "chore(examples): seven examples' tsconfig name the SDK's sub-entries the editor writes for them":
+    {"internal": "Type-check paths of seven examples; nothing a game or the editor does changes."},
+  "feat(outliner): double-clicking an entity row frames it in the viewport":
+    { note: "Double-clicking an entity in the Outliner frames it." },
+  "feat(outliner): double-clicking an entity row frames it in the viewport - the same as F, as the common editors do; renaming an entity stays on F2 and the context menu, and a folder row, having nothing to frame, still renames on double-click. The twist, lock and eye do not frame when clicked twice quickly":
+    { note: "Double-clicking an entity in the Outliner frames it." },
+  "fix(play): multiplayer client tabs open once the client realms exist - the Game P2..N tabs were opened right after the boot was kicked off, before the asset check let the session create its clients, so the list was empty and every client ran with no view to see or drive it":
+    { note: "A multiplayer preview opens a Game tab for every client." },
 };

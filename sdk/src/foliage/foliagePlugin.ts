@@ -32,7 +32,7 @@ import type { Zones } from '../worldgen/zones';
 import { installFoliageContacts } from './foliageContacts';
 import { lodCullSizeWithin, lodSizeAtDistance, lodSphereRadius } from '../render/lodDistance';
 import { buildFoliageCell, type CellSurroundings, type DensityMap, type FoliageCellSpec } from './cellBuild';
-import { imagePixelsAt } from '../terrain/layerArrays';
+import { ImageRevisions, imagePixelsAt } from '../terrain/layerArrays';
 import { bakesOf } from '../runtime/bakes';
 import { firstSend, forgetSent, planPool } from '../runtime/planPool';
 import type { FoliageCellRequest, FoliageSurroundingsSpec } from '../worldgen/planWorker';
@@ -52,10 +52,8 @@ export interface FoliageData {
     mesh: number;
     /** A material on the Foliage shader, which makes the wind. Empty draws the plants in their own colours, still. */
     material: number;
-    /** An image over the area whose red says how many of the plants stand where: none at 0, all the field asks at white. Empty grows them everywhere. */
-    densityMap: number;
-    /** An image over the area whose red says how large the plants stand where: full size at white, none at black. */
-    scaleMap: number;
+    densityMap: string;
+    scaleMap: string;
     /** A picture over the area that colours the plants by where they stand, mixed in by its alpha (the material's shader reads it). */
     colorMap: number;
     /** How much of the colour map is mixed in where its alpha is whole. */
@@ -128,7 +126,7 @@ export interface FoliageData {
  * @experimental
  */
 export const Foliage: ComponentDef<FoliageData> = defineComponent<FoliageData>('Foliage', {
-    mesh: 0, material: 0, densityMap: 0, scaleMap: 0, colorMap: 0, colorMapStrength: 1, colorMapFrom: 0, palette: 0,
+    mesh: 0, material: 0, densityMap: '', scaleMap: '', colorMap: 0, colorMapStrength: 1, colorMapFrom: 0, palette: 0,
     farLevels: 1, farKeep: 0.34, farStep: 2, farGrow: 2, farGrowUp: 0, farTilt: 0, faceEyeNear: 0, faceEye: 0, farCards: true,
     sizeX: 400, sizeZ: 400, cellSize: 40, count: 500, seed: 1,
     minScale: 0.8, maxScale: 1.25, minUp: 0.7, heightMin: -100000, heightMax: 100000, waterDepth: 0,
@@ -136,7 +134,7 @@ export const Foliage: ComponentDef<FoliageData> = defineComponent<FoliageData>('
     zoneWorld: '', zoneTags: '', zonePadding: 0,
     cardU0: 0, cardV0: 0, cardU1: 1, cardV1: 1, cardTent: 0,
 }, {
-    assetFields: [{ field: 'mesh', type: 'mesh' }, { field: 'material', type: 'material' }, { field: 'densityMap', type: 'texture' }, { field: 'scaleMap', type: 'texture' }, { field: 'colorMap', type: 'texture' }, { field: 'palette', type: 'texture' }],
+    assetFields: [{ field: 'mesh', type: 'mesh' }, { field: 'material', type: 'material' }, { field: 'densityMap', type: 'image' }, { field: 'scaleMap', type: 'image' }, { field: 'colorMap', type: 'texture' }, { field: 'palette', type: 'texture' }],
     fields: {
         mesh: { tooltip: 'The plant to scatter. Empty grows grass.', category: 'Plant' },
         material: { tooltip: 'A material on the Foliage shader, which makes the wind. Empty draws the plants still, in their own colours.', category: 'Plant' },
@@ -284,6 +282,7 @@ export class FoliagePlugin implements Plugin {
     /** No foliage, no work; the frame after the last one goes still runs its sweep. */
     readonly activeWhen = [Foliage];
     private clearContacts_: (() => void) | null = null;
+    private images_ = new ImageRevisions();
 
     build(app: App): void {
         const field = new FoliageField();
@@ -312,7 +311,7 @@ export class FoliagePlugin implements Plugin {
                 const data = app.world.get(entity, Foliage) as FoliageData;
                 // The colour map is read by the material each frame: changing it grows nothing again.
                 const { colorMap: _c, colorMapStrength: _s, colorMapFrom: _f, palette: _p, ...grown } = data;
-                const signature = JSON.stringify(grown);
+                const signature = JSON.stringify(grown) + this.images_.of(app, [data.densityMap, data.scaleMap]);
                 let built = field.built_.get(entity);
                 if (!built || built.signature !== signature) {
                     // The instance outlives a rebuild on the same material; one on a material no longer the field's is let go once its old cells are.
@@ -368,6 +367,7 @@ export class FoliagePlugin implements Plugin {
     cleanup(app?: App): void {
         this.clearContacts_?.();
         this.clearContacts_ = null;
+        this.images_.stop();
         if (!app?.hasResource(FoliageRes)) return;
         const field = app.getResource(FoliageRes);
         for (const entity of field.built_.keys()) {
@@ -389,11 +389,9 @@ export class FoliagePlugin implements Plugin {
                 built.source = await app.getResource(Assets).readMeshData(data.mesh);
                 if (!built.source) log.warn('foliage', `the geometry of mesh ${data.mesh} cannot be read, so its plants are grass instead`);
             }
-            // A map of numbers over the area, its red: what an image the field reads on the CPU is.
-            const numbers = async (handle: number, what: string, without: string): Promise<BuiltFoliage['density']> => {
-                const path = app.getResource(Assets).pathForHandle('texture', handle);
-                const image = path ? await imagePixelsAt(app, path) : null;
-                if (!image) { log.warn('foliage', `the ${what} (texture ${handle}) cannot be read, so its plants ${without}`); return null; }
+            const numbers = async (path: string, what: string, without: string): Promise<BuiltFoliage['density']> => {
+                const image = await imagePixelsAt(app, path);
+                if (!image) { log.warn('foliage', `the ${what} ${path} cannot be read, so its plants ${without}`); return null; }
                 const values = new Uint8Array(image.width * image.height);
                 for (let i = 0; i < values.length; i++) values[i] = image.pixels[i * 4]!;
                 return { width: image.width, height: image.height, values };

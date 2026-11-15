@@ -480,6 +480,7 @@ export class Assets {
     private assetRefResolver_: AssetRefResolver | null = null;
     private refCounter_: AssetRefCounter | null = null;
     private invalidateListeners_ = new Set<InvalidateListener>();
+    private sourceListeners_ = new Set<(path: string) => void>();
     private readonly appScope_ = new AssetScope();
     private readonly entityScopes_ = new EntityAssetScopes();
     private readonly registrySlots_ = new RegistryAssetSlots();
@@ -1283,6 +1284,7 @@ export class Assets {
                 + ` -> ${this.resolveLoadPath_(c.key)}`).join('; ')}`);
         }
         for (const c of changed) this.fireInvalidate_({ ref: c.key, type: c.type, oldValue: oldHandles.get(c.key) });
+        for (const c of changed) this.fireSourceChanged_(c.key);
         // A changed asset is content-addressed, so its next load finds the update
         // on its own. An era already BUILT from one cannot: it holds what it read
         // at the revision it was prepared in, and only the walk ends it.
@@ -1844,6 +1846,10 @@ export class Assets {
                     }
 
                     switch (type) {
+                        case 'image': {
+                            comp.data[field] = path;
+                            break;
+                        }
                         case 'texture': {
                             const handle = textureHandles.get(path) ?? 0;
                             comp.data[field] = handle;
@@ -2209,6 +2215,7 @@ export class Assets {
         }
         const { hit, rebuilt } = this.invalidateSource_(ref);
         if (plan.length > 0) this.track_(rebuilt.then(() => this.rebuildAssetGraph_(plan)));
+        this.fireSourceChanged_(ref);
         return hit;
     }
 
@@ -2402,6 +2409,29 @@ export class Assets {
         return () => {
             this.invalidateListeners_.delete(listener);
         };
+    }
+
+    onSourceChanged(listener: (path: string) => void): () => void {
+        this.sourceListeners_.add(listener);
+        return () => {
+            this.sourceListeners_.delete(listener);
+        };
+    }
+
+    sourceIdentity(ref: string): string {
+        return this.assetIdentity_(ref);
+    }
+
+    private fireSourceChanged_(ref: string): void {
+        if (this.sourceListeners_.size === 0) return;
+        const path = this.assetIdentity_(ref);
+        for (const listener of this.sourceListeners_) {
+            try {
+                listener(path);
+            } catch (e) {
+                log.warn('asset', 'onSourceChanged listener threw', e);
+            }
+        }
     }
 
     /**

@@ -38,6 +38,24 @@ export async function imagePixelsAt(app: App, path: string): Promise<{ width: nu
     }
 }
 
+export class ImageRevisions {
+    private counts_ = new Map<string, number>();
+    private stop_: (() => void) | null = null;
+
+    of(app: App, paths: readonly string[]): string {
+        if (!app.hasResource(Assets) || paths.every((p) => !p)) return '';
+        const assets = app.getResource(Assets);
+        this.stop_ ??= assets.onSourceChanged((path) => { this.counts_.set(path, (this.counts_.get(path) ?? 0) + 1); });
+        return paths.map((p) => (p ? this.counts_.get(assets.sourceIdentity(p)) ?? 0 : 0)).join(',');
+    }
+
+    stop(): void {
+        this.stop_?.();
+        this.stop_ = null;
+        this.counts_.clear();
+    }
+}
+
 /** Reads the layer files `refs` (at most `most`) and packs them, at half the size on a minigame, whose memory is smaller. */
 export async function readAndPackLayers(app: App, refs: readonly string[], most: number): Promise<PackedLayers> {
     const assets = app.getResource(Assets);

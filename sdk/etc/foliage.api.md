@@ -56,7 +56,7 @@ colorMap: number
 colorMapFrom: number
 colorMapStrength: number
 count: number
-densityMap: number
+densityMap: string
 drawDistance: number
 faceEye: number
 faceEyeNear: number
@@ -76,7 +76,7 @@ mesh: number
 minScale: number
 minUp: number
 palette: number
-scaleMap: number
+scaleMap: string
 seed: number
 sizeX: number
 sizeZ: number
