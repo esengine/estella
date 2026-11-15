@@ -1,4 +1,5 @@
 import { TextAlign, Transform, UIVisual } from 'esengine';
+import { METRES, helm, turnBack } from './helm';
 import { AMBER, HAZE, ICE, rgb, type Frame, type Kit, type Rock } from './hudKit';
 import type { TargetProbe } from './hudTargets';
 
@@ -9,7 +10,7 @@ export function buildScope(kit: Kit, rocks: readonly Rock[], probe: TargetProbe)
     const R = SCOPE.radius;
     const scope = pivot(root, 'Scope', { left: 0, top: SCOPE.top });
     label(scope, 'ScopeTitle', { left: -R - 4, top: -84, width: 120, height: 13 }, { size: 10, color: rgb(HAZE), spacing: 2.6, content: 'TACTICAL' });
-    label(scope, 'ScopeRange', { left: R - 116, top: -84, width: 120, height: 13 }, { size: 10, color: rgb(HAZE), spacing: 1.8, content: `${(SCOPE.range / 1000).toFixed(1)} KM`, align: TextAlign.Right, strong: false });
+    label(scope, 'ScopeRange', { left: R - 116, top: -84, width: 120, height: 13 }, { size: 10, color: rgb(HAZE), spacing: 1.8, content: `${Math.round((SCOPE.range * METRES) / 1000)} KM`, align: TextAlign.Right, strong: false });
     const plane = pivot(scope, 'ScopePlane', { left: 0, top: 0 });
     image(plane, 'ScopeDial', { left: -R - 10, top: -R - 10, width: 2 * R + 20, height: 2 * R + 20 }, textures.scope);
     const sweep = glow(image(plane, 'ScopeSweep', { left: -R, top: -R, width: 2 * R, height: 2 * R }, textures.sweep, rgb(0x7cd3ff, 0.55)));
@@ -30,7 +31,7 @@ export function buildScope(kit: Kit, rocks: readonly Rock[], probe: TargetProbe)
         tilt(plane, -lean, frame.sway.y * 0.5);
         turn(sweep, -frame.time * SCOPE.sweep);
         rocks.forEach((rock, i) => {
-            const at = world.get(rock.entity, Transform).position;
+            const at = turnBack(helm.level, world.get(rock.entity, Transform).position);
             const blip = blips[i]!;
             if (Math.hypot(at.x, at.z) > SCOPE.range) { fade(blip.at, 0); return; }
             const chosen = i === probe.current, locked = chosen && probe.selected >= 0;
@@ -47,7 +48,8 @@ export function buildScope(kit: Kit, rocks: readonly Rock[], probe: TargetProbe)
         });
         if (frame.lens) {
             const q = frame.lens.rotation;
-            const fx = -2 * (q.x * q.z + q.w * q.y), fz = -(1 - 2 * (q.x * q.x + q.y * q.y));
+            const look = turnBack(helm.level, { x: -2 * (q.x * q.z + q.w * q.y), y: 2 * (q.w * q.x - q.y * q.z), z: -(1 - 2 * (q.x * q.x + q.y * q.y)) });
+            const fx = look.x, fz = look.z;
             const flat = Math.hypot(fx, fz) || 1;
             place(eye.at, half((fx / flat) * R), half((fz / flat) * R));
             tilt(eye.at, lean, 0);

@@ -4,6 +4,7 @@ import {
 } from 'esengine';
 import type { App, Entity, World } from 'esengine';
 import { SHOTS, SHOT_SECONDS, clamp } from './flight';
+import { helm, stepHelm } from './helm';
 import {
     ALERT, AMBER, DESIGN, EDGE, FONTS, HAZE, ICE, TEXTURES, createKit, ease, pad, rgb, stamp,
     type Frame, type Log, type Rgba, type Rock, type Textures,
@@ -22,13 +23,25 @@ const BOOT_SECONDS = 2.6;
 
 type Loaded = { textures: Textures; fonts: { regular: number; strong: number } };
 
-const state = { ready: false, loadMs: 0, error: '', waypointClamped: true, selected: -1, current: -1, locked: false, booted: false, mining: mining, picks: [] as { index: number; x: number; y: number }[] };
+const state = { ready: false, loadMs: 0, error: '', waypointClamped: true, selected: -1, current: -1, locked: false, booted: false, mining: mining, helm: helm, picks: [] as { index: number; x: number; y: number }[] };
 
 export function installHud(app: App): void {
     let loading: Promise<Loaded> | null = null;
     let loaded: Loaded | null = null;
     let update: ((dt: number, input: InputState) => void) | null = null;
 
+    const majors: Entity[] = [];
+    app.addSystem(defineSystem([GetWorld(), Res(Time), Res(Input)], (world, time, input) => {
+        if (world.findEntityByName('Camera') === null) return;
+        const moved = stepHelm({
+            left: input.isKeyDown('ArrowLeft'), right: input.isKeyDown('ArrowRight'), up: input.isKeyDown('ArrowUp'), down: input.isKeyDown('ArrowDown'),
+            approach: input.isKeyDown('KeyV'), align: input.isKeyDown('KeyB'),
+        }, Math.min(time.delta, 0.05));
+        if (majors.length === 0) {
+            for (let i = MAJOR_FROM; i < ROCKS; i++) { const e = world.findEntityByName(`Rock${i}`); if (e !== null) majors.push(e); }
+        }
+        for (const e of majors) world.update(e, Transform, (t) => { t.position = { x: t.position.x + moved.x, y: t.position.y + moved.y, z: t.position.z + moved.z }; });
+    }));
     app.addSystem(defineSystem([GetWorld(), Res(Time), Res(Input)], (world, time, input) => {
         if (update) { update(Math.min(time.delta, 0.05), input); return; }
         if (world.findEntityByName('Camera') === null) return;
@@ -77,6 +90,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     label(identity, 'ShipName', { left: 16, top: 0, width: 400, height: 24 }, { size: 19, color: rgb(ICE), spacing: 4.2, content: 'ESV HALCYON' });
     label(identity, 'ShipClass', { left: 16, top: 27, width: 400, height: 16 }, { size: 11, color: rgb(HAZE, 0.9), spacing: 1.8, content: 'MERIDIAN CLASS FRIGATE', strong: false });
     const clock = label(identity, 'MissionClock', { left: 16, top: 48, width: 400, height: 16 }, { size: 11, color: rgb(HAZE, 0.9), spacing: 1.8, strong: false });
+    const helmLine = label(identity, 'HelmLine', { left: 16, top: 67, width: 400, height: 16 }, { size: 11, color: rgb(HAZE, 0.9), spacing: 1.8, strong: false });
 
     const viewAt = pivot(root, 'ViewPivot', { right: EDGE + 150, top: 34 + 32 });
     const view = node(viewAt, 'View', { left: -150, top: -32, width: 300, height: 64 });
@@ -148,7 +162,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     const commandValue = label(tag, 'CommandValue', { left: 76, top: 30, width: 56, height: 20 }, { size: 15, color: rgb(AMBER), align: TextAlign.Right, spacing: 0.5 });
 
     const hints = node(root, 'Hints', { left: 0, right: 0, bottom: 12, height: 24 });
-    const HINTS: readonly (readonly [string, number, string])[] = [['W', 24, ''], ['S', 24, 'THRUST'], ['DRAG', 50, 'ORBIT'], ['1 – 6', 50, 'VIEWS'], ['SPACE', 58, 'TOUR'], ['T', 24, 'TARGET'], ['CLICK', 54, 'LOCK'], ['R', 24, 'RELEASE'], ['F', 24, 'MINE']];
+    const HINTS: readonly (readonly [string, number, string])[] = [['W', 24, ''], ['S', 24, 'THRUST'], ['ARROWS', 64, 'STEER'], ['DRAG', 50, 'ORBIT'], ['T', 24, 'LOCK'], ['F', 24, 'MINE'], ['V', 24, 'CLOSE'], ['B', 24, 'GATE'], ['SPACE', 58, 'TOUR']];
     const wide = HINTS.reduce((sum, [, cap, text]) => sum + cap + (text ? 14 + text.length * 8.6 + 26 : 5), -26);
     const row = spawnUIEntity({ world, parent: hints, node: { ...{ position: UIPositionType.Absolute, pointerEvents: UIPointerEvents.None }, insetLeft: percent(50), insetTop: px(0), width: px(wide), height: px(24), marginLeft: px(-wide / 2), opacity: 0.78 } });
     world.insert(row, Name, { value: 'HintRow' });
@@ -163,7 +177,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     }
 
 
-    const logLines = Array.from({ length: LOG_LINES }, (_, i) => label(identityAt, `Log${i}`, { left: -194, top: 8 + i * 17, width: 420, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 1.6, strong: false }));
+    const logLines = Array.from({ length: LOG_LINES }, (_, i) => label(identityAt, `Log${i}`, { left: -194, top: 28 + i * 17, width: 420, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 1.6, strong: false }));
     const entries: { text: string; tone: number; at: number }[] = [];
     const log: Log = {
         say(text, tone = HAZE) {
@@ -229,6 +243,14 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         model.reactor += (load - model.reactor) * Math.min(1, dt * 1.6);
 
         say(clock, `OUTER PATROL   T+ ${stamp(ship.time)}`);
+        const bearing = ((Math.round((-helm.yaw * 180) / Math.PI) % 360) + 360) % 360, climb = Math.round((helm.pitch * 180) / Math.PI);
+        say(helmLine, `${helm.mode === 'manual' ? 'HELM MANUAL' : helm.mode === 'align' ? 'ALIGNING TO GATE' : 'CLOSING ON TARGET'}   HDG ${pad(bearing, 3)}   ELV ${climb < 0 ? '-' : '+'}${pad(Math.abs(climb), 2)}`);
+        ink(helmLine, helm.mode === 'manual' ? rgb(HAZE, 0.9) : rgb(AMBER));
+        if (helm.arrived) {
+            log.say(mining.hold > 0 ? `DELIVERED ${mining.hold.toFixed(1)} T   NAV ${pad(helm.leg, 2)} ${helm.gateName}` : `GATE REACHED   NAV ${pad(helm.leg, 2)} ${helm.gateName}`, AMBER);
+            mining.delivered = Math.round((mining.delivered + mining.hold) * 10) / 10;
+            mining.hold = 0;
+        }
 
         if (ship.tour) {
             say(viewTitle, `VIEW ${ship.shot + 1} / ${SHOTS.length}`);
@@ -299,7 +321,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         say(holdValue, `${mining.hold.toFixed(1)} / ${MINING.capacity.toFixed(0)} T`);
         fill(holdBar, Math.round((mining.hold / MINING.capacity) * 24) / 24);
         ink(holdBar, laden ? rgb(AMBER) : rgb(ICE), UIVisual);
-        say(holdNote, laden ? 'HOLD FULL  RETURN TO KESTREL GATE' : mining.reason ? mining.reason : `${mining.broken} ROCK${mining.broken === 1 ? '' : 'S'} BROKEN`);
+        say(holdNote, laden ? `HOLD FULL  RETURN TO ${helm.gateName}` : mining.reason ? mining.reason : `${mining.delivered.toFixed(1)} T DELIVERED`);
         ink(holdNote, laden || mining.reason ? rgb(AMBER) : rgb(HAZE));
         entries.forEach((entry, i) => {
             const line = logLines[i]!, old = ship.time - entry.at;

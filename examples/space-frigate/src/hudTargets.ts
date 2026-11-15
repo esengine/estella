@@ -1,12 +1,11 @@
 import { FillMethod, FillOrigin, TextAlign, Transform, UINode, UIVisual, UIVisualType, UIWorldAnchor, placeOnScreen } from 'esengine';
 import type { Entity } from 'esengine';
 import { clamp } from './flight';
-import { AMBER, DESIGN, HAZE, ICE, KEPT_CLEAR, ease, hullBlocks, keptClear, pad, sameRoom, rgb, spaced, stamp, towardOnScreen, type Frame, type Kit, type Log, type Rock } from './hudKit';
+import { METRES, helm, turnBy } from './helm';
+import { AMBER, DESIGN, HAZE, ICE, KEPT_CLEAR, ease, hullBlocks, keptClear, pad, reach, sameRoom, rgb, spaced, stamp, towardOnScreen, type Frame, type Kit, type Log, type Rock } from './hudKit';
 import { MINING, mining, rockClass } from './hudMining';
 import { ship } from './shipState';
 
-const WAYPOINT = { x: 0, y: 14, z: 2600 };
-const LEG_KM = 86;
 const HULL = [{ x: 0, y: 0, z: 52 }, { x: 0, y: 0, z: -52 }, { x: 24, y: 0, z: -40 }, { x: -24, y: 0, z: -40 }, { x: 0, y: 16, z: -20 }, { x: 0, y: -10, z: 0 }, { x: 14, y: 0, z: 20 }, { x: -14, y: 0, z: 20 }];
 const MINOR = 6;
 const PICK_REACH = 38;
@@ -32,7 +31,7 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
     image(body, 'BodyMark', { left: -4, top: -4, width: 32, height: 32 }, textures.body);
     solid(body, 'BodyLeader', { left: 26, top: 12, width: 28, height: 1 }, rgb(ICE, 0.45));
     label(body, 'BodyName', { left: 62, top: -3, width: 220, height: 14 }, { size: 11, color: rgb(ICE), spacing: 3, content: 'KARIS IV' });
-    label(body, 'BodyRange', { left: 62, top: 14, width: 220, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 2, strong: false, content: `ALTITUDE ${spaced(altitude)} KM` });
+    label(body, 'BodyRange', { left: 62, top: 14, width: 220, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 2, strong: false, content: `ALTITUDE ${spaced(Math.round((altitude * METRES) / 100) * 100)} KM` });
 
     const minors = Array.from({ length: MINOR }, (_, i) => {
         const e = centred(node(root, `Contact${i}`, { left: 0, top: 0, width: 22, height: 22 }), 22, 22);
@@ -42,7 +41,7 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
     });
 
     const marker = centred(node(root, 'Waypoint', { left: 0, top: 0, width: 72, height: 72 }), 72, 72);
-    world.insert(marker, UIWorldAnchor, { offset: { ...WAYPOINT }, clampToEdges: true, edgeMargin: 64, edgeInsets: { ...KEPT_CLEAR } });
+    world.insert(marker, UIWorldAnchor, { offset: { ...helm.gate }, clampToEdges: true, edgeMargin: 64, edgeInsets: { ...KEPT_CLEAR } });
     const bracket = sliced(marker, 'WaypointBracket', { left: -6, top: -6, width: 84, height: 84 }, textures.bracket, 34);
     const diamond = image(marker, 'WaypointDiamond', { left: 20, top: 20, width: 32, height: 32 }, textures.diamond);
     const chevron = image(marker, 'WaypointChevron', { left: 12, top: 12, width: 48, height: 48 }, textures.chevron, rgb(AMBER));
@@ -69,7 +68,6 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
     const cardWhole = node(card, 'TargetWhole', { left: 14, top: 82, width: 184, height: 6 }, { visualType: UIVisualType.Filled, texture: textures.barFill, color: rgb(ICE), fillMethod: FillMethod.Horizontal, fillOrigin: FillOrigin.Left, fillAmount: 1 });
 
     const probe: TargetProbe = { selected: -1, current: -1, locked: false, waypointClamped: true, release: false, picks: [] };
-    const model = { leg: 3, range: LEG_KM };
     const seen = rocks.map(() => ({ range: Infinity, left: 0, top: 0, visible: false, free: false }));
     const near = new Set<number>();
     let selected = -1, tracked = -1, shownFor = -1, lockAt = 0, announced = false, rate = 0, before = 0;
@@ -85,7 +83,7 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
 
     const update = (frame: Frame): void => {
         const box = { width: frame.across, height: DESIGN.height };
-        const hull = frame.lens ? HULL.map((p) => placeOnScreen(p, frame.lens!, box, false, 0)) : [];
+        const hull = frame.lens ? HULL.map((p) => placeOnScreen(turnBy(helm.attitude, p), frame.lens!, box, false, 0)) : [];
         const bow = hull[0], stern = hull[1];
         const keel = bow && stern ? { x: stern.left - bow.left, y: stern.top - bow.top } : { x: 0, y: 0 };
         const length = keel.x * keel.x + keel.y * keel.y || 1;
@@ -104,7 +102,7 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
             s.left = on ? on.left : 0;
             s.top = on ? on.top : 0;
             s.free = s.visible && s.left > 90 && s.left < box.width - 300 && s.top > 112 && s.top < box.height - 340 && !(s.left < 470 && s.top < 204);
-            if (s.range < NEAR && !near.has(i)) { near.add(i); if (primed) log.say(`PROXIMITY  ROCK ${pad(i + 1, 2)}  ${spaced(s.range)} M`, AMBER); }
+            if (s.range < NEAR && !near.has(i)) { near.add(i); if (primed) log.say(`PROXIMITY  ROCK ${pad(i + 1, 2)}  ${reach(s.range)}`, AMBER); }
             else if (s.range > NEAR * 1.15) near.delete(i);
         });
         const byRange = rocks.map((_, i) => i).sort((a, b) => seen[a]!.range - seen[b]!.range);
@@ -166,17 +164,17 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
             fade(card, selected >= 0 && !held.clamped ? settle : 0);
             const name = `ROCK ${pad(current + 1, 2)}`;
             say(briefName, name);
-            say(briefRange, `${spaced(s.range)} M`);
+            say(briefRange, reach(s.range));
             if (selected >= 0) {
                 const done = lock >= 1;
-                if (done && !announced) { announced = true; log.say(`${name}  LOCKED  ${spaced(s.range)} M`); }
+                if (done && !announced) { announced = true; log.say(`${name}  LOCKED  ${reach(s.range)}`); }
                 place(card, aside ? -228 : 74, -18);
                 const working = mining.firing && mining.target === selected;
                 say(cardState, working ? 'MINING' : done ? 'LOCKED' : 'ACQUIRING');
                 fade(cardState, done && !working ? 1 : 0.55 + 0.45 * Math.sin(frame.time * 14));
                 say(cardName, name);
-                say(cardRange, `${spaced(s.range)} M`);
-                say(cardRate, Math.abs(rate) < 0.5 ? 'HOLDING RANGE' : `${rate > 0 ? 'CLOSING' : 'OPENING'}  ${spaced(Math.abs(rate))} M/S`);
+                say(cardRange, reach(s.range));
+                say(cardRate, Math.abs(rate) < 0.5 ? 'HOLDING RANGE' : `${rate > 0 ? 'CLOSING' : 'OPENING'}  ${spaced(Math.abs(rate) * METRES)} M/S`);
                 const kind = rockClass(current);
                 say(cardSize, rocks[current]!.big ? 'MAJOR BODY  TOO LARGE TO MINE' : `${kind.code}-TYPE  ${kind.name}`);
                 const near = s.range <= MINING.range;
@@ -199,19 +197,20 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
             fade(minor.node, index >= 0 ? 0.6 : 0);
         });
 
-        model.range -= (ship.speed * frame.dt) / 1000;
-        if (model.range <= 0) { model.range += LEG_KM; model.leg = (model.leg % 9) + 1; log.say(`NAV ${pad(model.leg, 2)} SET  KESTREL GATE`, AMBER); }
         const anchor = world.get(marker, UIWorldAnchor);
+        const gate = helm.gate, away = Math.hypot(gate.x, gate.y, gate.z);
+        if (Math.abs(anchor.offset.x - gate.x) + Math.abs(anchor.offset.y - gate.y) + Math.abs(anchor.offset.z - gate.z) > 0.5) world.update(marker, UIWorldAnchor, (anchored) => { anchored.offset = { ...gate }; });
+        helm.aim = selected >= 0 ? { ...world.get(rocks[selected]!.entity, Transform).position } : null;
         const clear = keptClear(box.width, world.get(marker, UINode).insetLeft.value, 64, anchor.onScreen);
         if (!sameRoom(anchor.edgeInsets, clear)) world.update(marker, UIWorldAnchor, (anchored) => { anchored.edgeInsets = clear; });
         place(callout, world.get(marker, UINode).insetLeft.value > box.width - 380 ? -246 : 86, 2);
         fade(bracket, anchor.clamped ? 0 : 1);
         fade(diamond, anchor.clamped ? 0 : 1);
         fade(chevron, anchor.clamped ? 0.75 + 0.25 * Math.sin(frame.time * 5) : 0);
-        if (anchor.clamped && frame.lens) turn(chevron, towardOnScreen(frame.lens, WAYPOINT));
-        say(waypointName, `NAV ${pad(model.leg, 2)}  KESTREL GATE`);
-        say(waypointRange, `${model.range.toFixed(1)} KM`);
-        say(waypointEta, ship.speed > 1 ? `ETA ${stamp((model.range * 1000) / ship.speed)}` : 'ETA  HOLDING');
+        if (anchor.clamped && frame.lens) turn(chevron, towardOnScreen(frame.lens, gate));
+        say(waypointName, `NAV ${pad(helm.leg, 2)}  ${helm.gateName}`);
+        say(waypointRange, reach(away));
+        say(waypointEta, ship.speed > 1 ? `ETA ${stamp((away * METRES) / ship.speed)}` : 'ETA  HOLDING');
 
         if (globe && frame.lens) {
             const lens = frame.lens;
