@@ -5098,4 +5098,8 @@ export const NOTED = {
     { note: "A model's paint can have a clear coat." },
   "feat(assets): a texture ships at the size it was made unless told otherwise - Max Size starts at Source size for every texture where a picture's started at 2048, in the import settings table, in what a .meta that does not say resolves to and in the meta tool; a .meta that states a size keeps it":
     { note: "A texture ships at the size it was made." },
+  "fix(assets): an image past 4096 by 2048 compresses - the Basis encoder refuses more than twelve million texels at once and the cook reported 'encoder produced 0 bytes', so a 4096 square texture could not be packaged; such an image is now encoded in strips from the bottom up, their UASTC blocks stacked into one level, with the levels below encoded from the halved image, and an ETC1S texture that large says what to change":
+    { note: "A texture larger than 4096 by 2048 can be compressed." },
+  "feat(examples): the space frigate's hull answers the light - its paint takes a thin clear coat over a lower, wider spread of roughness, each plate is cut into smaller ones, turrets, masts and cowls are gunmetal and the nozzles heat-tinted steel, reflections of the sky are raised apart from the sky itself, and each plume is a wide dim sheath round a thin bright core with shock knots; its maps are the 4096 they were baked at":
+    { note: "A space frigate example, built from a recipe." },
 };

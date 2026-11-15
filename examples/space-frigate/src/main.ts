@@ -53,7 +53,8 @@ addPlugin({
                 t.scale = { x: wide, y: wide, z: plume.length * (0.22 + 1.05 * throttle) };
                 world.insert(e, Transform, t);
             }
-            Material.setUniform(world.get(get(world, 'PlumeL'), MeshRenderer).material, 'u_strength', 0.5 + 4 * throttle * throttle);
+            Material.setUniform(world.get(get(world, 'PlumeL'), MeshRenderer).material, 'u_strength', 0.25 + 1.5 * throttle * throttle);
+            Material.setUniform(world.get(get(world, 'PlumeLCore'), MeshRenderer).material, 'u_strength', 0.6 + 7 * throttle * throttle);
             for (const name of GLOWS) {
                 const e = get(world, name);
                 world.insert(e, Light, { ...world.get(e, Light), intensity: 0.1 + 0.7 * throttle * throttle });

@@ -4,7 +4,7 @@
   "type": "texture",
   "importer": {
     "use": "colour",
-    "maxSize": 2048,
+    "maxSize": 4096,
     "compress": "auto",
     "compressFormat": "uastc",
     "mipmaps": true,
