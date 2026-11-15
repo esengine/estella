@@ -32,6 +32,7 @@ export interface ScreenOverlayData {
     active: boolean;
     /** Layout-domain → clip. 16 floats, column-major, as a camera's is. */
     projection: Float32Array;
+    perspective: number;
     /** The pixel rect of the surface this projection covers. */
     vpX: number;
     vpY: number;
@@ -63,6 +64,7 @@ export function defaultScreenOverlay(): ScreenOverlayData {
     return {
         active: false,
         projection: new Float32Array(16),
+        perspective: 0,
         vpX: 0, vpY: 0, vpW: 0, vpH: 0,
         surfaceW: 0, surfaceH: 0,
         pointerX: 0, pointerY: 0,

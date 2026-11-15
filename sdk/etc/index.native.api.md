@@ -10161,6 +10161,7 @@ ResourceDef<ScreenOverlayData>
 ```
 active: boolean
 layerMask: number
+perspective: number
 pointerX: number
 pointerY: number
 projection: Float32Array<ArrayBufferLike>

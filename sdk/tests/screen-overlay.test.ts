@@ -71,6 +71,22 @@ describe('the screen projection', () => {
         expect(mid.y).toBeCloseTo(360, 3);
     });
 
+    it('with a perspective, leaves the screen plane where it was and draws what stands nearer larger', () => {
+        const layout = screenLayoutRect(FIT, 1280, 720);
+        const flat = screenProjection(layout, new Float32Array(16));
+        const deep = screenProjection(layout, new Float32Array(16), 1200);
+        const project = (m: Float32Array, x: number, y: number, z: number): [number, number] => {
+            const w = m[3]! * x + m[7]! * y + m[11]! * z + m[15]!;
+            return [(m[0]! * x + m[4]! * y + m[8]! * z + m[12]!) / w, (m[1]! * x + m[5]! * y + m[9]! * z + m[13]!) / w];
+        };
+        expect(project(deep, 300, -200, 0)).toEqual(project(flat, 300, -200, 0));
+        const [nearX, nearY] = project(deep, 300, -200, 300), [flatX, flatY] = project(flat, 300, -200, 300);
+        expect(nearX / flatX).toBeCloseTo(1200 / 900, 5);
+        expect(nearY / flatY).toBeCloseTo(1200 / 900, 5);
+        expect(project(deep, 300, -200, -1200)[0] / flatX).toBeCloseTo(0.5, 5);
+        expect(screenProjection(layout, new Float32Array(16), 0)).toEqual(flat);
+    });
+
     it('round-trips a layout point through a pixel and back', () => {
         for (const [w, h] of [[1280, 720], [800, 600], [390, 844]] as const) {
             const overlay = screenAt(w, h);

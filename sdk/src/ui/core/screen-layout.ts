@@ -119,7 +119,7 @@ const SCREEN_Z_RANGE = 1e5;
  *          pointer is inverted through it, so "the HUD is where it looks" holds
  *          by construction. Its only input is the layout box.
  */
-export function screenProjection(l: ScreenLayoutData, out?: Float32Array): Float32Array {
+export function screenProjection(l: ScreenLayoutData, out?: Float32Array, perspective = 0): Float32Array {
     const m = out ?? new Float32Array(16);
     if (!l.valid) {
         m.fill(0);
@@ -127,5 +127,6 @@ export function screenProjection(l: ScreenLayoutData, out?: Float32Array): Float
         return m;
     }
     m.set(ortho(l.left, l.right, l.bottom, l.top, -SCREEN_Z_RANGE, SCREEN_Z_RANGE));
+    if (perspective > 0) m[11] = -1 / perspective;
     return m;
 }
