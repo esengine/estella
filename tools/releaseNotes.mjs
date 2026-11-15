@@ -5104,4 +5104,6 @@ export const NOTED = {
     { note: "A space frigate example, built from a recipe." },
   "perf(modeling): bake-model probes and paints on every core, and keeps what it probed - a normalBake's plan, its probes (the shape round each texel that a stain's where reads, and occlusion's rays) and its finish are separate steps; bake-model runs the probes and the stains' painting on worker threads over shared memory (--jobs) and keeps the probes under the project's .esengine/cache/model-bake by a hash of the surface and of the code that probes it, casting only what a wider stain adds (--no-cache casts all of it); the maps are the bytes one thread writes. The frigate's 4096 maps: eleven minutes to three, and thirty seconds once kept":
     { note: "A model bakes on every core, and keeps what it measured." },
+  "fix(modeling): a model's maps are imported as large as they were baked - a bake past 2048 was written at its own size and then given the default Max Size of 2048, so a build shipped a 4096 normal, colour, surface and emissive map at half its resolution; each map's Max Size is now the size it was baked at":
+    { note: "A texture ships at the size it was made." },
 };
