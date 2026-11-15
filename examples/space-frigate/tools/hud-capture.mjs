@@ -13,6 +13,7 @@ const browser = await chromium.launch({ headless: true, args: [`--use-angle=${an
 const problems = [];
 const shots = [];
 const checks = [];
+const blanks = [];
 let loading = null;
 try {
     const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
@@ -47,10 +48,22 @@ try {
     const byHand = async (key) => { for (let tries = 0; tries < 6 && (await facts()).tour; tries++) await tap(key); if ((await facts()).tour) throw new Error(`${key} did not take the camera`); };
     const eye = async () => { const f = await facts(); return Math.hypot(f.eyeX, f.eyeY, f.eyeZ); };
     const bracketed = () => page.evaluate(() => !window.__spaceHud.waypointClamped);
+    const drawn = () => page.evaluate(() => {
+        const canvas = document.querySelector('canvas');
+        const gl = canvas.getContext('webgl2');
+        if (!gl) return true;
+        const row = new Uint8Array(canvas.width * 4);
+        gl.readPixels(0, Math.round(canvas.height * 0.2), canvas.width, 1, gl.RGBA, gl.UNSIGNED_BYTE, row);
+        for (let i = 0; i < row.length; i += 4) if (row[i] + row[i + 1] + row[i + 2] > 12) return true;
+        return false;
+    });
     const shoot = async (name, size = [1920, 1080], clip = undefined) => {
         if (only && !only.includes(name)) return;
         await page.setViewportSize({ width: size[0], height: size[1] });
         await step(3);
+        let dark = 0;
+        while (dark < 20 && !(await drawn())) { dark++; await step(1); }
+        if (dark > 0) blanks.push({ name, size: size.join('x'), framesBlack: 3 + dark });
         const file = path.join(out, `${name}.png`);
         await page.screenshot({ path: file, timeout: 60000, clip });
         const f = await facts();
@@ -226,5 +239,5 @@ try {
     await browser.close();
     server.close();
 }
-console.log(JSON.stringify({ loading, checks, shots, problems: [...new Set(problems)].slice(0, 30) }, null, 1));
+console.log(JSON.stringify({ loading, checks, shots, blanks, problems: [...new Set(problems)].slice(0, 30) }, null, 1));
 if (problems.length > 0) process.exitCode = 1;
