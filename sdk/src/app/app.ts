@@ -9,8 +9,8 @@ import { World } from '../ecs/world';
 
 import { applyAppOptions, applyColorSpace, applyFrameOptions } from './renderOptions';
 import type { QualityConfig } from '../render/quality';
-import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, rescopeSystem, type RunCondition } from '../ecs/system';
-import { builtinResource, declaredResource, ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
+import { Schedule, type SystemDef, SystemRunner, type SystemSet, mergeOrderingEdges, rescopeSystem, type RunCondition } from '../ecs/system';
+import { builtinResource, declaredResource, ResourceStorage, Time, type ResourceDef } from '../ecs/resource';
 import { Speculation, SpeculationInstance } from '../ecs/speculation';
 import { prepareAot, type AotHost } from '../ecs/aot/installAot';
 import { installNativeAot, nativeAotBindings } from '../ecs/aot/installNativeAot';

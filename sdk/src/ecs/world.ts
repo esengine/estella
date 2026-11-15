@@ -6,8 +6,8 @@
  */
 
 import { WasmModuleAborted } from '../wasm/moduleHealth';
-import { Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } from '../types';
-import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, mergeIntoDefaults, builtinComponentRegistry, extraBuiltinComponentRegistry, getUserComponents, getComponent, Disabled, Name, Parent, Children, type ParentData, type ChildrenData } from './component';
+import { type Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } from '../types';
+import { type AnyComponentDef, type ComponentDef, type ComponentData, type BuiltinComponentDef, isBuiltinComponent, mergeIntoDefaults, builtinComponentRegistry, extraBuiltinComponentRegistry, getUserComponents, getComponent, Disabled, Name, Parent, Children, type ParentData, type ChildrenData } from './component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { handleWasmError } from '../wasm/wasmError';
 import { BuiltinBridge, builtinFromWasm, numberListFieldsOf, convertForWasm, type BridgeConnectOptions,

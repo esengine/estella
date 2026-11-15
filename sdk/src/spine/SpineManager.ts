@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { EngineApi } from '../ecs/bridge/engineApi';
-import type { ESEngineModule, CppRegistry } from '../wasm';
+import type { CppRegistry } from '../wasm';
 import type { Entity } from '../types';
 import type { SkeletalMaterialOf } from '../skeletal/submitMeshes';
 import type { RawSpineEvent, ConstraintList, TransformMixData, PathMixData } from './SpineController';

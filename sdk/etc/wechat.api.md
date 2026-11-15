@@ -12999,7 +12999,7 @@ mode: MaskMode
 
 ## UIMaskPlugin — class @experimental
 ```
-build: (app: App) => void
+build: () => void
 name: "uiMask"
 static new (): UIMaskPlugin
 static prototype: UIMaskPlugin

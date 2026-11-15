@@ -59,7 +59,7 @@ function frameDurationOf(clip: SpriteAnimClip, index: number, speed: number, fal
     return Math.max(Number.MIN_VALUE, (duration !== undefined && Number.isFinite(duration) && duration > 0 ? duration : fallback) / speed);
 }
 
-export function shouldFireEvent(eventFrame: number, prevFrame: number, newFrame: number, totalFrames: number, loop: boolean): boolean {
+export function shouldFireEvent(eventFrame: number, prevFrame: number, newFrame: number, _totalFrames: number, loop: boolean): boolean {
     // Frame-0 initial apply only. Without the `=== 0`, the completion clamp
     // (currentFrame overflows → clamped to last, so prev === new === last) re-fires
     // the last frame's event a second time.

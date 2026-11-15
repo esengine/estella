@@ -10,7 +10,6 @@
  *          here: it is per Spine version, per App, and dies with the entities
  *          posing it.
  */
-import { log } from '../../util/logger';
 import type { AssetLoader, LoadContext } from '../AssetLoader';
 import { getAssetTypeEntry } from '../../assetTypes';
 import { prepareSpine, type SpineAssetValue, type SpineIO } from '../../spine/prepareSpine';

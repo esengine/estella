@@ -190,7 +190,6 @@ export class StaticBatchPlugin implements Plugin {
     build(app: App): void {
         const state = new StaticBatching();
         app.insertResource(StaticBatchingRes, state);
-        const world = app.world;
         let frame = 0;
 
         app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
