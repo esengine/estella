@@ -5042,4 +5042,8 @@ export const NOTED = {
     { note: "Particles glow in HDR, fade into the scene and wear away." },
   "chore(editor): the submodule moves to the gallery text of the VFX showcase":
     { note: "A VFX showcase example." },
+  "feat(launcher): the VFX showcase example reads in Chinese in the new-project gallery":
+    { note: "A VFX showcase example." },
+  "chore(notes): the showcase's gallery text reaches the note of the example it names":
+    {"internal": "A line in the notes file; nothing a creator runs changes."},
 };
