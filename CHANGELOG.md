@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **The space frigate's waypoint is a gate.** The navigation gate the HUD points at is now there to see: a ring with six emitter nodes, a control tower and a field of light across it, built from a model source like the ship, at the waypoint. On arrival it stays where it is and the frigate flies through it while the next gate appears at the next waypoint.
+
 ### Changed
 
 - **The space frigate carries a hull number and a name.** `examples/space-frigate` has 27 on both bows and on the foredeck and KESTREL on its armour belt, and the bridge's windows are divided into panes whose lights differ. They are a `stain`'s `line` laid from the side, from above or from ahead before the wear, so chipped paint and grime lie over them: a marking needs no picture and no decal. Its README lists the helm's controls as they are.

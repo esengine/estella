@@ -5154,4 +5154,6 @@ export const NOTED = {
     { note: "Textures the editor shows as a build ships them are decoded off the main thread." },
   "feat(examples): the space frigate carries its number and its name, and its bridge has panes - 27 on both bows and on the foredeck and KESTREL on the armour belt are strokes of a small stencil alphabet in generate.py, laid by a stain's line from the side or from above before the wear, so paint chips and grime lie over them; the bridge's windows are divided by mullions drawn the same way and its lights vary pane to pane, where they were one white slab. The README's controls are the helm's as it is now, and its bake time is the bake's as it is now":
     { note: "The space frigate carries a hull number and a name." },
+  "feat(examples): the space frigate's waypoint is a gate it flies through - a ring a hundred and seventy units in radius with six emitter nodes, a control tower and a field across it, built as one more model source in generate.py and plated and worn as the hull is; main.ts stands it where the helm says the waypoint is, and on arrival leaves it to fall astern with the ship's speed while the next appears. The field is a square and a shader. capture.mjs waits for the HUD and steps in two-second runs, since pictures now load after the scene":
+    { note: "The space frigate's waypoint is a gate." },
 };
