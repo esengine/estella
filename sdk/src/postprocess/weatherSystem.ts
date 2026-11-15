@@ -146,7 +146,7 @@ function keyLightAgrees(world: World, time: TimeOfDayState): boolean {
 }
 
 /** What is scaling the lights this frame: a weather, a time of day, either, both. */
-interface Rig {
+export interface LightRig {
     weather: WeatherState | null;
     weatherDrive: number;
     time: TimeOfDayState | null;
@@ -154,7 +154,7 @@ interface Rig {
     skyLightsScene: boolean;
 }
 
-function applyLights(world: World, rig: Rig): void {
+export function applyLights(world: World, rig: LightRig): void {
     const { weather, time } = rig;
     const lightsByWeather = !!weather && (rig.weatherDrive & WeatherDrive.Lights) !== 0;
     const reflectionsByWeather = !!weather && (rig.weatherDrive & WeatherDrive.Reflections) !== 0;
