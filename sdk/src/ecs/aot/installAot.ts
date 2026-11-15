@@ -24,7 +24,6 @@ import { getComponent } from '../component';
 import type { AnyComponentDef } from '../component';
 import type { World } from '../world';
 import type { SystemRunner } from '../system';
-import type { Entity } from '../../types';
 import { WasmPoolMemory, type WasmHeap } from '../WasmPoolMemory';
 import { AotContext } from './AotContext';
 import { AotResources, type ResourceReader } from './AotResources';

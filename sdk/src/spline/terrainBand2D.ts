@@ -21,7 +21,6 @@ import { triangulateRing } from '../render/vectorPath';
 import { ChainCollider2D, type ChainCollider2DData } from '../physics/PhysicsComponents';
 import { SplineCurve, type SplinePoint } from './curve';
 import { Spline, type SplineData } from './splineComponent';
-import { Parent } from '../ecs/component';
 import { Transform } from '../ecs/component';
 
 /** The fields of the `TerrainBand2D` component. @experimental */

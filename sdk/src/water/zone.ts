@@ -19,7 +19,7 @@
  *
  *          The field is in the world's own frame on the xz plane: bodies may be turned about their up, not tilted.
  */
-import { DEEP, WaterQuery, type WaterQueryData, type ZoneGrid } from './waterQuery';
+import { DEEP, WaterQuery, type ZoneGrid } from './waterQuery';
 import { defineComponent, type ComponentDef } from '../ecs/component';
 import { polygonSdf, shoreDamp, type Point2 } from './shore';
 
