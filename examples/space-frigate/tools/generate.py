@@ -202,6 +202,25 @@ def make_grain():
     stamp(path, 'texture', {'sRGB': False, 'maxSize': 1024, 'filterMode': 'linear', 'wrapMode': 'repeat'})
 
 
+STROKES = {
+    '2': [[(0,5),(1,6),(3,6),(4,5),(4,3.7),(0,0),(4,0)]],
+    '7': [[(0,6),(4,6),(1.6,0)]],
+    'K': [[(0,0),(0,6)],[(4,6),(0,2.8),(1.3,3.9),(4,0)]],
+    'E': [[(4,6),(0,6),(0,0),(4,0)],[(0,3),(3,3)]],
+    'S': [[(4,5),(3,6),(1,6),(0,5),(0,4),(1,3),(3,3),(4,2),(4,1),(3,0),(1,0),(0,1)]],
+    'T': [[(0,6),(4,6)],[(2,6),(2,0)]],
+    'R': [[(0,0),(0,6),(3,6),(4,5),(4,4),(3,3),(0,3)],[(2,3),(4,0)]],
+    'L': [[(0,6),(0,0),(4,0)]],
+}
+
+def lettering(text, height, gap=0.45):
+    s=height/6; out=[]; x=0.0
+    for ch in text:
+        if ch!=' ':
+            for stroke in STROKES[ch]: out.append([(x+c*s,r*s) for (c,r) in stroke])
+        x+=4*s+gap*height
+    return out, x-gap*height
+
 def ship_source():
     rnd = random.Random(11)
     S=[]
@@ -264,7 +283,7 @@ def ship_source():
         step(op='paint',faces={'tag':['nacelle','pylon','keel']},roughness=0.46,metallic=0.2)
         step(op='paint',faces={'tag':['mast','turret','barrel','cowl']},color=[0.3,0.31,0.34],roughness=0.32,metallic=0.9)
         step(op='paint',faces='nozzle',color=[0.44,0.42,0.4],roughness=0.26,metallic=1)
-        step(op='paint',faces='window',glow=0.3,roughness=0.15)
+        step(op='paint',faces='window',glow=0.1,roughness=0.08)
         step(op='paint',faces='thrust',glow=1)
         step(op='panels',faces='hull',size=4.4,uneven=0.85,gap=0.1,height=[0.05,0.2],bevel=0.06,tones=0.2,along=[0,0,1],seed=5,tag='plate')
         step(op='panels',faces={'tag':['upper','bridge','strake','fin']},size=2.3,uneven=0.8,gap=0.08,height=[0.04,0.13],bevel=0.045,tones=0.18,along=[0,0,1],seed=9,tag='plate')
@@ -290,7 +309,7 @@ def ship_source():
                 if rnd.random()<0.7:
                     step(op='box',size=[0.16,0.3,0.55],at=[side*(5.25 if z<-8 else 4.3),7.6,z],tag='port',color=WARM)
                 z+=1.4
-        step(op='paint',faces='port',glow=0.22,roughness=0.15)
+        step(op='paint',faces='port',glow=0.13,roughness=0.08)
         step(op='paint',faces='portDark',roughness=0.1,metallic=0.2)
         for i in range(46):
             z=rnd.uniform(-2,40) if i<30 else rnd.uniform(-42,-28)
@@ -312,6 +331,24 @@ def ship_source():
         T=dict(op='stain',texel=True)
         step(**T,faces={'tag':['plate']},line={'points':[[3.0,at(30)[4]+at(30)[2]+0.12,30],[4.2,at(8)[4]+at(8)[2]+0.12,8]],'width':0.16},hard=True,color=[0.66,0.66,0.64])
         step(**T,faces={'tag':['plate']},line={'points':[[-3.0,at(30)[4]+at(30)[2]+0.12,30],[-4.2,at(8)[4]+at(8)[2]+0.12,8]],'width':0.16},hard=True,color=[0.66,0.66,0.64])
+        WHITE=[0.7,0.7,0.68]
+        for (text,height,y0,z0,xmin,weight) in [('27',2.3,-1.75,16.4,4.0,0.17),('KESTREL',1.25,-1.02,-18.6,11.4,0.085)]:
+            strokes,length=lettering(text,height)
+            for side in (1,-1):
+                box={'min':[xmin,None,z0-length-1],'max':[None,None,z0+1]} if side>0 else {'min':[None,None,z0-length-1],'max':[-xmin,None,z0+1]}
+                for stroke in strokes:
+                    pts=[[y0+v,(z0-u) if side>0 else (z0-length+u)] for (u,v) in stroke]
+                    step(**T,faces={'tag':['plate','plateSide'],'within':box},line={'points':pts,'width':weight,'from':'+x' if side>0 else '-x'},hard=True,color=WHITE,roughness=0.5)
+        strokes,length=lettering('27',3.0)
+        for stroke in strokes:
+            step(**T,faces={'tag':['plate','plateSide'],'within':{'min':[None,0,9],'max':[None,None,31]}},line={'points':[[length/2-u,18.4+v] for (u,v) in stroke],'width':0.26,'from':'+y'},hard=True,color=[0.07,0.073,0.08],roughness=0.5)
+        step(**T,faces={'tag':['window','port']},pattern='bumps',scale=2.6,octaves=2,threshold=0.56,softness=0.2,color=[0.5,0.62,0.8],glow=0.04,amount=0.85,seed=61)
+        step(**T,faces={'tag':['window','port']},pattern='bumps',scale=0.9,octaves=2,threshold=0.62,softness=0.25,color=[1.0,0.6,0.28],glow=0.15,amount=0.6,seed=67)
+        FRAME=dict(hard=True,color=[0.04,0.042,0.048],glow=0,roughness=0.35,metallic=0.8)
+        for k in range(1,8): step(**T,faces='window',line={'points':[[-2.0+k*0.5,12.2],[-2.0+k*0.5,12.8]],'width':0.055,'from':'+z'},**FRAME)
+        for k in range(1,10): step(**T,faces='window',line={'points':[[-2.7+k*0.54,10.3],[-2.7+k*0.54,10.7]],'width':0.055,'from':'+z'},**FRAME)
+        for view in ('+x','-x'):
+            for k in range(1,8): step(**T,faces='window',line={'points':[[12.2,-24.3+k*0.575],[12.8,-24.3+k*0.575]],'width':0.055,'from':view},**FRAME)
         step(**T,faces=A,pattern='bumps',scale=6,octaves=5,threshold=0.5,softness=0.4,roughness=0.6,amount=0.75,seed=21)
         step(**T,faces=A,pattern='bumps',scale=1.3,octaves=4,threshold=0.5,softness=0.45,roughness=0.26,amount=0.55,seed=27)
         step(**T,faces=A,pattern='bumps',scale=19,octaves=5,threshold=0.56,softness=0.22,color=[0.1,0.097,0.092],roughness=0.7,amount=0.5,seed=9)
