@@ -56,20 +56,4 @@ void ParticlePool::deallocateByIndex(u32 index) {
     alive_count_--;
 }
 
-void ParticlePool::forEachAlive(const std::function<void(Particle&)>& fn) {
-    for (auto& p : particles_) {
-        if (p.alive) {
-            fn(p);
-        }
-    }
-}
-
-void ParticlePool::forEachAlive(const std::function<void(const Particle&)>& fn) const {
-    for (const auto& p : particles_) {
-        if (p.alive) {
-            fn(p);
-        }
-    }
-}
-
 }  // namespace esengine::particle

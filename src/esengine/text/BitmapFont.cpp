@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "BitmapFont.hpp"
+#include "Utf8.hpp"
 #include "../core/Log.hpp"
 #include "../resource/ResourceManager.hpp"
 
@@ -145,25 +146,8 @@ void BitmapFont::createLabelAtlas(resource::TextureHandle texture,
     u32 cols = texWidth / charWidth;
 
     u32 glyphIndex = 0;
-    for (usize i = 0; i < chars.size(); ++i) {
-        u8 b0 = static_cast<u8>(chars[i]);
-        u32 charCode = b0;
-        if (b0 >= 0xF0 && i + 3 < chars.size()) {
-            charCode = ((b0 & 0x07) << 18) |
-                       ((static_cast<u8>(chars[i + 1]) & 0x3F) << 12) |
-                       ((static_cast<u8>(chars[i + 2]) & 0x3F) << 6) |
-                        (static_cast<u8>(chars[i + 3]) & 0x3F);
-            i += 3;
-        } else if (b0 >= 0xE0 && i + 2 < chars.size()) {
-            charCode = ((b0 & 0x0F) << 12) |
-                       ((static_cast<u8>(chars[i + 1]) & 0x3F) << 6) |
-                        (static_cast<u8>(chars[i + 2]) & 0x3F);
-            i += 2;
-        } else if (b0 >= 0xC0 && i + 1 < chars.size()) {
-            charCode = ((b0 & 0x1F) << 6) |
-                        (static_cast<u8>(chars[i + 1]) & 0x3F);
-            i += 1;
-        }
+    for (usize i = 0; i < chars.size();) {
+        const u32 charCode = nextCodepoint(chars.data(), chars.size(), i);
 
         u32 col = glyphIndex % cols;
         u32 row = glyphIndex / cols;
@@ -183,41 +167,12 @@ void BitmapFont::createLabelAtlas(resource::TextureHandle texture,
     }
 }
 
-static u32 decodeUtf8Char(const char* data, usize length, usize& pos) {
-    u8 b0 = static_cast<u8>(data[pos]);
-    if (b0 < 0x80) {
-        return b0;
-    }
-    if ((b0 & 0xE0) == 0xC0 && pos + 1 < length) {
-        u32 cp = (b0 & 0x1F) << 6;
-        cp |= (static_cast<u8>(data[pos + 1]) & 0x3F);
-        pos += 1;
-        return cp;
-    }
-    if ((b0 & 0xF0) == 0xE0 && pos + 2 < length) {
-        u32 cp = (b0 & 0x0F) << 12;
-        cp |= (static_cast<u8>(data[pos + 1]) & 0x3F) << 6;
-        cp |= (static_cast<u8>(data[pos + 2]) & 0x3F);
-        pos += 2;
-        return cp;
-    }
-    if ((b0 & 0xF8) == 0xF0 && pos + 3 < length) {
-        u32 cp = (b0 & 0x07) << 18;
-        cp |= (static_cast<u8>(data[pos + 1]) & 0x3F) << 12;
-        cp |= (static_cast<u8>(data[pos + 2]) & 0x3F) << 6;
-        cp |= (static_cast<u8>(data[pos + 3]) & 0x3F);
-        pos += 3;
-        return cp;
-    }
-    return 0xFFFD;
-}
-
 BitmapFont::TextMetrics BitmapFont::measureText(const std::string& text, f32 fontSize, f32 spacing) const {
     f32 totalWidth = 0;
     u32 prevChar = 0;
 
-    for (usize i = 0; i < text.size(); ++i) {
-        u32 charCode = decodeUtf8Char(text.c_str(), text.size(), i);
+    for (usize i = 0; i < text.size();) {
+        u32 charCode = nextCodepoint(text.data(), text.size(), i);
         auto* glyph = getGlyph(charCode);
         if (!glyph) {
             continue;

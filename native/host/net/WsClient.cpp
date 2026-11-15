@@ -5,6 +5,7 @@
  * @brief   RFC 6455 client framing over blocking TCP sockets (POSIX and Winsock).
  */
 #include "WsClient.hpp"
+#include "WsFrame.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -12,6 +13,7 @@
 #include <memory>
 #include <mutex>
 #include <random>
+#include <string>
 #include <thread>
 #include <unordered_map>
 
@@ -125,6 +127,7 @@ struct Conn {
     std::mutex sendMutex;
     std::atomic<bool> open{false};
     std::atomic<bool> closeSent{false};
+    std::atomic<bool> closeRequested{false};
     std::mt19937 rng{std::random_device{}()};
 };
 
@@ -278,16 +281,23 @@ void run(std::shared_ptr<Conn> c, std::string url) {
         emit(*c, WsEvent::Kind::Error, {}, 0, "only ws:// URLs are supported: " + url);
         return finish(1006, "bad url");
     }
-    c->sock = dial(u);
-    if (c->sock == kNoSocket) {
+    const SocketHandle dialed = dial(u);
+    {
+        std::lock_guard<std::mutex> lk(c->sendMutex);
+        c->sock = dialed;
+    }
+    if (dialed == kNoSocket) {
         emit(*c, WsEvent::Kind::Error, {}, 0, "could not connect to " + u.host + ":" + u.port);
         return finish(1006, "connect failed");
     }
+    if (c->closeRequested) return finish(1006, "closed before the connection opened");
     if (std::string why = handshake(*c, u); !why.empty()) {
+        if (c->closeRequested) return finish(1006, "closed before the connection opened");
         emit(*c, WsEvent::Kind::Error, {}, 0, why);
         return finish(1006, why);
     }
     c->open = true;
+    if (c->closeRequested) return finish(1006, "closed before the connection opened");
     emit(*c, WsEvent::Kind::Open);
 
     std::vector<uint8_t> message;
@@ -311,6 +321,18 @@ void run(std::shared_ptr<Conn> c, std::string url) {
         uint8_t mask[4] = {0, 0, 0, 0};
         const bool masked = hdr[1] & 0x80;
         if (masked && !recvAll(c->sock, mask, 4)) return finish(1006, "connection lost");
+        const uint64_t pending = op == 0x0 ? message.size() : 0;
+        if (const int refusal = wsFrameRefusal(op, fin, len, pending); refusal != 0) {
+            const std::string why = refusal == kWsCloseMessageTooBig
+                ? "a message of more than " + std::to_string(kWsMaxMessageBytes) + " bytes"
+                : "a control frame that is fragmented or longer than 125 bytes";
+            emit(*c, WsEvent::Kind::Error, {}, 0, why);
+            if (!c->closeSent.exchange(true)) {
+                const uint8_t body[2] = { uint8_t(refusal >> 8), uint8_t(refusal) };
+                sendFrame(*c, 0x8, body, sizeof body);
+            }
+            return finish(refusal, why);
+        }
         std::vector<uint8_t> payload(static_cast<size_t>(len));
         if (len > 0 && !recvAll(c->sock, payload.data(), payload.size())) return finish(1006, "connection lost");
         if (masked) for (size_t i = 0; i < payload.size(); ++i) payload[i] ^= mask[i % 4];
@@ -363,6 +385,7 @@ bool wsSend(int id, const uint8_t* data, size_t len, bool text) {
 void wsClose(int id, int code, const std::string& reason) {
     auto c = connOf(id);
     if (!c) return;
+    c->closeRequested = true;
     if (c->open && !c->closeSent.exchange(true)) {
         std::vector<uint8_t> body = { uint8_t(code >> 8), uint8_t(code) };
         body.insert(body.end(), reason.begin(), reason.end());
