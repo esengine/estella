@@ -202,6 +202,25 @@ def make_grain():
     stamp(path, 'texture', {'sRGB': False, 'maxSize': 1024, 'filterMode': 'linear', 'wrapMode': 'repeat'})
 
 
+STROKES = {
+    '2': [[(0,5),(1,6),(3,6),(4,5),(4,3.7),(0,0),(4,0)]],
+    '7': [[(0,6),(4,6),(1.6,0)]],
+    'K': [[(0,0),(0,6)],[(4,6),(0,2.8),(1.3,3.9),(4,0)]],
+    'E': [[(4,6),(0,6),(0,0),(4,0)],[(0,3),(3,3)]],
+    'S': [[(4,5),(3,6),(1,6),(0,5),(0,4),(1,3),(3,3),(4,2),(4,1),(3,0),(1,0),(0,1)]],
+    'T': [[(0,6),(4,6)],[(2,6),(2,0)]],
+    'R': [[(0,0),(0,6),(3,6),(4,5),(4,4),(3,3),(0,3)],[(2,3),(4,0)]],
+    'L': [[(0,6),(0,0),(4,0)]],
+}
+
+def lettering(text, height, gap=0.45):
+    s=height/6; out=[]; x=0.0
+    for ch in text:
+        if ch!=' ':
+            for stroke in STROKES[ch]: out.append([(x+c*s,r*s) for (c,r) in stroke])
+        x+=4*s+gap*height
+    return out, x-gap*height
+
 def ship_source():
     rnd = random.Random(11)
     S=[]
@@ -264,7 +283,7 @@ def ship_source():
         step(op='paint',faces={'tag':['nacelle','pylon','keel']},roughness=0.46,metallic=0.2)
         step(op='paint',faces={'tag':['mast','turret','barrel','cowl']},color=[0.3,0.31,0.34],roughness=0.32,metallic=0.9)
         step(op='paint',faces='nozzle',color=[0.44,0.42,0.4],roughness=0.26,metallic=1)
-        step(op='paint',faces='window',glow=0.3,roughness=0.15)
+        step(op='paint',faces='window',glow=0.1,roughness=0.08)
         step(op='paint',faces='thrust',glow=1)
         step(op='panels',faces='hull',size=4.4,uneven=0.85,gap=0.1,height=[0.05,0.2],bevel=0.06,tones=0.2,along=[0,0,1],seed=5,tag='plate')
         step(op='panels',faces={'tag':['upper','bridge','strake','fin']},size=2.3,uneven=0.8,gap=0.08,height=[0.04,0.13],bevel=0.045,tones=0.18,along=[0,0,1],seed=9,tag='plate')
@@ -290,7 +309,7 @@ def ship_source():
                 if rnd.random()<0.7:
                     step(op='box',size=[0.16,0.3,0.55],at=[side*(5.25 if z<-8 else 4.3),7.6,z],tag='port',color=WARM)
                 z+=1.4
-        step(op='paint',faces='port',glow=0.22,roughness=0.15)
+        step(op='paint',faces='port',glow=0.13,roughness=0.08)
         step(op='paint',faces='portDark',roughness=0.1,metallic=0.2)
         for i in range(46):
             z=rnd.uniform(-2,40) if i<30 else rnd.uniform(-42,-28)
@@ -312,6 +331,24 @@ def ship_source():
         T=dict(op='stain',texel=True)
         step(**T,faces={'tag':['plate']},line={'points':[[3.0,at(30)[4]+at(30)[2]+0.12,30],[4.2,at(8)[4]+at(8)[2]+0.12,8]],'width':0.16},hard=True,color=[0.66,0.66,0.64])
         step(**T,faces={'tag':['plate']},line={'points':[[-3.0,at(30)[4]+at(30)[2]+0.12,30],[-4.2,at(8)[4]+at(8)[2]+0.12,8]],'width':0.16},hard=True,color=[0.66,0.66,0.64])
+        WHITE=[0.7,0.7,0.68]
+        for (text,height,y0,z0,xmin,weight) in [('27',2.3,-1.75,16.4,4.0,0.17),('KESTREL',1.25,-1.02,-18.6,11.4,0.085)]:
+            strokes,length=lettering(text,height)
+            for side in (1,-1):
+                box={'min':[xmin,None,z0-length-1],'max':[None,None,z0+1]} if side>0 else {'min':[None,None,z0-length-1],'max':[-xmin,None,z0+1]}
+                for stroke in strokes:
+                    pts=[[y0+v,(z0-u) if side>0 else (z0-length+u)] for (u,v) in stroke]
+                    step(**T,faces={'tag':['plate','plateSide'],'within':box},line={'points':pts,'width':weight,'from':'+x' if side>0 else '-x'},hard=True,color=WHITE,roughness=0.5)
+        strokes,length=lettering('27',3.0)
+        for stroke in strokes:
+            step(**T,faces={'tag':['plate','plateSide'],'within':{'min':[None,0,9],'max':[None,None,31]}},line={'points':[[length/2-u,18.4+v] for (u,v) in stroke],'width':0.26,'from':'+y'},hard=True,color=[0.07,0.073,0.08],roughness=0.5)
+        step(**T,faces={'tag':['window','port']},pattern='bumps',scale=2.6,octaves=2,threshold=0.56,softness=0.2,color=[0.5,0.62,0.8],glow=0.04,amount=0.85,seed=61)
+        step(**T,faces={'tag':['window','port']},pattern='bumps',scale=0.9,octaves=2,threshold=0.62,softness=0.25,color=[1.0,0.6,0.28],glow=0.15,amount=0.6,seed=67)
+        FRAME=dict(hard=True,color=[0.04,0.042,0.048],glow=0,roughness=0.35,metallic=0.8)
+        for k in range(1,8): step(**T,faces='window',line={'points':[[-2.0+k*0.5,12.2],[-2.0+k*0.5,12.8]],'width':0.055,'from':'+z'},**FRAME)
+        for k in range(1,10): step(**T,faces='window',line={'points':[[-2.7+k*0.54,10.3],[-2.7+k*0.54,10.7]],'width':0.055,'from':'+z'},**FRAME)
+        for view in ('+x','-x'):
+            for k in range(1,8): step(**T,faces='window',line={'points':[[12.2,-24.3+k*0.575],[12.8,-24.3+k*0.575]],'width':0.055,'from':view},**FRAME)
         step(**T,faces=A,pattern='bumps',scale=6,octaves=5,threshold=0.5,softness=0.4,roughness=0.6,amount=0.75,seed=21)
         step(**T,faces=A,pattern='bumps',scale=1.3,octaves=4,threshold=0.5,softness=0.45,roughness=0.26,amount=0.55,seed=27)
         step(**T,faces=A,pattern='bumps',scale=19,octaves=5,threshold=0.56,softness=0.22,color=[0.1,0.097,0.092],roughness=0.7,amount=0.5,seed=9)
@@ -333,7 +370,80 @@ def ship_source():
     return src
 
 
+GATE_RADIUS = 170.0
+
+def gate_source():
+    S=[]
+    def step(**k): S.append(k); return k
+    R=GATE_RADIUS
+    STEEL=[0.27,0.28,0.3]; DARK=[0.1,0.105,0.115]; LIGHT=[0.4,0.41,0.42]; ACCENT=[0.6,0.15,0.03]; WARM=[1.0,0.8,0.5]
+    step(op='lathe',axis='z',profile=[[R-8,-11],[R+8,-11],[R+12,0],[R+8,11],[R-8,11],[R-12,0]],closed=True,sides=36,tag='ring',color=STEEL)
+    step(op='lathe',axis='z',profile=[[R-12.2,-4],[R-12.2,4],[R-13.4,4],[R-13.4,-4]],closed=True,sides=36,tag='band',color=[0.07,0.2,0.4])
+    step(op='box',size=[30,22,34],at=[R+4,0,0],tag='node',color=LIGHT)
+    step(op='box',size=[14,30,20],at=[R+22,0,0],tag='node',color=DARK)
+    step(op='box',size=[10,2.5,46],at=[R+14,0,0],tag='node',color=STEEL)
+    step(op='box',size=[16,6,6],at=[R-19,0,0],tag='prong',color=DARK)
+    step(op='box',size=[3,8,8],at=[R-28,0,0],tag='emit',color=[0.16,0.4,0.7])
+    step(op='array',faces={'tag':['node','prong','emit']},count=6,rotate=[0,0,60],pivot=[0,0,0])
+    step(op='box',size=[18,26,22],at=[0,R+34,0],tag='tower',color=LIGHT)
+    step(op='box',size=[12,14,14],at=[0,R+54,0],tag='tower',color=STEEL)
+    step(op='loft',path=[[0,R+61,0],[0,R+94,0]],section={'radius':0.9},sides=8,tag='mast',color=DARK)
+    step(op='box',size=[8,2,5],at=[0,R+86,0],tag='mast',color=DARK)
+    step(op='box',size=[8,40,8],at=[0,-(R+30),0],tag='tower',color=DARK)
+    step(op='box',size=[34,3,24],at=[0,-(R+51),0],tag='tower',color=LIGHT)
+    for z in (7.2,-7.2):
+        step(op='box',size=[10,1.4,0.5],at=[0,R+55,z],tag='window',color=WARM)
+    S[-1]['id']='blockout'
+
+    src={'version':1,'smoothAngle':30,'material':{'roughness':0.5,'metallic':0,'coat':0.15,'coatRoughness':0.3,'emissive':[14,14,14]},'steps':S}
+    step(op='paint',faces={'tag':['prong','mast']},color=[0.3,0.31,0.34],roughness=0.32,metallic=0.9)
+    step(op='paint',faces='window',glow=0.12,roughness=0.08)
+    step(op='paint',faces='band',glow=0.16,roughness=0.3)
+    step(op='paint',faces='emit',glow=0.55,roughness=0.3)
+    step(op='panels',faces='ring',size=15,uneven=0.8,gap=0.7,height=[0.25,1.0],bevel=0.3,tones=0.2,seed=5,tag='plate')
+    step(op='panels',faces={'tag':['node','tower']},size=8,uneven=0.8,gap=0.5,height=[0.18,0.7],bevel=0.22,tones=0.2,seed=9,tag='plate')
+    step(op='panels',faces='plate',size=6.4,uneven=0.75,gap=0.24,height=[0.04,0.12],bevel=0.05,tones=0.07,seed=31,tag='plate')
+    P={'tag':['plate','plateSide']}
+    step(op='paint',faces={**P,'within':{'min':[-26,R-14,None],'max':[26,R+14,None]}},color=ACCENT,roughness=0.44)
+    step(op='paint',faces={**P,'within':{'min':[-26,-(R+14),None],'max':[26,-(R-14),None]}},color=ACCENT,roughness=0.44)
+    step(op='paint',faces={**P,'within':{'min':[-20,-(R+54),None],'max':[20,-(R+48),None]}},color=[0.62,0.62,0.6],roughness=0.44)
+    rnd=random.Random(23)
+    for z in (11.02,-11.02):
+        for row in range(4):
+            x=-7.5
+            while x<7.6:
+                if rnd.random()<0.75: step(op='box',size=[1.0,0.9,0.4],at=[x,R+24+row*5,z],tag='port',color=WARM)
+                x+=2.1
+    step(op='paint',faces='port',glow=0.14,roughness=0.08)
+    for k in range(6):
+        a=math.radians(k*60); c,sn=math.cos(a),math.sin(a)
+        tone=[1,0.05,0.03] if c<-0.1 else [0.05,1,0.2] if c>0.1 else [1,1,1]
+        for z in (10.6,-10.6):
+            step(op='box',size=[1.6,1.6,1.6],at=[(R+29.2)*c,(R+29.2)*sn,z],tag='lamp',color=tone)
+    step(op='box',size=[1.4,1.4,1.4],at=[0,R+95,0],tag='lamp',color=[1,1,1])
+    step(op='paint',faces='lamp',glow=1)
+    S[-1]['id']='dense'
+    T=dict(op='stain',texel=True)
+    A={'tag':['plate','plateSide']}
+    step(**T,faces=A,pattern='bumps',scale=22,octaves=5,threshold=0.5,softness=0.4,roughness=0.64,amount=0.75,seed=21)
+    step(**T,faces=A,pattern='bumps',scale=5,octaves=4,threshold=0.5,softness=0.45,roughness=0.3,amount=0.5,seed=27)
+    step(**T,faces=A,pattern='bumps',scale=60,octaves=5,threshold=0.56,softness=0.22,color=[0.1,0.097,0.092],roughness=0.7,amount=0.5,seed=9)
+    step(**T,faces=A,pattern='bumps',scale=8,octaves=5,stretch=[9,1,1],threshold=0.62,softness=0.14,color=[0.07,0.065,0.06],roughness=0.82,amount=0.45,seed=41)
+    step(**T,faces=A,where='edges',reach=1.6,pattern='bumps',scale=3,octaves=5,fray=0.8,threshold=0.5,softness=0.14,color=[0.62,0.62,0.6],roughness=0.62,amount=0.6,seed=2)
+    step(**T,faces={'tag':['plate','plateSide','prong','mast']},where='edges',reach=0.6,pattern='bumps',scale=1.1,octaves=4,fray=1,threshold=0.8,softness=0.04,color=[0.3,0.3,0.31],roughness=0.3,metallic=0.9,seed=4)
+    step(**T,faces='plate',pattern='scratches',scale=11,width=0.012,threshold=0.5,softness=0.3,color=[0.6,0.6,0.6],roughness=0.3,amount=0.5,seed=3)
+    step(**T,faces='plate',pattern='pores',scale=1.7,width=0.18,threshold=0.5,softness=0.2,color=[0.045,0.04,0.036],roughness=0.9,amount=0.6,seed=8)
+    step(**T,faces={'not':{'tag':['window','port','lamp','emit','band']}},where='cavity',reach=1.2,threshold=0.3,softness=0.12,color=[0.016,0.014,0.012],roughness=0.95,metallic=0,amount=0.9)
+    for k in range(6):
+        a=math.radians(k*60)
+        step(**T,faces={'not':{'tag':['emit','band','lamp','window','port']}},near={'at':[(R-24)*math.cos(a),(R-24)*math.sin(a),0],'radius':20},color=[0.25,0.5,0.9],glow=0.05,amount=0.7)
+    step(op='decimate',**{'from':'blockout'},ratio=1)
+    src['normalBake']={'from':'dense','size':4096,'distance':2.5,'color':True,'surface':True,'occlusion':{'samples':25,'size':512,'reach':10.0}}
+    return src
+
+
 SMALL = {
+    'gate-field': {'version': 1, 'smoothAngle': 80, 'steps': [{'op': 'plane', 'size': 2, 'tag': 'field', 'color': [1, 1, 1]}, {'op': 'transform', 'rotate': [90, 0, 0]}]},
     'planet': {'version': 1, 'smoothAngle': 80, 'material': {'roughness': 0.92, 'metallic': 0, 'texture': 'assets/textures/giant.png'},
                'steps': [{'op': 'sphere', 'radius': 1, 'rings': 64, 'sides': 128, 'tag': 'planet', 'color': [1, 1, 1]}, {'op': 'uv', 'mode': 'sphere'}]},
     'shell': {'version': 1, 'smoothAngle': 80, 'steps': [{'op': 'sphere', 'radius': 1, 'rings': 48, 'sides': 96, 'tag': 'shell', 'color': [1, 1, 1]}]},
@@ -358,7 +468,7 @@ SMALL = {
 
 
 def make_models():
-    sources = {'frigate': ship_source(), **SMALL}
+    sources = {'frigate': ship_source(), 'gate': gate_source(), **SMALL}
     for name, source in sources.items():
         if MODELS_ONLY and name not in MODELS_ONLY:
             continue
@@ -380,12 +490,14 @@ def make_materials():
         'plume-core': {'version': '1.0', 'type': 'material', 'shader': 'plume.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 0,
                        'properties': {'u_core': {'r': 0.9, 'g': 0.97, 'b': 1.0, 'a': 1}, 'u_edge': {'r': 0.2, 'g': 0.55, 'b': 1.0, 'a': 1}, 'u_strength': 5, 'u_length': 11,
                                       'u_falloff': 1.3, 'u_fade': 2.4, 'u_diamonds': 5, 'u_knots': 1.4, 'u_flicker': 0.14}},
+        'gatefield': {'version': '1.0', 'type': 'material', 'shader': 'gatefield.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 0,
+                      'properties': {'u_core': {'r': 0.7, 'g': 0.9, 'b': 1.0, 'a': 1}, 'u_edge': {'r': 0.08, 'g': 0.3, 'b': 1.0, 'a': 1}, 'u_strength': 0.45, 'u_swirl': 1}},
     }
     for name, doc in docs.items():
         path = MAT / f'{name}.esmaterial'
         path.write_text(json.dumps(doc, indent=2) + '\n')
         stamp(path, 'material')
-    for name in ('atmosphere', 'plume'):
+    for name in ('atmosphere', 'plume', 'gatefield'):
         stamp(MAT / f'{name}.esshader', 'shader')
     hull = MODELS / 'frigate.esmaterial'
     if hull.exists():
@@ -493,6 +605,9 @@ def make_scene():
         kind = 'rock-' + 'abc'[placed % 3]
         add(f'Rock{placed}', [transform(at, {'x': spin[0] / norm, 'y': spin[1] / norm, 'z': spin[2] / norm, 'w': spin[3] / norm}, (size,) * 3),
                               mesh(kind, f'assets/models/{kind}.esmaterial', f'assets/models/{kind}_color.png', True, True, True, False)])
+    for name, at in [('GateA', (0, 14, 2600)), ('GateB', (0, -60000, 0))]:
+        gate = add(name, [transform(at), mesh('gate', 'assets/models/gate.esmaterial', 'assets/models/gate_color.png', True, True, True, False)])
+        add(name + 'Field', [transform((0, 0, 0), None, (GATE_RADIUS - 13,) * 3), mesh('gate-field', 'assets/materials/gatefield.esmaterial', None, False, False, False, False)], gate)
     add('Planet', [transform(PLANET_AT, None, (PLANET_RADIUS,) * 3), mesh('planet', 'assets/models/planet.esmaterial', 'assets/textures/giant.png', True, True, True, False)])
     add('Atmosphere', [transform(PLANET_AT, None, (PLANET_RADIUS * 1.022,) * 3), mesh('shell', 'assets/materials/atmosphere.esmaterial', None, False, False, True, False)])
     SCENE.write_text(json.dumps({'version': 4, 'name': 'SpaceFrigate', 'entities': entities}, indent=1) + '\n')

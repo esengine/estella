@@ -2,7 +2,7 @@ import { addPlugin, defineSystem, GetWorld, Res, Time, Input, Transform, MeshRen
 import type { Entity, World } from 'esengine';
 import { installAudio } from './audio';
 import { SHOTS, SHOT_SECONDS, clamp, eyeOf, lookRotation, tourOrbit, type Orbit } from './flight';
-import { helm, mulQuat, turnBy } from './helm';
+import { helm, mulQuat, turnBy, type Quat } from './helm';
 import { installHud } from './hud';
 import { ship, TOP_SPEED, DRIFTING_ROCKS, FIELD_HALF_LENGTH, FIELD_DRIFT } from './shipState';
 
@@ -14,11 +14,12 @@ const PLUMES = [
 ] as const;
 
 const GLOWS = ['EngineGlowL', 'EngineGlowR', 'EngineGlowNL', 'EngineGlowNR'] as const;
+const GATES = ['GateA', 'GateB'] as const;
 
 addPlugin({
     name: 'space-frigate',
     build(app) {
-        const facts = { ready: false, frame: 0, time: 0, throttle: 0, tour: true, shot: 0, eyeX: 0, eyeY: 0, eyeZ: 0 };
+        const facts = { ready: false, frame: 0, time: 0, throttle: 0, tour: true, shot: 0, eyeX: 0, eyeY: 0, eyeZ: 0, gate: 0, gatePassed: 0 };
         app.insertResource(Playthrough, { facts });
         installHud(app);
         installAudio(app);
@@ -30,6 +31,9 @@ addPlugin({
         let hand: Orbit = { ...SHOTS[0] };
         let grabbed = false;
         let last = { x: 0, y: 0 };
+        let ahead = 1;
+        let arrivals = -1;
+        let gateFacing: Quat = { x: 0, y: 0, z: 0, w: 1 };
 
         const get = (world: World, name: string): Entity => {
             const known = ids.get(name);
@@ -121,6 +125,25 @@ addPlugin({
                 };
                 world.insert(e, Transform, t);
             }
+
+            if (helm.arrivals !== arrivals) {
+                arrivals = helm.arrivals;
+                ahead = 1 - ahead;
+                const yaw = Math.atan2(helm.gate.x, helm.gate.z);
+                const pitch = Math.atan2(helm.gate.y, Math.hypot(helm.gate.x, helm.gate.z) || 1e-6);
+                gateFacing = mulQuat({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }, { x: -Math.sin(pitch / 2), y: 0, z: 0, w: Math.cos(pitch / 2) });
+            }
+            const next = get(world, GATES[ahead]!);
+            const there = world.get(next, Transform);
+            there.position = { x: helm.gate.x, y: helm.gate.y, z: helm.gate.z };
+            there.rotation = gateFacing;
+            world.insert(next, Transform, there);
+            const behind = get(world, GATES[1 - ahead]!);
+            const left = world.get(behind, Transform);
+            left.position = { x: left.position.x - helm.forward.x * drift, y: left.position.y - helm.forward.y * drift, z: left.position.z - helm.forward.z * drift };
+            world.insert(behind, Transform, left);
+            facts.gate = Math.hypot(helm.gate.x, helm.gate.y, helm.gate.z);
+            facts.gatePassed = Math.hypot(left.position.x, left.position.y, left.position.z);
 
             facts.ready = true;
             facts.frame++;

@@ -3082,6 +3082,170 @@
   },
   {
    "id": 65,
+   "name": "GateA",
+   "parent": null,
+   "children": [
+    66
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 14,
+       "z": 2600
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/gate.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/gate.esmaterial",
+      "texture": "assets/models/gate_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 66,
+   "name": "GateAField",
+   "parent": 65,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "scale": {
+       "x": 157.0,
+       "y": 157.0,
+       "z": 157.0
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/gate-field.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/gatefield.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 67,
+   "name": "GateB",
+   "parent": null,
+   "children": [
+    68
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -60000,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/gate.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/models/gate.esmaterial",
+      "texture": "assets/models/gate_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 68,
+   "name": "GateBField",
+   "parent": 67,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "scale": {
+       "x": 157.0,
+       "y": 157.0,
+       "z": 157.0
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/gate-field.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/gatefield.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 69,
    "name": "Planet",
    "parent": null,
    "children": [],
@@ -3124,7 +3288,7 @@
    ]
   },
   {
-   "id": 66,
+   "id": 70,
    "name": "Atmosphere",
    "parent": null,
    "children": [],
