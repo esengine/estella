@@ -19,6 +19,7 @@ SCENE = ROOT / 'assets/scenes/main.esscene'
 CLI = REPO / 'pipeline/bin/estella.mjs'
 MAP = int(sys.argv[sys.argv.index('--size') + 1]) if '--size' in sys.argv else 4096
 ONLY = sys.argv[sys.argv.index('--only') + 1].split(',') if '--only' in sys.argv else ['sky', 'planet', 'grain', 'models', 'materials', 'scene']
+MODELS_ONLY = sys.argv[sys.argv.index('--models') + 1].split(',') if '--models' in sys.argv else None
 SUN = (0.62, -0.5, -0.6)
 PLANET_AT = (-6000, -5760, -3500)
 PLANET_RADIUS = 4300
@@ -247,10 +248,14 @@ def ship_source():
     nozzle(4.5,0,-44,3.2); nozzle(-4.5,0,-44,3.2)
     for (x,z,s) in [(0,13,1),(0,27,1),(0,10,-1),(5.8,-12,1),(-5.8,-12,1)]:
         a=at(z); y=a[4]+s*a[2] if abs(x)<a[1]-a[3] else a[4]+s*(a[2]-a[3]*0.5)
-        step(op='cylinder',radius=1.5,height=0.8,sides=16,at=[x,y+0.4*s,z],tag='turret',color=DARK)
-        step(op='box',size=[2.2,1.1,3.0],at=[x,y+1.3*s,z+0.2],tag='turret',color=UPPER)
+        step(op='cylinder',radius=1.6,height=0.5,sides=20,at=[x,y+0.25*s,z],tag='turret',color=DARK)
+        step(op='cylinder',radius=1.25,height=0.4,sides=20,at=[x,y+0.7*s,z],tag='turret',color=DARK)
+        step(op='loft',sections=[{'at':[x,y+1.45*s,zz],'points':oct(w,h,c)} for (zz,w,h,c) in [(z-1.5,0.95,0.5,0.18),(z-0.4,1.2,0.62,0.22),(z+0.9,1.1,0.58,0.22),(z+1.9,0.7,0.4,0.15)]],curve=1,tag='turret',color=UPPER)
+        step(op='box',size=[1.7,0.5,0.5],at=[x,y+1.4*s,z+1.95],tag='turret',color=DARK)
         for bx in (-0.5,0.5):
-            step(op='loft',path=[[x+bx,y+1.35*s,z+1.6],[x+bx,y+1.35*s,z+6.4]],section={'radius':0.15},sides=8,tag='barrel',color=DARK)
+            step(op='loft',path=[[x+bx,y+1.4*s,z+1.9],[x+bx,y+1.4*s,z+6.6]],section={'radius':0.14},sides=10,tag='barrel',color=DARK)
+            step(op='loft',path=[[x+bx,y+1.4*s,z+2.1],[x+bx,y+1.4*s,z+3.3]],section={'radius':0.21},sides=10,tag='barrel',color=DARK)
+            step(op='loft',path=[[x+bx,y+1.4*s,z+6.3],[x+bx,y+1.4*s,z+6.95]],section={'radius':0.2},sides=10,tag='barrel',color=DARK)
     S[-1]['id']='blockout'
 
     src={'version':1,'smoothAngle':28,'material':{'roughness':0.5,'metallic':0,'emissive':[16,16,16],'detail':SHIP_DETAIL},'steps':S}
@@ -259,9 +264,9 @@ def ship_source():
         step(op='paint',faces='nozzle',roughness=0.34,metallic=1)
         step(op='paint',faces='window',glow=0.3,roughness=0.15)
         step(op='paint',faces='thrust',glow=1)
-        step(op='panels',faces='hull',size=4.4,uneven=0.85,gap=0.09,height=[0.05,0.2],bevel=0.03,tones=0.2,along=[0,0,1],seed=5,tag='plate')
-        step(op='panels',faces={'tag':['upper','bridge','strake','fin']},size=2.3,uneven=0.8,gap=0.07,height=[0.04,0.13],bevel=0.022,tones=0.18,along=[0,0,1],seed=9,tag='plate')
-        step(op='panels',faces={'tag':['nacelle','pylon','keel','prong']},size=2.8,uneven=0.8,gap=0.08,height=[0.04,0.14],bevel=0.024,tones=0.22,along=[0,0,1],seed=14,tag='trim')
+        step(op='panels',faces='hull',size=4.4,uneven=0.85,gap=0.1,height=[0.05,0.2],bevel=0.06,tones=0.2,along=[0,0,1],seed=5,tag='plate')
+        step(op='panels',faces={'tag':['upper','bridge','strake','fin']},size=2.3,uneven=0.8,gap=0.08,height=[0.04,0.13],bevel=0.045,tones=0.18,along=[0,0,1],seed=9,tag='plate')
+        step(op='panels',faces={'tag':['nacelle','pylon','keel','prong']},size=2.8,uneven=0.8,gap=0.09,height=[0.04,0.14],bevel=0.05,tones=0.22,along=[0,0,1],seed=14,tag='trim')
         P={'tag':['plate','plateSide']}
         step(op='paint',faces={**P,'facing':'-y','tolerance':52},color=[0.11,0.115,0.125],roughness=0.48)
         step(op='paint',faces={**P,'within':{'min':[None,-3,-3.4],'max':[None,None,0.2]}},color=ACCENT,roughness=0.44)
@@ -327,6 +332,21 @@ SMALL = {
     'planet': {'version': 1, 'smoothAngle': 80, 'material': {'roughness': 0.92, 'metallic': 0, 'texture': 'assets/textures/giant.png'},
                'steps': [{'op': 'sphere', 'radius': 1, 'rings': 64, 'sides': 128, 'tag': 'planet', 'color': [1, 1, 1]}, {'op': 'uv', 'mode': 'sphere'}]},
     'shell': {'version': 1, 'smoothAngle': 80, 'steps': [{'op': 'sphere', 'radius': 1, 'rings': 48, 'sides': 96, 'tag': 'shell', 'color': [1, 1, 1]}]},
+    **{name: {'version': 1, 'smoothAngle': 60, 'material': {'roughness': 0.92, 'metallic': 0},
+              'normalBake': {'from': 'dense', 'size': 1024, 'color': True, 'surface': True, 'occlusion': {'samples': 36, 'size': 512, 'reach': 0.35}},
+              'steps': [
+                  {'op': 'sphere', 'radius': 1, 'rings': 48, 'sides': 96, 'tag': 'rock', 'color': tone},
+                  {'op': 'transform', 'scale': squash},
+                  {'op': 'displace', 'pattern': 'bumps', 'amplitude': 0.42, 'scale': 1.6, 'octaves': 3, 'seed': seed, 'detail': 0.06},
+                  {'op': 'displace', 'pattern': 'bumps', 'amplitude': 0.12, 'scale': 0.45, 'octaves': 4, 'seed': seed + 6, 'detail': 0.04},
+                  {'op': 'displace', 'pattern': 'pores', 'amplitude': -0.09, 'scale': 0.7, 'width': 0.5, 'seed': seed + 2, 'detail': 0.035, 'id': 'dense'},
+                  {'op': 'stain', 'texel': True, 'pattern': 'bumps', 'scale': 0.9, 'octaves': 5, 'threshold': 0.5, 'softness': 0.3, 'color': [0.3, 0.27, 0.24], 'roughness': 0.85, 'amount': 0.4, 'seed': seed + 3},
+                  {'op': 'stain', 'texel': True, 'pattern': 'bumps', 'scale': 0.25, 'octaves': 4, 'threshold': 0.58, 'softness': 0.15, 'color': [0.11, 0.1, 0.095], 'amount': 0.35, 'seed': seed + 9},
+                  {'op': 'stain', 'texel': True, 'where': 'edges', 'reach': 0.1, 'threshold': 0.4, 'softness': 0.2, 'color': [0.42, 0.39, 0.35], 'amount': 0.5},
+                  {'op': 'stain', 'texel': True, 'where': 'cavity', 'reach': 0.12, 'threshold': 0.3, 'softness': 0.15, 'color': [0.03, 0.028, 0.026], 'amount': 0.8},
+                  {'op': 'decimate', 'from': 'dense', 'triangles': 2400, 'error': 0.2},
+              ]}
+       for name, seed, squash, tone in [('rock-a', 3, [1.35, 0.85, 1.0], [0.2, 0.185, 0.17]), ('rock-b', 17, [0.9, 1.1, 1.3], [0.17, 0.165, 0.16]), ('rock-c', 29, [1.1, 0.7, 0.8], [0.23, 0.2, 0.17])]},
     'plume': {'version': 1, 'smoothAngle': 80,
               'steps': [{'op': 'lathe', 'axis': 'z', 'profile': [[0.0, 0.0], [0.62, 0.0], [0.78, -0.6], [0.5, -3.2], [0.16, -7.5], [0.0, -11.0]], 'sides': 32, 'curve': 3, 'tag': 'plume', 'color': [1, 1, 1]}]},
 }
@@ -335,6 +355,8 @@ SMALL = {
 def make_models():
     sources = {'frigate': ship_source(), **SMALL}
     for name, source in sources.items():
+        if MODELS_ONLY and name not in MODELS_ONLY:
+            continue
         path = MODELS / f'{name}.esmodel'
         path.write_text(json.dumps(source, indent=1) + '\n')
         run('bake-model', path)
@@ -444,6 +466,21 @@ def make_scene():
         add(name, [transform(at, None, (wide, wide, long)), mesh('plume', 'assets/materials/plume.esmaterial', None, False, False, False, False)], ship)
     for name, at in [('EngineGlowL', (4.5, 0, -52)), ('EngineGlowR', (-4.5, 0, -52)), ('EngineGlowNL', (17, -1, -52)), ('EngineGlowNR', (-17, -1, -52))]:
         add(name, [transform(at), {'type': 'Light', 'data': {'type': 0, 'color': {'r': 0.6, 'g': 0.75, 'b': 1.0, 'a': 1}, 'intensity': 0.4, 'radius': 14, 'enabled': True, 'meshShadows': False}}], ship)
+    rocks = random.Random(47)
+    for placed in range(46):
+        far = placed >= 40
+        size = rocks.uniform(90, 240) if far else rocks.uniform(4, 11) * (1 + 3 * rocks.random() ** 4)
+        clear = 600 if far else 300 + size * 9
+        at = (0, 0, 0)
+        while math.hypot(at[0], at[1]) < clear:
+            reach = rocks.uniform(1500, 2600) if far else rocks.uniform(clear, clear + 800)
+            turn, lift = rocks.uniform(0, 2 * math.pi), rocks.uniform(-0.5, 0.22)
+            at = (math.cos(turn) * math.cos(lift) * reach, math.sin(lift) * reach - 40, math.sin(turn) * math.cos(lift) * reach)
+        spin = [rocks.gauss(0, 1) for _ in range(4)]
+        norm = math.sqrt(sum(q * q for q in spin))
+        kind = 'rock-' + 'abc'[placed % 3]
+        add(f'Rock{placed}', [transform(at, {'x': spin[0] / norm, 'y': spin[1] / norm, 'z': spin[2] / norm, 'w': spin[3] / norm}, (size,) * 3),
+                              mesh(kind, f'assets/models/{kind}.esmaterial', f'assets/models/{kind}_color.png', True, True, True, False)])
     add('Planet', [transform(PLANET_AT, None, (PLANET_RADIUS,) * 3), mesh('planet', 'assets/models/planet.esmaterial', 'assets/textures/giant.png', True, True, True, False)])
     add('Atmosphere', [transform(PLANET_AT, None, (PLANET_RADIUS * 1.022,) * 3), mesh('shell', 'assets/materials/atmosphere.esmaterial', None, False, False, True, False)])
     SCENE.write_text(json.dumps({'version': 4, 'name': 'SpaceFrigate', 'entities': entities}, indent=1) + '\n')
