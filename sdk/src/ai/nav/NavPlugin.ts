@@ -408,13 +408,11 @@ function steerTo(
     return { a: v.x, b: v.z };
 }
 
-/** Validate actual 2D movement too: a forecast endpoint alone can skip a
- * corner. Large steps fail closed instead of doing unbounded sampling. */
 function gridMoveFits(nav: Navigation, from: Vec3, to: Vec3, radius: number): boolean {
-    if(radius<=0 || !(nav.surface instanceof NavGrid) || (from.x===to.x && from.y===to.y))return true;
-    const count=Math.max(1,Math.ceil(Math.hypot(to.x-from.x,to.y-from.y)/(nav.surface.cellSize/4)));
+    if(radius<=0 || !(nav.surface instanceof NavGrid) || (from.x===to.x && from.y===to.y && from.z===to.z))return true;
+    const count=Math.max(1,Math.ceil(Math.hypot(to.x-from.x,to.y-from.y,to.z-from.z)/(nav.surface.cellSize/4)));
     if(count>512)return false;
-    for(let i=1;i<=count;i++)if(!nav.surface.isNavigable({x:from.x+(to.x-from.x)*i/count,y:from.y+(to.y-from.y)*i/count},{radius}))return false;
+    for(let i=1;i<=count;i++)if(!nav.surface.isNavigable({x:from.x+(to.x-from.x)*i/count,y:from.y+(to.y-from.y)*i/count,z:from.z+(to.z-from.z)*i/count},{radius}))return false;
     return true;
 }
 
