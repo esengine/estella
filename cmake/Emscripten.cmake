@@ -51,119 +51,6 @@ if(NOT ES_MAIN_DISABLE_SIMD)
     list(APPEND ES_EMSCRIPTEN_COMPILE_FLAGS -msimd128 -msse2)
 endif()
 
-# Standard (monolithic) link flags
-set(ES_EMSCRIPTEN_LINK_FLAGS
-    --bind                          # Enable embind for C++ bindings
-    --emit-tsd esengine.d.ts        # Auto-generate TypeScript definitions
-    -sWASM=1
-    -sUSE_WEBGL2=1
-    # No FULL_ES3: its client-side array emulation queried ELEMENT_ARRAY_BUFFER_BINDING with getParameter at every
-    # glBindVertexArray, once a draw. Every draw here reads GPU buffers by offset (GLDevice::prepareVertexState).
-    -sMAX_WEBGL_VERSION=2
-    -sALLOW_MEMORY_GROWTH=1
-    -sNO_EXIT_RUNTIME=1
-    -sASSERTIONS=1
-    -sEXPORT_ES6=1                  # Export as ES6 module
-    -sMODULARIZE=1                  # Wrap in module factory function
-    "-sEXPORT_NAME='ESEngineModule'" # Module name
-    # Exported functions (EMSCRIPTEN_KEEPALIVE + stdlib)
-    "-sEXPORTED_FUNCTIONS=['_malloc','_free','_es_app_init']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','wasmMemory']"
-    # Embed assets (fonts, etc.)
-    "--embed-file=${CMAKE_SOURCE_DIR}/assets/fonts@/assets/fonts"
-)
-
-# =============================================================================
-# Modular Build (Dynamic Linking) Configuration
-# =============================================================================
-
-# Main module link flags (MAIN_MODULE=2, supports loading side modules)
-set(ES_EMSCRIPTEN_MAIN_MODULE_FLAGS
-    --bind
-    -sMAIN_MODULE=2
-    -sWASM=1
-    -sUSE_WEBGL2=1
-    # No FULL_ES3: its client-side array emulation queried ELEMENT_ARRAY_BUFFER_BINDING with getParameter at every
-    # glBindVertexArray, once a draw. Every draw here reads GPU buffers by offset (GLDevice::prepareVertexState).
-    -sMAX_WEBGL_VERSION=2
-    -sALLOW_MEMORY_GROWTH=1
-    -sALLOW_TABLE_GROWTH=1
-    -sNO_EXIT_RUNTIME=1
-    -sASSERTIONS=0
-    -sEXPORT_ES6=1
-    -sMODULARIZE=1
-    -sFORCE_FILESYSTEM=1
-    "-sEXPORT_NAME='ESEngineModule'"
-    "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    # 'GL' is required for the WebGL2 context binding (module.GL.registerContext);
-    # the monolithic web build exports it too — the main-module list had dropped it.
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','addFunction','loadDynamicLibrary','wasmMemory']"
-    -O3
-    -flto
-    -Wl,--gc-sections
-)
-
-# WeChat MAIN_MODULE variant
-set(ES_EMSCRIPTEN_WXGAME_MAIN_MODULE_FLAGS
-    --bind
-    -sMAIN_MODULE=2
-    -sWASM=1
-    -sUSE_WEBGL2=1
-    # No FULL_ES3: its client-side array emulation queried ELEMENT_ARRAY_BUFFER_BINDING with getParameter at every
-    # glBindVertexArray, once a draw. Every draw here reads GPU buffers by offset (GLDevice::prepareVertexState).
-    -sMAX_WEBGL_VERSION=2
-    -sALLOW_MEMORY_GROWTH=1
-    -sALLOW_TABLE_GROWTH=1
-    -sNO_EXIT_RUNTIME=1
-    -sENVIRONMENT=web
-    -sEXPORT_ES6=0
-    -sMODULARIZE=1
-    -sFORCE_FILESYSTEM=1
-    -sDYNAMIC_EXECUTION=0
-    "--extern-pre-js=${CMAKE_SOURCE_DIR}/src/esengine/platform/web/wxgame-pre.js"
-    "-sEXPORT_NAME='ESEngineModule'"
-    "-sEXPORTED_FUNCTIONS=['_malloc','_free']"
-    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','loadDynamicLibrary','wasmMemory']"
-    -O3
-    -flto
-    -Wl,--gc-sections
-    --closure=0
-)
-
-# Physics side module flags (SIDE_MODULE=2, pure .wasm, no JS glue).
-# SIDE_MODULE=2 already implies relocatable; the standalone -sRELOCATABLE=1 was
-# removed in newer emscripten ("No longer supported"), so it's not listed.
-set(ES_EMSCRIPTEN_PHYSICS_SIDE_MODULE_FLAGS
-    -sSIDE_MODULE=2
-    -sWASM=1
-    -O3
-    -flto
-)
-
-# Debug-specific flags
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    list(APPEND ES_EMSCRIPTEN_COMPILE_FLAGS
-        -g
-    )
-    list(APPEND ES_EMSCRIPTEN_LINK_FLAGS
-        -sASSERTIONS=2
-        -sSAFE_HEAP=1
-        -sSTACK_OVERFLOW_CHECK=2
-    )
-endif()
-
-# Release-specific flags
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    list(APPEND ES_EMSCRIPTEN_COMPILE_FLAGS
-        -O3
-    )
-    list(APPEND ES_EMSCRIPTEN_LINK_FLAGS
-        -O3
-        -sASSERTIONS=0
-        --closure=1
-    )
-endif()
-
 # WeChat MiniGame SDK link flags (CommonJS compatible, no ES6)
 set(ES_EMSCRIPTEN_WXGAME_SDK_FLAGS
     --bind
@@ -199,58 +86,6 @@ set(ES_EMSCRIPTEN_WXGAME_MODULE_EXTRA
     "--extern-pre-js=${CMAKE_SOURCE_DIR}/src/esengine/platform/web/wxgame-pre.js"
     --closure=0
 )
-
-# Helper function to apply Emscripten settings to a target (monolithic build)
-function(es_apply_emscripten_settings TARGET_NAME)
-    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
-        target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
-
-        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_LINK_FLAGS}")
-        set_target_properties(${TARGET_NAME} PROPERTIES
-            SUFFIX ".js"
-            LINK_FLAGS "${LINK_FLAGS_STR}"
-        )
-    endif()
-endfunction()
-
-# Helper function to apply MAIN_MODULE settings
-function(es_apply_main_module_settings TARGET_NAME)
-    target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-exceptions)
-
-    string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_MAIN_MODULE_FLAGS}")
-    set_target_properties(${TARGET_NAME} PROPERTIES
-        SUFFIX ".js"
-        LINK_FLAGS "${LINK_FLAGS_STR}"
-    )
-    message(STATUS "Configured ${TARGET_NAME} as MAIN_MODULE")
-endfunction()
-
-# Helper function to apply WeChat MAIN_MODULE settings
-function(es_apply_wxgame_main_module_settings TARGET_NAME)
-    target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-exceptions)
-
-    string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_WXGAME_MAIN_MODULE_FLAGS}")
-    set_target_properties(${TARGET_NAME} PROPERTIES
-        SUFFIX ".js"
-        LINK_FLAGS "${LINK_FLAGS_STR}"
-    )
-    message(STATUS "Configured ${TARGET_NAME} as WXGAME MAIN_MODULE")
-endfunction()
-
-# Helper function to apply physics SIDE_MODULE settings
-function(es_apply_physics_side_module_settings TARGET_NAME)
-    # -fPIC is enough for side-module objects; -sRELOCATABLE was removed in newer
-    # emscripten and SIDE_MODULE=2 (link flags) already makes the module relocatable.
-    target_compile_options(${TARGET_NAME} PRIVATE -fPIC -flto)
-
-    string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_PHYSICS_SIDE_MODULE_FLAGS}")
-    set_target_properties(${TARGET_NAME} PROPERTIES
-        PREFIX ""
-        SUFFIX ".wasm"
-        LINK_FLAGS "${LINK_FLAGS_STR}"
-    )
-    message(STATUS "Configured ${TARGET_NAME} as SIDE_MODULE")
-endfunction()
 
 # SDK-specific link flags (library only, no app entry)
 set(ES_EMSCRIPTEN_SDK_LINK_FLAGS
@@ -572,7 +407,6 @@ list(APPEND ES_EMSCRIPTEN_PHYSICS_ESM_MODULE_FLAGS -sEXPORT_ES6=1 -sENVIRONMENT=
 if(NOT BOX2D_DISABLE_SIMD)
     list(APPEND ES_EMSCRIPTEN_PHYSICS_MODULE_FLAGS -msimd128)
     list(APPEND ES_EMSCRIPTEN_PHYSICS_ESM_MODULE_FLAGS -msimd128)
-    list(APPEND ES_EMSCRIPTEN_PHYSICS_SIDE_MODULE_FLAGS -msimd128)
 endif()
 
 # The 3D module's flags are the 2D module's, with one addition it cannot do
@@ -652,6 +486,3 @@ function(es_apply_physics_esm_module_settings TARGET_NAME)
 endfunction()
 
 message(STATUS "Emscripten configuration loaded")
-if(ES_BUILD_MAIN_MODULE)
-    message(STATUS "MAIN_MODULE build enabled: supports loading SIDE_MODULE")
-endif()
