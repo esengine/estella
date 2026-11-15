@@ -42,9 +42,7 @@ option(ES_ENABLE_BITMAP_TEXT "Enable Bitmap text rendering" ON)
 # OFF — its harness targets compile WebGPUDevice.cpp into themselves.
 option(ES_ENABLE_WEBGPU "Enable the WebGPU render backend (emdawnwebgpu port)" OFF)
 option(ES_ENABLE_BASIS "Build the Basis Universal KTX2 transcoder module" OFF)
-option(ES_BUILD_MAIN_MODULE "Build as MAIN_MODULE for dynamic linking" OFF)
 set(ES_WXGAME_GLX_LIB "" CACHE FILEPATH "WeChat EmscriptenGLX static library to link into the mini-game engine (empty: none)")
-option(ES_BUILD_SIDE_MODULE "Build side modules for dynamic linking" OFF)
 # The physics standalone module ships in two JS-glue flavours from the same wasm:
 # the default require()-style module (WeChat host) and an ES6 variant imported like
 # esengine.js (web editor's estella:// import-map host). They share OUTPUT_NAME
@@ -166,12 +164,10 @@ set(ESENGINE_HEADERS
     src/esengine/renderer/plugins/UIElementPlugin.hpp
     src/esengine/renderer/plugins/TextPlugin.hpp
     src/esengine/renderer/plugins/ShapePlugin.hpp
-    src/esengine/platform/FileSystem.hpp
     src/esengine/events/Events.hpp
     src/esengine/events/Connection.hpp
     src/esengine/events/Signal.hpp
     src/esengine/events/Sink.hpp
-    src/esengine/events/Dispatcher.hpp
     src/esengine/animation/TweenData.hpp
     src/esengine/animation/EasingFunctions.hpp
     src/esengine/animation/TweenSystem.hpp
@@ -213,10 +209,6 @@ list(APPEND ESENGINE_HEADERS
 set(GENERATED_WEB_BINDINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/WebBindings.generated.cpp")
 set(GENERATED_EDITOR_API "${CMAKE_CURRENT_SOURCE_DIR}/src/esengine/bindings/EditorAPI.generated.cpp")
 set(GENERATED_TS_DEFINITIONS "${CMAKE_CURRENT_SOURCE_DIR}/sdk/src/wasm/wasm.generated.ts")
-
-list(APPEND ESENGINE_SOURCES
-    src/esengine/platform/web/WebFileSystem.cpp
-)
 
 # =============================================================================
 # EHT - ESEngine Header Tool
@@ -305,9 +297,6 @@ endif()
 # so a header reached only under `__EMSCRIPTEN__` cannot pass for portable.
 target_compile_options(esengine PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS})
 target_compile_definitions(esengine PUBLIC ES_PLATFORM_WEB)
-if(ES_BUILD_WXGAME)
-    target_compile_definitions(esengine PUBLIC ES_PLATFORM_WXGAME)
-endif()
 
 esengine_set_strict_warnings(esengine)
 
@@ -510,48 +499,6 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         es_apply_physics3d_esm_module_settings(physics3d_physx_module_esm)
         set_target_properties(physics3d_physx_module_esm PROPERTIES
             OUTPUT_NAME "physics3d-physx"
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
-        )
-    endif()
-
-    # Main module SDK (MAIN_MODULE=2, supports loading side modules)
-    if(ES_BUILD_MAIN_MODULE)
-        add_executable(esengine_sdk_main ${SDK_BINDING_SOURCES})
-        target_link_libraries(esengine_sdk_main PRIVATE esengine)
-        es_apply_main_module_settings(esengine_sdk_main)
-        set_target_properties(esengine_sdk_main PROPERTIES
-            OUTPUT_NAME "esengine"
-            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
-        )
-
-        if(ES_BUILD_WXGAME)
-            add_executable(esengine_wxgame_main ${SDK_BINDING_SOURCES})
-            target_link_libraries(esengine_wxgame_main PRIVATE esengine)
-            es_apply_wxgame_main_module_settings(esengine_wxgame_main)
-            set_target_properties(esengine_wxgame_main PROPERTIES
-                OUTPUT_NAME "esengine.wxgame"
-                RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
-            )
-        endif()
-    endif()
-
-    # Physics side module (SIDE_MODULE=2, pure .wasm, no JS glue)
-    if(ES_ENABLE_BOX2D AND ES_BUILD_SIDE_MODULE)
-        add_executable(physics_side_module
-            src/esengine/bindings/modules/physics/PhysicsModuleEntry.cpp
-            src/esengine/bindings/modules/physics/PhysicsContext.cpp
-            src/esengine/bindings/modules/physics/PhysicsShapes.cpp
-            src/esengine/bindings/modules/physics/PhysicsJoints.cpp
-            src/esengine/bindings/modules/physics/PhysicsQueries.cpp
-            src/esengine/bindings/modules/physics/PhysicsTaskPool.cpp
-        )
-        target_link_libraries(physics_side_module PRIVATE box2d)
-        target_include_directories(physics_side_module PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/box2d/include
-        )
-        es_apply_physics_side_module_settings(physics_side_module)
-        set_target_properties(physics_side_module PROPERTIES
-            OUTPUT_NAME "physics"
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/sdk"
         )
     endif()

@@ -407,7 +407,7 @@ export class TextInputPlugin implements Plugin {
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(FocusManager)],
-            (focusManager: FocusManagerState) => {
+            (_focusManager: FocusManagerState) => {
                 const textInputEntities = world.getEntitiesWithComponents([TextInput]);
                 for (const entity of textInputEntities) {
                     ensureComponent(world, entity, Focusable, { tabIndex: 0, isFocused: false });

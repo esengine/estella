@@ -177,7 +177,6 @@ export function scriptGraphTouches(app: App): SystemTouches {
  * ancestor's graph because it dispatches with `currentTarget` set to it.
  */
 function createEventBridge(
-    world: ScriptGraphWorldView,
     events: EntityEventQueue,
     states: Map<Entity, AgentState>,
     tickOf: (entity: Entity, st: AgentState) => ScriptTickContext<AiContext>,
@@ -264,7 +263,7 @@ export class ScriptGraphPlugin implements Plugin {
         // An event arrives outside the system body, so the context it runs on is
         // built from the frame's last known commands and delta.
         const ctx = contextFor(world, null as unknown as CommandsInstance, noInput());
-        const bridge = createEventBridge(world, events, states, (entity, st) => {
+        const bridge = createEventBridge(events, states, (entity, st) => {
             ctx.entity = entity;
             ctx.dt = dt_;
             ctx.blackboard = st.bb;

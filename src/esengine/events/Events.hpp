@@ -17,4 +17,3 @@
 #include "Connection.hpp"
 #include "Signal.hpp"
 #include "Sink.hpp"
-#include "Dispatcher.hpp"

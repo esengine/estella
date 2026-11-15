@@ -104,14 +104,6 @@ const cross = (a: Vec3, b: Vec3): Vec3 => ({
 });
 const dot = (a: Vec3, b: Vec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
 
-function axisAngle(axis: Vec3, radians: number): Quat {
-    const l = len(axis);
-    if (l < 1e-9 || !Number.isFinite(radians)) return { w: 1, x: 0, y: 0, z: 0 };
-    const h = radians / 2;
-    const s = Math.sin(h) / l;
-    return { w: Math.cos(h), x: axis.x * s, y: axis.y * s, z: axis.z * s };
-}
-
 /** Any direction perpendicular to `v`. Seeded off the component `v` leans on
  *  LEAST, so the cross never collapses. */
 function perpendicular(v: Vec3): Vec3 {
@@ -119,21 +111,6 @@ function perpendicular(v: Vec3): Vec3 {
         ? AXIS.x
         : (Math.abs(v.y) < Math.abs(v.z) ? AXIS.y : AXIS.z);
     return cross(v, seed);
-}
-
-/**
- * The first candidate that can actually bend `bone`. A hinge PARALLEL to the bone
- * turns it not at all, so a straight limb — where the bend plane is undefined and
- * every axis derived from the reach can land along the bone — needs the check,
- * not just a non-zero vector.
- */
-function pickAxis(bone: Vec3, candidates: (Vec3 | null)[]): Vec3 {
-    for (const c of candidates) {
-        if (!c || len(c) < 1e-6) continue;
-        if (len(cross(c, bone)) < 1e-6) continue;
-        return c;
-    }
-    return perpendicular(bone);
 }
 
 /** The angle between two vectors, clamped out of the range acos rejects. */
@@ -196,17 +173,6 @@ function place(world: World, pose: Pose, rigRoot: Entity, joint: Entity): Placed
         rotation = q.normalize(q.mul(rotation, local.rotation));
     }
     return { position, rotation, parentRotation };
-}
-
-/** Write `worldRotation` back as the local rotation it implies under `parent`. */
-function setLocalRotation(
-    world: World, pose: Pose, entity: Entity, parentRotation: Quat, rotation: Quat,
-): void {
-    const track = pose.track(world, entity, Transform);
-    if (!track) return;
-    const local = q.normalize(q.mul(q.conjugate(parentRotation), rotation));
-    track.data.rotation = { w: local.w, x: local.x, y: local.y, z: local.z };
-    track.touched.add('rotation');
 }
 
 /** How much of this constraint applies, the parameter scaling what was authored. */

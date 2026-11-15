@@ -5,8 +5,14 @@
  * @brief   TypeScript-side component storage for user-defined (non-builtin) components
  */
 
-import { Entity } from '../types';
-import { ComponentDef } from './component';
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+* @file    ScriptStorage.ts
+* @brief   TypeScript-side component storage for user-defined (non-builtin) components
+*/
+import type { Entity } from '../types';
+import type { ComponentDef } from './component';
 import { validateComponentData, formatValidationErrors } from '../util/validation';
 import { log } from '../util/logger';
 import { reorderMapByRank, type RankOf } from './entityOrder';

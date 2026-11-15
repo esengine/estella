@@ -60,14 +60,6 @@ export abstract class WasmBridge<M extends object> {
 
     private raw_: M | null = null;
     private guarded_: M | null = null;
-    /**
-     * The module whose `onAbort`/dead-flag is authoritative. For a standalone
-     * module (its own emscripten runtime, e.g. the shipped physics module) this
-     * is the module itself. For a side module that shares the main module's
-     * heap, pass the main module as `healthModule` — that is where emscripten
-     * fires `onAbort` and where the dead flag must be read.
-     */
-    private health_: object | null = null;
 
     /**
      * Bind this bridge to a freshly-loaded module. Installs the terminal-abort
@@ -78,7 +70,6 @@ export abstract class WasmBridge<M extends object> {
      */
     connect(module: M, healthModule: object = module): void {
         this.raw_ = module;
-        this.health_ = healthModule;
         installAbortGuard(healthModule);
         this.guarded_ = this.makeGuarded_(module, healthModule);
     }
@@ -87,7 +78,6 @@ export abstract class WasmBridge<M extends object> {
     disconnect(): void {
         this.raw_ = null;
         this.guarded_ = null;
-        this.health_ = null;
     }
 
     /** True once {@link connect} has run and before {@link disconnect}. */
