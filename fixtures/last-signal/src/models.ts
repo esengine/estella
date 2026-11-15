@@ -25,6 +25,11 @@ export const PALETTE = {
     ore: rgb(0.95, 0.55, 0.15),
     ok: { r: 0.3, g: 1, b: 0.5, a: 0.45 },
     blocked: { r: 1, g: 0.25, b: 0.25, a: 0.45 },
+    solar: rgb(0.1, 0.22, 0.58),
+    solarGlow: rgb(1, 0.88, 0.35),
+    battery: rgb(0.24, 0.27, 0.3),
+    batteryGlow: rgb(0.4, 1, 0.5),
+    idle: rgb(0.32, 0.33, 0.36),
     offline: rgb(1, 0.22, 0.16),
     online: rgb(0.35, 0.85, 1),
     beam: { r: 0.45, g: 0.9, b: 1, a: 0.55 },
@@ -112,5 +117,37 @@ export function towerParts(): Part[] {
         part('cube', [0, 4.95, 0], [0.45, 0.06, 0.06], PALETTE.plate, 'antenna'),
         part('sphere', [0, 5.25, 0], [0.34, 0.34, 0.34], PALETTE.offline, 'emitter', false),
         part('cylinder', [0, 5.3, 0], [0.3, 1, 0.3], PALETTE.beam, 'beam', false),
+    ];
+}
+
+export function solarParts(): Part[] {
+    const panels: Part[] = [];
+    for (const z of [-0.42, 0.42]) {
+        panels.push(part('cube', [0, 0.8, z], [1.7, 0.05, 0.74], PALETTE.solar));
+        panels.push(part('cube', [0, 0.83, z], [1.74, 0.02, 0.03], PALETTE.drone));
+        for (const x of [-0.57, 0, 0.57]) panels.push(part('cube', [x, 0.83, z], [0.03, 0.02, 0.74], PALETTE.drone));
+    }
+    return [
+        part('cube', [0, 0.06, 0], [1.8, 0.12, 1.8], PALETTE.steel),
+        part('cylinder', [0, 0.45, 0], [0.2, 0.7, 0.2], PALETTE.plate),
+        part('cube', [0, 0.74, 0], [1.5, 0.06, 0.12], PALETTE.plate),
+        ...panels,
+        part('cube', [0.7, 0.2, 0.8], [0.3, 0.16, 0.12], PALETTE.plate),
+        part('sphere', [0.7, 0.34, 0.8], [0.14, 0.14, 0.14], PALETTE.solarGlow, 'beacon', false),
+    ];
+}
+
+export function batteryParts(): Part[] {
+    const cells: Part[] = [];
+    for (const x of [-0.52, 0, 0.52]) {
+        cells.push(part('cylinder', [x, 0.72, -0.1], [0.46, 1.2, 0.46], PALETTE.battery));
+        cells.push(part('cylinder', [x, 1.36, -0.1], [0.3, 0.1, 0.3], PALETTE.plate));
+        cells.push(part('cube', [x, 0.7, 0.14], [0.12, 0.8, 0.04], PALETTE.batteryGlow, 'beacon', false));
+    }
+    return [
+        part('cube', [0, 0.06, 0], [1.8, 0.12, 1.8], PALETTE.steel),
+        ...cells,
+        part('cube', [0, 0.3, 0.6], [1.5, 0.4, 0.4], PALETTE.plate),
+        part('cube', [0, 0.52, 0.6], [1.2, 0.04, 0.3], PALETTE.steel),
     ];
 }

@@ -1,17 +1,18 @@
 import {
     addPlugin, defineSystem, Schedule, Res, GetWorld, Input, CameraView, Playthrough, SaveManager, UIEvents, Time,
-    Transform, MeshRenderer, TimeOfDay, PostProcessVolume, Light, Text, Name, UINode, UIVisual,
+    Transform, MeshRenderer, TimeOfDay, PostProcessVolume, Light, Text, Name, UINode, UIVisual, Assets,
     spawnUIEntity, createButton, UIPositionType, px, rayPlaneHit,
-    type World, type Entity,
+    type World, type Entity, type UIEventQueue,
 } from 'esengine';
-import { Nav, NavAgent, NavGrid, setNavDestination, stopNavAgent } from 'esengine/ai';
+import { Nav, NavAgent, NavGrid, setNavDestination, stopNavAgent, type Navigation } from 'esengine/ai';
 import {
     GRID_WIDTH, GRID_HEIGHT, CELL_SIZE, SAVE_VERSION, DAY_HOURS,
-    REPAIR_COST, createState, restore, snapshot, place, demolish, isWalkable, inBounds, buildingAt, droneCell, whyNotPlace,
-    targetOf, nearestDock, settleArrival, worldOfCell, cellOfWorld, towerOf, whyNotRepair, repairTower, migrateFromV1,
+    REPAIR_COST, COSTS, createState, restore, snapshot, place, demolish, isWalkable, inBounds, buildingAt, droneCell, whyNotBuild,
+    targetOf, nearestDock, settleArrival, worldOfCell, cellOfWorld, whyNotRepair, repairTower, migrateFromV1, migrateFromV2,
+    stepPower, powerReport, setMineOn, isRunning, isDocked,
     type GameState, type Building, type BuildingKind, type PlaceableKind, type Cell, type Snapshot,
 } from './state';
-import { PALETTE, mineParts, storeParts, droneParts, ringParts, towerParts, type Part, type Role, type Colour } from './models';
+import { PALETTE, mineParts, storeParts, droneParts, ringParts, towerParts, solarParts, batteryParts, type Part, type Role, type Colour, type Shape } from './models';
 
 type Tool = PlaceableKind | 'select' | 'remove';
 
@@ -31,17 +32,25 @@ const UI = {
     accent: { r: 0.6, g: 0.95, b: 1, a: 1 },
 };
 const TOOLS: { tool: Tool; label: string; name: string }[] = [
-    { tool: 'mine', label: '1  MINE', name: 'ToolMine' },
-    { tool: 'store', label: '2  STOREHOUSE', name: 'ToolStore' },
-    { tool: 'select', label: '3  SELECT', name: 'ToolSelect' },
-    { tool: 'remove', label: '4  REMOVE', name: 'ToolRemove' },
+    { tool: 'mine', label: `1  MINE  ${COSTS.mine}`, name: 'ToolMine' },
+    { tool: 'store', label: `2  STORE  ${COSTS.store}`, name: 'ToolStore' },
+    { tool: 'solar', label: `3  SOLAR  ${COSTS.solar}`, name: 'ToolSolar' },
+    { tool: 'battery', label: `4  BATTERY  ${COSTS.battery}`, name: 'ToolBattery' },
+    { tool: 'select', label: '5  SELECT', name: 'ToolSelect' },
+    { tool: 'remove', label: '6  REMOVE', name: 'ToolRemove' },
 ];
-const TOOLBAR = { top: 664, width: 150, gap: 12, left: (VIEW.width - 4 * 150 - 3 * 12) / 2 };
+const TOOLBAR = { top: 664, width: 124, gap: 8, left: (VIEW.width - 6 * 124 - 5 * 8) / 2 + 60 };
+const NAMES: Record<BuildingKind, string> = { mine: 'Mine', store: 'Storehouse', solar: 'Solar array', battery: 'Battery', tower: 'Signal tower' };
+const partsOf = (kind: BuildingKind): Part[] => kind === 'mine' ? mineParts() : kind === 'store' ? storeParts() : kind === 'solar' ? solarParts() : kind === 'battery' ? batteryParts() : towerParts();
 
-const saves = new SaveManager({ version: SAVE_VERSION, migrations: { 1: migrateFromV1 }, keyPrefix: 'last-signal:' });
+const saves = new SaveManager({ version: SAVE_VERSION, migrations: { 1: migrateFromV1, 2: migrateFromV2 }, keyPrefix: 'last-signal:' });
 const mixed = (a: Colour, b: Colour, k: number): Colour => ({ r: a.r + (b.r - a.r) * k, g: a.g + (b.g - a.g) * k, b: a.b + (b.b - a.b) * k, a: a.a + (b.a - a.a) * k });
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 const shade = (c: Colour, k: number, a = c.a): Colour => ({ r: c.r * k, g: c.g * k, b: c.b * k, a });
+
+const livePieces = new Set<Entity>();
+const SHAPES: readonly Shape[] = ['cube', 'cylinder', 'sphere', 'cone'];
+const meshes = new Map<Shape, number>();
 
 class Model {
     readonly root: Entity;
@@ -60,9 +69,10 @@ class Model {
             const entity = world.spawn();
             world.insert(entity, Transform, {});
             world.insert(entity, MeshRenderer, {
-                mesh: `builtin:${part.shape}` as unknown as number, lit: tint === null && part.lit, opaque: colour.a >= 1,
+                mesh: meshes.get(part.shape)!, lit: tint === null && part.lit, opaque: colour.a >= 1,
                 cullBackfaces: true, castShadows: tint === null && part.lit, enabled: true, color: colour,
             });
+            livePieces.add(entity);
             return { entity, part };
         });
     }
@@ -100,7 +110,7 @@ class Model {
     }
 
     despawn(world: World): void {
-        for (const piece of this.pieces) world.despawn(piece.entity);
+        for (const piece of this.pieces) { livePieces.delete(piece.entity); world.despawn(piece.entity); }
         world.despawn(this.root);
     }
 
@@ -120,7 +130,7 @@ class Model {
     }
 }
 
-interface Site { building: Building; model: Model; mark: Entity; active: boolean; lit: boolean }
+interface Site { building: Building; model: Model; mark: Entity; look: string }
 
 addPlugin({ name: 'last-signal-gate0', build(app) {
     const facts: Record<string, string | number | boolean> = {
@@ -128,8 +138,11 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         droneX: 0, droneY: 0, hour: 0, hoursElapsed: 0, fast: false, plans: 0, route: 'none', everInsideBuilding: false,
         cursorX: 0, cursorY: 0, cursorWalkable: true, tool: 'mine', saves: 0, loads: 0, notice: '', layout: '',
         autoExposure: true, held: false, lowView: false, ambient: 0, sun: 0, selected: 0, ghostLegal: true, active: 0, signal: 'offline', canRepair: false, victory: false, repairs: 0, uplink: 0,
+        energy: 0, capacity: 0, generation: 0, demand: 0, blackout: false, power: 'steady', mines: 0, minesRunning: 0, blackouts: 0,
     };
     app.insertResource(Playthrough, { facts });
+    const bootAt = performance.now();
+    let counted = false;
 
     let state: GameState = createState();
     let grid: NavGrid | null = null;
@@ -164,7 +177,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
     let clock: Entity | null = null;
     let camera: Entity | null = null;
     let lowView = false;
-    const rig = { x: -4, z: -1, distance: 44, pitch: 0.9 };
+    const rig = { x: -8, z: -1, distance: 44, pitch: 0.9 };
     let rigKey = '';
     const sites = new Map<number, Site>();
     let cursor: Cell = { x: 32, y: 30 };
@@ -180,7 +193,12 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
     let notice = 'Pick a building below and click the ground to place it.';
 
     const say = (text: string): void => { notice = text; };
-    const kindName = (kind: BuildingKind): string => kind === 'mine' ? 'Mine' : kind === 'store' ? 'Storehouse' : 'Signal tower';
+    const kindName = (kind: BuildingKind): string => NAMES[kind];
+    let powerTitle: Entity | null = null;
+    let powerText: Entity | null = null;
+    let powerFill: Entity | null = null;
+    let toggleEntity: Entity | null = null;
+    let wasBlackout = false;
     const groundPoint = (x: number, z: number): { x: number; y: number; z: number } => ({ x: x * UNITS, y: 0, z: z * UNITS });
 
     const rect = (world: World, name: string, left: number, top: number, width: number, height: number, colour: Colour): Entity => {
@@ -225,7 +243,8 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         world.insert(entity, UIVisual, { ...visual, color: colour });
     };
 
-    const glowColour = (kind: BuildingKind): Colour => kind === 'mine' ? PALETTE.mineGlow : kind === 'store' ? PALETTE.storeGlow : state.signal === 'online' ? PALETTE.online : PALETTE.offline;
+    const glowColour = (kind: BuildingKind): Colour => kind === 'mine' ? PALETTE.mineGlow : kind === 'store' ? PALETTE.storeGlow : kind === 'solar' ? PALETTE.solarGlow
+        : kind === 'battery' ? PALETTE.batteryGlow : state.signal === 'online' ? PALETTE.online : PALETTE.offline;
     const sizeTo = (world: World, entity: Entity, width: number): void => {
         const node = world.get(entity, UINode);
         if (node.width.value === width) return;
@@ -235,12 +254,12 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
 
     const showSite = (world: World, building: Building): void => {
         const at = worldOfCell(building);
-        const model = new Model(world, `Building ${building.id}`, building.kind === 'mine' ? mineParts() : building.kind === 'store' ? storeParts() : towerParts());
+        const model = new Model(world, `Building ${building.id}`, partsOf(building.kind));
         model.pose(world, at.x, at.z, 0);
-        if (building.kind === 'tower') { model.show(world, 'beam', false); towerLook = ''; } else model.colour(world, 'beacon', shade(glowColour(building.kind), 0.35));
+        if (building.kind === 'tower') { model.show(world, 'beam', false); towerLook = ''; }
         const mark = rect(world, `MapBuilding ${building.id}`, 0, 0, MAP.cell, MAP.cell, shade(glowColour(building.kind), 0.6));
         moveMark(world, mark, building.x, building.y, MAP.cell);
-        sites.set(building.id, { building, model, mark, active: false, lit: false });
+        sites.set(building.id, { building, model, mark, look: '' });
     };
 
     const hideSite = (world: World, id: number): void => {
@@ -287,7 +306,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         grid!.setWalkable(cursor.x, cursor.y, false);
         showSite(world, result.building);
         facts.blockedCells = countBlocked();
-        say(`${kindName(kind)} built at ${cursor.x}, ${cursor.y}.`);
+        say(`${kindName(kind)} built at ${cursor.x}, ${cursor.y} for ${COSTS[kind]} ore.`);
     };
 
     const remove = (world: World): void => {
@@ -297,7 +316,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         grid!.setWalkable(cursor.x, cursor.y, true);
         hideSite(world, gone.id);
         facts.blockedCells = countBlocked();
-        say(`${kindName(gone.kind)} at ${cursor.x}, ${cursor.y} removed.`);
+        say(`${kindName(gone.kind)} at ${cursor.x}, ${cursor.y} removed. Half its ore came back.`);
     };
 
     const pick = (): void => {
@@ -314,7 +333,14 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
 
     const choose = (next: Tool): void => {
         tool = next;
-        say(next === 'select' ? 'Click a building to inspect it.' : next === 'remove' ? 'Click a building to remove it.' : `Click the ground to place a ${kindName(next).toLowerCase()}.`);
+        say(next === 'select' ? 'Click a building to inspect it.' : next === 'remove' ? 'Click a building to remove it.' : `Click the ground to place a ${kindName(next).toLowerCase()} for ${COSTS[next]} ore.`);
+    };
+
+    const toggle = (): void => {
+        const mine = state.buildings.find((b) => b.id === selected && b.kind === 'mine');
+        if (mine === undefined) { say('Select a mine to switch it on or off.'); return; }
+        setMineOn(state, mine.id, !mine.on);
+        say(mine.on ? `Mine #${mine.id} is back on and draws power again.` : `Mine #${mine.id} is switched off. It draws no power and mines nothing.`);
     };
 
     const repair = (): void => {
@@ -355,7 +381,13 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         facts.held = false;
     };
 
-    app.addSystemToSchedule(Schedule.Startup, defineSystem([Res(Nav), Res(UIEvents), GetWorld()], (nav, events, world) => {
+    let started = false;
+    app.addSystemToSchedule(Schedule.Startup, defineSystem([Res(Assets)], (assets) => {
+        void Promise.all(SHAPES.map((shape) => assets.acquireTyped<{ handle: number }>('mesh', `builtin:${shape}`).then((lease) => { meshes.set(shape, lease.value.handle); })))
+            .catch((error: unknown) => { console.error('[last-signal] a built-in mesh could not be loaded:', error); });
+    }, { name: 'LastSignalMeshes' }));
+
+    const setup = (nav: Navigation, events: UIEventQueue, world: World): void => {
         const origin = worldOfCell({ x: 0, y: 0 });
         grid = new NavGrid({ width: GRID_WIDTH, height: GRID_HEIGHT, cellSize: CELL_SIZE * UNITS, origin: { x: origin.x * UNITS, y: 0, z: origin.z * UNITS }, plane: 'xz' });
         nav.setSurface(grid);
@@ -411,6 +443,19 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         });
         repairEntity = repairButton.entity;
         repairTop = below + 106;
+        rect(world, 'PowerPanel', left, below + 220, column, 84, UI.panel);
+        powerTitle = label(world, 'PowerTitle', left + 10, below + 228, column - 20, 18, 12, UI.accent);
+        powerText = label(world, 'PowerText', left + 10, below + 248, column - 20, 20, 13, UI.text);
+        rect(world, 'PowerBar', left + 10, below + 278, 150, 8, UI.line);
+        powerFill = rect(world, 'PowerFill', left + 10, below + 278, 1, 8, PALETTE.batteryGlow);
+        label(world, 'PowerHint', left + 168, below + 271, 90, 20, 11, UI.dim);
+        const toggleButton = createButton({
+            world, events, parent: canvas!,
+            node: { position: UIPositionType.Absolute, insetLeft: px(VIEW.width - 304), insetTop: px(-2000), width: px(276), height: px(32) },
+            text: { content: 'O  SWITCH ON / OFF', fontSize: 13, color: UI.text }, background: { color: UI.button }, onClick: toggle,
+        });
+        world.insert(toggleButton.entity, Name, { value: 'ToggleButton' });
+        toggleEntity = toggleButton.entity;
         rect(world, 'HudPanel', left, below + 158, column, 56, UI.panel);
         hud = label(world, 'Hud', left + 10, below + 164, column - 20, 46, 13, UI.text);
         world.insert(repairButton.entity, Name, { value: 'RepairButton' });
@@ -464,12 +509,31 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         facts.restored = saves.has(SLOT) && load(world);
         if (facts.restored) say('Welcome back. Your base was restored from the last save.');
         world.insert(clock, TimeOfDay, { ...world.get(clock, TimeOfDay), daySeconds: DAY_SECONDS.normal });
+        facts.readyMs = Math.round(performance.now() - bootAt);
+        facts.pieces = livePieces.size;
         facts.ready = true;
-    }, { name: 'LastSignalSetup' }));
+    };
 
-    app.addSystem(defineSystem([Res(Nav), Res(Input), Res(CameraView), Res(Time), GetWorld()], (nav, input, view, time, world) => {
+    app.addSystem(defineSystem([Res(Nav), Res(Input), Res(CameraView), Res(Time), Res(UIEvents), GetWorld()], (nav, input, view, time, events, world) => {
+        if (!started) {
+            if (meshes.size < SHAPES.length) return;
+            started = true;
+            setup(nav, events, world);
+        }
         if (grid === null || body === null) return;
         elapsed += time.delta;
+        if (facts.meshesReadyMs === undefined && facts.ready === true) {
+            let pending = false;
+            for (const entity of livePieces) if (!(world.get(entity, MeshRenderer).mesh > 0)) { pending = true; break; }
+            if (!pending) facts.meshesReadyMs = Math.round(performance.now() - bootAt);
+        }
+        if (!counted && elapsed > 3) {
+            counted = true;
+            const handles = new Set<number>();
+            for (const entity of livePieces) handles.add(world.get(entity, MeshRenderer).mesh);
+            facts.meshHandles = handles.size;
+            facts.pieces = livePieces.size;
+        }
 
         const step = input.isKeyDown('ShiftLeft') || input.isKeyDown('ShiftRight') ? 8 : 1;
         const moved = { x: cursor.x, y: cursor.y };
@@ -491,8 +555,11 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
 
         if (input.isKeyPressed('Digit1')) choose('mine');
         if (input.isKeyPressed('Digit2')) choose('store');
-        if (input.isKeyPressed('Digit3') || input.isKeyPressed('Escape')) choose('select');
-        if (input.isKeyPressed('Digit4')) choose('remove');
+        if (input.isKeyPressed('Digit3')) choose('solar');
+        if (input.isKeyPressed('Digit4')) choose('battery');
+        if (input.isKeyPressed('Digit5') || input.isKeyPressed('Escape')) choose('select');
+        if (input.isKeyPressed('Digit6')) choose('remove');
+        if (input.isKeyPressed('KeyO')) toggle();
         if (input.isKeyPressed('Enter') || (!overUi && input.isMouseButtonPressed(0))) primary(world);
         if (input.isKeyPressed('Backspace') || (!overUi && input.isMouseButtonPressed(2))) remove(world);
         if (input.isKeyPressed('KeyR')) repair();
@@ -552,14 +619,21 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
             world.insert(clock!, TimeOfDay, { ...now, hour: ((now.hour + nudge) % DAY_HOURS + DAY_HOURS) % DAY_HOURS });
         }
         state.hour = world.get(clock!, TimeOfDay).hour;
-        facts.hoursElapsed = (facts.hoursElapsed as number) + ((state.hour - lastHour) % DAY_HOURS + DAY_HOURS) % DAY_HOURS;
+        const passed = ((state.hour - lastHour) % DAY_HOURS + DAY_HOURS) % DAY_HOURS;
+        facts.hoursElapsed = (facts.hoursElapsed as number) + passed;
+        if (passed > 0) stepPower(state, lastHour, passed);
         lastHour = state.hour;
+        if (state.blackout !== wasBlackout) {
+            wasBlackout = state.blackout;
+            if (state.blackout) { facts.blackouts = (facts.blackouts as number) + 1; say('Blackout. The stored power ran out and every mine has stopped.'); }
+            else say(state.buildings.some((b) => b.kind === 'mine' && b.on) ? 'Power is back. The mines are running again.' : 'Nothing draws power now. The store can refill.');
+        }
 
         const pose = world.get(body, Transform).position;
         state.drone.x = pose.x / UNITS;
         state.drone.z = pose.z / UNITS;
         const agent = world.get(body, NavAgent);
-        if (agent.arrived && settleArrival(state)) {
+        if ((agent.arrived || !agent.hasTarget) && settleArrival(state)) {
             say(state.drone.leg === 'toStore' ? 'The drone loaded ore at the mine.' : `Ore delivered. The storehouse holds ${state.ore}.`);
             dock = null;
             dockFor = -1;
@@ -604,6 +678,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         const activeId = target === null ? 0 : target.id;
         const blink = Math.floor(elapsed * 2.5) % 2 === 0;
         if (uplink >= 0 && uplink < 900) uplink += time.delta;
+        const report = powerReport(state);
         for (const site of sites.values()) {
             if (site.building.kind === 'tower') {
                 const online = state.signal === 'online';
@@ -632,26 +707,33 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
                 }
                 continue;
             }
-            const active = site.building.id === activeId;
-            if (active !== site.active) {
-                site.active = active;
-                paint(world, site.mark, shade(glowColour(site.building.kind), active ? 1 : 0.6));
+            const b = site.building;
+            const active = b.id === activeId;
+            const running = isRunning(state, b);
+            const mode = b.kind === 'mine' ? (!b.on ? 'off' : state.blackout ? 'dark' : active && blink ? 'call' : 'run')
+                : b.kind === 'solar' ? `sun${Math.round(report.generation > 0 ? 2 : 0)}`
+                    : b.kind === 'battery' ? `charge${Math.round(4 * report.energy / report.capacity)}`
+                        : active ? (blink ? 'call' : 'wait') : 'idle';
+            if (mode !== site.look) {
+                site.look = mode;
+                const glow = glowColour(b.kind);
+                const beacon = mode === 'off' ? PALETTE.idle : mode === 'dark' ? shade(PALETTE.offline, 0.8) : mode === 'call' ? glow
+                    : mode === 'sun0' ? shade(glow, 0.2) : mode.startsWith('charge') ? shade(glow, 0.15 + 0.85 * report.energy / report.capacity)
+                        : mode === 'idle' ? shade(glow, 0.35) : shade(glow, 0.7);
+                site.model.colour(world, 'beacon', beacon);
+                paint(world, site.mark, mode === 'off' ? PALETTE.idle : mode === 'dark' ? PALETTE.offline : mode === 'sun0' ? shade(glow, 0.35)
+                    : mode === 'idle' || mode === 'wait' ? shade(glow, 0.6) : glow);
             }
-            const lit = active && blink;
-            if (lit !== site.lit) {
-                site.lit = lit;
-                site.model.colour(world, 'beacon', shade(glowColour(site.building.kind), lit ? 1 : 0.35));
-            }
-            if (active && site.building.kind === 'mine') site.model.turn(world, 'spinner', elapsed * 3);
+            if (running) site.model.turn(world, 'spinner', elapsed * 3);
         }
 
-        const building = tool === 'mine' || tool === 'store' ? tool : null;
+        const building = tool === 'select' || tool === 'remove' ? null : tool;
         const occupied = buildingAt(state, cursor);
         const showGhost = building !== null;
-        const legal = whyNotPlace(state, cursor) === null;
+        const legal = building === null || whyNotBuild(state, building, cursor) === null;
         if (building !== ghostKind) {
             ghost?.despawn(world);
-            ghost = building === null ? null : new Model(world, 'Ghost', building === 'mine' ? mineParts() : storeParts(), legal ? PALETTE.ok : PALETTE.blocked);
+            ghost = building === null ? null : new Model(world, 'Ghost', partsOf(building), legal ? PALETTE.ok : PALETTE.blocked);
             ghostKind = building;
             ghostLegal = legal;
         }
@@ -707,6 +789,21 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         facts.selected = selected;
         facts.ghostLegal = legal;
         facts.active = activeId;
+        facts.energy = report.energy;
+        facts.capacity = report.capacity;
+        facts.generation = report.generation;
+        facts.demand = report.demand;
+        facts.blackout = state.blackout;
+        facts.power = report.status;
+        facts.mines = report.wanted;
+        facts.minesRunning = report.running;
+        write(world, powerTitle!, `POWER   /   ${report.status.toUpperCase()}`);
+        write(world, powerText!, `MAKING ${report.generation.toFixed(1)}    USING ${report.demand.toFixed(1)} kW    ${report.running}/${report.wanted} MINES`);
+        sizeTo(world, powerFill!, Math.max(1, 150 * report.energy / report.capacity));
+        const powerHint = world.findEntityByName('PowerHint');
+        if (powerHint !== null) write(world, powerHint, `${report.energy.toFixed(1)} / ${report.capacity} kWh`);
+        const stored = state.blackout ? PALETTE.offline : report.status === 'draining' ? PALETTE.mineGlow : PALETTE.batteryGlow;
+        if (facts.storedColour !== stored.g) { paint(world, powerFill!, stored); facts.storedColour = stored.g; }
         facts.signal = state.signal;
         facts.canRepair = whyNotRepair(state) === null;
         facts.uplink = uplink;
@@ -725,6 +822,9 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         }
         facts.victory = showVictory;
         const held = Math.min(state.ore, REPAIR_COST);
+        const toggleNode = world.get(toggleEntity!, UINode);
+        const toggleTop = chosen !== undefined && chosen.building.kind === 'mine' ? 226 : -2000;
+        if (toggleNode.insetTop.value !== toggleTop) { toggleNode.insetTop = px(toggleTop); world.insert(toggleEntity!, UINode, toggleNode); }
         const button = world.get(repairEntity!, UINode);
         const buttonTop = online ? -2000 : repairTop;
         if (button.insetTop.value !== buttonTop) { button.insetTop = px(buttonTop); world.insert(repairEntity!, UINode, button); }
@@ -740,19 +840,29 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         const hours = Math.floor(state.hour);
         const minutes = Math.floor((state.hour - hours) * 60);
         write(world, hud!, `ORE ${state.ore}    TRIPS ${state.trips}    ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}${facts.fast ? '  >>' : facts.held ? '  ||' : ''}\n`
-            + `DRONE ${state.drone.cargo > 0 ? `hauling ${state.drone.cargo} ore to store` : 'flying to the mine'}${facts.route === 'complete' ? '' : `  (route ${String(facts.route)})`}`);
+            + `DRONE ${state.drone.cargo > 0 ? `hauling ${state.drone.cargo} ore to store` : target !== null && !agent.hasTarget && isDocked(state, target) ? 'waiting for ore at the mine' : 'flying to the mine'}${facts.route === 'complete' ? '' : `  (route ${String(facts.route)})`}`);
         write(world, noticeText!, notice);
         if (chosen !== undefined) {
             const b = chosen.building;
             const status = b.kind === 'tower' ? (online ? 'Transmitting.' : 'Silent. Its uplink is damaged.')
-                : b.id === activeId ? (b.kind === 'mine' ? 'The drone is on its way to load.' : 'The drone is on its way to unload.') : 'Idle.';
-            const detail = b.kind === 'tower' ? (online ? 'The signal is out.' : `Repair: ${REPAIR_COST} ore. In store: ${state.ore}.\n\nPress R or REPAIR TOWER.`)
-                : (b.kind === 'mine' ? `Loads handed to the drone: ${b.served}` : `Deliveries received: ${b.served}`) + '\n\nBackspace removes it.';
+                : b.kind === 'mine' ? (!b.on ? 'Switched off.' : state.blackout ? 'Stopped: no power.' : b.id === activeId ? 'Running. The drone is on its way.' : 'Running.')
+                    : b.kind === 'store' ? (b.id === activeId ? 'The drone is on its way to unload.' : 'Idle.')
+                        : b.kind === 'solar' ? (report.generation > 0 ? 'Making power.' : 'Dark. No sun.') : 'Storing power.';
+            const detail = b.kind === 'tower' ? (online ? 'The signal is out.' : `Repair: ${REPAIR_COST} ore. In store: ${state.ore}.\nPress R or REPAIR TOWER.`)
+                : b.kind === 'mine' ? `Ore waiting: ${Math.floor(b.stock)} / 10    Draws 1.5 kW\nLoads handed over: ${b.served}`
+                    : b.kind === 'store' ? `Deliveries received: ${b.served}`
+                        : b.kind === 'solar' ? 'Up to 4 kW at noon, nothing at night.' : 'Adds 12 kWh of storage.';
             write(world, info!, `${kindName(b.kind).toUpperCase()}  #${b.id}\nCell ${b.x}, ${b.y}\n${status}\n${detail}`);
         } else {
-            write(world, info!, tool === 'select' ? 'SELECT\nClick a building to see what it is doing.'
-                : tool === 'remove' ? 'REMOVE\nClick a building to take it down.\nThe drone re-plans around what is left.'
-                    : `${kindName(tool).toUpperCase()}\nGreen outline: the cell is free.\nRed: a building or the drone is there.\nClick to build. The drone flies around it.\n\nWASD move the view, wheel or Z/X zoom.`);
+            const about: Record<PlaceableKind, string> = {
+                mine: 'Makes 2 ore an hour while powered.\nDraws 1.5 kW, day and night.',
+                store: 'Where the drone unloads.\nA nearer one shortens every trip.',
+                solar: 'Makes up to 4 kW by day.\nNothing between dusk and dawn.',
+                battery: 'Stores 12 kWh more,\nto carry the mines through the night.',
+            };
+            write(world, info!, tool === 'select' ? 'SELECT\nClick a building to see what it is doing.\nA selected mine can be switched off (O).'
+                : tool === 'remove' ? 'REMOVE\nClick a building to take it down.\nHalf its ore comes back.'
+                    : `${kindName(tool).toUpperCase()}   ${COSTS[tool]} ORE\n${about[tool]}\n\nGreen: can build. Red: blocked or too dear.\nWASD move, wheel or Z/X zoom.`);
         }
     }, { name: 'LastSignalPlay', runAfter: ['NavAgentSystem'] }));
 } });
