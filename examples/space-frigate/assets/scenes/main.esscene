@@ -188,7 +188,9 @@
       "intensity": 1.5,
       "enabled": true,
       "environment": "assets/env/nebula.esenv",
-      "drawEnvironment": true
+      "drawEnvironment": true,
+      "reflectionScale": 2.6,
+      "reflectionSaturation": 0.7
      }
     }
    ]
@@ -280,13 +282,13 @@
    "children": [
     6,
     7,
-    8,
     9,
-    10,
     11,
-    12,
     13,
-    14
+    15,
+    16,
+    17,
+    18
    ],
    "visible": true,
    "components": [
@@ -344,7 +346,9 @@
    "id": 7,
    "name": "PlumeL",
    "parent": 5,
-   "children": [],
+   "children": [
+    8
+   ],
    "visible": true,
    "components": [
     {
@@ -384,9 +388,53 @@
   },
   {
    "id": 8,
+   "name": "PlumeLCore",
+   "parent": 7,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0.15
+      },
+      "scale": {
+       "x": 0.42,
+       "y": 0.42,
+       "z": 0.78
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume-core.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 9,
    "name": "PlumeR",
    "parent": 5,
-   "children": [],
+   "children": [
+    10
+   ],
    "visible": true,
    "components": [
     {
@@ -425,10 +473,54 @@
    ]
   },
   {
-   "id": 9,
+   "id": 10,
+   "name": "PlumeRCore",
+   "parent": 9,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0.15
+      },
+      "scale": {
+       "x": 0.42,
+       "y": 0.42,
+       "z": 0.78
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume-core.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 11,
    "name": "PlumeNL",
    "parent": 5,
-   "children": [],
+   "children": [
+    12
+   ],
    "visible": true,
    "components": [
     {
@@ -467,10 +559,54 @@
    ]
   },
   {
-   "id": 10,
+   "id": 12,
+   "name": "PlumeNLCore",
+   "parent": 11,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0.15
+      },
+      "scale": {
+       "x": 0.42,
+       "y": 0.42,
+       "z": 0.78
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume-core.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 13,
    "name": "PlumeNR",
    "parent": 5,
-   "children": [],
+   "children": [
+    14
+   ],
    "visible": true,
    "components": [
     {
@@ -509,7 +645,49 @@
    ]
   },
   {
-   "id": 11,
+   "id": 14,
+   "name": "PlumeNRCore",
+   "parent": 13,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0.15
+      },
+      "scale": {
+       "x": 0.42,
+       "y": 0.42,
+       "z": 0.78
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume-core.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 15,
    "name": "EngineGlowL",
    "parent": 5,
    "children": [],
@@ -544,7 +722,7 @@
    ]
   },
   {
-   "id": 12,
+   "id": 16,
    "name": "EngineGlowR",
    "parent": 5,
    "children": [],
@@ -579,7 +757,7 @@
    ]
   },
   {
-   "id": 13,
+   "id": 17,
    "name": "EngineGlowNL",
    "parent": 5,
    "children": [],
@@ -614,7 +792,7 @@
    ]
   },
   {
-   "id": 14,
+   "id": 18,
    "name": "EngineGlowNR",
    "parent": 5,
    "children": [],
@@ -649,7 +827,7 @@
    ]
   },
   {
-   "id": 15,
+   "id": 19,
    "name": "Rock0",
    "parent": null,
    "children": [],
@@ -698,7 +876,7 @@
    ]
   },
   {
-   "id": 16,
+   "id": 20,
    "name": "Rock1",
    "parent": null,
    "children": [],
@@ -747,7 +925,7 @@
    ]
   },
   {
-   "id": 17,
+   "id": 21,
    "name": "Rock2",
    "parent": null,
    "children": [],
@@ -796,7 +974,7 @@
    ]
   },
   {
-   "id": 18,
+   "id": 22,
    "name": "Rock3",
    "parent": null,
    "children": [],
@@ -845,7 +1023,7 @@
    ]
   },
   {
-   "id": 19,
+   "id": 23,
    "name": "Rock4",
    "parent": null,
    "children": [],
@@ -894,7 +1072,7 @@
    ]
   },
   {
-   "id": 20,
+   "id": 24,
    "name": "Rock5",
    "parent": null,
    "children": [],
@@ -943,7 +1121,7 @@
    ]
   },
   {
-   "id": 21,
+   "id": 25,
    "name": "Rock6",
    "parent": null,
    "children": [],
@@ -992,7 +1170,7 @@
    ]
   },
   {
-   "id": 22,
+   "id": 26,
    "name": "Rock7",
    "parent": null,
    "children": [],
@@ -1041,7 +1219,7 @@
    ]
   },
   {
-   "id": 23,
+   "id": 27,
    "name": "Rock8",
    "parent": null,
    "children": [],
@@ -1090,7 +1268,7 @@
    ]
   },
   {
-   "id": 24,
+   "id": 28,
    "name": "Rock9",
    "parent": null,
    "children": [],
@@ -1139,7 +1317,7 @@
    ]
   },
   {
-   "id": 25,
+   "id": 29,
    "name": "Rock10",
    "parent": null,
    "children": [],
@@ -1188,7 +1366,7 @@
    ]
   },
   {
-   "id": 26,
+   "id": 30,
    "name": "Rock11",
    "parent": null,
    "children": [],
@@ -1237,7 +1415,7 @@
    ]
   },
   {
-   "id": 27,
+   "id": 31,
    "name": "Rock12",
    "parent": null,
    "children": [],
@@ -1286,7 +1464,7 @@
    ]
   },
   {
-   "id": 28,
+   "id": 32,
    "name": "Rock13",
    "parent": null,
    "children": [],
@@ -1335,7 +1513,7 @@
    ]
   },
   {
-   "id": 29,
+   "id": 33,
    "name": "Rock14",
    "parent": null,
    "children": [],
@@ -1384,7 +1562,7 @@
    ]
   },
   {
-   "id": 30,
+   "id": 34,
    "name": "Rock15",
    "parent": null,
    "children": [],
@@ -1433,7 +1611,7 @@
    ]
   },
   {
-   "id": 31,
+   "id": 35,
    "name": "Rock16",
    "parent": null,
    "children": [],
@@ -1482,7 +1660,7 @@
    ]
   },
   {
-   "id": 32,
+   "id": 36,
    "name": "Rock17",
    "parent": null,
    "children": [],
@@ -1531,7 +1709,7 @@
    ]
   },
   {
-   "id": 33,
+   "id": 37,
    "name": "Rock18",
    "parent": null,
    "children": [],
@@ -1580,7 +1758,7 @@
    ]
   },
   {
-   "id": 34,
+   "id": 38,
    "name": "Rock19",
    "parent": null,
    "children": [],
@@ -1629,7 +1807,7 @@
    ]
   },
   {
-   "id": 35,
+   "id": 39,
    "name": "Rock20",
    "parent": null,
    "children": [],
@@ -1678,7 +1856,7 @@
    ]
   },
   {
-   "id": 36,
+   "id": 40,
    "name": "Rock21",
    "parent": null,
    "children": [],
@@ -1727,7 +1905,7 @@
    ]
   },
   {
-   "id": 37,
+   "id": 41,
    "name": "Rock22",
    "parent": null,
    "children": [],
@@ -1776,7 +1954,7 @@
    ]
   },
   {
-   "id": 38,
+   "id": 42,
    "name": "Rock23",
    "parent": null,
    "children": [],
@@ -1825,7 +2003,7 @@
    ]
   },
   {
-   "id": 39,
+   "id": 43,
    "name": "Rock24",
    "parent": null,
    "children": [],
@@ -1874,7 +2052,7 @@
    ]
   },
   {
-   "id": 40,
+   "id": 44,
    "name": "Rock25",
    "parent": null,
    "children": [],
@@ -1923,7 +2101,7 @@
    ]
   },
   {
-   "id": 41,
+   "id": 45,
    "name": "Rock26",
    "parent": null,
    "children": [],
@@ -1972,7 +2150,7 @@
    ]
   },
   {
-   "id": 42,
+   "id": 46,
    "name": "Rock27",
    "parent": null,
    "children": [],
@@ -2021,7 +2199,7 @@
    ]
   },
   {
-   "id": 43,
+   "id": 47,
    "name": "Rock28",
    "parent": null,
    "children": [],
@@ -2070,7 +2248,7 @@
    ]
   },
   {
-   "id": 44,
+   "id": 48,
    "name": "Rock29",
    "parent": null,
    "children": [],
@@ -2119,7 +2297,7 @@
    ]
   },
   {
-   "id": 45,
+   "id": 49,
    "name": "Rock30",
    "parent": null,
    "children": [],
@@ -2168,7 +2346,7 @@
    ]
   },
   {
-   "id": 46,
+   "id": 50,
    "name": "Rock31",
    "parent": null,
    "children": [],
@@ -2217,7 +2395,7 @@
    ]
   },
   {
-   "id": 47,
+   "id": 51,
    "name": "Rock32",
    "parent": null,
    "children": [],
@@ -2266,7 +2444,7 @@
    ]
   },
   {
-   "id": 48,
+   "id": 52,
    "name": "Rock33",
    "parent": null,
    "children": [],
@@ -2315,7 +2493,7 @@
    ]
   },
   {
-   "id": 49,
+   "id": 53,
    "name": "Rock34",
    "parent": null,
    "children": [],
@@ -2364,7 +2542,7 @@
    ]
   },
   {
-   "id": 50,
+   "id": 54,
    "name": "Rock35",
    "parent": null,
    "children": [],
@@ -2413,7 +2591,7 @@
    ]
   },
   {
-   "id": 51,
+   "id": 55,
    "name": "Rock36",
    "parent": null,
    "children": [],
@@ -2462,7 +2640,7 @@
    ]
   },
   {
-   "id": 52,
+   "id": 56,
    "name": "Rock37",
    "parent": null,
    "children": [],
@@ -2511,7 +2689,7 @@
    ]
   },
   {
-   "id": 53,
+   "id": 57,
    "name": "Rock38",
    "parent": null,
    "children": [],
@@ -2560,7 +2738,7 @@
    ]
   },
   {
-   "id": 54,
+   "id": 58,
    "name": "Rock39",
    "parent": null,
    "children": [],
@@ -2609,7 +2787,7 @@
    ]
   },
   {
-   "id": 55,
+   "id": 59,
    "name": "Rock40",
    "parent": null,
    "children": [],
@@ -2658,7 +2836,7 @@
    ]
   },
   {
-   "id": 56,
+   "id": 60,
    "name": "Rock41",
    "parent": null,
    "children": [],
@@ -2707,7 +2885,7 @@
    ]
   },
   {
-   "id": 57,
+   "id": 61,
    "name": "Rock42",
    "parent": null,
    "children": [],
@@ -2756,7 +2934,7 @@
    ]
   },
   {
-   "id": 58,
+   "id": 62,
    "name": "Rock43",
    "parent": null,
    "children": [],
@@ -2805,7 +2983,7 @@
    ]
   },
   {
-   "id": 59,
+   "id": 63,
    "name": "Rock44",
    "parent": null,
    "children": [],
@@ -2854,7 +3032,7 @@
    ]
   },
   {
-   "id": 60,
+   "id": 64,
    "name": "Rock45",
    "parent": null,
    "children": [],
@@ -2903,7 +3081,7 @@
    ]
   },
   {
-   "id": 61,
+   "id": 65,
    "name": "Planet",
    "parent": null,
    "children": [],
@@ -2946,7 +3124,7 @@
    ]
   },
   {
-   "id": 62,
+   "id": 66,
    "name": "Atmosphere",
    "parent": null,
    "children": [],

@@ -47,17 +47,31 @@ try {
     const byHand = async (key) => { for (let tries = 0; tries < 6 && (await facts()).tour; tries++) await tap(key); if ((await facts()).tour) throw new Error(`${key} did not take the camera`); };
     const eye = async () => { const f = await facts(); return Math.hypot(f.eyeX, f.eyeY, f.eyeZ); };
     const bracketed = () => page.evaluate(() => !window.__spaceHud.waypointClamped);
-    const shoot = async (name, size = [1920, 1080]) => {
+    const shoot = async (name, size = [1920, 1080], clip = undefined) => {
         if (only && !only.includes(name)) return;
         await page.setViewportSize({ width: size[0], height: size[1] });
         await step(3);
         const file = path.join(out, `${name}.png`);
-        await page.screenshot({ path: file, timeout: 60000 });
+        await page.screenshot({ path: file, timeout: 60000, clip });
         const f = await facts();
-        shots.push({ name, size: size.join('x'), time: f.time, throttle: f.throttle, tour: f.tour, shot: f.shot });
+        shots.push({ name, size: clip ? `${clip.width}x${clip.height}` : size.join('x'), time: f.time, throttle: f.throttle, tour: f.tour, shot: f.shot });
         await page.setViewportSize({ width: 1920, height: 1080 });
         await step(2);
     };
+    const DESK = { x: 500, y: 790, width: 920, height: 290 };
+    const press = async (name) => {
+        const spot = (await page.evaluate(() => window.__spaceHud.spots))[name];
+        if (!spot) throw new Error(`the helm desk has no control called ${name}`);
+        await page.mouse.move(spot.x, spot.y);
+        await step(2);
+        await page.mouse.down();
+        await step(3);
+        await page.mouse.up();
+        await step(3);
+        await page.mouse.move(960, 420);
+        await step(1);
+    };
+    const bowOnto = (h, to) => (h.forward.x * to.x + h.forward.y * to.y + h.forward.z * to.z) / Math.hypot(to.x, to.y, to.z);
 
     const hudState = () => page.evaluate(() => ({ ...window.__spaceHud }));
     const check = (what, ok, detail) => { checks.push({ what, ok }); if (!ok) problems.push(`${what}: ${JSON.stringify(detail)}`); };
@@ -86,39 +100,105 @@ try {
         await step(62);
         check('the lock completes', (await hudState()).locked === true, await hudState());
         await shoot('target-locked');
-        await page.keyboard.down('KeyF');
+        await press('Mine');
+        check('the MINE control arms the beam', (await hudState()).mining.armed === true, (await hudState()).mining);
         await step(110);
-        check('F fires the mining beam at the locked rock', (await hudState()).mining.firing === true, (await hudState()).mining);
+        check('the beam keeps firing with nothing held', (await hudState()).mining.firing === true, (await hudState()).mining);
         await shoot('mining');
         for (let waits = 0; waits < 60 && (await hudState()).mining.broken === 0; waits++) await step(15);
-        await page.keyboard.up('KeyF');
         await step(4);
         const worked = (await hudState()).mining;
         check('the rock breaks and its ore is in the hold', worked.broken === 1 && worked.hold > 0, worked);
         check('firing drew the capacitor down and heated the emitter', worked.capacitor < 0.9 && worked.heat > 0.1, worked);
-        check('the broken rock is released', (await hudState()).selected === -1, (await hudState()).selected);
+        check('the beam stands down when the rock is gone', worked.armed === false && (await hudState()).selected === -1, { armed: worked.armed, selected: (await hudState()).selected });
         await shoot('rock-broken');
-        await hold('KeyT', 3);
-        await step(70);
-        const first = (await hudState()).selected;
-        await hold('KeyT', 3);
-        await step(3);
-        check('T moves to another rock', (await hudState()).selected !== first && (await hudState()).selected >= 0, { first, got: (await hudState()).selected });
-        await hold('KeyR', 3);
-        await step(3);
-        check('R releases the target', (await hudState()).selected === -1, (await hudState()).selected);
-        await page.mouse.move(960, 540);
     }
-    await hold('KeyW', 30);
-    await step(8);
+
+    const before = (await hudState()).helm.yaw;
+    await press('Rudder20');
+    check('a rudder control sets the order', Math.abs((await hudState()).helm.rudder - 2 / 3) < 0.01, (await hudState()).helm.rudder);
+    await step(110);
+    check('the ship banks into the turn', Math.abs((await hudState()).helm.roll) > 0.2, (await hudState()).helm.roll);
+    await shoot('turning');
+    await shoot('helm-desk', [1920, 1080], DESK);
+    await step(60);
+    check('the bow keeps coming round to starboard with nothing held', (await hudState()).helm.yaw < before - 0.25, { before, yaw: (await hudState()).helm.yaw });
+    await press('Rudder0');
+    await step(150);
+    check('MID stops the turn', Math.abs((await hudState()).helm.yawRate) < 0.01 && (await hudState()).helm.rudder === 0, (await hudState()).helm);
+    await hold('ArrowLeft', 3);
+    await step(2);
+    check('one tap of the left arrow sets ten degrees of port rudder', Math.abs((await hudState()).helm.rudder + 1 / 3) < 0.01, (await hudState()).helm.rudder);
+    await hold('ArrowRight', 3);
+    await step(2);
+    check('a tap the other way brings it back amidships', Math.abs((await hudState()).helm.rudder) < 0.01, (await hudState()).helm.rudder);
+
+    await press('Elevation15');
+    await step(420);
+    check('an elevation control is held', Math.abs((await hudState()).helm.pitch - (15 * Math.PI) / 180) < 0.03, (await hudState()).helm.pitch);
+    await press('Elevation0');
+    await step(420);
+    check('LEVEL brings the bow back', Math.abs((await hudState()).helm.pitch) < 0.03, (await hudState()).helm.pitch);
+
+    await press('Engine100');
+    check('the engine control sets full ahead', (await hudState()).helm.order === 1, (await hudState()).helm.order);
+    await step(40);
     await shoot('throttle-rising');
-    await hold('KeyW', 60);
+    await step(200);
+    check('the drive follows the order with nothing held', (await facts()).throttle > 0.95, (await facts()).throttle);
     await until(31);
     await shoot('throttle-full');
-    await hold('KeyS', 150);
+    await hold('KeyS', 3);
+    await step(2);
+    check('one tap of S steps the engine down one order', (await hudState()).helm.order === 0.75, (await hudState()).helm.order);
+    await press('Engine0');
+    await step(240);
+    check('STOP brings the drive to rest', (await facts()).throttle < 0.05, (await facts()).throttle);
     await until(66);
     await shoot('throttle-zero');
-    await hold('KeyW', 68);
+    await press('Engine75');
+    await step(200);
+
+    await press('Gate');
+    check('the GATE control hands the helm to the gate', (await hudState()).helm.mode === 'align', (await hudState()).helm.mode);
+    await step(780);
+    const onto = (await hudState()).helm;
+    check('the bow comes round onto the gate', bowOnto(onto, onto.gate) > 0.998, { cos: bowOnto(onto, onto.gate), yaw: onto.yaw, pitch: onto.pitch });
+    await shoot('aligned');
+    await press('Steady');
+    check('STEADY takes the helm back', (await hudState()).helm.mode === 'manual' && (await hudState()).helm.rudder === 0, (await hudState()).helm);
+
+    await press('Lock');
+    await step(70);
+    const first = (await hudState()).selected;
+    check('the LOCK control takes a target', first >= 0, first);
+    await press('Lock');
+    check('LOCK again moves to another rock', (await hudState()).selected !== first && (await hudState()).selected >= 0, { first, got: (await hudState()).selected });
+    await step(70);
+    await hold('KeyF', 3);
+    await step(2);
+    check('F arms the beam', (await hudState()).mining.armed === true, (await hudState()).mining);
+    await hold('KeyF', 3);
+    await step(2);
+    check('F again stands it down', (await hudState()).mining.armed === false, (await hudState()).mining);
+    await press('Close');
+    check('the CLOSE control hands the helm to the target', (await hudState()).helm.mode === 'approach', (await hudState()).helm.mode);
+    await step(600);
+    const closing = (await hudState()).helm;
+    check('the bow comes round onto the target', closing.aim !== null && bowOnto(closing, closing.aim) > 0.99, { aim: closing.aim, forward: closing.forward });
+    await press('Release');
+    await step(3);
+    check('the RELEASE control lets the target go and the helm comes back', (await hudState()).selected === -1 && (await hudState()).helm.mode === 'manual', await hudState());
+    await press('Steady');
+    await hold('KeyT', 3);
+    await step(2);
+    await step(3);
+    check('T takes a target', (await hudState()).selected >= 0, (await hudState()).selected);
+    await hold('KeyR', 3);
+    await step(2);
+    await step(3);
+    check('R releases it', (await hudState()).selected === -1, (await hudState()).selected);
+
     await step(200);
     await byHand('Digit4');
     await hold('KeyE', 26);
@@ -131,12 +211,13 @@ try {
     for (let tries = 0; tries < 8 && Math.abs(await eye() - from) < 1; tries++) await tap('Digit2');
     await page.mouse.move(960, 540);
     for (let tries = 0; tries < 12 && await eye() > 60; tries++) {
-        const before = await eye();
+        const was = await eye();
         await wheel(-160);
-        if (await eye() > before + 0.5) await wheel(320);
+        if (await eye() > was + 0.5) await wheel(320);
     }
     await step(20);
     await hold('KeyT', 3);
+    await step(2);
     await step(80);
     await shoot('engines-close');
 } catch (err) {

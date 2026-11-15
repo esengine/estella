@@ -4,6 +4,7 @@ import {
 } from 'esengine';
 import type { Entity, World } from 'esengine';
 import { clamp } from './flight';
+import { METRES, helm, turnBack } from './helm';
 
 export type Rgba = { r: number; g: number; b: number; a: number };
 
@@ -61,6 +62,7 @@ export interface Frame {
     across: number;
     lens: Lens | null;
     pointer: { left: number; top: number };
+    click: { left: number; top: number } | null;
     held: (key: string) => boolean;
     pressing: boolean;
 }
@@ -70,6 +72,7 @@ export interface Log { say(text: string, tone?: number): void }
 export const pad = (n: number, width: number): string => String(Math.max(0, Math.round(n))).padStart(width, '0');
 export const stamp = (seconds: number): string => `${pad(Math.floor(seconds / 60), 2)}:${pad(Math.floor(seconds % 60), 2)}`;
 export const spaced = (n: number): string => Math.round(n).toLocaleString('en-US').replace(/,/g, ' ');
+export const reach = (units: number): string => { const m = units * METRES; return m >= 1000 ? `${(m / 1000).toFixed(1)} KM` : `${Math.round(m)} M`; };
 export const ease = (t: number): number => { const c = clamp(t, 0, 1); return 1 - (1 - c) * (1 - c) * (1 - c); };
 
 export type Kit = ReturnType<typeof createKit>;
@@ -198,15 +201,16 @@ const HULL_BOXES: readonly (readonly number[])[] = [
 ];
 
 export function hullBlocks(from: { x: number; y: number; z: number }, to: { x: number; y: number; z: number }): boolean {
-    const origin = [from.x, from.y, from.z], along = [to.x - from.x, to.y - from.y, to.z - from.z];
+    const a = turnBack(helm.attitude, from), b = turnBack(helm.attitude, to);
+    const origin = [a.x, a.y, a.z], along = [b.x - a.x, b.y - a.y, b.z - a.z];
     return HULL_BOXES.some((box) => {
         let enter = 0, leave = 1;
         for (let axis = 0; axis < 3; axis++) {
             const lo = box[axis]!, hi = box[axis + 3]!, o = origin[axis]!, d = along[axis]!;
             if (Math.abs(d) < 1e-9) { if (o < lo || o > hi) return false; continue; }
-            const a = (lo - o) / d, b = (hi - o) / d;
-            enter = Math.max(enter, Math.min(a, b));
-            leave = Math.min(leave, Math.max(a, b));
+            const near = (lo - o) / d, far = (hi - o) / d;
+            enter = Math.max(enter, Math.min(near, far));
+            leave = Math.min(leave, Math.max(near, far));
             if (enter > leave) return false;
         }
         return true;
