@@ -33,20 +33,18 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { toolArgs } from './lib/toolArgs.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const flag = (name, fallback) => {
-  const i = process.argv.indexOf(`--${name}`);
-  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
-};
-const PROJECT = path.resolve(ROOT, flag('project', path.join('examples', 'multiplayer-arena')));
+const ARGS = toolArgs({ project: null, bound: '420', speed: '260', 'no-wall': false });
+const PROJECT = path.resolve(ROOT, ARGS.project ?? path.join('examples', 'multiplayer-arena'));
 const SDK = path.join(ROOT, 'sdk', 'dist', 'index.node.js');
 const WASM = path.join(ROOT, 'build', 'wasm', 'web');
 
 /** The world's edge along x and the pawn's speed, from the project's own movement rule (the arena's by default). */
-const BOUND_X = Number(flag('bound', '420'));
-const SPEED = Number(flag('speed', '260'));
-const NO_WALL = process.argv.includes('--no-wall');
+const BOUND_X = Number(ARGS.bound);
+const SPEED = Number(ARGS.speed);
+const NO_WALL = ARGS['no-wall'];
 const STEP = 1 / 60;
 
 // The server runs a REAL engine, so a checkout without one cannot answer this.

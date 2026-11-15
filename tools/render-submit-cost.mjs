@@ -26,43 +26,40 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { serveHost } from './lib/staticServer.mjs';
+import { toolArgs } from './lib/toolArgs.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const argv = process.argv.slice(2);
-const flag = (n, d) => {
-  const i = argv.indexOf(`--${n}`);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d;
-};
-const SCENE = flag('scene', 'synthetic');
-const COUNT = Number(flag('count', '4096'));
-const FRAMES = Number(flag('frames', '30'));
-const SAMPLES = Number(flag('samples', '5'));
-const W = Number(flag('w', '1920'));
-const H = Number(flag('h', '1080'));
-const TOP = Number(flag('top', '30'));
+const ARGS = toolArgs({ scene: 'synthetic', count: '4096', frames: '30', samples: '5', w: '1920', h: '1080', top: '30', incl: '', only: '', shot: '', out: null, wait: '180000', dir: null, profile: false, glcalls: false, wall: false, audit: false, 'no-export': false, gpu: false, 'gpu-detail': false, logs: false });
+const SCENE = ARGS.scene;
+const COUNT = Number(ARGS.count);
+const FRAMES = Number(ARGS.frames);
+const SAMPLES = Number(ARGS.samples);
+const W = Number(ARGS.w);
+const H = Number(ARGS.h);
+const TOP = Number(ARGS.top);
 /** Function names (substrings, comma separated) whose INCLUSIVE time a profile also reports: every sample with one on its stack. */
-const INCL = flag('incl', '') ? flag('incl', '').split(',') : [];
-const PROFILE = argv.includes('--profile');
+const INCL = ARGS.incl ? ARGS.incl.split(',') : [];
+const PROFILE = ARGS.profile;
 /** Count every WebGL call per frame: the CPU work a frame hands the browser, which no GPU stall can hide. */
-const GLCALLS = argv.includes('--glcalls');
+const GLCALLS = ARGS.glcalls;
 /** Time frames with the engine's profiler left off: what a frame costs a player, not a profiled one. No scopes are read. */
-const WALL = argv.includes('--wall');
+const WALL = ARGS.wall;
 // --audit: after the scene settles, turn on the engine's change audit, play two seconds, and list the component types written
 // without a change stamp (World.setChangeAudit) - the census of what a consumer of changes would not see.
-const AUDIT = argv.includes('--audit');
-const NO_EXPORT = argv.includes('--no-export');
+const AUDIT = ARGS.audit;
+const NO_EXPORT = ARGS['no-export'];
 /**
  * --gpu: the GPU time of each render-graph pass, the mean over 30 frames the device answered for. The loop is paused and frames
  * stepped one at a time; the engine's timer reads back the frames it can (render.gpuTimer.read). A pass a frame did not run (a
  * shadow map it kept) cost that frame nothing, so the mean is over every frame read.
  */
-const GPU = argv.includes('--gpu') || argv.includes('--gpu-detail');
+const GPU = ARGS.gpu || ARGS['gpu-detail'];
 /** --gpu-detail: the scene pass split by shader as well (pass/scene/<shader>), which costs a query per shader change. */
-const GPU_DETAIL = argv.includes('--gpu-detail');
-const ONLY = flag('only', '') ? new Set(flag('only', '').split(',')) : null;
+const GPU_DETAIL = ARGS['gpu-detail'];
+const ONLY = ARGS.only ? new Set(ARGS.only.split(',')) : null;
 /** A png of the last measured frame, to compare two builds' pictures. */
-const SHOT = flag('shot', '');
-const OUT = flag('out', path.join(ROOT, 'output', 'perf', `render-submit-${SCENE}.json`));
+const SHOT = ARGS.shot;
+const OUT = ARGS.out ?? path.join(ROOT, 'output', 'perf', `render-submit-${SCENE}.json`);
 const MESHES = ['cube', 'sphere', 'capsule', 'cylinder', 'cone', 'plane'];
 const SPREADS = SCENE === 'synthetic' ? ['shared', 'mats64', 'unique'] : ['scene'];
 
@@ -135,14 +132,14 @@ async function measure(browser, dir) {
   page.on('pageerror', (e) => errors.push(String(e).slice(0, 200)));
   const audit = [];
   if (AUDIT) page.on('console', (m) => { if (m.text().includes('change audit:')) audit.push(m.text().replace(/^.*change audit: /, '')); });
-  if (argv.includes('--logs')) {
+  if (ARGS.logs) {
     page.on('console', (m) => { if (['warning', 'error'].includes(m.type())) console.log(`  [${m.type()}] ${m.text().slice(0, 300)}`); });
     page.on('pageerror', (e) => console.log(`  [pageerror] ${String(e).slice(0, 300)}`));
     page.on('response', (r) => { if (r.status() >= 400) console.log(`  [http ${r.status()}] ${r.url()}`); });
   }
   try {
     await page.goto(`http://127.0.0.1:${server.address().port}/?headless`, { waitUntil: 'load', timeout: 180000 });
-    await page.waitForFunction(() => window.__estellaCooked?.facts, null, { timeout: Number(flag('wait', '180000')) });
+    await page.waitForFunction(() => window.__estellaCooked?.facts, null, { timeout: Number(ARGS.wait) });
     await page.evaluate(() => window.__estellaCooked.setPaused(true));
     const settled = await page.evaluate(async () => {
       const c = window.__estellaCooked;
@@ -280,7 +277,7 @@ const table = {};
 try {
   for (const spread of SPREADS) {
     if (ONLY && !ONLY.has(spread)) continue;
-    const dir = path.resolve(flag('dir', path.join(ROOT, 'output', 'perf', `submit-${SCENE}-${spread}`)));
+    const dir = path.resolve(ARGS.dir ?? path.join(ROOT, 'output', 'perf', `submit-${SCENE}-${spread}`));
     if (!NO_EXPORT) {
       if (SCENE === 'synthetic') {
         const project = path.join(ROOT, 'output', 'perf', `submit-project-${spread}`);

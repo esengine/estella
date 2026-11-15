@@ -7,7 +7,7 @@
  *
  *   node tools/with-env.mjs ESTELLA_HOTUPDATE_FIXTURE=1 -- pnpm --filter @estella/pipeline exec vitest run …
  */
-import { spawnSync } from 'node:child_process';
+import { runTool } from './lib/runTool.mjs';
 
 const args = process.argv.slice(2);
 const split = args.indexOf('--');
@@ -25,5 +25,6 @@ for (const pair of args.slice(0, split)) {
   env[pair.slice(0, eq)] = pair.slice(eq + 1);
 }
 const [command, ...rest] = args.slice(split + 1);
-const run = spawnSync(command, rest, { env, stdio: 'inherit', shell: process.platform === 'win32' });
+const run = runTool(command, rest, { env, stdio: 'inherit' });
+if (run.error) console.error(`with-env: ${run.stderr.trim()}`);
 process.exit(run.status ?? 1);

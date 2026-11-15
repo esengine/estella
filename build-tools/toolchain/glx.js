@@ -14,6 +14,7 @@ import path from 'path';
 import https from 'https';
 import { createHash } from 'crypto';
 import { spawnSync } from 'child_process';
+import { runTool } from '../../tools/lib/runTool.mjs';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, rmSync } from 'fs';
 import { fileURLToPath } from 'url';
 
@@ -103,7 +104,7 @@ export function glxEmsdkEnv(log = console.log) {
         }
         for (const args of [['install', GLX_EMSDK], ['activate', '--embedded', GLX_EMSDK]]) {
             log(`emsdk ${args.join(' ')}`);
-            const r = spawnSync(emsdk, args, { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
+            const r = runTool(emsdk, args, { cwd: root, stdio: 'inherit' });
             if (r.status !== 0) throw new Error(`emsdk ${args.join(' ')} failed`);
         }
     }

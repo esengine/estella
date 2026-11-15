@@ -5060,4 +5060,6 @@ export const NOTED = {
     {"note": "A spawn or frame-end callback that unsubscribes itself no longer makes the next one miss that call."},
   "chore(sdk): the engine package is checked for unused code and type-only imports like the other packages - tsconfig gains noUnusedLocals, noUnusedParameters, isolatedModules and verbatimModuleSyntax, and the 126 unused imports, locals, parameters, fields and functions it found are gone (54 of them heap-view parameters the pointer-accessor generator now names only where a body reads them). 13 UI constants nothing read are removed. The emitted chunks import the same modules as before":
     {"internal": "Compiler checks and unused code inside the engine package; the emitted modules import what they did."},
+  "fix(export): the script compile step runs from a path with a space or an ampersand on Windows - emcc is a batch file there and was started through a shell with its arguments unquoted, as were the emsdk setup, the GLX toolchain, the engine build commands and with-env; they all start through runTool now, and check-tool-spawn refuses a shell passed by hand":
+    {"note": "A project in a folder with a space or `&` in its name exports its compiled scripts on Windows."},
 };

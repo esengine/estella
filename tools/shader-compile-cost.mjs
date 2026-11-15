@@ -14,14 +14,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { serveHost } from './lib/staticServer.mjs';
+import { toolArgs } from './lib/toolArgs.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const argv = process.argv.slice(2);
-const flag = (n, d) => { const i = argv.indexOf(`--${n}`); return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d; };
-const DIR = path.resolve(flag('dir', path.join(ROOT, 'output', 'tw-export')));
-const W = Number(flag('w', '1280'));
-const H = Number(flag('h', '720'));
-const FRAMES = Number(flag('frames', '30'));
+const ARGS = toolArgs({ dir: null, w: '1280', h: '720', frames: '30', async: false });
+const DIR = path.resolve(ARGS.dir ?? path.join(ROOT, 'output', 'tw-export'));
+const W = Number(ARGS.w);
+const H = Number(ARGS.h);
+const FRAMES = Number(ARGS.frames);
 
 const wrap = () => {
   const stats = { programs: 0, shaders: 0, statusWaits: 0, waitMs: 0, maxWaitMs: 0, issueMs: 0, ext: false, longest: [] };
@@ -48,7 +48,7 @@ const wrap = () => {
 };
 
 // --async turns the package's quality.asyncShaderCompile on for the run (and puts the config back after).
-const ASYNC = argv.includes('--async');
+const ASYNC = ARGS.async;
 const configPath = path.join(DIR, 'game.config.json');
 const { readFile, writeFile } = await import('node:fs/promises');
 const originalConfig = await readFile(configPath, 'utf8');

@@ -10,7 +10,21 @@ import { spawn, spawnSync } from 'node:child_process';
  *  go through a shell — which then concatenates the args, hence the quoting. */
 const VIA_SHELL = process.platform === 'win32';
 
-const quote = (arg) => (VIA_SHELL && /[\s"^&|<>()]/.test(arg) ? `"${String(arg).replace(/"/g, '\\"')}"` : arg);
+function quote(arg) {
+  const text = String(arg);
+  if (/^".*"$/.test(text)) return text;
+  return text === '' || /[\s"^&|<>()]/.test(text) ? `"${text.replace(/"/g, '\\"')}"` : text;
+}
+
+export function shellLine(cmd, args, prefix = '') {
+  return prefix + [cmd, ...args].map(quote).join(' ');
+}
+
+function launch(start, cmd, args, { shellPrefix, ...options }) {
+  return VIA_SHELL
+    ? start(shellLine(cmd, args, shellPrefix), { ...options, shell: true })
+    : start(cmd, args, options);
+}
 
 /** The shell convention for "killed on its deadline", so a caller that reads
  *  only `status` still sees a failure. */
@@ -24,11 +38,7 @@ export const TIMED_OUT = 124;
  * spawnSync's, and a process killed on it reports `timedOut`.
  */
 export function runTool(cmd, args, options = {}) {
-  // One string rather than a command plus args: node deprecates the second form
-  // under a shell, because the shell concatenates them anyway (DEP0190).
-  const r = VIA_SHELL
-    ? spawnSync([cmd, ...args].map(quote).join(' '), { ...options, shell: true })
-    : spawnSync(cmd, args, options);
+  const r = launch(spawnSync, cmd, args, options);
   if (!r.error) return r;
   // A deadline and a launch failure both arrive as `error`, and they are
   // opposites: one ran too long, the other never ran at all.
@@ -43,7 +53,14 @@ export function runTool(cmd, args, options = {}) {
 /** {@link runTool} without waiting, for a caller that must keep answering the
  *  process while it runs. */
 export function spawnTool(cmd, args, options = {}) {
-  return VIA_SHELL
-    ? spawn([cmd, ...args].map(quote).join(' '), { ...options, shell: true })
-    : spawn(cmd, args, options);
+  return launch(spawn, cmd, args, options);
+}
+
+export function mustRunTool(cmd, args, options = {}) {
+  const r = runTool(cmd, args, { stdio: 'inherit', ...options });
+  if (r.status !== 0) {
+    const tail = typeof r.stderr === 'string' && r.stderr ? `\n${r.stderr}` : '';
+    throw new Error(`${cmd} exited ${r.status ?? r.signal}${tail}`);
+  }
+  return r;
 }

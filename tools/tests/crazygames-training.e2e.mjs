@@ -7,11 +7,11 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { toolArgs } from '../lib/toolArgs.mjs';
 
-const args=process.argv.slice(2);
-const flag=name=>args[args.indexOf(name)+1];
-if (!args.includes('--dir')) throw new Error('Expected --dir <CrazyGames Web export>');
-const root=fs.realpathSync(flag('--dir')), out=path.resolve(args.includes('--out') ? flag('--out') : 'output/crazygames-training-check');
+const ARGS = toolArgs({ dir: null, out: null, 'expect-scores': false });
+if (!ARGS.dir) throw new Error('Expected --dir <CrazyGames Web export>');
+const root=fs.realpathSync(ARGS.dir), out=path.resolve(ARGS.out ? ARGS.out : 'output/crazygames-training-check');
 fs.mkdirSync(out,{recursive:true});
 const sha=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const files=(under='')=>fs.readdirSync(path.join(root,under),{withFileTypes:true}).flatMap(entry=>{
@@ -22,7 +22,7 @@ const files=(under='')=>fs.readdirSync(path.join(root,under),{withFileTypes:true
 });
 const identities=Object.fromEntries(files().map(file=>[file,sha(path.join(root,file))]));
 const config=JSON.parse(fs.readFileSync(path.join(root,'game.config.json'),'utf8'));
-const expectsScores=args.includes('--expect-scores');
+const expectsScores=ARGS['expect-scores'];
 assert.equal(Boolean(config.leaderboardEncryptionKey),expectsScores,'Export must match the score test mode');
 if(expectsScores)assert.equal(config.leaderboardEncryptionKey,Buffer.alloc(32,7).toString('base64'),'Use the mock fixture client key');
 const mime={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.json':'application/json','.wasm':'application/wasm','.png':'image/png'};
