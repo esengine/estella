@@ -297,6 +297,9 @@ std::string wgslCanonicalVSOut(bool lit) {
         "    @location(3) v_worldNormal : vec3f,\n"
         "    @location(4) v_worldXYZ : vec3f,\n"
         "#endif\n"
+        "#ifdef PARTICLE\n"
+        "    @location(11) v_particle : vec4f,\n"
+        "#endif\n"
         // The geometry's own tangent frame (xyz along +u, w the bitangent's handedness), when the mesh carries one.
         "#ifdef MESH_TANGENTS\n"
         "    @location(7) v_worldTangent : vec4f,\n"
@@ -357,8 +360,8 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
         "    @location(3) a_inst_size : vec2f,\n"
         "    @location(4) a_inst_rotation : f32,\n"
         "    @location(5) a_inst_color : vec4f,\n"
-        "    @location(6) a_inst_uv_offset : vec2f,\n"
-        "    @location(7) a_inst_uv_scale : vec2f,\n"
+        "    @location(6) a_inst_uv : vec4f,\n"
+        "    @location(7) a_inst_extra : vec4f,\n"
         "#else\n"
         "    @location(0) a_position : vec3f,\n"
         "    @location(1) a_color : vec4f,\n"
@@ -426,7 +429,8 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
         "    let right = normalize(cross(refUp, fwd));\n"
         "    let up = cross(fwd, right);\n"
         "    let world = vec4f(v.a_inst_position + right * rotated.x + up * rotated.y, 1.0);\n"
-        "    out.v_color = v.a_inst_color;\n"
+        "    out.v_color = vec4f(v.a_inst_color.rgb * v.a_inst_extra.z, v.a_inst_color.a);\n"
+        "    out.v_particle = vec4f(v.a_inst_extra.x, v.a_inst_extra.y, v.a_inst_extra.w, v.a_inst_extra.z);\n"
         // Bones are already world-space, so a skinned mesh's own transform is not
         // read — which is what glTF requires of one.
         "#elif defined(SKINNED)\n"
@@ -446,7 +450,7 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
         "    out.pos = frame.projection * world;\n"
         "#ifdef PARTICLE\n"
         // A sheet animation moves the frame under the same quad.
-        "    out.v_texCoord = v.a_texCoord * v.a_inst_uv_scale + v.a_inst_uv_offset;\n"
+        "    out.v_texCoord = v.a_texCoord * v.a_inst_uv.zw + v.a_inst_uv.xy;\n"
         "#else\n"
         "    out.v_texCoord = v.a_texCoord;\n"
         "#endif\n"
@@ -564,8 +568,8 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "layout(location = 3) in vec2 a_inst_size;\n"
         "layout(location = 4) in float a_inst_rotation;\n"
         "layout(location = 5) in vec4 a_inst_color;\n"
-        "layout(location = 6) in vec2 a_inst_uv_offset;\n"
-        "layout(location = 7) in vec2 a_inst_uv_scale;\n"
+        "layout(location = 6) in vec4 a_inst_uv;\n"
+        "layout(location = 7) in vec4 a_inst_extra;\n"
         "#else\n"
         "layout(location = 0) in vec3 a_position;\n"
         "layout(location = 1) in vec4 a_color;\n"
@@ -629,6 +633,9 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "out highp vec4 v_worldTangent;\n"
         "#endif\n"
         "#endif\n"
+        "#ifdef PARTICLE\n"
+        "out highp vec4 v_particle;\n"
+        "#endif\n"
         "#ifdef MESH_LIGHTMAP\n"
         "out highp vec3 v_lightmap;\n"
         "out highp vec2 v_texCoord1;\n"
@@ -676,7 +683,8 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "    highp vec3 right = normalize(cross(refUp, fwd));\n"
         "    highp vec3 up = cross(fwd, right);\n"
         "    vec4 world = vec4(a_inst_position + right * rotated.x + up * rotated.y, 1.0);\n"
-        "    v_color = a_inst_color;\n"
+        "    v_color = vec4(a_inst_color.rgb * a_inst_extra.z, a_inst_color.a);\n"
+        "    v_particle = vec4(a_inst_extra.x, a_inst_extra.y, a_inst_extra.w, a_inst_extra.z);\n"
         // Bones are already world-space, so a skinned mesh's own transform is not
         // read — which is what glTF requires of one.
         "#elif defined(SKINNED)\n"
@@ -696,7 +704,7 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "    gl_Position = u_projection * world;\n"
         "#ifdef PARTICLE\n"
         // A sheet animation moves the frame under the same quad.
-        "    v_texCoord = a_texCoord * a_inst_uv_scale + a_inst_uv_offset;\n"
+        "    v_texCoord = a_texCoord * a_inst_uv.zw + a_inst_uv.xy;\n"
         "#else\n"
         "    v_texCoord = a_texCoord;\n"
         "#endif\n"
@@ -1274,6 +1282,18 @@ const char* kFrameHeaderWGSL =
     "    let clip = vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, depth, 1.0);\n"
     "    let world = frame.inverseViewProjection * clip;\n"
     "    return world.xyz / world.w;\n"
+    "}\n"
+    "fn distanceToEye(worldPos : vec3f) -> f32 {\n"
+    "    if (frame.camera.w > 0.5) { return length(worldPos - frame.camera.xyz); }\n"
+    "    return -dot(worldPos, frame.camera.xyz);\n"
+    "}\n"
+    "fn sceneUv(worldPos : vec3f) -> vec2f {\n"
+    "    let clip = frame.projection * vec4f(worldPos, 1.0);\n"
+    "    let w = max(clip.w, 1e-4);\n"
+    "    return clamp(vec2f(clip.x / w * 0.5 + 0.5, 0.5 - clip.y / w * 0.5), vec2f(0.001), vec2f(0.999));\n"
+    "}\n"
+    "fn sceneDistance(texel : vec4f) -> f32 {\n"
+    "    return select(texel.b * 1024.0, texel.r, texel.r < 65000.0);\n"
     "}\n";
 
 const char* kTimeHeaderWGSL =
@@ -3022,6 +3042,16 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
         "    highp vec4 clip = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);\n"
         "    highp vec4 world = u_inverseViewProjection * clip;\n"
         "    return world.xyz / world.w;\n"
+        "}\n"
+        "highp float distanceToEye(in highp vec3 worldPos) {\n"
+        "    return u_camera.w > 0.5 ? length(worldPos - u_camera.xyz) : -dot(worldPos, u_camera.xyz);\n"
+        "}\n"
+        "highp vec2 sceneUv(in highp vec3 worldPos) {\n"
+        "    highp vec4 clip = u_projection * vec4(worldPos, 1.0);\n"
+        "    return clamp(clip.xy / max(clip.w, 1e-4) * 0.5 + 0.5, vec2(0.001), vec2(0.999));\n"
+        "}\n"
+        "highp float sceneDistance(in highp vec4 texel) {\n"
+        "    return texel.r < 65000.0 ? texel.r : texel.b * 1024.0;\n"
         "}\n";
     assembled << kFrameHeader;
     headerLines += countNewlines(kFrameHeader);

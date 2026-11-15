@@ -1,0 +1,3628 @@
+{
+ "version": 4,
+ "name": "VfxShowcase",
+ "entities": [
+  {
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 3.6,
+       "z": 12.2
+      },
+      "rotation": {
+       "x": -0.028653182370124968,
+       "y": -0.0,
+       "z": -0.0,
+       "w": 0.9995894132793046
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 52,
+      "nearPlane": 0.1,
+      "farPlane": 400,
+      "isActive": true,
+      "priority": 0,
+      "clearFlags": 3
+     }
+    },
+    {
+     "type": "PostProcessVolume",
+     "data": {
+      "isGlobal": true,
+      "weight": 1,
+      "priority": 0,
+      "effects": [
+       {
+        "type": "heightFog",
+        "enabled": true,
+        "uniforms": {
+         "u_density": 0.012,
+         "u_heightFalloff": 0.06,
+         "u_baseHeight": 0,
+         "u_startDistance": 24,
+         "u_maxOpacity": 0.4,
+         "u_inscatter": 0,
+         "u_skyFog": 0.4,
+         "u_volumetric": 0
+        },
+        "colors": {
+         "u_fogColor": {
+          "r": 0.1,
+          "g": 0.15,
+          "b": 0.24,
+          "a": 1.0
+         }
+        }
+       },
+       {
+        "type": "bloom",
+        "enabled": true,
+        "uniforms": {
+         "u_threshold": 1.0,
+         "u_intensity": 0.55,
+         "u_radius": 1.4
+        }
+       },
+       {
+        "type": "chromaticAberration",
+        "enabled": true,
+        "uniforms": {
+         "u_intensity": 0.8
+        }
+       },
+       {
+        "type": "colorGrade",
+        "enabled": true,
+        "uniforms": {
+         "u_exposure": 0.0,
+         "u_contrast": 1.08,
+         "u_saturation": 1.05
+        }
+       },
+       {
+        "type": "vignette",
+        "enabled": true,
+        "uniforms": {
+         "u_intensity": 0.32,
+         "u_softness": 0.75
+        }
+       },
+       {
+        "type": "fxaa",
+        "enabled": true,
+        "uniforms": {}
+       }
+      ]
+     }
+    }
+   ],
+   "id": 0
+  },
+  {
+   "name": "Sky",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 2,
+      "color": {
+       "r": 0.8,
+       "g": 0.88,
+       "b": 1.0,
+       "a": 1.0
+      },
+      "intensity": 0.9,
+      "enabled": true,
+      "environment": "assets/env/rain-sky.esenv",
+      "drawEnvironment": true
+     }
+    }
+   ],
+   "id": 1
+  },
+  {
+   "name": "Moon",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.3129,
+       "y": -0.4361,
+       "z": -0.0473,
+       "w": 0.8326
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 0.5,
+       "g": 0.66,
+       "b": 1.0,
+       "a": 1.0
+      },
+      "intensity": 0.55,
+      "enabled": true,
+      "meshShadows": true,
+      "shadowExtent": 40,
+      "shadowStrength": 0.85
+     }
+    }
+   ],
+   "id": 2
+  },
+  {
+   "name": "CoreLight",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 2.6,
+       "z": 0.0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 0.35,
+       "g": 0.75,
+       "b": 1.0,
+       "a": 1.0
+      },
+      "intensity": 0.0,
+      "radius": 26,
+      "innerRadius": 0.6,
+      "falloff": 1.4,
+      "enabled": true,
+      "meshShadows": true,
+      "shadowStrength": 0.9,
+      "shadowSoftness": 0.3
+     }
+    }
+   ],
+   "id": 3
+  },
+  {
+   "name": "BlastLight",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 1.6,
+       "z": 0.0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 1.0,
+       "g": 0.55,
+       "b": 0.2,
+       "a": 1.0
+      },
+      "intensity": 0.0,
+      "radius": 34,
+      "innerRadius": 0.8,
+      "falloff": 1.2,
+      "enabled": true
+     }
+    }
+   ],
+   "id": 4
+  },
+  {
+   "name": "Ground",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "scale": {
+       "x": 4,
+       "y": 1,
+       "z": 4
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:plane",
+      "lit": true,
+      "material": "assets/materials/ground.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 5
+  },
+  {
+   "name": "Pillar 1",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 11.548494156391085,
+       "y": 2.6,
+       "z": 4.783542904563623
+      },
+      "scale": {
+       "x": 0.013,
+       "y": 0.052000000000000005,
+       "z": 0.013
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cylinder",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 6
+  },
+  {
+   "name": "Plinth 1",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 11.548494156391085,
+       "y": 0.2,
+       "z": 4.783542904563623
+      },
+      "scale": {
+       "x": 0.02,
+       "y": 0.004,
+       "z": 0.02
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 7
+  },
+  {
+   "name": "Pillar 2",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 11.548494156391085,
+       "y": 4.2,
+       "z": -4.783542904563622
+      },
+      "scale": {
+       "x": 0.013,
+       "y": 0.084,
+       "z": 0.013
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cylinder",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 8
+  },
+  {
+   "name": "Plinth 2",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 11.548494156391085,
+       "y": 0.2,
+       "z": -4.783542904563622
+      },
+      "scale": {
+       "x": 0.02,
+       "y": 0.004,
+       "z": 0.02
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 9
+  },
+  {
+   "name": "Pillar 3",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 4.783542904563624,
+       "y": 1.55,
+       "z": -11.548494156391085
+      },
+      "scale": {
+       "x": 0.013,
+       "y": 0.031,
+       "z": 0.013
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cylinder",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 10
+  },
+  {
+   "name": "Plinth 3",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 4.783542904563624,
+       "y": 0.2,
+       "z": -11.548494156391085
+      },
+      "scale": {
+       "x": 0.02,
+       "y": 0.004,
+       "z": 0.02
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 11
+  },
+  {
+   "name": "Pillar 4",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -4.783542904563621,
+       "y": 3.95,
+       "z": -11.548494156391085
+      },
+      "scale": {
+       "x": 0.013,
+       "y": 0.079,
+       "z": 0.013
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cylinder",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 12
+  },
+  {
+   "name": "Plinth 4",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -4.783542904563621,
+       "y": 0.2,
+       "z": -11.548494156391085
+      },
+      "scale": {
+       "x": 0.02,
+       "y": 0.004,
+       "z": 0.02
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 13
+  },
+  {
+   "name": "Pillar 5",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -11.548494156391081,
+       "y": 3.2,
+       "z": -4.783542904563629
+      },
+      "scale": {
+       "x": 0.013,
+       "y": 0.064,
+       "z": 0.013
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cylinder",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 14
+  },
+  {
+   "name": "Plinth 5",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -11.548494156391081,
+       "y": 0.2,
+       "z": -4.783542904563629
+      },
+      "scale": {
+       "x": 0.02,
+       "y": 0.004,
+       "z": 0.02
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 15
+  },
+  {
+   "name": "Pillar 6",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -11.548494156391083,
+       "y": 1.2,
+       "z": 4.783542904563625
+      },
+      "scale": {
+       "x": 0.013,
+       "y": 0.024,
+       "z": 0.013
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cylinder",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 16
+  },
+  {
+   "name": "Plinth 6",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -11.548494156391083,
+       "y": 0.2,
+       "z": 4.783542904563625
+      },
+      "scale": {
+       "x": 0.02,
+       "y": 0.004,
+       "z": 0.02
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 17
+  },
+  {
+   "name": "Ruin 0",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 3.5236012395829412,
+       "y": 6.6823448906909935,
+       "z": 76.96626325607205
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.022872589894051668,
+       "z": 0.0,
+       "w": 0.999738388095375
+      },
+      "scale": {
+       "x": 0.0768277016648782,
+       "y": 0.15364689781381988,
+       "z": 0.05912141186606694
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 18
+  },
+  {
+   "name": "Ruin 1",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 19.344260302642073,
+       "y": 7.230741498702502,
+       "z": 84.87552668751167
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.11180853141007673,
+       "z": 0.0,
+       "w": 0.9937297682488544
+      },
+      "scale": {
+       "x": 0.059988180399084795,
+       "y": 0.16461482997405003,
+       "z": 0.0874793740158501
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 19
+  },
+  {
+   "name": "Ruin 2",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 39.65561248146538,
+       "y": 7.037825564110637,
+       "z": 68.50970682395378
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.2593553864081494,
+       "z": 0.0,
+       "w": 0.9657819544499056
+      },
+      "scale": {
+       "x": 0.06438226160984885,
+       "y": 0.16075651128221274,
+       "z": 0.0922482911498453
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 20
+  },
+  {
+   "name": "Ruin 3",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 59.83267169034426,
+       "y": 14.29931838917029,
+       "z": 57.938042046015696
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.3901017630230962,
+       "z": 0.0,
+       "w": 0.9207717493962725
+      },
+      "scale": {
+       "x": 0.06769602790839295,
+       "y": 0.3059863677834058,
+       "z": 0.04971372631634785
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 21
+  },
+  {
+   "name": "Ruin 4",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 55.8641425627973,
+       "y": 3.623640467163362,
+       "z": 40.71858001713704
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.4533078643030472,
+       "z": 0.0,
+       "w": 0.8913540150585569
+      },
+      "scale": {
+       "x": 0.09269677277107873,
+       "y": 0.09247280934326724,
+       "z": 0.05113048355396213
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 22
+  },
+  {
+   "name": "Ruin 5",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 55.05670350171392,
+       "y": 2.0397697050160417,
+       "z": 18.34955858160691
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.584728027731143,
+       "z": 0.0,
+       "w": 0.8112293964013185
+      },
+      "scale": {
+       "x": 0.09320070017269973,
+       "y": 0.06079539410032084,
+       "z": 0.06769727660804983
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 23
+  },
+  {
+   "name": "Ruin 6",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 55.38686337155348,
+       "y": 4.887976986519084,
+       "z": 10.476030787291998
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.6380251810240528,
+       "z": 0.0,
+       "w": 0.7700154987915663
+      },
+      "scale": {
+       "x": 0.1393282806258404,
+       "y": 0.11775953973038168,
+       "z": 0.0886718514103407
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 24
+  },
+  {
+   "name": "Ruin 7",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 86.71552513194789,
+       "y": 11.391106930007352,
+       "z": -7.281084627901268
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.7360946786032703,
+       "z": 0.0,
+       "w": 0.6768785889152856
+      },
+      "scale": {
+       "x": 0.0986144880381405,
+       "y": 0.24782213860014704,
+       "z": 0.09845625423434798
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 25
+  },
+  {
+   "name": "Ruin 8",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 76.27918882442484,
+       "y": 8.510848061274167,
+       "z": -24.913488791033284
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.8094656669543535,
+       "z": 0.0,
+       "w": 0.5871672112968704
+      },
+      "scale": {
+       "x": 0.05914163000922722,
+       "y": 0.19021696122548334,
+       "z": 0.04967973791967962
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 26
+  },
+  {
+   "name": "Ruin 9",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 47.30927185879978,
+       "y": 2.9944692342005883,
+       "z": -35.72568162311532
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.8951614249830271,
+       "z": 0.0,
+       "w": 0.4457421039371941
+      },
+      "scale": {
+       "x": 0.09889308850147861,
+       "y": 0.07988938468401177,
+       "z": 0.06831381876068471
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 27
+  },
+  {
+   "name": "Ruin 10",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 52.80619706949809,
+       "y": 14.895635177142756,
+       "z": -67.6049571931632
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.9455373916437254,
+       "z": 0.0,
+       "w": 0.32551350356564346
+      },
+      "scale": {
+       "x": 0.10215251499267049,
+       "y": 0.3179127035428551,
+       "z": 0.06939878472449833
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 28
+  },
+  {
+   "name": "Ruin 11",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 30.253975438137687,
+       "y": 4.102338064097731,
+       "z": -52.59859346325507
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.9661357606000012,
+       "z": 0.0,
+       "w": 0.25803428471785916
+      },
+      "scale": {
+       "x": 0.13994848875215862,
+       "y": 0.10204676128195463,
+       "z": 0.07890898171512944
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 29
+  },
+  {
+   "name": "Ruin 12",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 11.939224991570889,
+       "y": 3.6404936357277604,
+       "z": -64.27216209599092
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.9957862695000322,
+       "z": 0.0,
+       "w": 0.09170444632191653
+      },
+      "scale": {
+       "x": 0.13271238914370687,
+       "y": 0.09280987271455521,
+       "z": 0.04221502501548262
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 30
+  },
+  {
+   "name": "Ruin 13",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -2.035377394588759,
+       "y": 15.102583412423645,
+       "z": -72.23904911175703
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.999900821184234,
+       "z": 0.0,
+       "w": -0.014083600217793089
+      },
+      "scale": {
+       "x": 0.1546298197050747,
+       "y": 0.32205166824847287,
+       "z": 0.08542359663239128
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 31
+  },
+  {
+   "name": "Ruin 14",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -23.300570682862848,
+       "y": 6.269536541085405,
+       "z": -78.99157861030035
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.9897329188569055,
+       "z": 0.0,
+       "w": -0.14292917592636592
+      },
+      "scale": {
+       "x": 0.13335839485674206,
+       "y": 0.14539073082170811,
+       "z": 0.09745004059625831
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 32
+  },
+  {
+   "name": "Ruin 15",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -44.620280027418296,
+       "y": 5.392279154819265,
+       "z": -76.33162372677337
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.9652249184268239,
+       "z": 0.0,
+       "w": -0.2614208424130163
+      },
+      "scale": {
+       "x": 0.053328179551057245,
+       "y": 0.1278455830963853,
+       "z": 0.05899536705253048
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 33
+  },
+  {
+   "name": "Ruin 16",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -54.59488851566442,
+       "y": 9.09322116869939,
+       "z": -54.53913850257457
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.9237817574051844,
+       "z": 0.0,
+       "w": -0.3829193971130072
+      },
+      "scale": {
+       "x": 0.12451566274613227,
+       "y": 0.2018644233739878,
+       "z": 0.06801008644848533
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 34
+  },
+  {
+   "name": "Ruin 17",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -62.636830959493885,
+       "y": 13.786517110046667,
+       "z": -43.9618571969373
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.8872654378284822,
+       "z": 0.0,
+       "w": -0.4612591926834973
+      },
+      "scale": {
+       "x": 0.1451397624742118,
+       "y": 0.29573034220093336,
+       "z": 0.09628127655776893
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 35
+  },
+  {
+   "name": "Ruin 18",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -54.19953102992689,
+       "y": 6.230057155949223,
+       "z": -17.64635447494975
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.8091928004606183,
+       "z": 0.0,
+       "w": -0.587543199843809
+      },
+      "scale": {
+       "x": 0.0811493915696782,
+       "y": 0.14460114311898445,
+       "z": 0.0472601813423067
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 36
+  },
+  {
+   "name": "Ruin 19",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -88.96802099066448,
+       "y": 3.083122990840385,
+       "z": -4.090072651472168
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.7231610773169281,
+       "z": 0.0,
+       "w": -0.6906794164109857
+      },
+      "scale": {
+       "x": 0.09759963948632258,
+       "y": 0.0816624598168077,
+       "z": 0.06341225114809307
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 37
+  },
+  {
+   "name": "Ruin 20",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -70.07145052803607,
+       "y": 15.90404656433244,
+       "z": 5.15843427587524
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.6806547940536259,
+       "z": 0.0,
+       "w": -0.732604293825675
+      },
+      "scale": {
+       "x": 0.10049215370860154,
+       "y": 0.3380809312866488,
+       "z": 0.06611992360871898
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 38
+  },
+  {
+   "name": "Ruin 21",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -66.53014284748701,
+       "y": 6.40049985692335,
+       "z": 20.07103488870192
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.596311133810404,
+       "z": 0.0,
+       "w": -0.8027534065288983
+      },
+      "scale": {
+       "x": 0.10150769047900375,
+       "y": 0.148009997138467,
+       "z": 0.045810258207163584
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 39
+  },
+  {
+   "name": "Ruin 22",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -45.1035312750296,
+       "y": 9.6348673794405,
+       "z": 36.63986101983287
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.4298124185105549,
+       "z": 0.0,
+       "w": -0.9029182049854281
+      },
+      "scale": {
+       "x": 0.13036272054751216,
+       "y": 0.21269734758881,
+       "z": 0.08995998061861496
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 40
+  },
+  {
+   "name": "Ruin 23",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -36.93803657098797,
+       "y": 3.2141601137685925,
+       "z": 44.18163649165819
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.3411777778063909,
+       "z": 0.0,
+       "w": -0.9399987893242698
+      },
+      "scale": {
+       "x": 0.053051536800291926,
+       "y": 0.08428320227537185,
+       "z": 0.08059377520747052
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 41
+  },
+  {
+   "name": "Ruin 24",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -31.4659623487349,
+       "y": 2.2913911393521986,
+       "z": 52.66128245129315
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.2660524310465351,
+       "z": 0.0,
+       "w": -0.9639585592411266
+      },
+      "scale": {
+       "x": 0.09138967828388793,
+       "y": 0.06582782278704397,
+       "z": 0.0977111928321641
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 42
+  },
+  {
+   "name": "Ruin 25",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -16.68359105339613,
+       "y": 15.994687650628087,
+       "z": 78.83265990318051
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.10408896406147787,
+       "z": 0.0,
+       "w": -0.9945679904162452
+      },
+      "scale": {
+       "x": 0.13682014952171803,
+       "y": 0.33989375301256175,
+       "z": 0.04761867908930814
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "material": "assets/materials/pillar.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true,
+      "texture": "assets/textures/stone-albedo.png"
+     }
+    }
+   ],
+   "id": 43
+  },
+  {
+   "name": "Rune",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0.03,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.15,
+       "y": 1,
+       "z": 0.15
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:plane",
+      "lit": false,
+      "material": "assets/materials/rune.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": false,
+      "cullBackfaces": false,
+      "enabled": true
+     }
+    }
+   ],
+   "id": 44
+  },
+  {
+   "name": "Scorch",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0.02,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.12,
+       "y": 1,
+       "z": 0.12
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:plane",
+      "lit": false,
+      "material": "assets/materials/scorch.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": false,
+      "cullBackfaces": false,
+      "enabled": true
+     }
+    }
+   ],
+   "id": 45
+  },
+  {
+   "name": "ShockGlow",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0.07,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 1,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:plane",
+      "lit": false,
+      "material": "assets/materials/ring.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": false,
+      "cullBackfaces": false,
+      "enabled": true,
+      "texture": "assets/textures/ring.png"
+     }
+    }
+   ],
+   "id": 46
+  },
+  {
+   "name": "ShockBend",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0.1,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 1,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:plane",
+      "lit": false,
+      "material": "assets/materials/shock.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": false,
+      "cullBackfaces": false,
+      "enabled": true,
+      "texture": "assets/textures/ring.png"
+     }
+    }
+   ],
+   "id": 47
+  },
+  {
+   "name": "Core",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 2.6,
+       "z": 0.0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:sphere",
+      "lit": false,
+      "material": "assets/materials/core.esmaterial",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "opaque": false,
+      "cullBackfaces": false,
+      "enabled": true
+     }
+    }
+   ],
+   "id": 48
+  },
+  {
+   "name": "Pull",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 2.6,
+       "z": 0.0
+      }
+     }
+    },
+    {
+     "type": "ParticleForceField",
+     "data": {
+      "type": 1,
+      "strength": 13.0,
+      "radius": 12,
+      "falloff": false,
+      "enabled": true
+     }
+    }
+   ],
+   "id": 49
+  },
+  {
+   "name": "Swirl",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 2.6,
+       "z": 0.0
+      }
+     }
+    },
+    {
+     "type": "ParticleForceField",
+     "data": {
+      "type": 2,
+      "strength": 3.0,
+      "radius": 12,
+      "direction": {
+       "x": 0,
+       "y": 1,
+       "z": 0
+      },
+      "falloff": false,
+      "enabled": true
+     }
+    }
+   ],
+   "id": 50
+  },
+  {
+   "name": "Gather",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 2.6,
+       "z": 0.0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 4,
+      "speedMin": -1.2,
+      "speedMax": -0.4,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 0,
+      "rotationMin": 0,
+      "rotationMax": 0,
+      "angularVelocityMin": 0,
+      "angularVelocityMax": 0,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/textures/spark.png",
+      "shapeRadius": 7.5,
+      "lifetimeMin": 1.1,
+      "lifetimeMax": 1.7,
+      "maxParticles": 900,
+      "startSizeMin": 0.07,
+      "startSizeMax": 0.12,
+      "endSizeMin": 0.02,
+      "endSizeMax": 0.04,
+      "renderMode": 1,
+      "velocityScale": 0.06,
+      "lengthScale": 2.5,
+      "intensity": 4.0,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 0.25,
+          "g": 0.6,
+          "b": 1.0,
+          "a": 0.0
+         }
+        },
+        {
+         "t": 0.2,
+         "color": {
+          "r": 0.3,
+          "g": 0.7,
+          "b": 1.0,
+          "a": 1.0
+         }
+        },
+        {
+         "t": 0.75,
+         "color": {
+          "r": 0.6,
+          "g": 0.45,
+          "b": 1.0,
+          "a": 1.0
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 1.0,
+          "g": 0.95,
+          "b": 1.0,
+          "a": 0.0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ],
+   "id": 51
+  },
+  {
+   "name": "Motes",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 2.6,
+       "z": 0.0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 4,
+      "speedMin": 0.2,
+      "speedMax": 0.8,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 0,
+      "rotationMin": 0,
+      "rotationMax": 0,
+      "angularVelocityMin": 0,
+      "angularVelocityMax": 0,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/textures/soft.png",
+      "shapeRadius": 1.6,
+      "lifetimeMin": 0.5,
+      "lifetimeMax": 1.1,
+      "maxParticles": 160,
+      "startSizeMin": 0.15,
+      "startSizeMax": 0.35,
+      "endSizeMin": 0.04,
+      "endSizeMax": 0.08,
+      "noiseStrength": 2.0,
+      "noiseFrequency": 0.8,
+      "intensity": 0.5,
+      "material": "assets/materials/glow.esmaterial",
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 0.3,
+          "g": 0.7,
+          "b": 1.0,
+          "a": 0.0
+         }
+        },
+        {
+         "t": 0.3,
+         "color": {
+          "r": 0.45,
+          "g": 0.6,
+          "b": 1.0,
+          "a": 0.8
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.7,
+          "g": 0.4,
+          "b": 1.0,
+          "a": 0.0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ],
+   "id": 52
+  },
+  {
+   "name": "Mist",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0.35,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.7071067811865475,
+       "y": 0.0,
+       "z": 0.0,
+       "w": 0.7071067811865476
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 1,
+      "speedMin": -1.6,
+      "speedMax": -0.7,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 0,
+      "rotationMin": 0,
+      "rotationMax": 6.28,
+      "angularVelocityMin": -0.4,
+      "angularVelocityMax": 0.4,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/textures/smoke.png",
+      "shapeRadius": 8.5,
+      "lifetimeMin": 2.2,
+      "lifetimeMax": 3.4,
+      "maxParticles": 140,
+      "startSizeMin": 2.4,
+      "startSizeMax": 3.6,
+      "endSizeMin": 1.2,
+      "endSizeMax": 1.8,
+      "intensity": 1.0,
+      "material": "assets/materials/dust.esmaterial",
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 0.2,
+          "g": 0.34,
+          "b": 0.6,
+          "a": 0.0
+         }
+        },
+        {
+         "t": 0.35,
+         "color": {
+          "r": 0.2,
+          "g": 0.36,
+          "b": 0.62,
+          "a": 0.16
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.3,
+          "g": 0.3,
+          "b": 0.7,
+          "a": 0.0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ],
+   "id": 53
+  },
+  {
+   "name": "Flash",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 2.6,
+       "z": 0.0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 0,
+      "speedMin": 0,
+      "speedMax": 0,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 0,
+      "rotationMin": 0,
+      "rotationMax": 0,
+      "angularVelocityMin": 0,
+      "angularVelocityMax": 0,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/textures/soft.png",
+      "lifetimeMin": 0.22,
+      "lifetimeMax": 0.22,
+      "maxParticles": 8,
+      "startSizeMin": 5,
+      "startSizeMax": 5,
+      "endSizeMin": 15,
+      "endSizeMax": 15,
+      "intensity": 4.5,
+      "material": "assets/materials/glow.esmaterial",
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 0.85,
+          "g": 0.95,
+          "b": 1.0,
+          "a": 1.0
+         }
+        },
+        {
+         "t": 0.3,
+         "color": {
+          "r": 1.0,
+          "g": 0.8,
+          "b": 0.5,
+          "a": 0.7
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 1.0,
+          "g": 0.4,
+          "b": 0.1,
+          "a": 0.0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ],
+   "id": 54
+  },
+  {
+   "name": "Flare",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 2.6,
+       "z": 0.0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 0,
+      "speedMin": 0,
+      "speedMax": 0,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 0,
+      "rotationMin": 0,
+      "rotationMax": 0,
+      "angularVelocityMin": 0,
+      "angularVelocityMax": 0,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/textures/flare.png",
+      "lifetimeMin": 0.5,
+      "lifetimeMax": 0.5,
+      "maxParticles": 4,
+      "startSizeMin": 16,
+      "startSizeMax": 16,
+      "endSizeMin": 7,
+      "endSizeMax": 7,
+      "intensity": 9.0,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1.0,
+          "g": 0.95,
+          "b": 0.9,
+          "a": 1.0
+         }
+        },
+        {
+         "t": 0.4,
+         "color": {
+          "r": 1.0,
+          "g": 0.7,
+          "b": 0.4,
+          "a": 0.6
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 1.0,
+          "g": 0.4,
+          "b": 0.1,
+          "a": 0.0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ],
+   "id": 55
+  },
+  {
+   "name": "AirShock",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 2.6,
+       "z": 0.0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 0,
+      "speedMin": 0,
+      "speedMax": 0,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 0,
+      "rotationMin": 0,
+      "rotationMax": 0,
+      "angularVelocityMin": 0,
+      "angularVelocityMax": 0,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 0,
+      "texture": "assets/textures/ring.png",
+      "lifetimeMin": 0.75,
+      "lifetimeMax": 0.75,
+      "maxParticles": 4,
+      "startSizeMin": 1.5,
+      "startSizeMax": 1.5,
+      "endSizeMin": 1.5,
+      "endSizeMax": 1.5,
+      "material": "assets/materials/airshock.esmaterial",
+      "sizeCurve": {
+       "keys": [
+        {
+         "time": 0,
+         "value": 1,
+         "inTangent": 32.0,
+         "outTangent": 32.0
+        },
+        {
+         "time": 0.25,
+         "value": 9,
+         "inTangent": 16.0,
+         "outTangent": 16.0
+        },
+        {
+         "time": 1,
+         "value": 17,
+         "inTangent": 10.666666666666666,
+         "outTangent": 10.666666666666666
+        }
+       ]
+      },
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 1.0
+         }
+        },
+        {
+         "t": 0.5,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.7
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ],
+   "id": 56
+  },
+  {
+   "name": "Sparks",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 1.4,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 5,
+      "speedMin": 7,
+      "speedMax": 24,
+      "gravity": {
+       "x": 0,
+       "y": -13,
+       "z": 0
+      },
+      "damping": 0.5,
+      "rotationMin": 0,
+      "rotationMax": 0,
+      "angularVelocityMin": 0,
+      "angularVelocityMax": 0,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/textures/spark.png",
+      "shapeRadius": 0.6,
+      "lifetimeMin": 0.9,
+      "lifetimeMax": 2.2,
+      "maxParticles": 700,
+      "startSizeMin": 0.07,
+      "startSizeMax": 0.13,
+      "endSizeMin": 0.02,
+      "endSizeMax": 0.04,
+      "renderMode": 1,
+      "velocityScale": 0.035,
+      "lengthScale": 2.0,
+      "intensity": 6.0,
+      "collisionEnabled": true,
+      "collisionMode": 0,
+      "collisionFloor": 0.03,
+      "collisionBounce": 0.38,
+      "collisionFriction": 0.25,
+      "collisionLifetimeLoss": 0.1,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1.0,
+          "g": 0.85,
+          "b": 0.55,
+          "a": 1.0
+         }
+        },
+        {
+         "t": 0.25,
+         "color": {
+          "r": 1.0,
+          "g": 0.55,
+          "b": 0.15,
+          "a": 1.0
+         }
+        },
+        {
+         "t": 0.7,
+         "color": {
+          "r": 1.0,
+          "g": 0.22,
+          "b": 0.04,
+          "a": 0.9
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.5,
+          "g": 0.05,
+          "b": 0.0,
+          "a": 0.0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ],
+   "id": 57
+  },
+  {
+   "name": "Embers",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 2.0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 4,
+      "speedMin": 1.5,
+      "speedMax": 8,
+      "gravity": {
+       "x": 0,
+       "y": 0.5,
+       "z": 0
+      },
+      "damping": 1.1,
+      "rotationMin": 0,
+      "rotationMax": 0,
+      "angularVelocityMin": 0,
+      "angularVelocityMax": 0,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/textures/soft.png",
+      "shapeRadius": 1.2,
+      "lifetimeMin": 2.6,
+      "lifetimeMax": 5.0,
+      "maxParticles": 500,
+      "startSizeMin": 0.07,
+      "startSizeMax": 0.14,
+      "endSizeMin": 0.015,
+      "endSizeMax": 0.03,
+      "noiseStrength": 3.2,
+      "noiseFrequency": 0.35,
+      "noiseScrollSpeed": 0.4,
+      "intensity": 6.0,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1.0,
+          "g": 0.8,
+          "b": 0.4,
+          "a": 1.0
+         }
+        },
+        {
+         "t": 0.3,
+         "color": {
+          "r": 1.0,
+          "g": 0.45,
+          "b": 0.1,
+          "a": 1.0
+         }
+        },
+        {
+         "t": 0.8,
+         "color": {
+          "r": 0.9,
+          "g": 0.15,
+          "b": 0.03,
+          "a": 0.7
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.3,
+          "g": 0.02,
+          "b": 0.0,
+          "a": 0.0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ],
+   "id": 58
+  },
+  {
+   "name": "Fireball",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 2.0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 4,
+      "speedMin": 1.0,
+      "speedMax": 6.0,
+      "gravity": {
+       "x": 0,
+       "y": 1.5,
+       "z": 0
+      },
+      "damping": 3.0,
+      "rotationMin": 0,
+      "rotationMax": 6.28,
+      "angularVelocityMin": -1.2,
+      "angularVelocityMax": 1.2,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/textures/smoke.png",
+      "shapeRadius": 0.5,
+      "lifetimeMin": 0.4,
+      "lifetimeMax": 0.75,
+      "maxParticles": 90,
+      "startSizeMin": 1.6,
+      "startSizeMax": 2.6,
+      "endSizeMin": 3.4,
+      "endSizeMax": 4.8,
+      "intensity": 3.6,
+      "material": "assets/materials/fire.esmaterial",
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1.0,
+          "g": 0.9,
+          "b": 0.7,
+          "a": 1.0
+         }
+        },
+        {
+         "t": 0.25,
+         "color": {
+          "r": 1.0,
+          "g": 0.55,
+          "b": 0.14,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.65,
+         "color": {
+          "r": 0.9,
+          "g": 0.2,
+          "b": 0.04,
+          "a": 0.7
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.3,
+          "g": 0.03,
+          "b": 0.0,
+          "a": 0.0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ],
+   "id": 59
+  },
+  {
+   "name": "Smoke",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 1.8,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 4,
+      "speedMin": 1.5,
+      "speedMax": 6.5,
+      "gravity": {
+       "x": 0,
+       "y": 1.1,
+       "z": 0
+      },
+      "damping": 1.7,
+      "rotationMin": 0,
+      "rotationMax": 6.28,
+      "angularVelocityMin": -0.5,
+      "angularVelocityMax": 0.5,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 0,
+      "texture": "assets/textures/smoke.png",
+      "shapeRadius": 0.9,
+      "lifetimeMin": 2.8,
+      "lifetimeMax": 4.6,
+      "maxParticles": 160,
+      "startSizeMin": 2.6,
+      "startSizeMax": 4.2,
+      "endSizeMin": 6.0,
+      "endSizeMax": 8.5,
+      "intensity": 3.4,
+      "material": "assets/materials/smoke.esmaterial",
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1.0,
+          "g": 0.7,
+          "b": 0.3,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.04,
+         "color": {
+          "r": 1.0,
+          "g": 0.36,
+          "b": 0.08,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.09,
+         "color": {
+          "r": 0.4,
+          "g": 0.08,
+          "b": 0.02,
+          "a": 0.9
+         }
+        },
+        {
+         "t": 0.17,
+         "color": {
+          "r": 0.013,
+          "g": 0.011,
+          "b": 0.012,
+          "a": 0.88
+         }
+        },
+        {
+         "t": 0.7,
+         "color": {
+          "r": 0.014,
+          "g": 0.014,
+          "b": 0.017,
+          "a": 0.5
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.02,
+          "g": 0.02,
+          "b": 0.025,
+          "a": 0.0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ],
+   "id": 60
+  },
+  {
+   "name": "DustRing",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0.5,
+       "z": 0
+      },
+      "rotation": {
+       "x": -0.7071067811865475,
+       "y": 0.0,
+       "z": 0.0,
+       "w": 0.7071067811865476
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 1,
+      "speedMin": 8,
+      "speedMax": 15,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 2.4,
+      "rotationMin": 0,
+      "rotationMax": 6.28,
+      "angularVelocityMin": -0.6,
+      "angularVelocityMax": 0.6,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 0,
+      "texture": "assets/textures/smoke.png",
+      "shapeRadius": 1.2,
+      "lifetimeMin": 1.6,
+      "lifetimeMax": 2.8,
+      "maxParticles": 160,
+      "startSizeMin": 1.4,
+      "startSizeMax": 2.2,
+      "endSizeMin": 3.8,
+      "endSizeMax": 5.4,
+      "intensity": 1.0,
+      "material": "assets/materials/dust.esmaterial",
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 0.3,
+          "g": 0.2,
+          "b": 0.14,
+          "a": 0.0
+         }
+        },
+        {
+         "t": 0.12,
+         "color": {
+          "r": 0.12,
+          "g": 0.095,
+          "b": 0.085,
+          "a": 0.42
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.06,
+          "g": 0.065,
+          "b": 0.08,
+          "a": 0.0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ],
+   "id": 61
+  },
+  {
+   "name": "Haze",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0.6,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 2,
+      "speedMin": 0.8,
+      "speedMax": 1.6,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 0,
+      "rotationMin": 0,
+      "rotationMax": 0,
+      "angularVelocityMin": 0,
+      "angularVelocityMax": 0,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1.0
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 0,
+      "texture": "assets/textures/soft.png",
+      "shapeSize": {
+       "x": 5,
+       "y": 0.4,
+       "z": 5
+      },
+      "angleSpreadMin": 85,
+      "angleSpreadMax": 95,
+      "lifetimeMin": 1.6,
+      "lifetimeMax": 2.4,
+      "maxParticles": 80,
+      "startSizeMin": 2.2,
+      "startSizeMax": 3.4,
+      "endSizeMin": 3.6,
+      "endSizeMax": 4.6,
+      "material": "assets/materials/haze.esmaterial",
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.0
+         }
+        },
+        {
+         "t": 0.3,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.9
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ],
+   "id": 62
+  }
+ ]
+}

@@ -61,7 +61,7 @@ public:
     // (filling with the draw's own tex re-pointed all 8 units on every tex change).
     /// Which of the list's draws an execute makes. A draw whose material reads the picture behind it (`u_sceneColor`) has to be
     /// made after a copy of that picture is taken, so the frame executes the list twice: the rest, then those.
-    enum class Phase : u8 { All, WithoutSceneColor, SceneColorOnly, OpaqueOnly, BlendedOnly };
+    enum class Phase : u8 { All, WithoutSceneColor, SceneColorOnly, OpaqueOnly, BlendedOnly, ScreenColorOnly };
     /// What a run of the list is for. A depth prepass draws the opaque surfaces that have a depth program, into the depth buffer alone; the colour
     /// pass that follows (`ColorAfterPrepass`) draws those same surfaces where their depth is equal to what is there, so a pixel is shaded once, for
     /// the surface that is in front of it.
@@ -83,6 +83,8 @@ public:
 
     /// Whether any merged draw reads the picture behind it.
     bool anyUsesSceneColor(const MaterialStore& materials) const;
+    bool anyUsesScreenColor(const MaterialStore& materials) const;
+    void setDeferScreenColor(bool defer) { defer_screen_color_ = defer; }
     /** @brief Whether a draw is of a material that does not work without a picture of the scene (MaterialStore::needsScenePicture). */
     bool anyNeedsScenePicture(const MaterialStore& materials) const;
     /// Whether the list holds a blended draw that does not refract: what has to be ordered against a refracting surface by where it is, not by when it was drawn.
@@ -263,6 +265,7 @@ public:
 private:
     std::function<void(const char*)> shader_run_sink_;
     u32 skipped_for_program_ = 0;
+    bool defer_screen_color_ = false;
     struct SortEntry {
         u64 key;
         u32 index;

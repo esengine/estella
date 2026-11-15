@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "glow.esshader",
+  "blendMode": 1,
+  "depthTest": true,
+  "depthWrite": false,
+  "cull": 0,
+  "properties": {
+    "u_color": {
+      "r": 1.0,
+      "g": 0.46,
+      "b": 0.14,
+      "a": 1.0
+    },
+    "u_intensity": 0.0
+  }
+}

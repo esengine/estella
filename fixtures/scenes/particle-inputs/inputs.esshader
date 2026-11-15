@@ -1,0 +1,33 @@
+#pragma shader "ParticleInputsTest"
+#pragma version 300 es
+#pragma domain Unlit
+
+#pragma fragment
+precision highp float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+#ifdef PARTICLE
+in highp vec4 v_particle;
+#endif
+
+out vec4 fragColor;
+
+void main() {
+#ifdef PARTICLE
+    fragColor = vec4(v_particle.x, v_particle.y, v_particle.z * 0.5, 1.0);
+#else
+    fragColor = vec4(1.0, 0.0, 1.0, 1.0);
+#endif
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+#ifdef PARTICLE
+    return vec4f(v.v_particle.x, v.v_particle.y, v.v_particle.z * 0.5, 1.0);
+#else
+    return vec4f(1.0, 0.0, 1.0, 1.0);
+#endif
+}
+#pragma end
