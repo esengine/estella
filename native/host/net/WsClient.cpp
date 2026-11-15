@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-/**
- * @file    WsClient.cpp
- * @brief   RFC 6455 client framing over blocking TCP sockets (POSIX and Winsock).
- */
 #include "WsClient.hpp"
+#include "ByteStream.hpp"
+#include "Sockets.hpp"
 #include "WsFrame.hpp"
 
 #include <algorithm>
@@ -17,56 +15,20 @@
 #include <thread>
 #include <unordered_map>
 
-#ifdef _WIN32
-#  ifndef WIN32_LEAN_AND_MEAN
-#    define WIN32_LEAN_AND_MEAN
-#  endif
-#  include <winsock2.h>
-#  include <ws2tcpip.h>
-using SocketHandle = SOCKET;
-constexpr SocketHandle kNoSocket = INVALID_SOCKET;
-#else
-#  include <netdb.h>
-#  include <netinet/in.h>
-#  include <netinet/tcp.h>
-#  include <sys/socket.h>
-#  include <sys/types.h>
-#  include <unistd.h>
-using SocketHandle = int;
-constexpr SocketHandle kNoSocket = -1;
-#endif
-
 namespace eshost {
 namespace {
 
-#ifdef MSG_NOSIGNAL
-constexpr int kSendFlags = MSG_NOSIGNAL;
-#else
-constexpr int kSendFlags = 0;
-#endif
+class TcpStream final : public ByteStream {
+public:
+    explicit TcpStream(SocketHandle sock) : sock_(sock) {}
+    ~TcpStream() override { closeSocket(sock_); }
+    bool sendAll(const uint8_t* data, size_t len) override { return sendAllSocket(sock_, data, len); }
+    bool recvAll(uint8_t* data, size_t len) override { return recvAllSocket(sock_, data, len); }
+    void shutdown() override { shutdownSocket(sock_); }
 
-void closeSocket(SocketHandle s) {
-#ifdef _WIN32
-    closesocket(s);
-#else
-    ::close(s);
-#endif
-}
-
-void shutdownSocket(SocketHandle s) {
-#ifdef _WIN32
-    shutdown(s, SD_BOTH);
-#else
-    shutdown(s, SHUT_RDWR);
-#endif
-}
-
-void ensureSockets() {
-#ifdef _WIN32
-    static std::once_flag once;
-    std::call_once(once, [] { WSADATA d; WSAStartup(MAKEWORD(2, 2), &d); });
-#endif
-}
+private:
+    SocketHandle sock_;
+};
 
 // — SHA-1 and base64, for the handshake's Sec-WebSocket-Accept —
 
@@ -122,7 +84,7 @@ std::string base64(const uint8_t* data, size_t len) {
 
 struct Conn {
     int id = 0;
-    SocketHandle sock = kNoSocket;
+    std::shared_ptr<ByteStream> stream;
     WsSink sink;
     std::mutex sendMutex;
     std::atomic<bool> open{false};
@@ -139,26 +101,6 @@ std::shared_ptr<Conn> connOf(int id) {
     std::lock_guard<std::mutex> lk(g_connsMutex);
     auto it = g_conns.find(id);
     return it == g_conns.end() ? nullptr : it->second;
-}
-
-bool sendAll(SocketHandle s, const uint8_t* p, size_t n) {
-    while (n > 0) {
-        const auto sent = ::send(s, reinterpret_cast<const char*>(p), static_cast<int>(n), kSendFlags);
-        if (sent <= 0) return false;
-        p += sent;
-        n -= static_cast<size_t>(sent);
-    }
-    return true;
-}
-
-bool recvAll(SocketHandle s, uint8_t* p, size_t n) {
-    while (n > 0) {
-        const auto got = ::recv(s, reinterpret_cast<char*>(p), static_cast<int>(n), 0);
-        if (got <= 0) return false;
-        p += got;
-        n -= static_cast<size_t>(got);
-    }
-    return true;
 }
 
 /** A client frame: always masked, as RFC 6455 requires of a client. */
@@ -182,46 +124,37 @@ bool sendFrame(Conn& c, uint8_t opcode, const uint8_t* data, size_t len) {
     const size_t at = f.size();
     f.insert(f.end(), data, data + len);
     for (size_t i = 0; i < len; ++i) f[at + i] ^= mask[i % 4];
-    return sendAll(c.sock, f.data(), f.size());
+    return c.stream && c.stream->sendAll(f.data(), f.size());
 }
 
-struct Url { std::string host, port, path; };
+struct Url { std::string host, port, path; bool secure = false; };
 
 bool parseWsUrl(const std::string& url, Url& out) {
-    const std::string scheme = "ws://";
-    if (url.compare(0, scheme.size(), scheme) != 0) return false;
-    const std::string rest = url.substr(scheme.size());
+    const std::string plain = "ws://", secure = "wss://";
+    out.secure = url.compare(0, secure.size(), secure) == 0;
+    if (!out.secure && url.compare(0, plain.size(), plain) != 0) return false;
+    const std::string rest = url.substr(out.secure ? secure.size() : plain.size());
     const size_t slash = rest.find('/');
     const std::string authority = rest.substr(0, slash);
     out.path = slash == std::string::npos ? "/" : rest.substr(slash);
     const size_t colon = authority.rfind(':');
     out.host = colon == std::string::npos ? authority : authority.substr(0, colon);
-    out.port = colon == std::string::npos ? "80" : authority.substr(colon + 1);
+    out.port = colon == std::string::npos ? (out.secure ? "443" : "80") : authority.substr(colon + 1);
     return !out.host.empty();
 }
 
-SocketHandle dial(const Url& u) {
-    addrinfo hints{};
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    addrinfo* res = nullptr;
-    if (getaddrinfo(u.host.c_str(), u.port.c_str(), &hints, &res) != 0) return kNoSocket;
-    SocketHandle s = kNoSocket;
-    for (addrinfo* a = res; a; a = a->ai_next) {
-        s = ::socket(a->ai_family, a->ai_socktype, a->ai_protocol);
-        if (s == kNoSocket) continue;
-        if (::connect(s, a->ai_addr, static_cast<int>(a->ai_addrlen)) == 0) break;
-        closeSocket(s);
-        s = kNoSocket;
+std::shared_ptr<ByteStream> dial(const Url& u, std::string& why) {
+    if (u.secure) {
+        std::shared_ptr<ByteStream> tls = dialTls(u.host, u.port, why);
+        if (!tls && why.empty()) why = "could not connect to " + u.host + ":" + u.port;
+        return tls;
     }
-    freeaddrinfo(res);
-    if (s == kNoSocket) return s;
-    int one = 1;
-    setsockopt(s, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&one), sizeof one);
-#ifdef SO_NOSIGPIPE
-    setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one);
-#endif
-    return s;
+    const SocketHandle s = dialTcp(u.host, u.port);
+    if (s == kNoSocket) {
+        why = "could not connect to " + u.host + ":" + u.port;
+        return nullptr;
+    }
+    return std::make_shared<TcpStream>(s);
 }
 
 std::string lower(std::string s) {
@@ -229,20 +162,19 @@ std::string lower(std::string s) {
     return s;
 }
 
-/** The opening handshake; an error message on failure, empty on success. */
-std::string handshake(Conn& c, const Url& u) {
+std::string handshake(Conn& c, ByteStream& stream, const Url& u) {
     uint8_t nonce[16];
     for (auto& b : nonce) b = uint8_t(c.rng());
     const std::string key = base64(nonce, sizeof nonce);
     const std::string req = "GET " + u.path + " HTTP/1.1\r\nHost: " + u.host + ":" + u.port
         + "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: " + key
         + "\r\nSec-WebSocket-Version: 13\r\n\r\n";
-    if (!sendAll(c.sock, reinterpret_cast<const uint8_t*>(req.data()), req.size())) return "handshake send failed";
+    if (!stream.sendAll(reinterpret_cast<const uint8_t*>(req.data()), req.size())) return "handshake send failed";
     std::string head;
-    char ch;
+    uint8_t ch;
     while (head.size() < 8192 && head.find("\r\n\r\n") == std::string::npos) {
-        if (::recv(c.sock, &ch, 1, 0) <= 0) return "the server closed during the handshake";
-        head += ch;
+        if (!stream.recvAll(&ch, 1)) return "the server closed during the handshake";
+        head += static_cast<char>(ch);
     }
     if (head.compare(0, 12, "HTTP/1.1 101") != 0) return "refused: " + head.substr(0, head.find("\r\n"));
     const std::string lo = lower(head);
@@ -270,7 +202,7 @@ void run(std::shared_ptr<Conn> c, std::string url) {
         c->open = false;
         {
             std::lock_guard<std::mutex> lk(c->sendMutex);
-            if (c->sock != kNoSocket) { closeSocket(c->sock); c->sock = kNoSocket; }
+            c->stream.reset();
         }
         emit(*c, WsEvent::Kind::Close, {}, code, std::move(reason));
         std::lock_guard<std::mutex> lk(g_connsMutex);
@@ -278,20 +210,21 @@ void run(std::shared_ptr<Conn> c, std::string url) {
     };
     Url u;
     if (!parseWsUrl(url, u)) {
-        emit(*c, WsEvent::Kind::Error, {}, 0, "only ws:// URLs are supported: " + url);
+        emit(*c, WsEvent::Kind::Error, {}, 0, "only ws:// and wss:// URLs are supported: " + url);
         return finish(1006, "bad url");
     }
-    const SocketHandle dialed = dial(u);
+    std::string refused;
+    const std::shared_ptr<ByteStream> stream = dial(u, refused);
     {
         std::lock_guard<std::mutex> lk(c->sendMutex);
-        c->sock = dialed;
+        c->stream = stream;
     }
-    if (dialed == kNoSocket) {
-        emit(*c, WsEvent::Kind::Error, {}, 0, "could not connect to " + u.host + ":" + u.port);
+    if (!stream) {
+        emit(*c, WsEvent::Kind::Error, {}, 0, refused);
         return finish(1006, "connect failed");
     }
     if (c->closeRequested) return finish(1006, "closed before the connection opened");
-    if (std::string why = handshake(*c, u); !why.empty()) {
+    if (std::string why = handshake(*c, *stream, u); !why.empty()) {
         if (c->closeRequested) return finish(1006, "closed before the connection opened");
         emit(*c, WsEvent::Kind::Error, {}, 0, why);
         return finish(1006, why);
@@ -304,23 +237,23 @@ void run(std::shared_ptr<Conn> c, std::string url) {
     uint8_t messageOp = 0;
     for (;;) {
         uint8_t hdr[2];
-        if (!recvAll(c->sock, hdr, 2)) return finish(1006, "connection lost");
+        if (!stream->recvAll(hdr, 2)) return finish(1006, "connection lost");
         const bool fin = hdr[0] & 0x80;
         const uint8_t op = hdr[0] & 0x0F;
         uint64_t len = hdr[1] & 0x7F;
         if (len == 126) {
             uint8_t b[2];
-            if (!recvAll(c->sock, b, 2)) return finish(1006, "connection lost");
+            if (!stream->recvAll(b, 2)) return finish(1006, "connection lost");
             len = (uint64_t(b[0]) << 8) | b[1];
         } else if (len == 127) {
             uint8_t b[8];
-            if (!recvAll(c->sock, b, 8)) return finish(1006, "connection lost");
+            if (!stream->recvAll(b, 8)) return finish(1006, "connection lost");
             len = 0;
             for (uint8_t x : b) len = (len << 8) | x;
         }
         uint8_t mask[4] = {0, 0, 0, 0};
         const bool masked = hdr[1] & 0x80;
-        if (masked && !recvAll(c->sock, mask, 4)) return finish(1006, "connection lost");
+        if (masked && !stream->recvAll(mask, 4)) return finish(1006, "connection lost");
         const uint64_t pending = op == 0x0 ? message.size() : 0;
         if (const int refusal = wsFrameRefusal(op, fin, len, pending); refusal != 0) {
             const std::string why = refusal == kWsCloseMessageTooBig
@@ -334,7 +267,7 @@ void run(std::shared_ptr<Conn> c, std::string url) {
             return finish(refusal, why);
         }
         std::vector<uint8_t> payload(static_cast<size_t>(len));
-        if (len > 0 && !recvAll(c->sock, payload.data(), payload.size())) return finish(1006, "connection lost");
+        if (len > 0 && !stream->recvAll(payload.data(), payload.size())) return finish(1006, "connection lost");
         if (masked) for (size_t i = 0; i < payload.size(); ++i) payload[i] ^= mask[i % 4];
 
         if (op == 0x8) {
@@ -364,7 +297,6 @@ std::string wsAcceptFor(const std::string& key) {
 }
 
 int wsOpen(const std::string& url, WsSink sink) {
-    ensureSockets();
     auto c = std::make_shared<Conn>();
     c->id = g_nextId++;
     c->sink = std::move(sink);
@@ -391,9 +323,12 @@ void wsClose(int id, int code, const std::string& reason) {
         body.insert(body.end(), reason.begin(), reason.end());
         sendFrame(*c, 0x8, body.data(), body.size());
     }
-    // The reader thread finishes on the server's close reply, or here if none comes.
-    std::lock_guard<std::mutex> lk(c->sendMutex);
-    if (c->sock != kNoSocket) shutdownSocket(c->sock);
+    std::shared_ptr<ByteStream> stream;
+    {
+        std::lock_guard<std::mutex> lk(c->sendMutex);
+        stream = c->stream;
+    }
+    if (stream) stream->shutdown();
 }
 
 }  // namespace eshost

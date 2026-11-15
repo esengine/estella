@@ -854,6 +854,21 @@
       ]
     },
     {
+      "name": "CanvasEffect",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "material",
+          "type": "Asset<material>",
+          "default": "none",
+          "doc": "A material with a PostProcess shader. The screen UI on this Canvas's sorting layer is drawn into a picture of its own, and this material lays that picture (u_texture, colour weighted by its alpha) on the frame."
+        }
+      ],
+      "animatable": [
+        "material"
+      ]
+    },
+    {
       "name": "CapsuleCollider2D",
       "source": "cpp",
       "fields": [

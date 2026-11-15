@@ -167,6 +167,7 @@ const DISPOSITION = {
   TerrainBand2D: ['owed', 'no example draws a 2D ground from a spline yet; the first side-scroller built on one carries it'],
   Impostor: ['owed', 'no example has far objects small enough to stand a picture in for yet; an open 3D world with distant props is the first to'],
   Billboard: ['owed', 'no example draws a card that faces the camera yet; a 3D scene with signs or far trees on cards is the first to'],
+  CanvasEffect: ['code-only', 'space-frigate builds its whole HUD in code, the Canvas included, and hudEffects.ts puts the effect on that Canvas; as scene data it is authored by the pixel fixture ui-screen-effect, which is not an example'],
   Replicated: ['code-only', 'multiplayer-arena declares its replicated set beside the server systems that own it; the wire table is a contract both ends compile against, not scene content'],
 
   // — owed: a creator-facing component nothing in the shipped corpus authors.

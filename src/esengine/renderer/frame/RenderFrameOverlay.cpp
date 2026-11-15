@@ -39,6 +39,8 @@ void RenderFrame::beginScreenOverlay(const glm::mat4& projection,
     // Every layer until the caller says otherwise: which layers a frame shows is
     // the caller's to decide, and a host that never says shows all of them.
     draw_list_.setCullingMask(0xFFFFFFFFu);
+    draw_list_.setLayerlessVisible(true);
+    overlay_effect_ = 0;
     clip_state_.clear();
 }
 
@@ -88,9 +90,68 @@ void RenderFrame::drawScreenOverlay() {
     device_.setScissorTest(false);
 }
 
+bool RenderFrame::grabOverlayBackdrop(FramebufferHandle source) {
+#ifdef ES_ENABLE_POSTPROCESS
+    if (!post_process_ || width_ == 0 || height_ == 0) return false;
+    if (overlay_grab_ == TextureHandle::Invalid || overlay_grab_w_ != width_ || overlay_grab_h_ != height_) {
+        releaseOverlayBackdrop();
+        TextureDesc desc;
+        desc.width = width_;
+        desc.height = height_;
+        desc.format = GfxPixelFormat::RGB8;
+        overlay_grab_ = device_.createTexture(desc, GfxContent::transient(), nullptr);
+        FramebufferSpec spec;
+        spec.width = width_;
+        spec.height = height_;
+        spec.depthStencil = false;
+        spec.linearFilter = true;
+        spec.mipmaps = true;
+        overlay_backdrop_ = Framebuffer::create(device_, spec);
+        overlay_grab_w_ = width_;
+        overlay_grab_h_ = height_;
+    }
+    if (overlay_grab_ == TextureHandle::Invalid || !overlay_backdrop_) return false;
+    if (!device_.copyFramebufferColor(source, overlay_grab_)) return false;
+
+    device_.invalidatePipelineCache();
+    device_.setScissorTest(false);
+    graph_.begin(width_, height_);
+    rg::PassDesc copy;
+    copy.name = "screen-ui-grab";
+    copy.reads = {graph_.importTexture(overlay_grab_, width_, height_)};
+    copy.write = graph_.importTarget(overlay_backdrop_->handle(), width_, height_);
+    copy.execute = [this](const rg::PassContext&) { post_process_->grabScene(); };
+    graph_.addPass(std::move(copy));
+    graph_.execute();
+    device_.endRenderPass();
+    device_.generateMipmaps(overlay_backdrop_->getColorAttachment());
+    device_.invalidatePipelineCache();
+    return true;
+#else
+    (void)source;
+    return false;
+#endif
+}
+
+void RenderFrame::releaseOverlayBackdrop() {
+    if (overlay_grab_ != TextureHandle::Invalid) device_.deleteTexture(overlay_grab_);
+    overlay_grab_ = TextureHandle::Invalid;
+    overlay_backdrop_.reset();
+    overlay_grab_w_ = overlay_grab_h_ = 0;
+}
+
+void RenderFrame::setScreenOverlayEffect(u32 material) {
+    if (!overlay_active_) return;
+    overlay_effect_ = material;
+    draw_list_.setLayerlessVisible(material == 0);
+}
+
 void RenderFrame::endScreenOverlay(RenderTargetManager::Handle target) {
     if (!overlay_active_) return;
     overlay_active_ = false;
+    const u32 effect = overlay_effect_;
+    overlay_effect_ = 0;
+    draw_list_.setLayerlessVisible(true);
     if (!device_.isDeviceUsable()) return;
     // Nothing to draw is not the same as nothing to do elsewhere, but here it is:
     // a pass that would write no pixel is one the graph would run anyway.
@@ -122,24 +183,67 @@ void RenderFrame::endScreenOverlay(RenderTargetManager::Handle target) {
     device_.invalidatePipelineCache();
     device_.setScissorTest(false);
 
-    // Its own graph and its own run, on the same terms as the screen post stack:
-    // this composes what every camera drew and happens after the last of them
-    // ended, so no frame is declaring here.
+    bool layered = false;
+    bool backdrop = false;
+#ifdef ES_ENABLE_POSTPROCESS
+    layered = effect != 0 && post_process_ && post_process_->canDrawMaterialOver(effect);
+    if (draw_list_.anyUsesScreenColor(context_.materials())
+        || (layered && context_.materials().usesScreenColor(effect))) {
+        ES_PROFILE_SCOPE("render.overlay.grab");
+        backdrop = grabOverlayBackdrop(fbo);
+    }
+#else
+    (void)effect;
+#endif
+    draw_list_.setDeferScreenColor(false);
+    draw_list_.setLayerAlpha(layered);
+    const TextureHandle behind = backdrop ? overlay_backdrop_->getColorAttachment() : TextureHandle::Invalid;
+
     ES_PROFILE_SCOPE("render.overlay.graph");
     graph_.begin(width_, height_);
     rg::PassDesc pass;
-    pass.name = "screen-ui";
-    pass.write = graph_.importTarget(fbo, width_, height_);
-    // Never clears. The HUD lands ON the frame; clearing here would be the pass
-    // deciding the scene was not worth keeping.
-    pass.clear = false;
+    pass.name = layered ? "screen-ui-layer" : "screen-ui";
     pass.viewportX = static_cast<u32>(std::max(overlay_vp_x_, 0));
     pass.viewportY = static_cast<u32>(std::max(overlay_vp_y_, 0));
     pass.viewportW = overlay_vp_w_;
     pass.viewportH = overlay_vp_h_;
-    pass.execute = [this](const rg::PassContext&) { drawScreenOverlay(); };
+    rg::ResourceId layer = rg::kNoResource;
+    if (layered) {
+        rg::TargetDesc desc;
+        desc.depthStencil = true;
+        layer = graph_.createTarget(desc);
+        pass.write = layer;
+        pass.clear = true;
+        pass.clearDepth = true;
+        pass.clearColor[0] = pass.clearColor[1] = pass.clearColor[2] = pass.clearColor[3] = 0.0f;
+    } else {
+        pass.write = graph_.importTarget(fbo, width_, height_);
+        pass.clear = false;
+    }
+    pass.execute = [this, layered, behind](const rg::PassContext&) {
+        if (layered) device_.clearStencil(0);
+        context_.materials().setScreenColor(behind);
+        drawScreenOverlay();
+        context_.materials().setScreenColor(TextureHandle::Invalid);
+    };
     graph_.addPass(std::move(pass));
+#ifdef ES_ENABLE_POSTPROCESS
+    if (layered) {
+        rg::PassDesc compose;
+        compose.name = "screen-ui";
+        compose.reads = {layer};
+        compose.write = graph_.importTarget(fbo, width_, height_);
+        compose.clear = false;
+        compose.execute = [this, effect, behind](const rg::PassContext&) {
+            context_.materials().setScreenColor(behind);
+            post_process_->drawMaterialOver(effect);
+            context_.materials().setScreenColor(TextureHandle::Invalid);
+        };
+        graph_.addPass(std::move(compose));
+    }
+#endif
     graph_.execute();
+    draw_list_.setLayerAlpha(false);
 
     device_.endRenderPass();
     device_.invalidatePipelineCache();

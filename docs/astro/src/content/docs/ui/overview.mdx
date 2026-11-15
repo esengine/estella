@@ -323,6 +323,75 @@ world.insert(marker, UINode, { width: px(60), height: px(40), marginLeft: px(-30
 world.insert(marker, UIWorldAnchor, { target: relay, offset: { x: 0, y: 2.5, z: 0 }, clampToEdges: true });
 ```
 
+### `CanvasEffect` — a Canvas drawn through a material
+
+A HUD seen through a visor bends at its corners, splits its colours and carries scan lines. None of that can be
+drawn element by element: the whole display has to become one picture first. `CanvasEffect` on a screen Canvas
+does that. The screen UI on that Canvas's sorting layer (`Canvas.layer`) is drawn into a transparent picture of
+its own, and `material` lays that picture on the frame.
+
+The material's shader is a `PostProcess` shader, written as a post-process effect is. It reads the layer as
+`u_texture` at `v_texCoord`, has `u_time` and `u_viewport`, and takes its own `#pragma param` values from the
+material. The layer's colour is weighted by its alpha (premultiplied), as the display shows it, and what the
+shader returns is laid over the frame the same way: return the sample unchanged and the Canvas looks as it
+does without the component.
+
+```glsl
+#pragma shader "HUD Lens"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_curve float default(0.03) range(0,0.2)
+
+#pragma fragment
+precision highp float;
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+out vec4 fragColor;
+
+void main() {
+    vec2 p = v_texCoord * 2.0 - 1.0;
+    fragColor = texture(u_texture, p * (1.0 + u_curve * (dot(p, p) - 1.0)) * 0.5 + 0.5);
+}
+#pragma end
+```
+
+```typescript
+import { Canvas, CanvasEffect } from 'esengine';
+
+const lens = await assets.loadMaterial('assets/ui/lens.esmaterial');
+world.insert(hudCanvas, Canvas, { layer: 2 });
+world.insert(hudCanvas, CanvasEffect, { material: lens.handle });
+```
+
+- **It is by layer.** Every screen Canvas on the same sorting layer goes through the material of the first one
+  that has a `CanvasEffect`. Layers without one are drawn first, straight onto the frame; then each layer with
+  one, over them. So what must not bend, such as markers that stand on things in the world
+  (`UIWorldAnchor`), goes on a Canvas of another layer.
+- **It moves pixels, not the pointer.** A click lands where an element was laid out. Keep what is clicked on a
+  layer without an effect, or keep the bend small.
+- A draw that only adds light (`BlendMode.Additive`) still only adds light through the layer. A draw that
+  darkens what is under it (`Multiply`, `Darken`) has only the empty layer under it there.
+- It needs post-processing in the build, and a shader for WebGPU needs its `#pragma fragment wgsl` twin. Until
+  the material's program is ready, the Canvas is drawn straight.
+
+### Frosted panels — UI that reads the frame under it
+
+A UI material can declare `#pragma param u_screenColor texture default(white)`, the same input a material in
+the scene declares. In the screen overlay it is the frame as it stands when that UI's layer starts to draw:
+every camera, the post chain, and the screen UI layers drawn before it. The copy has a full mip chain, so one
+`textureLod` is a wide blur: sample it at `gl_FragCoord.xy / vec2(textureSize(u_screenColor, 0))`, a few taps
+at level 3 or 4, for a frosted panel.
+
+```glsl
+vec2 uv = gl_FragCoord.xy / vec2(textureSize(u_screenColor, 0));
+vec3 behind = textureLod(u_screenColor, uv, 3.5).rgb;
+```
+
+Its colours are the display's, as the frame shows them, in a linear project too. Its alpha is 0.5 where the
+frame took a copy; a shader handed the white default instead (alpha 1: a device that cannot copy its surface,
+or a build without post-processing) should draw its plain look. The UI of one layer does not see the elements
+under it in that same layer; put a frosted panel on a later layer to have it blur the UI under it.
+
 ## Editor or code
 
 ![A UI Canvas laid out in the editor viewport](@/assets/guides/en/ui-screen.png)

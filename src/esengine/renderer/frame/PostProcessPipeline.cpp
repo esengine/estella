@@ -795,6 +795,28 @@ bool PostProcessPipeline::drawMaterialThrough(u32 material, u32 shader,
     return true;
 }
 
+bool PostProcessPipeline::canDrawMaterialOver(u32 material) {
+    const resource::ShaderHandle handle = context_.materials().shaderOf(material);
+    Shader* program = handle.isValid() ? resourceManager_.getShader(handle) : nullptr;
+    return program && context_.materials().layoutFor(handle) && device_.programReady(program->handle());
+}
+
+bool PostProcessPipeline::drawMaterialOver(u32 material) {
+    const resource::ShaderHandle handle = context_.materials().shaderOf(material);
+    Shader* program = handle.isValid() ? resourceManager_.getShader(handle) : nullptr;
+    if (!program) return false;
+    applyPassPipeline(*program, /*over=*/true);
+    if (program->language() == GfxShaderLanguage::GLSL_ES300 && program->hasUniform("u_texture")) {
+        program->setUniform("u_texture", 0);
+    }
+    device_.bindTexture(1, TextureHandle::Invalid);
+    device_.bindTexture(kSceneDepthUnit, TextureHandle::Invalid);
+    device_.bindTexture(kGBufferUnit, TextureHandle::Invalid);
+    context_.materials().bindForDraw(material);
+    drawScreenQuad();
+    return true;
+}
+
 void PostProcessPipeline::releasePassResources(PostProcessPass& pass) {
     if (pass.paramUbo != BufferHandle::Invalid) {
         device_.deleteBuffer(pass.paramUbo);

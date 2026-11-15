@@ -268,7 +268,7 @@ export interface NativeBridge {
     /** Whether the host is a phone or a tablet, when it says. */
     isHandheld?(): boolean;
 
-    /** `ws://` sockets, on a host that carries the client. Absent → `createSocket`
+    /** Sockets, on a host that carries the client. Absent → `createSocket`
      *  is unavailable, as it is on a host with no network. */
     socket?: NativeSocketBridge;
 

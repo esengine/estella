@@ -290,7 +290,7 @@ go through the post-processing chain):
 |---|---|---|
 | `u_sceneColor` | The opaque scene behind it: water, refracting glass. | After the opaque scene; the other blended draws then land over it by depth. |
 | `u_sceneDepthMap` | The opaque scene's distance from the camera at each pixel (`texel(data)`). | After the opaque scene. |
-| `u_screenColor` | The whole frame as drawn so far, blended draws and particles included: distortion, heat haze. | After every other draw. |
+| `u_screenColor` | The whole frame as drawn so far, blended draws and particles included: distortion, heat haze. On screen UI, the frame under its layer, with mips for a blur (see [UI overview](../../ui/overview/)). | After every other draw. |
 
 A `#pragma switch` selects a static shader permutation baked into the material at
 compile time (via the `features` argument to `compileShader`).

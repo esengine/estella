@@ -61,6 +61,7 @@ void renderer_endFrame();
 /// collect, let the host add its own screen geometry, then declare and run it.
 void renderer_beginScreenOverlay(uintptr_t projectionPtr, i32 vpX, i32 vpY, u32 vpW, u32 vpH);
 void renderer_submitScreenOverlay(ecs::Registry& registry);
+void renderer_setScreenOverlayEffect(u32 material);
 void renderer_endScreenOverlay(u32 targetHandle);
 #ifdef ES_ENABLE_BITMAP_TEXT
 #endif

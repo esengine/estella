@@ -12,6 +12,7 @@ import {
 import { MINING, installMining, mining } from './hudMining';
 import { buildHelm } from './hudHelm';
 import { buildScope } from './hudScope';
+import { installHudEffects } from './hudEffects';
 import { buildTargets } from './hudTargets';
 import { ship } from './shipState';
 
@@ -79,6 +80,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     const kit = createKit(world, textures, fonts);
     const { root, node, image, sliced, solid, label, pivot, tilt, lift, glow, say, ink, fill, fade, place } = kit;
     app.getResource(ScreenOverlay).perspective = 1500;
+    installHudEffects(app);
 
     image(root, 'ScrimTop', { left: 0, right: 0, top: 0, height: 170 }, textures.scrimTop);
     image(root, 'ShadeIdentity', { left: -120, top: -70, width: 680, height: 320 }, textures.shade);

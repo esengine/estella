@@ -635,6 +635,8 @@ public:
     /// Draws material @p material through PostProcess shader @p shader over the pass's viewport (RenderFrame::queueMaterialBake), its
     /// block in MaterialStore scratch @p scratch. False when it could not.
     bool drawMaterialThrough(u32 material, u32 shader, const std::vector<std::pair<std::string, glm::vec4>>& overrides, u32 scratch);
+    bool canDrawMaterialOver(u32 material);
+    bool drawMaterialOver(u32 material);
 
 private:
     PostProcessPass* findPass(const std::string& name);

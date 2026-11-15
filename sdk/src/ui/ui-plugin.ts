@@ -32,6 +32,7 @@ import { textInputPlugin } from './text/text-input-plugin';
 import { uiRenderOrderPlugin } from './render/render-order';
 import { uiVisibilityPlugin } from './core/visibility';
 import { uiWorldAnchorPlugin } from './core/world-anchor';
+import { canvasEffectPlugin } from './core/canvas-effect';
 import { UICollections } from './collection/collection-host';
 import { installTreeViews } from './widgets/tree-view';
 import { installColorPickers } from './behavior/color-picker-system';
@@ -54,6 +55,7 @@ const SUB_PLUGINS: Plugin[] = [
     uiInteractionPlugin,
     uiVisibilityPlugin,
     uiWorldAnchorPlugin,
+    canvasEffectPlugin,
     uiBehaviorPlugin,
     uiControllerPlugin,
     dragPlugin,

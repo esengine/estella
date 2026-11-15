@@ -86,6 +86,7 @@ public:
     void endRenderPass() override;
 
     ReadbackHandle requestReadback(FramebufferHandle target, u32 w, u32 h) override;
+    bool copyFramebufferColor(FramebufferHandle source, TextureHandle dst) override;
     /// What is on the canvas now, read at once: a capture asks for the frame it is looking at and waits for it anyway, and a fence
     /// polled across tasks took a headless CPU rasterizer half as long again per capture as the read it replaced.
     ReadbackHandle captureNextFrame(u32 w, u32 h) override;
@@ -189,7 +190,7 @@ private:
     // The loose state setters a pipeline bundles (blend/depth/stencil/cull/masks):
     // backend-internal since the pipeline became the only way to set them.
     void setBlendEnabled(bool enabled);
-    void setBlendMode(BlendMode mode);
+    void setBlendMode(BlendMode mode, bool layerAlpha = false);
     void setDepthTest(bool enabled);
     void setDepthWrite(bool enabled);
     void setStencilTest(bool enabled);
@@ -286,6 +287,7 @@ private:
      *  uniform of it is set or it is deleted. */
     std::unordered_map<u32, u32> sampler_units_;
     BlendMode current_blend_ = static_cast<BlendMode>(0xFF);
+    bool current_blend_adds_only_ = false;
 
     // Redundant-state caches for the two per-draw hot paths. glActiveTexture is
     // the only site that moves the active unit, so active_texture_unit_ is

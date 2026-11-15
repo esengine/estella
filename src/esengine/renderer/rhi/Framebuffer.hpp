@@ -60,6 +60,7 @@ struct FramebufferSpec {
     bool gbuffer = false;
     /** @brief The colour attachment can also be written by a compute shader (GfxDevice::supportsCompute). */
     bool storage = false;
+    bool mipmaps = false;
 };
 
 // =============================================================================

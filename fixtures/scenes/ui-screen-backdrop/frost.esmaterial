@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "frost.esshader",
+  "blendMode": 0,
+  "depthTest": false,
+  "depthWrite": false,
+  "cull": 0,
+  "properties": {
+    "u_lod": 5
+  }
+}

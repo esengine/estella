@@ -1,0 +1,31 @@
+#pragma shader "UIFrostTest"
+#pragma version 300 es
+#pragma domain Unlit
+#pragma param u_lod float default(0) range(0,8)
+#pragma param u_screenColor texture default(white)
+
+#pragma fragment
+precision highp float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+void main() {
+    vec2 uv = gl_FragCoord.xy / vec2(textureSize(u_screenColor, 0));
+    vec4 behind = textureLod(u_screenColor, uv, u_lod);
+    fragColor = behind.a < 0.75 ? vec4(behind.rgb, 1.0) : vec4(1.0, 0.0, 1.0, 1.0);
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let uv = v.pos.xy / vec2f(textureDimensions(u_screenColor, 0));
+    let behind = textureSampleLevel(u_screenColor, u_screenColor_s, uv, mc.u_lod);
+    if (behind.a >= 0.75) { return vec4f(1.0, 0.0, 1.0, 1.0); }
+    return vec4f(behind.rgb, 1.0);
+}
+#pragma end

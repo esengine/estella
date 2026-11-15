@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-/**
- * @file  socket.ts — a platform socket over the native host's `ws://` client.
- */
 import { Emitter } from '../../ecs/emitter';
 import type { PlatformSocket, PlatformSocketEvents, PlatformSocketReadyState } from '../types';
 import type { NativeSocketBridge } from './bridge';
