@@ -11,6 +11,7 @@
 #include "../../ecs/FlatGeometry.hpp"
 #include "../../ecs/components/BitmapText.hpp"
 #include "../../text/BitmapFont.hpp"
+#include "../../text/Utf8.hpp"
 
 #include <cmath>
 #include <limits>
@@ -25,35 +26,6 @@ bool containsBox(const Frustum& frustum, const glm::vec3& center, const glm::vec
     }
     return true;
 }
-}
-
-u32 TextPlugin::decodeUtf8(const char* data, usize length, usize& pos) {
-    u8 b0 = static_cast<u8>(data[pos]);
-    if (b0 < 0x80) {
-        return b0;
-    }
-    if ((b0 & 0xE0) == 0xC0 && pos + 1 < length) {
-        u32 cp = (b0 & 0x1F) << 6;
-        cp |= (static_cast<u8>(data[pos + 1]) & 0x3F);
-        pos += 1;
-        return cp;
-    }
-    if ((b0 & 0xF0) == 0xE0 && pos + 2 < length) {
-        u32 cp = (b0 & 0x0F) << 12;
-        cp |= (static_cast<u8>(data[pos + 1]) & 0x3F) << 6;
-        cp |= (static_cast<u8>(data[pos + 2]) & 0x3F);
-        pos += 2;
-        return cp;
-    }
-    if ((b0 & 0xF8) == 0xF0 && pos + 3 < length) {
-        u32 cp = (b0 & 0x07) << 18;
-        cp |= (static_cast<u8>(data[pos + 1]) & 0x3F) << 12;
-        cp |= (static_cast<u8>(data[pos + 2]) & 0x3F) << 6;
-        cp |= (static_cast<u8>(data[pos + 3]) & 0x3F);
-        pos += 3;
-        return cp;
-    }
-    return b0;
 }
 
 void TextPlugin::rebuildLayout(const text::BitmapFont& font, const ecs::BitmapText& bt,
@@ -74,8 +46,8 @@ void TextPlugin::rebuildLayout(const text::BitmapFont& font, const ecs::BitmapTe
     f32 totalWidth = 0;
     if (bt.align != ecs::TextAlign::Left) {
         u32 prevChar = 0;
-        for (usize j = 0; j < textLen; ++j) {
-            u32 charCode = decodeUtf8(textData, textLen, j);
+        for (usize j = 0; j < textLen;) {
+            u32 charCode = text::nextCodepoint(textData, textLen, j);
             auto* glyph = font.getGlyph(charCode);
             if (!glyph) continue;
             if (prevChar) {
@@ -94,8 +66,8 @@ void TextPlugin::rebuildLayout(const text::BitmapFont& font, const ecs::BitmapTe
     }
 
     u32 prevChar = 0;
-    for (usize j = 0; j < textLen; ++j) {
-        u32 charCode = decodeUtf8(textData, textLen, j);
+    for (usize j = 0; j < textLen;) {
+        u32 charCode = text::nextCodepoint(textData, textLen, j);
         auto* glyph = font.getGlyph(charCode);
         if (!glyph) continue;
 

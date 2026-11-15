@@ -20,6 +20,7 @@
 // =============================================================================
 
 #include "./GfxDevice.hpp"
+#include "../../core/Hash.hpp"
 
 #include <initializer_list>
 #include <string>
@@ -330,9 +331,9 @@ private:
     };
     struct VaoKeyHash {
         usize operator()(const VaoKey& key) const {
-            usize h = key.layout * 2654435761u;
-            for (u32 slot = 0; slot < MAX_VERTEX_BUFFER_SLOTS; ++slot) h = (h ^ key.vbo[slot]) * 1099511628211ull;
-            return (h ^ key.ibo) * 1099511628211ull;
+            u64 h = hash::fnv1aWord(hash::kFnv64Offset, key.layout);
+            for (u32 slot = 0; slot < MAX_VERTEX_BUFFER_SLOTS; ++slot) h = hash::fnv1aWord(h, key.vbo[slot]);
+            return static_cast<usize>(hash::fnv1aWord(h, key.ibo));
         }
     };
     std::unordered_map<VaoKey, VaoCache, VaoKeyHash> vaos_;
