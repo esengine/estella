@@ -31,7 +31,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
     const facts: Record<string, string | number | boolean> = {
         ready: false, restored: false, buildings: 0, blockedCells: 0, ore: 0, trips: 0, cargo: 0, leg: 'toMine',
         droneX: 0, droneY: 0, hour: 0, hoursElapsed: 0, fast: false, plans: 0, route: 'none', everInsideBuilding: false,
-        cursorX: 0, cursorY: 0, cursorWalkable: true, tool: 'mine', saves: 0, loads: 0, notice: '',
+        cursorX: 0, cursorY: 0, cursorWalkable: true, tool: 'mine', saves: 0, loads: 0, notice: '', layout: '',
     };
     app.insertResource(Playthrough, { facts });
 
@@ -295,6 +295,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         moveMark(world, droneMark!, standing.x, standing.y, 6);
 
         facts.buildings = state.buildings.length;
+        facts.layout = state.buildings.map((b) => `${b.id}:${b.kind}:${b.x}:${b.y}`).join(';');
         facts.ore = state.ore;
         facts.trips = state.trips;
         facts.cargo = state.drone.cargo;
