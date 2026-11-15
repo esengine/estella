@@ -458,6 +458,8 @@ registerEffect({
         { name: 'u_band', label: 'Band', min: 0, max: 1, step: 0.01, defaultValue: 0.5 },
         { name: 'u_bandTilt', label: 'Band Tilt', min: -90, max: 90, step: 1, defaultValue: 25 },
         { name: 'u_bandTurn', label: 'Band Turn', min: 0, max: 360, step: 1, defaultValue: 0 },
+        { name: 'u_sunSize', label: 'Sun Size (degrees)', min: 0, max: 10, step: 0.01, defaultValue: 0 },
+        { name: 'u_sunGlow', label: 'Sun Glow', min: 0, max: 4, step: 0.01, defaultValue: 1 },
     ],
 });
 

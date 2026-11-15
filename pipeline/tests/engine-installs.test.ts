@@ -9,6 +9,7 @@
  * fine — it was never installed.
  */
 import { describe, it, expect } from 'vitest';
+import { getAllEffectDefs } from 'esengine';
 import { engineInstalls, forcedSideModules, moduleChoices, moduleForAsset } from '../src/bundle/engineInstalls';
 import { ENGINE_MODULES, ESENGINE_SUBPATHS, NOT_A_MODULE } from '../src/bundle/engineSubpaths';
 import { POST_PROCESS_EFFECT_GROUP, SHADER_SUBSYSTEM, SUBSYSTEM_COMPONENTS, SUBSYSTEM_INSTALL, type Subsystem } from '../src/project/targetSupport';
@@ -267,6 +268,14 @@ describe('every module a project can refuse', () => {
         // …and a module that ships built-in shaders is found by the materials that name them.
         for (const shader of Object.values(SHADER_SUBSYSTEM)) byComponent.add(SUBSYSTEM_INSTALL[shader]);
         expect(ENGINE_MODULES.filter((m) => !byComponent.has(m))).toEqual([]);
+    });
+});
+
+describe('the group each post-process effect is found by', () => {
+    it('names every effect that compiles shaders of its own, so a scene using one alone still carries them', () => {
+        const compiled = getAllEffectDefs().filter((def) => def.factory !== undefined || (def.multiPass?.length ?? 0) > 0).map((def) => def.type);
+        expect(compiled.length).toBeGreaterThan(30);
+        expect(compiled.filter((type) => POST_PROCESS_EFFECT_GROUP[type] === undefined)).toEqual([]);
     });
 });
 

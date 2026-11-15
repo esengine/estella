@@ -42,6 +42,13 @@ vec3 skyRadiance(vec3 dir, vec3 sun, vec3 sunColor, float env) {
     float tilt = radians(u_bandTilt), turn = radians(u_bandTurn);
     vec3 band = vec3(sin(tilt) * cos(turn), cos(tilt), sin(tilt) * sin(turn));
     vec3 col = vec3(0.0);
+    if (u_sunSize > 0.0) {
+        float off = acos(clamp(dot(dir, sun), -1.0, 1.0));
+        float radius = radians(u_sunSize) * 0.5;
+        float disc = 1.0 - smoothstep(radius - esSkyPixel, radius + esSkyPixel, off);
+        float halo = u_sunGlow * (0.035 / (1.0 + pow(off / (radius * 2.2), 2.4)) + 0.004 / (1.0 + pow(off / (radius * 14.0), 2.0)));
+        col += sunColor * (disc * 24.0 + halo * 24.0);
+    }
 ${LAYERS.map(([cells, keep, gain, steep]) => `    col += sfLayer(dir, band, ${cells.toFixed(1)}, ${keep.toFixed(2)}, ${gain.toFixed(2)}, ${steep.toFixed(1)});`).join('\n')}
     return col;
 }`;
@@ -84,6 +91,13 @@ fn skyRadiance(dir : vec3f, sun : vec3f, sunColor : vec3f, env : f32) -> vec3f {
     let turn = radians(mc.u_bandTurn);
     let band = vec3f(sin(tilt) * cos(turn), cos(tilt), sin(tilt) * sin(turn));
     var col = vec3f(0.0);
+    if (mc.u_sunSize > 0.0) {
+        let off = acos(clamp(dot(dir, sun), -1.0, 1.0));
+        let radius = radians(mc.u_sunSize) * 0.5;
+        let disc = 1.0 - smoothstep(radius - esSkyPixel, radius + esSkyPixel, off);
+        let halo = mc.u_sunGlow * (0.035 / (1.0 + pow(off / (radius * 2.2), 2.4)) + 0.004 / (1.0 + pow(off / (radius * 14.0), 2.0)));
+        col = col + sunColor * (disc * 24.0 + halo * 24.0);
+    }
 ${LAYERS.map(([cells, keep, gain, steep]) => `    col = col + sfLayer(dir, band, ${cells.toFixed(1)}, ${keep.toFixed(2)}, ${gain.toFixed(2)}, ${steep.toFixed(1)});`).join('\n')}
     return col;
 }`;
@@ -94,6 +108,8 @@ const STARFIELD_UNIFORMS = [
     { name: 'u_band', label: 'Band', min: 0, max: 1, step: 0.01, defaultValue: 0.5 },
     { name: 'u_bandTilt', label: 'Band Tilt', min: -90, max: 90, step: 1, defaultValue: 25 },
     { name: 'u_bandTurn', label: 'Band Turn', min: 0, max: 360, step: 1, defaultValue: 0 },
+    { name: 'u_sunSize', label: 'Sun Size (degrees)', min: 0, max: 10, step: 0.01, defaultValue: 0 },
+    { name: 'u_sunGlow', label: 'Sun Glow', min: 0, max: 4, step: 0.01, defaultValue: 1 },
 ];
 
 export const starfieldEffects = {
