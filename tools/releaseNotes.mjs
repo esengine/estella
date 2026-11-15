@@ -5066,4 +5066,14 @@ export const NOTED = {
     { note: "Dusk is not black under a sky that lights the scene." },
   "fix(export): the script compile step runs from a path with a space or an ampersand on Windows - emcc is a batch file there and was started through a shell with its arguments unquoted, as were the emsdk setup, the GLX toolchain, the engine build commands and with-env; they all start through runTool now, and check-tool-spawn refuses a shell passed by hand":
     {"note": "A project in a folder with a space or `&` in its name exports its compiled scripts on Windows."},
+  "feat(outliner): double-clicking an entity row frames it in the viewport":
+    { note: "Double-clicking an entity in the Outliner frames it." },
+  "feat(outliner): double-clicking an entity row frames it in the viewport - the same as F, as the common editors do; renaming an entity stays on F2 and the context menu, and a folder row, having nothing to frame, still renames on double-click. The twist, lock and eye do not frame when clicked twice quickly":
+    { note: "Double-clicking an entity in the Outliner frames it." },
+  "fix(play): multiplayer client tabs open once the client realms exist - the Game P2..N tabs were opened right after the boot was kicked off, before the asset check let the session create its clients, so the list was empty and every client ran with no view to see or drive it":
+    { note: "A multiplayer preview opens a Game tab for every client." },
+  "feat(outliner): palette widgets and templates can be dropped into the Outliner":
+    { note: "Palette widgets and templates can be dropped into the Outliner." },
+  "feat(outliner): a widget or template dragged from a palette can be dropped into the Outliner - onto an entity it is created as that entity's child, onto empty space or a folder it lands where a click would put it. A UI widget only takes a parent that is inside a Canvas; any other parent is passed over for the Canvas (made if the scene has none), so a widget dropped or created under a plain entity is not left unable to lay out":
+    { note: "Palette widgets and templates can be dropped into the Outliner." },
 };
