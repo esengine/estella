@@ -11,7 +11,7 @@
  * in: every entity carrying UIScroll gets a ScrollContainer wired to the same
  * input path the widget uses, and loses it when the component goes away.
  */
-import { Schedule, defineSystem } from '../../ecs/system';
+import { defineSystem } from '../../ecs/system';
 import { Query } from '../../ecs/query';
 import type { Entity } from '../../types';
 import type { World } from '../../ecs/world';

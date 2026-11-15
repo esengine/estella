@@ -7,7 +7,6 @@ import type {
     PrefabOverride,
 } from './types';
 import { PREFAB_ADDRESS_SEP } from './types';
-import { getComponent } from '../ecs/component';
 import {
     checkDocumentIds,
     checkDocumentTopology,

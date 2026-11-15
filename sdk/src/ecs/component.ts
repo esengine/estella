@@ -5,7 +5,13 @@
  * @brief   Component definition and builtin components
  */
 
-import { Entity, Vec2, Vec3, Color, Quat } from '../types';
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+* @file    component.ts
+* @brief   Component definition and builtin components
+*/
+import type { Color } from '../types';
 import { worldUnitDefaults, BUILTIN_WORLD_UNIT_FIELDS } from './worldUnits';
 import { deepClone } from '../util/deepClone';
 import { hasOwn, setOwn } from '../util/ownProperties';

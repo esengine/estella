@@ -31,8 +31,6 @@ import {
 export { CHUNK_SIZE };
 const CHUNK_TILES = CHUNK_SIZE * CHUNK_SIZE;
 
-/** The chunk stride and cell split a blob has to have been written under. */
-const RUNNING = [CHUNK_SIZE, TILE_ID_MASK, TILE_FLIP_H, TILE_FLIP_V, TILE_FLIP_D];
 const V1 = [TILEMAP_V1_CHUNK_SIZE, TILEMAP_V1_ID_MASK,
   TILEMAP_V1_FLIP_H, TILEMAP_V1_FLIP_V, TILEMAP_V1_FLIP_D];
 const V2_HEADER_BYTES = 4 + 2 * 6 + 4;

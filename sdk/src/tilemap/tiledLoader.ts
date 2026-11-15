@@ -175,15 +175,6 @@ const ENGINE_FLIP_H = 0x2000;
 const ENGINE_FLIP_V = 0x4000;
 const ENGINE_FLIP_D = 0x8000;
 
-function parseTintColorU32(val: number): { r: number; g: number; b: number; a: number } {
-    if (val === 0) return { r: 1, g: 1, b: 1, a: 1 };
-    const a = ((val >>> 24) & 0xFF) / 255;
-    const r = ((val >>> 16) & 0xFF) / 255;
-    const g = ((val >>> 8) & 0xFF) / 255;
-    const b = (val & 0xFF) / 255;
-    return { r, g, b, a: a === 0 ? 1 : a };
-}
-
 function parseTintColor(hex: string | undefined): { r: number; g: number; b: number; a: number } {
     if (!hex) return { r: 1, g: 1, b: 1, a: 1 };
     const s = hex.startsWith('#') ? hex.slice(1) : hex;

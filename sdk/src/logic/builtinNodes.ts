@@ -18,7 +18,7 @@
 
 import { aiRegistry, type AiContext } from '../ai/fsm/AiContext';
 import type { AiOutputDef, AiOutputs, AiParamDef, AiParams, AiTouches } from '../ai/fsm/registry';
-import { getEntityProperty, setEntityProperty } from '../ecs/propertyPath';
+import { getEntityProperty } from '../ecs/propertyPath';
 import { Name } from '../ecs/component';
 import type { Entity } from '../types';
 import { log } from '../util/logger';

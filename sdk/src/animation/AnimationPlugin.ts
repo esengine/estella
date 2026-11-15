@@ -15,7 +15,6 @@ import type { Entity } from '../types';
 import type { CppRegistry } from '../wasm';
 import { engineApi } from '../ecs/bridge/engineApi';
 import { log } from '../util/logger';
-import type { AnimCore } from './Tween';
 import { Tween, TweenAPI } from './Tween';
 import { SpriteAnimation, SpriteAnimationAPI, type SpriteAnimClip } from './SpriteAnimator';
 import { appRegistryAsset } from '../asset/registryLookup';

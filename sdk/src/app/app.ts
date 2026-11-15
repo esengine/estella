@@ -9,8 +9,8 @@ import { World } from '../ecs/world';
 
 import { applyAppOptions, applyColorSpace, applyFrameOptions } from './renderOptions';
 import type { QualityConfig } from '../render/quality';
-import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, rescopeSystem, type RunCondition } from '../ecs/system';
-import { builtinResource, declaredResource, ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
+import { Schedule, type SystemDef, SystemRunner, type SystemSet, mergeOrderingEdges, rescopeSystem, type RunCondition } from '../ecs/system';
+import { builtinResource, declaredResource, ResourceStorage, Time, type ResourceDef } from '../ecs/resource';
 import { Speculation, SpeculationInstance } from '../ecs/speculation';
 import { prepareAot, type AotHost } from '../ecs/aot/installAot';
 import { installNativeAot, nativeAotBindings } from '../ecs/aot/installNativeAot';
@@ -271,7 +271,7 @@ export class App {
     /** The system being run, so a scope opened inside one is filed under it. */
     private currentSystem_ = '';
     private readonly openScopes_: string[] = [];
-    private readonly frameObservers_: Array<(dtMs: number) => void> = [];
+    private frameObservers_: Array<(dtMs: number) => void> = [];
     private frame_paused_ = false;
     private user_paused_ = false;
     private step_pending_ = false;
@@ -1124,10 +1124,10 @@ export class App {
      * watch without either taking the hook from the other.
      */
     onFrameEnd(fn: (dtMs: number) => void): () => void {
-        this.frameObservers_.push(fn);
+        this.frameObservers_ = [...this.frameObservers_, fn];
         return () => {
             const i = this.frameObservers_.indexOf(fn);
-            if (i >= 0) this.frameObservers_.splice(i, 1);
+            if (i >= 0) this.frameObservers_ = this.frameObservers_.filter((_, at) => at !== i);
         };
     }
 

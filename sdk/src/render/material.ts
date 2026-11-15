@@ -7,7 +7,6 @@
  */
 
 import type { EngineApi } from '../ecs/bridge/engineApi';
-import type { ESEngineModule } from '../wasm';
 import { WasmBridge } from '../wasm/WasmBridge';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { drawPreview, previewCore } from './assetPreview';

@@ -8,7 +8,6 @@ import { UIDisplay } from '../wasm/wasm.generated';
 import type { ParticleAPI } from '../particle/ParticleAPI';
 import type { AudioAPI } from '../audio/Audio';
 import type { Entity } from '../types';
-import type { World } from '../ecs/world';
 
 /**
  * Shared timeline runtime helpers. The timeline is a

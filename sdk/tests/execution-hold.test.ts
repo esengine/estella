@@ -93,3 +93,8 @@ it('does not leave a forced step queued after interruption of a user-paused app'
     const [id,callback]=frames.entries().next().value!;frames.delete(id);callback(performance.now());
     await vi.waitFor(()=>expect(frames.size).toBe(1));expect(updates).toBe(1);expect(app.isPaused()).toBe(true);
 });
+it('a frame observer that unsubscribes itself does not skip the next one',async()=>{
+    const app=build(),seen:string[]=[];
+    const off=app.onFrameEnd(()=>{seen.push('first');off();});app.onFrameEnd(()=>seen.push('second'));
+    await app.tick(1/60);expect(seen).toEqual(['first','second']);
+});

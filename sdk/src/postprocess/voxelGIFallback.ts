@@ -26,7 +26,6 @@ import { Material } from '../render/material';
 import { SSAO_GLSL, GBUFFER_GLSL } from './sources/shared';
 
 export { VOXEL_ATLAS } from './voxelAtlas';
-import { VOXEL_ATLAS } from './voxelAtlas';
 
 const COMMON = `
 const ivec3 DIMS = ivec3(128, 64, 128);

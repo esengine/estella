@@ -232,6 +232,7 @@ export async function loadPhysicsModule(
     wasmUrl: string,
     factory?: PhysicsModuleFactory
 ): Promise<PhysicsWasmModule> {
+    void wasmUrl;
     if (!factory) {
         throw new Error(
             'PhysicsModuleLoader: factory parameter is required. ' +
