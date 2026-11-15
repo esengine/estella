@@ -5,10 +5,16 @@
  * @brief   Deferred entity/component operations
  */
 
-import { Entity } from '../types';
-import { AnyComponentDef, ComponentDef, isBuiltinComponent, Name } from './component';
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+* @file    commands.ts
+* @brief   Deferred entity/component operations
+*/
+import type { Entity } from '../types';
+import { type AnyComponentDef, type ComponentDef, isBuiltinComponent } from './component';
 import type { World } from './world';
-import { ResourceDef, ResourceStorage } from './resource';
+import { type ResourceDef, ResourceStorage } from './resource';
 import { log } from '../util/logger';
 
 /** Key order is not a difference a replay should report, so sort it away. */

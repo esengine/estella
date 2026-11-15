@@ -19,14 +19,11 @@ import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { defineResource } from '../ecs/resource';
 import {
-    defineComponent, getComponent, Camera, MeshRenderer, Transform,
+    defineComponent, Camera, MeshRenderer, Transform,
     type ComponentDef, type CameraData, type MeshRendererData, type TransformData,
 } from '../ecs/component';
 import { Assets } from '../asset/AssetPlugin';
 import type { MaterialShaderSource } from '../asset/loaders/MaterialShaderAssetLoader';
-import { platformLoadImagePixels } from '../platform/base';
-import { decodeImagePixels } from '../asset/imageDecode';
-import { decodePngData } from '../asset/pngData';
 import { Material, MATERIAL_FORMAT_VERSION } from '../render/material';
 import { BlendMode } from '../render/blend';
 import { holdShaderWarmup } from '../render/shaderWarmup';

@@ -19,7 +19,7 @@ import type { TransformData } from '../ecs/component.generated';
 import { Draw } from '../render/draw';
 import { defineResource } from '../ecs/resource';
 import { registerDrawCallback } from '../render/customDraw';
-import { RigidBody3D, CharacterController3D } from './Physics3DComponents';
+import { RigidBody3D } from './Physics3DComponents';
 import type { RigidBody3DData } from './Physics3DComponents';
 import {
     readCollider3DShapes, collider3DWireframe, placeCollider3DWireframe,

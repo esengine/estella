@@ -392,7 +392,7 @@ export class TextPlugin implements Plugin {
                 label.renderer.markDrawn(entity as number);
                 continue;
             }
-            this.layoutRetained(app, api, registry, entity, t, screen);
+            this.layoutRetained(app, api, entity, t, screen);
         }
         for (const [entity, label] of retained) {
             if (label.screen !== screen || seen.has(entity)) continue;
@@ -434,7 +434,7 @@ export class TextPlugin implements Plugin {
                     appState.retained.delete(entity);
                     continue;
                 }
-                this.layoutRetained(app, api, registry, entity as Entity, t, api.ui_isScreenDomain!(registry, entity));
+                this.layoutRetained(app, api, entity as Entity, t, api.ui_isScreenDomain!(registry, entity));
             }
             if (stale.length < CAPACITY) return;
         }
@@ -442,7 +442,7 @@ export class TextPlugin implements Plugin {
 
     /** Lay one label out in @p screen's domain and give the engine its quads. */
     private layoutRetained(
-        app: App, api: EngineApi, registry: CppRegistry,
+        app: App, api: EngineApi,
         entity: Entity, t: TextData, screen: boolean,
     ): void {
         const appState = this.stateFor(app);

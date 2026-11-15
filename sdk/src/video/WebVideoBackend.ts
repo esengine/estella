@@ -13,7 +13,6 @@ import {
     findWebGL2Context, handOverNewTexture, writeDeviceTexture, uploadBoundTextureImage,
     applyBoundTextureSampling,
 } from '../asset/glTextureUpload';
-import { linearColorSpace } from '../ecs/env';
 import { log } from '../util/logger';
 
 let nextId_ = 1;

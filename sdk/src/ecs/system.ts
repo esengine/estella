@@ -5,17 +5,22 @@
  * @brief   System definition and scheduling
  */
 
-import { AnyComponentDef } from './component';
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+* @file    system.ts
+* @brief   System definition and scheduling
+*/
+import type { AnyComponentDef } from './component';
 import { getDefaultContext } from './context';
-import { QueryDescriptor, QueryInstance, QueryArg, RemovedQueryDescriptor, RemovedQueryInstance, type QueryCost } from './query';
-import { ResDescriptor, ResMutDescriptor, ResMutInstance, ResourceStorage } from './resource';
-import { CommandsDescriptor, CommandsInstance } from './commands';
+import { type QueryDescriptor, QueryInstance, type QueryArg, type RemovedQueryDescriptor, RemovedQueryInstance, type QueryCost } from './query';
+import { type ResDescriptor, type ResMutDescriptor, ResMutInstance, ResourceStorage } from './resource';
+import { type CommandsDescriptor, CommandsInstance } from './commands';
 import {
-    EventWriterDescriptor, EventReaderDescriptor,
+    type EventWriterDescriptor, type EventReaderDescriptor,
     EventWriterInstance, EventReaderInstance,
     EventRegistry,
 } from './event';
-import type { Entity } from '../types';
 import type { World } from './world';
 import type { AotDispatcher, AotRuntime } from './aot/AotRuntime';
 import type { AotTwin } from './aot/AotSystems';
@@ -396,12 +401,6 @@ export function addSystemSetToSchedule(schedule: Schedule, set: SystemSet): void
 // =============================================================================
 // System Runner
 // =============================================================================
-
-/** A component with no fields: a query filters on it and nothing reads it. */
-function isTagDef(def: AnyComponentDef): boolean {
-    const shape = (def as { _default?: unknown })._default;
-    return typeof shape === 'object' && shape !== null && Object.keys(shape).length === 0;
-}
 
 export class SystemRunner {
     private readonly world_: World;

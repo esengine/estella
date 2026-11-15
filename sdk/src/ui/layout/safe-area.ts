@@ -11,7 +11,6 @@ import { defineComponent, registerComponent } from '../../ecs/component';
 import { Res } from '../../ecs/resource';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { ScreenLayout, type ScreenLayoutData } from '../core/screen-layout';
-import type { UICameraData } from '../core/ui-camera-info';
 import { UINode } from '../core/ui-node';
 import type { UINodeData } from '../core/ui-node';
 import { px } from '../core/dimension';
