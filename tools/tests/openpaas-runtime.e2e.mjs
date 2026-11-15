@@ -14,13 +14,13 @@ import { tmpdir } from 'node:os';
 import { chromium } from 'playwright';
 import { HOST_PAGE } from '../launchers/minigameHost.mjs';
 import { runTool } from '../lib/runTool.mjs';
+import { toolArgs } from '../lib/toolArgs.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const args = process.argv.slice(2);
-const flag = (key, fallback) => args.includes(key) ? args[args.indexOf(key) + 1] : fallback;
-const wasm = path.resolve(flag('--wasm', 'build/wasm/quickgame'));
-const out = path.resolve(flag('--out', 'output/openpaas-runtime'));
-const packer = flag('--packer', null);
+const ARGS = toolArgs({ wasm: 'build/wasm/quickgame', out: 'output/openpaas-runtime', packer: null, 'project-2d': null, 'project-3d': null });
+const wasm = path.resolve(ARGS.wasm);
+const out = path.resolve(ARGS.out);
+const packer = ARGS.packer;
 await fs.mkdir(out, { recursive: true });
 const project = await fs.mkdtemp(path.join(out, 'fixture-'));
 const report = { status: 'failed', mode: 'headless-contract-host', deviceAcceptance: 'pending', scenes: [], packages: [], errors: [] };
@@ -69,7 +69,7 @@ try {
     }
     browser = await chromium.launch({ headless: true, args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--mute-audio'] });
     for (const dimension of ['2d', '3d']) {
-        const authoredProject = flag(`--project-${dimension}`, null);
+        const authoredProject = ARGS[`project-${dimension}`];
         let exportProject = project;
         let sceneArgs = ['--scene', `assets/scenes/${dimension}.esscene`];
         if (authoredProject) {

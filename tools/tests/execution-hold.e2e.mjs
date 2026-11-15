@@ -2,9 +2,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import crypto from 'node:crypto';
 import assert from 'node:assert/strict';import {chromium} from 'playwright';
-const args=process.argv.slice(2),flag=name=>args[args.indexOf(name)+1];
-if(!args.includes('--dir'))throw Error('Expected --dir <fixture export>');
-const root=fs.realpathSync(flag('--dir')),out=path.resolve(args.includes('--out')?flag('--out'):'output/execution-hold-check');fs.mkdirSync(out,{recursive:true});
+import { toolArgs } from '../lib/toolArgs.mjs';
+const ARGS=toolArgs({dir:null,out:null});
+if(!ARGS.dir)throw Error('Expected --dir <fixture export>');
+const root=fs.realpathSync(ARGS.dir),out=path.resolve(ARGS.out??'output/execution-hold-check');fs.mkdirSync(out,{recursive:true});
 const sha=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const files=(under='')=>fs.readdirSync(path.join(root,under),{withFileTypes:true}).flatMap(entry=>{
     const file=under?`${under}/${entry.name}`:entry.name;if(entry.isDirectory())return files(file);

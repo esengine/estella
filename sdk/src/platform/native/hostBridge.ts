@@ -605,11 +605,14 @@ function hostStorage(bindings: NativeHostBindings): Pick<
             }
         }
     }
+    let failing = false;
     const flush = (): void => {
         if (!persistent) return;
-        // A string, not encoded bytes: the host writes UTF-8 itself, and a native
-        // JS engine has no TextEncoder to reach for.
-        write!(STORAGE_FILE, JSON.stringify(Object.fromEntries(entries)));
+        const stored = write!(STORAGE_FILE, JSON.stringify(Object.fromEntries(entries))) !== false;
+        if (!stored && !failing) {
+            log.error('native', 'the save could not be written — what changed since the last one that was is not on disk');
+        }
+        failing = !stored;
     };
     // Write an inherited save through now rather than at the next mutation: the
     // cache copy is never read again, and the directory it is in is the one the

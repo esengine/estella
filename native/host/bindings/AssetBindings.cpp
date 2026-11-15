@@ -26,6 +26,17 @@
 
 #include <cstdio>
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <string>
+#endif
+
 using namespace esengine;
 
 namespace eshost {
@@ -79,9 +90,43 @@ std::string pathIn(const std::string& dir, const char* key) {
     return dir + "/" + key;
 }
 
+#if defined(_WIN32)
+
+std::wstring widePath(const std::string& path) {
+    const int n = MultiByteToWideChar(CP_UTF8, 0, path.data(), (int)path.size(), nullptr, 0);
+    std::wstring wide((size_t)(n > 0 ? n : 0), L'\0');
+    if (n > 0) MultiByteToWideChar(CP_UTF8, 0, path.data(), (int)path.size(), wide.data(), n);
+    return wide;
+}
+
+FILE* openFile(const std::string& path, bool forWriting) {
+    return _wfopen(widePath(path).c_str(), forWriting ? L"wb" : L"rb");
+}
+
+bool replaceFile(const std::string& from, const std::string& to) {
+    return MoveFileExW(widePath(from).c_str(), widePath(to).c_str(),
+                       MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+}
+
+void removeFile(const std::string& path) { DeleteFileW(widePath(path).c_str()); }
+
+#else
+
+FILE* openFile(const std::string& path, bool forWriting) {
+    return fopen(path.c_str(), forWriting ? "wb" : "rb");
+}
+
+bool replaceFile(const std::string& from, const std::string& to) {
+    return rename(from.c_str(), to.c_str()) == 0;
+}
+
+void removeFile(const std::string& path) { remove(path.c_str()); }
+
+#endif
+
 esjs::Val readFileAt(const std::string& path) {
     if (path.empty()) return esjs::null();
-    FILE* f = fopen(path.c_str(), "rb");
+    FILE* f = openFile(path, false);
     if (!f) return esjs::null();
     fseek(f, 0, SEEK_END);
     const long size = ftell(f);
@@ -103,17 +148,18 @@ esjs::Val writeFileAt(const std::string& path, esjs::Val source) {
     } else {
         readByteSource(source, bytes);
     }
-    // Write a temp file and rename over the target: a crash or a kill mid-write
-    // must not leave a truncated file where a save used to be. rename(2) within
-    // one directory is atomic, so a reader sees the old file or the new one.
     const std::string tmp = path + ".tmp";
-    FILE* f = fopen(tmp.c_str(), "wb");
-    if (!f) return esjs::boolean(false);
+    FILE* f = openFile(tmp, true);
+    if (!f) {
+        ESHOST_LOGE("could not open %s for writing", tmp.c_str());
+        return esjs::boolean(false);
+    }
     const bool wrote = bytes.empty() || fwrite(bytes.data(), 1, bytes.size(), f) == bytes.size();
     const bool flushed = wrote && fflush(f) == 0;
     fclose(f);
-    if (!flushed || rename(tmp.c_str(), path.c_str()) != 0) {
-        remove(tmp.c_str());
+    if (!flushed || !replaceFile(tmp, path)) {
+        removeFile(tmp);
+        ESHOST_LOGE("could not write %s", path.c_str());
         return esjs::boolean(false);
     }
     return esjs::boolean(true);

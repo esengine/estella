@@ -7,9 +7,10 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { serveHost } from './lib/staticServer.mjs';
-const flag = name => { const at = process.argv.indexOf(name); return at < 0 ? undefined : process.argv[at+1]; };
-const dir = path.resolve(flag('--dir') ?? 'output/navigation-workshop-web');
-const out = path.resolve(flag('--out') ?? 'output/navigation-workshop-check');
+import { toolArgs } from './lib/toolArgs.mjs';
+const ARGS = toolArgs({ dir: null, out: null });
+const dir = path.resolve(ARGS.dir ?? 'output/navigation-workshop-web');
+const out = path.resolve(ARGS.out ?? 'output/navigation-workshop-check');
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const files = (under, prefix='') => fs.readdirSync(under,{withFileTypes:true}).flatMap(e=>e.isDirectory()
     ? files(path.join(under,e.name),prefix+e.name+'/') : [prefix+e.name]);

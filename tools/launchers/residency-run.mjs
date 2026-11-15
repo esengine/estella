@@ -31,6 +31,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
+import { toolArgs } from '../lib/toolArgs.mjs';
 
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 // The GPU process keeps a sandbox of its own, which ELECTRON_DISABLE_SANDBOX
@@ -42,18 +43,14 @@ if (process.platform === 'linux') app.commandLine.appendSwitch('in-process-gpu')
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
 app.commandLine.appendSwitch('force-device-scale-factor', '1');
 
-const argv = process.argv.slice(2);
-const flag = (name, fallback) => {
-  const i = argv.indexOf(`--${name}`);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : fallback;
-};
+const ARGS = toolArgs({ dir: '', script: '', w: '640', h: '360', budget: '900', log: '' });
 
-const DIR = path.resolve(flag('dir', ''));
-const SCRIPT = flag('script', '');
-const W = Number(flag('w', '640'));
-const H = Number(flag('h', '360'));
-const BUDGET = Number(flag('budget', '900'));
-const LOG = flag('log', '');
+const DIR = path.resolve(ARGS.dir);
+const SCRIPT = ARGS.script;
+const W = Number(ARGS.w);
+const H = Number(ARGS.h);
+const BUDGET = Number(ARGS.budget);
+const LOG = ARGS.log;
 const logRe = LOG ? new RegExp(LOG, 'i') : null;
 
 /** Everything a read asks the game about, in one round trip. */

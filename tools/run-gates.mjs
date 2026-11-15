@@ -26,15 +26,12 @@ import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SCOPES, GATES, gatesFor, owedSuites, relatedRun } from './gates.mjs';
+import { toolArgs } from './lib/toolArgs.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const argv = process.argv.slice(2);
-const flag = (n, d) => {
-  const i = argv.indexOf(`--${n}`);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d;
-};
+const ARGS = toolArgs({ scope: 'local', suites: 'all', jobs: '1', matrix: null, only: null, where: null, 'no-suites': false, complete: false, 'keep-going': false, plan: false });
 
-const SCOPE = flag('scope', 'local');
+const SCOPE = ARGS.scope;
 if (!SCOPES.includes(SCOPE)) {
   console.error(`run-gates: unknown scope "${SCOPE}" (have: ${SCOPES.join(', ')})`);
   process.exit(2);
@@ -52,11 +49,11 @@ const HAS_EDITOR = existsSync(path.join(ROOT, 'desktop', 'package.json'));
  *          says what it needs and the run stops, per check-suite-preconditions.
  */
 const SUITE_MODES = ['all', 'owed', 'related', 'none'];
-if (argv.includes('--no-suites')) {
+if (ARGS['no-suites']) {
   console.error('run-gates: --no-suites is now --suites none (or --suites owed).');
   process.exit(2);
 }
-const SUITE_MODE = flag('suites', 'all');
+const SUITE_MODE = ARGS.suites;
 if (!SUITE_MODES.includes(SUITE_MODE)) {
   console.error(`run-gates: unknown --suites "${SUITE_MODE}" (have: ${SUITE_MODES.join(', ')})`);
   process.exit(2);
@@ -90,23 +87,20 @@ const SUITES = BY_CHANGE ? owedSuites(changed) : SUITE_MODE;
  * a checkout without the editor drops eleven gates and a whole suite while still
  * leaving 0 — so the nightly read 69/69 green as an answer about 80.
  */
-const COMPLETE = argv.includes('--complete');
+const COMPLETE = ARGS.complete;
 
 /**
  * Survey the whole list instead of gating on it. A gate run answers "may this
  * push go out"; a scan answers "how many reds does this release have", and the
  * second question cannot be answered one re-run at a time.
  */
-const SCAN = argv.includes('--keep-going');
+const SCAN = ARGS['keep-going'];
 if (COMPLETE && SUITE_MODE === 'related') {
   console.error('run-gates: --suites related cannot be --complete — a suite run in part answers for the tests it ran.');
   process.exit(2);
 }
 /** Where to write the matrix, for a reader that is not a terminal. */
-const MATRIX = (() => {
-  const i = argv.indexOf('--matrix');
-  return i >= 0 ? argv[i + 1] : null;
-})();
+const MATRIX = ARGS.matrix;
 if (MATRIX && !SCAN) {
   console.error('run-gates: --matrix only has something to write under --keep-going.');
   process.exit(2);
@@ -136,27 +130,21 @@ const declared = GAPS.filter((g) => process.env[g.env] === g.value);
  * How many gates run at once. The list is cut at every `exclusive` gate (a build): the gates between two cuts share the pool, a cut
  * gate runs alone. Verdicts are still read in list order, so the first red is a serial run's; the other reds are named with it.
  */
-const JOBS = Math.max(1, Number(flag('jobs', '1')) || 1);
+const JOBS = Math.max(1, Number(ARGS.jobs) || 1);
 
 /**
  * Narrow to named gates. A scan finds ten reds at once and then each fix wants
  * ONE of them re-run; without this the only way to re-check a gate is to pay for
  * the hundred in front of it, which is how a fix goes unverified.
  */
-const ONLY = (() => {
-  const i = argv.indexOf('--only');
-  return i >= 0 && argv[i + 1] ? argv[i + 1].split(',').map((x) => x.trim()).filter(Boolean) : null;
-})();
+const ONLY = ARGS.only ? ARGS.only.split(',').map((x) => x.trim()).filter(Boolean) : null;
 /**
  * Narrow to the gates a scope OWNS — the ones that NAMED it — rather than
  * everything it runs. One release criterion answers for the gates a built engine
  * requires, and gates.mjs already holds which those are: naming them again in a
  * criterion would be the second list this file exists to refuse.
  */
-const WHERE = (() => {
-  const i = argv.indexOf('--where');
-  return i >= 0 && argv[i + 1] ? argv[i + 1] : null;
-})();
+const WHERE = ARGS.where || null;
 if (WHERE && !SCOPES.includes(WHERE)) {
   console.error(`run-gates: unknown --where "${WHERE}" (have: ${SCOPES.join(', ')})`);
   process.exit(2);
@@ -208,7 +196,7 @@ if (noEditor.length) {
 
 /** What this scope WOULD run, without running it — so the plan can be inspected
  *  (and checked) without paying for the suite. */
-if (argv.includes('--plan')) {
+if (ARGS.plan) {
   for (const gate of gates) console.log(`  ${gate.id}`);
   reportSuites();
   for (const g of skipped) console.log(`  not in this scope: ${g.id} — ${g.why}`);

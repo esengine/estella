@@ -19,28 +19,25 @@ import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict, resultMeasu
 import { runTool } from './lib/runTool.mjs';
 import { runElectron } from './lib/electronRun.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
+import { toolArgs } from './lib/toolArgs.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DESKTOP = path.join(ROOT, 'desktop');
 
-const argv = process.argv.slice(2);
-const flag = (n, d) => {
-  const i = argv.indexOf(`--${n}`);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : d;
-};
+const ARGS = toolArgs({ tier: 'pr', host: '', only: '', backend: 'webgl2', budget: '', shard: '', 'no-build': false, 'no-xvfb': false, 'allow-stale-engine': false });
 
-const TIER = flag('tier', 'pr');
+const TIER = ARGS.tier;
 // Which host's scenes to run. The engine's gates stand on their own, so a
 // checkout without the editor submodule runs `--host engine` and is not quietly
 // short a hundred checks — it says which list it took.
-const HOST_FILTER = flag('host', '');
-const ONLY = flag('only', '');
-const BACKEND = flag('backend', 'webgl2');
-const BUDGET = flag('budget', '');
+const HOST_FILTER = ARGS.host;
+const ONLY = ARGS.only;
+const BACKEND = ARGS.backend;
+const BUDGET = ARGS.budget;
 // One of n runners' share of the tier, every n-th scene from the i-th: `--shard 2/3`.
-const SHARD = flag('shard', '');
-const NO_BUILD = argv.includes('--no-build');
-if (argv.includes('--no-xvfb')) process.env.ESTELLA_NO_XVFB = '1';
+const SHARD = ARGS.shard;
+const NO_BUILD = ARGS['no-build'];
+if (ARGS['no-xvfb']) process.env.ESTELLA_NO_XVFB = '1';
 
 const only = ONLY ? new Set(ONLY.split(',').map((s) => s.trim())) : null;
 if (only) {

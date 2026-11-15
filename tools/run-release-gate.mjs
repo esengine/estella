@@ -22,20 +22,17 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RELEASE, CRITERIA } from './releaseGate.mjs';
+import { toolArgs } from './lib/toolArgs.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const argv = process.argv.slice(2);
-const flag = (name) => {
-  const i = argv.indexOf(`--${name}`);
-  return i >= 0 ? argv[i + 1] : null;
-};
-const ONLY = flag('only')?.split(',').map((s) => s.trim()).filter(Boolean) ?? null;
+const ARGS = toolArgs({ only: null, except: null, host: null, plan: false });
+const ONLY = ARGS.only?.split(',').map((s) => s.trim()).filter(Boolean) ?? null;
 // The complement, for the shard that takes everything the named ones did not:
 // a criterion added tomorrow lands here rather than in no job at all.
-const EXCEPT = flag('except')?.split(',').map((s) => s.trim()).filter(Boolean) ?? null;
+const EXCEPT = ARGS.except?.split(',').map((s) => s.trim()).filter(Boolean) ?? null;
 // Where this runner is standing. A criterion says which host can answer it; the
 // default is a plain Linux runner, which answers most of them.
-const HOST = flag('host') ?? 'linux';
+const HOST = ARGS.host ?? 'linux';
 
 const runnable = CRITERIA.filter((c) => c.answeredBy);
 // Whole by COMMAND: five criteria share one verify-golden run, and naming one
@@ -70,7 +67,7 @@ console.log(`release gate ${RELEASE}: ${automated.length} criteria in ${jobs.len
   + ` on host ${HOST}` + (ONLY ? ` (--only ${ONLY.join(',')})` : '')
   + (EXCEPT ? ` (--except ${EXCEPT.join(',')})` : ''));
 
-if (argv.includes('--plan')) {
+if (ARGS.plan) {
   for (const j of jobs) console.log(`  ${j.ids.join(', ')}\n      ${j.run}`);
   for (const m of manual) console.log(`  BY HAND  ${m.id} — ${m.manual}`);
   reportElsewhere();

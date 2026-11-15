@@ -14,21 +14,16 @@
  * exports, and the repo's own submodule for anyone working in the tree.
  */
 import { existsSync } from 'node:fs';
-import { spawn } from 'node:child_process';
 import { emccPath } from '../../../build-tools/utils/emscripten.js';
+import { spawnTool } from '../../../tools/lib/runTool.mjs';
 
-/**
- * Run it. Never rejects: a missing binary is a code and a message, so the step
- * that called it decides what that means. A shell on Windows because emcc is a
- * `.bat` there and nothing else in an export shells out at all.
- */
 export function runEmcc(
     cmd: string, args: string[], cwd: string,
 ): Promise<{ code: number; stderr: string }> {
     return new Promise((done) => {
-        const child = spawn(cmd, args, { cwd, shell: process.platform === 'win32' });
+        const child = spawnTool(cmd, args, { cwd });
         let stderr = '';
-        child.stderr.on('data', (d) => { stderr += String(d); });
+        child.stderr?.on('data', (d) => { stderr += String(d); });
         child.on('error', (e) => done({ code: 1, stderr: `${stderr}${e.message}` }));
         child.on('close', (code) => done({ code: code ?? 1, stderr }));
     });

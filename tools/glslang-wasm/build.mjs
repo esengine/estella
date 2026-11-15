@@ -8,19 +8,18 @@
  *
  *   node tools/glslang-wasm/build.mjs
  */
-import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureEmscriptenEnv } from '../../build-tools/utils/emscripten.js';
+import { mustRunTool } from '../lib/runTool.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const GLSLANG = path.join(ROOT, 'third_party', 'glslang');
 const BUILD = path.join(ROOT, 'build', 'wasm', 'glslang');
 const OUT_DIR = path.join(ROOT, 'build-tools', 'shader-twins');
 
-const run = (cmd, args, opts = {}) =>
-  execFileSync(cmd, args, { stdio: 'inherit', shell: process.platform === 'win32', ...opts });
+const run = mustRunTool;
 
 await ensureEmscriptenEnv();
 

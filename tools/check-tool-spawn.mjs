@@ -16,19 +16,20 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SCANNED = ['tools', 'build-tools'];
+const SCANNED = ['tools', 'build-tools', 'pipeline/src', 'pipeline/bin'];
 const HELPER = 'tools/lib/runTool.mjs';
 
 /** The shims. `node`, `git`, `cmake` and friends are real executables and fine. */
 const SHIMS = ['pnpm', 'npx', 'npm', 'yarn'];
 const SPAWNS = new RegExp(String.raw`\b(?:spawnSync|spawn|execFileSync|execFile)\(\s*['"\`](${SHIMS.join('|')})['"\`]`, 'g');
+const SHELLS = /(?<=[{,]\s*)shell\s*(?::\s*(?!false\b)[^\s,}]+|(?=\s*[,}]))/g;
 
 function scripts(dir, into = []) {
   for (const name of readdirSync(dir)) {
     if (name === 'node_modules') continue;
     const full = path.join(dir, name);
     if (statSync(full).isDirectory()) scripts(full, into);
-    else if (/\.(mjs|js|cjs)$/.test(name)) into.push(full);
+    else if (/\.(mjs|js|cjs|ts)$/.test(name) && !name.endsWith('.d.ts')) into.push(full);
   }
   return into;
 }
@@ -44,25 +45,33 @@ for (const dir of SCANNED) {
         rel,
         line: text.slice(0, m.index).split('\n').length,
         what: m[0],
-        shim: m[1],
+        why: `node cannot spawn ${m[1]} on windows without a shell`,
+      });
+    }
+    for (const m of text.matchAll(SHELLS)) {
+      violations.push({
+        rel,
+        line: text.slice(0, m.index).split('\n').length,
+        what: m[0],
+        why: 'a shell re-splits the line, so an argument with a space or & arrives broken',
       });
     }
   }
 }
 
 if (violations.length > 0) {
-  console.error(`\n✗ ${violations.length} site(s) spawn a package-manager shim directly:\n`);
+  console.error(`\n✗ ${violations.length} site(s) spawn a package-manager shim directly or pass a shell by hand:\n`);
   for (const v of violations) {
     console.error(`  ${v.rel}:${v.line}  ${v.what}…`);
-    console.error(`    node cannot spawn ${v.shim} on windows without a shell\n`);
+    console.error(`    ${v.why}\n`);
   }
   console.error(`Use \`runTool\` from ${HELPER}, which picks the launch for the OS and`);
   console.error('reports a process that never started as one.\n');
   process.exit(1);
 }
 
-const users = scripts(path.join(ROOT, 'tools'))
+const users = SCANNED.flatMap((dir) => scripts(path.join(ROOT, dir)))
   .filter((f) => path.relative(ROOT, f).split(path.sep).join('/') !== HELPER)
-  .filter((f) => /\brunTool\(/.test(readFileSync(f, 'utf8')))
+  .filter((f) => /\b(?:runTool|mustRunTool|spawnTool)\(/.test(readFileSync(f, 'utf8')))
   .length;
-console.log(`check-tool-spawn: ${users} tool(s) launch pnpm/npx through ${HELPER} — none does it by hand.`);
+console.log(`check-tool-spawn: ${users} file(s) launch a shim or a batch file through ${HELPER} — none does it by hand.`);
