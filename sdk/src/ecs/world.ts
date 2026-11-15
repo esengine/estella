@@ -472,10 +472,10 @@ export class World {
      * stop the others or the spawn itself.
      */
     onSpawn(callback: (entity: Entity) => void): () => void {
-        this.spawnCallbacks_.push(callback);
+        this.spawnCallbacks_ = [...this.spawnCallbacks_, callback];
         return () => {
             const idx = this.spawnCallbacks_.indexOf(callback);
-            if (idx !== -1) this.spawnCallbacks_.splice(idx, 1);
+            if (idx !== -1) this.spawnCallbacks_ = this.spawnCallbacks_.filter((_, i) => i !== idx);
         };
     }
 

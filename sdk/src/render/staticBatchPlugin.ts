@@ -370,7 +370,9 @@ export class StaticBatchPlugin implements Plugin {
             if (alive.length === g.parts.length) continue;
             // A part went away: draw the rest from a smaller merge, or one by one when only one is left.
             state.busy_ = true;
-            void this.shrink(app, state, assets, g, alive).finally(() => { state.busy_ = false; });
+            void this.shrink(app, state, assets, g, alive)
+                .catch((e) => log.error('staticBatch', 'shrinking a static batch failed', e))
+                .finally(() => { state.busy_ = false; });
             return;
         }
     }
