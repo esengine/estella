@@ -435,9 +435,12 @@ index: (gx: number, gy: number) => number
 isNavigable: (p: NavPoint, opts?: NavQueryOptions) => boolean
 isWalkable: (gx: number, gy: number) => boolean
 nearestWalkable: (gx: number, gy: number, maxRadius?: number, clearance?: number) => Cell | null
+originV: number
 originX: number
 originY: number
 originZ: number
+plane: "xy" | "xz"
+planeV: (p: NavPoint) => number
 queryWorldPath: (from: NavPoint, to: NavPoint, opts?: NavQueryOptions) => NavPathResult
 setCost: (gx: number, gy: number, cost: number) => void
 setObstructed: (gx: number, gy: number, obstructed: boolean) => void
@@ -455,6 +458,7 @@ static prototype: NavGrid
 cellSize: number
 height: number
 origin: { x: number; y: number; z?: number; } | undefined
+plane: "xy" | "xz" | undefined
 walkable: ArrayLike<number> | undefined
 width: number
 ```

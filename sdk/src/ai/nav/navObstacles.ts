@@ -103,14 +103,16 @@ export function applyAreasToGrid(
         const inverse = { x: -box.rotation.x, y: -box.rotation.y, z: -box.rotation.z, w: box.rotation.w };
         const gx0 = Math.max(0, Math.ceil((box.center.x - reach - grid.originX) / cs));
         const gx1 = Math.min(grid.width - 1, Math.floor((box.center.x + reach - grid.originX) / cs));
-        const gy0 = Math.max(0, Math.ceil((box.center.y - reach - grid.originY) / cs));
-        const gy1 = Math.min(grid.height - 1, Math.floor((box.center.y + reach - grid.originY) / cs));
+        const centerV = grid.planeV(box.center);
+        const gy0 = Math.max(0, Math.ceil((centerV - reach - grid.originV) / cs));
+        const gy1 = Math.min(grid.height - 1, Math.floor((centerV + reach - grid.originV) / cs));
         for (let gy = gy0; gy <= gy1; gy++) {
             for (let gx = gx0; gx <= gx1; gx++) {
+                const cell = grid.cellToWorld(gx, gy);
                 const local = q.rotate(inverse, {
-                    x: grid.originX + gx * cs - box.center.x,
-                    y: grid.originY + gy * cs - box.center.y,
-                    z: grid.originZ - box.center.z,
+                    x: cell.x - box.center.x,
+                    y: cell.y - box.center.y,
+                    z: cell.z - box.center.z,
                 });
                 if (Math.abs(local.x) > box.halfExtents.x) continue;
                 if (Math.abs(local.y) > box.halfExtents.y) continue;
@@ -192,14 +194,16 @@ export function applyObstaclesToGrid(grid: NavGrid, obstacles: readonly NavObsta
         const inverse = { x: -box.rotation.x, y: -box.rotation.y, z: -box.rotation.z, w: box.rotation.w };
         const gx0 = Math.max(0, Math.ceil((box.center.x - reach - grid.originX) / cs));
         const gx1 = Math.min(grid.width - 1, Math.floor((box.center.x + reach - grid.originX) / cs));
-        const gy0 = Math.max(0, Math.ceil((box.center.y - reach - grid.originY) / cs));
-        const gy1 = Math.min(grid.height - 1, Math.floor((box.center.y + reach - grid.originY) / cs));
+        const centerV = grid.planeV(box.center);
+        const gy0 = Math.max(0, Math.ceil((centerV - reach - grid.originV) / cs));
+        const gy1 = Math.min(grid.height - 1, Math.floor((centerV + reach - grid.originV) / cs));
         for (let gy = gy0; gy <= gy1; gy++) {
             for (let gx = gx0; gx <= gx1; gx++) {
+                const cell = grid.cellToWorld(gx, gy);
                 const local = q.rotate(inverse, {
-                    x: grid.originX + gx * cs - box.center.x,
-                    y: grid.originY + gy * cs - box.center.y,
-                    z: grid.originZ - box.center.z,
+                    x: cell.x - box.center.x,
+                    y: cell.y - box.center.y,
+                    z: cell.z - box.center.z,
                 });
                 if (Math.abs(local.x) > box.halfExtents.x) continue;
                 if (Math.abs(local.y) > box.halfExtents.y) continue;

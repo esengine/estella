@@ -34,9 +34,8 @@ export interface NavGridOptions {
     height: number;
     /** World pixels per cell (square). */
     cellSize: number;
-    /** World position of cell (0,0)'s centre. Its `z` is the depth every waypoint
-     *  comes back at — the plane the scene is drawn on. Defaults to the origin. */
     origin?: { x: number; y: number; z?: number };
+    plane?: 'xy' | 'xz';
     /**
      * Walkability, row-major `width * height`, 1 = walkable / 0 = blocked.
      * Defaults to fully walkable. Copied in, not retained.
@@ -50,8 +49,8 @@ export interface NavGridOptions {
  * NavGrid itself stays direction-agnostic.
  */
 export class NavGrid implements NavSurface {
-    /** The grid lies in x/y, so off it is toward whoever is looking at the scene. */
-    readonly up: Vec3 = { x: 0, y: 0, z: 1 };
+    readonly plane: 'xy' | 'xz';
+    readonly up: Vec3;
     readonly width: number;
     readonly height: number;
     readonly cellSize: number;
@@ -79,6 +78,8 @@ export class NavGrid implements NavSurface {
         this.originX = opts.origin?.x ?? 0;
         this.originY = opts.origin?.y ?? 0;
         this.originZ = opts.origin?.z ?? 0;
+        this.plane = opts.plane ?? 'xy';
+        this.up = this.plane === 'xz' ? { x: 0, y: 1, z: 0 } : { x: 0, y: 0, z: 1 };
 
         const n = this.width * this.height;
         this.walkable = new Uint8Array(n);
@@ -180,20 +181,20 @@ export class NavGrid implements NavSurface {
 
     private clearance_: Uint8Array | null = null;
 
-    /** Centre of cell `(gx, gy)` in world space. */
+    get originV(): number { return this.plane === 'xz' ? this.originZ : this.originY; }
+
+    planeV(p: NavPoint): number { return this.plane === 'xz' ? p.z ?? 0 : p.y; }
+
     cellToWorld(gx: number, gy: number): Vec3 {
-        return {
-            x: this.originX + gx * this.cellSize,
-            y: this.originY + gy * this.cellSize,
-            z: this.originZ,
-        };
+        return this.plane === 'xz'
+            ? { x: this.originX + gx * this.cellSize, y: this.originY, z: this.originZ + gy * this.cellSize }
+            : { x: this.originX + gx * this.cellSize, y: this.originY + gy * this.cellSize, z: this.originZ };
     }
 
-    /** Cell containing a world point. May be out of bounds — caller checks. */
     worldToCell(p: NavPoint): Cell {
         return {
             x: Math.round((p.x - this.originX) / this.cellSize),
-            y: Math.round((p.y - this.originY) / this.cellSize),
+            y: Math.round((this.planeV(p) - this.originV) / this.cellSize),
         };
     }
 
@@ -232,17 +233,19 @@ export class NavGrid implements NavSurface {
         if (radius === 0) return true;
         if (!Number.isFinite(radius)) return false;
         const half = this.cellSize / 2;
-        if (p.x-radius < this.originX-half || p.y-radius < this.originY-half
+        const v = this.planeV(p);
+        const originV = this.originV;
+        if (p.x-radius < this.originX-half || v-radius < originV-half
             || p.x+radius > this.originX+(this.width-1)*this.cellSize+half
-            || p.y+radius > this.originY+(this.height-1)*this.cellSize+half) return false;
+            || v+radius > originV+(this.height-1)*this.cellSize+half) return false;
         const x0=Math.max(0,Math.ceil((p.x-radius-half-this.originX)/this.cellSize));
         const x1=Math.min(this.width-1,Math.floor((p.x+radius+half-this.originX)/this.cellSize));
-        const y0=Math.max(0,Math.ceil((p.y-radius-half-this.originY)/this.cellSize));
-        const y1=Math.min(this.height-1,Math.floor((p.y+radius+half-this.originY)/this.cellSize));
+        const y0=Math.max(0,Math.ceil((v-radius-half-originV)/this.cellSize));
+        const y1=Math.min(this.height-1,Math.floor((v+radius+half-originV)/this.cellSize));
         for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++) {
             if(this.isWalkable(x,y))continue;
             const dx=Math.max(0,Math.abs(p.x-(this.originX+x*this.cellSize))-half);
-            const dy=Math.max(0,Math.abs(p.y-(this.originY+y*this.cellSize))-half);
+            const dy=Math.max(0,Math.abs(v-(originV+y*this.cellSize))-half);
             if(dx*dx+dy*dy < radius*radius-1e-8)return false;
         }
         return true;
@@ -275,22 +278,26 @@ export class NavGrid implements NavSurface {
      */
     describe(sink: NavSurfaceSink): void {
         const h = this.cellSize / 2;
-        const quad: Vec3[] = [
-            { x: 0, y: 0, z: this.originZ }, { x: 0, y: 0, z: this.originZ },
-            { x: 0, y: 0, z: this.originZ }, { x: 0, y: 0, z: this.originZ },
-        ];
-        const a: Vec3 = { x: 0, y: 0, z: this.originZ };
-        const b: Vec3 = { x: 0, y: 0, z: this.originZ };
+        const xz = this.plane === 'xz';
+        const corner = (): Vec3 => this.cellToWorld(0, 0);
+        const put = (out: Vec3, u: number, v: number): void => {
+            out.x = u;
+            if (xz) out.z = v; else out.y = v;
+        };
+        const quad: Vec3[] = [corner(), corner(), corner(), corner()];
+        const a: Vec3 = corner();
+        const b: Vec3 = corner();
+        const originV = this.originV;
 
         for (let gy = 0; gy < this.height; gy++) {
             for (let gx = 0; gx < this.width; gx++) {
                 if (!this.isWalkable(gx, gy)) continue;
                 const cx = this.originX + gx * this.cellSize;
-                const cy = this.originY + gy * this.cellSize;
-                quad[0]!.x = cx - h; quad[0]!.y = cy - h;
-                quad[1]!.x = cx + h; quad[1]!.y = cy - h;
-                quad[2]!.x = cx + h; quad[2]!.y = cy + h;
-                quad[3]!.x = cx - h; quad[3]!.y = cy + h;
+                const cy = originV + gy * this.cellSize;
+                put(quad[0]!, cx - h, cy - h);
+                put(quad[1]!, cx + h, cy - h);
+                put(quad[2]!, cx + h, cy + h);
+                put(quad[3]!, cx - h, cy + h);
                 sink.face(quad);
 
                 // The four sides that face something unwalkable — the outline of
@@ -301,8 +308,8 @@ export class NavGrid implements NavSurface {
                     if (this.isWalkable(gx + dx, gy + dy)) continue;
                     const p = quad[e]!;
                     const q = quad[(e + 1) % 4]!;
-                    a.x = p.x; a.y = p.y;
-                    b.x = q.x; b.y = q.y;
+                    a.x = p.x; a.y = p.y; a.z = p.z;
+                    b.x = q.x; b.y = q.y; b.z = q.z;
                     sink.border(a, b);
                 }
             }
