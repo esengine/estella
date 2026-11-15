@@ -65,6 +65,7 @@ targets:
       # Core Text names the font file the glyph rasterizer parses (main_ios.mm).
       - sdk: CoreText.framework
       - sdk: Foundation.framework
+      - sdk: Network.framework
       # miniaudio's CoreAudio backend (native_audio.cpp), linked at build time
       # because it forces MA_NO_RUNTIME_LINKING on Apple.
       - sdk: AVFoundation.framework
