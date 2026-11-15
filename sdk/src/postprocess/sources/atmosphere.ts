@@ -10,6 +10,7 @@ import { registerEffectSources } from '../effectSources';
 import { CLOUD_SHADOW_PARAMS } from '../cloudShadowParams';
 import { rain2dEffects } from './rain2d';
 import { fog2dEffects } from './fog2d';
+import { starfieldEffects } from './starfield';
 import { SSAO_GLSL, SSAO_WGSL, PUDDLE_GLSL, PUDDLE_WGSL, BASIN_GLSL, BASIN_WGSL, GBUFFER_GLSL, GBUFFER_WGSL } from './shared';
 
 /** The sky's clouds, as both of its passes draw them: the half-size pass that works them out, and the composite for the pixels it has no answer for. */
@@ -3145,4 +3146,5 @@ void main() {
 
 export function registerAtmosphereEffectSources(): void {
     registerEffectSources(atmosphereEffects);
+    registerEffectSources(starfieldEffects);
 }

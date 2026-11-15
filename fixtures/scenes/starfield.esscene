@@ -1,0 +1,151 @@
+{
+ "version": 4,
+ "name": "starfield",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 300
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 60,
+      "nearPlane": 1,
+      "farPlane": 5000,
+      "isActive": true,
+      "priority": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Ball",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "scale": {
+       "x": 1.5,
+       "y": 1.5,
+       "z": 1.5
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:sphere",
+      "color": {
+       "r": 0,
+       "g": 1,
+       "b": 0,
+       "a": 1
+      },
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Ambient",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 2,
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "intensity": 1,
+      "environment": "/scenes/handed-sky.esenv",
+      "drawEnvironment": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Post",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "PostProcessVolume",
+     "data": {
+      "isGlobal": true,
+      "priority": 0,
+      "weight": 1,
+      "effects": [
+       {
+        "type": "starfield",
+        "enabled": true,
+        "uniforms": {
+         "u_intensity": 8,
+         "u_density": 0.12,
+         "u_size": 2.5,
+         "u_band": 0,
+         "u_bandTilt": 25,
+         "u_bandTurn": 0
+        }
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}
