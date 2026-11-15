@@ -140,6 +140,12 @@ export function timeOfDayAt(hour: number, latitude = 40, declination = 15, north
     };
 }
 
+export function timeScaleOfLight(time: TimeOfDayState, sun: boolean, litBySky: boolean): { scale: number; tint: [number, number, number] } {
+    if (sun) return { scale: time.light, tint: time.lightTint };
+    if (litBySky) return { scale: 1, tint: [1, 1, 1] };
+    return { scale: time.sky, tint: time.skyTint };
+}
+
 /** The state the frame is under, or null when no TimeOfDay is. Set by the weather system, read by the volumes. */
 let current: { state: TimeOfDayState; drive: number; lightsApplied: boolean } | null = null;
 

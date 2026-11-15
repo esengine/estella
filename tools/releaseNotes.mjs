@@ -5060,4 +5060,6 @@ export const NOTED = {
     {"note": "A spawn or frame-end callback that unsubscribes itself no longer makes the next one miss that call."},
   "chore(sdk): the engine package is checked for unused code and type-only imports like the other packages - tsconfig gains noUnusedLocals, noUnusedParameters, isolatedModules and verbatimModuleSyntax, and the 126 unused imports, locals, parameters, fields and functions it found are gone (54 of them heap-view parameters the pointer-accessor generator now names only where a body reads them). 13 UI constants nothing read are removed. The emitted chunks import the same modules as before":
     {"internal": "Compiler checks and unused code inside the engine package; the emitted modules import what they did."},
+  "fix(sky): the hour does not dim an ambient light the sky already lights - with Light the Scene on, the sky a TimeOfDay moves is the environment of every Ambient light that names none, and it darkens as the sun sets; the clock scaled and tinted that light by the hour as well (0.17 of its strength just after sunset), so at dusk the ground under a bright sky was black; such a light is left as authored, and an Ambient light with a colour or an environment of its own is scaled as before":
+    { note: "Dusk is not black under a sky that lights the scene." },
 };
