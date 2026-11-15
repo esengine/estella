@@ -1,5 +1,6 @@
 import { addPlugin, defineSystem, GetWorld, Res, Time, Input, Transform, MeshRenderer, Light, Material, Playthrough } from 'esengine';
 import type { Entity, World } from 'esengine';
+import { installAudio } from './audio';
 import { SHOTS, SHOT_SECONDS, clamp, eyeOf, lookRotation, tourOrbit, type Orbit } from './flight';
 import { helm, mulQuat, turnBy, type Quat } from './helm';
 import { installHud } from './hud';
@@ -39,6 +40,7 @@ addPlugin({
         const facts = { ready: false, frame: 0, time: 0, throttle: 0, tour: true, shot: 0, eyeX: 0, eyeY: 0, eyeZ: 0, gate: 0, gatePassed: 0, transits: 0, flash: 0, motes: 0, strobe: 0 };
         app.insertResource(Playthrough, { facts });
         installHud(app);
+        installAudio(app);
         const ids = new Map<string, Entity>();
         let clock = 0;
         let wanted = 0.65;

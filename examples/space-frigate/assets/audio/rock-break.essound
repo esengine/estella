@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "duration": 2.2,
+  "gain": 0.8,
+  "lowpass": 4500,
+  "reverb": {
+    "size": 0.35,
+    "mix": 0.2,
+    "kind": "room"
+  },
+  "layers": [
+    {
+      "id": "thump",
+      "source": "sine",
+      "freq": [
+        [
+          0,
+          90
+        ],
+        [
+          0.3,
+          38
+        ]
+      ],
+      "decay": 0.2,
+      "gain": 1
+    },
+    {
+      "id": "crunch",
+      "source": "noise",
+      "color": "pink",
+      "band": [
+        150,
+        1200
+      ],
+      "seed": 31,
+      "decay": 0.12,
+      "gain": 0.8,
+      "filters": [
+        {
+          "type": "lowpass",
+          "freq": 1800
+        }
+      ]
+    },
+    {
+      "id": "rumble",
+      "source": "noise",
+      "color": "brown",
+      "seed": 32,
+      "decay": 0.5,
+      "gain": 0.6,
+      "filters": [
+        {
+          "type": "lowpass",
+          "freq": 160
+        }
+      ]
+    },
+    {
+      "id": "debris",
+      "source": "noise",
+      "band": [
+        300,
+        1800
+      ],
+      "seed": 33,
+      "length": 0.04,
+      "decay": 0.015,
+      "gain": 0.5,
+      "scatter": {
+        "count": 28,
+        "over": 0.9,
+        "early": 2.2,
+        "gain": [
+          0.15,
+          0.6
+        ],
+        "pan": 0.6,
+        "fade": 0.7
+      }
+    },
+    {
+      "id": "ore-low",
+      "source": "modes",
+      "start": 0.3,
+      "gain": 0.3,
+      "modes": [
+        [
+          880,
+          1,
+          0.35
+        ],
+        [
+          1760,
+          0.2,
+          0.15
+        ]
+      ]
+    },
+    {
+      "id": "ore-high",
+      "source": "modes",
+      "start": 0.42,
+      "gain": 0.3,
+      "modes": [
+        [
+          1174.66,
+          1,
+          0.45
+        ],
+        [
+          2349.32,
+          0.2,
+          0.2
+        ]
+      ]
+    }
+  ]
+}
