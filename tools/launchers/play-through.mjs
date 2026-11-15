@@ -41,6 +41,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
+import { toolArgs } from '../lib/toolArgs.mjs';
 
 // Every other launcher has this and this one did not, so on a runner with no GPU
 // Chromium blocklisted WebGL2, the game drew nothing, and the flagship criterion
@@ -54,21 +55,17 @@ app.commandLine.appendSwitch('disable-gpu-sandbox');
 if (process.platform === 'linux') app.commandLine.appendSwitch('in-process-gpu');
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
 
-const argv = process.argv.slice(2);
-const flag = (name, fallback) => {
-  const i = argv.indexOf(`--${name}`);
-  return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : fallback;
-};
+const ARGS = toolArgs({ dir: '', route: '', out: '', w: '960', h: '540', budget: '6000', log: '', trace: false });
 
-const DIR = path.resolve(flag('dir', ''));
-const ROUTE = flag('route', '');
-const OUT = flag('out', '');
-const W = Number(flag('w', '960'));
-const H = Number(flag('h', '540'));
-const BUDGET = Number(flag('budget', '6000'));
-const LOG = flag('log', '');
+const DIR = path.resolve(ARGS.dir);
+const ROUTE = ARGS.route;
+const OUT = ARGS.out;
+const W = Number(ARGS.w);
+const H = Number(ARGS.h);
+const BUDGET = Number(ARGS.budget);
+const LOG = ARGS.log;
 const logRe = LOG ? new RegExp(LOG, 'i') : null;
-const TRACE = argv.includes('--trace');
+const TRACE = ARGS.trace;
 
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',

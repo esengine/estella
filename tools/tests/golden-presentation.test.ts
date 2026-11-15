@@ -36,6 +36,7 @@ it.each(['ci', 'local', 'worker', 'display', 'timeout'])('golden package present
               export function spawnSync(_command,args){record({kind:'export',args});return {status:0,stdout:'',stderr:''};}
             `, loader: 'js' };
             return { contents: `export const ROOT=${JSON.stringify(process.cwd())};
+              export const TIERS=['pr','nightly','release'];
               export const atTier=()=>[{id:'fixture',targets:['web','playable','wechat','douyin']}];
               export const sharesOf=(projects)=>[projects];
               export const projectDir=()=>${JSON.stringify(path.join(temp, 'project'))};
