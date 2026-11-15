@@ -129,6 +129,12 @@ add_executable(test_mapped_file
 target_include_directories(test_mapped_file PRIVATE ${CMAKE_SOURCE_DIR}/native/host)
 add_test(NAME test_mapped_file COMMAND test_mapped_file)
 
+add_executable(test_ws_frame
+    net/test_ws_frame.cpp
+)
+target_include_directories(test_ws_frame PRIVATE ${CMAKE_SOURCE_DIR}/native/host)
+add_test(NAME test_ws_frame COMMAND test_ws_frame)
+
 # The glyph SDF generator, byte for byte against the transform with no shortcuts.
 add_executable(test_sdf_generator
     text/test_sdf_generator.cpp
