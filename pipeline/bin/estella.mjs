@@ -20,6 +20,7 @@ const USAGE = `usage: node pipeline/bin/estella.mjs create <template> <dir> [--n
        node pipeline/bin/estella.mjs luban gen|check <projectDir>
        node pipeline/bin/estella.mjs proto gen|check <projectDir>
        node pipeline/bin/estella.mjs export <projectDir> [options]
+       node pipeline/bin/estella.mjs adopt <projectDir>
        node pipeline/bin/estella.mjs import-model <file.gltf|file.glb|file.fbx> [outDir]
                                      [--project <dir>] [--scale <n>]
                                      [--specular-map color|orm] [--lightmap-uv] [--lods <0-3>]
@@ -136,6 +137,13 @@ function parseArgs(argv) {
     }
     const sheet = rest.indexOf('--sheet');
     return { command, source: path.resolve(projectDir), sheet: sheet >= 0 && rest[sheet + 1] ? path.resolve(rest[sheet + 1]) : null };
+  }
+  if (command === 'adopt') {
+    if (!projectDir) {
+      console.error(USAGE);
+      process.exit(2);
+    }
+    return { command, projectDir: path.resolve(projectDir) };
   }
   if (command === 'draw-image') {
     const option = (name) => { const at = rest.indexOf(name); return at >= 0 ? rest[at + 1] : undefined; };
@@ -951,6 +959,24 @@ if (opts.command === 'import-model' || opts.command === 'import-gltf') {
     cleanupMeta();
   }
   process.exit(imported > 0 ? 0 : 1);
+}
+
+if (opts.command === 'adopt') {
+  const { mod: db, cleanup } = await loadPipeline(
+    path.join(PIPELINE, 'src', 'assets', 'assetDb.ts'), 'assetDb.mjs');
+  let ok = false;
+  try {
+    const scan = await db.scanAssetDatabase(opts.projectDir, { write: false });
+    for (const file of scan.adopted) console.log(`${file}: registered`);
+    for (const w of scan.warnings) console.warn(`  ! ${w}`);
+    console.log(`${scan.adopted.length} file${scan.adopted.length === 1 ? '' : 's'} registered, ${scan.index.entries.length} in the project`);
+    ok = scan.ok;
+  } catch (err) {
+    console.error(`adopt: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    cleanup();
+  }
+  process.exit(ok ? 0 : 1);
 }
 
 if (opts.command === 'draw-image') {
