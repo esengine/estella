@@ -5040,4 +5040,6 @@ export const NOTED = {
     { note: "A VFX showcase example." },
   "fix(particles): a particle's new inputs stay within its eight vertex slots, and the snapshots that record the emitter's shape follow it":
     { note: "Particles glow in HDR, fade into the scene and wear away." },
+  "chore(editor): the submodule moves to the gallery text of the VFX showcase":
+    { note: "A VFX showcase example." },
 };
