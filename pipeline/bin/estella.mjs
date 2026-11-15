@@ -6,6 +6,7 @@ import path from 'node:path';
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { availableParallelism } from 'node:os';
 import { installedTemplateDir, iosTemplateSources } from '../../build-tools/utils/nativeTemplate.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -25,7 +26,7 @@ const USAGE = `usage: node pipeline/bin/estella.mjs create <template> <dir> [--n
                                      [--specular-map color|orm] [--lightmap-uv] [--lods <0-3>]
        node pipeline/bin/estella.mjs import-hdr <file.hdr> [outDir] [--face-size <n>] [--sky-width <n>]
        node pipeline/bin/estella.mjs bake-scene <scene.esscene> [--check]
-       node pipeline/bin/estella.mjs bake-model <file.esmodel> [--sheet <file.png>]
+       node pipeline/bin/estella.mjs bake-model <file.esmodel> [--sheet <file.png>] [--jobs <n>] [--no-cache]
        node pipeline/bin/estella.mjs package-openpaas <exportDir> --config <local.json> --out <game.sp>
 
   --platform <id>     a built-in (web, desktop, wechat, douyin, kuaishou, bilibili, playable, android, ios)
@@ -132,8 +133,16 @@ function parseArgs(argv) {
       console.error(USAGE);
       process.exit(2);
     }
-    const sheet = rest.indexOf('--sheet');
-    return { command, source: path.resolve(projectDir), sheet: sheet >= 0 && rest[sheet + 1] ? path.resolve(rest[sheet + 1]) : null };
+    const sheet = rest.indexOf('--sheet'), jobs = rest.indexOf('--jobs');
+    const asked = jobs >= 0 ? Number(rest[jobs + 1]) : NaN;
+    if (jobs >= 0 && !(Number.isInteger(asked) && asked >= 1)) {
+      console.error('--jobs takes a whole number, 1 or more');
+      process.exit(2);
+    }
+    return {
+      command, source: path.resolve(projectDir), sheet: sheet >= 0 && rest[sheet + 1] ? path.resolve(rest[sheet + 1]) : null,
+      jobs: jobs >= 0 ? asked : availableParallelism(), cache: !rest.includes('--no-cache'),
+    };
   }
   if (command === 'package-openpaas') {
     const config = rest.indexOf('--config'), out = rest.indexOf('--out');
@@ -619,6 +628,13 @@ function sweepStaleBuildDirs(srcDir) {
   }
 }
 
+function projectRootOf(dir) {
+  for (let at = dir; ; at = path.dirname(at)) {
+    if (existsSync(path.join(at, 'project.esproject'))) return at;
+    if (path.dirname(at) === at) return null;
+  }
+}
+
 async function loadPipeline(entry, outName) {
   const { outfile, cleanup } = await bundlePipeline(entry, outName);
   try {
@@ -948,11 +964,21 @@ if (opts.command === 'bake-model') {
     const dir = path.dirname(opts.source);
     const stem = path.basename(opts.source).replace(/\.esmodel$/i, '');
     const started = Date.now();
-    const baked = await files.bakeModelFiles(JSON.parse(readFileSync(opts.source, 'utf8')), stem, { sheet: !!opts.sheet });
+    const root = opts.cache ? projectRootOf(dir) : null;
+    const baked = await files.bakeModelFiles(JSON.parse(readFileSync(opts.source, 'utf8')), stem, {
+      sheet: !!opts.sheet, jobs: opts.jobs, ...(root ? { cacheDir: path.join(root, '.esengine', 'cache', 'model-bake') } : {}),
+    });
     for (const file of baked.files) {
       const out = path.join(dir, file.name);
       writeFileSync(out, file.bytes);
-      await meta.adoptOrphan(out, file.importer);
+      if ((await meta.adoptOrphan(out, file.importer)) === 'has-meta' && file.importer?.maxSize) {
+        const sidecar = `${out}.meta`;
+        const kept = JSON.parse(readFileSync(sidecar, 'utf8'));
+        if (kept.importer && kept.importer.maxSize > 0 && kept.importer.maxSize < file.importer.maxSize) {
+          kept.importer.maxSize = file.importer.maxSize;
+          writeFileSync(sidecar, `${JSON.stringify(kept, null, 2)}\n`);
+        }
+      }
       console.log(`${path.relative(process.cwd(), out)}: ${file.bytes.length} bytes`);
     }
     await meta.adoptOrphan(opts.source);
@@ -962,7 +988,7 @@ if (opts.command === 'bake-model') {
     }
     const { report } = baked;
     for (const w of report.warnings) console.warn(`  ! ${w}`);
-    console.log(JSON.stringify({ seconds: (Date.now() - started) / 1000, vertices: report.vertices, triangles: report.triangles, bounds: report.bounds.size, normalBake: report.normalBake, renderer: baked.renderer }, null, 2));
+    console.log(JSON.stringify({ seconds: (Date.now() - started) / 1000, vertices: report.vertices, triangles: report.triangles, bounds: report.bounds.size, normalBake: report.normalBake, probes: baked.probes, renderer: baked.renderer }, null, 2));
     ok = true;
   } catch (err) {
     console.error(`bake-model: ${err instanceof Error ? err.message : String(err)}`);

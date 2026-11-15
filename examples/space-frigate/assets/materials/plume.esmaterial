@@ -8,19 +8,23 @@
   "cull": 0,
   "properties": {
     "u_core": {
-      "r": 0.8,
-      "g": 0.93,
+      "r": 0.25,
+      "g": 0.5,
       "b": 1.0,
       "a": 1
     },
     "u_edge": {
-      "r": 0.08,
-      "g": 0.32,
-      "b": 1.0,
+      "r": 0.03,
+      "g": 0.14,
+      "b": 0.7,
       "a": 1
     },
-    "u_strength": 4,
+    "u_strength": 1.2,
     "u_length": 11,
-    "u_flicker": 0.12
+    "u_falloff": 2.6,
+    "u_fade": 1.6,
+    "u_diamonds": 0,
+    "u_knots": 0,
+    "u_flicker": 0.08
   }
 }

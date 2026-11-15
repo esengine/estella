@@ -148,6 +148,54 @@ export function spliceMipChain(base: Uint8Array, below: Uint8Array): Uint8Array 
     return joinMipLevels([base, below]);
 }
 
+export function stackStrips(strips: Uint8Array[]): Uint8Array {
+    const layouts = strips.map((p) => readKtx2Layout(p));
+    if (strips.length === 0 || layouts.some((l) => !l)) throw new Error('stackStrips: not a KTX2');
+    const top = layouts[0]!;
+    const base = strips[0]!;
+    let height = 0, length = 0, uncompressed = 0;
+    layouts.forEach((layout, i) => {
+        const l = layout!;
+        if (l.colorModel !== KHR_DF_MODEL_UASTC) throw new Error('stackStrips: every strip must be UASTC');
+        if (l.levels.length !== 1) throw new Error(`stackStrips: a strip has ${l.levels.length} levels, not 1`);
+        if (l.scheme !== top.scheme || l.srgb !== top.srgb) throw new Error('stackStrips: the strips were not encoded alike');
+        if (l.sgdLength) throw new Error('stackStrips: global data cannot be stacked');
+        if (l.width !== top.width) throw new Error(`stackStrips: a strip is ${l.width} wide under one of ${top.width}`);
+        if (i < strips.length - 1 && l.height % 4 !== 0) throw new Error(`stackStrips: a strip of ${l.height} rows above another does not end on a block`);
+        height += l.height;
+        length += l.levels[0]!.length;
+        uncompressed += l.levels[0]!.uncompressed;
+    });
+    const align = top.scheme === SCHEME_NONE ? UASTC_BLOCK_BYTES : 1;
+    let cursor = HEADER_BYTES + LEVEL_ENTRY_BYTES;
+    const dfdAt = cursor;
+    cursor += top.dfd.length;
+    const kvdAt = top.kvd.length ? cursor : 0;
+    cursor += top.kvd.length;
+    cursor = Math.ceil(cursor / align) * align;
+    const dataAt = cursor;
+    const out = new Uint8Array(dataAt + length);
+    const v = new DataView(out.buffer);
+    out.set(base.subarray(0, 48), 0);
+    v.setUint32(24, height, true);
+    v.setUint32(40, 1, true);
+    v.setUint32(48, dfdAt, true); v.setUint32(52, top.dfd.length, true);
+    v.setUint32(56, kvdAt, true); v.setUint32(60, top.kvd.length, true);
+    v.setBigUint64(64, 0n, true); v.setBigUint64(72, 0n, true);
+    out.set(base.subarray(top.dfd.offset, top.dfd.offset + top.dfd.length), dfdAt);
+    if (top.kvd.length) out.set(base.subarray(top.kvd.offset, top.kvd.offset + top.kvd.length), kvdAt);
+    v.setBigUint64(HEADER_BYTES, BigInt(dataAt), true);
+    v.setBigUint64(HEADER_BYTES + 8, BigInt(length), true);
+    v.setBigUint64(HEADER_BYTES + 16, BigInt(uncompressed), true);
+    let at = dataAt;
+    strips.forEach((strip, i) => {
+        const level = layouts[i]!.levels[0]!;
+        out.set(strip.subarray(level.offset, level.offset + level.length), at);
+        at += level.length;
+    });
+    return out;
+}
+
 /**
  * One UASTC KTX2 of every level the parts hold, in order: each part's first level
  * must be half the size of the previous part's last. The first part's header and

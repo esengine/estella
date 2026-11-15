@@ -7,6 +7,8 @@
   "depthWrite": true,
   "cull": 1,
   "properties": {
+    "u_clearcoat": 0.22,
+    "u_clearcoatRoughness": 0.24,
     "u_emissive": {
       "r": 16,
       "g": 16,

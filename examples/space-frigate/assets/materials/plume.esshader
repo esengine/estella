@@ -6,6 +6,10 @@
 #pragma param u_edge color default(0.1,0.35,1,1)
 #pragma param u_strength float default(6) range(0,60)
 #pragma param u_length float default(11) range(0.1,100)
+#pragma param u_falloff float default(2) range(0.2,8)
+#pragma param u_fade float default(2.2) range(0.2,8)
+#pragma param u_diamonds float default(5) range(0,12)
+#pragma param u_knots float default(0.8) range(0,4)
 #pragma param u_flicker float default(0.15) range(0,1)
 
 #pragma fragment
@@ -32,11 +36,11 @@ void main() {
 #ifdef MESH_NORMALS
     facing = abs(dot(normalize(v_worldNormal), viewDirection(v_worldXYZ)));
 #endif
-    float body = pow(facing, 1.6);
-    float fade = pow(1.0 - along, 2.2);
+    float body = pow(facing, u_falloff);
+    float fade = pow(1.0 - along, u_fade);
+    float knots = pow(max(0.0, cos(along * 6.2831853 * u_diamonds)), 6.0) * exp(-along * 3.2);
     float pulse = 1.0 + u_flicker * sin(u_time.x * 37.0 + along * 26.0) * (0.4 + along);
-    float shock = 0.75 + 0.25 * sin(along * 46.0 - u_time.x * 9.0);
-    vec3 tone = mix(u_edge.rgb, u_core.rgb, body * (1.0 - along * 0.7));
-    fragColor = vec4(tone * (body * fade * pulse * shock * u_strength), 1.0);
+    vec3 tone = mix(u_edge.rgb, u_core.rgb, body * (1.0 - along));
+    fragColor = vec4(tone * (body * fade * pulse * (1.0 + u_knots * knots) * u_strength), 1.0);
 }
 #pragma end

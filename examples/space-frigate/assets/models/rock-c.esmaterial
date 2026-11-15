@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:model",
+  "blendMode": 9,
+  "depthTest": true,
+  "depthWrite": true,
+  "cull": 1,
+  "properties": {
+    "u_normalMap": "rock-c_normal.png",
+    "u_occlusionMap": "rock-c_occlusion.png",
+    "u_occlusionStrength": 1,
+    "u_metallicRoughnessMap": "rock-c_surface.png",
+    "u_roughness": 1,
+    "u_metallic": 1
+  }
+}

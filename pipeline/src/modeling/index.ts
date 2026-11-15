@@ -13,7 +13,7 @@ export { needsPreparing, prepareModeling } from './booleans';
 export { tree, treeLeafPicture, treeParts, TREE_BARKS, TREE_SHAPES, type TreeBark, type TreeParams, type TreeShape } from './tree';
 export { piecesPrefabOf, type FractureParams } from './fracture';
 export { bakeModel, HAIR_CUTOFF, modelMaterialDoc, type BakedModel, type ModelReport } from './modelBake';
-export { bakeNormalMap, type NormalBakeReport, type NormalMap } from './normalBake';
+export { bakeNormalMap, planNormalBake, runProbes, startNormalBake, type BakeProbes, type NormalBakePlan, type NormalBakeReport, type NormalBakeStart, type NormalMap } from './normalBake';
 export type { FaceSelector } from './polyMesh';
 export { DEFAULT_MODEL_VIEWS, MODEL_VIEWS, renderModelSheet, renderRigSheet, type ModelSheet, type ModelViewName, type RigViewOptions } from './modelViews';
 export { controllerOf, jointPositions, morphedPositions, posedPositions, prefabOf, timelineOf, type AnimationSource, type ControllerSource, type PoseSolve, type PreviewGround, type RigSource, type ShapeSource } from './rig';
