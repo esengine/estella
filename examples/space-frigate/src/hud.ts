@@ -1,62 +1,35 @@
 import {
-    Assets, Camera, Canvas, Name, ScaleMode, ScreenOverlay, Text, Transform, TextAlign, TextVerticalAlign, UINode, UIPointerEvents, UIPositionType, UIVisual, UIVisualType, UIWorldAnchor, FillMethod, FillOrigin,
-    defineSystem, GetWorld, Res, Time, percent, placeOnScreen, px, spawnUIEntity,
+    Assets, Camera, FillMethod, FillOrigin, Input, Name, ScreenOverlay, TextAlign, Transform, UIPointerEvents, UIPositionType, UIVisual, UIVisualType,
+    defineSystem, GetWorld, Res, Time, percent, px, spawnUIEntity,
 } from 'esengine';
 import type { App, Entity, World } from 'esengine';
 import { SHOTS, SHOT_SECONDS, clamp } from './flight';
-import { DRIFTING_ROCKS, ship } from './shipState';
+import {
+    ALERT, AMBER, DESIGN, EDGE, FONTS, HAZE, ICE, TEXTURES, createKit, ease, pad, rgb, stamp,
+    type Frame, type Log, type Rgba, type Rock, type Textures,
+} from './hudKit';
+import { buildScope } from './hudScope';
+import { buildTargets } from './hudTargets';
+import { ship } from './shipState';
 
-type Rgba = { r: number; g: number; b: number; a: number };
-
-const rgb = (hex: number, a = 1): Rgba => ({ r: ((hex >> 16) & 255) / 255, g: ((hex >> 8) & 255) / 255, b: (hex & 255) / 255, a });
-const ICE = 0xe6f2f7, HAZE = 0xa6bdc9, AMBER = 0xffa348, ALERT = 0xff5a3d;
-
-const DESIGN = { width: 1600, height: 900 };
-const EDGE = 40;
 const GAUGE = { box: 320, sweep: 0.75, fullScale: 440, redline: 400, labels: 114, command: 106 };
-const WAYPOINT = { x: 0, y: 14, z: 2600 };
-const LEG_KM = 86;
 const BAR_CELLS = 24;
-const HULL_HALF = 52;
+const ROCKS = 46;
+const MAJOR_FROM = 40;
+const LOG_LINES = 4;
+const BOOT_SECONDS = 2.6;
 
-const TEXTURES = {
-    dial: 'assets/ui/gauge-dial.esimage',
-    speed: 'assets/ui/gauge-speed.esimage',
-    speedHot: 'assets/ui/gauge-speed-hot.esimage',
-    drive: 'assets/ui/gauge-drive.esimage',
-    command: 'assets/ui/gauge-command.esimage',
-    plate: 'assets/ui/plate.esimage',
-    barTrack: 'assets/ui/bar-track.esimage',
-    barFill: 'assets/ui/bar-fill.esimage',
-    bracket: 'assets/ui/bracket.esimage',
-    diamond: 'assets/ui/diamond.esimage',
-    chevron: 'assets/ui/chevron.esimage',
-    body: 'assets/ui/body.esimage',
-    dot: 'assets/ui/dot.esimage',
-    pip: 'assets/ui/pip.esimage',
-    keycap: 'assets/ui/keycap.esimage',
-    scrimBottom: 'assets/ui/scrim-bottom.esimage',
-    scrimTop: 'assets/ui/scrim-top.esimage',
-    shade: 'assets/ui/shade.esimage',
-} as const;
+type Loaded = { textures: Textures; fonts: { regular: number; strong: number } };
 
-const FONTS = { regular: 'assets/ui/fonts/ChakraPetch-Regular.ttf', strong: 'assets/ui/fonts/ChakraPetch-SemiBold.ttf' } as const;
-
-type Loaded = { textures: Record<keyof typeof TEXTURES, number>; fonts: Record<keyof typeof FONTS, number> };
-
-interface Box { left?: number; top?: number; right?: number; bottom?: number; width?: number; height?: number }
-
-interface Label { size: number; color: Rgba; strong?: boolean; align?: TextAlign; spacing?: number; content?: string }
-
-const state = { ready: false, loadMs: 0, error: '', waypointClamped: true };
+const state = { ready: false, loadMs: 0, error: '', waypointClamped: true, selected: -1, current: -1, locked: false, booted: false, picks: [] as { index: number; x: number; y: number }[] };
 
 export function installHud(app: App): void {
     let loading: Promise<Loaded> | null = null;
     let loaded: Loaded | null = null;
-    let update: ((world: World, dt: number) => void) | null = null;
+    let update: ((dt: number, input: InputState) => void) | null = null;
 
-    app.addSystem(defineSystem([GetWorld(), Res(Time)], (world, time) => {
-        if (update) { update(world, Math.min(time.delta, 0.05)); return; }
+    app.addSystem(defineSystem([GetWorld(), Res(Time), Res(Input)], (world, time, input) => {
+        if (update) { update(Math.min(time.delta, 0.05), input); return; }
         if (world.findEntityByName('Camera') === null) return;
         if (!loading) {
             const began = Date.now();
@@ -74,98 +47,26 @@ export function installHud(app: App): void {
     }));
 }
 
+type InputState = { isKeyDown(key: string): boolean; isMouseButtonDown(button: number): boolean };
+
 async function load(app: App): Promise<Loaded> {
     const assets = app.getResource(Assets);
     const names = Object.keys(TEXTURES) as (keyof typeof TEXTURES)[];
     const textures = await Promise.all(names.map((name) => assets.loadTexture(TEXTURES[name])));
     const [regular, strong] = await Promise.all([assets.loadFont(FONTS.regular), assets.loadFont(FONTS.strong)]);
     return {
-        textures: Object.fromEntries(names.map((name, i) => [name, textures[i]!.handle])) as Loaded['textures'],
+        textures: Object.fromEntries(names.map((name, i) => [name, textures[i]!.handle])) as Textures,
         fonts: { regular: regular.handle, strong: strong.handle },
     };
 }
 
-function build(app: App, world: World, { textures, fonts }: Loaded): (world: World, dt: number) => void {
-    const node = (parent: Entity, name: string, box: Box, visual?: Parameters<typeof spawnUIEntity>[0]['visual']): Entity => {
-        const absolute = { position: UIPositionType.Absolute, pointerEvents: UIPointerEvents.None };
-        const e = spawnUIEntity({
-            world, parent,
-            node: {
-                ...absolute,
-                ...(box.left !== undefined ? { insetLeft: px(box.left) } : {}),
-                ...(box.top !== undefined ? { insetTop: px(box.top) } : {}),
-                ...(box.right !== undefined ? { insetRight: px(box.right) } : {}),
-                ...(box.bottom !== undefined ? { insetBottom: px(box.bottom) } : {}),
-                ...(box.width !== undefined ? { width: px(box.width) } : {}),
-                ...(box.height !== undefined ? { height: px(box.height) } : {}),
-            },
-            ...(visual ? { visual } : {}),
-        });
-        world.insert(e, Name, { value: name });
-        return e;
-    };
-    const image = (parent: Entity, name: string, box: Box, texture: number, color: Rgba = rgb(0xffffff)): Entity =>
-        node(parent, name, box, { visualType: UIVisualType.Image, texture, color });
-    const sliced = (parent: Entity, name: string, box: Box, texture: number, border: number, color: Rgba = rgb(0xffffff)): Entity =>
-        node(parent, name, box, { visualType: UIVisualType.NineSlice, texture, color, sliceBorder: { x: border, y: border, z: border, w: border } });
-    const solid = (parent: Entity, name: string, box: Box, color: Rgba): Entity => node(parent, name, box, { visualType: UIVisualType.SolidColor, color });
-    const label = (parent: Entity, name: string, box: Box, l: Label): Entity => {
-        const e = node(parent, name, box);
-        world.insert(e, Text, Text.create({
-            content: l.content ?? '', font: l.strong === false ? fonts.regular : fonts.strong, fontSize: l.size, color: l.color,
-            align: l.align ?? TextAlign.Left, verticalAlign: TextVerticalAlign.Middle, wordWrap: false, letterSpacing: l.spacing ?? 0, lineHeight: 1,
-            shadowColor: { r: 0, g: 0.02, b: 0.04, a: 0.9 }, shadowBlur: 6, shadowOffsetX: 0, shadowOffsetY: 1,
-        }));
-        return e;
-    };
-
-    const said = new Map<Entity, string>();
-    const say = (e: Entity, content: string): void => {
-        if (said.get(e) === content) return;
-        said.set(e, content);
-        world.update(e, Text, (t) => { t.content = content; });
-    };
-    const inked = new Map<Entity, string>();
-    const ink = (e: Entity, color: Rgba, component: typeof Text | typeof UIVisual = Text): void => {
-        const key = `${color.r.toFixed(3)},${color.g.toFixed(3)},${color.b.toFixed(3)},${color.a.toFixed(3)}`;
-        if (inked.get(e) === key) return;
-        inked.set(e, key);
-        if (component === Text) world.update(e, Text, (t) => { t.color = color; });
-        else world.update(e, UIVisual, (v) => { v.color = color; });
-    };
-    const filled = new Map<Entity, number>();
-    const fill = (e: Entity, amount: number): void => {
-        const to = Math.round(clamp(amount, 0, 1) * 2000) / 2000;
-        if (filled.get(e) === to) return;
-        filled.set(e, to);
-        world.update(e, UIVisual, (v) => { v.fillAmount = to; });
-    };
-    const shown = new Map<Entity, number>();
-    const fade = (e: Entity, opacity: number): void => {
-        const to = Math.round(clamp(opacity, 0, 1) * 100) / 100;
-        if (shown.get(e) === to) return;
-        shown.set(e, to);
-        world.update(e, UINode, (n) => { n.opacity = to; });
-    };
-
-    const placed = new Map<Entity, string>();
-    const place = (e: Entity, left: number, top: number): void => {
-        const x = Math.round(left * 10) / 10, y = Math.round(top * 10) / 10;
-        if (placed.get(e) === `${x},${y}`) return;
-        placed.set(e, `${x},${y}`);
-        world.update(e, UINode, (n) => { n.insetLeft = px(x); n.insetTop = px(y); });
-    };
-
-    const canvas = spawnUIEntity({ world, node: { pointerEvents: UIPointerEvents.None } });
-    world.insert(canvas, Name, { value: 'Hud' });
-    world.insert(canvas, Canvas, { designResolution: { x: DESIGN.width, y: DESIGN.height }, scaleMode: ScaleMode.FixedHeight });
-    const root = spawnUIEntity({ world, parent: canvas, node: { fill: true, pointerEvents: UIPointerEvents.None } });
-    world.insert(root, Name, { value: 'HudRoot' });
+function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number, input: InputState) => void {
+    const kit = createKit(world, textures, fonts);
+    const { root, node, image, sliced, solid, label, say, ink, fill, fade, place } = kit;
 
     image(root, 'ScrimTop', { left: 0, right: 0, top: 0, height: 170 }, textures.scrimTop);
-    image(root, 'ShadeIdentity', { left: -120, top: -70, width: 680, height: 270 }, textures.shade);
+    image(root, 'ShadeIdentity', { left: -120, top: -70, width: 680, height: 320 }, textures.shade);
     image(root, 'ShadeView', { right: -120, top: -70, width: 560, height: 270 }, textures.shade);
-    image(root, 'ShadeHints', { left: 380, right: 380, bottom: -60, height: 190 }, textures.shade);
     image(root, 'ScrimBottom', { left: 0, right: 0, bottom: 0, height: 300 }, textures.scrimBottom);
 
     const identity = node(root, 'Identity', { left: EDGE, top: 34, width: 420, height: 64 });
@@ -231,8 +132,8 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (world: Wor
     const commandLabel = label(tag, 'CommandLabel', { left: 76, top: 9, width: 56, height: 14 }, { size: 10, color: rgb(AMBER), spacing: 2.4, content: 'SET', align: TextAlign.Right });
     const commandValue = label(tag, 'CommandValue', { left: 76, top: 30, width: 56, height: 20 }, { size: 15, color: rgb(AMBER), align: TextAlign.Right, spacing: 0.5 });
 
-    const hints = node(root, 'Hints', { left: 0, right: 0, bottom: EDGE - 4, height: 24 });
-    const HINTS: readonly (readonly [string, number, string])[] = [['W', 24, ''], ['S', 24, 'THRUST'], ['DRAG', 50, 'ORBIT'], ['1 – 6', 50, 'VIEWS'], ['SPACE', 58, 'AUTO TOUR']];
+    const hints = node(root, 'Hints', { left: 0, right: 0, bottom: 12, height: 24 });
+    const HINTS: readonly (readonly [string, number, string])[] = [['W', 24, ''], ['S', 24, 'THRUST'], ['DRAG', 50, 'ORBIT'], ['1 – 6', 50, 'VIEWS'], ['SPACE', 58, 'TOUR'], ['T', 24, 'TARGET'], ['CLICK', 54, 'LOCK'], ['R', 24, 'RELEASE']];
     const wide = HINTS.reduce((sum, [, cap, text]) => sum + cap + (text ? 14 + text.length * 8.6 + 26 : 5), -26);
     const row = spawnUIEntity({ world, parent: hints, node: { ...{ position: UIPositionType.Absolute, pointerEvents: UIPointerEvents.None }, insetLeft: percent(50), insetTop: px(0), width: px(wide), height: px(24), marginLeft: px(-wide / 2), opacity: 0.78 } });
     world.insert(row, Name, { value: 'HintRow' });
@@ -246,57 +147,57 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (world: Wor
         cursor += 14 + text.length * 8.6 + 26;
     }
 
-    const planet = world.findEntityByName('Planet');
-    const body = node(root, 'Body', { left: 0, top: 0, width: 24, height: 24 });
-    world.update(body, UINode, (n) => { n.marginLeft = px(-12); n.marginTop = px(-34); });
-    const globe = planet === null ? null : world.get(planet, Transform);
-    const altitude = globe ? Math.hypot(globe.position.x, globe.position.y, globe.position.z) - globe.scale.x : 0;
-    world.insert(body, UIWorldAnchor, { clampToEdges: false });
-    image(body, 'BodyMark', { left: -4, top: -4, width: 32, height: 32 }, textures.body);
-    solid(body, 'BodyLeader', { left: 26, top: 12, width: 28, height: 1 }, rgb(ICE, 0.45));
-    label(body, 'BodyName', { left: 62, top: -3, width: 220, height: 14 }, { size: 11, color: rgb(ICE), spacing: 3, content: 'KARIS IV' });
-    const bodyRange = label(body, 'BodyRange', { left: 62, top: 14, width: 220, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 2, strong: false });
 
-    const marker = node(root, 'Waypoint', { left: 0, top: 0, width: 72, height: 72 });
-    world.update(marker, UINode, (n) => { n.marginLeft = px(-36); n.marginTop = px(-36); });
-    world.insert(marker, UIWorldAnchor, { offset: { ...WAYPOINT }, clampToEdges: true, edgeMargin: 64, edgeInsets: { left: 12, top: 76, right: 12, bottom: 340 } });
-    const bracket = sliced(marker, 'WaypointBracket', { left: -6, top: -6, width: 84, height: 84 }, textures.bracket, 34);
-    const diamond = image(marker, 'WaypointDiamond', { left: 20, top: 20, width: 32, height: 32 }, textures.diamond);
-    const chevron = image(marker, 'WaypointChevron', { left: 12, top: 12, width: 48, height: 48 }, textures.chevron);
-    const callout = sliced(marker, 'WaypointCallout', { left: 86, top: 2, width: 232, height: 68 }, textures.plate, 26);
-    const waypointName = label(callout, 'WaypointName', { left: 14, top: 9, width: 190, height: 14 }, { size: 10, color: rgb(AMBER), spacing: 2.6 });
-    const waypointRange = label(callout, 'WaypointRange', { left: 14, top: 24, width: 190, height: 24 }, { size: 19, color: rgb(ICE), spacing: 0.6 });
-    const waypointEta = label(callout, 'WaypointEta', { left: 14, top: 47, width: 190, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 2, strong: false });
-    const camera = world.findEntityByName('Camera');
+    const logLines = Array.from({ length: LOG_LINES }, (_, i) => label(root, `Log${i}`, { left: EDGE + 16, top: 122 + i * 17, width: 420, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 1.6, strong: false }));
+    const entries: { text: string; tone: number; at: number }[] = [];
+    const log: Log = {
+        say(text, tone = HAZE) {
+            if (entries.length > 0 && entries[entries.length - 1]!.text === text) return;
+            entries.push({ text, tone, at: ship.time });
+            if (entries.length > LOG_LINES) entries.shift();
+        },
+    };
 
-    const rocks: Entity[] = [];
-    for (let i = 0; i < DRIFTING_ROCKS; i++) {
-        const rock = world.findEntityByName(`Rock${i}`);
-        if (rock !== null) rocks.push(rock);
+    const rocks: Rock[] = [];
+    for (let i = 0; i < ROCKS; i++) {
+        const entity = world.findEntityByName(`Rock${i}`);
+        if (entity !== null) rocks.push({ entity, index: i, big: i >= MAJOR_FROM });
     }
-    const contact = node(root, 'Contact', { left: 0, top: 0, width: 44, height: 44 });
-    world.update(contact, UINode, (n) => { n.marginLeft = px(-22); n.marginTop = px(-22); });
-    world.insert(contact, UIWorldAnchor, { clampToEdges: false });
-    image(contact, 'ContactBracket', { left: 0, top: 0, width: 44, height: 44 }, textures.bracket, rgb(ICE, 0.85));
-    const contactName = label(contact, 'ContactName', { left: 50, top: 8, width: 160, height: 13 }, { size: 10, color: rgb(ICE), spacing: 2.4 });
-    const contactRange = label(contact, 'ContactRange', { left: 50, top: 23, width: 160, height: 13 }, { size: 10, color: rgb(HAZE), spacing: 1.6, strong: false });
-    let tracked = -1;
+    const camera = world.findEntityByName('Camera');
+    const targets = buildTargets(kit, rocks, world.findEntityByName('Planet'), log);
+    const scope = buildScope(kit, rocks, targets.probe);
+    const groups: readonly (readonly [Entity, number, number])[] = [[identity, 0, 1], [view, 0.15, 1], [systems, 0.35, 1], [gauge, 0.5, 1], [row, 1.2, 0.78]];
 
-    const model = { reactor: 0.18, capacitor: 1, heat: 0, leg: 3, range: LEG_KM, primed: false };
-    const pad = (n: number, width: number): string => String(Math.max(0, Math.round(n))).padStart(width, '0');
-    const stamp = (seconds: number): string => `${pad(Math.floor(seconds / 60), 2)}:${pad(Math.floor(seconds % 60), 2)}`;
+    const model = { reactor: 0.18, capacitor: 1, heat: 0, primed: false };
+    const began = ship.time;
+    let full = false, hot = false;
 
-    return (_world, dt) => {
+    return (dt, input) => {
+        const screen = app.getResource(ScreenOverlay);
+        const across = screen.vpH > 0 ? (DESIGN.height * screen.vpW) / screen.vpH : DESIGN.width;
+        const eye = camera === null ? null : world.get(camera, Transform), glass = camera === null ? null : world.get(camera, Camera);
+        const frame: Frame = {
+            dt, time: ship.time, across,
+            lens: eye && glass ? { position: eye.worldPosition, rotation: eye.worldRotation, perspective: true, fov: glass.fov, orthoSize: glass.orthoSize, near: glass.nearPlane } : null,
+            pointer: { left: screen.pointerX + across / 2, top: DESIGN.height / 2 - screen.pointerY },
+            held: (key) => input.isKeyDown(key),
+            pressing: input.isMouseButtonDown(0),
+        };
+        const age = ship.time - began;
+        const boot = clamp(age / BOOT_SECONDS, 0, 1);
+        for (const [group, from, most] of groups) fade(group, most * ease((age - from) / 0.6));
+        if (boot >= 1 && !state.booted) { state.booted = true; log.say('HELM DISPLAY ONLINE'); }
+        const test = clamp((age - 0.6) / 1.6, 0, 1), sweep = Math.sin(Math.PI * test), settle = test * test * (3 - 2 * test);
+        const shown = (actual: number): number => sweep * (1 - settle) + actual * settle;
+
         const load = 0.18 + 0.74 * ship.throttle * ship.throttle;
         const reserve = 1 - 0.52 * ship.throttle * ship.throttle;
         if (!model.primed) { model.reactor = load; model.capacitor = reserve; model.heat = ship.throttle * ship.throttle; model.primed = true; }
         model.reactor += (load - model.reactor) * Math.min(1, dt * 1.6);
         model.capacitor += (reserve - model.capacitor) * Math.min(1, dt * 0.35);
         model.heat += (ship.throttle * ship.throttle - model.heat) * Math.min(1, dt * 0.45);
-        model.range -= (ship.speed * dt) / 1000;
-        if (model.range <= 0) { model.range += LEG_KM; model.leg = (model.leg % 9) + 1; }
 
-        say(clock, `PATROL LEG ${pad(model.leg, 2)}   T+ ${stamp(ship.time)}`);
+        say(clock, `OUTER PATROL   T+ ${stamp(ship.time)}`);
 
         if (ship.tour) {
             say(viewTitle, `VIEW ${ship.shot + 1} / ${SHOTS.length}`);
@@ -330,16 +231,17 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (world: Wor
             ink(rows[i]!.value, color);
         });
 
-        const pace = clamp(ship.speed / GAUGE.fullScale, 0, 1);
-        const fast = ship.speed >= GAUGE.redline;
+        const speed = shown(ship.speed / GAUGE.fullScale) * GAUGE.fullScale;
+        const pace = clamp(speed / GAUGE.fullScale, 0, 1);
+        const fast = speed >= GAUGE.redline;
         fill(hotRing, pace * GAUGE.sweep);
         fill(speedRing, Math.min(pace, GAUGE.redline / GAUGE.fullScale) * GAUGE.sweep);
-        fill(driveRing, ship.throttle * GAUGE.sweep);
-        fill(commandRing, ship.wanted * GAUGE.sweep);
-        const pipAt = around(ship.wanted, GAUGE.command);
+        fill(driveRing, shown(ship.throttle) * GAUGE.sweep);
+        fill(commandRing, shown(ship.wanted) * GAUGE.sweep);
+        const pipAt = around(shown(ship.wanted), GAUGE.command);
         place(commandPip, pipAt.x - 8, pipAt.y - 8);
-        const figures = pad(ship.speed, 3);
-        const lead = figures.length - String(Math.round(ship.speed)).length;
+        const figures = pad(speed, 3);
+        const lead = figures.length - String(Math.round(speed)).length;
         digits.forEach((digit, i) => {
             say(digit, figures[i]!);
             ink(digit, i < lead ? rgb(ICE, 0.2) : fast ? rgb(AMBER) : rgb(ICE));
@@ -351,100 +253,26 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (world: Wor
         fade(commandValue, changing ? 1 : 0.45);
         fade(commandPip, changing ? 0.7 + 0.3 * Math.sin(ship.time * 9) : 1);
 
-        const anchor = world.get(marker, UIWorldAnchor);
-        const screen = app.getResource(ScreenOverlay);
-        const across = screen.vpH > 0 ? (DESIGN.height * screen.vpW) / screen.vpH : DESIGN.width;
-        const at = world.get(marker, UINode).insetLeft.value;
-        const flipped = at > across - 380;
-        place(callout, flipped ? -246 : 86, 2);
-        fade(bracket, anchor.clamped ? 0 : 1);
-        fade(diamond, anchor.clamped ? 0 : 1);
-        fade(chevron, anchor.clamped ? 0.75 + 0.25 * Math.sin(ship.time * 5) : 0);
-        if (anchor.clamped && camera !== null) {
-            const eye = world.get(camera, Transform);
-            const q = eye.worldRotation, from = eye.worldPosition;
-            const v = { x: WAYPOINT.x - from.x, y: WAYPOINT.y - from.y, z: WAYPOINT.z - from.z };
-            const tx = 2 * (-q.y * v.z + q.z * v.y), ty = 2 * (-q.z * v.x + q.x * v.z), tz = 2 * (-q.x * v.y + q.y * v.x);
-            const right = v.x + q.w * tx + (-q.y * tz + q.z * ty), up = v.y + q.w * ty + (-q.z * tx + q.x * tz);
-            const turn = Math.atan2(up, right) / 2;
-            world.update(chevron, Transform, (t) => { t.rotation = { x: 0, y: 0, z: Math.sin(turn), w: Math.cos(turn) }; });
-        }
-        say(waypointName, `NAV ${pad(model.leg, 2)}  KESTREL GATE`);
-        say(waypointRange, `${model.range.toFixed(1)} KM`);
-        say(waypointEta, ship.speed > 1 ? `ETA ${stamp((model.range * 1000) / ship.speed)}` : 'ETA  HOLDING');
 
-        say(bodyRange, `ALTITUDE ${Math.round(altitude).toLocaleString('en-US').replace(/,/g, ' ')} KM`);
-        if (globe && camera !== null) {
-            const eye = world.get(camera, Transform);
-            const held = world.get(body, UIWorldAnchor);
-            const q = eye.worldRotation, from = eye.worldPosition, c = globe.position, r = globe.scale.x;
-            const up = { x: 2 * (q.x * q.y - q.w * q.z), y: 1 - 2 * (q.x * q.x + q.z * q.z), z: 2 * (q.y * q.z + q.w * q.x) };
-            const d = { x: c.x - from.x, y: c.y - from.y, z: c.z - from.z };
-            const far = Math.hypot(d.x, d.y, d.z) || 1;
-            d.x /= far; d.y /= far; d.z /= far;
-            const along = up.x * d.x + up.y * d.y + up.z * d.z;
-            const side = { x: up.x - along * d.x, y: up.y - along * d.y, z: up.z - along * d.z };
-            const span = Math.hypot(side.x, side.y, side.z) || 1;
-            side.x /= span; side.y /= span; side.z /= span;
-            const level = { x: d.y * side.z - d.z * side.y, y: d.z * side.x - d.x * side.z, z: d.x * side.y - d.y * side.x };
-            const sin = Math.min(1, r / far), cos = Math.sqrt(1 - sin * sin);
-            const lens = world.get(camera, Camera);
-            const view = { position: from, rotation: q, perspective: true, fov: lens.fov, orthoSize: lens.orthoSize, near: lens.nearPlane };
-            const frame = { width: across, height: DESIGN.height };
-            const bow = placeOnScreen({ x: 0, y: 0, z: HULL_HALF }, view, frame, false, 0), stern = placeOnScreen({ x: 0, y: 0, z: -HULL_HALF }, view, frame, false, 0);
-            const keel = { x: stern.left - bow.left, y: stern.top - bow.top };
-            const length = keel.x * keel.x + keel.y * keel.y || 1;
-            let limb = held.offset, best = Infinity;
-            for (let step = 0; step <= 48; step++) {
-                const turn = (step % 2 === 0 ? 1 : -1) * Math.ceil(step / 2) * 0.05;
-                const cs = Math.cos(turn) * cos, sn = Math.sin(turn) * cos;
-                const p = {
-                    x: Math.round(c.x + r * (cs * side.x + sn * level.x - sin * d.x)),
-                    y: Math.round(c.y + r * (cs * side.y + sn * level.y - sin * d.y)),
-                    z: Math.round(c.z + r * (cs * side.z + sn * level.z - sin * d.z)),
-                };
-                const on = placeOnScreen(p, view, frame, false, 0);
-                const room = Math.min(on.left - (on.top > 520 ? 480 : 120), frame.width - 420 - on.left, on.top - 150, frame.height - 240 - on.top);
-                const t = clamp(((on.left - bow.left) * keel.x + (on.top - bow.top) * keel.y) / length, 0, 1);
-                const clear = bow.behind || stern.behind ? 999 : Math.hypot(on.left - bow.left - keel.x * t, on.top - bow.top - keel.y * t);
-                if (on.onScreen && room > 0 && clear > 110 && Math.abs(turn) < best) { best = Math.abs(turn); limb = p; }
-            }
-            if (held.offset.x !== limb.x || held.offset.y !== limb.y || held.offset.z !== limb.z) world.update(body, UIWorldAnchor, (anchored) => { anchored.offset = limb; });
-            fade(body, best < Infinity && held.onScreen ? 1 : 0);
-        } else {
-            fade(body, 0);
-        }
-        if (camera !== null && rocks.length > 0) {
-            const eye = world.get(camera, Transform), lens = world.get(camera, Camera);
-            const view = { position: eye.worldPosition, rotation: eye.worldRotation, perspective: true, fov: lens.fov, orthoSize: lens.orthoSize, near: lens.nearPlane };
-            const frame = { width: across, height: DESIGN.height };
-            const open = (i: number): number => {
-                const at = world.get(rocks[i]!, Transform).position;
-                const on = placeOnScreen(at, view, frame, false, 0);
-                const room = Math.min(on.left - 90, frame.width - 300 - on.left, on.top - 140, frame.height - 340 - on.top);
-                return on.onScreen && room > 0 ? Math.hypot(at.x, at.y, at.z) : Infinity;
-            };
-            if (tracked < 0 || open(tracked) === Infinity) {
-                let best = Infinity;
-                tracked = -1;
-                for (let i = 0; i < rocks.length; i++) {
-                    const far = open(i);
-                    if (far < best) { best = far; tracked = i; }
-                }
-                if (tracked >= 0) {
-                    const target = rocks[tracked]!;
-                    world.update(contact, UIWorldAnchor, (anchored) => { anchored.target = target; });
-                }
-            }
-            if (tracked >= 0) {
-                const at = world.get(rocks[tracked]!, Transform).position;
-                say(contactName, `ROCK ${pad(tracked + 1, 2)}`);
-                say(contactRange, `${Math.round(Math.hypot(at.x, at.y, at.z)).toLocaleString('en-US').replace(/,/g, ' ')} M`);
-            }
-            fade(contact, tracked >= 0 && world.get(contact, UIWorldAnchor).onScreen ? 1 : 0);
-        } else {
-            fade(contact, 0);
-        }
-        state.waypointClamped = anchor.clamped;
+        if (ship.throttle > 0.985 && !full) log.say('DRIVE AT FULL BURN', AMBER);
+        full = ship.throttle > 0.97;
+        if (fast && !hot) log.say('VELOCITY PAST 400 M/S', AMBER);
+        hot = fast;
+
+        targets.update(frame);
+        scope(frame);
+        entries.forEach((entry, i) => {
+            const line = logLines[i]!, old = ship.time - entry.at;
+            say(line, `${stamp(entry.at)}   ${entry.text}`);
+            ink(line, rgb(entry.tone, clamp((12 - old) / 4, 0, 1) * (i === entries.length - 1 ? 1 : 0.7)));
+        });
+        for (let i = entries.length; i < LOG_LINES; i++) say(logLines[i]!, '');
+
+        const scale = screen.vpH > 0 ? screen.vpH / DESIGN.height : 1;
+        state.waypointClamped = targets.probe.waypointClamped;
+        state.selected = targets.probe.selected;
+        state.current = targets.probe.current;
+        state.locked = targets.probe.locked;
+        state.picks = targets.probe.picks.map((pick) => ({ index: pick.index, x: pick.left * scale, y: pick.top * scale }));
     };
 }

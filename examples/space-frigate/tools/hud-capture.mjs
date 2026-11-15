@@ -12,6 +12,7 @@ const server = await serveHost(path.join(root, 'web'));
 const browser = await chromium.launch({ headless: true, args: [`--use-angle=${angle}`, '--enable-webgl', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'] });
 const problems = [];
 const shots = [];
+const checks = [];
 let loading = null;
 try {
     const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
@@ -47,10 +48,42 @@ try {
         await step(2);
     };
 
-    await until(4);
+    const hudState = () => page.evaluate(() => ({ ...window.__spaceHud }));
+    const check = (what, ok, detail) => { checks.push({ what, ok }); if (!ok) problems.push(`${what}: ${JSON.stringify(detail)}`); };
+
+    await step(50);
+    await shoot('boot');
+    await until(4.2);
+    check('the display finishes its self-test', (await hudState()).booted === true, await hudState());
     await shoot('front-quarter');
     await shoot('front-quarter-720', [1280, 720]);
     await shoot('front-quarter-ultrawide', [2560, 1080]);
+
+    await step(20);
+    for (let waits = 0; waits < 12 && (await hudState()).picks.length === 0; waits++) await step(10);
+    const pick = (await hudState()).picks[0];
+    check('a rock in view can be picked', pick !== undefined, await hudState());
+    if (pick) {
+        await page.mouse.move(pick.x, pick.y);
+        await step(2);
+        await page.mouse.down();
+        await step(3);
+        await page.mouse.up();
+        await step(3);
+        check('a click on a rock selects it', (await hudState()).selected === pick.index, { pick, got: (await hudState()).selected });
+        check('the click leaves the tour running', (await facts()).tour === true, await facts());
+        await step(62);
+        check('the lock completes', (await hudState()).locked === true, await hudState());
+        await shoot('target-locked');
+        const first = (await hudState()).selected;
+        await hold('KeyT', 3);
+        await step(3);
+        check('T moves to another rock', (await hudState()).selected !== first && (await hudState()).selected >= 0, { first, got: (await hudState()).selected });
+        await hold('KeyR', 3);
+        await step(3);
+        check('R releases the target', (await hudState()).selected === -1, (await hudState()).selected);
+        await page.mouse.move(960, 540);
+    }
     await hold('KeyW', 30);
     await step(8);
     await shoot('throttle-rising');
@@ -79,6 +112,8 @@ try {
         if (await eye() > before + 0.5) { await page.mouse.wheel(0, 320); await step(2); }
     }
     await step(20);
+    await hold('KeyT', 3);
+    await step(80);
     await shoot('engines-close');
 } catch (err) {
     problems.push(String(err));
@@ -86,5 +121,5 @@ try {
     await browser.close();
     server.close();
 }
-console.log(JSON.stringify({ loading, shots, problems: [...new Set(problems)].slice(0, 30) }, null, 1));
+console.log(JSON.stringify({ loading, checks, shots, problems: [...new Set(problems)].slice(0, 30) }, null, 1));
 if (problems.length > 0) process.exitCode = 1;

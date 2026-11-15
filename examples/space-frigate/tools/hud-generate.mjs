@@ -135,10 +135,10 @@ function diamond() {
 
 function chevron() {
     const size = 96, c = size / 2;
-    const arm = (x) => ({ shape: 'line', points: [[x - 12, c - 17], [x + 5, c], [x - 12, c + 17]], stroke: { color: AMBER, width: 5, join: 'miter', cap: 'butt' } });
+    const arm = (x) => ({ shape: 'line', points: [[x - 12, c - 17], [x + 5, c], [x - 12, c + 17]], stroke: { color: '#ffffff', width: 5, join: 'miter', cap: 'butt' } });
     return {
         version: 1, size,
-        layers: [{ shape: 'group', effects: [{ type: 'glow', color: AMBER, blur: 8, opacity: 0.55 }], layers: [arm(c + 14), { ...arm(c - 4), opacity: 0.55 }] }],
+        layers: [{ shape: 'group', effects: [{ type: 'glow', color: '#ffffff', blur: 8, opacity: 0.45 }], layers: [arm(c + 14), { ...arm(c - 4), opacity: 0.55 }] }],
     };
 }
 
@@ -151,6 +151,26 @@ function body() {
             { shape: 'circle', at: [c, c], radius: 3, fill: ICE },
         ],
     };
+}
+
+function scope() {
+    const w = 520, h = 352, cx = 260, cy = 216, rx = 224, ry = 112;
+    const at = (deg, k) => [round(cx + Math.sin((deg * Math.PI) / 180) * rx * k), round(cy - Math.cos((deg * Math.PI) / 180) * ry * k)];
+    const layers = [
+        { shape: 'ellipse', at: [cx, cy], radii: [rx + 10, ry + 8], fill: alpha(PLATE, 0.5) },
+        { shape: 'ellipse', at: [cx, cy], radii: [rx, ry], fill: { type: 'linear', from: [0, cy - ry], to: [0, cy + ry], stops: [[0, alpha('#0c2230', 0.5)], [1, alpha(PLATE, 0.72)]] }, stroke: { color: alpha(ICE, 0.55), width: 2, align: 'inside' } },
+        { shape: 'ellipse', at: [cx, cy], radii: [(rx * 2) / 3, (ry * 2) / 3], stroke: { color: alpha(ICE, 0.2), width: 1.5 } },
+        { shape: 'ellipse', at: [cx, cy], radii: [rx / 3, ry / 3], stroke: { color: alpha(ICE, 0.2), width: 1.5 } },
+        { shape: 'line', points: [[cx - rx, cy], [cx + rx, cy]], stroke: { color: alpha(ICE, 0.14), width: 1.5, cap: 'butt' } },
+        { shape: 'line', points: [[cx, cy - ry], [cx, cy + ry]], stroke: { color: alpha(ICE, 0.14), width: 1.5, cap: 'butt' } },
+    ];
+    for (let deg = 0; deg < 360; deg += 30) {
+        const long = deg % 90 === 0;
+        layers.push({ shape: 'line', points: [at(deg, long ? 0.9 : 0.94), at(deg, 1)], stroke: { color: alpha(ICE, long ? 0.75 : 0.4), width: 2, cap: 'butt' } });
+    }
+    layers.push({ shape: 'polygon', points: [[cx, cy - ry - 16], [cx + 9, cy - ry - 3], [cx - 9, cy - ry - 3]], fill: alpha(ICE, 0.9) });
+    layers.push({ shape: 'polygon', points: [[cx, cy - 13], [cx + 6, cy + 5], [cx, cy + 1], [cx - 6, cy + 5]], fill: ICE, effects: [{ type: 'glow', color: DRIVE, blur: 5, opacity: 0.6 }] });
+    return { version: 1, size: [w, h], layers };
 }
 
 function dot() {
@@ -203,6 +223,7 @@ const FILES = {
     dot: dot(),
     pip: pip(),
     keycap: keycap(),
+    scope: scope(),
     'scrim-bottom': scrim(true),
     'scrim-top': scrim(false),
     shade: shade(),
