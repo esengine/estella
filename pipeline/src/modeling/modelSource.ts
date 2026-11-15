@@ -21,7 +21,8 @@ import { lathe, loft } from './surfaces';
 import { subdivide } from './subdivide';
 import { decimate, triangleCount } from './decimate';
 import { displace, DISPLACE_PATTERNS } from './displace';
-import { stain } from './stain';
+import { checkStain, stain, type StainParams } from './stain';
+import { panels } from './panels';
 import { tree } from './tree';
 import { sculpt } from './sculpt';
 import { garment } from './garment';
@@ -33,7 +34,7 @@ import { scatter } from './scatter';
 import { strip } from './strip';
 import { expandSteps, ModelExpandError, needsExpanding } from './modelExpand';
 import { checkAnimations, checkController, checkRig, checkShapes, resolveJoints, type AnimationSource, type ControllerSource, type RigSource, type ShapeSource } from './rig';
-import { compact, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
+import { compact, selectFaces, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 import { isTextureRecipePath } from '../../../sdk/src/asset/textureRecipePath';
 
 export const MODEL_SOURCE_VERSION = 1;
@@ -180,12 +181,13 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     displace: { params: { faces: 'faces', near: 'near', pattern: 'pattern', amplitude: 'number', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', count: 'integer', axis: 'axis', mirror: 'axis', detail: 'number', along: 'vec3', long: 'number' }, required: ['pattern', 'amplitude', 'scale'], run: ((mesh: PolyMesh, params: never) => displace(mesh, params)) as OpSpec['run'], says: 'pushes fine detail out of the surface along its normal, splitting faces as far as the pattern needs: bumps, wrinkles, cracks, scales, pores, ribs, weave, scratches, pleats or folds' },
     hair: { params: { faces: 'faces', count: 'integer', length: 'number', guides: 'guides', gather: 'number', width: 'number', segments: 'integer', droop: 'number', comb: 'vec3', spread: 'number', uneven: 'number', wave: 'number', taper: 'number', seed: 'integer', color: 'color', tipColor: 'color', tag: 'string' }, required: ['faces'], run: hair as unknown as OpSpec['run'], says: 'grows cards of hair from these faces, falling around what is there, or along `guides` for a ponytail or a fringe; run it again for another layer, and only the cards are kept' },
     scatter: { params: { source: 'faces', count: 'integer', faces: 'faces', path: 'vec3s', within: 'vec3s', scale: 'number|numbers', taper: 'number', sizes: 'numbers', rows: 'integer', sweep: 'number|numbers', lift: 'number|numbers', up: 'vec3', spin: 'number', tilt: 'number', colors: 'vec3s', keep: 'boolean', seed: 'integer', tag: 'string' }, required: ['source', 'count'], run: scatter as unknown as OpSpec['run'], says: 'puts copies of the `source` faces across `faces`, along a `path` or through a box `within`, each sized, turned and coloured at random: feathers, rivets, the lights of a far city. Along a `path`, `rows` 1 or 2 stands them off it in a row or in pairs, `sweep` degrees from the way it runs and `lift` out of the plane, their +z facing `up`, sized by `sizes` from start to end: the leaflets of a frond, the barbs of a feather' },
-    stain: { params: { faces: 'faces', near: 'near', line: 'line', hard: 'boolean', color: 'color', roughness: 'number', metallic: 'number', alpha: 'number', amount: 'number', pattern: 'pattern', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', threshold: 'number', softness: 'number', where: 'where', reach: 'number', facing: 'vec3', detail: 'number' }, required: [], run: ((mesh: PolyMesh, params: never) => stain(mesh, params)) as OpSpec['run'], says: 'lays colour, `roughness`, `metallic` or `alpha` over the surface by a pattern, by shape (`where`: cavity for dirt in what is sunken, edges for wear on what stands out), by which way it faces, around a spot, or along a `line`: pupils, eyelids, seams, moss, grime' },
+    stain: { params: { faces: 'faces', near: 'near', line: 'line', hard: 'boolean', color: 'color', roughness: 'number', metallic: 'number', alpha: 'number', amount: 'number', pattern: 'pattern', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', threshold: 'number', softness: 'number', where: 'where', reach: 'number', facing: 'vec3', detail: 'number', texel: 'boolean', fray: 'number', glow: 'number' }, required: [], run: ((mesh: PolyMesh, params: never) => stain(mesh, params)) as OpSpec['run'], says: 'lays colour, `roughness`, `metallic` or `alpha` over the surface by a pattern, by shape (`where`: cavity for dirt in what is sunken, edges for wear on what stands out), by which way it faces, around a spot, or along a `line`: pupils, eyelids, seams, moss, grime. With `texel` it is laid on the map a `normalBake` with `color` or `surface` writes, texel by texel over what the faces were painted, so it is as fine as the map whatever the faces are. With `where` and a `pattern`, `fray` 0..1 lets the pattern move the line the shape draws instead of cutting holes in it: paint worn off an edge raggedly' },
+    panels: { params: { faces: 'faces', size: 'number', uneven: 'number', gap: 'number', height: 'number|vec2only', bevel: 'number', tones: 'number', along: 'vec3', seed: 'integer', tag: 'string' }, required: ['faces', 'size'], run: panels as unknown as OpSpec['run'], says: 'cuts flat faces into plates about `size` across, `uneven` 0..1 in how they vary, a `gap` between them, each stood `height` out (or between [lowest, highest]; negative sinks them) with a `bevel` round its top, and `tones` 0..1 of difference in their paint: hull plating, armour, paving. Plates are tagged `tag` (default "panel") and their sides `tag`Side; the seams keep the face\'s own tag. It leaves the plates of neighbouring faces unjoined, so it goes before a `decimate` and is carried by `normalBake`' },
     sculpt: { params: { faces: 'faces', from: 'view', strokes: 'strokes', detail: 'number' }, required: ['strokes'], run: sculpt as unknown as OpSpec['run'], says: 'works a surface stroke by stroke where one particular fold or hollow goes: `press` along a line, `move`, `inflate`, `smooth`; `from` takes places in the two axes of a view, as read off a picture' },
     decimate: { params: { from: 'string', faces: 'faces', ratio: 'number', triangles: 'integer', error: 'number' }, required: [], run: decimate as unknown as OpSpec['run'], says: 'leaves fewer triangles over the same surface: `ratio` to keep or `triangles` to end with, stopping sooner if the surface would move more than `error` (default 0.02) of its size; `from` thins the surface as it stood after that step, before its fine detail' },
     uv: { params: { faces: 'faces', mode: 'uvmode', axis: 'string', at: 'vec3', scale: 'number|vec2only', repeat: 'number|vec2only', offset: 'vec2', rotate: 'number' }, required: ['mode'], run: uvStep as unknown as OpSpec['run'], says: 'sets how faces take a texture: box, planar, cylinder or sphere' },
     delete: { params: { faces: 'faces' }, required: ['faces'], run: ops.deleteFaces as OpSpec['run'], says: 'removes faces, leaving a hole' },
-    paint: { params: { faces: 'faces', color: 'color', roughness: 'number', metallic: 'number' }, required: ['faces'], run: ops.paint as OpSpec['run'], says: 'sets vertex colour: linear [r, g, b] in 0..1, multiplied into the material; and how `roughness` and `metallic` a surface is, 0..1' },
+    paint: { params: { faces: 'faces', color: 'color', roughness: 'number', metallic: 'number', glow: 'number' }, required: ['faces'], run: ops.paint as OpSpec['run'], says: 'sets vertex colour: linear [r, g, b] in 0..1, multiplied into the material; and how `roughness` and `metallic` a surface is, 0..1; `glow` 0..1 is how much of the `emissive` of the material the faces give off, written as a map by a normalBake with `color`: lit windows, running lights' },
     tag: { params: { faces: 'faces', tag: 'string' }, required: ['faces', 'tag'], run: ops.tagFaces as OpSpec['run'], says: 'names faces for later steps' },
     weld: { params: { distance: 'number' }, required: [], run: ops.weld as OpSpec['run'], says: 'merges coincident vertices and removes the back-to-back faces that leaves' },
 };
@@ -645,6 +647,7 @@ export interface ModelBuild {
     high?: PolyMesh;
     /** What steps wanted said, in their order. */
     notes: string[];
+    stains?: StainParams[];
 }
 
 /** Runs the steps in order. A step that cannot run throws a {@link ModelBuildError} naming it. */
@@ -660,8 +663,22 @@ export function buildPolyMesh(written: ModelSource): ModelBuild {
     // The states a later decimate starts from instead of the one it finds, and only those: a dense model is a lot to keep.
     const wanted = new Set(source.steps.flatMap((s) => (s.op === 'decimate' && typeof s.from === 'string' ? [s.from] : [])));
     const kept = new Map<string, PolyMesh>();
+    const stains: { params: StainParams; step: ModelStep; index: number }[] = [];
     source.steps.forEach((step, index) => {
         const { id, op, ...params } = step;
+        if (op === 'stain' && params.texel === true) {
+            try {
+                if (!bake?.color && !bake?.surface) throw new Error('a `texel` stain is laid on a map: give the source a normalBake with `color` or `surface`');
+                checkStain(params as StainParams);
+            } catch (e) {
+                throw new ModelBuildError(`${stepLabel(step, index)}: ${e instanceof Error ? e.message : String(e)}`, writtenIndex(step, index), id ?? null, op);
+            }
+            stains.push({ params: params as StainParams, step, index });
+            steps.push({ index, written: writtenIndex(step, index), label: stepLabel(step, index), ...(id ? { id } : {}), op, faces: mesh.faces.length, triangles: triangleCount(mesh) });
+            if (index === highAfter) high = compact(mesh);
+            if (id && wanted.has(id)) kept.set(id, mesh);
+            return;
+        }
         const { from, ...rest } = params as { from?: string };
         const input = op === 'decimate' && from !== undefined ? kept.get(from)! : mesh;
         const before = op === 'decimate' ? triangleCount(input) : 0;
@@ -689,7 +706,12 @@ export function buildPolyMesh(written: ModelSource): ModelBuild {
     const done = hasCards(mesh) ? cardsOnly(mesh) : compact(mesh);
     // Only the last step's: a step after a fracture makes a mesh that has none, and the bake refuses it.
     if (mesh.whole) done.whole = compact(mesh.whole);
-    return { mesh: done, steps, notes, ...(high ? { high } : {}) };
+    for (const { params, step, index } of stains) {
+        if (high && selectFaces(high, params.faces ?? 'all').length === 0) {
+            throw new ModelBuildError(`${stepLabel(step, index)}: \`faces\` ${JSON.stringify(params.faces)} matched no face of the surface the bake carries`, writtenIndex(step, index), step.id ?? null, 'stain');
+        }
+    }
+    return { mesh: done, steps, notes, ...(high ? { high } : {}), ...(stains.length ? { stains: stains.map((s) => s.params) } : {}) };
 }
 
 // ---- Edits: changing a source without restating it ------------------------------

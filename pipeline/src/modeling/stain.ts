@@ -10,7 +10,7 @@
  */
 import { DISPLACE_PATTERNS, finestShare, mirroredPoint, nearWeight, patternField, reachedFaces, refine, MAX_DISPLACE_TRIANGLES, type DisplaceParams, type DisplacePattern } from './displace';
 import { compact, faceArea, faceNormal, normalize, selectFaces, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
-import { drawnLine, facesInView, lineMeasure, seenFrom, viewOf, type ViewName } from './surfaceLine';
+import { drawnLine, facesInView, lineMeasure, seenFrom, viewOf, type View, type ViewName } from './surfaceLine';
 
 /** How far a mirrored point is from a line of points. */
 function toLine(points: readonly Vec3[], mirror: StainParams['mirror'], x: number, y: number, z: number): number {
@@ -63,6 +63,9 @@ export interface StainParams {
     facing?: Vec3;
     /** The longest edge to leave. */
     detail?: number;
+    texel?: boolean;
+    fray?: number;
+    glow?: number;
 }
 
 const smooth = (lo: number, hi: number, x: number): number => {
@@ -123,8 +126,11 @@ function relief(mesh: PolyMesh, normals: Float64Array, reach: number | undefined
     return out;
 }
 
-export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIANGLES, surfaceDefaults?: { roughness: number; metallic: number }): PolyMesh {
-    if (p.color === undefined && p.roughness === undefined && p.metallic === undefined && p.alpha === undefined) throw new Error('give at least one of color, roughness, metallic, alpha');
+export function checkStain(p: StainParams): void {
+    if (p.color === undefined && p.roughness === undefined && p.metallic === undefined && p.alpha === undefined && p.glow === undefined) throw new Error('give at least one of color, roughness, metallic, alpha, glow');
+    if (p.fray !== undefined && !(p.fray >= 0 && p.fray <= 1)) throw new Error(`fray ${p.fray} must be 0..1`);
+    if (p.fray !== undefined && (p.where === undefined || p.pattern === undefined)) throw new Error('`fray` breaks up the line `where` draws by a `pattern`: give both');
+    if (p.glow !== undefined && !(p.glow >= 0 && p.glow <= 1)) throw new Error(`glow ${p.glow} must be 0..1`);
     if (p.color !== undefined && p.color.length < 3) throw new Error('color must be [r, g, b]');
     for (const [name, v] of [['roughness', p.roughness], ['metallic', p.metallic], ['alpha', p.alpha]] as const) {
         if (v !== undefined && !(v >= 0 && v <= 1)) throw new Error(`${name} ${v} must be 0..1`);
@@ -137,6 +143,73 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
     if (p.line && !(p.line.width > 0)) throw new Error(`line.width ${p.line.width} must be positive`);
     if (p.line && p.line.points.length < 2) throw new Error('line.points needs two points or more');
     if (p.pattern === undefined && p.where === undefined && p.facing === undefined && p.near === undefined && p.line === undefined) throw new Error('say where: give at least one of pattern, where, facing, near, line; `paint` is for all of a set of faces');
+}
+
+interface LineParts {
+    view: View | null;
+    drawn: readonly (readonly number[])[] | null;
+    measured: ReturnType<typeof lineMeasure> | null;
+}
+
+function lineParts(p: StainParams): LineParts {
+    const view = p.line?.from ? viewOf(p.line.from) : null;
+    const drawn = p.line ? drawnLine(p.line.points, p.line.curve) : null;
+    return { view, drawn, measured: drawn && view ? lineMeasure(drawn) : null };
+}
+
+type Weigh = (at: Vec3, n: Vec3, shape: number, seen: number) => number;
+
+function maskOf(p: StainParams, line: LineParts): Weigh {
+    const asPattern = { ...p, pattern: p.pattern ?? 'bumps', amplitude: 1, scale: p.scale ?? 1 } as DisplaceParams;
+    const facing = p.facing ? normalize(p.facing) : null;
+    const field = p.pattern ? patternField(asPattern) : null;
+    const threshold = p.threshold ?? 0.5, softness = p.softness ?? 0.15;
+    const { view, drawn, measured } = line;
+    return (at, n, shape, seen) => {
+        let m = 1;
+        const [x, y, z] = mirroredPoint(p.mirror, at);
+        if (p.near) {
+            const w = nearWeight(p.near, p.mirror, x, y, z);
+            m *= p.hard ? (w > 0 ? 1 : 0) : w;
+            if (m === 0) return 0;
+        }
+        if (p.line) {
+            if (seen === 0) return 0;
+            const t = 1 - (measured && view ? measured([at[view.u], at[view.v]], null).distance : toLine(drawn as readonly Vec3[], p.mirror, x, y, z)) / p.line.width;
+            m *= t <= 0 ? 0 : p.hard ? 1 : t * t * (3 - 2 * t);
+            m *= seen;
+            if (m === 0) return 0;
+        }
+        if (facing) {
+            m *= smooth(0.2, 0.75, n[0] * facing[0] + n[1] * facing[1] + n[2] * facing[2]);
+            if (m === 0) return 0;
+        }
+        const share = (): number => {
+            const value = field!(x, y, z, n);
+            return DENTS.has(p.pattern!) ? Math.max(0, -value) : value * 0.5 + 0.5;
+        };
+        if (p.where) {
+            const sunk = p.where === 'cavity' ? shape : -shape;
+            if (field && p.fray !== undefined) return m * smooth(threshold * 0.4 - softness, threshold * 0.4 + softness, sunk + (share() - 0.5) * 2 * p.fray * Math.min(1, Math.max(0, sunk) * 4 + 0.15));
+            m *= smooth(threshold * 0.4 - softness, threshold * 0.4 + softness, sunk);
+            if (m === 0) return 0;
+        }
+        if (field) m *= smooth(threshold - softness, threshold + softness, share());
+        return m;
+    };
+}
+
+export function texelStain(p: StainParams): (at: Vec3, n: Vec3, relief: number) => number {
+    checkStain(p);
+    const line = lineParts(p);
+    const weigh = maskOf(p, line);
+    const amount = p.amount ?? 1;
+    const { view } = line;
+    return (at, n, relief) => weigh(at, n, relief, view ? (n[view.axis] * view.sign > 0 ? 1 : 0) : 1) * amount;
+}
+
+export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIANGLES, surfaceDefaults?: { roughness: number; metallic: number }): PolyMesh {
+    checkStain(p);
 
     const selector = p.faces ?? 'all';
     let hit = selectFaces(mesh, selector);
@@ -145,7 +218,8 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
         hit = reachedFaces(mesh, hit, p.near, p.mirror);
         if (hit.length === 0) throw new Error(`no surface of \`faces\` within ${p.near.radius} of ${JSON.stringify(p.near.at)}`);
     }
-    const lineView = p.line?.from ? viewOf(p.line.from) : null;
+    const parts = lineParts(p);
+    const lineView = parts.view;
     if (p.line && lineView) {
         const { points, width } = p.line;
         hit = facesInView(mesh, hit, lineView, [Math.min(...points.map((q) => q[0]!)) - width, Math.min(...points.map((q) => q[1]!)) - width], [Math.max(...points.map((q) => q[0]!)) + width, Math.max(...points.map((q) => q[1]!)) + width]);
@@ -180,53 +254,16 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
     }
     const shape = p.where ? relief(fine, normals, p.reach) : null;
     let lineSeen: Float32Array | null = null;
-    const drawn = p.line ? drawnLine(p.line.points, p.line.curve) : null;
-    const measured = drawn && lineView ? lineMeasure(drawn) : null;
     if (p.line && lineView) {
         const vertices: number[] = [];
         fine.faces.forEach((face, f) => { if (isChosen(f)) vertices.push(...face.v); });
         lineSeen = seenFrom(fine, normals, lineView, vertices, p.line.width * 2);
     }
-    const facing = p.facing ? normalize(p.facing) : null;
-    const field = p.pattern ? patternField(asPattern) : null;
-    const threshold = p.threshold ?? 0.5, softness = p.softness ?? 0.15;
     const amount = p.amount ?? 1;
     const color = p.color ? [p.color[0]!, p.color[1]!, p.color[2]!] as const : null;
     const defaults = surfaceDefaults ?? { roughness: 1, metallic: 0 };
-
-    const maskAt = (v: number): number => {
-        let m = 1;
-        const at = fine.positions[v]!;
-        const [x, y, z] = mirroredPoint(p.mirror, at);
-        if (p.near) {
-            const w = nearWeight(p.near, p.mirror, x, y, z);
-            m *= p.hard ? (w > 0 ? 1 : 0) : w;
-            if (m === 0) return 0;
-        }
-        if (p.line) {
-            if (lineSeen && !lineSeen[v]) return 0;
-            const t = 1 - (measured && lineView ? measured([at[lineView.u], at[lineView.v]], null).distance : toLine(drawn as readonly Vec3[], p.mirror, x, y, z)) / p.line.width;
-            m *= t <= 0 ? 0 : p.hard ? 1 : t * t * (3 - 2 * t);
-            if (lineSeen) m *= lineSeen[v]!;
-            if (m === 0) return 0;
-        }
-        const n: Vec3 = [normals[v * 3]!, normals[v * 3 + 1]!, normals[v * 3 + 2]!];
-        if (facing) {
-            m *= smooth(0.2, 0.75, n[0] * facing[0] + n[1] * facing[1] + n[2] * facing[2]);
-            if (m === 0) return 0;
-        }
-        if (shape) {
-            const sunk = p.where === 'cavity' ? shape[v]! : -shape[v]!;
-            m *= smooth(threshold * 0.4 - softness, threshold * 0.4 + softness, sunk);
-            if (m === 0) return 0;
-        }
-        if (field) {
-            const value = field(x, y, z, n);
-            const share = DENTS.has(p.pattern!) ? Math.max(0, -value) : value * 0.5 + 0.5;
-            m *= smooth(threshold - softness, threshold + softness, share);
-        }
-        return m;
-    };
+    const weigh = maskOf(p, parts);
+    const maskAt = (v: number): number => weigh(fine.positions[v]!, [normals[v * 3]!, normals[v * 3 + 1]!, normals[v * 3 + 2]!], shape ? shape[v]! : 0, lineSeen ? lineSeen[v]! : 1);
     const masks = new Float32Array(fine.positions.length).fill(-1);
     const faces: Face[] = fine.faces.map((face, f) => {
         if (!isChosen(f)) return face;
@@ -248,6 +285,7 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
             } : {}),
             ...(p.roughness !== undefined ? { roughness: (face.roughness ?? defaults.roughness) + (p.roughness - (face.roughness ?? defaults.roughness)) * m } : {}),
             ...(p.metallic !== undefined ? { metallic: (face.metallic ?? defaults.metallic) + (p.metallic - (face.metallic ?? defaults.metallic)) * m } : {}),
+            ...(p.glow !== undefined ? { glow: (face.glow ?? 0) + (p.glow - (face.glow ?? 0)) * m } : {}),
         };
     });
     const out = compact({ positions: fine.positions, faces });

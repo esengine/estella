@@ -15,6 +15,7 @@ import { triangulateFace } from './triangulate';
 import { faceUvs } from './modelUv';
 import { adjustWeights, bindMatrices, computeWeights, computeWornWeights, drapeRig, resolveJoints, shapeDeltas, type ControllerIk, type RigGoal, type RigJoint, type RigSpring, type SkinWeights } from './rig';
 import type { NormalBakeReport } from './normalBake';
+import type { StainParams } from './stain';
 import { buildPolyMesh, expandModelSource, validateModelSource, writtenStepReports, type ModelSource, type StepReport } from './modelSource';
 import type { TreeBark } from './tree';
 import {
@@ -84,7 +85,7 @@ export interface BakedModel {
     /** One triangle per entry: its three positions' indices, and the face it came from. */
     triangles: { v: [number, number, number]; face: number }[];
     /** Present where a source has a normalBake: what bakeNormalMap carries, onto a mesh already unwrapped and given tangents for it. */
-    detail?: { high: PolyMesh; size: number; distance?: number; smoothAngle: number; lowColors?: Uint8Array; surface?: { roughness: number; metallic: number }; occlusion?: { size?: number; reach?: number; samples?: number } };
+    detail?: { high: PolyMesh; size: number; distance?: number; smoothAngle: number; lowColors?: Uint8Array; surface?: { roughness: number; metallic: number }; occlusion?: { size?: number; reach?: number; samples?: number }; stains?: StainParams[] };
 }
 
 // ---- Report -----------------------------------------------------------------------
@@ -293,7 +294,7 @@ function withTangents(mesh: MeshData): MeshData {
 }
 
 /** What a material has to say about a model, or null where a plain MeshRenderer says all of it. */
-export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, maps: { normal?: string | null; surface?: string | null; occlusion?: string | null; color?: string | null; hair?: { flow: string; shift: string } | null }): Record<string, unknown> | null {
+export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, maps: { normal?: string | null; surface?: string | null; occlusion?: string | null; color?: string | null; emissive?: string | null; hair?: { flow: string; shift: string } | null }): Record<string, unknown> | null {
     const { material } = source;
     if (maps.hair) {
         return {
@@ -315,7 +316,7 @@ export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, ma
             },
         };
     }
-    if (!material && !maps.surface && !maps.occlusion) return null;
+    if (!material && !maps.surface && !maps.occlusion && !maps.emissive) return null;
     const blended = material?.alpha === 'blend';
     return {
         version: MATERIAL_FORMAT_VERSION,
@@ -329,7 +330,10 @@ export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, ma
         properties: {
             ...(material?.alpha === 'cutout' ? { u_alphaCutoff: material.cutoff ?? 0.5 } : {}),
             ...(material?.translucency ? { u_translucency: material.translucency } : {}),
-            ...(material?.emissive ? {
+            ...(maps.emissive ? {
+                u_emissive: { r: material?.emissive?.[0] ?? 1, g: material?.emissive?.[1] ?? 1, b: material?.emissive?.[2] ?? 1, a: 1 },
+                u_emissiveMap: maps.emissive,
+            } : material?.emissive ? {
                 u_emissive: { r: material.emissive[0]!, g: material.emissive[1]!, b: material.emissive[2]!, a: 1 },
                 ...(maps.color ? { u_emissiveMap: maps.color } : {}),
             } : {}),
@@ -499,7 +503,7 @@ export function bakeModel(raw: unknown): BakedModel {
         ...(source.steps.some((s) => s.op === 'tree') && mesh.faces.some((f) => f.tag === 'leaf' && f.cornerNormals) ? { leaves: true, bark: (source.steps.find((s) => s.op === 'tree') as { barkStyle?: TreeBark }).barkStyle ?? 'furrowed' } : {}),
         ...(shards.length ? { shards, cut: { poly: cut, triangles: cut.faces.flatMap((f, face) => triangulateFace(cut, f).map((v) => ({ v, face }))) } } : {}),
         ...(cards ? { hair: { maps: hairMaps((source.steps.find((s) => s.op === 'hair')?.seed as number | undefined) ?? 1), ...(swing ? { chainRoots: swing.chainRoots } : {}) } } : {}),
-        ...(bake && high ? { detail: { high, size, ...(bake.distance !== undefined ? { distance: bake.distance } : {}), smoothAngle: source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE, ...(lowColors ? { lowColors } : {}), ...(bake.occlusion ? { occlusion: typeof bake.occlusion === 'object' ? bake.occlusion : {} } : {}), ...(bake.surface ? { surface: { roughness: source.material?.roughness ?? 1, metallic: source.material?.metallic ?? 0 } } : {}) } } : {}),
+        ...(bake && high ? { detail: { high, size, ...(bake.distance !== undefined ? { distance: bake.distance } : {}), smoothAngle: source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE, ...(lowColors ? { lowColors } : {}), ...(bake.occlusion ? { occlusion: typeof bake.occlusion === 'object' ? bake.occlusion : {} } : {}), ...(bake.surface ? { surface: { roughness: source.material?.roughness ?? 1, metallic: source.material?.metallic ?? 0 } } : {}), ...(built.stains ? { stains: built.stains } : {}) } } : {}),
         triangles: triangles.flatMap((tris, face) => tris.map((v) => ({ v, face }))),
         report: {
             vertices: unwrapped.vertexCount,
