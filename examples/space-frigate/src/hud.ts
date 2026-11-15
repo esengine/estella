@@ -4,7 +4,7 @@ import {
 } from 'esengine';
 import type { App, Entity, World } from 'esengine';
 import { SHOTS, SHOT_SECONDS, clamp } from './flight';
-import { ship } from './shipState';
+import { DRIFTING_ROCKS, ship } from './shipState';
 
 type Rgba = { r: number; g: number; b: number; a: number };
 
@@ -40,7 +40,7 @@ const TEXTURES = {
     shade: 'assets/ui/shade.esimage',
 } as const;
 
-const FONTS = { regular: 'assets/ui/fonts/inter-latin-400-normal.woff2', strong: 'assets/ui/fonts/inter-latin-600-normal.woff2' } as const;
+const FONTS = { regular: 'assets/ui/fonts/ChakraPetch-Regular.ttf', strong: 'assets/ui/fonts/ChakraPetch-SemiBold.ttf' } as const;
 
 type Loaded = { textures: Record<keyof typeof TEXTURES, number>; fonts: Record<keyof typeof FONTS, number> };
 
@@ -269,6 +269,19 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (world: Wor
     const waypointEta = label(callout, 'WaypointEta', { left: 14, top: 47, width: 190, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 2, strong: false });
     const camera = world.findEntityByName('Camera');
 
+    const rocks: Entity[] = [];
+    for (let i = 0; i < DRIFTING_ROCKS; i++) {
+        const rock = world.findEntityByName(`Rock${i}`);
+        if (rock !== null) rocks.push(rock);
+    }
+    const contact = node(root, 'Contact', { left: 0, top: 0, width: 44, height: 44 });
+    world.update(contact, UINode, (n) => { n.marginLeft = px(-22); n.marginTop = px(-22); });
+    world.insert(contact, UIWorldAnchor, { clampToEdges: false });
+    image(contact, 'ContactBracket', { left: 0, top: 0, width: 44, height: 44 }, textures.bracket, rgb(ICE, 0.85));
+    const contactName = label(contact, 'ContactName', { left: 50, top: 8, width: 160, height: 13 }, { size: 10, color: rgb(ICE), spacing: 2.4 });
+    const contactRange = label(contact, 'ContactRange', { left: 50, top: 23, width: 160, height: 13 }, { size: 10, color: rgb(HAZE), spacing: 1.6, strong: false });
+    let tracked = -1;
+
     const model = { reactor: 0.18, capacitor: 1, heat: 0, leg: 3, range: LEG_KM, primed: false };
     const pad = (n: number, width: number): string => String(Math.max(0, Math.round(n))).padStart(width, '0');
     const stamp = (seconds: number): string => `${pad(Math.floor(seconds / 60), 2)}:${pad(Math.floor(seconds % 60), 2)}`;
@@ -400,6 +413,37 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (world: Wor
             fade(body, best < Infinity && held.onScreen ? 1 : 0);
         } else {
             fade(body, 0);
+        }
+        if (camera !== null && rocks.length > 0) {
+            const eye = world.get(camera, Transform), lens = world.get(camera, Camera);
+            const view = { position: eye.worldPosition, rotation: eye.worldRotation, perspective: true, fov: lens.fov, orthoSize: lens.orthoSize, near: lens.nearPlane };
+            const frame = { width: across, height: DESIGN.height };
+            const open = (i: number): number => {
+                const at = world.get(rocks[i]!, Transform).position;
+                const on = placeOnScreen(at, view, frame, false, 0);
+                const room = Math.min(on.left - 90, frame.width - 300 - on.left, on.top - 140, frame.height - 340 - on.top);
+                return on.onScreen && room > 0 ? Math.hypot(at.x, at.y, at.z) : Infinity;
+            };
+            if (tracked < 0 || open(tracked) === Infinity) {
+                let best = Infinity;
+                tracked = -1;
+                for (let i = 0; i < rocks.length; i++) {
+                    const far = open(i);
+                    if (far < best) { best = far; tracked = i; }
+                }
+                if (tracked >= 0) {
+                    const target = rocks[tracked]!;
+                    world.update(contact, UIWorldAnchor, (anchored) => { anchored.target = target; });
+                }
+            }
+            if (tracked >= 0) {
+                const at = world.get(rocks[tracked]!, Transform).position;
+                say(contactName, `ROCK ${pad(tracked + 1, 2)}`);
+                say(contactRange, `${Math.round(Math.hypot(at.x, at.y, at.z)).toLocaleString('en-US').replace(/,/g, ' ')} M`);
+            }
+            fade(contact, tracked >= 0 && world.get(contact, UIWorldAnchor).onScreen ? 1 : 0);
+        } else {
+            fade(contact, 0);
         }
         state.waypointClamped = anchor.clamped;
     };
