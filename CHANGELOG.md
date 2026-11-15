@@ -14,9 +14,11 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.106.0] - 2026-11-15
+
 ### Added
 
-- **A native build's sockets connect to `wss://`.** `createSocket({ url: 'wss://…' })` now opens on the desktop, iOS and Android runtimes, where it used to report that only `ws://` is supported and close. TLS is the operating system's, as it already is for `fetch`: Network.framework on macOS and iOS, Schannel on Windows, libcurl on Linux and the platform's `SSLSocket` on Android, under the same WebSocket framing a `ws://` connection uses. The certificate chain and the host name are checked against the system's trust store; a connection that fails either reports the reason as an `error` event and closes with 1006. With no port in the URL a `wss://` connection goes to 443.
+- **A native build's sockets connect to `wss://`.** `createSocket({ url: 'wss://…' })` now opens on the desktop, iOS and Android runtimes, where it used to report that only `ws://` is supported and close. TLS is the operating system's, as it already is for `fetch`: Network.framework on macOS and iOS, Schannel on Windows, libcurl on Linux and the platform's `SSLSocket` on Android, under the same WebSocket framing a `ws://` connection uses. The certificate chain and the host name are checked against the system's trust store; a connection that fails either reports the reason as an `error` event and closes with 1006. With no port in the URL a `wss://` connection goes to 443. Windows, Linux and macOS were run against trusted, untrusted and wrong-host servers; the Android and iOS code was compiled and has not yet been run on a device.
 - **A model's paint can have a clear coat.** A model source's `material` takes `coat` (0 to 1) and `coatRoughness`: a thin glossy layer over what is under it, which is what gives lacquered armour its sharp highlight while the paint below stays as rough as it is.
 - **A space frigate example, built from a recipe.** `examples/space-frigate` flies a frigate past a gas giant with no hand-painted texture and no model from another tool: its hull, plating, worn paint, windows, running lights and engines are steps of one model source, baked to a five-thousand-triangle mesh and five 4096 maps; the asteroids it flies through are three more model sources, drifting aft with its speed; the nebula and the planet's bands are generated; the stars are the Starfield effect; the planet's air and the engine plumes are two small shaders. A camera tours six shots on its own, and the keyboard and mouse take it over and work the throttle. One script regenerates every asset, and two more capture frames and check the controls in a headless browser.
 - **Stars that stay points.** The new **Starfield** post-process effect draws stars a pixel or two across at any resolution and any field of view, in three layers of brightness, warm and cool, with a band where they crowd (`u_band`, its tilt and turn) and params for density, size and brightness. With `u_sunSize` above 0 it also draws the scene's sun, the first directional light, as a disc of that many degrees with a glow round it (`u_sunGlow`), bright enough for bloom to take. It is added over whatever sky is already drawn, so it goes on top of an environment's panorama: a nebula from an imported HDR keeps its soft cloud and no longer has to hold its stars at the panorama's resolution, where each was a blot several pixels wide. A sky a project writes with `defineSkyEffect` can do the same with `over: true`, and reads `esSkyPixel`, the angle one pixel covers, to size what it draws.
@@ -15630,7 +15632,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.105.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.106.0...HEAD
+[0.106.0]: https://github.com/esengine/estella/compare/v0.105.0...v0.106.0
 [0.105.0]: https://github.com/esengine/estella/compare/v0.104.1...v0.105.0
 [0.104.1]: https://github.com/esengine/estella/compare/v0.104.0...v0.104.1
 [0.104.0]: https://github.com/esengine/estella/compare/v0.103.0...v0.104.0

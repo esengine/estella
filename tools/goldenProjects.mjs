@@ -1384,6 +1384,54 @@ export const SHIPPED = {
     { notCertifiable: "An authoring tool's output (a .esland source). Covered by pipeline/tests/land.test.ts; no golden project is made from a land source." },
   "A tree is grown in one step.":
     { notCertifiable: "An authoring tool's output (a .esmodel step). Covered by pipeline/tests/modeling-tree.test.ts and pipeline/tests/land.test.ts; no golden project grows a tree." },
+  "A native build's sockets connect to `wss://`.":
+    { notCertifiable: "A native host's socket, which no golden project opens. Covered by sdk/tests/native-socket.test.ts and native-adapter.test.ts and the probe in tests/net/ws_probe.cpp; Android and iOS were compiled and not run on a device." },
+  "A model's paint can have a clear coat.":
+    { notCertifiable: "An authoring tool's output (a .esmodel source). Covered by pipeline/tests/modeling-files.test.ts and sdk/tests/model-shader-layers.test.ts; no golden project is made from a model source." },
+  "A space frigate example, built from a recipe.":
+    { notCertifiable: "An example, not a capability: it is exported by check-examples and looked at in a real web export through its own tools/capture.mjs; no golden project is the frigate." },
+  "Stars that stay points.":
+    { notCertifiable: "Covered by the pr-tier render scene starfield in tools/renderScenes.mjs on both backends and pipeline/tests/engine-installs.test.ts (the effect's shader ships with a trimmed package); no golden project has a starfield." },
+  "A stain can be as fine as the map it is baked into.":
+    { notCertifiable: "An authoring tool's output. Covered by pipeline/tests/modeling-texel-stain.test.ts and modeling-probes.test.ts; no golden project is made from a model source." },
+  "Plating for hard surfaces.":
+    { notCertifiable: "An authoring tool's output. Covered by pipeline/tests/modeling-panels.test.ts; no golden project is made from a model source." },
+  "Parts of a model can glow.":
+    { notCertifiable: "An authoring tool's output. Covered by pipeline/tests/modeling-files.test.ts and modeling-texel-stain.test.ts (the emissive map and the material that reads it); no golden project is made from a model source." },
+  "Models bake without the editor.":
+    { notCertifiable: "A command line, not something a packaged game carries. Covered by pipeline/tests/modeling-files.test.ts and modeling-probes.test.ts, which runs the command itself." },
+  "Pictures draw without the editor.":
+    { notCertifiable: "A command line, not something a packaged game carries. Covered by pipeline/tests/image-files.test.ts." },
+  "Particles glow in HDR, fade into the scene and wear away.":
+    { notCertifiable: "Covered by the pr-tier render scenes particles-intensity, particles-soft and particles-erosion in tools/renderScenes.mjs on both backends; no golden project uses the Particle shader." },
+  "A material can bend the picture behind it.":
+    { notCertifiable: "Covered by the pr-tier render scene material-distortion in tools/renderScenes.mjs on both backends and sdk/tests/postprocess.test.ts; no golden project draws a distortion." },
+  "A VFX showcase example.":
+    { notCertifiable: "An example, not a capability: it is exported by check-examples; its pieces are the particle and distortion render scenes." },
+  "Palette widgets and templates can be dropped into the Outliner.":
+    { notCertifiable: "The editor's Outliner, not something a packaged game carries. Covered by desktop/tests/outliner-drop-intent.test.ts." },
+  "Double-clicking an entity in the Outliner frames it.":
+    { notCertifiable: "The editor's Outliner, not something a packaged game carries; no test in the repo names the double-click." },
+  "A navigation grid can lie on the ground of a 3D scene.":
+    { notCertifiable: "Covered by sdk/tests/nav-grid-ground-plane.test.ts; no golden project lays a NavGrid in x/z." },
+  "Assets register without the editor.":
+    { notCertifiable: "A command line, not something a packaged game carries. Covered by pipeline/tests/adopt-orphan-race.test.ts and the export tests that warn for a file with no .meta." },
+  "A world marker stays off the HUD's own panels.":
+    { notCertifiable: "Covered by sdk/tests/ui-world-anchor.test.ts; no golden project clamps a marker with insets." },
+  "What texture recipes cost can be read.":
+    { notCertifiable: "A measurement, which no frame holds. Covered by sdk/tests/texture-recipe.test.ts." },
+  "The space frigate flies with a HUD, drawn from recipes.":
+    { notCertifiable: "An example, not a capability: looked at in a real web export through examples/space-frigate/tools/hud-capture.mjs; no golden project is the frigate." },
+  "Screen UI can stand in depth.":
+    { notCertifiable: "Covered by the pr-tier render scenes ui-screen-3d and ui-screen-3d-camera-moved in tools/renderScenes.mjs on both backends and sdk/tests/screen-overlay.test.ts; no golden project sets a perspective." },
+  "A Canvas can be drawn through a material, and UI can read the frame under it.":
+    { notCertifiable: "Covered by the pr-tier render scenes ui-screen-effect and ui-screen-backdrop, each also in a linear project, in tools/renderScenes.mjs on both backends; no golden project carries a CanvasEffect." },
+  "The space frigate mines its asteroids.":
+    { notCertifiable: "An example, not a capability: its checks run in a real web export through examples/space-frigate/tools/hud-capture.mjs; no golden project is the frigate." },
+  "The space frigate can be flown.":
+    { notCertifiable: "An example, not a capability: its checks run in a real web export through examples/space-frigate/tools/hud-capture.mjs; no golden project is the frigate." },
+  "The space frigate is steered by orders that hold.":
+    { notCertifiable: "An example, not a capability: its checks run in a real web export through examples/space-frigate/tools/hud-capture.mjs; no golden project is the frigate." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */
