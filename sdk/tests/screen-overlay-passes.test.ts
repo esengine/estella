@@ -17,6 +17,11 @@ describe('the screen overlay passes', () => {
         ]);
     });
 
+    it('draws the effect layers from the lowest layer up, whatever order they were found in', () => {
+        const passes = screenOverlayPasses(0xFFFFFFFF, [{ layer: 5, material: 9 }, { layer: 2, material: 7 }]);
+        expect(passes.slice(1)).toEqual([{ layers: 1 << 2, effect: 7 }, { layers: 1 << 5, effect: 9 }]);
+    });
+
     it('puts no layer in two passes', () => {
         const passes = screenOverlayPasses(0xFFFFFFFF, [{ layer: 0, material: 3 }, { layer: 31, material: 4 }]);
         let seen = 0;
