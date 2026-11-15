@@ -5,11 +5,12 @@ import {
 import type { App, Entity, World } from 'esengine';
 import { SHOTS, SHOT_SECONDS, clamp } from './flight';
 import {
-    ALERT, AMBER, DESIGN, EDGE, FONTS, HAZE, ICE, MATERIALS, TEXTURES, createKit, ease, pad, rgb, stamp,
-    type Frame, type Log, type Materials, type Rgba, type Rock, type Textures,
+    ALERT, AMBER, DESIGN, EDGE, FONTS, HAZE, ICE, TEXTURES, createKit, ease, pad, rgb, stamp,
+    type Frame, type Log, type Rgba, type Rock, type Textures,
 } from './hudKit';
 import { MINING, installMining, mining } from './hudMining';
 import { buildScope } from './hudScope';
+import { installHudEffects } from './hudEffects';
 import { buildTargets } from './hudTargets';
 import { ship } from './shipState';
 
@@ -20,7 +21,7 @@ const MAJOR_FROM = 40;
 const LOG_LINES = 4;
 const BOOT_SECONDS = 2.6;
 
-type Loaded = { textures: Textures; fonts: { regular: number; strong: number }; materials: Materials };
+type Loaded = { textures: Textures; fonts: { regular: number; strong: number } };
 
 const state = { ready: false, loadMs: 0, error: '', waypointClamped: true, selected: -1, current: -1, locked: false, booted: false, mining: mining, picks: [] as { index: number; x: number; y: number }[] };
 
@@ -55,18 +56,17 @@ async function load(app: App): Promise<Loaded> {
     const names = Object.keys(TEXTURES) as (keyof typeof TEXTURES)[];
     const textures = await Promise.all(names.map((name) => assets.loadTexture(TEXTURES[name])));
     const [regular, strong] = await Promise.all([assets.loadFont(FONTS.regular), assets.loadFont(FONTS.strong)]);
-    const [lens, frost] = await Promise.all([assets.loadMaterial(MATERIALS.lens), assets.loadMaterial(MATERIALS.frost)]);
     return {
         textures: Object.fromEntries(names.map((name, i) => [name, textures[i]!.handle])) as Textures,
         fonts: { regular: regular.handle, strong: strong.handle },
-        materials: { lens: lens.handle, frost: frost.handle },
     };
 }
 
-function build(app: App, world: World, { textures, fonts, materials }: Loaded): (dt: number, input: InputState) => void {
-    const kit = createKit(world, textures, fonts, materials);
-    const { root, node, image, sliced, solid, label, pivot, tilt, lift, glow, frosted, say, ink, fill, fade, place } = kit;
+function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number, input: InputState) => void {
+    const kit = createKit(world, textures, fonts);
+    const { root, node, image, sliced, solid, label, pivot, tilt, lift, glow, say, ink, fill, fade, place } = kit;
     app.getResource(ScreenOverlay).perspective = 1500;
+    installHudEffects(app);
 
     image(root, 'ScrimTop', { left: 0, right: 0, top: 0, height: 170 }, textures.scrimTop);
     image(root, 'ShadeIdentity', { left: -120, top: -70, width: 680, height: 320 }, textures.shade);
@@ -95,8 +95,7 @@ function build(app: App, world: World, { textures, fonts, materials }: Loaded): 
     const viewMode = label(view, 'ViewMode', { right: 0, top: 48, width: 300, height: 16 }, { size: 11, color: rgb(HAZE, 0.9), spacing: 1.8, align: TextAlign.Right, strong: false });
 
     const systemsAt = pivot(root, 'SystemsPivot', { left: EDGE + 184, bottom: EDGE + 102 });
-    const systemsGlass = frosted(sliced(systemsAt, 'SystemsGlass', { left: -174, top: -95, width: 348, height: 190 }, textures.plate, 26));
-    const systems = sliced(systemsAt, 'Systems', { left: -174, top: -95, width: 348, height: 190 }, textures.plate, 26, rgb(0xffffff, 0.72));
+    const systems = sliced(systemsAt, 'Systems', { left: -174, top: -95, width: 348, height: 190 }, textures.plate, 26);
     label(systems, 'SystemsTitle', { left: 20, top: 14, width: 200, height: 16 }, { size: 11, color: rgb(ICE, 0.95), spacing: 2.6, content: 'SHIP SYSTEMS' });
     const systemsState = label(systems, 'SystemsState', { right: 34, top: 14, width: 160, height: 16 }, { size: 11, color: rgb(HAZE), spacing: 1.8, align: TextAlign.Right });
     node(systems, 'SystemsScan', { left: 3, top: 3, width: 342, height: 184 }, { visualType: UIVisualType.Tiled, texture: textures.scan, tileSize: { x: 4, y: 3 }, color: rgb(ICE) });
@@ -185,7 +184,7 @@ function build(app: App, world: World, { textures, fonts, materials }: Loaded): 
     const targets = buildTargets(kit, rocks, world.findEntityByName('Planet'), log);
     const mine = installMining(app, world, rocks, targets.probe, log);
     const scope = buildScope(kit, rocks, targets.probe);
-    const groups: readonly (readonly [Entity, number, number])[] = [[identity, 0, 1], [view, 0.15, 1], [systemsGlass, 0.35, 1], [systems, 0.35, 1], [gauge, 0.5, 1], [row, 1.2, 0.78]];
+    const groups: readonly (readonly [Entity, number, number])[] = [[identity, 0, 1], [view, 0.15, 1], [systems, 0.35, 1], [gauge, 0.5, 1], [row, 1.2, 0.78]];
     const leans: readonly (readonly [Entity, number, number])[] = [[identityAt, 0.1, 0.26], [viewAt, 0.1, -0.26], [systemsAt, -0.12, 0.3], [gaugeAt, -0.12, -0.3], [row, -0.42, 0]];
     const sway = { x: 0, y: 0, yaw: 0, pitch: 0, primed: false };
 

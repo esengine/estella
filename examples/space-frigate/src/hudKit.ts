@@ -1,5 +1,5 @@
 import {
-    BlendMode, Canvas, CanvasEffect, Material, Name, ScaleMode, Text, TextAlign, TextVerticalAlign, Transform, UINode, UIPointerEvents, UIPositionType, UIVisual, UIVisualType,
+    BlendMode, Canvas, Material, Name, ScaleMode, Text, TextAlign, TextVerticalAlign, Transform, UINode, UIPointerEvents, UIPositionType, UIVisual, UIVisualType,
     placeOnScreen, px, spawnUIEntity,
 } from 'esengine';
 import type { Entity, World } from 'esengine';
@@ -42,10 +42,6 @@ export const TEXTURES = {
     shade: 'assets/ui/shade.esimage',
 } as const;
 
-export const MATERIALS = { lens: 'assets/ui/fx/lens.esmaterial', frost: 'assets/ui/fx/frost.esmaterial' } as const;
-export type Materials = Record<keyof typeof MATERIALS, number>;
-const LAYERS = { marks: 1, glass: 2 } as const;
-
 export const FONTS = { regular: 'assets/ui/fonts/ChakraPetch-Regular.ttf', strong: 'assets/ui/fonts/ChakraPetch-SemiBold.ttf' } as const;
 
 export type Textures = Record<keyof typeof TEXTURES, number>;
@@ -78,7 +74,7 @@ export const ease = (t: number): number => { const c = clamp(t, 0, 1); return 1 
 
 export type Kit = ReturnType<typeof createKit>;
 
-export function createKit(world: World, textures: Textures, fonts: { regular: number; strong: number }, materials: Materials) {
+export function createKit(world: World, textures: Textures, fonts: { regular: number; strong: number }) {
     const node = (parent: Entity, name: string, box: Box, visual?: Parameters<typeof spawnUIEntity>[0]['visual']): Entity => {
         const e = spawnUIEntity({
             world, parent,
@@ -186,24 +182,13 @@ export function createKit(world: World, textures: Textures, fonts: { regular: nu
         return e;
     };
 
-    const frosted = (e: Entity): Entity => {
-        world.update(e, UIVisual, (v) => { v.material = materials.frost; });
-        return e;
-    };
+    const canvas = spawnUIEntity({ world, node: { pointerEvents: UIPointerEvents.None } });
+    world.insert(canvas, Name, { value: 'Hud' });
+    world.insert(canvas, Canvas, { designResolution: { x: DESIGN.width, y: DESIGN.height }, scaleMode: ScaleMode.FixedHeight });
+    const root = spawnUIEntity({ world, parent: canvas, node: { fill: true, pointerEvents: UIPointerEvents.None } });
+    world.insert(root, Name, { value: 'HudRoot' });
 
-    const sheet = (name: string, layer: number, effect = 0): Entity => {
-        const canvas = spawnUIEntity({ world, node: { pointerEvents: UIPointerEvents.None } });
-        world.insert(canvas, Name, { value: name });
-        world.insert(canvas, Canvas, { designResolution: { x: DESIGN.width, y: DESIGN.height }, scaleMode: ScaleMode.FixedHeight, layer });
-        if (effect !== 0) world.insert(canvas, CanvasEffect, { material: effect });
-        const root = spawnUIEntity({ world, parent: canvas, node: { fill: true, pointerEvents: UIPointerEvents.None } });
-        world.insert(root, Name, { value: `${name}Root` });
-        return root;
-    };
-    const marks = sheet('HudMarks', LAYERS.marks);
-    const root = sheet('Hud', LAYERS.glass, materials.lens);
-
-    return { world, root, marks, textures, frosted, node, image, sliced, solid, label, centred, pivot, tilt, lift, glow, say, ink, fill, fade, place, size, turn };
+    return { world, root, textures, node, image, sliced, solid, label, centred, pivot, tilt, lift, glow, say, ink, fill, fade, place, size, turn };
 }
 
 const HULL_BOXES: readonly (readonly number[])[] = [
