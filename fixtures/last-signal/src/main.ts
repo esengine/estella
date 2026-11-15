@@ -37,15 +37,29 @@ const UI = {
     accent: { r: 0.6, g: 0.95, b: 1, a: 1 },
 };
 const TOOLS: { tool: Tool; label: string; name: string }[] = [
-    { tool: 'mine', label: `1  MINE  ${COSTS.mine}`, name: 'ToolMine' },
-    { tool: 'store', label: `2  STORE  ${COSTS.store}`, name: 'ToolStore' },
-    { tool: 'solar', label: `3  SOLAR  ${COSTS.solar}`, name: 'ToolSolar' },
-    { tool: 'battery', label: `4  BATTERY  ${COSTS.battery}`, name: 'ToolBattery' },
-    { tool: 'select', label: '5  SELECT', name: 'ToolSelect' },
-    { tool: 'remove', label: '6  REMOVE', name: 'ToolRemove' },
+    { tool: 'mine', label: `1 采矿站 ${COSTS.mine}`, name: 'ToolMine' },
+    { tool: 'store', label: `2 仓库 ${COSTS.store}`, name: 'ToolStore' },
+    { tool: 'solar', label: `3 太阳能 ${COSTS.solar}`, name: 'ToolSolar' },
+    { tool: 'battery', label: `4 电池 ${COSTS.battery}`, name: 'ToolBattery' },
+    { tool: 'select', label: '5 查看', name: 'ToolSelect' },
+    { tool: 'remove', label: '6 拆除', name: 'ToolRemove' },
 ];
 const TOOLBAR = { top: 664, width: 124, gap: 8, left: (VIEW.width - 6 * 124 - 5 * 8) / 2 + 60 };
-const NAMES: Record<BuildingKind, string> = { mine: 'Mine', store: 'Storehouse', solar: 'Solar array', battery: 'Battery', tower: 'Signal tower' };
+const POWER_NAMES = { blackout: '停电', charging: '充电中', draining: '放电中', steady: '稳定' } as const;
+const reasonText = (reason: string): string => {
+    const cost = /^it costs (\d+) ore and the storehouse holds (\d+)$/.exec(reason);
+    if (cost) return `需要 ${cost[1]} 矿石，仓库只有 ${cost[2]}`;
+    const fix = /^the repair takes (\d+) ore and the storehouse holds (\d+)$/.exec(reason);
+    if (fix) return `修复需要 ${fix[1]} 矿石，仓库只有 ${fix[2]}`;
+    return ({
+        'outside the map': '超出了地图',
+        'the cell already holds a building': '这一格已经有建筑',
+        'the drone is on that cell': '无人机正停在这一格',
+        'the signal is already transmitting': '信号已经在发射',
+        'there is no tower to repair': '没有可修复的通信塔',
+    } as Record<string, string>)[reason] ?? reason;
+};
+const NAMES: Record<BuildingKind, string> = { mine: '采矿站', store: '仓库', solar: '太阳能站', battery: '电池', tower: '通信塔' };
 const partsOf = (kind: BuildingKind): Part[] => kind === 'mine' ? mineParts() : kind === 'store' ? storeParts() : kind === 'solar' ? solarParts() : kind === 'battery' ? batteryParts() : towerParts();
 
 const saves = new SaveManager({ version: SAVE_VERSION, migrations: { 1: migrateFromV1, 2: migrateFromV2 }, keyPrefix: 'last-signal:' });
@@ -218,7 +232,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
     let lastDrone = { x: state.drone.x, z: state.drone.z };
     let heading = 0;
     let elapsed = 0;
-    let notice = 'Pick a building below and click the ground to place it.';
+    let notice = '在下方选一种建筑，然后点击地面放置。';
 
     const say = (text: string): void => { notice = text; };
     const kindName = (kind: BuildingKind): string => NAMES[kind];
@@ -330,30 +344,30 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
 
     const build = (world: World, kind: PlaceableKind): void => {
         const result = place(state, kind, cursor);
-        if (!result.ok) { journal.note('build', { kind, ok: false, reason: result.reason, ore: state.ore }); say(`Cannot build here: ${result.reason}.`); return; }
+        if (!result.ok) { journal.note('build', { kind, ok: false, reason: result.reason, ore: state.ore }); say(`这里不能建：${reasonText(result.reason)}。`); return; }
         grid!.setWalkable(cursor.x, cursor.y, false);
         showSite(world, result.building);
         facts.blockedCells = countBlocked();
         journal.act('build', { kind, cost: COSTS[kind], oreLeft: state.ore, x: cursor.x, y: cursor.y });
-        say(`${kindName(kind)} built at ${cursor.x}, ${cursor.y} for ${COSTS[kind]} ore.`);
+        say(`${kindName(kind)}已建成，花费 ${COSTS[kind]} 矿石。`);
     };
 
     const remove = (world: World): void => {
-        if (buildingAt(state, cursor)?.kind === 'tower') { say('The signal tower cannot be removed.'); return; }
+        if (buildingAt(state, cursor)?.kind === 'tower') { say('通信塔不能拆除。'); return; }
         const gone = demolish(state, cursor);
-        if (gone === null) { say('Nothing to remove here.'); return; }
+        if (gone === null) { say('这里没有可拆的建筑。'); return; }
         grid!.setWalkable(cursor.x, cursor.y, true);
         hideSite(world, gone.id);
         facts.blockedCells = countBlocked();
         journal.act('remove', { kind: gone.kind, refund: Math.floor(COSTS[gone.kind as PlaceableKind] / 2), oreLeft: state.ore });
-        say(`${kindName(gone.kind)} at ${cursor.x}, ${cursor.y} removed. Half its ore came back.`);
+        say(`${kindName(gone.kind)}已拆除，退回一半矿石。`);
     };
 
     const pick = (): void => {
         const at = buildingAt(state, cursor);
         selected = at === null ? 0 : at.id;
         journal.look();
-        say(at === null ? 'Nothing selected.' : `${kindName(at.kind)} #${at.id} selected.`);
+        say(at === null ? '没有选中任何建筑。' : `已选中 ${at.id} 号${kindName(at.kind)}。`);
     };
 
     const primary = (world: World): void => {
@@ -365,45 +379,45 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
     const choose = (next: Tool): void => {
         tool = next;
         journal.look();
-        say(next === 'select' ? 'Click a building to inspect it.' : next === 'remove' ? 'Click a building to remove it.' : `Click the ground to place a ${kindName(next).toLowerCase()} for ${COSTS[next]} ore.`);
+        say(next === 'select' ? '点击一座建筑查看它的状态。' : next === 'remove' ? '点击一座建筑把它拆掉。' : `点击地面放置${kindName(next)}，需要 ${COSTS[next]} 矿石。`);
     };
 
     const toggle = (): void => {
         const mine = state.buildings.find((b) => b.id === selected && b.kind === 'mine');
-        if (mine === undefined) { say('Select a mine to switch it on or off.'); return; }
+        if (mine === undefined) { say('先选中一座采矿站，才能开关它。'); return; }
         setMineOn(state, mine.id, !mine.on);
         journal.act('mine_toggle', { id: mine.id, on: mine.on, blackout: state.blackout });
-        say(mine.on ? `Mine #${mine.id} is back on and draws power again.` : `Mine #${mine.id} is switched off. It draws no power and mines nothing.`);
+        say(mine.on ? `${mine.id} 号采矿站已开启，重新开始耗电。` : `${mine.id} 号采矿站已关闭，不耗电也不产矿。`);
     };
 
     const repair = (): void => {
         const reason = whyNotRepair(state);
-        if (reason !== null) { journal.act('repair', { ok: false, ore: state.ore }); say(`Cannot repair the tower: ${reason}.`); return; }
+        if (reason !== null) { journal.act('repair', { ok: false, ore: state.ore }); say(`还不能修复通信塔：${reasonText(reason)}。`); return; }
         repairTower(state);
         journal.act('repair', { ok: true, ore: state.ore });
         uplink = 0;
         acknowledged = false;
         facts.repairs = (facts.repairs as number) + 1;
-        say(`Tower repaired for ${REPAIR_COST} ore. The uplink is powering up.`);
+        say(`通信塔已修复，花费 ${REPAIR_COST} 矿石。发射器正在启动。`);
     };
 
     const save = (): void => {
         saves.save<Snapshot>(SLOT, snapshot(state));
         facts.saves = (facts.saves as number) + 1;
-        say('Game saved.');
+        say('已存档。');
     };
 
     const load = (world: World): boolean => {
-        if (!saves.has(SLOT)) { say('No save to load.'); return false; }
+        if (!saves.has(SLOT)) { say('没有可读取的存档。'); return false; }
         try {
             adopt(world, restore(saves.load<Snapshot>(SLOT)));
         } catch (error) {
             console.error('[last-signal] the save could not be restored:', error);
-            say('The save could not be restored.');
+            say('存档无法恢复。');
             return false;
         }
         facts.loads = (facts.loads as number) + 1;
-        say('Game loaded.');
+        say('已读档。');
         return true;
     };
 
@@ -473,7 +487,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         const repairButton = createButton({
             world, events, parent: canvas!,
             node: { position: UIPositionType.Absolute, insetLeft: px(left + 10), insetTop: px(below + 106), width: px(column - 20), height: px(34) },
-            text: { content: 'R  REPAIR TOWER', fontSize: 13, color: UI.text }, background: { color: UI.button }, onClick: repair,
+            text: { content: 'R  修复通信塔', fontSize: 13, color: UI.text }, background: { color: UI.button }, onClick: repair,
         });
         repairEntity = repairButton.entity;
         repairTop = below + 106;
@@ -483,18 +497,18 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         rect(world, 'PowerBar', left + 10, below + 278, 150, 8, UI.line);
         powerFill = rect(world, 'PowerFill', left + 10, below + 278, 1, 8, PALETTE.batteryGlow);
         label(world, 'PowerHint', left + 168, below + 271, 90, 20, 11, UI.dim);
-        const toggleButton = createButton({
-            world, events, parent: canvas!,
-            node: { position: UIPositionType.Absolute, insetLeft: px(VIEW.width - 304), insetTop: px(-2000), width: px(276), height: px(32) },
-            text: { content: 'O  SWITCH ON / OFF', fontSize: 13, color: UI.text }, background: { color: UI.button }, onClick: toggle,
-        });
-        world.insert(toggleButton.entity, Name, { value: 'ToggleButton' });
-        toggleEntity = toggleButton.entity;
         rect(world, 'HudPanel', left, below + 158, column, 56, UI.panel);
         hud = label(world, 'Hud', left + 10, below + 164, column - 20, 46, 13, UI.text);
         world.insert(repairButton.entity, Name, { value: 'RepairButton' });
         rect(world, 'InfoPanel', VIEW.width - 316, 96, 300, 170, UI.panel);
         info = label(world, 'Info', VIEW.width - 304, 106, 280, 150, 15, UI.text);
+        const toggleButton = createButton({
+            world, events, parent: canvas!,
+            node: { position: UIPositionType.Absolute, insetLeft: px(VIEW.width - 304), insetTop: px(-2000), width: px(276), height: px(32) },
+            text: { content: 'O  开启 / 关闭', fontSize: 13, color: UI.text }, background: { color: UI.button }, onClick: toggle,
+        });
+        world.insert(toggleButton.entity, Name, { value: 'ToggleButton' });
+        toggleEntity = toggleButton.entity;
         rect(world, 'NoticePanel', TOOLBAR.left, TOOLBAR.top - 40, 4 * TOOLBAR.width + 3 * TOOLBAR.gap, 30, UI.panel);
         noticeText = label(world, 'Notice', TOOLBAR.left + 12, TOOLBAR.top - 35, 4 * TOOLBAR.width + 3 * TOOLBAR.gap - 24, 24, 15, UI.text);
 
@@ -508,7 +522,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
             world.insert(button.entity, Name, { value: entry.name });
         });
         toolMark = rect(world, 'ToolActive', TOOLBAR.left, TOOLBAR.top + 40, TOOLBAR.width, 4, UI.accent);
-        const side: [string, string, () => void][] = [['SpeedButton', 'T  SPEED', () => speed(world)], ['SaveButton', 'K  SAVE', save], ['LoadButton', 'L  LOAD', () => { load(world); }]];
+        const side: [string, string, () => void][] = [['SpeedButton', 'T 加速', () => speed(world)], ['SaveButton', 'K 存档', save], ['LoadButton', 'L 读档', () => { load(world); }]];
         side.forEach(([name, text, onClick], i) => {
             const button = createButton({
                 world, events, parent: canvas!,
@@ -522,26 +536,26 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         const headline = label(world, 'VictoryTitle', 0, -2000, VIEW.width, 60, 48, PALETTE.online);
         const tagline = label(world, 'VictoryText', 0, -2000, VIEW.width, 30, 18, UI.text);
         for (const entity of [headline, tagline]) world.insert(entity, Text, { ...world.get(entity, Text), align: 1 });
-        write(world, headline, 'SIGNAL TRANSMITTED');
+        write(world, headline, '信号已发出');
         const again = createButton({
             world, events, parent: canvas!,
             node: { position: UIPositionType.Absolute, insetLeft: px(VIEW.width / 2 - 170), insetTop: px(-2000), width: px(160), height: px(44) },
-            text: { content: 'CONTINUE', fontSize: 15, color: UI.text }, background: { color: UI.button },
-            onClick: () => { acknowledged = true; say('The signal is out. The base is still yours to run.'); },
+            text: { content: '继续经营', fontSize: 15, color: UI.text }, background: { color: UI.button },
+            onClick: () => { acknowledged = true; say('信号已经发出。基地仍由你继续经营。'); },
         });
         world.insert(again.entity, Name, { value: 'ContinueButton' });
         const fresh = createButton({
             world, events, parent: canvas!,
             node: { position: UIPositionType.Absolute, insetLeft: px(VIEW.width / 2 + 10), insetTop: px(-2000), width: px(160), height: px(44) },
-            text: { content: 'NEW GAME', fontSize: 15, color: UI.text }, background: { color: UI.button },
-            onClick: () => { saves.remove(SLOT); keepJournal(true); journal = new Journal(Date.now().toString(36)); journalWritten = 0; adopt(world, createState()); say('New game. The tower is silent again.'); },
+            text: { content: '重新开始', fontSize: 15, color: UI.text }, background: { color: UI.button },
+            onClick: () => { saves.remove(SLOT); keepJournal(true); journal = new Journal(Date.now().toString(36)); journalWritten = 0; adopt(world, createState()); say('新的一局。通信塔又沉默了。'); },
         });
         world.insert(fresh.entity, Name, { value: 'NewGameButton' });
         victory = [curtain, headline, tagline, again.entity, fresh.entity];
 
         adopt(world, state);
         facts.restored = saves.has(SLOT) && load(world);
-        if (facts.restored) say('Welcome back. Your base was restored from the last save.');
+        if (facts.restored) say('欢迎回来。基地已从上次存档恢复。');
         world.insert(clock, TimeOfDay, { ...world.get(clock, TimeOfDay), daySeconds: DAY_SECONDS.normal });
         facts.readyMs = Math.round(performance.now() - bootAt);
         facts.pieces = livePieces.size;
@@ -600,8 +614,8 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         if (input.isKeyPressed('KeyR')) repair();
         if (input.isKeyPressed('KeyK')) save();
         if (input.isKeyPressed('KeyL')) load(world);
-        if (input.isKeyPressed('KeyN')) { saves.remove(SLOT); keepJournal(true); journal = new Journal(Date.now().toString(36)); journalWritten = 0; adopt(world, createState()); say('New game.'); }
-        if (input.isKeyPressed('KeyJ')) { exportJournals(); say('Play journal exported.'); }
+        if (input.isKeyPressed('KeyN')) { saves.remove(SLOT); keepJournal(true); journal = new Journal(Date.now().toString(36)); journalWritten = 0; adopt(world, createState()); say('新的一局。'); }
+        if (input.isKeyPressed('KeyJ')) { exportJournals(); say('试玩记录已导出。'); }
         if (input.isKeyPressed('KeyC')) {
             lowView = !lowView;
             facts.lowView = lowView;
@@ -664,8 +678,8 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         lastHour = state.hour;
         if (state.blackout !== wasBlackout) {
             wasBlackout = state.blackout;
-            if (state.blackout) { facts.blackouts = (facts.blackouts as number) + 1; say('Blackout. The stored power ran out and every mine has stopped.'); }
-            else say(state.buildings.some((b) => b.kind === 'mine' && b.on) ? 'Power is back. The mines are running again.' : 'Nothing draws power now. The store can refill.');
+            if (state.blackout) { facts.blackouts = (facts.blackouts as number) + 1; say('停电了。储电耗尽，所有采矿站都已停工。'); }
+            else say(state.buildings.some((b) => b.kind === 'mine' && b.on) ? '电力恢复，采矿站重新开工。' : '现在没有设备耗电，储电可以回充。');
         }
 
         const pose = world.get(body, Transform).position;
@@ -675,7 +689,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         const carried = state.drone.cargo;
         if ((agent.arrived || !agent.hasTarget) && settleArrival(state)) {
             if (state.drone.leg === 'toMine') journal.note('delivery', { ore: carried, stored: state.ore });
-            say(state.drone.leg === 'toStore' ? 'The drone loaded ore at the mine.' : `Ore delivered. The storehouse holds ${state.ore}.`);
+            say(state.drone.leg === 'toStore' ? '无人机在采矿站装好了矿石。' : `矿石已送达，仓库现有 ${state.ore}。`);
             dock = null;
             dockFor = -1;
         }
@@ -841,11 +855,11 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         facts.power = report.status;
         facts.mines = report.wanted;
         facts.minesRunning = report.running;
-        write(world, powerTitle!, `POWER   /   ${report.status.toUpperCase()}`);
-        write(world, powerText!, `MAKING ${report.generation.toFixed(1)}    USING ${report.demand.toFixed(1)} kW    ${report.running}/${report.wanted} MINES`);
+        write(world, powerTitle!, `电力   /   ${POWER_NAMES[report.status]}`);
+        write(world, powerText!, `发电 ${report.generation.toFixed(1)}   耗电 ${report.demand.toFixed(1)} 千瓦   开工 ${report.running}/${report.wanted}`);
         sizeTo(world, powerFill!, Math.max(1, 150 * report.energy / report.capacity));
         const powerHint = world.findEntityByName('PowerHint');
-        if (powerHint !== null) write(world, powerHint, `${report.energy.toFixed(1)} / ${report.capacity} kWh`);
+        if (powerHint !== null) write(world, powerHint, `储电 ${report.energy.toFixed(1)} / ${report.capacity}`);
         const stored = state.blackout ? PALETTE.offline : report.status === 'draining' ? PALETTE.mineGlow : PALETTE.batteryGlow;
         if (facts.storedColour !== stored.g) { paint(world, powerFill!, stored); facts.storedColour = stored.g; }
         facts.signal = state.signal;
@@ -866,7 +880,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
                 const sum = journal.summary();
                 journal.note('victory', { seconds: sum.seconds, gameHours: sum.gameHours, buildings: state.buildings.length, builds: sum.builds, outages: sum.outages, outageHours: sum.outageHours, trips: state.trips });
                 const minutes = Math.floor(sum.seconds / 60);
-                write(world, victory[2]!, `${minutes} min ${Math.round(sum.seconds - minutes * 60)} s, ${state.trips} trips, ${sum.builds} built, ${sum.outageHours} h in the dark.  J saves the play log.`);
+                write(world, victory[2]!, `用时 ${minutes} 分 ${Math.round(sum.seconds - minutes * 60)} 秒，运输 ${state.trips} 趟，建造 ${sum.builds} 座，停电 ${sum.outageHours} 小时。按 J 保存试玩记录。`);
             }
         }
         facts.victory = showVictory;
@@ -877,41 +891,41 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         const button = world.get(repairEntity!, UINode);
         const buttonTop = online ? -2000 : repairTop;
         if (button.insetTop.value !== buttonTop) { button.insetTop = px(buttonTop); world.insert(repairEntity!, UINode, button); }
-        write(world, objectiveTitle!, online ? 'LAST SIGNAL   /   SIGNAL ONLINE' : 'LAST SIGNAL   /   SIGNAL OFFLINE');
-        write(world, objective!, online ? 'THE SIGNAL IS OUT' : 'REPAIR THE COMMUNICATION TOWER');
-        write(world, objectiveCount!, online ? 'TRANSMITTING' : `${held} / ${REPAIR_COST} ORE`);
-        write(world, objectiveHint!, online ? 'The base is yours to keep running.'
-            : state.ore >= REPAIR_COST ? 'Enough ore in store. Press REPAIR TOWER.' : 'Deliver ore to the storehouse\nto restore the signal.');
+        write(world, objectiveTitle!, online ? 'LAST SIGNAL   /   信号在线' : 'LAST SIGNAL   /   信号离线');
+        write(world, objective!, online ? '信号已经发出' : '修复通信塔');
+        write(world, objectiveCount!, online ? '发射中' : `${held} / ${REPAIR_COST} 矿石`);
+        write(world, objectiveHint!, online ? '基地仍由你继续经营。'
+            : state.ore >= REPAIR_COST ? '矿石够了，按“修复通信塔”。' : '让无人机把矿石运进仓库，\n攒够了就能恢复信号。');
         sizeTo(world, objectiveFill!, online ? 150 : Math.max(1, 150 * held / REPAIR_COST));
         const fill = online || state.ore >= REPAIR_COST ? PALETTE.online : PALETTE.offline;
         if (facts.fillColour !== fill.r) { paint(world, objectiveFill!, fill); facts.fillColour = fill.r; }
 
         const hours = Math.floor(state.hour);
         const minutes = Math.floor((state.hour - hours) * 60);
-        write(world, hud!, `ORE ${state.ore}    TRIPS ${state.trips}    ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}${facts.fast ? '  >>' : facts.held ? '  ||' : ''}\n`
-            + `DRONE ${state.drone.cargo > 0 ? `hauling ${state.drone.cargo} ore to store` : target !== null && !agent.hasTarget && isDocked(state, target) ? 'waiting for ore at the mine' : 'flying to the mine'}${facts.route === 'complete' ? '' : `  (route ${String(facts.route)})`}`);
+        write(world, hud!, `矿石 ${state.ore}    已运 ${state.trips} 趟    ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}${facts.fast ? '  >>' : facts.held ? '  ||' : ''}\n`
+            + `无人机：${state.drone.cargo > 0 ? `正把 ${state.drone.cargo} 矿石运往仓库` : target !== null && !agent.hasTarget && isDocked(state, target) ? '在采矿站等矿石' : '飞往采矿站'}${facts.route === 'complete' ? '' : '（路被挡住了）'}`);
         write(world, noticeText!, notice);
         if (chosen !== undefined) {
             const b = chosen.building;
-            const status = b.kind === 'tower' ? (online ? 'Transmitting.' : 'Silent. Its uplink is damaged.')
-                : b.kind === 'mine' ? (!b.on ? 'Switched off.' : state.blackout ? 'Stopped: no power.' : b.id === activeId ? 'Running. The drone is on its way.' : 'Running.')
-                    : b.kind === 'store' ? (b.id === activeId ? 'The drone is on its way to unload.' : 'Idle.')
-                        : b.kind === 'solar' ? (report.generation > 0 ? 'Making power.' : 'Dark. No sun.') : 'Storing power.';
-            const detail = b.kind === 'tower' ? (online ? 'The signal is out.' : `Repair: ${REPAIR_COST} ore. In store: ${state.ore}.\nPress R or REPAIR TOWER.`)
-                : b.kind === 'mine' ? `Ore waiting: ${Math.floor(b.stock)} / 10    Draws 1.5 kW\nLoads handed over: ${b.served}`
-                    : b.kind === 'store' ? `Deliveries received: ${b.served}`
-                        : b.kind === 'solar' ? 'Up to 4 kW at noon, nothing at night.' : 'Adds 12 kWh of storage.';
-            write(world, info!, `${kindName(b.kind).toUpperCase()}  #${b.id}\nCell ${b.x}, ${b.y}\n${status}\n${detail}`);
+            const status = b.kind === 'tower' ? (online ? '正在发射信号。' : '沉默着，发射器已损坏。')
+                : b.kind === 'mine' ? (!b.on ? '已关闭。' : state.blackout ? '停工：没有电。' : b.id === activeId ? '运转中，无人机正赶来。' : '运转中。')
+                    : b.kind === 'store' ? (b.id === activeId ? '无人机正赶来卸货。' : '空闲。')
+                        : b.kind === 'solar' ? (report.generation > 0 ? '正在发电。' : '没有阳光，不发电。') : '正在储电。';
+            const detail = b.kind === 'tower' ? (online ? '信号已经发出。' : `修复需要 ${REPAIR_COST} 矿石，仓库现有 ${state.ore}。\n按 R 或“修复通信塔”。`)
+                : b.kind === 'mine' ? `待运矿石 ${Math.floor(b.stock)} / 10    耗电 1.5 千瓦\n已交给无人机 ${b.served} 次`
+                    : b.kind === 'store' ? `已收货 ${b.served} 次`
+                        : b.kind === 'solar' ? '正午最多发 4 千瓦，夜里不发电。' : '增加 12 度储电容量。';
+            write(world, info!, `${b.id} 号${kindName(b.kind)}\n${status}\n${detail}`);
         } else {
             const about: Record<PlaceableKind, string> = {
-                mine: 'Makes 2 ore an hour while powered.\nDraws 1.5 kW, day and night.',
-                store: 'Where the drone unloads.\nA nearer one shortens every trip.',
-                solar: 'Makes up to 4 kW by day.\nNothing between dusk and dawn.',
-                battery: 'Stores 12 kWh more,\nto carry the mines through the night.',
+                mine: '通电时每小时产 2 矿石。\n昼夜都耗电 1.5 千瓦。',
+                store: '无人机在这里卸货。\n离采矿站近一些，每趟都更快。',
+                solar: '白天最多发 4 千瓦。\n黄昏到黎明不发电。',
+                battery: '多存 12 度电，\n让采矿站撑过夜晚。',
             };
-            write(world, info!, tool === 'select' ? 'SELECT\nClick a building to see what it is doing.\nA selected mine can be switched off (O).'
-                : tool === 'remove' ? 'REMOVE\nClick a building to take it down.\nHalf its ore comes back.'
-                    : `${kindName(tool).toUpperCase()}   ${COSTS[tool]} ORE\n${about[tool]}\n\nGreen: can build. Red: blocked or too dear.\nWASD move, wheel or Z/X zoom.`);
+            write(world, info!, tool === 'select' ? '查看\n点击建筑看它在做什么。\n选中的采矿站可以关掉（O 键）。'
+                : tool === 'remove' ? '拆除\n点击建筑把它拆掉，\n退回一半矿石。'
+                    : `${kindName(tool)}   ${COSTS[tool]} 矿石\n${about[tool]}\n\n绿色可以建，红色被占或矿石不够。\nWASD 移动视角，滚轮缩放。`);
         }
     }, { name: 'LastSignalPlay', runAfter: ['NavAgentSystem'] }));
 } });
