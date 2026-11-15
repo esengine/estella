@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.106.0] - 2026-11-15
+
 ### Added
 
 - **A native build's sockets connect to `wss://`.** `createSocket({ url: 'wss://…' })` now opens on the desktop, iOS and Android runtimes, where it used to report that only `ws://` is supported and close. TLS is the operating system's, as it already is for `fetch`: Network.framework on macOS and iOS, Schannel on Windows, libcurl on Linux and the platform's `SSLSocket` on Android, under the same WebSocket framing a `ws://` connection uses. The certificate chain and the host name are checked against the system's trust store; a connection that fails either reports the reason as an `error` event and closes with 1006. With no port in the URL a `wss://` connection goes to 443.
@@ -15630,7 +15632,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.105.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.106.0...HEAD
+[0.106.0]: https://github.com/esengine/estella/compare/v0.105.0...v0.106.0
 [0.105.0]: https://github.com/esengine/estella/compare/v0.104.1...v0.105.0
 [0.104.1]: https://github.com/esengine/estella/compare/v0.104.0...v0.104.1
 [0.104.0]: https://github.com/esengine/estella/compare/v0.103.0...v0.104.0
