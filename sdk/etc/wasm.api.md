@@ -576,6 +576,7 @@ renderer_setPlanarReflectionQuality: ((scale: number, maxSize: number, updatesPe
 renderer_setProbeVolumeOverride: ((entity: number, volumeHandle: number) => void) | undefined
 renderer_setProbeVolumeReflection: ((entity: number, environmentHandle: number, slot: number) => void) | undefined
 renderer_setQualityBudgets: ((atlasSize: number, cellSize: number, cascades: number, particleLimit: number) => void) | undefined
+renderer_setScreenOverlayEffect: ((material: number) => void) | undefined
 renderer_setShadow2DSoftSamples: ((samples: number) => void) | undefined
 renderer_setShadowDistance: ((distance: number) => void) | undefined
 renderer_setSkyEnvironment: ((environmentHandle: number) => void) | undefined

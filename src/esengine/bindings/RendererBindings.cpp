@@ -891,6 +891,10 @@ void renderer_submitScreenOverlay(ecs::Registry& registry) {
     g_renderFrame->submitScreenOverlay(registry);
 }
 
+void renderer_setScreenOverlayEffect(u32 material) {
+    if (g_renderFrame) g_renderFrame->setScreenOverlayEffect(material);
+}
+
 void renderer_endScreenOverlay(u32 targetHandle) {
     if (!g_renderFrame) return;
     g_renderFrame->endScreenOverlay(targetHandle);

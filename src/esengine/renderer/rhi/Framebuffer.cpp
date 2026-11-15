@@ -140,6 +140,7 @@ bool Framebuffer::initialize() {
     colorDesc.minFilter = filter;
     colorDesc.magFilter = filter;
     colorDesc.samples = samples;
+    colorDesc.mipmaps = spec_.mipmaps && samples == 1;
     colorDesc.storage = spec_.storage && samples == 1 && device_->supportsCompute();
     colorAttachment_ = device_->createTexture(colorDesc, GfxContent::transient(), nullptr);
 

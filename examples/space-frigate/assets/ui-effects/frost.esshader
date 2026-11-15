@@ -1,0 +1,79 @@
+#pragma shader "HUD Frost"
+#pragma version 300 es
+#pragma domain Unlit
+#pragma param u_blur float default(3.5) range(0,7)
+#pragma param u_tint color default(0.03,0.09,0.13,1)
+#pragma param u_tintAmount float default(0.3) range(0,1)
+#pragma param u_plate float default(0.72) range(0,1)
+#pragma param u_screenColor texture default(white)
+
+#pragma fragment
+precision highp float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+void main() {
+    vec4 plate = texture(u_textures[0], v_texCoord);
+    vec3 paint = plate.rgb * v_color.rgb;
+#ifdef ES_LINEAR
+    paint = linearToSrgb(paint);
+#endif
+    if (texture(u_screenColor, vec2(0.5)).a >= 0.75) {
+        fragColor = vec4(paint, plate.a * v_color.a);
+        return;
+    }
+    vec2 size = vec2(textureSize(u_screenColor, 0));
+    vec2 uv = gl_FragCoord.xy / size;
+    vec2 reach = exp2(u_blur) / size;
+    vec3 behind = textureLod(u_screenColor, uv, u_blur).rgb * 4.0;
+    behind += (textureLod(u_screenColor, uv + reach * vec2(1.0, 0.0), u_blur).rgb
+             + textureLod(u_screenColor, uv - reach * vec2(1.0, 0.0), u_blur).rgb
+             + textureLod(u_screenColor, uv + reach * vec2(0.0, 1.0), u_blur).rgb
+             + textureLod(u_screenColor, uv - reach * vec2(0.0, 1.0), u_blur).rgb) * 2.0;
+    behind += textureLod(u_screenColor, uv + reach * vec2(1.0, 1.0), u_blur).rgb
+            + textureLod(u_screenColor, uv - reach * vec2(1.0, 1.0), u_blur).rgb
+            + textureLod(u_screenColor, uv + reach * vec2(1.0, -1.0), u_blur).rgb
+            + textureLod(u_screenColor, uv - reach * vec2(1.0, -1.0), u_blur).rgb;
+    vec3 glass = mix(behind / 16.0, u_tint.rgb, u_tintAmount);
+    float over = plate.a * u_plate;
+    float shape = smoothstep(0.2, 0.5, plate.a);
+    float cover = over + shape * (1.0 - over);
+    fragColor = vec4((paint * over + glass * shape * (1.0 - over)) / max(cover, 1e-4), cover * v_color.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+fn behindAt(uv : vec2f, lod : f32) -> vec3f {
+    return textureSampleLevel(u_screenColor, u_screenColor_s, uv, lod).rgb;
+}
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let plate = textureSampleGrad(t0, s0, v.v_texCoord, dpdx(v.v_texCoord), dpdy(v.v_texCoord));
+    var paint = plate.rgb * v.v_color.rgb;
+#ifdef ES_LINEAR
+    paint = linearToSrgb(paint);
+#endif
+    if (textureSampleLevel(u_screenColor, u_screenColor_s, vec2f(0.5), 0.0).a >= 0.75) {
+        return vec4f(paint, plate.a * v.v_color.a);
+    }
+    let size = vec2f(textureDimensions(u_screenColor, 0));
+    let uv = v.pos.xy / size;
+    let reach = exp2(mc.u_blur) / size;
+    let lod = mc.u_blur;
+    var behind = behindAt(uv, lod) * 4.0;
+    behind += (behindAt(uv + reach * vec2f(1.0, 0.0), lod) + behindAt(uv - reach * vec2f(1.0, 0.0), lod)
+             + behindAt(uv + reach * vec2f(0.0, 1.0), lod) + behindAt(uv - reach * vec2f(0.0, 1.0), lod)) * 2.0;
+    behind += behindAt(uv + reach * vec2f(1.0, 1.0), lod) + behindAt(uv - reach * vec2f(1.0, 1.0), lod)
+            + behindAt(uv + reach * vec2f(1.0, -1.0), lod) + behindAt(uv - reach * vec2f(1.0, -1.0), lod);
+    let glass = mix(behind / 16.0, mc.u_tint.rgb, mc.u_tintAmount);
+    let over = plate.a * mc.u_plate;
+    let shape = smoothstep(0.2, 0.5, plate.a);
+    let cover = over + shape * (1.0 - over);
+    return vec4f((paint * over + glass * shape * (1.0 - over)) / max(cover, 1e-4), cover * v.v_color.a);
+}
+#pragma end

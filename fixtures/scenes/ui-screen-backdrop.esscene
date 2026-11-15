@@ -1,0 +1,233 @@
+{
+  "version": 4,
+  "name": "UI that reads the frame under it. The world is black on the left and white on the right with a red quarter at the top left. One panel draws the frame it covers from a small level of its copy, so the edge between black and white is a ramp inside it and still a step outside; another draws the copy as it is across the red quarter's lower edge, which says the copy is the right way up. A panel handed no copy draws magenta.",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 540,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "White",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 480,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 960,
+              "y": 4000
+            },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Red",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -480,
+              "y": 270,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 960,
+              "y": 540
+            },
+            "color": {
+              "r": 1,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "layer": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Canvas",
+      "parent": null,
+      "children": [
+        4,
+        5
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 1920,
+              "y": 1080
+            },
+            "scaleMode": 1,
+            "layer": 0
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {}
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Frost",
+      "parent": 3,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 0,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 65,
+              "unit": 1
+            },
+            "width": {
+              "value": 100,
+              "unit": 1
+            },
+            "height": {
+              "value": 25,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true,
+            "material": "/scenes/ui-screen-backdrop/frost.esmaterial"
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Clear",
+      "parent": 3,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 20,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 35,
+              "unit": 1
+            },
+            "width": {
+              "value": 10,
+              "unit": 1
+            },
+            "height": {
+              "value": 30,
+              "unit": 1
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "enabled": true,
+            "material": "/scenes/ui-screen-backdrop/clear.esmaterial"
+          }
+        }
+      ]
+    }
+  ]
+}

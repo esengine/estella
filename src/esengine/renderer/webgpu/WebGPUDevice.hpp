@@ -483,7 +483,9 @@ private:
      *         pipeline + bind groups to re-establish on the next user draw. */
     bool storesTargetsTopDown() const override { return true; }
     void copyTextureFlippedY(TextureHandle src, TextureHandle dst) override;
-    WGPURenderPipeline ensureFlipPipeline(WGPUTextureFormat format);
+    bool copyFramebufferColor(FramebufferHandle source, TextureHandle dst) override;
+    WGPURenderPipeline ensureFlipPipeline(WGPUTextureFormat format, bool flip = true);
+    bool surfaceAllowsCopy() const;
     void drawInternalClear(bool color, bool depth, bool stencil,
                            const f32 rgba[4], i32 stencilValue, const RenderPassDesc* region);
     /** @brief True while inside beginRenderPass/endRenderPass. */
@@ -505,6 +507,12 @@ private:
     bool prefer_surface_bgra_ = false;
     /** Whether the surface was configured with CopySrc — see setSurfaceReadback. */
     bool surface_readback_ = false;
+    bool surface_reconfigure_ = false;
+    WGPUTexture surface_copy_ = nullptr;
+    WGPUTextureView surface_copy_view_ = nullptr;
+    WGPUTextureFormat surface_copy_format_ = WGPUTextureFormat_Undefined;
+    u32 surface_copy_width_ = 0;
+    u32 surface_copy_height_ = 0;
     /** Whether the surface should present unthrottled — see setPresentUncapped. */
     bool present_uncapped_ = false;
     /** The fastest mode this surface advertises, for setPresentUncapped. */

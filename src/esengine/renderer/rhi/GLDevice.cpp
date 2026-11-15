@@ -567,9 +567,16 @@ void GLDevice::setBlendEnabled(bool enabled) {
     surface_blend_off_ = false;
 }
 
-void GLDevice::setBlendMode(BlendMode mode) {
-    if (mode == current_blend_) return;
+void GLDevice::setBlendMode(BlendMode mode, bool layerAlpha) {
+    const bool addsOnly = layerAlpha && (mode == BlendMode::Additive || mode == BlendMode::PmaAdditive);
+    if (mode == current_blend_ && addsOnly == current_blend_adds_only_) return;
     current_blend_ = mode;
+    current_blend_adds_only_ = addsOnly;
+    if (addsOnly) {
+        glBlendEquation(GL_FUNC_ADD);
+        glBlendFuncSeparate(mode == BlendMode::Additive ? GL_SRC_ALPHA : GL_ONE, GL_ONE, GL_ZERO, GL_ONE);
+        return;
+    }
     switch (mode) {
     case BlendMode::Normal:
         glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -1317,7 +1324,7 @@ void GLDevice::backendSetPipeline(u32 id, const PipelineDesc& desc) {
     if (id == current_pipeline_id_) return;
     backendUseProgram(static_cast<u32>(desc.program));
     setBlendEnabled(desc.blendEnabled);
-    setBlendMode(desc.blend);
+    setBlendMode(desc.blend, desc.layerAlpha);
     setDepthTest(desc.depthTest);
     setDepthWrite(desc.depthWrite);
     setCulling(desc.cullEnabled);
@@ -2001,6 +2008,18 @@ ReadbackHandle GLDevice::requestReadback(FramebufferHandle target, u32 w, u32 h)
     const u32 id = next_readback_id_++;
     readbacks_[id] = std::move(readback);
     return static_cast<ReadbackHandle>(id);
+}
+
+bool GLDevice::copyFramebufferColor(FramebufferHandle source, TextureHandle dst) {
+    if (!isDeviceUsable()) return false;
+    const TextureDesc* desc = textureDesc(dst);
+    const u32 name = nameOf(texture_names_, static_cast<u32>(dst));
+    if (!desc || name == 0 || desc->samples > 1 || desc->layers > 1) return false;
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, nameOf(framebuffer_names_, static_cast<u32>(source)));
+    bindTextureForEdit(name);
+    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, static_cast<GLsizei>(desc->width), static_cast<GLsizei>(desc->height));
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    return true;
 }
 
 GfxReadbackStatus GLDevice::pollReadback(ReadbackHandle handle) {

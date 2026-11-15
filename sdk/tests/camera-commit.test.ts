@@ -41,7 +41,7 @@ describe('the camera a frame was drawn with', () => {
             begin: (viewProjection) => { drawnWith = new Float32Array(viewProjection); },
             submitAll: () => {}, flush: () => {}, end: () => {}, endFrame: () => {},
             hasScreenOverlay: () => false,
-            beginScreenOverlay: () => {}, submitScreenOverlay: () => {}, endScreenOverlay: () => {},
+            beginScreenOverlay: () => {}, submitScreenOverlay: () => {}, hasScreenOverlayEffect: () => false, setScreenOverlayEffect: () => {}, endScreenOverlay: () => {},
             setStage: () => {}, setViewport: () => {},
             setYSortLayers: () => {}, setDepthLayers: () => {}, setTreeSortLayers: () => {}, setCullingMask: () => {},
             setViewId: () => {},

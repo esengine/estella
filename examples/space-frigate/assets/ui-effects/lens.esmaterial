@@ -1,0 +1,15 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "lens.esshader",
+  "blendMode": 0,
+  "depthTest": false,
+  "depthWrite": false,
+  "cull": 0,
+  "properties": {
+    "u_curve": 0.03,
+    "u_fringe": 0.0016,
+    "u_scan": 0.1,
+    "u_glow": 0.22
+  }
+}

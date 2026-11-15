@@ -475,6 +475,10 @@ public:
         return layout && layout->named.screenColor >= 0;
     }
     void setScreenColor(TextureHandle texture) { screenColor_ = texture; }
+    resource::ShaderHandle shaderOf(u32 materialId) const {
+        const MaterialRecord* m = find(materialId);
+        return m ? m->shaderRef : resource::ShaderHandle{};
+    }
 
     /// Whether @p materialId's shader reads how far the opaque scene behind it is (declares `u_sceneDepthMap`): water measuring its
     /// own depth, a fade where a surface meets what it lies on. Such a draw is also made after the scene's copy.

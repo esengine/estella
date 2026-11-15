@@ -45,7 +45,7 @@ struct BlendStateWGPU {
 /** @brief Maps BlendMode to its WebGPU blend components — mirrors GLDevice's
  *         setBlendMode table (Overlay renders as Normal there too; the real
  *         overlay math lives in shaders). */
-inline BlendStateWGPU toWGPUBlend(BlendMode mode) {
+inline BlendStateWGPU toWGPUBlend(BlendMode mode, bool layerAlpha = false) {
     auto comp = [](WGPUBlendOperation op, WGPUBlendFactor src, WGPUBlendFactor dst) {
         WGPUBlendComponent c{};
         c.operation = op;
@@ -54,6 +54,10 @@ inline BlendStateWGPU toWGPUBlend(BlendMode mode) {
         return c;
     };
     const auto add = WGPUBlendOperation_Add;
+    if (layerAlpha && (mode == BlendMode::Additive || mode == BlendMode::PmaAdditive)) {
+        return { comp(add, mode == BlendMode::Additive ? WGPUBlendFactor_SrcAlpha : WGPUBlendFactor_One, WGPUBlendFactor_One),
+                 comp(add, WGPUBlendFactor_Zero, WGPUBlendFactor_One) };
+    }
     switch (mode) {
     case BlendMode::Additive:
         return { comp(add, WGPUBlendFactor_SrcAlpha, WGPUBlendFactor_One),
