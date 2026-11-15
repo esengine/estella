@@ -14,7 +14,7 @@ import { probeCount } from '../src/modeling/probeWorkers';
 beforeAll(() => prepareModeling());
 
 const scratch = mkdtempSync(path.join(tmpdir(), 'estella-probes-'));
-afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+afterAll(() => rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 const slab: ModelStep = { id: 'slab', op: 'box', size: [4, 0.4, 4], color: [0, 0, 1], tag: 'slab' };
 const plates: ModelStep = { id: 'dense', op: 'panels', faces: '+y', size: 1.3, gap: 0.16, height: 0.12, seed: 3, tag: 'plate' };
