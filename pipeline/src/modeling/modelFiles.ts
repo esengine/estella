@@ -4,9 +4,9 @@ import { createRequire } from 'node:module';
 import { encodeMesh } from 'esengine';
 import { encodeRgbaPng } from '../assets/png';
 import { bakeModel, modelMaterialDoc, needsPreparing, prepareModeling, renderModelSheet, validateModelSource, type ModelReport } from './index';
-import { planNormalBake, type NormalMap } from './normalBake';
+import { startNormalBake, type NormalMap } from './normalBake';
 import { openProbeCache } from './probeCache';
-import { probeCount, runBakeAcross } from './probeWorkers';
+import { probeCount, runBakeAcross, shadeAcross } from './probeWorkers';
 
 export interface ModelFile {
     name: string;
@@ -40,7 +40,9 @@ export async function bakeModelFiles(raw: unknown, stem: string, options: ModelF
     let normal: NormalMap | null = null;
     let probes: ModelFiles['probes'];
     if (baked.detail) {
-        const plan = planNormalBake(baked);
+        const start = startNormalBake(baked);
+        await shadeAcross(start, options.jobs ?? 1);
+        const plan = start.plan();
         const cache = options.cacheDir ? openProbeCache(options.cacheDir, stem, baked.detail.size, plan.probes) : null;
         const computed = probeCount(plan.probes);
         const jobs = await runBakeAcross(plan, options.jobs ?? 1);
