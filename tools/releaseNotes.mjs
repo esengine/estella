@@ -5096,6 +5096,8 @@ export const NOTED = {
     { note: "A world marker stays off the HUD's own panels." },
   "feat(assets): what texture recipes cost can be read - textureRecipeStats is exported (how many pictures were drawn on the device, how long the drawing took, how many came back from the content cache), and a cooked game's headless handle answers recipes() with it":
     { note: "What texture recipes cost can be read." },
+  "feat(examples): the space frigate flies with a HUD drawn from recipes - a segmented speed gauge with a commanded-thrust marker, a systems panel, a waypoint bracket that turns into an arrow at the screen's edge, a tag on the planet's horizon and the camera state, every picture of it an .esimage written by tools/hud-generate.mjs and drawn on the device, built in code by src/hud.ts and set in Inter":
+    { note: "The space frigate flies with a HUD, drawn from recipes." },
   "fix(render): textures uploaded by the SDK stay sharp at a slant - a compressed or decoded image handed to WebGL2 from script set its filters and mipmaps and never its anisotropy, which only textures the engine made itself were given, so every material map of an exported web game blurred along a surface seen edge-on; it now takes up to sixteen samples where it is mipmapped and linear, asked of the device once a context. The corpus check knows what a model source is":
     { note: "Textures in a web build stay sharp on a surface seen at a slant." },
   "feat(modeling): a model's bake writes its emissive map - where a paint or stain gives faces a glow, the bake's emissive map is written beside the other maps as <model>_emissive.png, read as data, named by the material and removed with the bake that made it":

@@ -1,0 +1,1 @@
+{"version":1,"size":48,"layers":[{"shape":"ring","at":[24,24],"radius":15,"inner":12.5,"fill":"#e6f2f7","effects":[{"type":"glow","color":"#7cd3ff","blur":6,"opacity":0.5}]},{"shape":"circle","at":[24,24],"radius":3,"fill":"#e6f2f7"}]}
