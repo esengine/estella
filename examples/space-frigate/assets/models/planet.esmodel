@@ -1,0 +1,27 @@
+{
+ "version": 1,
+ "smoothAngle": 80,
+ "material": {
+  "roughness": 0.92,
+  "metallic": 0,
+  "texture": "assets/textures/giant.png"
+ },
+ "steps": [
+  {
+   "op": "sphere",
+   "radius": 1,
+   "rings": 64,
+   "sides": 128,
+   "tag": "planet",
+   "color": [
+    1,
+    1,
+    1
+   ]
+  },
+  {
+   "op": "uv",
+   "mode": "sphere"
+  }
+ ]
+}

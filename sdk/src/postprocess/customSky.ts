@@ -47,6 +47,11 @@ export interface SkyEffectSource {
      * `fn skyShadow(world : vec3f, sun : vec3f) -> f32`, what is left of the sun's light at a world position, 0 to 1.
      */
     groundShadow?: boolean;
+    /**
+     * Its light is added to a sky already drawn behind the scene (an environment's panorama), not only where nothing was drawn:
+     * stars over a nebula.
+     */
+    over?: boolean;
 }
 
 /** The sky types defined here: what the volumes look for, beside Sky Atmosphere, to light the scene. */
@@ -102,6 +107,8 @@ uniform sampler2D u_sceneTexture;
 uniform highp sampler2D u_sceneDepth;
 out vec4 fragColor;
 
+float esSkyPixel;
+
 ${src.glsl}
 
 vec3 esSkyPanoramaDir(vec2 uv) {
@@ -127,6 +134,7 @@ ${src.groundShadow ? `    if (u_cloudShadowPass > 0.5) {
         return;
     }
 ` : ''}    if (u_skyCapture > 0.5) {
+        esSkyPixel = 3.14159265 / ${CUSTOM_SKY_HEIGHT.toFixed(1)};
         vec3 c = clamp(skyRadiance(esSkyPanoramaDir(v_texCoord), sun, sunColor, 1.0) * u_intensity, vec3(0.0), vec3(${CUSTOM_SKY_RANGE.toFixed(1)}));
         float m = clamp(max(max(c.r, c.g), max(c.b, 1e-6)) / ${CUSTOM_SKY_RANGE.toFixed(1)}, 1.0 / 255.0, 1.0);
         m = ceil(m * 255.0) / 255.0;
@@ -139,12 +147,17 @@ ${src.groundShadow ? `    if (u_cloudShadowPass > 0.5) {
     if (depth < 1.0 && src.a > 0.999) { fragColor = src; return; }
     vec3 entry = worldFromDepth(v_texCoord, 0.0);
     vec3 dir = normalize(worldFromDepth(v_texCoord, 1.0) - entry);
+    vec2 beside = v_texCoord + vec2(1.0 / float(size.x), 0.0);
+    esSkyPixel = length(normalize(worldFromDepth(beside, 1.0) - worldFromDepth(beside, 0.0)) - dir);
     vec3 col = skyRadiance(dir, sun, sunColor, 0.0) * u_intensity;
-    fragColor = vec4(src.rgb + (1.0 - src.a) * col, src.a > 0.99 ? src.a : 1.0);
+    float room = ${src.over ? '(depth >= 1.0 ? 1.0 : 1.0 - src.a)' : '(1.0 - src.a)'};
+    fragColor = vec4(src.rgb + room * col, src.a > 0.99 ? src.a : 1.0);
 }
 #pragma end
 
 #pragma fragment wgsl
+var<private> esSkyPixel : f32;
+
 ${src.wgsl}
 
 fn esSkyPanoramaDir(uv : vec2f) -> vec3f {
@@ -167,6 +180,7 @@ ${src.groundShadow ? `    if (mc.u_cloudShadowPass > 0.5) {
         return vec4f(1.0, 1.0, 1.0, clamp(skyShadow(at.xyz / at.w + frame.renderOrigin.xyz, sun), 0.0, 1.0));
     }
 ` : ''}    if (mc.u_skyCapture > 0.5) {
+        esSkyPixel = 3.14159265 / ${CUSTOM_SKY_HEIGHT.toFixed(1)};
         let c = clamp(skyRadiance(esSkyPanoramaDir(v.v_texCoord), sun, sunColor, 1.0) * mc.u_intensity, vec3f(0.0), vec3f(${CUSTOM_SKY_RANGE.toFixed(1)}));
         var m = clamp(max(max(c.r, c.g), max(c.b, 1e-6)) / ${CUSTOM_SKY_RANGE.toFixed(1)}, 1.0 / 255.0, 1.0);
         m = ceil(m * 255.0) / 255.0;
@@ -178,10 +192,14 @@ ${src.groundShadow ? `    if (mc.u_cloudShadowPass > 0.5) {
     if (depth < 1.0 && src.a > 0.999) { return src; }
     let entry = worldFromDepth(v.v_texCoord, 0.0);
     let dir = normalize(worldFromDepth(v.v_texCoord, 1.0) - entry);
+    let beside = v.v_texCoord + vec2f(1.0 / f32(size.x), 0.0);
+    esSkyPixel = length(normalize(worldFromDepth(beside, 1.0) - worldFromDepth(beside, 0.0)) - dir);
     let col = skyRadiance(dir, sun, sunColor, 0.0) * mc.u_intensity;
     var a = 1.0;
     if (src.a > 0.99) { a = src.a; }
-    return vec4f(src.rgb + (1.0 - src.a) * col, a);
+    var room = 1.0 - src.a;
+    ${src.over ? 'if (depth >= 1.0) { room = 1.0; }' : ''}
+    return vec4f(src.rgb + room * col, a);
 }
 #pragma end
 `;

@@ -17,7 +17,8 @@ import { MeshChannel, MeshChannelType, type MeshData } from 'esengine';
 import { cornerNormals, type BakedModel } from './modelBake';
 import { TriangleTree } from './triangleTree';
 import { triangulateFace } from './triangulate';
-import { boundsOf, type PolyMesh } from './polyMesh';
+import { boundsOf, selectFaces, type PolyMesh, type Vec3 } from './polyMesh';
+import { texelStain, type StainParams } from './stain';
 
 /** How far the line runs when the source does not say, as a share of the model's diagonal. */
 const DEFAULT_DISTANCE = 0.05;
@@ -62,6 +63,7 @@ export interface NormalMap {
     colorRgba?: Uint8Array;
     /** The dense surface's roughness in green and metal in blue, with `normalBake.surface`: glTF's packing, which u_metallicRoughnessMap reads. */
     surfaceRgba?: Uint8Array;
+    emissiveRgba?: Uint8Array;
     /** How much sky each texel sees, with `normalBake.occlusion`, grey. Smaller than the others: what it holds has no fine detail, and each texel costs dozens of rays. */
     occlusion?: { size: number; rgba: Uint8Array };
     report: NormalBakeReport;
@@ -109,13 +111,15 @@ function readFloats(mesh: MeshData, semantic: number, components: number): Float
 }
 
 /** The dense surface as flat triangles, and the shading normal at each of their corners. */
-function denseSurface(high: PolyMesh, smoothAngle: number, fallback: { roughness: number; metallic: number }): { corners: Float64Array; normals: Float64Array; colors: Uint8Array; surfaces: Uint8Array } {
+function denseSurface(high: PolyMesh, smoothAngle: number, fallback: { roughness: number; metallic: number }): { corners: Float64Array; normals: Float64Array; colors: Uint8Array; surfaces: Uint8Array; faceOf: Int32Array; glows: Uint8Array | null } {
     const normalsOf = cornerNormals(high, smoothAngle);
     let count = 0;
     for (const face of high.faces) count += Math.max(0, face.v.length - 2);
     const corners = new Float64Array(count * 9), normals = new Float64Array(count * 9);
     const colors = new Uint8Array(count * 4);
     const surfaces = new Uint8Array(count * 2);
+    const faceOf = new Int32Array(count);
+    const glows = high.faces.some((face) => face.glow) ? new Uint8Array(count) : null;
     let t = 0;
     high.faces.forEach((face, f) => {
         const color = face.color ?? [1, 1, 1, 1];
@@ -128,10 +132,106 @@ function denseSurface(high: PolyMesh, smoothAngle: number, fallback: { roughness
             colors.set(bytes, t * 4);
             surfaces[t * 2] = Math.round((face.roughness ?? fallback.roughness) * 255);
             surfaces[t * 2 + 1] = Math.round((face.metallic ?? fallback.metallic) * 255);
+            faceOf[t] = f;
+            if (glows) glows[t] = Math.round(Math.max(0, Math.min(1, face.glow ?? 0)) * 255);
             t++;
         }
     });
-    return { corners: t === count ? corners : corners.subarray(0, t * 9), normals, colors, surfaces };
+    return { corners: t === count ? corners : corners.subarray(0, t * 9), normals, colors, surfaces, faceOf, glows };
+}
+
+const RELIEF_RINGS = [[1, 16], [0.6, 10], [0.3, 6]] as const;
+const DEFAULT_RELIEF_REACH = 0.01;
+const RELIEF_FLAT = 0.02;
+
+function reliefAt(tree: TriangleTree, corners: Float64Array, px: number, py: number, pz: number, nx: number, ny: number, nz: number, reach: number, place: Float64Array): number {
+    let ux = Math.abs(nx) < 0.9 ? 0 : -nz, uy = Math.abs(nx) < 0.9 ? -nz : 0, uz = Math.abs(nx) < 0.9 ? ny : nx;
+    const ul = Math.hypot(ux, uy, uz) || 1;
+    ux /= ul; uy /= ul; uz /= ul;
+    const vx = ny * uz - nz * uy, vy = nz * ux - nx * uz, vz = nx * uy - ny * ux;
+    const bias = reach * 0.02;
+    let sum = 0, count = 0, flat = true;
+    for (const [share, spokes] of RELIEF_RINGS) {
+        const radius = reach * share;
+        for (let j = 0; j < spokes; j++) {
+            const phi = ((j + 0.5) / spokes) * 2 * Math.PI;
+            const dx = ux * Math.cos(phi) + vx * Math.sin(phi), dy = uy * Math.cos(phi) + vy * Math.sin(phi), dz = uz * Math.cos(phi) + vz * Math.sin(phi);
+            const ox = px + dx * radius, oy = py + dy * radius, oz = pz + dz * radius;
+            const hit = tree.nearest(ox, oy, oz, nx, ny, nz, reach, place);
+            count++;
+            let h: number;
+            if (hit < 0) {
+                h = tree.blocked(px + nx * bias, py + ny * bias, pz + nz * bias, dx, dy, dz, radius) ? reach : -reach;
+            } else {
+                const hv = place[0]!, hw = place[1]!, hu = 1 - hv - hw, at = hit * 9;
+                h = (hu * corners[at]! + hv * corners[at + 3]! + hw * corners[at + 6]! - ox) * nx
+                    + (hu * corners[at + 1]! + hv * corners[at + 4]! + hw * corners[at + 7]! - oy) * ny
+                    + (hu * corners[at + 2]! + hv * corners[at + 5]! + hw * corners[at + 8]! - oz) * nz;
+            }
+            if (Math.abs(h) > reach * RELIEF_FLAT) flat = false;
+            sum += h;
+        }
+        if (flat) return 0;
+    }
+    return Math.max(-1, Math.min(1, sum / count / (reach * 0.5)));
+}
+
+function layStains(
+    high: PolyMesh, stains: readonly StainParams[], tree: TriangleTree, corners: Float64Array, normals: Float64Array, faceOf: Int32Array,
+    hitTriangle: Int32Array, hitPlace: Float32Array, size: number, diagonal: number, fallback: { roughness: number; metallic: number },
+    colorRgba: Uint8Array | undefined, surfaceRgba: Uint8Array | undefined, glow: Uint8Array | undefined,
+): void {
+    const reaches: number[] = [];
+    const layers = stains.map((p) => {
+        const chosen = new Uint8Array(high.faces.length);
+        for (const f of selectFaces(high, p.faces ?? 'all')) chosen[f] = 1;
+        const reach = p.where ? p.reach ?? diagonal * DEFAULT_RELIEF_REACH : 0;
+        if (p.where && !reaches.includes(reach)) reaches.push(reach);
+        return { p, chosen, weigh: texelStain(p), relief: p.where ? reaches.indexOf(reach) : -1 };
+    });
+    const reliefs = new Float64Array(reaches.length);
+    const place = new Float64Array(2);
+    const at: [number, number, number] = [0, 0, 0], n: [number, number, number] = [0, 0, 0];
+    for (let texel = 0; texel < size * size; texel++) {
+        const hit = hitTriangle[texel]!;
+        if (hit < 0) continue;
+        const face = faceOf[hit]!;
+        const hv = hitPlace[texel * 2]!, hw = hitPlace[texel * 2 + 1]!, hu = 1 - hv - hw, c = hit * 9;
+        for (let k = 0; k < 3; k++) {
+            at[k] = hu * corners[c + k]! + hv * corners[c + 3 + k]! + hw * corners[c + 6 + k]!;
+            n[k] = hu * normals[c + k]! + hv * normals[c + 3 + k]! + hw * normals[c + 6 + k]!;
+        }
+        const nl = Math.hypot(n[0], n[1], n[2]) || 1;
+        n[0] /= nl; n[1] /= nl; n[2] /= nl;
+        reliefs.fill(NaN);
+        let red = 0, green = 0, blue = 0, alpha = 0, rough = fallback.roughness, metal = fallback.metallic;
+        if (colorRgba) { red = colorRgba[texel * 4]! / 255; green = colorRgba[texel * 4 + 1]! / 255; blue = colorRgba[texel * 4 + 2]! / 255; alpha = colorRgba[texel * 4 + 3]! / 255; }
+        if (surfaceRgba) { rough = surfaceRgba[texel * 4 + 1]! / 255; metal = surfaceRgba[texel * 4 + 2]! / 255; }
+        let lit = glow ? glow[texel]! / 255 : 0;
+        let touched = false;
+        for (const layer of layers) {
+            if (!layer.chosen[face]) continue;
+            let relief = 0;
+            if (layer.relief >= 0) {
+                if (Number.isNaN(reliefs[layer.relief]!)) reliefs[layer.relief] = reliefAt(tree, corners, at[0], at[1], at[2], n[0], n[1], n[2], reaches[layer.relief]!, place);
+                relief = reliefs[layer.relief]!;
+            }
+            const m = layer.weigh(at as unknown as Vec3, n as unknown as Vec3, relief);
+            if (m <= 0) continue;
+            touched = true;
+            const { p } = layer;
+            if (p.color) { red += (p.color[0]! - red) * m; green += (p.color[1]! - green) * m; blue += (p.color[2]! - blue) * m; }
+            if (p.alpha !== undefined) alpha += (p.alpha - alpha) * m;
+            if (p.roughness !== undefined) rough += (p.roughness - rough) * m;
+            if (p.metallic !== undefined) metal += (p.metallic - metal) * m;
+            if (p.glow !== undefined) lit += (p.glow - lit) * m;
+        }
+        if (!touched) continue;
+        const byte = (v: number): number => Math.round(Math.max(0, Math.min(1, v)) * 255);
+        if (colorRgba) { colorRgba[texel * 4] = byte(red); colorRgba[texel * 4 + 1] = byte(green); colorRgba[texel * 4 + 2] = byte(blue); colorRgba[texel * 4 + 3] = byte(alpha); }
+        if (surfaceRgba) { surfaceRgba[texel * 4 + 1] = byte(rough); surfaceRgba[texel * 4 + 2] = byte(metal); }
+        if (glow) glow[texel] = byte(lit);
+    }
 }
 
 /** Bakes @p model's `normalBake`. Throws if it has none. */
@@ -142,7 +242,7 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
     const { min, max } = boundsOf(high);
     const distance = detail.distance ?? Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) * DEFAULT_DISTANCE;
     const fallback = detail.surface ?? { roughness: 1, metallic: 0 };
-    const { corners, normals, colors, surfaces } = denseSurface(high, smoothAngle, fallback);
+    const { corners, normals, colors, surfaces, faceOf, glows } = denseSurface(high, smoothAngle, fallback);
     const tree = new TriangleTree(corners);
 
     const mesh = model.data;
@@ -156,6 +256,8 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
     const lowColors = detail.lowColors;
     const colorRgba = lowColors ? new Uint8Array(size * size * 4) : undefined;
     const surfaceRgba = detail.surface ? new Uint8Array(size * size * 4) : undefined;
+    const glowing = colorRgba && (glows || (detail.stains ?? []).some((stain) => stain.glow !== undefined));
+    const glow = glowing ? new Uint8Array(size * size) : undefined;
     if (surfaceRgba) {
         // What the source says everything is, wherever no chart lands or no surface is found.
         for (let i = 0; i < size * size; i++) {
@@ -168,6 +270,9 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
     const covered = new Uint8Array(size * size);
     const place = new Float64Array(2);
     let hits = 0, missed = 0, bend = 0;
+    const stains = detail.stains ?? [];
+    const hitTriangle = stains.length ? new Int32Array(size * size).fill(-1) : null;
+    const hitPlace = stains.length ? new Float32Array(size * size * 2) : null;
 
     rasterTexels(mesh.indices, UV, size, (texel, a, b, c, w0, w1, w2) => {
             if (covered[texel]) return;
@@ -192,9 +297,11 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
             }
             hits++;
             if (colorRgba) colorRgba.set(colors.subarray(hit * 4, hit * 4 + 4), texel * 4);
+            if (glow && glows) glow[texel] = glows[hit]!;
             if (surfaceRgba) { surfaceRgba[texel * 4 + 1] = surfaces[hit * 2]!; surfaceRgba[texel * 4 + 2] = surfaces[hit * 2 + 1]!; }
 
             const [hv, hw] = [place[0]!, place[1]!];
+            if (hitTriangle && hitPlace) { hitTriangle[texel] = hit; hitPlace[texel * 2] = hv; hitPlace[texel * 2 + 1] = hw; }
             const hu = 1 - hv - hw;
             const at = hit * 9;
             let sx = hu * normals[at]! + hv * normals[at + 3]! + hw * normals[at + 6]!;
@@ -222,9 +329,20 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
             rgba[texel * 4 + 1] = Math.round((v * 0.5 + 0.5) * 255);
             rgba[texel * 4 + 2] = Math.round((Math.max(w, 0) * 0.5 + 0.5) * 255);
     });
+    if (hitTriangle && hitPlace) {
+        layStains(high, stains, tree, corners, normals, faceOf, hitTriangle, hitPlace, size, Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]), fallback, colorRgba, surfaceRgba, glow);
+    }
     const occlusion = detail.occlusion ? bakeOcclusion(tree, corners, normals, mesh.indices, P, N, UV, size, distance, detail.occlusion, Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2])) : undefined;
     const inside = hits + missed;
-    dilate([rgba, ...(colorRgba ? [colorRgba] : []), ...(surfaceRgba ? [surfaceRgba] : [])], covered, size);
+    let emissiveRgba: Uint8Array | undefined;
+    if (glow && colorRgba) {
+        emissiveRgba = new Uint8Array(size * size * 4);
+        for (let i = 0; i < size * size; i++) {
+            for (let k = 0; k < 3; k++) emissiveRgba[i * 4 + k] = Math.round(colorRgba[i * 4 + k]! * glow[i]! / 255);
+            emissiveRgba[i * 4 + 3] = 255;
+        }
+    }
+    dilate([rgba, ...(colorRgba ? [colorRgba] : []), ...(surfaceRgba ? [surfaceRgba] : []), ...(emissiveRgba ? [emissiveRgba] : [])], covered, size);
 
     const from = corners.length / 9, to = mesh.indices.length / 3;
     const warnings: string[] = [];
@@ -234,7 +352,7 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
     if (inside / (size * size) < SPARSE_COVERAGE) warnings.push(`the surface broke into so many pieces that they fill only ${Math.round((inside / (size * size)) * 100)}% of the map, so most of its resolution is lost: lower the amplitude before the decimate, or keep more triangles`);
     if (from <= to) warnings.push(`the surface baked from has ${from} triangles and this one ${to}: there is no detail to carry. normalBake.from should name a step before the decimate`);
     return {
-        size, rgba, warnings, ...(colorRgba ? { colorRgba } : {}), ...(surfaceRgba ? { surfaceRgba } : {}), ...(occlusion ? { occlusion } : {}),
+        size, rgba, warnings, ...(colorRgba ? { colorRgba } : {}), ...(surfaceRgba ? { surfaceRgba } : {}), ...(emissiveRgba ? { emissiveRgba } : {}), ...(occlusion ? { occlusion } : {}),
         report: {
             size, from, to,
             coverage: Math.round((inside / (size * size)) * 1000) / 1000,

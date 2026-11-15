@@ -22,6 +22,7 @@ export interface Face {
     roughness?: number;
     /** How much metal, 0..1. Absent takes the source's `material`. */
     metallic?: number;
+    glow?: number;
     /** The hair card this is part of, with `cornerUvs` where its texture lands. */
     card?: number;
     /** Which of the pieces of a fractured solid this is a face of. */

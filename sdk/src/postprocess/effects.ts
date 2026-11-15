@@ -7,6 +7,7 @@ import { RAIN_SHELTER_UNIFORMS, RAIN_SHELTER_MASK_TEXTURE, RAIN_SHELTER_MASK_SIZ
 import { effectSourcesOf, computeSourceOf } from './effectSources';
 import type { basicEffects } from './sources/basic';
 import type { atmosphereEffects } from './sources/atmosphere';
+import type { starfieldEffects } from './sources/starfield';
 import type { lightingEffects } from './sources/lighting';
 import type { agxEffects } from './sources/agx';
 import type { lensEffects as LensEffects } from './lensEffects';
@@ -17,7 +18,7 @@ import { VOXEL_ATLAS } from './voxelAtlas';
 
 // The effect shaders are installed by group (see effectSources.ts). These read like the objects they stand for.
 /** The factories of the built-in effects' shaders. Calling one needs the group that carries it installed. */
-export const postProcessEffects = effectSourcesOf<typeof basicEffects & typeof atmosphereEffects & typeof lightingEffects & typeof agxEffects>();
+export const postProcessEffects = effectSourcesOf<typeof basicEffects & typeof atmosphereEffects & typeof starfieldEffects & typeof lightingEffects & typeof agxEffects>();
 const lensEffects = effectSourcesOf<typeof LensEffects>();
 const gtaoPasses = effectSourcesOf<typeof GtaoPasses>();
 const subsurfacePasses = effectSourcesOf<typeof SubsurfacePasses>();
@@ -443,6 +444,22 @@ registerEffect({
     // volume that never names the colour fogs exactly as it always did.
     colors: [
         { name: 'u_fogColor', label: 'Colour', defaultValue: { r: 0.6, g: 0.68, b: 0.78, a: 1 } },
+    ],
+});
+
+registerEffect({
+    type: 'starfield',
+    label: 'Starfield',
+    factory: () => postProcessEffects.createStarfield(),
+    uniforms: [
+        { name: 'u_intensity', label: 'Brightness', min: 0, max: 8, step: 0.01, defaultValue: 1 },
+        { name: 'u_density', label: 'Density', min: 0, max: 3, step: 0.01, defaultValue: 1 },
+        { name: 'u_size', label: 'Size (pixels)', min: 0.5, max: 4, step: 0.01, defaultValue: 1 },
+        { name: 'u_band', label: 'Band', min: 0, max: 1, step: 0.01, defaultValue: 0.5 },
+        { name: 'u_bandTilt', label: 'Band Tilt', min: -90, max: 90, step: 1, defaultValue: 25 },
+        { name: 'u_bandTurn', label: 'Band Turn', min: 0, max: 360, step: 1, defaultValue: 0 },
+        { name: 'u_sunSize', label: 'Sun Size (degrees)', min: 0, max: 10, step: 0.01, defaultValue: 0 },
+        { name: 'u_sunGlow', label: 'Sun Glow', min: 0, max: 4, step: 0.01, defaultValue: 1 },
     ],
 });
 
@@ -1098,7 +1115,7 @@ const CATEGORIES: Record<EffectCategory, string[]> = {
     lens: ['bloom', 'depthOfField', 'motionBlur', 'lensFlare', 'filmGrain', 'chromaticAberration', 'lensDistortion', 'vignette', 'sharpen'],
     color: ['tonemap', 'agx', 'colorGrade', 'lutGrade', 'displayLut', 'autoExposure', 'grayscale'],
     light: ['ssao', 'gtao', 'ssgi', 'ssr', 'voxelGI', 'contactShadows', 'lightShafts', 'subsurface'],
-    atmosphere: ['mist2d', 'rain2d', 'fog2d', 'distanceFog', 'heightFog', 'skyAtmosphere', 'rain', 'snowCover'],
+    atmosphere: ['mist2d', 'rain2d', 'fog2d', 'distanceFog', 'heightFog', 'skyAtmosphere', 'starfield', 'rain', 'snowCover'],
     aa: ['fxaa', 'taa'],
     stylize: ['blur', 'pixelate', 'palette', 'outline', 'depthOutline', 'edgeOutline'],
 };

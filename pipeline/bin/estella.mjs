@@ -23,8 +23,9 @@ const USAGE = `usage: node pipeline/bin/estella.mjs create <template> <dir> [--n
        node pipeline/bin/estella.mjs import-model <file.gltf|file.glb|file.fbx> [outDir]
                                      [--project <dir>] [--scale <n>]
                                      [--specular-map color|orm] [--lightmap-uv] [--lods <0-3>]
-       node pipeline/bin/estella.mjs import-hdr <file.hdr> [outDir] [--face-size <n>]
+       node pipeline/bin/estella.mjs import-hdr <file.hdr> [outDir] [--face-size <n>] [--sky-width <n>]
        node pipeline/bin/estella.mjs bake-scene <scene.esscene> [--check]
+       node pipeline/bin/estella.mjs bake-model <file.esmodel> [--sheet <file.png>]
        node pipeline/bin/estella.mjs package-openpaas <exportDir> --config <local.json> --out <game.sp>
 
   --platform <id>     a built-in (web, desktop, wechat, douyin, kuaishou, bilibili, playable, android, ios)
@@ -126,6 +127,14 @@ function parseArgs(argv) {
     }
     return { command, source: path.resolve(projectDir), check: rest.includes('--check') };
   }
+  if (command === 'bake-model') {
+    if (!projectDir) {
+      console.error(USAGE);
+      process.exit(2);
+    }
+    const sheet = rest.indexOf('--sheet');
+    return { command, source: path.resolve(projectDir), sheet: sheet >= 0 && rest[sheet + 1] ? path.resolve(rest[sheet + 1]) : null };
+  }
   if (command === 'package-openpaas') {
     const config = rest.indexOf('--config'), out = rest.indexOf('--out');
     if (!projectDir || config < 0 || !rest[config + 1] || out < 0 || !rest[out + 1]) {
@@ -142,6 +151,7 @@ function parseArgs(argv) {
     const flag = rest.indexOf('--project');
     const scale = rest.indexOf('--scale');
     const faceSize = rest.indexOf('--face-size');
+    const skyWidth = rest.indexOf('--sky-width');
     const specular = rest.indexOf('--specular-map');
     const lightmapUV = rest.includes('--lightmap-uv');
     const lods = rest.indexOf('--lods');
@@ -151,6 +161,7 @@ function parseArgs(argv) {
       project: flag >= 0 && rest[flag + 1] ? path.resolve(rest[flag + 1]) : null,
       scale: scale >= 0 ? Number(rest[scale + 1]) || 1 : 1,
       faceSize: faceSize >= 0 ? Number(rest[faceSize + 1]) || undefined : undefined,
+      skyWidth: skyWidth >= 0 ? Number(rest[skyWidth + 1]) || undefined : undefined,
       specularMap: specular >= 0 ? rest[specular + 1] : undefined,
       lightmapUV,
       lodLevels: lods >= 0 ? Number(rest[lods + 1]) : undefined,
@@ -927,6 +938,41 @@ if (opts.command === 'import-model' || opts.command === 'import-gltf') {
   process.exit(imported > 0 ? 0 : 1);
 }
 
+if (opts.command === 'bake-model') {
+  const { mod: files, cleanup } = await loadPipeline(
+    path.join(PIPELINE, 'src', 'modeling', 'modelFiles.ts'), 'modelFiles.mjs');
+  const { mod: meta, cleanup: cleanupMeta } = await loadPipeline(
+    path.join(PIPELINE, 'src', 'assets', 'assetMeta.ts'), 'assetMeta.mjs');
+  let ok = false;
+  try {
+    const dir = path.dirname(opts.source);
+    const stem = path.basename(opts.source).replace(/\.esmodel$/i, '');
+    const started = Date.now();
+    const baked = await files.bakeModelFiles(JSON.parse(readFileSync(opts.source, 'utf8')), stem, { sheet: !!opts.sheet });
+    for (const file of baked.files) {
+      const out = path.join(dir, file.name);
+      writeFileSync(out, file.bytes);
+      await meta.adoptOrphan(out, file.importer);
+      console.log(`${path.relative(process.cwd(), out)}: ${file.bytes.length} bytes`);
+    }
+    await meta.adoptOrphan(opts.source);
+    if (baked.sheet) {
+      writeFileSync(opts.sheet, baked.sheet);
+      console.log(`${path.relative(process.cwd(), opts.sheet)}: contact sheet`);
+    }
+    const { report } = baked;
+    for (const w of report.warnings) console.warn(`  ! ${w}`);
+    console.log(JSON.stringify({ seconds: (Date.now() - started) / 1000, vertices: report.vertices, triangles: report.triangles, bounds: report.bounds.size, normalBake: report.normalBake, renderer: baked.renderer }, null, 2));
+    ok = true;
+  } catch (err) {
+    console.error(`bake-model: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    cleanup();
+    cleanupMeta();
+  }
+  process.exit(ok ? 0 : 1);
+}
+
 if (opts.command === 'bake-scene') {
   const { mod: baker, cleanup } = await loadPipeline(
     path.join(PIPELINE, 'src', 'assets', 'lightmapBake.ts'), 'lightmapBake.mjs');
@@ -950,7 +996,7 @@ if (opts.command === 'import-hdr') {
     const dir = opts.out ?? sourceDir;
     const stem = path.basename(opts.source).replace(/\.hdr$/i, '');
     const result = importer.importEnvironment(
-      new Uint8Array(readFileSync(opts.source)), stem, { faceSize: opts.faceSize });
+      new Uint8Array(readFileSync(opts.source)), stem, { faceSize: opts.faceSize, skyWidth: opts.skyWidth });
     for (const w of result.warnings) console.warn(`  ! ${w}`);
     const report = (file, what) =>
       console.log(`${path.relative(process.cwd(), file)}: ${what}`);

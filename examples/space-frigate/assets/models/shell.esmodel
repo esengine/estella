@@ -1,0 +1,18 @@
+{
+ "version": 1,
+ "smoothAngle": 80,
+ "steps": [
+  {
+   "op": "sphere",
+   "radius": 1,
+   "rings": 48,
+   "sides": 96,
+   "tag": "shell",
+   "color": [
+    1,
+    1,
+    1
+   ]
+  }
+ ]
+}

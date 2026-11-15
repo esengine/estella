@@ -10339,6 +10339,7 @@ colors: EffectColorDef[] | undefined
 glsl: string
 groundShadow: boolean | undefined
 label: string
+over: boolean | undefined
 textures: Record<string, () => BuiltinTexture> | undefined
 type: string
 uniforms: EffectUniformDef[] | undefined

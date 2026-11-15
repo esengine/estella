@@ -94,6 +94,7 @@ export const POST_PROCESS_EFFECT_GROUP: Readonly<Record<string, Subsystem>> = {
     outline: 'fxBasic', depthOutline: 'fxBasic', edgeOutline: 'fxBasic', lutGrade: 'fxBasic', palette: 'fxBasic', agx: 'fxAgx', sharpen: 'fxBasic', filmGrain: 'fxBasic',
     motionBlur: 'fxBasic', lensFlare: 'fxBasic',
     mist2d: 'fxAtmosphere', rain2d: 'fxAtmosphere', fog2d: 'fxAtmosphere', distanceFog: 'fxAtmosphere', skyAtmosphere: 'fxAtmosphere', heightFog: 'fxAtmosphere', rain: 'fxAtmosphere',
+    starfield: 'fxAtmosphere', snowCover: 'fxAtmosphere',
     voxelGI: 'fxLighting', ssgi: 'fxLighting', contactShadows: 'fxLighting', lightShafts: 'fxLighting',
     autoExposure: 'fxLighting', depthOfField: 'fxLighting', ssao: 'fxLighting', subsurface: 'fxLighting',
     gtao: 'fxLighting', ssr: 'fxLighting', taa: 'fxLighting',

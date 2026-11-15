@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:model",
+  "blendMode": 9,
+  "depthTest": true,
+  "depthWrite": true,
+  "cull": 1,
+  "properties": {
+    "u_emissive": {
+      "r": 16,
+      "g": 16,
+      "b": 16,
+      "a": 1
+    },
+    "u_emissiveMap": "frigate_emissive.png",
+    "u_normalMap": "frigate_normal.png",
+    "u_detailMap": "assets/textures/hull-grain.png",
+    "u_detailSize": 1.1,
+    "u_detailStrength": 0.1,
+    "u_detailBump": 0.1,
+    "u_occlusionMap": "frigate_occlusion.png",
+    "u_occlusionStrength": 1,
+    "u_metallicRoughnessMap": "frigate_surface.png",
+    "u_roughness": 1,
+    "u_metallic": 1
+  }
+}
