@@ -154,23 +154,39 @@ function body() {
 }
 
 function scope() {
-    const w = 520, h = 352, cx = 260, cy = 216, rx = 224, ry = 112;
-    const at = (deg, k) => [round(cx + Math.sin((deg * Math.PI) / 180) * rx * k), round(cy - Math.cos((deg * Math.PI) / 180) * ry * k)];
+    const size = 520, c = 260, r = 240;
+    const at = (deg, k) => [round(c + Math.sin((deg * Math.PI) / 180) * r * k), round(c - Math.cos((deg * Math.PI) / 180) * r * k)];
     const layers = [
-        { shape: 'ellipse', at: [cx, cy], radii: [rx + 10, ry + 8], fill: alpha(PLATE, 0.5) },
-        { shape: 'ellipse', at: [cx, cy], radii: [rx, ry], fill: { type: 'linear', from: [0, cy - ry], to: [0, cy + ry], stops: [[0, alpha('#0c2230', 0.5)], [1, alpha(PLATE, 0.72)]] }, stroke: { color: alpha(ICE, 0.55), width: 2, align: 'inside' } },
-        { shape: 'ellipse', at: [cx, cy], radii: [(rx * 2) / 3, (ry * 2) / 3], stroke: { color: alpha(ICE, 0.2), width: 1.5 } },
-        { shape: 'ellipse', at: [cx, cy], radii: [rx / 3, ry / 3], stroke: { color: alpha(ICE, 0.2), width: 1.5 } },
-        { shape: 'line', points: [[cx - rx, cy], [cx + rx, cy]], stroke: { color: alpha(ICE, 0.14), width: 1.5, cap: 'butt' } },
-        { shape: 'line', points: [[cx, cy - ry], [cx, cy + ry]], stroke: { color: alpha(ICE, 0.14), width: 1.5, cap: 'butt' } },
+        { shape: 'circle', at: [c, c], radius: r + 14, fill: alpha(PLATE, 0.42) },
+        { shape: 'circle', at: [c, c], radius: r, fill: { type: 'radial', at: [c, c], radius: r, stops: [[0, alpha('#0e2836', 0.5)], [1, alpha(PLATE, 0.74)]] }, stroke: { color: alpha(ICE, 0.7), width: 3, align: 'inside' } },
+        { shape: 'circle', at: [c, c], radius: (r * 2) / 3, stroke: { color: alpha(ICE, 0.26), width: 2.5 } },
+        { shape: 'circle', at: [c, c], radius: r / 3, stroke: { color: alpha(ICE, 0.26), width: 2.5 } },
+        { shape: 'line', points: [[c - r, c], [c + r, c]], stroke: { color: alpha(ICE, 0.18), width: 2.5, cap: 'butt' } },
+        { shape: 'line', points: [[c, c - r], [c, c + r]], stroke: { color: alpha(ICE, 0.18), width: 2.5, cap: 'butt' } },
     ];
     for (let deg = 0; deg < 360; deg += 30) {
         const long = deg % 90 === 0;
-        layers.push({ shape: 'line', points: [at(deg, long ? 0.9 : 0.94), at(deg, 1)], stroke: { color: alpha(ICE, long ? 0.75 : 0.4), width: 2, cap: 'butt' } });
+        layers.push({ shape: 'line', points: [at(deg, long ? 0.88 : 0.93), at(deg, 1)], stroke: { color: alpha(ICE, long ? 0.85 : 0.5), width: 3, cap: 'butt' } });
     }
-    layers.push({ shape: 'polygon', points: [[cx, cy - ry - 16], [cx + 9, cy - ry - 3], [cx - 9, cy - ry - 3]], fill: alpha(ICE, 0.9) });
-    layers.push({ shape: 'polygon', points: [[cx, cy - 13], [cx + 6, cy + 5], [cx, cy + 1], [cx - 6, cy + 5]], fill: ICE, effects: [{ type: 'glow', color: DRIVE, blur: 5, opacity: 0.6 }] });
-    return { version: 1, size: [w, h], layers };
+    layers.push({ shape: 'polygon', points: [[c, c - r - 18], [c + 10, c - r - 2], [c - 10, c - r - 2]], fill: alpha(ICE, 0.9) });
+    layers.push({ shape: 'polygon', points: [[c, c - 20], [c + 9, c + 9], [c, c + 3], [c - 9, c + 9]], fill: ICE, effects: [{ type: 'glow', color: DRIVE, blur: 5, opacity: 0.6 }] });
+    return { version: 1, size, layers };
+}
+
+function scopeSweep() {
+    const size = 256, c = 128, r = 124, steps = 14, span = 54;
+    const at = (deg, k) => [round(c + Math.sin((deg * Math.PI) / 180) * r * k), round(c - Math.cos((deg * Math.PI) / 180) * r * k)];
+    const layers = [];
+    for (let i = 0; i < steps; i++) {
+        const from = (-span * (i + 1)) / steps, to = (-span * i) / steps;
+        layers.push({ shape: 'polygon', points: [[c, c], at(from, 1), at((from + to) / 2, 1), at(to, 1)], fill: alpha('#ffffff', 0.34 * (1 - i / steps) ** 1.6) });
+    }
+    layers.push({ shape: 'line', points: [[c, c], at(0, 1)], stroke: { color: alpha('#ffffff', 0.9), width: 1.5, cap: 'butt' } });
+    return { version: 1, size, layers };
+}
+
+function scan() {
+    return { version: 1, size: [4, 6], layers: [{ shape: 'rect', at: [0, 0], size: [4, 2], fill: alpha('#ffffff', 0.05) }] };
 }
 
 function dot() {
@@ -224,6 +240,8 @@ const FILES = {
     pip: pip(),
     keycap: keycap(),
     scope: scope(),
+    'scope-sweep': scopeSweep(),
+    scan: scan(),
     'scrim-bottom': scrim(true),
     'scrim-top': scrim(false),
     shade: shade(),

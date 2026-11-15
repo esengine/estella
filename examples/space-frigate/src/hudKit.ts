@@ -1,5 +1,5 @@
 import {
-    Canvas, Name, ScaleMode, Text, TextAlign, TextVerticalAlign, Transform, UINode, UIPointerEvents, UIPositionType, UIVisual, UIVisualType,
+    BlendMode, Canvas, Material, Name, ScaleMode, Text, TextAlign, TextVerticalAlign, Transform, UINode, UIPointerEvents, UIPositionType, UIVisual, UIVisualType,
     placeOnScreen, px, spawnUIEntity,
 } from 'esengine';
 import type { Entity, World } from 'esengine';
@@ -35,6 +35,8 @@ export const TEXTURES = {
     pip: 'assets/ui/pip.esimage',
     keycap: 'assets/ui/keycap.esimage',
     scope: 'assets/ui/scope.esimage',
+    sweep: 'assets/ui/scope-sweep.esimage',
+    scan: 'assets/ui/scan.esimage',
     scrimBottom: 'assets/ui/scrim-bottom.esimage',
     scrimTop: 'assets/ui/scrim-top.esimage',
     shade: 'assets/ui/shade.esimage',
@@ -54,6 +56,7 @@ export type Lens = Parameters<typeof placeOnScreen>[1];
 
 export interface Frame {
     dt: number;
+    sway: { x: number; y: number };
     time: number;
     across: number;
     lens: Lens | null;
@@ -158,13 +161,34 @@ export function createKit(world: World, textures: Textures, fonts: { regular: nu
         world.update(e, Transform, (t) => { t.rotation = { x: 0, y: 0, z: Math.sin(to / 2), w: Math.cos(to / 2) }; });
     };
 
+    const pivot = (parent: Entity, name: string, at: Box): Entity => node(parent, name, { ...at, width: 0, height: 0 });
+    const tilted = new Map<Entity, string>();
+    const tilt = (e: Entity, x: number, y: number, z = 0): void => {
+        const key = `${Math.round(x * 500)},${Math.round(y * 500)},${Math.round(z * 500)}`;
+        if (tilted.get(e) === key) return;
+        tilted.set(e, key);
+        const [cx, sx, cy, sy, cz, sz] = [Math.cos(x / 2), Math.sin(x / 2), Math.cos(y / 2), Math.sin(y / 2), Math.cos(z / 2), Math.sin(z / 2)];
+        const q = { x: sx * cy * cz + cx * sy * sz, y: cx * sy * cz - sx * cy * sz, z: cx * cy * sz + sx * sy * cz, w: cx * cy * cz - sx * sy * sz };
+        world.update(e, Transform, (t) => { t.rotation = q; });
+    };
+
+    const lift = (e: Entity, z: number): Entity => {
+        world.update(e, Transform, (t) => { t.position = { x: t.position.x, y: t.position.y, z }; });
+        return e;
+    };
+    const additive = Material.create({ shader: 0 as never, blendMode: BlendMode.Additive });
+    const glow = (e: Entity): Entity => {
+        world.update(e, UIVisual, (v) => { v.material = additive; });
+        return e;
+    };
+
     const canvas = spawnUIEntity({ world, node: { pointerEvents: UIPointerEvents.None } });
     world.insert(canvas, Name, { value: 'Hud' });
     world.insert(canvas, Canvas, { designResolution: { x: DESIGN.width, y: DESIGN.height }, scaleMode: ScaleMode.FixedHeight });
     const root = spawnUIEntity({ world, parent: canvas, node: { fill: true, pointerEvents: UIPointerEvents.None } });
     world.insert(root, Name, { value: 'HudRoot' });
 
-    return { world, root, textures, node, image, sliced, solid, label, centred, say, ink, fill, fade, place, size, turn };
+    return { world, root, textures, node, image, sliced, solid, label, centred, pivot, tilt, lift, glow, say, ink, fill, fade, place, size, turn };
 }
 
 export function towardOnScreen(lens: Lens, point: { x: number; y: number; z: number }): number {

@@ -32,8 +32,19 @@ try {
     const facts = () => page.evaluate(() => window.__estellaCooked.facts());
     const until = async (time) => { const now = (await facts()).time; if (time > now) await step(Math.round((time - now) * 60)); };
     const hold = async (key, frames) => { await page.keyboard.down(key); await step(frames); await page.keyboard.up(key); };
-    const tap = async (key) => { await hold(key, 2); await step(1); };
-    const byHand = async (key) => { for (let tries = 0; tries < 5 && (await facts()).tour; tries++) await tap(key); if ((await facts()).tour) throw new Error(`${key} did not take the camera`); };
+    const tap = (key) => page.evaluate((code) => {
+        const at = document.querySelector('canvas') ?? document.body;
+        at.dispatchEvent(new KeyboardEvent('keydown', { code, key: code.replace(/^(Digit|Key)/, ''), bubbles: true }));
+        window.__estellaCooked.step(2);
+        at.dispatchEvent(new KeyboardEvent('keyup', { code, key: code.replace(/^(Digit|Key)/, ''), bubbles: true }));
+        window.__estellaCooked.step(1);
+    }, key);
+    const wheel = (deltaY) => page.evaluate((dy) => {
+        const at = document.querySelector('canvas') ?? document.body;
+        at.dispatchEvent(new WheelEvent('wheel', { deltaY: dy, clientX: 960, clientY: 540, bubbles: true, cancelable: true }));
+        window.__estellaCooked.step(2);
+    }, deltaY);
+    const byHand = async (key) => { for (let tries = 0; tries < 6 && (await facts()).tour; tries++) await tap(key); if ((await facts()).tour) throw new Error(`${key} did not take the camera`); };
     const eye = async () => { const f = await facts(); return Math.hypot(f.eyeX, f.eyeY, f.eyeZ); };
     const bracketed = () => page.evaluate(() => !window.__spaceHud.waypointClamped);
     const shoot = async (name, size = [1920, 1080]) => {
@@ -107,9 +118,8 @@ try {
     await page.mouse.move(960, 540);
     for (let tries = 0; tries < 12 && await eye() > 60; tries++) {
         const before = await eye();
-        await page.mouse.wheel(0, -160);
-        await step(2);
-        if (await eye() > before + 0.5) { await page.mouse.wheel(0, 320); await step(2); }
+        await wheel(-160);
+        if (await eye() > before + 0.5) await wheel(320);
     }
     await step(20);
     await hold('KeyT', 3);

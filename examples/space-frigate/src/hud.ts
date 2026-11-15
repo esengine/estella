@@ -62,20 +62,23 @@ async function load(app: App): Promise<Loaded> {
 
 function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number, input: InputState) => void {
     const kit = createKit(world, textures, fonts);
-    const { root, node, image, sliced, solid, label, say, ink, fill, fade, place } = kit;
+    const { root, node, image, sliced, solid, label, pivot, tilt, lift, glow, say, ink, fill, fade, place } = kit;
+    app.getResource(ScreenOverlay).perspective = 1500;
 
     image(root, 'ScrimTop', { left: 0, right: 0, top: 0, height: 170 }, textures.scrimTop);
     image(root, 'ShadeIdentity', { left: -120, top: -70, width: 680, height: 320 }, textures.shade);
     image(root, 'ShadeView', { right: -120, top: -70, width: 560, height: 270 }, textures.shade);
     image(root, 'ScrimBottom', { left: 0, right: 0, bottom: 0, height: 300 }, textures.scrimBottom);
 
-    const identity = node(root, 'Identity', { left: EDGE, top: 34, width: 420, height: 64 });
+    const identityAt = pivot(root, 'IdentityPivot', { left: EDGE + 222, top: 34 + 84 });
+    const identity = node(identityAt, 'Identity', { left: -210, top: -80, width: 420, height: 64 });
     solid(identity, 'IdentityBar', { left: 0, top: 3, width: 3, height: 40 }, rgb(ICE, 0.9));
     label(identity, 'ShipName', { left: 16, top: 0, width: 400, height: 24 }, { size: 19, color: rgb(ICE), spacing: 4.2, content: 'ESV HALCYON' });
     label(identity, 'ShipClass', { left: 16, top: 27, width: 400, height: 16 }, { size: 11, color: rgb(HAZE, 0.9), spacing: 1.8, content: 'MERIDIAN CLASS FRIGATE', strong: false });
     const clock = label(identity, 'MissionClock', { left: 16, top: 48, width: 400, height: 16 }, { size: 11, color: rgb(HAZE, 0.9), spacing: 1.8, strong: false });
 
-    const view = node(root, 'View', { right: EDGE, top: 34, width: 300, height: 64 });
+    const viewAt = pivot(root, 'ViewPivot', { right: EDGE + 150, top: 34 + 32 });
+    const view = node(viewAt, 'View', { left: -150, top: -32, width: 300, height: 64 });
     const viewTitle = label(view, 'ViewTitle', { right: 0, top: 0, width: 300, height: 24 }, { size: 19, color: rgb(ICE), spacing: 4.2, align: TextAlign.Right });
     const pips: Entity[] = [];
     for (let i = 0; i < SHOTS.length; i++) {
@@ -83,9 +86,11 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     }
     const viewMode = label(view, 'ViewMode', { right: 0, top: 48, width: 300, height: 16 }, { size: 11, color: rgb(HAZE, 0.9), spacing: 1.8, align: TextAlign.Right, strong: false });
 
-    const systems = sliced(root, 'Systems', { left: EDGE, bottom: EDGE, width: 348, height: 190 }, textures.plate, 26);
+    const systemsAt = pivot(root, 'SystemsPivot', { left: EDGE + 184, bottom: EDGE + 102 });
+    const systems = sliced(systemsAt, 'Systems', { left: -174, top: -95, width: 348, height: 190 }, textures.plate, 26);
     label(systems, 'SystemsTitle', { left: 20, top: 14, width: 200, height: 16 }, { size: 11, color: rgb(ICE, 0.95), spacing: 2.6, content: 'SHIP SYSTEMS' });
     const systemsState = label(systems, 'SystemsState', { right: 34, top: 14, width: 160, height: 16 }, { size: 11, color: rgb(HAZE), spacing: 1.8, align: TextAlign.Right });
+    node(systems, 'SystemsScan', { left: 3, top: 3, width: 342, height: 184 }, { visualType: UIVisualType.Tiled, texture: textures.scan, tileSize: { x: 4, y: 3 }, color: rgb(ICE) });
     solid(systems, 'SystemsRule', { left: 20, right: 20, top: 38, height: 1 }, rgb(ICE, 0.16));
     const ROWS = ['DRIVE', 'REACTOR', 'CAPACITOR', 'NOZZLE'] as const;
     const rows = ROWS.map((title, i) => {
@@ -95,20 +100,23 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         const bar = node(systems, `${title}Bar`, { left: 122, top: top + 5, width: 160, height: 8 }, {
             visualType: UIVisualType.Filled, texture: textures.barFill, color: rgb(ICE), fillMethod: FillMethod.Horizontal, fillOrigin: FillOrigin.Left, fillAmount: 0,
         });
-        const value = label(systems, `${title}Value`, { right: 18, top, width: 60, height: 18 }, { size: 13, color: rgb(ICE), align: TextAlign.Right, spacing: 0.4 });
+        const value = lift(label(systems, `${title}Value`, { right: 18, top, width: 60, height: 18 }, { size: 13, color: rgb(ICE), align: TextAlign.Right, spacing: 0.4 }), 10);
+        lift(bar, 6);
         return { bar, value };
     });
 
-    const gauge = node(root, 'Gauge', { right: EDGE - 6, bottom: EDGE - 8, width: GAUGE.box, height: GAUGE.box });
+    const gaugeAt = pivot(root, 'GaugePivot', { right: EDGE + 10 + GAUGE.box / 2, bottom: EDGE - 4 + GAUGE.box / 2 });
+    const gauge = node(gaugeAt, 'Gauge', { left: -GAUGE.box / 2, top: -GAUGE.box / 2, width: GAUGE.box, height: GAUGE.box });
     const whole = { left: 0, top: 0, width: GAUGE.box, height: GAUGE.box };
     image(gauge, 'GaugeDial', whole, textures.dial);
     const ring = (name: string, texture: number): Entity => node(gauge, name, whole, {
         visualType: UIVisualType.Filled, texture, fillMethod: FillMethod.Radial360, fillOrigin: FillOrigin.Bottom, fillAmount: 0,
     });
-    const commandRing = ring('GaugeCommand', textures.command);
-    const driveRing = ring('GaugeDrive', textures.drive);
-    const hotRing = ring('GaugeSpeedHot', textures.speedHot);
-    const speedRing = ring('GaugeSpeed', textures.speed);
+    const commandRing = lift(ring('GaugeCommand', textures.command), 8);
+    const driveRing = lift(ring('GaugeDrive', textures.drive), 8);
+    const hotRing = lift(ring('GaugeSpeedHot', textures.speedHot), 16);
+    const speedRing = lift(ring('GaugeSpeed', textures.speed), 16);
+    const speedGlow = lift(glow(ring('GaugeSpeedGlow', textures.speed)), 16);
     const half = GAUGE.box / 2;
     const around = (t: number, radius: number): { x: number; y: number } => {
         const phi = (0.25 + GAUGE.sweep * t) * Math.PI * 2;
@@ -122,9 +130,10 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     }
     const commandPip = image(gauge, 'GaugeCommandPip', { left: 0, top: 0, width: 16, height: 16 }, textures.dot, rgb(AMBER));
     label(gauge, 'GaugeTitle', { left: half - 70, top: half - 52, width: 140, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 3, align: TextAlign.Center, content: 'VELOCITY' });
-    const digits = [0, 1, 2].map((i) => label(gauge, `GaugeDigit${i}`, { left: half - 57 + i * 38, top: half - 34, width: 38, height: 60 }, { size: 56, color: rgb(ICE), align: TextAlign.Center }));
+    const fringes = [[-1.6, 0xff4a3a], [1.6, 0x39c8ff]].map(([shift, hue]) => [0, 1, 2].map((i) => lift(label(gauge, `GaugeFringe${i}${hue}`, { left: half - 57 + i * 38 + shift!, top: half - 34, width: 38, height: 60 }, { size: 56, color: rgb(hue!, 0.34), align: TextAlign.Center }), 26)));
+    const digits = [0, 1, 2].map((i) => lift(label(gauge, `GaugeDigit${i}`, { left: half - 57 + i * 38, top: half - 34, width: 38, height: 60 }, { size: 56, color: rgb(ICE), align: TextAlign.Center }), 34));
     label(gauge, 'GaugeUnit', { left: half - 70, top: half + 28, width: 140, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 3, align: TextAlign.Center, content: 'M / S' });
-    const tag = node(gauge, 'GaugeThrottle', { left: half + 22, top: half + 62, width: 140, height: 64 });
+    const tag = lift(node(gauge, 'GaugeThrottle', { left: half + 22, top: half + 62, width: 140, height: 64 }), 22);
     solid(tag, 'ThrottleRule', { left: 0, top: 0, width: 132, height: 1 }, rgb(ICE, 0.28));
     solid(tag, 'ThrottleTick', { left: 0, top: 0, width: 1, height: 7 }, rgb(ICE, 0.5));
     label(tag, 'ThrottleLabel', { left: 10, top: 9, width: 60, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 2.4, content: 'THRUST' });
@@ -148,7 +157,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     }
 
 
-    const logLines = Array.from({ length: LOG_LINES }, (_, i) => label(root, `Log${i}`, { left: EDGE + 16, top: 122 + i * 17, width: 420, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 1.6, strong: false }));
+    const logLines = Array.from({ length: LOG_LINES }, (_, i) => label(identityAt, `Log${i}`, { left: -194, top: 8 + i * 17, width: 420, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 1.6, strong: false }));
     const entries: { text: string; tone: number; at: number }[] = [];
     const log: Log = {
         say(text, tone = HAZE) {
@@ -167,6 +176,8 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     const targets = buildTargets(kit, rocks, world.findEntityByName('Planet'), log);
     const scope = buildScope(kit, rocks, targets.probe);
     const groups: readonly (readonly [Entity, number, number])[] = [[identity, 0, 1], [view, 0.15, 1], [systems, 0.35, 1], [gauge, 0.5, 1], [row, 1.2, 0.78]];
+    const leans: readonly (readonly [Entity, number, number])[] = [[identityAt, 0.1, 0.26], [viewAt, 0.1, -0.26], [systemsAt, -0.12, 0.3], [gaugeAt, -0.12, -0.3], [row, -0.42, 0]];
+    const sway = { x: 0, y: 0, yaw: 0, pitch: 0, primed: false };
 
     const model = { reactor: 0.18, capacitor: 1, heat: 0, primed: false };
     const began = ship.time;
@@ -176,8 +187,21 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         const screen = app.getResource(ScreenOverlay);
         const across = screen.vpH > 0 ? (DESIGN.height * screen.vpW) / screen.vpH : DESIGN.width;
         const eye = camera === null ? null : world.get(camera, Transform), glass = camera === null ? null : world.get(camera, Camera);
+        if (eye) {
+            const q = eye.worldRotation;
+            const fx = -2 * (q.x * q.z + q.w * q.y), fy = 2 * (q.y * q.z - q.w * q.x) * -1, fz = -(1 - 2 * (q.x * q.x + q.y * q.y));
+            const yaw = Math.atan2(fx, fz), pitch = Math.asin(clamp(fy, -1, 1));
+            let turned = yaw - sway.yaw;
+            turned -= Math.round(turned / (Math.PI * 2)) * Math.PI * 2;
+            const rate = sway.primed && dt > 0 ? { x: (pitch - sway.pitch) / dt, y: turned / dt } : { x: 0, y: 0 };
+            sway.x += (clamp(rate.x * 0.16, -0.09, 0.09) - sway.x) * Math.min(1, dt * 4);
+            sway.y += (clamp(rate.y * 0.16, -0.12, 0.12) - sway.y) * Math.min(1, dt * 4);
+            sway.yaw = yaw; sway.pitch = pitch; sway.primed = true;
+        }
+        const surge = clamp((ship.wanted - ship.throttle) * 0.12, -0.05, 0.05);
+        for (const [group, x, y] of leans) tilt(group, x + sway.x + surge, y + sway.y);
         const frame: Frame = {
-            dt, time: ship.time, across,
+            dt, sway: { x: sway.x + surge, y: sway.y }, time: ship.time, across,
             lens: eye && glass ? { position: eye.worldPosition, rotation: eye.worldRotation, perspective: true, fov: glass.fov, orthoSize: glass.orthoSize, near: glass.nearPlane } : null,
             pointer: { left: screen.pointerX + across / 2, top: DESIGN.height / 2 - screen.pointerY },
             held: (key) => input.isKeyDown(key),
@@ -185,7 +209,10 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         };
         const age = ship.time - began;
         const boot = clamp(age / BOOT_SECONDS, 0, 1);
-        for (const [group, from, most] of groups) fade(group, most * ease((age - from) / 0.6));
+        for (const [group, from, most] of groups) {
+            const up = (age - from) / 0.6;
+            fade(group, most * ease(up) * (up > 0 && up < 1.4 && Math.sin(age * 71 + from * 9) > 0.55 ? 0.45 : 1));
+        }
         if (boot >= 1 && !state.booted) { state.booted = true; log.say('HELM DISPLAY ONLINE'); }
         const test = clamp((age - 0.6) / 1.6, 0, 1), sweep = Math.sin(Math.PI * test), settle = test * test * (3 - 2 * test);
         const shown = (actual: number): number => sweep * (1 - settle) + actual * settle;
@@ -236,6 +263,8 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         const fast = speed >= GAUGE.redline;
         fill(hotRing, pace * GAUGE.sweep);
         fill(speedRing, Math.min(pace, GAUGE.redline / GAUGE.fullScale) * GAUGE.sweep);
+        fill(speedGlow, Math.min(pace, GAUGE.redline / GAUGE.fullScale) * GAUGE.sweep);
+        ink(speedGlow, rgb(0x9fdcff, 0.3 + 0.08 * Math.sin(ship.time * 3.1)), UIVisual);
         fill(driveRing, shown(ship.throttle) * GAUGE.sweep);
         fill(commandRing, shown(ship.wanted) * GAUGE.sweep);
         const pipAt = around(shown(ship.wanted), GAUGE.command);
@@ -245,6 +274,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         digits.forEach((digit, i) => {
             say(digit, figures[i]!);
             ink(digit, i < lead ? rgb(ICE, 0.2) : fast ? rgb(AMBER) : rgb(ICE));
+            for (const fringe of fringes) { say(fringe[i]!, i < lead ? '' : figures[i]!); }
         });
         say(throttleValue, `${pad(ship.throttle * 100, 3)}`);
         const changing = Math.abs(ship.wanted - ship.throttle) > 0.012;
