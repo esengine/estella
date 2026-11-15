@@ -140,6 +140,15 @@ void main() {
   #endif
     fragColor = texColor * tint;
 #endif
+#ifdef ES_LINEAR
+  #ifdef DISPLAY_OUTPUT
+    #ifdef PREMULTIPLIED_COLOR
+    fragColor.rgb = linearToSrgb(fragColor.rgb / max(fragColor.a, 1e-5)) * fragColor.a;
+    #else
+    fragColor.rgb = linearToSrgb(fragColor.rgb);
+    #endif
+  #endif
+#endif
 }
 #pragma end
 
@@ -248,20 +257,33 @@ struct VSOut {
     let dist = texColor.a;
     let screenPxDist = (dist - 0.5 + v.v_sdfBias) / max(fwidth(dist), 1e-6);
     let coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
-    return vec4f(tint.rgb, tint.a * coverage);
+    let shown = vec4f(tint.rgb, tint.a * coverage);
 #elif defined(GLYPH_MASK)
-    return vec4f(tint.rgb, tint.a * texColor.a);
+    let shown = vec4f(tint.rgb, tint.a * texColor.a);
 #elif defined(GLYPH_FILL)
-    return vec4f(tint.rgb, tint.a * texColor.r * texColor.a);
+    let shown = vec4f(tint.rgb, tint.a * texColor.r * texColor.a);
 #elif defined(LIT)
     let base = texColor * tint;
-    return vec4f(applyLighting2DLayer(base.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos, v.v_lightLayer), base.a);
+    let shown = vec4f(applyLighting2DLayer(base.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos, v.v_lightLayer), base.a);
 #else
   #ifdef ALPHA_CLIP
 
     if (texColor.a < 0.5) { discard; }
   #endif
-    return texColor * tint;
+    let shown = texColor * tint;
+#endif
+#ifdef ES_LINEAR
+  #ifdef DISPLAY_OUTPUT
+    #ifdef PREMULTIPLIED_COLOR
+    return vec4f(linearToSrgb(shown.rgb / max(shown.a, 1e-5)) * shown.a, shown.a);
+    #else
+    return vec4f(linearToSrgb(shown.rgb), shown.a);
+    #endif
+  #else
+    return shown;
+  #endif
+#else
+    return shown;
 #endif
 }
 #pragma end
