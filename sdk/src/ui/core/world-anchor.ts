@@ -21,6 +21,8 @@ import { UINode, UIDisplay, UIPositionType, type UINodeData } from './ui-node';
 import { px } from './dimension';
 import { ScreenLayout, type ScreenLayoutData } from './screen-layout';
 
+export interface EdgeInsets { left: number; top: number; right: number; bottom: number }
+
 export interface UIWorldAnchorData {
     /** The entity to stand over; 0 = the world point `offset`. */
     target: Entity;
@@ -32,12 +34,14 @@ export interface UIWorldAnchorData {
     clampToEdges: boolean;
     /** How far inside the edge a clamped marker stands, in layout pixels. */
     edgeMargin: number;
+    edgeInsets: EdgeInsets;
     /** Behind the camera and not clamped: hide (display None) rather than stand where the projection mirrors it. */
     hideWhenBehind: boolean;
     /** Read back: the point is in front of the camera and inside the screen. */
     onScreen: boolean;
     /** Read back: the point is behind the camera. */
     behind: boolean;
+    clamped: boolean;
     /** Read back: world distance from the camera. */
     distance: number;
 }
@@ -55,22 +59,26 @@ export const UIWorldAnchor: ComponentDef<UIWorldAnchorData> = defineComponent<UI
     camera: 0 as Entity,
     clampToEdges: false,
     edgeMargin: 24,
+    edgeInsets: { left: 0, top: 0, right: 0, bottom: 0 },
     hideWhenBehind: true,
     onScreen: false,
     behind: false,
+    clamped: false,
     distance: 0,
 }, {
     entityFields: ['target', 'camera'],
-    readonlyFields: ['onScreen', 'behind', 'distance'],
+    readonlyFields: ['onScreen', 'behind', 'clamped', 'distance'],
     fields: {
         target: { tooltip: 'The entity to stand over. Empty: stand over the world point Offset.' },
         offset: { tooltip: 'Added to the target\'s position (world units): above a head, at a door. The point itself with no target.' },
         camera: { advanced: true, tooltip: 'The camera that looks. Empty: the camera on screen.' },
         clampToEdges: { tooltip: 'Off screen, stand at the edge in its direction instead of leaving it.' },
         edgeMargin: { min: 0, advanced: true, shownWhen: { field: 'clampToEdges', values: [1] } },
+        edgeInsets: { advanced: true, shownWhen: { field: 'clampToEdges', values: [1] }, tooltip: 'More room kept clear on each side, over Edge Margin: where the HUD keeps its own panels, so a clamped marker stays off them.' },
         hideWhenBehind: { advanced: true },
         onScreen: { advanced: true },
         behind: { advanced: true },
+        clamped: { advanced: true },
         distance: { advanced: true },
     },
 });
@@ -93,6 +101,7 @@ export interface AnchorPlacement {
     top: number;
     onScreen: boolean;
     behind: boolean;
+    clamped: boolean;
     distance: number;
 }
 
@@ -111,7 +120,7 @@ function rotateInverse(q: Quat, v: Vec3): Vec3 {
  * in the point's true direction instead.
  */
 export function placeOnScreen(point: Vec3, lens: AnchorLens, box: { width: number; height: number },
-                              clamp: boolean, margin: number): AnchorPlacement {
+                              clamp: boolean, margin: number, insets?: EdgeInsets): AnchorPlacement {
     const rel = { x: point.x - lens.position.x, y: point.y - lens.position.y, z: point.z - lens.position.z };
     const distance = Math.hypot(rel.x, rel.y, rel.z);
     const v = rotateInverse(lens.rotation, rel);               // camera space: -z ahead
@@ -130,16 +139,22 @@ export function placeOnScreen(point: Vec3, lens: AnchorLens, box: { width: numbe
         ny = v.y / lens.orthoSize;
     }
     const onScreen = !behind && Math.abs(nx) <= 1 && Math.abs(ny) <= 1;
-    if (clamp && !onScreen) {
-        // Out to the edge along the point's direction from the centre; behind, a point straight ahead of the camera
-        // would read as the centre, so a direction that has nearly vanished is pushed to the bottom edge.
+    let clamped = clamp && !onScreen;
+    if (clamped) {
         let dx = nx, dy = ny;
         if (behind && Math.hypot(dx, dy) < 1e-3) { dx = 0; dy = -1; }
         const mx = 1 - (2 * margin) / Math.max(box.width, 1e-6), my = 1 - (2 * margin) / Math.max(box.height, 1e-6);
         const k = Math.max(Math.abs(dx) / mx, Math.abs(dy) / my, 1e-6);
         nx = dx / k; ny = dy / k;
     }
-    return { left: (nx * 0.5 + 0.5) * box.width, top: (0.5 - ny * 0.5) * box.height, onScreen, behind, distance };
+    if (clamp && insets) {
+        const reach = (inset: number, size: number): number => Math.max(1 - (2 * (margin + inset)) / Math.max(size, 1e-6), 0);
+        const cx = Math.min(Math.max(nx, -reach(insets.left, box.width)), reach(insets.right, box.width));
+        const cy = Math.min(Math.max(ny, -reach(insets.bottom, box.height)), reach(insets.top, box.height));
+        clamped ||= cx !== nx || cy !== ny;
+        nx = cx; ny = cy;
+    }
+    return { left: (nx * 0.5 + 0.5) * box.width, top: (0.5 - ny * 0.5) * box.height, onScreen, behind, clamped, distance };
 }
 
 /** The camera on screen: the active one that clears colour, highest priority first. */
@@ -179,7 +194,8 @@ export function stepWorldAnchors(world: World, screen: ScreenLayoutData): void {
             const tp = (world.get(a.target, Transform) as TransformData).worldPosition as Vec3;
             point = { x: tp.x + a.offset.x, y: tp.y + a.offset.y, z: tp.z + a.offset.z };
         }
-        const at = placeOnScreen(point, lens, box, a.clampToEdges, a.edgeMargin);
+        const room = a.edgeInsets;
+        const at = placeOnScreen(point, lens, box, a.clampToEdges, a.edgeMargin, room && (room.left || room.top || room.right || room.bottom) ? room : undefined);
         const hide = at.behind && !a.clampToEdges && a.hideWhenBehind;
         const node = world.get(e, UINode) as UINodeData;
         const left = Math.round(at.left * 10) / 10, top = Math.round(at.top * 10) / 10;
@@ -196,8 +212,8 @@ export function stepWorldAnchors(world: World, screen: ScreenLayoutData): void {
                 n.insetLeft = px(left); n.insetTop = px(top);
             });
         }
-        if (a.onScreen !== at.onScreen || a.behind !== at.behind || Math.abs(a.distance - at.distance) > 1e-3) {
-            world.update(e, UIWorldAnchor, (w: UIWorldAnchorData) => { w.onScreen = at.onScreen; w.behind = at.behind; w.distance = at.distance; });
+        if (a.onScreen !== at.onScreen || a.behind !== at.behind || a.clamped !== at.clamped || Math.abs(a.distance - at.distance) > 1e-3) {
+            world.update(e, UIWorldAnchor, (w: UIWorldAnchorData) => { w.onScreen = at.onScreen; w.behind = at.behind; w.clamped = at.clamped; w.distance = at.distance; });
         }
     }
 }

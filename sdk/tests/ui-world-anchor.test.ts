@@ -50,6 +50,36 @@ describe('placeOnScreen', () => {
         expect(p.top).toBeLessThan(450);
     });
 
+    it('keeps a clamped marker out of the room a HUD asks for on each side', () => {
+        const insets = { left: 0, top: 0, right: 200, bottom: 300 };
+        const right = placeOnScreen({ x: 100, y: 0, z: -10 }, eye(), BOX, true, 20, insets);
+        expect(right.left).toBeCloseTo(1600 - 220);
+        expect(right.top).toBeCloseTo(450);
+        const left = placeOnScreen({ x: -100, y: 0, z: -10 }, eye(), BOX, true, 20, insets);
+        expect(left.left).toBeCloseTo(20);
+        const below = placeOnScreen({ x: 0, y: -100, z: -10 }, eye(), BOX, true, 20, insets);
+        expect(below.top).toBeCloseTo(900 - 320);
+        expect(below.left).toBeCloseTo(800);
+        const corner = placeOnScreen({ x: -100, y: -100, z: -10 }, eye(), BOX, true, 20, insets);
+        expect(corner.left).toBeCloseTo(370, 0);
+        expect(corner.top).toBeCloseTo(900 - 320);
+        expect(corner.clamped).toBe(true);
+    });
+
+    it('moves a point that is on screen but inside that room out of it, and still says it is on screen', () => {
+        const insets = { left: 0, top: 0, right: 0, bottom: 300 };
+        const low = placeOnScreen({ x: 0, y: -9, z: -10 }, eye(), BOX, true, 0, insets);
+        expect(low.onScreen).toBe(true);
+        expect(low.top).toBeCloseTo(600);
+        expect(low.clamped).toBe(true);
+        const untouched = placeOnScreen({ x: 0, y: -9, z: -10 }, eye(), BOX, true, 0);
+        expect(untouched.top).toBeCloseTo(855);
+        const clear = placeOnScreen({ x: 2, y: 2, z: -10 }, eye(), BOX, true, 0, insets);
+        expect(clear.top).toBeCloseTo(360);
+        expect(clear.clamped).toBe(false);
+        expect(placeOnScreen({ x: 100, y: 0, z: -10 }, eye(), BOX, false, 0).clamped).toBe(false);
+    });
+
     it('projects orthographically: half the size up is the top edge', () => {
         const p = placeOnScreen({ x: 0, y: 5, z: -3 }, eye({ perspective: false }), BOX, false, 0);
         expect([p.left, p.top]).toEqual([800, 0]);
