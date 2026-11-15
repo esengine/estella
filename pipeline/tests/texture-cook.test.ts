@@ -13,7 +13,8 @@ import { cookTexture, loadTextureEncoder } from '../src/assets/textureCook';
 import { cookAssets } from '../src/assets/cookAssets';
 import { readKtx2Layout } from '../src/assets/ktx2Mips';
 import { noisePng, solidPng } from './fixtures/solidPng.mjs';
-import { decodePngImage, encodeRgbaPng } from '../src/assets/atlasPacker';
+import { decodePngImage } from '../src/assets/atlasPacker';
+import { encodeRgbaPng } from '../src/assets/png';
 
 describe('a texture compressed for the editor', () => {
   it('is pending until compressed, then answered from the cache a build reads', async () => {

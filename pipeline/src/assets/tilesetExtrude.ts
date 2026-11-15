@@ -128,9 +128,3 @@ export function decodeRgbaPng(png: Uint8Array): RgbaImage {
     return { width: decoded.width, height: decoded.height, rgba: new Uint8Array(decoded.data) };
 }
 
-/** Encode raw RGBA8 (row 0 = top) to PNG bytes. */
-export function encodeRgbaPng(width: number, height: number, rgba: Uint8Array): Uint8Array {
-    const png = new PNG({ width, height });
-    Buffer.from(rgba).copy(png.data);
-    return new Uint8Array(PNG.sync.write(png));
-}
