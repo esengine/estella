@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "shift.esshader",
+  "blendMode": 0,
+  "depthTest": false,
+  "depthWrite": false,
+  "cull": 0,
+  "properties": {
+    "u_shift": 0.25
+  }
+}

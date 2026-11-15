@@ -199,6 +199,7 @@ export const RENDERER_OPTIONAL_BINDINGS = {
     beginScreenOverlay: 'es_renderer_beginScreenOverlay',
     submitScreenOverlay: 'es_renderer_submitScreenOverlay',
     endScreenOverlay: 'es_renderer_endScreenOverlay',
+    setScreenOverlayEffect: 'es_renderer_setScreenOverlayEffect',
     /** The view a collect looks from; hosts predating it share one LOD memory. */
     setViewId: 'es_renderer_setViewId',
     /** What a view decided about one object's level, and holding another level up

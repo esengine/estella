@@ -49,6 +49,7 @@ export {
 } from './core/ui-visual';
 
 export { UIMask, MaskMode, type UIMaskData } from './core/ui-mask';
+export { CanvasEffect, type CanvasEffectData } from './core/canvas-effect';
 export { UIWorldAnchor, placeOnScreen, type UIWorldAnchorData, type AnchorLens, type AnchorPlacement, type EdgeInsets } from './core/world-anchor';
 export { UIScroll, ScrollMovement, type UIScrollData } from './core/ui-scroll';
 export { ContentRect, applyContentRect, contentRectContains, localPointInRect, type ContentRectData } from './core/content-rect';
@@ -541,7 +542,7 @@ export { ShelfPacker, type Packer, type PackPos } from '../util/shelfPack';
 export { sdfFromAlpha } from './text/sdf';
 export { submitTextBatch, TEXT_VERTEX_FLOATS, TextGlyphMode } from './text/submit';
 
-export { ScreenOverlay, type ScreenOverlayData } from './core/screen-overlay';
+export { ScreenOverlay, type ScreenOverlayData, type ScreenOverlayEffect } from './core/screen-overlay';
 export { canvasRootEntities } from './core/canvas-roots';
 
 export { UIPages, type PageDef, type PageHandle } from './pages/ui-pages';

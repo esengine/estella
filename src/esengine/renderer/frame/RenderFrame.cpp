@@ -238,6 +238,7 @@ void RenderFrame::shutdown() {
     releaseShadowFrameUbos();
     releaseShadow2DResources();
     releaseShape2DResources();
+    releaseOverlayBackdrop();
     releaseFrameTargets();
     target_pool_.clear();
 

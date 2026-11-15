@@ -88,6 +88,7 @@ struct PipelineDesc {
     /// Passes where the depth is EQUAL to what the buffer holds, not only where it is less: a surface drawn a second time, after a pass that
     /// wrote its depth, must land on itself.
     bool depthEqual = false;
+    bool layerAlpha = false;
 
     bool operator==(const PipelineDesc&) const = default;
 };

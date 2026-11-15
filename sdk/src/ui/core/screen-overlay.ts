@@ -56,6 +56,29 @@ export interface ScreenOverlayData {
      * the order stay the screen's. With no camera it is every layer.
      */
     layerMask: number;
+    effects: ScreenOverlayEffect[];
+}
+
+export interface ScreenOverlayEffect {
+    layer: number;
+    material: number;
+}
+
+export interface ScreenOverlayPass {
+    layers: number;
+    effect: number;
+}
+
+export function screenOverlayPasses(layerMask: number, effects: readonly ScreenOverlayEffect[]): ScreenOverlayPass[] {
+    let through = 0;
+    for (const effect of effects) through |= 1 << effect.layer;
+    through = (through & layerMask) >>> 0;
+    const passes: ScreenOverlayPass[] = [{ layers: (layerMask & ~through) >>> 0, effect: 0 }];
+    for (const effect of effects) {
+        const bit = (1 << effect.layer) >>> 0;
+        if ((through & bit) !== 0) passes.push({ layers: bit, effect: effect.material });
+    }
+    return passes;
 }
 
 /** A fresh instance. A factory rather than a shared literal because the matrix
@@ -69,6 +92,7 @@ export function defaultScreenOverlay(): ScreenOverlayData {
         surfaceW: 0, surfaceH: 0,
         pointerX: 0, pointerY: 0,
         layerMask: 0xFFFFFFFF,
+        effects: [],
     };
 }
 

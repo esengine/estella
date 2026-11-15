@@ -194,7 +194,7 @@ struct PipelineDescHash {
         mix(static_cast<u16>(d.depthBias));
         mix((u64(d.blendEnabled) << 0) | (u64(d.depthTest) << 1) | (u64(d.depthWrite) << 2) | (u64(d.cullEnabled) << 3)
             | (u64(d.cullFront) << 4) | (u64(d.alphaToCoverage) << 5) | (u64(d.gbuffer) << 6) | (u64(d.albedo) << 7)
-            | (u64(d.colorWrite) << 8) | (u64(d.depthEqual) << 9));
+            | (u64(d.colorWrite) << 8) | (u64(d.depthEqual) << 9) | (u64(d.layerAlpha) << 10));
         return static_cast<size_t>(h);
     }
 };

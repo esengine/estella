@@ -212,6 +212,68 @@ world.insert(marker, UINode, { width: px(60), height: px(40), marginLeft: px(-30
 world.insert(marker, UIWorldAnchor, { target: relay, offset: { x: 0, y: 2.5, z: 0 }, clampToEdges: true });
 ```
 
+### `CanvasEffect` —— 经由一个材质画出的 Canvas
+
+隔着面罩看到的 HUD，四角会弯、颜色会分离、带扫描线。这些都没法逐个元素去画：得先把整块显示变成一张图。
+挂在屏幕 Canvas 上的 `CanvasEffect` 做的就是这件事：该 Canvas 所在排序层（`Canvas.layer`）上的屏幕 UI 先画进
+一张透明底的图，再由 `material` 把这张图铺到画面上。
+
+材质的着色器是 `PostProcess` 着色器，写法与后处理效果相同：在 `v_texCoord` 处读 `u_texture` 就是这一层，
+有 `u_time` 和 `u_viewport`，自己的 `#pragma param` 取材质上的值。这一层的颜色已乘过透明度（预乘），数值就是
+显示出来的样子；着色器返回的颜色也按同样的方式铺到画面上——原样返回采样值，Canvas 看起来就和没挂这个组件时
+一样。
+
+```glsl
+#pragma shader "HUD Lens"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_curve float default(0.03) range(0,0.2)
+
+#pragma fragment
+precision highp float;
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+out vec4 fragColor;
+
+void main() {
+    vec2 p = v_texCoord * 2.0 - 1.0;
+    fragColor = texture(u_texture, p * (1.0 + u_curve * (dot(p, p) - 1.0)) * 0.5 + 0.5);
+}
+#pragma end
+```
+
+```typescript
+import { Canvas, CanvasEffect } from 'esengine';
+
+const lens = await assets.loadMaterial('assets/ui/lens.esmaterial');
+world.insert(hudCanvas, Canvas, { layer: 2 });
+world.insert(hudCanvas, CanvasEffect, { material: lens.handle });
+```
+
+- **按层生效。** 同一排序层上的所有屏幕 Canvas，都走该层第一个带 `CanvasEffect` 的 Canvas 的材质。没有效果的
+  层先直接画到画面上，带效果的层再依次盖在上面。所以不该被弯曲的东西——比如立在世界物体上的标记
+  （`UIWorldAnchor`）——放到另一层的 Canvas 上。
+- **移动的是像素，不是指针。** 点击落在元素布局的位置。要点的东西放在没有效果的层上，或者把弯曲控制得很小。
+- 只加光的绘制（`BlendMode.Additive`）经过这一层后仍然只加光。会压暗下方的绘制（`Multiply`、`Darken`）在这一层里
+  下方只有空白。
+- 需要构建里带后处理；WebGPU 上着色器要写 `#pragma fragment wgsl` 孪生。材质的程序就绪之前，Canvas 直接画。
+
+### 毛玻璃面板 —— 读取下方画面的 UI
+
+UI 材质可以声明 `#pragma param u_screenColor texture default(white)`，与场景里的材质声明的是同一个输入。在屏幕
+叠加层里，它是这一层 UI 开始画时的画面：所有摄像机、后处理链，以及在它之前画完的屏幕 UI 层。这份拷贝带完整的
+多级渐远链，所以一次 `textureLod` 就是一次大范围模糊：在 `gl_FragCoord.xy / vec2(textureSize(u_screenColor, 0))`
+处、第 3 到 4 级上采几个点，就是毛玻璃面板。
+
+```glsl
+vec2 uv = gl_FragCoord.xy / vec2(textureSize(u_screenColor, 0));
+vec3 behind = textureLod(u_screenColor, uv, 3.5).rgb;
+```
+
+它的颜色是显示出来的颜色，线性色彩空间的工程里也是。拿到拷贝时它的透明度是 0.5；拿到的若是白色默认图
+（透明度 1：设备无法拷贝自己的表面，或构建里没有后处理），着色器应当画回朴素的样子。同一层的 UI 看不到本层里
+压在它下面的元素；想让毛玻璃模糊下方的 UI，就把它放到更靠后的层上。
+
 ### `UIPages` —— 用到才存在的页面
 
 一个有很多页面的界面不需要把它们同时放进世界。`UIPages` 把每个页面存成预制体,第一次打开时才构建:

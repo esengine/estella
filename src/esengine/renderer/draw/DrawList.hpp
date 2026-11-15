@@ -90,6 +90,8 @@ public:
     bool anyUsesSceneColor(const MaterialStore& materials) const;
     bool anyUsesScreenColor(const MaterialStore& materials) const;
     void setDeferScreenColor(bool defer) { defer_screen_color_ = defer; }
+    void setLayerAlpha(bool layer) { layer_alpha_ = layer; }
+    void setLayerlessVisible(bool visible) { layerless_visible_ = visible; }
     /** @brief Whether a draw is of a material that does not work without a picture of the scene (MaterialStore::needsScenePicture). */
     bool anyNeedsScenePicture(const MaterialStore& materials) const;
     /// Whether the list holds a blended draw that does not refract: what has to be ordered against a refracting surface by where it is, not by when it was drawn.
@@ -191,7 +193,7 @@ public:
     /** @brief Whether a draw belonging to @p layerBit survives this camera's mask.
      *         Bit 0 means "no layer" (outside 0..31) and is visible to every camera. */
     bool layerVisible(u32 layerBit) const {
-        return layerBit == 0 || (culling_mask_ & layerBit) != 0;
+        return layerBit == 0 ? layerless_visible_ : (culling_mask_ & layerBit) != 0;
     }
 
     /** @brief The mask bit of a sorting layer, or 0 when it has none (outside 0..31). */
@@ -271,6 +273,8 @@ private:
     std::function<void(const char*)> shader_run_sink_;
     u32 skipped_for_program_ = 0;
     bool defer_screen_color_ = false;
+    bool layer_alpha_ = false;
+    bool layerless_visible_ = true;
     struct SortEntry {
         u64 key;
         u32 index;

@@ -77,6 +77,8 @@ export interface RendererBackend {
     beginScreenOverlay(projection: Float32Array,
                        vpX: number, vpY: number, vpW: number, vpH: number): void;
     submitScreenOverlay(registry: CppRegistry): void;
+    hasScreenOverlayEffect(): boolean;
+    setScreenOverlayEffect(material: number): void;
     endScreenOverlay(target: number): void;
     setStage(stage: number): void;
     setViewport(x: number, y: number, w: number, h: number): void;
@@ -257,6 +259,8 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
                 handleWasmError(e, 'Renderer.submitScreenOverlay');
             }
         },
+        hasScreenOverlayEffect: () => typeof m.renderer_setScreenOverlayEffect === 'function',
+        setScreenOverlayEffect: (material) => m.renderer_setScreenOverlayEffect?.(material >>> 0),
         endScreenOverlay: (target) => {
             try {
                 m.renderer_endScreenOverlay?.(target);
@@ -634,6 +638,14 @@ export const Renderer = {
 
     submitScreenOverlay(registry: { _cpp: CppRegistry }): void {
         backend?.submitScreenOverlay(registry._cpp);
+    },
+
+    hasScreenOverlayEffect(): boolean {
+        return backend?.hasScreenOverlayEffect() ?? false;
+    },
+
+    setScreenOverlayEffect(material: number): void {
+        backend?.setScreenOverlayEffect(material);
     },
 
     endScreenOverlay(target: RenderTargetHandle = 0): void {

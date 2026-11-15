@@ -236,7 +236,7 @@ public:
      *         SDK's glyph quads), which lands in the same list. */
     void submitScreenOverlay(ecs::Registry& registry);
 
-    /** @brief Declares the overlay as a graph pass over @p target and runs it. */
+    void setScreenOverlayEffect(u32 material);
     void endScreenOverlay(RenderTargetManager::Handle target);
 
     /** @brief Whether the overlay is open — what routes a host's submissions. */
@@ -1307,6 +1307,12 @@ private:
     glm::mat4 overlay_projection_{1.0f};
     i32 overlay_vp_x_ = 0, overlay_vp_y_ = 0;
     u32 overlay_vp_w_ = 0, overlay_vp_h_ = 0;
+    u32 overlay_effect_ = 0;
+    TextureHandle overlay_grab_ = TextureHandle::Invalid;
+    Unique<Framebuffer> overlay_backdrop_;
+    u32 overlay_grab_w_ = 0, overlay_grab_h_ = 0;
+    bool grabOverlayBackdrop(FramebufferHandle source);
+    void releaseOverlayBackdrop();
 
     /// buildSpriteMasks scratch, reused across cameras/frames.
     std::vector<ResolvedMask> sprite_mask_scratch_;

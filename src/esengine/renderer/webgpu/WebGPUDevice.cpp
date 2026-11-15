@@ -264,6 +264,9 @@ void WebGPUDevice::releaseDeviceObjects() {
         if (pipeline) wgpuRenderPipelineRelease(pipeline);
     }
     flip_pipelines_.clear();
+    if (surface_copy_view_) { wgpuTextureViewRelease(surface_copy_view_); surface_copy_view_ = nullptr; }
+    if (surface_copy_) { wgpuTextureRelease(surface_copy_); surface_copy_ = nullptr; }
+    surface_copy_width_ = surface_copy_height_ = 0;
     if (flip_layout_) { wgpuPipelineLayoutRelease(flip_layout_); flip_layout_ = nullptr; }
     if (flip_bgl_) { wgpuBindGroupLayoutRelease(flip_bgl_); flip_bgl_ = nullptr; }
     // The depth-resolve family, for the same reason: every one of these belongs to
@@ -1358,7 +1361,7 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
         ++slotCount;
     }
 
-    const BlendStateWGPU blend = toWGPUBlend(desc.blend);
+    const BlendStateWGPU blend = toWGPUBlend(desc.blend, desc.layerAlpha);
     WGPUBlendState blendState{};
     blendState.color = blend.color;
     blendState.alpha = blend.alpha;
@@ -1908,8 +1911,8 @@ void WebGPUDevice::drawInternalClear(bool color, bool depth, bool stencil,
     bind_group_dirty_ = true;
 }
 
-WGPURenderPipeline WebGPUDevice::ensureFlipPipeline(WGPUTextureFormat format) {
-    const u32 key = static_cast<u32>(format);
+WGPURenderPipeline WebGPUDevice::ensureFlipPipeline(WGPUTextureFormat format, bool flip) {
+    const u32 key = static_cast<u32>(format) | (flip ? 0u : 0x80000000u);
     if (auto it = flip_pipelines_.find(key); it != flip_pipelines_.end()) return it->second;
     static const char* kFlipVS = R"(
 @vertex fn vs_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
@@ -1922,6 +1925,12 @@ WGPURenderPipeline WebGPUDevice::ensureFlipPipeline(WGPUTextureFormat format) {
 @fragment fn fs_main(@builtin(position) at : vec4f) -> @location(0) vec4f {
     let size = vec2i(textureDimensions(source));
     return textureLoad(source, vec2i(i32(at.x), size.y - 1 - i32(at.y)), 0);
+}
+)";
+    static const char* kCopyFS = R"(
+@group(0) @binding(0) var source : texture_2d<f32>;
+@fragment fn fs_main(@builtin(position) at : vec4f) -> @location(0) vec4f {
+    return textureLoad(source, vec2i(i32(at.x), i32(at.y)), 0);
 }
 )";
     auto makeModule = [&](const char* code) {
@@ -1948,7 +1957,7 @@ WGPURenderPipeline WebGPUDevice::ensureFlipPipeline(WGPUTextureFormat format) {
         flip_layout_ = wgpuDeviceCreatePipelineLayout(device_, &pld);
     }
     WGPUShaderModule vs = makeModule(kFlipVS);
-    WGPUShaderModule fs = makeModule(kFlipFS);
+    WGPUShaderModule fs = makeModule(flip ? kFlipFS : kCopyFS);
     WGPUColorTargetState target{};
     target.format = format;
     target.writeMask = WGPUColorWriteMask_All;
@@ -2018,6 +2027,124 @@ void WebGPUDevice::copyTextureFlippedY(TextureHandle src, TextureHandle dst) {
     wgpuCommandBufferRelease(commands);
     wgpuCommandEncoderRelease(encoder);
     wgpuBindGroupRelease(group);
+}
+
+bool WebGPUDevice::surfaceAllowsCopy() const {
+#if !defined(__EMSCRIPTEN__)
+    if (surface_ && adapter_) {
+        WGPUSurfaceCapabilities caps{};
+        if (wgpuSurfaceGetCapabilities(surface_, adapter_, &caps) == WGPUStatus_Success) {
+            const bool allowed = (caps.usages & WGPUTextureUsage_CopySrc) != 0;
+            wgpuSurfaceCapabilitiesFreeMembers(caps);
+            return allowed;
+        }
+    }
+#endif
+    return true;
+}
+
+bool WebGPUDevice::copyFramebufferColor(FramebufferHandle source, TextureHandle dst) {
+    if (!device_ || !isDeviceUsable()) return false;
+    const auto to = textures_.find(static_cast<u32>(dst));
+    if (to == textures_.end() || to->second.samples > 1 || to->second.layers > 1) return false;
+    if (pass_) endRenderPass();
+
+    WGPUTexture from = nullptr;
+    WGPUTextureFormat fromFormat = WGPUTextureFormat_Undefined;
+    u32 width = 0;
+    u32 height = 0;
+    if (source == FramebufferHandle::Default) {
+        if (!surface_readback_) {
+            if (!surfaceAllowsCopy()) return false;
+            surface_readback_ = true;
+            surface_reconfigure_ = true;
+            return false;
+        }
+        if (surface_reconfigure_ || !frame_texture_) return false;
+        from = frame_texture_;
+        fromFormat = surface_format_;
+        width = surface_width_;
+        height = surface_height_;
+    } else {
+        const FramebufferDesc* fb = framebufferDesc(source);
+        if (!fb) return false;
+        auto color = textures_.find(static_cast<u32>(fb->color0));
+        if (color != textures_.end() && color->second.samples > 1) color = textures_.find(static_cast<u32>(fb->resolveColor0));
+        if (color == textures_.end() || color->second.samples > 1) return false;
+        from = color->second.texture;
+        fromFormat = color->second.format;
+        width = color->second.width;
+        height = color->second.height;
+    }
+    if (!from || width != to->second.width || height != to->second.height) return false;
+
+    const bool direct = fromFormat == to->second.format;
+    WGPUTexture target = to->second.texture;
+    if (!direct) {
+        if (!surface_copy_ || surface_copy_format_ != fromFormat || surface_copy_width_ != width || surface_copy_height_ != height) {
+            if (surface_copy_view_) { wgpuTextureViewRelease(surface_copy_view_); surface_copy_view_ = nullptr; }
+            if (surface_copy_) { wgpuTextureRelease(surface_copy_); surface_copy_ = nullptr; }
+            WGPUTextureDescriptor td{};
+            td.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
+            td.dimension = WGPUTextureDimension_2D;
+            td.size = {width, height, 1};
+            td.format = fromFormat;
+            td.mipLevelCount = 1;
+            td.sampleCount = 1;
+            surface_copy_ = wgpuDeviceCreateTexture(device_, &td);
+            if (!surface_copy_) return false;
+            surface_copy_view_ = wgpuTextureCreateView(surface_copy_, nullptr);
+            surface_copy_format_ = fromFormat;
+            surface_copy_width_ = width;
+            surface_copy_height_ = height;
+        }
+        target = surface_copy_;
+    }
+
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device_, nullptr);
+    WGPUTexelCopyTextureInfo src{};
+    src.texture = from;
+    src.aspect = WGPUTextureAspect_All;
+    WGPUTexelCopyTextureInfo dest{};
+    dest.texture = target;
+    dest.aspect = WGPUTextureAspect_All;
+    const WGPUExtent3D extent{width, height, 1};
+    wgpuCommandEncoderCopyTextureToTexture(encoder, &src, &dest, &extent);
+    if (!direct) {
+        WGPURenderPipeline pipeline = ensureFlipPipeline(to->second.format, /*flip=*/false);
+        if (!pipeline) {
+            wgpuCommandEncoderRelease(encoder);
+            return false;
+        }
+        WGPUBindGroupEntry entry{};
+        entry.binding = 0;
+        entry.textureView = surface_copy_view_;
+        WGPUBindGroupDescriptor bgd{};
+        bgd.layout = flip_bgl_;
+        bgd.entryCount = 1;
+        bgd.entries = &entry;
+        WGPUBindGroup group = wgpuDeviceCreateBindGroup(device_, &bgd);
+        WGPURenderPassColorAttachment color{};
+        color.view = to->second.view;
+        color.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+        color.loadOp = WGPULoadOp_Clear;
+        color.storeOp = WGPUStoreOp_Store;
+        WGPURenderPassDescriptor rp{};
+        rp.colorAttachmentCount = 1;
+        rp.colorAttachments = &color;
+        WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &rp);
+        wgpuRenderPassEncoderSetPipeline(pass, pipeline);
+        wgpuRenderPassEncoderSetBindGroup(pass, 0, group, 0, nullptr);
+        wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
+        wgpuRenderPassEncoderEnd(pass);
+        wgpuRenderPassEncoderRelease(pass);
+        wgpuBindGroupRelease(group);
+    }
+    WGPUCommandBuffer commands = wgpuCommandEncoderFinish(encoder, nullptr);
+    wgpuQueueSubmit(queue_, 1, &commands);
+    wgpuCommandBufferRelease(commands);
+    wgpuCommandEncoderRelease(encoder);
+    return true;
 }
 
 WGPUBindGroupLayout WebGPUDevice::groupLayoutFor(u32 group, u32 mask, u32 depthMask,
@@ -2467,6 +2594,10 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
         // that is never ended; the frames are correct and it happens once. See
         // docs/REARCH_RENDER.md §9 for what was measured and what it costs.
         if (!frame_view_) {
+            if (surface_reconfigure_) {
+                surface_reconfigure_ = false;
+                configureSwapchain(surface_width_, surface_height_);
+            }
             WGPUSurfaceTexture st{};
             wgpuSurfaceGetCurrentTexture(surface_, &st);
             if (st.status != WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal &&

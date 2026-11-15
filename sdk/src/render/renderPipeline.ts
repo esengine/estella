@@ -9,7 +9,7 @@ import type { CppRegistry } from '../wasm';
 import type { Entity } from '../types';
 import { Renderer } from './renderer';
 import type { PostProcessAPI } from '../postprocess';
-import type { ScreenOverlayData } from '../ui/core/screen-overlay';
+import { screenOverlayPasses, type ScreenOverlayData } from '../ui/core/screen-overlay';
 import { Draw, beginPresentedDraw, endPresentedDraw, isDrawAPIReady } from './draw';
 import {
     getDrawCallbacks,
@@ -165,11 +165,26 @@ export class RenderPipeline {
         if (!overlay.active || overlay.vpW === 0 || overlay.vpH === 0) return;
         if (!Renderer.hasScreenOverlay()) return;
 
+        if (overlay.effects.length === 0 || !Renderer.hasScreenOverlayEffect()) {
+            this.drawScreenOverlay(registry, overlay, overlay.layerMask, 0, target);
+            return;
+        }
+        for (const pass of screenOverlayPasses(overlay.layerMask, overlay.effects)) {
+            this.drawScreenOverlay(registry, overlay, pass.layers, pass.effect, target);
+        }
+    }
+
+    private drawScreenOverlay(
+        registry: { _cpp: CppRegistry },
+        overlay: ScreenOverlayData,
+        layers: number,
+        effect: number,
+        target: number,
+    ): void {
         Renderer.beginScreenOverlay(overlay.projection,
                                     overlay.vpX, overlay.vpY, overlay.vpW, overlay.vpH);
-        // Set after begin (which clears the list) and before the collect it gates,
-        // exactly as a camera's own mask is.
-        Renderer.setCullingMask(overlay.layerMask);
+        Renderer.setCullingMask(layers);
+        if (effect !== 0) Renderer.setScreenOverlayEffect(effect);
         Renderer.submitScreenOverlay(registry);
         for (const cb of this.screenOverlayCallbacks_) cb(registry, overlay.projection);
         Renderer.endScreenOverlay(target);

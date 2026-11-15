@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "",
+  "instanceOf": "frost.esmaterial",
+  "properties": {
+    "u_lod": 0
+  }
+}

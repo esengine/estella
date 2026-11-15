@@ -153,6 +153,7 @@ public:
 
     virtual bool storesTargetsTopDown() const { return false; }
     virtual void copyTextureFlippedY(TextureHandle src, TextureHandle dst) { (void)src; (void)dst; }
+    virtual bool copyFramebufferColor(FramebufferHandle source, TextureHandle dst) { (void)source; (void)dst; return false; }
 
     /**
      * @brief Declares the device lost from outside the backend.

@@ -588,6 +588,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         // sort key and canMergeWith already carry blend, so nothing else has to
         // learn about this.
         desc.blendEnabled = cmd.blend_mode != BlendMode::None;
+        desc.layerAlpha = layer_alpha_ && desc.blendEnabled;
         desc.depthTest = cmd.depth_test;
         desc.depthWrite = cmd.depth_write;
         desc.stencil = stencil;

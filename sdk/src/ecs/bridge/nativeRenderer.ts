@@ -111,6 +111,11 @@ export function createNativeRendererBackend(
         submitScreenOverlay: (_registry: CppRegistry): void => {
             optional(scope, RENDERER_OPTIONAL_BINDINGS.submitScreenOverlay)?.();
         },
+        hasScreenOverlayEffect: (): boolean =>
+            optional(scope, RENDERER_OPTIONAL_BINDINGS.setScreenOverlayEffect) !== null,
+        setScreenOverlayEffect: (material): void => {
+            optional(scope, RENDERER_OPTIONAL_BINDINGS.setScreenOverlayEffect)?.(material);
+        },
         endScreenOverlay: (target): void => {
             optional(scope, RENDERER_OPTIONAL_BINDINGS.endScreenOverlay)?.(target);
         },
