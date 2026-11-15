@@ -1,5 +1,5 @@
 import {
-    addPlugin, defineSystem, Schedule, Res, GetWorld, Input, CameraView, Playthrough, SaveManager, UIEvents, Time,
+    addPlugin, defineSystem, Schedule, Res, GetWorld, Input, CameraView, Playthrough, SaveManager, Storage, UIEvents, Time,
     Transform, MeshRenderer, TimeOfDay, PostProcessVolume, Light, Text, Name, UINode, UIVisual, Assets,
     spawnUIEntity, createButton, UIPositionType, px, rayPlaneHit,
     type World, type Entity, type UIEventQueue,
@@ -12,12 +12,17 @@ import {
     stepPower, powerReport, setMineOn, isRunning, isDocked,
     type GameState, type Building, type BuildingKind, type PlaceableKind, type Cell, type Snapshot,
 } from './state';
+import { Journal } from './journal';
 import { PALETTE, mineParts, storeParts, droneParts, ringParts, towerParts, solarParts, batteryParts, type Part, type Role, type Colour, type Shape } from './models';
 
 type Tool = PlaceableKind | 'select' | 'remove';
 
 const UNITS = 100;
 const SLOT = 'gate0';
+const JOURNAL_KEY = 'last-signal:journals';
+const JOURNAL_KEEP = 6;
+const ACTIVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyZ', 'KeyX', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+const CHEAPEST = Math.min(...Object.values(COSTS));
 const MAP = { left: 16, top: 16, cell: 4 };
 const DAY_SECONDS = { normal: 240, fast: 24 };
 const VIEW = { width: 1280, height: 720 };
@@ -145,6 +150,29 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
     let counted = false;
 
     let state: GameState = createState();
+    let journal = new Journal(Date.now().toString(36));
+    let journalWritten = 0;
+    let journalAge = 0;
+    const keepJournal = (force = false): void => {
+        if (!force && journal.entries.length === journalWritten) return;
+        journalAge = 0;
+        journalWritten = journal.entries.length;
+        const kept = (Storage.getJSON<{ session: string }[]>(JOURNAL_KEY, []) ?? []).filter((j) => j.session !== journal.session);
+        Storage.setJSON(JOURNAL_KEY, [...kept, journal.export()].slice(-JOURNAL_KEEP));
+    };
+    const exportJournals = (): void => {
+        keepJournal(true);
+        const text = JSON.stringify(Storage.getJSON(JOURNAL_KEY, []), null, 1);
+        console.log(`[last-signal] play journals\n${text}`);
+        const page = (globalThis as { document?: { createElement(tag: string): { href: string; download: string; click(): void }; } }).document;
+        const blobs = globalThis as { Blob?: new (parts: string[], init: { type: string }) => object; URL?: { createObjectURL(blob: object): string } };
+        if (page && blobs.Blob && blobs.URL) {
+            const link = page.createElement('a');
+            link.href = blobs.URL.createObjectURL(new blobs.Blob([text], { type: 'application/json' }));
+            link.download = `last-signal-journal-${journal.session}.json`;
+            link.click();
+        }
+    };
     let grid: NavGrid | null = null;
     let body: Entity | null = null;
     let drone: Model | null = null;
@@ -302,10 +330,11 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
 
     const build = (world: World, kind: PlaceableKind): void => {
         const result = place(state, kind, cursor);
-        if (!result.ok) { say(`Cannot build here: ${result.reason}.`); return; }
+        if (!result.ok) { journal.note('build', { kind, ok: false, reason: result.reason, ore: state.ore }); say(`Cannot build here: ${result.reason}.`); return; }
         grid!.setWalkable(cursor.x, cursor.y, false);
         showSite(world, result.building);
         facts.blockedCells = countBlocked();
+        journal.act('build', { kind, cost: COSTS[kind], oreLeft: state.ore, x: cursor.x, y: cursor.y });
         say(`${kindName(kind)} built at ${cursor.x}, ${cursor.y} for ${COSTS[kind]} ore.`);
     };
 
@@ -316,12 +345,14 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         grid!.setWalkable(cursor.x, cursor.y, true);
         hideSite(world, gone.id);
         facts.blockedCells = countBlocked();
+        journal.act('remove', { kind: gone.kind, refund: Math.floor(COSTS[gone.kind as PlaceableKind] / 2), oreLeft: state.ore });
         say(`${kindName(gone.kind)} at ${cursor.x}, ${cursor.y} removed. Half its ore came back.`);
     };
 
     const pick = (): void => {
         const at = buildingAt(state, cursor);
         selected = at === null ? 0 : at.id;
+        journal.look();
         say(at === null ? 'Nothing selected.' : `${kindName(at.kind)} #${at.id} selected.`);
     };
 
@@ -333,6 +364,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
 
     const choose = (next: Tool): void => {
         tool = next;
+        journal.look();
         say(next === 'select' ? 'Click a building to inspect it.' : next === 'remove' ? 'Click a building to remove it.' : `Click the ground to place a ${kindName(next).toLowerCase()} for ${COSTS[next]} ore.`);
     };
 
@@ -340,13 +372,15 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         const mine = state.buildings.find((b) => b.id === selected && b.kind === 'mine');
         if (mine === undefined) { say('Select a mine to switch it on or off.'); return; }
         setMineOn(state, mine.id, !mine.on);
+        journal.act('mine_toggle', { id: mine.id, on: mine.on, blackout: state.blackout });
         say(mine.on ? `Mine #${mine.id} is back on and draws power again.` : `Mine #${mine.id} is switched off. It draws no power and mines nothing.`);
     };
 
     const repair = (): void => {
         const reason = whyNotRepair(state);
-        if (reason !== null) { say(`Cannot repair the tower: ${reason}.`); return; }
+        if (reason !== null) { journal.act('repair', { ok: false, ore: state.ore }); say(`Cannot repair the tower: ${reason}.`); return; }
         repairTower(state);
+        journal.act('repair', { ok: true, ore: state.ore });
         uplink = 0;
         acknowledged = false;
         facts.repairs = (facts.repairs as number) + 1;
@@ -500,7 +534,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
             world, events, parent: canvas!,
             node: { position: UIPositionType.Absolute, insetLeft: px(VIEW.width / 2 + 10), insetTop: px(-2000), width: px(160), height: px(44) },
             text: { content: 'NEW GAME', fontSize: 15, color: UI.text }, background: { color: UI.button },
-            onClick: () => { saves.remove(SLOT); adopt(world, createState()); say('New game. The tower is silent again.'); },
+            onClick: () => { saves.remove(SLOT); keepJournal(true); journal = new Journal(Date.now().toString(36)); journalWritten = 0; adopt(world, createState()); say('New game. The tower is silent again.'); },
         });
         world.insert(fresh.entity, Name, { value: 'NewGameButton' });
         victory = [curtain, headline, tagline, again.entity, fresh.entity];
@@ -542,7 +576,8 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         if (input.isKeyPressed('ArrowUp')) moved.y -= step;
         if (input.isKeyPressed('ArrowDown')) moved.y += step;
         const overUi = input.isPointerOverUI();
-        if (input.mouseX !== lastMouse.x || input.mouseY !== lastMouse.y) {
+        const mouseMoved = input.mouseX !== lastMouse.x || input.mouseY !== lastMouse.y;
+        if (mouseMoved) {
             lastMouse = { x: input.mouseX, y: input.mouseY };
             const ray = overUi ? null : view.pointerRay(input.mouseX, input.mouseY);
             const hit = ray === null ? null : rayPlaneHit(ray, { x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
@@ -565,7 +600,8 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         if (input.isKeyPressed('KeyR')) repair();
         if (input.isKeyPressed('KeyK')) save();
         if (input.isKeyPressed('KeyL')) load(world);
-        if (input.isKeyPressed('KeyN')) { saves.remove(SLOT); adopt(world, createState()); say('New game.'); }
+        if (input.isKeyPressed('KeyN')) { saves.remove(SLOT); keepJournal(true); journal = new Journal(Date.now().toString(36)); journalWritten = 0; adopt(world, createState()); say('New game.'); }
+        if (input.isKeyPressed('KeyJ')) { exportJournals(); say('Play journal exported.'); }
         if (input.isKeyPressed('KeyC')) {
             lowView = !lowView;
             facts.lowView = lowView;
@@ -622,6 +658,9 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         const passed = ((state.hour - lastHour) % DAY_HOURS + DAY_HOURS) % DAY_HOURS;
         facts.hoursElapsed = (facts.hoursElapsed as number) + passed;
         if (passed > 0) stepPower(state, lastHour, passed);
+        const moving = mouseMoved || ACTIVE_KEYS.some((code) => input.isKeyDown(code)) || input.getScrollDelta().y !== 0;
+        journal.tick(time.delta, passed, { canAct: state.signal === 'offline' && state.ore >= CHEAPEST, input: moving });
+        journal.outage(state.blackout);
         lastHour = state.hour;
         if (state.blackout !== wasBlackout) {
             wasBlackout = state.blackout;
@@ -633,7 +672,9 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         state.drone.x = pose.x / UNITS;
         state.drone.z = pose.z / UNITS;
         const agent = world.get(body, NavAgent);
+        const carried = state.drone.cargo;
         if ((agent.arrived || !agent.hasTarget) && settleArrival(state)) {
+            if (state.drone.leg === 'toMine') journal.note('delivery', { ore: carried, stored: state.ore });
             say(state.drone.leg === 'toStore' ? 'The drone loaded ore at the mine.' : `Ore delivered. The storehouse holds ${state.ore}.`);
             dock = null;
             dockFor = -1;
@@ -789,6 +830,9 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         facts.selected = selected;
         facts.ghostLegal = legal;
         facts.active = activeId;
+        facts.journalEntries = journal.entries.length;
+        journalAge += time.delta;
+        keepJournal(journalAge > 10);
         facts.energy = report.energy;
         facts.capacity = report.capacity;
         facts.generation = report.generation;
@@ -818,7 +862,12 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
                 node.insetTop = px(tops[i]!);
                 world.insert(entity, UINode, node);
             });
-            if (showVictory) write(world, victory[2]!, `The tower is repaired and the signal is out. ${state.trips} trips, ${state.ore} ore left in store.`);
+            if (showVictory) {
+                const sum = journal.summary();
+                journal.note('victory', { seconds: sum.seconds, gameHours: sum.gameHours, buildings: state.buildings.length, builds: sum.builds, outages: sum.outages, outageHours: sum.outageHours, trips: state.trips });
+                const minutes = Math.floor(sum.seconds / 60);
+                write(world, victory[2]!, `${minutes} min ${Math.round(sum.seconds - minutes * 60)} s, ${state.trips} trips, ${sum.builds} built, ${sum.outageHours} h in the dark.  J saves the play log.`);
+            }
         }
         facts.victory = showVictory;
         const held = Math.min(state.ore, REPAIR_COST);
