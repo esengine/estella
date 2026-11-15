@@ -17,8 +17,26 @@
  * the two must not be confused: closures per mutation cannot be resimulated.
  */
 
-import { Entity } from '../types';
-import { AnyComponentDef } from './component';
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+* @file    speculation.ts
+* @brief   A step of gameplay nobody has seen yet, and can take back
+*
+* Not a fifth deferral mechanism: a boundary the three the engine already has
+* agree on. Structural change goes to a `CommandsInstance` this scope owns and
+* flushes only on commit; events written inside it sit in each bus's write half
+* until the next swap, so a watermark un-writes them; component values are
+* copied on first touch — and the touch that counts is the HANDLE LEAVING, not
+* the write arriving, because script storage hands out the stored object itself
+* and by the time `set` is called the old value is already gone.
+*
+* `Transaction` in this directory is the EDITOR's undo/redo of an authoring
+* gesture, built from forward/reverse closure pairs. This is the runtime's, and
+* the two must not be confused: closures per mutation cannot be resimulated.
+*/
+import type { Entity } from '../types';
+import type { AnyComponentDef } from './component';
 import { CommandsInstance } from './commands';
 import { EventRegistry } from './event';
 import { defineResource, ResourceStorage } from './resource';

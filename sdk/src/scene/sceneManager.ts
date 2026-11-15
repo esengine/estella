@@ -8,12 +8,10 @@
 import type { App } from '../app/app';
 import type { Entity, Color } from '../types';
 import type { SceneData, SceneLoadOptions, LoadedSceneAssets, SceneLoadProgressCallback } from './scene';
-import { discoverSceneAssets } from '../asset/discoverAssets';
 import { AssetScope, type AssetLease } from '../asset/AssetLease';
 import { assetBindingsOf, readLiveAssetBinding } from '../asset/liveAssetBindings';
 import { leaseBoundAs, slotLeaseNamed } from '../asset/liveAssetRebind';
 import type { SystemDef } from '../ecs/system';
-import { Material } from '../render/material';
 import type { RenderReadiness } from '../render/renderReadiness';
 import type { DrawCallback } from '../render/customDraw';
 import { Schedule } from '../ecs/system';

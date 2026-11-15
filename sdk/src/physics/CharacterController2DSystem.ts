@@ -28,8 +28,8 @@ import { log } from '../util/logger';
 import type { MoverResult } from './PhysicsTypes';
 import type { World } from '../ecs/world';
 import {
-    CharacterController2D, CharacterDynamicBodies, moveAndSlide,
-    type CharacterController2DData, type SlideHit,
+    CharacterController2D, CharacterDynamicBodies, 
+    type CharacterController2DData,
 } from './CharacterController2D';
 
 // =============================================================================

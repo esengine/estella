@@ -24,7 +24,7 @@ import type { World } from '../world';
 import type { SystemRunner } from '../system';
 import { ENTITY_INDEX_MASK, type Entity } from '../../types';
 import { WasmPoolMemory, type WasmHeap } from '../WasmPoolMemory';
-import { AotSystems, type AotManifest, type AotSystemDecl, type AotTwin } from './AotSystems';
+import { AotSystems, type AotManifest, type AotTwin } from './AotSystems';
 import { AotResources, type ResourceReader } from './AotResources';
 import type { AotDispatcher, AotRuntime } from './AotRuntime';
 import { missingCapabilities, whyInterpreted, NATIVE_AOT } from './executorCapabilities';

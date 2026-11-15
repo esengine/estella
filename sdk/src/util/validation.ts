@@ -17,7 +17,7 @@ export type ValidationError = {
 };
 
 export function validateComponentData(
-    componentName: string,
+    _componentName: string,
     defaults: Record<string, unknown>,
     data: Record<string, unknown>,
     assetFields?: AssetFields

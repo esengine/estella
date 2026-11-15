@@ -5,7 +5,13 @@
  * @brief   Component-aware query result cache with fine-grained invalidation
  */
 
-import { Entity } from '../types';
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+* @file    QueryCache.ts
+* @brief   Component-aware query result cache with fine-grained invalidation
+*/
+import type { Entity } from '../types';
 
 interface CacheEntry {
     componentVersions: Map<symbol, number>;

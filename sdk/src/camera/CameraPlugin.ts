@@ -27,10 +27,9 @@ import { EditorViewLighting, DEFAULT_EDITOR_VIEW_LIGHTING, pushEditorViewLightin
 import { EditorViewShading, DEFAULT_EDITOR_VIEW_SHADING, pushEditorViewShading, pushEditorViewWeights } from './EditorViewShading';
 import type { ViewShading } from '../render/renderer';
 import { EditorView, DEFAULT_EDITOR_VIEW, editorViewStandoff, editorViewEye, editorViewClipFar, editorViewClipNear, type EditorViewData } from './EditorView';
-import { ScreenScaling, DEFAULT_SCREEN_SCALING, SCREEN_FIT_OFF } from './ScreenScaling';
+import { ScreenScaling, SCREEN_FIT_OFF } from './ScreenScaling';
 import { planPresent, viewportPixels, RenderResolution } from './presentPlan';
 import { CameraDirector, createDirectorState, resolveMainPOV } from './CameraDirector';
-import { RenderPipeline } from '../render/renderPipeline';
 import { Input } from '../input/input';
 import { pendingShaders } from '../render/shaderWarmup';
 import { renderTargetSize } from '../render/renderTexture';

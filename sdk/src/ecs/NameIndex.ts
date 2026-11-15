@@ -5,7 +5,13 @@
  * @brief   Bidirectional name-to-entity index
  */
 
-import { Entity } from '../types';
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+* @file    NameIndex.ts
+* @brief   Bidirectional name-to-entity index
+*/
+import type { Entity } from '../types';
 
 export class NameIndex {
     // Names are NOT unique (games routinely have many "Coin"/"Enemy"), so a name
