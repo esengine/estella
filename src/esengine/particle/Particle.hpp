@@ -5,7 +5,6 @@
 #include "../core/Types.hpp"
 #include "../math/Math.hpp"
 
-#include <functional>
 #include <vector>
 
 namespace esengine::particle {
@@ -43,8 +42,19 @@ public:
     std::vector<Particle>& particles() { return particles_; }
     const std::vector<Particle>& particles() const { return particles_; }
 
-    void forEachAlive(const std::function<void(Particle&)>& fn);
-    void forEachAlive(const std::function<void(const Particle&)>& fn) const;
+    template<typename Fn>
+    void forEachAlive(Fn&& fn) {
+        for (Particle& p : particles_) {
+            if (p.alive) fn(p);
+        }
+    }
+
+    template<typename Fn>
+    void forEachAlive(Fn&& fn) const {
+        for (const Particle& p : particles_) {
+            if (p.alive) fn(p);
+        }
+    }
 
     /** @brief Deallocate a particle by its pool index */
     void deallocateByIndex(u32 index);

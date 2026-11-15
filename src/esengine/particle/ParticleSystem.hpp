@@ -198,7 +198,11 @@ public:
     u32 totalAliveParticles() const;
     void setParticleLimit(u32 limit) { particle_limit_ = limit; }
 
-    void forEachParticle(Entity entity, const std::function<void(const Particle&)>& fn) const;
+    template<typename Fn>
+    void forEachParticle(Entity entity, Fn&& fn) const {
+        auto it = states_.find(entity);
+        if (it != states_.end()) it->second.pool.forEachAlive(fn);
+    }
 
     EmitterState* getState(Entity entity);
     const EmitterState* getState(Entity entity) const;
