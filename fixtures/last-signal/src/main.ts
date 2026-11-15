@@ -1,6 +1,6 @@
 import {
     addPlugin, defineSystem, Schedule, Res, GetWorld, Input, CameraView, Playthrough, SaveManager,
-    Transform, MeshRenderer, TimeOfDay, Text, Name, UINode, spawnUIEntity, UIPositionType, px, rayPlaneHit,
+    Transform, MeshRenderer, TimeOfDay, PostProcessVolume, Light, Text, Name, UINode, spawnUIEntity, UIPositionType, px, rayPlaneHit,
     type World, type Entity,
 } from 'esengine';
 import { Nav, NavAgent, NavGrid, setNavDestination, stopNavAgent } from 'esengine/ai';
@@ -31,7 +31,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
     const facts: Record<string, string | number | boolean> = {
         ready: false, restored: false, buildings: 0, blockedCells: 0, ore: 0, trips: 0, cargo: 0, leg: 'toMine',
         droneX: 0, droneY: 0, hour: 0, hoursElapsed: 0, fast: false, plans: 0, route: 'none', everInsideBuilding: false,
-        cursorX: 0, cursorY: 0, cursorWalkable: true, tool: 'mine', saves: 0, loads: 0, notice: '', layout: '',
+        cursorX: 0, cursorY: 0, cursorWalkable: true, tool: 'mine', saves: 0, loads: 0, notice: '', layout: '', autoExposure: true, held: false, lowView: false, ambient: 0, sun: 0,
     };
     app.insertResource(Playthrough, { facts });
 
@@ -248,11 +248,22 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         if (input.isKeyPressed('KeyN')) { saves.remove(SLOT); adopt(world, createState()); say('New game.'); }
         if (input.isKeyPressed('KeyC') && camera !== null) {
             lowView = !lowView;
+            facts.lowView = lowView;
             const pose = world.get(camera, Transform);
             pose.position = lowView ? { x: 0, y: 400, z: 5200 } : { x: 0, y: 2800, z: 3400 };
             pose.rotation = lowView ? { x: -0.0262, y: 0, z: 0, w: 0.9997 } : { x: -0.3375, y: 0, z: 0, w: 0.9413 };
             world.insert(camera, Transform, pose);
         }
+        if (input.isKeyPressed('KeyE') && camera !== null) {
+            const volume = world.get(camera, PostProcessVolume);
+            const effects = volume.effects.map((effect) => effect.type === 'autoExposure' ? { ...effect, enabled: !effect.enabled } : effect);
+            world.insert(camera, PostProcessVolume, { ...volume, effects });
+            facts.autoExposure = effects.some((effect) => effect.type === 'autoExposure' && effect.enabled);
+        }
+        const skyLight = world.findEntityByName('Sky');
+        const sunLight = world.findEntityByName('Sun');
+        if (skyLight !== null) facts.ambient = world.get(skyLight, Light).intensity;
+        if (sunLight !== null) facts.sun = world.get(sunLight, Light).intensity;
         if (input.isKeyPressed('KeyP')) throw new Error('last-signal probe: a script error raised on purpose');
 
         const clockData = world.get(clock!, TimeOfDay);
@@ -261,7 +272,18 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
             world.insert(clock!, TimeOfDay, { ...clockData, daySeconds: fast ? DAY_SECONDS.fast : DAY_SECONDS.normal });
             facts.fast = fast;
         }
-        state.hour = clockData.hour;
+        if (input.isKeyPressed('KeyH')) {
+            const held = clockData.daySeconds !== 0;
+            world.insert(clock!, TimeOfDay, { ...clockData, daySeconds: held ? 0 : DAY_SECONDS.normal });
+            facts.held = held;
+            facts.fast = false;
+        }
+        const nudge = (input.isKeyPressed('BracketRight') ? 0.5 : 0) - (input.isKeyPressed('BracketLeft') ? 0.5 : 0);
+        if (nudge !== 0) {
+            const now = world.get(clock!, TimeOfDay);
+            world.insert(clock!, TimeOfDay, { ...now, hour: ((now.hour + nudge) % DAY_HOURS + DAY_HOURS) % DAY_HOURS });
+        }
+        state.hour = world.get(clock!, TimeOfDay).hour;
         facts.hoursElapsed = (facts.hoursElapsed as number) + ((state.hour - lastHour) % DAY_HOURS + DAY_HOURS) % DAY_HOURS;
         lastHour = state.hour;
 
@@ -313,7 +335,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         facts.droneX = standing.x;
         facts.droneY = standing.y;
         facts.hour = state.hour;
-        facts.plans = nav.planningStats.completed;
+        facts.plans = (facts.plans as number) + nav.planningStats.completed;
         facts.cursorX = cursor.x;
         facts.cursorY = cursor.y;
         facts.cursorWalkable = grid.isWalkable(cursor.x, cursor.y);
@@ -324,7 +346,7 @@ addPlugin({ name: 'last-signal-gate0', build(app) {
         const minutes = Math.floor((state.hour - hours) * 60);
         const content = `ORE ${state.ore}   TRIPS ${state.trips}   CARGO ${state.drone.cargo}   ${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}${facts.fast ? '  (fast)' : ''}\n`
             + `TOOL ${tool === 'mine' ? '1 MINE' : '2 STOREHOUSE'}   CURSOR ${cursor.x}, ${cursor.y}   ROUTE ${String(facts.route)}\n`
-            + `${notice}\n1/2 tool   Enter build   Backspace remove   T time   C view   K save   L load   N new`;
+            + `${notice}\n1/2 tool   Enter build   Backspace remove   T time   H hold   [ ] hour   E exposure   C view   K save   L load   N new`;
         const text = world.get(hud!, Text);
         if (text.content !== content) world.insert(hud!, Text, { ...text, content });
     }, { name: 'LastSignalPlay', runAfter: ['NavAgentSystem'] }));
