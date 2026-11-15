@@ -42,13 +42,10 @@
  *
  * No answer is not an option: a setting nobody decided about fails here.
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
+import { ROOT, read } from './lib/repo.mjs';
 
 const RUNTIME_CONFIG = 'pipeline/src/project/runtimeConfig.ts';
 const FORMAT = 'pipeline/src/project/format.ts';

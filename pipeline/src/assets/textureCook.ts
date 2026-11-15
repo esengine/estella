@@ -9,7 +9,8 @@
  *          cook cache, so whichever compresses a texture first pays for it once.
  */
 import { readTextureCookSettings } from '../project/importSettings';
-import { decodePngImage, encodeRgbaPng, downscaleRgba } from './atlasPacker';
+import { decodePngImage, downscaleRgba } from './atlasPacker';
+import { encodeRgbaPng } from './png';
 import { decodeGrey16, downscaleGrey16, encodeGrey16 } from './png16';
 import {
   decideTextureCook, cookIntentDefeated, explainTextureCook, downscaledSize,

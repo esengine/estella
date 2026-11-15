@@ -17,10 +17,9 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, readFileSync, writeFileSync, rmSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { runElectron } from './lib/electronRun.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ENGINE = 'esengine.wxgame.wasm';
 const work = mkdtempSync(path.join(tmpdir(), 'glx-fallback-'));
 const project = path.join(work, 'project');

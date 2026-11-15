@@ -9,16 +9,14 @@
  * the tool being one reader rather than two. begin() and declareChain() both
  * build targets, so a format re-derived per call can differ between them.
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, read } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PIPE = 'src/esengine/renderer/frame/PostProcessPipeline.cpp';
 const SURFACE = 'desktop/src/engine/EditorControlSurface.ts';
 const SETTINGS = 'desktop/src/settings/projectSettings.ts';
 
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 const problems = [];
 const pipe = read(PIPE);
 

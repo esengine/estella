@@ -19,10 +19,8 @@
  */
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { runTool, spawnTool } from './runTool.mjs';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+import { ROOT } from './repo.mjs';
 
 let binaryResolved = false;
 

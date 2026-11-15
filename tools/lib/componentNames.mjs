@@ -15,6 +15,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { stripComments } from './repo.mjs';
 
 const SDK_SRC = join(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..'), 'sdk', 'src');
 
@@ -30,8 +31,6 @@ function tsFiles(dir) {
 
 /** Comments hold example code (`defineComponent('Patrol', …)`) that would
  *  otherwise register as a component that does not exist. */
-const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
-
 /**
  * Component names, from source alone — no SDK build required.
  *

@@ -19,11 +19,10 @@
  */
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { MODULES, DISPOSITIONS, NATIVE_MODULE_REGISTRY, subpathOf, specifierOf, nativeSubpaths }
     from './nativeScriptModules.js';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PKG = path.join(ROOT, 'sdk', 'package.json');
 const REGISTRY = path.join(ROOT, 'sdk', 'src', 'platform', 'nativeModuleRegistry.ts');
 const NATIVE_ENTRY = path.join(ROOT, 'sdk', 'src', 'index.native.ts');

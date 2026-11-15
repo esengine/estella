@@ -34,11 +34,10 @@
  *
  * Run: node tools/check-corpus-authoring.mjs [--list]
  */
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, walkFiles } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SNAPSHOT = path.join(ROOT, 'docs', 'astro', 'src', 'data', 'components.generated.json');
 /** Where the editor decides what a person may add to an entity at all. */
 const EDITOR_SCHEMA = path.join(ROOT, 'desktop', 'src', 'engine', 'schema.ts');
@@ -186,21 +185,10 @@ const DISPOSITION = {
 const snapshot = JSON.parse(readFileSync(SNAPSHOT, 'utf8'));
 const authorable = snapshot.components.filter((c) => !c.transient).map((c) => c.name);
 
-function walk(dir, out = []) {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    // `.esengine/` stages a full SDK copy inside every project: read it and every
-    // component matches, from the engine's own source rather than anyone's scene.
-    if (e.isDirectory()) {
-      if (!['node_modules', '.esengine', 'dist', 'build'].includes(e.name)) walk(path.join(dir, e.name), out);
-    } else out.push(path.join(dir, e.name));
-  }
-  return out;
-}
-
 const files = [];
 for (const root of CORPUS_ROOTS) {
   const dir = path.join(ROOT, root);
-  if (existsSync(dir)) walk(dir, files);
+  if (existsSync(dir)) walkFiles(dir, { skip: (name, _full, folder) => folder && ['.esengine', 'dist', 'build'].includes(name) }, files);
 }
 
 const problems = [];

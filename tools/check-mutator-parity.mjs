@@ -23,9 +23,8 @@
  */
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const EDITOR = path.join(ROOT, 'desktop', 'src');
 const STORE = path.join(EDITOR, 'project', 'ProjectStore.ts');
 /** The automation facade and the surface behind it: a call from here is the AGENT's. */

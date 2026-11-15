@@ -20,10 +20,9 @@
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { runTool } from './lib/runTool.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const EDITOR = path.join(ROOT, 'desktop');
 const ASSETS = path.join(EDITOR, 'dist', 'assets');
 

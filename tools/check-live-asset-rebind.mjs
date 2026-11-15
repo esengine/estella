@@ -45,9 +45,7 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT, stripComments } from './lib/repo.mjs';
 
 /** The files that answer "which live fields hold this asset?". */
 const REBIND_PATH = [
@@ -65,11 +63,6 @@ if (missing.length) {
 }
 
 /** Comments out, line numbers intact — a finding names a line someone reads. */
-const stripComments = (text) =>
-  text
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
-    .replace(/\/\/[^\n]*/g, '');
-
 /**
  * Components that declare an asset field, from the two places they are authored:
  * the generated C++ metadata, and `defineComponent` in the SDK. These are the

@@ -15,26 +15,15 @@
  *
  *   node tools/check-system-access.mjs
  */
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, walkFiles } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'sdk', 'src');
 
 /** A system whose reach genuinely cannot be named says so above itself:
  *  `// system-access: <why>` on one of the lines before `defineSystem(`. */
 const OPT_OUT = /system-access:\s*\S/;
-
-function walk(dir, out = []) {
-    for (const e of readdirSync(dir, { withFileTypes: true })) {
-        if (e.name === 'node_modules') continue;
-        const abs = path.join(dir, e.name);
-        if (e.isDirectory()) walk(abs, out);
-        else if (e.name.endsWith('.ts') && !e.name.endsWith('.generated.ts')) out.push(abs);
-    }
-    return out;
-}
 
 /** The text of each `defineSystem(...)` call in `src`, parentheses balanced. */
 function defineSystemCalls(src) {
@@ -69,7 +58,7 @@ const findings = [];
 let declared = 0;
 let excused = 0;
 
-for (const file of walk(SRC)) {
+for (const file of walkFiles(SRC, { match: (name) => name.endsWith('.ts') && !name.endsWith('.generated.ts') })) {
     const src = readFileSync(file, 'utf8');
     if (!src.includes('GetWorld()')) continue;
     const lines = src.split('\n');

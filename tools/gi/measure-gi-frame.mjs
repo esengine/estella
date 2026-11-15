@@ -12,8 +12,8 @@
  */
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { ROOT as root } from '../lib/repo.mjs';
 
-const root = path.resolve(import.meta.dirname, '../..');
 const [webDir, framesArg] = process.argv.slice(2);
 const frames = Number(framesArg ?? 240);
 const { chromium } = await import(pathToFileURL(path.join(root, 'node_modules/playwright/index.mjs')).href);

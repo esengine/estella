@@ -3,11 +3,10 @@
 import {execFileSync, spawnSync} from 'node:child_process';
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import path from 'node:path';
-import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {runElectron, NEEDS_XVFB} from './lib/electronRun.mjs';
+import { ROOT as root } from './lib/repo.mjs';
 
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const out=path.resolve(root,process.argv[2]??'out/release-site-frame');
 const subject=path.join(out,'game');
 mkdirSync(out,{recursive:true});

@@ -4,7 +4,8 @@
  * @file  Atlas packer — deterministic shelf packing + page composition.
  */
 import { describe, it, expect } from 'vitest';
-import { packAtlas, decodePngImage, encodePagePng, encodeRgbaPng, downscaleRgba, type AtlasInputImage } from '../src/assets/atlasPacker';
+import { packAtlas, decodePngImage, encodePagePng, downscaleRgba, type AtlasInputImage } from '../src/assets/atlasPacker';
+import { encodeRgbaPng } from '../src/assets/png';
 
 function solid(key: string, width: number, height: number, rgba: [number, number, number, number]): AtlasInputImage {
   const data = new Uint8Array(width * height * 4);

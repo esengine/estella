@@ -17,9 +17,9 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './repo.mjs';
 
-export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+export { ROOT };
 
 /** The key every submodule in `.gitmodules` owes, and the value that means ours. */
 const CORPUS_KEY = 'estella-corpus';

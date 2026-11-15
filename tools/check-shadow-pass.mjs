@@ -24,6 +24,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
+import { stripComments } from './lib/repo.mjs';
 
 const FRAME = 'src/esengine/renderer/frame/RenderFrame.cpp';
 
@@ -35,9 +36,6 @@ if (!existsSync(FRAME)) {
  * Code only: the prose above names begin(), openPass() and beginRenderPass(),
  * and describing the boundary must not read as crossing it.
  */
-const stripComments = (text) =>
-  text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, '');
-
 const src = stripComments(readFileSync(FRAME, 'utf8'));
 
 /** Body text of every `RenderFrame::name(...) { ... }` in the file. */

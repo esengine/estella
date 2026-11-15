@@ -12,9 +12,8 @@ import { execFileSync } from 'node:child_process';
 import { mustRunTool } from './lib/runTool.mjs';
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'build', 'bootlog-crash');
 const DEVICE_DIR = '/data/local/tmp/estella-bootlog';
 

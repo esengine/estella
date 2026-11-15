@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Browser-only CPU benchmark; never launches a desktop runner.
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { pathToFileURL } from 'node:url';
+import { ROOT as root } from './lib/repo.mjs';
 const { createServer } = await import(pathToFileURL(path.join(root, 'desktop/node_modules/vite/dist/node/index.js')).href);
 const server = await createServer({ configFile: false, root,
   optimizeDeps: { noDiscovery: true, entries: [] },

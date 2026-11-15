@@ -9,10 +9,9 @@
  */
 import { statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { ensureEmscriptenEnv, runCommand } from '../../build-tools/utils/emscripten.js';
+import { ROOT } from '../lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = path.join(ROOT, 'build-tools', 'lightmap', 'lightmap-kernel.mjs');
 
 await ensureEmscriptenEnv();

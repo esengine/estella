@@ -16,11 +16,10 @@
  *
  *   node tools/check-spine-panel.mjs
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, read } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const VIEW = 'desktop/src/panels/spineDiagnosticsView.ts';
 const SECTION = 'desktop/src/panels/SpineDiagnosticsSection.tsx';
 const HOLDER = 'desktop/src/engine/spineDiagnosticsStore.ts';
@@ -44,7 +43,6 @@ if (missing.length > 0) {
     process.exit(1);
 }
 
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 /** Comments out, so a rule reads code and not the prose describing it. */
 const strip = (text) => text
     .replace(/\/\*[\s\S]*?\*\//g, '')

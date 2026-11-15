@@ -14,13 +14,9 @@
  *
  *   node tools/check-aot-duties.mjs
  */
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { DUTIES, BOOKKEEPING, ROADS, CAPABILITIES_AT } from './lib/aotDuties.mjs';
+import { read } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 const findings = [];
 
 /**

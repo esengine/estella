@@ -8,8 +8,8 @@ import { NEEDS_XVFB, runElectron, runWithElectronDisplay } from './lib/electronR
 import { gpuFailed, retryOnDeadGpu } from './lib/deadGpu.mjs';
 import { fileURLToPath } from 'node:url';
 import { toolArgs } from './lib/toolArgs.mjs';
+import { ROOT as root } from './lib/repo.mjs';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const ARGS = toolArgs({ dir: null, spec: null, log: null, present: false });
 const dir = ARGS.dir, specArg = ARGS.spec;

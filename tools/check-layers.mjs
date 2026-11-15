@@ -20,9 +20,10 @@
  * A rule that is wrong 149 times teaches everyone to ignore it. This one is
  * narrow enough to be true.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { walkFiles } from './lib/repo.mjs';
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'sdk', 'src');
 
@@ -34,15 +35,6 @@ const FOUNDATION = new Set(['util', 'math']);
 // platform itself cannot be held to the foundation rule.
 const ALLOWED = new Set([...FOUNDATION, 'platform']);
 
-function walk(dir, out = []) {
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    const abs = path.join(dir, e.name);
-    if (e.isDirectory()) walk(abs, out);
-    else if (e.name.endsWith('.ts')) out.push(abs);
-  }
-  return out;
-}
-
 /** Top-level directory a file sits in, or null when it is in the package root. */
 const areaOf = (abs) => {
   const rel = path.relative(SRC, abs);
@@ -52,7 +44,7 @@ const areaOf = (abs) => {
 const SPEC_RE = /\bfrom\s*['"](\.[^'"]*)['"]/g;
 const violations = [];
 
-for (const file of walk(SRC)) {
+for (const file of walkFiles(SRC, { match: /\.ts$/ })) {
   const from = areaOf(file);
   if (!FOUNDATION.has(from)) continue;
   for (const [, spec] of readFileSync(file, 'utf8').matchAll(SPEC_RE)) {

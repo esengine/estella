@@ -13,6 +13,7 @@
 import { PNG } from 'pngjs';
 import { ShelfPacker } from '../../../sdk/src/util/shelfPack';
 import { downscaledSize } from './textureCookDecision';
+import { encodeRgbaPng } from './png';
 
 export interface AtlasInputImage {
     /** Stable identity (the project-relative texture path). */
@@ -153,13 +154,6 @@ export function packAtlas(images: AtlasInputImage[], options: PackOptions = {}):
 export function decodePngImage(key: string, png: Uint8Array): AtlasInputImage {
     const decoded = PNG.sync.read(Buffer.from(png));
     return { key, width: decoded.width, height: decoded.height, rgba: new Uint8Array(decoded.data) };
-}
-
-/** Encode raw RGBA8 (row 0 = top) to PNG bytes. */
-export function encodeRgbaPng(width: number, height: number, rgba: Uint8Array): Uint8Array {
-    const png = new PNG({ width, height });
-    Buffer.from(rgba).copy(png.data);
-    return new Uint8Array(PNG.sync.write(png));
 }
 
 /** Encode a composed page back to PNG bytes. */

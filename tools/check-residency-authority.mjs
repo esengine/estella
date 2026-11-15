@@ -11,13 +11,13 @@
  *
  *   node tools/check-residency-authority.mjs
  */
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, read, walkFiles } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const sources = (dir, match = /\.ts$/) => walkFiles(dir, { match, hidden: false, missing: true });
+
 const RESIDENCY = path.join(ROOT, 'sdk', 'src', 'residency');
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 
 /**
  * Who may name the residency resource, and why. A file not here that reaches for
@@ -60,7 +60,7 @@ if (!/keepPersistent:\s*false/.test(streamer)) {
 
 // 4. One author. Everything else may READ the report.
 for (const dir of ['sdk/src', 'pipeline/src']) {
-    for (const file of walk(path.join(ROOT, dir))) {
+    for (const file of sources(path.join(ROOT, dir))) {
         const rel = path.relative(ROOT, file).split(path.sep).join('/');
         if (rel.startsWith('sdk/src/residency/')) continue;
         const text = readFileSync(file, 'utf8');
@@ -72,7 +72,7 @@ for (const dir of ['sdk/src', 'pipeline/src']) {
 }
 
 // 5. One place installs it, so there is one schedule slot residency runs in.
-const installs = [...walk(path.join(ROOT, 'sdk', 'src'))].filter((file) =>
+const installs = sources(path.join(ROOT, 'sdk', 'src')).filter((file) =>
     /addSystemToSchedule\([^)]*worldResidencySystem/.test(readFileSync(file, 'utf8')));
 if (installs.length !== 1) {
     say('sdk/src', `${installs.length} place(s) schedule the residency system — exactly one may`);
@@ -89,7 +89,7 @@ const EDITOR_STATE_AUTHOR = 'desktop/src/engine/worldRuntimeStore.ts';
  *  "one reader names it" — a claim about a directory it never opened. */
 const editorRead = existsSync(path.join(ROOT, 'desktop', 'src'));
 if (editorRead) {
-    for (const file of walk(path.join(ROOT, 'desktop', 'src'), /\.tsx?$/)) {
+    for (const file of sources(path.join(ROOT, 'desktop', 'src'), /\.tsx?$/)) {
         const rel = path.relative(ROOT, file).split(path.sep).join('/');
         const text = readFileSync(file, 'utf8');
         if (DECIDES.test(text)) {
@@ -114,16 +114,6 @@ const report = read('sdk/src/residency/report.ts');
 for (const mutator of ['.update(', '.loadManifest(', '.clear(']) {
     if (report.includes(mutator)) {
         say('sdk/src/residency/report.ts', `the report calls "${mutator}" — reading must not reconcile`);
-    }
-}
-
-function* walk(dir, match = /\.ts$/) {
-    if (!existsSync(dir)) return;
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) yield* walk(full, match);
-        else if (match.test(entry.name)) yield full;
     }
 }
 

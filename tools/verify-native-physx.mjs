@@ -25,13 +25,12 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { installedTemplateDir } from '../build-tools/utils/nativeTemplate.js';
 import { desktopExecutableIn } from '../build-tools/utils/desktopApp.js';
 import { requireNativeHostSuccess } from './lib/nativeHostResult.mjs';
 import { templateEmbedsBundle } from './lib/nativeBytecode.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PROJECT = path.join(ROOT, 'examples', 'physics-3d');
 const FRAMES = 360;
 /** Bodies at rest by frame 360 on both solvers, in scene units. */

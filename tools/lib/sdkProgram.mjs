@@ -9,11 +9,11 @@
  * a second answer waiting to disagree.
  */
 import { existsSync } from 'node:fs';
-import { resolve, dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { createRequire } from 'node:module';
+import { ROOT } from './repo.mjs';
 
-export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+export { ROOT };
 export const SDK = join(ROOT, 'sdk');
 export const ETC = join(SDK, 'etc');
 

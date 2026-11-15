@@ -3,10 +3,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
 import { runElectron } from './lib/electronRun.mjs';
+import { ROOT as root } from './lib/repo.mjs';
 if (!process.env.CI) throw Error('Editor acceptance runs only in CI; do not launch the local editor.');
-const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),out=path.join(root,'output/gizmo-planes-ci');
+const out=path.join(root,'output/gizmo-planes-ci');
 fs.mkdirSync(out,{recursive:true});
 const project=fs.mkdtempSync(path.join(out,'project-'));
 fs.mkdirSync(path.join(project,'assets/scenes'),{recursive:true});fs.mkdirSync(path.join(project,'src'));

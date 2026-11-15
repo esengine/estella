@@ -18,11 +18,10 @@
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { corpusRoots, censusFindings, trackedFiles, untrackedFiles, addedDiff }
   from './lib/sourceCensus.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SOURCE = /\.(ts|tsx|mjs|js|cpp|hpp|h)$/;
 // Generated files state what the generator says; third-party carries its own style.
 const SKIP = /(^|\/)(node_modules|dist|build|third_party|\.git)\/|\.generated\.|generated\//;

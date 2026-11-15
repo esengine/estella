@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Ordinary browser fixture. No Electron, native windows or automated desktop launch.
 import fs from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import path from 'node:path';
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT as root } from './lib/repo.mjs';
 const { createServer } = await import(pathToFileURL(path.join(root, 'desktop/node_modules/vite/dist/node/index.js')).href);
 const { default: react } = await import(pathToFileURL(path.join(root, 'desktop/node_modules/@vitejs/plugin-react/dist/index.js')).href);
 const server = await createServer({ configFile: false, root: path.join(root, 'desktop'),

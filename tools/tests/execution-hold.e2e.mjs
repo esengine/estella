@@ -3,6 +3,7 @@
 import fs from 'node:fs';import path from 'node:path';import http from 'node:http';import crypto from 'node:crypto';
 import assert from 'node:assert/strict';import {chromium} from 'playwright';
 import { toolArgs } from '../lib/toolArgs.mjs';
+import { MIME as mime } from '../lib/staticServer.mjs';
 const ARGS=toolArgs({dir:null,out:null});
 if(!ARGS.dir)throw Error('Expected --dir <fixture export>');
 const root=fs.realpathSync(ARGS.dir),out=path.resolve(ARGS.out??'output/execution-hold-check');fs.mkdirSync(out,{recursive:true});
@@ -13,7 +14,6 @@ const files=(under='')=>fs.readdirSync(path.join(root,under),{withFileTypes:true
 });
 const identities=Object.fromEntries(files().map(file=>[file,sha(path.join(root,file))]));
 const report={headless:true,mode:'authored-fixture',status:'failed',identities,verifierSha256:sha(new URL(import.meta.url)),errors:[],unexpectedRequests:[],observations:[]};
-const mime={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.json':'application/json','.wasm':'application/wasm','.png':'image/png'};
 const server=http.createServer((req,res)=>{try{const name=decodeURIComponent(new URL(req.url,'http://localhost').pathname).slice(1)||'index.html';
     const file=fs.realpathSync(path.resolve(root,name));if(!file.startsWith(root+path.sep)||!fs.statSync(file).isFile())throw Error('Outside export');
     res.setHeader('Content-Type',mime[path.extname(file)]??'application/octet-stream');res.end(fs.readFileSync(file));}catch{res.writeHead(404);res.end();}});

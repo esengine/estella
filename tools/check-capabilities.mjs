@@ -26,9 +26,9 @@
  * leave the file.
  */
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SHARED = path.join(ROOT, 'desktop', 'shared');
 
 const { ATOMS } = await import(pathToFileURL(path.join(SHARED, 'toolCatalog.mjs')).href);

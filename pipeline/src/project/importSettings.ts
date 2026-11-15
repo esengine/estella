@@ -312,18 +312,6 @@ export const IMPORTER_SCHEMAS: Record<string, ImporterFieldSpec[]> = {
   video: VIDEO,
 };
 
-/** Cook-facing audio import settings, tolerant of hand-edited `.meta` blocks. */
-export function readAudioImportSettings(importer: Record<string, unknown> | undefined): {
-  compress: boolean; bitrateKbps: number;
-} {
-  const compress = importer?.compress;
-  const bitrate = importer?.bitrateKbps;
-  return {
-    compress: typeof compress === 'boolean' ? compress : true,
-    bitrateKbps: bitrate === 96 || bitrate === 128 || bitrate === 192 ? bitrate : 128,
-  };
-}
-
 export const getImporterValueByPath = (obj: Record<string, unknown>, path: string): unknown =>
   path.split('.').reduce<unknown>((o, k) => (o && typeof o === 'object' ? (o as Record<string, unknown>)[k] : undefined), obj);
 

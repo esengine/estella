@@ -29,12 +29,11 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { listTrackedSources } from './lib/sourceRoots.mjs';
 import { ETC, ENTRIES } from './lib/sdkProgram.mjs';
 import { parseSnapshot } from './lib/apiSnapshot.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GENERATED = path.join(ROOT, 'sdk/src/wasm/wasm.generated.ts');
 const CONSTANTS = path.join(ROOT, 'sdk/src/wasm/constants.generated.ts');
 const CONTRACT = path.join(ROOT, 'sdk/tests/cpp-contract.test.ts');

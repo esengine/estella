@@ -16,15 +16,11 @@
  *
  * Run: node tools/check-postfx-aa.mjs   (exit 1 on a violation)
  */
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { read } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PIPE_CPP = 'src/esengine/renderer/frame/PostProcessPipeline.cpp';
 const FB_CPP = 'src/esengine/renderer/rhi/Framebuffer.cpp';
 
-const read = (rel) => readFileSync(path.join(ROOT, rel), 'utf8');
 const findings = [];
 
 const pipe = read(PIPE_CPP);

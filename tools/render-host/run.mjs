@@ -53,6 +53,7 @@
  *   ESTELLA_VERIFY_TIMEOUT_MS  how long this run may take before it reports one
  */
 import { app, BrowserWindow } from 'electron';
+import { ROOT } from '../lib/repo.mjs';
 
 // The launcher that started this reads its output through a pipe. If that launcher is stopped, the pipe is gone and the next line printed
 // would raise an uncaught exception, which Electron shows as a dialog box: a run nobody is listening to ends quietly instead.
@@ -61,7 +62,6 @@ import os from 'node:os';
 import { writeFile } from 'node:fs/promises';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
 import { serveHost } from '../lib/staticServer.mjs';
 import { checkSeam } from '../lib/seamProbe.mjs';
@@ -74,7 +74,6 @@ try {
   os.setPriority(os.constants.priority.PRIORITY_BELOW_NORMAL);
 } catch { /* not fatal — some sandboxes forbid it */ }
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 // Two hosts answer the same driving surface. The engine's is the default — a
 // gate about the renderer should not need an editor to run — and the editor's

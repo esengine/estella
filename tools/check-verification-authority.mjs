@@ -22,11 +22,9 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { GATES } from './gates.mjs';
 import { listTrackedSources, hasEditor } from './lib/sourceRoots.mjs';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT } from './lib/repo.mjs';
 
 /** Every directory that actually holds a test file, editor included. */
 function directoriesHoldingTests() {

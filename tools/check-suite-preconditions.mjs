@@ -22,12 +22,9 @@
  *
  * Run: node tools/check-suite-preconditions.mjs
  */
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const read = (p) => readFileSync(path.join(ROOT, p), 'utf8');
+import { ROOT, read } from './lib/repo.mjs';
 
 /**
  * A machine capability a test may be unable to exercise. `probe` answers

@@ -24,10 +24,8 @@
  */
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { listTrackedSources } from './lib/sourceRoots.mjs';
-
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+import { ROOT } from './lib/repo.mjs';
 
 /** Names gameplay code hands the animator, read from the constants that spell
  *  them so a renamed parameter cannot quietly leave this list behind. */

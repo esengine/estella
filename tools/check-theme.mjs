@@ -27,9 +27,8 @@
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TOKENS = 'desktop/src/theme/tokens.css';
 
 /** WCAG 2.x relative luminance, then the contrast ratio between two sRGB hexes. */

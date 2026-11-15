@@ -36,12 +36,12 @@
  * Answers `flagship-plays-through` via tools/verify-playthrough.mjs.
  */
 import { app, BrowserWindow } from 'electron';
-import http from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
 import { toolArgs } from '../lib/toolArgs.mjs';
+import { serveDir } from '../lib/staticServer.mjs';
 
 // Every other launcher has this and this one did not, so on a runner with no GPU
 // Chromium blocklisted WebGL2, the game drew nothing, and the flagship criterion
@@ -67,31 +67,6 @@ const LOG = ARGS.log;
 const logRe = LOG ? new RegExp(LOG, 'i') : null;
 const TRACE = ARGS.trace;
 
-const MIME = {
-  '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
-  '.json': 'application/json', '.wasm': 'application/wasm', '.png': 'image/png',
-  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.ktx2': 'image/ktx2',
-  '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.m4a': 'audio/mp4',
-  '.mp4': 'video/mp4', '.esv': 'video/mp4', '.css': 'text/css', '.svg': 'image/svg+xml',
-  '.atlas': 'text/plain', '.skel': 'application/octet-stream', '.txt': 'text/plain',
-};
-
-function serve(root) {
-  const server = http.createServer(async (req, res) => {
-    try {
-      let rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '');
-      if (rel === '') rel = 'index.html';
-      const abs = path.join(root, rel);
-      if (!abs.startsWith(root)) { res.writeHead(403).end(); return; }
-      const bytes = await readFile(abs);
-      res.writeHead(200, { 'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream' })
-        .end(bytes);
-    } catch {
-      res.writeHead(404).end();
-    }
-  });
-  return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
-}
 
 /**
  * The page-side half: hold a set of keys for `frames` frames, then release.
@@ -153,7 +128,7 @@ async function main() {
     return;
   }
   const route = JSON.parse(await readFile(ROUTE, 'utf8'));
-  const server = await serve(DIR);
+  const server = await serveDir(DIR);
   const base = `http://127.0.0.1:${server.address().port}/?headless`;
 
   const win = new BrowserWindow({

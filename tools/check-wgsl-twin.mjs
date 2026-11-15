@@ -24,9 +24,8 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { corpusRoots, censusFindings, sourceFiles } from './lib/sourceCensus.mjs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** Every template literal in `text` that carries shader source, labelled by line. */
 function embedded(file, text) {
     const out = [];

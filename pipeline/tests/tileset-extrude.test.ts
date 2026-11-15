@@ -12,9 +12,10 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  extrudeTileset, gridCells, decodeRgbaPng, encodeRgbaPng, DEFAULT_EXTRUDE,
+  extrudeTileset, gridCells, decodeRgbaPng, DEFAULT_EXTRUDE,
   type RgbaImage, type TilesetGrid,
 } from '../src/assets/tilesetExtrude';
+import { encodeRgbaPng } from '../src/assets/png';
 
 /** An atlas of solid cells, one distinct colour each — so "which cell did this pixel come from" is decidable. */
 function solidCells(tileW: number, tileH: number, cols: number, rows: number,

@@ -14,9 +14,8 @@
  */
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { ROOT, walkFiles } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PLUGINS = path.join(ROOT, 'plugins');
 const SOURCE = /\.(ts|tsx|js|jsx|mjs)$/;
 
@@ -45,16 +44,6 @@ function problem(spec, file, pkgDir) {
   return null;
 }
 
-function walk(dir, out = []) {
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) walk(full, out);
-    else if (SOURCE.test(entry.name)) out.push(full);
-  }
-  return out;
-}
-
 const findings = [];
 const packages = existsSync(PLUGINS)
   ? readdirSync(PLUGINS).filter((n) => statSync(path.join(PLUGINS, n)).isDirectory())
@@ -62,7 +51,7 @@ const packages = existsSync(PLUGINS)
 
 for (const name of packages) {
   const pkgDir = path.join(PLUGINS, name);
-  for (const file of walk(pkgDir)) {
+  for (const file of walkFiles(pkgDir, { match: SOURCE, hidden: false })) {
     const text = readFileSync(file, 'utf8');
     const lines = text.split('\n');
     for (let i = 0; i < lines.length; i++) {

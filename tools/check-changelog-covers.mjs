@@ -9,10 +9,9 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { NOTED, NOTES_FLOOR } from './releaseNotes.mjs';
+import { ROOT } from './lib/repo.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CHANGELOG = path.join(ROOT, 'CHANGELOG.md');
 
 /** Types whose commits change what a creator can do, so a note is owed. */
