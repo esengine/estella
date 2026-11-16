@@ -152,6 +152,7 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
                 tell();
                 if (refresh) for (const path of shown[index]!) await refresh(path).catch(() => undefined);
                 shown[index]!.clear();
+                if (released) baked.clear();
                 return baked;
             });
         }

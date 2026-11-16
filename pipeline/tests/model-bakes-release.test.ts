@@ -97,6 +97,23 @@ describe('a model baked at load, once the game lets its maps go', () => {
         expect(mapsAsked()).toBe(3);
     });
 
+    it('lets the maps of a model baked after release go once its textures are drawn with them', async () => {
+        let open!: () => void;
+        hold = new Promise<void>((done) => { open = done; });
+        const { bakes, decode } = served();
+        const refreshed: number[] = [];
+        bakes.refreshWith(async (path) => { refreshed.push((await decode(path)).width); });
+        expect((await decode('assets/models/hull_color.png')).width).toBe(4);
+        bakes.work.release();
+        open();
+        await bakes.work.run();
+        await settle();
+        expect(refreshed).toEqual([SIZE]);
+        expect(mapsAsked()).toBe(1);
+        expect((await decode('assets/models/hull_color.png')).width).toBe(SIZE);
+        expect(mapsAsked()).toBe(2);
+    });
+
     it('still draws a placeholder for a map the model never had, without asking for a bake', async () => {
         const { bakes, decode } = served();
         await bakes.work.run();
