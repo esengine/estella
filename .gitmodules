@@ -70,3 +70,10 @@
 	# verify-render --host engine runs 100 of the 108 pixel gates. Do not make
 	# anything engine-side require this path to exist.
 	estella-corpus = source
+[submodule "examples/space-frigate"]
+	path = examples/space-frigate
+	url = https://github.com/esengine/estella-space-frigate.git
+	# The space frigate is a game of its own, in a repository of its own, mounted
+	# where it used to live so that its recipes, export and checks find the engine
+	# at the same relative paths. A clone without it builds and tests the engine.
+	estella-corpus = source
