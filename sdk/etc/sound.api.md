@@ -187,7 +187,7 @@ readonly [22050, 44100, 48000]
 
 ## SOUND_RENDER_REVISION — const @experimental
 ```
-"2"
+"3"
 ```
 
 ## SOUND_SOURCES — const @experimental

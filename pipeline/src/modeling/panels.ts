@@ -99,11 +99,12 @@ export function panels(mesh: PolyMesh, p: PanelsParams): PolyMesh {
         if (!chosen.has(f) || face.v.length < 3) { faces.push(face); return; }
         const n = faceNormal(mesh, face);
         const first = mesh.positions[face.v[0]!]!;
-        let u: Vec3;
+        let u: Vec3 = [0, 0, 0];
         if (p.along) {
             const lean = dot(p.along, n);
             u = [p.along[0] - n[0] * lean, p.along[1] - n[1] * lean, p.along[2] - n[2] * lean];
-        } else {
+        }
+        if (Math.hypot(u[0], u[1], u[2]) < 1e-6) {
             let best = 0;
             u = [1, 0, 0];
             for (let i = 0; i < face.v.length; i++) {

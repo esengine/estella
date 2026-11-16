@@ -11,6 +11,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { NOTED, NOTES_FLOOR } from './releaseNotes.mjs';
 import { ROOT } from './lib/repo.mjs';
+import { FRAGMENT_DIR, notedByFragments, readFragments } from './lib/changelogFragments.mjs';
 
 const CHANGELOG = path.join(ROOT, 'CHANGELOG.md');
 
@@ -77,11 +78,41 @@ if (fromLink && toLink && existsSync(path.join(desktop, '.git'))) {
   commits.push(...subjects(fromLink, toLink, desktop).map((s) => ({ subject: s, repo: 'editor' })));
 }
 
+// The notes no release has been cut from yet are files of their own (changelog.d/), and say their commits themselves.
+const fragments = readFragments();
+for (const fragment of fragments) for (const problem of fragment.problems) problems.push(`${fragment.file} ${problem}`);
+const pending = notedByFragments(fragments);
+const headlines = fragments.filter((f) => !f.problems.length && f.headline).map((f) => f.headline);
+const noteExists = (note) => changelog.includes(note) || headlines.some((headline) => headline.startsWith(note));
+for (const [subject, entry] of Object.entries(pending)) {
+  if (NOTED[subject]) problems.push(`${entry.file} names "${subject}", which tools/releaseNotes.mjs already places`);
+}
+
+/**
+ * A note is written as a fragment, never into CHANGELOG.md or the table in releaseNotes.mjs: any two pull requests that
+ * added to those conflicted. Only a release writes them, and a release is the change that adds a version's heading.
+ */
+function writtenInPlace() {
+  const base = git(['merge-base', 'HEAD', 'origin/master']).trim();
+  if (!base || base === git(['rev-parse', 'HEAD']).trim()) return [];
+  const added = (file) => git(['diff', '--unified=0', base, 'HEAD', '--', file]).split('\n')
+    .filter((line) => line.startsWith('+') && !line.startsWith('+++'));
+  const notes = added('CHANGELOG.md');
+  if (notes.some((line) => /^\+## \[\d+\.\d+\.\d+\]/.test(line))) return [];
+  const found = [];
+  if (notes.some((line) => line.startsWith('+- '))) found.push('CHANGELOG.md gained a note');
+  if (added('tools/releaseNotes.mjs').some((line) => /^\+\s*\{\s*(note|internal):/.test(line))) found.push('tools/releaseNotes.mjs gained an entry');
+  return found;
+}
+for (const where of writtenInPlace()) {
+  problems.push(`${where}: write it as a file in ${FRAGMENT_DIR}/ instead (see ${FRAGMENT_DIR}/README.md), which no other pull request's note can conflict with`);
+}
+
 let noted = 0;
 let internal = 0;
 for (const { subject, repo } of commits) {
   if (!USER_FACING.test(subject)) continue;
-  const entry = NOTED[subject];
+  const entry = NOTED[subject] ?? pending[subject];
   if (!entry) {
     unclassified.push(`${repo}: ${subject}`);
     continue;
@@ -92,14 +123,14 @@ for (const { subject, repo } of commits) {
   }
   // The other direction: a headline that no longer exists means the note was
   // renamed or dropped, and the classification stopped describing the release.
-  if (!changelog.includes(entry.note)) {
-    problems.push(`"${subject}" says it landed under "${entry.note}", which is not in the CHANGELOG`);
+  if (!noteExists(entry.note)) {
+    problems.push(`"${subject}" says it landed under "${entry.note}", which is not in the CHANGELOG or a fragment`);
     continue;
   }
   noted++;
 }
 
-for (const key of Object.keys(NOTED)) {
+for (const key of [...Object.keys(NOTED), ...Object.keys(pending)]) {
   if (!commits.some((c) => c.subject === key)) {
     problems.push(`nothing since ${NOTES_FLOOR} carries "${key}" — the entry names no commit`);
   }
@@ -107,11 +138,8 @@ for (const key of Object.keys(NOTED)) {
 
 if (unclassified.length) {
   console.error(`check-changelog-covers: ${unclassified.length} user-facing commit(s) reach no note.`);
-  console.error('Add each to tools/releaseNotes.mjs — the note it landed under, or why a creator cannot see it:\n');
-  for (const u of unclassified) {
-    console.error(`  '${u.replace(/^[a-z]+: /, '').replace(/'/g, "\\'")}':`);
-    console.error("    { note: '' },  // or { internal: '<why no creator can observe it>' }");
-  }
+  console.error(`Name each under \`commits:\` in a fragment (see ${FRAGMENT_DIR}/README.md): the note it landed under, or why a creator cannot see it:\n`);
+  for (const u of unclassified) console.error(`  - ${u.replace(/^[a-z]+: /, '')}`);
   console.error('');
 }
 for (const p of problems) console.error(`  ${p}`);
