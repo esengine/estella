@@ -1,0 +1,6 @@
+---
+section: Fixed
+commits:
+  - fix(particle): a stretched particle in a 3D view lies along its motion as the camera sees it - the quad's direction and length came from the velocity's x and y alone, as if the camera always looked down z, and left out addedVelocity, so a particle moving along z or carried by an added velocity was drawn as a dot; the velocity it moves with is now projected onto the same camera-facing axes its quad is drawn on, which head-on are x and y unchanged
+---
+**A stretched particle in a 3D view lies along its motion as the camera sees it.** `renderMode: Stretched` took the quad's direction and length from the particle's own velocity in x and y only, as a 2D scene sees it, and left out `addedVelocity`: in a 3D view a particle moving along z, or carried only by an added velocity, was drawn as a dot, and one moving at a slant toward the camera was drawn too long and turned the wrong way. The velocity a particle moves with, added velocity included, is now projected onto the same camera-facing axes its quad is drawn on, so a streak of dust, rain or sparks follows its motion from any side. A particle with no added velocity, seen by a camera looking straight down z, is drawn exactly as before.

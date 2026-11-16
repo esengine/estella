@@ -193,13 +193,13 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
 
             f32 rotation = p.rotation;
             if (stretched) {
-                // The velocity as the world sees it: a local-space emitter's turn and scale carry it too.
-                glm::vec2 v(p.velocity);
+                glm::vec3 v = p.velocity + p.added_velocity;
                 if (isLocalSpace) {
-                    v *= emitterScale;
-                    v = glm::vec2(v.x * cosA - v.y * sinA, v.x * sinA + v.y * cosA);
+                    const glm::vec2 flat = glm::vec2(v) * emitterScale;
+                    v = glm::vec3(flat.x * cosA - flat.y * sinA, flat.x * sinA + flat.y * cosA, v.z);
                 }
-                const particle::StretchedQuad quad = particle::stretchedQuad(v, rotation, size.y, lengthScale, velocityScale);
+                const glm::vec2 seen = particle::velocityOnScreen(v, towardViewer(worldPos, collect_ctx.camera));
+                const particle::StretchedQuad quad = particle::stretchedQuad(seen, rotation, size.y, lengthScale, velocityScale);
                 rotation = quad.rotation;
                 size.y = quad.length;
             }
