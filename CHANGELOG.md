@@ -27,6 +27,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Auto Exposure and Sky Atmosphere are no longer dark in a gamma project.** A project in gamma colour space with either effect on came out far darker than the same scene in linear: the 3D Starter drew at a mean of 59 of 255 in gamma against 136 in linear. Auto Exposure took the picture to 18% grey as a code (46 of 255) where 18% grey is shown as 118; it now meters the light the codes stand for and scales that. Sky Atmosphere wrote its scattered light into the frame as codes, so a noon sky of 117, 130, 150 came out 45, 57, 79, and with Light the Scene on it lit the scene by the same third; the sky is now worked out as light in both colour spaces and encoded for a gamma frame, in what it draws and in what it lights with. The Starter now draws at 138 in gamma. A gamma project that had these effects on and was tuned against the dark picture will look brighter: lower Auto Exposure's Compensation or the sky's Brightness to taste. A gamma frame still holds nothing over white, so a sun of several times white clips there as it did. A sky of your own (`defineSkyEffect`) is not changed.
 - **A screen overlay's effect layers draw from the lowest layer up.** Two `CanvasEffect` layers were drawn in the order their Canvases happened to be found in the world, so which lay over the other was not the layer numbers' to say. They are now drawn from the lowest layer number up, after the UI that has no effect.
 
 ## [0.106.0] - 2026-11-15
