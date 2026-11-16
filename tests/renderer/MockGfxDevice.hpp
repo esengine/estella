@@ -85,6 +85,7 @@ struct MockGfxDevice final : GfxDevice {
     int setPipelineCalls = 0;
     int drawElementsCalls = 0;
     std::function<void(const PipelineDesc&, u32)> observeDrawElements;
+    std::function<void(const void*, u32)> observeUpdateBuffer;
     int drawElementsInstancedCalls = 0;
     // How many times the frame was declared over. A backend that borrows the
     // swapchain image gives it back here, so a frame that says so twice releases
@@ -262,6 +263,7 @@ protected:
     void backendUpdateBuffer(u32, u32, const void* data, u32 sizeBytes) override {
         ++updateBufferCalls;
         lastUpdateData.assign(static_cast<const u8*>(data), static_cast<const u8*>(data) + sizeBytes);
+        if (observeUpdateBuffer) observeUpdateBuffer(data, sizeBytes);
     }
     void backendResizeBuffer(u32, const BufferDesc&, const void*) override { ++resizeBufferCalls; }
 

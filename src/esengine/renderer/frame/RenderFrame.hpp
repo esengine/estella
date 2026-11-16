@@ -266,10 +266,7 @@ public:
     /**
      * Submit a batch of pre-laid-out glyph quads from TS. Same vertex format as
      * submitSpineBatch (x,y,u,v,r,g,b,a per vertex), RenderType::Text, atlas page
-     * = `textureId`. `mode` picks the shader (see TextGlyphMode): Sdf → the SDF
-     * variant (scalable SDF atlas); Color → the plain textured batch (device-resolution
-     * bitmap atlas carrying native-AA coverage in alpha); Mask and Fill → the two
-     * ways a bitmap font with its outline baked into the page is read.
+     * = `textureId`.
      */
     void submitTextBatch(
         const f32* vertices, i32 vertexCount,
@@ -629,8 +626,7 @@ public:
 
     /**
      * Compiled program id for a batch-shader feature variant, compiled+cached on
-     * first use. `{}` is the default batch program; `{"SDF"}`
-     * is the glyph-atlas SDF text variant. Same vertex layout + sampler/UBO setup
+     * first use. `{}` is the default batch program. Same vertex layout + sampler/UBO setup
      * as the default, so quads of any variant share the batch vertex format.
      */
     u32 batchProgram(const std::vector<std::string>& features);
