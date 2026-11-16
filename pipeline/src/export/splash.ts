@@ -14,6 +14,7 @@
  * along one boot is.
  */
 import { BOOT_STAGES, BOOT_TOTAL, type BootStage } from '../../../sdk/src/runtime/bootStages';
+import { IDENT_SCRIPT, IDENT_SECONDS } from './splashIdent';
 
 export { BOOT_STAGES, type BootStage };
 
@@ -28,6 +29,11 @@ export const PAGE_BACKGROUND = '#0e121b';
 const ROOT = 'es-splash';
 const BAR = 'es-splash-bar';
 const LABEL = 'es-splash-label';
+const MARK = 'es-splash-gl';
+
+const MARK_SCRIPT = IDENT_SCRIPT;
+
+export const splashScript = (): string => MARK_SCRIPT;
 
 /** What the project said the start screen should look like. */
 export interface SplashLook {
@@ -38,14 +44,27 @@ export interface SplashLook {
   minMs?: number;
   /** CSS colour behind it; the page's own when the project said nothing. */
   background?: string;
+  engineMark?: boolean;
 }
 
 /**
  * The start screen's CSS. `background` matches the page so the fade lands on the
  * same colour the canvas clears to, rather than flashing through to white.
  */
-export function splashCss(background: string): string {
+function engineMarkCss(): string {
   return (
+    `#${MARK}{position:absolute;inset:0;width:100%;height:100%;}`
+    + `#${ROOT}.es-splash-marked{transition-duration:.6s;}`
+    + `#${ROOT}.es-splash-marked .es-splash-logo{position:absolute;left:50%;bottom:9vh;transform:translateX(-50%);max-height:16vh;z-index:1;animation:es-splash-logo .7s ${IDENT_SECONDS - 0.5}s both;}`
+    + '@keyframes es-splash-logo{from{opacity:0;}}'
+    + `#${ROOT}.es-splash-marked .es-splash-track,#${ROOT}.es-splash-marked #${LABEL}{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);}`
+  );
+}
+
+export function splashCss(background: string, engineMark = true): string {
+  return (
+    (engineMark ? engineMarkCss() : '')
+    + 
     `#${ROOT} .es-splash-logo{max-width:min(220px,46vw);max-height:30vh;object-fit:contain;}`
     + `#${ROOT}{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;`
     + `align-items:center;justify-content:center;gap:18px;background:${background};`
@@ -75,18 +94,22 @@ export function splashCss(background: string): string {
 /** The start screen's markup — no script of its own, so the page adds no CSP hash.
  *  `minMs` rides on a data attribute for the same reason. */
 export function splashHtml(title: string, look: SplashLook = {}): string {
+  const marked = look.engineMark !== false;
+  const least = marked ? Math.max(look.minMs ?? 0, IDENT_SECONDS * 1000) : look.minMs;
   const safe = title.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string));
-  const hold = look.minMs ? ` data-min-ms="${Math.round(look.minMs)}"` : '';
+  const hold = least ? ` data-min-ms="${Math.round(least)}"` : '';
   // A game with a logo shows the logo; the title is then the alt text rather
   // than a second heading saying the same thing.
   const mark = look.logo
     ? `<img class="es-splash-logo" src="${look.logo}" alt="${safe}">`
-    : `<div class="es-splash-title">${safe}</div>`;
-  return `<div id="${ROOT}" role="status" aria-live="polite"${hold}>`
+    : marked ? '' : `<div class="es-splash-title">${safe}</div>`;
+  return `<div id="${ROOT}"${marked ? ' class="es-splash-marked"' : ''} role="status" aria-live="polite"${hold}>`
     + mark
+    + (marked ? `<canvas id="${MARK}" role="img" aria-label="Estella"></canvas>` : '')
     + `<div class="es-splash-track"><div id="${BAR}"></div></div>`
     + `<div id="${LABEL}">${BOOT_STAGES[0].says}…</div>`
-    + '</div>';
+    + '</div>'
+    + (marked ? `<script>${MARK_SCRIPT}</script>` : '');
 }
 
 /** What {@link attachSplash} hands the boot sequence. */
@@ -99,6 +122,7 @@ export interface Splash {
   within(stage: BootStage, fraction: number): void;
   /** The boot is in a stretch nothing measures: the track shows it is alive, and the label says `says` if given. */
   busy(says?: string): void;
+  held(): Promise<void>;
   /** Fade out and remove. Safe to call twice. */
   done(): void;
 }
@@ -179,6 +203,10 @@ export function attachSplash(doc: Document = document, weights: Partial<Record<B
       if (finished || !root) return;
       root.classList.add('es-splash-busy');
       if (label && says && label.textContent !== `${says}…`) label.textContent = `${says}…`;
+    },
+    held() {
+      const wait = root ? showUntil - Date.now() : 0;
+      return wait > 0 ? new Promise((resolve) => { setTimeout(resolve, wait); }) : Promise.resolve();
     },
     done() {
       if (finished) return;

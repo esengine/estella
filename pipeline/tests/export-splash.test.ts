@@ -11,7 +11,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { exportGame } from '../src/export/exportGame';
+import { createHash } from 'node:crypto';
+import { exportGame, splashScriptCspHash } from '../src/export/exportGame';
 import { runtimeConfigOf } from '../src/project/runtimeConfig';
 import type { ProjectPackaging } from '../src/project/format';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
@@ -121,10 +122,29 @@ describe('the exported page’s start screen', () => {
     expect(html).not.toContain('class="es-splash-logo"');
   }, 180_000);
 
-  it('holds for as long as the project asked, and paints the colour it asked for', async () => {
+  it('holds for the engine’s ident, or longer if the project asked, and paints the colour it asked for', async () => {
     const { html } = await page({ background: '#102030', minMs: 800 });
-    expect(html).toContain('data-min-ms="800"');
+    expect(html).toContain('data-min-ms="2800"');
     expect(html).toContain('#102030');
+    expect((await page({ minMs: 5200 })).html).toContain('data-min-ms="5200"');
+  }, 180_000);
+
+  it('lists the ident’s script in the page’s policy, so the browser runs it', async () => {
+    const { html } = await page();
+    const policy = /http-equiv="Content-Security-Policy"\s+content="([^"]+)"/.exec(html)![1];
+    expect(html).toContain('<canvas id="es-splash-gl"');
+    expect(policy).toContain(`'${splashScriptCspHash()}'`);
+    const carried = /<script>(\(function\(\)\{var c=document\.getElementById\('es-splash-gl'\)[\s\S]*?)<\/script>/.exec(html)![1];
+    expect(`sha256-${createHash('sha256').update(carried).digest('base64')}`).toBe(splashScriptCspHash());
+    expect(policy).toContain("worker-src 'self' blob:");
+  }, 180_000);
+
+  it('leaves the ident off a portal’s page, whose loading screen is the portal’s own', async () => {
+    const { html } = await page(undefined, 'poki');
+    expect(html).toContain('id="es-splash"');
+    expect(html).not.toContain('es-splash-gl');
+    expect(html).not.toContain(splashScriptCspHash());
+    expect(html).not.toContain('data-min-ms');
   }, 180_000);
 });
 

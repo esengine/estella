@@ -68,7 +68,8 @@ import { findHostCC } from '../../../compiler/src/hostCC';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import { cspConnectSources } from './cspConnect';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
-import { PAGE_BACKGROUND, splashCss, splashHtml, type SplashLook } from './splash';
+import { createHash } from 'node:crypto';
+import { PAGE_BACKGROUND, splashCss, splashHtml, splashScript, type SplashLook } from './splash';
 import { emitIosXcodeProject, type IosProjectSources } from '../../../build-tools/utils/iosProject.js';
 import { emitAndroidGradleProject } from '../../../build-tools/utils/gradleProject.js';
 import { androidPhysXLibs, androidSpineLibs, androidTemplateSources, packageAbis } from '../../../build-tools/utils/nativeTemplate.js';
@@ -348,6 +349,8 @@ function externalEngineImports(metafile: { outputs: Record<string, { imports?: {
  *  being listed. A shipping export lists only the project's `web.connect`. */
 const PREVIEW_CONNECT = ['http:', 'https:', 'ws:', 'wss:'];
 
+export const splashScriptCspHash = (): string => `sha256-${createHash('sha256').update(splashScript()).digest('base64')}`;
+
 /** The web host page. `orientation` pins the canvas to a screen orientation (rotate-
  *  to-fit overlay + best-effort lock) — set for the mobile-facing web target, omitted
  *  for desktop (the Electron shell sizes its own window). */
@@ -361,7 +364,7 @@ function indexHtml(
   const connect = [...(debugChannel ? [new URL(debugChannel.url).origin] : []), ...cspConnectSources(webConnect)]
     .map((origin) => ` ${origin}`).join('');
   // Every inline script on this page needs its hash listed, or the browser blocks it.
-  const inlineScripts = [map.cspHash, ...(orientation ? [orientationLockCspHash(orientation)] : [])]
+  const inlineScripts = [map.cspHash, ...(look.engineMark !== false ? [splashScriptCspHash()] : []), ...(orientation ? [orientationLockCspHash(orientation)] : [])]
     .map((h) => `'${h}'`)
     .join(' ');
   // Channel SDKs own third-party ad frames, scripts and requests; their policy is
@@ -388,7 +391,7 @@ function indexHtml(
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: 100%; height: 100%; overflow: hidden; background: ${PAGE_BACKGROUND}; }
       #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-      ${splashCss(look.background ?? PAGE_BACKGROUND)}
+      ${splashCss(look.background ?? PAGE_BACKGROUND, look.engineMark !== false)}
       ${orientation ? orientationCss(orientation) : ''}
     </style>
   </head>
@@ -1303,8 +1306,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   let splashBytes: number | undefined;
   if (!nativeContent) {
     progress({ phase: 'Writing host page' });
-    const look = await splashLook(opts.root, opts.splash, warnings);
-    splashBytes = Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND) + splashHtml(title, look));
+    const look: SplashLook = { ...await splashLook(opts.root, opts.splash, warnings), engineMark: !(platform === 'web' && opts.webChannel) };
+    splashBytes = Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND, look.engineMark !== false) + splashHtml(title, look));
     await writeFile(
       path.join(payloadDir, 'index.html'),
       indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined, debugChannel, platform === 'web' ? opts.webChannel : undefined, platform === 'web' ? (opts.developmentPreview ? [...PREVIEW_CONNECT, ...(opts.webConnect ?? [])] : opts.webConnect) : undefined),

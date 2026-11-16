@@ -142,12 +142,12 @@ function indexHtml(
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: 100%; height: 100%; overflow: hidden; background: ${PAGE_BACKGROUND}; }
       #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-      ${splashCss(PAGE_BACKGROUND)}
+      ${splashCss(PAGE_BACKGROUND, false)}
     </style>
   </head>
   <body>
     <canvas id="canvas"></canvas>
-    ${splashHtml(title)}${network.body ? `\n    ${network.body}` : ''}${network.bridge ? `\n    <script>${inlineSafe(network.bridge)}</script>` : ''}
+    ${splashHtml(title, { engineMark: false })}${network.body ? `\n    ${network.body}` : ''}${network.bridge ? `\n    <script>${inlineSafe(network.bridge)}</script>` : ''}
     <script>${inlineSafe(globals)}</script>
     <script>${inlineSafe(loader)}</script>
   </body>
