@@ -21,8 +21,8 @@ describe('the source census spans this repository and the submodules that hold o
 
     // Independent of whether the optional editor is checked out: a scan has to
     // KNOW about a corpus before it can say it looked at one or that it could not.
-    it('names the root and the editor, and nothing vendored', () => {
-        expect(roots.map((r) => r.prefix)).toEqual(['', 'desktop']);
+    it('names the root, the editor and the game that is mounted as an example, and nothing vendored', () => {
+        expect(roots.map((r) => r.prefix)).toEqual(['', 'desktop', 'examples/space-frigate']);
     });
 
     it('reads the root corpus, which is where the engine is', () => {
