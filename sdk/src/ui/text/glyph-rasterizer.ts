@@ -29,13 +29,13 @@ export function extractAlpha(rgba: Uint8Array | Uint8ClampedArray, width: number
     return out;
 }
 
-/** Expand a single-channel SDF into an RGBA atlas tile (RGB = 255, A = sdf). Pure. */
-export function sdfToAtlasRgba(sdf: Uint8Array, width: number, height: number): Uint8Array {
+export function sdfToAtlasRgba(sdf: Uint8Array, width: number, height: number, range = 255): Uint8Array {
     const n = width * height;
     const out = new Uint8Array(n * 4);
+    const red = Math.max(1, Math.min(255, Math.round(range)));
     for (let i = 0; i < n; i++) {
         const o = i * 4;
-        out[o] = 255; out[o + 1] = 255; out[o + 2] = 255; out[o + 3] = sdf[i];
+        out[o] = red; out[o + 1] = 255; out[o + 2] = 255; out[o + 3] = sdf[i];
     }
     return out;
 }
@@ -182,7 +182,7 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
         }
 
         return {
-            pixels: sdfToAtlasRgba(coverage, w, h),
+            pixels: sdfToAtlasRgba(coverage, w, h, this.sdf ? pad * 2 : 255),
             width: w,
             height: h,
             advance: advanceSS / ss,
