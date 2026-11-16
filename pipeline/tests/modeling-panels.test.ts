@@ -64,6 +64,15 @@ describe('panels', () => {
         expect(area).toBeCloseTo(32, 4);
     });
 
+    it('`along` lines the plates up where it can, and a face square to it is still cut', () => {
+        const crate: ModelStep = { op: 'box', size: [4, 4, 4], tag: 'crate' };
+        const m = model(crate, { op: 'panels', faces: 'crate', size: 1, height: 0.1, along: [0, 0, 1], tag: 'plate' });
+        const ends = m.poly.faces.filter((f) => f.tag === 'plate' && f.v.every((i) => Math.abs(m.poly.positions[i]![2]) > 2.05));
+        const sides = m.poly.faces.filter((f) => f.tag === 'plate' && f.v.every((i) => Math.abs(m.poly.positions[i]![0]) > 2.05));
+        expect(sides.length).toBeGreaterThan(8);
+        expect(ends.length).toBeGreaterThan(8);
+    });
+
     it('refuses a size it cannot use and faces that are not there', () => {
         expect(() => model(deck, { op: 'panels', faces: 'deck', size: 0 })).toThrow(/size/);
         expect(() => model(deck, { op: 'panels', faces: 'hull', size: 1 })).toThrow(/matched no face/);
