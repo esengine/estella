@@ -5176,4 +5176,8 @@ export const NOTED = {
     { note: "The space frigate is heard, from recipes." },
   "feat(examples): the space frigate's gate sends a ring of light outward as the ship goes through, and its tower stands on the ring - the transit pulsed the whole field evenly, which from the chase cameras washed the sky to a pale haze with no shape; the field now draws a thin crest travelling from its centre to the rim in nine tenths of a second with a blue wake behind it, and the even pulse is a third of what it was. The control tower's base was nine units clear of the ring's outer edge, so it floated; a neck joins them":
     { note: "The space frigate has debris, blinking lights and a flash at the gate." },
+  "fix(modeling): a model's bake can be asked for as a job that crosses a thread - what a writer needs of a bake is the mesh file's bytes, the maps and the joints, with a normalBake spread over the cores and its probes kept":
+    { note: "A dense model no longer freezes the editor while it bakes." },
+  "fix(modeling): a model bakes on a thread of the main process, so a dense one no longer holds the window":
+    { note: "A dense model no longer freezes the editor while it bakes." },
 };

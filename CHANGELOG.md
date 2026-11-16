@@ -27,6 +27,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A dense model no longer freezes the editor while it bakes.** A model's steps and its `normalBake` ran in the editor's window, which drew nothing and answered nothing until they were done: a model of a million triangles held it for six seconds, the same model thinned with 2048 maps for eleven, and to an AI agent driving the editor that was an editor that had died. A model now bakes on a thread of the main process, for `model_write`, `model_edit`, `model_read` and `model_views` alike, and the window goes on answering within a fraction of a second throughout. The maps of a `normalBake` are worked out on every core but one there, as `estella bake-model` does it (5.6 s where one thread took 16.6), and what a bake probed is kept under `.esengine/cache/model-probes`, so baking the same surface again does not probe it again. A model too dense for the memory there is refused with what to change, and the editor stays up.
 - **A screen overlay's effect layers draw from the lowest layer up.** Two `CanvasEffect` layers were drawn in the order their Canvases happened to be found in the world, so which lay over the other was not the layer numbers' to say. They are now drawn from the lowest layer number up, after the UI that has no effect.
 
 ## [0.106.0] - 2026-11-15
