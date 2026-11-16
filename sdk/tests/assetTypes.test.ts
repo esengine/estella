@@ -4,8 +4,6 @@ import { describe, it, expect } from 'vitest';
 import {
     getAssetTypeEntry,
     getEditorType,
-    getAddressableType,
-    getAddressableTypeByEditorType,
     isKnownAssetExtension,
     getAllAssetExtensions,
     looksLikeAssetPath,
@@ -58,41 +56,6 @@ describe('getEditorType', () => {
 
     it('should return unknown for unrecognized path', () => {
         expect(getEditorType('file.xyz')).toBe('unknown');
-    });
-});
-
-describe('getAddressableType', () => {
-    it('should return addressable type', () => {
-        expect(getAddressableType('hero.png')).toBe('texture');
-        expect(getAddressableType('data.json')).toBe('json');
-    });
-
-    it('should return null for non-addressable types', () => {
-        expect(getAddressableType('shader.esshader')).toBeNull();
-        expect(getAddressableType('level.esscene')).toBeNull();
-    });
-
-    it('should return null for unknown', () => {
-        expect(getAddressableType('file.xyz')).toBeNull();
-    });
-});
-
-describe('getAddressableTypeByEditorType', () => {
-    it('should return addressable type for known editor types', () => {
-        expect(getAddressableTypeByEditorType('texture')).toBe('texture');
-        expect(getAddressableTypeByEditorType('audio')).toBe('audio');
-    });
-
-    it('should return text for text editor type', () => {
-        expect(getAddressableTypeByEditorType('text')).toBe('text');
-    });
-
-    it('should return binary for binary editor type', () => {
-        expect(getAddressableTypeByEditorType('binary')).toBe('binary');
-    });
-
-    it('should return binary for unknown editor type', () => {
-        expect(getAddressableTypeByEditorType('totally-unknown')).toBe('binary');
     });
 });
 

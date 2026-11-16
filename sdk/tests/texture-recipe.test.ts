@@ -13,7 +13,7 @@ import { Assets } from '../src/asset/AssetPlugin';
 import type { App } from '../src/app/app';
 import { setPlatform } from '../src/platform/base';
 import type { PlatformAdapter } from '../src/platform/types';
-import { getAddressableType } from '../src/assetTypes';
+import { getEditorType } from '../src/assetTypes';
 import { imagePixelsAt } from '../src/terrain/layerArrays';
 import { encodeUtf8 } from '../src/util/utf8';
 
@@ -39,7 +39,7 @@ describe('a texture recipe', () => {
     });
 
     it('is a texture to whatever asks what an asset is', () => {
-        expect(getAddressableType('assets/wall.esimage')).toBe('texture');
+        expect(getEditorType('assets/wall.esimage')).toBe('texture');
     });
 
     it('is refused by name where nothing draws recipes, and says what to import', async () => {

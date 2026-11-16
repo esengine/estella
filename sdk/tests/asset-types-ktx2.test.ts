@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { getAssetTypeEntry, getAddressableType, getEditorType, getAssetMimeType, isKnownAssetExtension } from '../src/assetTypes';
+import { getAssetTypeEntry, getEditorType, getAssetMimeType, isKnownAssetExtension } from '../src/assetTypes';
 
 describe('.ktx2 asset type registration', () => {
     it('is a known, binary texture asset', () => {
@@ -9,7 +9,6 @@ describe('.ktx2 asset type registration', () => {
         const entry = getAssetTypeEntry('player.ktx2');
         expect(entry?.contentType).toBe('binary');
         expect(entry?.editorType).toBe('texture');
-        expect(entry?.addressableType).toBe('texture');
         // fs-read on WeChat (basis transcode), so the packer must include the
         // extension — an unlisted custom type is denied at readFileSync.
         expect(entry?.wechatPackInclude).toBe(true);
@@ -17,7 +16,6 @@ describe('.ktx2 asset type registration', () => {
 
     it('resolves texture types and the KTX2 mime', () => {
         expect(getEditorType('a/b/player.ktx2')).toBe('texture');
-        expect(getAddressableType('player.ktx2')).toBe('texture');
         expect(getAssetMimeType('ktx2')).toBe('image/ktx2');
     });
 });
