@@ -268,6 +268,9 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     const tag = adapter.name;
     const canvas = adapter.createScreenCanvas();
     const ident = config.ident ? startIdent(canvas) : null;
+    if (ident) {
+        try { (adapter.host as { hideLoading?: () => void }).hideLoading?.(); } catch (e) { log.warn(tag, `hideLoading threw: ${String(e)}`); }
+    }
     const reached: BootStage[] = [];
     let toast = hostProgress(ident ? {} : adapter.host);
     const progress = {
