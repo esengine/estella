@@ -20,6 +20,8 @@
       "a": 1
     },
     "u_strength": 0.45,
-    "u_swirl": 1
+    "u_swirl": 1,
+    "u_front": 4,
+    "u_burst": 0
   }
 }

@@ -27,6 +27,7 @@ const STROBES = [
     { name: 'GateBStrobe', size: 2.6, every: 2.9, flashes: 3 },
 ] as const;
 const STEADY = ['NavPort', 'NavStarboard'] as const;
+const WAVE_SECONDS = 0.9;
 
 function strobe(time: number, every: number, flashes: number): number {
     const phase = (time % every) / 0.16;
@@ -37,7 +38,7 @@ function strobe(time: number, every: number, flashes: number): number {
 addPlugin({
     name: 'space-frigate',
     build(app) {
-        const facts = { ready: false, frame: 0, time: 0, throttle: 0, tour: true, shot: 0, eyeX: 0, eyeY: 0, eyeZ: 0, gate: 0, gatePassed: 0, transits: 0, flash: 0, motes: 0, strobe: 0 };
+        const facts = { ready: false, frame: 0, time: 0, throttle: 0, tour: true, shot: 0, eyeX: 0, eyeY: 0, eyeZ: 0, gate: 0, gatePassed: 0, transits: 0, flash: 0, wave: 0, motes: 0, strobe: 0 };
         app.insertResource(Playthrough, { facts });
         installHud(app);
         installAudio(app);
@@ -55,6 +56,7 @@ addPlugin({
         let passedFacing: Quat = { x: 0, y: 0, z: 0, w: 1 };
         let passedSide = 0;
         let flash = 0;
+        let since = 60;
         let motes = -1;
 
         const get = (world: World, name: string): Entity => {
@@ -174,14 +176,23 @@ addPlugin({
             const side = Math.sign(along);
             if (passedSide !== 0 && side !== 0 && side !== passedSide && facts.gatePassed < GATE_RADIUS) {
                 flash = 1;
+                since = 0;
                 facts.transits++;
             }
             if (side !== 0) passedSide = side;
             flash *= Math.exp(-dt * 2.2);
+            since = Math.min(since + dt, 60);
+            const front = Math.min(since / WAVE_SECONDS, 4);
             const burst = get(world, 'GateFlash');
             world.insert(burst, Light, { ...world.get(burst, Light), intensity: 4 * flash });
-            Material.setUniform(world.get(get(world, 'GateAField'), MeshRenderer).material, 'u_strength', 0.45 + 3 * flash);
+            for (const name of GATES) {
+                const field = world.get(get(world, `${name}Field`), MeshRenderer).material;
+                Material.setUniform(field, 'u_strength', 0.45 + 0.9 * flash);
+                Material.setUniform(field, 'u_front', front);
+                Material.setUniform(field, 'u_burst', front < 1.6 ? 2.6 * Math.exp(-since * 1.4) : 0);
+            }
             facts.flash = flash;
+            facts.wave = front;
 
             if (motes < 0) {
                 motes = 0;

@@ -6,6 +6,8 @@
 #pragma param u_edge color default(0.08,0.3,1,1)
 #pragma param u_strength float default(1.2) range(0,20)
 #pragma param u_swirl float default(1) range(0,4)
+#pragma param u_front float default(4) range(0,4)
+#pragma param u_burst float default(0) range(0,20)
 
 #pragma fragment
 precision highp float;
@@ -43,6 +45,11 @@ void main() {
     float inside = 1.0 - smoothstep(0.985, 1.0, r);
     float body = 0.05 + 0.3 * drift * drift + rim * rim * (0.35 + 0.45 * waves);
     vec3 tone = mix(u_core.rgb, u_edge.rgb, clamp(r * 0.8 + (1.0 - drift) * 0.3, 0.0, 1.0));
-    fragColor = vec4(tone * (body * inside * u_strength), 1.0);
+    float off = r - u_front;
+    float crest = exp(-pow(off / 0.014, 2.0));
+    float halo = exp(-pow(off / 0.07, 2.0));
+    float wake = step(off, 0.0) * exp(off * 9.0) * (0.3 + 0.7 * drift);
+    vec3 wave = (u_core.rgb * crest + u_edge.rgb * (halo * 0.5 + wake * 0.35)) * u_burst;
+    fragColor = vec4((tone * (body * u_strength) + wave) * inside, 1.0);
 }
 #pragma end
