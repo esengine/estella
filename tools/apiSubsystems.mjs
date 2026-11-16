@@ -33,6 +33,7 @@ export const INFRASTRUCTURE = {
     platform: 'the PlatformAdapter implementations; a game meets these through the subsystems above',
     openpaas: 'the SUD runtime-profile entry used by the exported boot script; game systems use the shared subsystems',
     runtime: 'how an exported project boots — the loader and app factory the pipeline emits',
+    shaders: 'the GLSL to WGSL transpiler a host installs where its device is WebGPU; a creator writes a shader in GLSL and builds on none of it',
     sideModules: 'fetching and caching the optional wasm modules the subsystems above sit on',
     util: 'small shared helpers with no subsystem of their own',
     wasm: 'the generated layout and the bridge to the C++ core',
