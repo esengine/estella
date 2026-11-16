@@ -63,7 +63,7 @@ describe('glOnlyShaders', () => {
             // The project's own shader is not the SDK's to change.
             expect(text.match(/#pragma fragment wgsl/g)?.length).toBe(1);
         } finally {
-            await rm(dir, { recursive: true, force: true });
+            await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         }
     });
 });
