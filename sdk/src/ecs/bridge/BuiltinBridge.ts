@@ -156,14 +156,21 @@ export function snapshotVectors(
     return obj;
 }
 
+const vectorFieldsByComponent = new WeakMap<BuiltinComponentDef<any>, readonly string[]>();
+
+function vectorFieldsOf(component: BuiltinComponentDef<any>): readonly string[] {
+    let fields = vectorFieldsByComponent.get(component);
+    if (!fields) {
+        fields = [...numberListFieldsOf(component._cppName), ...component.entityFields];
+        vectorFieldsByComponent.set(component, fields);
+    }
+    return fields;
+}
+
 /** A builtin as embind hands it back, made into what the rest of the SDK reads:
  *  its lists as arrays (the vectors freed) and its colours converted. */
 export function builtinFromWasm(raw: unknown, component: BuiltinComponentDef<any>): unknown {
-    return convertFromWasm(
-        snapshotVectors(raw as Record<string, unknown>,
-                        [...numberListFieldsOf(component._cppName), ...component.entityFields]),
-        component.colorKeys,
-    );
+    return convertFromWasm(snapshotVectors(raw as Record<string, unknown>, vectorFieldsOf(component)), component.colorKeys);
 }
 
 // =============================================================================
