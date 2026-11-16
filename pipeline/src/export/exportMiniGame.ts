@@ -590,7 +590,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     `export function boot(engineFactory, sideModuleFactories) {\n` +
     (profile.platformInit ? `  ${profile.platformInit}();\n` : '') +
     (installsPlatform ? `  installMiniGamePlatform(__platformProfile);\n` : '') +
-    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${runtimeLayout.sideModuleSuffix === '.wasm' ? '' : `, sideModuleSuffix: ${JSON.stringify(runtimeLayout.sideModuleSuffix)}`}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg}${debugArg}${hotUpdateArg} });\n` +
+    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${runtimeLayout.sideModuleSuffix === '.wasm' ? '' : `, sideModuleSuffix: ${JSON.stringify(runtimeLayout.sideModuleSuffix)}`}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.engineGlx === true && profile.id === 'wechat' ? '' : ', ident: true'}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg}${debugArg}${hotUpdateArg} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   /** What each subsystem costs in the bundle — empty if esbuild wrote no metafile. */
