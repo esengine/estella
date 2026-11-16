@@ -9,11 +9,14 @@
 import { describe, it, expect } from 'vitest';
 import { builtinShaderTemplate } from '../src/render/builtinShaders';
 import { CHARACTER_SHADER_TEMPLATES } from '../src/character/characterShaders';
+import { withWgslTwin } from '../src/shaders/wgsl/twin';
 
 const hair = CHARACTER_SHADER_TEMPLATES.find(t => t.id === 'hair')!;
 const source = hair.source;
-const split = source.indexOf('#pragma fragment wgsl');
-const [glsl, wgsl] = [source.slice(0, split), source.slice(split)];
+// The WGSL is the one a WebGPU device is given: written from the GLSL as the shader compiles.
+const twinned = withWgslTwin(source);
+const split = twinned.indexOf('#pragma fragment wgsl');
+const [glsl, wgsl] = [twinned.slice(0, split), twinned.slice(split)];
 
 describe('the Hair shader and its shadow', () => {
     it('declares the density param and makes it the hair-shadow param', () => {

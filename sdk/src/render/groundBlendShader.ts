@@ -45,16 +45,6 @@ float groundNoise(vec2 p) {
 }
 `;
 
-const WGSL_HELPERS = `
-fn groundNoiseHash(p : vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453); }
-fn groundNoise(p : vec2f) -> f32 {
-    let i = floor(p);
-    var f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(groundNoiseHash(i), groundNoiseHash(i + vec2f(1.0, 0.0)), f.x),
-               mix(groundNoiseHash(i + vec2f(0.0, 1.0)), groundNoiseHash(i + vec2f(1.0, 1.0)), f.x), f.y);
-}
-`;
 
 const GLSL_SURFACE = `    float groundFade = 1.0;
     float layerWeight = u_vertexBlend > 0.5 ? v_color.r : 0.0;
@@ -93,58 +83,6 @@ const GLSL_SURFACE = `    float groundFade = 1.0;
     }
 `;
 
-const WGSL_SURFACE = `#ifdef MESH_NORMALS
-    // Before any branch: a derivative needs every fragment of its quad.
-    let layerWorld = v.v_worldXYZ.xz / max(mc.u_layer2Tile, 1e-4);
-    let layerWorldDx = dpdx(layerWorld);
-    let layerWorldDy = dpdy(layerWorld);
-#endif
-    var groundFade = 1.0;
-    var layerWeight = 0.0;
-    if (mc.u_vertexBlend > 0.5) { layerWeight = v.v_color.r; }
-    var groundBehind = vec3f(0.0);
-#ifdef MESH_NORMALS
-    let groundWanted = textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, vec2f(0.5), 0.0).a < 0.75
-                    && textureSampleLevel(u_sceneColor, u_sceneColor_s, vec2f(0.5), 0.0).a < 0.75;
-    if (groundWanted) {
-        let W = v.v_worldXYZ;
-        let onScreen = frame.projection * vec4f(W, 1.0);
-        let screenW = max(onScreen.w, 1e-4);
-        // This device's rows run down the texture, so clip y is flipped on the way to a uv.
-        let groundUv = clamp(vec2f(onScreen.x / screenW * 0.5 + 0.5, 0.5 - onScreen.y / screenW * 0.5), vec2f(0.001), vec2f(0.999));
-        var own = -dot(W, frame.camera.xyz);
-        if (frame.camera.w > 0.5) { own = length(W - frame.camera.xyz); }
-        let behindAt = textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, groundUv, 0.0);
-        let along = select(behindAt.b * 1024.0, behindAt.r, behindAt.r < 65000.0) - own;
-        let above = abs(viewDirection(W).y) * max(along, 0.0);
-        let reach = max(mc.u_blendDistance, mc.u_layerReach);
-        let near = 1.0 - smoothstep(8.0, 12.0, along / max(reach, 1e-3));
-        let wander = (groundNoise(W.xz / max(mc.u_blendNoiseScale, 0.01)) - 0.5) * mc.u_blendNoise;
-        if (mc.u_blendDistance > 0.0) {
-            groundFade = mix(1.0, smoothstep(0.0, 1.0, above / mc.u_blendDistance + wander), near);
-            groundBehind = textureSampleLevel(u_sceneColor, u_sceneColor_s, groundUv, 0.0).rgb;
-        }
-        if (mc.u_layerReach > 0.0) { layerWeight = max(layerWeight, near * (1.0 - smoothstep(0.0, 1.0, above / mc.u_layerReach + wander))); }
-    }
-#endif
-    var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * mc.u_tint;
-    if (mc.u_vertexBlend <= 0.5) { base = base * v.v_color; }
-    if (layerWeight > 0.0) {
-#ifdef MESH_NORMALS
-        var layerUv = v.v_texCoord;
-        var layerDx = duvx;
-        var layerDy = duvy;
-        if (mc.u_layer2Tile > 0.0) {
-            layerUv = layerWorld;
-            layerDx = layerWorldDx;
-            layerDy = layerWorldDy;
-        }
-        base = mix(base, textureSampleGrad(u_layer2, u_layer2_s, layerUv, layerDx, layerDy) * mc.u_layer2Tint, layerWeight);
-#else
-        base = mix(base, textureSampleGrad(u_layer2, u_layer2_s, v.v_texCoord, duvx, duvy) * mc.u_layer2Tint, layerWeight);
-#endif
-    }
-`;
 
 function swap(source: string, from: string, to: string): string {
     if (!source.includes(from)) throw new Error(`the Model shader no longer has what Ground Blend is made from: ${from.slice(0, 60)}`);
@@ -159,14 +97,9 @@ export function deriveGroundBlend(model: string): string {
     s = s.replace(/mc\.u_transmission/g, '0.0').replace(/u_transmission/g, '0.0');
     s = swap(s, '#pragma param u_iridescence float', `${PARAMS}#pragma param u_iridescence float`);
     s = swap(s, 'float specularAA(highp vec3', `${GLSL_HELPERS}float specularAA(highp vec3`);
-    s = swap(s, 'fn specularAA(dndx : vec3f', `${WGSL_HELPERS}fn specularAA(dndx : vec3f`);
     s = swap(s, '    vec4 base = texture(u_textures[0], uv) * v_color * u_tint;\n', GLSL_SURFACE);
-    s = swap(s, '    var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;\n', WGSL_SURFACE);
     s = swap(s, 'float roughness = u_roughness * mr.g;', 'float roughness = mix(u_roughness * mr.g, u_layer2Roughness, layerWeight);');
-    s = swap(s, 'var roughness = mc.u_roughness * mr.g;', 'var roughness = mix(mc.u_roughness * mr.g, mc.u_layer2Roughness, layerWeight);');
     s = swap(s, 'fragColor = vec4(lit + seen + u_emissive.rgb * texture(u_emissiveMap, uv).rgb, alpha);',
              'fragColor = vec4(mix(groundBehind, lit + seen + u_emissive.rgb * texture(u_emissiveMap, uv).rgb, groundFade), alpha);');
-    s = swap(s, 'frag.color = vec4f(lit + seen + emit, alpha);', 'frag.color = vec4f(mix(groundBehind, lit + seen + emit, groundFade), alpha);');
-    s = swap(s, 'return vec4f(lit + seen + emit, alpha);', 'return vec4f(mix(groundBehind, lit + seen + emit, groundFade), alpha);');
     return s;
 }

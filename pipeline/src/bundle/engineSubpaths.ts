@@ -21,6 +21,7 @@ export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
   'esengine/foliage': 'foliage/index.js',
   'esengine/worldgen': 'worldgen/index.js',
   'esengine/water': 'water/index.js',
+  'esengine/wgsl': 'wgsl/index.js',
   'esengine/spline': 'spline/index.js',
   'esengine/image': 'image/index.js',
   'esengine/sound': 'sound/index.js',

@@ -5182,4 +5182,10 @@ export const NOTED = {
     { note: "A dense model no longer freezes the editor while it bakes." },
   "fix(modeling): a model bakes on a thread of the main process, so a dense one no longer holds the window":
     { note: "A dense model no longer freezes the editor while it bakes." },
+  "feat(shaders): a GLSL to WGSL transpiler that keeps #ifdef, for a shader's own code against the engine's WGSL header - milestone: 22 of 25 Lit and Unlit built-ins transpile at 1.03x the hand-written size, and on WebGPU draw as their hand-written twins do (Toon, Model, Matcap, Skin, Hair, Eye, Particle, Lit Particle, Foliage); not yet wired into the engine":
+    { note: "Shaders are written once, in GLSL." },
+  "feat(shaders): shaders are written once, in GLSL, and a device that draws through WebGPU is given the WGSL as each compiles - a transpiler that keeps #ifdef writes a shader's own fragment against the engine's WGSL header (esengine/wgsl, installed by the game host, the render host and the native host where they draw through WebGPU); Model, Ground Blend, Voxel Ground, Toon, Matcap, Skin, Hair, Eye, Particle, Lit Particle, Distortion and Foliage's surface ship as GLSL alone and draw on WebGPU as their hand-written WGSL did, Ground Blend and Voxel Ground are derived from Model's GLSL only, and what the transpiler knows of the engine's headers is generated from the engine (gen-shader-api, gated)":
+    { note: "Shaders are written once, in GLSL." },
+  "feat(webgpu): the editor gives a shader written only in GLSL its WGSL as it compiles, in the viewport and in Play - both hosts install esengine/wgsl when they draw through WebGPU, before the app compiles anything, as a WebGPU game's host does":
+    { note: "Shaders are written once, in GLSL." },
 };

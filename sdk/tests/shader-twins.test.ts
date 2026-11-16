@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { BUILTIN_SHADER_TEMPLATES } from '../src/render/builtinShaders';
+import { withWgslTwin } from '../src/shaders/wgsl/twin';
 
 // The filter modules export functions, not their sources — read the sources
 // from disk so the guard sees exactly what ships.
@@ -62,9 +63,10 @@ describe('embedded .esshader structure', () => {
             expect(sectionsBalance(source)).toBe(true);
         });
 
-        it(`${name}: carries a WGSL fragment twin with the fs_main entry point`, () => {
-            expect(source).toContain('#pragma fragment wgsl');
-            const wgsl = source.slice(source.indexOf('#pragma fragment wgsl'));
+        it(`${name}: carries a WGSL fragment twin with the fs_main entry point, its own or the one its GLSL is written as`, () => {
+            const twinned = withWgslTwin(source);
+            expect(twinned).toContain('#pragma fragment wgsl');
+            const wgsl = twinned.slice(twinned.indexOf('#pragma fragment wgsl'));
             expect(wgsl).toContain('fn fs_main(');
         });
 
