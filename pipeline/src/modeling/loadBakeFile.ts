@@ -24,7 +24,7 @@ export function modelProductPaths(source: string): Record<ModelProductRole, stri
 
 export const BAKE_TIERS = ['desktop', 'high', 'mid', 'low'] as const;
 export type BakeTier = typeof BAKE_TIERS[number];
-export const TIER_SIZE: Record<BakeTier, number> = { desktop: 2048, high: 2048, mid: 1024, low: 512 };
+export const TIER_SIZE: Record<BakeTier, number> = { desktop: 4096, high: 2048, mid: 1024, low: 512 };
 export const MODEL_MAPS = ['normal', 'color', 'surface', 'emissive', 'occlusion'] as const;
 export type ModelMapName = typeof MODEL_MAPS[number];
 

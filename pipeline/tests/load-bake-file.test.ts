@@ -23,6 +23,8 @@ describe('what a package leaves for the game to bake', () => {
         expect(bakeTierOf({ mobile: true, memoryGB: 8, cores: 8 })).toBe('high');
         expect(bakeTierOf({ mobile: true, memoryGB: 4, cores: 8 })).toBe('mid');
         expect(bakeTierOf({ mobile: true, memoryGB: 2, cores: 4 })).toBe('low');
+        expect(TIER_SIZE.desktop).toBe(4096);
+        expect(TIER_SIZE.high).toBe(2048);
         expect(TIER_SIZE.mid).toBe(1024);
         expect(TIER_SIZE.low).toBe(512);
     });

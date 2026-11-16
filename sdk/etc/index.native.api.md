@@ -8347,6 +8347,7 @@ physicsEnabled: boolean | undefined
 prewarmShaders: { timeoutMs?: number; onProgress?: (pending: number, making: number) => void; } | undefined
 runtime: RuntimeBuildConfig | undefined
 scenes: { name: string; data: SceneData; }[]
+serve: ((source: RuntimeAssetSource) => RuntimeAssetSource) | undefined
 uiTheme: "dark" | "light" | undefined
 uiThemeOverrides: ThemeOverrides | undefined
 ySortLayers: number | undefined

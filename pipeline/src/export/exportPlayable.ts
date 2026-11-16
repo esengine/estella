@@ -43,7 +43,10 @@ import { checkPlayable, type PlayableCheckReport } from './playableCheck';
 import { makeZip } from '../../../build-tools/utils/zip.js';
 import { planSideModules, spineRefusalMessage, sideModuleFiles } from '../bundle/sideModuleScan';
 import type { Physics3DBackend } from 'esengine';
-import { forcedSideModules, moduleChoices, moduleForAsset } from '../bundle/engineInstalls';
+import { engineInstalls, forcedSideModules, moduleChoices, moduleForAsset } from '../bundle/engineInstalls';
+import { LEAN_ENTRY_FILE, FULL_ENTRY_FILE } from '../bundle/importMap';
+import { contentSubsystems } from './contentSubsystems';
+import { scriptsMentionSkeletal } from './liteEngine';
 import { textureImportSettingsFrom, type ParsedTextureImportSettings } from '../../../sdk/src/asset/textureImportSettings';
 import type { ModuleChoice, ProjectFeatures, ProjectPackaging } from '../project/format';
 import { PAGE_BACKGROUND, splashCss, splashHtml, splashScript } from './splash';
@@ -349,7 +352,18 @@ export async function exportPlayable(opts: {
   const scriptsAbs = opts.scriptsEntry ? path.join(opts.root, opts.scriptsEntry) : null;
   // The whole entry installs every subsystem a scene can name, and not what only a file asks for: a texture recipe is drawn by
   // esengine/image, which nothing imports unless an asset is one. Without it a playable shipped its recipes and drew none of them.
-  const assetModules = [...new Set(cook.includedPaths.map(moduleForAsset).filter((m): m is string => m !== null))].sort();
+  const usedSubsystems = await contentSubsystems(opts.root, cook.includedPaths);
+  const needsSkeletal = !usedSubsystems.has('skeletalAnimation') && await scriptsMentionSkeletal(opts.root, opts.scriptsEntry);
+  const installs = engineInstalls({
+    subsystems: needsSkeletal ? [...usedSubsystems.keys(), 'skeletalAnimation'] : usedSubsystems.keys(),
+    assetPaths: cook.includedPaths,
+    choices: moduleChoices(opts.features, opts.modulesByPlatform?.playable),
+  });
+  for (const refusal of installs.refused) {
+    errors.push(`${refusal.specifier} is excluded in Project Settings, and this build uses it — ${refusal.evidence}. Set it to Auto or Include, or take it out of the content.`);
+  }
+  const leanEntry = installs.lean && existsSync(path.join(opts.sdkDir, LEAN_ENTRY_FILE));
+  const assetModules = [...new Set([...installs.subpaths, ...cook.includedPaths.map(moduleForAsset).filter((m): m is string => m !== null)])].sort();
   const entrySrc =
     assetModules.map((m) => `import ${JSON.stringify(m)};\n`).join('') +
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
@@ -367,7 +381,7 @@ export async function exportPlayable(opts: {
       target: 'es2020',
       // esengine is INLINED (single-file, no import map) → resolve it from the SDK
       // dist; the project root has no esengine installed.
-      alias: esengineAlias(opts.sdkDir),
+      alias: esengineAlias(opts.sdkDir, leanEntry ? LEAN_ENTRY_FILE : FULL_ENTRY_FILE),
       plugins: [officialPackagesPlugin(opts.packagesDir)],
       minify: minifiesScripts(opts),
       write: false,
