@@ -5182,6 +5182,4 @@ export const NOTED = {
     { note: "A dense model no longer freezes the editor while it bakes." },
   "fix(modeling): a model bakes on a thread of the main process, so a dense one no longer holds the window":
     { note: "A dense model no longer freezes the editor while it bakes." },
-  "fix(shaders): a lit shader written only in GLSL is lit on WebGPU - its WGSL copy was translated with only the switches and features the shader declares, so a symbol the engine defines when it assembles the shader (MESH_NORMALS, ES_GBUFFER) took its undefined branch for good: a mesh read the flat 2D normal and drew one colour on WebGPU where WebGL shaded it. Every symbol the shader's GLSL tests is now a toggle of the translation, and a twin made before is made again":
-    { note: "A lit shader written only in GLSL is lit on WebGPU." },
 };
