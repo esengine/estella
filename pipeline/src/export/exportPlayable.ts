@@ -34,6 +34,7 @@ import { optimizePlayableAssets, playableAssetsJsonBytes, type PlayableOptimizat
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from '../bundle/esengineResolve';
 import { officialPackagesPlugin } from '../bundle/officialPackages';
+import { glOnlyShadersPlugin } from '../bundle/glOnlyShaders';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import type { ScreenOrientation } from './orientationHtml';
 import { genericPlayableProfile, playableAdInjection, isPlayableZipFileName, type PlayableAdProfile } from './playableAdProfile';
@@ -342,7 +343,8 @@ export async function exportPlayable(opts: {
       // esengine is INLINED (single-file, no import map) → resolve it from the SDK
       // dist; the project root has no esengine installed.
       alias: esengineAlias(opts.sdkDir),
-      plugins: [officialPackagesPlugin(opts.packagesDir)],
+      // A playable draws through WebGL only, so its shaders go without their WGSL twins.
+      plugins: [glOnlyShadersPlugin(opts.sdkDir), officialPackagesPlugin(opts.packagesDir)],
       minify: minifiesScripts(opts),
       write: false,
       outfile: 'game-bundle.js',

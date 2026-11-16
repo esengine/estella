@@ -30,3 +30,8 @@ export function modelWithoutDetail(model: string): string {
 export function modelLine(text: string): RegExp {
     return new RegExp(`^[ \\t]*${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`, 'm');
 }
+
+/** Whether a shader source carries its WGSL twin. A package that draws only through WebGL ships its shaders without one. */
+export function hasWgslTwin(source: string): boolean {
+    return /^[ \t]*#pragma (?:vertex|fragment) wgsl\b/m.test(source);
+}
