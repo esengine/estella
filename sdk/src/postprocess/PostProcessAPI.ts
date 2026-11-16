@@ -6,10 +6,11 @@ import type { EngineApi } from '../ecs/bridge/engineApi';
 import { defineResource } from '../ecs/resource';
 import { handleWasmError } from '../wasm/wasmError';
 import { WasmBridge } from '../wasm/WasmBridge';
-import { PostProcessStack, PostProcessState } from './PostProcessStack';
+import { PostProcessStack, PostProcessState, type PassConfig } from './PostProcessStack';
 import type { QualityProfile } from '../render/quality';
 import { qualityPassAllowed } from './qualityFilter';
 import { effectPassNames } from './effects';
+import { PassFusion, isFusedPass, type FusedPass } from './passFusion';
 
 /**
  * The post-process entry points as a core that HAS them answers them. Named, not
@@ -30,8 +31,8 @@ type PostProcessCore = Required<Pick<NonNullable<EngineApi>,
     | 'postprocess_executeScreenPasses' | 'postprocess_addScreenPass'
     | 'postprocess_clearScreenPasses' | 'postprocess_setScreenUniformFloat'
     | 'postprocess_setScreenUniformVec4'>>
-    // A core without a compute stage (or built before there was one) does not answer this one.
-    & Pick<NonNullable<EngineApi>, 'postprocess_addComputePass' | 'postprocess_supportsCompute' | 'postprocess_addNativePass' | 'postprocess_setDisplayLut'>;
+    & Pick<NonNullable<EngineApi>, 'postprocess_addComputePass' | 'postprocess_supportsCompute' | 'postprocess_addNativePass' | 'postprocess_setDisplayLut'
+        | 'renderer_getPendingShaders'>;
 
 /** Guarded view of the core: after a wasm abort a call throws instead of reaching
  *  a dead module; a native host's bindings never abort. */
@@ -136,7 +137,80 @@ function getModule(): PostProcessCore {
  */
 export function syncStackToWasm(stack: PostProcessStack, force = false,
     allow: (name: string) => boolean = () => true): void {
-    if (!force && !stack.isDirty) return;
+    pushStack(stack, force, allow, null);
+}
+
+function pushPass(m: PostProcessCore, pass: PassConfig): void {
+    try {
+        if (pass.native) {
+            if (!m.postprocess_addNativePass) return;
+            m.postprocess_addNativePass(pass.name, pass.native);
+        } else if (pass.compute) {
+            if (!m.postprocess_addComputePass) return;
+            m.postprocess_addComputePass(pass.name, pass.compute.source, pass.compute.params.join(','),
+                pass.compute.workgroupSize[0], pass.compute.workgroupSize[1]);
+        } else {
+            m.postprocess_addPass(pass.name, pass.shader);
+        }
+        if (pass.scale !== 1) m.postprocess_setPassScale(pass.name, pass.scale);
+        if (pass.continuesEffect) m.postprocess_setPassContinuesEffect(pass.name);
+    } catch (e) {
+        handleWasmError(e, `PostProcess._applyForCamera:addPass("${pass.name}")`);
+        return;
+    }
+
+    for (const [name, value] of pass.floatUniforms) {
+        try {
+            m.postprocess_setUniformFloat(pass.name, name, value);
+        } catch (e) {
+            handleWasmError(e, `PostProcess._applyForCamera:setUniform("${pass.name}", "${name}")`);
+        }
+    }
+
+    for (const [name, value] of pass.vec4Uniforms) {
+        try {
+            m.postprocess_setUniformVec4(pass.name, name, value.x, value.y, value.z, value.w);
+        } catch (e) {
+            handleWasmError(e, `PostProcess._applyForCamera:setUniformVec4("${pass.name}", "${name}")`);
+        }
+    }
+
+    for (const [name, handle] of pass.textureUniforms) {
+        try {
+            m.postprocess_setPassTexture(pass.name, name, handle);
+        } catch (e) {
+            handleWasmError(e, `PostProcess._applyForCamera:setPassTexture("${pass.name}", "${name}")`);
+        }
+    }
+}
+
+function pushFused(m: PostProcessCore, pass: FusedPass, fusion: PassFusion): void {
+    try {
+        m.postprocess_addPass(pass.name, pass.shader);
+    } catch (e) {
+        handleWasmError(e, `PostProcess._applyForCamera:addPass("${pass.name}")`);
+        return;
+    }
+    for (const member of pass.members) {
+        for (const [name, value] of member.floatUniforms) {
+            try {
+                m.postprocess_setUniformFloat(pass.name, fusion.paramName(member.effect!, name), value);
+            } catch (e) {
+                handleWasmError(e, `PostProcess._applyForCamera:setUniform("${pass.name}", "${name}")`);
+            }
+        }
+        for (const [name, value] of member.vec4Uniforms) {
+            try {
+                m.postprocess_setUniformVec4(pass.name, fusion.paramName(member.effect!, name), value.x, value.y, value.z, value.w);
+            } catch (e) {
+                handleWasmError(e, `PostProcess._applyForCamera:setUniformVec4("${pass.name}", "${name}")`);
+            }
+        }
+    }
+}
+
+function pushStack(stack: PostProcessStack, force: boolean, allow: (name: string) => boolean, fusion: PassFusion | null): void {
+    if (!force && !stack.isDirty && !fusion?.waiting) return;
 
     const m = getModule();
 
@@ -147,52 +221,10 @@ export function syncStackToWasm(stack: PostProcessStack, force = false,
         return;
     }
 
-    for (const pass of stack.passes) {
-        if (!pass.enabled || !allow(pass.name)) continue;
-        try {
-            if (pass.native) {
-                if (!m.postprocess_addNativePass) continue;
-                m.postprocess_addNativePass(pass.name, pass.native);
-            } else if (pass.compute) {
-                // No compute on this core (WebGL2): the pass is left out and the picture goes through as it was.
-                if (!m.postprocess_addComputePass) continue;
-                m.postprocess_addComputePass(pass.name, pass.compute.source, pass.compute.params.join(','),
-                    pass.compute.workgroupSize[0], pass.compute.workgroupSize[1]);
-            } else {
-                m.postprocess_addPass(pass.name, pass.shader);
-            }
-            // Only when it is not 1: every pass that predates fractional sizing
-            // means full size, and saying so is the same answer.
-            if (pass.scale !== 1) m.postprocess_setPassScale(pass.name, pass.scale);
-            if (pass.continuesEffect) m.postprocess_setPassContinuesEffect(pass.name);
-        } catch (e) {
-            handleWasmError(e, `PostProcess._applyForCamera:addPass("${pass.name}")`);
-            continue;
-        }
-
-        for (const [name, value] of pass.floatUniforms) {
-            try {
-                m.postprocess_setUniformFloat(pass.name, name, value);
-            } catch (e) {
-                handleWasmError(e, `PostProcess._applyForCamera:setUniform("${pass.name}", "${name}")`);
-            }
-        }
-
-        for (const [name, value] of pass.vec4Uniforms) {
-            try {
-                m.postprocess_setUniformVec4(pass.name, name, value.x, value.y, value.z, value.w);
-            } catch (e) {
-                handleWasmError(e, `PostProcess._applyForCamera:setUniformVec4("${pass.name}", "${name}")`);
-            }
-        }
-
-        for (const [name, handle] of pass.textureUniforms) {
-            try {
-                m.postprocess_setPassTexture(pass.name, name, handle);
-            } catch (e) {
-                handleWasmError(e, `PostProcess._applyForCamera:setPassTexture("${pass.name}", "${name}")`);
-            }
-        }
+    const live = stack.passes.filter((pass) => pass.enabled && allow(pass.name));
+    for (const pass of fusion ? fusion.plan(live) : live) {
+        if (isFusedPass(pass)) pushFused(m, pass, fusion!);
+        else pushPass(m, pass);
     }
 
     // The display look rides the stack as the passes do, and goes with them (clearPasses above): said again for every camera that has one.
@@ -251,6 +283,18 @@ export class PostProcessAPI {
      */
     private engineStack_: PostProcessStack | null = null;
     private qualityFilter_: Readonly<QualityProfile> | null = null;
+    private readonly fusion_ = new PassFusion(this.volumeShaders, () => module?.renderer_getPendingShaders?.() ?? 0);
+    private fusePasses_ = true;
+
+    get fusePasses(): boolean {
+        return this.fusePasses_;
+    }
+
+    set fusePasses(on: boolean) {
+        if (this.fusePasses_ === on) return;
+        this.fusePasses_ = on;
+        this.engineStack_ = null;
+    }
 
     setQualityFilter(profile: Readonly<QualityProfile> | null): void {
         if (this.qualityFilter_ === profile) return;
@@ -488,7 +532,7 @@ export class PostProcessAPI {
         }
 
         this.setBypass(false);
-        syncStackToWasm(stack, this.engineStack_ !== stack, this.allowQualityPass_);
+        pushStack(stack, this.engineStack_ !== stack, this.allowQualityPass_, this.fusePasses_ ? this.fusion_ : null);
         this.engineStack_ = stack;
     }
 

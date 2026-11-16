@@ -9,6 +9,7 @@
  */
 import type { ShaderHandle } from '../render/material';
 import { Material } from '../render/material';
+import { stageShaderSource, type EffectStage } from './effectStage';
 import { SSAO_GLSL } from './sources/shared';
 import { IGN_GLSL } from '../render/shaderLib';
 
@@ -94,41 +95,32 @@ void main() {
      * clipped white, which is where film has none. The pattern is a hash of the grain cell and the frame clock, so it
      * crawls the way a projected film does instead of sitting on the screen as a texture.
      */
-    createFilmGrain(): ShaderHandle {
-        const source = `#pragma shader "PP FilmGrain"
-#pragma version 300 es
-#pragma domain PostProcess
-#pragma param u_intensity float default(0.15) range(0,1)
-#pragma param u_size float default(1.6) range(1,6)
-#pragma param u_response float default(0.8) range(0,1)
-
-#pragma fragment
-precision highp float;
-
-in vec2 v_texCoord;
-uniform sampler2D u_texture;
-out vec4 fragColor;
-
-float hash(vec3 p) {
+    filmGrainStage(): EffectStage {
+        return {
+            params: [
+                '#pragma param u_intensity float default(0.15) range(0,1)',
+                '#pragma param u_size float default(1.6) range(1,6)',
+                '#pragma param u_response float default(0.8) range(0,1)',
+            ],
+            fn: 'esFilmGrain',
+            glsl: `float esGrainHash(vec3 p) {
     p = fract(p * vec3(0.1031, 0.1030, 0.0973));
     p += dot(p, p.yxz + 33.33);
     return fract((p.x + p.y) * p.z);
 }
 
-void main() {
-    vec4 color = texture(u_texture, v_texCoord);
-    vec2 cell = floor(v_texCoord * u_viewport.xy / u_size);
-    // Two hashes averaged: the sum of two uniforms is triangular, so grain is mostly small with the odd large speck.
-    float n = hash(vec3(cell, floor(u_time.x * 24.0))) + hash(vec3(cell + 71.0, floor(u_time.x * 24.0))) - 1.0;
+vec4 esFilmGrain(vec4 color, vec2 at) {
+    vec2 cell = floor(at * u_viewport.xy / u_size);
+    float n = esGrainHash(vec3(cell, floor(u_time.x * 24.0))) + esGrainHash(vec3(cell + 71.0, floor(u_time.x * 24.0))) - 1.0;
     float luma = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
     float mid = 4.0 * clamp(luma, 0.0, 1.0) * (1.0 - clamp(luma, 0.0, 1.0));
     float weight = mix(1.0, mid, u_response);
-    fragColor = vec4(max(color.rgb * (1.0 + n * u_intensity * weight * 2.0), vec3(0.0)), color.a);
-}
-#pragma end
-
-`;
-        return Material.compileShader(source);
+    return vec4(max(color.rgb * (1.0 + n * u_intensity * weight * 2.0), vec3(0.0)), color.a);
+}`,
+        };
+    },
+    createFilmGrain(): ShaderHandle {
+        return Material.compileShader(stageShaderSource('PP FilmGrain', lensEffects.filmGrainStage()));
     },
 
     /**

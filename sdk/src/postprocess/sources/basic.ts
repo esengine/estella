@@ -8,6 +8,7 @@ import type { ShaderHandle } from '../../render/material';
 import { Material } from '../../render/material';
 import { linearColorSpace } from '../../ecs/env';
 import { registerEffectSources, registerComputeSource } from '../effectSources';
+import { stageShaderSource, type EffectStage } from '../effectStage';
 import { SHARPEN_WGSL } from '../computeEffects';
 import { lensEffects } from '../lensEffects';
 import { SSAO_GLSL, GBUFFER_GLSL } from './shared';
@@ -175,36 +176,26 @@ void main() {
 `;
         return Material.compileShader(source);
     },
-    createVignette(): ShaderHandle {
-        const source = `#pragma shader "PP Vignette"
-#pragma version 300 es
-#pragma domain PostProcess
-#pragma param u_intensity float default(0.6) range(0,1)
-#pragma param u_softness float default(0.5) range(0,1)
-// Where it is full, and over what shape. At roundness 0 the distance is the picture's own (1 at the middle of an edge, so the
-// darkening is an ellipse that fills the frame); at 1 it is a circle and 1 is the corner, whatever the frame's shape.
-#pragma param u_radius float default(1) range(0.05,2)
-#pragma param u_roundness float default(0) range(0,1)
-
-#pragma fragment
-precision highp float;
-
-in vec2 v_texCoord;
-uniform sampler2D u_texture;
-out vec4 fragColor;
-
-void main() {
-    vec4 color = texture(u_texture, v_texCoord);
-    vec2 uv = v_texCoord * 2.0 - 1.0;
+    vignetteStage(): EffectStage {
+        return {
+            params: [
+                '#pragma param u_intensity float default(0.6) range(0,1)',
+                '#pragma param u_softness float default(0.5) range(0,1)',
+                '#pragma param u_radius float default(1) range(0.05,2)',
+                '#pragma param u_roundness float default(0) range(0,1)',
+            ],
+            fn: 'esVignette',
+            glsl: `vec4 esVignette(vec4 color, vec2 at) {
+    vec2 uv = at * 2.0 - 1.0;
     vec2 round = vec2(u_viewport.x / max(u_viewport.y, 1.0), 1.0);
     float dist = mix(length(uv), length(uv * round) / length(round), u_roundness);
     float vig = 1.0 - smoothstep(u_radius - u_softness, u_radius, dist);
-    fragColor = vec4(color.rgb * mix(1.0, vig, u_intensity), color.a);
-}
-#pragma end
-
-`;
-        return Material.compileShader(source);
+    return vec4(color.rgb * mix(1.0, vig, u_intensity), color.a);
+}`,
+        };
+    },
+    createVignette(): ShaderHandle {
+        return Material.compileShader(stageShaderSource('PP Vignette', basicEffects.vignetteStage()));
     },
     createGrayscale(): ShaderHandle {
         const source = `#pragma shader "PP Grayscale"
@@ -335,37 +326,29 @@ void main() {
 `;
         return Material.compileShader(source);
     },
-    createColorGrade(): ShaderHandle {
+    colorGradeStage(): EffectStage {
         // Contrast about mid-grey, which is 0.5 of a gamma-encoded picture and 0.18 of a linear one. Linear light gets a power curve about it, as
         // a straight line through 0.18 sends what is dark to black: at 1.4 everything under 0.05, the whole of a night scene.
         const linear = linearColorSpace();
         const contrastGlsl = linear ? 'c = 0.18 * pow(max(c, vec3(1e-6)) / 0.18, vec3(u_contrast));' : 'c = (c - 0.5) * u_contrast + 0.5;';
-        const source = `#pragma shader "PP Color Grade"
-#pragma version 300 es
-#pragma domain PostProcess
-#pragma param u_exposure float default(0) range(-3,3)
-#pragma param u_contrast float default(1) range(0,2)
-#pragma param u_saturation float default(1) range(0,2)
-#pragma param u_temperature float default(0) range(-1,1)
-#pragma param u_tint float default(0) range(-1,1)
-#pragma param u_shadowTint color default(1,1,1,1)
-#pragma param u_highlightTint color default(1,1,1,1)
-#pragma param u_toneLow float default(0.03) range(0,1)
-#pragma param u_toneHigh float default(0.55) range(0,1)
-#pragma param u_curve float default(0) range(0,1)
-#pragma param u_lift color default(0,0,0,1)
-#pragma param u_gain float default(1) range(0,4)
-#pragma param u_offset float default(0) range(-0.5,0.5)
-
-#pragma fragment
-precision highp float;
-
-in vec2 v_texCoord;
-uniform sampler2D u_texture;
-out vec4 fragColor;
-
-void main() {
-    vec4 src = texture(u_texture, v_texCoord);
+        return {
+            params: [
+                '#pragma param u_exposure float default(0) range(-3,3)',
+                '#pragma param u_contrast float default(1) range(0,2)',
+                '#pragma param u_saturation float default(1) range(0,2)',
+                '#pragma param u_temperature float default(0) range(-1,1)',
+                '#pragma param u_tint float default(0) range(-1,1)',
+                '#pragma param u_shadowTint color default(1,1,1,1)',
+                '#pragma param u_highlightTint color default(1,1,1,1)',
+                '#pragma param u_toneLow float default(0.03) range(0,1)',
+                '#pragma param u_toneHigh float default(0.55) range(0,1)',
+                '#pragma param u_curve float default(0) range(0,1)',
+                '#pragma param u_lift color default(0,0,0,1)',
+                '#pragma param u_gain float default(1) range(0,4)',
+                '#pragma param u_offset float default(0) range(-0.5,0.5)',
+            ],
+            fn: 'esColorGrade',
+            glsl: `vec4 esColorGrade(vec4 src, vec2 at) {
     vec3 c = src.rgb;
 
     // Exposure (stops): 2^EV.
@@ -399,12 +382,12 @@ void main() {
     float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
     c = mix(vec3(luma), c, u_saturation);
 
-    fragColor = vec4(clamp(c, 0.0, 1.0), src.a);
-}
-#pragma end
-
-`;
-        return Material.compileShader(source);
+    return vec4(clamp(c, 0.0, 1.0), src.a);
+}`,
+        };
+    },
+    createColorGrade(): ShaderHandle {
+        return Material.compileShader(stageShaderSource('PP Color Grade', basicEffects.colorGradeStage()));
     },
     createChromaticAberration(): ShaderHandle {
         const source = `#pragma shader "PP Chromatic Aberration"
@@ -728,47 +711,35 @@ void main() {
 `;
         return Material.compileShader(source);
     },
-    createSharpen(): ShaderHandle {
+    sharpenStage(): EffectStage {
         // The fragment version of the compute `sharpen`, for a device with no compute stage (WebGL2): the same arithmetic on the same five taps, so the two
         // draw the same picture. Each pixel is pushed away from the mean of its four neighbours by `u_intensity`, and held to the range those neighbours and
         // the pixel span, widened by `u_limit`: a flat area has nothing to push against and an edge cannot overshoot past what is on either side of it, which
         // is what a plain unsharp mask gets wrong. It runs on the chain's own (HDR) values.
-        const source = `#pragma shader "PP Sharpen"
-#pragma version 300 es
-#pragma domain PostProcess
-#pragma param u_intensity float default(0.5) range(0,2)
-#pragma param u_limit float default(0.25) range(0,1)
-
-#pragma fragment
-precision highp float;
-
-in vec2 v_texCoord;
-uniform sampler2D u_texture;
-out vec4 fragColor;
-
-vec4 tap(ivec2 p, ivec2 size) {
-    return texelFetch(u_texture, clamp(p, ivec2(0), size - ivec2(1)), 0);
-}
-
-void main() {
-    ivec2 size = textureSize(u_texture, 0);
-    ivec2 p = clamp(ivec2(v_texCoord * vec2(size)), ivec2(0), size - ivec2(1));
-    vec4 c = tap(p, size);
-    vec3 n = tap(p + ivec2(0, -1), size).rgb;
-    vec3 s = tap(p + ivec2(0, 1), size).rgb;
-    vec3 w = tap(p + ivec2(-1, 0), size).rgb;
-    vec3 e = tap(p + ivec2(1, 0), size).rgb;
+        return {
+            params: [
+                '#pragma param u_intensity float default(0.5) range(0,2)',
+                '#pragma param u_limit float default(0.25) range(0,1)',
+            ],
+            fn: 'esSharpen',
+            neighbours: true,
+            glsl: `vec4 esSharpen(ivec2 p, ivec2 size) {
+    vec4 c = esTap(p, size);
+    vec3 n = esTap(p + ivec2(0, -1), size).rgb;
+    vec3 s = esTap(p + ivec2(0, 1), size).rgb;
+    vec3 w = esTap(p + ivec2(-1, 0), size).rgb;
+    vec3 e = esTap(p + ivec2(1, 0), size).rgb;
     vec3 lo = min(min(min(n, s), min(w, e)), c.rgb);
     vec3 hi = max(max(max(n, s), max(w, e)), c.rgb);
     vec3 sharp = c.rgb + u_intensity * (4.0 * c.rgb - n - s - w - e);
     vec3 room = (hi - lo) * u_limit;
     sharp = clamp(sharp, lo - room, hi + room);
-    fragColor = vec4(max(sharp, vec3(0.0)), c.a);
-}
-#pragma end
-
-`;
-        return Material.compileShader(source);
+    return vec4(max(sharp, vec3(0.0)), c.a);
+}`,
+        };
+    },
+    createSharpen(): ShaderHandle {
+        return Material.compileShader(stageShaderSource('PP Sharpen', basicEffects.sharpenStage()));
     },
     createPixelate(): ShaderHandle {
         // Snaps sampling to a grid of u_pixelSize-device-pixel blocks — the

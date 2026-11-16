@@ -4141,6 +4141,7 @@ colors: EffectColorDef[] | undefined
 compute: ComputeEffectSource | undefined
 factory: (() => ShaderHandle) | undefined
 fallback: EffectSubPass[] | undefined
+inline: (() => EffectStage) | undefined
 label: string
 multiPass: EffectSubPass[] | undefined
 native: string | undefined
@@ -8259,6 +8260,7 @@ createStack: () => PostProcessStack
 dynamicGIReduced: boolean
 effectAllowed: (type: string) => boolean
 end: () => void
+fusePasses: boolean
 getStack: (camera: Entity) => PostProcessStack | null
 hdrFormat: () => HdrFormat | null
 init: (width: number, height: number) => boolean
@@ -8310,6 +8312,7 @@ passes: readonly PassConfig[]
 removePass: (name: string) => PostProcessStack
 setAllPassesEnabled: (enabled: boolean) => void
 setDisplayLut: (texture: number, amount: number) => PostProcessStack
+setEffect: (passName: string, effect: string) => PostProcessStack
 setEnabled: (name: string, enabled: boolean) => PostProcessStack
 setTexture: (passName: string, uniform: string, textureHandle: number) => PostProcessStack
 setUniform: (passName: string, uniform: string, value: number) => PostProcessStack

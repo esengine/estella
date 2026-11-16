@@ -293,6 +293,7 @@ function applyBlendedEffects(
             for (const [index, subPass] of def.fallback.entries()) {
                 const shader = getOrCreateShader(api, subPass.name, subPass.factory);
                 stack.addPass(subPass.name, shader, subPass.scale ?? 1, index > 0);
+                if (def.inline && def.fallback.length === 1) stack.setEffect(subPass.name, effectType);
                 for (const u of def.uniforms) stack.setUniform(subPass.name, u.name, effectData.uniforms.get(u.name) ?? uniformInUnits(u).defaultValue);
                 for (const [name, value] of Object.entries(subPass.uniforms ?? {})) stack.setUniform(subPass.name, name, value);
             }
@@ -306,10 +307,12 @@ function applyBlendedEffects(
                 params: def.uniforms.map((u) => u.name),
                 workgroupSize: def.compute.workgroupSize ?? [8, 8],
             });
+            if (def.inline) stack.setEffect(effectType, effectType);
             for (const u of def.uniforms) stack.setUniform(effectType, u.name, effectData.uniforms.get(u.name) ?? uniformInUnits(u).defaultValue);
         } else if (def.factory) {
             const shader = getOrCreateShader(api, effectType, def.factory);
             stack.addPass(effectType, shader);
+            if (def.inline) stack.setEffect(effectType, effectType);
             for (const [uniformName, uniformValue] of effectData.uniforms) {
                 stack.setUniform(effectType, uniformName, uniformValue);
             }

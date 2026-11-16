@@ -5,6 +5,7 @@ import { worldUnitScale } from '../ecs/worldUnits';
 import { FOG_UNIFORMS, FOG_EXPLORED_TEXTURE, FOG_VISIBLE_TEXTURE } from './fogOfWarMask';
 import { RAIN_SHELTER_UNIFORMS, RAIN_SHELTER_MASK_TEXTURE, RAIN_SHELTER_MASK_SIZE, RAIN_SHELTER_MASK_MIN, RAIN_SHELTER_MASK_MAX } from './rainShelterMask';
 import { effectSourcesOf, computeSourceOf } from './effectSources';
+import type { EffectStage } from './effectStage';
 import type { basicEffects } from './sources/basic';
 import type { atmosphereEffects } from './sources/atmosphere';
 import type { starfieldEffects } from './sources/starfield';
@@ -150,6 +151,7 @@ export interface EffectDef {
     /** Colour params, carried on the volume as `colors`. */
     colors?: EffectColorDef[];
     multiPass?: EffectSubPass[];
+    inline?: () => EffectStage;
 }
 
 const effectRegistry = new Map<string, EffectDef>();
@@ -228,6 +230,7 @@ registerEffect({
     type: 'vignette',
     label: 'Vignette',
     factory: () => postProcessEffects.createVignette(),
+    inline: () => postProcessEffects.vignetteStage(),
     uniforms: [
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 1, step: 0.01, defaultValue: 0.6 },
         { name: 'u_softness', label: 'Softness', min: 0, max: 1, step: 0.01, defaultValue: 0.5 },
@@ -249,6 +252,7 @@ registerEffect({
     type: 'colorGrade',
     label: 'Color Grade',
     factory: () => postProcessEffects.createColorGrade(),
+    inline: () => postProcessEffects.colorGradeStage(),
     uniforms: [
         { name: 'u_exposure', label: 'Exposure', min: -3, max: 3, step: 0.05, defaultValue: 0 },
         { name: 'u_contrast', label: 'Contrast', min: 0, max: 2, step: 0.01, defaultValue: 1, neutralValue: 1 },
@@ -642,6 +646,7 @@ registerEffect({
     label: 'Sharpen',
     compute: { get source() { return computeSourceOf('sharpen'); } },
     fallback: [{ name: 'sharpen_fs', factory: () => postProcessEffects.createSharpen() }],
+    inline: () => postProcessEffects.sharpenStage(),
     uniforms: [
         // How hard a pixel is pushed away from the mean of its neighbours. 0 leaves the picture alone.
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 2, step: 0.01, defaultValue: 0.5, neutralValue: 0 },
@@ -1021,6 +1026,7 @@ registerEffect({
     type: 'filmGrain',
     label: 'Film Grain',
     factory: () => lensEffects.createFilmGrain(),
+    inline: () => lensEffects.filmGrainStage(),
     uniforms: [
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 1, step: 0.01, defaultValue: 0.15, neutralValue: 0 },
         { name: 'u_size', label: 'Grain Size', min: 1, max: 6, step: 0.1, defaultValue: 1.6 },

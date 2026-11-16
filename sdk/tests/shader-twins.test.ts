@@ -57,6 +57,7 @@ const CASES: Array<{ name: string; source: string }> = [
     ...embeddedEsshaders('render/spriteFilter.ts').map((source, i) => ({ name: `spriteFilter.ts[${i}]`, source })),
     ...['basic', 'agx', 'atmosphere', 'lighting', 'rain2d', 'fog2d'].flatMap((group) => embeddedEsshaders(`postprocess/sources/${group}.ts`).map(
         (source, i) => ({ name: `postProcessEffects.ts[${group}:${i}]`, source }))),
+    ...embeddedEsshaders('postprocess/effectStage.ts').map((source, i) => ({ name: `postProcessEffects.ts[stage:${i}]`, source })),
     ...embeddedEsshaders('camera/editorGridRenderer.ts').map(
         (source, i) => ({ name: `editorGridRenderer.ts[${i}]`, source })),
 ];
@@ -65,7 +66,7 @@ describe('embedded .esshader structure', () => {
     it('found the filter, effect and grid sources', () => {
         expect(CASES.filter((c) => c.name.startsWith('filters.ts')).length).toBe(1);
         expect(CASES.filter((c) => c.name.startsWith('spriteFilter.ts')).length).toBe(2);
-        expect(CASES.filter((c) => c.name.startsWith('postProcessEffects.ts')).length).toBe(48);
+        expect(CASES.filter((c) => c.name.startsWith('postProcessEffects.ts')).length).toBe(46);
         expect(CASES.filter((c) => c.name.startsWith('editorGridRenderer.ts')).length).toBe(1);
     });
 
