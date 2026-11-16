@@ -5182,4 +5182,6 @@ export const NOTED = {
     { note: "A dense model no longer freezes the editor while it bakes." },
   "fix(modeling): a model bakes on a thread of the main process, so a dense one no longer holds the window":
     { note: "A dense model no longer freezes the editor while it bakes." },
+  "fix(text): a label in a perspective view is not laid out again every frame - an automatic label in a perspective view draws with SDF glyphs at any scale, but the retained label told the engine its pipeline followed its world scale, and the engine's stale check, which knows only the rule by scale, found every such label at a scale near one to be on the wrong pipeline, every frame; each was laid out again each frame (23 MB allocated a frame and 50 ms frames for a HUD of 150 labels, 16.7 ms after). A retained label is marked as chosen by scale only when the view is flat, and is laid out again when its view changes between flat and perspective":
+    { note: "Text in a perspective view is no longer laid out again every frame." },
 };
