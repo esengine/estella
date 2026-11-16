@@ -1319,6 +1319,7 @@ private:
     Unique<Framebuffer> overlay_backdrop_;
     u32 overlay_grab_w_ = 0, overlay_grab_h_ = 0;
     bool grabOverlayBackdrop(FramebufferHandle source);
+    void executeOverlayGraph();
     void releaseOverlayBackdrop();
 
     /// buildSpriteMasks scratch, reused across cameras/frames.
