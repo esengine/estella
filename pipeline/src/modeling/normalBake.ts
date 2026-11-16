@@ -13,7 +13,7 @@
  *
  *        A separate call from bakeModel because it costs seconds, and only a write wants it.
  */
-import { MeshChannel, MeshChannelType, type MeshData } from 'esengine';
+import { MeshChannel, MeshChannelType, type MeshData } from '../../../sdk/src/asset/meshFormat';
 import { cornerNormals, type BakedModel } from './modelBake';
 import { TriangleTree } from './triangleTree';
 import { triangulateFace } from './triangulate';

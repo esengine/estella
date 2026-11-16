@@ -174,6 +174,12 @@ const SPOKE_GROUPS = Math.ceil(RELIEF_SPOKES.length / 4);
 const groupOf = (pick: (spoke: (typeof RELIEF_SPOKES)[number]) => number, group: number): string =>
     `vec4(${[0, 1, 2, 3].map((k) => float(RELIEF_SPOKES[group * 4 + k] ? pick(RELIEF_SPOKES[group * 4 + k]!) : 0)).join(', ')})`;
 const groups = (line: (group: number) => string): string => Array.from({ length: SPOKE_GROUPS }, (_, group) => line(group)).join('\n');
+const CULL_MARGIN = 1e-3;
+const groupEdge = (group: number, pick: (spoke: (typeof RELIEF_SPOKES)[number]) => number, edge: (...values: number[]) => number, grow: number): string =>
+    float(edge(...RELIEF_SPOKES.slice(group * 4, group * 4 + 4).map(pick)) + grow);
+const groupBox = (group: number): string =>
+    `all(lessThanEqual(lo2, uReach * vec2(${groupEdge(group, (spoke) => spoke.share * spoke.cos, Math.max, CULL_MARGIN)}, ${groupEdge(group, (spoke) => spoke.share * spoke.sin, Math.max, CULL_MARGIN)})))`
+    + ` && all(greaterThanEqual(hi2, uReach * vec2(${groupEdge(group, (spoke) => spoke.share * spoke.cos, Math.min, -CULL_MARGIN)}, ${groupEdge(group, (spoke) => spoke.share * spoke.sin, Math.min, -CULL_MARGIN)})))`;
 
 const RELIEF = `${COMMON}
 uniform sampler2D uItems;
@@ -205,15 +211,20 @@ ${groups((g) => `    vec4 x${g} = uReach * ${groupOf((spoke) => spoke.share * sp
             vec3 q = cross(n, e2);
             float det = dot(e1, q);
             if (det > -1e-14) continue;
+            vec2 pa = vec2(dot(a - p, u), dot(a - p, v)), pb = pa + vec2(dot(e1, u), dot(e1, v)), pc = pa + vec2(dot(e2, u), dot(e2, v));
+            vec2 lo2 = min(pa, min(pb, pc)), hi2 = max(pa, max(pb, pc));
+            if (any(greaterThan(lo2, vec2(wide))) || any(lessThan(hi2, vec2(-wide)))) continue;
             float inv = 1.0 / det;
             vec3 s = p - a, w = cross(e1, n), m = cross(e1, e2);
             float u0 = dot(s, q) * inv, uU = dot(u, q) * inv, uV = dot(v, q) * inv;
             float v0 = dot(s, w) * inv, vU = dot(u, w) * inv, vV = dot(v, w) * inv;
             float t0 = dot(s, m) * inv, tU = dot(u, m) * inv, tV = dot(v, m) * inv;
             vec4 bu, bv, bt, take;
-${groups((g) => `            bu = u0 + x${g} * uU + y${g} * uV; bv = v0 + x${g} * vU + y${g} * vV; bt = t0 + x${g} * tU + y${g} * tV;
-            take = step(0.0, bu) * step(bu, vec4(1.0)) * step(0.0, bv) * step(bu + bv, vec4(1.0)) * (1.0 - step(best${g}, abs(bt)));
-            best${g} = mix(best${g}, abs(bt), take); h${g} = mix(h${g}, bt, take);`)}
+${groups((g) => `            if (${groupBox(g)}) {
+                bu = u0 + x${g} * uU + y${g} * uV; bv = v0 + x${g} * vU + y${g} * vV; bt = t0 + x${g} * tU + y${g} * tV;
+                take = step(0.0, bu) * step(bu, vec4(1.0)) * step(0.0, bv) * step(bu + bv, vec4(1.0)) * (1.0 - step(best${g}, abs(bt)));
+                best${g} = mix(best${g}, abs(bt), take); h${g} = mix(h${g}, bt, take);
+            }`)}
         }
     }
     float found[${SPOKE_GROUPS * 4}];
@@ -968,8 +979,10 @@ export class GpuProbes {
     }
 }
 
-export async function gpuNormalBake(gl: WebGL2RenderingContext, model: BakedModel, tick?: (stage: 'surface' | 'relief' | 'occlusion' | 'paint' | 'finish', done: number, total: number) => void): Promise<NormalMap> {
+export async function gpuNormalBake(gl: WebGL2RenderingContext, model: BakedModel, tick?: (stage: 'start' | 'surface' | 'shade' | 'plan' | 'relief' | 'occlusion' | 'paint' | 'finish', done: number, total: number) => void): Promise<NormalMap> {
+    tick?.('start', 0, 1);
     const start = startNormalBake(model);
+    tick?.('surface', 0, 1);
     const { shading } = start;
     const texels = shading.size * shading.size;
     warmBakePrograms(gl);
@@ -978,8 +991,11 @@ export async function gpuNormalBake(gl: WebGL2RenderingContext, model: BakedMode
         const triangle = shading.hitTriangle ?? new Int32Array(texels);
         const place = shading.hitPlace ?? new Float32Array(texels * 2);
         await gpu.hits(shading, triangle, place, (done, total) => tick?.('surface', done, total));
+        tick?.('shade', 0, 1);
         shadeTexels(shading, start.tree, 0, shading.stats.length / 3, { triangle, place });
+        tick?.('plan', 0, 1);
         const plan = start.plan();
+        tick?.('relief', 0, 1);
         for (let index = 0; index < plan.probes.reliefs.length; index++) await gpu.relief(plan.probes, index, (done, total) => tick?.('relief', done, total));
         await gpu.occlusion(plan.probes, (done, total) => tick?.('occlusion', done, total));
         if (plan.stains) await gpu.paint(plan.stains, plan.probes, shading.size, triangle, place, (done, total) => tick?.('paint', done, total));

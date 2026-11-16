@@ -1,53 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { encodeMesh } from 'esengine';
+import { encodeMesh } from '../../../sdk/src/asset/meshFormat';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import { GpuProbes, gpuNormalBake, warmBakePrograms } from './gpuProbes';
 import { bakeModel } from './modelBake';
 import { validateModelSource } from './modelSource';
-
-export const BAKE_TIERS = ['desktop', 'high', 'mid', 'low'] as const;
-export type BakeTier = typeof BAKE_TIERS[number];
-export const TIER_SIZE: Record<BakeTier, number> = { desktop: 4096, high: 2048, mid: 1024, low: 512 };
-export const MODEL_MAPS = ['normal', 'color', 'surface', 'emissive', 'occlusion'] as const;
-export type ModelMapName = typeof MODEL_MAPS[number];
+import { MODEL_MAPS, type BakeStage, type ModelMapName } from './loadBakeFile';
 
 const MIN_SIZE = 64;
 const MIN_OCCLUSION = 128;
 const CACHE_NAME = 'estella-model-bake';
 const CACHE_VERSION = 1;
-const UNBAKEABLE = ['boolean', 'fracture'];
-
-export interface DeviceFacts {
-    mobile: boolean;
-    memoryGB?: number;
-    cores?: number;
-}
-
-export function bakeTierOf(device: DeviceFacts): BakeTier {
-    const memory = device.memoryGB ?? (device.mobile ? 4 : 8), cores = device.cores ?? 4;
-    if (!device.mobile) return memory >= 8 ? 'desktop' : memory >= 4 ? 'high' : 'mid';
-    return memory >= 8 && cores >= 8 ? 'high' : memory >= 4 ? 'mid' : 'low';
-}
-
-export function deviceFacts(): DeviceFacts {
-    const nav = (typeof navigator === 'undefined' ? {} : navigator) as Navigator & { deviceMemory?: number; userAgentData?: { mobile?: boolean } };
-    const mobile = nav.userAgentData?.mobile ?? /Android|iPhone|iPad|iPod|Mobile|HarmonyOS/i.test(nav.userAgent ?? '');
-    return { mobile, ...(nav.deviceMemory ? { memoryGB: nav.deviceMemory } : {}), ...(nav.hardwareConcurrency ? { cores: nav.hardwareConcurrency } : {}) };
-}
 
 export interface LoadedModel {
     mesh: Uint8Array;
     maps: Partial<Record<ModelMapName, { size: number; rgba: Uint8Array }>>;
 }
 
-export type BakeStage = 'shape' | 'surface' | 'relief' | 'occlusion' | 'paint' | 'finish';
-
-export const bakesAtLoad = (raw: unknown): boolean => {
-    const source = raw as { normalBake?: unknown; steps?: { op: string; steps?: unknown }[] };
-    const plain = (steps: readonly { op: string; steps?: unknown }[]): boolean => steps.every((step) => !UNBAKEABLE.includes(step.op) && (!Array.isArray(step.steps) || plain(step.steps as { op: string }[])));
-    return !!source.normalBake && Array.isArray(source.steps) && plain(source.steps);
-};
 
 function sized(raw: unknown, limit: number): unknown {
     const source = structuredClone(raw) as { normalBake?: { size: number; occlusion?: { size?: number } } };
@@ -121,6 +90,7 @@ const request = <T>(made: IDBRequest<T>): Promise<T | undefined> => new Promise(
 export interface KeptBake {
     model: LoadedModel;
     kept: boolean;
+    keep(): Promise<void>;
 }
 
 export async function keptModelBake(gl: WebGL2RenderingContext, text: string, limit: number, tick?: (stage: BakeStage, done: number, total: number) => void): Promise<KeptBake> {
@@ -132,11 +102,12 @@ export async function keptModelBake(gl: WebGL2RenderingContext, text: string, li
             const model: LoadedModel = { mesh: kept.mesh, maps: {} };
             for (const map of kept.maps) model.maps[map.name] = { size: map.size, rgba: kept.packed ? await through(map.bytes, new DecompressionStream('deflate-raw')) : map.bytes };
             db.close();
-            return { model, kept: true };
+            return { model, kept: true, keep: async () => undefined };
         }
     }
     const model = await bakeModelAtLoad(gl, JSON.parse(text), limit, tick);
-    if (db) {
+    const keep = async (): Promise<void> => {
+        if (!db) return;
         const maps: Kept['maps'] = [];
         for (const name of MODEL_MAPS) {
             const map = model.maps[name];
@@ -148,6 +119,6 @@ export async function keptModelBake(gl: WebGL2RenderingContext, text: string, li
             void 0;
         }
         db.close();
-    }
-    return { model, kept: false };
+    };
+    return { model, kept: false, keep };
 }

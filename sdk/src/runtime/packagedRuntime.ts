@@ -139,6 +139,8 @@ export interface PackagedGameConfig {
     /** Where the editor that made this development build listens for it. Never
      *  written by a shipping export. */
     debugChannel?: DebugChannelConfig;
+    /** The models this package carries as recipes to bake where it loads: the file listing them, and the worker script that bakes one. */
+    modelBakes?: { recipes: string; worker: string };
 }
 
 /** The packaged realm's resolved asset index — manifest, catalog, resolution. */

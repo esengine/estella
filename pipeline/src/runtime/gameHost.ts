@@ -61,6 +61,9 @@ import type {
 } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
 import { attachSplash, type Splash } from '../export/splash';
+import { setLoadWork } from 'esengine';
+import type { ModelBakesFile } from '../modeling/loadBakeFile';
+import { createModelBakes, sizeLimit } from './modelBakes';
 import { countedStream, engineDownloadTotal } from './engineDownload';
 import { initializePoki, type PokiSdk } from './pokiProfile';
 import { initializeCrazyGames, type CrazyGamesSdk } from './crazyGamesProfile';
@@ -958,10 +961,20 @@ async function boot(): Promise<void> {
   const entryName = sceneList.find((s) => s.path === cfg.entryScene)?.name ?? '__play';
   // Cross-origin images taint a canvas, so a cooked build decodes through
   // fetch+blob rather than the platform's Image path.
-  const source = createPackagedAssetSource(index, {
+  const packaged = createPackagedAssetSource(index, {
     backend: new HttpBackend({ baseUrl: '' }),
     decodePixels: (path) => fetchDecodePixels(path),
   });
+  let source = packaged;
+  if (cfg.modelBakes) {
+    const bakes = createModelBakes(
+      (await (await fetch(`./${cfg.modelBakes.recipes}`)).json()) as ModelBakesFile,
+      new URL(cfg.modelBakes.worker, location.href).href, sizeLimit(location.search), navigator.hardwareConcurrency || 4,
+    );
+    setLoadWork(bakes.work);
+    void bakes.work.run().catch(() => undefined);
+    source = bakes.serve(packaged);
+  }
   applyAssetRefResolvers(app, index.resolvePath);
   await initRuntime({
     app,
