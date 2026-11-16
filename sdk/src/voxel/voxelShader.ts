@@ -8,7 +8,7 @@
  *          whichever axis the surface faces. The vertex colour is how much of each material a vertex is. Being derived from Model it is lit,
  *          shadowed and fogged as anything else in the scene is, and a material moved onto it keeps every param it had.
  */
-import { modelWithoutDetail } from '../render/modelDetail';
+import { modelWithoutDetail, modelLine } from '../render/modelDetail';
 
 /** Material 0 is the shader's main texture, so the others cost three more. The emissive map gives its unit up: this skin has no uv to read one by. */
 const PARAMS = `// The colour of each material, multiplied into its picture.
@@ -75,8 +75,10 @@ const WGSL_SURFACE = `#ifdef MESH_NORMALS
 #endif
 `;
 
-function swap(source: string, from: string, to: string): string {
-    if (!source.includes(from)) throw new Error(`the Model shader no longer has what Voxel Ground is made from: ${from.slice(0, 60)}`);
+function swap(source: string, from: string | RegExp, to: string): string {
+    if (typeof from === 'string' ? !source.includes(from) : !from.test(source)) {
+        throw new Error(`the Model shader no longer has what Voxel Ground is made from: ${String(from).slice(0, 60)}`);
+    }
     return source.replace(from, () => to);
 }
 
@@ -89,8 +91,8 @@ export function deriveVoxelGround(model: string): string {
     s = swap(s, 'textureSampleGrad(u_emissiveMap, u_emissiveMap_s, uv, duvx, duvy).rgb', 'vec3f(1.0)');
     s = swap(s, 'float specularAA(highp vec3', `${GLSL_HELPERS}float specularAA(highp vec3`);
     s = swap(s, 'fn specularAA(dndx : vec3f', `${WGSL_HELPERS}fn specularAA(dndx : vec3f`);
-    s = swap(s, '    vec4 base = texture(u_textures[0], uv) * v_color * u_tint;\n', GLSL_SURFACE);
-    s = swap(s, '    var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;\n', WGSL_SURFACE);
+    s = swap(s, modelLine('vec4 base = texture(u_textures[0], uv) * v_color * u_tint;'), GLSL_SURFACE);
+    s = swap(s, modelLine('var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;'), WGSL_SURFACE);
     s = swap(s, 'float roughness = u_roughness * mr.g;', 'float roughness = u_roughness * mr.g * dot(voxelMix, u_voxelRoughness);');
     s = swap(s, 'var roughness = mc.u_roughness * mr.g;', 'var roughness = mc.u_roughness * mr.g * dot(voxelMix, mc.u_voxelRoughness);');
     return s;
