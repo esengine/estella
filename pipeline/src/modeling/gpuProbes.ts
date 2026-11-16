@@ -11,9 +11,15 @@ import type { TriangleTree } from './triangleTree';
 const DATA_WIDTH = 2048;
 const DATA_SHIFT = 11;
 const ITEM_WIDTH = 1024;
-const BAND_LOW_MS = 30;
-const BAND_HIGH_MS = 120;
-const PAINT_TILE = 1024;
+const PACES = {
+    eager: { low: 30, high: 120, tile: 1024, rest: 0 },
+    yielding: { low: 6, high: 12, tile: 512, rest: 10 },
+} as const;
+let pace: { low: number; high: number; tile: number; rest: number } = PACES.eager;
+
+export function setBakePace(yielding: boolean): void {
+    pace = yielding ? PACES.yielding : PACES.eager;
+}
 
 export type ProbeTick = (done: number, total: number) => void;
 
@@ -578,7 +584,7 @@ function escapes(links: Int32Array): { escape: Int32Array; count: number } {
     return { escape, count };
 }
 
-const pause = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+const pause = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, pace.rest));
 
 export class GpuProbes {
     private readonly textures: WebGLTexture[] = [];
@@ -745,7 +751,7 @@ export class GpuProbes {
         const { slots, colorRgba, surfaceRgba, glow, fallback } = work;
         const program = programOf(gl, 'paint');
         const at = (name: string): WebGLUniformLocation | null => gl.getUniformLocation(program, name);
-        const tile = Math.min(size, PAINT_TILE);
+        const tile = Math.min(size, pace.tile);
         const { layers, line } = this.layers(work, probes.corners.length / 9);
         const reliefs = probes.reliefs.map((relief) => {
             const full = new Float32Array(size * size);
@@ -893,8 +899,8 @@ export class GpuProbes {
             take(row, now, pixels);
             row += now;
             tick?.(row, height);
-            if (took < BAND_LOW_MS) rows = Math.min(height, rows * 2);
-            else if (took > BAND_HIGH_MS) rows = Math.max(1, rows >> 1);
+            if (took < pace.low) rows = Math.min(height, rows * 2);
+            else if (took > pace.high) rows = Math.max(1, rows >> 1);
             await pause();
         }
         if (canvas) this.release(canvas);

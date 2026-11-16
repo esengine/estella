@@ -1,13 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Backend, LoadWork, LoadWorkProgress } from 'esengine';
-import { TIER_SIZE, bakeTierOf, deviceFacts, type BakeStage, type ModelBakesFile, type ModelProductRole } from '../modeling/loadBakeFile';
+import { TIER_SIZE, bakeTierOf, deviceFacts, type BakeStage, type ModelBakesFile, type ModelMapName, type ModelProductRole } from '../modeling/loadBakeFile';
 import type { BakeAsk, BakeReply } from './modelBakeWorker';
 
 const MOST_WORKERS = 4;
 const MESH_ONLY_SIZE = 128;
+const PLACEHOLDER_SIZE = 4;
 const STAGES: readonly [BakeStage, number][] = [['shape', 12], ['start', 6], ['surface', 6], ['shade', 8], ['plan', 10], ['relief', 34], ['occlusion', 6], ['paint', 9], ['finish', 9]];
 const STAGE_TOTAL = STAGES.reduce((sum, [, weight]) => sum + weight, 0);
+const NEUTRAL: Record<ModelMapName, readonly [number, number, number, number]> = {
+    color: [72, 72, 76, 255],
+    normal: [128, 128, 255, 255],
+    surface: [255, 200, 0, 255],
+    emissive: [0, 0, 0, 255],
+    occlusion: [255, 255, 255, 255],
+};
 
 interface Pixels {
     width: number;
@@ -15,17 +23,22 @@ interface Pixels {
     pixels: Uint8Array;
 }
 
-interface Baked {
-    mesh: Uint8Array | null;
-    maps: Map<string, Pixels>;
-}
+type Reply<K extends string> = Extract<BakeReply, Record<K, unknown>>;
 
 export interface ModelBakes {
     work: LoadWork;
     serve<S extends { backend: Backend; decodePixels?: (path: string, ...rest: never[]) => Promise<Pixels> }>(source: S): S;
+    /** How a map that was drawn as a placeholder is drawn again once it is baked: the host asks its texture to be decoded anew. */
+    refreshWith(refresh: (path: string) => Promise<void>): void;
 }
 
 const plain = (path: string): string => (path.startsWith('@') ? path : path.replace(/[?#].*$/, '').replace(/^(\.?\/)+/, ''));
+
+const placeholder = (role: ModelMapName): Pixels => {
+    const pixels = new Uint8Array(PLACEHOLDER_SIZE * PLACEHOLDER_SIZE * 4);
+    for (let i = 0; i < pixels.length; i += 4) pixels.set(NEUTRAL[role], i);
+    return { width: PLACEHOLDER_SIZE, height: PLACEHOLDER_SIZE, pixels };
+};
 
 export function sizeLimit(search: string): number {
     const asked = Number(new URLSearchParams(search).get('bake'));
@@ -42,12 +55,17 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
         const size = Number(/"normalBake":\{[^}]*?"size":(\d+)/.exec(model.text)?.[1] ?? MESH_ONLY_SIZE);
         return Math.min(size, limit) ** 2;
     });
+    const names = models.map((model) => model.source.replace(/^.*\//, '').replace(/\.esmodel$/i, ''));
     const share = new Float64Array(models.length);
-    const baked: (Promise<Baked> | null)[] = models.map(() => null);
-    const made = models.map(() => false);
+    const meshes: Promise<Uint8Array>[] = [];
+    const maps: Promise<Map<string, Pixels>>[] = [];
+    const ready: (Map<string, Pixels> | null)[] = models.map(() => null);
+    const shown = models.map(() => new Set<string>());
     const took: string[] = [];
     const watchers = new Set<(progress: LoadWorkProgress) => void>();
+    let refresh: ((path: string) => Promise<void>) | null = null;
     let latest = '';
+    let started = false, yielding = false;
     const tell = (): void => {
         if (watchers.size === 0) return;
         const total = weights.reduce((sum, weight) => sum + weight, 0);
@@ -55,97 +73,89 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
         for (const watcher of watchers) watcher({ done, total, label: latest });
     };
 
-    const idle: Worker[] = [];
-    const waiting: ((worker: Worker) => void)[] = [];
-    let workers = 0, asks = 0;
     const most = Math.max(1, Math.min(MOST_WORKERS, cores - 1, models.length));
-    const hire = (): Promise<Worker> => {
-        const free = idle.pop();
-        if (free) return Promise.resolve(free);
-        if (workers < most) {
-            workers++;
-            return Promise.resolve(new Worker(workerUrl));
-        }
-        return new Promise((resolve) => waiting.push(resolve));
-    };
-    const free = (worker: Worker): void => {
-        const next = waiting.shift();
-        if (next) next(worker);
-        else idle.push(worker);
-    };
-
-    const bake = (index: number): Promise<Baked> => {
-        const model = models[index]!;
-        const name = model.source.replace(/^.*\//, '').replace(/\.esmodel$/i, '');
-        return hire().then((worker) => new Promise<Baked>((resolve, reject) => {
-            const id = ++asks, began = performance.now();
-            const heard = (event: MessageEvent<BakeReply>): void => {
-                const reply = event.data;
-                if (reply.id !== id) return;
+    const pool: Worker[] = [];
+    const answers = new Map<number, { index: number; resolve: (reply: BakeReply) => void; reject: (error: Error) => void }>();
+    let asks = 0;
+    const workerFor = (index: number): Worker => {
+        const slot = index % most;
+        let worker = pool[slot];
+        if (!worker) {
+            worker = new Worker(workerUrl);
+            if (yielding) worker.postMessage({ pace: 'yielding' } satisfies BakeAsk);
+            worker.addEventListener('message', (event: MessageEvent<BakeReply>) => {
+                const reply = event.data, waiting = answers.get(reply.id);
+                if (!waiting) return;
                 if ('stage' in reply) {
                     let before = 0;
                     for (const [stage, weight] of STAGES) {
-                        if (stage === reply.stage) { share[index] = Math.max(share[index]!, (before + weight * (reply.total > 0 ? reply.done / reply.total : 0)) / STAGE_TOTAL); break; }
+                        if (stage === reply.stage) { share[waiting.index] = Math.max(share[waiting.index]!, (before + weight * (reply.total > 0 ? reply.done / reply.total : 0)) / STAGE_TOTAL); break; }
                         before += weight;
                     }
-                    latest = name;
+                    latest = names[waiting.index]!;
                     tell();
                     return;
                 }
-                worker.removeEventListener('message', heard);
-                worker.removeEventListener('error', failed);
-                free(worker);
-                if ('error' in reply) { reject(new Error(`${model.source}: ${reply.error}`)); return; }
-                share[index] = 1;
-                made[index] = true;
-                took.push(`${name} ${((performance.now() - began) / 1000).toFixed(1)}s${reply.kept ? ' (kept)' : ''}`);
-                latest = name;
-                tell();
-                resolve({ mesh: reply.mesh, maps: new Map(reply.maps.map((map) => [map.name, { width: map.size, height: map.size, pixels: map.rgba }])) });
-            };
-            const failed = (event: ErrorEvent): void => {
-                worker.removeEventListener('message', heard);
-                worker.removeEventListener('error', failed);
-                workers--;
-                reject(new Error(`${model.source}: the bake worker stopped: ${event.message}`));
-            };
-            worker.addEventListener('message', heard);
-            worker.addEventListener('error', failed);
-            worker.postMessage({ id, text: model.text, limit } satisfies BakeAsk);
-        }));
-    };
-    const wanted = (index: number): Promise<Baked> => baked[index] ??= bake(index);
-
-    const take = async (model: number, role: ModelProductRole): Promise<Uint8Array | Pixels> => {
-        for (let attempt = 0; ; attempt++) {
-            const result = await wanted(model);
-            const piece = role === 'mesh' ? result.mesh : result.maps.get(role);
-            if (role === 'mesh') result.mesh = null;
-            else result.maps.delete(role);
-            if (!result.mesh && result.maps.size === 0) baked[model] = null;
-            if (piece) return piece;
-            if (attempt > 0) throw new Error(`${models[model]!.source} bakes no ${role}`);
-            baked[model] = null;
+                answers.delete(reply.id);
+                if ('error' in reply) waiting.reject(new Error(`${models[waiting.index]!.source}: ${reply.error}`));
+                else waiting.resolve(reply);
+            });
+            worker.addEventListener('error', (event: ErrorEvent) => {
+                for (const [id, waiting] of answers) {
+                    if (waiting.index % most !== slot) continue;
+                    answers.delete(id);
+                    waiting.reject(new Error(`${models[waiting.index]!.source}: the bake worker stopped: ${event.message}`));
+                }
+            });
+            pool[slot] = worker;
         }
+        return worker;
     };
+    const ask = <T extends BakeReply>(index: number, part: 'shape' | 'maps'): Promise<T> => new Promise<T>((resolve, reject) => {
+        const id = ++asks;
+        answers.set(id, { index, resolve: resolve as (reply: BakeReply) => void, reject });
+        workerFor(index).postMessage({ id, model: index, part, text: models[index]!.text, limit } satisfies BakeAsk);
+    });
 
-    let running: Promise<void> | null = null;
-    const all = async (): Promise<void> => {
+    const begin = (): void => {
+        if (started) return;
+        started = true;
         const order = models.map((_, index) => index).sort((a, b) => weights[b]! - weights[a]!);
         const began = performance.now();
-        await Promise.all(order.filter((index) => !made[index]).map((index) => wanted(index)));
-        console.info(`[model-bake] ${took.length} model(s) at ${limit} in ${((performance.now() - began) / 1000).toFixed(1)}s on ${most} worker(s): ${took.join(', ')}`);
+        for (const index of order) meshes[index] = ask<Reply<'mesh'>>(index, 'shape').then((reply) => reply.mesh);
+        for (const index of order) {
+            maps[index] = ask<Reply<'maps'>>(index, 'maps').then(async (reply) => {
+                const baked = new Map(reply.maps.map((map) => [map.name, { width: map.size, height: map.size, pixels: map.rgba }]));
+                ready[index] = baked;
+                share[index] = 1;
+                took.push(`${names[index]} at ${((performance.now() - began) / 1000).toFixed(1)}s`);
+                console.info(`[model-bake] ${took[took.length - 1]}`);
+                latest = names[index]!;
+                tell();
+                if (refresh) for (const path of shown[index]!) await refresh(path).catch(() => undefined);
+                shown[index]!.clear();
+                return baked;
+            });
+        }
+        void Promise.allSettled(maps).then(() => {
+            console.info(`[model-bake] ${took.length} model(s) at ${limit} in ${((performance.now() - began) / 1000).toFixed(1)}s on ${most} worker(s): ${took.join(', ')}`);
+        });
     };
+
     const work: LoadWork = {
-        get pending() { return made.some((done) => !done); },
+        get pending() { return ready.some((done) => done === null); },
+        yieldToGame() {
+            yielding = true;
+            for (const worker of pool) worker?.postMessage({ pace: 'yielding' } satisfies BakeAsk);
+        },
         async run(onProgress) {
+            begin();
             if (onProgress) watchers.add(onProgress);
             try {
                 tell();
-                await (running ??= all());
+                await Promise.all(maps);
                 tell();
             } finally {
-                running = null;
                 if (onProgress) watchers.delete(onProgress);
             }
         },
@@ -153,20 +163,32 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
 
     return {
         work,
+        refreshWith(next) {
+            refresh = next;
+        },
         serve(source) {
+            begin();
             const inner = source.backend;
             const backend = Object.create(inner) as Backend;
             backend.fetchBinary = async (path: string): Promise<ArrayBuffer> => {
                 const hit = owner.get(plain(path));
                 if (!hit) return inner.fetchBinary(path);
-                const bytes = await take(hit.model, hit.role) as Uint8Array;
+                if (hit.role !== 'mesh') throw new Error(`${models[hit.model]!.source}: its ${hit.role} map is a picture, not a file`);
+                const bytes = await meshes[hit.model]!;
                 return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
             };
             const decode = source.decodePixels;
             const decodePixels = async (path: string, ...rest: never[]): Promise<Pixels> => {
                 const hit = owner.get(plain(path));
-                if (hit) return await take(hit.model, hit.role) as Pixels;
-                return decode!(path, ...rest);
+                if (!hit || hit.role === 'mesh') return decode!(path, ...rest);
+                const baked = ready[hit.model];
+                if (baked) {
+                    const map = baked.get(hit.role);
+                    if (map) { baked.delete(hit.role); return map; }
+                    return placeholder(hit.role);
+                }
+                shown[hit.model]!.add(path);
+                return placeholder(hit.role);
             };
             return { ...source, backend, decodePixels };
         },

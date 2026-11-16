@@ -6122,6 +6122,7 @@ uiThemeOverrides: ThemeOverrides | undefined
 ```
 pending: boolean
 run: (onProgress?: (progress: LoadWorkProgress) => void) => Promise<void>
+yieldToGame: () => void
 ```
 
 ## LoadWorkProgress — interface @experimental

@@ -13,7 +13,6 @@ const CACHE_NAME = 'estella-model-bake';
 const CACHE_VERSION = 1;
 
 export interface LoadedModel {
-    mesh: Uint8Array;
     maps: Partial<Record<ModelMapName, { size: number; rgba: Uint8Array }>>;
 }
 
@@ -26,23 +25,6 @@ function sized(raw: unknown, limit: number): unknown {
     detail.size = Math.max(MIN_SIZE, limit);
     if (detail.occlusion?.size) detail.occlusion.size = Math.max(MIN_OCCLUSION, 2 ** Math.round(Math.log2(detail.occlusion.size * share)));
     return source;
-}
-
-export async function bakeModelAtLoad(gl: WebGL2RenderingContext, raw: unknown, limit: number, tick?: (stage: BakeStage, done: number, total: number) => void): Promise<LoadedModel> {
-    await MeshoptSimplifier.ready;
-    warmBakePrograms(gl);
-    tick?.('shape', 0, 1);
-    const baked = bakeModel(validateModelSource(sized(raw, limit)));
-    tick?.('shape', 1, 1);
-    const model: LoadedModel = { mesh: encodeMesh(baked.data), maps: {} };
-    if (!baked.detail) return model;
-    const map = await gpuNormalBake(gl, baked, tick);
-    model.maps.normal = { size: map.size, rgba: map.rgba };
-    if (map.colorRgba) model.maps.color = { size: map.size, rgba: map.colorRgba };
-    if (map.surfaceRgba) model.maps.surface = { size: map.size, rgba: map.surfaceRgba };
-    if (map.emissiveRgba) model.maps.emissive = { size: map.size, rgba: map.emissiveRgba };
-    if (map.occlusion) model.maps.occlusion = map.occlusion;
-    return model;
 }
 
 export const canBakeAtLoad = (gl: WebGL2RenderingContext | null): gl is WebGL2RenderingContext => !!gl && GpuProbes.supported(gl);
@@ -87,38 +69,60 @@ const request = <T>(made: IDBRequest<T>): Promise<T | undefined> => new Promise(
     made.onerror = () => resolve(undefined);
 });
 
-export interface KeptBake {
-    model: LoadedModel;
+export interface ShapedModel {
+    mesh: Uint8Array;
     kept: boolean;
-    keep(): Promise<void>;
+    maps(tick?: (stage: BakeStage, done: number, total: number) => void): Promise<{ maps: LoadedModel['maps']; keep(): Promise<void> }>;
 }
 
-export async function keptModelBake(gl: WebGL2RenderingContext, text: string, limit: number, tick?: (stage: BakeStage, done: number, total: number) => void): Promise<KeptBake> {
+export async function shapeModelAtLoad(gl: WebGL2RenderingContext, text: string, limit: number, tick?: (stage: BakeStage, done: number, total: number) => void): Promise<ShapedModel> {
     const [db, key] = await Promise.all([store(), keyOf(text, limit)]);
     const packs = typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined';
-    if (db) {
-        const kept = await request<Kept>(db.transaction('models').objectStore('models').get(key));
-        if (kept && (!kept.packed || packs)) {
-            const model: LoadedModel = { mesh: kept.mesh, maps: {} };
-            for (const map of kept.maps) model.maps[map.name] = { size: map.size, rgba: kept.packed ? await through(map.bytes, new DecompressionStream('deflate-raw')) : map.bytes };
-            db.close();
-            return { model, kept: true, keep: async () => undefined };
-        }
+    const kept = db ? await request<Kept>(db.transaction('models').objectStore('models').get(key)) : undefined;
+    if (kept && (!kept.packed || packs)) {
+        db?.close();
+        return {
+            mesh: kept.mesh, kept: true,
+            async maps() {
+                const maps: LoadedModel['maps'] = {};
+                for (const map of kept.maps) maps[map.name] = { size: map.size, rgba: kept.packed ? await through(map.bytes, new DecompressionStream('deflate-raw')) : map.bytes };
+                return { maps, keep: async () => undefined };
+            },
+        };
     }
-    const model = await bakeModelAtLoad(gl, JSON.parse(text), limit, tick);
-    const keep = async (): Promise<void> => {
-        if (!db) return;
-        const maps: Kept['maps'] = [];
-        for (const name of MODEL_MAPS) {
-            const map = model.maps[name];
-            if (map) maps.push({ name, size: map.size, bytes: packs ? await through(map.rgba, new CompressionStream('deflate-raw')) : map.rgba });
-        }
-        try {
-            await request(db.transaction('models', 'readwrite').objectStore('models').put({ packed: packs, mesh: model.mesh, maps } satisfies Kept, key));
-        } catch {
-            void 0;
-        }
-        db.close();
+    await MeshoptSimplifier.ready;
+    tick?.('shape', 0, 1);
+    const baked = bakeModel(validateModelSource(sized(JSON.parse(text), limit)));
+    tick?.('shape', 1, 1);
+    const mesh = encodeMesh(baked.data);
+    return {
+        mesh, kept: false,
+        async maps(step) {
+            const maps: LoadedModel['maps'] = {};
+            if (baked.detail) {
+                warmBakePrograms(gl);
+                const map = await gpuNormalBake(gl, baked, step);
+                maps.normal = { size: map.size, rgba: map.rgba };
+                if (map.colorRgba) maps.color = { size: map.size, rgba: map.colorRgba };
+                if (map.surfaceRgba) maps.surface = { size: map.size, rgba: map.surfaceRgba };
+                if (map.emissiveRgba) maps.emissive = { size: map.size, rgba: map.emissiveRgba };
+                if (map.occlusion) maps.occlusion = map.occlusion;
+            }
+            const keep = async (): Promise<void> => {
+                if (!db) return;
+                const packed: Kept['maps'] = [];
+                for (const name of MODEL_MAPS) {
+                    const m = maps[name];
+                    if (m) packed.push({ name, size: m.size, bytes: packs ? await through(m.rgba, new CompressionStream('deflate-raw')) : m.rgba });
+                }
+                try {
+                    await request(db.transaction('models', 'readwrite').objectStore('models').put({ packed: packs, mesh, maps: packed } satisfies Kept, key));
+                } catch {
+                    void 0;
+                }
+                db.close();
+            };
+            return { maps, keep };
+        },
     };
-    return { model, kept: false, keep };
 }
