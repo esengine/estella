@@ -184,6 +184,7 @@ async function boot(): Promise<void> {
     // With none left compiling the warm-up is waiting on what is still being made (a ground's pages, a field's cells).
     splash.busy(pending > 0 ? 'Compiling shaders' : 'Preparing the scene');
   };
+  await splash.held();
   await initPlayableRuntime({
     app,
     module,

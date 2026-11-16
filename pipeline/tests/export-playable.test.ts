@@ -260,8 +260,9 @@ describe('exportGame (playable)', () => {
     expect(inlinedText(html, '__GAME_BUNDLE__')).toContain('__GAME_MANIFEST__');
     // The page opens on a start screen (the engine is inflated and compiled before anything can be drawn), in markup that is there
     // before any script runs, and the host is what takes it away.
-    expect(html).toContain('<div id="es-splash" role="status"');
-    expect(html).toContain('<div class="es-splash-title">Tiled</div>');
+    expect(html).toContain('<div id="es-splash" class="es-splash-marked" role="status"');
+    expect(html).toContain('<canvas id="es-splash-gl"');
+    expect(html).toContain('data-min-ms="2800"');
     expect(html.indexOf('id="es-splash"')).toBeLessThan(html.indexOf('<script>'));
     expect(inlinedText(html, '__GAME_BUNDLE__')).toContain('es-splash-gone');
   }, 60_000);
