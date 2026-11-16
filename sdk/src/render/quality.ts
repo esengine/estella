@@ -119,6 +119,13 @@ export interface DeviceQualityRule {
     maxCores?: number;
 }
 
+export interface QualityPreferences {
+    renderScale?: number;
+    antialiasing?: 'off' | 'msaa' | 'temporal';
+    ssao?: boolean;
+    skipEffects?: readonly string[];
+}
+
 /** @experimental */
 export interface QualityConfig {
     mode?: QualityMode;
@@ -410,6 +417,7 @@ export class QualityController {
     private reason_ = 'disabled';
     private modeReason_ = 'disabled';
     private limitations_ = new Set<string>();
+    private preferences_: QualityPreferences = {};
 
     constructor(config: QualityConfig, private readonly device_: DeviceQualityInfo = {}) {
         this.config_ = parseQualityConfig(config);
@@ -428,12 +436,37 @@ export class QualityController {
         this.modeLevel_ = mode === 'off' ? 'high' : mode === 'auto'
             ? rule?.level ?? (low ? 'low' : 'medium') : mode;
         this.level_ = this.ceilingOf_(this.modeLevel_);
-        this.profile_ = resolveProfile(this.level_, this.config_.profiles?.[this.level_]);
+        this.profile_ = this.resolve_(this.level_);
         this.scale_ = mode === 'off' ? 1 : this.profile_.renderScale;
         this.resetSampling_(true);
         this.reason_ = mode === 'off' ? 'disabled' : mode !== 'auto' ? 'manual'
             : rule ? 'device-rule' : low ? 'device-capacity' : 'device-unknown';
         this.modeReason_ = this.reason_;
+    }
+
+    get preferences(): Readonly<QualityPreferences> { return this.preferences_; }
+
+    setPreferences(preferences: QualityPreferences | null): void {
+        this.preferences_ = { ...(preferences ?? {}) };
+        this.profile_ = this.resolve_(this.level_);
+        this.scale_ = this.enabled ? this.profile_.renderScale : 1;
+        this.resetSampling_(true);
+    }
+
+    private resolve_(level: QualityLevel): QualityProfile {
+        const authored = record(this.config_.profiles?.[level]);
+        const base = resolveProfile(level, authored);
+        const p = this.preferences_;
+        const off = p.antialiasing === 'off';
+        return resolveProfile(level, {
+            ...authored,
+            ...(p.renderScale !== undefined ? { renderScale: p.renderScale, minRenderScale: Math.min(base.minRenderScale, p.renderScale) } : {}),
+            ...(off ? { msaaSamples: 1, antialiasing: 'msaa' } : {}),
+            ...(p.antialiasing === 'msaa' ? { antialiasing: 'msaa', msaaSamples: base.msaaSamples > 1 ? base.msaaSamples : 4 } : {}),
+            ...(p.antialiasing === 'temporal' ? { antialiasing: 'temporal' } : {}),
+            ...(p.ssao !== undefined ? { ssao: p.ssao } : {}),
+            skipEffects: [...base.skipEffects.filter(e => p.antialiasing !== 'temporal' || e !== 'taa'), ...(off ? ['fxaa', 'taa'] : []), ...(p.skipEffects ?? [])],
+        });
     }
 
     private ceilingOf_(level: QualityLevel): QualityLevel {
@@ -451,7 +484,7 @@ export class QualityController {
         this.setLimitation('power-saver', next !== this.modeLevel_);
         if (next === this.level_) return;
         this.level_ = next;
-        this.profile_ = resolveProfile(next, this.config_.profiles?.[next]);
+        this.profile_ = this.resolve_(next);
         this.scale_ = this.enabled ? this.profile_.renderScale : 1;
         this.resetSampling_(true);
         this.reason_ = next !== this.modeLevel_ ? 'power-saver' : this.modeReason_;
