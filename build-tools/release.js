@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { execSync } from 'child_process';
 import chalk from 'chalk';
 
@@ -50,6 +50,10 @@ console.log(chalk.bold.white(`\n═══ Release v${version} ═══\n`));
 // The notes and the supported-versions table have to name this release. Checked
 // again after the bump below by check-release-metadata (which `verify` runs), so
 // this is the early, specific failure rather than the one at push time.
+const waiting = existsSync('changelog.d') ? readdirSync('changelog.d').filter((name) => name.endsWith('.md') && name !== 'README.md') : [];
+if (waiting.length) {
+    die(`changelog.d/ holds ${waiting.length} note(s) not yet in CHANGELOG.md — run \`node tools/assemble-changelog.mjs\` and commit before releasing.`);
+}
 const changelog = readFileSync('CHANGELOG.md', 'utf8');
 if (!changelog.includes(`## [${version}]`)) {
     die(`CHANGELOG.md has no "## [${version}]" entry — rename [Unreleased] before releasing.`);
