@@ -1251,7 +1251,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 key.depthBias = m->depthBias;
             }
         } else if (mesh.lit && ctx.frame) {
-            if (litProgram == 0) litProgram = ctx.frame->batchProgram({"LIT"});
+            if (litProgram == 0) litProgram = ctx.frame->batchProgram(BatchVariant::Lit);
             if (litProgram != 0) key.shaderId = litProgram;
         }
 

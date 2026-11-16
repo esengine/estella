@@ -146,7 +146,7 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
             }
         } else if (sprite.lit && ctx.frame) {
             // A material owns shading fully, so it takes precedence over the toggle.
-            if (litProgram == 0) litProgram = ctx.frame->batchProgram({"LIT"});
+            if (litProgram == 0) litProgram = ctx.frame->batchProgram(BatchVariant::Lit);
             if (litProgram != 0) key.shaderId = litProgram;
         }
 
@@ -156,7 +156,7 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
         if (ctx.frame) {
             if (const auto* mask = registry.tryGet<ecs::SpriteMask>(entity);
                 mask && mask->enabled && mask->alphaCutoff > 0.0f) {
-                key.shaderId = ctx.frame->batchProgram({"ALPHA_CLIP"});
+                key.shaderId = ctx.frame->batchProgram(BatchVariant::AlphaClip);
             }
         }
 

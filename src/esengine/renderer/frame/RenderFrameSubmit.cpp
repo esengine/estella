@@ -69,10 +69,10 @@ void RenderFrame::submitTextBatch(
     // which multiplies the page's RGBA by the tint (native-AA bitmap coverage in alpha, or a colour font).
     u32 program = 0;
     switch (mode) {
-        case TextGlyphMode::Sdf: program = batchProgram({"SDF"}); break;
-        case TextGlyphMode::Mask: program = batchProgram({"GLYPH_MASK"}); break;
-        case TextGlyphMode::Fill: program = batchProgram({"GLYPH_FILL"}); break;
-        case TextGlyphMode::Color: program = batchProgram({}); break;
+        case TextGlyphMode::Sdf: program = batchProgram(BatchVariant::Sdf); break;
+        case TextGlyphMode::Mask: program = batchProgram(BatchVariant::GlyphMask); break;
+        case TextGlyphMode::Fill: program = batchProgram(BatchVariant::GlyphFill); break;
+        case TextGlyphMode::Color: program = batchProgram(BatchVariant::Plain); break;
     }
     pushBatchCommand(pool_, draw_list_, clip_state_, vOff, static_cast<u32>(vertexCount), indices,
                      static_cast<u32>(indexCount), BatchDrawKey{
@@ -135,7 +135,7 @@ void RenderFrame::submitSkeletalBatch(
     }
 
     const u32 defaultShader = !builtinColor ? material->shader
-        : premultipliedColor ? premultipliedBatchProgram() : batch_shader_id_;
+        : premultipliedColor ? batchProgram(BatchVariant::PremultipliedColor) : batch_shader_id_;
     BatchDrawKey key{
         .stage = current_stage_,
         .layer = layer,

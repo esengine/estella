@@ -34,6 +34,7 @@
 #include "../../resource/ResourceManager.hpp"
 
 #include <glm/glm.hpp>
+#include <array>
 #include <span>
 #include <unordered_map>
 #include <vector>
@@ -87,6 +88,8 @@ private:
     bool active_ = false;
     f32 last_ms_ = -1.0f;
 };
+
+enum class BatchVariant : u8 { Plain, Lit, AlphaClip, Sdf, GlyphMask, GlyphFill, PremultipliedColor, DisplayOutput, Count };
 
 class RenderFrame {
 public:
@@ -627,15 +630,9 @@ public:
      */
     bool visibleToCamera(i32 layer, const glm::vec3& center, const glm::vec3& halfExtents) const;
 
-    /**
-     * Compiled program id for a batch-shader feature variant, compiled+cached on
-     * first use. `{}` is the default batch program; `{"SDF"}`
-     * is the glyph-atlas SDF text variant. Same vertex layout + sampler/UBO setup
-     * as the default, so quads of any variant share the batch vertex format.
-     */
+    u32 batchProgram(BatchVariant variant);
     u32 batchProgram(const std::vector<std::string>& features);
     u32 displayProgram(u32 program);
-    u32 premultipliedBatchProgram();
 
     static constexpr u32 STAGE_COUNT = 4;
 
@@ -773,12 +770,8 @@ private:
     std::unordered_map<u32, EntityStencilInfo> stencil_masks_;
 
     u32 batch_shader_id_ = 0;
-    // Compiled batch-shader variants keyed by ShaderParser::variantKey(features).
-    // {} → default, {"SDF"} → glyph-atlas text.
-    /// Variant key -> the shader HANDLE. Not the program id: rebuilding the
-    /// device changes every id, and the handle is what stays true across it.
     std::unordered_map<std::string, resource::ShaderHandle> batch_variants_;
-    const resource::ShaderHandle* premultiplied_batch_handle_ = nullptr;
+    std::array<const resource::ShaderHandle*, static_cast<usize>(BatchVariant::Count)> batch_variant_handles_{};
     TransientBufferPool pool_;
     DrawList draw_list_;
     bool linear_color_ = false;
@@ -1011,6 +1004,7 @@ private:
     /// eagerly. Every other pass of the frame is the graph's to open.
     void openPass(const PassClear& clear, RenderTargetManager::Handle target);
     u32 initBatchShader();
+    const resource::ShaderHandle& batchVariantHandle(const std::vector<std::string>& features);
     resource::ShaderHandle compileBatchVariant(const std::vector<std::string>& features);
 
     /**

@@ -261,7 +261,7 @@ void RenderFrame::drawOverScreen(i32 vpX, i32 vpY, u32 vpW, u32 vpH, RenderTarge
     }
     // The pixels are the display's by now, past the post chain and the screen's UI: a
     // linear frame's colours go through the variant that encodes them, as the overlay's do.
-    const ShaderHandle program = linear_color_ ? ShaderHandle{batchProgram({"DISPLAY_OUTPUT"})} : ShaderHandle::Invalid;
+    const ShaderHandle program = linear_color_ ? ShaderHandle{batchProgram(BatchVariant::DisplayOutput)} : ShaderHandle::Invalid;
     const glm::mat4 viewProjection = draw->viewProjection();
 
     device_.invalidatePipelineCache();
