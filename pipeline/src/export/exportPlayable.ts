@@ -396,7 +396,7 @@ export async function exportPlayable(opts: {
       const worker = await build({
         entryPoints: [runtimeHostEntry(opts.hostsDir, 'modelBakeWorker')],
         bundle: true,
-        format: 'esm',
+        format: 'iife',
         platform: 'browser',
         target: 'es2020',
         external: ['manifold-3d/manifold'],

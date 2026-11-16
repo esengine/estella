@@ -298,6 +298,7 @@ const BLOCKS = [
       planarReflectionMaxSize: { ui: 'project.rendering.quality.planarReflectionMaxSize' },
       planarReflectionUpdatesPerSecond: { ui: 'project.rendering.quality.planarReflectionUpdatesPerSecond' },
       depthPrepass: { ui: 'project.rendering.quality.depthPrepass' },
+      stillSky: { owed: 'whether a sky declared still is drawn from its panorama on this level is set only in project.esproject; it wants a row beside depthPrepass' },
       postProcess: { ui: 'project.rendering.quality.postProcess' },
       ssao: { ui: 'project.rendering.quality.effects' },
       waterWaves: { ui: 'project.rendering.quality.waterWaves' },

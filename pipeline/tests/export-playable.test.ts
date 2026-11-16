@@ -78,7 +78,7 @@ beforeAll(() => {
   // Stub SDK dist exporting what the real host + scripts import (bundles for real).
   mkdirSync(path.join(root, '_sdk'), { recursive: true });
   writeFileSync(path.join(root, '_sdk', 'index.js'),
-    `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function setLoadWork(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function defineComponent(){}\nexport function parseThemeOverrides(){}
+    `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function setLoadWork(){}\nexport const Assets={};\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function defineComponent(){}\nexport function parseThemeOverrides(){}
 export function packagedAppOptions(c){return c;}
 export function packagedRuntimeInit(c){return c;}
 export function glContextAttributes(){return {};}\n`);
@@ -537,7 +537,7 @@ describe('exportGame (playable) — side-module embedding', () => {
       writeFileSync(path.join(r, '_sdk', part, 'index.js'), 'export {};\n');
     }
     writeFileSync(path.join(r, '_sdk', 'index.js'),
-      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function setLoadWork(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function parseThemeOverrides(){}
+      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function setLoadWork(){}\nexport const Assets={};\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function parseThemeOverrides(){}
 export function packagedAppOptions(c){return c;}
 export function packagedRuntimeInit(c){return c;}
 export function glContextAttributes(){return {};}\n`);
@@ -646,7 +646,7 @@ describe('exportGame (playable) — spine embedding', () => {
       writeFileSync(path.join(r, '_sdk', part, 'index.js'), 'export {};\n');
     }
     writeFileSync(path.join(r, '_sdk', 'index.js'),
-      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function setLoadWork(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function parseThemeOverrides(){}
+      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function setLoadWork(){}\nexport const Assets={};\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function parseThemeOverrides(){}
 export function packagedAppOptions(c){return c;}
 export function packagedRuntimeInit(c){return c;}
 export function glContextAttributes(){return {};}\n`);

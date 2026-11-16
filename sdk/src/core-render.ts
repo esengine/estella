@@ -370,7 +370,7 @@ export {
 } from './render/customDraw';
 export { QualityController, judgeFrames, parseQualityConfig, resolveQualityProfile, defaultQualityProfile, defaultQualityMode, MOST_WATER_WAVES } from './render/quality';
 export type {
-    QualityConfig, QualityProfile, QualityLevel, QualityMode,
+    QualityConfig, QualityProfile, QualityLevel, QualityMode, QualityPreferences,
     QualityReport, QualitySample, FrameVerdict, DeviceQualityInfo, DeviceQualityRule,
 } from './render/quality';
 export { Quality } from './render/qualityRuntime';
