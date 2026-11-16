@@ -229,10 +229,14 @@ def ship_source():
     def loft(tag,color,rows,x=0.0,**k):
         step(op='loft',sections=[{'at':[x,y,z],'points':oct(w,h,c)} for (z,w,h,c,y) in rows],curve=1,tag=tag,color=color,**k)
     def nozzle(x,y,z,r):
-        step(op='lathe',axis='z',at=[x,y,z],profile=[[0,0.3],[r*0.72,0.3],[r,-r*1.15],[r*0.88,-r*1.15],[r*0.45,-r*0.3],[0,-r*0.3]],sides=24,tag='nozzle',color=[0.06,0.055,0.05])
-        step(op='lathe',axis='z',at=[x,y,z-r*0.34],profile=[[0,0],[r*0.5,0],[r*0.5,-0.08],[0,-0.08]],sides=24,tag='thrust',color=[0.5,0.78,1.0])
-        step(op='lathe',axis='z',at=[x,y,z+0.6],profile=[[r*1.02,0.9],[r*1.2,0.9],[r*1.2,-0.9],[r*1.02,-0.9]],sides=24,tag='cowl',color=[0.1,0.105,0.115])
+        step(op='lathe',axis='z',at=[x,y,z],profile=[[0,0.3],[r*0.74,0.3],[r*0.8,-r*0.3],[r,-r*1.25],[r*0.9,-r*1.25],[r*0.42,-r*0.32],[0,-r*0.32]],sides=24,tag='nozzle',color=[0.06,0.055,0.05])
+        step(op='lathe',axis='z',at=[x,y,z-r*0.36],profile=[[0,0],[r*0.42,0],[r*0.42,-0.08],[0,-0.08]],sides=24,tag='thrust',color=[0.5,0.78,1.0])
+        for k in (0.4,0.74):
+            rr=r*(0.8+0.2*k)
+            step(op='lathe',axis='z',at=[x,y,z-r*(0.3+0.95*k)],profile=[[rr-0.05,0.13],[rr+0.17,0.13],[rr+0.17,-0.13],[rr-0.05,-0.13]],closed=True,sides=24,tag='rib',color=[0.1,0.105,0.115])
+        step(op='lathe',axis='z',at=[x,y,z-1.3],profile=[[r*1.02,0.9],[r*1.2,0.9],[r*1.2,-0.9],[r*1.02,-0.9]],sides=24,tag='cowl',color=[0.1,0.105,0.115])
 
+    THROAT={'tag':'nozzle','facing':'-z','tolerance':70}
     HULL=[0.33,0.34,0.35]; UPPER=[0.24,0.26,0.29]; DARK=[0.095,0.1,0.11]; WARM=[1.0,0.8,0.5]; ACCENT=[0.6,0.15,0.03]
     H=[(-44,9,5.5,2.2,0),(-30,10.5,6,2.5,0),(-8,10,5.5,2.5,0),(6,7.5,4.5,2.0,-0.3),(20,6,3.6,1.6,-0.6),(34,4.2,2.6,1.2,-1.0),(45,2.9,1.8,0.8,-1.3)]
     def at(z):
@@ -264,8 +268,13 @@ def ship_source():
     step(op='box',size=[0.55,6.5,8.5],at=[7.2,8.4,-38.5],tag='fin',color=UPPER)
     step(op='transform',faces='fin',rotate=[0,0,-24],pivot=[7.2,5.4,-38.5])
     nozzle(17,-1,-46,2.4)
-    step(op='mirror',faces={'tag':['strake','nacelle','pylon','prong','fin','nozzle','thrust','cowl']},axis='x',at=0)
+    step(op='mirror',faces={'tag':['strake','nacelle','pylon','prong','fin','nozzle','rib','thrust','cowl']},axis='x',at=0)
     nozzle(4.5,0,-44,3.2); nozzle(-4.5,0,-44,3.2)
+    loft('shield',DARK,[(-44.9,8.2,4.8,2.0,0),(-43.9,8.2,4.8,2.0,0)])
+    step(op='box',size=[0.8,9.2,1.0],at=[0,0,-45.3],tag='shield',color=DARK)
+    for sx in (1,-1):
+        for sy in (1,-1):
+            step(op='box',size=[1.1,0.8,1.0],at=[sx*7.0,sy*3.6,-45.3],tag='shield',color=UPPER)
     for (x,z,s) in [(0,13,1),(0,27,1),(0,10,-1),(5.8,-12,1),(-5.8,-12,1)]:
         a=at(z); y=a[4]+s*a[2] if abs(x)<a[1]-a[3] else a[4]+s*(a[2]-a[3]*0.5)
         step(op='cylinder',radius=1.6,height=0.5,sides=20,at=[x,y+0.25*s,z],tag='turret',color=DARK)
@@ -281,13 +290,15 @@ def ship_source():
     src={'version':1,'smoothAngle':28,'material':{'roughness':0.42,'metallic':0,'coat':SHIP_COAT[0],'coatRoughness':SHIP_COAT[1],'emissive':[16,16,16],'detail':SHIP_DETAIL},'steps':S}
     if True:
         step(op='paint',faces={'tag':['nacelle','pylon','keel']},roughness=0.46,metallic=0.2)
-        step(op='paint',faces={'tag':['mast','turret','barrel','cowl']},color=[0.3,0.31,0.34],roughness=0.32,metallic=0.9)
-        step(op='paint',faces='nozzle',color=[0.44,0.42,0.4],roughness=0.26,metallic=1)
+        step(op='paint',faces={'tag':['mast','turret','barrel','cowl','rib']},color=[0.3,0.31,0.34],roughness=0.32,metallic=0.9)
+        step(op='paint',faces='nozzle',color=[0.2,0.19,0.185],roughness=0.36,metallic=1)
+        step(op='paint',faces=THROAT,color=[0.03,0.03,0.035],roughness=0.6,metallic=0.3)
+        step(op='paint',faces='shield',roughness=0.5,metallic=0.3)
         step(op='paint',faces='window',glow=0.1,roughness=0.08)
         step(op='paint',faces='thrust',glow=1)
         step(op='panels',faces='hull',size=4.4,uneven=0.85,gap=0.1,height=[0.05,0.2],bevel=0.06,tones=0.2,along=[0,0,1],seed=5,tag='plate')
         step(op='panels',faces={'tag':['upper','bridge','strake','fin']},size=2.3,uneven=0.8,gap=0.08,height=[0.04,0.13],bevel=0.045,tones=0.18,along=[0,0,1],seed=9,tag='plate')
-        step(op='panels',faces={'tag':['nacelle','pylon','keel','prong']},size=2.8,uneven=0.8,gap=0.09,height=[0.04,0.14],bevel=0.05,tones=0.22,along=[0,0,1],seed=14,tag='trim')
+        step(op='panels',faces={'tag':['nacelle','pylon','keel','prong','shield']},size=2.8,uneven=0.8,gap=0.09,height=[0.04,0.14],bevel=0.05,tones=0.22,along=[0,0,1],seed=14,tag='trim')
         step(op='panels',faces={'tag':'plate','within':{'min':[None,None,-46],'max':[None,None,46]}},size=1.25,uneven=0.75,gap=0.04,height=[0.006,0.022],bevel=0.008,tones=0.07,along=[0,0,1],seed=31,tag='plate')
         P={'tag':['plate','plateSide']}
         step(op='paint',faces={**P,'facing':'-y','tolerance':52},color=[0.11,0.115,0.125],roughness=0.48)
@@ -327,7 +338,7 @@ def ship_source():
             step(op='box',size=[0.28,0.2,0.28],at=[x,y,z],tag='lamp',color=c)
         step(op='paint',faces='lamp',glow=1)
         S[-1]['id']='dense'
-        A={'tag':['plate','plateSide','trim','trimSide']}; G={'tag':['plate','plateSide','trim','trimSide','gear','pipe','turret','cowl']}
+        A={'tag':['plate','plateSide','trim','trimSide']}; G={'tag':['plate','plateSide','trim','trimSide','gear','pipe','turret','cowl','rib']}
         T=dict(op='stain',texel=True)
         step(**T,faces={'tag':['plate']},line={'points':[[3.0,at(30)[4]+at(30)[2]+0.12,30],[4.2,at(8)[4]+at(8)[2]+0.12,8]],'width':0.16},hard=True,color=[0.66,0.66,0.64])
         step(**T,faces={'tag':['plate']},line={'points':[[-3.0,at(30)[4]+at(30)[2]+0.12,30],[-4.2,at(8)[4]+at(8)[2]+0.12,8]],'width':0.16},hard=True,color=[0.66,0.66,0.64])
@@ -359,12 +370,14 @@ def ship_source():
         step(**T,faces='plate',pattern='scratches',scale=3.2,width=0.012,threshold=0.5,softness=0.3,color=[0.6,0.6,0.6],roughness=0.3,amount=0.6,seed=3)
         step(**T,faces={'tag':['plate','trim']},pattern='scratches',scale=1.1,width=0.012,threshold=0.5,softness=0.3,roughness=0.28,amount=0.45,seed=13)
         step(**T,faces={'tag':['plate','trim']},pattern='pores',scale=0.5,width=0.18,threshold=0.5,softness=0.2,color=[0.045,0.04,0.036],roughness=0.9,amount=0.6,seed=8)
+        for y in (4.12,4.42,-4.12,-4.42):
+            step(**T,faces={'tag':['trim','trimSide'],'within':{'min':[None,None,None],'max':[None,None,-44.5]}},line={'points':[[-4.6,y],[4.6,y]],'width':0.07,'from':'-z'},hard=True,color=[0.02,0.02,0.022],roughness=0.7,metallic=0.2)
         step(**T,faces={'not':{'tag':['window','port','lamp','thrust']}},where='cavity',reach=0.35,threshold=0.3,softness=0.12,color=[0.016,0.014,0.012],roughness=0.95,metallic=0,amount=0.9)
         for (x,y,z,r) in [(4.5,0,-47,12),(-4.5,0,-47,12),(17,-1,-49,8.5),(-17,-1,-49,8.5)]:
-            step(**T,faces={'not':{'tag':['thrust','lamp','window','port','nozzle','cowl']}},near={'at':[x,y,z],'radius':r},pattern='bumps',scale=2.5,octaves=4,threshold=0.3,softness=0.3,color=[0.018,0.016,0.014],roughness=0.86,amount=0.82,seed=30)
-            step(**T,faces={'tag':['nozzle','cowl']},near={'at':[x,y,z+1.2],'radius':5.2},pattern='bumps',scale=1.4,octaves=3,threshold=0.2,softness=0.4,color=[0.5,0.3,0.16],roughness=0.3,amount=0.75,seed=51)
-            step(**T,faces={'tag':['nozzle','cowl']},near={'at':[x,y,z+0.2],'radius':3.2},color=[0.2,0.24,0.5],roughness=0.24,amount=0.8)
-            step(**T,faces='nozzle',near={'at':[x,y,z+2.5],'radius':3.4},color=[0.35,0.6,1.0],glow=0.35,amount=0.9)
+            step(**T,faces={'not':{'tag':['thrust','lamp','window','port','nozzle','rib','cowl']}},near={'at':[x,y,z],'radius':r},pattern='bumps',scale=2.5,octaves=4,threshold=0.3,softness=0.3,color=[0.018,0.016,0.014],roughness=0.86,amount=0.82,seed=30)
+            step(**T,faces={'tag':['nozzle','rib','cowl']},near={'at':[x,y,z+1.2],'radius':5.2},pattern='bumps',scale=1.4,octaves=3,threshold=0.2,softness=0.4,color=[0.5,0.3,0.16],roughness=0.3,amount=0.75,seed=51)
+            step(**T,faces={'tag':['nozzle','rib','cowl']},near={'at':[x,y,z+0.2],'radius':3.2},color=[0.2,0.24,0.5],roughness=0.24,amount=0.8)
+            step(**T,faces=THROAT,near={'at':[x,y,z+2.2],'radius':3.6 if r>10 else 2.9},color=[0.45,0.7,1.0],glow=0.5,amount=0.95)
         step(op='decimate',**{'from':'blockout'},ratio=1)
         src['normalBake']={'from':'dense','size':MAP,'distance':0.7,'color':True,'surface':True,'occlusion':{'samples':36,'size':min(1024,MAP//2),'reach':3.0}}
     return src

@@ -22,11 +22,13 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **The space frigate's stern is built.** `examples/space-frigate` had a bare slab behind its hull and four plain tubes for engines. The stern now carries a dark heat shield with a spine and four thruster blocks, its end faces are plated like the rest of the hull, and each engine is a ribbed bell with a hollow throat that glows from the injector outward.
 - **The space frigate's display answers the ship.** The lens over the HUD splits its colours, thickens its scan lines and glows more as the mining emitter heats, flickers when the emitter overheats, and wakes in a burst of both. The target and waypoint markers are drawn through the same material without the bend, so they stay on their points and still carry the display's scan lines, and their cards are frosted as the panels are.
 - **The space frigate carries a hull number and a name.** `examples/space-frigate` has 27 on both bows and on the foredeck and KESTREL on its armour belt, and the bridge's windows are divided into panes whose lights differ. They are a `stain`'s `line` laid from the side, from above or from ahead before the wear, so chipped paint and grime lie over them: a marking needs no picture and no decal. Its README lists the helm's controls as they are.
 
 ### Fixed
 
+- **`panels` cuts the faces that are square to `along`.** A `panels` step given `along` left every face whose normal ran with that direction as it was, without a word: a hull panelled along its length kept bare end faces. Such a face is now cut by its longest edge, as a step with no `along` cuts it.
 - **A screen overlay's effect layers draw from the lowest layer up.** Two `CanvasEffect` layers were drawn in the order their Canvases happened to be found in the world, so which lay over the other was not the layer numbers' to say. They are now drawn from the lowest layer number up, after the UI that has no effect.
 
 ## [0.106.0] - 2026-11-15
