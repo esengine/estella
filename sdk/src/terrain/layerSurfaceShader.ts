@@ -1,3 +1,23 @@
+
+
+// Functions more than one of this file's shaders is written with, once each in both languages.
+export const TN_NOISE_GLSL = `float tnNoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(tnHash(i), tnHash(i + vec2(1.0, 0.0)), f.x), mix(tnHash(i + vec2(0.0, 1.0)), tnHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}`;
+export const TN_NOISE_WGSL = `fn tnNoise(p : vec2f) -> f32 {
+    let i = floor(p);
+    var f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(tnHash(i), tnHash(i + vec2f(1.0, 0.0)), f.x), mix(tnHash(i + vec2f(0.0, 1.0)), tnHash(i + vec2f(1.0, 1.0)), f.x), f.y);
+}`;
+export const TN_HASH2_GLSL = `vec2 tnHash2(vec2 p) {
+    return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453);
+}`;
+export const TN_HASH2_WGSL = `fn tnHash2(p : vec2f) -> vec2f {
+    return fract(sin(vec2f(dot(p, vec2f(127.1, 311.7)), dot(p, vec2f(269.5, 183.3)))) * 43758.5453);
+}`;
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
@@ -60,14 +80,8 @@ export const LAYER_SURFACE_GLSL = `float tnHash(vec2 p) {
     p += dot(p, p.yx + 33.33);
     return fract((p.x + p.y) * p.x);
 }
-float tnNoise(vec2 p) {
-    vec2 i = floor(p), f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(tnHash(i), tnHash(i + vec2(1.0, 0.0)), f.x), mix(tnHash(i + vec2(0.0, 1.0)), tnHash(i + vec2(1.0, 1.0)), f.x), f.y);
-}
-vec2 tnHash2(vec2 p) {
-    return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453);
-}
+${TN_NOISE_GLSL}
+${TN_HASH2_GLSL}
 float tnTile(int i) { return i < 4 ? u_tiles0[i] : u_tiles1[i - 4]; }
 float tnHeightBlend(int i) { float b = i < 4 ? u_heightBlends0[i] : u_heightBlends1[i - 4]; return b < 0.0 ? u_heightBlend : b; }
 
@@ -236,15 +250,8 @@ export const LAYER_SURFACE_WGSL = `fn tnHash(p0 : vec2f) -> f32 {
     p = p + dot(p, p.yx + 33.33);
     return fract((p.x + p.y) * p.x);
 }
-fn tnNoise(p : vec2f) -> f32 {
-    let i = floor(p);
-    var f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(tnHash(i), tnHash(i + vec2f(1.0, 0.0)), f.x), mix(tnHash(i + vec2f(0.0, 1.0)), tnHash(i + vec2f(1.0, 1.0)), f.x), f.y);
-}
-fn tnHash2(p : vec2f) -> vec2f {
-    return fract(sin(vec2f(dot(p, vec2f(127.1, 311.7)), dot(p, vec2f(269.5, 183.3)))) * 43758.5453);
-}
+${TN_NOISE_WGSL}
+${TN_HASH2_WGSL}
 fn tnTile(i : i32) -> f32 {
     if (i < 4) { return mc.u_tiles0[i]; }
     return mc.u_tiles1[i - 4];

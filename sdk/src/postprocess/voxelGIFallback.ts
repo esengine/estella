@@ -24,6 +24,7 @@
 import type { ShaderHandle } from '../render/material';
 import { Material } from '../render/material';
 import { SSAO_GLSL, GBUFFER_GLSL } from './sources/shared';
+import { IGN_GLSL } from '../render/shaderLib';
 
 export { VOXEL_ATLAS } from './voxelAtlas';
 
@@ -320,7 +321,7 @@ ${SSAO_GLSL}
 ${GBUFFER_GLSL}
 ${COMMON}
 
-float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+${IGN_GLSL}
 vec3 cosineDirection(vec3 n, float u, float v) {
     float r = sqrt(u);
     float phi = 6.2831853 * v;
