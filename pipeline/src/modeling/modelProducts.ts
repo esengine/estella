@@ -7,7 +7,7 @@
  *        thread to another. What a writer needs of it is far less (the mesh as the bytes of its file, the maps, the
  *        joints' names and places), and that crosses a thread in one copy.
  */
-import { encodeMesh } from 'esengine';
+import { encodeMesh } from '../../../sdk/src/asset/meshFormat';
 import type { HairMaps } from './hair';
 import type { BakedModel, ModelReport } from './modelBake';
 import type { NormalMap } from './normalBake';

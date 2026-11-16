@@ -12,6 +12,9 @@
  *        (play == ship). Nothing is fetched — the whole game is one self-contained
  *        .html (ad-network ready).
  */
+import { setLoadWork } from 'esengine';
+import type { ModelBakesFile } from '../modeling/loadBakeFile';
+import { createModelBakes, sizeLimit, type ModelBakes } from './modelBakes';
 import {
   createWebApp, setEditorMode, setPlayMode, initPlayableRuntime, createEmbeddedSideModuleHost,
   packagedAppOptions, packagedRuntimeInit, glContextAttributes,
@@ -31,12 +34,14 @@ interface PackedBytes { z: string; n: number }
 declare const __ENGINE_GLUE__: PackedBytes;
 declare const __ENGINE_WASM__: PackedBytes;
 declare const __SIDE_MODULES__: Record<string, { glue: PackedBytes; wasm: PackedBytes }>;
-declare const __GAME_ASSETS__: Record<string, string>;
+declare const __GAME_ASSETS__: Record<string, string | (PackedBytes & { m: string })>;
 declare const __GAME_PATHMAP__: Record<string, string>;
 /** The texture import settings of what is inlined, in the manifest's own shape; absent from a page with none and from older exports. */
 declare const __GAME_MANIFEST__: Parameters<typeof initPlayableRuntime>[0]['manifest'];
-declare const __GAME_SCENES__: Array<{ name: string; data: SceneData }>;
+declare const __GAME_SCENES__: PackedBytes;
 declare const __GAME_FIRST__: string;
+declare const __GAME_MODEL_BAKES__: PackedBytes | undefined;
+declare const __GAME_BAKE_WORKER__: PackedBytes | undefined;
 /** The project's settings, in the same shape game.config.json carries them —
  *  one global, so a setting the export starts sending arrives without the host
  *  learning a new name for it. Absent fields are their defaults. */
@@ -54,6 +59,18 @@ function decodeBase64(b64: string): Uint8Array {
   const bytes = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
   return bytes;
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+  let raw = '';
+  for (let at = 0; at < bytes.length; at += 32768) raw += String.fromCharCode(...bytes.subarray(at, at + 32768));
+  return btoa(raw);
+}
+
+function inlinedAssets(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(__GAME_ASSETS__)) out[key] = typeof value === 'string' ? value : `data:${value.m};base64,${encodeBase64(unpack(value))}`;
+  return out;
 }
 
 /** One inlined payload, back to the bytes the exporter packed. */
@@ -184,16 +201,25 @@ async function boot(): Promise<void> {
     // With none left compiling the warm-up is waiting on what is still being made (a ground's pages, a field's cells).
     splash.busy(pending > 0 ? 'Compiling shaders' : 'Preparing the scene');
   };
+  let bakes: ModelBakes | null = null;
+  if (typeof __GAME_MODEL_BAKES__ !== 'undefined' && typeof __GAME_BAKE_WORKER__ !== 'undefined' && __GAME_MODEL_BAKES__ && __GAME_BAKE_WORKER__) {
+    const worker = URL.createObjectURL(new Blob([unpack(__GAME_BAKE_WORKER__) as BlobPart], { type: 'text/javascript' }));
+    bakes = createModelBakes(JSON.parse(unpackText(__GAME_MODEL_BAKES__)) as ModelBakesFile, worker, sizeLimit(location.search), navigator.hardwareConcurrency || 4);
+    setLoadWork(bakes.work);
+    void bakes.work.run().catch(() => undefined);
+  }
+  const served = bakes;
   await splash.held();
   await initPlayableRuntime({
     app,
     module,
     canvas,
-    assets: __GAME_ASSETS__,
+    assets: inlinedAssets(),
+    ...(served ? { serve: (source) => served.serve(source) } : {}),
     // Older exports predate the path map; the runtime treats it as optional.
     assetPathMap: typeof __GAME_PATHMAP__ !== 'undefined' ? __GAME_PATHMAP__ : undefined,
     manifest: typeof __GAME_MANIFEST__ !== 'undefined' ? __GAME_MANIFEST__ : undefined,
-    scenes: __GAME_SCENES__,
+    scenes: JSON.parse(unpackText(__GAME_SCENES__)) as Array<{ name: string; data: SceneData }>,
     firstScene: __GAME_FIRST__,
     // The same condition the web host warms on: shaders compiled in the background, and the project asked to open on a complete picture.
     ...(runtimeConfig.quality?.asyncShaderCompile && runtimeConfig.quality.prewarmShaders

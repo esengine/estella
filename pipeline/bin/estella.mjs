@@ -54,6 +54,8 @@ const USAGE = `usage: node pipeline/bin/estella.mjs create <template> <dir> [--n
   --debug-channel <url>  a development build dials this editor address
                       (ws://host:port/?token=…) so its frames can be captured;
                       refused together with --minify
+  --all-scenes        playable: inline every scene of the scenes folder, where a
+                      playable carries its entry scene alone
   --no-aot            package without compiling the systems marked @compiled, so
                       the same project runs both ways and the frames are compared
   --steam-sdk <dir>   desktop: a Steamworks SDK whose redistributable ships in the app
@@ -87,7 +89,7 @@ The panorama itself is not shipped — a light references the \`.esenv\`.`;
 
 /** Options take a value; these do not — without the distinction a trailing flag
  *  swallows nothing, ends the loop, and a CI job silently gets no gate. */
-const FLAGS = new Set(['enforce-budget', 'minify', 'no-aot', 'emulator-abi']);
+const FLAGS = new Set(['enforce-budget', 'minify', 'no-aot', 'emulator-abi', 'all-scenes']);
 
 function parseArgs(argv) {
   const [command, projectDir, ...rest] = argv;
@@ -1240,6 +1242,7 @@ try {
     // `dev` is what the AOT step calls "do not compile" — the editor's preview
     // mode, reused here so there is one word for it (docs/REARCH_AOT.md §9).
     ...(opts['no-aot'] ? { aotMode: 'dev' } : {}),
+    ...(opts['all-scenes'] ? { playableScenes: 'all' } : {}),
   });
   const report = { ...result, outDir };
   console.log(JSON.stringify(report, null, 2));

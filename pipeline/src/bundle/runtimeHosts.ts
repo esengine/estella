@@ -18,7 +18,7 @@ import { ESENGINE_EXTERNAL } from './esengineResolve';
 export const RUNTIME_HOSTS = [
   'gameHost', 'playableHost', 'playableLoader', 'douyinPlatformProfile', 'kuaishouPlatformProfile',
   'bilibiliPlatformProfile', 'quickgamePlatformProfile', 'alipayPlatformProfile',
-  'huaweiPlatformProfile', 'openpaasPlatformProfile',
+  'huaweiPlatformProfile', 'openpaasPlatformProfile', 'modelBakeWorker',
 ] as const;
 
 export type RuntimeHost = (typeof RUNTIME_HOSTS)[number];
@@ -40,6 +40,6 @@ export function runtimeHostPrebuild(sourceDir: string, outdir: string) {
     format: 'esm' as const,
     platform: 'browser' as const,
     target: 'es2020',
-    external: ESENGINE_EXTERNAL,
+    external: [...ESENGINE_EXTERNAL, 'manifold-3d/manifold'],
   };
 }

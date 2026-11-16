@@ -351,7 +351,9 @@ void RenderFrame::drawScene(DrawList::Phase phase) {
 #ifdef ES_ENABLE_POSTPROCESS
         draw_list_.setGBufferPass(post_process_ && post_process_->sceneHasGBuffer());
 #endif
+        draw_list_.setLayerAlpha(true);
         submitColorList(draw_list_, pool_, &frame_capture_, phase, "render.prepass.draws");
+        draw_list_.setLayerAlpha(false);
         draw_list_.setGBufferPass(false);
         if (device_.skipPendingPrograms()) {
             ES_PROFILE_COUNTER("render.draws.waitingForProgram", draw_list_.skippedForProgram());

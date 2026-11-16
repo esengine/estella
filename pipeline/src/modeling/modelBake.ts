@@ -8,7 +8,10 @@
  *        "2 open edges" or "this shell is inside out" gets fixed on the next call,
  *        where the same fault in a lit picture reads as a slightly odd shadow.
  */
-import { BlendMode, CullMode, MATERIAL_FORMAT_VERSION, MeshChannel, MeshChannelType, packChannels, unwrapLightmapUV, type MeshData, type MeshMorphTargets } from 'esengine';
+import { CullMode, MATERIAL_FORMAT_VERSION } from 'esengine';
+import { MeshChannel, MeshChannelType, packChannels, type MeshData, type MeshMorphTargets } from '../../../sdk/src/asset/meshFormat';
+import { unwrapLightmapUV } from '../../../sdk/src/lightmap/unwrap';
+import { BlendMode } from '../../../sdk/src/render/blend';
 import { generateTangents } from '../assets/meshTangents';
 import { hairMaps, hairRig, hasCards, type HairMaps } from './hair';
 import { triangulateFace } from './triangulate';

@@ -78,7 +78,7 @@ beforeAll(() => {
   // Stub SDK dist exporting what the real host + scripts import (bundles for real).
   mkdirSync(path.join(root, '_sdk'), { recursive: true });
   writeFileSync(path.join(root, '_sdk', 'index.js'),
-    `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function defineComponent(){}\nexport function parseThemeOverrides(){}
+    `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function setLoadWork(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function defineComponent(){}\nexport function parseThemeOverrides(){}
 export function packagedAppOptions(c){return c;}
 export function packagedRuntimeInit(c){return c;}
 export function glContextAttributes(){return {};}\n`);
@@ -532,8 +532,12 @@ describe('exportGame (playable) — side-module embedding', () => {
       JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [{ type: 'RigidBody2D', data: { bodyType: 1 } }] }] }));
     writeFileSync(path.join(r, 'scenes', 'main.esscene.meta'), meta(PSCN, 'scene'));
     mkdirSync(path.join(r, '_sdk'), { recursive: true });
+    for (const part of ['physics', 'spine', 'skeletal-animation']) {
+      mkdirSync(path.join(r, '_sdk', part), { recursive: true });
+      writeFileSync(path.join(r, '_sdk', part, 'index.js'), 'export {};\n');
+    }
     writeFileSync(path.join(r, '_sdk', 'index.js'),
-      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function parseThemeOverrides(){}
+      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function setLoadWork(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function parseThemeOverrides(){}
 export function packagedAppOptions(c){return c;}
 export function packagedRuntimeInit(c){return c;}
 export function glContextAttributes(){return {};}\n`);
@@ -637,8 +641,12 @@ describe('exportGame (playable) — spine embedding', () => {
       JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [{ type: 'SpineAnimation', data: { skeletonPath: 'assets/spine/hero.skel', atlasPath: 'assets/spine/hero.atlas' } }] }] }));
     writeFileSync(path.join(r, 'scenes', 'main.esscene.meta'), meta(SSCN, 'scene'));
     mkdirSync(path.join(r, '_sdk'), { recursive: true });
+    for (const part of ['physics', 'spine', 'skeletal-animation']) {
+      mkdirSync(path.join(r, '_sdk', part), { recursive: true });
+      writeFileSync(path.join(r, '_sdk', part, 'index.js'), 'export {};\n');
+    }
     writeFileSync(path.join(r, '_sdk', 'index.js'),
-      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function parseThemeOverrides(){}
+      `export function createWebApp(){return{GL:{registerContext(){}}};}\nexport function setEditorMode(){}\nexport function setPlayMode(){}\nexport function setLoadWork(){}\nexport function initPlayableRuntime(){return Promise.resolve();}\nexport function createEmbeddedSideModuleHost(){return{acquire(){return Promise.resolve(null);}};}\nexport function parseThemeOverrides(){}
 export function packagedAppOptions(c){return c;}
 export function packagedRuntimeInit(c){return c;}
 export function glContextAttributes(){return {};}\n`);

@@ -77,6 +77,8 @@ export interface PlayableRuntimeConfig {
     prewarmShaders?: { timeoutMs?: number; /** Called after each frame drawn out of sight with how many shaders are still compiling and how much of the scene is still to be made. */ onProgress?: (pending: number, making: number) => void };
     /** Called once everything is loaded and warmed, just before the loop starts: where a page takes its start screen away. */
     onBeforeRun?: () => void;
+    /** Stands between the runtime and the inlined assets: what a host uses to answer for assets the file does not carry, as it makes them. */
+    serve?: (source: RuntimeAssetSource) => RuntimeAssetSource;
 }
 
 function decodeDataUrlBinary(dataUrl: string): Uint8Array {
@@ -136,7 +138,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
     // through, and the backend resolves both spellings off the same aliased map.
     const backend = new EmbeddedBackend(assets);
     const resolveRefToPath = (ref: string): string => keyToPath[ref] ?? ref;
-    const source: RuntimeAssetSource = {
+    const inlined: RuntimeAssetSource = {
         backend,
         resolveRef: resolveRefToPath,
         decodePixels: (path) => loadImagePixels(backend.resolveUrl(path)),
@@ -150,6 +152,8 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
             ? ManifestModel.fromJson(config.manifest).textureImportLookup()
             : undefined,
     };
+
+    const source = config.serve ? config.serve(inlined) : inlined;
 
     if (app.hasResource(Audio)) {
         app.getResource(Audio).setAssetResolver((url: string) => {

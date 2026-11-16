@@ -17,6 +17,7 @@
  * native), texture atlasing, and the full web-build (html + runtime + scripts).
  * This is the reachability + manifest + staging core they all build on.
  */
+import { MODEL_BAKES_FILE, bakesAtLoad, modelProductPaths, type ModelBakesFile, type ModelProductRole } from '../modeling/loadBakeFile';
 import { ENV_IMAGE_FIELDS } from './environmentFormat';
 import { writeFile, mkdir, readFile, open } from 'node:fs/promises';
 import { existsSync, statSync } from 'node:fs';
@@ -443,6 +444,8 @@ export interface CookResult {
    *  caller needs to read the content it just shipped (e.g. to scan the scenes
    *  for subsystems the target cannot render). */
   includedPaths: string[];
+  /** The file, in the output, listing the models left as recipes for the game to bake where it loads; absent when there are none. */
+  modelBakes?: string;
   /** The shipped audio clips whose import settings choose how they load (not `auto`), by logical path. */
   audioLoadTypes: Record<string, 'streaming' | 'decompress'>;
   /**
@@ -530,6 +533,8 @@ export async function cookAssets(
      *  names ships even when no scene references it (scriptAssetRefs.ts). Absent:
      *  the folder of the project's startup script; `[]` scans nothing. */
     scriptDirs?: string[];
+    /** Leave out what a model source marked `bake: "load"` bakes (its mesh and maps), and list the source for the game to bake where it loads. */
+    modelRecipes?: boolean;
   },
 ): Promise<CookResult> {
   const contentAddressed = opts.contentAddressed ?? false;
@@ -539,6 +544,20 @@ export async function cookAssets(
   const platform = opts.platform;
   const streamTails = opts.streamTails ?? false;
   const { index } = await scanAssetDatabase(root, { write: false, adopt: false });
+  const recipeProducts = new Map<string, { model: string; role: ModelProductRole }>();
+  const recipeTexts = new Map<string, string>();
+  for (const entry of index.entries) {
+    if (!opts.modelRecipes || entry.type !== 'modeling' || entry.importer?.bake !== 'load') continue;
+    try {
+      const raw = JSON.parse(await readFile(path.join(root, entry.path), 'utf8')) as unknown;
+      if (!bakesAtLoad(raw)) continue;
+      recipeTexts.set(entry.path, JSON.stringify(raw));
+      for (const [role, product] of Object.entries(modelProductPaths(entry.path))) recipeProducts.set(product, { model: entry.path, role: role as ModelProductRole });
+    } catch {
+      continue;
+    }
+  }
+  const modelBakes = new Map<string, Partial<Record<ModelProductRole, string>>>();
   const warnings: string[] = [];
   const failed: string[] = [];
   // Second gate: nothing reaches it while the scanner drops these upstream, but
@@ -654,7 +673,7 @@ export async function cookAssets(
   // the encoder loads. A project that authored a KTX2 pays either way.
   const textureSources = [...reachable]
     .map((uuid) => byUuid.get(uuid))
-    .filter((e): e is AssetEntry => e !== undefined && e.type === 'texture');
+    .filter((e): e is AssetEntry => e !== undefined && e.type === 'texture' && !recipeProducts.has(e.path));
   const authoredKtx2 = textureSources.some((e) => e.path.toLowerCase().endsWith('.ktx2'));
   const artBytes = textureSources.reduce((n, e) => {
     try { return n + statSync(path.join(root, e.path)).size; } catch { return n; }
@@ -863,7 +882,8 @@ export async function cookAssets(
       // Every image takes the decision, not only the ones an encoder accepts: a
       // JPEG whose Compress row reads ON leaves no other trace. Hash + name below
       // reflect the ENCODED bytes, so this composes with content-addressing.
-      if (entry.type !== 'scene' && getAssetTypeEntry(entry.path)?.contentType === 'image') {
+      const fromRecipe = recipeProducts.get(entry.path);
+      if (!fromRecipe && entry.type !== 'scene' && getAssetTypeEntry(entry.path)?.contentType === 'image') {
         const t = await cookTexture({
           root, path: entry.path, data, ext, importer: entry.importer, platform,
           encoder: textureEnc ? { module: textureEnc, id: encoderId } : null,
@@ -995,7 +1015,9 @@ export async function cookAssets(
         warnings.push(`${entry.path}: a scene ships in the main package — group '${group}' cannot carry it`);
       }
       const dst = path.join(absOut, outRel);
-      if (!staged.has(outRel)) {
+      if (fromRecipe) {
+        modelBakes.set(fromRecipe.model, { ...modelBakes.get(fromRecipe.model), [fromRecipe.role]: outRel });
+      } else if (!staged.has(outRel)) {
         staged.add(outRel);
         await mkdir(path.dirname(dst), { recursive: true });
         await writeFile(dst, data);
@@ -1016,7 +1038,7 @@ export async function cookAssets(
         type: entry.type,
         importer: entry.importer,
         contentHash: hash,
-        size: data.byteLength,
+        size: fromRecipe ? 0 : data.byteLength,
         group,
         groupMode: delivery,
         ...(compressedFormats ? { compressedFormats } : {}),
@@ -1084,6 +1106,10 @@ export async function cookAssets(
     }
   }
 
+  if (modelBakes.size > 0) {
+    const models = [...modelBakes].sort(([a], [b]) => a.localeCompare(b)).map(([source, products]) => ({ source, text: recipeTexts.get(source)!, products }));
+    await writeFile(path.join(absOut, MODEL_BAKES_FILE), JSON.stringify({ version: 1, models } satisfies ModelBakesFile));
+  }
   const manifestPath = path.join(absOut, MANIFEST);
   await writeFile(
     manifestPath,
@@ -1135,6 +1161,7 @@ export async function cookAssets(
   return {
     ok: failed.length === 0,
     outDir: absOut, manifestPath, included: [...reachable], includedPaths, audioLoadTypes, audioEncoded, unused, warnings, failed,
+    ...(modelBakes.size > 0 ? { modelBakes: MODEL_BAKES_FILE } : {}),
     inclusion,
   };
 }

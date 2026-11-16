@@ -468,6 +468,7 @@ export {
     type PackagedAssetSourceOptions,
     type PackagedGameConfig,
 } from './runtime/packagedRuntime';
+export { loadWork, setLoadWork, type LoadWork, type LoadWorkProgress } from './runtime/loadWork';
 export {
     worldSnapshot,
     inspectableTypes,

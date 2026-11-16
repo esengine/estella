@@ -180,6 +180,7 @@ export async function discoverProjectScenes(root: string, entryScene: string, sc
 
 /** The build's own record of which chunks each entry reaches (sdk/rolldown.config.js). */
 const CHUNK_MANIFEST = 'chunks.json';
+const MODEL_BAKE_WORKER_FILE = 'model-bake.js';
 
 /**
  * The files a browser package needs out of sdk/dist: the entries ITS import map
@@ -494,6 +495,8 @@ export interface ExportGameOptions {
   /** Project-relative scenes dir (manifest layout); default the entry's dir.
    *  Every `.esscene` under it ships as a switchable scene. */
   scenesDir?: string;
+  /** A playable inlines its entry scene alone unless this says `all`: then every scene of the scenes folder, as the web export carries. */
+  playableScenes?: 'entry' | 'all';
   /** Scenes excluded from the build (`packaging.excludeScenes`); the entry
    *  scene always ships. */
   excludeScenes?: string[];
@@ -901,6 +904,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     return await exportPlayable({
       root: opts.root,
       entryScene: opts.entryScene,
+      ...(opts.playableScenes === 'all' ? { scenesDir: opts.scenesDir ?? path.dirname(opts.entryScene), excludeScenes: opts.excludeScenes } : {}),
       scriptsEntry: opts.scriptsEntry,
       hostsDir: opts.hostsDir,
       packagesDir: opts.packagesDir,
@@ -1004,7 +1008,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // for this target before anything is staged — their ids ride game.config.json, so
   // the runtime can acquire them exactly like the engine's own.
   const projectModules = await loadProjectModules(opts.root, platform);
-  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo, platform, textureDecoderBytes: textureDecoderBytes(opts.wasmDir),
+  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo, platform, modelRecipes: platform === 'web', textureDecoderBytes: textureDecoderBytes(opts.wasmDir),
     // A web game fetches each file as it is needed, so a texture streamed small need not be downloaded whole until it grows.
     streamTails: platform === 'web' });
   warnings.push(...cook.warnings);
@@ -1317,6 +1321,24 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined, debugChannel, platform === 'web' ? opts.webChannel : undefined, platform === 'web' ? (opts.developmentPreview ? [...PREVIEW_CONNECT, ...(opts.webConnect ?? [])] : opts.webConnect) : undefined),
     );
   }
+  let modelBakes: PackagedGameConfig['modelBakes'];
+  if (cook.modelBakes && platform === 'web') {
+    progress({ phase: 'Bundling the model baker' });
+    await (await loadEsbuild()).build({
+      ...common,
+      entryPoints: [runtimeHostEntry(opts.hostsDir, 'modelBakeWorker')],
+      external: ['manifold-3d/manifold'],
+      plugins: [...(common.plugins ?? []), {
+        name: 'engine-unused',
+        setup(b) { b.onResolve({ filter: /^esengine$/ }, () => ({ path: path.join(opts.sdkDistDir, FULL_ENTRY_FILE), sideEffects: false })); },
+      }],
+      outfile: path.join(payloadDir, MODEL_BAKE_WORKER_FILE),
+      minify: true,
+      sourcemap: false,
+      metafile: false,
+    });
+    modelBakes = { recipes: cook.modelBakes, worker: MODEL_BAKE_WORKER_FILE };
+  }
   // Typed against the SDK's contract, so a field the runtimes read can never be
   // spelled differently here — the two sides share one declaration.
   const gameConfig: PackagedGameConfig = {
@@ -1332,6 +1354,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     ...(aot ? { aot } : {}),
     ...(world.worlds.length > 0 ? { worlds: world.worlds } : {}),
     ...(debugChannel ? { debugChannel } : {}),
+    ...(modelBakes ? { modelBakes } : {}),
     ...(existsSync(path.join(payloadDir, 'wasm', 'esengine.wasm'))
       ? { engineBytes: statSync(path.join(payloadDir, 'wasm', 'esengine.wasm')).size } : {}),
     ...(existsSync(path.join(payloadDir, 'wasm', ENGINE_JS_FILE)) ? { engineJs: true } : {}),
