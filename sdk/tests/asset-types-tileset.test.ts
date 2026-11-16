@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
 import {
-    getAssetTypeEntry, getEditorType, getAddressableType, isKnownAssetExtension,
+    getAssetTypeEntry, getEditorType, isKnownAssetExtension,
     getCustomExtensions, isCustomExtension,
 } from '../src/assetTypes';
 
@@ -12,12 +12,10 @@ describe('.estileset asset type registration', () => {
         const entry = getAssetTypeEntry('terrain.estileset');
         expect(entry?.contentType).toBe('json');
         expect(entry?.editorType).toBe('tileset');
-        expect(entry?.addressableType).toBe('json');
     });
 
-    it('resolves its editor / addressable types', () => {
+    it('resolves its editor type', () => {
         expect(getEditorType('a/b/terrain.estileset')).toBe('tileset');
-        expect(getAddressableType('terrain.estileset')).toBe('json');
     });
 
     it('is on the WeChat pack whitelist (fs-read at runtime by TilesetAssetLoader)', () => {

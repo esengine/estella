@@ -49,5 +49,5 @@ it.each(['json', 'sound-event', 'orphan'])('keeps every candidate and moved UUID
     expect(cooked.warnings.filter(warning => /does not carry/.test(warning))).toEqual([]);
     const manifest = JSON.parse(await buildAddressableManifest(cooked.outDir));
     const entries = Object.values(manifest.groups).flatMap(group => Object.entries((group as { assets: Record<string, unknown> }).assets));
-    expect(entries.find(([uuid]) => uuid === registered.uuid)?.[1]).toMatchObject({ type: 'json' });
+    expect(entries.find(([uuid]) => uuid === registered.uuid)?.[1]).toMatchObject({ type: registered.type });
 });

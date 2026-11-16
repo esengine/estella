@@ -278,12 +278,6 @@ const GROUP_ASSET_CHANNELS: Readonly<Record<string, GroupAssetChannel>> = {
         release: (a, path) => a.releaseTyped('font', path),
         displayable: true,
     },
-    'bitmap-font': {
-        load: (a, path, b) => a.acquireTyped<FontResult>('font', path)
-            .then((l) => { b.scope.add(l); b.fonts.set(path, l.value); }),
-        release: (a, path) => a.releaseTyped('font', path),
-        displayable: true,
-    },
     spine: {
         load: (a, path, b) => a.acquireSpine(path)
             .then((l) => { b.scope.add(l); b.spine.set(path, l.value); }),
@@ -1583,8 +1577,7 @@ export class Assets {
         switch (type) {
             case 'texture': return () => this.loadTexture(path);
             case 'spine':   return () => this.loadSpine(path);
-            case 'font':
-            case 'bitmap-font': return () => this.loadFont(path);
+            case 'font':    return () => this.loadFont(path);
             default:
                 return this.loaders_.has(type) ? () => this.loadTyped(type, path) : null;
         }
@@ -1958,23 +1951,18 @@ export class Assets {
     private async acquireTypedLease_<T>(type: string, ref: string): Promise<AssetLease<T>> {
         const epoch = this.resetEpoch_;
         this.assertLoading_(epoch);
-        const slot = await this.acquireSlot_<T>(type, ref);
+        const kind = this.registryKind_<T>(type);
+        if (!kind) {
+            const { value, lease } = await this.acquireTyped_<T>(type, ref);
+            return this.typedLease_(type, lease, value);
+        }
+        const slot = await this.acquireSlot_<T>(kind, type, ref);
         try { this.assertLoading_(epoch); }
-        catch (error) { slot?.release(); throw error; }
-        if (slot) return slot;
-        const { value, lease } = await this.acquireTyped_<T>(type, ref);
-        return this.typedLease_(type, lease, value);
+        catch (error) { slot.release(); throw error; }
+        return slot;
     }
 
-    /**
-     * A claim on the slot for a registry-backed asset, or null when this type is
-     * not one. The ref the caller spelled is an ALIAS of the slot: a component
-     * carries that spelling and looks the asset up by it, while the load path is
-     * whatever this realm resolved it to.
-     */
-    private async acquireSlot_<T>(type: string, ref: string): Promise<AssetLease<T> | null> {
-        const kind = this.registryKind_<T>(type);
-        if (!kind) return null;
+    private acquireSlot_<T>(kind: RegistryAssetKind<T>, type: string, ref: string): Promise<AssetLease<T>> {
         // Keyed by identity, never by the locator: a content-addressed url is
         // revision-specific, so a slot keyed by one is a slot PER REVISION and
         // an update publishes into a new one while every holder reads the old.
@@ -2751,7 +2739,7 @@ export class Assets {
     }
 
     private async loadTyped<T>(type: string, ref: string): Promise<T> {
-        try { return (await this.acquireTyped_<T>(type, ref)).value; }
+        try { return (await this.acquireTypedLease_<T>(type, ref)).value; }
         catch (error) { throw preparationFailureReason(error); }
     }
 

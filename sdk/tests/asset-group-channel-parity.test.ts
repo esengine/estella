@@ -56,7 +56,6 @@ const TYPES: Array<{
     { type: 'texture', loadMethod: 'acquireTexture', releasesVia: 'texture' },
     { type: 'material', loadMethod: 'acquireTyped', loadArg: 'material', releasesVia: 'material' },
     { type: 'font', loadMethod: 'acquireTyped', loadArg: 'font', releasesVia: 'font' },
-    { type: 'bitmap-font', loadMethod: 'acquireTyped', loadArg: 'font', releasesVia: 'font' },
     { type: 'prefab', loadMethod: 'acquireTyped', loadArg: 'prefab', releasesVia: 'prefab' },
     { type: 'audio', loadMethod: 'acquireTyped', loadArg: 'audio', releasesVia: 'audio' },
     // Nothing is special about spine any more: the bundle holds a receipt for
