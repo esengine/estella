@@ -62,7 +62,7 @@ describe.skipIf(!HAS_WASM)('the UI hit test on a frame where nothing changed (WA
     }
 
     function countHitTests(): () => number {
-        const domains = vi.spyOn(module, 'uiHitTest_updateDomains');
+        const domains = vi.spyOn(module as Required<ESEngineModule>, 'uiHitTest_updateDomains');
         const single = vi.spyOn(module, 'uiHitTest_update');
         return () => domains.mock.calls.length + single.mock.calls.length;
     }
