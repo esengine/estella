@@ -265,12 +265,24 @@ void ImmediateDraw::deferEnd() {
 }
 
 void ImmediateDraw::flushDeferred() {
+    flushDeferred(ShaderHandle::Invalid);
+}
+
+void ImmediateDraw::flushDeferred(ShaderHandle program) {
     if (!deferredGeometry_) return;
     if (!deferredBatches_.empty()) {
         pool_.upload();
         device_.invalidatePipelineCache();
         for (const auto& batch : deferredBatches_) {
-            device_.setPipeline(batch.pipeline);
+            PipelineHandle pipeline = batch.pipeline;
+            if (program != ShaderHandle::Invalid) {
+                if (const PipelineDesc* desc = device_.pipelineDesc(pipeline)) {
+                    PipelineDesc display = *desc;
+                    display.program = program;
+                    pipeline = device_.createPipeline(display);
+                }
+            }
+            device_.setPipeline(pipeline);
             device_.bindTexture(0, TextureHandle{batch.texture});
             pool_.bindLayout(LayoutId::Batch);
             device_.drawElements(batch.indexCount, GfxDataType::UnsignedInt, batch.firstIndex * sizeof(u32));

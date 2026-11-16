@@ -16,6 +16,9 @@ import {
     unregisterDrawCallback,
     getPreSceneDrawCallbacks,
     unregisterPreSceneDrawCallback,
+    getOverScreenDrawCallbacks,
+    unregisterOverScreenDrawCallback,
+    type DrawCallback,
 } from './customDraw';
 import { log } from '../util/logger';
 import { planPresent, RenderResolution } from '../camera/presentPlan';
@@ -81,6 +84,8 @@ export class RenderPipeline {
     private quality_: QualityController | null = null;
     private applyQuality_: (() => void) | null = null;
     private warnedMissingPresent_ = false;
+    /** The last camera the frame drew to the screen: the view the over-screen callbacks are drawn through. */
+    private overScreenView_: { viewProjection: Float32Array; viewport: Viewport } | null = null;
 
     /** @experimental */
     get renderingEnabled(): boolean { return this.renderingEnabled_; }
@@ -134,6 +139,7 @@ export class RenderPipeline {
 
     beginFrame(elapsedSec = 0): void {
         this.frameElapsed_ = elapsedSec;
+        this.overScreenView_ = null;
         this.applyQuality_?.();
         this.quality_?.setLimitation('fixed-render-resolution', false);
         this.quality_?.setLimitation('resolution-present-unavailable', false);
@@ -188,6 +194,37 @@ export class RenderPipeline {
         Renderer.submitScreenOverlay(registry);
         for (const cb of this.screenOverlayCallbacks_) cb(registry, overlay.projection);
         Renderer.endScreenOverlay(target);
+    }
+
+    /**
+     * Draw the over-screen callbacks over everything the frame shows: after the
+     * screen overlay and before the frame ends, through the view of the last
+     * camera drawn to the screen. A frame with no such camera draws none of them.
+     */
+    renderOverScreen(target = 0): void {
+        const view = this.overScreenView_;
+        this.overScreenView_ = null;
+        const cbs = getOverScreenDrawCallbacks();
+        if (!view || cbs.size === 0 || !isDrawAPIReady() || !Renderer.hasDrawOverScreen()) return;
+        const { viewProjection, viewport } = view;
+        beginPresentedDraw(viewProjection, viewport.w, viewport.h);
+        const failed = this.runDrawCallbacks(cbs.entries(), viewProjection, viewport, 'over-screen ');
+        endPresentedDraw();
+        Renderer.drawOverScreen(viewport.x, viewport.y, viewport.w, viewport.h, target);
+        for (const id of failed) unregisterOverScreenDrawCallback(id);
+    }
+
+    private runDrawCallbacks(entries: Iterable<[string, DrawCallback]>, viewProjection: Float32Array, viewport: Viewport, kind: string): string[] {
+        const failed: string[] = [];
+        for (const [id, fn] of entries) {
+            try {
+                fn(this.frameElapsed_, { viewProjection, width: viewport.w, height: viewport.h });
+            } catch (e) {
+                log.error('render', `${kind}callback '${id}' error`, e);
+                failed.push(id);
+            }
+        }
+        return failed;
     }
 
     /** Whether a screen-level effect stack is on: it draws the whole screen, so a frame meant for a render target cannot hold it. */
@@ -324,6 +361,9 @@ export class RenderPipeline {
         Renderer.setViewId(cameraEntity ?? 0);
         this.submitScene(registry, viewProjection, scene, elapsed);
         Renderer.end();
+        if (!params.renderTarget && getOverScreenDrawCallbacks().size > 0) {
+            this.overScreenView_ = { viewProjection: Float32Array.from(viewProjection), viewport: { ...present } };
+        }
 
         if (hasPostProcess) {
             pp!.end();
@@ -361,7 +401,8 @@ export class RenderPipeline {
         // Plugins register overlays at build time whether one is ever turned on,
         // and a core with no Draw API has no batch to open — opening one throws
         // the frame away for a callback that would have drawn nothing.
-        if (cbs.size > 0 && isDrawAPIReady()) {
+        const lateHere = getOverScreenDrawCallbacks().size > 0 && !Renderer.hasDrawOverScreen();
+        if ((cbs.size > 0 || lateHere) && isDrawAPIReady()) {
             beginPresentedDraw(viewProjection, viewport.w, viewport.h);
             const failed: string[] = [];
             for (const [id, entry] of cbs.entries()) {
@@ -378,10 +419,13 @@ export class RenderPipeline {
                     failed.push(id);
                 }
             }
+            // A core that cannot draw over the screen still shows them, with the scene.
+            const late = !lateHere ? [] : this.runDrawCallbacks(getOverScreenDrawCallbacks().entries(), viewProjection, viewport, 'over-screen ');
             endPresentedDraw();
             for (const id of failed) {
                 unregisterDrawCallback(id);
             }
+            for (const id of late) unregisterOverScreenDrawCallback(id);
         }
     }
 }

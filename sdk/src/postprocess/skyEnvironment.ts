@@ -35,7 +35,7 @@ export interface SkyEnvironmentInput {
     /** Toward the sun, unit. */
     sun: [number, number, number];
     params: (name: string) => number;
-    /** Whether the frame lights in linear space (the effect's small constant colours are authored sRGB). */
+    /** Whether the frame lights in linear space. The sky is worked out as light either way; a gamma frame is lit by the codes of it. */
     linear: boolean;
 }
 
@@ -57,6 +57,16 @@ const smoothstep = (a: number, b: number, x: number): number => {
     return t * t * (3 - 2 * t);
 };
 const toLinear = (c: number): number => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+const toSrgb = (c: number): number => (c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055);
+
+/**
+ * A panorama of light as what a frame is lit by. A gamma frame multiplies codes, a surface's by its light's, so the sky's light
+ * reaches it as codes too: as light, a noon sky lit a gamma scene a third as bright as it lit a linear one.
+ */
+export function skyForFrame(panorama: Panorama, linear: boolean): Panorama {
+    if (linear) return panorama;
+    return { ...panorama, rgb: panorama.rgb.map((c) => toSrgb(Math.max(c, 0))) };
+}
 
 function hash13(x: number, y: number, z: number): number {
     let px = fract(x * 0.1031), py = fract(y * 0.1031), pz = fract(z * 0.1031);
@@ -273,7 +283,7 @@ function skyRadianceAndClouds(dir: readonly number[], input: SkyEnvironmentInput
     const sun = input.sun;
     const overcast = clamp01(P('u_overcast'));
     const haze = P('u_haze') * (1 + overcast * 2);
-    const lin = (c: number): number => (input.linear ? toLinear(c) : c);
+    const lin = toLinear;
 
     const dy = Math.max(dir[1]!, 0.015);
     const n = Math.hypot(dir[0]!, dy, dir[2]!);
@@ -465,7 +475,7 @@ export class SkyEnvironment {
         if (key === this.key_) return;
         // A first sky is made at once; a sky that keeps changing waits its turn.
         if (this.baked_ && now - this.lastBake_ < this.minInterval) return;
-        const panorama = skyPanorama(input);
+        const panorama = skyForFrame(skyPanorama(input), input.linear);
         const made = bakePanorama(module, core, panorama);
         if (!made) return;
         this.panorama_ = panorama;

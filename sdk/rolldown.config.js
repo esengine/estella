@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { defineConfig } from 'rolldown';
+import { stripShaderComments } from './scripts/strip-shader-comments.mjs';
 
 // An entry's body runs; every other module is pure and its top-level statements
 // may be dropped. So an entry's prologue is a CALL it makes, never a statement
@@ -146,19 +147,19 @@ export default defineConfig([
             chunkFileNames: 'shared/[name].js',
             minify,
         },
-        plugins: [preserveViteIgnore(), emitChunkManifest()],
+        plugins: [stripShaderComments(), preserveViteIgnore(), emitChunkManifest()],
         treeshake,
     },
     {
         input: 'src/index.ts',
         output: { file: 'dist/index.bundled.js', format: 'esm', sourcemap: true, minify: minifyBundled },
-        plugins: [preserveViteIgnore()],
+        plugins: [stripShaderComments(), preserveViteIgnore()],
         treeshake,
     },
     {
         input: 'src/index.wechat.ts',
         output: { file: 'dist/index.wechat.cjs.js', format: 'cjs', sourcemap: true, minify: minifyBundled },
-        plugins: [preserveViteIgnore()],
+        plugins: [stripShaderComments(), preserveViteIgnore()],
         treeshake,
     },
     {
@@ -168,7 +169,7 @@ export default defineConfig([
         // The native (embedded-Dawn) analog of index.wechat.cjs.js.
         input: 'src/index.native.ts',
         output: { file: 'dist/index.native.bundled.js', format: 'iife', name: 'ESEngine', sourcemap: false, minify: minifyBundled },
-        plugins: [preserveViteIgnore()],
+        plugins: [stripShaderComments(), preserveViteIgnore()],
         treeshake,
     },
 ]);

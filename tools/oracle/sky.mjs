@@ -108,7 +108,7 @@ function sunTransmittance(sun, alt, haze) {
   return BETA_R.map((b) => Math.exp(-(b * od[0] + BETA_M * haze * 1.1 * od[1])));
 }
 
-function skyDome({ id, elevation, azimuth, pitch, yaw, haze = 1, intensity = 0.5, tol = 18, grid = 5, glow = false, sunBrightness = 40, disc = glow }) {
+function skyDome({ id, colorSpace = 'linear', elevation, azimuth, pitch, yaw, haze = 1, intensity = 0.5, tol = 18, grid = 5, glow = false, sunBrightness = 40, disc = glow }) {
   const sun = sunVector(elevation, azimuth);
   const doc = scene(id, () => [
     camera({ projectionType: 0, fov: FOV, nearPlane: 1, farPlane: 2000 }),
@@ -134,7 +134,7 @@ function skyDome({ id, elevation, azimuth, pitch, yaw, haze = 1, intensity = 0.5
     const col = domeRef(dir, sun, { altitude: 0.1, haze, intensity }).map((v, k) => v + trans[k] * sunBrightness);
     expect.push({ x: j / (SIZE - 1), y: j / (SIZE - 1), rgb: encodeLinear8(col.map(clamp01)), tol, dir });
   }
-  return { id, doc, colorSpace: 'linear', expect: expect.map(({ dir, ...e }) => e), range: [Math.min(...expect.map((e) => Math.min(...e.rgb))), Math.max(...expect.map((e) => Math.max(...e.rgb)))],
+  return { id, doc, colorSpace, expect: expect.map(({ dir, ...e }) => e), range: [Math.min(...expect.map((e) => Math.min(...e.rgb))), Math.max(...expect.map((e) => Math.max(...e.rgb)))],
     about: 'Sky dome: the single-scattering integral, converged, against the shader\'s 16 view steps' };
 }
 
@@ -208,6 +208,9 @@ const pixelDirOrtho = (pitch, yaw) => norm(rotate(axisAngle([0, 1, 0], yaw), rot
 
 export const SKY_SCENES = [
   skyDome({ id: 'oracle-sky-noon', elevation: 65, azimuth: 40, pitch: 35, yaw: 200 }),
+  // The sky is light, whatever frame it is drawn into: a gamma project shows the codes a linear one does.
+  skyDome({ id: 'oracle-sky-noon-gamma', colorSpace: 'gamma', elevation: 65, azimuth: 40, pitch: 35, yaw: 200 }),
+  skyDome({ id: 'oracle-sky-low-sun-gamma', colorSpace: 'gamma', elevation: 8, azimuth: 40, pitch: 25, yaw: 215 }),
   skyDome({ id: 'oracle-sky-afternoon', elevation: 35, azimuth: 40, pitch: 30, yaw: 140 }),
   skyDome({ id: 'oracle-sky-low-sun', elevation: 8, azimuth: 40, pitch: 25, yaw: 215 }),
   skyDome({ id: 'oracle-sky-sun-glow', elevation: 35, azimuth: 40, pitch: 35, yaw: 220, intensity: 0.08, sunBrightness: 1, glow: true }),

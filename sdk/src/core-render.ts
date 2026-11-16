@@ -363,6 +363,8 @@ export {
     type DrawFrameInfo,
     registerPreSceneDrawCallback,
     unregisterPreSceneDrawCallback,
+    registerOverScreenDrawCallback,
+    unregisterOverScreenDrawCallback,
     type PreSceneDrawCallback,
     type PreSceneDrawInfo,
 } from './render/customDraw';

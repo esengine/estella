@@ -22,3 +22,11 @@ export function modelWithoutDetail(model: string): string {
     if (inside || kept.length === lines.length) throw new Error('the Model shader no longer marks its detail layer');
     return kept.join('\n');
 }
+
+/**
+ * A whole line of the Model shader by its text, whatever it is indented by: what a shader made from Model swaps a line of the surface by.
+ * The indentation is not part of what it matches because the bundled SDK's shader text has none (sdk/scripts/strip-shader-comments.mjs).
+ */
+export function modelLine(text: string): RegExp {
+    return new RegExp(`^[ \\t]*${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`, 'm');
+}
