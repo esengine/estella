@@ -5182,4 +5182,6 @@ export const NOTED = {
     { note: "A dense model no longer freezes the editor while it bakes." },
   "fix(modeling): a model bakes on a thread of the main process, so a dense one no longer holds the window":
     { note: "A dense model no longer freezes the editor while it bakes." },
+  "fix(shaders): a shader that declares fewer than eight batch textures gets its WebGPU twin - the twin generator matched only `uniform sampler2D u_textures[8]`, so `u_textures[1]` (a shader that reads one texture, as the cyber rooftop's rain film does) was read as an access to unit 1 and refused, and the shader did not render on WebGPU; any count from 1 to 8 now declares that many units":
+    { note: "A shader that declares fewer than eight batch textures renders on WebGPU." },
 };

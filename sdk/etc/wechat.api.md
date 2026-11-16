@@ -14075,6 +14075,7 @@ engineFactory: (opts: unknown) => Promise<ESEngineModule>
 engineWasmPath: string | undefined
 firstScene: string
 hotUpdate: { remoteRoot?: string; persistUpdateKey?: string; } | undefined
+ident: boolean | undefined
 physics3dBackend: Physics3DBackend | undefined
 physics3dWorld: Partial<Physics3DWorldConfig> | undefined
 physicsConfig: Physics2DPluginConfig | undefined

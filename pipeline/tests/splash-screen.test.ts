@@ -8,7 +8,8 @@
  * esbuild, and a DOM in that process breaks it.
  */
 import { describe, it, expect } from 'vitest';
-import { BOOT_STAGES, BOOT_PROGRESS_EVENT, FIRST_FRAME_EVENT, attachSplash } from '../src/export/splash';
+import { BOOT_STAGES, BOOT_PROGRESS_EVENT, FIRST_FRAME_EVENT, PAGE_BACKGROUND, attachSplash, splashCss, splashHtml, splashScript } from '../src/export/splash';
+import { IDENT_SECONDS } from '../src/export/splashIdent';
 
 describe('driving the start screen', () => {
   const mount = (attrs = ''): Document => {
@@ -89,5 +90,107 @@ describe('driving the start screen', () => {
     const doc = mount();
     attachSplash(doc).done();
     expect(doc.getElementById('es-splash')?.classList.contains('es-splash-gone')).toBe(true);
+  });
+});
+
+describe('the engine’s ident on the start screen', () => {
+  const mount = (look?: Parameters<typeof splashHtml>[1]): HTMLElement => {
+    document.body.innerHTML = splashHtml('My Game', look).replace(/<script>[\s\S]*<\/script>/, '');
+    return document.getElementById('es-splash')!;
+  };
+
+  it('is the whole of a start screen that asked for nothing: a canvas over the page and the script that draws on it', () => {
+    const html = splashHtml('My Game');
+    const root = mount();
+    const canvas = root.querySelector('canvas#es-splash-gl')!;
+    expect(canvas.getAttribute('aria-label')).toBe('Estella');
+    expect(root.querySelector('.es-splash-title')).toBeNull();
+    expect(root.textContent).not.toContain('My Game');
+    expect(html.endsWith(`<script>${splashScript()}</script>`)).toBe(true);
+    expect(splashCss(PAGE_BACKGROUND)).toContain('#es-splash-gl{position:absolute;inset:0;width:100%;height:100%;}');
+  });
+
+  it('keeps the bar and the stage line for the runtime and for a screen reader, out of sight', () => {
+    const root = mount();
+    const splash = attachSplash(document);
+    splash.reach(BOOT_STAGES[0].id);
+    expect(document.getElementById('es-splash-bar')!.style.width).not.toBe('');
+    expect(document.getElementById('es-splash-label')!.textContent).toBe(`${BOOT_STAGES[1].says}…`);
+    expect(root.classList.contains('es-splash-marked')).toBe(true);
+    expect(splashCss(PAGE_BACKGROUND)).toMatch(/\.es-splash-marked \.es-splash-track,#es-splash\.es-splash-marked #es-splash-label\{position:absolute;width:1px;height:1px;/);
+  });
+
+  it('plays before a game’s own logo, which comes in after it', () => {
+    const root = mount({ logo: 'data:image/png;base64,AAAA' });
+    expect(root.querySelector('.es-splash-logo')).not.toBeNull();
+    expect(root.querySelector('canvas#es-splash-gl')).not.toBeNull();
+    expect(splashCss(PAGE_BACKGROUND)).toContain(`animation:es-splash-logo .7s ${IDENT_SECONDS - 0.5}s both`);
+  });
+
+  it('is never cut short: the screen holds for its length, or for longer if the project asked for longer', () => {
+    expect(mount().getAttribute('data-min-ms')).toBe(String(IDENT_SECONDS * 1000));
+    expect(mount({ minMs: 800 }).getAttribute('data-min-ms')).toBe(String(IDENT_SECONDS * 1000));
+    expect(mount({ minMs: 6000 }).getAttribute('data-min-ms')).toBe('6000');
+  });
+
+  it('makes the game wait for it, and no start screen makes it wait for nothing', async () => {
+    document.body.innerHTML = '<div id="es-splash" data-min-ms="80"><div class="es-splash-track"><div id="es-splash-bar"></div></div><div id="es-splash-label"></div></div>';
+    const began = Date.now();
+    await attachSplash(document).held();
+    expect(Date.now() - began).toBeGreaterThanOrEqual(70);
+    document.body.innerHTML = '';
+    const bare = Date.now();
+    await attachSplash(document).held();
+    expect(Date.now() - bare).toBeLessThan(40);
+  });
+
+  it('carries exactly the script its policy is given the hash of', () => {
+    const carried = /<script>([\s\S]*)<\/script>$/.exec(splashHtml('My Game'))![1];
+    expect(carried).toBe(splashScript());
+  });
+
+  it('does nothing, and throws nothing, where there is no WebGL to draw with', () => {
+    mount();
+    expect(() => new Function(splashScript())()).not.toThrow();
+  });
+
+  it('is gone, canvas, script, styles and hold, from a page that must not carry it', () => {
+    const html = splashHtml('My Game', { engineMark: false });
+    expect(html).not.toMatch(/<canvas|<script|es-splash-marked|data-min-ms/);
+    expect(html).toContain('<div class="es-splash-title">My Game</div>');
+    expect(splashCss(PAGE_BACKGROUND, false)).not.toMatch(/es-splash-gl|es-splash-marked/);
+    expect(splashHtml('My Game', { engineMark: false, minMs: 800 })).toContain('data-min-ms="800"');
+  });
+
+  it('costs the page a few kilobytes and asks for nothing over the network', () => {
+    const cost = (marked: boolean): number => Buffer.byteLength(splashCss(PAGE_BACKGROUND, marked) + splashHtml('My Game', { engineMark: marked }));
+    expect(cost(true) - cost(false)).toBeGreaterThan(2000);
+    expect(cost(true) - cost(false)).toBeLessThan(6144);
+    expect(splashCss(PAGE_BACKGROUND) + splashHtml('My Game')).not.toMatch(/url\(|src=|@import|fetch\(|XMLHttpRequest|importScripts/);
+  });
+
+  it('stands aside for a harness that asked for the frame alone: no drawing, and no wait', async () => {
+    expect(splashScript()).toContain("if(!c||/[?&]headless/.test(location.search))return;");
+    history.replaceState(null, '', '?headless');
+    try {
+      document.body.innerHTML = '<div id="es-splash" data-min-ms="400"><div class="es-splash-track"><div id="es-splash-bar"></div></div><div id="es-splash-label"></div></div>';
+      const began = Date.now();
+      await attachSplash(document).held();
+      expect(Date.now() - began).toBeLessThan(60);
+    } finally {
+      history.replaceState(null, '', location.pathname);
+    }
+  });
+
+  it('leaves its script to the page that has to order it after something else', () => {
+    const html = splashHtml('My Game', { scriptElsewhere: true });
+    expect(html).toContain('<canvas id="es-splash-gl"');
+    expect(html).not.toContain('<script');
+  });
+
+  it('draws one still frame for someone who asked for less motion', () => {
+    expect(splashScript()).toMatch(/prefers-reduced-motion:reduce/);
+    expect(splashScript()).toMatch(/q\?9:\(performance\.now\(\)-b\)\/1e3/);
+    expect(splashScript()).toMatch(/q\|\|\(self\.requestAnimationFrame/);
   });
 });
