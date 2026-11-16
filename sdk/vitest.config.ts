@@ -2,8 +2,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { defineConfig } from 'vitest/config';
 import path from 'path';
+import { stripShaderComments } from './scripts/strip-shader-comments.mjs';
 
 export default defineConfig({
+    // The suites run on the shader text the bundle ships: the build strips its comments and indentation, and code that reads a
+    // shader by its text (modelDetail, Ground Blend, Voxel Ground) has to hold on that text, not only on the source as written.
+    plugins: [{ ...stripShaderComments(), enforce: 'pre' }],
     test: {
         globals: true,
         environment: 'happy-dom',
