@@ -64,7 +64,7 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
         if (free) return Promise.resolve(free);
         if (workers < most) {
             workers++;
-            return Promise.resolve(new Worker(workerUrl, { type: 'module' }));
+            return Promise.resolve(new Worker(workerUrl));
         }
         return new Promise((resolve) => waiting.push(resolve));
     };

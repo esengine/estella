@@ -1327,6 +1327,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     await (await loadEsbuild()).build({
       ...common,
       entryPoints: [runtimeHostEntry(opts.hostsDir, 'modelBakeWorker')],
+      format: 'iife',
       external: ['manifold-3d/manifold'],
       plugins: [...(common.plugins ?? []), {
         name: 'engine-unused',
