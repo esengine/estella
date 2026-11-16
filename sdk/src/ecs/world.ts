@@ -119,10 +119,11 @@ export interface QueryFilter {
 // World
 // =============================================================================
 
-const COMPOSITION_INPUTS: ReadonlySet<string> = new Set([Transform._name, Parent._name, Children._name]);
+let compositionInputs: ReadonlySet<string> | null = null;
 
 export function feedsTransformComposition(component: AnyComponentDef): boolean {
-    return COMPOSITION_INPUTS.has(component._name);
+    compositionInputs ??= new Set([Transform._name, Parent._name, Children._name]);
+    return compositionInputs.has(component._name);
 }
 
 
