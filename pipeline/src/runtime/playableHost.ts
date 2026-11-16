@@ -38,7 +38,7 @@ declare const __GAME_ASSETS__: Record<string, string | (PackedBytes & { m: strin
 declare const __GAME_PATHMAP__: Record<string, string>;
 /** The texture import settings of what is inlined, in the manifest's own shape; absent from a page with none and from older exports. */
 declare const __GAME_MANIFEST__: Parameters<typeof initPlayableRuntime>[0]['manifest'];
-declare const __GAME_SCENES__: Array<{ name: string; data: SceneData }>;
+declare const __GAME_SCENES__: PackedBytes;
 declare const __GAME_FIRST__: string;
 declare const __GAME_MODEL_BAKES__: PackedBytes | undefined;
 declare const __GAME_BAKE_WORKER__: PackedBytes | undefined;
@@ -219,7 +219,7 @@ async function boot(): Promise<void> {
     // Older exports predate the path map; the runtime treats it as optional.
     assetPathMap: typeof __GAME_PATHMAP__ !== 'undefined' ? __GAME_PATHMAP__ : undefined,
     manifest: typeof __GAME_MANIFEST__ !== 'undefined' ? __GAME_MANIFEST__ : undefined,
-    scenes: __GAME_SCENES__,
+    scenes: JSON.parse(unpackText(__GAME_SCENES__)) as Array<{ name: string; data: SceneData }>,
     firstScene: __GAME_FIRST__,
     // The same condition the web host warms on: shaders compiled in the background, and the project asked to open on a complete picture.
     ...(runtimeConfig.quality?.asyncShaderCompile && runtimeConfig.quality.prewarmShaders

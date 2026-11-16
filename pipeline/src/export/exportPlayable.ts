@@ -470,7 +470,7 @@ export async function exportPlayable(opts: {
     (Object.keys(textureImports).length > 0
       ? `window.__GAME_MANIFEST__=${JSON.stringify({ version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets: textureImports } } })};`
       : '') +
-    span(`scenes/${sceneName}.json`, `window.__GAME_SCENES__=${JSON.stringify(scenes)};`) +
+    span(`scenes/${sceneName}.json`, `window.__GAME_SCENES__=${JSON.stringify(pack(Buffer.from(JSON.stringify(scenes), 'utf8')))};`) +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};` +
     `window.__GAME_RUNTIME__=${JSON.stringify(playableRuntimeFields(withAudioLoadTypes(opts.runtime ?? DEFAULT_RUNTIME_CONFIG, cook.audioLoadTypes, cook.audioEncoded)))};` +
     (modelBakes && bakeWorker ? span('model-bakes', `window.__GAME_MODEL_BAKES__=${JSON.stringify(pack(Buffer.from(JSON.stringify(modelBakes), 'utf8')))};window.__GAME_BAKE_WORKER__=${JSON.stringify(pack(Buffer.from(bakeWorker, 'utf8')))};`) : '') +
