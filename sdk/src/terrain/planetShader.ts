@@ -11,6 +11,31 @@
  */
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
 import { layerParams, LAYER_SURFACE_GLSL, LAYER_SURFACE_WGSL } from './layerSurfaceShader';
+import { PACK_NORMAL_GLSL, PACK_NORMAL_WGSL } from '../render/shaderLib';
+
+// Functions more than one of this file's shaders is written with, once each in both languages.
+const PN_A_GLSL = `vec3 pnA(int f) {
+    if (f == 0) return vec3(0.0, 0.0, -1.0);
+    if (f == 1) return vec3(0.0, 0.0, 1.0);
+    if (f == 2 || f == 3 || f == 4) return vec3(1.0, 0.0, 0.0);
+    return vec3(-1.0, 0.0, 0.0);
+}`;
+const PN_A_WGSL = `fn pnA(f : i32) -> vec3f {
+    if (f == 0) { return vec3f(0.0, 0.0, -1.0); }
+    if (f == 1) { return vec3f(0.0, 0.0, 1.0); }
+    if (f == 2 || f == 3 || f == 4) { return vec3f(1.0, 0.0, 0.0); }
+    return vec3f(-1.0, 0.0, 0.0);
+}`;
+const PN_B_GLSL = `vec3 pnB(int f) {
+    if (f == 2) return vec3(0.0, 0.0, -1.0);
+    if (f == 3) return vec3(0.0, 0.0, 1.0);
+    return vec3(0.0, 1.0, 0.0);
+}`;
+const PN_B_WGSL = `fn pnB(f : i32) -> vec3f {
+    if (f == 2) { return vec3f(0.0, 0.0, -1.0); }
+    if (f == 3) { return vec3f(0.0, 0.0, 1.0); }
+    return vec3f(0.0, 1.0, 0.0);
+}`;
 
 const PLANET = `#pragma shader "Planet"
 #pragma version 300 es
@@ -53,17 +78,8 @@ vec3 pnN(int f) {
     if (f == 4) return vec3(0.0, 0.0, 1.0);
     return vec3(0.0, 0.0, -1.0);
 }
-vec3 pnA(int f) {
-    if (f == 0) return vec3(0.0, 0.0, -1.0);
-    if (f == 1) return vec3(0.0, 0.0, 1.0);
-    if (f == 2 || f == 3 || f == 4) return vec3(1.0, 0.0, 0.0);
-    return vec3(-1.0, 0.0, 0.0);
-}
-vec3 pnB(int f) {
-    if (f == 2) return vec3(0.0, 0.0, -1.0);
-    if (f == 3) return vec3(0.0, 0.0, 1.0);
-    return vec3(0.0, 1.0, 0.0);
-}
+${PN_A_GLSL}
+${PN_B_GLSL}
 // The direction from the planet's centre to the point (u, v) of a face: the cube point, its coordinates spread by tangent, normalised.
 vec3 pnDirection(int f, float u, float v) {
     return normalize(pnN(f) + tan(u * 0.78539816) * pnA(f) + tan(v * 0.78539816) * pnB(f));
@@ -130,17 +146,8 @@ fn pnN(f : i32) -> vec3f {
     if (f == 4) { return vec3f(0.0, 0.0, 1.0); }
     return vec3f(0.0, 0.0, -1.0);
 }
-fn pnA(f : i32) -> vec3f {
-    if (f == 0) { return vec3f(0.0, 0.0, -1.0); }
-    if (f == 1) { return vec3f(0.0, 0.0, 1.0); }
-    if (f == 2 || f == 3 || f == 4) { return vec3f(1.0, 0.0, 0.0); }
-    return vec3f(-1.0, 0.0, 0.0);
-}
-fn pnB(f : i32) -> vec3f {
-    if (f == 2) { return vec3f(0.0, 0.0, -1.0); }
-    if (f == 3) { return vec3f(0.0, 0.0, 1.0); }
-    return vec3f(0.0, 1.0, 0.0);
-}
+${PN_A_WGSL}
+${PN_B_WGSL}
 fn pnDirection(f : i32, u : f32, v : f32) -> vec3f {
     return normalize(pnN(f) + tan(u * 0.78539816) * pnA(f) + tan(v * 0.78539816) * pnB(f));
 }
@@ -211,27 +218,13 @@ layout(location = 1) out vec4 fragSurface;
 // The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
 layout(location = 2) out vec4 fragAlbedo;
 
-vec2 packNormal(vec3 n) {
-    n /= (abs(n.x) + abs(n.y) + abs(n.z));
-    vec2 sgn = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
-    vec2 e = n.z >= 0.0 ? n.xy : (1.0 - abs(n.yx)) * sgn;
-    return e * 0.5 + 0.5;
-}
+${PACK_NORMAL_GLSL}
 #else
 out vec4 fragColor;
 #endif
 
-vec3 pnA(int f) {
-    if (f == 0) return vec3(0.0, 0.0, -1.0);
-    if (f == 1) return vec3(0.0, 0.0, 1.0);
-    if (f == 2 || f == 3 || f == 4) return vec3(1.0, 0.0, 0.0);
-    return vec3(-1.0, 0.0, 0.0);
-}
-vec3 pnB(int f) {
-    if (f == 2) return vec3(0.0, 0.0, -1.0);
-    if (f == 3) return vec3(0.0, 0.0, 1.0);
-    return vec3(0.0, 1.0, 0.0);
-}
+${PN_A_GLSL}
+${PN_B_GLSL}
 ${LAYER_SURFACE_GLSL}
 // Value noise in three dimensions: a planet has no plane to lay a flat noise on.
 float pnHash(vec3 p) {
@@ -296,17 +289,8 @@ void main() {
 #pragma end
 
 #pragma fragment wgsl
-fn pnA(f : i32) -> vec3f {
-    if (f == 0) { return vec3f(0.0, 0.0, -1.0); }
-    if (f == 1) { return vec3f(0.0, 0.0, 1.0); }
-    if (f == 2 || f == 3 || f == 4) { return vec3f(1.0, 0.0, 0.0); }
-    return vec3f(-1.0, 0.0, 0.0);
-}
-fn pnB(f : i32) -> vec3f {
-    if (f == 2) { return vec3f(0.0, 0.0, -1.0); }
-    if (f == 3) { return vec3f(0.0, 0.0, 1.0); }
-    return vec3f(0.0, 1.0, 0.0);
-}
+${PN_A_WGSL}
+${PN_B_WGSL}
 ${LAYER_SURFACE_WGSL}
 fn pnHash(p0 : vec3f) -> f32 {
     var p = fract(p0 * vec3f(0.1031, 0.1030, 0.0973));
@@ -329,13 +313,7 @@ struct FragOut {
     @location(2) albedo : vec4f,
 };
 
-fn packNormal(n : vec3f) -> vec2f {
-    let a = n / (abs(n.x) + abs(n.y) + abs(n.z));
-    let sgn = vec2f(select(-1.0, 1.0, a.x >= 0.0), select(-1.0, 1.0, a.y >= 0.0));
-    var e = a.xy;
-    if (a.z < 0.0) { e = (vec2f(1.0) - abs(a.yx)) * sgn; }
-    return e * 0.5 + 0.5;
-}
+${PACK_NORMAL_WGSL}
 
 @fragment fn fs_main(v : VSOut) -> FragOut {
 #else
