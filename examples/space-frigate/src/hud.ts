@@ -39,7 +39,7 @@ export function installHud(app: App): void {
         if (world.findEntityByName('Camera') === null) return;
         const moved = stepHelm({
             ahead: input.isKeyDown('KeyW'), astern: input.isKeyDown('KeyS'), port: input.isKeyDown('KeyA') || input.isKeyDown('ArrowLeft'), starboard: input.isKeyDown('KeyD') || input.isKeyDown('ArrowRight'),
-            climb: input.isKeyDown('KeyE') || input.isKeyDown('ArrowUp'), dive: input.isKeyDown('KeyQ') || input.isKeyDown('ArrowDown'), steady: input.isKeyDown('KeyX'), approach: input.isKeyDown('KeyV'), align: input.isKeyDown('KeyB'),
+            climb: input.isKeyDown('KeyE') || input.isKeyDown('ArrowUp'), dive: input.isKeyDown('KeyQ') || input.isKeyDown('ArrowDown'), steady: input.isKeyDown('KeyX'), approach: input.isKeyDown('KeyV'), align: input.isKeyDown('KeyB'), level: input.isKeyDown('KeyZ'),
         }, Math.min(time.delta, 0.05));
         if (majors.length === 0) {
             for (let i = MAJOR_FROM; i < ROCKS; i++) { const e = world.findEntityByName(`Rock${i}`); if (e !== null) majors.push(e); }
@@ -91,7 +91,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
 
     const identityAt = pivot(root, 'IdentityPivot', { left: EDGE + 222, top: 34 + 84 });
     const identity = node(identityAt, 'Identity', { left: -210, top: -80, width: 420, height: 64 });
-    solid(identity, 'IdentityBar', { left: 0, top: 3, width: 3, height: 40 }, rgb(ICE, 0.9));
+    const identityBar = solid(identity, 'IdentityBar', { left: 0, top: 3, width: 3, height: 40 }, rgb(ICE, 0.9));
     label(identity, 'ShipName', { left: 16, top: 0, width: 400, height: 24 }, { size: 19, color: rgb(ICE), spacing: 4.2, content: 'ESV HALCYON' });
     label(identity, 'ShipClass', { left: 16, top: 27, width: 400, height: 16 }, { size: 11, color: rgb(HAZE, 0.9), spacing: 1.8, content: 'MERIDIAN CLASS FRIGATE', strong: false });
     const clock = label(identity, 'MissionClock', { left: 16, top: 48, width: 400, height: 16 }, { size: 11, color: rgb(HAZE, 0.9), spacing: 1.8, strong: false });
@@ -104,9 +104,9 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     for (let i = 0; i < SHOTS.length; i++) {
         pips.push(node(view, `ViewPip${i + 1}`, { right: (SHOTS.length - 1 - i) * 23 + 4, top: 33, width: 20, height: 6 }, { visualType: UIVisualType.Image, texture: textures.pip, color: rgb(ICE, 0.2) }));
     }
-    label(view, 'HoldTitle', { right: 0, top: 84, width: 300, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 2.6, align: TextAlign.Right, content: 'ORE HOLD' });
+    const holdTitle = label(view, 'HoldTitle', { right: 0, top: 84, width: 300, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 2.6, align: TextAlign.Right, content: 'ORE HOLD' });
     const holdValue = label(view, 'HoldValue', { right: 0, top: 100, width: 300, height: 22 }, { size: 17, color: rgb(ICE), spacing: 0.8, align: TextAlign.Right });
-    image(view, 'HoldTrack', { right: 0, top: 128, width: 168, height: 6 }, textures.barTrack, rgb(ICE));
+    const holdTrack = image(view, 'HoldTrack', { right: 0, top: 128, width: 168, height: 6 }, textures.barTrack, rgb(ICE));
     const holdBar = node(view, 'HoldBar', { right: 0, top: 128, width: 168, height: 6 }, { visualType: UIVisualType.Filled, texture: textures.barFill, color: rgb(ICE), fillMethod: FillMethod.Horizontal, fillOrigin: FillOrigin.Left, fillAmount: 0 });
     const holdNote = label(view, 'HoldNote', { right: 0, top: 140, width: 300, height: 14 }, { size: 10, color: rgb(HAZE), spacing: 1.8, align: TextAlign.Right, strong: false });
     const viewMode = label(view, 'ViewMode', { right: 0, top: 48, width: 300, height: 16 }, { size: 11, color: rgb(HAZE, 0.9), spacing: 1.8, align: TextAlign.Right, strong: false });
@@ -194,7 +194,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
 
     const model = { reactor: 0.18, primed: false };
     const began = ship.time;
-    let full = false, hot = false;
+    let full = false, hot = false, combat = 0;
 
     return (dt, input) => {
         const screen = app.getResource(ScreenOverlay);
@@ -228,10 +228,13 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
             pressing,
         };
         const age = ship.time - began;
+        combat += ((guns.view ? 1 : 0) - combat) * Math.min(1, dt * 8);
+        for (const e of [holdTitle, holdValue, holdTrack, holdBar, holdNote]) fade(e, 1 - combat);
+        ink(identityBar, guns.view ? rgb(AMBER) : rgb(ICE, 0.9), UIVisual);
         const boot = clamp(age / BOOT_SECONDS, 0, 1);
         for (const [group, from, most] of groups) {
             const up = (age - from) / 0.6;
-            fade(group, most * ease(up) * (up > 0 && up < 1.4 && Math.sin(age * 71 + from * 9) > 0.55 ? 0.45 : 1));
+            fade(group, most * ease(up) * (up > 0 && up < 1.4 && Math.sin(age * 71 + from * 9) > 0.55 ? 0.45 : 1) * (group === systems ? 1 - combat : 1));
         }
         if (boot >= 1 && !state.booted) { state.booted = true; log.say('HELM DISPLAY ONLINE'); }
         const test = clamp((age - 0.6) / 1.6, 0, 1), sweep = Math.sin(Math.PI * test), settle = test * test * (3 - 2 * test);
@@ -243,7 +246,8 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
 
         say(clock, `OUTER PATROL   T+ ${stamp(ship.time)}`);
         const bearing = ((Math.round((-helm.yaw * 180) / Math.PI) % 360) + 360) % 360, climb = Math.round((helm.pitch * 180) / Math.PI);
-        say(helmLine, `${helm.mode === 'manual' ? 'HELM MANUAL' : helm.mode === 'align' ? 'ALIGNING TO GATE' : 'CLOSING ON TARGET'}   HDG ${pad(bearing, 3)}   ELV ${climb < 0 ? '-' : '+'}${pad(Math.abs(climb), 2)}`);
+        const lean = Math.round((helm.lean * 180) / Math.PI);
+        say(helmLine, `${helm.mode === 'manual' ? 'HELM MANUAL' : helm.mode === 'align' ? 'ALIGNING TO GATE' : helm.mode === 'level' ? 'COMING LEVEL' : 'CLOSING ON TARGET'}   HDG ${pad(bearing, 3)}   ELV ${climb < 0 ? '-' : '+'}${pad(Math.abs(climb), 2)}   ROLL ${lean < 0 ? '-' : '+'}${pad(Math.abs(lean), 3)}`);
         ink(helmLine, helm.mode === 'manual' ? rgb(HAZE, 0.9) : rgb(AMBER));
         if (helm.arrived) {
             log.say(mining.hold > 0 ? `DELIVERED ${mining.hold.toFixed(1)} T   NAV ${pad(helm.leg, 2)} ${helm.gateName}` : `GATE REACHED   NAV ${pad(helm.leg, 2)} ${helm.gateName}`, AMBER);
@@ -252,14 +256,17 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         }
 
         if (guns.view) {
-            say(viewTitle, 'GUNNERY');
+            say(viewTitle, 'COMBAT');
+            ink(viewTitle, rgb(AMBER));
             say(viewMode, guns.ready > 0 ? `${guns.ready} READY TO FIRE` : 'GUNS TRAINING');
             ink(viewMode, rgb(AMBER));
         } else if (ship.tour) {
+            ink(viewTitle, rgb(ICE));
             say(viewTitle, `VIEW ${ship.shot + 1} / ${SHOTS.length}`);
             say(viewMode, 'AUTO TOUR');
             ink(viewMode, rgb(HAZE, 0.9));
         } else {
+            ink(viewTitle, rgb(ICE));
             say(viewTitle, 'FREE VIEW');
             say(viewMode, 'MANUAL ORBIT');
             ink(viewMode, rgb(AMBER));
@@ -267,7 +274,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         const within = (ship.time % SHOT_SECONDS) / SHOT_SECONDS;
         pips.forEach((pip, i) => {
             const here = ship.tour && i === ship.shot;
-            ink(pip, here ? rgb(ICE, 0.55 + 0.45 * (1 - within)) : rgb(ICE, ship.tour ? 0.2 : 0.1), UIVisual);
+            ink(pip, rgb(ICE, (here ? 0.55 + 0.45 * (1 - within) : ship.tour ? 0.2 : 0.1) * (1 - combat)), UIVisual);
         });
 
         const strained = model.reactor > 0.82;

@@ -12,20 +12,21 @@ const CELL = { w: 64, h: 24, gap: 3 };
 const RUDDER = { w: 42, h: 24, top: 152 };
 const BUTTON = { w: 96, h: 24 };
 
-interface Control { name: string; x: number; y: number; w: number; h: number; press: () => void; lit: () => boolean; cap: Entity; text: Entity }
+interface Control { name: string; x: number; y: number; w: number; h: number; press: () => void; lit: () => boolean; when: () => boolean; cap: Entity; text: Entity }
 
 export interface Desk { root: Entity; update(frame: Frame): void; spots: Record<string, { left: number; top: number }> }
 
 export function buildHelm(kit: Kit, probe: TargetProbe): Desk {
-    const { root, textures, node, sliced, solid, label, say, ink, place } = kit;
+    const { root, textures, node, sliced, solid, label, say, ink, fade, place } = kit;
     const desk = node(root, 'Helm', { left: 0, top: TOP, width: 0, height: 0 });
     const controls: Control[] = [];
     const spots: Record<string, { left: number; top: number }> = {};
 
-    const control = (name: string, x: number, y: number, w: number, h: number, caption: string, press: () => void, lit: () => boolean): void => {
+    const always = (): boolean => true, cruising = (): boolean => !guns.view, fighting = (): boolean => guns.view;
+    const control = (name: string, x: number, y: number, w: number, h: number, caption: string, press: () => void, lit: () => boolean, when: () => boolean = always): void => {
         const cap = sliced(desk, `Helm${name}`, { left: x, top: y, width: w, height: h }, textures.keycap, 9, rgb(ICE, 0.55));
         const text = label(desk, `Helm${name}Text`, { left: x, top: y, width: w, height: h - 2 }, { size: 10, color: rgb(HAZE), align: TextAlign.Center, spacing: 1.4, content: caption });
-        controls.push({ name, x, y, w, h, press, lit, cap, text });
+        controls.push({ name, x, y, w, h, press, lit, when, cap, text });
     };
     const header = (name: string, x: number, y: number, w: number, text: string, align: TextAlign = TextAlign.Center): Entity =>
         label(desk, `Helm${name}`, { left: x, top: y, width: w, height: 12 }, { size: 9, color: rgb(HAZE), spacing: 2.2, align, content: text, strong: false });
@@ -62,14 +63,16 @@ export function buildHelm(kit: Kit, probe: TargetProbe): Desk {
     header('WeaponsTitle', left, -16 + rowAt(0), BUTTON.w, 'TARGET');
     header('AutoTitle', right, -16 + rowAt(0), BUTTON.w, 'AUTOPILOT');
     control('Lock', left, rowAt(0), BUTTON.w, BUTTON.h, 'T   LOCK', () => { probe.next = true; }, () => probe.selected >= 0);
-    control('Mine', left, rowAt(1), BUTTON.w, BUTTON.h, 'F   MINE', () => { mining.armed = !mining.armed; }, () => mining.armed);
-    control('Release', left, rowAt(2), BUTTON.w, BUTTON.h, 'R   RELEASE', () => { probe.release = true; }, () => false);
-    control('Guns', left, rowAt(3), BUTTON.w, BUTTON.h, 'G   GUNS', () => { guns.toggle = true; }, () => guns.view);
-    control('Close', right, rowAt(0), BUTTON.w, BUTTON.h, 'V   CLOSE', () => engage('approach'), () => helm.mode === 'approach');
-    control('Gate', right, rowAt(1), BUTTON.w, BUTTON.h, 'B   GATE', () => engage('align'), () => helm.mode === 'align');
-    control('Steady', right, rowAt(2), BUTTON.w, BUTTON.h, 'X   STEADY', () => steady(), () => false);
-    control('Auto', right, rowAt(3), BUTTON.w, BUTTON.h, 'C   AUTO FIRE', () => { guns.auto = !guns.auto; }, () => guns.auto);
-    header('Hints', -420, RUDDER.top + RUDDER.h + 14, 840, 'W S  ENGINE      A D  RUDDER      Q E  PITCH      DRAG  LOOK      1 - 6  VIEWS      G  GUNS      C  AUTO FIRE      SPACE  TOUR OR FIRE');
+    control('Release', left, rowAt(1), BUTTON.w, BUTTON.h, 'R   RELEASE', () => { probe.release = true; }, () => false);
+    control('Mine', left, rowAt(2), BUTTON.w, BUTTON.h, 'F   MINE', () => { mining.armed = !mining.armed; }, () => mining.armed, cruising);
+    control('Auto', left, rowAt(2), BUTTON.w, BUTTON.h, 'C   AUTO FIRE', () => { guns.auto = !guns.auto; }, () => guns.auto, fighting);
+    control('Guns', left, rowAt(3), BUTTON.w, BUTTON.h, 'G   COMBAT', () => { guns.toggle = true; }, () => guns.view);
+    control('Gate', right, rowAt(0), BUTTON.w, BUTTON.h, 'B   GATE', () => engage('align'), () => helm.mode === 'align');
+    control('Close', right, rowAt(1), BUTTON.w, BUTTON.h, 'V   CLOSE', () => engage('approach'), () => helm.mode === 'approach');
+    control('Level', right, rowAt(2), BUTTON.w, BUTTON.h, 'Z   LEVEL', () => engage('level'), () => helm.mode === 'level');
+    control('Steady', right, rowAt(3), BUTTON.w, BUTTON.h, 'X   STEADY', () => steady(), () => false);
+    const cruiseHints = header('Hints', -420, RUDDER.top + RUDDER.h + 14, 840, 'W S  ENGINE      A D  RUDDER      Q E  PITCH      Z  LEVEL      DRAG  LOOK      1 - 6  VIEWS      SPACE  TOUR      G  COMBAT');
+    const combatHints = header('CombatHints', -420, RUDDER.top + RUDDER.h + 14, 840, 'DRAG  AIM      SPACE OR CLICK  FIRE      TWICE  SALVO      HOLD  KEEP FIRING      C  AUTO FIRE      A D Q E  STEER      G  LEAVE COMBAT');
 
     const along = (value: number, low: number, high: number): number => {
         const k = Math.max(0, Math.min(1, (value - low) / (high - low)));
@@ -80,7 +83,14 @@ export function buildHelm(kit: Kit, probe: TargetProbe): Desk {
         const centre = Math.round(frame.across / 2);
         place(desk, centre, TOP);
         let consumed = false;
+        fade(cruiseHints, guns.view ? 0 : 1);
+        fade(combatHints, guns.view ? 1 : 0);
+        ink(combatHints, rgb(AMBER, 0.85));
         for (const c of controls) {
+            const here = c.when();
+            fade(c.cap, here ? 1 : 0);
+            fade(c.text, here ? 1 : 0);
+            if (!here) continue;
             spots[c.name] = { left: centre + c.x + c.w / 2, top: TOP + c.y + c.h / 2 };
             const over = frame.pointer.left >= centre + c.x && frame.pointer.left <= centre + c.x + c.w && frame.pointer.top >= TOP + c.y && frame.pointer.top <= TOP + c.y + c.h;
             if (frame.click && !consumed && frame.click.left >= centre + c.x && frame.click.left <= centre + c.x + c.w && frame.click.top >= TOP + c.y && frame.click.top <= TOP + c.y + c.h) {

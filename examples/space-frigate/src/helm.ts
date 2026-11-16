@@ -8,6 +8,9 @@ export const TURN_RATE = 0.3;
 export const PITCH_RATE = 0.24;
 export const YAW_THRUST = 0.14;
 export const PITCH_THRUST = 0.11;
+export const ROLL_RATE = 0.35;
+export const ROLL_THRUST = 0.2;
+const LEVEL = 0.004;
 const THRUST_GAIN = 4;
 const BANK = 0.5;
 const GATES = ['KESTREL GATE', 'TARN RELAY', 'OSSA ANCHORAGE'] as const;
@@ -43,11 +46,11 @@ function toward(from: Quat, to: Quat, share: number): Quat {
     return { x: q.x / l, y: q.y / l, z: q.z / l, w: q.w / l };
 }
 
-export type HelmMode = 'manual' | 'approach' | 'align';
+export type HelmMode = 'manual' | 'approach' | 'align' | 'level';
 
 export const helm = {
-    yaw: 0, pitch: 0, roll: 0, yawRate: 0, pitchRate: 0,
-    jets: { yaw: 0, pitch: 0 },
+    yaw: 0, pitch: 0, roll: 0, lean: 0, yawRate: 0, pitchRate: 0, rollRate: 0,
+    jets: { yaw: 0, pitch: 0, roll: 0 },
     mode: 'manual' as HelmMode,
     order: 0.75,
     rudder: 0,
@@ -65,7 +68,7 @@ export const helm = {
     aim: null as Vec | null,
 };
 
-export interface HelmKeys { ahead: boolean; astern: boolean; port: boolean; starboard: boolean; climb: boolean; dive: boolean; steady: boolean; approach: boolean; align: boolean }
+export interface HelmKeys { ahead: boolean; astern: boolean; port: boolean; starboard: boolean; climb: boolean; dive: boolean; steady: boolean; approach: boolean; align: boolean; level: boolean }
 
 const held: Record<string, number> = {};
 
@@ -104,21 +107,33 @@ export function stepHelm(keys: HelmKeys, dt: number): Vec {
     if (tapped('steady', keys.steady, dt)) steady();
     if (tapped('approach', keys.approach, dt)) engage('approach');
     if (tapped('align', keys.align, dt)) engage('align');
+    if (tapped('level', keys.level, dt)) engage('level');
     if (helm.mode === 'approach' && !helm.aim) steady();
 
-    let want = { yaw: -helm.rudder * TURN_RATE, pitch: helm.elevation * PITCH_RATE };
+    let want = { yaw: -helm.rudder * TURN_RATE, pitch: helm.elevation * PITCH_RATE, roll: 0 };
     const to = helm.mode === 'approach' ? helm.aim : helm.mode === 'align' ? helm.gate : null;
     if (to) {
         const ahead = turnBack(helm.level, to);
-        want = { yaw: within(Math.atan2(ahead.x, ahead.z) * 1.4, TURN_RATE), pitch: within(Math.atan2(ahead.y, Math.hypot(ahead.x, ahead.z) || 1e-6) * 1.4, PITCH_RATE) };
+        want = { yaw: within(Math.atan2(ahead.x, ahead.z) * 1.4, TURN_RATE), pitch: within(Math.atan2(ahead.y, Math.hypot(ahead.x, ahead.z) || 1e-6) * 1.4, PITCH_RATE), roll: 0 };
         helm.rudder = -want.yaw / TURN_RATE;
         helm.elevation = want.pitch / PITCH_RATE;
     }
-    const push = { yaw: within((want.yaw - helm.yawRate) * THRUST_GAIN, YAW_THRUST), pitch: within((want.pitch - helm.pitchRate) * THRUST_GAIN, PITCH_THRUST) };
+    if (helm.mode === 'level') {
+        const climb = Math.asin(Math.max(-1, Math.min(1, helm.forward.y)));
+        if (Math.abs(helm.lean) < LEVEL && Math.abs(climb) < LEVEL && Math.abs(helm.rollRate) + Math.abs(helm.pitchRate) + Math.abs(helm.yawRate) < LEVEL) {
+            steady();
+        } else {
+            want = { yaw: 0, pitch: within(-climb * 1.4 * Math.max(0, Math.cos(helm.lean)), PITCH_RATE), roll: within(-helm.lean * 1.4, ROLL_RATE) };
+            helm.rudder = 0;
+            helm.elevation = want.pitch / PITCH_RATE;
+        }
+    }
+    const push = { yaw: within((want.yaw - helm.yawRate) * THRUST_GAIN, YAW_THRUST), pitch: within((want.pitch - helm.pitchRate) * THRUST_GAIN, PITCH_THRUST), roll: within((want.roll - helm.rollRate) * THRUST_GAIN, ROLL_THRUST) };
     helm.yawRate += push.yaw * dt;
     helm.pitchRate += push.pitch * dt;
-    helm.jets = { yaw: push.yaw / YAW_THRUST, pitch: push.pitch / PITCH_THRUST };
-    helm.level = toward(helm.level, mulQuat(mulQuat(helm.level, about('y', helm.yawRate * dt)), about('x', -helm.pitchRate * dt)), 1);
+    helm.rollRate += push.roll * dt;
+    helm.jets = { yaw: push.yaw / YAW_THRUST, pitch: push.pitch / PITCH_THRUST, roll: push.roll / ROLL_THRUST };
+    helm.level = toward(helm.level, mulQuat(mulQuat(mulQuat(helm.level, about('y', helm.yawRate * dt)), about('x', -helm.pitchRate * dt)), about('z', helm.rollRate * dt)), 1);
     helm.helmAngle = -helm.yawRate / TURN_RATE;
     helm.roll += ((-helm.yawRate / TURN_RATE) * BANK - helm.roll) * Math.min(1, dt * 1.8);
     helm.attitude = mulQuat(helm.level, about('z', helm.roll));
@@ -126,6 +141,7 @@ export function stepHelm(keys: HelmKeys, dt: number): Vec {
     helm.forward = turnBy(helm.level, { x: 0, y: 0, z: 1 });
     helm.yaw = Math.atan2(helm.forward.x, helm.forward.z);
     helm.pitch = Math.asin(Math.max(-1, Math.min(1, helm.forward.y)));
+    helm.lean = Math.atan2(turnBy(helm.level, { x: 1, y: 0, z: 0 }).y, turnBy(helm.level, { x: 0, y: 1, z: 0 }).y);
 
     const run = ship.speed * FIELD_DRIFT * dt;
     const moved = { x: -helm.forward.x * run, y: -helm.forward.y * run, z: -helm.forward.z * run };

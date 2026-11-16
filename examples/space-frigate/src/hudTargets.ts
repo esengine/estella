@@ -1,6 +1,7 @@
 import { FillMethod, FillOrigin, TextAlign, Transform, UINode, UIVisual, UIVisualType, UIWorldAnchor, placeOnScreen } from 'esengine';
 import type { Entity } from 'esengine';
 import { clamp } from './flight';
+import { guns } from './gunnery';
 import { METRES, helm, turnBy } from './helm';
 import { AMBER, DESIGN, HAZE, ICE, KEPT_CLEAR, ease, hullBlocks, keptClear, pad, reach, sameRoom, rgb, spaced, stamp, towardOnScreen, type Frame, type Kit, type Log, type Rock } from './hudKit';
 import { MINING, mining, rockClass } from './hudMining';
@@ -239,7 +240,7 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
                 if (on.onScreen && room > 0 && off(on.left, on.top) > Math.max(110, girth) && Math.abs(swing) < best) { best = Math.abs(swing); limb = p; }
             }
             if (tag.offset.x !== limb.x || tag.offset.y !== limb.y || tag.offset.z !== limb.z) world.update(body, UIWorldAnchor, (anchored) => { anchored.offset = limb; });
-            fade(body, best < Infinity && tag.onScreen ? 1 : 0);
+            fade(body, best < Infinity && tag.onScreen && !guns.view ? 1 : 0);
         } else {
             fade(body, 0);
         }

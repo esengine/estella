@@ -92,7 +92,7 @@ export function installMining(app: App, world: World, rocks: readonly Rock[], pr
         const key = frame.held('KeyF');
         if (key && !pressed) mining.armed = !mining.armed;
         pressed = key;
-        if (rock === null) mining.armed = false;
+        if (rock === null || guns.view) mining.armed = false;
         const wants = mining.armed && rock !== null && probe.locked;
         if (mining.overheated && mining.heat < 0.45) mining.overheated = false;
         let reason = '';

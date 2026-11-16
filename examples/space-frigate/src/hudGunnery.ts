@@ -72,7 +72,7 @@ export function buildGunnery(kit: Kit, log: Log, probe: TargetProbe): (frame: Fr
         if (guns.note) { log.say(guns.note, AMBER); guns.note = ''; }
         const centre = Math.round(frame.across / 2);
         const left = frame.across - TRIGGER.right - TRIGGER.width;
-        const active = guns.view || guns.auto;
+        const active = guns.view;
         const boxes = {
             fire: { left, top: TRIGGER.top, width: TRIGGER.width, height: TRIGGER.height, on: guns.view },
             salvo: { left, top: TRIGGER.top + below, width: half, height: TRIGGER.small, on: guns.view },

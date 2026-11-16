@@ -31,6 +31,7 @@ const STEADY = ['NavPort', 'NavStarboard'] as const;
 const JETS = [
     { name: 'JetBowStarboard', turn: 'yaw', sign: 1 }, { name: 'JetSternPort', turn: 'yaw', sign: 1 }, { name: 'JetBowPort', turn: 'yaw', sign: -1 }, { name: 'JetSternStarboard', turn: 'yaw', sign: -1 },
     { name: 'JetBowDown', turn: 'pitch', sign: 1 }, { name: 'JetSternUp', turn: 'pitch', sign: 1 }, { name: 'JetBowUp', turn: 'pitch', sign: -1 }, { name: 'JetSternDown', turn: 'pitch', sign: -1 },
+    { name: 'JetPortDown', turn: 'roll', sign: 1 }, { name: 'JetStarboardUp', turn: 'roll', sign: 1 }, { name: 'JetPortUp', turn: 'roll', sign: -1 }, { name: 'JetStarboardDown', turn: 'roll', sign: -1 },
 ] as const;
 const WAVE_SECONDS = 0.9;
 const SIGHT = { height: 20, yaw: Math.PI + 0.1, pitch: 0, distance: 86, low: -0.6, high: 0.9 };
@@ -127,7 +128,8 @@ addPlugin({
                     tour = false;
                 }
             }
-            if (struck('KeyC')) guns.auto = !guns.auto;
+            if (struck('KeyC') && guns.view) guns.auto = !guns.auto;
+            if (!guns.view) guns.auto = false;
             const space = struck('Space');
             if (!guns.view && space) {
                 tour = !tour;
@@ -282,7 +284,7 @@ addPlugin({
                 t.scale = { x: wide, y: wide, z: burn > 0.02 ? 0.15 + 0.45 * burn : 0.001 };
                 world.insert(e, Transform, t);
             });
-            facts.jets = `${helm.jets.yaw.toFixed(2)} ${helm.jets.pitch.toFixed(2)}`;
+            facts.jets = `${helm.jets.yaw.toFixed(2)} ${helm.jets.pitch.toFixed(2)} ${helm.jets.roll.toFixed(2)}`;
 
             facts.ready = true;
             facts.frame++;

@@ -3,14 +3,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { PITCH_THRUST, TURN_RATE, YAW_THRUST, engage, helm, setElevation, setRudder, steady, stepHelm, type HelmKeys } from '../../examples/space-frigate/src/helm';
 
-const IDLE: HelmKeys = { ahead: false, astern: false, port: false, starboard: false, climb: false, dive: false, steady: false, approach: false, align: false };
+const IDLE: HelmKeys = { ahead: false, astern: false, port: false, starboard: false, climb: false, dive: false, steady: false, approach: false, align: false, level: false };
 const STEP = 1 / 60;
 const level = { x: 0, y: 0, z: 0, w: 1 };
 const run = (seconds: number, each?: () => void): void => { for (let left = Math.round(seconds / STEP); left > 0; left--) { stepHelm(IDLE, STEP); each?.(); } };
 
 beforeEach(() => {
     Object.assign(helm, {
-        yaw: 0, pitch: 0, roll: 0, yawRate: 0, pitchRate: 0, jets: { yaw: 0, pitch: 0 }, mode: 'manual', order: 0.75, rudder: 0, elevation: 0, helmAngle: 0,
+        yaw: 0, pitch: 0, roll: 0, lean: 0, yawRate: 0, pitchRate: 0, rollRate: 0, jets: { yaw: 0, pitch: 0, roll: 0 }, mode: 'manual', order: 0.75, rudder: 0, elevation: 0, helmAngle: 0,
         attitude: { ...level }, level: { ...level }, frame: { ...level }, forward: { x: 0, y: 0, z: 1 }, gate: { x: 0, y: 14, z: 2600 }, arrivals: 0, arrived: false, aim: null,
     });
 });
@@ -24,7 +24,7 @@ describe('how the space frigate answers its helm', () => {
         expect(helm.yawRate).toBeLessThanOrEqual(YAW_THRUST * 0.5 + 1e-9);
         expect(helm.yawRate).toBeLessThan(TURN_RATE * 0.5);
         expect(helm.pitchRate).toBeLessThanOrEqual(PITCH_THRUST * 0.5 + 1e-9);
-        expect(helm.jets).toEqual({ yaw: 1, pitch: 1 });
+        expect(helm.jets).toEqual({ yaw: 1, pitch: 1, roll: 0 });
     });
 
     it('a steady turn needs no thrust, and stopping it fires the other side until she is still', () => {
@@ -104,5 +104,35 @@ describe('how the space frigate answers its helm', () => {
         const far = Math.hypot(helm.gate.x, helm.gate.y, helm.gate.z);
         expect((helm.forward.x * helm.gate.x + helm.forward.y * helm.gate.y + helm.forward.z * helm.gate.z) / far).toBeGreaterThan(0.9999);
         expect(helm.mode).toBe('align');
+    });
+
+    it('asked to come level she brings her bow to the horizon and her deck flat, from any attitude, and then holds', () => {
+        for (const [pitched, turned] of [[4, 3], [13, 0], [7, 9]] as const) {
+            setElevation(1);
+            run(pitched);
+            setRudder(1);
+            run(turned);
+            steady();
+            run(3);
+            engage('level');
+            expect(helm.mode).toBe('level');
+            run(60);
+            expect(Math.abs(helm.forward.y)).toBeLessThan(0.01);
+            expect(Math.abs(helm.lean)).toBeLessThan(0.01);
+            expect(helm.mode).toBe('manual');
+            expect(Math.abs(helm.yawRate) + Math.abs(helm.pitchRate) + Math.abs(helm.rollRate)).toBeLessThan(0.01);
+        }
+    });
+
+    it('a hand on the rudder takes her back from coming level', () => {
+        setElevation(1);
+        run(5);
+        engage('level');
+        run(1);
+        setRudder(1 / 3);
+        expect(helm.mode).toBe('manual');
+        const climb = helm.pitch;
+        run(0.5);
+        expect(helm.pitch).toBeGreaterThan(climb * 0.5);
     });
 });

@@ -124,7 +124,7 @@ export function createGunnery(): (world: World, dt: number, sight: { from: Vec; 
 
         let aim: Vec | null = null;
         guns.rock = -1;
-        if (guns.auto && guns.locked && meet) {
+        if (guns.auto && guns.view && guns.locked && meet) {
             aim = { x: hull.position.x + meet.point.x, y: hull.position.y + meet.point.y, z: hull.position.z + meet.point.z };
             guns.source = 'auto';
         } else if (guns.view && sight) {

@@ -39,7 +39,7 @@ try {
     const fast = await facts();
     expect('W pushes it to full', fast.throttle > 0.9, fast.throttle);
 
-    const helm = () => page.evaluate(() => { const h = window.__spaceHud.helm; return { rudder: h.rudder, elevation: h.elevation, forward: h.forward }; });
+    const helm = () => page.evaluate(() => { const h = window.__spaceHud.helm; return { rudder: h.rudder, elevation: h.elevation, forward: h.forward, lean: h.lean, mode: h.mode }; });
     const apart = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
     await tap('KeyD');
     await tap('KeyD');
@@ -64,6 +64,16 @@ try {
     await step(600);
     const later = await helm();
     expect('with the helm amidships she keeps the attitude she has and does not come level', apart(held.forward, later.forward) < 0.01 && apart(later.forward, { x: 0, y: 0, z: 1 }) > 0.3 && later.rudder === 0 && later.elevation === 0, { held, later });
+
+    await tap('KeyD');
+    await step(240);
+    await tap('KeyX');
+    await step(120);
+    await tap('KeyZ');
+    const levelling = await helm();
+    await step(60 * 45);
+    const level = await helm();
+    expect('Z brings her level from wherever she is, and then gives the helm back', levelling.mode === 'level' && level.mode === 'manual' && Math.abs(level.forward.y) < 0.02 && Math.abs(level.lean) < 0.02, { levelling, level });
 
     await tap('Digit5');
     const near = await camera();
@@ -130,6 +140,12 @@ try {
     const tracking = await facts();
     expect('a locked target is followed by the guns, which hold their fire', tracking.gunSource === 'target' && tracking.gunShots === pressed.gunShots, guns(tracking));
     await tap('KeyC');
+    await step(30);
+    const cruising = await facts();
+    expect('out of combat C does nothing: the guns are a combat tool', cruising.gunAuto === false && cruising.gunSource === 'target', guns(cruising));
+    await tap('KeyG');
+    await step(20);
+    await tap('KeyC');
     await step(80);
     const auto = await facts();
     expect('C lets them fire on it themselves', auto.gunAuto === true && auto.gunSource === 'auto' && (auto.gunShots > tracking.gunShots || auto.gunBearing === 0), guns(auto));
@@ -140,6 +156,12 @@ try {
     await step(240);
     const still = await facts();
     expect('and C again stops them', still.gunAuto === false && still.gunShots === quiet.gunShots, guns(still));
+    await tap('KeyC');
+    await step(10);
+    await tap('KeyG');
+    await step(30);
+    const left = await facts();
+    expect('leaving combat takes auto fire off with it', left.gunView === false && left.gunAuto === false, guns(left));
 } finally {
     await browser.close();
     server.close();
