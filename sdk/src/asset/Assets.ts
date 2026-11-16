@@ -1951,18 +1951,23 @@ export class Assets {
     private async acquireTypedLease_<T>(type: string, ref: string): Promise<AssetLease<T>> {
         const epoch = this.resetEpoch_;
         this.assertLoading_(epoch);
-        const kind = this.registryKind_<T>(type);
-        if (!kind) {
-            const { value, lease } = await this.acquireTyped_<T>(type, ref);
-            return this.typedLease_(type, lease, value);
-        }
-        const slot = await this.acquireSlot_<T>(kind, type, ref);
+        const slot = await this.acquireSlot_<T>(type, ref);
         try { this.assertLoading_(epoch); }
-        catch (error) { slot.release(); throw error; }
-        return slot;
+        catch (error) { slot?.release(); throw error; }
+        if (slot) return slot;
+        const { value, lease } = await this.acquireTyped_<T>(type, ref);
+        return this.typedLease_(type, lease, value);
     }
 
-    private acquireSlot_<T>(kind: RegistryAssetKind<T>, type: string, ref: string): Promise<AssetLease<T>> {
+    /**
+     * A claim on the slot for a registry-backed asset, or null when this type is
+     * not one. The ref the caller spelled is an ALIAS of the slot: a component
+     * carries that spelling and looks the asset up by it, while the load path is
+     * whatever this realm resolved it to.
+     */
+    private async acquireSlot_<T>(type: string, ref: string): Promise<AssetLease<T> | null> {
+        const kind = this.registryKind_<T>(type);
+        if (!kind) return null;
         // Keyed by identity, never by the locator: a content-addressed url is
         // revision-specific, so a slot keyed by one is a slot PER REVISION and
         // an update publishes into a new one while every holder reads the old.
@@ -2739,8 +2744,12 @@ export class Assets {
     }
 
     private async loadTyped<T>(type: string, ref: string): Promise<T> {
-        try { return (await this.acquireTypedLease_<T>(type, ref)).value; }
-        catch (error) { throw preparationFailureReason(error); }
+        try {
+            const { value } = this.registryKind_(type)
+                ? await this.acquireTypedLease_<T>(type, ref)
+                : await this.acquireTyped_<T>(type, ref);
+            return value;
+        } catch (error) { throw preparationFailureReason(error); }
     }
 
     private async acquireTyped_<T>(
