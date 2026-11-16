@@ -25,6 +25,8 @@ import { CAUSTICS_GLSL, CAUSTICS_WGSL } from '../render/waterCaustics';
 import { registerEffect } from '../postprocess/effects';
 import { setUnderwaterState, lensReach } from '../postprocess/underwater';
 import { WatersRes } from './waterPlugin';
+import { IGN_GLSL, IGN_WGSL, PHASE_HG_GLSL, PHASE_HG_WGSL } from '../render/shaderLib';
+import { RAY_START_GLSL, RAY_START_WGSL } from '../postprocess/sources/shared';
 
 const SOURCE = `#pragma shader "PP Underwater"
 #pragma version 300 es
@@ -62,15 +64,10 @@ ${CAUSTICS_GLSL}
 /// Where a view ray starts: the near plane of a perspective eye. An orthographic eye's depth range runs from far BEHIND the camera to far ahead of it
 /// (the projection is built with near = -far), so depth 0 is that far-behind plane, above the water for a camera under it; mid-depth is the plane
 /// the camera stands in.
-vec3 rayStart(vec2 uv) { return worldFromDepth(uv, u_camera.w > 0.5 ? 0.0 : 0.5); }
-float ign(vec2 p) {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
-}
+${RAY_START_GLSL}
+${IGN_GLSL}
 /// How much of a ray's light a particle scatters toward the viewer: forward, the way water glows around the sun.
-float phaseHG(float cosine) {
-    const float g = 0.55;
-    return (1.0 - g * g) / pow(max(1.0 + g * g - 2.0 * g * cosine, 1e-3), 1.5) * 0.25;
-}
+${PHASE_HG_GLSL}
 
 void main() {
     vec4 src = texture(u_texture, v_texCoord);
@@ -149,14 +146,9 @@ const SHAFT_STEPS : i32 = 24;
 
 ${CAUSTICS_WGSL}
 /// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
-fn rayStart(uv : vec2f) -> vec3f { return worldFromDepth(uv, select(0.5, 0.0, frame.camera.w > 0.5)); }
-fn ign(p : vec2f) -> f32 {
-    return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715))));
-}
-fn phaseHG(cosine : f32) -> f32 {
-    let g = 0.55;
-    return (1.0 - g * g) / pow(max(1.0 + g * g - 2.0 * g * cosine, 1e-3), 1.5) * 0.25;
-}
+${RAY_START_WGSL}
+${IGN_WGSL}
+${PHASE_HG_WGSL}
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);

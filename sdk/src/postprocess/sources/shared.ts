@@ -272,3 +272,47 @@ fn envSky(R : vec3f, roughness : f32) -> vec3f {
     let b = envSkyMip(R, min(lo + 1.0, mc.u_envParams.z));
     return mix(a, b, lod - lo) * mc.u_envTint.rgb;
 }`;
+
+
+/** Where a full-screen pass's view ray starts: the near plane of a perspective eye; for an orthographic eye (whose depth range runs from far behind the camera, near = -far) the plane the camera stands in, mid-depth. Needs worldFromDepth and the camera block. */
+export const RAY_START_GLSL = `vec3 rayStart(vec2 uv) { return worldFromDepth(uv, u_camera.w > 0.5 ? 0.0 : 0.5); }`;
+/** {@link RAY_START_GLSL} in WGSL. */
+export const RAY_START_WGSL = `fn rayStart(uv : vec2f) -> vec3f { return worldFromDepth(uv, select(0.5, 0.0, frame.camera.w > 0.5)); }`;
+/** One layer of falling rain streaks over the screen. Needs hash11 and the rain uniforms (u_wind, u_intensity, u_streakLength). */
+export const RAIN_STREAKS_GLSL = `float streaks(vec2 uv, float aspect, float cols, float speed, float seed, float T) {
+    vec2 q = vec2(uv.x * aspect - uv.y * u_wind, uv.y);
+    float cx = floor(q.x * cols);
+    float fx = fract(q.x * cols);
+    float h1 = hash11(cx + seed);
+    float h2 = hash11(cx * 1.7 + seed * 3.1);
+    // GL rows run up the screen, so a pattern that falls moves toward lower rows.
+    float y = q.y * 4.0 + T * speed * (0.8 + 0.4 * h1) + h2 * 17.0;
+    float cell = floor(y);
+    float fy = fract(y);
+    float here = hash11(cx * 31.0 + cell + seed);
+    if (here > u_intensity * 0.5) return 0.0;
+    float dx = abs(fx - 0.5 - (hash11(cell + cx) - 0.5) * 0.6);
+    float across = 1.0 - smoothstep(0.0, 0.06, dx);
+    float along = (1.0 - fy / u_streakLength) * step(fy, u_streakLength);
+    return across * along;
+}`;
+/** {@link RAIN_STREAKS_GLSL} in WGSL. */
+export const RAIN_STREAKS_WGSL = `fn streaks(uv : vec2f, aspect : f32, cols : f32, speed : f32, seed : f32, T : f32) -> f32 {
+    let q = vec2f(uv.x * aspect - (1.0 - uv.y) * mc.u_wind, 1.0 - uv.y);
+    let cx = floor(q.x * cols);
+    let fx = fract(q.x * cols);
+    let h1 = hash11(cx + seed);
+    let h2 = hash11(cx * 1.7 + seed * 3.1);
+    // Here uv runs DOWN the screen and q is flipped back to run up, as in GL, so the same
+    // falling motion is the same sign.
+    let y = q.y * 4.0 + T * speed * (0.8 + 0.4 * h1) + h2 * 17.0;
+    let cell = floor(y);
+    let fy = fract(y);
+    let here = hash11(cx * 31.0 + cell + seed);
+    if (here > mc.u_intensity * 0.5) { return 0.0; }
+    let dx = abs(fx - 0.5 - (hash11(cell + cx) - 0.5) * 0.6);
+    let across = 1.0 - smoothstep(0.0, 0.06, dx);
+    var along = 0.0;
+    if (fy <= mc.u_streakLength) { along = 1.0 - fy / mc.u_streakLength; }
+    return across * along;
+}`;

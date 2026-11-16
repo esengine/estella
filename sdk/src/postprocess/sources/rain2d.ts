@@ -16,11 +16,13 @@
  */
 import type { ShaderHandle } from '../../render/material';
 import { Material } from '../../render/material';
+import { HASH11_GLSL, HASH11_WGSL, HASH21_GLSL, HASH21_WGSL } from '../../render/shaderLib';
+import { RAIN_STREAKS_GLSL, RAIN_STREAKS_WGSL } from './shared';
 
 
 const GLSL = `
-float hash11(float n) { return fract(sin(n * 127.1) * 43758.5453); }
-float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+${HASH11_GLSL}
+${HASH21_GLSL}
 float vnoise(vec2 p) {
     vec2 i = floor(p);
     vec2 f = fract(p);
@@ -39,26 +41,11 @@ vec2 maskAt(vec2 w) {
     return vec2(m.a, m.r);
 }
 /// One layer of streaks: columns across the screen, one streak per cell at most, scrolling down.
-float streaks(vec2 uv, float aspect, float cols, float speed, float seed, float T) {
-    vec2 q = vec2(uv.x * aspect - uv.y * u_wind, uv.y);
-    float cx = floor(q.x * cols);
-    float fx = fract(q.x * cols);
-    float h1 = hash11(cx + seed);
-    float h2 = hash11(cx * 1.7 + seed * 3.1);
-    float y = q.y * 4.0 + T * speed * (0.8 + 0.4 * h1) + h2 * 17.0;
-    float cell = floor(y);
-    float fy = fract(y);
-    float here = hash11(cx * 31.0 + cell + seed);
-    if (here > u_intensity * 0.5) return 0.0;
-    float dx = abs(fx - 0.5 - (hash11(cell + cx) - 0.5) * 0.6);
-    float across = 1.0 - smoothstep(0.0, 0.06, dx);
-    float along = (1.0 - fy / u_streakLength) * step(fy, u_streakLength);
-    return across * along;
-}`;
+${RAIN_STREAKS_GLSL}`;
 
 const WGSL = `
-fn hash11(n : f32) -> f32 { return fract(sin(n * 127.1) * 43758.5453); }
-fn hash21(p : vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453); }
+${HASH11_WGSL}
+${HASH21_WGSL}
 fn vnoise(p : vec2f) -> f32 {
     let i = floor(p);
     var f = fract(p);
@@ -75,23 +62,7 @@ fn maskAt(w : vec2f) -> vec2f {
     let m = textureSampleLevel(u_shelterMask, u_shelterMask_s, uv, 0.0);
     return vec2f(m.a, m.r);
 }
-fn streaks(uv : vec2f, aspect : f32, cols : f32, speed : f32, seed : f32, T : f32) -> f32 {
-    let q = vec2f(uv.x * aspect - (1.0 - uv.y) * mc.u_wind, 1.0 - uv.y);
-    let cx = floor(q.x * cols);
-    let fx = fract(q.x * cols);
-    let h1 = hash11(cx + seed);
-    let h2 = hash11(cx * 1.7 + seed * 3.1);
-    let y = q.y * 4.0 + T * speed * (0.8 + 0.4 * h1) + h2 * 17.0;
-    let cell = floor(y);
-    let fy = fract(y);
-    let here = hash11(cx * 31.0 + cell + seed);
-    if (here > mc.u_intensity * 0.5) { return 0.0; }
-    let dx = abs(fx - 0.5 - (hash11(cell + cx) - 0.5) * 0.6);
-    let across = 1.0 - smoothstep(0.0, 0.06, dx);
-    var along = 0.0;
-    if (fy <= mc.u_streakLength) { along = 1.0 - fy / mc.u_streakLength; }
-    return across * along;
-}`;
+${RAIN_STREAKS_WGSL}`;
 
 const SOURCE = `#pragma shader "PP Rain 2D"
 #pragma version 300 es

@@ -15,6 +15,7 @@ import { deriveGroundBlend } from './groundBlendShader';
 import { DISTORTION, PARTICLE } from './vfxShaders';
 import { paramDefaultValue, reflectEsshader } from './shaderReflect';
 import { WIND_FIELD_GLSL, WIND_FIELD_PARAMS, WIND_FIELD_WGSL } from './windFieldShader';
+import { PACK_NORMAL_GLSL, NOISE2D_GLSL, NOISE2D_WGSL } from './shaderLib';
 
 export interface BuiltinShaderTemplate {
     id: string;
@@ -418,14 +419,7 @@ uniform sampler2D u_textures[8];
 
 out vec4 fragColor;
 
-float hash2d(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
-float noise2d(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash2d(i), hash2d(i + vec2(1.0, 0.0)), f.x),
-               mix(hash2d(i + vec2(0.0, 1.0)), hash2d(i + vec2(1.0, 1.0)), f.x), f.y);
-}
+${NOISE2D_GLSL}
 
 // u_progress 0 = intact, 1 = fully dissolved; a glowing edge leads the cut.
 void main() {
@@ -439,14 +433,7 @@ void main() {
 #pragma end
 
 #pragma fragment wgsl
-fn hash2d(p : vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453123); }
-fn noise2d(p : vec2f) -> f32 {
-    let i = floor(p);
-    var f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash2d(i), hash2d(i + vec2f(1.0, 0.0)), f.x),
-               mix(hash2d(i + vec2f(0.0, 1.0)), hash2d(i + vec2f(1.0, 1.0)), f.x), f.y);
-}
+${NOISE2D_WGSL}
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     // Taken before any branch: a derivative needs every fragment of its quad.
@@ -627,12 +614,7 @@ layout(location = 1) out vec4 fragSurface;
 layout(location = 2) out vec4 fragAlbedo;
 
 // Octahedral normal: a unit vector in two channels, which is what an 8-bit target can hold.
-vec2 packNormal(vec3 n) {
-    n /= (abs(n.x) + abs(n.y) + abs(n.z));
-    vec2 sgn = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
-    vec2 e = n.z >= 0.0 ? n.xy : (1.0 - abs(n.yx)) * sgn;
-    return e * 0.5 + 0.5;
-}
+${PACK_NORMAL_GLSL}
 #else
 out vec4 fragColor;
 #endif
@@ -871,12 +853,7 @@ layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec4 fragSurface;
 // The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
 layout(location = 2) out vec4 fragAlbedo;
-vec2 packNormal(vec3 n) {
-    n /= (abs(n.x) + abs(n.y) + abs(n.z));
-    vec2 sgn = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
-    vec2 e = n.z >= 0.0 ? n.xy : (1.0 - abs(n.yx)) * sgn;
-    return e * 0.5 + 0.5;
-}
+${PACK_NORMAL_GLSL}
 #else
 out vec4 fragColor;
 #endif
@@ -976,12 +953,7 @@ layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec4 fragSurface;
 // The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
 layout(location = 2) out vec4 fragAlbedo;
-vec2 packNormal(vec3 n) {
-    n /= (abs(n.x) + abs(n.y) + abs(n.z));
-    vec2 sgn = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
-    vec2 e = n.z >= 0.0 ? n.xy : (1.0 - abs(n.yx)) * sgn;
-    return e * 0.5 + 0.5;
-}
+${PACK_NORMAL_GLSL}
 #else
 out vec4 fragColor;
 #endif
