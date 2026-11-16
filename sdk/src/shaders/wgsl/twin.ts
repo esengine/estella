@@ -2,10 +2,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    twin.ts
- * @brief   A shader source with the WGSL twin its GLSL fragment translates to, for a device that draws through WebGPU.
+ * @brief   A shader source with the WGSL its GLSL translates to, for a device that draws through WebGPU.
  */
 import { ENGINE_SHADER_API } from './engineApi.generated';
-import { transpileFragment } from './transpile';
+import { transpileFragment, transpileVertexHook } from './transpile';
 
 const GLSL_FRAGMENT = /^#pragma fragment[ \t]*\r?$/m;
 const WGSL_FRAGMENT = /^#pragma fragment wgsl\b/m;
@@ -19,19 +19,23 @@ const twins = new Map<string, string>();
 const refused = new Set<string>();
 
 /**
- * `source` with `#pragma fragment wgsl` written from its GLSL fragment, when it has the one and not the other. A source that
- * already has a twin, or whose own vertex stage or vertex hook has no WGSL (which this does not write yet), is returned as it is;
- * so is one the transpiler cannot read, with a warning naming why, once.
+ * `source` with the WGSL of each GLSL section that has none: its fragment (`#pragma fragment wgsl`) and its vertex hook
+ * (`#pragma vertexoffset wgsl`). A section that already has its WGSL keeps it. A source whose own vertex stage has no WGSL (which
+ * this does not write) is returned as it is, and so is one the transpiler cannot read, with a warning naming why, once.
  */
 export function withWgslTwin(source: string): string {
-    if (!GLSL_FRAGMENT.test(source) || WGSL_FRAGMENT.test(source)) return source;
-    if ((GLSL_VERTEX.test(source) && !WGSL_VERTEX.test(source)) || (GLSL_HOOK.test(source) && !WGSL_HOOK.test(source))) return source;
+    const fragment = GLSL_FRAGMENT.test(source) && !WGSL_FRAGMENT.test(source);
+    const hook = GLSL_HOOK.test(source) && !WGSL_HOOK.test(source);
+    if (!fragment && !hook) return source;
+    if (GLSL_VERTEX.test(source) && !WGSL_VERTEX.test(source)) return source;
     const cached = twins.get(source);
     if (cached !== undefined) return cached;
     if (refused.has(source)) return source;
     try {
-        const wgsl = transpileFragment(source, ENGINE_SHADER_API);
-        const out = `${source.trimEnd()}\n\n#pragma fragment wgsl\n${wgsl}\n#pragma end\n`;
+        let out = source.trimEnd();
+        if (fragment) out += `\n\n#pragma fragment wgsl\n${transpileFragment(source, ENGINE_SHADER_API)}\n#pragma end`;
+        if (hook) out += `\n\n#pragma vertexoffset wgsl\n${transpileVertexHook(source, ENGINE_SHADER_API)}\n#pragma end`;
+        out += '\n';
         twins.set(source, out);
         return out;
     } catch (e) {
