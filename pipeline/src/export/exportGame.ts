@@ -61,6 +61,7 @@ import { genericPlayableProfile, type PlayableAdProfile } from './playableAdProf
 import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL, ESENGINE_SUBPATHS, esengineAlias } from '../bundle/esengineResolve';
 import { officialPackagesPlugin } from '../bundle/officialPackages';
+import { drawsOnlyThroughGL, glOnlyShadersPlugin } from '../bundle/glOnlyShaders';
 import type { RpkSigningKey } from './rpk';
 import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
@@ -1150,7 +1151,10 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
           entryNames: '[name]',
           chunkNames: 'chunks/[name]-[hash]',
           entryPoints: [{ in: entryId, out: 'game' }, ...(scriptsFile && scriptsAbs ? [{ in: scriptsAbs, out: 'scripts' }] : [])],
-          plugins: [...(common.plugins ?? []), {
+          // A build that did not ask for WebGPU never draws through it, so its shaders go without their WGSL twins.
+          plugins: [
+            ...(drawsOnlyThroughGL('web', opts.features?.rendering?.backend) ? [glOnlyShadersPlugin(opts.sdkDistDir)] : []),
+            ...(common.plugins ?? []), {
             name: 'estella-game-entry',
             setup(b) {
               b.onResolve({ filter: /^estella:game-entry$/ }, () => ({ path: entryId, namespace: 'estella-entry' }));
