@@ -9,9 +9,10 @@ export interface LoadWorkProgress {
 export interface LoadWork {
     readonly pending: boolean;
     run(onProgress?: (progress: LoadWorkProgress) => void): Promise<void>;
+    release(): void;
 }
 
-const NONE: LoadWork = { pending: false, run: async () => undefined };
+const NONE: LoadWork = { pending: false, run: async () => undefined, release: () => undefined };
 
 let current: LoadWork = NONE;
 

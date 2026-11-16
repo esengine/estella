@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { applySkyStill } from './skyStill';
 import { isCustomSky } from './customSky';
 import type { BuiltinTexture } from './effects';
 import { defineSystem } from '../ecs/system';
@@ -344,6 +345,7 @@ export function effectsAt(volumes: { data: PostProcessVolumeData; tx: VolumeTran
     if (clock) applyTimeToEffects(blended, clock, currentTimeDrive(), timeLightsApplied());
     applySkyClock(blended, weather && (currentWeatherDrive() & WeatherDrive.Wind) ? weather.wind : 1);
     applyCloudBake(blended, { x, z }, volumeTextureResolver);
+    applySkyStill(blended);
     applyCloudsToFog(blended);
     // A 2D rain is told where the ground under a roof is dry, by a mask drawn this frame.
     applyRainSheltersToRain(blended);

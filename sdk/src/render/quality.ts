@@ -54,6 +54,8 @@ export interface QualityProfile {
      * shading to the end of a tile it is geometry paid for twice, so the weakest level leaves it off.
      */
     depthPrepass: boolean;
+    /** A sky effect defined `still` is drawn once into a panorama and read from it, where it is otherwise worked out for every pixel. */
+    stillSky: boolean;
     postProcess: boolean;
     ssao: boolean;
     /** How many of a body of water's waves are summed, longest first: in the geometry, the shading and what the surface answers for code. 1 to the size of the water's set. */
@@ -117,6 +119,13 @@ export interface DeviceQualityRule {
     maxCores?: number;
 }
 
+export interface QualityPreferences {
+    renderScale?: number;
+    antialiasing?: 'off' | 'msaa' | 'temporal';
+    ssao?: boolean;
+    skipEffects?: readonly string[];
+}
+
 /** @experimental */
 export interface QualityConfig {
     mode?: QualityMode;
@@ -156,7 +165,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
     low: {
         renderScale: 0.75, minRenderScale: 0.5, msaaSamples: 1, antialiasing: 'msaa',
         shadowAtlasSize: 1024, shadowCellSize: 256, shadowCascades: 2,
-        planarReflectionScale: 0.25, planarReflectionMaxSize: 512, planarReflectionUpdatesPerSecond: 0, depthPrepass: false,
+        planarReflectionScale: 0.25, planarReflectionMaxSize: 512, planarReflectionUpdatesPerSecond: 0, depthPrepass: false, stillSky: true,
         shadowDistance: 0, detailScale: 0.5, particleLimit: 1000, postProcess: true, ssao: false,
         waterWaves: 3, waterRippleCells: 32, waterDisplacement: false, waterMirror: false, waterCaustics: false,
         skipEffects: ['ssr', 'taa', 'depthOfField', 'lightShafts', 'motionBlur', 'lensFlare', 'gtao', 'subsurface', 'voxelGI', 'dynamicGI'],
@@ -165,7 +174,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
     medium: {
         renderScale: 1, minRenderScale: 0.65, msaaSamples: 2, antialiasing: 'temporal',
         shadowAtlasSize: 2048, shadowCellSize: 512, shadowCascades: 3,
-        planarReflectionScale: 0.5, planarReflectionMaxSize: 1024, planarReflectionUpdatesPerSecond: 0, depthPrepass: true,
+        planarReflectionScale: 0.5, planarReflectionMaxSize: 1024, planarReflectionUpdatesPerSecond: 0, depthPrepass: true, stillSky: true,
         shadowDistance: 0, detailScale: 0.8, particleLimit: 5000, postProcess: true, ssao: true,
         waterWaves: 5, waterRippleCells: 64, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: ['ssr', 'depthOfField'],
@@ -176,7 +185,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         // A face is millimetres of relief: at 512 texels a cascade, a skin-hugging card (a brow, a hairline) falls inside one texel of the skin and the
         // shadow speckles it with dirt. 1024 is the cell that clears it for a character at arm's length.
         shadowAtlasSize: 4096, shadowCellSize: 1024, shadowCascades: 4,
-        planarReflectionScale: 1, planarReflectionMaxSize: 2048, planarReflectionUpdatesPerSecond: 0, depthPrepass: true,
+        planarReflectionScale: 1, planarReflectionMaxSize: 2048, planarReflectionUpdatesPerSecond: 0, depthPrepass: true, stillSky: false,
         shadowDistance: 0, detailScale: 1, particleLimit: 20000, postProcess: true, ssao: true,
         waterWaves: 8, waterRippleCells: 128, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: [],
@@ -281,6 +290,7 @@ function resolveProfile(level: QualityLevel, value: unknown): QualityProfile {
         planarReflectionMaxSize: Math.round(finite(r.planarReflectionMaxSize, base.planarReflectionMaxSize, 64, 4096)),
         planarReflectionUpdatesPerSecond: finite(r.planarReflectionUpdatesPerSecond, base.planarReflectionUpdatesPerSecond, 0, 120),
         depthPrepass: typeof r.depthPrepass === 'boolean' ? r.depthPrepass : base.depthPrepass,
+        stillSky: typeof r.stillSky === 'boolean' ? r.stillSky : base.stillSky,
         postProcess: typeof r.postProcess === 'boolean' ? r.postProcess : base.postProcess,
         ssao: typeof r.ssao === 'boolean' ? r.ssao : base.ssao,
         dynamicGIReduced: typeof r.dynamicGIReduced === 'boolean' ? r.dynamicGIReduced : base.dynamicGIReduced,
@@ -407,6 +417,7 @@ export class QualityController {
     private reason_ = 'disabled';
     private modeReason_ = 'disabled';
     private limitations_ = new Set<string>();
+    private preferences_: QualityPreferences = {};
 
     constructor(config: QualityConfig, private readonly device_: DeviceQualityInfo = {}) {
         this.config_ = parseQualityConfig(config);
@@ -425,12 +436,37 @@ export class QualityController {
         this.modeLevel_ = mode === 'off' ? 'high' : mode === 'auto'
             ? rule?.level ?? (low ? 'low' : 'medium') : mode;
         this.level_ = this.ceilingOf_(this.modeLevel_);
-        this.profile_ = resolveProfile(this.level_, this.config_.profiles?.[this.level_]);
+        this.profile_ = this.resolve_(this.level_);
         this.scale_ = mode === 'off' ? 1 : this.profile_.renderScale;
         this.resetSampling_(true);
         this.reason_ = mode === 'off' ? 'disabled' : mode !== 'auto' ? 'manual'
             : rule ? 'device-rule' : low ? 'device-capacity' : 'device-unknown';
         this.modeReason_ = this.reason_;
+    }
+
+    get preferences(): Readonly<QualityPreferences> { return this.preferences_; }
+
+    setPreferences(preferences: QualityPreferences | null): void {
+        this.preferences_ = { ...(preferences ?? {}) };
+        this.profile_ = this.resolve_(this.level_);
+        this.scale_ = this.enabled ? this.profile_.renderScale : 1;
+        this.resetSampling_(true);
+    }
+
+    private resolve_(level: QualityLevel): QualityProfile {
+        const authored = record(this.config_.profiles?.[level]);
+        const base = resolveProfile(level, authored);
+        const p = this.preferences_;
+        const off = p.antialiasing === 'off';
+        return resolveProfile(level, {
+            ...authored,
+            ...(p.renderScale !== undefined ? { renderScale: p.renderScale, minRenderScale: Math.min(base.minRenderScale, p.renderScale) } : {}),
+            ...(off ? { msaaSamples: 1, antialiasing: 'msaa' } : {}),
+            ...(p.antialiasing === 'msaa' ? { antialiasing: 'msaa', msaaSamples: base.msaaSamples > 1 ? base.msaaSamples : 4 } : {}),
+            ...(p.antialiasing === 'temporal' ? { antialiasing: 'temporal' } : {}),
+            ...(p.ssao !== undefined ? { ssao: p.ssao } : {}),
+            skipEffects: [...base.skipEffects.filter(e => p.antialiasing !== 'temporal' || e !== 'taa'), ...(off ? ['fxaa', 'taa'] : []), ...(p.skipEffects ?? [])],
+        });
     }
 
     private ceilingOf_(level: QualityLevel): QualityLevel {
@@ -448,7 +484,7 @@ export class QualityController {
         this.setLimitation('power-saver', next !== this.modeLevel_);
         if (next === this.level_) return;
         this.level_ = next;
-        this.profile_ = resolveProfile(next, this.config_.profiles?.[next]);
+        this.profile_ = this.resolve_(next);
         this.scale_ = this.enabled ? this.profile_.renderScale : 1;
         this.resetSampling_(true);
         this.reason_ = next !== this.modeLevel_ ? 'power-saver' : this.modeReason_;

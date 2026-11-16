@@ -113,15 +113,22 @@ void main() {
     tint.rgb *= tint.a;
 #endif
 #ifdef SDF
-
-
-
-
-
-
+    ivec2 page;
+    if (v_texIndex == 0) page = textureSize(u_textures[0], 0);
+    else if (v_texIndex == 1) page = textureSize(u_textures[1], 0);
+    else if (v_texIndex == 2) page = textureSize(u_textures[2], 0);
+    else if (v_texIndex == 3) page = textureSize(u_textures[3], 0);
+    else if (v_texIndex == 4) page = textureSize(u_textures[4], 0);
+    else if (v_texIndex == 5) page = textureSize(u_textures[5], 0);
+    else if (v_texIndex == 6) page = textureSize(u_textures[6], 0);
+    else page = textureSize(u_textures[7], 0);
+    vec2 acrossX = dFdx(v_texCoord) * vec2(page);
+    vec2 acrossY = dFdy(v_texCoord) * vec2(page);
+    float texelsPerPixel = sqrt(0.5 * (dot(acrossX, acrossX) + dot(acrossY, acrossY)));
     float dist = texColor.a;
-    float screenPxDist = (dist - 0.5 + v_sdfBias) / max(fwidth(dist), 1e-6);
-    float coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
+    float pixelsPerUnit = min(1.0 / max(fwidth(dist), 1e-6), texColor.r * 255.0 / max(texelsPerPixel, 1e-6));
+    float screenPxDist = (dist - 0.5 + v_sdfBias) * pixelsPerUnit;
+    float coverage = v_sdfBias < -1.0 ? dist : clamp(screenPxDist + 0.5, 0.0, 1.0);
     fragColor = vec4(tint.rgb, tint.a * coverage);
 #elif defined(GLYPH_MASK)
     fragColor = vec4(tint.rgb, tint.a * texColor.a);
@@ -254,11 +261,22 @@ struct VSOut {
     tint = vec4f(tint.rgb * tint.a, tint.a);
 #endif
 #ifdef SDF
-
-
+    var page : vec2u;
+    if (idx == 0) { page = textureDimensions(t0); }
+    else if (idx == 1) { page = textureDimensions(t1); }
+    else if (idx == 2) { page = textureDimensions(t2); }
+    else if (idx == 3) { page = textureDimensions(t3); }
+    else if (idx == 4) { page = textureDimensions(t4); }
+    else if (idx == 5) { page = textureDimensions(t5); }
+    else if (idx == 6) { page = textureDimensions(t6); }
+    else { page = textureDimensions(t7); }
+    let acrossX = duvx * vec2f(page);
+    let acrossY = duvy * vec2f(page);
+    let texelsPerPixel = sqrt(0.5 * (dot(acrossX, acrossX) + dot(acrossY, acrossY)));
     let dist = texColor.a;
-    let screenPxDist = (dist - 0.5 + v.v_sdfBias) / max(fwidth(dist), 1e-6);
-    let coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
+    let pixelsPerUnit = min(1.0 / max(fwidth(dist), 1e-6), texColor.r * 255.0 / max(texelsPerPixel, 1e-6));
+    let screenPxDist = (dist - 0.5 + v.v_sdfBias) * pixelsPerUnit;
+    let coverage = select(clamp(screenPxDist + 0.5, 0.0, 1.0), dist, v.v_sdfBias < -1.0);
     let shown = vec4f(tint.rgb, tint.a * coverage);
 #elif defined(GLYPH_MASK)
     let shown = vec4f(tint.rgb, tint.a * texColor.a);

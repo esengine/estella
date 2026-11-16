@@ -975,7 +975,11 @@ async function boot(): Promise<void> {
       new URL(cfg.modelBakes.worker, location.href).href, sizeLimit(location.search), navigator.hardwareConcurrency || 4,
     );
     setLoadWork(bakes.work);
-    void bakes.work.run().catch(() => undefined);
+    bakes.refreshWith(async (path) => {
+      const assets = app.getResource(Assets);
+      const texture = assets.getTexture(path);
+      if (texture) await assets.resizeTexture(texture.handle, 0);
+    });
     source = bakes.serve(packaged);
   }
   applyAssetRefResolvers(app, index.resolvePath);

@@ -292,3 +292,43 @@ describe('how far plants keep their detail', () => {
         expect(share('low', 7)).toBe(1);
     });
 });
+
+describe('player preferences', () => {
+    it('turn smoothing off, the scale down and single effects out over the level', () => {
+        const q = new QualityController({ mode: 'high' });
+        q.setPreferences({ antialiasing: 'off', renderScale: 0.6, ssao: false, skipEffects: ['bloom', 'filmGrain'] });
+        expect(q.profile.msaaSamples).toBe(1);
+        expect(q.profile.antialiasing).toBe('msaa');
+        expect(q.profile.skipEffects).toEqual(expect.arrayContaining(['taa', 'fxaa', 'bloom', 'filmGrain']));
+        expect(q.profile.ssao).toBe(false);
+        expect(q.renderScale).toBe(0.6);
+    });
+
+    it('hold through a change of level, and come off with null', () => {
+        const q = new QualityController({ mode: 'high' });
+        q.setPreferences({ ssao: false, skipEffects: ['vignette'] });
+        q.setMode('low');
+        expect(q.profile.ssao).toBe(false);
+        expect(q.profile.skipEffects).toContain('vignette');
+        expect(q.profile.msaaSamples).toBe(1);
+        q.setMode('high');
+        q.setPreferences(null);
+        expect(q.profile.ssao).toBe(true);
+        expect(q.profile.skipEffects).not.toContain('vignette');
+        expect(q.profile.msaaSamples).toBe(4);
+    });
+
+    it('give a level without multisampling its samples when asked for them', () => {
+        const q = new QualityController({ mode: 'low' });
+        q.setPreferences({ antialiasing: 'msaa' });
+        expect(q.profile.msaaSamples).toBe(4);
+    });
+
+    it('let temporal smoothing run on a level that leaves it out', () => {
+        const q = new QualityController({ mode: 'low' });
+        expect(q.profile.skipEffects).toContain('taa');
+        q.setPreferences({ antialiasing: 'temporal' });
+        expect(q.profile.antialiasing).toBe('temporal');
+        expect(q.profile.skipEffects).not.toContain('taa');
+    });
+});

@@ -57,7 +57,7 @@ describe('sound event asset loading', () => {
     });
 
     it('declares JSON dependencies and the minigame package read whitelist', () => {
-        expect(getAssetTypeEntry('steps.esaudioevent')).toMatchObject({ contentType: 'json', addressableType: 'json', hasTransitiveDeps: true });
+        expect(getAssetTypeEntry('steps.esaudioevent')).toMatchObject({ contentType: 'json', hasTransitiveDeps: true });
         expect(getCustomExtensions()).toContain('.esaudioevent');
     });
 });

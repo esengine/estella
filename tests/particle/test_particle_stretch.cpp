@@ -43,3 +43,30 @@ TEST_CASE("a particle moving straight up needs no turn") {
     CHECK(q.rotation == doctest::Approx(0.0f).epsilon(1e-4));
     (void)kPi;
 }
+
+TEST_CASE("seen head-on down the z axis, a velocity on screen is its own x and y, bit for bit") {
+    for (const glm::vec3 v : {glm::vec3{3, -2, 7}, glm::vec3{-0.125f, 9.5f, 0}, glm::vec3{1e-3f, 4e5f, -2}}) {
+        const glm::vec2 seen = velocityOnScreen(v, {0, 0, 1});
+        CHECK(seen.x == v.x);
+        CHECK(seen.y == v.y);
+    }
+}
+
+TEST_CASE("seen from the side, a particle running along z lies across the screen") {
+    const glm::vec2 seen = velocityOnScreen({0, 0, 5}, {40, 0, 0});
+    CHECK(std::abs(seen.x) == doctest::Approx(5.0f));
+    CHECK(seen.y == doctest::Approx(0.0f).epsilon(1e-6));
+    const StretchedQuad q = stretchedQuad(seen, 0.0f, 1.0f, 2.0f, 0.5f);
+    CHECK(q.length == doctest::Approx(1.0f * 2.0f + 5.0f * 0.5f));
+}
+
+TEST_CASE("a particle coming straight at the viewer is not drawn long") {
+    const glm::vec2 seen = velocityOnScreen({0, 0, -8}, {0, 0, 30});
+    CHECK(glm::length(seen) == doctest::Approx(0.0f).epsilon(1e-6));
+    CHECK(stretchedQuad(seen, 0.3f, 2.0f, 4.0f, 1.0f).length == doctest::Approx(2.0f));
+}
+
+TEST_CASE("looking straight down, the quad still has a side to lie along") {
+    const glm::vec2 seen = velocityOnScreen({3, 0, 4}, {0, 50, 0});
+    CHECK(glm::length(seen) == doctest::Approx(5.0f));
+}

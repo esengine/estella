@@ -13,7 +13,7 @@ import {
 import { contentHashHex } from '../src/asset/contentHash';
 import { AudioAPI } from '../src/audio/Audio';
 import type { PlatformAudioBackend } from '../src/audio/PlatformAudioBackend';
-import { getAddressableType } from '../src/assetTypes';
+import { getEditorType } from '../src/assetTypes';
 import { setPlatform } from '../src/platform/base';
 import type { PlatformAdapter } from '../src/platform/types';
 import { SOUND_RENDER_REVISION, decodeWav, encodeWav, installAudioRecipes, renderMusic, renderSound, validateMusicSource, validateSoundSource } from '../src/sound';
@@ -43,9 +43,8 @@ describe('an audio recipe', () => {
         expect(isAudioRecipePath('assets/audio/Theme.ESMUSIC?v=3')).toBe(true);
         expect(isAudioRecipePath('assets/audio/step.wav')).toBe(false);
         expect(isAudioRecipePath('assets/audio/step.essound.wav')).toBe(false);
-        // And a clip to whatever loads it.
-        expect(getAddressableType('assets/audio/step.essound')).toBe('audio');
-        expect(getAddressableType('assets/audio/theme.esmusic')).toBe('audio');
+        expect(getEditorType('assets/audio/step.essound')).toBe('audio');
+        expect(getEditorType('assets/audio/theme.esmusic')).toBe('audio');
     });
 
     it('is refused, saying what to import, where nothing makes recipes', async () => {

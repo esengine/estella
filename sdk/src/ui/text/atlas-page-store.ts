@@ -23,16 +23,14 @@ export class EngineAtlasPageStore implements AtlasPageStore {
      *  (embedded-Dawn) core, whose ResourceManager takes the bytes directly. */
     constructor(private readonly module: ESEngineModule | null) {}
 
-    createPage(size: number, paint: (pixels: Uint8Array) => void): number {
-        // Blank (transparent) RGBA8 page; linear filtering keeps SDF text smooth
-        // when scaled, clamp avoids edge bleed at the page border.
+    createPage(size: number, paint: (pixels: Uint8Array) => void, distance = false): number {
         const pixels = new Uint8Array(size * size * 4);
         const handle = createTextureFromPixels(
             this.module,
             { width: size, height: size, pixels },
             TextureContent.GlyphPage,
             /* flipY */ false,
-            { filterMode: 'linear', wrapMode: 'clamp' },
+            { filterMode: 'linear', wrapMode: 'clamp', srgb: !distance },
             this.owner,
         );
         // Repainting on demand instead of the device keeping a copy: a page is

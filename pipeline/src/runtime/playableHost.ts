@@ -16,7 +16,7 @@ import { setLoadWork } from 'esengine';
 import type { ModelBakesFile } from '../modeling/loadBakeFile';
 import { createModelBakes, sizeLimit, type ModelBakes } from './modelBakes';
 import {
-  createWebApp, setEditorMode, setPlayMode, initPlayableRuntime, createEmbeddedSideModuleHost,
+  Assets, createWebApp, setEditorMode, setPlayMode, initPlayableRuntime, createEmbeddedSideModuleHost,
   packagedAppOptions, packagedRuntimeInit, glContextAttributes,
 } from 'esengine';
 import type { SceneData, EmbeddedSideModuleRegistry, EmbeddedSideModuleEntry } from 'esengine';
@@ -206,7 +206,11 @@ async function boot(): Promise<void> {
     const worker = URL.createObjectURL(new Blob([unpack(__GAME_BAKE_WORKER__) as BlobPart], { type: 'text/javascript' }));
     bakes = createModelBakes(JSON.parse(unpackText(__GAME_MODEL_BAKES__)) as ModelBakesFile, worker, sizeLimit(location.search), navigator.hardwareConcurrency || 4);
     setLoadWork(bakes.work);
-    void bakes.work.run().catch(() => undefined);
+    bakes.refreshWith(async (path) => {
+      const assets = app.getResource(Assets);
+      const texture = assets.getTexture(path);
+      if (texture) await assets.resizeTexture(texture.handle, 0);
+    });
   }
   const served = bakes;
   await splash.held();

@@ -1,8 +1,39 @@
 import { describe, it, expect } from 'vitest';
-import { decodeSkyCapture, skyEffectSource, defineSkyEffect, isCustomSky, CUSTOM_SKY_RANGE } from '../src/postprocess/customSky';
+import { decodeSkyCapture, skyEffectSource, skyStillBakeSource, stillSkyBake, defineSkyEffect, isCustomSky, CUSTOM_SKY_RANGE } from '../src/postprocess/customSky';
 import { getEffectDef } from '../src/postprocess/effects';
 
 describe('custom sky', () => {
+    const STILL = {
+        type: 'still-test', label: 'Still',
+        uniforms: [{ name: 'u_glow', label: 'Glow', min: 0, max: 2, step: 0.1, defaultValue: 1 }],
+        glsl: 'vec3 skyRadiance(vec3 d, vec3 s, vec3 c, float e) { return vec3(u_glow); }',
+        wgsl: 'fn skyRadiance(d : vec3f, s : vec3f, c : vec3f, e : f32) -> vec3f { return vec3f(mc.u_glow); }',
+    };
+
+    it('reads a still sky from its panorama once it is whole, in both languages, and works it out until then', () => {
+        const src = skyEffectSource({ ...STILL, still: true });
+        for (const line of ['#pragma param u_skyStillOn float', '#pragma param u_skyStill texture', 'u_skyStillOn > 0.5 ? esStillRadiance(dir)', 'if (mc.u_skyStillOn > 0.5) { col = esStillRadiance(dir)']) {
+            expect(src).toContain(line);
+        }
+        expect(skyEffectSource(STILL)).not.toContain('u_skyStill');
+    });
+
+    it('bakes a still sky as RGBM over the capture range, a texel to the direction the reader looks it up by', () => {
+        const src = skyStillBakeSource({ ...STILL, still: true });
+        for (const line of ['#pragma param u_bakeB vec4', '#pragma param u_glow float default(1) range(0,2)', 'esStillDir(gl_FragCoord.xy / u_bakeB.xy)',
+                            'esStillDir(v.pos.xy / mc.u_bakeB.xy)', `vec3(${CUSTOM_SKY_RANGE.toFixed(1)})`]) {
+            expect(src).toContain(line);
+        }
+        expect(src).not.toContain('u_intensity');
+    });
+
+    it('has a bake for a sky defined still, and none once it is defined again without', () => {
+        defineSkyEffect({ ...STILL, still: true });
+        expect(stillSkyBake('still-test')).toBeTypeOf('function');
+        defineSkyEffect(STILL);
+        expect(stillSkyBake('still-test')).toBeUndefined();
+    });
+
     it('decodes the RGBM capture and turns the readback\'s bottom-up rows over', () => {
         // Two rows of one texel: the readback's first row is the panorama's LAST (the ground), its second the zenith.
         const rgba = new Uint8Array([255, 0, 0, 128, /* bottom */ 0, 0, 255, 255 /* top */]);

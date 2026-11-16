@@ -1,0 +1,6 @@
+---
+section: Fixed
+commits:
+  - fix(text): a thin stroke of small distance-field text no longer drops out - the edge ramp was the distance's own screen derivative, which falls to nothing where a stroke under a pixel wide sits across two pixel columns, so whole stems of small labels vanished; a distance-field page now carries in red the texels one distance unit spans and is stored as data rather than sRGB colour, and the shader keeps the ramp no sharper than the page's texels per pixel allow
+---
+**Small distance-field text keeps its thin strokes.** A label drawn with SDF glyphs (any text in a perspective view, or scaled off 1:1) worked out its anti-aliased edge from how fast the sampled distance changed between neighbouring pixels. Across a stroke thinner than a pixel that sits between two pixel columns the distance is the same in both, the edge turned into a hard step, and the stroke vanished: an L lost its stem, an O its left side, an N its first upright, depending only on where the letter fell. The glyph page now says how many texels a distance unit spans, and the shader never lets the edge be sharper than that, so the thinnest strokes stay; edges that drew well before draw exactly as they did.
