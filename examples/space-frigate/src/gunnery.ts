@@ -1,5 +1,5 @@
-import { Light, Transform } from 'esengine';
-import type { Entity, World } from 'esengine';
+import { Light, Particle, Transform } from 'esengine';
+import type { App, Entity, World } from 'esengine';
 import { clamp, lookRotation } from './flight';
 import { BATTERIES, GUNNERY, boreOf, crossing, dispersion, intercept, limit, muzzleOf, rayToSphere, scatter, slew, solve, wrap, type Mount, type Turret } from './gunSolution';
 import { helm, mulQuat, turnBack, turnBy, type Quat, type Vec } from './helm';
@@ -38,12 +38,14 @@ interface Rig { turret: Entity; guns: Entity; muzzle: Entity; light: Entity; bas
 
 const about = (axis: 'x' | 'y', angle: number): Quat => ({ x: 0, y: 0, z: 0, w: Math.cos(angle / 2), [axis]: Math.sin(angle / 2) });
 
-export function createGunnery(): (world: World, dt: number, sight: { from: Vec; way: Vec } | null, held: boolean) => void {
+export function createGunnery(app: App): (world: World, dt: number, sight: { from: Vec; way: Vec } | null, held: boolean) => void {
     let rigs: Rig[] | null = null;
     let rocks: Entity[] = [];
     let bolts: Bolt[] = [];
     let bursts: Burst[] = [];
     let ship: Entity | null = null;
+    let sparks: Entity | null = null, smoke: Entity | null = null;
+    const puff = (emitter: Entity | null, count: number, at: Vec): void => { if (emitter !== null) app.getResource(Particle).emitAt(emitter, count, at); };
     let clock = 0, pressed = false, pressAt = -1, tapAt = -1, rippleAt = -1, autoAt = -1, nextBolt = 0, nextBurst = 0, seed = 20261115;
     let seen: Vec | null = null, drift: Vec = { x: 0, y: 0, z: 0 }, said = '';
     const chance = (): number => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
@@ -57,6 +59,8 @@ export function createGunnery(): (world: World, dt: number, sight: { from: Vec; 
 
     const build = (world: World): Rig[] => {
         ship = need(world, 'Ship');
+        sparks = world.findEntityByName('GunSparks');
+        smoke = world.findEntityByName('GunSmoke');
         for (let i = 0; ; i++) { const e = world.findEntityByName(`Rock${i}`); if (e === null) break; rocks.push(e); }
         for (let i = 0; ; i++) { const e = world.findEntityByName(`Shell${i}`); if (e === null) break; bolts.push({ entity: e, at: { x: 0, y: 0, z: 0 }, way: { x: 0, y: 0, z: 1 }, flown: 0, live: false }); }
         for (let i = 0; ; i++) { const e = world.findEntityByName(`Impact${i}`); if (e === null) break; bursts.push({ entity: e, light: need(world, `Impact${i}Light`), age: 0, size: 1, live: false }); }
@@ -91,6 +95,8 @@ export function createGunnery(): (world: World, dt: number, sight: { from: Vec; 
             bolt.way = scatter(way, wide, chance(), chance());
             bolt.flown = 0;
             bolt.live = true;
+            puff(sparks, 9, bolt.at);
+            puff(smoke, 5, bolt.at);
         }
     };
 
@@ -222,6 +228,8 @@ export function createGunnery(): (world: World, dt: number, sight: { from: Vec; 
                     world.update(burst.entity, Transform, (t) => { t.position = { ...bolt.at }; });
                 }
                 guns.hits++;
+                puff(sparks, 70, bolt.at);
+                puff(smoke, 16, bolt.at);
                 guns.strike?.(struck, GUNNERY.damage);
             }
             bolt.live = struck < 0 && bolt.flown < GUNNERY.reach;

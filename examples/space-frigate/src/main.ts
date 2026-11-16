@@ -1,4 +1,4 @@
-import { addPlugin, defineSystem, GetWorld, Res, Time, Input, Transform, MeshRenderer, Light, Material, Playthrough } from 'esengine';
+import { addPlugin, defineSystem, GetWorld, Res, Time, Input, Transform, MeshRenderer, Light, Material, ParticleEmitter, Playthrough } from 'esengine';
 import type { Entity, World } from 'esengine';
 import { installAudio } from './audio';
 import { SHOTS, SHOT_SECONDS, clamp, eyeOf, lookRotation, tourOrbit, type Orbit } from './flight';
@@ -68,7 +68,7 @@ addPlugin({
         const downs = new Map<string, boolean>();
         const jets = JETS.map(() => 0);
         let sight = 0;
-        const gunnery = createGunnery();
+        const gunnery = createGunnery(app);
 
         const get = (world: World, name: string): Entity => {
             const known = ids.get(name);
@@ -280,9 +280,11 @@ addPlugin({
                 const burn = jets[i]! * (0.7 + 0.3 * Math.sin(clock * 53 + i * 1.7) * Math.sin(clock * 17 + i));
                 const e = get(world, jet.name);
                 const t = world.get(e, Transform);
-                const wide = burn > 0.02 ? 0.7 + 0.5 * burn : 0.001;
-                t.scale = { x: wide, y: wide, z: burn > 0.02 ? 0.45 + 0.55 * burn : 0.001 };
+                const wide = burn > 0.02 ? 0.5 + 0.3 * burn : 0.001;
+                t.scale = { x: wide, y: wide, z: burn > 0.02 ? 0.25 + 0.35 * burn : 0.001 };
                 world.insert(e, Transform, t);
+                const gas = get(world, `${jet.name}Gas`), rate = jets[i]! > 0.03 ? Math.round(70 + 260 * jets[i]!) : 0;
+                if (world.get(gas, ParticleEmitter).rate !== rate) world.update(gas, ParticleEmitter, (p) => { p.rate = rate; });
             });
             facts.jets = `${helm.jets.yaw.toFixed(2)} ${helm.jets.pitch.toFixed(2)} ${helm.jets.roll.toFixed(2)}`;
 

@@ -243,6 +243,38 @@ def mount_height(x, z, side):
     raise ValueError(f'no hull at z {z}')
 
 
+def aim_y(way):
+    x, y, z = way
+    if y > 0.999:
+        return None
+    if y < -0.999:
+        return {'x': 1, 'y': 0, 'z': 0, 'w': 0}
+    l, half = math.hypot(z, x), math.acos(y) / 2
+    return {'x': z / l * math.sin(half), 'y': 0, 'z': -x / l * math.sin(half), 'w': math.cos(half)}
+
+
+def emitter(**over):
+    base = {'enabled': True, 'looping': True, 'playOnStart': True, 'simulationSpace': 0, 'rate': 0, 'burstCount': 0, 'duration': 1000, 'shape': 4, 'shapeRadius': 0.3,
+            'speedMin': 0, 'speedMax': 1, 'gravity': {'x': 0, 'y': 0, 'z': 0}, 'damping': 0, 'rotationMin': 0, 'rotationMax': 360, 'angularVelocityMin': -40, 'angularVelocityMax': 40,
+            'startColor': {'r': 1, 'g': 1, 'b': 1, 'a': 1}, 'endColor': {'r': 1, 'g': 1, 'b': 1, 'a': 0}, 'blendMode': 1, 'texture': 'assets/fx/puff.esimage',
+            'lifetimeMin': 0.3, 'lifetimeMax': 0.6, 'maxParticles': 200, 'startSizeMin': 1, 'startSizeMax': 1, 'endSizeMin': 1, 'endSizeMax': 1, 'renderMode': 0, 'intensity': 1, 'collisionEnabled': False}
+    return {'type': 'ParticleEmitter', 'data': {**base, **over}}
+
+
+GAS = dict(shape=3, shapeAngle=30, shapeRadius=0.22, speedMin=20, speedMax=42, damping=2.4, lifetimeMin=0.28, lifetimeMax=0.75, maxParticles=260,
+           startSizeMin=0.5, startSizeMax=0.9, endSizeMin=3.2, endSizeMax=5.6, intensity=1.1, noiseStrength=5, noiseFrequency=0.35, noiseScrollSpeed=1.5,
+           colorGradient={'stops': [{'t': 0, 'color': {'r': 1, 'g': 1, 'b': 1, 'a': 0.95}}, {'t': 0.25, 'color': {'r': 0.86, 'g': 0.92, 'b': 1, 'a': 0.55}},
+                                    {'t': 0.7, 'color': {'r': 0.7, 'g': 0.8, 'b': 0.95, 'a': 0.2}}, {'t': 1, 'color': {'r': 0.6, 'g': 0.7, 'b': 0.9, 'a': 0}}]})
+SPARKS = dict(shape=4, shapeRadius=0.4, speedMin=14, speedMax=85, damping=1.6, lifetimeMin=0.18, lifetimeMax=0.7, maxParticles=600, texture='assets/fx/spark.esimage',
+              startSizeMin=0.5, startSizeMax=1.3, endSizeMin=0.1, endSizeMax=0.3, renderMode=1, velocityScale=0.05, lengthScale=2.2, intensity=7, rotationMax=0, angularVelocityMin=0, angularVelocityMax=0,
+              colorGradient={'stops': [{'t': 0, 'color': {'r': 1, 'g': 0.95, 'b': 0.8, 'a': 1}}, {'t': 0.3, 'color': {'r': 1, 'g': 0.62, 'b': 0.2, 'a': 1}},
+                                       {'t': 0.75, 'color': {'r': 1, 'g': 0.28, 'b': 0.06, 'a': 0.8}}, {'t': 1, 'color': {'r': 0.5, 'g': 0.06, 'b': 0, 'a': 0}}]})
+SMOKE = dict(shape=4, shapeRadius=0.5, speedMin=2, speedMax=11, damping=1.8, lifetimeMin=0.5, lifetimeMax=1.3, maxParticles=260,
+             startSizeMin=0.8, startSizeMax=1.6, endSizeMin=3.5, endSizeMax=6.5, intensity=0.9, noiseStrength=3, noiseFrequency=0.3, noiseScrollSpeed=1,
+             colorGradient={'stops': [{'t': 0, 'color': {'r': 1, 'g': 0.8, 'b': 0.5, 'a': 0.8}}, {'t': 0.2, 'color': {'r': 0.7, 'g': 0.62, 'b': 0.58, 'a': 0.4}},
+                                      {'t': 1, 'color': {'r': 0.4, 'g': 0.42, 'b': 0.48, 'a': 0}}]})
+
+
 def worn(step, plates, metal, seed):
     T = dict(op='stain', texel=True)
     step(**T, faces=plates, pattern='bumps', scale=1.6, octaves=5, threshold=0.5, softness=0.4, roughness=0.6, amount=0.75, seed=seed)
@@ -609,7 +641,7 @@ def make_materials():
                   'properties': {'u_core': {'r': 0.25, 'g': 0.5, 'b': 1.0, 'a': 1}, 'u_edge': {'r': 0.03, 'g': 0.14, 'b': 0.7, 'a': 1}, 'u_strength': 1.2, 'u_length': 11,
                                  'u_falloff': 2.6, 'u_fade': 1.6, 'u_diamonds': 0, 'u_knots': 0, 'u_flicker': 0.08}},
         'jet': {'version': '1.0', 'type': 'material', 'shader': 'jet.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 0,
-                'properties': {'u_tint': {'r': 0.92, 'g': 0.95, 'b': 1.0, 'a': 1}, 'u_strength': 4.5, 'u_length': 5, 'u_fade': 1.3, 'u_streaks': 7, 'u_rush': 9}},
+                'properties': {'u_tint': {'r': 0.92, 'g': 0.95, 'b': 1.0, 'a': 1}, 'u_strength': 3.2, 'u_length': 5, 'u_fade': 1.6, 'u_streaks': 7, 'u_rush': 9}},
         'plume-core': {'version': '1.0', 'type': 'material', 'shader': 'plume.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 0,
                        'properties': {'u_core': {'r': 0.9, 'g': 0.97, 'b': 1.0, 'a': 1}, 'u_edge': {'r': 0.2, 'g': 0.55, 'b': 1.0, 'a': 1}, 'u_strength': 5, 'u_length': 11,
                                       'u_falloff': 1.3, 'u_fade': 2.4, 'u_diamonds': 5, 'u_knots': 1.4, 'u_flicker': 0.14}},
@@ -625,6 +657,7 @@ def make_materials():
         stamp(path, 'material')
     for name in ('atmosphere', 'plume', 'gatefield', 'flare', 'jet'):
         stamp(MAT / f'{name}.esshader', 'shader')
+    stamp(ROOT / 'assets/fx/puff.esimage', 'imageSource')
     for hull in (MODELS / f'{name}.esmaterial' for name in ('frigate', 'turret', 'guns')):
         if not hull.exists():
             continue
@@ -719,6 +752,9 @@ def make_scene():
         add(name, [transform(at), {'type': 'Light', 'data': {'type': 0, 'color': {'r': 0.6, 'g': 0.75, 'b': 1.0, 'a': 1}, 'intensity': 0.4, 'radius': 14, 'enabled': True, 'meshShadows': False}}], ship)
     for name, at, way in JETS:
         add(f'Jet{name}', [transform(tuple(a + w * 0.9 for a, w in zip(at, way)), look((0, 0, 0), way), (0.001,) * 3), mesh('jet', 'assets/materials/jet.esmaterial', None, False, False, False, False)], ship)
+        add(f'Jet{name}Gas', [transform(tuple(a + w * 0.9 for a, w in zip(at, way)), aim_y(way)), emitter(**GAS)], ship)
+    add('GunSparks', [transform(), emitter(**SPARKS)])
+    add('GunSmoke', [transform(), emitter(**SMOKE)])
     flip = {'x': 0, 'y': 0, 'z': 1, 'w': 0}
     for key, x, z, side in TURRETS:
         seat = (x, mount_height(x, z, side) + TURRET_SEAT * side, z)

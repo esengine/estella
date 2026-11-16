@@ -204,6 +204,7 @@ export function buildTargets(kit: Kit, rocks: readonly Rock[], planet: Entity | 
         const clear = keptClear(box.width, world.get(marker, UINode).insetLeft.value, 64, anchor.onScreen);
         if (!sameRoom(anchor.edgeInsets, clear)) world.update(marker, UIWorldAnchor, (anchored) => { anchored.edgeInsets = clear; });
         place(callout, world.get(marker, UINode).insetLeft.value > box.width - 380 ? -246 : 86, 2);
+        fade(callout, guns.view ? 0 : 1);
         fade(bracket, anchor.clamped ? 0 : 1);
         fade(diamond, anchor.clamped ? 0 : 1);
         fade(chevron, anchor.clamped ? 0.75 + 0.25 * Math.sin(frame.time * 5) : 0);

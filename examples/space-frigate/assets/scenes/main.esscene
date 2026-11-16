@@ -302,16 +302,28 @@
     29,
     30,
     31,
+    32,
+    33,
+    34,
     35,
+    36,
+    37,
+    38,
     39,
-    43,
-    47,
-    83,
-    85,
-    87,
-    89,
-    91,
-    93
+    40,
+    41,
+    42,
+    45,
+    49,
+    53,
+    57,
+    61,
+    97,
+    99,
+    101,
+    103,
+    105,
+    107
    ],
    "visible": true,
    "components": [
@@ -899,6 +911,125 @@
   },
   {
    "id": 20,
+   "name": "JetBowPortGas",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 4.9,
+       "y": -1.05,
+       "z": 36.0
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0,
+       "z": -0.7071067811865475,
+       "w": 0.7071067811865476
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 3,
+      "shapeRadius": 0.22,
+      "speedMin": 20,
+      "speedMax": 42,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 2.4,
+      "rotationMin": 0,
+      "rotationMax": 360,
+      "angularVelocityMin": -40,
+      "angularVelocityMax": 40,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/fx/puff.esimage",
+      "lifetimeMin": 0.28,
+      "lifetimeMax": 0.75,
+      "maxParticles": 260,
+      "startSizeMin": 0.5,
+      "startSizeMax": 0.9,
+      "endSizeMin": 3.2,
+      "endSizeMax": 5.6,
+      "renderMode": 0,
+      "intensity": 1.1,
+      "collisionEnabled": false,
+      "shapeAngle": 30,
+      "noiseStrength": 5,
+      "noiseFrequency": 0.35,
+      "noiseScrollSpeed": 1.5,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.25,
+         "color": {
+          "r": 0.86,
+          "g": 0.92,
+          "b": 1,
+          "a": 0.55
+         }
+        },
+        {
+         "t": 0.7,
+         "color": {
+          "r": 0.7,
+          "g": 0.8,
+          "b": 0.95,
+          "a": 0.2
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.6,
+          "g": 0.7,
+          "b": 0.9,
+          "a": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 21,
    "name": "JetBowStarboard",
    "parent": 5,
    "children": [],
@@ -946,7 +1077,126 @@
    ]
   },
   {
-   "id": 21,
+   "id": 22,
+   "name": "JetBowStarboardGas",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -4.9,
+       "y": -1.05,
+       "z": 36.0
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0,
+       "z": 0.7071067811865475,
+       "w": 0.7071067811865476
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 3,
+      "shapeRadius": 0.22,
+      "speedMin": 20,
+      "speedMax": 42,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 2.4,
+      "rotationMin": 0,
+      "rotationMax": 360,
+      "angularVelocityMin": -40,
+      "angularVelocityMax": 40,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/fx/puff.esimage",
+      "lifetimeMin": 0.28,
+      "lifetimeMax": 0.75,
+      "maxParticles": 260,
+      "startSizeMin": 0.5,
+      "startSizeMax": 0.9,
+      "endSizeMin": 3.2,
+      "endSizeMax": 5.6,
+      "renderMode": 0,
+      "intensity": 1.1,
+      "collisionEnabled": false,
+      "shapeAngle": 30,
+      "noiseStrength": 5,
+      "noiseFrequency": 0.35,
+      "noiseScrollSpeed": 1.5,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.25,
+         "color": {
+          "r": 0.86,
+          "g": 0.92,
+          "b": 1,
+          "a": 0.55
+         }
+        },
+        {
+         "t": 0.7,
+         "color": {
+          "r": 0.7,
+          "g": 0.8,
+          "b": 0.95,
+          "a": 0.2
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.6,
+          "g": 0.7,
+          "b": 0.9,
+          "a": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 23,
    "name": "JetBowUp",
    "parent": 5,
    "children": [],
@@ -994,7 +1244,120 @@
    ]
   },
   {
-   "id": 22,
+   "id": 24,
+   "name": "JetBowUpGas",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 2.35,
+       "z": 36.0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 3,
+      "shapeRadius": 0.22,
+      "speedMin": 20,
+      "speedMax": 42,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 2.4,
+      "rotationMin": 0,
+      "rotationMax": 360,
+      "angularVelocityMin": -40,
+      "angularVelocityMax": 40,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/fx/puff.esimage",
+      "lifetimeMin": 0.28,
+      "lifetimeMax": 0.75,
+      "maxParticles": 260,
+      "startSizeMin": 0.5,
+      "startSizeMax": 0.9,
+      "endSizeMin": 3.2,
+      "endSizeMax": 5.6,
+      "renderMode": 0,
+      "intensity": 1.1,
+      "collisionEnabled": false,
+      "shapeAngle": 30,
+      "noiseStrength": 5,
+      "noiseFrequency": 0.35,
+      "noiseScrollSpeed": 1.5,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.25,
+         "color": {
+          "r": 0.86,
+          "g": 0.92,
+          "b": 1,
+          "a": 0.55
+         }
+        },
+        {
+         "t": 0.7,
+         "color": {
+          "r": 0.7,
+          "g": 0.8,
+          "b": 0.95,
+          "a": 0.2
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.6,
+          "g": 0.7,
+          "b": 0.9,
+          "a": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 25,
    "name": "JetBowDown",
    "parent": 5,
    "children": [],
@@ -1042,7 +1405,126 @@
    ]
   },
   {
-   "id": 23,
+   "id": 26,
+   "name": "JetBowDownGas",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": -4.45,
+       "z": 36.0
+      },
+      "rotation": {
+       "x": 1,
+       "y": 0,
+       "z": 0,
+       "w": 0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 3,
+      "shapeRadius": 0.22,
+      "speedMin": 20,
+      "speedMax": 42,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 2.4,
+      "rotationMin": 0,
+      "rotationMax": 360,
+      "angularVelocityMin": -40,
+      "angularVelocityMax": 40,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/fx/puff.esimage",
+      "lifetimeMin": 0.28,
+      "lifetimeMax": 0.75,
+      "maxParticles": 260,
+      "startSizeMin": 0.5,
+      "startSizeMax": 0.9,
+      "endSizeMin": 3.2,
+      "endSizeMax": 5.6,
+      "renderMode": 0,
+      "intensity": 1.1,
+      "collisionEnabled": false,
+      "shapeAngle": 30,
+      "noiseStrength": 5,
+      "noiseFrequency": 0.35,
+      "noiseScrollSpeed": 1.5,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.25,
+         "color": {
+          "r": 0.86,
+          "g": 0.92,
+          "b": 1,
+          "a": 0.55
+         }
+        },
+        {
+         "t": 0.7,
+         "color": {
+          "r": 0.7,
+          "g": 0.8,
+          "b": 0.95,
+          "a": 0.2
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.6,
+          "g": 0.7,
+          "b": 0.9,
+          "a": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 27,
    "name": "JetSternPort",
    "parent": 5,
    "children": [],
@@ -1090,7 +1572,126 @@
    ]
   },
   {
-   "id": 24,
+   "id": 28,
+   "name": "JetSternPortGas",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 21.599999999999998,
+       "y": -1.0,
+       "z": -40.0
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0,
+       "z": -0.7071067811865475,
+       "w": 0.7071067811865476
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 3,
+      "shapeRadius": 0.22,
+      "speedMin": 20,
+      "speedMax": 42,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 2.4,
+      "rotationMin": 0,
+      "rotationMax": 360,
+      "angularVelocityMin": -40,
+      "angularVelocityMax": 40,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/fx/puff.esimage",
+      "lifetimeMin": 0.28,
+      "lifetimeMax": 0.75,
+      "maxParticles": 260,
+      "startSizeMin": 0.5,
+      "startSizeMax": 0.9,
+      "endSizeMin": 3.2,
+      "endSizeMax": 5.6,
+      "renderMode": 0,
+      "intensity": 1.1,
+      "collisionEnabled": false,
+      "shapeAngle": 30,
+      "noiseStrength": 5,
+      "noiseFrequency": 0.35,
+      "noiseScrollSpeed": 1.5,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.25,
+         "color": {
+          "r": 0.86,
+          "g": 0.92,
+          "b": 1,
+          "a": 0.55
+         }
+        },
+        {
+         "t": 0.7,
+         "color": {
+          "r": 0.7,
+          "g": 0.8,
+          "b": 0.95,
+          "a": 0.2
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.6,
+          "g": 0.7,
+          "b": 0.9,
+          "a": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 29,
    "name": "JetSternStarboard",
    "parent": 5,
    "children": [],
@@ -1138,7 +1739,126 @@
    ]
   },
   {
-   "id": 25,
+   "id": 30,
+   "name": "JetSternStarboardGas",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -21.599999999999998,
+       "y": -1.0,
+       "z": -40.0
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0,
+       "z": 0.7071067811865475,
+       "w": 0.7071067811865476
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 3,
+      "shapeRadius": 0.22,
+      "speedMin": 20,
+      "speedMax": 42,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 2.4,
+      "rotationMin": 0,
+      "rotationMax": 360,
+      "angularVelocityMin": -40,
+      "angularVelocityMax": 40,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/fx/puff.esimage",
+      "lifetimeMin": 0.28,
+      "lifetimeMax": 0.75,
+      "maxParticles": 260,
+      "startSizeMin": 0.5,
+      "startSizeMax": 0.9,
+      "endSizeMin": 3.2,
+      "endSizeMax": 5.6,
+      "renderMode": 0,
+      "intensity": 1.1,
+      "collisionEnabled": false,
+      "shapeAngle": 30,
+      "noiseStrength": 5,
+      "noiseFrequency": 0.35,
+      "noiseScrollSpeed": 1.5,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.25,
+         "color": {
+          "r": 0.86,
+          "g": 0.92,
+          "b": 1,
+          "a": 0.55
+         }
+        },
+        {
+         "t": 0.7,
+         "color": {
+          "r": 0.7,
+          "g": 0.8,
+          "b": 0.95,
+          "a": 0.2
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.6,
+          "g": 0.7,
+          "b": 0.9,
+          "a": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 31,
    "name": "JetSternUp",
    "parent": 5,
    "children": [],
@@ -1186,7 +1906,120 @@
    ]
   },
   {
-   "id": 26,
+   "id": 32,
+   "name": "JetSternUpGas",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 6.65,
+       "z": -40.5
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 3,
+      "shapeRadius": 0.22,
+      "speedMin": 20,
+      "speedMax": 42,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 2.4,
+      "rotationMin": 0,
+      "rotationMax": 360,
+      "angularVelocityMin": -40,
+      "angularVelocityMax": 40,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/fx/puff.esimage",
+      "lifetimeMin": 0.28,
+      "lifetimeMax": 0.75,
+      "maxParticles": 260,
+      "startSizeMin": 0.5,
+      "startSizeMax": 0.9,
+      "endSizeMin": 3.2,
+      "endSizeMax": 5.6,
+      "renderMode": 0,
+      "intensity": 1.1,
+      "collisionEnabled": false,
+      "shapeAngle": 30,
+      "noiseStrength": 5,
+      "noiseFrequency": 0.35,
+      "noiseScrollSpeed": 1.5,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.25,
+         "color": {
+          "r": 0.86,
+          "g": 0.92,
+          "b": 1,
+          "a": 0.55
+         }
+        },
+        {
+         "t": 0.7,
+         "color": {
+          "r": 0.7,
+          "g": 0.8,
+          "b": 0.95,
+          "a": 0.2
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.6,
+          "g": 0.7,
+          "b": 0.9,
+          "a": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 33,
    "name": "JetSternDown",
    "parent": 5,
    "children": [],
@@ -1234,7 +2067,126 @@
    ]
   },
   {
-   "id": 27,
+   "id": 34,
+   "name": "JetSternDownGas",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": -6.65,
+       "z": -40.5
+      },
+      "rotation": {
+       "x": 1,
+       "y": 0,
+       "z": 0,
+       "w": 0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 3,
+      "shapeRadius": 0.22,
+      "speedMin": 20,
+      "speedMax": 42,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 2.4,
+      "rotationMin": 0,
+      "rotationMax": 360,
+      "angularVelocityMin": -40,
+      "angularVelocityMax": 40,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/fx/puff.esimage",
+      "lifetimeMin": 0.28,
+      "lifetimeMax": 0.75,
+      "maxParticles": 260,
+      "startSizeMin": 0.5,
+      "startSizeMax": 0.9,
+      "endSizeMin": 3.2,
+      "endSizeMax": 5.6,
+      "renderMode": 0,
+      "intensity": 1.1,
+      "collisionEnabled": false,
+      "shapeAngle": 30,
+      "noiseStrength": 5,
+      "noiseFrequency": 0.35,
+      "noiseScrollSpeed": 1.5,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.25,
+         "color": {
+          "r": 0.86,
+          "g": 0.92,
+          "b": 1,
+          "a": 0.55
+         }
+        },
+        {
+         "t": 0.7,
+         "color": {
+          "r": 0.7,
+          "g": 0.8,
+          "b": 0.95,
+          "a": 0.2
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.6,
+          "g": 0.7,
+          "b": 0.9,
+          "a": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 35,
    "name": "JetPortUp",
    "parent": 5,
    "children": [],
@@ -1282,7 +2234,120 @@
    ]
   },
   {
-   "id": 28,
+   "id": 36,
+   "name": "JetPortUpGas",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 17.0,
+       "y": 3.3,
+       "z": -28.0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 3,
+      "shapeRadius": 0.22,
+      "speedMin": 20,
+      "speedMax": 42,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 2.4,
+      "rotationMin": 0,
+      "rotationMax": 360,
+      "angularVelocityMin": -40,
+      "angularVelocityMax": 40,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/fx/puff.esimage",
+      "lifetimeMin": 0.28,
+      "lifetimeMax": 0.75,
+      "maxParticles": 260,
+      "startSizeMin": 0.5,
+      "startSizeMax": 0.9,
+      "endSizeMin": 3.2,
+      "endSizeMax": 5.6,
+      "renderMode": 0,
+      "intensity": 1.1,
+      "collisionEnabled": false,
+      "shapeAngle": 30,
+      "noiseStrength": 5,
+      "noiseFrequency": 0.35,
+      "noiseScrollSpeed": 1.5,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.25,
+         "color": {
+          "r": 0.86,
+          "g": 0.92,
+          "b": 1,
+          "a": 0.55
+         }
+        },
+        {
+         "t": 0.7,
+         "color": {
+          "r": 0.7,
+          "g": 0.8,
+          "b": 0.95,
+          "a": 0.2
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.6,
+          "g": 0.7,
+          "b": 0.9,
+          "a": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 37,
    "name": "JetPortDown",
    "parent": 5,
    "children": [],
@@ -1330,7 +2395,126 @@
    ]
   },
   {
-   "id": 29,
+   "id": 38,
+   "name": "JetPortDownGas",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 17.0,
+       "y": -5.300000000000001,
+       "z": -28.0
+      },
+      "rotation": {
+       "x": 1,
+       "y": 0,
+       "z": 0,
+       "w": 0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 3,
+      "shapeRadius": 0.22,
+      "speedMin": 20,
+      "speedMax": 42,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 2.4,
+      "rotationMin": 0,
+      "rotationMax": 360,
+      "angularVelocityMin": -40,
+      "angularVelocityMax": 40,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/fx/puff.esimage",
+      "lifetimeMin": 0.28,
+      "lifetimeMax": 0.75,
+      "maxParticles": 260,
+      "startSizeMin": 0.5,
+      "startSizeMax": 0.9,
+      "endSizeMin": 3.2,
+      "endSizeMax": 5.6,
+      "renderMode": 0,
+      "intensity": 1.1,
+      "collisionEnabled": false,
+      "shapeAngle": 30,
+      "noiseStrength": 5,
+      "noiseFrequency": 0.35,
+      "noiseScrollSpeed": 1.5,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.25,
+         "color": {
+          "r": 0.86,
+          "g": 0.92,
+          "b": 1,
+          "a": 0.55
+         }
+        },
+        {
+         "t": 0.7,
+         "color": {
+          "r": 0.7,
+          "g": 0.8,
+          "b": 0.95,
+          "a": 0.2
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.6,
+          "g": 0.7,
+          "b": 0.9,
+          "a": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 39,
    "name": "JetStarboardUp",
    "parent": 5,
    "children": [],
@@ -1378,7 +2562,120 @@
    ]
   },
   {
-   "id": 30,
+   "id": 40,
+   "name": "JetStarboardUpGas",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -17.0,
+       "y": 3.3,
+       "z": -28.0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 3,
+      "shapeRadius": 0.22,
+      "speedMin": 20,
+      "speedMax": 42,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 2.4,
+      "rotationMin": 0,
+      "rotationMax": 360,
+      "angularVelocityMin": -40,
+      "angularVelocityMax": 40,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/fx/puff.esimage",
+      "lifetimeMin": 0.28,
+      "lifetimeMax": 0.75,
+      "maxParticles": 260,
+      "startSizeMin": 0.5,
+      "startSizeMax": 0.9,
+      "endSizeMin": 3.2,
+      "endSizeMax": 5.6,
+      "renderMode": 0,
+      "intensity": 1.1,
+      "collisionEnabled": false,
+      "shapeAngle": 30,
+      "noiseStrength": 5,
+      "noiseFrequency": 0.35,
+      "noiseScrollSpeed": 1.5,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.25,
+         "color": {
+          "r": 0.86,
+          "g": 0.92,
+          "b": 1,
+          "a": 0.55
+         }
+        },
+        {
+         "t": 0.7,
+         "color": {
+          "r": 0.7,
+          "g": 0.8,
+          "b": 0.95,
+          "a": 0.2
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.6,
+          "g": 0.7,
+          "b": 0.9,
+          "a": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 41,
    "name": "JetStarboardDown",
    "parent": 5,
    "children": [],
@@ -1426,11 +2723,344 @@
    ]
   },
   {
-   "id": 31,
+   "id": 42,
+   "name": "JetStarboardDownGas",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -17.0,
+       "y": -5.300000000000001,
+       "z": -28.0
+      },
+      "rotation": {
+       "x": 1,
+       "y": 0,
+       "z": 0,
+       "w": 0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 3,
+      "shapeRadius": 0.22,
+      "speedMin": 20,
+      "speedMax": 42,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 2.4,
+      "rotationMin": 0,
+      "rotationMax": 360,
+      "angularVelocityMin": -40,
+      "angularVelocityMax": 40,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/fx/puff.esimage",
+      "lifetimeMin": 0.28,
+      "lifetimeMax": 0.75,
+      "maxParticles": 260,
+      "startSizeMin": 0.5,
+      "startSizeMax": 0.9,
+      "endSizeMin": 3.2,
+      "endSizeMax": 5.6,
+      "renderMode": 0,
+      "intensity": 1.1,
+      "collisionEnabled": false,
+      "shapeAngle": 30,
+      "noiseStrength": 5,
+      "noiseFrequency": 0.35,
+      "noiseScrollSpeed": 1.5,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 0.95
+         }
+        },
+        {
+         "t": 0.25,
+         "color": {
+          "r": 0.86,
+          "g": 0.92,
+          "b": 1,
+          "a": 0.55
+         }
+        },
+        {
+         "t": 0.7,
+         "color": {
+          "r": 0.7,
+          "g": 0.8,
+          "b": 0.95,
+          "a": 0.2
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.6,
+          "g": 0.7,
+          "b": 0.9,
+          "a": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 43,
+   "name": "GunSparks",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 4,
+      "shapeRadius": 0.4,
+      "speedMin": 14,
+      "speedMax": 85,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 1.6,
+      "rotationMin": 0,
+      "rotationMax": 0,
+      "angularVelocityMin": 0,
+      "angularVelocityMax": 0,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/fx/spark.esimage",
+      "lifetimeMin": 0.18,
+      "lifetimeMax": 0.7,
+      "maxParticles": 600,
+      "startSizeMin": 0.5,
+      "startSizeMax": 1.3,
+      "endSizeMin": 0.1,
+      "endSizeMax": 0.3,
+      "renderMode": 1,
+      "intensity": 7,
+      "collisionEnabled": false,
+      "velocityScale": 0.05,
+      "lengthScale": 2.2,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 0.95,
+          "b": 0.8,
+          "a": 1
+         }
+        },
+        {
+         "t": 0.3,
+         "color": {
+          "r": 1,
+          "g": 0.62,
+          "b": 0.2,
+          "a": 1
+         }
+        },
+        {
+         "t": 0.75,
+         "color": {
+          "r": 1,
+          "g": 0.28,
+          "b": 0.06,
+          "a": 0.8
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.5,
+          "g": 0.06,
+          "b": 0,
+          "a": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 44,
+   "name": "GunSmoke",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "ParticleEmitter",
+     "data": {
+      "enabled": true,
+      "looping": true,
+      "playOnStart": true,
+      "simulationSpace": 0,
+      "rate": 0,
+      "burstCount": 0,
+      "duration": 1000,
+      "shape": 4,
+      "shapeRadius": 0.5,
+      "speedMin": 2,
+      "speedMax": 11,
+      "gravity": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "damping": 1.8,
+      "rotationMin": 0,
+      "rotationMax": 360,
+      "angularVelocityMin": -40,
+      "angularVelocityMax": 40,
+      "startColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "endColor": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 0
+      },
+      "blendMode": 1,
+      "texture": "assets/fx/puff.esimage",
+      "lifetimeMin": 0.5,
+      "lifetimeMax": 1.3,
+      "maxParticles": 260,
+      "startSizeMin": 0.8,
+      "startSizeMax": 1.6,
+      "endSizeMin": 3.5,
+      "endSizeMax": 6.5,
+      "renderMode": 0,
+      "intensity": 0.9,
+      "collisionEnabled": false,
+      "noiseStrength": 3,
+      "noiseFrequency": 0.3,
+      "noiseScrollSpeed": 1,
+      "colorGradient": {
+       "stops": [
+        {
+         "t": 0,
+         "color": {
+          "r": 1,
+          "g": 0.8,
+          "b": 0.5,
+          "a": 0.8
+         }
+        },
+        {
+         "t": 0.2,
+         "color": {
+          "r": 0.7,
+          "g": 0.62,
+          "b": 0.58,
+          "a": 0.4
+         }
+        },
+        {
+         "t": 1,
+         "color": {
+          "r": 0.4,
+          "g": 0.42,
+          "b": 0.48,
+          "a": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 45,
    "name": "TurretA",
    "parent": 5,
    "children": [
-    32
+    46
    ],
    "visible": true,
    "components": [
@@ -1471,11 +3101,11 @@
    ]
   },
   {
-   "id": 32,
+   "id": 46,
    "name": "GunsA",
-   "parent": 31,
+   "parent": 45,
    "children": [
-    33
+    47
    ],
    "visible": true,
    "components": [
@@ -1511,11 +3141,11 @@
    ]
   },
   {
-   "id": 33,
+   "id": 47,
    "name": "MuzzleA",
-   "parent": 32,
+   "parent": 46,
    "children": [
-    34
+    48
    ],
    "visible": true,
    "components": [
@@ -1555,9 +3185,9 @@
    ]
   },
   {
-   "id": 34,
+   "id": 48,
    "name": "MuzzleALight",
-   "parent": 33,
+   "parent": 47,
    "children": [],
    "visible": true,
    "components": [
@@ -1590,11 +3220,11 @@
    ]
   },
   {
-   "id": 35,
+   "id": 49,
    "name": "TurretB",
    "parent": 5,
    "children": [
-    36
+    50
    ],
    "visible": true,
    "components": [
@@ -1635,11 +3265,11 @@
    ]
   },
   {
-   "id": 36,
+   "id": 50,
    "name": "GunsB",
-   "parent": 35,
+   "parent": 49,
    "children": [
-    37
+    51
    ],
    "visible": true,
    "components": [
@@ -1675,11 +3305,11 @@
    ]
   },
   {
-   "id": 37,
+   "id": 51,
    "name": "MuzzleB",
-   "parent": 36,
+   "parent": 50,
    "children": [
-    38
+    52
    ],
    "visible": true,
    "components": [
@@ -1719,9 +3349,9 @@
    ]
   },
   {
-   "id": 38,
+   "id": 52,
    "name": "MuzzleBLight",
-   "parent": 37,
+   "parent": 51,
    "children": [],
    "visible": true,
    "components": [
@@ -1754,11 +3384,11 @@
    ]
   },
   {
-   "id": 39,
+   "id": 53,
    "name": "TurretP",
    "parent": 5,
    "children": [
-    40
+    54
    ],
    "visible": true,
    "components": [
@@ -1799,11 +3429,11 @@
    ]
   },
   {
-   "id": 40,
+   "id": 54,
    "name": "GunsP",
-   "parent": 39,
+   "parent": 53,
    "children": [
-    41
+    55
    ],
    "visible": true,
    "components": [
@@ -1839,11 +3469,11 @@
    ]
   },
   {
-   "id": 41,
+   "id": 55,
    "name": "MuzzleP",
-   "parent": 40,
+   "parent": 54,
    "children": [
-    42
+    56
    ],
    "visible": true,
    "components": [
@@ -1883,9 +3513,9 @@
    ]
   },
   {
-   "id": 42,
+   "id": 56,
    "name": "MuzzlePLight",
-   "parent": 41,
+   "parent": 55,
    "children": [],
    "visible": true,
    "components": [
@@ -1918,11 +3548,11 @@
    ]
   },
   {
-   "id": 43,
+   "id": 57,
    "name": "TurretS",
    "parent": 5,
    "children": [
-    44
+    58
    ],
    "visible": true,
    "components": [
@@ -1963,11 +3593,11 @@
    ]
   },
   {
-   "id": 44,
+   "id": 58,
    "name": "GunsS",
-   "parent": 43,
+   "parent": 57,
    "children": [
-    45
+    59
    ],
    "visible": true,
    "components": [
@@ -2003,11 +3633,11 @@
    ]
   },
   {
-   "id": 45,
+   "id": 59,
    "name": "MuzzleS",
-   "parent": 44,
+   "parent": 58,
    "children": [
-    46
+    60
    ],
    "visible": true,
    "components": [
@@ -2047,9 +3677,9 @@
    ]
   },
   {
-   "id": 46,
+   "id": 60,
    "name": "MuzzleSLight",
-   "parent": 45,
+   "parent": 59,
    "children": [],
    "visible": true,
    "components": [
@@ -2082,11 +3712,11 @@
    ]
   },
   {
-   "id": 47,
+   "id": 61,
    "name": "TurretV",
    "parent": 5,
    "children": [
-    48
+    62
    ],
    "visible": true,
    "components": [
@@ -2133,11 +3763,11 @@
    ]
   },
   {
-   "id": 48,
+   "id": 62,
    "name": "GunsV",
-   "parent": 47,
+   "parent": 61,
    "children": [
-    49
+    63
    ],
    "visible": true,
    "components": [
@@ -2173,11 +3803,11 @@
    ]
   },
   {
-   "id": 49,
+   "id": 63,
    "name": "MuzzleV",
-   "parent": 48,
+   "parent": 62,
    "children": [
-    50
+    64
    ],
    "visible": true,
    "components": [
@@ -2217,9 +3847,9 @@
    ]
   },
   {
-   "id": 50,
+   "id": 64,
    "name": "MuzzleVLight",
-   "parent": 49,
+   "parent": 63,
    "children": [],
    "visible": true,
    "components": [
@@ -2252,7 +3882,7 @@
    ]
   },
   {
-   "id": 51,
+   "id": 65,
    "name": "Shell0",
    "parent": null,
    "children": [],
@@ -2294,7 +3924,7 @@
    ]
   },
   {
-   "id": 52,
+   "id": 66,
    "name": "Shell1",
    "parent": null,
    "children": [],
@@ -2336,7 +3966,7 @@
    ]
   },
   {
-   "id": 53,
+   "id": 67,
    "name": "Shell2",
    "parent": null,
    "children": [],
@@ -2378,7 +4008,7 @@
    ]
   },
   {
-   "id": 54,
+   "id": 68,
    "name": "Shell3",
    "parent": null,
    "children": [],
@@ -2420,7 +4050,7 @@
    ]
   },
   {
-   "id": 55,
+   "id": 69,
    "name": "Shell4",
    "parent": null,
    "children": [],
@@ -2462,7 +4092,7 @@
    ]
   },
   {
-   "id": 56,
+   "id": 70,
    "name": "Shell5",
    "parent": null,
    "children": [],
@@ -2504,7 +4134,7 @@
    ]
   },
   {
-   "id": 57,
+   "id": 71,
    "name": "Shell6",
    "parent": null,
    "children": [],
@@ -2546,7 +4176,7 @@
    ]
   },
   {
-   "id": 58,
+   "id": 72,
    "name": "Shell7",
    "parent": null,
    "children": [],
@@ -2588,7 +4218,7 @@
    ]
   },
   {
-   "id": 59,
+   "id": 73,
    "name": "Shell8",
    "parent": null,
    "children": [],
@@ -2630,7 +4260,7 @@
    ]
   },
   {
-   "id": 60,
+   "id": 74,
    "name": "Shell9",
    "parent": null,
    "children": [],
@@ -2672,7 +4302,7 @@
    ]
   },
   {
-   "id": 61,
+   "id": 75,
    "name": "Shell10",
    "parent": null,
    "children": [],
@@ -2714,7 +4344,7 @@
    ]
   },
   {
-   "id": 62,
+   "id": 76,
    "name": "Shell11",
    "parent": null,
    "children": [],
@@ -2756,7 +4386,7 @@
    ]
   },
   {
-   "id": 63,
+   "id": 77,
    "name": "Shell12",
    "parent": null,
    "children": [],
@@ -2798,7 +4428,7 @@
    ]
   },
   {
-   "id": 64,
+   "id": 78,
    "name": "Shell13",
    "parent": null,
    "children": [],
@@ -2840,7 +4470,7 @@
    ]
   },
   {
-   "id": 65,
+   "id": 79,
    "name": "Shell14",
    "parent": null,
    "children": [],
@@ -2882,7 +4512,7 @@
    ]
   },
   {
-   "id": 66,
+   "id": 80,
    "name": "Shell15",
    "parent": null,
    "children": [],
@@ -2924,7 +4554,7 @@
    ]
   },
   {
-   "id": 67,
+   "id": 81,
    "name": "Shell16",
    "parent": null,
    "children": [],
@@ -2966,7 +4596,7 @@
    ]
   },
   {
-   "id": 68,
+   "id": 82,
    "name": "Shell17",
    "parent": null,
    "children": [],
@@ -3008,7 +4638,7 @@
    ]
   },
   {
-   "id": 69,
+   "id": 83,
    "name": "Shell18",
    "parent": null,
    "children": [],
@@ -3050,7 +4680,7 @@
    ]
   },
   {
-   "id": 70,
+   "id": 84,
    "name": "Shell19",
    "parent": null,
    "children": [],
@@ -3092,7 +4722,7 @@
    ]
   },
   {
-   "id": 71,
+   "id": 85,
    "name": "Shell20",
    "parent": null,
    "children": [],
@@ -3134,7 +4764,7 @@
    ]
   },
   {
-   "id": 72,
+   "id": 86,
    "name": "Shell21",
    "parent": null,
    "children": [],
@@ -3176,7 +4806,7 @@
    ]
   },
   {
-   "id": 73,
+   "id": 87,
    "name": "Shell22",
    "parent": null,
    "children": [],
@@ -3218,7 +4848,7 @@
    ]
   },
   {
-   "id": 74,
+   "id": 88,
    "name": "Shell23",
    "parent": null,
    "children": [],
@@ -3260,11 +4890,11 @@
    ]
   },
   {
-   "id": 75,
+   "id": 89,
    "name": "Impact0",
    "parent": null,
    "children": [
-    76
+    90
    ],
    "visible": true,
    "components": [
@@ -3304,9 +4934,9 @@
    ]
   },
   {
-   "id": 76,
+   "id": 90,
    "name": "Impact0Light",
-   "parent": 75,
+   "parent": 89,
    "children": [],
    "visible": true,
    "components": [
@@ -3339,11 +4969,11 @@
    ]
   },
   {
-   "id": 77,
+   "id": 91,
    "name": "Impact1",
    "parent": null,
    "children": [
-    78
+    92
    ],
    "visible": true,
    "components": [
@@ -3383,9 +5013,9 @@
    ]
   },
   {
-   "id": 78,
+   "id": 92,
    "name": "Impact1Light",
-   "parent": 77,
+   "parent": 91,
    "children": [],
    "visible": true,
    "components": [
@@ -3418,11 +5048,11 @@
    ]
   },
   {
-   "id": 79,
+   "id": 93,
    "name": "Impact2",
    "parent": null,
    "children": [
-    80
+    94
    ],
    "visible": true,
    "components": [
@@ -3462,9 +5092,9 @@
    ]
   },
   {
-   "id": 80,
+   "id": 94,
    "name": "Impact2Light",
-   "parent": 79,
+   "parent": 93,
    "children": [],
    "visible": true,
    "components": [
@@ -3497,11 +5127,11 @@
    ]
   },
   {
-   "id": 81,
+   "id": 95,
    "name": "Impact3",
    "parent": null,
    "children": [
-    82
+    96
    ],
    "visible": true,
    "components": [
@@ -3541,9 +5171,9 @@
    ]
   },
   {
-   "id": 82,
+   "id": 96,
    "name": "Impact3Light",
-   "parent": 81,
+   "parent": 95,
    "children": [],
    "visible": true,
    "components": [
@@ -3576,11 +5206,11 @@
    ]
   },
   {
-   "id": 83,
+   "id": 97,
    "name": "StrobeMast",
    "parent": 5,
    "children": [
-    84
+    98
    ],
    "visible": true,
    "components": [
@@ -3620,9 +5250,9 @@
    ]
   },
   {
-   "id": 84,
+   "id": 98,
    "name": "StrobeMastLight",
-   "parent": 83,
+   "parent": 97,
    "children": [],
    "visible": true,
    "components": [
@@ -3655,11 +5285,11 @@
    ]
   },
   {
-   "id": 85,
+   "id": 99,
    "name": "StrobeKeel",
    "parent": 5,
    "children": [
-    86
+    100
    ],
    "visible": true,
    "components": [
@@ -3699,9 +5329,9 @@
    ]
   },
   {
-   "id": 86,
+   "id": 100,
    "name": "StrobeKeelLight",
-   "parent": 85,
+   "parent": 99,
    "children": [],
    "visible": true,
    "components": [
@@ -3734,11 +5364,11 @@
    ]
   },
   {
-   "id": 87,
+   "id": 101,
    "name": "NavPort",
    "parent": 5,
    "children": [
-    88
+    102
    ],
    "visible": true,
    "components": [
@@ -3778,9 +5408,9 @@
    ]
   },
   {
-   "id": 88,
+   "id": 102,
    "name": "NavPortLight",
-   "parent": 87,
+   "parent": 101,
    "children": [],
    "visible": true,
    "components": [
@@ -3813,11 +5443,11 @@
    ]
   },
   {
-   "id": 89,
+   "id": 103,
    "name": "NavStarboard",
    "parent": 5,
    "children": [
-    90
+    104
    ],
    "visible": true,
    "components": [
@@ -3857,9 +5487,9 @@
    ]
   },
   {
-   "id": 90,
+   "id": 104,
    "name": "NavStarboardLight",
-   "parent": 89,
+   "parent": 103,
    "children": [],
    "visible": true,
    "components": [
@@ -3892,11 +5522,11 @@
    ]
   },
   {
-   "id": 91,
+   "id": 105,
    "name": "BowPort",
    "parent": 5,
    "children": [
-    92
+    106
    ],
    "visible": true,
    "components": [
@@ -3936,9 +5566,9 @@
    ]
   },
   {
-   "id": 92,
+   "id": 106,
    "name": "BowPortLight",
-   "parent": 91,
+   "parent": 105,
    "children": [],
    "visible": true,
    "components": [
@@ -3971,11 +5601,11 @@
    ]
   },
   {
-   "id": 93,
+   "id": 107,
    "name": "BowStarboard",
    "parent": 5,
    "children": [
-    94
+    108
    ],
    "visible": true,
    "components": [
@@ -4015,9 +5645,9 @@
    ]
   },
   {
-   "id": 94,
+   "id": 108,
    "name": "BowStarboardLight",
-   "parent": 93,
+   "parent": 107,
    "children": [],
    "visible": true,
    "components": [
@@ -4050,7 +5680,7 @@
    ]
   },
   {
-   "id": 95,
+   "id": 109,
    "name": "GateFlash",
    "parent": null,
    "children": [],
@@ -4085,7 +5715,7 @@
    ]
   },
   {
-   "id": 96,
+   "id": 110,
    "name": "Mote0",
    "parent": null,
    "children": [],
@@ -4134,7 +5764,7 @@
    ]
   },
   {
-   "id": 97,
+   "id": 111,
    "name": "Mote1",
    "parent": null,
    "children": [],
@@ -4183,7 +5813,7 @@
    ]
   },
   {
-   "id": 98,
+   "id": 112,
    "name": "Mote2",
    "parent": null,
    "children": [],
@@ -4232,7 +5862,7 @@
    ]
   },
   {
-   "id": 99,
+   "id": 113,
    "name": "Mote3",
    "parent": null,
    "children": [],
@@ -4281,7 +5911,7 @@
    ]
   },
   {
-   "id": 100,
+   "id": 114,
    "name": "Mote4",
    "parent": null,
    "children": [],
@@ -4330,7 +5960,7 @@
    ]
   },
   {
-   "id": 101,
+   "id": 115,
    "name": "Mote5",
    "parent": null,
    "children": [],
@@ -4379,7 +6009,7 @@
    ]
   },
   {
-   "id": 102,
+   "id": 116,
    "name": "Mote6",
    "parent": null,
    "children": [],
@@ -4428,7 +6058,7 @@
    ]
   },
   {
-   "id": 103,
+   "id": 117,
    "name": "Mote7",
    "parent": null,
    "children": [],
@@ -4477,7 +6107,7 @@
    ]
   },
   {
-   "id": 104,
+   "id": 118,
    "name": "Mote8",
    "parent": null,
    "children": [],
@@ -4526,7 +6156,7 @@
    ]
   },
   {
-   "id": 105,
+   "id": 119,
    "name": "Mote9",
    "parent": null,
    "children": [],
@@ -4575,7 +6205,7 @@
    ]
   },
   {
-   "id": 106,
+   "id": 120,
    "name": "Mote10",
    "parent": null,
    "children": [],
@@ -4624,7 +6254,7 @@
    ]
   },
   {
-   "id": 107,
+   "id": 121,
    "name": "Mote11",
    "parent": null,
    "children": [],
@@ -4673,7 +6303,7 @@
    ]
   },
   {
-   "id": 108,
+   "id": 122,
    "name": "Mote12",
    "parent": null,
    "children": [],
@@ -4722,7 +6352,7 @@
    ]
   },
   {
-   "id": 109,
+   "id": 123,
    "name": "Mote13",
    "parent": null,
    "children": [],
@@ -4771,7 +6401,7 @@
    ]
   },
   {
-   "id": 110,
+   "id": 124,
    "name": "Mote14",
    "parent": null,
    "children": [],
@@ -4820,7 +6450,7 @@
    ]
   },
   {
-   "id": 111,
+   "id": 125,
    "name": "Mote15",
    "parent": null,
    "children": [],
@@ -4869,7 +6499,7 @@
    ]
   },
   {
-   "id": 112,
+   "id": 126,
    "name": "Mote16",
    "parent": null,
    "children": [],
@@ -4918,7 +6548,7 @@
    ]
   },
   {
-   "id": 113,
+   "id": 127,
    "name": "Mote17",
    "parent": null,
    "children": [],
@@ -4967,7 +6597,7 @@
    ]
   },
   {
-   "id": 114,
+   "id": 128,
    "name": "Mote18",
    "parent": null,
    "children": [],
@@ -5016,7 +6646,7 @@
    ]
   },
   {
-   "id": 115,
+   "id": 129,
    "name": "Mote19",
    "parent": null,
    "children": [],
@@ -5065,7 +6695,7 @@
    ]
   },
   {
-   "id": 116,
+   "id": 130,
    "name": "Mote20",
    "parent": null,
    "children": [],
@@ -5114,7 +6744,7 @@
    ]
   },
   {
-   "id": 117,
+   "id": 131,
    "name": "Mote21",
    "parent": null,
    "children": [],
@@ -5163,7 +6793,7 @@
    ]
   },
   {
-   "id": 118,
+   "id": 132,
    "name": "Mote22",
    "parent": null,
    "children": [],
@@ -5212,7 +6842,7 @@
    ]
   },
   {
-   "id": 119,
+   "id": 133,
    "name": "Mote23",
    "parent": null,
    "children": [],
@@ -5261,7 +6891,7 @@
    ]
   },
   {
-   "id": 120,
+   "id": 134,
    "name": "Mote24",
    "parent": null,
    "children": [],
@@ -5310,7 +6940,7 @@
    ]
   },
   {
-   "id": 121,
+   "id": 135,
    "name": "Mote25",
    "parent": null,
    "children": [],
@@ -5359,7 +6989,7 @@
    ]
   },
   {
-   "id": 122,
+   "id": 136,
    "name": "Mote26",
    "parent": null,
    "children": [],
@@ -5408,7 +7038,7 @@
    ]
   },
   {
-   "id": 123,
+   "id": 137,
    "name": "Mote27",
    "parent": null,
    "children": [],
@@ -5457,7 +7087,7 @@
    ]
   },
   {
-   "id": 124,
+   "id": 138,
    "name": "Mote28",
    "parent": null,
    "children": [],
@@ -5506,7 +7136,7 @@
    ]
   },
   {
-   "id": 125,
+   "id": 139,
    "name": "Mote29",
    "parent": null,
    "children": [],
@@ -5555,7 +7185,7 @@
    ]
   },
   {
-   "id": 126,
+   "id": 140,
    "name": "Mote30",
    "parent": null,
    "children": [],
@@ -5604,7 +7234,7 @@
    ]
   },
   {
-   "id": 127,
+   "id": 141,
    "name": "Mote31",
    "parent": null,
    "children": [],
@@ -5653,7 +7283,7 @@
    ]
   },
   {
-   "id": 128,
+   "id": 142,
    "name": "Mote32",
    "parent": null,
    "children": [],
@@ -5702,7 +7332,7 @@
    ]
   },
   {
-   "id": 129,
+   "id": 143,
    "name": "Mote33",
    "parent": null,
    "children": [],
@@ -5751,7 +7381,7 @@
    ]
   },
   {
-   "id": 130,
+   "id": 144,
    "name": "Mote34",
    "parent": null,
    "children": [],
@@ -5800,7 +7430,7 @@
    ]
   },
   {
-   "id": 131,
+   "id": 145,
    "name": "Mote35",
    "parent": null,
    "children": [],
@@ -5849,7 +7479,7 @@
    ]
   },
   {
-   "id": 132,
+   "id": 146,
    "name": "Mote36",
    "parent": null,
    "children": [],
@@ -5898,7 +7528,7 @@
    ]
   },
   {
-   "id": 133,
+   "id": 147,
    "name": "Mote37",
    "parent": null,
    "children": [],
@@ -5947,7 +7577,7 @@
    ]
   },
   {
-   "id": 134,
+   "id": 148,
    "name": "Mote38",
    "parent": null,
    "children": [],
@@ -5996,7 +7626,7 @@
    ]
   },
   {
-   "id": 135,
+   "id": 149,
    "name": "Mote39",
    "parent": null,
    "children": [],
@@ -6045,7 +7675,7 @@
    ]
   },
   {
-   "id": 136,
+   "id": 150,
    "name": "Mote40",
    "parent": null,
    "children": [],
@@ -6094,7 +7724,7 @@
    ]
   },
   {
-   "id": 137,
+   "id": 151,
    "name": "Mote41",
    "parent": null,
    "children": [],
@@ -6143,7 +7773,7 @@
    ]
   },
   {
-   "id": 138,
+   "id": 152,
    "name": "Mote42",
    "parent": null,
    "children": [],
@@ -6192,7 +7822,7 @@
    ]
   },
   {
-   "id": 139,
+   "id": 153,
    "name": "Mote43",
    "parent": null,
    "children": [],
@@ -6241,7 +7871,7 @@
    ]
   },
   {
-   "id": 140,
+   "id": 154,
    "name": "Mote44",
    "parent": null,
    "children": [],
@@ -6290,7 +7920,7 @@
    ]
   },
   {
-   "id": 141,
+   "id": 155,
    "name": "Mote45",
    "parent": null,
    "children": [],
@@ -6339,7 +7969,7 @@
    ]
   },
   {
-   "id": 142,
+   "id": 156,
    "name": "Mote46",
    "parent": null,
    "children": [],
@@ -6388,7 +8018,7 @@
    ]
   },
   {
-   "id": 143,
+   "id": 157,
    "name": "Mote47",
    "parent": null,
    "children": [],
@@ -6437,7 +8067,7 @@
    ]
   },
   {
-   "id": 144,
+   "id": 158,
    "name": "Mote48",
    "parent": null,
    "children": [],
@@ -6486,7 +8116,7 @@
    ]
   },
   {
-   "id": 145,
+   "id": 159,
    "name": "Mote49",
    "parent": null,
    "children": [],
@@ -6535,7 +8165,7 @@
    ]
   },
   {
-   "id": 146,
+   "id": 160,
    "name": "Mote50",
    "parent": null,
    "children": [],
@@ -6584,7 +8214,7 @@
    ]
   },
   {
-   "id": 147,
+   "id": 161,
    "name": "Mote51",
    "parent": null,
    "children": [],
@@ -6633,7 +8263,7 @@
    ]
   },
   {
-   "id": 148,
+   "id": 162,
    "name": "Mote52",
    "parent": null,
    "children": [],
@@ -6682,7 +8312,7 @@
    ]
   },
   {
-   "id": 149,
+   "id": 163,
    "name": "Mote53",
    "parent": null,
    "children": [],
@@ -6731,7 +8361,7 @@
    ]
   },
   {
-   "id": 150,
+   "id": 164,
    "name": "Mote54",
    "parent": null,
    "children": [],
@@ -6780,7 +8410,7 @@
    ]
   },
   {
-   "id": 151,
+   "id": 165,
    "name": "Mote55",
    "parent": null,
    "children": [],
@@ -6829,7 +8459,7 @@
    ]
   },
   {
-   "id": 152,
+   "id": 166,
    "name": "Mote56",
    "parent": null,
    "children": [],
@@ -6878,7 +8508,7 @@
    ]
   },
   {
-   "id": 153,
+   "id": 167,
    "name": "Mote57",
    "parent": null,
    "children": [],
@@ -6927,7 +8557,7 @@
    ]
   },
   {
-   "id": 154,
+   "id": 168,
    "name": "Mote58",
    "parent": null,
    "children": [],
@@ -6976,7 +8606,7 @@
    ]
   },
   {
-   "id": 155,
+   "id": 169,
    "name": "Mote59",
    "parent": null,
    "children": [],
@@ -7025,7 +8655,7 @@
    ]
   },
   {
-   "id": 156,
+   "id": 170,
    "name": "Mote60",
    "parent": null,
    "children": [],
@@ -7074,7 +8704,7 @@
    ]
   },
   {
-   "id": 157,
+   "id": 171,
    "name": "Mote61",
    "parent": null,
    "children": [],
@@ -7123,7 +8753,7 @@
    ]
   },
   {
-   "id": 158,
+   "id": 172,
    "name": "Mote62",
    "parent": null,
    "children": [],
@@ -7172,7 +8802,7 @@
    ]
   },
   {
-   "id": 159,
+   "id": 173,
    "name": "Mote63",
    "parent": null,
    "children": [],
@@ -7221,7 +8851,7 @@
    ]
   },
   {
-   "id": 160,
+   "id": 174,
    "name": "Mote64",
    "parent": null,
    "children": [],
@@ -7270,7 +8900,7 @@
    ]
   },
   {
-   "id": 161,
+   "id": 175,
    "name": "Mote65",
    "parent": null,
    "children": [],
@@ -7319,7 +8949,7 @@
    ]
   },
   {
-   "id": 162,
+   "id": 176,
    "name": "Mote66",
    "parent": null,
    "children": [],
@@ -7368,7 +8998,7 @@
    ]
   },
   {
-   "id": 163,
+   "id": 177,
    "name": "Mote67",
    "parent": null,
    "children": [],
@@ -7417,7 +9047,7 @@
    ]
   },
   {
-   "id": 164,
+   "id": 178,
    "name": "Mote68",
    "parent": null,
    "children": [],
@@ -7466,7 +9096,7 @@
    ]
   },
   {
-   "id": 165,
+   "id": 179,
    "name": "Mote69",
    "parent": null,
    "children": [],
@@ -7515,7 +9145,7 @@
    ]
   },
   {
-   "id": 166,
+   "id": 180,
    "name": "Mote70",
    "parent": null,
    "children": [],
@@ -7564,7 +9194,7 @@
    ]
   },
   {
-   "id": 167,
+   "id": 181,
    "name": "Mote71",
    "parent": null,
    "children": [],
@@ -7613,7 +9243,7 @@
    ]
   },
   {
-   "id": 168,
+   "id": 182,
    "name": "Mote72",
    "parent": null,
    "children": [],
@@ -7662,7 +9292,7 @@
    ]
   },
   {
-   "id": 169,
+   "id": 183,
    "name": "Mote73",
    "parent": null,
    "children": [],
@@ -7711,7 +9341,7 @@
    ]
   },
   {
-   "id": 170,
+   "id": 184,
    "name": "Mote74",
    "parent": null,
    "children": [],
@@ -7760,7 +9390,7 @@
    ]
   },
   {
-   "id": 171,
+   "id": 185,
    "name": "Mote75",
    "parent": null,
    "children": [],
@@ -7809,7 +9439,7 @@
    ]
   },
   {
-   "id": 172,
+   "id": 186,
    "name": "Mote76",
    "parent": null,
    "children": [],
@@ -7858,7 +9488,7 @@
    ]
   },
   {
-   "id": 173,
+   "id": 187,
    "name": "Mote77",
    "parent": null,
    "children": [],
@@ -7907,7 +9537,7 @@
    ]
   },
   {
-   "id": 174,
+   "id": 188,
    "name": "Mote78",
    "parent": null,
    "children": [],
@@ -7956,7 +9586,7 @@
    ]
   },
   {
-   "id": 175,
+   "id": 189,
    "name": "Mote79",
    "parent": null,
    "children": [],
@@ -8005,7 +9635,7 @@
    ]
   },
   {
-   "id": 176,
+   "id": 190,
    "name": "Mote80",
    "parent": null,
    "children": [],
@@ -8054,7 +9684,7 @@
    ]
   },
   {
-   "id": 177,
+   "id": 191,
    "name": "Mote81",
    "parent": null,
    "children": [],
@@ -8103,7 +9733,7 @@
    ]
   },
   {
-   "id": 178,
+   "id": 192,
    "name": "Mote82",
    "parent": null,
    "children": [],
@@ -8152,7 +9782,7 @@
    ]
   },
   {
-   "id": 179,
+   "id": 193,
    "name": "Mote83",
    "parent": null,
    "children": [],
@@ -8201,7 +9831,7 @@
    ]
   },
   {
-   "id": 180,
+   "id": 194,
    "name": "Mote84",
    "parent": null,
    "children": [],
@@ -8250,7 +9880,7 @@
    ]
   },
   {
-   "id": 181,
+   "id": 195,
    "name": "Mote85",
    "parent": null,
    "children": [],
@@ -8299,7 +9929,7 @@
    ]
   },
   {
-   "id": 182,
+   "id": 196,
    "name": "Mote86",
    "parent": null,
    "children": [],
@@ -8348,7 +9978,7 @@
    ]
   },
   {
-   "id": 183,
+   "id": 197,
    "name": "Mote87",
    "parent": null,
    "children": [],
@@ -8397,7 +10027,7 @@
    ]
   },
   {
-   "id": 184,
+   "id": 198,
    "name": "Mote88",
    "parent": null,
    "children": [],
@@ -8446,7 +10076,7 @@
    ]
   },
   {
-   "id": 185,
+   "id": 199,
    "name": "Mote89",
    "parent": null,
    "children": [],
@@ -8495,7 +10125,7 @@
    ]
   },
   {
-   "id": 186,
+   "id": 200,
    "name": "Mote90",
    "parent": null,
    "children": [],
@@ -8544,7 +10174,7 @@
    ]
   },
   {
-   "id": 187,
+   "id": 201,
    "name": "Mote91",
    "parent": null,
    "children": [],
@@ -8593,7 +10223,7 @@
    ]
   },
   {
-   "id": 188,
+   "id": 202,
    "name": "Mote92",
    "parent": null,
    "children": [],
@@ -8642,7 +10272,7 @@
    ]
   },
   {
-   "id": 189,
+   "id": 203,
    "name": "Mote93",
    "parent": null,
    "children": [],
@@ -8691,7 +10321,7 @@
    ]
   },
   {
-   "id": 190,
+   "id": 204,
    "name": "Mote94",
    "parent": null,
    "children": [],
@@ -8740,7 +10370,7 @@
    ]
   },
   {
-   "id": 191,
+   "id": 205,
    "name": "Mote95",
    "parent": null,
    "children": [],
@@ -8789,7 +10419,7 @@
    ]
   },
   {
-   "id": 192,
+   "id": 206,
    "name": "Mote96",
    "parent": null,
    "children": [],
@@ -8838,7 +10468,7 @@
    ]
   },
   {
-   "id": 193,
+   "id": 207,
    "name": "Mote97",
    "parent": null,
    "children": [],
@@ -8887,7 +10517,7 @@
    ]
   },
   {
-   "id": 194,
+   "id": 208,
    "name": "Mote98",
    "parent": null,
    "children": [],
@@ -8936,7 +10566,7 @@
    ]
   },
   {
-   "id": 195,
+   "id": 209,
    "name": "Mote99",
    "parent": null,
    "children": [],
@@ -8985,7 +10615,7 @@
    ]
   },
   {
-   "id": 196,
+   "id": 210,
    "name": "Mote100",
    "parent": null,
    "children": [],
@@ -9034,7 +10664,7 @@
    ]
   },
   {
-   "id": 197,
+   "id": 211,
    "name": "Mote101",
    "parent": null,
    "children": [],
@@ -9083,7 +10713,7 @@
    ]
   },
   {
-   "id": 198,
+   "id": 212,
    "name": "Mote102",
    "parent": null,
    "children": [],
@@ -9132,7 +10762,7 @@
    ]
   },
   {
-   "id": 199,
+   "id": 213,
    "name": "Mote103",
    "parent": null,
    "children": [],
@@ -9181,7 +10811,7 @@
    ]
   },
   {
-   "id": 200,
+   "id": 214,
    "name": "Mote104",
    "parent": null,
    "children": [],
@@ -9230,7 +10860,7 @@
    ]
   },
   {
-   "id": 201,
+   "id": 215,
    "name": "Mote105",
    "parent": null,
    "children": [],
@@ -9279,7 +10909,7 @@
    ]
   },
   {
-   "id": 202,
+   "id": 216,
    "name": "Mote106",
    "parent": null,
    "children": [],
@@ -9328,7 +10958,7 @@
    ]
   },
   {
-   "id": 203,
+   "id": 217,
    "name": "Mote107",
    "parent": null,
    "children": [],
@@ -9377,7 +11007,7 @@
    ]
   },
   {
-   "id": 204,
+   "id": 218,
    "name": "Mote108",
    "parent": null,
    "children": [],
@@ -9426,7 +11056,7 @@
    ]
   },
   {
-   "id": 205,
+   "id": 219,
    "name": "Mote109",
    "parent": null,
    "children": [],
@@ -9475,7 +11105,7 @@
    ]
   },
   {
-   "id": 206,
+   "id": 220,
    "name": "Mote110",
    "parent": null,
    "children": [],
@@ -9524,7 +11154,7 @@
    ]
   },
   {
-   "id": 207,
+   "id": 221,
    "name": "Mote111",
    "parent": null,
    "children": [],
@@ -9573,7 +11203,7 @@
    ]
   },
   {
-   "id": 208,
+   "id": 222,
    "name": "Mote112",
    "parent": null,
    "children": [],
@@ -9622,7 +11252,7 @@
    ]
   },
   {
-   "id": 209,
+   "id": 223,
    "name": "Mote113",
    "parent": null,
    "children": [],
@@ -9671,7 +11301,7 @@
    ]
   },
   {
-   "id": 210,
+   "id": 224,
    "name": "Mote114",
    "parent": null,
    "children": [],
@@ -9720,7 +11350,7 @@
    ]
   },
   {
-   "id": 211,
+   "id": 225,
    "name": "Mote115",
    "parent": null,
    "children": [],
@@ -9769,7 +11399,7 @@
    ]
   },
   {
-   "id": 212,
+   "id": 226,
    "name": "Mote116",
    "parent": null,
    "children": [],
@@ -9818,7 +11448,7 @@
    ]
   },
   {
-   "id": 213,
+   "id": 227,
    "name": "Mote117",
    "parent": null,
    "children": [],
@@ -9867,7 +11497,7 @@
    ]
   },
   {
-   "id": 214,
+   "id": 228,
    "name": "Mote118",
    "parent": null,
    "children": [],
@@ -9916,7 +11546,7 @@
    ]
   },
   {
-   "id": 215,
+   "id": 229,
    "name": "Mote119",
    "parent": null,
    "children": [],
@@ -9965,7 +11595,7 @@
    ]
   },
   {
-   "id": 216,
+   "id": 230,
    "name": "Mote120",
    "parent": null,
    "children": [],
@@ -10014,7 +11644,7 @@
    ]
   },
   {
-   "id": 217,
+   "id": 231,
    "name": "Mote121",
    "parent": null,
    "children": [],
@@ -10063,7 +11693,7 @@
    ]
   },
   {
-   "id": 218,
+   "id": 232,
    "name": "Mote122",
    "parent": null,
    "children": [],
@@ -10112,7 +11742,7 @@
    ]
   },
   {
-   "id": 219,
+   "id": 233,
    "name": "Mote123",
    "parent": null,
    "children": [],
@@ -10161,7 +11791,7 @@
    ]
   },
   {
-   "id": 220,
+   "id": 234,
    "name": "Mote124",
    "parent": null,
    "children": [],
@@ -10210,7 +11840,7 @@
    ]
   },
   {
-   "id": 221,
+   "id": 235,
    "name": "Mote125",
    "parent": null,
    "children": [],
@@ -10259,7 +11889,7 @@
    ]
   },
   {
-   "id": 222,
+   "id": 236,
    "name": "Mote126",
    "parent": null,
    "children": [],
@@ -10308,7 +11938,7 @@
    ]
   },
   {
-   "id": 223,
+   "id": 237,
    "name": "Mote127",
    "parent": null,
    "children": [],
@@ -10357,7 +11987,7 @@
    ]
   },
   {
-   "id": 224,
+   "id": 238,
    "name": "Mote128",
    "parent": null,
    "children": [],
@@ -10406,7 +12036,7 @@
    ]
   },
   {
-   "id": 225,
+   "id": 239,
    "name": "Mote129",
    "parent": null,
    "children": [],
@@ -10455,7 +12085,7 @@
    ]
   },
   {
-   "id": 226,
+   "id": 240,
    "name": "Mote130",
    "parent": null,
    "children": [],
@@ -10504,7 +12134,7 @@
    ]
   },
   {
-   "id": 227,
+   "id": 241,
    "name": "Mote131",
    "parent": null,
    "children": [],
@@ -10553,7 +12183,7 @@
    ]
   },
   {
-   "id": 228,
+   "id": 242,
    "name": "Mote132",
    "parent": null,
    "children": [],
@@ -10602,7 +12232,7 @@
    ]
   },
   {
-   "id": 229,
+   "id": 243,
    "name": "Mote133",
    "parent": null,
    "children": [],
@@ -10651,7 +12281,7 @@
    ]
   },
   {
-   "id": 230,
+   "id": 244,
    "name": "Mote134",
    "parent": null,
    "children": [],
@@ -10700,7 +12330,7 @@
    ]
   },
   {
-   "id": 231,
+   "id": 245,
    "name": "Mote135",
    "parent": null,
    "children": [],
@@ -10749,7 +12379,7 @@
    ]
   },
   {
-   "id": 232,
+   "id": 246,
    "name": "Mote136",
    "parent": null,
    "children": [],
@@ -10798,7 +12428,7 @@
    ]
   },
   {
-   "id": 233,
+   "id": 247,
    "name": "Mote137",
    "parent": null,
    "children": [],
@@ -10847,7 +12477,7 @@
    ]
   },
   {
-   "id": 234,
+   "id": 248,
    "name": "Mote138",
    "parent": null,
    "children": [],
@@ -10896,7 +12526,7 @@
    ]
   },
   {
-   "id": 235,
+   "id": 249,
    "name": "Mote139",
    "parent": null,
    "children": [],
@@ -10945,7 +12575,7 @@
    ]
   },
   {
-   "id": 236,
+   "id": 250,
    "name": "Mote140",
    "parent": null,
    "children": [],
@@ -10994,7 +12624,7 @@
    ]
   },
   {
-   "id": 237,
+   "id": 251,
    "name": "Mote141",
    "parent": null,
    "children": [],
@@ -11043,7 +12673,7 @@
    ]
   },
   {
-   "id": 238,
+   "id": 252,
    "name": "Mote142",
    "parent": null,
    "children": [],
@@ -11092,7 +12722,7 @@
    ]
   },
   {
-   "id": 239,
+   "id": 253,
    "name": "Mote143",
    "parent": null,
    "children": [],
@@ -11141,7 +12771,7 @@
    ]
   },
   {
-   "id": 240,
+   "id": 254,
    "name": "Mote144",
    "parent": null,
    "children": [],
@@ -11190,7 +12820,7 @@
    ]
   },
   {
-   "id": 241,
+   "id": 255,
    "name": "Mote145",
    "parent": null,
    "children": [],
@@ -11239,7 +12869,7 @@
    ]
   },
   {
-   "id": 242,
+   "id": 256,
    "name": "Mote146",
    "parent": null,
    "children": [],
@@ -11288,7 +12918,7 @@
    ]
   },
   {
-   "id": 243,
+   "id": 257,
    "name": "Mote147",
    "parent": null,
    "children": [],
@@ -11337,7 +12967,7 @@
    ]
   },
   {
-   "id": 244,
+   "id": 258,
    "name": "Mote148",
    "parent": null,
    "children": [],
@@ -11386,7 +13016,7 @@
    ]
   },
   {
-   "id": 245,
+   "id": 259,
    "name": "Mote149",
    "parent": null,
    "children": [],
@@ -11435,7 +13065,7 @@
    ]
   },
   {
-   "id": 246,
+   "id": 260,
    "name": "Rock0",
    "parent": null,
    "children": [],
@@ -11484,7 +13114,7 @@
    ]
   },
   {
-   "id": 247,
+   "id": 261,
    "name": "Rock1",
    "parent": null,
    "children": [],
@@ -11533,7 +13163,7 @@
    ]
   },
   {
-   "id": 248,
+   "id": 262,
    "name": "Rock2",
    "parent": null,
    "children": [],
@@ -11582,7 +13212,7 @@
    ]
   },
   {
-   "id": 249,
+   "id": 263,
    "name": "Rock3",
    "parent": null,
    "children": [],
@@ -11631,7 +13261,7 @@
    ]
   },
   {
-   "id": 250,
+   "id": 264,
    "name": "Rock4",
    "parent": null,
    "children": [],
@@ -11680,7 +13310,7 @@
    ]
   },
   {
-   "id": 251,
+   "id": 265,
    "name": "Rock5",
    "parent": null,
    "children": [],
@@ -11729,7 +13359,7 @@
    ]
   },
   {
-   "id": 252,
+   "id": 266,
    "name": "Rock6",
    "parent": null,
    "children": [],
@@ -11778,7 +13408,7 @@
    ]
   },
   {
-   "id": 253,
+   "id": 267,
    "name": "Rock7",
    "parent": null,
    "children": [],
@@ -11827,7 +13457,7 @@
    ]
   },
   {
-   "id": 254,
+   "id": 268,
    "name": "Rock8",
    "parent": null,
    "children": [],
@@ -11876,7 +13506,7 @@
    ]
   },
   {
-   "id": 255,
+   "id": 269,
    "name": "Rock9",
    "parent": null,
    "children": [],
@@ -11925,7 +13555,7 @@
    ]
   },
   {
-   "id": 256,
+   "id": 270,
    "name": "Rock10",
    "parent": null,
    "children": [],
@@ -11974,7 +13604,7 @@
    ]
   },
   {
-   "id": 257,
+   "id": 271,
    "name": "Rock11",
    "parent": null,
    "children": [],
@@ -12023,7 +13653,7 @@
    ]
   },
   {
-   "id": 258,
+   "id": 272,
    "name": "Rock12",
    "parent": null,
    "children": [],
@@ -12072,7 +13702,7 @@
    ]
   },
   {
-   "id": 259,
+   "id": 273,
    "name": "Rock13",
    "parent": null,
    "children": [],
@@ -12121,7 +13751,7 @@
    ]
   },
   {
-   "id": 260,
+   "id": 274,
    "name": "Rock14",
    "parent": null,
    "children": [],
@@ -12170,7 +13800,7 @@
    ]
   },
   {
-   "id": 261,
+   "id": 275,
    "name": "Rock15",
    "parent": null,
    "children": [],
@@ -12219,7 +13849,7 @@
    ]
   },
   {
-   "id": 262,
+   "id": 276,
    "name": "Rock16",
    "parent": null,
    "children": [],
@@ -12268,7 +13898,7 @@
    ]
   },
   {
-   "id": 263,
+   "id": 277,
    "name": "Rock17",
    "parent": null,
    "children": [],
@@ -12317,7 +13947,7 @@
    ]
   },
   {
-   "id": 264,
+   "id": 278,
    "name": "Rock18",
    "parent": null,
    "children": [],
@@ -12366,7 +13996,7 @@
    ]
   },
   {
-   "id": 265,
+   "id": 279,
    "name": "Rock19",
    "parent": null,
    "children": [],
@@ -12415,7 +14045,7 @@
    ]
   },
   {
-   "id": 266,
+   "id": 280,
    "name": "Rock20",
    "parent": null,
    "children": [],
@@ -12464,7 +14094,7 @@
    ]
   },
   {
-   "id": 267,
+   "id": 281,
    "name": "Rock21",
    "parent": null,
    "children": [],
@@ -12513,7 +14143,7 @@
    ]
   },
   {
-   "id": 268,
+   "id": 282,
    "name": "Rock22",
    "parent": null,
    "children": [],
@@ -12562,7 +14192,7 @@
    ]
   },
   {
-   "id": 269,
+   "id": 283,
    "name": "Rock23",
    "parent": null,
    "children": [],
@@ -12611,7 +14241,7 @@
    ]
   },
   {
-   "id": 270,
+   "id": 284,
    "name": "Rock24",
    "parent": null,
    "children": [],
@@ -12660,7 +14290,7 @@
    ]
   },
   {
-   "id": 271,
+   "id": 285,
    "name": "Rock25",
    "parent": null,
    "children": [],
@@ -12709,7 +14339,7 @@
    ]
   },
   {
-   "id": 272,
+   "id": 286,
    "name": "Rock26",
    "parent": null,
    "children": [],
@@ -12758,7 +14388,7 @@
    ]
   },
   {
-   "id": 273,
+   "id": 287,
    "name": "Rock27",
    "parent": null,
    "children": [],
@@ -12807,7 +14437,7 @@
    ]
   },
   {
-   "id": 274,
+   "id": 288,
    "name": "Rock28",
    "parent": null,
    "children": [],
@@ -12856,7 +14486,7 @@
    ]
   },
   {
-   "id": 275,
+   "id": 289,
    "name": "Rock29",
    "parent": null,
    "children": [],
@@ -12905,7 +14535,7 @@
    ]
   },
   {
-   "id": 276,
+   "id": 290,
    "name": "Rock30",
    "parent": null,
    "children": [],
@@ -12954,7 +14584,7 @@
    ]
   },
   {
-   "id": 277,
+   "id": 291,
    "name": "Rock31",
    "parent": null,
    "children": [],
@@ -13003,7 +14633,7 @@
    ]
   },
   {
-   "id": 278,
+   "id": 292,
    "name": "Rock32",
    "parent": null,
    "children": [],
@@ -13052,7 +14682,7 @@
    ]
   },
   {
-   "id": 279,
+   "id": 293,
    "name": "Rock33",
    "parent": null,
    "children": [],
@@ -13101,7 +14731,7 @@
    ]
   },
   {
-   "id": 280,
+   "id": 294,
    "name": "Rock34",
    "parent": null,
    "children": [],
@@ -13150,7 +14780,7 @@
    ]
   },
   {
-   "id": 281,
+   "id": 295,
    "name": "Rock35",
    "parent": null,
    "children": [],
@@ -13199,7 +14829,7 @@
    ]
   },
   {
-   "id": 282,
+   "id": 296,
    "name": "Rock36",
    "parent": null,
    "children": [],
@@ -13248,7 +14878,7 @@
    ]
   },
   {
-   "id": 283,
+   "id": 297,
    "name": "Rock37",
    "parent": null,
    "children": [],
@@ -13297,7 +14927,7 @@
    ]
   },
   {
-   "id": 284,
+   "id": 298,
    "name": "Rock38",
    "parent": null,
    "children": [],
@@ -13346,7 +14976,7 @@
    ]
   },
   {
-   "id": 285,
+   "id": 299,
    "name": "Rock39",
    "parent": null,
    "children": [],
@@ -13395,7 +15025,7 @@
    ]
   },
   {
-   "id": 286,
+   "id": 300,
    "name": "Rock40",
    "parent": null,
    "children": [],
@@ -13444,7 +15074,7 @@
    ]
   },
   {
-   "id": 287,
+   "id": 301,
    "name": "Rock41",
    "parent": null,
    "children": [],
@@ -13493,7 +15123,7 @@
    ]
   },
   {
-   "id": 288,
+   "id": 302,
    "name": "Rock42",
    "parent": null,
    "children": [],
@@ -13542,7 +15172,7 @@
    ]
   },
   {
-   "id": 289,
+   "id": 303,
    "name": "Rock43",
    "parent": null,
    "children": [],
@@ -13591,7 +15221,7 @@
    ]
   },
   {
-   "id": 290,
+   "id": 304,
    "name": "Rock44",
    "parent": null,
    "children": [],
@@ -13640,7 +15270,7 @@
    ]
   },
   {
-   "id": 291,
+   "id": 305,
    "name": "Rock45",
    "parent": null,
    "children": [],
@@ -13689,12 +15319,12 @@
    ]
   },
   {
-   "id": 292,
+   "id": 306,
    "name": "GateA",
    "parent": null,
    "children": [
-    293,
-    294
+    307,
+    308
    ],
    "visible": true,
    "components": [
@@ -13730,9 +15360,9 @@
    ]
   },
   {
-   "id": 293,
+   "id": 307,
    "name": "GateAStrobe",
-   "parent": 292,
+   "parent": 306,
    "children": [],
    "visible": true,
    "components": [
@@ -13772,9 +15402,9 @@
    ]
   },
   {
-   "id": 294,
+   "id": 308,
    "name": "GateAField",
-   "parent": 292,
+   "parent": 306,
    "children": [],
    "visible": true,
    "components": [
@@ -13814,12 +15444,12 @@
    ]
   },
   {
-   "id": 295,
+   "id": 309,
    "name": "GateB",
    "parent": null,
    "children": [
-    296,
-    297
+    310,
+    311
    ],
    "visible": true,
    "components": [
@@ -13855,9 +15485,9 @@
    ]
   },
   {
-   "id": 296,
+   "id": 310,
    "name": "GateBStrobe",
-   "parent": 295,
+   "parent": 309,
    "children": [],
    "visible": true,
    "components": [
@@ -13897,9 +15527,9 @@
    ]
   },
   {
-   "id": 297,
+   "id": 311,
    "name": "GateBField",
-   "parent": 295,
+   "parent": 309,
    "children": [],
    "visible": true,
    "components": [
@@ -13939,7 +15569,7 @@
    ]
   },
   {
-   "id": 298,
+   "id": 312,
    "name": "Planet",
    "parent": null,
    "children": [],
@@ -13982,7 +15612,7 @@
    ]
   },
   {
-   "id": 299,
+   "id": 313,
    "name": "Atmosphere",
    "parent": null,
    "children": [],

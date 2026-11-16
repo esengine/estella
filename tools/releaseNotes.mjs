@@ -5194,4 +5194,6 @@ export const NOTED = {
     { note: "The space frigate's display has a cruise mode and a combat mode, and she comes level when asked." },
   "feat(examples): the space frigate's attitude thrusters vent gas, not flame - they borrowed the main engines' plume, a bright blue flame that narrows; a thruster's jet is a cone that opens from the nozzle, white, thinning with distance, streaked along its flow and sputtering, from a model source and a shader of its own":
     { note: "The space frigate is steered by rate, on thrusters." },
+  "feat(examples): the space frigate's thrusters and guns throw particles - a thruster's gas was one textured cone and read flat; each nozzle now has a cone emitter whose puffs swell, are stirred and thin out, left where they were blown as she turns, at a rate that follows the thrust, over a short cone at the nozzle. A gun firing throws sparks and a puff of smoke from the muzzle and a hit throws a spray of sparks, as bursts from two emitters in the scene. In combat the waypoint's caption is put away so it cannot lie over the battery row, and the combat camera sits higher and further back so the mast is clear of the sight":
+    { note: "The space frigate is steered by rate, on thrusters." },
 };
