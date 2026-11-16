@@ -147,11 +147,11 @@ function denseSurface(high: PolyMesh, smoothAngle: number, fallback: { roughness
     return { corners: t === count ? corners : corners.subarray(0, t * 9), normals, colors, surfaces, faceOf, glows };
 }
 
-const RELIEF_RINGS = [[1, 16], [0.6, 10], [0.3, 6]] as const;
+export const RELIEF_RINGS = [[1, 16], [0.6, 10], [0.3, 6]] as const;
 const DEFAULT_RELIEF_REACH = 0.01;
-const RELIEF_FLAT = 0.02;
+export const RELIEF_FLAT = 0.02;
 
-const RELIEF_SPOKES = RELIEF_RINGS.flatMap(([share, spokes]) => Array.from({ length: spokes }, (_, j) => {
+export const RELIEF_SPOKES = RELIEF_RINGS.flatMap(([share, spokes]) => Array.from({ length: spokes }, (_, j) => {
     const phi = ((j + 0.5) / spokes) * 2 * Math.PI;
     return { share, cos: Math.cos(phi), sin: Math.sin(phi) };
 }));
@@ -488,7 +488,7 @@ export interface NormalBakeStart {
     plan(): NormalBakePlan;
 }
 
-export function shadeTexels(work: ShadeWork, tree: TriangleTree, from: number, to: number): void {
+export function shadeTexels(work: ShadeWork, tree: TriangleTree, from: number, to: number, known?: { triangle: Int32Array; place: Float32Array }): void {
     const { size, distance, indices, P, N, T, UV, cover, normals, colors, surfaces, glows, lowColors, rgba, colorRgba, surfaceRgba, glow, hitTriangle, hitPlace, stats } = work;
     const place = new Float64Array(2), weights = new Float64Array(3);
     for (let chunk = from; chunk < to; chunk++) {
@@ -506,12 +506,19 @@ export function shadeTexels(work: ShadeWork, tree: TriangleTree, from: number, t
             let nz = w0 * N[a * 3 + 2]! + w1 * N[b * 3 + 2]! + w2 * N[c * 3 + 2]!;
             const nl = Math.hypot(nx, ny, nz) || 1;
             nx /= nl; ny /= nl; nz /= nl;
-            const hit = tree.nearest(
-                w0 * P[a * 3]! + w1 * P[b * 3]! + w2 * P[c * 3]!,
-                w0 * P[a * 3 + 1]! + w1 * P[b * 3 + 1]! + w2 * P[c * 3 + 1]!,
-                w0 * P[a * 3 + 2]! + w1 * P[b * 3 + 2]! + w2 * P[c * 3 + 2]!,
-                nx, ny, nz, distance, place,
-            );
+            let hit: number;
+            if (known) {
+                hit = known.triangle[texel]!;
+                place[0] = known.place[texel * 2]!;
+                place[1] = known.place[texel * 2 + 1]!;
+            } else {
+                hit = tree.nearest(
+                    w0 * P[a * 3]! + w1 * P[b * 3]! + w2 * P[c * 3]!,
+                    w0 * P[a * 3 + 1]! + w1 * P[b * 3 + 1]! + w2 * P[c * 3 + 1]!,
+                    w0 * P[a * 3 + 2]! + w1 * P[b * 3 + 2]! + w2 * P[c * 3 + 2]!,
+                    nx, ny, nz, distance, place,
+                );
+            }
             if (hit < 0) {
                 missed++;
                 if (colorRgba) for (let k = 0; k < 4; k++) colorRgba[texel * 4 + k] = Math.round(w0 * lowColors![a * 4 + k]! + w1 * lowColors![b * 4 + k]! + w2 * lowColors![c * 4 + k]!);
