@@ -8,7 +8,7 @@
  *          whichever axis the surface faces. The vertex colour is how much of each material a vertex is. Being derived from Model it is lit,
  *          shadowed and fogged as anything else in the scene is, and a material moved onto it keeps every param it had.
  */
-import { modelWithoutDetail } from '../render/modelDetail';
+import { modelWithoutDetail, modelLine } from '../render/modelDetail';
 
 /** Material 0 is the shader's main texture, so the others cost three more. The emissive map gives its unit up: this skin has no uv to read one by. */
 const PARAMS = `// The colour of each material, multiplied into its picture.
@@ -51,8 +51,10 @@ const GLSL_SURFACE = `#ifdef MESH_NORMALS
 `;
 
 
-function swap(source: string, from: string, to: string): string {
-    if (!source.includes(from)) throw new Error(`the Model shader no longer has what Voxel Ground is made from: ${from.slice(0, 60)}`);
+function swap(source: string, from: string | RegExp, to: string): string {
+    if (typeof from === 'string' ? !source.includes(from) : !from.test(source)) {
+        throw new Error(`the Model shader no longer has what Voxel Ground is made from: ${String(from).slice(0, 60)}`);
+    }
     return source.replace(from, () => to);
 }
 
@@ -63,7 +65,7 @@ export function deriveVoxelGround(model: string): string {
     s = swap(s, '#pragma param u_emissiveMap texture default(white)\n', '');
     s = swap(s, 'texture(u_emissiveMap, uv).rgb', 'vec3(1.0)');
     s = swap(s, 'float specularAA(highp vec3', `${GLSL_HELPERS}float specularAA(highp vec3`);
-    s = swap(s, '    vec4 base = texture(u_textures[0], uv) * v_color * u_tint;\n', GLSL_SURFACE);
+    s = swap(s, modelLine('vec4 base = texture(u_textures[0], uv) * v_color * u_tint;'), GLSL_SURFACE);
     s = swap(s, 'float roughness = u_roughness * mr.g;', 'float roughness = u_roughness * mr.g * dot(voxelMix, u_voxelRoughness);');
     return s;
 }

@@ -13,7 +13,7 @@
  *          Derived from Model, so a material moved onto it keeps every map and param it had. Such a material is drawn after a copy
  *          of the opaque scene is taken, which is the whole of its cost.
  */
-import { modelWithoutDetail } from './modelDetail';
+import { modelWithoutDetail, modelLine } from './modelDetail';
 
 /** The fade and the second layer, added to Model's params. */
 const PARAMS = `// How high above what stands behind it the surface has fully arrived, in world units. 0 leaves a hard edge.
@@ -84,8 +84,10 @@ const GLSL_SURFACE = `    float groundFade = 1.0;
 `;
 
 
-function swap(source: string, from: string, to: string): string {
-    if (!source.includes(from)) throw new Error(`the Model shader no longer has what Ground Blend is made from: ${from.slice(0, 60)}`);
+function swap(source: string, from: string | RegExp, to: string): string {
+    if (typeof from === 'string' ? !source.includes(from) : !from.test(source)) {
+        throw new Error(`the Model shader no longer has what Ground Blend is made from: ${String(from).slice(0, 60)}`);
+    }
     return source.replace(from, () => to);
 }
 
@@ -97,7 +99,7 @@ export function deriveGroundBlend(model: string): string {
     s = s.replace(/mc\.u_transmission/g, '0.0').replace(/u_transmission/g, '0.0');
     s = swap(s, '#pragma param u_iridescence float', `${PARAMS}#pragma param u_iridescence float`);
     s = swap(s, 'float specularAA(highp vec3', `${GLSL_HELPERS}float specularAA(highp vec3`);
-    s = swap(s, '    vec4 base = texture(u_textures[0], uv) * v_color * u_tint;\n', GLSL_SURFACE);
+    s = swap(s, modelLine('vec4 base = texture(u_textures[0], uv) * v_color * u_tint;'), GLSL_SURFACE);
     s = swap(s, 'float roughness = u_roughness * mr.g;', 'float roughness = mix(u_roughness * mr.g, u_layer2Roughness, layerWeight);');
     s = swap(s, 'fragColor = vec4(lit + seen + u_emissive.rgb * texture(u_emissiveMap, uv).rgb, alpha);',
              'fragColor = vec4(mix(groundBehind, lit + seen + u_emissive.rgb * texture(u_emissiveMap, uv).rgb, groundFade), alpha);');

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect } from 'vitest';
-import { skyRadianceAt, skyPanorama, skyEnvironmentKey, skySunOf, type SkyEnvironmentInput } from '../src/postprocess/skyEnvironment';
+import { skyRadianceAt, skyPanorama, skyForFrame, skyEnvironmentKey, skySunOf, type SkyEnvironmentInput } from '../src/postprocess/skyEnvironment';
 import { projectIrradianceSH } from '../src/lightmap/environmentAtlas';
 import { evalIrradianceSH } from '../src/lightmap/sh';
 import { getEffectDef } from '../src/postprocess/effects';
@@ -92,5 +92,20 @@ describe('sky environment', () => {
         const own = skySunOf(defaults({ u_followSun: 0, u_sunAzimuth: 0, u_sunElevation: 90 }), light);
         expect(own[1]).toBeCloseTo(1);
         expect(skySunOf(defaults({ u_followSun: 1, u_sunAzimuth: 0, u_sunElevation: 90 }), null)[1]).toBeCloseTo(1);
+    });
+
+    it('is the same light in a gamma project, and lights a gamma frame by the codes of it', () => {
+        const linear = clear(), gamma = { ...clear(), linear: false };
+        // The night glow's constants are authored sRGB: decoded in both, or a gamma night would be several times a linear one.
+        const night = (input: SkyEnvironmentInput) => at({ ...input, sun: sunAt(-30) }, [0, 1, 0]);
+        expect(night(gamma)).toEqual(night(linear));
+        expect(at(gamma, [0, 1, 0])).toEqual(at(linear, [0, 1, 0]));
+
+        const light = skyPanorama(linear);
+        expect(skyForFrame(light, true)).toBe(light);
+        const codes = skyForFrame(light, false);
+        const encode = (c: number) => (c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055);
+        for (const i of [0, 301, 3000, light.rgb.length - 1]) expect(codes.rgb[i]).toBeCloseTo(encode(light.rgb[i]!), 5);
+        expect(codes.rgb[301]).toBeGreaterThan(light.rgb[301]!);
     });
 });
