@@ -20,7 +20,7 @@
 
 import { getComponent, isBuiltinComponent, type AnyComponentDef } from '../component';
 import { log } from '../../util/logger';
-import type { World } from '../world';
+import { type World, feedsTransformComposition } from '../world';
 import type { SystemRunner } from '../system';
 import { ENTITY_INDEX_MASK, type Entity } from '../../types';
 import { WasmPoolMemory, type WasmHeap } from '../WasmPoolMemory';
@@ -253,9 +253,6 @@ export function installNativeAot(opts: InstallNativeAotOptions): AotRuntime | nu
  * may have moved, and the Changed ticks are marked. The call itself is one
  * number crossing the boundary.
  */
-/** Components whose value feeds the world-transform composition. */
-const COMPOSITION_INPUTS = new Set(['Transform', 'Parent', 'Children']);
-
 class NativeAotDispatch implements AotDispatcher {
     /** The epoch the pools were last reported at. Null means never. */
     private reportedAt_: number | null | undefined = undefined;
@@ -377,7 +374,7 @@ class NativeAotDispatch implements AotDispatcher {
             // Before the tracking filter below: composition staleness is not an
             // observation and must not inherit its opt-in.
             for (const def of twin.mutated[k] ?? []) {
-                if (COMPOSITION_INPUTS.has(def._name)) {
+                if (feedsTransformComposition(def)) {
                     this.world.invalidateTransformComposition();
                     break;
                 }

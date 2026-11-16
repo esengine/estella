@@ -38,7 +38,7 @@
  */
 
 import type { AnyComponentDef } from '../component';
-import { computeQueryCacheKey, type World, queryDepIds } from '../world';
+import { computeQueryCacheKey, type World, queryDepIds, feedsTransformComposition } from '../world';
 import type { Entity } from '../../types';
 import { CMD_DESPAWN } from './AotContext';
 import type { AotRuntime } from './AotRuntime';
@@ -112,9 +112,6 @@ function isTagDef(def: AnyComponentDef): boolean {
 function resolverFor(world: World, def: AnyComponentDef): (entity: Entity) => number | undefined {
     return isTagDef(def) ? () => 0 : world.addressResolver(def);
 }
-
-/** Components whose value feeds the world-transform composition. */
-const COMPOSITION_INPUTS = new Set(['Transform', 'Parent', 'Children']);
 
 export class AotDispatch {
     private readonly plans = new Map<AotTwin, Plan>();
@@ -256,7 +253,7 @@ export class AotDispatch {
             // opt-in: a server with no `Changed(Transform)` consumer would
             // otherwise move transforms nobody recomposes.
             for (const def of q.mutated) {
-                if (COMPOSITION_INPUTS.has(def._name)) {
+                if (feedsTransformComposition(def)) {
                     this.world.invalidateTransformComposition();
                     break;
                 }
