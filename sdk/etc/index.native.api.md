@@ -5,7 +5,7 @@ Symbols: 115 public · 172 beta · 2251 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"34fd70a1b6a3abc0"
+"bf937027e22ea446"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -8879,7 +8879,7 @@ expansion: number | undefined
 ## PtrLayout — interface @experimental
 ```
 fields: readonly PtrFieldDesc[]
-ptrFn: string
+ptrFn: string | undefined
 ```
 
 ## PushValue — interface @experimental

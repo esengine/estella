@@ -8660,7 +8660,7 @@ expansion: number | undefined
 ## PtrLayout — interface @experimental
 ```
 fields: readonly PtrFieldDesc[]
-ptrFn: string
+ptrFn: string | undefined
 ```
 
 ## PushValue — interface @experimental

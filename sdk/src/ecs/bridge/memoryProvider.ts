@@ -63,10 +63,10 @@ export function resolveWasmPtrFn(
     cppRegistry: CppRegistry | null,
     cppName: string,
 ): ((entity: Entity) => number) | null {
-    const layout = PTR_LAYOUTS[cppName];
-    if (!layout || !module || !cppRegistry) return null;
+    const ptrFn = PTR_LAYOUTS[cppName]?.ptrFn;
+    if (!ptrFn || !module || !cppRegistry) return null;
     const mod = module as unknown as Record<string, unknown>;
-    const fn = mod[layout.ptrFn] as ((r: CppRegistry, e: number) => number) | undefined;
+    const fn = mod[ptrFn] as ((r: CppRegistry, e: number) => number) | undefined;
     if (!fn) return null;
     return (e: Entity) => fn(cppRegistry, e);
 }

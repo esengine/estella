@@ -47,7 +47,7 @@ function wasmModule(heap: ArrayBuffer, offset: number): ESEngineModule {
         HEAPF32: new Float32Array(heap),
         HEAPU32: new Uint32Array(heap),
         HEAPU8: new Uint8Array(heap),
-        [layout.ptrFn]: (_reg: unknown, _e: number) => offset,
+        [layout.ptrFn!]: (_reg: unknown, _e: number) => offset,
     } as unknown as ESEngineModule;
 }
 
