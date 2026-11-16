@@ -1008,6 +1008,7 @@ async function boot(): Promise<void> {
   if (cfg.quality?.renderOnDemand) app.pipeline?.demand.enable({ tailFrames: cfg.quality.renderOnDemandTail });
   // Before run(), not after: run() may hand control to the emscripten loop and
   // never return, and the fade is what the first frames should arrive through.
+  await splash?.held();
   splash?.reach('ready');
   splash?.done();
   if (youtube) {

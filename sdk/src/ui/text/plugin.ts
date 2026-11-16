@@ -112,6 +112,10 @@ export function glyphKind(t: Pick<TextData, 'renderMode' | 'fontSize'>, tr: Pick
     return kind === 'bitmap' && drawsLarge(t, family, view, dpr) ? 'large' : kind;
 }
 
+export function chosenByScale(t: Pick<TextData, 'renderMode'>, family: string, view: DomainView): boolean {
+    return t.renderMode !== TextRenderMode.Bitmap && t.renderMode !== TextRenderMode.Sdf && !bitmapFontOf(family) && !view.perspective;
+}
+
 export function glyphContentScale(projScaleX: number, vpW: number, dpr: number): number {
     if (!(dpr > 0) || !(vpW > 0)) return 1;
     if (!Number.isFinite(projScaleX) || projScaleX === 0) return 1;
@@ -157,6 +161,7 @@ interface RetainedLabel {
     gen: number;
     renderer: SdfTextRenderer;
     kind: GlyphKind;
+    perspective: boolean;
 }
 
 export function snapshotOf(t: TextData, family: string): TextSnapshot {
@@ -387,7 +392,7 @@ export class TextPlugin implements Plugin {
             seen.add(entity as number);
             // Which glyph pipeline an automatic label gets follows its world scale, which the engine watches (renderer_retainedTextStale): the
             // transform is not read here every frame for every label to find out.
-            if (label && label.gen === label.renderer.atlas.generation && sameSnapshot(label.snap, t, family)
+            if (label && label.gen === label.renderer.atlas.generation && label.perspective === view.perspective && sameSnapshot(label.snap, t, family)
                 && (label.kind === 'sdf' || (label.kind === 'large') === drawsLarge(t, family, view, dpr))) {
                 label.renderer.markDrawn(entity as number);
                 continue;
@@ -466,9 +471,9 @@ export class TextPlugin implements Plugin {
             // The engine orders a boxed label by the UI tree and re-lays it out when the node's size changes; a box
             // that is the Text's own is neither, so it is reported as no box (its size reaches layout above).
             entity as number, screen, hasBox && frame.ui, t.layer | 0, frame.ui ? w : 0, frame.ui ? h : 0,
-            t.renderMode !== TextRenderMode.Bitmap && t.renderMode !== TextRenderMode.Sdf && !bitmapFontOf(family),
+            chosenByScale(t, family, view),
         );
-        appState.retained.set(entity as number, { snap: snapshotOf(t, family), screen, gen: renderer.atlas.generation, renderer, kind });
+        appState.retained.set(entity as number, { snap: snapshotOf(t, family), screen, gen: renderer.atlas.generation, renderer, kind, perspective: view.perspective });
         // A box that grows to its text: the rectangle the entity occupies takes the height the lines laid out to. The sprite and text follow the
         // rectangle on the next frame, where the box is the same height and nothing changes again.
         if (t.overflow === TextOverflow.ResizeHeight && blockHeight > 0) {

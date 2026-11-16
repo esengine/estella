@@ -61,11 +61,10 @@ const RESERVED = new Set(('alias break case const const_assert continue continui
 const safe = (n: string): string => (RESERVED.has(n) ? `${n}_` : n);
 
 /**
- * An engine function whose GLSL writes `out` parameters returns them in WGSL, in a struct whose fields have the parameters' names
- * (engineApi.generated.ts reads both): the call becomes the WGSL call and one write per field. An `inout` parameter is read as
- * well as written, and what the GLSL does with what it was given is not in either signature: the functions here ADD to it (a light
- * adds its share to what the lights before it left), and the WGSL returns the share alone, so the write is `+=`. An `inout`
- * of a function not listed is refused rather than guessed.
+ * An engine function whose GLSL writes `out` parameters returns them in WGSL as a struct with the parameters' names: the call
+ * becomes the WGSL call and one write per field. What a function does with an `inout` is in neither signature: the ones here
+ * ADD to it (a light adds its share) and their WGSL returns the share alone, so the write is `+=`. An `inout` of a function
+ * not listed is refused rather than guessed.
  */
 const ACCUMULATES_INOUT = new Set(['shadeLight']);
 

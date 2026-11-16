@@ -8,9 +8,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GlyphAtlas } from '../src/ui/text/glyph-atlas';
 import { SdfTextRenderer, drawTextWith, type DrawTextParams } from '../src/ui/text/text-renderer';
-import { resolveTextRenderMode, sameSnapshot, snapshotOf } from '../src/ui/text/plugin';
+import { chosenByScale, resolveTextRenderMode, sameSnapshot, snapshotOf } from '../src/ui/text/plugin';
 import { rectTextBox } from '../src/ui/text/text-transform';
-import { Text, type TextData } from '../src/ui/core/text';
+import { Text, TextRenderMode, type TextData } from '../src/ui/core/text';
 import type { EngineApi } from '../src/ecs/bridge/engineApi';
 import { TEXT_VERTEX_FLOATS } from '../src/ui/text/submit';
 
@@ -85,6 +85,30 @@ describe('the glyph pipeline an automatic label gets', () => {
     const table: Array<[number, 'bitmap' | 'sdf']> = [[1.0, 'bitmap'], [1.02, 'bitmap'], [0.98, 'bitmap'], [1.021, 'sdf'], [0.97, 'sdf'], [2.0, 'sdf'], [0.5, 'sdf'], [0.0, 'bitmap'], [-1.0, 'bitmap'], [Infinity, 'bitmap'], [NaN, 'bitmap']];
     it.each(table)('scale %s draws with %s', (scale, kind) => {
         expect(resolveTextRenderMode(undefined, Math.fround(scale))).toBe(kind);
+    });
+});
+
+describe('which labels the engine may call stale by their scale', () => {
+    const engineSaysSdf = (scale: number): boolean => Number.isFinite(scale) && scale > 0 && Math.abs(scale - 1) > 0.02;
+    const flat = { contentScale: 1, perspective: false }, deep = { contentScale: 1, perspective: true };
+    const auto = { renderMode: TextRenderMode.Auto }, bitmap = { renderMode: TextRenderMode.Bitmap }, sdf = { renderMode: TextRenderMode.Sdf };
+
+    it('only a label whose pipeline its scale chose: not one in a perspective view, which is SDF at any scale', () => {
+        expect(chosenByScale(auto, 'Arial', flat)).toBe(true);
+        expect(chosenByScale(auto, 'Arial', deep)).toBe(false);
+        expect(chosenByScale(bitmap, 'Arial', flat)).toBe(false);
+        expect(chosenByScale(sdf, 'Arial', flat)).toBe(false);
+    });
+
+    it('for every label it may judge, its rule gives the pipeline the label was given, so an unchanged label is never stale', () => {
+        for (const view of [flat, deep]) {
+            for (const scale of [0.5, 0.97, 0.985, 1, 1.0000001, 1.015, 1.03, 2, 8]) {
+                if (!chosenByScale(auto, 'Arial', view)) continue;
+                expect(resolveTextRenderMode(auto.renderMode, scale, view.perspective) === 'sdf').toBe(engineSaysSdf(scale));
+            }
+        }
+        expect(resolveTextRenderMode(auto.renderMode, 1, true)).toBe('sdf');
+        expect(engineSaysSdf(1)).toBe(false);
     });
 });
 

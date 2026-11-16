@@ -3,11 +3,7 @@
 /**
  * gen-shader-api — what a shader's own GLSL can name of the engine's, per domain, as the WGSL transpiler reads it.
  *
- * The transpiler (sdk/src/shaders/wgsl) writes a shader's own code as WGSL against the header the engine injects in front of it.
- * It has to know that header in both languages: the GLSL functions, structs and uniform blocks a shader may use, and where each
- * lives on the WGSL side (a block field under its instance, a function by name and arity). Both are read here from the engine
- * itself — the GLSL the engine assembles (esshader_cookInfo) and the WGSL in ShaderParser.cpp — and written to
- * sdk/src/shaders/wgsl/engineApi.generated.ts, so the transpiler needs no engine call to know them, on any host.
+ * Read from the engine itself (esshader_cookInfo, and the WGSL in ShaderParser.cpp) into sdk/src/shaders/wgsl/engineApi.generated.ts.
  *
  *   node tools/gen-shader-api.mjs           write the table
  *   node tools/gen-shader-api.mjs --check   fail if it is stale (needs a built engine, as gen-shader-twins does)
