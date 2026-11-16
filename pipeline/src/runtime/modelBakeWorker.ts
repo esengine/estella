@@ -34,6 +34,7 @@ async function answer(ask: BakeAsk): Promise<void> {
         scope.postMessage({ id, stage, done, total });
     };
     try {
+        if (!shaped.has(model)) await keeping;
         const made = shaped.get(model) ?? shapeModelAtLoad(context(), text, limit, tick);
         if (part === 'shape') {
             shaped.set(model, made);
