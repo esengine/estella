@@ -115,7 +115,7 @@ const STORED_ASSEMBLED_RE = /\/\/ assembled-hash:\s*([0-9a-f]+)/;
  * Adapt an assembled GLSL ES 300 stage to the dialect glslang -V + naga accept,
  * with the engine's binding conventions made explicit.
  */
-function adaptGlsl(glsl, textures) {
+export function adaptGlsl(glsl, textures) {
   let out = glsl;
 
   // Strip comments first: GLSL has no string literals, so this is always safe,
@@ -153,10 +153,14 @@ function adaptGlsl(glsl, textures) {
     `layout(set = 1, binding = ${textureBindingForUnit(unit)}) uniform highp texture2D ${name}_est;\n` +
     `layout(set = 1, binding = ${samplerBindingForUnit(unit)}) uniform highp sampler ${name}_ess;`;
 
-  // Batch texture contract: `uniform sampler2D u_textures[8];` = engine units 0..7.
-  out = out.replace(/uniform\s+(?:highp\s+)?sampler2D\s+u_textures\s*\[\s*8\s*\]\s*;/g, () => {
+  // Batch texture contract: `uniform sampler2D u_textures[N];` = engine units 0..N-1, N up to the engine's 8. A shader that reads
+  // one texture declares one: matched as eight, `u_textures[1]` was left to the index rewrite below, which read the declaration as
+  // an access to unit 1 and refused it as a sampler with no unit.
+  out = out.replace(/uniform\s+(?:highp\s+)?sampler2D\s+u_textures\s*\[\s*(\d+)\s*\]\s*;/g, (_, size) => {
+    const count = Number(size);
+    if (count < 1 || count > 8) throw new Error(`u_textures[${size}]: the engine has batch texture units 0..7, so declare 1 to 8 of them`);
     const decls = [];
-    for (let u = 0; u < 8; u++) {
+    for (let u = 0; u < count; u++) {
       decls.push(splitUniformDecl(`es_bt${u}`, u));
       combined.add(`es_bt${u}`);
     }
