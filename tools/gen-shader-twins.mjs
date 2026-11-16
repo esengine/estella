@@ -520,11 +520,9 @@ function isAuthoredTwin(source) {
     && !/#pragma (?:vertex|fragment) wgsl[ \t]+full\b/.test(source);
 }
 
-/** Hash of the GLSL the twin is a TRANSLATION of: authored stages with the
- *  engine's injected header in place. `sourceHash` moves when the shader is
- *  edited, this also when the ENGINE's blocks move — a Light2D that grew a fifth
- *  vec4 left every twin reading LightConstants at the old stride. And when the
- *  TRANSLATION changes: a twin made before `TWIN_TRANSLATION` moved is made again. */
+/** Hash of the GLSL the twin translates, engine header in place, and of `TWIN_TRANSLATION`:
+ *  it moves when the engine's blocks move (a grown Light2D left twins at the old stride)
+ *  or the translation does, so a twin made before either is made again. */
 function assembledHash(info) {
   return createHash('sha256').update(`${TWIN_TRANSLATION}\n${info.vertGlsl}\n${info.fragGlsl}`).digest('hex').slice(0, 16);
 }
@@ -621,11 +619,9 @@ export async function deriveTwin(module, original, opts = {}) {
     return { status: 'has-twin' };
   }
 
-  // A switch or a feature changes the assembled GLSL, so each combination is its
-  // own program to translate — and so does a symbol the ENGINE defines at assembly
-  // that the shader tests (MESH_NORMALS, ES_GBUFFER, ...). Translated with only the
-  // declared toggles, those took their undefined branch for good: a Lit mesh
-  // shader's twin read the flat 2D normal and drew unlit.
+  // Every combination of switches, features AND engine-defined symbols the shader tests
+  // (MESH_NORMALS, ES_GBUFFER) is its own program: with declared toggles only, a Lit
+  // mesh twin took the undefined branch for good and drew unlit.
   const declared = [...valStrings(info.switches), ...valStrings(info.features)];
   const toggles = [...declared, ...testedSymbols(source).filter((s) => !declared.includes(s))];
   if (toggles.length > MAX_TOGGLES) {
