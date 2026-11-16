@@ -49,6 +49,29 @@ export function getDrawCallbacks(): ReadonlyMap<string, DrawEntry> {
 }
 
 // =============================================================================
+// Over-screen draw callbacks
+// =============================================================================
+//
+// These run once a frame, AFTER the screen overlay: what they draw lies over the
+// scene, the post chain and the screen's UI alike — an editor's handles, which
+// nothing the game draws may cover. They are given the view of the last camera
+// the frame drew, as the post-scene callbacks are given theirs.
+
+const overScreenCallbacks = new Map<string, DrawCallback>();
+
+export function registerOverScreenDrawCallback(id: string, fn: DrawCallback): void {
+    overScreenCallbacks.set(id, fn);
+}
+
+export function unregisterOverScreenDrawCallback(id: string): void {
+    overScreenCallbacks.delete(id);
+}
+
+export function getOverScreenDrawCallbacks(): ReadonlyMap<string, DrawCallback> {
+    return overScreenCallbacks;
+}
+
+// =============================================================================
 // Pre-scene draw callbacks
 // =============================================================================
 //

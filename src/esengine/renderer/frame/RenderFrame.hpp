@@ -239,6 +239,13 @@ public:
     void setScreenOverlayEffect(u32 material);
     void endScreenOverlay(RenderTargetManager::Handle target);
 
+    /** @brief Draws the immediate geometry collected since the screen overlay over
+     *         everything the frame shows, its UI included, in the pixel rect
+     *         @p vpX/@p vpY/@p vpW/@p vpH, through the view-projection it was
+     *         collected with: an editor's handles, which the scene and its UI
+     *         must never cover. Nothing collected draws nothing. */
+    void drawOverScreen(i32 vpX, i32 vpY, u32 vpW, u32 vpH, RenderTargetManager::Handle target);
+
     /** @brief Whether the overlay is open — what routes a host's submissions. */
     bool screenOverlayOpen() const { return overlay_active_; }
 

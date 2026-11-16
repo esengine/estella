@@ -119,6 +119,11 @@ export function createNativeRendererBackend(
         endScreenOverlay: (target): void => {
             optional(scope, RENDERER_OPTIONAL_BINDINGS.endScreenOverlay)?.(target);
         },
+        drawOverScreen: (vpX, vpY, vpW, vpH, target): void => {
+            optional(scope, RENDERER_OPTIONAL_BINDINGS.drawOverScreen)?.(vpX, vpY, vpW, vpH, target);
+        },
+        hasDrawOverScreen: (): boolean =>
+            optional(scope, RENDERER_OPTIONAL_BINDINGS.drawOverScreen) !== null,
         setStage: (stage): void => {
             hostCall(scope, RENDERER_BINDINGS.setStage, [stage]);
         },
