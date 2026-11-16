@@ -36,10 +36,6 @@ export interface Keyframe {
     interpolation?: InterpType;
 }
 
-// ---------------------------------------------------------------------------
-// Sampling — a 1:1 port of TimelineSystem.cpp::evaluateChannel (keep in lock-step)
-// ---------------------------------------------------------------------------
-
 function hermite(p0: number, p1: number, m0: number, m1: number, t: number): number {
     const t2 = t * t;
     const t3 = t2 * t;

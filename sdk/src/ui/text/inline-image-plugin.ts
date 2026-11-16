@@ -31,6 +31,7 @@ import { textLetterSpacingPx, textLineHeightPx, textStyleBits } from './text-par
 import { spawnUIEntity } from '../core/compose';
 import { px } from '../core/dimension';
 import { getUINodeWidth, getUINodeHeight } from '../util/helpers';
+import { TEXT_ASCENT_RATIO } from '../util/constants';
 import { Assets } from '../../asset/AssetPlugin';
 import { log } from '../../util/logger';
 import type { Assets as AssetsApi } from '../../asset/Assets';
@@ -170,7 +171,7 @@ export class InlineImagePlugin implements Plugin {
                 if (world.valid(k)) world.despawn(k);
             }
 
-            const ascent = t.fontSize * 0.8;
+            const ascent = t.fontSize * TEXT_ASCENT_RATIO;
             for (let i = 0; i < images.length; i++) {
                 const im = images[i];
                 const tex = resolveTexture(im.src);
