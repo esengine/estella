@@ -524,13 +524,19 @@ function isAuthoredTwin(source) {
     && !/#pragma (?:vertex|fragment) wgsl[ \t]+full\b/.test(source);
 }
 
-/** Hash of the GLSL the twin is a TRANSLATION of: authored stages with the
- *  engine's injected header in place. `sourceHash` moves when the shader is
- *  edited, this also when the ENGINE's blocks move — a Light2D that grew a fifth
- *  vec4 left every twin reading LightConstants at the old stride. */
+/** Hash of the GLSL the twin translates, engine header in place, and of `TWIN_TRANSLATION`:
+ *  it moves when the engine's blocks move (a grown Light2D left twins at the old stride)
+ *  or the translation does, so a twin made before either is made again. */
 function assembledHash(info) {
-  return createHash('sha256').update(`${info.vertGlsl}\n${info.fragGlsl}`).digest('hex').slice(0, 16);
+  return createHash('sha256').update(`${TWIN_TRANSLATION}\n${info.vertGlsl}\n${info.fragGlsl}`).digest('hex').slice(0, 16);
 }
+
+/**
+ * What a twin's translation is, by the change that last made it different. Raised when a twin made before would be wrong:
+ * 2 — the symbols the engine defines at assembly (MESH_NORMALS, ES_GBUFFER) are toggles too; a twin made before read the
+ * undefined branch of each, and a Lit mesh shader's drew unlit.
+ */
+const TWIN_TRANSLATION = 2;
 
 /** Load the engine wasm module (esshader_cookInfo) the twin pipeline assembles
  *  through — shared by the CLI and the editor's on-open generation. */
@@ -563,6 +569,23 @@ export function permutationsOf(toggles) {
 }
 
 const permutationKey = (on) => [...on].sort().join(',');
+
+/**
+ * The symbols a shader's authored GLSL tests by name (`#ifdef X`, `#ifndef X`, `defined(X)`, a bare `#if X`) and does not define
+ * itself: what the engine may define when it assembles the shader, so what a twin has to carry both ways. GLSL's own (`GL_*`,
+ * `__*`) are left out. The WGSL sections are not read: a twin is translated from the GLSL.
+ */
+export function testedSymbols(source) {
+  const glsl = (source.match(/^#pragma (?:vertex|fragment|vertexoffset)[ \t]*\r?\n[\s\S]*?^#pragma end/gm) ?? []).join('\n');
+  const defined = new Set([...glsl.matchAll(/^[ \t]*#[ \t]*define[ \t]+(\w+)/gm)].map((m) => m[1]));
+  const out = [];
+  for (const m of glsl.matchAll(/^[ \t]*#[ \t]*(?:ifdef|ifndef)[ \t]+(\w+)|\bdefined[ \t]*\(?[ \t]*(\w+)|^[ \t]*#[ \t]*(?:el)?if[ \t]+(\w+)[ \t]*\r?$/gm)) {
+    const name = m[1] ?? m[2] ?? m[3];
+    if (defined.has(name) || /^(GL_|__)/.test(name) || out.includes(name)) continue;
+    out.push(name);
+  }
+  return out;
+}
 
 /**
  * One body carrying every permutation, selected by the same `#ifdef` the GLSL
@@ -600,9 +623,11 @@ export async function deriveTwin(module, original, opts = {}) {
     return { status: 'has-twin' };
   }
 
-  // A switch or a feature changes the assembled GLSL, so each combination is its
-  // own program to translate.
-  const toggles = [...valStrings(info.switches), ...valStrings(info.features)];
+  // Every combination of switches, features AND engine-defined symbols the shader tests
+  // (MESH_NORMALS, ES_GBUFFER) is its own program: with declared toggles only, a Lit
+  // mesh twin took the undefined branch for good and drew unlit.
+  const declared = [...valStrings(info.switches), ...valStrings(info.features)];
+  const toggles = [...declared, ...testedSymbols(source).filter((s) => !declared.includes(s))];
   if (toggles.length > MAX_TOGGLES) {
     return { status: `skipped-${toggles.length}-toggles` };
   }
