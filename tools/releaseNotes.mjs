@@ -5182,4 +5182,6 @@ export const NOTED = {
     { note: "A dense model no longer freezes the editor while it bakes." },
   "perf(sdk): the bundled SDK carries its shader text without comments or indentation - a fifth of index.bundled.js was the built-in GLSL and WGSL as written; the build strips each shader template's comments and indentation, keeping every line break so a compile error names the same line, and a full bundle is 156 KB smaller (46 KB gzipped). The two shaders made by editing Model's text match its lines whatever their indentation, and the SDK suites run on the stripped text":
     { note: "Games download less shader text." },
+  "perf(export): a package that never draws through WebGPU ships its shaders without their WGSL - every built-in shader carried a WGSL twin a mini-game, a playable and a web build left on WebGL never read; the export cuts those sections from the SDK it bundles, and the shaders made by editing Model's text skip their WGSL edits where there is none. The cyber-rooftop example's web package is 131 KB smaller (19 KB gzipped) and hands WebGL the same GLSL, source for source":
+    { note: "Mini-games and WebGL web builds ship no WGSL." },
 };

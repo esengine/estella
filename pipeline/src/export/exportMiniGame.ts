@@ -50,6 +50,7 @@ import { runtimeHostEntry } from '../bundle/runtimeHosts';
 import { breakdownOf, type ModuleBytes } from './bundleBreakdown';
 import { esengineAlias } from '../bundle/esengineResolve';
 import { officialPackagesPlugin } from '../bundle/officialPackages';
+import { glOnlyShadersPlugin } from '../bundle/glOnlyShaders';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import { planSideModules, spineRefusalMessage, sideModuleFiles, textureDecoderBytes, type SpineRuntimePlan } from '../bundle/sideModuleScan';
 import { exportedAssetFiles, pruneExportedAssets } from './assetCleanup';
@@ -606,7 +607,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       // devtools accepts it; es2017 down-levels those while keeping async/await.
       target: profile.esTarget,
       alias: esengineAlias(opts.sdkDir, lean ? leanEntry! : profile.sdkEntryFile),
-      plugins: [officialPackagesPlugin(opts.packagesDir)],
+      // A mini-game draws through WebGL only, so its shaders go without their WGSL twins.
+      plugins: [glOnlyShadersPlugin(opts.sdkDir), officialPackagesPlugin(opts.packagesDir)],
       minify: minifiesScripts(opts),
       sourcemap: false,
       outfile: path.join(absOut, 'game-bundle.js'),
