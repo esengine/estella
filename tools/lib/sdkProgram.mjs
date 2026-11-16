@@ -68,6 +68,7 @@ export const ENTRIES = {
     'foliage': 'src/foliage/index.ts',
     'worldgen': 'src/worldgen/entry.ts',
     'water': 'src/water/index.ts',
+    'wgsl': 'src/shaders/wgsl/index.ts',
     'spline': 'src/spline/index.ts',
     'image': 'src/image/index.ts',
     'sound': 'src/sound/index.ts',

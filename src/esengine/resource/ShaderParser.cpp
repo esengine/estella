@@ -491,7 +491,10 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
         // A particle's instances are particles, not objects with a run of their own: all of them read the first.
         src += "#ifdef PARTICLE\n    out.v_probeSlot = 0.0;\n#else\n    out.v_probeSlot = f32(instanceId);\n#endif\n";
     }
+    // Clip y turned over, last, so a target's rows land bottom-up as GL lays them: every WebGPU vertex stage does this, and
+    // the fragment sees the screen as GL shows it (uv, @builtin(position), derivatives). See WebGPUDevice::ensurePipeline.
     src +=
+        "    out.pos.y = -out.pos.y;\n"
         "    return out;\n"
         "}\n";
     // A hook's own per-vertex channels: `es_vertexColor` (a painted weight; what the hook leaves there is the colour the fragment gets,
@@ -516,9 +519,9 @@ std::string wgslPPVSOut() {
         "};\n";
 }
 
-// WGSL twin of canonicalPPVertexStage. The uv comes out in this device's texture
-// space, row 0 at the top: the screen's y-up uv would sample a target this device
-// stored top-down upside down, and every fullscreen pass would turn the image over.
+// WGSL twin of canonicalPPVertexStage. Clip y is turned over, as every WebGPU vertex
+// stage turns it: the pass lands with its rows bottom-up, as GL lays them, so the
+// uv is the screen's y-up uv on both backends and is passed on as it came.
 std::string canonicalPPVertexStageWGSL() {
     std::string src = wgslPPVSOut();
     src +=
@@ -530,8 +533,8 @@ std::string canonicalPPVertexStageWGSL() {
         "\n"
         "@vertex fn vs_main(v : VSIn) -> VSOut {\n"
         "    var out : VSOut;\n"
-        "    out.pos = vec4f(v.a_position, 0.0, 1.0);\n"
-        "    out.v_texCoord = vec2f(v.a_texCoord.x, 1.0 - v.a_texCoord.y);\n"
+        "    out.pos = vec4f(v.a_position.x, -v.a_position.y, 0.0, 1.0);\n"
+        "    out.v_texCoord = v.a_texCoord;\n"
         "    return out;\n"
         "}\n";
     return src;
@@ -1277,9 +1280,9 @@ const char* kFrameHeaderWGSL =
     "    if (frame.camera.w > 0.5) { return normalize(frame.camera.xyz - worldPos); }\n"
     "    return frame.camera.xyz;\n"
     "}\n"
-    // A fullscreen pass's uv runs down the screen here, and this device clips z to [0, 1].
+    // This device clips z to [0, 1]; the uv runs up the screen, as in GL.
     "fn worldFromDepth(uv : vec2f, depth : f32) -> vec3f {\n"
-    "    let clip = vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, depth, 1.0);\n"
+    "    let clip = vec4f(uv * 2.0 - 1.0, depth, 1.0);\n"
     "    let world = frame.inverseViewProjection * clip;\n"
     "    return world.xyz / world.w;\n"
     "}\n"
@@ -1290,7 +1293,7 @@ const char* kFrameHeaderWGSL =
     "fn sceneUv(worldPos : vec3f) -> vec2f {\n"
     "    let clip = frame.projection * vec4f(worldPos, 1.0);\n"
     "    let w = max(clip.w, 1e-4);\n"
-    "    return clamp(vec2f(clip.x / w * 0.5 + 0.5, 0.5 - clip.y / w * 0.5), vec2f(0.001), vec2f(0.999));\n"
+    "    return clamp(clip.xy / w * 0.5 + 0.5, vec2f(0.001), vec2f(0.999));\n"
     "}\n"
     "fn sceneDistance(texel : vec4f) -> f32 {\n"
     "    return select(texel.b * 1024.0, texel.r, texel.r < 65000.0);\n"
@@ -1477,11 +1480,9 @@ fn sunVisibility(worldPos : vec3f, first : i32, count : i32) -> f32 {
         let uv = proj.xy * 0.5 + 0.5;
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || proj.z < 0.0 || proj.z > 1.0) { continue; }
         let rect = lc.u_shadowTile[t];
-        // The tile and the square inside it are turned over on this backend, as in the Lit header.
-        let base = vec2f(rect.x, 1.0 - rect.y - rect.z);
-        let at = base + vec2f(uv.x, 1.0 - uv.y) * rect.z;
-        let lo = base + lc.u_shadowParams.y * 0.5;
-        let hi = base + rect.z - lc.u_shadowParams.y * 0.5;
+        let at = rect.xy + uv * rect.z;
+        let lo = rect.xy + lc.u_shadowParams.y * 0.5;
+        let hi = rect.xy + rect.z - lc.u_shadowParams.y * 0.5;
         let d = unpackDepth(textureSampleLevel(t2, s2, clamp(at, lo, hi), 0.0).rgb);
         return select(1.0, 0.0, d < clamp(proj.z * 0.5 + 0.5, 0.0, 1.0) - 0.0025);
     }
@@ -1714,13 +1715,9 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         let lcq = m * vec4f(aside, 1.0);
         let uvq = lcq.xy / max(lcq.w, 1e-6) * 0.5 + 0.5;
         let here = shadowDepth(m, aside + L * (texel * 1.5 * (1.0 + lean)));
-        // The ONE place the two backends must not agree: v = 0 samples a texture's
-        // bottom in GL and its top here, and the rect arrives with its low corner in
-        // GL's terms — so the tile and the square inside it are both turned over.
-        let base = vec2f(rect.x, 1.0 - rect.y - rect.z);
-        let at0 = base + vec2f(uvq.x, 1.0 - uvq.y) * rect.z;
-        let lo = base + lc.u_shadowParams.y * 0.5;
-        let hi = base + rect.z - lc.u_shadowParams.y * 0.5;
+        let at0 = rect.xy + uvq * rect.z;
+        let lo = rect.xy + lc.u_shadowParams.y * 0.5;
+        let hi = rect.xy + rect.z - lc.u_shadowParams.y * 0.5;
         // How wide the source is in the unit this map measures depth in: world units
         // where its w varies with position, so it has an eye to measure them from, and
         // the tangent of the angle it subtends where its w is 1 everywhere.
@@ -1787,7 +1784,7 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         // See the GLSL twin: the fragment's own texel and the four a step and a half round it, before the sparse wide disc.
         for (var i = 0; i < 5; i++) {
             let p = kInner5[i];
-            let off = vec2f(p.x * turn.x - p.y * turn.y, -(p.x * turn.y + p.y * turn.x));
+            let off = vec2f(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);
             let at = clamp(at0 + off * lc.u_shadowParams.y, lo, hi);
             let d = unpackDepth(textureSampleLevel(t2, s2, at, 0.0).rgb);
             let cr = lcq + toLight * (stepBase + max(length(off), 1.0) * stepPer);
@@ -1796,7 +1793,7 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         }
         for (var i = 0; i < 16; i++) {
             let p = kSpiral16[i];
-            let off = kShadowDisc * vec2f(p.x * turn.x - p.y * turn.y, -(p.x * turn.y + p.y * turn.x));
+            let off = kShadowDisc * vec2f(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);
             let at = clamp(at0 + off * lc.u_shadowParams.y, lo, hi);
             let d = unpackDepth(textureSampleLevel(t2, s2, at, 0.0).rgb);
             let cr = lcq + toLight * (stepBase + max(length(off), 1.0) * stepPer);
@@ -1829,7 +1826,7 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         if (radius < 1.5) {
             for (var i = 0; i < 8; i++) {
                 let p = kSpiral8[i];
-                let off = radius * vec2f(p.x * turn.x - p.y * turn.y, -(p.x * turn.y + p.y * turn.x));
+                let off = radius * vec2f(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);
                 soft += shadowTap(at0 + off * lc.u_shadowParams.y, lo, hi, wide);
             }
             return soft * (1.0 / 8.0);
@@ -1837,14 +1834,14 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         if (radius < 4.0) {
             for (var i = 0; i < 16; i++) {
                 let p = kSpiral16[i];
-                let off = radius * vec2f(p.x * turn.x - p.y * turn.y, -(p.x * turn.y + p.y * turn.x));
+                let off = radius * vec2f(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);
                 soft += shadowTap(at0 + off * lc.u_shadowParams.y, lo, hi, wide);
             }
             return soft * (1.0 / 16.0);
         }
         for (var i = 0; i < 32; i++) {
             let p = kSpiral32[i];
-            let off = radius * vec2f(p.x * turn.x - p.y * turn.y, -(p.x * turn.y + p.y * turn.x));
+            let off = radius * vec2f(p.x * turn.x - p.y * turn.y, p.x * turn.y + p.y * turn.x);
             soft += shadowTap(at0 + off * lc.u_shadowParams.y, lo, hi, wide);
         }
         return soft * (1.0 / 32.0);
@@ -1880,12 +1877,10 @@ fn scaleNormal(normal : vec3f, scale : f32) -> vec3f {
 fn perturbNormal(N : vec3f, worldPos : vec3f, uv : vec2f, tangentNormal : vec3f) -> vec3f {
     // The derivatives first: they are only valid in uniform control flow, and the choice below depends on a variable.
     let dp1 = dpdx(worldPos);
-    // Negated: this backend's framebuffer y runs the other way, so dpdy answers
-    // with the opposite sign to GLSL's dFdy. Left alone it flips T and B, and a
-    // normal map lights the wrong side — which only the second backend shows.
-    let dp2 = -dpdy(worldPos);
+    // A target's rows are bottom-up here as in GL, so dpdy is GLSL's dFdy.
+    let dp2 = dpdy(worldPos);
     let duv1 = dpdx(uv);
-    let duv2 = -dpdy(uv);
+    let duv2 = dpdy(uv);
     let dp2perp = cross(dp2, N);
     let dp1perp = cross(N, dp1);
     let T = dp2perp * duv1.x + dp1perp * duv2.x;
@@ -1910,11 +1905,8 @@ fn perturbNormal(N : vec3f, worldPos : vec3f, uv : vec2f, tangentNormal : vec3f)
 fn mask2DUv(worldPos : vec2f) -> vec2f {
     let clip = frame.projection * vec4f(worldPos, 0.0, 1.0);
     if (clip.w <= 0.0) { return vec2f(-1.0, -1.0); }
-    // A negative height is the backend saying its texture rows run the other way.
     let ndc = clip.xy / clip.w * 0.5 + 0.5;
-    let v = select(ndc.y, 1.0 - ndc.y, lc.u_mask2DRect.w < 0.0);
-    return lc.u_mask2DRect.xy
-        + vec2f(ndc.x * lc.u_mask2DRect.z, v * abs(lc.u_mask2DRect.w));
+    return lc.u_mask2DRect.xy + ndc * lc.u_mask2DRect.zw;
 }
 fn mask2DChannel(m : vec4f, channel : f32) -> f32 {
     if (channel < 0.5) { return m.r; }
@@ -3565,10 +3557,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "highp vec2 mask2DUv(in highp vec2 worldPos) {\n"
             "    highp vec4 clip = u_projection * vec4(worldPos, 0.0, 1.0);\n"
             "    if (clip.w <= 0.0) return vec2(-1.0);\n"
-            // A negative height is the backend saying its texture rows run the other way.
             "    highp vec2 ndc = clip.xy / clip.w * 0.5 + 0.5;\n"
-            "    highp float v = u_mask2DRect.w < 0.0 ? 1.0 - ndc.y : ndc.y;\n"
-            "    return u_mask2DRect.xy + vec2(ndc.x * u_mask2DRect.z, v * abs(u_mask2DRect.w));\n"
+            "    return u_mask2DRect.xy + ndc * u_mask2DRect.zw;\n"
             "}\n"
             "highp float mask2DChannel(in highp vec4 m, in highp float channel) {\n"
             "    return (channel < 0.5) ? m.r : (channel < 1.5) ? m.g\n"

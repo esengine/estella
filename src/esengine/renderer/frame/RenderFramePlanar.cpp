@@ -136,9 +136,8 @@ void RenderFrame::declarePlanarReflection(ecs::Registry& registry) {
     planar_receiver_ = selected;
     planar_texture_ = static_cast<u32>(capture.target->getColorAttachment());
     planar_constants_.projection = capture.camera.samplingProjection;
-    planar_constants_.params = {1.0f,
-        device_.textureOriginTopLeft() ? -1.0f : 1.0f,
-        1.0f / w, 1.0f / h};
+    // y: the rows' direction, 1 on every backend now that WebGPU lays a target's rows bottom-up as GL does.
+    planar_constants_.params = {1.0f, 1.0f, 1.0f / w, 1.0f / h};
 }
 
 void RenderFrame::executePlanarReflection(ecs::Registry& registry, u32 view) {

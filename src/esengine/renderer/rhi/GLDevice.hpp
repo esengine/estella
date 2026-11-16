@@ -71,7 +71,6 @@ public:
     }
 
     /// GL reads a framebuffer from the bottom up.
-    bool textureOriginTopLeft() const override { return false; }
 
     void setStencilReference(i32 ref) override;
 

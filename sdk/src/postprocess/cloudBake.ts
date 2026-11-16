@@ -70,7 +70,7 @@ function ready(): Baker | null {
     if (baker) return baker.failed ? null : baker;
     const make = postProcessEffects.createSkyCloudsBake;
     if (!make) return null;
-    const target = Renderer.createRenderTarget(CLOUD_PANORAMA_SIZE, CLOUD_PANORAMA_SIZE, 2 | 4);
+    const target = Renderer.createRenderTarget(CLOUD_PANORAMA_SIZE, CLOUD_PANORAMA_SIZE, 2);
     const id = target ? Renderer.getTargetTexture(target) : 0;
     const texture = id ? getResourceManager()?.wrapDeviceTexture?.(id, CLOUD_PANORAMA_SIZE, CLOUD_PANORAMA_SIZE) ?? 0 : 0;
     const shader = texture ? make() : 0;

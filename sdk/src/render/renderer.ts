@@ -685,8 +685,8 @@ export const Renderer = {
     },
 
     /**
-     * A render target: `flags` 1 with a depth buffer, 2 filtered linearly, 4 its texture as drawn (on a device that stores targets
-     * top-down, no copy turned to bottom-up rows is kept, for a target only shaders that know the device's rows read).
+     * A render target: `flags` 1 with a depth buffer, 2 filtered linearly. Its rows are bottom-up on every backend, and the texture
+     * drawn into is the one read.
      */
     createRenderTarget(width: number, height: number, flags: number = 1): RenderTargetHandle {
         return engine()?.renderer_createTarget?.(width, height, flags) ?? 0;

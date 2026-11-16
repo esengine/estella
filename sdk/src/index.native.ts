@@ -43,6 +43,10 @@ export * from './core';
 import { installOptionalPlugins } from './runtime/optionalPlugins';
 
 installOptionalPlugins();
+// The native host draws through WebGPU (Dawn): shaders written only in GLSL are given their WGSL as they compile.
+import { installWgslTranspiler } from './shaders/wgsl/install';
+
+installWgslTranspiler();
 export * from './runtime/webAppFactory';
 
 export { NativePlatformAdapter, installNativePlatform, createHostBridge, assertHostEnvironment, assertNativeHost } from './platform/native';

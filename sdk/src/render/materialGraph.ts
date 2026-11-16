@@ -182,11 +182,10 @@ export function compileMaterialGraph(source: MaterialGraph, resolve?: SubgraphRe
         break;
       case 'screenUV': {
         needsFragment(n, 'reads the screen position');
-        // 0..1, y-up on both backends: gl_FragCoord has a bottom-left origin,
-        // the WGSL position builtin a top-left one — flip y before normalizing.
+        // 0..1, y-up on both backends: a target's rows are bottom-up on both, so the position builtin is gl_FragCoord.
         out = line('vec2',
           'gl_FragCoord.xy * u_viewport.zw',
-          'vec2f(v.pos.x, tc.u_viewport.y - v.pos.y) * tc.u_viewport.zw');
+          'v.pos.xy * tc.u_viewport.zw');
         break;
       }
       case 'constFloat': {

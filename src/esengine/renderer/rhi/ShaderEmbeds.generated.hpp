@@ -191,6 +191,8 @@ struct VSOut {
     out.v_worldPos = v.a_position.xy;
     out.v_lightLayer = v.a_sdfBias;
 #endif
+
+    out.pos.y = -out.pos.y;
     return out;
 }
 #pragma end
@@ -579,6 +581,8 @@ struct VSOut {
     out.pos = frame.projection * vec4f(v.a_position, 0.0, 1.0);
     out.v_texCoord = v.a_texCoord;
     out.v_channel = v.a_channel;
+
+    out.pos.y = -out.pos.y;
     return out;
 }
 #pragma end
@@ -1205,6 +1209,8 @@ fn esPrevBone(joint : u32) -> mat4x4f {
 #endif
 #endif
 #endif
+
+    out.pos.y = -out.pos.y;
     return out;
 }
 #pragma end
@@ -1472,6 +1478,8 @@ struct VSOut {
     out.pos = frame.projection * vec4f(v.a_position, 0.0, 1.0);
     out.v_shadow = v.a_shadow;
     out.v_channel = v.a_channel;
+
+    out.pos.y = -out.pos.y;
     return out;
 }
 #pragma end
@@ -1568,6 +1576,8 @@ struct VSOut {
     out.v_uv = v.a_texCoord;
     out.v_color = v.a_color;
     out.v_shapeInfo = v.a_shapeInfo;
+
+    out.pos.y = -out.pos.y;
     return out;
 }
 #pragma end
@@ -1687,6 +1697,8 @@ struct VSOut {
     var out : VSOut;
     out.pos = frame.projection * vec4f(v.a_position, 1.0);
     out.v_worldPos = v.a_position;
+
+    out.pos.y = -out.pos.y;
     return out;
 }
 #pragma end

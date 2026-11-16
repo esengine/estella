@@ -9,6 +9,7 @@ vi.mock('../src/render/material', () => ({
 }));
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { withWgslTwin } from '../src/shaders/wgsl/twin';
 import { PostProcessAPI, PostProcessStack, postProcessEffects, initPostProcessAPI, shutdownPostProcessAPI, getEffectDef } from '../src/postprocess';
 import { Material } from '../src/render/material';
 import { setLinearColorSpace } from '../src/ecs/env';
@@ -388,9 +389,9 @@ describe('PostProcess API', () => {
             expect(lastSource()).toContain('#pragma param u_radius float default(1)');
             expect(lastSource()).toContain('#pragma param u_roundness float default(0)');
             expect(lastSource()).toContain('smoothstep(u_radius - u_softness, u_radius, dist)');
-            expect(lastSource()).toContain('smoothstep(mc.u_radius - mc.u_softness, mc.u_radius, dist)');
+            expect(withWgslTwin(lastSource())).toContain('smoothstep(mc.u_radius - mc.u_softness, mc.u_radius, dist)');
             expect(lastSource()).toContain('mix(length(uv), length(uv * round) / length(round), u_roundness)');
-            expect(lastSource()).toContain('mix(length(uv), length(uv * round) / length(round), mc.u_roundness)');
+            expect(withWgslTwin(lastSource())).toContain('mix(length(uv), length(uv * round) / length(round), mc.u_roundness)');
         });
 
         it('should create grayscale with Rec.601 luma weights', () => {
@@ -435,8 +436,10 @@ describe('PostProcess API', () => {
             expect(src).toContain('#pragma param u_offset float default(0) range(-0.5,0.5)');
             expect(src.indexOf('c = c * u_gain + u_offset;')).toBeGreaterThan(0);
             expect(src.indexOf('c = c * u_gain + u_offset;')).toBeLessThan(src.indexOf('c += u_lift.rgb * 0.1;'));
-            expect(src.indexOf('c = c * mc.u_gain + vec3f(mc.u_offset);')).toBeLessThan(src.indexOf('c += mc.u_lift.rgb * 0.1;'));
-            expect(src.indexOf('c = c * mc.u_gain + vec3f(mc.u_offset);')).toBeGreaterThan(0);
+            // And in the WGSL the transpiler writes from it.
+            const wgsl = withWgslTwin(src);
+            expect(wgsl.indexOf('c = (c * mc.u_gain) + mc.u_offset;')).toBeGreaterThan(0);
+            expect(wgsl.indexOf('c = (c * mc.u_gain) + mc.u_offset;')).toBeLessThan(wgsl.indexOf('c += mc.u_lift.rgb * 0.1;'));
         });
 
         it('colorGrade takes contrast about the mid-grey of the colour space it runs in', () => {
@@ -451,14 +454,15 @@ describe('PostProcess API', () => {
             };
             const gamma = sourceFor(false);
             expect(gamma).toContain('c = (c - 0.5) * u_contrast + 0.5;');
-            expect(gamma).toContain('c = (c - 0.5) * mc.u_contrast + 0.5;');
+            expect(withWgslTwin(gamma)).toContain('c = ((c - 0.5) * mc.u_contrast) + 0.5;');
             const linear = sourceFor(true);
             expect(linear).toContain('c = 0.18 * pow(max(c, vec3(1e-6)) / 0.18, vec3(u_contrast));');
-            expect(linear).toContain('c = 0.18 * pow(max(c, vec3f(1e-6)) / 0.18, vec3f(mc.u_contrast));');
+            expect(withWgslTwin(linear)).toContain('mc.u_contrast');
+            expect(withWgslTwin(linear)).not.toContain('- 0.5');
             expect(linear).not.toContain('- 0.5');
         });
 
-        it('every effect ships a WGSL twin and stays fragment-only', () => {
+        it('every effect is written in GLSL alone, is given its WGSL as it compiles, and stays fragment-only', () => {
             postProcessEffects.createLutGrade();
             postProcessEffects.createBlur();
             postProcessEffects.createVignette();
@@ -479,8 +483,8 @@ describe('PostProcess API', () => {
             for (const c of calls) {
                 const src = c[0] as string;
                 expect(src).toContain('#pragma domain PostProcess');
-                expect(src).toContain('#pragma fragment wgsl');
-                expect(src).toContain('fn fs_main(');
+                expect(src).not.toContain('#pragma fragment wgsl');
+                expect(withWgslTwin(src)).toContain('fn fs_main(');
                 expect(src).not.toContain('#pragma vertex');
                 expect(src).not.toContain('u_resolution'); // u_viewport replaced it
             }
@@ -495,7 +499,7 @@ describe('PostProcess API', () => {
             postProcessEffects.createBloomComposite();
             const src = lastSource();
             expect(src).toContain('u_sceneTexture'); // GLSL: loose engine sampler (unit 1)
-            expect(src).toContain('t1, s1');         // WGSL twin: the unit-1 pair
+            expect(withWgslTwin(src)).toContain('t1, s1');   // its WGSL: the unit-1 pair
         });
     });
 
@@ -516,11 +520,11 @@ describe('PostProcess API', () => {
             // The curve is pinned where it is defined (test_shader_variant.cpp);
             // what this layer owns is that the effect REACHES it, in both dialects.
             expect(src).toContain('acesFilmic(c), src.a)');
-            expect(src).toContain('vec4f(acesFilmic(c), src.a)');
+            expect(withWgslTwin(src)).toContain('acesFilmic(c)');
             // The other fit is the effect's own, behind u_curve, in both dialects; off, the engine's curve is what runs.
             expect(src).toContain('#pragma param u_curve float default(0)');
             expect(src).toContain('u_curve > 0.5 ? acesFitted(c) : acesFilmic(c)');
-            expect(src).toContain('if (mc.u_curve > 0.5) { return vec4f(acesFitted(c), src.a); }');
+            expect(withWgslTwin(src)).toContain('select(acesFilmic(c), acesFitted(c), mc.u_curve > 0.5)');
             expect(handle).toBe(42);
         });
 

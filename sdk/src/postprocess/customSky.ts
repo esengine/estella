@@ -198,8 +198,8 @@ export function skyEffectSource(src: SkyEffectSource): string {
         ...(src.still ? STILL_PARAMS : []),
     ].join('\n');
     // The panorama's direction for a texel, in Panorama's own mapping (lightmap/panorama.ts). Its v runs down from the
-    // zenith; the readback lands rows bottom-up on both backends while the pass's uv runs up the target on GL and down it
-    // on WebGPU, so v is 1 - uv.y there and uv.y here, and the reader turns the rows over.
+    // zenith while the pass's uv runs up the target, on both backends, so v is 1 - uv.y; the readback lands rows
+    // bottom-up and the reader turns them over.
     return `#pragma shader "Sky ${src.label}"
 #pragma version 300 es
 #pragma domain PostProcess
@@ -271,7 +271,7 @@ ${src.wgsl}
 
 fn esSkyPanoramaDir(uv : vec2f) -> vec3f {
     let phi = (uv.x - 0.5) * 6.28318531;
-    let theta = uv.y * 3.14159265;
+    let theta = (1.0 - uv.y) * 3.14159265;
     let s = sin(theta);
     return vec3f(-s * sin(phi), cos(theta), s * cos(phi));
 }

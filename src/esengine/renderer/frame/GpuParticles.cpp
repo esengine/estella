@@ -297,7 +297,7 @@ fn depthAt(tx: i32, ty: i32) -> f32 {
     return depthGrid[u32(ty * w + tx)];
 }
 fn unproject(uv: vec2<f32>, depth: f32) -> vec3<f32> {
-    let world = P.depthWorld * vec4<f32>(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, depth, 1.0);
+    let world = P.depthWorld * vec4<f32>(uv * 2.0 - 1.0, depth, 1.0);
     return world.xyz / world.w;
 }
 fn texelSurface(tx: i32, ty: i32, depth: f32) -> vec3<f32> {
@@ -309,7 +309,7 @@ fn depthHit(point: vec3<f32>, vel: vec3<f32>, dt: f32) -> bool {
     if (clip.w <= 0.0) { return false; }
     let ndc = clip.xyz / clip.w;
     if (abs(ndc.x) >= 1.0 || abs(ndc.y) >= 1.0 || ndc.z < 0.0 || ndc.z > 1.0) { return false; }
-    let uv = vec2<f32>((ndc.x + 1.0) * 0.5, (1.0 - ndc.y) * 0.5);
+    let uv = (ndc.xy + 1.0) * 0.5;
     let tx = i32(uv.x * f32(P.p14.z));
     let ty = i32(uv.y * f32(P.p14.w));
     let depth = depthAt(tx, ty);

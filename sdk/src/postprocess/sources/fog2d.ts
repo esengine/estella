@@ -20,14 +20,6 @@ vec2 fogAt(vec2 w) {
     return vec2(textureLod(u_fogExplored, uv, 0.0).r, textureLod(u_fogVisible, uv, 0.0).r);
 }`;
 
-const WGSL = `
-fn fogAt(w : vec2f) -> vec2f {
-    if (mc.u_fogW <= 0.0 || mc.u_fogH <= 0.0) { return vec2f(0.0); }
-    let uv = (w - vec2f(mc.u_fogL, mc.u_fogB)) / vec2f(mc.u_fogW, mc.u_fogH);
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return vec2f(0.0); }
-    return vec2f(textureSampleLevel(u_fogExplored, u_fogExplored_s, uv, 0.0).r, textureSampleLevel(u_fogVisible, u_fogVisible_s, uv, 0.0).r);
-}`;
-
 const SOURCE = `#pragma shader "PP Fog 2D"
 #pragma version 300 es
 #pragma domain PostProcess
@@ -66,24 +58,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${WGSL}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let w = worldFromDepth(v.v_texCoord, 0.0).xy + frame.renderOrigin.xy;
-    var dark = mc.u_unexploredColor.rgb;
-#ifdef ES_LINEAR
-    dark = srgbToLinear(dark);
-#endif
-    let known = fogAt(w);
-    let seen = max(known.x, known.y);
-    let grey = dot(src.rgb, vec3f(0.299, 0.587, 0.114));
-    let remembered = mix(src.rgb, vec3f(grey), mc.u_forgetDesat) * mc.u_forgetLight;
-    let shown = mix(remembered, src.rgb, smoothstep(0.0, 1.0, known.y));
-    return vec4f(mix(dark, shown, smoothstep(0.0, 1.0, seen)), src.a);
-}
-#pragma end
 `;
 
 export const fog2dEffects = {

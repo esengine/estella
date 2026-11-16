@@ -18,12 +18,11 @@
  */
 import type { ShaderHandle } from '../render/material';
 import { Material } from '../render/material';
-import { SSAO_GLSL, SSAO_WGSL } from './sources/shared';
+import { SSAO_GLSL } from './sources/shared';
 
 export const subsurfacePasses = {
     createSubsurface(axis: 0 | 1): ShaderHandle {
         const dir = axis === 0 ? 'vec2(1.0, 0.0)' : 'vec2(0.0, 1.0)';
-        const dirW = axis === 0 ? 'vec2f(1.0, 0.0)' : 'vec2f(0.0, 1.0)';
         // The last pass gives the alpha back; the first keeps the mark for the second to read.
         const outAlpha = axis === 0 ? 'c.a' : '1.0';
         const source = `#pragma shader "PP Subsurface ${axis.toFixed(0)}"
@@ -83,44 +82,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-
-fn scatters(a : f32) -> bool { return a < 0.9985 && a > 0.9; }
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let c = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    if (!scatters(c.a)) { return vec4f(c.rgb, ${outAlpha}); }
-
-    let dsize = vec2i(textureDimensions(t7, 0));
-    let t = screenTexel(v.v_texCoord, dsize);
-    let d = depthAt(t, dsize);
-    let cuv = uvOfTexel(t, dsize);
-    let P = worldFromDepth(cuv, d);
-    let worldPerTexel = max(length(worldFromDepth(cuv + vec2f(1.0 / f32(dsize.x), 0.0), d) - P), 1e-6);
-    let reach = min(mc.u_width / worldPerTexel, 48.0);
-    if (reach < 0.75) { return vec4f(c.rgb, ${outAlpha}); }
-
-    let k = max(mc.u_color.rgb / max(max(mc.u_color.r, mc.u_color.g), mc.u_color.b), vec3f(0.12));
-    let texel = 1.0 / vec2f(textureDimensions(t0, 0));
-    var sum = c.rgb;
-    var weight = vec3f(1.0);
-    for (var i : i32 = 1; i <= 6; i = i + 1) {
-        let x = f32(i) / 6.0;
-        let w = exp(-0.5 * (x * x) / (0.25 * k * k));
-        for (var side : i32 = -1; side <= 1; side = side + 2) {
-            let uv = v.v_texCoord + ${dirW} * (f32(side) * x * reach) * texel;
-            let s = textureSampleLevel(t0, s0, uv, 0.0);
-            if (!scatters(s.a)) { continue; }
-            let ds = depthAt(screenTexel(uv, dsize), dsize);
-            if (length(worldFromDepth(uv, ds) - P) > mc.u_width * 1.6) { continue; }
-            sum = sum + s.rgb * w;
-            weight = weight + w;
-        }
-    }
-    return vec4f(mix(c.rgb, sum / weight, vec3f(mc.u_strength)), ${outAlpha});
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },

@@ -289,7 +289,7 @@ export const FACTS = [
         authors: [
             { path: 'src/esengine/data/shaders', dir: true, probe: /#pragma shader/, kind: 'semantic' },
         ],
-        projections: ['src/esengine/renderer/rhi/ShaderEmbeds.generated.hpp'],
+        projections: ['src/esengine/renderer/rhi/ShaderEmbeds.generated.hpp', 'sdk/src/shaders/wgsl/engineApi.generated.ts'],
         verification: [
             { path: 'tools/check-wgsl-twin.mjs', how: 'test', probe: /fragment stage/ },
             { path: 'tools/check-shader-blocks.mjs', how: 'test', probe: /shader/i },

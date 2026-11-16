@@ -187,6 +187,8 @@ struct VSOut {
     out.v_worldPos = v.a_position.xy;
     out.v_lightLayer = v.a_sdfBias;
 #endif
+    // Clip y turned over: a target's rows land bottom-up, as GL lays them (see WebGPUDevice::ensurePipeline).
+    out.pos.y = -out.pos.y;
     return out;
 }
 #pragma end
