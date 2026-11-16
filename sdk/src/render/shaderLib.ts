@@ -6,7 +6,7 @@
  *
  * One definition of each: a copy pasted into each shader drifts, and a fix that reaches one copy of an encoding (the normal a
  * pass writes, the noise a ray-marched effect is dithered with) leaves the shaders that read it disagreeing. A shader splices
- * the constant where the function used to be written. Plain strings, so an unused one is dropped from a bundle.
+ * the constant in place of the function. Plain strings, so an unused one is dropped from a bundle.
  */
 
 /** Octahedral normal encoding: a unit vector in two [0, 1] channels, which is what an 8-bit target can hold. Every pass that writes the surface target (normal + roughness) encodes with this, and every effect that reads it decodes the inverse, so there is one copy. */
