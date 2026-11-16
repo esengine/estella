@@ -673,7 +673,7 @@ export async function cookAssets(
   // the encoder loads. A project that authored a KTX2 pays either way.
   const textureSources = [...reachable]
     .map((uuid) => byUuid.get(uuid))
-    .filter((e): e is AssetEntry => e !== undefined && e.type === 'texture');
+    .filter((e): e is AssetEntry => e !== undefined && e.type === 'texture' && !recipeProducts.has(e.path));
   const authoredKtx2 = textureSources.some((e) => e.path.toLowerCase().endsWith('.ktx2'));
   const artBytes = textureSources.reduce((n, e) => {
     try { return n + statSync(path.join(root, e.path)).size; } catch { return n; }
