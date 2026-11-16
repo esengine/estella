@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-// Dev driver: transpile shaders from a JSON map (name -> .esshader text) with the SDK's transpiler and compare with their
-// hand-written twins.   node tools/glsl-wgsl/sweep.mjs <shaders.json> [outDir] [only]
+// Dev driver, `sweep.mjs <shaders.json> [outDir] [only]`: transpiles a map of name -> .esshader text and compares each with its twin.
 import fs from 'node:fs';
 import path from 'node:path';
 import { importSdkSource } from '../lib/sdkSource.mjs';

@@ -32,6 +32,6 @@ export async function importSdkSource(rel) {
     writeFileSync(file, out.outputFiles[0].text);
     return await import(pathToFileURL(file).href);
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
 }

@@ -50,11 +50,10 @@ export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
 };
 
 /**
- * Subpaths that are not modules a project picks: the engine binary every target
- * loads, a platform adapter an entry chooses rather than content asking for it,
- * the debug channel a development export adds, the session layer, which a
- * game's own code imports and nothing in a scene asks for, and the GLSL-to-WGSL
- * transpiler, which the host loads when the device it got is WebGPU. Named here so the pickable set is derived rather than written twice.
+ * Subpaths that are not modules a project picks: the engine binary every target loads, a platform adapter an entry
+ * chooses rather than content asking for it, the debug channel a development export adds, the session layer, which a
+ * game's own code imports and nothing in a scene asks for, and the GLSL-to-WGSL transpiler, which the host loads when
+ * the device it got is WebGPU. Named here so the pickable set is derived rather than written twice.
  */
 export const NOT_A_MODULE: ReadonlySet<string> = new Set(['esengine/wasm', 'esengine/debug-channel', 'esengine/wgsl', 'esengine/session', 'esengine/douyin', 'esengine/kuaishou', 'esengine/bilibili', 'esengine/quickgame', 'esengine/alipay', 'esengine/huawei', 'esengine/openpaas']);
 
