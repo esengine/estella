@@ -10,7 +10,7 @@ import { GlyphAtlas } from '../src/ui/text/glyph-atlas';
 import { SdfTextRenderer, drawTextWith, type DrawTextParams } from '../src/ui/text/text-renderer';
 import { chosenByScale, resolveTextRenderMode, sameSnapshot, snapshotOf } from '../src/ui/text/plugin';
 import { rectTextBox } from '../src/ui/text/text-transform';
-import { Text, type TextData } from '../src/ui/core/text';
+import { Text, TextRenderMode, type TextData } from '../src/ui/core/text';
 import type { EngineApi } from '../src/ecs/bridge/engineApi';
 import { TEXT_VERTEX_FLOATS } from '../src/ui/text/submit';
 
@@ -91,7 +91,7 @@ describe('the glyph pipeline an automatic label gets', () => {
 describe('which labels the engine may call stale by their scale', () => {
     const engineSaysSdf = (scale: number): boolean => Number.isFinite(scale) && scale > 0 && Math.abs(scale - 1) > 0.02;
     const flat = { contentScale: 1, perspective: false }, deep = { contentScale: 1, perspective: true };
-    const auto = { renderMode: 0 }, bitmap = { renderMode: 1 }, sdf = { renderMode: 2 };
+    const auto = { renderMode: TextRenderMode.Auto }, bitmap = { renderMode: TextRenderMode.Bitmap }, sdf = { renderMode: TextRenderMode.Sdf };
 
     it('only a label whose pipeline its scale chose: not one in a perspective view, which is SDF at any scale', () => {
         expect(chosenByScale(auto, 'Arial', flat)).toBe(true);
