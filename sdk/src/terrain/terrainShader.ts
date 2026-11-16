@@ -7,7 +7,8 @@
  * The shader source lives with the module that installs it, not in the core's list of built-in shaders: a package that does not install the module carries none of it.
  */
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
-import { layerParams, LAYER_SURFACE_GLSL, LAYER_SURFACE_WGSL } from './layerSurfaceShader';
+import { layerParams, LAYER_SURFACE_GLSL, LAYER_SURFACE_WGSL, TN_NOISE_GLSL, TN_NOISE_WGSL, TN_HASH2_GLSL, TN_HASH2_WGSL } from './layerSurfaceShader';
+import { PACK_NORMAL_GLSL, PACK_NORMAL_WGSL } from '../render/shaderLib';
 
 
 // The ground's vertices from its pages (pages.ts), shared by both terrain shaders: a node's patch placed and sized by its instance, its
@@ -196,12 +197,7 @@ layout(location = 1) out vec4 fragSurface;
 // The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
 layout(location = 2) out vec4 fragAlbedo;
 
-vec2 packNormal(vec3 n) {
-    n /= (abs(n.x) + abs(n.y) + abs(n.z));
-    vec2 sgn = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
-    vec2 e = n.z >= 0.0 ? n.xy : (1.0 - abs(n.yx)) * sgn;
-    return e * 0.5 + 0.5;
-}
+${PACK_NORMAL_GLSL}
 #else
 out vec4 fragColor;
 #endif
@@ -211,19 +207,13 @@ float tnHash(vec2 p) {
     p += dot(p, p.yx + 33.33);
     return fract((p.x + p.y) * p.x);
 }
-float tnNoise(vec2 p) {
-    vec2 i = floor(p), f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(tnHash(i), tnHash(i + vec2(1.0, 0.0)), f.x), mix(tnHash(i + vec2(0.0, 1.0)), tnHash(i + vec2(1.0, 1.0)), f.x), f.y);
-}
+${TN_NOISE_GLSL}
 // The second reading of a layer: turned, on a tile 1.37 times as wide, offset.
 vec2 tnTurned(vec2 p, float tile) { return mat2(0.8, -0.6, 0.6, 0.8) * p / (tile * 1.37) + vec2(0.37, 0.71); }
 float tnLuma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 // A layer at p on its tile, with the second turned reading mixed in by t. The gradients are the ones taken where every lane runs,
 // so a layer can be read only where it is used.
-vec2 tnHash2(vec2 p) {
-    return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453);
-}
+${TN_HASH2_GLSL}
 // One reading of a layer in a hex cell: shifted and turned by the cell's own random numbers (the gradients turn with it).
 vec3 tnHexTap(sampler2D layer, vec2 uv, vec2 cell, vec2 gx, vec2 gy) {
     vec2 r = tnHash2(cell);
@@ -363,17 +353,10 @@ fn tnHash(p0 : vec2f) -> f32 {
     p = p + dot(p, p.yx + 33.33);
     return fract((p.x + p.y) * p.x);
 }
-fn tnNoise(p : vec2f) -> f32 {
-    let i = floor(p);
-    var f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(tnHash(i), tnHash(i + vec2f(1.0, 0.0)), f.x), mix(tnHash(i + vec2f(0.0, 1.0)), tnHash(i + vec2f(1.0, 1.0)), f.x), f.y);
-}
+${TN_NOISE_WGSL}
 fn tnTurned(p : vec2f, tile : f32) -> vec2f { return mat2x2f(0.8, -0.6, 0.6, 0.8) * p / (tile * 1.37) + vec2f(0.37, 0.71); }
 fn tnLuma(c : vec3f) -> f32 { return dot(c, vec3f(0.299, 0.587, 0.114)); }
-fn tnHash2(p : vec2f) -> vec2f {
-    return fract(sin(vec2f(dot(p, vec2f(127.1, 311.7)), dot(p, vec2f(269.5, 183.3)))) * 43758.5453);
-}
+${TN_HASH2_WGSL}
 fn tnHexTap(layer : texture_2d<f32>, smp : sampler, uv : vec2f, cell : vec2f, gx : vec2f, gy : vec2f) -> vec3f {
     let r = tnHash2(cell);
     let a = r.x * 6.2831853 * mc.u_antiTileTurn;
@@ -414,13 +397,7 @@ struct FragOut {
     @location(2) albedo : vec4f,
 };
 
-fn packNormal(n : vec3f) -> vec2f {
-    let a = n / (abs(n.x) + abs(n.y) + abs(n.z));
-    let sgn = vec2f(select(-1.0, 1.0, a.x >= 0.0), select(-1.0, 1.0, a.y >= 0.0));
-    var e = a.xy;
-    if (a.z < 0.0) { e = (vec2f(1.0) - abs(a.yx)) * sgn; }
-    return e * 0.5 + 0.5;
-}
+${PACK_NORMAL_WGSL}
 
 @fragment fn fs_main(v : VSOut) -> FragOut {
 #else
@@ -717,12 +694,7 @@ layout(location = 1) out vec4 fragSurface;
 // The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
 layout(location = 2) out vec4 fragAlbedo;
 
-vec2 packNormal(vec3 n) {
-    n /= (abs(n.x) + abs(n.y) + abs(n.z));
-    vec2 sgn = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
-    vec2 e = n.z >= 0.0 ? n.xy : (1.0 - abs(n.yx)) * sgn;
-    return e * 0.5 + 0.5;
-}
+${PACK_NORMAL_GLSL}
 #else
 out vec4 fragColor;
 #endif
@@ -784,13 +756,7 @@ struct FragOut {
     @location(2) albedo : vec4f,
 };
 
-fn packNormal(n : vec3f) -> vec2f {
-    let a = n / (abs(n.x) + abs(n.y) + abs(n.z));
-    let sgn = vec2f(select(-1.0, 1.0, a.x >= 0.0), select(-1.0, 1.0, a.y >= 0.0));
-    var e = a.xy;
-    if (a.z < 0.0) { e = (vec2f(1.0) - abs(a.yx)) * sgn; }
-    return e * 0.5 + 0.5;
-}
+${PACK_NORMAL_WGSL}
 
 @fragment fn fs_main(v : VSOut) -> FragOut {
 #else
