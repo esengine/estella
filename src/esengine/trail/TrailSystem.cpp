@@ -24,7 +24,12 @@ void TrailSystem::update(ecs::Registry& registry, f32 dt) {
         transform.ensureDecomposed();
         const glm::vec3& pos = transform.worldPosition;
 
-        auto& state = states_[entity];
+        auto it = states_.find(entity);
+        if (it == states_.end()) {
+            if (!trail.emitting) continue;
+            it = states_.try_emplace(entity).first;
+        }
+        auto& state = it->second;
 
         // Record a new anchor when the head has moved far enough (or the trail is
         // empty). The live head between anchors is added by the plugin from the
@@ -48,7 +53,7 @@ void TrailSystem::update(ecs::Registry& registry, f32 dt) {
         }
 
         if (state.points.empty()) {
-            states_.erase(entity);
+            states_.erase(it);
         }
     }
 }

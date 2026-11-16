@@ -793,6 +793,7 @@ private:
     void buildSortingGroups(ecs::Registry& registry);
     /// The hierarchy position of every entity, for the layers that paint in tree order (DrawList::setTreeMask).
     void buildTreeSequence(ecs::Registry& registry);
+    std::vector<Entity> tree_pending_;
     /// Adds a finalized list's cost to this frame's tally (see the definition).
     void accumulateStats(const DrawList& list);
     /// The overlay pass's body: the projection its geometry was built for, then

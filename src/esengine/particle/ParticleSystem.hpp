@@ -257,6 +257,7 @@ private:
     void floorCollision(const ecs::ParticleEmitter&, EmitterState&, Particle&, const EmitterFrame&, bool world);
     void sdfCollision(const ecs::ParticleEmitter&, EmitterState&, Particle&, const EmitterFrame&, bool world);
     f32 randomRange(f32 min, f32 max);
+    u32 collisionQuota(Entity emitter) const;
 
 
 
@@ -278,6 +279,8 @@ private:
     u32 collision_frame_ = 0;
     bool collision_debug_ = false;
     std::unordered_map<Entity, u32> collision_quotas_;
+    std::vector<Entity> scene_emitters_;
+    std::vector<SubEmitRequest> drain_scratch_;
     std::unordered_map<Entity, EmitterState> states_;
     // A play() that arrives before the emitter's first update (its state isn't
     // created yet) is remembered here and applied on state creation, not dropped.

@@ -339,8 +339,7 @@ private:
     void resolveSize(Resource& res) const;
     TargetHandle acquire(const Resource& res);
     void release(Resource& res);
-    /// Marks the passes that reach the imported target; false for everything else.
-    void cull(std::vector<bool>& live) const;
+    void cull();
 
     GfxDevice& device_;
     /// Set only by the pool-owning constructor; pool_ refers into it.
@@ -353,6 +352,9 @@ private:
     /// the pool is no longer the graph's to reset wholesale.
     std::vector<TargetHandle> borrowed_;
     std::vector<TextureHandle> inputScratch_;
+    std::vector<bool> live_;
+    std::vector<bool> wanted_;
+    std::vector<i32> last_writer_;
     ResourceId finalTarget_ = kNoResource;
     u32 refWidth_ = 0;
     u32 refHeight_ = 0;
