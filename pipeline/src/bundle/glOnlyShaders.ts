@@ -18,6 +18,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { isInsideRoot } from '../fs/pathSandbox';
 import type { Plugin } from 'esbuild';
 
 const SECTION_START = /^[ \t]*#pragma (?:vertex|fragment|compute|vertexoffset) wgsl\b[^\n]*\n/gm;
@@ -62,7 +63,7 @@ export function glOnlyShadersPlugin(sdkDir: string, stats?: { removed: number; s
         setup(build) {
             build.onLoad({ filter: /\.m?js$/ }, async (args) => {
                 const file = path.resolve(args.path);
-                if (!file.startsWith(root + path.sep)) return undefined;
+                if (!isInsideRoot(root, file)) return undefined;
                 const r = dropWgslSections(await readFile(file, 'utf8'));
                 if (r.sections === 0) return undefined;
                 if (stats) { stats.removed += r.removed; stats.sections += r.sections; }
