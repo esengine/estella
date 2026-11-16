@@ -901,6 +901,12 @@ void renderer_endScreenOverlay(u32 targetHandle) {
     checkGLErrors("renderer_endScreenOverlay");
 }
 
+void renderer_drawOverScreen(i32 vpX, i32 vpY, u32 vpW, u32 vpH, u32 targetHandle) {
+    if (!g_renderFrame) return;
+    g_renderFrame->drawOverScreen(vpX, vpY, vpW, vpH, targetHandle);
+    checkGLErrors("renderer_drawOverScreen");
+}
+
 void renderer_submitAll(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vpW, i32 vpH) {
     // A frame refused for a lost device draws nothing, so nothing is collected for it.
     if (!g_renderFrame || !g_renderFrame->inFrame()) return;

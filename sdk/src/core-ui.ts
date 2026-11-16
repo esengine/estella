@@ -140,6 +140,15 @@ export {
     bindWidgetValue,
     type Signal,
     type ReadonlySignal,
+    // Moving a node by hand: one answer for the editor's viewport, its play overlay and a game
+    uiAbsoluteMove,
+    uiFlowSlot,
+    uiPlacementOf,
+    moveUINodeBy,
+    moveUINodeToward,
+    type UIRect,
+    type UIInsetFields,
+    type UIPlacement,
 } from './ui';
 
 // ─── Controllers + Gears (shared UI state) ───────────────────────────────────
