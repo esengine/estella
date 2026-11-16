@@ -47,8 +47,10 @@ export class NativeGlyphRasterizer implements GlyphRasterizer {
         if (!glyph) return null;
         // A host may answer a whitespace glyph with advance only (no cell) — the
         // same shape the canvas path returns, so the atlas needs no special case.
+        const pixels = this.sdf ? glyph.pixels.slice() : glyph.pixels;
+        if (this.sdf) for (let i = 0; i < pixels.length; i += 4) pixels[i] = this.pad * 2;
         return {
-            pixels: glyph.pixels,
+            pixels,
             width: glyph.width,
             height: glyph.height,
             advance: glyph.advance,

@@ -24,6 +24,11 @@ describe('REARCH_GUI P1.3b: glyph rasterizer pure transforms', () => {
         expect(Array.from(out)).toEqual([255, 255, 255, 100, 255, 255, 255, 200]);
     });
 
+    it('sdfToAtlasRgba carries the texels a whole distance unit spans in red', () => {
+        const out = sdfToAtlasRgba(new Uint8Array([100, 200]), 2, 1, 12);
+        expect(Array.from(out)).toEqual([12, 255, 255, 100, 12, 255, 255, 200]);
+    });
+
     describe.skipIf(!HAS_WASM)('round-trip alpha → SDF → atlas RGBA', () => {
         let module: ESEngineModule;
         beforeAll(async () => { module = await loadWasmModule(); });

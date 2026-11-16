@@ -108,4 +108,16 @@ describe('growing a coverage glyph into its outline', () => {
         const atlas = new GlyphAtlas(rasterizer, store, { pageSize: 64, padding: 1, sdf: true });
         expect(atlas.outlined(atlas.getGlyph(65, 'Arial')!, 2)).toBeNull();
     });
+
+    it('asks for a page of distances on a distance-field atlas and a page of colour otherwise', () => {
+        const asked: (boolean | undefined)[] = [];
+        const store: AtlasPageStore = { createPage: (_size, _paint, distance) => { asked.push(distance); return asked.length; }, uploadSubRegion: () => {} };
+        const rasterizer = (spread: number): GlyphRasterizer => ({
+            renderSize: 16, spread,
+            rasterize: () => ({ pixels: new Uint8Array(16 * 4), width: 4, height: 4, advance: 5, bearingX: 0, bearingY: 4 }),
+        });
+        new GlyphAtlas(rasterizer(4), store, { pageSize: 64, padding: 1, sdf: true }).getGlyph(65, 'Arial');
+        new GlyphAtlas(rasterizer(0), store, { pageSize: 64, padding: 1, sdf: false }).getGlyph(65, 'Arial');
+        expect(asked).toEqual([true, false]);
+    });
 });
