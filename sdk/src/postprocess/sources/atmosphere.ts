@@ -723,12 +723,9 @@ ${HASH13_GLSL}
 ${IGN_GLSL}
 ${VALUE_NOISE3_GLSL}
 
+/// A colour written here as sRGB, as the light it stands for: the sky is worked out in light whatever frame it is drawn into.
 vec3 lin(vec3 c) {
-#ifdef ES_LINEAR
     return srgbToLinear(c);
-#else
-    return c;
-#endif
 }
 
 /// Where a ray from o along d meets the sphere of radius r about the planet's centre: the two distances, or -1 for a miss.
@@ -819,11 +816,7 @@ ${IGN_WGSL}
 ${VALUE_NOISE3_WGSL}
 
 fn lin(c : vec3f) -> vec3f {
-#ifdef ES_LINEAR
     return srgbToLinear(c);
-#else
-    return c;
-#endif
 }
 
 ${SPHERE_HIT_WGSL}
@@ -965,12 +958,9 @@ ${HASH13_GLSL}
 ${IGN_GLSL}
 ${VALUE_NOISE3_GLSL}
 
+/// A colour written here as sRGB, as the light it stands for: the sky is worked out in light whatever frame it is drawn into.
 vec3 lin(vec3 c) {
-#ifdef ES_LINEAR
     return srgbToLinear(c);
-#else
-    return c;
-#endif
 }
 
 /// Where a ray from o along d meets the sphere of radius r about the planet's centre: the two distances, or -1 for a miss.
@@ -1028,11 +1018,7 @@ ${IGN_WGSL}
 ${VALUE_NOISE3_WGSL}
 
 fn lin(c : vec3f) -> vec3f {
-#ifdef ES_LINEAR
     return srgbToLinear(c);
-#else
-    return c;
-#endif
 }
 
 ${SPHERE_HIT_WGSL}
@@ -1153,12 +1139,9 @@ ${HASH13_GLSL}
 ${IGN_GLSL}
 ${VALUE_NOISE3_GLSL}
 
+/// A colour written here as sRGB, as the light it stands for: the sky is worked out in light whatever frame it is drawn into.
 vec3 lin(vec3 c) {
-#ifdef ES_LINEAR
     return srgbToLinear(c);
-#else
-    return c;
-#endif
 }
 
 /// Where a ray from o along d meets the sphere of radius r about the planet's centre: the two distances, or -1 for a miss.
@@ -1317,6 +1300,12 @@ void main() {
     float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
     col = mix(col, vec3(luma), overcast * 0.5);
 
+#ifdef ES_LINEAR
+#else
+    // A gamma frame holds codes, and the sky so far is light: written as it is, a noon sky of 117, 130, 150 came out 45, 57, 79.
+    col = linearToSrgb(col);
+#endif
+
     if (covered) {
         // Under the geometry by its coverage; a mark in the alpha (a scattering surface's 0.996) is kept, a partial edge becomes whole.
         fragColor = vec4(src.rgb + (1.0 - src.a) * col, src.a > 0.99 ? src.a : 1.0);
@@ -1343,11 +1332,7 @@ ${IGN_WGSL}
 ${VALUE_NOISE3_WGSL}
 
 fn lin(c : vec3f) -> vec3f {
-#ifdef ES_LINEAR
     return srgbToLinear(c);
-#else
-    return c;
-#endif
 }
 
 ${SPHERE_HIT_WGSL}
@@ -1496,6 +1481,11 @@ fn upsampledClouds(uv : vec2f) -> CloudRead {
 
     let luma = dot(col, vec3f(0.2126, 0.7152, 0.0722));
     col = mix(col, vec3f(luma), overcast * 0.5);
+
+#ifdef ES_LINEAR
+#else
+    col = linearToSrgb(col);
+#endif
 
     if (covered) {
         return vec4f(src.rgb + (1.0 - src.a) * col, select(1.0, src.a, src.a > 0.99));
