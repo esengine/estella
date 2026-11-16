@@ -152,4 +152,7 @@ export async function runBakeAcross(plan: NormalBakePlan, jobs: number): Promise
     return count;
 }
 
-if (!isMainThread && parentPort && (workerData as Partial<Shift> | null)?.tag === TAG) serve(workerData as Shift, parentPort);
+/** True on a thread this module started to share a bake, which a host that bundles it into a worker of its own has to tell from its own. */
+export const inProbeWorker = !isMainThread && !!parentPort && (workerData as Partial<Shift> | null)?.tag === TAG;
+
+if (inProbeWorker) serve(workerData as Shift, parentPort!);

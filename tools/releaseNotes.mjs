@@ -5178,4 +5178,8 @@ export const NOTED = {
     { note: "The space frigate has debris, blinking lights and a flash at the gate." },
   "fix(render): Auto Exposure and Sky Atmosphere work in light in a gamma project - the exposure meters and scales what the codes stand for, and the sky is encoded for a gamma frame in what it draws and what it lights with":
     { note: "Auto Exposure and Sky Atmosphere are no longer dark in a gamma project." },
+  "fix(modeling): a model's bake can be asked for as a job that crosses a thread - what a writer needs of a bake is the mesh file's bytes, the maps and the joints, with a normalBake spread over the cores and its probes kept":
+    { note: "A dense model no longer freezes the editor while it bakes." },
+  "fix(modeling): a model bakes on a thread of the main process, so a dense one no longer holds the window":
+    { note: "A dense model no longer freezes the editor while it bakes." },
 };
