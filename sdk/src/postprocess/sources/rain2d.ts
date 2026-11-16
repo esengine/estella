@@ -16,11 +16,13 @@
  */
 import type { ShaderHandle } from '../../render/material';
 import { Material } from '../../render/material';
+import { HASH11_GLSL, HASH21_GLSL } from '../../render/shaderLib';
+import { RAIN_STREAKS_GLSL } from './shared';
 
 
 const GLSL = `
-float hash11(float n) { return fract(sin(n * 127.1) * 43758.5453); }
-float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+${HASH11_GLSL}
+${HASH21_GLSL}
 float vnoise(vec2 p) {
     vec2 i = floor(p);
     vec2 f = fract(p);
@@ -39,22 +41,7 @@ vec2 maskAt(vec2 w) {
     return vec2(m.a, m.r);
 }
 /// One layer of streaks: columns across the screen, one streak per cell at most, scrolling down.
-float streaks(vec2 uv, float aspect, float cols, float speed, float seed, float T) {
-    vec2 q = vec2(uv.x * aspect - uv.y * u_wind, uv.y);
-    float cx = floor(q.x * cols);
-    float fx = fract(q.x * cols);
-    float h1 = hash11(cx + seed);
-    float h2 = hash11(cx * 1.7 + seed * 3.1);
-    float y = q.y * 4.0 + T * speed * (0.8 + 0.4 * h1) + h2 * 17.0;
-    float cell = floor(y);
-    float fy = fract(y);
-    float here = hash11(cx * 31.0 + cell + seed);
-    if (here > u_intensity * 0.5) return 0.0;
-    float dx = abs(fx - 0.5 - (hash11(cell + cx) - 0.5) * 0.6);
-    float across = 1.0 - smoothstep(0.0, 0.06, dx);
-    float along = (1.0 - fy / u_streakLength) * step(fy, u_streakLength);
-    return across * along;
-}`;
+${RAIN_STREAKS_GLSL}`;
 
 const SOURCE = `#pragma shader "PP Rain 2D"
 #pragma version 300 es
@@ -143,5 +130,4 @@ void main() {
 export const rain2dEffects = {
     createRain2d(): ShaderHandle {
         return Material.compileShader(SOURCE);
-    },
-};
+    } };

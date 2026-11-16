@@ -157,3 +157,24 @@ vec3 envSky(vec3 R, float roughness) {
     vec3 b = envSkyMip(R, min(lo + 1.0, u_envParams.z));
     return mix(a, b, lod - lo) * u_envTint.rgb;
 }`;
+
+/** Where a full-screen pass's view ray starts: the near plane of a perspective eye; for an orthographic eye (whose depth range runs from far behind the camera, near = -far) the plane the camera stands in, mid-depth. Needs worldFromDepth and the camera block. */
+export const RAY_START_GLSL = `vec3 rayStart(vec2 uv) { return worldFromDepth(uv, u_camera.w > 0.5 ? 0.0 : 0.5); }`;
+/** One layer of falling rain streaks over the screen. Needs hash11 and the rain uniforms (u_wind, u_intensity, u_streakLength). */
+export const RAIN_STREAKS_GLSL = `float streaks(vec2 uv, float aspect, float cols, float speed, float seed, float T) {
+    vec2 q = vec2(uv.x * aspect - uv.y * u_wind, uv.y);
+    float cx = floor(q.x * cols);
+    float fx = fract(q.x * cols);
+    float h1 = hash11(cx + seed);
+    float h2 = hash11(cx * 1.7 + seed * 3.1);
+    // GL rows run up the screen, so a pattern that falls moves toward lower rows.
+    float y = q.y * 4.0 + T * speed * (0.8 + 0.4 * h1) + h2 * 17.0;
+    float cell = floor(y);
+    float fy = fract(y);
+    float here = hash11(cx * 31.0 + cell + seed);
+    if (here > u_intensity * 0.5) return 0.0;
+    float dx = abs(fx - 0.5 - (hash11(cell + cx) - 0.5) * 0.6);
+    float across = 1.0 - smoothstep(0.0, 0.06, dx);
+    float along = (1.0 - fy / u_streakLength) * step(fy, u_streakLength);
+    return across * along;
+}`;

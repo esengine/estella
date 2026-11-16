@@ -11,6 +11,7 @@ import { gtaoPasses } from '../gtao';
 import { subsurfacePasses } from '../subsurface';
 import { voxelGIFallback } from '../voxelGIFallback';
 import { SSAO_GLSL, PUDDLE_GLSL, BASIN_GLSL, GBUFFER_GLSL, ENV_GLSL } from './shared';
+import { IGN_GLSL } from '../../render/shaderLib';
 
 export const lightingEffects = {
     /**
@@ -156,9 +157,7 @@ const int REFINE = 6;
 
 /// Interleaved gradient noise: a different start offset per pixel, so the stepping
 /// bands dissolve into noise that a temporal pass then averages away.
-float ign(vec2 p) {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
-}
+${IGN_GLSL}
 /// The screen uv a world point lands on, and whether it is in front of the camera.
 vec3 project(vec3 P) {
     vec4 c = u_projection * vec4(P, 1.0);
@@ -361,9 +360,7 @@ void main() {
         const GLSL = `
 const int RAYS = 8;
 const int STEPS = 6;
-float ign(vec2 p) {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
-}
+${IGN_GLSL}
 /// A direction over the hemisphere of N, cosine weighted, from two numbers in [0, 1).
 vec3 cosineDirection(vec3 N, float u, float v) {
     float r = sqrt(u);
@@ -542,9 +539,7 @@ const int STEPS = 20;
 
 ${SSAO_GLSL}
 
-float ign(vec2 p) {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
-}
+${IGN_GLSL}
 
 void main() {
     vec4 src = texture(u_texture, v_texCoord);
@@ -634,9 +629,7 @@ out vec4 fragColor;
 
 const int SAMPLES = 40;
 
-float ign(vec2 p) {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
-}
+${IGN_GLSL}
 
 void main() {
     vec4 src = texture(u_texture, v_texCoord);
@@ -965,9 +958,7 @@ void main() {
         const GLSL = `
 const int TAPS = 64;
 const float TAU = 6.2831853;
-float ign(vec2 p) {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
-}
+${IGN_GLSL}
 /// A point of the unit disc pushed out to the n-gon that has the disc as its circumscribing circle.
 vec2 shapeTap(vec2 p, float blades, float turn) {
     if (blades < 2.5) return p;

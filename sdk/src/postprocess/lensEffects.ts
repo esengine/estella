@@ -10,6 +10,7 @@
 import type { ShaderHandle } from '../render/material';
 import { Material } from '../render/material';
 import { SSAO_GLSL } from './sources/shared';
+import { IGN_GLSL } from '../render/shaderLib';
 
 export const lensEffects = {
     /**
@@ -47,9 +48,7 @@ out vec4 fragColor;
 
 ${SSAO_GLSL}
 
-float ign(vec2 p) {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
-}
+${IGN_GLSL}
 
 void main() {
     vec4 cur = texture(u_texture, v_texCoord);

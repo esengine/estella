@@ -9,6 +9,141 @@
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
 import { CAUSTICS_GLSL } from '../render/waterCaustics';
 import { WAVE_SET, WAVE_SET_SIZE } from './waves';
+import { PACK_NORMAL_GLSL } from '../render/shaderLib';
+
+// Functions more than one of this file's shaders is written with, once each in both languages.
+const WATER_ZONE_AT_GLSL = `vec4 waterZoneAt(vec2 p) {
+    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
+    bool inside = all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)));
+    ivec2 size = textureSize(u_zoneHeights, 0);
+    vec2 f = clamp(uv, 0.0, 1.0) * vec2(size - 1);
+    ivec2 i = min(ivec2(floor(f)), max(size - 2, ivec2(0)));
+    vec2 t = f - vec2(i);
+    vec4 a = texelFetch(u_zoneHeights, i, 0), b = texelFetch(u_zoneHeights, i + ivec2(1, 0), 0);
+    vec4 c = texelFetch(u_zoneHeights, i + ivec2(0, 1), 0), d = texelFetch(u_zoneHeights, i + ivec2(1, 1), 0);
+    vec4 ha = vec4(a.r * 65280.0 + a.g * 255.0, b.r * 65280.0 + b.g * 255.0, c.r * 65280.0 + c.g * 255.0, d.r * 65280.0 + d.g * 255.0) / 65535.0;
+    float h = mix(mix(ha.x, ha.y, t.x), mix(ha.z, ha.w, t.x), t.y);
+    // The depth is stored as its square root, so the shallows (where it draws the shore) are fine: squared before blending.
+    vec2 da = mix(mix(a.ba * vec2(a.b, 1.0), b.ba * vec2(b.b, 1.0), t.x), mix(c.ba * vec2(c.b, 1.0), d.ba * vec2(d.b, 1.0), t.x), t.y);
+    // The weather (u_waveHeight) raises a body's waves only as far as the wind has room to: w is that share, and z is put so that
+    // u_waveHeight times it is the waves' height there.
+    float e = textureLod(u_zoneExposure, clamp(uv, 0.0, 1.0), 0.0).r;
+    vec4 zone = vec4(u_zoneHeight.x + h * u_zoneHeight.y, da.x * u_zoneRange.w, da.y * u_zoneRange.y * mix(1.0, u_waveHeight, e) / max(u_waveHeight, 1e-3), e);
+    return !inside && u_oceanOn > 0.5 ? vec4(u_oceanLevel, 1e6, u_oceanWaves, 1.0) : zone;
+}`;
+const WATER_ZONE_AT_WGSL = `fn waterZoneAt(p : vec2f) -> vec4f {
+    let uv = (p - mc.u_zoneOrigin) / max(mc.u_zoneSize, vec2f(1e-4));
+    let inside = all(uv >= vec2f(0.0)) && all(uv <= vec2f(1.0));
+    let size = vec2i(textureDimensions(u_zoneHeights, 0));
+    let f = clamp(uv, vec2f(0.0), vec2f(1.0)) * vec2f(size - vec2i(1));
+    let i = min(vec2i(floor(f)), max(size - vec2i(2), vec2i(0)));
+    let t = f - vec2f(i);
+    let a = textureLoad(u_zoneHeights, i, 0);
+    let b = textureLoad(u_zoneHeights, i + vec2i(1, 0), 0);
+    let c = textureLoad(u_zoneHeights, i + vec2i(0, 1), 0);
+    let d = textureLoad(u_zoneHeights, i + vec2i(1, 1), 0);
+    let ha = vec4f(a.r * 65280.0 + a.g * 255.0, b.r * 65280.0 + b.g * 255.0, c.r * 65280.0 + c.g * 255.0, d.r * 65280.0 + d.g * 255.0) / 65535.0;
+    let h = mix(mix(ha.x, ha.y, t.x), mix(ha.z, ha.w, t.x), t.y);
+    // The depth is stored as its square root, so the shallows (where it draws the shore) are fine: squared before blending.
+    let da = mix(mix(a.ba * vec2f(a.b, 1.0), b.ba * vec2f(b.b, 1.0), t.x), mix(c.ba * vec2f(c.b, 1.0), d.ba * vec2f(d.b, 1.0), t.x), t.y);
+    let e = textureSampleLevel(u_zoneExposure, u_zoneExposure_s, clamp(uv, vec2f(0.0), vec2f(1.0)), 0.0).r;
+    if (!inside && mc.u_oceanOn > 0.5) { return vec4f(mc.u_oceanLevel, 1e6, mc.u_oceanWaves, 1.0); }
+    return vec4f(mc.u_zoneHeight.x + h * mc.u_zoneHeight.y, da.x * mc.u_zoneRange.w,
+                 da.y * mc.u_zoneRange.y * mix(1.0, mc.u_waveHeight, e) / max(mc.u_waveHeight, 1e-3), e);
+}`;
+const WATER_ZONE_FIELD_GLSL = `vec4 waterZoneField(vec2 p) {
+    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
+    vec4 f = textureLod(u_zoneField, clamp(uv, 0.0, 1.0), 0.0);
+    bool inside = all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)));
+    if (!inside) return u_oceanOn > 0.5 ? vec4(1e6, 0.0, 0.0, 1.0) : vec4(-1.0, 0.0, 0.0, 0.0);
+    float e = (f.r - 0.5) * 2.0;
+    return vec4(e * abs(e) * u_zoneRange.x, (f.gb - 0.5) * 2.0 * u_zoneRange.z, f.a);
+}`;
+const WATER_ZONE_FIELD_WGSL = `fn waterZoneField(p : vec2f) -> vec4f {
+    let uv = (p - mc.u_zoneOrigin) / max(mc.u_zoneSize, vec2f(1e-4));
+    let f = textureSampleLevel(u_zoneField, u_zoneField_s, clamp(uv, vec2f(0.0), vec2f(1.0)), 0.0);
+    let inside = all(uv >= vec2f(0.0)) && all(uv <= vec2f(1.0));
+    if (!inside) {
+        if (mc.u_oceanOn > 0.5) { return vec4f(1e6, 0.0, 0.0, 1.0); }
+        return vec4f(-1.0, 0.0, 0.0, 0.0);
+    }
+    let e = (f.r - 0.5) * 2.0;
+    return vec4f(e * abs(e) * mc.u_zoneRange.x, (f.gb - vec2f(0.5)) * 2.0 * mc.u_zoneRange.z, f.a);
+}`;
+const WATER_ZONE_SURF_GLSL = `float waterZoneSurf(vec2 p) {
+    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
+    bool inside = all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)));
+    float e = (textureLod(u_zoneExposure, clamp(uv, 0.0, 1.0), 0.0).g - 0.5) * 2.0;
+    return inside ? e * abs(e) * u_zoneRange.x : u_oceanOn > 0.5 ? 1e6 : -1.0;
+}`;
+const WATER_ZONE_SURF_WGSL = `fn waterZoneSurf(p : vec2f) -> f32 {
+    let uv = (p - mc.u_zoneOrigin) / max(mc.u_zoneSize, vec2f(1e-4));
+    let inside = all(uv >= vec2f(0.0)) && all(uv <= vec2f(1.0));
+    let e = (textureSampleLevel(u_zoneExposure, u_zoneExposure_s, clamp(uv, vec2f(0.0), vec2f(1.0)), 0.0).g - 0.5) * 2.0;
+    if (inside) { return e * abs(e) * mc.u_zoneRange.x; }
+    if (mc.u_oceanOn > 0.5) { return 1e6; }
+    return -1.0;
+}`;
+const WATER_ZONE_STILL_GLSL = `float waterZoneStill(vec2 p) {
+    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
+    return textureLod(u_zoneExposure, clamp(uv, 0.0, 1.0), 0.0).b;
+}`;
+const WATER_ZONE_STILL_WGSL = `fn waterZoneStill(p : vec2f) -> f32 {
+    let uv = (p - mc.u_zoneOrigin) / max(mc.u_zoneSize, vec2f(1e-4));
+    return textureSampleLevel(u_zoneExposure, u_zoneExposure_s, clamp(uv, vec2f(0.0), vec2f(1.0)), 0.0).b;
+}`;
+const WATER_ZONE_STEEP_GLSL = `float waterZoneSteep(vec2 p) {
+    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
+    return textureLod(u_zoneExposure, clamp(uv, 0.0, 1.0), 0.0).a;
+}`;
+const WATER_ZONE_STEEP_WGSL = `fn waterZoneSteep(p : vec2f) -> f32 {
+    let uv = (p - mc.u_zoneOrigin) / max(mc.u_zoneSize, vec2f(1e-4));
+    return textureSampleLevel(u_zoneExposure, u_zoneExposure_s, clamp(uv, vec2f(0.0), vec2f(1.0)), 0.0).a;
+}`;
+const WATER_SURF_GLSL = `vec2 waterSurf(float phase, float shore, float height, float time) {
+    if (height <= 0.0 || u_surfLength <= 0.0) return vec2(0.0);
+    float reach = u_surfLength * 4.0;
+    if (shore > reach || shore < -reach * 0.05) return vec2(0.0);
+    float celerity = sqrt(9.8 * u_surfLength / 6.2831853) * u_surfSpeed;
+    float u = fract(phase / u_surfLength + celerity * time / u_surfLength);
+    float g = u > 0.8 ? smoothstep(0.0, 1.0, (u - 0.8) / 0.2) : 1.0 - smoothstep(0.0, 1.0, u / 0.8);
+    float shoal = 1.0 - smoothstep(0.0, 1.0, (shore - reach * 0.25) / (reach * 0.75));
+    float runUp = shore >= 0.0 ? 1.0 : 1.0 - smoothstep(0.0, 1.0, -shore / (reach * 0.05));
+    float env = shoal * runUp;
+    // It breaks in the inner third: the crest whitens, and the water behind it stays white a while.
+    float breaking = 1.0 - smoothstep(reach * 0.15, reach * 0.4, shore);
+    // A wave breaks only when it is steep for its length: a lake's small surf laps, the sea's breaks white.
+    float steep = smoothstep(0.012, 0.045, height / u_surfLength);
+    float white = breaking * steep * max(smoothstep(0.75, 1.0, g), (1.0 - smoothstep(0.0, 0.35, u)) * 0.8) * env;
+    return vec2(height * g * g * env, white);
+}`;
+const WATER_SURF_WGSL = `fn waterSurf(phase : f32, shore : f32, height : f32, time : f32) -> vec2f {
+    if (height <= 0.0 || mc.u_surfLength <= 0.0) { return vec2f(0.0); }
+    let reach = mc.u_surfLength * 4.0;
+    if (shore > reach || shore < -reach * 0.05) { return vec2f(0.0); }
+    let celerity = sqrt(9.8 * mc.u_surfLength / 6.2831853) * mc.u_surfSpeed;
+    let u = fract(phase / mc.u_surfLength + celerity * time / mc.u_surfLength);
+    var g = 1.0 - smoothstep(0.0, 1.0, u / 0.8);
+    if (u > 0.8) { g = smoothstep(0.0, 1.0, (u - 0.8) / 0.2); }
+    let shoal = 1.0 - smoothstep(0.0, 1.0, (shore - reach * 0.25) / (reach * 0.75));
+    var runUp = 1.0;
+    if (shore < 0.0) { runUp = 1.0 - smoothstep(0.0, 1.0, -shore / (reach * 0.05)); }
+    let env = shoal * runUp;
+    let breaking = 1.0 - smoothstep(reach * 0.15, reach * 0.4, shore);
+    let steep = smoothstep(0.012, 0.045, height / mc.u_surfLength);
+    let white = breaking * steep * max(smoothstep(0.75, 1.0, g), (1.0 - smoothstep(0.0, 0.35, u)) * 0.8) * env;
+    return vec2f(height * g * g * env, white);
+}`;
+const WATER_BEND_GLSL = `vec4 waterBend(vec2 p, float span) {
+    vec2 q = p / span;
+    return vec4(p.x + span * 0.45 * sin(q.y * 0.73 + 1.3), p.y + span * 0.45 * sin(q.x * 0.61 + 2.7),
+                0.3285 * cos(q.y * 0.73 + 1.3), 0.2745 * cos(q.x * 0.61 + 2.7));
+}`;
+const WATER_BEND_WGSL = `fn waterBend(p : vec2f, span : f32) -> vec4f {
+    let q = p / span;
+    return vec4f(p.x + span * 0.45 * sin(q.y * 0.73 + 1.3), p.y + span * 0.45 * sin(q.x * 0.61 + 2.7),
+                 0.3285 * cos(q.y * 0.73 + 1.3), 0.2745 * cos(q.x * 0.61 + 2.7));
+}`;
 
 // The waves, written into the shader from the one table the CPU sums (waves.ts).
 const num = (v: number): string => v.toFixed(6);
@@ -159,11 +294,7 @@ const WATER = `#pragma shader "Water"
 // Where the waves are read for the true place p, bent by the given span (waves.ts: waveBend): crests of straight sines a few directions apart
 // add up to long parallel lines, a sea scored with strokes that turn with the wind. xy to read at; zw dx/dz and dz/dx, for a slope. One
 // sine an axis: this runs for every pixel of the water, and with a term more a phone paid 11 ms a frame for it.
-vec4 waterBend(vec2 p, float span) {
-    vec2 q = p / span;
-    return vec4(p.x + span * 0.45 * sin(q.y * 0.73 + 1.3), p.y + span * 0.45 * sin(q.x * 0.61 + 2.7),
-                0.3285 * cos(q.y * 0.73 + 1.3), 0.2745 * cos(q.x * 0.61 + 2.7));
-}
+${WATER_BEND_GLSL}
 float waterWaveHeight(vec2 p, float time, float cell) {
     vec2 at = waterBend(p, u_waveLength).xy;
     ${WAVES_GLSL}
@@ -183,71 +314,19 @@ float waterWaveHeight(vec2 p, float time, float cell) {
 }
 // The zone's water at p: its surface's height, its depth and how high its waves stand, each texel decoded before the four about p are blended
 // (bytes blended are no number). Past the region: the ocean's, where there is one.
-vec4 waterZoneAt(vec2 p) {
-    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
-    bool inside = all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)));
-    ivec2 size = textureSize(u_zoneHeights, 0);
-    vec2 f = clamp(uv, 0.0, 1.0) * vec2(size - 1);
-    ivec2 i = min(ivec2(floor(f)), max(size - 2, ivec2(0)));
-    vec2 t = f - vec2(i);
-    vec4 a = texelFetch(u_zoneHeights, i, 0), b = texelFetch(u_zoneHeights, i + ivec2(1, 0), 0);
-    vec4 c = texelFetch(u_zoneHeights, i + ivec2(0, 1), 0), d = texelFetch(u_zoneHeights, i + ivec2(1, 1), 0);
-    vec4 ha = vec4(a.r * 65280.0 + a.g * 255.0, b.r * 65280.0 + b.g * 255.0, c.r * 65280.0 + c.g * 255.0, d.r * 65280.0 + d.g * 255.0) / 65535.0;
-    float h = mix(mix(ha.x, ha.y, t.x), mix(ha.z, ha.w, t.x), t.y);
-    // The depth is stored as its square root, so the shallows (where it draws the shore) are fine: squared before blending.
-    vec2 da = mix(mix(a.ba * vec2(a.b, 1.0), b.ba * vec2(b.b, 1.0), t.x), mix(c.ba * vec2(c.b, 1.0), d.ba * vec2(d.b, 1.0), t.x), t.y);
-    // The weather (u_waveHeight) raises a body's waves only as far as the wind has room to: w is that share, and z is put so that
-    // u_waveHeight times it is the waves' height there.
-    float e = textureLod(u_zoneExposure, clamp(uv, 0.0, 1.0), 0.0).r;
-    vec4 zone = vec4(u_zoneHeight.x + h * u_zoneHeight.y, da.x * u_zoneRange.w, da.y * u_zoneRange.y * mix(1.0, u_waveHeight, e) / max(u_waveHeight, 1e-3), e);
-    return !inside && u_oceanOn > 0.5 ? vec4(u_oceanLevel, 1e6, u_oceanWaves, 1.0) : zone;
-}
+${WATER_ZONE_AT_GLSL}
 // The zone's field at p, decoded: the shore distance, the current, and the share of its waves a place keeps. Past the region: the ocean's.
-vec4 waterZoneField(vec2 p) {
-    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
-    vec4 f = textureLod(u_zoneField, clamp(uv, 0.0, 1.0), 0.0);
-    bool inside = all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)));
-    if (!inside) return u_oceanOn > 0.5 ? vec4(1e6, 0.0, 0.0, 1.0) : vec4(-1.0, 0.0, 0.0, 0.0);
-    float e = (f.r - 0.5) * 2.0;
-    return vec4(e * abs(e) * u_zoneRange.x, (f.gb - 0.5) * 2.0 * u_zoneRange.z, f.a);
-}
+${WATER_ZONE_FIELD_GLSL}
 // The distance the surf runs in by at p: the shore's with a river's water taken for land and smoothed over the surf's length, so the crests
 // come in as lines that turn to the shore as they near it and run straight across a river's mouth. Past the region: the ocean's.
-float waterZoneSurf(vec2 p) {
-    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
-    bool inside = all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)));
-    float e = (textureLod(u_zoneExposure, clamp(uv, 0.0, 1.0), 0.0).g - 0.5) * 2.0;
-    return inside ? e * abs(e) * u_zoneRange.x : u_oceanOn > 0.5 ? 1e6 : -1.0;
-}
+${WATER_ZONE_SURF_GLSL}
 // How much of the surf a current leaves at p: none in a river, and more and more of it away from where the river runs out into open water.
-float waterZoneStill(vec2 p) {
-    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
-    return textureLod(u_zoneExposure, clamp(uv, 0.0, 1.0), 0.0).b;
-}
+${WATER_ZONE_STILL_GLSL}
 // How steep the shore is at p: 0 a gentle beach (waves wash up it), 1 rock or a cliff (they burst white on it).
-float waterZoneSteep(vec2 p) {
-    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
-    return textureLod(u_zoneExposure, clamp(uv, 0.0, 1.0), 0.0).a;
-}
+${WATER_ZONE_STEEP_GLSL}
 // The surf (waves.ts surfHeight): its crests are lines of phase (the distance the surf runs in by), and it rises, breaks and runs up by
 // shore, the real distance to the shore. x its height, y how broken it is (white water on and behind a breaking crest).
-vec2 waterSurf(float phase, float shore, float height, float time) {
-    if (height <= 0.0 || u_surfLength <= 0.0) return vec2(0.0);
-    float reach = u_surfLength * 4.0;
-    if (shore > reach || shore < -reach * 0.05) return vec2(0.0);
-    float celerity = sqrt(9.8 * u_surfLength / 6.2831853) * u_surfSpeed;
-    float u = fract(phase / u_surfLength + celerity * time / u_surfLength);
-    float g = u > 0.8 ? smoothstep(0.0, 1.0, (u - 0.8) / 0.2) : 1.0 - smoothstep(0.0, 1.0, u / 0.8);
-    float shoal = 1.0 - smoothstep(0.0, 1.0, (shore - reach * 0.25) / (reach * 0.75));
-    float runUp = shore >= 0.0 ? 1.0 : 1.0 - smoothstep(0.0, 1.0, -shore / (reach * 0.05));
-    float env = shoal * runUp;
-    // It breaks in the inner third: the crest whitens, and the water behind it stays white a while.
-    float breaking = 1.0 - smoothstep(reach * 0.15, reach * 0.4, shore);
-    // A wave breaks only when it is steep for its length: a lake's small surf laps, the sea's breaks white.
-    float steep = smoothstep(0.012, 0.045, height / u_surfLength);
-    float white = breaking * steep * max(smoothstep(0.75, 1.0, g), (1.0 - smoothstep(0.0, 0.35, u)) * 0.8) * env;
-    return vec2(height * g * g * env, white);
-}
+${WATER_SURF_GLSL}
 void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
     if (u_waveSpace < 0.5) return;
     vec2 p = uv + u_origin;
@@ -266,11 +345,7 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
 #pragma end
 
 #pragma vertexoffset wgsl
-fn waterBend(p : vec2f, span : f32) -> vec4f {
-    let q = p / span;
-    return vec4f(p.x + span * 0.45 * sin(q.y * 0.73 + 1.3), p.y + span * 0.45 * sin(q.x * 0.61 + 2.7),
-                 0.3285 * cos(q.y * 0.73 + 1.3), 0.2745 * cos(q.x * 0.61 + 2.7));
-}
+${WATER_BEND_WGSL}
 fn waterWaveHeight(p : vec2f, time : f32, cell : f32) -> f32 {
     let at = waterBend(p, mc.u_waveLength).xy;
     ${WAVES_WGSL}
@@ -290,74 +365,16 @@ fn waterWaveHeight(p : vec2f, time : f32, cell : f32) -> f32 {
     }
     return height;
 }
-fn waterZoneAt(p : vec2f) -> vec4f {
-    let uv = (p - mc.u_zoneOrigin) / max(mc.u_zoneSize, vec2f(1e-4));
-    let inside = all(uv >= vec2f(0.0)) && all(uv <= vec2f(1.0));
-    let size = vec2i(textureDimensions(u_zoneHeights, 0));
-    let f = clamp(uv, vec2f(0.0), vec2f(1.0)) * vec2f(size - vec2i(1));
-    let i = min(vec2i(floor(f)), max(size - vec2i(2), vec2i(0)));
-    let t = f - vec2f(i);
-    let a = textureLoad(u_zoneHeights, i, 0);
-    let b = textureLoad(u_zoneHeights, i + vec2i(1, 0), 0);
-    let c = textureLoad(u_zoneHeights, i + vec2i(0, 1), 0);
-    let d = textureLoad(u_zoneHeights, i + vec2i(1, 1), 0);
-    let ha = vec4f(a.r * 65280.0 + a.g * 255.0, b.r * 65280.0 + b.g * 255.0, c.r * 65280.0 + c.g * 255.0, d.r * 65280.0 + d.g * 255.0) / 65535.0;
-    let h = mix(mix(ha.x, ha.y, t.x), mix(ha.z, ha.w, t.x), t.y);
-    // The depth is stored as its square root, so the shallows (where it draws the shore) are fine: squared before blending.
-    let da = mix(mix(a.ba * vec2f(a.b, 1.0), b.ba * vec2f(b.b, 1.0), t.x), mix(c.ba * vec2f(c.b, 1.0), d.ba * vec2f(d.b, 1.0), t.x), t.y);
-    let e = textureSampleLevel(u_zoneExposure, u_zoneExposure_s, clamp(uv, vec2f(0.0), vec2f(1.0)), 0.0).r;
-    if (!inside && mc.u_oceanOn > 0.5) { return vec4f(mc.u_oceanLevel, 1e6, mc.u_oceanWaves, 1.0); }
-    return vec4f(mc.u_zoneHeight.x + h * mc.u_zoneHeight.y, da.x * mc.u_zoneRange.w,
-                 da.y * mc.u_zoneRange.y * mix(1.0, mc.u_waveHeight, e) / max(mc.u_waveHeight, 1e-3), e);
-}
-fn waterZoneField(p : vec2f) -> vec4f {
-    let uv = (p - mc.u_zoneOrigin) / max(mc.u_zoneSize, vec2f(1e-4));
-    let f = textureSampleLevel(u_zoneField, u_zoneField_s, clamp(uv, vec2f(0.0), vec2f(1.0)), 0.0);
-    let inside = all(uv >= vec2f(0.0)) && all(uv <= vec2f(1.0));
-    if (!inside) {
-        if (mc.u_oceanOn > 0.5) { return vec4f(1e6, 0.0, 0.0, 1.0); }
-        return vec4f(-1.0, 0.0, 0.0, 0.0);
-    }
-    let e = (f.r - 0.5) * 2.0;
-    return vec4f(e * abs(e) * mc.u_zoneRange.x, (f.gb - vec2f(0.5)) * 2.0 * mc.u_zoneRange.z, f.a);
-}
+${WATER_ZONE_AT_WGSL}
+${WATER_ZONE_FIELD_WGSL}
 // The distance the surf runs in by at p: the shore's with a river's water taken for land and smoothed over the surf's length, so the crests
 // come in as lines that turn to the shore as they near it and run straight across a river's mouth. Past the region: the ocean's.
-fn waterZoneSurf(p : vec2f) -> f32 {
-    let uv = (p - mc.u_zoneOrigin) / max(mc.u_zoneSize, vec2f(1e-4));
-    let inside = all(uv >= vec2f(0.0)) && all(uv <= vec2f(1.0));
-    let e = (textureSampleLevel(u_zoneExposure, u_zoneExposure_s, clamp(uv, vec2f(0.0), vec2f(1.0)), 0.0).g - 0.5) * 2.0;
-    if (inside) { return e * abs(e) * mc.u_zoneRange.x; }
-    if (mc.u_oceanOn > 0.5) { return 1e6; }
-    return -1.0;
-}
+${WATER_ZONE_SURF_WGSL}
 // How much of the surf a current leaves at p: none in a river, and more and more of it away from where the river runs out into open water.
-fn waterZoneStill(p : vec2f) -> f32 {
-    let uv = (p - mc.u_zoneOrigin) / max(mc.u_zoneSize, vec2f(1e-4));
-    return textureSampleLevel(u_zoneExposure, u_zoneExposure_s, clamp(uv, vec2f(0.0), vec2f(1.0)), 0.0).b;
-}
+${WATER_ZONE_STILL_WGSL}
 // How steep the shore is at p: 0 a gentle beach (waves wash up it), 1 rock or a cliff (they burst white on it).
-fn waterZoneSteep(p : vec2f) -> f32 {
-    let uv = (p - mc.u_zoneOrigin) / max(mc.u_zoneSize, vec2f(1e-4));
-    return textureSampleLevel(u_zoneExposure, u_zoneExposure_s, clamp(uv, vec2f(0.0), vec2f(1.0)), 0.0).a;
-}
-fn waterSurf(phase : f32, shore : f32, height : f32, time : f32) -> vec2f {
-    if (height <= 0.0 || mc.u_surfLength <= 0.0) { return vec2f(0.0); }
-    let reach = mc.u_surfLength * 4.0;
-    if (shore > reach || shore < -reach * 0.05) { return vec2f(0.0); }
-    let celerity = sqrt(9.8 * mc.u_surfLength / 6.2831853) * mc.u_surfSpeed;
-    let u = fract(phase / mc.u_surfLength + celerity * time / mc.u_surfLength);
-    var g = 1.0 - smoothstep(0.0, 1.0, u / 0.8);
-    if (u > 0.8) { g = smoothstep(0.0, 1.0, (u - 0.8) / 0.2); }
-    let shoal = 1.0 - smoothstep(0.0, 1.0, (shore - reach * 0.25) / (reach * 0.75));
-    var runUp = 1.0;
-    if (shore < 0.0) { runUp = 1.0 - smoothstep(0.0, 1.0, -shore / (reach * 0.05)); }
-    let env = shoal * runUp;
-    let breaking = 1.0 - smoothstep(reach * 0.15, reach * 0.4, shore);
-    let steep = smoothstep(0.012, 0.045, height / mc.u_surfLength);
-    let white = breaking * steep * max(smoothstep(0.75, 1.0, g), (1.0 - smoothstep(0.0, 0.35, u)) * 0.8) * env;
-    return vec2f(height * g * g * env, white);
-}
+${WATER_ZONE_STEEP_WGSL}
+${WATER_SURF_WGSL}
 fn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, vec3f>, uv : vec2f) {
     if (mc.u_waveSpace < 0.5) { return; }
     let p = uv + mc.u_origin;
@@ -394,12 +411,7 @@ layout(location = 1) out vec4 fragSurface;
 // The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
 layout(location = 2) out vec4 fragAlbedo;
 
-vec2 packNormal(vec3 n) {
-    n /= (abs(n.x) + abs(n.y) + abs(n.z));
-    vec2 sgn = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
-    vec2 e = n.z >= 0.0 ? n.xy : (1.0 - abs(n.yx)) * sgn;
-    return e * 0.5 + 0.5;
-}
+${PACK_NORMAL_GLSL}
 #else
 out vec4 fragColor;
 #endif
@@ -407,11 +419,7 @@ out vec4 fragColor;
 // Where the waves are read for the true place p, bent by the given span (waves.ts: waveBend): crests of straight sines a few directions apart
 // add up to long parallel lines, a sea scored with strokes that turn with the wind. xy to read at; zw dx/dz and dz/dx, for a slope. One
 // sine an axis: this runs for every pixel of the water, and with a term more a phone paid 11 ms a frame for it.
-vec4 waterBend(vec2 p, float span) {
-    vec2 q = p / span;
-    return vec4(p.x + span * 0.45 * sin(q.y * 0.73 + 1.3), p.y + span * 0.45 * sin(q.x * 0.61 + 2.7),
-                0.3285 * cos(q.y * 0.73 + 1.3), 0.2745 * cos(q.x * 0.61 + 2.7));
-}
+${WATER_BEND_GLSL}
 float waterHash(vec2 p) {
     p = fract(p * vec2(0.1031, 0.1030));
     p += dot(p, p.yx + 33.33);
@@ -503,71 +511,19 @@ ${SLOPES_GLSL}
 ${CAUSTICS_GLSL}
 // The zone's water at p: its surface's height, its depth and how high its waves stand, each texel decoded before the four about p are blended
 // (bytes blended are no number). Past the region: the ocean's, where there is one.
-vec4 waterZoneAt(vec2 p) {
-    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
-    bool inside = all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)));
-    ivec2 size = textureSize(u_zoneHeights, 0);
-    vec2 f = clamp(uv, 0.0, 1.0) * vec2(size - 1);
-    ivec2 i = min(ivec2(floor(f)), max(size - 2, ivec2(0)));
-    vec2 t = f - vec2(i);
-    vec4 a = texelFetch(u_zoneHeights, i, 0), b = texelFetch(u_zoneHeights, i + ivec2(1, 0), 0);
-    vec4 c = texelFetch(u_zoneHeights, i + ivec2(0, 1), 0), d = texelFetch(u_zoneHeights, i + ivec2(1, 1), 0);
-    vec4 ha = vec4(a.r * 65280.0 + a.g * 255.0, b.r * 65280.0 + b.g * 255.0, c.r * 65280.0 + c.g * 255.0, d.r * 65280.0 + d.g * 255.0) / 65535.0;
-    float h = mix(mix(ha.x, ha.y, t.x), mix(ha.z, ha.w, t.x), t.y);
-    // The depth is stored as its square root, so the shallows (where it draws the shore) are fine: squared before blending.
-    vec2 da = mix(mix(a.ba * vec2(a.b, 1.0), b.ba * vec2(b.b, 1.0), t.x), mix(c.ba * vec2(c.b, 1.0), d.ba * vec2(d.b, 1.0), t.x), t.y);
-    // The weather (u_waveHeight) raises a body's waves only as far as the wind has room to: w is that share, and z is put so that
-    // u_waveHeight times it is the waves' height there.
-    float e = textureLod(u_zoneExposure, clamp(uv, 0.0, 1.0), 0.0).r;
-    vec4 zone = vec4(u_zoneHeight.x + h * u_zoneHeight.y, da.x * u_zoneRange.w, da.y * u_zoneRange.y * mix(1.0, u_waveHeight, e) / max(u_waveHeight, 1e-3), e);
-    return !inside && u_oceanOn > 0.5 ? vec4(u_oceanLevel, 1e6, u_oceanWaves, 1.0) : zone;
-}
+${WATER_ZONE_AT_GLSL}
 // The zone's field at p, decoded: the shore distance, the current, and the share of its waves a place keeps. Past the region: the ocean's.
-vec4 waterZoneField(vec2 p) {
-    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
-    vec4 f = textureLod(u_zoneField, clamp(uv, 0.0, 1.0), 0.0);
-    bool inside = all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)));
-    if (!inside) return u_oceanOn > 0.5 ? vec4(1e6, 0.0, 0.0, 1.0) : vec4(-1.0, 0.0, 0.0, 0.0);
-    float e = (f.r - 0.5) * 2.0;
-    return vec4(e * abs(e) * u_zoneRange.x, (f.gb - 0.5) * 2.0 * u_zoneRange.z, f.a);
-}
+${WATER_ZONE_FIELD_GLSL}
 // The distance the surf runs in by at p: the shore's with a river's water taken for land and smoothed over the surf's length, so the crests
 // come in as lines that turn to the shore as they near it and run straight across a river's mouth. Past the region: the ocean's.
-float waterZoneSurf(vec2 p) {
-    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
-    bool inside = all(greaterThanEqual(uv, vec2(0.0))) && all(lessThanEqual(uv, vec2(1.0)));
-    float e = (textureLod(u_zoneExposure, clamp(uv, 0.0, 1.0), 0.0).g - 0.5) * 2.0;
-    return inside ? e * abs(e) * u_zoneRange.x : u_oceanOn > 0.5 ? 1e6 : -1.0;
-}
+${WATER_ZONE_SURF_GLSL}
 // How much of the surf a current leaves at p: none in a river, and more and more of it away from where the river runs out into open water.
-float waterZoneStill(vec2 p) {
-    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
-    return textureLod(u_zoneExposure, clamp(uv, 0.0, 1.0), 0.0).b;
-}
+${WATER_ZONE_STILL_GLSL}
 // How steep the shore is at p: 0 a gentle beach (waves wash up it), 1 rock or a cliff (they burst white on it).
-float waterZoneSteep(vec2 p) {
-    vec2 uv = (p - u_zoneOrigin) / max(u_zoneSize, vec2(1e-4));
-    return textureLod(u_zoneExposure, clamp(uv, 0.0, 1.0), 0.0).a;
-}
+${WATER_ZONE_STEEP_GLSL}
 // The surf (waves.ts surfHeight): its crests are lines of phase (the distance the surf runs in by), and it rises, breaks and runs up by
 // shore, the real distance to the shore. x its height, y how broken it is (white water on and behind a breaking crest).
-vec2 waterSurf(float phase, float shore, float height, float time) {
-    if (height <= 0.0 || u_surfLength <= 0.0) return vec2(0.0);
-    float reach = u_surfLength * 4.0;
-    if (shore > reach || shore < -reach * 0.05) return vec2(0.0);
-    float celerity = sqrt(9.8 * u_surfLength / 6.2831853) * u_surfSpeed;
-    float u = fract(phase / u_surfLength + celerity * time / u_surfLength);
-    float g = u > 0.8 ? smoothstep(0.0, 1.0, (u - 0.8) / 0.2) : 1.0 - smoothstep(0.0, 1.0, u / 0.8);
-    float shoal = 1.0 - smoothstep(0.0, 1.0, (shore - reach * 0.25) / (reach * 0.75));
-    float runUp = shore >= 0.0 ? 1.0 : 1.0 - smoothstep(0.0, 1.0, -shore / (reach * 0.05));
-    float env = shoal * runUp;
-    // It breaks in the inner third: the crest whitens, and the water behind it stays white a while.
-    float breaking = 1.0 - smoothstep(reach * 0.15, reach * 0.4, shore);
-    // A wave breaks only when it is steep for its length: a lake's small surf laps, the sea's breaks white.
-    float steep = smoothstep(0.012, 0.045, height / u_surfLength);
-    float white = breaking * steep * max(smoothstep(0.75, 1.0, g), (1.0 - smoothstep(0.0, 0.35, u)) * 0.8) * env;
-    return vec2(height * g * g * env, white);
-}
+${WATER_SURF_GLSL}
 /// The first directional light that shines: xyz is where it stands in the sky, w 1 if there is one, color its colour and strength, tiles its place in the shadow atlas.
 void waterSun(out vec4 dir, out vec4 color, out ivec2 tiles) {
     dir = vec4(0.0);
