@@ -494,6 +494,8 @@ export interface ExportGameOptions {
   /** Project-relative scenes dir (manifest layout); default the entry's dir.
    *  Every `.esscene` under it ships as a switchable scene. */
   scenesDir?: string;
+  /** A playable inlines its entry scene alone unless this says `all`: then every scene of the scenes folder, as the web export carries. */
+  playableScenes?: 'entry' | 'all';
   /** Scenes excluded from the build (`packaging.excludeScenes`); the entry
    *  scene always ships. */
   excludeScenes?: string[];
@@ -901,6 +903,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     return await exportPlayable({
       root: opts.root,
       entryScene: opts.entryScene,
+      ...(opts.playableScenes === 'all' ? { scenesDir: opts.scenesDir ?? path.dirname(opts.entryScene), excludeScenes: opts.excludeScenes } : {}),
       scriptsEntry: opts.scriptsEntry,
       hostsDir: opts.hostsDir,
       packagesDir: opts.packagesDir,

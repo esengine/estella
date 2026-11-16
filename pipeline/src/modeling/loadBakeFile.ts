@@ -6,15 +6,15 @@ export type ModelProductRole = typeof MODEL_PRODUCT_ROLES[number];
 
 export interface ModelBakesFile {
     version: 1;
-    models: { source: string; text: string; products: Partial<Record<ModelProductRole, string>> }[];
+    models: { source: string; text: string; products: Partial<Record<ModelProductRole, string | string[]>> }[];
 }
 
 const UNBAKEABLE = ['boolean', 'fracture'];
 
 export const bakesAtLoad = (raw: unknown): boolean => {
-    const source = raw as { normalBake?: unknown; steps?: { op: string; steps?: unknown }[] };
+    const source = raw as { steps?: { op: string; steps?: unknown }[] };
     const plain = (steps: readonly { op: string; steps?: unknown }[]): boolean => steps.every((step) => !UNBAKEABLE.includes(step.op) && (!Array.isArray(step.steps) || plain(step.steps as { op: string }[])));
-    return !!source.normalBake && Array.isArray(source.steps) && plain(source.steps);
+    return Array.isArray(source.steps) && plain(source.steps);
 };
 
 export function modelProductPaths(source: string): Record<ModelProductRole, string> {

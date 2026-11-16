@@ -5,6 +5,7 @@ import { TIER_SIZE, bakeTierOf, deviceFacts, type BakeStage, type ModelBakesFile
 import type { BakeAsk, BakeReply } from './modelBakeWorker';
 
 const MOST_WORKERS = 4;
+const MESH_ONLY_SIZE = 128;
 const STAGES: readonly [BakeStage, number][] = [['shape', 12], ['start', 6], ['surface', 6], ['shade', 8], ['plan', 10], ['relief', 34], ['occlusion', 6], ['paint', 9], ['finish', 9]];
 const STAGE_TOTAL = STAGES.reduce((sum, [, weight]) => sum + weight, 0);
 
@@ -24,7 +25,7 @@ export interface ModelBakes {
     serve<S extends { backend: Backend; decodePixels?: (path: string, ...rest: never[]) => Promise<Pixels> }>(source: S): S;
 }
 
-const plain = (path: string): string => path.replace(/[?#].*$/, '').replace(/^(\.?\/)+/, '');
+const plain = (path: string): string => (path.startsWith('@') ? path : path.replace(/[?#].*$/, '').replace(/^(\.?\/)+/, ''));
 
 export function sizeLimit(search: string): number {
     const asked = Number(new URLSearchParams(search).get('bake'));
@@ -35,10 +36,10 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
     const { models } = file;
     const owner = new Map<string, { model: number; role: ModelProductRole }>();
     models.forEach((model, index) => {
-        for (const [role, path] of Object.entries(model.products)) owner.set(plain(path), { model: index, role: role as ModelProductRole });
+        for (const [role, paths] of Object.entries(model.products)) for (const path of [paths].flat()) owner.set(plain(path), { model: index, role: role as ModelProductRole });
     });
     const weights = models.map((model) => {
-        const size = Number(/"normalBake":\{[^}]*?"size":(\d+)/.exec(model.text)?.[1] ?? 1024);
+        const size = Number(/"normalBake":\{[^}]*?"size":(\d+)/.exec(model.text)?.[1] ?? MESH_ONLY_SIZE);
         return Math.min(size, limit) ** 2;
     });
     const share = new Float64Array(models.length);

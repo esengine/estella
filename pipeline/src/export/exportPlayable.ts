@@ -18,6 +18,8 @@
  *        here — runtime is validated in a browser / ad preview). Pure Node (esbuild
  *        + fs); IPC wiring in main.ts.
  */
+import type { ModelBakesFile } from '../modeling/loadBakeFile';
+import { discoverProjectScenes } from './exportGame';
 import { minifiesScripts } from './scriptMinify';
 import { loadEsbuild } from '../bundle/esbuildRuntime';
 import { runtimeHostEntry } from '../bundle/runtimeHosts';
@@ -100,6 +102,8 @@ interface PackedBytes {
   /** Length before deflating. */
   n: number;
 }
+
+const PACK_FROM_BYTES = 1024;
 
 function pack(bytes: Uint8Array | Buffer): PackedBytes {
   return { z: deflateRawSync(bytes, { level: 9 }).toString('base64'), n: bytes.length };
@@ -208,6 +212,9 @@ function playableRuntimeFields(rc: Parameters<typeof packagedRuntimeFields>[0]) 
 export async function exportPlayable(opts: {
   root: string;
   entryScene: string;
+  /** With this, every scene of the folder is inlined beside the entry (a game that switches scenes); without it, the entry alone, as an ad is. */
+  scenesDir?: string;
+  excludeScenes?: string[];
   scriptsEntry?: string;
   hostsDir: string;
   /** The official `estella-plugin-*` packages the editor ships (`plugins/`);
@@ -263,14 +270,25 @@ export async function exportPlayable(opts: {
   // where the bytes are JOINED — reading the finished HTML back would drift.
   const spans: { path: string; bytes: number }[] = [];
 
+  const sceneList = opts.scenesDir !== undefined
+    ? await discoverProjectScenes(opts.root, opts.entryScene, opts.scenesDir, opts.excludeScenes)
+    : [{ name: path.basename(opts.entryScene).replace(/\.[^.]+$/, ''), path: opts.entryScene }];
   // 1. Cook reachable assets to a temp dir (everything ends up inlined → removed after).
   progress({ phase: 'Cooking assets' });
   // No KTX2 transcoder: PNGs honor Max Size through the raw-image path. Audio
   // uses the same per-clip settings as other targets. Neither changes sources.
   const cook = await cookAssets(opts.root, {
-    entryScenes: [opts.entryScene], outDir: cookDir, platform: 'playable',
-    resizeTextures: opts.resizeTextures, compressAudio: opts.compressAudio,
+    entryScenes: sceneList.map((scene) => scene.path), outDir: cookDir, platform: 'playable',
+    resizeTextures: opts.resizeTextures, compressAudio: opts.compressAudio, modelRecipes: true,
   });
+  let modelBakes: ModelBakesFile | null = null;
+  const baked = new Map<string, { model: number; role: string }>();
+  if (cook.modelBakes) {
+    modelBakes = JSON.parse(await readFile(path.join(cookDir, cook.modelBakes), 'utf8')) as ModelBakesFile;
+    modelBakes.models.forEach((model, index) => {
+      for (const [role, at] of Object.entries(model.products)) baked.set([at].flat()[0]!, { model: index, role });
+    });
+  }
   warnings.push(...cook.warnings);
   errors.push(...cook.failed.map(failure => `assets: ${failure}`));
 
@@ -295,8 +313,16 @@ export async function exportPlayable(opts: {
       warnings.push('cook produced atlas-packed textures, which the playable runtime cannot consume yet — export without atlasTextures for playables.');
     }
     for (const e of manifest.entries) {
-      const buf = await readFile(path.join(cookDir, e.path));
       const key = `@uuid:${e.uuid}`;
+      const left = baked.get(e.path);
+      if (left && modelBakes) {
+        const textureImport = textureImportSettingsFrom((e as { importer?: Record<string, unknown> }).importer);
+        if (textureImport) textureImports[e.uuid.toLowerCase()] = { path: e.sourcePath ?? e.path, type: 'texture', size: 0, labels: [], textureImport };
+        (modelBakes.models[left.model]!.products as Record<string, string[]>)[left.role] = [key, e.sourcePath ?? e.path];
+        continue;
+      }
+      if ((e as { type?: string }).type === 'scene' && sceneList.some((scene) => scene.path === (e.sourcePath ?? e.path))) continue;
+      const buf = await readFile(path.join(cookDir, e.path));
       const textureImport = textureImportSettingsFrom((e as { importer?: Record<string, unknown> }).importer);
       if (textureImport) textureImports[e.uuid.toLowerCase()] = { path: e.sourcePath ?? e.path, type: 'texture', size: 0, labels: [], textureImport };
       const dataUrl = `data:${mimeOf(e.path)};base64,${buf.toString('base64')}`;
@@ -313,8 +339,7 @@ export async function exportPlayable(opts: {
   const sceneName = path.basename(opts.entryScene).replace(/\.[^.]+$/, '');
   let scenes: Array<{ name: string; data: unknown }> = [];
   try {
-    const data = JSON.parse(await readFile(path.join(cookDir, opts.entryScene), 'utf8'));
-    scenes = [{ name: sceneName, data }];
+    for (const scene of sceneList) scenes.push({ name: scene.name, data: JSON.parse(await readFile(path.join(cookDir, scene.path), 'utf8')) });
   } catch (err) {
     errors.push(`scene: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -331,6 +356,7 @@ export async function exportPlayable(opts: {
     `import ${JSON.stringify(runtimeHostEntry(opts.hostsDir, 'playableHost'))};\n`;
   let bundle = '';
   let loader = '';
+  let bakeWorker = '';
   try {
     const { build } = await loadEsbuild();
     const res = await build({
@@ -350,6 +376,23 @@ export async function exportPlayable(opts: {
     });
     errors.push(...explainBundleErrors(res.errors));
     bundle = res.outputFiles?.[0]?.text ?? '';
+    if (modelBakes) {
+      const worker = await build({
+        entryPoints: [runtimeHostEntry(opts.hostsDir, 'modelBakeWorker')],
+        bundle: true,
+        format: 'esm',
+        platform: 'browser',
+        target: 'es2020',
+        external: ['manifold-3d/manifold'],
+        plugins: [{ name: 'engine-unused', setup(b) { b.onResolve({ filter: /^esengine$/ }, () => ({ path: path.join(opts.sdkDir, 'index.js'), sideEffects: false })); } }],
+        minify: true,
+        write: false,
+        outfile: 'model-bake.js',
+        logLevel: 'silent',
+      });
+      errors.push(...explainBundleErrors(worker.errors));
+      bakeWorker = worker.outputFiles?.[0]?.text ?? '';
+    }
     // Built apart from the game, because it is the one script the page can still
     // read: a loader inside the payload it inflates could never start it.
     const loaded = await build({
@@ -416,6 +459,7 @@ export async function exportPlayable(opts: {
     span(`scenes/${sceneName}.json`, `window.__GAME_SCENES__=${JSON.stringify(scenes)};`) +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};` +
     `window.__GAME_RUNTIME__=${JSON.stringify(playableRuntimeFields(withAudioLoadTypes(opts.runtime ?? DEFAULT_RUNTIME_CONFIG, cook.audioLoadTypes, cook.audioEncoded)))};` +
+    (modelBakes && bakeWorker ? span('model-bakes', `window.__GAME_MODEL_BAKES__=${JSON.stringify(pack(Buffer.from(JSON.stringify(modelBakes), 'utf8')))};window.__GAME_BAKE_WORKER__=${JSON.stringify(pack(Buffer.from(bakeWorker, 'utf8')))};`) : '') +
     span('game-bundle.js', `window.__GAME_BUNDLE__=${JSON.stringify(pack(Buffer.from(bundle, 'utf8')))};`);
   const adProfile = opts.adProfile ?? genericPlayableProfile;
   const network = playableAdInjection(adProfile, { title, orientation });
@@ -441,8 +485,13 @@ export async function exportPlayable(opts: {
     }
   }
   const assemble = (payloads: ReadonlyMap<string, PlayablePayload>) => {
-    const urls: Record<string, string> = {};
-    for (const [key, value] of payloads) urls[key] = `data:${value.mime};base64,${Buffer.from(value.data).toString('base64')}`;
+    const urls: Record<string, string | (PackedBytes & { m: string })> = {};
+    for (const [key, value] of payloads) {
+      const packed = /^(image|audio|video)\//.test(value.mime) || value.data.byteLength < PACK_FROM_BYTES ? null : pack(value.data);
+      urls[key] = packed && packed.z.length < value.data.byteLength * 1.2
+        ? { ...packed, m: value.mime }
+        : `data:${value.mime};base64,${Buffer.from(value.data).toString('base64')}`;
+    }
     const html = Buffer.from(indexHtml(title, beforeAssets + `window.__GAME_ASSETS__=${JSON.stringify(urls)};` + afterAssets, loader, network));
     const delivery = zipFile ? makeZip([{ name: 'index.html', data: html },
       ...archiveFiles.map(file => ({ name: file.name, data: Buffer.from(file.content) }))]) : html;

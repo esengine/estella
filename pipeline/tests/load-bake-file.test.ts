@@ -9,10 +9,11 @@ describe('what a package leaves for the game to bake', () => {
         });
     });
 
-    it('bakes at load only a source with maps to bake and no step the loader cannot run', () => {
+    it('bakes at load any source with no step the loader cannot run', () => {
         const steps = [{ op: 'box' }, { op: 'decimate' }];
         expect(bakesAtLoad({ steps, normalBake: { size: 1024 } })).toBe(true);
-        expect(bakesAtLoad({ steps })).toBe(false);
+        expect(bakesAtLoad({ steps })).toBe(true);
+        expect(bakesAtLoad({ normalBake: { size: 1024 } })).toBe(false);
         expect(bakesAtLoad({ steps: [...steps, { op: 'boolean' }], normalBake: { size: 1024 } })).toBe(false);
         expect(bakesAtLoad({ steps: [{ op: 'group', steps: [{ op: 'fracture' }] }], normalBake: { size: 1024 } })).toBe(false);
     });
