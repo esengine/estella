@@ -823,14 +823,10 @@ async function boot(): Promise<void> {
           retainedBytes: getResourceStats()?.retainedBytes ?? -1,
         };
       },
-      textures(): Record<string, number | boolean> {
-        const stats = getResourceStats();
+      textureStreaming(): Record<string, number | boolean> {
         const streaming = app.hasResource(TextureStreamingRes) ? app.getResource(TextureStreamingRes) : null;
         return {
-          bytes: stats?.textureBytes ?? -1,
-          count: stats?.textureCount ?? -1,
-          retainedBytes: stats?.retainedBytes ?? -1,
-          streaming: streaming?.enabled ?? false,
+          enabled: streaming?.enabled ?? false,
           streamed: streaming?.textures.size ?? 0,
           moves: streaming?.moves ?? 0,
           restoring: streaming?.restoring.size ?? 0,
