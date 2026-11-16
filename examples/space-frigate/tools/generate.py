@@ -390,6 +390,7 @@ def gate_source():
     step(op='box',size=[3,8,8],at=[R-28,0,0],tag='emit',color=[0.16,0.4,0.7])
     step(op='array',faces={'tag':['node','prong','emit']},count=6,rotate=[0,0,60],pivot=[0,0,0])
     step(op='box',size=[18,26,22],at=[0,R+34,0],tag='tower',color=LIGHT)
+    step(op='box',size=[12,13,14],at=[0,R+15,0],tag='tower',color=DARK)
     step(op='box',size=[12,14,14],at=[0,R+54,0],tag='tower',color=STEEL)
     step(op='loft',path=[[0,R+61,0],[0,R+94,0]],section={'radius':0.9},sides=8,tag='mast',color=DARK)
     step(op='box',size=[8,2,5],at=[0,R+86,0],tag='mast',color=DARK)
@@ -496,7 +497,7 @@ def make_materials():
                        'properties': {'u_core': {'r': 0.9, 'g': 0.97, 'b': 1.0, 'a': 1}, 'u_edge': {'r': 0.2, 'g': 0.55, 'b': 1.0, 'a': 1}, 'u_strength': 5, 'u_length': 11,
                                       'u_falloff': 1.3, 'u_fade': 2.4, 'u_diamonds': 5, 'u_knots': 1.4, 'u_flicker': 0.14}},
         'gatefield': {'version': '1.0', 'type': 'material', 'shader': 'gatefield.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 0,
-                      'properties': {'u_core': {'r': 0.7, 'g': 0.9, 'b': 1.0, 'a': 1}, 'u_edge': {'r': 0.08, 'g': 0.3, 'b': 1.0, 'a': 1}, 'u_strength': 0.45, 'u_swirl': 1}},
+                      'properties': {'u_core': {'r': 0.7, 'g': 0.9, 'b': 1.0, 'a': 1}, 'u_edge': {'r': 0.08, 'g': 0.3, 'b': 1.0, 'a': 1}, 'u_strength': 0.45, 'u_swirl': 1, 'u_front': 4, 'u_burst': 0}},
         **{f'flare-{name}': {'version': '1.0', 'type': 'material', 'shader': 'flare.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 1,
                              'properties': {'u_tint': {'r': tint[0], 'g': tint[1], 'b': tint[2], 'a': 1}, 'u_strength': 9, 'u_falloff': 2.2}}
            for name, tint in FLARES.items()},
