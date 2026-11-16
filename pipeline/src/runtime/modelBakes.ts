@@ -3,6 +3,7 @@
 import type { Backend, LoadWork, LoadWorkProgress } from 'esengine';
 import { TIER_SIZE, bakeTierOf, deviceFacts, type BakeStage, type ModelBakesFile, type ModelMapName, type ModelProductRole } from '../modeling/loadBakeFile';
 import type { BakeAsk, BakeReply } from './modelBakeWorker';
+import { halveRgba } from '../assets/ktx2Mips';
 
 const MOST_WORKERS = 4;
 const MESH_ONLY_SIZE = 128;
@@ -22,6 +23,16 @@ interface Pixels {
     width: number;
     height: number;
     pixels: Uint8Array;
+    sourceWidth?: number;
+    sourceHeight?: number;
+}
+
+function fit(map: Pixels, role: string, edge: number): Pixels {
+    if (!(edge > 0) || Math.max(map.width, map.height) <= edge) return map;
+    const srgb = role === 'color' || role === 'emissive';
+    let level = { rgba: map.pixels, width: map.width, height: map.height };
+    while (Math.max(level.width, level.height) > edge) level = halveRgba(level.rgba, level.width, level.height, srgb);
+    return { width: level.width, height: level.height, pixels: level.rgba, sourceWidth: map.width, sourceHeight: map.height };
 }
 
 type Reply<K extends string> = Extract<BakeReply, Record<K, unknown>>;
@@ -200,13 +211,14 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
             const decodePixels = async (path: string, ...rest: never[]): Promise<Pixels> => {
                 const hit = owner.get(plain(path));
                 if (!hit || hit.role === 'mesh') return decode!(path, ...rest);
+                const edge = Number((rest as unknown[])[1]) || 0;
                 const baked = ready[hit.model];
                 if (baked) {
                     const map = baked.get(hit.role);
-                    if (map) return map;
+                    if (map) return fit(map, hit.role, edge);
                     if (released && roles[hit.model]!.has(hit.role)) {
                         const again = (await readAgain(hit.model)).get(hit.role);
-                        if (again) return again;
+                        if (again) return fit(again, hit.role, edge);
                     }
                     return placeholder(hit.role);
                 }
