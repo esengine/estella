@@ -24,6 +24,12 @@
   the submodule pointer names stay reachable. Push an editor change on its branch
   before the pull request that moves the pointer to it.
 
+- A change someone using Estella can see gets a release note as a file of its own in
+  `changelog.d/` (its `README.md` has the format), with the subjects of the commits it
+  covers. Do not add notes to `CHANGELOG.md` or entries to `tools/releaseNotes.mjs` in a
+  pull request: every pull request wrote to the same place in both, so any two conflicted.
+  A release folds the files in with `node tools/assemble-changelog.mjs`.
+
 - Releases are tagged on `master` after the release commit has been merged there.
 
 - Routine roadmap work must not bump versions, create tags, or publish releases.
