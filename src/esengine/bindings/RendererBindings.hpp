@@ -63,6 +63,9 @@ void renderer_beginScreenOverlay(uintptr_t projectionPtr, i32 vpX, i32 vpY, u32 
 void renderer_submitScreenOverlay(ecs::Registry& registry);
 void renderer_setScreenOverlayEffect(u32 material);
 void renderer_endScreenOverlay(u32 targetHandle);
+/// Draws what Draw collected after the screen overlay over the whole frame, its UI
+/// included, in this pixel rect (see RenderFrame::drawOverScreen).
+void renderer_drawOverScreen(i32 vpX, i32 vpY, u32 vpW, u32 vpH, u32 targetHandle);
 #ifdef ES_ENABLE_BITMAP_TEXT
 #endif
 /// Geometry posed by a skeletal runtime (Spine, DragonBones): x,y,u,v,r,g,b,a per

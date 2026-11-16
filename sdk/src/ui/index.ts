@@ -38,6 +38,10 @@ export { DimensionUnit, type Dimension, px, percent, auto, isAuto } from './core
 // `UIPointerEvents` rides along with the rest: it is the enum of a public UINode field,
 // and without it a game turning a closing panel click-through has to write the raw 1.
 export { UINode, UIPositionType, UIDisplay, UIPointerEvents, AlignSelf, type UINodeData } from './core/ui-node';
+export {
+    uiAbsoluteMove, uiFlowSlot, uiPlacementOf, moveUINodeBy, moveUINodeToward,
+    type UIRect, type UIInsetFields, type UIPlacement,
+} from './core/placement';
 
 export {
     UIVisual,

@@ -646,6 +646,7 @@ export interface ESEngineModule {
     renderer_submitScreenOverlay?(registry: CppRegistry): void;
     renderer_setScreenOverlayEffect?(material: number): void;
     renderer_endScreenOverlay?(targetHandle: number): void;
+    renderer_drawOverScreen?(vpX: number, vpY: number, vpW: number, vpH: number, targetHandle: number): void;
     renderer_submitAll(registry: CppRegistry, vpX: number, vpY: number, vpW: number, vpH: number): void;
     particle_update?(registry: CppRegistry, dt: number): void;
     particle_collisionQueryCount?(): number;
