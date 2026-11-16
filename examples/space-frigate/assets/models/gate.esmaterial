@@ -1,0 +1,26 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "builtin:model",
+  "blendMode": 9,
+  "depthTest": true,
+  "depthWrite": true,
+  "cull": 1,
+  "properties": {
+    "u_clearcoat": 0.15,
+    "u_clearcoatRoughness": 0.3,
+    "u_emissive": {
+      "r": 14,
+      "g": 14,
+      "b": 14,
+      "a": 1
+    },
+    "u_emissiveMap": "gate_emissive.png",
+    "u_normalMap": "gate_normal.png",
+    "u_occlusionMap": "gate_occlusion.png",
+    "u_occlusionStrength": 1,
+    "u_metallicRoughnessMap": "gate_surface.png",
+    "u_roughness": 1,
+    "u_metallic": 1
+  }
+}

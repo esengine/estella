@@ -1,0 +1,459 @@
+{
+ "version": 1,
+ "tempo": 60,
+ "beats": 4,
+ "key": "D",
+ "scale": "major",
+ "humanize": 0.3,
+ "rubato": 0.35,
+ "seed": 11,
+ "loop": true,
+ "gain": 0.8,
+ "reverb": {
+  "size": 0.95,
+  "mix": 0.5
+ },
+ "master": {
+  "compress": 0.3
+ },
+ "instruments": {
+  "lead": {
+   "samples": [
+    {
+     "file": "assets/audio/piano/b2.wav",
+     "note": "B2",
+     "loop": [
+      5.41814,
+      7.73916
+     ]
+    },
+    {
+     "file": "assets/audio/piano/ds3.wav",
+     "note": "D#3",
+     "loop": [
+      3.69583,
+      5.4493
+     ]
+    },
+    {
+     "file": "assets/audio/piano/fs3.wav",
+     "note": "F#3",
+     "loop": [
+      4.40687,
+      6.02345
+     ]
+    },
+    {
+     "file": "assets/audio/piano/a3.wav",
+     "note": "A3",
+     "loop": [
+      2.73649,
+      4.23585
+     ]
+    },
+    {
+     "file": "assets/audio/piano/c4.wav",
+     "note": "C4",
+     "loop": [
+      3.309,
+      4.83853
+     ]
+    },
+    {
+     "file": "assets/audio/piano/ds4.wav",
+     "note": "D#4",
+     "loop": [
+      3.44435,
+      4.93417
+     ]
+    },
+    {
+     "file": "assets/audio/piano/fs4.wav",
+     "note": "F#4",
+     "loop": [
+      3.1412,
+      4.20249
+     ]
+    },
+    {
+     "file": "assets/audio/piano/a4.wav",
+     "note": "A4"
+    },
+    {
+     "file": "assets/audio/piano/c5.wav",
+     "note": "C5"
+    },
+    {
+     "file": "assets/audio/piano/ds5.wav",
+     "note": "D#5"
+    },
+    {
+     "file": "assets/audio/piano/fs5.wav",
+     "note": "F#5"
+    },
+    {
+     "file": "assets/audio/piano/a5.wav",
+     "note": "A5"
+    }
+   ],
+   "pedal": true,
+   "release": 0.9,
+   "reverb": 0.85,
+   "gain": 0.95,
+   "pan": 0.1,
+   "highcut": 5500
+  },
+  "keys": {
+   "samples": [
+    {
+     "file": "assets/audio/piano/b2.wav",
+     "note": "B2",
+     "loop": [
+      5.41814,
+      7.73916
+     ]
+    },
+    {
+     "file": "assets/audio/piano/ds3.wav",
+     "note": "D#3",
+     "loop": [
+      3.69583,
+      5.4493
+     ]
+    },
+    {
+     "file": "assets/audio/piano/fs3.wav",
+     "note": "F#3",
+     "loop": [
+      4.40687,
+      6.02345
+     ]
+    },
+    {
+     "file": "assets/audio/piano/a3.wav",
+     "note": "A3",
+     "loop": [
+      2.73649,
+      4.23585
+     ]
+    },
+    {
+     "file": "assets/audio/piano/c4.wav",
+     "note": "C4",
+     "loop": [
+      3.309,
+      4.83853
+     ]
+    },
+    {
+     "file": "assets/audio/piano/ds4.wav",
+     "note": "D#4",
+     "loop": [
+      3.44435,
+      4.93417
+     ]
+    },
+    {
+     "file": "assets/audio/piano/fs4.wav",
+     "note": "F#4",
+     "loop": [
+      3.1412,
+      4.20249
+     ]
+    },
+    {
+     "file": "assets/audio/piano/a4.wav",
+     "note": "A4"
+    },
+    {
+     "file": "assets/audio/piano/c5.wav",
+     "note": "C5"
+    },
+    {
+     "file": "assets/audio/piano/ds5.wav",
+     "note": "D#5"
+    },
+    {
+     "file": "assets/audio/piano/fs5.wav",
+     "note": "F#5"
+    },
+    {
+     "file": "assets/audio/piano/a5.wav",
+     "note": "A5"
+    }
+   ],
+   "follow": true,
+   "octave": -1,
+   "pedal": true,
+   "release": 0.9,
+   "reverb": 0.7,
+   "gain": 0.55,
+   "pan": -0.15,
+   "highcut": 4000
+  },
+  "pad": {
+   "follow": true,
+   "octave": 0,
+   "release": 3.0,
+   "reverb": 0.8,
+   "gain": 0.3,
+   "lowcut": 150,
+   "highcut": 2200,
+   "layers": [
+    {
+     "source": "sine",
+     "freq": 440,
+     "gain": 0.5,
+     "attack": 1.8
+    },
+    {
+     "source": "saw",
+     "freq": 440,
+     "gain": 0.12,
+     "attack": 2.4,
+     "vibrato": {
+      "rate": 0.35,
+      "depth": 0.08
+     },
+     "filters": [
+      {
+       "type": "lowpass",
+       "freq": [
+        [
+         0,
+         500
+        ],
+        [
+         2.5,
+         1400
+        ],
+        [
+         4,
+         700
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "source": "saw",
+     "freq": 441.6,
+     "gain": 0.1,
+     "attack": 2.4,
+     "filters": [
+      {
+       "type": "lowpass",
+       "freq": [
+        [
+         0,
+         500
+        ],
+        [
+         2.5,
+         1400
+        ],
+        [
+         4,
+         700
+        ]
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "arp": {
+   "follow": true,
+   "octave": 1,
+   "release": 0.5,
+   "reverb": 0.7,
+   "gain": 0.16,
+   "pan": 0.35,
+   "lowcut": 300,
+   "highcut": 3500,
+   "layers": [
+    {
+     "source": "triangle",
+     "freq": 440,
+     "attack": 0.004,
+     "decay": 0.22,
+     "gain": 0.8
+    },
+    {
+     "source": "sine",
+     "freq": 880,
+     "attack": 0.004,
+     "decay": 0.12,
+     "gain": 0.2
+    }
+   ]
+  },
+  "glint": {
+   "octave": 1,
+   "release": 2.0,
+   "reverb": 0.95,
+   "gain": 0.14,
+   "pan": -0.3,
+   "lowcut": 600,
+   "layers": [
+    {
+     "source": "sine",
+     "freq": 440,
+     "attack": 0.01,
+     "decay": 1.4,
+     "gain": 0.7
+    },
+    {
+     "source": "sine",
+     "freq": 1320,
+     "decay": 0.5,
+     "gain": 0.08
+    }
+   ]
+  },
+  "air": {
+   "release": 2.5,
+   "reverb": 0.6,
+   "gain": 0.1,
+   "lowcut": 300,
+   "highcut": 3000,
+   "layers": [
+    {
+     "source": "noise",
+     "color": "pink",
+     "band": [
+      500,
+      2500
+     ],
+     "wide": 0.9,
+     "seed": 5,
+     "attack": 2.5,
+     "gain": 0.8
+    }
+   ]
+  },
+  "sub": {
+   "follow": true,
+   "octave": -2,
+   "release": 2.0,
+   "reverb": 0.05,
+   "gain": 0.3,
+   "highcut": 500,
+   "layers": [
+    {
+     "source": "sine",
+     "freq": 440,
+     "gain": 0.9,
+     "attack": 0.8
+    }
+   ]
+  }
+ },
+ "patterns": {
+  "a": {
+   "bars": 4,
+   "div": 2,
+   "chords": [
+    1,
+    5,
+    6,
+    4
+   ],
+   "dynamics": {
+    "all": [
+     0.85,
+     0.9,
+     0.95,
+     0.9,
+     0.85
+    ]
+   },
+   "tracks": {
+    "lead": "3' . . 2' 1' . . . | 2' . . . 7 . 5 . | 1' . . 7 6 . . . | 6 . 1' . 2' . . .",
+    "keys": "1 . 5 . 1' . 5 . | 1 . 5 . 3' . 5 . | 1 . 5 . 1' . 5 . | 1 . 5 . 3' . . .",
+    "arp": "1 5 1' 5 3' 5 1' 5 | 1 5 1' 5 3' 5 1' 5 | 1 5 1' 5 3' 5 1' 5 | 1 5 1' 5 3' 5 1' 5",
+    "glint": "3' . . . . . . . | . . . . . . . . | 1' . . . . . . . | . . . . 2' . . .",
+    "pad": "[1 3 5] - - - - - - - | [1 3 5] - - - - - - - | [1 3 5] - - - - - - - | [1 3 5] - - - - - - -",
+    "air": "x - - - - - - - | x - - - - - - - | x - - - - - - - | x - - - - - - -",
+    "sub": "1 - - - - - - - | 1 - - - - - - - | 1 - - - - - - - | 1 - - - - - - -"
+   }
+  },
+  "b": {
+   "bars": 4,
+   "div": 2,
+   "chords": [
+    4,
+    5,
+    6,
+    4
+   ],
+   "dynamics": {
+    "all": [
+     0.9,
+     1,
+     1.05,
+     0.95,
+     0.85
+    ]
+   },
+   "tracks": {
+    "lead": "1' . 2' . 3' . . . | 2' . 3' . 5' . . . | 3' . 2' . 1' . 6 . | 7 . . . 2' . . .",
+    "keys": "1 . 5 . 1' . 5 . | 1 . 5 . 1' . 5 . | 1 . 5 . 3' . 5 . | 1 . 5 . 1' . . .",
+    "arp": "1 5 1' 5 3' 5 1' 5 | 1 5 1' 5 3' 5 1' 5 | 1 5 1' 5 3' 5 1' 5 | 1 5 1' 5 3' 5 1' 5",
+    "glint": "1' . . . . . . . | . . . . 5' . . . | 3' . . . . . . . | . . . . . . . .",
+    "pad": "[1 3 5] - - - - - - - | [1 3 5] - - - - - - - | [1 3 5] - - - - - - - | [1 3 5] - - - - - - -",
+    "air": "x - - - - - - - | x - - - - - - - | x - - - - - - - | x - - - - - - -",
+    "sub": "1 - - - - - - - | 1 - - - - - - - | 1 - - - - - - - | 1 - - - - - - -"
+   }
+  },
+  "c": {
+   "bars": 4,
+   "div": 2,
+   "chords": [
+    6,
+    4,
+    1,
+    5
+   ],
+   "dynamics": {
+    "all": [
+     0.8,
+     0.75,
+     0.75,
+     0.8,
+     0.8
+    ]
+   },
+   "tracks": {
+    "lead": ". . . . . . . . | . . . . 6 . 1' . | 3' . . . . . . . | . . . . 2' . . .",
+    "keys": "1 . . . 5 . . . | 1 . . . 5 . 1' . | 1 . 5 . . . . . | 1 . . . 5 . . .",
+    "pad": "[1 3 5] - - - - - - - | [1 3 5] - - - - - - - | [1 3 5] - - - - - - - | [1 3 5] - - - - - . .",
+    "air": "x - - - - - - - | x - - - - - - - | x - - - - - - - | x - - - - - - -",
+    "sub": "1 - - - - - - - | 1 - - - - - - - | 1 - - - - - - - | 1 - - - - - . ."
+   }
+  }
+ },
+ "song": [
+  {
+   "pattern": "a",
+   "only": [
+    "keys",
+    "pad",
+    "air",
+    "sub"
+   ]
+  },
+  {
+   "pattern": "a",
+   "without": [
+    "arp",
+    "glint"
+   ]
+  },
+  "a",
+  "b",
+  "a",
+  "c"
+ ],
+ "rate": 22050
+}

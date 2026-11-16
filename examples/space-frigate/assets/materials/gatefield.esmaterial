@@ -1,0 +1,27 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "gatefield.esshader",
+  "blendMode": 5,
+  "depthTest": true,
+  "depthWrite": false,
+  "cull": 0,
+  "properties": {
+    "u_core": {
+      "r": 0.7,
+      "g": 0.9,
+      "b": 1.0,
+      "a": 1
+    },
+    "u_edge": {
+      "r": 0.08,
+      "g": 0.3,
+      "b": 1.0,
+      "a": 1
+    },
+    "u_strength": 0.45,
+    "u_swirl": 1,
+    "u_front": 4,
+    "u_burst": 0
+  }
+}

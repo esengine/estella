@@ -17,11 +17,18 @@ try {
     page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') problems.push(m.text().slice(0, 400)); });
     await page.goto(`http://127.0.0.1:${server.address().port}/?headless`, { waitUntil: 'load', timeout: 120000 });
     await page.waitForFunction(() => window.__estellaCooked?.facts().ready, null, { timeout: 120000 });
+    await page.waitForFunction(() => window.__spaceHud?.ready || window.__spaceHud?.error, null, { timeout: 120000 }).catch(() => {});
+    const hud = await page.evaluate(() => window.__spaceHud ?? null);
+    if (!hud?.ready) throw new Error(`the HUD did not come up: ${JSON.stringify(hud)}`);
+    await page.waitForLoadState('networkidle', { timeout: 120000 }).catch(() => {});
     await page.evaluate(() => window.__estellaCooked.setPaused(true));
     let now = (await page.evaluate(() => window.__estellaCooked.facts())).time;
     for (const at of times) {
         const frames = Math.max(1, Math.round((at - now) * 60));
-        await page.evaluate((n) => window.__estellaCooked.step(n), frames);
+        for (let left = frames; left > 0; left -= 120) {
+            await page.evaluate((n) => window.__estellaCooked.step(n), Math.min(120, left));
+            await page.waitForTimeout(25);
+        }
         const facts = await page.evaluate(() => window.__estellaCooked.facts());
         now = facts.time;
         const file = path.join(root, 'frames', `t${at.toFixed(2)}.png`);

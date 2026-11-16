@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "flare.esshader",
+  "blendMode": 5,
+  "depthTest": true,
+  "depthWrite": false,
+  "cull": 1,
+  "properties": {
+    "u_tint": {
+      "r": 1.0,
+      "g": 0.08,
+      "b": 0.04,
+      "a": 1
+    },
+    "u_strength": 9,
+    "u_falloff": 2.2
+  }
+}

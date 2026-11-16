@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "duration": 3.8,
+  "gain": 0.6,
+  "lowpass": 4000,
+  "reverb": {
+    "size": 0.6,
+    "mix": 0.35,
+    "kind": "open"
+  },
+  "layers": [
+    {
+      "id": "root",
+      "source": "sine",
+      "freq": 293.66,
+      "attack": 0.3,
+      "release": 1.4,
+      "length": 2.4,
+      "gain": [
+        [
+          0,
+          0.6
+        ],
+        [
+          1,
+          0.6
+        ],
+        [
+          2.4,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "fifth",
+      "source": "sine",
+      "freq": 440,
+      "start": 0.1,
+      "attack": 0.3,
+      "release": 1.4,
+      "length": 2.2,
+      "gain": [
+        [
+          0,
+          0.4
+        ],
+        [
+          1,
+          0.4
+        ],
+        [
+          2.2,
+          0
+        ]
+      ]
+    },
+    {
+      "id": "first",
+      "source": "modes",
+      "start": 0.3,
+      "gain": 0.5,
+      "modes": [
+        [
+          587.33,
+          1,
+          0.7
+        ],
+        [
+          1174.66,
+          0.2,
+          0.3
+        ]
+      ]
+    },
+    {
+      "id": "second",
+      "source": "modes",
+      "start": 0.52,
+      "gain": 0.5,
+      "modes": [
+        [
+          739.99,
+          1,
+          0.7
+        ],
+        [
+          1479.98,
+          0.2,
+          0.3
+        ]
+      ]
+    },
+    {
+      "id": "third",
+      "source": "modes",
+      "start": 0.74,
+      "gain": 0.5,
+      "modes": [
+        [
+          880,
+          1,
+          0.9
+        ],
+        [
+          1760,
+          0.2,
+          0.4
+        ]
+      ]
+    }
+  ]
+}
