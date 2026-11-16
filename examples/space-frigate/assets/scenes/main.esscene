@@ -880,7 +880,7 @@
     {
      "type": "MeshRenderer",
      "data": {
-      "mesh": "assets/models/plume.esmesh",
+      "mesh": "assets/models/jet.esmesh",
       "color": {
        "r": 1,
        "g": 1,
@@ -892,7 +892,7 @@
       "opaque": false,
       "cullBackfaces": false,
       "castShadows": false,
-      "material": "assets/materials/plume-jet.esmaterial"
+      "material": "assets/materials/jet.esmaterial"
      }
     }
    ]
@@ -928,7 +928,7 @@
     {
      "type": "MeshRenderer",
      "data": {
-      "mesh": "assets/models/plume.esmesh",
+      "mesh": "assets/models/jet.esmesh",
       "color": {
        "r": 1,
        "g": 1,
@@ -940,7 +940,7 @@
       "opaque": false,
       "cullBackfaces": false,
       "castShadows": false,
-      "material": "assets/materials/plume-jet.esmaterial"
+      "material": "assets/materials/jet.esmaterial"
      }
     }
    ]
@@ -976,7 +976,7 @@
     {
      "type": "MeshRenderer",
      "data": {
-      "mesh": "assets/models/plume.esmesh",
+      "mesh": "assets/models/jet.esmesh",
       "color": {
        "r": 1,
        "g": 1,
@@ -988,7 +988,7 @@
       "opaque": false,
       "cullBackfaces": false,
       "castShadows": false,
-      "material": "assets/materials/plume-jet.esmaterial"
+      "material": "assets/materials/jet.esmaterial"
      }
     }
    ]
@@ -1024,7 +1024,7 @@
     {
      "type": "MeshRenderer",
      "data": {
-      "mesh": "assets/models/plume.esmesh",
+      "mesh": "assets/models/jet.esmesh",
       "color": {
        "r": 1,
        "g": 1,
@@ -1036,7 +1036,7 @@
       "opaque": false,
       "cullBackfaces": false,
       "castShadows": false,
-      "material": "assets/materials/plume-jet.esmaterial"
+      "material": "assets/materials/jet.esmaterial"
      }
     }
    ]
@@ -1072,7 +1072,7 @@
     {
      "type": "MeshRenderer",
      "data": {
-      "mesh": "assets/models/plume.esmesh",
+      "mesh": "assets/models/jet.esmesh",
       "color": {
        "r": 1,
        "g": 1,
@@ -1084,7 +1084,7 @@
       "opaque": false,
       "cullBackfaces": false,
       "castShadows": false,
-      "material": "assets/materials/plume-jet.esmaterial"
+      "material": "assets/materials/jet.esmaterial"
      }
     }
    ]
@@ -1120,7 +1120,7 @@
     {
      "type": "MeshRenderer",
      "data": {
-      "mesh": "assets/models/plume.esmesh",
+      "mesh": "assets/models/jet.esmesh",
       "color": {
        "r": 1,
        "g": 1,
@@ -1132,7 +1132,7 @@
       "opaque": false,
       "cullBackfaces": false,
       "castShadows": false,
-      "material": "assets/materials/plume-jet.esmaterial"
+      "material": "assets/materials/jet.esmaterial"
      }
     }
    ]
@@ -1168,7 +1168,7 @@
     {
      "type": "MeshRenderer",
      "data": {
-      "mesh": "assets/models/plume.esmesh",
+      "mesh": "assets/models/jet.esmesh",
       "color": {
        "r": 1,
        "g": 1,
@@ -1180,7 +1180,7 @@
       "opaque": false,
       "cullBackfaces": false,
       "castShadows": false,
-      "material": "assets/materials/plume-jet.esmaterial"
+      "material": "assets/materials/jet.esmaterial"
      }
     }
    ]
@@ -1216,7 +1216,7 @@
     {
      "type": "MeshRenderer",
      "data": {
-      "mesh": "assets/models/plume.esmesh",
+      "mesh": "assets/models/jet.esmesh",
       "color": {
        "r": 1,
        "g": 1,
@@ -1228,7 +1228,7 @@
       "opaque": false,
       "cullBackfaces": false,
       "castShadows": false,
-      "material": "assets/materials/plume-jet.esmaterial"
+      "material": "assets/materials/jet.esmaterial"
      }
     }
    ]
@@ -1264,7 +1264,7 @@
     {
      "type": "MeshRenderer",
      "data": {
-      "mesh": "assets/models/plume.esmesh",
+      "mesh": "assets/models/jet.esmesh",
       "color": {
        "r": 1,
        "g": 1,
@@ -1276,7 +1276,7 @@
       "opaque": false,
       "cullBackfaces": false,
       "castShadows": false,
-      "material": "assets/materials/plume-jet.esmaterial"
+      "material": "assets/materials/jet.esmaterial"
      }
     }
    ]
@@ -1312,7 +1312,7 @@
     {
      "type": "MeshRenderer",
      "data": {
-      "mesh": "assets/models/plume.esmesh",
+      "mesh": "assets/models/jet.esmesh",
       "color": {
        "r": 1,
        "g": 1,
@@ -1324,7 +1324,7 @@
       "opaque": false,
       "cullBackfaces": false,
       "castShadows": false,
-      "material": "assets/materials/plume-jet.esmaterial"
+      "material": "assets/materials/jet.esmaterial"
      }
     }
    ]
@@ -1360,7 +1360,7 @@
     {
      "type": "MeshRenderer",
      "data": {
-      "mesh": "assets/models/plume.esmesh",
+      "mesh": "assets/models/jet.esmesh",
       "color": {
        "r": 1,
        "g": 1,
@@ -1372,7 +1372,7 @@
       "opaque": false,
       "cullBackfaces": false,
       "castShadows": false,
-      "material": "assets/materials/plume-jet.esmaterial"
+      "material": "assets/materials/jet.esmaterial"
      }
     }
    ]
@@ -1408,7 +1408,7 @@
     {
      "type": "MeshRenderer",
      "data": {
-      "mesh": "assets/models/plume.esmesh",
+      "mesh": "assets/models/jet.esmesh",
       "color": {
        "r": 1,
        "g": 1,
@@ -1420,7 +1420,7 @@
       "opaque": false,
       "cullBackfaces": false,
       "castShadows": false,
-      "material": "assets/materials/plume-jet.esmaterial"
+      "material": "assets/materials/jet.esmaterial"
      }
     }
    ]

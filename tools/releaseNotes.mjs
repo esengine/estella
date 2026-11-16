@@ -5186,4 +5186,6 @@ export const NOTED = {
     { note: "The space frigate's guns train, lay and fire." },
   "feat(examples): the space frigate's display has a cruise mode and a combat mode, and she comes level when asked - systems, ore hold, mining, view pips and the planet's tag show only in cruise, the sight, turret marks, battery row and fire buttons only in combat, and each mode's tool works only in it: guns in combat, the mining beam in cruise, auto fire off on leaving. The helm gains a level mode and a roll axis: it rolls her deck flat and brings her bow to the horizon on four nacelle thrusters, holds her heading, and hands back to manual when she is there":
     { note: "The space frigate's display has a cruise mode and a combat mode, and she comes level when asked." },
+  "feat(examples): the space frigate's attitude thrusters vent gas, not flame - they borrowed the main engines' plume, a bright blue flame that narrows; a thruster's jet is a cone that opens from the nozzle, white, thinning with distance, streaked along its flow and sputtering, from a model source and a shader of its own":
+    { note: "The space frigate is steered by rate, on thrusters." },
 };

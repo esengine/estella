@@ -562,6 +562,8 @@ def gate_source():
 
 SMALL = {
     'flare': {'version': 1, 'smoothAngle': 80, 'steps': [{'op': 'sphere', 'radius': 1, 'rings': 8, 'sides': 12, 'tag': 'flare', 'color': [1, 1, 1]}]},
+    'jet': {'version': 1, 'smoothAngle': 80,
+            'steps': [{'op': 'lathe', 'axis': 'z', 'profile': [[0.0, 0.0], [0.16, 0.0], [0.5, -1.2], [0.95, -3.0], [1.3, -5.0], [0.0, -5.0]], 'sides': 20, 'curve': 2, 'tag': 'jet', 'color': [1, 1, 1]}]},
     'gate-field': {'version': 1, 'smoothAngle': 80, 'steps': [{'op': 'plane', 'size': 2, 'tag': 'field', 'color': [1, 1, 1]}, {'op': 'transform', 'rotate': [90, 0, 0]}]},
     'planet': {'version': 1, 'smoothAngle': 80, 'material': {'roughness': 0.92, 'metallic': 0, 'texture': 'assets/textures/giant.png'},
                'steps': [{'op': 'sphere', 'radius': 1, 'rings': 64, 'sides': 128, 'tag': 'planet', 'color': [1, 1, 1]}, {'op': 'uv', 'mode': 'sphere'}]},
@@ -606,9 +608,8 @@ def make_materials():
         'plume': {'version': '1.0', 'type': 'material', 'shader': 'plume.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 0,
                   'properties': {'u_core': {'r': 0.25, 'g': 0.5, 'b': 1.0, 'a': 1}, 'u_edge': {'r': 0.03, 'g': 0.14, 'b': 0.7, 'a': 1}, 'u_strength': 1.2, 'u_length': 11,
                                  'u_falloff': 2.6, 'u_fade': 1.6, 'u_diamonds': 0, 'u_knots': 0, 'u_flicker': 0.08}},
-        'plume-jet': {'version': '1.0', 'type': 'material', 'shader': 'plume.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 0,
-                      'properties': {'u_core': {'r': 0.9, 'g': 0.96, 'b': 1.0, 'a': 1}, 'u_edge': {'r': 0.35, 'g': 0.6, 'b': 1.0, 'a': 1}, 'u_strength': 2.4, 'u_length': 11,
-                                     'u_falloff': 1.6, 'u_fade': 2.2, 'u_diamonds': 0, 'u_knots': 0, 'u_flicker': 0.2}},
+        'jet': {'version': '1.0', 'type': 'material', 'shader': 'jet.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 0,
+                'properties': {'u_tint': {'r': 0.92, 'g': 0.95, 'b': 1.0, 'a': 1}, 'u_strength': 4.5, 'u_length': 5, 'u_fade': 1.3, 'u_streaks': 7, 'u_rush': 9}},
         'plume-core': {'version': '1.0', 'type': 'material', 'shader': 'plume.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 0,
                        'properties': {'u_core': {'r': 0.9, 'g': 0.97, 'b': 1.0, 'a': 1}, 'u_edge': {'r': 0.2, 'g': 0.55, 'b': 1.0, 'a': 1}, 'u_strength': 5, 'u_length': 11,
                                       'u_falloff': 1.3, 'u_fade': 2.4, 'u_diamonds': 5, 'u_knots': 1.4, 'u_flicker': 0.14}},
@@ -622,7 +623,7 @@ def make_materials():
         path = MAT / f'{name}.esmaterial'
         path.write_text(json.dumps(doc, indent=2) + '\n')
         stamp(path, 'material')
-    for name in ('atmosphere', 'plume', 'gatefield', 'flare'):
+    for name in ('atmosphere', 'plume', 'gatefield', 'flare', 'jet'):
         stamp(MAT / f'{name}.esshader', 'shader')
     for hull in (MODELS / f'{name}.esmaterial' for name in ('frigate', 'turret', 'guns')):
         if not hull.exists():
@@ -717,7 +718,7 @@ def make_scene():
     for name, at in [('EngineGlowL', (4.5, 0, -52)), ('EngineGlowR', (-4.5, 0, -52)), ('EngineGlowNL', (17, -1, -52)), ('EngineGlowNR', (-17, -1, -52))]:
         add(name, [transform(at), {'type': 'Light', 'data': {'type': 0, 'color': {'r': 0.6, 'g': 0.75, 'b': 1.0, 'a': 1}, 'intensity': 0.4, 'radius': 14, 'enabled': True, 'meshShadows': False}}], ship)
     for name, at, way in JETS:
-        add(f'Jet{name}', [transform(tuple(a + w * 0.9 for a, w in zip(at, way)), look((0, 0, 0), way), (0.001,) * 3), mesh('plume', 'assets/materials/plume-jet.esmaterial', None, False, False, False, False)], ship)
+        add(f'Jet{name}', [transform(tuple(a + w * 0.9 for a, w in zip(at, way)), look((0, 0, 0), way), (0.001,) * 3), mesh('jet', 'assets/materials/jet.esmaterial', None, False, False, False, False)], ship)
     flip = {'x': 0, 'y': 0, 'z': 1, 'w': 0}
     for key, x, z, side in TURRETS:
         seat = (x, mount_height(x, z, side) + TURRET_SEAT * side, z)

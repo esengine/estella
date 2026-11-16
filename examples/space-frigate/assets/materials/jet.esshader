@@ -1,0 +1,55 @@
+#pragma shader "Space Jet"
+#pragma version 300 es
+#pragma domain Unlit
+#pragma feature MESH_LOCAL_POSITION
+#pragma param u_tint color default(0.92,0.95,1,1)
+#pragma param u_strength float default(4.5) range(0,20)
+#pragma param u_length float default(5) range(0.1,100)
+#pragma param u_fade float default(1.3) range(0.2,8)
+#pragma param u_streaks float default(7) range(0,24)
+#pragma param u_rush float default(9) range(0,40)
+
+#pragma fragment
+precision highp float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+#ifdef MESH_NORMALS
+in highp vec3 v_worldNormal;
+in highp vec3 v_worldXYZ;
+#endif
+#ifdef MESH_LOCAL_POSITION
+in highp vec3 v_localPos;
+#endif
+
+out vec4 fragColor;
+
+float cell(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float cloud(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(cell(i), cell(i + vec2(1.0, 0.0)), u.x), mix(cell(i + vec2(0.0, 1.0)), cell(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+
+void main() {
+    float along = 0.0;
+    float round = 0.0;
+    float facing = 1.0;
+#ifdef MESH_LOCAL_POSITION
+    along = clamp(-v_localPos.z / u_length, 0.0, 1.0);
+    round = atan(v_localPos.y, v_localPos.x) / 6.2831853 + 0.5;
+#endif
+#ifdef MESH_NORMALS
+    facing = abs(dot(normalize(v_worldNormal), viewDirection(v_worldXYZ)));
+#endif
+    float t = u_time.x;
+    float streaks = cloud(vec2(round * u_streaks, along * 5.0 - t * u_rush)) * 0.6 + cloud(vec2(round * u_streaks * 2.3 + 4.0, along * 11.0 - t * u_rush * 1.7)) * 0.4;
+    float gas = 0.35 + 0.65 * streaks;
+    float thin = pow(1.0 - along, u_fade) * smoothstep(0.0, 0.06, along);
+    float depth = 0.45 + 0.55 * facing;
+    fragColor = vec4(u_tint.rgb * (gas * thin * depth * u_strength), 1.0);
+}
+#pragma end

@@ -34,7 +34,7 @@ const JETS = [
     { name: 'JetPortDown', turn: 'roll', sign: 1 }, { name: 'JetStarboardUp', turn: 'roll', sign: 1 }, { name: 'JetPortUp', turn: 'roll', sign: -1 }, { name: 'JetStarboardDown', turn: 'roll', sign: -1 },
 ] as const;
 const WAVE_SECONDS = 0.9;
-const SIGHT = { height: 20, yaw: Math.PI + 0.1, pitch: 0, distance: 86, low: -0.6, high: 0.9 };
+const SIGHT = { height: 27, yaw: Math.PI + 0.1, pitch: 0, distance: 112, low: -0.6, high: 0.9 };
 
 function strobe(time: number, every: number, flashes: number): number {
     const phase = (time % every) / 0.16;
@@ -277,11 +277,11 @@ addPlugin({
             JETS.forEach((jet, i) => {
                 const want = clamp(helm.jets[jet.turn] * jet.sign, 0, 1);
                 jets[i] = jets[i]! + (want - jets[i]!) * Math.min(1, dt * 14);
-                const burn = jets[i]! * (0.85 + 0.15 * Math.sin(clock * 47 + i * 1.7));
+                const burn = jets[i]! * (0.7 + 0.3 * Math.sin(clock * 53 + i * 1.7) * Math.sin(clock * 17 + i));
                 const e = get(world, jet.name);
                 const t = world.get(e, Transform);
-                const wide = burn > 0.02 ? 0.9 + 0.5 * burn : 0.001;
-                t.scale = { x: wide, y: wide, z: burn > 0.02 ? 0.15 + 0.45 * burn : 0.001 };
+                const wide = burn > 0.02 ? 0.7 + 0.5 * burn : 0.001;
+                t.scale = { x: wide, y: wide, z: burn > 0.02 ? 0.45 + 0.55 * burn : 0.001 };
                 world.insert(e, Transform, t);
             });
             facts.jets = `${helm.jets.yaw.toFixed(2)} ${helm.jets.pitch.toFixed(2)} ${helm.jets.roll.toFixed(2)}`;
