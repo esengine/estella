@@ -40,10 +40,11 @@ export const LOADER_TYPE_OF_META_TYPE: Readonly<Record<string, string>> = Object
   musicSource: 'audio',
   animclip: 'anim-clip',
   animation: 'timeline',
-  bitmapFont: 'font',
+  bitmapfont: 'font',
   shader: 'material-shader',
   scene: 'json',
   inputmap: 'json',
+  'terrain-tiles': 'json',
 });
 
 export const UNLOADED_TYPE = 'binary';

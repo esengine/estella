@@ -141,7 +141,7 @@ describe('buildAddressableManifest — every shipped type names the loader that 
 
 describe('Assets.preload — a cooked manifest routes each asset to its loader', () => {
   const FONT = { uuid: 'C0000000-0000-4000-8000-000000000001', path: 'ca/1f0e.ttf', sourcePath: 'assets/fonts/Title.ttf', type: 'font', size: 4 };
-  const BITMAP_FONT = { uuid: 'C0000000-0000-4000-8000-000000000002', path: 'ca/2b7c.fnt', sourcePath: 'assets/fonts/Pixel.fnt', type: 'bitmapFont', size: 4 };
+  const BITMAP_FONT = { uuid: 'C0000000-0000-4000-8000-000000000002', path: 'ca/2b7c.fnt', sourcePath: 'assets/fonts/Pixel.fnt', type: 'bitmapfont', size: 4 };
   const CLIP = { uuid: 'C0000000-0000-4000-8000-000000000003', path: 'ca/3d9a.esanim', sourcePath: 'assets/anim/walk.esanim', type: 'animclip', size: 4 };
   let dir: string;
 
