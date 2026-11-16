@@ -179,8 +179,6 @@ struct MockGfxDevice final : GfxDevice {
     }
 
     /// Answers as GL does; a test that cares sets it.
-    bool originTopLeft = false;
-    bool textureOriginTopLeft() const override { return originTopLeft; }
     void setStencilReference(i32 ref) override { stencilReferences.push_back(ref); }
 
     void drawElements(u32 indexCount, GfxDataType, u32 byteOffset) override {

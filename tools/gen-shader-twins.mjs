@@ -409,7 +409,22 @@ async function glslToWgsl(glsl, stage, entryName, workDir) {
   const text = await readFile(wgsl, 'utf8');
   // naga emits `fn main(` as the entry (the inner body lands in main_1) - the
   // engine's twin contract names entries vs_main/fs_main.
-  return text.replace(/\bfn main\(/, `fn ${entryName}(`);
+  const named = text.replace(/\bfn main\(/, `fn ${entryName}(`);
+  return stage === 'vert' ? withClipYTurned(named) : named;
+}
+
+/**
+ * A vertex stage's clip position with y turned over, as every WebGPU vertex stage of the engine leaves it: a target's rows then land bottom-up,
+ * as GL lays them, and the fragment sees the screen as GL shows it. naga hands gl_Position on through one `let` in the entry.
+ */
+export function withClipYTurned(wgsl) {
+  let turned = 0;
+  const out = wgsl.replace(/let (_e\d+) = (\w+)\.gl_Position;/g, (_, name, block) => {
+    turned++;
+    return `let ${name} = vec4<f32>(${block}.gl_Position.x, -${block}.gl_Position.y, ${block}.gl_Position.zw);`;
+  });
+  if (turned !== 1) throw new Error(`a translated vertex stage hands gl_Position on ${turned} times, not once`);
+  return out;
 }
 
 /** The authored GLSL vertex hook of a shader (its `#pragma vertexoffset` section), or null. */

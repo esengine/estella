@@ -21,7 +21,7 @@ import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Camera, Transform, type CameraData, type TransformData } from '../ecs/component';
 import { Material } from '../render/material';
-import { CAUSTICS_GLSL, CAUSTICS_WGSL } from '../render/waterCaustics';
+import { CAUSTICS_GLSL } from '../render/waterCaustics';
 import { registerEffect } from '../postprocess/effects';
 import { setUnderwaterState, lensReach } from '../postprocess/underwater';
 import { WatersRes } from './waterPlugin';
@@ -144,87 +144,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-const SHAFT_STEPS : i32 = 24;
-
-${CAUSTICS_WGSL}
-/// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
-fn rayStart(uv : vec2f) -> vec3f { return worldFromDepth(uv, select(0.5, 0.0, frame.camera.w > 0.5)); }
-fn ign(p : vec2f) -> f32 {
-    return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715))));
-}
-fn phaseHG(cosine : f32) -> f32 {
-    let g = 0.55;
-    return (1.0 - g * g) / pow(max(1.0 + g * g - 2.0 * g * cosine, 1e-3), 1.5) * 0.25;
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let size = vec2i(textureDimensions(t7, 0));
-    let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
-    let sky = depth >= 1.0;
-    let entry = rayStart(v.v_texCoord);
-    var d = depth;
-    if (sky) { d = 1.0; }
-    let hit = worldFromDepth(v.v_texCoord, d);
-    let facing = cross(dpdx(hit), dpdy(hit));
-
-    let up = normalize(vec3f(mc.u_planeNx, mc.u_planeNy, mc.u_planeNz));
-    let wet = smoothstep(-mc.u_band, mc.u_band, mc.u_planeD - dot(up, entry));
-    if (wet <= 0.0 || mc.u_amount <= 0.0) { return src; }
-
-    let dir = normalize(hit - entry);
-    var len = min(length(hit - entry), mc.u_range);
-    if (sky) { len = mc.u_range; }
-    let transmit = exp(-mc.u_absorption.rgb * (mc.u_density * len));
-    let extinction = max(dot(mc.u_absorption.rgb, vec3f(1.0 / 3.0)) * mc.u_density, 1e-5);
-
-    let found = findSun();
-    let cosUp = dot(found.dir.xyz, up);
-    let sunny = found.dir.w > 0.5 && cosUp > 0.05;
-    let slant = max(cosUp, 0.15);
-    let clock = tc.u_time.x * mc.u_causticSpeed;
-
-    var colour = src.rgb;
-    if (!sky && sunny && mc.u_causticStrength > 0.0) {
-        var normal = normalize(facing);
-        if (dot(normal, dir) > 0.0) { normal = -normal; }
-        let below = max(mc.u_planeD - dot(up, hit), 0.0);
-        let onSurface = hit + found.dir.xyz * (below / slant);
-        let web = causticPattern(onSurface.xz / mc.u_causticScale, clock);
-        let reach = exp(-extinction * below / slant);
-        colour = colour * (1.0 + mc.u_causticStrength * web * max(dot(normal, found.dir.xyz), 0.0) * sunVisibility(hit, found.tiles.x, found.tiles.y) * reach * min(found.color.a, 2.0) * 0.5);
-    }
-
-    var scatter = mc.u_scatterColor.rgb;
-#ifdef ES_LINEAR
-    scatter = srgbToLinear(scatter);
-#endif
-    scatter = scatter * exp(-mc.u_lightFalloff * mc.u_cameraDepth);
-    var col = colour * transmit + scatter * (1.0 - dot(transmit, vec3f(1.0 / 3.0)));
-
-    if (sunny && mc.u_shaftStrength > 0.0) {
-        let span = min(len, mc.u_shaftRange);
-        let ds = span / f32(SHAFT_STEPS);
-        let jitter = ign(v.pos.xy);
-        var through = 1.0;
-        var lit = 0.0;
-        for (var i : i32 = 0; i < SHAFT_STEPS; i = i + 1) {
-            let p = entry + dir * ((f32(i) + jitter) * ds);
-            let below = mc.u_planeD - dot(up, p);
-            if (below > 0.0) {
-                let onSurface = p + found.dir.xyz * (below / slant);
-                let shaft = mix(1.0, min(causticPattern(onSurface.xz / mc.u_causticScale, clock) * 1.6, 1.0), 0.7);
-                lit = lit + through * ds * sunVisibility(p, found.tiles.x, found.tiles.y) * exp(-extinction * below / slant) * shaft;
-            }
-            through = through * exp(-extinction * ds);
-        }
-        let sunTint = found.color.rgb / max(max(found.color.r, found.color.g), max(found.color.b, 1e-3));
-        col = col + sunTint * lit * extinction * 0.5 * phaseHG(dot(dir, found.dir.xyz)) * mc.u_shaftStrength * clamp(found.color.a, 0.0, 8.0) * 8.0;
-    }
-    return vec4f(mix(src.rgb, col, vec3f(mc.u_amount * wet)), src.a);
-}
-#pragma end
 `;
 
 let registered = false;

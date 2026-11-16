@@ -10,8 +10,7 @@
  * definition each: a fix that reached only the first of three copies compiled
  * fine and drew a black screen.
  */
-export const SSAO_GLSL = `/// A texel of the pass's uv, which runs in the device's own row order: up the
-/// screen here, down it on WebGPU. Its inverse round-trips through that uv.
+export const SSAO_GLSL = `/// A texel of the pass's uv, which runs up the screen on both backends. Its inverse round-trips through that uv.
 ivec2 screenTexel(vec2 uv, ivec2 size) {
     return clamp(ivec2(uv * vec2(size)), ivec2(0), size - ivec2(1));
 }
@@ -38,28 +37,6 @@ float worldPerDepth(vec2 uv, float d, vec3 P) {
     return length(worldFromDepth(uv, d + de) - P) / abs(de);
 }`;
 
-export const SSAO_WGSL = `fn screenTexel(uv : vec2f, size : vec2i) -> vec2i {
-    return clamp(vec2i(uv * vec2f(size)), vec2i(0), size - vec2i(1));
-}
-fn uvOfTexel(t : vec2i, size : vec2i) -> vec2f {
-    return (vec2f(t) + 0.5) / vec2f(size);
-}
-// A fullscreen pass's uv already runs down the rows here, so a texel is its row.
-fn depthAt(t : vec2i, size : vec2i) -> f32 {
-    let q = clamp(t, vec2i(0), size - vec2i(1));
-    return textureLoad(t7, q, 0);
-}
-fn worldAt(t : vec2i, size : vec2i) -> vec3f {
-    let q = clamp(t, vec2i(0), size - vec2i(1));
-    return worldFromDepth(uvOfTexel(q, size), depthAt(q, size));
-}
-fn worldPerDepth(uv : vec2f, d : f32, P : vec3f) -> f32 {
-    let e = max((1.0 - d) * 0.01, 1e-5);
-    var e2 = e;
-    if (d + e > 1.0) { e2 = -e; }
-    return length(worldFromDepth(uv, d + e2) - P) / abs(e2);
-}`;
-
 /**
  * Where puddles lie, in both languages: a value-noise field over the ground's world xz, cut at a level the
  * coverage sets. A function of the WORLD position alone, so the rain effect (which darkens a puddle and
@@ -80,23 +57,6 @@ float puddleMask(vec2 xz, float coverage, float scale) {
     vec2 p = xz / max(scale, 1.0);
     float n = 0.55 * puddleNoise(p) + 0.3 * puddleNoise(p * 2.3 + 17.0) + 0.15 * puddleNoise(p * 5.1 + 41.0);
     float t = 0.78 - coverage * 0.42;
-    return smoothstep(t - 0.03, t + 0.03, n);
-}`;
-
-export const PUDDLE_WGSL = `
-fn puddleHash(p : vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453); }
-fn puddleNoise(p : vec2f) -> f32 {
-    let i = floor(p);
-    var f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(puddleHash(i), puddleHash(i + vec2f(1.0, 0.0)), f.x),
-               mix(puddleHash(i + vec2f(0.0, 1.0)), puddleHash(i + vec2f(1.0, 1.0)), f.x), f.y);
-}
-fn puddleMask(xz : vec2f, coverage : f32, scale : f32) -> f32 {
-    if (coverage <= 0.0) { return 0.0; }
-    let p = xz / max(scale, 1.0);
-    let n = 0.55 * puddleNoise(p) + 0.3 * puddleNoise(p * 2.3 + 17.0) + 0.15 * puddleNoise(p * 5.1 + 41.0);
-    let t = 0.78 - coverage * 0.42;
     return smoothstep(t - 0.03, t + 0.03, n);
 }`;
 
@@ -131,28 +91,6 @@ float basinCoverage(ivec2 c, ivec2 size, vec3 P, float coverage, float scale) {
     return clamp(coverage * (1.0 + 2.2 * basin), 0.0, 1.0);
 }`;
 
-export const BASIN_WGSL = `
-fn basinCoverage(c : vec2i, size : vec2i, P : vec3f, coverage : f32, scale : f32) -> f32 {
-    if (coverage <= 0.0) { return 0.0; }
-    let pixel = length(worldAt(c + vec2i(1, 0), size) - P);
-    let reach = scale * 1.2;
-    let r = clamp(reach / max(pixel, 1e-3), 3.0, 80.0);
-    let rim = reach * 0.12;
-    var sum = 0.0;
-    for (var k : i32 = 1; k <= 3; k = k + 1) {
-        let rk = r * f32(k) / 3.0;
-        for (var i : i32 = 0; i < 8; i = i + 1) {
-            let a = (f32(i) + 0.5 * f32(k)) * 0.7853982;
-            let t = c + vec2i(floor(vec2f(cos(a), sin(a)) * rk + 0.5));
-            if (depthAt(t, size) >= 1.0) { continue; }
-            let rise = worldAt(t, size).y - P.y;
-            sum = sum + clamp(rise, -rim, rim) * select(0.0, 1.0, abs(rise) <= reach);
-        }
-    }
-    let basin = clamp(sum / (24.0 * rim) * 3.0, -1.0, 1.0);
-    return clamp(coverage * (1.0 + 2.2 * basin), 0.0, 1.0);
-}`;
-
 /**
  * Reading the scene's surface record, in both languages: what each pixel IS, as the scene's own shaders
  * wrote it beside the colour — octahedral normal in rg, roughness in b, metalness in a (a is 0 where nothing
@@ -170,23 +108,6 @@ Surface readSurface(ivec2 t) {
     vec3 n = vec3(f.x, f.y, 1.0 - abs(f.x) - abs(f.y));
     float k = clamp(-n.z, 0.0, 1.0);
     n.xy += vec2(n.x >= 0.0 ? -k : k, n.y >= 0.0 ? -k : k);
-    s.normal = normalize(n);
-    s.roughness = g.b;
-    s.metallic = clamp((g.a - 0.75) / 0.25, 0.0, 1.0);
-    return s;
-}`;
-
-export const GBUFFER_WGSL = `
-struct Surface { normal : vec3f, roughness : f32, metallic : f32, known : bool, water : bool };
-fn readSurface(t : vec2i) -> Surface {
-    let g = textureLoad(t6, t, 0);
-    var f = g.rg * 2.0 - 1.0;
-    var n = vec3f(f.x, f.y, 1.0 - abs(f.x) - abs(f.y));
-    let k = clamp(-n.z, 0.0, 1.0);
-    n = vec3f(n.x + select(k, -k, n.x >= 0.0), n.y + select(k, -k, n.y >= 0.0), n.z);
-    var s : Surface;
-    s.known = g.a > 0.7;
-    s.water = g.a > 0.7 && g.a < 0.735;
     s.normal = normalize(n);
     s.roughness = g.b;
     s.metallic = clamp((g.a - 0.75) / 0.25, 0.0, 1.0);
@@ -235,40 +156,4 @@ vec3 envSky(vec3 R, float roughness) {
     vec3 a = envSkyMip(R, lo);
     vec3 b = envSkyMip(R, min(lo + 1.0, u_envParams.z));
     return mix(a, b, lod - lo) * u_envTint.rgb;
-}`;
-
-export const ENV_WGSL = `
-fn envDirection(d : vec3f) -> vec3f {
-    let a = -mc.u_envTint.a;
-    let s = sin(a);
-    let c = cos(a);
-    return vec3f(c * d.x + s * d.z, d.y, -s * d.x + c * d.z);
-}
-fn envOctahedral(d : vec3f) -> vec2f {
-    var p = d.xz / max(abs(d.x) + abs(d.y) + abs(d.z), 1e-6);
-    if (d.y < 0.0) {
-        p = (1.0 - abs(vec2f(p.y, p.x))) * vec2f(select(-1.0, 1.0, p.x >= 0.0), select(-1.0, 1.0, p.y >= 0.0));
-    }
-    return p * 0.5 + 0.5;
-}
-fn envSkyMip(R : vec3f, mip : f32) -> vec3f {
-    let face = mc.u_envParams.w;
-    let size = face * exp2(-mip);
-    let yOff = 2.0 * face * (1.0 - exp2(-mip)) + 2.0 * mip;
-    let col = face + 2.0;
-    let atlasW = col * mc.u_reflParams.x;
-    let atlasH = 2.0 * face * (1.0 - exp2(-(mc.u_envParams.z + 1.0))) + 2.0 * (mc.u_envParams.z + 1.0);
-    let uv = envOctahedral(envDirection(R));
-    let lo = vec2f(0.5, yOff + 0.5);
-    let hi = vec2f(size + 1.5, yOff + size + 1.5);
-    let px = clamp(vec2f(1.0 + uv.x * size, yOff + 1.0 + uv.y * size), lo, hi);
-    let t = textureSampleLevel(u_environment, u_environment_s, px / vec2f(atlasW, atlasH), 0.0);
-    return t.rgb * t.rgb * (t.a * t.a * mc.u_envParams.y);
-}
-fn envSky(R : vec3f, roughness : f32) -> vec3f {
-    let lod = clamp(roughness, 0.0, 1.0) * mc.u_envParams.z;
-    let lo = floor(lod);
-    let a = envSkyMip(R, lo);
-    let b = envSkyMip(R, min(lo + 1.0, mc.u_envParams.z));
-    return mix(a, b, lod - lo) * mc.u_envTint.rgb;
 }`;

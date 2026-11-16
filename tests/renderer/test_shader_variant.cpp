@@ -436,9 +436,10 @@ static void testWGSLEmission() {
     CHECK(pp.valid && pp.wgslVertexIsCanonical, "fragment-only PP twin gets the canonical WGSL vertex");
     const std::string ppVs = wgsl(pp, ShaderStage::Vertex);
     const std::string ppVsMain = ppVs.substr(std::min(ppVs.find("fn vs_main"), ppVs.size()));
-    CHECK(ppVsMain.find("out.pos = vec4f(v.a_position, 0.0, 1.0);") != std::string::npos &&
+    CHECK(ppVsMain.find("out.pos = vec4f(v.a_position.x, -v.a_position.y, 0.0, 1.0);") != std::string::npos &&
+          ppVsMain.find("out.v_texCoord = v.a_texCoord;") != std::string::npos &&
           ppVsMain.find("frame.projection") == std::string::npos,
-          "PP canonical WGSL vertex is the clip-space pass-through");
+          "PP canonical WGSL vertex is the clip-space pass-through, clip y turned over and the uv as it came");
     const std::string ppFs = wgsl(pp, ShaderStage::Fragment);
     CHECK(ppFs.find("@location(0) v_texCoord : vec2f,") != std::string::npos &&
           ppFs.find("v_color") == std::string::npos,

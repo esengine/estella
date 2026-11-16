@@ -17,9 +17,8 @@ import { Renderer, deviceGeneration } from '../render/renderer';
 import { getResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
 
-/** Render target flags: linear filtering (2), and the texture kept as drawn (4): on a device that stores targets top-down, no copy turned
- *  to bottom-up rows is made, and the Terrain Layers shader reads the page's rows as that device stores them. */
-const TARGET_FLAGS = 2 | 4;
+/** Render target flags: linear filtering (2). */
+const TARGET_FLAGS = 2;
 
 /** What a page is drawn from: the node's corner, size and level, its page of heights and paint, and what it was all made from. */
 export interface SurfaceRequest {

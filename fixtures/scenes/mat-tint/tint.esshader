@@ -54,6 +54,7 @@ struct VSOut {
     out.pos = frame.projection * vec4f(v.a_position, 1.0);
     out.v_color = v.a_color;
     out.v_texCoord = v.a_texCoord;
+    out.pos.y = -out.pos.y;
     return out;
 }
 #pragma end
@@ -138,7 +139,7 @@ fn vs_main(@location(0) a_position: vec3<f32>, @location(1) a_color: vec4<f32>, 
     a_texCoord_1 = a_texCoord;
     a_texIndex_1 = a_texIndex;
     main_1();
-    let _e12 = unnamed.gl_Position;
+    let _e12 = vec4<f32>(unnamed.gl_Position.x, -unnamed.gl_Position.y, unnamed.gl_Position.zw);
     let _e13 = v_color;
     let _e14 = v_texCoord;
     return VertexOutput(_e12, _e13, _e14);

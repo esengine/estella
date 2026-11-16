@@ -1049,9 +1049,8 @@ u32 renderer_createTarget(u32 width, u32 height, i32 flags) {
     if (!g_renderFrame) return 0;
     bool depth = (flags & 1) != 0;
     bool linear = (flags & 2) != 0;
-    // 4: the texture as drawn, its rows in the device's own order (RenderTarget::init's asDrawn).
-    bool asDrawn = (flags & 4) != 0;
-    return g_renderFrame->targetManager().create(width, height, depth, linear, asDrawn);
+    // 4 once asked for the texture as drawn rather than a copy turned bottom-up; every target is read as drawn now.
+    return g_renderFrame->targetManager().create(width, height, depth, linear);
 }
 
 u32 renderer_getTargetDepthTexture(u32 handle) {

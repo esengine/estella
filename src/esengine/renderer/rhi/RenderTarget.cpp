@@ -5,7 +5,7 @@
 
 namespace esengine {
 
-void RenderTarget::init(GfxDevice& device, u32 width, u32 height, bool depth, bool linearFilter, bool asDrawn) {
+void RenderTarget::init(GfxDevice& device, u32 width, u32 height, bool depth, bool linearFilter) {
     width_ = width;
     height_ = height;
     has_depth_ = depth;
@@ -19,15 +19,9 @@ void RenderTarget::init(GfxDevice& device, u32 width, u32 height, bool depth, bo
 
     framebuffer_ = Framebuffer::create(device, spec);
     device_ = &device;
-    if (device.storesTargetsTopDown() && !asDrawn) {
-        FramebufferSpec shown = spec;
-        shown.depthStencil = false;
-        published_ = Framebuffer::create(device, shown);
-    }
 }
 
 void RenderTarget::shutdown() {
-    published_.reset();
     framebuffer_.reset();
     width_ = 0;
     height_ = 0;
@@ -54,19 +48,10 @@ void RenderTarget::resize(u32 width, u32 height) {
     if (framebuffer_) {
         framebuffer_->resize(width, height);
     }
-    if (published_) {
-        published_->resize(width, height);
-    }
 }
 
 TextureHandle RenderTarget::getColorTexture() const {
-    if (published_) return published_->getColorAttachment();
     return framebuffer_ ? framebuffer_->getColorAttachment() : TextureHandle::Invalid;
-}
-
-void RenderTarget::publish() {
-    if (!device_ || !framebuffer_ || !published_) return;
-    device_->copyTextureFlippedY(framebuffer_->getColorAttachment(), published_->getColorAttachment());
 }
 
 TextureHandle RenderTarget::getDepthTexture() const {
@@ -77,7 +62,7 @@ FramebufferHandle RenderTarget::getFramebuffer() const {
     return framebuffer_ ? framebuffer_->handle() : FramebufferHandle::Default;
 }
 
-RenderTargetManager::Handle RenderTargetManager::create(u32 width, u32 height, bool depth, bool linearFilter, bool asDrawn) {
+RenderTargetManager::Handle RenderTargetManager::create(u32 width, u32 height, bool depth, bool linearFilter) {
     Handle handle;
 
     if (!free_list_.empty()) {
@@ -89,7 +74,7 @@ RenderTargetManager::Handle RenderTargetManager::create(u32 width, u32 height, b
     }
 
     auto target = makeUnique<RenderTarget>();
-    target->init(*device_, width, height, depth, linearFilter, asDrawn);
+    target->init(*device_, width, height, depth, linearFilter);
 
     usize index = handle - 1;
     if (index < targets_.size()) {

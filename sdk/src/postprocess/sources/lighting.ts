@@ -10,7 +10,7 @@ import { registerEffectSources } from '../effectSources';
 import { gtaoPasses } from '../gtao';
 import { subsurfacePasses } from '../subsurface';
 import { voxelGIFallback } from '../voxelGIFallback';
-import { SSAO_GLSL, SSAO_WGSL, PUDDLE_GLSL, PUDDLE_WGSL, BASIN_GLSL, BASIN_WGSL, GBUFFER_GLSL, GBUFFER_WGSL, ENV_GLSL, ENV_WGSL } from './shared';
+import { SSAO_GLSL, PUDDLE_GLSL, BASIN_GLSL, GBUFFER_GLSL, ENV_GLSL } from './shared';
 
 export const lightingEffects = {
     /**
@@ -28,15 +28,6 @@ vec3 fromYCoCg(vec3 c) {
 /// Weighs a pixel by 1 / (1 + peak): an HDR highlight cannot dominate the average.
 vec3 compress(vec3 c) { return c / (1.0 + max(max(c.r, c.g), c.b)); }
 vec3 expand(vec3 c) { return c / max(1.0 - max(max(c.r, c.g), c.b), 1e-4); }`;
-        const WGSL = `
-fn toYCoCg(c : vec3f) -> vec3f {
-    return vec3f(0.25 * c.r + 0.5 * c.g + 0.25 * c.b, 0.5 * c.r - 0.5 * c.b, -0.25 * c.r + 0.5 * c.g - 0.25 * c.b);
-}
-fn fromYCoCg(c : vec3f) -> vec3f {
-    return vec3f(c.x + c.y - c.z, c.x + c.z, c.x - c.y - c.z);
-}
-fn compress(c : vec3f) -> vec3f { return c / (1.0 + max(max(c.r, c.g), c.b)); }
-fn expand(c : vec3f) -> vec3f { return c / max(1.0 - max(max(c.r, c.g), c.b), 1e-4); }`;
         const source = `#pragma shader "PP TAA"
 #pragma version 300 es
 #pragma domain PostProcess
@@ -149,89 +140,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-${WGSL}
-
-// See the GLSL twin: the history by a Catmull-Rom fit in five taps, not one bilinear fetch.
-fn historyBicubic(uv : vec2f) -> vec3f {
-    let texSize = vec2f(textureDimensions(u_history, 0));
-    let samplePos = uv * texSize;
-    let tc1 = floor(samplePos - 0.5) + 0.5;
-    let f = samplePos - tc1;
-    let w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
-    let w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
-    let w2 = f * (0.5 + f * (2.0 - 1.5 * f));
-    let w3 = f * f * (-0.5 + 0.5 * f);
-    let w12 = w1 + w2;
-    let tc0 = (tc1 - 1.0) / texSize;
-    let tc3 = (tc1 + 2.0) / texSize;
-    let tc12 = (tc1 + w2 / w12) / texSize;
-    let sum = textureSampleLevel(u_history, u_history_s, vec2f(tc12.x, tc0.y), 0.0).rgb * (w12.x * w0.y)
-            + textureSampleLevel(u_history, u_history_s, vec2f(tc0.x, tc12.y), 0.0).rgb * (w0.x * w12.y)
-            + textureSampleLevel(u_history, u_history_s, vec2f(tc12.x, tc12.y), 0.0).rgb * (w12.x * w12.y)
-            + textureSampleLevel(u_history, u_history_s, vec2f(tc3.x, tc12.y), 0.0).rgb * (w3.x * w12.y)
-            + textureSampleLevel(u_history, u_history_s, vec2f(tc12.x, tc3.y), 0.0).rgb * (w12.x * w3.y);
-    let weight = w12.x * w0.y + w0.x * w12.y + w12.x * w12.y + w3.x * w12.y + w12.x * w3.y;
-    return max(sum / weight, vec3f(0.0));
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let size = vec2i(textureDimensions(t0, 0));
-    let texel = 1.0 / vec2f(size);
-    // See the GLSL: read the frame back without this frame's jitter. This device's uv runs down the rows, so y flips.
-    let uvNow = v.v_texCoord + vec2f(mc.u_jitter.x, -mc.u_jitter.y) * 0.5;
-    let cur = textureSampleLevel(t0, s0, uvNow, 0.0);
-
-    var m1 = vec3f(0.0);
-    var m2 = vec3f(0.0);
-    for (var y : i32 = -1; y <= 1; y = y + 1) {
-        for (var x : i32 = -1; x <= 1; x = x + 1) {
-            let s = toYCoCg(compress(textureSampleLevel(t0, s0, uvNow + vec2f(f32(x), f32(y)) * texel, 0.0).rgb));
-            m1 = m1 + s;
-            m2 = m2 + s * s;
-        }
-    }
-    let mean = m1 / 9.0;
-    let sigma = sqrt(max(m2 / 9.0 - mean * mean, vec3f(0.0)));
-    let curY = toYCoCg(compress(cur.rgb));
-
-    let dsize = vec2i(textureDimensions(t7, 0));
-    // See the GLSL: the depth and the point are read where this pixel's surface was drawn.
-    let d = depthAt(screenTexel(uvNow, dsize), dsize);
-    let world = worldFromDepth(uvNow, d);
-    let vp = mat4x4f(mc.u_prevViewProjection0, mc.u_prevViewProjection1,
-                     mc.u_prevViewProjection2, mc.u_prevViewProjection3);
-    let prev = vp * vec4f(world, 1.0);
-    // This device's uv runs down the rows, so clip y is flipped on the way back.
-    let pw = max(prev.w, 1e-6);
-    var puv = vec2f(prev.x / pw * 0.5 + 0.5, 0.5 - prev.y / pw * 0.5);
-    var inFront = prev.w > 1e-6;
-    // See the GLSL twin: a surface that moved by itself, from the frame's motion pass. This device's uv
-    // runs down the rows, so the displacement's y is flipped on the way in.
-    let vsize = vec2i(textureDimensions(u_velocity, 0));
-    let vel = textureLoad(u_velocity, screenTexel(uvNow, vsize), 0);
-    if (mc.u_objectMotion > 0.5 && vel.a > 0.5 && abs(vel.b - d) <= 2e-5 + (1.0 - d) * 0.02) {
-        puv = v.v_texCoord + vec2f(vel.x, -vel.y);
-        inFront = true;
-    }
-    let seen = mc.u_historyValid > 0.5 && inFront
-            && puv.x >= 0.0 && puv.x <= 1.0 && puv.y >= 0.0 && puv.y <= 1.0;
-    if (!seen) { return cur; }
-
-    var hist = toYCoCg(compress(historyBicubic(puv)));
-    let lo = mean - sigma * 1.25;
-    let hi = mean + sigma * 1.25;
-    let dir = hist - mean;
-    let over = max(abs(dir) / max((hi - lo) * 0.5, vec3f(1e-5)), vec3f(1.0));
-    hist = mean + dir / max(max(over.x, over.y), over.z);
-
-    let speed = length((puv - v.v_texCoord) / texel);
-    let blend = mix(mc.u_blend, min(mc.u_blend * 4.0, 1.0), clamp(speed, 0.0, 1.0));
-    let outY = mix(hist, curY, blend);
-    return vec4f(expand(fromYCoCg(outY)), cur.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -255,17 +163,6 @@ float ign(vec2 p) {
 vec3 project(vec3 P) {
     vec4 c = u_projection * vec4(P, 1.0);
     return vec3(c.xy / max(c.w, 1e-6) * 0.5 + 0.5, c.w);
-}`;
-        const WGSL = `
-const STEPS : i32 = 48;
-const REFINE : i32 = 6;
-fn ign(p : vec2f) -> f32 {
-    return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715))));
-}
-fn project(P : vec3f) -> vec3f {
-    let c = frame.projection * vec4f(P, 1.0);
-    let w = max(c.w, 1e-6);
-    return vec3f(c.x / w * 0.5 + 0.5, 0.5 - c.y / w * 0.5, c.w);
 }`;
         const source = `#pragma shader "PP SSR"
 #pragma version 300 es
@@ -451,133 +348,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-${PUDDLE_WGSL}
-${BASIN_WGSL}
-${GBUFFER_WGSL}
-${ENV_WGSL}
-${WGSL}
-
-fn coveredAt(W : vec3f) -> f32 {
-    if (mc.u_coverActive < 0.5) { return 0.0; }
-    let m = mat4x4f(mc.u_coverMatrix0, mc.u_coverMatrix1, mc.u_coverMatrix2, mc.u_coverMatrix3);
-    let c = m * vec4f(W, 1.0);
-    let uv = c.xy / c.w * 0.5 + 0.5;
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return 0.0; }
-    // This device's texture rows run the other way from the clip space the map was drawn in.
-    let stored = dot(textureSampleLevel(u_rainCover, u_rainCover_s, vec2f(uv.x, 1.0 - uv.y), 0.0).rgb,
-                     vec3f(1.0, 1.0 / 255.0, 1.0 / 65025.0));
-    let here = clamp(c.z / c.w * 0.5 + 0.5, 0.0, 1.0);
-    return select(0.0, 1.0, stored < here - mc.u_coverBias / (4.0 * mc.u_coverRange));
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let scene = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let size = vec2i(textureDimensions(t7, 0));
-    let c = screenTexel(v.v_texCoord, size);
-    let d = depthAt(c, size);
-    if (d >= 1.0 || mc.u_intensity <= 0.0) { return scene; }
-
-    let cuv = uvOfTexel(c, size);
-    let P = worldFromDepth(cuv, d);
-
-    let dl = depthAt(c + vec2i(-1, 0), size);
-    let dr = depthAt(c + vec2i( 1, 0), size);
-    let dd = depthAt(c + vec2i(0, -1), size);
-    let du = depthAt(c + vec2i(0,  1), size);
-    var ax = P - worldAt(c + vec2i(-1, 0), size);
-    if (abs(dr - d) < abs(dl - d)) { ax = worldAt(c + vec2i(1, 0), size) - P; }
-    var ay = P - worldAt(c + vec2i(0, -1), size);
-    if (abs(du - d) < abs(dd - d)) { ay = worldAt(c + vec2i(0, 1), size) - P; }
-    var N = normalize(cross(ax, ay));
-    let V = viewDirection(P);
-    if (dot(N, V) < 0.0) { N = -N; }
-
-    let sf = readSurface(c);
-    if (!sf.known) { return scene; }
-    N = sf.normal;
-    if (dot(N, V) < 0.0) { N = -N; }
-    var rough = sf.roughness;
-    let metal = sf.metallic;
-
-    let flatUp = smoothstep(0.86, 0.95, N.y);
-    var wetUp = 0.0;
-    if (mc.u_puddles > 0.0 || mc.u_wetness > 0.0) { wetUp = flatUp * (1.0 - coveredAt(P)); }
-    var puddle = 0.0;
-    if (mc.u_puddles > 0.0) {
-        puddle = puddleMask(P.xz, basinCoverage(c, size, P, mc.u_puddles, mc.u_puddleScale), mc.u_puddleScale) * wetUp;
-        N = normalize(mix(N, vec3f(0.0, 1.0, 0.0), puddle));
-    }
-    rough = mix(rough, rough * 0.35, mc.u_wetness * wetUp);
-    rough = mix(rough, 0.04, puddle);
-    if (rough > mc.u_maxRoughness) { return scene; }
-
-    let cosT = clamp(dot(N, V), 0.0, 1.0);
-    let f0 = mix(0.04, 0.9, metal);
-    var fresnel = f0 + (1.0 - f0) * pow(1.0 - cosT, 5.0);
-    fresnel = mix(fresnel, max(fresnel, 0.55), puddle);
-    let gloss = (1.0 - rough) * (1.0 - rough);
-    let up = mix(1.0, smoothstep(0.55, 0.9, N.y), mc.u_floorBias);
-    let weight = fresnel * up * gloss * mc.u_intensity;
-    if (weight < 0.002) { return scene; }
-
-    let R = reflect(-V, N);
-    if (dot(R, V) > 0.97) { return scene; }
-
-    let stepLen = mc.u_maxDistance / f32(STEPS);
-    let jitter = ign(v.pos.xy);
-    var eye = P + frame.camera.xyz * 1e4;
-    if (frame.camera.w > 0.5) { eye = frame.camera.xyz; }
-    var hitColor = vec3f(0.0);
-    var hit = 0.0;
-    var prevP = P;
-    for (var i : i32 = 0; i < STEPS; i = i + 1) {
-        let t = (f32(i) + jitter) * stepLen + stepLen * 0.5;
-        let Q = P + R * t;
-        let s = project(Q);
-        if (s.z <= 0.0 || s.x < 0.0 || s.x > 1.0 || s.y < 0.0 || s.y > 1.0) { break; }
-        let st = screenTexel(s.xy, size);
-        let ds = depthAt(st, size);
-        if (ds >= 1.0) { prevP = Q; continue; }
-        let S = worldFromDepth(uvOfTexel(st, size), ds);
-        let behind = length(Q - eye) - length(S - eye);
-        if (behind > 0.0 && behind < mc.u_thickness + stepLen) {
-            var a = prevP;
-            var b = Q;
-            for (var k : i32 = 0; k < REFINE; k = k + 1) {
-                let m = 0.5 * (a + b);
-                let sm = project(m);
-                let mt = screenTexel(sm.xy, size);
-                let dm = depthAt(mt, size);
-                let Sm = worldFromDepth(uvOfTexel(mt, size), dm);
-                if (length(m - eye) - length(Sm - eye) > 0.0) { b = m; } else { a = m; }
-            }
-            let sh = project(b);
-            let e = min(sh.xy, vec2f(1.0) - sh.xy);
-            let edge = smoothstep(0.0, 0.1, min(e.x, e.y));
-            let travelled = length(b - P);
-            let blur = ((travelled / max(mc.u_maxDistance, 1.0)) * 6.0 + rough * 10.0) * (1.0 - 0.85 * puddle);
-            let texel = 1.0 / vec2f(vec2i(textureDimensions(t0, 0)));
-            var col = textureSampleLevel(t0, s0, sh.xy, 0.0).rgb * 0.4;
-            col = col + textureSampleLevel(t0, s0, sh.xy + vec2f( blur, 0.0) * texel, 0.0).rgb * 0.15;
-            col = col + textureSampleLevel(t0, s0, sh.xy + vec2f(-blur, 0.0) * texel, 0.0).rgb * 0.15;
-            col = col + textureSampleLevel(t0, s0, sh.xy + vec2f(0.0,  blur) * texel, 0.0).rgb * 0.15;
-            col = col + textureSampleLevel(t0, s0, sh.xy + vec2f(0.0, -blur) * texel, 0.0).rgb * 0.15;
-            hit = edge * (1.0 - smoothstep(0.6, 1.0, travelled / mc.u_maxDistance));
-            hitColor = col;
-            break;
-        }
-        prevP = Q;
-    }
-    var result = mix(scene.rgb, hitColor, vec3f(clamp(weight * hit, 0.0, 1.0)));
-    if (mc.u_envParams.x > 0.5 && mc.u_skyReflection > 0.0) {
-        let sky = envSky(R, rough);
-        result = mix(result, sky, vec3f(clamp(weight * (1.0 - hit) * mc.u_skyReflection, 0.0, 1.0)));
-    }
-    return vec4f(result, scene.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -601,21 +371,6 @@ vec3 cosineDirection(vec3 N, float u, float v) {
     vec3 up = abs(N.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
     vec3 T = normalize(cross(up, N));
     vec3 B = cross(N, T);
-    return normalize(T * (r * cos(phi)) + B * (r * sin(phi)) + N * sqrt(max(1.0 - u, 0.0)));
-}`;
-        const WGSL = `
-const RAYS : i32 = 8;
-const STEPS : i32 = 6;
-fn ign(p : vec2f) -> f32 {
-    return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715))));
-}
-fn cosineDirection(N : vec3f, u : f32, v : f32) -> vec3f {
-    let r = sqrt(u);
-    let phi = 6.2831853 * v;
-    var up = vec3f(1.0, 0.0, 0.0);
-    if (abs(N.y) < 0.99) { up = vec3f(0.0, 1.0, 0.0); }
-    let T = normalize(cross(up, N));
-    let B = cross(N, T);
     return normalize(T * (r * cos(phi)) + B * (r * sin(phi)) + N * sqrt(max(1.0 - u, 0.0)));
 }`;
         const source = `#pragma shader "PP SSGI Gather"
@@ -684,52 +439,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-${GBUFFER_WGSL}
-${WGSL}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let size = vec2i(textureDimensions(t7, 0));
-    let c = screenTexel(v.v_texCoord, size);
-    let d = depthAt(c, size);
-    if (d >= 1.0) { return vec4f(0.0); }
-    let sf = readSurface(c);
-    if (!sf.known) { return vec4f(0.0); }
-
-    let P = worldFromDepth(uvOfTexel(c, size), d);
-    var N = sf.normal;
-    if (dot(N, viewDirection(P)) < 0.0) { N = -N; }
-
-    let rot = ign(v.pos.xy);
-    let turn = ign(v.pos.yx + vec2f(5.588238 * tc.u_time.x * 60.0, 0.0));
-    var gathered = vec3f(0.0);
-    for (var k : i32 = 0; k < RAYS; k = k + 1) {
-        let u = fract((f32(k) + 0.5) / f32(RAYS) + rot);
-        let w = fract(f32(k) * 0.61803399 + turn);
-        let dir = cosineDirection(N, u, w);
-        for (var i : i32 = 1; i <= STEPS; i = i + 1) {
-            let f = f32(i) / f32(STEPS);
-            let t = mc.u_radius * f * f;
-            let Q = P + N * (mc.u_radius * 0.01) + dir * t;
-            let q = frame.projection * vec4f(Q, 1.0);
-            if (q.w <= 1e-4) { break; }
-            let uv = vec2f(q.x / q.w * 0.5 + 0.5, 0.5 - q.y / q.w * 0.5);
-            if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { break; }
-            let tx = screenTexel(uv, size);
-            if (depthAt(tx, size) >= 1.0) { continue; }
-            let surface = (frame.projection * vec4f(worldAt(tx, size), 1.0)).w;
-            let behind = q.w - surface;
-            if (behind > mc.u_thickness * 0.05 && behind < mc.u_thickness) {
-                let hit = min(textureSampleLevel(t0, s0, uv, 0.0).rgb, vec3f(mc.u_maxBounce));
-                gathered = gathered + hit * (1.0 - f * 0.6);
-                break;
-            }
-        }
-    }
-    return vec4f(gathered / f32(RAYS), 1.0);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -800,46 +509,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-${GBUFFER_WGSL}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
-    let size = vec2i(textureDimensions(t7, 0));
-    let c = screenTexel(v.v_texCoord, size);
-    let d = depthAt(c, size);
-    let sf = readSurface(c);
-    if (d >= 1.0 || !sf.known || mc.u_intensity <= 0.0) { return src; }
-
-    let P = worldFromDepth(uvOfTexel(c, size), d);
-    let reach = max(length(worldAt(c + vec2i(2, 0), size) - P), 1e-3);
-    let texel = 1.0 / vec2f(vec2i(textureDimensions(t0, 0)));
-    var sum = vec3f(0.0);
-    var wsum = 0.0;
-    for (var j : i32 = -2; j <= 2; j = j + 1) {
-        for (var i : i32 = -2; i <= 2; i = i + 1) {
-            let uv = v.v_texCoord + vec2f(f32(i), f32(j)) * texel;
-            let t = screenTexel(uv, size);
-            let dt = depthAt(t, size);
-            if (dt >= 1.0) { continue; }
-            let st = readSurface(t);
-            if (!st.known) { continue; }
-            let apart = length(worldAt(t, size) - P) / (reach * 8.0);
-            let w = exp(-apart * apart * 4.0) * pow(max(dot(sf.normal, st.normal), 0.0), 8.0);
-            sum = sum + textureSampleLevel(t0, s0, uv, 0.0).rgb * w;
-            wsum = wsum + w;
-        }
-    }
-    var gathered = vec3f(0.0);
-    if (wsum > 1e-4) { gathered = sum / wsum; }
-    let written = textureLoad(u_sceneAlbedo, min(c, vec2i(textureDimensions(u_sceneAlbedo, 0)) - vec2i(1)), 0);
-    let lum = max(dot(src.rgb, vec3f(0.2126, 0.7152, 0.0722)), 0.02);
-    let guessed = mix(vec3f(0.55), clamp(src.rgb / lum, vec3f(0.0), vec3f(1.6)) * 0.55, 0.7);
-    let albedo = select(guessed, written.rgb, written.a > 0.5);
-    return vec4f(src.rgb + albedo * gathered * mc.u_intensity, src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -933,64 +602,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-const STEPS : i32 = 20;
-
-${SSAO_WGSL}
-
-fn ign(p : vec2f) -> f32 {
-    return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715))));
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let size = vec2i(textureDimensions(t7, 0));
-    let c = screenTexel(v.v_texCoord, size);
-    let d = depthAt(c, size);
-    if (d >= 1.0 || mc.u_intensity <= 0.0) { return src; }
-
-    let found = findSun();
-    let az = radians(mc.u_sunAzimuth);
-    let el = radians(mc.u_sunElevation);
-    var L = vec3f(cos(el) * sin(az), sin(el), cos(el) * cos(az));
-    if (mc.u_followSun > 0.5 && found.dir.w > 0.5) { L = found.dir.xyz; }
-
-    let P = worldFromDepth(uvOfTexel(c, size), d);
-    let dl = depthAt(c + vec2i(-1, 0), size);
-    let dr = depthAt(c + vec2i( 1, 0), size);
-    let dd = depthAt(c + vec2i(0, -1), size);
-    let du = depthAt(c + vec2i(0,  1), size);
-    var ax = P - worldAt(c + vec2i(-1, 0), size);
-    if (abs(dr - d) < abs(dl - d)) { ax = worldAt(c + vec2i(1, 0), size) - P; }
-    var ay = P - worldAt(c + vec2i(0, -1), size);
-    if (abs(du - d) < abs(dd - d)) { ay = worldAt(c + vec2i(0, 1), size) - P; }
-    var N = normalize(cross(ax, ay));
-    if (dot(N, viewDirection(P)) < 0.0) { N = -N; }
-    let facing = smoothstep(0.02, 0.25, dot(N, L));
-    if (facing <= 0.0) { return src; }
-    let jitter = ign(v.pos.xy + vec2f(5.588238 * f32(i32(tc.u_time.x * 60.0) & 63)));
-    var occluded = 0.0;
-    for (var i : i32 = 0; i < STEPS; i = i + 1) {
-        let t = (f32(i) + jitter + 0.5) / f32(STEPS) * mc.u_length;
-        let Q = P + L * t;
-        let q = frame.projection * vec4f(Q, 1.0);
-        if (q.w <= 1e-4) { break; }
-        // This device's uv runs down the rows, so clip y is flipped on the way back.
-        let uv = vec2f(q.x / q.w * 0.5 + 0.5, 0.5 - q.y / q.w * 0.5);
-        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { break; }
-        let tx = screenTexel(uv, size);
-        if (depthAt(tx, size) >= 1.0) { continue; }
-        let surface = (frame.projection * vec4f(worldAt(tx, size), 1.0)).w;
-        let behind = q.w - surface;
-        if (behind > mc.u_thickness * 0.08 + t * 0.01 && behind < mc.u_thickness) {
-            let reach = t / mc.u_length;
-            occluded = 1.0 - reach * reach;
-            break;
-        }
-    }
-    return vec4f(src.rgb * (1.0 - mc.u_intensity * occluded * facing), src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1088,72 +699,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-const SAMPLES : i32 = 40;
-
-fn ign(p : vec2f) -> f32 {
-    return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715))));
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let found = findSun();
-    let follow = mc.u_followSun > 0.5 && found.dir.w > 0.5;
-    let az = radians(mc.u_sunAzimuth);
-    let el = radians(mc.u_sunElevation);
-    var sun = vec3f(cos(el) * sin(az), sin(el), cos(el) * cos(az));
-    if (follow) { sun = found.dir.xyz; }
-    let size = vec2i(textureDimensions(t7, 0));
-    let aspect = f32(size.x) / f32(size.y);
-    var toSun = vec2f(0.0);
-    var dist = 0.0;
-    if (frame.camera.w > 0.5) {
-        let eye = worldFromDepth(v.v_texCoord, 0.0);
-        let clip = frame.projection * vec4f(eye + sun * 10000.0, 1.0);
-        if (clip.w <= 1e-4) { return src; }
-        // This device's uv runs down the rows, so clip y is flipped on the way back.
-        let sunUv = vec2f(clip.x / clip.w * 0.5 + 0.5, 0.5 - clip.y / clip.w * 0.5);
-        toSun = (sunUv - v.v_texCoord) * mc.u_reach;
-        dist = length(vec2f((sunUv.x - v.v_texCoord.x) * aspect, sunUv.y - v.v_texCoord.y));
-    } else {
-        // See the GLSL twin: an orthographic camera has the sun in a direction on screen and no place there.
-        let m = frame.projection;
-        let right = normalize(vec3f(m[0][0], m[1][0], m[2][0]));
-        let upAxis = normalize(vec3f(m[0][1], m[1][1], m[2][1]));
-        let forward = normalize(vec3f(m[0][2], m[1][2], m[2][2]));
-        let front = dot(sun, forward);
-        if (front <= 0.05) { return src; }
-        let across = vec2f(dot(sun, right), dot(sun, upAxis));
-        let reach2 = length(across);
-        dist = (reach2 / front) / 0.57735;
-        // Rows run down this device's picture, so the direction's up is minus y.
-        if (reach2 > 1e-4) {
-            let d = normalize(vec2f(across.x / aspect, across.y));
-            toSun = vec2f(d.x, -d.y) * 0.5 * mc.u_reach;
-        }
-    }
-    let stepUv = toSun / f32(SAMPLES);
-    var uv = v.v_texCoord + stepUv * ign(v.pos.xy);
-    var light = 0.0;
-    var weight = 1.0;
-    for (var i : i32 = 0; i < SAMPLES; i = i + 1) {
-        uv = uv + stepUv;
-        let t = clamp(vec2i(uv * vec2f(size)), vec2i(0), size - vec2i(1));
-        var lit = 0.0;
-        if (textureLoad(t7, t, 0) >= 1.0) { lit = 1.0; }
-        light = light + lit * weight;
-        weight = weight * mc.u_decay;
-    }
-    light = light / f32(SAMPLES);
-    let falloff = 1.0 - smoothstep(0.0, 1.2, dist);
-    var tint = mc.u_sunColor.rgb;
-#ifdef ES_LINEAR
-    tint = srgbToLinear(tint);
-#endif
-    if (follow) { tint = found.color.rgb / max(max(found.color.r, found.color.g), max(found.color.b, 1e-3)); }
-    return vec4f(src.rgb + tint * light * falloff * mc.u_intensity, src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1194,23 +739,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let texel = 1.0 / vec2f(vec2i(textureDimensions(t0, 0)));
-    var sum = 0.0;
-    var counted = 0.0;
-    for (var j : i32 = 0; j < 4; j = j + 1) {
-        for (var i : i32 = 0; i < 4; i = i + 1) {
-            let c = textureSampleLevel(t0, s0, v.v_texCoord + (vec2f(f32(i), f32(j)) - 1.5) * 4.0 * texel, 0.0).rgb;
-            let lum = dot(c, vec3f(0.2126, 0.7152, 0.0722));
-            if (lum > 0.0039) { sum = sum + log2(lum); counted = counted + 1.0; }
-        }
-    }
-    var code = 0.0;
-    if (counted > 0.0) { code = clamp((sum / counted + 12.0) / 20.0, 0.0, 1.0); }
-    return vec4f(code, counted / 16.0, 0.0, 1.0);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1281,42 +809,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-fn meterWeight(uv : vec2f) -> f32 {
-    if (mc.u_metering < 0.5) { return 1.0; }
-    let r = length(uv - vec2f(0.5)) / max(mc.u_meterSize, 0.02);
-    if (mc.u_metering < 1.5) { return exp(-2.0 * r * r) + 0.04; }
-    return select(0.0, 1.0, r < 1.0);
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    var sum = 0.0;
-    var weight = 0.0;
-    var extent = 1.0;
-    if (mc.u_metering >= 0.5) { extent = clamp(mc.u_meterSize * 2.4, 0.1, 1.0); }
-    for (var j : i32 = 0; j < 8; j = j + 1) {
-        for (var i : i32 = 0; i < 8; i = i + 1) {
-            let at = vec2f(0.5) + ((vec2f(f32(i), f32(j)) + 0.5) / 8.0 - vec2f(0.5)) * extent;
-            let m = textureSampleLevel(t0, s0, at, 0.0).rg;
-            let w = meterWeight(at);
-            sum = sum + m.r * m.g * w;
-            weight = weight + m.g * w;
-        }
-    }
-    var meanLog = log2(0.18);
-    if (weight > 1e-3) { meanLog = (sum / weight) * 20.0 - 12.0; }
-    let target_ev = clamp(log2(0.18) - meanLog + mc.u_bias, mc.u_minEV, mc.u_maxEV);
-    let prev = textureSampleLevel(u_feedback, u_feedback_s, vec2f(0.5), 0.0).r * 20.0 - 10.0;
-    var ev = target_ev;
-    if (mc.u_historyValid > 0.5) {
-        var rate = mc.u_speedDown;
-        if (target_ev > prev) { rate = mc.u_speedUp; }
-        ev = prev + (target_ev - prev) * (1.0 - exp(-clamp(tc.u_time.y, 0.0, 0.25) * rate));
-    }
-    let code = clamp((ev + 10.0) / 20.0, 0.0, 1.0);
-    return vec4f(code, code, code, 1.0);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1341,13 +833,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let ev = textureSampleLevel(t0, s0, vec2f(0.5), 0.0).r * 20.0 - 10.0;
-    let scene = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
-    return vec4f(scene.rgb * exp2(ev), scene.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1411,37 +896,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let prev = textureSampleLevel(u_feedback, u_feedback_s, vec2f(0.5), 0.0).r;
-    var target_d = mc.u_focusDistance;
-    if (mc.u_autoFocus > 0.5) {
-        let size = vec2i(textureDimensions(t7, 0));
-        let eye = worldFromDepth(vec2f(mc.u_focusX, mc.u_focusY), select(0.5, 0.0, frame.camera.w > 0.5));
-        var sum = 0.0;
-        var n = 0.0;
-        for (var j : i32 = -1; j <= 1; j = j + 1) {
-            for (var i : i32 = -1; i <= 1; i = i + 1) {
-                let uv = vec2f(mc.u_focusX, mc.u_focusY) + vec2f(f32(i), f32(j)) * 0.012;
-                let d = depthAt(screenTexel(uv, size), size);
-                if (d >= 1.0) { continue; }
-                sum = sum + length(worldFromDepth(uv, d) - eye);
-                n = n + 1.0;
-            }
-        }
-        if (n > 0.5) { target_d = sum / n; }
-        else if (mc.u_historyValid > 0.5) { target_d = prev; }
-    }
-    var focus = target_d;
-    if (mc.u_historyValid > 0.5 && prev > 0.0) {
-        let k = 1.0 - exp(-clamp(tc.u_time.y, 0.0, 0.25) * mc.u_focusSpeed);
-        focus = exp(mix(log(prev), log(max(target_d, 1e-3)), k));
-    }
-    return vec4f(focus, 0.0, 0.0, 1.0);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1488,24 +942,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
-    let focus = textureSampleLevel(t0, s0, vec2f(0.5), 0.0).r;
-    let size = vec2i(textureDimensions(t7, 0));
-    let depth = depthAt(screenTexel(v.v_texCoord, size), size);
-    var coc = min(mc.u_aperture, mc.u_maxBlur);
-    if (depth < 1.0) {
-        var eye = worldFromDepth(v.v_texCoord, 0.5);
-        if (frame.camera.w > 0.5) { eye = frame.camera.xyz; }
-        let dist = length(worldFromDepth(v.v_texCoord, depth) - eye);
-        coc = min(mc.u_aperture * max(abs(dist - focus) - mc.u_focusRange, 0.0) / max(dist, 1e-3), mc.u_maxBlur);
-    }
-    return vec4f(src.rgb, coc);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1528,19 +964,6 @@ vec2 shapeTap(vec2 p, float blades, float turn) {
     float a = atan(p.y, p.x) - turn;
     float sector = TAU / blades;
     float within = mod(a + sector * 0.5, sector) - sector * 0.5;
-    return p * (cos(sector * 0.5) / cos(within));
-}`;
-        const WGSL = `
-const TAPS : i32 = 64;
-const TAU : f32 = 6.2831853;
-fn ign(p : vec2f) -> f32 {
-    return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715))));
-}
-fn shapeTap(p : vec2f, blades : f32, turn : f32) -> vec2f {
-    if (blades < 2.5) { return p; }
-    let a = atan2(p.y, p.x) - turn;
-    let sector = TAU / blades;
-    let within = (a + sector * 0.5) - sector * floor((a + sector * 0.5) / sector) - sector * 0.5;
     return p * (cos(sector * 0.5) / cos(within));
 }`;
         const source = `#pragma shader "PP DoF Gather"
@@ -1589,35 +1012,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${WGSL}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let coc = src.a;
-    if (coc < 0.5) { return vec4f(src.rgb, 1.0); }
-
-    let texel = 1.0 / vec2f(vec2i(textureDimensions(t0, 0)));
-    let jitter = ign(v.pos.xy);
-    let turn = radians(mc.u_bokehRotation);
-    let centre = 1.0 + mc.u_highlight * smoothstep(1.0, 6.0, dot(src.rgb, vec3f(0.2126, 0.7152, 0.0722)));
-    var sum = src.rgb * centre;
-    var wsum = centre;
-    for (var i : i32 = 0; i < TAPS; i = i + 1) {
-        let k = f32(i) + jitter;
-        let r = sqrt((k + 0.5) / f32(TAPS));
-        let a = k * 2.39996323;
-        let disc = shapeTap(vec2f(cos(a), sin(a)) * r, mc.u_blades, turn);
-        let uv = v.v_texCoord + disc * coc * texel;
-        let tap = textureSampleLevel(t0, s0, uv, 0.0);
-        var w = clamp(tap.a / max(length(disc) * coc, 0.5), 0.0, 1.0);
-        w = w * (1.0 + mc.u_highlight * smoothstep(1.0, 6.0, dot(tap.rgb, vec3f(0.2126, 0.7152, 0.0722))));
-        sum = sum + tap.rgb * w;
-        wsum = wsum + w;
-    }
-    return vec4f(sum / wsum, 1.0);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1726,59 +1120,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-
-const K : i32 = 12;
-const TAU : f32 = 6.28318530718;
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let size = vec2i(textureDimensions(t7, 0));
-    let c = screenTexel(v.v_texCoord, size);
-    let d = depthAt(c, size);
-    if (d >= 1.0) { return vec4f(1.0); }
-
-    let cuv = uvOfTexel(c, size);
-    let P = worldFromDepth(cuv, d);
-
-    let dl = depthAt(c + vec2i(-1, 0), size);
-    let dr = depthAt(c + vec2i( 1, 0), size);
-    let dd = depthAt(c + vec2i(0, -1), size);
-    let du = depthAt(c + vec2i(0,  1), size);
-    var ax = P - worldAt(c + vec2i(-1, 0), size);
-    if (abs(dr - d) < abs(dl - d)) { ax = worldAt(c + vec2i(1, 0), size) - P; }
-    var ay = P - worldAt(c + vec2i(0, -1), size);
-    if (abs(du - d) < abs(dd - d)) { ay = worldAt(c + vec2i(0, 1), size) - P; }
-    var N = normalize(cross(ax, ay));
-    if (dot(N, viewDirection(P)) < 0.0) { N = -N; }
-
-    let worldPerTexel = max(length(worldFromDepth(cuv + vec2f(1.0 / f32(size.x), 0.0), d) - P), 1e-6);
-    let radiusTexels = clamp(mc.u_radius / worldPerTexel, 2.0, 96.0);
-
-    let rp = c / 2;
-    let idx = ((rp.x & 3) * 4 + (rp.y & 3)) * 7;
-    let rot = f32(idx - (idx / 16) * 16) * (TAU / 16.0);
-
-    var occl = 0.0;
-    for (var i : i32 = 0; i < K; i = i + 1) {
-        let a = (f32(i) + 0.5) / f32(K);
-        let ang = a * 7.0 * TAU + rot;
-        let off = vec2f(cos(ang), sin(ang)) * (a * radiusTexels);
-        let st = c + vec2i(floor(off + 0.5));
-        let ds = depthAt(st, size);
-        if (ds >= 1.0) { continue; }
-
-        let u = (worldAt(st, size) - P) / max(mc.u_radius, 1e-4);
-        let uu = dot(u, u);
-        let sinE = dot(u, N) / max(sqrt(uu), 1e-6);
-        let range = 1.0 - smoothstep(0.6, 1.0, uu);
-        occl = occl + max(sinE - mc.u_bias, 0.0) * range;
-    }
-
-    let ao = 1.0 - clamp(occl / f32(K) * mc.u_intensity, 0.0, 1.0);
-    return vec4f(vec3f(pow(ao, mc.u_power)), 1.0);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1790,7 +1131,6 @@ const TAU : f32 = 6.28318530718;
      */
     createSsaoBlur(axis: 0 | 1): ShaderHandle {
         const step = axis === 0 ? 'vec2(1.0, 0.0)' : 'vec2(0.0, 1.0)';
-        const stepW = axis === 0 ? 'vec2f(1.0, 0.0)' : 'vec2f(0.0, 1.0)';
         const source = `#pragma shader "PP SSAO Blur ${axis.toFixed(0)}"
 #pragma version 300 es
 #pragma domain PostProcess
@@ -1847,46 +1187,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-
-const R : i32 = 3;
-const SLOPE : f32 = 4.0;
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let dsize = vec2i(textureDimensions(t7, 0));
-    let hsize = vec2i(textureDimensions(t0, 0));
-    let dc = screenTexel(v.v_texCoord, dsize);
-    let d = depthAt(dc, dsize);
-    if (d >= 1.0) { return textureSampleLevel(t0, s0, v.v_texCoord, 0.0); }
-
-    let cuv = uvOfTexel(dc, dsize);
-    let P = worldFromDepth(cuv, d);
-    let worldPerTexel = max(length(worldFromDepth(cuv + vec2f(1.0 / f32(dsize.x), 0.0), d) - P), 1e-6);
-    let tol = worldPerTexel * SLOPE;
-    let perDepth = worldPerDepth(cuv, d, P);
-
-    let stepUv = ${stepW} / vec2f(hsize);
-    var sum = 0.0;
-    var wsum = 0.0;
-    for (var i : i32 = -R; i <= R; i = i + 1) {
-        let uv = v.v_texCoord + stepUv * f32(i);
-        let g = exp(-f32(i * i) / 8.0);
-
-        let dt = screenTexel(uv, dsize);
-        let dj = depthAt(dt, dsize);
-        var w = 0.0;
-        if (dj < 1.0) {
-            w = g * (1.0 - clamp(abs(dj - d) * perDepth / tol, 0.0, 1.0));
-        }
-        sum = sum + textureSampleLevel(t0, s0, uv, 0.0).r * w;
-        wsum = wsum + w;
-    }
-    var ao = textureSampleLevel(t0, s0, v.v_texCoord, 0.0).r;
-    if (wsum > 1e-5) { ao = sum / wsum; }
-    return vec4f(vec3f(ao), 1.0);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1956,55 +1256,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-
-const SLOPE : f32 = 4.0;
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let scene = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
-    let dsize = vec2i(textureDimensions(t7, 0));
-    let dc = screenTexel(v.v_texCoord, dsize);
-    let d = depthAt(dc, dsize);
-    if (d >= 1.0) { return scene; }
-
-    let cuv = uvOfTexel(dc, dsize);
-    let P = worldFromDepth(cuv, d);
-    let worldPerTexel = max(length(worldFromDepth(cuv + vec2f(1.0 / f32(dsize.x), 0.0), d) - P), 1e-6);
-    let tol = worldPerTexel * SLOPE;
-    let perDepth = worldPerDepth(cuv, d, P);
-
-    let hsize = vec2i(textureDimensions(t0, 0));
-    let hf = v.v_texCoord * vec2f(hsize) - 0.5;
-    let base = vec2i(floor(hf));
-    let frac = hf - vec2f(base);
-
-    var sum = 0.0;
-    var wsum = 0.0;
-    for (var j : i32 = 0; j < 4; j = j + 1) {
-        let o = vec2i(j & 1, j >> 1);
-        let t = clamp(base + o, vec2i(0), hsize - vec2i(1));
-        let uv = uvOfTexel(t, hsize);
-        var bwx = 1.0 - frac.x;
-        if (o.x == 1) { bwx = frac.x; }
-        var bwy = 1.0 - frac.y;
-        if (o.y == 1) { bwy = frac.y; }
-        let bw = bwx * bwy;
-
-        let dt = screenTexel(uv, dsize);
-        let dj = depthAt(dt, dsize);
-        var w = 0.0;
-        if (dj < 1.0) {
-            w = bw * (1.0 - clamp(abs(dj - d) * perDepth / tol, 0.0, 1.0));
-        }
-        sum = sum + textureSampleLevel(t0, s0, uv, 0.0).r * w;
-        wsum = wsum + w;
-    }
-    var ao = textureSampleLevel(t0, s0, v.v_texCoord, 0.0).r;
-    if (wsum > 1e-5) { ao = sum / wsum; }
-    return vec4f(scene.rgb * ao, scene.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },

@@ -56,43 +56,6 @@ float streaks(vec2 uv, float aspect, float cols, float speed, float seed, float 
     return across * along;
 }`;
 
-const WGSL = `
-fn hash11(n : f32) -> f32 { return fract(sin(n * 127.1) * 43758.5453); }
-fn hash21(p : vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453); }
-fn vnoise(p : vec2f) -> f32 {
-    let i = floor(p);
-    var f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash21(i), hash21(i + vec2f(1.0, 0.0)), f.x), mix(hash21(i + vec2f(0.0, 1.0)), hash21(i + vec2f(1.0, 1.0)), f.x), f.y);
-}
-fn puddleNoise(p : vec2f) -> f32 {
-    return vnoise(p) * 0.5 + vnoise(p * 2.07 + vec2f(11.0, 5.0)) * 0.3 + vnoise(p * 4.3 + vec2f(3.0, 17.0)) * 0.2;
-}
-fn maskAt(w : vec2f) -> vec2f {
-    if (mc.u_maskW <= 0.0 || mc.u_maskH <= 0.0) { return vec2f(0.0); }
-    let uv = (w - vec2f(mc.u_maskL, mc.u_maskB)) / vec2f(mc.u_maskW, mc.u_maskH);
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return vec2f(0.0); }
-    let m = textureSampleLevel(u_shelterMask, u_shelterMask_s, uv, 0.0);
-    return vec2f(m.a, m.r);
-}
-fn streaks(uv : vec2f, aspect : f32, cols : f32, speed : f32, seed : f32, T : f32) -> f32 {
-    let q = vec2f(uv.x * aspect - (1.0 - uv.y) * mc.u_wind, 1.0 - uv.y);
-    let cx = floor(q.x * cols);
-    let fx = fract(q.x * cols);
-    let h1 = hash11(cx + seed);
-    let h2 = hash11(cx * 1.7 + seed * 3.1);
-    let y = q.y * 4.0 + T * speed * (0.8 + 0.4 * h1) + h2 * 17.0;
-    let cell = floor(y);
-    let fy = fract(y);
-    let here = hash11(cx * 31.0 + cell + seed);
-    if (here > mc.u_intensity * 0.5) { return 0.0; }
-    let dx = abs(fx - 0.5 - (hash11(cell + cx) - 0.5) * 0.6);
-    let across = 1.0 - smoothstep(0.0, 0.06, dx);
-    var along = 0.0;
-    if (fy <= mc.u_streakLength) { along = 1.0 - fy / mc.u_streakLength; }
-    return across * along;
-}`;
-
 const SOURCE = `#pragma shader "PP Rain 2D"
 #pragma version 300 es
 #pragma domain PostProcess
@@ -175,58 +138,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${WGSL}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let sz = vec2f(vec2i(textureDimensions(t0, 0)));
-    let aspect = sz.x / sz.y;
-    let T = tc.u_time.x;
-    let w = worldFromDepth(v.v_texCoord, 0.0).xy + frame.renderOrigin.xy;
-    var tint = mc.u_streakColor.rgb;
-#ifdef ES_LINEAR
-    tint = srgbToLinear(tint);
-#endif
-    let m = maskAt(w);
-    let dry = min(m.x * 1.15, 1.0);
-    let ground = 1.0 - min(m.y * 1.15, 1.0);
-    let wet = mc.u_wetness * (1.0 - dry) * ground;
-    let falling = clamp(mc.u_intensity, 0.0, 1.0) * (1.0 - dry) * ground;
-    var col = src.rgb;
-
-    let lo = 1.0 - mc.u_puddles;
-    var puddle = 0.0;
-    if (mc.u_puddles > 0.001) { puddle = smoothstep(lo, lo + 0.1, puddleNoise(w / mc.u_puddleScale)) * wet; }
-    col = col * (1.0 - 0.3 * wet);
-    col = col * (1.0 - 0.3 * puddle);
-    col = col + tint * 0.04 * puddle;
-
-    let g = w / mc.u_rippleScale;
-    let id = floor(g);
-    let f = fract(g) - 0.5;
-    let h = hash21(id);
-    let centre = (vec2f(hash21(id + 7.0), hash21(id + 13.0)) - 0.5) * 0.5;
-    let phase = fract(T * 0.9 + h);
-    let ring = (1.0 - smoothstep(0.0, 0.05, abs(length(f - centre) - phase * 0.5)))
-             * (1.0 - phase) * (1.0 - phase) * step(hash21(id + 3.0), mix(0.4, 0.9, puddle));
-    col = col + tint * ring * mix(0.18, 0.6, puddle) * mc.u_wetness * falling;
-    let g2 = w / (mc.u_rippleScale * 0.3);
-    let id2 = floor(g2);
-    let f2 = fract(g2) - 0.5;
-    let ph2 = fract(T * 2.4 + hash21(id2 + 29.0));
-    let c2 = (vec2f(hash21(id2 + 5.0), hash21(id2 + 11.0)) - 0.5) * 0.4;
-    let splash = (1.0 - smoothstep(0.0, 0.08, abs(length(f2 - c2) - ph2 * 0.3)))
-               * (1.0 - ph2) * (1.0 - ph2) * (1.0 - ph2) * step(hash21(id2 + 2.0), 0.4);
-    col = col + tint * splash * 0.35 * mc.u_wetness * falling * (1.0 - puddle);
-
-    let rain = streaks(v.v_texCoord, aspect, 70.0, mc.u_speed * 1.0, 1.0, T) * 0.35
-             + streaks(v.v_texCoord, aspect, 130.0, mc.u_speed * 1.4, 2.0, T) * 0.28
-             + streaks(v.v_texCoord, aspect, 230.0, mc.u_speed * 1.9, 3.0, T) * 0.22;
-    col = col + tint * rain * mc.u_intensity * (1.0 - dry);
-    return vec4f(col, src.a);
-}
-#pragma end
 `;
 
 export const rain2dEffects = {

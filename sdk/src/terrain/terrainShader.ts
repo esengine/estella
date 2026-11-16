@@ -7,7 +7,7 @@
  * The shader source lives with the module that installs it, not in the core's list of built-in shaders: a package that does not install the module carries none of it.
  */
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
-import { layerParams, LAYER_SURFACE_GLSL, LAYER_SURFACE_WGSL } from './layerSurfaceShader';
+import { layerParams, LAYER_SURFACE_GLSL } from './layerSurfaceShader';
 
 
 // The ground's vertices from its pages (pages.ts), shared by both terrain shaders: a node's patch placed and sized by its instance, its
@@ -101,11 +101,7 @@ ${surface ? `    var surf = vec2f(-1.0);
     if (mc.u_surfaceOn > 0.5 && slot >= 0.0) {
         let row = floor(slot / mc.u_surfacePerRow);
         let col = slot - row * mc.u_surfacePerRow;
-        // This device counts a target's rows from the top, and the page was drawn where the bake's rect (counted from the bottom) lands
-        // turned over: its first row is the atlas's height less the rect's top. Inside the page both count from the top alike.
-        let side = mc.u_surfaceTexels + 2.0;
-        let corner = vec2f(col * 2.0 * side, mc.u_surfaceAtlas.y - (row + 1.0) * side);
-        surf = (corner + vec2f(1.0) + at * mc.u_surfaceTexels) / mc.u_surfaceAtlas.xy;
+        surf = (vec2f(col * 2.0, row) * (mc.u_surfaceTexels + 2.0) + 1.0 + at * mc.u_surfaceTexels) / mc.u_surfaceAtlas.xy;
     }
     es_vertexColor = vec4f(texel / mc.u_atlasTexels, surf) / tint;` : `    es_vertexColor = vec4f(texel / mc.u_atlasTexels, 1.0, 1.0) / tint;`}
 }
@@ -642,55 +638,6 @@ vec3 tnOctDecode(vec2 e) {
 }
 `;
 
-const TERRAIN_GROUND_WGSL = `struct TnGround { colour : vec3f, N : vec3f, roughness : f32, ao : f32 };
-fn tnGround(Pw : vec3f, N : vec3f, paintA : vec4f, paintB : vec4f, dpx : vec3f, dpy : vec3f, eye : f32) -> TnGround {
-    var axis = pow(abs(N), vec3f(4.0));
-    axis = axis / dot(axis, vec3f(1.0));
-    let side = smoothstep(mc.u_triplanarFrom, mc.u_triplanarFrom + 0.15, 1.0 - abs(N.y));
-    let planes = mix(vec3f(0.0, 1.0, 0.0), axis, vec3f(side));
-    var bedY = Pw.y;
-    if (mc.u_strataWarp > 0.0) { bedY = bedY + (tnNoise(Pw.xz / mc.u_strataSpan + vec2f(41.0)) * 0.65 + tnNoise(Pw.xz / (mc.u_strataSpan * 0.31) + vec2f(7.0)) * 0.35 - 0.5) * 2.0 * mc.u_strataWarp; }
-    let layers = tnLayers(paintA, paintB, vec3f(Pw.x, bedY, Pw.z), dpx, dpy, N, planes, tnNearFar(eye));
-    var g : TnGround;
-    g.colour = layers.albedo;
-    let scale = tnTile(0);
-    let broad = tnNoise(Pw.xz / (scale * 7.3)) * 0.6 + tnNoise(Pw.xz / (scale * 29.0) + vec2f(5.0)) * 0.4;
-    g.colour = g.colour * mix(1.0, 0.7 + 0.6 * broad, mc.u_macroVariation);
-    g.N = normalize(N + layers.slope);
-    if (mc.u_colorMapStrength > 0.0) {
-        let over = (Pw.xz - mc.u_terrainOrigin.xz - mc.u_colorMapArea.xy) / max(mc.u_colorMapArea.zw, vec2f(1e-4));
-        let wash = textureSampleLevel(u_colorMap, u_colorMap_s, vec2f(over.x, 1.0 - over.y), 0.0);
-        if (all(over >= vec2f(0.0)) && all(over <= vec2f(1.0))) { g.colour = mix(g.colour, wash.rgb, vec3f(wash.a * mc.u_colorMapStrength)); }
-    }
-    var wet = 0.0;
-    if (mc.u_wetBand > 0.0) { wet = 1.0 - smoothstep(mc.u_wetLevel, mc.u_wetLevel + mc.u_wetBand, Pw.y); }
-    g.colour = g.colour * mix(1.0, 0.55, wet);
-    g.roughness = mix(layers.mask.g, 0.3, wet);
-    var open = 1.0;
-    if (mc.u_occlusionStrength > 0.0) {
-        let under = (Pw.xz - mc.u_terrainOrigin.xz - mc.u_colorMapArea.xy) / max(mc.u_colorMapArea.zw, vec2f(1e-4));
-        if (all(under >= vec2f(0.0)) && all(under <= vec2f(1.0))) { open = mix(1.0, textureSampleLevel(u_occlusionMap, u_occlusionMap_s, vec2f(under.x, 1.0 - under.y), 0.0).r, mc.u_occlusionStrength); }
-    }
-    g.ao = layers.mask.r * open;
-    return g;
-}
-fn tnOctEncode(n0 : vec3f) -> vec2f {
-    let n = n0 / (abs(n0.x) + abs(n0.y) + abs(n0.z));
-    var e = n.xz;
-    if (n.y < 0.0) { e = (vec2f(1.0) - abs(n.zx)) * vec2f(select(-1.0, 1.0, n.x >= 0.0), select(-1.0, 1.0, n.z >= 0.0)); }
-    return e * 0.5 + 0.5;
-}
-fn tnOctDecode(e0 : vec2f) -> vec3f {
-    let e = e0 * 2.0 - vec2f(1.0);
-    var n = vec3f(e.x, 1.0 - abs(e.x) - abs(e.y), e.y);
-    if (n.y < 0.0) {
-        let f = (vec2f(1.0) - abs(n.zx)) * vec2f(select(-1.0, 1.0, n.x >= 0.0), select(-1.0, 1.0, n.z >= 0.0));
-        n = vec3f(f.x, n.y, f.y);
-    }
-    return normalize(n);
-}
-`;
-
 // Ground painted by up to eight layers (layers.ts), each an albedo, a normal map and a mask (occlusion, roughness, height) in three
 // texture arrays, their weights read from the Terrain's two paint atlases. Where layers meet the higher one shows; near the eye each is
 // read without repeat; on a slope it is projected from the sides as well, so a cliff is not stretched. A node whose surface is baked
@@ -826,37 +773,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${LAYER_SURFACE_WGSL}
-${TERRAIN_GROUND_WGSL}
-fn tnBakeHeight(texel : vec2f) -> f32 {
-    let f = texel - vec2f(0.5);
-    let i = vec2i(floor(f));
-    let t = f - vec2f(i);
-    let a = textureLoad(u_heightPages, i, 0);
-    let b = textureLoad(u_heightPages, i + vec2i(1, 0), 0);
-    let c = textureLoad(u_heightPages, i + vec2i(0, 1), 0);
-    let d = textureLoad(u_heightPages, i + vec2i(1, 1), 0);
-    let hs = vec4f(a.r * 65280.0 + a.g * 255.0, b.r * 65280.0 + b.g * 255.0, c.r * 65280.0 + c.g * 255.0, d.r * 65280.0 + d.g * 255.0) / 65535.0;
-    return mc.u_terrainOrigin.y + mc.u_heightRange.x + mix(mix(hs.x, hs.y, t.x), mix(hs.z, hs.w, t.x), t.y) * mc.u_heightRange.y;
-}
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let side = mc.u_bakeB.w;
-    let t = (v.v_texCoord * (side + 2.0) - vec2f(1.0)) / side;
-    let texel = mc.u_bakeB.xy + vec2f(1.5) + t * mc.u_pageTexels;
-    let uv = texel / mc.u_atlasTexels;
-    let lp = mc.u_bakeA.xy + t * mc.u_bakeA.z;
-    let Pw = vec3f(lp.x + mc.u_terrainOrigin.x, tnBakeHeight(texel), lp.y + mc.u_terrainOrigin.z);
-    let nxz = textureSampleLevel(u_heightPages, u_heightPages_s, uv, 0.0).ba * 2.0 - vec2f(1.0);
-    let N = normalize(vec3f(nxz.x, sqrt(max(1.0 - dot(nxz, nxz), 0.0)), nxz.y));
-    let paintA = textureSampleLevel(u_paintPages, u_paintPages_s, uv, 0.0);
-    let paintB = textureSampleLevel(u_paintPages2, u_paintPages2_s, uv, 0.0);
-    let eye = mc.u_lodRange0 * exp2(mc.u_bakeB.z) * 0.75;
-    let g = tnGround(Pw, N, paintA, paintB, dpdx(Pw), dpdy(Pw), eye);
-    if (mc.u_bakeA.w < 0.5) { return vec4f(sqrt(max(g.colour, vec3f(0.0))), g.roughness); }
-    return vec4f(tnOctEncode(g.N), g.ao, 1.0);
-}
-#pragma end
 `;
 
 export const TERRAIN_LAYERS_SHADER_TEMPLATE = makeBuiltinShaderTemplate('terrain-layers', 'Terrain Layers',

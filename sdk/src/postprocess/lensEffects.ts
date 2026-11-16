@@ -9,7 +9,7 @@
  */
 import type { ShaderHandle } from '../render/material';
 import { Material } from '../render/material';
-import { SSAO_GLSL, SSAO_WGSL } from './sources/shared';
+import { SSAO_GLSL } from './sources/shared';
 
 export const lensEffects = {
     /**
@@ -86,48 +86,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-
-fn ign(p : vec2f) -> f32 {
-    return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715))));
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let cur = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let dsize = vec2i(textureDimensions(t7, 0));
-    let d = depthAt(screenTexel(v.v_texCoord, dsize), dsize);
-    var m = vec2f(0.0);
-    let world = worldFromDepth(v.v_texCoord, d);
-    let vp = mat4x4f(mc.u_prevViewProjection0, mc.u_prevViewProjection1,
-                     mc.u_prevViewProjection2, mc.u_prevViewProjection3);
-    let prev = vp * vec4f(world, 1.0);
-    // This device's uv runs down the rows, so clip y is flipped on the way back (as the temporal effect does).
-    if (prev.w > 1e-6) { m = vec2f(prev.x / prev.w * 0.5 + 0.5, 0.5 - prev.y / prev.w * 0.5) - v.v_texCoord; }
-    let vsize = vec2i(textureDimensions(u_velocity, 0));
-    let vel = textureLoad(u_velocity, screenTexel(v.v_texCoord, vsize), 0);
-    if (mc.u_objectMotion > 0.5 && vel.a > 0.5 && abs(vel.b - d) <= 2e-5 + (1.0 - d) * 0.02) {
-        m = vec2f(vel.x, -vel.y);
-    }
-    m = m * mc.u_intensity;
-    let reach = length(m);
-    if (reach > mc.u_maxBlur) { m = m * (mc.u_maxBlur / reach); }
-    let pixels = m * tc.u_viewport.xy;
-    if (dot(pixels, pixels) < 1.0) { return cur; }
-
-    let noise = ign(v.v_texCoord * tc.u_viewport.xy) - 0.5;
-    var sum = cur.rgb;
-    var weight = 1.0;
-    for (var i : i32 = 0; i < 16; i = i + 1) {
-        let t = (f32(i) + 0.5 + noise) / 16.0 - 0.5;
-        let uv = v.v_texCoord + m * t;
-        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { continue; }
-        sum = sum + textureSampleLevel(t0, s0, uv, 0.0).rgb;
-        weight = weight + 1.0;
-    }
-    return vec4f(sum / weight, cur.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -170,24 +128,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-fn hash(p0 : vec3f) -> f32 {
-    var p = fract(p0 * vec3f(0.1031, 0.1030, 0.0973));
-    p = p + dot(p, p.yxz + 33.33);
-    return fract((p.x + p.y) * p.z);
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let color = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let cell = floor(v.v_texCoord * tc.u_viewport.xy / mc.u_size);
-    let frameIndex = floor(tc.u_time.x * 24.0);
-    let n = hash(vec3f(cell, frameIndex)) + hash(vec3f(cell + 71.0, frameIndex)) - 1.0;
-    let luma = dot(color.rgb, vec3f(0.2126, 0.7152, 0.0722));
-    let mid = 4.0 * clamp(luma, 0.0, 1.0) * (1.0 - clamp(luma, 0.0, 1.0));
-    let weight = mix(1.0, mid, mc.u_response);
-    return vec4f(max(color.rgb * (1.0 + n * mc.u_intensity * weight * 2.0), vec3f(0.0)), color.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -249,38 +189,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-fn bright(uv : vec2f, spread : vec2f) -> vec3f {
-    var c = max(textureSampleLevel(t0, s0, uv, 0.0).rgb - vec3f(mc.u_threshold), vec3f(0.0)) * 0.4;
-    c = c + max(textureSampleLevel(t0, s0, uv + vec2f(spread.x, 0.0), 0.0).rgb - vec3f(mc.u_threshold), vec3f(0.0)) * 0.15;
-    c = c + max(textureSampleLevel(t0, s0, uv - vec2f(spread.x, 0.0), 0.0).rgb - vec3f(mc.u_threshold), vec3f(0.0)) * 0.15;
-    c = c + max(textureSampleLevel(t0, s0, uv + vec2f(0.0, spread.y), 0.0).rgb - vec3f(mc.u_threshold), vec3f(0.0)) * 0.15;
-    c = c + max(textureSampleLevel(t0, s0, uv - vec2f(0.0, spread.y), 0.0).rgb - vec3f(mc.u_threshold), vec3f(0.0)) * 0.15;
-    return c;
-}
-fn fringed(uv : vec2f, dir : vec2f, spread : vec2f) -> vec3f {
-    return vec3f(bright(uv + dir * mc.u_chromatic, spread).r, bright(uv, spread).g, bright(uv - dir * mc.u_chromatic, spread).b);
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let uv = vec2f(1.0) - v.v_texCoord;
-    let toCentre = vec2f(0.5) - uv;
-    let ghostStep = toCentre * mc.u_dispersal;
-    let spread = 2.0 * tc.u_viewport.zw;
-    let dir = normalize(toCentre + vec2f(1e-5));
-    var flare = vec3f(0.0);
-    for (var i : i32 = 0; i < 8; i = i + 1) {
-        if (f32(i) >= mc.u_ghosts) { break; }
-        let at = fract(uv + ghostStep * f32(i));
-        let edge = 1.0 - clamp(length(vec2f(0.5) - at) / 0.7071, 0.0, 1.0);
-        flare = flare + fringed(at, dir, spread) * (edge * edge * edge);
-    }
-    let haloDir = dir * mc.u_haloWidth;
-    let haloEdge = 1.0 - clamp(length(vec2f(0.5) - (uv + haloDir)) / 0.7071, 0.0, 1.0);
-    flare = flare + fringed(uv + haloDir, haloDir, spread) * pow(haloEdge, 4.0) * 2.0;
-    return vec4f(flare * mc.u_tint.rgb * mc.u_intensity, 1.0);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -304,12 +212,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let scene = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
-    return vec4f(scene.rgb + textureSampleLevel(t0, s0, v.v_texCoord, 0.0).rgb, scene.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },

@@ -606,6 +606,8 @@ fn esPrevBone(joint : u32) -> mat4x4f {
 #endif
 #endif
 #endif
+    // Clip y turned over: a target's rows land bottom-up, as GL lays them (see WebGPUDevice::ensurePipeline).
+    out.pos.y = -out.pos.y;
     return out;
 }
 #pragma end
@@ -713,7 +715,7 @@ fn packNormal(n : vec3f) -> vec2f {
 #endif
 #endif
 #ifdef ES_VELOCITY
-    // See the GLSL twin. This device's uv runs down the rows, so the sign of y is the reader's to flip.
+    // See the GLSL twin: the clip positions were taken before the vertex stage turned y over, so this is GL's motion.
     let now = v.v_velCur.xy / v.v_velCur.w;
     let was = v.v_velPrev.xy / max(v.v_velPrev.w, 1e-6);
     return vec4f((was - now) * 0.5, v.pos.z, select(0.0, 1.0, v.v_velPrev.w > 1e-6));

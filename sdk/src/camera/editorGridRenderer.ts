@@ -149,6 +149,8 @@ struct VSOut {
     var out : VSOut;
     out.v_ndc = v.a_position;
     out.pos = vec4f(v.a_position, 1.0, 1.0);
+    // Clip y turned over: a target's rows land bottom-up, as GL lays them (see WebGPUDevice::ensurePipeline).
+    out.pos.y = -out.pos.y;
     return out;
 }
 #pragma end
