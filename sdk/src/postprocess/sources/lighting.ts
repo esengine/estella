@@ -11,6 +11,7 @@ import { gtaoPasses } from '../gtao';
 import { subsurfacePasses } from '../subsurface';
 import { voxelGIFallback } from '../voxelGIFallback';
 import { SSAO_GLSL, SSAO_WGSL, PUDDLE_GLSL, PUDDLE_WGSL, BASIN_GLSL, BASIN_WGSL, GBUFFER_GLSL, GBUFFER_WGSL, ENV_GLSL, ENV_WGSL } from './shared';
+import { IGN_GLSL, IGN_WGSL } from '../../render/shaderLib';
 
 export const lightingEffects = {
     /**
@@ -248,9 +249,7 @@ const int REFINE = 6;
 
 /// Interleaved gradient noise: a different start offset per pixel, so the stepping
 /// bands dissolve into noise that a temporal pass then averages away.
-float ign(vec2 p) {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
-}
+${IGN_GLSL}
 /// The screen uv a world point lands on, and whether it is in front of the camera.
 vec3 project(vec3 P) {
     vec4 c = u_projection * vec4(P, 1.0);
@@ -259,9 +258,7 @@ vec3 project(vec3 P) {
         const WGSL = `
 const STEPS : i32 = 48;
 const REFINE : i32 = 6;
-fn ign(p : vec2f) -> f32 {
-    return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715))));
-}
+${IGN_WGSL}
 fn project(P : vec3f) -> vec3f {
     let c = frame.projection * vec4f(P, 1.0);
     let w = max(c.w, 1e-6);
@@ -591,9 +588,7 @@ fn coveredAt(W : vec3f) -> f32 {
         const GLSL = `
 const int RAYS = 8;
 const int STEPS = 6;
-float ign(vec2 p) {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
-}
+${IGN_GLSL}
 /// A direction over the hemisphere of N, cosine weighted, from two numbers in [0, 1).
 vec3 cosineDirection(vec3 N, float u, float v) {
     float r = sqrt(u);
@@ -606,9 +601,7 @@ vec3 cosineDirection(vec3 N, float u, float v) {
         const WGSL = `
 const RAYS : i32 = 8;
 const STEPS : i32 = 6;
-fn ign(p : vec2f) -> f32 {
-    return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715))));
-}
+${IGN_WGSL}
 fn cosineDirection(N : vec3f, u : f32, v : f32) -> vec3f {
     let r = sqrt(u);
     let phi = 6.2831853 * v;
@@ -873,9 +866,7 @@ const int STEPS = 20;
 
 ${SSAO_GLSL}
 
-float ign(vec2 p) {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
-}
+${IGN_GLSL}
 
 void main() {
     vec4 src = texture(u_texture, v_texCoord);
@@ -938,9 +929,7 @@ const STEPS : i32 = 20;
 
 ${SSAO_WGSL}
 
-fn ign(p : vec2f) -> f32 {
-    return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715))));
-}
+${IGN_WGSL}
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
@@ -1023,9 +1012,7 @@ out vec4 fragColor;
 
 const int SAMPLES = 40;
 
-float ign(vec2 p) {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
-}
+${IGN_GLSL}
 
 void main() {
     vec4 src = texture(u_texture, v_texCoord);
@@ -1091,9 +1078,7 @@ void main() {
 #pragma fragment wgsl
 const SAMPLES : i32 = 40;
 
-fn ign(p : vec2f) -> f32 {
-    return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715))));
-}
+${IGN_WGSL}
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
@@ -1537,9 +1522,7 @@ ${SSAO_WGSL}
         const GLSL = `
 const int TAPS = 64;
 const float TAU = 6.2831853;
-float ign(vec2 p) {
-    return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715))));
-}
+${IGN_GLSL}
 /// A point of the unit disc pushed out to the n-gon that has the disc as its circumscribing circle.
 vec2 shapeTap(vec2 p, float blades, float turn) {
     if (blades < 2.5) return p;
@@ -1551,9 +1534,7 @@ vec2 shapeTap(vec2 p, float blades, float turn) {
         const WGSL = `
 const TAPS : i32 = 64;
 const TAU : f32 = 6.2831853;
-fn ign(p : vec2f) -> f32 {
-    return fract(52.9829189 * fract(dot(p, vec2f(0.06711056, 0.00583715))));
-}
+${IGN_WGSL}
 fn shapeTap(p : vec2f, blades : f32, turn : f32) -> vec2f {
     if (blades < 2.5) { return p; }
     let a = atan2(p.y, p.x) - turn;

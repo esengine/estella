@@ -8,6 +8,7 @@
  */
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
 import { WIND_FIELD_GLSL, WIND_FIELD_PARAMS, WIND_FIELD_WGSL } from '../render/windFieldShader';
+import { PACK_NORMAL_GLSL } from '../render/shaderLib';
 
 
 // A blade narrower on screen than u_strandMinPx pixels is drawn that wide and its coverage cut to the width it has (the thinning's
@@ -366,12 +367,7 @@ layout(location = 1) out vec4 fragSurface;
 // The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
 layout(location = 2) out vec4 fragAlbedo;
 
-vec2 packNormal(vec3 n) {
-    n /= (abs(n.x) + abs(n.y) + abs(n.z));
-    vec2 sgn = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
-    vec2 e = n.z >= 0.0 ? n.xy : (1.0 - abs(n.yx)) * sgn;
-    return e * 0.5 + 0.5;
-}
+${PACK_NORMAL_GLSL}
 #else
 out vec4 fragColor;
 #endif
