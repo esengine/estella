@@ -61,12 +61,12 @@ const RESERVED = new Set(('alias break case const const_assert continue continui
 const safe = (n: string): string => (RESERVED.has(n) ? `${n}_` : n);
 
 /**
- * Engine functions whose GLSL writes `out`/`inout` parameters and whose WGSL returns them instead: the argument positions, the
- * fields that carry them, and whether the GLSL adds to what it is given (an `inout` that accumulates) or replaces it.
+ * An engine function whose GLSL writes `out` parameters returns them in WGSL as a struct with the parameters' names: the call
+ * becomes the WGSL call and one write per field. What a function does with an `inout` is in neither signature: the ones here
+ * ADD to it (a light adds its share) and their WGSL returns the share alone, so the write is `+=`. An `inout` of a function
+ * not listed is refused rather than guessed.
  */
-const BRIDGES: Record<string, { outs: number[]; fields: string[]; accumulate: boolean }> = {
-    shadeLight: { outs: [15, 16, 17], fields: ['lit', 'gloss', 'extra'], accumulate: true },
-};
+const ACCUMULATES_INOUT = new Set(['shadeLight']);
 
 const BUILTINS: Record<string, string> = {
     abs: 'abs', sign: 'sign', floor: 'floor', ceil: 'ceil', fract: 'fract', trunc: 'trunc', round: 'round', roundEven: 'round',
@@ -86,7 +86,7 @@ const PARAM_TYPES: Record<string, string> = { float: 'float', int: 'int', vec2: 
 
 // ---- the environment ----
 interface Field { name: string; type: string; array: number | null }
-interface FnSig { ret: string; params: { type: string; qual: ParamQualifier; array: number | null }[] }
+interface FnSig { ret: string; params: { type: string; qual: ParamQualifier; array: number | null; name: string }[] }
 interface Global { type: string; array: number | null; wgsl: string | null }
 interface Env {
     domain: string;
@@ -95,7 +95,10 @@ interface Env {
     globals: Map<string, Global>;
     params: Map<string, string>;
     varyings: Map<string, string>;
+    /** The engine's own samplers by GLSL name, as the twin names them (by unit). */
+    samplers: Map<string, SamplerPair>;
     arity: Record<string, number>;
+    returnFields: Record<string, string[]>;
 }
 
 function envOf(api: EngineShaderApi, source: string): Env {
@@ -111,19 +114,27 @@ function envOf(api: EngineShaderApi, source: string): Env {
     return {
         domain,
         structs: new Map(Object.entries(d.structs).map(([n, f]) => [n, f.map(([name, type, array]) => ({ name, type, array }))])),
-        fns: new Map(Object.entries(d.fns).map(([n, [ret, ps]]) => [n, { ret, params: ps.map(([type, qual, array]) => ({ type, qual, array })) }])),
+        fns: new Map(Object.entries(d.fns).map(([n, [ret, ps]]) => [n, { ret, params: ps.map(([type, qual, array, name]) => ({ type, qual, array, name })) }])),
+        returnFields: api.wgslReturnFields,
         globals: new Map(Object.entries(d.globals).map(([n, [type, array, wgsl]]) => [n, { type, array, wgsl }])),
         params,
         varyings: new Map(Object.entries(d.varyings)),
+        samplers: new Map(Object.entries(d.samplers).map(([n, [unit, kind]]) =>
+            [n, { tex: `t${unit}`, smp: kind === 'depth' ? null : `s${unit}`, kind: kind === 'depth' ? 'depth' : '2d' } as SamplerPair])),
         arity: api.wgslArity,
     };
+}
+
+/** A sampler as WGSL has it: a texture, and the sampler under it (none for a depth texture, which is read by texel). */
+function samplerOf(name: string, glslType: string): SamplerPair {
+    return { tex: name, smp: `${name}_s`, kind: glslType === 'sampler2DArray' ? 'array' : '2d' };
 }
 
 // ---- values ----
 interface Val { code: string; type: string; abstract?: boolean; array?: number | null }
 interface LVal { code: string; type: string; base?: string; swizzle?: string; ptr?: string; array?: number | null }
 interface Binding { type: string; array?: number | null; code: string; ptr?: string; sampler?: SamplerPair }
-interface SamplerPair { tex: string; smp: string }
+interface SamplerPair { tex: string; smp: string | null; kind: '2d' | 'array' | 'depth' }
 interface Output { name: string; type: string; location: number; guard: { cond: string; neg: boolean; elif?: boolean }[] }
 
 class Scope {
@@ -144,7 +155,20 @@ export function transpileFragment(source: string, api: EngineShaderApi): string 
     const env = envOf(api, source);
     if (env.varyings.size === 0) throw new GlslError(`the ${env.domain} domain gives a fragment no VSOut the transpiler knows`);
     const tree = parse(lex(sections[0]![1]!), env.structs.keys());
-    return new Emitter(env, tree.items).run();
+    return new Emitter(env, tree.items, 'fragment').run();
+}
+
+/**
+ * The WGSL of a material's vertex hook (`#pragma vertexoffset`): its functions, `esMaterialVertex` among them, as the engine's
+ * WGSL vertex stage calls them (`esMaterialVertex(&local, &localNormal, uv)`, the material block as `mc`). A vertex stage has no
+ * derivatives: a texture is read at level 0, as GLSL reads one there.
+ */
+export function transpileVertexHook(source: string, api: EngineShaderApi): string {
+    const sections = [...source.matchAll(/^#pragma vertexoffset[ \t]*\r?\n([\s\S]*?)^#pragma end/gm)];
+    if (sections.length !== 1) throw new GlslError(`expected one GLSL vertex hook, found ${sections.length}`);
+    const env = envOf(api, source);
+    const tree = parse(lex(sections[0]![1]!), env.structs.keys());
+    return new Emitter(env, tree.items, 'vertex').run();
 }
 
 class Emitter {
@@ -159,7 +183,7 @@ class Emitter {
     private ret = 'void';
     private assigned = new Set<string>();
 
-    constructor(private readonly env: Env, private readonly items: Node[]) {
+    constructor(private readonly env: Env, private readonly items: Node[], private readonly stage: 'fragment' | 'vertex') {
         this.structs = new Map(env.structs);
     }
 
@@ -177,7 +201,16 @@ class Emitter {
             }
         }
         for (const [name, list] of this.fns) list.forEach((f, i) => { f.wname = name === 'main' ? 'es_main' : safe(list.length > 1 ? `${name}_${i}` : name); });
-        if (!this.fns.has('main')) this.err('a fragment section without main()');
+        if (this.stage === 'fragment' && !this.fns.has('main')) this.err('a fragment section without main()');
+        if (this.stage === 'vertex') {
+            // The engine's vertex stage calls the hook with pointers to the vertex and its normal and the uv by value; anything else is a
+            // hook it cannot call.
+            const hook = this.fns.get('esMaterialVertex');
+            const p = hook?.length === 1 ? hook[0]!.params : null;
+            if (!p || p.length !== 3 || !p[0].quals.includes('inout') || !p[1].quals.includes('inout') || p[2].quals.includes('out') || p[2].quals.includes('inout')) {
+                this.err('a vertex hook is esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv)');
+            }
+        }
 
         for (const it of this.items) {
             switch (it.k) {
@@ -195,6 +228,7 @@ class Emitter {
             }
         }
         if (ppStack.length) this.err('an #if without its #endif');
+        if (this.stage === 'vertex') return dropEmptyConditionals([...this.helpers.values(), ...out].join('\n'));
         out.push(...this.entry());
         const declared: Output[] = [];
         for (const o of this.outputs) {
@@ -233,6 +267,7 @@ class Emitter {
         const lines: string[] = [];
         for (const d of it.decls as Node[]) {
             const array = d.array ? this.constInt(d.array) : null;
+            if ((q.includes('in') || q.includes('out')) && this.stage === 'vertex') this.err('a vertex hook declares no varyings', d.line);
             if (q.includes('in')) {
                 if (!this.env.varyings.has(d.name)) this.err(`varying '${d.name}' is not one the engine's VSOut carries`, d.line);
                 continue;
@@ -245,10 +280,10 @@ class Emitter {
             }
             if (q.includes('uniform')) {
                 if (isSampler(type)) {
-                    if (type !== 'sampler2D') this.err(`${type} is not supported yet`, d.line);
+                    if (type !== 'sampler2D' && type !== 'sampler2DArray') this.err(`${type} is not supported yet`, d.line);
                     if (d.name === 'u_textures') {
-                        for (let u = 0; u < (array ?? 1); u++) this.samplers.set(`u_textures[${u}]`, { tex: `t${u}`, smp: `s${u}` });
-                    } else this.samplers.set(d.name, { tex: d.name, smp: `${d.name}_s` });
+                        for (let u = 0; u < (array ?? 1); u++) this.samplers.set(`u_textures[${u}]`, { tex: `t${u}`, smp: `s${u}`, kind: '2d' });
+                    } else this.samplers.set(d.name, this.env.samplers.get(d.name) ?? samplerOf(d.name, type));
                     continue;
                 }
                 if (!this.env.params.has(d.name)) this.err(`uniform '${d.name}' is not a #pragma param, so the engine gives it no place in the material block`, d.line);
@@ -281,8 +316,9 @@ class Emitter {
             const array = p.array ? this.constInt(p.array) : null;
             const name = safe(p.name);
             if (isSampler(p.type)) {
-                params.push(`${name} : texture_2d<f32>`, `${name}_s : sampler`);
-                scope.set(p.name, { type: p.type, code: name, sampler: { tex: name, smp: `${name}_s` } });
+                if (p.type !== 'sampler2D' && p.type !== 'sampler2DArray') this.err(`a ${p.type} parameter is not supported yet`, p.line);
+                params.push(`${name} : ${p.type === 'sampler2DArray' ? 'texture_2d_array<f32>' : 'texture_2d<f32>'}`, `${name}_s : sampler`);
+                scope.set(p.name, { type: p.type, code: name, sampler: samplerOf(name, p.type) });
                 continue;
             }
             if (p.quals.includes('out') || p.quals.includes('inout')) {
@@ -309,7 +345,7 @@ class Emitter {
     private writtenArgs(name: string): Set<number> {
         const own = this.fns.get(name);
         if (own) return new Set(own.flatMap((f) => f.params.map((p, i) => (p.quals.includes('out') || p.quals.includes('inout') ? i : -1))).filter((i) => i >= 0));
-        return new Set(BRIDGES[name]?.outs ?? []);
+        return new Set(this.env.fns.get(name)?.params.map((p, i) => (p.qual === 'in' ? -1 : i)).filter((i) => i >= 0) ?? []);
     }
 
     private block(stmts: Node[], scope: Scope, depth: number): string[] {
@@ -379,7 +415,8 @@ class Emitter {
                 const e = this.convert(this.expr(d.init, scope), type, d.line, array);
                 // A literal of the declared kind infers it (0.0 is f32, 0 is i32); anything else says its type.
                 const typed = e.type !== type || array ? ` : ${wType(type, array)}` : '';
-                out.push(`${ind}${this.assigned.has(d.name) ? 'var' : 'let'} ${name}${typed} = ${strip(e.code)};`);
+                // An array is a `var`: WGSL indexes a `let` array only by a constant, and GLSL code indexes by a loop's counter.
+                out.push(`${ind}${this.assigned.has(d.name) || array ? 'var' : 'let'} ${name}${typed} = ${strip(e.code)};`);
             }
             scope.set(d.name, { type, array, code: name });
         }
@@ -395,6 +432,10 @@ class Emitter {
 
     private exprStmt(e: Node, scope: Scope, ind: string, line?: number): string[] {
         if (e.k === 'preinc' || e.k === 'postinc') return [`${ind}${this.lvalue(e.e, scope).code}${e.op};`];
+        if (e.k === 'assign' && e.op === '=' && e.rhs.k === 'assign') {
+            // `a = b = c` as a statement: the inner assignment first, then the outer one reads what it wrote.
+            return [...this.exprStmt(e.rhs, scope, ind, line), ...this.assign({ ...e, rhs: e.rhs.lhs }, scope, ind)];
+        }
         if (e.k === 'assign') return this.assign(e, scope, ind);
         if (e.k === 'call') {
             const bridged = this.bridgedCall(e, scope, ind);
@@ -490,6 +531,11 @@ class Emitter {
                 return { code: `select(${strip(b.code)}, ${strip(a.code)}, ${strip(c.code)})`, type: t };
             }
             case 'call': return this.call(e, scope);
+            case 'arrayctor': {
+                const n = e.size ? this.constInt(e.size) : e.args.length;
+                const elems = (e.args as Node[]).map((a) => strip(this.convert(this.expr(a, scope), e.type, e.line).code));
+                return { code: `array<${wType(e.type)}, ${n}>(${elems.join(', ')})`, type: e.type, array: n };
+            }
             case 'assign': case 'preinc': case 'postinc': return this.err('an assignment or ++/-- inside an expression is not supported', e.line);
             case 'type': return this.err(`'${e.name}' used as a value`, e.line);
             default: return this.err(`unexpected ${e.k}`, e.line);
@@ -503,6 +549,7 @@ class Emitter {
             if (v.sampler) this.err(`sampler '${n}' is read only by a texture function`, e.line);
             return { code: v.code, type: v.type, array: v.array };
         }
+        if ((n === 'gl_FragCoord' || n === 'gl_FrontFacing') && this.stage === 'vertex') this.err(`${n} is the fragment stage's`, e.line);
         if (n === 'gl_FragCoord') return { code: 'es_v.pos', type: 'vec4' };
         if (n === 'gl_FrontFacing') { this.usesFront = true; return { code: 'es_front', type: 'bool' }; }
         const c = this.consts.get(n);
@@ -513,7 +560,7 @@ class Emitter {
         if (o) return { code: safe(n), type: o.type };
         const param = this.env.params.get(n);
         if (param && !isSampler(param)) return { code: `mc.${n}`, type: param };
-        if (param || this.samplers.has(n)) this.err(`sampler '${n}' is read only by a texture function`, e.line);
+        if (param || this.samplers.has(n) || this.env.samplers.has(n)) this.err(`sampler '${n}' is read only by a texture function`, e.line);
         const g = this.env.globals.get(n);
         if (g) {
             if (!g.wgsl) this.err(`'${n}' is the engine's in GLSL and has no WGSL counterpart it can be read as`, e.line);
@@ -711,6 +758,7 @@ class Emitter {
             default: break;
         }
         const w = BUILTINS[n]!;
+        if (this.stage === 'vertex' && (n === 'dFdx' || n === 'dFdy' || n === 'fwidth')) this.err(`${n} has no meaning in a vertex stage`, e.line);
         if (FLOAT_RESULT.has(n)) return { code: `${w}(${codes()})`, type: 'float' };
         if (n === 'cross') return { code: `cross(${codes()})`, type: 'vec3' };
         if (n === 'any' || n === 'all') return { code: `${w}(${codes()})`, type: 'bool' };
@@ -743,8 +791,10 @@ class Emitter {
             if (v?.sampler) return v.sampler;
             const own = this.samplers.get(a.name);
             if (own) return own;
-            if (this.env.params.get(a.name) === 'sampler2D') return { tex: a.name, smp: `${a.name}_s` };
-            if (this.env.globals.get(a.name)) this.err(`engine sampler '${a.name}' has no WGSL name the transpiler knows`, line);
+            const param = this.env.params.get(a.name);
+            if (param && isSampler(param)) return samplerOf(a.name, param);
+            const engine = this.env.samplers.get(a.name);
+            if (engine) return engine;
         }
         return this.err('a texture function reads a sampler named directly', line);
     }
@@ -752,15 +802,53 @@ class Emitter {
     private isSamplerArg(a: Node, scope: Scope): boolean {
         if (a.k === 'index' && a.e.k === 'id' && a.e.name === 'u_textures') return true;
         if (a.k !== 'id') return false;
-        return Boolean(scope.get(a.name)?.sampler || this.samplers.has(a.name) || this.env.params.get(a.name) === 'sampler2D');
+        const param = this.env.params.get(a.name);
+        return Boolean(scope.get(a.name)?.sampler || this.samplers.has(a.name) || (param && isSampler(param)) || this.env.samplers.has(a.name));
+    }
+
+    /** The texture and sampler arguments a sampler passes on to a function that takes one. */
+    private samplerArgs(s: SamplerPair, line?: number): string[] {
+        if (s.kind === 'depth') this.err('a depth texture handed to a function is not supported', line);
+        return [s.tex, s.smp!];
     }
 
     private texture(e: Node, scope: Scope): Val {
         const s = this.sampler(e.args[0], scope, e.line);
         const rest = (e.args as Node[]).slice(1).map((a) => this.expr(a, scope));
         const c = (i: number, t: string): string => strip(this.convert(rest[i] ?? this.err(`${e.name} is missing an argument`, e.line), t, e.line).code);
+        if (s.kind === 'depth') {
+            // A depth texture has no sampler: it is read by texel, its one channel as GLSL's `.r` of what it returns.
+            const asVec4 = (f: string): Val => ({ code: `vec4f(${f}, 0.0, 0.0, 1.0)`, type: 'vec4' });
+            switch (e.name) {
+                case 'texelFetch': return asVec4(`textureLoad(${s.tex}, ${c(0, 'ivec2')}, ${c(1, 'int')})`);
+                case 'textureSize': return { code: `vec2i(textureDimensions(${s.tex}, ${c(0, 'int')}))`, type: 'ivec2' };
+                case 'texture': case 'textureLod': return asVec4(`${this.depthHelper()}(${s.tex}, ${c(0, 'vec2')})`);
+                default: return this.err(`${e.name} of a depth texture is not supported`, e.line);
+            }
+        }
+        if (s.kind === 'array') {
+            // GLSL picks the layer as floor(z + 0.5); WGSL takes the index as given.
+            const at = c(0, 'vec3');
+            const uv = `${wrap(at)}.xy`, layer = `i32(floor(${wrap(at)}.z + 0.5))`;
+            switch (e.name) {
+                case 'texture':
+                    if (this.stage === 'vertex') return { code: `textureSampleLevel(${s.tex}, ${s.smp}, ${uv}, ${layer}, 0.0)`, type: 'vec4' };
+                    return rest.length === 2
+                        ? { code: `textureSampleBias(${s.tex}, ${s.smp}, ${uv}, ${layer}, ${c(1, 'float')})`, type: 'vec4' }
+                        : { code: `textureSample(${s.tex}, ${s.smp}, ${uv}, ${layer})`, type: 'vec4' };
+                case 'textureLod': return { code: `textureSampleLevel(${s.tex}, ${s.smp}, ${uv}, ${layer}, ${c(1, 'float')})`, type: 'vec4' };
+                case 'textureGrad': return { code: `textureSampleGrad(${s.tex}, ${s.smp}, ${uv}, ${layer}, ${c(1, 'vec2')}, ${c(2, 'vec2')})`, type: 'vec4' };
+                case 'texelFetch': {
+                    const p = this.convert(rest[0]!, 'ivec3', e.line).code;
+                    return { code: `textureLoad(${s.tex}, ${wrap(p)}.xy, ${wrap(p)}.z, ${c(1, 'int')})`, type: 'vec4' };
+                }
+                default: return { code: `vec3i(vec2i(textureDimensions(${s.tex}, ${c(0, 'int')})), i32(textureNumLayers(${s.tex})))`, type: 'ivec3' };
+            }
+        }
         switch (e.name) {
             case 'texture':
+                // A vertex stage has no derivatives: GLSL reads level 0 there, and WGSL has to be told.
+                if (this.stage === 'vertex') return { code: `textureSampleLevel(${s.tex}, ${s.smp}, ${c(0, 'vec2')}, 0.0)`, type: 'vec4' };
                 return rest.length === 2
                     ? { code: `textureSampleBias(${s.tex}, ${s.smp}, ${c(0, 'vec2')}, ${c(1, 'float')})`, type: 'vec4' }
                     : { code: `textureSample(${s.tex}, ${s.smp}, ${c(0, 'vec2')})`, type: 'vec4' };
@@ -771,6 +859,16 @@ class Emitter {
         }
     }
 
+    /** The depth at a uv: the texel under it, clamped to the texture (what a nearest-filtered GLSL read returns). Written once. */
+    private depthHelper(): string {
+        const name = 'es_depthAt';
+        if (!this.helpers.has(name)) {
+            this.helpers.set(name, `fn ${name}(t : texture_depth_2d, uv : vec2f) -> f32 {\n    let size = vec2i(textureDimensions(t));\n`
+                + '    return textureLoad(t, clamp(vec2i(uv * vec2f(size)), vec2i(0), size - vec2i(1)), 0);\n}');
+        }
+        return name;
+    }
+
     private userCall(e: Node, scope: Scope): Val {
         const list = this.fns.get(e.name)!;
         const args = (e.args as Node[]).map((a) => (this.isSamplerArg(a, scope) ? null : this.expr(a, scope)));
@@ -779,7 +877,7 @@ class Emitter {
         if (!f) return this.err(`no '${e.name}' takes these arguments`, e.line);
         const out: string[] = [];
         f.params.forEach((p, i) => {
-            if (isSampler(p.type)) { const s = this.sampler(e.args[i], scope, e.line); out.push(s.tex, s.smp); return; }
+            if (isSampler(p.type)) { out.push(...this.samplerArgs(this.sampler(e.args[i], scope, e.line), e.line)); return; }
             if (p.quals.includes('out') || p.quals.includes('inout')) { out.push(this.address(e.args[i], scope, e.line)); return; }
             out.push(strip(this.convert(args[i]!, p.type, e.line, p.array ? this.constInt(p.array) : null).code));
         });
@@ -797,11 +895,10 @@ class Emitter {
     private engineCall(e: Node, scope: Scope): Val {
         const n: string = e.name;
         const sig = this.env.fns.get(n)!;
-        if (BRIDGES[n]) this.err(`'${n}' writes its arguments; it can only be called as a statement of its own`, e.line);
-        if (sig.params.some((p) => p.qual !== 'in')) this.err(`engine function '${n}' writes an argument and has no bridge`, e.line);
+        if (sig.params.some((p) => p.qual !== 'in')) this.err(`'${n}' writes its arguments; it can only be called as a statement of its own`, e.line);
         const out: string[] = [];
         sig.params.forEach((p, i) => {
-            if (isSampler(p.type)) { const s = this.sampler(e.args[i], scope, e.line); out.push(s.tex, s.smp); return; }
+            if (isSampler(p.type)) { out.push(...this.samplerArgs(this.sampler(e.args[i], scope, e.line), e.line)); return; }
             out.push(strip(this.convert(this.expr(e.args[i], scope), p.type, e.line).code));
         });
         const arity = this.env.arity[n];
@@ -809,18 +906,26 @@ class Emitter {
         return { code: `${n}(${out.join(', ')})`, type: sig.ret };
     }
 
+    /** A call of an engine function that writes its arguments, as the WGSL call that returns them and a write of each. */
     private bridgedCall(e: Node, scope: Scope, ind: string): string[] | null {
-        const b = BRIDGES[e.name];
-        if (!b || this.fns.has(e.name)) return null;
+        if (this.fns.has(e.name)) return null;
         const sig = this.env.fns.get(e.name);
-        if (!sig) return null;
-        const ins: string[] = [], outs: LVal[] = [];
-        sig.params.forEach((p, i) => {
-            if (b.outs.includes(i)) { outs.push(this.lvalue(e.args[i], scope)); return; }
-            ins.push(strip(this.convert(this.expr(e.args[i], scope), p.type, e.line).code));
-        });
+        if (!sig || sig.params.every((p) => p.qual === 'in')) return null;
+        const fields = this.env.returnFields[e.name];
+        const ins: string[] = [], writes: string[] = [];
         const t = `es_t${this.tmp++}`;
-        const writes = outs.map((o, k) => `${o.code} ${b.accumulate ? '+=' : '='} ${t}.${b.fields[k]};`);
+        sig.params.forEach((p, i) => {
+            if (p.qual === 'in') {
+                if (isSampler(p.type)) ins.push(...this.samplerArgs(this.sampler(e.args[i], scope, e.line), e.line));
+                else ins.push(strip(this.convert(this.expr(e.args[i], scope), p.type, e.line).code));
+                return;
+            }
+            if (!fields?.includes(p.name)) this.err(`engine function '${e.name}' writes '${p.name}', which its WGSL does not return`, e.line);
+            if (p.qual === 'inout' && !ACCUMULATES_INOUT.has(e.name)) this.err(`engine function '${e.name}' reads and writes '${p.name}', and what it does with it is not known`, e.line);
+            const target = this.lvalue(e.args[i], scope);
+            if (target.swizzle && target.swizzle.length > 1) this.err('a swizzle as an out argument is not supported', e.line);
+            writes.push(`${target.code} ${p.qual === 'inout' ? '+=' : '='} ${t}.${p.name};`);
+        });
         return [`${ind}{ let ${t} = ${e.name}(${ins.join(', ')}); ${writes.join(' ')} }`];
     }
 

@@ -194,6 +194,17 @@ export function parse(tokens: Token[], knownStructs: Iterable<string> = [], opts
     }
     function postfix(): Node {
         let e = primary();
+        // An array constructor, `vec4[8](...)` or `float[](...)`.
+        if (e.k === 'type' && is('[')) {
+            next();
+            const size = is(']') ? null : expr();
+            expect(']');
+            const line = expect('(').line;
+            const args: Node[] = [];
+            if (!is(')')) { for (;;) { args.push(assignment()); if (is(',')) { next(); continue; } break; } }
+            expect(')');
+            e = { k: 'arrayctor', type: e.name, size, args, line };
+        }
         for (;;) {
             const t = peek();
             if (t.t === 'p' && t.v === '(' && (e.k === 'id' || e.k === 'type')) {

@@ -4,18 +4,22 @@ import { describe, expect, it } from 'vitest';
 import { TERRAIN_LAYERS_SHADER_TEMPLATE, TERRAIN_SURFACE_BAKE_SHADER_TEMPLATE } from '../src/terrain/terrainShader';
 import { PLANET_SHADER_TEMPLATE } from '../src/terrain/planetShader';
 import { LAYER_SURFACE_GLSL, LAYER_SURFACE_WGSL } from '../src/terrain/layerSurfaceShader';
+import { withWgslTwin } from '../src/shaders/wgsl/twin';
 
 describe('the ground\'s layers are one piece of shader code', () => {
     it('Terrain Layers and Planet both draw their layers with it, in both languages', () => {
         for (const source of [TERRAIN_LAYERS_SHADER_TEMPLATE.source, PLANET_SHADER_TEMPLATE.source]) {
             expect(source).toContain(LAYER_SURFACE_GLSL);
-            expect(source).toContain(LAYER_SURFACE_WGSL);
             expect(source).toContain('TnSurface layers = tnLayers(');
-            expect(source).toContain('let layers = tnLayers(');
             // One copy of the code each: a layer read written a second time is a second place to change.
-            expect(source.split('fn tnHex(').length).toBe(2);
             expect(source.split('TnTap tnHex(').length).toBe(2);
+            // Its own WGSL, or the one written from its GLSL as it compiles on WebGPU.
+            const wgsl = withWgslTwin(source);
+            expect(wgsl).toContain('let layers = tnLayers(');
+            expect(wgsl.split('fn tnHex(').length).toBe(2);
         }
+        // The Planet keeps its hand-written WGSL, which takes the layer code from the shared piece.
+        expect(PLANET_SHADER_TEMPLATE.source).toContain(LAYER_SURFACE_WGSL);
     });
 
     it('reads the four layers with the most say at a pixel, not all eight', () => {
@@ -51,6 +55,7 @@ describe('the ground\'s layers are one piece of shader code', () => {
         expect(params(lit)).toContain('u_surfacePages');
         // Both languages write the two halves of a page, and Terrain Layers reads them in both.
         expect(bake).toContain('tnOctEncode(g.N)');
-        expect(lit.split('tnOctDecode(b.xy)').length).toBe(3);
+        expect(lit.split('tnOctDecode(b.xy)').length).toBe(2);
+        expect(withWgslTwin(lit).split('tnOctDecode(b.xy)').length).toBe(3);
     });
 });
