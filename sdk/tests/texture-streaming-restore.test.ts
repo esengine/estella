@@ -21,6 +21,7 @@ const { Quality } = await import('../src/render/qualityRuntime');
 const { Assets } = await import('../src/asset/AssetPlugin');
 
 const FILES = new Map<number, number>([[1, 2048], [2, 1024], [3, 512]]);
+const DECODES_AT_MOST = new Map<number, number>();
 
 function harness(startedSmall = 0) {
     const profile = { textureStreaming: true, textureStreamingBudget: 0 };
@@ -37,7 +38,7 @@ function harness(startedSmall = 0) {
         resizeTexture: async (handle: number, edge: number) => {
             resized.push([handle, edge]);
             const full = FILES.get(handle)!;
-            const size = edge === 0 ? full : Math.min(full, edge);
+            const size = Math.min(edge === 0 ? full : Math.min(full, edge), DECODES_AT_MOST.get(handle) ?? Infinity);
             dims.set(handle, { width: size, height: size });
             return { width: size, height: size };
         },
@@ -66,6 +67,7 @@ describe('textures streaming shrank, once the quality level stops streaming', ()
         for (const [handle, edge] of FILES) dims.set(handle, { width: edge, height: edge });
         wants = '';
         clock.now = 0;
+        DECODES_AT_MOST.clear();
     });
 
     it('are put back at their full size', async () => {
@@ -94,6 +96,17 @@ describe('textures streaming shrank, once the quality level stops streaming', ()
         expect([dims.get(2)!.width, dims.get(3)!.width]).toEqual([1024, 512]);
         await run(2000);
         expect(resized.length).toBe(2);
+    });
+
+    it('are asked once only when one cannot come back at full size', async () => {
+        const { profile, resized, run } = harness(1);
+        dims.set(2, { width: 256, height: 256 });
+        DECODES_AT_MOST.set(2, 256);
+        profile.textureStreaming = false;
+        await run(1000);
+        await run(2000);
+        await run(3000);
+        expect(resized).toEqual([[2, 0]]);
     });
 
     it('leave nothing to move when no level ever streamed', async () => {

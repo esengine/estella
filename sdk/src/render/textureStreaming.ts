@@ -220,9 +220,11 @@ export class TextureStreamingPlugin implements Plugin {
             const assets = app.getResource(Assets);
             const loader = assets.getTextureLoader();
             const putBack = (handle: number): void => {
+                const full = loader.fullSize(handle);
+                const refuse = (): void => { state.failures++; state.refused.add(handle); };
                 state.restoring.add(handle);
                 state.inFlight++;
-                void assets.resizeTexture(handle, 0).then((size) => { if (!size) { state.failures++; state.refused.add(handle); } }, () => { state.failures++; state.refused.add(handle); })
+                void assets.resizeTexture(handle, 0).then((size) => { if (!size || (full && (size.width < full.width || size.height < full.height))) refuse(); }, refuse)
                     .finally(() => { state.inFlight--; state.restoring.delete(handle); });
             };
             if (loader.startedSmall !== seenSmall) { seenSmall = loader.startedSmall; owed = true; }
