@@ -52,6 +52,12 @@ export interface SkyEffectSource {
      * stars over a nebula.
      */
     over?: boolean;
+    /**
+     * The sky stands still between changes of its params: on a device whose quality level is below high it is drawn once into a
+     * panorama (a strip a frame), and the sky pass reads that panorama instead of working the sky out for every pixel. Its params,
+     * Brightness aside, are read when it is drawn; a change draws it again, and the sky is worked out as before until it is whole.
+     */
+    still?: boolean;
 }
 
 /** The sky types defined here: what the volumes look for, beside Sky Atmosphere, to light the scene. */
@@ -76,6 +82,107 @@ function colorPragma(c: EffectColorDef): string {
     return `#pragma param ${c.name} color default(${v.r},${v.g},${v.b},${v.a})`;
 }
 
+const STILL_PARAMS = [
+    '#pragma param u_skyStillOn float default(0) range(0,1)',
+    '#pragma param u_skyStill texture default(black)',
+];
+
+/** The still panorama's texel for a direction, and the direction a texel stands for: u around from -Z, v down from the zenith. */
+const STILL_MAP_GLSL = `vec2 esStillUv(vec3 d) {
+    return vec2(atan(-d.x, d.z) * 0.15915494 + 0.5, acos(clamp(d.y, -1.0, 1.0)) * 0.31830989);
+}
+vec3 esStillDir(vec2 uv) {
+    float phi = (uv.x - 0.5) * 6.28318531, theta = uv.y * 3.14159265, s = sin(theta);
+    return vec3(-s * sin(phi), cos(theta), s * cos(phi));
+}`;
+const STILL_MAP_WGSL = `fn esStillUv(d : vec3f) -> vec2f {
+    return vec2f(atan2(-d.x, d.z) * 0.15915494 + 0.5, acos(clamp(d.y, -1.0, 1.0)) * 0.31830989);
+}
+fn esStillDir(uv : vec2f) -> vec3f {
+    let phi = (uv.x - 0.5) * 6.28318531;
+    let theta = uv.y * 3.14159265;
+    let s = sin(theta);
+    return vec3f(-s * sin(phi), cos(theta), s * cos(phi));
+}`;
+const STILL_READ_GLSL = `${STILL_MAP_GLSL}
+vec3 esStillRadiance(vec3 d) {
+    vec4 c = textureLod(u_skyStill, esStillUv(d), 0.0);
+    return c.rgb * c.a * ${CUSTOM_SKY_RANGE.toFixed(1)};
+}`;
+const STILL_READ_WGSL = `${STILL_MAP_WGSL}
+fn esStillRadiance(d : vec3f) -> vec3f {
+    let c = textureSampleLevel(u_skyStill, u_skyStill_s, esStillUv(d), 0.0);
+    return c.rgb * c.a * ${CUSTOM_SKY_RANGE.toFixed(1)};
+}`;
+
+/**
+ * The shader that draws a still sky into its panorama (skyStill.ts): the author's function for the direction a texel stands for, without
+ * Brightness, as RGBM over the capture's range. The sun is `u_bakeA`, the panorama's size `u_bakeB`.
+ */
+export function skyStillBakeSource(src: SkyEffectSource): string {
+    const params = [
+        '#pragma param u_bakeA vec4 default(0,1,0,0)',
+        '#pragma param u_bakeB vec4 default(2048,1024,0,0)',
+        ...(src.uniforms ?? []).map(pragmaLine),
+        ...(src.colors ?? []).map(colorPragma),
+        ...Object.keys(src.textures ?? {}).map((name) => `#pragma param ${name} texture default(black)`),
+    ].join('\n');
+    const range = CUSTOM_SKY_RANGE.toFixed(1);
+    return `#pragma shader "Sky ${src.label} Still"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma highprecision
+${params}
+
+#pragma fragment
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+out vec4 fragColor;
+
+float esSkyPixel;
+
+${src.glsl}
+
+${STILL_MAP_GLSL}
+
+void main() {
+    esSkyPixel = 3.14159265 / u_bakeB.y;
+    vec3 sun = normalize(u_bakeA.xyz);
+    vec3 c = clamp(skyRadiance(esStillDir(gl_FragCoord.xy / u_bakeB.xy), sun, vec3(1.0), 0.0), vec3(0.0), vec3(${range}));
+    float m = clamp(max(max(c.r, c.g), max(c.b, 1e-6)) / ${range}, 1.0 / 255.0, 1.0);
+    m = ceil(m * 255.0) / 255.0;
+    fragColor = vec4(c / (m * ${range}), m);
+}
+#pragma end
+
+#pragma fragment wgsl
+var<private> esSkyPixel : f32;
+
+${src.wgsl}
+
+${STILL_MAP_WGSL}
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    esSkyPixel = 3.14159265 / mc.u_bakeB.y;
+    let sun = normalize(mc.u_bakeA.xyz);
+    let c = clamp(skyRadiance(esStillDir(v.pos.xy / mc.u_bakeB.xy), sun, vec3f(1.0), 0.0), vec3f(0.0), vec3f(${range}));
+    var m = clamp(max(max(c.r, c.g), max(c.b, 1e-6)) / ${range}, 1.0 / 255.0, 1.0);
+    m = ceil(m * 255.0) / 255.0;
+    return vec4f(c / (m * ${range}), m);
+}
+#pragma end
+`;
+}
+
+/** The shader that bakes each still sky, by its type: what skyStill.ts draws a panorama with. */
+const stillSkies = new Map<string, () => ShaderHandle>();
+
+export function stillSkyBake(type: string): (() => ShaderHandle) | undefined {
+    return stillSkies.get(type);
+}
+
 /** The effect's shader: the author's function, drawn under the scene or, with u_skyCapture, as the panorama. */
 export function skyEffectSource(src: SkyEffectSource): string {
     const params = [
@@ -88,6 +195,7 @@ export function skyEffectSource(src: SkyEffectSource): string {
         ...(src.uniforms ?? []).map(pragmaLine),
         ...(src.colors ?? []).map(colorPragma),
         ...Object.keys(src.textures ?? {}).map((name) => `#pragma param ${name} texture default(black)`),
+        ...(src.still ? STILL_PARAMS : []),
     ].join('\n');
     // The panorama's direction for a texel, in Panorama's own mapping (lightmap/panorama.ts). Its v runs down from the
     // zenith; the readback lands rows bottom-up on both backends while the pass's uv runs up the target on GL and down it
@@ -118,6 +226,7 @@ vec3 esSkyPanoramaDir(vec2 uv) {
     return vec3(-s * sin(phi), cos(theta), s * cos(phi));
 }
 
+${src.still ? STILL_READ_GLSL : ''}
 void main() {
     vec4 lightDir, lightColor;
     ivec2 tiles;
@@ -149,7 +258,7 @@ ${src.groundShadow ? `    if (u_cloudShadowPass > 0.5) {
     vec3 dir = normalize(worldFromDepth(v_texCoord, 1.0) - entry);
     vec2 beside = v_texCoord + vec2(1.0 / float(size.x), 0.0);
     esSkyPixel = length(normalize(worldFromDepth(beside, 1.0) - worldFromDepth(beside, 0.0)) - dir);
-    vec3 col = skyRadiance(dir, sun, sunColor, 0.0) * u_intensity;
+    vec3 col = ${src.still ? 'u_skyStillOn > 0.5 ? esStillRadiance(dir) * u_intensity : ' : ''}skyRadiance(dir, sun, sunColor, 0.0) * u_intensity;
     float room = ${src.over ? '(depth >= 1.0 ? 1.0 : 1.0 - src.a)' : '(1.0 - src.a)'};
     fragColor = vec4(src.rgb + room * col, src.a > 0.99 ? src.a : 1.0);
 }
@@ -167,6 +276,7 @@ fn esSkyPanoramaDir(uv : vec2f) -> vec3f {
     return vec3f(-s * sin(phi), cos(theta), s * cos(phi));
 }
 
+${src.still ? STILL_READ_WGSL : ''}
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let found = findSun();
     var sun = vec3f(0.0, 1.0, 0.0);
@@ -194,7 +304,8 @@ ${src.groundShadow ? `    if (mc.u_cloudShadowPass > 0.5) {
     let dir = normalize(worldFromDepth(v.v_texCoord, 1.0) - entry);
     let beside = v.v_texCoord + vec2f(1.0 / f32(size.x), 0.0);
     esSkyPixel = length(normalize(worldFromDepth(beside, 1.0) - worldFromDepth(beside, 0.0)) - dir);
-    let col = skyRadiance(dir, sun, sunColor, 0.0) * mc.u_intensity;
+    ${src.still ? `var col : vec3f;
+    if (mc.u_skyStillOn > 0.5) { col = esStillRadiance(dir) * mc.u_intensity; } else { col = skyRadiance(dir, sun, sunColor, 0.0) * mc.u_intensity; }` : 'let col = skyRadiance(dir, sun, sunColor, 0.0) * mc.u_intensity;'}
     var a = 1.0;
     if (src.a > 0.99) { a = src.a; }
     var room = 1.0 - src.a;
@@ -212,6 +323,12 @@ ${src.groundShadow ? `    if (mc.u_cloudShadowPass > 0.5) {
 export function defineSkyEffect(src: SkyEffectSource): void {
     let shader: ShaderHandle | null = null;
     skyTypes.add(src.type);
+    if (src.still) {
+        let bake: ShaderHandle | null = null;
+        stillSkies.set(src.type, () => (bake ??= Material.compileShader(skyStillBakeSource(src))));
+    } else {
+        stillSkies.delete(src.type);
+    }
     registerEffect({
         type: src.type,
         label: src.label,

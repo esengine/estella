@@ -18,6 +18,7 @@ import type { Entity } from '../types';
 import { resolvedLightingSky } from './volumeSystem';
 import { SkyEnvironment, skyParamsOf, skySunOf } from './skyEnvironment';
 import { noteCloudBakeFrame } from './cloudBake';
+import { noteSkyStillFrame } from './skyStill';
 import { probeCaptureSystem } from './probeCapture';
 import { dynamicGISystem } from '../gi/dynamicGISystem';
 
@@ -42,6 +43,7 @@ function skyEnvironmentSystem(app: App, sky: SkyEnvironment) {
         [Query(Light, Transform)],
         (lights: Iterable<[Entity, LightData, TransformData]>) => {
             noteCloudBakeFrame(sunFromLights(lights));
+            noteSkyStillFrame();
             if (!app.hasResource(PostProcess)) return;
             const view = app.hasResource(EditorView) ? app.getResource(EditorView) : null;
             const lighting = resolvedLightingSky(app.getResource(PostProcess), !!view?.active);

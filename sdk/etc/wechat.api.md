@@ -8756,6 +8756,7 @@ shadowSoftSamples: number
 shelterMaskSize: number
 skipEffects: readonly string[]
 ssao: boolean
+stillSky: boolean
 textureStreaming: boolean
 textureStreamingBudget: number
 waterCaustics: boolean
@@ -10376,6 +10377,7 @@ glsl: string
 groundShadow: boolean | undefined
 label: string
 over: boolean | undefined
+still: boolean | undefined
 textures: Record<string, () => BuiltinTexture> | undefined
 type: string
 uniforms: EffectUniformDef[] | undefined
