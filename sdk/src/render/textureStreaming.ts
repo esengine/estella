@@ -28,6 +28,7 @@ import { engineApi } from '../ecs/bridge/engineApi';
 import { getTextureDimensions } from '../wasm/resourceManager';
 import { platformNow } from '../platform';
 import { Quality } from './qualityRuntime';
+import { nextPowerOf2 } from '../math/scalar';
 
 /** What the streamer keeps of one texture. @experimental */
 export interface StreamedTexture {
@@ -60,12 +61,11 @@ export interface TextureStreamingOptions {
 /** @experimental */
 export const TEXTURE_STREAMING_DEFAULTS: TextureStreamingOptions = { minEdge: 64, budgetBytes: 0, shrinkAfter: 3000, unseenAfter: 5000 };
 
-const nextPow2 = (n: number): number => 2 ** Math.ceil(Math.log2(Math.max(1, n)));
 
 /** The longer side a texture should be held at: the next power of two above what is wanted, between `minEdge` and the file. @experimental */
 export function streamTargetEdge(fullEdge: number, wanted: number, minEdge: number): number {
     if (!(wanted > 0)) return Math.min(fullEdge, minEdge);
-    return Math.min(fullEdge, Math.max(minEdge, nextPow2(wanted)));
+    return Math.min(fullEdge, Math.max(minEdge, nextPowerOf2(wanted)));
 }
 
 /** The bytes a texture held at `edge` on its longer side takes, with its chain, at four bytes a texel. @experimental */

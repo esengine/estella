@@ -11,6 +11,8 @@ import { RenderTexture, type RenderTextureHandle } from './renderTexture';
 import { getResourceManager, getTextureDimensions } from '../wasm/resourceManager';
 import { log } from '../util/logger';
 import { uvRectFromPixels } from './uvRect';
+import { ShelfPacker } from '../util/shelfPack';
+import { nextPowerOf2 } from '../math/scalar';
 
 /** Where one source texture sits on an atlas. @experimental */
 export interface AtlasEntry {
@@ -64,29 +66,15 @@ export interface PackLayout {
     places: Array<{ x: number; y: number }>;
 }
 
-const nextPow2 = (n: number): number => {
-    let p = 1;
-    while (p < n) p *= 2;
-    return p;
-};
-
-/** Rows of pictures, tallest first, in a canvas `width` wide; null if they run past `maxHeight`. */
 function shelves(sizes: readonly PackSize[], order: readonly number[], width: number, padding: number, maxHeight: number): { places: Array<{ x: number; y: number }>; used: number } | null {
     const places = new Array<{ x: number; y: number }>(sizes.length);
-    let x = 0, y = 0, rowHeight = 0;
+    const packer = new ShelfPacker(width, maxHeight);
     for (const i of order) {
-        const w = sizes[i].width + padding, h = sizes[i].height + padding;
-        if (x + w > width) {
-            y += rowHeight;
-            x = 0;
-            rowHeight = 0;
-        }
-        if (w > width || y + h > maxHeight) return null;
-        places[i] = { x, y };
-        x += w;
-        rowHeight = Math.max(rowHeight, h);
+        const place = packer.pack(sizes[i].width + padding, sizes[i].height + padding);
+        if (!place) return null;
+        places[i] = place;
     }
-    return { places, used: y + rowHeight };
+    return { places, used: packer.usedHeight };
 }
 
 /**
@@ -100,9 +88,9 @@ export function packRects(sizes: readonly PackSize[], maxSize: number, padding: 
     let area = 0;
     for (const s of sizes) area += (s.width + padding) * (s.height + padding);
     const widest = Math.max(...sizes.map((s) => s.width + padding));
-    for (let width = Math.max(nextPow2(Math.ceil(Math.sqrt(area))), nextPow2(widest)); width <= maxSize; width *= 2) {
+    for (let width = Math.max(nextPowerOf2(Math.ceil(Math.sqrt(area))), nextPowerOf2(widest)); width <= maxSize; width *= 2) {
         const laid = shelves(sizes, order, width, padding, maxSize);
-        if (laid) return { width, height: nextPow2(laid.used), places: laid.places };
+        if (laid) return { width, height: nextPowerOf2(laid.used), places: laid.places };
     }
     throw new Error(`${sizes.length} textures do not fit in ${maxSize}×${maxSize} (with ${padding} px of padding)`);
 }

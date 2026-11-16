@@ -41,11 +41,7 @@ export function isWordChar(code: number): boolean {
         || code === 0x5F;
 }
 
-export function nextPowerOf2(n: number): number {
-    let p = 1;
-    while (p < n) p *= 2;
-    return p;
-}
+export { nextPowerOf2 } from '../../math/scalar';
 
 // Bound shallow scans; use a set only after sixteen ancestors.
 const PARENT_CHAIN_SET_AT = 17;
