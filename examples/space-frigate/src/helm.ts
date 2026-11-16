@@ -4,14 +4,18 @@ export type Vec = { x: number; y: number; z: number };
 export type Quat = { x: number; y: number; z: number; w: number };
 
 export const METRES = 1 / FIELD_DRIFT;
-const TURN = 0.24;
+export const TURN_RATE = 0.3;
+export const PITCH_RATE = 0.24;
+export const YAW_THRUST = 0.14;
+export const PITCH_THRUST = 0.11;
+const THRUST_GAIN = 4;
 const BANK = 0.5;
 const GATES = ['KESTREL GATE', 'TARN RELAY', 'OSSA ANCHORAGE'] as const;
 const REPEAT = 0.32;
 
 export const ENGINE_ORDERS = [0, 0.25, 0.5, 0.75, 1] as const;
 export const RUDDER_ORDERS = [-1, -2 / 3, -1 / 3, 0, 1 / 3, 2 / 3, 1] as const;
-export const ELEVATION_ORDERS = [-30, -15, 0, 15, 30] as const;
+export const ELEVATION_ORDERS = [-1, -0.5, 0, 0.5, 1] as const;
 const GATE_REACH = 260;
 
 export const mulQuat = (a: Quat, b: Quat): Quat => ({
@@ -30,13 +34,20 @@ export const turnBack = (q: Quat, v: Vec): Vec => turnBy({ x: -q.x, y: -q.y, z: 
 
 const about = (axis: 'x' | 'y' | 'z', angle: number): Quat => ({ x: 0, y: 0, z: 0, w: Math.cos(angle / 2), [axis]: Math.sin(angle / 2) });
 const facing = (yaw: number, pitch: number, roll = 0): Quat => mulQuat(mulQuat(about('y', yaw), about('x', -pitch)), about('z', roll));
-const wrapped = (angle: number): number => angle - Math.round(angle / (Math.PI * 2)) * Math.PI * 2;
+const within = (v: number, most: number): number => Math.max(-most, Math.min(most, v));
+
+function toward(from: Quat, to: Quat, share: number): Quat {
+    const same = from.x * to.x + from.y * to.y + from.z * to.z + from.w * to.w < 0 ? -1 : 1;
+    const q = { x: from.x + (to.x * same - from.x) * share, y: from.y + (to.y * same - from.y) * share, z: from.z + (to.z * same - from.z) * share, w: from.w + (to.w * same - from.w) * share };
+    const l = Math.hypot(q.x, q.y, q.z, q.w) || 1;
+    return { x: q.x / l, y: q.y / l, z: q.z / l, w: q.w / l };
+}
 
 export type HelmMode = 'manual' | 'approach' | 'align';
 
 export const helm = {
     yaw: 0, pitch: 0, roll: 0, yawRate: 0, pitchRate: 0,
-    viewYaw: 0, viewPitch: 0,
+    jets: { yaw: 0, pitch: 0 },
     mode: 'manual' as HelmMode,
     order: 0.75,
     rudder: 0,
@@ -75,8 +86,8 @@ const stepped = (ladder: readonly number[], now: number, by: number): number => 
 
 export function setEngine(order: number): void { helm.order = Math.max(0, Math.min(1, order)); }
 export function setRudder(order: number): void { helm.rudder = Math.max(-1, Math.min(1, order)); helm.mode = 'manual'; }
-export function setElevation(degrees: number): void { helm.elevation = Math.max(-30, Math.min(30, degrees)); helm.mode = 'manual'; }
-export function steady(): void { helm.rudder = 0; helm.elevation = Math.max(-30, Math.min(30, Math.round((helm.pitch * 180) / Math.PI / 15) * 15)); helm.mode = 'manual'; }
+export function setElevation(order: number): void { helm.elevation = within(order, 1); helm.mode = 'manual'; }
+export function steady(): void { helm.rudder = 0; helm.elevation = 0; helm.mode = 'manual'; }
 export function engage(mode: HelmMode): void {
     if (mode === 'approach' && !helm.aim) return;
     helm.mode = helm.mode === mode ? 'manual' : mode;
@@ -95,28 +106,26 @@ export function stepHelm(keys: HelmKeys, dt: number): Vec {
     if (tapped('align', keys.align, dt)) engage('align');
     if (helm.mode === 'approach' && !helm.aim) steady();
 
-    let want = { yaw: -helm.rudder * TURN, pitch: Math.max(-TURN * 0.8, Math.min(TURN * 0.8, ((helm.elevation * Math.PI) / 180 - helm.pitch) * 1.4)) };
+    let want = { yaw: -helm.rudder * TURN_RATE, pitch: helm.elevation * PITCH_RATE };
     const to = helm.mode === 'approach' ? helm.aim : helm.mode === 'align' ? helm.gate : null;
     if (to) {
-        const flat = Math.hypot(to.x, to.z);
-        const off = { yaw: wrapped(Math.atan2(to.x, to.z) - helm.yaw), pitch: Math.atan2(to.y, flat || 1e-6) - helm.pitch };
-        want = { yaw: Math.max(-TURN, Math.min(TURN, off.yaw * 1.4)), pitch: Math.max(-TURN * 0.8, Math.min(TURN * 0.8, off.pitch * 1.4)) };
-        helm.rudder = -want.yaw / TURN;
-        helm.elevation = Math.max(-60, Math.min(60, ((helm.pitch + off.pitch) * 180) / Math.PI));
+        const ahead = turnBack(helm.level, to);
+        want = { yaw: within(Math.atan2(ahead.x, ahead.z) * 1.4, TURN_RATE), pitch: within(Math.atan2(ahead.y, Math.hypot(ahead.x, ahead.z) || 1e-6) * 1.4, PITCH_RATE) };
+        helm.rudder = -want.yaw / TURN_RATE;
+        helm.elevation = want.pitch / PITCH_RATE;
     }
-    helm.yawRate += (want.yaw - helm.yawRate) * Math.min(1, dt * 2.4);
-    helm.pitchRate += (want.pitch - helm.pitchRate) * Math.min(1, dt * 2.4);
-    helm.yaw = wrapped(helm.yaw + helm.yawRate * dt);
-    helm.pitch = Math.max(-1.2, Math.min(1.2, helm.pitch + helm.pitchRate * dt));
-    helm.helmAngle = -helm.yawRate / TURN;
-    helm.roll += ((-helm.yawRate / TURN) * BANK - helm.roll) * Math.min(1, dt * 1.8);
-    helm.viewYaw += wrapped(helm.yaw - helm.viewYaw) * Math.min(1, dt * 1.6);
-    helm.viewPitch += (helm.pitch - helm.viewPitch) * Math.min(1, dt * 1.2);
-
-    helm.attitude = facing(helm.yaw, helm.pitch, helm.roll);
-    helm.level = facing(helm.yaw, helm.pitch);
-    helm.frame = facing(helm.viewYaw, helm.viewPitch * 0.85);
+    const push = { yaw: within((want.yaw - helm.yawRate) * THRUST_GAIN, YAW_THRUST), pitch: within((want.pitch - helm.pitchRate) * THRUST_GAIN, PITCH_THRUST) };
+    helm.yawRate += push.yaw * dt;
+    helm.pitchRate += push.pitch * dt;
+    helm.jets = { yaw: push.yaw / YAW_THRUST, pitch: push.pitch / PITCH_THRUST };
+    helm.level = toward(helm.level, mulQuat(mulQuat(helm.level, about('y', helm.yawRate * dt)), about('x', -helm.pitchRate * dt)), 1);
+    helm.helmAngle = -helm.yawRate / TURN_RATE;
+    helm.roll += ((-helm.yawRate / TURN_RATE) * BANK - helm.roll) * Math.min(1, dt * 1.8);
+    helm.attitude = mulQuat(helm.level, about('z', helm.roll));
+    helm.frame = toward(helm.frame, helm.level, Math.min(1, dt * 1.6));
     helm.forward = turnBy(helm.level, { x: 0, y: 0, z: 1 });
+    helm.yaw = Math.atan2(helm.forward.x, helm.forward.z);
+    helm.pitch = Math.asin(Math.max(-1, Math.min(1, helm.forward.y)));
 
     const run = ship.speed * FIELD_DRIFT * dt;
     const moved = { x: -helm.forward.x * run, y: -helm.forward.y * run, z: -helm.forward.z * run };
