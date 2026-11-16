@@ -44,34 +44,3 @@ float causticPattern(vec2 p, float t) {
     return clamp(sum / norm * 2.2, 0.0, 1.0);
 }
 `;
-
-/** WGSL: the same. */
-export const CAUSTICS_WGSL = `fn causticHash(p0 : vec2f) -> f32 {
-    var p = fract(p0 * vec2f(0.1031, 0.1030));
-    p = p + dot(p, p.yx + 33.33);
-    return fract((p.x + p.y) * p.x);
-}
-fn causticNoise(p : vec2f) -> f32 {
-    let i = floor(p);
-    var f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(causticHash(i), causticHash(i + vec2f(1.0, 0.0)), f.x),
-               mix(causticHash(i + vec2f(0.0, 1.0)), causticHash(i + vec2f(1.0, 1.0)), f.x), f.y);
-}
-fn causticPattern(p : vec2f, t : f32) -> f32 {
-    var sum = 0.0;
-    var weight = 1.0;
-    var norm = 0.0;
-    for (var i : i32 = 0; i < 3; i = i + 1) {
-        let fi = f32(i);
-        let s = exp2(fi);
-        let a = causticNoise(p * s + vec2f(0.31, 0.12) * t * (1.0 + 0.3 * fi) + 7.0 * fi);
-        let b = causticNoise(p * s * 1.37 - vec2f(0.17, 0.4) * t * (1.0 + 0.2 * fi) + 31.0 * fi);
-        let thread = max(1.0 - abs(a - b) * 3.2, 0.0);
-        sum = sum + weight * thread * thread * thread * thread;
-        norm = norm + weight;
-        weight = weight * 0.55;
-    }
-    return clamp(sum / norm * 2.2, 0.0, 1.0);
-}
-`;

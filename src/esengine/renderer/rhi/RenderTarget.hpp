@@ -20,10 +20,9 @@ public:
     RenderTarget(RenderTarget&&) = default;
     RenderTarget& operator=(RenderTarget&&) = default;
 
-    /** @param asDrawn On a device that stores targets top-down, hand out the texture drawn into rather than a copy turned to the
-     *                 bottom-up rows a camera's target is read in: for a target drawn and read by shaders that know the device's rows
-     *                 (a baked surface), which a copy of the whole of it each time it is drawn would only cost. */
-    void init(GfxDevice& device, u32 width, u32 height, bool depth = true, bool linearFilter = false, bool asDrawn = false);
+    /** A target's rows are bottom-up on every backend (WebGPU turns clip y over to lay them so), so the texture drawn into is the
+     *  one read: there is no turned copy to keep. */
+    void init(GfxDevice& device, u32 width, u32 height, bool depth = true, bool linearFilter = false);
     void shutdown();
 
     void bind();
@@ -31,7 +30,6 @@ public:
     void resize(u32 width, u32 height);
 
     TextureHandle getColorTexture() const;
-    void publish();
     TextureHandle getDepthTexture() const;
     glm::uvec2 getSize() const { return { width_, height_ }; }
     u32 getWidth() const { return width_; }
@@ -43,7 +41,6 @@ public:
 private:
     GfxDevice* device_ = nullptr;
     Unique<Framebuffer> framebuffer_;
-    Unique<Framebuffer> published_;
     u32 width_ = 0;
     u32 height_ = 0;
     bool has_depth_ = true;
@@ -61,7 +58,7 @@ public:
     /** @brief Binds the device used to create render targets. Call once at setup. */
     void setDevice(GfxDevice& device) { device_ = &device; }
 
-    Handle create(u32 width, u32 height, bool depth = true, bool linearFilter = false, bool asDrawn = false);
+    Handle create(u32 width, u32 height, bool depth = true, bool linearFilter = false);
     RenderTarget* get(Handle handle);
     void release(Handle handle);
 

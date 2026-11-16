@@ -152,7 +152,7 @@ describe('the built-in shaders written in GLSL alone', () => {
 
     it('are the ones whose twin was taken out', () => {
         expect(glslOnly.map(([n]) => n).sort()).toEqual(
-            ['Distortion', 'Eye', 'Foliage', 'Ground Blend', 'Hair', 'Lit Particle', 'Matcap', 'Model', 'Particle', 'Skin', 'Terrain Layers', 'Toon', 'Voxel Ground'].sort());
+            ['Distortion', 'Eye', 'Foliage', 'Ground Blend', 'Hair', 'Lit Particle', 'Matcap', 'Model', 'Particle', 'Skin', 'Terrain Layers', 'Toon', 'Voxel Ground', 'Water'].sort());
     });
 
     it.each(glslOnly)('%s transpiles', (_, source) => {

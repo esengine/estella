@@ -82,7 +82,7 @@ fn inWindow(cell : vec3i) -> bool {
 /// What the depth, the G-buffer and the frame say about a pixel, shared by the kernels that read them.
 const char* kSurface = R"WGSL(
 fn worldFromDepth(uv : vec2f, depth : f32) -> vec3f {
-    let clip = vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, depth, 1.0);
+    let clip = vec4f(uv * 2.0 - 1.0, depth, 1.0);
     let world = frame.inverseViewProjection * clip;
     return world.xyz / world.w;
 }
@@ -208,8 +208,7 @@ struct Sun {
 
 fn shadowPoint(k : u32, uv : vec2f, size : vec2f) -> vec4f {
     let rect = sun.rect[k];
-    let base = vec2f(rect.x, 1.0 - rect.y - rect.z);
-    let at = base + vec2f(uv.x, 1.0 - uv.y) * rect.z;
+    let at = rect.xy + uv * rect.z;
     let texel = clamp(vec2i(at * size), vec2i(0), vec2i(size) - vec2i(1));
     let c = textureLoad(shadowTex, texel, 0).rgb;
     let d = dot(c, vec3f(1.0, 1.0 / 255.0, 1.0 / 65025.0));
@@ -367,7 +366,7 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
         let prevClip = gi.prevViewProjection * vec4f(world, 1.0);
         if (prevClip.w > 1e-4) {
             let ndc = prevClip.xy / prevClip.w;
-            let uv = vec2f(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+            let uv = ndc * 0.5 + 0.5;
             if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
                 let q = clamp(vec2i(uv * vec2f(lowSize)), vec2i(0), lowSize - vec2i(1));
                 light = mix(textureLoad(histTex, q, 0).rgb, light, gi.view.z);

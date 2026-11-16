@@ -77,6 +77,8 @@ struct VSOut {
     out.v_uv = v.a_texCoord;
     out.v_color = v.a_color;
     out.v_shapeInfo = v.a_shapeInfo;
+    // Clip y turned over: a target's rows land bottom-up, as GL lays them (see WebGPUDevice::ensurePipeline).
+    out.pos.y = -out.pos.y;
     return out;
 }
 #pragma end

@@ -411,7 +411,7 @@ fn main(@builtin(workgroup_id) wg : vec3u, @builtin(local_invocation_index) lid 
 
 const char* kSurface = R"WGSL(
 fn worldFromDepth(uv : vec2f, depth : f32) -> vec3f {
-    let clip = vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, depth, 1.0);
+    let clip = vec4f(uv * 2.0 - 1.0, depth, 1.0);
     let world = frame.inverseViewProjection * clip;
     return world.xyz / world.w;
 }

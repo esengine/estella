@@ -11,8 +11,8 @@ import { CLOUD_SHADOW_PARAMS } from '../cloudShadowParams';
 import { rain2dEffects } from './rain2d';
 import { fog2dEffects } from './fog2d';
 import { starfieldEffects } from './starfield';
-import { SSAO_GLSL, SSAO_WGSL, PUDDLE_GLSL, PUDDLE_WGSL, BASIN_GLSL, BASIN_WGSL, GBUFFER_GLSL, GBUFFER_WGSL, RAY_START_GLSL, RAY_START_WGSL, RAIN_STREAKS_GLSL, RAIN_STREAKS_WGSL } from './shared';
-import { HASH11_GLSL, HASH11_WGSL, HASH13_GLSL, HASH13_WGSL, HASH21_GLSL, HASH21_WGSL, IGN_GLSL, IGN_WGSL, PHASE_HG_GLSL, PHASE_HG_WGSL, VALUE_NOISE3_GLSL, VALUE_NOISE3_WGSL } from '../../render/shaderLib';
+import { SSAO_GLSL, PUDDLE_GLSL, BASIN_GLSL, GBUFFER_GLSL, RAY_START_GLSL, RAIN_STREAKS_GLSL } from './shared';
+import { HASH11_GLSL, HASH13_GLSL, HASH21_GLSL, IGN_GLSL, PHASE_HG_GLSL, VALUE_NOISE3_GLSL } from '../../render/shaderLib';
 
 // Functions more than one of this file's shaders is written with, once each in both languages.
 const SPHERE_HIT_GLSL = `vec2 sphereHit(vec3 o, vec3 d, float r) {
@@ -21,13 +21,6 @@ const SPHERE_HIT_GLSL = `vec2 sphereHit(vec3 o, vec3 d, float r) {
     if (disc < 0.0) return vec2(-1.0);
     float s = sqrt(disc);
     return vec2(-b - s, -b + s);
-}`;
-const SPHERE_HIT_WGSL = `fn sphereHit(o : vec3f, d : vec3f, r : f32) -> vec2f {
-    let b = dot(o, d);
-    let disc = b * b - (dot(o, o) - r * r);
-    if (disc < 0.0) { return vec2f(-1.0); }
-    let s = sqrt(disc);
-    return vec2f(-b - s, -b + s);
 }`;
 const LIGHT_DEPTH_GLSL = `vec3 lightDepth(vec3 p, vec3 d) {
     vec2 ground = sphereHit(p, d, R_E);
@@ -40,18 +33,6 @@ const LIGHT_DEPTH_GLSL = `vec3 lightDepth(vec3 p, vec3 d) {
         od += exp(-(length(q) - R_E) / vec2(H_R, H_M)) * ds;
     }
     return vec3(od, 1.0);
-}`;
-const LIGHT_DEPTH_WGSL = `fn lightDepth(p : vec3f, d : vec3f) -> vec3f {
-    let ground = sphereHit(p, d, R_E);
-    if (ground.y > 0.0 && ground.x > 0.0) { return vec3f(0.0); }
-    let len = sphereHit(p, d, R_A).y;
-    let ds = len / 4.0;
-    var od = vec2f(0.0);
-    for (var j : i32 = 0; j < 4; j = j + 1) {
-        let q = p + d * (ds * (f32(j) + 0.5));
-        od = od + exp(-(length(q) - R_E) / vec2f(H_R, H_M)) * ds;
-    }
-    return vec3f(od, 1.0);
 }`;
 const UP_FRAME_GLSL = `mat3 upFrame(vec3 up) {
     vec3 v = vec3(-up.z, 0.0, up.x);
@@ -95,56 +76,11 @@ const SCATTER_GLSL = `vec3 scatter(vec3 dir, vec3 sun, float alt, float haze, ou
     sunTrans = st.z > 0.5 ? exp(-(BETA_R * st.x + BETA_M * haze * 1.1 * st.y)) : vec3(0.0);
     return (sumR * BETA_R * phaseR + sumM * BETA_M * haze * phaseM + sumG * SKY_GLOW) * SUN_I;
 }`;
-const SCATTER_WGSL = `fn scatter(dir : vec3f, sun : vec3f, alt : f32, haze : f32) -> Scatter {
-    let o = vec3f(0.0, R_E + alt, 0.0);
-    let len = sphereHit(o, dir, R_A).y;
-    let N = 16;
-    let mu = dot(dir, sun);
-    let g = 0.76;
-    let phaseR = 3.0 / (16.0 * 3.14159265) * (1.0 + mu * mu);
-    let phaseM = 3.0 / (8.0 * 3.14159265) * ((1.0 - g * g) * (1.0 + mu * mu)) / ((2.0 + g * g) * pow(1.0 + g * g - 2.0 * g * mu, 1.5));
-    var od = vec2f(0.0);
-    var sumR = vec3f(0.0);
-    var sumM = vec3f(0.0);
-    var sumG = vec3f(0.0);
-    for (var i : i32 = 0; i < N; i = i + 1) {
-        // Steps that lengthen with the square of the way out, and the air to a step's middle (see the GLSL twin).
-        let a = f32(i) / f32(N);
-        let b = f32(i + 1) / f32(N);
-        let ds = len * (b * b - a * a);
-        let p = o + dir * (len * (a * a + b * b) * 0.5);
-        let dens = exp(-(length(p) - R_E) / vec2f(H_R, H_M)) * ds;
-        let mid = od + dens * 0.5;
-        od = od + dens;
-        let ol = lightDepth(p, sun);
-        if (ol.z > 0.5) {
-            let toEye = exp(-(BETA_R * mid.x + BETA_M * haze * 1.1 * mid.y));
-            let fromSun = exp(-(BETA_R * ol.x + BETA_M * haze * 1.1 * ol.y));
-            let attn = toEye * fromSun;
-            sumR = sumR + attn * dens.x;
-            sumM = sumM + attn * dens.y;
-            sumG = sumG + toEye * mix(fromSun, vec3f(dot(fromSun, vec3f(1.0 / 3.0))), vec3f(0.5)) * (BETA_R * dens.x + BETA_M * haze * dens.y);
-        }
-    }
-    let st = lightDepth(o, sun);
-    var trans = vec3f(0.0);
-    if (st.z > 0.5) { trans = exp(-(BETA_R * st.x + BETA_M * haze * 1.1 * st.y)); }
-    var out : Scatter;
-    out.radiance = (sumR * BETA_R * phaseR + sumM * BETA_M * haze * phaseM + sumG * SKY_GLOW) * SUN_I;
-    out.sunTrans = trans;
-    return out;
-}`;
 const CLOUD_FIELD_GLSL = `float cloudField(vec2 xz, float noise, float h) {
     if (u_cloudMaskTile <= 0.0) return noise;
     float m = textureLod(u_cloudMask, xz / u_cloudMaskTile, 0.0).r;
     if (u_cloudMask2Tile > 0.0) m = mix(m, textureLod(u_cloudMask2, xz / u_cloudMask2Tile, 0.0).r, 0.3);
     // A mask knows nothing of height, and a column of it seen along the slab is a streak: the cloud's top stands only over the mask's core, a dome.
-    return mix(m, noise, 0.5) - 0.35 * (h - 0.35);
-}`;
-const CLOUD_FIELD_WGSL = `fn cloudField(xz : vec2f, noise : f32, h : f32) -> f32 {
-    if (mc.u_cloudMaskTile <= 0.0) { return noise; }
-    var m = textureSampleLevel(u_cloudMask, u_cloudMask_s, xz / mc.u_cloudMaskTile, 0.0).r;
-    if (mc.u_cloudMask2Tile > 0.0) { m = mix(m, textureSampleLevel(u_cloudMask2, u_cloudMask2_s, xz / mc.u_cloudMask2Tile, 0.0).r, 0.3); }
     return mix(m, noise, 0.5) - 0.35 * (h - 0.35);
 }`;
 const CLOUD_DENSITY_GLSL = `float cloudDensity(vec3 p, float coverage, float base, float thick) {
@@ -153,13 +89,6 @@ const CLOUD_DENSITY_GLSL = `float cloudDensity(vec3 p, float coverage, float bas
     vec3 q = vec3(p.x, p.y * 1.8 + u_skyEvolve, p.z) * 0.32 * u_skyScale;
     float n = cloudField(p.xz, vnoise(q) * 0.58 + vnoise(q * 2.13) * 0.28 + 0.07, h);
     return smoothstep(1.0 - coverage, 1.0 - coverage + u_skySoftness, n) * shape;
-}`;
-const CLOUD_DENSITY_WGSL = `fn cloudDensity(p : vec3f, coverage : f32, base : f32, thick : f32) -> f32 {
-    let h = clamp((p.y - base) / thick, 0.0, 1.0);
-    let shape = smoothstep(0.0, 0.14, h) * smoothstep(1.0, 0.55, h);
-    let q = vec3f(p.x, p.y * 1.8 + mc.u_skyEvolve, p.z) * 0.32 * mc.u_skyScale;
-    let n = cloudField(p.xz, vnoise(q) * 0.58 + vnoise(q * 2.13) * 0.28 + 0.07, h);
-    return smoothstep(1.0 - coverage, 1.0 - coverage + mc.u_skySoftness, n) * shape;
 }`;
 const CLOUD_LIGHT_GLSL = `float cloudLight(vec3 world, float camY, vec3 sun, vec3 drift) {
     if (u_cloudShade <= 0.001 || u_skyCover <= 0.01 || sun.y <= 0.02) return 1.0;
@@ -177,23 +106,6 @@ const CLOUD_LIGHT_GLSL = `float cloudLight(vec3 world, float camY, vec3 sun, vec
         tau += cloudDensity(q, u_skyCover, u_skyBase, u_skyThickness) * u_skySigma * ds;
     }
     return 1.0 - u_cloudShade * (1.0 - exp(-tau));
-}`;
-const CLOUD_LIGHT_WGSL = `fn cloudLight(world : vec3f, camY : f32, sun : vec3f, drift : vec3f) -> f32 {
-    if (mc.u_cloudShade <= 0.001 || mc.u_skyCover <= 0.01 || sun.y <= 0.02) { return 1.0; }
-    let k = 1.0 / max(mc.u_skyUnits, 1e-3);
-    let h = mc.u_skyAltitude + (world.y - camY) * k;
-    let tt = (mc.u_skyBase + mc.u_skyThickness - h) / sun.y;
-    if (tt <= 0.0) { return 1.0; }
-    let tb = max(mc.u_skyBase - h, 0.0) / sun.y;
-    let N = 4;
-    let ds = (tt - tb) / f32(N);
-    var tau = 0.0;
-    for (var i : i32 = 0; i < N; i = i + 1) {
-        let t = tb + (f32(i) + 0.5) * ds;
-        let q = vec3f(world.x * k + sun.x * t, h + sun.y * t, world.z * k + sun.z * t) + drift;
-        tau = tau + cloudDensity(q, mc.u_skyCover, mc.u_skyBase, mc.u_skyThickness) * mc.u_skySigma * ds;
-    }
-    return 1.0 - mc.u_cloudShade * (1.0 - exp(-tau));
 }`;
 const VOLUME_LIGHT_GLSL = `vec3 volumeLight(vec3 entry, vec3 dir, float len, bool sky, vec3 sun, vec4 lightColor, ivec2 tiles, vec3 sunTint) {
     float range = min(len, u_volumeRange);
@@ -216,28 +128,6 @@ const VOLUME_LIGHT_GLSL = `vec3 volumeLight(vec3 entry, vec3 dir, float len, boo
     float strength = clamp(lightColor.a, 0.0, 8.0) * 0.5;
     return sunTint * lit * phaseHG(dot(dir, sun)) * u_inscatter * u_volumetric * strength * (sky ? u_skyFog : 1.0);
 }`;
-const VOLUME_LIGHT_WGSL = `fn volumeLight(entry : vec3f, dir : vec3f, len : f32, sky : bool, sun : vec3f, found : Sun, sunTint : vec3f, px : vec2f) -> vec3f {
-    let range = min(len, mc.u_volumeRange);
-    let span = max(range - mc.u_startDistance, 0.0);
-    let ds = span / f32(VOLUME_STEPS);
-    let jitter = ign(px);
-    var transmit = 1.0;
-    var lit = 0.0;
-    let drift = vec3f(mc.u_skyDriftX, 0.0, mc.u_skyDriftZ);
-    var shade = 1.0;
-    for (var i : i32 = 0; i < VOLUME_STEPS; i = i + 1) {
-        let t = mc.u_startDistance + (f32(i) + jitter) * ds;
-        let p = entry + dir * t;
-        if (i % 3 == 0) { shade = cloudLight(p + frame.renderOrigin.xyz, entry.y + frame.renderOrigin.y, sun, drift); }
-        let dens = mc.u_density * exp(clamp(-mc.u_heightFalloff * (fogAltitude(p) - mc.u_baseHeight), -60.0, 60.0));
-        lit = lit + transmit * dens * ds * sunVisibility(p, found.tiles.x, found.tiles.y) * shade;
-        transmit = transmit * exp(-dens * ds);
-    }
-    let strength = clamp(found.color.a, 0.0, 8.0) * 0.5;
-    var skyShare = 1.0;
-    if (sky) { skyShare = mc.u_skyFog; }
-    return sunTint * lit * phaseHG(dot(dir, sun)) * mc.u_inscatter * mc.u_volumetric * strength * skyShare;
-}`;
 const OPTICAL_DEPTH_GLSL = `float opticalDepth(float eyeY, float dirY, float len) {
     float k = u_heightFalloff;
     float dens = u_density * exp(clamp(-k * (eyeY - u_baseHeight), -60.0, 60.0));
@@ -245,22 +135,9 @@ const OPTICAL_DEPTH_GLSL = `float opticalDepth(float eyeY, float dirY, float len
     float span = abs(kd) < 1e-4 ? 1.0 : (1.0 - exp(clamp(-kd, -60.0, 60.0))) / kd;
     return dens * len * span;
 }`;
-const OPTICAL_DEPTH_WGSL = `fn opticalDepth(eyeY : f32, dirY : f32, len : f32) -> f32 {
-    let k = mc.u_heightFalloff;
-    let dens = mc.u_density * exp(clamp(-k * (eyeY - mc.u_baseHeight), -60.0, 60.0));
-    let kd = k * dirY * len;
-    var span = 1.0;
-    if (abs(kd) >= 1e-4) { span = (1.0 - exp(clamp(-kd, -60.0, 60.0))) / kd; }
-    return dens * len * span;
-}`;
 const FOG_ALTITUDE_GLSL = `float fogAltitude(vec3 p) {
     vec3 a = p + u_renderOrigin.xyz;
     return u_planetRadius > 0.0 ? max(length(a - vec3(u_planetX, u_planetY, u_planetZ)) - u_planetRadius, 0.0) : a.y;
-}`;
-const FOG_ALTITUDE_WGSL = `fn fogAltitude(p : vec3f) -> f32 {
-    let a = p + frame.renderOrigin.xyz;
-    if (mc.u_planetRadius > 0.0) { return max(length(a - vec3f(mc.u_planetX, mc.u_planetY, mc.u_planetZ)) - mc.u_planetRadius, 0.0); }
-    return a.y;
 }`;
 const SHELTERED_AT_GLSL = `float shelteredAt(vec3 W) {
     if (u_coverActive < 0.5) return 0.0;
@@ -271,19 +148,6 @@ const SHELTERED_AT_GLSL = `float shelteredAt(vec3 W) {
     float here = clamp(c.z / c.w * 0.5 + 0.5, 0.0, 1.0);
     return stored < here - u_shelterBias / (4.0 * u_shelterRange) ? 1.0 : 0.0;
 }`;
-const SHELTERED_AT_WGSL = `fn shelteredAt(W : vec3f) -> f32 {
-    if (mc.u_coverActive < 0.5) { return 0.0; }
-    let m = mat4x4f(mc.u_coverMatrix0, mc.u_coverMatrix1, mc.u_coverMatrix2, mc.u_coverMatrix3);
-    let c = m * vec4f(W, 1.0);
-    let uv = c.xy / c.w * 0.5 + 0.5;
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return 0.0; }
-    // This device's texture rows run the other way from the clip space the map was drawn in.
-    let stored = dot(textureSampleLevel(u_rainCover, u_rainCover_s, vec2f(uv.x, 1.0 - uv.y), 0.0).rgb,
-                     vec3f(1.0, 1.0 / 255.0, 1.0 / 65025.0));
-    let here = clamp(c.z / c.w * 0.5 + 0.5, 0.0, 1.0);
-    return select(0.0, 1.0, stored < here - mc.u_shelterBias / (4.0 * mc.u_shelterRange));
-}`;
-
 /** The sky's clouds, as both of its passes draw them: the half-size pass that works them out, and the composite for the pixels it has no answer for. */
 const CLOUD_GLSL = `/// Where a coverage texture is given, the shape of the clouds on the ground is its, and the noise erodes it. The layers are tiled in kilometres
 /// of the cloud plane, the second a softer, higher one folded in.
@@ -427,157 +291,6 @@ void cloudLayer(vec3 dir, vec3 sun, vec3 dome, vec3 sunTrans, float night, float
 }
 `;
 
-const CLOUD_WGSL = `fn cloudField(xz : vec2f, noise : f32, h : f32) -> f32 {
-    if (mc.u_cloudMaskTile <= 0.0) { return noise; }
-    var m = textureSampleLevel(u_cloudMask, u_cloudMask_s, xz / mc.u_cloudMaskTile, 0.0).r;
-    if (mc.u_cloudMask2Tile > 0.0) { m = mix(m, textureSampleLevel(u_cloudMask2, u_cloudMask2_s, xz / mc.u_cloudMask2Tile, 0.0).r, 0.3); }
-    return mix(m, noise, 0.5) - 0.35 * (h - 0.35);
-}
-
-fn cloudDensity(p : vec3f, coverage : f32, base : f32, thick : f32, octaves : i32) -> f32 {
-    let h = clamp((p.y - base) / thick, 0.0, 1.0);
-    let shape = smoothstep(0.0, 0.14, h) * smoothstep(1.0, 0.55, h);
-    let q = vec3f(p.x, p.y * 1.8 + mc.u_cloudEvolve, p.z) * 0.32 * mc.u_cloudScale;
-    var n = vnoise(q) * 0.58 + vnoise(q * 2.13) * 0.28;
-    if (octaves > 2) { n = n + vnoise(q * 4.7) * 0.14; } else { n = n + 0.07; }
-    n = cloudField(p.xz, n, h);
-    var d = smoothstep(1.0 - coverage, 1.0 - coverage + mc.u_cloudSoftness, n) * shape;
-    if (octaves > 2 && d > 0.0 && d < 0.9) { d = max(d - (1.0 - d) * vnoise(q * 11.0) * 0.55, 0.0); }
-    return d;
-}
-
-fn cloud2Density(p : vec3f) -> f32 {
-    let h = clamp((p.y - mc.u_cloud2Base) / mc.u_cloud2Thickness, 0.0, 1.0);
-    let shape = smoothstep(0.0, 0.3, h) * smoothstep(1.0, 0.5, h);
-    let q = vec3f(p.x, p.y * 3.0 + mc.u_cloudEvolve * 1.7, p.z) * 0.32 * mc.u_cloud2Scale;
-    let n = vnoise(q) * 0.62 + vnoise(q * 2.31) * 0.38;
-    return smoothstep(1.0 - mc.u_cloud2Coverage, 1.0 - mc.u_cloud2Coverage + 0.3, n) * shape;
-}
-
-fn cloudPhase(cosS : f32) -> f32 {
-    let G = 0.86;
-    return 0.42 + 0.018 * mc.u_cloudSilver * (1.0 - G * G) / pow(1.0 + G * G - 2.0 * G * cosS, 1.5);
-}
-
-fn frame_origin() -> vec3f { return frame.renderOrigin.xyz; }
-
-/// The turn that takes up to +Y by the shortest way: the sky is worked out where up is +Y, so on a round world in the frame of the ground the camera stands on.
-fn upFrame(up : vec3f) -> mat3x3f {
-    let v = vec3f(-up.z, 0.0, up.x);
-    let k = 1.0 / max(1.0 + up.y, 1e-4);
-    let cross = mat3x3f(vec3f(0.0, v.z, -v.y), vec3f(-v.z, 0.0, v.x), vec3f(v.y, -v.x, 0.0));
-    return mat3x3f(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 1.0, 0.0), vec3f(0.0, 0.0, 1.0)) + cross + (cross * cross) * k;
-}
-
-fn cloudShadowAt(world : vec3f, cam : vec3f, sun : vec3f, coverage : f32, overcast : f32, drift : vec3f, px : vec2f) -> f32 {
-    let strength = mc.u_cloudShadow * smoothstep(0.02, 0.14, sun.y);
-    if (strength <= 0.001 || (coverage <= 0.01 && mc.u_cloud2Coverage <= 0.01)) { return 1.0; }
-    let k = 1.0 / max(mc.u_unitsPerKm, 1e-3);
-    let h = mc.u_altitude + (world.y - cam.y) * k;
-    let tt = (mc.u_cloudBase + mc.u_cloudThickness - h) / sun.y;
-    if (tt <= 0.0) { return 1.0; }
-    let tb = max(mc.u_cloudBase - h, 0.0) / sun.y;
-    let N = 6;
-    let ds = (tt - tb) / f32(N);
-    let sigma = 1.3 * (1.0 + overcast * 1.5);
-    var tau = 0.0;
-    let jitter = ign(px);
-    for (var i : i32 = 0; i < N; i = i + 1) {
-        let t = tb + (f32(i) + jitter) * ds;
-        let p = vec3f(world.x * k + sun.x * t, h + sun.y * t, world.z * k + sun.z * t) + drift;
-        tau = tau + cloudDensity(p, coverage, mc.u_cloudBase, mc.u_cloudThickness, 2) * sigma * ds;
-    }
-    if (mc.u_cloud2Coverage > 0.01) {
-        let upT = (mc.u_cloud2Base + mc.u_cloud2Thickness * 0.5 - h) / sun.y;
-        let upper = vec3f(mc.u_cloud2DriftX - mc.u_cloudDriftX, 0.0, mc.u_cloud2DriftZ - mc.u_cloudDriftZ);
-        if (upT > 0.0) { tau = tau + cloud2Density(vec3f(world.x * k + sun.x * upT, h + sun.y * upT, world.z * k + sun.z * upT) + drift + upper) * sigma * mc.u_cloud2Thickness / sun.y; }
-    }
-    return 1.0 - strength * 0.8 * (1.0 - exp(-tau));
-}
-
-struct CloudLayer { L : vec3f, T : f32 };
-
-/// The cloud slab along dir as a map of what is behind it, colour * T + L. A function of the direction alone, so it can be worked out small and read back big.
-fn cloudLayer(dir : vec3f, sun : vec3f, dome : vec3f, sunTrans : vec3f, night : f32, overcast : f32, windDrift : vec3f, px : vec2f) -> CloudLayer {
-    var out : CloudLayer;
-    out.L = vec3f(0.0);
-    out.T = 1.0;
-    let coverage = max(mc.u_clouds, overcast * 0.95);
-    if (coverage > 0.01 && dir.y > 0.01) {
-        let base = mc.u_cloudBase;
-        let thick = mc.u_cloudThickness;
-        let tb = max(base - mc.u_altitude, 0.0) / dir.y;
-        let tt = min((base + thick - mc.u_altitude) / dir.y, tb + thick * 6.0);
-        let STEPS = 16;
-        let ds = (tt - tb) / f32(STEPS);
-        let jitter = ign(px);
-        let sigma = 1.3 * (1.0 + overcast * 1.5);
-        let drift = windDrift;
-        let cosS = dot(dir, sun);
-        let phase = cloudPhase(cosS);
-        let ambient = dome * 0.7 + lin(vec3f(0.55, 0.65, 0.9)) * 0.015 * night;
-        let sunLight = sunTrans * 1.2 * mc.u_cloudBrightness;
-        var trans = 1.0;
-        var lit = vec3f(0.0);
-        for (var i : i32 = 0; i < STEPS; i = i + 1) {
-            if (trans < 0.02) { break; }
-            let t = tb + (f32(i) + jitter) * ds;
-            let p = vec3f(dir.x * t, mc.u_altitude + dir.y * t, dir.z * t) + drift;
-            let d = cloudDensity(p, coverage, base, thick, 3);
-            if (d < 0.002) { continue; }
-            var tau = 0.0;
-            let reach = max(thick, 0.5) * 0.14;
-            for (var k : i32 = 1; k <= 3; k = k + 1) {
-                let along = reach * f32(k * k);
-                let q = p + sun * along;
-                tau = tau + cloudDensity(q, coverage, base, thick, 2) * reach * f32(2 * k - 1) * sigma;
-            }
-            let energy = (exp(-tau * 1.1) + 0.25 * exp(-tau * 0.25)) * mix(1.0, 1.0 - exp(-(d * sigma * ds + tau) * 3.0), 0.5);
-            let S = sunLight * energy * phase * 2.0 + ambient;
-            let ext = d * sigma * ds;
-            let tr = exp(-ext);
-            lit = lit + trans * (1.0 - tr) * S;
-            trans = trans * tr;
-        }
-        let fade = smoothstep(0.01, 0.14, dir.y);
-        out.T = mix(1.0, trans, fade);
-        out.L = lit * fade;
-    }
-    if (mc.u_cloud2Coverage > 0.01 && dir.y > 0.01) {
-        let tb = max(mc.u_cloud2Base - mc.u_altitude, 0.0) / dir.y;
-        let tt = max(mc.u_cloud2Base + mc.u_cloud2Thickness - mc.u_altitude, 0.0) / dir.y;
-        let STEPS = 6;
-        let ds = (tt - tb) / f32(STEPS);
-        let jitter = ign(px.yx);
-        let sigma = 1.3 * (1.0 + overcast);
-        let drift = windDrift + vec3f(mc.u_cloud2DriftX - mc.u_cloudDriftX, 0.0, mc.u_cloud2DriftZ - mc.u_cloudDriftZ);
-        let ambient = dome * 0.7 + lin(vec3f(0.55, 0.65, 0.9)) * 0.015 * night;
-        let sunLight = sunTrans * 1.2 * mc.u_cloudBrightness;
-        let phase = cloudPhase(dot(dir, sun));
-        var trans = 1.0;
-        var lit = vec3f(0.0);
-        for (var i : i32 = 0; i < STEPS; i = i + 1) {
-            let t = tb + (f32(i) + jitter) * ds;
-            let p = vec3f(dir.x * t, mc.u_altitude + dir.y * t, dir.z * t) + drift;
-            let d = cloud2Density(p);
-            if (d < 0.002) { continue; }
-            let tau = cloud2Density(p + sun * mc.u_cloud2Thickness * 0.5) * mc.u_cloud2Thickness * 0.5 * sigma;
-            let S = sunLight * exp(-tau) * phase * 2.0 + ambient;
-            let tr = exp(-d * sigma * ds);
-            lit = lit + trans * (1.0 - tr) * S;
-            trans = trans * tr;
-        }
-        let fade = smoothstep(0.01, 0.14, dir.y);
-        trans = mix(1.0, trans, fade);
-        lit = lit * fade;
-        if (mc.u_cloud2Base >= mc.u_cloudBase) { out.L = out.L + out.T * lit; } else { out.L = lit + trans * out.L; }
-        out.T = out.T * trans;
-    }
-
-    return out;
-}
-`;
-
 /**
  * The cloud pass while Baked Clouds has a panorama (cloudBake.ts): what the marched pass writes, a sky texel's cloud light and transmittance or
  * a surface's mark, read from the panorama by direction. A shader of its own, not a branch of the march, so a pixel pays for no more than it runs.
@@ -620,28 +333,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${RAY_START_WGSL}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let size = vec2i(textureDimensions(t7, 0));
-    let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
-    let covered = mc.u_panorama <= 0.001;
-    let geometry = (covered && depth < 1.0 && src.a > 0.999) || (!covered && depth < 1.0);
-    if (geometry) { return vec4f(1.0, 0.0, 0.0, -1.0); }
-    let entry = rayStart(v.v_texCoord);
-    let dir = normalize(worldFromDepth(v.v_texCoord, 1.0) - entry);
-    if (dir.y <= 0.01) { return vec4f(0.0, 0.0, 0.0, 1.0); }
-    let at = dir.xz / (1.0 + dir.y) * 0.5 + 0.5;
-    let px = vec2f(1.0 / 512.0);
-    let baked = (textureSampleLevel(u_cloudPanorama, u_cloudPanorama_s, at - px, 0.0)
-        + textureSampleLevel(u_cloudPanorama, u_cloudPanorama_s, at + vec2f(px.x, -px.y), 0.0)
-        + textureSampleLevel(u_cloudPanorama, u_cloudPanorama_s, at + vec2f(-px.x, px.y), 0.0)
-        + textureSampleLevel(u_cloudPanorama, u_cloudPanorama_s, at + px, 0.0)) * 0.25;
-    return vec4f(baked.rgb / max(vec3f(1.0) - baked.rgb, vec3f(1.0 / 255.0)), baked.a);
-}
-#pragma end
 `;
 }
 
@@ -799,79 +490,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-const R_E : f32 = 6360.0;
-const R_A : f32 = 6420.0;
-const BETA_R : vec3f = vec3f(0.0058, 0.0135, 0.0331);
-const BETA_M : f32 = 0.021;
-const H_R : f32 = 8.0;
-const H_M : f32 = 1.2;
-const SUN_I : f32 = 22.0;
-const SKY_GLOW : f32 = 0.03;
-/// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
-${RAY_START_WGSL}
-
-${HASH13_WGSL}
-${IGN_WGSL}
-${VALUE_NOISE3_WGSL}
-
-fn lin(c : vec3f) -> vec3f {
-    return srgbToLinear(c);
-}
-
-${SPHERE_HIT_WGSL}
-
-${LIGHT_DEPTH_WGSL}
-
-struct Scatter { radiance : vec3f, sunTrans : vec3f };
-
-${SCATTER_WGSL}
-
-${CLOUD_WGSL}
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let size = vec2i(textureDimensions(t7, 0));
-    let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
-    let covered = mc.u_panorama <= 0.001;
-    let geometry = (covered && depth < 1.0 && src.a > 0.999) || (!covered && depth < 1.0);
-    if (geometry) { return vec4f(1.0, 0.0, 0.0, -1.0); }
-
-    let entry = rayStart(v.v_texCoord);
-    var dir = normalize(worldFromDepth(v.v_texCoord, 1.0) - entry);
-
-    let found = findSun();
-    let follow = mc.u_followSun > 0.5 && found.dir.w > 0.5;
-    let az = radians(mc.u_sunAzimuth);
-    let el = radians(mc.u_sunElevation);
-    var sun = vec3f(cos(el) * sin(az), sin(el), cos(el) * cos(az));
-    if (follow) { sun = found.dir.xyz; }
-    if (mc.u_planetRadius > 0.0) {
-        let frame = upFrame(normalize(entry + frame_origin() - vec3f(mc.u_planetX, mc.u_planetY, mc.u_planetZ)));
-        dir = frame * dir;
-        sun = frame * sun;
-    }
-    let se = sun.y;
-
-    let overcast = clamp(mc.u_overcast, 0.0, 1.0);
-    let haze = mc.u_haze * (1.0 + overcast * 2.0);
-
-    let entryWorld = entry + frame.renderOrigin.xyz;
-    var anchor = vec3f(0.0);
-    if (mc.u_cloudShadow > 0.001) { anchor = vec3f(entryWorld.x, 0.0, entryWorld.z) / max(mc.u_unitsPerKm, 1e-3); }
-    let windDrift = vec3f(mc.u_cloudDriftX, 0.0, mc.u_cloudDriftZ) + anchor;
-
-    let sdir = normalize(vec3f(dir.x, max(dir.y, 0.015), dir.z));
-    let sc = scatter(sdir, sun, mc.u_altitude, haze);
-    let sunTrans = sc.sunTrans;
-    var col = sc.radiance * 0.55 * mc.u_intensity;
-    col = col * (1.0 - 0.75 * smoothstep(0.0, -0.3, dir.y));
-    let night = 1.0 - smoothstep(-0.10, 0.12, se);
-    col = col + mix(lin(vec3f(0.003, 0.006, 0.02)), lin(vec3f(0.016, 0.024, 0.06)), pow(1.0 - max(dir.y, 0.0), 3.0)) * night;
-    let dome = col;
-    let cl = cloudLayer(dir, sun, dome, sunTrans, night, overcast, windDrift, v.pos.xy);
-    return vec4f(cl.L, cl.T);
-}
-#pragma end
 `;
 }
 
@@ -1001,53 +619,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-const R_E : f32 = 6360.0;
-const R_A : f32 = 6420.0;
-const BETA_R : vec3f = vec3f(0.0058, 0.0135, 0.0331);
-const BETA_M : f32 = 0.021;
-const H_R : f32 = 8.0;
-const H_M : f32 = 1.2;
-const SUN_I : f32 = 22.0;
-const SKY_GLOW : f32 = 0.03;
-/// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
-${RAY_START_WGSL}
-
-${HASH13_WGSL}
-${IGN_WGSL}
-${VALUE_NOISE3_WGSL}
-
-fn lin(c : vec3f) -> vec3f {
-    return srgbToLinear(c);
-}
-
-${SPHERE_HIT_WGSL}
-
-${LIGHT_DEPTH_WGSL}
-
-struct Scatter { radiance : vec3f, sunTrans : vec3f };
-
-${SCATTER_WGSL}
-
-${CLOUD_WGSL}
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    // See the GLSL: the texel's place in the whole target is the uv the cloud pass reads it back by.
-    var p = v.pos.xy / mc.u_bakeB.xy * 2.0 - 1.0;
-    var r2 = dot(p, p);
-    if (r2 > 1.0) { p = p / sqrt(r2); r2 = 1.0; }
-    let dir = vec3f(2.0 * p.x, 1.0 - r2, 2.0 * p.y) / (1.0 + r2);
-    let sun = normalize(mc.u_bakeA.xyz);
-    let overcast = clamp(mc.u_overcast, 0.0, 1.0);
-    let haze = mc.u_haze * (1.0 + overcast * 2.0);
-    let sdir = normalize(vec3f(dir.x, max(dir.y, 0.015), dir.z));
-    let sc = scatter(sdir, sun, mc.u_altitude, haze);
-    let night = 1.0 - smoothstep(-0.10, 0.12, sun.y);
-    let dome = sc.radiance * 0.55 * mc.u_intensity
-        + mix(lin(vec3f(0.003, 0.006, 0.02)), lin(vec3f(0.016, 0.024, 0.06)), pow(1.0 - max(dir.y, 0.0), 3.0)) * night;
-    let cl = cloudLayer(dir, sun, dome, sc.sunTrans, night, overcast, vec3f(mc.u_cloudDriftX, 0.0, mc.u_cloudDriftZ), v.pos.xy);
-    return vec4f(cl.L / (vec3f(1.0) + cl.L), cl.T);
-}
-#pragma end
 `;
 }
 
@@ -1315,184 +886,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-const R_E : f32 = 6360.0;
-const R_A : f32 = 6420.0;
-const BETA_R : vec3f = vec3f(0.0058, 0.0135, 0.0331);
-const BETA_M : f32 = 0.021;
-const H_R : f32 = 8.0;
-const H_M : f32 = 1.2;
-const SUN_I : f32 = 22.0;
-const SKY_GLOW : f32 = 0.03;
-/// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
-${RAY_START_WGSL}
-
-${HASH13_WGSL}
-${IGN_WGSL}
-${VALUE_NOISE3_WGSL}
-
-fn lin(c : vec3f) -> vec3f {
-    return srgbToLinear(c);
-}
-
-${SPHERE_HIT_WGSL}
-
-${LIGHT_DEPTH_WGSL}
-
-struct Scatter { radiance : vec3f, sunTrans : vec3f };
-
-${SCATTER_WGSL}
-
-${CLOUD_WGSL}${SSAO_WGSL}
-
-const UP_MIN_WEIGHT : f32 = 0.15;
-
-struct CloudRead { ok : bool, L : vec3f, T : f32 };
-
-/// The cloud layer for a sky pixel, read from the half-size pass: the sky texels among the four it falls between (a surface's texel has a
-/// negative alpha), by bilinear weight. Not ok when none of them is sky, and the pixel works it out itself.
-fn splineWeights(f : f32) -> vec4f {
-    let f2 = f * f;
-    let f3 = f2 * f;
-    return vec4f(1.0 - 3.0 * f + 3.0 * f2 - f3, 4.0 - 6.0 * f2 + 3.0 * f3, 1.0 + 3.0 * f + 3.0 * f2 - 3.0 * f3, f3) / 6.0;
-}
-
-fn upsampledClouds(uv : vec2f) -> CloudRead {
-    var out : CloudRead;
-    out.ok = false;
-    let hsize = vec2i(textureDimensions(t0, 0));
-    let hf = uv * vec2f(hsize) - 0.5;
-    let base = vec2i(floor(hf));
-    let fr = hf - vec2f(base);
-    var sum = vec4f(0.0);
-    var wsum = 0.0;
-    let wx = splineWeights(fr.x);
-    let wy = splineWeights(fr.y);
-    for (var y : i32 = 0; y < 4; y = y + 1) {
-        for (var x : i32 = 0; x < 4; x = x + 1) {
-            let h = textureLoad(t0, clamp(base + vec2i(x - 1, y - 1), vec2i(0), hsize - vec2i(1)), 0);
-            if (h.a < 0.0) { continue; }
-            let bw = wx[x] * wy[y];
-            sum = sum + h * bw;
-            wsum = wsum + bw;
-        }
-    }
-    if (wsum < UP_MIN_WEIGHT) { return out; }
-    sum = sum / wsum;
-    out.ok = true;
-    out.L = sum.rgb;
-    out.T = sum.a;
-    return out;
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
-    let size = vec2i(textureDimensions(t7, 0));
-    let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
-    let covered = mc.u_panorama <= 0.001;
-    let geometry = (covered && depth < 1.0 && src.a > 0.999) || (!covered && depth < 1.0);
-    if (geometry && mc.u_cloudShadowPass < 0.5) { return src; }
-
-    let entry = rayStart(v.v_texCoord);
-    var dir = normalize(worldFromDepth(v.v_texCoord, 1.0) - entry);
-
-    let found = findSun();
-    let follow = mc.u_followSun > 0.5 && found.dir.w > 0.5;
-    let az = radians(mc.u_sunAzimuth);
-    let el = radians(mc.u_sunElevation);
-    var sun = vec3f(cos(el) * sin(az), sin(el), cos(el) * cos(az));
-    if (follow) { sun = found.dir.xyz; }
-    if (mc.u_planetRadius > 0.0) {
-        let frame = upFrame(normalize(entry + frame_origin() - vec3f(mc.u_planetX, mc.u_planetY, mc.u_planetZ)));
-        dir = frame * dir;
-        sun = frame * sun;
-    }
-    let se = sun.y;
-
-    let overcast = clamp(mc.u_overcast, 0.0, 1.0);
-    let haze = mc.u_haze * (1.0 + overcast * 2.0);
-
-    let entryWorld = entry + frame.renderOrigin.xyz;
-    var anchor = vec3f(0.0);
-    if (mc.u_cloudShadow > 0.001) { anchor = vec3f(entryWorld.x, 0.0, entryWorld.z) / max(mc.u_unitsPerKm, 1e-3); }
-    let windDrift = vec3f(mc.u_cloudDriftX, 0.0, mc.u_cloudDriftZ) + anchor;
-    if (mc.u_cloudShadowPass > 0.5) {
-        let inTile = (v.v_texCoord - mc.u_cloudShadowRect.xy) / mc.u_cloudShadowRect.z;
-        if (any(inTile < vec2f(0.0)) || any(inTile > vec2f(1.0))) { discard; }
-        let inv = mat4x4f(mc.u_cloudShadowInv0, mc.u_cloudShadowInv1, mc.u_cloudShadowInv2, mc.u_cloudShadowInv3);
-        let at = inv * vec4f(inTile * 2.0 - 1.0, 0.5, 1.0);
-        let lit = cloudShadowAt(at.xyz / at.w + frame.renderOrigin.xyz, rayStart(vec2f(0.5)) + frame.renderOrigin.xyz, sun, max(mc.u_clouds, overcast * 0.95), overcast, vec3f(mc.u_cloudDriftX, 0.0, mc.u_cloudDriftZ), v.pos.xy);
-        return vec4f(1.0, 1.0, 1.0, clamp(lit, 0.0, 1.0));
-    }
-
-    let sdir = normalize(vec3f(dir.x, max(dir.y, 0.015), dir.z));
-    let sc = scatter(sdir, sun, mc.u_altitude, haze);
-    let sunTrans = sc.sunTrans;
-    var col = sc.radiance * 0.55 * mc.u_intensity;
-    col = col * (1.0 - 0.75 * smoothstep(0.0, -0.3, dir.y));
-    let night = 1.0 - smoothstep(-0.10, 0.12, se);
-    col = col + mix(lin(vec3f(0.003, 0.006, 0.02)), lin(vec3f(0.016, 0.024, 0.06)), pow(1.0 - max(dir.y, 0.0), 3.0)) * night;
-    let dome = col;
-
-    let cosd = dot(dir, sun);
-    let sunR = radians(0.265 * mc.u_sunSize);
-    let disc = smoothstep(cos(sunR * 1.15), cos(sunR * 0.85), cosd);
-    let above = smoothstep(-0.02, 0.02, dir.y);
-    col = col + sunTrans * disc * mc.u_sunBrightness * above * (1.0 - overcast);
-
-    let sAz = atan2(sun.x, sun.z);
-    let sEl = asin(clamp(sun.y, -1.0, 1.0));
-    let mEl = -sEl * 0.85 + radians(12.0);
-    let mAz = sAz + 3.14159265;
-    let moon = vec3f(cos(mEl) * sin(mAz), sin(mEl), cos(mEl) * cos(mAz));
-    let md = dot(dir, moon);
-    let moonR = radians(0.26 * 2.5);
-    let moonDisc = smoothstep(cos(moonR * 1.1), cos(moonR * 0.9), md);
-    let moonGlow = pow(max(md, 0.0), 2500.0) * 0.5 + pow(max(md, 0.0), 60.0) * 0.015;
-    col = col + lin(vec3f(0.80, 0.88, 1.0)) * ((moonDisc * 3.0 + moonGlow) * mc.u_moon * night * smoothstep(-0.02, 0.04, dir.y));
-
-    if (night > 0.02 && dir.y > 0.0 && mc.u_stars > 0.0) {
-        let p = dir * 180.0;
-        let id = floor(p);
-        let fr = p - id;
-        let h = hash13(id);
-        if (h > 0.965) {
-            let c = vec3f(hash13(id + 7.1), hash13(id + 13.3), hash13(id + 3.7)) * 0.6 + 0.2;
-            let spot = smoothstep(0.22, 0.02, length(fr - c));
-            var bright = 0.4 + hash13(id + 1.7) * 1.6;
-            if (h > 0.995) { bright = bright * 3.0; }
-            let tint = mix(lin(vec3f(1.0, 0.85, 0.7)), lin(vec3f(0.7, 0.8, 1.0)), hash13(id + 5.3));
-            let seen = night * night * smoothstep(0.05, -0.15, se) * smoothstep(0.0, 0.15, dir.y) * (1.0 - 0.9 * smoothstep(0.97, 0.999, md));
-            col = col + tint * (spot * bright * 2.5 * mc.u_stars * seen);
-        }
-    }
-
-    if ((max(mc.u_clouds, overcast * 0.95) > 0.01 || mc.u_cloud2Coverage > 0.01) && dir.y > 0.01) {
-        var cl : CloudLayer;
-        let up = upsampledClouds(v.v_texCoord);
-        if (up.ok) {
-            cl.L = up.L;
-            cl.T = up.T;
-        } else {
-            cl = cloudLayer(dir, sun, dome, sunTrans, night, overcast, windDrift, v.pos.xy);
-        }
-        col = col * cl.T + cl.L;
-    }
-
-    let luma = dot(col, vec3f(0.2126, 0.7152, 0.0722));
-    col = mix(col, vec3f(luma), overcast * 0.5);
-
-#ifdef ES_LINEAR
-#else
-    col = linearToSrgb(col);
-#endif
-
-    if (covered) {
-        return vec4f(src.rgb + (1.0 - src.a) * col, select(1.0, src.a, src.a > 0.99));
-    }
-    return vec4f(mix(col, src.rgb, vec3f(clamp(mc.u_panorama, 0.0, 1.0))), src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1692,121 +1085,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-const FAR_RAY : f32 = 100000.0;
-/// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
-${RAY_START_WGSL}
-const VOLUME_STEPS : i32 = 24;
-
-${IGN_WGSL}
-${PHASE_HG_WGSL}
-
-${HASH13_WGSL}
-${VALUE_NOISE3_WGSL}
-${CLOUD_FIELD_WGSL}
-
-${CLOUD_DENSITY_WGSL}
-${CLOUD_LIGHT_WGSL}
-
-${FOG_ALTITUDE_WGSL}
-${OPTICAL_DEPTH_WGSL}
-
-/// The sun's light through the haze, where the shadow map says it gets through. See the GLSL twin.
-${VOLUME_LIGHT_WGSL}
-
-struct VolumeRead { ok : bool, add : vec3f };
-
-/// The volumetric light for a pixel, read from the half-size pass. See the GLSL twin.
-fn upsampledVolume(uv : vec2f, len : f32) -> VolumeRead {
-    var out : VolumeRead;
-    out.ok = false;
-    let dsize = vec2i(textureDimensions(t7, 0));
-    let hsize = vec2i(textureDimensions(t0, 0));
-    let hf = uv * vec2f(hsize) - 0.5;
-    let base = vec2i(floor(hf));
-    let fr = hf - vec2f(base);
-    var sum = vec3f(0.0);
-    var wsum = 0.0;
-    for (var j : i32 = 0; j < 4; j = j + 1) {
-        let o = vec2i(j & 1, j >> 1);
-        let t = clamp(base + o, vec2i(0), hsize - vec2i(1));
-        let tuv = uvOfTexel(t, hsize);
-        let dj = depthAt(screenTexel(tuv, dsize), dsize);
-        var lj = FAR_RAY;
-        if (dj < 1.0) { lj = length(worldFromDepth(tuv, dj) - rayStart(tuv)); }
-        var bx = 1.0 - fr.x;
-        if (o.x == 1) { bx = fr.x; }
-        var by = 1.0 - fr.y;
-        if (o.y == 1) { by = fr.y; }
-        let rel = abs(lj - len) / max(len, 1.0);
-        let w = bx * by / (1.0 + 400.0 * rel * rel);
-        sum = sum + textureLoad(t0, t, 0).rgb * w;
-        wsum = wsum + w;
-    }
-    out.ok = true;
-    out.add = sum / wsum;
-    return out;
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
-    let size = vec2i(textureDimensions(t7, 0));
-    let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
-    let sky = depth >= 1.0;
-
-    let entry = rayStart(v.v_texCoord);
-    var d = depth;
-    if (sky) { d = 1.0; }
-    let tgt = worldFromDepth(v.v_texCoord, d);
-    let dir = normalize(tgt - entry);
-    var len = length(tgt - entry);
-    if (sky) { len = FAR_RAY; }
-    let effective = max(len - mc.u_startDistance, 0.0);
-    if (effective <= 0.0) { return src; }
-
-    let eyeAlt = fogAltitude(entry + dir * mc.u_startDistance);
-    var climb = dir.y;
-    if (mc.u_planetRadius > 0.0) {
-        let up = normalize(entry + dir * mc.u_startDistance + frame.renderOrigin.xyz - vec3f(mc.u_planetX, mc.u_planetY, mc.u_planetZ));
-        if (sky) { climb = dot(dir, up); } else { climb = (fogAltitude(tgt) - eyeAlt) / effective; }
-    }
-    let tau = opticalDepth(eyeAlt, climb, effective);
-    var amount = (1.0 - exp(-tau)) * mc.u_maxOpacity;
-    if (sky) { amount = amount * mc.u_skyFog; }
-
-    // See the GLSL twin: the scene's own sun unless told not to follow it.
-    let found = findSun();
-    let follow = mc.u_followSun > 0.5 && found.dir.w > 0.5;
-    let az = radians(mc.u_sunAzimuth);
-    let el = radians(mc.u_sunElevation);
-    var sun = vec3f(cos(el) * sin(az), sin(el), cos(el) * cos(az));
-    if (follow) { sun = found.dir.xyz; }
-    var shaped = dot(dir, sun);
-    let glow = pow(max(shaped, 0.0), mc.u_sunExponent);
-    var fog = mc.u_fogColor.rgb;
-    var sunTint = mc.u_sunColor.rgb;
-#ifdef ES_LINEAR
-    fog = srgbToLinear(fog);
-    sunTint = srgbToLinear(sunTint);
-#endif
-    if (follow) { sunTint = found.color.rgb / max(max(found.color.r, found.color.g), max(found.color.b, 1e-3)); }
-    var glowShare = glow;
-    if (mc.u_volumetric > 0.0) { glowShare = glow * (1.0 - mc.u_volumetric); }
-    let colour = mix(fog, sunTint, clamp(glowShare * mc.u_inscatter, 0.0, 1.0));
-    var result = mix(src.rgb, colour, clamp(amount, 0.0, 1.0));
-
-    if (mc.u_volumetric > 0.0 && follow) {
-        let up = upsampledVolume(v.v_texCoord, len);
-        if (up.ok) {
-            result = result + up.add;
-        } else {
-            result = result + volumeLight(entry, dir, len, sky, sun, found, sunTint, v.pos.xy);
-        }
-    }
-    return vec4f(result, src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1931,63 +1209,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-const FAR_RAY : f32 = 100000.0;
-/// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
-${RAY_START_WGSL}
-const VOLUME_STEPS : i32 = 24;
-
-${IGN_WGSL}
-${PHASE_HG_WGSL}
-
-${HASH13_WGSL}
-${VALUE_NOISE3_WGSL}
-${CLOUD_FIELD_WGSL}
-
-${CLOUD_DENSITY_WGSL}
-${CLOUD_LIGHT_WGSL}
-
-${FOG_ALTITUDE_WGSL}
-${OPTICAL_DEPTH_WGSL}
-
-/// The sun's light through the haze, where the shadow map says it gets through. See the GLSL twin.
-${VOLUME_LIGHT_WGSL}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let size = vec2i(textureDimensions(t7, 0));
-    let depth = textureLoad(t7, clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1)), 0);
-    let sky = depth >= 1.0;
-
-    let entry = rayStart(v.v_texCoord);
-    var d = depth;
-    if (sky) { d = 1.0; }
-    let tgt = worldFromDepth(v.v_texCoord, d);
-    let dir = normalize(tgt - entry);
-    var len = length(tgt - entry);
-    if (sky) { len = FAR_RAY; }
-    let effective = max(len - mc.u_startDistance, 0.0);
-    
-
-
-    if (mc.u_volumetric <= 0.0 || effective <= 0.0) { return vec4f(0.0); }
-
-    let found = findSun();
-    let follow = mc.u_followSun > 0.5 && found.dir.w > 0.5;
-    let az = radians(mc.u_sunAzimuth);
-    let el = radians(mc.u_sunElevation);
-    var sun = vec3f(cos(el) * sin(az), sin(el), cos(el) * cos(az));
-    if (follow) { sun = found.dir.xyz; }
-    if (!follow) { return vec4f(0.0); }
-    var fog = mc.u_fogColor.rgb;
-    var sunTint = mc.u_sunColor.rgb;
-#ifdef ES_LINEAR
-    fog = srgbToLinear(fog);
-    sunTint = srgbToLinear(sunTint);
-#endif
-    if (follow) { sunTint = found.color.rgb / max(max(found.color.r, found.color.g), max(found.color.b, 1e-3)); }
-    return vec4f(volumeLight(entry, dir, len, sky, sun, found, sunTint, v.pos.xy), 1.0);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -2014,23 +1235,6 @@ float flakes(vec2 uv, float aspect, float cols, float speed, float seed, float T
     if (hash21(id + seed) > u_snowfall * 0.35) return 0.0;
     vec2 at = (vec2(hash21(id + seed + 3.0), hash21(id + seed + 7.0)) - 0.5) * 0.6;
     float r = mix(0.07, 0.16, hash21(id + seed + 11.0));
-    return 1.0 - smoothstep(r * 0.35, r, length(fract(q) - 0.5 - at));
-}`;
-        const WGSL = `
-${HASH11_WGSL}
-${HASH21_WGSL}
-
-${RAIN_STREAKS_WGSL}
-
-/// See the GLSL twin: one layer of soft round flakes that drifts down and sways. q runs up the screen, as in GL.
-fn flakes(uv : vec2f, aspect : f32, cols : f32, speed : f32, seed : f32, T : f32) -> f32 {
-    var q = vec2f(uv.x * aspect, 1.0 - uv.y) * cols;
-    q.y = q.y + T * speed * cols * 0.25;
-    q.x = q.x + sin(T * 0.8 + q.y * 0.45 + seed) * 0.35 - mc.u_wind * q.y * 0.5;
-    let id = floor(q);
-    if (hash21(id + seed) > mc.u_snowfall * 0.35) { return 0.0; }
-    let at = (vec2f(hash21(id + seed + 3.0), hash21(id + seed + 7.0)) - 0.5) * 0.6;
-    let r = mix(0.07, 0.16, hash21(id + seed + 11.0));
     return 1.0 - smoothstep(r * 0.35, r, length(fract(q) - 0.5 - at));
 }`;
         const source = `#pragma shader "PP Rain"
@@ -2188,115 +1392,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-${PUDDLE_WGSL}
-${BASIN_WGSL}
-${GBUFFER_WGSL}
-${WGSL}
-
-/// Where a view ray starts (see the GLSL twin): the near plane of a perspective eye, the plane the camera stands in for an orthographic one.
-${RAY_START_WGSL}
-
-${SHELTERED_AT_WGSL}
-
-/// See the GLSL twin: a point where a drop hits and five droplets thrown out from it.
-fn rainSplash(g : vec2f, T : f32) -> f32 {
-    let id = floor(g);
-    if (hash21(id + 2.0) > 0.6) { return 0.0; }
-    let life = fract(T * 1.7 + hash21(id + 29.0)) / 0.2;
-    if (life >= 1.0) { return 0.0; }
-    let f = fract(g) - 0.5;
-    let hit = (vec2f(hash21(id + 5.0), hash21(id + 11.0)) - 0.5) * 0.5;
-    let fade = (1.0 - life) * (1.0 - life);
-    var acc = (1.0 - smoothstep(0.0, 0.08, length(f - hit))) * (1.0 - smoothstep(0.0, 0.35, life));
-    for (var k = 0; k < 5; k = k + 1) {
-        let a = 6.2831853 * (f32(k) / 5.0 + 0.3 * hash21(id + f32(k) * 3.7));
-        let reach = (0.1 + 0.12 * hash21(id + f32(k) + 17.0)) * sqrt(life);
-        acc = acc + 1.0 - smoothstep(0.0, 0.05, length(f - hit - vec2f(cos(a), sin(a)) * reach));
-    }
-    return acc * fade;
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let sz = vec2f(vec2i(textureDimensions(t0, 0)));
-    let aspect = sz.x / sz.y;
-    let T = tc.u_time.x * mc.u_timeScale + mc.u_phase;
-    let size = vec2i(textureDimensions(t7, 0));
-    let c = screenTexel(v.v_texCoord, size);
-    let d = depthAt(c, size);
-    let entry = rayStart(v.v_texCoord);
-    var dist = 1e9;
-    if (d < 1.0) { dist = length(worldFromDepth(uvOfTexel(c, size), d) - entry); }
-
-    var tint = mc.u_streakColor.rgb;
-#ifdef ES_LINEAR
-    tint = srgbToLinear(tint);
-#endif
-    var col = src.rgb;
-
-    let surface = readSurface(c);
-    if (d < 1.0 && mc.u_wetness > 0.0 && !surface.water) {
-        let P = worldFromDepth(uvOfTexel(c, size), d);
-        let dl = depthAt(c + vec2i(-1, 0), size);
-        let dr = depthAt(c + vec2i( 1, 0), size);
-        let dd = depthAt(c + vec2i(0, -1), size);
-        let du = depthAt(c + vec2i(0,  1), size);
-        var ax = P - worldAt(c + vec2i(-1, 0), size);
-        if (abs(dr - d) < abs(dl - d)) { ax = worldAt(c + vec2i(1, 0), size) - P; }
-        var ay = P - worldAt(c + vec2i(0, -1), size);
-        if (abs(du - d) < abs(dd - d)) { ay = worldAt(c + vec2i(0, 1), size) - P; }
-        var N = normalize(cross(ax, ay));
-        if (dot(N, viewDirection(P)) < 0.0) { N = -N; }
-        let up = smoothstep(0.86, 0.95, N.y);
-        let shelter = shelteredAt(P + vec3f(0.0, 1.0, 0.0));
-        let wet = mc.u_wetness * (1.0 - 0.9 * shelter);
-        var soaks = 0.0;
-        if (surface.known) { soaks = smoothstep(0.82, 0.95, surface.roughness); }
-        let puddle = puddleMask(P.xz, basinCoverage(c, size, P, mc.u_puddles, mc.u_puddleScale), mc.u_puddleScale) * up * wet * (1.0 - soaks);
-        // See the GLSL: rain darkens what does not face straight up too.
-        var Ns = N;
-        if (surface.known) { Ns = surface.normal; }
-        if (dot(Ns, viewDirection(P)) < 0.0) { Ns = -Ns; }
-        let exposed = mix(0.6, 1.0, smoothstep(0.0, 0.9, Ns.y));
-        col = col * (1.0 - 0.32 * wet * exposed);
-        col = col * (1.0 - 0.35 * puddle);
-        let falling = clamp(mc.u_intensity, 0.0, 1.0) * (1.0 - shelter);
-        let near = 1.0 - smoothstep(1200.0, 3500.0, dist);
-        // See the GLSL: rings only on standing water, splashes everywhere else.
-        let pool = smoothstep(0.15, 0.6, puddle);
-        let g = P.xz / mc.u_rippleScale;
-        let id = floor(g);
-        let f = fract(g) - 0.5;
-        let h = hash21(id);
-        let centre = (vec2f(hash21(id + 7.0), hash21(id + 13.0)) - 0.5) * 0.5;
-        let phase = fract(T * 0.9 + h);
-        var ring = (1.0 - smoothstep(0.0, 0.035, abs(length(f - centre) - phase * 0.5)))
-                 * (1.0 - phase) * (1.0 - phase);
-        if (hash21(id + 3.0) > 0.9) { ring = 0.0; }
-        col = col + tint * ring * 0.9 * pool * mc.u_wetness * up * near * falling;
-        col = col + tint * rainSplash(P.xz / (mc.u_rippleScale * 0.8), T) * 1.2 * mc.u_wetness * up * near * falling * (1.0 - pool);
-    }
-
-    var dd1 = d;
-    if (d >= 1.0) { dd1 = 1.0; }
-    let along = normalize(worldFromDepth(v.v_texCoord, dd1) - entry);
-    var rain = 0.0;
-    if (dist > 120.0)  { rain = rain + streaks(v.v_texCoord, aspect,  70.0, mc.u_speed * 1.0, 1.0, T) * 0.35 * (1.0 - shelteredAt(entry + along * 120.0)); }
-    if (dist > 450.0)  { rain = rain + streaks(v.v_texCoord, aspect, 130.0, mc.u_speed * 1.4, 2.0, T) * 0.28 * (1.0 - shelteredAt(entry + along * 450.0)); }
-    if (dist > 1400.0) { rain = rain + streaks(v.v_texCoord, aspect, 230.0, mc.u_speed * 1.9, 3.0, T) * 0.22 * (1.0 - shelteredAt(entry + along * 1400.0)); }
-    col = col + tint * rain * mc.u_intensity;
-    if (mc.u_snowfall > 0.0) {
-        var snow = 0.0;
-        if (dist > 120.0)  { snow = snow + flakes(v.v_texCoord, aspect, 9.0,  0.5, 1.0, T) * 0.9  * (1.0 - shelteredAt(entry + along * 120.0)); }
-        if (dist > 450.0)  { snow = snow + flakes(v.v_texCoord, aspect, 18.0, 0.4, 2.0, T) * 0.65 * (1.0 - shelteredAt(entry + along * 450.0)); }
-        if (dist > 1400.0) { snow = snow + flakes(v.v_texCoord, aspect, 34.0, 0.3, 3.0, T) * 0.45 * (1.0 - shelteredAt(entry + along * 1400.0)); }
-        col = col + tint * 1.2 * snow;
-    }
-    return vec4f(col, src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -2383,57 +1478,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-${GBUFFER_WGSL}
-
-fn snowHash(p : vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453); }
-fn snowNoise(p : vec2f) -> f32 {
-    let i = floor(p);
-    var f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(snowHash(i), snowHash(i + vec2f(1.0, 0.0)), f.x), mix(snowHash(i + vec2f(0.0, 1.0)), snowHash(i + vec2f(1.0, 1.0)), f.x), f.y);
-}
-${SHELTERED_AT_WGSL}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let size = vec2i(textureDimensions(t7, 0));
-    let c = screenTexel(v.v_texCoord, size);
-    let d = depthAt(c, size);
-    var col = src.rgb;
-    let surface = readSurface(c);
-    if (d < 1.0 && mc.u_amount > 0.0 && !surface.water) {
-        let P = worldFromDepth(uvOfTexel(c, size), d);
-        let dl = depthAt(c + vec2i(-1, 0), size);
-        let dr = depthAt(c + vec2i( 1, 0), size);
-        let dd = depthAt(c + vec2i(0, -1), size);
-        let du = depthAt(c + vec2i(0,  1), size);
-        var ax = P - worldAt(c + vec2i(-1, 0), size);
-        if (abs(dr - d) < abs(dl - d)) { ax = worldAt(c + vec2i(1, 0), size) - P; }
-        var ay = P - worldAt(c + vec2i(0, -1), size);
-        if (abs(du - d) < abs(dd - d)) { ay = worldAt(c + vec2i(0, 1), size) - P; }
-        var N = normalize(cross(ax, ay));
-        if (dot(N, viewDirection(P)) < 0.0) { N = -N; }
-        var Ns = N;
-        if (surface.known) { Ns = surface.normal; }
-        if (dot(Ns, viewDirection(P)) < 0.0) { Ns = -Ns; }
-        let grain = snowNoise(P.xz / mc.u_grainScale) * 0.6 + snowNoise(P.xz / (mc.u_grainScale * 0.43) + 3.7) * 0.28 + snowNoise(P.xz / (mc.u_grainScale * 0.19) + 9.1) * 0.12;
-        let faces = smoothstep(mc.u_slopeLimit - 0.12, mc.u_slopeLimit + 0.12, Ns.y + (grain - 0.5) * 0.25);
-        var height = step(mc.u_snowLine, P.y);
-        if (mc.u_snowLineBand > 0.0) { height = smoothstep(0.0, 1.0, (P.y - mc.u_snowLine) / mc.u_snowLineBand + grain - 0.5); }
-        let lies = faces * height * (1.0 - shelteredAt(P + vec3f(0.0, 1.0, 0.0)));
-        let cover = smoothstep(1.0 - mc.u_amount * 1.15, 1.15 - mc.u_amount, grain + 0.15) * lies;
-        var white = mc.u_snowColor.rgb;
-#ifdef ES_LINEAR
-        white = srgbToLinear(white);
-#endif
-        let light = dot(src.rgb, vec3f(0.2126, 0.7152, 0.0722));
-        col = mix(col, white * (0.32 + 0.68 * smoothstep(0.0, 0.45, light)), cover);
-    }
-    return vec4f(col, src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -2454,21 +1498,6 @@ float mistFbm(vec2 p) {
     float a = 0.5;
     float s = 0.0;
     for (int k = 0; k < 3; k++) { s += a * mistNoise(p); p = p * 2.03 + vec2(17.3, 9.1); a *= 0.5; }
-    return s / 0.875;
-}`;
-        const WGSL = `
-fn mistHash(p : vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453); }
-fn mistNoise(p : vec2f) -> f32 {
-    let i = floor(p);
-    var f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(mistHash(i), mistHash(i + vec2f(1.0, 0.0)), f.x), mix(mistHash(i + vec2f(0.0, 1.0)), mistHash(i + vec2f(1.0, 1.0)), f.x), f.y);
-}
-fn mistFbm(q : vec2f) -> f32 {
-    var p = q;
-    var a = 0.5;
-    var s = 0.0;
-    for (var k = 0; k < 3; k = k + 1) { s = s + a * mistNoise(p); p = p * 2.03 + vec2f(17.3, 9.1); a = a * 0.5; }
     return s / 0.875;
 }`;
         const source = `#pragma shader "PP Mist 2D"
@@ -2508,25 +1537,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${WGSL}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let world = worldFromDepth(v.v_texCoord, 0.0).xy + frame.renderOrigin.xy;
-    let angle = radians(mc.u_direction);
-    let p = (world - vec2f(cos(angle), sin(angle)) * (mc.u_speed * tc.u_time.x)) / max(mc.u_scale, 1.0);
-    let n = mistFbm(p + 0.4 * vec2f(mistFbm(p * 0.6 + 3.1), mistFbm(p * 0.6 + 8.4)));
-    let lo = 1.0 - mc.u_coverage * 0.9;
-    let t = smoothstep(lo, lo + 0.35, n) * mc.u_density;
-    var fog = mc.u_fogColor.rgb;
-#ifdef ES_LINEAR
-    fog = srgbToLinear(fog);
-#endif
-    let col = mix(src.rgb, fog, vec3f(t)) + src.rgb * (t * mc.u_glow);
-    return vec4f(col, src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -2575,23 +1585,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let depth = textureLoad(t7, vec2i(v.pos.xy), 0);
-    if (depth >= 1.0) { return src; }
-
-    let world = worldFromDepth(v.v_texCoord, depth);
-    let entry = worldFromDepth(v.v_texCoord, select(0.5, 0.0, frame.camera.w > 0.5));
-    let dist = length(world - entry);
-    let t = clamp((dist - mc.u_fogNear) / max(mc.u_fogFar - mc.u_fogNear, 1e-4), 0.0, 1.0);
-    var fog = mc.u_fogColor.rgb;
-#ifdef ES_LINEAR
-    fog = srgbToLinear(fog);
-#endif
-    return vec4f(mix(src.rgb, fog, vec3f(t * mc.u_intensity)), src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },

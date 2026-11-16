@@ -3,7 +3,10 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { rain2dEffects } from '../src/postprocess/sources/rain2d';
+import { Material } from '../src/render/material';
+import { withWgslTwin } from '../src/shaders/wgsl/twin';
 import { coversPoint, stepFade } from '../src/render/coverFade';
 import { applyRainSheltersToRain, drynessOf, maskRects, shelterOf, uprightOf, uprightRects, shelterMaskSizeOf, ellipseStripsOf, ELLIPSE_STRIPS, type Shelter } from '../src/render/rainShelter';
 import { defaultQualityProfile, parseQualityConfig } from '../src/render/quality';
@@ -160,7 +163,15 @@ describe('the 2D rain', () => {
     it('leaves the rings, splashes and wet darkening off what stands, in both shader languages', () => {
         const rain2dSource = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'postprocess', 'sources', 'rain2d.ts'), 'utf8');
         expect(rain2dSource).toContain('float ground = 1.0 - min(m.y * 1.15, 1.0);');
-        expect(rain2dSource).toContain('let ground = 1.0 - min(m.y * 1.15, 1.0);');
+        // And in the WGSL a device that draws through WebGPU is given, written from that GLSL as the pass compiles.
+        const spy = vi.spyOn(Material, 'compileShader').mockReturnValue(1 as never);
+        try {
+            for (const make of Object.values(rain2dEffects)) (make as () => unknown)();
+            const pass = spy.mock.calls.map((c) => c[0] as string).find((s) => s.includes('min(m.y * 1.15, 1.0)'))!;
+            expect(withWgslTwin(pass)).toContain('let ground = 1.0 - min(m.y * 1.15, 1.0);');
+        } finally {
+            spy.mockRestore();
+        }
     });
 
     it('says round by a negative half height', () => {
