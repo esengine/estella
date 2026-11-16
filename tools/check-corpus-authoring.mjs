@@ -37,6 +37,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { ROOT, walkFiles } from './lib/repo.mjs';
+import { corpusRoots } from './lib/sourceCensus.mjs';
 
 const SNAPSHOT = path.join(ROOT, 'docs', 'astro', 'src', 'data', 'components.generated.json');
 /** Where the editor decides what a person may add to an entity at all. */
@@ -89,6 +90,7 @@ const NOT_INSTANCE_FORMATS = {
   '.gitignore': 'version control, not content',
   '.png': 'a texture',
   '.jpg': 'a texture',
+  '.gif': 'a picture a README shows',
   '.svg': 'editable vector artwork; component instances belong to its consuming scene',
   '.ktx2': 'a compressed texture',
   '.hdr': 'an environment map',
@@ -241,6 +243,8 @@ const hiddenNames = hidden
   : null;
 
 const counts = { authored: 0, 'code-only': 0, structural: 0, derived: 0, owed: 0 };
+const absentExamples = corpusRoots().filter((root) => !root.present && root.prefix.startsWith('examples/')).map((root) => root.prefix.slice('examples/'.length));
+const unjudged = [];
 const owed = [];
 const unused = new Set(Object.keys(DISPOSITION));
 
@@ -285,6 +289,11 @@ for (const name of authorable) {
     continue;
   }
   if (kind === 'code-only' && !inCode.has(name)) {
+    const away = absentExamples.find((example) => reason.includes(example));
+    if (away) {
+      unjudged.push(`${name} (its example, ${away}, is a submodule that is not checked out)`);
+      continue;
+    }
     problems.push(`${name} is declared code-only and no example imports it either`
       + ' — it is owed, not demonstrated');
     continue;
@@ -308,7 +317,8 @@ if (problems.length) {
   process.exit(1);
 }
 
-const note = hiddenNames ? '' : ' (no editor checkout — "structural" was not verified against HIDDEN_COMPONENTS)';
+const note = (hiddenNames ? '' : ' (no editor checkout — "structural" was not verified against HIDDEN_COMPONENTS)')
+  + (unjudged.length ? ` (code-only not verified for ${unjudged.join('; ')})` : '');
 console.log(`check-corpus-authoring: ${authorable.length} authorable component(s) judged`
   + ` — ${counts.authored} authored in the corpus, ${counts['code-only']} demonstrated from code,`
   + ` ${counts.structural} structural, ${counts.derived} engine-written, ${counts.owed} owed`
