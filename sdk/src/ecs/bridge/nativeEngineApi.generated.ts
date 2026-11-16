@@ -171,6 +171,7 @@ export interface NativeEngineApi {
     renderer_destroySkeletalPreview?(preview: number): void;
     renderer_deviceGeneration?(): number;
     renderer_diagnose?(): void;
+    renderer_drawOverScreen?(vpX: number, vpY: number, vpW: number, vpH: number, targetHandle: number): void;
     renderer_end?(): void;
     renderer_endFrame?(): void;
     renderer_endScreenOverlay?(targetHandle: number): void;
@@ -534,6 +535,7 @@ export function createNativeEngineApi(
     bind('renderer_destroySkeletalPreview', 'es_renderer_destroySkeletalPreview', false);
     bind('renderer_deviceGeneration', 'es_renderer_deviceGeneration', false);
     bind('renderer_diagnose', 'es_renderer_diagnose', false);
+    bind('renderer_drawOverScreen', 'es_renderer_drawOverScreen', false);
     bind('renderer_end', 'es_renderer_end', false);
     bind('renderer_endFrame', 'es_renderer_endFrame', false);
     bind('renderer_endScreenOverlay', 'es_renderer_endScreenOverlay', false);

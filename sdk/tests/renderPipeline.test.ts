@@ -26,6 +26,8 @@ vi.mock('../src/render/renderer', () => ({
         beginScreenOverlay: vi.fn(),
         submitScreenOverlay: vi.fn(),
         endScreenOverlay: vi.fn(),
+        hasDrawOverScreen: vi.fn().mockReturnValue(true),
+        drawOverScreen: vi.fn(),
     },
 }));
 
@@ -68,9 +70,12 @@ const mockCallbacks = new Map<string, {
     scene: string;
 }>();
 const mockPreSceneCallbacks = new Map<string, (info: unknown) => void>();
+const mockOverScreenCallbacks = new Map<string, (elapsed: number, frame: { viewProjection: Float32Array; width: number; height: number }) => void>();
 vi.mock('../src/render/customDraw', () => ({
     getDrawCallbacks: vi.fn(() => mockCallbacks),
     unregisterDrawCallback: vi.fn(),
+    getOverScreenDrawCallbacks: vi.fn(() => mockOverScreenCallbacks),
+    unregisterOverScreenDrawCallback: vi.fn(),
     getPreSceneDrawCallbacks: vi.fn(() => mockPreSceneCallbacks),
     unregisterPreSceneDrawCallback: vi.fn(),
 }));
@@ -97,11 +102,51 @@ describe('RenderPipeline', () => {
             return true;
         });
         mockCallbacks.clear();
+        mockOverScreenCallbacks.clear();
+        vi.mocked(Renderer.hasDrawOverScreen).mockReturnValue(true);
         pipeline = new RenderPipeline();
         // PostProcess is now injected (no longer a global the pipeline reaches for).
         pipeline.setPostProcess(postProcessFixture);
         registry = { _cpp: {} as any };
         viewProjection = new Float32Array(16);
+    });
+
+    it('draws the over-screen callbacks after the screen overlay, through the last screen camera', () => {
+        const order: string[] = [];
+        vi.mocked(Renderer.endScreenOverlay).mockImplementation(() => { order.push('overlay'); });
+        vi.mocked(Renderer.drawOverScreen).mockImplementation(() => { order.push('over-screen pass'); });
+        const seen: Float32Array[] = [];
+        mockOverScreenCallbacks.set('handles', (_e, frame) => { order.push('handles'); seen.push(frame.viewProjection); });
+        const projection = new Float32Array(16); projection[12] = 5;
+
+        pipeline.beginFrame(0);
+        pipeline.renderCamera({ registry, viewProjection: projection,
+            viewportPixels: { x: 10, y: 20, w: 800, h: 600 }, clearFlags: 3, elapsed: 0 });
+        expect(order).toEqual([]);   // nothing over the screen while the scene draws
+        const overlay = defaultScreenOverlay();
+        overlay.active = true; overlay.vpW = 800; overlay.vpH = 600;
+        pipeline.renderScreenOverlay(registry, overlay);
+        pipeline.renderOverScreen();
+
+        expect(order).toEqual(['overlay', 'handles', 'over-screen pass']);
+        expect(Array.from(seen[0]!)).toEqual(Array.from(projection));
+        expect(Renderer.drawOverScreen).toHaveBeenCalledWith(10, 20, 800, 600, 0);
+        // Once a frame: a second call has no camera left to draw through.
+        pipeline.renderOverScreen();
+        expect(Renderer.drawOverScreen).toHaveBeenCalledTimes(1);
+    });
+
+    it('draws the over-screen callbacks with the scene on a core with no over-screen pass', () => {
+        vi.mocked(Renderer.hasDrawOverScreen).mockReturnValue(false);
+        const handles = vi.fn();
+        mockOverScreenCallbacks.set('handles', handles);
+        pipeline.beginFrame(0);
+        pipeline.renderCamera({ registry, viewProjection,
+            viewportPixels: { x: 0, y: 0, w: 800, h: 600 }, clearFlags: 3, elapsed: 0 });
+        expect(handles).toHaveBeenCalledTimes(1);
+        pipeline.renderOverScreen();
+        expect(handles).toHaveBeenCalledTimes(1);
+        expect(Renderer.drawOverScreen).not.toHaveBeenCalled();
     });
 
     it('passes each camera projection and the independent overlay projection to glyph callbacks', () => {

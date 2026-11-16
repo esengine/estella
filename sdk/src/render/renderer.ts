@@ -80,6 +80,8 @@ export interface RendererBackend {
     hasScreenOverlayEffect(): boolean;
     setScreenOverlayEffect(material: number): void;
     endScreenOverlay(target: number): void;
+    drawOverScreen(vpX: number, vpY: number, vpW: number, vpH: number, target: number): void;
+    hasDrawOverScreen(): boolean;
     setStage(stage: number): void;
     setViewport(x: number, y: number, w: number, h: number): void;
     setYSortLayers(mask: number): void;
@@ -268,6 +270,14 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
                 handleWasmError(e, 'Renderer.endScreenOverlay');
             }
         },
+        drawOverScreen: (vpX, vpY, vpW, vpH, target) => {
+            try {
+                m.renderer_drawOverScreen?.(vpX, vpY, vpW, vpH, target);
+            } catch (e) {
+                handleWasmError(e, 'Renderer.drawOverScreen');
+            }
+        },
+        hasDrawOverScreen: () => typeof m.renderer_drawOverScreen === 'function',
         setStage: (stage) => m.renderer_setStage(stage),
         setViewport: (x, y, w, h) => m.renderer_setViewport(x, y, w, h),
         setYSortLayers: (mask) => m.renderer_setYSortLayers?.(mask >>> 0),
@@ -650,6 +660,20 @@ export const Renderer = {
 
     endScreenOverlay(target: RenderTargetHandle = 0): void {
         backend?.endScreenOverlay(target);
+    },
+
+    /**
+     * Draws what {@link Draw} collected since the screen overlay over the whole
+     * frame, its UI included, in this pixel rect and through the view-projection
+     * Draw began with. Nothing collected draws nothing.
+     */
+    drawOverScreen(vpX: number, vpY: number, vpW: number, vpH: number, target: RenderTargetHandle = 0): void {
+        backend?.drawOverScreen(vpX, vpY, vpW, vpH, target);
+    },
+
+    /** Whether the core can draw over the screen; one that cannot draws those callbacks with the scene. */
+    hasDrawOverScreen(): boolean {
+        return backend?.hasDrawOverScreen() ?? false;
     },
 
     submitAll(registry: { _cpp: CppRegistry }, vpX: number, vpY: number, vpW: number, vpH: number): void {

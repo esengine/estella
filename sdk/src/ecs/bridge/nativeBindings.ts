@@ -200,6 +200,8 @@ export const RENDERER_OPTIONAL_BINDINGS = {
     submitScreenOverlay: 'es_renderer_submitScreenOverlay',
     endScreenOverlay: 'es_renderer_endScreenOverlay',
     setScreenOverlayEffect: 'es_renderer_setScreenOverlayEffect',
+    /** Draw's collection drawn over the whole frame, its UI included; without it they draw with the scene. */
+    drawOverScreen: 'es_renderer_drawOverScreen',
     /** The view a collect looks from; hosts predating it share one LOD memory. */
     setViewId: 'es_renderer_setViewId',
     /** What a view decided about one object's level, and holding another level up
