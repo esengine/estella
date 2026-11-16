@@ -300,12 +300,9 @@ float vnoise(vec3 p) {
     return mix(mix(a, b, f.y), mix(c, d, f.y), f.z);
 }
 
+/// A colour written here as sRGB, as the light it stands for: the sky is worked out in light whatever frame it is drawn into.
 vec3 lin(vec3 c) {
-#ifdef ES_LINEAR
     return srgbToLinear(c);
-#else
-    return c;
-#endif
 }
 
 /// Where a ray from o along d meets the sphere of radius r about the planet's centre: the two distances, or -1 for a miss.
@@ -537,12 +534,9 @@ float vnoise(vec3 p) {
     return mix(mix(a, b, f.y), mix(c, d, f.y), f.z);
 }
 
+/// A colour written here as sRGB, as the light it stands for: the sky is worked out in light whatever frame it is drawn into.
 vec3 lin(vec3 c) {
-#ifdef ES_LINEAR
     return srgbToLinear(c);
-#else
-    return c;
-#endif
 }
 
 /// Where a ray from o along d meets the sphere of radius r about the planet's centre: the two distances, or -1 for a miss.
@@ -746,12 +740,9 @@ float vnoise(vec3 p) {
     return mix(mix(a, b, f.y), mix(c, d, f.y), f.z);
 }
 
+/// A colour written here as sRGB, as the light it stands for: the sky is worked out in light whatever frame it is drawn into.
 vec3 lin(vec3 c) {
-#ifdef ES_LINEAR
     return srgbToLinear(c);
-#else
-    return c;
-#endif
 }
 
 /// Where a ray from o along d meets the sphere of radius r about the planet's centre: the two distances, or -1 for a miss.
@@ -966,6 +957,12 @@ void main() {
     // An overcast sky is also a little greyer than the cloud-free one under it.
     float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
     col = mix(col, vec3(luma), overcast * 0.5);
+
+#ifdef ES_LINEAR
+#else
+    // A gamma frame holds codes, and the sky so far is light: written as it is, a noon sky of 117, 130, 150 came out 45, 57, 79.
+    col = linearToSrgb(col);
+#endif
 
     if (covered) {
         // Under the geometry by its coverage; a mark in the alpha (a scattering surface's 0.996) is kept, a partial edge becomes whole.

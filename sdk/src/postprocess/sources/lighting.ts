@@ -730,6 +730,11 @@ void main() {
     for (int j = 0; j < 4; ++j) {
         for (int i = 0; i < 4; ++i) {
             vec3 c = texture(u_texture, v_texCoord + (vec2(float(i), float(j)) - 1.5) * 4.0 * texel).rgb;
+#ifdef ES_LINEAR
+#else
+            // A gamma frame holds codes: the light they stand for is what is metered, or 18% grey would be sought as a code (46 of 255).
+            c = srgbToLinear(c);
+#endif
             float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
             if (lum > 0.0039) { sum += log2(lum); counted += 1.0; }
         }
@@ -829,7 +834,12 @@ out vec4 fragColor;
 void main() {
     float ev = texture(u_texture, vec2(0.5)).r * 20.0 - 10.0;
     vec4 scene = texture(u_sceneTexture, v_texCoord);
+#ifdef ES_LINEAR
     fragColor = vec4(scene.rgb * exp2(ev), scene.a);
+#else
+    // The gain is of light: a gamma frame's codes are decoded for it and encoded again.
+    fragColor = vec4(linearToSrgb(srgbToLinear(scene.rgb) * exp2(ev)), scene.a);
+#endif
 }
 #pragma end
 
