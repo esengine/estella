@@ -45,6 +45,7 @@ export interface SplashLook {
   /** CSS colour behind it; the page's own when the project said nothing. */
   background?: string;
   engineMark?: boolean;
+  scriptElsewhere?: boolean;
 }
 
 /**
@@ -109,7 +110,7 @@ export function splashHtml(title: string, look: SplashLook = {}): string {
     + `<div class="es-splash-track"><div id="${BAR}"></div></div>`
     + `<div id="${LABEL}">${BOOT_STAGES[0].says}…</div>`
     + '</div>'
-    + (marked ? `<script>${MARK_SCRIPT}</script>` : '');
+    + (marked && !look.scriptElsewhere ? `<script>${MARK_SCRIPT}</script>` : '');
 }
 
 /** What {@link attachSplash} hands the boot sequence. */

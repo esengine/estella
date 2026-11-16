@@ -169,6 +169,12 @@ describe('the engine’s ident on the start screen', () => {
     expect(splashCss(PAGE_BACKGROUND) + splashHtml('My Game')).not.toMatch(/url\(|src=|@import|fetch\(|XMLHttpRequest|importScripts/);
   });
 
+  it('leaves its script to the page that has to order it after something else', () => {
+    const html = splashHtml('My Game', { scriptElsewhere: true });
+    expect(html).toContain('<canvas id="es-splash-gl"');
+    expect(html).not.toContain('<script');
+  });
+
   it('draws one still frame for someone who asked for less motion', () => {
     expect(splashScript()).toMatch(/prefers-reduced-motion:reduce/);
     expect(splashScript()).toMatch(/q\?9:\(performance\.now\(\)-b\)\/1e3/);

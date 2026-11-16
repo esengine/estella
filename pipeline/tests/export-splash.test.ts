@@ -139,12 +139,15 @@ describe('the exported page’s start screen', () => {
     expect(policy).toContain("worker-src 'self' blob:");
   }, 180_000);
 
-  it('leaves the ident off a portal’s page, whose loading screen is the portal’s own', async () => {
-    const { html } = await page(undefined, 'poki');
-    expect(html).toContain('id="es-splash"');
-    expect(html).not.toContain('es-splash-gl');
-    expect(html).not.toContain(splashScriptCspHash());
-    expect(html).not.toContain('data-min-ms');
+  it('opens a portal’s page on the ident too, under the portal’s own policy', async () => {
+    for (const channel of ['poki', 'crazygames', 'youtube'] as const) {
+      const { html } = await page(undefined, channel);
+      const policy = /http-equiv="Content-Security-Policy"\s+content="([^"]+)"/.exec(html)![1];
+      expect(html).toContain('<canvas id="es-splash-gl"');
+      expect(html).toContain('data-min-ms="2800"');
+      expect(policy).toContain(`'${splashScriptCspHash()}'`);
+      expect(policy).toContain("worker-src 'self' blob:");
+    }
   }, 180_000);
 });
 

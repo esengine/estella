@@ -16,6 +16,7 @@
 
 import { createWebApp } from './webAppFactory';
 import { bootPercent, bootSays, type BootStage } from './bootStages';
+import { playIdent, type IdentRun } from './ident';
 import type { ESEngineModule } from '../wasm';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
 import { initRuntime } from './runtimeLoader';
@@ -113,6 +114,7 @@ export interface MiniGameRuntimeConfig {
      *  runtime under wasm/ and knows which glue it shipped, so it passes the
      *  glue's `.wasm` twin here. */
     engineWasmPath: string;
+    ident?: boolean;
     sceneNames: string[];
     firstScene: string;
     runtimeConfig?: RuntimeBuildConfig;
@@ -227,6 +229,20 @@ export function hostProgress(global: {
 export interface GlxContext { isWebGL2: boolean; platform: number; ctxid: number }
 export type GlxModule = { ccall(name: string, ret: string | null, args: string[], values: unknown[]): unknown; wxContextGlobal?: GlxContext };
 
+export function startIdent(canvas: { width: number; height: number; getContext(type: string, attributes?: unknown): unknown }): IdentRun | null {
+    try {
+        const gl = canvas.getContext('webgl2', glContextAttributes()) as WebGL2RenderingContext | null;
+        if (!gl) return null;
+        const host = globalThis as { requestAnimationFrame?: (step: () => void) => unknown };
+        return playIdent(gl, () => ({ width: canvas.width, height: canvas.height }), (step) => {
+            if (typeof host.requestAnimationFrame === 'function') host.requestAnimationFrame(step);
+            else setTimeout(step, 16);
+        });
+    } catch {
+        return null;
+    }
+}
+
 /** Starts the linked GLX in the order WeChat's guide gives: told whether the host
  *  gave a GLX context at all, then, when it did, its buffers and GL state. */
 export function startGlx(module: GlxModule, glx: GlxContext | undefined): void {
@@ -250,7 +266,14 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         );
     }
     const tag = adapter.name;
-    const progress = hostProgress(adapter.host);
+    const canvas = adapter.createScreenCanvas();
+    const ident = config.ident ? startIdent(canvas) : null;
+    const reached: BootStage[] = [];
+    let toast = hostProgress(ident ? {} : adapter.host);
+    const progress = {
+        reach(stage: BootStage): void { reached.push(stage); toast.reach(stage); },
+        finish(): void { toast.finish(); },
+    };
     progress.reach('config');
     progress.reach('scripts');
 
@@ -260,11 +283,14 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     const { model: manifestModel, catalog } = index;
     progress.reach('manifest');
 
-    // The FIRST canvas of the process is the display surface on every vendor.
-    const canvas = adapter.createScreenCanvas();
-
     const module = await instantiateModule(config.engineFactory, config.engineWasmPath, tag, { canvas });
     progress.reach('engine');
+    if (ident) {
+        await ident.finished;
+        ident.stop();
+        toast = hostProgress(adapter.host);
+        for (const stage of reached) toast.reach(stage);
+    }
 
     // EmscriptenGLX runs the engine's GL calls inside the wasm and hands them to
     // the host in batches. Asked for only when the engine was linked with it and

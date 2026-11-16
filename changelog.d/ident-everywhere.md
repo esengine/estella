@@ -1,0 +1,6 @@
+---
+section: Added
+commits:
+  - feat(export): a portal page, a playable ad and a mini-game open on the engine's ident too - the portal builds and the playable carry the same canvas and script as a standalone page, the playable's after its ad network's own SDK, and each waits for it before the game starts. A mini-game has no page, so its runtime draws the same shader straight onto the display canvas, on the WebGL2 context the engine is about to be given, while the engine is instantiated; it hands the context back with nothing bound and nothing of its own left, and the host's loading toast waits until it is over. The shader now has one author, in the SDK. A WeChat build that renders through EmscriptenGLX does not carry it yet
+---
+**Portal builds, playable ads and mini-games open on the Estella ident.** The logo reveal a standalone web game opens on is now on Poki, CrazyGames and YouTube builds and on playable ads as well (in a playable its script runs after the ad network's own SDK), and each waits for it before the game starts. A mini-game draws the same shader on its display canvas while the engine is being instantiated, then hands the WebGL2 context to the engine untouched; the host's loading toast appears only after it. A WeChat build that renders through EmscriptenGLX is the exception for now, and native builds do not have it yet.
