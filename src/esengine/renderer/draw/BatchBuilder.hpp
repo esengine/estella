@@ -213,10 +213,12 @@ void appendIndexedBatch(TransientBufferPool& pool, DrawList& drawList, const Cli
                         const u32* localIndices, u32 indexCount,
                         const BatchDrawKey& key);
 
-/** @brief Convenience for a single 4-vertex quad with the canonical 6-index winding. */
+void appendQuads(TransientBufferPool& pool, DrawList& drawList, const ClipState& clips,
+                 const BatchVertex* quads, u32 quadCount, const BatchDrawKey& key);
+
 inline void appendQuad(TransientBufferPool& pool, DrawList& drawList, const ClipState& clips,
                        const BatchVertex quad[4], const BatchDrawKey& key) {
-    appendIndexedBatch(pool, drawList, clips, quad, 4, BATCH_QUAD_INDICES, 6, key);
+    appendQuads(pool, drawList, clips, quad, 1, key);
 }
 
 }  // namespace esengine

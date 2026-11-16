@@ -281,6 +281,7 @@ void SpritePlugin::emitTiledQuads(
     const i32 tilesX = static_cast<i32>(countX);
     const i32 tilesY = static_cast<i32>(countY);
 
+    tile_scratch_.clear();
     for (i32 iy = 0; iy < tilesY; ++iy) {
         f32 ty = static_cast<f32>(iy) * step.y;
         f32 th = glm::min(tileSize.y, absSize.y - ty);
@@ -300,22 +301,20 @@ void SpritePlugin::emitTiledQuads(
 
             glm::vec2 tileUvScale = { uvScale.x * uFrac, uvScale.y * vFrac };
 
-            BatchVertex verts[4];
             if (hasRotation) {
-                verts[0] = { rotatePoint(position, x0, y0, cosA, sinA), pc, { uvOffset.x,                 uvOffset.y } };
-                verts[1] = { rotatePoint(position, x1, y0, cosA, sinA), pc, { uvOffset.x + tileUvScale.x, uvOffset.y } };
-                verts[2] = { rotatePoint(position, x1, y1, cosA, sinA), pc, { uvOffset.x + tileUvScale.x, uvOffset.y + tileUvScale.y } };
-                verts[3] = { rotatePoint(position, x0, y1, cosA, sinA), pc, { uvOffset.x,                 uvOffset.y + tileUvScale.y } };
+                tile_scratch_.push_back({ rotatePoint(position, x0, y0, cosA, sinA), pc, { uvOffset.x,                 uvOffset.y } });
+                tile_scratch_.push_back({ rotatePoint(position, x1, y0, cosA, sinA), pc, { uvOffset.x + tileUvScale.x, uvOffset.y } });
+                tile_scratch_.push_back({ rotatePoint(position, x1, y1, cosA, sinA), pc, { uvOffset.x + tileUvScale.x, uvOffset.y + tileUvScale.y } });
+                tile_scratch_.push_back({ rotatePoint(position, x0, y1, cosA, sinA), pc, { uvOffset.x,                 uvOffset.y + tileUvScale.y } });
             } else {
-                verts[0] = { { x0, y0, position.z }, pc, { uvOffset.x,                 uvOffset.y } };
-                verts[1] = { { x1, y0, position.z }, pc, { uvOffset.x + tileUvScale.x, uvOffset.y } };
-                verts[2] = { { x1, y1, position.z }, pc, { uvOffset.x + tileUvScale.x, uvOffset.y + tileUvScale.y } };
-                verts[3] = { { x0, y1, position.z }, pc, { uvOffset.x,                 uvOffset.y + tileUvScale.y } };
+                tile_scratch_.push_back({ { x0, y0, position.z }, pc, { uvOffset.x,                 uvOffset.y } });
+                tile_scratch_.push_back({ { x1, y0, position.z }, pc, { uvOffset.x + tileUvScale.x, uvOffset.y } });
+                tile_scratch_.push_back({ { x1, y1, position.z }, pc, { uvOffset.x + tileUvScale.x, uvOffset.y + tileUvScale.y } });
+                tile_scratch_.push_back({ { x0, y1, position.z }, pc, { uvOffset.x,                 uvOffset.y + tileUvScale.y } });
             }
-
-            appendQuad(buffers, draw_list, clips, verts, key);
         }
     }
+    appendQuads(buffers, draw_list, clips, tile_scratch_.data(), static_cast<u32>(tile_scratch_.size() / 4), key);
 }
 
 }  // namespace esengine

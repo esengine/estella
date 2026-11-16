@@ -118,21 +118,23 @@ void BatchPlugin::emitNineSlice(
     f32 sinA = std::sin(angle);
     const u32 pc = packColor(color);
 
+    BatchVertex verts[36];
+    u32 quads = 0;
     for (i32 row = 0; row < 3; ++row) {
         for (i32 col = 0; col < 3; ++col) {
             f32 pw = x[col + 1] - x[col];
             f32 ph = y[row + 1] - y[row];
             if (pw * directionX <= 0.0f || ph * directionY <= 0.0f) continue;
 
-            BatchVertex verts[4];
-            verts[0] = { rotatePoint(position, x[col],     y[row],     cosA, sinA), pc, {u[col],     v[row]}     };
-            verts[1] = { rotatePoint(position, x[col + 1], y[row],     cosA, sinA), pc, {u[col + 1], v[row]}     };
-            verts[2] = { rotatePoint(position, x[col + 1], y[row + 1], cosA, sinA), pc, {u[col + 1], v[row + 1]} };
-            verts[3] = { rotatePoint(position, x[col],     y[row + 1], cosA, sinA), pc, {u[col],     v[row + 1]} };
-
-            appendQuad(buffers, draw_list, clips, verts, key);
+            BatchVertex* cell = verts + quads * 4;
+            cell[0] = { rotatePoint(position, x[col],     y[row],     cosA, sinA), pc, {u[col],     v[row]}     };
+            cell[1] = { rotatePoint(position, x[col + 1], y[row],     cosA, sinA), pc, {u[col + 1], v[row]}     };
+            cell[2] = { rotatePoint(position, x[col + 1], y[row + 1], cosA, sinA), pc, {u[col + 1], v[row + 1]} };
+            cell[3] = { rotatePoint(position, x[col],     y[row + 1], cosA, sinA), pc, {u[col],     v[row + 1]} };
+            ++quads;
         }
     }
+    appendQuads(buffers, draw_list, clips, verts, quads, key);
 }
 
 void BatchPlugin::emitRadialFill(

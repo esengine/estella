@@ -5,6 +5,8 @@
 #include "BatchPlugin.hpp"
 #include "../../resource/TextureMetadata.hpp"
 
+#include <vector>
+
 namespace esengine {
 
 class SpritePlugin : public BatchPlugin {
@@ -17,8 +19,6 @@ public:
     const char* collectScope() const override { return "render.collect.sprite"; }
 
 private:
-    // Sprite-only: tiling repeats the texture across the quad. UI has no tiled variant,
-    // so this stays here rather than in BatchPlugin. Emits one quad per tile via appendQuad.
     void emitTiledQuads(
         TransientBufferPool& buffers, DrawList& draw_list, const ClipState& clips,
         const glm::vec3& position, const glm::vec2& size, const glm::vec2& pivot,
@@ -27,6 +27,8 @@ private:
         const glm::vec2& tileSize, const glm::vec2& tileSpacing,
         const BatchDrawKey& key
     );
+
+    std::vector<BatchVertex> tile_scratch_;
 };
 
 }  // namespace esengine
