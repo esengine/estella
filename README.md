@@ -92,6 +92,12 @@ depends on what sits behind it.
   <sub><i>One day on the Amazon Lumberyard Bistro, recorded frame by frame from the running game: a sun that follows the clock, weather that turns from clear to mist, rain and snow, baked bounce light, reflections and volumetric haze. Scene © Amazon Lumberyard, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, modified.</i></sub>
 </div>
 
+<div align="center">
+  <a href="https://github.com/esengine/estella-space-frigate"><img src="docs/assets/space-frigate-efc7716b.webp" alt="Space Frigate, a game made with Estella: a frigate cruises off a gas giant, turns on her thrusters, fires her turrets at an asteroid, then flies through a gate, down a tunnel of light, and comes out beside a ringed ice giant" width="900" /></a>
+  <br/>
+  <sub><i><a href="https://github.com/esengine/estella-space-frigate">Space Frigate</a>, a game made with Estella and recorded frame by frame as it runs: flying on thrusters, gunnery, and a jump through a gate to another star system. Every model, texture and sound in it is generated from a recipe.</i></sub>
+</div>
+
 ## <img src="docs/assets/icons/layers.svg" width="26" height="26" align="absmiddle" alt="" /> What's inside
 
 Estella is a C++ engine with a TypeScript SDK. The core runs as WebAssembly on the web

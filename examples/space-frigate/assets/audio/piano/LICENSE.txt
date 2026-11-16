@@ -1,8 +1,0 @@
-The recordings in this folder are notes of "Upright Piano KW" (small, version 2019-07-03),
-a Kawai upright piano recorded by Gonzalo and Roberto for the FreePats project:
-http://freepats.zenvoid.org/Piano/acoustic-grand-piano.html#UprightKW
-
-They were taken out of its SoundFont one note to a file and halved to 22050 samples a second.
-
-Published under the terms of the Creative Commons CC0 1.0 public domain dedication:
-https://creativecommons.org/publicdomain/zero/1.0/

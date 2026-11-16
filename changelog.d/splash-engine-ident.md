@@ -1,0 +1,6 @@
+---
+section: Added
+commits:
+  - feat(export): a web game opens on the engine's ident - a full-screen shader draws the Estella star and name over the page while the engine loads: a point of light and a lens streak, the four facets growing out and closing with a flash, the name coming in letter by letter, a sweep of light, and then the facets lit in turn until the game is ready. It is 4.7 KB in the page, 2 KB compressed, with no image, font or request, and draws on a thread of its own so a busy start does not stall it. The game waits for it to finish, and a project's own logo comes in after it. A portal's page and a playable ad do not carry it
+---
+**A web game opens on the Estella ident.** The start screen of an exported web game is now a full-screen logo reveal drawn by one shader: a point of light and a lens streak, the star's four facets growing out and closing with a flash, the name arriving letter by letter, and a sweep of light; after that the facets light in turn until the game is ready. It adds 4.7 KB to the page (2 KB compressed) and needs no image, font or request. The game starts when the ident has played (2.8 s, or `packaging.splash.minMs` if that is longer), and a `packaging.splash.logo` comes in under it afterwards. Portal builds (Poki, CrazyGames, YouTube) and playable ads keep the plain start screen.
