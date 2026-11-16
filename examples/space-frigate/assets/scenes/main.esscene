@@ -290,11 +290,24 @@
     17,
     18,
     19,
+    20,
     21,
+    22,
     23,
+    24,
     25,
+    26,
     27,
-    29
+    31,
+    35,
+    39,
+    43,
+    79,
+    81,
+    83,
+    85,
+    87,
+    89
    ],
    "visible": true,
    "components": [
@@ -834,10 +847,2544 @@
   },
   {
    "id": 19,
+   "name": "JetBowPort",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 4.9,
+       "y": -1.05,
+       "z": 36.0
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": -0.7071067811865475,
+       "z": 0.0,
+       "w": 0.7071067811865476
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume-jet.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 20,
+   "name": "JetBowStarboard",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -4.9,
+       "y": -1.05,
+       "z": 36.0
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.7071067811865475,
+       "z": 0.0,
+       "w": 0.7071067811865476
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume-jet.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 21,
+   "name": "JetBowUp",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 2.35,
+       "z": 36.0
+      },
+      "rotation": {
+       "x": 0.7071067811865475,
+       "y": -0.0,
+       "z": 0.0,
+       "w": 0.7071067811865476
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume-jet.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 22,
+   "name": "JetBowDown",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": -4.45,
+       "z": 36.0
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.7071067811865475,
+       "z": 0.7071067811865476,
+       "w": 0.0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume-jet.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 23,
+   "name": "JetSternPort",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 21.599999999999998,
+       "y": -1.0,
+       "z": -40.0
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": -0.7071067811865475,
+       "z": 0.0,
+       "w": 0.7071067811865476
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume-jet.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 24,
+   "name": "JetSternStarboard",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -21.599999999999998,
+       "y": -1.0,
+       "z": -40.0
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.7071067811865475,
+       "z": 0.0,
+       "w": 0.7071067811865476
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume-jet.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 25,
+   "name": "JetSternUp",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": 6.65,
+       "z": -40.5
+      },
+      "rotation": {
+       "x": 0.7071067811865475,
+       "y": -0.0,
+       "z": 0.0,
+       "w": 0.7071067811865476
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume-jet.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 26,
+   "name": "JetSternDown",
+   "parent": 5,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0.0,
+       "y": -6.65,
+       "z": -40.5
+      },
+      "rotation": {
+       "x": 0.0,
+       "y": 0.7071067811865475,
+       "z": 0.7071067811865476,
+       "w": 0.0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/plume.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": false,
+      "castShadows": false,
+      "material": "assets/materials/plume-jet.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 27,
+   "name": "TurretA",
+   "parent": 5,
+   "children": [
+    28
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 3.0999999999999996,
+       "z": 27
+      },
+      "scale": {
+       "x": 1.25,
+       "y": 1.25,
+       "z": 1.25
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/turret.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": true,
+      "material": "assets/models/turret.esmaterial",
+      "texture": "assets/models/turret_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 28,
+   "name": "GunsA",
+   "parent": 27,
+   "children": [
+    29
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0.95,
+       "z": 1.7
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/guns.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": true,
+      "material": "assets/models/guns.esmaterial",
+      "texture": "assets/models/guns_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 29,
+   "name": "MuzzleA",
+   "parent": 28,
+   "children": [
+    30
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 6.25
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 30,
+   "name": "MuzzleALight",
+   "parent": 29,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 1.0,
+       "g": 0.6,
+       "b": 0.24,
+       "a": 1
+      },
+      "intensity": 0,
+      "radius": 22,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 31,
+   "name": "TurretB",
+   "parent": 5,
+   "children": [
+    32
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 4.3999999999999995,
+       "z": 13
+      },
+      "scale": {
+       "x": 1.25,
+       "y": 1.25,
+       "z": 1.25
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/turret.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": true,
+      "material": "assets/models/turret.esmaterial",
+      "texture": "assets/models/turret_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 32,
+   "name": "GunsB",
+   "parent": 31,
+   "children": [
+    33
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0.95,
+       "z": 1.7
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/guns.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": true,
+      "material": "assets/models/guns.esmaterial",
+      "texture": "assets/models/guns_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 33,
+   "name": "MuzzleB",
+   "parent": 32,
+   "children": [
+    34
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 6.25
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 34,
+   "name": "MuzzleBLight",
+   "parent": 33,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 1.0,
+       "g": 0.6,
+       "b": 0.24,
+       "a": 1
+      },
+      "intensity": 0,
+      "radius": 22,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 35,
+   "name": "TurretP",
+   "parent": 5,
+   "children": [
+    36
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 6.6,
+       "y": 6.390909090909091,
+       "z": -12
+      },
+      "scale": {
+       "x": 1.25,
+       "y": 1.25,
+       "z": 1.25
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/turret.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": true,
+      "material": "assets/models/turret.esmaterial",
+      "texture": "assets/models/turret_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 36,
+   "name": "GunsP",
+   "parent": 35,
+   "children": [
+    37
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0.95,
+       "z": 1.7
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/guns.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": true,
+      "material": "assets/models/guns.esmaterial",
+      "texture": "assets/models/guns_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 37,
+   "name": "MuzzleP",
+   "parent": 36,
+   "children": [
+    38
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 6.25
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 38,
+   "name": "MuzzlePLight",
+   "parent": 37,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 1.0,
+       "g": 0.6,
+       "b": 0.24,
+       "a": 1
+      },
+      "intensity": 0,
+      "radius": 22,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 39,
+   "name": "TurretS",
+   "parent": 5,
+   "children": [
+    40
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -6.6,
+       "y": 6.390909090909091,
+       "z": -12
+      },
+      "scale": {
+       "x": 1.25,
+       "y": 1.25,
+       "z": 1.25
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/turret.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": true,
+      "material": "assets/models/turret.esmaterial",
+      "texture": "assets/models/turret_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 40,
+   "name": "GunsS",
+   "parent": 39,
+   "children": [
+    41
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0.95,
+       "z": 1.7
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/guns.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": true,
+      "material": "assets/models/guns.esmaterial",
+      "texture": "assets/models/guns_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 41,
+   "name": "MuzzleS",
+   "parent": 40,
+   "children": [
+    42
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 6.25
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 42,
+   "name": "MuzzleSLight",
+   "parent": 41,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 1.0,
+       "g": 0.6,
+       "b": 0.24,
+       "a": 1
+      },
+      "intensity": 0,
+      "radius": 22,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 43,
+   "name": "TurretV",
+   "parent": 5,
+   "children": [
+    44
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -5.428571428571428,
+       "z": 10
+      },
+      "rotation": {
+       "x": 0,
+       "y": 0,
+       "z": 1,
+       "w": 0
+      },
+      "scale": {
+       "x": 1.25,
+       "y": 1.25,
+       "z": 1.25
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/turret.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": true,
+      "material": "assets/models/turret.esmaterial",
+      "texture": "assets/models/turret_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 44,
+   "name": "GunsV",
+   "parent": 43,
+   "children": [
+    45
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0.95,
+       "z": 1.7
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/guns.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "castShadows": true,
+      "material": "assets/models/guns.esmaterial",
+      "texture": "assets/models/guns_color.png"
+     }
+    }
+   ]
+  },
+  {
+   "id": 45,
+   "name": "MuzzleV",
+   "parent": 44,
+   "children": [
+    46
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 6.25
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 46,
+   "name": "MuzzleVLight",
+   "parent": 45,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 1.0,
+       "g": 0.6,
+       "b": 0.24,
+       "a": 1
+      },
+      "intensity": 0,
+      "radius": 22,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 47,
+   "name": "Shell0",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 48,
+   "name": "Shell1",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 49,
+   "name": "Shell2",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 50,
+   "name": "Shell3",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 51,
+   "name": "Shell4",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 52,
+   "name": "Shell5",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 53,
+   "name": "Shell6",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 54,
+   "name": "Shell7",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 55,
+   "name": "Shell8",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 56,
+   "name": "Shell9",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 57,
+   "name": "Shell10",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 58,
+   "name": "Shell11",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 59,
+   "name": "Shell12",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 60,
+   "name": "Shell13",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 61,
+   "name": "Shell14",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 62,
+   "name": "Shell15",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 63,
+   "name": "Shell16",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 64,
+   "name": "Shell17",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 65,
+   "name": "Shell18",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 66,
+   "name": "Shell19",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 67,
+   "name": "Shell20",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 68,
+   "name": "Shell21",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 69,
+   "name": "Shell22",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 70,
+   "name": "Shell23",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 71,
+   "name": "Impact0",
+   "parent": null,
+   "children": [
+    72
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 72,
+   "name": "Impact0Light",
+   "parent": 71,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 1.0,
+       "g": 0.6,
+       "b": 0.24,
+       "a": 1
+      },
+      "intensity": 0,
+      "radius": 120,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 73,
+   "name": "Impact1",
+   "parent": null,
+   "children": [
+    74
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 74,
+   "name": "Impact1Light",
+   "parent": 73,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 1.0,
+       "g": 0.6,
+       "b": 0.24,
+       "a": 1
+      },
+      "intensity": 0,
+      "radius": 120,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 75,
+   "name": "Impact2",
+   "parent": null,
+   "children": [
+    76
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 76,
+   "name": "Impact2Light",
+   "parent": 75,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 1.0,
+       "g": 0.6,
+       "b": 0.24,
+       "a": 1
+      },
+      "intensity": 0,
+      "radius": 120,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 77,
+   "name": "Impact3",
+   "parent": null,
+   "children": [
+    78
+   ],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -50000,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.001,
+       "y": 0.001,
+       "z": 0.001
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "assets/models/flare.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "enabled": true,
+      "lit": false,
+      "opaque": false,
+      "cullBackfaces": true,
+      "castShadows": false,
+      "material": "assets/materials/flare-bolt.esmaterial"
+     }
+    }
+   ]
+  },
+  {
+   "id": 78,
+   "name": "Impact3Light",
+   "parent": 77,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 0,
+      "color": {
+       "r": 1.0,
+       "g": 0.6,
+       "b": 0.24,
+       "a": 1
+      },
+      "intensity": 0,
+      "radius": 120,
+      "enabled": true,
+      "meshShadows": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 79,
    "name": "StrobeMast",
    "parent": 5,
    "children": [
-    20
+    80
    ],
    "visible": true,
    "components": [
@@ -877,9 +3424,9 @@
    ]
   },
   {
-   "id": 20,
+   "id": 80,
    "name": "StrobeMastLight",
-   "parent": 19,
+   "parent": 79,
    "children": [],
    "visible": true,
    "components": [
@@ -912,11 +3459,11 @@
    ]
   },
   {
-   "id": 21,
+   "id": 81,
    "name": "StrobeKeel",
    "parent": 5,
    "children": [
-    22
+    82
    ],
    "visible": true,
    "components": [
@@ -956,9 +3503,9 @@
    ]
   },
   {
-   "id": 22,
+   "id": 82,
    "name": "StrobeKeelLight",
-   "parent": 21,
+   "parent": 81,
    "children": [],
    "visible": true,
    "components": [
@@ -991,11 +3538,11 @@
    ]
   },
   {
-   "id": 23,
+   "id": 83,
    "name": "NavPort",
    "parent": 5,
    "children": [
-    24
+    84
    ],
    "visible": true,
    "components": [
@@ -1035,9 +3582,9 @@
    ]
   },
   {
-   "id": 24,
+   "id": 84,
    "name": "NavPortLight",
-   "parent": 23,
+   "parent": 83,
    "children": [],
    "visible": true,
    "components": [
@@ -1070,11 +3617,11 @@
    ]
   },
   {
-   "id": 25,
+   "id": 85,
    "name": "NavStarboard",
    "parent": 5,
    "children": [
-    26
+    86
    ],
    "visible": true,
    "components": [
@@ -1114,9 +3661,9 @@
    ]
   },
   {
-   "id": 26,
+   "id": 86,
    "name": "NavStarboardLight",
-   "parent": 25,
+   "parent": 85,
    "children": [],
    "visible": true,
    "components": [
@@ -1149,11 +3696,11 @@
    ]
   },
   {
-   "id": 27,
+   "id": 87,
    "name": "BowPort",
    "parent": 5,
    "children": [
-    28
+    88
    ],
    "visible": true,
    "components": [
@@ -1193,9 +3740,9 @@
    ]
   },
   {
-   "id": 28,
+   "id": 88,
    "name": "BowPortLight",
-   "parent": 27,
+   "parent": 87,
    "children": [],
    "visible": true,
    "components": [
@@ -1228,11 +3775,11 @@
    ]
   },
   {
-   "id": 29,
+   "id": 89,
    "name": "BowStarboard",
    "parent": 5,
    "children": [
-    30
+    90
    ],
    "visible": true,
    "components": [
@@ -1272,9 +3819,9 @@
    ]
   },
   {
-   "id": 30,
+   "id": 90,
    "name": "BowStarboardLight",
-   "parent": 29,
+   "parent": 89,
    "children": [],
    "visible": true,
    "components": [
@@ -1307,7 +3854,7 @@
    ]
   },
   {
-   "id": 31,
+   "id": 91,
    "name": "GateFlash",
    "parent": null,
    "children": [],
@@ -1342,7 +3889,7 @@
    ]
   },
   {
-   "id": 32,
+   "id": 92,
    "name": "Mote0",
    "parent": null,
    "children": [],
@@ -1391,7 +3938,7 @@
    ]
   },
   {
-   "id": 33,
+   "id": 93,
    "name": "Mote1",
    "parent": null,
    "children": [],
@@ -1440,7 +3987,7 @@
    ]
   },
   {
-   "id": 34,
+   "id": 94,
    "name": "Mote2",
    "parent": null,
    "children": [],
@@ -1489,7 +4036,7 @@
    ]
   },
   {
-   "id": 35,
+   "id": 95,
    "name": "Mote3",
    "parent": null,
    "children": [],
@@ -1538,7 +4085,7 @@
    ]
   },
   {
-   "id": 36,
+   "id": 96,
    "name": "Mote4",
    "parent": null,
    "children": [],
@@ -1587,7 +4134,7 @@
    ]
   },
   {
-   "id": 37,
+   "id": 97,
    "name": "Mote5",
    "parent": null,
    "children": [],
@@ -1636,7 +4183,7 @@
    ]
   },
   {
-   "id": 38,
+   "id": 98,
    "name": "Mote6",
    "parent": null,
    "children": [],
@@ -1685,7 +4232,7 @@
    ]
   },
   {
-   "id": 39,
+   "id": 99,
    "name": "Mote7",
    "parent": null,
    "children": [],
@@ -1734,7 +4281,7 @@
    ]
   },
   {
-   "id": 40,
+   "id": 100,
    "name": "Mote8",
    "parent": null,
    "children": [],
@@ -1783,7 +4330,7 @@
    ]
   },
   {
-   "id": 41,
+   "id": 101,
    "name": "Mote9",
    "parent": null,
    "children": [],
@@ -1832,7 +4379,7 @@
    ]
   },
   {
-   "id": 42,
+   "id": 102,
    "name": "Mote10",
    "parent": null,
    "children": [],
@@ -1881,7 +4428,7 @@
    ]
   },
   {
-   "id": 43,
+   "id": 103,
    "name": "Mote11",
    "parent": null,
    "children": [],
@@ -1930,7 +4477,7 @@
    ]
   },
   {
-   "id": 44,
+   "id": 104,
    "name": "Mote12",
    "parent": null,
    "children": [],
@@ -1979,7 +4526,7 @@
    ]
   },
   {
-   "id": 45,
+   "id": 105,
    "name": "Mote13",
    "parent": null,
    "children": [],
@@ -2028,7 +4575,7 @@
    ]
   },
   {
-   "id": 46,
+   "id": 106,
    "name": "Mote14",
    "parent": null,
    "children": [],
@@ -2077,7 +4624,7 @@
    ]
   },
   {
-   "id": 47,
+   "id": 107,
    "name": "Mote15",
    "parent": null,
    "children": [],
@@ -2126,7 +4673,7 @@
    ]
   },
   {
-   "id": 48,
+   "id": 108,
    "name": "Mote16",
    "parent": null,
    "children": [],
@@ -2175,7 +4722,7 @@
    ]
   },
   {
-   "id": 49,
+   "id": 109,
    "name": "Mote17",
    "parent": null,
    "children": [],
@@ -2224,7 +4771,7 @@
    ]
   },
   {
-   "id": 50,
+   "id": 110,
    "name": "Mote18",
    "parent": null,
    "children": [],
@@ -2273,7 +4820,7 @@
    ]
   },
   {
-   "id": 51,
+   "id": 111,
    "name": "Mote19",
    "parent": null,
    "children": [],
@@ -2322,7 +4869,7 @@
    ]
   },
   {
-   "id": 52,
+   "id": 112,
    "name": "Mote20",
    "parent": null,
    "children": [],
@@ -2371,7 +4918,7 @@
    ]
   },
   {
-   "id": 53,
+   "id": 113,
    "name": "Mote21",
    "parent": null,
    "children": [],
@@ -2420,7 +4967,7 @@
    ]
   },
   {
-   "id": 54,
+   "id": 114,
    "name": "Mote22",
    "parent": null,
    "children": [],
@@ -2469,7 +5016,7 @@
    ]
   },
   {
-   "id": 55,
+   "id": 115,
    "name": "Mote23",
    "parent": null,
    "children": [],
@@ -2518,7 +5065,7 @@
    ]
   },
   {
-   "id": 56,
+   "id": 116,
    "name": "Mote24",
    "parent": null,
    "children": [],
@@ -2567,7 +5114,7 @@
    ]
   },
   {
-   "id": 57,
+   "id": 117,
    "name": "Mote25",
    "parent": null,
    "children": [],
@@ -2616,7 +5163,7 @@
    ]
   },
   {
-   "id": 58,
+   "id": 118,
    "name": "Mote26",
    "parent": null,
    "children": [],
@@ -2665,7 +5212,7 @@
    ]
   },
   {
-   "id": 59,
+   "id": 119,
    "name": "Mote27",
    "parent": null,
    "children": [],
@@ -2714,7 +5261,7 @@
    ]
   },
   {
-   "id": 60,
+   "id": 120,
    "name": "Mote28",
    "parent": null,
    "children": [],
@@ -2763,7 +5310,7 @@
    ]
   },
   {
-   "id": 61,
+   "id": 121,
    "name": "Mote29",
    "parent": null,
    "children": [],
@@ -2812,7 +5359,7 @@
    ]
   },
   {
-   "id": 62,
+   "id": 122,
    "name": "Mote30",
    "parent": null,
    "children": [],
@@ -2861,7 +5408,7 @@
    ]
   },
   {
-   "id": 63,
+   "id": 123,
    "name": "Mote31",
    "parent": null,
    "children": [],
@@ -2910,7 +5457,7 @@
    ]
   },
   {
-   "id": 64,
+   "id": 124,
    "name": "Mote32",
    "parent": null,
    "children": [],
@@ -2959,7 +5506,7 @@
    ]
   },
   {
-   "id": 65,
+   "id": 125,
    "name": "Mote33",
    "parent": null,
    "children": [],
@@ -3008,7 +5555,7 @@
    ]
   },
   {
-   "id": 66,
+   "id": 126,
    "name": "Mote34",
    "parent": null,
    "children": [],
@@ -3057,7 +5604,7 @@
    ]
   },
   {
-   "id": 67,
+   "id": 127,
    "name": "Mote35",
    "parent": null,
    "children": [],
@@ -3106,7 +5653,7 @@
    ]
   },
   {
-   "id": 68,
+   "id": 128,
    "name": "Mote36",
    "parent": null,
    "children": [],
@@ -3155,7 +5702,7 @@
    ]
   },
   {
-   "id": 69,
+   "id": 129,
    "name": "Mote37",
    "parent": null,
    "children": [],
@@ -3204,7 +5751,7 @@
    ]
   },
   {
-   "id": 70,
+   "id": 130,
    "name": "Mote38",
    "parent": null,
    "children": [],
@@ -3253,7 +5800,7 @@
    ]
   },
   {
-   "id": 71,
+   "id": 131,
    "name": "Mote39",
    "parent": null,
    "children": [],
@@ -3302,7 +5849,7 @@
    ]
   },
   {
-   "id": 72,
+   "id": 132,
    "name": "Mote40",
    "parent": null,
    "children": [],
@@ -3351,7 +5898,7 @@
    ]
   },
   {
-   "id": 73,
+   "id": 133,
    "name": "Mote41",
    "parent": null,
    "children": [],
@@ -3400,7 +5947,7 @@
    ]
   },
   {
-   "id": 74,
+   "id": 134,
    "name": "Mote42",
    "parent": null,
    "children": [],
@@ -3449,7 +5996,7 @@
    ]
   },
   {
-   "id": 75,
+   "id": 135,
    "name": "Mote43",
    "parent": null,
    "children": [],
@@ -3498,7 +6045,7 @@
    ]
   },
   {
-   "id": 76,
+   "id": 136,
    "name": "Mote44",
    "parent": null,
    "children": [],
@@ -3547,7 +6094,7 @@
    ]
   },
   {
-   "id": 77,
+   "id": 137,
    "name": "Mote45",
    "parent": null,
    "children": [],
@@ -3596,7 +6143,7 @@
    ]
   },
   {
-   "id": 78,
+   "id": 138,
    "name": "Mote46",
    "parent": null,
    "children": [],
@@ -3645,7 +6192,7 @@
    ]
   },
   {
-   "id": 79,
+   "id": 139,
    "name": "Mote47",
    "parent": null,
    "children": [],
@@ -3694,7 +6241,7 @@
    ]
   },
   {
-   "id": 80,
+   "id": 140,
    "name": "Mote48",
    "parent": null,
    "children": [],
@@ -3743,7 +6290,7 @@
    ]
   },
   {
-   "id": 81,
+   "id": 141,
    "name": "Mote49",
    "parent": null,
    "children": [],
@@ -3792,7 +6339,7 @@
    ]
   },
   {
-   "id": 82,
+   "id": 142,
    "name": "Mote50",
    "parent": null,
    "children": [],
@@ -3841,7 +6388,7 @@
    ]
   },
   {
-   "id": 83,
+   "id": 143,
    "name": "Mote51",
    "parent": null,
    "children": [],
@@ -3890,7 +6437,7 @@
    ]
   },
   {
-   "id": 84,
+   "id": 144,
    "name": "Mote52",
    "parent": null,
    "children": [],
@@ -3939,7 +6486,7 @@
    ]
   },
   {
-   "id": 85,
+   "id": 145,
    "name": "Mote53",
    "parent": null,
    "children": [],
@@ -3988,7 +6535,7 @@
    ]
   },
   {
-   "id": 86,
+   "id": 146,
    "name": "Mote54",
    "parent": null,
    "children": [],
@@ -4037,7 +6584,7 @@
    ]
   },
   {
-   "id": 87,
+   "id": 147,
    "name": "Mote55",
    "parent": null,
    "children": [],
@@ -4086,7 +6633,7 @@
    ]
   },
   {
-   "id": 88,
+   "id": 148,
    "name": "Mote56",
    "parent": null,
    "children": [],
@@ -4135,7 +6682,7 @@
    ]
   },
   {
-   "id": 89,
+   "id": 149,
    "name": "Mote57",
    "parent": null,
    "children": [],
@@ -4184,7 +6731,7 @@
    ]
   },
   {
-   "id": 90,
+   "id": 150,
    "name": "Mote58",
    "parent": null,
    "children": [],
@@ -4233,7 +6780,7 @@
    ]
   },
   {
-   "id": 91,
+   "id": 151,
    "name": "Mote59",
    "parent": null,
    "children": [],
@@ -4282,7 +6829,7 @@
    ]
   },
   {
-   "id": 92,
+   "id": 152,
    "name": "Mote60",
    "parent": null,
    "children": [],
@@ -4331,7 +6878,7 @@
    ]
   },
   {
-   "id": 93,
+   "id": 153,
    "name": "Mote61",
    "parent": null,
    "children": [],
@@ -4380,7 +6927,7 @@
    ]
   },
   {
-   "id": 94,
+   "id": 154,
    "name": "Mote62",
    "parent": null,
    "children": [],
@@ -4429,7 +6976,7 @@
    ]
   },
   {
-   "id": 95,
+   "id": 155,
    "name": "Mote63",
    "parent": null,
    "children": [],
@@ -4478,7 +7025,7 @@
    ]
   },
   {
-   "id": 96,
+   "id": 156,
    "name": "Mote64",
    "parent": null,
    "children": [],
@@ -4527,7 +7074,7 @@
    ]
   },
   {
-   "id": 97,
+   "id": 157,
    "name": "Mote65",
    "parent": null,
    "children": [],
@@ -4576,7 +7123,7 @@
    ]
   },
   {
-   "id": 98,
+   "id": 158,
    "name": "Mote66",
    "parent": null,
    "children": [],
@@ -4625,7 +7172,7 @@
    ]
   },
   {
-   "id": 99,
+   "id": 159,
    "name": "Mote67",
    "parent": null,
    "children": [],
@@ -4674,7 +7221,7 @@
    ]
   },
   {
-   "id": 100,
+   "id": 160,
    "name": "Mote68",
    "parent": null,
    "children": [],
@@ -4723,7 +7270,7 @@
    ]
   },
   {
-   "id": 101,
+   "id": 161,
    "name": "Mote69",
    "parent": null,
    "children": [],
@@ -4772,7 +7319,7 @@
    ]
   },
   {
-   "id": 102,
+   "id": 162,
    "name": "Mote70",
    "parent": null,
    "children": [],
@@ -4821,7 +7368,7 @@
    ]
   },
   {
-   "id": 103,
+   "id": 163,
    "name": "Mote71",
    "parent": null,
    "children": [],
@@ -4870,7 +7417,7 @@
    ]
   },
   {
-   "id": 104,
+   "id": 164,
    "name": "Mote72",
    "parent": null,
    "children": [],
@@ -4919,7 +7466,7 @@
    ]
   },
   {
-   "id": 105,
+   "id": 165,
    "name": "Mote73",
    "parent": null,
    "children": [],
@@ -4968,7 +7515,7 @@
    ]
   },
   {
-   "id": 106,
+   "id": 166,
    "name": "Mote74",
    "parent": null,
    "children": [],
@@ -5017,7 +7564,7 @@
    ]
   },
   {
-   "id": 107,
+   "id": 167,
    "name": "Mote75",
    "parent": null,
    "children": [],
@@ -5066,7 +7613,7 @@
    ]
   },
   {
-   "id": 108,
+   "id": 168,
    "name": "Mote76",
    "parent": null,
    "children": [],
@@ -5115,7 +7662,7 @@
    ]
   },
   {
-   "id": 109,
+   "id": 169,
    "name": "Mote77",
    "parent": null,
    "children": [],
@@ -5164,7 +7711,7 @@
    ]
   },
   {
-   "id": 110,
+   "id": 170,
    "name": "Mote78",
    "parent": null,
    "children": [],
@@ -5213,7 +7760,7 @@
    ]
   },
   {
-   "id": 111,
+   "id": 171,
    "name": "Mote79",
    "parent": null,
    "children": [],
@@ -5262,7 +7809,7 @@
    ]
   },
   {
-   "id": 112,
+   "id": 172,
    "name": "Mote80",
    "parent": null,
    "children": [],
@@ -5311,7 +7858,7 @@
    ]
   },
   {
-   "id": 113,
+   "id": 173,
    "name": "Mote81",
    "parent": null,
    "children": [],
@@ -5360,7 +7907,7 @@
    ]
   },
   {
-   "id": 114,
+   "id": 174,
    "name": "Mote82",
    "parent": null,
    "children": [],
@@ -5409,7 +7956,7 @@
    ]
   },
   {
-   "id": 115,
+   "id": 175,
    "name": "Mote83",
    "parent": null,
    "children": [],
@@ -5458,7 +8005,7 @@
    ]
   },
   {
-   "id": 116,
+   "id": 176,
    "name": "Mote84",
    "parent": null,
    "children": [],
@@ -5507,7 +8054,7 @@
    ]
   },
   {
-   "id": 117,
+   "id": 177,
    "name": "Mote85",
    "parent": null,
    "children": [],
@@ -5556,7 +8103,7 @@
    ]
   },
   {
-   "id": 118,
+   "id": 178,
    "name": "Mote86",
    "parent": null,
    "children": [],
@@ -5605,7 +8152,7 @@
    ]
   },
   {
-   "id": 119,
+   "id": 179,
    "name": "Mote87",
    "parent": null,
    "children": [],
@@ -5654,7 +8201,7 @@
    ]
   },
   {
-   "id": 120,
+   "id": 180,
    "name": "Mote88",
    "parent": null,
    "children": [],
@@ -5703,7 +8250,7 @@
    ]
   },
   {
-   "id": 121,
+   "id": 181,
    "name": "Mote89",
    "parent": null,
    "children": [],
@@ -5752,7 +8299,7 @@
    ]
   },
   {
-   "id": 122,
+   "id": 182,
    "name": "Mote90",
    "parent": null,
    "children": [],
@@ -5801,7 +8348,7 @@
    ]
   },
   {
-   "id": 123,
+   "id": 183,
    "name": "Mote91",
    "parent": null,
    "children": [],
@@ -5850,7 +8397,7 @@
    ]
   },
   {
-   "id": 124,
+   "id": 184,
    "name": "Mote92",
    "parent": null,
    "children": [],
@@ -5899,7 +8446,7 @@
    ]
   },
   {
-   "id": 125,
+   "id": 185,
    "name": "Mote93",
    "parent": null,
    "children": [],
@@ -5948,7 +8495,7 @@
    ]
   },
   {
-   "id": 126,
+   "id": 186,
    "name": "Mote94",
    "parent": null,
    "children": [],
@@ -5997,7 +8544,7 @@
    ]
   },
   {
-   "id": 127,
+   "id": 187,
    "name": "Mote95",
    "parent": null,
    "children": [],
@@ -6046,7 +8593,7 @@
    ]
   },
   {
-   "id": 128,
+   "id": 188,
    "name": "Mote96",
    "parent": null,
    "children": [],
@@ -6095,7 +8642,7 @@
    ]
   },
   {
-   "id": 129,
+   "id": 189,
    "name": "Mote97",
    "parent": null,
    "children": [],
@@ -6144,7 +8691,7 @@
    ]
   },
   {
-   "id": 130,
+   "id": 190,
    "name": "Mote98",
    "parent": null,
    "children": [],
@@ -6193,7 +8740,7 @@
    ]
   },
   {
-   "id": 131,
+   "id": 191,
    "name": "Mote99",
    "parent": null,
    "children": [],
@@ -6242,7 +8789,7 @@
    ]
   },
   {
-   "id": 132,
+   "id": 192,
    "name": "Mote100",
    "parent": null,
    "children": [],
@@ -6291,7 +8838,7 @@
    ]
   },
   {
-   "id": 133,
+   "id": 193,
    "name": "Mote101",
    "parent": null,
    "children": [],
@@ -6340,7 +8887,7 @@
    ]
   },
   {
-   "id": 134,
+   "id": 194,
    "name": "Mote102",
    "parent": null,
    "children": [],
@@ -6389,7 +8936,7 @@
    ]
   },
   {
-   "id": 135,
+   "id": 195,
    "name": "Mote103",
    "parent": null,
    "children": [],
@@ -6438,7 +8985,7 @@
    ]
   },
   {
-   "id": 136,
+   "id": 196,
    "name": "Mote104",
    "parent": null,
    "children": [],
@@ -6487,7 +9034,7 @@
    ]
   },
   {
-   "id": 137,
+   "id": 197,
    "name": "Mote105",
    "parent": null,
    "children": [],
@@ -6536,7 +9083,7 @@
    ]
   },
   {
-   "id": 138,
+   "id": 198,
    "name": "Mote106",
    "parent": null,
    "children": [],
@@ -6585,7 +9132,7 @@
    ]
   },
   {
-   "id": 139,
+   "id": 199,
    "name": "Mote107",
    "parent": null,
    "children": [],
@@ -6634,7 +9181,7 @@
    ]
   },
   {
-   "id": 140,
+   "id": 200,
    "name": "Mote108",
    "parent": null,
    "children": [],
@@ -6683,7 +9230,7 @@
    ]
   },
   {
-   "id": 141,
+   "id": 201,
    "name": "Mote109",
    "parent": null,
    "children": [],
@@ -6732,7 +9279,7 @@
    ]
   },
   {
-   "id": 142,
+   "id": 202,
    "name": "Mote110",
    "parent": null,
    "children": [],
@@ -6781,7 +9328,7 @@
    ]
   },
   {
-   "id": 143,
+   "id": 203,
    "name": "Mote111",
    "parent": null,
    "children": [],
@@ -6830,7 +9377,7 @@
    ]
   },
   {
-   "id": 144,
+   "id": 204,
    "name": "Mote112",
    "parent": null,
    "children": [],
@@ -6879,7 +9426,7 @@
    ]
   },
   {
-   "id": 145,
+   "id": 205,
    "name": "Mote113",
    "parent": null,
    "children": [],
@@ -6928,7 +9475,7 @@
    ]
   },
   {
-   "id": 146,
+   "id": 206,
    "name": "Mote114",
    "parent": null,
    "children": [],
@@ -6977,7 +9524,7 @@
    ]
   },
   {
-   "id": 147,
+   "id": 207,
    "name": "Mote115",
    "parent": null,
    "children": [],
@@ -7026,7 +9573,7 @@
    ]
   },
   {
-   "id": 148,
+   "id": 208,
    "name": "Mote116",
    "parent": null,
    "children": [],
@@ -7075,7 +9622,7 @@
    ]
   },
   {
-   "id": 149,
+   "id": 209,
    "name": "Mote117",
    "parent": null,
    "children": [],
@@ -7124,7 +9671,7 @@
    ]
   },
   {
-   "id": 150,
+   "id": 210,
    "name": "Mote118",
    "parent": null,
    "children": [],
@@ -7173,7 +9720,7 @@
    ]
   },
   {
-   "id": 151,
+   "id": 211,
    "name": "Mote119",
    "parent": null,
    "children": [],
@@ -7222,7 +9769,7 @@
    ]
   },
   {
-   "id": 152,
+   "id": 212,
    "name": "Mote120",
    "parent": null,
    "children": [],
@@ -7271,7 +9818,7 @@
    ]
   },
   {
-   "id": 153,
+   "id": 213,
    "name": "Mote121",
    "parent": null,
    "children": [],
@@ -7320,7 +9867,7 @@
    ]
   },
   {
-   "id": 154,
+   "id": 214,
    "name": "Mote122",
    "parent": null,
    "children": [],
@@ -7369,7 +9916,7 @@
    ]
   },
   {
-   "id": 155,
+   "id": 215,
    "name": "Mote123",
    "parent": null,
    "children": [],
@@ -7418,7 +9965,7 @@
    ]
   },
   {
-   "id": 156,
+   "id": 216,
    "name": "Mote124",
    "parent": null,
    "children": [],
@@ -7467,7 +10014,7 @@
    ]
   },
   {
-   "id": 157,
+   "id": 217,
    "name": "Mote125",
    "parent": null,
    "children": [],
@@ -7516,7 +10063,7 @@
    ]
   },
   {
-   "id": 158,
+   "id": 218,
    "name": "Mote126",
    "parent": null,
    "children": [],
@@ -7565,7 +10112,7 @@
    ]
   },
   {
-   "id": 159,
+   "id": 219,
    "name": "Mote127",
    "parent": null,
    "children": [],
@@ -7614,7 +10161,7 @@
    ]
   },
   {
-   "id": 160,
+   "id": 220,
    "name": "Mote128",
    "parent": null,
    "children": [],
@@ -7663,7 +10210,7 @@
    ]
   },
   {
-   "id": 161,
+   "id": 221,
    "name": "Mote129",
    "parent": null,
    "children": [],
@@ -7712,7 +10259,7 @@
    ]
   },
   {
-   "id": 162,
+   "id": 222,
    "name": "Mote130",
    "parent": null,
    "children": [],
@@ -7761,7 +10308,7 @@
    ]
   },
   {
-   "id": 163,
+   "id": 223,
    "name": "Mote131",
    "parent": null,
    "children": [],
@@ -7810,7 +10357,7 @@
    ]
   },
   {
-   "id": 164,
+   "id": 224,
    "name": "Mote132",
    "parent": null,
    "children": [],
@@ -7859,7 +10406,7 @@
    ]
   },
   {
-   "id": 165,
+   "id": 225,
    "name": "Mote133",
    "parent": null,
    "children": [],
@@ -7908,7 +10455,7 @@
    ]
   },
   {
-   "id": 166,
+   "id": 226,
    "name": "Mote134",
    "parent": null,
    "children": [],
@@ -7957,7 +10504,7 @@
    ]
   },
   {
-   "id": 167,
+   "id": 227,
    "name": "Mote135",
    "parent": null,
    "children": [],
@@ -8006,7 +10553,7 @@
    ]
   },
   {
-   "id": 168,
+   "id": 228,
    "name": "Mote136",
    "parent": null,
    "children": [],
@@ -8055,7 +10602,7 @@
    ]
   },
   {
-   "id": 169,
+   "id": 229,
    "name": "Mote137",
    "parent": null,
    "children": [],
@@ -8104,7 +10651,7 @@
    ]
   },
   {
-   "id": 170,
+   "id": 230,
    "name": "Mote138",
    "parent": null,
    "children": [],
@@ -8153,7 +10700,7 @@
    ]
   },
   {
-   "id": 171,
+   "id": 231,
    "name": "Mote139",
    "parent": null,
    "children": [],
@@ -8202,7 +10749,7 @@
    ]
   },
   {
-   "id": 172,
+   "id": 232,
    "name": "Mote140",
    "parent": null,
    "children": [],
@@ -8251,7 +10798,7 @@
    ]
   },
   {
-   "id": 173,
+   "id": 233,
    "name": "Mote141",
    "parent": null,
    "children": [],
@@ -8300,7 +10847,7 @@
    ]
   },
   {
-   "id": 174,
+   "id": 234,
    "name": "Mote142",
    "parent": null,
    "children": [],
@@ -8349,7 +10896,7 @@
    ]
   },
   {
-   "id": 175,
+   "id": 235,
    "name": "Mote143",
    "parent": null,
    "children": [],
@@ -8398,7 +10945,7 @@
    ]
   },
   {
-   "id": 176,
+   "id": 236,
    "name": "Mote144",
    "parent": null,
    "children": [],
@@ -8447,7 +10994,7 @@
    ]
   },
   {
-   "id": 177,
+   "id": 237,
    "name": "Mote145",
    "parent": null,
    "children": [],
@@ -8496,7 +11043,7 @@
    ]
   },
   {
-   "id": 178,
+   "id": 238,
    "name": "Mote146",
    "parent": null,
    "children": [],
@@ -8545,7 +11092,7 @@
    ]
   },
   {
-   "id": 179,
+   "id": 239,
    "name": "Mote147",
    "parent": null,
    "children": [],
@@ -8594,7 +11141,7 @@
    ]
   },
   {
-   "id": 180,
+   "id": 240,
    "name": "Mote148",
    "parent": null,
    "children": [],
@@ -8643,7 +11190,7 @@
    ]
   },
   {
-   "id": 181,
+   "id": 241,
    "name": "Mote149",
    "parent": null,
    "children": [],
@@ -8692,7 +11239,7 @@
    ]
   },
   {
-   "id": 182,
+   "id": 242,
    "name": "Rock0",
    "parent": null,
    "children": [],
@@ -8741,7 +11288,7 @@
    ]
   },
   {
-   "id": 183,
+   "id": 243,
    "name": "Rock1",
    "parent": null,
    "children": [],
@@ -8790,7 +11337,7 @@
    ]
   },
   {
-   "id": 184,
+   "id": 244,
    "name": "Rock2",
    "parent": null,
    "children": [],
@@ -8839,7 +11386,7 @@
    ]
   },
   {
-   "id": 185,
+   "id": 245,
    "name": "Rock3",
    "parent": null,
    "children": [],
@@ -8888,7 +11435,7 @@
    ]
   },
   {
-   "id": 186,
+   "id": 246,
    "name": "Rock4",
    "parent": null,
    "children": [],
@@ -8937,7 +11484,7 @@
    ]
   },
   {
-   "id": 187,
+   "id": 247,
    "name": "Rock5",
    "parent": null,
    "children": [],
@@ -8986,7 +11533,7 @@
    ]
   },
   {
-   "id": 188,
+   "id": 248,
    "name": "Rock6",
    "parent": null,
    "children": [],
@@ -9035,7 +11582,7 @@
    ]
   },
   {
-   "id": 189,
+   "id": 249,
    "name": "Rock7",
    "parent": null,
    "children": [],
@@ -9084,7 +11631,7 @@
    ]
   },
   {
-   "id": 190,
+   "id": 250,
    "name": "Rock8",
    "parent": null,
    "children": [],
@@ -9133,7 +11680,7 @@
    ]
   },
   {
-   "id": 191,
+   "id": 251,
    "name": "Rock9",
    "parent": null,
    "children": [],
@@ -9182,7 +11729,7 @@
    ]
   },
   {
-   "id": 192,
+   "id": 252,
    "name": "Rock10",
    "parent": null,
    "children": [],
@@ -9231,7 +11778,7 @@
    ]
   },
   {
-   "id": 193,
+   "id": 253,
    "name": "Rock11",
    "parent": null,
    "children": [],
@@ -9280,7 +11827,7 @@
    ]
   },
   {
-   "id": 194,
+   "id": 254,
    "name": "Rock12",
    "parent": null,
    "children": [],
@@ -9329,7 +11876,7 @@
    ]
   },
   {
-   "id": 195,
+   "id": 255,
    "name": "Rock13",
    "parent": null,
    "children": [],
@@ -9378,7 +11925,7 @@
    ]
   },
   {
-   "id": 196,
+   "id": 256,
    "name": "Rock14",
    "parent": null,
    "children": [],
@@ -9427,7 +11974,7 @@
    ]
   },
   {
-   "id": 197,
+   "id": 257,
    "name": "Rock15",
    "parent": null,
    "children": [],
@@ -9476,7 +12023,7 @@
    ]
   },
   {
-   "id": 198,
+   "id": 258,
    "name": "Rock16",
    "parent": null,
    "children": [],
@@ -9525,7 +12072,7 @@
    ]
   },
   {
-   "id": 199,
+   "id": 259,
    "name": "Rock17",
    "parent": null,
    "children": [],
@@ -9574,7 +12121,7 @@
    ]
   },
   {
-   "id": 200,
+   "id": 260,
    "name": "Rock18",
    "parent": null,
    "children": [],
@@ -9623,7 +12170,7 @@
    ]
   },
   {
-   "id": 201,
+   "id": 261,
    "name": "Rock19",
    "parent": null,
    "children": [],
@@ -9672,7 +12219,7 @@
    ]
   },
   {
-   "id": 202,
+   "id": 262,
    "name": "Rock20",
    "parent": null,
    "children": [],
@@ -9721,7 +12268,7 @@
    ]
   },
   {
-   "id": 203,
+   "id": 263,
    "name": "Rock21",
    "parent": null,
    "children": [],
@@ -9770,7 +12317,7 @@
    ]
   },
   {
-   "id": 204,
+   "id": 264,
    "name": "Rock22",
    "parent": null,
    "children": [],
@@ -9819,7 +12366,7 @@
    ]
   },
   {
-   "id": 205,
+   "id": 265,
    "name": "Rock23",
    "parent": null,
    "children": [],
@@ -9868,7 +12415,7 @@
    ]
   },
   {
-   "id": 206,
+   "id": 266,
    "name": "Rock24",
    "parent": null,
    "children": [],
@@ -9917,7 +12464,7 @@
    ]
   },
   {
-   "id": 207,
+   "id": 267,
    "name": "Rock25",
    "parent": null,
    "children": [],
@@ -9966,7 +12513,7 @@
    ]
   },
   {
-   "id": 208,
+   "id": 268,
    "name": "Rock26",
    "parent": null,
    "children": [],
@@ -10015,7 +12562,7 @@
    ]
   },
   {
-   "id": 209,
+   "id": 269,
    "name": "Rock27",
    "parent": null,
    "children": [],
@@ -10064,7 +12611,7 @@
    ]
   },
   {
-   "id": 210,
+   "id": 270,
    "name": "Rock28",
    "parent": null,
    "children": [],
@@ -10113,7 +12660,7 @@
    ]
   },
   {
-   "id": 211,
+   "id": 271,
    "name": "Rock29",
    "parent": null,
    "children": [],
@@ -10162,7 +12709,7 @@
    ]
   },
   {
-   "id": 212,
+   "id": 272,
    "name": "Rock30",
    "parent": null,
    "children": [],
@@ -10211,7 +12758,7 @@
    ]
   },
   {
-   "id": 213,
+   "id": 273,
    "name": "Rock31",
    "parent": null,
    "children": [],
@@ -10260,7 +12807,7 @@
    ]
   },
   {
-   "id": 214,
+   "id": 274,
    "name": "Rock32",
    "parent": null,
    "children": [],
@@ -10309,7 +12856,7 @@
    ]
   },
   {
-   "id": 215,
+   "id": 275,
    "name": "Rock33",
    "parent": null,
    "children": [],
@@ -10358,7 +12905,7 @@
    ]
   },
   {
-   "id": 216,
+   "id": 276,
    "name": "Rock34",
    "parent": null,
    "children": [],
@@ -10407,7 +12954,7 @@
    ]
   },
   {
-   "id": 217,
+   "id": 277,
    "name": "Rock35",
    "parent": null,
    "children": [],
@@ -10456,7 +13003,7 @@
    ]
   },
   {
-   "id": 218,
+   "id": 278,
    "name": "Rock36",
    "parent": null,
    "children": [],
@@ -10505,7 +13052,7 @@
    ]
   },
   {
-   "id": 219,
+   "id": 279,
    "name": "Rock37",
    "parent": null,
    "children": [],
@@ -10554,7 +13101,7 @@
    ]
   },
   {
-   "id": 220,
+   "id": 280,
    "name": "Rock38",
    "parent": null,
    "children": [],
@@ -10603,7 +13150,7 @@
    ]
   },
   {
-   "id": 221,
+   "id": 281,
    "name": "Rock39",
    "parent": null,
    "children": [],
@@ -10652,7 +13199,7 @@
    ]
   },
   {
-   "id": 222,
+   "id": 282,
    "name": "Rock40",
    "parent": null,
    "children": [],
@@ -10701,7 +13248,7 @@
    ]
   },
   {
-   "id": 223,
+   "id": 283,
    "name": "Rock41",
    "parent": null,
    "children": [],
@@ -10750,7 +13297,7 @@
    ]
   },
   {
-   "id": 224,
+   "id": 284,
    "name": "Rock42",
    "parent": null,
    "children": [],
@@ -10799,7 +13346,7 @@
    ]
   },
   {
-   "id": 225,
+   "id": 285,
    "name": "Rock43",
    "parent": null,
    "children": [],
@@ -10848,7 +13395,7 @@
    ]
   },
   {
-   "id": 226,
+   "id": 286,
    "name": "Rock44",
    "parent": null,
    "children": [],
@@ -10897,7 +13444,7 @@
    ]
   },
   {
-   "id": 227,
+   "id": 287,
    "name": "Rock45",
    "parent": null,
    "children": [],
@@ -10946,12 +13493,12 @@
    ]
   },
   {
-   "id": 228,
+   "id": 288,
    "name": "GateA",
    "parent": null,
    "children": [
-    229,
-    230
+    289,
+    290
    ],
    "visible": true,
    "components": [
@@ -10987,9 +13534,9 @@
    ]
   },
   {
-   "id": 229,
+   "id": 289,
    "name": "GateAStrobe",
-   "parent": 228,
+   "parent": 288,
    "children": [],
    "visible": true,
    "components": [
@@ -11029,9 +13576,9 @@
    ]
   },
   {
-   "id": 230,
+   "id": 290,
    "name": "GateAField",
-   "parent": 228,
+   "parent": 288,
    "children": [],
    "visible": true,
    "components": [
@@ -11071,12 +13618,12 @@
    ]
   },
   {
-   "id": 231,
+   "id": 291,
    "name": "GateB",
    "parent": null,
    "children": [
-    232,
-    233
+    292,
+    293
    ],
    "visible": true,
    "components": [
@@ -11112,9 +13659,9 @@
    ]
   },
   {
-   "id": 232,
+   "id": 292,
    "name": "GateBStrobe",
-   "parent": 231,
+   "parent": 291,
    "children": [],
    "visible": true,
    "components": [
@@ -11154,9 +13701,9 @@
    ]
   },
   {
-   "id": 233,
+   "id": 293,
    "name": "GateBField",
-   "parent": 231,
+   "parent": 291,
    "children": [],
    "visible": true,
    "components": [
@@ -11196,7 +13743,7 @@
    ]
   },
   {
-   "id": 234,
+   "id": 294,
    "name": "Planet",
    "parent": null,
    "children": [],
@@ -11239,7 +13786,7 @@
    ]
   },
   {
-   "id": 235,
+   "id": 295,
    "name": "Atmosphere",
    "parent": null,
    "children": [],

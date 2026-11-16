@@ -2,6 +2,7 @@ import { addPlugin, defineSystem, GetWorld, Res, Time, Input, Transform, MeshRen
 import type { Entity, World } from 'esengine';
 import { installAudio } from './audio';
 import { SHOTS, SHOT_SECONDS, clamp, eyeOf, lookRotation, tourOrbit, type Orbit } from './flight';
+import { createGunnery, guns } from './gunnery';
 import { helm, mulQuat, turnBy, type Quat } from './helm';
 import { installHud } from './hud';
 import { ship, TOP_SPEED, DRIFTING_ROCKS, FIELD_HALF_LENGTH, FIELD_DRIFT } from './shipState';
@@ -27,7 +28,12 @@ const STROBES = [
     { name: 'GateBStrobe', size: 2.6, every: 2.9, flashes: 3 },
 ] as const;
 const STEADY = ['NavPort', 'NavStarboard'] as const;
+const JETS = [
+    { name: 'JetBowStarboard', turn: 'yaw', sign: 1 }, { name: 'JetSternPort', turn: 'yaw', sign: 1 }, { name: 'JetBowPort', turn: 'yaw', sign: -1 }, { name: 'JetSternStarboard', turn: 'yaw', sign: -1 },
+    { name: 'JetBowDown', turn: 'pitch', sign: 1 }, { name: 'JetSternUp', turn: 'pitch', sign: 1 }, { name: 'JetBowUp', turn: 'pitch', sign: -1 }, { name: 'JetSternDown', turn: 'pitch', sign: -1 },
+] as const;
 const WAVE_SECONDS = 0.9;
+const SIGHT = { height: 20, yaw: Math.PI + 0.1, pitch: 0, distance: 86, low: -0.6, high: 0.9 };
 
 function strobe(time: number, every: number, flashes: number): number {
     const phase = (time % every) / 0.16;
@@ -38,7 +44,7 @@ function strobe(time: number, every: number, flashes: number): number {
 addPlugin({
     name: 'space-frigate',
     build(app) {
-        const facts = { ready: false, frame: 0, time: 0, throttle: 0, tour: true, shot: 0, eyeX: 0, eyeY: 0, eyeZ: 0, gate: 0, gatePassed: 0, transits: 0, flash: 0, wave: 0, motes: 0, strobe: 0 };
+        const facts = { ready: false, frame: 0, time: 0, throttle: 0, tour: true, shot: 0, eyeX: 0, eyeY: 0, eyeZ: 0, gate: 0, gatePassed: 0, transits: 0, flash: 0, wave: 0, motes: 0, strobe: 0, gunView: false, gunSource: 'stowed', gunBearing: 0, gunReady: 0, gunShots: 0, gunHits: 0, gunRange: 0, gunTrain: '', jets: '', gunAuto: false, gunSpread: 0, gunLead: 0, gunHeld: 0 };
         app.insertResource(Playthrough, { facts });
         installHud(app);
         installAudio(app);
@@ -58,6 +64,10 @@ addPlugin({
         let flash = 0;
         let since = 60;
         let motes = -1;
+        const downs = new Map<string, boolean>();
+        const jets = JETS.map(() => 0);
+        let sight = 0;
+        const gunnery = createGunnery();
 
         const get = (world: World, name: string): Entity => {
             const known = ids.get(name);
@@ -90,32 +100,47 @@ addPlugin({
                 world.insert(e, Light, { ...world.get(e, Light), intensity: 0.1 + 0.7 * throttle * throttle });
             }
 
+            const struck = (code: string): boolean => {
+                const now = input.isKeyDown(code), was = downs.get(code) ?? false;
+                downs.set(code, now);
+                return now && !was;
+            };
             const held = input.isMouseButtonDown(0);
             const pointer = input.getMousePosition();
-            const drag = held && grabbed ? { x: pointer.x - last.x, y: pointer.y - last.y } : { x: 0, y: 0 };
+            const drag = held && grabbed && !guns.holding ? { x: pointer.x - last.x, y: pointer.y - last.y } : { x: 0, y: 0 };
             grabbed = held;
             last = { x: pointer.x, y: pointer.y };
-            const turn = Number(input.isKeyDown('KeyD')) - Number(input.isKeyDown('KeyA'));
-            const tilt = Number(input.isKeyDown('KeyE')) - Number(input.isKeyDown('KeyQ'));
             const wheel = input.getScrollDelta().y;
             const live = tour ? tourOrbit(clock) : hand;
-            if (drag.x !== 0 || drag.y !== 0 || turn !== 0 || tilt !== 0 || wheel !== 0) {
+            if (drag.x !== 0 || drag.y !== 0 || wheel !== 0) {
                 if (tour) hand = { ...live };
                 tour = false;
             }
             for (let n = 0; n < SHOTS.length; n++) {
-                if (input.isKeyPressed(`Digit${n + 1}`)) { hand = { ...SHOTS[n]! }; tour = false; }
+                if (struck(`Digit${n + 1}`)) { hand = { ...SHOTS[n]! }; tour = false; guns.view = false; }
             }
-            if (input.isKeyPressed('Space')) {
+            if (struck('KeyG') || guns.toggle) {
+                guns.toggle = false;
+                guns.view = !guns.view;
+                if (guns.view) {
+                    if (tour) hand = { ...live, yaw: SIGHT.yaw, pitch: SIGHT.pitch, distance: SIGHT.distance };
+                    tour = false;
+                }
+            }
+            if (struck('KeyC')) guns.auto = !guns.auto;
+            const space = struck('Space');
+            if (!guns.view && space) {
                 tour = !tour;
                 if (!tour) hand = { ...live };
             }
             if (!tour) {
-                hand.yaw += turn * dt * 0.9 - drag.x * 0.005;
-                hand.pitch = clamp(hand.pitch + tilt * dt * 0.6 + drag.y * 0.004, -1.2, 1.2);
+                hand.yaw -= drag.x * 0.005;
+                hand.pitch = clamp(hand.pitch + drag.y * 0.004, -1.2, 1.2);
                 hand.distance = clamp(hand.distance * (1 + wheel * 0.001), 22, 260);
             }
-            const orbit = tour ? tourOrbit(clock) : hand;
+            sight += ((guns.view ? 1 : 0) - sight) * Math.min(1, dt * 5);
+            const base = tour ? tourOrbit(clock) : hand;
+            const orbit = { ...base, height: base.height + (SIGHT.height - base.height) * sight, along: base.along * (1 - sight), pitch: guns.view ? clamp(base.pitch, SIGHT.low, SIGHT.high) : base.pitch };
             const { eye, target } = eyeOf(orbit);
             const camera = get(world, 'Camera');
             const cam = world.get(camera, Transform);
@@ -129,6 +154,21 @@ addPlugin({
             hull.rotation = mulQuat(helm.attitude, { x: Math.sin(nod / 2), y: 0, z: Math.sin(roll / 2), w: Math.cos(nod / 2) * Math.cos(roll / 2) });
             hull.position = { x: 0, y: Math.sin(clock * 0.19) * 0.35, z: 0 };
             world.insert(root, Transform, hull);
+
+            const gaze = [target[0] - eye[0], target[1] - eye[1], target[2] - eye[2]], far = Math.hypot(gaze[0]!, gaze[1]!, gaze[2]!) || 1;
+            gunnery(world, dt, guns.view ? { from: cam.position, way: turnBy(helm.frame, { x: gaze[0]! / far, y: gaze[1]! / far, z: gaze[2]! / far }) } : null, guns.view && (input.isKeyDown('Space') || guns.squeeze));
+            facts.gunView = guns.view;
+            facts.gunSource = guns.source;
+            facts.gunBearing = guns.bearing;
+            facts.gunReady = guns.ready;
+            facts.gunShots = guns.shots;
+            facts.gunHits = guns.hits;
+            facts.gunRange = guns.range;
+            facts.gunAuto = guns.auto;
+            facts.gunSpread = (guns.spread * 180) / Math.PI;
+            facts.gunLead = guns.lead;
+            facts.gunHeld = guns.held;
+            facts.gunTrain = guns.turrets.map((t) => `${t.key}${Math.round((t.yaw * 180) / Math.PI)}/${Math.round((t.pitch * 180) / Math.PI)}`).join(' ');
 
             ship.time = clock;
             ship.throttle = throttle;
@@ -231,6 +271,18 @@ addPlugin({
                 world.insert(glow, Light, { ...world.get(glow, Light), intensity: 0.32 + 0.06 * Math.sin(clock * 2.1) });
             }
             facts.strobe = strobe(clock, STROBES[0].every, STROBES[0].flashes);
+
+            JETS.forEach((jet, i) => {
+                const want = clamp(helm.jets[jet.turn] * jet.sign, 0, 1);
+                jets[i] = jets[i]! + (want - jets[i]!) * Math.min(1, dt * 14);
+                const burn = jets[i]! * (0.85 + 0.15 * Math.sin(clock * 47 + i * 1.7));
+                const e = get(world, jet.name);
+                const t = world.get(e, Transform);
+                const wide = burn > 0.02 ? 0.9 + 0.5 * burn : 0.001;
+                t.scale = { x: wide, y: wide, z: burn > 0.02 ? 0.15 + 0.45 * burn : 0.001 };
+                world.insert(e, Transform, t);
+            });
+            facts.jets = `${helm.jets.yaw.toFixed(2)} ${helm.jets.pitch.toFixed(2)}`;
 
             facts.ready = true;
             facts.frame++;

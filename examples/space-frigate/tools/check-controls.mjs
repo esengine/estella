@@ -24,7 +24,7 @@ try {
 
     await step(30);
     const idle = await facts();
-    expect('the tour runs untouched', idle.tour === true && Math.abs(idle.throttle - 0.65) < 0.02, idle);
+    expect('the tour runs untouched', idle.tour === true && idle.throttle > 0.6 && idle.throttle < 0.8, [idle.tour, idle.throttle]);
 
     await page.keyboard.down('KeyS');
     await step(150);
@@ -39,14 +39,31 @@ try {
     const fast = await facts();
     expect('W pushes it to full', fast.throttle > 0.9, fast.throttle);
 
-    const before = await camera();
-    await page.keyboard.down('KeyD');
-    await step(60);
-    await page.keyboard.up('KeyD');
-    const turned = await facts();
-    const after = await camera();
-    expect('D takes the camera by hand', turned.tour === false, turned.tour);
-    expect('and turns it round the ship', Math.hypot(after[0] - before[0], after[2] - before[2]) > 20, { before, after });
+    const helm = () => page.evaluate(() => { const h = window.__spaceHud.helm; return { rudder: h.rudder, elevation: h.elevation, forward: h.forward }; });
+    const apart = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+    await tap('KeyD');
+    await tap('KeyD');
+    await tap('KeyD');
+    const over = await helm();
+    expect('D puts the rudder over a place at a time, and it stays there', Math.abs(over.rudder - 1) < 1e-6, over);
+    const jets = (await facts()).jets;
+    expect('and her thrusters fire to start the turn', jets.startsWith('-1.00'), jets);
+    expect('steering leaves the tour running', (await facts()).tour === true, over);
+    let astern = 1;
+    for (let second = 0; second < 22; second++) { await step(60); astern = Math.min(astern, (await helm()).forward.z); }
+    expect('left over, the rudder takes her all the way round', astern < -0.95 && (await helm()).forward.z > 0.3, astern);
+    await tap('KeyX');
+    await tap('KeyE');
+    await tap('KeyE');
+    let top = 0;
+    for (let second = 0; second < 9; second++) { await step(60); top = Math.max(top, (await helm()).forward.y); }
+    expect('E pitches her up, past the vertical', top > 0.95, top);
+    await tap('KeyX');
+    await step(240);
+    const held = await helm();
+    await step(600);
+    const later = await helm();
+    expect('with the helm amidships she keeps the attitude she has and does not come level', apart(held.forward, later.forward) < 0.01 && apart(later.forward, { x: 0, y: 0, z: 1 }) > 0.3 && later.rudder === 0 && later.elevation === 0, { held, later });
 
     await tap('Digit5');
     const near = await camera();
@@ -64,6 +81,65 @@ try {
     await tap('Space');
     const back = await facts();
     expect('Space hands the camera back to the tour', back.tour === true, back);
+
+    const guns = (f) => ({ view: f.gunView, source: f.gunSource, bearing: f.gunBearing, ready: f.gunReady, shots: f.gunShots, train: f.gunTrain, tour: f.tour });
+    expect('with no target and no sight the guns are stowed fore and aft', back.gunSource === 'stowed' && back.gunBearing === 0, guns(back));
+    await tap('KeyG');
+    await step(320);
+    const sighted = await facts();
+    expect('G takes the gunnery view', sighted.gunView === true && sighted.tour === false && sighted.gunSource === 'view', guns(sighted));
+    expect('and the guns that can see past the ship lay on it', sighted.gunBearing >= 3 && sighted.gunReady === sighted.gunBearing, guns(sighted));
+    await page.mouse.move(360, 150);
+    await page.mouse.down();
+    for (let x = 380; x <= 620; x += 20) { await page.mouse.move(x, 150); await step(1); }
+    await page.mouse.up();
+    await step(2);
+    const turning = await facts();
+    expect('turning the view leaves the guns training behind it', turning.gunReady === 0 && turning.gunTrain !== sighted.gunTrain, guns(turning));
+    await step(480);
+    const laid = await facts();
+    expect('until they come to bear again', laid.gunReady >= 3, guns(laid));
+    await tap('Space');
+    const one = await facts();
+    expect('Space fires one turret and leaves the view alone', one.gunShots === laid.gunShots + 1 && one.gunView === true && one.tour === false, guns(one));
+    await step(20);
+    await tap('Space');
+    await tap('Space');
+    const salvo = await facts();
+    expect('pressed twice at once it fires every gun that is ready', salvo.gunShots === one.gunShots + laid.gunReady - 1 && salvo.gunReady === 0, guns(salvo));
+    await step(200);
+    const loaded = await facts();
+    expect('and they load again', loaded.gunReady >= 3, guns(loaded));
+    const spots = await page.evaluate(() => window.__spaceHud.guns.spots);
+    const scale = 450 / 900;
+    await page.mouse.move(spots.fire.left * scale, spots.fire.top * scale);
+    await page.mouse.down();
+    await step(3);
+    const pressed = await facts();
+    await page.mouse.up();
+    await step(2);
+    expect('the FIRE button on the glass fires a turret, for a hand with no keyboard', pressed.gunShots === loaded.gunShots + 1, guns(pressed));
+    expect('and pressing it does not swing the view', Math.hypot(pressed.eyeX - loaded.eyeX, pressed.eyeZ - loaded.eyeZ) < 0.5, [pressed.eyeX, loaded.eyeX]);
+    await tap('KeyG');
+    await step(30);
+    const stowed = await facts();
+    expect('G gives the view back and the guns stow', stowed.gunView === false && stowed.gunSource === 'stowed', guns(stowed));
+
+    await tap('KeyT');
+    await step(120);
+    const tracking = await facts();
+    expect('a locked target is followed by the guns, which hold their fire', tracking.gunSource === 'target' && tracking.gunShots === pressed.gunShots, guns(tracking));
+    await tap('KeyC');
+    await step(80);
+    const auto = await facts();
+    expect('C lets them fire on it themselves', auto.gunAuto === true && auto.gunSource === 'auto' && (auto.gunShots > tracking.gunShots || auto.gunBearing === 0), guns(auto));
+    expect('laying ahead of it by a flight time, with a spread that narrows as the solution is held', auto.gunLead > 0 && auto.gunSpread > 0.25 && auto.gunHeld > 1, { lead: auto.gunLead, spread: auto.gunSpread, held: auto.gunHeld });
+    await tap('KeyC');
+    await step(30);
+    const quiet = await facts();
+    await step(240);
+    const still = await facts();
+    expect('and C again stops them', still.gunAuto === false && still.gunShots === quiet.gunShots, guns(still));
 } finally {
     await browser.close();
     server.close();

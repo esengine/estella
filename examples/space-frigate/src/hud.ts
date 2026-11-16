@@ -9,6 +9,8 @@ import {
     ALERT, AMBER, DESIGN, EDGE, FONTS, HAZE, ICE, TEXTURES, createKit, ease, pad, rgb, stamp,
     type Frame, type Log, type Rgba, type Rock, type Textures,
 } from './hudKit';
+import { guns } from './gunnery';
+import { buildGunnery } from './hudGunnery';
 import { MINING, installMining, mining } from './hudMining';
 import { buildHelm } from './hudHelm';
 import { buildScope } from './hudScope';
@@ -25,7 +27,7 @@ const BOOT_SECONDS = 2.6;
 
 type Loaded = { textures: Textures; fonts: { regular: number; strong: number } };
 
-const state = { ready: false, loadMs: 0, error: '', waypointClamped: true, selected: -1, current: -1, locked: false, booted: false, mining: mining, helm: helm, picks: [] as { index: number; x: number; y: number }[], spots: {} as Record<string, { x: number; y: number }> };
+const state = { ready: false, loadMs: 0, error: '', waypointClamped: true, selected: -1, current: -1, locked: false, booted: false, mining: mining, helm: helm, guns: guns, picks: [] as { index: number; x: number; y: number }[], spots: {} as Record<string, { x: number; y: number }> };
 
 export function installHud(app: App): void {
     let loading: Promise<Loaded> | null = null;
@@ -36,8 +38,8 @@ export function installHud(app: App): void {
     app.addSystem(defineSystem([GetWorld(), Res(Time), Res(Input)], (world, time, input) => {
         if (world.findEntityByName('Camera') === null) return;
         const moved = stepHelm({
-            ahead: input.isKeyDown('KeyW'), astern: input.isKeyDown('KeyS'), port: input.isKeyDown('ArrowLeft'), starboard: input.isKeyDown('ArrowRight'),
-            climb: input.isKeyDown('ArrowUp'), dive: input.isKeyDown('ArrowDown'), steady: input.isKeyDown('KeyX'), approach: input.isKeyDown('KeyV'), align: input.isKeyDown('KeyB'),
+            ahead: input.isKeyDown('KeyW'), astern: input.isKeyDown('KeyS'), port: input.isKeyDown('KeyA') || input.isKeyDown('ArrowLeft'), starboard: input.isKeyDown('KeyD') || input.isKeyDown('ArrowRight'),
+            climb: input.isKeyDown('KeyE') || input.isKeyDown('ArrowUp'), dive: input.isKeyDown('KeyQ') || input.isKeyDown('ArrowDown'), steady: input.isKeyDown('KeyX'), approach: input.isKeyDown('KeyV'), align: input.isKeyDown('KeyB'),
         }, Math.min(time.delta, 0.05));
         if (majors.length === 0) {
             for (let i = MAJOR_FROM; i < ROCKS; i++) { const e = world.findEntityByName(`Rock${i}`); if (e !== null) majors.push(e); }
@@ -184,6 +186,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
     const mine = installMining(app, world, rocks, targets.probe, log);
     const scope = buildScope(kit, rocks, targets.probe);
     const desk = buildHelm(kit, targets.probe);
+    const battery = buildGunnery(kit, log, targets.probe);
     const press = { down: false, at: 0, left: 0, top: 0, travel: 0 };
     const groups: readonly (readonly [Entity, number, number])[] = [[identity, 0, 1], [view, 0.15, 1], [systems, 0.35, 1], [gauge, 0.5, 1], [desk.root, 0.9, 1]];
     const leans: readonly (readonly [Entity, number, number])[] = [[identityAt, 0.1, 0.26], [viewAt, 0.1, -0.26], [systemsAt, -0.12, 0.3], [gaugeAt, -0.12, -0.3]];
@@ -248,7 +251,11 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
             mining.hold = 0;
         }
 
-        if (ship.tour) {
+        if (guns.view) {
+            say(viewTitle, 'GUNNERY');
+            say(viewMode, guns.ready > 0 ? `${guns.ready} READY TO FIRE` : 'GUNS TRAINING');
+            ink(viewMode, rgb(AMBER));
+        } else if (ship.tour) {
             say(viewTitle, `VIEW ${ship.shot + 1} / ${SHOTS.length}`);
             say(viewMode, 'AUTO TOUR');
             ink(viewMode, rgb(HAZE, 0.9));
@@ -311,6 +318,7 @@ function build(app: App, world: World, { textures, fonts }: Loaded): (dt: number
         hot = fast;
 
         desk.update(frame);
+        battery(frame);
         targets.update(frame);
         mine(frame);
         scope(frame);

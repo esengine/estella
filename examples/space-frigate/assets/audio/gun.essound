@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "duration": 0.9,
+  "gain": 0.8,
+  "lowpass": 5200,
+  "reverb": {
+    "size": 0.3,
+    "mix": 0.15,
+    "kind": "room"
+  },
+  "layers": [
+    {
+      "id": "thump",
+      "source": "sine",
+      "freq": [
+        [
+          0,
+          170
+        ],
+        [
+          0.12,
+          48
+        ]
+      ],
+      "attack": 0.001,
+      "decay": 0.11,
+      "gain": 1
+    },
+    {
+      "id": "crack",
+      "source": "noise",
+      "band": [
+        900,
+        5000
+      ],
+      "seed": 71,
+      "attack": 0.001,
+      "decay": 0.03,
+      "gain": 0.7
+    },
+    {
+      "id": "body",
+      "source": "noise",
+      "color": "pink",
+      "band": [
+        120,
+        900
+      ],
+      "seed": 72,
+      "decay": 0.14,
+      "gain": 0.6,
+      "filters": [
+        {
+          "type": "lowpass",
+          "freq": 1400
+        }
+      ]
+    },
+    {
+      "id": "tail",
+      "source": "noise",
+      "color": "brown",
+      "seed": 73,
+      "decay": 0.35,
+      "gain": 0.35,
+      "filters": [
+        {
+          "type": "lowpass",
+          "freq": 220
+        }
+      ]
+    }
+  ]
+}

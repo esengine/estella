@@ -1,13 +1,14 @@
 import { Assets, Light, Material, MeshRenderer, Particle, ParticleEmitter, Transform, instantiatePrefab } from 'esengine';
 import type { App, Entity, World } from 'esengine';
 import { clamp, lookRotation } from './flight';
+import { guns } from './gunnery';
 import { helm, turnBy } from './helm';
 import { AMBER, hullBlocks, pad, type Frame, type Log, type Rock } from './hudKit';
 import type { TargetProbe } from './hudTargets';
 import { FIELD_HALF_LENGTH, ship } from './shipState';
 
 const FX = 'assets/fx/mining.esprefab';
-const EMITTERS = [{ x: 0, y: 5.4, z: 13 }, { x: 0, y: 4.1, z: 27 }, { x: 0, y: -6.3, z: 10 }, { x: 5.8, y: 7.2, z: -12 }, { x: -5.8, y: 7.2, z: -12 }];
+const NO_TURRET = [{ at: { x: 0, y: 5.4, z: 13 }, bears: true }];
 const PLUME_LENGTH = 11;
 
 export const MINING = { range: 1500, capacity: 40, drain: 0.15, recharge: 0.055, heating: 0.13, cooling: 0.11 };
@@ -50,6 +51,38 @@ export function installMining(app: App, world: World, rocks: readonly Rock[], pr
     };
     const shine = (e: Entity, intensity: number): void => { world.update(e, Light, (l) => { l.intensity = intensity; }); };
     const put = (e: Entity, at: readonly number[]): void => { world.update(e, Transform, (t) => { t.position = { x: at[0]!, y: at[1]!, z: at[2]! }; }); };
+    const shrink = (index: number): void => {
+        const left = clamp(mining.integrity[index]!, 0, 1);
+        world.update(rocks[index]!.entity, Transform, (t) => { const s = sizes[index]! * (0.62 + 0.38 * left); t.scale = { x: s, y: s, z: s }; });
+    };
+    const shatter = (index: number, said: string): void => {
+        const rock = rocks[index]!;
+        const at = world.get(rock.entity, Transform).position;
+        mining.broken++;
+        if (fx) {
+            put(fx.debris, [at.x, at.y, at.z]);
+            app.getResource(Particle).emitAt(fx.debris, 220, { x: at.x, y: at.y, z: at.z });
+        }
+        log.say(said);
+        respawns++;
+        const spin = Math.sin(index * 12.9898 + respawns * 78.233) * 43758.5453, lane = spin - Math.floor(spin);
+        mining.integrity[index] = 1;
+        const ahead = turnBy(helm.level, { x: (lane - 0.5) * 1800, y: -150 + ((lane * 7.3) % 1) * 400, z: FIELD_HALF_LENGTH - 80 });
+        const within = (v: number, half: number): number => Math.max(-half, Math.min(half, v));
+        world.update(rock.entity, Transform, (t) => {
+            t.position = { x: within(ahead.x, FIELD_HALF_LENGTH * 1.15), y: within(ahead.y, FIELD_HALF_LENGTH * 0.65), z: within(ahead.z, FIELD_HALF_LENGTH - 20) };
+            t.scale = { x: sizes[index]!, y: sizes[index]!, z: sizes[index]! };
+        });
+        if (probe.selected === index) probe.release = true;
+    };
+    guns.strike = (index, amount) => {
+        const rock = rocks[index];
+        if (!rock) return;
+        if (rock.big) { log.say(`ROCK ${pad(index + 1, 2)} HIT  NO EFFECT`); return; }
+        mining.integrity[index] = mining.integrity[index]! - amount / (1 + sizes[index]! * 0.08);
+        if (mining.integrity[index]! <= 0) shatter(index, `ROCK ${pad(index + 1, 2)} DESTROYED`);
+        else { shrink(index); log.say(`ROCK ${pad(index + 1, 2)} HIT  ${Math.round(clamp(mining.integrity[index]!, 0, 1) * 100)} %`); }
+    };
 
     return (frame) => {
         const index = probe.selected;
@@ -95,8 +128,8 @@ export function installMining(app: App, world: World, rocks: readonly Rock[], pr
         if (firing && there) {
             const target = [there.x, there.y, there.z];
             const far = (e: { x: number; y: number; z: number }): number => Math.hypot(e.x - there.x, e.y - there.y, e.z - there.z);
-            const mounts = EMITTERS.map((e) => turnBy(helm.attitude, e));
-            const chosen = mounts.sort((a, b) => Number(hullBlocks(a, there)) - Number(hullBlocks(b, there)) || far(a) - far(b))[0]!;
+            const mounts = (guns.turrets.length > 0 ? guns.turrets.map((t) => ({ at: t.mouth, bears: t.onTarget })) : NO_TURRET).map((m) => ({ at: turnBy(helm.attitude, m.at), bears: m.bears }));
+            const chosen = mounts.sort((a, b) => Number(b.bears) - Number(a.bears) || Number(hullBlocks(a.at, there)) - Number(hullBlocks(b.at, there)) || far(a.at) - far(b.at))[0]!.at;
             const from = [chosen.x + base.x, chosen.y + base.y, chosen.z + base.z];
             const span = Math.hypot(target[0]! - from[0]!, target[1]! - from[1]!, target[2]! - from[2]!);
             const reach = Math.max(1, span - sizes[index]! * 0.7);
@@ -116,26 +149,13 @@ export function installMining(app: App, world: World, rocks: readonly Rock[], pr
             shine(fx.impact, 5 + 2 * Math.sin(frame.time * 37));
             rate(fx.glow, 70);
             rate(fx.sparks, 110);
-            const left = clamp(mining.integrity[index]!, 0, 1);
-            world.update(rock!.entity, Transform, (t) => { const s = sizes[index]! * (0.62 + 0.38 * left); t.scale = { x: s, y: s, z: s }; });
+            shrink(index);
             if (mining.integrity[index]! <= 0) {
                 const kind = rockClass(index);
                 const tonnes = Math.min(MINING.capacity - mining.hold, Math.round(sizes[index]! * kind.worth * 10) / 10);
                 mining.hold = Math.round((mining.hold + tonnes) * 10) / 10;
-                mining.broken++;
-                put(fx.debris, target);
-                app.getResource(Particle).emitAt(fx.debris, 220, { x: target[0]!, y: target[1]!, z: target[2]! });
-                log.say(`ROCK ${pad(index + 1, 2)} BROKEN  +${tonnes.toFixed(1)} T ${kind.name}`);
+                shatter(index, `ROCK ${pad(index + 1, 2)} BROKEN  +${tonnes.toFixed(1)} T ${kind.name}`);
                 if (mining.hold >= MINING.capacity) log.say(`HOLD FULL  RETURN TO ${helm.gateName}`, AMBER);
-                respawns++;
-                const spin = Math.sin(index * 12.9898 + respawns * 78.233) * 43758.5453, lane = spin - Math.floor(spin);
-                mining.integrity[index] = 1;
-                const ahead = turnBy(helm.level, { x: (lane - 0.5) * 1800, y: -150 + ((lane * 7.3) % 1) * 400, z: FIELD_HALF_LENGTH - 80 });
-                const within = (v: number, half: number): number => Math.max(-half, Math.min(half, v));
-                world.update(rock!.entity, Transform, (t) => {
-                    t.position = { x: within(ahead.x, FIELD_HALF_LENGTH * 1.15), y: within(ahead.y, FIELD_HALF_LENGTH * 0.65), z: within(ahead.z, FIELD_HALF_LENGTH - 20) };
-                    t.scale = { x: sizes[index]!, y: sizes[index]!, z: sizes[index]! };
-                });
                 probe.release = true;
                 mining.armed = false;
             }

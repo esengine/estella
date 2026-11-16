@@ -221,6 +221,108 @@ def lettering(text, height, gap=0.45):
         x+=4*s+gap*height
     return out, x-gap*height
 
+HULL_SECTIONS = [(-44,9,5.5,2.2,0),(-30,10.5,6,2.5,0),(-8,10,5.5,2.5,0),(6,7.5,4.5,2.0,-0.3),(20,6,3.6,1.6,-0.6),(34,4.2,2.6,1.2,-1.0),(45,2.9,1.8,0.8,-1.3)]
+TURRETS = [('A',0,27,1),('B',0,13,1),('P',6.6,-12,1),('S',-6.6,-12,1),('V',0,10,-1)]
+TURRET_SEAT = 0.8
+JETS = [('BowPort', (4.0, -1.05, 36), (1, 0, 0)), ('BowStarboard', (-4.0, -1.05, 36), (-1, 0, 0)), ('BowUp', (0, 1.45, 36), (0, 1, 0)), ('BowDown', (0, -3.55, 36), (0, -1, 0)),
+        ('SternPort', (20.7, -1, -40), (1, 0, 0)), ('SternStarboard', (-20.7, -1, -40), (-1, 0, 0)), ('SternUp', (0, 5.75, -40.5), (0, 1, 0)), ('SternDown', (0, -5.75, -40.5), (0, -1, 0))]
+TURRET_SCALE = 1.25
+TRUNNION = (0, 0.95, 1.7)
+MUZZLE = 5.75
+SHELLS = 24
+IMPACTS = 4
+
+
+def mount_height(x, z, side):
+    for a, b in zip(HULL_SECTIONS, HULL_SECTIONS[1:]):
+        if a[0] <= z <= b[0]:
+            t = (z - a[0]) / (b[0] - a[0])
+            _, w, h, c, y = [a[i] + (b[i] - a[i]) * t for i in range(5)]
+            return y + side * h if abs(x) < w - c else y + side * (h - c * 0.5)
+    raise ValueError(f'no hull at z {z}')
+
+
+def worn(step, plates, metal, seed):
+    T = dict(op='stain', texel=True)
+    step(**T, faces=plates, pattern='bumps', scale=1.6, octaves=5, threshold=0.5, softness=0.4, roughness=0.6, amount=0.75, seed=seed)
+    step(**T, faces=plates, pattern='bumps', scale=4.5, octaves=5, threshold=0.56, softness=0.22, color=[0.1, 0.097, 0.092], roughness=0.7, amount=0.45, seed=seed + 1)
+    step(**T, faces=plates, where='edges', reach=0.16, pattern='bumps', scale=0.35, octaves=5, fray=0.8, threshold=0.5, softness=0.14, color=[0.62, 0.62, 0.6], roughness=0.62, amount=0.6, seed=seed + 2)
+    step(**T, faces=metal, where='edges', reach=0.06, pattern='bumps', scale=0.12, octaves=4, fray=1, threshold=0.75, softness=0.05, color=[0.42, 0.42, 0.44], roughness=0.3, metallic=0.9, seed=seed + 3)
+    step(**T, faces=plates, pattern='scratches', scale=0.7, width=0.01, threshold=0.5, softness=0.3, color=[0.6, 0.6, 0.6], roughness=0.3, amount=0.5, seed=seed + 4)
+    step(**T, faces={'not': {'tag': ['lens']}}, where='cavity', reach=0.12, threshold=0.3, softness=0.12, color=[0.016, 0.014, 0.012], roughness=0.95, metallic=0, amount=0.9)
+
+
+def turret_source():
+    S = []
+    def step(**k): S.append(k); return k
+    def oct(w, h, c): return [[-w + c, -h], [w - c, -h], [w, -h + c], [w, h - c], [w - c, h], [-w + c, h], [-w, h - c], [-w, -h + c]]
+    UPPER = [0.24, 0.26, 0.29]; DARK = [0.095, 0.1, 0.11]; ACCENT = [0.6, 0.15, 0.03]
+    step(op='cylinder', radius=1.5, height=0.34, sides=24, at=[0, 0.17, 0], tag='ring', color=DARK)
+    step(op='loft', sections=[{'at': [0, 0.98, z], 'points': oct(w, h, c)} for (z, w, h, c) in [(-1.75, 1.1, 0.5, 0.2), (-0.8, 1.45, 0.66, 0.26), (0.7, 1.42, 0.66, 0.26), (1.7, 1.0, 0.48, 0.18)]], curve=1, tag='house', color=UPPER)
+    step(op='box', size=[1.7, 0.62, 0.5], at=[0, 0.92, -1.95], tag='house', color=UPPER)
+    step(op='box', size=[3.5, 0.26, 0.34], at=[0, 1.52, -0.65], tag='optic', color=DARK)
+    for x in (1.72, -1.72):
+        step(op='box', size=[0.16, 0.34, 0.42], at=[x, 1.52, -0.65], tag='optic', color=DARK)
+        step(op='box', size=[0.1, 0.16, 0.05], at=[x, 1.52, -0.43], tag='lens', color=[0.3, 0.6, 1.0])
+    step(op='cylinder', radius=0.36, height=0.1, sides=16, at=[-0.55, 1.69, 0.15], tag='hatch', color=DARK)
+    step(op='box', size=[0.55, 0.14, 0.8], at=[0.55, 1.71, -1.05], tag='hatch', color=DARK)
+    step(op='loft', path=[[1.0, 1.6, -1.5], [1.0, 2.9, -1.72]], section={'radius': 0.035}, sides=6, tag='whip', color=DARK)
+    for x in (1.0, -1.0):
+        step(op='box', size=[0.36, 0.8, 0.5], at=[x, 0.95, 1.72], tag='cheek', color=DARK)
+    S[-1]['id'] = 'blockout'
+    src = {'version': 1, 'smoothAngle': 28, 'material': {'roughness': 0.42, 'metallic': 0, 'coat': SHIP_COAT[0], 'coatRoughness': SHIP_COAT[1], 'emissive': [16, 16, 16]}, 'steps': S}
+    step(op='paint', faces={'tag': ['ring', 'optic', 'hatch', 'whip', 'cheek']}, color=[0.3, 0.31, 0.34], roughness=0.34, metallic=0.9)
+    step(op='paint', faces='lens', glow=0.12, roughness=0.08)
+    step(op='panels', faces='house', size=1.1, uneven=0.8, gap=0.05, height=[0.02, 0.07], bevel=0.02, tones=0.18, seed=7, tag='plate')
+    step(op='panels', faces='plate', size=0.42, uneven=0.75, gap=0.02, height=[0.004, 0.012], bevel=0.004, tones=0.07, seed=19, tag='plate')
+    P = {'tag': ['plate', 'plateSide']}
+    step(op='paint', faces={**P, 'within': {'min': [None, None, -1.1], 'max': [None, None, -0.72]}}, color=ACCENT, roughness=0.44)
+    step(op='paint', faces={**P, 'facing': '+y', 'tolerance': 30}, color=[0.15, 0.158, 0.172], roughness=0.5)
+    rnd = random.Random(5)
+    for i in range(7):
+        w, l, h = rnd.uniform(0.14, 0.4), rnd.uniform(0.16, 0.5), rnd.uniform(0.04, 0.1)
+        step(op='box', size=[w, h, l], at=[rnd.uniform(-0.9, 0.9), 1.64 + h / 2, rnd.uniform(-0.3, 1.0)], tag='gear', color=[rnd.uniform(0.09, 0.2)] * 3)
+    step(op='paint', faces='gear', roughness=0.4, metallic=0.75)
+    S[-1]['id'] = 'dense'
+    T = dict(op='stain', texel=True)
+    for x, view in ((1.4, '+x'), (-1.4, '-x')):
+        for k in range(4):
+            step(**T, faces=P, line={'points': [[0.62 + k * 0.2, -1.5], [0.62 + k * 0.2, -1.22]], 'width': 0.03, 'from': view}, hard=True, color=[0.04, 0.042, 0.048], roughness=0.35, metallic=0.8)
+    worn(step, P, {'tag': ['plate', 'plateSide', 'ring', 'optic', 'hatch', 'cheek', 'gear']}, 61)
+    step(op='decimate', **{'from': 'blockout'}, ratio=1)
+    src['normalBake'] = {'from': 'dense', 'size': min(MAP, 1024), 'distance': 0.12, 'color': True, 'surface': True, 'occlusion': {'samples': 24, 'size': 256, 'reach': 0.6}}
+    return src
+
+
+def guns_source():
+    S = []
+    def step(**k): S.append(k); return k
+    DARK = [0.095, 0.1, 0.11]; STEEL = [0.13, 0.13, 0.14]
+    step(op='lathe', axis='x', profile=[[0, 0.82], [0.4, 0.82], [0.4, -0.82], [0, -0.82]], sides=16, tag='drum', color=DARK)
+    step(op='box', size=[1.7, 0.66, 0.4], at=[0, 0, 0.32], tag='shield', color=[0.24, 0.26, 0.29])
+    for x in (0.5, -0.5):
+        step(op='box', size=[0.6, 0.52, 0.44], at=[x, 0, 0.72], tag='bag', color=[0.05, 0.05, 0.052])
+        step(op='lathe', axis='z', at=[x, 0, 0], profile=[[0, 5.3], [0.12, 5.3], [0.12, MUZZLE], [0.23, MUZZLE], [0.23, 5.25], [0.15, 5.2], [0.165, 2.8], [0.2, 2.7], [0.2, 1.6], [0.25, 1.5], [0.25, 0.4], [0, 0.4]], sides=14, tag='barrel', color=STEEL)
+        for z in (3.6, 4.4):
+            step(op='lathe', axis='z', at=[x, 0, z], profile=[[0.14, 0.05], [0.19, 0.05], [0.19, -0.05], [0.14, -0.05]], closed=True, sides=14, tag='band', color=DARK)
+    step(op='loft', path=[[0, -0.34, 0.5], [0, -0.34, 1.9]], section={'radius': 0.085}, sides=8, tag='buffer', color=DARK)
+    S[-1]['id'] = 'blockout'
+    src = {'version': 1, 'smoothAngle': 40, 'material': {'roughness': 0.4, 'metallic': 0, 'coat': 0.1, 'coatRoughness': 0.3}, 'steps': S}
+    step(op='paint', faces={'tag': ['barrel', 'band', 'buffer', 'drum']}, roughness=0.44, metallic=0.85)
+    step(op='paint', faces='bag', roughness=0.85, metallic=0)
+    step(op='panels', faces='shield', size=0.7, uneven=0.7, gap=0.03, height=[0.01, 0.04], bevel=0.01, tones=0.15, seed=3, tag='plate')
+    S[-1]['id'] = 'dense'
+    T = dict(op='stain', texel=True)
+    P = {'tag': ['plate', 'plateSide']}
+    worn(step, P, {'tag': ['plate', 'plateSide', 'drum', 'band', 'buffer']}, 83)
+    for x in (0.5, -0.5):
+        step(**T, faces='barrel', near={'at': [x, 0, MUZZLE], 'radius': 1.3}, pattern='bumps', scale=0.5, octaves=3, threshold=0.25, softness=0.4, color=[0.03, 0.028, 0.026], roughness=0.8, amount=0.85, seed=31)
+        step(**T, faces='barrel', near={'at': [x, 0, 2.0], 'radius': 1.4}, pattern='scratches', scale=0.4, width=0.012, threshold=0.5, softness=0.3, color=[0.5, 0.5, 0.52], roughness=0.25, amount=0.5, seed=37)
+    step(op='decimate', **{'from': 'blockout'}, ratio=1)
+    src['normalBake'] = {'from': 'dense', 'size': min(MAP, 1024), 'distance': 0.08, 'color': True, 'surface': True, 'occlusion': {'samples': 24, 'size': 256, 'reach': 0.5}}
+    return src
+
+
 def ship_source():
     rnd = random.Random(11)
     S=[]
@@ -238,13 +340,12 @@ def ship_source():
 
     THROAT={'tag':'nozzle','facing':'-z','tolerance':70}
     HULL=[0.33,0.34,0.35]; UPPER=[0.24,0.26,0.29]; DARK=[0.095,0.1,0.11]; WARM=[1.0,0.8,0.5]; ACCENT=[0.6,0.15,0.03]
-    H=[(-44,9,5.5,2.2,0),(-30,10.5,6,2.5,0),(-8,10,5.5,2.5,0),(6,7.5,4.5,2.0,-0.3),(20,6,3.6,1.6,-0.6),(34,4.2,2.6,1.2,-1.0),(45,2.9,1.8,0.8,-1.3)]
     def at(z):
-        for a,b in zip(H,H[1:]):
+        for a,b in zip(HULL_SECTIONS,HULL_SECTIONS[1:]):
             if a[0]<=z<=b[0]:
                 t=(z-a[0])/(b[0]-a[0]); return [a[i]+(b[i]-a[i])*t for i in range(5)]
-        return list(H[0] if z<H[0][0] else H[-1])
-    loft('hull',HULL,H)
+        return list(HULL_SECTIONS[0] if z<HULL_SECTIONS[0][0] else HULL_SECTIONS[-1])
+    loft('hull',HULL,HULL_SECTIONS)
     loft('upper',UPPER,[(-36,5,2.2,1,6.8),(-20,5.6,2.7,1.2,7.3),(-6,4.5,2.2,1.0,6.6),(5,3,1.2,0.6,5.1)])
     step(op='box',size=[6.2,2.2,9],at=[0,10.2,-23],tag='bridge',color=UPPER)
     step(op='box',size=[4.6,1.8,6.4],at=[0,12.2,-22.6],tag='bridge',color=UPPER)
@@ -275,22 +376,20 @@ def ship_source():
     for sx in (1,-1):
         for sy in (1,-1):
             step(op='box',size=[1.1,0.8,1.0],at=[sx*7.0,sy*3.6,-45.3],tag='shield',color=UPPER)
-    for (x,z,s) in [(0,13,1),(0,27,1),(0,10,-1),(5.8,-12,1),(-5.8,-12,1)]:
-        a=at(z); y=a[4]+s*a[2] if abs(x)<a[1]-a[3] else a[4]+s*(a[2]-a[3]*0.5)
-        step(op='cylinder',radius=1.6,height=0.5,sides=20,at=[x,y+0.25*s,z],tag='turret',color=DARK)
-        step(op='cylinder',radius=1.25,height=0.4,sides=20,at=[x,y+0.7*s,z],tag='turret',color=DARK)
-        step(op='loft',sections=[{'at':[x,y+1.45*s,zz],'points':oct(w,h,c)} for (zz,w,h,c) in [(z-1.5,0.95,0.5,0.18),(z-0.4,1.2,0.62,0.22),(z+0.9,1.1,0.58,0.22),(z+1.9,0.7,0.4,0.15)]],curve=1,tag='turret',color=UPPER)
-        step(op='box',size=[1.7,0.5,0.5],at=[x,y+1.4*s,z+1.95],tag='turret',color=DARK)
-        for bx in (-0.5,0.5):
-            step(op='loft',path=[[x+bx,y+1.4*s,z+1.9],[x+bx,y+1.4*s,z+6.6]],section={'radius':0.14},sides=10,tag='barrel',color=DARK)
-            step(op='loft',path=[[x+bx,y+1.4*s,z+2.1],[x+bx,y+1.4*s,z+3.3]],section={'radius':0.21},sides=10,tag='barrel',color=DARK)
-            step(op='loft',path=[[x+bx,y+1.4*s,z+6.3],[x+bx,y+1.4*s,z+6.95]],section={'radius':0.2},sides=10,tag='barrel',color=DARK)
+    for (_,(jx,jy,jz),(dx,dy,dz)) in JETS:
+        step(op='box',size=[1.5 if dx else 1.3,1.5 if dy else 1.3,2.2],at=[jx-dx*0.35,jy-dy*0.35,jz],tag='jet',color=DARK)
+        step(op='box',size=[0.5 if dx else 0.8,0.5 if dy else 0.8,1.5],at=[jx+dx*0.5,jy+dy*0.5,jz],tag='jetMouth',color=[0.04,0.04,0.045])
+    for (_,x,z,s) in TURRETS:
+        y=mount_height(x,z,s)
+        step(op='cylinder',radius=1.9,height=0.5,sides=24,at=[x,y+0.25*s,z],tag='turret',color=DARK)
+        step(op='cylinder',radius=1.6,height=0.3,sides=24,at=[x,y+0.65*s,z],tag='turret',color=DARK)
     S[-1]['id']='blockout'
 
     src={'version':1,'smoothAngle':28,'material':{'roughness':0.42,'metallic':0,'coat':SHIP_COAT[0],'coatRoughness':SHIP_COAT[1],'emissive':[16,16,16],'detail':SHIP_DETAIL},'steps':S}
     if True:
         step(op='paint',faces={'tag':['nacelle','pylon','keel']},roughness=0.46,metallic=0.2)
-        step(op='paint',faces={'tag':['mast','turret','barrel','cowl','rib']},color=[0.3,0.31,0.34],roughness=0.32,metallic=0.9)
+        step(op='paint',faces={'tag':['mast','turret','cowl','rib']},color=[0.3,0.31,0.34],roughness=0.32,metallic=0.9)
+        step(op='paint',faces={'tag':['jet','jetMouth']},roughness=0.4,metallic=0.8)
         step(op='paint',faces='nozzle',color=[0.2,0.19,0.185],roughness=0.36,metallic=1)
         step(op='paint',faces=THROAT,color=[0.03,0.03,0.035],roughness=0.6,metallic=0.3)
         step(op='paint',faces='shield',roughness=0.5,metallic=0.3)
@@ -384,7 +483,7 @@ def ship_source():
 
 
 GATE_RADIUS = 170.0
-FLARES = {'white': (1.0, 1.0, 1.0), 'red': (1.0, 0.08, 0.04), 'green': (0.08, 1.0, 0.25)}
+FLARES = {'white': (1.0, 1.0, 1.0), 'red': (1.0, 0.08, 0.04), 'green': (0.08, 1.0, 0.25), 'bolt': (1.0, 0.6, 0.24)}
 STROBES = [('StrobeMast', (0, 23.1, -24.3), 'white', 0.55), ('StrobeKeel', (0, -10.95, -12), 'red', 0.5), ('NavPort', (17, 3.05, -20), 'red', 0.42), ('NavStarboard', (-17, 3.05, -20), 'green', 0.42),
            ('BowPort', (3.3, -0.1, 59.1), 'white', 0.34), ('BowStarboard', (-3.3, -0.1, 59.1), 'white', 0.34)]
 MOTES = 150
@@ -487,7 +586,7 @@ SMALL = {
 
 
 def make_models():
-    sources = {'frigate': ship_source(), 'gate': gate_source(), **SMALL}
+    sources = {'frigate': ship_source(), 'turret': turret_source(), 'guns': guns_source(), 'gate': gate_source(), **SMALL}
     for name, source in sources.items():
         if MODELS_ONLY and name not in MODELS_ONLY:
             continue
@@ -506,6 +605,9 @@ def make_materials():
         'plume': {'version': '1.0', 'type': 'material', 'shader': 'plume.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 0,
                   'properties': {'u_core': {'r': 0.25, 'g': 0.5, 'b': 1.0, 'a': 1}, 'u_edge': {'r': 0.03, 'g': 0.14, 'b': 0.7, 'a': 1}, 'u_strength': 1.2, 'u_length': 11,
                                  'u_falloff': 2.6, 'u_fade': 1.6, 'u_diamonds': 0, 'u_knots': 0, 'u_flicker': 0.08}},
+        'plume-jet': {'version': '1.0', 'type': 'material', 'shader': 'plume.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 0,
+                      'properties': {'u_core': {'r': 0.9, 'g': 0.96, 'b': 1.0, 'a': 1}, 'u_edge': {'r': 0.35, 'g': 0.6, 'b': 1.0, 'a': 1}, 'u_strength': 2.4, 'u_length': 11,
+                                     'u_falloff': 1.6, 'u_fade': 2.2, 'u_diamonds': 0, 'u_knots': 0, 'u_flicker': 0.2}},
         'plume-core': {'version': '1.0', 'type': 'material', 'shader': 'plume.esshader', 'blendMode': 5, 'depthTest': True, 'depthWrite': False, 'cull': 0,
                        'properties': {'u_core': {'r': 0.9, 'g': 0.97, 'b': 1.0, 'a': 1}, 'u_edge': {'r': 0.2, 'g': 0.55, 'b': 1.0, 'a': 1}, 'u_strength': 5, 'u_length': 11,
                                       'u_falloff': 1.3, 'u_fade': 2.4, 'u_diamonds': 5, 'u_knots': 1.4, 'u_flicker': 0.14}},
@@ -521,8 +623,9 @@ def make_materials():
         stamp(path, 'material')
     for name in ('atmosphere', 'plume', 'gatefield', 'flare'):
         stamp(MAT / f'{name}.esshader', 'shader')
-    hull = MODELS / 'frigate.esmaterial'
-    if hull.exists():
+    for hull in (MODELS / f'{name}.esmaterial' for name in ('frigate', 'turret', 'guns')):
+        if not hull.exists():
+            continue
         doc = json.loads(hull.read_text())
         doc['properties'].update({'u_detailMap': SHIP_DETAIL['texture'], 'u_detailSize': SHIP_DETAIL['size'], 'u_detailStrength': SHIP_DETAIL['strength'], 'u_detailBump': SHIP_DETAIL['bump']})
         doc['properties'].update({'u_clearcoat': SHIP_COAT[0], 'u_clearcoatRoughness': SHIP_COAT[1]})
@@ -612,6 +715,20 @@ def make_scene():
         add(name + 'Core', [transform((0, 0, 0.15), None, (0.42, 0.42, 0.78)), mesh('plume', 'assets/materials/plume-core.esmaterial', None, False, False, False, False)], sheath)
     for name, at in [('EngineGlowL', (4.5, 0, -52)), ('EngineGlowR', (-4.5, 0, -52)), ('EngineGlowNL', (17, -1, -52)), ('EngineGlowNR', (-17, -1, -52))]:
         add(name, [transform(at), {'type': 'Light', 'data': {'type': 0, 'color': {'r': 0.6, 'g': 0.75, 'b': 1.0, 'a': 1}, 'intensity': 0.4, 'radius': 14, 'enabled': True, 'meshShadows': False}}], ship)
+    for name, at, way in JETS:
+        add(f'Jet{name}', [transform(tuple(a + w * 0.9 for a, w in zip(at, way)), look((0, 0, 0), way), (0.001,) * 3), mesh('plume', 'assets/materials/plume-jet.esmaterial', None, False, False, False, False)], ship)
+    flip = {'x': 0, 'y': 0, 'z': 1, 'w': 0}
+    for key, x, z, side in TURRETS:
+        seat = (x, mount_height(x, z, side) + TURRET_SEAT * side, z)
+        turret = add(f'Turret{key}', [transform(seat, flip if side < 0 else None, (TURRET_SCALE,) * 3), mesh('turret', 'assets/models/turret.esmaterial', 'assets/models/turret_color.png')], ship)
+        guns = add(f'Guns{key}', [transform(TRUNNION), mesh('guns', 'assets/models/guns.esmaterial', 'assets/models/guns_color.png')], turret)
+        flash = add(f'Muzzle{key}', [transform((0, 0, MUZZLE + 0.5), None, (0.001,) * 3), mesh('flare', 'assets/materials/flare-bolt.esmaterial', None, False, False, True, False)], guns)
+        add(f'Muzzle{key}Light', [transform(), {'type': 'Light', 'data': {'type': 0, 'color': dict(zip('rgb', FLARES['bolt']), a=1), 'intensity': 0, 'radius': 22, 'enabled': True, 'meshShadows': False}}], flash)
+    for i in range(SHELLS):
+        add(f'Shell{i}', [transform((0, -50000, 0), None, (0.001,) * 3), mesh('flare', 'assets/materials/flare-bolt.esmaterial', None, False, False, True, False)])
+    for i in range(IMPACTS):
+        burst = add(f'Impact{i}', [transform((0, -50000, 0), None, (0.001,) * 3), mesh('flare', 'assets/materials/flare-bolt.esmaterial', None, False, False, True, False)])
+        add(f'Impact{i}Light', [transform(), {'type': 'Light', 'data': {'type': 0, 'color': dict(zip('rgb', FLARES['bolt']), a=1), 'intensity': 0, 'radius': 120, 'enabled': True, 'meshShadows': False}}], burst)
     for name, at, tint, size in STROBES:
         lamp = add(name, [transform(at, None, (size,) * 3), mesh('flare', f'assets/materials/flare-{tint}.esmaterial', None, False, False, True, False)], ship)
         add(name + 'Light', [transform(), {'type': 'Light', 'data': {'type': 0, 'color': dict(zip('rgb', FLARES[tint]), a=1), 'intensity': 0.5, 'radius': 9, 'enabled': True, 'meshShadows': False}}], lamp)

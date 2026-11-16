@@ -1,6 +1,7 @@
 import { TextAlign, UIVisual } from 'esengine';
 import type { Entity } from 'esengine';
-import { ELEVATION_ORDERS, ENGINE_ORDERS, RUDDER_ORDERS, engage, helm, setElevation, setEngine, setRudder, steady } from './helm';
+import { guns } from './gunnery';
+import { ELEVATION_ORDERS, ENGINE_ORDERS, PITCH_RATE, RUDDER_ORDERS, engage, helm, setElevation, setEngine, setRudder, steady } from './helm';
 import { AMBER, HAZE, ICE, rgb, type Frame, type Kit } from './hudKit';
 import { mining } from './hudMining';
 import type { TargetProbe } from './hudTargets';
@@ -39,10 +40,10 @@ export function buildHelm(kit: Kit, probe: TargetProbe): Desk {
     const engineSet = solid(desk, 'HelmEngineSet', { left: engineX + CELL.w + 4, top: 0, width: 10, height: 3 }, rgb(AMBER));
     const engineNow = solid(desk, 'HelmEngineNow', { left: engineX - 14, top: 0, width: 10, height: 3 }, rgb(ICE));
 
-    header('ElevationTitle', elevationX - 10, -16, CELL.w + 20, 'ELEVATION');
-    [...ELEVATION_ORDERS].reverse().forEach((degrees, i) => {
-        const caption = degrees === 0 ? 'LEVEL' : `${degrees > 0 ? '+' : '-'} ${Math.abs(degrees)}`;
-        control(`Elevation${degrees}`, elevationX, i * (CELL.h + CELL.gap), CELL.w, CELL.h, caption, () => setElevation(degrees), () => helm.mode === 'manual' && Math.abs(helm.elevation - degrees) < 0.5);
+    header('ElevationTitle', elevationX - 10, -16, CELL.w + 20, 'PITCH');
+    [...ELEVATION_ORDERS].reverse().forEach((order, i) => {
+        const caption = order === 0 ? 'HOLD' : `${order > 0 ? 'UP' : 'DOWN'} ${Math.abs(order) * 2}`;
+        control(`Elevation${order * 100}`, elevationX, i * (CELL.h + CELL.gap), CELL.w, CELL.h, caption, () => setElevation(order), () => helm.mode === 'manual' && Math.abs(helm.elevation - order) < 0.02);
     });
     const elevationSet = solid(desk, 'HelmElevationSet', { left: elevationX - 14, top: 0, width: 10, height: 3 }, rgb(AMBER));
     const elevationNow = solid(desk, 'HelmElevationNow', { left: elevationX + CELL.w + 4, top: 0, width: 10, height: 3 }, rgb(ICE));
@@ -63,10 +64,12 @@ export function buildHelm(kit: Kit, probe: TargetProbe): Desk {
     control('Lock', left, rowAt(0), BUTTON.w, BUTTON.h, 'T   LOCK', () => { probe.next = true; }, () => probe.selected >= 0);
     control('Mine', left, rowAt(1), BUTTON.w, BUTTON.h, 'F   MINE', () => { mining.armed = !mining.armed; }, () => mining.armed);
     control('Release', left, rowAt(2), BUTTON.w, BUTTON.h, 'R   RELEASE', () => { probe.release = true; }, () => false);
+    control('Guns', left, rowAt(3), BUTTON.w, BUTTON.h, 'G   GUNS', () => { guns.toggle = true; }, () => guns.view);
     control('Close', right, rowAt(0), BUTTON.w, BUTTON.h, 'V   CLOSE', () => engage('approach'), () => helm.mode === 'approach');
     control('Gate', right, rowAt(1), BUTTON.w, BUTTON.h, 'B   GATE', () => engage('align'), () => helm.mode === 'align');
     control('Steady', right, rowAt(2), BUTTON.w, BUTTON.h, 'X   STEADY', () => steady(), () => false);
-    header('Hints', -360, RUDDER.top + RUDDER.h + 14, 720, 'W S  ENGINE      ARROWS  RUDDER AND ELEVATION      DRAG  ORBIT      1 - 6  VIEWS      SPACE  TOUR');
+    control('Auto', right, rowAt(3), BUTTON.w, BUTTON.h, 'C   AUTO FIRE', () => { guns.auto = !guns.auto; }, () => guns.auto);
+    header('Hints', -420, RUDDER.top + RUDDER.h + 14, 840, 'W S  ENGINE      A D  RUDDER      Q E  PITCH      DRAG  LOOK      1 - 6  VIEWS      G  GUNS      C  AUTO FIRE      SPACE  TOUR OR FIRE');
 
     const along = (value: number, low: number, high: number): number => {
         const k = Math.max(0, Math.min(1, (value - low) / (high - low)));
@@ -90,8 +93,8 @@ export function buildHelm(kit: Kit, probe: TargetProbe): Desk {
         }
         place(engineSet, engineX + CELL.w + 4, along(helm.order, 0, 1));
         place(engineNow, engineX - 14, along(ship.throttle, 0, 1));
-        place(elevationSet, elevationX - 14, along(helm.elevation, -30, 30));
-        place(elevationNow, elevationX + CELL.w + 4, along((helm.pitch * 180) / Math.PI, -30, 30));
+        place(elevationSet, elevationX - 14, along(helm.elevation, -1, 1));
+        place(elevationNow, elevationX + CELL.w + 4, along(helm.pitchRate / PITCH_RATE, -1, 1));
         const across = (value: number): number => Math.max(-1, Math.min(1, value)) * (wide / 2 - RUDDER.w / 2) - 1.5;
         place(rudderSet, across(helm.rudder), RUDDER.top + RUDDER.h + 3);
         place(rudderNow, across(helm.helmAngle), RUDDER.top - 8);
