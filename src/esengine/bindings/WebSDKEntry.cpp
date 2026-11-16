@@ -695,6 +695,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_submitScreenOverlay", &esengine::renderer_submitScreenOverlay);
     emscripten::function("renderer_setScreenOverlayEffect", &esengine::renderer_setScreenOverlayEffect);
     emscripten::function("renderer_endScreenOverlay", &esengine::renderer_endScreenOverlay);
+    emscripten::function("renderer_drawOverScreen", &esengine::renderer_drawOverScreen);
 #ifdef ES_ENABLE_BITMAP_TEXT
 #endif
 

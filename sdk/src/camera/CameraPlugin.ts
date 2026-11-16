@@ -1003,6 +1003,8 @@ export function cameraPlugin(
                             pipeline.renderScreenOverlay({ _cpp: cppRegistry },
                                                          app.getResource(ScreenOverlay));
                         }
+                        // Over the screen's UI too: what an editor draws to work the scene with.
+                        pipeline.renderOverScreen();
                         // ...and now the frame is over, which is when a borrowed
                         // swapchain image goes back.
                         pipeline.endFrame();
@@ -1081,6 +1083,7 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
         if (!target) pipeline.endScreenCapture();
         Renderer.setViewport(0, 0, width, height);
         if (app.hasResource(ScreenOverlay)) pipeline.renderScreenOverlay({ _cpp: registry }, app.getResource(ScreenOverlay), target ?? 0);
+        pipeline.renderOverScreen(target ?? 0);
     } finally {
         pipeline.endFrame();
     }
