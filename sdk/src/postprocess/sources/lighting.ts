@@ -1185,6 +1185,11 @@ void main() {
     for (int j = 0; j < 4; ++j) {
         for (int i = 0; i < 4; ++i) {
             vec3 c = texture(u_texture, v_texCoord + (vec2(float(i), float(j)) - 1.5) * 4.0 * texel).rgb;
+#ifdef ES_LINEAR
+#else
+            // A gamma frame holds codes: the light they stand for is what is metered, or 18% grey would be sought as a code (46 of 255).
+            c = srgbToLinear(c);
+#endif
             float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
             if (lum > 0.0039) { sum += log2(lum); counted += 1.0; }
         }
@@ -1201,7 +1206,11 @@ void main() {
     var counted = 0.0;
     for (var j : i32 = 0; j < 4; j = j + 1) {
         for (var i : i32 = 0; i < 4; i = i + 1) {
-            let c = textureSampleLevel(t0, s0, v.v_texCoord + (vec2f(f32(i), f32(j)) - 1.5) * 4.0 * texel, 0.0).rgb;
+            var c = textureSampleLevel(t0, s0, v.v_texCoord + (vec2f(f32(i), f32(j)) - 1.5) * 4.0 * texel, 0.0).rgb;
+#ifdef ES_LINEAR
+#else
+            c = srgbToLinear(c);
+#endif
             let lum = dot(c, vec3f(0.2126, 0.7152, 0.0722));
             if (lum > 0.0039) { sum = sum + log2(lum); counted = counted + 1.0; }
         }
@@ -1337,7 +1346,12 @@ out vec4 fragColor;
 void main() {
     float ev = texture(u_texture, vec2(0.5)).r * 20.0 - 10.0;
     vec4 scene = texture(u_sceneTexture, v_texCoord);
+#ifdef ES_LINEAR
     fragColor = vec4(scene.rgb * exp2(ev), scene.a);
+#else
+    // The gain is of light: a gamma frame's codes are decoded for it and encoded again.
+    fragColor = vec4(linearToSrgb(srgbToLinear(scene.rgb) * exp2(ev)), scene.a);
+#endif
 }
 #pragma end
 
@@ -1345,7 +1359,11 @@ void main() {
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let ev = textureSampleLevel(t0, s0, vec2f(0.5), 0.0).r * 20.0 - 10.0;
     let scene = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
+#ifdef ES_LINEAR
     return vec4f(scene.rgb * exp2(ev), scene.a);
+#else
+    return vec4f(linearToSrgb(srgbToLinear(scene.rgb) * exp2(ev)), scene.a);
+#endif
 }
 #pragma end
 `;
