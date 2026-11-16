@@ -14,6 +14,7 @@
  *          keeps this renderer explicable: the graph is the whole frame.
  */
 #include "./RenderFrame.hpp"
+#include "../draw/ImmediateDraw.hpp"
 #include "../../core/FrameProfiler.hpp"
 
 #include <algorithm>
@@ -248,6 +249,40 @@ void RenderFrame::endScreenOverlay(RenderTargetManager::Handle target) {
     device_.endRenderPass();
     device_.invalidatePipelineCache();
     runPendingReplay(overlay_projection_, overlay_vp_w_, overlay_vp_h_);
+}
+
+void RenderFrame::drawOverScreen(i32 vpX, i32 vpY, u32 vpW, u32 vpH, RenderTargetManager::Handle target) {
+    ImmediateDraw* draw = presented_overlay_draw_;
+    if (!draw || !draw->hasDeferred() || !device_.isDeviceUsable() || vpW == 0 || vpH == 0) return;
+
+    FramebufferHandle fbo = FramebufferHandle::Default;
+    if (target != RenderTargetManager::INVALID_HANDLE) {
+        if (auto* rt = target_manager_.get(target)) fbo = rt->getFramebuffer();
+    }
+    // The pixels are the display's by now, past the post chain and the screen's UI: a
+    // linear frame's colours go through the variant that encodes them, as the overlay's do.
+    const ShaderHandle program = linear_color_ ? ShaderHandle{batchProgram({"DISPLAY_OUTPUT"})} : ShaderHandle::Invalid;
+    const glm::mat4 viewProjection = draw->viewProjection();
+
+    device_.invalidatePipelineCache();
+    device_.setScissorTest(false);
+    graph_.begin(width_, height_);
+    rg::PassDesc pass;
+    pass.name = "over-screen";
+    pass.viewportX = static_cast<u32>(std::max(vpX, 0));
+    pass.viewportY = static_cast<u32>(std::max(vpY, 0));
+    pass.viewportW = vpW;
+    pass.viewportH = vpH;
+    pass.write = graph_.importTarget(fbo, width_, height_);
+    pass.clear = false;
+    pass.execute = [this, draw, program, viewProjection](const rg::PassContext&) {
+        context_.updateCameraConstants(viewProjection);
+        draw->flushDeferred(program);
+    };
+    graph_.addPass(std::move(pass));
+    graph_.execute();
+    device_.endRenderPass();
+    device_.invalidatePipelineCache();
 }
 
 }  // namespace esengine

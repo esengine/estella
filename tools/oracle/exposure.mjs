@@ -13,7 +13,7 @@
  *                 minimum and maximum, applied as colour x 2^EV.
  */
 import { scene, camera, mesh, volume, SIZE } from './scene.mjs';
-import { encodeLinear8, encodeGamma8, clamp01, smoothstep } from './formulas.mjs';
+import { encodeLinear8, encodeGamma8, clamp01, smoothstep, srgbDecode } from './formulas.mjs';
 
 const fx = (type, uniforms) => ({ type, enabled: true, uniforms });
 const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
@@ -65,6 +65,18 @@ function bloomUniform({ id, colorSpace = 'linear', colour, threshold, intensity,
 
 /** The EV the picture settles on for a uniform frame of luminance `l`. */
 const settledEv = (l, { bias = 0, minEV = -4, maxEV = 4 }) => Math.min(Math.max(Math.log2(0.18) - Math.log2(l) + bias, minEV), maxEV);
+/**
+ * The same in a gamma frame. The picture's light is what its codes decode to, so the meter reads that and the gain is of that:
+ * a frame of code c comes out as the code of decode(c) x 2^EV, which is what a linear project shows for the same light.
+ */
+function exposureUniformGamma({ id, colour, params = {} }) {
+  const light = colour.map(srgbDecode), ev = settledEv(lum(light), params);
+  const shown = encodeLinear8(light.map((c) => clamp01(c * 2 ** ev))).map((code) => code / 255);
+  return uniformFrame({
+    id, colorSpace: 'gamma', colour, effects: [fx('autoExposure', { u_bias: params.bias ?? 0, u_minEV: params.minEV ?? -4, u_maxEV: params.maxEV ?? 4 })], expected: shown, tol: 5,
+    about: `Auto exposure in a gamma frame: the light the codes stand for, taken to 18% grey (EV ${ev.toFixed(2)}), shown as code ${Math.round(shown[0] * 255)}`,
+  });
+}
 function exposureUniform({ id, colour, params = {} }) {
   const ev = settledEv(lum(colour), params);
   return uniformFrame({
@@ -160,5 +172,8 @@ export const EXPOSURE_SCENES = [
   exposureMetered({ id: 'oracle-exposure-spot', metering: 2, meterSize: 0.2 }),
   bloomSpot({ id: 'oracle-bloom-spot' }),
   vignette({ id: 'oracle-vignette-gamma', colorSpace: 'gamma', colour: [0.5, 0.5, 0.5], intensity: 0.8, softness: 0.6 }),
+  exposureUniformGamma({ id: 'oracle-exposure-mid-gamma', colour: [0.5, 0.5, 0.5] }),
+  exposureUniformGamma({ id: 'oracle-exposure-dim-gamma', colour: [0.2, 0.2, 0.2] }),
+  exposureUniformGamma({ id: 'oracle-exposure-bias-gamma', colour: [0.5, 0.5, 0.5], params: { bias: -1 } }),
   bloomUniform({ id: 'oracle-bloom-knee-gamma', colorSpace: 'gamma', colour: [0.5, 0.5, 0.5], threshold: 0.4, intensity: 1.0, radius: 1 }),
 ];

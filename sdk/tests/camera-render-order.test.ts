@@ -66,7 +66,7 @@ describe('render order: transforms resolve before cameras are read', () => {
             // No overlay from this fake: what it records is the ORDER a frame
             // drives its cameras in, and a screen pass is not one of them.
             hasScreenOverlay: () => false,
-            beginScreenOverlay: () => {}, submitScreenOverlay: () => {}, hasScreenOverlayEffect: () => false, setScreenOverlayEffect: () => {}, endScreenOverlay: () => {},
+            beginScreenOverlay: () => {}, submitScreenOverlay: () => {}, hasScreenOverlayEffect: () => false, setScreenOverlayEffect: () => {}, endScreenOverlay: () => {}, drawOverScreen: () => {}, hasDrawOverScreen: () => false,
             setStage: () => {}, setViewport: () => {},
             setYSortLayers: () => {}, setDepthLayers: () => {}, setTreeSortLayers: () => {}, setCullingMask: () => {},
             setViewId: () => {},

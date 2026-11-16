@@ -95,6 +95,19 @@ public:
     void flushDeferred();
 
     /**
+     * The same, with every batch drawn through @p program instead of the one it was
+     * collected with: a pass that writes the display itself draws a linear frame's
+     * colours through the variant that encodes them, as the scene's present did.
+     */
+    void flushDeferred(ShaderHandle program);
+
+    /** Whether a collection closed by deferEnd is waiting for its pass. */
+    bool hasDeferred() const { return deferredGeometry_; }
+
+    /** The view-projection the current or last collection began with. */
+    const glm::mat4& viewProjection() const { return viewProjection_; }
+
+    /**
      * @brief Flushes pending draw commands without ending the frame
      * @details Use before operations that change GL state to ensure accumulated
      *          primitives are rendered with the correct state.

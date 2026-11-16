@@ -496,6 +496,7 @@ renderer_createTarget: (width: number, height: number, flags: number) => number
 renderer_destroySkeletalPreview: (preview: number) => void
 renderer_deviceGeneration: (() => number) | undefined
 renderer_diagnose: () => void
+renderer_drawOverScreen: ((vpX: number, vpY: number, vpW: number, vpH: number, targetHandle: number) => void) | undefined
 renderer_end: () => void
 renderer_endFrame: (() => void) | undefined
 renderer_endScreenOverlay: ((targetHandle: number) => void) | undefined
