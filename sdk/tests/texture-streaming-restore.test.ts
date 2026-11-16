@@ -22,6 +22,7 @@ const { Assets } = await import('../src/asset/AssetPlugin');
 
 const FILES = new Map<number, number>([[1, 2048], [2, 1024], [3, 512]]);
 const DECODES_AT_MOST = new Map<number, number>();
+const KNOWN_FULL = new Map<number, number>();
 
 function harness(startedSmall = 0) {
     const profile = { textureStreaming: true, textureStreamingBudget: 0 };
@@ -29,7 +30,7 @@ function harness(startedSmall = 0) {
     const loader = {
         startedSmall,
         resizableHandles: () => FILES.keys(),
-        fullSize: (handle: number) => { const edge = FILES.get(handle); return edge ? { width: edge, height: edge } : null; },
+        fullSize: (handle: number) => { const edge = KNOWN_FULL.get(handle) ?? FILES.get(handle); return edge ? { width: edge, height: edge } : null; },
     };
     const assets = {
         textureResizable: (handle: number) => FILES.has(handle),
@@ -39,6 +40,7 @@ function harness(startedSmall = 0) {
             resized.push([handle, edge]);
             const full = FILES.get(handle)!;
             const size = Math.min(edge === 0 ? full : Math.min(full, edge), DECODES_AT_MOST.get(handle) ?? Infinity);
+            if (size === full) KNOWN_FULL.delete(handle);
             dims.set(handle, { width: size, height: size });
             return { width: size, height: size };
         },
@@ -68,6 +70,7 @@ describe('textures streaming shrank, once the quality level stops streaming', ()
         wants = '';
         clock.now = 0;
         DECODES_AT_MOST.clear();
+        KNOWN_FULL.clear();
     });
 
     it('are put back at their full size', async () => {
@@ -115,5 +118,27 @@ describe('textures streaming shrank, once the quality level stops streaming', ()
         await run(1000);
         await run(2000);
         expect(resized).toEqual([]);
+    });
+});
+
+describe('a texture whose full size the loader learns only after streaming first sees it', () => {
+    beforeEach(() => {
+        dims.clear();
+        for (const [handle, edge] of FILES) dims.set(handle, { width: edge, height: edge });
+        wants = '';
+        clock.now = 0;
+        DECODES_AT_MOST.clear();
+        KNOWN_FULL.clear();
+    });
+
+    it('is moved to the size its views need once, not back and forth', async () => {
+        const { resized, run } = harness();
+        KNOWN_FULL.set(1, 4);
+        for (const at of [1000, 4500, 5000, 5500, 6000, 9500, 10000, 10500]) {
+            wants = '1:100';
+            await run(at);
+        }
+        expect(resized.filter(([handle]) => handle === 1).length).toBeLessThanOrEqual(2);
+        expect(dims.get(1)!.width).toBe(128);
     });
 });

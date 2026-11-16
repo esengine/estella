@@ -240,7 +240,10 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const fresh = await this.decodeAndUpload_(source.path, ctx, source.flip, source.settings, maxEdge);
         const moved = rm.adoptTextureContent(handle, fresh.handle);
         rm.releaseTexture(fresh.handle);
-        return moved ? { width: fresh.width, height: fresh.height } : null;
+        if (!moved) return null;
+        source.fullWidth = fresh.fullWidth ?? fresh.width;
+        source.fullHeight = fresh.fullHeight ?? fresh.height;
+        return { width: fresh.width, height: fresh.height };
     }
 
     /** Whether @p handle was decoded from a file by this loader, so it can be decoded again at another size. */
