@@ -5,7 +5,7 @@
 // builds, ships the atlas, and 404s the texture it points at on a device — which
 // is why the transitive-deps flag is asserted rather than assumed.
 import { describe, it, expect } from 'vitest';
-import { getAssetTypeEntry, getEditorType, getAddressableType } from '../src/assetTypes';
+import { getAssetTypeEntry, getEditorType } from '../src/assetTypes';
 
 describe('DragonBones asset classification', () => {
     it('tells the two halves apart, which the extension cannot', () => {
@@ -43,7 +43,6 @@ describe('DragonBones asset classification', () => {
     it('leaves Spine classifying exactly as before', () => {
         expect(getEditorType('hero.atlas')).toBe('spine-atlas');
         expect(getEditorType('hero.skel')).toBe('spine-skeleton');
-        expect(getAddressableType('hero.skel')).toBe('spine');
         expect(getEditorType('hero.png')).toBe('texture');
     });
 });

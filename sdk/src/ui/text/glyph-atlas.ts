@@ -55,7 +55,7 @@ export interface AtlasPageStore {
      * handle). `paint` draws every glyph placed on the page so far into a blank
      * page-sized RGBA buffer — how a page that lost its pixels gets them back.
      */
-    createPage(size: number, paint: (pixels: Uint8Array) => void): number;
+    createPage(size: number, paint: (pixels: Uint8Array) => void, distance?: boolean): number;
     /** Upload `pixels` into the [x,y,w,h] sub-rect of page `pageId`. */
     uploadSubRegion(pageId: number, x: number, y: number, w: number, h: number, pixels: Uint8Array): void;
     /** Release an owned page. Optional for stores whose page lifetime is external. */
@@ -531,7 +531,7 @@ export class GlyphAtlas {
         if (!this.store) throw new Error('Measurement atlases cannot allocate pages.');
         const glyphs: GlyphPlacement[] = [];
         this.placements.push(glyphs);
-        this.pages.push(this.store.createPage(this.pageSize, (pixels) => this.paintPage(glyphs, pixels)));
+        this.pages.push(this.store.createPage(this.pageSize, (pixels) => this.paintPage(glyphs, pixels), this.sdf));
         this.packers.push(new ShelfPacker(this.pageSize, this.pageSize));
     }
 

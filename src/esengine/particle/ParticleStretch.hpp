@@ -21,6 +21,16 @@ struct StretchedQuad {
     f32 length;    ///< The quad's extent along its Y.
 };
 
+inline glm::vec2 velocityOnScreen(const glm::vec3& velocity, const glm::vec3& towardViewer) {
+    const f32 reach = glm::length(towardViewer);
+    if (reach <= 1e-6f) return {velocity.x, velocity.y};
+    const glm::vec3 fwd = towardViewer / reach;
+    const glm::vec3 refUp = std::abs(fwd.y) > 0.999f ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
+    const glm::vec3 right = glm::normalize(glm::cross(refUp, fwd));
+    const glm::vec3 up = glm::cross(fwd, right);
+    return {glm::dot(velocity, right), glm::dot(velocity, up)};
+}
+
 inline StretchedQuad stretchedQuad(glm::vec2 velocity, f32 rotation, f32 size, f32 lengthScale, f32 velocityScale) {
     const f32 speed = glm::length(velocity);
     if (speed <= 1e-4f) return {rotation, size};
