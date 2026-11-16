@@ -8,7 +8,7 @@
  */
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
 import { WIND_FIELD_GLSL, WIND_FIELD_PARAMS, WIND_FIELD_WGSL } from '../render/windFieldShader';
-import { PACK_NORMAL_GLSL, PACK_NORMAL_WGSL } from '../render/shaderLib';
+import { PACK_NORMAL_GLSL } from '../render/shaderLib';
 
 
 // A blade narrower on screen than u_strandMinPx pixels is drawn that wide and its coverage cut to the width it has (the thinning's
@@ -442,99 +442,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${STRAND_WGSL}
-// See the GLSL: the share of a blade's drawn width it really has.
-fn foliageStrandCoverage(P : vec3f, v : f32) -> f32 {
-    if (mc.u_bladeWidth <= 0.0 || mc.u_strandMinPx <= 0.0) { return 1.0; }
-    let dist = max(length(P - frame.camera.xyz), 1e-3);
-    var wider = 0.0;
-    if (mc.u_thinDistance > 0.0 && frame.camera.w > 0.5) {
-        var keep = min(pow(mc.u_thinDistance / (mc.u_thinStep * dist), log(1.0 / mc.u_thinKeep) / log(mc.u_thinStep)), 1.0);
-        var melt = 0.0;
-        if (mc.u_thinEnd > 0.0) { melt = smoothstep(mc.u_thinEnd * (1.0 - mc.u_thinFade), mc.u_thinEnd, dist); }
-        keep = keep * (1.0 - melt);
-        if (keep > 0.0) { wider = min(1.0 / keep, mc.u_thinGrow) - 1.0; }
-    }
-    return clamp(foliageHalfWidth(v, wider) / (mc.u_strandMinPx * 0.5 * esWorldPerPixel(dist)), 0.0, 1.0);
-}
-#ifdef ES_GBUFFER
-struct FragOut {
-    @location(0) color : vec4f,
-    @location(1) surface : vec4f,
-    @location(2) albedo : vec4f,
-};
-
-${PACK_NORMAL_WGSL}
-
-@fragment fn fs_main(v : VSOut, @builtin(front_facing) front : bool) -> FragOut {
-#else
-@fragment fn fs_main(v : VSOut, @builtin(front_facing) front : bool) -> @location(0) vec4f {
-#endif
-    // Taken before any branch: a derivative needs every fragment of its quad.
-    let duvx = dpdx(v.v_texCoord);
-    let duvy = dpdy(v.v_texCoord);
-    g_probeSlot = v.v_probeSlot;
-#ifdef MESH_LIGHTMAP
-    g_lightmap = v.v_lightmap;
-#endif
-    let tex = textureSampleGrad(u_albedo, u_albedo_s, v.v_texCoord, duvx, duvy);
-    let edge = max(fwidth(tex.a), 1e-4);
-#ifdef MESH_NORMALS
-    let P = v.v_worldXYZ;
-    var N = normalize(v.v_worldNormal);
-    if (!front) { N = -N; }
-    N = normalize(mix(N, vec3f(0.0, 1.0, 0.0), vec3f(mc.u_groundNormal)));
-#else
-    let P = vec3f(v.v_worldPos.x, 0.0, v.v_worldPos.y);
-    let N = vec3f(0.0, 0.0, 1.0);
-#endif
-    let height = clamp(v.v_color.r, 0.0, 1.0);
-    let light = v.v_color.b;
-    var tip = mc.u_tipColor.rgb;
-    if (mc.u_paletteOn > 0.5) {
-        let across = f32(textureDimensions(u_palette, 0).x);
-        tip = textureSampleLevel(u_palette, u_palette_s, vec2f((floor(fract(v.v_color.g * 13.7 + 0.31) * across) + 0.5) / across, 0.5), 0.0).rgb;
-    }
-    var albedo = mix(mc.u_baseColor.rgb, tip, vec3f(clamp((height - mc.u_tipFrom) / (1.0 - mc.u_tipFrom), 0.0, 1.0)));
-    var alpha = 1.0;
-    if (mc.u_useTexture > 0.5) {
-        albedo = albedo * tex.rgb;
-        alpha = cutoutCoverage(tex.a, mc.u_alphaCutoff, edge);
-        if (alpha <= 0.0) { discard; }
-        alpha = min(alpha, 1.0);
-    }
-#ifdef MESH_NORMALS
-    alpha = alpha * foliageStrandCoverage(P, v.v_texCoord.y);
-#endif
-#ifdef MESH_NORMALS
-    if (mc.u_colorMapStrength > 0.0) {
-        let over = (P.xz + frame.renderOrigin.xz - mc.u_colorMapArea.xy) / max(mc.u_colorMapArea.zw, vec2f(1e-4));
-        let wash = textureSampleLevel(u_colorMap, u_colorMap_s, vec2f(over.x, 1.0 - over.y), 0.0);
-        var up = 1.0;
-        if (mc.u_colorMapFrom > 0.0) { up = smoothstep(mc.u_colorMapFrom * 0.8, mc.u_colorMapFrom, height); }
-        albedo = mix(albedo, wash.rgb, vec3f(wash.a * mc.u_colorMapStrength * up));
-    }
-#endif
-    albedo = albedo * light;
-    var ext = surfaceExtNone(N);
-    if (mc.u_translucency > 0.0) {
-        ext.scatter = vec4f(albedo * 1.3 * mc.u_translucencyColor.rgb, mc.u_translucency * 0.5);
-        ext.trans = vec4f(mc.u_translucency, mc.u_thickness, 0.0, 0.0);
-    }
-    let viewDir = viewDirection(P);
-    let lit = applyLightingSurface(albedo, N, P, viewDir, 0.0, mc.u_roughness, mc.u_specular, mix(mc.u_rootOcclusion, 1.0, height), ext);
-#ifdef ES_GBUFFER
-    var frag : FragOut;
-    frag.color = vec4f(lit, alpha);
-    frag.surface = vec4f(packNormal(N), mc.u_roughness, 0.75);
-    frag.albedo = vec4f(albedo, 1.0);
-    return frag;
-#else
-    return vec4f(lit, alpha);
-#endif
-}
-#pragma end
 `;
 
 export const FOLIAGE_SHADER_TEMPLATE = makeBuiltinShaderTemplate('foliage', 'Foliage',

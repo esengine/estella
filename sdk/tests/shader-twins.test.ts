@@ -9,6 +9,18 @@
 import { describe, expect, it } from 'vitest';
 
 import { BUILTIN_SHADER_TEMPLATES } from '../src/render/builtinShaders';
+import { withWgslTwin } from '../src/shaders/wgsl/twin';
+import { transpileFragment } from '../src/shaders/wgsl/transpile';
+import { ENGINE_SHADER_API } from '../src/shaders/wgsl/engineApi.generated';
+import { Material } from '../src/render/material';
+import { basicEffects } from '../src/postprocess/sources/basic';
+import { lensEffects } from '../src/postprocess/lensEffects';
+import { lightingEffects } from '../src/postprocess/sources/lighting';
+import { atmosphereEffects } from '../src/postprocess/sources/atmosphere';
+import { starfieldEffects } from '../src/postprocess/sources/starfield';
+import { agxEffects } from '../src/postprocess/sources/agx';
+import { fog2dEffects } from '../src/postprocess/sources/fog2d';
+import { rain2dEffects } from '../src/postprocess/sources/rain2d';
 
 // The filter modules export functions, not their sources — read the sources
 // from disk so the guard sees exactly what ships.
@@ -62,9 +74,13 @@ describe('embedded .esshader structure', () => {
             expect(sectionsBalance(source)).toBe(true);
         });
 
-        it(`${name}: carries a WGSL fragment twin with the fs_main entry point`, () => {
-            expect(source).toContain('#pragma fragment wgsl');
-            const wgsl = source.slice(source.indexOf('#pragma fragment wgsl'));
+        // A fullscreen pass's source is assembled as its factory runs (its text here still has its interpolations): the passes
+        // the factories compile are checked below.
+        if (name.startsWith('postProcessEffects.ts')) continue;
+        it(`${name}: carries a WGSL fragment twin with the fs_main entry point, its own or the one its GLSL is written as`, () => {
+            const twinned = withWgslTwin(source);
+            expect(twinned).toContain('#pragma fragment wgsl');
+            const wgsl = twinned.slice(twinned.indexOf('#pragma fragment wgsl'));
             expect(wgsl).toContain('fn fs_main(');
         });
 
@@ -77,6 +93,40 @@ describe('embedded .esshader structure', () => {
                 expect(wgsl).toContain('fn vs_main(');
             });
         }
+    }
+});
+
+describe('the fullscreen passes the effect groups compile', () => {
+    // Written in GLSL alone, as a pass is: a device that draws through WebGPU is given its WGSL as it compiles. Every factory is
+    // called with the compile caught, and each source it hands over must transpile.
+    const sources = new Map<string, string>();
+    const real = Material.compileShader;
+    (Material as unknown as { compileShader: (s: string) => number }).compileShader = (s: string) => {
+        sources.set(/#pragma shader "([^"]+)"/.exec(s)?.[1] ?? s, s);
+        return 1;
+    };
+    const groups = [basicEffects, lensEffects, lightingEffects, atmosphereEffects, starfieldEffects, agxEffects, fog2dEffects, rain2dEffects];
+    try {
+        for (const group of groups) {
+            for (const make of Object.values(group)) {
+                if (typeof make !== 'function') continue;
+                for (const args of [[], [true], [1], [2], [3], [4]]) {
+                    try { (make as (...a: unknown[]) => unknown)(...args); } catch { /* a factory that needs a device or other arguments */ }
+                }
+            }
+        }
+    } finally {
+        (Material as unknown as { compileShader: typeof real }).compileShader = real;
+    }
+
+    it('found them', () => expect(sources.size).toBeGreaterThan(60));
+    for (const [name, source] of sources) {
+        it(`${name}: transpiles${name.startsWith('Sky ') ? '' : ', and carries no WGSL of its own'}`, () => {
+            // A sky made with defineSkyEffect carries the WGSL its author wrote (Starfield is one): that is its API.
+            if (!name.startsWith('Sky ')) expect(source).not.toMatch(/^#pragma fragment wgsl/m);
+            const bare = source.replace(/^#pragma fragment wgsl[^\n]*\n[\s\S]*?^#pragma end[^\n]*\n?/gm, '');
+            expect(transpileFragment(bare, ENGINE_SHADER_API)).toContain('fn fs_main(');
+        });
     }
 });
 

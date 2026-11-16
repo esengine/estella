@@ -10,7 +10,7 @@ import { linearColorSpace } from '../../ecs/env';
 import { registerEffectSources, registerComputeSource } from '../effectSources';
 import { SHARPEN_WGSL } from '../computeEffects';
 import { lensEffects } from '../lensEffects';
-import { SSAO_GLSL, SSAO_WGSL, GBUFFER_GLSL, GBUFFER_WGSL } from './shared';
+import { SSAO_GLSL, GBUFFER_GLSL } from './shared';
 
 /**
  * A downsample of bloom's pyramid, in both languages. Thirteen taps around the destination texel, in source texels: the
@@ -19,19 +19,12 @@ import { SSAO_GLSL, SSAO_WGSL, GBUFFER_GLSL, GBUFFER_WGSL } from './shared';
  */
 function bloomDownSource(name: string, prefilter: boolean): string {
     const glslBox = (v: string) => prefilter ? `(1.0 / (1.0 + dot(${v}, vec3(0.2126, 0.7152, 0.0722))))` : '1.0';
-    const wgslBox = (v: string) => prefilter ? `(1.0 / (1.0 + dot(${v}, vec3f(0.2126, 0.7152, 0.0722))))` : '1.0';
     const glslThreshold = prefilter ? `
     float brightness = max(c.r, max(c.g, c.b));
     float knee = max(u_threshold * 0.5, 1e-4);
     float soft = clamp(brightness - u_threshold + knee, 0.0, 2.0 * knee);
     soft = soft * soft / (4.0 * knee);
     c *= max(soft, brightness - u_threshold) / max(brightness, 1e-5);` : '';
-    const wgslThreshold = prefilter ? `
-    let brightness = max(c.r, max(c.g, c.b));
-    let knee = max(mc.u_threshold * 0.5, 1e-4);
-    var soft = clamp(brightness - mc.u_threshold + knee, 0.0, 2.0 * knee);
-    soft = soft * soft / (4.0 * knee);
-    c *= max(soft, brightness - mc.u_threshold) / max(brightness, 1e-5);` : '';
     return `#pragma shader "${name}"
 #pragma version 300 es
 #pragma domain PostProcess
@@ -65,27 +58,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-fn tap(uv : vec2f) -> vec3f { return min(textureSampleLevel(t0, s0, uv, 0.0).rgb, vec3f(65000.0)); }
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let ts = 1.0 / vec2f(textureDimensions(t0, 0));
-    let uv = v.v_texCoord;
-    let a = tap(uv + ts * vec2f(-2.0, 2.0)); let b = tap(uv + ts * vec2f(0.0, 2.0)); let cc = tap(uv + ts * vec2f(2.0, 2.0));
-    let d = tap(uv + ts * vec2f(-2.0, 0.0)); let e = tap(uv); let f = tap(uv + ts * vec2f(2.0, 0.0));
-    let g = tap(uv + ts * vec2f(-2.0, -2.0)); let h = tap(uv + ts * vec2f(0.0, -2.0)); let i = tap(uv + ts * vec2f(2.0, -2.0));
-    let j = tap(uv + ts * vec2f(-1.0, 1.0)); let k = tap(uv + ts * vec2f(1.0, 1.0));
-    let l = tap(uv + ts * vec2f(-1.0, -1.0)); let m = tap(uv + ts * vec2f(1.0, -1.0));
-    let inner = (j + k + l + m) * 0.25;
-    let tl = (a + b + d + e) * 0.25; let tr = (b + cc + e + f) * 0.25;
-    let bl = (d + e + g + h) * 0.25; let br = (e + f + h + i) * 0.25;
-    let wi = 0.5 * ${wgslBox('inner')};
-    let w0 = 0.125 * ${wgslBox('tl')}; let w1 = 0.125 * ${wgslBox('tr')};
-    let w2 = 0.125 * ${wgslBox('bl')}; let w3 = 0.125 * ${wgslBox('br')};
-    var c = (inner * wi + tl * w0 + tr * w1 + bl * w2 + br * w3) / (wi + w0 + w1 + w2 + w3);${wgslThreshold}
-    return vec4f(c, 1.0);
-}
-#pragma end
 `;
 }
 
@@ -126,21 +98,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let ts = max(mc.u_radius, 0.25) / vec2f(textureDimensions(t0, 0));
-    let uv = v.v_texCoord;
-    var wide = textureSampleLevel(t0, s0, uv, 0.0).rgb * 4.0
-        + (textureSampleLevel(t0, s0, uv + vec2f(ts.x, 0.0), 0.0).rgb + textureSampleLevel(t0, s0, uv - vec2f(ts.x, 0.0), 0.0).rgb
-         + textureSampleLevel(t0, s0, uv + vec2f(0.0, ts.y), 0.0).rgb + textureSampleLevel(t0, s0, uv - vec2f(0.0, ts.y), 0.0).rgb) * 2.0
-        + textureSampleLevel(t0, s0, uv + ts, 0.0).rgb + textureSampleLevel(t0, s0, uv - ts, 0.0).rgb
-        + textureSampleLevel(t0, s0, uv + vec2f(ts.x, -ts.y), 0.0).rgb + textureSampleLevel(t0, s0, uv + vec2f(-ts.x, ts.y), 0.0).rgb;
-    wide *= 1.0 / 16.0;
-    let near = textureSampleLevel(${tex}, ${tex}_s, uv, 0.0).rgb;
-    let scatter = clamp(0.5 + 0.1 * mc.u_radius, 0.5, 0.75);
-    return vec4f(mix(near, wide, scatter), 1.0);
-}
-#pragma end
 `;
 }
 
@@ -180,24 +137,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-fn sampleLut(c : vec3f) -> vec3f {
-    let size = 32.0;
-    let b = clamp(c.b, 0.0, 1.0) * (size - 1.0);
-    let slice0 = floor(b);
-    let slice1 = min(slice0 + 1.0, size - 1.0);
-    let u = (clamp(c.r, 0.0, 1.0) * (size - 1.0) + 0.5) / (size * size);
-    let v = (clamp(c.g, 0.0, 1.0) * (size - 1.0) + 0.5) / size;
-    let a = textureSampleLevel(u_lut, u_lut_s, vec2f(u + slice0 / size, v), 0.0).rgb;
-    let d = textureSampleLevel(u_lut, u_lut_s, vec2f(u + slice1 / size, v), 0.0).rgb;
-    return mix(a, d, b - slice0);
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let color = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    return vec4f(mix(color.rgb, sampleLut(color.rgb), mc.u_intensity), color.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -233,26 +172,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let texelSize = tc.u_viewport.zw;
-    let offset = mc.u_intensity;
-    let uv = v.v_texCoord;
-
-    var color = vec4f(0.0);
-    color += textureSampleLevel(t0, s0, uv + vec2f(-offset, -offset) * texelSize, 0.0) * 0.0625;
-    color += textureSampleLevel(t0, s0, uv + vec2f( 0.0,    -offset) * texelSize, 0.0) * 0.125;
-    color += textureSampleLevel(t0, s0, uv + vec2f( offset, -offset) * texelSize, 0.0) * 0.0625;
-    color += textureSampleLevel(t0, s0, uv + vec2f(-offset,  0.0)   * texelSize, 0.0) * 0.125;
-    color += textureSampleLevel(t0, s0, uv, 0.0)                                       * 0.25;
-    color += textureSampleLevel(t0, s0, uv + vec2f( offset,  0.0)   * texelSize, 0.0) * 0.125;
-    color += textureSampleLevel(t0, s0, uv + vec2f(-offset,  offset) * texelSize, 0.0) * 0.0625;
-    color += textureSampleLevel(t0, s0, uv + vec2f( 0.0,     offset) * texelSize, 0.0) * 0.125;
-    color += textureSampleLevel(t0, s0, uv + vec2f( offset,  offset) * texelSize, 0.0) * 0.0625;
-
-    return color;
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -284,16 +203,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let color = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let uv = v.v_texCoord * 2.0 - 1.0;
-    let round = vec2f(tc.u_viewport.x / max(tc.u_viewport.y, 1.0), 1.0);
-    let dist = mix(length(uv), length(uv * round) / length(round), mc.u_roundness);
-    let vig = 1.0 - smoothstep(mc.u_radius - mc.u_softness, mc.u_radius, dist);
-    return vec4f(color.rgb * mix(1.0, vig, mc.u_intensity), color.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -317,13 +226,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let color = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let gray = dot(color.rgb, vec3f(0.299, 0.587, 0.114));
-    return vec4f(mix(color.rgb, vec3f(gray), mc.u_intensity), color.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -353,19 +255,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let color = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let brightness = dot(color.rgb, vec3f(0.2126, 0.7152, 0.0722));
-    let knee = mc.u_threshold * 0.5;
-    var soft = brightness - mc.u_threshold + knee;
-    soft = clamp(soft, 0.0, 2.0 * knee);
-    soft = soft * soft / (4.0 * knee + 0.00001);
-    var contrib = max(soft, brightness - mc.u_threshold);
-    contrib /= max(brightness, 0.00001);
-    return vec4f(color.rgb * contrib, 1.0);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -395,19 +284,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let d = ${d} * max(mc.u_radius, 0.5);
-    let ts = tc.u_viewport.zw;
-    let uv = v.v_texCoord;
-    return (
-        textureSampleLevel(t0, s0, uv + vec2f(-d, -d) * ts, 0.0) +
-        textureSampleLevel(t0, s0, uv + vec2f( d, -d) * ts, 0.0) +
-        textureSampleLevel(t0, s0, uv + vec2f(-d,  d) * ts, 0.0) +
-        textureSampleLevel(t0, s0, uv + vec2f( d,  d) * ts, 0.0)
-    ) * 0.25;
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -456,19 +332,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let uv = v.v_texCoord;
-    let ts = 1.0 / vec2f(textureDimensions(t0, 0));
-    let blur = textureSampleLevel(t0, s0, uv, 0.0).rgb * 4.0
-        + (textureSampleLevel(t0, s0, uv + vec2f(ts.x, 0.0), 0.0).rgb + textureSampleLevel(t0, s0, uv - vec2f(ts.x, 0.0), 0.0).rgb
-         + textureSampleLevel(t0, s0, uv + vec2f(0.0, ts.y), 0.0).rgb + textureSampleLevel(t0, s0, uv - vec2f(0.0, ts.y), 0.0).rgb) * 2.0
-        + textureSampleLevel(t0, s0, uv + ts, 0.0).rgb + textureSampleLevel(t0, s0, uv - ts, 0.0).rgb
-        + textureSampleLevel(t0, s0, uv + vec2f(ts.x, -ts.y), 0.0).rgb + textureSampleLevel(t0, s0, uv + vec2f(-ts.x, ts.y), 0.0).rgb;
-    let scene = textureSampleLevel(t1, s1, uv, 0.0);
-    return vec4f(scene.rgb + blur * (mc.u_intensity / 16.0), scene.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -477,7 +340,6 @@ void main() {
         // a straight line through 0.18 sends what is dark to black: at 1.4 everything under 0.05, the whole of a night scene.
         const linear = linearColorSpace();
         const contrastGlsl = linear ? 'c = 0.18 * pow(max(c, vec3(1e-6)) / 0.18, vec3(u_contrast));' : 'c = (c - 0.5) * u_contrast + 0.5;';
-        const contrastWgsl = linear ? 'c = 0.18 * pow(max(c, vec3f(1e-6)) / 0.18, vec3f(mc.u_contrast));' : 'c = (c - 0.5) * mc.u_contrast + 0.5;';
         const source = `#pragma shader "PP Color Grade"
 #pragma version 300 es
 #pragma domain PostProcess
@@ -541,35 +403,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    var c = src.rgb;
-
-    c *= exp2(mc.u_exposure);
-
-    c.r *= 1.0 + mc.u_temperature * 0.2;
-    c.b *= 1.0 - mc.u_temperature * 0.2;
-    c.g *= 1.0 + mc.u_tint * 0.2;
-
-    ${contrastWgsl}
-
-    let tone = dot(c, vec3f(0.2126, 0.7152, 0.0722));
-    c *= mix(mc.u_shadowTint.rgb, mc.u_highlightTint.rgb, smoothstep(mc.u_toneLow, max(mc.u_toneHigh, mc.u_toneLow + 1e-4), tone));
-
-    let cc = clamp(c, vec3f(0.0), vec3f(1.0));
-    c = mix(c, cc * cc * (3.0 - 2.0 * cc), mc.u_curve);
-
-    c = c * mc.u_gain + vec3f(mc.u_offset);
-
-    c += mc.u_lift.rgb * 0.1;
-
-    let luma = dot(c, vec3f(0.2126, 0.7152, 0.0722));
-    c = mix(vec3f(luma), c, mc.u_saturation);
-
-    return vec4f(clamp(c, vec3f(0.0), vec3f(1.0)), src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -596,16 +429,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let offset = mc.u_intensity * tc.u_viewport.zw;
-    let r = textureSampleLevel(t0, s0, v.v_texCoord + offset, 0.0).r;
-    let g = textureSampleLevel(t0, s0, v.v_texCoord, 0.0).g;
-    let b = textureSampleLevel(t0, s0, v.v_texCoord - offset, 0.0).b;
-    let a = textureSampleLevel(t0, s0, v.v_texCoord, 0.0).a;
-    return vec4f(r, g, b, a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -640,22 +463,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-fn acesFitted(x : vec3f) -> vec3f {
-    let toCurve = mat3x3f(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383, 0.04823, 0.01566, 0.83777);
-    let fromCurve = mat3x3f(1.60475, -0.10208, -0.00327, -0.53108, 1.10813, -0.07276, -0.07367, -0.00605, 1.07602);
-    var v = toCurve * x;
-    v = (v * (v + 0.0245786) - 0.000090537) / (v * (0.983729 * v + 0.4329510) + 0.238081);
-    return clamp(fromCurve * v, vec3f(0.0), vec3f(1.0));
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let c = src.rgb * exp2(mc.u_exposure);
-    if (mc.u_curve > 0.5) { return vec4f(acesFitted(c), src.a); }
-    return vec4f(acesFilmic(c), src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -714,49 +521,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-const REDUCE_MIN = 1.0 / 128.0;
-const REDUCE_MUL = 1.0 / 8.0;
-const SPAN_MAX = 8.0;
-
-fn luma(c : vec3f) -> f32 { return dot(c, vec3f(0.299, 0.587, 0.114)); }
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let inv = tc.u_viewport.zw;
-    let uv = v.v_texCoord;
-    let srcM = textureSampleLevel(t0, s0, uv, 0.0);
-    let rgbNW = textureSampleLevel(t0, s0, uv + vec2f(-1.0, -1.0) * inv, 0.0).rgb;
-    let rgbNE = textureSampleLevel(t0, s0, uv + vec2f( 1.0, -1.0) * inv, 0.0).rgb;
-    let rgbSW = textureSampleLevel(t0, s0, uv + vec2f(-1.0,  1.0) * inv, 0.0).rgb;
-    let rgbSE = textureSampleLevel(t0, s0, uv + vec2f( 1.0,  1.0) * inv, 0.0).rgb;
-
-    let lM = luma(srcM.rgb);
-    let lNW = luma(rgbNW);
-    let lNE = luma(rgbNE);
-    let lSW = luma(rgbSW);
-    let lSE = luma(rgbSE);
-    let lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE)));
-    let lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));
-
-    var dir : vec2f;
-    dir.x = -((lNW + lNE) - (lSW + lSE));
-    dir.y =  ((lNW + lSW) - (lNE + lSE));
-    let reduce = max((lNW + lNE + lSW + lSE) * 0.25 * REDUCE_MUL, REDUCE_MIN);
-    let rcpMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + reduce);
-    dir = clamp(dir * rcpMin, vec2f(-SPAN_MAX), vec2f(SPAN_MAX)) * inv;
-
-    let rgbA = 0.5 * (
-        textureSampleLevel(t0, s0, uv + dir * (1.0 / 3.0 - 0.5), 0.0).rgb +
-        textureSampleLevel(t0, s0, uv + dir * (2.0 / 3.0 - 0.5), 0.0).rgb);
-    let rgbB = rgbA * 0.5 + 0.25 * (
-        textureSampleLevel(t0, s0, uv + dir * -0.5, 0.0).rgb +
-        textureSampleLevel(t0, s0, uv + dir *  0.5, 0.0).rgb);
-
-    let lB = luma(rgbB);
-    let aa = select(rgbB, rgbA, lB < lMin || lB > lMax);
-    return vec4f(mix(srcM.rgb, aa, clamp(mc.u_intensity, 0.0, 1.0)), srcM.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -790,18 +554,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let uv = v.v_texCoord * 2.0 - 1.0;
-    let r2 = dot(uv, uv);
-    let warped = uv * (1.0 + mc.u_strength * r2) / max(mc.u_zoom, 0.0001);
-    let suv = warped * 0.5 + 0.5;
-    if (suv.x < 0.0 || suv.x > 1.0 || suv.y < 0.0 || suv.y > 1.0) {
-        return vec4f(0.0);
-    }
-    return textureSampleLevel(t0, s0, suv, 0.0);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -845,28 +597,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-fn lum(uv : vec2f) -> f32 {
-    return dot(textureSampleLevel(t0, s0, uv, 0.0).rgb, vec3f(0.299, 0.587, 0.114));
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let px = vec2f(mc.u_thickness) / tc.u_viewport.xy;
-    let tl = lum(v.v_texCoord + vec2f(-px.x,  px.y));
-    let tt = lum(v.v_texCoord + vec2f( 0.0,   px.y));
-    let tr = lum(v.v_texCoord + vec2f( px.x,  px.y));
-    let ll = lum(v.v_texCoord + vec2f(-px.x,  0.0));
-    let rr = lum(v.v_texCoord + vec2f( px.x,  0.0));
-    let bl = lum(v.v_texCoord + vec2f(-px.x, -px.y));
-    let bb = lum(v.v_texCoord + vec2f( 0.0,  -px.y));
-    let br = lum(v.v_texCoord + vec2f( px.x, -px.y));
-    let gx = (tr + 2.0 * rr + br) - (tl + 2.0 * ll + bl);
-    let gy = (tl + 2.0 * tt + tr) - (bl + 2.0 * bb + br);
-    let edge = clamp((sqrt(gx * gx + gy * gy) - mc.u_threshold) * 4.0, 0.0, 1.0);
-    return vec4f(mix(src.rgb, vec3f(0.0), edge * mc.u_intensity), src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -920,29 +650,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-fn depthAt(texel : vec2i, size : vec2i) -> f32 {
-    return textureLoad(t7, clamp(texel, vec2i(0), size - vec2i(1)), 0);
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let size = vec2i(textureDimensions(t7, 0));
-    let here = vec2i(v.pos.xy);
-    let step = i32(max(mc.u_thickness, 1.0));
-
-    let d = depthAt(here, size);
-    if (d >= 1.0) { return src; }
-
-    let dl = depthAt(here + vec2i(-step, 0), size);
-    let dr = depthAt(here + vec2i( step, 0), size);
-    let dd = depthAt(here + vec2i(0, -step), size);
-    let du = depthAt(here + vec2i(0,  step), size);
-    let far = max(max(dl, dr), max(dd, du));
-    let edge = clamp(((far - d) / max(d, 1e-6) - mc.u_threshold) * 20.0, 0.0, 1.0);
-    return vec4f(mix(src.rgb, vec3f(0.0), vec3f(edge * mc.u_intensity)), src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1018,47 +725,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-${GBUFFER_WGSL}
-
-fn viewDistance(t : vec2i, size : vec2i) -> f32 {
-    let P = worldAt(t, size);
-    if (frame.camera.w > 0.5) { return length(P - frame.camera.xyz); }
-    return abs(dot(P, frame.camera.xyz));
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let size = vec2i(textureDimensions(t7, 0));
-    let here = screenTexel(v.v_texCoord, size);
-    let step = i32(max(mc.u_thickness, 1.0));
-
-    if (depthAt(here, size) >= 1.0 || mc.u_intensity <= 0.0) { return src; }
-    let d = viewDistance(here, size);
-
-    let mine = readSurface(here);
-    var around = array<f32, 4>(0.0, 0.0, 0.0, 0.0);
-    var crease = 0.0;
-    for (var i : i32 = 0; i < 4; i = i + 1) {
-        var offset = vec2i(0, 0);
-        if (i == 0) { offset = vec2i(-step, 0); } else if (i == 1) { offset = vec2i(step, 0); } else if (i == 2) { offset = vec2i(0, -step); } else { offset = vec2i(0, step); }
-        let at = here + offset;
-        var reach = d * 1000.0;
-        if (depthAt(at, size) < 1.0) { reach = viewDistance(at, size); }
-        around[i] = reach;
-        if (mine.known) {
-            let other = readSurface(clamp(at, vec2i(0), size - vec2i(1)));
-            if (other.known) { crease = max(crease, 1.0 - dot(mine.normal, other.normal)); }
-        }
-    }
-    let lap = max((around[0] + around[1]) * 0.5 - d, (around[2] + around[3]) * 0.5 - d) / max(d, 1e-3);
-    let silhouette = clamp((lap - mc.u_depthThreshold) * 20.0, 0.0, 1.0);
-    let fold = clamp((crease - mc.u_normalThreshold) * 8.0, 0.0, 1.0);
-    let edge = max(silhouette, fold) * mc.u_intensity * mc.u_lineColor.a;
-    return vec4f(mix(src.rgb, mc.u_lineColor.rgb, vec3f(edge)), src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1101,27 +767,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-fn tap(p : vec2i, size : vec2i) -> vec4f {
-    return textureLoad(t0, clamp(p, vec2i(0), size - vec2i(1)), 0);
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let size = vec2i(textureDimensions(t0, 0));
-    let p = clamp(vec2i(v.v_texCoord * vec2f(size)), vec2i(0), size - vec2i(1));
-    let c = tap(p, size);
-    let n = tap(p + vec2i(0, -1), size).rgb;
-    let s = tap(p + vec2i(0, 1), size).rgb;
-    let w = tap(p + vec2i(-1, 0), size).rgb;
-    let e = tap(p + vec2i(1, 0), size).rgb;
-    let lo = min(min(min(n, s), min(w, e)), c.rgb);
-    let hi = max(max(max(n, s), max(w, e)), c.rgb);
-    var sharp = c.rgb + mc.u_intensity * (4.0 * c.rgb - n - s - w - e);
-    let room = (hi - lo) * mc.u_limit;
-    sharp = clamp(sharp, lo - room, hi + room);
-    return vec4f(max(sharp, vec3f(0.0)), c.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1148,13 +793,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let blocks = tc.u_viewport.xy / max(mc.u_pixelSize, 1.0);
-    let uv = (floor(v.v_texCoord * blocks) + 0.5) / blocks;
-    return textureSampleLevel(t0, s0, uv, 0.0);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },
@@ -1209,38 +847,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-fn palToSrgb(c : vec3f) -> vec3f { return mix(c * 12.92, 1.055 * pow(max(c, vec3f(0.0)), vec3f(1.0 / 2.4)) - 0.055, step(vec3f(0.0031308), c)); }
-fn palToLinear(c : vec3f) -> vec3f { return mix(c / 12.92, pow((max(c, vec3f(0.0)) + 0.055) / 1.055, vec3f(2.4)), step(vec3f(0.04045), c)); }
-fn bayer2(a0 : vec2f) -> f32 { let a = floor(a0); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
-fn bayer8(a : vec2f) -> f32 { return (bayer2(0.25 * a) * 0.25 + bayer2(0.5 * a)) * 0.25 + bayer2(a); }
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
-    let n = min(i32(textureDimensions(u_palette).x), 64);
-    if (n <= 1) { return src; }
-    var c = src.rgb;
-#ifdef ES_LINEAR
-    c = palToSrgb(c);
-#endif
-    let px = floor(v.v_texCoord * tc.u_viewport.xy / max(mc.u_ditherScale, 1.0));
-    let aim = clamp(c + (bayer8(px) - 0.5) * mc.u_dither * 0.25, vec3f(0.0), vec3f(1.0));
-    var best = c;
-    var bestD = 1e9;
-    for (var i = 0; i < n; i = i + 1) {
-        let p = textureLoad(u_palette, vec2i(i, 0), 0).rgb;
-        let d = aim - p;
-        let m = (aim.r + p.r) * 0.5;
-        let dist = (2.0 + m) * d.r * d.r + 4.0 * d.g * d.g + (3.0 - m) * d.b * d.b;
-        if (dist < bestD) { bestD = dist; best = p; }
-    }
-    var outc = mix(c, best, mc.u_strength);
-#ifdef ES_LINEAR
-    outc = palToLinear(outc);
-#endif
-    return vec4f(outc, src.a);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },

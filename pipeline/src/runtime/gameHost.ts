@@ -220,6 +220,9 @@ async function boot(): Promise<void> {
   const gpu = await acquireWebGPUDevice(wantsWebGPU ? 'webgpu' : 'webgl2',
     (m) => console.error(m));
   if (wantsWebGPU && !gpu.device) console.warn(`[estella] WebGPU unavailable (${gpu.reason}) — using WebGL2.`);
+  // A shader is written in GLSL; drawing through WebGPU, the ones with no WGSL of their own are given it as they compile. Loaded
+  // here, where the device is WebGPU, so a game that draws through WebGL never fetches it.
+  if (gpu.device) await import('esengine/wgsl');
 
   const module = await createModule({
     canvas,

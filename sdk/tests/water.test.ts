@@ -3,6 +3,10 @@
 import { describe, expect, it } from 'vitest';
 import { WAVE_SET, waveBend, waveFade, waveHeight, waveSlope, type WaveParams } from '../src/water/waves';
 import { WATER_SHADER_TEMPLATE } from '../src/water/waterShader';
+import { withWgslTwin } from '../src/shaders/wgsl/twin';
+
+/** The shader as a device that draws through WebGPU has it: its GLSL, and the WGSL written from it as it compiles. */
+const twinned = (): string => withWgslTwin(WATER_SHADER_TEMPLATE.source);
 import { buildOceanMesh, oceanReach, oceanSnap } from '../src/water/waterMesh';
 import { MeshChannel } from '../src/asset/meshFormat';
 import type { MeshData } from '../src/asset/meshFormat';
@@ -67,16 +71,18 @@ describe('the waves', () => {
     });
 
     it('is bent by the same numbers in the shader, in both languages and both stages', () => {
-        const source = JSON.stringify(WATER_SHADER_TEMPLATE);
+        // The transpiler writes every operation in brackets, so the terms are compared without them.
+        const bare = (s: string): string => s.replace(/[()\s]/g, '');
+        const source = bare(twinned());
         for (const term of ['span * 0.45 * sin(q.y * 0.73 + 1.3)', 'span * 0.45 * sin(q.x * 0.61 + 2.7)', '0.3285 * cos(q.y * 0.73 + 1.3)', '0.2745 * cos(q.x * 0.61 + 2.7)']) {
-            expect(source.split(term).length - 1, term).toBeGreaterThanOrEqual(4);
+            expect(source.split(bare(term)).length - 1, term).toBeGreaterThanOrEqual(4);
         }
-        expect(source.split('vec4 waterBend(').length - 1).toBe(2);
-        expect(source.split('fn waterBend(').length - 1).toBe(2);
+        expect(twinned().split('vec4 waterBend(').length - 1).toBe(2);
+        expect(twinned().split('fn waterBend(').length - 1).toBe(2);
     });
 
     it('has its waves written into the shader as the numbers the set gives, in both languages', () => {
-        const source = JSON.stringify(WATER_SHADER_TEMPLATE);
+        const source = twinned();
         WAVE_SET.forEach(([heading, lengthShare, heightShare, speedShare]) => {
             const radians = heading * Math.PI / 180;
             const numbers = [Math.cos(radians), Math.sin(radians), 1 / lengthShare, speedShare / Math.sqrt(lengthShare)].map((n) => n.toFixed(6));

@@ -9,10 +9,13 @@
  */
 import { describe, it, expect } from 'vitest';
 import { builtinShaderTemplate } from '../src/render/builtinShaders';
+import { withWgslTwin } from '../src/shaders/wgsl/twin';
 
 const source = builtinShaderTemplate('model')!.source;
-const split = source.indexOf('#pragma fragment wgsl');
-const [glsl, wgsl] = [source.slice(0, split), source.slice(split)];
+// The WGSL is the one a WebGPU device is given: written from the GLSL as the shader compiles.
+const twinned = withWgslTwin(source);
+const split = twinned.indexOf('#pragma fragment wgsl');
+const [glsl, wgsl] = [twinned.slice(0, split), twinned.slice(split)];
 
 const LAYERS = [
     'u_ior', 'u_specular', 'u_clearcoat', 'u_clearcoatRoughness', 'u_sheenColor', 'u_sheenRoughness', 'u_anisotropy',
@@ -49,6 +52,6 @@ describe('the Model shader\'s shading layers', () => {
 
     it('lets transmission through as coverage, with no refraction of what is behind', () => {
         expect(glsl).toMatch(/alpha \*= 1\.0 - u_transmission/);
-        expect(wgsl).toMatch(/alpha \*= 1\.0 - mc\.u_transmission/);
+        expect(wgsl).toMatch(/alpha \*= 1\.0 - \(?mc\.u_transmission/);
     });
 });

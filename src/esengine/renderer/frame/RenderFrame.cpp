@@ -330,15 +330,12 @@ void RenderFrame::drawScene(DrawList::Phase phase) {
     if ((shadow2DActive() || shape2DActive()) && width_ > 0 && height_ > 0) {
         const f32 w = static_cast<f32>(width_);
         const f32 h = static_cast<f32>(height_);
-        // The height's SIGN carries which way this backend stores the rows it just drew.
-        // One shader source serves both backends — the WGSL a material runs is translated
-        // from the GLSL — so the convention travels as data rather than a #ifdef.
-        const f32 rows = device_.textureOriginTopLeft() ? -1.0f : 1.0f;
+        // Rows are bottom-up on every backend (WebGPU turns clip y over to lay them so).
         context_.lights().setMask2DRect(glm::vec4(
             static_cast<f32>(std::max(scene_viewport_.x, 0)) / w,
             static_cast<f32>(std::max(scene_viewport_.y, 0)) / h,
             static_cast<f32>(scene_viewport_.w) / w,
-            static_cast<f32>(scene_viewport_.h) / h * rows));
+            static_cast<f32>(scene_viewport_.h) / h));
     } else {
         context_.lights().setMask2DRect(glm::vec4(0.0f));
     }
@@ -1096,9 +1093,6 @@ void RenderFrame::end() {
     // not ride into the next one (the swapchain recycles it at task end). On
     // GL this is just the default-framebuffer rebind.
     device_.endRenderPass();
-    if (current_target_ != RenderTargetManager::INVALID_HANDLE) {
-        if (auto* rt = target_manager_.get(current_target_)) rt->publish();
-    }
     runPendingReplay(view_projection_, scene_viewport_.w, scene_viewport_.h);
 
     in_frame_ = false;

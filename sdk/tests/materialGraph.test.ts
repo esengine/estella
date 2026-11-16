@@ -214,7 +214,7 @@ describe('compileMaterialGraph WGSL twin', () => {
     };
     const src = compileMaterialGraph(g);
     expect(src).toContain('gl_FragCoord.xy * u_viewport.zw');
-    expect(src).toContain('vec2f(v.pos.x, tc.u_viewport.y - v.pos.y) * tc.u_viewport.zw');
+    expect(src).toContain('v.pos.xy * tc.u_viewport.zw');
   });
 
   it('promotes a non-vec4 output to vec4 in both languages', () => {

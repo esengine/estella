@@ -12,7 +12,7 @@
  */
 import type { ShaderHandle } from '../render/material';
 import { Material } from '../render/material';
-import { SSAO_GLSL, SSAO_WGSL } from './sources/shared';
+import { SSAO_GLSL } from './sources/shared';
 
 export const gtaoPasses = {
     createGtaoAo(): ShaderHandle {
@@ -138,109 +138,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-${SSAO_WGSL}
-
-const SLICES : i32 = 3;
-const STEPS : i32 = 6;
-const PI : f32 = 3.14159265359;
-const HALF_PI : f32 = 1.57079632679;
-const FALL_BACK : f32 = 0.6;
-
-fn fastAcos(x : f32) -> f32 { return acos(clamp(x, -1.0, 1.0)); }
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let size = vec2i(textureDimensions(t7, 0));
-    let c = screenTexel(v.v_texCoord, size);
-    let d = depthAt(c, size);
-    if (d >= 1.0) { return vec4f(1.0); }
-    let cuv = uvOfTexel(c, size);
-    let P = worldFromDepth(cuv, d);
-
-    let dl = depthAt(c + vec2i(-1, 0), size);
-    let dr = depthAt(c + vec2i( 1, 0), size);
-    let dd = depthAt(c + vec2i(0, -1), size);
-    let du = depthAt(c + vec2i(0,  1), size);
-    var ax = P - worldAt(c + vec2i(-1, 0), size);
-    if (abs(dr - d) < abs(dl - d)) { ax = worldAt(c + vec2i(1, 0), size) - P; }
-    var ay = P - worldAt(c + vec2i(0, -1), size);
-    if (abs(du - d) < abs(dd - d)) { ay = worldAt(c + vec2i(0, 1), size) - P; }
-    var N = normalize(cross(ax, ay));
-    let V = viewDirection(P);
-    if (dot(N, V) < 0.0) { N = -N; }
-    let texelW = max(length(worldFromDepth(cuv + vec2f(1.0 / f32(size.x), 0.0), d) - P), 1e-6);
-    let lx = dot(worldAt(c + vec2i(-1, 0), size) - P, V);
-    let rx = dot(worldAt(c + vec2i(1, 0), size) - P, V);
-    let ly = dot(worldAt(c + vec2i(0, -1), size) - P, V);
-    let ry = dot(worldAt(c + vec2i(0, 1), size) - P, V);
-    if ((lx * rx > 0.0 && min(abs(lx), abs(rx)) > texelW * 3.0) || (ly * ry > 0.0 && min(abs(ly), abs(ry)) > texelW * 3.0)) { N = V; }
-
-    let right = normalize(worldFromDepth(cuv + vec2f(1.0 / f32(size.x), 0.0), d) - P);
-    let up = normalize(worldFromDepth(cuv + vec2f(0.0, 1.0 / f32(size.y)), d) - P);
-    let worldPerTexel = max(length(worldFromDepth(cuv + vec2f(1.0 / f32(size.x), 0.0), d) - P), 1e-6);
-    let radiusTexels = clamp(mc.u_radius / worldPerTexel, 3.0, 128.0);
-
-    let rp = c / 2;
-    let idx = ((rp.x & 3) * 4 + (rp.y & 3)) * 7;
-    let turn = f32(idx - (idx / 16) * 16) / 16.0;
-    let jitter = fract(f32((rp.x * 5 + rp.y * 3) & 15) * 0.0625 + 0.03125);
-
-    var visibility = 0.0;
-    for (var slice : i32 = 0; slice < SLICES; slice = slice + 1) {
-        let phi = (f32(slice) + turn) * (PI / f32(SLICES));
-        let dir = vec2f(cos(phi), sin(phi));
-        let dirW = right * dir.x + up * dir.y;
-        let ortho = dirW - V * dot(dirW, V);
-        let axis = normalize(cross(ortho, V));
-        let projN = N - axis * dot(N, axis);
-        let projLen = length(projN);
-        let signN = sign(dot(ortho, projN));
-        let cosN = clamp(dot(projN, V) / max(projLen, 1e-5), 0.0, 1.0);
-        let n = signN * fastAcos(cosN);
-
-        let lowCos0 = cos(n + HALF_PI);
-        let lowCos1 = cos(n - HALF_PI);
-        var hCos0 = lowCos0;
-        var hCos1 = lowCos1;
-        for (var i : i32 = 0; i < STEPS; i = i + 1) {
-            var f = (f32(i) + jitter) / f32(STEPS);
-            f = f * f + 1.0 / radiusTexels;
-            let off = dir * (f * radiusTexels);
-            let p0 = c + vec2i(floor(off + vec2f(0.5)));
-            let p1 = c - vec2i(floor(off + vec2f(0.5)));
-            let z0 = depthAt(p0, size);
-            let z1 = depthAt(p1, size);
-            if (z0 < 1.0) {
-                let delta = worldAt(p0, size) - P;
-                let len = length(delta);
-                let weight = clamp(2.0 * (1.0 - len / mc.u_radius), 0.0, 1.0);
-                let shc = dot(delta, V) / max(len, 1e-5);
-                if (shc < hCos0 && weight > 0.0) { hCos0 = mix(hCos0, lowCos0, FALL_BACK * mc.u_thickness); } else { hCos0 = max(hCos0, mix(lowCos0, shc, weight)); }
-            }
-            if (z1 < 1.0) {
-                let delta = worldAt(p1, size) - P;
-                let len = length(delta);
-                let weight = clamp(2.0 * (1.0 - len / mc.u_radius), 0.0, 1.0);
-                let shc = dot(delta, V) / max(len, 1e-5);
-                if (shc < hCos1 && weight > 0.0) { hCos1 = mix(hCos1, lowCos1, FALL_BACK * mc.u_thickness); } else { hCos1 = max(hCos1, mix(lowCos1, shc, weight)); }
-            }
-        }
-        hCos0 = mix(hCos0, lowCos0, mc.u_thickness * 0.35);
-        hCos1 = mix(hCos1, lowCos1, mc.u_thickness * 0.35);
-
-        var h0 = -fastAcos(hCos1);
-        var h1 = fastAcos(hCos0);
-        h0 = n + clamp(h0 - n, -HALF_PI, HALF_PI);
-        h1 = n + clamp(h1 - n, -HALF_PI, HALF_PI);
-        let arc0 = (cosN + 2.0 * h0 * sin(n) - cos(2.0 * h0 - n)) * 0.25;
-        let arc1 = (cosN + 2.0 * h1 * sin(n) - cos(2.0 * h1 - n)) * 0.25;
-        visibility = visibility + projLen * (arc0 + arc1);
-    }
-    visibility = visibility / f32(SLICES);
-    let ao = 1.0 - clamp((1.0 - clamp(visibility, 0.0, 1.0)) * mc.u_intensity, 0.0, 1.0);
-    return vec4f(vec3f(pow(ao, mc.u_power)), 1.0);
-}
-#pragma end
 `;
         return Material.compileShader(source);
     },

@@ -26,6 +26,7 @@
     "./dist/foliage/index.js",
     "./dist/worldgen/index.js",
     "./dist/water/index.js",
+    "./dist/wgsl/index.js",
     "./dist/spline/index.js",
     "./dist/image/index.js",
     "./dist/shared/image.js",
@@ -127,6 +128,10 @@
     "./water": {
       "import": "./dist/water/index.js",
       "types": "./dist/water/index.d.ts"
+    },
+    "./wgsl": {
+      "import": "./dist/wgsl/index.js",
+      "types": "./dist/wgsl/index.d.ts"
     },
     "./spline": {
       "import": "./dist/spline/index.js",

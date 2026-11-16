@@ -151,8 +151,6 @@ public:
      */
     virtual ClipDepthRange clipDepthRange() const = 0;
 
-    virtual bool storesTargetsTopDown() const { return false; }
-    virtual void copyTextureFlippedY(TextureHandle src, TextureHandle dst) { (void)src; (void)dst; }
     virtual bool copyFramebufferColor(FramebufferHandle source, TextureHandle dst) { (void)source; (void)dst; return false; }
 
     /**
@@ -549,16 +547,6 @@ public:
      */
     void setSkipPendingPrograms(bool on) { skip_pending_programs_ = on; }
     bool skipPendingPrograms() const { return skip_pending_programs_; }
-
-    /**
-     * @brief Whether texel (0,0) of a rendered texture is its TOP-left corner.
-     *
-     * @details GL stores a framebuffer bottom-up and WebGPU top-down, so one geometry
-     *          through one matrix lands in opposite rows. A shader sampling a target
-     *          this frame rendered cannot ask — one source serves both backends — so
-     *          the answer travels as data.
-     */
-    virtual bool textureOriginTopLeft() const = 0;
 
     /** @brief Deletes a shader program */
     void deleteProgram(ShaderHandle program);

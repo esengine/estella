@@ -308,6 +308,7 @@ void WebGPUDevice::releaseDeviceObjects() {
     if (surface_msaa_texture_) { wgpuTextureRelease(surface_msaa_texture_); surface_msaa_texture_ = nullptr; }
     surface_msaa_width_ = surface_msaa_height_ = 0;
     surface_msaa_samples_ = 0;
+    releaseSurfaceProxy();
     if (surface_) { wgpuSurfaceRelease(surface_); surface_ = nullptr; }
     // Sizes are kept: a re-configured surface has to come back the same shape,
     // and the depth companion is rebuilt against them.
@@ -459,6 +460,7 @@ static bool isSrgbFormat(WGPUTextureFormat f) {
 
 void WebGPUDevice::present() {
     if (!surface_) return;
+    presentSurfaceProxy();   // a frame the renderer never ended still reaches the swapchain the right way up
     wgpuSurfacePresent(surface_);
     // Also the frame's end, for a frame the renderer never finished (the host's
     // fallback frame, or a tick that drew nothing): a swapchain texture must
@@ -635,6 +637,73 @@ bool WebGPUDevice::ensureSurfaceMsaa(u32 width, u32 height) {
     return surface_msaa_view_ != nullptr;
 }
 
+void WebGPUDevice::releaseSurfaceProxy() {
+    if (surface_proxy_view_) { wgpuTextureViewRelease(surface_proxy_view_); surface_proxy_view_ = nullptr; }
+    if (surface_proxy_) { wgpuTextureRelease(surface_proxy_); surface_proxy_ = nullptr; }
+    surface_proxy_width_ = surface_proxy_height_ = 0;
+    surface_proxy_format_ = WGPUTextureFormat_Undefined;
+    surface_proxy_drawn_ = false;
+}
+
+bool WebGPUDevice::ensureSurfaceProxy(u32 width, u32 height) {
+    if (surface_proxy_view_ && width == surface_proxy_width_ && height == surface_proxy_height_
+        && surface_format_ == surface_proxy_format_) {
+        return true;
+    }
+    releaseSurfaceProxy();
+    WGPUTextureDescriptor td{};
+    td.dimension = WGPUTextureDimension_2D;
+    td.format = surface_format_;
+    td.size = WGPUExtent3D{width, height, 1};
+    td.mipLevelCount = 1;
+    td.sampleCount = 1;
+    td.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopySrc;
+    surface_proxy_ = wgpuDeviceCreateTexture(device_, &td);
+    if (!surface_proxy_) return false;
+    surface_proxy_view_ = wgpuTextureCreateView(surface_proxy_, nullptr);
+    surface_proxy_width_ = width;
+    surface_proxy_height_ = height;
+    surface_proxy_format_ = surface_format_;
+    return surface_proxy_view_ != nullptr;
+}
+
+void WebGPUDevice::presentSurfaceProxy() {
+    if (!surface_proxy_drawn_) return;
+    surface_proxy_drawn_ = false;
+    if (!device_ || !frame_view_ || !surface_proxy_view_ || !isDeviceUsable()) return;
+    if (pass_) endRenderPass();
+    WGPURenderPipeline pipeline = ensureFlipPipeline(surface_format_, /*flip=*/true);
+    if (!pipeline) return;
+    WGPUBindGroupEntry entry{};
+    entry.binding = 0;
+    entry.textureView = surface_proxy_view_;
+    WGPUBindGroupDescriptor bgd{};
+    bgd.layout = flip_bgl_;
+    bgd.entryCount = 1;
+    bgd.entries = &entry;
+    WGPUBindGroup group = wgpuDeviceCreateBindGroup(device_, &bgd);
+    WGPURenderPassColorAttachment color{};
+    color.view = frame_view_;
+    color.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+    color.loadOp = WGPULoadOp_Clear;
+    color.storeOp = WGPUStoreOp_Store;
+    WGPURenderPassDescriptor rp{};
+    rp.colorAttachmentCount = 1;
+    rp.colorAttachments = &color;
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device_, nullptr);
+    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &rp);
+    wgpuRenderPassEncoderSetPipeline(pass, pipeline);
+    wgpuRenderPassEncoderSetBindGroup(pass, 0, group, 0, nullptr);
+    wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
+    wgpuRenderPassEncoderEnd(pass);
+    wgpuRenderPassEncoderRelease(pass);
+    WGPUCommandBuffer commands = wgpuCommandEncoderFinish(encoder, nullptr);
+    wgpuQueueSubmit(queue_, 1, &commands);
+    wgpuCommandBufferRelease(commands);
+    wgpuCommandEncoderRelease(encoder);
+    wgpuBindGroupRelease(group);
+}
+
 void WebGPUDevice::resizeBackbuffer(u32 width, u32 height) {
     if (!surface_ || !device_ || width == 0 || height == 0) return;
     if (width == surface_width_ && height == surface_height_) return;
@@ -657,20 +726,13 @@ void WebGPUDevice::stubOnce(const char* what) {
 // Dynamic state (recorded in slice 2's pass encoder)
 // =============================================================================
 
-// The RHI states a rectangle the way GL does: origin bottom-left, y up. WebGPU
-// measures from the top-left, so any rect that is not the whole target arrives
-// upside down here — a UI mask's scissor, a camera viewport sharing the target,
-// a region clear. A full-target rect flips to itself, which is why only masked
-// content showed it.
-i32 WebGPUDevice::flipRectY(i32 y, i32 height) const {
-    return static_cast<i32>(pass_height_) - (y + height);
-}
-
+// The RHI states a rectangle the way GL does: origin bottom-left, y up. A target
+// here holds its rows bottom-up as GL does (clip y is turned over on the way in),
+// so WebGPU's row 0 is the bottom row and the rect is used as it is given.
 void WebGPUDevice::setViewport(i32 x, i32 y, u32 w, u32 h) {
     viewport_ = {x, y, w, h};
     if (pass_) {
-        wgpuRenderPassEncoderSetViewport(pass_, static_cast<f32>(x),
-                                         static_cast<f32>(flipRectY(y, static_cast<i32>(h))),
+        wgpuRenderPassEncoderSetViewport(pass_, static_cast<f32>(x), static_cast<f32>(y),
                                          static_cast<f32>(w), static_cast<f32>(h), 0.0f, 1.0f);
     }
 }
@@ -701,11 +763,10 @@ void WebGPUDevice::setScissor(i32 x, i32 y, i32 w, i32 h) {
     if (!pass_ || w <= 0 || h <= 0) return;
     // Clamped to the attachment: WebGPU rejects a rect that leaves it, where GL
     // simply clips — and a mask scrolled half off screen is ordinary.
-    const i32 top = flipRectY(y, h);
     const i32 x0 = std::clamp(x, 0, static_cast<i32>(pass_width_));
-    const i32 y0 = std::clamp(top, 0, static_cast<i32>(pass_height_));
+    const i32 y0 = std::clamp(y, 0, static_cast<i32>(pass_height_));
     const i32 x1 = std::clamp(x + w, 0, static_cast<i32>(pass_width_));
-    const i32 y1 = std::clamp(top + h, 0, static_cast<i32>(pass_height_));
+    const i32 y1 = std::clamp(y + h, 0, static_cast<i32>(pass_height_));
     wgpuRenderPassEncoderSetScissorRect(pass_, static_cast<u32>(x0), static_cast<u32>(y0),
                                         static_cast<u32>(std::max(0, x1 - x0)),
                                         static_cast<u32>(std::max(0, y1 - y0)));
@@ -1404,7 +1465,9 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
     pd.vertex.buffers = slots;
     pd.primitive.topology = desc.topology == GfxTopology::Lines ? WGPUPrimitiveTopology_LineList
                                                                 : WGPUPrimitiveTopology_TriangleList;
-    pd.primitive.frontFace = WGPUFrontFace_CCW;
+    // Every vertex stage of this device turns clip y over, so a target's rows land bottom-up as GL lays them; that mirrors
+    // each triangle on the way to the target, so the winding GL calls front (counter-clockwise) arrives clockwise.
+    pd.primitive.frontFace = WGPUFrontFace_CW;
     pd.primitive.cullMode = toWGPUCullMode(desc.cullEnabled, desc.cullFront);
     // The pass's count, which WebGPU validates against the attachment: a pipeline
     // built for one sample cannot draw into a multisampled target at all.
@@ -1983,52 +2046,6 @@ WGPURenderPipeline WebGPUDevice::ensureFlipPipeline(WGPUTextureFormat format, bo
     return pipeline;
 }
 
-void WebGPUDevice::copyTextureFlippedY(TextureHandle src, TextureHandle dst) {
-    if (!device_ || !isDeviceUsable()) return;
-    const auto from = textures_.find(static_cast<u32>(src));
-    const auto to = textures_.find(static_cast<u32>(dst));
-    if (from == textures_.end() || to == textures_.end()) return;
-    if (from->second.samples > 1 || to->second.samples > 1
-        || from->second.width != to->second.width || from->second.height != to->second.height) {
-        ES_LOG_ERROR("WebGPUDevice::copyTextureFlippedY: the two textures must be single-sampled and the same size");
-        return;
-    }
-    if (pass_) endRenderPass();
-    WGPURenderPipeline pipeline = ensureFlipPipeline(to->second.format);
-    if (!pipeline) return;
-
-    WGPUBindGroupEntry entry{};
-    entry.binding = 0;
-    entry.textureView = from->second.sampleView ? from->second.sampleView : from->second.view;
-    WGPUBindGroupDescriptor bgd{};
-    bgd.layout = flip_bgl_;
-    bgd.entryCount = 1;
-    bgd.entries = &entry;
-    WGPUBindGroup group = wgpuDeviceCreateBindGroup(device_, &bgd);
-
-    WGPURenderPassColorAttachment color{};
-    color.view = to->second.view;
-    color.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
-    color.loadOp = WGPULoadOp_Clear;
-    color.storeOp = WGPUStoreOp_Store;
-    WGPURenderPassDescriptor rp{};
-    rp.colorAttachmentCount = 1;
-    rp.colorAttachments = &color;
-
-    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device_, nullptr);
-    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &rp);
-    wgpuRenderPassEncoderSetPipeline(pass, pipeline);
-    wgpuRenderPassEncoderSetBindGroup(pass, 0, group, 0, nullptr);
-    wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
-    wgpuRenderPassEncoderEnd(pass);
-    wgpuRenderPassEncoderRelease(pass);
-    WGPUCommandBuffer commands = wgpuCommandEncoderFinish(encoder, nullptr);
-    wgpuQueueSubmit(queue_, 1, &commands);
-    wgpuCommandBufferRelease(commands);
-    wgpuCommandEncoderRelease(encoder);
-    wgpuBindGroupRelease(group);
-}
-
 bool WebGPUDevice::surfaceAllowsCopy() const {
 #if !defined(__EMSCRIPTEN__)
     if (surface_ && adapter_) {
@@ -2060,8 +2077,8 @@ bool WebGPUDevice::copyFramebufferColor(FramebufferHandle source, TextureHandle 
             surface_reconfigure_ = true;
             return false;
         }
-        if (surface_reconfigure_ || !frame_texture_) return false;
-        from = frame_texture_;
+        if (surface_reconfigure_ || !frame_texture_ || !surface_proxy_) return false;
+        from = surface_proxy_;
         fromFormat = surface_format_;
         width = surface_width_;
         height = surface_height_;
@@ -2623,15 +2640,20 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
         }
         pass_width_ = surface_width_;
         pass_height_ = surface_height_;
-        // Multisampled: draw into the companion and resolve into the surface
-        // texture the browser presents. Single-sampled: draw into it directly.
+        // Drawn into the proxy, whose rows are bottom-up like every target's here; the swapchain texture receives the
+        // frame at its end. Multisampled: draw into the companion and resolve into the proxy.
+        if (!ensureSurfaceProxy(surface_width_, surface_height_)) {
+            ES_LOG_ERROR("WebGPUDevice::beginRenderPass: no backbuffer texture");
+            return;
+        }
+        surface_proxy_drawn_ = true;
         if (ensureSurfaceMsaa(surface_width_, surface_height_)) {
             ensureSurfaceDepth(surface_width_, surface_height_);
             targetView = surface_msaa_view_;
-            resolveView = frame_view_;
+            resolveView = surface_proxy_view_;
             pass_samples_ = surface_msaa_samples_;
         } else {
-            targetView = frame_view_;
+            targetView = surface_proxy_view_;
         }
         dsView = surface_depth_view_;
         pass_ds_format_ = WGPUTextureFormat_Depth24PlusStencil8;
@@ -2737,8 +2759,8 @@ void WebGPUDevice::endRenderPass() {
     // A booked capture rides the pass's OWN encoder: the browser presents the
     // swapchain image with this submit, so a copy encoded afterwards copies a
     // destroyed texture. Several surface passes overwrite; the last one wins.
-    if (capture_id_ && pass_is_surface_ && frame_texture_ && encoder_) {
-        encodeReadbackCopy(encoder_, capture_id_, frame_texture_);
+    if (capture_id_ && pass_is_surface_ && surface_proxy_ && encoder_) {
+        encodeReadbackCopy(encoder_, capture_id_, surface_proxy_);
         capture_copied_ = true;
     }
     pass_is_surface_ = false;
@@ -2761,6 +2783,7 @@ void WebGPUDevice::endRenderPass() {
  *  A frame may have opened several passes on it, so no single pass may do this. */
 void WebGPUDevice::endFrame() {
     ++bind_group_frame_;
+    presentSurfaceProxy();
     // A capture is served HERE and nowhere else: this is the last instant at which
     // the frame is both finished and still ours. Asking from outside cannot work —
     // whoever could ask runs after the renderer has already given the image back.
@@ -2770,8 +2793,8 @@ void WebGPUDevice::endFrame() {
         if (capture_copied_) {
             capture_copied_ = false;
             mapReadback(id);
-        } else if (frame_texture_) {
-            submitReadbackCopy(id, frame_texture_);
+        } else if (frame_texture_ && surface_proxy_) {
+            submitReadbackCopy(id, surface_proxy_);
         } else {
             // Nothing drew, so there is no image to copy. Leaving the record
             // Pending would hang whoever is polling it.
@@ -2944,11 +2967,11 @@ bool WebGPUDevice::takeReadback(ReadbackHandle handle, void* dest, usize destSiz
         releaseReadback(static_cast<u32>(handle));
         return false;
     }
-    // The copy lands top-down; the contract (GL readPixels) is bottom-up rows.
+    // A target's rows are bottom-up here, as the contract (GL readPixels) has them.
     auto* out = static_cast<u8*>(dest);
     const u32 rowBytes = rec.width * 4u;
     for (u32 row = 0; row < rec.height; ++row) {
-        std::memcpy(out + static_cast<usize>(rec.height - 1 - row) * rowBytes,
+        std::memcpy(out + static_cast<usize>(row) * rowBytes,
                     mapped + static_cast<usize>(row) * rec.paddedBytesPerRow, rowBytes);
     }
     wgpuBufferUnmap(rec.buffer);

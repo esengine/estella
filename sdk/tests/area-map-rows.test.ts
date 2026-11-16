@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { densityAt, type DensityMap } from '../src/foliage/cellBuild';
 import { FOLIAGE_SHADER_TEMPLATE } from '../src/foliage/foliageShader';
 import { TERRAIN_LAYERS_SHADER_TEMPLATE, TERRAIN_SHADER_TEMPLATE } from '../src/terrain/terrainShader';
+import { withWgslTwin } from '../src/shaders/wgsl/twin';
 
 describe('the rows of an image over an area', () => {
     it('a map a system reads has its first row at the least z', () => {
@@ -21,7 +22,8 @@ describe('the rows of an image over an area', () => {
                                         [FOLIAGE_SHADER_TEMPLATE.source, ['over']]] as const) {
             for (const at of coords) {
                 expect(source).toContain(`vec2(${at}.x, 1.0 - ${at}.y)`);
-                expect(source).toContain(`vec2f(${at}.x, 1.0 - ${at}.y)`);
+                // Its own WGSL, or the one written from its GLSL as it compiles on WebGPU.
+                expect(withWgslTwin(source)).toContain(`vec2f(${at}.x, 1.0 - ${at}.y)`);
                 expect(source).not.toContain(`, ${at}, 0.0)`);
                 expect(source).not.toContain(`, ${at})`);
             }
@@ -32,21 +34,22 @@ describe('the rows of an image over an area', () => {
         const source = TERRAIN_LAYERS_SHADER_TEMPLATE.source;
         expect(source).toContain('#pragma param u_strataWarp float default(0)');
         // The ground is handed to the shared layer code with the bed's height in place of its own, and the sides read (z, y) and (x, y) of it.
-        for (const read of ['tnLayers(paintA, paintB, vec3(Pw.x, bedY, Pw.z)', 'tnLayers(paintA, paintB, vec3f(Pw.x, bedY, Pw.z)',
-            'tnPlain(at.zy / tile', 'tnPlain(at.xy / tile']) {
+        for (const read of ['tnLayers(paintA, paintB, vec3(Pw.x, bedY, Pw.z)', 'tnPlain(at.zy / tile', 'tnPlain(at.xy / tile']) {
             expect(source).toContain(read);
         }
+        const wgsl = withWgslTwin(source);
+        expect(wgsl).toContain('tnLayers(paintA, paintB, vec3f(Pw.x, bedY, Pw.z)');
         expect(source).not.toContain('tnPlain(Pw.zy');
         expect(source).not.toContain('tnPlain(Pw.xy');
         expect(source).toContain('if (u_strataWarp > 0.0) bedY +=');
-        expect(source).toContain('if (mc.u_strataWarp > 0.0) { bedY = bedY +');
+        expect(wgsl).toMatch(/if \(mc\.u_strataWarp > 0\.0\) \{\s*bedY (\+=|= bedY \+)/);
     });
 
     it('a hex cell is turned by no more than the material says, in both shaders and both languages', () => {
         for (const source of [TERRAIN_SHADER_TEMPLATE.source, TERRAIN_LAYERS_SHADER_TEMPLATE.source]) {
             expect(source).toContain('#pragma param u_antiTileTurn float default(1)');
             expect(source).toContain('float a = r.x * 6.2831853 * u_antiTileTurn;');
-            expect(source).toContain('let a = r.x * 6.2831853 * mc.u_antiTileTurn;');
+            expect(withWgslTwin(source)).toMatch(/let a = \(?r\.x \* 6\.2831853\)? \* mc\.u_antiTileTurn;/);
             expect(source).not.toContain('r.x * 6.2831853;');
         }
     });

@@ -207,6 +207,14 @@ const programOrigins = new Map<ShaderHandle, ProgramOrigin>();
 // frame, and a warning that repeats 60 times a second is a log nobody can read.
 const warnedParams = new Set<string>();
 
+/** What gives a source its WGSL twin before the engine compiles it; installed by esengine/wgsl on a host that draws through WebGPU. */
+let wgslTwinSource: ((source: string) => string) | null = null;
+
+/** @internal Installed by esengine/wgsl — not part of the public API. Null removes it. */
+export function installWgslTwinSource(fn: ((source: string) => string) | null): void {
+    wgslTwinSource = fn;
+}
+
 // =============================================================================
 // Initialization
 // =============================================================================
@@ -470,7 +478,10 @@ export const Material = {
      * should reach the GPU. Returns a shader handle, or 0 on failure.
      */
     compileShader(esshaderSource: string, features: string[] = []): ShaderHandle {
-        const handle = module?.material_compileEsshader(esshaderSource, features.join(',')) ?? 0;
+        // Where the device draws through WebGPU, a source written only in GLSL is given its WGSL here (esengine/wgsl), so every route
+        // to a shader reaches the engine with the twin that device needs.
+        const source = wgslTwinSource ? wgslTwinSource(esshaderSource) : esshaderSource;
+        const handle = module?.material_compileEsshader(source, features.join(',')) ?? 0;
         // The same `#pragma param` lines the engine reflected into the layout, kept on this
         // side so a write to a name that is not among them can be reported (warnUndeclared).
         if (handle > 0) {

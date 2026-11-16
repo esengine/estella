@@ -153,7 +153,6 @@ public:
     }
 
     /// WebGPU stores a texture from the top down.
-    bool textureOriginTopLeft() const override { return true; }
 
     void setStencilReference(i32 reference) override;
 
@@ -348,7 +347,6 @@ private:
 
     /** A GL-style rect's y (origin bottom-left) in this pass' coordinates
      *  (origin top-left). See the definition. */
-    i32 flipRectY(i32 y, i32 height) const;
 
     struct BufferRec {
         WGPUBuffer buffer = nullptr;
@@ -481,8 +479,6 @@ private:
     /** @brief Draws the internal clear triangle mid-pass. Restores scissor (when
      *         @p region is given), the user's stencil reference, and forces
      *         pipeline + bind groups to re-establish on the next user draw. */
-    bool storesTargetsTopDown() const override { return true; }
-    void copyTextureFlippedY(TextureHandle src, TextureHandle dst) override;
     bool copyFramebufferColor(FramebufferHandle source, TextureHandle dst) override;
     WGPURenderPipeline ensureFlipPipeline(WGPUTextureFormat format, bool flip = true);
     bool surfaceAllowsCopy() const;
@@ -589,6 +585,20 @@ private:
     /// Samples the backbuffer's depth companion was built with.
     u32 surface_depth_samples_ = 1;
     bool ensureSurfaceMsaa(u32 width, u32 height);
+    /// What a pass on the backbuffer draws into: a texture of the surface's size and format whose rows are bottom-up, as
+    /// every other target's are here. The swapchain texture shows row 0 at the top, so the frame reaches it turned over,
+    /// once, at its end (presentSurfaceProxy); a capture or a copy of the backbuffer reads this, never the swapchain.
+    WGPUTexture surface_proxy_ = nullptr;
+    WGPUTextureView surface_proxy_view_ = nullptr;
+    WGPUTextureFormat surface_proxy_format_ = WGPUTextureFormat_Undefined;
+    u32 surface_proxy_width_ = 0;
+    u32 surface_proxy_height_ = 0;
+    /// A pass drew into the proxy since the swapchain texture last received it.
+    bool surface_proxy_drawn_ = false;
+    bool ensureSurfaceProxy(u32 width, u32 height);
+    void releaseSurfaceProxy();
+    /** @brief Hands the frame drawn into the proxy to the swapchain texture, turned over: called at the frame's end. */
+    void presentSurfaceProxy();
 
     /** @brief Copies sample 0 of a multisampled depth attachment into its
      *         single-sample twin, so an effect can sample scene depth on a

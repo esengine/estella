@@ -113,6 +113,7 @@ export default defineConfig([
             'foliage/index': 'src/foliage/index.ts',
             'worldgen/index': 'src/worldgen/entry.ts',
             'water/index': 'src/water/index.ts',
+            'wgsl/index': 'src/shaders/wgsl/index.ts',
             'spline/index': 'src/spline/index.ts',
             'image/index': 'src/image/index.ts',
             'sound/index': 'src/sound/index.ts',
