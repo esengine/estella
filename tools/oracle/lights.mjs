@@ -107,6 +107,8 @@ export const LIGHT_SCENES = [
   ballUnderSun({ id: 'oracle-lambert-sun-gamma', colorSpace: 'gamma', pitch: 50, yaw: 30, albedo: [0.9, 0.5, 0.2], sunI: 1.0, sunColor: [1, 1, 1], ambientI: 0.1, ambientColor: [1, 1, 1] }),
   ballUnderSun({ id: 'oracle-sun-colour', colorSpace: 'linear', pitch: 35, yaw: -60, albedo: [0.8, 0.8, 0.8], sunI: 2, sunColor: [1, 0.5, 0.25], ambientI: 0.2, ambientColor: [0.4, 0.6, 1] }),
   floorUnderLamp({ id: 'oracle-point-linear', colorSpace: 'linear', height: 100, intensity: 1.2, light: { radius: 400, falloff: 1 }, fall: (d) => linearFalloff(d, 400, 0, 1) }),
+  floorUnderLamp({ id: 'oracle-point-linear-gamma', colorSpace: 'gamma', height: 100, intensity: 0.9, light: { radius: 400, falloff: 1 }, fall: (d) => linearFalloff(d, 400, 0, 1) }),
+  ballUnderSun({ id: 'oracle-sun-colour-gamma', colorSpace: 'gamma', pitch: 35, yaw: -60, albedo: [0.8, 0.8, 0.8], sunI: 0.9, sunColor: [1, 0.5, 0.25], ambientI: 0.2, ambientColor: [0.4, 0.6, 1] }),
   floorUnderLamp({ id: 'oracle-point-linear-curve', colorSpace: 'linear', height: 100, intensity: 1.2, light: { radius: 400, falloff: 2.5 }, fall: (d) => linearFalloff(d, 400, 0, 2.5) }),
   floorUnderLamp({ id: 'oracle-point-isq', colorSpace: 'linear', height: 100, intensity: 0.8, light: { radius: 800, inverseSquare: true }, fall: (d) => inverseSquare(d, 800, 100) }),
   ballUnderHemisphere({ id: 'oracle-hemisphere', colorSpace: 'linear', albedo: [0.8, 0.8, 0.8], intensity: 1.2, sky: [0.3, 0.5, 1], ground: [0.6, 0.4, 0.2] }),

@@ -8,7 +8,7 @@
  * engine's own effects, the formula their shader source states) to the patch colour; no frame was read to write it.
  */
 import { scene, camera, mesh, volume, probe, probeFrom } from './scene.mjs';
-import { encodeLinear8, clamp01, acesNarkowicz, pbrNeutral, srgbDecode, scale } from './formulas.mjs';
+import { encodeLinear8, encodeGamma8, clamp01, acesNarkowicz, pbrNeutral, srgbDecode, scale } from './formulas.mjs';
 
 const SLOTS = [[-75, -50], [-25, -50], [25, -50], [75, -50], [-75, 50], [-25, 50], [25, 50], [75, 50]];
 
@@ -21,7 +21,7 @@ const COLOURS = [[0.8, 0.1, 0.05], [0.05, 0.6, 0.1], [0.05, 0.1, 0.9], [0.9, 0.7
  * @param tops  patch heights above the floor line; the camera looks down at each patch's top face
  * @param out   (linear rgb, slot index) -> linear rgb the frame should end as, before the sRGB encode
  */
-function patches({ id, colours, tops, effects, outputTransform, out, tol = 3, about, perspective = false }) {
+function patches({ id, colorSpace = 'linear', colours, tops, effects, outputTransform, out, tol = 3, about, perspective = false }) {
   const doc = scene(id, () => [
     camera(perspective ? { projectionType: 0, fov: 40 } : {}),
     ...colours.map((c, i) => {
@@ -32,9 +32,10 @@ function patches({ id, colours, tops, effects, outputTransform, out, tol = 3, ab
   ]);
   const expect = colours.map((c, i) => {
     const p = perspective ? probeFrom(...SLOTS[i], 400 - (tops?.[i] ?? 10), 40) : probe(...SLOTS[i]);
-    return { x: p.x, y: p.y, rgb: encodeLinear8(out(c, i, SLOTS[i])), tol };
+    // A gamma frame holds codes, none over 1: a colour brighter than that is white before any effect sees it.
+    return { x: p.x, y: p.y, rgb: colorSpace === 'linear' ? encodeLinear8(out(c, i, SLOTS[i])) : encodeGamma8(out(c.map(clamp01), i, SLOTS[i])), tol };
   });
-  return { id, doc, colorSpace: 'linear', outputTransform, expect, about };
+  return { id, doc, colorSpace, outputTransform, expect, about };
 }
 
 const fx = (type, uniforms, colors) => ({ type, enabled: true, uniforms, ...(colors ? { colors } : {}) });
@@ -42,10 +43,11 @@ const perChannel = (f) => (c) => c.map(f);
 const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 
 /** The shader's colour grade, step by step, for a linear-light frame (see PP Color Grade in postprocess/sources/basic.ts). */
-function grade(c, { exposure = 0, contrast = 1, saturation = 1, temperature = 0, tint = 0 }) {
+function grade(c, { exposure = 0, contrast = 1, saturation = 1, temperature = 0, tint = 0 }, colorSpace = 'linear') {
   let v = scale(c, 2 ** exposure);
   v = [v[0] * (1 + temperature * 0.2), v[1] * (1 + tint * 0.2), v[2] * (1 - temperature * 0.2)];
-  v = v.map((x) => 0.18 * Math.pow(Math.max(x, 1e-6) / 0.18, contrast));
+  // Mid-grey is 0.18 of linear light and 0.5 of a gamma-encoded picture, which gets a straight line through it.
+  v = v.map((x) => (colorSpace === 'linear' ? 0.18 * Math.pow(Math.max(x, 1e-6) / 0.18, contrast) : (x - 0.5) * contrast + 0.5));
   const l = lum(v);
   v = v.map((x) => l + (x - l) * saturation);
   return v.map(clamp01);
@@ -55,9 +57,11 @@ function grade(c, { exposure = 0, contrast = 1, saturation = 1, temperature = 0,
 // the vertical drop to its top face. (Before the fog measured from the projection's far-behind plane it had every patch fully fogged.)
 const FOG_TOPS = [5, 45, 85, 125, 165, 205, 245, 285];
 const FOG = { near: 100, far: 400, intensity: 0.9, colour: [0.6, 0.7, 0.8] };
-const fogMix = (c, top) => {
+/** A colour an effect is given is authored as sRGB: a linear-light frame decodes it, a gamma frame uses it as it is. */
+const authored = (colorSpace, c) => (colorSpace === 'linear' ? c.map(srgbDecode) : c);
+const fogMix = (c, top, colorSpace = 'linear') => {
   const t = clamp01((400 - top - FOG.near) / (FOG.far - FOG.near)) * FOG.intensity;
-  const fog = FOG.colour.map(srgbDecode);
+  const fog = authored(colorSpace, FOG.colour);
   return c.map((x, k) => x + (fog[k] - x) * t);
 };
 
@@ -68,10 +72,10 @@ const fogMix = (c, top) => {
 // The fall-off is slow on purpose: the part of the ray between the camera plane and a start far behind it is thin air only when the
 // density has died away by then, and this one has not, so a ray that begins too far back shows as too much fog.
 const HEIGHT_FOG = { density: 0.004, falloff: 0.002, base: 0, colour: [0.55, 0.65, 0.8] };
-const heightFogMix = (c, top) => {
+const heightFogMix = (c, top, colorSpace = 'linear') => {
   const tau = (HEIGHT_FOG.density / HEIGHT_FOG.falloff) * (Math.exp(-HEIGHT_FOG.falloff * (top - HEIGHT_FOG.base)) - Math.exp(-HEIGHT_FOG.falloff * (400 - HEIGHT_FOG.base)));
   const amount = 1 - Math.exp(-tau);
-  const fog = HEIGHT_FOG.colour.map(srgbDecode);
+  const fog = authored(colorSpace, HEIGHT_FOG.colour);
   return c.map((x, k) => x + (fog[k] - x) * amount);
 };
 
@@ -124,6 +128,24 @@ export const POST_SCENES = [
     effects: [fx('heightFog', { u_density: HEIGHT_FOG.density, u_heightFalloff: HEIGHT_FOG.falloff, u_baseHeight: HEIGHT_FOG.base, u_inscatter: 0, u_skyFog: 0.8 }, { u_fogColor: { r: HEIGHT_FOG.colour[0], g: HEIGHT_FOG.colour[1], b: HEIGHT_FOG.colour[2], a: 1 } })],
     out: (c, i) => heightFogMix(c, FOG_TOPS[i]).map(clamp01),
     about: 'Height fog: coverage 1 - exp(-tau), tau the exponential density integrated from the eye plane to the surface',
+  }),
+  // The same chain in a gamma frame: nothing is decoded and nothing encoded, so a patch, a fog colour and a grade all act on the codes.
+  patches({ id: 'oracle-encode-gamma', colorSpace: 'gamma', colours: GREYS, out: perChannel(clamp01), about: 'Gamma frame: the colour is the code, clamped at 1' }),
+  patches({ id: 'oracle-encode-gamma-colour', colorSpace: 'gamma', colours: COLOURS, out: perChannel(clamp01), about: 'Gamma frame: no channel is touched' }),
+  patches({ id: 'oracle-grade-exposure-gamma', colorSpace: 'gamma', colours: GREYS, effects: [fx('colorGrade', { u_exposure: -2 })], out: (c) => grade(c, { exposure: -2 }, 'gamma'), about: 'Colour grade exposure in a gamma frame: code x 2^EV' }),
+  patches({ id: 'oracle-grade-contrast-gamma', colorSpace: 'gamma', colours: COLOURS, effects: [fx('colorGrade', { u_contrast: 1.4 })], out: (c) => grade(c, { contrast: 1.4 }, 'gamma'), about: 'Gamma contrast: a straight line through 0.5' }),
+  patches({ id: 'oracle-grade-saturation-gamma', colorSpace: 'gamma', colours: COLOURS, effects: [fx('colorGrade', { u_saturation: 0.4 })], out: (c) => grade(c, { saturation: 0.4 }, 'gamma'), about: 'Saturation about Rec.709 luma, of the codes' }),
+  patches({
+    id: 'oracle-distance-fog-gamma', colorSpace: 'gamma', colours: GREYS.map((g) => g.map((v) => Math.min(v, 1) * 0.8 + 0.1)), tops: FOG_TOPS, tol: 4,
+    effects: [fx('distanceFog', { u_fogNear: FOG.near, u_fogFar: FOG.far, u_intensity: FOG.intensity }, { u_fogColor: { r: FOG.colour[0], g: FOG.colour[1], b: FOG.colour[2], a: 1 } })],
+    out: (c, i) => fogMix(c, FOG_TOPS[i], 'gamma').map(clamp01),
+    about: 'Distance fog in a gamma frame: the fog colour as authored',
+  }),
+  patches({
+    id: 'oracle-height-fog-gamma', colorSpace: 'gamma', colours: GREYS.map((g) => g.map((v) => Math.min(v, 1) * 0.8 + 0.1)), tops: FOG_TOPS, tol: 4,
+    effects: [fx('heightFog', { u_density: HEIGHT_FOG.density, u_heightFalloff: HEIGHT_FOG.falloff, u_baseHeight: HEIGHT_FOG.base, u_inscatter: 0, u_skyFog: 0.8 }, { u_fogColor: { r: HEIGHT_FOG.colour[0], g: HEIGHT_FOG.colour[1], b: HEIGHT_FOG.colour[2], a: 1 } })],
+    out: (c, i) => heightFogMix(c, FOG_TOPS[i], 'gamma').map(clamp01),
+    about: 'Height fog in a gamma frame: the fog colour as authored',
   }),
   patches({
     id: 'oracle-height-fog-perspective', perspective: true, colours: GREYS.map((g) => g.map((v) => Math.min(v, 1) * 0.8 + 0.1)), tops: FOG_TOPS, tol: 4,
