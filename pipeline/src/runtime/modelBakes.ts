@@ -65,7 +65,7 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
     const watchers = new Set<(progress: LoadWorkProgress) => void>();
     let refresh: ((path: string) => Promise<void>) | null = null;
     let latest = '';
-    let started = false, yielding = false;
+    let started = false;
     const tell = (): void => {
         if (watchers.size === 0) return;
         const total = weights.reduce((sum, weight) => sum + weight, 0);
@@ -82,7 +82,6 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
         let worker = pool[slot];
         if (!worker) {
             worker = new Worker(workerUrl);
-            if (yielding) worker.postMessage({ pace: 'yielding' } satisfies BakeAsk);
             worker.addEventListener('message', (event: MessageEvent<BakeReply>) => {
                 const reply = event.data, waiting = answers.get(reply.id);
                 if (!waiting) return;
@@ -144,9 +143,8 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
 
     const work: LoadWork = {
         get pending() { return ready.some((done) => done === null); },
-        yieldToGame() {
-            yielding = true;
-            for (const worker of pool) worker?.postMessage({ pace: 'yielding' } satisfies BakeAsk);
+        release() {
+            for (const baked of ready) baked?.clear();
         },
         async run(onProgress) {
             begin();
@@ -184,7 +182,7 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
                 const baked = ready[hit.model];
                 if (baked) {
                     const map = baked.get(hit.role);
-                    if (map) { baked.delete(hit.role); return map; }
+                    if (map) return map;
                     return placeholder(hit.role);
                 }
                 shown[hit.model]!.add(path);

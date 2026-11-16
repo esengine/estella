@@ -9,11 +9,10 @@ export interface LoadWorkProgress {
 export interface LoadWork {
     readonly pending: boolean;
     run(onProgress?: (progress: LoadWorkProgress) => void): Promise<void>;
-    /** The game is being played: what is still being made goes on in short turns, so the frames keep their time. */
-    yieldToGame(): void;
+    release(): void;
 }
 
-const NONE: LoadWork = { pending: false, run: async () => undefined, yieldToGame: () => undefined };
+const NONE: LoadWork = { pending: false, run: async () => undefined, release: () => undefined };
 
 let current: LoadWork = NONE;
 

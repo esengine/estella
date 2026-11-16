@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { setBakePace } from '../modeling/gpuProbes';
 import { canBakeAtLoad, shapeModelAtLoad, type ShapedModel } from '../modeling/loadBake';
 import { MODEL_MAPS, type BakeStage, type ModelMapName } from '../modeling/loadBakeFile';
 
 export type BakeAsk =
-    | { id: number; model: number; part: 'shape' | 'maps'; text: string; limit: number }
-    | { pace: 'eager' | 'yielding' };
+    { id: number; model: number; part: 'shape' | 'maps'; text: string; limit: number };
 
 export type BakeReply =
     | { id: number; stage: BakeStage; done: number; total: number }
@@ -26,7 +24,7 @@ const context = (): WebGL2RenderingContext => {
     return gl;
 };
 
-async function answer(ask: Extract<BakeAsk, { id: number }>): Promise<void> {
+async function answer(ask: BakeAsk): Promise<void> {
     const { id, model, part, text, limit } = ask;
     let said = 0;
     const tick = (stage: BakeStage, done: number, total: number): void => {
@@ -55,6 +53,5 @@ async function answer(ask: Extract<BakeAsk, { id: number }>): Promise<void> {
 
 scope.onmessage = (event) => {
     const ask = event.data;
-    if ('pace' in ask) { setBakePace(ask.pace === 'yielding'); return; }
     line = line.then(() => answer(ask));
 };
