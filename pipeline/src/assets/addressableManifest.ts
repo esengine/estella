@@ -34,17 +34,27 @@ interface FlatManifest {
   }[];
 }
 
-// Editor asset type → AddressableAssetType (sdk/src/assetTypes.ts). Feeds the
-// runtime Catalog; an unmapped type degrading to 'binary' is harmless.
-const ADDRESSABLE_TYPE: Record<string, string> = {
-  // A picture's source ships as a texture that is drawn where it loads (a recipe): an image to whatever loads it, never one to the cook.
-  texture: 'texture', imageSource: 'texture', material: 'material', audio: 'audio', 'bitmap-font': 'bitmap-font',
-  // A sound's source ships as a clip that is made where it loads, as a picture's ships as a texture.
-  soundSource: 'audio', musicSource: 'audio',
-  prefab: 'prefab', spine: 'spine',
-  scene: 'json', 'anim-clip': 'json', tilemap: 'json', timeline: 'json', json: 'json', 'sound-event': 'json', 'world-rules': 'json', 'terrain-layer': 'json', 'terrain-tiles': 'json', shader: 'text',
-};
-export const addrType = (editorType: string): string => ADDRESSABLE_TYPE[editorType] ?? 'binary';
+export const LOADER_TYPE_OF_META_TYPE: Readonly<Record<string, string>> = Object.freeze({
+  imageSource: 'texture',
+  soundSource: 'audio',
+  musicSource: 'audio',
+  animclip: 'anim-clip',
+  animation: 'timeline',
+  bitmapFont: 'font',
+  shader: 'material-shader',
+  scene: 'json',
+  inputmap: 'json',
+});
+
+export const UNLOADED_TYPE = 'binary';
+
+export const UNLOADED_META_TYPES: ReadonlySet<string> = new Set([
+  'video', 'dragonbones',
+  'model', 'panorama', 'layered', 'animated', 'materialgraph', 'modeling', 'land', 'rig',
+]);
+
+export const addrType = (metaType: string): string =>
+  UNLOADED_META_TYPES.has(metaType) ? UNLOADED_TYPE : LOADER_TYPE_OF_META_TYPE[metaType] ?? metaType;
 
 /** A group's bundleMode from its assets' cooked `groupMode`, with the legacy
  *  fallback (an entry without groupMode): `main` → local, else lazy subpackage. */

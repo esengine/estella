@@ -24,8 +24,6 @@ export {
     type AssetTypeEntry,
     getAssetTypeEntry,
     getEditorType,
-    getAddressableType,
-    getAddressableTypeByEditorType,
     isKnownAssetExtension,
     getAllAssetExtensions,
     looksLikeAssetPath,

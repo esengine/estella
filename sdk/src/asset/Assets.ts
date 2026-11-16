@@ -278,12 +278,6 @@ const GROUP_ASSET_CHANNELS: Readonly<Record<string, GroupAssetChannel>> = {
         release: (a, path) => a.releaseTyped('font', path),
         displayable: true,
     },
-    'bitmap-font': {
-        load: (a, path, b) => a.acquireTyped<FontResult>('font', path)
-            .then((l) => { b.scope.add(l); b.fonts.set(path, l.value); }),
-        release: (a, path) => a.releaseTyped('font', path),
-        displayable: true,
-    },
     spine: {
         load: (a, path, b) => a.acquireSpine(path)
             .then((l) => { b.scope.add(l); b.spine.set(path, l.value); }),
@@ -1583,8 +1577,7 @@ export class Assets {
         switch (type) {
             case 'texture': return () => this.loadTexture(path);
             case 'spine':   return () => this.loadSpine(path);
-            case 'font':
-            case 'bitmap-font': return () => this.loadFont(path);
+            case 'font':    return () => this.loadFont(path);
             default:
                 return this.loaders_.has(type) ? () => this.loadTyped(type, path) : null;
         }
@@ -2751,8 +2744,12 @@ export class Assets {
     }
 
     private async loadTyped<T>(type: string, ref: string): Promise<T> {
-        try { return (await this.acquireTyped_<T>(type, ref)).value; }
-        catch (error) { throw preparationFailureReason(error); }
+        try {
+            const { value } = this.registryKind_(type)
+                ? await this.acquireTypedLease_<T>(type, ref)
+                : await this.acquireTyped_<T>(type, ref);
+            return value;
+        } catch (error) { throw preparationFailureReason(error); }
     }
 
     private async acquireTyped_<T>(
