@@ -16,12 +16,10 @@ import { randomUUID } from 'node:crypto';
 import { META_EXT } from './contentPolicy';
 import { importerDefaults } from '../project/importSettings';
 import {
-  EXT_TO_TYPE, metaTypeForExt, metaTypeForContent, needsContentType, CONTENT_SNIFF_BYTES, dataImporterForHead,
+  EXT_TO_TYPE, META_VERSION, metaTypeForExt, metaTypeForContent, needsContentType, CONTENT_SNIFF_BYTES, dataImporterForHead,
 } from '../../../tools/assetMetaTable.js';
 
-export const META_VERSION = '2.0';
-
-export { EXT_TO_TYPE };
+export { EXT_TO_TYPE, META_VERSION };
 
 /** The meta `type` a file's NAME declares, or null when the name cannot say. */
 export function metaTypeFor(file: string): string | null {
