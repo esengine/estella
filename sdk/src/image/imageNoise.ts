@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { col } from '../math/color';
+
 export type Rgba = readonly [number, number, number, number];
 
 export function parseColor(text: string): Rgba {
-    const h = /^#([0-9a-fA-F]+)$/.exec(text)?.[1];
-    if (!h || ![3, 4, 6, 8].includes(h.length)) throw new Error(`color ${JSON.stringify(text)} must be #rgb, #rgba, #rrggbb or #rrggbbaa`);
-    const full = h.length <= 4 ? [...h].map((c) => c + c).join('') : h;
-    const at = (i: number): number => parseInt(full.slice(i, i + 2), 16) / 255;
-    return [at(0), at(2), at(4), full.length === 8 ? at(6) : 1];
+    const c = col.fromHex(text);
+    return [c.r, c.g, c.b, c.a];
 }
 
 /**

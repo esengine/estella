@@ -73,7 +73,7 @@ export const col = {
             h = h.split('').map((c) => c + c).join('');
         }
         if (!/^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(h)) {
-            throw new Error(`invalid hex color: "${hex}"`);
+            throw new Error(`invalid hex color "${hex}": must be #rgb, #rgba, #rrggbb or #rrggbbaa`);
         }
         const n = (i: number): number => parseInt(h.slice(i, i + 2), 16) / 255;
         return { r: n(0), g: n(2), b: n(4), a: h.length >= 8 ? n(6) : 1 };
