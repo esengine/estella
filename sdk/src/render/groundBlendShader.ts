@@ -13,7 +13,7 @@
  *          Derived from Model, so a material moved onto it keeps every map and param it had. Such a material is drawn after a copy
  *          of the opaque scene is taken, which is the whole of its cost.
  */
-import { modelWithoutDetail, modelLine } from './modelDetail';
+import { modelWithoutDetail, modelLine, hasWgslTwin } from './modelDetail';
 
 /** The fade and the second layer, added to Model's params. */
 const PARAMS = `// How high above what stands behind it the surface has fully arrived, in world units. 0 leaves a hard edge.
@@ -153,6 +153,11 @@ function swap(source: string, from: string | RegExp, to: string): string {
     return source.replace(from, () => to);
 }
 
+/** A swap in the WGSL twin: none where the source has no twin, which is what a package that draws only through WebGL ships. */
+function swapWgsl(source: string, from: string | RegExp, to: string): string {
+    return hasWgslTwin(source) ? swap(source, from, to) : source;
+}
+
 /** Ground Blend from the Model shader's source. A refraction reads the same picture, and the two would fight over it, so it is taken out. */
 export function deriveGroundBlend(model: string): string {
     let s = swap(modelWithoutDetail(model), '#pragma shader "Model"', '#pragma shader "Ground Blend"');
@@ -161,14 +166,14 @@ export function deriveGroundBlend(model: string): string {
     s = s.replace(/mc\.u_transmission/g, '0.0').replace(/u_transmission/g, '0.0');
     s = swap(s, '#pragma param u_iridescence float', `${PARAMS}#pragma param u_iridescence float`);
     s = swap(s, 'float specularAA(highp vec3', `${GLSL_HELPERS}float specularAA(highp vec3`);
-    s = swap(s, 'fn specularAA(dndx : vec3f', `${WGSL_HELPERS}fn specularAA(dndx : vec3f`);
+    s = swapWgsl(s, 'fn specularAA(dndx : vec3f', `${WGSL_HELPERS}fn specularAA(dndx : vec3f`);
     s = swap(s, modelLine('vec4 base = texture(u_textures[0], uv) * v_color * u_tint;'), GLSL_SURFACE);
-    s = swap(s, modelLine('var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;'), WGSL_SURFACE);
+    s = swapWgsl(s, modelLine('var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;'), WGSL_SURFACE);
     s = swap(s, 'float roughness = u_roughness * mr.g;', 'float roughness = mix(u_roughness * mr.g, u_layer2Roughness, layerWeight);');
-    s = swap(s, 'var roughness = mc.u_roughness * mr.g;', 'var roughness = mix(mc.u_roughness * mr.g, mc.u_layer2Roughness, layerWeight);');
+    s = swapWgsl(s, 'var roughness = mc.u_roughness * mr.g;', 'var roughness = mix(mc.u_roughness * mr.g, mc.u_layer2Roughness, layerWeight);');
     s = swap(s, 'fragColor = vec4(lit + seen + u_emissive.rgb * texture(u_emissiveMap, uv).rgb, alpha);',
              'fragColor = vec4(mix(groundBehind, lit + seen + u_emissive.rgb * texture(u_emissiveMap, uv).rgb, groundFade), alpha);');
-    s = swap(s, 'frag.color = vec4f(lit + seen + emit, alpha);', 'frag.color = vec4f(mix(groundBehind, lit + seen + emit, groundFade), alpha);');
-    s = swap(s, 'return vec4f(lit + seen + emit, alpha);', 'return vec4f(mix(groundBehind, lit + seen + emit, groundFade), alpha);');
+    s = swapWgsl(s, 'frag.color = vec4f(lit + seen + emit, alpha);', 'frag.color = vec4f(mix(groundBehind, lit + seen + emit, groundFade), alpha);');
+    s = swapWgsl(s, 'return vec4f(lit + seen + emit, alpha);', 'return vec4f(mix(groundBehind, lit + seen + emit, groundFade), alpha);');
     return s;
 }

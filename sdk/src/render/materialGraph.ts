@@ -19,6 +19,7 @@
 export type GraphType = 'float' | 'vec2' | 'vec3' | 'vec4';
 
 import { RENAMED_DOMAINS } from './shaderReflect';
+import { NOISE2D_GLSL, NOISE2D_WGSL } from './shaderLib';
 
 export type GraphNodeType =
   | 'output' // the root: its `color` input becomes fragColor
@@ -262,8 +263,8 @@ export function compileMaterialGraph(source: MaterialGraph, resolve?: SubgraphRe
         break;
       }
       case 'noise': {
-        helpers.add(NOISE_HELPER);
-        whelpers.add(NOISE_HELPER_WGSL);
+        helpers.add(NOISE2D_GLSL);
+        whelpers.add(NOISE2D_WGSL);
         const uv = n.inputs?.uv ? input('uv') : fragUv();
         const scale = numParam(n, 'scale', 12);
         out = line('float',
@@ -363,7 +364,6 @@ export function compileMaterialGraph(source: MaterialGraph, resolve?: SubgraphRe
     throw new Error('material graph: `output` must reference an "output" node');
   }
   const result = emit(graph.output);
-
 
   // Standard-material surface: the `output` node's PBR ports (or a literal typed on one) turn this
   // graph into the Lit mesh shading the built-in `Model` shader uses — the same normal unpack, the
@@ -503,24 +503,6 @@ ${surface ? surface.wgsl : `    return ${alphaOnly ? `vec4f((${result.wexpr}).rg
 #pragma end
 `;
 }
-
-const NOISE_HELPER = `float hash2d(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
-float noise2d(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash2d(i), hash2d(i + vec2(1.0, 0.0)), f.x),
-               mix(hash2d(i + vec2(0.0, 1.0)), hash2d(i + vec2(1.0, 1.0)), f.x), f.y);
-}`;
-
-const NOISE_HELPER_WGSL = `fn hash2d(p : vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453123); }
-fn noise2d(p : vec2f) -> f32 {
-    let i = floor(p);
-    var f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash2d(i), hash2d(i + vec2f(1.0, 0.0)), f.x),
-               mix(hash2d(i + vec2f(0.0, 1.0)), hash2d(i + vec2f(1.0, 1.0)), f.x), f.y);
-}`;
 
 // =============================================================================
 // Editor schema + graph operations (the visual node editor, P5b)

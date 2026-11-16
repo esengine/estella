@@ -8,7 +8,7 @@
  *          whichever axis the surface faces. The vertex colour is how much of each material a vertex is. Being derived from Model it is lit,
  *          shadowed and fogged as anything else in the scene is, and a material moved onto it keeps every param it had.
  */
-import { modelWithoutDetail, modelLine } from '../render/modelDetail';
+import { modelWithoutDetail, modelLine, hasWgslTwin } from '../render/modelDetail';
 
 /** Material 0 is the shader's main texture, so the others cost three more. The emissive map gives its unit up: this skin has no uv to read one by. */
 const PARAMS = `// The colour of each material, multiplied into its picture.
@@ -82,18 +82,23 @@ function swap(source: string, from: string | RegExp, to: string): string {
     return source.replace(from, () => to);
 }
 
+/** A swap in the WGSL twin: none where the source has no twin, which is what a package that draws only through WebGL ships. */
+function swapWgsl(source: string, from: string | RegExp, to: string): string {
+    return hasWgslTwin(source) ? swap(source, from, to) : source;
+}
+
 /** Voxel Ground from the Model shader's source. */
 export function deriveVoxelGround(model: string): string {
     let s = swap(modelWithoutDetail(model), '#pragma shader "Model"', '#pragma shader "Voxel Ground"');
     s = swap(s, '#pragma param u_iridescence float', `${PARAMS}#pragma param u_iridescence float`);
     s = swap(s, '#pragma param u_emissiveMap texture default(white)\n', '');
     s = swap(s, 'texture(u_emissiveMap, uv).rgb', 'vec3(1.0)');
-    s = swap(s, 'textureSampleGrad(u_emissiveMap, u_emissiveMap_s, uv, duvx, duvy).rgb', 'vec3f(1.0)');
+    s = swapWgsl(s, 'textureSampleGrad(u_emissiveMap, u_emissiveMap_s, uv, duvx, duvy).rgb', 'vec3f(1.0)');
     s = swap(s, 'float specularAA(highp vec3', `${GLSL_HELPERS}float specularAA(highp vec3`);
-    s = swap(s, 'fn specularAA(dndx : vec3f', `${WGSL_HELPERS}fn specularAA(dndx : vec3f`);
+    s = swapWgsl(s, 'fn specularAA(dndx : vec3f', `${WGSL_HELPERS}fn specularAA(dndx : vec3f`);
     s = swap(s, modelLine('vec4 base = texture(u_textures[0], uv) * v_color * u_tint;'), GLSL_SURFACE);
-    s = swap(s, modelLine('var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;'), WGSL_SURFACE);
+    s = swapWgsl(s, modelLine('var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;'), WGSL_SURFACE);
     s = swap(s, 'float roughness = u_roughness * mr.g;', 'float roughness = u_roughness * mr.g * dot(voxelMix, u_voxelRoughness);');
-    s = swap(s, 'var roughness = mc.u_roughness * mr.g;', 'var roughness = mc.u_roughness * mr.g * dot(voxelMix, mc.u_voxelRoughness);');
+    s = swapWgsl(s, 'var roughness = mc.u_roughness * mr.g;', 'var roughness = mc.u_roughness * mr.g * dot(voxelMix, mc.u_voxelRoughness);');
     return s;
 }
