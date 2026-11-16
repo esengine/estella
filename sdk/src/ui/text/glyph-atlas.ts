@@ -74,6 +74,7 @@ export interface GlyphEntry {
     advance: number;
     bearingX: number;
     bearingY: number;
+    scale?: number;
 }
 
 export interface GlyphAtlasOptions {
@@ -102,12 +103,19 @@ interface GlyphPlacement {
     fontFamily: string;
     style: number;
     pixelSize: number;
-    /** The outline radius this cell was grown by, in rasterized px; 0 for the glyph itself. */
     outline: number;
+    shadow?: GlyphShadow;
     x: number;
     y: number;
     width: number;
     height: number;
+}
+
+export interface GlyphShadow {
+    key: string;
+    taps: ReadonlyArray<readonly [number, number]>;
+    strength: number;
+    downsample: number;
 }
 
 /** Which glyph an entry is, for an atlas that has to produce a variant of it. */
@@ -216,6 +224,68 @@ function outlineRaster(raster: RasterGlyph, radius: number): RasterGlyph {
         pixels, width: grown.width, height: grown.height, advance: raster.advance,
         bearingX: raster.bearingX - grown.margin, bearingY: raster.bearingY + grown.margin,
     };
+}
+
+export function shadowRaster(raster: RasterGlyph, taps: ReadonlyArray<readonly [number, number]>, strength: number): RasterGlyph {
+    let reach = 0;
+    for (const [x, y] of taps) reach = Math.max(reach, Math.abs(x), Math.abs(y));
+    const margin = Math.ceil(reach) + 1;
+    const sw = raster.width, sh = raster.height;
+    const w = sw + margin * 2, h = sh + margin * 2;
+    const coverage = new Float32Array((sw + 2) * (sh + 2));
+    for (let y = 0; y < sh; y++) {
+        for (let x = 0; x < sw; x++) coverage[(y + 1) * (sw + 2) + x + 1] = raster.pixels[(y * sw + x) * 4 + 3] / 255;
+    }
+    const at = (x: number, y: number): number => (x < -1 || y < -1 || x > sw || y > sh) ? 0 : coverage[(y + 1) * (sw + 2) + x + 1];
+    const sum = new Float32Array(w * h);
+    for (const [ox, oy] of taps) {
+        const fx = -margin - ox, fy = -margin + oy;
+        const ix = Math.floor(fx), iy = Math.floor(fy);
+        const tx = fx - ix, ty = fy - iy;
+        const w00 = (1 - tx) * (1 - ty), w10 = tx * (1 - ty), w01 = (1 - tx) * ty, w11 = tx * ty;
+        for (let y = 0; y < h; y++) {
+            const sy = y + iy;
+            if (sy < -1 || sy > sh) continue;
+            for (let x = 0; x < w; x++) {
+                const sx = x + ix;
+                if (sx < -1 || sx > sw) continue;
+                sum[y * w + x] += at(sx, sy) * w00 + at(sx + 1, sy) * w10 + at(sx, sy + 1) * w01 + at(sx + 1, sy + 1) * w11;
+            }
+        }
+    }
+    const a = Math.min(0.999, Math.max(0.001, strength));
+    const clear = Math.log(1 - a);
+    const pixels = new Uint8Array(w * h * 4);
+    for (let i = 0; i < w * h; i++) {
+        const m = taps.length > 0 ? sum[i] / taps.length : 0;
+        const o = i * 4;
+        pixels[o] = 255; pixels[o + 1] = 255; pixels[o + 2] = 255;
+        pixels[o + 3] = Math.round(Math.min(1, (1 - Math.exp(clear * m)) / a) * 255);
+    }
+    return { pixels, width: w, height: h, advance: raster.advance, bearingX: raster.bearingX - margin, bearingY: raster.bearingY + margin };
+}
+
+export function distanceShadowRaster(raster: RasterGlyph, spread: number, taps: ReadonlyArray<readonly [number, number]>,
+                                     strength: number, downsample: number): RasterGlyph {
+    const f = Math.max(1, Math.round(downsample));
+    const w = Math.ceil(raster.width / f), h = Math.ceil(raster.height / f);
+    const pixels = new Uint8Array(w * h * 4);
+    const reach = Math.max(spread, 1e-3);
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            let sum = 0;
+            for (let sy = y * f; sy < Math.min(raster.height, (y + 1) * f); sy++) {
+                for (let sx = x * f; sx < Math.min(raster.width, (x + 1) * f); sx++) {
+                    const d = (raster.pixels[(sy * raster.width + sx) * 4 + 3] - 128) / 128 * reach;
+                    sum += Math.min(1, Math.max(0, 0.5 + d / f));
+                }
+            }
+            pixels[(y * w + x) * 4 + 3] = Math.round(sum / (f * f) * 255);
+        }
+    }
+    const small: RasterGlyph = { pixels, width: w, height: h, advance: raster.advance, bearingX: raster.bearingX / f, bearingY: raster.bearingY / f };
+    const cell = shadowRaster(small, taps.map(([x, y]) => [x / f, y / f] as const), strength);
+    return { ...cell, advance: raster.advance, bearingX: cell.bearingX * f, bearingY: cell.bearingY * f };
 }
 
 /**
@@ -358,10 +428,8 @@ export class GlyphAtlas {
     /** Reported families with non-drawable glyphs still in the bounded CPU cache. */
     private readonly mute_ = new Set<string>();
 
-    private key(codepoint: number, fontFamily: string, style: number, pixelSize: number, outline = 0): string {
-        // The radius rides on the size segment, so the key keeps the three numeric
-        // suffixes familyFromKey strips.
-        const size = outline > 0 ? `${pixelSize}o${outline}` : `${pixelSize}`;
+    private key(codepoint: number, fontFamily: string, style: number, pixelSize: number, outline = 0, shadow?: GlyphShadow): string {
+        const size = shadow ? `${pixelSize}s${shadow.key}` : outline > 0 ? `${pixelSize}o${outline}` : `${pixelSize}`;
         return `${fontFamily}|${codepoint}|${style % STYLE_COUNT_HINT}|${size}`;
     }
 
@@ -393,9 +461,16 @@ export class GlyphAtlas {
         return this.glyph_(id, radius);
     }
 
-    private glyph_(id: GlyphIdentity, outline: number): GlyphEntry | null {
+    shadowed(entry: GlyphEntry, shadow: GlyphShadow): GlyphEntry | null {
+        if (shadow.taps.length === 0) return null;
+        const id = this.identity_.get(entry);
+        if (!id) return null;
+        return this.glyph_(id, 0, shadow);
+    }
+
+    private glyph_(id: GlyphIdentity, outline: number, shadow?: GlyphShadow): GlyphEntry | null {
         const { codepoint, fontFamily, style, pixelSize } = id;
-        const k = this.key(codepoint, fontFamily, style, pixelSize, outline);
+        const k = this.key(codepoint, fontFamily, style, pixelSize, outline, shadow);
         const hit = this.cache.get(k);
         if (hit !== undefined) return hit;
         const cpuHit = this.cpuCache.get(k);
@@ -405,7 +480,7 @@ export class GlyphAtlas {
             return cpuHit;
         }
 
-        const raster = this.raster_(codepoint, fontFamily, style, pixelSize, outline);
+        const raster = this.raster_(codepoint, fontFamily, style, pixelSize, outline, shadow);
         if (!raster) {
             // Cached non-drawable glyphs own their family's diagnostic suppression.
             this.cacheCPU(k, null);
@@ -453,7 +528,7 @@ export class GlyphAtlas {
         const pageId = this.pages[placed.page];
         this.store.uploadSubRegion(pageId, placed.x, placed.y, raster.width, raster.height, raster.pixels);
         this.placements[placed.page].push({
-            codepoint, fontFamily, style, pixelSize, outline,
+            codepoint, fontFamily, style, pixelSize, outline, shadow,
             x: placed.x, y: placed.y, width: raster.width, height: raster.height,
         });
 
@@ -469,17 +544,23 @@ export class GlyphAtlas {
             advance: raster.advance,
             bearingX: raster.bearingX,
             bearingY: raster.bearingY,
+            ...(shadow ? { scale: Math.max(1, Math.round(shadow.downsample)) } : {}),
         };
         this.cache.set(k, entry);
-        if (outline === 0) this.identity_.set(entry, id);
+        if (outline === 0 && !shadow) this.identity_.set(entry, id);
         return entry;
     }
 
-    /** The tile for one cell: the glyph as rasterized, or grown into its outline. */
     private raster_(codepoint: number, fontFamily: string, style: number, pixelSize: number,
-                    outline: number): RasterGlyph | null {
+                    outline: number, shadow?: GlyphShadow): RasterGlyph | null {
         const raster = this.rasterizer.rasterize(codepoint, fontFamily, style, pixelSize);
-        if (!raster || outline <= 0 || raster.width <= 0 || raster.height <= 0) return raster;
+        if (!raster || raster.width <= 0 || raster.height <= 0) return raster;
+        if (shadow) {
+            return this.sdf && this.rasterizer.spread > 0
+                ? distanceShadowRaster(raster, this.rasterizer.spread, shadow.taps, shadow.strength, shadow.downsample)
+                : shadowRaster(raster, shadow.taps, shadow.strength);
+        }
+        if (outline <= 0) return raster;
         return outlineRaster(raster, outline);
     }
 
@@ -543,7 +624,7 @@ export class GlyphAtlas {
     private paintPage(glyphs: readonly GlyphPlacement[], pixels: Uint8Array): void {
         const size = this.pageSize;
         for (const g of glyphs) {
-            const raster = this.raster_(g.codepoint, g.fontFamily, g.style, g.pixelSize, g.outline);
+            const raster = this.raster_(g.codepoint, g.fontFamily, g.style, g.pixelSize, g.outline, g.shadow);
             if (!raster) continue;
             const width = Math.min(raster.width, g.width);
             const height = Math.min(raster.height, g.height);

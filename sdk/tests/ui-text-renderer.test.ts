@@ -10,7 +10,7 @@ import { TEXT_VERTEX_FLOATS } from '../src/ui/text/submit';
 import {
     GlyphAtlas, type GlyphRasterizer, type AtlasPageStore, type RasterGlyph,
 } from '../src/ui/text/glyph-atlas';
-import { drawTextWith, shadowTaps, signatureOf, tapAlpha } from '../src/ui/text/text-renderer';
+import { SHADOW_COVERAGE_BIAS, drawTextWith, shadowTaps, signatureOf, tapAlpha } from '../src/ui/text/text-renderer';
 import type { DrawTextParams } from '../src/ui/text/text-renderer';
 
 function makeAtlas(pageSize: number, spread = 6, metricsOnly = false): GlyphAtlas {
@@ -97,13 +97,13 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
                     shadow: { color: [0, 0, 0, 0.6], dx: 2, dy: 2, blur },
                     outline: { color: [0, 1, 0, 0.4], width: 1 },
                 });
-                const shadows = blur > 0 ? 9 : 1;
+                const shadows = 1;
                 const outlines = spread > 0 ? 1 : 8;
                 expect(sink).toHaveBeenCalledTimes(shadows + outlines + 1);
                 for (let batch = 0; batch < shadows + outlines; ++batch) {
                     const vertices = sink.mock.calls[batch][0] as Float32Array;
                     const shadow = batch < shadows;
-                    const alpha = shadow ? tapAlpha(0.6, shadows) * 0.5 : 0.2;
+                    const alpha = shadow ? 0.6 * 0.5 : 0.2;
                     for (let i = 4; i < vertices.length; i += TEXT_VERTEX_FLOATS) {
                         expect(Array.from(vertices.subarray(i, i + 3))).toEqual(shadow ? [0, 0, 0] : [0, 1, 0]);
                         expect(vertices[i + 3]).toBeCloseTo(alpha);
@@ -264,24 +264,23 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
         expect(shadowTaps(60, 12).length).toBeLessThanOrEqual(64);
     });
 
-    it('spreads a blurred shadow into a ring, still behind the fill', () => {
+    it('draws a blurred shadow once, spread past the glyphs, still behind the fill', () => {
         const atlas = makeAtlas(1024);
         const sink = vi.fn();
         drawTextWith(atlas, sink, {
             text: 'AB', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 1],
             shadow: { color: [0, 0, 0, 0.5], dx: 0, dy: 4, blur: 3 },
         });
-        // 9 shadow taps + 1 fill.
-        expect(sink).toHaveBeenCalledTimes(10);
-        // Every tap sits within the blur radius of the offset, and none of them
-        // is the full-strength colour — that is what stops a blurred shadow from
-        // reading as several stamps of the text.
-        const fillX = sink.mock.calls[9][0][0];
-        for (let i = 0; i < 9; i++) {
-            const verts = sink.mock.calls[i][0];
-            expect(Math.abs(verts[0] - fillX)).toBeLessThanOrEqual(3.0001);
-            expect(verts[7]).toBeLessThan(0.5); // per-tap alpha
-        }
+        expect(sink).toHaveBeenCalledTimes(2);
+        const shadow = sink.mock.calls[0][0] as Float32Array;
+        const fill = sink.mock.calls[1][0] as Float32Array;
+        expect(sink.mock.calls[0][3]).toBe(sink.mock.calls[1][3]);
+        expect(shadow[8]).toBe(SHADOW_COVERAGE_BIAS);
+        expect(shadow[7]).toBeCloseTo(0.5, 5);
+        expect(shadow[0]).toBeLessThan(fill[0]);
+        expect(shadow[TEXT_VERTEX_FLOATS]).toBeGreaterThan(fill[TEXT_VERTEX_FLOATS]);
+        const middle = (v: Float32Array) => (v[1] + v[2 * TEXT_VERTEX_FLOATS + 1]) / 2;
+        expect(middle(shadow) - middle(fill)).toBeCloseTo(-4, 4);
     });
 
     it('composites the ring back to the requested shadow alpha', () => {
@@ -298,7 +297,7 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
             text: 'AB', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 1],
             shadow: { color: [0, 0, 0, 1], dx: 0, dy: 0, blur: 2 },
         });
-        expect(sink).toHaveBeenCalledTimes(10);
+        expect(sink).toHaveBeenCalledTimes(2);
     });
 
     it('skips shadow/outline passes when transparent or zero-width', () => {
