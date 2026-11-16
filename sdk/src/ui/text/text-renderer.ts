@@ -13,7 +13,7 @@
 import { createTextCullGeometry, textClipPlanes, clipTextGeometry, type TextCullGeometry } from './text-culling';
 import type { ESEngineModule } from '../../wasm';
 import { platformHasGlyphRasterizer } from '../../platform';
-import { GlyphAtlas } from './glyph-atlas';
+import { GlyphAtlas, type GlyphShadow } from './glyph-atlas';
 import { CanvasGlyphRasterizer, type CanvasGlyphRasterizerOptions } from './glyph-rasterizer';
 import { NativeGlyphRasterizer } from './native-glyph-rasterizer';
 import { EngineAtlasPageStore } from './atlas-page-store';
@@ -285,6 +285,47 @@ export function outlineGlyphs(atlas: GlyphAtlas, glyphs: readonly LaidGlyph[], w
     return out;
 }
 
+const SHADOW_TEXELS_PER_PX = 1.5;
+export const SHADOW_COVERAGE_BIAS = -4;
+
+export function shadowGlyphs(atlas: GlyphAtlas, glyphs: readonly LaidGlyph[], taps: ReadonlyArray<readonly [number, number]>,
+                             strength: number, tapsKey: string): LaidGlyph[] | null {
+    const out: LaidGlyph[] = [];
+    const strengthKey = Math.max(1, Math.round(strength * 32)) / 32;
+    const distance = atlas.distancePerTexel > 0;
+    const shadows = new Map<number, GlyphShadow>();
+    for (const g of glyphs) {
+        const entry = g.entry;
+        if (!entry) return null;
+        if (entry.width <= 0) continue;
+        const perTexel = (g.x1 - g.x0) / entry.width;
+        if (!(perTexel > 0)) return null;
+        const density = Math.round(64 / perTexel) / 64;
+        let shadow = shadows.get(density);
+        if (!shadow) {
+            const downsample = distance ? Math.max(1, Math.floor(density / SHADOW_TEXELS_PER_PX)) : 1;
+            shadow = {
+                key: `${tapsKey}:${density}:${strengthKey}:${downsample}`,
+                taps: taps.map(([x, y]) => [x * density, y * density] as const),
+                strength: strengthKey,
+                downsample,
+            };
+            shadows.set(density, shadow);
+        }
+        const cell = atlas.shadowed(entry, shadow);
+        if (!cell) return null;
+        const span = (cell.scale ?? 1) * perTexel;
+        const x0 = g.x0 - (entry.bearingX - cell.bearingX) * perTexel;
+        const y1 = g.y1 + (cell.bearingY - entry.bearingY) * perTexel;
+        out.push({
+            u0: cell.u0, v0: cell.v0, u1: cell.u1, v1: cell.v1,
+            x0, y0: y1 - cell.height * span, x1: x0 + cell.width * span, y1,
+            pageId: cell.pageId,
+        });
+    }
+    return out;
+}
+
 export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTextParams): number {
     if (atlas.metricsOnly) throw new Error('Measurement atlases cannot submit text.');
     const opacity = p.opacity ?? 1;
@@ -361,9 +402,14 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         const blur = p.shadow.blur ?? 0;
         if (blur > 0) {
             const taps = shadowTaps(blur, fontSizePx);
-            const a = tapAlpha(color[3], taps.length);
-            const tap: RGBA = [color[0], color[1], color[2], a];
-            for (const [ox, oy] of taps) emitPass(tap, dx + ox, -dy + oy, 0, false, baked ? TextGlyphMode.Mask : undefined);
+            const soft = baked ? null : shadowGlyphs(atlas, layout.glyphs, taps, color[3], `${blur}:${fontSizePx}`);
+            if (soft) {
+                emitChunks(pageChunks(soft), color, dx, -dy, atlas.distancePerTexel > 0 ? SHADOW_COVERAGE_BIAS : 0);
+            } else {
+                const a = tapAlpha(color[3], taps.length);
+                const tap: RGBA = [color[0], color[1], color[2], a];
+                for (const [ox, oy] of taps) emitPass(tap, dx + ox, -dy + oy, 0, false, baked ? TextGlyphMode.Mask : undefined);
+            }
         } else {
             emitPass(color, dx, -dy, 0, false, baked ? TextGlyphMode.Mask : undefined);
         }

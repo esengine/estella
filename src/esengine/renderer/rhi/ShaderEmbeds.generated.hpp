@@ -128,7 +128,7 @@ void main() {
     float dist = texColor.a;
     float pixelsPerUnit = min(1.0 / max(fwidth(dist), 1e-6), texColor.r * 255.0 / max(texelsPerPixel, 1e-6));
     float screenPxDist = (dist - 0.5 + v_sdfBias) * pixelsPerUnit;
-    float coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
+    float coverage = v_sdfBias < -1.0 ? dist : clamp(screenPxDist + 0.5, 0.0, 1.0);
     fragColor = vec4(tint.rgb, tint.a * coverage);
 #elif defined(GLYPH_MASK)
     fragColor = vec4(tint.rgb, tint.a * texColor.a);
@@ -276,7 +276,7 @@ struct VSOut {
     let dist = texColor.a;
     let pixelsPerUnit = min(1.0 / max(fwidth(dist), 1e-6), texColor.r * 255.0 / max(texelsPerPixel, 1e-6));
     let screenPxDist = (dist - 0.5 + v.v_sdfBias) * pixelsPerUnit;
-    let coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
+    let coverage = select(clamp(screenPxDist + 0.5, 0.0, 1.0), dist, v.v_sdfBias < -1.0);
     let shown = vec4f(tint.rgb, tint.a * coverage);
 #elif defined(GLYPH_MASK)
     let shown = vec4f(tint.rgb, tint.a * texColor.a);
