@@ -12,7 +12,6 @@ const glOnly = (s: string) => s.replace(/^[ \t]*#pragma (?:vertex|fragment|verte
 describe('shaders made from Model, in a package with no WGSL', () => {
     it('are made from its GLSL alone, which is the same GLSL the full source makes', () => {
         const model = glOnly(MODEL);
-        expect(hasWgslTwin(MODEL)).toBe(true);
         expect(hasWgslTwin(model)).toBe(false);
         for (const derive of [deriveGroundBlend, deriveVoxelGround]) {
             const gl = derive(model);

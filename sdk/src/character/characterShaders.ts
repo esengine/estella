@@ -7,7 +7,7 @@
  * The shader source lives with the module that installs it, not in the core's list of built-in shaders: a package that does not install the module carries none of it.
  */
 import { makeBuiltinShaderTemplate } from '../render/builtinShaders';
-import { PACK_NORMAL_GLSL, PACK_NORMAL_WGSL } from '../render/shaderLib';
+import { PACK_NORMAL_GLSL } from '../render/shaderLib';
 
 
 // Hair: lit as strands. The flow map gives the strand direction; the lighting does Kajiya-Kay diffuse and two shifted highlights along it
@@ -152,97 +152,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-#ifdef ES_GBUFFER
-struct FragOut {
-    @location(0) color : vec4f,
-    @location(1) surface : vec4f,
-    @location(2) albedo : vec4f,
-};
-
-${PACK_NORMAL_WGSL}
-
-@fragment fn fs_main(v : VSOut, @builtin(front_facing) front : bool) -> FragOut {
-#else
-@fragment fn fs_main(v : VSOut, @builtin(front_facing) front : bool) -> @location(0) vec4f {
-#endif
-    let duvx = dpdx(v.v_texCoord);
-    let duvy = dpdy(v.v_texCoord);
-    g_probeSlot = v.v_probeSlot;
-#ifdef MESH_LIGHTMAP
-    g_lightmap = v.v_lightmap;
-#endif
-#ifdef MESH_TANGENTS
-    g_worldTangent = v.v_worldTangent;
-#endif
-    var base = textureSampleBias(t0, s0, v.v_texCoord, mc.u_sharpen) * v.v_color * mc.u_tint;
-    let edge = max(abs(dpdx(base.a)) + abs(dpdy(base.a)), 1e-4);
-    let flowTex = textureSampleGrad(u_flowMap, u_flowMap_s, v.v_texCoord, duvx, duvy).rg * 2.0 - vec2f(1.0);
-    let orm = textureSampleGrad(u_ormMap, u_ormMap_s, v.v_texCoord, duvx, duvy);
-    let shiftTex = textureSampleGrad(u_shiftMap, u_shiftMap_s, v.v_texCoord * mc.u_shiftTile, duvx * mc.u_shiftTile, duvy * mc.u_shiftTile).r;
-#ifdef MESH_NORMALS
-    var Ng = normalize(v.v_worldNormal);
-    let P = v.v_worldXYZ;
-    var N = perturbNormal(Ng, P, v.v_texCoord, scaleNormal(sampleNormalGrad(u_normalMap, u_normalMap_s, v.v_texCoord, duvx, duvy), mc.u_normalScale));
-    if (!front) { N = -N; Ng = -Ng; }
-    var T = perturbNormal(Ng, P, v.v_texCoord, vec3f(flowTex, 0.0));
-    T = T - N * dot(N, T);
-    if (dot(T, T) < 1e-6) {
-        var seed = vec3f(1.0, 0.0, 0.0);
-        if (abs(N.y) < 0.99) { seed = vec3f(0.0, 1.0, 0.0); }
-        T = cross(N, seed);
-    }
-    T = normalize(T);
-#else
-    let P = vec3f(v.v_worldPos.x, 0.0, v.v_worldPos.y);
-    let N = vec3f(0.0, 0.0, 1.0);
-    let T = vec3f(0.0, 1.0, 0.0);
-#endif
-    var alpha = 1.0;
-#ifdef ES_TIP_PASS
-    alpha = (base.a - (mc.u_alphaCutoff - mc.u_tipSoftness)) / max(mc.u_tipSoftness, 1e-4);
-    if (base.a >= mc.u_alphaCutoff + edge || alpha <= 0.0) { discard; }
-    alpha = min(alpha, 1.0);
-#else
-    if (mc.u_alphaCutoff > 0.0) {
-        alpha = cutoutCoverage(base.a, mc.u_alphaCutoff, edge);
-        if (alpha <= 0.0) { discard; }
-        alpha = min(alpha, 1.0);
-    }
-#endif
-    var ao = mix(1.0, orm.r, mc.u_occlusionStrength);
-    base = vec4f(base.rgb * mix(1.0, 0.35 + 0.65 * orm.r, mc.u_rootDark), base.a);
-    var noise = (shiftTex - 0.5) * mc.u_shiftAmount;
-    if (mc.u_clumpCount > 0.0) {
-        let cu = v.v_texCoord.x * mc.u_clumpCount;
-        let cr = fract(sin(floor(cu) * 127.1 + 311.7) * 43758.5453);
-        let cf = fract(cu);
-        let seam = smoothstep(0.0, 0.35, cf) * smoothstep(0.0, 0.35, 1.0 - cf);
-        base = vec4f(base.rgb * (1.0 + (cr - 0.5) * 2.0 * mc.u_clumpTone), base.a);
-        ao = ao * mix(1.0 - mc.u_clumpGap, 1.0, seam);
-        noise = noise + (cr - 0.5) * mc.u_clumpShift;
-    }
-    var ext = surfaceExtNone(N);
-    ext.aniso = vec4f(T, 0.0);
-    let principled = step(1e-4, mc.u_anisotropy);
-    ext.misc = vec4f(mix(0.046, 0.04 * mc.u_specular, principled), max(mc.u_lobeGain, 0.001), mc.u_shiftPrimary + noise, mc.u_shiftSecondary + noise);
-    ext.strand = vec4f(mc.u_strandDiffuse, mc.u_anisotropy, 0.0, 0.0);
-    ext.scatter = vec4f(base.rgb * mc.u_secondaryTint.rgb * 1.6, 0.35);
-    ext.trans = vec4f(mc.u_translucency, 0.25, 0.0, 0.0);
-    let viewDir = viewDirection(P);
-    g_hairShadow = mc.u_hairShadow;
-    let lit = applyLightingSurface(base.rgb, N, P, viewDir, 0.0, mc.u_roughness, mix(mc.u_specular, 1.0, principled), ao, ext);
-#ifdef ES_GBUFFER
-    var frag : FragOut;
-    frag.color = vec4f(lit, alpha);
-    frag.surface = vec4f(packNormal(normalize(N)), mc.u_roughness, 0.75);
-    frag.albedo = vec4f(base.rgb, 1.0);
-    return frag;
-#else
-    return vec4f(lit, alpha);
-#endif
-}
-#pragma end
 `;
 
 // Skin: scattering without blurring the picture. Diffuse light comes from a softer normal than the surface's own (softest for red), the
@@ -370,86 +279,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-#ifdef ES_GBUFFER
-struct FragOut {
-    @location(0) color : vec4f,
-    @location(1) surface : vec4f,
-    @location(2) albedo : vec4f,
-};
-
-${PACK_NORMAL_WGSL}
-
-@fragment fn fs_main(v : VSOut, @builtin(front_facing) front : bool) -> FragOut {
-#else
-@fragment fn fs_main(v : VSOut, @builtin(front_facing) front : bool) -> @location(0) vec4f {
-#endif
-    // Every sample is taken here, before any branch.
-    g_probeSlot = v.v_probeSlot;
-#ifdef MESH_LIGHTMAP
-    g_lightmap = v.v_lightmap;
-#endif
-#ifdef MESH_TANGENTS
-    g_worldTangent = v.v_worldTangent;
-#endif
-    let base = textureSample(t0, s0, v.v_texCoord) * v.v_color * mc.u_tint;
-    let orm = textureSample(u_ormMap, u_ormMap_s, v.v_texCoord);
-    let detail = textureSample(u_detailMap, u_detailMap_s, v.v_texCoord * mc.u_detailTile).xy * 2.0 - vec2f(1.0);
-    let bakedSharp = scaleNormal(textureSampleBias(u_normalMap, u_normalMap_s, v.v_texCoord, 0.0).xyz * 2.0 - vec3f(1.0), mc.u_normalScale);
-    let tangentSharp = normalize(vec3f(bakedSharp.xy + detail * mc.u_detailStrength, bakedSharp.z));
-    let tangentMid = scaleNormal(textureSampleBias(u_normalMap, u_normalMap_s, v.v_texCoord, mc.u_blurGreen).xyz * 2.0 - vec3f(1.0), mc.u_normalScale);
-    let tangentSoft = scaleNormal(textureSampleBias(u_normalMap, u_normalMap_s, v.v_texCoord, mc.u_blurRed).xyz * 2.0 - vec3f(1.0), mc.u_normalScale);
-#ifdef MESH_NORMALS
-    var Ng = normalize(v.v_worldNormal);
-    let P = v.v_worldXYZ;
-    if (!front) { Ng = -Ng; }
-    let N = perturbNormal(Ng, P, v.v_texCoord, tangentSharp);
-    let Nmid = perturbNormal(Ng, P, v.v_texCoord, tangentMid);
-    let Nsoft = perturbNormal(Ng, P, v.v_texCoord, tangentSoft);
-    let turn = (length(dpdx(Ng)) + length(dpdy(Ng))) / max(length(dpdx(P)) + length(dpdy(P)), 1e-5);
-    let thick = 1.0 - clamp(turn * 12.0 * mc.u_thinness, 0.0, 1.0);
-    let curv = clamp(turn * mc.u_curvature, 0.0, 1.0);
-#else
-    let P = vec3f(v.v_worldPos.x, 0.0, v.v_worldPos.y);
-    let N = vec3f(0.0, 0.0, 1.0);
-    let Nmid = N;
-    let Nsoft = N;
-    let thick = 1.0;
-    let curv = 0.0;
-#endif
-    let ao = mix(1.0, orm.r, mc.u_occlusionStrength);
-    let rough = clamp(orm.g * mc.u_roughness, 0.05, 1.0);
-    let viewDir = viewDirection(P);
-
-    var wrapped = surfaceExtNone(Nsoft);
-    wrapped.scatter = vec4f(mc.u_sssColor.rgb * base.rgb * 1.4, mc.u_sssWrap);
-    wrapped.trans = vec4f(mc.u_translucency, thick, curv, mc.u_preIntegrate);
-    let soft = applyLightingSurface(base.rgb, Nsoft, P, viewDir, 0.0, 1.0, 0.0, ao, wrapped);
-    var wrappedMid = surfaceExtNone(Nmid);
-    wrappedMid.scatter = wrapped.scatter;
-    wrappedMid.trans = wrapped.trans;
-    let mid = applyLightingSurface(base.rgb, Nmid, P, viewDir, 0.0, 1.0, 0.0, ao, wrappedMid);
-    let diffuse = vec3f(soft.r, mid.g, mid.b);
-
-    var shine = surfaceExtNone(N);
-    shine.coat = vec4f(mc.u_lobe2, mc.u_lobe2Roughness, 0.0, 0.0);
-    shine.coatN = vec4f(N, 0.0);
-    shine.sheen = vec4f(vec3f(mc.u_fuzz), 0.5);
-    let spec = applyLightingSurface(vec3f(0.0), N, P, viewDir, 0.0, rough, mc.u_specular, ao, shine);
-
-    var alpha = 1.0;
-    if (mc.u_subsurface > 0.0) { alpha = 0.996; }
-#ifdef ES_GBUFFER
-    var frag : FragOut;
-    frag.color = vec4f(diffuse + spec, alpha);
-    frag.surface = vec4f(packNormal(normalize(N)), rough, 0.75);
-    frag.albedo = vec4f(base.rgb, 1.0);
-    return frag;
-#else
-    return vec4f(diffuse + spec, alpha);
-#endif
-}
-#pragma end
 `;
 
 const EYE = `#pragma shader "Eye"
@@ -566,88 +395,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-#ifdef ES_GBUFFER
-struct FragOut {
-    @location(0) color : vec4f,
-    @location(1) surface : vec4f,
-    @location(2) albedo : vec4f,
-};
-
-${PACK_NORMAL_WGSL}
-
-@fragment fn fs_main(v : VSOut, @builtin(front_facing) front : bool) -> FragOut {
-#else
-@fragment fn fs_main(v : VSOut, @builtin(front_facing) front : bool) -> @location(0) vec4f {
-#endif
-    g_probeSlot = v.v_probeSlot;
-#ifdef MESH_LIGHTMAP
-    g_lightmap = v.v_lightmap;
-#endif
-#ifdef MESH_TANGENTS
-    g_worldTangent = v.v_worldTangent;
-#endif
-    let uv = v.v_texCoord;
-    // Every sample is taken here, before any branch.
-    let h = textureSample(u_depthMap, u_depthMap_s, uv).r;
-    let lid = textureSample(u_lidMap, u_lidMap_s, uv).r;
-    let dome = normalize(textureSample(u_irisNormalMap, u_irisNormalMap_s, uv).xyz * 2.0 - vec3f(1.0));
-#ifdef MESH_NORMALS
-    var Ng = normalize(v.v_worldNormal);
-    let P = v.v_worldXYZ;
-    if (!front) { Ng = -Ng; }
-    let T = perturbNormal(Ng, P, uv, vec3f(1.0, 0.0, 0.0));
-    let B = perturbNormal(Ng, P, uv, vec3f(0.0, 1.0, 0.0));
-    let Ndome = perturbNormal(Ng, P, uv, dome);
-#else
-    let P = vec3f(v.v_worldPos.x, 0.0, v.v_worldPos.y);
-    let Ng = vec3f(0.0, 0.0, 1.0);
-    let T = vec3f(1.0, 0.0, 0.0);
-    let B = vec3f(0.0, 1.0, 0.0);
-    let Ndome = Ng;
-#endif
-    let viewDir = viewDirection(P);
-    let vt = normalize(vec3f(dot(viewDir, T), dot(viewDir, B), max(dot(viewDir, Ng), 0.05)));
-    let R = refract(-vt, dome, 1.0 / mc.u_ior);
-    let uvI = uv + R.xy * (mc.u_irisDepth * h / max(-R.z, 0.2));
-    let m = textureSample(u_depthMap, u_depthMap_s, uvI).r;
-    let irisMask = smoothstep(0.15, 0.85, m);
-    let surfaceMask = smoothstep(0.15, 0.85, h);
-
-    let c = uvI - vec2f(0.5);
-    let rr = length(c) / max(mc.u_irisSize, 1e-3);
-    let ang = atan2(c.y, c.x);
-    let fibers = 0.82 + 0.18 * sin(ang * 70.0 + sin(ang * 13.0 + rr * 9.0) * 2.0);
-    var iris = mix(mc.u_irisColor.rgb, mc.u_irisColor2.rgb, smoothstep(0.2, 0.95, rr)) * fibers;
-    iris = iris * (1.0 - mc.u_limbal * smoothstep(0.78, 1.0, rr));
-    iris = iris * smoothstep(mc.u_pupilSize - 0.05, mc.u_pupilSize + 0.03, rr);
-    let painted = textureSample(t0, s0, uv) * v.v_color * mc.u_tint;
-    let albedo = mix(mc.u_scleraColor.rgb, iris, irisMask) * painted.rgb;
-
-    let ao = 1.0;
-    let lidShade = lid * (1.0 - mc.u_lidShadow * smoothstep(mc.u_lidStart, 1.0, Ng.y));
-    let Nd = normalize(mix(Ng, Ndome, 0.5 * surfaceMask));
-    var body = surfaceExtNone(Nd);
-    body.scatter = vec4f(vec3f(0.9, 0.5, 0.4) * albedo, mc.u_scleraWrap * (1.0 - surfaceMask));
-    let diffuse = applyLightingSurface(albedo, Nd, P, viewDir, 0.0, 1.0, 0.0, ao, body);
-
-    let Nc = normalize(mix(Ng, Ndome, surfaceMask));
-    var shine = surfaceExtNone(Nc);
-    shine.coat = vec4f(0.25 * (1.0 - surfaceMask), mc.u_scleraRoughness, 0.0, 0.0);
-    shine.coatN = vec4f(Ng, 0.0);
-    let spec = applyLightingSurface(vec3f(0.0), Nc, P, viewDir, 0.0, mc.u_corneaRoughness, mc.u_specular, ao, shine);
-
-#ifdef ES_GBUFFER
-    var frag : FragOut;
-    frag.color = vec4f((diffuse + spec) * lidShade, 1.0);
-    frag.surface = vec4f(packNormal(normalize(Nc)), mc.u_corneaRoughness, 0.75);
-    frag.albedo = vec4f(albedo, 1.0);
-    return frag;
-#else
-    return vec4f((diffuse + spec) * lidShade, 1.0);
-#endif
-}
-#pragma end
 `;
 
 export const CHARACTER_SHADER_TEMPLATES = [

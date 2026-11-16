@@ -43,24 +43,6 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let tex = textureSampleGrad(t0, s0, v.v_texCoord, dpdx(v.v_texCoord), dpdy(v.v_texCoord));
-    var alpha = tex.a * v.v_color.a;
-#ifdef PARTICLE
-    let cut = v.v_particle.x * mc.u_erosion;
-    alpha = alpha * smoothstep(cut - mc.u_erosionEdge, cut, tex.a);
-#endif
-#ifdef MESH_NORMALS
-    let haveDepth = textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, vec2f(0.5), 0.0).a < 0.75;
-    if (mc.u_softness > 0.0 && haveDepth) {
-        let behind = sceneDistance(textureSampleLevel(u_sceneDepthMap, u_sceneDepthMap_s, sceneUv(v.v_worldXYZ), 0.0)) - distanceToEye(v.v_worldXYZ);
-        alpha = alpha * clamp(behind / mc.u_softness, 0.0, 1.0);
-    }
-#endif
-    return vec4f(tex.rgb * v.v_color.rgb, alpha);
-}
-#pragma end
 `;
 
 export const DISTORTION = `#pragma shader "Distortion"
@@ -117,38 +99,4 @@ void main() {
 }
 #pragma end
 
-#pragma fragment wgsl
-fn distortHash(p : vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453123); }
-fn distortNoise(p : vec2f) -> f32 {
-    let i = floor(p);
-    var f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(distortHash(i), distortHash(i + vec2f(1.0, 0.0)), f.x),
-               mix(distortHash(i + vec2f(0.0, 1.0)), distortHash(i + vec2f(1.0, 1.0)), f.x), f.y);
-}
-
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let texel = textureSampleGrad(t0, s0, v.v_texCoord, dpdx(v.v_texCoord), dpdy(v.v_texCoord));
-    let mask = texel.a * v.v_color.a;
-    let haveColor = textureSampleLevel(u_screenColor, u_screenColor_s, vec2f(0.5), 0.0).a < 0.75;
-    if (mask <= 0.002 || !haveColor) { discard; }
-    var p = v.v_texCoord * mc.u_noiseScale + mc.u_scroll * tc.u_time.x;
-#ifdef PARTICLE
-    p = p + v.v_particle.y * 37.0;
-#endif
-    let wobble = vec2f(distortNoise(p), distortNoise(p + 19.7)) - 0.5;
-    var away = v.v_texCoord - 0.5;
-    if (length(away) > 1e-4) { away = normalize(away); } else { away = vec2f(0.0); }
-    let bend = mix(vec2f(wobble.x, -wobble.y), away, vec2f(mc.u_radial)) * mc.u_strength * mask;
-    let uv = v.pos.xy / vec2f(textureDimensions(u_screenColor, 0));
-    let lo = vec2f(0.001);
-    let hi = vec2f(0.999);
-    let split = 1.0 + mc.u_dispersion;
-    let behind = vec3f(
-        textureSampleLevel(u_screenColor, u_screenColor_s, clamp(uv + bend * split, lo, hi), 0.0).r,
-        textureSampleLevel(u_screenColor, u_screenColor_s, clamp(uv + bend, lo, hi), 0.0).g,
-        textureSampleLevel(u_screenColor, u_screenColor_s, clamp(uv + bend / split, lo, hi), 0.0).b);
-    return vec4f(behind, smoothstep(0.0, 0.06, mask));
-}
-#pragma end
 `;

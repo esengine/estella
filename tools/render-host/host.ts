@@ -155,6 +155,8 @@ async function boot(): Promise<void> {
 
     let renderSurface: RenderSurfaceSource;
     if (backend === 'webgpu') {
+        // Shaders written only in GLSL are given their WGSL as they compile, as a WebGPU game's host does.
+        await import('esengine/wgsl');
         renderSurface = { kind: 'webgpu', canvasSelector: '#canvas', readback: true };
     } else {
         const gl = canvas.getContext('webgl2', {

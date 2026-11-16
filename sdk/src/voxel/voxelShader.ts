@@ -8,7 +8,7 @@
  *          whichever axis the surface faces. The vertex colour is how much of each material a vertex is. Being derived from Model it is lit,
  *          shadowed and fogged as anything else in the scene is, and a material moved onto it keeps every param it had.
  */
-import { modelWithoutDetail, modelLine, hasWgslTwin } from '../render/modelDetail';
+import { modelWithoutDetail, modelLine } from '../render/modelDetail';
 
 /** Material 0 is the shader's main texture, so the others cost three more. The emissive map gives its unit up: this skin has no uv to read one by. */
 const PARAMS = `// The colour of each material, multiplied into its picture.
@@ -32,13 +32,6 @@ vec4 voxelRead(sampler2D map, highp vec3 W, vec3 side) {
 }
 `;
 
-const WGSL_HELPERS = `
-fn voxelRead(map : texture_2d<f32>, smp : sampler, W : vec3f, Wdx : vec3f, Wdy : vec3f, side : vec3f) -> vec4f {
-    return textureSampleGrad(map, smp, W.zy, Wdx.zy, Wdy.zy) * side.x
-         + textureSampleGrad(map, smp, W.xz, Wdx.xz, Wdy.xz) * side.y
-         + textureSampleGrad(map, smp, W.xy, Wdx.xy, Wdy.xy) * side.z;
-}
-`;
 
 const GLSL_SURFACE = `#ifdef MESH_NORMALS
     highp vec3 voxelW = v_worldXYZ / u_voxelTile;
@@ -57,23 +50,6 @@ const GLSL_SURFACE = `#ifdef MESH_NORMALS
 #endif
 `;
 
-const WGSL_SURFACE = `#ifdef MESH_NORMALS
-    let voxelW = v.v_worldXYZ / mc.u_voxelTile;
-    let voxelWdx = dpdx(voxelW);
-    let voxelWdy = dpdy(voxelW);
-    var voxelSide = pow(abs(normalize(v.v_worldNormal)), vec3f(4.0));
-    voxelSide = voxelSide / max(voxelSide.x + voxelSide.y + voxelSide.z, 1e-4);
-    let voxelMix = v.v_color / max(v.v_color.r + v.v_color.g + v.v_color.b + v.v_color.a, 1e-4);
-    var base = voxelRead(t0, s0, voxelW, voxelWdx, voxelWdy, voxelSide) * mc.u_voxelTint0 * voxelMix.r
-             + voxelRead(u_voxelMap1, u_voxelMap1_s, voxelW, voxelWdx, voxelWdy, voxelSide) * mc.u_voxelTint1 * voxelMix.g
-             + voxelRead(u_voxelMap2, u_voxelMap2_s, voxelW, voxelWdx, voxelWdy, voxelSide) * mc.u_voxelTint2 * voxelMix.b
-             + voxelRead(u_voxelMap3, u_voxelMap3_s, voxelW, voxelWdx, voxelWdy, voxelSide) * mc.u_voxelTint3 * voxelMix.a;
-    base = vec4f(base.rgb * mc.u_tint.rgb, 1.0);
-#else
-    let voxelMix = vec4f(0.0, 0.0, 1.0, 0.0);
-    var base = mc.u_voxelTint2 * mc.u_tint;
-#endif
-`;
 
 function swap(source: string, from: string | RegExp, to: string): string {
     if (typeof from === 'string' ? !source.includes(from) : !from.test(source)) {
@@ -82,23 +58,14 @@ function swap(source: string, from: string | RegExp, to: string): string {
     return source.replace(from, () => to);
 }
 
-/** A swap in the WGSL twin: none where the source has no twin, which is what a package that draws only through WebGL ships. */
-function swapWgsl(source: string, from: string | RegExp, to: string): string {
-    return hasWgslTwin(source) ? swap(source, from, to) : source;
-}
-
 /** Voxel Ground from the Model shader's source. */
 export function deriveVoxelGround(model: string): string {
     let s = swap(modelWithoutDetail(model), '#pragma shader "Model"', '#pragma shader "Voxel Ground"');
     s = swap(s, '#pragma param u_iridescence float', `${PARAMS}#pragma param u_iridescence float`);
     s = swap(s, '#pragma param u_emissiveMap texture default(white)\n', '');
     s = swap(s, 'texture(u_emissiveMap, uv).rgb', 'vec3(1.0)');
-    s = swapWgsl(s, 'textureSampleGrad(u_emissiveMap, u_emissiveMap_s, uv, duvx, duvy).rgb', 'vec3f(1.0)');
     s = swap(s, 'float specularAA(highp vec3', `${GLSL_HELPERS}float specularAA(highp vec3`);
-    s = swapWgsl(s, 'fn specularAA(dndx : vec3f', `${WGSL_HELPERS}fn specularAA(dndx : vec3f`);
     s = swap(s, modelLine('vec4 base = texture(u_textures[0], uv) * v_color * u_tint;'), GLSL_SURFACE);
-    s = swapWgsl(s, modelLine('var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;'), WGSL_SURFACE);
     s = swap(s, 'float roughness = u_roughness * mr.g;', 'float roughness = u_roughness * mr.g * dot(voxelMix, u_voxelRoughness);');
-    s = swapWgsl(s, 'var roughness = mc.u_roughness * mr.g;', 'var roughness = mc.u_roughness * mr.g * dot(voxelMix, mc.u_voxelRoughness);');
     return s;
 }

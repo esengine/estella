@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { MODEL } from '../src/render/builtinShaders';
 import { deriveVoxelGround } from '../src/voxel/voxelShader';
+import { withWgslTwin } from '../src/shaders/wgsl/twin';
 
 /** The material texture params a shader declares: each takes one of a handful of units, and one past the last gets none. */
 const textureParams = (source: string): string[] =>
@@ -19,7 +20,8 @@ describe('Voxel Ground, derived from the Model shader', () => {
     it('reads the wet map as other ground does, in both languages', () => {
         expect(textureParams(derived)).toContain('u_wetMask');
         expect(derived).toMatch(/textureLod\(u_wetMask/);
-        expect(derived).toMatch(/u_wetMask_s/);
+        // Its WGSL is written from that GLSL as it compiles on WebGPU.
+        expect(withWgslTwin(derived)).toMatch(/textureSampleLevel\(u_wetMask, u_wetMask_s/);
     });
 
     it('keeps the three materials it lays by world position', () => {

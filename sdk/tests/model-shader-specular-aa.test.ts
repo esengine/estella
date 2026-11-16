@@ -10,9 +10,12 @@
  */
 import { describe, it, expect } from 'vitest';
 import { builtinShaderTemplate } from '../src/render/builtinShaders';
+import { withWgslTwin } from '../src/shaders/wgsl/twin';
 
 const source = builtinShaderTemplate('model')!.source;
-const [glsl, wgsl] = [source.slice(0, source.indexOf('#pragma fragment wgsl')), source.slice(source.indexOf('#pragma fragment wgsl'))];
+// The WGSL is the one a WebGPU device is given: written from the GLSL as the shader compiles.
+const twinned = withWgslTwin(source);
+const [glsl, wgsl] = [twinned.slice(0, twinned.indexOf('#pragma fragment wgsl')), twinned.slice(twinned.indexOf('#pragma fragment wgsl'))];
 
 describe('the Model shader filters specular by the normal derivative', () => {
     it('widens the lobe by the variance of the vertex normal, capped, in each language', () => {
@@ -26,8 +29,8 @@ describe('the Model shader filters specular by the normal derivative', () => {
     it('takes the derivative of the interpolated vertex normal before the cutout can discard', () => {
         expect(glsl.indexOf('dFdx(v_worldNormal)')).toBeGreaterThan(0);
         expect(glsl.indexOf('dFdx(v_worldNormal)')).toBeLessThan(glsl.indexOf('discard'));
-        expect(wgsl.indexOf('dpdx(v.v_worldNormal)')).toBeGreaterThan(0);
-        expect(wgsl.indexOf('dpdx(v.v_worldNormal)')).toBeLessThan(wgsl.indexOf('discard'));
+        expect(wgsl.indexOf('dpdx(es_v.v_worldNormal)')).toBeGreaterThan(0);
+        expect(wgsl.indexOf('dpdx(es_v.v_worldNormal)')).toBeLessThan(wgsl.indexOf('discard'));
     });
 
     it('lights with the filtered roughness, not the authored one', () => {

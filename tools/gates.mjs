@@ -244,6 +244,16 @@ export const GATES = [
     where: 'local',
     why: 'the check cooks each shader to hash the ASSEMBLED GLSL, so it needs the built engine and skips a machine without one; the render CI job runs it where the binary is',
   },
+  {
+    // What the WGSL transpiler knows of the engine's shader headers, read from the engine: a header that grew a function or moved a
+    // field and a table that did not follow would write twins against the old one.
+    id: 'shader-api-fresh',
+    run: "if [ -f build/wasm/web/esengine.js ]; then "
+      + "node tools/gen-shader-api.mjs --check; "
+      + "else echo 'shader-api-fresh: skipped — no built engine in build/wasm/web'; fi",
+    where: 'local',
+    why: 'the table is read from the GLSL the engine assembles, so it needs the built engine and skips a machine without one; the render CI job runs it where the binary is',
+  },
   { id: 'shader-literals', run: 'node tools/check-shader-literals.mjs' },
   // The engine's copy of the text culling agrees with the TS one only while the cases file is what the TS gives.
   { id: 'retained-text-cases', run: 'node tools/gen-retained-text-cases.mjs --check' },

@@ -9,6 +9,7 @@ import { buildGrassMesh, buildInstancedMesh, rankedPlants, type Plant } from '..
 import { buildFoliageCell, type CellSurroundings, type FoliageCellSpec } from '../src/foliage/cellBuild';
 import { MeshChannel, MeshChannelType, packChannels } from '../src/asset/meshFormat';
 import type { MeshData } from '../src/asset/meshFormat';
+import { withWgslTwin } from '../src/shaders/wgsl/twin';
 
 const plants: Plant[] = Array.from({ length: 1000 }, (_, i) => ({ x: i, y: 0, z: 0, yaw: 0, scale: 1, phase: ((i * 0.6180339887) % 1), shade: 1 }));
 const around: CellSurroundings = { ground: null, flatY: 0, water: null, zones: null };
@@ -226,7 +227,8 @@ describe('what a blade of grass and a leaf are given to be shaped and lit by', (
         expect(source).toContain('#pragma param u_specular float default(0.5)');
         expect(source).toContain('#pragma param u_bladeFaceEye float default(0)');
         expect(source).toContain('albedo * 1.3 * u_translucencyColor.rgb');
-        expect(source).toContain('albedo * 1.3 * mc.u_translucencyColor.rgb');
+        // The fragment's WGSL is written from its GLSL as it compiles on WebGPU.
+        expect(withWgslTwin(source)).toContain('(albedo * 1.3) * mc.u_translucencyColor.rgb');
         expect(source).not.toMatch(/u_roughness, 0\.5, 1\.0, ext/);
         expect(source).toContain('mix(flat2, dot(across, flat2) < 0.0 ? -across : across, u_bladeFaceEye)');
         expect(source).toContain('mix(flat2, across, vec2f(mc.u_bladeFaceEye))');
@@ -239,7 +241,7 @@ describe('what a blade of grass and a leaf are given to be shaped and lit by', (
         // As the occlusion the lighting model takes, which dims the environment's light and not the lights' (terrain-layer-occlusion and
         // terrain-layer-occlusion-sun in tools/renderScenes.mjs draw that), in both languages.
         expect(source).toContain('u_specular, mix(u_rootOcclusion, 1.0, height), ext)');
-        expect(source).toContain('mc.u_specular, mix(mc.u_rootOcclusion, 1.0, height), ext)');
+        expect(withWgslTwin(source)).toContain('mc.u_specular, mix(mc.u_rootOcclusion, 1.0, height), ext)');
     });
 
     it('lights a plant as the ground it stands on by its ground normal, and as itself by default', async () => {
@@ -248,6 +250,6 @@ describe('what a blade of grass and a leaf are given to be shaped and lit by', (
         expect(source).toContain('#pragma param u_groundNormal float default(0) range(0,1)');
         // After the back face is turned, so both sides of a blade end at the same up; in both languages.
         expect(source).toContain('N = normalize(mix(N, vec3(0.0, 1.0, 0.0), u_groundNormal));');
-        expect(source).toContain('N = normalize(mix(N, vec3f(0.0, 1.0, 0.0), vec3f(mc.u_groundNormal)));');
+        expect(withWgslTwin(source)).toContain('N = normalize(mix(N, vec3f(0.0, 1.0, 0.0), mc.u_groundNormal));');
     });
 });

@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { densityAt, type DensityMap } from '../src/foliage/cellBuild';
 import { FOLIAGE_SHADER_TEMPLATE } from '../src/foliage/foliageShader';
 import { TERRAIN_LAYERS_SHADER_TEMPLATE, TERRAIN_SHADER_TEMPLATE } from '../src/terrain/terrainShader';
+import { withWgslTwin } from '../src/shaders/wgsl/twin';
 
 describe('the rows of an image over an area', () => {
     it('a map a system reads has its first row at the least z', () => {
@@ -21,7 +22,8 @@ describe('the rows of an image over an area', () => {
                                         [FOLIAGE_SHADER_TEMPLATE.source, ['over']]] as const) {
             for (const at of coords) {
                 expect(source).toContain(`vec2(${at}.x, 1.0 - ${at}.y)`);
-                expect(source).toContain(`vec2f(${at}.x, 1.0 - ${at}.y)`);
+                // Its own WGSL, or the one written from its GLSL as it compiles on WebGPU.
+                expect(withWgslTwin(source)).toContain(`vec2f(${at}.x, 1.0 - ${at}.y)`);
                 expect(source).not.toContain(`, ${at}, 0.0)`);
                 expect(source).not.toContain(`, ${at})`);
             }

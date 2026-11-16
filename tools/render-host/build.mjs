@@ -53,6 +53,7 @@ await build({
         'esengine/spine': path.join(ROOT, 'sdk', 'dist', 'spine', 'index.js'),
         'esengine/dragonbones': path.join(ROOT, 'sdk', 'dist', 'dragonbones', 'index.js'),
         'esengine/wasm': path.join(ROOT, 'sdk', 'dist', 'wasm.js'),
+        'esengine/wgsl': path.join(ROOT, 'sdk', 'dist', 'wgsl', 'index.js'),
     },
 });
 

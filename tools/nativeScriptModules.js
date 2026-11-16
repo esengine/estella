@@ -96,6 +96,10 @@ export const MODULES = {
         disposition: 'forbidden-native-script',
         why: 'a development export adds it to a web or mini-game package; a native host has no socket for it, and a game script has no reason to import it',
     },
+    'esengine/wgsl': {
+        disposition: 'forbidden-native-script',
+        why: 'the GLSL to WGSL transpiler, which the host installs where its device is WebGPU as shaders compile — a game script writes its shader in GLSL and has nothing to import',
+    },
     'esengine/wasm': {
         disposition: 'forbidden-native-script',
         why: 'the emscripten module surface; a native build embeds Dawn and QuickJS and has no such module',
