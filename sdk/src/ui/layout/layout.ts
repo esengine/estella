@@ -70,27 +70,25 @@ export class UILayoutPlugin implements Plugin {
         // The box is the SCREEN's: the design resolution fitted to the viewport,
         // centred on the origin — which is what makes a screen root's placement a
         // fact about the screen rather than about where something is looking.
-        const layoutFn = (screen: ScreenLayoutData) => {
-            if (!screen.valid) return;
-            engine?.uiLayout_update?.(
+        const solve = (screen: ScreenLayoutData): void => {
+            const changed = engine?.uiLayout_update?.(
                 registry,
                 screen.left, screen.bottom,
                 screen.right, screen.top,
                 propertyDirty(),
             );
+            if (changed !== false) layoutGen.generation++;
+        };
+
+        const layoutFn = (screen: ScreenLayoutData) => {
+            if (!screen.valid) return;
+            solve(screen);
             world.ensureTransformsComposed();
-            layoutGen.generation++;
         };
 
         const layoutOnlyFn = (screen: ScreenLayoutData) => {
             if (!screen.valid) return;
-            engine?.uiLayout_update?.(
-                registry,
-                screen.left, screen.bottom,
-                screen.right, screen.top,
-                propertyDirty(),
-            );
-            layoutGen.generation++;
+            solve(screen);
         };
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(

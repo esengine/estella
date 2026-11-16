@@ -572,7 +572,7 @@ void UISystem::propagateDetachedUIState(Registry& registry) {
     }
 }
 
-void UISystem::layoutUpdate(
+bool UISystem::layoutUpdate(
     Registry& registry,
     f32 boxLeft, f32 boxBottom, f32 boxRight, f32 boxTop,
     bool tsPropertyDirty
@@ -638,7 +638,7 @@ void UISystem::layoutUpdate(
             invalidateTransformComposition();
             placeScreenRoots(registry, tree, *layoutCache_, box);
         }
-        return;
+        return centerChanged;
     }
 
     // Only a pass that may write local transforms invalidates their composition.
@@ -672,6 +672,7 @@ void UISystem::layoutUpdate(
         for (auto& node : tree.nodes_) live.insert(node.entity);
         layoutCache_->reap(live);
     }
+    return true;
 }
 
 // Out-of-line so LayoutCache is complete here (it holds Yoga types kept out of

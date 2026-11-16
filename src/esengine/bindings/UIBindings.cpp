@@ -32,9 +32,13 @@ namespace esengine {
 static EstellaContext& ctx() { return activeCtx(); }
 
 
-void uiLayout_update(ecs::Registry& registry, f32 boxLeft, f32 boxBottom, f32 boxRight, f32 boxTop,
+bool uiLayout_update(ecs::Registry& registry, f32 boxLeft, f32 boxBottom, f32 boxRight, f32 boxTop,
                      bool propertyDirty) {
-    ctx().require<ecs::UISystem>().layoutUpdate(registry, boxLeft, boxBottom, boxRight, boxTop, propertyDirty);
+    return ctx().require<ecs::UISystem>().layoutUpdate(registry, boxLeft, boxBottom, boxRight, boxTop, propertyDirty);
+}
+
+bool uiHitTest_inputsChanged(ecs::Registry& registry) {
+    return ctx().require<ecs::UISystem>().hitInputsChanged(registry, ctx().tryGet<resource::ResourceManager>());
 }
 
 void uiHitTest_update(ecs::Registry& registry,
