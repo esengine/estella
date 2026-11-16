@@ -13,7 +13,7 @@
  *                 minimum and maximum, applied as colour x 2^EV.
  */
 import { scene, camera, mesh, volume, SIZE } from './scene.mjs';
-import { encodeLinear8, clamp01, smoothstep } from './formulas.mjs';
+import { encodeLinear8, encodeGamma8, clamp01, smoothstep } from './formulas.mjs';
 
 const fx = (type, uniforms) => ({ type, enabled: true, uniforms });
 const lum = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
@@ -21,23 +21,23 @@ const floor = (c) => mesh('Floor', 'cube', [0, 0, 0], [4, 0.1, 4], c, { lit: fal
 const frac = (i) => i / (SIZE - 1);
 
 /** A frame that is one colour everywhere: the harness wants that said, and every pixel counted. */
-function uniformFrame({ id, colour, effects, expected, about, tol = 4 }) {
+function uniformFrame({ id, colorSpace = 'linear', colour, effects, expected, about, tol = 4 }) {
   const doc = scene(id, () => [camera(), floor(colour), volume(effects)]);
-  const rgb = encodeLinear8(expected.map(clamp01));
-  return { id, doc, colorSpace: 'linear', expect: [{ x: 0.5, y: 0.5, rgb, tol }], uniform: true, count: [{ rgb, tol, atLeast: SIZE * SIZE }], about };
+  const rgb = (colorSpace === 'linear' ? encodeLinear8 : encodeGamma8)(expected.map(clamp01));
+  return { id, doc, colorSpace, expect: [{ x: 0.5, y: 0.5, rgb, tol }], uniform: true, count: [{ rgb, tol, atLeast: SIZE * SIZE }], about };
 }
 
 // ---- vignette --------------------------------------------------------------------------------------------------------------------
 
-function vignette({ id, colour, intensity, softness }) {
+function vignette({ id, colorSpace = 'linear', colour, intensity, softness }) {
   const doc = scene(id, () => [camera(), floor(colour), volume([fx('vignette', { u_intensity: intensity, u_softness: softness })])]);
   const probes = [[128, 128], [160, 128], [200, 128], [230, 128], [253, 128], [128, 40], [190, 190], [240, 240], [30, 210]];
   const expect = probes.map(([i, j]) => {
     const u = (i + 0.5) / SIZE, v = (j + 0.5) / SIZE, r = Math.hypot(u * 2 - 1, v * 2 - 1);
     const vig = 1 - smoothstep(1 - softness, 1, r), k = 1 + (vig - 1) * intensity;
-    return { x: frac(i), y: frac(j), rgb: encodeLinear8(colour.map((c) => c * k)), tol: 3 };
+    return { x: frac(i), y: frac(j), rgb: (colorSpace === 'linear' ? encodeLinear8 : encodeGamma8)(colour.map((c) => c * k)), tol: 3 };
   });
-  return { id, doc, colorSpace: 'linear', expect, about: `Vignette: colour x mix(1, 1 - smoothstep(1 - ${softness}, 1, r), ${intensity})` };
+  return { id, doc, colorSpace, expect, about: `Vignette: colour x mix(1, 1 - smoothstep(1 - ${softness}, 1, r), ${intensity})` };
 }
 
 // ---- bloom -----------------------------------------------------------------------------------------------------------------------
@@ -53,10 +53,10 @@ function bloomContrib(colour, threshold) {
   soft = (soft * soft) / (4 * knee + 0.00001);
   return Math.max(soft, b - threshold) / Math.max(b, 0.00001);
 }
-function bloomUniform({ id, colour, threshold, intensity, radius }) {
+function bloomUniform({ id, colorSpace = 'linear', colour, threshold, intensity, radius }) {
   const k = 1 + intensity * bloomContrib(colour, threshold);
   return uniformFrame({
-    id, colour, effects: [fx('bloom', { u_threshold: threshold, u_intensity: intensity, u_radius: radius })], expected: colour.map((c) => c * k),
+    id, colorSpace, colour, effects: [fx('bloom', { u_threshold: threshold, u_intensity: intensity, u_radius: radius })], expected: colour.map((c) => c * k),
     about: `Bloom over a uniform frame: colour x (1 + ${intensity} x contrib), contrib = ${bloomContrib(colour, threshold).toFixed(3)}`,
   });
 }
@@ -159,4 +159,6 @@ export const EXPOSURE_SCENES = [
   exposureMetered({ id: 'oracle-exposure-centre', metering: 1, meterSize: 0.3 }),
   exposureMetered({ id: 'oracle-exposure-spot', metering: 2, meterSize: 0.2 }),
   bloomSpot({ id: 'oracle-bloom-spot' }),
+  vignette({ id: 'oracle-vignette-gamma', colorSpace: 'gamma', colour: [0.5, 0.5, 0.5], intensity: 0.8, softness: 0.6 }),
+  bloomUniform({ id: 'oracle-bloom-knee-gamma', colorSpace: 'gamma', colour: [0.5, 0.5, 0.5], threshold: 0.4, intensity: 1.0, radius: 1 }),
 ];
