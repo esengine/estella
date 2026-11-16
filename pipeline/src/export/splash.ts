@@ -206,7 +206,7 @@ export function attachSplash(doc: Document = document, weights: Partial<Record<B
       if (label && says && label.textContent !== `${says}…`) label.textContent = `${says}…`;
     },
     held() {
-      const wait = root ? showUntil - Date.now() : 0;
+      const wait = root && !/[?&]headless/.test(doc.defaultView?.location.search ?? '') ? showUntil - Date.now() : 0;
       return wait > 0 ? new Promise((resolve) => { setTimeout(resolve, wait); }) : Promise.resolve();
     },
     done() {

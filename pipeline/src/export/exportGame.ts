@@ -1306,7 +1306,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   let splashBytes: number | undefined;
   if (!nativeContent) {
     progress({ phase: 'Writing host page' });
-    const look = await splashLook(opts.root, opts.splash, warnings);
+    const look: SplashLook = { ...await splashLook(opts.root, opts.splash, warnings), engineMark: !opts.developmentPreview };
     splashBytes = Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND, look.engineMark !== false) + splashHtml(title, look));
     await writeFile(
       path.join(payloadDir, 'index.html'),

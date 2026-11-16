@@ -169,6 +169,19 @@ describe('the engine’s ident on the start screen', () => {
     expect(splashCss(PAGE_BACKGROUND) + splashHtml('My Game')).not.toMatch(/url\(|src=|@import|fetch\(|XMLHttpRequest|importScripts/);
   });
 
+  it('stands aside for a harness that asked for the frame alone: no drawing, and no wait', async () => {
+    expect(splashScript()).toContain("if(!c||/[?&]headless/.test(location.search))return;");
+    history.replaceState(null, '', '?headless');
+    try {
+      document.body.innerHTML = '<div id="es-splash" data-min-ms="400"><div class="es-splash-track"><div id="es-splash-bar"></div></div><div id="es-splash-label"></div></div>';
+      const began = Date.now();
+      await attachSplash(document).held();
+      expect(Date.now() - began).toBeLessThan(60);
+    } finally {
+      history.replaceState(null, '', location.pathname);
+    }
+  });
+
   it('leaves its script to the page that has to order it after something else', () => {
     const html = splashHtml('My Game', { scriptElsewhere: true });
     expect(html).toContain('<canvas id="es-splash-gl"');
