@@ -22,6 +22,7 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **Games download less shader text.** The SDK's built-in shaders ship without their comments and indentation: a full SDK bundle is 156 KB smaller (46 KB gzipped) and a blank mini-game package 16 KB. Every line break is kept, so a shader compile error still names the line it did.
 - **The space frigate's display answers the ship.** The lens over the HUD splits its colours, thickens its scan lines and glows more as the mining emitter heats, flickers when the emitter overheats, and wakes in a burst of both. The target and waypoint markers are drawn through the same material without the bend, so they stay on their points and still carry the display's scan lines, and their cards are frosted as the panels are.
 - **The space frigate carries a hull number and a name.** `examples/space-frigate` has 27 on both bows and on the foredeck and KESTREL on its armour belt, and the bridge's windows are divided into panes whose lights differ. They are a `stain`'s `line` laid from the side, from above or from ahead before the wear, so chipped paint and grime lie over them: a marking needs no picture and no decal. Its README lists the helm's controls as they are.
 
