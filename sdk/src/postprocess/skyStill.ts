@@ -76,6 +76,11 @@ function keyOf(sky: BlendedEffect): string {
     return key;
 }
 
+export function stillSkyKey(type: string, sky: BlendedEffect, suns: string): string | undefined {
+    if (!stillSkyBake(type)) return undefined;
+    return `${keyOf(sky)}u_intensity=${sky.uniforms.get('u_intensity') ?? 1};${suns}`;
+}
+
 function bakeStrip(b: Baker, sky: BlendedEffect): void {
     if (b.last && Renderer.bakeState(b.last) < 0) { b.failed = true; return; }
     for (const [name, value] of sky.uniforms) if (!UNBAKED.has(name)) Material.setUniform(b.material, name, value);
