@@ -625,6 +625,7 @@ private:
     u32 pass_depth_texture_ = 0;
     WGPUCommandEncoder encoder_ = nullptr;
     WGPURenderPassEncoder pass_ = nullptr;
+    WGPURenderPipeline pass_pipeline_ = nullptr;
     void* surface_window_ = nullptr;        ///< Native window the surface was made for.
     u32 surface_depth_width_ = 0;           ///< Size the depth companion was built for.
     u32 surface_depth_height_ = 0;
