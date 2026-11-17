@@ -99,6 +99,7 @@ interface Env {
     samplers: Map<string, SamplerPair>;
     arity: Record<string, number>;
     returnFields: Record<string, string[]>;
+    handoffs: [string, string, string | null][];
 }
 
 function envOf(api: EngineShaderApi, source: string): Env {
@@ -122,6 +123,7 @@ function envOf(api: EngineShaderApi, source: string): Env {
         samplers: new Map(Object.entries(d.samplers).map(([n, [unit, kind]]) =>
             [n, { tex: `t${unit}`, smp: kind === 'depth' ? null : `s${unit}`, kind: kind === 'depth' ? 'depth' : '2d' } as SamplerPair])),
         arity: api.wgslArity,
+        handoffs: Object.entries(d.handoffs).map(([g, [v, guard]]) => [g, v, guard]),
     };
 }
 
@@ -948,7 +950,8 @@ class Emitter {
             if (active.length === 0) continue;
             const guard = combo.map((c) => (c.on ? c.cond : `!${c.cond}`)).join(' && ');
             const params = ['es_in : VSOut', ...(this.usesFront ? ['@builtin(front_facing) es_ff : bool'] : [])].join(', ');
-            const setup = `    es_v = es_in;${this.usesFront ? ' es_front = es_ff;' : ''}\n    es_main();`;
+            const handoffs = this.env.handoffs.map(([g, v, guard]) => (guard ? `#ifdef ${guard}\n    ${g} = es_in.${v};\n#endif\n` : `    ${g} = es_in.${v};\n`)).join('');
+            const setup = `    es_v = es_in;${this.usesFront ? ' es_front = es_ff;' : ''}\n${handoffs}    es_main();`;
             let fn: string;
             if (active.length === 1 && active[0]!.location === 0) {
                 fn = `@fragment fn fs_main(${params}) -> @location(0) ${wType(active[0]!.type)} {\n${setup}\n    return ${safe(active[0]!.name)};\n}`;
