@@ -524,7 +524,7 @@ export class TextPlugin implements Plugin {
             // The engine orders a boxed label by the UI tree and re-lays it out when the node's size changes; a box
             // that is the Text's own is neither, so it is reported as no box (its size reaches layout above).
             entity as number, screen, hasBox && frame.ui, t.layer | 0, frame.ui ? w : 0, frame.ui ? h : 0,
-            chosenByScale(t, family, view),
+            chosenByScale(t, family, view), kind === 'sdf',
         );
         appState.retained.set(entity as number, { snap: snapshotOf(t, family), screen, gen: renderer.atlas.generation, renderer, kind, perspective: view.perspective });
         // A box that grows to its text: the rectangle the entity occupies takes the height the lines laid out to. The sprite and text follow the
