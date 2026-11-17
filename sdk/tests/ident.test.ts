@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { IDENT_FRAGMENT, IDENT_SECONDS, IDENT_VERTEX, playIdent } from '../src/runtime/ident';
-import { startIdent } from '../src/runtime/miniGameRuntime';
+import { countDraws, startIdent } from '../src/runtime/miniGameRuntime';
 
 interface Call { name: string; args: unknown[] }
 
@@ -166,5 +166,25 @@ describe('the ident on a mini-game’s display canvas', () => {
     it('is skipped, not fatal, on a host with no WebGL2 or one that throws', () => {
         expect(startIdent({ width: 1, height: 1, getContext: () => null })).toBeNull();
         expect(startIdent({ width: 1, height: 1, getContext: () => { throw new Error('no'); } })).toBeNull();
+    });
+});
+
+describe('counting what the game draws after the ident', () => {
+    it('counts the game\'s draws and clears, and hands the context back with nothing of its own on it', () => {
+        class Context { drawArrays(): string { return 'drawn'; } clear(): void {} }
+        const gl = new Context() as Context & Record<string, unknown>;
+        const ownBlit = (): void => {};
+        gl.blitFramebuffer = ownBlit;
+        const drawn = countDraws(gl);
+        expect(gl.drawArrays()).toBe('drawn');
+        gl.clear();
+        (gl.blitFramebuffer as () => void)();
+        expect(drawn.count).toBe(3);
+        drawn.release();
+        expect(Object.prototype.hasOwnProperty.call(gl, 'drawArrays')).toBe(false);
+        expect(Object.prototype.hasOwnProperty.call(gl, 'clear')).toBe(false);
+        expect(gl.blitFramebuffer).toBe(ownBlit);
+        gl.drawArrays();
+        expect(drawn.count).toBe(3);
     });
 });

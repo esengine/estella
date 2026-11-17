@@ -234,11 +234,9 @@ export function startIdent(canvas: { width: number; height: number; getContext(t
         const gl = canvas.getContext('webgl2', glContextAttributes()) as WebGL2RenderingContext | null;
         if (!gl) return null;
         const host = globalThis as { requestAnimationFrame?: (step: () => void) => unknown };
-        const info = gl.getExtension('WEBGL_debug_renderer_info');
-        const software = /SwiftShader|llvmpipe|softpipe|Software/i.test(String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER)));
         return playIdent(gl, () => ({ width: canvas.width, height: canvas.height }), (step) => {
-            if (!software && typeof host.requestAnimationFrame === 'function') host.requestAnimationFrame(step);
-            else setTimeout(step, software ? 66 : 16);
+            if (typeof host.requestAnimationFrame === 'function') host.requestAnimationFrame(step);
+            else setTimeout(step, 16);
         });
     } catch {
         return null;
@@ -404,14 +402,44 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     progress.finish();
     reportFirstFrame(app, adapter.host as { launchSuccess?: () => void });
     if (ident) {
-        let clear = 0;
+        const drawn = countDraws(gl);
+        let seen = 0, frames = 0;
         const off = app.onFrameEnd(() => {
-            if (++clear < 2) return;
+            if (drawn.count === seen) return;
+            seen = drawn.count;
+            if (++frames < 3) return;
             off();
+            drawn.release();
             markIdentDone(true);
         });
     }
     app.run();
+}
+
+const DRAWS = ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced', 'drawRangeElements', 'clear', 'blitFramebuffer'] as const;
+
+export function countDraws(gl: object): { readonly count: number; release(): void } {
+    const target = gl as Record<string, unknown>;
+    const own = new Map<string, unknown>();
+    const counter = {
+        count: 0,
+        release(): void {
+            for (const name of DRAWS) {
+                if (own.has(name)) target[name] = own.get(name);
+                else delete target[name];
+            }
+        },
+    };
+    for (const name of DRAWS) {
+        const original = target[name];
+        if (typeof original !== 'function') continue;
+        if (Object.prototype.hasOwnProperty.call(target, name)) own.set(name, original);
+        target[name] = (...args: unknown[]): unknown => {
+            counter.count++;
+            return (original as (...a: unknown[]) => unknown).apply(gl, args);
+        };
+    }
+    return counter;
 }
 
 /**
