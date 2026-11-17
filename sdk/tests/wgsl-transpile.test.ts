@@ -85,6 +85,13 @@ describe('the WGSL a shader written in GLSL is given', () => {
         }
         expect(t('Unlit', 'in vec4 v_color;\nout vec4 fragColor;\nvoid main() { fragColor = v_color; }')).not.toMatch(/\bg_\w+ = es_in\./);
     });
+
+    it('reads a normal map through its mips, as GLSL\'s texture() does', () => {
+        const out = transpileFragment(MODEL, ENGINE_SHADER_API);
+        expect(out).toContain('return sampleNormalGrad(map, samp, uv, dpdx(uv), dpdy(uv));');
+        expect(out).toMatch(/es_sampleNormal\(\w+, \w+, uv\)/);
+        expect(out).not.toMatch(/(?<![\w.])sampleNormal\(/);
+    });
 });
 
 describe('a fullscreen pass, the engine\'s samplers and a vertex hook', () => {
