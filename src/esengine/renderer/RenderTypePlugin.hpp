@@ -260,6 +260,10 @@ struct RenderCollectContext {
      *          and that is all a set is.
      */
     const std::unordered_set<u32>* screen_ui = nullptr;
+    /// With @ref only_root: by entity index, the screen root each entity of the domain draws under (ecs::UISystem::screenRootOf).
+    const std::vector<u32>* screen_root_by_index = nullptr;
+    /// Nonzero: this collect is one screen root's, and an entity of the domain under any other root is not its to draw.
+    u32 only_root = 0;
 
     /** @brief The layer of each emitter and plain Sprite a Canvas holds, by entity id, or null. @see ecs::UITreeOrder */
     const std::unordered_map<u32, i32>* ui_tree_layers = nullptr;
@@ -318,7 +322,10 @@ struct RenderCollectContext {
     bool accepts(Entity entity) const {
         if (entity == excluded) return false;
         const bool screen = screen_ui && screen_ui->count(entity.id()) != 0;
-        return isOverlay() == screen;
+        if (isOverlay() != screen) return false;
+        if (!screen || only_root == 0 || !screen_root_by_index) return true;
+        const u32 index = entity.index();
+        return index < screen_root_by_index->size() && (*screen_root_by_index)[index] == only_root;
     }
 
     /**

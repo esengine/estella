@@ -45,6 +45,35 @@ public:
     /// merge spends slots) and reserved top-down, so a sampler's unit never moves.
     void reserveMask2DSlots(u32 count) { mask_2d_slots_ = std::min(count, MAX_CMD_TEXTURE_SLOTS); }
 
+    /// The lowest and highest sort key of the commands it holds; false when it holds none. Two lists drawn one after the other
+    /// draw as one list would only while the first's highest is below the second's lowest.
+    bool sortKeyRange(u64& lo, u64& hi) const {
+        if (commands_.empty()) return false;
+        lo = ~u64{0};
+        hi = 0;
+        for (const DrawCommand& command : commands_) {
+            lo = std::min(lo, command.sort_key);
+            hi = std::max(hi, command.sort_key);
+        }
+        return true;
+    }
+
+    /// What the frame has set on @p other for how it sorts and draws - the sort masks, the 2D masks and their slots, the second
+    /// output, the screen colour and layer modes, the shader-run sink - set here too: a second list the frame draws with.
+    void copySettingsFrom(const DrawList& other) {
+        shader_run_sink_ = other.shader_run_sink_;
+        defer_screen_color_ = other.defer_screen_color_;
+        layer_alpha_ = other.layer_alpha_;
+        layerless_visible_ = other.layerless_visible_;
+        std::copy(std::begin(other.mask_2d_textures_), std::end(other.mask_2d_textures_), std::begin(mask_2d_textures_));
+        gbuffer_pass_ = other.gbuffer_pass_;
+        mask_2d_slots_ = other.mask_2d_slots_;
+        ysort_mask_ = other.ysort_mask_;
+        tree_mask_ = other.tree_mask_;
+        depth_mask_ = other.depth_mask_;
+        culling_mask_ = other.culling_mask_;
+    }
+
     /// The pass this list is about to execute into carries a second colour attachment, so the draws
     /// whose shaders write it say so in their pipelines. Set for the scene pass and cleared after:
     /// the same list is executed into other targets, which have no second output to take.

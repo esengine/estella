@@ -402,15 +402,26 @@ export function addSystemSetToSchedule(schedule: Schedule, set: SystemSet): void
 // System Runner
 // =============================================================================
 
+/**
+ * What the runner keeps for one system between its runs: its argument list, the queries and removal readers built on
+ * its first run, which arguments are command buffers, and when it last ran. One record, found once per run.
+ */
+interface SystemState {
+    readonly args: unknown[];
+    /** Null until a first run has resolved every param: a setup that threw is not kept (see {@link SystemRunner.run}). */
+    queries: QueryInstance<any>[] | null;
+    removeds: RemovedQueryInstance<any>[];
+    /** Where in `args` the command buffers are, so a flush goes to them without looking at every argument. */
+    commandSlots: number[];
+    lastRunTick: number;
+    lastChangeSequence: number;
+}
+
 export class SystemRunner {
     private readonly world_: World;
     private readonly resources_: ResourceStorage;
     private readonly eventRegistry_: EventRegistry | null;
-    private readonly argsCache_ = new Map<symbol, unknown[]>();
-    private readonly systemTicks_ = new Map<symbol, number>();
-    private readonly systemChangeSequences_ = new Map<symbol, number>();
-    private readonly queryCache_ = new Map<symbol, QueryInstance<any>[]>();
-    private readonly removedCache_ = new Map<symbol, RemovedQueryInstance<any>[]>();
+    private readonly states_ = new Map<symbol, SystemState>();
     private currentLastRunTick_ = -1;
     private timings_: Map<string, number> | null = null;
     private queryCosts_: Map<string, QueryCost> | null = null;
@@ -464,26 +475,31 @@ export class SystemRunner {
 
     /** @brief Remove cached state for a single system */
     evict(systemId: symbol): void {
-        this.argsCache_.delete(systemId);
-        this.systemTicks_.delete(systemId);
-        this.systemChangeSequences_.delete(systemId);
-        this.queryCache_.delete(systemId);
         // Dropping the reference is not releasing the claim: a reader nothing
         // can reach still pins its component's removal history forever.
-        for (const removed of this.removedCache_.get(systemId) ?? []) removed.dispose();
-        this.removedCache_.delete(systemId);
+        for (const removed of this.states_.get(systemId)?.removeds ?? []) removed.dispose();
+        this.states_.delete(systemId);
     }
 
     /** @brief Clear all cached state */
     reset(): void {
-        this.argsCache_.clear();
-        this.systemTicks_.clear();
-        this.systemChangeSequences_.clear();
-        this.queryCache_.clear();
-        for (const removeds of this.removedCache_.values()) {
-            for (const removed of removeds) removed.dispose();
+        for (const state of this.states_.values()) {
+            for (const removed of state.removeds) removed.dispose();
         }
-        this.removedCache_.clear();
+        this.states_.clear();
+    }
+
+    private stateOf_(system: SystemDef): SystemState {
+        let state = this.states_.get(system._id);
+        if (!state) {
+            state = {
+                args: new Array(system._params.length),
+                queries: null, removeds: [], commandSlots: [],
+                lastRunTick: -1, lastChangeSequence: -1,
+            };
+            this.states_.set(system._id, state);
+        }
+        return state;
     }
 
     run(system: SystemDef): void | Promise<void> {
@@ -491,14 +507,11 @@ export class SystemRunner {
         // Falls through when the dispatcher could not take it, which is the
         // interpreter keeping the system rather than the system not running.
         if (twin && this.runCompiled_(system, twin)) return;
-        let args = this.argsCache_.get(system._id);
-        if (!args) {
-            args = new Array(system._params.length);
-            this.argsCache_.set(system._id, args);
-        }
+        const state = this.stateOf_(system);
+        const args = state.args;
 
-        this.currentLastRunTick_ = this.systemTicks_.get(system._id) ?? -1;
-        const lastChangeSequence = this.systemChangeSequences_.get(system._id) ?? -1;
+        this.currentLastRunTick_ = state.lastRunTick;
+        const lastChangeSequence = state.lastChangeSequence;
 
         // Published only once every param resolved. Building a system's first set
         // of query instances can throw — an unregistered component reaches
@@ -510,10 +523,10 @@ export class SystemRunner {
         // the true error scrolls away and every frame after it names the runner.
         // Commit at the end instead, so a failed setup is simply not cached and
         // the following frame re-raises the real one.
-        const cachedQueries = this.queryCache_.get(system._id);
-        const firstRun = !cachedQueries;
-        const queries = cachedQueries ?? [];
-        const removeds = this.removedCache_.get(system._id) ?? [];
+        const firstRun = state.queries === null;
+        const queries = state.queries ?? [];
+        const removeds = firstRun ? [] : state.removeds;
+        const commandSlots = firstRun ? [] : state.commandSlots;
 
         let qi = 0, ri = 0;
         for (let i = 0; i < system._params.length; i++) {
@@ -545,11 +558,13 @@ export class SystemRunner {
                 ri++;
             } else {
                 args[i] = this.resolveParam(param);
+                if (firstRun && param._type === 'commands') commandSlots.push(i);
             }
         }
         if (firstRun) {
-            this.queryCache_.set(system._id, queries);
-            this.removedCache_.set(system._id, removeds);
+            state.queries = queries;
+            state.removeds = removeds;
+            state.commandSlots = commandSlots;
             // After the commit, never during: a param that threw halfway would
             // otherwise leave a claim on history with no owner to release it.
             for (const removed of removeds) removed.activateRetention();
@@ -560,7 +575,7 @@ export class SystemRunner {
         try {
             result = (system._fn as (...args: unknown[]) => void | Promise<void>)(...args);
         } catch (e) {
-            this.flushSystem_(system, args, t0);
+            this.flushSystem_(system, state, t0);
             throw e;
         }
 
@@ -570,7 +585,7 @@ export class SystemRunner {
             const suspended = this.world_.suspendIteration();
             const resume = (): void => {
                 this.world_.resumeIteration(suspended);
-                this.flushSystem_(system, args, t0);
+                this.flushSystem_(system, state, t0);
             };
             return result.then(resume, (e) => {
                 resume();
@@ -578,7 +593,7 @@ export class SystemRunner {
             });
         }
 
-        this.flushSystem_(system, args, t0);
+        this.flushSystem_(system, state, t0);
     }
 
     /**
@@ -595,25 +610,27 @@ export class SystemRunner {
             const name = system._name;
             this.timings_.set(name, (this.timings_.get(name) ?? 0) + (performance.now() - t0));
         }
-        this.systemTicks_.set(system._id, this.world_.getWorldTick());
-        this.systemChangeSequences_.set(system._id, this.world_.getChangeSequence());
+        const state = this.stateOf_(system);
+        state.lastRunTick = this.world_.getWorldTick();
+        state.lastChangeSequence = this.world_.getChangeSequence();
         return true;
     }
 
-    private flushSystem_(system: SystemDef, args: unknown[], t0: number): void {
+    private flushSystem_(system: SystemDef, state: SystemState, t0: number): void {
         // Kept Mut rows first: the edits a system made to rows it held past the
         // loop belong to the entities as they stood, before its Commands despawn
         // or restructure any of them.
-        for (let i = 0; i < args.length; i++) {
-            if (args[i] instanceof QueryInstance) (args[i] as QueryInstance<readonly QueryArg[]>).settleKeptRows();
+        const queries = state.queries;
+        if (queries) {
+            for (let i = 0; i < queries.length; i++) queries[i].settleKeptRows();
         }
-        for (let i = 0; i < args.length; i++) {
-            if (args[i] instanceof CommandsInstance) {
-                (args[i] as CommandsInstance).flush();
-            }
+        const args = state.args;
+        const commandSlots = state.commandSlots;
+        for (let i = 0; i < commandSlots.length; i++) {
+            (args[commandSlots[i]] as CommandsInstance).flush();
         }
         if (this.queryCosts_) {
-            this.harvestQueryCost_(system);
+            this.harvestQueryCost_(system, state);
         }
         if (this.timings_) {
             // Accumulated, not assigned: a fixed schedule runs as many times in one
@@ -627,17 +644,16 @@ export class SystemRunner {
         // mid-body reads its rows after `resetTick`, so releasing there would let
         // another reader prune what this one is still owed.
         const ranAt = this.world_.getWorldTick();
-        for (const removed of this.removedCache_.get(system._id) ?? []) {
-            removed.releaseThrough(ranAt);
-        }
-        this.systemTicks_.set(system._id, ranAt);
+        const removeds = state.removeds;
+        for (let i = 0; i < removeds.length; i++) removeds[i].releaseThrough(ranAt);
+        state.lastRunTick = ranAt;
         // Closing at completion consumes this run's own writebacks too. Writes
         // after completion remain distinct even within the same world tick.
-        this.systemChangeSequences_.set(system._id, this.world_.getChangeSequence());
+        state.lastChangeSequence = this.world_.getChangeSequence();
     }
 
-    private harvestQueryCost_(system: SystemDef): void {
-        const queries = this.queryCache_.get(system._id);
+    private harvestQueryCost_(system: SystemDef, state: SystemState): void {
+        const queries = state.queries;
         if (!queries || queries.length === 0) return;
         const name = system._name;
         const total = this.queryCosts_!.get(name) ?? { calls: 0, scanned: 0, filtered: 0 };

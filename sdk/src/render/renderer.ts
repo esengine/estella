@@ -77,6 +77,8 @@ export interface RendererBackend {
     beginScreenOverlay(projection: Float32Array,
                        vpX: number, vpY: number, vpW: number, vpH: number): void;
     submitScreenOverlay(registry: CppRegistry): void;
+    /** Whether this pass draws what the overlay already holds; false where the core cannot hold one. */
+    keepScreenOverlay(registry: CppRegistry, hostStill: boolean): boolean;
     hasScreenOverlayEffect(): boolean;
     setScreenOverlayEffect(material: number): void;
     endScreenOverlay(target: number): void;
@@ -259,6 +261,14 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
                 m.renderer_submitScreenOverlay?.(registry);
             } catch (e) {
                 handleWasmError(e, 'Renderer.submitScreenOverlay');
+            }
+        },
+        keepScreenOverlay: (registry, hostStill) => {
+            try {
+                return m.renderer_keepScreenOverlay?.(registry, hostStill) ?? false;
+            } catch (e) {
+                handleWasmError(e, 'Renderer.keepScreenOverlay');
+                return false;
             }
         },
         hasScreenOverlayEffect: () => typeof m.renderer_setScreenOverlayEffect === 'function',
@@ -648,6 +658,11 @@ export const Renderer = {
 
     submitScreenOverlay(registry: { _cpp: CppRegistry }): void {
         backend?.submitScreenOverlay(registry._cpp);
+    },
+
+    /** @internal Asked between beginScreenOverlay and the submit: true, and the pass draws what it already holds. */
+    keepScreenOverlay(registry: { _cpp: CppRegistry }, hostStill: boolean): boolean {
+        return backend?.keepScreenOverlay(registry._cpp, hostStill) ?? false;
     },
 
     hasScreenOverlayEffect(): boolean {

@@ -478,6 +478,8 @@ export class BuiltinBridge {
     private builtinMethodCache_ = new Map<string, BuiltinMethods>();
     private extraMethodCache_ = new Map<string, BuiltinMethods>();
     private builtinEntitySets_ = new Map<string, Set<Entity>>();
+    /** One heap reader per component for {@link readHeap}; null where the component has no heap layout. */
+    private heapReaders_ = new Map<string, ((entity: Entity) => unknown) | null>();
 
     /**
      * Bind to a C++ Registry.
@@ -516,6 +518,7 @@ export class BuiltinBridge {
             ?? (module ? new WasmMemoryProvider(module, cppRegistry) : null);
         this.builtinMethodCache_.clear();
         this.extraMethodCache_.clear();
+        this.heapReaders_.clear();
         this.builtinEntitySets_.clear();
 
         // Install the terminal-abort guard so a C++ abort flips the module-dead
@@ -549,6 +552,7 @@ export class BuiltinBridge {
         this.transformEpochWord_ = -1;
         this.builtinMethodCache_.clear();
         this.extraMethodCache_.clear();
+        this.heapReaders_.clear();
         this.builtinEntitySets_.clear();
     }
 
@@ -922,11 +926,29 @@ export class BuiltinBridge {
         }
     }
 
+    /**
+     * The entity's component read out of the wasm heap into an object the caller owns: the read a query row is made
+     * of, so a `get` and a query agree by construction. Null when the entity has no such component, or the component
+     * has no heap layout and the caller must ask the registry's own getter.
+     */
+    readHeap(entity: Entity, cppName: string): unknown {
+        let read = this.heapReaders_.get(cppName);
+        if (read === undefined) {
+            read = this.module_ ? this.resolvePtrGetter(cppName, 'retained') : null;
+            this.heapReaders_.set(cppName, read);
+        }
+        if (!read) return null;
+        throwIfModuleAborted(this.module_, `get${cppName}`);
+        return read(entity);
+    }
+
     get<T>(entity: Entity, component: BuiltinComponentDef<T>): T {
         if (!this.cppRegistry_) {
             throw new Error('C++ Registry not connected');
         }
         try {
+            const fromHeap = this.readHeap(entity, component._cppName);
+            if (fromHeap !== null) return fromHeap as T;
             return builtinFromWasm(this.getBuiltinMethods(component._cppName).get(entity), component) as T;
         } catch (e) {
             handleWasmError(e, `getBuiltin(${component._name}, entity=${entity})`);

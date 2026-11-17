@@ -191,6 +191,7 @@ void GfxDevice::settleRecovery() {
 }
 
 void GfxDevice::payTexture(u32 id, GfxTextureRecord& record) {
+    ++texture_shapes_;
     if (!record.owed) return;
     record.owed = false;
     record.revision = nextRevision();
@@ -401,6 +402,7 @@ void GfxDevice::invalidatePipelineCache() {
 // =============================================================================
 
 TextureHandle GfxDevice::createTexture(const TextureDesc& desc, GfxContent content, const void* pixels) {
+    ++texture_shapes_;
     if (device_status_ == GfxDeviceStatus::Dead) return TextureHandle::Invalid;
     if (desc.layers > 1 && (desc.samples > 1 || desc.storage || isDepthFormat(desc.format))) {
         ES_LOG_ERROR("GfxDevice::createTexture: a texture array is sampled colour only");
@@ -427,6 +429,7 @@ TextureHandle GfxDevice::createTexture(const TextureDesc& desc, GfxContent conte
 TextureHandle GfxDevice::createCompressedTexture(const TextureDesc& desc, GfxContent content,
                                                  GfxCompressedFormat format, const void* data,
                                                  u32 byteLength, u32 mipLevels) {
+    ++texture_shapes_;
     if (device_status_ == GfxDeviceStatus::Dead) return TextureHandle::Invalid;
     const bool usable = isDeviceUsable();
     GfxTextureRecord record{desc, content};
@@ -449,6 +452,7 @@ TextureHandle GfxDevice::createCompressedTexture(const TextureDesc& desc, GfxCon
 
 bool GfxDevice::restoreCompressedTexture(TextureHandle texture, GfxCompressedFormat format,
                                          const void* data, u32 byteLength, u32 mipLevels) {
+    ++texture_shapes_;
     const u32 id = static_cast<u32>(texture);
     auto* record = registry_.textures.find(id);
     if (!record || !isDeviceUsable()) return false;
@@ -467,6 +471,7 @@ bool GfxDevice::restoreCompressedTexture(TextureHandle texture, GfxCompressedFor
 }
 
 TextureHandle GfxDevice::importExternalTexture(u32 nativeId, const TextureDesc& desc, GfxContent content) {
+    ++texture_shapes_;
     if (device_status_ == GfxDeviceStatus::Dead) return TextureHandle::Invalid;
     if (content.kind() == GfxContentKind::Retained) {
         ES_LOG_ERROR("GfxDevice::importExternalTexture: the device never saw these pixels to keep them");
@@ -483,6 +488,7 @@ TextureHandle GfxDevice::importExternalTexture(u32 nativeId, const TextureDesc& 
 }
 
 bool GfxDevice::restoreTextureFromNative(TextureHandle texture, u32 nativeId) {
+    ++texture_shapes_;
     const u32 id = static_cast<u32>(texture);
     auto* record = registry_.textures.find(id);
     if (!record || !isDeviceUsable()) return false;
@@ -494,6 +500,7 @@ bool GfxDevice::restoreTextureFromNative(TextureHandle texture, u32 nativeId) {
 }
 
 bool GfxDevice::adoptTextureContent(TextureHandle into, TextureHandle from) {
+    ++texture_shapes_;
     const u32 intoId = static_cast<u32>(into);
     const u32 fromId = static_cast<u32>(from);
     auto* target = registry_.textures.find(intoId);
@@ -531,6 +538,7 @@ bool GfxDevice::adoptTextureContent(TextureHandle into, TextureHandle from) {
 }
 
 void GfxDevice::deleteTexture(TextureHandle texture) {
+    ++texture_shapes_;
     const u32 id = static_cast<u32>(texture);
     auto* record = registry_.textures.find(id);
     if (!record) return;

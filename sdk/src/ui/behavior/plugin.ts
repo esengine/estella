@@ -129,11 +129,13 @@ export class UIBehaviorPlugin implements Plugin {
             && (!world.has(entity, Interactable) || world.get(entity, Interactable).enabled)
             && (!world.has(entity, UINode) || !engine?.getUINodeHiddenInTree?.(registry, entity));
 
+        // Each widget's system below runs only while a widget of its kind exists (and for the frame after the last one goes,
+        // which is when it lets go of what it kept for it): a screen with no slider does not run the slider's system.
         registerComponent('UIDialog', UIDialog);
         app.addSystemToSchedule(
             Schedule.Update,
             createDialogSystem(world, events),
-            { runIf: playModeOnly },
+            { runIf: playModeOnly, activeWhen: [UIDialog] },
         );
 
         registerComponent('VirtualJoystick', VirtualJoystick);
@@ -141,13 +143,13 @@ export class UIBehaviorPlugin implements Plugin {
         const virtualControls = createVirtualControlSystem(world, events);
         this.controlCleanup_.set(app, virtualControls.dispose);
         app.addSystemToSchedule(Schedule.PreUpdate, virtualControls.system,
-            { runAfter: [SystemLabel.UIInteraction], runIf: playModeOnly });
+            { runAfter: [SystemLabel.UIInteraction], runIf: playModeOnly, activeWhen: [VirtualJoystick, VirtualButton] });
 
         registerComponent('UISlider', UISlider);
         app.addSystemToSchedule(
             Schedule.Update,
             createSliderSystem(world, events),
-            { runIf: playModeOnly },
+            { runIf: playModeOnly, activeWhen: [UISlider] },
         );
 
         registerComponent('UIToggle', UIToggle);
@@ -155,12 +157,12 @@ export class UIBehaviorPlugin implements Plugin {
         app.addSystemToSchedule(
             Schedule.Update,
             createToggleSystem(world, events),
-            { runIf: playModeOnly },
+            { runIf: playModeOnly, activeWhen: [UIToggle] },
         );
 
         registerComponent('UITabView', UITabView);
         registerComponent('UITooltip', UITooltip);
-        app.addSystemToSchedule(Schedule.Update, createTabViewSystem(world, events), { runIf: playModeOnly });
+        app.addSystemToSchedule(Schedule.Update, createTabViewSystem(world, events), { runIf: playModeOnly, activeWhen: [UITabView] });
         const tooltips = createTooltipSystem(world, { instantiate: (ref, parent) => {
             const prefabs = app.getResourceByName('Prefabs') as PrefabServer | undefined;
             if (!prefabs) return Promise.reject(new Error('Tooltip style prefabs require PrefabsPlugin'));
@@ -174,7 +176,7 @@ export class UIBehaviorPlugin implements Plugin {
         app.addSystemToSchedule(
             Schedule.Update,
             createDropdownSystem(world, events),
-            { runIf: playModeOnly },
+            { runIf: playModeOnly, activeWhen: [UIDropdown] },
         );
 
         // A scroll area authored in a scene becomes a live one here, so the

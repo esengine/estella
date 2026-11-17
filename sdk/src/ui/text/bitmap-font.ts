@@ -17,6 +17,7 @@
  * This file holds no component and touches no engine: the parser is pure and the registry is a map.
  */
 import type { GlyphEntry } from './glyph-atlas';
+import { noteFontsChanged } from './font-revision';
 
 /** One `char` line of a `.fnt`, in the font's pixels (page origin top-left). */
 export interface BmGlyph {
@@ -121,6 +122,7 @@ export function registerBitmapFont(handle: number, font: BmFont, texture: number
     const reg: Registered = { font, texture, family, entries: new Map() };
     byHandle.set(handle, reg);
     byFamily.set(family, reg);
+    noteFontsChanged();
 }
 
 export function unregisterBitmapFont(handle: number): void {
@@ -128,6 +130,7 @@ export function unregisterBitmapFont(handle: number): void {
     if (!reg) return;
     byHandle.delete(handle);
     byFamily.delete(reg.family);
+    noteFontsChanged();
 }
 
 /** The family name `Text` lays out with for this font handle, or null when it is not a registered bitmap font. */
@@ -181,4 +184,5 @@ export function bitmapGlyph(family: string, codepoint: number): GlyphEntry | nul
 export function resetBitmapFonts(): void {
     byHandle.clear();
     byFamily.clear();
+    noteFontsChanged();
 }

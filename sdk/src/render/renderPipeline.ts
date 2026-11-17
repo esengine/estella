@@ -80,6 +80,8 @@ export class RenderPipeline {
     private activeScenes_: Set<string> | null = null;
     private preFlushCallbacks_: ((registry: { _cpp: CppRegistry }, viewProjection?: Float32Array) => void)[] = [];
     private screenOverlayCallbacks_: ((registry: { _cpp: CppRegistry }, viewProjection?: Float32Array) => void)[] = [];
+    /** One per overlay callback: whether what it adds is what it added last pass. Null for one that cannot say. */
+    private screenOverlayStill_: ((() => boolean) | null)[] = [];
     private postProcess_: PostProcessAPI | null = null;
     private quality_: QualityController | null = null;
     private applyQuality_: (() => void) | null = null;
@@ -122,8 +124,18 @@ export class RenderPipeline {
      * reason the two collects are: a callback that ran in both would put the same
      * glyph in each list. Runs between the overlay's collect and its pass.
      */
-    addScreenOverlayCallback(cb: (registry: { _cpp: CppRegistry }, viewProjection?: Float32Array) => void): void {
+    addScreenOverlayCallback(
+        cb: (registry: { _cpp: CppRegistry }, viewProjection?: Float32Array) => void,
+        still?: () => boolean,
+    ): void {
         this.screenOverlayCallbacks_.push(cb);
+        this.screenOverlayStill_.push(still ?? null);
+    }
+
+    /** Whether every overlay callback says it would add what it added last pass (the engine decides the rest). */
+    private screenOverlayHostStill(): boolean {
+        for (const still of this.screenOverlayStill_) if (!still || !still()) return false;
+        return true;
     }
 
     /**
@@ -191,8 +203,11 @@ export class RenderPipeline {
                                     overlay.vpX, overlay.vpY, overlay.vpW, overlay.vpH);
         Renderer.setCullingMask(layers);
         if (effect !== 0) Renderer.setScreenOverlayEffect(effect);
-        Renderer.submitScreenOverlay(registry);
-        for (const cb of this.screenOverlayCallbacks_) cb(registry, overlay.projection);
+        // A pass nothing it draws has changed since is the one the engine holds: it draws that, and nothing is submitted.
+        if (!Renderer.keepScreenOverlay(registry, this.screenOverlayHostStill())) {
+            Renderer.submitScreenOverlay(registry);
+            for (const cb of this.screenOverlayCallbacks_) cb(registry, overlay.projection);
+        }
         Renderer.endScreenOverlay(target);
     }
 

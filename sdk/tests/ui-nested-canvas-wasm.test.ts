@@ -3,7 +3,8 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { World } from '../src/ecs/world';
 import { Canvas, Camera, SceneOwner, Transform } from '../src/ecs/component';
-import { collectCameras } from '../src/camera/CameraPlugin';
+import { collectCameras, resolveFrameCanvas } from '../src/camera/CameraPlugin';
+import { App } from '../src/app/app';
 import { UINode, UIPositionType } from '../src/ui/core/ui-node';
 import { UIVisual } from '../src/ui/core/ui-visual';
 import { Interactable, UIInteraction } from '../src/ui/input/interactable';
@@ -39,6 +40,21 @@ describe.skipIf(!HAS_WASM)('nested canvas layout and ordering on real WASM', () 
         world.insert(running, SceneOwner, { scene: 'running' });
         world.insert(camera, Transform); world.insert(camera, Camera, { isActive: true, orthoSize: 300 });
         expect(collectCameras(engine, registry, 800, 600, world, new Set(['running']))[0].halfH).toBeCloseTo(300);
+    });
+    it('names one Canvas for the whole frame, that of the running scene: its fit, its data and its clear colour', () => {
+        const paused = world.spawn(), running = world.spawn();
+        world.insert(paused, Canvas, { designResolution: { x: 160, y: 60 }, scaleMode: 0, backgroundColor: { r: 1, g: 0, b: 0, a: 1 } });
+        world.insert(paused, SceneOwner, { scene: 'paused' });
+        world.insert(running, Canvas, { designResolution: { x: 800, y: 600 }, scaleMode: 0, backgroundColor: { r: 0, g: 0, b: 1, a: 1 } });
+        world.insert(running, SceneOwner, { scene: 'running' });
+        const app = App.new();
+        const frame = resolveFrameCanvas(app, engine, registry, world, new Set(['running']));
+        expect(frame.entity).toBe(running);
+        expect(frame.fit?.designResolution).toMatchObject({ x: 800, y: 600 });
+        expect(frame.data?.backgroundColor).toMatchObject({ x: 0, y: 0, z: 1, w: 1 });
+        // With no scene said to be running there is nothing to choose by: the first Canvas, as before.
+        expect(resolveFrameCanvas(app, engine, registry, world).entity).toBe(paused);
+        app.quit();
     });
     it.each([false, true])('lays out nested canvases once, even when the child was created first: %s', childFirst => {
         const child = childFirst ? world.spawn() : null;

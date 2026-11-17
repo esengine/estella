@@ -10,8 +10,8 @@ import type { SystemDef } from '../ecs/system';
 import { Schedule, defineSystem } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../ecs/env';
-import { followUpdate } from './FollowTarget';
-import { cameraBoundsUpdate } from './CameraBounds';
+import { FollowTarget, followUpdate } from './FollowTarget';
+import { CameraBounds, cameraBoundsUpdate } from './CameraBounds';
 import type { ESEngineModule, CppRegistry } from '../wasm';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
@@ -20,7 +20,7 @@ import { CameraCommit, cameraCommitChanged } from './CameraCommit';
 import { CameraView, CameraViewAPI, PresentedCameraView, presentedCameraView } from './Camera';
 import { ScreenLayout, screenLayoutRect, screenProjection } from '../ui/core/screen-layout';
 import { ScreenOverlay } from '../ui/core/screen-overlay';
-import { ProjectionType, SceneOwner, ClearFlags } from '../ecs/component';
+import { Camera, ProjectionType, SceneOwner, ClearFlags, Transform } from '../ecs/component';
 import { canvasRootEntities } from '../ui/core/canvas-roots';
 import { uiLayoutRect, computeEffectiveOrthoSize, EDITOR_VIEW_ENTITY, type CanvasScale } from './uiLayoutRect';
 import { EditorViewLighting, DEFAULT_EDITOR_VIEW_LIGHTING, pushEditorViewLighting } from './EditorViewLighting';
@@ -152,6 +152,37 @@ function findCanvasData(
     const entity = canvasEntityOf(module, registry, world, activeScenes);
     if (entity < 0) return null;
     return registry.getCanvas(entity);
+}
+
+/**
+ * The frame's Canvas: which entity it is, its data, and the fit a frame resolves from it. Resolved ONCE where a frame's
+ * cameras are, and handed to everything that reads it - the cameras' fit, the screen and UI layout boxes, the clear
+ * colour - so they cannot name different Canvases. Nothing else in a frame looks the Canvas up.
+ */
+export interface FrameCanvas {
+    readonly entity: number;
+    readonly data: ReturnType<CppRegistry['getCanvas']> | null;
+    readonly fit: CanvasScale | null;
+}
+
+/** @internal Exported for the test that holds it to the running scene. */
+export function resolveFrameCanvas(
+    app: App,
+    module: ESEngineModule | null,
+    registry: CppRegistry,
+    world?: World,
+    activeScenes?: Set<string>,
+): FrameCanvas {
+    const entity = canvasEntityOf(module, registry, world, activeScenes);
+    const data = entity < 0 ? null : registry.getCanvas(entity);
+    return { entity, data, fit: resolveFitSource(app, data) };
+}
+
+/** The scenes running now, or undefined when no scene manager says: what scopes a frame's cameras and its Canvas. */
+function runningScenes(app: App): Set<string> | undefined {
+    if (!app.hasResource(SceneManager)) return undefined;
+    const running = app.getResource(SceneManager).getActiveScenes();
+    return running.length > 0 ? new Set(running) : undefined;
 }
 
 // computeEffectiveOrthoSize + the UI layout box math live in ./uiLayoutRect
@@ -425,7 +456,11 @@ function collectCameraPOVs(
 
     const out: CameraPOV[] = [];
     for (const e of filtered) {
-        out.push(readCameraPOV(e, registry.getCamera(e), registry.getTransform(e)));
+        // Through the world when there is one: it reads the two out of the engine's memory, where the registry's getters
+        // build each as a new object field by field, and this runs twice a frame for every camera.
+        out.push(world
+            ? readCameraPOV(e, world.get(e as Entity, Camera) as CameraFields, world.get(e as Entity, Transform) as CameraTransformFields)
+            : readCameraPOV(e, registry.getCamera(e), registry.getTransform(e)));
     }
     return out;
 }
@@ -544,6 +579,7 @@ function resolveCameras(
     height: number,
     world: World | undefined,
     activeScenes: Set<string> | undefined,
+    frameCanvas: FrameCanvas,
     pool: CameraInfo[],
     now: number,
     advance: boolean,
@@ -558,7 +594,7 @@ function resolveCameras(
 
     const povs = collectCameraPOVs(module, cppRegistry, width, height, world, activeScenes);
     if (povs.length === 0) return [];
-    const canvas = resolveFitSource(app, findCanvasData(module, cppRegistry, world, activeScenes));
+    const canvas = frameCanvas.fit;
     // A camera drawing into a texture is not a candidate for the screen: it does
     // not compete with the main view, and it renders BEFORE it, because what it
     // draws is usually what the main view is about to sample.
@@ -614,15 +650,8 @@ function simulatedScreenAspect(app: App, fit: CanvasScale | null): number {
  * else — `screenLayoutRect` has no parameter a camera could reach. Unconditional,
  * including with no camera at all: a HUD is not something a camera grants.
  */
-function publishScreenLayout(
-    app: App,
-    module: ESEngineModule | null,
-    cppRegistry: CppRegistry,
-    width: number,
-    height: number,
-): void {
+function publishScreenLayout(app: App, fit: CanvasScale | null, width: number, height: number): void {
     if (!app.hasResource(ScreenLayout)) return;
-    const fit = resolveFitSource(app, findCanvasData(module, cppRegistry));
     const aspect = simulatedScreenAspect(app, fit);
     Object.assign(
         app.getResource(ScreenLayout),
@@ -672,19 +701,8 @@ function primaryScreenCamera(cameras: CameraInfo[]): CameraInfo | null {
     return cameras.find(cam => cam.renderTarget === 0) ?? null;
 }
 
-function syncUICameraInfo(
-    app: App,
-    module: ESEngineModule | null,
-    cppRegistry: CppRegistry,
-    width: number,
-    height: number,
-    cameras?: CameraInfo[],
-    pool?: CameraInfo[],
-): void {
-    if (!cameras) {
-        cameras = collectCameras(module, cppRegistry, width, height, undefined, undefined, pool);
-    }
-    publishScreenLayout(app, module, cppRegistry, width, height);
+function syncUICameraInfo(app: App, frameCanvas: FrameCanvas, width: number, height: number, cameras: CameraInfo[]): void {
+    publishScreenLayout(app, frameCanvas.fit, width, height);
     const uiCam = app.getResource(UICameraInfo);
     const cam = primaryScreenCamera(cameras);
     if (cam) {
@@ -708,16 +726,11 @@ function syncUICameraInfo(
         uiCam.vpH = shown.height;
         uiCam.screenW = width;
         uiCam.screenH = height;
-        // The box UI lays out within. Scene cameras carry design-scaled extents;
-        // the free-zoom editor view gets the fixed design box from the fit so UI
-        // doesn't reflow with the zoom (see uiLayoutRect). In the editor a selected
-        // device preset overrides the box aspect (uiPreviewAspect) so UI previews how it
-        // adapts on that device; 0 (default / shipped games) keeps the design aspect.
-        // The fit is resolved the SAME way the camera resolves it, so edit mode, play
-        // and a shipped build lay UI out in one box.
+        // The box UI lays out within, from the fit the camera was built from (the frame's Canvas). The editor's free-zoom
+        // view gets the fixed design box so UI doesn't reflow with the zoom (see uiLayoutRect), and a selected device
+        // preset overrides its aspect (uiPreviewAspect; 0 in a shipped game keeps the design aspect).
         const previewAspect = app.hasResource(EditorView) ? app.getResource(EditorView).uiPreviewAspect : 0;
-        const fit = resolveFitSource(app, findCanvasData(module, cppRegistry));
-        const rect = uiLayoutRect(cam, fit, width, height, previewAspect);
+        const rect = uiLayoutRect(cam, frameCanvas.fit, width, height, previewAspect);
         uiCam.worldLeft = rect.left;
         uiCam.worldRight = rect.right;
         uiCam.worldBottom = rect.bottom;
@@ -863,10 +876,12 @@ export function cameraPlugin(
                 _fn: () => {
                     const { width, height } = viewport();
                     const now = app.getResource(Time).elapsed;
-                    // Peek (advance=false): this early sync must not tick the director's
-                    // blend — the render system (end of frame) is the authoritative tick.
-                    const cameras = resolveCameras(app, module, cppRegistry, width, height, undefined, undefined, cameraInfoPool, now, false);
-                    syncUICameraInfo(app, module, cppRegistry, width, height, cameras);
+                    // Peek (advance=false): the render system's tick of the director's blend is the authoritative one.
+                    // Same scenes and Canvas as that render: the UI lays out in between, from what this publishes.
+                    const activeScenes = runningScenes(app);
+                    const frameCanvas = resolveFrameCanvas(app, module, cppRegistry, app.world, activeScenes);
+                    const cameras = resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, frameCanvas, cameraInfoPool, now, false);
+                    syncUICameraInfo(app, frameCanvas, width, height, cameras);
                 },
             };
 
@@ -885,12 +900,6 @@ export function cameraPlugin(
                         pendingShaders: pendingShaders(module),
                         input: app.hasResource(Input) ? app.getResource(Input) : null,
                     })) return;
-                    const canvasEntity = canvasEntityOf(module, cppRegistry);
-                    let clearColor: { x: number; y: number; z: number; w: number } | undefined;
-                    if (canvasEntity >= 0) {
-                        const canvas = cppRegistry.getCanvas(canvasEntity);
-                        clearColor = canvas.backgroundColor;
-                    }
                     // Materials and camera motion share gameplay's clock, including pause, time scale and explicit stepping.
                     const elapsed = app.getResource(Time).elapsed;
 
@@ -900,14 +909,9 @@ export function cameraPlugin(
                         lastResizeH = height;
                     }
 
-                    let activeScenes: Set<string> | undefined;
-                    if (app.hasResource(SceneManager)) {
-                        const mgr = app.getResource(SceneManager);
-                        const running = mgr.getActiveScenes();
-                        if (running.length > 0) {
-                            activeScenes = new Set(running);
-                        }
-                    }
+                    const activeScenes = runningScenes(app);
+                    const frameCanvas = resolveFrameCanvas(app, module, cppRegistry, app.world, activeScenes);
+                    const clearColor: { x: number; y: number; z: number; w: number } | undefined = frameCanvas.data?.backgroundColor;
 
                     pipeline.setActiveScenes(activeScenes ?? null);
 
@@ -934,12 +938,12 @@ export function cameraPlugin(
 
                     // Authoritative tick (advance=true): ticks the director's blend.
                     const cameras = app.measureFrameScope('render.resolveCameras', () =>
-                        resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, cameraInfoPool, elapsed, true));
+                        resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, frameCanvas, cameraInfoPool, elapsed, true));
 
                     pushRenderOrigin((x, y, z) => { Renderer.setOrigin(x, y, z); });
 
                     app.measureFrameScope('render.uiCameraSync', () =>
-                        syncUICameraInfo(app, module, cppRegistry, width, height, cameras));
+                        syncUICameraInfo(app, frameCanvas, width, height, cameras));
 
                     // The JS-side dispatch of the frame — pairs with the engine's
                     // cpp.render.* scopes (submit/finalize) and gpu.* to separate the
@@ -1024,7 +1028,7 @@ export function cameraPlugin(
                 [Res(Time)],
                 (time: TimeData) => followUpdate(app.world, time.delta),
                 { name: 'CameraFollowSystem' },
-            ), { runIf: playModeOnly });
+            ), { runIf: playModeOnly, activeWhen: [FollowTarget] });
 
             // Runs last of the camera movers: bounds constrain where a camera
             // ends its frame, whatever put it there.
@@ -1032,7 +1036,7 @@ export function cameraPlugin(
                 [],
                 () => cameraBoundsUpdate(app.world),
                 { name: 'CameraBoundsSystem' },
-            ), { runIf: playModeOnly });
+            ), { runIf: playModeOnly, activeWhen: [CameraBounds] });
 
             app.addSystemToSchedule(Schedule.First, uiCameraSyncSystem);
             app.addSystemToSchedule(Schedule.Last, renderSystem);
@@ -1057,17 +1061,16 @@ export function renderCameraFrame(app: App, width: number, height: number, entit
         Renderer.updateTransforms({ _cpp: registry });
         // An authored-camera preview ignores director selection (so an inactive
         // camera can be inspected), but uses the same project fit as gameplay.
+        const frameCanvas = resolveFrameCanvas(app, module, registry, app.world);
         const cameras = entity === undefined
-            ? resolveCameras(app, module, registry, width, height, app.world, undefined, [], elapsed, false)
+            ? resolveCameras(app, module, registry, width, height, app.world, undefined, frameCanvas, [], elapsed, false)
             : collectCameraPOVs(module, registry, width, height, app.world)
                 .filter(pov => pov.entity === entity)
-                .map((pov, i) => buildCameraInfo(pov, width, height,
-                    resolveFitSource(app, findCanvasData(module, registry, app.world)), [], i));
+                .map((pov, i) => buildCameraInfo(pov, width, height, frameCanvas.fit, [], i));
         if (!cameras.length) return false;
-        const canvasEntity = canvasEntityOf(module, registry);
-        const clearColor = canvasEntity >= 0 ? registry.getCanvas(canvasEntity).backgroundColor : undefined;
+        const clearColor = frameCanvas.data?.backgroundColor;
         const policy = app.hasResource(ScreenScaling) ? app.getResource(ScreenScaling).renderPolicy : undefined;
-        syncUICameraInfo(app, module, registry, width, height, cameras);
+        syncUICameraInfo(app, frameCanvas, width, height, cameras);
         if (entity !== undefined || target) {
             Renderer.setViewport(0, 0, width, height);
             Renderer.begin(IDENTITY, target ?? 0, 3, clearColor, { x: 0, y: 0, w: width, h: height });
@@ -1099,6 +1102,7 @@ export function syncScreenCameras(app: App, width: number, height: number): void
     const module = app.wasmModule;
     if (!pipeline || !registry || width <= 0 || height <= 0) return;
     Renderer.resize(width, height);
-    const cameras = resolveCameras(app, module, registry, width, height, app.world, undefined, [], pipeline.frameElapsed, false);
-    syncUICameraInfo(app, module, registry, width, height, cameras);
+    const frameCanvas = resolveFrameCanvas(app, module, registry, app.world);
+    const cameras = resolveCameras(app, module, registry, width, height, app.world, undefined, frameCanvas, [], pipeline.frameElapsed, false);
+    syncUICameraInfo(app, frameCanvas, width, height, cameras);
 }

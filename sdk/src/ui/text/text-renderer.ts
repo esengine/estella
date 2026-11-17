@@ -598,17 +598,20 @@ export class SdfTextRenderer {
     /**
      * Lay a label out and hand its glyph quads to the engine, which keeps them and submits them every frame (see RetainedText.hpp). Called when the
      * label is new or changed; an unchanged label costs the engine's own loop and nothing here beyond {@link markDrawn}.
+     * @p scaleChoseSdf is what the world scale chose for an @p autoKind label, which the engine re-asks to know when the scale
+     * changed it: not this atlas's format, since a large glyph is a distance field the scale rule did not choose.
      */
     retain(
         api: EngineApi, p: DrawTextParams, entity: number,
         screen: boolean, hasBox: boolean, layer: number, boxWidth: number, boxHeight: number, autoKind: boolean,
+        scaleChoseSdf: boolean = this.sdf,
     ): number {
         if (this.atlas.metricsOnly) throw new Error('Measurement atlases cannot submit text.');
         const batches: Array<{ vertices: Float32Array; indices: Uint16Array; pageId: number; mode?: TextGlyphMode }> = [];
         const blockHeight = drawTextWith(this.atlas, (vertices, indices, pageId, mode) => {
             batches.push({ vertices, indices, pageId, ...(mode !== undefined ? { mode } : {}) });
         }, { ...p, opacity: 1 });
-        api.renderer_retainedTextBegin!(entity, this.sdf ? 1 : 0, screen ? 1 : 0, hasBox ? 1 : 0, layer, boxWidth, boxHeight, autoKind ? 1 : 0);
+        api.renderer_retainedTextBegin!(entity, scaleChoseSdf ? 1 : 0, screen ? 1 : 0, hasBox ? 1 : 0, layer, boxWidth, boxHeight, autoKind ? 1 : 0);
         for (const b of batches) {
             const vertexCount = (b.vertices.length / TEXT_VERTEX_FLOATS) | 0;
             if (vertexCount <= 0 || b.indices.length <= 0) continue;

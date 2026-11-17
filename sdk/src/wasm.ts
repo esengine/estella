@@ -461,6 +461,8 @@ export interface ESEngineModule {
     renderer_retainedTextClear?(entity: number): void;
     renderer_retainedTextStale?(registry: CppRegistry, outPtr: number, capacity: number): number;
     renderer_retainedTextSubmit?(registry: CppRegistry, screen: number, projectionPtr: number): void;
+    /** The engine draws the retained labels in its own collects, and renderer_retainedTextSubmit draws nothing. */
+    renderer_setRetainedTextCollected?(collected: boolean): void;
     /**
      * Upload a MeshRenderer component's geometry: interleaved f32 [x,y,u,v] per vertex,
      * optional RGBA8 colors (colorsPtr 0 = all white), u32 triangle-list indices.
@@ -644,6 +646,8 @@ export interface ESEngineModule {
     renderer_beginScreenOverlay?(projectionPtr: number, vpX: number, vpY: number,
                                  vpW: number, vpH: number): void;
     renderer_submitScreenOverlay?(registry: CppRegistry): void;
+    /** True: this pass draws what the overlay holds, and nothing is submitted to it before its end. */
+    renderer_keepScreenOverlay?(registry: CppRegistry, hostStill: boolean): boolean;
     renderer_setScreenOverlayEffect?(material: number): void;
     renderer_endScreenOverlay?(targetHandle: number): void;
     renderer_drawOverScreen?(vpX: number, vpY: number, vpW: number, vpH: number, targetHandle: number): void;

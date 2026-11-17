@@ -50,6 +50,8 @@ class RetainedTextStore {
 public:
     /// Replaces any geometry the entity held, with none yet: batches follow through add().
     void begin(u32 entity, bool sdf, bool screen, bool hasBox, i32 layer, f32 boxWidth, f32 boxHeight, bool autoKind = false) {
+        ++revision_;
+        changed_.push_back(entity);
         RetainedText& text = entries_[entity];
         text = RetainedText{};
         text.sdf = sdf;
@@ -66,6 +68,8 @@ public:
              TextGlyphMode mode = TextGlyphMode::Color) {
         const auto found = entries_.find(entity);
         if (found == entries_.end() || vertexCount <= 0 || indexCount <= 0 || vertexCount % 4 != 0 || indexCount != vertexCount / 4 * 6) return false;
+        ++revision_;
+        changed_.push_back(entity);
         RetainedTextBatch& batch = found->second.batches.emplace_back();
         batch.vertices.assign(vertices, vertices + static_cast<usize>(vertexCount) * TEXT_VERTEX_FLOATS);
         batch.indices.assign(indices, indices + indexCount);
@@ -91,13 +95,36 @@ public:
         return true;
     }
 
-    void clear(u32 entity) { entries_.erase(entity); }
-    void clearAll() { entries_.clear(); }
+    void clear(u32 entity) {
+        if (!entries_.erase(entity)) return;
+        ++revision_;
+        changed_.push_back(entity);
+    }
+    void clearAll() {
+        entries_.clear();
+        ++revision_;
+        all_changed_ = true;
+    }
+    /** @brief Hands @p visit every label laid out, given glyphs or let go since the last call, and forgets them; false when they
+     *         were all let go at once (clearAll), which names none. */
+    template<typename Visit>
+    bool takeChanged(Visit&& visit) {
+        const bool named = !all_changed_;
+        for (const u32 entity : changed_) visit(entity);
+        changed_.clear();
+        all_changed_ = false;
+        return named;
+    }
+    /** @brief Moves with every label laid out, given glyphs or let go: what a pass drawn from the store was drawn from. */
+    u64 revision() const { return revision_; }
     usize size() const { return entries_.size(); }
     std::map<u32, RetainedText>& entries() { return entries_; }
 
 private:
     std::map<u32, RetainedText> entries_;
+    u64 revision_ = 0;
+    std::vector<u32> changed_;
+    bool all_changed_ = false;
 };
 
 /// Which glyph pipeline a label of automatic render mode draws with at a world scale: hinted bitmaps while the scale is within 2% of 1:1, SDF past

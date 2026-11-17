@@ -475,12 +475,14 @@ void placeScreenRoots(Registry& registry, UITree& tree, LayoutCache& cache,
 }
 
 /** @brief Adds @p entity and its whole Transform subtree to @p out. */
-void addSubtree(Registry& registry, Entity entity, std::unordered_set<u32>& out) {
+void addSubtree(Registry& registry, Entity entity, std::unordered_set<u32>& out, std::vector<u32>& rootByIndex) {
     std::vector<Entity> pending{entity};
     while (!pending.empty()) {
         const Entity current = pending.back();
         pending.pop_back();
         if (!registry.valid(current) || !out.insert(current.id()).second) continue;
+        if (current.index() >= rootByIndex.size()) rootByIndex.resize(current.index() + 1, 0);
+        rootByIndex[current.index()] = entity.id();
         auto* children = registry.tryGet<Children>(current);
         if (!children) continue;
         for (Entity child : children->entities) pending.push_back(child);
@@ -495,12 +497,14 @@ void addSubtree(Registry& registry, Entity entity, std::unordered_set<u32>& out)
  *          Sprite parented into a HUD is not a layout node, yet its transform
  *          composes from a screen root all the same.
  */
-void collectScreenDomain(Registry& registry, std::unordered_set<u32>& out) {
+void collectScreenDomain(Registry& registry, std::unordered_set<u32>& out, std::vector<u32>& roots, std::vector<u32>& rootByIndex) {
     out.clear();
+    roots.clear();
     registry.each<Canvas>([&](Entity entity, Canvas&) {
         if (!registry.has<UINode>(entity) || !registry.has<Transform>(entity)) return;
         if (!isScreenRoot(registry, entity)) return;
-        addSubtree(registry, entity, out);
+        roots.push_back(entity.id());
+        addSubtree(registry, entity, out, rootByIndex);
     });
 }
 
@@ -600,7 +604,7 @@ bool UISystem::layoutUpdate(
     // Beside the rebuild and never behind the skip gate below: a frame that needs
     // no re-solve can still have reparented something, and a renderer reading a
     // stale set would draw it in the wrong domain rather than in the wrong place.
-    collectScreenDomain(registry, screen_domain_);
+    collectScreenDomain(registry, screen_domain_, screen_roots_, screen_root_by_index_);
 
     // Layout belongs to Canvas; visibility and input inheritance belong to the
     // whole UI hierarchy, including nodes that just left their Canvas.
