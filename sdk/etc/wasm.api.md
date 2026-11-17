@@ -539,6 +539,7 @@ renderer_getTextureBytes: (() => number) | undefined
 renderer_getTriangles: () => number
 renderer_hasCapturedData: () => boolean
 renderer_init: (width: number, height: number) => void
+renderer_keepScreenOverlay: ((registry: CppRegistry, hostStill: boolean) => boolean) | undefined
 renderer_lightStatus: ((entity: number, outPtr: number) => number) | undefined
 renderer_lodInspect: ((view: number, entity: number, outPtr: number) => number) | undefined
 renderer_materialBakeState: (ticket: number) => number
@@ -577,6 +578,7 @@ renderer_setPlanarReflectionQuality: ((scale: number, maxSize: number, updatesPe
 renderer_setProbeVolumeOverride: ((entity: number, volumeHandle: number) => void) | undefined
 renderer_setProbeVolumeReflection: ((entity: number, environmentHandle: number, slot: number) => void) | undefined
 renderer_setQualityBudgets: ((atlasSize: number, cellSize: number, cascades: number, particleLimit: number) => void) | undefined
+renderer_setRetainedTextCollected: ((collected: boolean) => void) | undefined
 renderer_setScreenOverlayEffect: ((material: number) => void) | undefined
 renderer_setShadow2DSoftSamples: ((samples: number) => void) | undefined
 renderer_setShadowDistance: ((distance: number) => void) | undefined

@@ -61,6 +61,11 @@ void renderer_endFrame();
 /// collect, let the host add its own screen geometry, then declare and run it.
 void renderer_beginScreenOverlay(uintptr_t projectionPtr, i32 vpX, i32 vpY, u32 vpW, u32 vpH);
 void renderer_submitScreenOverlay(ecs::Registry& registry);
+/// Asked after begin (and the layers): true, and the pass draws what the overlay already holds - submit nothing until end.
+/// @p hostStill is the host's word that the geometry it adds itself is what it was. @see RenderFrame::keepScreenOverlay
+bool renderer_keepScreenOverlay(ecs::Registry& registry, bool hostStill);
+/// The frame draws the retained labels in its own collects from now on, and renderer_retainedTextSubmit draws nothing.
+void renderer_setRetainedTextCollected(bool collected);
 void renderer_setScreenOverlayEffect(u32 material);
 void renderer_endScreenOverlay(u32 targetHandle);
 /// Draws what Draw collected after the screen overlay over the whole frame, its UI

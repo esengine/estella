@@ -26,6 +26,7 @@
 
 import { RuntimeConfig } from '../../defaults';
 import { bitmapFontFamily } from './bitmap-font';
+import { noteFontsChanged } from './font-revision';
 
 /** Distinct from any ResourceManager handle (those count up from small ints). */
 const HANDLE_BASE = 0x4000_0000;
@@ -72,6 +73,7 @@ export function freshProjectFontFamily(path: string): string {
 export function registerProjectFontEra(path: string, family: string): number {
     const handle = nextHandle++;
     families.set(handle, { path, family });
+    noteFontsChanged();
     let handles = byPath.get(path);
     if (!handles) byPath.set(path, handles = new Set());
     handles.add(handle);
@@ -88,6 +90,7 @@ export function releaseProjectFontEra(handle: number): void {
     const record = families.get(handle);
     if (!record) return;
     families.delete(handle);
+    noteFontsChanged();
     const handles = byPath.get(record.path);
     handles?.delete(handle);
     if (handles?.size === 0) byPath.delete(record.path);
@@ -115,5 +118,6 @@ export function resolveTextFamily(font: number | undefined, fontFamily: string):
 export function resetProjectFonts(): void {
     families.clear();
     byPath.clear();
+    noteFontsChanged();
     nextHandle = HANDLE_BASE;
 }

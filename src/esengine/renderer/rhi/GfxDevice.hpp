@@ -438,6 +438,9 @@ public:
     /** @brief What @p texture's content is, as a number that changes whenever the device is given new content or sampling
      *         for it (see GfxTextureRecord::revision); 0 for none. */
     u64 textureRevision(TextureHandle texture) const;
+    /** @brief Counts every texture made, deleted, or given new storage under its handle (a restore, an adopt): what changes the
+     *         size a handle answers, never what its pixels hold. */
+    u64 textureShapes() const { return texture_shapes_; }
     const TextureDesc* textureDesc(TextureHandle texture) const;
 
     /** @brief Activates a texture slot and binds a 2D texture */
@@ -1032,6 +1035,7 @@ private:
     u64 device_frame_ = 0;
     u64 device_generation_ = 0;
     u64 geometry_writes_ = 0;
+    u64 texture_shapes_ = 0;
     void countGeometryWrite(const BufferDesc& desc) {
         if (!desc.dynamic && (desc.usage == GfxBufferUsage::Vertex || desc.usage == GfxBufferUsage::Index)) ++geometry_writes_;
     }

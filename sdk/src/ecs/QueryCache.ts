@@ -72,6 +72,15 @@ export class QueryCache {
         this.structuralVersion_++;
     }
 
+    /** The cached answer when it still stands, counted as a hit; null when it must be computed. What a caller asks
+     *  first, so an answer that stands costs it no closure to compute one. */
+    lookup(cacheKey: string, dependentComponentIds: symbol[]): Entity[] | null {
+        const cached = this.cache_.get(cacheKey);
+        if (!cached || !this.checkValidity_(cached, dependentComponentIds)) return null;
+        this.hits_++;
+        return cached.result;
+    }
+
     getOrCompute(
         cacheKey: string,
         dependentComponentIds: symbol[],

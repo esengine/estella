@@ -114,4 +114,37 @@ describe.skipIf(!HAS_WASM)('engine component pointer access', () => {
         expect(mismatches(afterWrite, written)).toEqual([]);
         expect(mismatches(afterWrite, viaEmbind())).toEqual([]);
     });
+
+    it.each(WEB_PTR)('world.get and tryGet of %s read the heap, not the embind getter', (name) => {
+        const comp = getComponent(name) as BuiltinComponentDef<Bag>;
+        const app = App.new();
+        apps.push(app);
+        app.connectCpp(new engine.Registry() as unknown as CppRegistry, engine, { ownedRegistry: true });
+        const world = app.world;
+        const registry = world.getCppRegistry() as unknown as Record<string, (...a: unknown[]) => Bag>;
+        const e = world.spawn();
+        const bare = world.spawn();
+        world.insert(e, comp, {});
+        registry[`add${name}`](e, perturbed(PTR_LAYOUTS[name]!, registry[`get${name}`](e), true));
+        const expected = builtinFromWasm(registry[`get${name}`](e), comp) as Bag;
+
+        const getter = Object.getPrototypeOf(registry) as Record<string, (...a: unknown[]) => Bag>;
+        const original = getter[`get${name}`];
+        let embindReads = 0;
+        getter[`get${name}`] = function (this: unknown, ...a: unknown[]) { embindReads++; return original.apply(this, a); };
+        // The bridge bound the getter when it first resolved the component; a fresh connection binds the counted one.
+        world.builtin.connect(world.getCppRegistry()!, engine);
+        try {
+            const got = world.get(e, comp) as Bag;
+            const tried = world.tryGet(e, comp) as Bag;
+            expect(mismatches(got, expected)).toEqual([]);
+            expect(mismatches(tried, expected)).toEqual([]);
+            // Each read is the caller's own: a second one must not refill the first.
+            expect(got).not.toBe(tried);
+            expect(world.tryGet(bare, comp)).toBeNull();
+            expect(embindReads).toBe(0);
+        } finally {
+            getter[`get${name}`] = original;
+        }
+    });
 });

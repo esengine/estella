@@ -32,6 +32,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include "../RenderOrigin.hpp"
 
 #include <algorithm>
 #ifdef __EMSCRIPTEN__
@@ -229,6 +230,13 @@ void RenderFrame::shutdown() {
         cover_frame_ubo_ = BufferHandle::Invalid;
     }
     planar_pool_.shutdown();
+    swapOverlayOut();
+    if (overlay_hold_) overlay_hold_->pool.shutdown();
+    overlay_hold_.reset();
+    for (auto& segment : segments_) if (segment.hold) segment.hold->pool.shutdown();
+    segments_.clear();
+    segments_trusted_ = false;
+    overlay_valid_ = false;
     probe_pool_.shutdown();
     if (probe_capture_.frameUbo != BufferHandle::Invalid) {
         device_.deleteBuffer(probe_capture_.frameUbo);
@@ -377,6 +385,11 @@ void RenderFrame::releaseFrameTargets() {
 
 void RenderFrame::beginFrame() {
     ++planar_frame_;
+    // An overlay left open by a host that never closed it gives the frame its pool and list back.
+    swapOverlayOut();
+    overlay_active_ = false;
+    overlay_segmented_ = false;
+    overlay_passes_ = 0;
 #ifdef ES_ENABLE_GPU_PARTICLES
     if (gpu_particles_) gpu_particles_->beginFrame();
 #endif
@@ -3253,6 +3266,12 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     for (auto& plugin : plugins_) {
         ES_PROFILE_SCOPE(plugin->collectScope());
         plugin->collect(collectCtx);
+    }
+    // After every plugin, so a label draws over what shares its layer: the world's labels, culled in world space (the view is rebased).
+    if (retained_text_collected_) {
+        ES_PROFILE_SCOPE("render.collect.text");
+        const glm::mat4 world = view_projection_ * glm::translate(glm::mat4(1.0f), -glm::vec3(renderOrigin()));
+        submitRetainedText(registry, false, glm::value_ptr(world));
     }
 
     // The other half of what the frame cost: what it did NOT draw. Accumulated

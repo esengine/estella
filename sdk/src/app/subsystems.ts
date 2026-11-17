@@ -80,6 +80,8 @@ export class SubsystemRegistry {
     private readonly events_: SubsystemEvent[] = [];
     private readonly listeners_ = new Set<() => void>();
     private seq_ = 0;
+    /** The frame's own clock reading, which every beat of the frame is stamped with; 0 until a frame has begun. */
+    private frameMs_ = 0;
 
     /** Register (or re-register) a subsystem in the `registered` phase. */
     register(id: string, opts: { displayName?: string; dependsOn?: string[] } = {}): void {
@@ -126,11 +128,16 @@ export class SubsystemRegistry {
         return this.entries_.get(id)?.phase;
     }
 
+    /** @internal A frame begins at `atMs`: the beats of its systems all carry that one reading, so no system run reads the clock. */
+    beginFrame(atMs: number): void {
+        this.frameMs_ = atMs;
+    }
+
     /** Pet the watchdog: an owned system ran this frame. Cheap and silent (no
      *  notify) — liveness is sampled, not pushed. Call once per tick. */
     markStepped(id: string): void {
         const e = this.entries_.get(id);
-        if (e) e.lastBeatMs = nowMs();
+        if (e) e.lastBeatMs = this.frameMs_ || nowMs();
     }
 
     /** Current status of every subsystem, install order, liveness derived now. */

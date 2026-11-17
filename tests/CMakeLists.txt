@@ -7,6 +7,10 @@ include_directories(${CMAKE_SOURCE_DIR}/third_party/doctest)
 # hierarchy stress needs more than Emscripten's fixed default heap.
 if(EMSCRIPTEN)
     add_link_options(-sALLOW_MEMORY_GROWTH=1)
+    # A harness keeps a whole RenderFrame (29 KB) on its stack beside the RenderContext, resources and registry it draws with,
+    # which is most of the 64 KB default: the next field added to any of them overruns it, and the overrun shows as a
+    # null function or an out-of-bounds read in whatever runs next, not as a stack overflow.
+    add_link_options(-sSTACK_SIZE=1048576)
 endif()
 
 # ECS tests

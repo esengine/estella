@@ -71,6 +71,7 @@ void ResourceManager::shutdown() {
 
     guidToTexture_.clear();
     textureMetadata_.clear();
+    ++texture_metadata_revision_;
     fonts_.clear();
     std::vector<ShaderHandle> retiredShaders;
     shaders_.forEachAlive([&](ShaderHandle handle, const Shader&) { retiredShaders.push_back(handle); });
@@ -308,7 +309,7 @@ void ResourceManager::releaseTexture(TextureHandle handle) {
     // (findByPath + addRef re-holds the SAME handle), so erasing here would strand
     // a revived texture without its nine-slice metadata / GUID lookup.
     if (lastRef && !textures_.isEvictable(handle)) {
-        textureMetadata_.erase(handle.id());
+        if (textureMetadata_.erase(handle.id())) ++texture_metadata_revision_;
         for (auto it = guidToTexture_.begin(); it != guidToTexture_.end(); ) {
             if (it->second == handle) {
                 it = guidToTexture_.erase(it);
@@ -483,6 +484,7 @@ void ResourceManager::releaseTextureByGUID(const std::string& guid) {
 void ResourceManager::setTextureMetadata(TextureHandle handle, const TextureMetadata& metadata) {
     if (handle.isValid()) {
         textureMetadata_[handle.id()] = metadata;
+        ++texture_metadata_revision_;
     }
 }
 
@@ -502,7 +504,7 @@ bool ResourceManager::hasTextureMetadata(TextureHandle handle) const {
 
 void ResourceManager::removeTextureMetadata(TextureHandle handle) {
     if (handle.isValid()) {
-        textureMetadata_.erase(handle.id());
+        if (textureMetadata_.erase(handle.id())) ++texture_metadata_revision_;
     }
 }
 

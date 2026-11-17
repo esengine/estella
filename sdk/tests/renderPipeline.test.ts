@@ -25,6 +25,7 @@ vi.mock('../src/render/renderer', () => ({
         hasScreenOverlay: vi.fn().mockReturnValue(true),
         beginScreenOverlay: vi.fn(),
         submitScreenOverlay: vi.fn(),
+        keepScreenOverlay: vi.fn(() => false),
         endScreenOverlay: vi.fn(),
         hasDrawOverScreen: vi.fn().mockReturnValue(true),
         drawOverScreen: vi.fn(),
@@ -166,6 +167,33 @@ describe('RenderPipeline', () => {
         expect(world).toHaveBeenCalledTimes(2);
         pipeline.runPreFlushCallbacks(registry);
         expect(world).toHaveBeenLastCalledWith(registry, undefined);
+    });
+
+    it('asks the engine whether to hold the overlay, with every callback\'s word, and submits nothing to a held pass', () => {
+        const screen = vi.fn();
+        let still = true;
+        pipeline.addScreenOverlayCallback(screen, () => still);
+        const overlay = defaultScreenOverlay();
+        overlay.active = true; overlay.vpW = 800; overlay.vpH = 600;
+
+        vi.mocked(Renderer.keepScreenOverlay).mockReturnValueOnce(true);
+        pipeline.renderScreenOverlay(registry, overlay);
+        expect(Renderer.keepScreenOverlay).toHaveBeenLastCalledWith(registry, true);
+        expect(Renderer.submitScreenOverlay).not.toHaveBeenCalled();
+        expect(screen).not.toHaveBeenCalled();
+        expect(Renderer.endScreenOverlay).toHaveBeenCalledTimes(1);
+
+        still = false;
+        pipeline.renderScreenOverlay(registry, overlay);
+        expect(Renderer.keepScreenOverlay).toHaveBeenLastCalledWith(registry, false);
+        expect(Renderer.submitScreenOverlay).toHaveBeenCalledTimes(1);
+        expect(screen).toHaveBeenCalledTimes(1);
+
+        // A callback that cannot say holds nothing.
+        pipeline.addScreenOverlayCallback(vi.fn());
+        still = true;
+        pipeline.renderScreenOverlay(registry, overlay);
+        expect(Renderer.keepScreenOverlay).toHaveBeenLastCalledWith(registry, false);
     });
 
     describe('render() call sequence', () => {

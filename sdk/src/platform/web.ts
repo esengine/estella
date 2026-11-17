@@ -38,11 +38,19 @@ const WHEEL_LINE_HEIGHT = 16;
 // Web Platform Adapter
 // =============================================================================
 
+/** With no pad known, how many polls pass between looks at the browser: about a second of frames. */
+const GAMEPAD_LOOK_EVERY = 60;
+const NO_GAMEPADS: GamepadSnapshot[] = [];
+
 class WebPlatformAdapter implements PlatformAdapter {
     private device_: WebDevice | null = null;
     device(): WebDevice { return this.device_ ??= new WebDevice(); }
     readonly name = 'web' as const;
     private inputCleanup_: (() => void) | null = null;
+    /** Whether a pad is plugged in as far as the page knows: the last look found one, or the browser announced one since. */
+    private padsLive_ = false;
+    private padEvents_ = false;
+    private padPolls_ = 0;
     private recorder_: PlatformScreenRecorder | null | undefined;
 
     /** Resolved on first ask: the canvas exists by the time a game records. */
@@ -314,9 +322,19 @@ class WebPlatformAdapter implements PlatformAdapter {
         }
     }
 
+    /**
+     * The pads and their state. `navigator.getGamepads()` is one of the slower calls a frame can make, and nearly every
+     * frame of nearly every game has no pad to read: with none known, the browser is asked once in GAMEPAD_LOOK_EVERY polls, and at
+     * once when it announces one (`gamepadconnected`). A pad it announced before this page listened is found by that look.
+     */
     pollGamepads(): GamepadSnapshot[] {
         const nav = typeof navigator !== 'undefined' ? navigator : undefined;
-        if (!nav || typeof nav.getGamepads !== 'function') return [];
+        if (!nav || typeof nav.getGamepads !== 'function') return NO_GAMEPADS;
+        if (!this.padEvents_ && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+            this.padEvents_ = true;
+            window.addEventListener('gamepadconnected', () => { this.padsLive_ = true; });
+        }
+        if (!this.padsLive_ && this.padPolls_++ % GAMEPAD_LOOK_EVERY !== 0) return NO_GAMEPADS;
         const out: GamepadSnapshot[] = [];
         for (const gp of nav.getGamepads()) {
             if (!gp) continue; // navigator.getGamepads() is a sparse array (null slots)
@@ -328,6 +346,7 @@ class WebPlatformAdapter implements PlatformAdapter {
                 mapping: gp.mapping,
             });
         }
+        this.padsLive_ = out.length > 0;
         return out;
     }
 

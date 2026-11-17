@@ -27,9 +27,12 @@ import path from 'node:path';
 import { serveHost } from './lib/staticServer.mjs';
 import { toolArgs } from './lib/toolArgs.mjs';
 import { ROOT } from './lib/repo.mjs';
+import { cpuSlowdown, slowCpu, slowdownLabel } from './lib/phoneCpu.mjs';
 
-const ARGS = toolArgs({ scene: 'synthetic', count: '4096', frames: '30', samples: '5', w: '1920', h: '1080', top: '30', incl: '', only: '', shot: '', out: null, wait: '180000', dir: null, profile: false, glcalls: false, wall: false, audit: false, 'no-export': false, gpu: false, 'gpu-detail': false, logs: false });
+const ARGS = toolArgs({ scene: 'synthetic', count: '4096', frames: '30', samples: '5', slow: null, w: '1920', h: '1080', top: '30', incl: '', callers: '', systems: '6', avg: '0', only: '', shot: '', out: null, wait: '180000', dir: null, profile: false, glcalls: false, wall: false, audit: false, 'no-export': false, gpu: false, 'gpu-detail': false, logs: false });
 const SCENE = ARGS.scene;
+/** How many times slower than this machine the page's CPU runs: a phone's 5 unless --slow says otherwise (lib/phoneCpu.mjs). */
+const SLOW = cpuSlowdown(ARGS.slow);
 const COUNT = Number(ARGS.count);
 const FRAMES = Number(ARGS.frames);
 const SAMPLES = Number(ARGS.samples);
@@ -38,6 +41,8 @@ const H = Number(ARGS.h);
 const TOP = Number(ARGS.top);
 /** Function names (substrings, comma separated) whose INCLUSIVE time a profile also reports: every sample with one on its stack. */
 const INCL = ARGS.incl ? ARGS.incl.split(',') : [];
+/** Function names (substrings, comma separated) whose callers a profile also lists: who is paying for a helper every stack ends in. */
+const CALLERS = ARGS.callers ? ARGS.callers.split(',') : [];
 const PROFILE = ARGS.profile;
 /** Count every WebGL call per frame: the CPU work a frame hands the browser, which no GPU stall can hide. */
 const GLCALLS = ARGS.glcalls;
@@ -114,6 +119,7 @@ async function measure(browser, dir) {
   const server = await serveHost(dir);
   const context = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
   const page = await context.newPage();
+  await slowCpu(page, SLOW);
   if (GLCALLS) {
     await page.addInitScript(() => {
       const counts = (window.__glCalls = {});
@@ -199,6 +205,24 @@ async function measure(browser, dir) {
       const costs = wall ? { systems: [] } : c.costs();
       return { ms, scopes, counters: wall ? {} : c.render(), systems: costs.systems, gl };
     }, { frames: FRAMES, samples: SAMPLES, profile: PROFILE, wall: WALL });
+    // --avg N: each system's and scope's time as the mean over N frames stepped one at a time. A page's clock ticks in
+    // tenths of a millisecond, so one frame's reading of a system that takes microseconds is 0 or 0.1; the mean is not.
+    if (Number(ARGS.avg) > 0 && !WALL) {
+      const mean = await page.evaluate(async (n) => {
+        const c = window.__estellaCooked;
+        const sys = new Map(), scopes = new Map();
+        for (let i = 0; i < n; i++) {
+          await c.step(1, 1 / 60);
+          const k = c.costs();
+          for (const s of k.systems ?? []) sys.set(s.name, (sys.get(s.name) ?? 0) + s.ms);
+          for (const s of k.scopes ?? []) scopes.set(s.name, (scopes.get(s.name) ?? 0) + s.ms);
+        }
+        const rows = (m) => [...m].map(([name, ms]) => ({ name, ms: ms / n }));
+        return { systems: rows(sys), scopes: rows(scopes) };
+      }, Number(ARGS.avg));
+      result.systems = mean.systems;
+      result.meanScopes = mean.scopes;
+    }
     let gpu = null;
     if (GPU) {
       const frames = await page.evaluate(async (detail) => {
@@ -233,7 +257,7 @@ async function measure(browser, dir) {
     const keys = new Set(result.scopes.flatMap((s) => Object.keys(s ?? {})));
     const native = {};
     for (const k of keys) native[k] = median(result.scopes.map((s) => s?.[k] ?? 0));
-    return { ms: median(result.ms), native, counters: result.counters, systems: result.systems, settled, errors, profile, gl: result.gl,
+    return { ms: median(result.ms), native, counters: result.counters, systems: result.systems, meanScopes: result.meanScopes, settled, errors, profile, gl: result.gl,
              audit: AUDIT ? { total: auditTotal, lines: audit } : null, gpu };
   } finally {
     await context.close();
@@ -265,7 +289,20 @@ function bySelf(profile) {
     }
     for (const name of hit) inclusive[name] += (dt[i] ?? 0) / 1000;
   }
-  return { total, rows: [...self.entries()].sort((a, b) => b[1] - a[1]), inclusive };
+  // Who calls each --callers function: its self time, by the three frames above it.
+  const callers = {};
+  for (const name of CALLERS) callers[name] = new Map();
+  for (let i = 0; i < profile.samples.length; i++) {
+    const leaf = byId.get(profile.samples[i]).callFrame.functionName;
+    for (const name of CALLERS) {
+      if (!leaf.includes(name)) continue;
+      const chain = [];
+      for (let id = parent.get(profile.samples[i]); id !== undefined && chain.length < 3; id = parent.get(id)) chain.push(byId.get(id).callFrame.functionName || '(anonymous)');
+      const key = chain.join(' < ');
+      callers[name].set(key, (callers[name].get(key) ?? 0) + (dt[i] ?? 0) / 1000);
+    }
+  }
+  return { total, rows: [...self.entries()].sort((a, b) => b[1] - a[1]), inclusive, callers };
 }
 
 const browser = await chromium.launch({
@@ -297,8 +334,9 @@ try {
     console.log(`${spread.padEnd(8)} frame ${r.ms.toFixed(2)} ms   collect ${(n['render.collect'] ?? 0).toFixed(2)}  finalize ${(n['render.finalize'] ?? 0).toFixed(2)}  submit ${(n['render.submit'] ?? 0).toFixed(2)}  graph ${(n['render.graph'] ?? 0).toFixed(2)}  -> render CPU ${renderCpu.toFixed(2)} ms   draws ${c['batch.draws'] ?? '?'} (gpu ${c['render.gpu.draws'] ?? '?'}, merged ${c['batch.merged'] ?? '?'}, shadow ${c['render.shadow.draws'] ?? '?'})  tris ${((c['render.triangles'] ?? 0) / 1e6).toFixed(2)}M  settled ${r.settled}${r.errors.length ? '  ERRORS ' + r.errors[0] : ''}`);
     const breaks = Object.entries(c).filter(([k]) => k.startsWith('batch.break.')).map(([k, v]) => `${k.slice(12)}=${v}`).join(' ');
     if (breaks) console.log(`         merge breaks: ${breaks}`);
-    const sys = (r.systems ?? []).slice().sort((a, b) => b.ms - a.ms).slice(0, 6).map((s) => `${s.name} ${s.ms.toFixed(2)}`).join(', ');
+    const sys = (r.systems ?? []).slice().sort((a, b) => b.ms - a.ms).slice(0, Number(ARGS.systems)).map((s) => `${s.name} ${s.ms.toFixed(3)}`).join(', ');
     if (sys) console.log(`         top systems: ${sys}`);
+    if (r.meanScopes?.length) console.log(`         scopes: ${r.meanScopes.sort((a, b) => b.ms - a.ms).slice(0, Number(ARGS.systems)).map((x) => `${x.name} ${x.ms.toFixed(3)}`).join(', ')}`);
     if (r.audit) {
       console.log(`         change audit: ${r.audit.total} unstamped write(s) in 120 frames`);
       for (const line of r.audit.lines) console.log(`           ${line}`);
@@ -312,6 +350,10 @@ try {
       const p = bySelf(r.profile);
       console.log(`         profile: ${p.total.toFixed(0)} ms sampled`);
       for (const [name, ms] of Object.entries(p.inclusive)) console.log(`         inclusive ${name}: ${ms.toFixed(1)} ms (${(100 * ms / p.total).toFixed(1)}%)`);
+      for (const [name, by] of Object.entries(p.callers)) {
+        console.log(`         callers of ${name}:`);
+        for (const [k, v] of [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12)) console.log(`           ${v.toFixed(1).padStart(8)} ms  ${k}`);
+      }
       for (const [k, v] of p.rows.slice(0, TOP)) console.log(`           ${v.toFixed(1).padStart(8)} ms  ${(100 * v / p.total).toFixed(1).padStart(5)}%  ${k}`);
       table[spread].profile = p.rows.slice(0, 200);
     }
@@ -320,5 +362,6 @@ try {
   await browser.close();
 }
 await mkdir(path.dirname(OUT), { recursive: true });
-await writeFile(OUT, JSON.stringify({ scene: SCENE, count: COUNT, size: [W, H], frames: FRAMES, samples: SAMPLES, table }, null, 1));
-console.log(`\nwritten ${path.relative(ROOT, OUT)}`);
+await writeFile(OUT, JSON.stringify({ scene: SCENE, cpuSlowdown: SLOW, count: COUNT, size: [W, H], frames: FRAMES, samples: SAMPLES, table }, null, 1));
+console.log(`\n${slowdownLabel(SLOW)}`);
+console.log(`written ${path.relative(ROOT, OUT)}`);
