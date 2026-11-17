@@ -49,7 +49,8 @@ import { LEAN_ENTRY_FILE, FULL_ENTRY_FILE } from '../bundle/importMap';
 import { contentSubsystems } from './contentSubsystems';
 import { scriptsMentionSkeletal } from './liteEngine';
 import { textureImportSettingsFrom, type ParsedTextureImportSettings } from '../../../sdk/src/asset/textureImportSettings';
-import type { ModuleChoice, PlayableReady, ProjectFeatures, ProjectPackaging } from '../project/format';
+import { atlasCatalogFields, type CatalogData, type CatalogEntry, type CookedAtlasInfo } from '../../../sdk/src/asset/Catalog';
+import type { ModuleChoice, PlayableReady, ProjectFeatures, ProjectPackaging, WebpImages } from '../project/format';
 import { PAGE_BACKGROUND, splashCss, splashHtml, splashScript } from './splash';
 
 export interface ExportPlayableResult {
@@ -247,7 +248,11 @@ export async function exportPlayable(opts: {
   resizeTextures?: boolean;
   /** WAV to MP3 at the authored bitrate, honoring each clip's compression opt-out. */
   compressAudio?: boolean;
-  /** Project delivery budget, constrained by the network limit and 3 MiB regression target. */
+  /** Pack each `<name>.atlas/` folder into pages, inlined once each, with every frame's place on its page for the runtime. */
+  atlasTextures?: boolean;
+  /** The PNGs as WebP at this encoding; absent, they ship as PNG. */
+  webpImages?: WebpImages;
+  /** Project delivery budget, constrained by the network limit and 3 MiB regression target. Reported against, never acted on. */
   sizeBudgetBytes?: number;
   /** What the project says about its engine modules; see ProjectFeatures.modules. */
   features?: ProjectFeatures;
@@ -285,7 +290,7 @@ export async function exportPlayable(opts: {
   // uses the same per-clip settings as other targets. Neither changes sources.
   const cook = await cookAssets(opts.root, {
     entryScenes: sceneList.map((scene) => scene.path), outDir: cookDir, platform: 'playable',
-    resizeTextures: opts.resizeTextures, compressAudio: opts.compressAudio, modelRecipes: true,
+    resizeTextures: opts.resizeTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, modelRecipes: true,
   });
   let modelBakes: ModelBakesFile | null = null;
   const baked = new Map<string, { model: number; role: string }>();
@@ -309,15 +314,15 @@ export async function exportPlayable(opts: {
   let manifestEntries: CookManifest['entries'] = [];
   // How each texture is sampled and sliced, as its .meta says: the one thing of the manifest a single file needs. Without it every
   // texture of a playable took the defaults, so a ground whose layers repeat drew one copy of each and smeared its edge over the rest.
-  const textureImports: Record<string, { path: string; type: 'texture'; size: number; labels: string[]; textureImport: ParsedTextureImportSettings }> = {};
+  const textureImports: Record<string, { path: string; address?: string; type: 'texture'; size: number; labels: string[]; textureImport: ParsedTextureImportSettings }> = {};
+  // Atlas frames: where each sits on its page, by every spelling a load uses (its `@uuid:`, its source path), the way the
+  // web build's catalog has them. A page is inlined once, under its first frame's key; every other frame of it points
+  // there through the path map, so a page of twenty sprites costs one image, not twenty copies of it.
+  const atlasEntries: Record<string, CatalogEntry> = {};
+  const pageKeys = new Map<string, string>();
   try {
     const manifest = JSON.parse(await readFile(path.join(cookDir, 'assets.manifest.json'), 'utf8')) as CookManifest;
     manifestEntries = manifest.entries;
-    // Playable has no runtime catalog channel yet, so atlas frame/uv metadata
-    // cannot reach the sprites — a packed texture would render its whole page.
-    if (manifest.entries.some((e) => (e as { atlas?: unknown }).atlas)) {
-      warnings.push('cook produced atlas-packed textures, which the playable runtime cannot consume yet — export without atlasTextures for playables.');
-    }
     for (const e of manifest.entries) {
       const key = `@uuid:${e.uuid}`;
       const left = baked.get(e.path);
@@ -328,9 +333,25 @@ export async function exportPlayable(opts: {
         continue;
       }
       if ((e as { type?: string }).type === 'scene' && sceneList.some((scene) => scene.path === (e.sourcePath ?? e.path))) continue;
+      const atlas = (e as { atlas?: CookedAtlasInfo }).atlas;
+      if (atlas) {
+        const logical = e.sourcePath ?? e.path;
+        const frame: CatalogEntry = { type: 'texture', buildPath: e.path, ...atlasCatalogFields(atlas, e.path) };
+        for (const spelling of [key, logical, `/${logical}`]) atlasEntries[spelling] = frame;
+        const textureImport = textureImportSettingsFrom((e as { importer?: Record<string, unknown> }).importer);
+        if (textureImport) textureImports[e.uuid.toLowerCase()] = { path: e.path, address: logical, type: 'texture', size: 0, labels: [], textureImport };
+        const page = pageKeys.get(e.path);
+        if (page) {
+          pathMap[logical] = page;
+          pathMap[key] = page;
+          continue;
+        }
+        pageKeys.set(e.path, key);
+        pathMap[e.path] = key;
+      }
       const buf = await readFile(path.join(cookDir, e.path));
       const textureImport = textureImportSettingsFrom((e as { importer?: Record<string, unknown> }).importer);
-      if (textureImport) textureImports[e.uuid.toLowerCase()] = { path: e.sourcePath ?? e.path, type: 'texture', size: 0, labels: [], textureImport };
+      if (textureImport && !atlas) textureImports[e.uuid.toLowerCase()] = { path: e.sourcePath ?? e.path, type: 'texture', size: 0, labels: [], textureImport };
       const dataUrl = `data:${mimeOf(e.path)};base64,${buf.toString('base64')}`;
       pathMap[e.sourcePath ?? e.path] = key;
       // The data URL, not the file: base64 is what the asset costs the package.
@@ -474,6 +495,9 @@ export async function exportPlayable(opts: {
     (Object.keys(textureImports).length > 0
       ? `window.__GAME_MANIFEST__=${JSON.stringify({ version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets: textureImports } } })};`
       : '') +
+    (Object.keys(atlasEntries).length > 0
+      ? `window.__GAME_CATALOG__=${JSON.stringify({ version: 1, entries: atlasEntries } satisfies CatalogData)};`
+      : '') +
     span(`scenes/${sceneName}.json`, `window.__GAME_SCENES__=${JSON.stringify(pack(Buffer.from(JSON.stringify(scenes), 'utf8')))};`) +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};` +
     (opts.ready === 'after-ident' ? 'window.__GAME_READY__="after-ident";' : '') +
@@ -518,12 +542,9 @@ export async function exportPlayable(opts: {
   };
   const emptyHtmlBytes = assemble(new Map()).htmlBytes;
   const targetDeliveryBytes = Math.min(adProfile.maxBytes, opts.sizeBudgetBytes ?? Infinity, 3 * 1024 * 1024);
-  const baseline = assemble(new Map(optimizationAssets.map(asset => [asset.key, asset])));
-  // Every image is offered lossless WebP whatever the size, so each needs its import settings; only audio waits for the
-  // budget to be exceeded before its source is read.
-  const overBudget = baseline.deliveryBytes > targetDeliveryBytes || baseline.htmlBytes > (adProfile.maxHtmlBytes ?? Infinity);
-  if (errors.length === 0 && (opts.resizeTextures || (opts.compressAudio && overBudget))) {
-    progress({ phase: 'Optimizing playable budget' });
+  if (errors.length === 0 && opts.webpImages !== undefined) {
+    progress({ phase: 'Encoding images as WebP' });
+    // Which images must keep every sample: their import settings, and whether a font draws from them.
     const { index } = await scanAssetDatabase(opts.root, { write: false, adopt: false });
     const byUuid = new Map(index.entries.map(entry => [entry.uuid, entry]));
     const fontPages = new Set(index.entries.filter(entry => entry.path.toLowerCase().endsWith('.fnt'))
@@ -532,18 +553,14 @@ export async function exportPlayable(opts: {
       const uuid = asset.key.slice('@uuid:'.length);
       asset.importer = byUuid.get(uuid)?.importer;
       asset.losslessOnly = fontPages.has(uuid);
-      if (opts.compressAudio && overBudget && asset.path.toLowerCase().endsWith('.wav')) {
-        asset.sourceWav = await readFile(path.join(opts.root, asset.path));
-      }
     }
   }
   const optimized = await optimizePlayableAssets({ root: opts.root, assets: optimizationAssets,
-    textures: errors.length === 0 && !!opts.resizeTextures, audio: errors.length === 0 && !!opts.compressAudio,
+    webp: errors.length === 0 ? opts.webpImages : undefined,
     targetDeliveryBytes, maxHtmlBytes: adProfile.maxHtmlBytes,
     // A single-file page measures by arithmetic (its size is a fixed part plus the assets' JSON); a zip has to be built to be weighed.
     measure: payloads => zipFile ? assemble(payloads) : (() => { const htmlBytes = emptyHtmlBytes - 2 + playableAssetsJsonBytes(payloads); return { htmlBytes, deliveryBytes: htmlBytes }; })(),
-    onStage: (stage, assets) => progress({ phase: 'Optimizing playable budget', detail: `${stage} — up to ${assets} assets` }), warnings });
-  optimized.report.mode = opts.resizeTextures || opts.compressAudio ? 'auto' : 'skip';
+    onStage: (stage, assets) => progress({ phase: 'Encoding images as WebP', detail: `${stage} — ${assets} images` }), warnings });
   const final = assemble(optimized.payloads);
   await writeFile(outFile, final.html);
   if (zipFile) await writeFile(zipFile, final.delivery);
@@ -553,7 +570,7 @@ export async function exportPlayable(opts: {
     const payload = optimized.payloads.get(optimizationAssets[i].key)!;
     spans[i].bytes = `data:${payload.mime};base64,${Buffer.from(payload.data).toString('base64')}`.length;
   }
-  if (!optimized.report.meetsTarget) warnings.push(`Playable optimization target not met: delivery ${bytes}/${targetDeliveryBytes} bytes, HTML ${htmlBytes}/${adProfile.maxHtmlBytes ?? 'unlimited'} bytes. Reduce assets or engine modules; no quality below WebP 80 / MP3 96 kbps is selected.`);
+  if (!optimized.report.meetsTarget) warnings.push(`Playable is over its size budget: delivery ${bytes}/${targetDeliveryBytes} bytes, HTML ${htmlBytes}/${adProfile.maxHtmlBytes ?? 'unlimited'} bytes. Nothing is compressed unless chosen in the Build dialog: Max Size, WebP images and MP3 audio there, or fewer assets or engine modules.`);
   if (adProfile.maxHtmlBytes !== undefined && htmlBytes > adProfile.maxHtmlBytes) {
     // The file is written and its size is on the screen: whether to slim it or ship it anyway is the developer's call, not a failed build.
     warnings.push(`${adProfile.label}: index.html is ${htmlBytes} bytes, exceeding the uncompressed HTML limit of ${adProfile.maxHtmlBytes} bytes. ${adProfile.limitNote}`);

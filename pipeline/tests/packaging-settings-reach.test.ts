@@ -37,11 +37,12 @@ describe('a packaging setting a project declares', () => {
         expect(minifiesScripts({ minifyScripts: true, minify: false })).toBe(false);
     });
 
-    it('carries the asset-compression choice the cook reads', () => {
-        expect(cookOptionsOf(project({ assetCompression: 'skip' })).compressTextures).toBe(false);
-        expect(cookOptionsOf(project({ assetCompression: 'auto' })).compressTextures).toBe(true);
-        // Absent is the default, and the default is on.
-        expect(cookOptionsOf(project({})).compressTextures).toBe(true);
+    it('compresses only what the project ticked, each on its own', () => {
+        expect(cookOptionsOf(project({}))).toEqual({ compressTextures: false, compressAudio: false, atlasTextures: false });
+        // The old one-switch default the dialog wrote for everyone is not a choice to compress.
+        expect(cookOptionsOf(project({ assetCompression: 'auto' } as never)).compressTextures).toBe(false);
+        expect(cookOptionsOf(project({ compressAudio: true, webpImages: 90 })))
+            .toEqual({ compressTextures: false, compressAudio: true, atlasTextures: false, webpImages: 90 });
     });
 
     it('keeps the scenes a project asked not to ship out of the options', () => {

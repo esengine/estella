@@ -279,6 +279,56 @@ describe('exportGame (playable)', () => {
     expect(inlinedText(later, '__GAME_BUNDLE__')).toContain('readyAfter');
   }, 60_000);
 
+  // An atlas page is one image however many sprites are on it: inlined once, every frame of it pointed there, and where
+  // each frame sits on the page handed to the runtime, so a packed sprite draws its own frame and not the whole page.
+  it('inlines an atlas page once and tells the runtime where each frame sits on it', async () => {
+    const RED = '55555555-5555-4555-8555-555555555551';
+    const BLUE = '55555555-5555-4555-8555-555555555552';
+    mkdirSync(path.join(root, 'assets', 'ui.atlas'), { recursive: true });
+    for (const [name, uuid, rgba] of [['red', RED, [255, 0, 0, 255]], ['blue', BLUE, [0, 0, 255, 255]]] as const) {
+      writeFileSync(path.join(root, 'assets', 'ui.atlas', `${name}.png`), solidPng(16, 16, [...rgba]));
+      writeFileSync(path.join(root, 'assets', 'ui.atlas', `${name}.png.meta`), meta(uuid, 'texture'));
+    }
+    writeFileSync(path.join(root, 'scenes', 'atlas.esscene'), JSON.stringify({ version: '1.0', name: 'Atlas', entities: [
+      { id: 0, components: [{ type: 'Sprite', data: { texture: `@uuid:${RED}` } }] },
+      { id: 1, components: [{ type: 'Sprite', data: { texture: `@uuid:${BLUE}` } }] },
+    ] }));
+    writeFileSync(path.join(root, 'scenes', 'atlas.esscene.meta'), meta('55555555-5555-4555-8555-55555555555f', 'scene'));
+    const outDir = path.join(root, 'dist-atlas');
+    const res = await exportGame({
+      root, entryScene: 'scenes/atlas.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES, scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir, title: 'Atlas', platform: 'playable', minify: false,
+      atlasTextures: true,
+    });
+    expect(res.ok).toBe(true);
+    expect(res.warnings.join('\n')).not.toMatch(/atlas/i);
+    const html = readFileSync(path.join(outDir, 'index.html'), 'utf8');
+    const global = (name: string) => {
+      const at = html.indexOf(`window.${name}=`);
+      expect(at, name).toBeGreaterThan(0);
+      const json = html.slice(at + name.length + 8);
+      return JSON.parse(json.slice(0, json.indexOf(';window.'))) as never;
+    };
+    const assets = global('__GAME_ASSETS__') as Record<string, unknown>;
+    const pathMap = global('__GAME_PATHMAP__') as Record<string, string>;
+    const catalog = global('__GAME_CATALOG__') as { entries: Record<string, { atlas: string; buildPath: string; uv: { offset: number[]; scale: number[] } }> };
+    // One page, carried once: one of the two frames owns the bytes and the other points at them.
+    const owners = [`@uuid:${RED}`, `@uuid:${BLUE}`].filter((key) => key in assets);
+    expect(owners).toHaveLength(1);
+    const other = [`@uuid:${RED}`, `@uuid:${BLUE}`].find((key) => key !== owners[0])!;
+    expect(pathMap[other]).toBe(owners[0]);
+    // Each frame, by its ref and by its source path, names the same page and its own place on it.
+    const red = catalog.entries[`@uuid:${RED}`];
+    const blue = catalog.entries[`@uuid:${BLUE}`];
+    expect(red.atlas).toBe(blue.atlas);
+    expect(pathMap[red.buildPath]).toBe(owners[0]);
+    expect(catalog.entries['assets/ui.atlas/red.png']).toEqual(red);
+    expect(red.uv.offset).not.toEqual(blue.uv.offset);
+    for (const frame of [red, blue]) for (const v of frame.uv.scale) expect(v).toBeLessThan(1);
+    // And the host hands the catalog on.
+    expect(inlinedText(html, '__GAME_BUNDLE__')).toContain('__GAME_CATALOG__');
+  }, 60_000);
+
   // A texture recipe is drawn by esengine/image, which the whole entry does not carry: it is imported for the asset that needs
   // it. A playable shipped six recipes and drew its ground and its walls with no texture, with nothing in the build saying so.
   it('imports the module an asset needs and the entry does not carry', async () => {

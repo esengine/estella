@@ -22,6 +22,7 @@ import type { ThemeOverrides } from '../ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
 import { EmbeddedBackend } from '../asset/Backend';
 import { ManifestModel, type AddressableManifest } from '../asset/AddressableManifest';
+import { Catalog, type CatalogData } from '../asset/Catalog';
 import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import type { SceneData } from '../scene/scene';
 import { Audio, setAudioHostSuspended } from '../audio/Audio';
@@ -70,6 +71,8 @@ export interface PlayableRuntimeConfig {
     /** Bitmask of render layers (0..31) that resolve by real depth (2.5D). */
     depthLayers?: number;
     manifest?: AddressableManifest | null;
+    /** Where each atlas-packed frame sits on its page: what makes a packed sprite draw its own frame and not the page. */
+    catalog?: CatalogData;
     /**
      * Draw the first scene out of sight (the canvas hidden) until its shaders have compiled, and show it complete: `quality.prewarmShaders` of a
      * project that also compiles them in the background. The wait is at most `timeoutMs`.
@@ -187,6 +190,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         audioConfig: config.audioConfig,
         runtime: config.runtime,
         aspectRatio: config.canvas.width / config.canvas.height,
+        ...(config.catalog ? { catalog: Catalog.fromJson(config.catalog) } : {}),
     });
 
     const bridge = playableAdBridge();

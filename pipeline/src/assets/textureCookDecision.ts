@@ -68,7 +68,7 @@ export interface TextureCookDecision {
 }
 
 export interface TextureCookInputs {
-  /** The build encodes textures at all (packaging.assetCompression). */
+  /** The build applies texture Import Settings at all (packaging.compressTextures, a box in the Build dialog). */
   readonly compressTextures: boolean;
   /** The build packs `<name>.atlas/` folders. */
   readonly atlasTextures: boolean;

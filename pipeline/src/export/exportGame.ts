@@ -75,7 +75,7 @@ import { assembleDesktopApp } from '../../../build-tools/utils/desktopApp.js';
 import { emitSteamBuild, defaultDepotId } from '../../../build-tools/utils/steamChannel.js';
 import { debugSigningKey, type SigningKey } from '../../../build-tools/utils/androidKeystore.js';
 import { BUILTIN_PLATFORMS, compileTargetFor, isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../project/platforms';
-import type { DesktopPackaging, PlayableReady, ProjectFeatures, ProjectPackaging, SteamPackaging } from '../project/format';
+import type { DesktopPackaging, PlayableReady, ProjectFeatures, ProjectPackaging, SteamPackaging, WebpImages } from '../project/format';
 import type { SizeBudget } from '../project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
 import { checkYouTubeBundle } from './youtubeBundle';
@@ -531,6 +531,8 @@ export interface ExportGameOptions {
   compressAudio?: boolean;
   /** Pack `<name>.atlas/` folder PNGs into atlas pages at cook time. Default off. */
   atlasTextures?: boolean;
+  /** A playable's PNGs as WebP at this encoding. Default off: they ship as PNG. */
+  webpImages?: WebpImages;
   /** Compress the engine binary to `.wasm.br`, where the target's loader takes
    *  one. Default off; ignored by targets that cannot load it. */
   compressWasm?: boolean;
@@ -914,6 +916,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       minifyScripts: opts.minifyScripts,
       resizeTextures: opts.compressTextures,
       compressAudio: opts.compressAudio,
+      atlasTextures: opts.atlasTextures,
+      webpImages: opts.webpImages,
       sizeBudgetBytes: opts.sizeBudgetBytes,
       features: opts.features,
       modulesByPlatform: opts.modulesByPlatform,
