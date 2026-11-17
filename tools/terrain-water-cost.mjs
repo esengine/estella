@@ -26,8 +26,9 @@ import { deflateSync } from 'node:zlib';
 import { serveHost } from './lib/staticServer.mjs';
 import { toolArgs } from './lib/toolArgs.mjs';
 import { ROOT } from './lib/repo.mjs';
+import { cpuSlowdown, slowCpu, slowdownLabel } from './lib/phoneCpu.mjs';
 
-const ARGS = toolArgs({ dir: null, w: '1920', h: '1080', frames: '12', samples: '7', view: '0', only: '', out: null, 'passes-top': '24', shots: '', 'no-export': false, passes: false, detail: false, logs: false, systems: false, probe: false });
+const ARGS = toolArgs({ dir: null, w: '1920', h: '1080', frames: '12', samples: '7', slow: null, view: '0', only: '', out: null, 'passes-top': '24', shots: '', 'no-export': false, passes: false, detail: false, logs: false, systems: false, probe: false });
 const DIR = path.resolve(ARGS.dir ?? path.join(ROOT, 'output', 'tw-export'));
 const W = Number(ARGS.w);
 const H = Number(ARGS.h);
@@ -208,6 +209,7 @@ async function measure(server, original, variant, browser) {
 
   const context = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
   const page = await context.newPage();
+  await slowCpu(page, cpuSlowdown(ARGS.slow));
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e).slice(0, 200)));
   if (ARGS.logs) page.on('console', (m) => { if (['warning', 'error'].includes(m.type())) console.log(`  [${m.type()}] ${m.text().slice(0, 200)}`); });
@@ -315,6 +317,7 @@ try {
     return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unknown';
   });
   await probe.close();
+  console.log(slowdownLabel(cpuSlowdown(ARGS.slow)));
   console.log(`adapter: ${adapter}   ${W}x${H}   view ${VIEW}   ${SAMPLES} samples of ${FRAMES} frames`);
   for (const v of VARIANTS) {
     if (ONLY && !ONLY.has(v.id)) continue;
