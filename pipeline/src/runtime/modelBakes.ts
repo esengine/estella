@@ -7,6 +7,7 @@ import type { BakeAsk, BakeReply } from './modelBakeWorker';
 const MOST_WORKERS = 4;
 const MESH_ONLY_SIZE = 128;
 const PLACEHOLDER_SIZE = 4;
+const READ_BACK_HOLD_MS = 5000;
 const STAGES: readonly [BakeStage, number][] = [['shape', 12], ['start', 6], ['surface', 6], ['shade', 8], ['plan', 10], ['relief', 34], ['occlusion', 6], ['paint', 9], ['finish', 9]];
 const STAGE_TOTAL = STAGES.reduce((sum, [, weight]) => sum + weight, 0);
 const NEUTRAL: Record<ModelMapName, readonly [number, number, number, number]> = {
@@ -60,6 +61,9 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
     const meshes: Promise<Uint8Array>[] = [];
     const maps: Promise<Map<string, Pixels>>[] = [];
     const ready: (Map<string, Pixels> | null)[] = models.map(() => null);
+    const roles: Set<string>[] = models.map(() => new Set());
+    const readBack: (Promise<Map<string, Pixels>> | null)[] = models.map(() => null);
+    let released = false;
     const shown = models.map(() => new Set<string>());
     const took: string[] = [];
     const watchers = new Set<(progress: LoadWorkProgress) => void>();
@@ -116,6 +120,20 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
         workerFor(index).postMessage({ id, model: index, part, text: models[index]!.text, limit } satisfies BakeAsk);
     });
 
+    const mapsOf = (reply: Reply<'maps'>): Map<string, Pixels> => new Map(reply.maps.map((map) => [map.name, { width: map.size, height: map.size, pixels: map.rgba }]));
+    const readAgain = (index: number): Promise<Map<string, Pixels>> => {
+        const held = readBack[index];
+        if (held) return held;
+        const reading = ask<Reply<'maps'>>(index, 'maps').then(mapsOf);
+        readBack[index] = reading;
+        reading.then(() => {
+            setTimeout(() => { if (readBack[index] === reading) readBack[index] = null; }, READ_BACK_HOLD_MS);
+        }, () => {
+            if (readBack[index] === reading) readBack[index] = null;
+        });
+        return reading;
+    };
+
     const begin = (): void => {
         if (started) return;
         started = true;
@@ -124,7 +142,8 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
         for (const index of order) meshes[index] = ask<Reply<'mesh'>>(index, 'shape').then((reply) => reply.mesh);
         for (const index of order) {
             maps[index] = ask<Reply<'maps'>>(index, 'maps').then(async (reply) => {
-                const baked = new Map(reply.maps.map((map) => [map.name, { width: map.size, height: map.size, pixels: map.rgba }]));
+                const baked = mapsOf(reply);
+                for (const name of baked.keys()) roles[index]!.add(name);
                 ready[index] = baked;
                 share[index] = 1;
                 took.push(`${names[index]} at ${((performance.now() - began) / 1000).toFixed(1)}s`);
@@ -133,6 +152,7 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
                 tell();
                 if (refresh) for (const path of shown[index]!) await refresh(path).catch(() => undefined);
                 shown[index]!.clear();
+                if (released) baked.clear();
                 return baked;
             });
         }
@@ -144,6 +164,7 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
     const work: LoadWork = {
         get pending() { return ready.some((done) => done === null); },
         release() {
+            released = true;
             for (const baked of ready) baked?.clear();
         },
         async run(onProgress) {
@@ -183,6 +204,10 @@ export function createModelBakes(file: ModelBakesFile, workerUrl: string, limit:
                 if (baked) {
                     const map = baked.get(hit.role);
                     if (map) return map;
+                    if (released && roles[hit.model]!.has(hit.role)) {
+                        const again = (await readAgain(hit.model)).get(hit.role);
+                        if (again) return again;
+                    }
                     return placeholder(hit.role);
                 }
                 shown[hit.model]!.add(path);
