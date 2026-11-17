@@ -117,6 +117,47 @@ describe('the ident on a mini-game’s display canvas', () => {
         run.stop();
     });
 
+    it('keeps a context the browser takes back early restorable, and the engine waits for it', async () => {
+        const { gl: base, calls } = fakeGl();
+        let lost = false;
+        const gl = new Proxy(base as unknown as Record<string, unknown>, {
+            get: (from, name: string) => (name === 'isContextLost' ? () => lost : from[name]),
+        }) as unknown as WebGL2RenderingContext;
+        const listeners = new Map<string, (event: { preventDefault?(): void }) => void>();
+        const canvas = {
+            width: 8, height: 8, getContext: () => gl,
+            addEventListener: (type: string, fn: (event: { preventDefault?(): void }) => void) => { listeners.set(type, fn); },
+            removeEventListener: (type: string) => { listeners.delete(type); },
+        };
+        const run = startIdent(canvas)!;
+        let prevented = false;
+        lost = true;
+        listeners.get('webglcontextlost')!({ preventDefault: () => { prevented = true; } });
+        expect(prevented).toBe(true);
+        let usable = false;
+        void run.usable().then(() => { usable = true; });
+        await Promise.resolve();
+        expect(usable).toBe(false);
+        const before = calls.filter((c) => c.name === 'drawArrays').length;
+        lost = false;
+        listeners.get('webglcontextrestored')!({});
+        await Promise.resolve();
+        expect(usable).toBe(true);
+        expect(calls.filter((c) => c.name === 'drawArrays').length).toBe(before + 1);
+        run.stop();
+        expect(listeners.size).toBe(0);
+    });
+
+    it('lets the engine take a context that was never lost at once', async () => {
+        const { gl } = fakeGl();
+        const run = startIdent({ width: 8, height: 8, getContext: () => gl })!;
+        let usable = false;
+        void run.usable().then(() => { usable = true; });
+        await Promise.resolve();
+        expect(usable).toBe(true);
+        run.stop();
+    });
+
     it('is skipped, not fatal, on a host with no WebGL2 or one that throws', () => {
         expect(startIdent({ width: 1, height: 1, getContext: () => null })).toBeNull();
         expect(startIdent({ width: 1, height: 1, getContext: () => { throw new Error('no'); } })).toBeNull();
