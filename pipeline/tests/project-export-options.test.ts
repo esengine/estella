@@ -106,6 +106,12 @@ describe('the export a project describes', () => {
     it('resolves a playable\'s ad network', async () => {
         expect((await projectExportOptions(root, manifest, 'playable')).playableAdProfile?.id).toBe('meta');
     });
+
+    it('hands a playable its ready timing, and leaves it unset when the project said nothing', async () => {
+        expect((await projectExportOptions(root, manifest, 'playable')).playableReady).toBeUndefined();
+        const after = parseManifest({ ...manifest, packaging: { ...manifest.packaging, platforms: { ...manifest.packaging?.platforms, playable: { network: 'meta', ready: 'after-ident' } } } });
+        expect((await projectExportOptions(root, after, 'playable')).playableReady).toBe('after-ident');
+    });
 });
 
 describe('an export profile', () => {

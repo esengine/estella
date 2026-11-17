@@ -75,7 +75,7 @@ import { assembleDesktopApp } from '../../../build-tools/utils/desktopApp.js';
 import { emitSteamBuild, defaultDepotId } from '../../../build-tools/utils/steamChannel.js';
 import { debugSigningKey, type SigningKey } from '../../../build-tools/utils/androidKeystore.js';
 import { BUILTIN_PLATFORMS, compileTargetFor, isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../project/platforms';
-import type { DesktopPackaging, ProjectFeatures, ProjectPackaging, SteamPackaging } from '../project/format';
+import type { DesktopPackaging, PlayableReady, ProjectFeatures, ProjectPackaging, SteamPackaging } from '../project/format';
 import type { SizeBudget } from '../project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
 import { checkYouTubeBundle } from './youtubeBundle';
@@ -542,6 +542,7 @@ export interface ExportGameOptions {
   /** The ad network a playable targets (`packaging.platforms.playable.network`),
    *  resolved by the caller since a project can define its own. Absent ⇒ generic. */
   playableAdProfile?: PlayableAdProfile;
+  playableReady?: PlayableReady;
 
   /** What the project says about its engine modules (`ProjectFeatures.modules`).
    *  Absent ⇒ every module is `auto`, which is what detection alone gives. */
@@ -918,6 +919,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       modulesByPlatform: opts.modulesByPlatform,
       runtime,
       adProfile: opts.playableAdProfile,
+      ready: opts.playableReady,
       ident: opts.splash?.ident !== false,
       onProgress: opts.onProgress,
     });

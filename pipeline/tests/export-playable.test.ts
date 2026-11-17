@@ -267,6 +267,16 @@ describe('exportGame (playable)', () => {
     expect(html).toContain(splashScript());
     expect(html.indexOf('id="es-splash"')).toBeLessThan(html.indexOf('<script>'));
     expect(inlinedText(html, '__GAME_BUNDLE__')).toContain('es-splash-gone');
+    expect(html).not.toContain('__GAME_READY__');
+    const afterIdent = path.join(root, 'dist-tiled-ready');
+    expect((await exportGame({
+      root, entryScene: 'scenes/tiled.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES, scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir: afterIdent, title: 'Tiled', platform: 'playable', minify: false,
+      playableReady: 'after-ident',
+    })).ok).toBe(true);
+    const later = readFileSync(path.join(afterIdent, 'index.html'), 'utf8');
+    expect(later).toContain('window.__GAME_READY__="after-ident";');
+    expect(inlinedText(later, '__GAME_BUNDLE__')).toContain('readyAfter');
   }, 60_000);
 
   // A texture recipe is drawn by esengine/image, which the whole entry does not carry: it is imported for the asset that needs

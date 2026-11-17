@@ -40,6 +40,7 @@ declare const __GAME_PATHMAP__: Record<string, string>;
 declare const __GAME_MANIFEST__: Parameters<typeof initPlayableRuntime>[0]['manifest'];
 declare const __GAME_SCENES__: PackedBytes;
 declare const __GAME_FIRST__: string;
+declare const __GAME_READY__: 'after-ident' | undefined;
 declare const __GAME_MODEL_BAKES__: PackedBytes | undefined;
 declare const __GAME_BAKE_WORKER__: PackedBytes | undefined;
 /** The project's settings, in the same shape game.config.json carries them —
@@ -228,6 +229,7 @@ async function boot(): Promise<void> {
     ...(runtimeConfig.quality?.asyncShaderCompile && runtimeConfig.quality.prewarmShaders
       ? { prewarmShaders: { timeoutMs: runtimeConfig.quality.prewarmTimeoutMs, onProgress: warming } } : {}),
     onBeforeRun: () => { clearInterval(loading); splash.reach('assets'); splash.reach('ready'); splash.done(); },
+    ...(typeof __GAME_READY__ !== 'undefined' && __GAME_READY__ === 'after-ident' ? { readyAfter: splash.gone() } : {}),
     // Everything the config APPLIES to a live app: physics, the mixer, the theme.
     ...packagedRuntimeInit(runtimeConfig),
   });

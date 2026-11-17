@@ -165,6 +165,30 @@ describe('the engine’s ident on the start screen', () => {
     expect(flag()).toBe(true);
   });
 
+  it('says at once that no ident is covering the game when the start screen carries none, and waits for one that does', async () => {
+    const flag = (): unknown => (globalThis as Record<string, unknown>).__estellaIdentDone;
+    await new Promise((r) => setTimeout(r, 500));
+    document.body.innerHTML = splashHtml('My Game', { engineMark: false });
+    const plain = attachSplash(document);
+    expect(flag()).toBe(true);
+    let plainGone = false;
+    void plain.gone().then(() => { plainGone = true; });
+    await Promise.resolve();
+    expect(plainGone).toBe(true);
+    const until = Math.round(performance.now()) + 40;
+    document.body.innerHTML = `<div id="es-splash" data-ident-ms="${until}"><div class="es-splash-track"><div id="es-splash-bar"></div></div><div id="es-splash-label"></div></div>`;
+    const marked = attachSplash(document);
+    expect(flag()).toBe(false);
+    let markedGone = false;
+    void marked.gone().then(() => { markedGone = true; });
+    marked.done();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(markedGone).toBe(false);
+    await new Promise((r) => setTimeout(r, 420));
+    expect(markedGone).toBe(true);
+    expect(flag()).toBe(true);
+  });
+
   it('carries exactly the script its policy is given the hash of', () => {
     const carried = /<script>([\s\S]*)<\/script>$/.exec(splashHtml('My Game'))![1];
     expect(carried).toBe(splashScript());

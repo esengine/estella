@@ -8424,6 +8424,7 @@ physics3dWorld: Partial<Physics3DWorldConfig> | undefined
 physicsConfig: Physics2DPluginConfig | undefined
 physicsEnabled: boolean | undefined
 prewarmShaders: { timeoutMs?: number; onProgress?: (pending: number, making: number) => void; } | undefined
+readyAfter: Promise<void> | undefined
 runtime: RuntimeBuildConfig | undefined
 scenes: { name: string; data: SceneData; }[]
 serve: ((source: RuntimeAssetSource) => RuntimeAssetSource) | undefined

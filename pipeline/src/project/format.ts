@@ -358,7 +358,8 @@ export interface IosPackaging { appId?: string; }
  *  `.esengine/platforms/<id>.mjs` with `kind: 'playable'` — which decides the size
  *  cap, the `<head>` markup, and the API `playableCta()` calls. Absent ⇒ generic
  *  (no network API, strictest cap). */
-export interface PlayablePackaging { network?: string; }
+export type PlayableReady = 'start' | 'after-ident';
+export interface PlayablePackaging { network?: string; ready?: PlayableReady; }
 
 /** A packaging target — defined in `./platforms`, where the built-in vocabulary
  *  lives, and re-exported here because the manifest is what persists it. */
@@ -1146,6 +1147,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
         }
         const p: PlayablePackaging = {};
         if (typeof pa.network === 'string' && pa.network !== '') p.network = pa.network;
+        if (pa.ready === 'start' || pa.ready === 'after-ident') p.ready = pa.ready;
         if (Object.keys(p).length > 0) platforms.playable = p;
       }
       if (Object.keys(platforms).length > 0) pkg.platforms = platforms;

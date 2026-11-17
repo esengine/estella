@@ -123,6 +123,7 @@ export interface Splash {
   within(stage: BootStage, fraction: number): void;
   /** The boot is in a stretch nothing measures: the track shows it is alive, and the label says `says` if given. */
   busy(says?: string): void;
+  gone(): Promise<void>;
   /** Fade out and remove. Safe to call twice. */
   done(): void;
 }
@@ -155,7 +156,14 @@ export function attachSplash(doc: Document = document, weights: Partial<Record<B
   const headless = /[?&]headless/.test(doc.defaultView?.location.search ?? '');
   const sincePage = typeof performance !== 'undefined' ? performance.now() : 0;
   const showUntil = Date.now() + Math.max(Number(root?.getAttribute('data-min-ms') ?? 0), headless ? 0 : Number(root?.getAttribute('data-ident-ms') ?? 0) - sincePage);
-  markIdentDone(!root);
+  let removed = !root?.hasAttribute('data-ident-ms');
+  markIdentDone(removed);
+  const waiting: (() => void)[] = [];
+  const leave = (): void => {
+    removed = true;
+    markIdentDone(true);
+    for (const resolve of waiting.splice(0)) resolve();
+  };
   let done = 0;
   /** What the bar is showing, so a partial step never pulls it back. */
   let shown = 0;
@@ -166,9 +174,9 @@ export function attachSplash(doc: Document = document, weights: Partial<Record<B
     if (view) view.dispatchEvent(new view.CustomEvent(type, { detail }));
   };
   const fade = (): void => {
-    if (!root?.isConnected) { markIdentDone(true); return; }
+    if (!root?.isConnected) { leave(); return; }
     root.classList.add('es-splash-gone');
-    setTimeout(() => { root.remove(); markIdentDone(true); }, 400);
+    setTimeout(() => { root.remove(); leave(); }, 400);
   };
   /** Never backwards. Answers whether the bar actually moved a whole percent,
    *  which is the only movement worth telling a portal's own screen about. */
@@ -206,6 +214,9 @@ export function attachSplash(doc: Document = document, weights: Partial<Record<B
       if (finished || !root) return;
       root.classList.add('es-splash-busy');
       if (label && says && label.textContent !== `${says}…`) label.textContent = `${says}…`;
+    },
+    gone() {
+      return removed ? Promise.resolve() : new Promise((resolve) => { waiting.push(resolve); });
     },
     done() {
       if (finished) return;

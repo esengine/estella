@@ -49,7 +49,7 @@ import { LEAN_ENTRY_FILE, FULL_ENTRY_FILE } from '../bundle/importMap';
 import { contentSubsystems } from './contentSubsystems';
 import { scriptsMentionSkeletal } from './liteEngine';
 import { textureImportSettingsFrom, type ParsedTextureImportSettings } from '../../../sdk/src/asset/textureImportSettings';
-import type { ModuleChoice, ProjectFeatures, ProjectPackaging } from '../project/format';
+import type { ModuleChoice, PlayableReady, ProjectFeatures, ProjectPackaging } from '../project/format';
 import { PAGE_BACKGROUND, splashCss, splashHtml, splashScript } from './splash';
 
 export interface ExportPlayableResult {
@@ -260,6 +260,7 @@ export async function exportPlayable(opts: {
    *  its size cap, its `<head>` markup and its click-through API. Absent ⇒ generic. */
   adProfile?: PlayableAdProfile;
   ident?: boolean;
+  ready?: PlayableReady;
   onProgress?: OnExportProgress;
 }): Promise<ExportPlayableResult> {
   const title = opts.title ?? 'Game';
@@ -475,6 +476,7 @@ export async function exportPlayable(opts: {
       : '') +
     span(`scenes/${sceneName}.json`, `window.__GAME_SCENES__=${JSON.stringify(pack(Buffer.from(JSON.stringify(scenes), 'utf8')))};`) +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};` +
+    (opts.ready === 'after-ident' ? 'window.__GAME_READY__="after-ident";' : '') +
     `window.__GAME_RUNTIME__=${JSON.stringify(playableRuntimeFields(withAudioLoadTypes(opts.runtime ?? DEFAULT_RUNTIME_CONFIG, cook.audioLoadTypes, cook.audioEncoded)))};` +
     (modelBakes && bakeWorker ? span('model-bakes', `window.__GAME_MODEL_BAKES__=${JSON.stringify(pack(Buffer.from(JSON.stringify(modelBakes), 'utf8')))};window.__GAME_BAKE_WORKER__=${JSON.stringify(pack(Buffer.from(bakeWorker, 'utf8')))};`) : '') +
     span('game-bundle.js', `window.__GAME_BUNDLE__=${JSON.stringify(pack(Buffer.from(bundle, 'utf8')))};`);
