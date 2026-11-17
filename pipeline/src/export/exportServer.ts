@@ -219,7 +219,7 @@ export async function exportServer(opts: ServerExportOptions, esbuild: Esbuild):
   if (!existsSync(session)) throw new Error(`the SDK is not built (${session} is missing): build it first (pnpm --dir sdk run build)`);
 
   // The folder is the server's: what an earlier export left (a stale bundle, a removed file) does not ride along.
-  for (const name of ['server.mjs', 'server.mjs.map', 'deploy']) rmSync(path.join(opts.outDir, name), { recursive: true, force: true });
+  for (const name of ['server.mjs', 'server.mjs.map', 'deploy']) rmSync(path.join(opts.outDir, name), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   mkdirSync(path.join(opts.outDir, 'deploy'), { recursive: true });
 
   const bundle = path.join(opts.outDir, 'server.mjs');
@@ -248,7 +248,7 @@ export async function exportServer(opts: ServerExportOptions, esbuild: Esbuild):
   const files = ['server.mjs', 'server.mjs.map'];
   // The engine runs in the server when its headless build is in the bundle; a server of sessions alone carries no wasm.
   const engine = Object.keys(result.metafile?.inputs ?? {}).some((input) => path.resolve(input) === path.resolve(nodeSdk));
-  rmSync(path.join(opts.outDir, 'wasm'), { recursive: true, force: true });
+  rmSync(path.join(opts.outDir, 'wasm'), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   if (engine) {
     if (!opts.wasmDir || !existsSync(path.join(opts.wasmDir, 'esengine.wasm'))) {
       throw new Error(`the server runs the engine, and there is no engine build at ${opts.wasmDir ?? '(none given)'}: build it, or pass --wasm <dir>`);
