@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { applySkyStill } from './skyStill';
 import { isCustomSky } from './customSky';
-import type { BuiltinTexture } from './effects';
+import type { BuiltinTexture, EffectCategory } from './effects';
 import { defineSystem } from '../ecs/system';
 import type { App } from '../app/app';
 import { EditorView, editorViewEye } from '../camera/EditorView';
@@ -191,7 +191,7 @@ export function withTemporalAntialiasing(api: PostProcessAPI, effects: ResolvedE
     const out: ResolvedEffects = new Map();
     let placed = false;
     for (const [type, data] of effects) {
-        if (!placed && type === 'autoExposure') {
+        if (!placed && AFTER_TEMPORAL.has(getEffectDef(type)?.category as EffectCategory)) {
             out.set('taa', taa);
             placed = true;
         }
@@ -200,6 +200,8 @@ export function withTemporalAntialiasing(api: PostProcessAPI, effects: ResolvedE
     if (!placed) out.set('taa', taa);
     return out;
 }
+
+const AFTER_TEMPORAL: ReadonlySet<EffectCategory> = new Set(['lens', 'color', 'stylize']);
 
 /**
  * The effects with the dynamic GI set to its cheaper way, where the quality level in force asks for it (see `QualityProfile.dynamicGIReduced`).

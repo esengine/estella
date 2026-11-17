@@ -39,6 +39,17 @@ describe('the temporal smoothing a level asks for', () => {
         const listed = new Map([['taa', { enabled: true, uniforms: new Map(), textures: new Map(), colors: new Map() }]]);
         expect(withTemporalAntialiasing(asking, listed, false).has('taa')).toBe(true);
     });
+
+    it('goes after the lighting and the fog and before the bloom, the grading and the grain', () => {
+        const effect = { enabled: true, uniforms: new Map(), textures: new Map(), colors: new Map() };
+        const chain = new Map(['nebula', 'starfield', 'ssao', 'bloom', 'colorGrade', 'sharpen', 'filmGrain', 'vignette'].map((type) => [type, effect]));
+        expect([...withTemporalAntialiasing(asking, chain, true).keys()])
+            .toEqual(['nebula', 'starfield', 'ssao', 'taa', 'bloom', 'colorGrade', 'sharpen', 'filmGrain', 'vignette']);
+        const exposed = new Map(['ssao', 'distanceFog', 'autoExposure', 'tonemap'].map((type) => [type, effect]));
+        expect([...withTemporalAntialiasing(asking, exposed, true).keys()]).toEqual(['ssao', 'distanceFog', 'taa', 'autoExposure', 'tonemap']);
+        const lit = new Map(['ssao', 'heightFog'].map((type) => [type, effect]));
+        expect([...withTemporalAntialiasing(asking, lit, true).keys()]).toEqual(['ssao', 'heightFog', 'taa']);
+    });
 });
 
 describe('the cheaper dynamic GI a level asks for', () => {
