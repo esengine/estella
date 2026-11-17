@@ -351,6 +351,7 @@ private:
     u32 bound_vao_ = 0;
     /// WEBGL_multi_draw is enabled: a run of mesh draws is one call, and mesh programs read their entry by gl_DrawID.
     bool multi_draw_ = false;
+    bool loop_floor_ = false;
     std::vector<i32> multi_counts_, multi_instances_;
     std::vector<const void*> multi_offsets_;
 

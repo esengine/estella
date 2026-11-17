@@ -344,6 +344,10 @@ public:
      */
     static std::vector<std::string> splitFeatures(const std::string& csv);
 
+    static std::vector<std::string> featuresRead(const ParsedShader& parsed,
+                                                 const std::vector<std::string>& features,
+                                                 ShaderTargetLanguage target = ShaderTargetLanguage::GLSL_ES300);
+
     /**
      * @brief Process-global color-space mode. When linear, every assembled
      *        stage compiles with ES_LINEAR defined (GLSL #define / WGSL

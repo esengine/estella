@@ -13,6 +13,7 @@
 
 #include "./GLDevice.hpp"
 #include "./OpenGLHeaders.hpp"
+#include "./GlslLoopFloor.hpp"
 #include "../../core/Log.hpp"
 #include "../store/InstanceConstants.hpp"
 
@@ -360,6 +361,7 @@ void GLDevice::captureDeviceIdentity() {
         if (r && *r) renderer = r;
     }
 #endif
+    loop_floor_ = renderer.find("Direct3D") != std::string::npos;
     // Asked while the answer still exists: glGetString returns null on a lost
     // context, so a report assembled after the loss would name no driver.
     setDeviceIdentity("WebGL2", std::move(vendor), std::move(renderer),
@@ -742,8 +744,10 @@ bool GLDevice::backendCreateProgram(u32 id, const GfxShaderSource& source,
         ES_LOG_ERROR("GLDevice::createProgram: unsupported shader language");
         return false;
     }
-    const char* vertexSrc = source.vertexSrc;
-    const char* fragmentSrc = source.fragmentSrc;
+    const std::string flooredVertex = loop_floor_ ? gfx::floorConstantLoops(source.vertexSrc) : std::string();
+    const std::string flooredFragment = loop_floor_ ? gfx::floorConstantLoops(source.fragmentSrc) : std::string();
+    const char* vertexSrc = loop_floor_ ? flooredVertex.c_str() : source.vertexSrc;
+    const char* fragmentSrc = loop_floor_ ? flooredFragment.c_str() : source.fragmentSrc;
     const auto createStart = std::chrono::steady_clock::now();
     auto setFailure = [&](GfxShaderStage stage, std::string&& log) {
         if (outLog) *outLog = std::move(log);
@@ -1049,7 +1053,7 @@ std::vector<GfxUniformInfo> GLDevice::backendActiveUniforms(u32 program) {
                            &size, &type, nameBuf.data());
 
         std::string name(nameBuf.data(), static_cast<size_t>(nameLen));
-        // Strip "[0]" suffix so callers look up arrays by their declared name.
+        if (name == gfx::kLoopFloorUniform) continue;
         const auto bracket = name.find('[');
         if (bracket != std::string::npos) {
             name.erase(bracket);
