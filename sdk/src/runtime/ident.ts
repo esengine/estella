@@ -17,36 +17,12 @@ export interface IdentRun {
     stop(): void;
 }
 
-const SWITCHES = ['BLEND', 'DEPTH_TEST', 'STENCIL_TEST', 'SCISSOR_TEST', 'CULL_FACE', 'RASTERIZER_DISCARD'] as const;
-
-function keepState(gl: WebGL2RenderingContext): () => void {
-    const program = gl.getParameter(gl.CURRENT_PROGRAM) as WebGLProgram | null;
-    const vertices = gl.getParameter(gl.VERTEX_ARRAY_BINDING) as WebGLVertexArrayObject | null;
-    const array = gl.getParameter(gl.ARRAY_BUFFER_BINDING) as WebGLBuffer | null;
-    const read = gl.getParameter(gl.READ_FRAMEBUFFER_BINDING) as WebGLFramebuffer | null;
-    const target = gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING) as WebGLFramebuffer | null;
-    const viewport = gl.getParameter(gl.VIEWPORT) as Int32Array | null;
-    const mask = gl.getParameter(gl.COLOR_WRITEMASK) as boolean[] | null;
-    const on = SWITCHES.map((name) => gl.isEnabled(gl[name]));
-    return () => {
-        SWITCHES.forEach((name, i) => { if (on[i]) gl.enable(gl[name]); else gl.disable(gl[name]); });
-        if (mask) gl.colorMask(mask[0]!, mask[1]!, mask[2]!, mask[3]!);
-        if (viewport) gl.viewport(viewport[0]!, viewport[1]!, viewport[2]!, viewport[3]!);
-        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, read);
-        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, target);
-        gl.bindBuffer(gl.ARRAY_BUFFER, array);
-        gl.bindVertexArray(vertices);
-        gl.useProgram(program);
-    };
-}
-
 export function playIdent(
     gl: WebGL2RenderingContext,
     size: () => { width: number; height: number },
     frame: (step: () => void) => void,
     now: () => number = () => performance.now(),
 ): IdentRun | null {
-    const restore = keepState(gl);
     const program = gl.createProgram();
     const shaders = [[gl.VERTEX_SHADER, IDENT_VERTEX], [gl.FRAGMENT_SHADER, IDENT_FRAGMENT]].map(([type, source]) => {
         const shader = gl.createShader(type as number);
@@ -59,45 +35,38 @@ export function playIdent(
     });
     const buffer = gl.createBuffer(), corners = gl.createVertexArray();
     const drop = (): void => {
+        gl.bindVertexArray(null);
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        gl.useProgram(null);
         for (const shader of shaders) gl.deleteShader(shader);
         gl.deleteProgram(program);
         gl.deleteBuffer(buffer);
         gl.deleteVertexArray(corners);
     };
-    if (!program || !buffer || !corners) { drop(); restore(); return null; }
+    if (!program || !buffer || !corners) { drop(); return null; }
     gl.bindAttribLocation(program, 0, 'a');
     gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) { drop(); restore(); return null; }
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) { drop(); return null; }
     gl.bindVertexArray(corners);
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     const extent = gl.getUniformLocation(program, 'r'), clock = gl.getUniformLocation(program, 't');
-    restore();
     const began = now();
     let stopped = false;
     const draw = (): void => {
         if (stopped) return;
-        const back = keepState(gl);
         const { width, height } = size();
-        for (const name of SWITCHES) gl.disable(gl[name]);
-        gl.colorMask(true, true, true, true);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, width, height);
         gl.useProgram(program);
         gl.bindVertexArray(corners);
         gl.uniform2f(extent, width, height);
         gl.uniform1f(clock, (now() - began) / 1000);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
-        back();
+        frame(draw);
     };
-    const loop = (): void => {
-        if (stopped) return;
-        draw();
-        frame(loop);
-    };
-    loop();
+    draw();
     return {
         finished: new Promise((resolve) => { setTimeout(resolve, IDENT_SECONDS * 1000); }),
         stop() {
