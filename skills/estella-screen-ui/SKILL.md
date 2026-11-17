@@ -15,6 +15,13 @@ Place a node with its `UINode` (size, insets, flex), never with its Transform.
 World UI (a nameplate over a unit) is the opposite: a Canvas parented under something in the world, or a Text with no
 UINode, placed by Transform. Do not mix the two.
 
+## Order and the pieces every node needs
+
+- UI draws in **tree order**: a later sibling draws over an earlier one, a child over its parent. A background panel is the
+  parent of what sits on it (or an earlier sibling); made as a later sibling, it covers the text it was meant to sit under.
+- Every UI node needs a `Transform` as well as its `UINode`: the layout writes its placement there, and a node made without
+  one draws in the wrong place.
+
 ## The pieces
 
 - `Canvas` on the root: `designResolution` (e.g. 1920x1080) and `scaleMode` decide how the box fits the window.
