@@ -49,6 +49,7 @@ import { LEAN_ENTRY_FILE, FULL_ENTRY_FILE } from '../bundle/importMap';
 import { contentSubsystems } from './contentSubsystems';
 import { scriptsMentionSkeletal } from './liteEngine';
 import { textureImportSettingsFrom, type ParsedTextureImportSettings } from '../../../sdk/src/asset/textureImportSettings';
+import { atlasCatalogFields, type CatalogData, type CatalogEntry, type CookedAtlasInfo } from '../../../sdk/src/asset/Catalog';
 import type { ModuleChoice, ProjectFeatures, ProjectPackaging, WebpImages } from '../project/format';
 import { PAGE_BACKGROUND, splashCss, splashHtml, splashScript } from './splash';
 
@@ -247,6 +248,8 @@ export async function exportPlayable(opts: {
   resizeTextures?: boolean;
   /** WAV to MP3 at the authored bitrate, honoring each clip's compression opt-out. */
   compressAudio?: boolean;
+  /** Pack each `<name>.atlas/` folder into pages, inlined once each, with every frame's place on its page for the runtime. */
+  atlasTextures?: boolean;
   /** The PNGs as WebP at this encoding; absent, they ship as PNG. */
   webpImages?: WebpImages;
   /** Project delivery budget, constrained by the network limit and 3 MiB regression target. Reported against, never acted on. */
@@ -285,7 +288,7 @@ export async function exportPlayable(opts: {
   // uses the same per-clip settings as other targets. Neither changes sources.
   const cook = await cookAssets(opts.root, {
     entryScenes: sceneList.map((scene) => scene.path), outDir: cookDir, platform: 'playable',
-    resizeTextures: opts.resizeTextures, compressAudio: opts.compressAudio, modelRecipes: true,
+    resizeTextures: opts.resizeTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, modelRecipes: true,
   });
   let modelBakes: ModelBakesFile | null = null;
   const baked = new Map<string, { model: number; role: string }>();
@@ -309,15 +312,15 @@ export async function exportPlayable(opts: {
   let manifestEntries: CookManifest['entries'] = [];
   // How each texture is sampled and sliced, as its .meta says: the one thing of the manifest a single file needs. Without it every
   // texture of a playable took the defaults, so a ground whose layers repeat drew one copy of each and smeared its edge over the rest.
-  const textureImports: Record<string, { path: string; type: 'texture'; size: number; labels: string[]; textureImport: ParsedTextureImportSettings }> = {};
+  const textureImports: Record<string, { path: string; address?: string; type: 'texture'; size: number; labels: string[]; textureImport: ParsedTextureImportSettings }> = {};
+  // Atlas frames: where each sits on its page, by every spelling a load uses (its `@uuid:`, its source path), the way the
+  // web build's catalog has them. A page is inlined once, under its first frame's key; every other frame of it points
+  // there through the path map, so a page of twenty sprites costs one image, not twenty copies of it.
+  const atlasEntries: Record<string, CatalogEntry> = {};
+  const pageKeys = new Map<string, string>();
   try {
     const manifest = JSON.parse(await readFile(path.join(cookDir, 'assets.manifest.json'), 'utf8')) as CookManifest;
     manifestEntries = manifest.entries;
-    // Playable has no runtime catalog channel yet, so atlas frame/uv metadata
-    // cannot reach the sprites — a packed texture would render its whole page.
-    if (manifest.entries.some((e) => (e as { atlas?: unknown }).atlas)) {
-      warnings.push('cook produced atlas-packed textures, which the playable runtime cannot consume yet — export without atlasTextures for playables.');
-    }
     for (const e of manifest.entries) {
       const key = `@uuid:${e.uuid}`;
       const left = baked.get(e.path);
@@ -328,9 +331,25 @@ export async function exportPlayable(opts: {
         continue;
       }
       if ((e as { type?: string }).type === 'scene' && sceneList.some((scene) => scene.path === (e.sourcePath ?? e.path))) continue;
+      const atlas = (e as { atlas?: CookedAtlasInfo }).atlas;
+      if (atlas) {
+        const logical = e.sourcePath ?? e.path;
+        const frame: CatalogEntry = { type: 'texture', buildPath: e.path, ...atlasCatalogFields(atlas, e.path) };
+        for (const spelling of [key, logical, `/${logical}`]) atlasEntries[spelling] = frame;
+        const textureImport = textureImportSettingsFrom((e as { importer?: Record<string, unknown> }).importer);
+        if (textureImport) textureImports[e.uuid.toLowerCase()] = { path: e.path, address: logical, type: 'texture', size: 0, labels: [], textureImport };
+        const page = pageKeys.get(e.path);
+        if (page) {
+          pathMap[logical] = page;
+          pathMap[key] = page;
+          continue;
+        }
+        pageKeys.set(e.path, key);
+        pathMap[e.path] = key;
+      }
       const buf = await readFile(path.join(cookDir, e.path));
       const textureImport = textureImportSettingsFrom((e as { importer?: Record<string, unknown> }).importer);
-      if (textureImport) textureImports[e.uuid.toLowerCase()] = { path: e.sourcePath ?? e.path, type: 'texture', size: 0, labels: [], textureImport };
+      if (textureImport && !atlas) textureImports[e.uuid.toLowerCase()] = { path: e.sourcePath ?? e.path, type: 'texture', size: 0, labels: [], textureImport };
       const dataUrl = `data:${mimeOf(e.path)};base64,${buf.toString('base64')}`;
       pathMap[e.sourcePath ?? e.path] = key;
       // The data URL, not the file: base64 is what the asset costs the package.
@@ -473,6 +492,9 @@ export async function exportPlayable(opts: {
     `window.__GAME_PATHMAP__=${JSON.stringify(pathMap)};` +
     (Object.keys(textureImports).length > 0
       ? `window.__GAME_MANIFEST__=${JSON.stringify({ version: '2.0', groups: { main: { bundleMode: 'local', labels: [], assets: textureImports } } })};`
+      : '') +
+    (Object.keys(atlasEntries).length > 0
+      ? `window.__GAME_CATALOG__=${JSON.stringify({ version: 1, entries: atlasEntries } satisfies CatalogData)};`
       : '') +
     span(`scenes/${sceneName}.json`, `window.__GAME_SCENES__=${JSON.stringify(pack(Buffer.from(JSON.stringify(scenes), 'utf8')))};`) +
     `window.__GAME_FIRST__=${JSON.stringify(sceneName)};` +
