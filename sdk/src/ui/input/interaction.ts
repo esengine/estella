@@ -22,6 +22,7 @@ import { pointerToScreen } from '../util/math';
 import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
 import { platformDevicePixelRatio } from '../../platform';
 import { ensureComponent, walkParentChain } from '../util/helpers';
+import { worldEngineApi } from '../../ecs/bridge/engineApi';
 import { UILayoutGeneration } from '../layout/ui-layout-generation';
 import { UiPointerBook, UiPointerHitCache, uiPointersOf, MOUSE_POINTER, type UiPointerSample } from './pointerBook';
 import { fireGestureClick, expireGestureFired } from './gestureClick';
@@ -135,6 +136,9 @@ export class UIInteractionPlugin implements Plugin {
         });
 
         let ensuredAtVersion = -1;
+        const flagged = new Set<Entity>();
+        const edged = new Set<Entity>();
+        const touched = new Set<Entity>();
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input), Res(UICameraInfo), Res(ScreenOverlay), Res(UILayoutGeneration)],
             (input: InputState, camera: UICameraData, overlay: ScreenOverlayData,
@@ -153,8 +157,8 @@ export class UIInteractionPlugin implements Plugin {
                     }
                 }
 
-                const interactionEntities = world.getEntitiesWithComponents([UIInteraction]);
-                for (const entity of interactionEntities) {
+                for (const entity of edged) {
+                    if (!world.valid(entity) || !world.has(entity, UIInteraction)) continue;
                     const interaction = world.get(entity, UIInteraction) as UIInteractionData;
                     if (interaction.justPressed || interaction.justReleased) {
                         interaction.justPressed = false;
@@ -162,6 +166,7 @@ export class UIInteractionPlugin implements Plugin {
                         world.set(entity, UIInteraction, interaction);
                     }
                 }
+                edged.clear();
 
                 // Either domain is enough to be pointing AT something: a scene
                 // with no camera still has a screen, and a HUD on it is still
@@ -173,6 +178,18 @@ export class UIInteractionPlugin implements Plugin {
                 lastHit.retain(pointers);
                 const layoutChanged = layoutGen.generation !== lastLayoutGen;
                 lastLayoutGen = layoutGen.generation;
+                let geometryChanged: boolean | null = null;
+                const geometryMoved = (): boolean => {
+                    if (geometryChanged === null) {
+                        world.flushEngineStamps();
+                        const registry = world.getCppRegistry();
+                        const inputsChanged = registry
+                            ? worldEngineApi(world)?.uiHitTest_inputsChanged?.(registry) ?? true
+                            : true;
+                        geometryChanged = layoutChanged || inputsChanged;
+                    }
+                    return geometryChanged;
+                };
                 const worldVersion = world.getWorldVersion();
                 // A write between frames may carry the previous frame's tick;
                 // overlap one tick so stationary pointers see enable/disable.
@@ -208,15 +225,17 @@ export class UIInteractionPlugin implements Plugin {
                     const cached = lastHit.get(pointer.id);
                     const edge = pointer.pressed || pointer.released;
                     const settled = cached !== undefined
-                        && cached.x === layoutPointer.x && cached.y === layoutPointer.y;
+                        && cached.x === layoutPointer.x && cached.y === layoutPointer.y
+                        && cached.worldX === worldPointer.x && cached.worldY === worldPointer.y;
                     let entity: Entity | null;
-                    if (settled && !layoutChanged && !worldChanged && !edge
+                    if (settled && !worldChanged && !edge && !geometryMoved()
                         && (cached.entity === null || eligible(cached.entity))) {
                         entity = cached.entity;
                     } else {
                         entity = uiHitAtScreen(world, camera, overlay, glX, glY);
                         if (entity !== null && !eligible(entity)) entity = null;
-                        lastHit.set(pointer.id, { x: layoutPointer.x, y: layoutPointer.y, entity });
+                        lastHit.set(pointer.id, { x: layoutPointer.x, y: layoutPointer.y,
+                            worldX: worldPointer.x, worldY: worldPointer.y, entity });
                     }
                     if (entity !== null) overUI = true;
                     return entity;
@@ -279,10 +298,16 @@ export class UIInteractionPlugin implements Plugin {
                 // any pointer is over or holding it, false once none is.
                 const hovered = book.hovered;
                 const pressed = book.pressed;
-                const touched = new Set<Entity>([...interactionEntities, ...hovered, ...pressed, ...wasPressed, ...wasHovered]);
+                touched.clear();
+                for (const set of [flagged, hovered, pressed, wasPressed, wasHovered]) {
+                    for (const entity of set) touched.add(entity);
+                }
                 for (const event of pointerEvents) touched.add(event.entity);
                 for (const entity of touched) {
-                    if (!world.valid(entity) || !world.has(entity, UIInteraction)) continue;
+                    if (!world.valid(entity) || !world.has(entity, UIInteraction)) {
+                        flagged.delete(entity);
+                        continue;
+                    }
                     const data = world.get(entity, UIInteraction) as UIInteractionData;
                     const isActive = active(entity);
                     const isHovered = isActive && hovered.has(entity);
@@ -290,6 +315,9 @@ export class UIInteractionPlugin implements Plugin {
                     const justPressed = isActive && (data.justPressed || (isPressed && !wasPressed.has(entity)));
                     const justReleased = isActive && (data.justReleased
                         || (!isPressed && wasPressed.has(entity) && !book.cancelled.has(entity)));
+                    if (isHovered || isPressed || justPressed || justReleased) flagged.add(entity);
+                    else flagged.delete(entity);
+                    if (justPressed || justReleased) edged.add(entity);
                     if (data.hovered === isHovered && data.pressed === isPressed
                         && data.justPressed === justPressed && data.justReleased === justReleased) continue;
                     data.hovered = isHovered;

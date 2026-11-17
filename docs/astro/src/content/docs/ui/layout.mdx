@@ -249,9 +249,12 @@ hand-tuned axis still reads — and can keep — the other.
 
 The layout runs in `PreUpdate` (before your `Update` systems) and re-solves in
 `PostUpdate` after scroll/list mutations, so gameplay systems always see
-current geometry. Each solve increments the **`UILayoutGeneration`** resource —
-a monotonic counter you can watch to invalidate anything you cache off computed
-UI geometry (the built-in pointer hit-testing uses it exactly this way):
+current geometry. Each pass that solves the layout or moves the screen roots
+increments the **`UILayoutGeneration`** resource — a monotonic counter you can
+watch to invalidate anything you cache off computed UI geometry; a frame where
+nothing was laid out leaves it as it was. The built-in pointer hit-testing uses it
+this way, beside the change ticks of what layout does not move (an
+`Interactable`'s own `Transform`, a mask, a Canvas):
 
 ```typescript
 import { defineSystem, Res, UILayoutGeneration } from 'esengine';

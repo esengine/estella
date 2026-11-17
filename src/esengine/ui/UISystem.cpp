@@ -16,6 +16,8 @@
 #include "../ecs/components/UIVisual.hpp"
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/ContentRect.hpp"
+#include "../ecs/components/Canvas.hpp"
+#include "../ecs/components/UIMask.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/MeshRenderer.hpp"
 #include "../resource/ResourceManager.hpp"
@@ -83,6 +85,35 @@ void UISystem::hitTestUpdate(Registry& registry, const PickRay& worldRay, const 
 
     // World content is world content: the screen has no sprites or meshes in it.
     hitWorldContent(registry, worldRay, resources);
+}
+
+bool UISystem::hitInputsChanged(Registry& registry, const resource::ResourceManager* resources) {
+    const u32 now = registry.beginChangeRead();
+    const u64 meshes = resources ? resources->meshesRevision() : 0;
+    const u32 since = hit_tick_;
+    bool changed = registry.identity() != hit_registry_ || registry.activityEpoch() != hit_activity_
+        || meshes != hit_meshes_
+        || registry.anyChangedSince<Interactable>(since) || registry.anyChangedSince<UIMask>(since)
+        || registry.anyChangedSince<Canvas>(since) || registry.anyChangedSince<Parent>(since);
+    const bool moved = registry.anyChangedSince<Transform>(since);
+    if (!changed && (moved || registry.anyChangedSince<Sprite>(since)
+                     || registry.anyChangedSince<ContentRect>(since) || registry.anyChangedSince<MeshRenderer>(since))) {
+        registry.eachLive<Interactable>([&](Entity e, Interactable&) {
+            if (changed) return;
+            changed = registry.changedSince<Transform>(e, since) || registry.changedSince<Sprite>(e, since)
+                || registry.changedSince<ContentRect>(e, since) || registry.changedSince<MeshRenderer>(e, since);
+        });
+        if (!changed && moved) {
+            registry.eachLive<UIMask>([&](Entity e, UIMask&) {
+                if (!changed) changed = registry.changedSince<Transform>(e, since);
+            });
+        }
+    }
+    hit_registry_ = registry.identity();
+    hit_activity_ = registry.activityEpoch();
+    hit_meshes_ = meshes;
+    hit_tick_ = now;
+    return changed;
 }
 
 namespace {

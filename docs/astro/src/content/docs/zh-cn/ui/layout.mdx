@@ -226,9 +226,11 @@ detectAnchorAxes(node);  // → per-axis; an axis is null when hand-tuned
 ## 布局时机与 `UILayoutGeneration`
 
 布局在 `PreUpdate` 运行(先于你的 `Update` 系统),并在 `PostUpdate` 中于滚动/列表
-变更之后重新求解,因此游戏逻辑系统看到的几何总是最新的。每次求解都会递增
-**`UILayoutGeneration`** 资源——一个单调计数器,你可以用它使任何基于计算后 UI 几何
-的缓存失效(内置指针命中测试正是这么用的):
+变更之后重新求解,因此游戏逻辑系统看到的几何总是最新的。每一次真正求解了布局、
+或挪动了屏幕根节点的 pass 都会递增 **`UILayoutGeneration`** 资源——一个单调计数器,
+你可以用它使任何基于计算后 UI 几何的缓存失效;什么都没重新布局的帧不会动它。内置指针
+命中测试就是这么用的,另外再看布局不负责移动的那些东西的变化戳(`Interactable` 自己的
+`Transform`、遮罩、Canvas):
 
 ```typescript
 import { defineSystem, Res, UILayoutGeneration } from 'esengine';

@@ -76,7 +76,7 @@ public:
      *         changed since the last pass (via change-tracking). Combined with the
      *         C++-detected structure/box/animation signals to skip the whole
      *         rebuild+solve on a fully static frame. */
-    void layoutUpdate(Registry& registry,
+    bool layoutUpdate(Registry& registry,
                       f32 boxLeft, f32 boxBottom, f32 boxRight, f32 boxTop,
                       bool tsPropertyDirty);
 
@@ -102,6 +102,8 @@ public:
      */
     void hitTestUpdate(Registry& registry, const PickRay& worldRay, const PickRay& screenRay,
                        const resource::ResourceManager* resources);
+
+    bool hitInputsChanged(Registry& registry, const resource::ResourceManager* resources);
 
     /** @brief Editor pick: the most specific UI entity under the point. Unlike
      *         hitTestUpdate it ignores Interactable and mutates no state. */
@@ -159,6 +161,11 @@ private:
                          const resource::ResourceManager* resources);
 
     std::vector<Entity> pickResults_;
+
+    u64 hit_registry_{0};
+    u32 hit_activity_{0};
+    u32 hit_tick_{0};
+    u64 hit_meshes_{0};
 
     // ---- Layout skip-when-clean gate (see layoutUpdate) ----
     // Snapshot of the last solved frame; a pass whose inputs match all of these

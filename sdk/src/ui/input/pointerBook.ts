@@ -33,7 +33,7 @@ export interface UiPointerSample {
 }
 
 /** Per-pointer raycast results, retained only while the input frame carries the pointer. */
-export class UiPointerHitCache extends Map<number, { x: number; y: number; entity: Entity | null }> {
+export class UiPointerHitCache extends Map<number, { x: number; y: number; worldX: number; worldY: number; entity: Entity | null }> {
     retain(pointers: readonly UiPointerSample[]): void {
         for (const id of this.keys()) {
             if (!pointers.some(pointer => pointer.id === id)) this.delete(id);

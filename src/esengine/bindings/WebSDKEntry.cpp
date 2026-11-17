@@ -906,6 +906,7 @@ EMSCRIPTEN_BINDINGS(esengine_ui_systems) {
     emscripten::function("uiLayout_update", &esengine::uiLayout_update);
     emscripten::function("uiHitTest_update", &esengine::uiHitTest_update);
     emscripten::function("uiHitTest_updateDomains", &esengine::uiHitTest_updateDomains);
+    emscripten::function("uiHitTest_inputsChanged", &esengine::uiHitTest_inputsChanged);
     emscripten::function("uiHitTest_getHitEntity", &esengine::uiHitTest_getHitEntity);
     emscripten::function("uiHitTest_pick", &esengine::uiHitTest_pick);
     emscripten::function("uiHitTest_pickAll", &esengine::uiHitTest_pickAll);
