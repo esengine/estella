@@ -111,6 +111,7 @@ const NOT_INSTANCE_FORMATS = {
   '.mp4': 'video content',
   '.zip': 'a packaged fixture',
   '.wasm': 'a side module binary',
+  '.proto': 'a wire schema; the TypeScript generated from it sits beside it and the code that sends it is read as source',
 };
 
 /**
