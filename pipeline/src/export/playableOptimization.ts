@@ -122,11 +122,11 @@ export async function optimizePlayableAssets(opts: {
   const changes = new Map<string, PlayableOptimizationReport['changes'][number]>();
   const sorted = [...opts.assets].sort((a, b) => b.data.byteLength - a.data.byteLength || a.path.localeCompare(b.path));
   const protectedPngs = new Set<string>();
-  if (opts.textures && score(selected) > 1) {
+  if (opts.textures) {
     for (const asset of sorted) {
       if (asset.mime === 'image/png' && readTextureCookSettings(asset.importer, 'playable').compress !== 'off' && !canReencodePng(asset.data)) {
         protectedPngs.add(asset.key);
-        opts.warnings.push(`${asset.path}: kept PNG to preserve color-profile, animation or sample-depth semantics (or an unrecognized PNG layout).`);
+        if (score(selected) > 1) opts.warnings.push(`${asset.path}: kept PNG to preserve color-profile, animation or sample-depth semantics (or an unrecognized PNG layout).`);
       }
     }
   }
@@ -134,21 +134,25 @@ export async function optimizePlayableAssets(opts: {
   // part alone, weighed the way the page is weighed, is already over the target, no search will get there: the package is
   // made as it is and the size is reported, instead of trying every image at every quality to arrive at the same answer.
   const fixed = opts.assets.filter(a => !(a.mime === 'image/png' || a.sourceWav));
+  let unreachable = false;
   if (fixed.length > 0 && score(selected) > 1) {
     const floor = opts.measure(new Map(fixed.map(a => [a.key, { data: a.data, mime: a.mime }])));
     if (score(floor) > 1) {
-      opts.warnings.push(`Playable size cannot reach the target: the parts no encoder can shrink (fonts and other files) alone come to ${(floor.deliveryBytes / 1048576).toFixed(1)} MB, against a target of ${(opts.targetDeliveryBytes / 1048576).toFixed(1)} MB. The package is built as it is; its size and what it is made of are reported.`);
-      return { payloads, report: { mode: opts.textures || opts.audio ? 'auto' : 'skip', targetDeliveryBytes: opts.targetDeliveryBytes,
-        maxHtmlBytes: opts.maxHtmlBytes, baseline, selected, meetsTarget: false, changes: [] } };
+      unreachable = true;
+      opts.warnings.push(`Playable size cannot reach the target: the parts no encoder can shrink (fonts and other files) alone come to ${(floor.deliveryBytes / 1048576).toFixed(1)} MB, against a target of ${(opts.targetDeliveryBytes / 1048576).toFixed(1)} MB. The package is built as it is, its images lossless WebP where that is smaller; its size and what it is made of are reported.`);
     }
   }
   let encoder: { bin: string; id: string } | null | undefined;
   const failures = new Set<string>();
+  // Lossless WebP is taken for every image it makes smaller, under the budget or over it: it loses nothing, and a playable
+  // carries each image as base64 inside the page, so every byte a PNG keeps costs a third more again. Only the lossy stages
+  // wait for the budget to be exceeded, and stop once it is met.
   for (const stage of ['lossless', 'audio-128', 'audio-96', 90, 80] as const) {
-    if (score(selected) <= 1) break;
+    const lossless = stage === 'lossless';
+    if (!lossless && (unreachable || score(selected) <= 1)) break;
     opts.onStage?.(String(stage), sorted.length);
     for (const asset of sorted) {
-      if (score(selected) <= 1) break;
+      if (!lossless && score(selected) <= 1) break;
       const previous = payloads.get(asset.key)!;
       let candidate: PlayablePayload | undefined;
       let codec: PlayableSelectedCodec;
@@ -177,6 +181,14 @@ export async function optimizePlayableAssets(opts: {
           candidate = { data: bytes, mime: 'image/webp' };
           codec = stage === 'lossless' ? 'webp-lossless' : stage === 90 ? 'webp-90' : 'webp-80';
         }
+        if (lossless) {
+          // Smaller bytes are a smaller data URL and a smaller page; measuring the page per image would build a zip each time.
+          if (candidate.data.byteLength < previous.data.byteLength) {
+            payloads.set(asset.key, candidate);
+            changes.set(asset.key, { path: asset.path, codec, inputBytes: asset.data.byteLength, outputBytes: candidate.data.byteLength });
+          }
+          continue;
+        }
         payloads.set(asset.key, candidate);
         const measured = measure();
         if (score(measured) < score(selected)) {
@@ -185,10 +197,12 @@ export async function optimizePlayableAssets(opts: {
         } else payloads.set(asset.key, previous);
       } catch (error) {
         payloads.set(asset.key, previous);
+        changes.delete(asset.key);
         failures.add(asset.key);
         opts.warnings.push(`${asset.path}: playable optimization retained the previous payload — ${error instanceof Error ? error.message : String(error)}`);
       }
     }
+    if (lossless) selected = measure();
   }
   const report: PlayableOptimizationReport = { mode: opts.textures || opts.audio ? 'auto' : 'skip',
     targetDeliveryBytes: opts.targetDeliveryBytes, maxHtmlBytes: opts.maxHtmlBytes,

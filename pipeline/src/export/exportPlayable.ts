@@ -516,8 +516,10 @@ export async function exportPlayable(opts: {
   const emptyHtmlBytes = assemble(new Map()).htmlBytes;
   const targetDeliveryBytes = Math.min(adProfile.maxBytes, opts.sizeBudgetBytes ?? Infinity, 3 * 1024 * 1024);
   const baseline = assemble(new Map(optimizationAssets.map(asset => [asset.key, asset])));
-  if (errors.length === 0 && (opts.resizeTextures || opts.compressAudio) &&
-    (baseline.deliveryBytes > targetDeliveryBytes || baseline.htmlBytes > (adProfile.maxHtmlBytes ?? Infinity))) {
+  // Every image is offered lossless WebP whatever the size, so each needs its import settings; only audio waits for the
+  // budget to be exceeded before its source is read.
+  const overBudget = baseline.deliveryBytes > targetDeliveryBytes || baseline.htmlBytes > (adProfile.maxHtmlBytes ?? Infinity);
+  if (errors.length === 0 && (opts.resizeTextures || (opts.compressAudio && overBudget))) {
     progress({ phase: 'Optimizing playable budget' });
     const { index } = await scanAssetDatabase(opts.root, { write: false, adopt: false });
     const byUuid = new Map(index.entries.map(entry => [entry.uuid, entry]));
@@ -527,7 +529,7 @@ export async function exportPlayable(opts: {
       const uuid = asset.key.slice('@uuid:'.length);
       asset.importer = byUuid.get(uuid)?.importer;
       asset.losslessOnly = fontPages.has(uuid);
-      if (opts.compressAudio && asset.path.toLowerCase().endsWith('.wav')) {
+      if (opts.compressAudio && overBudget && asset.path.toLowerCase().endsWith('.wav')) {
         asset.sourceWav = await readFile(path.join(opts.root, asset.path));
       }
     }
