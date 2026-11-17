@@ -59,6 +59,9 @@ export const NO_WASM_MODE = process.env.SDK_TEST_MODE === 'no-wasm';
 /** True unless this run declared it has no engine build. */
 export const HAS_WASM = !NO_WASM_MODE;
 
+export const HAS_EDITOR_API = HAS_WASM && existsSync(WASM_FILE)
+    && readFileSync(WASM_FILE).includes('editor_setFloat');
+
 
 let cachedModule: ESEngineModule | null = null;
 
