@@ -26,10 +26,10 @@
   the editor commits the submodule pointer names stay reachable. Force pushes
   and deleting `master` stay refused.
 
-- The editor (`desktop/`, its own repository) is still protected: never commit
-  or push to its `master`. Its changes go on a short-lived branch and a pull
-  request, and an editor change is pushed before the commit here that moves the
-  pointer to it.
+- The editor (`desktop/`, its own repository) works the same way: commit on its
+  `master` and push it, past a protection that no longer binds administrators
+  and has no required check. Push an editor change before the commit here that
+  moves the pointer to it.
 
 - A change someone using Estella can see gets a release note as a file of its own in
   `changelog.d/` (its `README.md` has the format), with the subjects of the commits it
