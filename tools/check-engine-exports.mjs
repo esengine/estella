@@ -25,6 +25,23 @@ const exported = [...entry.matchAll(/emscripten::function\("(\w+)"/g)].map((m) =
 const layouts = readFileSync(path.join(ROOT, 'sdk/src/wasm/ptrLayouts.generated.ts'), 'utf8');
 const byName = new Set([...layouts.matchAll(/ptrFn:\s*'(\w+)'/g)].map((m) => m[1]));
 
+const GENERATED = 'src/esengine/bindings/WebBindings.generated.cpp';
+const generatedPtrFns = new Set([...readFileSync(path.join(ROOT, GENERATED), 'utf8')
+    .matchAll(/emscripten::function\("(get\w+Ptr)"/g)].map((m) => m[1]));
+const layoutPtrNames = new Set([...layouts.matchAll(/^ {4}(\w+): \{$/gm)].map((m) => `get${m[1]}Ptr`));
+const ptrDrift = [
+    ...exported.filter((n) => layoutPtrNames.has(n)).map((n) => `${n} is hand-written in ${ENTRY}`),
+    ...[...byName].filter((n) => !generatedPtrFns.has(n)).map((n) => `${n} is in the layout table but not exported by ${GENERATED}`),
+    ...[...generatedPtrFns].filter((n) => !byName.has(n)).map((n) => `${n} is exported by ${GENERATED} but its layout has no ptrFn`),
+];
+if (ptrDrift.length > 0) {
+    console.error(`${ptrDrift.length} component pointer function(s) disagree with the generated layout table:\n`);
+    for (const d of ptrDrift) console.error(`  ${d}`);
+    console.error('\nEHT is the only author of get<Component>Ptr: regenerate it, and export one only'
+        + ' for a layout that covers every field of its component.');
+    process.exit(1);
+}
+
 // Tests count as callers here: what a binding does to a registry can only be
 // read back through another binding. `wasm.ts` declares the surface rather than
 // calling it, and generated files name every entry by construction.

@@ -274,7 +274,7 @@ export function fillCanvas(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, out: CanvasPtrData,
 ): void {
-    const designResolution_ = out.designResolution; designResolution_.x = f32[ptr >> 2]; designResolution_.y = f32[(ptr >> 2) + 1];
+    const designResolution_ = out.designResolution; designResolution_.x = u32[ptr >> 2]; designResolution_.y = u32[(ptr >> 2) + 1];
     out.pixelsPerUnit = f32[(ptr + 8) >> 2];
     out.scaleMode = u8[ptr + 12];
     out.matchWidthOrHeight = f32[(ptr + 16) >> 2];
@@ -286,7 +286,7 @@ export function writeCanvas(
     f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
     ptr: number, data: CanvasPtrData,
 ): void {
-    f32[ptr >> 2] = data.designResolution.x; f32[(ptr >> 2) + 1] = data.designResolution.y;
+    u32[ptr >> 2] = data.designResolution.x; u32[(ptr >> 2) + 1] = data.designResolution.y;
     f32[(ptr + 8) >> 2] = data.pixelsPerUnit;
     u8[ptr + 12] = data.scaleMode;
     f32[(ptr + 16) >> 2] = data.matchWidthOrHeight;
