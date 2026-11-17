@@ -20,7 +20,7 @@ import { CameraCommit, cameraCommitChanged } from './CameraCommit';
 import { CameraView, CameraViewAPI, PresentedCameraView, presentedCameraView } from './Camera';
 import { ScreenLayout, screenLayoutRect, screenProjection } from '../ui/core/screen-layout';
 import { ScreenOverlay } from '../ui/core/screen-overlay';
-import { ProjectionType, SceneOwner, ClearFlags } from '../ecs/component';
+import { Camera, ProjectionType, SceneOwner, ClearFlags, Transform } from '../ecs/component';
 import { canvasRootEntities } from '../ui/core/canvas-roots';
 import { uiLayoutRect, computeEffectiveOrthoSize, EDITOR_VIEW_ENTITY, type CanvasScale } from './uiLayoutRect';
 import { EditorViewLighting, DEFAULT_EDITOR_VIEW_LIGHTING, pushEditorViewLighting } from './EditorViewLighting';
@@ -456,7 +456,11 @@ function collectCameraPOVs(
 
     const out: CameraPOV[] = [];
     for (const e of filtered) {
-        out.push(readCameraPOV(e, registry.getCamera(e), registry.getTransform(e)));
+        // Through the world when there is one: it reads the two out of the engine's memory, where the registry's getters
+        // build each as a new object field by field, and this runs twice a frame for every camera.
+        out.push(world
+            ? readCameraPOV(e, world.get(e as Entity, Camera) as CameraFields, world.get(e as Entity, Transform) as CameraTransformFields)
+            : readCameraPOV(e, registry.getCamera(e), registry.getTransform(e)));
     }
     return out;
 }
