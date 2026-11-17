@@ -443,6 +443,7 @@ export class SkyEnvironment {
     private lastBake_ = -Infinity;
     private warned_ = false;
     private capturing_ = false;
+    private requested_ = '';
     private panorama_: Panorama | null = null;
 
     constructor(private readonly minInterval = 1) {}
@@ -482,11 +483,7 @@ export class SkyEnvironment {
         this.adopt(core, made, key, now);
     }
 
-    /**
-     * A sky a project wrote (customSky.ts), lighting the scene from what the GPU drew of it: a panorama of the effect `type`
-     * is asked for, read back over the frames that follow, and made into the environment, once a `minInterval`.
-     */
-    updateCaptured(module: ESEngineModule | null, type: string, now: number): void {
+    updateCaptured(module: ESEngineModule | null, type: string, now: number, still?: string): void {
         const core = module as unknown as SkyEnvironmentCore | null;
         if (!core?.postprocess_requestSkyCapture || !core.postprocess_pollSkyCapture || !core.postprocess_takeSkyCapture
             || !core.environment_create || !core.renderer_setSkyEnvironment) {
@@ -509,12 +506,16 @@ export class SkyEnvironment {
             if (!pixels) return;
             const panorama = decodeSkyCapture(pixels, CUSTOM_SKY_WIDTH, CUSTOM_SKY_HEIGHT);
             const made = bakePanorama(module, core, panorama);
-            if (made) { this.panorama_ = panorama; this.adopt(core, made, `custom:${type}`, now); }
+            if (made) { this.panorama_ = panorama; this.adopt(core, made, this.requested_, now); }
             return;
         }
-        if (this.baked_ && this.key_ === `custom:${type}` && now - this.lastBake_ < this.minInterval) return;
+        const key = still === undefined ? `custom:${type}` : `custom:${type}:${still}`;
+        const recent = now - this.lastBake_ < this.minInterval;
+        if (this.baked_ && key === this.key_ && (still !== undefined || recent)) return;
+        if (this.baked_ && still !== undefined && recent) return;
         core.postprocess_requestSkyCapture(type, CUSTOM_SKY_WIDTH, CUSTOM_SKY_HEIGHT);
         this.capturing_ = true;
+        this.requested_ = key;
     }
 
     private adopt(core: SkyEnvironmentCore, made: BakedSky, key: string, now: number): void {

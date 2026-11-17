@@ -18,7 +18,7 @@ import type { Entity } from '../types';
 import { resolvedLightingSky } from './volumeSystem';
 import { SkyEnvironment, skyParamsOf, skySunOf } from './skyEnvironment';
 import { noteCloudBakeFrame } from './cloudBake';
-import { noteSkyStillFrame } from './skyStill';
+import { noteSkyStillFrame, stillSkyKey } from './skyStill';
 import { probeCaptureSystem } from './probeCapture';
 import { dynamicGISystem } from '../gi/dynamicGISystem';
 
@@ -37,6 +37,16 @@ function sunFromLights(lights: Iterable<[Entity, LightData, TransformData]>): [n
     return null;
 }
 
+function sunsOf(lights: Iterable<[Entity, LightData, TransformData]>): string {
+    let key = '';
+    for (const [, light, transform] of lights) {
+        if (!light.enabled || light.type !== LightType.Directional) continue;
+        const q = transform.worldRotation;
+        key += `${q.x},${q.y},${q.z},${q.w},${light.color.r},${light.color.g},${light.color.b},${light.intensity},${light.followEnvironmentSun};`;
+    }
+    return key;
+}
+
 /** The Sky Atmosphere as the scene's environment, after the volumes have resolved it for the view being drawn. */
 function skyEnvironmentSystem(app: App, sky: SkyEnvironment) {
     return defineSystem(
@@ -48,8 +58,10 @@ function skyEnvironmentSystem(app: App, sky: SkyEnvironment) {
             const view = app.hasResource(EditorView) ? app.getResource(EditorView) : null;
             const lighting = resolvedLightingSky(app.getResource(PostProcess), !!view?.active);
             if (!lighting) { sky.update(app.wasmModule, null, 0); return; }
-            // A sky a project wrote is read back from the GPU, where it is drawn; Sky Atmosphere is worked out here.
-            if (lighting.type !== 'skyAtmosphere') { sky.updateCaptured(app.wasmModule, lighting.type, performance.now() / 1000); return; }
+            if (lighting.type !== 'skyAtmosphere') {
+                sky.updateCaptured(app.wasmModule, lighting.type, performance.now() / 1000, stillSkyKey(lighting.type, lighting.effect, sunsOf(lights)));
+                return;
+            }
             const effect = lighting.effect;
             const params = skyParamsOf(effect);
             sky.update(app.wasmModule, { sun: skySunOf(params, sunFromLights(lights)), params, linear: linearColorSpace() },

@@ -7,8 +7,8 @@
  * `unlit colour -> effects -> output transform -> sRGB encode`. Each expectation applies the published curve (or, for the
  * engine's own effects, the formula their shader source states) to the patch colour; no frame was read to write it.
  */
-import { scene, camera, mesh, volume, probe, probeFrom } from './scene.mjs';
-import { encodeLinear8, encodeGamma8, clamp01, acesNarkowicz, pbrNeutral, srgbDecode, scale } from './formulas.mjs';
+import { scene, camera, mesh, volume, probe, probeFrom, SIZE } from './scene.mjs';
+import { encodeLinear8, encodeGamma8, clamp01, acesNarkowicz, pbrNeutral, srgbDecode, scale, smoothstep } from './formulas.mjs';
 
 const SLOTS = [[-75, -50], [-25, -50], [25, -50], [75, -50], [-75, 50], [-25, 50], [25, 50], [75, 50]];
 
@@ -105,6 +105,14 @@ const waterMix = (c, top) => {
   return c.map((v, k) => v * T[k] + scatter[k] * (1 - mean));
 };
 
+const LOOK = { exposure: -0.5, contrast: 1.2, saturation: 0.8 };
+const VIGNETTE = { intensity: 0.8, softness: 0.6 };
+const vignetteAt = (slot) => {
+  const p = probe(...slot);
+  const r = Math.hypot(((Math.round(p.x * (SIZE - 1)) + 0.5) / SIZE) * 2 - 1, ((Math.round(p.y * (SIZE - 1)) + 0.5) / SIZE) * 2 - 1);
+  return 1 - smoothstep(1 - VIGNETTE.softness, 1, r) * VIGNETTE.intensity;
+};
+
 export const POST_SCENES = [
   patches({ id: 'oracle-encode-linear', colours: GREYS, out: perChannel(clamp01), about: 'No tone map: the linear value is sRGB-encoded as it is, clamped at 1' }),
   patches({ id: 'oracle-output-aces', colours: GREYS, outputTransform: 'aces', out: perChannel(acesNarkowicz), about: 'Output transform ACES: Narkowicz fit, then the sRGB encode' }),
@@ -159,5 +167,16 @@ export const POST_SCENES = [
       { u_absorption: { r: WATER.absorption[0], g: WATER.absorption[1], b: WATER.absorption[2], a: 1 }, u_scatterColor: { r: WATER.scatter[0], g: WATER.scatter[1], b: WATER.scatter[2], a: 1 } })],
     out: (c, i) => waterMix(c, FOG_TOPS[i]).map(clamp01),
     about: 'Underwater fog: Beer-Lambert absorption over the drop to the surface, plus the colour of the water itself',
+  }),
+  patches({
+    id: 'oracle-grade-sharpen-vignette', colours: COLOURS,
+    effects: [
+      fx('colorGrade', { u_exposure: LOOK.exposure, u_contrast: LOOK.contrast, u_saturation: LOOK.saturation }),
+      fx('sharpen', { u_intensity: 0.5, u_limit: 0.25 }),
+      fx('filmGrain', { u_intensity: 0 }),
+      fx('vignette', { u_intensity: VIGNETTE.intensity, u_softness: VIGNETTE.softness }),
+    ],
+    out: (c, i, slot) => grade(c, LOOK).map((v) => v * vignetteAt(slot)),
+    about: 'Colour grade, sharpen, film grain and vignette side by side, drawn as one pass: each patch graded, then darkened where the vignette lies over it',
   }),
 ];
