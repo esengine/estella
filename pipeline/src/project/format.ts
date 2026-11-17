@@ -25,6 +25,7 @@ import {
 import { normalizePlatform, type ExportPlatform } from './platforms';
 import { cspConnectSources } from '../export/cspConnect';
 import { parseProjectTools, type ProjectTools } from '../tools/projectTools';
+import { parseProjectServer, type ProjectServer } from './serverConfig';
 
 export const PROJECT_FORMAT_VERSION = '1';
 export const PROJECT_MANIFEST_FILE = 'project.esproject';
@@ -570,6 +571,8 @@ export interface ProjectManifest {
   scripts?: ProjectScripts;
   /** Optional third-party tools the project switches on (Luban for Excel tables). Off unless named here. */
   tools?: ProjectTools;
+  /** The game's own server, which `export --platform server` packages to deploy; see {@link ProjectServer}. */
+  server?: ProjectServer;
   /** One-line summary, shown when the project is used as a New-project template. */
   description?: string;
   /** Short category label for the template gallery (e.g. "2D", "Physics"). */
@@ -823,6 +826,8 @@ export function parseManifest(raw: unknown): ProjectManifest {
   }
   const tools = parseProjectTools(o.tools);
   if (tools) manifest.tools = tools;
+  const server = parseProjectServer(o.server);
+  if (server) manifest.server = server;
   if (typeof o.description === 'string') manifest.description = o.description;
   if (typeof o.tag === 'string') manifest.tag = o.tag;
   if (o.features && typeof o.features === 'object') {

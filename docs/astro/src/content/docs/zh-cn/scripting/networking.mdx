@@ -292,6 +292,46 @@ const { gold } = await api.client(session).buy({ item: 'sword' });
 会话可以用 protobuf 代替 JSON(客户端 `wire: 'pb'`,host 端同名 `wire`;`proto()` / `protoAs()` 把 `.proto`
 消息带进契约),调试时仍可按 JSON 读。
 
+## 部署游戏服务器
+
+有服务器的游戏在 `project.esproject` 里写明它：
+
+```json
+"server": {
+  "entry": "server/main.ts",
+  "path": "/play",
+  "port": 8090,
+  "args": ["--port", "{port}", "--host", "{host}", "--data", "{data}/world.json"],
+  "health": "/healthz"
+}
+```
+
+```bash
+node pipeline/bin/estella.mjs export my-game --platform server
+```
+
+会写出 `dist-server/`：`server.mjs` 是打成一个文件的服务器，Node 20 直接运行，不用装任何依赖
+（`esengine` 用的是 SDK 的无头构建）；`web/` 是游戏的 Web 导出（`--no-web` 不导出）；服务器自己跑引擎时还有
+`wasm/`；以及上线用的文件：`compose.yaml` 和 `Dockerfile`（`SITE_ADDRESS=play.example.com docker compose up -d --build`，
+证书由 Caddy 自动申请），或者 systemd 用的 `deploy/<游戏名>.service` 加 `deploy/Caddyfile`。`args` 里的
+`{port}`、`{host}`、`{data}`、`{wasm}` 按各自的环境填好。
+
+页面和服务器共用一个地址，只有 `path` 上的 WebSocket 升级请求会转给服务器。客户端不用在构建里写死地址：
+
+```ts
+import { serverAddress } from 'esengine/session';
+
+// 线上是 wss://<页面域名>/play；开发时可以用 ?server=ws://127.0.0.1:8090/play 覆盖。
+const url = serverAddress({ path: '/play' });
+```
+
+和熟人内测时，`TokenBook` 按每人一个 token 登录：名单放在数据目录里读取，不要写进游戏代码，token 用 `newToken()` 生成。
+
+```ts
+const book = TokenBook.parse(JSON.parse(readFileSync(`${data}/players.json`, 'utf8')));
+// 在 authenticate 里：const who = book.check(raw.account, raw.token); if (!who) throw new SessionRejected('UNKNOWN PLAYER');
+```
+
 ## 最佳实践
 
 - 超出简单套接字的场景**用 `NetChannel`**——按类型路由和 RPC 胜过一个巨大的 `'message'` 处理器 switch。

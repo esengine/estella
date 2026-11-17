@@ -33,7 +33,10 @@ const USAGE = `usage: node pipeline/bin/estella.mjs create <template> <dir> [--n
        node pipeline/bin/estella.mjs package-openpaas <exportDir> --config <local.json> --out <game.sp>
 
   --platform <id>     a built-in (web, desktop, wechat, douyin, kuaishou, bilibili, playable, android, ios)
-                      or a platform the project defines in .esengine/platforms/ (default web)
+                      or a platform the project defines in .esengine/platforms/ (default web);
+                      server: the project's game server (its \`server\` block) as one file Node runs,
+                      the web export in web/, and Docker, Caddy and systemd files to deploy both
+  --no-web            server: leave out the web export
   --profile <name>    one of the project's export profiles (packaging.profiles): its
                       target, development or shipping, and the settings it overrides
                       A shipping Android build is signed with the project's release
@@ -89,7 +92,7 @@ The panorama itself is not shipped — a light references the \`.esenv\`.`;
 
 /** Options take a value; these do not — without the distinction a trailing flag
  *  swallows nothing, ends the loop, and a CI job silently gets no gate. */
-const FLAGS = new Set(['enforce-budget', 'minify', 'no-aot', 'emulator-abi', 'all-scenes']);
+const FLAGS = new Set(['enforce-budget', 'minify', 'no-aot', 'emulator-abi', 'all-scenes', 'no-web']);
 
 function parseArgs(argv) {
   const [command, projectDir, ...rest] = argv;
@@ -1122,6 +1125,40 @@ if (opts.command === 'import-hdr') {
     cleanup();
     cleanupMeta();
   }
+  process.exit(0);
+}
+
+if (opts.platform === 'server') {
+  // The game's server and the files that deploy it; then the web export beside it, as `export` writes it for the web.
+  const outDir = path.resolve(opts.out ?? path.join(opts.projectDir, 'dist-server'));
+  const { mod, cleanup } = await loadPipeline(path.join(PIPELINE, 'src', 'export', 'serverCli.ts'), 'serverCli.mjs');
+  let result;
+  try {
+    result = await mod.serverExportCommand({
+      projectDir: opts.projectDir, outDir, sdkDistDir: path.join(REPO, 'sdk', 'dist'),
+      wasmDir: opts.wasm ? path.resolve(opts.wasm) : firstExisting([path.join(REPO, 'build', 'wasm', 'web'), path.join(REPO, 'desktop', 'public', 'wasm')]), minify: opts.minify === true, web: !opts['no-web'],
+      nodePaths: [path.join(REPO, 'sdk', 'node_modules'), path.join(REPO, 'node_modules')],
+    });
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  } finally { cleanup(); }
+  if (!opts['no-web']) {
+    const { spawnSync } = await import('node:child_process');
+    const args = [fileURLToPath(import.meta.url), 'export', opts.projectDir, '--platform', 'web', '--out', path.join(outDir, 'web')];
+    for (const key of ['wasm', 'scene', 'title', 'scripts']) if (typeof opts[key] === 'string') args.push(`--${key}`, opts[key]);
+    if (opts.minify) args.push('--minify');
+    const web = spawnSync(process.execPath, args, { stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    if (web.status !== 0) {
+      console.error(web.stdout);
+      console.error(`the server is in ${outDir}, but the web export failed (exit ${web.status}); --no-web leaves it out`);
+      process.exit(1);
+    }
+    result.files.push('web/');
+  }
+  if (opts.json) writeFileSync(path.resolve(opts.json), `${JSON.stringify(result, null, 2)}
+`);
+  console.log(JSON.stringify(result, null, 2));
   process.exit(0);
 }
 
