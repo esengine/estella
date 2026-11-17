@@ -76,6 +76,33 @@ function getCompNumId(comp: AnyComponentDef): number {
 
 const _keyIds: number[] = [];
 
+/** What an omitted `with` or `without` reads as: one shared list, where a default `[]` was a new array every call. */
+const NO_COMPONENTS: AnyComponentDef[] = [];
+
+/** The cache key and dependency ids of a query that names one or two components and nothing else. */
+interface PlainQueryPlan {
+    readonly key: string;
+    readonly depIds: symbol[];
+}
+const PAIR = 0x100000;
+const plainQueryPlans_ = new Map<number, PlainQueryPlan>();
+
+/**
+ * The plan of `world.getEntitiesWithComponents([A])` or `([A, B])`, made once per component pair: nearly every call
+ * that does not come from a `Query` (which keeps its own) has one of those two shapes, and is asked every frame.
+ */
+function plainQueryPlan(components: AnyComponentDef[]): PlainQueryPlan {
+    const id = components.length === 1
+        ? getCompNumId(components[0])
+        : getCompNumId(components[0]) * PAIR + getCompNumId(components[1]);
+    let plan = plainQueryPlans_.get(id);
+    if (!plan) {
+        plan = { key: computeQueryCacheKey(components), depIds: queryDepIds(components, NO_COMPONENTS, NO_COMPONENTS) };
+        plainQueryPlans_.set(id, plan);
+    }
+    return plan;
+}
+
 export function computeQueryCacheKey(
     components: AnyComponentDef[],
     withFilters: AnyComponentDef[] = [],
@@ -1051,6 +1078,8 @@ export class World {
             const bset = this.builtin_.getEntitySet(component._cppName);
             if (bset && !bset.has(entity)) return null;
             try {
+                const fromHeap = this.builtin_.readHeap(entity, component._cppName);
+                if (fromHeap !== null) return fromHeap as ComponentData<C>;
                 const methods = this.builtin_.getBuiltinMethods(component._cppName);
                 if (!bset && !methods.has(entity)) return null;
                 return builtinFromWasm(methods.get(entity), component) as ComponentData<C>;
@@ -1350,8 +1379,8 @@ export class World {
      */
     getEntitiesWithComponents(
         components: AnyComponentDef[],
-        withFilters: AnyComponentDef[] = [],
-        withoutFilters: AnyComponentDef[] = [],
+        withFilters: AnyComponentDef[] = NO_COMPONENTS,
+        withoutFilters: AnyComponentDef[] = NO_COMPONENTS,
     ): readonly Entity[] {
         return this.queryEntities(components, withFilters, withoutFilters);
     }
@@ -1365,25 +1394,33 @@ export class World {
      */
     queryEntities(
         components: AnyComponentDef[],
-        withFilters: AnyComponentDef[] = [],
-        withoutFilters: AnyComponentDef[] = [],
+        withFilters: AnyComponentDef[] = NO_COMPONENTS,
+        withoutFilters: AnyComponentDef[] = NO_COMPONENTS,
         precomputedKey?: string,
         filter?: QueryFilter,
         precomputedDepIds?: symbol[],
     ): readonly Entity[] {
         this.syncActivityEpoch_();
-        const cacheKey = precomputedKey ?? computeQueryCacheKey(components, withFilters, withoutFilters);
         // The dep-id set is static per query; QueryInstance precomputes it (incl.
         // filter deps) so cache-hit iteration allocates nothing here.
-        let depIds: symbol[];
-        if (precomputedDepIds) {
-            depIds = precomputedDepIds;
-        } else {
+        let cacheKey = precomputedKey;
+        let depIds = precomputedDepIds;
+        if (cacheKey === undefined && depIds === undefined && !filter
+            && withFilters.length === 0 && withoutFilters.length === 0
+            && (components.length === 1 || components.length === 2)) {
+            const plan = plainQueryPlan(components);
+            cacheKey = plan.key;
+            depIds = plan.depIds;
+        }
+        cacheKey ??= computeQueryCacheKey(components, withFilters, withoutFilters);
+        if (!depIds) {
             depIds = this.collectComponentIds_(components, withFilters, withoutFilters);
             if (filter) {
                 for (const c of filter.deps) depIds.push(c._id);
             }
         }
+        const standing = this.queries_.lookup(cacheKey, depIds);
+        if (standing) return standing;
 
         // `Disabled`'s whole contract is that the systems skip it, answered once
         // here rather than remembered at 78 call sites. A query that NAMES the

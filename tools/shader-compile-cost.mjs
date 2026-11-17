@@ -15,8 +15,11 @@ import { chromium } from 'playwright';
 import { serveHost } from './lib/staticServer.mjs';
 import { toolArgs } from './lib/toolArgs.mjs';
 import { ROOT } from './lib/repo.mjs';
+import { cpuSlowdown, slowCpu, slowdownLabel } from './lib/phoneCpu.mjs';
 
-const ARGS = toolArgs({ dir: null, w: '1280', h: '720', frames: '30', async: false });
+const ARGS = toolArgs({ dir: null, w: '1280', h: '720', frames: '30', slow: null, async: false });
+/** How many times slower than this machine the page's CPU runs: a phone's 5 unless --slow says otherwise (lib/phoneCpu.mjs). */
+const SLOW = cpuSlowdown(ARGS.slow);
 const DIR = path.resolve(ARGS.dir ?? path.join(ROOT, 'output', 'tw-export'));
 const W = Number(ARGS.w);
 const H = Number(ARGS.h);
@@ -61,6 +64,8 @@ const browser = await chromium.launch({ headless: true, args: ['--use-angle=d3d1
 try {
   const context = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
   const page = await context.newPage();
+  await slowCpu(page, SLOW);
+  console.log(slowdownLabel(SLOW));
   await page.addInitScript(wrap);
   const t0 = Date.now();
   await page.goto(`http://127.0.0.1:${server.address().port}/?headless`, { waitUntil: 'load', timeout: 120000 });

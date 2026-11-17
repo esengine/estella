@@ -1655,6 +1655,7 @@ export class App {
         const current = () => !this.isExecutionHeld() && executionEpoch === this.executionEpoch_;
         const frameClock = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance : null;
         const frameStart = frameClock ? frameClock.now() : 0;
+        this.subsystems_.beginFrame(frameStart);
         this.runner_?.clearTimings();
         this.phaseTimings_?.clear();
         this.frameScopes_?.clear();
@@ -2008,7 +2009,8 @@ export class App {
             }
         }
 
-        await settle();
+        // Nothing parked is nothing to wait for: a schedule of synchronous systems ends without a turn of the task queue.
+        if (inflight.length > 0) await settle();
 
         if (this.phaseTimings_) {
             this.phaseTimings_.set(Schedule[schedule], performance.now() - t0);
