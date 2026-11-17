@@ -87,14 +87,25 @@ describe('playable network budget optimization', () => {
     expect(warnings.some(warning => warning.includes('color-profile'))).toBe(true);
   });
 
-  it('does no quality work when under budget or when the build skips optimization', async () => {
-    for (const extra of [{ targetDeliveryBytes: 1024 * 1024 }, { textures: false, audio: false }]) {
-      const asset = image(); const result = await run([asset], extra);
-      expect(result.report.changes).toEqual([]);
-      expect(result.report.selected).toEqual(result.report.baseline);
-      expect(result.payloads.get('image')!.data).toEqual(asset.data);
-    }
+  // Lossless WebP loses nothing and a playable pays a third more for every byte an image keeps, so it is taken under the
+  // budget too; only the lossy qualities wait for the budget to be exceeded.
+  it('makes every image lossless WebP under budget, and goes no further', async () => {
+    const asset = image(); const stages: string[] = [];
+    const result = await run([asset], { targetDeliveryBytes: 1024 * 1024, onStage: (s: string) => stages.push(s) });
+    expect(stages).toEqual(['lossless']);
+    expect(result.report.changes.map((c: { codec: string }) => c.codec)).toEqual(['webp-lossless']);
+    expect(result.payloads.get('image')!.mime).toBe('image/webp');
+    expect(result.payloads.get('image')!.data.byteLength).toBeLessThan(asset.data.byteLength);
+    expect(result.report.selected).toEqual(measure(result.payloads));
   });
+
+  it('changes nothing when the build skips optimization', async () => {
+    const asset = image(); const result = await run([asset], { textures: false, audio: false });
+    expect(result.report.changes).toEqual([]);
+    expect(result.report.selected).toEqual(result.report.baseline);
+    expect(result.payloads.get('image')!.data).toEqual(asset.data);
+  });
+
   it('keeps assembled binary buffers out of the persisted size report', async () => {
     const result = await run([image()], { targetDeliveryBytes: 1024 * 1024,
       measure: (payloads: ReadonlyMap<string, PlayablePayload>) => ({ ...measure(payloads), html: Buffer.alloc(1024), delivery: Buffer.alloc(1024) }) });
@@ -150,16 +161,15 @@ describe('playable size is worked out, not rebuilt', () => {
     }
   });
 
-  it('gives up the search at once when what cannot be shrunk is already over the target, and still reports the size', async () => {
+  it('gives up the lossy search at once when what cannot be shrunk is already over the target, and still reports the size', async () => {
     const font: PlayableOptimizationAsset = { key: 'font', path: 'font.woff2', data: new Uint8Array(randomBytes(300_000)), mime: 'font/woff2' };
     const warnings: string[] = []; const stages: string[] = [];
     const t0 = Date.now();
     const result = await run([font, image()], { targetDeliveryBytes: 100_000, warnings, onStage: (s: string) => stages.push(s) });
-    expect(stages).toEqual([]);
-    expect(result.report.changes).toEqual([]);
+    // Lossless still runs, as it does under any budget; the lossy search that could not get there does not.
+    expect(stages).toEqual(['lossless']);
+    expect(result.report.changes.map((c: { codec: string }) => c.codec)).toEqual(['webp-lossless']);
     expect(result.report.meetsTarget).toBe(false);
-    expect(result.report.selected).toEqual(result.report.baseline);
-    expect(result.payloads.get('image')!.mime).toBe('image/png');
     expect(warnings.some(w => /cannot reach the target/.test(w))).toBe(true);
     expect(Date.now() - t0).toBeLessThan(2000);
   });

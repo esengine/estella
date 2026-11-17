@@ -22,6 +22,7 @@ export default defineConfig({
     include: ['pipeline/tests/**/*.test.ts', 'tools/tests/**/*.test.ts'],
     environment: 'node',
     globalSetup: ['tools/lib/engineTestDiagnostics.mjs'],
+    setupFiles: ['tools/lib/engineTestYield.mjs'],
     // As in pipeline/vitest.config.ts, which this config stands in for when the suite is run from the root: the web export bundles the SDK
     // it is given, and most export tests hand it a stub tree. export-web-bundle.test.ts clears this for itself and builds from the real SDK.
     env: { ESTELLA_WEB_BUNDLE_ENGINE: '0' },

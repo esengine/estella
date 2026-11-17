@@ -43,8 +43,8 @@ void MaterialStore::forgetShader(resource::ShaderHandle shader) {
     if (found == mesh_programs_.end()) return;
     auto variants = std::move(found->second);
     mesh_programs_.erase(found);
-    // Detach before returning handles: their retirement can notify this store again.
-    if (resources_) for (const auto& [shape, handle] : variants) resources_->releaseShader(handle);
+    variant_sources_.erase(shader.id());
+    releaseVariants(variants);
 }
 
 void MaterialStore::undefine(u32 materialId) {
@@ -69,8 +69,27 @@ void MaterialStore::clear() {
     sources_.clear();
     auto variants = std::move(mesh_programs_);
     mesh_programs_.clear();
-    if (resources_) for (const auto& [source, programs] : variants)
-        for (const auto& [shape, handle] : programs) resources_->releaseShader(handle);
+    variant_sources_.clear();
+    for (const auto& [source, programs] : variants) releaseVariants(programs);
+}
+
+void MaterialStore::releaseVariants(const std::unordered_map<u64, resource::ShaderHandle>& variants) {
+    if (!resources_) return;
+    std::unordered_set<u32> released;
+    for (const auto& [shape, handle] : variants) {
+        if (released.insert(handle.id()).second) resources_->releaseShader(handle);
+    }
+}
+
+u64 MaterialStore::sourceDigest(const std::string& vertex, const std::string& fragment) {
+    u64 h = 1469598103934665603ull;
+    const auto mix = [&h](const std::string& text) {
+        for (const char c : text) { h ^= static_cast<unsigned char>(c); h *= 1099511628211ull; }
+        h ^= 0xFFull; h *= 1099511628211ull;
+    };
+    mix(vertex);
+    mix(fragment);
+    return h;
 }
 
 namespace {
@@ -299,6 +318,7 @@ u32 MaterialStore::variantProgram(u32 materialId, resource::ResourceManager& res
     }
     for (auto& f : extraFeatures) features.push_back(std::move(f));
     const auto target = resources.preferredShaderTarget();
+    features = resource::ShaderParser::featuresRead(parsed, features, target);
     const std::string vert = resource::ShaderParser::assembleStage(
         parsed, resource::ShaderStage::Vertex, "", features, target);
     const std::string frag = resource::ShaderParser::assembleStage(
@@ -330,6 +350,14 @@ u32 MaterialStore::variantProgram(u32 materialId, resource::ResourceManager& res
         return 0;
     }
 
+    const u64 text = sourceDigest(vert, frag);
+    auto& same = variant_sources_[rec->shaderRef.id()];
+    if (const auto twin = same.find(text); twin != same.end()) {
+        if (const Shader* shader = resources.getShader(twin->second)) {
+            variants[shape] = twin->second;
+            return shader->getProgramId();
+        }
+    }
     resource::ShaderHandle handle = resources.createShader(vert, frag, /*rewriteLoose=*/false,
                                                            resources.preferredShaderLanguage(), /*deferLink=*/true);
     Shader* shader = resources.getShader(handle);
@@ -339,10 +367,9 @@ u32 MaterialStore::variantProgram(u32 materialId, resource::ResourceManager& res
         return 0;
     }
     seedSamplers(*shader, parsed);
-    // No layout of its own: uniforms pack through the material's shaderRef, and
-    // this variant declares the same params, so its handle is never looked up.
     const u32 program = shader->getProgramId();
     variants[shape] = handle;
+    same[text] = handle;
     return program;
 }
 

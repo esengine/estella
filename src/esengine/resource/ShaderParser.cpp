@@ -1224,6 +1224,48 @@ std::vector<std::string> ShaderParser::splitFeatures(const std::string& csv) {
 
 namespace {
 
+usize wordCount(const std::string& text, const std::string& word) {
+    usize n = 0;
+    for (usize at = text.find(word); at != std::string::npos; at = text.find(word, at + word.size())) {
+        const bool before = at > 0 && (std::isalnum(static_cast<unsigned char>(text[at - 1])) || text[at - 1] == '_');
+        const usize end = at + word.size();
+        const bool after = end < text.size() && (std::isalnum(static_cast<unsigned char>(text[end])) || text[end] == '_');
+        if (!before && !after) ++n;
+    }
+    return n;
+}
+
+std::string withoutDefines(std::string text, const std::vector<std::string>& names) {
+    for (const auto& name : names) {
+        const std::string line = "#define " + name + " 1\n";
+        if (const usize at = text.find(line); at != std::string::npos) text.erase(at, line.size());
+    }
+    return text;
+}
+
+}  // namespace
+
+std::vector<std::string> ShaderParser::featuresRead(const ParsedShader& parsed,
+                                                    const std::vector<std::string>& features,
+                                                    ShaderTargetLanguage target) {
+    if (target != ShaderTargetLanguage::GLSL_ES300 || !parsed.valid) return features;
+    const std::string vertex = assembleStage(parsed, ShaderStage::Vertex, "", features, target);
+    const std::string fragment = assembleStage(parsed, ShaderStage::Fragment, "", features, target);
+    std::vector<std::string> kept, dropped;
+    for (const auto& f : features) {
+        const usize defines = wordCount(vertex, "#define " + f) + wordCount(fragment, "#define " + f);
+        (wordCount(vertex, f) + wordCount(fragment, f) > defines ? kept : dropped).push_back(f);
+    }
+    if (dropped.empty()) return features;
+    if (assembleStage(parsed, ShaderStage::Vertex, "", kept, target) != withoutDefines(vertex, dropped)
+        || assembleStage(parsed, ShaderStage::Fragment, "", kept, target) != withoutDefines(fragment, dropped)) {
+        return features;
+    }
+    return kept;
+}
+
+namespace {
+
 u32 countNewlines(const std::string& s) {
     u32 n = 0;
     for (char c : s) {

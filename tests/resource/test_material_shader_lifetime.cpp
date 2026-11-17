@@ -101,6 +101,20 @@ int main() {
         MockGfxDevice device; resource::ResourceManager rm; rm.init(device);
         MaterialStore store; store.setDevice(&device); store.setResourceManager(&rm);
         auto shader = rm.createShader("vertex", "fragment", false);
+        store.registerLayout(shader, {}); store.rememberSource(shader, source, "");
+        MaterialRecord record; record.shaderRef = shader; store.define(1, record);
+        const u32 plain = store.meshProgram(1, rm, true, false, false);
+        const u32 reflected = store.meshProgram(1, rm, true, false, true);
+        CHECK(plain != 0 && plain == reflected, "an unlit material reads no environment map, so with and without one it is one program");
+        CHECK(rm.getStats().shaderCount == 2, "the second shape compiled nothing");
+        rm.releaseShader(shader);
+        CHECK(rm.getStats().shaderCount == 0, "the shared program goes with its source");
+        store.clear(); rm.shutdown();
+    }
+    {
+        MockGfxDevice device; resource::ResourceManager rm; rm.init(device);
+        MaterialStore store; store.setDevice(&device); store.setResourceManager(&rm);
+        auto shader = rm.createShader("vertex", "fragment", false);
         store.rememberSource(shader, source, "");
         MaterialRecord record; record.shaderRef = shader; store.define(1, record);
         const auto program = store.particleProgram(1, rm);

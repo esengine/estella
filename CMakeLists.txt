@@ -18,23 +18,11 @@ option(ES_ENABLE_DRAGONBONES "Build the DragonBones runtime (side module only)" 
 option(ES_ENABLE_BOX2D "Enable Box2D physics support" OFF)
 option(ES_ENABLE_JOLT "Enable Jolt 3D physics support" OFF)
 option(ES_ENABLE_PHYSX "Enable the PhysX 3D physics backend" OFF)
-# These four are the core's own subsystems, and a project cannot pick them: the
-# engine binary is precompiled per platform. Measured 2026-09-21 on the web
-# build (`ESTELLA_CMAKE_FLAGS=-DES_ENABLE_X=OFF`, brotli q11, the number a
-# mini-game's 4MB cap is judged on):
-#
-#   tilemap OFF  -12,585    particles OFF  -9,603
-#   postfx  OFF   -7,170    text      OFF  -5,859      all four OFF  -34,911
-#
-# So the whole set buys 0.8% of that cap, against one more precompiled binary
-# per platform and a CI matrix per combination. NOT shipping variants: the
-# switches stay, because a project embedding the engine itself can use them and
-# because they are what made this measurable — but no variant is published and
-# no export offers one. Revisit if a platform's cap moves, not before.
 option(ES_ENABLE_TILEMAP "Enable Tilemap support" ON)
 option(ES_ENABLE_PARTICLES "Enable Particle system" ON)
 option(ES_ENABLE_POSTPROCESS "Enable Post-processing pipeline" ON)
 option(ES_ENABLE_BITMAP_TEXT "Enable Bitmap text rendering" ON)
+option(ES_ENABLE_EDITOR_API "Register the string-dispatched editor_* reflection bindings in the SDK engine" OFF)
 # WebGPU render backend: compiles WebGPUDevice into the engine and pulls the
 # emdawnwebgpu port (Dawn's webgpu.h + JS glue) into every SDK executable.
 # ON for the web build; stays OFF for WeChat/playable (no WebGPU there, and
@@ -316,8 +304,10 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         src/esengine/bindings/AnimationBindings.cpp
         src/esengine/bindings/MaterialBindings.cpp
         ${GENERATED_WEB_BINDINGS}
-        ${GENERATED_EDITOR_API}
     )
+    if(ES_ENABLE_EDITOR_API)
+        list(APPEND SDK_BINDING_SOURCES ${GENERATED_EDITOR_API})
+    endif()
     if(ES_ENABLE_POSTPROCESS)
         list(APPEND SDK_BINDING_SOURCES src/esengine/bindings/PostProcessBindings.cpp)
     endif()
