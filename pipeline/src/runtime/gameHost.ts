@@ -21,7 +21,7 @@ import {
   AnimatorRootMotion, Playthrough, Name,
   worldResidencyReport, PostProcess, Renderer, Audio, Camera,
   getComponentRegistry, BakesRes,
-  startDebugChannel, glContextAttributes, warmShaders, getResourceStats, textureRecipeStats,
+  startDebugChannel, glContextAttributes, warmShaders, getResourceStats, textureRecipeStats, TextureStreamingRes,
 } from 'esengine';
 import { installDevicePreview } from './devicePreviewClient';
 declare const __ESTELLA_LAN_PREVIEW__: boolean;
@@ -821,6 +821,16 @@ async function boot(): Promise<void> {
           lost: gl ? gl.isContextLost() : false,
           // The CPU copies the device keeps to restore content after a loss.
           retainedBytes: getResourceStats()?.retainedBytes ?? -1,
+        };
+      },
+      textureStreaming(): Record<string, number | boolean> {
+        const streaming = app.hasResource(TextureStreamingRes) ? app.getResource(TextureStreamingRes) : null;
+        return {
+          enabled: streaming?.enabled ?? false,
+          streamed: streaming?.textures.size ?? 0,
+          moves: streaming?.moves ?? 0,
+          restoring: streaming?.restoring.size ?? 0,
+          failures: streaming?.failures ?? 0,
         };
       },
       loseDevice(): boolean {

@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
 import {
-    planStreaming, streamTargetEdge, streamedBytes, TEXTURE_STREAMING_DEFAULTS, type StreamedTexture,
+    planRestore, planStreaming, streamTargetEdge, streamedBytes, TEXTURE_STREAMING_DEFAULTS, type StreamedTexture,
 } from '../src/render/textureStreaming';
 import { defaultQualityProfile, resolveQualityProfile } from '../src/render/quality';
 
@@ -58,6 +58,20 @@ describe('what streaming moves', () => {
         const budget = streamedBytes(2048, 2048, 1024) + streamedBytes(2048, 2048, 512);
         const moves = planStreaming([big, small], 0, { ...opts, budgetBytes: budget });
         expect(moves).toEqual([{ handle: 1, edge: 1024 }, { handle: 2, edge: 512 }]);
+    });
+});
+
+describe('what is put back once streaming is off', () => {
+    const held = (handle: number, edge: number, fullWidth: number, fullHeight = fullWidth) => ({ handle, edge, fullWidth, fullHeight });
+
+    it('is every texture held below its file, the most shrunk first', () => {
+        const textures = [held(1, 512, 2048), held(2, 128, 1024, 512), held(3, 256, 256), held(4, 64, 64, 1024)];
+        expect(planRestore(textures, new Set())).toEqual([4, 2, 1]);
+    });
+
+    it('leaves out one already on its way back', () => {
+        expect(planRestore([held(1, 512, 2048), held(2, 128, 1024)], new Set([2]))).toEqual([1]);
+        expect(planRestore([], new Set())).toEqual([]);
     });
 });
 

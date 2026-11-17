@@ -42,7 +42,7 @@ const mapsAsked = (): number => asked.filter((ask) => ask.part === 'maps').lengt
 function served() {
     const bakes = createModelBakes(FILE, 'blob:bake-worker', 1024, 4);
     const source = bakes.serve({ backend: {} as Backend, decodePixels: async (_path: string) => ({ width: 1, height: 1, pixels: new Uint8Array(4) }) });
-    return { bakes, decode: (path: string) => source.decodePixels!(path) };
+    return { bakes, decode: (path: string, ...rest: unknown[]) => (source.decodePixels as (path: string, ...rest: unknown[]) => Promise<{ width: number; height: number; pixels: Uint8Array; sourceWidth?: number; sourceHeight?: number }>)(path, ...rest) };
 }
 
 describe('a model baked at load, once the game lets its maps go', () => {
@@ -120,6 +120,20 @@ describe('a model baked at load, once the game lets its maps go', () => {
         bakes.work.release();
         expect((await decode('assets/models/hull_emissive.png')).width).toBe(4);
         expect(mapsAsked()).toBe(1);
+    });
+
+    it('decodes a baked map no larger than the edge it is asked for, and says the size it was made from', async () => {
+        const { bakes, decode } = served();
+        await bakes.work.run();
+        const small = await decode('assets/models/hull_color.png', false, 4);
+        expect([small.width, small.height, small.sourceWidth, small.sourceHeight]).toEqual([4, 4, SIZE, SIZE]);
+        expect(small.pixels.length).toBe(4 * 4 * 4);
+        expect(small.pixels[0]).toBe(200);
+        const whole = await decode('assets/models/hull_color.png', false, 0);
+        expect([whole.width, whole.sourceWidth]).toEqual([SIZE, undefined]);
+        bakes.work.release();
+        const again = await decode('assets/models/hull_normal.png', false, 8);
+        expect([again.width, again.sourceWidth, again.pixels[0]]).toEqual([8, SIZE, 128]);
     });
 
     it('keeps reporting nothing pending once released', async () => {

@@ -120,17 +120,17 @@ export function halveRgba(rgba: Uint8Array, width: number, height: number, srgb:
     const w = Math.max(1, width >> 1), h = Math.max(1, height >> 1);
     const out = new Uint8Array(w * h * 4);
     for (let y = 0; y < h; y++) {
-        const y0 = Math.min(height - 1, y * 2), y1 = Math.min(height - 1, y * 2 + 1);
+        const r0 = Math.min(height - 1, y * 2) * width, r1 = Math.min(height - 1, y * 2 + 1) * width;
         for (let x = 0; x < w; x++) {
             const x0 = Math.min(width - 1, x * 2), x1 = Math.min(width - 1, x * 2 + 1);
-            const taps = [(y0 * width + x0) * 4, (y0 * width + x1) * 4, (y1 * width + x0) * 4, (y1 * width + x1) * 4];
+            const a = (r0 + x0) * 4, b = (r0 + x1) * 4, c = (r1 + x0) * 4, d = (r1 + x1) * 4;
             const o = (y * w + x) * 4;
-            for (let c = 0; c < 3; c++) {
-                out[o + c] = srgb
-                    ? toSrgbByte(taps.reduce((n, t) => n + toLinear[rgba[t + c]], 0) / 4)
-                    : Math.round(taps.reduce((n, t) => n + rgba[t + c], 0) / 4);
+            for (let k = 0; k < 3; k++) {
+                out[o + k] = srgb
+                    ? toSrgbByte((toLinear[rgba[a + k]!]! + toLinear[rgba[b + k]!]! + toLinear[rgba[c + k]!]! + toLinear[rgba[d + k]!]!) / 4)
+                    : Math.round((rgba[a + k]! + rgba[b + k]! + rgba[c + k]! + rgba[d + k]!) / 4);
             }
-            out[o + 3] = Math.round(taps.reduce((n, t) => n + rgba[t + 3], 0) / 4);
+            out[o + 3] = Math.round((rgba[a + 3]! + rgba[b + 3]! + rgba[c + 3]! + rgba[d + 3]!) / 4);
         }
     }
     return { rgba: out, width: w, height: h };
