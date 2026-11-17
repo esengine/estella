@@ -29,6 +29,8 @@ import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { ScreenOverlay } from '../core/screen-overlay';
 import { getUINodeWidth, getUINodeHeight, ensureUIVisual } from '../util/helpers';
 import { resolveTextFamily } from './font-registry';
+import { fontsRevision } from './font-revision';
+import { RuntimeConfig } from '../../defaults';
 import { DEFAULT_PRELOAD_BUDGET_MS, GlyphPreloadJob, preloadCodepoints, type GlyphPreload, type GlyphPreloadOptions } from './glyph-preload';
 import { platformDevicePixelRatio, platformNow } from '../../platform';
 import { engineApi, type EngineApi } from '../../ecs/bridge/engineApi';
@@ -207,6 +209,22 @@ interface TextDomainState {
     large: SdfTextRenderer | null;
 }
 
+/** What the screen's last retained pass was drawn from beyond the components the engine watches: the same again draws the same. */
+interface ScreenTextInputs {
+    text: number;
+    fonts: number;
+    family: string;
+    dpr: number;
+    contentScale: number;
+    perspective: boolean;
+    atlases: number;
+}
+
+/** The atlases a domain's labels are drawn from, as one number that moves when any of them is rebuilt. */
+function atlasGenerations(state: TextDomainState): number {
+    return (state.bitmap?.atlas.generation ?? -1) * 1e6 + (state.sdf?.atlas.generation ?? -1) * 1e3 + (state.large?.atlas.generation ?? -1);
+}
+
 export class TextPlugin implements Plugin {
     name = 'text';
 
@@ -217,6 +235,7 @@ export class TextPlugin implements Plugin {
         matrixHeap: Float32Array | null;
         retained: Map<number, RetainedLabel>;
         preloads: PreloadRun[];
+        screenInputs: ScreenTextInputs | null;
     }>();
 
     /** Apps this plugin was built on: only those step a preload. */
@@ -231,6 +250,7 @@ export class TextPlugin implements Plugin {
                 matrix: new Float32Array(16), matrixHeap: null,
                 retained: new Map(),
                 preloads: [],
+                screenInputs: null,
             };
             this.states_.set(app, state);
         }
@@ -310,7 +330,10 @@ export class TextPlugin implements Plugin {
         // Two passes, because there are two lists: the world's glyphs go into the
         // camera being collected, the screen's into the frame's overlay.
         pipeline.addPreFlushCallback((_registry, projection) => app.measureFrameScope('render.text', () => this.drawDomain(app, false, projection)));
-        pipeline.addScreenOverlayCallback((_registry, projection) => app.measureFrameScope('render.text', () => this.drawDomain(app, true, projection)));
+        pipeline.addScreenOverlayCallback(
+            (_registry, projection) => app.measureFrameScope('render.text', () => this.drawDomain(app, true, projection)),
+            () => this.screenStill(app),
+        );
     }
 
     /**
@@ -345,6 +368,34 @@ export class TextPlugin implements Plugin {
                 return true;
             }, projection);
         });
+    }
+
+    /** What a screen pass's labels are drawn from beyond the components: a Text written, a font, the projection, an atlas. */
+    private screenInputs(app: App): ScreenTextInputs {
+        const dpr = platformDevicePixelRatio();
+        const view = this.domainView(app, true, dpr);
+        const world = app.world;
+        return {
+            text: world.mutationRevision(Text, 'write') + world.mutationRevision(Text, 'topology'),
+            fonts: fontsRevision(),
+            family: RuntimeConfig.defaultFontFamily,
+            dpr,
+            contentScale: view.contentScale,
+            perspective: view.perspective,
+            atlases: atlasGenerations(this.stateFor(app).screen),
+        };
+    }
+
+    /**
+     * Whether the screen's labels would draw what they drew the last pass: only the retained path can say, and only while no
+     * Text was written and nothing a label is resolved or rasterized through has moved. The engine answers for their boxes.
+     */
+    private screenStill(app: App): boolean {
+        const held = this.stateFor(app).screenInputs;
+        if (!held || !this.canRetain(engineApi(app))) return false;
+        const now = this.screenInputs(app);
+        return held.text === now.text && held.fonts === now.fonts && held.family === now.family && held.dpr === now.dpr
+            && held.contentScale === now.contentScale && held.perspective === now.perspective && held.atlases === now.atlases;
     }
 
     /**
@@ -414,6 +465,8 @@ export class TextPlugin implements Plugin {
             }
             api.renderer_retainedTextSubmit!(registry, screen ? 1 : 0, projectionPtr);
         });
+        // After the layout, which may itself rasterize into an atlas: the inputs this pass was drawn from.
+        if (screen) appState.screenInputs = this.screenInputs(app);
     }
 
     /** Lay the labels the engine reports stale out again, in the domain they are in now. */

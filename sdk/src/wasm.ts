@@ -644,6 +644,8 @@ export interface ESEngineModule {
     renderer_beginScreenOverlay?(projectionPtr: number, vpX: number, vpY: number,
                                  vpW: number, vpH: number): void;
     renderer_submitScreenOverlay?(registry: CppRegistry): void;
+    /** True: this pass draws what the overlay holds, and nothing is submitted to it before its end. */
+    renderer_keepScreenOverlay?(registry: CppRegistry, hostStill: boolean): boolean;
     renderer_setScreenOverlayEffect?(material: number): void;
     renderer_endScreenOverlay?(targetHandle: number): void;
     renderer_drawOverScreen?(vpX: number, vpY: number, vpW: number, vpH: number, targetHandle: number): void;

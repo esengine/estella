@@ -16,15 +16,52 @@
 #include "./RenderFrame.hpp"
 #include "../draw/ImmediateDraw.hpp"
 #include "../../core/FrameProfiler.hpp"
+#include "../../core/Hash.hpp"
+#include "../../core/Log.hpp"
+#include "../../ecs/components/ParticleEmitter.hpp"
+#include "../../resource/ResourceManager.hpp"
 
 #include <algorithm>
 #include <unordered_map>
 
 namespace esengine {
 
+void RenderFrame::swapOverlayIn() {
+    if (overlay_swapped_) return;
+    if (!overlay_hold_) {
+        overlay_hold_ = std::make_unique<OverlayHold>(device_);
+        overlay_hold_->pool.init();
+    }
+    pool_.swap(overlay_hold_->pool);
+    std::swap(draw_list_, overlay_hold_->list);
+    // The overlay drew with the frame's list before it had its own: it takes how the frame has that list set.
+    draw_list_.copySettingsFrom(overlay_hold_->list);
+    overlay_swapped_ = true;
+}
+
+void RenderFrame::swapOverlayOut() {
+    if (!overlay_swapped_) return;
+    pool_.swap(overlay_hold_->pool);
+    std::swap(draw_list_, overlay_hold_->list);
+    overlay_swapped_ = false;
+}
+
+void RenderFrame::resetOverlayContents() {
+    overlay_reset_pending_ = false;
+    // The overlay's own pool and list (swapped in): what they held is spent once a pass is built in them.
+    pool_.beginFrame();
+    draw_list_.clear();
+    overlay_valid_ = false;
+}
+
 void RenderFrame::beginScreenOverlay(const glm::mat4& projection,
                                      i32 vpX, i32 vpY, u32 vpW, u32 vpH) {
     if (overlay_active_ || !device_.isDeviceUsable()) return;
+    swapOverlayIn();
+    ++overlay_passes_;
+    overlay_kept_ = false;
+    overlay_reset_pending_ = true;
+    overlay_would_keep_ = false;
 
     overlay_projection_ = projection;
     overlay_vp_x_ = vpX;
@@ -33,10 +70,7 @@ void RenderFrame::beginScreenOverlay(const glm::mat4& projection,
     overlay_vp_h_ = vpH;
     overlay_active_ = true;
 
-    // The frame's own scratch, reused: every camera has drawn AND had its graph
-    // run by the time this opens, so what is being reset is spent.
-    pool_.beginFrame();
-    draw_list_.clear();
+    // Emptied by the first collect (resetOverlayContents), not here: keepScreenOverlay may yet find what is held still stands.
     // Every layer until the caller says otherwise: which layers a frame shows is
     // the caller's to decide, and a host that never says shows all of them.
     draw_list_.setCullingMask(0xFFFFFFFFu);
@@ -45,8 +79,103 @@ void RenderFrame::beginScreenOverlay(const glm::mat4& projection,
     clip_state_.clear();
 }
 
+/** What a held overlay pass was built from besides the registry's components: a pass keyed alike draws alike. */
+u64 RenderFrame::overlayInputs(ecs::Registry& registry) const {
+    u64 h = hash::kFnv64Offset;
+    const auto mix = [&h](u64 v) { h = hash::combine(h, v); };
+    h = hash::combineWords(h, &overlay_projection_, sizeof(overlay_projection_));
+    mix(static_cast<u32>(overlay_vp_x_));
+    mix(static_cast<u32>(overlay_vp_y_));
+    mix(overlay_vp_w_);
+    mix(overlay_vp_h_);
+    mix(draw_list_.cullingMask());
+    mix(draw_list_.ySortMask());
+    mix(draw_list_.treeMask());
+    mix(draw_list_.depthMask());
+    mix(overlay_effect_);
+    mix(linear_color_ ? 1 : 0);
+    mix(registry.identity());
+    mix(device_.deviceGeneration());
+    mix(device_.textureShapes());
+    mix(resource_manager_.textureMetadataRevision());
+    mix(resource_manager_.meshesRevision());
+    mix(context_.materials().revision());
+    mix(batch_shader_id_);
+    // The domain itself, order-free: an entity that left it (or was destroyed in it) leaves nothing stamped behind.
+    u64 domain = 0;
+    if (screen_domain_) {
+        for (const u32 id : *screen_domain_) domain += hash::combine(0x5bd1e995ull, id);
+        mix(screen_domain_->size());
+    }
+    mix(domain);
+    return h;
+}
+
+/** Whether a component of an entity the overlay draws was written, added or removed since the held pass was built. */
+bool RenderFrame::overlayRegistryMoved(ecs::Registry& registry) {
+    const auto inDomain = [this](u32 id) { return screen_domain_ && screen_domain_->count(id) != 0; };
+    if (registry.anyComponentChangedSinceWhere(overlay_tick_, [&](Entity e) { return inDomain(e.id()); })) return true;
+    // Structure: an add, a remove, a switch on or off. History is kept only while watched, so a journal that cannot say is a change.
+    static std::vector<ecs::EntityChangeRow> rows(ecs::ENTITY_CHANGE_CAPACITY);
+    const i32 count = registry.readEntityChanges(overlay_journal_, rows);
+    if (count < 0) return true;
+    for (i32 i = 0; i < count; ++i) {
+        const auto& row = rows[static_cast<usize>(i)];
+        if ((row.flags & ecs::ENTITY_CHANGE_RESET) || row.entity == INVALID_ENTITY.id() || inDomain(row.entity)) return true;
+    }
+    return false;
+}
+
+bool RenderFrame::keepScreenOverlay(ecs::Registry& registry, bool hostStill) {
+    if (!overlay_active_ || !overlay_reset_pending_) return false;
+    if (overlay_watched_ != registry.identity()) {
+        overlay_watched_ = registry.identity();
+        overlay_reader_ = registry.watchEntityChanges();
+        overlay_valid_ = false;
+    }
+    u32 why = 0;
+    const u64 key = overlayInputs(registry);
+    if (!hostStill) why |= 1;
+    if (!overlay_valid_) why |= 2;
+    else if (key != overlay_key_) why |= 4;
+    if (overlay_passes_ > 1) why |= 8;
+    bool particles = false;
+    if (screen_domain_ && !screen_domain_->empty()) {
+        registry.each<ecs::ParticleEmitter>([&](Entity e, ecs::ParticleEmitter&) {
+            if (screen_domain_->count(e.id()) != 0) particles = true;
+        });
+    }
+    if (particles) why |= 32;
+    if (why == 0 && overlayRegistryMoved(registry)) why |= 16;
+    overlay_why_ = why;
+
+    // The tick and the journal row this pass is read at: a write after this is a change to the next.
+    overlay_pending_key_ = key;
+    overlay_pending_tick_ = registry.beginChangeRead();
+    overlay_pending_journal_ = registry.entityChangeSequence();
+
+    if (why == 0 && !registry.changeAuditEnabled()) {
+        overlay_kept_ = true;
+        overlay_reset_pending_ = false;
+        overlay_tick_ = overlay_pending_tick_;
+        overlay_journal_ = overlay_pending_journal_;
+        ++overlay_kept_total_;
+        return true;
+    }
+    overlay_would_keep_ = why == 0;
+    resetOverlayContents();
+    return false;
+}
+
 void RenderFrame::submitScreenOverlay(ecs::Registry& registry) {
-    if (!overlay_active_) return;
+    if (!overlay_active_ || overlay_kept_) return;
+    if (overlay_reset_pending_) {
+        // A host that does not ask keepScreenOverlay builds every pass, as before; one that asks has had its answer.
+        resetOverlayContents();
+        overlay_pending_key_ = 0;
+        overlay_pending_tick_ = registry.beginChangeRead();
+        overlay_pending_journal_ = -1;
+    }
 
     ES_PROFILE_SCOPE("render.overlay.collect");
 
@@ -156,30 +285,76 @@ void RenderFrame::setScreenOverlayEffect(u32 material) {
 
 void RenderFrame::endScreenOverlay(RenderTargetManager::Handle target) {
     if (!overlay_active_) return;
+    // Every way out of the pass gives the frame its own pool and list back.
+    struct SwapBack {
+        RenderFrame& frame;
+        ~SwapBack() { frame.swapOverlayOut(); }
+    } swapBack{*this};
     overlay_active_ = false;
     const u32 effect = overlay_effect_;
     overlay_effect_ = 0;
     draw_list_.setLayerlessVisible(true);
-    if (!device_.isDeviceUsable()) return;
+    const bool kept = overlay_kept_;
+    overlay_kept_ = false;
+    if (overlay_reset_pending_) {
+        // Opened and closed with nothing collected or asked: an empty pass, held by nobody.
+        resetOverlayContents();
+        overlay_pending_key_ = 0;
+    }
+    ES_PROFILE_COUNTER("render.overlay.kept", kept ? 1u : 0u);
+    ES_PROFILE_COUNTER("render.overlay.keptTotal", overlay_kept_total_);
+    ES_PROFILE_COUNTER("render.overlay.why", overlay_why_);
+    ES_PROFILE_COUNTER("render.overlay.stale", overlay_stale_);
+    if (!device_.isDeviceUsable()) {
+        overlay_valid_ = false;
+        return;
+    }
+
+    if (!kept) {
+        if (linear_color_) {
+            std::unordered_map<u32, u32> shown;
+            draw_list_.remapPrograms([&](u32 program) {
+                auto it = shown.find(program);
+                if (it == shown.end()) it = shown.emplace(program, displayProgram(program)).first;
+                return it->second;
+            });
+        }
+        {
+            ES_PROFILE_SCOPE("render.overlay.finalize");
+            draw_list_.finalize(pool_);
+            pool_.upload();
+        }
+        // Held from here; a pass keyed 0 (from a host that never asked) is never matched.
+        overlay_valid_ = overlay_pending_key_ != 0;
+        overlay_key_ = overlay_pending_key_;
+        overlay_tick_ = overlay_pending_tick_;
+        overlay_journal_ = overlay_pending_journal_;
+        if (overlay_valid_) {
+            u64 content = draw_list_.contentHash(hash::kFnv64Offset);
+            for (u32 l = 0; l < LAYOUT_COUNT; ++l) {
+                const auto layout = static_cast<LayoutId>(l);
+                const u32 bytes = pool_.vertexBytesUsed(layout);
+                if (bytes) content = hash::combineWords(content, pool_.vertexData(layout), bytes);
+                const u32 indices = pool_.indicesUsed(layout);
+                if (indices) content = hash::combineWords(content, pool_.indexData(layout), indices * sizeof(u32));
+            }
+            if (overlay_would_keep_ && content != overlay_content_) {
+                ++overlay_stale_;
+                if (!warned_overlay_stale_) {
+                    warned_overlay_stale_ = true;
+                    ES_LOG_WARN("change audit: the screen overlay would have been held while what it draws had changed");
+                }
+            }
+            overlay_content_ = content;
+        }
+    }
+    overlay_would_keep_ = false;
+
     // Nothing to draw is not the same as nothing to do elsewhere, but here it is:
     // a pass that would write no pixel is one the graph would run anyway.
     if (draw_list_.commandCount() == 0) return;
     frame_capture_.beginPass(CapturePass::Overlay);
 
-    if (linear_color_) {
-        std::unordered_map<u32, u32> shown;
-        draw_list_.remapPrograms([&](u32 program) {
-            auto it = shown.find(program);
-            if (it == shown.end()) it = shown.emplace(program, displayProgram(program)).first;
-            return it->second;
-        });
-    }
-
-    {
-        ES_PROFILE_SCOPE("render.overlay.finalize");
-        draw_list_.finalize(pool_);
-        pool_.upload();
-    }
     accumulateStats(draw_list_);
     tallyPass(draw_list_);
 

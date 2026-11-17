@@ -891,6 +891,15 @@ void renderer_submitScreenOverlay(ecs::Registry& registry) {
     g_renderFrame->submitScreenOverlay(registry);
 }
 
+bool renderer_keepScreenOverlay(ecs::Registry& registry, bool hostStill) {
+    if (!g_renderFrame) return false;
+    // Composed first, as a collect would: a composition that moves a world matrix stamps it, and that is a change to see.
+    ensureTransformsUpdated(registry);
+    g_renderFrame->setScreenDomain(screenDomain());
+    g_renderFrame->setUITreeLayers(uiTreeLayers());
+    return g_renderFrame->keepScreenOverlay(registry, hostStill);
+}
+
 void renderer_setScreenOverlayEffect(u32 material) {
     if (g_renderFrame) g_renderFrame->setScreenOverlayEffect(material);
 }

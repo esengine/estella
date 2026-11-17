@@ -30,6 +30,14 @@ export function addSkeletalSubmit(app: App, submit: SkeletalDomainSubmit, isActi
     app.pipeline?.addPreFlushCallback((registry) =>
         submit(registry, (e) => isActive(e) && !isScreen(registry, e)));
     if (!api?.ui_isScreenDomain) return;
-    app.pipeline?.addScreenOverlayCallback((registry) =>
-        submit(registry, (e) => isActive(e) && isScreen(registry, e)));
+    // A skeleton on the screen poses every frame, so a pass that drew one is never held; one with none adds nothing.
+    let drewScreen = true;
+    app.pipeline?.addScreenOverlayCallback((registry) => {
+        drewScreen = false;
+        submit(registry, (e) => {
+            const screen = isActive(e) && isScreen(registry, e);
+            if (screen) drewScreen = true;
+            return screen;
+        });
+    }, () => !drewScreen);
 }

@@ -229,6 +229,10 @@ void RenderFrame::shutdown() {
         cover_frame_ubo_ = BufferHandle::Invalid;
     }
     planar_pool_.shutdown();
+    swapOverlayOut();
+    if (overlay_hold_) overlay_hold_->pool.shutdown();
+    overlay_hold_.reset();
+    overlay_valid_ = false;
     probe_pool_.shutdown();
     if (probe_capture_.frameUbo != BufferHandle::Invalid) {
         device_.deleteBuffer(probe_capture_.frameUbo);
@@ -377,6 +381,10 @@ void RenderFrame::releaseFrameTargets() {
 
 void RenderFrame::beginFrame() {
     ++planar_frame_;
+    // An overlay left open by a host that never closed it gives the frame its pool and list back.
+    swapOverlayOut();
+    overlay_active_ = false;
+    overlay_passes_ = 0;
 #ifdef ES_ENABLE_GPU_PARTICLES
     if (gpu_particles_) gpu_particles_->beginFrame();
 #endif

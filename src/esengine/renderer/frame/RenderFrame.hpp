@@ -239,6 +239,13 @@ public:
      *         SDK's glyph quads), which lands in the same list. */
     void submitScreenOverlay(ecs::Registry& registry);
 
+    /**
+     * @brief Asked after beginScreenOverlay and the layers: true, and the host submits nothing and endScreenOverlay draws what the
+     *        overlay holds. Held while no component of a screen-domain entity moved (stamps, journal), nor the inputs overlayInputs
+     *        names, and @p hostStill. Under the change audit it always builds and counts a mismatch (render.overlay.stale).
+     */
+    bool keepScreenOverlay(ecs::Registry& registry, bool hostStill);
+
     void setScreenOverlayEffect(u32 material);
     void endScreenOverlay(RenderTargetManager::Handle target);
 
@@ -1303,6 +1310,45 @@ private:
     const std::unordered_set<u32>* screen_domain_ = nullptr;
     const std::unordered_map<u32, i32>* ui_tree_layers_ = nullptr;
     bool overlay_active_ = false;
+    /// The overlay's own pool and list, traded with pool_ and draw_list_ for the pass (beginScreenOverlay to endScreenOverlay) so
+    /// that what one pass built survives the cameras of the next frame: everything that submits writes pool_ and draw_list_.
+    /// Made by the first overlay a frame opens, so a frame that never opens one holds neither.
+    struct OverlayHold {
+        explicit OverlayHold(GfxDevice& device) : pool(device) {}
+        TransientBufferPool pool;
+        DrawList list;
+    };
+    std::unique_ptr<OverlayHold> overlay_hold_;
+    bool overlay_swapped_ = false;
+    /// This pass draws what the overlay holds (keepScreenOverlay said so); nothing is collected, finalized or uploaded.
+    bool overlay_kept_ = false;
+    /// Opened and not yet told whether it is kept: the first collect empties the list it will build.
+    bool overlay_reset_pending_ = false;
+    /// The overlay holds a finished pass, built from overlay_key_ at overlay_tick_ and journal row overlay_journal_.
+    bool overlay_valid_ = false;
+    u64 overlay_key_ = 0;
+    u32 overlay_tick_ = 0;
+    double overlay_journal_ = -1;
+    u64 overlay_pending_key_ = 0;
+    u32 overlay_pending_tick_ = 0;
+    double overlay_pending_journal_ = -1;
+    /// The registry the journal is watched on (its identity) and the reader it gave.
+    u64 overlay_watched_ = 0;
+    u32 overlay_reader_ = 0;
+    /// Passes opened this frame: a second (an effect splitting the layers) is never held.
+    u32 overlay_passes_ = 0;
+    /// The change audit: what the last built pass held, and whether this build is one keepScreenOverlay would have held.
+    u64 overlay_content_ = 0;
+    bool overlay_would_keep_ = false;
+    u32 overlay_stale_ = 0;
+    bool warned_overlay_stale_ = false;
+    u32 overlay_kept_total_ = 0;
+    u32 overlay_why_ = 0;
+    void swapOverlayIn();
+    void swapOverlayOut();
+    void resetOverlayContents();
+    u64 overlayInputs(ecs::Registry& registry) const;
+    bool overlayRegistryMoved(ecs::Registry& registry);
     glm::mat4 overlay_projection_{1.0f};
     i32 overlay_vp_x_ = 0, overlay_vp_y_ = 0;
     u32 overlay_vp_w_ = 0, overlay_vp_h_ = 0;

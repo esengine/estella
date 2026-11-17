@@ -207,6 +207,7 @@ export interface NativeEngineApi {
     renderer_getTriangles?(): number;
     renderer_hasCapturedData?(): boolean;
     renderer_init?(width: number, height: number): void;
+    renderer_keepScreenOverlay?(registry: unknown, hostStill: boolean): boolean;
     renderer_lightStatus?(entity: number, outPtr: number): number;
     renderer_lodInspect?(view: number, entity: number, outPtr: number): number;
     renderer_materialBakeState?(ticket: number): number;
@@ -572,6 +573,7 @@ export function createNativeEngineApi(
     bind('renderer_getTriangles', 'es_renderer_getTriangles', false);
     bind('renderer_hasCapturedData', 'es_renderer_hasCapturedData', false);
     bind('renderer_init', 'es_renderer_init', false);
+    bind('renderer_keepScreenOverlay', 'es_renderer_keepScreenOverlay', true);
     bind('renderer_lightStatus', 'es_renderer_lightStatus', false);
     bind('renderer_lodInspect', 'es_renderer_lodInspect', false);
     bind('renderer_materialBakeState', 'es_renderer_materialBakeState', false);
