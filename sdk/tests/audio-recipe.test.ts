@@ -92,7 +92,7 @@ describe('an audio recipe', () => {
           {
             "bytes": 35324,
             "digest": "4083f3064656b38c",
-            "revision": "3",
+            "revision": "4",
           }
         `);
     });

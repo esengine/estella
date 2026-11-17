@@ -337,6 +337,26 @@ export function importerDefaults(type: string): Record<string, unknown> {
 }
 
 /** True when a type exposes editable import settings. */
+export function readImporterField(type: string, importer: Record<string, unknown> | undefined, key: string): ImporterValue {
+  const spec = IMPORTER_SCHEMAS[type]?.find((s) => s.key === key);
+  if (!spec) throw new Error(`${type} has no import setting named ${key}`);
+  const stored = importer ? getImporterValueByPath(importer, key) : undefined;
+  const value = spec.read ? spec.read(stored) : stored;
+  switch (spec.type) {
+    case 'bool':
+      return typeof value === 'boolean' ? value : spec.default;
+    case 'string':
+      return typeof value === 'string' ? value : spec.default;
+    case 'number':
+      return typeof value === 'number' && Number.isFinite(value)
+        && (spec.min === undefined || value >= spec.min) && (spec.max === undefined || value <= spec.max) ? value : spec.default;
+    case 'enum':
+      return spec.options?.some((o) => o.value === value) ? value as ImporterValue : spec.default;
+    case 'select':
+      return typeof value === 'string' && spec.selectOptions?.includes(value) ? value : spec.default;
+  }
+}
+
 export const hasImporterSettings = (type: string): boolean => (IMPORTER_SCHEMAS[type]?.length ?? 0) > 0;
 
 /** Whether two asset types are edited by the SAME settings — a sprite and a

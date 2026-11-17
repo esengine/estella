@@ -6,16 +6,10 @@
  *
  *          web     → a static-servable web build (cooked assets + manifest, the
  *                    esbuild'd game host, the SDK + wasm runtime, index.html).
- *          desktop → the SAME web build under `app/`, wrapped in a runnable
- *                    Electron app (main.cjs serving it over a custom `game://`
- *                    scheme — file:// blocks the runtime's asset/wasm fetches),
- *                    plus a package.json wired for `electron-builder`.
  *
  *        The web payload is identical across targets and boots the SAME runtime
  *        the editor's play realm uses (gameHost → initPlayRealmRuntime), so the
- *        shipped game is what was played (play == ship). The host is origin-
- *        agnostic (relative fetch + import.meta.url), so the desktop scheme needs
- *        no host changes.
+ *        shipped game is what was played (play == ship).
  *
  *        Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
@@ -355,7 +349,7 @@ export const splashScriptCspHash = (): string => `sha256-${createHash('sha256').
 
 /** The web host page. `orientation` pins the canvas to a screen orientation (rotate-
  *  to-fit overlay + best-effort lock) — set for the mobile-facing web target, omitted
- *  for desktop (the Electron shell sizes its own window). */
+ *  for desktop. */
 function indexHtml(
   title: string, map: EngineImportMap, look: SplashLook, orientation?: ScreenOrientation,
   debugChannel?: DebugChannelConfig, webChannel?: 'poki' | 'crazygames' | 'youtube', webConnect?: readonly string[],

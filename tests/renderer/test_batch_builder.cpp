@@ -2717,7 +2717,7 @@ TEST_CASE("tree layer: draws stack by their entity's place in the walk, not by s
     Harness h;
     h.list.setTreeMask(1u << 4);
     // entity index 1 stands later in the walk than index 2
-    h.list.setTreeSequence({0u, 2u, 1u});
+    h.list.treeSequence() = {0u, 2u, 1u};
     BatchVertex quad[4] = {};
 
     BatchDrawKey later = quadKey(1, /*layer=*/4);

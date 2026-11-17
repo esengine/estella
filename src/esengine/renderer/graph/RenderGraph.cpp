@@ -239,14 +239,16 @@ void RenderGraph::resolveSize(Resource& res) const {
     res.height = std::max(1u, static_cast<u32>(static_cast<f32>(refHeight_) * scale));
 }
 
-void RenderGraph::cull(std::vector<bool>& live) const {
+void RenderGraph::cull() {
+    std::vector<bool>& live = live_;
     live.assign(passes_.size(), false);
     if (finalTarget_ == kNoResource) return;
 
     // Walk back from the final target: a resource is wanted if the image needs
     // it, and a pass is live if it writes one. Reverse order because a pass can
     // only be fed by a pass before it — the graph is built in submission order.
-    std::vector<bool> wanted(resources_.size(), false);
+    std::vector<bool>& wanted = wanted_;
+    wanted.assign(resources_.size(), false);
     wanted[finalTarget_] = true;
     for (i32 i = static_cast<i32>(passes_.size()) - 1; i >= 0; --i) {
         const PassDesc& pass = passes_[static_cast<usize>(i)];
@@ -286,8 +288,8 @@ void RenderGraph::release(Resource& res) {
 }
 
 void RenderGraph::execute() {
-    std::vector<bool> live;
-    cull(live);
+    cull();
+    const std::vector<bool>& live = live_;
 
     // Last read decides when a target goes back to the pool. A transient nobody
     // reads is still written, so its life ends at the pass that wrote it.
@@ -304,7 +306,8 @@ void RenderGraph::execute() {
 
     // The last live pass to draw on each resource: after it nothing continues on that target, so its multisampled attachments, resolved by
     // then, need not be kept.
-    std::vector<i32> lastWriter(resources_.size(), -1);
+    std::vector<i32>& lastWriter = last_writer_;
+    lastWriter.assign(resources_.size(), -1);
     for (usize i = 0; i < passes_.size(); ++i) {
         if (live[i] && passes_[i].write < resources_.size()) lastWriter[passes_[i].write] = static_cast<i32>(i);
     }

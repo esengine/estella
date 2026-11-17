@@ -71,6 +71,10 @@ export class ShelfPacker implements Packer {
         return pos;
     }
 
+    get usedHeight(): number {
+        return this.yCursor;
+    }
+
     reset(): void {
         this.shelves = [];
         this.yCursor = 0;

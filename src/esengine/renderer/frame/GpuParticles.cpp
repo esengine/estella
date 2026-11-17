@@ -1109,23 +1109,30 @@ void GpuParticles::run() {
     ensureEmpties();
 
     // A parent runs before what its events feed, however the scene happens to list them.
-    std::vector<Job*> order;
-    order.reserve(jobs_.size());
-    const auto parentOf = [this](const Job& child) -> Job* {
-        for (Job& candidate : jobs_) {
-            if (candidate.subEmitter == child.entity.raw && &candidate != &child) return &candidate;
+    const std::size_t jobCount = jobs_.size();
+    parent_.assign(jobCount, -1);
+    for (std::size_t child = 0; child < jobCount; ++child) {
+        for (std::size_t candidate = 0; candidate < jobCount; ++candidate) {
+            if (candidate != child && jobs_[candidate].subEmitter == jobs_[child].entity.raw) {
+                parent_[child] = static_cast<i32>(candidate);
+                break;
+            }
         }
-        return nullptr;
+    }
+    const auto parentOf = [this](const Job& child) -> Job* {
+        const i32 parent = parent_[static_cast<std::size_t>(&child - jobs_.data())];
+        return parent >= 0 ? &jobs_[static_cast<std::size_t>(parent)] : nullptr;
     };
-    std::vector<u8> placed(jobs_.size(), 0);
+    order_.clear();
+    placed_.assign(jobCount, 0);
     const auto place = [&](auto&& self, Job& job, u32 depth) -> void {
         const std::size_t index = static_cast<std::size_t>(&job - jobs_.data());
-        if (placed[index]) return;
-        placed[index] = 1;
+        if (placed_[index]) return;
+        placed_[index] = 1;
         if (depth < kMaxJobs) {
             if (Job* parent = parentOf(job)) self(self, *parent, depth + 1);
         }
-        order.push_back(&job);
+        order_.push_back(&job);
     };
     for (Job& job : jobs_) place(place, job, 0);
 
@@ -1138,7 +1145,7 @@ void GpuParticles::run() {
     }
     if (colliderBytes > 0 && colliders_ != BufferHandle::Invalid) device_.updateBuffer(colliders_, 0, colliders.data(), colliderBytes);
 
-    std::vector<u8> staging(needed, 0);
+    staging_.assign(needed, 0);
     for (std::size_t i = 0; i < jobs_.size(); ++i) {
         Job& job = jobs_[i];
         if (const Job* parent = parentOf(job)) job.block.p13[1] = parent->inheritVelocity;
@@ -1149,9 +1156,9 @@ void GpuParticles::run() {
             std::memcpy(job.block.depthWorld, &depthWorld_[0][0], sizeof(job.block.depthWorld));
             set4(job.block.depthOrigin, depthOrigin_.x, depthOrigin_.y, depthOrigin_.z, 0.0f);
         }
-        std::memcpy(staging.data() + i * kJobStride, &job.block, sizeof(ParamsBlock));
+        std::memcpy(staging_.data() + i * kJobStride, &job.block, sizeof(ParamsBlock));
     }
-    device_.updateBuffer(params_, 0, staging.data(), needed);
+    device_.updateBuffer(params_, 0, staging_.data(), needed);
 
     bool anyEvents = false;
     for (const Job& job : jobs_) anyEvents = anyEvents || job.slot->events != BufferHandle::Invalid;
@@ -1165,16 +1172,16 @@ void GpuParticles::run() {
             if (control_ == BufferHandle::Invalid) { controlCapacity_ = 0; anyEvents = false; }
         }
         if (anyEvents) {
-            std::vector<u8> control(controlBytes, 0);
+            control_staging_.assign(controlBytes, 0);
             for (std::size_t i = 0; i < jobs_.size(); ++i) {
                 const u32 words[4] = {jobs_[i].eventCapacity, jobs_[i].block.p12[2], jobs_[i].slot->capacity, 0u};
-                std::memcpy(control.data() + i * 256u, words, sizeof(words));
+                std::memcpy(control_staging_.data() + i * 256u, words, sizeof(words));
             }
-            device_.updateBuffer(control_, 0, control.data(), controlBytes);
+            device_.updateBuffer(control_, 0, control_staging_.data(), controlBytes);
         }
     }
 
-    for (Job* jobPtr : order) {
+    for (Job* jobPtr : order_) {
         const Job& job = *jobPtr;
         const u32 i = static_cast<u32>(jobPtr - jobs_.data());
         const Job* parent = parentOf(job);

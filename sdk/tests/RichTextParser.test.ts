@@ -172,3 +172,15 @@ describe('parseRichText – the tags Cocos Creator\'s rich text writes', () => {
         expect((runs[0] as { bold: boolean }).bold).toBe(true);
     });
 });
+
+describe('parseRichText – <color> tag', () => {
+    it('reads every hex form a colour field takes', () => {
+        expect(parseRichText('<color=#f00>a</color>')[0]).toMatchObject({ text: 'a', color: { r: 1, g: 0, b: 0, a: 1 } });
+        expect(parseRichText('<color=#ff000080>b</color>')[0]).toMatchObject({ text: 'b', color: { r: 1, g: 0, b: 0, a: 128 / 255 } });
+    });
+
+    it('leaves a colour it cannot read as text', () => {
+        const runs = parseRichText('<color=#ff00zz>c</color>');
+        expect(runs.map((r) => (r as { text: string }).text).join('')).toContain('<color=#ff00zz>');
+    });
+});

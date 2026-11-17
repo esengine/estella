@@ -13,6 +13,7 @@
  * Glyph metrics from the atlas are in renderSize px; everything scales by
  * displaySize / atlas.renderSize (SDF is resolution-independent).
  */
+import { TEXT_ASCENT_RATIO } from '../util/constants';
 import type { GlyphAtlas, GlyphEntry } from './glyph-atlas';
 import { TEXT_VERTEX_FLOATS } from './submit';
 import { parseRichText, type TextSegment, type ImageSegment, type RichTextRun } from './rich-text-parser';
@@ -614,8 +615,8 @@ export function wrapRichRuns(
 function placeImage(img: ImageSegment, penX: number, fontSizePx: number): LaidImage {
     const w = img.width * img.scale;
     const h = img.height * img.scale;
-    const ascent = fontSizePx * 0.8;
-    const descent = fontSizePx * 0.2;
+    const ascent = fontSizePx * TEXT_ASCENT_RATIO;
+    const descent = fontSizePx * (1 - TEXT_ASCENT_RATIO);
     let yBottom: number;
     switch (img.valign) {
         case 'top': yBottom = ascent - h; break;

@@ -58,6 +58,7 @@ export const GATES = [
   // The generator's output is checked in, so its authority and its artifact can
   // disagree with nothing between them to notice.
   { id: 'generated-fresh', run: 'node tools/check-generated-fresh.mjs' },
+  { id: 'worker-bundles-fresh', run: 'node sdk/scripts/build-worker.mjs --check' },
   // The generator's own cases had no runner at all — the file said how to run it
   // and nothing did, which is the shape check-verifier-owners exists to refuse.
   { id: 'eht-validation', run: 'python3 tools/eht/test_validation.py' },

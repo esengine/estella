@@ -140,6 +140,11 @@ private:
     u32 drawn_ = 0;
     std::unordered_map<u32, Slot> slots_;
     std::vector<Job> jobs_;
+    std::vector<Job*> order_;
+    std::vector<u8> placed_;
+    std::vector<i32> parent_;
+    std::vector<u8> staging_;
+    std::vector<u8> control_staging_;
 };
 
 }  // namespace esengine

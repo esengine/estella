@@ -180,6 +180,7 @@ void WebGPUDevice::shutdown() {
 
 void WebGPUDevice::releaseDeviceObjects() {
     if (pass_) { wgpuRenderPassEncoderRelease(pass_); pass_ = nullptr; }
+    pass_pipeline_ = nullptr;
     if (encoder_) { wgpuCommandEncoderRelease(encoder_); encoder_ = nullptr; }
     if (frame_view_) { wgpuTextureViewRelease(frame_view_); frame_view_ = nullptr; }
     if (frame_texture_) { wgpuTextureRelease(frame_texture_); frame_texture_ = nullptr; }
@@ -1496,8 +1497,10 @@ void WebGPUDevice::backendSetPipeline(u32 id, const PipelineDesc&) {
     bound_pipeline_ = id;
     if (!pass_) return;
     if (WGPURenderPipeline p = ensurePipeline(id)) {
+        if (p == pass_pipeline_) return;
         wgpuRenderPassEncoderSetPipeline(pass_, p);
-        bind_group_dirty_ = true;  // group layout may differ across pipelines
+        pass_pipeline_ = p;
+        bind_group_dirty_ = true;
     }
 }
 
@@ -1968,9 +1971,8 @@ void WebGPUDevice::drawInternalClear(bool color, bool depth, bool stencil,
         wgpuRenderPassEncoderSetStencilReference(pass_, static_cast<u32>(stencil_ref_));
     }
 
-    // The triangle clobbered pipeline/bind-group pass state; force the next
-    // user draw to re-establish everything.
     bound_pipeline_ = 0;
+    pass_pipeline_ = nullptr;
     bind_group_dirty_ = true;
 }
 
@@ -2722,6 +2724,7 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
         rp.timestampWrites = &tw;  // outlives the call below (same scope)
     }
     pass_ = wgpuCommandEncoderBeginRenderPass(encoder_, &rp);
+    pass_pipeline_ = nullptr;
     bind_group_dirty_ = true;
     stencil_ref_ = 0;  // a fresh pass encoder resets its stencil reference
 
@@ -2739,6 +2742,7 @@ void WebGPUDevice::endRenderPass() {
     wgpuRenderPassEncoderEnd(pass_);
     wgpuRenderPassEncoderRelease(pass_);
     pass_ = nullptr;
+    pass_pipeline_ = nullptr;
 
     // Depth, on the same encoder and after the pass that wrote it: colour was
     // resolved by the pass itself, and this is the half WebGPU leaves to us.

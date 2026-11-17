@@ -7,7 +7,7 @@
 
 import { WasmModuleAborted } from '../wasm/moduleHealth';
 import { type Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } from '../types';
-import { type AnyComponentDef, type ComponentDef, type ComponentData, type BuiltinComponentDef, isBuiltinComponent, mergeIntoDefaults, builtinComponentRegistry, extraBuiltinComponentRegistry, getUserComponents, getComponent, Disabled, Name, Parent, Children, type ParentData, type ChildrenData } from './component';
+import { type AnyComponentDef, type ComponentDef, type ComponentData, type BuiltinComponentDef, isBuiltinComponent, mergeIntoDefaults, builtinComponentRegistry, extraBuiltinComponentRegistry, getUserComponents, getComponent, Disabled, Name, Parent, Children, Transform, type ParentData, type ChildrenData } from './component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { handleWasmError } from '../wasm/wasmError';
 import { BuiltinBridge, builtinFromWasm, numberListFieldsOf, convertForWasm, type BridgeConnectOptions,
@@ -119,9 +119,12 @@ export interface QueryFilter {
 // World
 // =============================================================================
 
-/** Components whose value feeds the world-transform composition. Hierarchy is
- *  in here too: a reparent moves a subtree without touching its transforms. */
-const COMPOSITION_INPUTS = new Set(['Transform', 'Parent', 'Children']);
+let compositionInputs: ReadonlySet<string> | null = null;
+
+export function feedsTransformComposition(component: AnyComponentDef): boolean {
+    compositionInputs ??= new Set([Transform._name, Parent._name, Children._name]);
+    return compositionInputs.has(component._name);
+}
 
 
 /**
@@ -1811,7 +1814,7 @@ export class World {
         // An engine component's write is stamped where the engine keeps it, beside the component: the engine's own readers
         // (the renderer) ask there what changed, whoever wrote it.
         if (isBuiltinComponent(component)) this.stampEngineWrite(entity, component);
-        if (COMPOSITION_INPUTS.has(component._name)) {
+        if (feedsTransformComposition(component)) {
             this.builtin_.invalidateTransformComposition();
         }
         this.changes_.recordChanged(component, entity);

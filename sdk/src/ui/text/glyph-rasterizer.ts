@@ -15,6 +15,7 @@ import type { ESEngineModule } from '../../wasm';
 import { platformCreateCanvas } from '../../platform';
 import type { PlatformCanvas, PlatformCanvas2DContext } from '../../platform/types';
 import { sdfFromAlpha } from './sdf';
+import { TEXT_ASCENT_RATIO } from '../util/constants';
 import type { GlyphRasterizer, RasterGlyph } from './glyph-atlas';
 
 /** Style bit flags (match the atlas cache-key style argument). */
@@ -140,7 +141,7 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
         const advanceSS = m.width;
         const leftSS = m.actualBoundingBoxLeft ?? 0;
         const rightSS = m.actualBoundingBoxRight ?? advanceSS;
-        const ascentSS = m.actualBoundingBoxAscent ?? pixelSize * ss * 0.8;
+        const ascentSS = m.actualBoundingBoxAscent ?? pixelSize * ss * TEXT_ASCENT_RATIO;
         const descentSS = m.actualBoundingBoxDescent ?? pixelSize * ss * 0.2;
 
         // Ink box in *stored* texels (rounded up so the ss grid tiles exactly).

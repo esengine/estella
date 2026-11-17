@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Color } from '../../types';
+import { col } from '../../math/color';
 
 export interface TextSegment {
     type: 'text';
@@ -36,7 +37,7 @@ interface StyleFrame {
     fontSize: number | null;
 }
 
-const TAG_COLOR_RE = /^color=(#[0-9a-fA-F]{6,8})$/;
+const TAG_COLOR_RE = /^color=(#[0-9a-fA-F]{3,8})$/;
 const TAG_FONT_SIZE_RE = /^font\s+size=(?:"(\d+)"|(\d+))$/;
 /** `<size=24>`: the same as `<font size=24>`, in the spelling Cocos Creator's rich text uses. */
 const TAG_SIZE_RE = /^size=(?:"(\d+)"|'(\d+)'|(\d+))$/;
@@ -52,13 +53,11 @@ const NAMED_COLORS: Readonly<Record<string, string>> = {
 };
 
 function parseHexColor(hex: string): Color | null {
-    if (hex.length !== 7 && hex.length !== 9) return null;
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    const a = hex.length === 9 ? parseInt(hex.slice(7, 9), 16) : 255;
-    if (isNaN(r) || isNaN(g) || isNaN(b) || isNaN(a)) return null;
-    return { r: r / 255, g: g / 255, b: b / 255, a: a / 255 };
+    try {
+        return col.fromHex(hex);
+    } catch {
+        return null;
+    }
 }
 
 function emitTextRun(runs: RichTextRun[], text: string, style: StyleFrame): void {

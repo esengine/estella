@@ -10,6 +10,12 @@
 const DEG2RAD = Math.PI / 180;
 const RAD2DEG = 180 / Math.PI;
 
+export function nextPowerOf2(n: number): number {
+    let p = 1;
+    while (p < n) p *= 2;
+    return p;
+}
+
 export const scalar = {
     /** Clamp `x` to [min, max]. */
     clamp(x: number, min: number, max: number): number {

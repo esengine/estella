@@ -12,6 +12,7 @@
  */
 import { PNG } from 'pngjs';
 import { ShelfPacker } from '../../../sdk/src/util/shelfPack';
+import { nextPowerOf2 } from '../../../sdk/src/math/scalar';
 import { downscaledSize } from './textureCookDecision';
 import { encodeRgbaPng } from './png';
 
@@ -75,12 +76,6 @@ function tryPackPage(
     return placements;
 }
 
-/** Smallest power of two ≥ n (n ≥ 1). */
-function nextPow2(n: number): number {
-    let p = 1;
-    while (p < n) p *= 2;
-    return p;
-}
 
 function composePage(images: Map<string, AtlasInputImage>, placements: AtlasPlacement[], width: number, height: number): AtlasPage {
     const rgba = new Uint8Array(width * height * 4);
@@ -120,7 +115,7 @@ export function packAtlas(images: AtlasInputImage[], options: PackOptions = {}):
     const pages: AtlasPage[] = [];
     while (remaining.length > 0) {
         // Grow a square page until everything remaining fits (or we hit the cap).
-        let size = nextPow2(Math.max(
+        let size = nextPowerOf2(Math.max(
             remaining[0].height + padding * 2,
             Math.max(...remaining.map((i) => i.width)) + padding * 2,
         ));

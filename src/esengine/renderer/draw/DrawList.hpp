@@ -161,9 +161,7 @@ public:
     // beneath it: ordered by shader, every label would land above every image of the layer.
     void setTreeMask(u32 mask) { tree_mask_ = mask; }
     u32 treeMask() const { return tree_mask_; }
-    /// The preorder position of each entity, by entity index. Rebuilt once per collect, only while a layer is tree-ordered.
-    void setTreeSequence(std::vector<u32>&& sequence) { tree_sequence_ = std::move(sequence); }
-    void clearTreeSequence() { tree_sequence_.clear(); }
+    std::vector<u32>& treeSequence() { return tree_sequence_; }
     u32 treeSequenceOf(Entity entity) const {
         const u32 index = entity.index();
         return index < tree_sequence_.size() ? tree_sequence_[index] : 0u;
