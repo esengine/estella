@@ -18,13 +18,11 @@ namespace {
 /// relocateInstance: the first record of a run lands wherever the pool has room.
 constexpr u32 NO_EXPECTED_OFFSET = 0xFFFFFFFFu;
 
-// Stamp a merged sampler slot onto every vertex of a Batch-layout command. The vertices
-// are still in CPU staging at finalize time (finalize runs before upload), so the shader
-// later samples u_textures[texIndex]. Only the Batch layout carries a texIndex attribute.
+static_assert((1u << BATCH_SLOT_BITS) == MAX_CMD_TEXTURE_SLOTS);
+
 void rewriteTexIndex(TransientBufferPool& pool, const DrawCommand& cmd, i32 slot) {
     auto* verts = reinterpret_cast<BatchVertex*>(pool.vertexData(LayoutId::Batch) + cmd.vertex_byte_offset);
-    f32 fslot = static_cast<f32>(slot);
-    for (u32 k = 0; k < cmd.vertex_count; ++k) verts[k].texIndex = fslot;
+    for (u32 k = 0; k < cmd.vertex_count; ++k) verts[k].texIndex = withTextureSlot(verts[k].texIndex, slot);
 }
 
 /**

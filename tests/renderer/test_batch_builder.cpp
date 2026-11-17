@@ -700,6 +700,55 @@ TEST_CASE("finalize: sorted Batch index gaps merge in painter order with their t
     CHECK(verts[8].texIndex == 1);
 }
 
+TEST_CASE("finalize: a glyph keeps its mode in the slot the merge gives it") {
+    Harness h;
+    BatchVertex sprite[4] = {};
+    BatchVertex glyph[4] = {};
+    for (auto& v : glyph) v.texIndex = static_cast<f32>(batchGlyphModeBits(TextGlyphMode::Sdf));
+    appendQuad(h.pool, h.list, h.clips, sprite, quadKey(10, 0));
+    appendQuad(h.pool, h.list, h.clips, glyph, quadKey(11, 1));
+    appendQuad(h.pool, h.list, h.clips, glyph, quadKey(10, 2));
+    h.list.finalize(h.pool);
+    REQUIRE(h.list.mergedDrawCallCount() == 1);
+    const auto* verts = reinterpret_cast<const BatchVertex*>(h.pool.vertexData(LayoutId::Batch));
+    CHECK(verts[0].texIndex == 0.0f);
+    CHECK(verts[4].texIndex == 9.0f);
+    CHECK(verts[8].texIndex == 8.0f);
+}
+
+TEST_CASE("text in every glyph mode joins the quads around it in one draw of the default batch program") {
+    MockGfxDevice device;
+    std::vector<BatchVertex> uploaded;
+    device.observeUpdateBuffer = [&](const void* data, u32 size) {
+        if (size != 20 * sizeof(BatchVertex)) return;
+        const auto* first = static_cast<const BatchVertex*>(data);
+        uploaded.assign(first, first + 20);
+    };
+    RenderContext context(device);
+    resource::ResourceManager resources;
+    resources.init(device);
+    RenderFrame frame(device, context, resources);
+    frame.init(64, 64);
+    const glm::mat4 transform(1.0f);
+    const f32 glyph[36] = {};
+    const u16 indices[] = {0, 1, 2, 2, 3, 0};
+    frame.begin(transform);
+    frame.submitTileQuad({0, 0}, {8, 8}, {0, 0}, {1, 1}, glm::vec4(1.0f), 1, Entity(1), 0, 0);
+    frame.submitTextBatch(glyph, 4, indices, 6, 2, &transform[0][0], Entity(2), 1, 0, TextGlyphMode::Sdf);
+    frame.submitTileQuad({0, 0}, {8, 8}, {0, 0}, {1, 1}, glm::vec4(1.0f), 1, Entity(3), 2, 0);
+    frame.submitTextBatch(glyph, 4, indices, 6, 3, &transform[0][0], Entity(4), 3, 0, TextGlyphMode::Mask);
+    frame.submitTextBatch(glyph, 4, indices, 6, 3, &transform[0][0], Entity(4), 4, 0, TextGlyphMode::Fill);
+    frame.flush();
+    CHECK(frame.stats().draw_calls == 1);
+    REQUIRE(uploaded.size() == 20);
+    const f32 expected[5] = {0.0f, 9.0f, 0.0f, 18.0f, 26.0f};
+    for (u32 quad = 0; quad < 5; ++quad) {
+        for (u32 corner = 0; corner < 4; ++corner) CHECK(uploaded[quad * 4 + corner].texIndex == expected[quad]);
+    }
+    frame.end();
+    resources.shutdown();
+}
+
 TEST_CASE("camera mask: hidden text and skeletal submissions upload no geometry") {
     MockGfxDevice device;
     RenderContext context(device);

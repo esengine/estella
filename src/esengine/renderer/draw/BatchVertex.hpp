@@ -3,9 +3,20 @@
 #pragma once
 
 #include "../../core/Types.hpp"
+#include "./TextVertexFormat.hpp"
 #include <glm/glm.hpp>
 
 namespace esengine {
+
+inline constexpr i32 BATCH_SLOT_BITS = 3;
+
+inline i32 batchGlyphModeBits(TextGlyphMode mode) {
+    return static_cast<i32>(mode) << BATCH_SLOT_BITS;
+}
+
+inline f32 withTextureSlot(f32 texIndex, i32 slot) {
+    return static_cast<f32>(((static_cast<i32>(texIndex) >> BATCH_SLOT_BITS) << BATCH_SLOT_BITS) | slot);
+}
 
 /**
  * @brief One vertex of the shared batch stream.
@@ -19,7 +30,7 @@ struct BatchVertex {
     glm::vec3 position;
     u32 color;
     glm::vec2 texCoord;
-    f32 texIndex = 0.0f;  // sampler slot within the draw's texture set; assigned at merge time
+    f32 texIndex = 0.0f;
     // How far to push the SDF text edge outward, in the atlas's own distance units
     // (0.5 = one spread). An outline is the glyph drawn once more with this raised,
     // which is a real dilation of the distance field — the alternative, stamping the

@@ -7,19 +7,6 @@ inline constexpr const char* BATCH = R"esshader(#pragma shader "Batch"
 
 
 
-
-#pragma feature SDF
-
-
-
-
-
-
-#pragma feature GLYPH_MASK
-#pragma feature GLYPH_FILL
-
-
-
 #pragma feature LIT
 
 
@@ -37,21 +24,16 @@ layout(location = 0) in vec3 a_position;
 layout(location = 1) in vec4 a_color;
 layout(location = 2) in vec2 a_texCoord;
 layout(location = 3) in float a_texIndex;
-
-
-#if defined(SDF) || defined(LIT)
 layout(location = 4) in float a_sdfBias;
-#endif
 
 out vec4 v_color;
 out vec2 v_texCoord;
 flat out int v_texIndex;
-#ifdef SDF
-out float v_sdfBias;
-#endif
 #ifdef LIT
 out highp vec2 v_worldPos;
 flat out highp float v_lightLayer;
+#else
+out float v_sdfBias;
 #endif
 
 void main() {
@@ -59,12 +41,11 @@ void main() {
     v_color = a_color;
     v_texCoord = a_texCoord;
     v_texIndex = int(a_texIndex);
-#ifdef SDF
-    v_sdfBias = a_sdfBias;
-#endif
 #ifdef LIT
     v_worldPos = a_position.xy;
     v_lightLayer = a_sdfBias;
+#else
+    v_sdfBias = a_sdfBias;
 #endif
 }
 #pragma end
@@ -77,12 +58,11 @@ precision highp float;
 in vec4 v_color;
 in vec2 v_texCoord;
 flat in int v_texIndex;
-#ifdef SDF
-in float v_sdfBias;
-#endif
 #ifdef LIT
 in highp vec2 v_worldPos;
 flat in highp float v_lightLayer;
+#else
+in float v_sdfBias;
 #endif
 
 
@@ -93,14 +73,15 @@ uniform sampler2D u_textures[8];
 out vec4 fragColor;
 
 void main() {
+    int slot = v_texIndex & 7;
     vec4 texColor;
-    if (v_texIndex == 0) texColor = texture(u_textures[0], v_texCoord);
-    else if (v_texIndex == 1) texColor = texture(u_textures[1], v_texCoord);
-    else if (v_texIndex == 2) texColor = texture(u_textures[2], v_texCoord);
-    else if (v_texIndex == 3) texColor = texture(u_textures[3], v_texCoord);
-    else if (v_texIndex == 4) texColor = texture(u_textures[4], v_texCoord);
-    else if (v_texIndex == 5) texColor = texture(u_textures[5], v_texCoord);
-    else if (v_texIndex == 6) texColor = texture(u_textures[6], v_texCoord);
+    if (slot == 0) texColor = texture(u_textures[0], v_texCoord);
+    else if (slot == 1) texColor = texture(u_textures[1], v_texCoord);
+    else if (slot == 2) texColor = texture(u_textures[2], v_texCoord);
+    else if (slot == 3) texColor = texture(u_textures[3], v_texCoord);
+    else if (slot == 4) texColor = texture(u_textures[4], v_texCoord);
+    else if (slot == 5) texColor = texture(u_textures[5], v_texCoord);
+    else if (slot == 6) texColor = texture(u_textures[6], v_texCoord);
     else texColor = texture(u_textures[7], v_texCoord);
 #ifdef ES_LINEAR
 
@@ -112,40 +93,42 @@ void main() {
 #ifdef PREMULTIPLIED_COLOR
     tint.rgb *= tint.a;
 #endif
-#ifdef SDF
-    ivec2 page;
-    if (v_texIndex == 0) page = textureSize(u_textures[0], 0);
-    else if (v_texIndex == 1) page = textureSize(u_textures[1], 0);
-    else if (v_texIndex == 2) page = textureSize(u_textures[2], 0);
-    else if (v_texIndex == 3) page = textureSize(u_textures[3], 0);
-    else if (v_texIndex == 4) page = textureSize(u_textures[4], 0);
-    else if (v_texIndex == 5) page = textureSize(u_textures[5], 0);
-    else if (v_texIndex == 6) page = textureSize(u_textures[6], 0);
-    else page = textureSize(u_textures[7], 0);
-    vec2 acrossX = dFdx(v_texCoord) * vec2(page);
-    vec2 acrossY = dFdy(v_texCoord) * vec2(page);
-    float texelsPerPixel = sqrt(0.5 * (dot(acrossX, acrossX) + dot(acrossY, acrossY)));
-    float dist = texColor.a;
-    float pixelsPerUnit = min(1.0 / max(fwidth(dist), 1e-6), texColor.r * 255.0 / max(texelsPerPixel, 1e-6));
-    float screenPxDist = (dist - 0.5 + v_sdfBias) * pixelsPerUnit;
-    float coverage = v_sdfBias < -1.0 ? dist : clamp(screenPxDist + 0.5, 0.0, 1.0);
-    fragColor = vec4(tint.rgb, tint.a * coverage);
-#elif defined(GLYPH_MASK)
-    fragColor = vec4(tint.rgb, tint.a * texColor.a);
-#elif defined(GLYPH_FILL)
-    fragColor = vec4(tint.rgb, tint.a * texColor.r * texColor.a);
-#elif defined(LIT)
-
+#ifdef LIT
     vec4 base = texColor * tint;
     fragColor = vec4(applyLighting2DLayer(base.rgb, vec3(0.0, 0.0, 1.0), v_worldPos, v_lightLayer), base.a);
 #else
+    int mode = v_texIndex >> 3;
+    vec2 duvx = dFdx(v_texCoord);
+    vec2 duvy = dFdy(v_texCoord);
+    float distWidth = fwidth(texColor.a);
+    if (mode == 1) {
+        ivec2 page;
+        if (slot == 0) page = textureSize(u_textures[0], 0);
+        else if (slot == 1) page = textureSize(u_textures[1], 0);
+        else if (slot == 2) page = textureSize(u_textures[2], 0);
+        else if (slot == 3) page = textureSize(u_textures[3], 0);
+        else if (slot == 4) page = textureSize(u_textures[4], 0);
+        else if (slot == 5) page = textureSize(u_textures[5], 0);
+        else if (slot == 6) page = textureSize(u_textures[6], 0);
+        else page = textureSize(u_textures[7], 0);
+        vec2 acrossX = duvx * vec2(page);
+        vec2 acrossY = duvy * vec2(page);
+        float texelsPerPixel = sqrt(0.5 * (dot(acrossX, acrossX) + dot(acrossY, acrossY)));
+        float dist = texColor.a;
+        float pixelsPerUnit = min(1.0 / max(distWidth, 1e-6), texColor.r * 255.0 / max(texelsPerPixel, 1e-6));
+        float screenPxDist = (dist - 0.5 + v_sdfBias) * pixelsPerUnit;
+        float coverage = v_sdfBias < -1.0 ? dist : clamp(screenPxDist + 0.5, 0.0, 1.0);
+        fragColor = vec4(tint.rgb, tint.a * coverage);
+    } else if (mode == 2) {
+        fragColor = vec4(tint.rgb, tint.a * texColor.a);
+    } else if (mode == 3) {
+        fragColor = vec4(tint.rgb, tint.a * texColor.r * texColor.a);
+    } else {
   #ifdef ALPHA_CLIP
-
-
-
-    if (texColor.a < 0.5) discard;
+        if (texColor.a < 0.5) discard;
   #endif
-    fragColor = texColor * tint;
+        fragColor = texColor * tint;
+    }
 #endif
 #ifdef ES_LINEAR
   #ifdef DISPLAY_OUTPUT
@@ -165,11 +148,7 @@ struct VSIn {
     @location(1) a_color : vec4f,
     @location(2) a_texCoord : vec2f,
     @location(3) a_texIndex : f32,
-#ifdef SDF
     @location(4) a_sdfBias : f32,
-#elif defined(LIT)
-    @location(4) a_sdfBias : f32,
-#endif
 };
 struct VSOut {
     @builtin(position) pos : vec4f,
@@ -179,8 +158,7 @@ struct VSOut {
 #ifdef LIT
     @location(3) v_worldPos : vec2f,
     @location(5) @interpolate(flat) v_lightLayer : f32,
-#endif
-#ifdef SDF
+#else
     @location(4) v_sdfBias : f32,
 #endif
 };
@@ -191,12 +169,11 @@ struct VSOut {
     out.v_color = v.a_color;
     out.v_texCoord = v.a_texCoord;
     out.v_texIndex = v.a_texIndex;
-#ifdef SDF
-    out.v_sdfBias = v.a_sdfBias;
-#endif
 #ifdef LIT
     out.v_worldPos = v.a_position.xy;
     out.v_lightLayer = v.a_sdfBias;
+#else
+    out.v_sdfBias = v.a_sdfBias;
 #endif
 
     out.pos.y = -out.pos.y;
@@ -230,27 +207,24 @@ struct VSOut {
 #ifdef LIT
     @location(3) v_worldPos : vec2f,
     @location(5) @interpolate(flat) v_lightLayer : f32,
-#endif
-#ifdef SDF
+#else
     @location(4) v_sdfBias : f32,
 #endif
 };
 
-
-
-
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let idx = i32(v.v_texIndex + 0.5);
+    let slot = idx & 7;
     let duvx = dpdx(v.v_texCoord);
     let duvy = dpdy(v.v_texCoord);
     var texColor : vec4f;
-    if (idx == 0) { texColor = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy); }
-    else if (idx == 1) { texColor = textureSampleGrad(t1, s1, v.v_texCoord, duvx, duvy); }
-    else if (idx == 2) { texColor = textureSampleGrad(t2, s2, v.v_texCoord, duvx, duvy); }
-    else if (idx == 3) { texColor = textureSampleGrad(t3, s3, v.v_texCoord, duvx, duvy); }
-    else if (idx == 4) { texColor = textureSampleGrad(t4, s4, v.v_texCoord, duvx, duvy); }
-    else if (idx == 5) { texColor = textureSampleGrad(t5, s5, v.v_texCoord, duvx, duvy); }
-    else if (idx == 6) { texColor = textureSampleGrad(t6, s6, v.v_texCoord, duvx, duvy); }
+    if (slot == 0) { texColor = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy); }
+    else if (slot == 1) { texColor = textureSampleGrad(t1, s1, v.v_texCoord, duvx, duvy); }
+    else if (slot == 2) { texColor = textureSampleGrad(t2, s2, v.v_texCoord, duvx, duvy); }
+    else if (slot == 3) { texColor = textureSampleGrad(t3, s3, v.v_texCoord, duvx, duvy); }
+    else if (slot == 4) { texColor = textureSampleGrad(t4, s4, v.v_texCoord, duvx, duvy); }
+    else if (slot == 5) { texColor = textureSampleGrad(t5, s5, v.v_texCoord, duvx, duvy); }
+    else if (slot == 6) { texColor = textureSampleGrad(t6, s6, v.v_texCoord, duvx, duvy); }
     else { texColor = textureSampleGrad(t7, s7, v.v_texCoord, duvx, duvy); }
 #ifdef ES_LINEAR
     var tint = vec4f(srgbToLinear(v.v_color.rgb), v.v_color.a);
@@ -260,37 +234,41 @@ struct VSOut {
 #ifdef PREMULTIPLIED_COLOR
     tint = vec4f(tint.rgb * tint.a, tint.a);
 #endif
-#ifdef SDF
-    var page : vec2u;
-    if (idx == 0) { page = textureDimensions(t0); }
-    else if (idx == 1) { page = textureDimensions(t1); }
-    else if (idx == 2) { page = textureDimensions(t2); }
-    else if (idx == 3) { page = textureDimensions(t3); }
-    else if (idx == 4) { page = textureDimensions(t4); }
-    else if (idx == 5) { page = textureDimensions(t5); }
-    else if (idx == 6) { page = textureDimensions(t6); }
-    else { page = textureDimensions(t7); }
-    let acrossX = duvx * vec2f(page);
-    let acrossY = duvy * vec2f(page);
-    let texelsPerPixel = sqrt(0.5 * (dot(acrossX, acrossX) + dot(acrossY, acrossY)));
-    let dist = texColor.a;
-    let pixelsPerUnit = min(1.0 / max(fwidth(dist), 1e-6), texColor.r * 255.0 / max(texelsPerPixel, 1e-6));
-    let screenPxDist = (dist - 0.5 + v.v_sdfBias) * pixelsPerUnit;
-    let coverage = select(clamp(screenPxDist + 0.5, 0.0, 1.0), dist, v.v_sdfBias < -1.0);
-    let shown = vec4f(tint.rgb, tint.a * coverage);
-#elif defined(GLYPH_MASK)
-    let shown = vec4f(tint.rgb, tint.a * texColor.a);
-#elif defined(GLYPH_FILL)
-    let shown = vec4f(tint.rgb, tint.a * texColor.r * texColor.a);
-#elif defined(LIT)
+#ifdef LIT
     let base = texColor * tint;
     let shown = vec4f(applyLighting2DLayer(base.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos, v.v_lightLayer), base.a);
 #else
+    let mode = idx >> 3u;
+    let distWidth = fwidth(texColor.a);
+    var shown : vec4f;
+    if (mode == 1) {
+        var page : vec2u;
+        if (slot == 0) { page = textureDimensions(t0); }
+        else if (slot == 1) { page = textureDimensions(t1); }
+        else if (slot == 2) { page = textureDimensions(t2); }
+        else if (slot == 3) { page = textureDimensions(t3); }
+        else if (slot == 4) { page = textureDimensions(t4); }
+        else if (slot == 5) { page = textureDimensions(t5); }
+        else if (slot == 6) { page = textureDimensions(t6); }
+        else { page = textureDimensions(t7); }
+        let acrossX = duvx * vec2f(page);
+        let acrossY = duvy * vec2f(page);
+        let texelsPerPixel = sqrt(0.5 * (dot(acrossX, acrossX) + dot(acrossY, acrossY)));
+        let dist = texColor.a;
+        let pixelsPerUnit = min(1.0 / max(distWidth, 1e-6), texColor.r * 255.0 / max(texelsPerPixel, 1e-6));
+        let screenPxDist = (dist - 0.5 + v.v_sdfBias) * pixelsPerUnit;
+        let coverage = select(clamp(screenPxDist + 0.5, 0.0, 1.0), dist, v.v_sdfBias < -1.0);
+        shown = vec4f(tint.rgb, tint.a * coverage);
+    } else if (mode == 2) {
+        shown = vec4f(tint.rgb, tint.a * texColor.a);
+    } else if (mode == 3) {
+        shown = vec4f(tint.rgb, tint.a * texColor.r * texColor.a);
+    } else {
   #ifdef ALPHA_CLIP
-
-    if (texColor.a < 0.5) { discard; }
+        if (texColor.a < 0.5) { discard; }
   #endif
-    let shown = texColor * tint;
+        shown = texColor * tint;
+    }
 #endif
 #ifdef ES_LINEAR
   #ifdef DISPLAY_OUTPUT
