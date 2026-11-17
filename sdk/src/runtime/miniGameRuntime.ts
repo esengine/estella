@@ -275,8 +275,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         try { (adapter.host as { hideLoading?: () => void }).hideLoading?.(); } catch (e) { log.warn(tag, `hideLoading threw: ${String(e)}`); }
     }
     const reached: BootStage[] = [];
-    let booted = false, identOver = ident === null;
-    let identApp: Pick<App, 'pipeline'> | null = null;
+    let booted = false;
     let toast = hostProgress(ident ? {} : adapter.host);
     const progress = {
         reach(stage: BootStage): void { reached.push(stage); toast.reach(stage); },
@@ -284,10 +283,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     };
     if (ident) {
         void ident.finished.then(() => {
-            identOver = true;
             ident.stop();
-            identApp?.pipeline?.setRenderingEnabled(true);
-            identApp?.pipeline?.demand.request();
             if (booted) return;
             toast = hostProgress(adapter.host);
             for (const stage of reached) toast.reach(stage);
@@ -304,6 +300,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
 
     const module = await instantiateModule(config.engineFactory, config.engineWasmPath, tag, { canvas });
     progress.reach('engine');
+    if (ident) await ident.finished;
 
     // EmscriptenGLX runs the engine's GL calls inside the wasm and hands them to
     // the host in batches. Asked for only when the engine was linked with it and
@@ -407,13 +404,9 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     progress.finish();
     reportFirstFrame(app, adapter.host as { launchSuccess?: () => void });
     if (ident) {
-        if (!identOver) {
-            identApp = app;
-            app.pipeline?.setRenderingEnabled(false);
-        }
         let clear = 0;
         const off = app.onFrameEnd(() => {
-            if (!identOver || ++clear < 2) return;
+            if (++clear < 2) return;
             off();
             markIdentDone(true);
         });
