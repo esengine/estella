@@ -82,6 +82,7 @@ const NOT_INSTANCE_FORMATS = {
   '.inputmap': 'input actions and their bindings',
   '.tmj': 'a Tiled map; the engine derives RuntimeOnly entities from it',
   '.json': 'tsconfig / package metadata / user component schemas',
+  '.proto': 'a network message schema: the fields a game server and its clients exchange, none of them entities',
   '.meta': 'import settings for the file beside it',
   '.md': 'prose about the project, not the project',
   '.mjs': 'the project\'s own tooling',
