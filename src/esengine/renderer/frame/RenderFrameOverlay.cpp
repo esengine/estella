@@ -81,7 +81,7 @@ void RenderFrame::beginScreenOverlay(const glm::mat4& projection,
 }
 
 /** What a held overlay pass was built from besides the registry's components: a pass keyed alike draws alike. */
-u64 RenderFrame::overlayInputs(ecs::Registry& registry) const {
+u64 RenderFrame::overlayInputs(ecs::Registry& registry, bool whole) const {
     u64 h = hash::kFnv64Offset;
     const auto mix = [&h](u64 v) { h = hash::combine(h, v); };
     h = hash::combineWords(h, &overlay_projection_, sizeof(overlay_projection_));
@@ -102,6 +102,8 @@ u64 RenderFrame::overlayInputs(ecs::Registry& registry) const {
     mix(resource_manager_.meshesRevision());
     mix(context_.materials().revision());
     mix(batch_shader_id_);
+    // A segment answers for its own labels and its own share of the domain (keepSegments); the whole overlay, for all of them.
+    if (!whole) return h;
     // The labels it draws from the store, when it draws them itself.
     mix(retained_text_collected_ ? retained_text_.revision() : 0);
     // The domain itself, order-free: an entity that left it (or was destroyed in it) leaves nothing stamped behind.
@@ -136,8 +138,16 @@ bool RenderFrame::keepScreenOverlay(ecs::Registry& registry, bool hostStill) {
         overlay_reader_ = registry.watchEntityChanges();
         overlay_valid_ = false;
     }
+    overlay_registry_ = &registry;
+    const bool segmentable = hostStill && retained_text_collected_ && overlay_passes_ == 1 && overlay_effect_ == 0
+        && screen_roots_ && screen_root_by_index_ && !screen_roots_->empty()
+        && !(segments_refused_ && segments_refused_roots_ == screenRootsHash());
+    if (segmentable) return keepSegments(registry);
+    segments_trusted_ = false;
+    retained_text_.takeChanged([](u32) {});
+
     u32 why = 0;
-    const u64 key = overlayInputs(registry);
+    const u64 key = overlayInputs(registry, true);
     if (!hostStill) why |= 1;
     if (!overlay_valid_) why |= 2;
     else if (key != overlay_key_) why |= 4;
@@ -172,6 +182,21 @@ bool RenderFrame::keepScreenOverlay(ecs::Registry& registry, bool hostStill) {
 
 void RenderFrame::submitScreenOverlay(ecs::Registry& registry) {
     if (!overlay_active_ || overlay_kept_) return;
+    if (overlay_segmented_) {
+        ES_PROFILE_SCOPE("render.overlay.collect");
+        processMasks(registry, overlay_projection_, overlay_vp_x_, overlay_vp_y_,
+                     static_cast<i32>(overlay_vp_w_), static_cast<i32>(overlay_vp_h_));
+        buildClipState();
+        for (auto& segment : segments_) {
+            if (!segment.dirty) continue;
+            segmentIn(segment);
+            pool_.beginFrame();
+            draw_list_.clear();
+            collectScreenOverlayInto(registry, segment.root);
+            segmentOut(segment);
+        }
+        return;
+    }
     if (overlay_reset_pending_) {
         // A host that does not ask keepScreenOverlay builds every pass, as before; one that asks has had its answer.
         resetOverlayContents();
@@ -188,7 +213,11 @@ void RenderFrame::submitScreenOverlay(ecs::Registry& registry) {
     processMasks(registry, overlay_projection_, overlay_vp_x_, overlay_vp_y_,
                  static_cast<i32>(overlay_vp_w_), static_cast<i32>(overlay_vp_h_));
     buildClipState();
+    collectScreenOverlayInto(registry, 0);
+}
 
+/** The overlay's renderables into the list open now: every screen entity, or with @p onlyRoot those under that root. */
+void RenderFrame::collectScreenOverlayInto(ecs::Registry& registry, u32 onlyRoot) {
     auto ctx = makeContext();
     ctx.view_projection = overlay_projection_;
     ctx.purpose = RenderPurpose::ScreenOverlay;
@@ -203,13 +232,15 @@ void RenderFrame::submitScreenOverlay(ecs::Registry& registry) {
                                     ctx, computeCameraView(overlay_projection_)};
     collectCtx.screen_ui = screen_domain_;
     collectCtx.ui_tree_layers = ui_tree_layers_;
+    collectCtx.screen_root_by_index = screen_root_by_index_;
+    collectCtx.only_root = onlyRoot;
     // Only the plugins that can draw an entity out of a UI tree. Everything else
     // draws world content, which by definition is not what this pass is for —
     // and would land in it at layout-pixel coordinates.
     for (auto& plugin : plugins_) {
         if (plugin->drawsScreenUI()) plugin->collect(collectCtx);
     }
-    if (retained_text_collected_) submitRetainedText(registry, true, glm::value_ptr(overlay_projection_));
+    if (retained_text_collected_) submitRetainedText(registry, true, glm::value_ptr(overlay_projection_), onlyRoot);
     stats_.culled += collectCtx.culled;
 }
 
@@ -289,6 +320,10 @@ void RenderFrame::setScreenOverlayEffect(u32 material) {
 
 void RenderFrame::endScreenOverlay(RenderTargetManager::Handle target) {
     if (!overlay_active_) return;
+    if (overlay_segmented_) {
+        endSegmentedOverlay(target);
+        return;
+    }
     // Every way out of the pass gives the frame its own pool and list back.
     struct SwapBack {
         RenderFrame& frame;
@@ -432,6 +467,262 @@ void RenderFrame::endScreenOverlay(RenderTargetManager::Handle target) {
     executeOverlayGraph();
     draw_list_.setLayerAlpha(false);
 
+    device_.endRenderPass();
+    device_.invalidatePipelineCache();
+    runPendingReplay(overlay_projection_, overlay_vp_w_, overlay_vp_h_);
+}
+
+// =============================================================================
+// Segments: one held share of the overlay per screen root
+// =============================================================================
+
+u32 RenderFrame::screenRootAt(u32 entity) const {
+    if (!screen_root_by_index_) return 0;
+    const u32 index = Entity::fromRaw(entity).index();
+    return index < screen_root_by_index_->size() ? (*screen_root_by_index_)[index] : 0;
+}
+
+u64 RenderFrame::screenRootsHash() const {
+    u64 h = hash::kFnv64Offset;
+    if (screen_roots_) for (const u32 root : *screen_roots_) h = hash::combine(h, root);
+    return h;
+}
+
+void RenderFrame::segmentIn(OverlaySegment& segment) {
+    if (!segment.hold) {
+        segment.hold = std::make_unique<OverlayHold>(device_);
+        segment.hold->pool.init();
+    }
+    pool_.swap(segment.hold->pool);
+    std::swap(draw_list_, segment.hold->list);
+    // How this pass was set (its layers, whether layerless content shows) went to the one-list hold, opened by beginScreenOverlay.
+    draw_list_.copySettingsFrom(overlay_hold_->list);
+}
+
+void RenderFrame::segmentOut(OverlaySegment& segment) {
+    pool_.swap(segment.hold->pool);
+    std::swap(draw_list_, segment.hold->list);
+}
+
+/**
+ * The segmented answer of keepScreenOverlay: which roots' segments must be built again. A segment stands while the pass's inputs
+ * are those it was built with, its share of the domain is the same, and no entity of that share was written, added, removed or
+ * given new glyphs since the pass that last read them; a particle emitter under it rebuilds it every pass.
+ */
+bool RenderFrame::keepSegments(ecs::Registry& registry) {
+    overlay_segmented_ = true;
+    overlay_reset_pending_ = false;
+    // The one-list hold is left as it was: this pass draws from the segments.
+    swapOverlayOut();
+
+    // The segments in the roots' order, each keeping what it holds by its root; a root that is gone takes its segment along.
+    std::vector<OverlaySegment> next;
+    next.reserve(screen_roots_->size());
+    for (const u32 root : *screen_roots_) {
+        OverlaySegment segment;
+        for (auto& held : segments_) {
+            if (held.root == root && held.hold) { segment = std::move(held); break; }
+        }
+        segment.root = root;
+        next.push_back(std::move(segment));
+    }
+    for (auto& left : segments_) if (left.hold) left.hold->pool.shutdown();
+    segments_ = std::move(next);
+
+    std::unordered_map<u32, usize> index;
+    index.reserve(segments_.size());
+    for (usize i = 0; i < segments_.size(); ++i) index.emplace(segments_[i].root, i);
+    const auto inDomain = [this](u32 id) { return screen_domain_ && screen_domain_->count(id) != 0; };
+    const auto mark = [&](u32 id) {
+        if (!inDomain(id)) return;
+        const auto found = index.find(screenRootAt(id));
+        if (found != index.end()) segments_[found->second].dirty = true;
+    };
+
+    const u64 key = overlayInputs(registry, false);
+    const bool fresh = !segments_trusted_ || key != segments_key_;
+    std::vector<u64> domains(segments_.size(), 0);
+    std::vector<u64> counts(segments_.size(), 0);
+    if (screen_domain_) {
+        for (const u32 id : *screen_domain_) {
+            const auto found = index.find(screenRootAt(id));
+            if (found == index.end()) continue;
+            domains[found->second] += hash::combine(0x5bd1e995ull, id);
+            ++counts[found->second];
+        }
+    }
+    for (usize i = 0; i < segments_.size(); ++i) {
+        auto& segment = segments_[i];
+        const u64 domain = hash::combine(domains[i], counts[i]);
+        segment.dirty = fresh || !segment.valid || segment.domain != domain;
+        segment.domain = domain;
+    }
+    bool every = fresh;
+    if (!fresh) {
+        registry.anyComponentChangedSinceWhere(segments_tick_, [&](Entity e) { mark(e.id()); return false; });
+        static std::vector<ecs::EntityChangeRow> rows(ecs::ENTITY_CHANGE_CAPACITY);
+        const i32 count = registry.readEntityChanges(segments_journal_, rows);
+        if (count < 0) every = true;
+        for (i32 i = 0; i < count && !every; ++i) {
+            const auto& row = rows[static_cast<usize>(i)];
+            if ((row.flags & ecs::ENTITY_CHANGE_RESET) || row.entity == INVALID_ENTITY.id()) every = true;
+            else mark(row.entity);
+        }
+    }
+    if (!retained_text_.takeChanged(mark)) every = true;
+    if (screen_domain_ && !screen_domain_->empty()) {
+        registry.each<ecs::ParticleEmitter>([&](Entity e, ecs::ParticleEmitter&) { mark(e.id()); });
+    }
+    const bool audit = registry.changeAuditEnabled();
+    overlay_segments_rebuilt_ = 0;
+    for (auto& segment : segments_) {
+        if (every) segment.dirty = true;
+        segment.wouldKeep = !segment.dirty;
+        if (audit) segment.dirty = true;
+        if (segment.dirty) ++overlay_segments_rebuilt_;
+    }
+
+    // Read here: a write after this is a change to the next pass.
+    segments_key_ = key;
+    segments_tick_ = registry.beginChangeRead();
+    segments_journal_ = registry.entityChangeSequence();
+    segments_trusted_ = true;
+    overlay_why_ = overlay_segments_rebuilt_ ? 64u : 0u;
+    if (overlay_segments_rebuilt_ == 0) {
+        overlay_kept_ = true;
+        ++overlay_kept_total_;
+        return true;
+    }
+    return false;
+}
+
+void RenderFrame::endSegmentedOverlay(RenderTargetManager::Handle target) {
+    overlay_active_ = false;
+    overlay_segmented_ = false;
+    overlay_effect_ = 0;
+    const bool kept = overlay_kept_;
+    overlay_kept_ = false;
+    ES_PROFILE_COUNTER("render.overlay.kept", kept ? 1u : 0u);
+    ES_PROFILE_COUNTER("render.overlay.keptTotal", overlay_kept_total_);
+    ES_PROFILE_COUNTER("render.overlay.why", overlay_why_);
+    ES_PROFILE_COUNTER("render.overlay.stale", overlay_stale_);
+    ES_PROFILE_COUNTER("render.overlay.segments", static_cast<u32>(segments_.size()));
+    ES_PROFILE_COUNTER("render.overlay.rebuilt", kept ? 0u : overlay_segments_rebuilt_);
+    if (!kept) overlay_rebuilt_last_ = overlay_segments_rebuilt_;
+    ES_PROFILE_COUNTER("render.overlay.rebuiltLast", overlay_rebuilt_last_);
+    if (!device_.isDeviceUsable()) {
+        segments_trusted_ = false;
+        return;
+    }
+
+    if (!kept) {
+        ES_PROFILE_SCOPE("render.overlay.finalize");
+        for (auto& segment : segments_) {
+            if (!segment.dirty) continue;
+            segmentIn(segment);
+            if (linear_color_) {
+                std::unordered_map<u32, u32> shown;
+                draw_list_.remapPrograms([&](u32 program) {
+                    auto it = shown.find(program);
+                    if (it == shown.end()) it = shown.emplace(program, displayProgram(program)).first;
+                    return it->second;
+                });
+            }
+            draw_list_.finalize(pool_);
+            pool_.upload();
+            u64 content = draw_list_.contentHash(hash::kFnv64Offset);
+            for (u32 l = 0; l < LAYOUT_COUNT; ++l) {
+                const auto layout = static_cast<LayoutId>(l);
+                const u32 bytes = pool_.vertexBytesUsed(layout);
+                if (bytes) content = hash::combineWords(content, pool_.vertexData(layout), bytes);
+                const u32 indices = pool_.indicesUsed(layout);
+                if (indices) content = hash::combineWords(content, pool_.indexData(layout), indices * sizeof(u32));
+            }
+            if (segment.wouldKeep && segment.valid && content != segment.content) {
+                ++overlay_stale_;
+                if (!warned_overlay_stale_) {
+                    warned_overlay_stale_ = true;
+                    ES_LOG_WARN("change audit: a screen root's overlay segment would have been held while what it draws had changed");
+                }
+            }
+            segment.content = content;
+            segment.valid = true;
+            segment.dirty = false;
+            segmentOut(segment);
+        }
+
+        // Drawn one after another they draw as one list would only if no key of a later root sorts at or before one of an earlier
+        // root's, and none reads the screen's colour (which the one-list pass grabs once). If not, this pass is drawn as one list,
+        // and so is every pass until the roots change.
+        bool ordered = true;
+        bool any = false;
+        u64 previous = 0;
+        for (auto& segment : segments_) {
+            u64 lo = 0, hi = 0;
+            if (!segment.hold || !segment.hold->list.sortKeyRange(lo, hi)) continue;
+            if ((any && lo <= previous) || segment.hold->list.anyUsesScreenColor(context_.materials())) ordered = false;
+            previous = hi;
+            any = true;
+        }
+        if (!ordered && overlay_registry_) {
+            segments_refused_ = true;
+            segments_refused_roots_ = screenRootsHash();
+            segments_trusted_ = false;
+            swapOverlayIn();
+            resetOverlayContents();
+            collectScreenOverlayInto(*overlay_registry_, 0);
+            overlay_pending_key_ = 0;
+            overlay_would_keep_ = false;
+            overlay_active_ = true;
+            endScreenOverlay(target);
+            return;
+        }
+    }
+
+    u32 commands = 0;
+    for (auto& segment : segments_) if (segment.hold) commands += segment.hold->list.commandCount();
+    if (commands == 0) return;
+    frame_capture_.beginPass(CapturePass::Overlay);
+    for (auto& segment : segments_) {
+        if (!segment.hold) continue;
+        accumulateStats(segment.hold->list);
+        tallyPass(segment.hold->list);
+        segment.hold->list.setDeferScreenColor(false);
+        segment.hold->list.setLayerAlpha(false);
+    }
+
+    FramebufferHandle fbo = FramebufferHandle::Default;
+    if (target != RenderTargetManager::INVALID_HANDLE) {
+        if (auto* rt = target_manager_.get(target)) fbo = rt->getFramebuffer();
+    }
+    device_.invalidatePipelineCache();
+    device_.setScissorTest(false);
+
+    ES_PROFILE_SCOPE("render.overlay.graph");
+    graph_.begin(width_, height_);
+    rg::PassDesc pass;
+    pass.name = "screen-ui";
+    pass.viewportX = static_cast<u32>(std::max(overlay_vp_x_, 0));
+    pass.viewportY = static_cast<u32>(std::max(overlay_vp_y_, 0));
+    pass.viewportW = overlay_vp_w_;
+    pass.viewportH = overlay_vp_h_;
+    pass.write = graph_.importTarget(fbo, width_, height_);
+    pass.clear = false;
+    pass.execute = [this](const rg::PassContext&) {
+        context_.materials().setScreenColor(TextureHandle::Invalid);
+        context_.updateCameraConstants(overlay_projection_);
+        ES_PROFILE_SCOPE("render.overlay.submit");
+        // In the roots' order, each from its own buffers: a mask's stencil is back at zero when its list leaves the mask.
+        for (auto& segment : segments_) {
+            if (!segment.hold || segment.hold->list.commandCount() == 0) continue;
+            segment.hold->list.execute(device_, segment.hold->pool, context_.materials(), context_.getWhiteTextureId(),
+                                       &frame_capture_, context_.perDrawBlocks());
+        }
+        device_.invalidatePipelineCache();
+        device_.setScissorTest(false);
+    };
+    graph_.addPass(std::move(pass));
+    executeOverlayGraph();
     device_.endRenderPass();
     device_.invalidatePipelineCache();
     runPendingReplay(overlay_projection_, overlay_vp_w_, overlay_vp_h_);

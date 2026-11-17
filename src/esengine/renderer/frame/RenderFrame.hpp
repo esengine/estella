@@ -229,6 +229,12 @@ public:
     void setScreenDomain(const std::unordered_set<u32>* domain) { screen_domain_ = domain; }
     /** @brief The layers of what a Canvas holds with no uiOrder, borrowed for the frame. @see ecs::UITreeOrder */
     void setUITreeLayers(const std::unordered_map<u32, i32>* layers) { ui_tree_layers_ = layers; }
+    /** @brief The screen's root Canvases in drawing order and, by entity index, the root each screen entity draws under, borrowed
+     *         from the UI system for the frame (ecs::UISystem::screenRoots / screenRootOf). Null: the overlay is one list. */
+    void setScreenRoots(const std::vector<u32>* roots, const std::vector<u32>* rootByIndex) {
+        screen_roots_ = roots;
+        screen_root_by_index_ = rootByIndex;
+    }
 
     /** @brief Opens the overlay: @p projection maps the layout domain onto the
      *         pixel rect @p vpX/@p vpY/@p vpW/@p vpH of the surface. */
@@ -244,7 +250,7 @@ public:
     void setRetainedTextCollected(bool collected) { retained_text_collected_ = collected; }
     bool retainedTextCollected() const { return retained_text_collected_; }
     /** @brief Every retained label laid out for one domain into the open list, culled against @p projection (world, not rebased). */
-    void submitRetainedText(ecs::Registry& registry, bool screen, const f32* projection);
+    void submitRetainedText(ecs::Registry& registry, bool screen, const f32* projection, u32 onlyRoot = 0);
 
     /**
      * @brief Asked after beginScreenOverlay and the layers: true, and the host submits nothing and endScreenOverlay draws what the
@@ -1355,8 +1361,46 @@ private:
     void swapOverlayIn();
     void swapOverlayOut();
     void resetOverlayContents();
-    u64 overlayInputs(ecs::Registry& registry) const;
+    u64 overlayInputs(ecs::Registry& registry, bool whole) const;
     bool overlayRegistryMoved(ecs::Registry& registry);
+
+    /// One screen root's share of the overlay, held as the whole overlay is: built when something under that root (or the
+    /// pass's inputs) moved, drawn from what it holds otherwise, and drawn after the roots before it. A pass is built in
+    /// segments only while nothing the host adds itself, no effect and no second pass stand in the way (keepScreenOverlay).
+    struct OverlaySegment {
+        u32 root = 0;
+        std::unique_ptr<OverlayHold> hold;
+        bool valid = false;
+        bool dirty = true;
+        bool wouldKeep = false;
+        u64 domain = 0;
+        u64 content = 0;
+    };
+    const std::vector<u32>* screen_roots_ = nullptr;
+    const std::vector<u32>* screen_root_by_index_ = nullptr;
+    std::vector<OverlaySegment> segments_;
+    /// This pass is built in segments.
+    bool overlay_segmented_ = false;
+    /// The pass before this one was built in segments, read at segments_tick_ / segments_journal_ with inputs segments_key_:
+    /// a segment unchanged since then still stands. Any pass built otherwise leaves every segment to be built again.
+    bool segments_trusted_ = false;
+    u64 segments_key_ = 0;
+    u32 segments_tick_ = 0;
+    double segments_journal_ = -1;
+    /// Roots whose segments drew out of the order one list would (or read the screen's colour): one list until they change.
+    bool segments_refused_ = false;
+    u64 segments_refused_roots_ = 0;
+    u32 overlay_segments_rebuilt_ = 0;
+    /// How many segments the last pass that built any built (render.overlay.rebuiltLast): one root changed, one rebuilt.
+    u32 overlay_rebuilt_last_ = 0;
+    ecs::Registry* overlay_registry_ = nullptr;
+    u32 screenRootAt(u32 entity) const;
+    u64 screenRootsHash() const;
+    bool keepSegments(ecs::Registry& registry);
+    void segmentIn(OverlaySegment& segment);
+    void segmentOut(OverlaySegment& segment);
+    void collectScreenOverlayInto(ecs::Registry& registry, u32 onlyRoot);
+    void endSegmentedOverlay(RenderTargetManager::Handle target);
     glm::mat4 overlay_projection_{1.0f};
     i32 overlay_vp_x_ = 0, overlay_vp_y_ = 0;
     u32 overlay_vp_w_ = 0, overlay_vp_h_ = 0;

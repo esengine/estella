@@ -134,6 +134,18 @@ public:
      */
     const std::unordered_set<u32>& screenDomain() const { return screen_domain_; }
 
+    /** @brief The screen's root Canvases, in the order the UI tree draws them (each Canvas in its pool's order, as canvasRoots
+     *         walks them). Rebuilt with the domain. */
+    const std::vector<u32>& screenRoots() const { return screen_roots_; }
+    /** @brief screenRootOf for every entity at once, by entity index, for a reader that asks of many. */
+    const std::vector<u32>& screenRootByIndex() const { return screen_root_by_index_; }
+
+    /** @brief Which screen root @p entity (an id in screenDomain()) draws under; for one outside the domain, nothing it says. */
+    u32 screenRootOf(u32 entity) const {
+        const u32 index = Entity::fromRaw(entity).index();
+        return index < screen_root_by_index_.size() ? screen_root_by_index_[index] : 0;
+    }
+
     bool isScreenDomain(const Registry& registry, u32 entity) const {
         // Resolved entries belong to the registry that last completed layout.
         return lastRegistryId_ == registry.instanceId()
@@ -181,6 +193,9 @@ private:
     u64 lastRegistryId_{0};
 
     std::unordered_set<u32> screen_domain_;
+    std::vector<u32> screen_roots_;
+    /// By entity index: the root of the subtree the entity was last collected under. Read only for ids in screen_domain_.
+    std::vector<u32> screen_root_by_index_;
 };
 
 }  // namespace esengine::ecs

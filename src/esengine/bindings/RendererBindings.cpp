@@ -856,6 +856,8 @@ bool renderer_keepScreenOverlay(ecs::Registry& registry, bool hostStill) {
     ensureTransformsUpdated(registry);
     g_renderFrame->setScreenDomain(screenDomain());
     g_renderFrame->setUITreeLayers(uiTreeLayers());
+    if (auto* ui = ctx().tryGet<ecs::UISystem>()) g_renderFrame->setScreenRoots(&ui->screenRoots(), &ui->screenRootByIndex());
+    else g_renderFrame->setScreenRoots(nullptr, nullptr);
     return g_renderFrame->keepScreenOverlay(registry, hostStill);
 }
 

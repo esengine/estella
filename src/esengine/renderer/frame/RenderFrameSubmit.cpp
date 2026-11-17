@@ -48,7 +48,7 @@ void RenderFrame::submitTileQuad(
     });
 }
 
-void RenderFrame::submitRetainedText(ecs::Registry& registry, bool screen, const f32* projection) {
+void RenderFrame::submitRetainedText(ecs::Registry& registry, bool screen, const f32* projection, u32 onlyRoot) {
     // Scratch that outlives the call: a frame of labels would otherwise allocate them each time.
     static RetainedTextClip clip;
     static std::vector<f32> faded;
@@ -56,6 +56,7 @@ void RenderFrame::submitRetainedText(ecs::Registry& registry, bool screen, const
     const ecs::GroupOpacityLookup groupOpacity(registry);
     for (auto& [raw, text] : retained_text_.entries()) {
         if (text.screen != screen) continue;
+        if (onlyRoot != 0 && screenRootAt(raw) != onlyRoot) continue;
         const Entity entity = Entity::fromRaw(raw);
         if (!registry.valid(entity)) continue;
         const auto* node = registry.tryGet<ecs::UINode>(entity);

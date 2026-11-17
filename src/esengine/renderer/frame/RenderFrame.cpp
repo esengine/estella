@@ -233,6 +233,9 @@ void RenderFrame::shutdown() {
     swapOverlayOut();
     if (overlay_hold_) overlay_hold_->pool.shutdown();
     overlay_hold_.reset();
+    for (auto& segment : segments_) if (segment.hold) segment.hold->pool.shutdown();
+    segments_.clear();
+    segments_trusted_ = false;
     overlay_valid_ = false;
     probe_pool_.shutdown();
     if (probe_capture_.frameUbo != BufferHandle::Invalid) {
@@ -385,6 +388,7 @@ void RenderFrame::beginFrame() {
     // An overlay left open by a host that never closed it gives the frame its pool and list back.
     swapOverlayOut();
     overlay_active_ = false;
+    overlay_segmented_ = false;
     overlay_passes_ = 0;
 #ifdef ES_ENABLE_GPU_PARTICLES
     if (gpu_particles_) gpu_particles_->beginFrame();

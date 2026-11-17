@@ -45,6 +45,19 @@ public:
     /// merge spends slots) and reserved top-down, so a sampler's unit never moves.
     void reserveMask2DSlots(u32 count) { mask_2d_slots_ = std::min(count, MAX_CMD_TEXTURE_SLOTS); }
 
+    /// The lowest and highest sort key of the commands it holds; false when it holds none. Two lists drawn one after the other
+    /// draw as one list would only while the first's highest is below the second's lowest.
+    bool sortKeyRange(u64& lo, u64& hi) const {
+        if (commands_.empty()) return false;
+        lo = ~u64{0};
+        hi = 0;
+        for (const DrawCommand& command : commands_) {
+            lo = std::min(lo, command.sort_key);
+            hi = std::max(hi, command.sort_key);
+        }
+        return true;
+    }
+
     /// What the frame has set on @p other for how it sorts and draws - the sort masks, the 2D masks and their slots, the second
     /// output, the screen colour and layer modes, the shader-run sink - set here too: a second list the frame draws with.
     void copySettingsFrom(const DrawList& other) {
