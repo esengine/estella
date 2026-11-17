@@ -128,7 +128,7 @@ export class SubsystemRegistry {
         return this.entries_.get(id)?.phase;
     }
 
-    /** A frame begins at `atMs`: the beats of its systems all carry that one reading, so no system run reads the clock. */
+    /** @internal A frame begins at `atMs`: the beats of its systems all carry that one reading, so no system run reads the clock. */
     beginFrame(atMs: number): void {
         this.frameMs_ = atMs;
     }

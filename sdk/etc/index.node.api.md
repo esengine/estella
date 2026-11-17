@@ -11362,6 +11362,7 @@ seq: number
 
 ## SubsystemRegistry — class @experimental
 ```
+@internal beginFrame: (atMs: number) => void
 getStatuses: () => SubsystemStatus[]
 markError: (id: string, reason?: string) => void
 markStepped: (id: string) => void
