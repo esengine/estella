@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { describe, it, expect, beforeAll } from 'vitest';
 import type { ESEngineModule } from '../src/wasm';
-import { loadWasmModule, HAS_WASM, ENGINE_IS_ASMJS, WASM_FILE } from './helpers/loadWasm';
+import { loadWasmModule, HAS_WASM, ENGINE_IS_ASMJS, WASM_DIR } from './helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM || ENGINE_IS_ASMJS)('the shipped engine export surface', () => {
     let module: ESEngineModule;
-    let wasmExports: string[];
+    let glue: string;
     beforeAll(async () => {
         module = await loadWasmModule();
-        wasmExports = WebAssembly.Module.exports(new WebAssembly.Module(readFileSync(WASM_FILE)))
-            .map((e) => e.name);
+        glue = readFileSync(resolve(WASM_DIR, 'esengine.js'), 'utf8');
     });
 
     it('exports no yoga C entry points', () => {
-        expect(wasmExports.filter((name) => /^_?YG[A-Z]/.test(name))).toEqual([]);
+        expect([...new Set(glue.match(/\b_YG[A-Z]\w*/g) ?? [])]).toEqual([]);
     });
 
     it('registers no editor reflection bindings', () => {
