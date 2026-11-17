@@ -152,7 +152,10 @@ before doing what they cover. It is answered from the catalog and starts no edit
 
 Every tool calls one thing by one name, in what it takes and in what it answers: an entity is `entity` (a number in the open
 scene or the running game), a component field `field`, search text `query`, a cap on the answer `limit`. The names some tools
-took before (`id`, `key`, `match`, `maxResults`) are still read as these.
+took before (`id`, `key`, `match`, `maxResults`) are still read as these. An `entity` also takes a name, looked up in the world
+the tool acts on (the open scene, or the running game for `inspect_entity`), since the two number the same entity
+differently; a name two entities share is refused with their numbers, and in the scene a path such as `"HUD/ScoreText"` picks
+one.
 
 | Area | Tools (excerpt) |
 | --- | --- |

@@ -34,6 +34,10 @@ wrong world, waiting for a game that is not moving, reporting success without lo
 - The **running game** is a copy made when play starts and thrown away when it stops: `set_play`, `step`, `play_input`,
   `find_entities`, `inspect_entity`. A change made in the running game is gone at Stop; a change to the scene does not
   reach a game already running (stop and play again).
+- The two number their entities differently: the Player is 6 in the scene and some large number in the running game.
+  Every `entity` argument also takes a name, looked up in the world that tool acts on, so `{ "entity": "Player" }`
+  works in both; a name two entities share is refused with their numbers (in the scene, a path such as
+  `"HUD/ScoreText"` picks one).
 
 ## A running game does not move by itself
 
