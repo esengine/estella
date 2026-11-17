@@ -16,13 +16,20 @@
 - Local verification must not launch the editor, Electron windows, or other visible
   apps. Use genuine headless browser and CLI checks.
 
-- Never commit or push to `master`, in this repository or in the editor
-  (`desktop/`, its own repository): it is protected. Work on a short-lived branch
-  cut from the latest `master`, push it, and open a pull request into `master`; it
-  merges once its `Build passed` check is green, and GitHub deletes the branch
-  after the merge. Merge with a merge commit, not a squash, so the editor commits
-  the submodule pointer names stay reachable. Push an editor change on its branch
-  before the pull request that moves the pointer to it.
+- In this repository, commit on `master` and push it. The branch is still
+  protected, but not against its administrators: a direct push goes through and
+  GitHub reports that it went past the `Build passed` check, so nothing gates it.
+  Run the checks the change calls for before pushing, since CI now reports on
+  `master` only after the commit is there. A short-lived branch and a pull
+  request are still the way for work that should wait for `Build passed` or be
+  read first; such a pull request merges with a merge commit, not a squash, so
+  the editor commits the submodule pointer names stay reachable. Force pushes
+  and deleting `master` stay refused.
+
+- The editor (`desktop/`, its own repository) is still protected: never commit
+  or push to its `master`. Its changes go on a short-lived branch and a pull
+  request, and an editor change is pushed before the commit here that moves the
+  pointer to it.
 
 - A change someone using Estella can see gets a release note as a file of its own in
   `changelog.d/` (its `README.md` has the format), with the subjects of the commits it
