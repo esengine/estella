@@ -69,11 +69,9 @@ export class FocusPlugin implements Plugin {
             (input: InputState, events: UIEventQueue) => {
                 // Live eligibility also governs stale focus and pointer focus, so
                 // opening a dialog cannot leave activation on a background control.
-                const eligible = inspectFocusTraversal(world).entries
-                    .filter(entry => entry.skipped === null).map(entry => entry.entity);
-                const eligibleSet = new Set(eligible);
+                // Asked of the one entity in question: the whole Tab ring is sorted only when Tab is pressed.
                 if (focusManager.focusedEntity !== null
-                    && !eligibleSet.has(focusManager.focusedEntity)) clearFocus();
+                    && !isFocusEligible(world, focusManager.focusedEntity)) clearFocus();
 
                 const focusableEntities = world.getEntitiesWithComponents([Focusable]);
 
@@ -81,7 +79,7 @@ export class FocusPlugin implements Plugin {
                 for (const entity of focusableEntities) {
                     if (!world.has(entity, UIInteraction)) continue;
                     const interaction = world.get(entity, UIInteraction) as UIInteractionData;
-                    if (interaction.justPressed && eligibleSet.has(entity)) {
+                    if (interaction.justPressed && isFocusEligible(world, entity)) {
                         pressedFocusable = true;
                         // Focus, but NOT visibly: a pointer press moves focus so
                         // Enter/Space act on what you clicked, while the control
