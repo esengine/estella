@@ -17,6 +17,7 @@
 #include "../draw/ImmediateDraw.hpp"
 #include "../../core/FrameProfiler.hpp"
 #include "../../core/Hash.hpp"
+#include <glm/gtc/type_ptr.hpp>
 #include "../../core/Log.hpp"
 #include "../../ecs/components/ParticleEmitter.hpp"
 #include "../../resource/ResourceManager.hpp"
@@ -101,6 +102,8 @@ u64 RenderFrame::overlayInputs(ecs::Registry& registry) const {
     mix(resource_manager_.meshesRevision());
     mix(context_.materials().revision());
     mix(batch_shader_id_);
+    // The labels it draws from the store, when it draws them itself.
+    mix(retained_text_collected_ ? retained_text_.revision() : 0);
     // The domain itself, order-free: an entity that left it (or was destroyed in it) leaves nothing stamped behind.
     u64 domain = 0;
     if (screen_domain_) {
@@ -206,6 +209,7 @@ void RenderFrame::submitScreenOverlay(ecs::Registry& registry) {
     for (auto& plugin : plugins_) {
         if (plugin->drawsScreenUI()) plugin->collect(collectCtx);
     }
+    if (retained_text_collected_) submitRetainedText(registry, true, glm::value_ptr(overlay_projection_));
     stats_.culled += collectCtx.culled;
 }
 

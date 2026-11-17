@@ -246,6 +246,7 @@ export interface NativeEngineApi {
     renderer_setProbeVolumeOverride?(entity: number, volumeHandle: number): void;
     renderer_setProbeVolumeReflection?(entity: number, environmentHandle: number, slot: number): void;
     renderer_setQualityBudgets?(atlasSize: number, cellSize: number, cascades: number, particleLimit: number): void;
+    renderer_setRetainedTextCollected?(collected: boolean): void;
     renderer_setScreenOverlayEffect?(material: number): void;
     renderer_setShadow2DSoftSamples?(samples: number): void;
     renderer_setShadowDistance?(distance: number): void;
@@ -612,6 +613,7 @@ export function createNativeEngineApi(
     bind('renderer_setProbeVolumeOverride', 'es_renderer_setProbeVolumeOverride', false);
     bind('renderer_setProbeVolumeReflection', 'es_renderer_setProbeVolumeReflection', false);
     bind('renderer_setQualityBudgets', 'es_renderer_setQualityBudgets', false);
+    bind('renderer_setRetainedTextCollected', 'es_renderer_setRetainedTextCollected', false);
     bind('renderer_setScreenOverlayEffect', 'es_renderer_setScreenOverlayEffect', false);
     bind('renderer_setShadow2DSoftSamples', 'es_renderer_setShadow2DSoftSamples', false);
     bind('renderer_setShadowDistance', 'es_renderer_setShadowDistance', false);

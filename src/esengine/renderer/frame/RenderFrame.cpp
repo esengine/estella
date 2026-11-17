@@ -32,6 +32,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include "../RenderOrigin.hpp"
 
 #include <algorithm>
 #ifdef __EMSCRIPTEN__
@@ -3261,6 +3262,12 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     for (auto& plugin : plugins_) {
         ES_PROFILE_SCOPE(plugin->collectScope());
         plugin->collect(collectCtx);
+    }
+    // After every plugin, where the host's glyphs used to land: the world's labels, culled in world space (the view is rebased).
+    if (retained_text_collected_) {
+        ES_PROFILE_SCOPE("render.collect.text");
+        const glm::mat4 world = view_projection_ * glm::translate(glm::mat4(1.0f), -glm::vec3(renderOrigin()));
+        submitRetainedText(registry, false, glm::value_ptr(world));
     }
 
     // The other half of what the frame cost: what it did NOT draw. Accumulated

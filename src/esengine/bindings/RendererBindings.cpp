@@ -290,55 +290,14 @@ i32 renderer_retainedTextStale(ecs::Registry& registry, uintptr_t outPtr, i32 ca
 }
 
 void renderer_retainedTextSubmit(ecs::Registry& registry, i32 screen, uintptr_t projectionPtr) {
-    if (!g_initialized || !g_renderFrame) return;
+    // A frame that draws the labels in its own collect has them already: submitting them again would draw them twice.
+    if (!g_initialized || !g_renderFrame || g_renderFrame->retainedTextCollected()) return;
     const f32* projection = projectionPtr ? boundarySpan<f32>(projectionPtr, 16, "renderer_retainedTextSubmit.projection") : nullptr;
-    // Scratch that outlives the call: a frame of labels would otherwise allocate them each time.
-    static RetainedTextClip clip;
-    static std::vector<f32> faded;
-    double planes[36];
-    const ecs::GroupOpacityLookup groupOpacity(registry);
-    for (auto& [raw, text] : g_renderFrame->retainedText().entries()) {
-        if (text.screen != (screen != 0)) continue;
-        const Entity entity = Entity::fromRaw(raw);
-        if (!registry.valid(entity)) continue;
-        const auto* node = registry.tryGet<ecs::UINode>(entity);
-        if (node && node->hidden_in_tree_) continue;
-        const f32 opacity = (node ? node->alpha_in_tree_ : 1.0f) * groupOpacity.of(entity);
-        if (opacity <= 0.0f) continue;
-        glm::mat4 matrix;
-        if (!ecs::copyFlatRenderMatrix(registry, entity, matrix)) continue;
-        const auto* visual = registry.tryGet<ecs::UIVisual>(entity);
-        i32 layer = text.layer;
-        if (text.hasBox) {
-            const i32 order = visual ? visual->uiOrder : -1;
-            layer = order >= 0 ? UIElementPlugin::UI_BASE_LAYER + order : UIElementPlugin::UI_BASE_LAYER;
-        }
-        // Screen draws all share one depth: their order is the UI tree's, and a z left on a screen root would outrank a sibling.
-        f32 depth = 0.0f;
-        if (!text.screen) {
-            if (auto* transform = registry.tryGet<ecs::Transform>(entity)) {
-                transform->ensureDecomposed();
-                depth = transform->worldPosition.z;
-            }
-        }
-        const u32 cullBit = visual ? visual->uiCullBit : 0u;
-        const f32* model = glm::value_ptr(matrix);
-        const bool clipped = projection && retainedTextClipPlanes(planes, projection, model);
-        for (const RetainedTextBatch& batch : text.batches) {
-            const RetainedTextKept kept = retainedTextClip(batch, clipped ? planes : nullptr, clip);
-            if (kept == RetainedTextKept::None) continue;
-            const f32* vertices = kept == RetainedTextKept::All ? batch.vertices.data() : clip.vertices.data();
-            const u16* indices = kept == RetainedTextKept::All ? batch.indices.data() : clip.indices.data();
-            const usize vertexCount = (kept == RetainedTextKept::All ? batch.vertices.size() : clip.vertices.size()) / TEXT_VERTEX_FLOATS;
-            if (opacity != 1.0f) {
-                faded.assign(vertices, vertices + vertexCount * TEXT_VERTEX_FLOATS);
-                for (usize i = 7; i < faded.size(); i += TEXT_VERTEX_FLOATS) faded[i] *= opacity;
-                vertices = faded.data();
-            }
-            g_renderFrame->submitTextBatch(vertices, static_cast<i32>(vertexCount), indices, static_cast<i32>(vertexCount / 4 * 6),
-                                           batch.pageId, model, entity, layer, depth, batch.mode, cullBit);
-        }
-    }
+    g_renderFrame->submitRetainedText(registry, screen != 0, projection);
+}
+
+void renderer_setRetainedTextCollected(bool collected) {
+    if (g_renderFrame) g_renderFrame->setRetainedTextCollected(collected);
 }
 
 // MeshRenderer geometry upload: interleaved f32 [x,y,u,v] per vertex, optional RGBA8

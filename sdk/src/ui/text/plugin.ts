@@ -10,7 +10,7 @@
  *          {@link resolveTextRenderMode}.
  */
 import type { App, Plugin } from '../../app/app';
-import { Transform, type TransformData, registerComponent } from '../../ecs/component';
+import { Disabled, Transform, type TransformData, registerComponent } from '../../ecs/component';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { SystemLabel } from '../../ecs/systemLabels';
 import type { ESEngineModule, CppRegistry } from '../../wasm';
@@ -236,6 +236,10 @@ export class TextPlugin implements Plugin {
         retained: Map<number, RetainedLabel>;
         preloads: PreloadRun[];
         screenInputs: ScreenTextInputs | null;
+        /** The engine draws the retained labels in its own collects; this plugin only lays them out (TextLayoutSystem). */
+        collected: boolean;
+        /** What the last layout pass read (layoutInputs): the same again finds every label as it was. */
+        laidOut: string;
     }>();
 
     /** Apps this plugin was built on: only those step a preload. */
@@ -251,6 +255,8 @@ export class TextPlugin implements Plugin {
                 retained: new Map(),
                 preloads: [],
                 screenInputs: null,
+                collected: false,
+                laidOut: '',
             };
             this.states_.set(app, state);
         }
@@ -327,6 +333,20 @@ export class TextPlugin implements Plugin {
         const pipeline = app.pipeline;
         if (!pipeline) return; // logic-only host → nothing to draw
 
+        // Labels are laid out here, once a frame and just before the frame is drawn, where the engine can draw them from its own
+        // collects: the camera's and the screen overlay's, which then know a label as they know any other entity. A core that
+        // cannot (an older native host) keeps the two callbacks below, which lay out and submit each domain as it is drawn.
+        app.addSystemToSchedule(Schedule.Last, defineSystem([], () => {
+            const api = engineApi(app);
+            if (!this.canRetain(api) || !api!.renderer_setRetainedTextCollected) return;
+            const state = this.stateFor(app);
+            if (!state.collected) {
+                api!.renderer_setRetainedTextCollected(true);
+                state.collected = true;
+            }
+            app.measureFrameScope('render.textLayout', () => this.layoutAll(app, api!));
+        }, { name: 'TextLayoutSystem', runWhenPaused: true }), { runBefore: ['RenderSystem'] });
+
         // Two passes, because there are two lists: the world's glyphs go into the
         // camera being collected, the screen's into the frame's overlay.
         pipeline.addPreFlushCallback((_registry, projection) => app.measureFrameScope('render.text', () => this.drawDomain(app, false, projection)));
@@ -347,7 +367,7 @@ export class TextPlugin implements Plugin {
         const appState = this.stateFor(app);
         const api = engineApi(app);
         if (this.canRetain(api)) {
-            this.drawRetained(app, api!, screen, projection);
+            if (!appState.collected) this.drawRetained(app, api!, screen, projection);
             return;
         }
         if (!api?.transform_copyFlatRenderMatrix || !api.HEAPU8 || !api._malloc || !api._free) {
@@ -391,6 +411,8 @@ export class TextPlugin implements Plugin {
      * Text was written and nothing a label is resolved or rasterized through has moved. The engine answers for their boxes.
      */
     private screenStill(app: App): boolean {
+        // Laid out before the frame and drawn by the engine: this callback adds nothing, and the engine sees every label it holds.
+        if (this.stateFor(app).collected) return true;
         const held = this.stateFor(app).screenInputs;
         if (!held || !this.canRetain(engineApi(app))) return false;
         const now = this.screenInputs(app);
@@ -469,11 +491,73 @@ export class TextPlugin implements Plugin {
         if (screen) appState.screenInputs = this.screenInputs(app);
     }
 
-    /** Lay the labels the engine reports stale out again, in the domain they are in now. */
-    private rebuildStale(app: App, api: EngineApi, registry: CppRegistry): void {
+    /**
+     * What a pass over every label reads beyond the labels the engine reports stale: a Text written or added, an entity switched
+     * off, a font, the default family, the device pixel ratio, either domain's view, an atlas rebuilt. The same string twice means
+     * the pass would find every label as it left it.
+     */
+    private layoutInputs(app: App, views: readonly DomainView[], dpr: number): string {
+        const world = app.world;
+        const state = this.stateFor(app);
+        const activity = (world.getCppRegistry() as { activityEpoch?(): number } | null)?.activityEpoch?.() ?? 0;
+        return [
+            world.mutationRevision(Text, 'write'), world.mutationRevision(Text, 'topology'),
+            world.mutationRevision(Transform, 'topology'), world.mutationRevision(Disabled, 'topology'), activity,
+            fontsRevision(), RuntimeConfig.defaultFontFamily, dpr,
+            views[0]!.contentScale, views[0]!.perspective, views[1]!.contentScale, views[1]!.perspective,
+            atlasGenerations(state.world), atlasGenerations(state.screen),
+        ].join('|');
+    }
+
+    /**
+     * Lay out every label that changed, in the domain it belongs to, and let go of those that left: the engine draws what it holds
+     * in the camera's collect and the overlay's. A frame where nothing a label reads has moved walks no label at all.
+     */
+    private layoutAll(app: App, api: EngineApi): void {
+        const appState = this.stateFor(app);
+        const world = app.world;
+        const registry = world.getCppRegistry() as CppRegistry;
+        const dpr = platformDevicePixelRatio();
+        const views = [this.domainView(app, false, dpr), this.domainView(app, true, dpr)];
+        for (const [i, state] of [appState.world, appState.screen].entries()) {
+            if (!state.bitmap) continue;
+            state.bitmap.setDevicePixelRatio(dpr);
+            state.bitmap.setContentScale(views[i]!.contentScale);
+        }
+        const restaled = this.rebuildStale(app, api, registry);
+        if (restaled === 0 && this.layoutInputs(app, views, dpr) === appState.laidOut) return;
+
+        const retained = appState.retained;
+        const seen = new Set<number>();
+        for (const e of world.getEntitiesWithComponents([Text, Transform])) {
+            const entity = e as Entity;
+            const label = retained.get(entity as number);
+            const t = world.get(entity, Text) as TextData;
+            if (!t.content || t.enabled === false) continue; // not seen: let go below
+            const screen = label ? label.screen : api.ui_isScreenDomain!(registry, entity as number);
+            const view = views[screen ? 1 : 0]!;
+            const family = resolveTextFamily(t.font, t.fontFamily);
+            seen.add(entity as number);
+            if (label && label.gen === label.renderer.atlas.generation && label.perspective === view.perspective && sameSnapshot(label.snap, t, family)
+                && (label.kind === 'sdf' || (label.kind === 'large') === drawsLarge(t, family, view, dpr))) continue;
+            this.layoutRetained(app, api, entity, t, screen);
+        }
+        for (const [entity, label] of retained) {
+            if (seen.has(entity)) continue;
+            api.renderer_retainedTextClear!(entity);
+            label.renderer.forget(entity);
+            retained.delete(entity);
+        }
+        // Read after the layouts, which may themselves have rebuilt an atlas.
+        appState.laidOut = this.layoutInputs(app, views, dpr);
+    }
+
+    /** Lay the labels the engine reports stale out again, in the domain they are in now; how many there were. */
+    private rebuildStale(app: App, api: EngineApi, registry: CppRegistry): number {
         const appState = this.stateFor(app);
         const world = app.world;
         const CAPACITY = 256;
+        let handled = 0;
         for (let round = 0; round < 8; round++) {
             const stale: number[] = [];
             withScratch({ _malloc: size => api._malloc!(size), _free: ptr => api._free!(ptr) }, alloc => {
@@ -494,8 +578,10 @@ export class TextPlugin implements Plugin {
                 }
                 this.layoutRetained(app, api, entity as Entity, t, api.ui_isScreenDomain!(registry, entity));
             }
-            if (stale.length < CAPACITY) return;
+            handled += stale.length;
+            if (stale.length < CAPACITY) return handled;
         }
+        return handled;
     }
 
     /** Lay one label out in @p screen's domain and give the engine its quads. */

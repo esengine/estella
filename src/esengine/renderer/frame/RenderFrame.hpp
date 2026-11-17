@@ -239,6 +239,13 @@ public:
      *         SDK's glyph quads), which lands in the same list. */
     void submitScreenOverlay(ecs::Registry& registry);
 
+    /** @brief The retained labels drawn by the frame's own collects (the camera's world labels, the overlay's screen ones) rather
+     *         than submitted by the host: a host turns it on when it stops calling renderer_retainedTextSubmit. */
+    void setRetainedTextCollected(bool collected) { retained_text_collected_ = collected; }
+    bool retainedTextCollected() const { return retained_text_collected_; }
+    /** @brief Every retained label laid out for one domain into the open list, culled against @p projection (world, not rebased). */
+    void submitRetainedText(ecs::Registry& registry, bool screen, const f32* projection);
+
     /**
      * @brief Asked after beginScreenOverlay and the layers: true, and the host submits nothing and endScreenOverlay draws what the
      *        overlay holds. Held while no component of a screen-domain entity moved (stamps, journal), nor the inputs overlayInputs
@@ -1310,6 +1317,7 @@ private:
     const std::unordered_set<u32>* screen_domain_ = nullptr;
     const std::unordered_map<u32, i32>* ui_tree_layers_ = nullptr;
     bool overlay_active_ = false;
+    bool retained_text_collected_ = false;
     /// The overlay's own pool and list, traded with pool_ and draw_list_ for the pass (beginScreenOverlay to endScreenOverlay) so
     /// that what one pass built survives the cameras of the next frame: everything that submits writes pool_ and draw_list_.
     /// Made by the first overlay a frame opens, so a frame that never opens one holds neither.

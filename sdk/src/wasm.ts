@@ -461,6 +461,8 @@ export interface ESEngineModule {
     renderer_retainedTextClear?(entity: number): void;
     renderer_retainedTextStale?(registry: CppRegistry, outPtr: number, capacity: number): number;
     renderer_retainedTextSubmit?(registry: CppRegistry, screen: number, projectionPtr: number): void;
+    /** The engine draws the retained labels in its own collects, and renderer_retainedTextSubmit draws nothing. */
+    renderer_setRetainedTextCollected?(collected: boolean): void;
     /**
      * Upload a MeshRenderer component's geometry: interleaved f32 [x,y,u,v] per vertex,
      * optional RGBA8 colors (colorsPtr 0 = all white), u32 triangle-list indices.
