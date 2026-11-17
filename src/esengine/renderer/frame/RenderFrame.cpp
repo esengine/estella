@@ -1484,27 +1484,22 @@ void RenderFrame::buildSortingGroups(ecs::Registry& registry) {
 }
 
 void RenderFrame::buildTreeSequence(ecs::Registry& registry) {
-    if (draw_list_.treeMask() == 0) {
-        draw_list_.clearTreeSequence();
-        return;
-    }
-    // One preorder walk over every tree of the world: a root is an entity with no live parent, taken in storage order (which is the painter's
-    // order of roots), and its children follow in their list order. The same order a scene's nodes stack in.
-    std::vector<u32> sequence;
+    std::vector<u32>& sequence = draw_list_.treeSequence();
+    sequence.clear();
+    if (draw_list_.treeMask() == 0) return;
     u32 counter = 1;
-    std::vector<Entity> pending;
     auto walk = [&](Entity root) {
-        pending.push_back(root);
-        while (!pending.empty()) {
-            const Entity entity = pending.back();
-            pending.pop_back();
+        tree_pending_.push_back(root);
+        while (!tree_pending_.empty()) {
+            const Entity entity = tree_pending_.back();
+            tree_pending_.pop_back();
             if (!registry.valid(entity)) continue;
             const u32 index = entity.index();
             if (index >= sequence.size()) sequence.resize(index + 1, 0u);
             sequence[index] = counter++;
             const auto* children = registry.tryGet<ecs::Children>(entity);
             if (!children) continue;
-            for (auto child = children->entities.rbegin(); child != children->entities.rend(); ++child) pending.push_back(*child);
+            for (auto child = children->entities.rbegin(); child != children->entities.rend(); ++child) tree_pending_.push_back(*child);
         }
     };
     auto transforms = registry.view<ecs::Transform>();
@@ -1513,7 +1508,6 @@ void RenderFrame::buildTreeSequence(ecs::Registry& registry) {
         if (parent && parent->entity != INVALID_ENTITY && registry.valid(parent->entity)) continue;
         walk(entity);
     }
-    draw_list_.setTreeSequence(std::move(sequence));
 }
 
 void RenderFrame::buildSpriteMasks(ecs::Registry& registry) {
@@ -3417,18 +3411,12 @@ const std::vector<std::string>& batchVariantFeatures(BatchVariant variant) {
     static const std::vector<std::string> kPlain{};
     static const std::vector<std::string> kLit{"LIT"};
     static const std::vector<std::string> kAlphaClip{"ALPHA_CLIP"};
-    static const std::vector<std::string> kSdf{"SDF"};
-    static const std::vector<std::string> kGlyphMask{"GLYPH_MASK"};
-    static const std::vector<std::string> kGlyphFill{"GLYPH_FILL"};
     static const std::vector<std::string> kPremultipliedColor{"PREMULTIPLIED_COLOR"};
     static const std::vector<std::string> kDisplayOutput{"DISPLAY_OUTPUT"};
     switch (variant) {
         case BatchVariant::Plain: return kPlain;
         case BatchVariant::Lit: return kLit;
         case BatchVariant::AlphaClip: return kAlphaClip;
-        case BatchVariant::Sdf: return kSdf;
-        case BatchVariant::GlyphMask: return kGlyphMask;
-        case BatchVariant::GlyphFill: return kGlyphFill;
         case BatchVariant::PremultipliedColor: return kPremultipliedColor;
         case BatchVariant::DisplayOutput: return kDisplayOutput;
         case BatchVariant::Count: break;

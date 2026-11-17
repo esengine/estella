@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { COMPONENT_META } from './ecs/component.generated';
+import { col } from './math/color';
 import { getResourceManager, setRetainedBudget, setTextureBudget } from './wasm/resourceManager';
 
 // Values with a C++ backing read the generated metadata (Canvas ctor defaults,
@@ -159,13 +160,7 @@ export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void;
         RuntimeConfig.sceneTransitionDuration = config.sceneTransitionDuration;
     }
     if (config.sceneTransitionColor) {
-        const hex = config.sceneTransitionColor.replace('#', '');
-        RuntimeConfig.sceneTransitionColor = {
-            r: parseInt(hex.substring(0, 2), 16) / 255,
-            g: parseInt(hex.substring(2, 4), 16) / 255,
-            b: parseInt(hex.substring(4, 6), 16) / 255,
-            a: 1,
-        };
+        RuntimeConfig.sceneTransitionColor = col.fromHex(config.sceneTransitionColor);
     }
     if (config.assetLoadTimeout !== undefined) {
         RuntimeConfig.assetLoadTimeout = config.assetLoadTimeout;

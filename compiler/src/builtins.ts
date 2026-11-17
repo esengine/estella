@@ -109,7 +109,7 @@ export function ehtStamp(): string {
             .map((f) => `${f.name}:${f.type}@${f.offset}`
                 + (f.members ? `{${f.members.map((m) => `${m.name}:${m.type}@${m.offset}`).join(',')}}` : ''))
             .join(',');
-        parts.push(`${name}(${layout.ptrFn})=${fields}`);
+        parts.push(`${name}(${layout.ptrFn ?? ''})=${fields}`);
     }
     return parts.join(';');
 }

@@ -24,6 +24,7 @@ export interface PassConfig {
     compute?: ComputePassSource;
     /** Set for a pass the engine implements itself ("voxelGI"): it has no `shader`, and the engine declares its own passes. */
     native?: string;
+    effect?: string;
 }
 
 /** What a compute pass runs: the WGSL, the names of its f32 params in the order its params block lists them, and its workgroup size. */
@@ -157,6 +158,15 @@ export class PostProcessStack {
 
     get displayLut(): { readonly texture: number; readonly amount: number } {
         return this.displayLut_;
+    }
+
+    setEffect(passName: string, effect: string): this {
+        const pass = this.passes_.find(p => p.name === passName);
+        if (pass && pass.effect !== effect) {
+            pass.effect = effect;
+            this.dirty_ = true;
+        }
+        return this;
     }
 
     setEnabled(name: string, enabled: boolean): this {

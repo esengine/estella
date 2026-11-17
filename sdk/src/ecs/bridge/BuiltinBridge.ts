@@ -177,7 +177,7 @@ export function builtinFromWasm(raw: unknown, component: BuiltinComponentDef<any
 // Pointer-based Field Access
 // =============================================================================
 
-type PtrFieldType = 'f32' | 'i32' | 'u32' | 'bool' | 'u8' | 'vec2' | 'vec3' | 'vec4' | 'quat' | 'color';
+type PtrFieldType = 'f32' | 'i32' | 'u32' | 'bool' | 'u8' | 'vec2' | 'uvec2' | 'vec3' | 'vec4' | 'quat' | 'color';
 
 interface PtrFieldDesc {
     readonly name: string;
@@ -189,7 +189,7 @@ function fieldByteSize(type: PtrFieldType): number {
     switch (type) {
         case 'f32': case 'i32': case 'u32': return 4;
         case 'bool': case 'u8': return 1;
-        case 'vec2': return 8;
+        case 'vec2': case 'uvec2': return 8;
         case 'vec3': return 12;
         case 'vec4': case 'quat': case 'color': return 16;
     }
@@ -218,6 +218,7 @@ export function readPtrField(
         case 'bool':  return u8[byteOff] !== 0;
         case 'u8':    return u8[byteOff];
         case 'vec2':  return { x: f32[idx], y: f32[idx + 1] };
+        case 'uvec2': return { x: u32[idx], y: u32[idx + 1] };
         case 'vec3':  return { x: f32[idx], y: f32[idx + 1], z: f32[idx + 2] };
         case 'vec4':
         case 'quat':  return { x: f32[idx], y: f32[idx + 1], z: f32[idx + 2], w: f32[idx + 3] };
@@ -259,6 +260,11 @@ export function fillPtrFields(
                 v.x = f32[idx]; v.y = f32[idx + 1];
                 break;
             }
+            case 'uvec2': {
+                const v = target[field.name] as XY;
+                v.x = u32[idx]; v.y = u32[idx + 1];
+                break;
+            }
             case 'vec3': {
                 const v = target[field.name] as XYZ;
                 v.x = f32[idx]; v.y = f32[idx + 1]; v.z = f32[idx + 2];
@@ -283,7 +289,8 @@ export function createPreallocatedResult(fields: readonly PtrFieldDesc[]): Recor
     const obj: Record<string, unknown> = {};
     for (const f of fields) {
         switch (f.type) {
-            case 'vec2':  obj[f.name] = { x: 0, y: 0 }; break;
+            case 'vec2':
+            case 'uvec2': obj[f.name] = { x: 0, y: 0 }; break;
             case 'vec3':  obj[f.name] = { x: 0, y: 0, z: 0 }; break;
             case 'vec4':
             case 'quat':  obj[f.name] = { x: 0, y: 0, z: 0, w: 0 }; break;
@@ -310,6 +317,7 @@ export function writePtrField(
         case 'bool':  u8[byteOff] = value ? 1 : 0; break;
         case 'u8':    u8[byteOff] = value as number; break;
         case 'vec2': { const v = value as XY; f32[idx] = v.x; f32[idx + 1] = v.y; break; }
+        case 'uvec2': { const v = value as XY; u32[idx] = v.x; u32[idx + 1] = v.y; break; }
         case 'vec3': { const v = value as XYZ; f32[idx] = v.x; f32[idx + 1] = v.y; f32[idx + 2] = v.z; break; }
         case 'vec4':
         case 'quat': { const v = value as XYZW; f32[idx] = v.x; f32[idx + 1] = v.y; f32[idx + 2] = v.z; f32[idx + 3] = v.w; break; }

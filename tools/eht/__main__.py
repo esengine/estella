@@ -258,6 +258,7 @@ def main() -> int:
         cpp_parser.components, cpp_parser.enums,
         layout_asserts=ptr_gen.generate_layout_asserts(),
         abi_hash=abi_hash,
+        ptr_access=ptr_gen.generate_ptr_access(),
     )
     _write_lf(embind_path, embind_gen.generate())
 

@@ -15,6 +15,7 @@ import type { ESEngineModule } from '../../wasm';
 import { platformCreateCanvas } from '../../platform';
 import type { PlatformCanvas, PlatformCanvas2DContext } from '../../platform/types';
 import { sdfFromAlpha } from './sdf';
+import { TEXT_ASCENT_RATIO } from '../util/constants';
 import type { GlyphRasterizer, RasterGlyph } from './glyph-atlas';
 
 /** Style bit flags (match the atlas cache-key style argument). */
@@ -29,13 +30,13 @@ export function extractAlpha(rgba: Uint8Array | Uint8ClampedArray, width: number
     return out;
 }
 
-/** Expand a single-channel SDF into an RGBA atlas tile (RGB = 255, A = sdf). Pure. */
-export function sdfToAtlasRgba(sdf: Uint8Array, width: number, height: number): Uint8Array {
+export function sdfToAtlasRgba(sdf: Uint8Array, width: number, height: number, range = 255): Uint8Array {
     const n = width * height;
     const out = new Uint8Array(n * 4);
+    const red = Math.max(1, Math.min(255, Math.round(range)));
     for (let i = 0; i < n; i++) {
         const o = i * 4;
-        out[o] = 255; out[o + 1] = 255; out[o + 2] = 255; out[o + 3] = sdf[i];
+        out[o] = red; out[o + 1] = 255; out[o + 2] = 255; out[o + 3] = sdf[i];
     }
     return out;
 }
@@ -140,7 +141,7 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
         const advanceSS = m.width;
         const leftSS = m.actualBoundingBoxLeft ?? 0;
         const rightSS = m.actualBoundingBoxRight ?? advanceSS;
-        const ascentSS = m.actualBoundingBoxAscent ?? pixelSize * ss * 0.8;
+        const ascentSS = m.actualBoundingBoxAscent ?? pixelSize * ss * TEXT_ASCENT_RATIO;
         const descentSS = m.actualBoundingBoxDescent ?? pixelSize * ss * 0.2;
 
         // Ink box in *stored* texels (rounded up so the ss grid tiles exactly).
@@ -182,7 +183,7 @@ export class CanvasGlyphRasterizer implements GlyphRasterizer {
         }
 
         return {
-            pixels: sdfToAtlasRgba(coverage, w, h),
+            pixels: sdfToAtlasRgba(coverage, w, h, this.sdf ? pad * 2 : 255),
             width: w,
             height: h,
             advance: advanceSS / ss,

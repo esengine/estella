@@ -6,6 +6,7 @@
 
 #include <emscripten/bind.h>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include "../ecs/Registry.hpp"
 #include "../math/Math.hpp"
@@ -3908,6 +3909,246 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         ;
 }
 
+EMSCRIPTEN_BINDINGS(esengine_ptr_access) {
+    emscripten::function("getBillboardPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::Billboard>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getBoxCollider2DPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::BoxCollider2D>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getBoxCollider3DPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::BoxCollider3D>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getCameraPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::Camera>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getCanvasPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::Canvas>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getCapsuleCollider2DPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::CapsuleCollider2D>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getCapsuleCollider3DPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::CapsuleCollider3D>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getCharacterController3DPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::CharacterController3D>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getCircleCollider2DPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::CircleCollider2D>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getContentRectPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::ContentRect>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getConvexCollider3DPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::ConvexCollider3D>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getDraggablePtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::Draggable>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getFlexContainerPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::FlexContainer>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getGroupOpacityPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::GroupOpacity>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getImpostorPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::Impostor>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getInteractablePtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::Interactable>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getLODGroupPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::LODGroup>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getLightPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::Light>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getLightProbeVolumePtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::LightProbeVolume>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getMeshCollider3DPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::MeshCollider3D>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getMeshInstancesPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::MeshInstances>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getMeshLightmapPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::MeshLightmap>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getMeshRendererPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::MeshRenderer>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getOccluderPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::Occluder>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getParticleColliderPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::ParticleCollider>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getParticleEmitterPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::ParticleEmitter>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getParticleForceFieldPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::ParticleForceField>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getPlanarReflectionPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::PlanarReflection>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getReflectionProbePtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::ReflectionProbe>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getRigidBody2DPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::RigidBody2D>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getRigidBody3DPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::RigidBody3D>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getSegmentCollider2DPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::SegmentCollider2D>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getShapeRendererPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::ShapeRenderer>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getSortingGroupPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::SortingGroup>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getSphereCollider3DPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::SphereCollider3D>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getSpringBoneColliderPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::SpringBoneCollider>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getSpritePtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::Sprite>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getSpriteMaskPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::SpriteMask>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getTilemapLayerPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::TilemapLayer>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getTrailRendererPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::TrailRenderer>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getTransformPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::Transform>(static_cast<Entity>(e));
+        if (!c) return 0;
+        c->ensureDecomposed();
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getUIInteractionPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::UIInteraction>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getUIMaskPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::UIMask>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getUINodePtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::UINode>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getUIScrollPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::UIScroll>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getUIVisualPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::UIVisual>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+    emscripten::function("getVelocityPtr", optional_override([](Registry& r, u32 e) -> int {
+        auto* c = r.tryGet<esengine::ecs::Velocity>(static_cast<Entity>(e));
+        if (!c) return 0;
+        return static_cast<int>(reinterpret_cast<uintptr_t>(c));
+    }));
+}
+
+
 // =============================================================================
 // Reflection — authoritative binding manifest for JS
 // =============================================================================
@@ -4468,7 +4709,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "34fd70a1b6a3abc0";
+static const char* kEsAbiLayoutHash = "bf937027e22ea446";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

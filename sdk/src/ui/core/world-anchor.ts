@@ -178,17 +178,25 @@ export function stepWorldAnchors(world: World, screen: ScreenLayoutData): void {
     world.ensureTransformsComposed();
     const box = { width: screen.right - screen.left, height: screen.top - screen.bottom };
     const auto = screenCamera(world);
-    for (const e of anchors) {
-        const a = world.get(e, UIWorldAnchor) as UIWorldAnchorData;
-        const camEntity = a.camera !== 0 && world.valid(a.camera) && world.has(a.camera, Camera) ? a.camera : auto;
-        if (camEntity === null) continue;
+    const lenses = new Map<Entity, AnchorLens>();
+    const lensOf = (camEntity: Entity): AnchorLens => {
+        let lens = lenses.get(camEntity);
+        if (lens) return lens;
         const cam = world.get(camEntity, Camera) as CameraData;
         const ct = world.get(camEntity, Transform) as TransformData;
-        const lens: AnchorLens = {
+        lens = {
             position: ct.worldPosition as Vec3, rotation: ct.worldRotation as Quat,
             perspective: cam.projectionType === ProjectionType.Perspective,
             fov: cam.fov, orthoSize: cam.orthoSize, near: cam.nearPlane,
         };
+        lenses.set(camEntity, lens);
+        return lens;
+    };
+    for (const e of anchors) {
+        const a = world.get(e, UIWorldAnchor) as UIWorldAnchorData;
+        const camEntity = a.camera !== 0 && world.valid(a.camera) && world.has(a.camera, Camera) ? a.camera : auto;
+        if (camEntity === null) continue;
+        const lens = lensOf(camEntity);
         let point: Vec3 = a.offset;
         if (a.target !== 0 && world.valid(a.target) && world.has(a.target, Transform)) {
             const tp = (world.get(a.target, Transform) as TransformData).worldPosition as Vec3;

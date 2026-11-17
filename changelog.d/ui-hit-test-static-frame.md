@@ -1,0 +1,6 @@
+---
+section: Changed
+commits:
+  - perf(ui): a pointer that has not moved over a UI where nothing changed no longer runs the hit test every frame - UILayoutGeneration advances only when the layout is solved or the screen roots move, the hit test also reruns on the change ticks of what layout does not move, and UIInteraction is read only for the controls a pointer is over or left
+---
+**A pointer that has not moved over a UI where nothing changed no longer runs the hit test every frame.** `UILayoutGeneration` used to advance twice a frame whether or not anything was laid out, so the interaction system's shortcut for a still pointer never applied and every pointer walked every UI node, every frame. The generation now advances only when a pass solves the layout or moves the screen roots. The hit test still runs again when the pointer moves or presses, when something is spawned, removed, enabled or disabled, when an interactable, a mask, a Canvas or a parent changes (an `Interactable` moved by a script or by physics included), and when the camera moves what the pointer points at. The interaction system also reads `UIInteraction` only for the controls a pointer is over, holds or has just left, instead of reading every control's twice a frame.

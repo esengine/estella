@@ -855,7 +855,7 @@ export interface ESEngineModule {
     renderer_getPreviewHeight(): number;
 
     // UI Systems
-    uiLayout_update(registry: CppRegistry, boxLeft: number, boxBottom: number, boxRight: number, boxTop: number, propertyDirty: boolean): void;
+    uiLayout_update(registry: CppRegistry, boxLeft: number, boxBottom: number, boxRight: number, boxTop: number, propertyDirty: boolean): boolean;
     uiHitTest_update(registry: CppRegistry,
                      originX: number, originY: number, originZ: number,
                      dirX: number, dirY: number, dirZ: number): void;
@@ -866,6 +866,7 @@ export interface ESEngineModule {
                              worldDirX: number, worldDirY: number, worldDirZ: number,
                              screenOriginX: number, screenOriginY: number, screenOriginZ: number,
                              screenDirX: number, screenDirY: number, screenDirZ: number): void;
+    uiHitTest_inputsChanged?(registry: CppRegistry): boolean;
     uiHitTest_getHitEntity(): number;
     uiHitTest_pick?(registry: CppRegistry, worldX: number, worldY: number): number;
     uiHitTest_pickAll?(registry: CppRegistry, worldX: number, worldY: number): number;

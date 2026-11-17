@@ -89,7 +89,7 @@ private:
     f32 last_ms_ = -1.0f;
 };
 
-enum class BatchVariant : u8 { Plain, Lit, AlphaClip, Sdf, GlyphMask, GlyphFill, PremultipliedColor, DisplayOutput, Count };
+enum class BatchVariant : u8 { Plain, Lit, AlphaClip, PremultipliedColor, DisplayOutput, Count };
 
 class RenderFrame {
 public:
@@ -269,10 +269,7 @@ public:
     /**
      * Submit a batch of pre-laid-out glyph quads from TS. Same vertex format as
      * submitSpineBatch (x,y,u,v,r,g,b,a per vertex), RenderType::Text, atlas page
-     * = `textureId`. `mode` picks the shader (see TextGlyphMode): Sdf → the SDF
-     * variant (scalable SDF atlas); Color → the plain textured batch (device-resolution
-     * bitmap atlas carrying native-AA coverage in alpha); Mask and Fill → the two
-     * ways a bitmap font with its outline baked into the page is read.
+     * = `textureId`.
      */
     void submitTextBatch(
         const f32* vertices, i32 vertexCount,
@@ -786,6 +783,7 @@ private:
     void buildSortingGroups(ecs::Registry& registry);
     /// The hierarchy position of every entity, for the layers that paint in tree order (DrawList::setTreeMask).
     void buildTreeSequence(ecs::Registry& registry);
+    std::vector<Entity> tree_pending_;
     /// Adds a finalized list's cost to this frame's tally (see the definition).
     void accumulateStats(const DrawList& list);
     /// The overlay pass's body: the projection its geometry was built for, then
@@ -1313,6 +1311,7 @@ private:
     Unique<Framebuffer> overlay_backdrop_;
     u32 overlay_grab_w_ = 0, overlay_grab_h_ = 0;
     bool grabOverlayBackdrop(FramebufferHandle source);
+    void executeOverlayGraph();
     void releaseOverlayBackdrop();
 
     /// buildSpriteMasks scratch, reused across cameras/frames.

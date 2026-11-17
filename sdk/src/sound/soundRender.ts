@@ -639,7 +639,7 @@ export function soundFromSamples(rate: number, channels: readonly Float32Array[]
 }
 
 /** A `.wav` read: PCM of 8, 16, 24 or 32 bits, or 32-bit floats. Throws on anything else, saying what it found. */
-export function decodeWav(bytes: Uint8Array): RenderedSound {
+export function readWav(bytes: Uint8Array): { rate: number; channels: Float32Array[] } {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const tag = (at: number): string => String.fromCharCode(bytes[at]!, bytes[at + 1]!, bytes[at + 2]!, bytes[at + 3]!);
     if (bytes.length < 44 || tag(0) !== 'RIFF' || tag(8) !== 'WAVE') throw new Error('not a .wav: it does not begin RIFF....WAVE');
@@ -672,5 +672,10 @@ export function decodeWav(bytes: Uint8Array): RenderedSound {
                 : view.getInt32(at, true) / 2147483648;
         }
     }
-    return soundFromSamples(rate, out);
+    return { rate, channels: out };
+}
+
+export function decodeWav(bytes: Uint8Array): RenderedSound {
+    const { rate, channels } = readWav(bytes);
+    return soundFromSamples(rate, channels);
 }

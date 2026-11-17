@@ -26,7 +26,7 @@ namespace ecs {
  *  is the available area, its center is where screen roots are placed.
  *  `propertyDirty` is the SDK's O(1) "an authored UINode/FlexContainer field
  *  changed" signal. */
-void uiLayout_update(ecs::Registry& registry, f32 boxLeft, f32 boxBottom, f32 boxRight, f32 boxTop,
+bool uiLayout_update(ecs::Registry& registry, f32 boxLeft, f32 boxBottom, f32 boxRight, f32 boxTop,
                      bool propertyDirty);
 
 /** The runtime raycast. The pointer is a RAY — a screen point names one, and
@@ -49,6 +49,7 @@ void uiHitTest_updateDomains(ecs::Registry& registry,
                              f32 worldDirX, f32 worldDirY, f32 worldDirZ,
                              f32 screenOriginX, f32 screenOriginY, f32 screenOriginZ,
                              f32 screenDirX, f32 screenDirY, f32 screenDirZ);
+bool uiHitTest_inputsChanged(ecs::Registry& registry);
 u32 uiHitTest_getHitEntity();
 u32 uiHitTest_pick(ecs::Registry& registry, f32 worldX, f32 worldY);
 u32 uiHitTest_pickAll(ecs::Registry& registry, f32 worldX, f32 worldY);

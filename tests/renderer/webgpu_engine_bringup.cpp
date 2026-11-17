@@ -357,12 +357,8 @@ int main() {
     if (!compileEmitterProbe(context, useGL)) {
         return 1;
     }
-    // The batch feature variants compile in both languages now (SDF has no
-    // scene here — a text glyph atlas is out of scope — but a bad module
-    // surfaces as a validation error the runner counts; LIT also renders via
-    // the lit sprite above).
     auto& rf = context.require<RenderFrame>();
-    if (rf.batchProgram(BatchVariant::Sdf) == 0 || rf.batchProgram(BatchVariant::Lit) == 0) {
+    if (rf.batchProgram(BatchVariant::Plain) == 0 || rf.batchProgram(BatchVariant::AlphaClip) == 0 || rf.batchProgram(BatchVariant::Lit) == 0) {
         std::printf("PARITY_FAIL batch variants\n");
         return 1;
     }

@@ -10,7 +10,8 @@
  * `flex`/`safe-area` schemas in this module.
  */
 import type { App, Plugin } from '../../app/app';
-import { registerComponent } from '../../ecs/component';
+import { registerComponent, type AnyComponentDef } from '../../ecs/component';
+import type { World } from '../../ecs/world';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { SystemLabel } from '../../ecs/systemLabels';
 import { Res } from '../../ecs/resource';
@@ -24,6 +25,24 @@ import type { UILayoutGenerationData } from './ui-layout-generation';
 import type { CppRegistry } from '../../wasm';
 import { engineApi } from '../../ecs/bridge/engineApi';
 import { initUIHelpers } from '../util/helpers';
+
+export function changeGate(world: World, components: readonly AnyComponentDef[]): () => boolean {
+    const latest = (): number => {
+        let revision = 0;
+        for (const component of components) {
+            revision = Math.max(revision, world.mutationRevision(component, 'write'), world.mutationRevision(component, 'topology'));
+        }
+        return revision;
+    };
+    latest();
+    let solved = -1;
+    return () => {
+        const revision = latest();
+        const changed = revision !== solved;
+        solved = revision;
+        return changed;
+    };
+}
 
 export class UILayoutPlugin implements Plugin {
     name = 'uiLayout';
@@ -45,52 +64,30 @@ export class UILayoutPlugin implements Plugin {
         const layoutGen: UILayoutGenerationData = { generation: 0 };
         app.insertResource(UILayoutGeneration, layoutGen);
 
-        // Track UINode/FlexContainer edits so an authored change is an O(1) signal
-        // the C++ solve honours (skip-when-clean). Every input write goes through
-        // world.set / insert / Mut-writeback, which record the change; C++ writes
-        // only layout OUTPUTS, and tween-driven Transform writes are covered by the
-        // engine's own anim_override_ scan — so this pair is the complete authored
-        // property signal.
-        world.enableChangeTracking(UINode);
-        world.enableChangeTracking(FlexContainer);
-
-        // Ticks are per-frame, and both passes run within one tick, so a change can
-        // still land at the current tick after this check. Report changes strictly
-        // after `solvedTick`, then only advance the watermark to the PREVIOUS tick —
-        // anyChangedSince uses '>', so using the current tick would drop a same-frame
-        // write. The one extra solve this costs while a change settles is negligible.
-        let solvedTick = -1;
-        const propertyDirty = (): boolean => {
-            const dirty = world.anyChangedSince(UINode, solvedTick)
-                       || world.anyChangedSince(FlexContainer, solvedTick);
-            solvedTick = world.getWorldTick() - 1;
-            return dirty;
-        };
+        const propertyDirty = changeGate(world, [UINode, FlexContainer]);
 
         // The box is the SCREEN's: the design resolution fitted to the viewport,
         // centred on the origin — which is what makes a screen root's placement a
         // fact about the screen rather than about where something is looking.
-        const layoutFn = (screen: ScreenLayoutData) => {
-            if (!screen.valid) return;
-            engine?.uiLayout_update?.(
+        const solve = (screen: ScreenLayoutData): void => {
+            const changed = engine?.uiLayout_update?.(
                 registry,
                 screen.left, screen.bottom,
                 screen.right, screen.top,
                 propertyDirty(),
             );
+            if (changed !== false) layoutGen.generation++;
+        };
+
+        const layoutFn = (screen: ScreenLayoutData) => {
+            if (!screen.valid) return;
+            solve(screen);
             world.ensureTransformsComposed();
-            layoutGen.generation++;
         };
 
         const layoutOnlyFn = (screen: ScreenLayoutData) => {
             if (!screen.valid) return;
-            engine?.uiLayout_update?.(
-                registry,
-                screen.left, screen.bottom,
-                screen.right, screen.top,
-                propertyDirty(),
-            );
-            layoutGen.generation++;
+            solve(screen);
         };
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(

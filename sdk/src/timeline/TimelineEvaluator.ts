@@ -5,15 +5,9 @@
  * @brief   Pure-TS timeline sampler — evaluate a TimelineAsset at an absolute
  *          time and apply its property tracks to the world.
  *
- * The engine's C++ TimelineSystem is a temporary implementation. This is the
- * modern replacement's kernel: ONE
- * sample(time) call drives both forward playback (advance the clock, then sample)
+ * ONE sample(time) call drives both forward playback (advance the clock, then sample)
  * and editor scrubbing (sample at any T) — so the editor gets "scrub ==
  * evaluate-at-T" for free, with no separate evaluate/apply paths.
- *
- * The interpolation math is a 1:1 port of TimelineSystem.cpp::evaluateChannel
- * (hermite/linear/step/ease) so playback and editor preview match the C++ path
- * numerically, and P4 can delete the C++ runtime with no regression.
  *
  * The sampler is dependency-injected (world / component lookup / child resolution)
  * so it is a pure function: unit-testable without WASM and reusable by both the

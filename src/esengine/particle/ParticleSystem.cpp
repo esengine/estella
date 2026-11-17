@@ -106,15 +106,15 @@ void ParticleSystem::update(ecs::Registry& registry, f32 frameDt) {
     // Share the App cap across active scene emitters. Rotate remainder slots so
     // a budget smaller than the emitter count never permanently starves a tail.
     collision_quotas_.clear();
-    std::vector<Entity> sceneEmitters;
+    scene_emitters_.clear();
     for (auto entity : view) {
         const auto& e = view.get<ecs::ParticleEmitter>(entity);
-        if (e.enabled && e.collisionEnabled && e.collisionMode != 0) sceneEmitters.push_back(entity);
+        if (e.enabled && e.collisionEnabled && e.collisionMode != 0) scene_emitters_.push_back(entity);
     }
-    const u32 n = static_cast<u32>(sceneEmitters.size());
+    const u32 n = static_cast<u32>(scene_emitters_.size());
     for (u32 i = 0; i < n; ++i) {
         const u32 rank = (i + n - collision_frame_ % n) % n;
-        collision_quotas_[sceneEmitters[i]] = query_budget_ / n + (rank < query_budget_ % n ? 1u : 0u);
+        collision_quotas_[scene_emitters_[i]] = query_budget_ / n + (rank < query_budget_ % n ? 1u : 0u);
     }
     ++collision_frame_;
     for (auto entity : view) {
@@ -277,7 +277,7 @@ void ParticleSystem::update(ecs::Registry& registry, f32 frameDt) {
                         frame, isWorldSpace);
 
         if (state.pool.capacity() > 0) {
-            const u32 step = std::max(1u, std::min(static_cast<u32>(std::clamp(emitter.collisionQueryBudget, 0, 4096)), collision_quotas_[entity]));
+            const u32 step = std::max(1u, std::min(static_cast<u32>(std::clamp(emitter.collisionQueryBudget, 0, 4096)), collisionQuota(entity)));
             state.collisionCursor = (state.collisionCursor + step) % std::max(1u,state.pool.aliveCount());
         }
 
@@ -553,13 +553,15 @@ u32 ParticleSystem::emitAt(ecs::Registry& registry, Entity entity, u32 count, co
     return state.pool.aliveCount() - before;
 }
 
+u32 ParticleSystem::collisionQuota(Entity emitter) const {
+    const auto it = collision_quotas_.find(emitter);
+    return it != collision_quotas_.end() ? it->second : 0u;
+}
+
 void ParticleSystem::drainSubEmitters(ecs::Registry& registry, Entity parent, Entity child,
                                       f32 inheritVelocity, f32 chance) {
-    // Take ownership of the queue up front: emitInto below spawns into the child
-    // with allowBirthTrigger=false, so it never re-enters this buffer, but swapping
-    // also leaves the member clean if the child reference is stale.
-    std::vector<SubEmitRequest> requests;
-    requests.swap(subemit_requests_);
+    drain_scratch_.clear();
+    drain_scratch_.swap(subemit_requests_);
 
     if (child == parent || !registry.valid(child) || !registry.has<ecs::ParticleEmitter>(child)) {
         return;  // a deleted/retargeted child just drops its bursts
@@ -586,7 +588,7 @@ void ParticleSystem::drainSubEmitters(ecs::Registry& registry, Entity parent, En
     // template still shows something).
     u32 count = childEmitter.burstCount > 0 ? static_cast<u32>(childEmitter.burstCount) : 1;
     count = std::min(count, childState.pool.capacity());
-    for (const auto& req : requests) {
+    for (const auto& req : drain_scratch_) {
         if (req.depth >= 8) continue;
         if (chance < 1.0f && randomRange(0.0f, 1.0f) >= chance) {
             continue;
@@ -842,7 +844,7 @@ void ParticleSystem::collisionStep(const ecs::ParticleEmitter& emitter, EmitterS
         if (!near) { ++stats.distanceSkipped; fallback(); return; }
     }
     const u32 slot = static_cast<u32>(&p - state.pool.particles().data());
-    const u32 limit = std::min(static_cast<u32>(std::clamp(emitter.collisionQueryBudget, 0, 4096)), collision_quotas_[collision_emitter_]);
+    const u32 limit = std::min(static_cast<u32>(std::clamp(emitter.collisionQueryBudget, 0, 4096)), collisionQuota(collision_emitter_));
     const u32 alive = std::max(1u,state.pool.aliveCount());
     const u32 rank = (ordinal + alive - state.collisionCursor % alive) % alive;
     if (rank >= limit || stats.queries >= limit || collision_queries_.size() >= query_budget_) {

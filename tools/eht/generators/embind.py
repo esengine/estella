@@ -8,7 +8,7 @@ from ..type_system import TypeSystem
 
 class EmbindGenerator:
     def __init__(self, components: List[Component], enums: List[Enum],
-                 layout_asserts: str = '', abi_hash: str = ''):
+                 layout_asserts: str = '', abi_hash: str = '', ptr_access: str = ''):
         self.components = components
         self.enums = enums
         self.types = TypeSystem(enums)
@@ -17,6 +17,7 @@ class EmbindGenerator:
         # contract lives in one generated TU. See tools/eht/abi.py.
         self.layout_asserts = layout_asserts
         self.abi_hash = abi_hash
+        self.ptr_access = ptr_access
 
     def generate(self) -> str:
         lines = self._gen_header()
@@ -25,6 +26,8 @@ class EmbindGenerator:
         lines.extend(self._gen_enums())
         lines.extend(self._gen_components())
         lines.extend(self._gen_registry())
+        if self.ptr_access:
+            lines.extend(['', self.ptr_access])
         lines.extend(self._gen_reflection())
         lines.extend(self._gen_layout_asserts())
         lines.extend(self._gen_abi_hash())
@@ -68,6 +71,7 @@ class EmbindGenerator:
             '',
             '#include <emscripten/bind.h>',
             '#include <cstddef>',
+            '#include <cstdint>',
             '#include <string>',
             '#include "../ecs/Registry.hpp"',
             '#include "../math/Math.hpp"',

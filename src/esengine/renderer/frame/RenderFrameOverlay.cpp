@@ -123,7 +123,7 @@ bool RenderFrame::grabOverlayBackdrop(FramebufferHandle source) {
     copy.write = graph_.importTarget(overlay_backdrop_->handle(), width_, height_);
     copy.execute = [this](const rg::PassContext&) { post_process_->grabScene(); };
     graph_.addPass(std::move(copy));
-    graph_.execute();
+    executeOverlayGraph();
     device_.endRenderPass();
     device_.generateMipmaps(overlay_backdrop_->getColorAttachment());
     device_.invalidatePipelineCache();
@@ -132,6 +132,13 @@ bool RenderFrame::grabOverlayBackdrop(FramebufferHandle source) {
     (void)source;
     return false;
 #endif
+}
+
+void RenderFrame::executeOverlayGraph() {
+    rg::PassTimer* timer = gpu_frame_open_ && gpu_frame_passes_ ? pass_timer_.get() : nullptr;
+    graph_.setPassTimer(timer);
+    graph_.execute();
+    graph_.setPassTimer(nullptr);
 }
 
 void RenderFrame::releaseOverlayBackdrop() {
@@ -231,7 +238,7 @@ void RenderFrame::endScreenOverlay(RenderTargetManager::Handle target) {
 #ifdef ES_ENABLE_POSTPROCESS
     if (layered) {
         rg::PassDesc compose;
-        compose.name = "screen-ui";
+        compose.name = "screen-ui-effect";
         compose.reads = {layer};
         compose.write = graph_.importTarget(fbo, width_, height_);
         compose.clear = false;
@@ -243,7 +250,7 @@ void RenderFrame::endScreenOverlay(RenderTargetManager::Handle target) {
         graph_.addPass(std::move(compose));
     }
 #endif
-    graph_.execute();
+    executeOverlayGraph();
     draw_list_.setLayerAlpha(false);
 
     device_.endRenderPass();

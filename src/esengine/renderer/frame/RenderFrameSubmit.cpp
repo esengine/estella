@@ -56,29 +56,19 @@ void RenderFrame::submitTextBatch(
     u32 vOff = pool_.allocVertices(LayoutId::Batch, vBytes);
     auto* dst = reinterpret_cast<BatchVertex*>(pool_.vertexData(LayoutId::Batch) + vOff);
 
+    const f32 glyphMode = static_cast<f32>(batchGlyphModeBits(mode));
     for (i32 i = 0; i < vertexCount; ++i) {
         const f32* v = vertices + i * TEXT_VERTEX_FLOATS;
         glm::vec4 worldPos = model * glm::vec4(v[0], v[1], 0.0f, 1.0f);
         u32 pc = packColor(glm::vec4(v[4], v[5], v[6], v[7]));
-        // texIndex is assigned at merge time; sdfBias rides in from the layout,
-        // which is where an outline pass says how far to grow the glyph.
-        dst[i] = { {worldPos.x, worldPos.y, worldPos.z}, pc, {v[2], v[3]}, 0.0f, v[8] };
+        dst[i] = { {worldPos.x, worldPos.y, worldPos.z}, pc, {v[2], v[3]}, glyphMode, v[8] };
     }
 
-    // Sdf derives coverage from the distance field; Mask and Fill read a baked-outline page (see TextGlyphMode); Color is the featureless batch,
-    // which multiplies the page's RGBA by the tint (native-AA bitmap coverage in alpha, or a colour font).
-    u32 program = 0;
-    switch (mode) {
-        case TextGlyphMode::Sdf: program = batchProgram(BatchVariant::Sdf); break;
-        case TextGlyphMode::Mask: program = batchProgram(BatchVariant::GlyphMask); break;
-        case TextGlyphMode::Fill: program = batchProgram(BatchVariant::GlyphFill); break;
-        case TextGlyphMode::Color: program = batchProgram(BatchVariant::Plain); break;
-    }
     pushBatchCommand(pool_, draw_list_, clip_state_, vOff, static_cast<u32>(vertexCount), indices,
                      static_cast<u32>(indexCount), BatchDrawKey{
         .stage = current_stage_,
         .layer = layer,
-        .shaderId = program,
+        .shaderId = batch_shader_id_,
         .blend = BlendMode::Normal,
         .textureId = textureId,
         .depth = depth,

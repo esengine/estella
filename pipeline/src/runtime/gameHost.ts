@@ -21,7 +21,7 @@ import {
   AnimatorRootMotion, Playthrough, Name,
   worldResidencyReport, PostProcess, Renderer, Audio, Camera,
   getComponentRegistry, BakesRes,
-  startDebugChannel, glContextAttributes, warmShaders, getResourceStats, textureRecipeStats,
+  startDebugChannel, glContextAttributes, warmShaders, getResourceStats, textureRecipeStats, TextureStreamingRes,
 } from 'esengine';
 import { installDevicePreview } from './devicePreviewClient';
 declare const __ESTELLA_LAN_PREVIEW__: boolean;
@@ -823,6 +823,16 @@ async function boot(): Promise<void> {
           retainedBytes: getResourceStats()?.retainedBytes ?? -1,
         };
       },
+      textureStreaming(): Record<string, number | boolean> {
+        const streaming = app.hasResource(TextureStreamingRes) ? app.getResource(TextureStreamingRes) : null;
+        return {
+          enabled: streaming?.enabled ?? false,
+          streamed: streaming?.textures.size ?? 0,
+          moves: streaming?.moves ?? 0,
+          restoring: streaming?.restoring.size ?? 0,
+          failures: streaming?.failures ?? 0,
+        };
+      },
       loseDevice(): boolean {
         const ext = gl?.getExtension('WEBGL_lose_context') as
           { loseContext(): void; restoreContext(): void } | null;
@@ -975,7 +985,11 @@ async function boot(): Promise<void> {
       new URL(cfg.modelBakes.worker, location.href).href, sizeLimit(location.search), navigator.hardwareConcurrency || 4,
     );
     setLoadWork(bakes.work);
-    void bakes.work.run().catch(() => undefined);
+    bakes.refreshWith(async (path) => {
+      const assets = app.getResource(Assets);
+      const texture = assets.getTexture(path);
+      if (texture) await assets.resizeTexture(texture.handle, 0);
+    });
     source = bakes.serve(packaged);
   }
   applyAssetRefResolvers(app, index.resolvePath);
