@@ -18,6 +18,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { BuildSizeEntry, BuildSizeReport } from './sizeReport';
 import type { ExportPlatform } from '../project/platforms';
+import type { WebpImages } from '../project/format';
 
 /**
  * Build options that change what a package weighs WITHOUT changing what is in
@@ -30,6 +31,7 @@ export interface SizeSettings {
   compressTextures?: boolean;
   compressAudio?: boolean;
   atlasTextures?: boolean;
+  webpImages?: WebpImages;
   minify?: boolean;
   minifyScripts?: boolean;
   sourcemap?: boolean;
@@ -53,10 +55,10 @@ export const PACKAGING_SIZE_ROLE: Readonly<Record<string, keyof SizeSettings | '
     frameDebugger: 'content',
     openFolder: 'inert',
     orientation: 'inert',
-    assetCompression: 'compressTextures',
     compressTextures: 'compressTextures',
     compressAudio: 'compressAudio',
     atlasTextures: 'atlasTextures',
+    webpImages: 'webpImages',
 
     compressWasm: 'compressWasm',
     engineSubpackage: 'engineSubpackage',
@@ -78,7 +80,7 @@ export const PACKAGING_SIZE_ROLE: Readonly<Record<string, keyof SizeSettings | '
 /** The settings this build ran with, out of everything the export was given. */
 export function sizeSettingsOf(opts: SizeSettings): SizeSettings {
     const keys: (keyof SizeSettings)[] = [
-        'contentAddressed', 'compressTextures', 'compressAudio', 'atlasTextures',
+        'contentAddressed', 'compressTextures', 'compressAudio', 'atlasTextures', 'webpImages',
         'minify', 'minifyScripts', 'sourcemap', 'compressWasm', 'engineSubpackage', 'profile',
     ];
     const out: Record<string, unknown> = {};

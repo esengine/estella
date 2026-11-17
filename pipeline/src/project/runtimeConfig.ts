@@ -30,7 +30,7 @@ import { DEFAULT_PHYSICS3D_WORLD, parseQualityConfig, parseRuntimeBuildConfig } 
 import type {
   AudioProjectConfig, PackagedGameConfig, Physics2DPluginConfig, Physics3DWorldConfig, QualityConfig, RuntimeBuildConfig,
 } from 'esengine';
-import { resolveScreenFit, SORTING_LAYER_COUNT, type ProjectFeatures, type ProjectManifest, type ProjectPackaging } from './format';
+import { resolveScreenFit, SORTING_LAYER_COUNT, type ProjectFeatures, type ProjectManifest, type ProjectPackaging, type WebpImages } from './format';
 
 /** The project's camera fit as a runtime takes it (`scaleMode < 0` ⇒ off). */
 export interface RuntimeScreenFit {
@@ -271,17 +271,21 @@ export interface CookOptions {
   compressTextures: boolean;
   compressAudio: boolean;
   atlasTextures: boolean;
+  /** Absent: a playable's PNGs ship as PNG. */
+  webpImages?: WebpImages;
 }
 
 /**
- * The cook flags a project's `assetCompression` means. One derivation for the
- * same reason {@link runtimeConfigOf} is one: the Build dialog derived these
- * itself and the headless export passed none of them, so every automated
- * package shipped raw — verifying a build configuration no user ships.
+ * What a project's packaging asks the build to compress, each off unless set. One derivation for the same reason
+ * {@link runtimeConfigOf} is one: the Build dialog derived these itself and the headless export passed none of them,
+ * so an automated package differed from the one a person makes.
  */
 export function cookOptionsOf(manifest: Pick<ProjectManifest, 'packaging'>): CookOptions {
-  const on = (manifest.packaging?.assetCompression ?? 'auto') === 'auto';
-  return { compressTextures: on, compressAudio: on, atlasTextures: on };
+  const p = manifest.packaging;
+  return {
+    compressTextures: p?.compressTextures === true, compressAudio: p?.compressAudio === true, atlasTextures: p?.atlasTextures === true,
+    ...(p?.webpImages !== undefined ? { webpImages: p.webpImages } : {}),
+  };
 }
 
 /**

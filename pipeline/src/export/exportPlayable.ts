@@ -49,7 +49,7 @@ import { LEAN_ENTRY_FILE, FULL_ENTRY_FILE } from '../bundle/importMap';
 import { contentSubsystems } from './contentSubsystems';
 import { scriptsMentionSkeletal } from './liteEngine';
 import { textureImportSettingsFrom, type ParsedTextureImportSettings } from '../../../sdk/src/asset/textureImportSettings';
-import type { ModuleChoice, ProjectFeatures, ProjectPackaging } from '../project/format';
+import type { ModuleChoice, ProjectFeatures, ProjectPackaging, WebpImages } from '../project/format';
 import { PAGE_BACKGROUND, splashCss, splashHtml, splashScript } from './splash';
 
 export interface ExportPlayableResult {
@@ -247,7 +247,9 @@ export async function exportPlayable(opts: {
   resizeTextures?: boolean;
   /** WAV to MP3 at the authored bitrate, honoring each clip's compression opt-out. */
   compressAudio?: boolean;
-  /** Project delivery budget, constrained by the network limit and 3 MiB regression target. */
+  /** The PNGs as WebP at this encoding; absent, they ship as PNG. */
+  webpImages?: WebpImages;
+  /** Project delivery budget, constrained by the network limit and 3 MiB regression target. Reported against, never acted on. */
   sizeBudgetBytes?: number;
   /** What the project says about its engine modules; see ProjectFeatures.modules. */
   features?: ProjectFeatures;
@@ -515,12 +517,9 @@ export async function exportPlayable(opts: {
   };
   const emptyHtmlBytes = assemble(new Map()).htmlBytes;
   const targetDeliveryBytes = Math.min(adProfile.maxBytes, opts.sizeBudgetBytes ?? Infinity, 3 * 1024 * 1024);
-  const baseline = assemble(new Map(optimizationAssets.map(asset => [asset.key, asset])));
-  // Every image is offered lossless WebP whatever the size, so each needs its import settings; only audio waits for the
-  // budget to be exceeded before its source is read.
-  const overBudget = baseline.deliveryBytes > targetDeliveryBytes || baseline.htmlBytes > (adProfile.maxHtmlBytes ?? Infinity);
-  if (errors.length === 0 && (opts.resizeTextures || (opts.compressAudio && overBudget))) {
-    progress({ phase: 'Optimizing playable budget' });
+  if (errors.length === 0 && opts.webpImages !== undefined) {
+    progress({ phase: 'Encoding images as WebP' });
+    // Which images must keep every sample: their import settings, and whether a font draws from them.
     const { index } = await scanAssetDatabase(opts.root, { write: false, adopt: false });
     const byUuid = new Map(index.entries.map(entry => [entry.uuid, entry]));
     const fontPages = new Set(index.entries.filter(entry => entry.path.toLowerCase().endsWith('.fnt'))
@@ -529,18 +528,14 @@ export async function exportPlayable(opts: {
       const uuid = asset.key.slice('@uuid:'.length);
       asset.importer = byUuid.get(uuid)?.importer;
       asset.losslessOnly = fontPages.has(uuid);
-      if (opts.compressAudio && overBudget && asset.path.toLowerCase().endsWith('.wav')) {
-        asset.sourceWav = await readFile(path.join(opts.root, asset.path));
-      }
     }
   }
   const optimized = await optimizePlayableAssets({ root: opts.root, assets: optimizationAssets,
-    textures: errors.length === 0 && !!opts.resizeTextures, audio: errors.length === 0 && !!opts.compressAudio,
+    webp: errors.length === 0 ? opts.webpImages : undefined,
     targetDeliveryBytes, maxHtmlBytes: adProfile.maxHtmlBytes,
     // A single-file page measures by arithmetic (its size is a fixed part plus the assets' JSON); a zip has to be built to be weighed.
     measure: payloads => zipFile ? assemble(payloads) : (() => { const htmlBytes = emptyHtmlBytes - 2 + playableAssetsJsonBytes(payloads); return { htmlBytes, deliveryBytes: htmlBytes }; })(),
-    onStage: (stage, assets) => progress({ phase: 'Optimizing playable budget', detail: `${stage} — up to ${assets} assets` }), warnings });
-  optimized.report.mode = opts.resizeTextures || opts.compressAudio ? 'auto' : 'skip';
+    onStage: (stage, assets) => progress({ phase: 'Encoding images as WebP', detail: `${stage} — ${assets} images` }), warnings });
   const final = assemble(optimized.payloads);
   await writeFile(outFile, final.html);
   if (zipFile) await writeFile(zipFile, final.delivery);
@@ -550,7 +545,7 @@ export async function exportPlayable(opts: {
     const payload = optimized.payloads.get(optimizationAssets[i].key)!;
     spans[i].bytes = `data:${payload.mime};base64,${Buffer.from(payload.data).toString('base64')}`.length;
   }
-  if (!optimized.report.meetsTarget) warnings.push(`Playable optimization target not met: delivery ${bytes}/${targetDeliveryBytes} bytes, HTML ${htmlBytes}/${adProfile.maxHtmlBytes ?? 'unlimited'} bytes. Reduce assets or engine modules; no quality below WebP 80 / MP3 96 kbps is selected.`);
+  if (!optimized.report.meetsTarget) warnings.push(`Playable is over its size budget: delivery ${bytes}/${targetDeliveryBytes} bytes, HTML ${htmlBytes}/${adProfile.maxHtmlBytes ?? 'unlimited'} bytes. Nothing is compressed unless chosen in the Build dialog: Max Size, WebP images and MP3 audio there, or fewer assets or engine modules.`);
   if (adProfile.maxHtmlBytes !== undefined && htmlBytes > adProfile.maxHtmlBytes) {
     // The file is written and its size is on the screen: whether to slim it or ship it anyway is the developer's call, not a failed build.
     warnings.push(`${adProfile.label}: index.html is ${htmlBytes} bytes, exceeding the uncompressed HTML limit of ${adProfile.maxHtmlBytes} bytes. ${adProfile.limitNote}`);
