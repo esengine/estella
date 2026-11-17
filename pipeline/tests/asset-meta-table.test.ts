@@ -28,6 +28,9 @@ describe('.meta type table (single source)', () => {
         expect(metaTypeFor('x.esbt')).toBe('behaviortree');
         expect(metaTypeFor('x.eslocale')).toBe('locale');
         expect(metaTypeFor('x.inputmap')).toBe('inputmap');
+        expect(metaTypeFor('x.fnt')).toBe('bitmapfont');
+        expect(metaTypeFor('x.bmfont')).toBe('bitmapfont');
+        expect(metaTypeFor('x.esterrain')).toBe('terrain-tiles');
     });
 
     // The graph is editor-side source that never ships — but an extension only

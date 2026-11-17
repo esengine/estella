@@ -258,7 +258,7 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
         // the variant that discards transparent fragments — otherwise the whole
         // quad writes stencil and a circular mask clips a rectangle.
         if (writesStencil && mask->alphaCutoff > 0.0f) {
-            key.shaderId = ctx.frame->batchProgram({"ALPHA_CLIP"});
+            key.shaderId = ctx.frame->batchProgram(BatchVariant::AlphaClip);
         }
 
         // Same resolution as SpritePlugin: an unregistered handle falls back to

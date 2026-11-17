@@ -1865,6 +1865,7 @@ TEST_CASE("nine-slice: small boxes contain their borders and preserve source UVs
             CHECK(h.list.commandCount() == 0);
             continue;
         }
+        CHECK(h.list.commandCount() == 1);
         const auto* vertices = reinterpret_cast<const BatchVertex*>(h.pool.vertexData(LayoutId::Batch));
         const u32 count = bytes / sizeof(BatchVertex);
         REQUIRE(count > 0);

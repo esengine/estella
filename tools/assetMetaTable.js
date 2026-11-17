@@ -22,6 +22,8 @@
  * editor maps it to a content-browser slot in ProjectStore.metaTypeToSlot.
  */
 
+export const META_VERSION = '2.0';
+
 /** Extension (lower-case, dot-included) -> `.meta` type. */
 export const EXT_TO_TYPE = Object.freeze({
     // Textures
@@ -116,10 +118,11 @@ export const EXT_TO_TYPE = Object.freeze({
     '.esaudioevent': 'sound-event',
     '.esworld': 'world-rules',
     '.esterrainlayer': 'terrain-layer',
+    '.esterrain': 'terrain-tiles',
     '.inputmap': 'inputmap',
     // Fonts
-    '.fnt': 'bitmapFont',
-    '.bmfont': 'bitmapFont',
+    '.fnt': 'bitmapfont',
+    '.bmfont': 'bitmapfont',
     '.ttf': 'font',
     '.otf': 'font',
     '.woff': 'font',
@@ -148,6 +151,14 @@ export const SUFFIX_TO_TYPE = Object.freeze({
     '_ske.json': 'dragonbones',
     '_tex.json': 'dragonbones',
 });
+
+const RENAMED_META_TYPES = Object.freeze({
+    bitmapFont: 'bitmapfont',
+});
+
+export function canonicalMetaType(type) {
+    return RENAMED_META_TYPES[type] ?? type;
+}
 
 /** The `.meta` type for a file name/path, or null when the NAME cannot say. */
 export function metaTypeForExt(fileOrExt) {

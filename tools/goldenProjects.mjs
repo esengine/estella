@@ -1384,6 +1384,26 @@ export const SHIPPED = {
     { notCertifiable: "An authoring tool's output (a .esland source). Covered by pipeline/tests/land.test.ts; no golden project is made from a land source." },
   "A tree is grown in one step.":
     { notCertifiable: "An authoring tool's output (a .esmodel step). Covered by pipeline/tests/modeling-tree.test.ts and pipeline/tests/land.test.ts; no golden project grows a tree." },
+  "Shaders are written once, in GLSL.":
+    { notCertifiable: "A build step: the WGSL a shader runs on WebGPU is made from its GLSL. Covered by the wgsl-twin gates and the render scenes run on both backends; a golden project carries no shader that tells the two apart." },
+  "Portal builds, playable ads and mini-games open on the Estella ident.":
+    { notCertifiable: "A start screen, drawn before the game runs. Covered by pipeline/tests/export-playable.test.ts and the export tests of each target; no golden project is judged on its splash." },
+  "A web game can ship its models as recipes and bake them on the player's graphics card.":
+    { notCertifiable: "An export option no golden project turns on. Covered by pipeline/tests/model-bakes-release.test.ts and export-playable.test.ts, and looked at in the space frigate's web export." },
+  "A game no longer has to wait for every model to bake.":
+    { notCertifiable: "The load-time bake's scheduling, which no golden project uses. Covered by pipeline/tests/model-bakes-release.test.ts." },
+  "A settings screen can change the picture without editing profiles.":
+    { notCertifiable: "An API a game's own settings screen calls; no golden project has one. Covered by sdk/tests/quality.test.ts." },
+  "A web game opens on the Estella ident.":
+    { notCertifiable: "A start screen, drawn before the game runs. Covered by the web export tests in pipeline/tests; no golden project is judged on its splash." },
+  "A shader sky can stand still.":
+    { notCertifiable: "Covered by sdk/tests/custom-sky.test.ts and sky-capture-still.test.ts; no golden project defines a sky effect." },
+  "The space frigate has debris, blinking lights and a flash at the gate.":
+    { notCertifiable: "An example, not a capability: it is exported by check-examples and looked at in a real web export through its own tools." },
+  "The space frigate's waypoint is a gate.":
+    { notCertifiable: "An example, not a capability: it is exported by check-examples and looked at in a real web export through its own tools." },
+  "The space frigate is heard, from recipes.":
+    { notCertifiable: "An example, not a capability: it is exported by check-examples; its sounds are the sound recipes sdk/tests cover." },
   "A native build's sockets connect to `wss://`.":
     { notCertifiable: "A native host's socket, which no golden project opens. Covered by sdk/tests/native-socket.test.ts and native-adapter.test.ts and the probe in tests/net/ws_probe.cpp; Android and iOS were compiled and not run on a device." },
   "A model's paint can have a clear coat.":

@@ -3402,30 +3402,48 @@ void RenderFrame::setColorSpace(bool linear) {
 }
 
 u32 RenderFrame::initBatchShader() {
-    // The default (featureless) batch program; seeds the variant cache.
-    return batchProgram({});
+    return batchProgram(BatchVariant::Plain);
 }
 
-u32 RenderFrame::premultipliedBatchProgram() {
-    if (!premultiplied_batch_handle_) {
-        const std::vector<std::string> features{"PREMULTIPLIED_COLOR"};
-        batchProgram(features);
-        premultiplied_batch_handle_ = &batch_variants_.at(resource::ShaderParser::variantKey(features));
+namespace {
+
+const std::vector<std::string>& batchVariantFeatures(BatchVariant variant) {
+    static const std::vector<std::string> kPlain{};
+    static const std::vector<std::string> kLit{"LIT"};
+    static const std::vector<std::string> kAlphaClip{"ALPHA_CLIP"};
+    static const std::vector<std::string> kPremultipliedColor{"PREMULTIPLIED_COLOR"};
+    static const std::vector<std::string> kDisplayOutput{"DISPLAY_OUTPUT"};
+    switch (variant) {
+        case BatchVariant::Plain: return kPlain;
+        case BatchVariant::Lit: return kLit;
+        case BatchVariant::AlphaClip: return kAlphaClip;
+        case BatchVariant::PremultipliedColor: return kPremultipliedColor;
+        case BatchVariant::DisplayOutput: return kDisplayOutput;
+        case BatchVariant::Count: break;
     }
-    // Map values survive rehash; the device may replace the program behind them.
-    Shader* shader = resource_manager_.getShader(*premultiplied_batch_handle_);
-    return shader ? shader->getProgramId() : 0;
+    return kPlain;
 }
 
-u32 RenderFrame::batchProgram(const std::vector<std::string>& features) {
+}  // namespace
+
+const resource::ShaderHandle& RenderFrame::batchVariantHandle(const std::vector<std::string>& features) {
     const std::string key = resource::ShaderParser::variantKey(features);
     auto it = batch_variants_.find(key);
     if (it == batch_variants_.end()) {
         it = batch_variants_.emplace(key, compileBatchVariant(features)).first;
     }
-    // Resolved per lookup rather than cached: the program id is what the device
-    // replaces on a rebuild, and the handle is what survives it.
-    Shader* shader = resource_manager_.getShader(it->second);
+    return it->second;
+}
+
+u32 RenderFrame::batchProgram(BatchVariant variant) {
+    const resource::ShaderHandle*& handle = batch_variant_handles_[static_cast<usize>(variant)];
+    if (!handle) handle = &batchVariantHandle(batchVariantFeatures(variant));
+    Shader* shader = resource_manager_.getShader(*handle);
+    return shader ? shader->getProgramId() : 0;
+}
+
+u32 RenderFrame::batchProgram(const std::vector<std::string>& features) {
+    Shader* shader = resource_manager_.getShader(batchVariantHandle(features));
     return shader ? shader->getProgramId() : 0;
 }
 

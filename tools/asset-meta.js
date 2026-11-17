@@ -28,10 +28,8 @@ import { join, relative, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { parseArgs } from 'node:util';
 import {
-    EXT_TO_TYPE, metaTypeForExt, metaTypeForContent, needsContentType, CONTENT_SNIFF_BYTES, dataImporterForHead,
+    EXT_TO_TYPE, META_VERSION, metaTypeForExt, metaTypeForContent, needsContentType, CONTENT_SNIFF_BYTES, dataImporterForHead,
 } from './assetMetaTable.js';
-
-const META_VERSION = '2.0';
 
 // Directories to skip when scanning.
 const SKIP_DIRS = new Set([
@@ -74,7 +72,7 @@ function getImporterDefaults(type) {
         case 'material':
         case 'timeline':
         case 'animation':
-        case 'bitmapFont':
+        case 'bitmapfont':
         case 'font':
         case 'tilemap':
         case 'tileset':

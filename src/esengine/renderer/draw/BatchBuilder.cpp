@@ -220,4 +220,19 @@ void appendIndexedBatch(TransientBufferPool& pool, DrawList& drawList, const Cli
     appendIndexedDraw(pool, drawList, clips, verts, vertexCount, localIndices, indexCount, key);
 }
 
+void appendQuads(TransientBufferPool& pool, DrawList& drawList, const ClipState& clips,
+                 const BatchVertex* quads, u32 quadCount, const BatchDrawKey& key) {
+    if (quadCount == 0 || !batchEntityVisible(drawList, clips, key.entity, key.layer, key.cullBit)) return;
+    const u32 vertexCount = quadCount * 4;
+    const u32 vertexByteOffset = pool.appendVertices(key.layoutId, quads, vertexCount * pool.vertexStride(key.layoutId));
+    const u32 baseVertex = vertexByteOffset / pool.vertexStride(key.layoutId);
+    const u32 indexCount = quadCount * 6;
+    g_indexScratch.resize(indexCount);
+    for (u32 q = 0; q < quadCount; ++q) {
+        for (u32 i = 0; i < 6; ++i) g_indexScratch[q * 6 + i] = baseVertex + q * 4 + BATCH_QUAD_INDICES[i];
+    }
+    const u32 indexOffset = pool.appendIndices(key.layoutId, g_indexScratch.data(), indexCount);
+    pushBatchDraw(drawList, clips, vertexByteOffset, vertexCount, indexOffset, indexCount, key);
+}
+
 }  // namespace esengine
