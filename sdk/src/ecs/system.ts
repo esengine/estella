@@ -404,8 +404,7 @@ export function addSystemSetToSchedule(schedule: Schedule, set: SystemSet): void
 
 /**
  * What the runner keeps for one system between its runs: its argument list, the queries and removal readers built on
- * its first run, which arguments are command buffers, and when it last ran. One record found once per run - it was
- * five maps keyed by the system, read and written eight times around every call of every system, every frame.
+ * its first run, which arguments are command buffers, and when it last ran. One record, found once per run.
  */
 interface SystemState {
     readonly args: unknown[];

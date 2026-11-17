@@ -157,9 +157,7 @@ function findCanvasData(
 /**
  * The frame's Canvas: which entity it is, its data, and the fit a frame resolves from it. Resolved ONCE where a frame's
  * cameras are, and handed to everything that reads it - the cameras' fit, the screen and UI layout boxes, the clear
- * colour - so they cannot name different Canvases. They used to each look it up for themselves, seven times a frame,
- * and by two rules: the cameras took the Canvas of a running scene, the layout boxes and the clear colour the first
- * Canvas there was.
+ * colour - so they cannot name different Canvases. Nothing else in a frame looks the Canvas up.
  */
 export interface FrameCanvas {
     readonly entity: number;
@@ -724,13 +722,9 @@ function syncUICameraInfo(app: App, frameCanvas: FrameCanvas, width: number, hei
         uiCam.vpH = shown.height;
         uiCam.screenW = width;
         uiCam.screenH = height;
-        // The box UI lays out within. Scene cameras carry design-scaled extents;
-        // the free-zoom editor view gets the fixed design box from the fit so UI
-        // doesn't reflow with the zoom (see uiLayoutRect). In the editor a selected
-        // device preset overrides the box aspect (uiPreviewAspect) so UI previews how it
-        // adapts on that device; 0 (default / shipped games) keeps the design aspect.
-        // The fit is the one the camera was built from (the frame's Canvas), so edit mode, play
-        // and a shipped build lay UI out in one box.
+        // The box UI lays out within, from the fit the camera was built from (the frame's Canvas). The editor's free-zoom
+        // view gets the fixed design box so UI doesn't reflow with the zoom (see uiLayoutRect), and a selected device
+        // preset overrides its aspect (uiPreviewAspect; 0 in a shipped game keeps the design aspect).
         const previewAspect = app.hasResource(EditorView) ? app.getResource(EditorView).uiPreviewAspect : 0;
         const rect = uiLayoutRect(cam, frameCanvas.fit, width, height, previewAspect);
         uiCam.worldLeft = rect.left;
@@ -878,10 +872,8 @@ export function cameraPlugin(
                 _fn: () => {
                     const { width, height } = viewport();
                     const now = app.getResource(Time).elapsed;
-                    // Peek (advance=false): this early sync must not tick the director's
-                    // blend — the render system (end of frame) is the authoritative tick.
-                    // The same scenes and the same Canvas the render system will use at the end of the frame: the UI
-                    // lays out in between, from what this publishes.
+                    // Peek (advance=false): the render system's tick of the director's blend is the authoritative one.
+                    // Same scenes and Canvas as that render: the UI lays out in between, from what this publishes.
                     const activeScenes = runningScenes(app);
                     const frameCanvas = resolveFrameCanvas(app, module, cppRegistry, app.world, activeScenes);
                     const cameras = resolveCameras(app, module, cppRegistry, width, height, app.world, activeScenes, frameCanvas, cameraInfoPool, now, false);

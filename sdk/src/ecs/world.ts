@@ -88,9 +88,8 @@ const PAIR = 0x100000;
 const plainQueryPlans_ = new Map<number, PlainQueryPlan>();
 
 /**
- * The plan of `world.getEntitiesWithComponents([A])` or `([A, B])`, made once per component pair. Those two shapes are
- * nearly every call that does not come from a `Query` (which keeps its own), and each used to sort and join a key and
- * build its dependency list on every call, every frame, to find a cached answer.
+ * The plan of `world.getEntitiesWithComponents([A])` or `([A, B])`, made once per component pair: nearly every call
+ * that does not come from a `Query` (which keeps its own) has one of those two shapes, and is asked every frame.
  */
 function plainQueryPlan(components: AnyComponentDef[]): PlainQueryPlan {
     const id = components.length === 1
