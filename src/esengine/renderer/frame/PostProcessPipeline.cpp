@@ -1010,6 +1010,7 @@ void PostProcessPipeline::declareChain() {
 void PostProcessPipeline::chainDone() {
     velocity_active_ = false;
     cover_active_ = false;
+    background_sky_ = false;
     if (!initialized_ || !inFrame_) return;
     device_.invalidatePipelineCache();
     inFrame_ = false;
@@ -1054,6 +1055,14 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
         if (auto it = temporal_.find(temporalKey_); it != temporal_.end()) temporal = &it->second;
     } else if (pass.feedback) {
         if (auto it = feedback_.find(pass.historyKey); it != feedback_.end()) temporal = &it->second;
+    }
+    if (layout && layout->find("u_backgroundSky")) {
+        const f32 behind = background_sky_ ? 1.0f : 0.0f;
+        const auto [held, added] = pass.floatUniforms.try_emplace("u_backgroundSky", behind);
+        if (added || held->second != behind) {
+            held->second = behind;
+            pass.paramDirty = true;
+        }
     }
     // An effect that reflects the environment declares its parameters, and takes them from the
     // light block the scene was drawn with: how the atlas is laid out, how bright it is, how far the sky has turned.
@@ -1438,6 +1447,11 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
         pass.earlierInputs.clear();
         if (const MaterialUniformLayout* layout = context_.materials().layoutFor(pass.shader)) {
             for (const auto& slot : layout->textures) {
+                if (slot.name == "u_sceneColor") {
+                    pass.earlierInputs.emplace_back(slot.name, scene);
+                    node.dependencies.push_back(scene);
+                    continue;
+                }
                 if (slot.name.rfind("u_pass_", 0) != 0) continue;
                 const std::string wanted = slot.name.substr(7);
                 for (const auto& [name, id] : effectOutputs) {

@@ -87,6 +87,11 @@ const STILL_PARAMS = [
     '#pragma param u_skyStill texture default(black)',
 ];
 
+const OVER_PARAMS = [
+    '#pragma param u_sceneColor texture default(black)',
+    '#pragma param u_backgroundSky float default(0) range(0,1)',
+];
+
 /** The still panorama's texel for a direction, and the direction a texel stands for: u around from -Z, v down from the zenith. */
 const STILL_MAP_GLSL = `vec2 esStillUv(vec3 d) {
     return vec2(atan(-d.x, d.z) * 0.15915494 + 0.5, acos(clamp(d.y, -1.0, 1.0)) * 0.31830989);
@@ -196,6 +201,7 @@ export function skyEffectSource(src: SkyEffectSource): string {
         ...(src.colors ?? []).map(colorPragma),
         ...Object.keys(src.textures ?? {}).map((name) => `#pragma param ${name} texture default(black)`),
         ...(src.still ? STILL_PARAMS : []),
+        ...(src.over ? OVER_PARAMS : []),
     ].join('\n');
     // The panorama's direction for a texel, in Panorama's own mapping (lightmap/panorama.ts). Its v runs down from the
     // zenith while the pass's uv runs up the target, on both backends, so v is 1 - uv.y; the readback lands rows
@@ -259,7 +265,7 @@ ${src.groundShadow ? `    if (u_cloudShadowPass > 0.5) {
     vec2 beside = v_texCoord + vec2(1.0 / float(size.x), 0.0);
     esSkyPixel = length(normalize(worldFromDepth(beside, 1.0) - worldFromDepth(beside, 0.0)) - dir);
     vec3 col = ${src.still ? 'u_skyStillOn > 0.5 ? esStillRadiance(dir) * u_intensity : ' : ''}skyRadiance(dir, sun, sunColor, 0.0) * u_intensity;
-    float room = ${src.over ? '(depth >= 1.0 ? 1.0 : 1.0 - src.a)' : '(1.0 - src.a)'};
+    float room = ${src.over ? 'u_backgroundSky > 0.5 ? (depth >= 1.0 ? 1.0 : 1.0 - src.a) : 1.0 - texture(u_sceneColor, v_texCoord).a' : '1.0 - src.a'};
     fragColor = vec4(src.rgb + room * col, src.a > 0.99 ? src.a : 1.0);
 }
 #pragma end
@@ -309,7 +315,7 @@ ${src.groundShadow ? `    if (mc.u_cloudShadowPass > 0.5) {
     var a = 1.0;
     if (src.a > 0.99) { a = src.a; }
     var room = 1.0 - src.a;
-    ${src.over ? 'if (depth >= 1.0) { room = 1.0; }' : ''}
+    ${src.over ? `if (mc.u_backgroundSky > 0.5) { if (depth >= 1.0) { room = 1.0; } } else { room = 1.0 - textureSampleLevel(u_sceneColor, u_sceneColor_s, v.v_texCoord, 0.0).a; }` : ''}
     return vec4f(src.rgb + room * col, a);
 }
 #pragma end

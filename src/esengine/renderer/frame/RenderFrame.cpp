@@ -461,6 +461,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     // a minimap) drew nothing at all whenever the frame was linear, tone mapped or post-processed.
     PassClear clear = camera_clear;
 #ifdef ES_ENABLE_POSTPROCESS
+    if (post_process_) post_process_->setBackgroundSky(false);
     if (post_process_ && post_process_->isEngaged()) {
         clear.x = 0;
         clear.y = 0;
@@ -3166,6 +3167,9 @@ void RenderFrame::collectSky(RenderCollectContext& ctx) {
     key.depthWrite = false;
     appendIndexedDraw(ctx.buffer_pool, ctx.draw_list, ctx.clip_state, corners, 4,
                       BATCH_QUAD_INDICES, 6, key);
+#ifdef ES_ENABLE_POSTPROCESS
+    if (post_process_) post_process_->setBackgroundSky(true);
+#endif
 }
 
 bool RenderFrame::visibleToCamera(i32 layer, const glm::vec3& center,
