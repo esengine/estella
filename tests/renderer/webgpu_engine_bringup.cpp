@@ -358,7 +358,7 @@ int main() {
         return 1;
     }
     auto& rf = context.require<RenderFrame>();
-    if (rf.batchProgram({}) == 0 || rf.batchProgram({"ALPHA_CLIP"}) == 0 || rf.batchProgram({"LIT"}) == 0) {
+    if (rf.batchProgram(BatchVariant::Plain) == 0 || rf.batchProgram(BatchVariant::AlphaClip) == 0 || rf.batchProgram(BatchVariant::Lit) == 0) {
         std::printf("PARITY_FAIL batch variants\n");
         return 1;
     }

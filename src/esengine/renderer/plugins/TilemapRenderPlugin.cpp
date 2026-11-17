@@ -297,7 +297,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
         // a strip stays on the GPU as it is while the lights move over it.
         u32 layerShader = batch_shader_id_;
         if (lit && ctx.frame) {
-            if (const u32 litProgram = ctx.frame->batchProgram({"LIT"})) layerShader = litProgram;
+            if (const u32 litProgram = ctx.frame->batchProgram(BatchVariant::Lit)) layerShader = litProgram;
         }
 
         f32 originX = 0, originY = 0, angle = 0;

@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { scanAssetDatabase } from '../src/assets/assetDb';
 import { cookAssets } from '../src/assets/cookAssets';
+import { metaTypeForExt } from '../../tools/assetMetaTable.js';
 
 let root: string;
 
@@ -30,6 +31,8 @@ const LAYER_CLIP = '88888888-8888-4888-8888-888888888888';
 const FRAME = '55555555-5555-4555-8555-555555555555';
 const FNT = '66666666-6666-4666-8666-666666666666';
 const FNT_PAGE = '77777777-7777-4777-8777-777777777777';
+const OLD_FNT = '99999999-9999-4999-8999-999999999999';
+const OLD_FNT_PAGE = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const SCENE = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 function writeAsset(rel: string, type: string, uuid: string, body: string | Uint8Array = ''): void {
@@ -99,6 +102,10 @@ const scene = JSON.stringify({
       id: 3, name: 'Label', parent: null, children: [],
       components: [{ type: 'BitmapText', data: { text: 'A', font: 'assets/fonts/tiny.fnt' } }],
     },
+    {
+      id: 4, name: 'OldLabel', parent: null, children: [],
+      components: [{ type: 'BitmapText', data: { text: 'B', font: 'assets/fonts/old.fnt' } }],
+    },
   ],
 });
 
@@ -112,10 +119,9 @@ beforeAll(() => {
   writeAsset('assets/anim/wave.estimeline', 'animation', LAYER_CLIP, layerClip);
   writeAsset('assets/anim/player.esanimator', 'animatorcontroller', CONTROLLER, controller);
   writeAsset('assets/fonts/tiny.png', 'texture', FNT_PAGE, 'PNG');
-  // The type an IMPORT writes for a .fnt. It read `bitmapFont` here and in the
-  // scan it drives, and nothing else in the project spelled it that way — so the
-  // two agreed with each other about a value no real asset could carry.
-  writeAsset('assets/fonts/tiny.fnt', 'bitmapfont', FNT, fnt);
+  writeAsset('assets/fonts/tiny.fnt', metaTypeForExt('.fnt')!, FNT, fnt);
+  writeAsset('assets/fonts/old.png', 'texture', OLD_FNT_PAGE, 'PNG');
+  writeAsset('assets/fonts/old.fnt', 'bitmapFont', OLD_FNT, fnt.replace('tiny.png', 'old.png'));
   writeAsset('assets/scenes/main.esscene', 'scene', SCENE, scene);
 });
 
@@ -134,6 +140,11 @@ describe('assets named only inside another document are cooked', () => {
     expect(index.deps[FNT]).toContain(FNT_PAGE);
   });
 
+  it('links a bitmap font whose .meta carries the type it was minted with before the rename', async () => {
+    const { index } = await scanAssetDatabase(root, { write: false });
+    expect(index.deps[OLD_FNT]).toContain(OLD_FNT_PAGE);
+  });
+
   it('links animator controller → the clip its state plays', async () => {
     const { index } = await scanAssetDatabase(root, { write: false });
     expect(index.deps[CONTROLLER]).toContain(CLIP);
@@ -147,7 +158,7 @@ describe('assets named only inside another document are cooked', () => {
   it('ships both, and the clip\'s own frame through it', async () => {
     const res = await cookAssets(root, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build' });
     expect(res.ok).toBe(true);
-    expect(res.included).toEqual(expect.arrayContaining([SCENE, ESENV, SPECULAR, CONTROLLER, CLIP, LAYER_CLIP, FRAME, FNT, FNT_PAGE]));
+    expect(res.included).toEqual(expect.arrayContaining([SCENE, ESENV, SPECULAR, CONTROLLER, CLIP, LAYER_CLIP, FRAME, FNT, FNT_PAGE, OLD_FNT, OLD_FNT_PAGE]));
     expect(res.unused).toEqual([]);
   });
 

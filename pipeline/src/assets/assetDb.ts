@@ -25,6 +25,7 @@ import { readManifest, readTextInRoot } from '../project/readProject';
 import { isInsideRoot } from '../fs/pathSandbox';
 import { META_EXT, isContentDir, isContentFile, isExcludedByProject, isNonContentPath } from './contentPolicy';
 import { adoptOrphan } from './assetMeta';
+import { canonicalMetaType, metaTypeForExt } from '../../../tools/assetMetaTable.js';
 // The runtime's tileset-path resolver (a dependency-free leaf) — shared so the dep scan
 // discovers a tilemap's tileset images the same way the loader will later request them.
 import { resolveRelativePath } from '../../../sdk/src/asset/documentRef';
@@ -220,10 +221,7 @@ const SKELETAL_ATLAS_TYPES = new Set(['spine-atlas', 'dragonbones-atlas']);
 // A bitmap font is the same shape one step over: TEXT, naming its page image as a
 // sibling, and nothing else in the project names that image either.
 const FNT_PAGE = /(?:^|\n)\s*page\b[^\n]*\bfile="([^"]+)"/g;
-// The `.meta` type the editor writes for one. It was spelled `bitmapFont` here
-// and nowhere else in the project — no importer produced that, so the scan below
-// never ran and a build shipped a font whose page had been culled.
-const BITMAP_FONT = 'bitmapfont';
+const BITMAP_FONT = metaTypeForExt('.fnt');
 
 // 'json' is a game's own data table. It is scanned like the rest because a
 // data-driven game names assets FROM its data — a spawn table holding `@uuid:`
@@ -572,7 +570,7 @@ export async function scanAssetDatabase(
       entry: {
         uuid: meta.uuid.toLowerCase(),
         path: metaRel.replace(/\.meta$/, ''),
-        type: meta.type,
+        type: canonicalMetaType(meta.type),
         importer: (meta.importer as Record<string, unknown>) ?? {},
       },
     };

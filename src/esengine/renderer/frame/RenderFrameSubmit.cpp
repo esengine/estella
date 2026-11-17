@@ -125,7 +125,7 @@ void RenderFrame::submitSkeletalBatch(
     }
 
     const u32 defaultShader = !builtinColor ? material->shader
-        : premultipliedColor ? premultipliedBatchProgram() : batch_shader_id_;
+        : premultipliedColor ? batchProgram(BatchVariant::PremultipliedColor) : batch_shader_id_;
     BatchDrawKey key{
         .stage = current_stage_,
         .layer = layer,
