@@ -126,6 +126,8 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 
 工具的说明都控制在客户端能完整交给模型的长度以内:有的客户端会把过长的说明截断,截掉的部分模型就再也看不到。要教的东西最多的几个工具(`model_write`、`image_write`、`music_write`)把其余内容分成主题,在说明末尾列出每个主题的名字和用途,代理在做到相应内容之前用 `tool_guide` 读取需要的主题。它直接由工具目录回答,不会启动编辑器。
 
+同一样东西在所有工具里只有一个名字,参数里和返回里都一样:实体叫 `entity`(打开的场景或运行中游戏里的实体编号),组件字段叫 `field`,搜索词叫 `query`,返回数量上限叫 `limit`。有些工具以前用的名字(`id`、`key`、`match`、`maxResults`)仍然会被当成这些名字读取。
+
 | 领域 | 工具（节选） |
 | --- | --- |
 | 观察 | `get_scene_tree`、`get_inspector`、`get_stats`、`get_diagnostics`、`capture_viewport`（PNG）、`screenshot`（整窗截图，含 Play 画面）、`world_component`（活 World 探针）、`capture_frame` / `frame_draws` / `replay_draw`（帧调试器：每个 draw call、断批原因、画了哪些实体） |
