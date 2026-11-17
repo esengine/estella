@@ -92,6 +92,30 @@ function postProcessVaryings() {
   return Object.fromEntries([...body.matchAll(/(?:@\w+(?:\([^)]*\))?\s*)*(\w+)\s*:\s*([\w<>]+)\s*,/g)].map((m) => [m[1], m[2]]));
 }
 
+const FRAGMENT_HEADERS = { Lit: ['kLitHeaderWGSL'], Unlit: [], PostProcess: [] };
+
+function handoffs(domain, canonicalVaryings) {
+  const cpp = fs.readFileSync(path.join(ROOT, 'src/esengine/resource/ShaderParser.cpp'), 'utf8');
+  const privates = new Set(FRAGMENT_HEADERS[domain].flatMap((name) => {
+    const body = new RegExp(`const char\\*\\s+${name}\\s*=\\s*R"\\(([\\s\\S]*?)\\)";`).exec(cpp)?.[1];
+    if (body === undefined) throw new Error(`gen-shader-api: ${name} is not in ShaderParser.cpp`);
+    return [...body.matchAll(/var<private>\s+g_(\w+)/g)].map((m) => m[1]);
+  }));
+  const out = {};
+  const guards = [];
+  for (const line of canonicalVaryings.split('\n')) {
+    const open = /^\s*#\s*ifdef\s+(\w+)/.exec(line);
+    if (open) { guards.push(open[1]); continue; }
+    if (/^\s*#\s*if/.test(line)) { guards.push(null); continue; }
+    if (/^\s*#\s*endif/.test(line)) { guards.pop(); continue; }
+    const field = /(?:@[\w]+(?:\([^)]*\))?\s*)*v_(\w+)\s*:/.exec(line);
+    if (!field || !privates.has(field[1])) continue;
+    if (guards.length > 1 || guards[0] === null) throw new Error(`gen-shader-api: v_${field[1]} is declared under a condition the hand-off cannot repeat`);
+    out[`g_${field[1]}`] = [`v_${field[1]}`, guards[0] ?? null];
+  }
+  return out;
+}
+
 function domainApi(mod, domain, wgsl, { lex, parse }) {
   // A fullscreen pass that asks for the lights (`#pragma lights`) is given the light header too: the table holds both.
   const probes = [''].concat(domain === 'PostProcess' ? ['#pragma lights\n'] : []).map((extra) =>
@@ -145,7 +169,7 @@ function domainApi(mod, domain, wgsl, { lex, parse }) {
   const samplers = domain === 'PostProcess' ? units.post : units.all;
   // A sampler is the engine's by its unit, not a global with a WGSL name.
   for (const n of Object.keys(samplers)) delete globals[n];
-  return { fns, structs, globals, varyings, samplers };
+  return { fns, structs, globals, varyings, samplers, handoffs: domain === 'PostProcess' ? {} : handoffs(domain, info.canonicalVaryings) };
 }
 
 const { lex, parse } = await importSdkSource('shaders/wgsl/parse.ts');

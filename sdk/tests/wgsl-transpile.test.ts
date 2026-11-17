@@ -74,6 +74,24 @@ describe('the WGSL a shader written in GLSL is given', () => {
         expect(() => t('Unlit', 'out vec4 fragColor;\nvoid main() { float a = 0.0; float b = a++; fragColor = vec4(b); }')).toThrow(/inside an expression/);
         expect(() => t('Unlit', 'out vec4 fragColor;\nvoid main() { fragColor = vec4(u_nowhere); }')).toThrow(/'u_nowhere' is not declared/);
     });
+
+    it('hands the Lit header the varyings its GLSL reads straight: the probe slot, the bake and the tangent frame', () => {
+        const setups = [...transpileFragment(MODEL, ENGINE_SHADER_API).matchAll(/es_v = es_in;[^\n]*\n([\s\S]*?)\n\s+es_main\(\);/g)].map((m) => m[1]!);
+        expect(setups.length).toBeGreaterThan(0);
+        for (const setup of setups) {
+            expect(setup).toMatch(/^\s+g_probeSlot = es_in\.v_probeSlot;$/m);
+            expect(setup).toMatch(/^#ifdef MESH_LIGHTMAP\n\s+g_lightmap = es_in\.v_lightmap;\n#endif$/m);
+            expect(setup).toMatch(/^#ifdef MESH_TANGENTS\n\s+g_worldTangent = es_in\.v_worldTangent;\n#endif$/m);
+        }
+        expect(t('Unlit', 'in vec4 v_color;\nout vec4 fragColor;\nvoid main() { fragColor = v_color; }')).not.toMatch(/\bg_\w+ = es_in\./);
+    });
+
+    it('reads a normal map through its mips, as GLSL\'s texture() does', () => {
+        const out = transpileFragment(MODEL, ENGINE_SHADER_API);
+        expect(out).toContain('return sampleNormalGrad(map, samp, uv, dpdx(uv), dpdy(uv));');
+        expect(out).toMatch(/es_sampleNormal\(\w+, \w+, uv\)/);
+        expect(out).not.toMatch(/(?<![\w.])sampleNormal\(/);
+    });
 });
 
 describe('a fullscreen pass, the engine\'s samplers and a vertex hook', () => {
