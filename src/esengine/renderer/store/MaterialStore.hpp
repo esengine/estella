@@ -631,6 +631,9 @@ private:
     // Indexed first by source shader: retirement touches only its own variants.
     // Handles resolve to the current device program, including after recovery.
     mutable std::unordered_map<u32, std::unordered_map<u64, resource::ShaderHandle>> mesh_programs_;
+    mutable std::unordered_map<u32, std::unordered_map<u64, resource::ShaderHandle>> variant_sources_;
+    void releaseVariants(const std::unordered_map<u64, resource::ShaderHandle>& variants);
+    static u64 sourceDigest(const std::string& vertex, const std::string& fragment);
     /// Programs compiled with ES_GBUFFER (see programWritesGBuffer).
     mutable std::unordered_set<u32> gbuffer_programs_;
     /// Of those, the ones that write `fragAlbedo` too (see programWritesAlbedo).

@@ -877,6 +877,23 @@ static void testParamsTheEngineDeclares() {
     CHECK(paramShader("Lit", "u_tint").valid && paramShader("Lit", "u_skyAmbient").valid, "a name of the author's own is taken as it is");
 }
 
+static void testFeaturesRead() {
+    const std::vector<std::string> resident = {"MESH", "MESH_NORMALS", "ES_RECEIVE_SHADOW", "ES_ENV_MAP", "ES_SURFACE_3D"};
+    const ParsedShader unlit = ShaderParser::parse(FRAG_ONLY_UNLIT);
+    const auto unlitRead = ShaderParser::featuresRead(unlit, resident);
+    const auto has = [](const std::vector<std::string>& list, const char* f) { return std::find(list.begin(), list.end(), f) != list.end(); };
+    CHECK(!has(unlitRead, "ES_ENV_MAP"), "an unlit surface does not read the environment map, so it is not one of its features");
+    CHECK(has(unlitRead, "MESH") && has(unlitRead, "MESH_NORMALS"), "what the engine's vertex stage reads stays");
+    const auto withEnv = ShaderParser::featuresRead(unlit, resident);
+    std::vector<std::string> withoutEnv = resident;
+    withoutEnv.erase(std::find(withoutEnv.begin(), withoutEnv.end(), "ES_ENV_MAP"));
+    CHECK(ShaderParser::assembleStage(unlit, ShaderStage::Fragment, "", withEnv) == ShaderParser::assembleStage(unlit, ShaderStage::Fragment, "", ShaderParser::featuresRead(unlit, withoutEnv))
+          && ShaderParser::assembleStage(unlit, ShaderStage::Vertex, "", withEnv) == ShaderParser::assembleStage(unlit, ShaderStage::Vertex, "", ShaderParser::featuresRead(unlit, withoutEnv)),
+          "with and without an environment map the unlit surface is one program");
+    const ParsedShader lit = ShaderParser::parse(FRAG_ONLY_LIT);
+    CHECK(has(ShaderParser::featuresRead(lit, resident), "ES_ENV_MAP"), "a lit surface reads the environment map and keeps it");
+}
+
 int main() {
     ParsedShader p = ShaderParser::parse(SRC);
     CHECK(p.valid, "shader parses");
@@ -905,6 +922,7 @@ int main() {
     testShadowGraft();
     testLightingDirect();
     testParamsTheEngineDeclares();
+    testFeaturesRead();
 
     if (g_failures == 0) {
         std::printf("\nALL SHADER-VARIANT TESTS PASSED\n");
