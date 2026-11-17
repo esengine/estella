@@ -136,6 +136,7 @@ export async function verifyPlayable({ htmlFile, reportFile, scenarioFile, outDi
         } else await page.waitForFunction(() => window.__ESTELLA_PLAYABLE_CHECK__.events.some(event => event.name === 'mock-installed'));
         await host('show');
         await page.waitForFunction(() => window.__ESTELLA_PLAYABLE_CHECK__.drawCalls > 0);
+        await page.waitForFunction(() => window.__estellaIdentDone === true);
         const canvas = page.locator('canvas').first();
         for (const [stepIndex, step] of scenario.steps.entries()) {
           const outcome = { index: stepIndex + 1, name: step.name ?? step.type, type: step.type, command: step.command, status: 'running' };

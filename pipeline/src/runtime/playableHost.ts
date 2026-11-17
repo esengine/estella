@@ -213,7 +213,6 @@ async function boot(): Promise<void> {
     });
   }
   const served = bakes;
-  await splash.held();
   await initPlayableRuntime({
     app,
     module,

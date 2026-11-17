@@ -136,7 +136,7 @@ async function main() {
       let frames = 0;
       const tick = () => {
         const c = document.querySelector('canvas');
-        if (c && c.width > 0 && c.height > 0) frames++;
+        if (c && c.width > 0 && c.height > 0 && globalThis.__estellaIdentDone === true) frames++;
         if (frames >= ${SETTLE}) return resolve(true);
         if (Date.now() > deadline) return resolve(false);
         requestAnimationFrame(tick);

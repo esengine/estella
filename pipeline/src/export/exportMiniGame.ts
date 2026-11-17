@@ -270,6 +270,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   /** WeChat: ship the engine built with EmscriptenGLX, from the `-glx` runtime
    *  beside `wasmDir`; the side modules still come from `wasmDir`. */
   engineGlx?: boolean;
+  ident?: boolean;
   outDir: string;
   /** Where the runtime hosts live — sources in dev, a prebuilt tree in a packaged
    *  editor. A built-in vendor's platform profile is resolved against it. */
@@ -591,7 +592,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     `export function boot(engineFactory, sideModuleFactories) {\n` +
     (profile.platformInit ? `  ${profile.platformInit}();\n` : '') +
     (installsPlatform ? `  installMiniGamePlatform(__platformProfile);\n` : '') +
-    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${runtimeLayout.sideModuleSuffix === '.wasm' ? '' : `, sideModuleSuffix: ${JSON.stringify(runtimeLayout.sideModuleSuffix)}`}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.engineGlx === true && profile.id === 'wechat' ? '' : ', ident: true'}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg}${debugArg}${hotUpdateArg} });\n` +
+    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${runtimeLayout.sideModuleSuffix === '.wasm' ? '' : `, sideModuleSuffix: ${JSON.stringify(runtimeLayout.sideModuleSuffix)}`}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${opts.ident === true && !(opts.engineGlx === true && profile.id === 'wechat') ? ', ident: true' : ''}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg}${debugArg}${hotUpdateArg} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   /** What each subsystem costs in the bundle — empty if esbuild wrote no metafile. */

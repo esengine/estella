@@ -15,6 +15,7 @@
  */
 import { BOOT_STAGES, BOOT_TOTAL, type BootStage } from '../../../sdk/src/runtime/bootStages';
 import { IDENT_SCRIPT, IDENT_SECONDS } from './splashIdent';
+import { markIdentDone } from '../../../sdk/src/runtime/ident';
 
 export { BOOT_STAGES, type BootStage };
 
@@ -54,7 +55,7 @@ export interface SplashLook {
  */
 function engineMarkCss(): string {
   return (
-    `#${MARK}{position:absolute;inset:0;width:100%;height:100%;}`
+    `#${ROOT}>canvas{position:absolute;inset:0;width:100%;height:100%;}`
     + `#${ROOT}.es-splash-marked{transition-duration:.6s;}`
     + `#${ROOT}.es-splash-marked .es-splash-logo{position:absolute;left:50%;bottom:9vh;transform:translateX(-50%);max-height:16vh;z-index:1;animation:es-splash-logo .7s ${IDENT_SECONDS - 0.5}s both;}`
     + '@keyframes es-splash-logo{from{opacity:0;}}'
@@ -96,9 +97,8 @@ export function splashCss(background: string, engineMark = true): string {
  *  `minMs` rides on a data attribute for the same reason. */
 export function splashHtml(title: string, look: SplashLook = {}): string {
   const marked = look.engineMark !== false;
-  const least = marked ? Math.max(look.minMs ?? 0, IDENT_SECONDS * 1000) : look.minMs;
   const safe = title.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string));
-  const hold = least ? ` data-min-ms="${Math.round(least)}"` : '';
+  const hold = (look.minMs ? ` data-min-ms="${Math.round(look.minMs)}"` : '') + (marked ? ` data-ident-ms="${IDENT_SECONDS * 1000}"` : '');
   // A game with a logo shows the logo; the title is then the alt text rather
   // than a second heading saying the same thing.
   const mark = look.logo
@@ -123,7 +123,6 @@ export interface Splash {
   within(stage: BootStage, fraction: number): void;
   /** The boot is in a stretch nothing measures: the track shows it is alive, and the label says `says` if given. */
   busy(says?: string): void;
-  held(): Promise<void>;
   /** Fade out and remove. Safe to call twice. */
   done(): void;
 }
@@ -153,7 +152,10 @@ export function attachSplash(doc: Document = document, weights: Partial<Record<B
   const root = doc.getElementById(ROOT);
   const bar = root && doc.getElementById(BAR);
   const label = root && doc.getElementById(LABEL);
-  const showUntil = Date.now() + Number(root?.getAttribute('data-min-ms') ?? 0);
+  const headless = /[?&]headless/.test(doc.defaultView?.location.search ?? '');
+  const sincePage = typeof performance !== 'undefined' ? performance.now() : 0;
+  const showUntil = Date.now() + Math.max(Number(root?.getAttribute('data-min-ms') ?? 0), headless ? 0 : Number(root?.getAttribute('data-ident-ms') ?? 0) - sincePage);
+  markIdentDone(!root);
   let done = 0;
   /** What the bar is showing, so a partial step never pulls it back. */
   let shown = 0;
@@ -164,9 +166,9 @@ export function attachSplash(doc: Document = document, weights: Partial<Record<B
     if (view) view.dispatchEvent(new view.CustomEvent(type, { detail }));
   };
   const fade = (): void => {
-    if (!root?.isConnected) return;
+    if (!root?.isConnected) { markIdentDone(true); return; }
     root.classList.add('es-splash-gone');
-    setTimeout(() => root.remove(), 400);
+    setTimeout(() => { root.remove(); markIdentDone(true); }, 400);
   };
   /** Never backwards. Answers whether the bar actually moved a whole percent,
    *  which is the only movement worth telling a portal's own screen about. */
@@ -204,10 +206,6 @@ export function attachSplash(doc: Document = document, weights: Partial<Record<B
       if (finished || !root) return;
       root.classList.add('es-splash-busy');
       if (label && says && label.textContent !== `${says}…`) label.textContent = `${says}…`;
-    },
-    held() {
-      const wait = root && !/[?&]headless/.test(doc.defaultView?.location.search ?? '') ? showUntil - Date.now() : 0;
-      return wait > 0 ? new Promise((resolve) => { setTimeout(resolve, wait); }) : Promise.resolve();
     },
     done() {
       if (finished) return;

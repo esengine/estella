@@ -25,7 +25,7 @@ function waitPackageFrames(settle, timeout) {
       const overlay = document.getElementById('es-splash');
       if (!canvas || canvas.width <= 0 || canvas.height <= 0) {
         frames = 0; phase = 'canvas';
-      } else if (overlay && !overlay.classList.contains('es-splash-gone')) {
+      } else if ((overlay && !overlay.classList.contains('es-splash-gone')) || globalThis.__estellaIdentDone === false) {
         frames = 0; phase = 'boot';
       } else {
         phase = 'settle'; frames++;

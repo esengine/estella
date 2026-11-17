@@ -820,6 +820,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       sdkDir: opts.sdkDistDir,
       wasmDir: opts.wasmDir,
       engineGlx: opts.miniGameGlx,
+      ident: opts.splash?.ident !== false,
       outDir: opts.outDir,
       hostsDir: opts.hostsDir,
       packagesDir: opts.packagesDir,
@@ -863,6 +864,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       sdkDir: opts.sdkDistDir,
       wasmDir: opts.wasmDir,
       engineGlx: opts.miniGameGlx,
+      ident: opts.splash?.ident !== false,
       outDir: opts.outDir,
       hostsDir: opts.hostsDir,
       packagesDir: opts.packagesDir,
@@ -916,6 +918,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       modulesByPlatform: opts.modulesByPlatform,
       runtime,
       adProfile: opts.playableAdProfile,
+      ident: opts.splash?.ident !== false,
       onProgress: opts.onProgress,
     });
   }
@@ -1308,7 +1311,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   let splashBytes: number | undefined;
   if (!nativeContent) {
     progress({ phase: 'Writing host page' });
-    const look: SplashLook = { ...await splashLook(opts.root, opts.splash, warnings), engineMark: !opts.developmentPreview };
+    const look: SplashLook = { ...await splashLook(opts.root, opts.splash, warnings), engineMark: !opts.developmentPreview && opts.splash?.ident !== false };
     splashBytes = Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND, look.engineMark !== false) + splashHtml(title, look));
     await writeFile(
       path.join(payloadDir, 'index.html'),

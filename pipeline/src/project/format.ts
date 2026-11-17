@@ -535,6 +535,7 @@ export interface SplashPackaging {
      * rather than as loading. 0 ⇒ fade the moment the first frame is ready.
      */
     minMs?: number;
+    ident?: boolean;
 }
 
 /** Committed project identity + config (`project.esproject`). */
@@ -1029,6 +1030,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
       if (typeof sp.minMs === 'number' && sp.minMs >= 0 && sp.minMs <= 10_000) {
         splash.minMs = Math.round(sp.minMs);
       }
+      if (typeof sp.ident === 'boolean') splash.ident = sp.ident;
       if (Object.keys(splash).length > 0) pkg.splash = splash;
     }
     if (p.platforms && typeof p.platforms === 'object') {

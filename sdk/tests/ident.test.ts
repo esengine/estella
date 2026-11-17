@@ -6,16 +6,40 @@ import { startIdent } from '../src/runtime/miniGameRuntime';
 
 interface Call { name: string; args: unknown[] }
 
-function fakeGl(links = true): { gl: WebGL2RenderingContext; calls: Call[]; live: Set<object> } {
-    const calls: Call[] = [], live = new Set<object>();
+const CAPS = { BLEND: 3042, DEPTH_TEST: 2929, STENCIL_TEST: 2960, SCISSOR_TEST: 3089, CULL_FACE: 2884, RASTERIZER_DISCARD: 35977 };
+const PARAMS = { CURRENT_PROGRAM: 35725, VERTEX_ARRAY_BINDING: 34229, ARRAY_BUFFER_BINDING: 34964, READ_FRAMEBUFFER_BINDING: 36010, DRAW_FRAMEBUFFER_BINDING: 36006, VIEWPORT: 2978, COLOR_WRITEMASK: 3107 };
+
+interface GlState { [param: number]: unknown; on: Set<number> }
+
+function fakeGl(links = true): { gl: WebGL2RenderingContext; calls: Call[]; live: Set<object>; state: GlState; atDraw: GlState[] } {
+    const calls: Call[] = [], live = new Set<object>(), atDraw: GlState[] = [];
+    const state: GlState = { on: new Set(), [PARAMS.CURRENT_PROGRAM]: null, [PARAMS.VERTEX_ARRAY_BINDING]: null, [PARAMS.ARRAY_BUFFER_BINDING]: null,
+        [PARAMS.READ_FRAMEBUFFER_BINDING]: null, [PARAMS.DRAW_FRAMEBUFFER_BINDING]: null, [PARAMS.VIEWPORT]: new Int32Array([0, 0, 1, 1]), [PARAMS.COLOR_WRITEMASK]: [true, true, true, true] };
     const made = (kind: string) => (...args: unknown[]): object => { const thing = { kind }; live.add(thing); calls.push({ name: `create${kind}`, args }); return thing; };
     const gone = (kind: string) => (thing: object | null): void => { if (thing) live.delete(thing); calls.push({ name: `delete${kind}`, args: [thing] }); };
+    const set = (name: string, param: number) => (...args: unknown[]): void => { calls.push({ name, args }); state[param] = args[args.length - 1]; };
     const target = {
         VERTEX_SHADER: 35633, FRAGMENT_SHADER: 35632, ARRAY_BUFFER: 34962, STATIC_DRAW: 35044, FLOAT: 5126, TRIANGLES: 4, LINK_STATUS: 35714,
+        FRAMEBUFFER: 36160, READ_FRAMEBUFFER: 36008, DRAW_FRAMEBUFFER: 36009, ...CAPS, ...PARAMS,
         createProgram: made('Program'), createShader: made('Shader'), createBuffer: made('Buffer'), createVertexArray: made('VertexArray'),
         deleteProgram: gone('Program'), deleteShader: gone('Shader'), deleteBuffer: gone('Buffer'), deleteVertexArray: gone('VertexArray'),
         getProgramParameter: () => links,
         getUniformLocation: (_program: object, name: string) => ({ uniform: name }),
+        getParameter: (param: number) => state[param],
+        isEnabled: (cap: number) => state.on.has(cap),
+        enable: (cap: number) => { calls.push({ name: 'enable', args: [cap] }); state.on.add(cap); },
+        disable: (cap: number) => { calls.push({ name: 'disable', args: [cap] }); state.on.delete(cap); },
+        useProgram: set('useProgram', PARAMS.CURRENT_PROGRAM),
+        bindVertexArray: set('bindVertexArray', PARAMS.VERTEX_ARRAY_BINDING),
+        viewport: (...args: number[]) => { calls.push({ name: 'viewport', args }); state[PARAMS.VIEWPORT] = new Int32Array(args); },
+        colorMask: (...args: boolean[]) => { calls.push({ name: 'colorMask', args }); state[PARAMS.COLOR_WRITEMASK] = args; },
+        bindBuffer: (kind: number, buffer: unknown) => { calls.push({ name: 'bindBuffer', args: [kind, buffer] }); if (kind === 34962) state[PARAMS.ARRAY_BUFFER_BINDING] = buffer; },
+        bindFramebuffer: (kind: number, fb: unknown) => {
+            calls.push({ name: 'bindFramebuffer', args: [kind, fb] });
+            if (kind !== 36009) state[PARAMS.READ_FRAMEBUFFER_BINDING] = fb;
+            if (kind !== 36008) state[PARAMS.DRAW_FRAMEBUFFER_BINDING] = fb;
+        },
+        drawArrays: (...args: unknown[]) => { calls.push({ name: 'drawArrays', args }); atDraw.push({ ...state, on: new Set(state.on) }); },
     };
     const gl = new Proxy(target, {
         get(from, name: string) {
@@ -23,7 +47,7 @@ function fakeGl(links = true): { gl: WebGL2RenderingContext; calls: Call[]; live
             return (...args: unknown[]): void => { calls.push({ name, args }); };
         },
     });
-    return { gl: gl as unknown as WebGL2RenderingContext, calls, live };
+    return { gl: gl as unknown as WebGL2RenderingContext, calls, live, state, atDraw };
 }
 
 afterEach(() => { vi.useRealTimers(); });
@@ -37,7 +61,7 @@ describe('the ident drawn straight onto a context', () => {
     });
 
     it('draws a frame at once and another each time the host gives it one, with the clock running', () => {
-        const { gl, calls } = fakeGl();
+        const { gl, calls, atDraw } = fakeGl();
         const steps: (() => void)[] = [];
         let at = 1000;
         const run = playIdent(gl, () => ({ width: 640, height: 360 }), (step) => { steps.push(step); }, () => at)!;
@@ -49,7 +73,7 @@ describe('the ident drawn straight onto a context', () => {
         expect(draws[0]!.args).toEqual([4, 0, 3]);
         const clocks = calls.filter((c) => c.name === 'uniform1f').map((c) => c.args[1]);
         expect(clocks).toEqual([0, 0.5]);
-        expect(calls.filter((c) => c.name === 'viewport').pop()!.args).toEqual([0, 0, 640, 360]);
+        expect([...atDraw.pop()![PARAMS.VIEWPORT] as Int32Array]).toEqual([0, 0, 640, 360]);
         run.stop();
     });
 
@@ -65,7 +89,35 @@ describe('the ident drawn straight onto a context', () => {
         run.stop();
     });
 
-    it('hands the context back as it found it: nothing bound, nothing of its own left, and no frame after', () => {
+    it('draws over whatever the context was doing and hands every binding and switch back as it found it', () => {
+        const { gl, state, atDraw } = fakeGl();
+        const engine = { program: { kind: 'engine' }, vertices: { kind: 'engineVao' }, array: { kind: 'engineBuffer' }, target: { kind: 'engineFbo' } };
+        Object.assign(state, {
+            [PARAMS.CURRENT_PROGRAM]: engine.program, [PARAMS.VERTEX_ARRAY_BINDING]: engine.vertices, [PARAMS.ARRAY_BUFFER_BINDING]: engine.array,
+            [PARAMS.READ_FRAMEBUFFER_BINDING]: engine.target, [PARAMS.DRAW_FRAMEBUFFER_BINDING]: engine.target,
+            [PARAMS.VIEWPORT]: new Int32Array([0, 0, 256, 128]), [PARAMS.COLOR_WRITEMASK]: [true, true, true, false],
+        });
+        state.on.add(CAPS.BLEND).add(CAPS.DEPTH_TEST).add(CAPS.SCISSOR_TEST);
+        const steps: (() => void)[] = [];
+        const run = playIdent(gl, () => ({ width: 640, height: 360 }), (step) => { steps.push(step); }, () => 0)!;
+        steps.shift()!();
+        const drawn = atDraw.pop()!;
+        expect(drawn[PARAMS.DRAW_FRAMEBUFFER_BINDING]).toBeNull();
+        expect([...drawn[PARAMS.VIEWPORT] as Int32Array]).toEqual([0, 0, 640, 360]);
+        expect(drawn.on.size).toBe(0);
+        expect(drawn[PARAMS.COLOR_WRITEMASK]).toEqual([true, true, true, true]);
+        expect(state[PARAMS.CURRENT_PROGRAM]).toBe(engine.program);
+        expect(state[PARAMS.VERTEX_ARRAY_BINDING]).toBe(engine.vertices);
+        expect(state[PARAMS.ARRAY_BUFFER_BINDING]).toBe(engine.array);
+        expect(state[PARAMS.READ_FRAMEBUFFER_BINDING]).toBe(engine.target);
+        expect(state[PARAMS.DRAW_FRAMEBUFFER_BINDING]).toBe(engine.target);
+        expect([...state[PARAMS.VIEWPORT] as Int32Array]).toEqual([0, 0, 256, 128]);
+        expect(state[PARAMS.COLOR_WRITEMASK]).toEqual([true, true, true, false]);
+        expect([...state.on].sort()).toEqual([CAPS.BLEND, CAPS.DEPTH_TEST, CAPS.SCISSOR_TEST].sort());
+        run.stop();
+    });
+
+    it('leaves nothing of its own when stopped, and draws no frame after', () => {
         const { gl, calls, live } = fakeGl();
         const steps: (() => void)[] = [];
         const run = playIdent(gl, () => ({ width: 8, height: 8 }), (step) => { steps.push(step); }, () => 0)!;
@@ -73,15 +125,9 @@ describe('the ident drawn straight onto a context', () => {
         run.stop();
         run.stop();
         expect(live.size).toBe(0);
-        const tail = calls.map((c) => c.name);
-        expect(tail.slice(tail.lastIndexOf('bindVertexArray'), tail.lastIndexOf('bindVertexArray') + 3)).toEqual(['bindVertexArray', 'bindBuffer', 'useProgram']);
-        expect(calls.filter((c) => c.name === 'bindVertexArray').pop()!.args).toEqual([null]);
-        expect(calls.filter((c) => c.name === 'useProgram').pop()!.args).toEqual([null]);
         const before = calls.filter((c) => c.name === 'drawArrays').length;
         steps.shift()!();
         expect(calls.filter((c) => c.name === 'drawArrays')).toHaveLength(before);
-        const touched = new Set(calls.map((c) => c.name));
-        for (const state of ['enable', 'disable', 'blendFunc', 'depthMask', 'colorMask', 'bindFramebuffer', 'pixelStorei', 'activeTexture']) expect(touched.has(state)).toBe(false);
     });
 
     it('is over when its length has passed, whether or not a frame ever came', async () => {

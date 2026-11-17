@@ -107,7 +107,7 @@ describe('the engine’s ident on the start screen', () => {
     expect(root.querySelector('.es-splash-title')).toBeNull();
     expect(root.textContent).not.toContain('My Game');
     expect(html.endsWith(`<script>${splashScript()}</script>`)).toBe(true);
-    expect(splashCss(PAGE_BACKGROUND)).toContain('#es-splash-gl{position:absolute;inset:0;width:100%;height:100%;}');
+    expect(splashCss(PAGE_BACKGROUND)).toContain('#es-splash>canvas{position:absolute;inset:0;width:100%;height:100%;}');
   });
 
   it('keeps the bar and the stage line for the runtime and for a screen reader, out of sight', () => {
@@ -128,25 +128,72 @@ describe('the engine’s ident on the start screen', () => {
   });
 
   it('is never cut short: the screen holds for its length, or for longer if the project asked for longer', () => {
-    expect(mount().getAttribute('data-min-ms')).toBe(String(IDENT_SECONDS * 1000));
-    expect(mount({ minMs: 800 }).getAttribute('data-min-ms')).toBe(String(IDENT_SECONDS * 1000));
+    expect(mount().getAttribute('data-ident-ms')).toBe(String(IDENT_SECONDS * 1000));
+    expect(mount().hasAttribute('data-min-ms')).toBe(false);
+    expect(mount({ minMs: 800 }).getAttribute('data-min-ms')).toBe('800');
     expect(mount({ minMs: 6000 }).getAttribute('data-min-ms')).toBe('6000');
   });
 
-  it('makes the game wait for it, and no start screen makes it wait for nothing', async () => {
-    document.body.innerHTML = '<div id="es-splash" data-min-ms="80"><div class="es-splash-track"><div id="es-splash-bar"></div></div><div id="es-splash-label"></div></div>';
-    const began = Date.now();
-    await attachSplash(document).held();
-    expect(Date.now() - began).toBeGreaterThanOrEqual(70);
+  it('holds for the longer of the ident, counted from the page’s start, and the project’s own minimum', async () => {
+    const until = Math.round(performance.now()) + 150;
+    document.body.innerHTML = `<div id="es-splash" data-min-ms="20" data-ident-ms="${until}"><div class="es-splash-track"><div id="es-splash-bar"></div></div><div id="es-splash-label"></div></div>`;
+    attachSplash(document).done();
+    await new Promise((r) => setTimeout(r, 60));
+    expect(document.getElementById('es-splash')!.classList.contains('es-splash-gone')).toBe(false);
+    await new Promise((r) => setTimeout(r, 160));
+    expect(document.getElementById('es-splash')!.classList.contains('es-splash-gone')).toBe(true);
+  });
+
+  it('lets the game start under it, and says when it has gone and the game is what is on screen', async () => {
+    await new Promise((r) => setTimeout(r, 500));
+    const flag = (): unknown => (globalThis as Record<string, unknown>).__estellaIdentDone;
+    const until = Math.round(performance.now()) + 80;
+    document.body.innerHTML = `<div id="es-splash" data-ident-ms="${until}"><div class="es-splash-track"><div id="es-splash-bar"></div></div><div id="es-splash-label"></div></div>`;
+    const splash = attachSplash(document);
+    expect(flag()).toBe(false);
+    splash.done();
+    expect(flag()).toBe(false);
+    await new Promise((r) => setTimeout(r, 120));
+    expect(document.getElementById('es-splash')!.classList.contains('es-splash-gone')).toBe(true);
+    expect(flag()).toBe(false);
+    await new Promise((r) => setTimeout(r, 420));
+    expect(document.getElementById('es-splash')).toBeNull();
+    expect(flag()).toBe(true);
     document.body.innerHTML = '';
-    const bare = Date.now();
-    await attachSplash(document).held();
-    expect(Date.now() - bare).toBeLessThan(40);
+    (globalThis as Record<string, unknown>).__estellaIdentDone = false;
+    attachSplash(document);
+    expect(flag()).toBe(true);
   });
 
   it('carries exactly the script its policy is given the hash of', () => {
     const carried = /<script>([\s\S]*)<\/script>$/.exec(splashHtml('My Game'))![1];
     expect(carried).toBe(splashScript());
+  });
+
+  it('paints the ident’s opening black on the page itself, so the page has painted something, and leaves the animation to a worker', () => {
+    const root = mount();
+    const painted: string[] = [];
+    const proto = HTMLCanvasElement.prototype as unknown as Record<string, unknown>;
+    const saved = { getContext: proto.getContext, transfer: proto.transferControlToOffscreen, worker: (globalThis as { Worker?: unknown }).Worker, url: URL.createObjectURL };
+    const workers: { posted: unknown[] }[] = [];
+    proto.getContext = (kind: string) => (kind === '2d' ? { fillRect: () => { painted.push('page'); } } : null);
+    proto.transferControlToOffscreen = () => ({ offscreen: true });
+    URL.createObjectURL = () => 'blob:ident';
+    (globalThis as { Worker?: unknown }).Worker = class { posted: unknown[] = []; constructor() { workers.push(this); } postMessage(m: unknown) { this.posted.push(m); } terminate() {} };
+    try {
+      new Function(splashScript())();
+      expect(painted).toEqual(['page']);
+      expect(workers).toHaveLength(1);
+      expect(workers[0]!.posted[0]).toEqual([{ offscreen: true }, false, expect.any(Number)]);
+      const canvases = root.querySelectorAll('canvas');
+      expect(canvases).toHaveLength(2);
+      expect(canvases[0]!.id).toBe('es-splash-gl');
+      expect(canvases[1]!.id).toBe('');
+    } finally {
+      Object.assign(proto, { getContext: saved.getContext, transferControlToOffscreen: saved.transfer });
+      (globalThis as { Worker?: unknown }).Worker = saved.worker;
+      URL.createObjectURL = saved.url;
+    }
   });
 
   it('does nothing, and throws nothing, where there is no WebGL to draw with', () => {
@@ -156,9 +203,9 @@ describe('the engine’s ident on the start screen', () => {
 
   it('is gone, canvas, script, styles and hold, from a page that must not carry it', () => {
     const html = splashHtml('My Game', { engineMark: false });
-    expect(html).not.toMatch(/<canvas|<script|es-splash-marked|data-min-ms/);
+    expect(html).not.toMatch(/<canvas|<script|es-splash-marked|data-min-ms|data-ident-ms/);
     expect(html).toContain('<div class="es-splash-title">My Game</div>');
-    expect(splashCss(PAGE_BACKGROUND, false)).not.toMatch(/es-splash-gl|es-splash-marked/);
+    expect(splashCss(PAGE_BACKGROUND, false)).not.toMatch(/es-splash-gl|es-splash-marked|>canvas/);
     expect(splashHtml('My Game', { engineMark: false, minMs: 800 })).toContain('data-min-ms="800"');
   });
 
@@ -173,10 +220,9 @@ describe('the engine’s ident on the start screen', () => {
     expect(splashScript()).toContain("if(!c||/[?&]headless/.test(location.search))return;");
     history.replaceState(null, '', '?headless');
     try {
-      document.body.innerHTML = '<div id="es-splash" data-min-ms="400"><div class="es-splash-track"><div id="es-splash-bar"></div></div><div id="es-splash-label"></div></div>';
-      const began = Date.now();
-      await attachSplash(document).held();
-      expect(Date.now() - began).toBeLessThan(60);
+      document.body.innerHTML = '<div id="es-splash" data-ident-ms="400"><div class="es-splash-track"><div id="es-splash-bar"></div></div><div id="es-splash-label"></div></div>';
+      attachSplash(document).done();
+      expect(document.getElementById('es-splash')!.classList.contains('es-splash-gone')).toBe(true);
     } finally {
       history.replaceState(null, '', location.pathname);
     }
@@ -190,7 +236,12 @@ describe('the engine’s ident on the start screen', () => {
 
   it('draws one still frame for someone who asked for less motion', () => {
     expect(splashScript()).toMatch(/prefers-reduced-motion:reduce/);
-    expect(splashScript()).toMatch(/q\?9:\(performance\.now\(\)-b\)\/1e3/);
-    expect(splashScript()).toMatch(/q\|\|\(self\.requestAnimationFrame/);
+    expect(splashScript()).toMatch(/q\?9:\(Date\.now\(\)-b\)\/1e3/);
+    expect(splashScript()).toMatch(/q\|\|\(D\|\|!self\.requestAnimationFrame/);
+  });
+
+  it('draws a quarter as often where the GPU is the CPU, so the boot it covers keeps the processor', () => {
+    expect(splashScript()).toMatch(/SwiftShader\|llvmpipe\|softpipe\|Software\/i\.test\(g\.getParameter\(I\?I\.UNMASKED_RENDERER_WEBGL:7937\)\)\?66:0/);
+    expect(splashScript()).toContain('setTimeout(f,D||16)');
   });
 });

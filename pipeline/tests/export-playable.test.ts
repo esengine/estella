@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { exportGame } from '../src/export/exportGame';
+import { splashScript } from '../src/export/splash';
 import { runtimeHostPrebuild } from '../src/bundle/runtimeHosts';
 import { build } from 'esbuild';
 import { inflateRaw } from '../src/runtime/inflate';
@@ -262,7 +263,8 @@ describe('exportGame (playable)', () => {
     // before any script runs, and the host is what takes it away.
     expect(html).toContain('<div id="es-splash" class="es-splash-marked" role="status"');
     expect(html).toContain('<canvas id="es-splash-gl"');
-    expect(html).toContain('data-min-ms="2800"');
+    expect(html).toContain('data-ident-ms="2800"');
+    expect(html).toContain(splashScript());
     expect(html.indexOf('id="es-splash"')).toBeLessThan(html.indexOf('<script>'));
     expect(inlinedText(html, '__GAME_BUNDLE__')).toContain('es-splash-gone');
   }, 60_000);

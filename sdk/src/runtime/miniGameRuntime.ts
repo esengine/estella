@@ -16,7 +16,7 @@
 
 import { createWebApp } from './webAppFactory';
 import { bootPercent, bootSays, type BootStage } from './bootStages';
-import { playIdent, type IdentRun } from './ident';
+import { markIdentDone, playIdent, type IdentRun } from './ident';
 import type { ESEngineModule } from '../wasm';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
 import { initRuntime } from './runtimeLoader';
@@ -234,9 +234,11 @@ export function startIdent(canvas: { width: number; height: number; getContext(t
         const gl = canvas.getContext('webgl2', glContextAttributes()) as WebGL2RenderingContext | null;
         if (!gl) return null;
         const host = globalThis as { requestAnimationFrame?: (step: () => void) => unknown };
+        const info = gl.getExtension('WEBGL_debug_renderer_info');
+        const software = /SwiftShader|llvmpipe|softpipe|Software/i.test(String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER)));
         return playIdent(gl, () => ({ width: canvas.width, height: canvas.height }), (step) => {
-            if (typeof host.requestAnimationFrame === 'function') host.requestAnimationFrame(step);
-            else setTimeout(step, 16);
+            if (!software && typeof host.requestAnimationFrame === 'function') host.requestAnimationFrame(step);
+            else setTimeout(step, software ? 66 : 16);
         });
     } catch {
         return null;
@@ -268,15 +270,29 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     const tag = adapter.name;
     const canvas = adapter.createScreenCanvas();
     const ident = config.ident ? startIdent(canvas) : null;
+    markIdentDone(ident === null);
     if (ident) {
         try { (adapter.host as { hideLoading?: () => void }).hideLoading?.(); } catch (e) { log.warn(tag, `hideLoading threw: ${String(e)}`); }
     }
     const reached: BootStage[] = [];
+    let booted = false, identOver = ident === null;
+    let identApp: Pick<App, 'pipeline'> | null = null;
     let toast = hostProgress(ident ? {} : adapter.host);
     const progress = {
         reach(stage: BootStage): void { reached.push(stage); toast.reach(stage); },
-        finish(): void { toast.finish(); },
+        finish(): void { booted = true; toast.finish(); },
     };
+    if (ident) {
+        void ident.finished.then(() => {
+            identOver = true;
+            ident.stop();
+            identApp?.pipeline?.setRenderingEnabled(true);
+            identApp?.pipeline?.demand.request();
+            if (booted) return;
+            toast = hostProgress(adapter.host);
+            for (const stage of reached) toast.reach(stage);
+        });
+    }
     progress.reach('config');
     progress.reach('scripts');
 
@@ -288,12 +304,6 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
 
     const module = await instantiateModule(config.engineFactory, config.engineWasmPath, tag, { canvas });
     progress.reach('engine');
-    if (ident) {
-        await ident.finished;
-        ident.stop();
-        toast = hostProgress(adapter.host);
-        for (const stage of reached) toast.reach(stage);
-    }
 
     // EmscriptenGLX runs the engine's GL calls inside the wasm and hands them to
     // the host in batches. Asked for only when the engine was linked with it and
@@ -396,6 +406,18 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     // Before run(), which may hand control to the engine's loop and not return.
     progress.finish();
     reportFirstFrame(app, adapter.host as { launchSuccess?: () => void });
+    if (ident) {
+        if (!identOver) {
+            identApp = app;
+            app.pipeline?.setRenderingEnabled(false);
+        }
+        let clear = 0;
+        const off = app.onFrameEnd(() => {
+            if (!identOver || ++clear < 2) return;
+            off();
+            markIdentDone(true);
+        });
+    }
     app.run();
 }
 

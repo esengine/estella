@@ -18,6 +18,7 @@ const scenario = { version: 1, viewports: [{ width: 200, height: 200 }], steps: 
 /** A real WebGL page for the verifier, not an engine/render acceptance fixture. */
 function creative({ fetchExternal = false, fetchLocalSdk = false, hiddenClick = false, hiddenAnimation = false, overflow = false } = {}) {
   return `<!doctype html><html><head><style>body{margin:0}canvas{width:100vw;height:100vh;display:block}</style></head><body><canvas width="200" height="200"></canvas><script>
+  window.__estellaIdentDone=true;
   mraid.addEventListener('ready',()=>{});
   const canvas=document.querySelector('canvas'),gl=canvas.getContext('webgl');
   const shader=(type,code)=>{const s=gl.createShader(type);gl.shaderSource(s,code);gl.compileShader(s);return s};

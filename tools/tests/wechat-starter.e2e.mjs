@@ -28,7 +28,7 @@ try {
  const context=await browser.newContext({viewport:{width:360,height:640},hasTouch:true}),page=await context.newPage();
  page.on('pageerror',error=>report.errors.push(String(error)));page.on('console',message=>{if(message.type()==='error')report.errors.push(message.text());});
  await context.route('**/*',route=>{if(route.request().url().startsWith(origin+'/'))return route.continue();report.unexpectedRequests.push(route.request().url());return route.abort();});
- await page.goto(origin+'/');await page.waitForFunction(()=>globalThis.__wxStarterProbe&&globalThis.__estellaLoading===null,{},{timeout:30000});
+ await page.goto(origin+'/');await page.waitForFunction(()=>globalThis.__wxStarterProbe&&globalThis.__estellaLoading===null&&globalThis.__estellaIdentDone===true,{},{timeout:30000});
  report.sceneInitializedMs=await page.evaluate(()=>performance.now());
  report.timingScope='Local contract-host scene initialization after the loading indicator clears. Not real-device cold startup or official time-to-interactive certification.';
  const state=()=>page.evaluate(()=>__wxStarterProbe());const tap=async(x,y)=>{await page.touchscreen.tap(360*x,640*y);};
@@ -39,7 +39,7 @@ try {
  const watch=async ended=>{await tap(.81,.81);await page.waitForFunction(()=>__wxStarterProbe().busy&&typeof __finishReward==='function');await page.evaluate(value=>__finishReward(value),ended);await page.waitForFunction(()=>!__wxStarterProbe().busy);};
  await watch(false);assert.equal((await state()).credits,0);await watch(true);assert.equal((await state()).credits,1);
  await page.evaluate(()=>{globalThis.__failReward=2});await tap(.81,.81);await page.waitForFunction(()=>__wxStarterProbe().message.includes('video failed'));assert.equal((await state()).credits,1);
- await page.reload();await page.waitForFunction(()=>globalThis.__wxStarterProbe&&globalThis.__estellaLoading===null);assert.equal((await state()).credits,1);
+ await page.reload();await page.waitForFunction(()=>globalThis.__wxStarterProbe&&globalThis.__estellaLoading===null&&globalThis.__estellaIdentDone===true);assert.equal((await state()).credits,1);
  report.restored=await state();const file='restored.png';await page.screenshot({path:path.join(out,file)});report.screenshot={file,sha256:sha(path.join(out,file))};
  assert.deepEqual(report.errors,[]);assert.deepEqual(report.unexpectedRequests,[]);report.status='checks-passed';await context.close();
 }finally{fs.writeFileSync(path.join(out,'runtime-check.json'),JSON.stringify(report,null,2));await browser.close();await new Promise(resolve=>server.close(resolve));}
