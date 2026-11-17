@@ -605,6 +605,10 @@ add_executable(test_shader_variant
 target_include_directories(test_shader_variant PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_shader_variant COMMAND test_shader_variant)
 
+add_executable(test_glsl_loop_floor renderer/test_glsl_loop_floor.cpp)
+target_include_directories(test_glsl_loop_floor PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME test_glsl_loop_floor COMMAND test_glsl_loop_floor)
+
 add_executable(test_audio_watchdog native/test_audio_watchdog.cpp)
 target_include_directories(test_audio_watchdog PRIVATE ${CMAKE_SOURCE_DIR}/native/host)
 add_test(NAME test_audio_watchdog COMMAND test_audio_watchdog)
