@@ -546,6 +546,8 @@ public:
      *        reader looked at is the one it was.
      */
     u64 meshesRevision() const { return meshes_revision_; }
+    /** @brief Moves whenever a texture's metadata (its nine-slice borders and the rest) is set or dropped. */
+    u64 textureMetadataRevision() const { return texture_metadata_revision_; }
 
     /**
      * @brief Replayable meshes whose geometry the device is still waiting for.
@@ -712,6 +714,7 @@ private:
     MeshArena meshArena_;
     /// See meshesRevision().
     u64 meshes_revision_ = 0;
+    u64 texture_metadata_revision_ = 0;
     /** Gives back what a mesh's geometry holds, its own buffers and layout or its place in a page; the edges are apart. */
     void releaseMeshGeometry(VertexBufferHandle vertices, IndexBufferHandle indices, VertexLayoutHandle layout,
                              u32 arenaPage, u32 arenaFirstVertex, u32 vertexCount, u32 firstIndex, u32 indexCount);

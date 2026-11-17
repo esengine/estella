@@ -238,6 +238,21 @@ public:
         return false;
     }
 
+    /**
+     * @brief anyChangedSinceWhere over every component type: calls @p visit(entity) for each component written or added after
+     *        @p tick, whatever its type, until it returns true. A removal leaves nothing to visit; the entity change journal has it.
+     */
+    template<typename Visit>
+    bool anyComponentChangedSinceWhere(u32 tick, Visit&& visit) const {
+        for (const auto& pool : pools_) {
+            if (!pool || !tickAfter(pool->lastChangedTick(), tick)) continue;
+            for (const Entity entity : pool->entities()) {
+                if (tickAfter(pool->changedTickOf(entity), tick) && visit(entity)) return true;
+            }
+        }
+        return false;
+    }
+
     /** @brief How many entities have a T. */
     template<typename T>
     usize countOf() const {

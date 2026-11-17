@@ -111,6 +111,8 @@ export function createNativeRendererBackend(
         submitScreenOverlay: (_registry: CppRegistry): void => {
             optional(scope, RENDERER_OPTIONAL_BINDINGS.submitScreenOverlay)?.();
         },
+        // The native core does not hold an overlay yet: every pass is built.
+        keepScreenOverlay: (): boolean => false,
         hasScreenOverlayEffect: (): boolean =>
             optional(scope, RENDERER_OPTIONAL_BINDINGS.setScreenOverlayEffect) !== null,
         setScreenOverlayEffect: (material): void => {

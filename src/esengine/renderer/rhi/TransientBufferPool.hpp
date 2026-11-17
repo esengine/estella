@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <array>
+#include <utility>
 
 namespace esengine {
 
@@ -37,6 +38,14 @@ public:
     void shutdown();
 
     void beginFrame();
+
+    /** @brief Trades what the two pools hold, buffers and staging both; they must share one device. */
+    void swap(TransientBufferPool& other) noexcept {
+        std::swap(streams_, other.streams_);
+        std::swap(initial_vertex_bytes_, other.initial_vertex_bytes_);
+        std::swap(initial_index_count_, other.initial_index_count_);
+        std::swap(initialized_, other.initialized_);
+    }
 
     u32 allocVertices(LayoutId layout, u32 byteSize);
     u32 allocIndices(LayoutId layout, u32 count);
