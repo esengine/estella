@@ -30,6 +30,7 @@
 #include "ActiveView.hpp"
 #include "EntityChangeJournal.hpp"
 #include "Relation.hpp"
+#include "TransformEpoch.hpp"
 #include "components/Hierarchy.hpp"
 #include "../events/Sink.hpp"
 
@@ -451,7 +452,9 @@ public:
         // Connection (via Sink::connect) keeps subscriber lifetimes safe in both
         // teardown orders — Registry-first or system-first (RC12, fixes A12).
         on_destroy_signal_.publish(entity);
-        // After the callbacks, which may still ask where the entity stood; before the slot can be handed to anyone else.
+        // After the callbacks, which may still ask where the entity stood; before the slot can be handed to anyone else. Children
+        // it leaves behind are roots now, composed under no parent: their world transforms are stale.
+        if (child_of_.hasSources(entity)) invalidateTransformComposition();
         child_of_.onDestroy(entity);
 
         component_masks_[idx].forEachSet([&](u32 bit) {

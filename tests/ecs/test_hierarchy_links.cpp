@@ -189,16 +189,21 @@ TEST_CASE("the cascade lists every tree parent first, siblings in order, and fol
     REQUIRE(setParent(r, a1, a));
     REQUIRE(setParent(r, a2, a));
     const auto check = [&](std::vector<Entity> expected) {
-        const auto& order = r.childOf().cascade();
         std::vector<Entity> got;
-        for (usize i = 0; i < order.size(); ++i) {
-            got.push_back(order[i].entity);
-            const Entity parent = r.childOf().target(order[i].entity);
-            if (parent.isValid()) {
-                REQUIRE(order[i].parent < i);
-                CHECK(order[order[i].parent].entity == parent);
-            } else {
-                CHECK(order[i].parent == ExclusiveRelation::NONE);
+        for (const auto& tree : r.childOf().cascade()) {
+            if (!tree.alive) continue;
+            const auto& order = tree.entries;
+            for (usize i = 0; i < order.size(); ++i) {
+                got.push_back(order[i].entity);
+                const auto at = r.childOf().cascadeAt(order[i].entity);
+                CHECK(order[at.slot].entity == order[i].entity);
+                const Entity parent = r.childOf().target(order[i].entity);
+                if (parent.isValid()) {
+                    REQUIRE(order[i].parent < i);
+                    CHECK(order[order[i].parent].entity == parent);
+                } else {
+                    CHECK(order[i].parent == ExclusiveRelation::NONE);
+                }
             }
         }
         CHECK(got == expected);
@@ -213,8 +218,5 @@ TEST_CASE("the cascade lists every tree parent first, siblings in order, and fol
     check({root, a, a2, a1, b});
     r.destroy(a);
     // The destroyed parent's children are roots of their own trees now; a2 has no children, so only a1's tree remains.
-    const auto& left = r.childOf().cascade();
-    CHECK(left.size() == 2);
-    CHECK(left[0].entity == a1);
-    CHECK(left[1].entity == b);
+    check({a1, b});
 }

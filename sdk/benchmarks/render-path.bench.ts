@@ -69,12 +69,13 @@ function chainedWorld(count: number, depth: number): any {
     return reg;
 }
 
-/** One composition of the pass. The epoch is the word a producer of a local
- *  transform moves; without moving it `ensureComposed` is a compare that returns,
- *  and this measures the short circuit rather than the walk. Re-read every call:
- *  a heap that grew detaches the view. */
+/** One composition of the WHOLE pass. Composition recomposes only the Transforms stamped since its last pass, so this says
+ *  what an unstamped producer says: the epoch, and the word after it (writes with no stamp naming them), which makes the
+ *  pass walk every transform. Re-read every call: a heap that grew detaches the view. */
 function frame(reg: any): void {
-    module.HEAPU32[module.transform_epochAddress() >> 2]++;
+    const word = module.transform_epochAddress() >> 2;
+    module.HEAPU32[word]++;
+    module.HEAPU32[word + 1]++;
     module.renderer_updateTransforms(reg);
 }
 

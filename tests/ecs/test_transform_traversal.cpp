@@ -240,10 +240,59 @@ TEST_CASE("composing only what changed gives what composing everything gives") {
             const auto e = all[random(static_cast<u32>(all.size()))];
             if (!r.has<TransformDirty>(e)) r.emplace<TransformDirty>(e);
         }
+        // A few reparents: under another entity (refused where it would make a cycle), or detached to a root.
+        for (int k = 0; k < 3; ++k) {
+            const auto e = all[random(static_cast<u32>(all.size()))];
+            const auto to = random(5) == 0 ? INVALID_ENTITY : all[random(static_cast<u32>(all.size()))];
+            setParent(r, e, to);
+        }
+        // Now and then an entity is destroyed: its children become roots, its tree is rebuilt without it.
+        if (random(4) == 0 && all.size() > 50) {
+            const usize at = random(static_cast<u32>(all.size()));
+            r.destroy(all[at]);
+            all.erase(all.begin() + static_cast<std::ptrdiff_t>(at));
+        }
         invalidateTransformComposition();
         system.ensureComposed(r);
         compare();
     }
+}
+
+TEST_CASE("a reparent recomposes the moved subtree, not the world") {
+    Registry r; TransformSystem system;
+    std::vector<Entity> roots;
+    for (int t = 0; t < 10; ++t) {
+        const auto root = r.create();
+        r.emplace<Transform>(root).position.x = static_cast<f32>(t * 100);
+        roots.push_back(root);
+        for (int i = 0; i < 20; ++i) {
+            const auto leaf = r.create();
+            r.emplace<Transform>(leaf).position.y = 1;
+            REQUIRE(setParent(r, leaf, root));
+        }
+    }
+    // A childless root that is about to become a parent: it has never built the matrix its child composes under.
+    const auto lone = r.create();
+    r.emplace<Transform>(lone).position.x = 7;
+    system.setChangeTracking(true);
+    system.ensureComposed(r);
+    system.takeChanges();
+    const auto moved = r.childOf().first(roots[3]);
+    REQUIRE(setParent(r, moved, lone));
+    system.ensureComposed(r);
+    CHECK(system.visited() == 1);
+    auto& t = r.get<Transform>(moved);
+    t.ensureDecomposed();
+    CHECK(t.worldPosition.x == doctest::Approx(7));
+    CHECK(t.worldPosition.y == doctest::Approx(1));
+    // Destroying a parent leaves its children roots: their world is their local transform now.
+    const auto orphan = r.childOf().first(roots[5]);
+    r.destroy(roots[5]);
+    system.ensureComposed(r);
+    auto& o = r.get<Transform>(orphan);
+    o.ensureDecomposed();
+    CHECK(o.worldPosition.x == doctest::Approx(0));
+    CHECK(o.worldPosition.y == doctest::Approx(1));
 }
 
 TEST_CASE("a frame that wrote one leaf recomposes that leaf, not the tree") {

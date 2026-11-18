@@ -16,6 +16,7 @@
 
 #include "System.hpp"
 #include "Registry.hpp"
+#include "TransformEpoch.hpp"
 #include "components/Transform.hpp"
 #include "components/Hierarchy.hpp"
 #include "FlatGeometry.hpp"
@@ -24,39 +25,6 @@
 #include <algorithm>
 
 namespace esengine::ecs {
-
-/**
- * @brief How many times a transform composition INPUT has changed
- * @details One shared counter, written by every producer of a local transform
- *          field or of the hierarchy, on either side of the wasm boundary.
- * @note Modulo 2^32: aliasing needs 2^32 invalidations between two compositions.
- */
-inline u32* transformEpochWords() {
-    static u32 words[2] = {1, 0};
-    return words;
-}
-inline u32& transformMutationEpoch() { return transformEpochWords()[0]; }
-
-/**
- * @brief How many times a producer has written a local transform WITHOUT stamping it
- * @details The word after transformMutationEpoch, so a script reaches both through one address. Composition recomposes only
- *          what was stamped; when this has moved, it cannot know what was written and composes everything.
- */
-inline u32& transformUnstampedEpoch() { return transformEpochWords()[1]; }
-
-/**
- * @brief Say that composed world transforms are stale
- * @details Never call this from a writer of worldPosition/worldRotation/
- *          worldScale: those are the composition's OUTPUT, and invalidating on
- *          them makes every composition immediately stale again.
- */
-inline void invalidateTransformComposition() { transformMutationEpoch()++; }
-
-/** @brief Say that local transforms were written with no stamp saying which: the next composition composes everything. */
-inline void invalidateUnstampedTransforms() {
-    transformMutationEpoch()++;
-    transformUnstampedEpoch()++;
-}
 
 class TransformSystem : public System {
 public:
@@ -196,9 +164,9 @@ private:
     u64 seenRegistry_ = 0;
     u32 seenTick_ = 0;
     u32 seenTransformVersion_ = 0;
-    u32 seenRelationEpoch_ = 0;
     u32 seenUnstampedEpoch_ = 0;
-    std::vector<u32> changedSlots_;
+    std::vector<Entity> retargeted_;
+    std::vector<std::pair<u32, u32>> changedSlots_;
 
     /**
      * @brief Composes the Transforms stamped or tagged dirty since the last composition, and the subtrees under them
@@ -210,12 +178,14 @@ private:
         dirty_to_clear_.clear();
         have_dirty_ = !registry.entitiesWith<TransformDirty>().empty();
         have_static_ = !registry.entitiesWith<TransformStatic>().empty();
-        const auto& rel = registry.childOf();
+        auto& rel = registry.childOf();
         have_children_ = rel.linkCount() != 0;
         have_collapsed_ = !registry.entitiesWith<FlatGeometryCollapsed>().empty();
 
-        const bool full = seenRegistry_ != registry.identity() || seenTick_ == 0
-            || seenTransformVersion_ != registry.poolVersion<Transform>() || seenRelationEpoch_ != rel.epoch()
+        // A reparent is not a reason to compose everything: the entities that moved are listed, and their subtrees recompose.
+        const bool retargetsListed = rel.takeRetargeted(retargeted_);
+        const bool full = seenRegistry_ != registry.identity() || seenTick_ == 0 || !retargetsListed
+            || seenTransformVersion_ != registry.poolVersion<Transform>()
             || seenUnstampedEpoch_ != transformUnstampedEpoch() || registry.changeAuditEnabled();
         if (full) composeAll(registry);
         else composeChanged(registry);
@@ -230,7 +200,6 @@ private:
         seenTick_ = registry.beginChangeRead();
         if (seenTick_ == 0) seenTick_ = registry.beginChangeRead();
         seenTransformVersion_ = registry.poolVersion<Transform>();
-        seenRelationEpoch_ = rel.epoch();
         seenUnstampedEpoch_ = transformUnstampedEpoch();
     }
 
@@ -252,23 +221,25 @@ private:
             updateRootTransform(registry, entity, transform, isDirty);
         });
         if (!have_children_) return;
-        const auto& order = rel.cascade();
-        slots_.resize(order.size());
-        for (u32 i = 0, n = static_cast<u32>(order.size()); i < n; ++i) composeEntry(registry, order, i);
+        for (const auto& tree : rel.cascade()) {
+            if (!tree.alive) continue;
+            slots_.resize(tree.entries.size());
+            for (u32 i = 0, n = static_cast<u32>(tree.entries.size()); i < n; ++i) composeEntry(registry, tree.entries, i);
+        }
     }
 
     /** @brief Only what was written or tagged dirty since the last composition, and the subtrees under it. */
     void composeChanged(Registry& registry) {
         const auto& rel = registry.childOf();
-        const auto& order = have_children_ ? rel.cascade() : emptyCascade();
-        slots_.resize(order.size());
+        const auto& trees = have_children_ ? rel.cascade() : emptyCascade();
         changedSlots_.clear();
 
         // A static entity is recomposed only when tagged dirty, as the full walk does: a write to it is not one.
         const auto changed = [&](Entity entity, bool tagged) {
             if (!tagged && have_static_ && registry.has<TransformStatic>(entity)) return;
             if (inTree(rel, entity)) {
-                changedSlots_.push_back(rel.cascadeSlot(entity));
+                const auto at = rel.cascadeAt(entity);
+                changedSlots_.emplace_back(at.tree, at.slot);
                 return;
             }
             auto* transform = registry.tryGet<Transform>(entity);
@@ -282,6 +253,11 @@ private:
             changed(entity, have_dirty_ && registry.has<TransformDirty>(entity));
             return false;
         });
+        // Moved under another parent, detached, or left a root by a destroyed parent: composed under a new matrix whatever its
+        // own stamp says, and a static one too.
+        for (const Entity entity : retargeted_) {
+            if (registry.valid(entity)) changed(entity, true);
+        }
         if (have_dirty_) {
             for (const Entity entity : registry.entitiesWith<TransformDirty>()) {
                 // Written and tagged was handled above, with its tag.
@@ -290,10 +266,12 @@ private:
         }
         if (changedSlots_.empty()) return;
 
-        // Ranges in cascade order: one inside a range already recomposed is part of it.
+        // Ranges in cascade order, tree by tree: one inside a range already recomposed is part of it.
         std::sort(changedSlots_.begin(), changedSlots_.end());
-        u32 covered = 0;
-        for (const u32 start : changedSlots_) {
+        u32 tree = ExclusiveRelation::NONE, covered = 0;
+        for (const auto [t, start] : changedSlots_) {
+            const auto& order = trees[t].entries;
+            if (t != tree) { tree = t; covered = 0; slots_.resize(order.size()); }
             if (start < covered) continue;
             const u32 parent = order[start].parent;
             if (parent != ExclusiveRelation::NONE) slots_[parent] = contextOf(registry, order, parent);
@@ -302,8 +280,8 @@ private:
         }
     }
 
-    static const std::vector<ExclusiveRelation::CascadeEntry>& emptyCascade() {
-        static const std::vector<ExclusiveRelation::CascadeEntry> none;
+    static const std::vector<ExclusiveRelation::CascadeTree>& emptyCascade() {
+        static const std::vector<ExclusiveRelation::CascadeTree> none;
         return none;
     }
 
@@ -327,7 +305,11 @@ private:
                 // The root of the tree.
                 if (!transform) context = {&identity, true, false};
                 else if (have_static_ && !localDirty && registry.has<TransformStatic>(entity)) context = {&transform->cachedMatrix_, false, collapsedTag};
-                else context = {&transform->cachedMatrix_, true, transform->scale.x == 0 || transform->scale.y == 0};
+                else {
+                    // A root that just took its first child has never built the matrix (a childless root does not need one).
+                    transform->cachedMatrix_ = math::compose(transform->position, transform->rotation, transform->scale);
+                    context = {&transform->cachedMatrix_, true, transform->scale.x == 0 || transform->scale.y == 0};
+                }
                 continue;
             }
             const bool dirty = context.dirty || localDirty;

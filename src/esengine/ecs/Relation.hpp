@@ -94,6 +94,7 @@ public:
      *          with a target already is moved, keeping nothing of where it was. Depth follows for the whole moved subtree.
      */
     void link(Entity source, Entity target, Entity before = INVALID_ENTITY) {
+        markTree(source);
         if (hasTarget(source)) detach(source);
         grow(std::max(source.index(), target.index()));
         const u32 s = source.index(), t = target.index();
@@ -115,14 +116,19 @@ public:
         ++count_[t];
         ++links_;
         setSubtreeDepth(source, depth_[t] + 1);
+        noteRetargeted(source.raw);
+        markTree(target);
         ++epoch_;
     }
 
     /** @brief Takes @p source's target away; its own sources stay with it. */
     void unlink(Entity source) {
         if (!hasTarget(source)) return;
+        markTree(source);
         detach(source);
         setSubtreeDepth(source, 0);
+        noteRetargeted(source.raw);
+        markTree(source);
         ++epoch_;
     }
 
@@ -145,6 +151,7 @@ public:
         }
         next_[Entity::fromRaw(prev).index()] = NONE;
         last_[t] = prev;
+        markTree(target);
         ++epoch_;
         return true;
     }
@@ -158,6 +165,7 @@ public:
     void onDestroy(Entity entity) {
         const u32 i = entity.index();
         if (i >= target_.size()) return;
+        if (target_[i] != NONE || first_[i] != NONE) markTree(entity);
         bool changed = false;
         if (target_[i] != NONE) { detach(entity); changed = true; }
         for (u32 at = first_[i]; at != NONE;) {
@@ -166,6 +174,8 @@ public:
             target_[c] = prev_[c] = next_[c] = NONE;
             --links_;
             setSubtreeDepth(Entity::fromRaw(at), 0);
+            noteRetargeted(at);
+            markTree(Entity::fromRaw(at));
             at = following;
             changed = true;
         }
@@ -178,66 +188,68 @@ public:
     void clear() {
         target_.clear(); first_.clear(); last_.clear(); next_.clear(); prev_.clear(); count_.clear(); depth_.clear();
         links_ = 0;
+        retargeted_.clear();
+        retargetedOverflow_ = true;
+        all_dirty_ = true;
+        dirty_roots_.clear();
         ++epoch_;
+    }
+
+    /**
+     * @brief Hands over the entities whose target changed since the last call (moved, detached, orphaned by a destroyed
+     *        target), and empties the list. One reader: whoever takes it, takes it for everyone.
+     * @return false when the list overflowed (or the relation was cleared): too many to list, so the reader treats all as moved.
+     */
+    bool takeRetargeted(std::vector<Entity>& out) {
+        out.clear();
+        const bool listed = !retargetedOverflow_;
+        if (listed) for (const u32 raw : retargeted_) out.push_back(Entity::fromRaw(raw));
+        retargeted_.clear();
+        retargetedOverflow_ = false;
+        return listed;
     }
 
     /** @brief One entity of a tree, in cascade order. */
     struct CascadeEntry {
         Entity entity;
-        /** Where its target sits in the same array; NONE for the root of a tree. */
+        /** Where its target sits in the same tree's array; NONE for the root of the tree. */
         u32 parent;
         /** One past its last descendant: its subtree is [this entry, end), contiguous, as preorder lays it out. */
         u32 end;
     };
 
+    /** @brief One tree, root first, every entity after its target and in its siblings' order (preorder). */
+    struct CascadeTree {
+        Entity root;
+        std::vector<CascadeEntry> entries;
+        /** False for a slot whose tree is gone, kept so the other trees' numbers do not move; reused by the next new tree. */
+        bool alive = false;
+    };
+
+    /** @brief Where an entity sits in the cascade: which tree, and where in it. */
+    struct CascadeAt {
+        u32 tree;
+        u32 slot;
+    };
+
     /**
-     * @brief Every entity that is part of a tree, each after its target and in its siblings' order (preorder): Flecs' cascade
-     * @details A walk from the front sees a parent before any of its children, so a caller that needs the parent's result
-     *          (a world transform) reads it by `parent` from what it wrote earlier in the same walk: no stack, no recursion,
-     *          no "seen" marks, and memory read front to back. Only entities in a tree are listed: a root with no sources is
-     *          not. Built when the relation's shape changed since the last call, in O(entities in trees); kept otherwise.
+     * @brief Every tree of the relation, each in cascade order: Flecs' cascade, one array per tree
+     * @details A walk from the front of a tree sees a parent before any of its children, so a caller that needs the parent's
+     *          result reads it by `parent` from what it wrote earlier in the same walk. Kept per tree so an edit rebuilds only
+     *          the trees it touched (the one an entity left and the one it joined), in O(their size), not every tree.
+     *          Skip the entries whose tree is not alive. Only entities in a tree are listed: a root with no sources is not.
      */
-    const std::vector<CascadeEntry>& cascade() const {
-        if (cascade_epoch_ == epoch_) return cascade_;
-        cascade_.clear();
-        cascade_.reserve(static_cast<usize>(links_) * 2);
-        for (u32 i = 0, n = static_cast<u32>(target_.size()); i < n; ++i) {
-            if (target_[i] != NONE || first_[i] == NONE) continue;
-            // A root's own id is not stored at its slot; its first child names it.
-            const u32 root = target_[Entity::fromRaw(first_[i]).index()];
-            cascade_.push_back({Entity::fromRaw(root), NONE, 0});
-            pushSources(i, static_cast<u32>(cascade_.size() - 1));
-            while (!pending_.empty()) {
-                const auto [raw, parent] = pending_.back();
-                pending_.pop_back();
-                cascade_.push_back({Entity::fromRaw(raw), parent, 0});
-                pushSources(Entity::fromRaw(raw).index(), static_cast<u32>(cascade_.size() - 1));
-            }
-        }
-        // Each entry's subtree ends where its last descendant's does: walked back to front, a child has its end before its
-        // parent takes the larger of the two.
-        const u32 n = static_cast<u32>(cascade_.size());
-        cascade_slot_.assign(target_.size(), NONE);
-        for (u32 i = 0; i < n; ++i) {
-            cascade_[i].end = i + 1;
-            cascade_slot_[cascade_[i].entity.index()] = i;
-        }
-        for (u32 i = n; i-- > 0;) {
-            const u32 p = cascade_[i].parent;
-            if (p != NONE && cascade_[i].end > cascade_[p].end) cascade_[p].end = cascade_[i].end;
-        }
-        cascade_epoch_ = epoch_;
-        return cascade_;
+    const std::vector<CascadeTree>& cascade() const {
+        refreshCascade();
+        return trees_;
     }
 
-    /** @brief Where @p entity sits in cascade(), or NONE when it is in no tree. Current as of the last cascade() call. */
-    u32 cascadeSlot(Entity entity) const {
+    /** @brief Where @p entity sits in cascade(), or tree NONE when it is in no tree. Current as of the last cascade() call. */
+    CascadeAt cascadeAt(Entity entity) const {
         const u32 i = entity.index();
-        return i < cascade_slot_.size() ? cascade_slot_[i] : NONE;
+        if (i >= tree_of_.size() || tree_of_[i] == NONE) return {NONE, NONE};
+        return {tree_of_[i], slot_of_[i]};
     }
-
-    /** @brief Whether cascade() would be rebuilt: the relation's shape changed since it was last built. */
-    bool cascadeStale() const { return cascade_epoch_ != epoch_; }
 
     /** @brief The arrays themselves, for a reader across the wasm boundary; valid until the next edit that grows them. */
     const u32* targets() const { return target_.data(); }
@@ -251,10 +263,125 @@ private:
     std::vector<u32> walk_;
     u32 links_ = 0;
     u32 epoch_ = 1;
-    mutable std::vector<CascadeEntry> cascade_;
-    mutable std::vector<u32> cascade_slot_;
+    /** Entities whose target changed since the last takeRetargeted; past the cap it stops listing and says so. */
+    std::vector<u32> retargeted_;
+    bool retargetedOverflow_ = false;
+    static constexpr usize RETARGETED_CAP = 4096;
+
+    void noteRetargeted(u32 raw) {
+        if (retargetedOverflow_) return;
+        if (retargeted_.size() >= RETARGETED_CAP) { retargeted_.clear(); retargetedOverflow_ = true; return; }
+        retargeted_.push_back(raw);
+    }
+
+    mutable std::vector<CascadeTree> trees_;
+    mutable std::vector<u32> free_trees_;
+    /** Per entity index: its tree and its slot there, NONE when it is in no tree. */
+    mutable std::vector<u32> tree_of_, slot_of_;
+    /** Roots whose tree an edit may have changed, created or ended since the cascade was last refreshed. */
+    mutable std::vector<u32> dirty_roots_;
+    mutable bool all_dirty_ = true;
     mutable std::vector<std::pair<u32, u32>> pending_;
-    mutable u32 cascade_epoch_ = 0;
+    static constexpr usize DIRTY_ROOTS_CAP = 1024;
+
+    /** @brief The tree around @p entity changed shape, or it began or ended one. */
+    void markTree(Entity entity) {
+        if (all_dirty_ || !entity.isValid()) return;
+        if (dirty_roots_.size() >= DIRTY_ROOTS_CAP) { all_dirty_ = true; dirty_roots_.clear(); return; }
+        dirty_roots_.push_back(root(entity).raw);
+    }
+
+    /** @brief The entity at @p index if it is the root of a tree now (no target, some sources), else NONE. */
+    u32 rootAt(u32 index) const {
+        if (index >= target_.size() || target_[index] != NONE || first_[index] == NONE) return NONE;
+        // A root's own id is not stored at its slot; its first child names it.
+        return target_[Entity::fromRaw(first_[index]).index()];
+    }
+
+    void refreshCascade() const {
+        if (all_dirty_) {
+            for (auto& tree : trees_) for (const auto& e : tree.entries) forget(e.entity);
+            trees_.clear();
+            free_trees_.clear();
+            tree_of_.assign(target_.size(), NONE);
+            slot_of_.assign(target_.size(), NONE);
+            for (u32 i = 0, n = static_cast<u32>(target_.size()); i < n; ++i) {
+                const u32 r = rootAt(i);
+                if (r != NONE) buildTree(Entity::fromRaw(r));
+            }
+            all_dirty_ = false;
+            dirty_roots_.clear();
+            return;
+        }
+        if (dirty_roots_.empty()) return;
+        if (tree_of_.size() < target_.size()) {
+            tree_of_.resize(target_.size(), NONE);
+            slot_of_.resize(target_.size(), NONE);
+        }
+        std::sort(dirty_roots_.begin(), dirty_roots_.end());
+        dirty_roots_.erase(std::unique(dirty_roots_.begin(), dirty_roots_.end()), dirty_roots_.end());
+        // First every touched tree lets go of its entities, then the trees that still have a root are built again: an entity
+        // that moved from one touched tree to another ends up in the one built last only if no clearing comes after it.
+        for (const u32 raw : dirty_roots_) {
+            const u32 t = treeRootedAt(Entity::fromRaw(raw));
+            if (t == NONE) continue;
+            for (const auto& e : trees_[t].entries) forget(e.entity);
+            trees_[t].entries.clear();
+            trees_[t].alive = false;
+            free_trees_.push_back(t);
+        }
+        for (const u32 raw : dirty_roots_) {
+            const u32 i = Entity::fromRaw(raw).index();
+            if (rootAt(i) == raw) buildTree(Entity::fromRaw(raw));
+        }
+        dirty_roots_.clear();
+    }
+
+    /** @brief The tree whose root is @p root, or NONE. */
+    u32 treeRootedAt(Entity root) const {
+        const u32 i = root.index();
+        if (i >= tree_of_.size() || tree_of_[i] == NONE || slot_of_[i] != 0) return NONE;
+        const u32 t = tree_of_[i];
+        return trees_[t].alive && trees_[t].root == root ? t : NONE;
+    }
+
+    void forget(Entity entity) const {
+        const u32 i = entity.index();
+        if (i < tree_of_.size()) tree_of_[i] = slot_of_[i] = NONE;
+    }
+
+    void buildTree(Entity root) const {
+        u32 t;
+        if (!free_trees_.empty()) { t = free_trees_.back(); free_trees_.pop_back(); }
+        else { t = static_cast<u32>(trees_.size()); trees_.emplace_back(); }
+        auto& tree = trees_[t];
+        tree.root = root;
+        tree.alive = true;
+        auto& out = tree.entries;
+        out.clear();
+        out.push_back({root, NONE, 0});
+        pushSources(root.index(), 0);
+        while (!pending_.empty()) {
+            const auto [raw, parent] = pending_.back();
+            pending_.pop_back();
+            out.push_back({Entity::fromRaw(raw), parent, 0});
+            pushSources(Entity::fromRaw(raw).index(), static_cast<u32>(out.size() - 1));
+        }
+        // Each entry's subtree ends where its last descendant's does: walked back to front, a child has its end before its
+        // parent takes the larger of the two.
+        const u32 n = static_cast<u32>(out.size());
+        for (u32 i = 0; i < n; ++i) {
+            out[i].end = i + 1;
+            const u32 e = out[i].entity.index();
+            if (e >= tree_of_.size()) { tree_of_.resize(e + 1, NONE); slot_of_.resize(e + 1, NONE); }
+            tree_of_[e] = t;
+            slot_of_[e] = i;
+        }
+        for (u32 i = n; i-- > 0;) {
+            const u32 p = out[i].parent;
+            if (p != NONE && out[i].end > out[p].end) out[p].end = out[i].end;
+        }
+    }
 
     /** @brief Queues the sources of the entity at @p index, last first so they leave the stack in order. */
     void pushSources(u32 index, u32 slot) const {
