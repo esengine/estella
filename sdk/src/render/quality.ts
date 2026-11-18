@@ -4,9 +4,8 @@ import type { PowerPolicy } from './power';
 import {
     qualitySettingDefaults, qualitySettingPreferences, resolveQualitySettings,
     type QualitySettingPreferences, type QualitySettingValues,
-} from './qualitySettings';
+} from './qualitySettings/index';
 
-/** A bound on a hand-edited file, well past the effects that exist: one lower quietly left the effects past it running. */
 const MAX_SKIPPED_EFFECTS = 1024;
 
 export type QualityLevel = 'low' | 'medium' | 'high';
@@ -19,59 +18,9 @@ export interface DeviceQualityInfo {
     cores?: number;
 }
 
-/** The size of the set a body of water's waves are taken from (water/waves.ts: WAVE_SET_SIZE). */
-export const MOST_WATER_WAVES = 8;
+export { MOST_WATER_WAVES } from './qualitySettings/index';
 
 export interface QualityProfile extends QualitySettingValues {
-    renderScale: number;
-    minRenderScale: number;
-    msaaSamples: 1 | 2 | 4 | 8;
-    /**
-     * How the edges of the picture are smoothed. `msaa` is the multisampling above (plus an FXAA pass where the scene has one). `temporal` draws
-     * at one sample and lets the `taa` pass do it from the frames before: it costs a tenth of a millisecond at 1080p where four samples cost three
-     * and two cost over one, and in return the picture is somewhat softer, a cut-out leaf has no coverage dither and a surface that moves by itself
-     * without a motion vector (water) smears a little while the camera moves. The level takes the `taa` pass whether or not the scene's volume
-     * lists it, and leaves `fxaa` out; it needs a post-process volume on the camera.
-     */
-    antialiasing: 'msaa' | 'temporal';
-    shadowAtlasSize: number;
-    shadowCellSize: number;
-    /**
-     * The cascades a perspective sun's shadow is split into, and how far (in world units, 0 for as far as the scene reaches) they reach. Both act only on
-     * a sun whose `shadowExtent` is 0: one with an extent draws a single map of that size and uses neither. Each cascade draws the casters again.
-     */
-    shadowCascades: number;
-    shadowDistance: number;
-    /**
-     * How much of its distances a level lets a plant keep, 0.25 to 1: a kind that changes to its cheaper mesh at 60 m and is not drawn past
-     * 150 m does so at 30 m and 75 m with 0.5. The far version (a tree's cards) is the same cost at any distance, so it takes over sooner.
-     */
-    detailScale: number;
-    particleLimit: number;
-    planarReflectionScale: number;
-    planarReflectionMaxSize: number;
-    /** Zero means every frame; this never caps the main scene. */
-    planarReflectionUpdatesPerSecond: number;
-    /**
-     * Whether the opaque scene is drawn twice, depth alone first, so each pixel is shaded for the surface in front of it and not for every one drawn
-     * there on the way. It pays where surfaces overlap (a wood, a crowd of foliage) on a GPU that shades what it rasterises; on one that defers
-     * shading to the end of a tile it is geometry paid for twice, so the weakest level leaves it off.
-     */
-    depthPrepass: boolean;
-    /** A sky effect defined `still` is drawn once into a panorama and read from it, where it is otherwise worked out for every pixel. */
-    stillSky: boolean;
-    postProcess: boolean;
-    ssao: boolean;
-    /** How many of a body of water's waves are summed, longest first: in the geometry, the shading and what the surface answers for code. 1 to the size of the water's set. */
-    waterWaves: number;
-    /** The most cells along a side of the ripple grid a body of water keeps; the body's own `ripples` is held to it. 0 keeps none. */
-    waterRippleCells: number;
-    /** Whether the waves lift the water's geometry. Off is the lite water: a flat surface whose waves are in the shading only, and which code reads as flat. */
-    waterDisplacement: boolean;
-    /** Whether the surface seen from below mirrors the world under it (a screen-space march per pixel). */
-    waterMirror: boolean;
-    /** Whether the sun's web of light is drawn on what is under the water, and through the surface as shafts. */
-    waterCaustics: boolean;
     /**
      * Post-process effects this level leaves out, each named by its effect type (`ssr`, `taa`, `depthOfField`,
      * `lightShafts`, `autoExposure` …), compared without regard to case. An effect is all of its passes: a
@@ -80,39 +29,6 @@ export interface QualityProfile extends QualitySettingValues {
      * skips follows from what a frame on that device can afford.
      */
     skipEffects: readonly string[];
-    /**
-     * The most texels a side the 2D rain's shelter mask has: the largest a `rain2d` effect is let draw its own `maskSize` at. The mask is painted every frame, so
-     * a weak device spends less on a smaller one and gets rain whose dry edges are softer.
-     */
-    shelterMaskSize: number;
-    /**
-     * How many samples across a light source a soft 2D shadow is drawn with, 1 to 32: a light's `shadowSoftness` is a source with width, and its penumbra
-     * is that many silhouettes added up. Fewer is cheaper and shows the edge as bands; sixteen is where the bands stop reading as separate shadows.
-     */
-    shadowSoftSamples: number;
-    lighting: 'full' | 'direct';
-    /**
-     * Whether the dynamic GI runs its cheaper way: one pixel in four asks the probes and the rest take the light of the four round them, a
-     * probe traces a quarter of its rays a frame instead of half, the cards are relit over eight frames instead of four, and there are two
-     * thirds of the rows of probes. On a Snapdragon 8 Elite at 2530 x 1200 the effect costs 4.5 ms this way and 7.3 the full way. What it
-     * gives up: light runs a pixel or two across an edge two surfaces share, and light that changes takes about twice as long to settle.
-     * It acts on a volume that lists `dynamicGI`, at a level that runs it, and never makes a volume's own settings dearer.
-     */
-    dynamicGIReduced: boolean;
-    /**
-     * The most draws a frame at this level should ask of the GPU, every pass counted (shadows, prepass, reflections and post-processing with the
-     * scene). Nothing is held back to meet it: the profiler and the stats overlay show a frame over it, and the frame debugger says where the draws
-     * went. Draw calls cost the CPU and the driver more than the GPU, and on a phone or in a mini game they are what a 3D scene runs out of first.
-     */
-    drawCallBudget: number;
-    /**
-     * Hold each texture only meshes draw at the size its views need (see `textureStreamingPlugin`): a texture far away takes a
-     * fraction of its memory, and grows back as the camera comes close. A web build ships a small copy beside each such texture, so its
-     * file is downloaded only once a view needs more than the copy holds.
-     */
-    textureStreaming: boolean;
-    /** The megabytes the streamed textures may take together; past it they are held a level softer. 0 is no cap. */
-    textureStreamingBudget: number;
 }
 
 export interface DeviceQualityRule {
@@ -165,40 +81,12 @@ export interface QualityConfig {
 }
 
 const LEVELS: readonly QualityLevel[] = ['low', 'medium', 'high'];
-const PROFILES: Record<QualityLevel, QualityProfile> = {
-    low: {
-        ...qualitySettingDefaults('low'),
-        renderScale: 0.75, minRenderScale: 0.5, msaaSamples: 1, antialiasing: 'msaa',
-        shadowAtlasSize: 1024, shadowCellSize: 256, shadowCascades: 2,
-        planarReflectionScale: 0.25, planarReflectionMaxSize: 512, planarReflectionUpdatesPerSecond: 0, depthPrepass: false, stillSky: true,
-        shadowDistance: 0, detailScale: 0.5, particleLimit: 1000, postProcess: true, ssao: false,
-        waterWaves: 3, waterRippleCells: 32, waterDisplacement: false, waterMirror: false, waterCaustics: false,
-        skipEffects: ['ssr', 'taa', 'depthOfField', 'lightShafts', 'motionBlur', 'lensFlare', 'gtao', 'subsurface', 'voxelGI', 'dynamicGI'],
-        shelterMaskSize: 256, shadowSoftSamples: 8, lighting: 'direct', dynamicGIReduced: true, drawCallBudget: 150, textureStreaming: true, textureStreamingBudget: 128,
-    },
-    medium: {
-        ...qualitySettingDefaults('medium'),
-        renderScale: 1, minRenderScale: 0.65, msaaSamples: 2, antialiasing: 'temporal',
-        shadowAtlasSize: 2048, shadowCellSize: 512, shadowCascades: 3,
-        planarReflectionScale: 0.5, planarReflectionMaxSize: 1024, planarReflectionUpdatesPerSecond: 0, depthPrepass: true, stillSky: true,
-        shadowDistance: 0, detailScale: 0.8, particleLimit: 5000, postProcess: true, ssao: true,
-        waterWaves: 5, waterRippleCells: 64, waterDisplacement: true, waterMirror: true, waterCaustics: true,
-        skipEffects: ['ssr', 'depthOfField'],
-        shelterMaskSize: 512, shadowSoftSamples: 12, lighting: 'direct', dynamicGIReduced: true, drawCallBudget: 400, textureStreaming: true, textureStreamingBudget: 256,
-    },
-    high: {
-        ...qualitySettingDefaults('high'),
-        renderScale: 1, minRenderScale: 0.75, msaaSamples: 4, antialiasing: 'msaa',
-        // A face is millimetres of relief: at 512 texels a cascade, a skin-hugging card (a brow, a hairline) falls inside one texel of the skin and the
-        // shadow speckles it with dirt. 1024 is the cell that clears it for a character at arm's length.
-        shadowAtlasSize: 4096, shadowCellSize: 1024, shadowCascades: 4,
-        planarReflectionScale: 1, planarReflectionMaxSize: 2048, planarReflectionUpdatesPerSecond: 0, depthPrepass: true, stillSky: false,
-        shadowDistance: 0, detailScale: 1, particleLimit: 20000, postProcess: true, ssao: true,
-        waterWaves: 8, waterRippleCells: 128, waterDisplacement: true, waterMirror: true, waterCaustics: true,
-        skipEffects: [],
-        shelterMaskSize: 1024, shadowSoftSamples: 16, lighting: 'full', dynamicGIReduced: false, drawCallBudget: 1500, textureStreaming: false, textureStreamingBudget: 0,
-    },
+const SKIPPED_EFFECTS: Record<QualityLevel, readonly string[]> = {
+    low: ['ssr', 'taa', 'depthOfField', 'lightShafts', 'motionBlur', 'lensFlare', 'ssao', 'gtao', 'subsurface', 'voxelGI', 'dynamicGI'],
+    medium: ['ssr', 'depthOfField'],
+    high: [],
 };
+const PROFILES = Object.fromEntries(LEVELS.map((level) => [level, { ...qualitySettingDefaults(level), skipEffects: SKIPPED_EFFECTS[level] }])) as Record<QualityLevel, QualityProfile>;
 
 function record(value: unknown): Record<string, unknown> {
     return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -272,51 +160,27 @@ export function parsePowerPolicy(value: unknown): PowerPolicy {
     return policy;
 }
 
+const AMBIENT_OCCLUSION = ['ssao', 'gtao'];
+
+function withAmbientOcclusion(skip: readonly string[], on: unknown): readonly string[] {
+    if (on === false) return [...skip, ...AMBIENT_OCCLUSION.filter((type) => !skip.some((e) => e.toLowerCase() === type))];
+    if (on === true) return skip.filter((e) => e.toLowerCase() !== 'ssao');
+    return skip;
+}
+
 function resolveProfile(level: QualityLevel, value: unknown): QualityProfile {
     const base = PROFILES[level];
     const r = record(value);
-    const renderScale = finite(r.renderScale, base.renderScale, 0.25, 1);
-    const atlas = [512, 1024, 2048, 4096].includes(r.shadowAtlasSize as number)
-        ? r.shadowAtlasSize as number : base.shadowAtlasSize;
-    const cell = [128, 256, 512, 1024].includes(r.shadowCellSize as number)
-        ? r.shadowCellSize as number : base.shadowCellSize;
+    const settings = resolveQualitySettings(r, base);
+    const skipEffects = Array.isArray(r.skipEffects)
+        ? r.skipEffects.filter((e): e is string => typeof e === 'string' && e.trim() !== '')
+            .map((e) => e.trim()).slice(0, MAX_SKIPPED_EFFECTS)
+        : base.skipEffects;
     return {
-        ...resolveQualitySettings(r, base),
-        renderScale,
-        minRenderScale: finite(r.minRenderScale, Math.min(base.minRenderScale, renderScale),
-            0.25, renderScale),
-        msaaSamples: [1, 2, 4, 8].includes(r.msaaSamples as number)
-            ? r.msaaSamples as QualityProfile['msaaSamples'] : base.msaaSamples,
-        antialiasing: r.antialiasing === 'msaa' || r.antialiasing === 'temporal' ? r.antialiasing : base.antialiasing,
-        shadowAtlasSize: atlas,
-        shadowCellSize: Math.min(cell, atlas / 2),
-        shadowCascades: Math.round(finite(r.shadowCascades, base.shadowCascades, 1, 4)),
-        shadowDistance: finite(r.shadowDistance, base.shadowDistance, 0, 10000000),
-        detailScale: finite(r.detailScale, base.detailScale, 0.25, 1),
-        particleLimit: Math.round(finite(r.particleLimit, base.particleLimit, 0, 1000000)),
-        planarReflectionScale: finite(r.planarReflectionScale, base.planarReflectionScale, 0.125, 1),
-        planarReflectionMaxSize: Math.round(finite(r.planarReflectionMaxSize, base.planarReflectionMaxSize, 64, 4096)),
-        planarReflectionUpdatesPerSecond: finite(r.planarReflectionUpdatesPerSecond, base.planarReflectionUpdatesPerSecond, 0, 120),
-        depthPrepass: typeof r.depthPrepass === 'boolean' ? r.depthPrepass : base.depthPrepass,
-        stillSky: typeof r.stillSky === 'boolean' ? r.stillSky : base.stillSky,
-        postProcess: typeof r.postProcess === 'boolean' ? r.postProcess : base.postProcess,
-        ssao: typeof r.ssao === 'boolean' ? r.ssao : base.ssao,
-        dynamicGIReduced: typeof r.dynamicGIReduced === 'boolean' ? r.dynamicGIReduced : base.dynamicGIReduced,
-        waterWaves: Math.round(finite(r.waterWaves, base.waterWaves, 1, MOST_WATER_WAVES)),
-        waterRippleCells: Math.round(finite(r.waterRippleCells, base.waterRippleCells, 0, 256)),
-        waterDisplacement: typeof r.waterDisplacement === 'boolean' ? r.waterDisplacement : base.waterDisplacement,
-        waterMirror: typeof r.waterMirror === 'boolean' ? r.waterMirror : base.waterMirror,
-        waterCaustics: typeof r.waterCaustics === 'boolean' ? r.waterCaustics : base.waterCaustics,
-        skipEffects: Array.isArray(r.skipEffects)
-            ? r.skipEffects.filter((e): e is string => typeof e === 'string' && e.trim() !== '')
-                .map((e) => e.trim()).slice(0, MAX_SKIPPED_EFFECTS)
-            : base.skipEffects,
-        shelterMaskSize: Math.round(finite(r.shelterMaskSize, base.shelterMaskSize, 64, 2048)),
-        shadowSoftSamples: Math.round(finite(r.shadowSoftSamples, base.shadowSoftSamples, 1, 32)),
-        lighting: r.lighting === 'full' || r.lighting === 'direct' ? r.lighting : base.lighting,
-        drawCallBudget: Math.round(finite(r.drawCallBudget, base.drawCallBudget, 1, 100000)),
-        textureStreaming: typeof r.textureStreaming === 'boolean' ? r.textureStreaming : base.textureStreaming,
-        textureStreamingBudget: Math.round(finite(r.textureStreamingBudget, base.textureStreamingBudget, 0, 65536)),
+        ...settings,
+        minRenderScale: Math.min(settings.minRenderScale, settings.renderScale),
+        shadowCellSize: Math.min(settings.shadowCellSize, settings.shadowAtlasSize / 2) as QualityProfile['shadowCellSize'],
+        skipEffects: withAmbientOcclusion(skipEffects, r.ssao),
     };
 }
 
@@ -472,9 +336,12 @@ export class QualityController {
             ...(off ? { msaaSamples: 1, antialiasing: 'msaa' } : {}),
             ...(p.antialiasing === 'msaa' ? { antialiasing: 'msaa', msaaSamples: base.msaaSamples > 1 ? base.msaaSamples : 4 } : {}),
             ...(p.antialiasing === 'temporal' ? { antialiasing: 'temporal' } : {}),
-            ...(p.ssao !== undefined ? { ssao: p.ssao } : {}),
             ...qualitySettingPreferences(p as Record<string, unknown>),
-            skipEffects: [...base.skipEffects.filter(e => p.antialiasing !== 'temporal' || e !== 'taa'), ...(off ? ['fxaa', 'taa'] : []), ...(p.skipEffects ?? [])],
+            ssao: undefined,
+            skipEffects: [
+                ...withAmbientOcclusion(base.skipEffects.filter(e => p.antialiasing !== 'temporal' || e !== 'taa'), p.ssao),
+                ...(off ? ['fxaa', 'taa'] : []), ...(p.skipEffects ?? []),
+            ],
         });
     }
 

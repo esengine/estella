@@ -6,6 +6,7 @@ import { FOG_UNIFORMS, FOG_EXPLORED_TEXTURE, FOG_VISIBLE_TEXTURE } from './fogOf
 import { RAIN_SHELTER_UNIFORMS, RAIN_SHELTER_MASK_TEXTURE, RAIN_SHELTER_MASK_SIZE, RAIN_SHELTER_MASK_MIN, RAIN_SHELTER_MASK_MAX } from './rainShelterMask';
 import { effectSourcesOf, computeSourceOf } from './effectSources';
 import type { EffectStage } from './effectStage';
+import type { QualitySettingGroup } from '../render/qualitySettings/types';
 import type { basicEffects } from './sources/basic';
 import type { atmosphereEffects } from './sources/atmosphere';
 import type { starfieldEffects } from './sources/starfield';
@@ -125,6 +126,7 @@ export interface EffectDef {
     label: string;
     /** Set for every built-in effect, by the table at the end of this file. */
     category?: EffectCategory;
+    qualityGroup?: QualitySettingGroup;
     /**
      * Set for an effect that is a stage of the chain's last pass and not a pass of its own ("displayLut"): it has no shader, and the volume's
      * values are handed to the stack for the last pass to read, which runs once and after the output transform.
@@ -157,8 +159,11 @@ export interface EffectDef {
 
 const effectRegistry = new Map<string, EffectDef>();
 
+let passOwners: Map<string, string> | null = null;
+
 export function registerEffect(def: EffectDef): void {
     effectRegistry.set(def.type, def);
+    passOwners = null;
 }
 
 export function getEffectDef(type: string): EffectDef | undefined {
@@ -178,6 +183,20 @@ export function effectPassNames(type: string): string[] {
         return def.multiPass ? def.multiPass.map((pass) => pass.name) : [def.type, ...(def.fallback?.map((pass) => pass.name) ?? [])];
     }
     return [];
+}
+
+export function effectOfPass(passName: string): string | undefined {
+    if (!passOwners) {
+        passOwners = new Map();
+        for (const def of effectRegistry.values()) {
+            for (const pass of effectPassNames(def.type)) passOwners.set(pass.toLowerCase(), def.type);
+        }
+    }
+    return passOwners.get(passName.toLowerCase());
+}
+
+export function effectQualityGroup(type: string): QualitySettingGroup {
+    return getEffectDef(type)?.qualityGroup ?? 'postProcessing';
 }
 
 export function getEffectTypes(): string[] {
@@ -1130,5 +1149,17 @@ for (const [category, types] of Object.entries(CATEGORIES) as [EffectCategory, s
     for (const type of types) {
         const def = effectRegistry.get(type);
         if (def) def.category = category;
+    }
+}
+
+const QUALITY_GROUPS: Partial<Record<QualitySettingGroup, string[]>> = {
+    globalIllumination: ['ssao', 'gtao', 'ssgi', 'voxelGI', 'dynamicGI', 'contactShadows'],
+    reflections: ['ssr'],
+    sky: ['skyAtmosphere', 'starfield', 'distanceFog', 'heightFog', 'mist2d', 'lightShafts', 'rain', 'rain2d', 'snowCover'],
+};
+for (const [group, types] of Object.entries(QUALITY_GROUPS) as [QualitySettingGroup, string[]][]) {
+    for (const type of types) {
+        const def = effectRegistry.get(type);
+        if (def) def.qualityGroup = group;
     }
 }

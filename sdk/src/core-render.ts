@@ -177,6 +177,7 @@ export {
     uniformInUnits,
     getEffectTypes,
     getAllEffectDefs,
+    effectQualityGroup,
     registerWeatherPreset,
     weatherPresetId,
     weatherPresetNames,
@@ -369,8 +370,12 @@ export {
     type PreSceneDrawInfo,
 } from './render/customDraw';
 export { QualityController, judgeFrames, parseQualityConfig, resolveQualityProfile, defaultQualityProfile, defaultQualityMode, MOST_WATER_WAVES } from './render/quality';
-export { QUALITY_SETTINGS, qualitySettingDefaults, parseQualitySetting } from './render/qualitySettings';
-export type { QualitySetting, QualityNumberSetting, QualitySettingGroup, QualitySettingKey, QualitySettingText, QualitySettingValues, QualitySettingPreferences } from './render/qualitySettings';
+export { QUALITY_SETTINGS, QUALITY_SETTING_GROUPS, qualitySetting, qualitySettingDefaults, parseQualitySetting, qualitySettingRequirementsMet } from './render/qualitySettings/index';
+export type {
+    QualitySetting, QualityNumberSetting, QualityBooleanSetting, QualityChoiceSetting, QualityEnumSetting, QualityEffectUniform,
+    QualitySettingGroup, QualitySettingGroupInfo, QualitySettingKey, QualitySettingText, QualitySettingValue, QualitySettingValueOf,
+    QualitySettingValues, QualitySettingPreferences,
+} from './render/qualitySettings/index';
 export type {
     QualityConfig, QualityProfile, QualityLevel, QualityMode, QualityPreferences,
     QualityReport, QualitySample, FrameVerdict, DeviceQualityInfo, DeviceQualityRule,

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { QualityProfile } from '../render/quality';
-import { effectPassNames } from './effects';
+import { qualityEffectScale, qualityEffectUniforms } from '../render/qualitySettings/index';
+import { effectOfPass, effectPassNames } from './effects';
 
 /**
  * Whether a quality level lets a pass of the chain run.
@@ -21,8 +22,6 @@ export function qualityPassAllowed(profile: Readonly<QualityProfile> | null, pas
         if (effectPassNames('taa').some((pass) => pass.toLowerCase() === name)) return true;
         if (effectPassNames('fxaa').some((pass) => pass.toLowerCase() === name)) return false;
     }
-    // The profile's own switch for ambient occlusion governs both estimators: it was written for the one and means the other.
-    if (!profile.ssao && ['ssao', 'gtao'].some((type) => effectPassNames(type).some((pass) => pass.toLowerCase() === name))) return false;
     for (const skipped of profile.skipEffects) {
         const passes = effectPassNames(skipped);
         if (passes.length > 0) {
@@ -34,7 +33,15 @@ export function qualityPassAllowed(profile: Readonly<QualityProfile> | null, pas
     return true;
 }
 
-export function qualityPassScale(profile: Readonly<QualityProfile> | null, pass: { scale: number; minScale?: number }): number {
+export function qualityPassScale(profile: Readonly<QualityProfile> | null, pass: { name: string; scale: number; minScale?: number }): number {
     if (profile === null || pass.minScale === undefined) return pass.scale;
-    return Math.max(Math.min(pass.minScale, pass.scale), pass.scale * profile.effectResolution);
+    const effect = effectOfPass(pass.name);
+    if (effect === undefined) return pass.scale;
+    return Math.max(Math.min(pass.minScale, pass.scale), pass.scale * qualityEffectScale(profile, effect));
+}
+
+export function qualityPassUniforms(profile: Readonly<QualityProfile> | null, passName: string): [string, number][] {
+    if (profile === null) return [];
+    const effect = effectOfPass(passName);
+    return effect === undefined ? [] : qualityEffectUniforms(profile, effect);
 }

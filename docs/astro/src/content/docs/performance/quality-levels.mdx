@@ -26,34 +26,53 @@ to.
 
 ## What a level holds
 
-**Quality Levels → Editing level** picks which level the rows below show and change. They are grouped by what they spend:
+What a level spends is grouped by where it goes, twelve groups in all, and each group is a table: a row for each setting and
+a column for each level, **Low, Medium and High side by side**, every cell editable.
+
+![Project Settings, Rendering page: the quality levels, a table per group with Low, Medium and High side by side](@/assets/guides/en/settings-quality-levels.png)
 
 | Group | Settings |
 |---|---|
-| Rendering | Render scale, Min render scale, Anti-aliasing (MSAA or Temporal), MSAA, Depth pre-pass, Detail distance, Draw call budget, Texture streaming and its budget, 2D rain shelter mask |
-| Shadows | 3D lighting (Full or Direct), Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples |
-| Reflections and particles | Planar reflection scale, max size and updates per second, Particle limit |
-| Water | Water waves (1 to 4), Water ripple cells, and the Displacement, Mirror and Caustics switches. Shown once the level is not Off and the water module is in the build |
-| Post-processing | A master switch, Effect resolution, and a tick for each effect that runs at this level |
+| Resolution & Anti-Aliasing | Render scale, Min render scale, Anti-aliasing (MSAA or Temporal), MSAA |
+| View Distance & Draws | Depth pre-pass, Draw call budget |
+| Lights & Shading | 3D lighting (Full or Direct) |
+| Shadows | Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples (read by 2D lights only) |
+| Global Illumination & Occlusion | Ambient occlusion resolution, Screen-space GI resolution, Voxel GI gather resolution, Cheaper dynamic GI; the ambient occlusion, GTAO, screen-space GI, voxel GI, dynamic GI and contact shadow effects |
+| Reflections | Planar reflection scale, max size and updates per second; the screen-space reflections effect |
+| Sky & Volumetrics | Still sky from a panorama, Fog volume resolution; the sky, fog, light shaft and weather effects |
+| Post-Processing | A master switch, Lens flare resolution; every other effect |
+| Effects & Particles | Particle limit, 2D rain shelter mask |
+| Terrain & Foliage | Detail distance |
+| Water | Water waves (1 to 8), Water ripple cells, the Displacement, Mirror and Caustics switches; the underwater effect. Shown once the water module is in the build |
+| Textures & Memory | Texture streaming and its budget |
+
+A group's effects are a matrix of effect by level, ticked where the level runs the effect. A changed cell is tinted and carries a
+reset arrow, whose tip names the level's own default and which puts it back. A cell where the setting does nothing at that level
+is dimmed: MSAA at a level that smooths with Temporal, an effect's resolution at a level with post-processing off.
+
+![A level table with one changed cell: Medium's render scale at 0.75, tinted, with its reset arrow](@/assets/guides/en/settings-quality-changed.png)
+
+<Aside type="note">
+A cell is compared only with its own level's default, so the same number can be a change at Low and the default at Medium:
+0.75 is Low's render scale, and a change at Medium and High.
+</Aside>
+
+In a settings window too narrow for three columns the page goes back to one level at a time: **Quality Levels → Editing level**
+picks which level the rows show and change, and a row that does nothing at that level is hidden.
 
 Each level starts from the engine's own values for it, and **only what you change is saved** in `project.esproject`
 under `features.rendering.quality.profiles.<level>`. A default the engine improves later reaches a project that never
 touched it, and a row set back to its level's default is not a difference.
 
 **Anti-aliasing** is MSAA or Temporal. Temporal draws at one sample and lets the TAA pass smooth from the frames before:
-far cheaper at 1080p and somewhat softer, it needs a post-process volume on the camera, and the MSAA row is hidden while it
-is chosen. **Depth pre-pass** draws the opaque scene twice, depth alone first, so each pixel is shaded once for the surface in
+far cheaper at 1080p and somewhat softer, it needs a post-process volume on the camera, and the level's MSAA cell is dimmed
+while it is chosen. **Depth pre-pass** draws the opaque scene twice, depth alone first, so each pixel is shaded once for the surface in
 front. It pays where surfaces overlap (a wood, a crowd of foliage) on a GPU that shades what it rasterises; on one that defers
 shading to the end of a tile it is geometry paid for twice. It is off at Low and on at Medium and High. The default anti-aliasing is MSAA at Low (one sample) and High (4), and Temporal at Medium. The pre-pass and the colour pass declare the vertex position invariant on both WebGL2 and WebGPU, so a surface's colour always passes the equal-depth test against its own depth, including on Metal; a Mac that showed dark triangles on terrain with the pre-pass on needs nothing but an up-to-date build.
 
 **3D lighting** is Full or Direct. Direct compiles every lit mesh as `#pragma lighting direct` does: the same lighting model with the sixteen lights of
 the light block and hard shadows, without the lights past them, soft shadows or hair shadows. A full-screen lit floor on a phone costs about half as much
 (see [Lighting on a phone](/docs/graphics/lighting/#lighting-on-a-phone)). Low and Medium are Direct, High is Full; sprites keep their 2D lighting either way.
-
-<Aside type="note">
-A row's "default" is the default of the level it is showing, so the same number can be a change at Low and the default
-at Medium.
-</Aside>
 
 **Detail distance** is the share of its distances a placed plant keeps at the level: at 0.5, a tree that changes to its
 cheaper mesh at 60 m and is not drawn as itself past 150 m does so at 30 m and 75 m, and its far cards take over sooner.
@@ -110,40 +129,49 @@ cannot be, and the texture is left at its size.
 
 ## Leaving effects out
 
-Every post-process effect the engine has is in the list, ticked where the level runs it. An unticked effect is skipped
-at that level wherever a camera's volume asks for it — and all of it: an effect with several passes, such as Ambient
-Occlusion or Auto Exposure, is removed whole. The manifest holds the effects left out by type:
+Every post-process effect the engine has is ticked, per level, in the group it belongs to. An unticked effect is skipped at
+that level wherever a camera's volume asks for it — and all of it: an effect with several passes, such as Ambient Occlusion or
+Auto Exposure, is removed whole. The manifest holds the effects left out by type:
 
 ```json
 "quality": { "mode": "auto", "profiles": { "low": { "skipEffects": ["ssr", "taa", "depthOfField"] } } }
 ```
 
-By default Low leaves out reflections, temporal anti-aliasing, depth of field, light shafts, motion blur, lens flare, GTAO, subsurface scattering and voxel GI; Medium leaves out
-reflections and depth of field; High leaves out nothing. These defaults follow the work each effect does per pixel; they
-are **not** measured on weak devices. The editor's `fx-cost` check measures each effect's cost on the machine it runs on,
-which is a way to find out what yours costs before choosing what a level skips.
+By default Low leaves out reflections, temporal anti-aliasing, depth of field, light shafts, motion blur, lens flare, ambient
+occlusion (SSAO and GTAO), subsurface scattering, voxel GI and dynamic GI; Medium leaves out reflections and depth of field;
+High leaves out nothing. These defaults follow the work each effect does per pixel; they are **not** measured on weak devices.
+The editor's `fx-cost` check measures each effect's cost on the machine it runs on, which is a way to find out what yours
+costs before choosing what a level skips.
+
+This list is the only thing that says whether ambient occlusion runs. A profile written before it may hold `"ssao": false`,
+which is read as `ssao` and `gtao` in the list, or `"ssao": true`, which takes `ssao` off it; the editor writes the list
+instead the next time that level's effects are ticked. A player's `quality.setPreferences({ ssao: false })` reads the same way.
 
 ## Effect resolution
 
-Some effects already work at half the picture's size and are laid back over it, because what they work out is smooth: ambient
-occlusion (SSAO and GTAO), the light in height fog, screen-space GI, the voxel GI's gather on WebGL2 and lens flare.
-**Effect resolution** (`effectResolution`) multiplies that size: 1 draws them as authored, at half the picture
-on a side; 0.5 at a quarter and 0.25 at an eighth. Each effect stops at its own smallest size, below which its picture breaks
-up, and nothing else moves: tone mapping, FXAA, grading and every other pass over the whole picture always run at the full
+Some effects already work at half the picture's size and are laid back over it, because what they work out is smooth. Each has
+a resolution of its own, in the group the effect belongs to, which multiplies that size: 1 draws it as authored, at half the
+picture on a side; 0.5 at a quarter and 0.25 at an eighth, down to the effect's own smallest size, below which its picture
+breaks up. Nothing else moves: tone mapping, FXAA, grading and every other pass over the whole picture always run at the full
 size, or the whole frame would go soft.
 
-| Level | Default | What it means |
-|---|---|---|
-| Low | 0.25 | ambient occlusion at a quarter; fog light, screen-space GI and lens flare at an eighth |
-| Medium | 0.5 | all of them at a quarter |
-| High | 1 | as authored, at half |
+| Setting | Effect | Group | Smallest |
+|---|---|---|---|
+| Ambient occlusion resolution (`aoResolution`) | SSAO and GTAO | Global Illumination & Occlusion | a quarter |
+| Screen-space GI resolution (`ssgiResolution`) | screen-space GI | Global Illumination & Occlusion | an eighth |
+| Voxel GI gather resolution (`voxelGIResolution`) | the voxel GI gather on WebGL2 | Global Illumination & Occlusion | a quarter |
+| Fog volume resolution (`fogResolution`) | the light in height fog | Sky & Volumetrics | an eighth |
+| Lens flare resolution (`lensFlareResolution`) | lens flare | Post-Processing | an eighth |
+
+Each is 0.25 at Low, 0.5 at Medium and 1 at High: at Low, ambient occlusion and the voxel gather stop at their quarter and the
+others are drawn at an eighth; at Medium all of them at a quarter; at High as authored.
 
 ```json
-"quality": { "profiles": { "medium": { "effectResolution": 0.25 } } }
+"quality": { "profiles": { "medium": { "aoResolution": 0.25, "fogResolution": 0.25 } } }
 ```
 
-A game's own settings screen can change it over the level, as it can the render scale: `quality.setPreferences({ effectResolution: 0.5 })`
-on the `Quality` resource, and `setPreferences(null)` gives the level's value back.
+A game's own settings screen can change each over the level, as it can the render scale: `quality.setPreferences({ fogResolution: 0.5 })`
+on the `Quality` resource, and `setPreferences(null)` gives the level's values back.
 
 Where each effect stops, and why there, was judged from screenshots of `third-person-3d`, `terrain-water` and `bistro` at
 a phone's size (390 × 844 at a pixel ratio of 2.5):
@@ -153,14 +181,14 @@ a phone's size (390 × 844 at a pixel ratio of 2.5):
 | Ambient occlusion (SSAO, GTAO) | a quarter | at an eighth the occlusion stains a flat face in blocks and bleeds onto the box that casts it |
 | Fog light, screen-space GI, lens flare | an eighth | at a sixteenth the bounced light on `bistro`'s doors shifts to a smooth wash |
 | Voxel GI gather (WebGL2) | a quarter | not measured; held where ambient occlusion is |
-| Sky clouds | stays at half | at a quarter the clouds' edges streak vertically; they do not take the setting |
-| Bloom | stays at half | its first step reads the whole picture with a fixed set of taps, and drawn at a quarter it cost more, not less (0.12 ms against 0.15 on `bistro` at Medium); it does not take the setting |
+| Sky clouds | stays at half | at a quarter the clouds' edges streak vertically; no setting takes their size |
+| Bloom | stays at half | its first step reads the whole picture with a fixed set of taps, and drawn at a quarter it cost more, not less (0.12 ms against 0.15 on `bistro` at Medium); no setting takes its size |
 
 The occlusion term is laid back over the picture by depth, and how far apart two depths may be and still be the same surface
 grows with how much smaller the term is drawn, so a quarter-size term does not band on ground seen at a grazing angle.
 
 Measured in a headless Chromium on the Windows box (RTX 3060, ANGLE on D3D11) at 975 × 2110, GPU time per pass from timer queries, each
-level as it was (effect resolution 1) against its new default. The box's milliseconds are not a phone's; what carries over is the
+level as it was (every effect at resolution 1) against its new defaults. The box's milliseconds are not a phone's; what carries over is the
 pixels each pass draws, which fall to a quarter for every halving.
 
 | Scene, level | Passes made smaller | Pixels before → after | Those passes, ms | Whole frame, ms |
@@ -232,3 +260,8 @@ For a still screen (a menu, a card table) the better saving is to draw nothing: 
 
 The same settings are `QualityConfig` — `QualityController`, `parseQualityConfig`, `resolveQualityProfile` and
 `defaultQualityProfile` build and read them — and the running level is the `Quality` resource.
+
+Every per-level setting is one entry of `QUALITY_SETTINGS`, declared in the file of its group under
+`sdk/src/render/qualitySettings/`. An entry gives its key, its kind (a number with a range, a switch, a choice of numbers or a
+choice of names), its three defaults, its group, and its label and description in English and Chinese; the profile's type, its
+defaults, its parsing, a player preference where the entry allows one and the editor's row are all made from it.

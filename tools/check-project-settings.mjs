@@ -42,7 +42,7 @@
  *
  * No answer is not an option: a setting nobody decided about fails here.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { ROOT, read } from './lib/repo.mjs';
@@ -277,43 +277,15 @@ const BLOCKS = [
       renderOnDemand: { ui: 'project.rendering.quality.renderOnDemand' },
       power: { ui: 'project.rendering.quality.power' },
       renderOnDemandTail: { ui: 'project.rendering.quality.renderOnDemandTail' },
-      profiles: { ui: 'project.rendering.quality.renderScale' },
+      profiles: { uiPrefix: 'project.rendering.quality.' },
       deviceRules: { ui: 'project.rendering.qualityDeviceRules' },
     },
   },
   {
     name: 'QualityProfile', file: 'sdk/src/render/quality.ts',
+    table: { dir: 'sdk/src/render/qualitySettings', row: '`project.rendering.quality.${setting.key}`', loop: 'for (const setting of QUALITY_SETTINGS) registerTableRow(' },
     keys: {
-      renderScale: { ui: 'project.rendering.quality.renderScale' },
-      minRenderScale: { ui: 'project.rendering.quality.minRenderScale' },
-      msaaSamples: { ui: 'project.rendering.quality.msaaSamples' },
-      antialiasing: { ui: 'project.rendering.quality.antialiasing' },
-      shadowAtlasSize: { ui: 'project.rendering.quality.shadowAtlasSize' },
-      shadowCellSize: { ui: 'project.rendering.quality.shadowCellSize' },
-      shadowCascades: { ui: 'project.rendering.quality.shadowCascades' },
-      shadowDistance: { ui: 'project.rendering.quality.shadowDistance' },
-      detailScale: { ui: 'project.rendering.quality.detailScale' },
-      particleLimit: { ui: 'project.rendering.quality.particleLimit' },
-      planarReflectionScale: { ui: 'project.rendering.quality.planarReflectionScale' },
-      planarReflectionMaxSize: { ui: 'project.rendering.quality.planarReflectionMaxSize' },
-      planarReflectionUpdatesPerSecond: { ui: 'project.rendering.quality.planarReflectionUpdatesPerSecond' },
-      depthPrepass: { ui: 'project.rendering.quality.depthPrepass' },
-      stillSky: { owed: 'whether a sky declared still is drawn from its panorama on this level is set only in project.esproject; it wants a row beside depthPrepass' },
-      postProcess: { ui: 'project.rendering.quality.postProcess' },
-      ssao: { ui: 'project.rendering.quality.effects' },
-      waterWaves: { ui: 'project.rendering.quality.waterWaves' },
-      waterRippleCells: { ui: 'project.rendering.quality.waterRippleCells' },
-      waterDisplacement: { ui: 'project.rendering.quality.waterDisplacement' },
-      waterMirror: { ui: 'project.rendering.quality.waterMirror' },
-      waterCaustics: { ui: 'project.rendering.quality.waterCaustics' },
-      shelterMaskSize: { ui: 'project.rendering.quality.shelterMaskSize' },
-      shadowSoftSamples: { ui: 'project.rendering.quality.shadowSoftSamples' },
-      lighting: { ui: 'project.rendering.quality.lighting' },
-      dynamicGIReduced: { ui: 'project.rendering.quality.dynamicGIReduced' },
-      drawCallBudget: { ui: 'project.rendering.quality.drawCallBudget' },
-      textureStreaming: { ui: 'project.rendering.quality.textureStreaming' },
-      textureStreamingBudget: { ui: 'project.rendering.quality.textureStreamingBudget' },
-      skipEffects: { ui: 'project.rendering.quality.effects' },
+      skipEffects: { uiPrefix: 'project.rendering.quality.effects.' },
     },
   },
   {
@@ -327,7 +299,7 @@ const BLOCKS = [
 
 /** The member names of an interface, from its source text. */
 function interfaceKeys(src, name) {
-  const at = src.indexOf(`export interface ${name} {`);
+  const at = src.search(new RegExp(`export interface ${name}( extends [\\w, ]+)? \\{`));
   if (at < 0) return null;
   const body = src.slice(at);
   const end = body.indexOf(String.fromCharCode(10) + '}');
@@ -343,9 +315,25 @@ function rowRegistered(id) {
   return settingsSrc.includes(`\`${prefix}\${`) && settingsSrc.includes(`'${key}'`);
 }
 
+function tableKeys(table) {
+  const dir = path.join(ROOT, table.dir);
+  return readdirSync(dir).filter((f) => f.endsWith('.ts'))
+    .flatMap((f) => [...readFileSync(path.join(dir, f), 'utf8').matchAll(/^ {8}key: '(\w+)',$/gm)].map((m) => m[1]));
+}
+
 for (const block of BLOCKS) {
   const keys = interfaceKeys(read(block.file), block.name);
   if (!keys) { problems.push(`${block.name}: not found in ${block.file} — has it moved?`); continue; }
+  if (block.table) {
+    const rows = settingsSrc.includes(block.table.row) && settingsSrc.includes(block.table.loop);
+    const declared = tableKeys(block.table);
+    if (declared.length === 0) problems.push(`${block.name}: no settings declared under ${block.table.dir} — has the table moved?`);
+    if (!rows) problems.push(`${block.name}: the settings sources no longer make a row ${block.table.row} for each entry of the table`);
+    for (const key of declared) {
+      if (keys.includes(key)) problems.push(`${block.name}.${key} is declared both in the interface and in ${block.table.dir}`);
+      if (block.keys[key]) problems.push(`${block.name}.${key} comes from ${block.table.dir}, which gives it a row; remove its entry here`);
+    }
+  }
   for (const key of keys) {
     const answer = block.keys[key];
     if (!answer) {
@@ -354,6 +342,7 @@ for (const block of BLOCKS) {
       continue;
     }
     if (answer.ui && !rowRegistered(answer.ui)) problems.push(`${block.name}.${key} claims the row ${answer.ui}, which no settings file registers`);
+    if (answer.uiPrefix && !settingsSrc.includes(`\`${answer.uiPrefix}\${`)) problems.push(`${block.name}.${key} claims rows under ${answer.uiPrefix}, which no settings file builds`);
     if (answer.owed) owed.push(`  ${block.name}.${key} → ${answer.owed}`);
     if ((answer.manual || answer.internal) === '') problems.push(`${block.name}.${key} declares a reason that is empty`);
   }

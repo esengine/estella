@@ -153,6 +153,7 @@ export function registerUnderwaterEffect(): void {
         type: 'underwater',
         label: 'Underwater',
         category: 'atmosphere',
+        qualityGroup: 'water',
         factory: () => Material.compileShader(SOURCE),
         uniforms: [
             // Per WORLD unit of water: how much of the light a unit takes out (times each colour's absorption).
