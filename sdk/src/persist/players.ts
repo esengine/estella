@@ -154,6 +154,45 @@ export class PlayerPersistence<T> {
         return entry;
     }
 
+    /**
+     * Write several players' records as one: all of them, or none. For what
+     * must not half-happen — a trade between two players, a gift that leaves
+     * one inventory for another. Each record is written as it is now, against
+     * the version it was loaded at; if anyone else wrote one of them meanwhile,
+     * nothing is written and this rejects with `PersistConflict` (the records
+     * stay changed in memory and dirty, for the game to undo or retry). Every
+     * player must be loaded here, and the store must do transactions.
+     */
+    saveTogether(playerIds: readonly string[]): Promise<void> {
+        const entries = playerIds.map((id) => this.requireReady_(id));
+        const datas = entries.map((e) => e.data as T);
+        for (const e of entries) e.dirty = false;
+        return this.enqueueMany_(playerIds, async () => {
+            try {
+                const versions = await this.book_.saveMany(playerIds.map((id, i) => ({
+                    key: id, data: datas[i]!, expectVersion: entries[i]!.version,
+                })));
+                versions.forEach((v, i) => { entries[i]!.version = v; });
+            } catch (err) {
+                for (const e of entries) e.dirty = true;
+                throw err;
+            }
+        });
+    }
+
+    /** Run `op` after every one of these players' queued operations, holding them all until it is done. */
+    private enqueueMany_(playerIds: readonly string[], op: () => Promise<void>): Promise<void> {
+        this.inFlight_++;
+        const prev = Promise.all(playerIds.map((id) => (this.queue_.get(id) ?? Promise.resolve()).catch(() => undefined)));
+        const next = prev.then(op).finally(() => {
+            this.inFlight_--;
+            for (const id of playerIds) if (this.queue_.get(id) === tail) this.queue_.delete(id);
+        });
+        const tail = next.catch(() => undefined);
+        for (const id of playerIds) this.queue_.set(id, tail);
+        return next;
+    }
+
     private enqueue_(playerId: string, op: () => Promise<void>): Promise<void> {
         this.inFlight_++;
         const prev = this.queue_.get(playerId) ?? Promise.resolve();

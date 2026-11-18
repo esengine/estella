@@ -384,8 +384,11 @@ What a server holds dies with its process unless it is written somewhere.
   version it read (`expectVersion`, `0` for "must not exist") and is refused
   with `PersistConflict` if someone wrote in between. `MemoryStore` is for tests;
   `FileStore(dir)` keeps one file per key and replaces it atomically, for a
-  server that runs as one process. For several processes, implement the four
-  methods over your database, with `expectVersion` as a real compare-and-set.
+  server that runs as one process. `transact(ops)` writes several keys all or
+  none (`FileStore` through a journal a crash cannot leave half-applied). For
+  several processes, put one store behind a `StoreHub` and give each process a
+  `RemoteStore` (below), or implement the methods over your database, with
+  `expectVersion` as a real compare-and-set.
 - **Records.** `RecordBook` writes each record with its schema version and
   reads it back through `migrations` (`migrations[n]` upgrades n to n + 1), the
   same contract the client-side `SaveManager` keeps.
@@ -428,6 +431,35 @@ players.set(playerId, { pawn: snapshotEntity(app.world, pawn, { include: ['Trans
 await players.flush();
 await world.flush(app.world);
 ```
+
+**Several players at once.** `players.saveTogether(['ana', 'bo'])` writes both
+records as one transaction, each against the version it was loaded at — a
+trade, a gift, anything that must not half-happen. If either was written
+meanwhile, neither is written and it rejects with `PersistConflict`.
+
+**One store for many processes.** `StoreHub` serves any store over WebSockets;
+each server process uses a `RemoteStore`, which is a store itself — so records,
+leases, tickets and transactions behave across processes as in one, because
+every versioned write runs where the store is:
+
+```ts
+import { FileStore, StoreHub, RemoteStore } from 'esengine/persist';
+
+// the process that owns the data
+const hub = new StoreHub(new FileStore('data'), { secret: process.env.STORE_SECRET });
+storeWss.on('connection', (socket) => hub.accept(socket));
+
+// every server process
+const store = new RemoteStore({
+    connect: () => createSocket({ url: 'ws://store.internal:7000' }),
+    secret: process.env.STORE_SECRET,
+});
+```
+
+A call made while the hub is out of reach waits for it (`timeoutMs`, 10 s); a
+call sent before a drop and not answered fails rather than being sent twice —
+a versioned write tells on a retry whether it had happened. The hub checks a
+shared secret and nothing finer: it is for a private network.
 
 What a record holds, when the world is flushed, and which database backs the
 store are the game's. Nothing here runs on the client.

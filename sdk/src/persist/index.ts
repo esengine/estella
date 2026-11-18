@@ -11,11 +11,16 @@
 export {
     MemoryStore,
     PersistConflict,
+    type PersistOp,
     type PersistStore,
     type PersistWriteOptions,
     type StoredDocument,
 } from './store';
 export { FileStore } from './fileStore';
+export {
+    StoreHub, RemoteStore, StoreUnavailable,
+    type StoreHubOptions, type StoreHubSocket, type RemoteStoreOptions,
+} from './remote';
 export { RecordBook, type RecordBookOptions, type RecordEnvelope, type LoadedRecord } from './records';
 export { snapshotEntity, restoreEntity, type EntitySnapshot, type EntitySnapshotOptions } from './entitySnapshot';
 export { PlayerPersistence, type PlayerPersistenceOptions } from './players';

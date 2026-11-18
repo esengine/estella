@@ -9,7 +9,7 @@
  *          versioned per write so a stale copy cannot overwrite a newer one.
  */
 import { migrateSaveData, type SaveMigration } from '../scene/saveGame';
-import type { PersistStore } from './store';
+import type { PersistOp, PersistStore } from './store';
 
 /** What is stored under a record's key. */
 export interface RecordEnvelope<T = unknown> {
@@ -74,6 +74,21 @@ export class RecordBook<T> {
     save(key: string, data: T, expectVersion?: number): Promise<number> {
         const env: RecordEnvelope<T> = { schema: this.schema, savedAt: this.now_(), data };
         return this.store.put(this.prefix + key, env, expectVersion === undefined ? {} : { expectVersion });
+    }
+
+    /**
+     * Write several records at once, all or none (the store's `transact`). Each
+     * names the version it was loaded at; one written meanwhile by someone else
+     * fails the lot with `PersistConflict`. Returns the new versions.
+     */
+    saveMany(records: readonly { key: string; data: T; expectVersion?: number }[]): Promise<number[]> {
+        if (!this.store.transact) return Promise.reject(new Error('[persist] this store has no transactions'));
+        const savedAt = this.now_();
+        const ops: PersistOp[] = records.map((r) => {
+            const value: RecordEnvelope<T> = { schema: this.schema, savedAt, data: r.data };
+            return r.expectVersion === undefined ? { key: this.prefix + r.key, value } : { key: this.prefix + r.key, value, expectVersion: r.expectVersion };
+        });
+        return this.store.transact(ops);
     }
 
     delete(key: string, expectVersion?: number): Promise<boolean> {

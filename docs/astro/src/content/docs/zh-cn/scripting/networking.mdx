@@ -322,7 +322,9 @@ clientNet.client.sendInput({ move: { x: 1, y: 0 } });  // pawn 立刻动
 - **存储。** `PersistStore` 是一个很小的异步文档存储：键、JSON 值，以及每次写入加一的版本号。
   写入可以带上读到的版本(`expectVersion`，`0` 表示"必须不存在")，若中间有人写过，会以
   `PersistConflict` 拒绝。`MemoryStore` 用于测试；`FileStore(dir)` 每个键一个文件、原子替换，
-  适合单进程服务器。多进程时用你的数据库实现这四个方法，把 `expectVersion` 做成真正的比较并交换。
+  适合单进程服务器。`transact(ops)` 把多个键作为一个整体写入，要么全部成功要么都不生效(`FileStore` 通过预写日志
+  实现，崩溃不会留下写了一半的状态)。多进程时，把一个存储放在 `StoreHub` 后面，每个进程用一个 `RemoteStore`(见下文)，
+  或者用你的数据库实现这些方法，把 `expectVersion` 做成真正的比较并交换。
 - **记录。** `RecordBook` 写入时带上数据的 schema 版本，读出时经 `migrations` 升到当前版本
   (`migrations[n]` 把 n 升到 n + 1)，与客户端 `SaveManager` 的约定相同。
 - **实体快照。** `snapshotEntity(world, e, { include })` 和 `restoreEntity(world, snapshot, into?)`
@@ -358,6 +360,30 @@ players.set(playerId, { pawn: snapshotEntity(app.world, pawn, { include: ['Trans
 await players.flush();
 await world.flush(app.world);
 ```
+
+**多个玩家一起写。** `players.saveTogether(['ana', 'bo'])` 把两条记录作为一个事务写入，各自对照加载时的版本——
+交易、赠送，任何不能只做一半的事。其中任意一条在此期间被别人写过，就两条都不写，并以 `PersistConflict` 拒绝。
+
+**多个进程共用一个存储。** `StoreHub` 把任意存储通过 WebSocket 提供出去；每个服务器进程用一个 `RemoteStore`，
+它本身就是一个存储——所以记录、租约、票据和事务跨进程时与单进程时行为一致，因为每次按版本号的写入都在存储所在的
+地方执行：
+
+```ts
+import { FileStore, StoreHub, RemoteStore } from 'esengine/persist';
+
+// 持有数据的那个进程
+const hub = new StoreHub(new FileStore('data'), { secret: process.env.STORE_SECRET });
+storeWss.on('connection', (socket) => hub.accept(socket));
+
+// 每个服务器进程
+const store = new RemoteStore({
+    connect: () => createSocket({ url: 'ws://store.internal:7000' }),
+    secret: process.env.STORE_SECRET,
+});
+```
+
+存储暂时连不上时发起的调用会等它恢复(`timeoutMs`，10 秒)；断线前已发出、还没收到应答的调用会直接失败，而不会再发
+一次——重试时，按版本号的写入会告诉你它是否已经执行过。存储服务只校验一个共享密钥，没有更细的权限，只适合内网使用。
 
 记录里存什么、世界何时 flush、存储背后用哪个数据库，都由游戏决定。这里的东西都不在客户端运行。
 

@@ -25,6 +25,11 @@ export interface PersistWriteOptions {
     expectVersion?: number;
 }
 
+/** One write in a {@link PersistStore.transact}: a value to put, or a delete. */
+export type PersistOp =
+    | { key: string; value: unknown; expectVersion?: number }
+    | { key: string; delete: true; expectVersion?: number };
+
 /** A write refused because the document is not at the version the writer read. */
 export class PersistConflict extends Error {
     constructor(readonly key: string, readonly expected: number, readonly actual: number) {
@@ -47,6 +52,23 @@ export interface PersistStore {
     delete(key: string, options?: PersistWriteOptions): Promise<boolean>;
     /** Every key starting with `prefix` (all keys without one), in no particular order. */
     keys(prefix?: string): Promise<string[]>;
+    /**
+     * Several writes, all or none: every `expectVersion` is checked before
+     * anything is written, and a mismatch anywhere throws {@link PersistConflict}
+     * with nothing changed. Returns each key's new version (0 for a delete).
+     * Optional — a store that cannot do it leaves it out, and what needs it
+     * (`PlayerPersistence.saveTogether`) says so.
+     */
+    transact?(ops: readonly PersistOp[]): Promise<number[]>;
+}
+
+/** Refuse a transaction that names a key twice: which write would win is not a question it should answer. */
+export function checkDistinctKeys(ops: readonly PersistOp[]): void {
+    const seen = new Set<string>();
+    for (const op of ops) {
+        if (seen.has(op.key)) throw new Error(`[persist] a transaction names "${op.key}" twice`);
+        seen.add(op.key);
+    }
 }
 
 /** Throw the conflict a versioned write owes, if the versions disagree. */
@@ -84,5 +106,23 @@ export class MemoryStore implements PersistStore {
 
     async keys(prefix = ''): Promise<string[]> {
         return [...this.docs_.keys()].filter((k) => k.startsWith(prefix));
+    }
+
+    async transact(ops: readonly PersistOp[]): Promise<number[]> {
+        checkDistinctKeys(ops);
+        // Everything checked first; nothing written unless all of it holds.
+        const plans = ops.map((op) => {
+            const current = this.docs_.get(op.key)?.version ?? 0;
+            checkVersion(op.key, op.expectVersion, current);
+            if ('delete' in op) return { key: op.key, json: null, version: 0 };
+            const json = JSON.stringify(op.value);
+            if (json === undefined) throw new Error(`[persist] "${op.key}": the value is not JSON`);
+            return { key: op.key, json, version: current + 1 };
+        });
+        for (const p of plans) {
+            if (p.json === null) this.docs_.delete(p.key);
+            else this.docs_.set(p.key, { json: p.json, version: p.version });
+        }
+        return plans.map((p) => p.version);
     }
 }
