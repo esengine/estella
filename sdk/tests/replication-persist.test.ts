@@ -88,24 +88,36 @@ async function run(server: { tick: () => Promise<void> }, clients: App[], n: num
     }
 }
 
+/** Run until `done`, for a store on disk that answers when the machine lets it. */
+async function runUntil(server: { tick: () => Promise<void> }, clients: App[], done: () => boolean, ms = 5000) {
+    const end = Date.now() + ms;
+    while (!done() && Date.now() < end) {
+        await run(server, clients, 1);
+        await new Promise((r) => setTimeout(r, 5));
+    }
+    return done();
+}
+
 describe('a pawn kept across a server restart', () => {
     it('comes back where its player left it', async () => {
         const first = bootServer();
         const ana = await join(first.server, 'ana');
-        await run(first, [ana.app], 5);
+        expect(await runUntil(first, [ana.app], () => first.pawns.has('ana'))).toBe(true);
         const pawn = first.pawns.get('ana')!;
         expect(pawn).toBeDefined();
         first.app.world.update(pawn, Spot, (d) => { Object.assign(d as object, { x: 12, y: -3 }); });
         await run(first, [ana.app], 2);
 
         first.server.detachConnection(ana.link);
-        await run(first, [], 3);
+        expect(await runUntil(first, [], () => first.pawns.size === 0 && first.records.pendingOperations === 0)).toBe(true);
         await first.records.flush();
         expect(first.pawns.size).toBe(0);
 
         const second = bootServer();
         const back = await join(second.server, 'ana');
-        await run(second, [back.app], 5);
+        expect(await runUntil(second, [back.app], () => second.pawns.has('ana')
+            && back.app.world.getEntitiesWithComponents([Replicated]).some((e) => back.client.ownsEntity(e)))).toBe(true);
+        await run(second, [back.app], 2);
         const restored = second.pawns.get('ana')!;
         expect(second.app.world.tryGet(restored, Spot)).toEqual({ x: 12, y: -3 });
         // And the client sees it there, as its own.
